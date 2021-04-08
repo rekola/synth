@@ -2,12 +2,14 @@
 
 #include "Track.h"
 #include "Pattern.h"
+#include "Instrument.h"
+
+#include <memory>
 
 #define NOTEDOMAIN (float)1/4
 
 #define VOLGAIN 1.0f
 #define ACCENTAMT 1.5f
-#define WAVESIZE 1024
 #define MIDINOTES 128
 #define MAXOUTBUF 44100
 
@@ -25,7 +27,7 @@ class Synth {
 protected:
 
 private:
-  float waves[4][WAVESIZE], freqtab[MIDINOTES];
+  float freqtab[MIDINOTES];
   
   float mastervol;
   float gvol = 1.0; // (or 1.0 / trkcnt)
@@ -39,6 +41,7 @@ private:
   int delay1, delay2;
   float fd1, fd2, delaymix1, delaymix2;
 
+  std::vector<std::unique_ptr<Instrument> > instruments;
   std::vector<Track> trk;
   std::vector<Pattern> patt;
 };

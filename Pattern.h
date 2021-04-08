@@ -8,10 +8,6 @@
 #define PATTLEN 32
 #define MAXDELAYSAMPLES 44100 * 5
 
-// flags
-#define DELAYTRACK 0x1
-#define HPFILTER 0x2
-
 class Pattern {
  public:
   Pattern() { }
@@ -19,7 +15,7 @@ class Pattern {
   unsigned char getNote(size_t i) { return i < notes.size() ? notes[i] : 0; }
   void addNote(unsigned char n) { notes.push_back(n); }
 
-  void playNote(unsigned char note_data, float * freqtab, float fscaler) {
+  void playNote(unsigned char note_data, float * freqtab, float fscaler, float detune) {
     int note = note_data & 0x7f;
     int acct = note_data & 0x80;
     
@@ -35,37 +31,37 @@ class Pattern {
     }
   }
 
-  float updateADSR() {
+  float updateADSR(const Instrument & instrument) {
     float adsrvol = 0;
     
     switch (adsrstate) {
     case 0:
-      if (a == 0 || adsrpos >= a) {
+      if (instrument.getAttack() == 0 || adsrpos >= instrument.getAttack()) {
 	adsrstate++;
 	adsrpos = 0;
 	adsrvol = 1.0f;
       } else {
-	adsrvol = (float)adsrpos / a;
+	adsrvol = (float)adsrpos / instrument.getAttack();
       }
       break;
     case 1:
-      if (d == 0 || adsrpos >= d) {
+      if (instrument.getDecay() == 0 || adsrpos >= instrument.getDecay()) {
 	adsrstate++;
 	adsrpos = 0;
-	adsrvol = s;
+	adsrvol = instrument.getSustain();
       } else {
-	adsrvol = 1.0 - ((1.0 - s) * (float)adsrpos / d);
+	adsrvol = 1.0 - ((1.0 - instrument.getSustain()) * (float)adsrpos / instrument.getDecay());
       }
       break;
     case 2:
-      adsrvol = s;
+      adsrvol = instrument.getSustain();
       break;
     case 3:
-      if (r == 0 || adsrpos >= r) {
+      if (instrument.getRelease() == 0 || adsrpos >= instrument.getRelease()) {
 	adsrstate++;
 	adsrvol = 0;
       } else {
-	adsrvol = s - (s * (float)adsrpos / r);
+	adsrvol = instrument.getSustain() - (instrument.getSustain() * (float)adsrpos / instrument.getRelease());
       }
       break;
     default:
@@ -77,7 +73,9 @@ class Pattern {
     return adsrvol;
   }
   
-  float filtersample(float input) {
+  float filtersample(float input, const Instrument & instrument) {
+    float fcut = instrument.getFcut(), fres = instrument.getFres();
+    
     if (!(fcut < 1.0 || fres > 0.0)) return input;
       
     float si = input;
@@ -97,7 +95,7 @@ class Pattern {
     out4 = out3 + 0.3 * in4 + f * out4;  // Pole 4
     in4  = out3;
 
-    char type = flags & HPFILTER;
+    char type = instrument.getFlags() & HPFILTER;
     
     if (!type) return out4;
     else return si - out4;
@@ -123,18 +121,9 @@ class Pattern {
     *in2 += delaymix2 * y;
   }
 
-  Instrument instrument;
-
-  int a, d, r;
-  float s;
-  float vol;
-  unsigned char flags;
-  float detune;
-  float pan;
-  float fcut, fres;
-
-  // ?
-  float freq, fphase;
+  int instrument_id = 1;  
+  float freq = 0; // current frequency
+  float fphase = 0; // position in input waveform
   
   // adsr state
   int adsrstate, adsrpos, acc;
