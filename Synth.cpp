@@ -6,6 +6,10 @@
 #include <iostream>
 #include <cassert>
 
+#define NOTEDOMAIN (float)1/4
+#define VOLGAIN 1.0f
+#define ACCENTAMT 1.5f
+
 using namespace std;
 
 Synth::Synth(int samplerate, unsigned char *track) {
@@ -54,7 +58,7 @@ Synth::Synth(int samplerate, unsigned char *track) {
     instrument->setFlags(flags);
     instruments.push_back(move(instrument));
     						   
-    Pattern pattern;
+    Channel pattern;
     pattern.instrument_id = instrument_id;
     
     while (1) {

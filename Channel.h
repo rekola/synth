@@ -1,5 +1,5 @@
-#ifndef _PATTERN_H_
-#define _PATTERN_H_
+#ifndef _CHANNEL_H_
+#define _CHANNEL_H_
 
 #include "Instrument.h"
 
@@ -8,9 +8,9 @@
 #define PATTLEN 32
 #define MAXDELAYSAMPLES 44100 * 5
 
-class Pattern {
+class Channel {
  public:
-  Pattern() { }
+  Channel() { }
 
   unsigned char getNote(size_t i) { return i < notes.size() ? notes[i] : 0; }
   void addNote(unsigned char n) { notes.push_back(n); }

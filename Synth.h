@@ -1,19 +1,13 @@
 #ifndef _SYNTH_H_
 
 #include "Track.h"
-#include "Pattern.h"
+#include "Channel.h"
 #include "Instrument.h"
 
 #include <memory>
 
-#define NOTEDOMAIN (float)1/4
-
-#define VOLGAIN 1.0f
-#define ACCENTAMT 1.5f
 #define MIDINOTES 128
-#define MAXOUTBUF 44100
-
-#define MAXPATT 50
+// #define MAXOUTBUF 44100
 
 class Synth {
  public:
@@ -43,7 +37,7 @@ private:
 
   std::vector<std::unique_ptr<Instrument> > instruments;
   std::vector<Track> trk;
-  std::vector<Pattern> patt;
+  std::vector<Channel> patt;
 };
 
  #endif
