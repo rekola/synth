@@ -7,6 +7,7 @@
 
 #include <iostream>
 
+#define ALSA_PCM_NEW_HW_PARAMS_API
 #define PCM_DEVICE "default"
 
 using namespace std;
