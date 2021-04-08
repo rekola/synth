@@ -1,6 +1,8 @@
 #ifndef _PATTERN_H_
 #define _PATTERN_H_
 
+#include "Instrument.h"
+
 #include <vector>
 
 #define PATTLEN 32
@@ -16,8 +18,68 @@ class Pattern {
 
   unsigned char getNote(size_t i) { return i < notes.size() ? notes[i] : 0; }
   void addNote(unsigned char n) { notes.push_back(n); }
+
+  void playNote(unsigned char note_data, float * freqtab, float fscaler) {
+    int note = note_data & 0x7f;
+    int acct = note_data & 0x80;
+    
+    if (note > 1) {
+      freq = freqtab[note] * fscaler + detune;
+      acc = acct;
+      adsrstate = 0;
+      adsrpos = 0;
+      fphase = 0;
+    } else if (note == 1) {
+      adsrstate = 3;
+      adsrpos = 0;
+    }
+  }
+
+  float updateADSR() {
+    float adsrvol = 0;
+    
+    switch (adsrstate) {
+    case 0:
+      if (a == 0 || adsrpos >= a) {
+	adsrstate++;
+	adsrpos = 0;
+	adsrvol = 1.0f;
+      } else {
+	adsrvol = (float)adsrpos / a;
+      }
+      break;
+    case 1:
+      if (d == 0 || adsrpos >= d) {
+	adsrstate++;
+	adsrpos = 0;
+	adsrvol = s;
+      } else {
+	adsrvol = 1.0 - ((1.0 - s) * (float)adsrpos / d);
+      }
+      break;
+    case 2:
+      adsrvol = s;
+      break;
+    case 3:
+      if (r == 0 || adsrpos >= r) {
+	adsrstate++;
+	adsrvol = 0;
+      } else {
+	adsrvol = s - (s * (float)adsrpos / r);
+      }
+      break;
+    default:
+      adsrvol = 0;
+      break;
+    }
+    adsrpos++;
+
+    return adsrvol;
+  }
   
-  float filtersample(float input) {         
+  float filtersample(float input) {
+    if (!(fcut < 1.0 || fres > 0.0)) return input;
+      
     float si = input;
     float f = fcut * 1.16;
     float ff = f * f;
@@ -61,7 +123,8 @@ class Pattern {
     *in2 += delaymix2 * y;
   }
 
-  unsigned char type;
+  Instrument instrument;
+
   int a, d, r;
   float s;
   float vol;

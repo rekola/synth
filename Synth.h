@@ -13,12 +13,6 @@
 
 #define MAXPATT 50
 
-#define SINE 0
-#define SAW 1
-#define SQUARE 2
-#define NOISE 3 // metallic noise
-#define NOISE2 4 // real noise
-
 class Synth {
  public:
   Synth(int samplerate, unsigned char *track);

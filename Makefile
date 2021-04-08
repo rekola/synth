@@ -1,8 +1,8 @@
-OBJS = 4ksyna.o
+OBJS = 4ksyna.o SDLAudio.o AlsaAudio.o
 CC = g++
 
 CPPFLAGS = -O1 -Wall -std=c++1z
-LIBS = -lSDL  -lm
+LIBS = -lSDL -lm -lasound
 
 all:	intro
 
