@@ -17,7 +17,7 @@ class Synth {
  public:
   Synth(int samplerate, unsigned char *track);
   
-  short play(short *out, int len);
+  void play(float * out, size_t frames);
   float gettime() const {
     return (float)samplepos / srate;
   }
@@ -26,7 +26,6 @@ protected:
 
 private:
   float waves[4][WAVESIZE], freqtab[MIDINOTES];
-  float bufl[MAXOUTBUF], bufr[MAXOUTBUF];
   
   float mastervol;
   float gvol = 1.0; // (or 1.0 / trkcnt)

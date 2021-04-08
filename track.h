@@ -1,5 +1,5 @@
 unsigned char tr[] = {
-100,                                     // BPM
+130,                                     // BPM
 50,                                      // mastervol
 100, 100, 30, 30, 50, 50,                // delay parameters: delayl, delayr, feedbackl, feedbackr, mixl, mixr
 

@@ -17,13 +17,11 @@ AlsaAudio::start(Synth & synth) {
   snd_pcm_t *pcm_handle;
   snd_pcm_hw_params_t *params;
   snd_pcm_uframes_t frames;
-  char *buff;
-  int buff_size, loops;
 
   unsigned int rate = getFrequency();
 
   /* Open the PCM device in playback mode */
-  if (pcm = snd_pcm_open(&pcm_handle, PCM_DEVICE, SND_PCM_STREAM_PLAYBACK, 0) < 0) {
+  if ((pcm = snd_pcm_open(&pcm_handle, PCM_DEVICE, SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
     printf("ERROR: Can't open \"%s\" PCM device. %s\n", PCM_DEVICE, snd_strerror(pcm));
   }
 
@@ -32,19 +30,19 @@ AlsaAudio::start(Synth & synth) {
   snd_pcm_hw_params_any(pcm_handle, params);
 
   /* Set parameters */
-  if (pcm = snd_pcm_hw_params_set_access(pcm_handle, params, SND_PCM_ACCESS_RW_INTERLEAVED) < 0) {
+  if ((pcm = snd_pcm_hw_params_set_access(pcm_handle, params, SND_PCM_ACCESS_RW_INTERLEAVED)) < 0) {
     printf("ERROR: Can't set interleaved mode. %s\n", snd_strerror(pcm));
   }
 
-  if (pcm = snd_pcm_hw_params_set_format(pcm_handle, params, SND_PCM_FORMAT_S16_LE) < 0) {
+  if ((pcm = snd_pcm_hw_params_set_format(pcm_handle, params, SND_PCM_FORMAT_FLOAT_LE)) < 0) {
     printf("ERROR: Can't set format. %s\n", snd_strerror(pcm));
   }
 
-  if (pcm = snd_pcm_hw_params_set_channels(pcm_handle, params, getChannels()) < 0) {
+  if ((pcm = snd_pcm_hw_params_set_channels(pcm_handle, params, getChannels())) < 0) {
     printf("ERROR: Can't set channels number. %s\n", snd_strerror(pcm));
   }
 
-  if (pcm = snd_pcm_hw_params_set_rate_near(pcm_handle, params, &rate, 0) < 0) {
+  if ((pcm = snd_pcm_hw_params_set_rate_near(pcm_handle, params, &rate, 0)) < 0) {
     printf("ERROR: Can't set rate. %s\n", snd_strerror(pcm));
   }
 
@@ -54,7 +52,7 @@ AlsaAudio::start(Synth & synth) {
   }
 
   /* Write parameters */
-  if (pcm = snd_pcm_hw_params(pcm_handle, params) < 0) {
+  if ((pcm = snd_pcm_hw_params(pcm_handle, params)) < 0) {
     printf("ERROR: Can't set hardware parameters. %s\n", snd_strerror(pcm));
   }
 
@@ -77,15 +75,15 @@ AlsaAudio::start(Synth & synth) {
   /* Allocate buffer to hold single period */
   snd_pcm_hw_params_get_period_size(params, &frames, 0);
 
-  buff_size = frames * getChannels() * 2 /* 2 -> sample size */;
-  buff = (char *)malloc(buff_size);
+  size_t buff_size = frames * getChannels() * sizeof(float);
+  float * buff = (float *)malloc(buff_size);
   
   snd_pcm_hw_params_get_period_time(params, &tmp, NULL);
 
   while ( 1 ) {
-    synth.play((short *)buff, buff_size);
+    synth.play(buff, frames);
     
-    if (pcm = snd_pcm_writei(pcm_handle, buff, frames) == -EPIPE) {
+    if ((pcm = snd_pcm_writei(pcm_handle, buff, frames)) == -EPIPE) {
       printf("XRUN.\n");
       snd_pcm_prepare(pcm_handle);
     } else if (pcm < 0) {
