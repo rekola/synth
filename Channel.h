@@ -14,6 +14,7 @@ class Channel {
 
   unsigned char getNote(size_t i) { return i < notes.size() ? notes[i] : 0; }
   void addNote(unsigned char n) { notes.push_back(n); }
+  size_t size() const { return notes.size(); }
 
   void playNote(unsigned char note_data, float * freqtab, float fscaler, float detune) {
     int note = note_data & 0x7f;
