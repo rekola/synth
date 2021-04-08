@@ -1,18 +1,15 @@
 OBJS = 4ksyna.o
-CC = gcc
+CC = g++
 
-CFLAGS = -s -Os -Wall 
+CPPFLAGS = -O1 -Wall -std=c++1z
 LIBS = -lSDL  -lm
 
 all:	intro
 
 intro:	$(OBJS)
-	$(CC) $(LDFLAGS) $(OBJS) $(LIBS) -o intro
-	ls -l intro
+	$(CC) $(LDFLAGS) $(CPPFLAGS) $(OBJS) $(LIBS) -o intro
 clean:
 	rm *.o
-	rm final
 	rm intro
-	rm -rf dist srcdist
 
 .PHONY:	clean

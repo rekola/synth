@@ -1,9 +1,11 @@
 unsigned char tr[] = {
-132,                                     //BPM
-50,                                     //mastervol
-100, 100, 30, 30, 50, 50,                //delay parameters: delayl, delayr, feedbackl, feedbackr, mixl, mixr
-15,                                      //pattern count
-//type, asdr, vol, flags (0x1 = delaytrack, 0x2 = filter type), detune, pan, fcut, fres,   notedata (1 = end note, 255 = end pattern, |128 accent)
+100,                                     // BPM
+50,                                      // mastervol
+100, 100, 30, 30, 50, 50,                // delay parameters: delayl, delayr, feedbackl, feedbackr, mixl, mixr
+
+15,  // pattern count
+
+// type, asdr, vol, flags (0x1 = delaytrack, 0x2 = filter type), detune, pan, fcut, fres,   notedata (1 = end note, 255 = end pattern, |128 accent)
 SAW, 255, 64, 63, 0, 20, HPFILTER, 127, 10, 0, 5,  36, 255,
 SAW, 255, 64, 63, 0, 20, HPFILTER, 120, 127, 0, 5,  0, 0, 0, 0, 40, 255,
 SAW, 255, 64, 63, 0, 20, HPFILTER, 134, 247, 0, 5,  0, 0, 0, 0, 0, 0, 0, 0, 43, 255,
@@ -19,8 +21,8 @@ SAW, 0, 20, 0, 0, 128, DELAYTRACK, 127, 128, 63, 128,  0, 0, 0, 24, 255,
 SQUARE, 0, 14, 0, 0, 40, 0, 129, 190, 200, 20,  12, 12, 12, 24, 12, 12, 24, 12, 12, 12, 12, 24, 12, 12, 24, 12, 12, 12, 12, 24, 12, 12, 24, 12, 12, 12, 12, 24, 12, 12, 24, 12, 255,
 SINE, 0, 8, 0, 0, 200, 0, 127, 127, 244, 0,  24, 0, 0, 0, 24, 0, 0, 0, 24, 0, 0, 0, 24, 0, 0, 0, 24, 0, 0, 0, 24, 0, 0, 0, 24, 0, 0, 0, 24, 0, 0, 0, 255,
 NOISE, 0, 5, 0, 0, 240, 0, 127, 37, 150, 255,  0, 0, 24, 24, 0, 0, 24, 24, 24, 0, 24, 24, 0, 0, 24, 24, 24, 0, 24, 24, 0, 0, 24, 24, 48, 0, 24, 48, 48, 48, 24, 24, 255,
-14,                                      //track count
-//255 = end track
+
+14, // track count (255 = end track)
 6, 0, 6, 0, 6, 0, 6, 0, 255,
 6, 1, 6, 1, 6, 1, 6, 1, 255,
 6, 2, 6, 2, 6, 2, 6, 2, 255,
