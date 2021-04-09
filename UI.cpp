@@ -3,6 +3,8 @@
 #include <ncpp/Plane.hh>
 #include "Synth.h"
 #include "AudioAPI.h"
+#include "FFT.h"
+#include "SampleData.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -10,6 +12,7 @@
 #include <cassert>
 #include <unistd.h>
 #include <memory>
+#include <cmath>
 
 using namespace ncpp;
 using namespace std;
@@ -65,7 +68,7 @@ UI::readInput(Synth & synth) {
   if (nc->getc(true, &ni) != (char32_t)-1) {
     if (ni.ctrl && ni.id == 'L') {
       notcurses_refresh(*nc, NULL, NULL);
-    } else if (ni.ctrl && ni.id == 'w') {
+    } else if (ni.id == 'q' || ni.id == 'Q') {
       close_ui = true;
     } else if (ni.id == ' ') {
       if (synth.togglePlayback()) {
@@ -76,6 +79,15 @@ UI::readInput(Synth & synth) {
     }
   }
 }
+
+inline double GetFrequencyIntensity(double re, double im) {
+  return sqrt((re*re)+(im*im));
+}
+
+#define mag_sqrd(re,im) (re*re+im*im)
+#define Decibels(re,im) ((re == 0 && im == 0) ? (0) : 10.0 * log10(double(mag_sqrd(re,im))))
+#define Amplitude(re,im,len) (GetFrequencyIntensity(re,im)/(len))
+#define AmplitudeScaled(re,im,len,scale) ((int)Amplitude(re,im,len)%scale)
 
 void
 UI::start(Synth & synth, AudioAPI & audio) {
@@ -91,7 +103,7 @@ UI::start(Synth & synth, AudioAPI & audio) {
     
   // setStatus("Starting... nd = " + to_string(num_descriptors));
 
-  while ( 1 ) {
+  while ( !close_ui ) {
     // setStatus("polling");
     if (poll(descriptors.get(), num_descriptors, 1000) > 0) {
 
@@ -102,7 +114,8 @@ UI::start(Synth & synth, AudioAPI & audio) {
 	    setStatus("input");
 	    readInput(synth);
 	  } else {
-	    audio.play(synth, *this);
+	    auto data = synth.play(audio.getFrameCount());
+	    audio.play(data, *this);
 	  }
 	}
       }            

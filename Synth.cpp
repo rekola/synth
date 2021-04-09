@@ -1,9 +1,10 @@
 #include "Synth.h"
 
 #include "BasicInstrument.h"
+#include "FileInstrument.h"
+#include "SampleData.h"
 
 #include <cmath>
-#include <iostream>
 #include <cassert>
 
 #define NOTEDOMAIN (float)1/4
@@ -13,8 +14,6 @@
 using namespace std;
 
 Synth::Synth(int samplerate, unsigned char *track) {
-  cerr << "initializing synth\n";
-  
   fscaler = (float)WAVESIZE / samplerate;
   float k = 1.059463094359f;	// 12th root of 2
   float a = 8.1757989156f;	// C
@@ -101,14 +100,23 @@ Synth::Synth(int samplerate, unsigned char *track) {
   instruments.push_back(move(i7));
 
   // hihat (closed)
+#if 0
   auto i8 = make_unique<BasicInstrument>(WaveformType::NOISE);
   i8->setADSR(0, 3, 0, 0);
   i8->setVolume(63);
   i8->setDetune(127);
   i8->setPan(217);
   i8->setFilter(255, 0);  
+#else
+  auto i8 = make_unique<FileInstrument>("./samples/Closed-Hi-Hat-1.wav");
+  // i8->setADSR(0, 3, 0, 0);
+  // i8->setVolume(63);
+  // i8->setDetune(127);
+  i8->setPan(217);
+  // i8->setFilter(255, 0);  
+#endif
   instruments.push_back(move(i8));
-
+  
   // snare like
   auto i9 = make_unique<BasicInstrument>(WaveformType::NOISE);
   i9->setADSR(0, 15, 0, 0);
@@ -178,17 +186,15 @@ Synth::Synth(int samplerate, unsigned char *track) {
   int ptrncnt = *track++;
   
   for (int i = 0; i < ptrncnt; i++) {
-    int instrument_id = *track++;
-
     Channel pattern;
-    pattern.instrument_id = instrument_id;
+    pattern.instrument_id = *track++;
     
     while (1) {
       int val = *track++;
       if (val == 255) break;
       pattern.addNote(val);
     }
-
+    
     patt.push_back(pattern);
   }
 
@@ -211,8 +217,11 @@ Synth::Synth(int samplerate, unsigned char *track) {
   srate = samplerate;
 }
 
-void
-Synth::play(float * out, size_t frames) {
+SampleData
+Synth::play(size_t frames) {
+  SampleData data(frames);
+  float * out = data.data();
+    
   int solo_instrument = -1;
   for (size_t i = 0; i < instruments.size(); i++) {
     if (instruments[i]->getSolo()) solo_instrument = i;
@@ -242,8 +251,7 @@ Synth::play(float * out, size_t frames) {
 
       assert(j >= 0 && j < patt.size());
       auto & pattern = patt[j];
-      
-      
+            
       auto & instrument = instruments[pattern.instrument_id];
       float adsrvol = pattern.updateADSR(*instrument);
       float ss = instrument->getSample(pattern.fphase);
@@ -292,6 +300,11 @@ Synth::play(float * out, size_t frames) {
 	}
       }
     }
-    samplepos++;
+
+    if (is_playing) {
+      samplepos++;
+    }
   }
+
+  return data;
 }

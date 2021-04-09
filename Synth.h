@@ -9,27 +9,37 @@
 #define MIDINOTES 128
 // #define MAXOUTBUF 44100
 
+class SampleData;
+
 class Synth {
  public:
   Synth(int samplerate, unsigned char *track);
   
-  void play(float * out, size_t frames);
+  SampleData play(size_t frames);
   float gettime() const {
     return (float)samplepos / srate;
   }
 
+  bool togglePlayback() {
+    is_playing = !is_playing;
+    return is_playing;
+  }
+  bool isPlaying() const { return is_playing; }
+
 protected:
 
 private:
+  bool is_playing = true;
+  
   float freqtab[MIDINOTES];
   
-  float mastervol;
+  float mastervol = 1.0;
   float gvol = 1.0; // (or 1.0 / trkcnt)
-  float fscaler;
+  float fscaler = 1.0;
 
   unsigned char bpm, trkcnt;
-  int sinterval, samplepos = 0, ptrnpos = 0, trkpos = 0, srate, loops = 0;
-  size_t trkmaxlen = 0;
+  int sinterval, samplepos = 0, ptrnpos = 0, srate, loops = 0;
+  size_t trkpos = 0, trkmaxlen = 0;
   
   // global delay parameters
   int delay1, delay2;

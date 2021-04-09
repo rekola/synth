@@ -1,8 +1,8 @@
 #include "AlsaAudio.h"
 
-#include "Synth.h"
+#include "UIBase.h"
+#include "SampleData.h"
 
-#include <alsa/asoundlib.h>
 #include <stdio.h>
 
 #include <iostream>
@@ -12,87 +12,130 @@
 
 using namespace std;
 
+AlsaAudio::~AlsaAudio() {
+  if (pcm_handle) {
+    snd_pcm_drain(pcm_handle);
+    snd_pcm_close(pcm_handle);
+  }
+}
+
 void
-AlsaAudio::start(Synth & synth) {
-  unsigned int pcm, tmp, dir;
-  snd_pcm_t *pcm_handle;
-  snd_pcm_hw_params_t *params;
-  snd_pcm_uframes_t frames;
-
+AlsaAudio::initialize(UIBase & ui) {
   unsigned int rate = getFrequency();
+  int r;
 
-  /* Open the PCM device in playback mode */
-  if ((pcm = snd_pcm_open(&pcm_handle, PCM_DEVICE, SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
-    printf("ERROR: Can't open \"%s\" PCM device. %s\n", PCM_DEVICE, snd_strerror(pcm));
+  // Open the PCM device in playback mode
+  if ((r = snd_pcm_open(&pcm_handle, PCM_DEVICE, SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
+    ui.setStatus(string("ERROR: Can't open PCM device: ") + snd_strerror(r));
+    return;
   }
 
-  /* Allocate parameters object and fill it with default values*/
-  snd_pcm_hw_params_alloca(&params);
-  snd_pcm_hw_params_any(pcm_handle, params);
+  // Allocate parameters object and fill it with default values
+  snd_pcm_hw_params_t * hw_params;
+  snd_pcm_hw_params_alloca(&hw_params);
+  snd_pcm_hw_params_any(pcm_handle, hw_params);
 
-  /* Set parameters */
-  if ((pcm = snd_pcm_hw_params_set_access(pcm_handle, params, SND_PCM_ACCESS_RW_INTERLEAVED)) < 0) {
-    printf("ERROR: Can't set interleaved mode. %s\n", snd_strerror(pcm));
+  // Set parameters
+  if ((r = snd_pcm_hw_params_set_access(pcm_handle, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED)) < 0) {
+    ui.setStatus(string("ERROR: Can't set interleaved mode: ") + snd_strerror(r));
+    return;
   }
 
-  if ((pcm = snd_pcm_hw_params_set_format(pcm_handle, params, SND_PCM_FORMAT_FLOAT_LE)) < 0) {
-    printf("ERROR: Can't set format. %s\n", snd_strerror(pcm));
+  if ((r = snd_pcm_hw_params_set_format(pcm_handle, hw_params, SND_PCM_FORMAT_FLOAT_LE)) < 0) {
+    ui.setStatus(string("ERROR: Can't set format: ") + snd_strerror(r));
+    return;
   }
 
-  if ((pcm = snd_pcm_hw_params_set_channels(pcm_handle, params, getChannels())) < 0) {
-    printf("ERROR: Can't set channels number. %s\n", snd_strerror(pcm));
+  if ((r = snd_pcm_hw_params_set_channels(pcm_handle, hw_params, getChannels())) < 0) {
+    ui.setStatus(string("ERROR: Can't set channels number: ") + snd_strerror(r));
+    return;
   }
 
-  if ((pcm = snd_pcm_hw_params_set_rate_near(pcm_handle, params, &rate, 0)) < 0) {
-    printf("ERROR: Can't set rate. %s\n", snd_strerror(pcm));
+  if ((r = snd_pcm_hw_params_set_rate_near(pcm_handle, hw_params, &rate, 0)) < 0) {
+    ui.setStatus(string("ERROR: Can't set rate: ") + snd_strerror(r));
+    return;
   }
 
   if (rate != getFrequency()) {
-    cerr << "changing frequency to " << rate << endl;
+    ui.setStatus("Changing frequency to " + to_string(rate));
     setFrequency(rate);
   }
 
-  /* Write parameters */
-  if ((pcm = snd_pcm_hw_params(pcm_handle, params)) < 0) {
-    printf("ERROR: Can't set hardware parameters. %s\n", snd_strerror(pcm));
-  }
-
-  /* Resume information */
-  printf("PCM name: '%s'\n", snd_pcm_name(pcm_handle));
-  printf("PCM state: %s\n", snd_pcm_state_name(snd_pcm_state(pcm_handle)));
-
-  snd_pcm_hw_params_get_channels(params, &tmp);
-  printf("channels: %i ", tmp);
-
-  if (tmp == 1) {
-    printf("(mono)\n");
-  } else if (tmp == 2) {
-    printf("(stereo)\n");
-  }
-
-  snd_pcm_hw_params_get_rate(params, &tmp, 0);
-  printf("rate: %d bps\n", tmp);
-
-  /* Allocate buffer to hold single period */
-  snd_pcm_hw_params_get_period_size(params, &frames, 0);
-
-  size_t buff_size = frames * getChannels() * sizeof(float);
-  float * buff = (float *)malloc(buff_size);
+  unsigned int min_periods;
+  int dir;
   
-  snd_pcm_hw_params_get_period_time(params, &tmp, NULL);
+  if ((r = snd_pcm_hw_params_get_periods_min(hw_params, &min_periods, &dir)) < 0) {
+    ui.setStatus(string("ERROR: Can't get min periods: ") + snd_strerror(r));
+    return;
+  }
 
-  while ( 1 ) {
-    synth.play(buff, frames);
+  if ((r = snd_pcm_hw_params_set_periods(pcm_handle, hw_params, min_periods > 2 ? min_periods : 2, 0)) < 0) {
+    ui.setStatus(string("ERROR: Failed to set periods: ") + snd_strerror(r));
+    return;
+  }
+
+  snd_pcm_uframes_t min_period_size;
+  if ((r = snd_pcm_hw_params_get_period_size_min(hw_params, &min_period_size, &dir)) < 0) {
+    ui.setStatus(string("ERROR: Failed to get minimum period size: ") + snd_strerror(r));    
+    return;
+  }
+
+  if ((r = snd_pcm_hw_params_set_period_size(pcm_handle, hw_params, min_period_size > 512 ? min_period_size : 512, 0)) < 0) {
+    ui.setStatus(string("ERROR: Failed to set period size: ") + snd_strerror(r));
+    return;
+  }
+
+  // Write parameters
+  if ((r = snd_pcm_hw_params(pcm_handle, hw_params)) < 0) {
+    ui.setStatus(string("ERROR: Can't set hardware parameters: ") + snd_strerror(r));
+    return;
+  }
+
+  unsigned int channels;
+  if ((r = snd_pcm_hw_params_get_channels(hw_params, &channels)) < 0) {
+    ui.setStatus(string("ERROR: Failed to get channels: ") + snd_strerror(r));
+    return;
+  }
+
+  ui.setStatus(string("PCM: name = ") + string(snd_pcm_name(pcm_handle)) + string(", state = ") + string(snd_pcm_state_name(snd_pcm_state(pcm_handle))) + string(", channels = ") + to_string(channels));
+  
+  // snd_pcm_hw_params_get_rate(hw_params, &tmp, 0);
+  // printf("rate: %d bps\n", tmp);
+
+#if 1
+  snd_pcm_sw_params_t * sw_params;
+  snd_pcm_sw_params_alloca(&sw_params);
+  snd_pcm_sw_params_current(pcm_handle, sw_params);
+  snd_pcm_sw_params_set_avail_min(pcm_handle, sw_params, 512);
+#endif
+  
+  snd_pcm_uframes_t frames;
+  snd_pcm_hw_params_get_period_size(hw_params, &frames, 0);
+
+  buffer_size = frames * getChannels() * sizeof(float);
+
+  // snd_pcm_hw_params_get_period_time(params, &tmp, NULL);
+
+  size_t nfds = snd_pcm_poll_descriptors_count(pcm_handle);
+  struct pollfd * pfds = (struct pollfd *)alloca(sizeof(struct pollfd) * (nfds + 1));
     
-    if ((pcm = snd_pcm_writei(pcm_handle, buff, frames)) == -EPIPE) {
-      printf("XRUN.\n");
-      snd_pcm_prepare(pcm_handle);
-    } else if (pcm < 0) {
-      printf("ERROR. Can't write to PCM device. %s\n", snd_strerror(pcm));
-    }
+  if (snd_pcm_poll_descriptors(pcm_handle, pfds, nfds) < 0) {
+    cerr << "Error getting descriptor\n";
+    exit(1);
   }
-  
-  snd_pcm_drain(pcm_handle);
-  snd_pcm_close(pcm_handle);
-  free(buff);
+
+  for (size_t i = 0; i < nfds; i++) {
+    addPollDescriptor(pfds[i]);
+  }
+}
+
+void
+AlsaAudio::play(SampleData & data, UIBase & ui) {
+  int r;
+  if ((r = snd_pcm_writei(pcm_handle, data.data(), data.size())) == -EPIPE) {
+    ui.setStatus("XRUN.");
+    snd_pcm_prepare(pcm_handle);
+  } else if (r < 0) {
+    ui.setStatus(string("ERROR. Can't write to PCM device. ") + snd_strerror(r));
+  }
 }
