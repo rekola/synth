@@ -13,7 +13,7 @@ class SampleData;
 
 class Synth {
  public:
-  Synth(int samplerate, unsigned char *track);
+  explicit Synth(int samplerate, unsigned char *track);
   
   SampleData play(size_t frames);
   float gettime() const {

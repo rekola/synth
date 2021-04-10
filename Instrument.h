@@ -7,7 +7,7 @@
 
 class Instrument {
 public:
-  Instrument() { }
+  explicit Instrument() { }
   virtual ~Instrument() { }
 
   virtual float getSample(float fphase) const = 0;

@@ -9,7 +9,7 @@ class UIBase;
 
 class AudioAPI {
  public:
-  AudioAPI(unsigned int _frequency, unsigned short _channels) : frequency(_frequency), channels(_channels) { }
+  explicit AudioAPI(unsigned int _frequency, unsigned short _channels) : frequency(_frequency), channels(_channels) { }
   virtual ~AudioAPI() { }
   
   virtual void play(SampleData & data, UIBase & ui) = 0;

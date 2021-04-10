@@ -5,8 +5,8 @@
 
 class SampleData {
  public:
-  SampleData() : frames(0), _data(0) { }
-  SampleData(size_t _frames) : frames(_frames) {
+  explicit SampleData() : frames(0), _data(0) { }
+  explicit SampleData(size_t _frames) : frames(_frames) {
     _data = new float[2 * frames];
     memset(_data, 0, 2 * frames * sizeof(float));
   }

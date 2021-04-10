@@ -9,11 +9,9 @@
 
 class FileInstrument : public Instrument {
  public:
-  FileInstrument(const std::string & _filename) : filename(_filename) {
+  explicit FileInstrument(const std::string & _filename) : filename(_filename) {
     openFile();
   }
-
-  void openFile();
   
   float getSample(float fphase) const override {
     size_t i = (size_t)fphase;
@@ -23,7 +21,10 @@ class FileInstrument : public Instrument {
       return 0;
     }
   }
-  
+
+protected:
+  void openFile();
+
 private:
   std::string filename;
   std::vector<float> samples;

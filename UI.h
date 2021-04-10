@@ -17,7 +17,7 @@ class AudioAPI;
 
 class UI : public UIBase {
  public:
-  UI() { }
+  explicit UI() { }
   ~UI();
   
   void initialize();

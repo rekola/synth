@@ -5,7 +5,7 @@
 
 class SDLAudio : public AudioAPI {
  public:
-  SDLAudio(int _freq, int _channels) : AudioAPI(_freq, _channels) { }
+  explicit SDLAudio(int _freq, int _channels) : AudioAPI(_freq, _channels) { }
 
   void start(Synth & synth) override;
 };

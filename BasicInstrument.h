@@ -10,7 +10,7 @@
 
 class BasicInstrument : public Instrument {
  public:
-  BasicInstrument(WaveformType _type) : type(_type) {
+  explicit BasicInstrument(WaveformType _type) : type(_type) {
     
   }
 

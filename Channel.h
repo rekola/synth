@@ -10,7 +10,7 @@
 
 class Channel {
  public:
-  Channel() { }
+  explicit Channel() { }
 
   unsigned char getNote(size_t i) const { return i < notes.size() ? notes[i] : 0; }
   void addNote(unsigned char n) { notes.push_back(n); }

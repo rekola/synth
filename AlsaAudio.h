@@ -7,7 +7,7 @@
 
 class AlsaAudio : public AudioAPI {
  public:
- AlsaAudio(int _freq, int _channels) : AudioAPI(_freq, _channels) { }
+  explicit AlsaAudio(int _freq, int _channels) : AudioAPI(_freq, _channels) { }
   ~AlsaAudio();
 
   void initialize(UIBase & ui);

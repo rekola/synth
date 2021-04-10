@@ -5,7 +5,7 @@
 
 class UIBase {
  public:
-  UIBase() { }
+  explicit UIBase() { }
   virtual ~UIBase() { }
 
   virtual void setStatus(const std::string & s) = 0;
