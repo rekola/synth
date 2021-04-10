@@ -26,6 +26,11 @@ class Synth {
   }
   bool isPlaying() const { return is_playing; }
 
+  const size_t getCurrentPosition() const { return trkpos * PATTLEN + ptrnpos; }
+  const size_t getPatternPosition() const { return ptrnpos; }
+  const Track & getCurrentTrack() const { return trkpos < trk.size() ? trk[trkpos] : empty_track; }
+  const Channel & getPattern(size_t i) const { return i < patt.size() ? patt[i] : empty_pattern; }
+  
 protected:
 
 private:
@@ -48,6 +53,9 @@ private:
   std::vector<std::unique_ptr<Instrument> > instruments;
   std::vector<Track> trk;
   std::vector<Channel> patt;
+
+  Track empty_track;
+  Channel empty_pattern;
 };
 
  #endif
