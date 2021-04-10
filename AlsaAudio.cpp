@@ -80,7 +80,9 @@ AlsaAudio::initialize(UIBase & ui) {
     return;
   }
 
-  if ((r = snd_pcm_hw_params_set_period_size(pcm_handle, hw_params, min_period_size > 512 ? min_period_size : 512, 0)) < 0) {
+  int wanted_period = 4096;
+  
+  if ((r = snd_pcm_hw_params_set_period_size(pcm_handle, hw_params, min_period_size > wanted_period ? min_period_size : wanted_period, 0)) < 0) {
     ui.setStatus(string("ERROR: Failed to set period size: ") + snd_strerror(r));
     return;
   }
@@ -102,12 +104,10 @@ AlsaAudio::initialize(UIBase & ui) {
   // snd_pcm_hw_params_get_rate(hw_params, &tmp, 0);
   // printf("rate: %d bps\n", tmp);
 
-#if 1
   snd_pcm_sw_params_t * sw_params;
   snd_pcm_sw_params_alloca(&sw_params);
   snd_pcm_sw_params_current(pcm_handle, sw_params);
-  snd_pcm_sw_params_set_avail_min(pcm_handle, sw_params, 512);
-#endif
+  snd_pcm_sw_params_set_avail_min(pcm_handle, sw_params, wanted_period);
   
   snd_pcm_uframes_t frames;
   snd_pcm_hw_params_get_period_size(hw_params, &frames, 0);
