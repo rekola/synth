@@ -12,11 +12,13 @@
 #include <unistd.h>
 #include <memory>
 #include <cmath>
+#include <fmt/core.h>
 
 #include <sys/time.h>
 
 using namespace ncpp;
 using namespace std;
+using namespace fmt;
 
 static inline long long now() {
   struct timeval tv;
@@ -117,8 +119,6 @@ UI::initialize() {
   right_plot = std::make_shared<PlotD>(*right_plot_plane, &opts);
 
   score_plane = std::make_shared<Plane>(rows - 11, cols, 9, 0);
-  score_plane->set_fg_rgb8(0xc0, 0x80, 0xc0);
-  score_plane->set_bg_rgb8(0x20, 0x00, 0x20);
   score_plane->set_base("", 0, CHANNELS_RGB_INITIALIZER(0xc0, 0x80, 0xc0, 0x20, 0, 0x20));
   score_plane->set_scrolling(true);
   // score_plane->rounded_box(NCSTYLE_NONE, CHANNELS_RGB_INITIALIZER(0xc0, 0x80, 0xc0, 0x20, 0, 0x20), 0, 0, 0);
@@ -177,6 +177,47 @@ UI::readInput(Synth & synth) {
 }
 
 void
+UI::renderInfo(Synth & synth) {
+  auto s0 = format("{:02x}", synth.getCurrentPosition());
+  info_line->putstr(0, 0, s0.c_str());
+}
+
+void
+UI::renderScore(Synth & synth) {
+  size_t rows = score_plane->get_dim_y(), cols = score_plane->get_dim_x();
+  auto & track = synth.getCurrentTrack();
+  size_t num_patterns = track.size();
+  score_plane->set_fg_rgb8(0x80, 0xc0, 0x80);
+  for (size_t row = 0; row < rows; row++) {
+    bool is_current_row = row == synth.getPatternPosition();
+
+    if (is_current_row) {
+      score_plane->set_bg_rgb8(0x80, 0xa0, 0x80);
+    } else {
+      score_plane->set_bg_rgb8(0x00, 0x00, 0x00);
+    }
+    
+    auto s = format("{:02x}|", row);
+    score_plane->putstr(row, 0, s.c_str());    
+    for (size_t i = 0; i < num_patterns; i++) {
+      size_t pi = track.getPattern(i);
+      int note = -1;
+      if (pi != 255) {
+	auto & pattern = synth.getPattern(pi);
+	note = pattern.getNote(row);
+      }
+
+      if (note != -1) {
+	auto s2 = format("{:02x}", note);
+	score_plane->putstr(row, 3 + i*3, s2.c_str());
+      } else {
+	score_plane->putstr(row, 3 + i*3, "..");
+      }
+    }
+  }
+}
+
+void
 UI::start(Synth & synth, AudioAPI & audio) {
   size_t num_descriptors = 1 + audio.getPollDescriptors().size();
   auto descriptors = std::make_unique<pollfd[]>(num_descriptors);
@@ -191,11 +232,15 @@ UI::start(Synth & synth, AudioAPI & audio) {
   // setStatus("Starting... nd = " + to_string(num_descriptors));
 
   time_t prev_update = 0;
+  time_t prev_pos = synth.getCurrentPosition();
+
+  renderScore(synth);
   
   while ( !close_ui ) {
+    bool render = false;
+    
     // setStatus("polling");
-    if (poll(descriptors.get(), num_descriptors, 1000) > 0) {
-
+    if (poll(descriptors.get(), num_descriptors, 10) > 0) {      
       for (size_t i = 0; i < num_descriptors; i++) {
 	auto & d = descriptors[i];
 	if (d.revents) {
@@ -211,9 +256,9 @@ UI::start(Synth & synth, AudioAPI & audio) {
 
 	    waiting_data.clear();
 	    waiting_data.append(data);
-	    setStatus(to_string(data.size()) + " " + to_string(waiting_data.size()));
+	    // setStatus(to_string(data.size()) + " " + to_string(waiting_data.size()));
 	    
-	    if (prev_update + 100 < current_time) {
+	    if (prev_update + 500 < current_time) {
 	      prev_update = current_time;
 
 	      auto fft_left = FFT::perform(waiting_data, 0, cols);
@@ -228,11 +273,22 @@ UI::start(Synth & synth, AudioAPI & audio) {
 		right_plot->set_sample(fft_right.size() - i - 1, fft_right[i]);
 	      }
 	      
-	      nc->render();
+	      render = true;
 	    }
 	  }
 	}
-      }            
+      }
+
+      if (prev_pos != synth.getCurrentPosition()) {
+	renderInfo(synth);
+	prev_pos = synth.getCurrentPosition();
+	renderScore(synth);
+	render = true;
+      }
+      
+      if (render) {
+	nc->render();
+      }
     }
   }  
 }
