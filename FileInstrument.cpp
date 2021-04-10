@@ -31,9 +31,9 @@ FileInstrument::openFile() {
   
   sf_count_t frames = BLOCK_SIZE / channels;
 
-  int k, m, readcount;
+  int k, readcount;
   while ((readcount = (int) sf_readf_float (infile, buf, frames)) > 0) {
-    for (k = 0 ; k < readcount ; k++) {
+    for (k = 0 ; k < readcount; k++) {
       samples.push_back(buf[k * channels + 0]);
     }
   }
