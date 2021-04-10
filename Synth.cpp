@@ -15,12 +15,11 @@ using namespace std;
 
 Synth::Synth(int samplerate, unsigned char *track) {
   fscaler = (float)WAVESIZE / samplerate;
-  float k = 1.059463094359f;	// 12th root of 2
-  float a = 8.1757989156f;	// C
-
-  for (int i = 0; i < MIDINOTES; i++) {
-    freqtab[i] = (float)a;
-    a *= k;
+  
+  for (size_t n = 0; n < MIDINOTES; n++) {
+    freqtab[n] = 440 * pow(2, (n - 69.0) / 12.0);
+    // freqtab[i] = (float)a;
+    // a *= k;
   }
 
   // string drone

@@ -26,9 +26,10 @@ class Synth {
   }
   bool isPlaying() const { return is_playing; }
 
+  const size_t getTrackPosition() const { return trkpos; }
   const size_t getCurrentPosition() const { return trkpos * PATTLEN + ptrnpos; }
   const size_t getPatternPosition() const { return ptrnpos; }
-  const Track & getCurrentTrack() const { return trkpos < trk.size() ? trk[trkpos] : empty_track; }
+  const std::vector<Track> & getTracks() const { return trk; }
   const Channel & getPattern(size_t i) const { return i < patt.size() ? patt[i] : empty_pattern; }
   
 protected:
