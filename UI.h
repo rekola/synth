@@ -26,6 +26,8 @@ class UI : public UIBase {
   void setStatus(const std::string & s) override;
 
 protected:
+  void renderInfo(Synth & synth);
+  void renderScore(Synth & synth);
   void readInput(Synth & synth);
   
 private:
