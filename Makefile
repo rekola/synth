@@ -1,8 +1,8 @@
-OBJS = 4ksyna.o Synth.o AlsaAudio.o BasicInstrument.o
+OBJS = 4ksyna.o Synth.o AlsaAudio.o BasicInstrument.o FileInstrument.o UI.o FFT.o
 CC = g++
 
 CPPFLAGS = -O1 -Wall -std=c++1z
-LIBS = -lm -lasound
+LIBS = -lm -lasound -lsndfile -lnotcurses++ -lnotcurses
 
 all:	intro
 
