@@ -10,10 +10,10 @@ class AlsaAudio : public AudioAPI {
   explicit AlsaAudio(int _freq, int _channels) : AudioAPI(_freq, _channels) { }
   ~AlsaAudio();
 
-  void initialize(UIBase & ui);
+  void initialize(UI & ui);
 
   size_t getFrameCount() const override { return buffer_size / (2*sizeof(float)); }
-  void play(SampleData & data, UIBase & ui) override;
+  void play(SampleData & data, UI & ui) override;
 
 private:
   snd_pcm_t * pcm_handle = 0;

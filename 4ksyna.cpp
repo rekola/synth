@@ -8,14 +8,14 @@
 
 #include "Synth.h"
 #include "AlsaAudio.h"
-#include "UI.h"
+#include "TerminalUI.h"
 
 #include "track.h"
 
 using namespace std;
 
 int main(int argc, char *argv[]) {
-  UI ui;
+  TerminalUI ui;
   ui.initialize();
   
   AlsaAudio audio(44100, 2);

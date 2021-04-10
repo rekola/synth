@@ -1,4 +1,4 @@
-#include "UI.h"
+#include "TerminalUI.h"
 
 #include "Synth.h"
 #include "AudioAPI.h"
@@ -30,7 +30,7 @@ static inline long long now() {
   }
 }
 
-UI::UI() {
+TerminalUI::TerminalUI() {
   midi_note_names[127] = "G-9";
   midi_note_names[126] = "F#9";
   midi_note_names[125] = "F-9";
@@ -140,12 +140,12 @@ UI::UI() {
   midi_note_names[21] = "A-0";
 }
 
-UI::~UI() {
+TerminalUI::~TerminalUI() {
 
 }
 
 void
-UI::initialize() {
+TerminalUI::initialize() {
 #if 0
   if (!setlocale(LC_ALL, "")){
     fprintf(stderr, "Couldn't set locale\n");
@@ -258,14 +258,14 @@ UI::initialize() {
 }
 
 void
-UI::setStatus(const std::string & s) {
+TerminalUI::setStatus(const std::string & s) {
   status_line->erase();
   status_line->putstr(s.c_str());
   nc->render();
 }
 
 void
-UI::readInput(Synth & synth) {
+TerminalUI::readInput(Synth & synth) {
   ncinput ni;
   if (nc->getc(true, &ni) != (char32_t)-1) {
     if (ni.ctrl && ni.id == 'L') {
@@ -287,13 +287,13 @@ UI::readInput(Synth & synth) {
 }
 
 void
-UI::renderInfo(Synth & synth) {
+TerminalUI::renderInfo(Synth & synth) {
   auto s0 = format("{:02x}", synth.getCurrentPosition());
   info_line->putstr(0, 0, s0.c_str());
 }
 
 void
-UI::renderScore(Synth & synth) {
+TerminalUI::renderScore(Synth & synth) {
   size_t rows = score_plane->get_dim_y(), cols = score_plane->get_dim_x();
   auto & tracks = synth.getTracks();
   score_plane->set_fg_rgb8(0x80, 0xc0, 0x80);
@@ -333,7 +333,7 @@ UI::renderScore(Synth & synth) {
 }
 
 void
-UI::start(Synth & synth, AudioAPI & audio) {
+TerminalUI::start(Synth & synth, AudioAPI & audio) {
   size_t num_descriptors = 1 + audio.getPollDescriptors().size();
   auto descriptors = std::make_unique<pollfd[]>(num_descriptors);
   

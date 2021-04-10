@@ -1,6 +1,6 @@
 #include "AlsaAudio.h"
 
-#include "UIBase.h"
+#include "UI.h"
 #include "SampleData.h"
 
 #include <stdio.h>
@@ -20,7 +20,7 @@ AlsaAudio::~AlsaAudio() {
 }
 
 void
-AlsaAudio::initialize(UIBase & ui) {
+AlsaAudio::initialize(UI & ui) {
   unsigned int rate = getFrequency();
   int r;
 
@@ -130,7 +130,7 @@ AlsaAudio::initialize(UIBase & ui) {
 }
 
 void
-AlsaAudio::play(SampleData & data, UIBase & ui) {
+AlsaAudio::play(SampleData & data, UI & ui) {
   int r;
   if ((r = snd_pcm_writei(pcm_handle, data.data(), data.size())) == -EPIPE) {
     ui.setStatus("XRUN.");
