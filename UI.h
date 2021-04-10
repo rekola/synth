@@ -11,13 +11,14 @@
 #include <ncpp/Menu.hh>
 
 #include <memory>
+#include <unordered_map>
 
 class Synth;
 class AudioAPI;
 
 class UI : public UIBase {
  public:
-  explicit UI() { }
+  explicit UI();
   ~UI();
   
   void initialize();
@@ -31,7 +32,6 @@ protected:
   void readInput(Synth & synth);
   
 private:
-  // struct notcurses * nc = 0;
   std::shared_ptr<ncpp::NotCurses> nc;
   std::shared_ptr<ncpp::Menu> menu;
   std::shared_ptr<ncpp::Plane> top_line;
@@ -41,7 +41,8 @@ private:
   std::shared_ptr<ncpp::Plane> info_line;
   std::shared_ptr<ncpp::Plane> status_line;
   std::shared_ptr<ncpp::Reader> reader;
-
+  std::unordered_map<short, std::string> midi_note_names;
+  
   SampleData waiting_data;
 
   bool close_ui = false;
