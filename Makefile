@@ -2,7 +2,7 @@ OBJS = 4ksyna.o Synth.o AlsaAudio.o BasicInstrument.o FileInstrument.o UI.o FFT.
 CC = g++
 
 CPPFLAGS = -O1 -Wall -std=c++1z
-LIBS = -lm -lasound -lsndfile -lnotcurses++ -lnotcurses
+LIBS = -lm -lasound -lsndfile -lnotcurses++ -lnotcurses -lfmt
 
 all:	intro
 
