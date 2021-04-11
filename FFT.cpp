@@ -132,7 +132,7 @@ inline double GetFrequencyIntensity(double re, double im) {
 }
 
 vector<float>
-FFT::perform(SampleData & input, size_t channel, size_t num_bins) {
+FFT::perform(const SampleData & input, size_t channel, size_t num_bins) {
   auto data = make_unique<double[]>(input.size());
   for (size_t i = 0; i < input.size(); i++) {
     data[i] = input.data()[2 * i + channel];

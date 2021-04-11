@@ -7,7 +7,7 @@ class SampleData;
 
 class FFT {
 public:
-  static std::vector<float> perform(SampleData & input, size_t channel, size_t num_bins);
+  static std::vector<float> perform(const SampleData & input, size_t channel, size_t num_bins);
 };
 
 #endif
