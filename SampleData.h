@@ -42,6 +42,11 @@ class SampleData {
     memcpy(_data + 2 * frames, other.data(), 2 * other.size() * sizeof(float));
     frames += other.size();
   }
+
+  void shortenToPowerofTwo() {
+    size_t new_size = 1;
+    for ( ; new_size * 2 <= frames; new_size *= 2) { }
+  }
     
 private:
   size_t frames;
