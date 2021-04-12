@@ -277,6 +277,26 @@ TerminalUI::layout() {
   status_line->resize(1, cols - 1).move(rows - 1, 0);
 }
 
+static inline int keyToNote(int key) {
+  switch (key) {
+  case 'q': return 60;
+  case '2': return 61;
+  case 'w': return 62;
+  case '3': return 63;
+  case 'e': return 64;
+  case 'r': return 65;
+  case '5': return 66;
+  case 't': return 67;
+  case '6': return 68;
+  case 'y': return 69;
+  case '7': return 70;
+  case 'u': return 71;
+  case '8': return 72;
+  case 'i': return 73;
+  }
+  return -1;
+}
+
 bool
 TerminalUI::offerInput(const UIInput & input) {
   // if (ni.ctrl && ni.id == 'L') notcurses_refresh(*nc, NULL, NULL);
@@ -291,18 +311,13 @@ TerminalUI::offerInput(const UIInput & input) {
       setStatus("Stopped");
     }
     return true;
-  } else if (input.getId() == 'q') {
-    getSynth()->getSong().getInstrument(10).playNote(60);
-    setStatus("Playing 60");
-    return true;
-  } else if (input.getId() == 'w') {
-    getSynth()->getSong().getInstrument(10).playNote(62);
-    setStatus("Playing 62");
-    return true;
-  } else if (input.getId() == 'e') {
-    getSynth()->getSong().getInstrument(10).playNote(64);
-    setStatus("Playing 64");
-    return true;
+  } else {
+    int note = keyToNote(input.getId());
+    if (note != -1) {
+      getSynth()->getSong().getInstrument(10).playNote(note);
+      setStatus(format("Playing {}", note));
+      return true;
+    }
   }
   
   return false;
