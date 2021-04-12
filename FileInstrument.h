@@ -13,8 +13,8 @@ class FileInstrument : public Instrument {
     openFile();
   }
   
-  float getSample(float fphase) const override {
-    size_t i = (size_t)fphase;
+  float getSample() const override {
+    size_t i = (size_t)getFphase();
     if (i >= 0 && i < samples.size()) {
       return samples[i];
     } else {

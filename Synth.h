@@ -5,9 +5,6 @@
 
 #include <memory>
 
-#define MIDINOTES 128
-// #define MAXOUTBUF 44100
-
 class SampleData;
 
 class Synth {
@@ -31,14 +28,9 @@ class Synth {
 
   Song & getSong() { return song; }
   
-protected:
-
 private:
-  bool is_playing = true;
+  bool is_playing = false;
   
-  float freqtab[MIDINOTES];
-  float fscaler = 1.0;
-
   // unsigned char trkcnt;
   int sinterval, samplepos = 0, ptrnpos = 0, srate;
   size_t trkpos = 0, trkmaxlen = 0;

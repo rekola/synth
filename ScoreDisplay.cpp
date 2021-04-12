@@ -179,8 +179,9 @@ ScoreDisplay::render(Synth & synth, bool refresh) {
 
 bool
 ScoreDisplay::offerInput(const UIInput & input) {
-  if (input.hasCtrl() && input.getId() == 'a') {
+  if (input.hasCtrl() && (input.getId() == 'a' || input.getId() == 'A')) {
     new_score_cursor_col = 0;
+    return true;
   } else if (input.hasCtrl() && input.getId() == 'e') {
     // goto end
   } else if (input.getId() == NCKEY_LEFT) {
@@ -224,7 +225,7 @@ ScoreDisplay::renderRow(Synth & synth, size_t row, bool highlight) {
     size_t pi = track.getPattern(synth.getTrackPosition());
     int note = 0;
     if (pi != 255) {
-      auto & pattern = song.getPattern(pi);
+      auto & pattern = song.getSequence(pi);
       note = pattern.getNote(row);
     }
     

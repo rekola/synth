@@ -6,15 +6,13 @@
 
 #include <cmath>
 
-#define WAVESIZE 1024
-
 class BasicInstrument : public Instrument {
  public:
   explicit BasicInstrument(WaveformType _type) : type(_type) {
     
   }
 
-  float getSample(float fphase) const override {
+  float getSample() const override {
     if (!is_initialized) initialize();
     
     long mask = WAVESIZE - 1;
@@ -22,7 +20,7 @@ class BasicInstrument : public Instrument {
     if (type == WaveformType::NOISE2) {
       return ((float)rand() / RAND_MAX) * 2.0 - 1.0;
     } else {
-      return waves[int(type)][(long)fphase & mask];
+      return waves[int(type)][(long)getFphase() & mask];
     }
   }
   

@@ -14,14 +14,7 @@
 using namespace std;
 
 Synth::Synth(int samplerate, unsigned char *track) {
-  fscaler = (float)WAVESIZE / samplerate;
   
-  for (size_t n = 0; n < MIDINOTES; n++) {
-    freqtab[n] = 440 * pow(2, (n - 69.0) / 12.0);
-    // freqtab[i] = (float)a;
-    // a *= k;
-  }
-
   // string drone
   auto i0 = make_unique<BasicInstrument>(WaveformType::SAW);
   i0->setADSR(255, 64, 63, 0);
@@ -30,7 +23,7 @@ Synth::Synth(int samplerate, unsigned char *track) {
   i0->setDetune(127);
   i0->setPan(10);
   i0->setFilter(0, 5);
-  song.instruments.push_back(move(i0));
+  song.addInstrument(move(i0));
 
   // string drone
   auto i1 = make_unique<BasicInstrument>(WaveformType::SAW);
@@ -40,7 +33,7 @@ Synth::Synth(int samplerate, unsigned char *track) {
   i1->setDetune(120);
   i1->setPan(127);
   i1->setFilter(0, 5);
-  song.instruments.push_back(move(i1));
+  song.addInstrument(move(i1));
 
   // string drone
   auto i2 = make_unique<BasicInstrument>(WaveformType::SAW);
@@ -50,7 +43,7 @@ Synth::Synth(int samplerate, unsigned char *track) {
   i2->setDetune(134);
   i2->setPan(247);
   i2->setFilter(0, 5);
-  song.instruments.push_back(move(i2));
+  song.addInstrument(move(i2));
 
   // bass drum 
   auto i3 = make_unique<BasicInstrument>(WaveformType::SINE);
@@ -59,7 +52,7 @@ Synth::Synth(int samplerate, unsigned char *track) {
   i3->setDetune(130);
   i3->setPan(127);
   i3->setFilter(255, 0);
-  song.instruments.push_back(move(i3));
+  song.addInstrument(move(i3));
 
   // hihat (closed)
   auto i4 = make_unique<BasicInstrument>(WaveformType::NOISE2);
@@ -69,7 +62,7 @@ Synth::Synth(int samplerate, unsigned char *track) {
   i4->setDetune(127);
   i4->setPan(127);
   i4->setFilter(190, 128);
-  song.instruments.push_back(move(i4));
+  song.addInstrument(move(i4));
 
   // hihat (open)
   auto i5 = make_unique<BasicInstrument>(WaveformType::NOISE2);
@@ -78,7 +71,7 @@ Synth::Synth(int samplerate, unsigned char *track) {
   i5->setDetune(127);
   i5->setPan(127);
   i5->setFilter(255, 0);
-  song.instruments.push_back(move(i5));
+  song.addInstrument(move(i5));
 
   // unused
   auto i6 = make_unique<BasicInstrument>(WaveformType::SAW);
@@ -87,7 +80,7 @@ Synth::Synth(int samplerate, unsigned char *track) {
   i6->setDetune(127);
   i6->setPan(127);
   i6->setFilter(255, 0);
-  song.instruments.push_back(move(i6));
+  song.addInstrument(move(i6));
 
   // bass
   auto i7 = make_unique<BasicInstrument>(WaveformType::SQUARE);
@@ -96,7 +89,7 @@ Synth::Synth(int samplerate, unsigned char *track) {
   i7->setDetune(125);
   i7->setPan(64);
   i7->setFilter(200, 20);
-  song.instruments.push_back(move(i7));
+  song.addInstrument(move(i7));
 
   // hihat (closed)
 #if 0
@@ -114,7 +107,7 @@ Synth::Synth(int samplerate, unsigned char *track) {
   i8->setPan(217);
   // i8->setFilter(255, 0);  
 #endif
-  song.instruments.push_back(move(i8));
+  song.addInstrument(move(i8));
   
   // snare like
   auto i9 = make_unique<BasicInstrument>(WaveformType::NOISE);
@@ -124,7 +117,7 @@ Synth::Synth(int samplerate, unsigned char *track) {
   i9->setDetune(127);
   i9->setPan(127);
   i9->setFilter(255, 0);
-  song.instruments.push_back(move(i9));
+  song.addInstrument(move(i9));
 
   // bass
   auto i10 = make_unique<BasicInstrument>(WaveformType::SAW);
@@ -134,7 +127,7 @@ Synth::Synth(int samplerate, unsigned char *track) {
   i10->setDetune(127);
   i10->setPan(127);
   i10->setFilter(100, 0);
-  song.instruments.push_back(move(i10));
+  song.addInstrument(move(i10));
 
   // bass
   auto i11 = make_unique<BasicInstrument>(WaveformType::SAW);
@@ -144,7 +137,7 @@ Synth::Synth(int samplerate, unsigned char *track) {
   i11->setDetune(127);
   i11->setPan(128);
   i11->setFilter(63, 128);
-  song.instruments.push_back(move(i11));
+  song.addInstrument(move(i11));
 
   // bass
   auto i12 = make_unique<BasicInstrument>(WaveformType::SQUARE);
@@ -153,7 +146,7 @@ Synth::Synth(int samplerate, unsigned char *track) {
   i12->setDetune(129);
   i12->setPan(190);
   i12->setFilter(200, 20);
-  song.instruments.push_back(move(i12));
+  song.addInstrument(move(i12));
 
   // bass drum
   auto i13 = make_unique<BasicInstrument>(WaveformType::SINE);
@@ -162,7 +155,7 @@ Synth::Synth(int samplerate, unsigned char *track) {
   i13->setDetune(127);
   i13->setPan(127);
   i13->setFilter(244, 0);
-  song.instruments.push_back(move(i13));
+  song.addInstrument(move(i13));
 
   // snare like
   auto i14 = make_unique<BasicInstrument>(WaveformType::NOISE);
@@ -171,7 +164,7 @@ Synth::Synth(int samplerate, unsigned char *track) {
   i14->setDetune(127);
   i14->setPan(37);
   i14->setFilter(150, 255);
-  song.instruments.push_back(move(i14));
+  song.addInstrument(move(i14));
 
   song.bpm = *track++;
   song.mastervol = (float)(*track++) / 127;
@@ -186,16 +179,16 @@ Synth::Synth(int samplerate, unsigned char *track) {
   int ptrncnt = *track++;
   
   for (int i = 0; i < ptrncnt; i++) {
-    Channel pattern;
-    pattern.instrument_id = *track++;
+    Sequence sequence;
+    sequence.setInstrumentId(*track++);
     
     while (1) {
       int val = *track++;
       if (val == 255) break;
-      pattern.addNote(val);
+      sequence.addNote(val);
     }
     
-    song.patt.push_back(pattern);
+    song.addSequence(sequence);
   }
 
   int trkcnt = *track++;
@@ -209,7 +202,7 @@ Synth::Synth(int samplerate, unsigned char *track) {
     }
     if (t.size() > trkmaxlen) trkmaxlen = t.size();
     
-    song.trk.push_back(t);
+    song.addTrack(t);
   }
 
   float tnote = (float)60 / song.bpm * NOTEDOMAIN * 2;
@@ -223,58 +216,60 @@ Synth::play(size_t frames) {
   float * out = data.data();
     
   int solo_instrument = -1;
-  for (size_t i = 0; i < song.instruments.size(); i++) {
-    if (song.instruments[i]->getSolo()) solo_instrument = i;
+  for (size_t i = 0; i < song.getInstruments().size(); i++) {
+    if (song.getInstrument(i).getSolo()) solo_instrument = i;
   }
   
   for (int i = 0; i < frames; i++) {
     float left = 0, right = 0;
     
-    int chk = 0;
-    if (samplepos % sinterval == 0) chk = 1;
-    if (chk) {
-      for (int k = 0; k < song.trk.size(); k++) {
-	int j = song.trk[k].getPattern(trkpos);
-	if (j == 255) continue;
-
-	assert(j >= 0 && j < song.patt.size());
-	auto & pattern = song.patt[j];
-	auto & instrument = song.instruments[pattern.instrument_id];
-	unsigned char note_data = pattern.getNote(ptrnpos);
-	pattern.playNote(note_data, freqtab, fscaler, instrument->getDetune());
+    bool chk = false;
+    if (is_playing) {
+      if (samplepos % sinterval == 0) chk = 1;
+      if (chk) {
+	for (int k = 0; k < song.getTracks().size(); k++) {
+	  int j = song.getTracks()[k].getPattern(trkpos);
+	  if (j == 255) continue;
+	  
+	  assert(j >= 0 && j < song.getSequences().size());
+	  auto & pattern = song.getSequences()[j];
+	  auto & instrument = song.getInstrument(pattern.getInstrumentId());
+	  instrument.playNote(pattern.getNote(ptrnpos));	
+	}
       }
+      samplepos++;
     }
     
-    for (int k = 0; k < song.trk.size(); k++) {
-      int j = song.trk[k].getPattern(trkpos);
+    for (int k = 0; k < song.getTracks().size(); k++) {
+      int j = song.getTracks()[k].getPattern(trkpos);
       if (j == 255) continue;
 
-      assert(j >= 0 && j < song.patt.size());
-      auto & pattern = song.patt[j];
+      assert(j >= 0 && j < song.getSequences().size());
+      auto & pattern = song.getSequences()[j];
             
-      auto & instrument = song.instruments[pattern.instrument_id];
-      float adsrvol = pattern.updateADSR(*instrument);
-      float ss = instrument->getSample(pattern.fphase);
+      auto & instrument = song.getInstrument(pattern.getInstrumentId());
+      float adsrvol = instrument.updateADSR();
+      float ss = instrument.getSample();
       
-      ss = pattern.filtersample(ss, *instrument);
+      ss = instrument.filtersample(ss);
 
-      ss *= instrument->getVolume() * adsrvol * song.gvol;
-      if (solo_instrument != -1 && pattern.instrument_id != solo_instrument) ss = 0;
+      ss *= instrument.getVolume() * adsrvol * song.gvol;
+      if (solo_instrument != -1 && pattern.getInstrumentId() != solo_instrument) ss = 0;
       
-      if (pattern.acc) ss *= ACCENTAMT;
+      if (instrument.acc) ss *= ACCENTAMT;
+      
       if (ss > 1.0) ss = 1.0;
       else if (ss < -1.0) ss = -1.0;
 
-      float ssl = ss * sqrtf(1.0 - instrument->getPan());
-      float ssr = ss * sqrtf(instrument->getPan());
+      float ssl = ss * sqrtf(1.0 - instrument.getPan());
+      float ssr = ss * sqrtf(instrument.getPan());
 
-      if (instrument->getFlags() & DELAYTRACK) pattern.delaysample(delaymix1, delaymix2, fd1, delay1, fd2, delay2, &ssl, &ssr);
+      if (instrument.getFlags() & DELAYTRACK) instrument.delaysample(delaymix1, delaymix2, fd1, delay1, fd2, delay2, &ssl, &ssr);
 
       left += ssl;
       right += ssr;
 
-      pattern.fphase += pattern.freq;
-      // if (pattern.fphase > mask) pattern.fphase = 0;
+      instrument.fphase += instrument.freq;
     }
 
     left *= song.mastervol * VOLGAIN;
@@ -295,13 +290,8 @@ Synth::play(size_t frames) {
 	trkpos++;
 	if (trkpos >= trkmaxlen - 1) {
 	  trkpos = 0;
-	  // samplepos = 0;
 	}
       }
-    }
-
-    if (is_playing) {
-      samplepos++;
     }
   }
 

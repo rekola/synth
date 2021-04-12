@@ -21,9 +21,10 @@ int main(int argc, char *argv[]) {
   AlsaAudio audio(44100, 2);
   audio.initialize(ui);
   
-  Synth synth(audio.getFrequency(), tr);
-  
-  ui.start(synth, audio);
+  auto synth = make_shared<Synth>(audio.getFrequency(), tr);
+
+  ui.setSynth(synth);
+  ui.start(audio);
 
   return 0;
 }
