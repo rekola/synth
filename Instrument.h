@@ -18,6 +18,10 @@ public:
 
   virtual float getSample() const = 0;
 
+  void stepForward() {
+    fphase += freq;
+  }
+  
   float getDetune() const { return detune; }
   float getVolume() const { return volume; }
   float getPan() const { return pan; }
@@ -159,12 +163,13 @@ public:
   }
 
   float getFphase() const { return fphase; }
-
+  bool hasAccent() const { return acc; }
+  
+protected:
   float freq = 0; // current frequency
   float fphase = 0; // position in input waveform
   bool acc = false; // has accent
-  
-protected:
+
   int a = 0, d = 0, r = 0;
   float s = 1.0;
   float detune = 0, volume = 1.0f;

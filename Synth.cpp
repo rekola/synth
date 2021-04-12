@@ -223,10 +223,8 @@ Synth::play(size_t frames) {
   for (int i = 0; i < frames; i++) {
     float left = 0, right = 0;
     
-    bool chk = false;
     if (is_playing) {
-      if (samplepos % sinterval == 0) chk = 1;
-      if (chk) {
+      if (samplepos % sinterval == 0) {
 	for (int k = 0; k < song.getTracks().size(); k++) {
 	  int j = song.getTracks()[k].getPattern(trkpos);
 	  if (j == 255) continue;
@@ -236,40 +234,42 @@ Synth::play(size_t frames) {
 	  auto & instrument = song.getInstrument(pattern.getInstrumentId());
 	  instrument.playNote(pattern.getNote(ptrnpos));	
 	}
+
+	ptrnpos++;
+	if (ptrnpos >= PATTLEN) {
+	  ptrnpos = 0;
+	  trkpos++;
+	  if (trkpos >= trkmaxlen - 1) {
+	    trkpos = 0;
+	  }
+	}
       }
       samplepos++;
     }
     
-    for (int k = 0; k < song.getTracks().size(); k++) {
-      int j = song.getTracks()[k].getPattern(trkpos);
-      if (j == 255) continue;
+    for (auto & instrument : song.getInstruments()) {
+      float adsrvol = instrument->updateADSR();
 
-      assert(j >= 0 && j < song.getSequences().size());
-      auto & pattern = song.getSequences()[j];
-            
-      auto & instrument = song.getInstrument(pattern.getInstrumentId());
-      float adsrvol = instrument.updateADSR();
-      float ss = instrument.getSample();
-      
-      ss = instrument.filtersample(ss);
+      float ss = instrument->getSample();
+      ss = instrument->filtersample(ss);
 
-      ss *= instrument.getVolume() * adsrvol * song.gvol;
-      if (solo_instrument != -1 && pattern.getInstrumentId() != solo_instrument) ss = 0;
+      ss *= instrument->getVolume() * adsrvol * song.gvol;
+      // if (solo_instrument != -1 && pattern.getInstrumentId() != solo_instrument) ss = 0;
       
-      if (instrument.acc) ss *= ACCENTAMT;
+      if (instrument->hasAccent()) ss *= ACCENTAMT;
       
       if (ss > 1.0) ss = 1.0;
       else if (ss < -1.0) ss = -1.0;
 
-      float ssl = ss * sqrtf(1.0 - instrument.getPan());
-      float ssr = ss * sqrtf(instrument.getPan());
+      float ssl = ss * sqrtf(1.0 - instrument->getPan());
+      float ssr = ss * sqrtf(instrument->getPan());
 
-      if (instrument.getFlags() & DELAYTRACK) instrument.delaysample(delaymix1, delaymix2, fd1, delay1, fd2, delay2, &ssl, &ssr);
+      if (instrument->getFlags() & DELAYTRACK) instrument->delaysample(delaymix1, delaymix2, fd1, delay1, fd2, delay2, &ssl, &ssr);
 
       left += ssl;
       right += ssr;
 
-      instrument.fphase += instrument.freq;
+      instrument->stepForward();
     }
 
     left *= song.mastervol * VOLGAIN;
@@ -282,17 +282,6 @@ Synth::play(size_t frames) {
 
     out[2 * i] = left;
     out[2 * i + 1] = right;
-
-    if (chk) {
-      ptrnpos++;
-      if (ptrnpos >= PATTLEN) {
-	ptrnpos = 0;
-	trkpos++;
-	if (trkpos >= trkmaxlen - 1) {
-	  trkpos = 0;
-	}
-      }
-    }
   }
 
   return data;
