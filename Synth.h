@@ -33,7 +33,7 @@ private:
   
   // unsigned char trkcnt;
   int sinterval, samplepos = 0, ptrnpos = 0, srate;
-  size_t trkpos = 0, trkmaxlen = 0;
+  size_t trkpos = 0;
   
   // global delay parameters
   int delay1, delay2;

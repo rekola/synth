@@ -177,7 +177,7 @@ Synth::Synth(int samplerate, unsigned char *track) {
   delaymix2 = (float)(*track++) / 255;
   
   int ptrncnt = *track++;
-  
+  vector<Sequence> available_sequences;
   for (int i = 0; i < ptrncnt; i++) {
     Sequence sequence;
     sequence.setInstrumentId(*track++);
@@ -187,24 +187,39 @@ Synth::Synth(int samplerate, unsigned char *track) {
       if (val == 255) break;
       sequence.addNote(val);
     }
-    
-    song.addSequence(sequence);
+
+    available_sequences.push_back(sequence);
   }
 
+  size_t max_sequence_length = 0;
+  vector<vector<int> > sequence_vectors;
   int trkcnt = *track++;
   for (int i = 0; i < trkcnt; i++) {
-    Track t;
+    vector<int> seqs;
     while (1) {
-      unsigned char val = *track++;
+      size_t val = *track++;
       if (val == 255) break;
-      
-      t.addPattern(val);
+      assert(val < available_sequences.size());
+      seqs.push_back(val);
     }
-    if (t.size() > trkmaxlen) trkmaxlen = t.size();
     
-    song.addTrack(t);
+    sequence_vectors.push_back(seqs);
+    if (sequence_vectors.size() > max_sequence_length) max_sequence_length = sequence_vectors.size();
   }
 
+  for (size_t i = 0; i < max_sequence_length; i++) {
+    Section section;
+    for (size_t j = 0; j < sequence_vectors.size(); j++) {
+      auto & sequences = sequence_vectors[j];
+      if (i < sequences.size()) {
+	auto id = sequences[i];
+	assert(id >= 0 && id < available_sequences.size());
+	section.addSequence(available_sequences[id]);
+      }
+    }
+    song.addSection(section);
+  }
+  
   float tnote = (float)60 / song.bpm * NOTEDOMAIN * 2;
   sinterval = (int)(tnote * samplerate);
   srate = samplerate;
@@ -225,22 +240,17 @@ Synth::play(size_t frames) {
     
     if (is_playing) {
       if (samplepos % sinterval == 0) {
-	for (int k = 0; k < song.getTracks().size(); k++) {
-	  int j = song.getTracks()[k].getPattern(trkpos);
-	  if (j == 255) continue;
-	  
-	  assert(j >= 0 && j < song.getSequences().size());
-	  auto & pattern = song.getSequences()[j];
-	  auto & instrument = song.getInstrument(pattern.getInstrumentId());
-	  instrument.playNote(pattern.getNote(ptrnpos));	
+	auto & section = song.getSection(trkpos);
+	for (auto & sequence : section.getSequences()) {
+	  auto & instrument = song.getInstrument(sequence.getInstrumentId());
+	  instrument.playNote(sequence.getNote(ptrnpos));	
 	}
 
-	ptrnpos++;
-	if (ptrnpos >= PATTLEN) {
-	  ptrnpos = 0;
-	  trkpos++;
-	  if (trkpos >= trkmaxlen - 1) {
-	    trkpos = 0;
+	if (ptrnpos + 1 < PATTLEN || trkpos + 1 < song.getSections().size()) {
+	  ptrnpos++;
+	  if (ptrnpos >= PATTLEN) {
+	    ptrnpos = 0;
+	    trkpos++;
 	  }
 	}
       }

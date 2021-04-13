@@ -1,6 +1,8 @@
 #ifndef _SEQUENCE_H_
 #define _SEQUENCE_H_
 
+#include <vector>
+
 class Sequence {
  public:
   explicit Sequence() { }

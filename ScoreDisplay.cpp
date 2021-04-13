@@ -210,7 +210,7 @@ ScoreDisplay::offerInput(const UIInput & input) {
 void
 ScoreDisplay::renderRow(Synth & synth, size_t row, bool highlight) {
   auto & song = synth.getSong();
-  auto & tracks = song.getTracks();
+  auto & section = song.getSection(synth.getTrackPosition());
   
   bool is_cursor_on_row = row == current_score_cursor_row;
   
@@ -220,14 +220,9 @@ ScoreDisplay::renderRow(Synth & synth, size_t row, bool highlight) {
   auto s = format("{:02x}|", row);
   putstr(row, 0, s.c_str());
   
-  for (size_t i = 0; i < tracks.size(); i++) {
-    auto & track = tracks[i];
-    size_t pi = track.getPattern(synth.getTrackPosition());
-    int note = 0;
-    if (pi != 255) {
-      auto & pattern = song.getSequence(pi);
-      note = pattern.getNote(row);
-    }
+  for (size_t i = 0; i < section.size(); i++) {
+    auto & sequence = section.getSequence(i);
+    int note = sequence.getNote(row);
     
     if (is_cursor_on_row && i == current_score_cursor_col) {
       setFgColor(0x00, 0x00, 0x00);

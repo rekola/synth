@@ -1,7 +1,7 @@
 #ifndef _SONG_H_
 #define _SONG_H_
 
-#include "Track.h"
+#include "Section.h"
 #include "Sequence.h"
 #include "Instrument.h"
 
@@ -14,12 +14,9 @@ class Song {
  public:
   Song() { }
 
-  const std::vector<Track> & getTracks() const { return tracks; }
-  void addTrack(const Track & track) { tracks.push_back(track); }
-
-  const std::vector<Sequence> & getSequences() const { return sequences; }
-  void addSequence(const Sequence & seq) { sequences.push_back(seq); }
-  const Sequence & getSequence(size_t i) const { return i < sequences.size() ? sequences[i] : empty_sequence; }
+  const std::vector<Section> & getSections() const { return sections; }
+  const Section & getSection(size_t i) const { return i < sections.size() ? sections[i] : empty_section; }
+  void addSection(const Section & section) { sections.push_back(section); }
 
   const std::vector<std::unique_ptr<Instrument> > & getInstruments() const { return instruments; }
   Instrument & getInstrument(size_t i) { return *(instruments[i]); }
@@ -31,10 +28,10 @@ class Song {
   
 private:
   std::vector<std::unique_ptr<Instrument> > instruments;
-  // Track empty_track;
-  std::vector<Track> tracks;
+  // Section empty_section;
+  std::vector<Section> sections;
   std::vector<Sequence> sequences;
-  Sequence empty_sequence;
+  Section empty_section;
 };
 
 #endif
