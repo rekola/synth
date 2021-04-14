@@ -2,6 +2,7 @@
 #define _SAMPLEDATA_H_
 
 #include <cstring>
+#include <cmath>
 
 class SampleData {
  public:
@@ -46,6 +47,15 @@ class SampleData {
   void shortenToPowerofTwo() {
     size_t new_size = 1;
     for ( ; new_size * 2 <= frames; new_size *= 2) { }
+  }
+
+  std::pair<float, float> calculateLoudness() {
+    float sum_squares_left = 0, sum_squares_right = 0;
+    for (size_t i = 0; i < frames; i++) {
+      sum_squares_left += _data[2 * i + 0] * _data[2 * i + 0];
+      sum_squares_right += _data[2 * i + 1] * _data[2 * i + 1];
+    }
+    return std::pair(sqrtf(sum_squares_left), sqrtf(sum_squares_right));
   }
     
 private:
