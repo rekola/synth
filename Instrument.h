@@ -1,10 +1,10 @@
 #ifndef _INSTRUMENT_H_
 #define _INSTRUMENT_H_
 
+#include <string>
 #include <vector>
 #include <cmath>
 
-#define WAVESIZE 1024
 #define MAXDELAYSAMPLES 44100 * 5
 
 // flags
@@ -18,9 +18,13 @@ public:
 
   virtual float getSample() const = 0;
 
-  void stepForward() {
+  void setName(const std::string & _name) { name = _name; }
+  
+  virtual void stepForward() {
     fphase += freq;
   }
+
+  const std::string & getName() const { return name; }
   
   float getDetune() const { return detune; }
   float getVolume() const { return volume; }
@@ -34,6 +38,8 @@ public:
   int getDecay() const { return d; }
   float getSustain() const { return s; }
   int getRelease() const { return r; }
+
+  void setTranspose(int _transpose) { transpose = _transpose; }
   
   void setDetune(int _detune) { detune = (_detune - 127) / 512.0; }
   void setVolume(int _volume) { volume = _volume / 128.0f; }
@@ -104,8 +110,9 @@ public:
     int acct = note_data & 0x80;
     
     if (note > 1) {
-      float fscaler = (float)WAVESIZE / 44100.0f;
-      freq = getMidiNoteFrequency(note) * fscaler + detune;
+      // float fscaler = (float)WAVESIZE / 44100.0f;
+      // freq = getMidiNoteFrequency(note) * fscaler + detune;
+      freq = getMidiNoteFrequency(note + transpose + detune / 100.0f);
       acc = acct;
       adsrstate = 0;
       adsrpos = 0;
@@ -166,6 +173,8 @@ public:
   bool hasAccent() const { return acc; }
   
 protected:
+  std::string name;
+  
   float freq = 0; // current frequency
   float fphase = 0; // position in input waveform
   bool acc = false; // has accent
@@ -176,6 +185,7 @@ protected:
   float pan = 0.5f;
   float fcut = 1.0, fres = 0.0;
   unsigned char flags = 0;
+  short transpose = 0;
   bool solo = false;
 
   // adsr state

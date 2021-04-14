@@ -4,6 +4,8 @@
 #include "Instrument.h"
 #include "WaveformType.h"
 
+#define WAVESIZE 1024
+
 #include <cmath>
 
 class BasicInstrument : public Instrument {
@@ -20,7 +22,7 @@ class BasicInstrument : public Instrument {
     if (type == WaveformType::NOISE2) {
       return ((float)rand() / RAND_MAX) * 2.0 - 1.0;
     } else {
-      return waves[int(type)][(long)getFphase() & mask];
+      return waves[int(type)][(long)(getFphase() * WAVESIZE / 44100.0f) & mask];
     }
   }
   
