@@ -1,5 +1,3 @@
-#include "WaveformType.h"
-
 unsigned char tr[] = {
 130,                                     // BPM
 50,                                      // mastervol
