@@ -11,6 +11,7 @@ class Section {
 
   const std::vector<Sequence> & getSequences() const { return sequences; }
   const Sequence & getSequence(size_t i) const { return i < sequences.size() ? sequences[i] : empty_sequence; }
+  Sequence & getSequence(size_t i) { return i < sequences.size() ? sequences[i] : empty_sequence; }
   void addSequence(const Sequence & s) { sequences.push_back(s); }
   size_t size() const { return sequences.size(); }
     
