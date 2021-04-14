@@ -9,13 +9,14 @@ class SampleData;
 
 class Synth {
  public:
-  explicit Synth(int samplerate, unsigned char *track);
+  explicit Synth(int samplerate) : samplerate(samplerate) { }
   
-  SampleData play(size_t frames);
-  float gettime() const {
-    return (float)samplepos / srate;
-  }
+  SampleData play(Song & song, size_t frames);
 
+  float gettime() const {
+    return (float)complete_pos / samplerate;
+  }
+  
   bool togglePlayback() {
     is_playing = !is_playing;
     return is_playing;
@@ -25,21 +26,12 @@ class Synth {
   const size_t getTrackPosition() const { return trkpos; }
   const size_t getCurrentPosition() const { return trkpos * PATTLEN + ptrnpos; }
   const size_t getPatternPosition() const { return ptrnpos; }
-
-  Song & getSong() { return song; }
   
 private:
   bool is_playing = false;
-  
-  // unsigned char trkcnt;
-  int sinterval, samplepos = 0, ptrnpos = 0, srate;
-  size_t trkpos = 0;
-  
-  // global delay parameters
-  int delay1, delay2;
-  float fd1, fd2, delaymix1, delaymix2;
 
-  Song song;
+  size_t samplepos = 0, ptrnpos = 0, trkpos = 0, complete_pos = 0;
+  size_t samplerate;
 };
 
 #endif

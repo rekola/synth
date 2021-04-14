@@ -16,6 +16,7 @@ class Song {
 
   const std::vector<Section> & getSections() const { return sections; }
   const Section & getSection(size_t i) const { return i < sections.size() ? sections[i] : empty_section; }
+  Section & getSection(size_t i) { return i < sections.size() ? sections[i] : empty_section; }
   void addSection(const Section & section) { sections.push_back(section); }
 
   const std::vector<std::unique_ptr<Instrument> > & getInstruments() const { return instruments; }
@@ -26,6 +27,10 @@ class Song {
   float gvol = 1.0; // (or 1.0 / trkcnt)
   int bpm = 60;
   
+  // global delay parameters
+  int delay1, delay2;
+  float fd1, fd2, delaymix1, delaymix2;
+
 private:
   std::vector<std::unique_ptr<Instrument> > instruments;
   // Section empty_section;
