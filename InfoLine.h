@@ -2,6 +2,7 @@
 #define _INFOLINE_H_
 
 #include "UIElement.h"
+#include "Controller.h"
 #include "Synth.h"
 
 #include <fmt/core.h>
@@ -13,7 +14,9 @@ class InfoLine : public UIElement {
     setFgColor(30, 30, 30);
   }
 
-  bool render(Synth & synth, bool refresh = false) {
+  bool render(bool refresh = false) {
+    auto & synth = getController().getSynth();
+
     int seconds = (int)synth.gettime();
     int minutes = seconds / 60;
     seconds %= 60;
