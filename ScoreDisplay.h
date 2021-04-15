@@ -14,11 +14,11 @@ class ScoreDisplay : public UIElement {
  public:
   ScoreDisplay(UIPlane & parent);
 
-  bool render(Synth & synth, bool refresh = false);
+  bool render(bool refresh = false);
   bool offerInput(const UIInput & input) override;
 
 protected:
-  void renderRow(Synth & synth, size_t row, bool highlight);
+  void renderRow(size_t row, bool highlight);
 
   std::string getNoteName(int note) const {
     auto it = midi_note_names.find(note);
