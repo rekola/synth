@@ -6,10 +6,10 @@
 
 class SampleData {
  public:
-  explicit SampleData() : frames(0), _data(0) { }
-  explicit SampleData(size_t _frames) : frames(_frames) {
-    _data = new float[2 * frames];
-    memset(_data, 0, 2 * frames * sizeof(float));
+  explicit SampleData() : channels(0), frames(0), _data(0) { }
+  explicit SampleData(size_t _channels, size_t _frames) : channels(_channels), frames(_frames) {
+    _data = new float[channels * frames];
+    memset(_data, 0, channels * frames * sizeof(float));
   }
 
   SampleData(const SampleData & other) {
@@ -31,6 +31,7 @@ class SampleData {
     _data = 0;
     frames = 0;
   }
+  size_t getChannels() const { return channels; }
   size_t size() const { return frames; }
 
   void append(const SampleData & other) {
@@ -59,7 +60,7 @@ class SampleData {
   }
     
 private:
-  size_t frames;
+  size_t channels, frames;
   float * _data;
 };
 
