@@ -1,29 +1,21 @@
-/*
-  TODO:
-  -modulation
-  -note slide
-  -better exponential(?) ADSR
-  -optimization
-*/
-
-#include "Synth.h"
 #include "AlsaAudio.h"
 #include "TerminalUI.h"
-
-#include "track.h"
+#include "Controller.h"
 
 using namespace std;
 
 int main(int argc, char *argv[]) {
+  auto controller = make_shared<Controller>();
+
   TerminalUI ui;
-  ui.initialize();
+  ui.initialize(controller);
   
   AlsaAudio audio(44100, 2);
   audio.initialize(ui);
   
-  auto synth = make_shared<Synth>(audio.getFrequency(), tr);
-
-  ui.setSynth(synth);
+  auto synth = make_shared<Synth>(audio.getFrequency());
+  controller->setSynth(synth);
+  
   ui.start(audio);
 
   return 0;
