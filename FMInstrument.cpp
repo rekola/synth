@@ -1,19 +1,12 @@
 #include "FMInstrument.h"
 
-#include <stdio.h>   
-#include <stdlib.h>
-#include <alsa/asoundlib.h>
-#include <math.h>
+#include <cmath>
 
 // <FM>	Strength of the frequency modulation
 // <harmonic>	Harmonic of the modulator (integer)
 // <subharmonic>	Subharmonic of the modulator (integer)
 // <transpose>	Common note offset for carrier and modulator (integer)
 // <a> <d> <s> <r>	Attack, Decay, Sustain, Release
-
-#define POLY 10
-#define GAIN 5000.0
-#define BUFSIZE 512
 
 static inline double envelope(int * note_active, int gate, double *env_level, double t, double attack, double decay, double sustain, double release) {
   if (gate)  {
@@ -36,6 +29,7 @@ FMInstrument::getSample() const {
   // env_time += 1.0 / 44100.0;
 
   return sin(phi + modulation * sin(phi_mod));
+  // * (1 + noise * rand() / RAND_MAX));
 }
 
 void
@@ -45,8 +39,7 @@ FMInstrument::stepForward() {
   
   phi += dphi;
   phi_mod += dphi_mod;
+
   if (phi > 2.0 * M_PI) phi -= 2.0 * M_PI;
   if (phi_mod > 2.0 * M_PI) phi_mod -= 2.0 * M_PI;  
 }
-
-      
