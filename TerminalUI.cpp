@@ -4,6 +4,8 @@
 #include "AudioAPI.h"
 #include "SampleData.h"
 #include "UIInput.h"
+#include "Controller.h"
+#include "Picker.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -16,6 +18,12 @@
 
 #include <sys/time.h>
 #include <iostream>
+
+#include <ncpp/Plane.hh>
+#include <ncpp/Plot.hh>
+#include <ncpp/Reader.hh>
+#include <ncpp/Menu.hh>
+#include <ncpp/Selector.hh>
 
 using namespace ncpp;
 using namespace std;
@@ -38,7 +46,7 @@ static inline long long now() {
 
 class TerminalPlane : public UIPlane {
 public:
-  TerminalPlane(Plane * _plane, bool _owner = true) : plane(_plane), owner(_owner) { }
+  TerminalPlane(std::shared_ptr<Controller> & _controller, Plane * _plane, bool _owner = true) : UIPlane(_controller), plane(_plane), owner(_owner) { }
   ~TerminalPlane() {
     if (owner) delete plane;
   }
@@ -54,13 +62,42 @@ public:
     // plane->set_scrolling(true);
     // plane->rounded_box(NCSTYLE_NONE, CHANNELS_RGB_INITIALIZER(0xc0, 0x80, 0xc0, 0x20, 0, 0x20), 0, 0, 0);
     // plane->putstr("");
-    return make_unique<TerminalPlane>(plane);
+    return make_unique<TerminalPlane>(getController(), plane);
   }
 
   pair<int, int> getDim() const override {
     int y, x;
     plane->get_dim(&y, &x);
     return pair(y, x);
+  }
+  
+  void drawBorder() override {
+    plane->erase();
+    cell ul = CELL_TRIVIAL_INITIALIZER, ur = CELL_TRIVIAL_INITIALIZER;
+    cell lr = CELL_TRIVIAL_INITIALIZER, ll = CELL_TRIVIAL_INITIALIZER;
+    cell hl = CELL_TRIVIAL_INITIALIZER, vl = CELL_TRIVIAL_INITIALIZER;
+    if (cells_rounded_box(plane->to_ncplane(), NCSTYLE_NONE, 0, &ul, &ur, &ll, &lr, &hl, &vl)) {
+      return;
+    }                       
+    ul.channels = CHANNELS_RGB_INITIALIZER(0xf0, 0xc0, 0xc0, 0, 0, 0);
+    ur.channels = CHANNELS_RGB_INITIALIZER(0xf0, 0xc0, 0xc0, 0, 0, 0);
+    ll.channels = CHANNELS_RGB_INITIALIZER(0xf0, 0xc0, 0xc0, 0, 0, 0);
+    lr.channels = CHANNELS_RGB_INITIALIZER(0xf0, 0xc0, 0xc0, 0, 0, 0);
+    hl.channels = CHANNELS_RGB_INITIALIZER(0xf0, 0xc0, 0xc0, 0, 0, 0);
+    vl.channels = CHANNELS_RGB_INITIALIZER(0xf0, 0xc0, 0xc0, 0, 0, 0);
+    cell_set_bg_alpha(&ul, CELL_ALPHA_BLEND);
+    cell_set_bg_alpha(&ur, CELL_ALPHA_BLEND);
+    cell_set_bg_alpha(&ll, CELL_ALPHA_BLEND);
+    cell_set_bg_alpha(&lr, CELL_ALPHA_BLEND);
+    cell_set_bg_alpha(&hl, CELL_ALPHA_BLEND);
+    cell_set_bg_alpha(&vl, CELL_ALPHA_BLEND);
+    if (ncplane_perimeter(plane->to_ncplane(), &ul, &ur, &ll, &lr, &hl, &vl, 0)) {
+      cell_release(plane->to_ncplane(), &ul); cell_release(plane->to_ncplane(), &ur); cell_release(plane->to_ncplane(), &hl);
+      cell_release(plane->to_ncplane(), &ll); cell_release(plane->to_ncplane(), &lr); cell_release(plane->to_ncplane(), &vl);
+      return;
+    }
+    cell_release(plane->to_ncplane(), &ul); cell_release(plane->to_ncplane(), &ur); cell_release(plane->to_ncplane(), &hl);
+    cell_release(plane->to_ncplane(), &ll); cell_release(plane->to_ncplane(), &lr); cell_release(plane->to_ncplane(), &vl);
   }
 
   void setOwning(bool t) { owner = t; }
@@ -106,7 +143,7 @@ private:
 
 class TerminalChart : public Chart {
 public:
-  TerminalChart(UIPlane & _parent) : Chart(_parent) { }
+  TerminalChart(UIPlane & _parent, ChartType _type) : Chart(_parent, _type) { }
 
   void setSample(int i, double v) override {
     if (!plot) {
@@ -120,7 +157,7 @@ public:
 	// | NCPLOT_OPTION_EXPONENTIALD
 	// | NCPLOT_OPTION_PRINTSAMPLE
 	;
-      opts.gridtype = NCBLIT_BRAILLE;
+      opts.gridtype = getType() == DOTS ? NCBLIT_BRAILLE : NCBLIT_2x2;
       // opts.gridtype = NCBLIT_8x1;
       
       channels_set_fg_rgb8(&opts.minchannels, 0x80, 0x80, 0xff);
@@ -134,7 +171,7 @@ public:
     }
 
     auto [rows, columns] = getDim();
-    plot->set_sample(columns - i - 1, v);
+    plot->set_sample(2 * columns - 1 - i, v);
   }
   
 private:
@@ -210,9 +247,50 @@ private:
   bool meta_pressed = false;
   ncreader * reader = 0;
 };
+
+class TerminalPicker : public Picker {
+public:
+  TerminalPicker(UIPlane & parent, bool multiselect = false) : Picker(parent, multiselect) {
+    auto & tplane = dynamic_cast<TerminalPlane&>(getPlane());
+    tplane.setOwning(false);
+    if (isMultiSelect()) {
+      
+    } else {
+      ncselector_options opts =
+	{
+	 .title = nullptr,
+	 .secondary = nullptr,
+	 .footer = nullptr,
+	 .defidx = 0,
+	 .maxdisplay = 0,
+	 .opchannels = 0,
+	 .descchannels = 0,
+	 .titlechannels = 0,
+	 .footchannels = 0,
+	 .boxchannels = 0,
+	 .flags = 0
+	};
+      selector = make_unique<Selector>(tplane.getPlane(), &opts);
+    }
+  }
+
+  void addItem(string label) override {
+    ncselector_item item =
+      {
+       .option = "testi",
+       .desc = "testi2",
+       .opcolumns = 0,
+       .desccolumns = 0,
+      };
+    selector->additem(&item);
+  }
+
+private:
+  unique_ptr<Selector> selector;
+};
   
 void
-TerminalUI::initialize() {
+TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
 #if 0
   if (!setlocale(LC_ALL, "")){
     fprintf(stderr, "Couldn't set locale\n");
@@ -227,7 +305,8 @@ TerminalUI::initialize() {
     nc->mouse_enable();
   }
   
-  auto root_plane = make_unique<TerminalPlane>(nc->get_stdplane(), false);
+  auto root_plane = make_unique<TerminalPlane>(controller, nc->get_stdplane(), false);
+  setPlane(std::move(root_plane));
 
 #if 0
   root_plane->cursor_move(5, 0);
@@ -237,13 +316,12 @@ TerminalUI::initialize() {
 #endif
 
   menu = make_shared<TerminalMenu>();
-  left_chart = make_shared<TerminalChart>(*root_plane);
-  right_chart = make_shared<TerminalChart>(*root_plane);
   
-  score_display = make_shared<ScoreDisplay>(*root_plane);
-
-  info_line = make_shared<InfoLine>(*root_plane);
-  status_line = make_shared<TerminalStatusLine>(*root_plane);
+  chart = make_shared<TerminalChart>(getPlane(), Chart::DOTS);
+  volume_meter = make_shared<TerminalChart>(getPlane(), Chart::BLOCKS);
+  score_display = make_shared<ScoreDisplay>(getPlane());
+  info_line = make_shared<InfoLine>(getPlane());
+  status_line = make_shared<TerminalStatusLine>(getPlane());
 
   layout();
   nc->render(); 
@@ -257,11 +335,7 @@ TerminalUI::setStatus(const std::string & s) {
 
 void
 TerminalUI::layout() {
-  int rows, cols;
-  nc->get_term_dim(&rows, &cols);
-
-  int left_width = cols / 2;
-  int right_width = cols - left_width - 1;
+  auto [ rows, cols ] = getDim();
 
 #if 0
   root_plane->cursor_move(5, 0);
@@ -270,31 +344,11 @@ TerminalUI::layout() {
   root_plane->vline(Cell('|'), 4);
 #endif
   
-  left_chart->resize(4, left_width).move(1, 0);
-  right_chart->resize(4, right_width).move(1, left_width + 1);
-  score_display->resize(rows - 8, cols).move(5, 0);
+  chart->resize(4, cols).move(1, 0);
+  volume_meter->resize(rows - 7, 1).move(5, cols - 1);
+  score_display->resize(rows - 7, cols - 1).move(5, 0);
   info_line->resize(1, cols).move(rows - 2, 0);
   status_line->resize(1, cols - 1).move(rows - 1, 0);
-}
-
-static inline int keyToNote(int key) {
-  switch (key) {
-  case 'q': return 60;
-  case '2': return 61;
-  case 'w': return 62;
-  case '3': return 63;
-  case 'e': return 64;
-  case 'r': return 65;
-  case '5': return 66;
-  case 't': return 67;
-  case '6': return 68;
-  case 'y': return 69;
-  case '7': return 70;
-  case 'u': return 71;
-  case '8': return 72;
-  case 'i': return 73;
-  }
-  return -1;
 }
 
 bool
@@ -305,19 +359,12 @@ TerminalUI::offerInput(const UIInput & input) {
     layout();
     nc->refresh(nullptr, nullptr);    
   } else if (input.getId() == ' ') {
-    if (getSynth()->togglePlayback()) {
+    if (getController().getSynth().togglePlayback()) {
       setStatus("Playing");
     } else {
       setStatus("Stopped");
     }
     return true;
-  } else {
-    int note = keyToNote(input.getId());
-    if (note != -1) {
-      getSynth()->getSong().getInstrument(10).playNote(note);
-      setStatus(format("Playing {}", note));
-      return true;
-    }
   }
   
   return false;
@@ -355,38 +402,40 @@ TerminalUI::start(AudioAPI & audio) {
   // setStatus("Starting... nd = " + to_string(num_descriptors));
 
   time_t prev_update = 0;
-  time_t prev_pos = getSynth()->getCurrentPosition();
+  time_t prev_pos = getController().getSynth().getCurrentPosition();
 
-  score_display->render(*getSynth(), true);
-  info_line->render(*getSynth(), true);
+  score_display->render(true);
+  info_line->render(true);
 	
   while ( !close_ui ) {
     bool render = false;
     
     // setStatus("polling");
-    if (poll(descriptors.get(), num_descriptors, 100) > 0) {
+    if (poll(descriptors.get(), num_descriptors, 50) > 0) {
       for (size_t i = 0; i < num_descriptors; i++) {
 	auto & d = descriptors[i];
 	if (d.revents) {
 	  if (d.fd == 0) {
 	    render |= readInput();
 	  } else {
-	    auto data = getSynth()->play(audio.getFrameCount());
+	    auto data = getController().getSynth().play(getController().getSong(), audio.getFrameCount());
 	    audio.play(data, *this);
 
 	    time_t current_time = now();
 
 	    // waiting_data.clear();
-	    waiting_data.append(data);
+	    // waiting_data.append(data);
 	    // setStatus(to_string(data.size()) + " " + to_string(waiting_data.size()));
 	    
-	    if (prev_update + 100 < current_time) {
+	    if (prev_update + 50 < current_time) {
 	      prev_update = current_time;
 
 	      waiting_data.shortenToPowerofTwo();
-
-	      left_chart->displayFFT(waiting_data, 0);
-	      right_chart->displayFFT(waiting_data, 1);
+	      
+	      chart->displayFFT(data);
+	      auto [left, right] = data.calculateLoudness();
+	      volume_meter->setSample(0, left);
+	      volume_meter->setSample(1, right);
 
 	      waiting_data.clear();
 	      	
@@ -396,14 +445,14 @@ TerminalUI::start(AudioAPI & audio) {
 	}
       }
 
-      if (prev_pos != getSynth()->getCurrentPosition()) {
-	info_line->render(*getSynth());
+      if (prev_pos != getController().getSynth().getCurrentPosition()) {
+	info_line->render();
 	render = true;
       }
       
-      render |= score_display->render(*getSynth());
+      render |= score_display->render();
       
-      prev_pos = getSynth()->getCurrentPosition();
+      prev_pos = getController().getSynth().getCurrentPosition();
 
       if (render) {
 	nc->render();
