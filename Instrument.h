@@ -1,15 +1,19 @@
 #ifndef _INSTRUMENT_H_
 #define _INSTRUMENT_H_
 
+#include "Effect.h"
+#include "Filter.h"
+
 #include <string>
 #include <vector>
 #include <cmath>
+#include <memory>
+#include <deque>
 
 #define MAXDELAYSAMPLES 44100 * 5
 
 // flags
 #define DELAYTRACK 0x1
-#define HPFILTER 0x2
 
 class Instrument {
 public:
@@ -29,8 +33,6 @@ public:
   float getDetune() const { return detune; }
   float getVolume() const { return volume; }
   float getPan() const { return pan; }
-  float getFcut() const { return fcut; }
-  float getFres() const { return fres; }
   unsigned char getFlags() const { return flags; }
   bool getSolo() const { return solo; }
   
@@ -47,9 +49,10 @@ public:
   void setFlags(unsigned char _flags) { flags = _flags; }
   void setSolo(bool s) {solo = s; }
     
-  void setFilter(int _fcut, int _fres) {
-    fcut = _fcut / 255.0f;
-    fres = _fres / 63.0f;
+  void setFilter(int _fcut, int _fres, bool is_highpass = false) {
+    float fcut = _fcut / 255.0f;
+    float fres = _fres / 63.0f;
+    addEffect(std::make_unique<Filter>(fcut, fres, is_highpass));
   }
 
   void setADSR(int _a, int _d, int _s, int _r) {
@@ -123,30 +126,10 @@ public:
     }
   }
   
-  float filtersample(float input) {  
-    if (!(fcut < 1.0 || fres > 0.0)) return input;
-      
-    float si = input;
-    float f = fcut * 1.16;
-    float ff = f * f;
-    float fb = fres * (1.0 - 0.15 * ff);
-    f = 1 - f;
-    
-    input -= out4 * fb;
-    input *= 0.35013 * ff * ff;
-    out1 = input + 0.3 * in1 + f * out1; // Pole 1
-    in1  = input;
-    out2 = out1 + 0.3 * in2 + f * out2;  // Pole 2
-    in2 = out1;
-    out3 = out2 + 0.3 * in3 + f * out3;  // Pole 3
-    in3  = out2;
-    out4 = out3 + 0.3 * in4 + f * out4;  // Pole 4
-    in4  = out3;
-
-    char type = flags & HPFILTER;
-    
-    if (!type) return out4;
-    else return si - out4;
+  void applyEffects(SampleData & data) {
+    for (auto & effect : effects) {
+      effect->apply(data);
+    }
   }
 
   void delaysample(float delaymix1, float delaymix2, float fd1, float delay1, float fd2, float delay2, float *in1, float *in2) {
@@ -171,6 +154,14 @@ public:
 
   float getFphase() const { return fphase; }
   bool hasAccent() const { return acc; }
+
+  void addEffect(std::unique_ptr<Effect> effect) { effects.push_back(std::move(effect)); }
+
+  void addPendingNote(size_t frame, unsigned char note) {
+    pending_notes.push_back(std::pair(frame, note));
+  }
+  void clearPendingNotes() { pending_notes.clear(); }
+  std::deque<std::pair<unsigned int, unsigned char> > & getPendingNotes() { return pending_notes; }
   
 protected:
   std::string name;
@@ -183,7 +174,6 @@ protected:
   float s = 1.0;
   float detune = 0, volume = 1.0f;
   float pan = 0.5f;
-  float fcut = 1.0, fres = 0.0;
   unsigned char flags = 0;
   short transpose = 0;
   bool solo = false;
@@ -191,14 +181,13 @@ protected:
   // adsr state
   int adsrstate, adsrpos;
 
-    // filter state
-  float in1 = 0, in2 = 0, in3 = 0, in4 = 0;
-  float out1 = 0, out2 = 0, out3 = 0, out4 = 0;
-
   // delay state
   int delc1, delc2;
   float delaybuf1[MAXDELAYSAMPLES], delaybuf2[MAXDELAYSAMPLES];
 
+  std::vector<std::unique_ptr<Effect> > effects;
+
+  std::deque<std::pair<unsigned int, unsigned char> > pending_notes;
 };
 
 #endif
