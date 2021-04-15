@@ -2,6 +2,7 @@
 
 #include "UIInput.h"
 #include "Synth.h"
+#include "Controller.h"
 
 #include <fmt/core.h>
 
@@ -121,8 +122,11 @@ ScoreDisplay::ScoreDisplay(UIPlane & parent) : UIElement(parent) {
 }
 
 bool
-ScoreDisplay::render(Synth & synth, bool refresh) {
+ScoreDisplay::render(bool refresh) {
+  if (refresh) getPlane().drawBorder();
+  
   bool render_all = refresh;
+  auto & synth = getController().getSynth();
   size_t score_section = synth.getTrackPosition();
   size_t score_playing_row = synth.getPatternPosition();
   
@@ -141,22 +145,22 @@ ScoreDisplay::render(Synth & synth, bool refresh) {
   if (render_all) {
     auto [rows, cols] = getDim();
     for (int row = 0; row < rows && row < 32; row++) {
-      renderRow(synth, row, row == score_playing_row);
+      renderRow(row, row == score_playing_row);
     }
   } else {
     
     if (cursor_row_changed) {
-      renderRow(synth, old_cursor_row, old_cursor_row == score_playing_row);
-      renderRow(synth, current_score_cursor_row, current_score_cursor_row == score_playing_row);
+      renderRow(old_cursor_row, old_cursor_row == score_playing_row);
+      renderRow(current_score_cursor_row, current_score_cursor_row == score_playing_row);
       need_redraw = true;
     } else if (cursor_col_changed) {
-      renderRow(synth, current_score_cursor_row, current_score_cursor_row == score_playing_row);      
+      renderRow(current_score_cursor_row, current_score_cursor_row == score_playing_row);      
       need_redraw = true;
     }
     
     if (current_score_playing_row != score_playing_row) {
-      renderRow(synth, current_score_playing_row, false);
-      renderRow(synth, score_playing_row, true);
+      renderRow(current_score_playing_row, false);
+      renderRow(score_playing_row, true);
       need_redraw = true;
     }
   }
@@ -177,20 +181,58 @@ ScoreDisplay::render(Synth & synth, bool refresh) {
 #define NCKEY_DOWN    suppuabize(4)                                                      
 #define NCKEY_LEFT    suppuabize(5)
 
+#define NCKEY_DEL   suppuabize(7)
+#define NCKEY_BACKSPACE   suppuabize(8)
+
+static inline int keyToNote(int key) {
+  switch (key) {
+  case NCKEY_DEL:
+  case NCKEY_BACKSPACE:
+    return 0;
+    
+  case '<': return 28;
+  case 'a': return 29;
+  case 'z': return 20;
+    
+  case 'q': return 60;
+  case '2': return 61;
+  case 'w': return 62;
+  case '3': return 63;
+  case 'e': return 64;
+  case 'r': return 65;
+  case '5': return 66;
+  case 't': return 67;
+  case '6': return 68;
+  case 'y': return 69;
+  case '7': return 70;
+  case 'u': return 71;
+  case '8': return 72;
+  case 'i': return 73;
+  }
+  return -1;
+}
+
 bool
 ScoreDisplay::offerInput(const UIInput & input) {
+  auto & song = getController().getSong();
+  auto & synth = getController().getSynth();
+  auto & section = song.getSection(synth.getTrackPosition());
+  size_t num_columns = section.getSequences().size();
+    
   if (input.hasCtrl() && (input.getId() == 'a' || input.getId() == 'A')) {
     new_score_cursor_col = 0;
     return true;
-  } else if (input.hasCtrl() && input.getId() == 'e') {
-    // goto end
+  } else if (input.hasCtrl() && (input.getId() == 'e' || input.getId() == 'E')) {
+    new_score_cursor_col = num_columns > 1 ? num_columns - 1 : 0; 
   } else if (input.getId() == NCKEY_LEFT) {
     if (new_score_cursor_col > 0) {
       new_score_cursor_col--;
     }
     return true;
   } else if (input.getId() == NCKEY_RIGHT) {
-    new_score_cursor_col++;
+    if (new_score_cursor_col + 1 < num_columns) {
+      new_score_cursor_col++;
+    }
     return true;
   } else if (input.getId() == NCKEY_UP) {
     if (new_score_cursor_row > 0) {
@@ -202,23 +244,42 @@ ScoreDisplay::offerInput(const UIInput & input) {
       new_score_cursor_row++;
     }
     return true;
+  } else {
+    int note = keyToNote(input.getId());
+    if (note != -1) {
+      song.getInstrument(15).playNote(note);
+      auto & section = song.getSection(synth.getTrackPosition());
+      auto & sequence = section.getSequence(current_score_cursor_col);
+      sequence.setNote(current_score_cursor_row, note);
+      if (input.getId() == NCKEY_BACKSPACE) new_score_cursor_row--;
+      else if (input.getId() != NCKEY_DEL) new_score_cursor_row++;
+      
+      // setStatus(format("Playing {}", note));
+      return true;
+    }
   }
   
   return false;
 }
 
 void
-ScoreDisplay::renderRow(Synth & synth, size_t row, bool highlight) {
-  auto & song = synth.getSong();
+ScoreDisplay::renderRow(size_t row, bool highlight) {
+  auto & song = getController().getSong();
+  auto & synth = getController().getSynth();
   auto & section = song.getSection(synth.getTrackPosition());
   
   bool is_cursor_on_row = row == current_score_cursor_row;
-  
-  setFgColor(0x80, 0xc0, 0x80);
-  setBgColor(0x00, 0x00, 0x00);
+
+  if (row % 4 == 0) {
+    setFgColor(0xe0, 0xe0, 0xe0);
+    setBgColor(0x20, 0x20, 0x20);
+  } else {
+    setFgColor(0xa0, 0xa0, 0xa0);
+    setBgColor(0x00, 0x00, 0x00);
+  }
   
   auto s = format("{:02x}|", row);
-  putstr(row, 0, s.c_str());
+  putstr(1 + row, 1, s.c_str());
   
   for (size_t i = 0; i < section.size(); i++) {
     auto & sequence = section.getSequence(i);
@@ -227,23 +288,25 @@ ScoreDisplay::renderRow(Synth & synth, size_t row, bool highlight) {
     if (is_cursor_on_row && i == current_score_cursor_col) {
       setFgColor(0x00, 0x00, 0x00);
       setBgColor(0xa0, 0xff, 0xa0);
-    } else {
+    } else if (highlight) {
       setFgColor(0x80, 0xc0, 0x80);
-      if (highlight) {
-	setBgColor(0x80, 0xa0, 0x80);
-      } else {
-	setBgColor(0x00, 0x00, 0x00);
-      }
+      setBgColor(0x80, 0xa0, 0x80);
+    } else if (row % 4 == 0) {
+      setFgColor(0xe0, 0xe0, 0xe0);
+      setBgColor(0x20, 0x20, 0x20);
+    } else {
+      setFgColor(0xa0, 0xa0, 0xa0);
+      setBgColor(0x00, 0x00, 0x00);
     }
     
     if (note != 0) {
       bool has_accent = note & 0x80;
       note &= 0x7f;
       
-      string name = getNoteName(note);
-      putstr(row, 3 + i*4, name.c_str());
+      string name = getNoteName(note) + " ";
+      putstr(1 + row, 1 + 3 + i*4, name.c_str());
     } else {
-      putstr(row, 3 + i*4, "... ");
+      putstr(1 + row, 1 + 3 + i*4, "... ");
     }
   }
 }
