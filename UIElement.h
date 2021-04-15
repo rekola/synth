@@ -46,7 +46,9 @@ class UIElement {
   std::pair<int, int> getDim() const {
     if (plane) return plane->getDim();
     else return std::pair(0, 0);
-  }  
+  }
+
+  Controller & getController() const { return *(plane->getController()); }
 
 protected:
   void setPlane(std::unique_ptr<UIPlane> _plane) { plane = std::move(_plane); }
