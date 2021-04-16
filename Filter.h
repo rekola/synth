@@ -44,6 +44,9 @@ class Filter : public Effect {
   float fcut = 1.0, fres = 0.0;
   bool is_highpass;
 
+  //
+  float lfo_amount = 0, lfo_rate = 0, lfo_phase = 0;
+  
   // filter state
   float in1 = 0, in2 = 0, in3 = 0, in4 = 0;
   float out1 = 0, out2 = 0, out3 = 0, out4 = 0;
