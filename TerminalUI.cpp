@@ -30,7 +30,7 @@ using namespace std;
 using namespace fmt;
 
 static inline ncinput to_ncinput(const UIInput & input) {
-  ncinput ni = { .id = input.getId(), .y = -1, .x = -1, .alt = input.hasAlt(), .shift = input.hasShift(), .ctrl = input.hasCtrl(), .seqnum = input.getSeqnum() };
+  ncinput ni = { .id = input.getId(), .y = input.getY(), .x = input.getX(), .alt = input.hasAlt(), .shift = input.hasShift(), .ctrl = input.hasCtrl(), .seqnum = input.getSeqnum() };
   return ni;
 }
 
@@ -112,12 +112,12 @@ private:
 class TerminalMenu : public UIMenu {
 public:
   TerminalMenu() {
-    ncmenu_item file_items[] = { { .desc = "New", .shortcut = { .id = 'N' } },
-				 { .desc = "Open", .shortcut = { .id = 'O' } },
-				 { .desc = "Quit", .shortcut = { .id = 'q' } }
+    ncmenu_item file_items[] = { { .desc = "New", .shortcut = { .id = 'N', .ctrl = true } },
+				 // { .desc = "Open", .shortcut = { .id = 'O' } },
+				 // { .desc = "Quit", .shortcut = { .id = 'q' } }
     };
     
-    ncmenu_section sections[] = { { .name = "File", .itemcount = 3, .items = file_items, .shortcut = { .id = 'f', .alt = true } }
+    ncmenu_section sections[] = { { .name = "File", .itemcount = 1, .items = file_items, .shortcut = { .id = 'f', .alt = true } }
     };
     uint64_t headerchannels = 0;                                                  
     uint64_t sectionchannels = 0;                                                 
@@ -134,11 +134,17 @@ public:
 
   bool offerInput(const UIInput & input) override {
     auto ni = to_ncinput(input);
-    return menu->offer_input(&ni);
+    auto r = menu->offer_input(&ni);
+    auto s = menu->get_selected();
+    menu_selected = s ? s : "";
+    return r;
   }
+
+  std::string getSelected() const { return menu_selected; }
   
 private:
   unique_ptr<Menu> menu;
+  string menu_selected;
 };
 
 class TerminalChart : public Chart {
@@ -185,7 +191,10 @@ public:
   bool offerInput(const UIInput & input) override {
     if (readerActive()) {
       if (input.getId() == NCKEY_ENTER) {
-	string cmd = closeReader();	       
+	string cmd = closeReader();
+	if (!getController().sendCommand(cmd)) {
+	  setMessage("Invalid command");
+	}
       } else if (input.hasCtrl() && input.getId() == 'g') {
 	closeReader();	
       } else {
@@ -357,7 +366,10 @@ TerminalUI::offerInput(const UIInput & input) {
   // if (ni.ctrl && (ni.id == 'q' || ni.id == 'Q')) close_ui = true;
   if (input.getId() == NCKEY_RESIZE) {
     layout();
-    nc->refresh(nullptr, nullptr);    
+    nc->refresh(nullptr, nullptr);
+  } else if ((input.getId() == 'n' || input.getId() == 'N') && input.hasCtrl()) {
+    setStatus("New song");
+    getController().createNewSong();
   } else if (input.getId() == ' ') {
     if (getController().getSynth().togglePlayback()) {
       setStatus("Playing");
@@ -377,8 +389,11 @@ TerminalUI::readInput() {
   ncinput ni;
   if (nc->getc(true, &ni) != (char32_t)-1) {
     bool handled = false;
-    UIInput input(ni.seqnum, ni.id, ni.alt, ni.shift, ni.ctrl);
-    if (!handled) handled |= menu->offerInput(input);
+    UIInput input(ni.seqnum, ni.id, ni.y, ni.x, ni.alt, ni.shift, ni.ctrl);
+    if (!handled) {
+      handled |= menu->offerInput(input);
+      if (handled) setStatus("menu: " + menu->getSelected());
+    }
     if (!handled) handled |= status_line->offerInput(input);
     if (!handled) handled |= score_display->offerInput(input);
     if (!handled) handled |= offerInput(input);
