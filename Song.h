@@ -2,13 +2,11 @@
 #define _SONG_H_
 
 #include "Section.h"
-#include "Sequence.h"
+// #include "Sequence.h"
 #include "Instrument.h"
 
 #include <memory>
 #include <vector>
-
-#define PATTLEN 32
 
 class Song {
  public:
@@ -33,9 +31,8 @@ class Song {
 
 private:
   std::vector<std::unique_ptr<Instrument> > instruments;
-  // Section empty_section;
   std::vector<Section> sections;
-  std::vector<Sequence> sequences;
+  // std::vector<Sequence> sequences;
   Section empty_section;
 };
 
