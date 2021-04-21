@@ -16,14 +16,18 @@ class InfoLine : public UIElement {
 
   bool render(bool refresh = false) {
     auto & synth = getController().getSynth();
-
-    int seconds = (int)synth.gettime();
+    auto & song = getController().getSong();
+    
+    int seconds = (int)synth.gettime(song);
     int minutes = seconds / 60;
     seconds %= 60;
 
     auto [ rows, cols ] = getDim();
 
-    auto s = fmt::format(" {:02x} {:02d}:{:02d}", synth.getCurrentPosition(), minutes, seconds);
+    size_t section_index = synth.getTrackPosition();
+    // auto & section = song.getSection();
+
+    auto s = fmt::format(" {:02x} {:02d}:{:02d} section:{}", synth.getCurrentPosition(), minutes, seconds, section_index);
     while (s.size() < cols) s += ' ';
     
     putstr(0, 0, s);
