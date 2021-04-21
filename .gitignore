@@ -1,0 +1,11 @@
+# Emacs stuff
+*~
+\#*\#
+.\#*
+
+# C++
+*.o
+*.d
+
+# binaries
+musiceditor
