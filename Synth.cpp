@@ -5,7 +5,6 @@
 #include <cmath>
 #include <cassert>
 
-#define NOTEDOMAIN (float)1/4
 #define ACCENTAMT 1.5f
 
 using namespace std;
@@ -19,9 +18,6 @@ Synth::play(Song & song, size_t frames) {
   for (size_t i = 0; i < song.getInstruments().size(); i++) {
     if (song.getInstrument(i).getSolo()) solo_instrument = i;
   }
-
-  float tnote = (float)60 / song.bpm * NOTEDOMAIN * 2;
-  int sinterval = (int)(tnote * samplerate);
   
   if (is_playing) {
     for (size_t i = 0; i < frames; i++) {
@@ -34,19 +30,7 @@ Synth::play(Song & song, size_t frames) {
 	}
       }
 
-      if (samplepos + 1 < sinterval || ptrnpos + 1 < PATTLEN || trkpos + 1 < song.getSections().size()) {
-	complete_pos++;
-	samplepos++;
-	
-	if (samplepos == sinterval) {
-	  samplepos = 0;
-	  ptrnpos++;
-	  if (ptrnpos >= PATTLEN) {
-	    ptrnpos = 0;
-	    trkpos++;
-	  }
-	}
-      }
+      moveForwardSample(song);
     }
   }
   
