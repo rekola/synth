@@ -2,7 +2,15 @@
 #define _BASICINSTRUMENT_H_
 
 #include "Instrument.h"
-#include "WaveformType.h"
+
+enum class WaveformType
+  {
+   SINE = 0,
+   SAW,
+   SQUARE,
+   NOISE, // metallic noise
+   NOISE2 // real noise
+  };
 
 #define WAVESIZE 1024
 
