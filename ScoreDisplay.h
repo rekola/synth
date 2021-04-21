@@ -31,11 +31,12 @@ protected:
   
   size_t current_score_playing_row = 0;
   size_t current_score_section = 0;
-  size_t current_score_cursor_row = 0, current_score_cursor_col = 0;
-  size_t new_score_cursor_row = 0, new_score_cursor_col = 0;
-
+  size_t current_score_cursor_col = 0;
+  size_t new_score_cursor_col = 0;
+  bool row_edited = false;
+  
 private:
-  std::unordered_map<short, std::string> midi_note_names;
+  std::unordered_map<short, std::string> midi_note_names;  
 };
 
 #endif

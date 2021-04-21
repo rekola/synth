@@ -129,15 +129,16 @@ ScoreDisplay::render(bool refresh) {
   auto & synth = getController().getSynth();
   size_t score_section = synth.getTrackPosition();
   size_t score_playing_row = synth.getPatternPosition();
+  auto & current_section = getController().getSong().getSection(score_section);
   
   if (score_section != current_score_section) render_all = true;
   
-  bool cursor_row_changed = new_score_cursor_row != current_score_cursor_row;
+  // bool cursor_row_changed = new_score_cursor_row != current_score_cursor_row;
   bool cursor_col_changed = new_score_cursor_col != current_score_cursor_col;
   
-  size_t old_cursor_row = current_score_cursor_row;
+  // size_t old_cursor_row = current_score_cursor_row;
   
-  current_score_cursor_row = new_score_cursor_row;
+  // current_score_cursor_row = new_score_cursor_row;
   current_score_cursor_col = new_score_cursor_col;
   
   bool need_redraw = render_all;
@@ -147,26 +148,18 @@ ScoreDisplay::render(bool refresh) {
     for (int row = 0; row < rows && row < 32; row++) {
       renderRow(row, row == score_playing_row);
     }
-  } else {
-    
-    if (cursor_row_changed) {
-      renderRow(old_cursor_row, old_cursor_row == score_playing_row);
-      renderRow(current_score_cursor_row, current_score_cursor_row == score_playing_row);
-      need_redraw = true;
-    } else if (cursor_col_changed) {
-      renderRow(current_score_cursor_row, current_score_cursor_row == score_playing_row);      
-      need_redraw = true;
-    }
-    
-    if (current_score_playing_row != score_playing_row) {
-      renderRow(current_score_playing_row, false);
-      renderRow(score_playing_row, true);
-      need_redraw = true;
-    }
+  } else if (current_score_playing_row != score_playing_row) {
+    renderRow(current_score_playing_row, false);
+    renderRow(score_playing_row, true);
+    need_redraw = true;
+  } else if (cursor_col_changed || row_edited) {
+    renderRow(score_playing_row, true);
+    need_redraw = true;
   }
   
   current_score_section = score_section;
   current_score_playing_row = score_playing_row;
+  row_edited = false;
   
   return need_redraw;
 }
@@ -223,7 +216,7 @@ ScoreDisplay::offerInput(const UIInput & input) {
   auto & synth = getController().getSynth();
   auto & section = song.getSection(synth.getTrackPosition());
   size_t num_columns = section.getSequences().size();
-    
+
   if (input.hasCtrl() && (input.getId() == 'a' || input.getId() == 'A')) {
     new_score_cursor_col = 0;
     return true;
@@ -240,24 +233,21 @@ ScoreDisplay::offerInput(const UIInput & input) {
     }
     return true;
   } else if (input.getId() == NCKEY_UP) {
-    if (new_score_cursor_row > 0) {
-      new_score_cursor_row--;
-    }
+    if (!synth.isPlaying()) synth.moveBackwards(song);
     return true;
   } else if (input.getId() == NCKEY_DOWN) {
-    if (new_score_cursor_row < 31) {
-      new_score_cursor_row++;
-    }
+    if (!synth.isPlaying()) synth.moveForward(song);
     return true;
   } else {
     int note = keyToNote(input.getId());
     if (note != -1) {
-      song.getInstrument(15).playNote(note);
       auto & section = song.getSection(synth.getTrackPosition());
       auto & sequence = section.getSequence(current_score_cursor_col);
-      sequence.setNote(current_score_cursor_row, note);
-      if (input.getId() == NCKEY_BACKSPACE) new_score_cursor_row--;
-      else if (input.getId() != NCKEY_DEL) new_score_cursor_row++;
+      song.getInstrument(sequence.getInstrumentId()).playNote(note);
+      sequence.setNote(synth.getPatternPosition(), note);
+      row_edited = true;
+      if (input.getId() == NCKEY_BACKSPACE) synth.moveBackwards(song);
+      else if (input.getId() != NCKEY_DEL) synth.moveForward(song);
       
       // setStatus(format("Playing {}", note));
       return true;
@@ -272,25 +262,9 @@ ScoreDisplay::renderRow(size_t row, bool highlight) {
   auto & song = getController().getSong();
   auto & synth = getController().getSynth();
   auto & section = song.getSection(synth.getTrackPosition());
-  
-  bool is_cursor_on_row = row == current_score_cursor_row;
-
-  if (row % 4 == 0) {
-    setFgColor(0xe0, 0xe0, 0xe0);
-    setBgColor(0x20, 0x20, 0x20);
-  } else {
-    setFgColor(0xa0, 0xa0, 0xa0);
-    setBgColor(0x00, 0x00, 0x00);
-  }
-  
-  auto s = format("{:02x}|", row);
-  putstr(1 + row, 1, s.c_str());
-  
-  for (size_t i = 0; i < section.size(); i++) {
-    auto & sequence = section.getSequence(i);
-    int note = sequence.getNote(row);
-    
-    if (is_cursor_on_row && i == current_score_cursor_col) {
+      
+  for (int i = -1; i < (int)section.size(); i++) {
+    if (highlight && i == current_score_cursor_col) {
       setFgColor(0x00, 0x00, 0x00);
       setBgColor(0xa0, 0xff, 0xa0);
     } else if (highlight) {
@@ -303,15 +277,24 @@ ScoreDisplay::renderRow(size_t row, bool highlight) {
       setFgColor(0xa0, 0xa0, 0xa0);
       setBgColor(0x00, 0x00, 0x00);
     }
-    
-    if (note != 0) {
-      bool has_accent = note & 0x80;
-      note &= 0x7f;
-      
-      string name = getNoteName(note) + " ";
-      putstr(1 + row, 1 + 3 + i*4, name.c_str());
+
+    if (i == -1) {
+      auto s = format("{:02x}|", row);
+      putstr(1 + row, 1, s.c_str());
+
     } else {
-      putstr(1 + row, 1 + 3 + i*4, "... ");
+      auto & sequence = section.getSequence(i);
+      int note = sequence.getNote(row);
+      
+      if (note != 0) {
+	bool has_accent = note & 0x80;
+	note &= 0x7f;
+	
+	string name = getNoteName(note) + " ";
+	putstr(1 + row, 1 + 3 + i*4, name.c_str());
+      } else {
+	putstr(1 + row, 1 + 3 + i*4, "... ");
+      }
     }
   }
 }
