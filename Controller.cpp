@@ -4,8 +4,9 @@
 #include "BasicInstrument.h"
 #include "FMInstrument.h"
 #include "FileInstrument.h"
-
+#include "Chorus.h"
 #include "Distortion.h"
+#include "Reverb.h"
 
 #include "track.h"
 
@@ -145,15 +146,98 @@ Controller::Controller() {
   i14->setPan(37);
   i14->setFilter(150, 255);
   song->addInstrument(move(i14));
+
+  const unsigned char * track = tr;
   
-  auto oboe = make_unique<FMInstrument>(0.7, 1, 3, 0.1f);
+  song->bpm = *track++;
+  song->mastervol = (float)(*track++) / 127;
+  
+  song->delay1 = (int)(MAXDELAYSAMPLES * ((float)(*track++) / 255));
+  song->delay2 = (int)(MAXDELAYSAMPLES * ((float)(*track++) / 255));
+  song->fd1 = (float)(*track++) / 255;
+  song->fd2 = (float)(*track++) / 255;
+  song->delaymix1 = (float)(*track++) / 255;
+  song->delaymix2 = (float)(*track++) / 255;
+  
+  int ptrncnt = *track++;
+  vector<Sequence> available_sequences;
+  for (int i = 0; i < ptrncnt; i++) {
+    Sequence sequence;
+    sequence.setInstrumentId(*track++);
+    
+    for (size_t j = 0; ; j++) {
+      int val = *track++;
+      if (val == 255) break;
+      sequence.setNote(j, val);
+    }
+
+    available_sequences.push_back(sequence);
+  }
+
+  size_t max_sequence_length = 0;
+  vector<vector<int> > sequence_vectors;
+  int trkcnt = *track++;
+  for (int i = 0; i < trkcnt; i++) {
+    vector<int> seqs;
+    while (1) {
+      size_t val = *track++;
+      if (val == 255) break;
+      assert(val < available_sequences.size());
+      seqs.push_back(val);
+    }
+    
+    sequence_vectors.push_back(seqs);
+#if 0
+    if (sequence_vectors.size() > max_sequence_length) max_sequence_length = sequence_vectors.size();
+#else
+    if (seqs.size() > max_sequence_length) max_sequence_length = seqs.size();
+#endif
+  }
+
+  for (size_t i = 0; i < max_sequence_length; i++) {
+    Section section;
+    for (size_t j = 0; j < sequence_vectors.size(); j++) {
+      auto & sequences = sequence_vectors[j];
+      if (i < sequences.size()) {
+	auto id = sequences[i];
+	assert(id >= 0 && id < available_sequences.size());
+	section.addSequence(available_sequences[id]);
+      }
+    }
+    assert(!section.empty());
+    song->addSection(section);
+  }
+
+  current_song = song;
+}
+
+void
+Controller::createNewSong() {
+  auto song = make_shared<Song>();
+  
+#if 0
+  auto test = make_unique<FMInstrument>(0, 1, 1, 2.01);
+  test->setName("test");
+  test->setADSR(2, 15, 0, 10);
+  test->setVolume(100);
+  test->setPan(37);
+  // test->setTranspose(12);
+  test->addEffect(make_unique<Distortion>(Distortion::CLIP, 0.5f));
+  // test->addEffect(make_unique<Chorus>(5.0f, 0.0f));
+  test->setFilter(100, 30);
+  song->addInstrument(move(test));
+#endif
+  
+  auto oboe = make_unique<FMInstrument>(0.7, 3, 4, 0.1f);
   oboe->setName("oboe");
   oboe->setADSR(2, 15, 0, 10);
   oboe->setVolume(100);
   oboe->setPan(37);
   oboe->setTranspose(12);
+  // oboe->addEffect(make_unique<Distortion>(Distortion::CLIP, 0.5f));
+  // oboe->addEffect(make_unique<Chorus>(5.0f, 0.0f));
+  // oboe->addEffect(make_unique<Reverb>(44100, Reverb::DEFAULT)); // LARGEROOM1));
   // oboe->setFilter(100, 30);
-  // oboe->addEffect(make_unique<Distortion>(Distortion::CLIP, 0.3f));
   song->addInstrument(move(oboe));
 
   auto harpsichord = make_unique<FMInstrument>(7.8, 3, 5);
@@ -177,61 +261,21 @@ Controller::Controller() {
 
 // Bell 3.5 7 9 0 0.01 0.2 0.3 1.5
 
-  const unsigned char * track = tr;
+  Sequence sequence;
   
-  song->bpm = *track++;
-  song->mastervol = (float)(*track++) / 127;
-  
-  song->delay1 = (int)(MAXDELAYSAMPLES * ((float)(*track++) / 255));
-  song->delay2 = (int)(MAXDELAYSAMPLES * ((float)(*track++) / 255));
-  song->fd1 = (float)(*track++) / 255;
-  song->fd2 = (float)(*track++) / 255;
-  song->delaymix1 = (float)(*track++) / 255;
-  song->delaymix2 = (float)(*track++) / 255;
-  
-  int ptrncnt = *track++;
-  vector<Sequence> available_sequences;
-  for (int i = 0; i < ptrncnt; i++) {
-    Sequence sequence;
-    sequence.setInstrumentId(*track++);
-    
-    while (1) {
-      int val = *track++;
-      if (val == 255) break;
-      sequence.addNote(val);
-    }
-
-    available_sequences.push_back(sequence);
-  }
-
-  size_t max_sequence_length = 0;
-  vector<vector<int> > sequence_vectors;
-  int trkcnt = *track++;
-  for (int i = 0; i < trkcnt; i++) {
-    vector<int> seqs;
-    while (1) {
-      size_t val = *track++;
-      if (val == 255) break;
-      assert(val < available_sequences.size());
-      seqs.push_back(val);
-    }
-    
-    sequence_vectors.push_back(seqs);
-    if (sequence_vectors.size() > max_sequence_length) max_sequence_length = sequence_vectors.size();
-  }
-
-  for (size_t i = 0; i < max_sequence_length; i++) {
-    Section section;
-    for (size_t j = 0; j < sequence_vectors.size(); j++) {
-      auto & sequences = sequence_vectors[j];
-      if (i < sequences.size()) {
-	auto id = sequences[i];
-	assert(id >= 0 && id < available_sequences.size());
-	section.addSequence(available_sequences[id]);
-      }
-    }
-    song->addSection(section);
-  }
+  Section section;
+  section.addSequence(sequence);
+  song->addSection(section);  
 
   current_song = song;
+}
+
+bool
+Controller::sendCommand(const std::string & cmd) {
+  if (cmd == "new-song") {
+    createNewSong();
+  } else {
+    return false;
+  }
+  return true;
 }

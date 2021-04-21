@@ -18,6 +18,9 @@ class Controller {
 
   void setSynth(std::shared_ptr<Synth> & _synth) { synth = _synth; }
 
+  void createNewSong();
+  bool sendCommand(const std::string & s);
+  
  private:
   std::shared_ptr<Synth> synth;
   std::shared_ptr<Song> current_song;
