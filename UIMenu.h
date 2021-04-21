@@ -7,6 +7,8 @@ class UIMenu : public UIElement {
  public:
   UIMenu() { }
 
+  virtual std::string getSelected() const = 0;
+
  private:
 };
 
