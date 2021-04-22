@@ -35,6 +35,7 @@ protected:
   size_t current_score_cursor_col = 0;
   size_t new_score_cursor_col = 0;
   bool row_edited = false;
+  int current_song_version = 0;
   
 private:
   std::unordered_map<short, std::string> midi_note_names;  

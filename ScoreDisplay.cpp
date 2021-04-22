@@ -127,9 +127,14 @@ ScoreDisplay::render(bool refresh) {
   auto & synth = getController().getSynth();
   size_t score_section = synth.getSectionPosition();
   size_t score_playing_row = synth.getSequencePosition();
-  auto & current_section = getController().getSong().getSection(score_section);
+  auto & song = getController().getSong();
+  auto & current_section = song.getSection(score_section);
   
-  if (score_section != current_score_section) render_all = true;
+  if (score_section != current_score_section ||
+      song.getVersion() != current_song_version
+      ) {
+    render_all = true;
+  }
   
   // bool cursor_row_changed = new_score_cursor_row != current_score_cursor_row;
   bool cursor_col_changed = new_score_cursor_col != current_score_cursor_col;
@@ -160,6 +165,7 @@ ScoreDisplay::render(bool refresh) {
   
   current_score_section = score_section;
   current_score_playing_row = score_playing_row;
+  current_song_version = song.getVersion();
   row_edited = false;
   
   return need_redraw;
@@ -205,11 +211,18 @@ ScoreDisplay::offerInput(const UIInput & input) {
   auto & section = song.getSection(synth.getSectionPosition());
   size_t num_columns = section.getSequences().size();
 
-  if (input.hasCtrl() && (input.getId() == 'a' || input.getId() == 'A')) {
-    new_score_cursor_col = 0;
-    return true;
-  } else if (input.hasCtrl() && (input.getId() == 'e' || input.getId() == 'E')) {
-    new_score_cursor_col = num_columns > 1 ? num_columns - 1 : 0; 
+  if (input.hasCtrl()) {
+    if (input.getId() == 'a' || input.getId() == 'A') {
+      new_score_cursor_col = 0;
+      return true;
+    } else if (input.getId() == 'e' || input.getId() == 'E') {
+      new_score_cursor_col = num_columns > 1 ? num_columns - 1 : 0;
+      return true;
+    } else if (input.getId() == 't' || input.getId() == 'T') {
+      section.addSequence(Sequence());
+    } else {
+      return false;
+    }
   } else if (input.getId() == NCKEY_LEFT) {
     if (new_score_cursor_col > 0) {
       new_score_cursor_col--;
