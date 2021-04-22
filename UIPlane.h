@@ -13,8 +13,11 @@ class UIPlane {
   UIPlane(const std::shared_ptr<Controller> & _controller) : controller(_controller) { }
   virtual ~UIPlane() { }
 
+  virtual void resize(int rows, int cols) {
+    setDim(std::pair(rows, cols));
+  }
+  
   virtual void move(int y, int x) = 0;
-  virtual void resize(int rows, int cols) = 0;
   virtual void setFgColor(int r, int g, int b) = 0;
   virtual void setBgColor(int r, int g, int b) = 0;
   virtual void erase() = 0;
@@ -25,13 +28,20 @@ class UIPlane {
   virtual void showReader() = 0;
   virtual std::string closeReader() = 0;
   virtual bool readerActive() const = 0;
-  
-  virtual std::pair<int, int> getDim() const = 0;
+  virtual void showPicker() = 0;
+  virtual void addItem(std::string id, std::string description) = 0;
+  virtual void clearItems() = 0;
+
+  const std::pair<int, int> & getDim() const { return plane_dim; }
 
   std::shared_ptr<Controller> & getController() { return controller; }
+
+protected:
+  void setDim(std::pair<int, int> dim) { plane_dim = dim; }
   
 private:
   std::shared_ptr<Controller> controller;
+  std::pair<int, int> plane_dim;
 };
 
 #endif
