@@ -2,7 +2,6 @@
 #define _FILEINSTRUMENT_H_
 
 #include "Instrument.h"
-#include "WaveformType.h"
 
 #include <string>
 #include <vector>
