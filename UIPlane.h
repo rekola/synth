@@ -6,6 +6,7 @@
 #include <memory>
 
 class Controller;
+class UIInput;
 
 class UIPlane {
  public:
@@ -20,6 +21,10 @@ class UIPlane {
   virtual void putstr(int y, int x, std::string s) = 0;
   virtual std::unique_ptr<UIPlane> createChild() = 0;
   virtual void drawBorder() = 0;
+  virtual bool offerInput(const UIInput & input) = 0;
+  virtual void showReader() = 0;
+  virtual std::string closeReader() = 0;
+  virtual bool readerActive() const = 0;
   
   virtual std::pair<int, int> getDim() const = 0;
 

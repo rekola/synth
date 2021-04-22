@@ -16,7 +16,13 @@ class UIElement {
   }
   virtual ~UIElement() { }  
 
-  virtual bool offerInput(const UIInput & input) { return false; }
+  virtual bool offerInput(const UIInput & input) {
+    if (plane) {
+      return plane->offerInput(input);
+    } else {
+      return false;
+    }
+  }
 
   UIElement & putstr(int y, int x, std::string s) {
     if (plane) plane->putstr(y, x, s);
