@@ -15,11 +15,21 @@ class Song {
   const std::vector<Section> & getSections() const { return sections; }
   const Section & getSection(size_t i) const { return i < sections.size() ? sections[i] : empty_section; }
   Section & getSection(size_t i) { return i < sections.size() ? sections[i] : empty_section; }
-  void addSection(const Section & section) { sections.push_back(section); }
+
+  void addSection(const Section & section) {
+    sections.push_back(section);
+    version++;
+  }
 
   const std::vector<std::unique_ptr<Instrument> > & getInstruments() const { return instruments; }
   Instrument & getInstrument(size_t i) { return *(instruments[i]); }
-  void addInstrument(std::unique_ptr<Instrument> i) { instruments.push_back(std::move(i)); }
+  void addInstrument(std::unique_ptr<Instrument> i) {
+    instruments.push_back(std::move(i));
+    version++;
+  }
+
+  void incVersion() { version++; }
+  int getVersion() const { return version; }
   
   float mastervol = 1.0;
   float gvol = 1.0; // (or 1.0 / trkcnt)
@@ -34,6 +44,7 @@ private:
   std::vector<Section> sections;
   // std::vector<Sequence> sequences;
   Section empty_section;
+  int version = 1;
 };
 
 #endif
