@@ -214,7 +214,13 @@ Controller::Controller() {
 void
 Controller::createNewSong() {
   auto song = make_shared<Song>();
-  
+
+  auto epiano = make_unique<BasicInstrument>(WaveformType::SAW);
+  epiano->setName("Electric Piano");
+  epiano->setADSR(0, 20, 0, 0);
+  epiano->setFilter(63, 128);
+  song->addInstrument(move(epiano));
+
 #if 0
   auto test = make_unique<FMInstrument>(0, 1, 1, 2.01);
   test->setName("test");
