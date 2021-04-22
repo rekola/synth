@@ -5,7 +5,12 @@
 #include "SampleData.h"
 #include "UIInput.h"
 #include "Controller.h"
-#include "Picker.h"
+#include "UIMenu.h"
+#include "Chart.h"
+#include "InfoLine.h"
+#include "StatusLine.h"
+#include "ScoreDisplay.h"
+#include "InstrumentList.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -46,12 +51,25 @@ static inline long long now() {
 
 class TerminalPlane : public UIPlane {
 public:
-  TerminalPlane(std::shared_ptr<Controller> & _controller, Plane * _plane, bool _owner = true) : UIPlane(_controller), plane(_plane), owner(_owner) { }
+  TerminalPlane(std::shared_ptr<Controller> & _controller, Plane * _plane, bool _owner = true) : UIPlane(_controller), plane(_plane), owner(_owner) {
+    int y, x;
+    plane->get_dim(&y, &x);
+    setDim(pair(y, x));
+  }
   ~TerminalPlane() {
     if (owner) delete plane;
   }
-  void move(int y, int x) override { plane->move(y, x); }
-  void resize(int rows, int cols) override { plane->resize(rows, cols); }
+  void resize(int rows, int cols) override {
+    if (plane->to_ncplane()) {
+      UIPlane::resize(rows, cols);
+      plane->resize(rows, cols);
+    }
+  }
+  void move(int y, int x) override {
+    if (plane->to_ncplane()) {
+      plane->move(y, x);
+    }
+  }
   void setFgColor(int r, int g, int b) override { plane->set_fg_rgb8(r, g, b); }
   void setBgColor(int r, int g, int b) override { plane->set_bg_rgb8(r, g, b); }
   void erase() override { plane->erase(); }
@@ -63,12 +81,6 @@ public:
     // plane->rounded_box(NCSTYLE_NONE, CHANNELS_RGB_INITIALIZER(0xc0, 0x80, 0xc0, 0x20, 0, 0x20), 0, 0, 0);
     // plane->putstr("");
     return make_unique<TerminalPlane>(getController(), plane);
-  }
-
-  pair<int, int> getDim() const override {
-    int y, x;
-    plane->get_dim(&y, &x);
-    return pair(y, x);
   }
   
   void drawBorder() override {
@@ -133,11 +145,55 @@ public:
     return r;
   }
 
+  void showPicker() override {
+    ncselector_options opts =
+      {
+       .title = nullptr,
+       .secondary = nullptr,
+       .footer = nullptr,
+       .defidx = 0,
+       .maxdisplay = 0,
+       .opchannels = 0,
+       .descchannels = 0,
+       .titlechannels = 0,
+       .footchannels = 0,
+       .boxchannels = 0,
+       .flags = 0
+      };
+    selector = make_unique<Selector>(getPlane(), &opts);
+  }
+
+  void addItem(string id, string label) override {
+    if (selector) {
+      char * option = new char[id.size() + 1];
+      char * desc = new char[label.size() + 1];
+      
+      strcpy(option, id.c_str());
+      strcpy(desc, label.c_str());
+      
+      ncselector_item item =
+	{
+	 .option = option,
+	 .desc = desc,
+	 .opcolumns = 0,
+	 .desccolumns = 0,
+	};
+      selector->additem(&item);
+    }
+  }
+
+  void clearItems() override {
+
+  }
+
   bool offerInput(const UIInput & input) override {
     if (reader) {
       auto ni = to_ncinput(input);
       ncreader_offer_input(reader, &ni);
       return true;
+    } else if (selector) {
+      auto ni = to_ncinput(input);
+      return selector->offer_input(&ni);
     } else {
       return false;
     }
@@ -150,6 +206,7 @@ public:
 private:
   Plane * plane;
   ncreader * reader = 0;
+  unique_ptr<Selector> selector;
   bool owner;
 };
 
@@ -227,47 +284,6 @@ public:
 private:
   std::shared_ptr<PlotD> plot;
 };
-
-class TerminalPicker : public Picker {
-public:
-  TerminalPicker(UIPlane & parent, bool multiselect = false) : Picker(parent, multiselect) {
-    auto & tplane = dynamic_cast<TerminalPlane&>(getPlane());
-    tplane.setOwning(false);
-    if (isMultiSelect()) {
-      
-    } else {
-      ncselector_options opts =
-	{
-	 .title = nullptr,
-	 .secondary = nullptr,
-	 .footer = nullptr,
-	 .defidx = 0,
-	 .maxdisplay = 0,
-	 .opchannels = 0,
-	 .descchannels = 0,
-	 .titlechannels = 0,
-	 .footchannels = 0,
-	 .boxchannels = 0,
-	 .flags = 0
-	};
-      selector = make_unique<Selector>(tplane.getPlane(), &opts);
-    }
-  }
-
-  void addItem(string label) override {
-    ncselector_item item =
-      {
-       .option = "testi",
-       .desc = "testi2",
-       .opcolumns = 0,
-       .desccolumns = 0,
-      };
-    selector->additem(&item);
-  }
-
-private:
-  unique_ptr<Selector> selector;
-};
   
 void
 TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
@@ -288,23 +304,15 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   auto root_plane = make_unique<TerminalPlane>(controller, nc->get_stdplane(), false);
   setPlane(std::move(root_plane));
 
-#if 0
-  root_plane->cursor_move(5, 0);
-  root_plane->hline(Cell('-'), cols);
-  root_plane->cursor_move(1, left_width);
-  root_plane->vline(Cell('|'), 4);
-#endif
-
   menu = make_shared<TerminalMenu>();
   
   chart = make_shared<TerminalChart>(getPlane(), Chart::DOTS);
-  volume_meter = make_shared<TerminalChart>(getPlane(), Chart::BLOCKS);
-  score_display = make_shared<ScoreDisplay>(getPlane());
-  info_line = make_shared<InfoLine>(getPlane());
-  status_line = make_shared<StatusLine>(getPlane());
+  volume_meter = make_shared<TerminalChart>(getPlane(), Chart::DOTS);
 
+  UI::initialize();
+  
   layout();
-  nc->render(); 
+  nc->render();  
 }
 
 void
@@ -348,6 +356,7 @@ TerminalUI::readInput() {
       if (handled) setStatus("menu: " + menu->getSelected());
     }
     if (!handled) handled |= status_line->offerInput(input);
+    if (!handled) handled |= instrument_list->offerInput(input);
     if (!handled) handled |= score_display->offerInput(input);
     if (!handled) handled |= offerInput(input);
   }
@@ -373,6 +382,7 @@ TerminalUI::start(AudioAPI & audio) {
   time_t prev_pos = getController().getSynth().getCurrentPosition();
 
   score_display->render(true);
+  instrument_list->render(true);
   info_line->render(true);
 	
   while ( !close_ui ) {
