@@ -24,8 +24,7 @@ class InfoLine : public UIElement {
 
     auto [ rows, cols ] = getDim();
 
-    size_t section_index = synth.getTrackPosition();
-    // auto & section = song.getSection();
+    size_t section_index = synth.getSectionPosition();
 
     auto s = fmt::format(" {:02x} {:02d}:{:02d} section:{}", synth.getCurrentPosition(), minutes, seconds, section_index);
     while (s.size() < cols) s += ' ';
