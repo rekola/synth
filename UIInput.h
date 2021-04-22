@@ -1,6 +1,24 @@
 #ifndef _UIINPUT_H_
 #define _UIINPUT_H_
 
+#ifndef suppuabisize
+
+#define suppuabize(w) ((w) + 0x100000)                                                   
+                                                                                         
+// Special composed key definitions. These values are added to 0x100000.                 
+#define NCKEY_INVALID suppuabize(0)                                                      
+#define NCKEY_RESIZE  suppuabize(1) // generated internally in response to SIGWINCH      
+#define NCKEY_UP      suppuabize(2)                                                      
+#define NCKEY_RIGHT   suppuabize(3)                                                      
+#define NCKEY_DOWN    suppuabize(4)                                                      
+#define NCKEY_LEFT    suppuabize(5)
+
+#define NCKEY_DEL   suppuabize(7)
+#define NCKEY_BACKSPACE   suppuabize(8)
+#define NCKEY_ENTER   suppuabize(121)
+
+#endif
+  
 class UIInput {
  public:
   UIInput(size_t _seqnum, int _id, int _y, int _x, bool _alt, bool _shift, bool _ctrl)

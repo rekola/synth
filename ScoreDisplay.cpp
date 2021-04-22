@@ -122,13 +122,11 @@ ScoreDisplay::ScoreDisplay(UIPlane & parent) : UIElement(parent) {
 }
 
 bool
-ScoreDisplay::render(bool refresh) {
-  if (refresh) getPlane().drawBorder();
-  
+ScoreDisplay::render(bool refresh) {  
   bool render_all = refresh;
   auto & synth = getController().getSynth();
-  size_t score_section = synth.getTrackPosition();
-  size_t score_playing_row = synth.getPatternPosition();
+  size_t score_section = synth.getSectionPosition();
+  size_t score_playing_row = synth.getSequencePosition();
   auto & current_section = getController().getSong().getSection(score_section);
   
   if (score_section != current_score_section) render_all = true;
@@ -145,6 +143,9 @@ ScoreDisplay::render(bool refresh) {
   
   if (render_all) {
     auto [rows, cols] = getDim();
+    erase();
+    getPlane().drawBorder();
+    renderHeading();
     for (int row = 0; row < rows && row < 32; row++) {
       renderRow(row, row == score_playing_row);
     }
@@ -163,19 +164,6 @@ ScoreDisplay::render(bool refresh) {
   
   return need_redraw;
 }
-
-#define suppuabize(w) ((w) + 0x100000)                                                   
-                                                                                         
-// Special composed key definitions. These values are added to 0x100000.                 
-#define NCKEY_INVALID suppuabize(0)                                                      
-#define NCKEY_RESIZE  suppuabize(1) // generated internally in response to SIGWINCH      
-#define NCKEY_UP      suppuabize(2)                                                      
-#define NCKEY_RIGHT   suppuabize(3)                                                      
-#define NCKEY_DOWN    suppuabize(4)                                                      
-#define NCKEY_LEFT    suppuabize(5)
-
-#define NCKEY_DEL   suppuabize(7)
-#define NCKEY_BACKSPACE   suppuabize(8)
 
 static inline int keyToNote(int key) {
   switch (key) {
@@ -214,7 +202,7 @@ bool
 ScoreDisplay::offerInput(const UIInput & input) {
   auto & song = getController().getSong();
   auto & synth = getController().getSynth();
-  auto & section = song.getSection(synth.getTrackPosition());
+  auto & section = song.getSection(synth.getSectionPosition());
   size_t num_columns = section.getSequences().size();
 
   if (input.hasCtrl() && (input.getId() == 'a' || input.getId() == 'A')) {
@@ -241,10 +229,10 @@ ScoreDisplay::offerInput(const UIInput & input) {
   } else {
     int note = keyToNote(input.getId());
     if (note != -1) {
-      auto & section = song.getSection(synth.getTrackPosition());
+      auto & section = song.getSection(synth.getSectionPosition());
       auto & sequence = section.getSequence(current_score_cursor_col);
       song.getInstrument(sequence.getInstrumentId()).playNote(note);
-      sequence.setNote(synth.getPatternPosition(), note);
+      sequence.setNote(synth.getSequencePosition(), note);
       row_edited = true;
       if (input.getId() == NCKEY_BACKSPACE) synth.moveBackwards(song);
       else if (input.getId() != NCKEY_DEL) synth.moveForward(song);
@@ -258,10 +246,29 @@ ScoreDisplay::offerInput(const UIInput & input) {
 }
 
 void
+ScoreDisplay::renderHeading() {
+  auto & song = getController().getSong();
+  auto & synth = getController().getSynth();
+  auto & section = song.getSection(synth.getSectionPosition());
+
+  setBgColor(0x00, 0x00, 0x00);
+    
+  putstr(1, 1, "   ");
+  
+  for (int i = 0; i < (int)section.size(); i++) {
+    setFgColor(0x00, 0x00, 0x00);
+    setBgColor(0xf0, 0x80, 0x10);
+    
+    string name = format("Trk {:02d}│", i);    
+    putstr(1, 1 + 3 + i*7, name);    
+  }
+}
+
+void
 ScoreDisplay::renderRow(size_t row, bool highlight) {
   auto & song = getController().getSong();
   auto & synth = getController().getSynth();
-  auto & section = song.getSection(synth.getTrackPosition());
+  auto & section = song.getSection(synth.getSectionPosition());
       
   for (int i = -1; i < (int)section.size(); i++) {
     if (highlight && i == current_score_cursor_col) {
@@ -280,21 +287,22 @@ ScoreDisplay::renderRow(size_t row, bool highlight) {
 
     if (i == -1) {
       auto s = format("{:02x}|", row);
-      putstr(1 + row, 1, s.c_str());
+      putstr(2 + row, 1, s);
 
     } else {
       auto & sequence = section.getSequence(i);
       int note = sequence.getNote(row);
-      
+
+      string s;
       if (note != 0) {
 	bool has_accent = note & 0x80;
 	note &= 0x7f;
 	
-	string name = getNoteName(note) + " ";
-	putstr(1 + row, 1 + 3 + i*4, name.c_str());
+	s = getNoteName(note) + " .. ";
       } else {
-	putstr(1 + row, 1 + 3 + i*4, "... ");
+	s = "... .. ";
       }
+      putstr(2 + row, 1 + 3 + i*7, s);
     }
   }
 }

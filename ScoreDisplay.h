@@ -18,6 +18,7 @@ class ScoreDisplay : public UIElement {
   bool offerInput(const UIInput & input) override;
 
 protected:
+  void renderHeading();
   void renderRow(size_t row, bool highlight);
 
   std::string getNoteName(int note) const {
