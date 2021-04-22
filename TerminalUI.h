@@ -27,21 +27,12 @@ class TerminalUI : public UI {
   bool offerInput(const UIInput & input) override;
 
 protected:
-  void layout();
   bool readInput();
-  
+
 private:
   std::shared_ptr<ncpp::NotCurses> nc;
-
-  std::shared_ptr<UIMenu> menu;
-  std::shared_ptr<Chart> chart, volume_meter;
-  std::shared_ptr<InfoLine> info_line;
-  std::shared_ptr<StatusLine> status_line;
-  std::shared_ptr<ScoreDisplay> score_display;
   
   SampleData waiting_data;
-
-  bool close_ui = false;
 };
 
 #endif

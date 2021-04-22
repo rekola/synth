@@ -99,13 +99,57 @@ public:
     cell_release(plane->to_ncplane(), &ul); cell_release(plane->to_ncplane(), &ur); cell_release(plane->to_ncplane(), &hl);
     cell_release(plane->to_ncplane(), &ll); cell_release(plane->to_ncplane(), &lr); cell_release(plane->to_ncplane(), &vl);
   }
+  
+  void showReader() override {
+    if (!readerActive()) {
+      setOwning(false);
+            
+      ncreader_options reader_opts;
+      reader_opts.tchannels = 0;
+      channels_set_fg_rgb(&reader_opts.tchannels, 0xffffff);
+      channels_set_bg_rgb(&reader_opts.tchannels, 0x000000);
+      channels_set_fg_alpha(&reader_opts.tchannels, CELL_ALPHA_HIGHCONTRAST);
+      channels_set_bg_alpha(&reader_opts.tchannels, CELL_ALPHA_BLEND);
+      reader_opts.tattrword = 0; // attributes used for input
+      reader_opts.flags = NCREADER_OPTION_CURSOR | NCREADER_OPTION_HORSCROLL;
 
+      auto [rows, cols] = getDim();
+      auto reader_plane = ncplane_new(getPlane().to_ncplane(), rows, cols, 0, 4, nullptr, nullptr);
+      ncplane_set_fg_rgb8(reader_plane, 0x80, 0xc0, 0x80);
+      ncplane_set_bg_rgb8(reader_plane, 0x00, 0x40, 0x00);
+      ncplane_set_base(reader_plane, "", 0, 0);
+      reader = ncreader_create(reader_plane, &reader_opts);
+    }
+  }
+
+  bool readerActive() const override { return reader != 0; }
+
+  string closeReader() override {
+    char* contents;
+    ncreader_destroy(reader, &contents);
+    string r = contents;
+    free(contents);    
+    reader = 0;
+    return r;
+  }
+
+  bool offerInput(const UIInput & input) override {
+    if (reader) {
+      auto ni = to_ncinput(input);
+      ncreader_offer_input(reader, &ni);
+      return true;
+    } else {
+      return false;
+    }
+  }
+  
   void setOwning(bool t) { owner = t; }
 
   Plane & getPlane() { return *plane; }
 
 private:
   Plane * plane;
+  ncreader * reader = 0;
   bool owner;
 };
 
@@ -184,79 +228,6 @@ private:
   std::shared_ptr<PlotD> plot;
 };
 
-class TerminalStatusLine : public StatusLine {
-public:
-  TerminalStatusLine(UIPlane & parent) : StatusLine(parent) { }
-
-  bool offerInput(const UIInput & input) override {
-    if (readerActive()) {
-      if (input.getId() == NCKEY_ENTER) {
-	string cmd = closeReader();
-	if (!getController().sendCommand(cmd)) {
-	  setMessage("Invalid command");
-	}
-      } else if (input.hasCtrl() && input.getId() == 'g') {
-	closeReader();	
-      } else {
-	auto ni = to_ncinput(input);
-	ncreader_offer_input(reader, &ni);
-      }
-      return true;
-    } else if (input.getId() == 0x1b) {
-      meta_pressed = true;
-    } else if (meta_pressed) {
-      if (input.getId() == 'x' || input.getId() == 'X') {
-	showReader();
-	return true;
-      }
-      meta_pressed = false;
-    }
-    return false;
-  }
-
-protected:
-  bool readerActive() const { return reader != 0; }
-
-  string closeReader() {
-    char* contents;
-    ncreader_destroy(reader, &contents);
-    string r = contents;
-    free(contents);    
-    reader = 0;
-    setMessage("");
-    return r;
-  }
-  
-  void showReader() {
-    if (!readerActive()) {
-      auto & tplane = dynamic_cast<TerminalPlane&>(getPlane());
-      tplane.setOwning(false);
-      
-      setMessage("M-x ");
-      
-      ncreader_options reader_opts;
-      reader_opts.tchannels = 0;
-      channels_set_fg_rgb(&reader_opts.tchannels, 0xffffff);
-      channels_set_bg_rgb(&reader_opts.tchannels, 0x000000);
-      channels_set_fg_alpha(&reader_opts.tchannels, CELL_ALPHA_HIGHCONTRAST);
-      channels_set_bg_alpha(&reader_opts.tchannels, CELL_ALPHA_BLEND);
-      reader_opts.tattrword = 0; // attributes used for input
-      reader_opts.flags = NCREADER_OPTION_CURSOR | NCREADER_OPTION_HORSCROLL;
-
-      auto [rows, cols] = getDim();
-      auto reader_plane = ncplane_new(tplane.getPlane().to_ncplane(), rows, cols, 0, 4, nullptr, nullptr);
-      ncplane_set_fg_rgb8(reader_plane, 0x80, 0xc0, 0x80);
-      ncplane_set_bg_rgb8(reader_plane, 0x00, 0x40, 0x00);
-      ncplane_set_base(reader_plane, "", 0, 0);
-      reader = ncreader_create(reader_plane, &reader_opts);
-    }
-  }
-  
-private:
-  bool meta_pressed = false;
-  ncreader * reader = 0;
-};
-
 class TerminalPicker : public Picker {
 public:
   TerminalPicker(UIPlane & parent, bool multiselect = false) : Picker(parent, multiselect) {
@@ -330,7 +301,7 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   volume_meter = make_shared<TerminalChart>(getPlane(), Chart::BLOCKS);
   score_display = make_shared<ScoreDisplay>(getPlane());
   info_line = make_shared<InfoLine>(getPlane());
-  status_line = make_shared<TerminalStatusLine>(getPlane());
+  status_line = make_shared<StatusLine>(getPlane());
 
   layout();
   nc->render(); 
@@ -340,24 +311,6 @@ void
 TerminalUI::setStatus(const std::string & s) {
   status_line->setMessage(s);
   nc->render();
-}
-
-void
-TerminalUI::layout() {
-  auto [ rows, cols ] = getDim();
-
-#if 0
-  root_plane->cursor_move(5, 0);
-  root_plane->hline(Cell('-'), cols);
-  root_plane->cursor_move(1, left_width);
-  root_plane->vline(Cell('|'), 4);
-#endif
-  
-  chart->resize(4, cols).move(1, 0);
-  volume_meter->resize(rows - 7, 1).move(5, cols - 1);
-  score_display->resize(rows - 7, cols - 1).move(5, 0);
-  info_line->resize(1, cols).move(rows - 2, 0);
-  status_line->resize(1, cols - 1).move(rows - 1, 0);
 }
 
 bool
