@@ -22,11 +22,10 @@ Synth::play(Song & song, size_t frames) {
   if (is_playing) {
     for (size_t i = 0; i < frames; i++) {
       if (samplepos == 0) {
-	auto & section = song.getSection(trkpos);
+	auto & section = song.getSection(getSectionPosition());
 	for (auto & sequence : section.getSequences()) {
 	  auto & instrument = song.getInstrument(sequence.getInstrumentId());
-	  // instrument.playNote(sequence.getNote(ptrnpos));
-	  instrument.addPendingNote(i, sequence.getNote(ptrnpos));
+	  instrument.addPendingNote(i, sequence.getNote(getSequencePosition()));
 	}
       }
 
