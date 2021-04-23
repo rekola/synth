@@ -5,8 +5,8 @@
 
 class Note {
  public:
-  explicit Note() : midi_note(0), numerator(0), denominator(0), has_accent(false) { }
-  explicit Note(int _midi_note, bool accent = false) : midi_note(_midi_note), numerator(0), denominator(0), has_accent(accent) { }
+  explicit Note() : midi_note(0), velocity(0), numerator(0), denominator(0), has_accent(false) { }
+  explicit Note(int _midi_note, bool accent = false) : midi_note(_midi_note), velocity(0), numerator(0), denominator(0), has_accent(accent) { }
 
   short getMidiNote() const { return midi_note; }
   bool hasAccent() { return has_accent; }
@@ -140,8 +140,8 @@ class Note {
   }
 
  private:
-  short midi_note;
-  short numerator, denominator;
+  short midi_note, velocity;
+  short numerator, denominator; 
   bool has_accent;  
 };
 
