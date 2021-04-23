@@ -54,10 +54,10 @@ public:
     addEffect(std::make_unique<Filter>(fcut, fres, is_highpass));
   }
 
-  void setADSR(int _a, int _d, int _s, int _r) {
+  void setADSR(int _a, int _d, float _s, int _r) {
     a = _a * 44100 * 5 / 255;
     d = _d * 44100 * 5 / 255;
-    s = _s / 255.0f;
+    s = _s;
     r = _r * 44100 * 5 / 255;
   }
 

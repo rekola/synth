@@ -13,8 +13,6 @@ InstrumentList::render(bool refresh) {
   bool render_all = refresh;
   auto & song = getController().getSong();
 
-  auto [rows, cols] = getDim();
-
   if (song.getVersion() != current_song_version || new_scroll_pos != current_scroll_pos) {
     render_all = true;
   }
@@ -56,7 +54,7 @@ InstrumentList::renderRow(size_t scroll_pos, size_t row, bool highlight) {
       setBgColor(0x20, 0x20, 0x20);
     }
     auto line = instrument.getName();
-    while (line.size() < cols - 2) line += ' ';
+    while (int(line.size()) < cols - 2) line += ' ';
     putstr(1 + row - scroll_pos, 1, line);
   }
 }
