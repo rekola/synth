@@ -168,7 +168,8 @@ Controller::Controller() {
     for (size_t j = 0; ; j++) {
       int val = *track++;
       if (val == 255) break;
-      sequence.setNote(j, val);
+      Note note(val & 0x7f, (val & 0x80) != 0);
+      sequence.setNote(j, note);
     }
 
     available_sequences.push_back(sequence);

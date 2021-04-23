@@ -4,121 +4,14 @@
 #include "Synth.h"
 #include "Controller.h"
 
+#include <string>
 #include <fmt/core.h>
 
 using namespace std;
 using namespace fmt;
 
 PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
-  // getPlane().setScrolling(true);
-  
-  midi_note_names[127] = "G-9";
-  midi_note_names[126] = "F#9";
-  midi_note_names[125] = "F-9";
-  midi_note_names[124] = "E-9";
-  midi_note_names[123] = "D#9";
-  midi_note_names[122] = "D-9";
-  midi_note_names[121] = "C#9";
-  midi_note_names[120] = "C-9";
-  midi_note_names[119] = "B-8";
-  midi_note_names[118] = "A#8";
-  midi_note_names[117] = "A-8";
-  midi_note_names[116] = "G#8";
-  midi_note_names[115] = "G-8";
-  midi_note_names[114] = "F#8";
-  midi_note_names[113] = "F-8";
-  midi_note_names[112] = "E-8";
-  midi_note_names[111] = "D#8";
-  midi_note_names[110] = "D-8";
-  midi_note_names[109] = "C#8";
-  midi_note_names[108] = "C-8";
-  midi_note_names[107] = "B-7";
-  midi_note_names[106] = "A#7";
-  midi_note_names[105] = "A-7";
-  midi_note_names[104] = "G#7";
-  midi_note_names[103] = "G-7";
-  midi_note_names[102] = "F#7";
-  midi_note_names[101] = "F-7";
-  midi_note_names[100] = "E-7";
-  midi_note_names[99] = "D#7";
-  midi_note_names[98] = "D-7";
-  midi_note_names[97] = "C#7";
-  midi_note_names[96] = "C-7";
-  midi_note_names[95] = "B-6";
-  midi_note_names[94] = "A#6";
-  midi_note_names[93] = "A-6";
-  midi_note_names[92] = "G#6";
-  midi_note_names[91] = "G-6";
-  midi_note_names[90] = "F#6";
-  midi_note_names[89] = "F-6";
-  midi_note_names[88] = "E-6";
-  midi_note_names[87] = "D#6";
-  midi_note_names[86] = "D-6";
-  midi_note_names[85] = "C#6";
-  midi_note_names[84] = "C-6";
-  midi_note_names[83] = "B-5";
-  midi_note_names[82] = "A#5";
-  midi_note_names[81] = "A-5";
-  midi_note_names[80] = "G#5";
-  midi_note_names[79] = "G-5";
-  midi_note_names[78] = "F#5";
-  midi_note_names[77] = "F-5";
-  midi_note_names[76] = "E-5";
-  midi_note_names[75] = "D#5";
-  midi_note_names[74] = "D-5";
-  midi_note_names[73] = "C#5";
-  midi_note_names[72] = "C-5";
-  midi_note_names[71] = "B-4";
-  midi_note_names[70] = "A#4";
-  midi_note_names[69] = "A-4";
-  midi_note_names[68] = "G#4";
-  midi_note_names[67] = "G-4";
-  midi_note_names[66] = "F#4";
-  midi_note_names[65] = "F-4";
-  midi_note_names[64] = "E-4";
-  midi_note_names[63] = "D#4";
-  midi_note_names[62] = "D-4";
-  midi_note_names[61] = "C#4";
-  midi_note_names[60] = "C-4";
-  midi_note_names[59] = "B-3";
-  midi_note_names[58] = "A#3";
-  midi_note_names[57] = "A-3";
-  midi_note_names[56] = "G#3";
-  midi_note_names[55] = "G-3";
-  midi_note_names[54] = "F#3";
-  midi_note_names[53] = "F-3";
-  midi_note_names[52] = "E-3";
-  midi_note_names[51] = "D#3";
-  midi_note_names[50] = "D-3";
-  midi_note_names[49] = "C#3";
-  midi_note_names[48] = "C-3";
-  midi_note_names[47] = "B-2";
-  midi_note_names[46] = "A#2";
-  midi_note_names[45] = "A-2";
-  midi_note_names[44] = "G#2";
-  midi_note_names[43] = "G-2";
-  midi_note_names[42] = "F#2";
-  midi_note_names[41] = "F-2";
-  midi_note_names[40] = "E-2";
-  midi_note_names[39] = "D#2";
-  midi_note_names[38] = "D-2";
-  midi_note_names[37] = "C#2";
-  midi_note_names[36] = "C-2";
-  midi_note_names[35] = "B-1";
-  midi_note_names[34] = "A#1";
-  midi_note_names[33] = "A-1";
-  midi_note_names[32] = "G#1";
-  midi_note_names[31] = "G-1";
-  midi_note_names[30] = "F#1";
-  midi_note_names[29] = "F-1";
-  midi_note_names[28] = "E-1";
-  midi_note_names[27] = "D#1";
-  midi_note_names[26] = "D-1";
-  midi_note_names[25] = "C#1";
-  midi_note_names[24] = "C-1";
-  midi_note_names[23] = "B-0";
-  midi_note_names[22] = "A#0";
-  midi_note_names[21] = "A-0";
+  // getPlane().setScrolling(true);  
 }
 
 bool
@@ -171,7 +64,7 @@ PatternEditor::render(bool refresh) {
   return need_redraw;
 }
 
-static inline int keyToNote(int key) {
+static inline int keyToMidiNote(int key) {
   switch (key) {
   case NCKEY_DEL:
   case NCKEY_BACKSPACE:
@@ -258,8 +151,9 @@ PatternEditor::offerInput(const UIInput & input) {
     if (!synth.isPlaying()) synth.moveForward(song);
     return true;
   } else {
-    int note = keyToNote(input.getId());
-    if (note != -1) {
+    int midi_note = keyToMidiNote(input.getId());
+    if (midi_note != -1) {
+      Note note(midi_note);
       auto & section = song.getSection(synth.getSectionPosition());
       auto & sequence = section.getSequence(current_score_cursor_col);
       song.getInstrument(sequence.getInstrumentId()).playNote(note);
@@ -322,14 +216,11 @@ PatternEditor::renderRow(size_t row, bool highlight) {
 
     } else {
       auto & sequence = section.getSequence(i);
-      int note = sequence.getNote(row);
+      auto & note = sequence.getNote(row);
 
       string s;
-      if (note != 0) {
-	bool has_accent = note & 0x80;
-	note &= 0x7f;
-	
-	s = getNoteName(note) + " .. ";
+      if (note.isDefined()) {
+	s = note.toString() + " .. ";
       } else {
 	s = "... .. ";
       }

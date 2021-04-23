@@ -3,6 +3,7 @@
 
 #include "Effect.h"
 #include "Filter.h"
+#include "Note.h"
 
 #include <string>
 #include <vector>
@@ -108,19 +109,19 @@ public:
     return 440 * powf(2, (note - 69.0) / 12.0);
   }
 
-  void playNote(unsigned char note_data) {
-    int note = note_data & 0x7f;
-    int acct = note_data & 0x80;
+  void playNote(Note note) {
+    int midi_note = note.getMidiNote();
+    bool accent = note.hasAccent();
     
-    if (note > 1) {
+    if (midi_note > 1) {
       // float fscaler = (float)WAVESIZE / 44100.0f;
       // freq = getMidiNoteFrequency(note) * fscaler + detune;
-      freq = getMidiNoteFrequency(note + transpose + detune / 100.0f);
-      acc = acct;
+      freq = getMidiNoteFrequency(midi_note + transpose + detune / 100.0f);
+      acc = accent;
       adsrstate = 0;
       adsrpos = 0;
       fphase = 0;
-    } else if (note == 1) {
+    } else if (midi_note == 1) {
       adsrstate = 3;
       adsrpos = 0;
     }
@@ -157,11 +158,11 @@ public:
 
   void addEffect(std::unique_ptr<Effect> effect) { effects.push_back(std::move(effect)); }
 
-  void addPendingNote(size_t frame, unsigned char note) {
+  void addPendingNote(size_t frame, Note note) {
     pending_notes.push_back(std::pair(frame, note));
   }
   void clearPendingNotes() { pending_notes.clear(); }
-  std::deque<std::pair<unsigned int, unsigned char> > & getPendingNotes() { return pending_notes; }
+  std::deque<std::pair<unsigned int, Note> > & getPendingNotes() { return pending_notes; }
   
 protected:
   std::string name;
@@ -187,7 +188,7 @@ protected:
 
   std::vector<std::unique_ptr<Effect> > effects;
 
-  std::deque<std::pair<unsigned int, unsigned char> > pending_notes;
+  std::deque<std::pair<unsigned int, Note> > pending_notes;
 };
 
 #endif
