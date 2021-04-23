@@ -17,21 +17,36 @@ class InfoLine : public UIElement {
   bool render(bool refresh = false) {
     auto & synth = getController().getSynth();
     auto & song = getController().getSong();
+
+    int new_version = song.getVersion();
+    size_t new_position = synth.getCurrentPosition();
     
-    int seconds = (int)synth.gettime(song);
-    int minutes = seconds / 60;
-    seconds %= 60;
+    if (refresh || new_version != current_version || new_position != current_position) {
+      int seconds = (int)synth.gettime(song);
+      int minutes = seconds / 60;
+      seconds %= 60;
+      
+      auto [ rows, cols ] = getDim();
+      
+      size_t section_index = synth.getSectionPosition();
+      
+      auto s = fmt::format(" {:02x} {:02d}:{:02d} section:{}", synth.getCurrentPosition(), minutes, seconds, section_index);
+      while (s.size() < cols) s += ' ';
+      
+      putstr(0, 0, s);
 
-    auto [ rows, cols ] = getDim();
+      current_version = new_version;
+      current_position = new_position;
 
-    size_t section_index = synth.getSectionPosition();
-
-    auto s = fmt::format(" {:02x} {:02d}:{:02d} section:{}", synth.getCurrentPosition(), minutes, seconds, section_index);
-    while (s.size() < cols) s += ' ';
-    
-    putstr(0, 0, s);
-    return true;
+      return true;
+    } else {
+      return false;
+    }
   }
+
+private:
+  size_t current_position = 0;
+  int current_version = 0;
 };
 
 #endif
