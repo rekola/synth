@@ -5,12 +5,12 @@
 
 class Note {
  public:
-  explicit Note() : midi_note(-1), numerator(0), denominator(0), has_accent(false) { }
+  explicit Note() : midi_note(0), numerator(0), denominator(0), has_accent(false) { }
   explicit Note(int _midi_note, bool accent = false) : midi_note(_midi_note), numerator(0), denominator(0), has_accent(accent) { }
 
   short getMidiNote() const { return midi_note; }
   bool hasAccent() { return has_accent; }
-  bool isDefined() const { return midi_note >= 0 || (numerator != 0 && denominator != 0); }
+  bool isDefined() const { return midi_note > 0 || (numerator != 0 && denominator != 0); }
 
   std::string toString() const {
     if (midi_note >= 0) {
@@ -122,6 +122,8 @@ class Note {
       case 23: return "B-0";
       case 22: return "A#0";
       case 21: return "A-0";
+	
+      case 1: return "OFF";
       }
     } else {
       if (numerator == 1 && denominator == 1) {
