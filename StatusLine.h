@@ -28,7 +28,7 @@ class StatusLine : public UIElement {
       } else {
 	return UIElement::offerInput(input);	
       }
-    } else if (input.getId() == 0x1b) {
+    } else if (input.getId() == NCKEY_ESC) {
       meta_pressed = true;
     } else if (meta_pressed) {
       if (input.getId() == 'x' || input.getId() == 'X') {
