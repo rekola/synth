@@ -64,39 +64,6 @@ PatternEditor::render(bool refresh) {
   return need_redraw;
 }
 
-static inline int keyToMidiNote(int key) {
-  switch (key) {
-  case NCKEY_DEL:
-  case NCKEY_BACKSPACE:
-    return 0;
-    
-  case 'z': return 48;
-  case 's': return 49;
-  case 'x': return 50;
-    
-  case 'q': return 60;
-  case '2': return 61;
-  case 'w': return 62;
-  case '3': return 63;
-  case 'e': return 64;
-    
-  case 'r': return 65;
-  case '5': return 66;
-  case 't': return 67;
-  case '6': return 68;
-  case 'y': return 69;
-  case '7': return 70;
-  case 'u': return 71;
-
-  case 'i': return 72;
-  case '9': return 73;
-  case 'o': return 74;
-  case '0': return 75;
-  case 'p': return 76;
-  }
-  return -1;
-}
-
 bool
 PatternEditor::offerInput(const UIInput & input) {
   auto & song = getController().getSong();
@@ -151,7 +118,7 @@ PatternEditor::offerInput(const UIInput & input) {
     if (!synth.isPlaying()) synth.moveForward(song);
     return true;
   } else {
-    int midi_note = keyToMidiNote(input.getId());
+    int midi_note = input.toMidiNote();
     if (midi_note != -1) {
       Note note(midi_note);
       auto & section = song.getSection(synth.getSectionPosition());

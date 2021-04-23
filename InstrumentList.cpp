@@ -24,7 +24,7 @@ InstrumentList::render(bool refresh) {
     getPlane().drawBorder();
     
     for (size_t i = 0; i < song.getInstruments().size(); i++) {
-      renderRow(new_scroll_pos, i, i == current_cursor_row);
+      renderRow(new_scroll_pos, i, i == new_cursor_row);
     }
     need_refresh = true;
   } else if (new_cursor_row != current_cursor_row) {
@@ -78,6 +78,12 @@ InstrumentList::offerInput(const UIInput & input) {
   } else if (input.getId() == NCKEY_ENTER) {
     // select instrument
     return true;
+  } else {
+    int midi_note = input.toMidiNote();
+    if (midi_note != -1) {
+      Note note(midi_note);
+      song.getInstrument(new_cursor_row).playNote(note);
+    }
   }
   
   return false;
