@@ -5,12 +5,13 @@
 
 class Synth;
 class UIInput;
+class StyleProvider;
 
 class PatternEditor : public UIElement {
  public:
   PatternEditor(UIPlane & parent);
 
-  bool render(bool refresh = false);
+  bool render(const StyleProvider & styles, bool refresh = false);
   bool offerInput(const UIInput & input) override;
 
 protected:

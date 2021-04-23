@@ -14,7 +14,7 @@ class InfoLine : public UIElement {
     setFgColor(30, 30, 30);
   }
 
-  bool render(bool refresh = false) {
+  bool render(const StyleProvider & styles, bool refresh = false) {
     auto & synth = getController().getSynth();
     auto & song = getController().getSong();
 

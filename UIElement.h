@@ -3,6 +3,8 @@
 
 #include "UIPlane.h"
 
+#include "UIColor.h"
+
 #include <cstddef>
 #include <memory>
 
@@ -47,6 +49,14 @@ class UIElement {
   UIElement & setBgColor(int r, int g, int b) {
     if (plane) plane->setBgColor(r, g, b);
     return *this;
+  }
+
+  UIElement & setFgColor(UIColor color) {
+    return setFgColor(color.getRed(), color.getGreen(), color.getBlue());
+  }
+
+  UIElement & setBgColor(UIColor color) {
+    return setBgColor(color.getRed(), color.getGreen(), color.getBlue());
   }
 
   std::pair<int, int> getPosition() const {

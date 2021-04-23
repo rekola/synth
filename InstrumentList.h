@@ -3,6 +3,8 @@
 
 #include "UIElement.h"
 
+class StyleProvider;
+
 class InstrumentList : public UIElement {
  public:
   InstrumentList(UIPlane & parent) : UIElement(parent) {
@@ -10,10 +12,10 @@ class InstrumentList : public UIElement {
   }
 
   bool offerInput(const UIInput & input) override;
-  bool render(bool refresh = false);
+  bool render(const StyleProvider & styles, bool refresh = false);
 
 protected:
-  void renderRow(size_t scroll_pos, size_t row, bool highlight);
+  void renderRow(const StyleProvider & styles, size_t scroll_pos, size_t row, bool highlight);
 
  private:
   int current_song_version = 0;

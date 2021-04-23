@@ -3,6 +3,8 @@
 
 #include "UIElement.h"
 
+#include "StyleProvider.h"
+
 class UIMenu;
 class Chart;
 class InfoLine;
@@ -18,8 +20,10 @@ class UI : public UIElement {
  public:
   explicit UI() { }
 
-  virtual void setStatus(const std::string & s) = 0;
   virtual void refresh() = 0;
+  virtual void render() = 0;
+
+  void setStatus(std::string s);
   bool offerInput(const UIInput & input);
   
 protected:
@@ -33,6 +37,7 @@ protected:
   std::shared_ptr<StatusLine> status_line;
     
   bool close_ui = false;
+  bool is_recording = false;
 
 private:
   std::shared_ptr<InfoLine> info_line;
@@ -40,6 +45,7 @@ private:
   std::shared_ptr<InstrumentList> instrument_list;
 
   std::weak_ptr<UIElement> active_element;
+  StyleProvider styles;
 };
 
 #endif

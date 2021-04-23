@@ -15,7 +15,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
 }
 
 bool
-PatternEditor::render(bool refresh) {  
+PatternEditor::render(const StyleProvider & styles, bool refresh) {  
   bool render_all = refresh;
   auto & synth = getController().getSynth();
   size_t score_section = synth.getSectionPosition();
@@ -182,15 +182,20 @@ PatternEditor::renderRow(size_t row, bool highlight) {
 
     } else {
       auto & track = section.getTrack(i);
-      auto & note = track.getNote(row);
 
-      string s;
-      if (note.isDefined()) {
-	s = note.toString() + " .. ";
+      if (track.getType() == Track::NOTES) {
+	auto & note = track.getNote(row);
+	
+	string s;
+	if (note.isDefined()) {
+	  s = note.toString() + " .. ";
+	} else {
+	  s = "... .. ";
+	}
+	putstr(2 + row, 1 + 3 + i*7, s);
       } else {
-	s = "... .. ";
+	
       }
-      putstr(2 + row, 1 + 3 + i*7, s);
     }
   }
 }

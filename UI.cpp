@@ -45,9 +45,9 @@ UI::layout() {
 bool
 UI::renderComponents(bool refresh) {
   bool render = false;
-  render |= pattern_editor->render(refresh);
-  render |= instrument_list->render(refresh);
-  render |= info_line->render(refresh);
+  render |= pattern_editor->render(styles, refresh);
+  render |= instrument_list->render(styles, refresh);
+  render |= info_line->render(styles, refresh);
   return render;
 }
 
@@ -87,6 +87,9 @@ UI::offerInput(const UIInput & input) {
     }
 
     handled = true;
+  } else if (input.hasCtrl() && input.getId() == 'R') {
+    setStatus("Recording");
+    is_recording = true;
   } else if (input.getId() == NCKEY_BUTTON1) {
     setStatus(format("mouse: {} {}", input.getY(), input.getX()));
 
@@ -111,4 +114,10 @@ UI::offerInput(const UIInput & input) {
   }
     
   return handled;
+}
+
+void
+UI::setStatus(std::string s) {
+  status_line->setMessage(s);
+  render();
 }

@@ -3,13 +3,14 @@
 #include "Controller.h"
 #include "Song.h"
 #include "UIInput.h"
+#include "StyleProvider.h"
 
 #include <fmt/core.h>
 
 using namespace std;
 
 bool
-InstrumentList::render(bool refresh) {
+InstrumentList::render(const StyleProvider & styles, bool refresh) {
   bool render_all = refresh;
   auto & song = getController().getSong();
 
@@ -22,12 +23,12 @@ InstrumentList::render(bool refresh) {
     getPlane().drawBorder();
     
     for (size_t i = 0; i < song.getInstruments().size(); i++) {
-      renderRow(new_scroll_pos, i, i == new_cursor_row);
+      renderRow(styles, new_scroll_pos, i, i == new_cursor_row);
     }
     need_refresh = true;
   } else if (new_cursor_row != current_cursor_row) {
-    renderRow(current_scroll_pos, current_cursor_row, false);
-    renderRow(current_scroll_pos, new_cursor_row, true);
+    renderRow(styles, current_scroll_pos, current_cursor_row, false);
+    renderRow(styles, current_scroll_pos, new_cursor_row, true);
     need_refresh = true;
   }
 
@@ -39,7 +40,7 @@ InstrumentList::render(bool refresh) {
 }
 
 void
-InstrumentList::renderRow(size_t scroll_pos, size_t row, bool highlight) {
+InstrumentList::renderRow(const StyleProvider & styles, size_t scroll_pos, size_t row, bool highlight) {
   auto [rows, cols] = getDim();
 
   if (row >= scroll_pos && row < scroll_pos + rows - 2) {
@@ -47,11 +48,11 @@ InstrumentList::renderRow(size_t scroll_pos, size_t row, bool highlight) {
     auto & instrument = *(song.getInstruments()[row]);
         
     if (highlight) {
-      setFgColor(0x00, 0x00, 0x00);
-      setBgColor(0xa0, 0xff, 0xa0);
+      setFgColor(styles.highlight_fg_color);
+      setBgColor(styles.highlight_bg_color);
     } else {
-      setFgColor(0xe0, 0xe0, 0xe0);
-      setBgColor(0x20, 0x20, 0x20);
+      setFgColor(styles.window_fg_color);
+      setBgColor(styles.window_bg_color);
     }
     auto line = instrument.getName();
     while (int(line.size()) < cols - 2) line += ' ';
