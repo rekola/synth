@@ -46,6 +46,9 @@ class UIInput {
     case NCKEY_DEL:
     case NCKEY_BACKSPACE:
       return 0;
+
+    case 'a':
+      return 1; // OFF
       
     case 'z': return 48;
     case 's': return 49;
@@ -70,6 +73,7 @@ class UIInput {
     case 'o': return 74;
     case '0': return 75;
     case 'p': return 76;
+      
     }
     return -1;
   }
