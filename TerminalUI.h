@@ -20,8 +20,8 @@ class TerminalUI : public UI {
   void initialize(std::shared_ptr<Controller> & controller);
   void start(AudioAPI & audio);
 
-  void setStatus(const std::string & s) override;
   void refresh() override;
+  void render() override;
 
 protected:
   bool readInput();

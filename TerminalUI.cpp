@@ -7,7 +7,6 @@
 #include "Controller.h"
 #include "UIMenu.h"
 #include "Chart.h"
-#include "StatusLine.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -316,14 +315,13 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
 }
 
 void
-TerminalUI::setStatus(const std::string & s) {
-  status_line->setMessage(s);
+TerminalUI::render() {
   nc->render();
 }
 
 void
 TerminalUI::refresh() {
-   nc->refresh(nullptr, nullptr);
+  nc->refresh(nullptr, nullptr);
 }
 
 bool
