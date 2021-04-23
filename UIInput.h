@@ -4,7 +4,10 @@
 #ifndef suppuabisize
 
 #define suppuabize(w) ((w) + 0x100000)                                                   
-                                                                                         
+
+#define NCKEY_ESC      0x1b
+#define NCKEY_SPACE    0x20
+
 // Special composed key definitions. These values are added to 0x100000.                 
 #define NCKEY_INVALID suppuabize(0)                                                      
 #define NCKEY_RESIZE  suppuabize(1) // generated internally in response to SIGWINCH      
