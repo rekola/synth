@@ -1,4 +1,4 @@
-#include "ScoreDisplay.h"
+#include "PatternEditor.h"
 
 #include "UIInput.h"
 #include "Synth.h"
@@ -9,7 +9,7 @@
 using namespace std;
 using namespace fmt;
 
-ScoreDisplay::ScoreDisplay(UIPlane & parent) : UIElement(parent) {
+PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   // getPlane().setScrolling(true);
   
   midi_note_names[127] = "G-9";
@@ -122,7 +122,7 @@ ScoreDisplay::ScoreDisplay(UIPlane & parent) : UIElement(parent) {
 }
 
 bool
-ScoreDisplay::render(bool refresh) {  
+PatternEditor::render(bool refresh) {  
   bool render_all = refresh;
   auto & synth = getController().getSynth();
   size_t score_section = synth.getSectionPosition();
@@ -143,9 +143,8 @@ ScoreDisplay::render(bool refresh) {
   
   // current_score_cursor_row = new_score_cursor_row;
   current_score_cursor_col = new_score_cursor_col;
-  
-  bool need_redraw = render_all;
-  
+
+  bool need_redraw = false;
   if (render_all) {
     auto [rows, cols] = getDim();
     erase();
@@ -154,6 +153,7 @@ ScoreDisplay::render(bool refresh) {
     for (int row = 0; row < rows && row < 32; row++) {
       renderRow(row, row == score_playing_row);
     }
+    need_redraw = true;
   } else if (current_score_playing_row != score_playing_row) {
     renderRow(current_score_playing_row, false);
     renderRow(score_playing_row, true);
@@ -205,7 +205,7 @@ static inline int keyToNote(int key) {
 }
 
 bool
-ScoreDisplay::offerInput(const UIInput & input) {
+PatternEditor::offerInput(const UIInput & input) {
   auto & song = getController().getSong();
   auto & synth = getController().getSynth();
   auto & section = song.getSection(synth.getSectionPosition());
@@ -219,7 +219,25 @@ ScoreDisplay::offerInput(const UIInput & input) {
       new_score_cursor_col = num_columns > 1 ? num_columns - 1 : 0;
       return true;
     } else if (input.getId() == 't' || input.getId() == 'T') {
-      section.addSequence(Sequence());
+      int instrument_id = section.getSequences().back().getInstrumentId();
+      auto & seq = section.addSequence();
+      seq.setInstrumentId(instrument_id + 1);
+      song.incVersion();
+    } else if (input.hasShift() && (input.getId() == 't' || input.getId() == 'T')) {
+      // delete track
+      return true;
+    } else if (input.getId() == 'g' || input.getId() == 'G') {
+      // create group
+      return true;
+    } else if (input.getId() == 'd' || input.getId() == 'D') {
+      // duplicate track
+      return true;
+    } else if (input.hasAlt() && input.getId() == NCKEY_LEFT) {
+      // move selected track to left
+      return true;
+    } else if (input.hasAlt() && input.getId() == NCKEY_RIGHT) {
+      // move selected track to right
+      return true;
     } else {
       return false;
     }
@@ -259,7 +277,7 @@ ScoreDisplay::offerInput(const UIInput & input) {
 }
 
 void
-ScoreDisplay::renderHeading() {
+PatternEditor::renderHeading() {
   auto & song = getController().getSong();
   auto & synth = getController().getSynth();
   auto & section = song.getSection(synth.getSectionPosition());
@@ -278,7 +296,7 @@ ScoreDisplay::renderHeading() {
 }
 
 void
-ScoreDisplay::renderRow(size_t row, bool highlight) {
+PatternEditor::renderRow(size_t row, bool highlight) {
   auto & song = getController().getSong();
   auto & synth = getController().getSynth();
   auto & section = song.getSection(synth.getSectionPosition());

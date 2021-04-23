@@ -3,7 +3,7 @@
 #include "Chart.h"
 #include "InfoLine.h"
 #include "StatusLine.h"
-#include "ScoreDisplay.h"
+#include "PatternEditor.h"
 #include "InstrumentList.h"
 
 using namespace std;
@@ -11,7 +11,7 @@ using namespace std;
 void
 UI::initialize() {
   // chart and volume are missing
-  score_display = make_shared<ScoreDisplay>(getPlane());
+  pattern_editor = make_shared<PatternEditor>(getPlane());
   info_line = make_shared<InfoLine>(getPlane());
   status_line = make_shared<StatusLine>(getPlane());
   instrument_list = make_shared<InstrumentList>(getPlane());
@@ -31,7 +31,7 @@ UI::layout() {
   chart->resize(4, cols - 40).move(1, 0);
   instrument_list->resize(4, 39).move(1, cols - 40);
   volume_meter->resize(rows - 3, 1).move(1, cols - 1);
-  score_display->resize(rows - 7, cols - 1).move(5, 0);
+  pattern_editor->resize(rows - 7, cols - 1).move(5, 0);
   info_line->resize(1, cols).move(rows - 2, 0);
   status_line->resize(1, cols - 1).move(rows - 1, 0);
 }

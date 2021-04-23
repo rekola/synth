@@ -6,7 +6,7 @@ OBJS = main.o \
 	FileInstrument.o \
 	TerminalUI.o \
 	Chart.o \
-	ScoreDisplay.o \
+	PatternEditor.o \
 	Controller.o \
 	FMInstrument.o \
 	Reverb.o \

@@ -1,5 +1,5 @@
-#ifndef _SCOREDISPLAY_H_
-#define _SCOREDISPLAY_H_
+#ifndef _PATTERNEDITOR_H_
+#define _PATTERNEDITOR_H_
 
 #include "UIElement.h"
 
@@ -10,9 +10,9 @@
 class Synth;
 class UIInput;
 
-class ScoreDisplay : public UIElement {
+class PatternEditor : public UIElement {
  public:
-  ScoreDisplay(UIPlane & parent);
+  PatternEditor(UIPlane & parent);
 
   bool render(bool refresh = false);
   bool offerInput(const UIInput & input) override;

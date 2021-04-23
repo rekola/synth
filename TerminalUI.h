@@ -2,18 +2,15 @@
 #define _TERMINALUI_H_
 
 #include "UI.h"
-#include "Chart.h"
-#include "ScoreDisplay.h"
 #include "SampleData.h"
-#include "InfoLine.h"
-#include "StatusLine.h"
-#include "UIMenu.h"
-
-#include <ncpp/NotCurses.hh>
 
 #include <memory>
 
 class AudioAPI;
+
+namespace ncpp {
+  class NotCurses;
+};
 
 class TerminalUI : public UI {
  public:

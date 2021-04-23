@@ -7,7 +7,7 @@ class UIMenu;
 class Chart;
 class InfoLine;
 class StatusLine;
-class ScoreDisplay;
+class PatternEditor;
 class InstrumentList;
 
 #include <memory>
@@ -27,7 +27,7 @@ protected:
   std::shared_ptr<Chart> chart, volume_meter;
   std::shared_ptr<InfoLine> info_line;
   std::shared_ptr<StatusLine> status_line;
-  std::shared_ptr<ScoreDisplay> score_display;
+  std::shared_ptr<PatternEditor> pattern_editor;
   std::shared_ptr<InstrumentList> instrument_list;
   
   bool close_ui = false;

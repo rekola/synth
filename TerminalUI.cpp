@@ -9,7 +9,7 @@
 #include "Chart.h"
 #include "InfoLine.h"
 #include "StatusLine.h"
-#include "ScoreDisplay.h"
+#include "PatternEditor.h"
 #include "InstrumentList.h"
 
 #include <cstdio>
@@ -24,6 +24,7 @@
 #include <sys/time.h>
 #include <iostream>
 
+#include <ncpp/NotCurses.hh>
 #include <ncpp/Plane.hh>
 #include <ncpp/Plot.hh>
 #include <ncpp/Reader.hh>
@@ -357,7 +358,7 @@ TerminalUI::readInput() {
     }
     if (!handled) handled |= status_line->offerInput(input);
     if (!handled) handled |= instrument_list->offerInput(input);
-    if (!handled) handled |= score_display->offerInput(input);
+    if (!handled) handled |= pattern_editor->offerInput(input);
     if (!handled) handled |= offerInput(input);
   }
 
@@ -381,7 +382,7 @@ TerminalUI::start(AudioAPI & audio) {
   time_t prev_update = 0;
   time_t prev_pos = getController().getSynth().getCurrentPosition();
 
-  score_display->render(true);
+  pattern_editor->render(true);
   instrument_list->render(true);
   info_line->render(true);
 	
@@ -428,7 +429,7 @@ TerminalUI::start(AudioAPI & audio) {
 	render = true;
       }
       
-      render |= score_display->render();
+      render |= pattern_editor->render();
       
       prev_pos = getController().getSynth().getCurrentPosition();
 
