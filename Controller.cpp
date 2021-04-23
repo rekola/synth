@@ -19,17 +19,14 @@ using namespace std;
 Controller::Controller() {
   auto song = make_shared<Song>();
 
-  const unsigned char * track = tr;
+  const unsigned char * song_data = tr;
   
-  song->bpm = *track++;
-  song->mastervol = (float)(*track++) / 127;
+  song->bpm = *song_data++;
+  song->mastervol = (float)(*song_data++) / 127;
   
-  int delay1 = (int)(MAXDELAYSAMPLES * ((float)(*track++) / 255));
-  int delay2 = (int)(MAXDELAYSAMPLES * ((float)(*track++) / 255));
-  float fd1 = (float)(*track++) / 255;
-  float fd2 = (float)(*track++) / 255;
-  float delaymix1 = (float)(*track++) / 255;
-  float delaymix2 = (float)(*track++) / 255;
+  int delay1 = (int)(MAXDELAYSAMPLES * ((float)(*song_data++) / 255));
+  float fd1 = (float)(*song_data++) / 255;
+  float delaymix1 = (float)(*song_data++) / 255;
 
   auto i0 = make_unique<BasicInstrument>(WaveformType::SAW);
   i0->setName("drone1");
@@ -158,50 +155,50 @@ Controller::Controller() {
   i14->setFilter(150 / 255.0f, 255 / 63.0f);
   song->addInstrument(move(i14));
   
-  int ptrncnt = *track++;
-  vector<Sequence> available_sequences;
+  int ptrncnt = *song_data++;
+  vector<Track> available_tracks;
   for (int i = 0; i < ptrncnt; i++) {
-    Sequence sequence;
-    sequence.setInstrumentId(*track++);
+    Track track;
+    track.setInstrumentId(*song_data++);
     
     for (size_t j = 0; ; j++) {
-      int val = *track++;
+      int val = *song_data++;
       if (val == 255) break;
       Note note(val & 0x7f, (val & 0x80) != 0);
-      sequence.setNote(j, note);
+      track.setNote(j, note);
     }
 
-    available_sequences.push_back(sequence);
+    available_tracks.push_back(track);
   }
 
-  size_t max_sequence_length = 0;
-  vector<vector<int> > sequence_vectors;
-  int trkcnt = *track++;
+  size_t max_track_length = 0;
+  vector<vector<int> > track_vectors;
+  int trkcnt = *song_data++;
   for (int i = 0; i < trkcnt; i++) {
     vector<int> seqs;
     while (1) {
-      size_t val = *track++;
+      size_t val = *song_data++;
       if (val == 255) break;
-      assert(val < available_sequences.size());
+      assert(val < available_tracks.size());
       seqs.push_back(val);
     }
     
-    sequence_vectors.push_back(seqs);
+    track_vectors.push_back(seqs);
 #if 0
-    if (sequence_vectors.size() > max_sequence_length) max_sequence_length = sequence_vectors.size();
+    if (track_vectors.size() > max_track_length) max_track_length = track_vectors.size();
 #else
-    if (seqs.size() > max_sequence_length) max_sequence_length = seqs.size();
+    if (seqs.size() > max_track_length) max_track_length = seqs.size();
 #endif
   }
 
-  for (size_t i = 0; i < max_sequence_length; i++) {
+  for (size_t i = 0; i < max_track_length; i++) {
     Section section;
-    for (size_t j = 0; j < sequence_vectors.size(); j++) {
-      auto & sequences = sequence_vectors[j];
-      if (i < sequences.size()) {
-	auto id = sequences[i];
-	assert(id >= 0 && id < (int)available_sequences.size());
-	section.addSequence(available_sequences[id]);
+    for (size_t j = 0; j < track_vectors.size(); j++) {
+      auto & tracks = track_vectors[j];
+      if (i < tracks.size()) {
+	auto id = tracks[i];
+	assert(id >= 0 && id < (int)available_tracks.size());
+	section.addTrack(available_tracks[id]);
       }
     }
     assert(!section.empty());
@@ -263,10 +260,10 @@ Controller::createNewSong() {
 
 // Bell 3.5 7 9 0 0.01 0.2 0.3 1.5
 
-  Sequence sequence;
+  Track track;
   
   Section section;
-  section.addSequence(sequence);
+  section.addTrack(track);
   song->addSection(section);  
 
   current_song = song;

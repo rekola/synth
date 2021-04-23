@@ -19,7 +19,7 @@ PatternEditor::render(bool refresh) {
   bool render_all = refresh;
   auto & synth = getController().getSynth();
   size_t score_section = synth.getSectionPosition();
-  size_t score_playing_row = synth.getSequencePosition();
+  size_t score_playing_row = synth.getTrackPosition();
   auto & song = getController().getSong();
   auto & current_section = song.getSection(score_section);
   
@@ -69,7 +69,7 @@ PatternEditor::offerInput(const UIInput & input) {
   auto & song = getController().getSong();
   auto & synth = getController().getSynth();
   auto & section = song.getSection(synth.getSectionPosition());
-  size_t num_columns = section.getSequences().size();
+  size_t num_columns = section.getTracks().size();
 
   if (input.hasCtrl()) {
     if (input.getId() == 'a' || input.getId() == 'A') {
@@ -79,8 +79,8 @@ PatternEditor::offerInput(const UIInput & input) {
       new_score_cursor_col = num_columns > 1 ? num_columns - 1 : 0;
       return true;
     } else if (input.getId() == 't' || input.getId() == 'T') {
-      int instrument_id = section.getSequences().back().getInstrumentId();
-      auto & seq = section.addSequence();
+      int instrument_id = section.getTracks().back().getInstrumentId();
+      auto & seq = section.addTrack();
       seq.setInstrumentId(instrument_id + 1);
       song.incVersion();
     } else if (input.hasShift() && (input.getId() == 't' || input.getId() == 'T')) {
@@ -122,9 +122,9 @@ PatternEditor::offerInput(const UIInput & input) {
     if (midi_note != -1) {
       Note note(midi_note);
       auto & section = song.getSection(synth.getSectionPosition());
-      auto & sequence = section.getSequence(current_score_cursor_col);
-      song.getInstrument(sequence.getInstrumentId()).playNote(note);
-      sequence.setNote(synth.getSequencePosition(), note);
+      auto & track = section.getTrack(current_score_cursor_col);
+      song.getInstrument(track.getInstrumentId()).playNote(note);
+      track.setNote(synth.getTrackPosition(), note);
       row_edited = true;
       if (input.getId() == NCKEY_BACKSPACE) synth.moveBackwards(song);
       else if (input.getId() != NCKEY_DEL) synth.moveForward(song);
@@ -181,8 +181,8 @@ PatternEditor::renderRow(size_t row, bool highlight) {
       putstr(2 + row, 1, s);
 
     } else {
-      auto & sequence = section.getSequence(i);
-      auto & note = sequence.getNote(row);
+      auto & track = section.getTrack(i);
+      auto & note = track.getNote(row);
 
       string s;
       if (note.isDefined()) {

@@ -23,9 +23,9 @@ Synth::play(Song & song, size_t frames) {
     for (size_t i = 0; i < frames; i++) {
       if (samplepos == 0) {
 	auto & section = song.getSection(getSectionPosition());
-	for (auto & sequence : section.getSequences()) {
-	  auto & instrument = song.getInstrument(sequence.getInstrumentId());
-	  instrument.addPendingNote(i, sequence.getNote(getSequencePosition()));
+	for (auto & track : section.getTracks()) {
+	  auto & instrument = song.getInstrument(track.getInstrumentId());
+	  instrument.addPendingNote(i, track.getNote(getTrackPosition()));
 	}
       }
 

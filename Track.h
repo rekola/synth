@@ -1,5 +1,5 @@
-#ifndef _SEQUENCE_H_
-#define _SEQUENCE_H_
+#ifndef _TRACK_H_
+#define _TRACK_H_
 
 #include "Note.h"
 
@@ -7,9 +7,9 @@
 
 #define PATTLEN 32
 
-class Sequence {
+class Track {
  public:
-  explicit Sequence() {
+  explicit Track() {
     for (size_t i = 0; i < PATTLEN; i++) addNote();
   }
 
