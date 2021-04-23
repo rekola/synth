@@ -18,14 +18,14 @@ class Song {
 
   void addSection(const Section & section) {
     sections.push_back(section);
-    version++;
+    incVersion();
   }
 
   const std::vector<std::unique_ptr<Instrument> > & getInstruments() const { return instruments; }
   Instrument & getInstrument(size_t i) { return *(instruments[i]); }
   void addInstrument(std::unique_ptr<Instrument> i) {
     instruments.push_back(std::move(i));
-    version++;
+    incVersion();
   }
 
   void incVersion() { version++; }
