@@ -14,9 +14,11 @@ class Section {
   Sequence & getSequence(size_t i) { return i < sequences.size() ? sequences[i] : empty_sequence; }
   Sequence & addSequence(const Sequence & s) { sequences.push_back(s); return sequences.back(); }
   Sequence & addSequence() { return addSequence(Sequence()); }
-  size_t size() const { return sequences.size(); }
   bool empty() const { return sequences.empty(); }
-  
+
+  size_t getTrackCount() const { return sequences.size(); }
+  size_t getRowCount() const { return 32; }
+
 private:
   std::vector<Sequence> sequences;
   Sequence empty_sequence;

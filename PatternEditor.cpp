@@ -43,7 +43,7 @@ PatternEditor::render(bool refresh) {
     erase();
     getPlane().drawBorder();
     renderHeading();
-    for (int row = 0; row < rows && row < 32; row++) {
+    for (size_t row = 0; row < (size_t)rows && row < current_section.getRowCount(); row++) {
       renderRow(row, row == score_playing_row);
     }
     need_redraw = true;
@@ -129,7 +129,6 @@ PatternEditor::offerInput(const UIInput & input) {
       if (input.getId() == NCKEY_BACKSPACE) synth.moveBackwards(song);
       else if (input.getId() != NCKEY_DEL) synth.moveForward(song);
       
-      // setStatus(format("Playing {}", note));
       return true;
     }
   }
@@ -147,7 +146,7 @@ PatternEditor::renderHeading() {
     
   putstr(1, 1, "   ");
   
-  for (int i = 0; i < (int)section.size(); i++) {
+  for (int i = 0; i < (int)section.getTrackCount(); i++) {
     setFgColor(0x00, 0x00, 0x00);
     setBgColor(0xf0, 0x80, 0x10);
     
@@ -162,8 +161,8 @@ PatternEditor::renderRow(size_t row, bool highlight) {
   auto & synth = getController().getSynth();
   auto & section = song.getSection(synth.getSectionPosition());
       
-  for (int i = -1; i < (int)section.size(); i++) {
-    if (highlight && i == current_score_cursor_col) {
+  for (int i = -1; i < (int)section.getTrackCount(); i++) {
+    if (highlight && i == (int)current_score_cursor_col) {
       setFgColor(0x00, 0x00, 0x00);
       setBgColor(0xa0, 0xff, 0xa0);
     } else if (highlight) {
