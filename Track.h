@@ -9,10 +9,14 @@
 
 class Track {
  public:
-  explicit Track() {
-    for (size_t i = 0; i < PATTLEN; i++) addNote();
+  enum Type { NOTES = 1, AUDIO };
+  
+  explicit Track(Type type = NOTES) {
+
   }
 
+  Type getType() const { return NOTES; }
+  
   void setNote(size_t i, Note note) {
     while ( i >= size() ) addNote();
     notes[i] = note;
