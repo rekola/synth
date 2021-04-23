@@ -56,6 +56,7 @@ public:
     int y, x;
     plane->get_dim(&y, &x);
     setDim(pair(y, x));
+    setPosition(pair(0, 0));
   }
   ~TerminalPlane() {
     if (owner) delete plane;
@@ -68,6 +69,7 @@ public:
   }
   void move(int y, int x) override {
     if (plane->to_ncplane()) {
+      UIPlane::move(y, x);
       plane->move(y, x);
     }
   }
@@ -322,26 +324,9 @@ TerminalUI::setStatus(const std::string & s) {
   nc->render();
 }
 
-bool
-TerminalUI::offerInput(const UIInput & input) {
-  // if (ni.ctrl && ni.id == 'L') notcurses_refresh(*nc, NULL, NULL);
-  // if (ni.ctrl && (ni.id == 'q' || ni.id == 'Q')) close_ui = true;
-  if (input.getId() == NCKEY_RESIZE) {
-    layout();
-    nc->refresh(nullptr, nullptr);
-  } else if ((input.getId() == 'n' || input.getId() == 'N') && input.hasCtrl()) {
-    setStatus("New song");
-    getController().createNewSong();
-  } else if (input.getId() == ' ') {
-    if (getController().getSynth().togglePlayback()) {
-      setStatus("Playing");
-    } else {
-      setStatus("Stopped");
-    }
-    return true;
-  }
-  
-  return false;
+void
+TerminalUI::refresh() {
+   nc->refresh(nullptr, nullptr);
 }
 
 bool
@@ -352,14 +337,7 @@ TerminalUI::readInput() {
   if (nc->getc(true, &ni) != (char32_t)-1) {
     bool handled = false;
     UIInput input(ni.seqnum, ni.id, ni.y, ni.x, ni.alt, ni.shift, ni.ctrl);
-    if (!handled) {
-      handled |= menu->offerInput(input);
-      if (handled) setStatus("menu: " + menu->getSelected());
-    }
-    if (!handled) handled |= status_line->offerInput(input);
-    if (!handled) handled |= instrument_list->offerInput(input);
-    if (!handled) handled |= pattern_editor->offerInput(input);
-    if (!handled) handled |= offerInput(input);
+    offerInput(input);
   }
 
   return true;
@@ -430,7 +408,8 @@ TerminalUI::start(AudioAPI & audio) {
       }
       
       render |= pattern_editor->render();
-      
+      render |= instrument_list->render();
+
       prev_pos = getController().getSynth().getCurrentPosition();
 
       if (render) {

@@ -21,7 +21,7 @@ class TerminalUI : public UI {
   void start(AudioAPI & audio);
 
   void setStatus(const std::string & s) override;
-  bool offerInput(const UIInput & input) override;
+  void refresh() override;
 
 protected:
   bool readInput();
