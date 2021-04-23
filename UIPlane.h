@@ -16,8 +16,9 @@ class UIPlane {
   virtual void resize(int rows, int cols) {
     setDim(std::pair(rows, cols));
   }
-  
-  virtual void move(int y, int x) = 0;
+  virtual void move(int y, int x) {
+    setPosition(std::pair(y, x));
+  }
   virtual void setFgColor(int r, int g, int b) = 0;
   virtual void setBgColor(int r, int g, int b) = 0;
   virtual void erase() = 0;
@@ -32,16 +33,18 @@ class UIPlane {
   virtual void addItem(std::string id, std::string description) = 0;
   virtual void clearItems() = 0;
 
+  const std::pair<int, int> & getPosition() const { return plane_pos; }
   const std::pair<int, int> & getDim() const { return plane_dim; }
 
   std::shared_ptr<Controller> & getController() { return controller; }
 
 protected:
   void setDim(std::pair<int, int> dim) { plane_dim = dim; }
+  void setPosition(std::pair<int, int> pos) { plane_pos = pos; }
   
 private:
   std::shared_ptr<Controller> controller;
-  std::pair<int, int> plane_dim;
+  std::pair<int, int> plane_dim, plane_pos;
 };
 
 #endif

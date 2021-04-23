@@ -49,6 +49,11 @@ class UIElement {
     return *this;
   }
 
+  std::pair<int, int> getPosition() const {
+    if (plane) return plane->getPosition();
+    else return std::pair(0, 0);
+  }
+  
   std::pair<int, int> getDim() const {
     if (plane) return plane->getDim();
     else return std::pair(0, 0);
