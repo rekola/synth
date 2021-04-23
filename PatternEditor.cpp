@@ -317,7 +317,7 @@ PatternEditor::renderRow(size_t row, bool highlight) {
     }
 
     if (i == -1) {
-      auto s = format("{:02x}|", row);
+      auto s = format("{:02x}│", row);
       putstr(2 + row, 1, s);
 
     } else {
