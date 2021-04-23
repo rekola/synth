@@ -35,10 +35,6 @@ class Song {
   float gvol = 1.0; // (or 1.0 / trkcnt)
   int bpm = 60;
   
-  // global delay parameters
-  int delay1, delay2;
-  float fd1, fd2, delaymix1, delaymix2;
-
 private:
   std::vector<std::unique_ptr<Instrument> > instruments;
   std::vector<Section> sections;
