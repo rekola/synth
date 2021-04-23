@@ -17,6 +17,12 @@
 #define NCKEY_BACKSPACE   suppuabize(8)
 #define NCKEY_ENTER   suppuabize(121)
 
+#define NCKEY_BUTTON1  suppuabize(201)
+#define NCKEY_BUTTON2  suppuabize(202)
+#define NCKEY_BUTTON3  suppuabize(203)
+#define NCKEY_BUTTON4  suppuabize(204) // scrollwheel up
+#define NCKEY_BUTTON5  suppuabize(205) // scrollwheel down
+
 #endif
   
 class UIInput {
