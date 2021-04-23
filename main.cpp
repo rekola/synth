@@ -1,6 +1,7 @@
 #include "AlsaAudio.h"
 #include "TerminalUI.h"
 #include "Controller.h"
+#include "Synth.h"
 
 using namespace std;
 
