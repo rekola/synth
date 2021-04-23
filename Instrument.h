@@ -45,14 +45,12 @@ public:
   void setTranspose(int _transpose) { transpose = _transpose; }
   
   void setDetune(int _detune) { detune = (_detune - 127) / 512.0; }
-  void setVolume(int _volume) { volume = _volume / 128.0f; }
-  void setPan(int _pan) { pan = _pan / 255.0; }
+  void setVolume(float _volume) { volume = _volume; }
+  void setPan(float _pan) { pan = _pan; }
   void setFlags(unsigned char _flags) { flags = _flags; }
   void setSolo(bool s) {solo = s; }
     
-  void setFilter(int _fcut, int _fres, bool is_highpass = false) {
-    float fcut = _fcut / 255.0f;
-    float fres = _fres / 63.0f;
+  void setFilter(float fcut, float fres, bool is_highpass = false) {
     addEffect(std::make_unique<Filter>(fcut, fres, is_highpass));
   }
 
