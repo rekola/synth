@@ -65,13 +65,9 @@ Synth::play(Song & song, size_t frames) {
 
     for (size_t i = 0; i < frames; i++) {
       float ss = buffer[i];
-      float ssl = ss * sqrtf(1.0 - instrument->getPan());
-      float ssr = ss * sqrtf(instrument->getPan());
-    
-      if (instrument->getFlags() & DELAYTRACK) instrument->delaysample(song.delaymix1, song.delaymix2, song.fd1, song.delay1, song.fd2, song.delay2, &ssl, &ssr);
       
-      out[2 * i + 0] += ssl;
-      out[2 * i + 1] += ssr;
+      out[2 * i + 0] += ss * sqrtf(1.0 - instrument->getPan());
+      out[2 * i + 1] += ss * sqrtf(instrument->getPan());
     }
   }
 

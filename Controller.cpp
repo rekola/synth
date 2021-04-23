@@ -7,6 +7,7 @@
 #include "Chorus.h"
 #include "Distortion.h"
 #include "Reverb.h"
+#include "Delay.h"
 
 #include "track.h"
 
@@ -17,7 +18,19 @@ using namespace std;
 
 Controller::Controller() {
   auto song = make_shared<Song>();
+
+  const unsigned char * track = tr;
   
+  song->bpm = *track++;
+  song->mastervol = (float)(*track++) / 127;
+  
+  int delay1 = (int)(MAXDELAYSAMPLES * ((float)(*track++) / 255));
+  int delay2 = (int)(MAXDELAYSAMPLES * ((float)(*track++) / 255));
+  float fd1 = (float)(*track++) / 255;
+  float fd2 = (float)(*track++) / 255;
+  float delaymix1 = (float)(*track++) / 255;
+  float delaymix2 = (float)(*track++) / 255;
+
   auto i0 = make_unique<BasicInstrument>(WaveformType::SAW);
   i0->setName("drone1");
   i0->setADSR(255, 64, 0.25f, 0);
@@ -55,8 +68,8 @@ Controller::Controller() {
   i4->setName("hihat closed");
   i4->setADSR(0, 8, 0.0f, 0);
   i4->setVolume(0.5f);
-  i4->setFlags(DELAYTRACK);
   i4->setFilter(190 / 255.0f, 128 / 63.0f);
+  i4->addEffect(make_unique<Delay>(delay1, fd1, delaymix1));
   song->addInstrument(move(i4));
 
   auto i5 = make_unique<BasicInstrument>(WaveformType::NOISE2);
@@ -102,7 +115,7 @@ Controller::Controller() {
   i9->setName("snare");
   i9->setADSR(0, 15, 0.0f, 0);
   i9->setVolume(0.31f);
-  i9->setFlags(DELAYTRACK);
+  i9->addEffect(make_unique<Delay>(delay1, fd1, delaymix1));
   // i9->setFilter(1.0f, 0.0f);
   song->addInstrument(move(i9));
 
@@ -110,15 +123,15 @@ Controller::Controller() {
   i10->setName("bass");
   i10->setADSR(0, 30, 0.0f, 0);
   i10->setVolume(0.47f);
-  i10->setFlags(DELAYTRACK);
   i10->setFilter(100 / 255.0f, 0);
+  i10->addEffect(make_unique<Delay>(delay1, fd1, delaymix1));
   song->addInstrument(move(i10));
 
   auto i11 = make_unique<BasicInstrument>(WaveformType::SAW);
   i11->setName("bass");
   i11->setADSR(0, 20, 0.0f, 0);
-  i11->setFlags(DELAYTRACK);
   i11->setFilter(63 / 255.0f, 128 / 63.0f);
+  i11->addEffect(make_unique<Delay>(delay1, fd1, delaymix1));
   song->addInstrument(move(i11));
 
   auto i12 = make_unique<BasicInstrument>(WaveformType::SQUARE);
@@ -144,18 +157,6 @@ Controller::Controller() {
   i14->setPan(0.15f);
   i14->setFilter(150 / 255.0f, 255 / 63.0f);
   song->addInstrument(move(i14));
-
-  const unsigned char * track = tr;
-  
-  song->bpm = *track++;
-  song->mastervol = (float)(*track++) / 127;
-  
-  song->delay1 = (int)(MAXDELAYSAMPLES * ((float)(*track++) / 255));
-  song->delay2 = (int)(MAXDELAYSAMPLES * ((float)(*track++) / 255));
-  song->fd1 = (float)(*track++) / 255;
-  song->fd2 = (float)(*track++) / 255;
-  song->delaymix1 = (float)(*track++) / 255;
-  song->delaymix2 = (float)(*track++) / 255;
   
   int ptrncnt = *track++;
   vector<Sequence> available_sequences;

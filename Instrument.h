@@ -11,11 +11,6 @@
 #include <memory>
 #include <deque>
 
-#define MAXDELAYSAMPLES 44100 * 5
-
-// flags
-#define DELAYTRACK 0x1
-
 class Instrument {
 public:
   explicit Instrument() { }
@@ -34,7 +29,6 @@ public:
   float getDetune() const { return detune; }
   float getVolume() const { return volume; }
   float getPan() const { return pan; }
-  unsigned char getFlags() const { return flags; }
   bool getSolo() const { return solo; }
   
   int getAttack() const { return a; }
@@ -47,7 +41,6 @@ public:
   void setDetune(int _detune) { detune = (_detune - 127) / 512.0; }
   void setVolume(float _volume) { volume = _volume; }
   void setPan(float _pan) { pan = _pan; }
-  void setFlags(unsigned char _flags) { flags = _flags; }
   void setSolo(bool s) {solo = s; }
     
   void setFilter(float fcut, float fres, bool is_highpass = false) {
@@ -131,26 +124,6 @@ public:
     }
   }
 
-  void delaysample(float delaymix1, float delaymix2, float fd1, float delay1, float fd2, float delay2, float *in1, float *in2) {
-    float x, y;
-    
-    x = *in1;
-    y = delaybuf1[delc1];
-    
-    delaybuf1[delc1++] = x + y * fd1;
-    if (delc1 >= delay1) delc1 = 0;
-
-    *in1 += delaymix1 * y;
-    
-    x = *in2;
-    y = delaybuf2[delc2];
-    
-    delaybuf2[delc2++] = x + y * fd2;
-    if (delc2 >= delay2) delc2 = 0;
-    
-    *in2 += delaymix2 * y;
-  }
-
   float getFphase() const { return fphase; }
   bool hasAccent() const { return acc; }
 
@@ -173,16 +146,11 @@ protected:
   float s = 1.0;
   float detune = 0, volume = 1.0f;
   float pan = 0.5f;
-  unsigned char flags = 0;
   short transpose = 0;
   bool solo = false;
 
   // adsr state
-  int adsrstate, adsrpos;
-
-  // delay state
-  int delc1, delc2;
-  float delaybuf1[MAXDELAYSAMPLES], delaybuf2[MAXDELAYSAMPLES];
+  int adsrstate = 0, adsrpos = 0;
 
   std::vector<std::unique_ptr<Effect> > effects;
 
