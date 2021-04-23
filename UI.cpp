@@ -43,6 +43,15 @@ UI::layout() {
 }
 
 bool
+UI::renderComponents(bool refresh) {
+  bool render = false;
+  render |= pattern_editor->render(refresh);
+  render |= instrument_list->render(refresh);
+  render |= info_line->render(refresh);
+  return render;
+}
+
+bool
 UI::tryActivate(int y, int x, std::shared_ptr<UIElement> element) {
   auto [pos_y, pos_x] = element->getPosition();
   auto [rows, cols] = element->getDim();
@@ -85,7 +94,8 @@ UI::offerInput(const UIInput & input) {
     
     tryActivate(input.getY(), input.getX(), status_line) ||
       tryActivate(input.getY(), input.getX(), pattern_editor) ||
-      tryActivate(input.getY(), input.getX(), instrument_list);
+      tryActivate(input.getY(), input.getX(), instrument_list) ||
+      false;
   }
 
   if (!handled) {

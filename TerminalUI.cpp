@@ -7,10 +7,7 @@
 #include "Controller.h"
 #include "UIMenu.h"
 #include "Chart.h"
-#include "InfoLine.h"
 #include "StatusLine.h"
-#include "PatternEditor.h"
-#include "InstrumentList.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -331,8 +328,6 @@ TerminalUI::refresh() {
 
 bool
 TerminalUI::readInput() {
-  bool render = false;
-  
   ncinput ni;
   if (nc->getc(true, &ni) != (char32_t)-1) {
     bool handled = false;
@@ -358,11 +353,8 @@ TerminalUI::start(AudioAPI & audio) {
   // setStatus("Starting... nd = " + to_string(num_descriptors));
 
   time_t prev_update = 0;
-  time_t prev_pos = getController().getSynth().getCurrentPosition();
 
-  pattern_editor->render(true);
-  instrument_list->render(true);
-  info_line->render(true);
+  renderComponents(true);
 	
   while ( !close_ui ) {
     bool render = false;
@@ -402,15 +394,7 @@ TerminalUI::start(AudioAPI & audio) {
 	}
       }
 
-      if (prev_pos != getController().getSynth().getCurrentPosition()) {
-	info_line->render();
-	render = true;
-      }
-      
-      render |= pattern_editor->render();
-      render |= instrument_list->render();
-
-      prev_pos = getController().getSynth().getCurrentPosition();
+      render |= renderComponents();
 
       if (render) {
 	nc->render();
