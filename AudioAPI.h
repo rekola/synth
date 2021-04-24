@@ -13,21 +13,26 @@ class AudioAPI {
   virtual ~AudioAPI() { }
   
   virtual void play(SampleData & data, UI & ui) = 0;
+  virtual SampleData record(UI & ui) = 0;
   virtual size_t getFrameCount() const = 0;
+  virtual void startRecording() = 0;
+  virtual void stopRecording() = 0;
   
   unsigned int getFrequency() const { return frequency; }
   unsigned short getChannels() const { return channels; }
 
-  const std::vector<pollfd> getPollDescriptors() const { return descriptors; }
+  const std::vector<pollfd> getPlaybackDescriptors() const { return playback_descriptors; }
+  const std::vector<pollfd> getCaptureDescriptors() const { return capture_descriptors; }
   
 protected:
   void setFrequency(int _frequency) { frequency = _frequency; }
-  void addPollDescriptor(const pollfd & d) { descriptors.push_back(d); }
+  void setPlaybackDescriptors(const std::vector<pollfd> & d) { playback_descriptors = d; }
+  void setCaptureDescriptors(const std::vector<pollfd> & d) { capture_descriptors = d; }
   
 private:
   unsigned int frequency;
   unsigned short channels;
-  std::vector<pollfd> descriptors;
+  std::vector<pollfd> playback_descriptors, capture_descriptors;
 };
 
 #endif

@@ -17,42 +17,113 @@ AlsaAudio::~AlsaAudio() {
     snd_pcm_drain(pcm_handle);
     snd_pcm_close(pcm_handle);
   }
+  if (capture_handle) {
+    snd_pcm_close(capture_handle);
+  }
+}
+
+static size_t initialize_alsa_dev(UI & ui, snd_pcm_t * handle, unsigned int rate, size_t channels, bool capture) {
+  int r;
+  
+  // Allocate parameters object and fill it with default values
+  snd_pcm_hw_params_t * hw_params;
+  snd_pcm_hw_params_alloca(&hw_params);
+  snd_pcm_hw_params_any(handle, hw_params);
+
+  // Set parameters
+  if ((r = snd_pcm_hw_params_set_access(handle, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED)) < 0) {
+    ui.setStatus(string("ERROR: Can't set interleaved mode: ") + snd_strerror(r));
+    return 0;
+  }
+
+  if ((r = snd_pcm_hw_params_set_format(handle, hw_params, SND_PCM_FORMAT_FLOAT_LE)) < 0) {
+    ui.setStatus(string("ERROR: Can't set format: ") + snd_strerror(r));
+    return 0;
+  }
+
+  if ((r = snd_pcm_hw_params_set_channels(handle, hw_params, channels)) < 0) {
+    ui.setStatus(string("ERROR: Can't set channels number: ") + snd_strerror(r));
+    return 0;
+  }
+
+  if ((r = snd_pcm_hw_params_set_rate_near(handle, hw_params, &rate, 0)) < 0) {
+    ui.setStatus(string("ERROR: Can't set rate: ") + snd_strerror(r));
+    return 0;
+  }
+
+  unsigned int min_periods;
+  int dir;
+  
+  if ((r = snd_pcm_hw_params_get_periods_min(hw_params, &min_periods, &dir)) < 0) {
+    ui.setStatus(string("ERROR: Can't get min periods: ") + snd_strerror(r));
+    return 0;
+  }
+
+  if ((r = snd_pcm_hw_params_set_periods(handle, hw_params, min_periods > 2 ? min_periods : 2, 0)) < 0) {
+    ui.setStatus(string("ERROR: Failed to set periods: ") + snd_strerror(r));
+    return 0;
+  }
+
+  snd_pcm_uframes_t min_period_size;
+  if ((r = snd_pcm_hw_params_get_period_size_min(hw_params, &min_period_size, &dir)) < 0) {
+    ui.setStatus(string("ERROR: Failed to get minimum period size: ") + snd_strerror(r));    
+    return 0;
+  }
+
+  int wanted_period = 4096;
+  if (!capture || 1) {
+    if ((r = snd_pcm_hw_params_set_period_size(handle, hw_params, min_period_size > wanted_period ? min_period_size : wanted_period, 0)) < 0) {
+      ui.setStatus(string("ERROR: Failed to set period size: ") + snd_strerror(r));
+      return 0;
+    }
+  }
+    
+  // Write parameters
+  if ((r = snd_pcm_hw_params(handle, hw_params)) < 0) {
+    ui.setStatus(string("ERROR: Can't set hardware parameters: ") + snd_strerror(r));
+    return 0;
+  }
+
+#if 1
+  snd_pcm_sw_params_t * sw_params;
+  snd_pcm_sw_params_alloca(&sw_params);
+  snd_pcm_sw_params_current(handle, sw_params);
+  snd_pcm_sw_params_set_avail_min(handle, sw_params, wanted_period);
+#endif
+  // snd_pcm_hw_params_get_period_time(params, &tmp, NULL);
+  
+  snd_pcm_uframes_t frames;
+  snd_pcm_hw_params_get_period_size(hw_params, &frames, 0);
+  
+  return frames;
 }
 
 void
 AlsaAudio::initialize(UI & ui) {
-  unsigned int rate = getFrequency();
   int r;
 
   // Open the PCM device in playback mode
-  if ((r = snd_pcm_open(&pcm_handle, PCM_DEVICE, SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
-    ui.setStatus(string("ERROR: Can't open PCM device: ") + snd_strerror(r));
+  if ((r = snd_pcm_open(&pcm_handle, "default", SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
+    ui.setStatus(string("ERROR: Can't open PCM device for playback: ") + snd_strerror(r));
     return;
   }
 
-  // Allocate parameters object and fill it with default values
-  snd_pcm_hw_params_t * hw_params;
-  snd_pcm_hw_params_alloca(&hw_params);
-  snd_pcm_hw_params_any(pcm_handle, hw_params);
-
-  // Set parameters
-  if ((r = snd_pcm_hw_params_set_access(pcm_handle, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED)) < 0) {
-    ui.setStatus(string("ERROR: Can't set interleaved mode: ") + snd_strerror(r));
+  // Open the PCM device in capture mode
+  if ((r = snd_pcm_open(&capture_handle, "default", SND_PCM_STREAM_CAPTURE, 0)) < 0) {
+    ui.setStatus(string("ERROR: Can't open PCM device for capture: ") + snd_strerror(r));
     return;
   }
 
-  if ((r = snd_pcm_hw_params_set_format(pcm_handle, hw_params, SND_PCM_FORMAT_FLOAT_LE)) < 0) {
-    ui.setStatus(string("ERROR: Can't set format: ") + snd_strerror(r));
-    return;
-  }
-
-  if ((r = snd_pcm_hw_params_set_channels(pcm_handle, hw_params, getChannels())) < 0) {
-    ui.setStatus(string("ERROR: Can't set channels number: ") + snd_strerror(r));
-    return;
-  }
-
-  if ((r = snd_pcm_hw_params_set_rate_near(pcm_handle, hw_params, &rate, 0)) < 0) {
-    ui.setStatus(string("ERROR: Can't set rate: ") + snd_strerror(r));
+  output_frames = initialize_alsa_dev(ui, pcm_handle, getFrequency(), getChannels(), false);
+  if (!output_frames) return;
+  
+  input_frames = initialize_alsa_dev(ui, capture_handle, getFrequency(), 1, true);
+  if (!input_frames) return;
+  
+#if 0
+  unsigned int rate;
+  if ((r = snd_pcm_hw_params_get_rate(hw_params, &rate, 0)) < 0) {
+    ui.setStatus(string("ERROR: Failed to get rate: ") + snd_strerror(r));
     return;
   }
 
@@ -61,74 +132,36 @@ AlsaAudio::initialize(UI & ui) {
     setFrequency(rate);
   }
 
-  unsigned int min_periods;
-  int dir;
-  
-  if ((r = snd_pcm_hw_params_get_periods_min(hw_params, &min_periods, &dir)) < 0) {
-    ui.setStatus(string("ERROR: Can't get min periods: ") + snd_strerror(r));
-    return;
-  }
-
-  if ((r = snd_pcm_hw_params_set_periods(pcm_handle, hw_params, min_periods > 2 ? min_periods : 2, 0)) < 0) {
-    ui.setStatus(string("ERROR: Failed to set periods: ") + snd_strerror(r));
-    return;
-  }
-
-  snd_pcm_uframes_t min_period_size;
-  if ((r = snd_pcm_hw_params_get_period_size_min(hw_params, &min_period_size, &dir)) < 0) {
-    ui.setStatus(string("ERROR: Failed to get minimum period size: ") + snd_strerror(r));    
-    return;
-  }
-
-  int wanted_period = 4096;
-  
-  if ((r = snd_pcm_hw_params_set_period_size(pcm_handle, hw_params, min_period_size > wanted_period ? min_period_size : wanted_period, 0)) < 0) {
-    ui.setStatus(string("ERROR: Failed to set period size: ") + snd_strerror(r));
-    return;
-  }
-
-  // Write parameters
-  if ((r = snd_pcm_hw_params(pcm_handle, hw_params)) < 0) {
-    ui.setStatus(string("ERROR: Can't set hardware parameters: ") + snd_strerror(r));
-    return;
-  }
-
   unsigned int channels;
   if ((r = snd_pcm_hw_params_get_channels(hw_params, &channels)) < 0) {
     ui.setStatus(string("ERROR: Failed to get channels: ") + snd_strerror(r));
     return;
   }
+#endif
 
-  ui.setStatus(string("PCM: name = ") + string(snd_pcm_name(pcm_handle)) + string(", state = ") + string(snd_pcm_state_name(snd_pcm_state(pcm_handle))) + string(", channels = ") + to_string(channels));
-  
-  // snd_pcm_hw_params_get_rate(hw_params, &tmp, 0);
-  // printf("rate: %d bps\n", tmp);
+  ui.setStatus(string("Playback: name = ") + string(snd_pcm_name(pcm_handle)) + string(", state = ") + string(snd_pcm_state_name(snd_pcm_state(pcm_handle))) + string(" Capture: name = ") + string(snd_pcm_name(capture_handle)) + string(", state = ") + string(snd_pcm_state_name(snd_pcm_state(capture_handle))));
 
-  snd_pcm_sw_params_t * sw_params;
-  snd_pcm_sw_params_alloca(&sw_params);
-  snd_pcm_sw_params_current(pcm_handle, sw_params);
-  snd_pcm_sw_params_set_avail_min(pcm_handle, sw_params, wanted_period);
-  
-  snd_pcm_uframes_t frames;
-  snd_pcm_hw_params_get_period_size(hw_params, &frames, 0);
+  setPlaybackDescriptors(getPollDescriptors(pcm_handle));
+  setCaptureDescriptors(getPollDescriptors(capture_handle));
+}
 
-  buffer_size = frames * getChannels() * sizeof(float);
-
-  // snd_pcm_hw_params_get_period_time(params, &tmp, NULL);
-
-  size_t nfds = snd_pcm_poll_descriptors_count(pcm_handle);
+std::vector<pollfd>
+AlsaAudio::getPollDescriptors(snd_pcm_t * handle) {
+  size_t nfds = snd_pcm_poll_descriptors_count(handle);
   struct pollfd * pfds = (struct pollfd *)alloca(sizeof(struct pollfd) * (nfds + 1));
     
-  if (snd_pcm_poll_descriptors(pcm_handle, pfds, nfds) < 0) {
+  if (snd_pcm_poll_descriptors(handle, pfds, nfds) < 0) {
     cerr << "Error getting descriptor\n";
     exit(1);
   }
 
+  vector<pollfd> r;
   for (size_t i = 0; i < nfds; i++) {
-    addPollDescriptor(pfds[i]);
+    r.push_back(pfds[i]);
   }
+  return r;
 }
-
+  
 void
 AlsaAudio::play(SampleData & data, UI & ui) {
   int r;
@@ -138,4 +171,42 @@ AlsaAudio::play(SampleData & data, UI & ui) {
   } else if (r < 0) {
     ui.setStatus(string("ERROR. Can't write to PCM device. ") + snd_strerror(r));
   }
+}
+
+SampleData
+AlsaAudio::record(UI & ui) {
+  startRecording();
+  
+  size_t frames = snd_pcm_avail_update(capture_handle);
+  SampleData data(1, frames);
+
+  if (frames) {
+    int r;
+    if ((r = snd_pcm_readi(capture_handle, data.data(), frames)) == -EPIPE) {
+      ui.setStatus("XRUN.(2)");
+      snd_pcm_prepare(capture_handle);
+    } else if (r < 0) {
+      ui.setStatus(string("ERROR. Can't read PCM device. ") + snd_strerror(r));
+    }
+  }
+  
+  return data;
+}
+
+void
+AlsaAudio::startRecording() {
+  if (!recording_started) {
+    int r;
+    if ((r = snd_pcm_start(capture_handle)) < 0) {
+      // ui.setStatus(string("ERROR. Failed to start recording: ") + snd_strerror(r));
+      // return SampleData();
+      exit(1);
+    }
+    recording_started = true;
+  }
+}
+
+void
+AlsaAudio::stopRecording() {
+  
 }

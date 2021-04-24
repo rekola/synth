@@ -12,12 +12,18 @@ class AlsaAudio : public AudioAPI {
 
   void initialize(UI & ui);
 
-  size_t getFrameCount() const override { return buffer_size / (2*sizeof(float)); }
   void play(SampleData & data, UI & ui) override;
+  SampleData record(UI & ui) override;
+  size_t getFrameCount() const override { return output_frames; }
+  void startRecording() override;
+  void stopRecording() override;
 
 private:
-  snd_pcm_t * pcm_handle = 0;
-  size_t buffer_size = 0;
+  std::vector<pollfd> getPollDescriptors(snd_pcm_t * handle);
+  
+  snd_pcm_t * pcm_handle = 0, * capture_handle = 0;
+  size_t output_frames = 0, input_frames = 0;
+  bool recording_started = false;
 };
 
 #endif
