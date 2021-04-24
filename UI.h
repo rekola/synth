@@ -38,6 +38,7 @@ protected:
     
   bool close_ui = false;
   bool is_recording = false;
+  StyleProvider styles;
 
 private:
   std::shared_ptr<InfoLine> info_line;
@@ -45,7 +46,6 @@ private:
   std::shared_ptr<InstrumentList> instrument_list;
 
   std::weak_ptr<UIElement> active_element;
-  StyleProvider styles;
 };
 
 #endif
