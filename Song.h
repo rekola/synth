@@ -1,7 +1,7 @@
 #ifndef _SONG_H_
 #define _SONG_H_
 
-#include "Section.h"
+#include "Pattern.h"
 // #include "Sequence.h"
 #include "Instrument.h"
 
@@ -12,12 +12,12 @@ class Song {
  public:
   Song() { }
 
-  const std::vector<Section> & getSections() const { return sections; }
-  const Section & getSection(size_t i) const { return i < sections.size() ? sections[i] : empty_section; }
-  Section & getSection(size_t i) { return i < sections.size() ? sections[i] : empty_section; }
+  const std::vector<Pattern> & getPatterns() const { return patterns; }
+  const Pattern & getPattern(size_t i) const { return i < patterns.size() ? patterns[i] : empty_pattern; }
+  Pattern & getPattern(size_t i) { return i < patterns.size() ? patterns[i] : empty_pattern; }
 
-  void addSection(const Section & section) {
-    sections.push_back(section);
+  void addPattern(const Pattern & pattern) {
+    patterns.push_back(pattern);
     incVersion();
   }
 
@@ -32,14 +32,12 @@ class Song {
   int getVersion() const { return version; }
   
   float mastervol = 1.0;
-  float gvol = 1.0; // (or 1.0 / trkcnt)
   int bpm = 60;
   
 private:
   std::vector<std::unique_ptr<Instrument> > instruments;
-  std::vector<Section> sections;
-  // std::vector<Sequence> sequences;
-  Section empty_section;
+  std::vector<Pattern> patterns;
+  Pattern empty_pattern;
   int version = 1;
 };
 

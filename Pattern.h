@@ -1,5 +1,5 @@
-#ifndef _SECTION_H_
-#define _SECTION_H_
+#ifndef _PATTERN_H_
+#define _PATTERN_H_
 
 #include "Track.h"
 
@@ -7,9 +7,9 @@
 
 #include <vector>
 
-class Section {
+class Pattern {
  public:
-  explicit Section() { }
+  explicit Pattern() { }
 
   std::vector<Track> & getTracks() { return tracks; }
   const std::vector<Track> & getTracks() const { return tracks; }

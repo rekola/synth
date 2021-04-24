@@ -30,13 +30,13 @@ class Synth {
   }
   bool isPlaying() const { return is_playing; }
 
-  const size_t getCurrentPosition() const { return section_pos * PATTLEN + track_pos; }
-  const size_t getSectionPosition() const { return section_pos; }
+  const size_t getCurrentPosition() const { return pattern_pos * PATTLEN + track_pos; }
+  const size_t getPatternPosition() const { return pattern_pos; }
   const size_t getTrackPosition() const { return track_pos; }
 
   void moveForwardSample(const Song & song) {
     auto sinterval = getSampleInterval(song);
-    if (samplepos + 1 < sinterval || track_pos + 1 < PATTLEN || section_pos + 1 < song.getSections().size()) {
+    if (samplepos + 1 < sinterval || track_pos + 1 < PATTLEN || pattern_pos + 1 < song.getPatterns().size()) {
       samplepos++;
       
       if (samplepos == sinterval) {
@@ -50,8 +50,8 @@ class Synth {
     if (track_pos + 1 < PATTLEN) {
       track_pos++;
       absolute_pos++;
-    } else if (section_pos + 1 < song.getSections().size()) {
-      section_pos++;
+    } else if (pattern_pos + 1 < song.getPatterns().size()) {
+      pattern_pos++;
       track_pos = 0;
       absolute_pos++;      
     }
@@ -62,8 +62,8 @@ class Synth {
     if (track_pos > 0) {
       track_pos--;
       absolute_pos--;
-    } else if (section_pos > 0) {
-      section_pos--;
+    } else if (pattern_pos > 0) {
+      pattern_pos--;
       track_pos = PATTLEN - 1;
       absolute_pos--;
     }
@@ -72,7 +72,7 @@ class Synth {
 private:
   bool is_playing = false;
 
-  size_t samplepos = 0, track_pos = 0, section_pos = 0, absolute_pos = 0;
+  size_t samplepos = 0, track_pos = 0, pattern_pos = 0, absolute_pos = 0;
   size_t samplerate;
 };
 

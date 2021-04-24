@@ -28,9 +28,9 @@ class InfoLine : public UIElement {
       
       auto [ rows, cols ] = getDim();
       
-      size_t section_index = synth.getSectionPosition();
+      size_t section_index = synth.getPatternPosition();
       
-      auto s = fmt::format(" {:02x} {:02d}:{:02d} section:{}", synth.getCurrentPosition(), minutes, seconds, section_index);
+      auto s = fmt::format(" {:02x} {:02d}:{:02d} pattern:{}", synth.getCurrentPosition(), minutes, seconds, section_index);
       while (s.size() < cols) s += ' ';
       
       putstr(0, 0, s);

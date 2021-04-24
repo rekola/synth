@@ -19,7 +19,7 @@ protected:
   void renderRow(const StyleProvider & styles, size_t row, bool highlight);
   
   size_t current_score_playing_row = 0;
-  size_t current_score_section = 0;
+  size_t current_score_pattern = 0;
   size_t current_score_cursor_col = 0;
   size_t new_score_cursor_col = 0;
   bool row_edited = false;

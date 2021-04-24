@@ -171,17 +171,17 @@ Controller::Controller() {
   }
 
   for (size_t i = 0; i < max_track_length; i++) {
-    Section section;
+    Pattern pattern;
     for (size_t j = 0; j < track_vectors.size(); j++) {
       auto & tracks = track_vectors[j];
       if (i < tracks.size()) {
 	auto id = tracks[i];
 	assert(id >= 0 && id < (int)available_tracks.size());
-	section.addTrack(available_tracks[id]);
+	pattern.addTrack(available_tracks[id]);
       }
     }
-    assert(!section.empty());
-    song->addSection(section);
+    assert(!pattern.empty());
+    song->addPattern(pattern);
   }
 
   current_song = song;
@@ -235,9 +235,9 @@ Controller::createNewSong() {
 
   Track track;
   
-  Section section;
-  section.addTrack(track);
-  song->addSection(section);  
+  Pattern pattern;
+  pattern.addTrack(track);
+  song->addPattern(pattern);  
 
   current_song = song;
 }

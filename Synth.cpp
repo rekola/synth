@@ -24,7 +24,7 @@ Synth::play(Song & song, size_t frames) {
   if (is_playing) {
     for (size_t i = 0; i < frames; i++) {
       if (samplepos == 0) {
-	auto & section = song.getSection(getSectionPosition());
+	auto & section = song.getPattern(getPatternPosition());
 	for (auto & track : section.getTracks()) {
 	  // auto & instrument = song.getInstrument(track.getInstrumentId());
 	  track.addPendingNote(i, track.getNote(getTrackPosition()));
@@ -35,7 +35,7 @@ Synth::play(Song & song, size_t frames) {
     }
   }
 
-  auto & section = song.getSection(getSectionPosition());
+  auto & section = song.getPattern(getPatternPosition());
 
   for (auto & track : section.getTracks()) {
     auto & state = track.getState();
@@ -56,7 +56,7 @@ Synth::play(Song & song, size_t frames) {
       }
       
       float adsrvol = state.updateADSR(instrument.getAttack(), instrument.getDecay(), instrument.getSustain(), instrument.getRelease());
-      float ss = instrument.getSample(state) * track.getVolume() * adsrvol * song.gvol;
+      float ss = instrument.getSample(state) * track.getVolume() * adsrvol;
       if (state.hasAccent()) ss *= ACCENTAMT;
 
       if (ss > 1.0) ss = 1.0;
