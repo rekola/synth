@@ -22,24 +22,34 @@ static inline double envelope(int * note_active, int gate, double *env_level, do
   }
 }
 
+static inline float spow(float a, float p) {
+  return powf(fabsf(a), p)*(a < 0.0f ? -1.0f : 1.0f);
+}
+
 float
-FMInstrument::getSample() const {
+FMInstrument::getSample(const InstrumentState & state) const {
   // double sound = GAIN * envelope(&note_active, gate, &env_level, env_time, attack, decay, sustain, release)
   //   * velocity * sin(phi + modulation * sin(phi_mod));
   // env_time += 1.0 / 44100.0;
 
-  return sin(phi + modulation * sin(phi_mod));
+  float s = sin(state.phi + modulation * sin(state.phi_mod));
+  // return s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s;
+  // return s;
+  return s; // spow(s, 16);
+  
   // * (1 + noise * rand() / RAND_MAX));
 }
 
 void
-FMInstrument::stepForward() {
-  double dphi = M_PI * freq / 22050.0;
-  double dphi_mod = dphi * (double)harmonic / (double)subharmonic;
-  
-  phi += dphi;
-  phi_mod += dphi_mod;
+FMInstrument::stepForward(InstrumentState & state) {
+  Instrument::stepForward(state);
 
-  if (phi > 2.0 * M_PI) phi -= 2.0 * M_PI;
-  if (phi_mod > 2.0 * M_PI) phi_mod -= 2.0 * M_PI;  
+  double dphi = M_PI * state.freq / 22050.0;
+  double dphi_mod = dphi * (double)harmonic / (double)subharmonic;
+    
+  state.phi += dphi;
+  state.phi_mod += dphi_mod;
+  
+  if (state.phi > 2.0 * M_PI) state.phi -= 2.0 * M_PI;
+  if (state.phi_mod > 2.0 * M_PI) state.phi_mod -= 2.0 * M_PI;  
 }

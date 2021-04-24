@@ -4,32 +4,32 @@
 #include "Effect.h"
 #include "Filter.h"
 #include "Note.h"
+#include "InstrumentState.h"
 
 #include <string>
 #include <vector>
 #include <cmath>
 #include <memory>
-#include <deque>
+
+class InstrumentState;
 
 class Instrument {
 public:
   explicit Instrument() { }
   virtual ~Instrument() { }
 
-  virtual float getSample() const = 0;
-
-  void setName(const std::string & _name) { name = _name; }
-  
-  virtual void stepForward() {
-    fphase += freq;
+  virtual float getSample(const InstrumentState & state) const = 0;
+  virtual void stepForward(InstrumentState & state) {
+    state.fphase += state.freq;
   }
 
+  void setName(const std::string & _name) { name = _name; }
   const std::string & getName() const { return name; }
   
   float getDetune() const { return detune; }
   float getVolume() const { return volume; }
   float getPan() const { return pan; }
-  bool getSolo() const { return solo; }
+  int getTranspose() const { return transpose; }
   
   int getAttack() const { return a; }
   int getDecay() const { return d; }
@@ -41,7 +41,6 @@ public:
   void setDetune(int _detune) { detune = (_detune - 127) / 512.0; }
   void setVolume(float _volume) { volume = _volume; }
   void setPan(float _pan) { pan = _pan; }
-  void setSolo(bool s) {solo = s; }
     
   void setFilter(float fcut, float fres, bool is_highpass = false) {
     addEffect(std::make_unique<Filter>(fcut, fres, is_highpass));
@@ -53,108 +52,25 @@ public:
     s = _s;
     r = _r * 44100 * 5 / 255;
   }
-
-  float updateADSR() {
-    float adsrvol = 0;
-    
-    switch (adsrstate) {
-    case 0:
-      if (getAttack() == 0 || adsrpos >= getAttack()) {
-	adsrstate++;
-	adsrpos = 0;
-	adsrvol = 1.0f;
-      } else {
-	adsrvol = (float)adsrpos / getAttack();
-      }
-      break;
-    case 1:
-      if (getDecay() == 0 || adsrpos >= getDecay()) {
-	adsrstate++;
-	adsrpos = 0;
-	adsrvol = getSustain();
-      } else {
-	adsrvol = 1.0 - ((1.0 - getSustain()) * (float)adsrpos / getDecay());
-      }
-      break;
-    case 2:
-      adsrvol = getSustain();
-      break;
-    case 3:
-      if (getRelease() == 0 || adsrpos >= getRelease()) {
-	adsrstate++;
-	adsrvol = 0;
-      } else {
-	adsrvol = getSustain() - (getSustain() * (float)adsrpos / getRelease());
-      }
-      break;
-    default:
-      adsrvol = 0;
-      break;
-    }
-    adsrpos++;
-
-    return adsrvol;
-  }
-
-  static inline float getMidiNoteFrequency(int note) {
-    return 440 * powf(2, (note - 69.0) / 12.0);
-  }
-
-  void playNote(Note note) {
-    int midi_note = note.getMidiNote();
-    bool accent = note.hasAccent();
-    
-    if (midi_note > 1) {
-      // float fscaler = (float)WAVESIZE / 44100.0f;
-      // freq = getMidiNoteFrequency(note) * fscaler + detune;
-      freq = getMidiNoteFrequency(midi_note + transpose + detune / 100.0f);
-      acc = accent;
-      adsrstate = 0;
-      adsrpos = 0;
-      fphase = 0;
-    } else if (midi_note == 1) {
-      adsrstate = 3;
-      adsrpos = 0;
-    }
-  }
-  
+   
   void applyEffects(SampleData & data) {
     for (auto & effect : effects) {
       effect->apply(data);
     }
   }
 
-  float getFphase() const { return fphase; }
-  bool hasAccent() const { return acc; }
-
   void addEffect(std::unique_ptr<Effect> effect) { effects.push_back(std::move(effect)); }
-
-  void addPendingNote(size_t frame, Note note) {
-    pending_notes.push_back(std::pair(frame, note));
-  }
-  void clearPendingNotes() { pending_notes.clear(); }
-  std::deque<std::pair<unsigned int, Note> > & getPendingNotes() { return pending_notes; }
   
 protected:
   std::string name;
   
-  float freq = 0; // current frequency
-  float fphase = 0; // position in input waveform
-  bool acc = false; // has accent
-
   int a = 0, d = 0, r = 0;
   float s = 1.0;
   float detune = 0, volume = 1.0f;
   float pan = 0.5f;
   short transpose = 0;
-  bool solo = false;
-
-  // adsr state
-  int adsrstate = 0, adsrpos = 0;
 
   std::vector<std::unique_ptr<Effect> > effects;
-
-  std::deque<std::pair<unsigned int, Note> > pending_notes;
 };
 
 #endif

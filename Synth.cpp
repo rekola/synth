@@ -13,61 +13,68 @@ SampleData
 Synth::play(Song & song, size_t frames) {
   SampleData master(2, frames);
   float * out = master.data();
-    
+
+#if 0
   int solo_instrument = -1;
   for (size_t i = 0; i < song.getInstruments().size(); i++) {
     if (song.getInstrument(i).getSolo()) solo_instrument = i;
   }
+#endif
   
   if (is_playing) {
     for (size_t i = 0; i < frames; i++) {
       if (samplepos == 0) {
 	auto & section = song.getSection(getSectionPosition());
 	for (auto & track : section.getTracks()) {
-	  auto & instrument = song.getInstrument(track.getInstrumentId());
-	  instrument.addPendingNote(i, track.getNote(getTrackPosition()));
+	  // auto & instrument = song.getInstrument(track.getInstrumentId());
+	  track.addPendingNote(i, track.getNote(getTrackPosition()));
 	}
       }
 
       moveForwardSample(song);
     }
   }
-  
-  for (auto & instrument : song.getInstruments()) {
+
+  auto & section = song.getSection(getSectionPosition());
+
+  for (auto & track : section.getTracks()) {
+    auto & state = track.getState();
+    auto & instrument = song.getInstrument(track.getInstrumentId());
+    
     SampleData data(1, frames);
     auto buffer = data.data();
     
     for (size_t i = 0; i < frames; i++) {
-      auto & pending = instrument->getPendingNotes();
+      auto & pending = track.getPendingNotes();
       if (!pending.empty()) {
 	auto & front = pending.front();
 	if (i == front.first) {
-	  instrument->playNote(front.second);
+	  state.playNote(front.second, instrument.getTranspose(), instrument.getDetune());
+
 	  pending.pop_front();
 	}
       }
       
-      float adsrvol = instrument->updateADSR();      
-      // ss = instrument->filtersample(ss);
-      float ss = instrument->getSample() * instrument->getVolume() * adsrvol * song.gvol;
-      if (instrument->hasAccent()) ss *= ACCENTAMT;
+      float adsrvol = state.updateADSR(instrument.getAttack(), instrument.getDecay(), instrument.getSustain(), instrument.getRelease());
+      float ss = instrument.getSample(state) * instrument.getVolume() * adsrvol * song.gvol;
+      if (state.hasAccent()) ss *= ACCENTAMT;
 
       if (ss > 1.0) ss = 1.0;
       else if (ss < -1.0) ss = -1.0;
 
       buffer[i] = ss;
       // if (solo_instrument != -1 && pattern.getInstrumentId() != solo_instrument) ss = 0;
-      instrument->stepForward();
+      instrument.stepForward(state);
     }
 
-    instrument->applyEffects(data);
-    instrument->clearPendingNotes();
+    instrument.applyEffects(data);
+    track.clearPendingNotes();
 
     for (size_t i = 0; i < frames; i++) {
       float ss = buffer[i];
       
-      out[2 * i + 0] += ss * sqrtf(1.0 - instrument->getPan());
-      out[2 * i + 1] += ss * sqrtf(instrument->getPan());
+      out[2 * i + 0] += ss * sqrtf(1.0 - instrument.getPan());
+      out[2 * i + 1] += ss * sqrtf(instrument.getPan());
     }
   }
 
