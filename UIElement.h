@@ -42,6 +42,15 @@ class UIElement {
     if (plane) plane->erase();
     return *this;
   }
+  UIElement & fill() {
+    if (plane) {
+      auto [rows, cols] = getDim();
+      std::string s;
+      for (size_t i = 0; i < cols; i++) s += ' ';
+      for (size_t i = 0; i < rows; i++) plane->putstr(i, 0, s);
+    }
+    return *this;
+  }
   UIElement & setFgColor(int r, int g, int b) {
     if (plane) plane->setFgColor(r, g, b);
     return *this;
