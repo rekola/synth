@@ -33,7 +33,8 @@ class SampleData {
   }
   size_t getChannels() const { return channels; }
   size_t size() const { return frames; }
-
+  bool empty() const { return frames == 0; }
+  
   void append(const SampleData & other) {
     if (!other.size()) return;
     
