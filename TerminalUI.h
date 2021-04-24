@@ -4,6 +4,7 @@
 #include "UI.h"
 #include "SampleData.h"
 
+#include <ncpp/NotCurses.hh>
 #include <memory>
 
 class AudioAPI;
@@ -27,7 +28,7 @@ protected:
   bool readInput();
 
 private:
-  std::shared_ptr<ncpp::NotCurses> nc;
+  std::unique_ptr<ncpp::NotCurses> nc;
   
   SampleData waiting_data;
 };
