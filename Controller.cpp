@@ -31,15 +31,12 @@ Controller::Controller() {
   auto i0 = make_unique<BasicInstrument>(WaveformType::SAW);
   i0->setName("drone1");
   i0->setADSR(255, 64, 0.25f, 0);
-  i0->setVolume(0.15f);
-  i0->setPan(0.04f);
   i0->setFilter(0, 5 / 63.0f, true);
   song->addInstrument(move(i0));
 
   auto i1 = make_unique<BasicInstrument>(WaveformType::SAW);
   i1->setName("drone2");
   i1->setADSR(255, 64, 0.25f, 0);
-  i1->setVolume(0.15f);
   i1->setDetune(120);
   i1->setFilter(0, 5 / 63.0f, true);
   song->addInstrument(move(i1));
@@ -47,16 +44,13 @@ Controller::Controller() {
   auto i2 = make_unique<BasicInstrument>(WaveformType::SAW);
   i2->setName("drone3");
   i2->setADSR(255, 64, 0.25f, 0);
-  i2->setVolume(0.15f);
   i2->setDetune(134);
-  i2->setPan(0.97f);
   i2->setFilter(0, 5 / 63.0f, true);
   song->addInstrument(move(i2));
 
   auto i3 = make_unique<BasicInstrument>(WaveformType::SINE);
   i3->setName("bass drum");
   i3->setADSR(0, 15, 0.0f, 0);
-  i3->setVolume(1.56f);
   i3->setDetune(130);
   // i3->setFilter(1.0f, 0);
   song->addInstrument(move(i3));
@@ -64,7 +58,6 @@ Controller::Controller() {
   auto i4 = make_unique<BasicInstrument>(WaveformType::NOISE2);
   i4->setName("hihat closed");
   i4->setADSR(0, 8, 0.0f, 0);
-  i4->setVolume(0.5f);
   i4->setFilter(190 / 255.0f, 128 / 63.0f);
   i4->addEffect(make_unique<Delay>(delay1, fd1, delaymix1));
   song->addInstrument(move(i4));
@@ -72,7 +65,6 @@ Controller::Controller() {
   auto i5 = make_unique<BasicInstrument>(WaveformType::NOISE2);
   i5->setName("hihat open");
   i5->setADSR(0, 13, 0.0f, 0);
-  i5->setVolume(0.23f);
   // i5->setFilter(1.0f, 0.0f);
   song->addInstrument(move(i5));
 
@@ -85,9 +77,7 @@ Controller::Controller() {
   auto i7 = make_unique<BasicInstrument>(WaveformType::SQUARE);
   i7->setName("bass");
   i7->setADSR(0, 15, 0.0f, 0);
-  i7->setVolume(0.31f);
   i7->setDetune(125);
-  i7->setPan(0.25f);
   i7->setFilter(200 / 255.0f, 20 / 63.0f);
   song->addInstrument(move(i7));
 
@@ -95,23 +85,16 @@ Controller::Controller() {
   auto i8 = make_unique<BasicInstrument>(WaveformType::NOISE);
   i8->setName("hihat closed");
   i8->setADSR(0, 3, 0.0f, 0);
-  i8->setVolume(0.5f);
-  i8->setPan(0.85f);
-  // i8->setFilter(1.0f, 0.0f);  
 #else
   auto i8 = make_unique<FileInstrument>("./samples/Closed-Hi-Hat-1.wav");
   i8->setName("hihat closed");
   // i8->setADSR(0, 3, 0.0f, 0);
-  // i8->setVolume(0.5f);
-  i8->setPan(0.85f);
-  // i8->setFilter(1.0f, 0.0f);  
 #endif
   song->addInstrument(move(i8));
   
   auto i9 = make_unique<BasicInstrument>(WaveformType::NOISE);
   i9->setName("snare");
   i9->setADSR(0, 15, 0.0f, 0);
-  i9->setVolume(0.31f);
   i9->addEffect(make_unique<Delay>(delay1, fd1, delaymix1));
   // i9->setFilter(1.0f, 0.0f);
   song->addInstrument(move(i9));
@@ -119,7 +102,6 @@ Controller::Controller() {
   auto i10 = make_unique<BasicInstrument>(WaveformType::SAW);
   i10->setName("bass");
   i10->setADSR(0, 30, 0.0f, 0);
-  i10->setVolume(0.47f);
   i10->setFilter(100 / 255.0f, 0);
   i10->addEffect(make_unique<Delay>(delay1, fd1, delaymix1));
   song->addInstrument(move(i10));
@@ -134,24 +116,19 @@ Controller::Controller() {
   auto i12 = make_unique<BasicInstrument>(WaveformType::SQUARE);
   i12->setName("bass");
   i12->setADSR(0, 14, 0.0f, 0);
-  i12->setVolume(0.31f);
   i12->setDetune(129);
-  i12->setPan(0.75f);
   i12->setFilter(200 / 255.0f, 20 / 63.0f);
   song->addInstrument(move(i12));
 
   auto i13 = make_unique<BasicInstrument>(WaveformType::SINE);
   i13->setName("bass drum");
   i13->setADSR(0, 8, 0.0f, 0);
-  i13->setVolume(1.56f);
   i13->setFilter(244 / 255.0f, 0);
   song->addInstrument(move(i13));
 
   auto i14 = make_unique<BasicInstrument>(WaveformType::NOISE);
   i14->setName("snare");
   i14->setADSR(0, 5, 0.0f, 0);
-  i14->setVolume(1.88f);
-  i14->setPan(0.15f);
   i14->setFilter(150 / 255.0f, 255 / 63.0f);
   song->addInstrument(move(i14));
   
@@ -160,6 +137,8 @@ Controller::Controller() {
   for (int i = 0; i < ptrncnt; i++) {
     Track track;
     track.setInstrumentId(*song_data++);
+    track.setPan(*song_data++ / 255.0f);
+    track.setVolume(*song_data++ / 127.0f);
     
     for (size_t j = 0; ; j++) {
       int val = *song_data++;
@@ -221,8 +200,6 @@ Controller::createNewSong() {
   auto test = make_unique<FMInstrument>(0, 1, 1, 2.01);
   test->setName("test");
   test->setADSR(2, 15, 0.0f, 10);
-  test->setVolume(0.78f);
-  test->setPan(0.15f);
   // test->setTranspose(12);
   test->addEffect(make_unique<Distortion>(Distortion::CLIP, 0.5f));
   // test->addEffect(make_unique<Chorus>(5.0f, 0.0f));
@@ -232,8 +209,6 @@ Controller::createNewSong() {
   auto oboe = make_unique<FMInstrument>(0.7, 3, 4, 0.1f);
   oboe->setName("oboe");
   oboe->setADSR(2, 15, 0.0f, 10);
-  oboe->setVolume(0.78f);
-  oboe->setPan(0.15f);
   oboe->setTranspose(12);
   // oboe->addEffect(make_unique<Distortion>(Distortion::CLIP, 0.5f));
   // oboe->addEffect(make_unique<Chorus>(5.0f, 0.0f));
@@ -244,7 +219,6 @@ Controller::createNewSong() {
   auto harpsichord = make_unique<FMInstrument>(7.8, 3, 5);
   harpsichord->setName("harpsichord");
   harpsichord->setADSR(2, 15, 0.0f, 10);
-  harpsichord->setPan(0.15f);
   harpsichord->setTranspose(24);
   // harpsichord->setFilter(200, 20);
   // harpsichord->setFlags(HPFILTER);
@@ -253,7 +227,6 @@ Controller::createNewSong() {
   auto bell = make_unique<FMInstrument>(3.5, 7, 9);
   bell->setName("bell");
   bell->setADSR(2, 15, 0.0f, 10);
-  bell->setPan(0.15f);
   // bell->setFilter(200, 20);
   // bell->setFlags(HPFILTER);
   song->addInstrument(move(bell));

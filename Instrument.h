@@ -27,8 +27,6 @@ public:
   const std::string & getName() const { return name; }
   
   float getDetune() const { return detune; }
-  float getVolume() const { return volume; }
-  float getPan() const { return pan; }
   int getTranspose() const { return transpose; }
   
   int getAttack() const { return a; }
@@ -39,8 +37,6 @@ public:
   void setTranspose(int _transpose) { transpose = _transpose; }
   
   void setDetune(int _detune) { detune = (_detune - 127) / 512.0; }
-  void setVolume(float _volume) { volume = _volume; }
-  void setPan(float _pan) { pan = _pan; }
     
   void setFilter(float fcut, float fres, bool is_highpass = false) {
     addEffect(std::make_unique<Filter>(fcut, fres, is_highpass));
@@ -66,8 +62,7 @@ protected:
   
   int a = 0, d = 0, r = 0;
   float s = 1.0;
-  float detune = 0, volume = 1.0f;
-  float pan = 0.5f;
+  float detune = 0;
   short transpose = 0;
 
   std::vector<std::unique_ptr<Effect> > effects;

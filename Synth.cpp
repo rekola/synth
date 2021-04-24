@@ -56,7 +56,7 @@ Synth::play(Song & song, size_t frames) {
       }
       
       float adsrvol = state.updateADSR(instrument.getAttack(), instrument.getDecay(), instrument.getSustain(), instrument.getRelease());
-      float ss = instrument.getSample(state) * instrument.getVolume() * adsrvol * song.gvol;
+      float ss = instrument.getSample(state) * track.getVolume() * adsrvol * song.gvol;
       if (state.hasAccent()) ss *= ACCENTAMT;
 
       if (ss > 1.0) ss = 1.0;
@@ -73,8 +73,8 @@ Synth::play(Song & song, size_t frames) {
     for (size_t i = 0; i < frames; i++) {
       float ss = buffer[i];
       
-      out[2 * i + 0] += ss * sqrtf(1.0 - instrument.getPan());
-      out[2 * i + 1] += ss * sqrtf(instrument.getPan());
+      out[2 * i + 0] += ss * sqrtf(1.0 - track.getPan());
+      out[2 * i + 1] += ss * sqrtf(track.getPan());
     }
   }
 

@@ -17,8 +17,14 @@ class Track {
 
   Type getType() const { return type; }
 
+  float getPan() const { return pan; }
+  void setPan(float _pan) { pan = _pan; }
+
+  float getVolume() const { return volume; }
+  void setVolume(float _volume) { volume = _volume; }
+
   bool getSolo() const { return solo; }
-    void setSolo(bool s) {solo = s; }
+  void setSolo(bool s) {solo = s; }
 
   void setNote(size_t i, Note note) {
     while ( i >= size() ) addNote();
@@ -49,7 +55,9 @@ private:
   std::vector<Note> notes;
   bool solo = false;
   std::deque<std::pair<unsigned int, Note> > pending_notes;
-
+  float pan = 0.5f;
+  float volume = 1.0f;
+  
   Note empty_note;
 };
 
