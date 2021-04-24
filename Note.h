@@ -6,13 +6,14 @@
 
 class Note {
  public:
-  explicit Note() : midi_note(0), velocity(0), numerator(0), denominator(0), has_accent(false) { }
-  explicit Note(int _midi_note, bool accent = false) : midi_note(_midi_note), velocity(0), numerator(0), denominator(0), has_accent(accent) { }
+  explicit Note() : midi_note(0), velocity(1.0f), numerator(0), denominator(0) { }
+  explicit Note(int _midi_note, float _velocity = 1.0f) : midi_note(_midi_note), numerator(0), denominator(0), velocity(_velocity) { }
 
   short getMidiNote() const { return midi_note; }
-  bool hasAccent() { return has_accent; }
+  float getVelocity() const { return velocity; }
   bool isDefined() const { return midi_note > 0 || (numerator != 0 && denominator != 0); }
-
+  bool isOff() const { return midi_note == 1; }
+  
   inline float getFrequency(int transpose, int detune) {
     return 440 * powf(2, (midi_note - 69.0 + transpose + detune / 100.0f) / 12.0);
   }
@@ -145,9 +146,9 @@ class Note {
   }
 
  private:
-  short midi_note, velocity;
+  short midi_note;
   short numerator, denominator; 
-  bool has_accent;  
+  float velocity;
 };
 
 #endif
