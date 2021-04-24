@@ -24,10 +24,12 @@ Synth::play(Song & song, size_t frames) {
   if (is_playing) {
     for (size_t i = 0; i < frames; i++) {
       if (samplepos == 0) {
-	auto & section = song.getPattern(getPatternPosition());
-	for (auto & track : section.getTracks()) {
-	  // auto & instrument = song.getInstrument(track.getInstrumentId());
-	  track.addPendingNote(i, track.getNote(getTrackPosition()));
+	auto & pattern = song.getPattern(getPatternPosition());
+	for (size_t j = 0; j < song.getTracks().size(); j++) {
+	  auto & track = song.getTrack(j);
+	  for (size_t k = 0; k < pattern.getNumRows(); k++) {
+	    track.addPendingNote(i, pattern.getNote(j, k));
+	  }
 	}
       }
 
@@ -37,7 +39,7 @@ Synth::play(Song & song, size_t frames) {
 
   auto & section = song.getPattern(getPatternPosition());
 
-  for (auto & track : section.getTracks()) {
+  for (auto & track : song.getTracks()) {
     auto & state = track.getState();
     auto & instrument = song.getInstrument(track.getInstrumentId());
     

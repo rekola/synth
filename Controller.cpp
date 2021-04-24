@@ -9,10 +9,11 @@
 #include "Reverb.h"
 #include "Delay.h"
 
-#include "track.h"
+#include "default_song.h"
 
 #include <cassert>
 #include <iostream>
+#include <unordered_map>
 
 using namespace std;
 
@@ -133,21 +134,20 @@ Controller::Controller() {
   song->addInstrument(move(i14));
   
   int ptrncnt = *song_data++;
-  vector<Track> available_tracks;
+
+  unordered_map<unsigned short, unordered_map<unsigned short, Note> > track_notes;
   for (int i = 0; i < ptrncnt; i++) {
     Track track;
     track.setInstrumentId(*song_data++);
     track.setPan(*song_data++ / 255.0f);
     track.setVolume(*song_data++ / 127.0f);
+    song->addTrack(track);
     
     for (size_t j = 0; ; j++) {
       int val = *song_data++;
       if (val == 255) break;
-      Note note(val & 0x7f, (val & 0x80) != 0);
-      track.setNote(j, note);
+      track_notes[i][j] = Note(val & 0x7f, (val & 0x80) != 0);
     }
-
-    available_tracks.push_back(track);
   }
 
   size_t max_track_length = 0;
@@ -158,16 +158,12 @@ Controller::Controller() {
     while (1) {
       size_t val = *song_data++;
       if (val == 255) break;
-      assert(val < available_tracks.size());
+      // assert(val < available_tracks.size());
       seqs.push_back(val);
     }
     
     track_vectors.push_back(seqs);
-#if 0
-    if (track_vectors.size() > max_track_length) max_track_length = track_vectors.size();
-#else
     if (seqs.size() > max_track_length) max_track_length = seqs.size();
-#endif
   }
 
   for (size_t i = 0; i < max_track_length; i++) {
@@ -175,12 +171,18 @@ Controller::Controller() {
     for (size_t j = 0; j < track_vectors.size(); j++) {
       auto & tracks = track_vectors[j];
       if (i < tracks.size()) {
-	auto id = tracks[i];
-	assert(id >= 0 && id < (int)available_tracks.size());
-	pattern.addTrack(available_tracks[id]);
+	auto track_id = tracks[i];
+	// assert(id >= 0 && id < (int)available_tracks.size());
+	// pattern.addTrack(available_tracks[id]);
+	for (size_t k = 0; k < 32; k++) {
+	  Note note = track_notes[track_id][k];
+	  if (note.isDefined()) pattern.setNote(track_id, k, note);
+	  else {
+	    cerr << "note missing: pattern=" << i << ", track = " << track_id << ", row = " << k << endl;
+	  }
+	}
       }
     }
-    assert(!pattern.empty());
     song->addPattern(pattern);
   }
 
@@ -232,13 +234,14 @@ Controller::createNewSong() {
   song->addInstrument(move(bell));
 
 // Bell 3.5 7 9 0 0.01 0.2 0.3 1.5
-
-  Track track;
   
   Pattern pattern;
-  pattern.addTrack(track);
   song->addPattern(pattern);  
-
+  song->addTrack();
+  song->addTrack();
+  song->addTrack();
+  song->addTrack();
+  
   current_song = song;
 }
 

@@ -1,30 +1,39 @@
 #ifndef _PATTERN_H_
 #define _PATTERN_H_
 
-#include "Track.h"
+#include "Note.h"
 
 #define PATTLEN 32
 
-#include <vector>
+#include <string>
+#include <unordered_map>
 
 class Pattern {
  public:
   explicit Pattern() { }
+  
+  size_t getNumRows() const { return PATTLEN; }
 
-  std::vector<Track> & getTracks() { return tracks; }
-  const std::vector<Track> & getTracks() const { return tracks; }
-  const Track & getTrack(size_t i) const { return i < tracks.size() ? tracks[i] : empty_track; }
-  Track & getTrack(size_t i) { return i < tracks.size() ? tracks[i] : empty_track; }
-  Track & addTrack(const Track & s) { tracks.push_back(s); return tracks.back(); }
-  Track & addTrack() { return addTrack(Track()); }
-  bool empty() const { return tracks.empty(); }
+  void setNote(size_t track, size_t row, Note note) {
+    notes[track][row] = note;
+  }
 
-  size_t getTrackCount() const { return tracks.size(); }
-  size_t getRowCount() const { return PATTLEN; }
-
+  const Note & getNote(size_t track, size_t row) const {
+    auto it = notes.find(track);
+    if (it != notes.end()) {
+      auto it2 = it->second.find(row);
+      if (it2 != it->second.end()) {
+	return it2->second;
+      }
+    }
+    return empty_note;
+  }
+  
 private:
-  std::vector<Track> tracks;
-  Track empty_track;
+  std::string name;
+  size_t num_rows = PATTLEN;
+  std::unordered_map<unsigned short, std::unordered_map<unsigned short, Note> > notes;
+  Note empty_note;
 };
 
 #endif

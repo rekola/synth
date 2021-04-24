@@ -48,7 +48,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
     getPlane().drawBorder();
     
     renderHeading(styles);
-    for (size_t row = 0; row < (size_t)rows && row < current_pattern.getRowCount(); row++) {
+    for (size_t row = 0; row < (size_t)rows && row < current_pattern.getNumRows(); row++) {
       renderRow(styles, row, row == score_playing_row);
     }
     need_redraw = true;
@@ -73,8 +73,8 @@ bool
 PatternEditor::offerInput(const UIInput & input) {
   auto & song = getController().getSong();
   auto & synth = getController().getSynth();
-  auto & pattern = song.getPattern(synth.getPatternPosition());
-  size_t num_columns = pattern.getTracks().size();
+  // auto & pattern = song.getPattern(synth.getPatternPosition());
+  size_t num_columns = song.getTracks().size();
 
   if (input.hasCtrl()) {
     if (input.getId() == 'a' || input.getId() == 'A') {
@@ -85,7 +85,7 @@ PatternEditor::offerInput(const UIInput & input) {
       return true;
     } else if (input.getId() == 't' || input.getId() == 'T') {
       int instrument_id = 0; // pattern.getTracks().back().getInstrumentId();
-      auto & seq = pattern.addTrack();
+      auto & seq = song.addTrack();
       seq.setInstrumentId(instrument_id); // + 1);
       song.incVersion();
     } else if (input.hasShift() && (input.getId() == 't' || input.getId() == 'T')) {
@@ -127,11 +127,11 @@ PatternEditor::offerInput(const UIInput & input) {
     if (midi_note != -1) {
       Note note(midi_note);
       auto & pattern = song.getPattern(synth.getPatternPosition());
-      auto & track = pattern.getTrack(current_score_cursor_col);
+      auto & track = song.getTrack(current_score_cursor_col);
       auto & instrument = song.getInstrument(track.getInstrumentId());
       auto & state = track.getState();
       state.playNote(note, instrument.getTranspose(), instrument.getDetune());
-      track.setNote(synth.getTrackPosition(), note);      
+      pattern.setNote(current_score_cursor_col, synth.getTrackPosition(), note);      
       row_edited = true;
 
       if (!synth.isPlaying()) {
@@ -159,8 +159,10 @@ PatternEditor::renderHeading(const StyleProvider & styles) {
 
   setBgColor(styles.window_bg_color);
   putstr(1, 1, padding);
+
+  auto & tracks = song.getTracks();
   
-  for (int i = 0; i < (int)pattern.getTrackCount(); i++) {
+  for (int i = 0; i < (int)tracks.size(); i++) {
     setFgColor(0x00, 0x00, 0x00);
     setBgColor(0xf0, 0x80, 0x10);
     
@@ -183,7 +185,11 @@ PatternEditor::renderRow(const StyleProvider & styles, size_t row, bool highligh
   setBgColor(styles.window_bg_color);
   putstr(2 + row, 1, padding);
 
-  for (int i = -1; i < (int)pattern.getTrackCount(); i++) {
+  auto & tracks = song.getTracks();
+  
+  for (int i = -1; i < (int)tracks.size(); i++) {
+    auto & track = tracks[i];
+    
     UIColor fg, bg, cell_fg, cell_bg;
         
     if (highlight) {
@@ -217,10 +223,8 @@ PatternEditor::renderRow(const StyleProvider & styles, size_t row, bool highligh
       
       putstr(2 + row, 4, "│");
     } else {
-      auto & track = pattern.getTrack(i);
-
       if (track.getType() == Track::NOTES) {
-	auto & note = track.getNote(row);
+	auto & note = pattern.getNote(i, row);
 	
 	string s;
 	if (note.isDefined()) {
