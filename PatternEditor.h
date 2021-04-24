@@ -15,8 +15,8 @@ class PatternEditor : public UIElement {
   bool offerInput(const UIInput & input) override;
 
 protected:
-  void renderHeading();
-  void renderRow(size_t row, bool highlight);
+  void renderHeading(const StyleProvider & styles);
+  void renderRow(const StyleProvider & styles, size_t row, bool highlight);
   
   size_t current_score_playing_row = 0;
   size_t current_score_section = 0;

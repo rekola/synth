@@ -3,6 +3,7 @@
 #include "UIInput.h"
 #include "Synth.h"
 #include "Controller.h"
+#include "StyleProvider.h"
 
 #include <string>
 #include <fmt/core.h>
@@ -41,18 +42,22 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   if (render_all) {
     auto [rows, cols] = getDim();
     erase();
+    setFgColor(styles.window_border_color);
+    setBgColor(styles.window_bg_color);
+    fill();
     getPlane().drawBorder();
-    renderHeading();
+    
+    renderHeading(styles);
     for (size_t row = 0; row < (size_t)rows && row < current_section.getRowCount(); row++) {
-      renderRow(row, row == score_playing_row);
+      renderRow(styles, row, row == score_playing_row);
     }
     need_redraw = true;
   } else if (current_score_playing_row != score_playing_row) {
-    renderRow(current_score_playing_row, false);
-    renderRow(score_playing_row, true);
+    renderRow(styles, current_score_playing_row, false);
+    renderRow(styles, score_playing_row, true);
     need_redraw = true;
   } else if (cursor_col_changed || row_edited) {
-    renderRow(score_playing_row, true);
+    renderRow(styles, score_playing_row, true);
     need_redraw = true;
   }
   
@@ -79,9 +84,9 @@ PatternEditor::offerInput(const UIInput & input) {
       new_score_cursor_col = num_columns > 1 ? num_columns - 1 : 0;
       return true;
     } else if (input.getId() == 't' || input.getId() == 'T') {
-      int instrument_id = section.getTracks().back().getInstrumentId();
+      int instrument_id = 0; // section.getTracks().back().getInstrumentId();
       auto & seq = section.addTrack();
-      seq.setInstrumentId(instrument_id + 1);
+      seq.setInstrumentId(instrument_id); // + 1);
       song.incVersion();
     } else if (input.hasShift() && (input.getId() == 't' || input.getId() == 'T')) {
       // delete track
@@ -123,11 +128,16 @@ PatternEditor::offerInput(const UIInput & input) {
       Note note(midi_note);
       auto & section = song.getSection(synth.getSectionPosition());
       auto & track = section.getTrack(current_score_cursor_col);
-      song.getInstrument(track.getInstrumentId()).playNote(note);
-      track.setNote(synth.getTrackPosition(), note);
+      auto & instrument = song.getInstrument(track.getInstrumentId());
+      auto & state = track.getState();
+      state.playNote(note, instrument.getTranspose(), instrument.getDetune());
+      track.setNote(synth.getTrackPosition(), note);      
       row_edited = true;
-      if (input.getId() == NCKEY_BACKSPACE) synth.moveBackwards(song);
-      else if (input.getId() != NCKEY_DEL) synth.moveForward(song);
+
+      if (!synth.isPlaying()) {
+	if (input.getId() == NCKEY_BACKSPACE) synth.moveBackwards(song);
+	else if (input.getId() != NCKEY_DEL) synth.moveForward(song);
+      }
       
       return true;
     }
@@ -137,49 +147,75 @@ PatternEditor::offerInput(const UIInput & input) {
 }
 
 void
-PatternEditor::renderHeading() {
+PatternEditor::renderHeading(const StyleProvider & styles) {
   auto & song = getController().getSong();
   auto & synth = getController().getSynth();
   auto & section = song.getSection(synth.getSectionPosition());
 
-  setBgColor(0x00, 0x00, 0x00);
-    
-  putstr(1, 1, "   ");
+  auto [rows, cols] = getDim();
+  
+  string padding;
+  for (size_t i = 1; i < cols - 1; i++) padding += ' ';
+
+  setBgColor(styles.window_bg_color);
+  putstr(1, 1, padding);
   
   for (int i = 0; i < (int)section.getTrackCount(); i++) {
     setFgColor(0x00, 0x00, 0x00);
     setBgColor(0xf0, 0x80, 0x10);
     
-    string name = format("Trk {:02d}│", i);    
-    putstr(1, 1 + 3 + i*7, name);    
+    string name = format("Trk {:02d}│", i);
+    putstr(1, 1 + 4 + i*7, name);    
   }
 }
 
 void
-PatternEditor::renderRow(size_t row, bool highlight) {
+PatternEditor::renderRow(const StyleProvider & styles, size_t row, bool highlight) {
   auto & song = getController().getSong();
   auto & synth = getController().getSynth();
   auto & section = song.getSection(synth.getSectionPosition());
-      
+
+  auto [rows, cols] = getDim();
+  
+  string padding;
+  for (size_t i = 1; i < cols - 1; i++) padding += ' ';
+
+  setBgColor(styles.window_bg_color);
+  putstr(2 + row, 1, padding);
+
   for (int i = -1; i < (int)section.getTrackCount(); i++) {
-    if (highlight && i == (int)current_score_cursor_col) {
-      setFgColor(0x00, 0x00, 0x00);
-      setBgColor(0xa0, 0xff, 0xa0);
-    } else if (highlight) {
-      setFgColor(0x80, 0xc0, 0x80);
-      setBgColor(0x80, 0xa0, 0x80);
+    UIColor fg, bg, cell_fg, cell_bg;
+        
+    if (highlight) {
+      fg = UIColor("#80c080");
+      bg = UIColor("#80a080");
     } else if (row % 4 == 0) {
-      setFgColor(0xe0, 0xe0, 0xe0);
-      setBgColor(0x20, 0x20, 0x20);
+      fg = styles.window_accent_fg_color;
+      bg = styles.window_accent_bg_color;
     } else {
-      setFgColor(0xa0, 0xa0, 0xa0);
-      setBgColor(0x00, 0x00, 0x00);
+      fg = styles.window_fg_color;
+      bg = styles.window_bg_color;
     }
 
+    if (highlight && i == (int)current_score_cursor_col) {
+      cell_fg = UIColor("#000000");
+      cell_bg = UIColor("#a0ffa0");
+    } else {
+      cell_fg = fg;
+      cell_bg = bg;
+    }
+    
+    setFgColor(cell_fg);
+    setBgColor(cell_bg);
+    
     if (i == -1) {
-      auto s = format("{:02x}│", row);
+      auto s = format(" {:02x}", row);
       putstr(2 + row, 1, s);
 
+      setFgColor(styles.window_border_color);
+      setBgColor(styles.window_bg_color);
+      
+      putstr(2 + row, 4, "│");
     } else {
       auto & track = section.getTrack(i);
 
@@ -188,11 +224,16 @@ PatternEditor::renderRow(size_t row, bool highlight) {
 	
 	string s;
 	if (note.isDefined()) {
-	  s = note.toString() + " .. ";
+	  s = note.toString() + " ..";
 	} else {
-	  s = "... .. ";
+	  s = "... ..";
 	}
-	putstr(2 + row, 1 + 3 + i*7, s);
+	putstr(2 + row, 1 + 4 + i*7, s);
+
+	setFgColor(styles.window_border_color);
+	setBgColor(bg);
+	
+	putstr(2 + row, 1 + 4 + i*7 + 6, "│");
       } else {
 	
       }
