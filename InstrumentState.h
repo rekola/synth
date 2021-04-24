@@ -54,13 +54,13 @@ class InstrumentState {
 
   void playNote(Note note, int transpose, int detune) {
     int midi_note = note.getMidiNote();
-    bool accent = note.hasAccent();
+    float _velocity = note.getVelocity();
     
     if (midi_note > 1) {
       // float fscaler = (float)WAVESIZE / 44100.0f;
       // freq = getMidiNoteFrequency(note) * fscaler + detune;
       freq = note.getFrequency(transpose, detune);
-      acc = accent;
+      velocity = _velocity;
       adsrstate = 0;
       adsrpos = 0;
       fphase = 0;
@@ -70,15 +70,14 @@ class InstrumentState {
     }
   }
 
-  bool hasAccent() const { return acc; }
+  float getVelocity() const { return velocity; }
 
   float fphase = 0; // position in input waveform
   float freq = 0; // current frequency
   double phi = 0, phi_mod = 0;
 
  private:
-  
-  bool acc = false; // has accent
+  float velocity = 1.0f;
 
   // adsr state
   int adsrstate = 0, adsrpos = 0;
