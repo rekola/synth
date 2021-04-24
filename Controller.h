@@ -8,7 +8,7 @@ class Synth;
 
 class Controller {
  public:
-  Controller();
+  Controller() { }
 
   const Song & getSong() const { return *current_song; }
   Song & getSong() { return *current_song; }
@@ -19,6 +19,7 @@ class Controller {
   void setSynth(std::shared_ptr<Synth> & _synth) { synth = _synth; }
 
   void createNewSong();
+  void loadDemo();
   bool sendCommand(const std::string & s);
   
  private:

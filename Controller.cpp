@@ -17,7 +17,8 @@
 
 using namespace std;
 
-Controller::Controller() {
+void
+Controller::loadDemo() {
   auto song = make_shared<Song>();
 
   const unsigned char * song_data = tr;
@@ -146,7 +147,9 @@ Controller::Controller() {
     for (size_t j = 0; ; j++) {
       int val = *song_data++;
       if (val == 255) break;
-      track_notes[i][j] = Note(val & 0x7f, (val & 0x80) != 0);
+      int midi_note = val & 0x7f;
+      bool has_accent = val & 0x80;
+      track_notes[i][j] = Note(midi_note, has_accent ? 1.5f : 1.0f);
     }
   }
 
@@ -176,7 +179,7 @@ Controller::Controller() {
 	// pattern.addTrack(available_tracks[id]);
 	for (size_t k = 0; k < 32; k++) {
 	  Note note = track_notes[track_id][k];
-	  if (note.isDefined()) pattern.setNote(track_id, k, note);
+	  if (note.isDefined()) pattern.setNote(k, track_id, 0, note);
 	  else {
 	    cerr << "note missing: pattern=" << i << ", track = " << track_id << ", row = " << k << endl;
 	  }
@@ -193,6 +196,16 @@ void
 Controller::createNewSong() {
   auto song = make_shared<Song>();
 
+  auto oboe = make_unique<FMInstrument>(0.7, 1, 3, 0.1f);
+  oboe->setName("oboe");
+  oboe->setADSR(2, 15, 0.0f, 10);
+  oboe->setTranspose(24);
+  // oboe->addEffect(make_unique<Distortion>(Distortion::CLIP, 0.5f));
+  // oboe->addEffect(make_unique<Chorus>(5.0f, 0.0f));
+  // oboe->addEffect(make_unique<Reverb>(44100, Reverb::DEFAULT)); // LARGEROOM1));
+  // oboe->setFilter(100, 30);
+  song->addInstrument(move(oboe));
+
   auto epiano = make_unique<BasicInstrument>(WaveformType::SAW);
   epiano->setName("Electric Piano");
   epiano->setADSR(0, 20, 0.0f, 0);
@@ -208,16 +221,6 @@ Controller::createNewSong() {
   test->setFilter(100, 30);
   song->addInstrument(move(test));
   
-  auto oboe = make_unique<FMInstrument>(0.7, 3, 4, 0.1f);
-  oboe->setName("oboe");
-  oboe->setADSR(2, 15, 0.0f, 10);
-  oboe->setTranspose(12);
-  // oboe->addEffect(make_unique<Distortion>(Distortion::CLIP, 0.5f));
-  // oboe->addEffect(make_unique<Chorus>(5.0f, 0.0f));
-  // oboe->addEffect(make_unique<Reverb>(44100, Reverb::DEFAULT)); // LARGEROOM1));
-  // oboe->setFilter(100, 30);
-  song->addInstrument(move(oboe));
-
   auto harpsichord = make_unique<FMInstrument>(7.8, 3, 5);
   harpsichord->setName("harpsichord");
   harpsichord->setADSR(2, 15, 0.0f, 10);
