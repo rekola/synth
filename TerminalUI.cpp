@@ -20,7 +20,6 @@
 #include <sys/time.h>
 #include <iostream>
 
-#include <ncpp/NotCurses.hh>
 #include <ncpp/Plane.hh>
 #include <ncpp/Plot.hh>
 #include <ncpp/Reader.hh>
@@ -84,24 +83,29 @@ public:
   
   void drawBorder() override {
     plane->erase();
+
+    unsigned fg_red, fg_green, fg_blue;
+    plane->get_fg_rgb8(&fg_red, &fg_green, &fg_blue);
+
+    unsigned bg_red, bg_green, bg_blue;
+    plane->get_bg_rgb8(&bg_red, &bg_green, &bg_blue);
+
+    auto channels = CHANNELS_RGB_INITIALIZER(fg_red, fg_green, fg_blue, bg_red, bg_green, bg_blue);
+    
     nccell ul = CELL_TRIVIAL_INITIALIZER, ur = CELL_TRIVIAL_INITIALIZER;
     nccell lr = CELL_TRIVIAL_INITIALIZER, ll = CELL_TRIVIAL_INITIALIZER;
     nccell hl = CELL_TRIVIAL_INITIALIZER, vl = CELL_TRIVIAL_INITIALIZER;
     if (nccells_rounded_box(plane->to_ncplane(), NCSTYLE_NONE, 0, &ul, &ur, &ll, &lr, &hl, &vl)) {
       return;
-    }                       
-    ul.channels = CHANNELS_RGB_INITIALIZER(0xf0, 0xc0, 0xc0, 0, 0, 0);
-    ur.channels = CHANNELS_RGB_INITIALIZER(0xf0, 0xc0, 0xc0, 0, 0, 0);
-    ll.channels = CHANNELS_RGB_INITIALIZER(0xf0, 0xc0, 0xc0, 0, 0, 0);
-    lr.channels = CHANNELS_RGB_INITIALIZER(0xf0, 0xc0, 0xc0, 0, 0, 0);
-    hl.channels = CHANNELS_RGB_INITIALIZER(0xf0, 0xc0, 0xc0, 0, 0, 0);
-    vl.channels = CHANNELS_RGB_INITIALIZER(0xf0, 0xc0, 0xc0, 0, 0, 0);
+    }
+    ul.channels = ur.channels = ll.channels = lr.channels = hl.channels = vl.channels = channels;
     cell_set_bg_alpha(&ul, CELL_ALPHA_BLEND);
     cell_set_bg_alpha(&ur, CELL_ALPHA_BLEND);
     cell_set_bg_alpha(&ll, CELL_ALPHA_BLEND);
     cell_set_bg_alpha(&lr, CELL_ALPHA_BLEND);
     cell_set_bg_alpha(&hl, CELL_ALPHA_BLEND);
     cell_set_bg_alpha(&vl, CELL_ALPHA_BLEND);
+    
     if (ncplane_perimeter(plane->to_ncplane(), &ul, &ur, &ll, &lr, &hl, &vl, 0)) {
       nccell_release(plane->to_ncplane(), &ul); nccell_release(plane->to_ncplane(), &ur); nccell_release(plane->to_ncplane(), &hl);
       nccell_release(plane->to_ncplane(), &ll); nccell_release(plane->to_ncplane(), &lr); nccell_release(plane->to_ncplane(), &vl);
@@ -296,12 +300,16 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   if (!nc) {
     notcurses_options nopts{};
     // nopts.flags = NCOPTION_INHIBIT_SETLOCALE;
-    nc = make_shared<NotCurses>(nopts);
+    nc = make_unique<NotCurses>(nopts);
     nc->mouse_enable();
   }
   
   auto root_plane = make_unique<TerminalPlane>(controller, nc->get_stdplane(), false);
   setPlane(std::move(root_plane));
+
+  setFgColor(styles.window_fg_color);
+  setBgColor(styles.window_bg_color);
+  fill();
 
   menu = make_shared<TerminalMenu>();
   
@@ -338,22 +346,30 @@ TerminalUI::readInput() {
 
 void
 TerminalUI::start(AudioAPI & audio) {
-  size_t num_descriptors = 1 + audio.getPollDescriptors().size();
+  size_t num_playback_desc = audio.getPlaybackDescriptors().size();
+  size_t num_capture_desc = audio.getCaptureDescriptors().size();
+  size_t num_descriptors = 1 + num_playback_desc + num_capture_desc;
   auto descriptors = std::make_unique<pollfd[]>(num_descriptors);
   
   descriptors[0].fd = nc->get_inputready_fd();
   descriptors[0].events = POLLIN;
 
-  for (size_t i = 0; i < audio.getPollDescriptors().size(); i++) {
-    descriptors[1 + i] = audio.getPollDescriptors()[i];
+  for (size_t i = 0; i < num_playback_desc; i++) {
+    descriptors[1 + i] = audio.getPlaybackDescriptors()[i];
   }
-    
+
+  for (size_t i = 0; i < num_capture_desc; i++) {
+    descriptors[1 + num_playback_desc + i] = audio.getCaptureDescriptors()[i];
+  }
+
   // setStatus("Starting... nd = " + to_string(num_descriptors));
 
   time_t prev_update = 0;
 
   renderComponents(true);
-	
+
+  audio.startRecording();
+  
   while ( !close_ui ) {
     bool render = false;
     
@@ -362,9 +378,9 @@ TerminalUI::start(AudioAPI & audio) {
       for (size_t i = 0; i < num_descriptors; i++) {
 	auto & d = descriptors[i];
 	if (d.revents) {
-	  if (d.fd == 0) {
+	  if (i  == 0) {
 	    render |= readInput();
-	  } else {
+	  } else if (i - 1 < num_playback_desc) {
 	    auto data = getController().getSynth().play(getController().getSong(), audio.getFrameCount());
 	    audio.play(data, *this);
 
@@ -388,6 +404,9 @@ TerminalUI::start(AudioAPI & audio) {
 	      	
 	      render = true;	      
 	    }
+	  } else {
+	    auto data = audio.record(*this);
+	    setStatus(format("recorded {} frames", data.size()));
 	  }
 	}
       }
