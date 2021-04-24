@@ -2,8 +2,7 @@
 #define _INSTRUMENTSTATE_H_
 
 #include "Note.h"
-
-#include <cmath>
+#include "Envelope.h"
 
 class InstrumentState {
  public:
@@ -11,37 +10,37 @@ class InstrumentState {
 
   float getFphase() const { return fphase; }
 
-  float updateADSR(int attack, int decay, float sustain, int release) {
+  float updateADSR(const Envelope & envelope) {
     float adsrvol = 0;
     
     switch (adsrstate) {
     case 0:
-      if (attack == 0 || adsrpos >= attack) {
+      if (envelope.getAttack() == 0 || adsrpos >= envelope.getAttack()) {
 	adsrstate++;
 	adsrpos = 0;
 	adsrvol = 1.0f;
       } else {
-	adsrvol = (float)adsrpos / attack;
+	adsrvol = (float)adsrpos / envelope.getAttack();
       }
       break;
     case 1:
-      if (decay == 0 || adsrpos >= decay) {
+      if (envelope.getDecay() == 0 || adsrpos >= envelope.getDecay()) {
 	adsrstate++;
 	adsrpos = 0;
-	adsrvol = sustain;
+	adsrvol = envelope.getSustain();
       } else {
-	adsrvol = 1.0 - ((1.0 - sustain) * (float)adsrpos / decay);
+	adsrvol = 1.0 - ((1.0 - envelope.getSustain()) * (float)adsrpos / envelope.getDecay());
       }
       break;
     case 2:
-      adsrvol = sustain;
+      adsrvol = envelope.getSustain();
       break;
     case 3:
-      if (release == 0 || adsrpos >= release) {
+      if (envelope.getRelease() == 0 || adsrpos >= envelope.getRelease()) {
 	adsrstate++;
 	adsrvol = 0;
       } else {
-	adsrvol = sustain - (sustain * (float)adsrpos / release);
+	adsrvol = envelope.getSustain() - (envelope.getSustain() * (float)adsrpos / envelope.getRelease());
       }
       break;
     default:
@@ -53,10 +52,6 @@ class InstrumentState {
     return adsrvol;
   }
 
-  static inline float getMidiNoteFrequency(int note) {
-    return 440 * powf(2, (note - 69.0) / 12.0);
-  }
-
   void playNote(Note note, int transpose, int detune) {
     int midi_note = note.getMidiNote();
     bool accent = note.hasAccent();
@@ -64,7 +59,7 @@ class InstrumentState {
     if (midi_note > 1) {
       // float fscaler = (float)WAVESIZE / 44100.0f;
       // freq = getMidiNoteFrequency(note) * fscaler + detune;
-      freq = getMidiNoteFrequency(midi_note + transpose + detune / 100.0f);
+      freq = note.getFrequency(transpose, detune);
       acc = accent;
       adsrstate = 0;
       adsrpos = 0;

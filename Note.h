@@ -1,6 +1,7 @@
 #ifndef _NOTE_H_
 #define _NOTE_H_
 
+#include <cmath>
 #include <string>
 
 class Note {
@@ -11,6 +12,10 @@ class Note {
   short getMidiNote() const { return midi_note; }
   bool hasAccent() { return has_accent; }
   bool isDefined() const { return midi_note > 0 || (numerator != 0 && denominator != 0); }
+
+  inline float getFrequency(int transpose, int detune) {
+    return 440 * powf(2, (midi_note - 69.0 + transpose + detune / 100.0f) / 12.0);
+  }
 
   std::string toString() const {
     if (midi_note >= 0) {

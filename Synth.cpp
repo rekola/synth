@@ -57,7 +57,7 @@ Synth::play(Song & song, size_t frames) {
 	}
       }
       
-      float adsrvol = state.updateADSR(instrument.getAttack(), instrument.getDecay(), instrument.getSustain(), instrument.getRelease());
+      float adsrvol = state.updateADSR(instrument.getEnvelope());
       float ss = instrument.getSample(state) * track.getVolume() * adsrvol;
       if (state.hasAccent()) ss *= ACCENTAMT;
 

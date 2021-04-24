@@ -5,6 +5,7 @@
 #include "Filter.h"
 #include "Note.h"
 #include "InstrumentState.h"
+#include "Envelope.h"
 
 #include <string>
 #include <vector>
@@ -29,11 +30,6 @@ public:
   float getDetune() const { return detune; }
   int getTranspose() const { return transpose; }
   
-  int getAttack() const { return a; }
-  int getDecay() const { return d; }
-  float getSustain() const { return s; }
-  int getRelease() const { return r; }
-
   void setTranspose(int _transpose) { transpose = _transpose; }
   
   void setDetune(int _detune) { detune = (_detune - 127) / 512.0; }
@@ -42,13 +38,10 @@ public:
     addEffect(std::make_unique<Filter>(fcut, fres, is_highpass));
   }
 
-  void setADSR(int _a, int _d, float _s, int _r) {
-    a = _a * 44100 * 5 / 255;
-    d = _d * 44100 * 5 / 255;
-    s = _s;
-    r = _r * 44100 * 5 / 255;
-  }
-   
+  void setEnvelope(const Envelope & _envelope) { envelope = _envelope; }  
+  void setADSR(int _a, int _d, float _s, int _r) { setEnvelope(Envelope(_a, _d, _s, _r)); }
+  const Envelope & getEnvelope() { return envelope; }
+  
   void applyEffects(SampleData & data) {
     for (auto & effect : effects) {
       effect->apply(data);
@@ -59,9 +52,7 @@ public:
   
 protected:
   std::string name;
-  
-  int a = 0, d = 0, r = 0;
-  float s = 1.0;
+  Envelope envelope;
   float detune = 0;
   short transpose = 0;
 
