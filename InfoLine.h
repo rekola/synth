@@ -19,7 +19,7 @@ class InfoLine : public UIElement {
     auto & song = getController().getSong();
 
     int new_version = song.getVersion();
-    size_t new_position = synth.getCurrentPosition();
+    size_t new_position = synth.getAbsolutePosition();
     
     if (refresh || new_version != current_version || new_position != current_position) {
       int seconds = (int)synth.gettime(song);
@@ -30,7 +30,7 @@ class InfoLine : public UIElement {
       
       size_t section_index = synth.getPatternPosition();
       
-      auto s = fmt::format(" {:02x} {:02d}:{:02d} pattern:{}", synth.getCurrentPosition(), minutes, seconds, section_index);
+      auto s = fmt::format(" {:02x} {:02d}:{:02d} pattern:{}", synth.getAbsolutePosition(), minutes, seconds, section_index);
       while (s.size() < cols) s += ' ';
       
       putstr(0, 0, s);
