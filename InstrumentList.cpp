@@ -20,6 +20,9 @@ InstrumentList::render(const StyleProvider & styles, bool refresh) {
 
   bool need_refresh = false;
   if (render_all) {
+    setFgColor(styles.window_border_color);
+    setBgColor(styles.window_bg_color);
+    
     getPlane().drawBorder();
     
     for (size_t i = 0; i < song.getInstruments().size(); i++) {
@@ -81,7 +84,8 @@ InstrumentList::offerInput(const UIInput & input) {
     int midi_note = input.toMidiNote();
     if (midi_note != -1) {
       Note note(midi_note);
-      song.getInstrument(new_cursor_row).playNote(note);
+      auto & instrument = song.getInstrument(new_cursor_row);
+      instrument_state.playNote(note, instrument.getTranspose(), instrument.getDetune());
     }
   }
   
