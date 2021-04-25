@@ -6,12 +6,11 @@
 
 #include <deque>
 #include <vector>
+#include <memory>
 
 class Track {
  public:
-  explicit Track() {
-
-  }
+  Track() { }
 
   float getPan() const { return pan; }
   void setPan(float _pan) { pan = _pan; }
@@ -32,15 +31,16 @@ class Track {
   }
   void clearPendingNotes() { pending_notes.clear(); }
   std::deque<std::pair<unsigned int, std::vector<Note> > > & getPendingNotes() { return pending_notes; }
-
   
 private:
   int instrument_id = 0;
   InstrumentState state;
   bool solo = false;
-  std::deque<std::pair<unsigned int, std::vector<Note> > > pending_notes;
   float pan = 0.5f;
-  float volume = 1.0f;  
+  float volume = 1.0f;
+  std::shared_ptr<Track> first_child, next_sibling;
+
+  std::deque<std::pair<unsigned int, std::vector<Note> > > pending_notes;
 };
 
 #endif
