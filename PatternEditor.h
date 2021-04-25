@@ -3,6 +3,8 @@
 
 #include "UIElement.h"
 
+#include <vector>
+
 class Synth;
 class UIInput;
 class StyleProvider;
@@ -15,12 +17,13 @@ class PatternEditor : public UIElement {
   bool offerInput(const UIInput & input) override;
 
 protected:
-  void renderHeading(const StyleProvider & styles);
-  void renderRow(const StyleProvider & styles, size_t row, bool highlight);
+  void renderHeading(const StyleProvider & styles, const std::vector<size_t> & track_widths);
+  void renderRow(const StyleProvider & styles, const std::vector<size_t> & track_widths, size_t row, bool highlight);
   
   size_t current_score_playing_row = 0;
   size_t current_score_pattern = 0;
   size_t current_score_cursor_col = 0;
+  size_t current_score_total_columns = 0;
   size_t new_score_cursor_col = 0;
   bool row_edited = false;
   int current_song_version = 0;

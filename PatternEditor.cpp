@@ -23,9 +23,14 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   size_t score_playing_row = synth.getTrackPosition();
   auto & song = getController().getSong();
   auto & current_pattern = song.getPattern(score_pattern);
-  
+
+  auto track_widths = current_pattern.getTrackWidths();
+  size_t score_total_columns = 0;
+  for (auto w : track_widths) score_total_columns += w;
+
   if (score_pattern != current_score_pattern ||
-      song.getVersion() != current_song_version
+      song.getVersion() != current_song_version ||
+      score_total_columns != current_score_total_columns
       ) {
     render_all = true;
   }
@@ -38,8 +43,6 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   // current_score_cursor_row = new_score_cursor_row;
   current_score_cursor_col = new_score_cursor_col;
 
-  // auto track_sizes = current_pattern.getTrackNoteWidths();
-
   bool need_redraw = false;
   if (render_all) {
     auto [rows, cols] = getDim();
@@ -49,22 +52,23 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
     fill();
     getPlane().drawBorder();
     
-    renderHeading(styles);
+    renderHeading(styles, track_widths);
     for (size_t row = 0; row < (size_t)rows && row < current_pattern.getNumRows(); row++) {
-      renderRow(styles, row, row == score_playing_row);
+      renderRow(styles, track_widths, row, row == score_playing_row);
     }
     need_redraw = true;
   } else if (current_score_playing_row != score_playing_row) {
-    renderRow(styles, current_score_playing_row, false);
-    renderRow(styles, score_playing_row, true);
+    renderRow(styles, track_widths, current_score_playing_row, false);
+    renderRow(styles, track_widths, score_playing_row, true);
     need_redraw = true;
   } else if (cursor_col_changed || row_edited) {
-    renderRow(styles, score_playing_row, true);
+    renderRow(styles, track_widths, score_playing_row, true);
     need_redraw = true;
   }
   
   current_score_pattern = score_pattern;
   current_score_playing_row = score_playing_row;
+  current_score_total_columns = score_total_columns;
   current_song_version = song.getVersion();
   row_edited = false;
   
@@ -124,6 +128,13 @@ PatternEditor::offerInput(const UIInput & input) {
   } else if (input.getId() == NCKEY_DOWN) {
     if (!synth.isPlaying()) synth.moveForward(song);
     return true;
+  } else if (input.getId() == '\t') {
+    // next note column
+    return true;
+  } else if (input.getId() == NCKEY_BUTTON4) { // scrollwheen up
+    return true;
+  } else if (input.getId() == NCKEY_BUTTON5) { // scrollwheel down
+    return true;
   } else {
     int midi_note = input.toMidiNote();
     if (midi_note != -1) {
@@ -133,7 +144,12 @@ PatternEditor::offerInput(const UIInput & input) {
       auto & instrument = song.getInstrument(track.getInstrumentId());
       auto & state = track.getState();
       state.playNote(note, instrument.getTranspose(), instrument.getDetune());
-      pattern.setNote(synth.getTrackPosition(), current_score_cursor_col, 0, note);      
+
+      if (input.hasShift()) {
+	pattern.pushNote(synth.getTrackPosition(), current_score_cursor_col, note);
+      } else {
+	pattern.setNote(synth.getTrackPosition(), current_score_cursor_col, 0, note);
+      }
       row_edited = true;
 
       if (!synth.isPlaying()) {
@@ -149,7 +165,7 @@ PatternEditor::offerInput(const UIInput & input) {
 }
 
 void
-PatternEditor::renderHeading(const StyleProvider & styles) {
+PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<size_t> & track_widths) {
   auto & song = getController().getSong();
   auto & synth = getController().getSynth();
   auto & pattern = song.getPattern(synth.getPatternPosition());
@@ -163,18 +179,28 @@ PatternEditor::renderHeading(const StyleProvider & styles) {
   putstr(1, 1, padding);
 
   auto & tracks = song.getTracks();
-  
-  for (int i = 0; i < (int)tracks.size(); i++) {
+
+  size_t current_pos = 6;
+  for (size_t i = 0; i < tracks.size(); i++) {
+    auto note_columns = i < track_widths.size() ? track_widths[i] : 0;
+    size_t actual_width = (note_columns == 0 ? 1 : note_columns) * 7;
+    
     setFgColor(0x00, 0x00, 0x00);
     setBgColor(0xf0, 0x80, 0x10);
     
-    string name = format("Trk {:02d}│", i);
-    putstr(1, 1 + 4 + i*7, name);    
+    string name = format("Trk {:02d}", i);
+    if (name.size() > actual_width - 1) name.erase(actual_width - 1);
+    else {
+      while (name.size() < actual_width - 1) name += ' ';
+    }
+    name += "│";
+    putstr(1, current_pos, name);
+    current_pos += actual_width;
   }
 }
 
 void
-PatternEditor::renderRow(const StyleProvider & styles, size_t row, bool highlight) {
+PatternEditor::renderRow(const StyleProvider & styles, const std::vector<size_t> & track_widths, size_t row, bool highlight) {
   auto & song = getController().getSong();
   auto & synth = getController().getSynth();
   auto & pattern = song.getPattern(synth.getPatternPosition());
@@ -188,7 +214,8 @@ PatternEditor::renderRow(const StyleProvider & styles, size_t row, bool highligh
   putstr(2 + row, 1, padding);
 
   auto & tracks = song.getTracks();
-  
+
+  size_t current_pos = 1;
   for (int i = -1; i < (int)tracks.size(); i++) {
     auto & track = tracks[i];
     
@@ -212,33 +239,44 @@ PatternEditor::renderRow(const StyleProvider & styles, size_t row, bool highligh
       cell_fg = fg;
       cell_bg = bg;
     }
-    
-    setFgColor(cell_fg);
-    setBgColor(cell_bg);
-    
+        
     if (i == -1) {
-      auto s = format(" {:02x}", row);
-      putstr(2 + row, 1, s);
+      setFgColor(cell_fg);
+      setBgColor(cell_bg);
+      
+      putstr(2 + row, current_pos, format(" {:02x} ", row));
 
       setFgColor(styles.window_border_color);
       setBgColor(styles.window_bg_color);
       
-      putstr(2 + row, 4, "│");
-    } else {
-      auto & note = pattern.getNote(row, i, 0);
+      putstr(2 + row, current_pos + 4, "│");
 
-      string s;
-      if (note.isDefined()) {
-	s = note.toString() + " ..";
-      } else {
-	s = "... ..";
+      current_pos += 5;
+    } else {
+      auto notes = pattern.getNotes(row, i);
+      auto note_columns = i < track_widths.size() ? track_widths[i] : 0;
+      if (note_columns == 0) note_columns = 1;
+      	
+      for (size_t k = 0; k < note_columns; k++) {
+	string s;
+	if (k < notes.size() && notes[k].isDefined()) {
+	  auto & note = notes[k];
+	  s = note.toString() + format(" {:02x}", note.getVelocity());
+	} else {
+	  s = "... ..";
+	}
+	setFgColor(cell_fg);
+	setBgColor(cell_bg);
+
+	putstr(2 + row, current_pos, s);
+	
+	setFgColor(styles.window_border_color);
+	setBgColor(bg);
+	
+	putstr(2 + row, current_pos + 6, "│");
+
+	current_pos += 7;
       }
-      putstr(2 + row, 1 + 4 + i*7, s);
-      
-      setFgColor(styles.window_border_color);
-      setBgColor(bg);
-      
-      putstr(2 + row, 1 + 4 + i*7 + 6, "│");
     }
   }
 }
