@@ -5,8 +5,6 @@
 #include <cmath>
 #include <cassert>
 
-#define ACCENTAMT 1.5f
-
 using namespace std;
 
 SampleData
@@ -25,10 +23,11 @@ Synth::play(Song & song, size_t frames) {
     for (size_t i = 0; i < frames; i++) {
       if (samplepos == 0) {
 	auto & pattern = song.getPattern(getPatternPosition());
-	for (size_t j = 0; j < song.getTracks().size(); j++) {
-	  auto & track = song.getTrack(j);
-	  for (size_t k = 0; k < pattern.getNumRows(); k++) {
-	    track.addPendingNote(i, pattern.getNote(j, k));
+	for (size_t col = 0; col < song.getTracks().size(); col++) {
+	  auto & track = song.getTrack(col);
+	  auto & notes = pattern.getNotes(getTrackPosition(), col);
+	  if (!notes.empty()) {
+	    track.addPendingNotes(i, notes);
 	  }
 	}
       }
@@ -36,8 +35,6 @@ Synth::play(Song & song, size_t frames) {
       moveForwardSample(song);
     }
   }
-
-  auto & section = song.getPattern(getPatternPosition());
 
   for (auto & track : song.getTracks()) {
     auto & state = track.getState();
@@ -51,15 +48,18 @@ Synth::play(Song & song, size_t frames) {
       if (!pending.empty()) {
 	auto & front = pending.front();
 	if (i == front.first) {
-	  state.playNote(front.second, instrument.getTranspose(), instrument.getDetune());
-
+	  auto & notes = front.second;
+	  for (auto & note : notes) {
+	    if (note.isDefined()) {
+	      state.playNote(note, instrument.getTranspose(), instrument.getDetune());
+	    }
+	  }
 	  pending.pop_front();
 	}
       }
       
       float adsrvol = state.updateADSR(instrument.getEnvelope());
-      float ss = instrument.getSample(state) * track.getVolume() * adsrvol;
-      if (state.hasAccent()) ss *= ACCENTAMT;
+      float ss = instrument.getSample(state) * state.getVelocity() * track.getVolume() * adsrvol;
 
       if (ss > 1.0) ss = 1.0;
       else if (ss < -1.0) ss = -1.0;

@@ -38,6 +38,8 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   // current_score_cursor_row = new_score_cursor_row;
   current_score_cursor_col = new_score_cursor_col;
 
+  // auto track_sizes = current_pattern.getTrackNoteWidths();
+
   bool need_redraw = false;
   if (render_all) {
     auto [rows, cols] = getDim();
@@ -131,7 +133,7 @@ PatternEditor::offerInput(const UIInput & input) {
       auto & instrument = song.getInstrument(track.getInstrumentId());
       auto & state = track.getState();
       state.playNote(note, instrument.getTranspose(), instrument.getDetune());
-      pattern.setNote(current_score_cursor_col, synth.getTrackPosition(), note);      
+      pattern.setNote(synth.getTrackPosition(), current_score_cursor_col, 0, note);      
       row_edited = true;
 
       if (!synth.isPlaying()) {
@@ -223,24 +225,20 @@ PatternEditor::renderRow(const StyleProvider & styles, size_t row, bool highligh
       
       putstr(2 + row, 4, "│");
     } else {
-      if (track.getType() == Track::NOTES) {
-	auto & note = pattern.getNote(i, row);
-	
-	string s;
-	if (note.isDefined()) {
-	  s = note.toString() + " ..";
-	} else {
-	  s = "... ..";
-	}
-	putstr(2 + row, 1 + 4 + i*7, s);
+      auto & note = pattern.getNote(row, i, 0);
 
-	setFgColor(styles.window_border_color);
-	setBgColor(bg);
-	
-	putstr(2 + row, 1 + 4 + i*7 + 6, "│");
+      string s;
+      if (note.isDefined()) {
+	s = note.toString() + " ..";
       } else {
-	
+	s = "... ..";
       }
+      putstr(2 + row, 1 + 4 + i*7, s);
+      
+      setFgColor(styles.window_border_color);
+      setBgColor(bg);
+      
+      putstr(2 + row, 1 + 4 + i*7 + 6, "│");
     }
   }
 }
