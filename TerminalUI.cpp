@@ -336,8 +336,13 @@ bool
 TerminalUI::readInput() {
   ncinput ni;
   if (nc->getc(true, &ni) != (char32_t)-1) {
-    bool handled = false;
-    UIInput input(ni.seqnum, ni.id, ni.y, ni.x, ni.alt, ni.shift, ni.ctrl);
+    bool handled = false, shift = ni.shift;
+    int id = ni.id;
+    if (id >= 'A' && id <= 'Z') {
+      id = tolower(id);
+      shift = true;
+    }
+    UIInput input(ni.seqnum, id, ni.y, ni.x, ni.alt, shift, ni.ctrl);
     offerInput(input);
   }
 
