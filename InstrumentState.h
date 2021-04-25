@@ -54,7 +54,7 @@ class InstrumentState {
 
   void playNote(Note note, int transpose, int detune) {
     int midi_note = note.getMidiNote();
-    float _velocity = note.getVelocity();
+    float _velocity = note.getVelocityAsFloat();
     
     if (midi_note > 1) {
       // float fscaler = (float)WAVESIZE / 44100.0f;

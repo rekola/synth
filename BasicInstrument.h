@@ -3,21 +3,21 @@
 
 #include "Instrument.h"
 
-enum class WaveformType
-  {
-   SINE = 0,
-   SAW,
-   SQUARE,
-   NOISE, // metallic noise
-   NOISE2 // real noise
-  };
-
 #define WAVESIZE 1024
 
 #include <cmath>
 
 class BasicInstrument : public Instrument {
  public:
+  enum WaveformType
+  {
+    SINE = 1,
+      SAW,
+      SQUARE,
+      NOISE, // metallic noise
+      NOISE2 // real noise
+      };
+  
   explicit BasicInstrument(WaveformType _type) : type(_type) {
     
   }

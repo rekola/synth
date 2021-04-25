@@ -6,11 +6,12 @@
 
 class Note {
  public:
-  explicit Note() : midi_note(0), velocity(1.0f), numerator(0), denominator(0) { }
-  explicit Note(int _midi_note, float _velocity = 1.0f) : midi_note(_midi_note), numerator(0), denominator(0), velocity(_velocity) { }
+  explicit Note() : midi_note(0), velocity(0x3f), numerator(0), denominator(0) { }
+  explicit Note(int _midi_note, short _velocity = 0x3f) : midi_note(_midi_note), numerator(0), denominator(0), velocity(_velocity) { }
 
   short getMidiNote() const { return midi_note; }
-  float getVelocity() const { return velocity; }
+  short getVelocity() const { return velocity; }
+  float getVelocityAsFloat() const { return (float)velocity / 0x3f; }
   bool isDefined() const { return midi_note > 0 || (numerator != 0 && denominator != 0); }
   bool isOff() const { return midi_note == 1; }
   
@@ -146,9 +147,8 @@ class Note {
   }
 
  private:
-  short midi_note;
+  short midi_note, velocity;
   short numerator, denominator; 
-  float velocity;
 };
 
 #endif
