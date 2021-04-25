@@ -17,8 +17,19 @@ class Pattern {
 
   void setNote(size_t row, size_t track, size_t note_column, Note note) {
     auto & columns = notes[row][track];
-    while (note_column >= columns.size()) columns.push_back(note);
+    while (note_column >= columns.size()) columns.push_back(Note());
     columns[note_column] = note;
+  }
+
+  void pushNote(size_t row, size_t track, Note note) {
+    auto & columns = notes[row][track];
+    for (size_t i = 0; i < columns.size(); i++) {
+      if (!columns[i].isDefined()) {
+	columns[i] = note;
+	return;
+      }
+    }
+    columns.push_back(note);
   }
 
   const Note & getNote(size_t row, size_t track, size_t note_column) const {
@@ -42,6 +53,19 @@ class Pattern {
       }
     }
     return empty_notes;
+  }
+  
+  const std::vector<size_t> getTrackWidths() const {
+    std::vector<size_t> r;
+    for (auto & d0 : notes) {
+      for (auto & d1 : d0.second) {
+	size_t track = d1.first;
+	size_t w = d1.second.size();
+	while (r.size() <= track) r.push_back(0);
+	if (w > r[track]) r[track] = w;
+      }
+    }
+    return r;
   }
 
 private:
