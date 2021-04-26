@@ -53,20 +53,18 @@ class InstrumentState {
   }
 
   void playNote(Note note, int transpose, int detune) {
-    int midi_note = note.getMidiNote();
     float _velocity = note.getVelocityAsFloat();
     
-    if (midi_note > 1) {
+    if (note.isOff()) {
+      adsrstate = 3;
+      adsrpos = 0;
+    } else if (note.isDefined()) {
       // float fscaler = (float)WAVESIZE / 44100.0f;
-      // freq = getMidiNoteFrequency(note) * fscaler + detune;
       freq = note.getFrequency(transpose, detune);
       velocity = _velocity;
       adsrstate = 0;
       adsrpos = 0;
       fphase = 0;
-    } else if (midi_note == 1) {
-      adsrstate = 3;
-      adsrpos = 0;
     }
   }
 
