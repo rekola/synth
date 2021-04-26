@@ -10,7 +10,8 @@ OBJS = main.o \
 	Controller.o \
 	FMInstrument.o \
 	Reverb.o \
-	InstrumentList.o
+	InstrumentList.o \
+	SoundFontInstrument.o
 
 CC = g++
 
