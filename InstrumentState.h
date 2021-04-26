@@ -68,6 +68,8 @@ class InstrumentState {
     }
   }
 
+  bool isPlaying() const { return adsrstate < 4 && freq != 0; }
+
   float getVelocity() const { return velocity; }
 
   float fphase = 0; // position in input waveform
