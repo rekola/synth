@@ -20,6 +20,7 @@ class Controller {
 
   void createNewSong();
   void loadDemo();
+  void loadDemo2();
   bool sendCommand(const std::string & s);
   
  private:

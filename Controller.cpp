@@ -18,6 +18,99 @@
 using namespace std;
 
 void
+Controller::loadDemo2() {
+  auto song = make_shared<Song>();
+
+  song->bpm = 90;
+  song->mastervol = 1.0f;
+
+  auto marimba = make_unique<BasicInstrument>(BasicInstrument::SINE);
+  marimba->setName("marimba");
+  marimba->setADSR(0, 15, 0.0f, 0);
+  song->addInstrument(move(marimba));
+
+#if 1
+  auto epiano = make_unique<BasicInstrument>(BasicInstrument::SAW);
+  epiano->setName("Electric Piano");
+  epiano->setADSR(0, 20, 0.0f, 0);
+  epiano->setFilter(63 / 255.0f, 128 / 63.0f);
+  song->addInstrument(move(epiano));
+#endif
+  
+#if 0
+  auto oboe = make_unique<FMInstrument>(7.8, 3, 5, 0.1f);
+  oboe->setName("i1");
+  oboe->setADSR(2, 15, 0.0f, 10);
+  oboe->setTranspose(24);
+  // oboe->addEffect(make_unique<Distortion>(Distortion::CLIP, 0.5f));
+  // oboe->addEffect(make_unique<Chorus>(5.0f, 0.0f));
+  // oboe->addEffect(make_unique<Reverb>(44100, Reverb::DEFAULT)); // LARGEROOM1));
+  oboe->setFilter(100 / 255.0f, 30 / 63.0f);
+  song->addInstrument(move(oboe));
+#endif
+  
+  song->addTrack();
+  
+  Pattern pattern(64);
+  
+  pattern.setNote(0, 0, 0, Note(1, 1, 0x3f)); // C-4
+  pattern.setNote(0, 1, 0, Note(3, 2, 0x3f)); // G-4
+  pattern.setNote(0, 2, 0, Note(6, 5, 0x3f)); // Eb
+  pattern.setNote(0, 3, 0, Note(12, 11, 0x3f)); // ?
+  pattern.setNote(0, 4, 0, Note(2, 1, 0x3f)); // C-5
+  pattern.setNote(0, 5, 0, Note(3, 2, 0x3f)); // G-4
+  pattern.setNote(0, 6, 0, Note(6, 5, 0x3f)); // Eb
+  pattern.setNote(0, 7, 0, Note(1, 1, 0x3f)); // C-4
+  
+  pattern.setNote(0, 10, 0, Note(1, 1, 0x3f)); // C-4
+  pattern.setNote(0, 11, 0, Note(6, 5, 0x3f)); // Eb
+  pattern.setNote(0, 12, 0, Note(3, 2, 0x3f)); // G-4
+  pattern.setNote(0, 13, 0, Note(2, 1, 0x3f)); // C-5
+
+  pattern.setNote(0, 16, 0, Note(1, 1, 0x3f)); // C-4
+  pattern.setNote(0, 17, 0, Note(11, 10, 0x3f)); // ?
+  pattern.setNote(0, 18, 0, Note(6, 5, 0x3f)); // Eb
+  pattern.setNote(0, 19, 0, Note(3, 2, 0x3f)); // G-4
+  pattern.setNote(0, 20, 0, Note(2, 1, 0x3f)); // C-5
+
+  pattern.setNote(0, 22, 0, Note(1, 1, 0x3f)); // C-4
+  pattern.setNote(0, 23, 0, Note(12, 11, 0x3f)); // ?
+  pattern.setNote(0, 24, 0, Note(6, 5, 0x3f)); // Eb
+  pattern.setNote(0, 25, 0, Note(3, 2, 0x3f)); // G-4
+  pattern.setNote(0, 26, 0, Note(2, 1, 0x3f)); // C-5
+
+  
+  pattern.setNote(0, 36, 0, Note(1, 1, 0x3f)); // C-4
+  pattern.setNote(0, 36, 1, Note(7, 6, 0x3f)); // ?
+  pattern.setNote(0, 36, 2, Note(4, 3, 0x3f)); // F
+  pattern.setNote(0, 36, 3, Note(2, 1, 0x3f)); // C-5
+
+  pattern.setNote(0, 40, 0, Note(1, 1, 0x3f)); // C-4
+  pattern.setNote(0, 41, 0, Note(7, 6, 0x3f)); // ?
+  pattern.setNote(0, 42, 0, Note(4, 3, 0x3f)); // F
+  pattern.setNote(0, 43, 0, Note(2, 1, 0x3f)); // C-5
+
+  pattern.setNote(0, 44, 0, Note(7*1, 6*1, 0x3f)); // C-4
+  pattern.setNote(0, 45, 0, Note(7*8, 6*7, 0x3f)); // ?
+  pattern.setNote(0, 46, 0, Note(7*4, 6*3, 0x3f)); // F
+  pattern.setNote(0, 47, 0, Note(7*2, 6*1, 0x3f)); // C-5
+
+  pattern.setNote(0, 48, 0, Note(4*1, 3*1, 0x3f)); // C-4
+  pattern.setNote(0, 49, 0, Note(4*7, 3*6, 0x3f)); // ?
+  pattern.setNote(0, 50, 0, Note(4*4, 3*3, 0x3f)); // F
+  pattern.setNote(0, 51, 0, Note(4*2, 3*1, 0x3f)); // C-5
+
+  pattern.setNote(0, 52, 0, Note(7*1, 6*1, 0x3f)); // C-4
+  pattern.setNote(0, 53, 0, Note(7*4, 6*3, 0x3f)); // F
+  pattern.setNote(0, 54, 0, Note(7*7, 6*4, 0x3f)); // ?
+  pattern.setNote(0, 55, 0, Note(7*2, 6*1, 0x3f)); // C-5
+
+  song->addPattern(pattern);  
+    
+  current_song = song;  
+}
+
+void
 Controller::loadDemo() {
   auto song = make_shared<Song>();
 
@@ -172,7 +265,7 @@ Controller::loadDemo() {
 	auto track_id = tracks[i];
 	for (size_t k = 0; k < 32; k++) {
 	  Note note = track_notes[track_id][k];
-	  if (note.isDefined()) pattern.setNote(k, track_id, 0, note);
+	  if (note.isDefined()) pattern.setNote(track_id, k, 0, note);
 	  else {
 	    cerr << "note missing: pattern=" << i << ", track = " << track_id << ", row = " << k << endl;
 	  }
@@ -202,7 +295,7 @@ Controller::createNewSong() {
   auto epiano = make_unique<BasicInstrument>(BasicInstrument::SAW);
   epiano->setName("Electric Piano");
   epiano->setADSR(0, 20, 0.0f, 0);
-  epiano->setFilter(63, 128);
+  epiano->setFilter(63 / 255.0f, 128 / 63.0f);
   song->addInstrument(move(epiano));
 
   auto test = make_unique<FMInstrument>(0, 1, 1, 2.01);
