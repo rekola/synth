@@ -144,9 +144,9 @@ class Note {
       } else if ((numerator == 10 && denominator == 9) || (numerator == 9 && denominator == 8)) {
 	return "M2";
       } else if (numerator == 8 && denominator == 7) {
-	return "S2"; // or SM2 (https://en.wikipedia.org/wiki/Septimal_whole_tone)
+	return "S2"; // supermajor second (https://en.wikipedia.org/wiki/Septimal_whole_tone)
       } else if (numerator == 7 && denominator == 6) {
-	return "s3";
+	return "s3"; // subminor third
       } else if (numerator == 6 && denominator == 5) {	
 	return "m3";
       } else if (numerator == 5 && denominator == 4) {
@@ -161,7 +161,7 @@ class Note {
 	return "m6";
       } else if (numerator == 5 && denominator == 3) {
 	return "M6";
-      } else if (numerator == 9 && denominator == 5) {
+      } else if ((numerator == 16 && denominator == 9) || (numerator == 9 && denominator == 5)) {
 	return "m7";
       } else if (numerator == 15 && denominator == 8) {
 	return "M7";
