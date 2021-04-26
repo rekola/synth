@@ -69,6 +69,16 @@ class Pattern {
     return r;
   }
 
+  void setAnnotation(size_t row, std::string s) {
+    annotations[row] = s;
+  }
+  
+  const std::string & getAnnotation(size_t row) const {
+    auto it = annotations.find(row);
+    if (it != annotations.end()) return it->second;
+    else return empty_string;
+  }
+
 private:
   std::string name;
   size_t num_rows;
@@ -76,6 +86,8 @@ private:
   std::unordered_map<unsigned short, std::unordered_map<unsigned short, std::vector<Note> > > notes;
   Note empty_note;
   std::vector<Note> empty_notes;
+  std::unordered_map<unsigned short, std::string> annotations;
+  std::string empty_string;
 };
 
 #endif

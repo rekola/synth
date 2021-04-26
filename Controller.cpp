@@ -51,12 +51,14 @@ Controller::loadDemo2() {
   
   song->addTrack();
   
-  Pattern pattern(64);
-  
+  Pattern pattern(128);
+
+  pattern.setAnnotation(0, "neutral minor tetrad");
+
   pattern.setNote(0, 0, 0, Note(1, 1, 0x3f)); // C-4
   pattern.setNote(0, 1, 0, Note(3, 2, 0x3f)); // G-4
   pattern.setNote(0, 2, 0, Note(6, 5, 0x3f)); // Eb
-  pattern.setNote(0, 3, 0, Note(12, 11, 0x3f)); // ?
+  pattern.setNote(0, 3, 0, Note(11, 10, 0x3f)); // ?
   pattern.setNote(0, 4, 0, Note(2, 1, 0x3f)); // C-5
   pattern.setNote(0, 5, 0, Note(3, 2, 0x3f)); // G-4
   pattern.setNote(0, 6, 0, Note(6, 5, 0x3f)); // Eb
@@ -79,6 +81,7 @@ Controller::loadDemo2() {
   pattern.setNote(0, 25, 0, Note(3, 2, 0x3f)); // G-4
   pattern.setNote(0, 26, 0, Note(2, 1, 0x3f)); // C-5
 
+  pattern.setAnnotation(36, "7-limit triads");
   
   pattern.setNote(0, 36, 0, Note(1, 1, 0x3f)); // C-4
   pattern.setNote(0, 36, 1, Note(7, 6, 0x3f)); // ?
@@ -104,6 +107,39 @@ Controller::loadDemo2() {
   pattern.setNote(0, 53, 0, Note(7*4, 6*3, 0x3f)); // F
   pattern.setNote(0, 54, 0, Note(7*7, 6*4, 0x3f)); // ?
   pattern.setNote(0, 55, 0, Note(7*2, 6*1, 0x3f)); // C-5
+
+  pattern.setAnnotation(60, "7-limit supermajor minor7 scale");
+
+  pattern.setNote(0, 60, 0, Note(1, 1, 0x3f)); // C-4
+  pattern.setNote(0, 61, 0, Note(8, 7, 0x3f)); // ?
+  pattern.setNote(0, 62, 0, Note(6, 5, 0x3f)); // Eb
+  pattern.setNote(0, 63, 0, Note(4, 3, 0x3f)); // F
+  pattern.setNote(0, 64, 0, Note(3, 2, 0x3f)); // G
+  pattern.setNote(0, 65, 0, Note(8, 5, 0x3f)); // Ab
+  pattern.setNote(0, 66, 0, Note(7, 4, 0x3f)); // 
+  pattern.setNote(0, 67, 0, Note(2, 1, 0x3f)); // C-5
+
+  pattern.setAnnotation(70, "harmonic minor scale");
+
+  pattern.setNote(0, 70, 0, Note(1, 1, 0x3f)); // C-4
+  pattern.setNote(0, 71, 0, Note(9, 8, 0x3f)); // D
+  pattern.setNote(0, 72, 0, Note(6, 5, 0x3f)); // Eb
+  pattern.setNote(0, 73, 0, Note(4, 3, 0x3f)); // F
+  pattern.setNote(0, 74, 0, Note(3, 2, 0x3f)); // G
+  pattern.setNote(0, 75, 0, Note(8, 5, 0x3f)); // Ab
+  pattern.setNote(0, 76, 0, Note(7, 4, 0x3f)); // 
+  pattern.setNote(0, 77, 0, Note(2, 1, 0x3f)); // C-5
+
+  pattern.setAnnotation(80, "melodic minor scale");
+
+  pattern.setNote(0, 80, 0, Note(1, 1, 0x3f)); // C-4
+  pattern.setNote(0, 81, 0, Note(9, 8, 0x3f)); // D
+  pattern.setNote(0, 82, 0, Note(6, 5, 0x3f)); // Eb
+  pattern.setNote(0, 83, 0, Note(4, 3, 0x3f)); // F
+  pattern.setNote(0, 84, 0, Note(3, 2, 0x3f)); // G
+  pattern.setNote(0, 85, 0, Note(8, 5, 0x3f)); // Ab
+  pattern.setNote(0, 86, 0, Note(9, 5, 0x3f)); // 
+  pattern.setNote(0, 87, 0, Note(2, 1, 0x3f)); // C-5
 
   song->addPattern(pattern);  
     

@@ -293,5 +293,12 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<size_t>
 	}
       }
     }
+
+    auto & annotation = pattern.getAnnotation(row);
+    if (!annotation.empty()) {
+      setFgColor("#e03030");
+      setBgColor("#702020");
+      putstr(2 + row - current_score_scroll_row, current_pos + 2, annotation);
+    }
   }
 }
