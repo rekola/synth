@@ -43,30 +43,8 @@ Controller::loadDemo2() {
   song->bpm = 90;
   song->mastervol = 1.0f;
 
-  auto marimba = make_unique<BasicInstrument>(BasicInstrument::SINE);
-  marimba->setName("marimba");
-  marimba->setADSR(0, 15, 0.0f, 0);
-  song->addInstrument(move(marimba));
-
-#if 1
-  auto epiano = make_unique<BasicInstrument>(BasicInstrument::SAW);
-  epiano->setName("Electric Piano");
-  epiano->setADSR(0, 20, 0.0f, 0);
-  epiano->setFilter(63 / 255.0f, 128 / 63.0f);
-  song->addInstrument(move(epiano));
-#endif
-  
-#if 0
-  auto oboe = make_unique<FMInstrument>(7.8, 3, 5, 0.1f);
-  oboe->setName("i1");
-  oboe->setADSR(2, 15, 0.0f, 10);
-  oboe->setTranspose(24);
-  // oboe->addEffect(make_unique<Distortion>(Distortion::CLIP, 0.5f));
-  // oboe->addEffect(make_unique<Chorus>(5.0f, 0.0f));
-  // oboe->addEffect(make_unique<Reverb>(44100, Reverb::DEFAULT)); // LARGEROOM1));
-  oboe->setFilter(100 / 255.0f, 30 / 63.0f);
-  song->addInstrument(move(oboe));
-#endif
+  auto fluid = make_unique<SoundFontInstrument>("FluidR3_GM.sf2");
+  song->addInstrument(move(fluid));
   
   song->addTrack();
   
