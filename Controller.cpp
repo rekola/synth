@@ -81,12 +81,23 @@ Controller::loadDemo2() {
   pattern.setNote(0, 25, 0, Note(3, 2, 0x3f)); // G-4
   pattern.setNote(0, 26, 0, Note(2, 1, 0x3f)); // C-5
 
-  pattern.setAnnotation(36, "7-limit triads");
+  pattern.setAnnotation(30, "7-limit triads");
   
-  pattern.setNote(0, 36, 0, Note(1, 1, 0x3f)); // C-4
-  pattern.setNote(0, 36, 1, Note(7, 6, 0x3f)); // ?
-  pattern.setNote(0, 36, 2, Note(4, 3, 0x3f)); // F
-  pattern.setNote(0, 36, 3, Note(2, 1, 0x3f)); // C-5
+  pattern.setNote(0, 30, 0, Note(1, 1, 0x3f)); // C-4
+  pattern.setNote(0, 30, 1, Note(7, 6, 0x3f)); // ?
+  pattern.setNote(0, 30, 2, Note(4, 3, 0x3f)); // F
+  // pattern.setNote(0, 30, 3, Note(2, 1, 0x3f)); // C-5
+
+  pattern.setNote(0, 33, 0, Note(1, 1, 0x3f)); // C-4
+  pattern.setNote(0, 33, 1, Note(8, 7, 0x3f)); // ?
+  pattern.setNote(0, 33, 2, Note(4, 3, 0x3f)); // F
+  // pattern.setNote(0, 33, 3, Note(2, 1, 0x3f)); // C-5
+
+  pattern.setNote(0, 37, 0, Note(1, 1, 0x3f)); // C-4
+  pattern.setNote(0, 37, 1, Note(7, 6, 0x3f)); // ?
+  pattern.setNote(0, 37, 2, Note(4, 3, 0x3f)); // F
+  pattern.setNote(0, 37, 3, Note(7, 4, 0x3f)); // F
+  // pattern.setNote(0, 37, 3, Note(2, 1, 0x3f)); // C-5
 
   pattern.setNote(0, 40, 0, Note(1, 1, 0x3f)); // C-4
   pattern.setNote(0, 41, 0, Note(7, 6, 0x3f)); // ?
@@ -116,7 +127,7 @@ Controller::loadDemo2() {
   pattern.setNote(0, 63, 0, Note(4, 3, 0x3f)); // F
   pattern.setNote(0, 64, 0, Note(3, 2, 0x3f)); // G
   pattern.setNote(0, 65, 0, Note(8, 5, 0x3f)); // Ab
-  pattern.setNote(0, 66, 0, Note(7, 4, 0x3f)); // 
+  pattern.setNote(0, 66, 0, Note(9, 5, 0x3f)); // 
   pattern.setNote(0, 67, 0, Note(2, 1, 0x3f)); // C-5
 
   pattern.setAnnotation(70, "harmonic minor scale");
@@ -140,6 +151,24 @@ Controller::loadDemo2() {
   pattern.setNote(0, 85, 0, Note(8, 5, 0x3f)); // Ab
   pattern.setNote(0, 86, 0, Note(9, 5, 0x3f)); // 
   pattern.setNote(0, 87, 0, Note(2, 1, 0x3f)); // C-5
+
+  pattern.setAnnotation(90, "subminor pentatonic scale");
+
+  pattern.setNote(0, 90, 0, Note(1, 1, 0x3f)); // C-4
+  pattern.setNote(0, 91, 0, Note(7, 6, 0x3f)); // subminor third
+  pattern.setNote(0, 92, 0, Note(4, 3, 0x3f)); // F
+  pattern.setNote(0, 93, 0, Note(3, 2, 0x3f)); // G
+  pattern.setNote(0, 94, 0, Note(9, 5, 0x3f)); // 
+  pattern.setNote(0, 95, 0, Note(2, 1, 0x3f)); // C-5
+
+  pattern.setAnnotation(100, "septimal minor pentatonic scale");
+
+  pattern.setNote(0, 100, 0, Note(1, 1, 0x3f)); // C-4
+  pattern.setNote(0, 101, 0, Note(6, 5, 0x3f)); // minor thirds
+  pattern.setNote(0, 102, 0, Note(4, 3, 0x3f)); // F
+  pattern.setNote(0, 103, 0, Note(3, 2, 0x3f)); // G
+  pattern.setNote(0, 104, 0, Note(7, 4, 0x3f)); // 
+  pattern.setNote(0, 105, 0, Note(2, 1, 0x3f)); // C-5
 
   song->addPattern(pattern);  
     
