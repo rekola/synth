@@ -138,7 +138,7 @@ PatternEditor::offerInput(const UIInput & input) {
   } else {
     int midi_note = input.toMidiNote();
     if (midi_note != -1) {
-      Note note(midi_note);
+      Note note(midi_note, 0x3f);
       auto & pattern = song.getPattern(synth.getPatternPosition());
       auto & track = song.getTrack(current_score_cursor_col);
       auto & instrument = song.getInstrument(track.getInstrumentId());
@@ -146,9 +146,9 @@ PatternEditor::offerInput(const UIInput & input) {
       state.playNote(note, instrument.getTranspose(), instrument.getDetune());
 
       if (input.hasShift()) {
-	pattern.pushNote(synth.getTrackPosition(), current_score_cursor_col, note);
+	pattern.pushNote(current_score_cursor_col, synth.getTrackPosition(), note);
       } else {
-	pattern.setNote(synth.getTrackPosition(), current_score_cursor_col, 0, note);
+	pattern.setNote(current_score_cursor_col, synth.getTrackPosition(), 0, note);
       }
       row_edited = true;
 
@@ -253,7 +253,7 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<size_t>
 
       current_pos += 5;
     } else {
-      auto notes = pattern.getNotes(row, i);
+      auto notes = pattern.getNotes(i, row);
       auto note_columns = i < track_widths.size() ? track_widths[i] : 0;
       if (note_columns == 0) note_columns = 1;
       	

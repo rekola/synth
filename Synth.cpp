@@ -25,7 +25,7 @@ Synth::play(Song & song, size_t frames) {
 	auto & pattern = song.getPattern(getPatternPosition());
 	for (size_t col = 0; col < song.getTracks().size(); col++) {
 	  auto & track = song.getTrack(col);
-	  auto & notes = pattern.getNotes(getTrackPosition(), col);
+	  auto & notes = pattern.getNotes(col, getTrackPosition());
 	  if (!notes.empty()) {
 	    track.addPendingNotes(i, notes);
 	  }

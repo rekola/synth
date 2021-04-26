@@ -83,7 +83,7 @@ InstrumentList::offerInput(const UIInput & input) {
   } else {
     int midi_note = input.toMidiNote();
     if (midi_note != -1) {
-      Note note(midi_note);
+      Note note(midi_note, 0x3f);
       auto & instrument = song.getInstrument(new_cursor_row);
       instrument_state.playNote(note, instrument.getTranspose(), instrument.getDetune());
     }
