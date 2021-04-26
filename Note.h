@@ -7,7 +7,8 @@
 class Note {
  public:
   explicit Note() : midi_note(0), velocity(0x3f), numerator(0), denominator(0) { }
-  explicit Note(int _midi_note, short _velocity = 0x3f) : midi_note(_midi_note), numerator(0), denominator(0), velocity(_velocity) { }
+  explicit Note(int _numerator, int _denominator, short _velocity) : midi_note(0), velocity(_velocity), numerator(_numerator), denominator(_denominator) { }
+  explicit Note(int _midi_note, short _velocity) : midi_note(_midi_note), velocity(_velocity), numerator(0), denominator(0) { }
 
   short getMidiNote() const { return midi_note; }
   short getVelocity() const { return velocity; }
@@ -16,11 +17,16 @@ class Note {
   bool isOff() const { return midi_note == 1; }
   
   inline float getFrequency(int transpose, int detune) {
-    return 440 * powf(2, (midi_note - 69.0 + transpose + detune / 100.0f) / 12.0);
+    if (midi_note > 1) {
+      return 440 * powf(2, (midi_note - 69.0 + transpose + detune / 100.0f) / 12.0);
+    } else {
+      return 261.63f * numerator / denominator;
+    }
   }
 
   std::string toString() const {
-    if (midi_note >= 0) {
+    if (isOff()) return "OFF";
+    else if (midi_note > 1) {
       switch (midi_note) {
       case 127: return "G-9";
       case 126: return "F#9";
@@ -129,18 +135,40 @@ class Note {
       case 23: return "B-0";
       case 22: return "A#0";
       case 21: return "A-0";
-	
-      case 1: return "OFF";
       }
     } else {
       if (numerator == 1 && denominator == 1) {
 	return "P1";
-      } else if (numerator == 6 && denominator == 5) {
+      } else if (numerator == 16 && denominator == 15) {
+	return "m2";
+      } else if ((numerator == 10 && denominator == 9) || (numerator == 9 && denominator == 8)) {
+	return "M2";
+      } else if (numerator == 8 && denominator == 7) {
+	return "S2"; // or SM2 (https://en.wikipedia.org/wiki/Septimal_whole_tone)
+      } else if (numerator == 7 && denominator == 6) {
+	return "s3";
+      } else if (numerator == 6 && denominator == 5) {	
 	return "m3";
       } else if (numerator == 5 && denominator == 4) {
 	return "M3";
+      } else if (numerator == 9 && denominator == 7) {
+	return "S3";
+      } else if (numerator == 4 && denominator == 3) {
+	return "P4";
       } else if (numerator == 3 && denominator == 2) {
 	return "P5";
+      } else if (numerator == 8 && denominator == 5) {
+	return "m6";
+      } else if (numerator == 5 && denominator == 3) {
+	return "M6";
+      } else if (numerator == 9 && denominator == 5) {
+	return "m7";
+      } else if (numerator == 15 && denominator == 8) {
+	return "M7";
+      } else if (numerator == 2 && denominator == 1) {
+	return "P8";
+      } else {
+	return std::to_string(numerator) + ":" + std::to_string(denominator);
       }
     }
     return "???";
