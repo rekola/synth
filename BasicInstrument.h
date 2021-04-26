@@ -11,7 +11,7 @@ class BasicInstrument : public Instrument {
  public:
   enum WaveformType
   {
-    SINE = 1,
+    SINE = 0,
       SAW,
       SQUARE,
       NOISE, // metallic noise
