@@ -24,7 +24,10 @@ protected:
   size_t current_score_pattern = 0;
   size_t current_score_cursor_col = 0;
   size_t current_score_total_columns = 0;
+  size_t current_score_scroll_row = 0;
+
   size_t new_score_cursor_col = 0;
+  
   bool row_edited = false;
   int current_song_version = 0;
 };
