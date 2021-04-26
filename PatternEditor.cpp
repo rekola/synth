@@ -23,24 +23,45 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   size_t score_playing_row = synth.getTrackPosition();
   auto & song = getController().getSong();
   auto & current_pattern = song.getPattern(score_pattern);
-
-  auto [rows, cols] = getDim();
-
-  size_t new_score_scroll_row = current_score_scroll_row;
-  if (score_playing_row < new_score_scroll_row) {
-    new_score_scroll_row = score_playing_row;
-  } else if (score_playing_row >= new_score_scroll_row + rows - 3) {
-    new_score_scroll_row = score_playing_row - (rows - 3) + 1;
-  }
+  auto & tracks = song.getTracks();
 
   auto track_widths = current_pattern.getTrackWidths();
   size_t score_total_columns = 0;
   for (auto w : track_widths) score_total_columns += w;
 
+  auto [rows, cols] = getDim();
+
+  size_t new_scroll_row = current_scroll_row;
+  if (score_playing_row < new_scroll_row) {
+    new_scroll_row = score_playing_row;
+  } else if (score_playing_row >= new_scroll_row + rows - 3) {
+    new_scroll_row = score_playing_row - (rows - 3) + 1;
+  }
+
+  size_t new_scroll_col = current_scroll_col;
+  if (new_score_cursor_col < new_scroll_col) {
+    new_scroll_col = new_score_cursor_col;
+  } else {
+    while ( 1 ) {
+      size_t pos = 6;
+      for (size_t i = new_scroll_col; i < tracks.size() && i <= new_score_cursor_col; i++) {
+	auto note_columns = track_widths[i];
+	size_t actual_width = (note_columns == 0 ? 1 : note_columns) * 7;
+	pos += actual_width;
+      }
+      if (pos >= (size_t)cols) {
+	new_scroll_col++;
+      } else {
+	break;
+      }
+    }
+  }
+
   if (score_pattern != current_score_pattern ||
       song.getVersion() != current_song_version ||
       score_total_columns != current_score_total_columns ||
-      new_score_scroll_row != current_score_scroll_row
+      new_scroll_row != current_scroll_row ||
+      new_scroll_col != current_scroll_col
       ) {
     render_all = true;
   }
@@ -55,7 +76,8 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
 
   bool need_redraw = false;
   if (render_all) {
-    current_score_scroll_row = new_score_scroll_row;
+    current_scroll_row = new_scroll_row;
+    current_scroll_col = new_scroll_col;
     
     erase();
     setFgColor(styles.window_border_color);
@@ -155,8 +177,7 @@ PatternEditor::offerInput(const UIInput & input) {
       auto & pattern = song.getPattern(synth.getPatternPosition());
       auto & track = song.getTrack(current_score_cursor_col);
       auto & instrument = song.getInstrument(track.getInstrumentId());
-      auto & state = track.getState();
-      state.playNote(note, instrument.getTranspose(), instrument.getDetune());
+      track.playNote(note, instrument);
 
       if (input.hasShift()) {
 	pattern.pushNote(current_score_cursor_col, synth.getTrackPosition(), note);
@@ -195,6 +216,9 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<siz
 
   size_t current_pos = 6;
   for (size_t i = 0; i < tracks.size(); i++) {
+    if (i < current_scroll_col) continue;
+    if (current_pos >= cols) break;
+    
     auto note_columns = i < track_widths.size() ? track_widths[i] : 0;
     size_t actual_width = (note_columns == 0 ? 1 : note_columns) * 7;
     
@@ -216,7 +240,7 @@ void
 PatternEditor::renderRow(const StyleProvider & styles, const std::vector<size_t> & track_widths, size_t row, bool highlight) {
   auto [rows, cols] = getDim();
 
-  if (row >= current_score_scroll_row && row < current_score_scroll_row + rows - 3) {
+  if (row >= current_scroll_row && row < current_scroll_row + rows - 3) {
     auto & song = getController().getSong();
     auto & synth = getController().getSynth();
     auto & pattern = song.getPattern(synth.getPatternPosition());
@@ -225,14 +249,15 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<size_t>
     for (size_t i = 1; i < cols - 1; i++) padding += ' ';
     
     setBgColor(styles.window_bg_color);
-    putstr(2 + row - current_score_scroll_row, 1, padding);
+    putstr(2 + row - current_scroll_row, 1, padding);
     
     auto & tracks = song.getTracks();
     
     size_t current_pos = 1;
     for (int i = -1; i < (int)tracks.size(); i++) {
-      auto & track = tracks[i];
-      
+      if (i >= 0 && (size_t)i < current_scroll_col) continue;
+      if (current_pos >= cols) break;
+          
       UIColor fg, bg, cell_fg, cell_bg;
       
       if (highlight) {
@@ -258,15 +283,16 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<size_t>
 	setFgColor(cell_fg);
 	setBgColor(cell_bg);
 	
-	putstr(2 + row - current_score_scroll_row, current_pos, format(" {:02x} ", row));
+	putstr(2 + row - current_scroll_row, current_pos, format(" {:02x} ", row));
 	
 	setFgColor(styles.window_border_color);
 	setBgColor(styles.window_bg_color);
 	
-	putstr(2 + row - current_score_scroll_row, current_pos + 4, "│");
+	putstr(2 + row - current_scroll_row, current_pos + 4, "│");
 	
 	current_pos += 5;
       } else {
+	auto & track = tracks[i];
 	auto notes = pattern.getNotes(i, row);
 	auto note_columns = i < track_widths.size() ? track_widths[i] : 0;
 	if (note_columns == 0) note_columns = 1;
@@ -282,23 +308,25 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<size_t>
 	  setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 	  
-	  putstr(2 + row - current_score_scroll_row, current_pos, s);
+	  putstr(2 + row - current_scroll_row, current_pos, s);
 	  
 	  setFgColor(styles.window_border_color);
 	  setBgColor(bg);
 	  
-	  putstr(2 + row - current_score_scroll_row, current_pos + 6, "│");
+	  putstr(2 + row - current_scroll_row, current_pos + 6, "│");
 	  
 	  current_pos += 7;
 	}
       }
     }
 
-    auto & annotation = pattern.getAnnotation(row);
-    if (!annotation.empty()) {
-      setFgColor("#e03030");
-      setBgColor("#702020");
-      putstr(2 + row - current_score_scroll_row, current_pos + 2, annotation);
+    if (current_pos + 2 < (size_t)cols) {
+      auto & annotation = pattern.getAnnotation(row);
+      if (!annotation.empty()) {
+	setFgColor("#e03030");
+	setBgColor("#702020");
+	putstr(2 + row - current_scroll_row, current_pos + 2, annotation);
+      }
     }
   }
 }
