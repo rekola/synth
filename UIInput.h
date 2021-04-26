@@ -18,6 +18,9 @@
 
 #define NCKEY_DEL   suppuabize(7)
 #define NCKEY_BACKSPACE   suppuabize(8)
+#define NCKEY_PGDOWN  suppuabize(9)
+#define NCKEY_PGUP    suppuabize(10)
+
 #define NCKEY_ENTER   suppuabize(121)
 
 #define NCKEY_BUTTON1  suppuabize(201)
