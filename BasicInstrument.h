@@ -22,7 +22,7 @@ class BasicInstrument : public Instrument {
     
   }
 
-  float getSample(const InstrumentState & state) const override {
+  float getSample(InstrumentVoice & voice) const override {
     if (!is_initialized) initialize();
     
     long mask = WAVESIZE - 1;
@@ -30,7 +30,7 @@ class BasicInstrument : public Instrument {
     if (type == WaveformType::NOISE2) {
       return ((float)rand() / RAND_MAX) * 2.0 - 1.0;
     } else {
-      return waves[int(type)][(long)(state.getFphase() * WAVESIZE / 44100.0f) & mask];
+      return waves[int(type)][(long)(voice.getFphase() * WAVESIZE / 44100.0f) & mask];
     }
   }
   

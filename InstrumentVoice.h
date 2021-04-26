@@ -1,13 +1,14 @@
-#ifndef _INSTRUMENTSTATE_H_
-#define _INSTRUMENTSTATE_H_
+#ifndef _INSTRUMENTVOICE_H_
+#define _INSTRUMENTVOICE_H_
 
 #include "Note.h"
 #include "Envelope.h"
 
-class InstrumentState {
+class InstrumentVoice {
  public:
-  InstrumentState() { }
-
+  InstrumentVoice() { }
+  virtual ~InstrumentVoice() { }
+  
   float getFphase() const { return fphase; }
 
   float updateADSR(const Envelope & envelope) {
@@ -52,7 +53,7 @@ class InstrumentState {
     return adsrvol;
   }
 
-  void playNote(Note note, int transpose, int detune) {
+  virtual void playNote(Note note, int transpose, int detune) {
     float _velocity = note.getVelocityAsFloat();
     
     if (note.isOff()) {

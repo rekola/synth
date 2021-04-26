@@ -27,12 +27,12 @@ static inline float spow(float a, float p) {
 }
 
 float
-FMInstrument::getSample(const InstrumentState & state) const {
+FMInstrument::getSample(InstrumentVoice & voice) const {
   // double sound = GAIN * envelope(&note_active, gate, &env_level, env_time, attack, decay, sustain, release)
   //   * velocity * sin(phi + modulation * sin(phi_mod));
   // env_time += 1.0 / 44100.0;
 
-  float s = sin(state.phi + modulation * sin(state.phi_mod));
+  float s = sin(voice.phi + modulation * sin(voice.phi_mod));
   // return s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s;
   // return s;
   return s; // spow(s, 16);
@@ -41,15 +41,15 @@ FMInstrument::getSample(const InstrumentState & state) const {
 }
 
 void
-FMInstrument::stepForward(InstrumentState & state) {
-  Instrument::stepForward(state);
+FMInstrument::stepForward(InstrumentVoice & voice) {
+  Instrument::stepForward(voice);
 
-  double dphi = M_PI * state.freq / 22050.0;
+  double dphi = M_PI * voice.freq / 22050.0;
   double dphi_mod = dphi * (double)harmonic / (double)subharmonic;
     
-  state.phi += dphi;
-  state.phi_mod += dphi_mod;
+  voice.phi += dphi;
+  voice.phi_mod += dphi_mod;
   
-  if (state.phi > 2.0 * M_PI) state.phi -= 2.0 * M_PI;
-  if (state.phi_mod > 2.0 * M_PI) state.phi_mod -= 2.0 * M_PI;  
+  if (voice.phi > 2.0 * M_PI) voice.phi -= 2.0 * M_PI;
+  if (voice.phi_mod > 2.0 * M_PI) voice.phi_mod -= 2.0 * M_PI;  
 }

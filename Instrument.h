@@ -4,7 +4,7 @@
 #include "Effect.h"
 #include "Filter.h"
 #include "Note.h"
-#include "InstrumentState.h"
+#include "InstrumentVoice.h"
 #include "Envelope.h"
 
 #include <string>
@@ -12,16 +12,17 @@
 #include <cmath>
 #include <memory>
 
-class InstrumentState;
-
 class Instrument {
 public:
   explicit Instrument() { }
   virtual ~Instrument() { }
 
-  virtual float getSample(const InstrumentState & state) const = 0;
-  virtual void stepForward(InstrumentState & state) {
-    state.fphase += state.freq;
+  virtual float getSample(InstrumentVoice & voice) const = 0;
+  virtual void stepForward(InstrumentVoice & voice) {
+    voice.fphase += voice.freq;
+  }
+  virtual std::shared_ptr<InstrumentVoice> createVoice() const {
+    return std::make_shared<InstrumentVoice>();
   }
 
   void setName(const std::string & _name) { name = _name; }

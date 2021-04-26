@@ -12,8 +12,8 @@ class FileInstrument : public Instrument {
     openFile();
   }
   
-  float getSample(const InstrumentState & state) const override {
-    size_t i = (size_t)state.getFphase();
+  float getSample(InstrumentVoice & voice) const override {
+    size_t i = (size_t)voice.getFphase();
     if (i >= 0 && i < samples.size()) {
       return samples[i];
     } else {

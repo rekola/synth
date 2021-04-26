@@ -2,7 +2,6 @@
 #define _INSTRUMENTLIST_H_
 
 #include "UIElement.h"
-#include "InstrumentState.h"
 
 class StyleProvider;
 
@@ -22,7 +21,6 @@ protected:
   int current_song_version = 0;
   size_t new_scroll_pos = 0, current_scroll_pos = 0;
   size_t new_cursor_row = 0, current_cursor_row = 0;
-  InstrumentState instrument_state;
 };
 
 #endif

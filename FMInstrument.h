@@ -18,8 +18,8 @@ public:
   explicit FMInstrument(float _modulation, int _harmonic, int _subharmonic, float _n = 2)
     : modulation(_modulation), harmonic(_harmonic), subharmonic(_subharmonic), noise(0), n(_n) { }
 
-  float getSample(const InstrumentState & state) const override;
-  void stepForward(InstrumentState & state) override;
+  float getSample(InstrumentVoice & voice) const override;
+  void stepForward(InstrumentVoice & voice) override;
   
 private:
   double modulation, velocity, attack, decay, sustain, release, env_time, env_level;

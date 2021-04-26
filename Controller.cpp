@@ -4,6 +4,7 @@
 #include "BasicInstrument.h"
 #include "FMInstrument.h"
 #include "FileInstrument.h"
+#include "SoundFontInstrument.h"
 #include "Chorus.h"
 #include "Distortion.h"
 #include "Reverb.h"
@@ -16,6 +17,24 @@
 #include <unordered_map>
 
 using namespace std;
+
+void
+Controller::loadDemo3() {
+  auto song = make_shared<Song>();
+  song->bpm = 90;
+  song->mastervol = 1.0f;
+
+  auto fluid = make_unique<SoundFontInstrument>("FluidR3_GM.sf2");
+  song->addInstrument(move(fluid));
+
+  song->addTrack();
+  
+  Pattern pattern(128);  
+  pattern.setNote(0, 0, 0, Note(60, 0x3f)); // C-4
+  song->addPattern(pattern);  
+    
+  current_song = song;    
+}
 
 void
 Controller::loadDemo2() {

@@ -3,7 +3,7 @@
 
 #include "Note.h"
 #include "Instrument.h"
-#include "InstrumentState.h"
+#include "InstrumentVoice.h"
 
 #include <deque>
 #include <vector>
@@ -25,7 +25,7 @@ class Track {
   void setInstrumentId(int id) { instrument_id = id; }
   int getInstrumentId() const { return instrument_id; }
 
-  std::vector<InstrumentState> & getStates() { return states; }
+  std::vector<std::shared_ptr<InstrumentVoice> > & getVoices() { return voices; }
   
   void addPendingNotes(size_t frame, const std::vector<Note> & notes) {
     pending_notes.push_back(std::pair(frame, notes));
@@ -34,22 +34,22 @@ class Track {
   std::deque<std::pair<unsigned int, std::vector<Note> > > & getPendingNotes() { return pending_notes; }
 
   void playNote(const Note & note, const Instrument & instrument) {
-    for (auto & state : states) {
-      if (!state.isPlaying()) {
-	state.playNote(note, instrument.getTranspose(), instrument.getDetune());
+    for (auto & voice : voices) {
+      if (!voice->isPlaying()) {
+	voice->playNote(note, instrument.getTranspose(), instrument.getDetune());
 	return;
       }
     }
-    states.push_back(instrument.createVoice());
-    states.back().playNote(note, instrument.getTranspose(), instrument.getDetune());
+    voices.push_back(instrument.createVoice());
+    voices.back()->playNote(note, instrument.getTranspose(), instrument.getDetune());
   }
 
 private:
   int instrument_id = 0;
-  std::vector<InstrumentState> states;
+  std::vector<std::shared_ptr<InstrumentVoice> > voices;
   bool solo = false;
   float pan = 0.5f;
-  float volume = 0.15f;
+  float volume = 0.75f;
   std::shared_ptr<Track> first_child, next_sibling;
 
   std::deque<std::pair<unsigned int, std::vector<Note> > > pending_notes;
