@@ -68,7 +68,15 @@ class Synth {
       absolute_pos--;
     }
   }
-  
+
+  void moveForward(const Song & song, size_t rows) {
+    for (size_t i = 0; i < rows; i++) moveForward(song);
+  }
+
+  void moveBackwards(const Song & song, size_t rows) {
+    for (size_t i = 0; i < rows; i++) moveBackwards(song);
+  }
+
 private:
   bool is_playing = false;
 
