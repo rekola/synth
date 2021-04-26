@@ -16,7 +16,7 @@ class InstrumentList : public UIElement {
   bool render(const StyleProvider & styles, bool refresh = false);
 
 protected:
-  void renderRow(const StyleProvider & styles, size_t scroll_pos, size_t row, bool highlight);
+  void renderRow(const StyleProvider & styles, size_t row, bool highlight);
 
  private:
   int current_song_version = 0;

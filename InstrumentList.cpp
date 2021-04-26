@@ -20,33 +20,34 @@ InstrumentList::render(const StyleProvider & styles, bool refresh) {
 
   bool need_refresh = false;
   if (render_all) {
+    current_scroll_pos = new_scroll_pos;
+    
     setFgColor(styles.window_border_color);
     setBgColor(styles.window_bg_color);
     
     getPlane().drawBorder();
     
     for (size_t i = 0; i < song.getInstruments().size(); i++) {
-      renderRow(styles, new_scroll_pos, i, i == new_cursor_row);
+      renderRow(styles, i, i == new_cursor_row);
     }
     need_refresh = true;
   } else if (new_cursor_row != current_cursor_row) {
-    renderRow(styles, current_scroll_pos, current_cursor_row, false);
-    renderRow(styles, current_scroll_pos, new_cursor_row, true);
+    renderRow(styles, current_cursor_row, false);
+    renderRow(styles, new_cursor_row, true);
     need_refresh = true;
   }
 
   current_song_version = song.getVersion();
   current_cursor_row = new_cursor_row;
-  current_scroll_pos = new_scroll_pos;
   
   return need_refresh;
 }
 
 void
-InstrumentList::renderRow(const StyleProvider & styles, size_t scroll_pos, size_t row, bool highlight) {
+InstrumentList::renderRow(const StyleProvider & styles, size_t row, bool highlight) {
   auto [rows, cols] = getDim();
 
-  if (row >= scroll_pos && row < scroll_pos + rows - 2) {
+  if (row >= current_scroll_pos && row < current_scroll_pos + rows - 2) {
     auto & song = getController().getSong();
     auto & instrument = *(song.getInstruments()[row]);
         
@@ -59,7 +60,7 @@ InstrumentList::renderRow(const StyleProvider & styles, size_t scroll_pos, size_
     }
     auto line = instrument.getName();
     while (int(line.size()) < cols - 2) line += ' ';
-    putstr(1 + row - scroll_pos, 1, line);
+    putstr(1 + row - current_scroll_pos, 1, line);
   }
 }
 
