@@ -37,7 +37,7 @@ private:
   InstrumentState state;
   bool solo = false;
   float pan = 0.5f;
-  float volume = 1.0f;
+  float volume = 0.5f;
   std::shared_ptr<Track> first_child, next_sibling;
 
   std::deque<std::pair<unsigned int, std::vector<Note> > > pending_notes;
