@@ -69,7 +69,7 @@ class InstrumentVoice {
     }
   }
 
-  bool isPlaying() const { return adsrstate < 4 && freq != 0; }
+  virtual bool isPlaying() const { return adsrstate < 4 && freq != 0; }
 
   float getVelocity() const { return velocity; }
 
