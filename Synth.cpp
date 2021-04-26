@@ -37,7 +37,6 @@ Synth::play(Song & song, size_t frames) {
   }
 
   for (auto & track : song.getTracks()) {
-    auto & state = track.getState();
     auto & instrument = song.getInstrument(track.getInstrumentId());
     
     SampleData data(1, frames);
@@ -51,22 +50,25 @@ Synth::play(Song & song, size_t frames) {
 	  auto & notes = front.second;
 	  for (auto & note : notes) {
 	    if (note.isDefined()) {
-	      state.playNote(note, instrument.getTranspose(), instrument.getDetune());
+	      track.playNote(note, instrument);
 	    }
 	  }
 	  pending.pop_front();
 	}
       }
-      
-      float adsrvol = state.updateADSR(instrument.getEnvelope());
-      float ss = instrument.getSample(state) * state.getVelocity() * track.getVolume() * adsrvol;
+
+      float ss = 0;
+      for (auto & state : track.getStates()) {
+	float adsrvol = state.updateADSR(instrument.getEnvelope());
+	ss += instrument.getSample(state) * state.getVelocity() * track.getVolume() * adsrvol;
+	// if (solo_instrument != -1 && pattern.getInstrumentId() != solo_instrument) ss = 0;
+	instrument.stepForward(state);
+      }
 
       if (ss > 1.0) ss = 1.0;
       else if (ss < -1.0) ss = -1.0;
 
       buffer[i] = ss;
-      // if (solo_instrument != -1 && pattern.getInstrumentId() != solo_instrument) ss = 0;
-      instrument.stepForward(state);
     }
 
     instrument.applyEffects(data);
