@@ -22,9 +22,11 @@
 
 */
 
-#include "SoundFontInstrument.h"
+#include "SoundFont.h"
 
 using namespace std;
+
+typedef struct tsf tsf;
 
 // Supported output modes by the render methods
 enum TSFOutputMode {
@@ -126,17 +128,8 @@ struct tsf_stream {
 // Generic SoundFont loading method using the stream structure above
 tsf* tsf_load(struct tsf_stream* stream);
 
-// Returns the preset index from a bank and preset number, or -1 if it does not exist in the loaded SoundFont
-int tsf_get_presetindex(const tsf* f, int bank, int preset_number);
-
 // Returns the number of presets in the loaded SoundFont
 int tsf_get_presetcount(const tsf* f);
-
-// Returns the name of a preset index >= 0 and < tsf_get_presetcount()
-const char* tsf_get_presetname(const tsf* f, int preset_index);
-
-// Returns the name of a preset by bank and preset number
-const char* tsf_bank_get_presetname(const tsf* f, int bank, int preset_number);
 
 // Thread safety:
 // Your audio output which calls the tsf_render* functions will most likely
@@ -1080,6 +1073,8 @@ void tsf_reset(tsf* f)
 }
 #endif
 
+// Returns the preset index from a bank and preset number, or -1 if it does not exist in the loaded SoundFont
+
 int tsf_get_presetindex(const tsf* f, int bank, int preset_number)
 {
 	const struct tsf_preset *presets;
@@ -1088,21 +1083,6 @@ int tsf_get_presetindex(const tsf* f, int bank, int preset_number)
 		if (presets[i].preset == preset_number && presets[i].bank == bank)
 			return i;
 	return -1;
-}
-
-int tsf_get_presetcount(const tsf* f)
-{
-	return f->presetNum;
-}
-
-const char* tsf_get_presetname(const tsf* f, int preset)
-{
-	return (preset < 0 || preset >= f->presetNum ? NULL : f->presets[preset].presetName);
-}
-
-const char* tsf_bank_get_presetname(const tsf* f, int bank, int preset_number)
-{
-	return tsf_get_presetname(f, tsf_get_presetindex(f, bank, preset_number));
 }
 
 // Set the global gain as a volume factor
@@ -1494,22 +1474,50 @@ TCMC_SET_DATA:
 
 #endif
 
-void
-SoundFontInstrument::openFile() {
-  tsf_handle = tsf_load_filename(filename.c_str());
-
-  tsf_handle->outputmode = TSF_MONO;
-  tsf_handle->outSampleRate = 44100.0f;
-  tsf_handle->globalGainDB = 0.0f;
-}
-
-class SoundFontInstrumentVoice : public InstrumentVoice {
+class SoundFontFile {
 public:
-  SoundFontInstrumentVoice() {
+  SoundFontFile(std::string filename) {
+    f = tsf_load_filename(filename.c_str());
+    
+    f->outputmode = TSF_MONO;
+    f->outSampleRate = 44100.0f;
+    f->globalGainDB = 0.0f;
+  }
+  ~SoundFontFile() {
+    tsf_close(f);
+  }
+
+  // Returns the name of a preset index >= 0 and < tsf_get_presetcount()
+  string getPresetName(size_t index) const {
+    if (index < f->presetNum) return f->presets[index].presetName;
+    else return "";
+  }
+
+  // Returns the name of a preset by bank and preset number
+  string getBankPresetName(size_t bank, size_t preset_number) const {
+    size_t preset_index = tsf_get_presetindex(f, bank, preset_number);
+    return getPresetName(preset_index);
+  }
+
+  tsf * getHandle() { return f; }
+  size_t getPresetCount() const { return f->presetNum; }
+  
+private:
+  tsf * f;
+};
+
+void
+SoundFont::openFile() {
+  sf = make_shared<SoundFontFile>(filename);  
+}  
+
+class SoundFontVoice : public InstrumentVoice {
+public:
+  SoundFontVoice(std::shared_ptr<SoundFontFile> _sf, size_t _preset) : sf(_sf), preset(_preset) {
     voice = new tsf_voice;
     voice->playingPreset = -1;
   }
-  ~SoundFontInstrumentVoice() {
+  ~SoundFontVoice() {
     delete voice;
   }
 
@@ -1519,7 +1527,8 @@ public:
   }
 
   void stopNote() {
-    assert(f && voice);
+    assert(voice);
+    auto f = sf->getHandle();
     
     tsf_voice_envelope_nextsegment(&voice->ampenv, TSF_SEGMENT_SUSTAIN, f->outSampleRate);
     tsf_voice_envelope_nextsegment(&voice->modenv, TSF_SEGMENT_SUSTAIN, f->outSampleRate);
@@ -1530,7 +1539,8 @@ public:
   }
 
   void stopNoteQuick() {
-    assert(f && voice);
+    assert(voice);
+    auto f = sf->getHandle();
 
     voice->ampenv.parameters.release = 0.0f;
     tsf_voice_envelope_nextsegment(&voice->ampenv, TSF_SEGMENT_SUSTAIN, f->outSampleRate);
@@ -1538,38 +1548,22 @@ public:
     voice->modenv.parameters.release = 0.0f;
     tsf_voice_envelope_nextsegment(&voice->modenv, TSF_SEGMENT_SUSTAIN, f->outSampleRate);
   }
-
-  tsf * f = 0;
+  
   tsf_voice * voice = 0;
-  int preset;
+
+private:
+  shared_ptr<SoundFontFile> sf;
+  size_t preset;
 };
 
-float
-SoundFontInstrument::getSample(InstrumentVoice & _voice) const {
-  float buffer[1];
-  buffer[0] = 0;
-  
-  auto & voice = dynamic_cast<SoundFontInstrumentVoice&>(_voice);
-  
-  tsf_voice_render(tsf_handle, voice.voice, buffer, 1);
-  
-  return buffer[0];
-}
-
-std::shared_ptr<InstrumentVoice>
-SoundFontInstrument::createVoice() const {
-  auto voice = make_shared<SoundFontInstrumentVoice>();
-  voice->f = tsf_handle;
-  voice->preset = preset;
-  return voice;
-}
-
 void
-SoundFontInstrumentVoice::playNote(Note note, int transpose, int detune) {
+SoundFontVoice::playNote(Note note, int transpose, int detune) {
   if (note.isOff()) {
     stopNote();    
     return;
   }
+
+  auto f = sf->getHandle();
   
   // short midiVelocity = 63; // (short)(vel * 127);  
   double frequency = note.getFrequency(transpose, detune);
@@ -1636,10 +1630,46 @@ SoundFontInstrumentVoice::playNote(Note note, int transpose, int detune) {
     tsf_voice_lfo_setup(&voice->modlfo, region->delayModLFO, region->freqModLFO, f->outSampleRate);
     tsf_voice_lfo_setup(&voice->viblfo, region->delayVibLFO, region->freqVibLFO, f->outSampleRate);
 
-    break;
+    break; // FIXME, add subvoices
   }
 }
 
-SoundFontInstrument::~SoundFontInstrument() {
-  tsf_close(tsf_handle);
+class SoundFontInstrument : public Instrument {
+public:
+  SoundFontInstrument(std::shared_ptr<SoundFontFile> _sf, size_t _preset) : sf(_sf), preset(_preset) { }
+  
+  float getSample(InstrumentVoice & _voice) const override {
+    float buffer[1];
+    buffer[0] = 0;
+    
+    auto & voice = dynamic_cast<SoundFontVoice&>(_voice);
+
+    tsf * tsf_handle = sf->getHandle();
+    tsf_voice_render(tsf_handle, voice.voice, buffer, 1);
+    
+    return buffer[0];
+  }
+
+  std::shared_ptr<InstrumentVoice> createVoice() const override {
+    return make_shared<SoundFontVoice>(sf, preset);
+  }
+
+private:
+  shared_ptr<SoundFontFile> sf;
+  size_t preset;
+};
+
+std::unique_ptr<Instrument>
+SoundFont::createInstrument(size_t preset) {
+  auto instrument = make_unique<SoundFontInstrument>(sf, preset);
+  instrument->setName(sf->getPresetName(preset));
+  return instrument;
+}
+
+std::vector<std::unique_ptr<Instrument> >
+SoundFont::createAll() {
+  std::vector<std::unique_ptr<Instrument> > r;
+  size_t n = sf->getPresetCount();
+  for (size_t i = 0; i < n; i++) r.push_back(createInstrument(i));
+  return r;
 }

@@ -4,7 +4,7 @@
 #include "Track.h"
 #include "Pattern.h"
 // #include "Sequence.h"
-#include "Instrument.h"
+#include "InstrumentSet.h"
 
 #include <memory>
 #include <vector>
@@ -34,6 +34,11 @@ class Song {
   void addInstrument(std::unique_ptr<Instrument> i) {
     instruments.push_back(std::move(i));
     incVersion();
+  }
+
+  void addInstruments(InstrumentSet & is) {
+    auto v = is.createAll();
+    for (auto & instrument : v) addInstrument(std::move(instrument));
   }
 
   void incVersion() { version++; }

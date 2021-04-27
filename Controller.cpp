@@ -4,7 +4,7 @@
 #include "BasicInstrument.h"
 #include "FMInstrument.h"
 #include "FileInstrument.h"
-#include "SoundFontInstrument.h"
+#include "SoundFont.h"
 #include "Chorus.h"
 #include "Distortion.h"
 #include "Reverb.h"
@@ -24,11 +24,11 @@ Controller::loadDemo3() {
   song->bpm = 90;
   song->mastervol = 1.0f;
 
-  auto fluid = make_unique<SoundFontInstrument>("FluidR3_GM.sf2", 0);
+  auto fluid = make_unique<SoundFont>("FluidR3_GM.sf2");
   // auto fluid = make_unique<SoundFontInstrument>("Tabla.sf2", 0);
   // auto fluid = make_unique<SoundFontInstrument>("FatBoy-v0.790.sf2", 6);
   // auto fluid = make_unique<SoundFontInstrument>("Musyng.sfpack", 0);
-  song->addInstrument(move(fluid));
+  song->addInstruments(*fluid);
 
   song->addTrack();
   
@@ -49,8 +49,8 @@ Controller::loadDemo2() {
   song->mastervol = 1.0f;
 
 #if 1
-  auto fluid = make_unique<SoundFontInstrument>("FluidR3_GM.sf2", 8);
-  song->addInstrument(move(fluid));
+  auto fluid = make_unique<SoundFont>("FluidR3_GM.sf2");
+  song->addInstrument(fluid->createInstrument(0));
 #else
   auto epiano = make_unique<BasicInstrument>(BasicInstrument::SAW);
   epiano->setName("Electric Piano");

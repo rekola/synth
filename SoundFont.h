@@ -1,0 +1,28 @@
+#ifndef _SOUNDFONT_H_
+#define _SOUNDFONT_H_
+
+#include "InstrumentSet.h"
+
+#include <string>
+
+class SoundFontFile;
+
+class SoundFont : public InstrumentSet {
+ public:  
+  explicit SoundFont(std::string _filename) : filename(_filename) {
+    openFile();
+  }
+
+  std::unique_ptr<Instrument> createInstrument(size_t preset) override;
+  std::vector<std::unique_ptr<Instrument> > createAll() override;
+  
+protected:
+  void openFile();
+
+private:
+  std::shared_ptr<SoundFontFile> sf;
+  std::string filename;
+  int preset;
+};
+
+#endif
