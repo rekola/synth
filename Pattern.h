@@ -2,6 +2,7 @@
 #define _PATTERN_H_
 
 #include "Note.h"
+#include "Tuning.h"
 
 #define DEFAULT_PATTERN_LENGTH 32
 
@@ -82,6 +83,8 @@ class Pattern {
   }
 
 private:
+  short key_note_number = 0;
+  Tuning tuning = Tuning::INHERIT;
   std::string name;
   size_t num_rows;
   // sparse note matrix: row, track, note_column
