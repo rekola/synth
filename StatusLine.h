@@ -9,21 +9,24 @@ class StatusLine : public UIElement {
   StatusLine(UIPlane & parent) : UIElement(parent) { }
 
   void setMessage(const std::string & s) {
-    erase();
-    putstr(0, 0, s.c_str());
+    if (getPlane().readerActive()) {
+      pending_message = s;
+    } else {
+      erase();
+      putstr(0, 0, s.c_str());
+    }
   }
 
   bool offerInput(const UIInput & input) override {
     if (getPlane().readerActive()) {
       if (input.getId() == NCKEY_ENTER) {
-	std::string cmd = getPlane().closeReader();
-	setMessage("");
+	std::string cmd = closeReader();
 	if (!getController().sendCommand(cmd)) {
 	  setMessage("Invalid command");
 	}
 	return true;
       } else if (input.hasCtrl() && input.getId() == 'g') {
-	getPlane().closeReader();
+	closeReader();
 	return true;
       } else {
 	return UIElement::offerInput(input);	
@@ -41,8 +44,20 @@ class StatusLine : public UIElement {
     return false;
   }
 
+  std::string closeReader() {
+    std::string cmd = getPlane().closeReader();
+    if (pending_message.empty()) {
+      setMessage("");
+    } else {
+      setMessage(pending_message);
+      pending_message.clear();
+    }
+    return cmd;
+  }
+  
 private:
   bool meta_pressed = false;
+  std::string pending_message;
 };
 
 #endif
