@@ -75,18 +75,7 @@ struct tsf_preset {
   int regionNum;
 };
 
-struct tsf_voice {
-  int playingPreset, playingChannel;
-  double apparentPlayingKey;
-  struct tsf_region* region;
-  double pitchInputTimecents, pitchOutputFactor;
-  double sourceSamplePosition;
-  float  noteGainDB, panFactorLeft, panFactorRight;
-  unsigned int loopStart, loopEnd;
-  struct tsf_voice_envelope ampenv, modenv;
-  struct tsf_voice_lowpass lowpass;
-  struct tsf_voice_lfo modlfo, viblfo;
-};
+class SoundFontVoice;
 
 struct tsf_channel {
   unsigned short presetIndex, bank, pitchWheel, midiPan, midiVolume, midiExpression, midiRPN, midiData;
@@ -94,7 +83,7 @@ struct tsf_channel {
 };
 
 struct tsf_channels {
-  void (*setupVoice)(tsf* f, struct tsf_voice* voice);
+  void (*setupVoice)(tsf* f, SoundFontVoice * voice);
   struct tsf_channel* channels;
   int channelNum, activeChannel;
 };
@@ -657,109 +646,95 @@ static void tsf_load_samples(float** fontSamples, unsigned int* fontSampleCount,
 	}
 }
 
-static void tsf_voice_envelope_nextsegment(struct tsf_voice_envelope* e, short active_segment, float outSampleRate)
-{
-	switch (active_segment)
-	{
-		case TSF_SEGMENT_NONE:
-			e->samplesUntilNextSegment = (int)(e->parameters.delay * outSampleRate);
-			if (e->samplesUntilNextSegment > 0)
-			{
-				e->segment = TSF_SEGMENT_DELAY;
-				e->segmentIsExponential = false;
-				e->level = 0.0;
-				e->slope = 0.0;
-				return;
-			}
-			/* fall through */
-		case TSF_SEGMENT_DELAY:
-			e->samplesUntilNextSegment = (int)(e->parameters.attack * outSampleRate);
-			if (e->samplesUntilNextSegment > 0)
-			{
-				if (!e->isAmpEnv)
-				{
-					//mod env attack duration scales with velocity (velocity of 1 is full duration, max velocity is 0.125 times duration)
-					e->samplesUntilNextSegment = (int)(e->parameters.attack * ((145 - e->midiVelocity) / 144.0f) * outSampleRate);
-				}
-				e->segment = TSF_SEGMENT_ATTACK;
-				e->segmentIsExponential = false;
-				e->level = 0.0f;
-				e->slope = 1.0f / e->samplesUntilNextSegment;
-				return;
-			}
-			/* fall through */
-		case TSF_SEGMENT_ATTACK:
-			e->samplesUntilNextSegment = (int)(e->parameters.hold * outSampleRate);
-			if (e->samplesUntilNextSegment > 0)
-			{
-				e->segment = TSF_SEGMENT_HOLD;
-				e->segmentIsExponential = false;
-				e->level = 1.0f;
-				e->slope = 0.0f;
-				return;
-			}
-			/* fall through */
-		case TSF_SEGMENT_HOLD:
-			e->samplesUntilNextSegment = (int)(e->parameters.decay * outSampleRate);
-			if (e->samplesUntilNextSegment > 0)
-			{
-				e->segment = TSF_SEGMENT_DECAY;
-				e->level = 1.0f;
-				if (e->isAmpEnv)
-				{
-					// I don't truly understand this; just following what LinuxSampler does.
-					float mysterySlope = -9.226f / e->samplesUntilNextSegment;
-					e->slope = expf(mysterySlope);
-					e->segmentIsExponential = true;
-					if (e->parameters.sustain > 0.0f)
-					{
-						// Again, this is following LinuxSampler's example, which is similar to
-						// SF2-style decay, where "decay" specifies the time it would take to
-						// get to zero, not to the sustain level.  The SFZ spec is not that
-						// specific about what "decay" means, so perhaps it's really supposed
-						// to specify the time to reach the sustain level.
-						e->samplesUntilNextSegment = (int)(log(e->parameters.sustain) / mysterySlope);
-					}
-				}
-				else
-				{
-					e->slope = -1.0f / e->samplesUntilNextSegment;
-					e->samplesUntilNextSegment = (int)(e->parameters.decay * (1.0f - e->parameters.sustain) * outSampleRate);
-					e->segmentIsExponential = false;
-				}
-				return;
-			}
-			/* fall through */
-		case TSF_SEGMENT_DECAY:
-			e->segment = TSF_SEGMENT_SUSTAIN;
-			e->level = e->parameters.sustain;
-			e->slope = 0.0f;
-			e->samplesUntilNextSegment = 0x7FFFFFFF;
-			e->segmentIsExponential = false;
-			return;
-		case TSF_SEGMENT_SUSTAIN:
-			e->segment = TSF_SEGMENT_RELEASE;
-			e->samplesUntilNextSegment = (int)((e->parameters.release <= 0 ? TSF_FASTRELEASETIME : e->parameters.release) * outSampleRate);
-			if (e->isAmpEnv)
-			{
-				// I don't truly understand this; just following what LinuxSampler does.
-				float mysterySlope = -9.226f / e->samplesUntilNextSegment;
-				e->slope = expf(mysterySlope);
-				e->segmentIsExponential = true;
-			}
-			else
-			{
-				e->slope = -e->level / e->samplesUntilNextSegment;
-				e->segmentIsExponential = false;
-			}
-			return;
-		case TSF_SEGMENT_RELEASE:
-		default:
-			e->segment = TSF_SEGMENT_DONE;
-			e->segmentIsExponential = false;
-			e->level = e->slope = 0.0f;
-			e->samplesUntilNextSegment = 0x7FFFFFF;
+static void tsf_voice_envelope_nextsegment(struct tsf_voice_envelope* e, short active_segment, float outSampleRate) {
+  switch (active_segment) {
+  case TSF_SEGMENT_NONE:
+    e->samplesUntilNextSegment = (int)(e->parameters.delay * outSampleRate);
+    if (e->samplesUntilNextSegment > 0) {
+      e->segment = TSF_SEGMENT_DELAY;
+      e->segmentIsExponential = false;
+      e->level = 0.0;
+      e->slope = 0.0;
+      return;
+    }
+    /* fall through */
+  case TSF_SEGMENT_DELAY:
+    e->samplesUntilNextSegment = (int)(e->parameters.attack * outSampleRate);
+    if (e->samplesUntilNextSegment > 0) {
+      if (!e->isAmpEnv) {
+	// mod env attack duration scales with velocity (velocity of 1 is full duration, max velocity is 0.125 times duration)
+	e->samplesUntilNextSegment = (int)(e->parameters.attack * ((145 - e->midiVelocity) / 144.0f) * outSampleRate);
+      }
+      e->segment = TSF_SEGMENT_ATTACK;
+      e->segmentIsExponential = false;
+      e->level = 0.0f;
+      e->slope = 1.0f / e->samplesUntilNextSegment;
+      return;
+    }
+    /* fall through */
+  case TSF_SEGMENT_ATTACK:
+    e->samplesUntilNextSegment = (int)(e->parameters.hold * outSampleRate);
+    if (e->samplesUntilNextSegment > 0) {
+      e->segment = TSF_SEGMENT_HOLD;
+      e->segmentIsExponential = false;
+      e->level = 1.0f;
+      e->slope = 0.0f;
+      return;
+    }
+    /* fall through */
+  case TSF_SEGMENT_HOLD:
+    e->samplesUntilNextSegment = (int)(e->parameters.decay * outSampleRate);
+    if (e->samplesUntilNextSegment > 0) {
+      e->segment = TSF_SEGMENT_DECAY;
+      e->level = 1.0f;
+      if (e->isAmpEnv) {
+	// I don't truly understand this; just following what LinuxSampler does.
+	float mysterySlope = -9.226f / e->samplesUntilNextSegment;
+	e->slope = expf(mysterySlope);
+	e->segmentIsExponential = true;
+	if (e->parameters.sustain > 0.0f) {
+	  // Again, this is following LinuxSampler's example, which is similar to
+	  // SF2-style decay, where "decay" specifies the time it would take to
+	  // get to zero, not to the sustain level.  The SFZ spec is not that
+	  // specific about what "decay" means, so perhaps it's really supposed
+	  // to specify the time to reach the sustain level.
+	  e->samplesUntilNextSegment = (int)(log(e->parameters.sustain) / mysterySlope);
 	}
+      } else {
+	e->slope = -1.0f / e->samplesUntilNextSegment;
+	e->samplesUntilNextSegment = (int)(e->parameters.decay * (1.0f - e->parameters.sustain) * outSampleRate);
+	e->segmentIsExponential = false;
+      }
+      return;
+    }
+    /* fall through */
+  case TSF_SEGMENT_DECAY:
+    e->segment = TSF_SEGMENT_SUSTAIN;
+    e->level = e->parameters.sustain;
+    e->slope = 0.0f;
+    e->samplesUntilNextSegment = 0x7FFFFFFF;
+    e->segmentIsExponential = false;
+    return;
+  case TSF_SEGMENT_SUSTAIN:
+    e->segment = TSF_SEGMENT_RELEASE;
+    e->samplesUntilNextSegment = (int)((e->parameters.release <= 0 ? TSF_FASTRELEASETIME : e->parameters.release) * outSampleRate);
+    if (e->isAmpEnv) {
+      // I don't truly understand this; just following what LinuxSampler does.
+      float mysterySlope = -9.226f / e->samplesUntilNextSegment;
+      e->slope = expf(mysterySlope);
+      e->segmentIsExponential = true;
+    } else {
+      e->slope = -e->level / e->samplesUntilNextSegment;
+      e->segmentIsExponential = false;
+    }
+    return;
+  case TSF_SEGMENT_RELEASE:
+  default:
+    e->segment = TSF_SEGMENT_DONE;
+    e->segmentIsExponential = false;
+    e->level = e->slope = 0.0f;
+    e->samplesUntilNextSegment = 0x7FFFFFF;
+  }
 }
 
 static void tsf_voice_envelope_setup(struct tsf_voice_envelope* e, struct tsf_envelope* new_parameters, int midiNoteNumber, short midiVelocity, bool isAmpEnv, float outSampleRate)
@@ -817,20 +792,121 @@ static void tsf_voice_lfo_process(struct tsf_voice_lfo* e, int blockSamples) {
   else if (e->level < -1.0f) { e->delta = -e->delta; e->level = -2.0f - e->level; }
 }
 
-static void tsf_voice_kill(struct tsf_voice* v) {
-  v->playingPreset = -1;
+// Returns the preset index from a bank and preset number, or -1 if it does not exist in the loaded SoundFont
+
+int tsf_get_presetindex(const tsf* f, int bank, int preset_number) {
+  const struct tsf_preset *presets;
+  int i, iMax;
+  for (presets = f->presets, i = 0, iMax = f->presetNum; i < iMax; i++) {
+    if (presets[i].preset == preset_number && presets[i].bank == bank) {
+      return i;
+    }
+  }
+  return -1;
 }
 
-static void tsf_voice_calcpitchratio(struct tsf_voice* v, float pitchShift, float outSampleRate) {
-  double note = v->apparentPlayingKey + v->region->transpose + v->region->tune / 100.0;
-  double adjustedPitch = v->region->pitch_keycenter + (note - v->region->pitch_keycenter) * (v->region->pitch_keytrack / 100.0);
+class SoundFontFile {
+public:
+  SoundFontFile(std::string filename) {
+    f = tsf_load_filename(filename.c_str());
+    
+    f->outputmode = TSF_MONO;
+    f->outSampleRate = 44100.0f;
+    f->globalGainDB = 0.0f;
+  }
+  ~SoundFontFile() {
+    struct tsf_preset *preset, *presetEnd;
+    if (!f) return;
+    for (preset = f->presets, presetEnd = preset + f->presetNum; preset != presetEnd; preset++) {
+      free(preset->regions);
+    }
+    free(f->presets);
+    free(f->fontSamples);
+    if (f->channels) { free(f->channels->channels); free(f->channels); }
+    free(f->outputSamples);
+    free(f);
+  }
+
+  // Returns the name of a preset index >= 0 and < tsf_get_presetcount()
+  string getPresetName(size_t index) const {
+    if (index < f->presetNum) return f->presets[index].presetName;
+    else return "";
+  }
+
+  // Returns the name of a preset by bank and preset number
+  string getBankPresetName(size_t bank, size_t preset_number) const {
+    size_t preset_index = tsf_get_presetindex(f, bank, preset_number);
+    return getPresetName(preset_index);
+  }
+
+  tsf * getHandle() { return f; }
+  size_t getPresetCount() const { return f->presetNum; }
+  
+private:
+  tsf * f;
+};
+
+class SoundFontVoice : public InstrumentVoice {
+public:
+  SoundFontVoice(int _identifier, std::shared_ptr<SoundFontFile> _sf, size_t _preset = 0)
+    : InstrumentVoice(_identifier), sf(_sf), preset(_preset) {
+    playingPreset = -1;
+  }
+
+  void playNote(Note note, int transpose, int detune) override;
+  bool isPlaying() const override { return playingPreset != -1; }
+
+  void kill() {
+    playingPreset = -1;
+  }
+
+  void stopNote() override {
+    auto f = sf->getHandle();
+    
+    tsf_voice_envelope_nextsegment(&ampenv, TSF_SEGMENT_SUSTAIN, f->outSampleRate);
+    tsf_voice_envelope_nextsegment(&modenv, TSF_SEGMENT_SUSTAIN, f->outSampleRate);
+    if (voiceRegion->loop_mode == TSF_LOOPMODE_SUSTAIN) {
+      // Continue playing, but stop looping.
+      loopEnd = loopStart;
+    }
+  }
+
+  void stopNoteQuick() {
+    auto f = sf->getHandle();
+
+    ampenv.parameters.release = 0.0f;
+    tsf_voice_envelope_nextsegment(&ampenv, TSF_SEGMENT_SUSTAIN, f->outSampleRate);
+    
+    modenv.parameters.release = 0.0f;
+    tsf_voice_envelope_nextsegment(&modenv, TSF_SEGMENT_SUSTAIN, f->outSampleRate);
+  }
+    
+  int playingPreset, playingChannel;
+  double apparentPlayingKey;
+  struct tsf_region * voiceRegion;
+  double pitchInputTimecents, pitchOutputFactor;
+  double sourceSamplePosition;
+  float  noteGainDB, panFactorLeft, panFactorRight;
+  unsigned int loopStart, loopEnd;
+  struct tsf_voice_envelope ampenv, modenv;
+  struct tsf_voice_lowpass lowpass;
+  struct tsf_voice_lfo modlfo, viblfo;
+
+private:
+  shared_ptr<SoundFontFile> sf;
+  size_t preset;
+};
+
+static void tsf_voice_calcpitchratio(SoundFontVoice * v, float pitchShift, float outSampleRate) {
+  double note = v->apparentPlayingKey + v->voiceRegion->transpose + v->voiceRegion->tune / 100.0;
+  double adjustedPitch = v->voiceRegion->pitch_keycenter + (note - v->voiceRegion->pitch_keycenter) * (v->voiceRegion->pitch_keytrack / 100.0);
   if (pitchShift) adjustedPitch += pitchShift;
   v->pitchInputTimecents = adjustedPitch * 100.0;
-  v->pitchOutputFactor = v->region->sample_rate / (tsf_timecents2Secsd(v->region->pitch_keycenter * 100.0) * outSampleRate);
+  v->pitchOutputFactor = v->voiceRegion->sample_rate / (tsf_timecents2Secsd(v->voiceRegion->pitch_keycenter * 100.0) * outSampleRate);
 }
 
-static void tsf_voice_render(tsf* f, struct tsf_voice* v, float* outputBuffer, int numSamples) {
-  struct tsf_region* region = v->region;
+static void tsf_voice_render(tsf* f, SoundFontVoice * v, float* outputBuffer, int numSamples) {
+  struct tsf_region* region = v->voiceRegion;
   float* input = f->fontSamples;
   float* outL = outputBuffer;
   float* outR = (f->outputmode == TSF_STEREO_UNWEAVED ? outL + numSamples : NULL);
@@ -955,7 +1031,7 @@ static void tsf_voice_render(tsf* f, struct tsf_voice* v, float* outputBuffer, i
     }
     
     if (tmpSourceSamplePosition >= tmpSampleEndDbl || v->ampenv.segment == TSF_SEGMENT_DONE) {
-      tsf_voice_kill(v);
+      v->kill();
       return;
     }
   }
@@ -1047,19 +1123,6 @@ tsf* tsf_load(struct tsf_stream* stream)
 	return res;
 }
 
-void tsf_close(tsf* f) {
-  struct tsf_preset *preset, *presetEnd;
-  if (!f) return;
-  for (preset = f->presets, presetEnd = preset + f->presetNum; preset != presetEnd; preset++) {
-    free(preset->regions);
-  }
-  free(f->presets);
-  free(f->fontSamples);
-  if (f->channels) { free(f->channels->channels); free(f->channels); }
-  free(f->outputSamples);
-  free(f);
-}
-
 #if 0
 // Stop all playing notes immediatly and reset all channel parameters
 
@@ -1072,18 +1135,6 @@ void tsf_reset(tsf* f)
 	if (f->channels) { free(f->channels->channels); free(f->channels); f->channels = NULL; }
 }
 #endif
-
-// Returns the preset index from a bank and preset number, or -1 if it does not exist in the loaded SoundFont
-
-int tsf_get_presetindex(const tsf* f, int bank, int preset_number)
-{
-	const struct tsf_preset *presets;
-	int i, iMax;
-	for (presets = f->presets, i = 0, iMax = f->presetNum; i < iMax; i++)
-		if (presets[i].preset == preset_number && presets[i].bank == bank)
-			return i;
-	return -1;
-}
 
 // Set the global gain as a volume factor
 //   global_gain: the desired volume where 1.0 is 100%
@@ -1123,7 +1174,7 @@ void tsf_note_on(tsf* f, int preset_index, int key, float vel)
 		if (region->group)
 		{
 			for (; v != vEnd; v++)
-				if (v->playingPreset == preset_index && v->region->group == region->group) tsf_voice_endquick(f, v);
+				if (v->playingPreset == preset_index && v->voiceRegion->group == region->group) tsf_voice_endquick(f, v);
 				else if (v->playingPreset == -1 && !voice) voice = v;
 		}
 		else for (; v != vEnd; v++) if (v->playingPreset == -1) { voice = v; break; }
@@ -1233,9 +1284,9 @@ int tsf_bank_note_off(tsf* f, int bank, int preset_number, int key)
 }
 #endif
 
-static void tsf_channel_setup_voice(tsf* f, struct tsf_voice* v) {
+static void tsf_channel_setup_voice(tsf* f, SoundFontVoice * v) {
   struct tsf_channel* c = &f->channels->channels[f->channels->activeChannel];
-  float newpan = v->region->pan + c->panOffset;
+  float newpan = v->voiceRegion->pan + c->panOffset;
   v->playingChannel = f->channels->activeChannel;
   v->noteGainDB += c->gainDB;
   tsf_voice_calcpitchratio(v, (c->pitchWheel == 8192 ? c->tuning : ((c->pitchWheel / 16383.0f * c->pitchRange * 2.0f) - c->pitchRange + c->tuning)), f->outSampleRate);
@@ -1334,7 +1385,7 @@ void tsf_channel_set_pan(tsf* f, int channel, float pan)
 	for (v = f->voices, vEnd = v + f->voiceNum; v != vEnd; v++)
 		if (v->playingChannel == channel && v->playingPreset != -1)
 		{
-			float newpan = v->region->pan + pan - 0.5f;
+			float newpan = v->voiceRegion->pan + pan - 0.5f;
 			if      (newpan <= -0.5f) { v->panFactorLeft = 1.0f; v->panFactorRight = 0.0f; }
 			else if (newpan >=  0.5f) { v->panFactorLeft = 0.0f; v->panFactorRight = 1.0f; }
 			else { v->panFactorLeft = sqrtf(0.5f - newpan); v->panFactorRight = sqrtf(0.5f + newpan); }
@@ -1474,88 +1525,10 @@ TCMC_SET_DATA:
 
 #endif
 
-class SoundFontFile {
-public:
-  SoundFontFile(std::string filename) {
-    f = tsf_load_filename(filename.c_str());
-    
-    f->outputmode = TSF_MONO;
-    f->outSampleRate = 44100.0f;
-    f->globalGainDB = 0.0f;
-  }
-  ~SoundFontFile() {
-    tsf_close(f);
-  }
-
-  // Returns the name of a preset index >= 0 and < tsf_get_presetcount()
-  string getPresetName(size_t index) const {
-    if (index < f->presetNum) return f->presets[index].presetName;
-    else return "";
-  }
-
-  // Returns the name of a preset by bank and preset number
-  string getBankPresetName(size_t bank, size_t preset_number) const {
-    size_t preset_index = tsf_get_presetindex(f, bank, preset_number);
-    return getPresetName(preset_index);
-  }
-
-  tsf * getHandle() { return f; }
-  size_t getPresetCount() const { return f->presetNum; }
-  
-private:
-  tsf * f;
-};
-
 void
 SoundFont::openFile() {
   sf = make_shared<SoundFontFile>(filename);  
 }  
-
-class SoundFontVoice : public InstrumentVoice {
-public:
-  SoundFontVoice(int _identifier, std::shared_ptr<SoundFontFile> _sf, size_t _preset = 0)
-    : InstrumentVoice(_identifier), sf(_sf), preset(_preset) {
-    voice = new tsf_voice;
-    voice->playingPreset = -1;
-  }
-  ~SoundFontVoice() {
-    delete voice;
-  }
-
-  void playNote(Note note, int transpose, int detune) override;
-  bool isPlaying() const override {
-    return voice->playingPreset != -1;
-  }
-
-  void stopNote() override {
-    assert(voice);
-    auto f = sf->getHandle();
-    
-    tsf_voice_envelope_nextsegment(&voice->ampenv, TSF_SEGMENT_SUSTAIN, f->outSampleRate);
-    tsf_voice_envelope_nextsegment(&voice->modenv, TSF_SEGMENT_SUSTAIN, f->outSampleRate);
-    if (voice->region->loop_mode == TSF_LOOPMODE_SUSTAIN) {
-      // Continue playing, but stop looping.
-      voice->loopEnd = voice->loopStart;
-    }
-  }
-
-  void stopNoteQuick() {
-    assert(voice);
-    auto f = sf->getHandle();
-
-    voice->ampenv.parameters.release = 0.0f;
-    tsf_voice_envelope_nextsegment(&voice->ampenv, TSF_SEGMENT_SUSTAIN, f->outSampleRate);
-    
-    voice->modenv.parameters.release = 0.0f;
-    tsf_voice_envelope_nextsegment(&voice->modenv, TSF_SEGMENT_SUSTAIN, f->outSampleRate);
-  }
-  
-  tsf_voice * voice = 0;
-
-private:
-  shared_ptr<SoundFontFile> sf;
-  size_t preset;
-};
 
 void
 SoundFontVoice::playNote(Note note, int transpose, int detune) {
@@ -1592,44 +1565,44 @@ SoundFontVoice::playNote(Note note, int transpose, int detune) {
       assert(0);
     }
     
-    voice->region = region;
-    voice->playingPreset = preset_index;
-    voice->apparentPlayingKey = apparent_key;
+    voiceRegion = region;
+    playingPreset = preset_index;
+    apparentPlayingKey = apparent_key;
     // voice->playingFrequency = frequency;
-    voice->noteGainDB = f->globalGainDB - region->attenuation - tsf_gainToDecibels(1.0f / vel);
+    noteGainDB = f->globalGainDB - region->attenuation - tsf_gainToDecibels(1.0f / vel);
     
     if (f->channels) {
-      f->channels->setupVoice(f, voice);
+      f->channels->setupVoice(f, this);
     } else {
-      tsf_voice_calcpitchratio(voice, 0, f->outSampleRate);
+      tsf_voice_calcpitchratio(this, 0, f->outSampleRate);
       // The SFZ spec is silent about the pan curve, but a 3dB pan law seems common. This sqrt() curve matches what Dimension LE does; Alchemy Free seems closer to sin(adjustedPan * pi/2).
-      voice->panFactorLeft  = sqrtf(0.5f - region->pan);
-      voice->panFactorRight = sqrtf(0.5f + region->pan);
+      panFactorLeft  = sqrtf(0.5f - region->pan);
+      panFactorRight = sqrtf(0.5f + region->pan);
     }
     
     // Offset/end.
-    voice->sourceSamplePosition = region->offset;
+    sourceSamplePosition = region->offset;
     
     // Loop.
     doLoop = (region->loop_mode != TSF_LOOPMODE_NONE && region->loop_start < region->loop_end);
-    voice->loopStart = (doLoop ? region->loop_start : 0);
-    voice->loopEnd = (doLoop ? region->loop_end : 0);
+    loopStart = (doLoop ? region->loop_start : 0);
+    loopEnd = (doLoop ? region->loop_end : 0);
     
     // Setup envelopes.
-    tsf_voice_envelope_setup(&voice->ampenv, &region->ampenv, apparent_key, midiVelocity, true, f->outSampleRate);
-    tsf_voice_envelope_setup(&voice->modenv, &region->modenv, apparent_key, midiVelocity, false, f->outSampleRate);
+    tsf_voice_envelope_setup(&ampenv, &region->ampenv, apparent_key, midiVelocity, true, f->outSampleRate);
+    tsf_voice_envelope_setup(&modenv, &region->modenv, apparent_key, midiVelocity, false, f->outSampleRate);
     
     // Setup lowpass filter.
     lowpassFc = (region->initialFilterFc <= 13500 ? tsf_cents2Hertz((float)region->initialFilterFc) / f->outSampleRate : 1.0f);
     lowpassFilterQDB = region->initialFilterQ / 10.0f;
-    voice->lowpass.QInv = 1.0 / pow(10.0, (lowpassFilterQDB / 20.0));
-    voice->lowpass.z1 = voice->lowpass.z2 = 0;
-    voice->lowpass.active = (lowpassFc < 0.499f);
-    if (voice->lowpass.active) tsf_voice_lowpass_setup(&voice->lowpass, lowpassFc);
+    lowpass.QInv = 1.0 / pow(10.0, (lowpassFilterQDB / 20.0));
+    lowpass.z1 = lowpass.z2 = 0;
+    lowpass.active = (lowpassFc < 0.499f);
+    if (lowpass.active) tsf_voice_lowpass_setup(&lowpass, lowpassFc);
     
     // Setup LFO filters.
-    tsf_voice_lfo_setup(&voice->modlfo, region->delayModLFO, region->freqModLFO, f->outSampleRate);
-    tsf_voice_lfo_setup(&voice->viblfo, region->delayVibLFO, region->freqVibLFO, f->outSampleRate);
+    tsf_voice_lfo_setup(&modlfo, region->delayModLFO, region->freqModLFO, f->outSampleRate);
+    tsf_voice_lfo_setup(&viblfo, region->delayVibLFO, region->freqVibLFO, f->outSampleRate);
 
     break; // FIXME, add subvoices
   }
@@ -1646,7 +1619,7 @@ public:
     auto & voice = dynamic_cast<SoundFontVoice&>(_voice);
 
     tsf * tsf_handle = sf->getHandle();
-    tsf_voice_render(tsf_handle, voice.voice, buffer, 1);
+    tsf_voice_render(tsf_handle, &voice, buffer, 1);
     
     return buffer[0];
   }
