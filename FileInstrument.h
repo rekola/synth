@@ -11,22 +11,15 @@ class FileInstrument : public Instrument {
   explicit FileInstrument(const std::string & _filename) : filename(_filename) {
     openFile();
   }
-  
-  float getSample(InstrumentVoice & voice) const override {
-    size_t i = (size_t)voice.getFphase();
-    if (i >= 0 && i < samples.size()) {
-      return samples[i];
-    } else {
-      return 0;
-    }
-  }
 
+  std::shared_ptr<InstrumentVoice> createVoice(int _identifier) const;
+  
 protected:
   void openFile();
 
 private:
   std::string filename;
-  std::vector<float> samples;
+  std::shared_ptr<SampleData> samples;
 };
 
 #endif

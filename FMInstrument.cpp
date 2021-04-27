@@ -26,30 +26,52 @@ static inline float spow(float a, float p) {
   return powf(fabsf(a), p)*(a < 0.0f ? -1.0f : 1.0f);
 }
 
-float
-FMInstrument::getSample(InstrumentVoice & voice) const {
-  // double sound = GAIN * envelope(&note_active, gate, &env_level, env_time, attack, decay, sustain, release)
-  //   * velocity * sin(phi + modulation * sin(phi_mod));
-  // env_time += 1.0 / 44100.0;
+class FMInstrumentVoice : public InstrumentVoice {
+public:
+  FMInstrumentVoice(int _identifier, float _modulation, int _harmonic, int _subharmonic)
+    : InstrumentVoice(_identifier),
+      modulation(_modulation), harmonic(_harmonic), subharmonic(_subharmonic)
+  { }
 
-  float s = sin(voice.phi + modulation * sin(voice.phi_mod));
-  // return s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s;
-  // return s;
-  return s; // spow(s, 16);
-  
-  // * (1 + noise * rand() / RAND_MAX));
-}
+  void render(float * buffer, size_t frames) override {
+    for (size_t i = 0; i < frames; i++) {
+      // double sound = GAIN * envelope(&note_active, gate, &env_level, env_time, attack, decay, sustain, release)
+      //   * velocity * sin(phi + modulation * sin(phi_mod));
+      // env_time += 1.0 / 44100.0;
+      
+      float s = sin(phi + modulation * sin(phi_mod));
+      // return s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s;
+      // return s;
+      
+      // * (1 + noise * rand() / RAND_MAX));
+      
+#if 1
+      double dphi = M_PI * freq / 22050.0;
+      double dphi_mod = dphi * (double)harmonic / (double)subharmonic;
+      
+      phi += dphi;
+      phi_mod += dphi_mod;
+      
+      if (phi > 2.0 * M_PI) phi -= 2.0 * M_PI;
+      if (phi_mod > 2.0 * M_PI) phi_mod -= 2.0 * M_PI;
+#else
+      stepForward();
+#endif
+      // spow(s, 16);
+      
+      buffer[i] = s * getVelocity();
+    }
+  }
 
-void
-FMInstrument::stepForward(InstrumentVoice & voice) {
-  Instrument::stepForward(voice);
+private:
+  float modulation;
+  // velocity, attack, decay, sustain, release, env_time, env_level;
+  int harmonic, subharmonic;
 
-  double dphi = M_PI * voice.freq / 22050.0;
-  double dphi_mod = dphi * (double)harmonic / (double)subharmonic;
-    
-  voice.phi += dphi;
-  voice.phi_mod += dphi_mod;
-  
-  if (voice.phi > 2.0 * M_PI) voice.phi -= 2.0 * M_PI;
-  if (voice.phi_mod > 2.0 * M_PI) voice.phi_mod -= 2.0 * M_PI;  
+  double phi = 0, phi_mod = 0;
+};
+
+std::shared_ptr<InstrumentVoice>
+FMInstrument::createVoice(int _identifier) const {
+  return std::make_shared<FMInstrumentVoice>(_identifier, modulation, harmonic, subharmonic);
 }

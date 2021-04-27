@@ -9,8 +9,8 @@ class InstrumentVoice {
   InstrumentVoice(int _identifier) : identifier(_identifier) { }
   virtual ~InstrumentVoice() { }
   
-  float getFphase() const { return fphase; }
-
+  virtual void render(float * buffer, size_t frames) = 0;
+  
   float updateADSR(const Envelope & envelope) {
     float adsrvol = 0;
     
@@ -78,9 +78,15 @@ class InstrumentVoice {
   int getIdentifier() const { return identifier; }
   float getVelocity() const { return velocity; }
 
+protected:
+  float getFphase() const { return fphase; }
+
+  void stepForward() {
+    fphase += freq;
+  }
+
   float fphase = 0; // position in input waveform
   float freq = 0; // current frequency
-  double phi = 0, phi_mod = 0;
 
  private:
   int identifier;

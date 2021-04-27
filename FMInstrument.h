@@ -18,12 +18,13 @@ public:
   explicit FMInstrument(float _modulation, int _harmonic, int _subharmonic, float _n = 2)
     : modulation(_modulation), harmonic(_harmonic), subharmonic(_subharmonic), noise(0), n(_n) { }
 
-  float getSample(InstrumentVoice & voice) const override;
-  void stepForward(InstrumentVoice & voice) override;
+  std::shared_ptr<InstrumentVoice> createVoice(int _identifier) const override;
   
 private:
-  double modulation, velocity, attack, decay, sustain, release, env_time, env_level;
-  int harmonic, subharmonic, transpose, note, gate, note_active, rate;
+  float modulation;
+  // velocity, attack, decay, sustain, release, env_time, env_level;
+  int harmonic, subharmonic;
+  // , transpose, note, gate, note_active, rate;
   float noise, n;
 };
 

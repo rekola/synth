@@ -3,44 +3,31 @@
 
 #include "Instrument.h"
 
-#define WAVESIZE 1024
-
 #include <cmath>
 
-class BasicInstrument : public Instrument {
- public:
-  enum WaveformType
+enum class WaveformType
   {
-    SINE = 0,
-      SAW,
-      SQUARE,
-      NOISE, // metallic noise
-      NOISE2 // real noise
-      };
+   SINE = 1,
+   SAW,
+   SQUARE,
+   NOISE,
+  };
   
-  explicit BasicInstrument(WaveformType _type) : type(_type) {
-    
-  }
+class BasicInstrument : public Instrument {
+ public:  
+  explicit BasicInstrument(WaveformType _type) : type(_type) { }
 
-  float getSample(InstrumentVoice & voice) const override {
-    if (!is_initialized) initialize();
-    
-    long mask = WAVESIZE - 1;
-    
-    if (type == WaveformType::NOISE2) {
-      return ((float)rand() / RAND_MAX) * 2.0 - 1.0;
-    } else {
-      return waves[int(type)][(long)(voice.getFphase() * WAVESIZE / 44100.0f) & mask];
-    }
-  }
+  std::shared_ptr<InstrumentVoice> createVoice(int _identifier) const;
   
  private:
   WaveformType type;
-
+  
+#if 0
   static void initialize();
   
   static bool is_initialized;
   static float waves[4][WAVESIZE];
+#endif
 };
 
 #endif

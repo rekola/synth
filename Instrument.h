@@ -17,14 +17,8 @@ public:
   explicit Instrument() { }
   virtual ~Instrument() { }
 
-  virtual float getSample(InstrumentVoice & voice) const = 0;
-  virtual void stepForward(InstrumentVoice & voice) {
-    voice.fphase += voice.freq;
-  }
-  virtual std::shared_ptr<InstrumentVoice> createVoice(int _identifier) const {
-    return std::make_shared<InstrumentVoice>(_identifier);
-  }
-
+  virtual std::shared_ptr<InstrumentVoice> createVoice(int _identifier) const = 0;
+  
   void setName(const std::string & _name) { name = _name; }
   const std::string & getName() const { return name; }
   

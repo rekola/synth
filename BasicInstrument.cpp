@@ -1,5 +1,6 @@
 #include "BasicInstrument.h"
 
+#if 0
 bool BasicInstrument::is_initialized = false;
 float BasicInstrument::waves[4][WAVESIZE];
 
@@ -13,4 +14,45 @@ BasicInstrument::initialize() {
     waves[int(WaveformType::SQUARE)][i] = (i < WAVESIZE / 2) ? -1.0 : 1.0;
     waves[int(WaveformType::NOISE)][i] = ((float)rand() / RAND_MAX) * 2.0 - 1.0;
   }
+}
+#endif
+
+class BasicInstrumentVoice : public InstrumentVoice {
+public:
+  BasicInstrumentVoice(int _identifier, WaveformType _type) : InstrumentVoice(_identifier), type(_type) { }
+  
+  void render(float * buffer, size_t frames) override {
+    for (size_t k = 0; k < frames; k++) {
+      float i = 2 * M_PI * getFphase() / 44100.0f;
+      stepForward();
+
+      float s;
+      switch (type) {
+      case WaveformType::SINE:
+	s = sinf(i);
+	break;
+      case WaveformType::SAW:
+	s = -1.0 + fmodf(1.0 + 2.0 * i / (2.0f * M_PI), 2.0);
+	break;
+      case WaveformType::SQUARE:
+	s = fmodf(i, 2.0f * M_PI) < M_PI ? -1.0 : 1.0;
+	break;
+      case WaveformType::NOISE:
+	s = ((float)rand() / RAND_MAX) * 2.0 - 1.0;
+	break;
+      default:
+	s = 0.0f;
+      }
+
+      buffer[k] = s * getVelocity();
+    }
+  }
+  
+private:
+  WaveformType type;
+};
+
+std::shared_ptr<InstrumentVoice>
+BasicInstrument::createVoice(int _identifier) const {
+  return std::make_shared<BasicInstrumentVoice>(_identifier, type);
 }
