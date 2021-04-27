@@ -24,13 +24,18 @@ Controller::loadDemo3() {
   song->bpm = 90;
   song->mastervol = 1.0f;
 
-  auto fluid = make_unique<SoundFontInstrument>("FluidR3_GM.sf2");
+  auto fluid = make_unique<SoundFontInstrument>("FluidR3_GM.sf2", 0);
+  // auto fluid = make_unique<SoundFontInstrument>("Tabla.sf2", 0);
+  // auto fluid = make_unique<SoundFontInstrument>("FatBoy-v0.790.sf2", 6);
+  // auto fluid = make_unique<SoundFontInstrument>("Musyng.sfpack", 0);
   song->addInstrument(move(fluid));
 
   song->addTrack();
   
   Pattern pattern(128);  
-  pattern.setNote(0, 0, 0, Note(60, 0x3f)); // C-4
+  pattern.setNote(0, 0, 0, Note(5, 4, 0x3f)); // C-4
+  pattern.setNote(0, 0, 1, Note(9, 8, 0x3f)); // C-4
+  pattern.setNote(0, 0, 2, Note(1, 1, 0x3f)); // C-4
   song->addPattern(pattern);  
     
   current_song = song;    
@@ -43,20 +48,28 @@ Controller::loadDemo2() {
   song->bpm = 90;
   song->mastervol = 1.0f;
 
-  auto fluid = make_unique<SoundFontInstrument>("FluidR3_GM.sf2");
+#if 1
+  auto fluid = make_unique<SoundFontInstrument>("FluidR3_GM.sf2", 8);
   song->addInstrument(move(fluid));
-  
+#else
+  auto epiano = make_unique<BasicInstrument>(BasicInstrument::SAW);
+  epiano->setName("Electric Piano");
+  epiano->setADSR(0, 20, 0.0f, 0);
+  epiano->setFilter(63 / 255.0f, 128 / 63.0f);
+  song->addInstrument(move(epiano));
+#endif
+
   song->addTrack();
   
-  Pattern pattern(128);
+  Pattern pattern(256);
 
   pattern.setAnnotation(0, "neutral minor tetrad");
 
-  pattern.setNote(0, 0, 0, Note(1, 1, 0x3f)); // C-4
+  // pattern.setNote(0, 0, 0, Note(1, 1, 0x3f)); // C-4
   pattern.setNote(0, 1, 0, Note(3, 2, 0x3f)); // G-4
   pattern.setNote(0, 2, 0, Note(6, 5, 0x3f)); // Eb
   pattern.setNote(0, 3, 0, Note(11, 10, 0x3f)); // ?
-  pattern.setNote(0, 4, 0, Note(2, 1, 0x3f)); // C-5
+  // pattern.setNote(0, 4, 0, Note(2, 1, 0x3f)); // C-5
   pattern.setNote(0, 5, 0, Note(3, 2, 0x3f)); // G-4
   pattern.setNote(0, 6, 0, Note(6, 5, 0x3f)); // Eb
   pattern.setNote(0, 7, 0, Note(1, 1, 0x3f)); // C-4
@@ -66,36 +79,49 @@ Controller::loadDemo2() {
   pattern.setNote(0, 12, 0, Note(3, 2, 0x3f)); // G-4
   pattern.setNote(0, 13, 0, Note(2, 1, 0x3f)); // C-5
 
-  pattern.setNote(0, 16, 0, Note(1, 1, 0x3f)); // C-4
+  // pattern.setNote(0, 16, 0, Note(1, 1, 0x3f)); // C-4
   pattern.setNote(0, 17, 0, Note(11, 10, 0x3f)); // ?
   pattern.setNote(0, 18, 0, Note(6, 5, 0x3f)); // Eb
   pattern.setNote(0, 19, 0, Note(3, 2, 0x3f)); // G-4
-  pattern.setNote(0, 20, 0, Note(2, 1, 0x3f)); // C-5
+  // pattern.setNote(0, 20, 0, Note(1, 1, 0x3f)); // C-4
+  pattern.setNote(0, 20, 1, Note(11, 10, 0x3f)); // ?
+  pattern.setNote(0, 20, 2, Note(6, 5, 0x3f)); // Eb
+  pattern.setNote(0, 20, 3, Note(3, 2, 0x3f)); // G-4
+  // pattern.setNote(0, 20, 4, Note(2, 1, 0x3f)); // C-5
 
-  pattern.setNote(0, 22, 0, Note(1, 1, 0x3f)); // C-4
+  // pattern.setNote(0, 22, 0, Note(1, 1, 0x3f)); // C-4
   pattern.setNote(0, 23, 0, Note(12, 11, 0x3f)); // ?
   pattern.setNote(0, 24, 0, Note(6, 5, 0x3f)); // Eb
   pattern.setNote(0, 25, 0, Note(3, 2, 0x3f)); // G-4
-  pattern.setNote(0, 26, 0, Note(2, 1, 0x3f)); // C-5
+  // pattern.setNote(0, 26, 0, Note(1, 1, 0x3f)); // C-4
+  pattern.setNote(0, 26, 1, Note(12, 11, 0x3f)); // ?
+  pattern.setNote(0, 26, 2, Note(6, 5, 0x3f)); // Eb
+  pattern.setNote(0, 26, 3, Note(3, 2, 0x3f)); // G-4
+  // pattern.setNote(0, 26, 4, Note(2, 1, 0x3f)); // C-5
 
   pattern.setAnnotation(30, "7-limit triads");
   
   pattern.setNote(0, 30, 0, Note(1, 1, 0x3f)); // C-4
-  pattern.setNote(0, 30, 1, Note(7, 6, 0x3f)); // ?
-  pattern.setNote(0, 30, 2, Note(4, 3, 0x3f)); // F
+  // pattern.setNote(0, 30, 1, Note(7, 6, 0x3f)); // ?
+  pattern.setNote(0, 30, 2, Note(7, 5, 0x3f)); // F
   // pattern.setNote(0, 30, 3, Note(2, 1, 0x3f)); // C-5
 
-  pattern.setNote(0, 33, 0, Note(1, 1, 0x3f)); // C-4
-  pattern.setNote(0, 33, 1, Note(8, 7, 0x3f)); // ?
-  pattern.setNote(0, 33, 2, Note(4, 3, 0x3f)); // F
-  // pattern.setNote(0, 33, 3, Note(2, 1, 0x3f)); // C-5
+  // pattern.setNote(0, 32, 0, Note(1, 1, 0x3f)); // C-4
+  pattern.setNote(0, 32, 1, Note(8, 7, 0x3f)); // ?
+  pattern.setNote(0, 32, 2, Note(7, 5, 0x3f)); // F
+  // pattern.setNote(0, 32, 3, Note(2, 1, 0x3f)); // C-5
 
-  pattern.setNote(0, 37, 0, Note(1, 1, 0x3f)); // C-4
-  pattern.setNote(0, 37, 1, Note(7, 6, 0x3f)); // ?
-  pattern.setNote(0, 37, 2, Note(4, 3, 0x3f)); // F
-  pattern.setNote(0, 37, 3, Note(7, 4, 0x3f)); // F
-  // pattern.setNote(0, 37, 3, Note(2, 1, 0x3f)); // C-5
-
+  // pattern.setNote(0, 34, 0, Note(1, 1, 0x3f)); // C-4
+  pattern.setNote(0, 34, 1, Note(8, 7, 0x3f)); // ?
+  pattern.setNote(0, 34, 2, Note(4, 3, 0x3f)); // F
+  //pattern.setNote(0, 34, 3, Note(2, 1, 0x3f)); // C-5
+  
+  // pattern.setNote(0, 36, 0, Note(1, 1, 0x3f)); // C-4
+  pattern.setNote(0, 36, 1, Note(7, 6, 0x3f)); // ?
+  // pattern.setNote(0, 36, 2, Note(4, 3, 0x3f)); // F
+  pattern.setNote(0, 36, 3, Note(9, 5, 0x3f)); //
+  // pattern.setNote(0, 34, 4, Note(2, 1, 0x3f)); // C-5
+    
   pattern.setNote(0, 40, 0, Note(1, 1, 0x3f)); // C-4
   pattern.setNote(0, 41, 0, Note(7, 6, 0x3f)); // ?
   pattern.setNote(0, 42, 0, Note(4, 3, 0x3f)); // F
@@ -166,6 +192,37 @@ Controller::loadDemo2() {
   pattern.setNote(0, 103, 0, Note(3, 2, 0x3f)); // G
   pattern.setNote(0, 104, 0, Note(7, 4, 0x3f)); // 
   pattern.setNote(0, 105, 0, Note(2, 1, 0x3f)); // C-5
+
+
+  pattern.setNote(0, 112, 0, Note(7, 6, 0x3f));
+  pattern.setNote(0, 112, 1, Note(4, 3, 0x3f));
+
+  pattern.setNote(0, 114, 0, Note(8, 7, 0x3f));
+  pattern.setNote(0, 114, 1, Note(4, 3, 0x3f));
+
+  pattern.setNote(0, 116, 0, Note(7, 6, 0x3f));
+  pattern.setNote(0, 116, 1, Note(1, 1, 0x3f));
+
+  pattern.setNote(0, 118, 0, Note(8, 7, 0x3f));
+  pattern.setNote(0, 118, 1, Note(1, 1, 0x3f));
+
+  pattern.setNote(0, 120, 0, Note(7, 6, 0x3f));
+  pattern.setNote(0, 120, 1, Note(3, 2, 0x3f));
+
+  pattern.setNote(0, 122, 0, Note(8, 7, 0x3f));
+  pattern.setNote(0, 122, 1, Note(3, 2, 0x3f));
+
+  pattern.setNote(0, 124, 0, Note(7, 6, 0x3f));
+  pattern.setNote(0, 124, 1, Note(5, 4, 0x3f));
+
+  pattern.setNote(0, 126, 0, Note(8, 7, 0x3f));
+  pattern.setNote(0, 126, 1, Note(5, 4, 0x3f));
+
+  pattern.setNote(0, 128, 0, Note(7, 6, 0x3f));
+  pattern.setNote(0, 128, 1, Note(6, 5, 0x3f));
+
+  pattern.setNote(0, 130, 0, Note(8, 7, 0x3f));
+  pattern.setNote(0, 130, 1, Note(6, 5, 0x3f));
 
   song->addPattern(pattern);  
     
