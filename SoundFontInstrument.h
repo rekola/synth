@@ -9,7 +9,7 @@ typedef struct tsf tsf;
 
 class SoundFontInstrument : public Instrument {
  public:  
-  explicit SoundFontInstrument(std::string _filename) : filename(_filename) {
+  explicit SoundFontInstrument(std::string _filename, int _preset) : filename(_filename), preset(_preset) {
     openFile();
   }
   ~SoundFontInstrument();
@@ -21,6 +21,7 @@ class SoundFontInstrument : public Instrument {
 private:
   tsf * tsf_handle = 0;
   std::string filename;
+  int preset;
 };
 
 #endif

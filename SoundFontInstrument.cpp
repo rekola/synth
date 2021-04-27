@@ -1210,8 +1210,6 @@ void tsf_note_on(tsf* f, int preset_index, int key, float vel)
 
 // Stop playing a note
 //   (bank_note_off returns 0 if preset does not exist, otherwise 1)
-void tsf_note_off(tsf* f, int preset_index, int key);
-int  tsf_bank_note_off(tsf* f, int bank, int preset_number, int key);
 
 int tsf_bank_note_on(tsf* f, int bank, int preset_number, int key, float vel)
 {
@@ -1515,12 +1513,14 @@ public:
     delete voice;
   }
 
-  void playNote(Note note, int transpose, int detune);
+  void playNote(Note note, int transpose, int detune) override;
   bool isPlaying() const override {
     return voice->playingPreset != -1;
   }
 
-  void end() {
+  void stopNote() {
+    assert(f && voice);
+    
     tsf_voice_envelope_nextsegment(&voice->ampenv, TSF_SEGMENT_SUSTAIN, f->outSampleRate);
     tsf_voice_envelope_nextsegment(&voice->modenv, TSF_SEGMENT_SUSTAIN, f->outSampleRate);
     if (voice->region->loop_mode == TSF_LOOPMODE_SUSTAIN) {
@@ -1529,7 +1529,9 @@ public:
     }
   }
 
-  void endQuick() {
+  void stopNoteQuick() {
+    assert(f && voice);
+
     voice->ampenv.parameters.release = 0.0f;
     tsf_voice_envelope_nextsegment(&voice->ampenv, TSF_SEGMENT_SUSTAIN, f->outSampleRate);
     
@@ -1539,6 +1541,7 @@ public:
 
   tsf * f = 0;
   tsf_voice * voice = 0;
+  int preset;
 };
 
 float
@@ -1557,28 +1560,32 @@ std::shared_ptr<InstrumentVoice>
 SoundFontInstrument::createVoice() const {
   auto voice = make_shared<SoundFontInstrumentVoice>();
   voice->f = tsf_handle;
+  voice->preset = preset;
   return voice;
 }
 
 void
 SoundFontInstrumentVoice::playNote(Note note, int transpose, int detune) {
-  // short midiVelocity = 63; // (short)(vel * 127);
-  struct tsf_region *region, *regionEnd;
-
+  if (note.isOff()) {
+    stopNote();    
+    return;
+  }
+  
+  // short midiVelocity = 63; // (short)(vel * 127);  
   double frequency = note.getFrequency(transpose, detune);
     
-  int preset_index = 0;
+  int preset_index = preset;
+  if (preset_index < 0 || preset_index >= f->presetNum) return;
+
   // int key = note.getMidiNote();
   double apparent_key = log2(frequency / 440) * 12 + 69;
   int integer_key = int(apparent_key + 0);
     
-  short midiVelocity = note.getVelocity(); // , float vel)
+  short midiVelocity = note.getVelocity();
   float vel = midiVelocity / 127.0f;
 
-  // if (preset_index < 0 || preset_index >= f->presetNum) return;
-  // if (vel <= 0.0f) { tsf_note_off(f, preset_index, key); return; }
-
   // Play all matching regions.
+  struct tsf_region *region, *regionEnd;
 
   for (region = f->presets[preset_index].regions, regionEnd = region + f->presets[preset_index].regionNum; region != regionEnd; region++) {
     bool doLoop;
