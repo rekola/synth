@@ -6,7 +6,7 @@
 
 class InstrumentVoice {
  public:
-  InstrumentVoice() { }
+  InstrumentVoice(int _identifier) : identifier(_identifier) { }
   virtual ~InstrumentVoice() { }
   
   float getFphase() const { return fphase; }
@@ -53,12 +53,16 @@ class InstrumentVoice {
     return adsrvol;
   }
 
+  virtual void stopNote() {
+    adsrstate = 3;
+    adsrpos = 0;
+  }
+  
   virtual void playNote(Note note, int transpose, int detune) {
     float _velocity = note.getVelocityAsFloat();
     
     if (note.isOff()) {
-      adsrstate = 3;
-      adsrpos = 0;
+      stopNote();
     } else if (note.isDefined()) {
       // float fscaler = (float)WAVESIZE / 44100.0f;
       freq = note.getFrequency(transpose, detune);
@@ -71,6 +75,7 @@ class InstrumentVoice {
 
   virtual bool isPlaying() const { return adsrstate < 4 && freq != 0; }
 
+  int getIdentifier() const { return identifier; }
   float getVelocity() const { return velocity; }
 
   float fphase = 0; // position in input waveform
@@ -78,8 +83,8 @@ class InstrumentVoice {
   double phi = 0, phi_mod = 0;
 
  private:
+  int identifier;
   float velocity = 1.0f;
-
   // adsr state
   int adsrstate = 0, adsrpos = 0;
 };

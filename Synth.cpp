@@ -48,9 +48,10 @@ Synth::play(Song & song, size_t frames) {
 	auto & front = pending.front();
 	if (i == front.first) {
 	  auto & notes = front.second;
-	  for (auto & note : notes) {
+	  for (size_t j = 0; j < notes.size(); j++) {
+	    auto & note = notes[j];
 	    if (note.isDefined()) {
-	      track.playNote(note, instrument);
+	      track.playNote(note, instrument, j);
 	    }
 	  }
 	  pending.pop_front();

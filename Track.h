@@ -33,15 +33,20 @@ class Track {
   void clearPendingNotes() { pending_notes.clear(); }
   std::deque<std::pair<unsigned int, std::vector<Note> > > & getPendingNotes() { return pending_notes; }
 
-  void playNote(const Note & note, const Instrument & instrument) {
+  void playNote(const Note & note, const Instrument & instrument, int identifier) {
+    bool voice_found = false;
     for (auto & voice : voices) {
-      if (!voice->isPlaying()) {
+      if (!voice_found && !voice->isPlaying()) {
 	voice->playNote(note, instrument.getTranspose(), instrument.getDetune());
-	return;
+	voice_found = true;
+      } else if (identifier == voice->getIdentifier() && voice->isPlaying()) {
+	voice->stopNote();
       }
     }
-    voices.push_back(instrument.createVoice());
-    voices.back()->playNote(note, instrument.getTranspose(), instrument.getDetune());
+    if (!voice_found) {
+      voices.push_back(instrument.createVoice(identifier));
+      voices.back()->playNote(note, instrument.getTranspose(), instrument.getDetune());
+    }
   }
 
 private:

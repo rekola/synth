@@ -1513,7 +1513,8 @@ SoundFont::openFile() {
 
 class SoundFontVoice : public InstrumentVoice {
 public:
-  SoundFontVoice(std::shared_ptr<SoundFontFile> _sf, size_t _preset) : sf(_sf), preset(_preset) {
+  SoundFontVoice(int _identifier, std::shared_ptr<SoundFontFile> _sf, size_t _preset = 0)
+    : InstrumentVoice(_identifier), sf(_sf), preset(_preset) {
     voice = new tsf_voice;
     voice->playingPreset = -1;
   }
@@ -1526,7 +1527,7 @@ public:
     return voice->playingPreset != -1;
   }
 
-  void stopNote() {
+  void stopNote() override {
     assert(voice);
     auto f = sf->getHandle();
     
@@ -1650,8 +1651,8 @@ public:
     return buffer[0];
   }
 
-  std::shared_ptr<InstrumentVoice> createVoice() const override {
-    return make_shared<SoundFontVoice>(sf, preset);
+  std::shared_ptr<InstrumentVoice> createVoice(int identifier) const override {
+    return make_shared<SoundFontVoice>(identifier, sf, preset);
   }
 
 private:

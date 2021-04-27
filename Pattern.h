@@ -21,15 +21,17 @@ class Pattern {
     columns[note_column] = note;
   }
 
-  void pushNote(size_t track, size_t row, Note note) {
+  size_t pushNote(size_t track, size_t row, Note note) {
     auto & columns = notes[track][row];
     for (size_t i = 0; i < columns.size(); i++) {
       if (!columns[i].isDefined()) {
 	columns[i] = note;
-	return;
+	return i;
       }
     }
+    size_t index = columns.size();
     columns.push_back(note);
+    return index;
   }
 
   const Note & getNote(size_t track, size_t row, size_t note_column) const {

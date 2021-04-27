@@ -11,7 +11,7 @@ OBJS = main.o \
 	FMInstrument.o \
 	Reverb.o \
 	InstrumentList.o \
-	SoundFontInstrument.o
+	SoundFont.o
 
 CC = g++
 

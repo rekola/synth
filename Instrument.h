@@ -21,8 +21,8 @@ public:
   virtual void stepForward(InstrumentVoice & voice) {
     voice.fphase += voice.freq;
   }
-  virtual std::shared_ptr<InstrumentVoice> createVoice() const {
-    return std::make_shared<InstrumentVoice>();
+  virtual std::shared_ptr<InstrumentVoice> createVoice(int _identifier) const {
+    return std::make_shared<InstrumentVoice>(_identifier);
   }
 
   void setName(const std::string & _name) { name = _name; }

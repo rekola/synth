@@ -177,13 +177,15 @@ PatternEditor::offerInput(const UIInput & input) {
       auto & pattern = song.getPattern(synth.getPatternPosition());
       auto & track = song.getTrack(current_score_cursor_col);
       auto & instrument = song.getInstrument(track.getInstrumentId());
-      track.playNote(note, instrument);
 
+      size_t note_column = 1;
       if (input.hasShift()) {
-	pattern.pushNote(current_score_cursor_col, synth.getTrackPosition(), note);
+	note_column = pattern.pushNote(current_score_cursor_col, synth.getTrackPosition(), note);
       } else {
 	pattern.setNote(current_score_cursor_col, synth.getTrackPosition(), 0, note);
       }
+
+      track.playNote(note, instrument, note_column);
       row_edited = true;
 
       if (!synth.isPlaying()) {
