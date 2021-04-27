@@ -74,12 +74,13 @@ struct tsf_preset {
 };
 
 struct tsf_voice {
-  int playingPreset, playingKey, playingChannel;
+  int playingPreset, playingChannel;
+  double apparentPlayingKey;
   struct tsf_region* region;
   double pitchInputTimecents, pitchOutputFactor;
   double sourceSamplePosition;
   float  noteGainDB, panFactorLeft, panFactorRight;
-  unsigned int playIndex, loopStart, loopEnd;
+  unsigned int loopStart, loopEnd;
   struct tsf_voice_envelope ampenv, modenv;
   struct tsf_voice_lowpass lowpass;
   struct tsf_voice_lfo modlfo, viblfo;
@@ -103,10 +104,7 @@ struct tsf {
   float* outputSamples;
   
   int presetNum;
-  // int voiceNum;
-  // int maxVoiceNum;
   int outputSampleSize;
-  unsigned int voicePlayIndex;
   
   enum TSFOutputMode outputmode;
   float outSampleRate;
@@ -586,7 +584,7 @@ static void tsf_load_presets(tsf* res, struct tsf_hydra *hydra, unsigned int fon
 			    {
 			      struct tsf_hydra_shdr* pshdr;
 			      
-			      //preset region key and vel ranges are a filter for the zone regions
+			      // preset region key and vel ranges are a filter for the zone regions
 			      if (zoneRegion.hikey < presetRegion.lokey || zoneRegion.lokey > presetRegion.hikey) continue;
 			      if (zoneRegion.hivel < presetRegion.lovel || zoneRegion.lovel > presetRegion.hivel) continue;
 			      if (presetRegion.lokey > zoneRegion.lokey) zoneRegion.lokey = presetRegion.lokey;
@@ -594,7 +592,7 @@ static void tsf_load_presets(tsf* res, struct tsf_hydra *hydra, unsigned int fon
 			      if (presetRegion.lovel > zoneRegion.lovel) zoneRegion.lovel = presetRegion.lovel;
 			      if (presetRegion.hivel < zoneRegion.hivel) zoneRegion.hivel = presetRegion.hivel;
 			      
-			      //sum regions
+			      // sum regions
 			      tsf_region_operator(&zoneRegion, 0, NULL, &presetRegion);
 			      
 			      // EG times need to be converted from timecents to seconds.
@@ -789,15 +787,14 @@ static void tsf_voice_envelope_setup(struct tsf_voice_envelope* e, struct tsf_en
 	tsf_voice_envelope_nextsegment(e, TSF_SEGMENT_NONE, outSampleRate);
 }
 
-static void tsf_voice_envelope_process(struct tsf_voice_envelope* e, int numSamples, float outSampleRate)
-{
-	if (e->slope)
-	{
-		if (e->segmentIsExponential) e->level *= powf(e->slope, (float)numSamples);
-		else e->level += (e->slope * numSamples);
-	}
-	if ((e->samplesUntilNextSegment -= numSamples) <= 0)
-		tsf_voice_envelope_nextsegment(e, e->segment, outSampleRate);
+static void tsf_voice_envelope_process(struct tsf_voice_envelope* e, int numSamples, float outSampleRate) {
+  if (e->slope) {
+    if (e->segmentIsExponential) e->level *= powf(e->slope, (float)numSamples);
+    else e->level += (e->slope * numSamples);
+  }
+  if ((e->samplesUntilNextSegment -= numSamples) <= 0) {
+    tsf_voice_envelope_nextsegment(e, e->segment, outSampleRate);
+  }
 }
 
 static void tsf_voice_lowpass_setup(struct tsf_voice_lowpass* e, float Fc) {
@@ -832,152 +829,146 @@ static void tsf_voice_kill(struct tsf_voice* v) {
 }
 
 static void tsf_voice_calcpitchratio(struct tsf_voice* v, float pitchShift, float outSampleRate) {
-  double note = v->playingKey + v->region->transpose + v->region->tune / 100.0;
+  double note = v->apparentPlayingKey + v->region->transpose + v->region->tune / 100.0;
   double adjustedPitch = v->region->pitch_keycenter + (note - v->region->pitch_keycenter) * (v->region->pitch_keytrack / 100.0);
   if (pitchShift) adjustedPitch += pitchShift;
   v->pitchInputTimecents = adjustedPitch * 100.0;
   v->pitchOutputFactor = v->region->sample_rate / (tsf_timecents2Secsd(v->region->pitch_keycenter * 100.0) * outSampleRate);
 }
 
-static void tsf_voice_render(tsf* f, struct tsf_voice* v, float* outputBuffer, int numSamples)
-{
-	struct tsf_region* region = v->region;
-	float* input = f->fontSamples;
-	float* outL = outputBuffer;
-	float* outR = (f->outputmode == TSF_STEREO_UNWEAVED ? outL + numSamples : NULL);
+static void tsf_voice_render(tsf* f, struct tsf_voice* v, float* outputBuffer, int numSamples) {
+  struct tsf_region* region = v->region;
+  float* input = f->fontSamples;
+  float* outL = outputBuffer;
+  float* outR = (f->outputmode == TSF_STEREO_UNWEAVED ? outL + numSamples : NULL);
 
-	// Cache some values, to give them at least some chance of ending up in registers.
-	bool updateModEnv = (region->modEnvToPitch || region->modEnvToFilterFc);
-	bool updateModLFO = (v->modlfo.delta && (region->modLfoToPitch || region->modLfoToFilterFc || region->modLfoToVolume));
-	bool updateVibLFO = (v->viblfo.delta && (region->vibLfoToPitch));
-	bool isLooping    = (v->loopStart < v->loopEnd);
-	unsigned int tmpLoopStart = v->loopStart, tmpLoopEnd = v->loopEnd;
-	double tmpSampleEndDbl = (double)region->end, tmpLoopEndDbl = (double)tmpLoopEnd + 1.0;
-	double tmpSourceSamplePosition = v->sourceSamplePosition;
-	struct tsf_voice_lowpass tmpLowpass = v->lowpass;
+  // Cache some values, to give them at least some chance of ending up in registers.
+  bool updateModEnv = (region->modEnvToPitch || region->modEnvToFilterFc);
+  bool updateModLFO = (v->modlfo.delta && (region->modLfoToPitch || region->modLfoToFilterFc || region->modLfoToVolume));
+  bool updateVibLFO = (v->viblfo.delta && (region->vibLfoToPitch));
+  bool isLooping    = (v->loopStart < v->loopEnd);
+  unsigned int tmpLoopStart = v->loopStart, tmpLoopEnd = v->loopEnd;
+  double tmpSampleEndDbl = (double)region->end, tmpLoopEndDbl = (double)tmpLoopEnd + 1.0;
+  double tmpSourceSamplePosition = v->sourceSamplePosition;
+  struct tsf_voice_lowpass tmpLowpass = v->lowpass;
 
-	bool dynamicLowpass = (region->modLfoToFilterFc || region->modEnvToFilterFc);
-	float tmpSampleRate = f->outSampleRate, tmpInitialFilterFc, tmpModLfoToFilterFc, tmpModEnvToFilterFc;
+  bool dynamicLowpass = (region->modLfoToFilterFc || region->modEnvToFilterFc);
+  float tmpSampleRate = f->outSampleRate, tmpInitialFilterFc, tmpModLfoToFilterFc, tmpModEnvToFilterFc;
+  
+  bool dynamicPitchRatio = (region->modLfoToPitch || region->modEnvToPitch || region->vibLfoToPitch);
+  double pitchRatio;
+  float tmpModLfoToPitch, tmpVibLfoToPitch, tmpModEnvToPitch;
+  
+  bool dynamicGain = (region->modLfoToVolume != 0);
+  float noteGain = 0, tmpModLfoToVolume;
+  
+  if (dynamicLowpass) tmpInitialFilterFc = (float)region->initialFilterFc, tmpModLfoToFilterFc = (float)region->modLfoToFilterFc, tmpModEnvToFilterFc = (float)region->modEnvToFilterFc;
+  else tmpInitialFilterFc = 0, tmpModLfoToFilterFc = 0, tmpModEnvToFilterFc = 0;
 
-	bool dynamicPitchRatio = (region->modLfoToPitch || region->modEnvToPitch || region->vibLfoToPitch);
-	double pitchRatio;
-	float tmpModLfoToPitch, tmpVibLfoToPitch, tmpModEnvToPitch;
+  if (dynamicPitchRatio) pitchRatio = 0, tmpModLfoToPitch = (float)region->modLfoToPitch, tmpVibLfoToPitch = (float)region->vibLfoToPitch, tmpModEnvToPitch = (float)region->modEnvToPitch;
+  else pitchRatio = tsf_timecents2Secsd(v->pitchInputTimecents) * v->pitchOutputFactor, tmpModLfoToPitch = 0, tmpVibLfoToPitch = 0, tmpModEnvToPitch = 0;
+  
+  if (dynamicGain) tmpModLfoToVolume = (float)region->modLfoToVolume * 0.1f;
+  else noteGain = tsf_decibelsToGain(v->noteGainDB), tmpModLfoToVolume = 0;
+  
+  while (numSamples) {
+    float gainMono, gainLeft, gainRight;
+    int blockSamples = (numSamples > TSF_RENDER_EFFECTSAMPLEBLOCK ? TSF_RENDER_EFFECTSAMPLEBLOCK : numSamples);
+    numSamples -= blockSamples;
 
-	bool dynamicGain = (region->modLfoToVolume != 0);
-	float noteGain = 0, tmpModLfoToVolume;
+    if (dynamicLowpass) {
+      float fres = tmpInitialFilterFc + v->modlfo.level * tmpModLfoToFilterFc + v->modenv.level * tmpModEnvToFilterFc;
+      float lowpassFc = (fres <= 13500 ? tsf_cents2Hertz(fres) / tmpSampleRate : 1.0f);
+      tmpLowpass.active = (lowpassFc < 0.499f);
+      if (tmpLowpass.active) tsf_voice_lowpass_setup(&tmpLowpass, lowpassFc);
+    }
 
-	if (dynamicLowpass) tmpInitialFilterFc = (float)region->initialFilterFc, tmpModLfoToFilterFc = (float)region->modLfoToFilterFc, tmpModEnvToFilterFc = (float)region->modEnvToFilterFc;
-	else tmpInitialFilterFc = 0, tmpModLfoToFilterFc = 0, tmpModEnvToFilterFc = 0;
+    if (dynamicPitchRatio) {
+      pitchRatio = tsf_timecents2Secsd(v->pitchInputTimecents + (v->modlfo.level * tmpModLfoToPitch + v->viblfo.level * tmpVibLfoToPitch + v->modenv.level * tmpModEnvToPitch)) * v->pitchOutputFactor;
+    }
 
-	if (dynamicPitchRatio) pitchRatio = 0, tmpModLfoToPitch = (float)region->modLfoToPitch, tmpVibLfoToPitch = (float)region->vibLfoToPitch, tmpModEnvToPitch = (float)region->modEnvToPitch;
-	else pitchRatio = tsf_timecents2Secsd(v->pitchInputTimecents) * v->pitchOutputFactor, tmpModLfoToPitch = 0, tmpVibLfoToPitch = 0, tmpModEnvToPitch = 0;
+    if (dynamicGain) {
+      noteGain = tsf_decibelsToGain(v->noteGainDB + (v->modlfo.level * tmpModLfoToVolume));
+    }
 
-	if (dynamicGain) tmpModLfoToVolume = (float)region->modLfoToVolume * 0.1f;
-	else noteGain = tsf_decibelsToGain(v->noteGainDB), tmpModLfoToVolume = 0;
+    gainMono = noteGain * v->ampenv.level;
+    
+    // Update EG.
+    tsf_voice_envelope_process(&v->ampenv, blockSamples, tmpSampleRate);
+    if (updateModEnv) tsf_voice_envelope_process(&v->modenv, blockSamples, tmpSampleRate);
+    
+    // Update LFOs.
+    if (updateModLFO) tsf_voice_lfo_process(&v->modlfo, blockSamples);
+    if (updateVibLFO) tsf_voice_lfo_process(&v->viblfo, blockSamples);
+    
+    switch (f->outputmode) {
+    case TSF_STEREO_INTERLEAVED:
+      gainLeft = gainMono * v->panFactorLeft, gainRight = gainMono * v->panFactorRight;
+      while (blockSamples-- && tmpSourceSamplePosition < tmpSampleEndDbl) {
+	unsigned int pos = (unsigned int)tmpSourceSamplePosition, nextPos = (pos >= tmpLoopEnd && isLooping ? tmpLoopStart : pos + 1);
+	
+	// Simple linear interpolation.
+	float alpha = (float)(tmpSourceSamplePosition - pos), val = (input[pos] * (1.0f - alpha) + input[nextPos] * alpha);
+	
+	// Low-pass filter.
+	if (tmpLowpass.active) val = tsf_voice_lowpass_process(&tmpLowpass, val);
+	
+	*outL++ += val * gainLeft;
+	*outL++ += val * gainRight;
+	
+	// Next sample.
+	tmpSourceSamplePosition += pitchRatio;
+	if (tmpSourceSamplePosition >= tmpLoopEndDbl && isLooping) tmpSourceSamplePosition -= (tmpLoopEnd - tmpLoopStart + 1.0);
+      }
+      break;
+      
+    case TSF_STEREO_UNWEAVED:
+      gainLeft = gainMono * v->panFactorLeft, gainRight = gainMono * v->panFactorRight;
+      while (blockSamples-- && tmpSourceSamplePosition < tmpSampleEndDbl) {
+	unsigned int pos = (unsigned int)tmpSourceSamplePosition, nextPos = (pos >= tmpLoopEnd && isLooping ? tmpLoopStart : pos + 1);
+	
+	// Simple linear interpolation.
+	float alpha = (float)(tmpSourceSamplePosition - pos), val = (input[pos] * (1.0f - alpha) + input[nextPos] * alpha);
+	
+	// Low-pass filter.
+	if (tmpLowpass.active) val = tsf_voice_lowpass_process(&tmpLowpass, val);
+	
+	*outL++ += val * gainLeft;
+	*outR++ += val * gainRight;
+	
+	// Next sample.
+	tmpSourceSamplePosition += pitchRatio;
+	if (tmpSourceSamplePosition >= tmpLoopEndDbl && isLooping) tmpSourceSamplePosition -= (tmpLoopEnd - tmpLoopStart + 1.0);
+      }
+      break;
+      
+    case TSF_MONO:
+      while (blockSamples-- && tmpSourceSamplePosition < tmpSampleEndDbl) {
+	unsigned int pos = (unsigned int)tmpSourceSamplePosition, nextPos = (pos >= tmpLoopEnd && isLooping ? tmpLoopStart : pos + 1);
+	
+	// Simple linear interpolation.
+	float alpha = (float)(tmpSourceSamplePosition - pos), val = (input[pos] * (1.0f - alpha) + input[nextPos] * alpha);
+	
+	// Low-pass filter.
+	if (tmpLowpass.active) val = tsf_voice_lowpass_process(&tmpLowpass, val);
+	
+	*outL++ += val * gainMono;
+	
+	// Next sample.
+	tmpSourceSamplePosition += pitchRatio;
+	if (tmpSourceSamplePosition >= tmpLoopEndDbl && isLooping) tmpSourceSamplePosition -= (tmpLoopEnd - tmpLoopStart + 1.0);
+      }
+      break;
+    }
+    
+    if (tmpSourceSamplePosition >= tmpSampleEndDbl || v->ampenv.segment == TSF_SEGMENT_DONE) {
+      tsf_voice_kill(v);
+      return;
+    }
+  }
 
-	while (numSamples)
-	{
-		float gainMono, gainLeft, gainRight;
-		int blockSamples = (numSamples > TSF_RENDER_EFFECTSAMPLEBLOCK ? TSF_RENDER_EFFECTSAMPLEBLOCK : numSamples);
-		numSamples -= blockSamples;
-
-		if (dynamicLowpass)
-		{
-			float fres = tmpInitialFilterFc + v->modlfo.level * tmpModLfoToFilterFc + v->modenv.level * tmpModEnvToFilterFc;
-			float lowpassFc = (fres <= 13500 ? tsf_cents2Hertz(fres) / tmpSampleRate : 1.0f);
-			tmpLowpass.active = (lowpassFc < 0.499f);
-			if (tmpLowpass.active) tsf_voice_lowpass_setup(&tmpLowpass, lowpassFc);
-		}
-
-		if (dynamicPitchRatio)
-			pitchRatio = tsf_timecents2Secsd(v->pitchInputTimecents + (v->modlfo.level * tmpModLfoToPitch + v->viblfo.level * tmpVibLfoToPitch + v->modenv.level * tmpModEnvToPitch)) * v->pitchOutputFactor;
-
-		if (dynamicGain)
-			noteGain = tsf_decibelsToGain(v->noteGainDB + (v->modlfo.level * tmpModLfoToVolume));
-
-		gainMono = noteGain * v->ampenv.level;
-
-		// Update EG.
-		tsf_voice_envelope_process(&v->ampenv, blockSamples, tmpSampleRate);
-		if (updateModEnv) tsf_voice_envelope_process(&v->modenv, blockSamples, tmpSampleRate);
-
-		// Update LFOs.
-		if (updateModLFO) tsf_voice_lfo_process(&v->modlfo, blockSamples);
-		if (updateVibLFO) tsf_voice_lfo_process(&v->viblfo, blockSamples);
-
-		switch (f->outputmode)
-		{
-			case TSF_STEREO_INTERLEAVED:
-				gainLeft = gainMono * v->panFactorLeft, gainRight = gainMono * v->panFactorRight;
-				while (blockSamples-- && tmpSourceSamplePosition < tmpSampleEndDbl)
-				{
-					unsigned int pos = (unsigned int)tmpSourceSamplePosition, nextPos = (pos >= tmpLoopEnd && isLooping ? tmpLoopStart : pos + 1);
-
-					// Simple linear interpolation.
-					float alpha = (float)(tmpSourceSamplePosition - pos), val = (input[pos] * (1.0f - alpha) + input[nextPos] * alpha);
-
-					// Low-pass filter.
-					if (tmpLowpass.active) val = tsf_voice_lowpass_process(&tmpLowpass, val);
-
-					*outL++ += val * gainLeft;
-					*outL++ += val * gainRight;
-
-					// Next sample.
-					tmpSourceSamplePosition += pitchRatio;
-					if (tmpSourceSamplePosition >= tmpLoopEndDbl && isLooping) tmpSourceSamplePosition -= (tmpLoopEnd - tmpLoopStart + 1.0);
-				}
-				break;
-
-			case TSF_STEREO_UNWEAVED:
-				gainLeft = gainMono * v->panFactorLeft, gainRight = gainMono * v->panFactorRight;
-				while (blockSamples-- && tmpSourceSamplePosition < tmpSampleEndDbl)
-				{
-					unsigned int pos = (unsigned int)tmpSourceSamplePosition, nextPos = (pos >= tmpLoopEnd && isLooping ? tmpLoopStart : pos + 1);
-
-					// Simple linear interpolation.
-					float alpha = (float)(tmpSourceSamplePosition - pos), val = (input[pos] * (1.0f - alpha) + input[nextPos] * alpha);
-
-					// Low-pass filter.
-					if (tmpLowpass.active) val = tsf_voice_lowpass_process(&tmpLowpass, val);
-
-					*outL++ += val * gainLeft;
-					*outR++ += val * gainRight;
-
-					// Next sample.
-					tmpSourceSamplePosition += pitchRatio;
-					if (tmpSourceSamplePosition >= tmpLoopEndDbl && isLooping) tmpSourceSamplePosition -= (tmpLoopEnd - tmpLoopStart + 1.0);
-				}
-				break;
-
-			case TSF_MONO:
-				while (blockSamples-- && tmpSourceSamplePosition < tmpSampleEndDbl)
-				{
-					unsigned int pos = (unsigned int)tmpSourceSamplePosition, nextPos = (pos >= tmpLoopEnd && isLooping ? tmpLoopStart : pos + 1);
-
-					// Simple linear interpolation.
-					float alpha = (float)(tmpSourceSamplePosition - pos), val = (input[pos] * (1.0f - alpha) + input[nextPos] * alpha);
-
-					// Low-pass filter.
-					if (tmpLowpass.active) val = tsf_voice_lowpass_process(&tmpLowpass, val);
-
-					*outL++ += val * gainMono;
-
-					// Next sample.
-					tmpSourceSamplePosition += pitchRatio;
-					if (tmpSourceSamplePosition >= tmpLoopEndDbl && isLooping) tmpSourceSamplePosition -= (tmpLoopEnd - tmpLoopStart + 1.0);
-				}
-				break;
-		}
-
-		if (tmpSourceSamplePosition >= tmpSampleEndDbl || v->ampenv.segment == TSF_SEGMENT_DONE)
-		{
-			tsf_voice_kill(v);
-			return;
-		}
-	}
-
-	v->sourceSamplePosition = tmpSourceSamplePosition;
-	if (tmpLowpass.active || dynamicLowpass) v->lowpass = tmpLowpass;
+  v->sourceSamplePosition = tmpSourceSamplePosition;
+  if (tmpLowpass.active || dynamicLowpass) v->lowpass = tmpLowpass;
 }
 
 tsf* tsf_load(struct tsf_stream* stream)
@@ -1486,13 +1477,16 @@ void tsf_channel_midi_control(tsf* f, int channel, int controller, int control_v
 			return;
 	}
 	return;
+	
 TCMC_SET_VOLUME:
 	//Raising to the power of 3 seems to result in a decent sounding volume curve for MIDI
 	tsf_channel_set_volume(f, channel, powf((c->midiVolume / 16383.0f) * (c->midiExpression / 16383.0f), 3.0f));
 	return;
+	
 TCMC_SET_PAN:
 	tsf_channel_set_pan(f, channel, c->midiPan / 16383.0f);
 	return;
+	
 TCMC_SET_DATA:
 	if      (c->midiRPN == 0) tsf_channel_set_pitchrange(f, channel, (c->midiData >> 7) + 0.01f * (c->midiData & 0x7F));
 	else if (c->midiRPN == 1) tsf_channel_set_tuning(f, channel, (int)c->tuning + ((float)c->midiData - 8192.0f) / 8192.0f); //fine tune
@@ -1501,40 +1495,6 @@ TCMC_SET_DATA:
 }
 
 #endif
-
-// Get current values set on the channels
-
-int tsf_channel_get_preset_index(tsf* f, int channel) {
-  return (f->channels && channel < f->channels->channelNum ? f->channels->channels[channel].presetIndex : 0);
-}
-
-int tsf_channel_get_preset_bank(tsf* f, int channel) {
-  return (f->channels && channel < f->channels->channelNum ? (f->channels->channels[channel].bank & 0x7FFF) : 0);
-}
-
-int tsf_channel_get_preset_number(tsf* f, int channel) {
-  return (f->channels && channel < f->channels->channelNum ? f->presets[f->channels->channels[channel].presetIndex].preset : 0);
-}
-
-float tsf_channel_get_pan(tsf* f, int channel) {
-  return (f->channels && channel < f->channels->channelNum ? f->channels->channels[channel].panOffset - 0.5f : 0.5f);
-}
-
-float tsf_channel_get_volume(tsf* f, int channel) {
-  return (f->channels && channel < f->channels->channelNum ? tsf_decibelsToGain(f->channels->channels[channel].gainDB) : 1.0f);
-}
-
-int tsf_channel_get_pitchwheel(tsf* f, int channel) {
-  return (f->channels && channel < f->channels->channelNum ? f->channels->channels[channel].pitchWheel : 8192);
-}
-
-float tsf_channel_get_pitchrange(tsf* f, int channel) {
-  return (f->channels && channel < f->channels->channelNum ? f->channels->channels[channel].pitchRange : 2.0f);
-}
-
-float tsf_channel_get_tuning(tsf* f, int channel) {
-  return (f->channels && channel < f->channels->channelNum ? f->channels->channels[channel].tuning : 0.0f);
-}
 
 void
 SoundFontInstrument::openFile() {
@@ -1605,11 +1565,12 @@ SoundFontInstrumentVoice::playNote(Note note, int transpose, int detune) {
   // short midiVelocity = 63; // (short)(vel * 127);
   struct tsf_region *region, *regionEnd;
 
-  float frequency = note.getFrequency(transpose, detune);
+  double frequency = note.getFrequency(transpose, detune);
     
   int preset_index = 0;
   // int key = note.getMidiNote();
-  int key = log2f(frequency / 440) * 12 + 69;
+  double apparent_key = log2(frequency / 440) * 12 + 69;
+  int integer_key = int(apparent_key + 0);
     
   short midiVelocity = note.getVelocity(); // , float vel)
   float vel = midiVelocity / 127.0f;
@@ -1618,12 +1579,12 @@ SoundFontInstrumentVoice::playNote(Note note, int transpose, int detune) {
   // if (vel <= 0.0f) { tsf_note_off(f, preset_index, key); return; }
 
   // Play all matching regions.
-  int voicePlayIndex = f->voicePlayIndex++;
+
   for (region = f->presets[preset_index].regions, regionEnd = region + f->presets[preset_index].regionNum; region != regionEnd; region++) {
     bool doLoop;
     float lowpassFilterQDB, lowpassFc;
     
-    if (key < region->lokey || key > region->hikey || midiVelocity < region->lovel || midiVelocity > region->hivel) continue;
+    if (integer_key < region->lokey || integer_key > region->hikey || midiVelocity < region->lovel || midiVelocity > region->hivel) continue;
     
     if (region->group) {
       assert(0);
@@ -1631,8 +1592,8 @@ SoundFontInstrumentVoice::playNote(Note note, int transpose, int detune) {
     
     voice->region = region;
     voice->playingPreset = preset_index;
-    voice->playingKey = key;
-    voice->playIndex = voicePlayIndex;
+    voice->apparentPlayingKey = apparent_key;
+    // voice->playingFrequency = frequency;
     voice->noteGainDB = f->globalGainDB - region->attenuation - tsf_gainToDecibels(1.0f / vel);
     
     if (f->channels) {
@@ -1653,8 +1614,8 @@ SoundFontInstrumentVoice::playNote(Note note, int transpose, int detune) {
     voice->loopEnd = (doLoop ? region->loop_end : 0);
     
     // Setup envelopes.
-    tsf_voice_envelope_setup(&voice->ampenv, &region->ampenv, key, midiVelocity, true, f->outSampleRate);
-    tsf_voice_envelope_setup(&voice->modenv, &region->modenv, key, midiVelocity, false, f->outSampleRate);
+    tsf_voice_envelope_setup(&voice->ampenv, &region->ampenv, apparent_key, midiVelocity, true, f->outSampleRate);
+    tsf_voice_envelope_setup(&voice->modenv, &region->modenv, apparent_key, midiVelocity, false, f->outSampleRate);
     
     // Setup lowpass filter.
     lowpassFc = (region->initialFilterFc <= 13500 ? tsf_cents2Hertz((float)region->initialFilterFc) / f->outSampleRate : 1.0f);
