@@ -14,7 +14,7 @@ class Note {
   short getVelocity() const { return velocity; }
   float getVelocityAsFloat() const { return (float)velocity / 0x3f; }
   bool isDefined() const { return midi_note > 0 || (numerator != 0 && denominator != 0); }
-  bool isOff() const { return midi_note == 1; }
+  bool isOff() const { return midi_note == 1 || velocity == 0; }
   
   inline float getFrequency(int transpose, int detune) {
     if (midi_note > 1) {
