@@ -6,19 +6,19 @@
 
 class Note {
  public:
-  explicit Note() : midi_note(0), velocity(0x3f), numerator(0), denominator(0) { }
-  explicit Note(int _numerator, int _denominator, short _velocity) : midi_note(0), velocity(_velocity), numerator(_numerator), denominator(_denominator) { }
-  explicit Note(int _midi_note, short _velocity) : midi_note(_midi_note), velocity(_velocity), numerator(0), denominator(0) { }
+  explicit Note() : note_number(0), velocity(0x3f), numerator(0), denominator(0) { }
+  explicit Note(int _numerator, int _denominator, short _velocity) : note_number(0), velocity(_velocity), numerator(_numerator), denominator(_denominator) { }
+  explicit Note(int _note_number, short _velocity) : note_number(_note_number), velocity(_velocity), numerator(0), denominator(0) { }
 
-  short getMidiNote() const { return midi_note; }
+  short getNoteNumber() const { return note_number; }
   short getVelocity() const { return velocity; }
   float getVelocityAsFloat() const { return (float)velocity / 0x3f; }
-  bool isDefined() const { return midi_note > 0 || (numerator != 0 && denominator != 0); }
-  bool isOff() const { return midi_note == 1 || velocity == 0; }
+  bool isDefined() const { return note_number > 0 || (numerator != 0 && denominator != 0); }
+  bool isOff() const { return note_number == 1 || velocity == 0; }
   
   inline float getFrequency(int transpose, int detune) {
-    if (midi_note > 1) {
-      return 440 * powf(2, (midi_note - 69.0 + transpose + detune / 100.0f) / 12.0);
+    if (note_number > 1) {
+      return 440 * powf(2, (note_number - 69.0 + transpose + detune / 100.0f) / 12.0);
     } else {
       return 261.63f * numerator / denominator;
     }
@@ -26,8 +26,8 @@ class Note {
 
   std::string toString() const {
     if (isOff()) return "OFF";
-    else if (midi_note > 1) {
-      switch (midi_note) {
+    else if (note_number > 1) {
+      switch (note_number) {
       case 127: return "G-9";
       case 126: return "F♯9";
       case 125: return "F-9";
@@ -175,7 +175,7 @@ class Note {
   }
 
  private:
-  short midi_note, velocity;
+  short note_number, velocity;
   short numerator, denominator; 
 };
 
