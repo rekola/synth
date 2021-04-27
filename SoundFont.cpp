@@ -161,6 +161,8 @@ void tsf_channel_set_pitchwheel(tsf* f, int channel, int pitch_wheel);
 void tsf_channel_set_pitchrange(tsf* f, int channel, float pitch_range);
 void tsf_channel_set_tuning(tsf* f, int channel, float tuning);
 
+static struct tsf_channel* tsf_channel_init(tsf* f, int channel);
+
 // The lower this block size is the more accurate the effects are.
 // Increasing the value significantly lowers the CPU usage of the voice rendering.
 // If LFO affects the low-pass filter it can be hearable even as low as 8.
@@ -820,13 +822,42 @@ public:
     else return "";
   }
 
+  int getPresetIndex(int bank, int preset_number) const {
+    auto f = getHandle();
+    
+    const struct tsf_preset *presets;
+    int i, iMax;
+    for (presets = f->presets, i = 0, iMax = f->presetNum; i < iMax; i++) {
+      if (presets[i].preset == preset_number && presets[i].bank == bank) {
+	return i;
+      }
+    }
+    return -1;
+  }
+
   // Returns the name of a preset by bank and preset number
   string getBankPresetName(size_t bank, size_t preset_number) const {
-    size_t preset_index = tsf_get_presetindex(f, bank, preset_number);
+    size_t preset_index = getPresetIndex(bank, preset_number);
     return getPresetName(preset_index);
   }
 
+  void setChannelBank(int channel, int bank) {
+    auto f = getHandle();
+    tsf_channel_init(f, channel)->bank = (unsigned short)bank;
+  }
+
+  int setChannelBankPreset(int channel, int bank, int preset_number) {
+    auto f = getHandle();
+    struct tsf_channel *c = tsf_channel_init(f, channel);
+    int preset_index = tsf_get_presetindex(f, bank, preset_number);
+    if (preset_index == -1) return 0;
+    c->presetIndex = (unsigned short)preset_index;
+    c->bank = (unsigned short)bank;
+    return 1;
+  }
+
   tsf * getHandle() { return f; }
+  const tsf * getHandle() const { return f; }
   size_t getPresetCount() const { return f->presetNum; }
   
 private:
@@ -1349,21 +1380,6 @@ int tsf_channel_set_presetnumber(tsf* f, int channel, int preset_number, int fla
 		return 1;
 	}
 	return 0;
-}
-
-void tsf_channel_set_bank(tsf* f, int channel, int bank)
-{
-	tsf_channel_init(f, channel)->bank = (unsigned short)bank;
-}
-
-int tsf_channel_set_bank_preset(tsf* f, int channel, int bank, int preset_number)
-{
-	struct tsf_channel *c = tsf_channel_init(f, channel);
-	int preset_index = tsf_get_presetindex(f, bank, preset_number);
-	if (preset_index == -1) return 0;
-	c->presetIndex = (unsigned short)preset_index;
-	c->bank = (unsigned short)bank;
-	return 1;
 }
 
 #if 0
