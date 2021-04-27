@@ -49,6 +49,12 @@ class Track {
     }
   }
 
+  size_t getVoiceCount() const {
+    size_t n = 0;
+    for (auto & voice : voices) if (voice->isPlaying()) n++;
+    return n;
+  }
+
 private:
   int instrument_id = 0;
   std::vector<std::shared_ptr<InstrumentVoice> > voices;

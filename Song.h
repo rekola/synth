@@ -43,11 +43,20 @@ class Song {
 
   void incVersion() { version++; }
   int getVersion() const { return version; }
+
+  size_t getVoiceCount() const {
+    size_t n = 0;
+    for (auto & track : tracks) n += track.getVoiceCount();
+    return n;
+  }
   
   float mastervol = 1.0;
   int bpm = 60;
 
 private:
+  short key_note_number = 0;
+  Tuning tuning = Tuning::INHERIT;
+
   std::vector<std::unique_ptr<Instrument> > instruments;
   std::vector<Pattern> patterns;
   Pattern empty_pattern;
