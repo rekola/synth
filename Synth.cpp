@@ -62,9 +62,10 @@ Synth::play(Song & song, size_t frames) {
       for (auto & voice : track.getVoices()) {
 	if (voice->isPlaying()) {
 	  float adsrvol = voice->updateADSR(instrument.getEnvelope());
-	  ss += instrument.getSample(*voice) * voice->getVelocity() * track.getVolume() * adsrvol;
-	  // if (solo_instrument != -1 && pattern.getInstrumentId() != solo_instrument) ss = 0;
-	  instrument.stepForward(*voice);
+	  float s;
+	  voice->render(&s, 1);
+	  ss += s * track.getVolume() * adsrvol;
+	  // if (solo_instrument != -1 && pattern.getInstrumentId() != solo_instrument) ss = 0;	  
 	}
       }
 
