@@ -116,7 +116,7 @@ struct tsf_stream {
 };
 
 // Generic SoundFont loading method using the stream structure above
-tsf* tsf_load(struct tsf_stream* stream);
+void tsf_load(tsf * f, struct tsf_stream* stream);
 
 // Returns the number of presets in the loaded SoundFont
 int tsf_get_presetcount(const tsf* f);
@@ -161,8 +161,6 @@ void tsf_channel_set_pitchwheel(tsf* f, int channel, int pitch_wheel);
 void tsf_channel_set_pitchrange(tsf* f, int channel, float pitch_range);
 void tsf_channel_set_tuning(tsf* f, int channel, float tuning);
 
-static struct tsf_channel* tsf_channel_init(tsf* f, int channel);
-
 // The lower this block size is the more accurate the effects are.
 // Increasing the value significantly lowers the CPU usage of the voice rendering.
 // If LFO affects the low-pass filter it can be hearable even as low as 8.
@@ -184,8 +182,7 @@ static int tsf_stream_stdio_skip(FILE* f, unsigned int count) { return !fseek(f,
 
 // Directly load a SoundFont from a .sf2 file path
 
-tsf* tsf_load_filename(const char* filename) {
-  tsf* res;
+void tsf_load_filename(tsf * res, const char* filename) {
   struct tsf_stream stream = { NULL, (int(*)(void*,void*,unsigned int))&tsf_stream_stdio_read, (int(*)(void*,unsigned int))&tsf_stream_stdio_skip };
 #if __STDC_WANT_SECURE_LIB__
   FILE* f = NULL; fopen_s(&f, filename, "rb");
@@ -195,18 +192,18 @@ tsf* tsf_load_filename(const char* filename) {
   if (!f)
     {
       //if (e) *e = TSF_FILENOTFOUND;
-      return NULL;
+      return;
     }
   stream.data = f;
-  res = tsf_load(&stream);
+  tsf_load(res, &stream);
   fclose(f);
-  return res;
 }
 
 struct tsf_stream_memory { const char* buffer; unsigned int total, pos; };
 static int tsf_stream_memory_read(struct tsf_stream_memory* m, void* ptr, unsigned int size) { if (size > m->total - m->pos) size = m->total - m->pos; memcpy(ptr, m->buffer+m->pos, size); m->pos += size; return size; }
 static int tsf_stream_memory_skip(struct tsf_stream_memory* m, unsigned int count) { if (m->pos + count > m->total) return 0; m->pos += count; return 1; }
 
+#if 0
 // Load a SoundFont from a block of memory
 
 tsf* tsf_load_memory(const void* buffer, int size) {
@@ -217,6 +214,7 @@ tsf* tsf_load_memory(const void* buffer, int size) {
   stream.data = &f;
   return tsf_load(&stream);
 }
+#endif
 
 enum { TSF_LOOPMODE_NONE, TSF_LOOPMODE_CONTINUOUS, TSF_LOOPMODE_SUSTAIN };
 
@@ -784,7 +782,10 @@ static void tsf_voice_lfo_process(struct tsf_voice_lfo* e, int blockSamples) {
 class SoundFontFile {
 public:
   SoundFontFile(std::string filename) {
-    f = tsf_load_filename(filename.c_str());
+    f = (tsf*)malloc(sizeof(tsf));
+    memset(f, 0, sizeof(tsf));
+
+    tsf_load_filename(f, filename.c_str());
     
     f->outputmode = TSF_MONO;
     f->outSampleRate = 44100.0f;
@@ -830,14 +831,44 @@ public:
     return getPresetName(preset_index);
   }
 
+  tsf_channel * channelInit(int channel) {
+    auto f = getHandle();
+    
+    int i;
+    if (f->channels && channel < f->channels->channelNum) return &f->channels->channels[channel];
+    if (!f->channels) {
+      f->channels = (struct tsf_channels*)malloc(sizeof(struct tsf_channels));
+      // f->channels->setupVoice = &tsf_channel_setup_voice; // FIXME
+      f->channels->channels = NULL;
+      f->channels->channelNum = 0;
+      f->channels->activeChannel = 0;
+    }
+    i = f->channels->channelNum;
+    f->channels->channelNum = channel + 1;
+    f->channels->channels = (struct tsf_channel*)realloc(f->channels->channels, f->channels->channelNum * sizeof(struct tsf_channel));
+    for (; i <= channel; i++) {
+      struct tsf_channel* c = &f->channels->channels[i];
+      c->presetIndex = c->bank = 0;
+      c->pitchWheel = c->midiPan = 8192;
+      c->midiVolume = c->midiExpression = 16383;
+      c->midiRPN = 0xFFFF;
+      c->midiData = 0;
+      c->panOffset = 0.0f;
+      c->gainDB = 0.0f;
+      c->pitchRange = 2.0f;
+      c->tuning = 0.0f;
+    }
+    return &f->channels->channels[channel];
+  }
+
   void setChannelBank(int channel, int bank) {
     auto f = getHandle();
-    tsf_channel_init(f, channel)->bank = (unsigned short)bank;
+    channelInit(channel)->bank = (unsigned short)bank;
   }
 
   int setChannelBankPreset(int channel, int bank, int preset_number) {
     auto f = getHandle();
-    struct tsf_channel *c = tsf_channel_init(f, channel);
+    struct tsf_channel *c = channelInit(channel);
     int preset_index = getPresetIndex(bank, preset_number);
     if (preset_index == -1) return 0;
     c->presetIndex = (unsigned short)preset_index;
@@ -847,12 +878,12 @@ public:
 
   void setChannelPresetIndex(int channel, int preset_index) {
     auto f = getHandle();
-    tsf_channel_init(f, channel)->presetIndex = (unsigned short)preset_index;
+    channelInit(channel)->presetIndex = (unsigned short)preset_index;
   }
 
   int setChannelPresetNumber(int channel, int preset_number, int flag_mididrums) {
     auto f = getHandle();
-    struct tsf_channel *c = tsf_channel_init(f, channel);
+    struct tsf_channel *c = channelInit(channel);
     int preset_index;
     if (flag_mididrums) {
       preset_index = getPresetIndex(128 | (c->bank & 0x7FFF), preset_number);
@@ -1081,19 +1112,17 @@ SoundFontVoice::render(float* outputBuffer, size_t numSamples) {
   if (tmpLowpass.active || dynamicLowpass) lowpass = tmpLowpass;
 }
 
-tsf* tsf_load(struct tsf_stream* stream) {
-  tsf* res = NULL;
+void tsf_load(tsf* res, struct tsf_stream* stream) {  
   struct tsf_riffchunk chunkHead;
   struct tsf_riffchunk chunkList;
   struct tsf_hydra hydra;
   float* fontSamples = NULL;
   unsigned int fontSampleCount = 0;
   
-  if (!tsf_riffchunk_read(NULL, &chunkHead, stream) || !TSF_FourCCEquals(chunkHead.id, "sfbk"))
-    {
-      //if (e) *e = TSF_INVALID_NOSF2HEADER;
-      return res;
-    }
+  if (!tsf_riffchunk_read(NULL, &chunkHead, stream) || !TSF_FourCCEquals(chunkHead.id, "sfbk")) {
+    //if (e) *e = TSF_INVALID_NOSF2HEADER;
+    return;
+  }
   
   // Read hydra and locate sample data.
   memset(&hydra, 0, sizeof(hydra));
@@ -1146,8 +1175,6 @@ tsf* tsf_load(struct tsf_stream* stream) {
     }
   else
     {
-      res = (tsf*)malloc(sizeof(tsf));
-      memset(res, 0, sizeof(tsf));
       res->presetNum = hydra.phdrNum - 1;
       res->presets = (struct tsf_preset*)malloc(res->presetNum * sizeof(struct tsf_preset));
       res->fontSamples = fontSamples;
@@ -1159,7 +1186,6 @@ tsf* tsf_load(struct tsf_stream* stream) {
   free(hydra.pgens); free(hydra.insts); free(hydra.ibags);
   free(hydra.imods); free(hydra.igens); free(hydra.shdrs);
   free(fontSamples);
-  return res;
 }
 
 #if 0
@@ -1321,37 +1347,6 @@ static void tsf_channel_setup_voice(tsf* f, SoundFontVoice * v) {
   if (newpan <= -0.5f) { v->panFactorLeft = 1.0f; v->panFactorRight = 0.0f; }
   else if (newpan >=  0.5f) { v->panFactorLeft = 0.0f; v->panFactorRight = 1.0f; }
   else { v->panFactorLeft = sqrtf(0.5f - newpan); v->panFactorRight = sqrtf(0.5f + newpan); }
-}
-
-static struct tsf_channel* tsf_channel_init(tsf* f, int channel)
-{
-	int i;
-	if (f->channels && channel < f->channels->channelNum) return &f->channels->channels[channel];
-	if (!f->channels)
-	{
-		f->channels = (struct tsf_channels*)malloc(sizeof(struct tsf_channels));
-		f->channels->setupVoice = &tsf_channel_setup_voice;
-		f->channels->channels = NULL;
-		f->channels->channelNum = 0;
-		f->channels->activeChannel = 0;
-	}
-	i = f->channels->channelNum;
-	f->channels->channelNum = channel + 1;
-	f->channels->channels = (struct tsf_channel*)realloc(f->channels->channels, f->channels->channelNum * sizeof(struct tsf_channel));
-	for (; i <= channel; i++)
-	{
-		struct tsf_channel* c = &f->channels->channels[i];
-		c->presetIndex = c->bank = 0;
-		c->pitchWheel = c->midiPan = 8192;
-		c->midiVolume = c->midiExpression = 16383;
-		c->midiRPN = 0xFFFF;
-		c->midiData = 0;
-		c->panOffset = 0.0f;
-		c->gainDB = 0.0f;
-		c->pitchRange = 2.0f;
-		c->tuning = 0.0f;
-	}
-	return &f->channels->channels[channel];
 }
 
 #if 0
