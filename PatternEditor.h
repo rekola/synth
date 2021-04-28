@@ -27,7 +27,8 @@ protected:
   size_t current_scroll_row = 0, current_scroll_col = 0;
 
   size_t new_score_cursor_col = 0;
-  
+
+  int edit_step_size = 1;
   bool row_edited = false;
   int current_song_version = 0;
 };

@@ -34,8 +34,8 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   size_t new_scroll_row = current_scroll_row;
   if (score_playing_row < new_scroll_row) {
     new_scroll_row = score_playing_row;
-  } else if (score_playing_row >= new_scroll_row + rows - 3) {
-    new_scroll_row = score_playing_row - (rows - 3) + 1;
+  } else if (score_playing_row >= new_scroll_row + rows - 4) {
+    new_scroll_row = score_playing_row - (rows - 4) + 1;
   }
 
   size_t new_scroll_col = current_scroll_col;
@@ -127,21 +127,39 @@ PatternEditor::offerInput(const UIInput & input) {
       auto & seq = song.addTrack();
       seq.setInstrumentId(instrument_id); // + 1);
       song.incVersion();
-    } else if (input.hasShift() && (input.getId() == 't' || input.getId() == 'T')) {
-      // delete track
-      return true;
     } else if (input.getId() == 'g' || input.getId() == 'G') {
       // create group
       return true;
     } else if (input.getId() == 'd' || input.getId() == 'D') {
       // duplicate track
       return true;
+    } else if (input.getId() == '+') {
+      edit_step_size++;
+    } else if (input.getId() == '-') {
+      if (edit_step_size > 0) edit_step_size--;
     } else if (input.hasAlt() && input.getId() == NCKEY_LEFT) {
       // move selected track to left
       return true;
     } else if (input.hasAlt() && input.getId() == NCKEY_RIGHT) {
       // move selected track to right
       return true;
+    } else if (input.getId() == NCKEY_LEFT || input.getId() == 'p') {
+      auto & track = song.getTrack(current_score_cursor_col);
+      if (track.getInstrumentId() > 0) {
+	track.setInstrumentId(track.getInstrumentId() - 1);
+	song.incVersion();
+      }
+      return true;
+    } else if (input.getId() == NCKEY_RIGHT || input.getId() == 'i' || input.getId() == 'i' || input.getId() == 'o') {
+      auto & track = song.getTrack(current_score_cursor_col);
+      track.setInstrumentId(track.getInstrumentId() + 1);
+      song.incVersion();
+      return true;
+    } else if (input.hasShift()) {
+      if (input.getId() == 't' || input.getId() == 'T') {
+	// delete track
+	return true;
+      }
     } else {
       return false;
     }
@@ -185,12 +203,13 @@ PatternEditor::offerInput(const UIInput & input) {
 	pattern.setNote(current_score_cursor_col, synth.getTrackPosition(), 0, note);
       }
 
-      track.playNote(note, instrument, note_column);
+      Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
+      track.playNote(tuning, note, instrument, note_column);
       row_edited = true;
 
       if (!synth.isPlaying()) {
-	if (input.getId() == NCKEY_BACKSPACE) synth.moveBackwards(song);
-	else if (input.getId() != NCKEY_DEL) synth.moveForward(song);
+	if (input.getId() == NCKEY_BACKSPACE) synth.moveBackwards(song, edit_step_size);
+	else if (input.getId() != NCKEY_DEL) synth.moveForward(song, edit_step_size);
       }
       
       return true;
@@ -215,12 +234,14 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<siz
   putstr(1, 1, padding);
 
   auto & tracks = song.getTracks();
+  auto & instruments = song.getInstruments();
 
   size_t current_pos = 6;
   for (size_t i = 0; i < tracks.size(); i++) {
     if (i < current_scroll_col) continue;
     if (current_pos >= cols) break;
-    
+
+    auto & track = tracks[i];
     auto note_columns = i < track_widths.size() ? track_widths[i] : 0;
     size_t actual_width = (note_columns == 0 ? 1 : note_columns) * 7;
     
@@ -234,6 +255,16 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<siz
     }
     name += "│";
     putstr(1, current_pos, name);
+
+    setFgColor(0xf0, 0xf0, 0xf0);
+    setBgColor(styles.window_bg_color);
+
+    string instrument_name;
+    if (track.getInstrumentId() >= 0 && track.getInstrumentId() < instruments.size()) {
+      instrument_name = instruments[track.getInstrumentId()]->getName();
+    }
+    putstr(2, current_pos, instrument_name);
+    
     current_pos += actual_width;
   }
 }
@@ -242,7 +273,7 @@ void
 PatternEditor::renderRow(const StyleProvider & styles, const std::vector<size_t> & track_widths, size_t row, bool highlight) {
   auto [rows, cols] = getDim();
 
-  if (row >= current_scroll_row && row < current_scroll_row + rows - 3) {
+  if (row >= current_scroll_row && row < current_scroll_row + rows - 4) {
     auto & song = getController().getSong();
     auto & synth = getController().getSynth();
     auto & pattern = song.getPattern(synth.getPatternPosition());
@@ -251,7 +282,7 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<size_t>
     for (size_t i = 1; i < cols - 1; i++) padding += ' ';
     
     setBgColor(styles.window_bg_color);
-    putstr(2 + row - current_scroll_row, 1, padding);
+    putstr(3 + row - current_scroll_row, 1, padding);
     
     auto & tracks = song.getTracks();
     
@@ -285,12 +316,12 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<size_t>
 	setFgColor(cell_fg);
 	setBgColor(cell_bg);
 	
-	putstr(2 + row - current_scroll_row, current_pos, format(" {:02x} ", row));
+	putstr(3 + row - current_scroll_row, current_pos, format(" {:02x} ", row));
 	
 	setFgColor(styles.window_border_color);
 	setBgColor(styles.window_bg_color);
 	
-	putstr(2 + row - current_scroll_row, current_pos + 4, "│");
+	putstr(3 + row - current_scroll_row, current_pos + 4, "│");
 	
 	current_pos += 5;
       } else {
@@ -303,19 +334,19 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<size_t>
 	  string s;
 	  if (k < notes.size() && notes[k].isDefined()) {
 	    auto & note = notes[k];
-	    s = note.toString() + format(" {:02x}", note.getVelocity());
+	    s = note.toString(song.getTuning()) + format(" {:02x}", note.getVelocity());
 	  } else {
 	    s = "... ..";
 	  }
 	  setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 	  
-	  putstr(2 + row - current_scroll_row, current_pos, s);
+	  putstr(3 + row - current_scroll_row, current_pos, s);
 	  
 	  setFgColor(styles.window_border_color);
 	  setBgColor(bg);
 	  
-	  putstr(2 + row - current_scroll_row, current_pos + 6, "│");
+	  putstr(3 + row - current_scroll_row, current_pos + 6, "│");
 	  
 	  current_pos += 7;
 	}
@@ -327,7 +358,7 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<size_t>
       if (!annotation.empty()) {
 	setFgColor("#e03030");
 	setBgColor("#702020");
-	putstr(2 + row - current_scroll_row, current_pos + 2, annotation);
+	putstr(3 + row - current_scroll_row, current_pos + 2, annotation);
       }
     }
   }
