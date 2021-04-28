@@ -55,6 +55,8 @@ class Track {
     return n;
   }
 
+  size_t getAllocatedVoiceCount() const { return voices.size(); }
+  
 private:
   int instrument_id = 0;
   std::vector<std::shared_ptr<InstrumentVoice> > voices;

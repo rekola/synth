@@ -49,7 +49,13 @@ class Song {
     for (auto & track : tracks) n += track.getVoiceCount();
     return n;
   }
-  
+
+  size_t getAllocatedVoiceCount() const {
+    size_t n = 0;
+    for (auto & track : tracks) n += track.getAllocatedVoiceCount();
+    return n;
+  }
+
   float mastervol = 1.0;
   int bpm = 60;
 
