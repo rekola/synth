@@ -897,7 +897,7 @@ public:
     : InstrumentVoice(_identifier), sf(_sf), preset(_preset) {
     playingPreset = -1;
   }
-
+  
   void playNote(Note note, int transpose, int detune) override;
   bool isPlaying() const override { return playingPreset != -1; }
 
@@ -905,8 +905,8 @@ public:
     playingPreset = -1;
   }
 
-  void render(float* outputBuffer, size_t numSamples);
-
+  void render(float * outputBuffer, size_t numSamples) override;
+  
   void stopNote() override {
     auto f = sf->getHandle();
     
@@ -954,8 +954,10 @@ private:
 
 void
 SoundFontVoice::render(float* outputBuffer, size_t numSamples) {
-  auto f = sf->getHandle();
+  memset(outputBuffer, 0, numSamples * sizeof(float));
   
+  auto f = sf->getHandle();
+
   struct tsf_region* region = voiceRegion;
   float* input = f->fontSamples;
   float* outL = outputBuffer;
@@ -1619,16 +1621,6 @@ class SoundFontInstrument : public Instrument {
 public:
   SoundFontInstrument(std::shared_ptr<SoundFontFile> _sf, size_t _preset) : sf(_sf), preset(_preset) { }
   
-  float getSample(InstrumentVoice & _voice) const override {
-    float buffer[1];
-    buffer[0] = 0;
-    
-    auto & voice = dynamic_cast<SoundFontVoice&>(_voice);
-    voice.render(buffer, 1);
-    
-    return buffer[0];
-  }
-
   std::shared_ptr<InstrumentVoice> createVoice(int identifier) const override {
     return make_shared<SoundFontVoice>(identifier, sf, preset);
   }
