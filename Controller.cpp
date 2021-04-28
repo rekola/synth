@@ -60,10 +60,20 @@ Controller::loadDemo2() {
   song->bpm = 90;
   song->mastervol = 1.0f;
 
-#if 1
+#if 0
   auto fluid = make_unique<SoundFont>("FluidR3_GM.sf2");
   song->addInstrument(fluid->createInstrument(0));
 #else
+  auto oboe = make_unique<FMInstrument>(0.7, 1, 3, 0.1f);
+  oboe->setName("oboe");
+  oboe->setADSR(2, 15, 0.5f, 10);
+  oboe->setTranspose(24);
+  // oboe->addEffect(make_unique<Distortion>(Distortion::CLIP, 0.5f));
+  // oboe->addEffect(make_unique<Chorus>(5.0f, 0.0f));
+  // oboe->addEffect(make_unique<Reverb>(44100, Reverb::DEFAULT)); // LARGEROOM1));
+  // oboe->setFilter(100, 30);
+  song->addInstrument(move(oboe));
+
   auto epiano = make_unique<BasicInstrument>(WaveformType::SAW);
   epiano->setName("Electric Piano");
   epiano->setADSR(0, 20, 0.0f, 0);
@@ -236,6 +246,33 @@ Controller::loadDemo2() {
   pattern.setNote(0, 130, 0, Note(8, 7, 0x3f));
   pattern.setNote(0, 130, 1, Note(6, 5, 0x3f));
 
+
+  pattern.setNote(0, 140, 0, Note(1, 1, 0x3f));
+  pattern.setNote(0, 140, 1, Note(6, 5, 0x3f));
+  pattern.setNote(0, 140, 2, Note(3, 2, 0x3f));
+
+  pattern.setNote(0, 142, 0, Note(1, 1, 0x3f));
+  pattern.setNote(0, 142, 1, Note(6, 5, 0x3f));
+  pattern.setNote(0, 142, 2, Note(21, 15, 0x3f));
+
+  pattern.setNote(0, 144, 0, Note(8*1, 7*1, 0x3f));
+  pattern.setNote(0, 144, 1, Note(8*6, 7*5, 0x3f));
+  pattern.setNote(0, 144, 2, Note(8*3, 7*2, 0x3f));
+
+  pattern.setNote(0, 146, 0, Note(7*1, 6*1, 0x3f));
+  pattern.setNote(0, 146, 1, Note(7*6, 6*5, 0x3f));
+  pattern.setNote(0, 146, 2, Note(7*3, 6*2, 0x3f));
+
+  pattern.setNote(0, 148, 0, Note(7*1, 6*1, 0x3f));
+  pattern.setNote(0, 148, 1, Note(7*7, 6*6, 0x3f));
+  pattern.setNote(0, 148, 2, Note(7*4, 6*3, 0x3f));
+
+
+  pattern.setNote(0, 152, 0, Note(1, 1, 0x3f));
+  pattern.setNote(0, 152, 1, Note(3, 2, 0x3f));
+  pattern.setNote(0, 152, 2, Note(21, 12, 0x3f));
+
+  
   song->addPattern(pattern);  
     
   current_song = song;  
