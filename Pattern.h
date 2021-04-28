@@ -13,7 +13,8 @@
 class Pattern {
  public:
   explicit Pattern(size_t _num_rows = DEFAULT_PATTERN_LENGTH) : num_rows(_num_rows) { }
-  
+
+  Tuning getTuning() const { return tuning; }
   size_t getNumRows() const { return num_rows; }
 
   void setNote(size_t track, size_t row, size_t note_column, Note note) {

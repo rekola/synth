@@ -11,8 +11,10 @@
 
 class Song {
  public:
-  Song() { }
+  Song(Tuning _tuning = Tuning::TET12) : tuning(_tuning) { }
 
+  Tuning getTuning() const { return tuning; }
+  
   const std::vector<Pattern> & getPatterns() const { return patterns; }
   const Pattern & getPattern(size_t i) const { return i < patterns.size() ? patterns[i] : empty_pattern; }
   Pattern & getPattern(size_t i) { return i < patterns.size() ? patterns[i] : empty_pattern; }
@@ -61,7 +63,7 @@ class Song {
 
 private:
   short key_note_number = 0;
-  Tuning tuning = Tuning::INHERIT;
+  Tuning tuning;
 
   std::vector<std::unique_ptr<Instrument> > instruments;
   std::vector<Pattern> patterns;

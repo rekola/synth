@@ -23,11 +23,13 @@ Synth::play(Song & song, size_t frames) {
     for (size_t i = 0; i < frames; i++) {
       if (samplepos == 0) {
 	auto & pattern = song.getPattern(getPatternPosition());
+	auto tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
+
 	for (size_t col = 0; col < song.getTracks().size(); col++) {
 	  auto & track = song.getTrack(col);
 	  auto & notes = pattern.getNotes(col, getTrackPosition());
 	  if (!notes.empty()) {
-	    track.addPendingNotes(i, notes);
+	    track.addPendingNotes(i, tuning, notes);
 	  }
 	}
       }
@@ -45,13 +47,12 @@ Synth::play(Song & song, size_t frames) {
     for (size_t i = 0; i < frames; i++) {
       auto & pending = track.getPendingNotes();
       if (!pending.empty()) {
-	auto & front = pending.front();
-	if (i == front.first) {
-	  auto & notes = front.second;
+	auto & [ frame_index, tuning, notes ] = pending.front();
+	if (i == frame_index) {
 	  for (size_t j = 0; j < notes.size(); j++) {
 	    auto & note = notes[j];
 	    if (note.isDefined()) {
-	      track.playNote(note, instrument, j);
+	      track.playNote(tuning, note, instrument, j);
 	    }
 	  }
 	  pending.pop_front();

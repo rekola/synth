@@ -58,15 +58,13 @@ class InstrumentVoice {
     adsrpos = 0;
   }
   
-  virtual void playNote(Note note, int transpose, int detune) {
-    float _velocity = note.getVelocityAsFloat();
-    
+  virtual void playNote(Tuning tuning, Note note, int transpose, int detune) {
     if (note.isOff()) {
       stopNote();
     } else if (note.isDefined()) {
       // float fscaler = (float)WAVESIZE / 44100.0f;
-      freq = note.getFrequency(transpose, detune);
-      velocity = _velocity;
+      freq = note.getFrequency(tuning, transpose, detune);
+      velocity = note.getVelocityAsFloat();
       adsrstate = 0;
       adsrpos = 0;
       fphase = 0;

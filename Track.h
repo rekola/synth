@@ -27,17 +27,17 @@ class Track {
 
   std::vector<std::shared_ptr<InstrumentVoice> > & getVoices() { return voices; }
   
-  void addPendingNotes(size_t frame, const std::vector<Note> & notes) {
-    pending_notes.push_back(std::pair(frame, notes));
+  void addPendingNotes(size_t frame, Tuning tuning, const std::vector<Note> & notes) {
+    pending_notes.push_back(std::tuple(frame, tuning, notes));
   }
   void clearPendingNotes() { pending_notes.clear(); }
-  std::deque<std::pair<unsigned int, std::vector<Note> > > & getPendingNotes() { return pending_notes; }
+  std::deque<std::tuple<unsigned int, Tuning, std::vector<Note> > > & getPendingNotes() { return pending_notes; }
 
-  void playNote(const Note & note, const Instrument & instrument, int identifier) {
+  void playNote(Tuning tuning, const Note & note, const Instrument & instrument, int identifier) {
     bool voice_found = false;
     for (auto & voice : voices) {
       if (!voice_found && !voice->isPlaying()) {
-	voice->playNote(note, instrument.getTranspose(), instrument.getDetune());
+	voice->playNote(tuning, note, instrument.getTranspose(), instrument.getDetune());
 	voice_found = true;
       } else if (identifier == voice->getIdentifier() && voice->isPlaying()) {
 	voice->stopNote();
@@ -45,7 +45,7 @@ class Track {
     }
     if (!voice_found) {
       voices.push_back(instrument.createVoice(identifier));
-      voices.back()->playNote(note, instrument.getTranspose(), instrument.getDetune());
+      voices.back()->playNote(tuning, note, instrument.getTranspose(), instrument.getDetune());
     }
   }
 
@@ -65,7 +65,7 @@ private:
   float volume = 0.75f;
   std::shared_ptr<Track> first_child, next_sibling;
 
-  std::deque<std::pair<unsigned int, std::vector<Note> > > pending_notes;
+  std::deque<std::tuple<unsigned int, Tuning, std::vector<Note> > > pending_notes;
 };
 
 #endif

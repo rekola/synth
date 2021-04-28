@@ -898,7 +898,7 @@ public:
     playingPreset = -1;
   }
   
-  void playNote(Note note, int transpose, int detune) override;
+  void playNote(Tuning tuning, Note note, int transpose, int detune) override;
   bool isPlaying() const override { return playingPreset != -1; }
 
   void kill() {
@@ -1540,7 +1540,7 @@ SoundFont::openFile() {
 }  
 
 void
-SoundFontVoice::playNote(Note note, int transpose, int detune) {
+SoundFontVoice::playNote(Tuning tuning, Note note, int transpose, int detune) {
   if (note.isOff()) {
     stopNote();    
     return;
@@ -1549,7 +1549,7 @@ SoundFontVoice::playNote(Note note, int transpose, int detune) {
   auto f = sf->getHandle();
   
   // short midiVelocity = 63; // (short)(vel * 127);  
-  double frequency = note.getFrequency(transpose, detune);
+  double frequency = note.getFrequency(tuning, transpose, detune);
     
   int preset_index = preset;
   if (preset_index < 0 || preset_index >= f->presetNum) return;
