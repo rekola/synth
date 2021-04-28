@@ -22,8 +22,13 @@ class Track {
   bool getSolo() const { return solo; }
   void setSolo(bool s) {solo = s; }
 
-  void setInstrumentId(int id) { instrument_id = id; }
   int getInstrumentId() const { return instrument_id; }
+  void setInstrumentId(int id) {
+    if (id != instrument_id) {
+      instrument_id = id;
+      voices.clear(); // the voices have wrong instrument
+    }
+  }
 
   std::vector<std::shared_ptr<InstrumentVoice> > & getVoices() { return voices; }
   
