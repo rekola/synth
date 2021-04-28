@@ -781,19 +781,6 @@ static void tsf_voice_lfo_process(struct tsf_voice_lfo* e, int blockSamples) {
   else if (e->level < -1.0f) { e->delta = -e->delta; e->level = -2.0f - e->level; }
 }
 
-// Returns the preset index from a bank and preset number, or -1 if it does not exist in the loaded SoundFont
-
-int tsf_get_presetindex(const tsf* f, int bank, int preset_number) {
-  const struct tsf_preset *presets;
-  int i, iMax;
-  for (presets = f->presets, i = 0, iMax = f->presetNum; i < iMax; i++) {
-    if (presets[i].preset == preset_number && presets[i].bank == bank) {
-      return i;
-    }
-  }
-  return -1;
-}
-
 class SoundFontFile {
 public:
   SoundFontFile(std::string filename) {
@@ -801,7 +788,7 @@ public:
     
     f->outputmode = TSF_MONO;
     f->outSampleRate = 44100.0f;
-    f->globalGainDB = 0.0f;
+    f->globalGainDB = 0.0f; // the desired volume where 1.0 is 100%
   }
   ~SoundFontFile() {
     struct tsf_preset *preset, *presetEnd;
@@ -821,6 +808,8 @@ public:
     if (index < f->presetNum) return f->presets[index].presetName;
     else return "";
   }
+
+  // Returns the preset index from a bank and preset number, or -1 if it does not exist in the loaded SoundFont
 
   int getPresetIndex(int bank, int preset_number) const {
     auto f = getHandle();
@@ -849,7 +838,7 @@ public:
   int setChannelBankPreset(int channel, int bank, int preset_number) {
     auto f = getHandle();
     struct tsf_channel *c = tsf_channel_init(f, channel);
-    int preset_index = tsf_get_presetindex(f, bank, preset_number);
+    int preset_index = getPresetIndex(bank, preset_number);
     if (preset_index == -1) return 0;
     c->presetIndex = (unsigned short)preset_index;
     c->bank = (unsigned short)bank;
@@ -866,15 +855,15 @@ public:
     struct tsf_channel *c = tsf_channel_init(f, channel);
     int preset_index;
     if (flag_mididrums) {
-      preset_index = tsf_get_presetindex(f, 128 | (c->bank & 0x7FFF), preset_number);
-      if (preset_index == -1) preset_index = tsf_get_presetindex(f, 128, preset_number);
-      if (preset_index == -1) preset_index = tsf_get_presetindex(f, 128, 0);
-      if (preset_index == -1) preset_index = tsf_get_presetindex(f, (c->bank & 0x7FFF), preset_number);
+      preset_index = getPresetIndex(128 | (c->bank & 0x7FFF), preset_number);
+      if (preset_index == -1) preset_index = getPresetIndex(128, preset_number);
+      if (preset_index == -1) preset_index = getPresetIndex(128, 0);
+      if (preset_index == -1) preset_index = getPresetIndex((c->bank & 0x7FFF), preset_number);
     } else {
-      preset_index = tsf_get_presetindex(f, (c->bank & 0x7FFF), preset_number);
+      preset_index = getPresetIndex((c->bank & 0x7FFF), preset_number);
     }
     if (preset_index == -1) {
-      preset_index = tsf_get_presetindex(f, 0, preset_number);
+      preset_index = getPresetIndex(0, preset_number);
     }
     if (preset_index != -1) {
       c->presetIndex = (unsigned short)preset_index;
@@ -1092,109 +1081,98 @@ SoundFontVoice::render(float* outputBuffer, size_t numSamples) {
   if (tmpLowpass.active || dynamicLowpass) lowpass = tmpLowpass;
 }
 
-tsf* tsf_load(struct tsf_stream* stream)
-{
-	tsf* res = NULL;
-	struct tsf_riffchunk chunkHead;
-	struct tsf_riffchunk chunkList;
-	struct tsf_hydra hydra;
-	float* fontSamples = NULL;
-	unsigned int fontSampleCount = 0;
-
-	if (!tsf_riffchunk_read(NULL, &chunkHead, stream) || !TSF_FourCCEquals(chunkHead.id, "sfbk"))
-	{
-		//if (e) *e = TSF_INVALID_NOSF2HEADER;
-		return res;
-	}
-
-	// Read hydra and locate sample data.
-	memset(&hydra, 0, sizeof(hydra));
-	while (tsf_riffchunk_read(&chunkHead, &chunkList, stream))
-	{
-		struct tsf_riffchunk chunk;
-		if (TSF_FourCCEquals(chunkList.id, "pdta"))
-		{
-			while (tsf_riffchunk_read(&chunkList, &chunk, stream))
-			{
-				#define HandleChunk(chunkName) (TSF_FourCCEquals(chunk.id, #chunkName) && !(chunk.size % chunkName##SizeInFile)) \
-					{ \
-						int num = chunk.size / chunkName##SizeInFile, i; \
-						hydra.chunkName##Num = num; \
-						hydra.chunkName##s = (struct tsf_hydra_##chunkName*)malloc(num * sizeof(struct tsf_hydra_##chunkName)); \
-						for (i = 0; i < num; ++i) tsf_hydra_read_##chunkName(&hydra.chunkName##s[i], stream); \
-					}
-				enum
-				{
-					phdrSizeInFile = 38, pbagSizeInFile =  4, pmodSizeInFile = 10,
-					pgenSizeInFile =  4, instSizeInFile = 22, ibagSizeInFile =  4,
-					imodSizeInFile = 10, igenSizeInFile =  4, shdrSizeInFile = 46
-				};
-				if      HandleChunk(phdr) else if HandleChunk(pbag) else if HandleChunk(pmod)
-				else if HandleChunk(pgen) else if HandleChunk(inst) else if HandleChunk(ibag)
-				else if HandleChunk(imod) else if HandleChunk(igen) else if HandleChunk(shdr)
-				else stream->skip(stream->data, chunk.size);
-				#undef HandleChunk
-			}
-		}
-		else if (TSF_FourCCEquals(chunkList.id, "sdta"))
-		{
-			while (tsf_riffchunk_read(&chunkList, &chunk, stream))
-			{
-				if (TSF_FourCCEquals(chunk.id, "smpl"))
-				{
-					tsf_load_samples(&fontSamples, &fontSampleCount, &chunk, stream);
-				}
-				else stream->skip(stream->data, chunk.size);
-			}
-		}
-		else stream->skip(stream->data, chunkList.size);
-	}
-	if (!hydra.phdrs || !hydra.pbags || !hydra.pmods || !hydra.pgens || !hydra.insts || !hydra.ibags || !hydra.imods || !hydra.igens || !hydra.shdrs)
-	{
-		//if (e) *e = TSF_INVALID_INCOMPLETE;
-	}
-	else if (fontSamples == NULL)
-	{
-		//if (e) *e = TSF_INVALID_NOSAMPLEDATA;
-	}
-	else
-	{
-		res = (tsf*)malloc(sizeof(tsf));
-		memset(res, 0, sizeof(tsf));
-		res->presetNum = hydra.phdrNum - 1;
-		res->presets = (struct tsf_preset*)malloc(res->presetNum * sizeof(struct tsf_preset));
-		res->fontSamples = fontSamples;
-		res->outSampleRate = 44100.0f;
-		fontSamples = NULL; //don't free below
-		tsf_load_presets(res, &hydra, fontSampleCount);
-	}
-	free(hydra.phdrs); free(hydra.pbags); free(hydra.pmods);
-	free(hydra.pgens); free(hydra.insts); free(hydra.ibags);
-	free(hydra.imods); free(hydra.igens); free(hydra.shdrs);
-	free(fontSamples);
-	return res;
+tsf* tsf_load(struct tsf_stream* stream) {
+  tsf* res = NULL;
+  struct tsf_riffchunk chunkHead;
+  struct tsf_riffchunk chunkList;
+  struct tsf_hydra hydra;
+  float* fontSamples = NULL;
+  unsigned int fontSampleCount = 0;
+  
+  if (!tsf_riffchunk_read(NULL, &chunkHead, stream) || !TSF_FourCCEquals(chunkHead.id, "sfbk"))
+    {
+      //if (e) *e = TSF_INVALID_NOSF2HEADER;
+      return res;
+    }
+  
+  // Read hydra and locate sample data.
+  memset(&hydra, 0, sizeof(hydra));
+  while (tsf_riffchunk_read(&chunkHead, &chunkList, stream)) {
+    struct tsf_riffchunk chunk;
+    if (TSF_FourCCEquals(chunkList.id, "pdta"))
+      {
+	while (tsf_riffchunk_read(&chunkList, &chunk, stream))
+	  {
+#define HandleChunk(chunkName) (TSF_FourCCEquals(chunk.id, #chunkName) && !(chunk.size % chunkName##SizeInFile)) \
+	      {								\
+		int num = chunk.size / chunkName##SizeInFile, i;	\
+		hydra.chunkName##Num = num;				\
+		hydra.chunkName##s = (struct tsf_hydra_##chunkName*)malloc(num * sizeof(struct tsf_hydra_##chunkName)); \
+		for (i = 0; i < num; ++i) tsf_hydra_read_##chunkName(&hydra.chunkName##s[i], stream); \
+	      }
+	    enum
+	    {
+	     phdrSizeInFile = 38, pbagSizeInFile =  4, pmodSizeInFile = 10,
+	     pgenSizeInFile =  4, instSizeInFile = 22, ibagSizeInFile =  4,
+	     imodSizeInFile = 10, igenSizeInFile =  4, shdrSizeInFile = 46
+	    };
+	    if      HandleChunk(phdr) else if HandleChunk(pbag) else if HandleChunk(pmod)
+		  else if HandleChunk(pgen) else if HandleChunk(inst) else if HandleChunk(ibag)
+			else if HandleChunk(imod) else if HandleChunk(igen) else if HandleChunk(shdr)
+			      else stream->skip(stream->data, chunk.size);
+#undef HandleChunk
+	  }
+      }
+    else if (TSF_FourCCEquals(chunkList.id, "sdta"))
+      {
+	while (tsf_riffchunk_read(&chunkList, &chunk, stream))
+	  {
+	    if (TSF_FourCCEquals(chunk.id, "smpl"))
+	      {
+		tsf_load_samples(&fontSamples, &fontSampleCount, &chunk, stream);
+	      }
+	    else stream->skip(stream->data, chunk.size);
+	  }
+      }
+    else stream->skip(stream->data, chunkList.size);
+  }
+  if (!hydra.phdrs || !hydra.pbags || !hydra.pmods || !hydra.pgens || !hydra.insts || !hydra.ibags || !hydra.imods || !hydra.igens || !hydra.shdrs)
+    {
+      //if (e) *e = TSF_INVALID_INCOMPLETE;
+    }
+  else if (fontSamples == NULL)
+    {
+      //if (e) *e = TSF_INVALID_NOSAMPLEDATA;
+    }
+  else
+    {
+      res = (tsf*)malloc(sizeof(tsf));
+      memset(res, 0, sizeof(tsf));
+      res->presetNum = hydra.phdrNum - 1;
+      res->presets = (struct tsf_preset*)malloc(res->presetNum * sizeof(struct tsf_preset));
+      res->fontSamples = fontSamples;
+      res->outSampleRate = 44100.0f;
+      fontSamples = NULL; //don't free below
+      tsf_load_presets(res, &hydra, fontSampleCount);
+    }
+  free(hydra.phdrs); free(hydra.pbags); free(hydra.pmods);
+  free(hydra.pgens); free(hydra.insts); free(hydra.ibags);
+  free(hydra.imods); free(hydra.igens); free(hydra.shdrs);
+  free(fontSamples);
+  return res;
 }
 
 #if 0
 // Stop all playing notes immediatly and reset all channel parameters
 
-void tsf_reset(tsf* f)
-{
-	struct tsf_voice *v = f->voices, *vEnd = v + f->voiceNum;
-	for (; v != vEnd; v++)
-		if (v->playingPreset != -1 && (v->ampenv.segment < TSF_SEGMENT_RELEASE || v->ampenv.parameters.release))
-			tsf_voice_endquick(f, v);
-	if (f->channels) { free(f->channels->channels); free(f->channels); f->channels = NULL; }
+void tsf_reset(tsf* f) {
+  struct tsf_voice *v = f->voices, *vEnd = v + f->voiceNum;
+  for (; v != vEnd; v++)
+    if (v->playingPreset != -1 && (v->ampenv.segment < TSF_SEGMENT_RELEASE || v->ampenv.parameters.release))
+      tsf_voice_endquick(f, v);
+  if (f->channels) { free(f->channels->channels); free(f->channels); f->channels = NULL; }
 }
 #endif
-
-// Set the global gain as a volume factor
-//   global_gain: the desired volume where 1.0 is 100%
-
-void tsf_set_volume(tsf* f, float global_volume)
-{
-	f->globalGainDB = (global_volume == 1.0f ? 0 : -tsf_gainToDecibels(1.0f / global_volume));
-}
 
 #if 0
 // Start playing a note
