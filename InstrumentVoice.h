@@ -67,7 +67,7 @@ class InstrumentVoice {
       velocity = note.getVelocityAsFloat();
       adsrstate = 0;
       adsrpos = 0;
-      fphase = 0;
+      wave_position = 0;
     }
   }
 
@@ -77,13 +77,13 @@ class InstrumentVoice {
   float getVelocity() const { return velocity; }
 
 protected:
-  float getFphase() const { return fphase; }
+  float getWavePosition() const { return wave_position; }
 
   void stepForward() {
-    fphase += freq;
+    wave_position += freq;
   }
 
-  float fphase = 0; // position in input waveform
+  float wave_position = 0; // position in the waveform
   float freq = 0; // current frequency
 
  private:

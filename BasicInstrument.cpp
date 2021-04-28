@@ -23,7 +23,7 @@ public:
   
   void render(float * buffer, size_t frames) override {
     for (size_t k = 0; k < frames; k++) {
-      float i = 2 * M_PI * getFphase() / 44100.0f;
+      float i = 2 * M_PI * getWavePosition() / 44100.0f;
       stepForward();
 
       float s;
