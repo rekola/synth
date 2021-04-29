@@ -4,15 +4,20 @@
 #include "Note.h"
 #include "Instrument.h"
 #include "InstrumentVoice.h"
+#include "SampleData.h"
 
-#include <deque>
+#include <map>
 #include <vector>
 #include <memory>
 
 class Track {
  public:
-  Track() { }
+  enum Type { SEQUENCER = 1, SAMPLE };
 
+  Track(Type _type = SEQUENCER) : type(_type) { }
+
+  Type getType() { return type; }
+  
   float getPan() const { return pan; }
   void setPan(float _pan) { pan = _pan; }
 
@@ -32,16 +37,17 @@ class Track {
 
   std::vector<std::shared_ptr<InstrumentVoice> > & getVoices() { return voices; }
   
-  void addPendingNotes(size_t frame, Tuning tuning, const std::vector<Note> & notes) {
-    pending_notes.push_back(std::tuple(frame, tuning, notes));
+  void addPendingNote(size_t frame, short id, Tuning tuning, const Note & note) {
+    pending_notes[frame].push_back(std::tuple(id, tuning, note));
   }
   void clearPendingNotes() { pending_notes.clear(); }
-  std::deque<std::tuple<unsigned int, Tuning, std::vector<Note> > > & getPendingNotes() { return pending_notes; }
+  std::map<unsigned int, std::vector<std::tuple<int, Tuning, Note> > > & getPendingNotes() { return pending_notes; }
 
   void playNote(Tuning tuning, const Note & note, const Instrument & instrument, int identifier) {
     bool voice_found = false;
     for (auto & voice : voices) {
       if (!voice_found && !voice->isPlaying()) {
+	voice->setIdentifier(identifier);
 	voice->playNote(tuning, note, instrument.getTranspose(), instrument.getDetune());
 	voice_found = true;
       } else if (identifier == voice->getIdentifier() && voice->isPlaying()) {
@@ -61,16 +67,20 @@ class Track {
   }
 
   size_t getAllocatedVoiceCount() const { return voices.size(); }
+
+  void setSample(std::shared_ptr<SampleData> _sample) { sample = _sample; }
   
 private:
+  Type type;
   int instrument_id = 0;
   std::vector<std::shared_ptr<InstrumentVoice> > voices;
   bool solo = false;
   float pan = 0.5f;
   float volume = 0.75f;
   std::shared_ptr<Track> first_child, next_sibling;
+  std::shared_ptr<SampleData> sample;
 
-  std::deque<std::tuple<unsigned int, Tuning, std::vector<Note> > > pending_notes;
+  std::map<unsigned int, std::vector<std::tuple<int, Tuning, Note> > > pending_notes;
 };
 
 #endif
