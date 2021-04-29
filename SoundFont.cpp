@@ -78,21 +78,9 @@ struct tsf_preset {
 
 class SoundFontVoice;
 
-struct tsf_channel {
-  unsigned short presetIndex, bank, pitchWheel, midiPan, midiVolume, midiExpression, midiRPN, midiData;
-  float panOffset, gainDB, pitchRange, tuning;
-};
-
-struct tsf_channels {
-  void (*setupVoice)(tsf* f, SoundFontVoice * voice);
-  struct tsf_channel* channels;
-  int channelNum, activeChannel;
-};
-
 struct tsf {
   struct tsf_preset* presets;
   float* fontSamples;
-  struct tsf_channels* channels;
   float* outputSamples;
   
   int presetNum;
@@ -151,15 +139,6 @@ int tsf_get_presetcount(const tsf* f);
 //   pitch_range: range of the pitch wheel in semitones (default 2.0, total +/- 2 semitones)
 //   tuning: tuning of all playing voices in semitones (default 0.0, standard (A440) tuning)
 //   (set_preset_number and set_bank_preset return 0 if preset does not exist, otherwise 1)
-void tsf_channel_set_presetindex(tsf* f, int channel, int preset_index);
-int  tsf_channel_set_presetnumber(tsf* f, int channel, int preset_number, int flag_mididrums);
-void tsf_channel_set_bank(tsf* f, int channel, int bank);
-int  tsf_channel_set_bank_preset(tsf* f, int channel, int bank, int preset_number);
-void tsf_channel_set_pan(tsf* f, int channel, float pan);
-void tsf_channel_set_volume(tsf* f, int channel, float volume);
-void tsf_channel_set_pitchwheel(tsf* f, int channel, int pitch_wheel);
-void tsf_channel_set_pitchrange(tsf* f, int channel, float pitch_range);
-void tsf_channel_set_tuning(tsf* f, int channel, float tuning);
 
 // The lower this block size is the more accurate the effects are.
 // Increasing the value significantly lowers the CPU usage of the voice rendering.
@@ -781,14 +760,14 @@ static void tsf_voice_lfo_process(struct tsf_voice_lfo* e, int blockSamples) {
 
 class SoundFontFile {
 public:
-  SoundFontFile(std::string filename) {
+  SoundFontFile(int samplerate, std::string filename) {
     f = (tsf*)malloc(sizeof(tsf));
     memset(f, 0, sizeof(tsf));
 
     tsf_load_filename(f, filename.c_str());
     
     f->outputmode = TSF_MONO;
-    f->outSampleRate = 44100.0f;
+    f->outSampleRate = samplerate;
     f->globalGainDB = 0.0f; // the desired volume where 1.0 is 100%
   }
   ~SoundFontFile() {
@@ -799,7 +778,6 @@ public:
     }
     free(f->presets);
     free(f->fontSamples);
-    if (f->channels) { free(f->channels->channels); free(f->channels); }
     free(f->outputSamples);
     free(f);
   }
@@ -823,84 +801,6 @@ public:
       }
     }
     return -1;
-  }
-
-  // Returns the name of a preset by bank and preset number
-  string getBankPresetName(size_t bank, size_t preset_number) const {
-    size_t preset_index = getPresetIndex(bank, preset_number);
-    return getPresetName(preset_index);
-  }
-
-  tsf_channel * channelInit(int channel) {
-    auto f = getHandle();
-    
-    int i;
-    if (f->channels && channel < f->channels->channelNum) return &f->channels->channels[channel];
-    if (!f->channels) {
-      f->channels = (struct tsf_channels*)malloc(sizeof(struct tsf_channels));
-      // f->channels->setupVoice = &tsf_channel_setup_voice; // FIXME
-      f->channels->channels = NULL;
-      f->channels->channelNum = 0;
-      f->channels->activeChannel = 0;
-    }
-    i = f->channels->channelNum;
-    f->channels->channelNum = channel + 1;
-    f->channels->channels = (struct tsf_channel*)realloc(f->channels->channels, f->channels->channelNum * sizeof(struct tsf_channel));
-    for (; i <= channel; i++) {
-      struct tsf_channel* c = &f->channels->channels[i];
-      c->presetIndex = c->bank = 0;
-      c->pitchWheel = c->midiPan = 8192;
-      c->midiVolume = c->midiExpression = 16383;
-      c->midiRPN = 0xFFFF;
-      c->midiData = 0;
-      c->panOffset = 0.0f;
-      c->gainDB = 0.0f;
-      c->pitchRange = 2.0f;
-      c->tuning = 0.0f;
-    }
-    return &f->channels->channels[channel];
-  }
-
-  void setChannelBank(int channel, int bank) {
-    auto f = getHandle();
-    channelInit(channel)->bank = (unsigned short)bank;
-  }
-
-  int setChannelBankPreset(int channel, int bank, int preset_number) {
-    auto f = getHandle();
-    struct tsf_channel *c = channelInit(channel);
-    int preset_index = getPresetIndex(bank, preset_number);
-    if (preset_index == -1) return 0;
-    c->presetIndex = (unsigned short)preset_index;
-    c->bank = (unsigned short)bank;
-    return 1;
-  }
-
-  void setChannelPresetIndex(int channel, int preset_index) {
-    auto f = getHandle();
-    channelInit(channel)->presetIndex = (unsigned short)preset_index;
-  }
-
-  int setChannelPresetNumber(int channel, int preset_number, int flag_mididrums) {
-    auto f = getHandle();
-    struct tsf_channel *c = channelInit(channel);
-    int preset_index;
-    if (flag_mididrums) {
-      preset_index = getPresetIndex(128 | (c->bank & 0x7FFF), preset_number);
-      if (preset_index == -1) preset_index = getPresetIndex(128, preset_number);
-      if (preset_index == -1) preset_index = getPresetIndex(128, 0);
-      if (preset_index == -1) preset_index = getPresetIndex((c->bank & 0x7FFF), preset_number);
-    } else {
-      preset_index = getPresetIndex((c->bank & 0x7FFF), preset_number);
-    }
-    if (preset_index == -1) {
-      preset_index = getPresetIndex(0, preset_number);
-    }
-    if (preset_index != -1) {
-      c->presetIndex = (unsigned short)preset_index;
-      return 1;
-    }
-    return 0;
   }
 
   tsf * getHandle() { return f; }
@@ -955,8 +855,12 @@ public:
     pitchInputTimecents = adjustedPitch * 100.0;
     pitchOutputFactor = voiceRegion->sample_rate / (tsf_timecents2Secsd(voiceRegion->pitch_keycenter * 100.0) * outSampleRate);
   }
+
+  void setVolume(float volume) {
+    noteGainDB = tsf_gainToDecibels(volume);
+  }
     
-  int playingPreset, playingChannel;
+  int playingPreset;
   double apparentPlayingKey;
   struct tsf_region * voiceRegion;
   double pitchInputTimecents, pitchOutputFactor;
@@ -1329,15 +1233,6 @@ void tsf_note_off(tsf* f, int preset_index, int key) {
 #endif
 
 #if 0
-int tsf_bank_note_off(tsf* f, int bank, int preset_number, int key)
-{
-	int preset_index = tsf_get_presetindex(f, bank, preset_number);
-	if (preset_index == -1) return 0;
-	tsf_note_off(f, preset_index, key);
-	return 1;
-}
-#endif
-
 static void tsf_channel_setup_voice(tsf* f, SoundFontVoice * v) {
   struct tsf_channel* c = &f->channels->channels[f->channels->activeChannel];
   float newpan = v->voiceRegion->pan + c->panOffset;
@@ -1349,7 +1244,6 @@ static void tsf_channel_setup_voice(tsf* f, SoundFontVoice * v) {
   else { v->panFactorLeft = sqrtf(0.5f - newpan); v->panFactorRight = sqrtf(0.5f + newpan); }
 }
 
-#if 0
 static void tsf_channel_applypitch(tsf* f, int channel, struct tsf_channel* c)
 {
 	struct tsf_voice *v, *vEnd;
@@ -1358,9 +1252,7 @@ static void tsf_channel_applypitch(tsf* f, int channel, struct tsf_channel* c)
 		if (v->playingChannel == channel && v->playingPreset != -1)
 			v->calcPitchRatio(pitchShift, f->outSampleRate);
 }
-#endif
 
-#if 0
 void tsf_channel_set_pan(tsf* f, int channel, float pan)
 {
 	struct tsf_voice *v, *vEnd;
@@ -1374,23 +1266,7 @@ void tsf_channel_set_pan(tsf* f, int channel, float pan)
 		}
 	tsf_channel_init(f, channel)->panOffset = pan - 0.5f;
 }
-#endif
 
-#if 0
-void tsf_channel_set_volume(tsf* f, int channel, float volume)
-{
-	struct tsf_channel *c = tsf_channel_init(f, channel);
-	float gainDB = tsf_gainToDecibels(volume), gainDBChange = gainDB - c->gainDB;
-	struct tsf_voice *v, *vEnd;
-	if (gainDBChange == 0) return;
-	for (v = f->voices, vEnd = v + f->voiceNum; v != vEnd; v++)
-		if (v->playingChannel == channel && v->playingPreset != -1)
-			v->noteGainDB += gainDBChange;
-	c->gainDB = gainDB;
-}
-#endif
-
-#if 0
 void tsf_channel_set_pitchwheel(tsf* f, int channel, int pitch_wheel)
 {
 	struct tsf_channel *c = tsf_channel_init(f, channel);
@@ -1416,100 +1292,9 @@ void tsf_channel_set_tuning(tsf* f, int channel, float tuning)
 }
 #endif
 
-#if 0
-
-// Start or stop playing notes on a channel (needs channel preset to be set)
-//   channel: channel number
-//   key: note value between 0 and 127 (60 being middle C)
-//   vel: velocity as a float between 0.0 (equal to note off) and 1.0 (full)
-
-void tsf_channel_note_on(tsf* f, int channel, int key, float vel)
-{
-	if (!f->channels || channel >= f->channels->channelNum) return;
-	f->channels->activeChannel = channel;
-	tsf_note_on(f, f->channels->channels[channel].presetIndex, key, vel);
-}
-
-#endif
-
-#if 0
-void tsf_channel_note_off(tsf* f, int channel, int key)
-{
-	struct tsf_voice *v = f->voices, *vEnd = v + f->voiceNum, *vMatchFirst = NULL, *vMatchLast = NULL;
-	for (; v != vEnd; v++)
-	{
-		//Find the first and last entry in the voices list with matching channel, key and look up the smallest play index
-		if (v->playingPreset == -1 || v->playingChannel != channel || v->playingKey != key || v->ampenv.segment >= TSF_SEGMENT_RELEASE) continue;
-		else if (!vMatchFirst || v->playIndex < vMatchFirst->playIndex) vMatchFirst = vMatchLast = v;
-		else if (v->playIndex == vMatchFirst->playIndex) vMatchLast = v;
-	}
-	if (!vMatchFirst) return;
-	for (v = vMatchFirst; v <= vMatchLast; v++)
-	{
-		//Stop all voices with matching channel, key and the smallest play index which was enumerated above
-		if (v != vMatchFirst && v != vMatchLast &&
-			(v->playIndex != vMatchFirst->playIndex || v->playingPreset == -1 || v->playingChannel != channel || v->playingKey != key || v->ampenv.segment >= TSF_SEGMENT_RELEASE)) continue;
-		tsf_voice_end(f, v);
-	}
-}
-#endif
-
-#if 0
-
-// Apply a MIDI control change to the channel (not all controllers are supported!)
-
-void tsf_channel_midi_control(tsf* f, int channel, int controller, int control_value) {
-	struct tsf_channel* c = tsf_channel_init(f, channel);
-	switch (controller)
-	{
-		case   7 /*VOLUME_MSB*/      : c->midiVolume     = (unsigned short)((c->midiVolume     & 0x7F  ) | (control_value << 7)); goto TCMC_SET_VOLUME;
-		case  39 /*VOLUME_LSB*/      : c->midiVolume     = (unsigned short)((c->midiVolume     & 0x3F80) |  control_value);       goto TCMC_SET_VOLUME;
-		case  11 /*EXPRESSION_MSB*/  : c->midiExpression = (unsigned short)((c->midiExpression & 0x7F  ) | (control_value << 7)); goto TCMC_SET_VOLUME;
-		case  43 /*EXPRESSION_LSB*/  : c->midiExpression = (unsigned short)((c->midiExpression & 0x3F80) |  control_value);       goto TCMC_SET_VOLUME;
-		case  10 /*PAN_MSB*/         : c->midiPan        = (unsigned short)((c->midiPan        & 0x7F  ) | (control_value << 7)); goto TCMC_SET_PAN;
-		case  42 /*PAN_LSB*/         : c->midiPan        = (unsigned short)((c->midiPan        & 0x3F80) |  control_value);       goto TCMC_SET_PAN;
-		case   6 /*DATA_ENTRY_MSB*/  : c->midiData       = (unsigned short)((c->midiData       & 0x7F)   | (control_value << 7)); goto TCMC_SET_DATA;
-		case  38 /*DATA_ENTRY_LSB*/  : c->midiData       = (unsigned short)((c->midiData       & 0x3F80) |  control_value);       goto TCMC_SET_DATA;
-		case   0 /*BANK_SELECT_MSB*/ : c->bank = (unsigned short)(0x8000 | control_value); return; //bank select MSB alone acts like LSB
-		case  32 /*BANK_SELECT_LSB*/ : c->bank = (unsigned short)((c->bank & 0x8000 ? ((c->bank & 0x7F) << 7) : 0) | control_value); return;
-		case 101 /*RPN_MSB*/         : c->midiRPN = (unsigned short)(((c->midiRPN == 0xFFFF ? 0 : c->midiRPN) & 0x7F  ) | (control_value << 7)); return;
-		case 100 /*RPN_LSB*/         : c->midiRPN = (unsigned short)(((c->midiRPN == 0xFFFF ? 0 : c->midiRPN) & 0x3F80) |  control_value); return;
-		case  98 /*NRPN_LSB*/        : c->midiRPN = 0xFFFF; return;
-		case  99 /*NRPN_MSB*/        : c->midiRPN = 0xFFFF; return;
-		case 120 /*ALL_SOUND_OFF*/   : tsf_channel_sounds_off_all(f, channel); return;
-		case 123 /*ALL_NOTES_OFF*/   : tsf_channel_note_off_all(f, channel);   return;
-		case 121 /*ALL_CTRL_OFF*/    :
-			c->midiVolume = c->midiExpression = 16383;
-			c->midiPan = 8192;
-			c->bank = 0;
-			tsf_channel_set_volume(f, channel, 1.0f);
-			tsf_channel_set_pan(f, channel, 0.5f);
-			tsf_channel_set_pitchrange(f, channel, 2.0f);
-			return;
-	}
-	return;
-	
-TCMC_SET_VOLUME:
-	//Raising to the power of 3 seems to result in a decent sounding volume curve for MIDI
-	tsf_channel_set_volume(f, channel, powf((c->midiVolume / 16383.0f) * (c->midiExpression / 16383.0f), 3.0f));
-	return;
-	
-TCMC_SET_PAN:
-	tsf_channel_set_pan(f, channel, c->midiPan / 16383.0f);
-	return;
-	
-TCMC_SET_DATA:
-	if      (c->midiRPN == 0) tsf_channel_set_pitchrange(f, channel, (c->midiData >> 7) + 0.01f * (c->midiData & 0x7F));
-	else if (c->midiRPN == 1) tsf_channel_set_tuning(f, channel, (int)c->tuning + ((float)c->midiData - 8192.0f) / 8192.0f); //fine tune
-	else if (c->midiRPN == 2 && controller == 6) tsf_channel_set_tuning(f, channel, ((float)control_value - 64.0f) + (c->tuning - (int)c->tuning)); //coarse tune
-	return;
-}
-
-#endif
-
 void
 SoundFont::openFile() {
-  sf = make_shared<SoundFontFile>(filename);  
+  sf = make_shared<SoundFontFile>(samplerate, filename);  
 }  
 
 void
@@ -1544,7 +1329,7 @@ SoundFontVoice::playNote(Tuning tuning, Note note, int transpose, int detune) {
     if (integer_key < region->lokey || integer_key > region->hikey || midiVelocity < region->lovel || midiVelocity > region->hivel) continue;
     
     if (region->group) {
-      assert(0);
+      // here we should end all voices with the same instrument and group
     }
     
     voiceRegion = region;
@@ -1553,14 +1338,10 @@ SoundFontVoice::playNote(Tuning tuning, Note note, int transpose, int detune) {
     // voice->playingFrequency = frequency;
     noteGainDB = f->globalGainDB - region->attenuation - tsf_gainToDecibels(1.0f / vel);
     
-    if (f->channels) {
-      f->channels->setupVoice(f, this);
-    } else {
-      calcPitchRatio(0, f->outSampleRate);
-      // The SFZ spec is silent about the pan curve, but a 3dB pan law seems common. This sqrt() curve matches what Dimension LE does; Alchemy Free seems closer to sin(adjustedPan * pi/2).
-      panFactorLeft  = sqrtf(0.5f - region->pan);
-      panFactorRight = sqrtf(0.5f + region->pan);
-    }
+    calcPitchRatio(0, f->outSampleRate);
+    // The SFZ spec is silent about the pan curve, but a 3dB pan law seems common. This sqrt() curve matches what Dimension LE does; Alchemy Free seems closer to sin(adjustedPan * pi/2).
+    panFactorLeft  = sqrtf(0.5f - region->pan);
+    panFactorRight = sqrtf(0.5f + region->pan);
     
     // Offset/end.
     sourceSamplePosition = region->offset;
