@@ -9,6 +9,7 @@
 #include "Distortion.h"
 #include "Reverb.h"
 #include "Delay.h"
+#include "tinyxml2.h"
 
 #include "default_song.h"
 
@@ -17,12 +18,11 @@
 #include <unordered_map>
 
 using namespace std;
+using namespace tinyxml2;
 
 void
 Controller::loadDemo3() {
   auto song = make_shared<Song>();
-  song->bpm = 90;
-  song->mastervol = 1.0f;
 
 #if 1
   auto oboe = make_unique<FMInstrument>(0.7, 1, 3, 0.1f);
@@ -31,11 +31,12 @@ Controller::loadDemo3() {
   oboe->setTranspose(24);
   // oboe->addEffect(make_unique<Distortion>(Distortion::CLIP, 0.5f));
   // oboe->addEffect(make_unique<Chorus>(5.0f, 0.0f));
-  // oboe->addEffect(make_unique<Reverb>(44100, Reverb::DEFAULT)); // LARGEROOM1));
   // oboe->setFilter(100, 30);
+  // oboe->addEffect(make_unique<Chorus>(5.0f, 0.0f));
+  oboe->addEffect(make_unique<Reverb>(44100, Reverb::STADIUM));
   song->addInstrument(move(oboe));
 #else
-  auto fluid = make_unique<SoundFont>("FluidR3_GM.sf2");
+  auto fluid = make_unique<SoundFont>(44100, "FluidR3_GM.sf2");
   // auto fluid = make_unique<SoundFontInstrument>("Tabla.sf2", 0);
   // auto fluid = make_unique<SoundFontInstrument>("FatBoy-v0.790.sf2", 6);
   // auto fluid = make_unique<SoundFontInstrument>("Musyng.sfpack", 0);
@@ -43,11 +44,23 @@ Controller::loadDemo3() {
 #endif
   
   song->addTrack();
+
+  // use just tuning
   
   Pattern pattern(128);  
-  pattern.setNote(0, 0, 0, Note(5, 4, 0x3f)); // C-4
-  pattern.setNote(0, 0, 1, Note(9, 8, 0x3f)); // C-4
-  pattern.setNote(0, 0, 2, Note(1, 1, 0x3f)); // C-4
+  pattern.setNote(0, 0, 0, Note("C-4"));
+  pattern.setNote(0, 0, 1, Note("D#4"));
+  pattern.setNote(0, 0, 2, Note("G-4"));
+
+  pattern.setNote(0, 0, 0, Note("C-4"));
+  pattern.setNote(0, 1, 0, Note("D-4"));
+  pattern.setNote(0, 2, 0, Note("E-4"));
+  pattern.setNote(0, 3, 0, Note("F-4"));
+  pattern.setNote(0, 4, 0, Note("G-4"));
+  pattern.setNote(0, 5, 0, Note("A-4"));
+  pattern.setNote(0, 6, 0, Note("B-4"));
+  pattern.setNote(0, 7, 0, Note("C-5"));
+  
   song->addPattern(pattern);  
     
   current_song = song;    
@@ -55,14 +68,13 @@ Controller::loadDemo3() {
 
 void
 Controller::loadDemo2() {
-  auto song = make_shared<Song>();
+  auto song = make_shared<Song>(Tuning::TET31, 155); // Key of C
 
-  song->bpm = 90;
-  song->mastervol = 1.0f;
-
-#if 0
-  auto fluid = make_unique<SoundFont>("FluidR3_GM.sf2");
-  song->addInstrument(fluid->createInstrument(0));
+#if 1
+  auto fluid = make_unique<SoundFont>(44100, "FluidR3_GM.sf2");
+  auto instrument = fluid->createInstrument(0);
+  instrument->addEffect(make_unique<Reverb>(44100, Reverb::CUPBOARD));
+  song->addInstrument(move(instrument));
 #else
   auto oboe = make_unique<FMInstrument>(0.7, 1, 3, 0.1f);
   oboe->setName("oboe");
@@ -73,7 +85,7 @@ Controller::loadDemo2() {
   // oboe->addEffect(make_unique<Reverb>(44100, Reverb::DEFAULT)); // LARGEROOM1));
   // oboe->setFilter(100, 30);
   song->addInstrument(move(oboe));
-
+  
   auto epiano = make_unique<BasicInstrument>(WaveformType::SAW);
   epiano->setName("Electric Piano");
   epiano->setADSR(0, 20, 0.0f, 0);
@@ -85,193 +97,230 @@ Controller::loadDemo2() {
   
   Pattern pattern(256);
 
+  pattern.setNote(0, 0, 0, Note(155)); // C-4
+  pattern.setNote(0, 0, 1, Note(163)); // Eb4
+  pattern.setNote(0, 0, 2, Note(173)); // G-4
+
+  pattern.setNote(0, 2, 0, Note(155));
+  pattern.setNote(0, 2, 1, Note(163));
+  pattern.setNote(0, 2, 2, Note(170));
+
+  pattern.setNote(0, 4, 0, Note(155));
+  pattern.setNote(0, 4, 1, Note(161));
+  pattern.setNote(0, 4, 2, Note(168));
+
+  pattern.setNote(0, 6, 0, Note(155));
+  pattern.setNote(0, 6, 1, Note(161));
+  pattern.setNote(0, 6, 2, Note(168));
+
+
+  pattern.setNote(0, 14, 0, Note(155));
+  pattern.setNote(0, 14, 1, Note(173));
+  pattern.setNote(0, 14, 2, Note(163));
+  pattern.setNote(0, 14, 3, Note(159));
+
+  pattern.setNote(0, 16, 0, Note(155));
+
+
+  pattern.setNote(0, 30, 0, Note(155)); // C-4
+  pattern.setNote(0, 31, 0, Note(162)); // D♯4
+  pattern.setNote(0, 32, 0, Note(168)); // F-4
+  pattern.setNote(0, 33, 0, Note(168 + 7)); //
+
+  pattern.setNote(0, 34, 0, Note(162)); // D#4
+  pattern.setNote(0, 35, 0, Note(168)); // F-4
+  pattern.setNote(0, 36, 0, Note(175)); // G#4
+  pattern.setNote(0, 37, 0, Note(193)); // D#5
+
+  pattern.setNote(0, 38, 0, Note(168)); // F-4
+  pattern.setNote(0, 39, 0, Note(175)); // G#4
+  pattern.setNote(0, 40, 0, Note(181)); // B♭4 
+  pattern.setNote(0, 41, 0, Note(199)); // F-5
+
+  pattern.setNote(0, 42, 0, Note(162)); // D#4
+  pattern.setNote(0, 43, 0, Note(168)); // F-4
+  pattern.setNote(0, 44, 0, Note(187)); // D𝄫5
+  pattern.setNote(0, 45, 0, Note(187 - 1)); // 
+
+
+  pattern.setNote(0, 50, 0, Note(155)); // C
+  pattern.setNote(0, 50, 1, Note(165)); // E
+  pattern.setNote(0, 50, 2, Note(173)); // G
+  pattern.setNote(0, 50, 3, Note(180)); // A♯
+
+  pattern.setNote(0, 55, 0, Note(155)); // C
+  pattern.setNote(0, 55, 1, Note(164)); // D𝄪4
+  pattern.setNote(0, 55, 2, Note(173)); // G
+
+  pattern.setNote(0, 60, 0, Note(155)); // C
+  pattern.setNote(0, 60, 1, Note(165)); // E
+  pattern.setNote(0, 60, 2, Note(172)); // F𝄪4
+  pattern.setNote(0, 60, 3, Note(179)); // B𝄫4
+    
+#if 0
+
+  pattern.setNote(0, 144, 0, Note(8*1, 7*1));
+  pattern.setNote(0, 144, 1, Note(8*6, 7*5));
+  pattern.setNote(0, 144, 2, Note(8*3, 7*2));
+
+  pattern.setNote(0, 146, 0, Note(7*1, 6*1));
+  pattern.setNote(0, 146, 1, Note(7*6, 6*5));
+  pattern.setNote(0, 146, 2, Note(7*3, 6*2));
+
+  pattern.setNote(0, 148, 0, Note(7*1, 6*1));
+  pattern.setNote(0, 148, 1, Note(7*7, 6*6));
+  pattern.setNote(0, 148, 2, Note(7*4, 6*3));
+
+  pattern.setNote(0, 152, 0, Note(1, 1));
+  pattern.setNote(0, 152, 1, Note(3, 2));
+  pattern.setNote(0, 152, 2, Note(21, 12));
+#endif
+  
+#if 0
   pattern.setAnnotation(0, "neutral minor tetrad");
 
-  // pattern.setNote(0, 0, 0, Note(1, 1, 0x3f)); // C-4
-  pattern.setNote(0, 1, 0, Note(3, 2, 0x3f)); // G-4
-  pattern.setNote(0, 2, 0, Note(6, 5, 0x3f)); // Eb
-  pattern.setNote(0, 3, 0, Note(11, 10, 0x3f)); // ?
-  // pattern.setNote(0, 4, 0, Note(2, 1, 0x3f)); // C-5
-  pattern.setNote(0, 5, 0, Note(3, 2, 0x3f)); // G-4
-  pattern.setNote(0, 6, 0, Note(6, 5, 0x3f)); // Eb
-  pattern.setNote(0, 7, 0, Note(1, 1, 0x3f)); // C-4
+#if 0
+  // pattern.setNote(0, 0, 0, Note(1, 1)); // C-4
+  pattern.setNote(0, 1, 0, Note(3, 2)); // G-4
+  pattern.setNote(0, 2, 0, Note(6, 5)); // Eb
+  pattern.setNote(0, 3, 0, Note(11, 10)); // ?
+  // pattern.setNote(0, 4, 0, Note(2, 1)); // C-5
+  pattern.setNote(0, 5, 0, Note(3, 2)); // G-4
+  pattern.setNote(0, 6, 0, Note(6, 5)); // Eb
+  pattern.setNote(0, 7, 0, Note(1, 1)); // C-4
   
-  pattern.setNote(0, 10, 0, Note(1, 1, 0x3f)); // C-4
-  pattern.setNote(0, 11, 0, Note(6, 5, 0x3f)); // Eb
-  pattern.setNote(0, 12, 0, Note(3, 2, 0x3f)); // G-4
-  pattern.setNote(0, 13, 0, Note(2, 1, 0x3f)); // C-5
+  pattern.setNote(0, 10, 0, Note(1, 1)); // C-4
+  pattern.setNote(0, 11, 0, Note(6, 5)); // Eb
+  pattern.setNote(0, 12, 0, Note(3, 2)); // G-4
+  pattern.setNote(0, 13, 0, Note(2, 1)); // C-5
 
-  // pattern.setNote(0, 16, 0, Note(1, 1, 0x3f)); // C-4
-  pattern.setNote(0, 17, 0, Note(11, 10, 0x3f)); // ?
-  pattern.setNote(0, 18, 0, Note(6, 5, 0x3f)); // Eb
-  pattern.setNote(0, 19, 0, Note(3, 2, 0x3f)); // G-4
-  // pattern.setNote(0, 20, 0, Note(1, 1, 0x3f)); // C-4
-  pattern.setNote(0, 20, 1, Note(11, 10, 0x3f)); // ?
-  pattern.setNote(0, 20, 2, Note(6, 5, 0x3f)); // Eb
-  pattern.setNote(0, 20, 3, Note(3, 2, 0x3f)); // G-4
-  // pattern.setNote(0, 20, 4, Note(2, 1, 0x3f)); // C-5
+  // pattern.setNote(0, 16, 0, Note(1, 1)); // C-4
+  pattern.setNote(0, 17, 0, Note(11, 10)); // ?
+  pattern.setNote(0, 18, 0, Note(6, 5)); // Eb
+  pattern.setNote(0, 19, 0, Note(3, 2)); // G-4
+  // pattern.setNote(0, 20, 0, Note(1, 1)); // C-4
+  pattern.setNote(0, 20, 1, Note(11, 10)); // ?
+  pattern.setNote(0, 20, 2, Note(6, 5)); // Eb
+  pattern.setNote(0, 20, 3, Note(3, 2)); // G-4
+  // pattern.setNote(0, 20, 4, Note(2, 1)); // C-5
 
-  // pattern.setNote(0, 22, 0, Note(1, 1, 0x3f)); // C-4
-  pattern.setNote(0, 23, 0, Note(12, 11, 0x3f)); // ?
-  pattern.setNote(0, 24, 0, Note(6, 5, 0x3f)); // Eb
-  pattern.setNote(0, 25, 0, Note(3, 2, 0x3f)); // G-4
-  // pattern.setNote(0, 26, 0, Note(1, 1, 0x3f)); // C-4
-  pattern.setNote(0, 26, 1, Note(12, 11, 0x3f)); // ?
-  pattern.setNote(0, 26, 2, Note(6, 5, 0x3f)); // Eb
-  pattern.setNote(0, 26, 3, Note(3, 2, 0x3f)); // G-4
-  // pattern.setNote(0, 26, 4, Note(2, 1, 0x3f)); // C-5
+  // pattern.setNote(0, 22, 0, Note(1, 1)); // C-4
+  pattern.setNote(0, 23, 0, Note(12, 11)); // ?
+  pattern.setNote(0, 24, 0, Note(6, 5)); // Eb
+  pattern.setNote(0, 25, 0, Note(3, 2)); // G-4
+  // pattern.setNote(0, 26, 0, Note(1, 1)); // C-4
+  pattern.setNote(0, 26, 1, Note(12, 11)); // ?
+  pattern.setNote(0, 26, 2, Note(6, 5)); // Eb
+  pattern.setNote(0, 26, 3, Note(3, 2)); // G-4
+  // pattern.setNote(0, 26, 4, Note(2, 1)); // C-5
 
   pattern.setAnnotation(30, "7-limit triads");
   
-  pattern.setNote(0, 30, 0, Note(1, 1, 0x3f)); // C-4
-  // pattern.setNote(0, 30, 1, Note(7, 6, 0x3f)); // ?
-  pattern.setNote(0, 30, 2, Note(7, 5, 0x3f)); // F
-  // pattern.setNote(0, 30, 3, Note(2, 1, 0x3f)); // C-5
+  pattern.setNote(0, 30, 0, Note(1, 1)); // C-4
+  // pattern.setNote(0, 30, 1, Note(7, 6)); // ?
+  pattern.setNote(0, 30, 2, Note(7, 5)); // F
+  // pattern.setNote(0, 30, 3, Note(2, 1)); // C-5
 
-  // pattern.setNote(0, 32, 0, Note(1, 1, 0x3f)); // C-4
-  pattern.setNote(0, 32, 1, Note(8, 7, 0x3f)); // ?
-  pattern.setNote(0, 32, 2, Note(7, 5, 0x3f)); // F
-  // pattern.setNote(0, 32, 3, Note(2, 1, 0x3f)); // C-5
+  // pattern.setNote(0, 32, 0, Note(1, 1)); // C-4
+  pattern.setNote(0, 32, 1, Note(8, 7)); // ?
+  pattern.setNote(0, 32, 2, Note(7, 5)); // F
+  // pattern.setNote(0, 32, 3, Note(2, 1)); // C-5
 
-  // pattern.setNote(0, 34, 0, Note(1, 1, 0x3f)); // C-4
-  pattern.setNote(0, 34, 1, Note(8, 7, 0x3f)); // ?
-  pattern.setNote(0, 34, 2, Note(4, 3, 0x3f)); // F
-  //pattern.setNote(0, 34, 3, Note(2, 1, 0x3f)); // C-5
+  // pattern.setNote(0, 34, 0, Note(1, 1)); // C-4
+  pattern.setNote(0, 34, 1, Note(8, 7)); // ?
+  pattern.setNote(0, 34, 2, Note(4, 3)); // F
+  //pattern.setNote(0, 34, 3, Note(2, 1)); // C-5
   
-  // pattern.setNote(0, 36, 0, Note(1, 1, 0x3f)); // C-4
-  pattern.setNote(0, 36, 1, Note(7, 6, 0x3f)); // ?
-  // pattern.setNote(0, 36, 2, Note(4, 3, 0x3f)); // F
-  pattern.setNote(0, 36, 3, Note(9, 5, 0x3f)); //
-  // pattern.setNote(0, 34, 4, Note(2, 1, 0x3f)); // C-5
+  // pattern.setNote(0, 36, 0, Note(1, 1)); // C-4
+  pattern.setNote(0, 36, 1, Note(7, 6)); // ?
+  // pattern.setNote(0, 36, 2, Note(4, 3)); // F
+  pattern.setNote(0, 36, 3, Note(9, 5)); //
+  // pattern.setNote(0, 34, 4, Note(2, 1)); // C-5
     
-  pattern.setNote(0, 40, 0, Note(1, 1, 0x3f)); // C-4
-  pattern.setNote(0, 41, 0, Note(7, 6, 0x3f)); // ?
-  pattern.setNote(0, 42, 0, Note(4, 3, 0x3f)); // F
-  pattern.setNote(0, 43, 0, Note(2, 1, 0x3f)); // C-5
-
-  pattern.setNote(0, 44, 0, Note(7*1, 6*1, 0x3f)); // C-4
-  pattern.setNote(0, 45, 0, Note(7*8, 6*7, 0x3f)); // ?
-  pattern.setNote(0, 46, 0, Note(7*4, 6*3, 0x3f)); // F
-  pattern.setNote(0, 47, 0, Note(7*2, 6*1, 0x3f)); // C-5
-
-  pattern.setNote(0, 48, 0, Note(4*1, 3*1, 0x3f)); // C-4
-  pattern.setNote(0, 49, 0, Note(4*7, 3*6, 0x3f)); // ?
-  pattern.setNote(0, 50, 0, Note(4*4, 3*3, 0x3f)); // F
-  pattern.setNote(0, 51, 0, Note(4*2, 3*1, 0x3f)); // C-5
-
-  pattern.setNote(0, 52, 0, Note(7*1, 6*1, 0x3f)); // C-4
-  pattern.setNote(0, 53, 0, Note(7*4, 6*3, 0x3f)); // F
-  pattern.setNote(0, 54, 0, Note(7*7, 6*4, 0x3f)); // ?
-  pattern.setNote(0, 55, 0, Note(7*2, 6*1, 0x3f)); // C-5
-
   pattern.setAnnotation(60, "7-limit supermajor minor7 scale");
 
-  pattern.setNote(0, 60, 0, Note(1, 1, 0x3f)); // C-4
-  pattern.setNote(0, 61, 0, Note(8, 7, 0x3f)); // ?
-  pattern.setNote(0, 62, 0, Note(6, 5, 0x3f)); // Eb
-  pattern.setNote(0, 63, 0, Note(4, 3, 0x3f)); // F
-  pattern.setNote(0, 64, 0, Note(3, 2, 0x3f)); // G
-  pattern.setNote(0, 65, 0, Note(8, 5, 0x3f)); // Ab
-  pattern.setNote(0, 66, 0, Note(9, 5, 0x3f)); // 
-  pattern.setNote(0, 67, 0, Note(2, 1, 0x3f)); // C-5
+  pattern.setNote(0, 60, 0, Note(1, 1)); // C-4
+  pattern.setNote(0, 61, 0, Note(8, 7)); // ?
+  pattern.setNote(0, 62, 0, Note(6, 5)); // Eb
+  pattern.setNote(0, 63, 0, Note(4, 3)); // F
+  pattern.setNote(0, 64, 0, Note(3, 2)); // G
+  pattern.setNote(0, 65, 0, Note(8, 5)); // Ab
+  pattern.setNote(0, 66, 0, Note(9, 5)); // 
+  pattern.setNote(0, 67, 0, Note(2, 1)); // C-5
 
   pattern.setAnnotation(70, "harmonic minor scale");
 
-  pattern.setNote(0, 70, 0, Note(1, 1, 0x3f)); // C-4
-  pattern.setNote(0, 71, 0, Note(9, 8, 0x3f)); // D
-  pattern.setNote(0, 72, 0, Note(6, 5, 0x3f)); // Eb
-  pattern.setNote(0, 73, 0, Note(4, 3, 0x3f)); // F
-  pattern.setNote(0, 74, 0, Note(3, 2, 0x3f)); // G
-  pattern.setNote(0, 75, 0, Note(8, 5, 0x3f)); // Ab
-  pattern.setNote(0, 76, 0, Note(7, 4, 0x3f)); // 
-  pattern.setNote(0, 77, 0, Note(2, 1, 0x3f)); // C-5
+  pattern.setNote(0, 70, 0, Note(1, 1)); // C-4
+  pattern.setNote(0, 71, 0, Note(9, 8)); // D
+  pattern.setNote(0, 72, 0, Note(6, 5)); // Eb
+  pattern.setNote(0, 73, 0, Note(4, 3)); // F
+  pattern.setNote(0, 74, 0, Note(3, 2)); // G
+  pattern.setNote(0, 75, 0, Note(8, 5)); // Ab
+  pattern.setNote(0, 76, 0, Note(7, 4)); // 
+  pattern.setNote(0, 77, 0, Note(2, 1)); // C-5
 
   pattern.setAnnotation(80, "melodic minor scale");
 
-  pattern.setNote(0, 80, 0, Note(1, 1, 0x3f)); // C-4
-  pattern.setNote(0, 81, 0, Note(9, 8, 0x3f)); // D
-  pattern.setNote(0, 82, 0, Note(6, 5, 0x3f)); // Eb
-  pattern.setNote(0, 83, 0, Note(4, 3, 0x3f)); // F
-  pattern.setNote(0, 84, 0, Note(3, 2, 0x3f)); // G
-  pattern.setNote(0, 85, 0, Note(8, 5, 0x3f)); // Ab
-  pattern.setNote(0, 86, 0, Note(9, 5, 0x3f)); // 
-  pattern.setNote(0, 87, 0, Note(2, 1, 0x3f)); // C-5
+  pattern.setNote(0, 80, 0, Note(1, 1)); // C-4
+  pattern.setNote(0, 81, 0, Note(9, 8)); // D
+  pattern.setNote(0, 82, 0, Note(6, 5)); // Eb
+  pattern.setNote(0, 83, 0, Note(4, 3)); // F
+  pattern.setNote(0, 84, 0, Note(3, 2)); // G
+  pattern.setNote(0, 85, 0, Note(8, 5)); // Ab
+  pattern.setNote(0, 86, 0, Note(9, 5)); // 
+  pattern.setNote(0, 87, 0, Note(2, 1)); // C-5
 
   pattern.setAnnotation(90, "subminor pentatonic scale");
 
-  pattern.setNote(0, 90, 0, Note(1, 1, 0x3f)); // C-4
-  pattern.setNote(0, 91, 0, Note(7, 6, 0x3f)); // subminor third
-  pattern.setNote(0, 92, 0, Note(4, 3, 0x3f)); // F
-  pattern.setNote(0, 93, 0, Note(3, 2, 0x3f)); // G
-  pattern.setNote(0, 94, 0, Note(9, 5, 0x3f)); // 
-  pattern.setNote(0, 95, 0, Note(2, 1, 0x3f)); // C-5
+  pattern.setNote(0, 90, 0, Note(1, 1)); // C-4
+  pattern.setNote(0, 91, 0, Note(7, 6)); // subminor third
+  pattern.setNote(0, 92, 0, Note(4, 3)); // F
+  pattern.setNote(0, 93, 0, Note(3, 2)); // G
+  pattern.setNote(0, 94, 0, Note(9, 5)); // 
+  pattern.setNote(0, 95, 0, Note(2, 1)); // C-5
 
   pattern.setAnnotation(100, "septimal minor pentatonic scale");
 
-  pattern.setNote(0, 100, 0, Note(1, 1, 0x3f)); // C-4
-  pattern.setNote(0, 101, 0, Note(6, 5, 0x3f)); // minor thirds
-  pattern.setNote(0, 102, 0, Note(4, 3, 0x3f)); // F
-  pattern.setNote(0, 103, 0, Note(3, 2, 0x3f)); // G
-  pattern.setNote(0, 104, 0, Note(7, 4, 0x3f)); // 
-  pattern.setNote(0, 105, 0, Note(2, 1, 0x3f)); // C-5
+  pattern.setNote(0, 100, 0, Note(1, 1)); // C-4
+  pattern.setNote(0, 101, 0, Note(6, 5)); // minor thirds
+  pattern.setNote(0, 102, 0, Note(4, 3)); // F
+  pattern.setNote(0, 103, 0, Note(3, 2)); // G
+  pattern.setNote(0, 104, 0, Note(7, 4)); // 
+  pattern.setNote(0, 105, 0, Note(2, 1)); // C-5
 
 
-  pattern.setNote(0, 112, 0, Note(7, 6, 0x3f));
-  pattern.setNote(0, 112, 1, Note(4, 3, 0x3f));
+  pattern.setNote(0, 112, 0, Note(7, 6));
+  pattern.setNote(0, 112, 1, Note(4, 3));
 
-  pattern.setNote(0, 114, 0, Note(8, 7, 0x3f));
-  pattern.setNote(0, 114, 1, Note(4, 3, 0x3f));
+  pattern.setNote(0, 114, 0, Note(8, 7));
+  pattern.setNote(0, 114, 1, Note(4, 3));
 
-  pattern.setNote(0, 116, 0, Note(7, 6, 0x3f));
-  pattern.setNote(0, 116, 1, Note(1, 1, 0x3f));
+  pattern.setNote(0, 116, 0, Note(7, 6));
+  pattern.setNote(0, 116, 1, Note(1, 1));
 
-  pattern.setNote(0, 118, 0, Note(8, 7, 0x3f));
-  pattern.setNote(0, 118, 1, Note(1, 1, 0x3f));
+  pattern.setNote(0, 118, 0, Note(8, 7));
+  pattern.setNote(0, 118, 1, Note(1, 1));
 
-  pattern.setNote(0, 120, 0, Note(7, 6, 0x3f));
-  pattern.setNote(0, 120, 1, Note(3, 2, 0x3f));
+  pattern.setNote(0, 120, 0, Note(7, 6));
+  pattern.setNote(0, 120, 1, Note(3, 2));
 
-  pattern.setNote(0, 122, 0, Note(8, 7, 0x3f));
-  pattern.setNote(0, 122, 1, Note(3, 2, 0x3f));
+  pattern.setNote(0, 122, 0, Note(8, 7));
+  pattern.setNote(0, 122, 1, Note(3, 2));
 
-  pattern.setNote(0, 124, 0, Note(7, 6, 0x3f));
-  pattern.setNote(0, 124, 1, Note(5, 4, 0x3f));
+  pattern.setNote(0, 124, 0, Note(7, 6));
+  pattern.setNote(0, 124, 1, Note(5, 4));
 
-  pattern.setNote(0, 126, 0, Note(8, 7, 0x3f));
-  pattern.setNote(0, 126, 1, Note(5, 4, 0x3f));
+  pattern.setNote(0, 126, 0, Note(8, 7));
+  pattern.setNote(0, 126, 1, Note(5, 4));
 
-  pattern.setNote(0, 128, 0, Note(7, 6, 0x3f));
-  pattern.setNote(0, 128, 1, Note(6, 5, 0x3f));
+  pattern.setNote(0, 128, 0, Note(7, 6));
+  pattern.setNote(0, 128, 1, Note(6, 5));
 
-  pattern.setNote(0, 130, 0, Note(8, 7, 0x3f));
-  pattern.setNote(0, 130, 1, Note(6, 5, 0x3f));
+  pattern.setNote(0, 130, 0, Note(8, 7));
+  pattern.setNote(0, 130, 1, Note(6, 5));
 
-
-  pattern.setNote(0, 140, 0, Note(1, 1, 0x3f));
-  pattern.setNote(0, 140, 1, Note(6, 5, 0x3f));
-  pattern.setNote(0, 140, 2, Note(3, 2, 0x3f));
-
-  pattern.setNote(0, 142, 0, Note(1, 1, 0x3f));
-  pattern.setNote(0, 142, 1, Note(6, 5, 0x3f));
-  pattern.setNote(0, 142, 2, Note(21, 15, 0x3f));
-
-  pattern.setNote(0, 144, 0, Note(8*1, 7*1, 0x3f));
-  pattern.setNote(0, 144, 1, Note(8*6, 7*5, 0x3f));
-  pattern.setNote(0, 144, 2, Note(8*3, 7*2, 0x3f));
-
-  pattern.setNote(0, 146, 0, Note(7*1, 6*1, 0x3f));
-  pattern.setNote(0, 146, 1, Note(7*6, 6*5, 0x3f));
-  pattern.setNote(0, 146, 2, Note(7*3, 6*2, 0x3f));
-
-  pattern.setNote(0, 148, 0, Note(7*1, 6*1, 0x3f));
-  pattern.setNote(0, 148, 1, Note(7*7, 6*6, 0x3f));
-  pattern.setNote(0, 148, 2, Note(7*4, 6*3, 0x3f));
-
-
-  pattern.setNote(0, 152, 0, Note(1, 1, 0x3f));
-  pattern.setNote(0, 152, 1, Note(3, 2, 0x3f));
-  pattern.setNote(0, 152, 2, Note(21, 12, 0x3f));
-
+#endif
+#endif
   
   song->addPattern(pattern);  
     
@@ -280,12 +329,12 @@ Controller::loadDemo2() {
 
 void
 Controller::loadDemo() {
-  auto song = make_shared<Song>();
+  auto song = make_shared<Song>(Tuning::TET12, 155, 0.01f);
 
   const unsigned char * song_data = tr;
   
-  song->bpm = *song_data++;
-  song->mastervol = (float)(*song_data++) / 127;
+  song->setTempo(*song_data++);
+  song->setMasterVolume((*song_data++) / 127.0f);
   
   int delay1 = (int)(MAXDELAYSAMPLES * ((float)(*song_data++) / 255));
   float fd1 = (float)(*song_data++) / 255;
@@ -509,3 +558,14 @@ Controller::sendCommand(const std::string & cmd) {
   }
   return true;
 }
+
+void
+Controller::open(const std::string & filename) {
+  XMLDocument doc;
+  doc.LoadFile(filename.c_str());
+
+  XMLElement * song = doc.FirstChildElement("song");
+  assert(song);
+  
+}
+  
