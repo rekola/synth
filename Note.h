@@ -5,28 +5,49 @@
 
 #include <cmath>
 #include <string>
+#include <cassert>
 
 class Note {
  public:
-  explicit Note() : note_number(0), velocity(0x3f), numerator(0), denominator(0) { }
-  explicit Note(int _numerator, int _denominator, short _velocity) : note_number(0), velocity(_velocity), numerator(_numerator), denominator(_denominator) { }
-  explicit Note(int _note_number, short _velocity) : note_number(_note_number), velocity(_velocity), numerator(0), denominator(0) { }
+  explicit Note() : note_number(0), velocity(0x3f) { }
+  explicit Note(int _note_number, short _velocity = 0x3f) : note_number(_note_number), velocity(_velocity) { }
+  explicit Note(std::string value, short _velocity = 0x3f, Tuning tuning = Tuning::TET12) : velocity(_velocity) {
+    if (tuning == Tuning::TET12) {
+      char letter = value[0];
+      char accidental = value[1];
+
+      int octave = stoi(value.substr(2));
+      note_number = (octave + 1) * 12;
+      
+      // C C# D D# E F F# G G# A A# B
+
+      assert(letter >= 'A' && letter <= 'G');
+      if (letter >= 'C' && letter <= 'E') note_number += (letter - 'C') * 2;
+      else if (letter == 'F' || letter == 'G') note_number += 5 + (letter - 'F') * 2;
+      else if (letter == 'A' || letter == 'B') note_number += 9 + (letter - 'A') * 2;
+
+      assert(accidental == '#' || accidental == 'b' || accidental == '-');
+      if (accidental == '#') note_number++;
+      else if (accidental == 'b') note_number--;
+    } else {
+      assert(0);
+      note_number = 0;
+    }
+  }
 
   short getNoteNumber() const { return note_number; }
   short getVelocity() const { return velocity; }
   float getVelocityAsFloat() const { return (float)velocity / 0x3f; }
-  bool isDefined() const { return note_number > 0 || (numerator != 0 && denominator != 0); }
+  bool isDefined() const { return note_number > 0; }
   bool isOff() const { return note_number == 1 || velocity == 0; }
   
   inline float getFrequency(Tuning tuning, int transpose, int detune) {
-    if (note_number > 1) {
-      if (tuning == Tuning::TET31) {
-	return 0;
-      } else {
-	return 440 * powf(2, (note_number - 69.0 + transpose + detune / 100.0f) / 12.0);
-      }
+    if (tuning == Tuning::TET31) {
+      return 440.0f * powf(2.0f, (note_number - 178.0f + transpose + detune / 100.0f) / 31.0f);
+    } else if (tuning == Tuning::TET12) {
+      return 440.0f * powf(2.0f, (note_number - 69.0f + transpose + detune / 100.0f) / 12.0f);
     } else {
-      return 261.63f * numerator / denominator;
+      assert(0);
     }
   }
 
@@ -45,46 +66,13 @@ class Note {
 	return std::string(note_names_12tet[note_number % 12]) + std::to_string((note_number / 12) - 1);
       }
     } else {
-      if (numerator == 1 && denominator == 1) {
-	return "P1";
-      } else if (numerator == 16 && denominator == 15) {
-	return "m2";
-      } else if ((numerator == 10 && denominator == 9) || (numerator == 9 && denominator == 8)) {
-	return "M2";
-      } else if (numerator == 8 && denominator == 7) {
-	return "S2"; // supermajor second (https://en.wikipedia.org/wiki/Septimal_whole_tone)
-      } else if (numerator == 7 && denominator == 6) {
-	return "s3"; // subminor third
-      } else if (numerator == 6 && denominator == 5) {	
-	return "m3";
-      } else if (numerator == 5 && denominator == 4) {
-	return "M3";
-      } else if (numerator == 9 && denominator == 7) {
-	return "S3";
-      } else if (numerator == 4 && denominator == 3) {
-	return "P4";
-      } else if (numerator == 3 && denominator == 2) {
-	return "P5";
-      } else if (numerator == 8 && denominator == 5) {
-	return "m6";
-      } else if (numerator == 5 && denominator == 3) {
-	return "M6";
-      } else if ((numerator == 16 && denominator == 9) || (numerator == 9 && denominator == 5)) {
-	return "m7";
-      } else if (numerator == 15 && denominator == 8) {
-	return "M7";
-      } else if (numerator == 2 && denominator == 1) {
-	return "P8";
-      } else {
-	return std::to_string(numerator) + ":" + std::to_string(denominator);
-      }
+      return "???";
     }
-    return "???";
   }
-
+  
  private:
   short note_number, velocity;
-  short numerator, denominator; 
+  // note specific tuning
 };
 
 #endif
