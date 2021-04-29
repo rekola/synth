@@ -11,9 +11,17 @@
 
 class Song {
  public:
-  Song(Tuning _tuning = Tuning::TET12) : tuning(_tuning) { }
+  Song(Tuning _tuning = Tuning::TET12, short _key = 0, float _randomization_factor = 0.01f) : tuning(_tuning), key_note_number(_key), randomization_factor(_randomization_factor) { }
 
   Tuning getTuning() const { return tuning; }
+  short getKey() const { return key_note_number; }
+  float getRandomizationFactor() const { return randomization_factor; }
+
+  short getTempo() const { return bpm; }
+  void setTempo(short _bpm) { bpm = _bpm; }
+
+  float getMasterVolume() const { return master_volume; }
+  void setMasterVolume(float v) { master_volume = v; }
   
   const std::vector<Pattern> & getPatterns() const { return patterns; }
   const Pattern & getPattern(size_t i) const { return i < patterns.size() ? patterns[i] : empty_pattern; }
@@ -29,7 +37,7 @@ class Song {
   const Track & getTrack(size_t i) const { return i < tracks.size() ? tracks[i] : empty_track; }
   Track & getTrack(size_t i) { return i < tracks.size() ? tracks[i] : empty_track; }
   Track & addTrack(const Track & s) { tracks.push_back(s); return tracks.back(); }
-  Track & addTrack() { return addTrack(Track()); }
+  Track & addTrack(Track::Type type = Track::SEQUENCER) { return addTrack(Track(type)); }
 
   const std::vector<std::unique_ptr<Instrument> > & getInstruments() const { return instruments; }
   Instrument & getInstrument(size_t i) { return *(instruments[i]); }
@@ -58,12 +66,12 @@ class Song {
     return n;
   }
 
-  float mastervol = 1.0;
-  int bpm = 60;
-
 private:
-  short key_note_number = 0;
   Tuning tuning;
+  short key_note_number;
+  float randomization_factor;
+  int bpm = 90;
+  float master_volume = 1.0;
 
   std::vector<std::unique_ptr<Instrument> > instruments;
   std::vector<Pattern> patterns;
