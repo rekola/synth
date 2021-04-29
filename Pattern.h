@@ -15,6 +15,7 @@ class Pattern {
   explicit Pattern(size_t _num_rows = DEFAULT_PATTERN_LENGTH) : num_rows(_num_rows) { }
 
   Tuning getTuning() const { return tuning; }
+  short getKey() const { return key_note_number; }
   size_t getNumRows() const { return num_rows; }
 
   void setNote(size_t track, size_t row, size_t note_column, Note note) {
@@ -36,6 +37,10 @@ class Pattern {
     return index;
   }
 
+  void deleteNote(size_t track, size_t row) {
+    notes[track].erase(row);
+  }
+  
   const Note & getNote(size_t track, size_t row, size_t note_column) const {
     auto it = notes.find(track);
     if (it != notes.end()) {
