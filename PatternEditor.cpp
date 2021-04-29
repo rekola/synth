@@ -42,7 +42,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   if (new_score_cursor_col < new_scroll_col) {
     new_scroll_col = new_score_cursor_col;
   } else {
-    while ( 1 ) {
+    while ( 0 ) {
       size_t pos = 6;
       for (size_t i = new_scroll_col; i < tracks.size() && i <= new_score_cursor_col; i++) {
 	auto note_columns = track_widths[i];
@@ -98,6 +98,33 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
     renderRow(styles, track_widths, score_playing_row, true);
     need_redraw = true;
   }
+
+  Tuning new_tuning = current_pattern.getTuning() != Tuning::INHERIT ? current_pattern.getTuning() : song.getTuning();
+  int new_tempo = song.getTempo();
+  int new_key = current_pattern.getKey() ? current_pattern.getKey() : song.getKey();
+  
+  if (render_all || edit_step_size != new_edit_step_size || new_tuning != current_tuning || new_tempo != current_tempo || new_key != current_key) {
+    setFgColor(styles.window_border_color);
+    setBgColor(styles.window_bg_color);
+
+    std::string tuning;
+    if (new_tuning == Tuning::TET12) {
+      tuning = "12-TET";
+    } else if (new_tuning == Tuning::TET31) {
+      tuning = "31-TET";
+    } else {
+      tuning = "error";
+    }
+    
+    putstr(rows - 1, cols - 16, format("{:2d} {} {}", new_edit_step_size, tuning, new_tempo));
+    
+    edit_step_size = new_edit_step_size;
+    current_tuning = new_tuning;
+    current_tempo = new_tempo;
+    current_key = new_key;
+    
+    need_redraw = true;
+  }
   
   current_score_pattern = score_pattern;
   current_score_playing_row = score_playing_row;
@@ -112,11 +139,23 @@ bool
 PatternEditor::offerInput(const UIInput & input) {
   auto & song = getController().getSong();
   auto & synth = getController().getSynth();
-  // auto & pattern = song.getPattern(synth.getPatternPosition());
   size_t num_columns = song.getTracks().size();
 
   if (input.hasCtrl()) {
-    if (input.getId() == 'a' || input.getId() == 'A') {
+    if (input.getId() == 'r') {
+      auto sample = getController().startRecording();
+      auto & current_track = song.getTrack(current_score_cursor_col);
+      if (current_track.getType() == Track::SAMPLE) {
+	track.setSample(sample);
+      } else {
+	new_score_cursor_col = song.getTracks().size();
+	auto & track = song.addTrack(Track::SAMPLE);
+	track.setSample(sample);
+      }
+      song.incVersion();
+    } else if (input.getId() == 'e') {
+      getController().stopRecording();
+    } else if (input.getId() == 'a' || input.getId() == 'A') {
       new_score_cursor_col = 0;
       return true;
     } else if (input.getId() == 'e' || input.getId() == 'E') {
@@ -124,8 +163,8 @@ PatternEditor::offerInput(const UIInput & input) {
       return true;
     } else if (input.getId() == 't' || input.getId() == 'T') {
       int instrument_id = 0; // pattern.getTracks().back().getInstrumentId();
-      auto & seq = song.addTrack();
-      seq.setInstrumentId(instrument_id); // + 1);
+      auto & track = song.addTrack();
+      track.setInstrumentId(instrument_id); // + 1);
       song.incVersion();
     } else if (input.getId() == 'g' || input.getId() == 'G') {
       // create group
@@ -152,8 +191,11 @@ PatternEditor::offerInput(const UIInput & input) {
       return true;
     } else if (input.getId() == NCKEY_RIGHT || input.getId() == 'i' || input.getId() == 'i' || input.getId() == 'o') {
       auto & track = song.getTrack(current_score_cursor_col);
-      track.setInstrumentId(track.getInstrumentId() + 1);
-      song.incVersion();
+      auto & instruments = song.getInstruments();
+      if (track.getInstrumentId() + 1 < instruments.size()) {
+	track.setInstrumentId(track.getInstrumentId() + 1);
+	song.incVersion();
+      }
       return true;
     } else if (input.hasShift()) {
       if (input.getId() == 't' || input.getId() == 'T') {
@@ -189,24 +231,29 @@ PatternEditor::offerInput(const UIInput & input) {
     if (!synth.isPlaying()) synth.moveForward(song, 16);
     return true;
   } else {
-    int midi_note = input.toMidiNote();
+    auto & pattern = song.getPattern(synth.getPatternPosition());
+    Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
+    int midi_note = input.toMidiNote(tuning);
     if (midi_note != -1) {
-      Note note(midi_note, 0x3f);
-      auto & pattern = song.getPattern(synth.getPatternPosition());
-      auto & track = song.getTrack(current_score_cursor_col);
-      auto & instrument = song.getInstrument(track.getInstrumentId());
-
-      size_t note_column = 1;
-      if (input.hasShift()) {
-	note_column = pattern.pushNote(current_score_cursor_col, synth.getTrackPosition(), note);
+      if (midi_note == 0) {
+	pattern.deleteNote(current_score_cursor_col, synth.getTrackPosition());
       } else {
-	pattern.setNote(current_score_cursor_col, synth.getTrackPosition(), 0, note);
+	Note note(midi_note);
+	auto & track = song.getTrack(current_score_cursor_col);
+	auto & instrument = song.getInstrument(track.getInstrumentId());
+
+	size_t note_column = 0;
+	if (input.hasShift()) {
+	  note_column = pattern.pushNote(current_score_cursor_col, synth.getTrackPosition(), note);
+	} else {
+	  pattern.setNote(current_score_cursor_col, synth.getTrackPosition(), 0, note);
+	}
+
+	Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
+	track.playNote(tuning, note, instrument, note_column);
+	row_edited = true;
       }
-
-      Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
-      track.playNote(tuning, note, instrument, note_column);
-      row_edited = true;
-
+      
       if (!synth.isPlaying()) {
 	if (input.getId() == NCKEY_BACKSPACE) synth.moveBackwards(song, edit_step_size);
 	else if (input.getId() != NCKEY_DEL) synth.moveForward(song, edit_step_size);
@@ -232,6 +279,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<siz
 
   setBgColor(styles.window_bg_color);
   putstr(1, 1, padding);
+  putstr(2, 1, padding);
 
   auto & tracks = song.getTracks();
   auto & instruments = song.getInstruments();
@@ -260,7 +308,9 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<siz
     setBgColor(styles.window_bg_color);
 
     string instrument_name;
-    if (track.getInstrumentId() >= 0 && track.getInstrumentId() < instruments.size()) {
+    if (track.getType() == Track::SAMPLE) {
+      instrument_name = "Sample";
+    } else if (track.getInstrumentId() >= 0 && track.getInstrumentId() < instruments.size()) {
       instrument_name = instruments[track.getInstrumentId()]->getName();
     }
     putstr(2, current_pos, instrument_name);
@@ -329,23 +379,27 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<size_t>
 	auto notes = pattern.getNotes(i, row);
 	auto note_columns = i < track_widths.size() ? track_widths[i] : 0;
 	if (note_columns == 0) note_columns = 1;
-      	
+
 	for (size_t k = 0; k < note_columns; k++) {
-	  string s;
-	  if (k < notes.size() && notes[k].isDefined()) {
-	    auto & note = notes[k];
-	    s = note.toString(song.getTuning()) + format(" {:02x}", note.getVelocity());
-	  } else {
-	    s = "... ..";
-	  }
 	  setFgColor(cell_fg);
 	  setBgColor(cell_bg);
-	  
-	  putstr(3 + row - current_scroll_row, current_pos, s);
+
+	  if (track.getType() == Track::SAMPLE) {
+	    putstr(3 + row - current_scroll_row, current_pos, "      ");
+	  } else {
+	    string s;
+	    if (k < notes.size() && notes[k].isDefined()) {
+	      auto & note = notes[k];
+	      s = note.toString(song.getTuning()) + format(" {:02x}", note.getVelocity());
+	    } else {
+	      s = "... ..";
+	    }	    
+	    putstr(3 + row - current_scroll_row, current_pos, s);
+	  }
 	  
 	  setFgColor(styles.window_border_color);
 	  setBgColor(bg);
-	  
+	    
 	  putstr(3 + row - current_scroll_row, current_pos + 6, "│");
 	  
 	  current_pos += 7;
