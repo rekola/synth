@@ -62,7 +62,6 @@ class InstrumentVoice {
     if (note.isOff()) {
       stopNote();
     } else if (note.isDefined()) {
-      // float fscaler = (float)WAVESIZE / 44100.0f;
       freq = note.getFrequency(tuning, transpose, detune);
       velocity = note.getVelocityAsFloat();
       adsrstate = 0;
@@ -73,6 +72,7 @@ class InstrumentVoice {
 
   virtual bool isPlaying() const { return adsrstate < 4 && freq != 0; }
 
+  void setIdentifier(int id) { identifier = id; }
   int getIdentifier() const { return identifier; }
   float getVelocity() const { return velocity; }
 
