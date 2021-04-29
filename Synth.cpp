@@ -28,8 +28,11 @@ Synth::play(Song & song, size_t frames) {
 	for (size_t col = 0; col < song.getTracks().size(); col++) {
 	  auto & track = song.getTrack(col);
 	  auto & notes = pattern.getNotes(col, getTrackPosition());
-	  if (!notes.empty()) {
-	    track.addPendingNotes(i, tuning, notes);
+	  for (size_t j = 0; j < notes.size(); j++) {
+	    if (notes[j].isDefined()) {
+	      auto pos = i + (unsigned int)(song.getRandomizationFactor() * 44100.0f * rand() / RAND_MAX);
+	      track.addPendingNote(pos, int(j), tuning, notes[j]);
+	    }
 	  }
 	}
       }
@@ -47,15 +50,12 @@ Synth::play(Song & song, size_t frames) {
     for (size_t i = 0; i < frames; i++) {
       auto & pending = track.getPendingNotes();
       if (!pending.empty()) {
-	auto & [ frame_index, tuning, notes ] = pending.front();
-	if (i == frame_index) {
-	  for (size_t j = 0; j < notes.size(); j++) {
-	    auto & note = notes[j];
-	    if (note.isDefined()) {
-	      track.playNote(tuning, note, instrument, j);
-	    }
+	auto it = pending.begin();
+	if (i >= it->first) {
+	  for (auto & [ id, tuning, note ] : it->second) {
+	    track.playNote(tuning, note, instrument, id);
 	  }
-	  pending.pop_front();
+	  pending.erase(it);
 	}
       }
 
@@ -73,12 +73,28 @@ Synth::play(Song & song, size_t frames) {
       if (ss > 1.0) ss = 1.0;
       else if (ss < -1.0) ss = -1.0;
 
+#if 0
+      if (track.hasSample()) {
+	auto & sample = track.getSample();
+	
+      }
+#endif
+
       buffer[i] = ss;
     }
 
-    instrument.applyEffects(data);
+    auto remaining = track.getPendingNotes();
     track.clearPendingNotes();
 
+    for (auto pd : remaining) {
+      assert(pd.first >= frames);
+      for (auto & [ id, tuning, note ] : pd.second) {       
+	track.addPendingNote(pd.first - frames, id, tuning, note);
+      }
+    }
+    
+    instrument.applyEffects(data);
+    
     for (size_t i = 0; i < frames; i++) {
       float ss = buffer[i];
       
@@ -91,8 +107,8 @@ Synth::play(Song & song, size_t frames) {
     auto & left = out[2 * i + 0];
     auto & right = out[2 * i + 1];
     
-    left *= song.mastervol;
-    right *= song.mastervol;
+    left *= song.getMasterVolume();
+    right *= song.getMasterVolume();
     
     if (left > 1.0) left = 1.0;
     else if (left < -1.0) left = -1.0;
