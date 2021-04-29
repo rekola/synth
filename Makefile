@@ -9,9 +9,9 @@ OBJS = main.o \
 	PatternEditor.o \
 	Controller.o \
 	FMInstrument.o \
-	Reverb.o \
 	InstrumentList.o \
-	SoundFont.o
+	SoundFont.o \
+	tinyxml2.o
 
 CC = g++
 
