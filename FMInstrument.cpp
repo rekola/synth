@@ -38,14 +38,15 @@ public:
       // double sound = GAIN * envelope(&note_active, gate, &env_level, env_time, attack, decay, sustain, release)
       //   * velocity * sin(phi + modulation * sin(phi_mod));
       // env_time += 1.0 / 44100.0;
-      
-      float s = sin(phi + modulation * sin(phi_mod));
+
+      float phi = getWavePosition() * 2 * M_PI / 22050.0f;
+      float s = sinf(phi + modulation * sinf(phi * harmonic / subharmonic));
       // return s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s;
       // return s;
       
       // * (1 + noise * rand() / RAND_MAX));
       
-#if 1
+#if 0
       double dphi = M_PI * freq / 22050.0;
       double dphi_mod = dphi * (double)harmonic / (double)subharmonic;
       
@@ -59,7 +60,7 @@ public:
 #endif
       // spow(s, 16);
       
-      buffer[i] = s * getVelocity();
+      buffer[i] = s * getVelocity() * 0.5f;
     }
   }
 
@@ -67,8 +68,7 @@ private:
   float modulation;
   // velocity, attack, decay, sustain, release, env_time, env_level;
   int harmonic, subharmonic;
-
-  double phi = 0, phi_mod = 0;
+  // double phi = 0, phi_mod = 0;
 };
 
 std::shared_ptr<InstrumentVoice>
