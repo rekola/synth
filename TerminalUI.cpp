@@ -411,7 +411,10 @@ TerminalUI::start(AudioAPI & audio) {
 	    }
 	  } else {
 	    auto data = audio.record(*this);
-	    setStatus(format("recorded {} frames", data.size()));
+	    if (getController().isRecording()) {
+	      setStatus(format("recorded {} frames", data.size()));
+	      getController().addToSample(data);
+	    }
 	  }
 	}
       }
