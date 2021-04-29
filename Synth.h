@@ -16,7 +16,7 @@ class Synth {
   SampleData play(Song & song, size_t frames);
 
   size_t getSampleInterval(const Song & song) const {
-    float tnote = (float)60 / song.bpm * NOTEDOMAIN * 2;
+    float tnote = (float)60 / song.getTempo() * NOTEDOMAIN * 2;
     return (size_t)(tnote * samplerate);
   }
       
