@@ -15,7 +15,7 @@ enum class WaveformType
   
 class BasicInstrument : public Instrument {
  public:  
-  explicit BasicInstrument(WaveformType _type) : type(_type) { }
+  explicit BasicInstrument(WaveformType _type) : Instrument(1), type(_type) { }
 
   std::shared_ptr<InstrumentVoice> createVoice(int _identifier) const;
   

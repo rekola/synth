@@ -159,25 +159,6 @@ int tsf_get_presetcount(const tsf* f);
 static int tsf_stream_stdio_read(FILE* f, void* ptr, unsigned int size) { return (int)fread(ptr, 1, size, f); }
 static int tsf_stream_stdio_skip(FILE* f, unsigned int count) { return !fseek(f, count, SEEK_CUR); }
 
-// Directly load a SoundFont from a .sf2 file path
-
-void tsf_load_filename(tsf * res, const char* filename) {
-  struct tsf_stream stream = { NULL, (int(*)(void*,void*,unsigned int))&tsf_stream_stdio_read, (int(*)(void*,unsigned int))&tsf_stream_stdio_skip };
-#if __STDC_WANT_SECURE_LIB__
-  FILE* f = NULL; fopen_s(&f, filename, "rb");
-#else
-  FILE* f = fopen(filename, "rb");
-#endif
-  if (!f)
-    {
-      //if (e) *e = TSF_FILENOTFOUND;
-      return;
-    }
-  stream.data = f;
-  tsf_load(res, &stream);
-  fclose(f);
-}
-
 struct tsf_stream_memory { const char* buffer; unsigned int total, pos; };
 static int tsf_stream_memory_read(struct tsf_stream_memory* m, void* ptr, unsigned int size) { if (size > m->total - m->pos) size = m->total - m->pos; memcpy(ptr, m->buffer+m->pos, size); m->pos += size; return size; }
 static int tsf_stream_memory_skip(struct tsf_stream_memory* m, unsigned int count) { if (m->pos + count > m->total) return 0; m->pos += count; return 1; }
@@ -764,9 +745,9 @@ public:
     f = (tsf*)malloc(sizeof(tsf));
     memset(f, 0, sizeof(tsf));
 
-    tsf_load_filename(f, filename.c_str());
+    loadFile(filename);
     
-    f->outputmode = TSF_MONO;
+    f->outputmode = TSF_STEREO_INTERLEAVED; // TSF_MONO;
     f->outSampleRate = samplerate;
     f->globalGainDB = 0.0f; // the desired volume where 1.0 is 100%
   }
@@ -780,6 +761,24 @@ public:
     free(f->fontSamples);
     free(f->outputSamples);
     free(f);
+  }
+
+  // Directly load a SoundFont from a .sf2 file path
+  void loadFile(const std::string & filename) {
+    struct tsf_stream stream = { NULL, (int(*)(void*,void*,unsigned int))&tsf_stream_stdio_read, (int(*)(void*,unsigned int))&tsf_stream_stdio_skip };
+#if __STDC_WANT_SECURE_LIB__
+    FILE * fh = NULL;
+    fopen_s(&fh, filename, "rb");
+#else
+    FILE * fh = fopen(filename.c_str(), "rb");
+#endif
+    if (!fh) {
+      // if (e) *e = TSF_FILENOTFOUND;
+      return;
+    }
+    stream.data = fh;
+    tsf_load(f, &stream);
+    fclose(fh);  
   }
 
   // Returns the name of a preset index >= 0 and < tsf_get_presetcount()
@@ -878,7 +877,7 @@ private:
 
 void
 SoundFontVoice::render(float* outputBuffer, size_t numSamples) {
-  memset(outputBuffer, 0, numSamples * sizeof(float));
+  memset(outputBuffer, 0, 2 * numSamples * sizeof(float));
   
   auto f = sf->getHandle();
 
@@ -1373,7 +1372,7 @@ SoundFontVoice::playNote(Tuning tuning, Note note, int transpose, int detune) {
 
 class SoundFontInstrument : public Instrument {
 public:
-  SoundFontInstrument(std::shared_ptr<SoundFontFile> _sf, size_t _preset) : sf(_sf), preset(_preset) { }
+  SoundFontInstrument(std::shared_ptr<SoundFontFile> _sf, size_t _preset) : Instrument(2), sf(_sf), preset(_preset) { }
   
   std::shared_ptr<InstrumentVoice> createVoice(int identifier) const override {
     return make_shared<SoundFontVoice>(identifier, sf, preset);

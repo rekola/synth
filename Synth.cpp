@@ -43,8 +43,10 @@ Synth::play(Song & song, size_t frames) {
 
   for (auto & track : song.getTracks()) {
     auto & instrument = song.getInstrument(track.getInstrumentId());
+
+    size_t num_channels = instrument.getNumChannels();
     
-    SampleData data(1, frames);
+    SampleData data(num_channels, frames);
     auto buffer = data.data();
     
     for (size_t i = 0; i < frames; i++) {
@@ -59,28 +61,45 @@ Synth::play(Song & song, size_t frames) {
 	}
       }
 
-      float ss = 0;
+      
+      float track_data[2] = { 0, 0 };
       for (auto & voice : track.getVoices()) {
 	if (voice->isPlaying()) {
 	  float adsrvol = voice->updateADSR(instrument.getEnvelope());
-	  float s;
-	  voice->render(&s, 1);
-	  ss += s * track.getVolume() * adsrvol;
+	  float s[2];
+	  voice->render(s, 1);
+	  track_data[0] += s[0] * adsrvol;
+	  track_data[1] += s[1] * adsrvol;
 	  // if (solo_instrument != -1 && pattern.getInstrumentId() != solo_instrument) ss = 0;	  
 	}
       }
 
-      if (ss > 1.0) ss = 1.0;
-      else if (ss < -1.0) ss = -1.0;
-
 #if 0
       if (track.hasSample()) {
 	auto & sample = track.getSample();
-	
       }
 #endif
 
-      buffer[i] = ss;
+      if (num_channels == 1) {
+	float ss = track_data[0] * track.getVolume();
+	
+	if (ss > 1.0) ss = 1.0;
+	else if (ss < -1.0) ss = -1.0;
+
+	buffer[i] = ss;
+      } else {
+	float left = track_data[0] * track.getVolume();
+	float right = track_data[1] * track.getVolume();
+
+	if (left > 1.0) left = 1.0;
+	else if (left < -1.0) left = -1.0;
+
+	if (right > 1.0) right = 1.0;
+	else if (right < -1.0) right = -1.0;
+	
+	buffer[2 * i + 0] = left;
+	buffer[2 * i + 1] = right;
+      }
     }
 
     auto remaining = track.getPendingNotes();
@@ -94,12 +113,24 @@ Synth::play(Song & song, size_t frames) {
     }
     
     instrument.applyEffects(data);
+
+    float pan = track.getPan();
     
-    for (size_t i = 0; i < frames; i++) {
-      float ss = buffer[i];
-      
-      out[2 * i + 0] += ss * sqrtf(1.0 - track.getPan());
-      out[2 * i + 1] += ss * sqrtf(track.getPan());
+    if (num_channels == 1) {
+      for (size_t i = 0; i < frames; i++) {
+	float ss = buffer[i];
+	
+	out[2 * i + 0] += ss * sqrtf(1.0 - pan);
+	out[2 * i + 1] += ss * sqrtf(pan);
+      }
+    } else {
+      float left_f = cos(pan * M_PI / 2), right_f = sin(pan * M_PI / 2);
+      for (size_t i = 0; i < frames; i++) {
+	float left = buffer[2 * i + 0], right = buffer[2 * i + 1];
+
+	out[2 * i + 0] += left_f * left;
+	out[2 * i + 1] += right_f * right; 
+      }
     }
   }
 

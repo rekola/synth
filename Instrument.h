@@ -14,10 +14,12 @@
 
 class Instrument {
 public:
-  explicit Instrument() { }
+  explicit Instrument(size_t _num_channels) : num_channels(_num_channels) { }
   virtual ~Instrument() { }
 
   virtual std::shared_ptr<InstrumentVoice> createVoice(int _identifier) const = 0;
+
+  size_t getNumChannels() const { return num_channels; }
   
   void setName(const std::string & _name) { name = _name; }
   const std::string & getName() const { return name; }
@@ -46,6 +48,7 @@ public:
   void addEffect(std::unique_ptr<Effect> effect) { effects.push_back(std::move(effect)); }
   
 protected:
+  size_t num_channels;
   std::string name;
   Envelope envelope;
   float detune = 0;

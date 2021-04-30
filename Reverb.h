@@ -7,7 +7,7 @@
 
 class Reverb : public Effect {
  public:
-  enum Preset { SUBTLE, STADIUM, CUPBOARD, DARK, HALVES };
+  enum Preset { SUBTLE = 0, STADIUM, CUPBOARD, DARK, HALVES };
 
   explicit Reverb(int sample_rate, Preset preset) : mverb(sample_rate, preset) {
     
@@ -19,23 +19,37 @@ class Reverb : public Effect {
     float * left_out = new float[input.size()];
     float * right_out = new float[input.size()];
 
-    float * in[2] = { left_in, right_in };
-    float * out[2] = { left_out, right_out };
-    
-    for (size_t i = 0; i < input.size(); i++) {
-      left_in[i] = right_in[i] = input.data()[i];
-    }
-    
     memset(left_out, 0, input.size() * sizeof(float));
     memset(right_out, 0, input.size() * sizeof(float));
 
-    mverb.process(in, out, input.size());
-
-    float * final_data = input.data();
-    for (size_t i = 0; i < input.size(); i++) {
-      final_data[i] = left_out[i];
-    }
+    float * in[2] = { left_in, right_in };
+    float * out[2] = { left_out, right_out };
+    float * io_data = input.data();
     
+    if (input.getChannels() == 2) {
+      for (size_t i = 0; i < input.size(); i++) {
+	left_in[i] = io_data[2 * i + 0];
+	right_in[i] = io_data[2 * i + 1];
+      }
+      mverb.process(in, out, input.size());
+
+      for (size_t i = 0; i < input.size(); i++) {
+	io_data[2 * i + 0] = left_out[i];
+	io_data[2 * i + 1] = right_out[i];
+      }
+    } else {
+      for (size_t i = 0; i < input.size(); i++) {
+	left_in[i] = right_in[i] = io_data[i];
+      }
+
+      mverb.process(in, out, input.size());
+
+      float * final_data = input.data();
+      for (size_t i = 0; i < input.size(); i++) {
+	io_data[i] = left_out[i];
+      }
+    }
+        
     delete[] left_in;
     delete[] right_in;
     delete[] left_out;

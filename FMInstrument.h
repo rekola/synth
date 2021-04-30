@@ -16,7 +16,7 @@
 class FMInstrument : public Instrument {
 public:
   explicit FMInstrument(float _modulation, int _harmonic, int _subharmonic, float _n = 2)
-    : modulation(_modulation), harmonic(_harmonic), subharmonic(_subharmonic), noise(0), n(_n) { }
+    : Instrument(1), modulation(_modulation), harmonic(_harmonic), subharmonic(_subharmonic), noise(0), n(_n) { }
 
   std::shared_ptr<InstrumentVoice> createVoice(int _identifier) const override;
   

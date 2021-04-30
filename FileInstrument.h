@@ -8,7 +8,7 @@
 
 class FileInstrument : public Instrument {
  public:
-  explicit FileInstrument(const std::string & _filename) : filename(_filename) {
+  explicit FileInstrument(const std::string & _filename) : Instrument(1), filename(_filename) {
     openFile();
   }
 
