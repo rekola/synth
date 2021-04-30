@@ -3,22 +3,19 @@
 
 class Envelope {
  public:
-  Envelope() : a(0), d(0), s(1.0f), r(0) { }
- Envelope(int _a, int _d, float _s, int _r)
-   : a(_a * 44100 * 5 / 255), d(_d * 44100 * 5 / 255), s(_s), r(_r * 44100 * 5 / 255)
+  Envelope() : delay(0.0f), attack(0.0f), hold(0.0f), decay(0.0f), sustain(1.0f), release(0.0f), keynumToHold(0.0f), keynumToDecay(0.0f) { }
+  Envelope(float _a, float _d, float _s, float _r)
+    : attack(_a), decay(_d), sustain(_s), release(_r)
     {
       
     }
 
-  int getAttack() const { return a; }
-  int getDecay() const { return d; }
-  float getSustain() const { return s; }
-  int getRelease() const { return r; }
+  float getAttack() const { return attack; }
+  float getDecay() const { return decay; }
+  float getSustain() const { return sustain; }
+  float getRelease() const { return release; }
 
- private:
-  int a, d;
-  float s;
-  int r;
+  float delay, attack, hold, decay, sustain, release, keynumToHold, keynumToDecay;  
 };
 
 #endif
