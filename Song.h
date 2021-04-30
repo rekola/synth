@@ -16,7 +16,8 @@ class Song {
   Tuning getTuning() const { return tuning; }
   short getKey() const { return key_note_number; }
   float getRandomizationFactor() const { return randomization_factor; }
-
+  const std::string & getName() const { return name; }
+  
   short getTempo() const { return bpm; }
   void setTempo(short _bpm) { bpm = _bpm; }
 
@@ -32,13 +33,9 @@ class Song {
     incVersion();
   }
 
-  std::vector<Track> & getTracks() { return tracks; }
-  const std::vector<Track> & getTracks() const { return tracks; }
-  const Track & getTrack(size_t i) const { return i < tracks.size() ? tracks[i] : empty_track; }
-  Track & getTrack(size_t i) { return i < tracks.size() ? tracks[i] : empty_track; }
-  Track & addTrack(const Track & s) { tracks.push_back(s); return tracks.back(); }
-  Track & addTrack(Track::Type type = Track::SEQUENCER) { return addTrack(Track(type)); }
-
+  Track & getMasterTrack() { return master_track; }
+  const Track & getMasterTrack() const { return master_track; }
+    
   const std::vector<std::unique_ptr<Instrument> > & getInstruments() const { return instruments; }
   Instrument & getInstrument(size_t i) { return *(instruments[i]); }
   void addInstrument(std::unique_ptr<Instrument> i) {
@@ -54,22 +51,11 @@ class Song {
   void incVersion() { version++; }
   int getVersion() const { return version; }
 
-  size_t getVoiceCount() const {
-    size_t n = 0;
-    for (auto & track : tracks) n += track.getVoiceCount();
-    return n;
-  }
-
-  size_t getAllocatedVoiceCount() const {
-    size_t n = 0;
-    for (auto & track : tracks) n += track.getAllocatedVoiceCount();
-    return n;
-  }
-
 private:
   Tuning tuning;
   short key_note_number;
   float randomization_factor;
+  std::string name;
   int bpm = 90;
   float master_volume = 1.0;
 
@@ -78,8 +64,7 @@ private:
   Pattern empty_pattern;
   int version = 1;
 
-  std::vector<Track> tracks;
-  Track empty_track;  
+  Track master_track;
 };
 
 #endif

@@ -13,35 +13,40 @@ class InstrumentVoice {
   
   float updateADSR(const Envelope & envelope) {
     float adsrvol = 0;
-    
+
+    int attack = int(envelope.getAttack() * 44100 * 5);
+    int decay = int(envelope.getDecay() * 44100 * 5);
+    float sustain = envelope.getSustain();
+    int release = int(envelope.getRelease() * 44100 * 5);
+	  
     switch (adsrstate) {
     case 0:
-      if (envelope.getAttack() == 0 || adsrpos >= envelope.getAttack()) {
+      if (attack == 0 || adsrpos >= attack) {
 	adsrstate++;
 	adsrpos = 0;
 	adsrvol = 1.0f;
       } else {
-	adsrvol = (float)adsrpos / envelope.getAttack();
+	adsrvol = (float)adsrpos / attack;
       }
       break;
     case 1:
-      if (envelope.getDecay() == 0 || adsrpos >= envelope.getDecay()) {
+      if (decay == 0 || adsrpos >= decay) {
 	adsrstate++;
 	adsrpos = 0;
-	adsrvol = envelope.getSustain();
+	adsrvol = sustain;
       } else {
-	adsrvol = 1.0 - ((1.0 - envelope.getSustain()) * (float)adsrpos / envelope.getDecay());
+	adsrvol = 1.0 - ((1.0 - sustain) * (float)adsrpos / decay);
       }
       break;
     case 2:
-      adsrvol = envelope.getSustain();
+      adsrvol = sustain;
       break;
     case 3:
-      if (envelope.getRelease() == 0 || adsrpos >= envelope.getRelease()) {
+      if (release == 0 || adsrpos >= release) {
 	adsrstate++;
 	adsrvol = 0;
       } else {
-	adsrvol = envelope.getSustain() - (envelope.getSustain() * (float)adsrpos / envelope.getRelease());
+	adsrvol = sustain - (sustain * (float)adsrpos / release);
       }
       break;
     default:

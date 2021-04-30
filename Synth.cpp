@@ -18,6 +18,9 @@ Synth::play(Song & song, size_t frames) {
     if (song.getInstrument(i).getSolo()) solo_instrument = i;
   }
 #endif
+
+  auto & mastertrack = song.getMasterTrack();
+  auto & tracks = mastertrack.getChildren();
   
   if (is_playing) {
     for (size_t i = 0; i < frames; i++) {
@@ -25,8 +28,8 @@ Synth::play(Song & song, size_t frames) {
 	auto & pattern = song.getPattern(getPatternPosition());
 	auto tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
 
-	for (size_t col = 0; col < song.getTracks().size(); col++) {
-	  auto & track = song.getTrack(col);
+	for (size_t col = 0; col < tracks.size(); col++) {
+	  auto & track = tracks[col];
 	  auto & notes = pattern.getNotes(col, getTrackPosition());
 	  for (size_t j = 0; j < notes.size(); j++) {
 	    if (notes[j].isDefined()) {
@@ -41,7 +44,7 @@ Synth::play(Song & song, size_t frames) {
     }
   }
 
-  for (auto & track : song.getTracks()) {
+  for (auto & track : tracks) {
     auto & instrument = song.getInstrument(track.getInstrumentId());
 
     size_t num_channels = instrument.getNumChannels();
@@ -60,7 +63,6 @@ Synth::play(Song & song, size_t frames) {
 	  pending.erase(it);
 	}
       }
-
       
       float track_data[2] = { 0, 0 };
       for (auto & voice : track.getVoices()) {
@@ -113,6 +115,7 @@ Synth::play(Song & song, size_t frames) {
     }
     
     instrument.applyEffects(data);
+    track.applyEffects(data);
 
     float pan = track.getPan();
     

@@ -5,6 +5,7 @@
 #include "Instrument.h"
 #include "InstrumentVoice.h"
 #include "SampleData.h"
+#include "Effect.h"
 
 #include <map>
 #include <vector>
@@ -12,7 +13,7 @@
 
 class Track {
  public:
-  enum Type { SEQUENCER = 1, SAMPLE };
+  enum Type { MASTER = 1, GROUP, SEQUENCER, SAMPLE };
 
   Track(Type _type = SEQUENCER) : type(_type) { }
 
@@ -24,8 +25,11 @@ class Track {
   float getVolume() const { return volume; }
   void setVolume(float _volume) { volume = _volume; }
 
-  bool getSolo() const { return solo; }
-  void setSolo(bool s) {solo = s; }
+  bool isSolo() const { return solo; }
+  void setSolo(bool s) { solo = s; }
+
+  bool isMuted() const { return mute; }
+  void setMute(bool m) { mute = m; }
 
   int getInstrumentId() const { return instrument_id; }
   void setInstrumentId(int id) {
@@ -59,26 +63,52 @@ class Track {
       voices.back()->playNote(tuning, note, instrument.getTranspose(), instrument.getDetune());
     }
   }
-
+  
   size_t getVoiceCount() const {
     size_t n = 0;
     for (auto & voice : voices) if (voice->isPlaying()) n++;
+    for (auto & child : children) n += child.getVoiceCount();
     return n;
   }
 
-  size_t getAllocatedVoiceCount() const { return voices.size(); }
+  size_t getAllocatedVoiceCount() const {
+    size_t n = voices.size();
+    for (auto & child : children) n += child.getAllocatedVoiceCount();
+    return n;
+  }
 
   void setSample(std::shared_ptr<SampleData> _sample) { sample = _sample; }
+
+  const std::string & getName() const { return name; }
+
+  std::vector<Track> & getChildren() { return children; }
+  const std::vector<Track> & getChildren() const { return children; }
+
+  const Track & getChild(size_t i) const { return children[i]; }
+  Track & getChild(size_t i) { return children[i]; }
+  Track & addChild(const Track & s) { children.push_back(s); return children.back(); }
+  Track & addChild(Track::Type type = Track::SEQUENCER) { return addChild(Track(type)); }
+
+  void applyEffects(SampleData & data) {
+    for (auto & effect : effects) {
+      effect->apply(data);
+    }
+  }
+
+  void addEffect(std::unique_ptr<Effect> effect) { effects.push_back(std::move(effect)); }
   
 private:
   Type type;
   int instrument_id = 0;
   std::vector<std::shared_ptr<InstrumentVoice> > voices;
-  bool solo = false;
+  bool solo = false, mute = false;
   float pan = 0.5f;
   float volume = 0.75f;
-  std::shared_ptr<Track> first_child, next_sibling;
+  std::string name;
+  std::vector<Track> children;
   std::shared_ptr<SampleData> sample;
+
+  std::vector<std::shared_ptr<Effect> > effects;
 
   std::map<unsigned int, std::vector<std::tuple<int, Tuning, Note> > > pending_notes;
 };
