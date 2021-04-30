@@ -44,7 +44,6 @@ class Reverb : public Effect {
 
       mverb.process(in, out, input.size());
 
-      float * final_data = input.data();
       for (size_t i = 0; i < input.size(); i++) {
 	io_data[i] = left_out[i];
       }
