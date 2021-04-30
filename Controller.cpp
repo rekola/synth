@@ -24,7 +24,7 @@ void
 Controller::loadDemo3() {
   auto song = make_shared<Song>();
 
-#if 1
+#if 0
   auto oboe = make_unique<FMInstrument>(0.7, 1, 3, 0.1f);
   oboe->setName("oboe");
   oboe->setADSR(2, 15, 0.5f, 10);
@@ -33,7 +33,6 @@ Controller::loadDemo3() {
   // oboe->addEffect(make_unique<Chorus>(5.0f, 0.0f));
   // oboe->setFilter(100, 30);
   // oboe->addEffect(make_unique<Chorus>(5.0f, 0.0f));
-  oboe->addEffect(make_unique<Reverb>(44100, Reverb::STADIUM));
   song->addInstrument(move(oboe));
 #else
   auto fluid = make_unique<SoundFont>(44100, "FluidR3_GM.sf2");
@@ -43,7 +42,8 @@ Controller::loadDemo3() {
   song->addInstruments(*fluid);
 #endif
   
-  song->addTrack();
+  auto & track = song->getMasterTrack().addChild();
+  track.addEffect(make_unique<Reverb>(44100, Reverb::STADIUM));
 
   // use just tuning
   
@@ -73,12 +73,15 @@ Controller::loadDemo2() {
 #if 1
   auto fluid = make_unique<SoundFont>(44100, "FluidR3_GM.sf2");
   auto instrument = fluid->createInstrument(2);
-  // instrument->addEffect(make_unique<Distortion>(Distortion::ZEROES, 0.1, 0.0));
-  // instrument->setFilter(63 / 255.0f, 128 / 63.0f);
-  // instrument->addEffect(make_unique<Reverb>(44100, Reverb::HALVES));
-  
+  // instrument->addEffect(make_unique<Distortion>(Distortion::ZEROES, 0.1, 0.0));  
   song->addInstrument(move(instrument));
 #else
+  auto epiano = make_unique<BasicInstrument>(WaveformType::SAW);
+  epiano->setName("Electric Piano");
+  epiano->setADSR(0, 20, 0.0f, 0);
+  epiano->setFilter(63 / 255.0f, 128 / 63.0f);
+  song->addInstrument(move(epiano));
+
   auto oboe = make_unique<FMInstrument>(0.7, 1, 3, 0.1f);
   oboe->setName("oboe");
   oboe->setADSR(2, 15, 0.5f, 10);
@@ -87,16 +90,12 @@ Controller::loadDemo2() {
   // oboe->addEffect(make_unique<Chorus>(5.0f, 0.0f));
   // oboe->addEffect(make_unique<Reverb>(44100, Reverb::DEFAULT)); // LARGEROOM1));
   // oboe->setFilter(100, 30);
-  song->addInstrument(move(oboe));
-  
-  auto epiano = make_unique<BasicInstrument>(WaveformType::SAW);
-  epiano->setName("Electric Piano");
-  epiano->setADSR(0, 20, 0.0f, 0);
-  epiano->setFilter(63 / 255.0f, 128 / 63.0f);
-  song->addInstrument(move(epiano));
+  song->addInstrument(move(oboe));  
 #endif
 
-  song->addTrack();
+  auto & track = song->getMasterTrack().addChild();
+  track.addEffect(make_unique<Filter>(63 / 255.0f, 128 / 63.0f, false));
+  track.addEffect(make_unique<Reverb>(44100, Reverb::HALVES));
   
   Pattern pattern(256);
 
@@ -451,14 +450,14 @@ Controller::loadDemo() {
     track.setInstrumentId(*song_data++);
     track.setPan(*song_data++ / 255.0f);
     track.setVolume(*song_data++ / 127.0f);
-    song->addTrack(track);
+    song->getMasterTrack().addChild(track);
     
     for (size_t j = 0; ; j++) {
       int val = *song_data++;
       if (val == 255) break;
       int midi_note = val & 0x7f;
       bool has_accent = val & 0x80;
-      track_notes[i][j] = Note(midi_note, has_accent ? 0x60 : 0x3f);
+      if (midi_note != 0) track_notes[i][j] = Note(midi_note, has_accent ? 0x60 : 0x3f);
     }
   }
 
@@ -544,10 +543,7 @@ Controller::createNewSong() {
   
   Pattern pattern;
   song->addPattern(pattern);  
-  song->addTrack();
-  song->addTrack();
-  song->addTrack();
-  song->addTrack();
+  song->getMasterTrack().addChild();
   
   current_song = song;
 }
@@ -600,9 +596,12 @@ Controller::save(const std::string & filename) {
     patterns->InsertEndChild(pattern_element);
   }
 
-  for (auto & track : current_song->getTracks()) {
+  auto & mastertrack = current_song->getMasterTrack();
+  for (auto & track : mastertrack.getChildren()) {
     XMLElement * track_element = doc.NewElement("track");
     if (!track.getName().empty()) track_element->SetAttribute("name", track.getName().c_str());
+    if (track.isSolo()) track_element->SetAttribute("solo", "1");
+    if (track.isMuted()) track_element->SetAttribute("mute", "1");
     tracks->InsertEndChild(track_element);    
   }
   
