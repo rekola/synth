@@ -17,7 +17,8 @@ class Pattern {
   Tuning getTuning() const { return tuning; }
   short getKey() const { return key_note_number; }
   size_t getNumRows() const { return num_rows; }
-
+  const std::string & getName() const { return name; }
+  
   void setNote(size_t track, size_t row, size_t note_column, Note note) {
     auto & columns = notes[track][row];
     while (note_column >= columns.size()) columns.push_back(Note());
