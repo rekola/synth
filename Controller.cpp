@@ -72,8 +72,11 @@ Controller::loadDemo2() {
 
 #if 1
   auto fluid = make_unique<SoundFont>(44100, "FluidR3_GM.sf2");
-  auto instrument = fluid->createInstrument(0);
-  instrument->addEffect(make_unique<Reverb>(44100, Reverb::CUPBOARD));
+  auto instrument = fluid->createInstrument(2);
+  // instrument->addEffect(make_unique<Distortion>(Distortion::ZEROES, 0.1, 0.0));
+  // instrument->setFilter(63 / 255.0f, 128 / 63.0f);
+  // instrument->addEffect(make_unique<Reverb>(44100, Reverb::HALVES));
+  
   song->addInstrument(move(instrument));
 #else
   auto oboe = make_unique<FMInstrument>(0.7, 1, 3, 0.1f);
@@ -519,7 +522,7 @@ Controller::createNewSong() {
   test->setName("test");
   test->setADSR(2, 15, 0.0f, 10);
   // test->setTranspose(12);
-  test->addEffect(make_unique<Distortion>(Distortion::CLIP, 0.5f));
+  // test->addEffect(make_unique<Distortion>(Distortion::CLIP, 0.5f));
   // test->addEffect(make_unique<Chorus>(5.0f, 0.0f));
   test->setFilter(100, 30);
   song->addInstrument(move(test));
@@ -550,9 +553,11 @@ Controller::createNewSong() {
 }
 
 bool
-Controller::sendCommand(const std::string & cmd) {
+Controller::sendCommand(const std::string & cmd) {  
   if (cmd == "new-song") {
     createNewSong();
+  } else if (cmd == "save-song") {
+    save("tmp.xml");
   } else {
     return false;
   }
@@ -568,4 +573,39 @@ Controller::open(const std::string & filename) {
   assert(song);
   
 }
+
+void
+Controller::save(const std::string & filename) {
+  XMLDocument doc;
+
+  XMLElement * root = doc.NewElement("song");
+  if (!current_song->getName().empty()) root->SetAttribute("name", current_song->getName().c_str());
+  root->SetAttribute("key", "");
+  root->SetAttribute("name", "");
+  root->SetAttribute("tuning", "");
+  root->SetAttribute("tempo", "");
+  doc.InsertFirstChild(root);
+
+  XMLElement * patterns = doc.NewElement("patterns");
+  root->InsertEndChild(patterns);
+
+  XMLElement * tracks = doc.NewElement("tracks");
+  root->InsertEndChild(tracks);
+
+  for (auto & pattern : current_song->getPatterns()) {
+    XMLElement * pattern_element = doc.NewElement("pattern");
+    if (!pattern.getName().empty()) pattern_element->SetAttribute("name", pattern.getName().c_str());
+    pattern_element->SetAttribute("key", "");
+    pattern_element->SetAttribute("tuning", "");
+    patterns->InsertEndChild(pattern_element);
+  }
+
+  for (auto & track : current_song->getTracks()) {
+    XMLElement * track_element = doc.NewElement("track");
+    if (!track.getName().empty()) track_element->SetAttribute("name", track.getName().c_str());
+    tracks->InsertEndChild(track_element);    
+  }
   
+  doc.SaveFile(filename.c_str());
+}
+
