@@ -30,16 +30,6 @@ using namespace std;
 
 typedef struct tsf tsf;
 
-// Supported output modes by the render methods
-enum TSFOutputMode {
- // Two channels with single left/right samples one after another
- TSF_STEREO_INTERLEAVED,
- // Two channels with all samples for the left channel first then right
- TSF_STEREO_UNWEAVED,
- // A single channel (stereo instruments are mixed into center)
- TSF_MONO,
-};
-
 typedef char tsf_fourcc[4];
 typedef signed char tsf_s8;
 typedef unsigned char tsf_u8;
@@ -59,7 +49,8 @@ struct tsf_region {
   unsigned char lokey, hikey, lovel, hivel;
   unsigned int group, offset, end, loop_start, loop_end;
   int transpose, tune, pitch_keycenter, pitch_keytrack;
-  float attenuation, pan;
+  float attenuation;
+  float pan; // not supported
   struct tsf_envelope ampenv, modenv;
   int initialFilterQ, initialFilterFc;
   int modEnvToPitch, modEnvToFilterFc, modLfoToFilterFc, modLfoToVolume;
@@ -85,8 +76,7 @@ struct tsf {
   
   int presetNum;
   int outputSampleSize;
-  
-  enum TSFOutputMode outputmode;
+
   float outSampleRate;
   float globalGainDB;
 };
@@ -123,7 +113,6 @@ int tsf_get_presetcount(const tsf* f);
 // Also be aware, this has not been tested much.
 
 // Setup the parameters for the voice render methods
-//   outputmode: if mono or stereo and how stereo channel data is ordered
 //   samplerate: the number of samples per second (output frequency)
 //   global_gain_db: volume gain in decibels (>0 means higher, <0 means lower)
 
@@ -133,7 +122,6 @@ int tsf_get_presetcount(const tsf* f);
 //   preset_number: preset number (alternative to preset_index)
 //   flag_mididrums: 0 for normal channels, otherwise apply MIDI drum channel rules
 //   bank: instrument bank number (alternative to preset_index)
-//   pan: stereo panning value from 0.0 (left) to 1.0 (right) (default 0.5 center)
 //   volume: linear volume scale factor (default 1.0 full)
 //   pitch_wheel: pitch wheel position 0 to 16383 (default 8192 unpitched)
 //   pitch_range: range of the pitch wheel in semitones (default 2.0, total +/- 2 semitones)
@@ -747,7 +735,6 @@ public:
 
     loadFile(filename);
     
-    f->outputmode = TSF_STEREO_INTERLEAVED; // TSF_MONO;
     f->outSampleRate = samplerate;
     f->globalGainDB = 0.0f; // the desired volume where 1.0 is 100%
   }
@@ -864,7 +851,7 @@ public:
   struct tsf_region * voiceRegion;
   double pitchInputTimecents, pitchOutputFactor;
   double sourceSamplePosition;
-  float  noteGainDB, panFactorLeft, panFactorRight;
+  float noteGainDB;
   unsigned int loopStart, loopEnd;
   struct tsf_voice_envelope ampenv, modenv;
   LowpassFilter lowpass;
@@ -877,14 +864,13 @@ private:
 
 void
 SoundFontVoice::render(float* outputBuffer, size_t numSamples) {
-  memset(outputBuffer, 0, 2 * numSamples * sizeof(float));
+  memset(outputBuffer, 0, numSamples * sizeof(float));
   
   auto f = sf->getHandle();
 
   struct tsf_region* region = voiceRegion;
   float* input = f->fontSamples;
-  float* outL = outputBuffer;
-  float* outR = (f->outputmode == TSF_STEREO_UNWEAVED ? outL + numSamples : NULL);
+  float* output = outputBuffer;
 
   // Cache some values, to give them at least some chance of ending up in registers.
   bool updateModEnv = (region->modEnvToPitch || region->modEnvToFilterFc);
@@ -916,7 +902,7 @@ SoundFontVoice::render(float* outputBuffer, size_t numSamples) {
   else noteGain = tsf_decibelsToGain(noteGainDB), tmpModLfoToVolume = 0;
   
   while (numSamples) {
-    float gainMono, gainLeft, gainRight;
+    float gainMono;
     int blockSamples = (numSamples > TSF_RENDER_EFFECTSAMPLEBLOCK ? TSF_RENDER_EFFECTSAMPLEBLOCK : numSamples);
     numSamples -= blockSamples;
 
@@ -944,65 +930,21 @@ SoundFontVoice::render(float* outputBuffer, size_t numSamples) {
     // Update LFOs.
     if (updateModLFO) tsf_voice_lfo_process(&modlfo, blockSamples);
     if (updateVibLFO) tsf_voice_lfo_process(&viblfo, blockSamples);
-    
-    switch (f->outputmode) {
-    case TSF_STEREO_INTERLEAVED:
-      gainLeft = gainMono * panFactorLeft, gainRight = gainMono * panFactorRight;
-      while (blockSamples-- && tmpSourceSamplePosition < tmpSampleEndDbl) {
-	unsigned int pos = (unsigned int)tmpSourceSamplePosition, nextPos = (pos >= tmpLoopEnd && isLooping ? tmpLoopStart : pos + 1);
-	
-	// Simple linear interpolation.
-	float alpha = (float)(tmpSourceSamplePosition - pos), val = (input[pos] * (1.0f - alpha) + input[nextPos] * alpha);
-	
-	// Low-pass filter.
-	if (tmpLowpass.active) val = tmpLowpass.process(val);
-	
-	*outL++ += val * gainLeft;
-	*outL++ += val * gainRight;
-	
-	// Next sample.
-	tmpSourceSamplePosition += pitchRatio;
-	if (tmpSourceSamplePosition >= tmpLoopEndDbl && isLooping) tmpSourceSamplePosition -= (tmpLoopEnd - tmpLoopStart + 1.0);
-      }
-      break;
+                
+    while (blockSamples-- && tmpSourceSamplePosition < tmpSampleEndDbl) {
+      unsigned int pos = (unsigned int)tmpSourceSamplePosition, nextPos = (pos >= tmpLoopEnd && isLooping ? tmpLoopStart : pos + 1);
       
-    case TSF_STEREO_UNWEAVED:
-      gainLeft = gainMono * panFactorLeft, gainRight = gainMono * panFactorRight;
-      while (blockSamples-- && tmpSourceSamplePosition < tmpSampleEndDbl) {
-	unsigned int pos = (unsigned int)tmpSourceSamplePosition, nextPos = (pos >= tmpLoopEnd && isLooping ? tmpLoopStart : pos + 1);
-	
-	// Simple linear interpolation.
-	float alpha = (float)(tmpSourceSamplePosition - pos), val = (input[pos] * (1.0f - alpha) + input[nextPos] * alpha);
-	
-	// Low-pass filter.
-	if (tmpLowpass.active) val = tmpLowpass.process(val);
-	
-	*outL++ += val * gainLeft;
-	*outR++ += val * gainRight;
-	
-	// Next sample.
-	tmpSourceSamplePosition += pitchRatio;
-	if (tmpSourceSamplePosition >= tmpLoopEndDbl && isLooping) tmpSourceSamplePosition -= (tmpLoopEnd - tmpLoopStart + 1.0);
-      }
-      break;
+      // Simple linear interpolation.
+      float alpha = (float)(tmpSourceSamplePosition - pos), val = (input[pos] * (1.0f - alpha) + input[nextPos] * alpha);
       
-    case TSF_MONO:
-      while (blockSamples-- && tmpSourceSamplePosition < tmpSampleEndDbl) {
-	unsigned int pos = (unsigned int)tmpSourceSamplePosition, nextPos = (pos >= tmpLoopEnd && isLooping ? tmpLoopStart : pos + 1);
+      // Low-pass filter.
+      if (tmpLowpass.active) val = tmpLowpass.process(val);
+      
+      *output++ += val * gainMono;
 	
-	// Simple linear interpolation.
-	float alpha = (float)(tmpSourceSamplePosition - pos), val = (input[pos] * (1.0f - alpha) + input[nextPos] * alpha);
-	
-	// Low-pass filter.
-	if (tmpLowpass.active) val = tmpLowpass.process(val);
-	
-	*outL++ += val * gainMono;
-	
-	// Next sample.
-	tmpSourceSamplePosition += pitchRatio;
-	if (tmpSourceSamplePosition >= tmpLoopEndDbl && isLooping) tmpSourceSamplePosition -= (tmpLoopEnd - tmpLoopStart + 1.0);
-      }
-      break;
+      // Next sample.
+      tmpSourceSamplePosition += pitchRatio;
+      if (tmpSourceSamplePosition >= tmpLoopEndDbl && isLooping) tmpSourceSamplePosition -= (tmpLoopEnd - tmpLoopStart + 1.0);
     }
     
     if (tmpSourceSamplePosition >= tmpSampleEndDbl || ampenv.segment == TSF_SEGMENT_DONE) {
@@ -1162,9 +1104,6 @@ void tsf_note_on(tsf* f, int preset_index, int key, float vel)
 		  f->channels->setupVoice(f, voice);
 		} else{
 		  voice->calcPitchRatio(0, f->outSampleRate);
-		  // The SFZ spec is silent about the pan curve, but a 3dB pan law seems common. This sqrt() curve matches what Dimension LE does; Alchemy Free seems closer to sin(adjustedPan * pi/2).
-		  voice->panFactorLeft  = sqrtf(0.5f - region->pan);
-		  voice->panFactorRight = sqrtf(0.5f + region->pan);
 		}
 
 		// Offset/end.
@@ -1234,13 +1173,9 @@ void tsf_note_off(tsf* f, int preset_index, int key) {
 #if 0
 static void tsf_channel_setup_voice(tsf* f, SoundFontVoice * v) {
   struct tsf_channel* c = &f->channels->channels[f->channels->activeChannel];
-  float newpan = v->voiceRegion->pan + c->panOffset;
   v->playingChannel = f->channels->activeChannel;
   v->noteGainDB += c->gainDB;
   v->calcPitchRatio((c->pitchWheel == 8192 ? c->tuning : ((c->pitchWheel / 16383.0f * c->pitchRange * 2.0f) - c->pitchRange + c->tuning)), f->outSampleRate);
-  if (newpan <= -0.5f) { v->panFactorLeft = 1.0f; v->panFactorRight = 0.0f; }
-  else if (newpan >=  0.5f) { v->panFactorLeft = 0.0f; v->panFactorRight = 1.0f; }
-  else { v->panFactorLeft = sqrtf(0.5f - newpan); v->panFactorRight = sqrtf(0.5f + newpan); }
 }
 
 static void tsf_channel_applypitch(tsf* f, int channel, struct tsf_channel* c)
@@ -1250,20 +1185,6 @@ static void tsf_channel_applypitch(tsf* f, int channel, struct tsf_channel* c)
 	for (v = f->voices, vEnd = v + f->voiceNum; v != vEnd; v++)
 		if (v->playingChannel == channel && v->playingPreset != -1)
 			v->calcPitchRatio(pitchShift, f->outSampleRate);
-}
-
-void tsf_channel_set_pan(tsf* f, int channel, float pan)
-{
-	struct tsf_voice *v, *vEnd;
-	for (v = f->voices, vEnd = v + f->voiceNum; v != vEnd; v++)
-		if (v->playingChannel == channel && v->playingPreset != -1)
-		{
-			float newpan = v->voiceRegion->pan + pan - 0.5f;
-			if      (newpan <= -0.5f) { v->panFactorLeft = 1.0f; v->panFactorRight = 0.0f; }
-			else if (newpan >=  0.5f) { v->panFactorLeft = 0.0f; v->panFactorRight = 1.0f; }
-			else { v->panFactorLeft = sqrtf(0.5f - newpan); v->panFactorRight = sqrtf(0.5f + newpan); }
-		}
-	tsf_channel_init(f, channel)->panOffset = pan - 0.5f;
 }
 
 void tsf_channel_set_pitchwheel(tsf* f, int channel, int pitch_wheel)
@@ -1338,9 +1259,6 @@ SoundFontVoice::playNote(Tuning tuning, Note note, int transpose, int detune) {
     noteGainDB = f->globalGainDB - region->attenuation - tsf_gainToDecibels(1.0f / vel);
     
     calcPitchRatio(0, f->outSampleRate);
-    // The SFZ spec is silent about the pan curve, but a 3dB pan law seems common. This sqrt() curve matches what Dimension LE does; Alchemy Free seems closer to sin(adjustedPan * pi/2).
-    panFactorLeft  = sqrtf(0.5f - region->pan);
-    panFactorRight = sqrtf(0.5f + region->pan);
     
     // Offset/end.
     sourceSamplePosition = region->offset;
@@ -1372,7 +1290,7 @@ SoundFontVoice::playNote(Tuning tuning, Note note, int transpose, int detune) {
 
 class SoundFontInstrument : public Instrument {
 public:
-  SoundFontInstrument(std::shared_ptr<SoundFontFile> _sf, size_t _preset) : Instrument(2), sf(_sf), preset(_preset) { }
+  SoundFontInstrument(std::shared_ptr<SoundFontFile> _sf, size_t _preset) : Instrument(1), sf(_sf), preset(_preset) { }
   
   std::shared_ptr<InstrumentVoice> createVoice(int identifier) const override {
     return make_shared<SoundFontVoice>(identifier, sf, preset);
