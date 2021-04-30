@@ -12,10 +12,9 @@ class SampleData {
     memset(_data, 0, channels * frames * sizeof(float));
   }
 
-  SampleData(const SampleData & other) {
-    frames = other.size();
-    _data = new float[2 * frames];
-    memcpy(_data, other.data(), 2 * frames * sizeof(float));
+  SampleData(const SampleData & other) : channels(other.channels), frames(other.frames) {
+    _data = new float[channels * frames];
+    memcpy(_data, other.data(), channels * frames * sizeof(float));
   }
   const SampleData & operator=(const SampleData & other) = delete;
   
@@ -39,10 +38,10 @@ class SampleData {
     if (!other.size()) return;
     
     float * new_data = new float[2 * (size() + other.size())];
-    if (frames) memcpy(new_data, _data, 2 * frames * sizeof(float));
+    if (frames) memcpy(new_data, _data, channels * frames * sizeof(float));
     delete[] _data;
     _data = new_data;
-    memcpy(_data + 2 * frames, other.data(), 2 * other.size() * sizeof(float));
+    memcpy(_data + channels * frames, other.data(), channels * other.size() * sizeof(float));
     frames += other.size();
   }
 
@@ -52,12 +51,20 @@ class SampleData {
   }
 
   std::pair<float, float> calculateLoudness() {
-    float sum_squares_left = 0, sum_squares_right = 0;
-    for (size_t i = 0; i < frames; i++) {
-      sum_squares_left += _data[2 * i + 0] * _data[2 * i + 0];
-      sum_squares_right += _data[2 * i + 1] * _data[2 * i + 1];
+    if (channels == 1) {
+      float sum_squares = 0;
+      for (size_t i = 0; i < frames; i++) {
+	sum_squares += _data[i] * _data[i];
+      }
+      return std::pair(sqrtf(sum_squares), 0.0f);
+    } else {
+      float sum_squares_left = 0, sum_squares_right = 0;
+      for (size_t i = 0; i < frames; i++) {
+	sum_squares_left += _data[2 * i + 0] * _data[2 * i + 0];
+	sum_squares_right += _data[2 * i + 1] * _data[2 * i + 1];
+      }
+      return std::pair(sqrtf(sum_squares_left), sqrtf(sum_squares_right));
     }
-    return std::pair(sqrtf(sum_squares_left), sqrtf(sum_squares_right));
   }
     
 private:
