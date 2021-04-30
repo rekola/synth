@@ -36,7 +36,7 @@ public:
   }
 
   void setEnvelope(const Envelope & _envelope) { envelope = _envelope; }  
-  void setADSR(int _a, int _d, float _s, int _r) { setEnvelope(Envelope(_a, _d, _s, _r)); }
+  void setADSR(int _a, int _d, float _s, int _r) { setEnvelope(Envelope(_a / 255.0f, _d / 255.0f, _s, _r / 255.0f)); }
   const Envelope & getEnvelope() { return envelope; }
   
   void applyEffects(SampleData & data) {
