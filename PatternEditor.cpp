@@ -146,7 +146,7 @@ PatternEditor::offerInput(const UIInput & input) {
       auto sample = getController().startRecording();
       auto & current_track = song.getTrack(current_score_cursor_col);
       if (current_track.getType() == Track::SAMPLE) {
-	track.setSample(sample);
+	current_track.setSample(sample);
       } else {
 	new_score_cursor_col = song.getTracks().size();
 	auto & track = song.addTrack(Track::SAMPLE);
