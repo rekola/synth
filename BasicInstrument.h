@@ -3,8 +3,6 @@
 
 #include "Instrument.h"
 
-#include <cmath>
-
 enum class WaveformType
   {
    SINE = 1,
@@ -21,13 +19,6 @@ class BasicInstrument : public Instrument {
   
  private:
   WaveformType type;
-  
-#if 0
-  static void initialize();
-  
-  static bool is_initialized;
-  static float waves[4][WAVESIZE];
-#endif
 };
 
 #endif
