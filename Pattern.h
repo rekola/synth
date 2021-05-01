@@ -12,7 +12,7 @@
 
 class Pattern {
  public:
-  explicit Pattern(size_t _num_rows = DEFAULT_PATTERN_LENGTH) : num_rows(_num_rows) { }
+  explicit Pattern(size_t _num_rows = DEFAULT_PATTERN_LENGTH, Tuning _tuning = Tuning::INHERIT, short _key = -1) : num_rows(_num_rows), tuning(_tuning), key_note_number(_key) { }
 
   Tuning getTuning() const { return tuning; }
   short getKey() const { return key_note_number; }
@@ -90,8 +90,8 @@ class Pattern {
   }
 
 private:
-  short key_note_number = 0;
-  Tuning tuning = Tuning::INHERIT;
+  short key_note_number;
+  Tuning tuning;
   std::string name;
   size_t num_rows;
   // sparse note matrix: row, track, note_column
