@@ -6,6 +6,7 @@ enum class Tuning {
     TET5,
     TET7,
     TET12,
+    TET19,
     TET31
 };
 
