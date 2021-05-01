@@ -11,7 +11,7 @@
 
 class Song {
  public:
-  Song(Tuning _tuning = Tuning::TET12, short _key = 0, float _randomization_factor = 0.01f) : tuning(_tuning), key_note_number(_key), randomization_factor(_randomization_factor) { }
+  Song(Tuning _tuning = Tuning::TET12, short _key = -1, float _randomization_factor = 0.01f) : tuning(_tuning), key_note_number(_key), randomization_factor(_randomization_factor) { }
 
   Tuning getTuning() const { return tuning; }
   short getKey() const { return key_note_number; }
