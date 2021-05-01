@@ -8,10 +8,15 @@
 #include <cassert>
 
 class Note {
- public:
+ public:  
   explicit Note() : value(-1), velocity(0x3f) { }
   explicit Note(int _value, short _velocity = 0x3f) : value(_value), velocity(_velocity) { }
   explicit Note(std::string input_value, short _velocity = 0x3f, Tuning tuning = Tuning::TET12) : velocity(_velocity) {
+    replace(input_value, "♯", "#");
+    replace(input_value, "♭", "b");
+    replace(input_value, "𝄫", "bb");
+    replace(input_value, "𝄪", "x");
+    
     if (tuning == Tuning::TET12) {
       char letter = input_value[0];
       char accidental = input_value[1];
@@ -29,6 +34,10 @@ class Note {
       assert(accidental == '#' || accidental == 'b' || accidental == '-');
       if (accidental == '#') value++;
       else if (accidental == 'b') value--;
+    } else if (tuning == Tuning::TET19) {
+      // C C♯ D♭ D D♯ E♭ E E♯ F♭ F F♯ G♭ G G♯ A♭ A A♯ B♭ B B♯ C♭
+      assert(0);
+      value = 0;
     } else {
       assert(0);
       value = 0;
@@ -40,32 +49,46 @@ class Note {
   float getVelocityAsFloat() const { return (float)velocity / 0x3f; }
   bool isDefined() const { return value >= 0; }
   bool isOff() const { return value == 0 || velocity == 0; }
-  
-  inline float getFrequency(Tuning tuning, int transpose, int detune) {
-    if (isOff()) {
-      return 0.0f;
-    } else if (tuning == Tuning::TET31) {
-      return 440.0f * powf(2.0f, (value - 178.0f + transpose + detune / 100.0f) / 31.0f);
-    } else if (tuning == Tuning::TET12) {
-      return 440.0f * powf(2.0f, (value - 69.0f + transpose + detune / 100.0f) / 12.0f);
-    } else {
-      assert(0);
+
+  static void inline replace(std::string & data, const std::string from, std::string to) {
+    std::string::size_type pos = 0;
+    while ( 1 ) {
+      pos = data.find(from, pos);
+      if (pos == std::string::npos) break;
+      data.replace(pos, from.size(), to);
+      pos += to.size();
     }
   }
 
+  static inline std::string keyToString(Tuning tuning, int value) {
+    static const char * note_names_31tet[] = { "C", "D𝄫", "C♯", "D♭", "C𝄪", "D", "E𝄫", "D♯",
+						      "E♭", "D𝄪", "E", "F♭", "E♯", "F", "G𝄫", "F♯",
+						      "G♭", "F𝄪", "G", "A𝄫", "G♯", "A♭", "G𝄪", "A",
+						      "B𝄫", "A♯", "B♭", "A𝄪", "B", "C♭", "B♯" };
+    static const char * note_names_19tet[] = { "C", "C♯", "D♭", "D", "D♯", "E♭", "E", "E♯", "F♭", "F", "F♯",
+						      "G♭", "G", "G♯", "A♭", "A", "A♯", "B♭", "B", "B♯", "C♭" };
+    static const char * note_names_12tet[] = { "C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B" };
+    
+    if (tuning == Tuning::TET31) {
+      return note_names_31tet[value % 31];
+    } else if (tuning == Tuning::TET19) {
+      return note_names_19tet[value % 19];
+    } else {
+      return note_names_12tet[value % 12];
+    }    
+  }
+  
   std::string toString(Tuning tuning) const {
     if (isOff()) return "OFF";
     else if (isDefined()) {
-      static const char * note_names_31tet[] = { "C-", "D𝄫", "C♯", "D♭", "C𝄪", "D-", "E𝄫", "D♯",
-						 "E♭", "D𝄪", "E-", "F♭", "E♯", "F-", "G𝄫", "F♯",
-						 "G♭", "F𝄪", "G-", "A𝄫", "G♯", "A♭", "G𝄪", "A-",
-						 "B𝄫", "A♯", "B♭", "A𝄪", "B-", "C♭", "B♯" };
-      static const char * note_names_12tet[] = { "C-", "C♯", "D-", "D♯", "E-", "F-", "F♯", "G-", "G♯", "A-", "A♯", "B-" };
-      
+      auto key_name = keyToString(tuning, value);
+      if (key_name.size() == 1) key_name += '-';
       if (tuning == Tuning::TET31) {
-	return std::string(note_names_31tet[value % 31]) + std::to_string((value / 31) - 1);
+	return key_name + std::to_string((value / 31) - 1);
+      } else if (tuning == Tuning::TET19) {
+	return key_name + std::to_string((value / 19) - 1);
       } else {
-	return std::string(note_names_12tet[value % 12]) + std::to_string((value / 12) - 1);
+	return key_name + std::to_string((value / 12) - 1);
       }
     } else {
       return "n/a";
