@@ -63,16 +63,14 @@ class InstrumentVoice {
     adsrpos = 0;
   }
   
-  virtual void playNote(Tuning tuning, Note note, int transpose, int detune) {
-    if (note.isOff()) {
-      stopNote();
-    } else if (note.isDefined()) {
-      freq = note.getFrequency(tuning, transpose, detune);
-      velocity = note.getVelocityAsFloat();
-      adsrstate = 0;
-      adsrpos = 0;
-      wave_position = 0;
-    }
+  virtual void playNote(float _frequency, float _velocity, float _detune) {
+    freq = _frequency;
+    velocity = _velocity;
+    detune = _detune;
+    
+    adsrstate = 0;
+    adsrpos = 0;
+    wave_position = 0;
   }
 
   virtual bool isPlaying() const { return adsrstate < 4 && freq != 0; }
@@ -88,12 +86,9 @@ protected:
     wave_position += freq;
   }
 
-  float wave_position = 0; // position in the waveform
-  float freq = 0; // current frequency
-
  private:
   int identifier;
-  float velocity = 1.0f;
+  float wave_position = 0.0f, freq = 0.0f, velocity = 0.0f, detune = 0.0f;
   // adsr state
   int adsrstate = 0, adsrpos = 0;
 };
