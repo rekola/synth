@@ -99,29 +99,30 @@ Controller::loadDemo2() {
   
   Pattern pattern(256);
 
-  pattern.setNote(0, 0, 0, Note(155)); // C-4
-  pattern.setNote(0, 0, 1, Note(163)); // Eb4
-  pattern.setNote(0, 0, 2, Note(173)); // G-4
+  pattern.setNote(0, 0, 0, Note(155, 0x2f)); // C-4
+  pattern.setNote(0, 0, 1, Note(163, 0x2f)); // Eb4
+  pattern.setNote(0, 0, 2, Note(173, 0x2f)); // G-4
 
-  pattern.setNote(0, 2, 0, Note(155));
-  pattern.setNote(0, 2, 1, Note(163));
-  pattern.setNote(0, 2, 2, Note(170));
+  pattern.setNote(0, 2, 0, Note(155, 0x2f)); // C-4
+  pattern.setNote(0, 2, 1, Note(163, 0x2f)); // Eb4
+  pattern.setNote(0, 2, 2, Note(170, 0x2f)); // F#4
 
-  pattern.setNote(0, 4, 0, Note(155));
-  pattern.setNote(0, 4, 1, Note(161));
-  pattern.setNote(0, 4, 2, Note(168));
+  pattern.setNote(0, 4, 0, Note(155, 0x2f)); // C-4
+  pattern.setNote(0, 4, 1, Note(161, 0x2f)); // Ebb4 (8:7)
+  pattern.setNote(0, 4, 2, Note(168, 0x2f)); // F-4
 
-  pattern.setNote(0, 6, 0, Note(155));
-  pattern.setNote(0, 6, 1, Note(161));
-  pattern.setNote(0, 6, 2, Note(168));
+  pattern.setNote(0, 6, 0, Note(155, 0x2f));
+  pattern.setNote(0, 6, 1, Note(161, 0x2f));
+  pattern.setNote(0, 6, 2, Note(168, 0x2f));
 
 
-  pattern.setNote(0, 14, 0, Note(155));
-  pattern.setNote(0, 14, 1, Note(173));
-  pattern.setNote(0, 14, 2, Note(163));
-  pattern.setNote(0, 14, 3, Note(159));
+  pattern.setAnnotation(14, "neutral minor tetrad");
+  pattern.setNote(0, 14, 0, Note(155, 0x2f));
+  pattern.setNote(0, 14, 1, Note(173, 0x2f));
+  pattern.setNote(0, 14, 2, Note(163, 0x2f));
+  pattern.setNote(0, 14, 3, Note(159, 0x2f));
 
-  pattern.setNote(0, 16, 0, Note(155));
+  pattern.setNote(0, 16, 0, Note(155, 0x2f));  
 
 
   pattern.setNote(0, 30, 0, Note(155)); // C-4
@@ -142,9 +143,239 @@ Controller::loadDemo2() {
   pattern.setNote(0, 42, 0, Note(162)); // D#4
   pattern.setNote(0, 43, 0, Note(168)); // F-4
   pattern.setNote(0, 44, 0, Note(187)); // D𝄫5
-  pattern.setNote(0, 45, 0, Note(187 - 1)); // 
+  pattern.setNote(0, 45, 0, Note(187 - 1)); //
+  
+  pattern.setAnnotation(55, "3-limit scale");
+  pattern.setNote(0, 56, 0, Note(155)); // C-4 1:1
+  pattern.setNote(0, 57, 0, Note(160)); // D-4 9:8
+  pattern.setNote(0, 58, 0, Note(168)); // F-4 4:3
+  pattern.setNote(0, 59, 0, Note(173)); // G-4 3:2
+  pattern.setNote(0, 60, 0, Note(181)); // Bb4 1+4:5
+  pattern.setNote(0, 61, 0, Note(186)); // C-5 2:1
 
+  pattern.setAnnotation(70, "5-limit scale (Major)");
+  pattern.setNote(0, 70, 0, Note(155)); // C-4	10:10
+  pattern.setNote(0, 71, 0, Note(160)); // D-4	9:8
+  pattern.setNote(0, 72, 0, Note(165)); // E-4	5:4
+  pattern.setNote(0, 73, 0, Note(168)); // F-4	4:3
+  pattern.setNote(0, 74, 0, Note(173)); // G-4	1+1:2
+  pattern.setNote(0, 75, 0, Note(178)); // A-4  1+2:3
+  pattern.setNote(0, 76, 0, Note(183)); // B-4	1+7:8
+  pattern.setNote(0, 77, 0, Note(186)); // C-5	1:1
 
+  pattern.setAnnotation(80, "5-limit scale (Minor)");
+  pattern.setNote(0, 80, 0, Note(155)); // C-4  10:10
+  pattern.setNote(0, 81, 0, Note(160)); // D-4  9:8
+  pattern.setNote(0, 82, 0, Note(163)); // Eb4  6:5
+  pattern.setNote(0, 83, 0, Note(168)); // F-4	4:3
+  pattern.setNote(0, 84, 0, Note(173)); // G-4	1+1:2
+  pattern.setNote(0, 85, 0, Note(176)); // Ab4	1+3:5 ?
+  pattern.setNote(0, 86, 0, Note(181)); // Bb4  1+4:5 ?
+  pattern.setNote(0, 87, 0, Note(186)); // C-5  
+
+  pattern.setAnnotation(90, "Harmonic minor scale");
+  pattern.setNote(0, 90, 0, Note(155)); // C-4  10:10		0
+  pattern.setNote(0, 91, 0, Note(160)); // D-4  9:8		5
+  pattern.setNote(0, 92, 0, Note(163)); // Eb4  6:5		3
+  pattern.setNote(0, 93, 0, Note(168)); // F-4	4:3		5
+  pattern.setNote(0, 94, 0, Note(173)); // G-4	1+1:2		5
+  pattern.setNote(0, 95, 0, Note(178)); // A-4  1+2:3		5
+  // pattern.setNote(0, 95, 0, Note(180)); // A#4  1+3:4 ?		2
+  pattern.setNote(0, 96, 0, Note(181)); // Bb4  1+4:5		3
+  // pattern.setNote(0, 88, 0, Note(182)); // A𝄪4	1+5:6 ?		2
+  // pattern.setNote(0, 96, 0, Note(183)); // B-4	1+7:8 ?		5
+  pattern.setNote(0, 97, 0, Note(186)); // C-5  		5
+
+  #if 0
+  pattern.setAnnotation(100, "7-limit scale");
+  pattern.setNote(0, 100, 0, Note(155)); // C-4  1:1		0 
+  pattern.setNote(0, 101, 0, Note(158)); // D♭4  16:15		3
+  pattern.setNote(0, 102, 0, Note(161)); // E𝄫4  8:7		3
+  pattern.setNote(0, 103, 0, Note(163)); // E♭4  6:5		2
+  pattern.setNote(0, 104, 0, Note(165)); // E-4  5:4		2
+  pattern.setNote(0, 105, 0, Note(168)); // F-4  4:3		3      		(middle)
+  pattern.setNote(0, 106, 0, Note(173)); // G-4	 1+1:2		5
+  pattern.setNote(0, 107, 0, Note(178)); // A-4  1+2:3		5
+  pattern.setNote(0, 108, 0, Note(180)); // A#4  1+3:4		2
+  pattern.setNote(0, 109, 0, Note(181)); // Bb4  1+4:5		1
+  pattern.setNote(0, 110, 0, Note(182)); // A𝄪4  1+5:6	        1
+  pattern.setNote(0, 111, 0, Note(184)); // C♭4  1+10:11	2
+  pattern.setNote(0, 112, 0, Note(185)); // B#4  1+17:18	1
+  pattern.setNote(0, 113, 0, Note(186)); // C-5  2:1		1
+#endif
+  
+  pattern.setAnnotation(100, "7-limit scale (5 tone)");
+  pattern.setNote(0, 101, 0, Note(155)); // C-4  1:1		0 
+  pattern.setNote(0, 102, 0, Note(162)); // D#4  7:6	     	7
+  pattern.setNote(0, 103, 0, Note(168)); // F-4  4:3		6
+  pattern.setNote(0, 104, 0, Note(173)); // G-4	 1+1:2		5
+  pattern.setNote(0, 105, 0, Note(181)); // Bb4  1+4:5		8
+  pattern.setNote(0, 106, 0, Note(186)); // C-5  2:1		5
+
+  pattern.setAnnotation(108, "7-limit scale (6 tone)");
+  pattern.setNote(0, 109, 0, Note(155)); // C-4  1:1		0 
+  pattern.setNote(0, 110, 0, Note(162)); // D#4  7:6	     	7
+  pattern.setNote(0, 111, 0, Note(168)); // F-4  4:3		6
+  pattern.setNote(0, 112, 0, Note(173)); // G-4	 1+1:2		5
+  pattern.setNote(0, 113, 0, Note(181)); // Bb4 
+  pattern.setNote(0, 114, 0, Note(183)); // B-4 	       
+  pattern.setNote(0, 115, 0, Note(186)); // C-5  2:1		5
+
+  pattern.setAnnotation(120, "7-limit scale (7 tone a)");
+  pattern.setNote(0, 120, 0, Note(155)); // C-4  1:1		0 
+  pattern.setNote(0, 121, 0, Note(162)); // D#4  7:6	     	7
+  pattern.setNote(0, 122, 0, Note(168)); // F-4  4:3		6
+  pattern.setNote(0, 123, 0, Note(173)); // G-4	 1+1:2		5
+  pattern.setNote(0, 124, 0, Note(180)); // A-4 
+  pattern.setNote(0, 125, 0, Note(182)); //
+  pattern.setNote(0, 126, 0, Note(184)); // Cb4
+  pattern.setNote(0, 127, 0, Note(186)); // C-5  2:1		5
+
+  pattern.setAnnotation(130, "7-limit scale (7 tone b)");
+  pattern.setNote(0, 130, 0, Note(155)); // C-4  1:1		0 
+  pattern.setNote(0, 131, 0, Note(160)); // D-4  9:8		5
+  pattern.setNote(0, 132, 0, Note(162)); // D#4  7:6	     	2
+  pattern.setNote(0, 133, 0, Note(168)); // F-4  4:3		6      	 
+  pattern.setNote(0, 134, 0, Note(173)); // G-4	 1+1:2		5
+  pattern.setNote(0, 135, 0, Note(178)); // A-4  1+2:3		5
+  pattern.setNote(0, 136, 0, Note(181)); // Bb4  1+4:5		3
+  pattern.setNote(0, 137, 0, Note(186)); // C-5  2:1		3
+  
+  pattern.setAnnotation(140, "7-limit scale (8 tone)");
+  pattern.setNote(0, 140, 0, Note(155)); // C-4  1:1		0
+  pattern.setNote(0, 141, 0, Note(158)); // D♭4  16:15	        3
+  pattern.setNote(0, 142, 0, Note(161)); // D#4  7:6	     	3 
+  pattern.setNote(0, 143, 0, Note(165)); // E-4  5:4		4
+  pattern.setNote(0, 144, 0, Note(168)); // F-4  4:3		3
+  pattern.setNote(0, 145, 0, Note(173)); // G-4	 1+1:2		5
+  pattern.setNote(0, 146, 0, Note(178)); // A-4  1+2:3		5
+  pattern.setNote(0, 147, 0, Note(181)); // Bb4  1+4:5		3
+  pattern.setNote(0, 148, 0, Note(186)); // C-5  2:1		5
+
+  pattern.setAnnotation(150, "7-limit scale (10 tone)");
+  pattern.setNote(0, 150, 0, Note(155)); // C-4  1:1		0
+  // pattern.setNote(0, 141, 0, Note(156)); // Dbb4 36:35
+  pattern.setNote(0, 151, 0, Note(158)); // D♭4  16:15	        3
+  pattern.setNote(0, 152, 0, Note(160)); // D-4  9:8		2
+  // 161 = 8:7
+  pattern.setNote(0, 153, 0, Note(162)); // D#4  7:6	     	2
+  // 163 = 6:5
+  pattern.setNote(0, 154, 0, Note(165)); // E-4  5:4		3
+  pattern.setNote(0, 155, 0, Note(168)); // F-4  4:3		3      	 
+  pattern.setNote(0, 156, 0, Note(173)); // G-4	 3:2		5
+  pattern.setNote(0, 157, 0, Note(178)); // A-4  5:3		5
+  // pattern.setNote(0, 147, 0, Note(180)); // A#4  1+3:4		3
+  // pattern.setNote(0, 148, 0, Note(181)); // Bb4  1+4:5 		3     
+  // pattern.setNote(0, 149, 0, Note(182)); // A𝄪4  1+5:6	        2
+  pattern.setNote(0, 158, 0, Note(181)); // Bb4  9:5		3
+  pattern.setNote(0, 159, 0, Note(183)); // B-4  1+7:8	        2 
+  // pattern.setNote(0, 150, 0, Note(184)); // C♭4  1+10:11	2
+  // pattern.setNote(0, 150, 0, Note(185)); // B#4  1+17:18  
+  pattern.setNote(0, 160, 0, Note(186)); // C-5  2:1		3
+
+  pattern.setAnnotation(162, "7-limit scale (8 tone b)");
+  pattern.setNote(0, 162, 0, Note(155)); // C-4  1:1		0 
+  pattern.setNote(0, 163, 0, Note(160)); // D-4  9:8		2
+  // 161 = 8:7
+  pattern.setNote(0, 164, 0, Note(162)); // D#4  7:6	     	2 
+  pattern.setNote(0, 165, 0, Note(168)); // F-4  4:3		6
+  pattern.setNote(0, 166, 0, Note(173)); // G-4	 1+1:2		5
+  pattern.setNote(0, 167, 0, Note(180)); // A-4 
+  pattern.setNote(0, 168, 0, Note(182)); //
+  pattern.setNote(0, 169, 0, Note(184)); // Cb4
+  pattern.setNote(0, 170, 0, Note(186)); // C-5  2:1		5
+
+  pattern.setAnnotation(180, "7-limit scale (11 tone )");
+  pattern.setNote(0, 180, 0, Note(155)); // C-4  1:1		0
+  // pattern.setNote(0, 141, 0, Note(156)); // Dbb4 36:35
+  // 157 C#4
+  pattern.setNote(0, 181, 0, Note(158)); // D♭4  16:15	        3
+  // 159
+  pattern.setNote(0, 182, 0, Note(160)); // D-4  9:8		2
+  // 161 = 8:7
+  // pattern.setNote(0, 153, 0, Note(162)); // D#4  7:6	     	2
+  pattern.setNote(0, 183, 0, Note(163)); // 6:5
+  // 164
+  pattern.setNote(0, 184, 0, Note(165)); // E-4  5:4		3
+  // 166
+  // 167
+  pattern.setNote(0, 185, 0, Note(168)); // F-4  4:3		3
+  // 169 11/8, 15/11, 26/19
+  // 170 7/5, 45/32, 25/18
+  // 171 10/7, 64/45, 36/25
+  // 172
+  pattern.setNote(0, 186, 0, Note(173)); // G-4	 3:2		5
+  // 174
+  // 175
+  // 176
+  // 177
+  pattern.setNote(0, 187, 0, Note(178)); // A-4  1+2:3		5
+  // 179
+  // pattern.setNote(0, 147, 0, Note(180)); // A#4  1+3:4		3
+  pattern.setNote(0, 188, 0, Note(181)); // Bb4  9:5		3
+  // pattern.setNote(0, 149, 0, Note(182)); // A𝄪4  1+5:6	        2
+  pattern.setNote(0, 189, 0, Note(183)); // B-4  1+7:8	        2 
+  // pattern.setNote(0, 190, 0, Note(184)); // C♭4  1+10:11	2
+  pattern.setNote(0, 190, 0, Note(185)); // B#4  1+17:18  
+  pattern.setNote(0, 191, 0, Note(186)); // C-5  2:1		3
+
+  pattern.setAnnotation(200, "neutral scale");
+  pattern.setNote(0, 200, 0, Note(155)); // C   0
+  pattern.setNote(0, 201, 0, Note(159)); // Cx4 4
+  pattern.setNote(0, 202, 0, Note(163)); // Eb4 4
+  pattern.setNote(0, 203, 0, Note(173)); // G-4 10
+  pattern.setNote(0, 204, 0, Note(178)); // A#4
+  pattern.setNote(0, 205, 0, Note(181)); // Bb4
+  pattern.setNote(0, 206, 0, Note(186)); // C-5 13
+
+  pattern.setAnnotation(210, "7-limit scale ()");
+  pattern.setNote(0, 211, 0, Note(155)); // C-4  1:1		0 
+  pattern.setNote(0, 212, 0, Note(161)); // Ebb4  8:7	     	7
+  pattern.setNote(0, 213, 0, Note(168)); // F-4  4:3		6
+  pattern.setNote(0, 214, 0, Note(173)); // G-4	 1+1:2		5
+  pattern.setNote(0, 215, 0, Note(181)); // Bb4 
+  pattern.setNote(0, 216, 0, Note(183)); // B-4 	       
+  pattern.setNote(0, 217, 0, Note(186)); // C-5  2:1		5
+
+#if 0
+  pattern.setAnnotation(165, "7-limit 7-note scale");
+  pattern.setNote(0, 165, 0, Note(155, 0x2f)); // C-4
+  pattern.setNote(0, 166, 0, Note(158)); // D♭4
+  pattern.setNote(0, 167, 0, Note(161)); // E𝄫4 (8:7)
+  pattern.setNote(0, 168, 0, Note(168)); // F-4
+  pattern.setNote(0, 169, 0, Note(173)); // G-4
+  pattern.setNote(0, 170, 0, Note(181)); // Bb-4
+  pattern.setNote(0, 171, 0, Note(183)); // B-4
+  pattern.setNote(0, 172, 0, Note(186)); // C-5
+#endif
+  
+#if 0
+  pattern.setNote(0, 108, 0, Note(171)); // G♭4	 10:7	3
+  pattern.setNote(0, 107, 0, Note(174)); // A𝄫4  32:21	3
+  pattern.setNote(0, 108, 0, Note(177)); // A♭4  8:5	3
+  pattern.setNote(0, 109, 0, Note(180)); // B𝄫4  1+5:7	3
+  pattern.setNote(0, 110, 0, Note(183)); // A𝄪4  64:35	3
+  pattern.setNote(0, 111, 0, Note(186)); // C-5  2:1	3
+#endif
+  
+#if 0  
+  pattern.setAnnotation(98, "Building a scale");
+  pattern.setNote(0, 98, 0, Note(155, 0x30)); // C-4
+  // pattern.setNote(0, 98, 1, Note(162, 0x30)); //
+  // pattern.setNote(0, 98, 2, Note(168, 0x30)); // F-4
+
+  // pattern.setNote(0, 99, 0, Note(160)); // (160 is possible)
+  pattern.setNote(0, 99, 0, Note(162)); // D#4 (7:6)
+  pattern.setNote(0, 100, 0, Note(168)); // F-4
+  pattern.setNote(0, 101, 0, Note(173)); // G-4
+  pattern.setNote(0, 102, 0, Note(181)); // (181 is possible)
+  pattern.setNote(0, 103, 0, Note(183)); // 
+  pattern.setNote(0, 104, 0, Note(185)); // 
+  pattern.setNote(0, 105, 0, Note(186)); // C-5
+#endif
+  
+#if 0
+  pattern.setAnnotation(50, "Harmonic seventh chord");
   pattern.setNote(0, 50, 0, Note(155)); // C
   pattern.setNote(0, 50, 1, Note(165)); // E
   pattern.setNote(0, 50, 2, Note(173)); // G
@@ -158,7 +389,8 @@ Controller::loadDemo2() {
   pattern.setNote(0, 60, 1, Note(165)); // E
   pattern.setNote(0, 60, 2, Note(172)); // F𝄪4
   pattern.setNote(0, 60, 3, Note(179)); // B𝄫4
-    
+#endif
+  
 #if 0
 
   pattern.setNote(0, 144, 0, Note(8*1, 7*1));
@@ -179,7 +411,6 @@ Controller::loadDemo2() {
 #endif
   
 #if 0
-  pattern.setAnnotation(0, "neutral minor tetrad");
 
 #if 0
   // pattern.setNote(0, 0, 0, Note(1, 1)); // C-4
