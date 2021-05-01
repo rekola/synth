@@ -39,6 +39,9 @@ class Track {
     }
   }
 
+  float getDetune() const { return detune; }
+  void setDetune(int _detune) { detune = (_detune - 127) / 512.0; }
+
   std::vector<std::shared_ptr<InstrumentVoice> > & getVoices() { return voices; }
   
   void addPendingNote(size_t frame, short id, Tuning tuning, const Note & note) {
@@ -47,12 +50,12 @@ class Track {
   void clearPendingNotes() { pending_notes.clear(); }
   std::map<unsigned int, std::vector<std::tuple<int, Tuning, Note> > > & getPendingNotes() { return pending_notes; }
 
-  void playNote(Tuning tuning, const Note & note, const Instrument & instrument, int identifier) {
+  void playNote(float frequency, float velocity, const Instrument & instrument, int identifier) {
     bool voice_found = false;
     for (auto & voice : voices) {
       if (!voice_found && !voice->isPlaying()) {
 	voice->setIdentifier(identifier);
-	voice->playNote(tuning, note, instrument.getTranspose(), instrument.getDetune());
+	voice->playNote(frequency, velocity, detune);
 	voice_found = true;
       } else if (identifier == voice->getIdentifier() && voice->isPlaying()) {
 	voice->stopNote();
@@ -60,7 +63,7 @@ class Track {
     }
     if (!voice_found) {
       voices.push_back(instrument.createVoice(identifier));
-      voices.back()->playNote(tuning, note, instrument.getTranspose(), instrument.getDetune());
+      voices.back()->playNote(frequency, velocity, detune);
     }
   }
   
@@ -104,10 +107,11 @@ private:
   bool solo = false, mute = false;
   float pan = 0.5f;
   float volume = 0.75f;
+  float detune = 0;
   std::string name;
   std::vector<Track> children;
   std::shared_ptr<SampleData> sample;
-
+  
   std::vector<std::shared_ptr<Effect> > effects;
 
   std::map<unsigned int, std::vector<std::tuple<int, Tuning, Note> > > pending_notes;

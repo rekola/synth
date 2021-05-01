@@ -1,6 +1,7 @@
 #include "Synth.h"
 
 #include "SampleData.h"
+#include "Tuner.h"
 
 #include <cmath>
 #include <cassert>
@@ -21,6 +22,8 @@ Synth::play(Song & song, size_t frames) {
 
   auto & mastertrack = song.getMasterTrack();
   auto & tracks = mastertrack.getChildren();
+
+  Tuner tuner;
   
   if (is_playing) {
     for (size_t i = 0; i < frames; i++) {
@@ -58,7 +61,10 @@ Synth::play(Song & song, size_t frames) {
 	auto it = pending.begin();
 	if (i >= it->first) {
 	  for (auto & [ id, tuning, note ] : it->second) {
-	    track.playNote(tuning, note, instrument, id);
+	    auto & pattern = song.getPattern(getPatternPosition());
+	    int key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
+	    float frequency = tuner.getFrequency(tuning, key, note, instrument.getTranspose());
+	    track.playNote(frequency, note.getVelocityAsFloat(), instrument, id);
 	  }
 	  pending.erase(it);
 	}

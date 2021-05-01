@@ -24,13 +24,10 @@ public:
   void setName(const std::string & _name) { name = _name; }
   const std::string & getName() const { return name; }
   
-  float getDetune() const { return detune; }
   int getTranspose() const { return transpose; }
   
   void setTranspose(int _transpose) { transpose = _transpose; }
-  
-  void setDetune(int _detune) { detune = (_detune - 127) / 512.0; }
-    
+      
   void setFilter(float fcut, float fres, bool is_highpass = false) {
     addEffect(std::make_unique<Filter>(fcut, fres, is_highpass));
   }
@@ -51,7 +48,6 @@ protected:
   size_t num_channels;
   std::string name;
   Envelope envelope;
-  float detune = 0;
   short transpose = 0;
 
   std::vector<std::unique_ptr<Effect> > effects;
