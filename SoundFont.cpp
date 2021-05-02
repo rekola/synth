@@ -198,19 +198,18 @@ static float tsf_cents2Hertz(float cents) { return 8.176f * powf(2.0f, cents / 1
 static float tsf_decibelsToGain(float db) { return (db > -100.f ? powf(10.0f, db * 0.05f) : 0); }
 static float tsf_gainToDecibels(float gain) { return (gain <= .00001f ? -100.f : (float)(20.0 * log10(gain))); }
 
-static bool tsf_riffchunk_read(struct tsf_riffchunk* parent, struct tsf_riffchunk* chunk, struct tsf_stream* stream)
-{
-	if (parent && sizeof(FourCC) + sizeof(tsf_u32) > parent->size) return false;
-	if (!stream->read(stream->data, &chunk->id, sizeof(FourCC)) || chunk->id.data()[0] <= ' ' || chunk->id.data()[0] >= 'z') return false;
-	if (!stream->read(stream->data, &chunk->size, sizeof(tsf_u32))) return false;
-	if (parent && sizeof(FourCC) + sizeof(tsf_u32) + chunk->size > parent->size) return false;
-	if (parent) parent->size -= sizeof(FourCC) + sizeof(tsf_u32) + chunk->size;
-	bool IsRiff = chunk->id == "RIFF", IsList = chunk->id == "LIST";
-	if (IsRiff && parent) return false; //not allowed
-	if (!IsRiff && !IsList) return true; //custom type without sub type
-	if (!stream->read(stream->data, &chunk->id, sizeof(FourCC)) || chunk->id.data()[0] <= ' ' || chunk->id.data()[0] >= 'z') return false;
-	chunk->size -= sizeof(FourCC);
-	return true;
+static bool tsf_riffchunk_read(struct tsf_riffchunk* parent, struct tsf_riffchunk* chunk, struct tsf_stream* stream) {
+  if (parent && sizeof(FourCC) + sizeof(tsf_u32) > parent->size) return false;
+  if (!stream->read(stream->data, &chunk->id, sizeof(FourCC)) || chunk->id.data()[0] <= ' ' || chunk->id.data()[0] >= 'z') return false;
+  if (!stream->read(stream->data, &chunk->size, sizeof(tsf_u32))) return false;
+  if (parent && sizeof(FourCC) + sizeof(tsf_u32) + chunk->size > parent->size) return false;
+  if (parent) parent->size -= sizeof(FourCC) + sizeof(tsf_u32) + chunk->size;
+  bool IsRiff = chunk->id == "RIFF", IsList = chunk->id == "LIST";
+  if (IsRiff && parent) return false; // not allowed
+  if (!IsRiff && !IsList) return true; // custom type without sub type
+  if (!stream->read(stream->data, &chunk->id, sizeof(FourCC)) || chunk->id.data()[0] <= ' ' || chunk->id.data()[0] >= 'z') return false;
+  chunk->size -= sizeof(FourCC);
+  return true;
 }
 
 static void tsf_region_clear(struct tsf_region* i, bool for_relative) {
@@ -801,7 +800,7 @@ public:
     playingPreset = -1;
   }
   
-  void playNote(Tuning tuning, Note note, int transpose, int detune) override;
+  void playNote(float frequency, float velocity, float detune) override;
   bool isPlaying() const override { return playingPreset != -1; }
 
   void kill() {
@@ -1203,26 +1202,21 @@ SoundFont::openFile() {
 }  
 
 void
-SoundFontVoice::playNote(Tuning tuning, Note note, int transpose, int detune) {
-  if (note.isOff()) {
+SoundFontVoice::playNote(float frequency, float velocity, float detune) {
+  if (velocity == 0.0f) {
     stopNote();    
     return;
   }
-
-  auto f = sf->getHandle();
+  assert(frequency > 0);
   
-  // short midiVelocity = 63; // (short)(vel * 127);  
-  double frequency = note.getFrequency(tuning, transpose, detune);
-    
+  auto f = sf->getHandle();
+      
   int preset_index = preset;
   if (preset_index < 0 || preset_index >= f->presetNum) return;
 
-  // int key = note.getMidiNote();
   double apparent_key = log2(frequency / 440) * 12 + 69;
-  int integer_key = int(apparent_key);
-    
-  short midiVelocity = note.getVelocity();
-  float vel = midiVelocity / 127.0f;
+  int midiKey = int(apparent_key);
+  short midiVelocity = (short)(velocity * 127);
 
   // Play all matching regions.
   struct tsf_region *region, *regionEnd;
@@ -1231,7 +1225,7 @@ SoundFontVoice::playNote(Tuning tuning, Note note, int transpose, int detune) {
     bool doLoop;
     float lowpassFilterQDB, lowpassFc;
     
-    if (integer_key < region->lokey || integer_key > region->hikey || midiVelocity < region->lovel || midiVelocity > region->hivel) continue;
+    if (midiKey < region->lokey || midiKey > region->hikey || midiVelocity < region->lovel || midiVelocity > region->hivel) continue;
     
     if (region->group) {
       // FIXME: here we should end all voices with the same instrument and group
@@ -1241,7 +1235,7 @@ SoundFontVoice::playNote(Tuning tuning, Note note, int transpose, int detune) {
     playingPreset = preset_index;
     apparentPlayingKey = apparent_key;
     // voice->playingFrequency = frequency;
-    noteGainDB = f->globalGainDB - region->attenuation - tsf_gainToDecibels(1.0f / vel);
+    noteGainDB = f->globalGainDB - region->attenuation - tsf_gainToDecibels(1.0f / velocity);
     
     calcPitchRatio(0, f->outSampleRate);
     
