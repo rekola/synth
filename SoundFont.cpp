@@ -26,7 +26,8 @@
 
 #include "LowpassFilter.h"
 #include "FourCC.h"
-#include "Envelope.h"
+#include "EnvelopeGenerator.h"
+#include "LFO.h"
 
 using namespace std;
 
@@ -42,17 +43,6 @@ typedef char tsf_char20[20];
 struct tsf_riffchunk {
   FourCC id;
   tsf_u32 size;
-};
-struct tsf_voice_envelope {
-  float level, slope;
-  int samplesUntilNextSegment;
-  short segment, midiVelocity;
-  Envelope parameters;
-  bool segmentIsExponential, isAmpEnv;
-};
-struct tsf_voice_lfo {
-  int samplesUntil;
-  float level, delta;
 };
 
 struct tsf_region {
@@ -130,9 +120,6 @@ int tsf_get_presetcount(const tsf* f);
 // If LFO affects the low-pass filter it can be hearable even as low as 8.
 #define TSF_RENDER_EFFECTSAMPLEBLOCK 64
 
-// Grace release time for quick voice off (avoid clicking noise)
-#define TSF_FASTRELEASETIME 0.01f
-
 #include <cstring>
 #include <cmath>
 #include <cstdio>
@@ -159,14 +146,11 @@ tsf* tsf_load_memory(const void* buffer, int size) {
 
 enum { TSF_LOOPMODE_NONE, TSF_LOOPMODE_CONTINUOUS, TSF_LOOPMODE_SUSTAIN };
 
-enum { TSF_SEGMENT_NONE, TSF_SEGMENT_DELAY, TSF_SEGMENT_ATTACK, TSF_SEGMENT_HOLD, TSF_SEGMENT_DECAY, TSF_SEGMENT_SUSTAIN, TSF_SEGMENT_RELEASE, TSF_SEGMENT_DONE };
-
-struct tsf_hydra
-{
-	struct tsf_hydra_phdr *phdrs; struct tsf_hydra_pbag *pbags; struct tsf_hydra_pmod *pmods;
-	struct tsf_hydra_pgen *pgens; struct tsf_hydra_inst *insts; struct tsf_hydra_ibag *ibags;
-	struct tsf_hydra_imod *imods; struct tsf_hydra_igen *igens; struct tsf_hydra_shdr *shdrs;
-	int phdrNum, pbagNum, pmodNum, pgenNum, instNum, ibagNum, imodNum, igenNum, shdrNum;
+struct tsf_hydra {
+  struct tsf_hydra_phdr *phdrs; struct tsf_hydra_pbag *pbags; struct tsf_hydra_pmod *pmods;
+  struct tsf_hydra_pgen *pgens; struct tsf_hydra_inst *insts; struct tsf_hydra_ibag *ibags;
+  struct tsf_hydra_imod *imods; struct tsf_hydra_igen *igens; struct tsf_hydra_shdr *shdrs;
+  int phdrNum, pbagNum, pmodNum, pgenNum, instNum, ibagNum, imodNum, igenNum, shdrNum;
 };
 
 union tsf_hydra_genamount { struct { tsf_u8 lo, hi; } range; tsf_s16 shortAmount; tsf_u16 wordAmount; };
@@ -193,8 +177,6 @@ static void tsf_hydra_read_shdr(struct tsf_hydra_shdr* i, struct tsf_stream* str
 #undef TSFR
 
 static double tsf_timecents2Secsd(double timecents) { return pow(2.0, timecents / 1200.0); }
-static float tsf_timecents2Secsf(float timecents) { return powf(2.0f, timecents / 1200.0f); }
-static float tsf_cents2Hertz(float cents) { return 8.176f * powf(2.0f, cents / 1200.0f); }
 static float tsf_decibelsToGain(float db) { return (db > -100.f ? powf(10.0f, db * 0.05f) : 0); }
 static float tsf_gainToDecibels(float gain) { return (gain <= .00001f ? -100.f : (float)(20.0 * log10(gain))); }
 
@@ -586,143 +568,6 @@ static void tsf_load_samples(float** fontSamples, unsigned int* fontSampleCount,
 	}
 }
 
-static void tsf_voice_envelope_nextsegment(struct tsf_voice_envelope* e, short active_segment, float outSampleRate) {
-  switch (active_segment) {
-  case TSF_SEGMENT_NONE:
-    e->samplesUntilNextSegment = (int)(e->parameters.delay * outSampleRate);
-    if (e->samplesUntilNextSegment > 0) {
-      e->segment = TSF_SEGMENT_DELAY;
-      e->segmentIsExponential = false;
-      e->level = 0.0;
-      e->slope = 0.0;
-      return;
-    }
-    /* fall through */
-  case TSF_SEGMENT_DELAY:
-    e->samplesUntilNextSegment = (int)(e->parameters.attack * outSampleRate);
-    if (e->samplesUntilNextSegment > 0) {
-      if (!e->isAmpEnv) {
-	// mod env attack duration scales with velocity (velocity of 1 is full duration, max velocity is 0.125 times duration)
-	e->samplesUntilNextSegment = (int)(e->parameters.attack * ((145 - e->midiVelocity) / 144.0f) * outSampleRate);
-      }
-      e->segment = TSF_SEGMENT_ATTACK;
-      e->segmentIsExponential = false;
-      e->level = 0.0f;
-      e->slope = 1.0f / e->samplesUntilNextSegment;
-      return;
-    }
-    /* fall through */
-  case TSF_SEGMENT_ATTACK:
-    e->samplesUntilNextSegment = (int)(e->parameters.hold * outSampleRate);
-    if (e->samplesUntilNextSegment > 0) {
-      e->segment = TSF_SEGMENT_HOLD;
-      e->segmentIsExponential = false;
-      e->level = 1.0f;
-      e->slope = 0.0f;
-      return;
-    }
-    /* fall through */
-  case TSF_SEGMENT_HOLD:
-    e->samplesUntilNextSegment = (int)(e->parameters.decay * outSampleRate);
-    if (e->samplesUntilNextSegment > 0) {
-      e->segment = TSF_SEGMENT_DECAY;
-      e->level = 1.0f;
-      if (e->isAmpEnv) {
-	// I don't truly understand this; just following what LinuxSampler does.
-	float mysterySlope = -9.226f / e->samplesUntilNextSegment;
-	e->slope = expf(mysterySlope);
-	e->segmentIsExponential = true;
-	if (e->parameters.sustain > 0.0f) {
-	  // Again, this is following LinuxSampler's example, which is similar to
-	  // SF2-style decay, where "decay" specifies the time it would take to
-	  // get to zero, not to the sustain level.  The SFZ spec is not that
-	  // specific about what "decay" means, so perhaps it's really supposed
-	  // to specify the time to reach the sustain level.
-	  e->samplesUntilNextSegment = (int)(log(e->parameters.sustain) / mysterySlope);
-	}
-      } else {
-	e->slope = -1.0f / e->samplesUntilNextSegment;
-	e->samplesUntilNextSegment = (int)(e->parameters.decay * (1.0f - e->parameters.sustain) * outSampleRate);
-	e->segmentIsExponential = false;
-      }
-      return;
-    }
-    /* fall through */
-  case TSF_SEGMENT_DECAY:
-    e->segment = TSF_SEGMENT_SUSTAIN;
-    e->level = e->parameters.sustain;
-    e->slope = 0.0f;
-    e->samplesUntilNextSegment = 0x7FFFFFFF;
-    e->segmentIsExponential = false;
-    return;
-  case TSF_SEGMENT_SUSTAIN:
-    e->segment = TSF_SEGMENT_RELEASE;
-    e->samplesUntilNextSegment = (int)((e->parameters.release <= 0 ? TSF_FASTRELEASETIME : e->parameters.release) * outSampleRate);
-    if (e->isAmpEnv) {
-      // I don't truly understand this; just following what LinuxSampler does.
-      float mysterySlope = -9.226f / e->samplesUntilNextSegment;
-      e->slope = expf(mysterySlope);
-      e->segmentIsExponential = true;
-    } else {
-      e->slope = -e->level / e->samplesUntilNextSegment;
-      e->segmentIsExponential = false;
-    }
-    return;
-  case TSF_SEGMENT_RELEASE:
-  default:
-    e->segment = TSF_SEGMENT_DONE;
-    e->segmentIsExponential = false;
-    e->level = e->slope = 0.0f;
-    e->samplesUntilNextSegment = 0x7FFFFFF;
-  }
-}
-
-static void tsf_voice_envelope_setup(struct tsf_voice_envelope* e, Envelope * new_parameters, int midiNoteNumber, short midiVelocity, bool isAmpEnv, float outSampleRate) {
-  e->parameters = *new_parameters;
-  if (e->parameters.keynumToHold) {
-    e->parameters.hold += e->parameters.keynumToHold * (60.0f - midiNoteNumber);
-    e->parameters.hold = (e->parameters.hold < -10000.0f ? 0.0f : tsf_timecents2Secsf(e->parameters.hold));
-  }
-  if (e->parameters.keynumToDecay) {
-    e->parameters.decay += e->parameters.keynumToDecay * (60.0f - midiNoteNumber);
-    e->parameters.decay = (e->parameters.decay < -10000.0f ? 0.0f : tsf_timecents2Secsf(e->parameters.decay));
-  }
-  e->midiVelocity = midiVelocity;
-  e->isAmpEnv = isAmpEnv;
-  tsf_voice_envelope_nextsegment(e, TSF_SEGMENT_NONE, outSampleRate);
-}
-
-static void tsf_voice_envelope_process(struct tsf_voice_envelope* e, int numSamples, float outSampleRate) {
-  if (e->slope) {
-    if (e->segmentIsExponential) e->level *= powf(e->slope, (float)numSamples);
-    else e->level += (e->slope * numSamples);
-  }
-  if ((e->samplesUntilNextSegment -= numSamples) <= 0) {
-    tsf_voice_envelope_nextsegment(e, e->segment, outSampleRate);
-  }
-}
-
-static void tsf_voice_lfo_setup(struct tsf_voice_lfo* e, float delay, int freqCents, float outSampleRate) {
-  e->samplesUntil = (int)(delay * outSampleRate);
-  e->delta = (4.0f * tsf_cents2Hertz((float)freqCents) / outSampleRate);
-  e->level = 0;
-}
-
-static void tsf_voice_lfo_process(struct tsf_voice_lfo* e, int blockSamples) {
-  if (e->samplesUntil > blockSamples) {
-    e->samplesUntil -= blockSamples;
-    return;
-  }
-  e->level += e->delta * blockSamples;
-  if (e->level >  1.0f) {
-    e->delta = -e->delta;
-    e->level = 2.0f - e->level;
-  } else if (e->level < -1.0f) {
-    e->delta = -e->delta;
-    e->level = -2.0f - e->level;
-  }
-}
-
 class SoundFontFile {
 public:
   SoundFontFile(int samplerate, std::string filename) {
@@ -812,8 +657,8 @@ public:
   void stopNote() override {
     auto f = sf->getHandle();
     
-    tsf_voice_envelope_nextsegment(&ampenv, TSF_SEGMENT_SUSTAIN, f->outSampleRate);
-    tsf_voice_envelope_nextsegment(&modenv, TSF_SEGMENT_SUSTAIN, f->outSampleRate);
+    ampenv.nextSegment(TSF_SEGMENT_SUSTAIN);
+    modenv.nextSegment(TSF_SEGMENT_SUSTAIN);
     if (voiceRegion->loop_mode == TSF_LOOPMODE_SUSTAIN) {
       // Continue playing, but stop looping.
       loopEnd = loopStart;
@@ -824,10 +669,10 @@ public:
     auto f = sf->getHandle();
 
     ampenv.parameters.release = 0.0f;
-    tsf_voice_envelope_nextsegment(&ampenv, TSF_SEGMENT_SUSTAIN, f->outSampleRate);
+    ampenv.nextSegment(TSF_SEGMENT_SUSTAIN);
     
     modenv.parameters.release = 0.0f;
-    tsf_voice_envelope_nextsegment(&modenv, TSF_SEGMENT_SUSTAIN, f->outSampleRate);
+    modenv.nextSegment(TSF_SEGMENT_SUSTAIN);
   }
 
   void calcPitchRatio(float pitchShift, float outSampleRate) {
@@ -849,9 +694,9 @@ public:
   double sourceSamplePosition;
   float noteGainDB;
   unsigned int loopStart, loopEnd;
-  struct tsf_voice_envelope ampenv, modenv;
+  EnvelopeGenerator ampenv, modenv;
   LowpassFilter lowpass;
-  struct tsf_voice_lfo modlfo, viblfo;
+  LFO modlfo, viblfo;
 
 private:
   shared_ptr<SoundFontFile> sf;
@@ -919,12 +764,12 @@ SoundFontVoice::render(float* outputBuffer, size_t numSamples) {
     float gainMono = noteGain * ampenv.level;
     
     // Update EG.
-    tsf_voice_envelope_process(&ampenv, blockSamples, tmpSampleRate);
-    if (updateModEnv) tsf_voice_envelope_process(&modenv, blockSamples, tmpSampleRate);
+    ampenv.process(blockSamples);
+    if (updateModEnv) modenv.process(blockSamples);
     
     // Update LFOs.
-    if (updateModLFO) tsf_voice_lfo_process(&modlfo, blockSamples);
-    if (updateVibLFO) tsf_voice_lfo_process(&viblfo, blockSamples);
+    if (updateModLFO) modlfo.process(blockSamples);
+    if (updateVibLFO) viblfo.process(blockSamples);
                 
     while (blockSamples-- && tmpSourceSamplePosition < tmpSampleEndDbl) {
       unsigned int pos = (unsigned int)tmpSourceSamplePosition, nextPos = (pos >= tmpLoopEnd && isLooping ? tmpLoopStart : pos + 1);
@@ -1111,8 +956,8 @@ void tsf_note_on(tsf* f, int preset_index, int key, float vel)
 		if (voice->lowpass.active) tsf_voice_lowpass_setup(&voice->lowpass, lowpassFc);
 
 		// Setup LFO filters.
-		tsf_voice_lfo_setup(&voice->modlfo, region->delayModLFO, region->freqModLFO, f->outSampleRate);
-		tsf_voice_lfo_setup(&voice->viblfo, region->delayVibLFO, region->freqVibLFO, f->outSampleRate);
+		voice->modlfo = LFO(region->delayModLFO, region->freqModLFO, f->outSampleRate);
+		voice->viblfo = LFO(region->delayVibLFO, region->freqVibLFO, f->outSampleRate);
 	}
 }
 #endif
@@ -1248,8 +1093,8 @@ SoundFontVoice::playNote(float frequency, float velocity, float detune) {
     loopEnd = (doLoop ? region->loop_end : 0);
     
     // Setup envelopes.
-    tsf_voice_envelope_setup(&ampenv, &region->ampenv, apparent_key, midiVelocity, true, f->outSampleRate);
-    tsf_voice_envelope_setup(&modenv, &region->modenv, apparent_key, midiVelocity, false, f->outSampleRate);
+    ampenv = EnvelopeGenerator(region->ampenv, apparent_key, midiVelocity, true, f->outSampleRate);
+    modenv = EnvelopeGenerator(region->modenv, apparent_key, midiVelocity, false, f->outSampleRate);
     
     // Setup lowpass filter.
     lowpassFc = (region->initialFilterFc <= 13500 ? tsf_cents2Hertz((float)region->initialFilterFc) / f->outSampleRate : 1.0f);
@@ -1260,8 +1105,8 @@ SoundFontVoice::playNote(float frequency, float velocity, float detune) {
     if (lowpass.active) lowpass.setup(lowpassFc);
     
     // Setup LFO filters.
-    tsf_voice_lfo_setup(&modlfo, region->delayModLFO, region->freqModLFO, f->outSampleRate);
-    tsf_voice_lfo_setup(&viblfo, region->delayVibLFO, region->freqVibLFO, f->outSampleRate);
+    modlfo = LFO(region->delayModLFO, region->freqModLFO, f->outSampleRate);
+    viblfo = LFO(region->delayVibLFO, region->freqVibLFO, f->outSampleRate);
 
     break; // FIXME, add subvoices
   }
