@@ -22,7 +22,7 @@ using namespace tinyxml2;
 
 void
 Controller::loadDemo3() {
-  auto song = make_shared<Song>();
+  auto song = make_shared<Song>(Tuning::TET12, 5);
 
 #if 0
   auto oboe = make_unique<FMInstrument>(0.7, 1, 3, 0.1f);
@@ -44,14 +44,14 @@ Controller::loadDemo3() {
   
   auto & track = song->getMasterTrack().addChild();
   track.addEffect(make_unique<Reverb>(44100, Reverb::STADIUM));
-
-  // use just tuning
+  track.setVolume(0.5f);
   
-  Pattern pattern(128);  
+  Pattern pattern(8);  
   pattern.setNote(0, 0, 0, Note("C-4"));
   pattern.setNote(0, 0, 1, Note("D#4"));
   pattern.setNote(0, 0, 2, Note("G-4"));
 
+#if 0
   pattern.setNote(0, 0, 0, Note("C-4"));
   pattern.setNote(0, 1, 0, Note("D-4"));
   pattern.setNote(0, 2, 0, Note("E-4"));
@@ -60,15 +60,23 @@ Controller::loadDemo3() {
   pattern.setNote(0, 5, 0, Note("A-4"));
   pattern.setNote(0, 6, 0, Note("B-4"));
   pattern.setNote(0, 7, 0, Note("C-5"));
+#endif
   
   song->addPattern(pattern);  
-    
+
+  Pattern pattern2(8, Tuning::TET31, 0);  
+  pattern2.setNote(0, 0, 0, Note(155)); // C-4
+  pattern2.setNote(0, 0, 1, Note(163)); // Eb4
+  pattern2.setNote(0, 0, 2, Note(173)); // G-4
+  
+  song->addPattern(pattern2);
+
   current_song = song;    
 }
 
 void
 Controller::loadDemo2() {
-  auto song = make_shared<Song>(Tuning::TET31, 155); // Key of C
+  auto song = make_shared<Song>(Tuning::TET31, 0); // Key of C
 
 #if 1
   auto fluid = make_unique<SoundFont>(44100, "FluidR3_GM.sf2");
@@ -94,9 +102,10 @@ Controller::loadDemo2() {
 #endif
 
   auto & track = song->getMasterTrack().addChild();
-  track.addEffect(make_unique<Filter>(63 / 255.0f, 128 / 63.0f, false));
-  track.addEffect(make_unique<Reverb>(44100, Reverb::HALVES));
-  
+  track.addEffect(make_unique<Chorus>(5.0f, 0.0f));
+  // track.addEffect(make_unique<Filter>(63 / 255.0f, 128 / 63.0f, false));
+  // track.addEffect(make_unique<Reverb>(44100, Reverb::HALVES));
+
   Pattern pattern(256);
 
   pattern.setNote(0, 0, 0, Note(155, 0x2f)); // C-4
@@ -160,7 +169,8 @@ Controller::loadDemo2() {
   pattern.setNote(0, 73, 0, Note(168)); // F-4	4:3
   pattern.setNote(0, 74, 0, Note(173)); // G-4	1+1:2
   pattern.setNote(0, 75, 0, Note(178)); // A-4  1+2:3
-  pattern.setNote(0, 76, 0, Note(183)); // B-4	1+7:8
+  // pattern.setNote(0, 76, 0, Note(183)); // B-4	1+7:8
+  pattern.setNote(0, 76, 0, Note(181));
   pattern.setNote(0, 77, 0, Note(186)); // C-5	1:1
 
   pattern.setAnnotation(80, "5-limit scale (Minor)");
@@ -319,15 +329,26 @@ Controller::loadDemo2() {
   pattern.setNote(0, 190, 0, Note(185)); // B#4  1+17:18  
   pattern.setNote(0, 191, 0, Note(186)); // C-5  2:1		3
 
-  pattern.setAnnotation(200, "neutral scale");
+  pattern.setAnnotation(200, "neutral minor scale (a)");
   pattern.setNote(0, 200, 0, Note(155)); // C   0
   pattern.setNote(0, 201, 0, Note(159)); // Cx4 4
   pattern.setNote(0, 202, 0, Note(163)); // Eb4 4
   pattern.setNote(0, 203, 0, Note(173)); // G-4 10
-  pattern.setNote(0, 204, 0, Note(178)); // A#4
+  pattern.setNote(0, 204, 0, Note(178)); // A-4
   pattern.setNote(0, 205, 0, Note(181)); // Bb4
   pattern.setNote(0, 206, 0, Note(186)); // C-5 13
 
+  pattern.setAnnotation(210, "neutral minor scale (b)");
+  pattern.setNote(0, 210, 0, Note(155)); // C   0
+  pattern.setNote(0, 211, 0, Note(159)); // Cx4 4
+  pattern.setNote(0, 212, 0, Note(163)); // Eb4 4
+  pattern.setNote(0, 213, 0, Note(168)); // F-4 10
+  pattern.setNote(0, 214, 0, Note(173)); // G-4 10
+  pattern.setNote(0, 215, 0, Note(178)); // A-4
+  pattern.setNote(0, 216, 0, Note(181)); // Bb4
+  pattern.setNote(0, 217, 0, Note(186)); // C-5 13
+
+#if 0
   pattern.setAnnotation(210, "7-limit scale ()");
   pattern.setNote(0, 211, 0, Note(155)); // C-4  1:1		0 
   pattern.setNote(0, 212, 0, Note(161)); // Ebb4  8:7	     	7
@@ -336,7 +357,8 @@ Controller::loadDemo2() {
   pattern.setNote(0, 215, 0, Note(181)); // Bb4 
   pattern.setNote(0, 216, 0, Note(183)); // B-4 	       
   pattern.setNote(0, 217, 0, Note(186)); // C-5  2:1		5
-
+#endif
+  
 #if 0
   pattern.setAnnotation(165, "7-limit 7-note scale");
   pattern.setNote(0, 165, 0, Note(155, 0x2f)); // C-4
@@ -562,7 +584,7 @@ Controller::loadDemo2() {
 
 void
 Controller::loadDemo() {
-  auto song = make_shared<Song>(Tuning::TET12, 155, 0.01f);
+  auto song = make_shared<Song>(Tuning::TET12, 0);
 
   const unsigned char * song_data = tr;
   
@@ -582,21 +604,18 @@ Controller::loadDemo() {
   auto i1 = make_unique<BasicInstrument>(WaveformType::SAW);
   i1->setName("drone2");
   i1->setADSR(255, 64, 0.25f, 0);
-  i1->setDetune(120);
   i1->setFilter(0, 0.08f, true);
   song->addInstrument(move(i1));
 
   auto i2 = make_unique<BasicInstrument>(WaveformType::SAW);
   i2->setName("drone3");
   i2->setADSR(255, 64, 0.25f, 0);
-  i2->setDetune(134);
   i2->setFilter(0, 0.08f, true);
   song->addInstrument(move(i2));
 
   auto i3 = make_unique<BasicInstrument>(WaveformType::SINE);
   i3->setName("bass drum");
   i3->setADSR(0, 15, 0.0f, 0);
-  i3->setDetune(130);
   song->addInstrument(move(i3));
 
   auto i4 = make_unique<BasicInstrument>(WaveformType::NOISE);
@@ -619,7 +638,6 @@ Controller::loadDemo() {
   auto i7 = make_unique<BasicInstrument>(WaveformType::SQUARE);
   i7->setName("bass");
   i7->setADSR(0, 15, 0.0f, 0);
-  i7->setDetune(125);
   i7->setFilter(0.78f, 0.32f);
   song->addInstrument(move(i7));
 
@@ -657,7 +675,6 @@ Controller::loadDemo() {
   auto i12 = make_unique<BasicInstrument>(WaveformType::SQUARE);
   i12->setName("bass");
   i12->setADSR(0, 14, 0.0f, 0);
-  i12->setDetune(129);
   i12->setFilter(0.78f, 0.32f);
   song->addInstrument(move(i12));
 
@@ -679,6 +696,7 @@ Controller::loadDemo() {
   for (int i = 0; i < ptrncnt; i++) {
     Track track;
     track.setInstrumentId(*song_data++);
+    track.setDetune((*song_data++ - 127) / 512.0);
     track.setPan(*song_data++ / 255.0f);
     track.setVolume(*song_data++ / 127.0f);
     song->getMasterTrack().addChild(track);
@@ -805,12 +823,15 @@ void
 Controller::save(const std::string & filename) {
   XMLDocument doc;
 
+  string song_key_text;
+  if (current_song->getKey() >= 0) song_key_text = Note::keyToString(current_song->getTuning(), current_song->getKey());
+
   XMLElement * root = doc.NewElement("song");
   if (!current_song->getName().empty()) root->SetAttribute("name", current_song->getName().c_str());
-  root->SetAttribute("key", "");
-  root->SetAttribute("name", "");
-  root->SetAttribute("tuning", "");
-  root->SetAttribute("tempo", "");
+  root->SetAttribute("key", song_key_text.c_str());
+  if (!current_song->getName().empty()) root->SetAttribute("name", current_song->getName().c_str());
+  // root->SetAttribute("tuning", "");
+  root->SetAttribute("tempo", current_song->getTempo());
   doc.InsertFirstChild(root);
 
   XMLElement * patterns = doc.NewElement("patterns");
@@ -820,10 +841,38 @@ Controller::save(const std::string & filename) {
   root->InsertEndChild(tracks);
 
   for (auto & pattern : current_song->getPatterns()) {
+    Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : current_song->getTuning();
+
+    string key_text;
+    if (pattern.getKey() >= 0) key_text = Note::keyToString(tuning, pattern.getKey());
+      
     XMLElement * pattern_element = doc.NewElement("pattern");
     if (!pattern.getName().empty()) pattern_element->SetAttribute("name", pattern.getName().c_str());
-    pattern_element->SetAttribute("key", "");
-    pattern_element->SetAttribute("tuning", "");
+    if (!key_text.empty()) pattern_element->SetAttribute("key", key_text.c_str());
+    if (pattern.getTuning() != Tuning::INHERIT) {
+      // pattern_element->SetAttribute("tuning", "");
+    }
+
+    auto notes = pattern.getNotes();
+    for (auto & d0 : notes) {
+      auto track = d0.first;
+      for (auto & d1 : d0.second) {
+	auto row = d1.first;
+	auto & nv = d1.second;
+	for (size_t i = 0; i < nv.size(); i++) {
+	  auto & note = nv[i];
+	  auto note_text = note.toString(tuning);
+	  XMLElement * note_element = doc.NewElement("note");
+	  note_element->SetAttribute("track", track);
+	  note_element->SetAttribute("row", row);
+	  note_element->SetAttribute("column", i);
+	  note_element->SetAttribute("velocity", note.getVelocity());
+	  note_element->SetAttribute("value", note_text.c_str());
+	  pattern_element->InsertEndChild(note_element);
+  	}
+      }
+    }
+    
     patterns->InsertEndChild(pattern_element);
   }
 
