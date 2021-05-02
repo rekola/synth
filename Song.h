@@ -51,6 +51,9 @@ class Song {
   void incVersion() { version++; }
   int getVersion() const { return version; }
 
+  void open(const std::string & filename);
+  void save(const std::string & filename) const;
+
 private:
   Tuning tuning;
   short key_note_number;
@@ -68,3 +71,4 @@ private:
 };
 
 #endif
+

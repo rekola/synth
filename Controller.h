@@ -19,9 +19,6 @@ class Controller {
   Synth & getSynth() { return *synth; }
 
   void setSynth(std::shared_ptr<Synth> & _synth) { synth = _synth; }
-
-  void open(const std::string & filename);
-  void save(const std::string & filename);
   
   void createNewSong();
   void loadDemo();
