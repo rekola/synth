@@ -43,12 +43,15 @@ public:
   }
 
   void addEffect(std::unique_ptr<Effect> effect) { effects.push_back(std::move(effect)); }
+
+  bool autoPan() const { return autopan; }
   
 protected:
   size_t num_channels;
   std::string name;
   Envelope envelope;
   short transpose = 0;
+  bool autopan = true;
 
   std::vector<std::unique_ptr<Effect> > effects;
 };
