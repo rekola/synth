@@ -36,7 +36,7 @@ Synth::play(Song & song, size_t frames) {
 	  auto & notes = pattern.getNotes(col, getTrackPosition());
 	  for (size_t j = 0; j < notes.size(); j++) {
 	    if (notes[j].isDefined()) {
-	      auto pos = i + (unsigned int)(song.getRandomizationFactor() * 44100.0f * rand() / RAND_MAX);
+	      auto pos = i + (unsigned int)(song.getRandomizationFactor() * samplerate * rand() / RAND_MAX);
 	      track.addPendingNote(pos, int(j), tuning, notes[j]);
 	    }
 	  }
@@ -61,10 +61,14 @@ Synth::play(Song & song, size_t frames) {
 	auto it = pending.begin();
 	if (i >= it->first) {
 	  for (auto & [ id, tuning, note ] : it->second) {
-	    auto & pattern = song.getPattern(getPatternPosition());
-	    int key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
-	    float frequency = tuner.getFrequency(tuning, key, note, instrument.getTranspose());
-	    track.playNote(frequency, note.getVelocityAsFloat(), instrument, id);
+	    if (note.isOff()) {
+	      track.stopNote(id);
+	    } else {
+	      auto & pattern = song.getPattern(getPatternPosition());
+	      int key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
+	      float frequency = tuner.getFrequency(tuning, key, note, instrument.getTranspose());
+	      track.playNote(frequency, note.getVelocityAsFloat(), instrument, note.getPanning(tuning), id);
+	    }
 	  }
 	  pending.erase(it);
 	}
@@ -73,11 +77,10 @@ Synth::play(Song & song, size_t frames) {
       float track_data[2] = { 0, 0 };
       for (auto & voice : track.getVoices()) {
 	if (voice->isPlaying()) {
-	  float adsrvol = voice->updateADSR(instrument.getEnvelope());
 	  float s[2];
 	  voice->render(s, 1);
-	  track_data[0] += s[0] * adsrvol;
-	  track_data[1] += s[1] * adsrvol;
+	  track_data[0] += s[0];
+	  track_data[1] += s[1];
 	  // if (solo_instrument != -1 && pattern.getInstrumentId() != solo_instrument) ss = 0;	  
 	}
       }
@@ -123,6 +126,9 @@ Synth::play(Song & song, size_t frames) {
     instrument.applyEffects(data);
     track.applyEffects(data);
 
+#if 1
+    track.getHRFT().filterAndMix(buffer, out, frames);
+#else
     float pan = track.getPan();
     
     if (num_channels == 1) {
@@ -141,6 +147,7 @@ Synth::play(Song & song, size_t frames) {
 	out[2 * i + 1] += right_f * right; 
       }
     }
+#endif
   }
 
   for (size_t i = 0; i < frames; i++) {
