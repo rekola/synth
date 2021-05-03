@@ -69,18 +69,6 @@ struct tsf_preset {
   int regionNum;
 };
 
-struct tsf {
-  struct tsf_preset* presets;
-  float* fontSamples;
-  float* outputSamples;
-  
-  int presetNum;
-  int outputSampleSize;
-
-  float outSampleRate;
-  float globalGainDB;
-};
-
 // Stream structure for the generic loading
 struct tsf_stream {
   // Custom data given to the functions as the first parameter
@@ -94,10 +82,10 @@ struct tsf_stream {
 };
 
 // Generic SoundFont loading method using the stream structure above
-void tsf_load(tsf * f, struct tsf_stream* stream);
+void tsf_load(SoundFontFile * f, struct tsf_stream* stream);
 
 // Returns the number of presets in the loaded SoundFont
-int tsf_get_presetcount(const tsf* f);
+// int tsf_get_presetcount(const SoundFontFile* f);
 
 // Setup the parameters for the voice render methods
 //   samplerate: the number of samples per second (output frequency)
@@ -134,7 +122,7 @@ struct tsf_stream_memory { const char* buffer; unsigned int total, pos; };
 static int tsf_stream_memory_read(struct tsf_stream_memory* m, void* ptr, unsigned int size) { if (size > m->total - m->pos) size = m->total - m->pos; memcpy(ptr, m->buffer+m->pos, size); m->pos += size; return size; }
 static int tsf_stream_memory_skip(struct tsf_stream_memory* m, unsigned int count) { if (m->pos + count > m->total) return 0; m->pos += count; return 1; }
 
-tsf* tsf_load_memory(const void* buffer, int size) {
+SoundFontFile* tsf_load_memory(const void* buffer, int size) {
   struct tsf_stream stream = { NULL, (int(*)(void*,void*,unsigned int))&tsf_stream_memory_read, (int(*)(void*,unsigned int))&tsf_stream_memory_skip };
   struct tsf_stream_memory f = { 0, 0, 0 };
   f.buffer = (const char*)buffer;
@@ -403,7 +391,101 @@ static void tsf_region_envtosecs(Envelope * p, bool sustainIsGain) {
   else p->sustain = 1.0f - (p->sustain / 1000.0f);
 }
 
-static void tsf_load_presets(tsf* res, struct tsf_hydra *hydra, unsigned int fontSampleCount) {
+static void tsf_load_samples(float** fontSamples, unsigned int* fontSampleCount, struct tsf_riffchunk *chunkSmpl, struct tsf_stream* stream)
+{
+	// Read sample data into float format buffer.
+	float* out; unsigned int samplesLeft, samplesToRead, samplesToConvert;
+	samplesLeft = *fontSampleCount = chunkSmpl->size / sizeof(short);
+	out = *fontSamples = (float*)malloc(samplesLeft * sizeof(float));
+	for (; samplesLeft; samplesLeft -= samplesToRead)
+	{
+		short sampleBuffer[1024], *in = sampleBuffer;;
+		samplesToRead = (samplesLeft > 1024 ? 1024 : samplesLeft);
+		stream->read(stream->data, sampleBuffer, samplesToRead * sizeof(short));
+
+		// Convert from signed 16-bit to float.
+		for (samplesToConvert = samplesToRead; samplesToConvert > 0; --samplesToConvert)
+			// If we ever need to compile for big-endian platforms, we'll need to byte-swap here.
+			*out++ = (float)(*in++ / 32767.0);
+	}
+}
+
+class SoundFontFile {
+public:
+  SoundFontFile(int samplerate, std::string filename) {
+    presets = 0;
+    fontSamples = 0;
+    // outputSamples = 0;
+    presetNum = 0;
+    outputSampleSize = 0;
+
+    loadFile(filename);
+    
+    outSampleRate = samplerate;
+    globalGainDB = 0.0f; // the desired volume where 1.0 is 100%
+  }
+  ~SoundFontFile() {
+    struct tsf_preset *preset, *presetEnd;
+    for (preset = presets, presetEnd = preset + presetNum; preset != presetEnd; preset++) {
+      free(preset->regions);
+    }
+    free(presets);
+    free(fontSamples);
+    // free(outputSamples);
+  }
+
+  // Directly load a SoundFont from a .sf2 file path
+  void loadFile(const std::string & filename) {
+    struct tsf_stream stream = { NULL, (int(*)(void*,void*,unsigned int))&tsf_stream_stdio_read, (int(*)(void*,unsigned int))&tsf_stream_stdio_skip };
+#if __STDC_WANT_SECURE_LIB__
+    FILE * fh = NULL;
+    fopen_s(&fh, filename, "rb");
+#else
+    FILE * fh = fopen(filename.c_str(), "rb");
+#endif
+    if (!fh) {
+      // if (e) *e = TSF_FILENOTFOUND;
+      return;
+    }
+    stream.data = fh;
+    tsf_load(this, &stream);
+    fclose(fh);  
+  }
+
+  // Returns the name of a preset index >= 0 and < tsf_get_presetcount()
+  string getPresetName(size_t index) const {
+    if (index < presetNum) return presets[index].presetName;
+    else return "";
+  }
+
+  // Returns the preset index from a bank and preset number, or -1 if it does not exist in the loaded SoundFont
+
+  int getPresetIndex(int bank, int preset_number) const {
+    int i, iMax;
+    for (i = 0; i < presetNum; i++) {
+      if (presets[i].preset == preset_number && presets[i].bank == bank) {
+	return i;
+      }
+    }
+    return -1;
+  }
+
+  SoundFontFile * getHandle() { return this; }
+  const SoundFontFile * getHandle() const { return this; }
+  size_t getPresetCount() const { return presetNum; }
+  
+  struct tsf_preset* presets;
+  float* fontSamples;
+  // float* outputSamples;
+  
+  int presetNum;
+  int outputSampleSize;
+
+  float outSampleRate;
+  float globalGainDB;
+};
+
+static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsigned int fontSampleCount) {
   enum { GenInstrument = 41, GenKeyRange = 43, GenVelRange = 44, GenSampleID = 53 };
   // Read each preset.
   struct tsf_hydra_phdr *pphdr, *pphdrMax;
@@ -548,95 +630,6 @@ static void tsf_load_presets(tsf* res, struct tsf_hydra *hydra, unsigned int fon
 	}
     }
 }
-
-static void tsf_load_samples(float** fontSamples, unsigned int* fontSampleCount, struct tsf_riffchunk *chunkSmpl, struct tsf_stream* stream)
-{
-	// Read sample data into float format buffer.
-	float* out; unsigned int samplesLeft, samplesToRead, samplesToConvert;
-	samplesLeft = *fontSampleCount = chunkSmpl->size / sizeof(short);
-	out = *fontSamples = (float*)malloc(samplesLeft * sizeof(float));
-	for (; samplesLeft; samplesLeft -= samplesToRead)
-	{
-		short sampleBuffer[1024], *in = sampleBuffer;;
-		samplesToRead = (samplesLeft > 1024 ? 1024 : samplesLeft);
-		stream->read(stream->data, sampleBuffer, samplesToRead * sizeof(short));
-
-		// Convert from signed 16-bit to float.
-		for (samplesToConvert = samplesToRead; samplesToConvert > 0; --samplesToConvert)
-			// If we ever need to compile for big-endian platforms, we'll need to byte-swap here.
-			*out++ = (float)(*in++ / 32767.0);
-	}
-}
-
-class SoundFontFile {
-public:
-  SoundFontFile(int samplerate, std::string filename) {
-    f = (tsf*)malloc(sizeof(tsf));
-    memset(f, 0, sizeof(tsf));
-
-    loadFile(filename);
-    
-    f->outSampleRate = samplerate;
-    f->globalGainDB = 0.0f; // the desired volume where 1.0 is 100%
-  }
-  ~SoundFontFile() {
-    struct tsf_preset *preset, *presetEnd;
-    if (!f) return;
-    for (preset = f->presets, presetEnd = preset + f->presetNum; preset != presetEnd; preset++) {
-      free(preset->regions);
-    }
-    free(f->presets);
-    free(f->fontSamples);
-    free(f->outputSamples);
-    free(f);
-  }
-
-  // Directly load a SoundFont from a .sf2 file path
-  void loadFile(const std::string & filename) {
-    struct tsf_stream stream = { NULL, (int(*)(void*,void*,unsigned int))&tsf_stream_stdio_read, (int(*)(void*,unsigned int))&tsf_stream_stdio_skip };
-#if __STDC_WANT_SECURE_LIB__
-    FILE * fh = NULL;
-    fopen_s(&fh, filename, "rb");
-#else
-    FILE * fh = fopen(filename.c_str(), "rb");
-#endif
-    if (!fh) {
-      // if (e) *e = TSF_FILENOTFOUND;
-      return;
-    }
-    stream.data = fh;
-    tsf_load(f, &stream);
-    fclose(fh);  
-  }
-
-  // Returns the name of a preset index >= 0 and < tsf_get_presetcount()
-  string getPresetName(size_t index) const {
-    if (index < f->presetNum) return f->presets[index].presetName;
-    else return "";
-  }
-
-  // Returns the preset index from a bank and preset number, or -1 if it does not exist in the loaded SoundFont
-
-  int getPresetIndex(int bank, int preset_number) const {
-    auto f = getHandle();
-    
-    const struct tsf_preset *presets;
-    int i, iMax;
-    for (presets = f->presets, i = 0, iMax = f->presetNum; i < iMax; i++) {
-      if (presets[i].preset == preset_number && presets[i].bank == bank) {
-	return i;
-      }
-    }
-    return -1;
-  }
-
-  tsf * getHandle() { return f; }
-  const tsf * getHandle() const { return f; }
-  size_t getPresetCount() const { return f->presetNum; }
-  
-private:
-  tsf * f;
-};
 
 class SoundFontVoice : public InstrumentVoice {
 public:
@@ -798,7 +791,7 @@ SoundFontVoice::render(float* outputBuffer, size_t numSamples) {
   if (tmpLowpass.active || dynamicLowpass) lowpass = tmpLowpass;
 }
 
-void tsf_load(tsf* res, struct tsf_stream* stream) {  
+void tsf_load(SoundFontFile* res, struct tsf_stream* stream) {  
   struct tsf_riffchunk chunkHead;
   struct tsf_riffchunk chunkList;
   struct tsf_hydra hydra;
@@ -882,9 +875,9 @@ void tsf_load(tsf* res, struct tsf_stream* stream) {
 //   bank: instrument bank number (alternative to preset_index)
 //   preset_number: preset number (alternative to preset_index)
 //   (bank_note_on returns 0 if preset does not exist, otherwise 1)
-// void tsf_note_on(tsf* f, int preset_index, int key, float vel);
+// void tsf_note_on(SoundFontFile* f, int preset_index, int key, float vel);
 
-void tsf_note_on(tsf* f, int preset_index, int key, float vel)
+void tsf_note_on(SoundFontFile* f, int preset_index, int key, float vel)
 {
 	short midiVelocity = (short)(vel * 127);
 	int voicePlayIndex;
@@ -967,7 +960,7 @@ void tsf_note_on(tsf* f, int preset_index, int key, float vel)
 // Stop playing a note
 //   (bank_note_off returns 0 if preset does not exist, otherwise 1)
 
-int tsf_bank_note_on(tsf* f, int bank, int preset_number, int key, float vel)
+int tsf_bank_note_on(SoundFontFile* f, int bank, int preset_number, int key, float vel)
 {
 	int preset_index = tsf_get_presetindex(f, bank, preset_number);
 	if (preset_index == -1) return 0;
@@ -979,7 +972,7 @@ int tsf_bank_note_on(tsf* f, int bank, int preset_number, int key, float vel)
 
 #if 0
 
-void tsf_note_off(tsf* f, int preset_index, int key) {
+void tsf_note_off(SoundFontFile* f, int preset_index, int key) {
   struct tsf_voice *v = f->voices, *vEnd = v + f->voiceNum, *vMatchFirst = NULL, *vMatchLast = NULL;
   for (; v != vEnd; v++) {
     // Find the first and last entry in the voices list with matching preset, key and look up the smallest play index
@@ -1000,14 +993,14 @@ void tsf_note_off(tsf* f, int preset_index, int key) {
 #endif
 
 #if 0
-static void tsf_channel_setup_voice(tsf* f, SoundFontVoice * v) {
+static void tsf_channel_setup_voice(SoundFontFile* f, SoundFontVoice * v) {
   struct tsf_channel* c = &f->channels->channels[f->channels->activeChannel];
   v->playingChannel = f->channels->activeChannel;
   v->noteGainDB += c->gainDB;
   v->calcPitchRatio((c->pitchWheel == 8192 ? c->tuning : ((c->pitchWheel / 16383.0f * c->pitchRange * 2.0f) - c->pitchRange + c->tuning)), f->outSampleRate);
 }
 
-static void tsf_channel_applypitch(tsf* f, int channel, struct tsf_channel* c)
+static void tsf_channel_applypitch(SoundFontFile* f, int channel, struct tsf_channel* c)
 {
 	struct tsf_voice *v, *vEnd;
 	float pitchShift = (c->pitchWheel == 8192 ? c->tuning : ((c->pitchWheel / 16383.0f * c->pitchRange * 2.0f) - c->pitchRange + c->tuning));
@@ -1016,7 +1009,7 @@ static void tsf_channel_applypitch(tsf* f, int channel, struct tsf_channel* c)
 			v->calcPitchRatio(pitchShift, f->outSampleRate);
 }
 
-void tsf_channel_set_pitchwheel(tsf* f, int channel, int pitch_wheel)
+void tsf_channel_set_pitchwheel(SoundFontFile* f, int channel, int pitch_wheel)
 {
 	struct tsf_channel *c = tsf_channel_init(f, channel);
 	if (c->pitchWheel == pitch_wheel) return;
@@ -1024,7 +1017,7 @@ void tsf_channel_set_pitchwheel(tsf* f, int channel, int pitch_wheel)
 	tsf_channel_applypitch(f, channel, c);
 }
 
-void tsf_channel_set_pitchrange(tsf* f, int channel, float pitch_range)
+void tsf_channel_set_pitchrange(SoundFontFile* f, int channel, float pitch_range)
 {
 	struct tsf_channel *c = tsf_channel_init(f, channel);
 	if (c->pitchRange == pitch_range) return;
@@ -1032,7 +1025,7 @@ void tsf_channel_set_pitchrange(tsf* f, int channel, float pitch_range)
 	if (c->pitchWheel != 8192) tsf_channel_applypitch(f, channel, c);
 }
 
-void tsf_channel_set_tuning(tsf* f, int channel, float tuning)
+void tsf_channel_set_tuning(SoundFontFile* f, int channel, float tuning)
 {
 	struct tsf_channel *c = tsf_channel_init(f, channel);
 	if (c->tuning == tuning) return;
@@ -1053,9 +1046,9 @@ SoundFontVoice::playNote(float frequency, float velocity, float detune) {
     return;
   }
   assert(frequency > 0);
-  
+
   auto f = sf->getHandle();
-      
+
   int preset_index = preset;
   if (preset_index < 0 || preset_index >= f->presetNum) return;
 
