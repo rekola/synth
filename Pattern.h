@@ -41,6 +41,10 @@ class Pattern {
   void deleteNote(size_t track, size_t row) {
     notes[track].erase(row);
   }
+
+  const std::unordered_map<unsigned short, std::unordered_map<unsigned short, std::vector<Note> > > & getNotes() const {
+    return notes;
+  }
   
   const Note & getNote(size_t track, size_t row, size_t note_column) const {
     auto it = notes.find(track);
