@@ -6,6 +6,7 @@
 #include "InstrumentVoice.h"
 #include "SampleData.h"
 #include "Effect.h"
+#include "HRFT.h"
 
 #include <map>
 #include <vector>
@@ -13,7 +14,7 @@
 
 class Track {
  public:
-  enum Type { MASTER = 1, GROUP, SEQUENCER, SAMPLE };
+  enum Type { MASTER = 1, GROUP, SEQUENCER, SAMPLE, SUBSONG };
 
   Track(Type _type = SEQUENCER) : type(_type) { }
 
@@ -40,7 +41,7 @@ class Track {
   }
 
   float getDetune() const { return detune; }
-  void setDetune(int _detune) { detune = (_detune - 127) / 512.0; }
+  void setDetune(float _detune) { detune = _detune; }
 
   std::vector<std::shared_ptr<InstrumentVoice> > & getVoices() { return voices; }
   
@@ -50,11 +51,23 @@ class Track {
   void clearPendingNotes() { pending_notes.clear(); }
   std::map<unsigned int, std::vector<std::tuple<int, Tuning, Note> > > & getPendingNotes() { return pending_notes; }
 
-  void playNote(float frequency, float velocity, const Instrument & instrument, int identifier) {
+  void stopNote(int identifier) {
+    for (auto & voice : voices) {
+      if (identifier == voice->getIdentifier()) {
+	if (voice->isPlaying()) {
+	  voice->stopNote();
+	}
+	return;
+      }
+    }
+  }
+  
+  void playNote(float frequency, float velocity, const Instrument & instrument, float note_pan, int identifier) {
     bool voice_found = false;
     for (auto & voice : voices) {
       if (!voice_found && !voice->isPlaying()) {
 	voice->setIdentifier(identifier);
+	voice->setPan(note_pan);
 	voice->playNote(frequency, velocity, detune);
 	voice_found = true;
       } else if (identifier == voice->getIdentifier() && voice->isPlaying()) {
@@ -64,6 +77,7 @@ class Track {
     if (!voice_found) {
       voices.push_back(instrument.createVoice(identifier));
       voices.back()->playNote(frequency, velocity, detune);
+      voices.back()->setPan(note_pan);
     }
   }
   
@@ -99,6 +113,11 @@ class Track {
   }
 
   void addEffect(std::unique_ptr<Effect> effect) { effects.push_back(std::move(effect)); }
+
+  HRFT & getHRFT() { return hrft; }
+
+  void setElevation(int i) { hrft.setElevation(i); }
+  void setAzimuth(int i) { hrft.setAzimuth(i); }
   
 private:
   Type type;
@@ -115,6 +134,7 @@ private:
   std::vector<std::shared_ptr<Effect> > effects;
 
   std::map<unsigned int, std::vector<std::tuple<int, Tuning, Note> > > pending_notes;
+  HRFT hrft;
 };
 
 #endif
