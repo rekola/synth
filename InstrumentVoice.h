@@ -78,7 +78,10 @@ class InstrumentVoice {
   void setIdentifier(int id) { identifier = id; }
   int getIdentifier() const { return identifier; }
   float getVelocity() const { return velocity; }
-
+  
+  void setPan(float p) { pan = p; }
+  float getPan() const { return pan; }
+  
 protected:
   float getWavePosition() const { return wave_position; }
 
@@ -88,9 +91,10 @@ protected:
 
  private:
   int identifier;
-  float wave_position = 0.0f, freq = 0.0f, velocity = 0.0f, detune = 0.0f;
+  float wave_position = 0.0f, freq = 0.0f, velocity = 0.0f, detune = 0.0f, pan = 0.5f;
   // adsr state
   int adsrstate = 0, adsrpos = 0;
+  
 };
 
 #endif
