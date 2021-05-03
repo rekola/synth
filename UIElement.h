@@ -30,6 +30,11 @@ class UIElement {
     if (plane) plane->putstr(y, x, s);
     return *this;
   }
+#if 0
+  UIElement & putstrN(int y, int x, std::string s, size_t limit) {
+    
+  }
+#endif
   UIElement & move(int y, int x) {
     if (plane) plane->move(y, x);
     return *this;
