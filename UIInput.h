@@ -47,10 +47,8 @@ class UIInput {
   bool hasCtrl() const { return ctrl; }
 
   int toMidiNote(Tuning tuning) const {
-    if (id == NCKEY_DEL || id == NCKEY_BACKSPACE) {
-      return 0;
-    } else if (id == 'a') {
-      return 1; // OFF    
+    if (id == 'a') {
+      return 0; // OFF    
     } else if (tuning == Tuning::TET12) {
       switch (id) {
       case 'z': return 48;
