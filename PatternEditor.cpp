@@ -4,6 +4,7 @@
 #include "Synth.h"
 #include "Controller.h"
 #include "StyleProvider.h"
+#include "Tuner.h"
 
 #include <string>
 #include <fmt/core.h>
@@ -102,22 +103,17 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
 
   Tuning new_tuning = current_pattern.getTuning() != Tuning::INHERIT ? current_pattern.getTuning() : song.getTuning();
   int new_tempo = song.getTempo();
-  int new_key = current_pattern.getKey() ? current_pattern.getKey() : song.getKey();
+  int new_key = current_pattern.getKey() >= 0 ? current_pattern.getKey() : song.getKey();
   
   if (render_all || edit_step_size != new_edit_step_size || new_tuning != current_tuning || new_tempo != current_tempo || new_key != current_key) {
     setFgColor(styles.window_border_color);
     setBgColor(styles.window_bg_color);
 
-    std::string tuning;
-    if (new_tuning == Tuning::TET12) {
-      tuning = "12-TET";
-    } else if (new_tuning == Tuning::TET31) {
-      tuning = "31-TET";
-    } else {
-      tuning = "error";
-    }
+    std::string tuning = to_string(new_tuning);
     
-    putstr(rows - 1, cols - 16, format("{:2d} {} {}", new_edit_step_size, tuning, new_tempo));
+    string key = new_key >= 0 ? Note::keyToString(new_tuning, new_key) : "?";
+    
+    putstr(rows - 1, cols - 16, format("{:2d} {} {} {}", new_edit_step_size, tuning, key, new_tempo));
     
     edit_step_size = new_edit_step_size;
     current_tuning = new_tuning;
@@ -241,8 +237,9 @@ PatternEditor::offerInput(const UIInput & input) {
     auto & pattern = song.getPattern(synth.getPatternPosition());
     Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
     int midi_note = input.toMidiNote(tuning);
-    if (midi_note != -1) {
-      if (midi_note == 0) {
+    bool is_delete = input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE;
+    if (is_delete || midi_note >= 0) {
+      if (is_delete) {
 	pattern.deleteNote(current_score_cursor_col, synth.getTrackPosition());
       } else {
 	Note note(midi_note);
@@ -255,10 +252,17 @@ PatternEditor::offerInput(const UIInput & input) {
 	} else {
 	  pattern.setNote(current_score_cursor_col, synth.getTrackPosition(), 0, note);
 	}
-
-	Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
-	track.playNote(tuning, note, instrument, note_column);
 	row_edited = true;
+
+	if (note.isOff()) {
+	  track.stopNote(note_column);
+	} else {
+	  Tuner tuner;
+	  Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
+	  int key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
+	  float frequency = tuner.getFrequency(tuning, key, note, instrument.getTranspose());
+	  track.playNote(frequency, note.getVelocity(), instrument, note.getPanning(tuning), note_column);
+	}
       }
       
       if (!synth.isPlaying()) {
@@ -344,6 +348,7 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<size_t>
 
     auto & mastertrack = song.getMasterTrack();
     auto & tracks = mastertrack.getChildren();
+    Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
     
     size_t current_pos = 1;
     for (int i = -1; i < (int)tracks.size(); i++) {
@@ -399,7 +404,7 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<size_t>
 	    string s;
 	    if (k < notes.size() && notes[k].isDefined()) {
 	      auto & note = notes[k];
-	      s = note.toString(song.getTuning()) + format(" {:02x}", note.getVelocity());
+	      s = note.toString(tuning) + format(" {:02x}", note.getVelocity());
 	    } else {
 	      s = "... ..";
 	    }	    
