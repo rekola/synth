@@ -6,7 +6,6 @@
 #include "InstrumentVoice.h"
 #include "SampleData.h"
 #include "Effect.h"
-#include "HRFT.h"
 
 #include <map>
 #include <vector>
@@ -114,11 +113,14 @@ class Track {
 
   void addEffect(std::unique_ptr<Effect> effect) { effects.push_back(std::move(effect)); }
 
-  HRFT & getHRFT() { return hrft; }
+  void setElevation(float e) { elevation = e; }
+  void setAzimuth(float a) { azimuth = a; }
+  void setDistance(float d) { distance = d; }
 
-  void setElevation(int i) { hrft.setElevation(i); }
-  void setAzimuth(int i) { hrft.setAzimuth(i); }
-  
+  float getElevation() const { return elevation; }
+  float getAzimuth() const { return azimuth; }
+  float getDistance() const { return distance; }
+    
 private:
   Type type;
   int instrument_id = 0;
@@ -130,11 +132,11 @@ private:
   std::string name;
   std::vector<Track> children;
   std::shared_ptr<SampleData> sample;
-  
+  float elevation = 0, azimuth = 0, distance = 0;
+
   std::vector<std::shared_ptr<Effect> > effects;
 
   std::map<unsigned int, std::vector<std::tuple<int, Tuning, Note> > > pending_notes;
-  HRFT hrft;
 };
 
 #endif
