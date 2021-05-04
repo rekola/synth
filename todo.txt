@@ -1,0 +1,483 @@
+demo0 voices never stop
+
+Other ratios in tonality cube:
+ - 7:8:10 => 28:35:40
+ - 6:7:8 => 21:24:28
+ - 5:6:7 => 30:35:42
+ 
+Add SoundFont ADSR to FileInstrument
+  - this way we can study it easily
+Add separate XML element for soundfont import
+  - we can pick instruments
+what is the difference between volume and gain? should we replace volume everywhere?
+clipping is disabled, so add distortion effect to demo 0 clipping channels
+Recompile libspatialaudio with sofa and test
+Tempo is fucked up
+If track output is empty, don't send it to mixed
+ - noise cut off, or what was the effect?
+remove tritones from test song in demo 2
+Percussion instrument selection is difficult in TET-31
+ - no good mapping from TET-31 notes to different instruments
+ - how can we tell if soundfont instrument is percussion
+
+- replace all volumes to gain
+- move soundfont gain to voice gain
+- when rendering a song, select output type (binaural, 5.1)
+  * find a container that could accept multiple sound format
+  * possibly even render a video
+  * add cover art
+- HRFT and mixing:
+  => we can then switch to a panning mixer if needed
+  => song can configure all mixers in XML
+  - HRFT doesn't free buffers
+  - If accumulate distance is zero:
+     - no HRFT is done, no panning is done
+     - for HRFT mix the track to master
+     - we would like to add stereo atmospheric effects directly, but what if such channel has distance?
+        - do we mix the channels?
+  - Perhaps we should keep track of channels and their positions
+  - apply channel volume (as gain) to mixer, since it does volume changing anyways
+  - normal mixer could use distance as well as azimuth
+  - if hrtf doesn't use distance, we could use it by ourselves
+
+Recreate Täällä pohjantähden alla waltz
+Maybe remove master track?
+ - Only root tracks can have azimuth and elevation
+ - but where do we put the master commands then?
+ - root tracks could be of different types, and usually root track would contain a sequencer track
+Make tracks children of their filters
+
+off doesnt work
+
+Why are example song notes shown as C-0, but we know they are lower
+If synth is not playing and no voices are active, stop playing at some point
+
+MVerb doesn't use correct samplerate
+
+remove automatic scaling from volume meter
+ - print maximum values to status
+
+Keep absolute frequencies (with detune) in pending notes, so we don't have to keep track of the song key
+
+Can we split other than superparticular ratios? Like 8:5
+
+detune doesn't work
+ - it could be a scaler
+Transpose:
+ - Transpose should be fraction
+ - transpose is disabled
+ - Transpose doesn't concern anything but the instrument
+ 
+How to derive scales:
+ - C major:
+   - Chord:  C    E    G         C
+   - Scale:  C D  E  F G A  B    C
+   - Chords: C Dm Em F G Am Bdim C
+ - ?:
+   - Chord:  C E𝄫    F           C
+
+How to derive chord sequence for scale:
+   - major scale: C D E F G A B
+
+wave position is samples, but freq is hz, and hz is added to wave position
+
+playing many notes at the same clips
+ - cannot lower velocity automatically since the lowering already exists in midi notes
+
+Effects:
+ - add delay modulator => delay is used to speed or slow input signal possibly with noise as the signal
+ - modulate multiple sound effects, like string with very slow strings
+ - lowpassed noise
+   => modulate or just play
+ 
+same instrument effects are used on multiple tracks
+- instruments should only have EffectFactories that create effects for voices
+- or possibly effects are hardcoded and added when creating voices
+- or should effect create an effect state
+ 
+add linear interpolation to FileInstrument
+
+Stereo:
+ - Make FileInstrument produce stereo sound if sample is stero
+ - FileInstrument doesn't give proper channel count to Instrument constructor
+ - Filter has no stereo support
+
+Samples:
+ - Record egg shell cracking
+ - environment
+   - raindrops on roof
+   - waves crashing against shore
+   - probably have multiple locations
+
+Tuning may not have correct name
+  - Is TET just a layout? and equal tuning the tuning
+  - EDO?
+
+Add table based editor for instruments and effects
+  - tree based table
+  - different hierarchies for different stuff:
+    + channel hierarchy
+    + channels and their filters
+
+add putstrN method that limits printing and adds epplisis
+  - needs better utf8 class
+
+FMInstrument still plays sound on off
+
+Find 12:7 interval and use it. Why?
+
+Fix note deletion:
+  - don't delete all columns
+  - stop the voice of a deleted note
+
+Try english mac keyboard to see what layout works
+
+float doesn't have enough precision for long notes
+ - switch to double (like soundfont)
+ - keep the float restricted in [0, 2*pi]
+ - use integers and count samples
+ - don't use anything. Obviously wave position is at best, useless
+
+try fitting 5:4 and 11:10 together
+try fitting 3:2 and 7:6 together
+try fitting 6:5 and 7:6 together, the wrong way
+try fitting supermajor and 7:6 together
+try supermajor
+try the original patterns we had
+
+Instruments:
+ - instrument system should have predefined slots show that if the track is set to electric piano, any electric piano is used unless user changes it
+ - midi:electric_piano, midi:43
+
+- Filter and note control
+
+FMInstruments cannot always be stopped
+scrolling right doesnt't work
+
+Try to make a chord with (3/2)^2 and (6/5)^2 or (5/4)^2
+Use tab key to temporarily add note column for editing
+
+- Release:
+  - remove integer ADSR parameters
+  - switch to ADSR from SoundFont
+  - refactor BasicInstrument
+  - remove default song (maybe save it first?)
+  - combine fphase with fm phi and mod_phi (either remove fphase, or combine)
+
+XML:
+ - locales break floats
+ - store annotations
+ - read 31TET notes from string
+ - store randomization factor
+ - store master volume
+ - store track type
+ - store track children
+ - store track effects
+ - store instrument name
+ - store instrument effects / or do we?
+ - store instrument envelope
+ - store instrument transpose
+ - SoundFont instrument needs to be loaded without preloading the sf file or loading the sf for each instrument
+ - Also soundfont filters may need to be changed
+ - combine SoundFont and SoundFontFile
+
+- add song state to make tracks immutable
+  - holds pending notes
+  - holds voices
+  - holds effect states
+  - could hold effect plan also that does SIMD stuff
+
+- we should have globally unique sample indices
+  
+- SoundFont
+  - SoundFontVoice must pick envelope data from SoundFontInstrument so that they can be changed
+    - If might not be possible if different regions have different envelopes
+  - move SoundFontVoice data to InstrumentVoice (frequency?)
+  - sometimes voices never stop playing
+  - use the soundfont adsr for everything, since it's the only one that needs to be correct
+  - envelope setup uses apparent key
+  - add subvoices
+  - banks? there are multiple drum sets in banks and we might want to switch them
+  - move all filters to common
+  - panning:
+    - panning is removed
+    - could panning data be sent as an output signal?
+    - if piano is panned, why not enable
+  - handle input messages
+    => volume control
+    => pitch?
+
+- add weird filters
+  - filter note data
+  - render to buffer so that song can mangled
+
+- InstrumentVoice needs to handle ADSR by itself
+- make sure FMInstrumentVoice resets phi and phi_mod on note on
+- make filters and instruments arrays so that they can process multiple tracks at the same time and use SIMD
+- make FMInstrumentVoice and SoundFontVoice use InstrumentVoice fphase et al so that they could be monitored
+- FMInstrumentVoice works badly in the beginning
+
+- we want smooth distortion:
+  - interesting distortion was achieved by adding input to uncleared data
+  - clear samples from signal
+    - use periodicity
+  - try applying lowpass after distortion
+
+- fine tuned control:
+  - calculate tick size and always calculate how many ticks we can render and render them
+  - MVerb might have nice control
+  - When control is done, make note changing work the same way  
+
+- Study effects in other software:
+  - Audacity
+  
+- ADSR calculation must be done inside render()
+
+- Depending on key, switch sharps to flats
+- Add possibility for user defined notes... hmmm
+  
+- Renoise
+  - add shortcut for add note column
+  - fix colors
+  - add track collapse
+  - add track colors
+  - add groups
+  - add master track
+  - ESC => edit mode
+  - columns to add:
+    - instrument: NO, instrument per track is more than enough
+    - volume: NO, velocity is better
+    - panning: NO, 1d panning is too limited
+    - delay: ?
+    - FX: ?
+    - velocity: ?
+  - End note with capslock
+  - If recordings can be copied from track to track, shouldn't notes also have to be able to be copied while retaining the instrument
+    - If recordings were to be copied to different track, we could create a new subtrack for the recording
+  - Backspace: Delete all notes and Effect Commands at the current line in the track and scroll everything beneath the current line up.
+  - Insert: Insert clean row into track and push all notes and effects in current track down.
+  - Left Ctrl & 1-0: Set the Edit Step number.
+  - select by holding left shift
+  - Home/End: Go to start/end line of pattern.
+  - add ticks per line (default 12 - delay has 256)
+  - consider using tab:
+    - tab => next note column
+    - shift tab => prev note column
+  - keybindings:
+      play from playhead position: shift space bar
+      octave down / up: command [ / command ]
+      collapse / expand track: shift command k
+      begin selection: commmand b
+      end selection: command e
+      Transpose One Note Up: fn option F2
+      Transpose One Note Down: fn option F1
+      Transpose One Octave Up: fn option F12
+      Transpose One Octave Down: fn option F11
+
+- make spectrum logarithmic
+
+- update plane dimensions on resize
+  - every plane should handle the resize input
+
+- add randomization:
+  - detune keys
+    - if you really need to detune, guitar instrument should be detuned by string, and intonation fucked by string position
+  - adjust volumes
+
+- add scratching mode:
+  - should be possible to stratch any channel, but how? scratching institutes a new time
+  - subsongs
+
+- instrument list:
+  - add mousewheel scrolling
+  - don't select window when selecting instrument
+  
+- add track ids so that tracks can be reordered
+
+- effect states do not belong in instrument
+
+- add instrument volume
+
+- add recording
+  - remove parts of recording using backspace
+  - also copy parts of recording to different tracks
+  - recordings must therefore be global to the song
+  - Add playing of the recorded sample
+  - Notes should have the sample position as value
+  - recording should automatically add new notes
+  - Should the sample still be an instrument?
+  - Samples should also have multiple columns
+  - Effect column should be available for samples
+  - Single track can have multiple sample tracks but only single instrument, so instrument cannot be used for sample selection
+    * but should a track have instrument per column? That way we could have all percussion in the same track
+  
+- Latency:
+  - track latency: int snd_pcm_avail_delay(snd_pcm_t * pcm, snd_pcm_sframes_t * availp, snd_pcm_sframes_t * delayp)
+  - https://www.alsa-project.org/main/index.php/Test_latency.c
+
+- instrumentlist cannot play
+- Since midi supports velocity, we should add velocity column
+  - should it affect the volume or attack?
+- add move constructor to Note
+- rename BasicInstrument to SubtractiveInstrument/SubInstrument
+- keep track of current song and refresh InstrumentList and ScoreDisplay if it changes
+- update notcurses documentation:
+  * doctest-dev libunistring-dev
+- implement chart natively
+- add table that layouts planes automatically and draws the borders
+- starting a reader, loses plane ownership
+- ask for rerender
+- move TerminalUI population to base class
+- add generic parameters and window for editing
+- add EditablePlane and use it for column headings => they can be clicked and edited
+
+- Handle keyinput in thread to get exact timestamps
+- Add threads
+- add LFO (to what?)
+- remove sample rate constants (44100, 22050)
+- song.gettime() doesn't account for tempo changes
+  - should integrate the time in moveForward and moveForwardSample
+
+- add note slide
+
+chords:
+  - minor 7th: root, minor third, perfect fifth, and minor seventh
+
+Harmonic seventh chord: P1 M3 P5 7:4
+
+Major pentatonic scale: P1 M2 M3 P5 M6 P8
+Minor pentatonic scale: P1 m3 P4 P5 m7 P8 (for m3: 32:27, for m7: 16:9)
+Blues scale:		P1 m3 P4 ♭5 P5 m7 P8
+
+						3-limit		5-limit		7-limit
+C	P1	I	Unison			1:1		1:1		1:1
+D♭♭	d2	♭♭II	Diminished second			128:125		36:35
+C♯		♯I	Chromatic semitone			25:24		21:20
+D♭	m2	♭II	Minor second				16:15, 27:25	15:14
+D	M2	II	Major second		9:8		10:9
+E♭♭	d3	♭♭III	Diminished third			144:125		8:7
+D♯	A2	♯II	Augmented second			75:64, 125:108	7:6
+E♭	m3	♭III	Minor third		32:27		6:5
+E	M3	III	Major third				5:4
+F♭		♭IV	Diminished fourth			32:25		9:7
+E♯		♯III	Augmented third				125:96		21:16
+F	P4	IV	Perfect fourth		4:3		27:20
+F♯		♯IV	Augmented fourth			25:18, 45:32	7:5
+G♭		♭V	Diminished fifth			36:25, 64:45	10:7
+G	P5	V	Perfect fifth		3:2		40:27
+A♭♭		♭♭VI	Diminished sixth			192:125		32:21
+G♯		♯V	Augmented fifth				25:16		14:9
+A♭	m6	♭VI	Minor sixth				8:5
+A	M6	VI	Major sixth				5:3
+B♭♭		♭♭VII	Diminished seventh			128:75, 216:125	12:7
+A♯		♯VI	Augmented sixth				125:72		7:4
+B♭	m7	♭VII	Minor seventh		16:9		9:5
+B	M7	VII	Major seventh				15:8 (50:27)	28:15
+Cy		♭VIII	Diminished octave			48:25		40:21
+B♯		♯VII	Augmented seventh			125:64		35:18
+C	P8		Octave			2:1		2:1		2:1
+	m9		Minor ninth				32:15 ?
+D'	M9		Major ninth		9:4
+	m10
+D'♯ / E'♭							75:32
+E'	M10		Major tenth				5:2
+F'	P11
+G'	P12					3:1
+	m13
+	M13
+	m14
+	P15
+
+Other:
+
+7/6  septimal minor third
+9/7  septimal major third
+5/7   septimal minor ninth, BP ninth
+16/7   septimal major ninth
+17/14  supraminor third
+
+
+---
+
+Chords
+
+I	C	P1 M3 P5
+II	Dm	M2 P4 M6
+III	Em	M3 
+IV	F	P4 M6 P8
+V	G
+VI	Am	M6 P8 M10
+VIIo	Bdim
+
+---
+C E G
+M3 5:4 15:8
+B D# F#
+15:8 * 5:4 => 
+
+--
+
+C E G
+C# F G#
+D F# A
+D# G A#
+E G# B
+F A C
+F# A# C#
+G B D
+G# C D#
+A C# E
+A# D F
+B D# F#
+
+------------------
+
+Constructions:
+
+7-limit major triad => 7:6 4:3 2:1 1:1 => D# F C' C
+7-limit minor triad => 8:7 4:3 2:1 1:1 => E♭♭ F C' C
+
+11-limit major tetrad => 11:10 6:5 3:2 2:1 1:1 => ? Eb G C' C
+11-limit minor tetrad => 12:11 6:5 3:2 2:1 1:1 => ? Eb G C' C
+
+5-limit major triad => 5:4 3:2 2:1 1:1 => E G C' C
+5-limit minor triad => 6:5 3:2 2:1 1:1 => Eb G C' C
+
+3-limit minor triad => 3:2 2:1 1:1 => G C' C
+3-limit major triad => 4:3 2:1 1:1 => F C' C
+
+8:5 = 1+4:5 =
+5:3 =
+
+10:7
+7:6
+
+17-limit => 17:16 9:8
+17-limit => 18:17 9:8
+
+2-limit chord => 1:1 2:1 => C C'
+
+7-limit subminor triad ratio:  42:48:56
+
+--
+
+7/8
+12/7
+
+--
+
+---
+
+Check the 31-TET intervals and use one of those in the uncertain places of minor scales
+--
+
+3-limit chords:
+
+I	C C' G'
+i	C G G'
+II	G G' D''
+ii	G D' D''
+III	D' D'' 27:8
+
+--
+
