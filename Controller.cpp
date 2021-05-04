@@ -823,7 +823,11 @@ Controller::loadDemo() {
     track.setInstrumentId(*song_data++);
     track.setDetune((*song_data++ - 127) / 512.0);
     track.setAzimuth(*song_data++ / 360.0f - 180.0);
-    track.setVolume(*song_data++ / 127.0f);
+    float volume = *song_data++ / 127.0f;
+    track.setVolume(volume);
+    if (volume > 1.0f) {
+      track.addEffect(make_unique<Distortion>(Distortion::CLIP, 1.0f, 0.0f));
+    }
     song->getMasterTrack().addChild(track);
     
     for (size_t j = 0; ; j++) {
