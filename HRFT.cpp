@@ -32,8 +32,8 @@ HRFT::initialize(size_t frames) {
   }
   myBinauralizer->Refresh();
   
-  buffers[0] = new float[frames];
-  buffers[1] = new float[frames];
+  left_buffer = std::unique_ptr<float[]>(new float[frames]);
+  right_buffer = std::unique_ptr<float[]>(new float[frames]);
   
   myBFormat = make_shared<CBFormat>();
   if (!myBFormat->Configure(order, is_3d, frames)) {
@@ -71,14 +71,16 @@ void
 HRFT::encode(float * output, size_t frames, float master_volume) {
   if (!is_initialized) initialize(frames);
 
+  float * buffers[2] = { left_buffer.get(), right_buffer.get() };
+  
   myBinauralizer->Process(myBFormat.get(), buffers);
 
-  float * left = buffers[0];
-  float * right = buffers[1];
+  float * left_data = right_buffer.get();
+  float * right_data = left_buffer.get();
 
   for (size_t i = 0; i < frames; i++) {
-    float l = left[i] * master_volume;
-    float r = right[i] * master_volume;
+    float l = left_data[i] * master_volume;
+    float r = right_data[i] * master_volume;
 
     if (l > 1.0) l = 1.0;
     else if (l < -1.0) l = -1.0;

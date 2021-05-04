@@ -24,7 +24,7 @@ private:
   std::shared_ptr<CAmbisonicEncoder> myEncoder;
   std::shared_ptr<CAmbisonicBinauralizer> myBinauralizer;
   std::shared_ptr<CBFormat> myBFormat;
-  float * buffers[2];
+  std::unique_ptr<float[]> left_buffer, right_buffer;
 };
 
 #endif
