@@ -10,11 +10,19 @@ class InstrumentVoice {
   InstrumentVoice(int _identifier, const Envelope & _amp_envelope) : identifier(_identifier), amp_envelope(_amp_envelope) { }
   virtual ~InstrumentVoice() { }
   
-  virtual void render(float * buffer, size_t frames) = 0;
+  virtual void render(float * buffer, size_t frames, size_t offset = 0) = 0;
 
   virtual void stopNote() {
-    adsrstate = 3;
-    adsrpos = 0;
+    if (adsrstate < 2) {
+      is_stopped = true;
+    } else if (adsrstate == 2) {
+      adsrstate = 3;
+      adsrpos = 0;
+    }
+  }
+
+  virtual void killNote() {
+    adsrstate = 4;
   }
   
   virtual void playNote(float _frequency, float velocity, float _detune) {
@@ -26,6 +34,7 @@ class InstrumentVoice {
     adsrstate = 0;
     adsrpos = 0;
     wave_position = 0;
+    is_stopped = false;
   }
 
   virtual bool isPlaying() const { return adsrstate < 4 && freq != 0; }
@@ -58,7 +67,11 @@ class InstrumentVoice {
       }
       break;
     case 2:
-      adsrvol = sustain;
+      if (is_stopped) {
+	adsrstate++;
+      } else {
+	adsrvol = sustain;
+      }
       break;
     case 3:
       if (release == 0 || adsrpos >= release) {
@@ -80,9 +93,6 @@ class InstrumentVoice {
   void setIdentifier(int id) { identifier = id; }
   int getIdentifier() const { return identifier; }
   
-  void setPan(float p) { pan = p; }
-  float getPan() const { return pan; }
-
   void setVolume(float volume) {
     setGainDB(gainToDecibels(volume));
   }
@@ -107,12 +117,13 @@ protected:
 
  private:
   int identifier;
-  float wave_position = 0.0f, freq = 0.0f, detune = 0.0f, pan = 0.5f;
+  float wave_position = 0.0f, freq = 0.0f, detune = 0.0f;
   float noteGainDB = 0.0f;
 
   // adsr state
   int adsrstate = 0, adsrpos = 0;
   Envelope amp_envelope, mod_envelope;
+  bool is_stopped = false;
 };
 
 #endif

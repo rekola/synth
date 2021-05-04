@@ -33,7 +33,7 @@ public:
       modulation(_modulation), harmonic(_harmonic), subharmonic(_subharmonic)
   { }
 
-  void render(float * buffer, size_t frames) override {
+  void render(float * buffer, size_t frames, size_t offset) override {
     float gain = decibelsToGain(getGainDB());
       
     for (size_t i = 0; i < frames; i++) {
@@ -64,7 +64,7 @@ public:
 #endif
       // spow(s, 16);
       
-      buffer[i] = s * gain * 0.5f * adsrvol;
+      buffer[i + offset] = s * gain * 0.5f * adsrvol;
     }
   }
 

@@ -21,7 +21,7 @@ class BasicInstrumentVoice : public InstrumentVoice {
 public:
   BasicInstrumentVoice(int _identifier, const Envelope & amp_envelope, WaveformType _type) : InstrumentVoice(_identifier, amp_envelope), type(_type) { }
 
-  void render(float * buffer, size_t frames) override {
+  void render(float * buffer, size_t frames, size_t offset) override {
     float gain = decibelsToGain(getGainDB());
 
     for (size_t k = 0; k < frames; k++) {
@@ -48,7 +48,7 @@ public:
 	s = 0.0f;
       }
 
-      buffer[k] = s * gain * adsrvol;
+      buffer[k + offset] = s * gain * adsrvol;
     }
   }
   

@@ -53,7 +53,10 @@ class FileInstrumentVoice : public InstrumentVoice {
 public:
   FileInstrumentVoice(int _identifier, std::shared_ptr<SampleData> _samples) : InstrumentVoice(_identifier), samples(_samples) { }
 
-  void render(float * buffer, size_t frames) override {
+  void render(float * buffer, size_t frames, size_t offset) override {
+    float gain = decibelsToGain(getGainDB());
+
+    bool ended = false;
     for (size_t k = 0; k < frames; k++) {
       // float i = getFphase() * WAVESIZE / 44100.0f;
       size_t i = (size_t)getWavePosition();
@@ -64,10 +67,13 @@ public:
 	s = samples->data()[i];
       } else {
 	s = 0.0f;
+	ended = true;
       }
 
-      buffer[k] = s * getVelocity();
+      buffer[k + offset] = s * gain;
     }
+    
+    if (ended) killNote();
   }
   
 private:

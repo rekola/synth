@@ -631,11 +631,11 @@ public:
   void playNote(float frequency, float velocity, float detune) override;
   bool isPlaying() const override { return playingPreset != -1; }
 
-  void kill() {
+  void killNote() override {
     playingPreset = -1;
   }
 
-  void render(float * outputBuffer, size_t numSamples) override;
+  void render(float * outputBuffer, size_t numSamples, size_t offset) override;
   
   void stopNote() override {
     auto f = sf->getHandle();
@@ -683,14 +683,12 @@ private:
 };
 
 void
-SoundFontVoice::render(float* outputBuffer, size_t numSamples) {
-  memset(outputBuffer, 0, numSamples * sizeof(float));
-  
+SoundFontVoice::render(float* outputBuffer, size_t numSamples, size_t offset) {
   auto f = sf->getHandle();
 
   struct tsf_region* region = voiceRegion;
   float* input = f->fontSamples;
-  float* output = outputBuffer;
+  float* output = outputBuffer + offset;
 
   // Cache some values, to give them at least some chance of ending up in registers.
   bool updateModEnv = (region->modEnvToPitch || region->modEnvToFilterFc);
@@ -772,7 +770,7 @@ SoundFontVoice::render(float* outputBuffer, size_t numSamples) {
     }
     
     if (tmpSourceSamplePosition >= tmpSampleEndDbl || ampenv.segment == TSF_SEGMENT_DONE) {
-      kill();
+      killNote();
       return;
     }
   }
