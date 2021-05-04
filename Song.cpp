@@ -88,7 +88,9 @@ Song::save(const std::string & filename) const {
     if (!track.getName().empty()) track_element->SetAttribute("name", track.getName().c_str());
     if (track.isSolo()) track_element->SetAttribute("solo", "1");
     if (track.isMuted()) track_element->SetAttribute("mute", "1");
-    track_element->SetAttribute("pan", track.getPan());
+    track_element->SetAttribute("azimuth", track.getAzimuth());
+    track_element->SetAttribute("distance", track.getDistance());
+    track_element->SetAttribute("elevation", track.getElevation());
     track_element->SetAttribute("volume", track.getVolume());
     if (track.getDetune() != 0) track_element->SetAttribute("detune", track.getDetune());
     track_element->SetAttribute("instrument", track.getInstrumentId());
