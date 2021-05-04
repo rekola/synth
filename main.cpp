@@ -45,6 +45,8 @@ int main(int argc, char *argv[]) {
     controller->loadDemo2();
   } else if (load_demo == 3) {
     controller->loadDemo3();
+  } else if (load_demo == 4) {
+    controller->loadDemo4();
   } else {
     controller->createNewSong();
   }
