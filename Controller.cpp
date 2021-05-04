@@ -9,6 +9,7 @@
 #include "Distortion.h"
 #include "Reverb.h"
 #include "Delay.h"
+#include "Synth.h"
 
 #include "default_song.h"
 
@@ -19,8 +20,61 @@
 using namespace std;
 
 void
+Controller::loadDemo4() {
+  auto song = make_shared<Song>(Tuning::TET31, 0);
+  song->setTempo(220);
+  auto sampleRate = synth->getSampleRate();
+
+  auto fluid = make_unique<SoundFont>(sampleRate, "data/FluidR3_GM.sf2");
+  // auto instrument = fluid->createInstrument(10);
+  // instrument->addEffect(make_unique<Distortion>(Distortion::ZEROES, 0.1, 0.0));
+  song->addInstruments(*fluid);
+
+  auto & track = song->getMasterTrack().addChild();
+  track.addEffect(make_unique<Reverb>(sampleRate, Reverb::STADIUM));
+  // track.setVolume(0.5f);
+  track.setElevation(50);
+  track.setAzimuth(30);
+  track.setInstrumentId(0);
+
+  auto & pattern = song->addPattern(24);  
+  pattern.setNote(0, 0, 0, Note("C-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 0, 1, Note("Eb4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 0, 2, Note("G-4", 0x3f, Tuning::TET31));
+
+  pattern.setNote(0, 2, 0, Note("C-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 3, 0, Note("G-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 6, 0, Note("C-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 8, 0, Note("Eb4", 0x3f, Tuning::TET31));
+
+  pattern.setNote(0, 12, 0, Note("F-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 14, 0, Note("Cx4", 0x3f, Tuning::TET31));
+
+  pattern.setNote(0, 17, 0, Note("C-4", 0x3f, Tuning::TET31));
+
+  auto & pattern2 = song->addPattern(24);  
+  pattern2.setNote(0, 0, 0, Note("C-4", 0x3f, Tuning::TET31));
+  pattern2.setNote(0, 0, 1, Note("D#4", 0x3f, Tuning::TET31));
+  pattern2.setNote(0, 0, 2, Note("F-4", 0x3f, Tuning::TET31));
+
+  pattern2.setNote(0, 2, 0, Note("C-4", 0x3f, Tuning::TET31));
+  pattern2.setNote(0, 3, 0, Note("G-4", 0x3f, Tuning::TET31));
+  pattern2.setNote(0, 6, 0, Note("C-4", 0x3f, Tuning::TET31));
+  pattern2.setNote(0, 8, 0, Note("D#4", 0x3f, Tuning::TET31));
+
+  pattern2.setNote(0, 12, 0, Note("F-4", 0x3f, Tuning::TET31));
+  pattern2.setNote(0, 14, 0, Note("G-4", 0x3f, Tuning::TET31));
+
+  pattern2.setNote(0, 17, 0, Note("C-4", 0x3f, Tuning::TET31));
+
+  current_song = song;
+}
+
+void
 Controller::loadDemo3() {
-  auto song = make_shared<Song>(Tuning::TET12, 5);
+  auto song = make_shared<Song>(Tuning::TET31, 0);
+  song->setTempo(220);
+  auto sampleRate = synth->getSampleRate();
 
 #if 0
   auto oboe = make_unique<FMInstrument>(0.7, 1, 3, 0.1f);
@@ -33,41 +87,115 @@ Controller::loadDemo3() {
   // oboe->addEffect(make_unique<Chorus>(5.0f, 0.0f));
   song->addInstrument(move(oboe));
 #else
-  auto fluid = make_unique<SoundFont>(44100, "FluidR3_GM.sf2");
-  // auto fluid = make_unique<SoundFontInstrument>("Tabla.sf2", 0);
-  // auto fluid = make_unique<SoundFontInstrument>("FatBoy-v0.790.sf2", 6);
-  // auto fluid = make_unique<SoundFontInstrument>("Musyng.sfpack", 0);
+  auto fluid = make_unique<SoundFont>(sampleRate, "data/FluidR3_GM.sf2");
+  // auto instrument = fluid->createInstrument(10);
+  // instrument->addEffect(make_unique<Distortion>(Distortion::ZEROES, 0.1, 0.0));
   song->addInstruments(*fluid);
 #endif
+
+  // int melody_instrument = 10;
+  int melody_instrument = 45;
   
   auto & track = song->getMasterTrack().addChild();
-  track.addEffect(make_unique<Reverb>(44100, Reverb::STADIUM));
-  track.setVolume(0.5f);
-  
-  Pattern pattern(8);  
-  pattern.setNote(0, 0, 0, Note("C-4"));
-  pattern.setNote(0, 0, 1, Note("D#4"));
-  pattern.setNote(0, 0, 2, Note("G-4"));
+  track.addEffect(make_unique<Reverb>(sampleRate, Reverb::STADIUM));
+  // track.setVolume(0.5f);
+  track.setElevation(50);
+  track.setAzimuth(30);
+  track.setInstrumentId(melody_instrument);
 
-#if 0
-  pattern.setNote(0, 0, 0, Note("C-4"));
-  pattern.setNote(0, 1, 0, Note("D-4"));
-  pattern.setNote(0, 2, 0, Note("E-4"));
-  pattern.setNote(0, 3, 0, Note("F-4"));
-  pattern.setNote(0, 4, 0, Note("G-4"));
-  pattern.setNote(0, 5, 0, Note("A-4"));
-  pattern.setNote(0, 6, 0, Note("B-4"));
-  pattern.setNote(0, 7, 0, Note("C-5"));
-#endif
+  auto & track2 = song->getMasterTrack().addChild();
+  track2.addEffect(make_unique<Reverb>(sampleRate, Reverb::STADIUM));
+  // track2.setVolume(0.5f);
+  track2.setElevation(0);
+  track2.setAzimuth(0);
+  track2.setInstrumentId(melody_instrument);
   
-  song->addPattern(pattern);  
+  auto & track3 = song->getMasterTrack().addChild();
+  track3.addEffect(make_unique<Reverb>(sampleRate, Reverb::STADIUM));
+  // track3.setVolume(0.5f);
+  track3.setElevation(-40);
+  track3.setAzimuth(-30);
+  track3.setInstrumentId(melody_instrument);
 
-  Pattern pattern2(8, Tuning::TET31, 0);  
-  pattern2.setNote(0, 0, 0, Note(155)); // C-4
-  pattern2.setNote(0, 0, 1, Note(163)); // Eb4
-  pattern2.setNote(0, 0, 2, Note(173)); // G-4
+  auto & track4 = song->getMasterTrack().addChild();
+  track4.addEffect(make_unique<Reverb>(sampleRate, Reverb::STADIUM));
+  track4.setVolume(0.5f);
+  track4.setElevation(90);
+  track4.setAzimuth(0);
+  track4.setInstrumentId(33);
+
+  auto & track5 = song->getMasterTrack().addChild();
+  track5.addEffect(make_unique<Reverb>(sampleRate, Reverb::STADIUM));
+  // track5.setVolume(0.5f);
+  track5.setElevation(-20);
+  track5.setAzimuth(15);
+  track5.setInstrumentId(160);
+
+  auto & track6 = song->getMasterTrack().addChild();
+  track6.addEffect(make_unique<Reverb>(sampleRate, Reverb::STADIUM));
+  // track6.setVolume(0.3f);
+  track6.setElevation(90);
+  track6.setAzimuth(0);
+  track6.setInstrumentId(160);
+
+  auto & pattern0 = song->addPattern(4);
+  pattern0.setNote(3, 0, 0, Note("G-2", 0x50, Tuning::TET31));
+
+  auto & pattern = song->addPattern(64);  
+  pattern.setNote(0, 0, 0, Note("C-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 0, 1, Note("Eb4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 0, 2, Note("G-4", 0x3f, Tuning::TET31));
+
+  pattern.setNote(3, 0, 0, Note("C-3", 0x3f, Tuning::TET31));
+  pattern.setNote(4, 0, 0, Note("E-4", 0x3f, Tuning::TET31));
+
+  // pattern.setNote(2, 3, 0, Note("C♭4", 0x3f, Tuning::TET31));
+  pattern.setNote(1, 4, 0, Note("C-4", 0x3f, Tuning::TET31));
+  pattern.setNote(2, 6, 0, Note("D-4", 0x3f, Tuning::TET31));
+  pattern.setNote(3, 6, 0, Note("C-4", 0x3f, Tuning::TET31));
+  pattern.setNote(4, 8, 0, Note("E-4", 0x3f, Tuning::TET31));
+  pattern.setNote(2, 12, 0, Note("Eb4", 0x3f, Tuning::TET31));
+  pattern.setNote(3, 12, 0, Note("Eb3", 0x3f, Tuning::TET31));
+
+  pattern.setNote(0, 16, 0, Note("D-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 16, 1, Note("F-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 16, 2, Note("Ab4", 0x3f, Tuning::TET31));  
+  pattern.setNote(3, 16, 0, Note("D-3", 0x3f, Tuning::TET31));
+
+  pattern.setNote(4, 16, 0, Note("E-4", 0x3f, Tuning::TET31));
+
+  pattern.setNote(1, 20, 0, Note("D-4", 0x3f, Tuning::TET31));
+  pattern.setNote(2, 22, 0, Note("F-4", 0x3f, Tuning::TET31));
+  pattern.setNote(4, 24, 0, Note("E-4", 0x3f, Tuning::TET31));
+  pattern.setNote(2, 26, 0, Note("Eb4", 0x3f, Tuning::TET31));
+  pattern.setNote(1, 28, 0, Note("E𝄫4", 0x3f, Tuning::TET31));
+  pattern.setNote(3, 28, 0, Note("E𝄫3", 0x3f, Tuning::TET31));
+  // pattern.setNote(5, 28, 0, Note("E𝄫3", 0x3f, Tuning::TET31));
+
+  pattern.setNote(0, 30, 0, Note("C-4", 0x3f, Tuning::TET31));
+
+  pattern.setNote(0, 32, 0, Note("C-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 32, 1, Note("Eb4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 32, 2, Note("G-4", 0x3f, Tuning::TET31));
+  // pattern.setNote(0, 32, 2, Note("Bb4", 0x3f, Tuning::TET31));
+  // pattern.setNote(0, 32, 1, Note("A𝄫4", 0x3f, Tuning::TET31));
+  // pattern.setNote(0, 32, 1, Note("F-4", 0x3f, Tuning::TET31));
+  // pattern.setNote(0, 32, 2, Note("G-4", 0x3f, Tuning::TET31));
+  // pattern.setNote(0, 32, 2, Note("A♭4", 0x3f, Tuning::TET31)); // 4:3
   
-  song->addPattern(pattern2);
+  pattern.setNote(3, 32, 0, Note("Eb3", 0x3f, Tuning::TET31));
+  pattern.setNote(4, 32, 0, Note("E-4", 0x3f, Tuning::TET31));
+  // pattern.setNote(5, 32, 0, Note("Eb3", 0x3f, Tuning::TET31));
+
+  pattern.setNote(0, 36, 0, Note("Eb4", 0x3f, Tuning::TET31));
+  // pattern.setNote(1, 38, 0, Note("A𝄫4", 0x3f, Tuning::TET31));
+  pattern.setNote(1, 38, 0, Note("G-4", 0x3f, Tuning::TET31));
+  pattern.setNote(4, 40, 0, Note("E-4", 0x3f, Tuning::TET31));
+  pattern.setNote(2, 44, 0, Note("A♭4", 0x3f, Tuning::TET31));
+  // pattern.setNote(2, 44, 0, Note("G-4", 0x3f, Tuning::TET31));
+  // pattern.setNote(1, 48, 0, Note("A𝄫4", 0x3f, Tuning::TET31));
+  pattern.setNote(1, 48, 0, Note("G-4", 0x3f, Tuning::TET31));
+  pattern.setNote(4, 48, 0, Note("E-4", 0x3f, Tuning::TET31));
 
   current_song = song;    
 }
@@ -76,8 +204,10 @@ void
 Controller::loadDemo2() {
   auto song = make_shared<Song>(Tuning::TET31, 0); // Key of C
 
+  auto sampleRate = synth->getSampleRate();
+
 #if 1
-  auto fluid = make_unique<SoundFont>(44100, "FluidR3_GM.sf2");
+  auto fluid = make_unique<SoundFont>(sampleRate, "data/FluidR3_GM.sf2");
   auto instrument = fluid->createInstrument(2);
   // instrument->addEffect(make_unique<Distortion>(Distortion::ZEROES, 0.1, 0.0));  
   song->addInstrument(move(instrument));
@@ -94,15 +224,18 @@ Controller::loadDemo2() {
   oboe->setTranspose(24);
   // oboe->addEffect(make_unique<Distortion>(Distortion::CLIP, 0.5f));
   // oboe->addEffect(make_unique<Chorus>(5.0f, 0.0f));
-  // oboe->addEffect(make_unique<Reverb>(44100, Reverb::DEFAULT)); // LARGEROOM1));
+  // oboe->addEffect(make_unique<Reverb>(sampleRate, Reverb::DEFAULT)); // LARGEROOM1));
   // oboe->setFilter(100, 30);
   song->addInstrument(move(oboe));  
 #endif
 
   auto & track = song->getMasterTrack().addChild();
-  track.addEffect(make_unique<Chorus>(5.0f, 0.0f));
+  // track.addEffect(make_unique<Chorus>(5.0f, 0.0f));
   // track.addEffect(make_unique<Filter>(63 / 255.0f, 128 / 63.0f, false));
-  // track.addEffect(make_unique<Reverb>(44100, Reverb::HALVES));
+  track.addEffect(make_unique<Reverb>(sampleRate, Reverb::DARK));
+  track.setElevation(-30);
+  track.setAzimuth(15);
+  track.setVolume(0.5f);
 
   Pattern pattern(256);
 
@@ -181,18 +314,12 @@ Controller::loadDemo2() {
   pattern.setNote(0, 86, 0, Note(181)); // Bb4  1+4:5 ?
   pattern.setNote(0, 87, 0, Note(186)); // C-5  
 
-  pattern.setAnnotation(90, "Harmonic minor scale");
-  pattern.setNote(0, 90, 0, Note(155)); // C-4  10:10		0
-  pattern.setNote(0, 91, 0, Note(160)); // D-4  9:8		5
-  pattern.setNote(0, 92, 0, Note(163)); // Eb4  6:5		3
-  pattern.setNote(0, 93, 0, Note(168)); // F-4	4:3		5
-  pattern.setNote(0, 94, 0, Note(173)); // G-4	1+1:2		5
-  pattern.setNote(0, 95, 0, Note(178)); // A-4  1+2:3		5
-  // pattern.setNote(0, 95, 0, Note(180)); // A#4  1+3:4 ?		2
-  pattern.setNote(0, 96, 0, Note(181)); // Bb4  1+4:5		3
-  // pattern.setNote(0, 88, 0, Note(182)); // A𝄪4	1+5:6 ?		2
-  // pattern.setNote(0, 96, 0, Note(183)); // B-4	1+7:8 ?		5
-  pattern.setNote(0, 97, 0, Note(186)); // C-5  		5
+  pattern.setAnnotation(90, "Sad scale");
+  pattern.setNote(0, 90, 0, Note("C-4", 0x3f, Tuning::TET31)); // C-4
+  pattern.setNote(0, 91, 0, Note("E𝄫4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 92, 0, Note("D#4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 93, 0, Note("F-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 97, 0, Note("C-5", 0x3f, Tuning::TET31));
 
   #if 0
   pattern.setAnnotation(100, "7-limit scale");
@@ -695,7 +822,7 @@ Controller::loadDemo() {
     Track track;
     track.setInstrumentId(*song_data++);
     track.setDetune((*song_data++ - 127) / 512.0);
-    track.setPan(*song_data++ / 255.0f);
+    track.setAzimuth(*song_data++ / 360.0f - 180.0);
     track.setVolume(*song_data++ / 127.0f);
     song->getMasterTrack().addChild(track);
     
@@ -748,13 +875,15 @@ void
 Controller::createNewSong() {
   auto song = make_shared<Song>();
 
+  auto sampleRate = synth->getSampleRate();
+
   auto oboe = make_unique<FMInstrument>(0.7, 1, 3, 0.1f);
   oboe->setName("oboe");
   oboe->setADSR(2, 15, 0.5f, 10);
   oboe->setTranspose(24);
   // oboe->addEffect(make_unique<Distortion>(Distortion::CLIP, 0.5f));
   // oboe->addEffect(make_unique<Chorus>(5.0f, 0.0f));
-  // oboe->addEffect(make_unique<Reverb>(44100, Reverb::DEFAULT)); // LARGEROOM1));
+  // oboe->addEffect(make_unique<Reverb>(sampleRate, Reverb::DEFAULT)); // LARGEROOM1));
   // oboe->setFilter(100, 30);
   song->addInstrument(move(oboe));
 
