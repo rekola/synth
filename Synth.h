@@ -22,6 +22,10 @@ class Synth {
     float tnote = (float)60 / song.getTempo() * NOTEDOMAIN * 2;
     return (size_t)(tnote * samplerate);
   }
+
+  size_t getTickInterval(const Song & song) const {
+    return getSampleInterval(song) / 12;
+  }
       
   float gettime(const Song & song) const {
     return (float)(absolute_pos * getSampleInterval(song) + samplepos) / samplerate;

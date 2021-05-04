@@ -27,9 +27,13 @@ Synth::play(Song & song, size_t frames) {
 
   hrft.reset();
 
+#if 0
   size_t tick_frames = getTickInterval(song);
   if (tick_frames > frames) tick_frames = frames;
-  
+#endif
+
+  auto sinterval = getSampleInterval(song);
+
   if (is_playing) {
     for (size_t i = 0; i < frames; i++) {
       if (samplepos == 0) {
@@ -61,7 +65,8 @@ Synth::play(Song & song, size_t frames) {
     SampleData data(num_channels, frames);
     auto buffer = data.data();
     
-    for (size_t i = 0; i < frames; i += tick_frames) {
+    for (size_t i = 0; i < frames; ) {     
+      size_t render_size = frames - i;
       auto & pending = track.getPendingNotes();
       if (!pending.empty()) {
 	auto it = pending.begin();
@@ -76,19 +81,19 @@ Synth::play(Song & song, size_t frames) {
 	      track.playNote(frequency, note.getVelocityAsFloat(), instrument, id);
 	    }
 	  }
-	  pending.erase(it);
+	  it = pending.erase(it);
 	}
-      }
-
-      size_t actual_frames = tick_frames;
-      if (i + actual_frames > frames) actual_frames = frames - i;
+	if (it != pending.end() && it->first - i < render_size) render_size = it->first - i;
+      }     
       
       for (auto & voice : track.getVoices()) {
 	if (voice->isPlaying()) {
-	  voice->render(buffer, actual_frames, i);
+	  voice->render(buffer, render_size, i);
 	  // if (solo_instrument != -1 && pattern.getInstrumentId() != solo_instrument) ss = 0;	  
 	}
       }
+
+      i += render_size;
     }
 
     auto remaining = track.getPendingNotes();
