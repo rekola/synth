@@ -7,7 +7,7 @@ class Tuner {
  public:
   Tuner() { }
 
-  float getFrequency(Tuning tuning, int key, const Note & note, int transpose) const {
+  float getFrequency(Tuning tuning, int key, const Note & note) const {
     if (note.isOff() || !note.isDefined()) {
       return 0.0f;
     } else if (key >= 0) { // apply just tuning if key is defined
