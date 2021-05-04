@@ -261,7 +261,7 @@ PatternEditor::offerInput(const UIInput & input) {
 	  Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
 	  int key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
 	  float frequency = tuner.getFrequency(tuning, key, note, instrument.getTranspose());
-	  track.playNote(frequency, note.getVelocity(), instrument, note.getPanning(tuning), note_column);
+	  track.playNote(frequency, note.getVelocity() / 127.0f, instrument, note_column);
 	}
       }
       
