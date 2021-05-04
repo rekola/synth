@@ -10,6 +10,7 @@ class Envelope {
       
     }
 
+  float getDelay() const { return delay; }
   float getAttack() const { return attack; }
   float getDecay() const { return decay; }
   float getSustain() const { return sustain; }
