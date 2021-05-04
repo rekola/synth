@@ -26,6 +26,9 @@ Synth::play(Song & song, size_t frames) {
   Tuner tuner;
 
   hrft.reset();
+
+  size_t tick_frames = getTickInterval(song);
+  if (tick_frames > frames) tick_frames = frames;
   
   if (is_playing) {
     for (size_t i = 0; i < frames; i++) {
@@ -53,11 +56,12 @@ Synth::play(Song & song, size_t frames) {
     auto & instrument = song.getInstrument(track.getInstrumentId());
 
     size_t num_channels = instrument.getNumChannels();
+    assert(num_channels == 1);
     
     SampleData data(num_channels, frames);
     auto buffer = data.data();
     
-    for (size_t i = 0; i < frames; i++) {
+    for (size_t i = 0; i < frames; i += tick_frames) {
       auto & pending = track.getPendingNotes();
       if (!pending.empty()) {
 	auto it = pending.begin();
@@ -69,35 +73,21 @@ Synth::play(Song & song, size_t frames) {
 	      auto & pattern = song.getPattern(getPatternPosition());
 	      int key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
 	      float frequency = tuner.getFrequency(tuning, key, note, instrument.getTranspose());
-	      track.playNote(frequency, note.getVelocityAsFloat(), instrument, note.getPanning(tuning), id);
+	      track.playNote(frequency, note.getVelocityAsFloat(), instrument, id);
 	    }
 	  }
 	  pending.erase(it);
 	}
       }
+
+      size_t actual_frames = tick_frames;
+      if (i + actual_frames > frames) actual_frames = frames - i;
       
-      float track_data[2] = { 0, 0 };
       for (auto & voice : track.getVoices()) {
 	if (voice->isPlaying()) {
-	  float s[2];
-	  voice->render(s, 1);
-	  track_data[0] += s[0];
-	  track_data[1] += s[1];
+	  voice->render(buffer, actual_frames, i);
 	  // if (solo_instrument != -1 && pattern.getInstrumentId() != solo_instrument) ss = 0;	  
 	}
-      }
-
-#if 0
-      if (track.hasSample()) {
-	auto & sample = track.getSample();
-      }
-#endif
-
-      if (num_channels == 1) {
-	buffer[i] = track_data[0] * track.getVolume();		
-      } else {
-	buffer[2 * i + 0] = track_data[0] * track.getVolume();
-	buffer[2 * i + 1] = track_data[1] * track.getVolume();       	
       }
     }
 
@@ -105,16 +95,21 @@ Synth::play(Song & song, size_t frames) {
     track.clearPendingNotes();
 
     for (auto pd : remaining) {
-      assert(pd.first >= frames);
+      size_t new_pos;
+      if (pd.first >= frames) {
+	new_pos = pd.first - frames;
+      } else {
+	new_pos = 0;
+      }
       for (auto & [ id, tuning, note ] : pd.second) {       
-	track.addPendingNote(pd.first - frames, id, tuning, note);
+	track.addPendingNote(new_pos, id, tuning, note);
       }
     }
     
     instrument.applyEffects(data);
     track.applyEffects(data);
 
-    hrft.accumulate(buffer, frames, track.getDistance(), track.getAzimuth(), track.getElevation());
+    hrft.accumulate(buffer, frames, track.getVolume(), track.getDistance(), track.getAzimuth(), track.getElevation());
   }
 
   hrft.encode(out, frames, song.getMasterVolume());

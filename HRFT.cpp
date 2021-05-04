@@ -48,7 +48,7 @@ HRFT::reset() {
 }
 
 void
-HRFT::accumulate(const float * input, size_t frames, float distance, float azimuth, float elevation) {
+HRFT::accumulate(const float * input, size_t frames, float volume, float distance, float azimuth, float elevation) {
   if (!is_initialized) initialize(frames);
 
   PolarPoint position;
@@ -64,7 +64,7 @@ HRFT::accumulate(const float * input, size_t frames, float distance, float azimu
   // memset(left, 0, frames * sizeof(float));
   // memset(right, 0, frames * sizeof(float));
   
-  myEncoder->ProcessAccumul((float *)input, frames, myBFormat.get());
+  myEncoder->ProcessAccumul((float *)input, frames, myBFormat.get(), 0, volume);
 }
 
 void
