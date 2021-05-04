@@ -53,17 +53,15 @@ class Track {
 	if (voice->isPlaying()) {
 	  voice->stopNote();
 	}
-	return;
       }
     }
   }
   
-  void playNote(float frequency, float velocity, const Instrument & instrument, float note_pan, int identifier) {
+  void playNote(float frequency, float velocity, const Instrument & instrument, int identifier) {
     bool voice_found = false;
     for (auto & voice : voices) {
       if (!voice_found && !voice->isPlaying()) {
 	voice->setIdentifier(identifier);
-	voice->setPan(note_pan);
 	voice->playNote(frequency, velocity, detune);
 	voice_found = true;
       } else if (identifier == voice->getIdentifier() && voice->isPlaying()) {
@@ -73,7 +71,6 @@ class Track {
     if (!voice_found) {
       voices.push_back(instrument.createVoice(identifier));
       voices.back()->playNote(frequency, velocity, detune);
-      voices.back()->setPan(note_pan);
     }
   }
   
