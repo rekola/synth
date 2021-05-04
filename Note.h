@@ -80,7 +80,7 @@ class Note {
 
   short getValue() const { return value; }
   short getVelocity() const { return velocity; }
-  float getVelocityAsFloat() const { return (float)velocity / 0x3f; }
+  float getVelocityAsFloat() const { return velocity / 127.0f; }
   bool isDefined() const { return value >= 0; }
   bool isOff() const { return value == 0 || velocity == 0; }
 
