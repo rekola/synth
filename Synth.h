@@ -6,6 +6,7 @@
 #define NOTEDOMAIN ((float)1/4)
 
 #include <memory>
+#include "HRFT.h"
 
 class SampleData;
 
@@ -84,6 +85,8 @@ private:
 
   size_t samplepos = 0, track_pos = 0, pattern_pos = 0, absolute_pos = 0;
   size_t samplerate;
+
+  HRFT hrft;
 };
 
 #endif

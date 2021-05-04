@@ -24,6 +24,8 @@ Synth::play(Song & song, size_t frames) {
   auto & tracks = mastertrack.getChildren();
 
   Tuner tuner;
+
+  hrft.reset();
   
   if (is_playing) {
     for (size_t i = 0; i < frames; i++) {
@@ -92,24 +94,10 @@ Synth::play(Song & song, size_t frames) {
 #endif
 
       if (num_channels == 1) {
-	float ss = track_data[0] * track.getVolume();
-	
-	if (ss > 1.0) ss = 1.0;
-	else if (ss < -1.0) ss = -1.0;
-
-	buffer[i] = ss;
+	buffer[i] = track_data[0] * track.getVolume();		
       } else {
-	float left = track_data[0] * track.getVolume();
-	float right = track_data[1] * track.getVolume();
-
-	if (left > 1.0) left = 1.0;
-	else if (left < -1.0) left = -1.0;
-
-	if (right > 1.0) right = 1.0;
-	else if (right < -1.0) right = -1.0;
-	
-	buffer[2 * i + 0] = left;
-	buffer[2 * i + 1] = right;
+	buffer[2 * i + 0] = track_data[0] * track.getVolume();
+	buffer[2 * i + 1] = track_data[1] * track.getVolume();       	
       }
     }
 
@@ -126,42 +114,10 @@ Synth::play(Song & song, size_t frames) {
     instrument.applyEffects(data);
     track.applyEffects(data);
 
-#if 1
-    track.getHRFT().filterAndMix(buffer, out, frames);
-#else
-    float pan = track.getPan();
-    
-    if (num_channels == 1) {
-      for (size_t i = 0; i < frames; i++) {
-	float ss = buffer[i];
-	
-	out[2 * i + 0] += ss * sqrtf(1.0 - pan);
-	out[2 * i + 1] += ss * sqrtf(pan);
-      }
-    } else {
-      float left_f = cos(pan * M_PI / 2), right_f = sin(pan * M_PI / 2);
-      for (size_t i = 0; i < frames; i++) {
-	float left = buffer[2 * i + 0], right = buffer[2 * i + 1];
-
-	out[2 * i + 0] += left_f * left;
-	out[2 * i + 1] += right_f * right; 
-      }
-    }
-#endif
+    hrft.accumulate(buffer, frames, track.getDistance(), track.getAzimuth(), track.getElevation());
   }
 
-  for (size_t i = 0; i < frames; i++) {
-    auto & left = out[2 * i + 0];
-    auto & right = out[2 * i + 1];
-    
-    left *= song.getMasterVolume();
-    right *= song.getMasterVolume();
-    
-    if (left > 1.0) left = 1.0;
-    else if (left < -1.0) left = -1.0;
-    if (right > 1.0) right = 1.0;
-    else if (right < -1.0) right = -1.0;
-  }
+  hrft.encode(out, frames, song.getMasterVolume());
 
   return master;
 }
