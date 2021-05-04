@@ -87,10 +87,6 @@ void tsf_load(SoundFontFile * f, struct tsf_stream* stream);
 // Returns the number of presets in the loaded SoundFont
 // int tsf_get_presetcount(const SoundFontFile* f);
 
-// Setup the parameters for the voice render methods
-//   samplerate: the number of samples per second (output frequency)
-//   global_gain_db: volume gain in decibels (>0 means higher, <0 means lower)
-
 // Higher level channel based functions, set up channel parameters
 //   channel: channel number
 //   preset_index: preset index >= 0 and < tsf_get_presetcount()
@@ -165,8 +161,6 @@ static void tsf_hydra_read_shdr(struct tsf_hydra_shdr* i, struct tsf_stream* str
 #undef TSFR
 
 static double tsf_timecents2Secsd(double timecents) { return pow(2.0, timecents / 1200.0); }
-static float tsf_decibelsToGain(float db) { return (db > -100.f ? powf(10.0f, db * 0.05f) : 0); }
-static float tsf_gainToDecibels(float gain) { return (gain <= .00001f ? -100.f : (float)(20.0 * log10(gain))); }
 
 static bool tsf_riffchunk_read(struct tsf_riffchunk* parent, struct tsf_riffchunk* chunk, struct tsf_stream* stream) {
   if (parent && sizeof(FourCC) + sizeof(tsf_u32) > parent->size) return false;
@@ -387,7 +381,7 @@ static void tsf_region_envtosecs(Envelope * p, bool sustainIsGain) {
   if (!p->keynumToDecay) p->decay = (p->decay < -11950.0f ? 0.0f : tsf_timecents2Secsf(p->decay));
   
   if (p->sustain < 0.0f) p->sustain = 0.0f;
-  else if (sustainIsGain) p->sustain = tsf_decibelsToGain(-p->sustain / 10.0f);
+  else if (sustainIsGain) p->sustain = InstrumentVoice::decibelsToGain(-p->sustain / 10.0f);
   else p->sustain = 1.0f - (p->sustain / 1000.0f);
 }
 
@@ -422,7 +416,6 @@ public:
     loadFile(filename);
     
     outSampleRate = samplerate;
-    globalGainDB = 0.0f; // the desired volume where 1.0 is 100%
   }
   ~SoundFontFile() {
     struct tsf_preset *preset, *presetEnd;
@@ -431,7 +424,6 @@ public:
     }
     free(presets);
     free(fontSamples);
-    // free(outputSamples);
   }
 
   // Directly load a SoundFont from a .sf2 file path
@@ -476,13 +468,11 @@ public:
   
   struct tsf_preset* presets;
   float* fontSamples;
-  // float* outputSamples;
   
   int presetNum;
   int outputSampleSize;
 
   float outSampleRate;
-  float globalGainDB;
 };
 
 static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsigned int fontSampleCount) {
@@ -675,21 +665,17 @@ public:
     pitchInputTimecents = adjustedPitch * 100.0;
     pitchOutputFactor = voiceRegion->sample_rate / (tsf_timecents2Secsd(voiceRegion->pitch_keycenter * 100.0) * outSampleRate);
   }
-
-  void setVolume(float volume) {
-    noteGainDB = tsf_gainToDecibels(volume);
-  }
     
   int playingPreset;
   double apparentPlayingKey;
   struct tsf_region * voiceRegion;
   double pitchInputTimecents, pitchOutputFactor;
   double sourceSamplePosition;
-  float noteGainDB;
   unsigned int loopStart, loopEnd;
   EnvelopeGenerator ampenv, modenv;
   LowpassFilter lowpass;
   LFO modlfo, viblfo;
+  // float noteGainDB;
 
 private:
   shared_ptr<SoundFontFile> sf;
@@ -732,8 +718,12 @@ SoundFontVoice::render(float* outputBuffer, size_t numSamples) {
   if (dynamicPitchRatio) pitchRatio = 0, tmpModLfoToPitch = (float)region->modLfoToPitch, tmpVibLfoToPitch = (float)region->vibLfoToPitch, tmpModEnvToPitch = (float)region->modEnvToPitch;
   else pitchRatio = tsf_timecents2Secsd(pitchInputTimecents) * pitchOutputFactor, tmpModLfoToPitch = 0, tmpVibLfoToPitch = 0, tmpModEnvToPitch = 0;
   
-  if (dynamicGain) tmpModLfoToVolume = (float)region->modLfoToVolume * 0.1f;
-  else noteGain = tsf_decibelsToGain(noteGainDB), tmpModLfoToVolume = 0;
+  if (dynamicGain) {
+    tmpModLfoToVolume = (float)region->modLfoToVolume * 0.1f;
+  } else {
+    noteGain = decibelsToGain(getGainDB());
+    tmpModLfoToVolume = 0;
+  }
   
   while (numSamples) {
     int blockSamples = (numSamples > TSF_RENDER_EFFECTSAMPLEBLOCK ? TSF_RENDER_EFFECTSAMPLEBLOCK : numSamples);
@@ -751,7 +741,7 @@ SoundFontVoice::render(float* outputBuffer, size_t numSamples) {
     }
 
     if (dynamicGain) {
-      noteGain = tsf_decibelsToGain(noteGainDB + (modlfo.level * tmpModLfoToVolume));
+      noteGain = decibelsToGain(getGainDB() + (modlfo.level * tmpModLfoToVolume));
     }
 
     float gainMono = noteGain * ampenv.level;
@@ -868,131 +858,6 @@ void tsf_load(SoundFontFile* res, struct tsf_stream* stream) {
 }
 
 #if 0
-// Start playing a note
-//   preset_index: preset index >= 0 and < tsf_get_presetcount()
-//   key: note value between 0 and 127 (60 being middle C)
-//   vel: velocity as a float between 0.0 (equal to note off) and 1.0 (full)
-//   bank: instrument bank number (alternative to preset_index)
-//   preset_number: preset number (alternative to preset_index)
-//   (bank_note_on returns 0 if preset does not exist, otherwise 1)
-// void tsf_note_on(SoundFontFile* f, int preset_index, int key, float vel);
-
-void tsf_note_on(SoundFontFile* f, int preset_index, int key, float vel)
-{
-	short midiVelocity = (short)(vel * 127);
-	int voicePlayIndex;
-	struct tsf_region *region, *regionEnd;
-
-	if (preset_index < 0 || preset_index >= f->presetNum) return;
-	if (vel <= 0.0f) { tsf_note_off(f, preset_index, key); return; }
-
-	// Play all matching regions.
-	voicePlayIndex = f->voicePlayIndex++;
-	for (region = f->presets[preset_index].regions, regionEnd = region + f->presets[preset_index].regionNum; region != regionEnd; region++)
-	{
-		struct tsf_voice *voice, *v, *vEnd; bool doLoop;
-		float lowpassFilterQDB, lowpassFc;
-		if (key < region->lokey || key > region->hikey || midiVelocity < region->lovel || midiVelocity > region->hivel) continue;
-
-		voice = NULL, v = f->voices, vEnd = v + f->voiceNum;
-		if (region->group)
-		{
-			for (; v != vEnd; v++)
-				if (v->playingPreset == preset_index && v->voiceRegion->group == region->group) tsf_voice_endquick(f, v);
-				else if (v->playingPreset == -1 && !voice) voice = v;
-		}
-		else for (; v != vEnd; v++) if (v->playingPreset == -1) { voice = v; break; }
-
-		if (!voice)
-		{
-			if (f->maxVoiceNum)
-			{
-				// voices have been pre-allocated and limited to a maximum, unable to start playing this voice
-				continue;
-			}
-			f->voiceNum += 4;
-			f->voices = (struct tsf_voice*)realloc(f->voices, f->voiceNum * sizeof(struct tsf_voice));
-			voice = &f->voices[f->voiceNum - 4];
-			voice[1].playingPreset = voice[2].playingPreset = voice[3].playingPreset = -1;
-		}
-
-		voice->region = region;
-		voice->playingPreset = preset_index;
-		voice->playingKey = key;
-		voice->playIndex = voicePlayIndex;
-		voice->noteGainDB = f->globalGainDB - region->attenuation - tsf_gainToDecibels(1.0f / vel);
-
-		if (f->channels) {
-		  f->channels->setupVoice(f, voice);
-		} else{
-		  voice->calcPitchRatio(0, f->outSampleRate);
-		}
-
-		// Offset/end.
-		voice->sourceSamplePosition = region->offset;
-
-		// Loop.
-		doLoop = (region->loop_mode != TSF_LOOPMODE_NONE && region->loop_start < region->loop_end);
-		voice->loopStart = (doLoop ? region->loop_start : 0);
-		voice->loopEnd = (doLoop ? region->loop_end : 0);
-
-		// Setup envelopes.
-		tsf_voice_envelope_setup(&voice->ampenv, &region->ampenv, key, midiVelocity, true, f->outSampleRate);
-		tsf_voice_envelope_setup(&voice->modenv, &region->modenv, key, midiVelocity, false, f->outSampleRate);
-
-		// Setup lowpass filter.
-		lowpassFc = (region->initialFilterFc <= 13500 ? tsf_cents2Hertz((float)region->initialFilterFc) / f->outSampleRate : 1.0f);
-		lowpassFilterQDB = region->initialFilterQ / 10.0f;
-		voice->lowpass.QInv = 1.0 / pow(10.0, (lowpassFilterQDB / 20.0));
-		voice->lowpass.z1 = voice->lowpass.z2 = 0;
-		voice->lowpass.active = (lowpassFc < 0.499f);
-		if (voice->lowpass.active) tsf_voice_lowpass_setup(&voice->lowpass, lowpassFc);
-
-		// Setup LFO filters.
-		voice->modlfo = LFO(region->delayModLFO, region->freqModLFO, f->outSampleRate);
-		voice->viblfo = LFO(region->delayVibLFO, region->freqVibLFO, f->outSampleRate);
-	}
-}
-#endif
-
-#if 0
-
-// Stop playing a note
-//   (bank_note_off returns 0 if preset does not exist, otherwise 1)
-
-int tsf_bank_note_on(SoundFontFile* f, int bank, int preset_number, int key, float vel)
-{
-	int preset_index = tsf_get_presetindex(f, bank, preset_number);
-	if (preset_index == -1) return 0;
-	tsf_note_on(f, preset_index, key, vel);
-	return 1;
-}
-
-#endif
-
-#if 0
-
-void tsf_note_off(SoundFontFile* f, int preset_index, int key) {
-  struct tsf_voice *v = f->voices, *vEnd = v + f->voiceNum, *vMatchFirst = NULL, *vMatchLast = NULL;
-  for (; v != vEnd; v++) {
-    // Find the first and last entry in the voices list with matching preset, key and look up the smallest play index
-    
-    if (v->playingPreset != preset_index || v->playingKey != key || v->ampenv.segment >= TSF_SEGMENT_RELEASE) continue;
-    else if (!vMatchFirst || v->playIndex < vMatchFirst->playIndex) vMatchFirst = vMatchLast = v;
-    else if (v->playIndex == vMatchFirst->playIndex) vMatchLast = v;
-  }
-  if (!vMatchFirst) return;
-  for (v = vMatchFirst; v <= vMatchLast; v++) {
-    //Stop all voices with matching preset, key and the smallest play index which was enumerated above
-    if (v != vMatchFirst && v != vMatchLast &&
-	(v->playIndex != vMatchFirst->playIndex || v->playingPreset != preset_index || v->playingKey != key || v->ampenv.segment >= TSF_SEGMENT_RELEASE)) continue;
-    tsf_voice_end(f, v);
-  }
-}
-
-#endif
-
-#if 0
 static void tsf_channel_setup_voice(SoundFontFile* f, SoundFontVoice * v) {
   struct tsf_channel* c = &f->channels->channels[f->channels->activeChannel];
   v->playingChannel = f->channels->activeChannel;
@@ -1041,7 +906,7 @@ SoundFont::openFile() {
 
 void
 SoundFontVoice::playNote(float frequency, float velocity, float detune) {
-  if (velocity == 0.0f) {
+  if (velocity <= 0.0f) {
     stopNote();    
     return;
   }
@@ -1055,7 +920,8 @@ SoundFontVoice::playNote(float frequency, float velocity, float detune) {
   double apparent_key = log2(frequency / 440) * 12 + 69;
   int midiKey = int(apparent_key);
   short midiVelocity = (short)(velocity * 127);
-
+  if (midiVelocity > 127) midiVelocity = 127;
+  
   // Play all matching regions.
   struct tsf_region *region, *regionEnd;
 
@@ -1073,8 +939,7 @@ SoundFontVoice::playNote(float frequency, float velocity, float detune) {
     playingPreset = preset_index;
     apparentPlayingKey = apparent_key;
     // voice->playingFrequency = frequency;
-    noteGainDB = f->globalGainDB - region->attenuation - tsf_gainToDecibels(1.0f / velocity);
-    
+    setGainDB(- region->attenuation - gainToDecibels(1.0f / velocity));
     calcPitchRatio(0, f->outSampleRate);
     
     // Offset/end.

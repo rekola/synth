@@ -28,18 +28,22 @@ static inline float spow(float a, float p) {
 
 class FMInstrumentVoice : public InstrumentVoice {
 public:
-  FMInstrumentVoice(int _identifier, float _modulation, int _harmonic, int _subharmonic)
-    : InstrumentVoice(_identifier),
+  FMInstrumentVoice(int _identifier, const Envelope & amp_envelope, float _modulation, int _harmonic, int _subharmonic)
+    : InstrumentVoice(_identifier, amp_envelope),
       modulation(_modulation), harmonic(_harmonic), subharmonic(_subharmonic)
   { }
 
   void render(float * buffer, size_t frames) override {
+    float gain = decibelsToGain(getGainDB());
+      
     for (size_t i = 0; i < frames; i++) {
+      float adsrvol = updateADSR();
+
       // double sound = GAIN * envelope(&note_active, gate, &env_level, env_time, attack, decay, sustain, release)
       //   * velocity * sin(phi + modulation * sin(phi_mod));
       // env_time += 1.0 / 44100.0;
 
-      float phi = getWavePosition() * 2 * M_PI / 22050.0f;
+      float phi = getWavePosition() * 2 * M_PI / 44100.0f;
       float s = sinf(phi + modulation * sinf(phi * harmonic / subharmonic));
       // return s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s;
       // return s;
@@ -60,7 +64,7 @@ public:
 #endif
       // spow(s, 16);
       
-      buffer[i] = s * getVelocity() * 0.5f;
+      buffer[i] = s * gain * 0.5f * adsrvol;
     }
   }
 
@@ -73,5 +77,5 @@ private:
 
 std::shared_ptr<InstrumentVoice>
 FMInstrument::createVoice(int _identifier) const {
-  return std::make_shared<FMInstrumentVoice>(_identifier, modulation, harmonic, subharmonic);
+  return std::make_shared<FMInstrumentVoice>(_identifier, getAmpEnvelope(), modulation, harmonic, subharmonic);
 }

@@ -19,10 +19,14 @@ BasicInstrument::initialize() {
 
 class BasicInstrumentVoice : public InstrumentVoice {
 public:
-  BasicInstrumentVoice(int _identifier, WaveformType _type) : InstrumentVoice(_identifier), type(_type) { }
-  
+  BasicInstrumentVoice(int _identifier, const Envelope & amp_envelope, WaveformType _type) : InstrumentVoice(_identifier, amp_envelope), type(_type) { }
+
   void render(float * buffer, size_t frames) override {
+    float gain = decibelsToGain(getGainDB());
+
     for (size_t k = 0; k < frames; k++) {
+      float adsrvol = updateADSR();
+
       float i = 2 * M_PI * getWavePosition() / 44100.0f;
       stepForward();
 
@@ -44,7 +48,7 @@ public:
 	s = 0.0f;
       }
 
-      buffer[k] = s * getVelocity();
+      buffer[k] = s * gain * adsrvol;
     }
   }
   
@@ -54,5 +58,5 @@ private:
 
 std::shared_ptr<InstrumentVoice>
 BasicInstrument::createVoice(int _identifier) const {
-  return std::make_shared<BasicInstrumentVoice>(_identifier, type);
+  return std::make_shared<BasicInstrumentVoice>(_identifier, getAmpEnvelope(), type);
 }
