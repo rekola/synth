@@ -2,11 +2,11 @@
 #define _SYNTH_H_
 
 #include "Song.h"
+#include "HRFT.h"
 
 #define NOTEDOMAIN ((float)1/4)
 
 #include <memory>
-#include "HRFT.h"
 
 class SampleData;
 
@@ -83,6 +83,8 @@ class Synth {
   void moveBackwards(const Song & song, size_t rows) {
     for (size_t i = 0; i < rows; i++) moveBackwards(song);
   }
+
+  Mixer & getMixer() { return hrft; }
 
 private:
   bool is_playing = false;

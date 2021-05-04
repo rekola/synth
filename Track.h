@@ -7,7 +7,6 @@
 #include "SampleData.h"
 #include "Effect.h"
 
-#include <map>
 #include <vector>
 #include <memory>
 
@@ -41,28 +40,20 @@ class Track {
 
   std::vector<std::shared_ptr<InstrumentVoice> > & getVoices() { return voices; }
   
-  void addPendingNote(size_t frame, short id, Tuning tuning, const Note & note) {
-    pending_notes[frame].push_back(std::tuple(id, tuning, note));
-  }
-  void clearPendingNotes() { pending_notes.clear(); }
-  std::map<unsigned int, std::vector<std::tuple<int, Tuning, Note> > > & getPendingNotes() { return pending_notes; }
-
   void stopNote(int identifier) {
     for (auto & voice : voices) {
-      if (identifier == voice->getIdentifier()) {
-	if (voice->isPlaying()) {
-	  voice->stopNote();
-	}
+      if (identifier == voice->getIdentifier() && voice->isPlaying()) {
+	voice->stopNote();
       }
     }
   }
   
-  void playNote(float frequency, float velocity, const Instrument & instrument, int identifier) {
+  void playNote(float frequency, float velocity, float delay, const Instrument & instrument, int identifier) {
     bool voice_found = false;
     for (auto & voice : voices) {
       if (!voice_found && !voice->isPlaying()) {
 	voice->setIdentifier(identifier);
-	voice->playNote(frequency, velocity, detune);
+	voice->playNote(frequency, velocity, delay, detune);
 	voice_found = true;
       } else if (identifier == voice->getIdentifier() && voice->isPlaying()) {
 	voice->stopNote();
@@ -70,7 +61,7 @@ class Track {
     }
     if (!voice_found) {
       voices.push_back(instrument.createVoice(identifier));
-      voices.back()->playNote(frequency, velocity, detune);
+      voices.back()->playNote(frequency, velocity, delay, detune);
     }
   }
   
@@ -128,8 +119,6 @@ private:
   float elevation = 0, azimuth = 0, distance = 0;
 
   std::vector<std::shared_ptr<Effect> > effects;
-
-  std::map<unsigned int, std::vector<std::tuple<int, Tuning, Note> > > pending_notes;
 };
 
 #endif
