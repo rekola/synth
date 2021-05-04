@@ -19,9 +19,6 @@ class Track {
 
   Type getType() { return type; }
   
-  float getPan() const { return pan; }
-  void setPan(float _pan) { pan = _pan; }
-
   float getVolume() const { return volume; }
   void setVolume(float _volume) { volume = _volume; }
 
@@ -126,7 +123,6 @@ private:
   int instrument_id = 0;
   std::vector<std::shared_ptr<InstrumentVoice> > voices;
   bool solo = false, mute = false;
-  float pan = 0.5f;
   float volume = 0.75f;
   float detune = 0;
   std::string name;
