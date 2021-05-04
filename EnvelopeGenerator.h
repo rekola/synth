@@ -8,16 +8,16 @@ static inline float tsf_timecents2Secsf(float timecents) { return powf(2.0f, tim
 // Grace release time for quick voice off (avoid clicking noise)
 #define TSF_FASTRELEASETIME 0.01f
 
-enum { TSF_SEGMENT_NONE, TSF_SEGMENT_DELAY, TSF_SEGMENT_ATTACK, TSF_SEGMENT_HOLD, TSF_SEGMENT_DECAY, TSF_SEGMENT_SUSTAIN, TSF_SEGMENT_RELEASE, TSF_SEGMENT_DONE };
-
 class EnvelopeGenerator {
  public:
+  enum Segment { NONE, DELAY, ATTACK, HOLD, DECAY, SUSTAIN, RELEASE, DONE };
+  
   EnvelopeGenerator()
     : level(0.0f), slope(0.0f), samplesUntilNextSegment(0), segment(0), midiVelocity(0), segmentIsExponential(false), isAmpEnv(false), outSampleRate(0) { }
 
-  EnvelopeGenerator(const Envelope & _parameters, int midiNoteNumber, short _midiVelocity, bool _isAmpEnv, float _outSampleRate)
-    : midiVelocity(_midiVelocity),
-      parameters(_parameters),
+  EnvelopeGenerator(const Envelope & _parameters, int midiNoteNumber, short _midiVelocity, bool _isAmpEnv, float _outSampleRate, float extra_delay = 0.0f)
+    : parameters(_parameters),
+      midiVelocity(_midiVelocity),
       isAmpEnv(_isAmpEnv),
       outSampleRate(_outSampleRate) {
     
@@ -30,49 +30,51 @@ class EnvelopeGenerator {
       parameters.decay = (parameters.decay < -10000.0f ? 0.0f : tsf_timecents2Secsf(parameters.decay));
     }
     
-    nextSegment(TSF_SEGMENT_NONE);
+    // parameters.delay += extra_delay;
+    
+    nextSegment(NONE);
   }
 
   void nextSegment(short active_segment) {
     switch (active_segment) {
-    case TSF_SEGMENT_NONE:
+    case NONE:
       samplesUntilNextSegment = (int)(parameters.delay * outSampleRate);
       if (samplesUntilNextSegment > 0) {
-	segment = TSF_SEGMENT_DELAY;
+	segment = DELAY;
 	segmentIsExponential = false;
 	level = 0.0;
 	slope = 0.0;
 	return;
       }
       /* fall through */
-    case TSF_SEGMENT_DELAY:
+    case DELAY:
       samplesUntilNextSegment = (int)(parameters.attack * outSampleRate);
       if (samplesUntilNextSegment > 0) {
 	if (!isAmpEnv) {
 	  // mod env attack duration scales with velocity (velocity of 1 is full duration, max velocity is 0.125 times duration)
 	  samplesUntilNextSegment = (int)(parameters.attack * ((145 - midiVelocity) / 144.0f) * outSampleRate);
 	}
-	segment = TSF_SEGMENT_ATTACK;
+	segment = ATTACK;
 	segmentIsExponential = false;
 	level = 0.0f;
 	slope = 1.0f / samplesUntilNextSegment;
 	return;
       }
       /* fall through */
-    case TSF_SEGMENT_ATTACK:
+    case ATTACK:
       samplesUntilNextSegment = (int)(parameters.hold * outSampleRate);
       if (samplesUntilNextSegment > 0) {
-	segment = TSF_SEGMENT_HOLD;
+	segment = HOLD;
 	segmentIsExponential = false;
 	level = 1.0f;
 	slope = 0.0f;
 	return;
       }
       /* fall through */
-    case TSF_SEGMENT_HOLD:
+    case HOLD:
       samplesUntilNextSegment = (int)(parameters.decay * outSampleRate);
       if (samplesUntilNextSegment > 0) {
-	segment = TSF_SEGMENT_DECAY;
+	segment = DECAY;
 	level = 1.0f;
 	if (isAmpEnv) {
 	  // I don't truly understand this; just following what LinuxSampler does.
@@ -95,15 +97,15 @@ class EnvelopeGenerator {
 	return;
       }
       /* fall through */
-    case TSF_SEGMENT_DECAY:
-      segment = TSF_SEGMENT_SUSTAIN;
+    case DECAY:
+      segment = SUSTAIN;
       level = parameters.sustain;
       slope = 0.0f;
       samplesUntilNextSegment = 0x7FFFFFFF;
       segmentIsExponential = false;
       return;
-    case TSF_SEGMENT_SUSTAIN:
-      segment = TSF_SEGMENT_RELEASE;
+    case SUSTAIN:
+      segment = RELEASE;
       samplesUntilNextSegment = (int)((parameters.release <= 0 ? TSF_FASTRELEASETIME : parameters.release) * outSampleRate);
       if (isAmpEnv) {
 	// I don't truly understand this; just following what LinuxSampler does.
@@ -115,9 +117,9 @@ class EnvelopeGenerator {
 	segmentIsExponential = false;
       }
       return;
-    case TSF_SEGMENT_RELEASE:
+    case RELEASE:
     default:
-      segment = TSF_SEGMENT_DONE;
+      segment = DONE;
       segmentIsExponential = false;
       level = slope = 0.0f;
       samplesUntilNextSegment = 0x7FFFFFF;
@@ -134,10 +136,16 @@ class EnvelopeGenerator {
     }
   }
 
+  bool isDone() const { return segment == DONE; }
+
+  float getLevel() const { return level; }
+
+  Envelope parameters;
+
+private:
   float level, slope;
   int samplesUntilNextSegment;
   short segment, midiVelocity;
-  Envelope parameters;
   bool segmentIsExponential, isAmpEnv;
   float outSampleRate;
 };

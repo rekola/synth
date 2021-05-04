@@ -628,7 +628,7 @@ public:
     playingPreset = -1;
   }
   
-  void playNote(float frequency, float velocity, float detune) override;
+  void playNote(float frequency, float velocity, float delay, float detune) override;
   bool isPlaying() const override { return playingPreset != -1; }
 
   void killNote() override {
@@ -640,8 +640,8 @@ public:
   void stopNote() override {
     auto f = sf->getHandle();
     
-    ampenv.nextSegment(TSF_SEGMENT_SUSTAIN);
-    modenv.nextSegment(TSF_SEGMENT_SUSTAIN);
+    ampenv.nextSegment(EnvelopeGenerator::SUSTAIN);
+    modenv.nextSegment(EnvelopeGenerator::SUSTAIN);
     if (voiceRegion->loop_mode == TSF_LOOPMODE_SUSTAIN) {
       // Continue playing, but stop looping.
       loopEnd = loopStart;
@@ -652,10 +652,10 @@ public:
     auto f = sf->getHandle();
 
     ampenv.parameters.release = 0.0f;
-    ampenv.nextSegment(TSF_SEGMENT_SUSTAIN);
+    ampenv.nextSegment(EnvelopeGenerator::SUSTAIN);
     
     modenv.parameters.release = 0.0f;
-    modenv.nextSegment(TSF_SEGMENT_SUSTAIN);
+    modenv.nextSegment(EnvelopeGenerator::SUSTAIN);
   }
 
   void calcPitchRatio(float pitchShift, float outSampleRate) {
@@ -672,7 +672,7 @@ public:
   double pitchInputTimecents, pitchOutputFactor;
   double sourceSamplePosition;
   unsigned int loopStart, loopEnd;
-  EnvelopeGenerator ampenv, modenv;
+  // EnvelopeGenerator ampenv, modenv;
   LowpassFilter lowpass;
   LFO modlfo, viblfo;
   // float noteGainDB;
@@ -686,41 +686,43 @@ void
 SoundFontVoice::render(float* outputBuffer, size_t numSamples, size_t offset) {
   auto f = sf->getHandle();
 
-  struct tsf_region* region = voiceRegion;
+  // struct tsf_region* region = voiceRegion;
   float* input = f->fontSamples;
   float* output = outputBuffer + offset;
 
-  // Cache some values, to give them at least some chance of ending up in registers.
-  bool updateModEnv = (region->modEnvToPitch || region->modEnvToFilterFc);
-  bool updateModLFO = (modlfo.delta && (region->modLfoToPitch || region->modLfoToFilterFc || region->modLfoToVolume));
-  bool updateVibLFO = (viblfo.delta && (region->vibLfoToPitch));
+  bool updateModEnv = (voiceRegion->modEnvToPitch || voiceRegion->modEnvToFilterFc);
+  bool updateModLFO = (modlfo.delta && (voiceRegion->modLfoToPitch || voiceRegion->modLfoToFilterFc || voiceRegion->modLfoToVolume));
+  bool updateVibLFO = (viblfo.delta && (voiceRegion->vibLfoToPitch));
   bool isLooping    = (loopStart < loopEnd);
-  unsigned int tmpLoopStart = loopStart, tmpLoopEnd = loopEnd;
-  double tmpSampleEndDbl = (double)region->end, tmpLoopEndDbl = (double)tmpLoopEnd + 1.0;
-  double tmpSourceSamplePosition = sourceSamplePosition;
-  auto tmpLowpass = lowpass;
+  double sampleEndDbl = (double)voiceRegion->end;
+  double loopEndDbl = (double)loopEnd + 1.0;
+  bool dynamicGain = (voiceRegion->modLfoToVolume != 0);
+  float sampleRate = f->outSampleRate;
+  bool dynamicLowpass = (voiceRegion->modLfoToFilterFc || voiceRegion->modEnvToFilterFc);
+  bool dynamicPitchRatio = (voiceRegion->modLfoToPitch || voiceRegion->modEnvToPitch || voiceRegion->vibLfoToPitch);
+  
+  float tmpInitialFilterFc = 0, tmpModLfoToFilterFc = 0, tmpModEnvToFilterFc = 0;
+  if (dynamicLowpass) {
+    tmpInitialFilterFc = (float)voiceRegion->initialFilterFc;
+    tmpModLfoToFilterFc = (float)voiceRegion->modLfoToFilterFc;
+    tmpModEnvToFilterFc = (float)voiceRegion->modEnvToFilterFc;
+  }
 
-  bool dynamicLowpass = (region->modLfoToFilterFc || region->modEnvToFilterFc);
-  float tmpSampleRate = f->outSampleRate, tmpInitialFilterFc, tmpModLfoToFilterFc, tmpModEnvToFilterFc;
-  
-  bool dynamicPitchRatio = (region->modLfoToPitch || region->modEnvToPitch || region->vibLfoToPitch);
-  double pitchRatio;
-  float tmpModLfoToPitch, tmpVibLfoToPitch, tmpModEnvToPitch;
-  
-  bool dynamicGain = (region->modLfoToVolume != 0);
-  float noteGain = 0, tmpModLfoToVolume;
-  
-  if (dynamicLowpass) tmpInitialFilterFc = (float)region->initialFilterFc, tmpModLfoToFilterFc = (float)region->modLfoToFilterFc, tmpModEnvToFilterFc = (float)region->modEnvToFilterFc;
-  else tmpInitialFilterFc = 0, tmpModLfoToFilterFc = 0, tmpModEnvToFilterFc = 0;
+  float tmpModLfoToPitch = 0.0f, tmpVibLfoToPitch = 0.0f, tmpModEnvToPitch = 0.0f;
+  double pitchRatio = 0.0;
+  if (dynamicPitchRatio) {
+    tmpModLfoToPitch = (float)voiceRegion->modLfoToPitch;
+    tmpVibLfoToPitch = (float)voiceRegion->vibLfoToPitch;
+    tmpModEnvToPitch = (float)voiceRegion->modEnvToPitch;
+  } else {
+    pitchRatio = tsf_timecents2Secsd(pitchInputTimecents) * pitchOutputFactor;
+  }
 
-  if (dynamicPitchRatio) pitchRatio = 0, tmpModLfoToPitch = (float)region->modLfoToPitch, tmpVibLfoToPitch = (float)region->vibLfoToPitch, tmpModEnvToPitch = (float)region->modEnvToPitch;
-  else pitchRatio = tsf_timecents2Secsd(pitchInputTimecents) * pitchOutputFactor, tmpModLfoToPitch = 0, tmpVibLfoToPitch = 0, tmpModEnvToPitch = 0;
-  
+  float noteGain = 0.0f, tmpModLfoToVolume = 0.0f;
   if (dynamicGain) {
-    tmpModLfoToVolume = (float)region->modLfoToVolume * 0.1f;
+    tmpModLfoToVolume = (float)voiceRegion->modLfoToVolume * 0.1f;
   } else {
     noteGain = decibelsToGain(getGainDB());
-    tmpModLfoToVolume = 0;
   }
   
   while (numSamples) {
@@ -728,21 +730,21 @@ SoundFontVoice::render(float* outputBuffer, size_t numSamples, size_t offset) {
     numSamples -= blockSamples;
 
     if (dynamicLowpass) {
-      float fres = tmpInitialFilterFc + modlfo.level * tmpModLfoToFilterFc + modenv.level * tmpModEnvToFilterFc;
-      float lowpassFc = (fres <= 13500 ? tsf_cents2Hertz(fres) / tmpSampleRate : 1.0f);
-      tmpLowpass.active = (lowpassFc < 0.499f);
-      if (tmpLowpass.active) tmpLowpass.setup(lowpassFc);
+      float fres = tmpInitialFilterFc + modlfo.level * tmpModLfoToFilterFc + modenv.getLevel() * tmpModEnvToFilterFc;
+      float lowpassFc = (fres <= 13500 ? tsf_cents2Hertz(fres) / sampleRate : 1.0f);
+      lowpass.active = (lowpassFc < 0.499f);
+      if (lowpass.active) lowpass.setup(lowpassFc);
     }
 
     if (dynamicPitchRatio) {
-      pitchRatio = tsf_timecents2Secsd(pitchInputTimecents + (modlfo.level * tmpModLfoToPitch + viblfo.level * tmpVibLfoToPitch + modenv.level * tmpModEnvToPitch)) * pitchOutputFactor;
+      pitchRatio = tsf_timecents2Secsd(pitchInputTimecents + (modlfo.level * tmpModLfoToPitch + viblfo.level * tmpVibLfoToPitch + modenv.getLevel() * tmpModEnvToPitch)) * pitchOutputFactor;
     }
 
     if (dynamicGain) {
       noteGain = decibelsToGain(getGainDB() + (modlfo.level * tmpModLfoToVolume));
     }
 
-    float gainMono = noteGain * ampenv.level;
+    float gainMono = noteGain * ampenv.getLevel();
     
     // Update EG.
     ampenv.process(blockSamples);
@@ -752,31 +754,28 @@ SoundFontVoice::render(float* outputBuffer, size_t numSamples, size_t offset) {
     if (updateModLFO) modlfo.process(blockSamples);
     if (updateVibLFO) viblfo.process(blockSamples);
                 
-    while (blockSamples-- && tmpSourceSamplePosition < tmpSampleEndDbl) {
-      unsigned int pos = (unsigned int)tmpSourceSamplePosition, nextPos = (pos >= tmpLoopEnd && isLooping ? tmpLoopStart : pos + 1);
+    while (blockSamples-- && sourceSamplePosition < sampleEndDbl) {
+      unsigned int pos = (unsigned int)sourceSamplePosition, nextPos = (pos >= loopEnd && isLooping ? loopStart : pos + 1);
       
       // Simple linear interpolation.
-      float alpha = (float)(tmpSourceSamplePosition - pos);
+      float alpha = (float)(sourceSamplePosition - pos);
       float val = (input[pos] * (1.0f - alpha) + input[nextPos] * alpha);
       
       // Low-pass filter.
-      if (tmpLowpass.active) val = tmpLowpass.process(val);
+      if (lowpass.active) val = lowpass.process(val);
       
       *output++ += val * gainMono;
 	
       // Next sample.
-      tmpSourceSamplePosition += pitchRatio;
-      if (tmpSourceSamplePosition >= tmpLoopEndDbl && isLooping) tmpSourceSamplePosition -= (tmpLoopEnd - tmpLoopStart + 1.0);
+      sourceSamplePosition += pitchRatio;
+      if (sourceSamplePosition >= loopEndDbl && isLooping) sourceSamplePosition -= (loopEnd - loopStart + 1.0);
     }
     
-    if (tmpSourceSamplePosition >= tmpSampleEndDbl || ampenv.segment == TSF_SEGMENT_DONE) {
+    if (sourceSamplePosition >= sampleEndDbl || ampenv.isDone()) {
       killNote();
       return;
     }
   }
-
-  sourceSamplePosition = tmpSourceSamplePosition;
-  if (tmpLowpass.active || dynamicLowpass) lowpass = tmpLowpass;
 }
 
 void tsf_load(SoundFontFile* res, struct tsf_stream* stream) {  
@@ -903,9 +902,9 @@ SoundFont::openFile() {
 }  
 
 void
-SoundFontVoice::playNote(float frequency, float velocity, float detune) {
+SoundFontVoice::playNote(float frequency, float velocity, float delay, float detune) {
   if (velocity <= 0.0f) {
-    stopNote();    
+    stopNote();
     return;
   }
   assert(frequency > 0);
@@ -949,8 +948,8 @@ SoundFontVoice::playNote(float frequency, float velocity, float detune) {
     loopEnd = (doLoop ? region->loop_end : 0);
     
     // Setup envelopes.
-    ampenv = EnvelopeGenerator(region->ampenv, apparent_key, midiVelocity, true, f->outSampleRate);
-    modenv = EnvelopeGenerator(region->modenv, apparent_key, midiVelocity, false, f->outSampleRate);
+    ampenv = EnvelopeGenerator(region->ampenv, apparent_key, midiVelocity, true, f->outSampleRate, delay);
+    modenv = EnvelopeGenerator(region->modenv, apparent_key, midiVelocity, false, f->outSampleRate, delay);
     
     // Setup lowpass filter.
     lowpassFc = (region->initialFilterFc <= 13500 ? tsf_cents2Hertz((float)region->initialFilterFc) / f->outSampleRate : 1.0f);
