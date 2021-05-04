@@ -28,10 +28,13 @@ class Song {
   const Pattern & getPattern(size_t i) const { return i < patterns.size() ? patterns[i] : empty_pattern; }
   Pattern & getPattern(size_t i) { return i < patterns.size() ? patterns[i] : empty_pattern; }
 
-  void addPattern(const Pattern & pattern) {
-    patterns.push_back(pattern);
+  Pattern & addPattern(const Pattern & pattern) {
     incVersion();
+    patterns.push_back(pattern);
+    return patterns.back();
   }
+
+  Pattern & addPattern(size_t rows) { return addPattern(Pattern(rows)); }
 
   Track & getMasterTrack() { return master_track; }
   const Track & getMasterTrack() const { return master_track; }
