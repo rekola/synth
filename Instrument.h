@@ -23,18 +23,14 @@ public:
   
   void setName(const std::string & _name) { name = _name; }
   const std::string & getName() const { return name; }
-  
-  int getTranspose() const { return transpose; }
-  
-  void setTranspose(int _transpose) { transpose = _transpose; }
-      
+          
   void setFilter(float fcut, float fres, bool is_highpass = false) {
     addEffect(std::make_unique<Filter>(fcut, fres, is_highpass));
   }
 
-  void setEnvelope(const Envelope & _envelope) { envelope = _envelope; }  
-  void setADSR(int _a, int _d, float _s, int _r) { setEnvelope(Envelope(_a / 255.0f, _d / 255.0f, _s, _r / 255.0f)); }
-  const Envelope & getEnvelope() { return envelope; }
+  void setAmpEnvelope(const Envelope & _amp_envelope) { amp_envelope = _amp_envelope; }  
+  void setADSR(int _a, int _d, float _s, int _r) { setAmpEnvelope(Envelope(5 * _a / 255.0f, 5 * _d / 255.0f, _s, 5 * _r / 255.0f)); }
+  const Envelope & getAmpEnvelope() const { return amp_envelope; }
   
   void applyEffects(SampleData & data) {
     for (auto & effect : effects) {
@@ -49,9 +45,8 @@ public:
 protected:
   size_t num_channels;
   std::string name;
-  Envelope envelope;
-  short transpose = 0;
   bool autopan = true;
+  Envelope amp_envelope;
 
   std::vector<std::unique_ptr<Effect> > effects;
 };
