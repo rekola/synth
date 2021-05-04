@@ -18,7 +18,9 @@ Song::open(const std::string & filename) {
 void
 Song::save(const std::string & filename) const {
   XMLDocument doc;
-
+  doc.InsertEndChild(doc.NewDeclaration());
+  
+  string song_tuning_text = to_string(getTuning());
   string song_key_text;
   if (getKey() >= 0) song_key_text = Note::keyToString(getTuning(), getKey());
 
@@ -26,15 +28,18 @@ Song::save(const std::string & filename) const {
   if (!getName().empty()) root->SetAttribute("name", getName().c_str());
   root->SetAttribute("key", song_key_text.c_str());
   if (!getName().empty()) root->SetAttribute("name", getName().c_str());
-  // root->SetAttribute("tuning", "");
+  root->SetAttribute("tuning", song_tuning_text.c_str());
   root->SetAttribute("tempo", getTempo());
   doc.InsertFirstChild(root);
 
-  XMLElement * patterns = doc.NewElement("patterns");
-  root->InsertEndChild(patterns);
-
   XMLElement * tracks = doc.NewElement("tracks");
   root->InsertEndChild(tracks);
+
+  XMLElement * instruments = doc.NewElement("instruments");
+  root->InsertEndChild(instruments);
+  
+  XMLElement * patterns = doc.NewElement("patterns");
+  root->InsertEndChild(patterns);
 
   for (auto & pattern : getPatterns()) {
     Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : getTuning();
@@ -46,7 +51,8 @@ Song::save(const std::string & filename) const {
     if (!pattern.getName().empty()) pattern_element->SetAttribute("name", pattern.getName().c_str());
     if (!key_text.empty()) pattern_element->SetAttribute("key", key_text.c_str());
     if (pattern.getTuning() != Tuning::INHERIT) {
-      // pattern_element->SetAttribute("tuning", "");
+      string tuning_text = to_string(getTuning());
+      pattern_element->SetAttribute("tuning", tuning_text.c_str());
     }
 
     auto notes = pattern.getNotes();
@@ -73,12 +79,27 @@ Song::save(const std::string & filename) const {
   }
 
   auto & mastertrack = getMasterTrack();
+
+  XMLElement * master_element = doc.NewElement("track");
+  tracks->InsertEndChild(master_element);  
+
   for (auto & track : mastertrack.getChildren()) {
     XMLElement * track_element = doc.NewElement("track");
     if (!track.getName().empty()) track_element->SetAttribute("name", track.getName().c_str());
     if (track.isSolo()) track_element->SetAttribute("solo", "1");
     if (track.isMuted()) track_element->SetAttribute("mute", "1");
-    tracks->InsertEndChild(track_element);    
+    track_element->SetAttribute("pan", track.getPan());
+    track_element->SetAttribute("volume", track.getVolume());
+    if (track.getDetune() != 0) track_element->SetAttribute("detune", track.getDetune());
+    track_element->SetAttribute("instrument", track.getInstrumentId());
+    
+    master_element->InsertEndChild(track_element);    
+  }
+
+  for (auto & instrument : getInstruments()) {
+    XMLElement * instrument_element = doc.NewElement("instrument");
+    if (!instrument->getName().empty()) instrument_element->SetAttribute("name", instrument->getName().c_str());
+    instruments->InsertEndChild(instrument_element);    
   }
   
   doc.SaveFile(filename.c_str());
