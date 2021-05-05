@@ -252,6 +252,7 @@ PatternEditor::offerInput(const UIInput & input) {
 	} else {
 	  pattern.setNote(current_score_cursor_col, synth.getTrackPosition(), 0, note);
 	}
+
 	row_edited = true;
 
 	if (note.isOff()) {
@@ -260,11 +261,11 @@ PatternEditor::offerInput(const UIInput & input) {
 	  Tuner tuner;
 	  Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
 	  int key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
-	  float frequency = tuner.getFrequency(tuning, key, note, instrument.getTranspose());
-	  track.playNote(frequency, note.getVelocity() / 127.0f, instrument, note_column);
+	  float frequency = tuner.getFrequency(tuning, key, note);
+	  track.playNote(frequency, note.getVelocity() / 127.0f, 0.0f, instrument, note_column);
 	}
       }
-      
+
       if (!synth.isPlaying()) {
 	if (input.getId() == NCKEY_BACKSPACE) synth.moveBackwards(song, edit_step_size);
 	else if (input.getId() != NCKEY_DEL) synth.moveForward(song, edit_step_size);
