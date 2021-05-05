@@ -14,7 +14,7 @@ class HRFT : public Mixer {
   HRFT() { }
   
   void reset() override;
-  void accumulate(const float * input, size_t frames, float volume, float distance, float azimuth, float elevation) override;
+  void accumulate(const SampleData & data, float volume, float distance, float azimuth, float elevation) override;
   void encode(float * output, size_t frames, float master_volume) override;
   
 private:

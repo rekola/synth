@@ -13,11 +13,12 @@ OBJS = main.o \
 	SoundFont.o \
 	Song.o \
 	HRFT.o \
+	Track.o \
 	tinyxml2.o
 
 CC = g++
 
-CPPFLAGS = -O1 -Wall -std=c++1z -Werror=return-type -Werror=conversion-null -Werror=parentheses -Werror=switch -Werror=address -Werror=trigraphs -Wpointer-arith -Wcast-qual -Wnon-virtual-dtor
+CPPFLAGS = -O1 -Wall -std=c++1z -Werror=return-type -Werror=conversion-null -Werror=parentheses -Werror=switch -Werror=address -Werror=trigraphs -Wpointer-arith -Wcast-qual -Wnon-virtual-dtor -ffast-math -fno-math-errno
 # -fno-diagnostics-show-caret
 
 CXXFLAGS+= -Werror=return-local-addr -Werror=multichar -Werror=enum-compare

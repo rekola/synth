@@ -2,7 +2,7 @@
 #define _SYNTH_H_
 
 #include "Song.h"
-#include "HRFT.h"
+#include "SongState.h"
 
 #define NOTEDOMAIN ((float)1/4)
 
@@ -84,15 +84,13 @@ class Synth {
     for (size_t i = 0; i < rows; i++) moveBackwards(song);
   }
 
-  Mixer & getMixer() { return hrft; }
-
 private:
   bool is_playing = false;
 
   size_t samplepos = 0, track_pos = 0, pattern_pos = 0, absolute_pos = 0;
   size_t samplerate;
 
-  HRFT hrft;
+  SongState state;
 };
 
 #endif

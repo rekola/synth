@@ -48,9 +48,14 @@ HRFT::reset() {
 }
 
 void
-HRFT::accumulate(const float * input, size_t frames, float volume, float distance, float azimuth, float elevation) {
+HRFT::accumulate(const SampleData & data, float volume, float distance, float azimuth, float elevation) {
+  assert(data.getChannels() == 1);
+  
+  size_t frames = data.size();
+  const float * input = data.data();
+  
   if (!is_initialized) initialize(frames);
-
+  
   PolarPoint position;
   position.fDistance = distance;
   position.fAzimuth = azimuth * M_PI / 180.0f;

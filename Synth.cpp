@@ -17,7 +17,7 @@ Synth::play(Song & song, size_t frames) {
   Tuner tuner;
   TrackEventQueue track_events;
 
-  auto & mixer = getMixer();
+  auto & mixer = state.getMixer();
   mixer.reset();
   
 #if 0
@@ -59,48 +59,10 @@ Synth::play(Song & song, size_t frames) {
   for (size_t track_idx = 0; track_idx < tracks.size(); track_idx++) {
     auto & track = tracks[track_idx];
     auto & instrument = song.getInstrument(track.getInstrumentId());
-
-    size_t num_channels = instrument.getNumChannels();
-    assert(num_channels == 1);
     
-    SampleData data(num_channels, frames);
-    auto buffer = data.data();
-    
-    for (size_t i = 0; i < frames; ) {
-      size_t render_size = frames - i;
-      auto & pending = track_events.getPendingEvents(track_idx);
-      if (!pending.empty()) {
-	auto it = pending.begin();
-	assert(i <= it->first);
-	assert(i == 0 || i == it->first); 
-	if (i == it->first) {
-	  for (auto & ev : it->second) {
-	    if (ev.isOff()) {
-	      track.stopNote(ev.getId());
-	    } else {
-	      track.playNote(ev.getFrequency(), ev.getVelocity(), ev.getDelay(), instrument, ev.getId());
-	    }
-	  }
-	  it = pending.erase(it);
-	}
-	if (it != pending.end() && it->first - i < render_size) render_size = it->first - i;
-      }     
-      
-      for (auto & voice : track.getVoices()) {
-	if (voice->isPlaying()) {
-	  voice->render(buffer, render_size, i);
-	}
-      }
-
-      i += render_size;
-    }
-    
-    instrument.applyEffects(data);
-    track.applyEffects(data);
-
-    mixer.accumulate(buffer, frames, track.getVolume(), track.getDistance(), track.getAzimuth(), track.getElevation());
+    SampleData data = track.render(frames, instrument, track_events.getPendingEvents(track_idx));
+    mixer.accumulate(data, track.getVolume(), track.getDistance(), track.getAzimuth(), track.getElevation());
   }
-
   assert(track_events.empty());
 
   SampleData master(2, frames);

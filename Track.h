@@ -7,13 +7,16 @@
 #include "InstrumentVoice.h"
 #include "SampleData.h"
 #include "Effect.h"
+#include "SampleData.h"
+#include "TrackEvent.h"
 
 #include <vector>
 #include <memory>
+#include <map>
 
 class Track : public TreeElement {
  public:
-  enum Type { MASTER = 1, GROUP, SEQUENCER, SAMPLE, SUBSONG };
+  enum Type { GROUP = 1, SEQUENCER, SAMPLE, SUBSONG };
 
   Track(Type _type = SEQUENCER) : type(_type) { }
 
@@ -65,6 +68,8 @@ class Track : public TreeElement {
       voices.back()->playNote(frequency, velocity, delay, detune);
     }
   }
+
+  SampleData render(size_t frames, Instrument & instrument, std::map<unsigned int, std::vector<TrackEvent> > & pending_events);
   
   size_t getVoiceCount() const {
     size_t n = 0;
