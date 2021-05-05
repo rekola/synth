@@ -29,7 +29,7 @@ public:
   }
 
   void setAmpEnvelope(const Envelope & _amp_envelope) { amp_envelope = _amp_envelope; }  
-  void setADSR(int _a, int _d, float _s, int _r) { setAmpEnvelope(Envelope(5 * _a / 255.0f, 5 * _d / 255.0f, _s, 5 * _r / 255.0f)); }
+  void setADSR(int _a, int _d, float _s, int _r) { setAmpEnvelope(Envelope(5 * _a / 255.0f, 2 * 5 * _d / 255.0f, _s, 5 * _r / 255.0f)); }
   const Envelope & getAmpEnvelope() const { return amp_envelope; }
   
   void applyEffects(SampleData & data) {
@@ -46,7 +46,7 @@ protected:
   size_t num_channels;
   std::string name;
   bool autopan = true;
-  Envelope amp_envelope;
+  Envelope amp_envelope, mod_envelope;
 
   std::vector<std::unique_ptr<Effect> > effects;
 };
