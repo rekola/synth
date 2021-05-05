@@ -15,12 +15,13 @@ class EnvelopeGenerator {
   EnvelopeGenerator()
     : level(0.0f), slope(0.0f), samplesUntilNextSegment(0), segment(0), midiVelocity(0), segmentIsExponential(false), isAmpEnv(false), outSampleRate(0) { }
 
-  EnvelopeGenerator(const Envelope & _parameters, int midiNoteNumber, short _midiVelocity, bool _isAmpEnv, float _outSampleRate, float extra_delay = 0.0f)
+  EnvelopeGenerator(const Envelope & _parameters, int midiNoteNumber, short _midiVelocity, bool _isAmpEnv, float _outSampleRate, float _note_delay = 0.0f)
     : parameters(_parameters),
       midiVelocity(_midiVelocity),
       isAmpEnv(_isAmpEnv),
-      outSampleRate(_outSampleRate) {
-    
+      outSampleRate(_outSampleRate),
+      note_delay(_note_delay) {
+
     if (parameters.keynumToHold) {
       parameters.hold += parameters.keynumToHold * (60.0f - midiNoteNumber);
       parameters.hold = (parameters.hold < -10000.0f ? 0.0f : tsf_timecents2Secsf(parameters.hold));
@@ -29,16 +30,14 @@ class EnvelopeGenerator {
       parameters.decay += parameters.keynumToDecay * (60.0f - midiNoteNumber);
       parameters.decay = (parameters.decay < -10000.0f ? 0.0f : tsf_timecents2Secsf(parameters.decay));
     }
-    
-    // parameters.delay += extra_delay;
-    
+        
     nextSegment(NONE);
   }
-
+  
   void nextSegment(short active_segment) {
     switch (active_segment) {
     case NONE:
-      samplesUntilNextSegment = (int)(parameters.delay * outSampleRate);
+      samplesUntilNextSegment = (int)((note_delay + parameters.delay) * outSampleRate);
       if (samplesUntilNextSegment > 0) {
 	segment = DELAY;
 	segmentIsExponential = false;
@@ -137,7 +136,6 @@ class EnvelopeGenerator {
   }
 
   bool isDone() const { return segment == DONE; }
-
   float getLevel() const { return level; }
 
   Envelope parameters;
@@ -148,6 +146,7 @@ private:
   short segment, midiVelocity;
   bool segmentIsExponential, isAmpEnv;
   float outSampleRate;
+  float note_delay;
 };
 
 #endif
