@@ -183,7 +183,6 @@ static void tsf_region_clear(struct tsf_region* i, bool for_relative) {
   if (for_relative) return;
   
   i->pitch_keytrack = 100;
-  
   i->pitch_keycenter = -1;
   
   // SF2 defaults in timecents.
@@ -409,9 +408,7 @@ public:
   SoundFontFile(int samplerate, std::string filename) {
     presets = 0;
     fontSamples = 0;
-    // outputSamples = 0;
     presetNum = 0;
-    outputSampleSize = 0;
 
     loadFile(filename);
     
@@ -467,11 +464,8 @@ public:
   size_t getPresetCount() const { return presetNum; }
   
   struct tsf_preset* presets;
-  float* fontSamples;
-  
+  float* fontSamples;  
   int presetNum;
-  int outputSampleSize;
-
   float outSampleRate;
 };
 
@@ -638,10 +632,7 @@ public:
   void render(float * outputBuffer, size_t numSamples, size_t offset) override;
   
   void stopNote() override {
-    auto f = sf->getHandle();
-    
-    ampenv.nextSegment(EnvelopeGenerator::SUSTAIN);
-    modenv.nextSegment(EnvelopeGenerator::SUSTAIN);
+    InstrumentVoice::stopNote();
     if (voiceRegion->loop_mode == TSF_LOOPMODE_SUSTAIN) {
       // Continue playing, but stop looping.
       loopEnd = loopStart;
@@ -672,10 +663,8 @@ public:
   double pitchInputTimecents, pitchOutputFactor;
   double sourceSamplePosition;
   unsigned int loopStart, loopEnd;
-  // EnvelopeGenerator ampenv, modenv;
   LowpassFilter lowpass;
   LFO modlfo, viblfo;
-  // float noteGainDB;
 
 private:
   shared_ptr<SoundFontFile> sf;
@@ -773,7 +762,7 @@ SoundFontVoice::render(float* outputBuffer, size_t numSamples, size_t offset) {
     
     if (sourceSamplePosition >= sampleEndDbl || ampenv.isDone()) {
       killNote();
-      return;
+      break;
     }
   }
 }
