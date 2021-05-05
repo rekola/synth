@@ -77,10 +77,9 @@ Controller::loadDemo3() {
   auto sampleRate = synth->getSampleRate();
 
 #if 0
-  auto oboe = make_unique<FMInstrument>(0.7, 1, 3, 0.1f);
+  auto oboe = make_unique<FMInstrument>(0.7, 1, 3, 4);
   oboe->setName("oboe");
   oboe->setADSR(2, 15, 0.5f, 10);
-  oboe->setTranspose(24);
   // oboe->addEffect(make_unique<Distortion>(Distortion::CLIP, 0.5f));
   // oboe->addEffect(make_unique<Chorus>(5.0f, 0.0f));
   // oboe->setFilter(100, 30);
@@ -206,7 +205,7 @@ Controller::loadDemo2() {
 
   auto sampleRate = synth->getSampleRate();
 
-#if 1
+#if 0
   auto fluid = make_unique<SoundFont>(sampleRate, "data/FluidR3_GM.sf2");
   auto instrument = fluid->createInstrument(2);
   // instrument->addEffect(make_unique<Distortion>(Distortion::ZEROES, 0.1, 0.0));  
@@ -218,10 +217,9 @@ Controller::loadDemo2() {
   epiano->setFilter(63 / 255.0f, 128 / 63.0f);
   song->addInstrument(move(epiano));
 
-  auto oboe = make_unique<FMInstrument>(0.7, 1, 3, 0.1f);
+  auto oboe = make_unique<FMInstrument>(0.7, 1, 3, 4);
   oboe->setName("oboe");
   oboe->setADSR(2, 15, 0.5f, 10);
-  oboe->setTranspose(24);
   // oboe->addEffect(make_unique<Distortion>(Distortion::CLIP, 0.5f));
   // oboe->addEffect(make_unique<Chorus>(5.0f, 0.0f));
   // oboe->addEffect(make_unique<Reverb>(sampleRate, Reverb::DEFAULT)); // LARGEROOM1));
@@ -881,10 +879,9 @@ Controller::createNewSong() {
 
   auto sampleRate = synth->getSampleRate();
 
-  auto oboe = make_unique<FMInstrument>(0.7, 1, 3, 0.1f);
+  auto oboe = make_unique<FMInstrument>(0.7, 1, 3, 4);
   oboe->setName("oboe");
   oboe->setADSR(2, 15, 0.5f, 10);
-  oboe->setTranspose(24);
   // oboe->addEffect(make_unique<Distortion>(Distortion::CLIP, 0.5f));
   // oboe->addEffect(make_unique<Chorus>(5.0f, 0.0f));
   // oboe->addEffect(make_unique<Reverb>(sampleRate, Reverb::DEFAULT)); // LARGEROOM1));
@@ -893,23 +890,22 @@ Controller::createNewSong() {
 
   auto epiano = make_unique<BasicInstrument>(WaveformType::SAW);
   epiano->setName("Electric Piano");
-  epiano->setADSR(0, 20, 0.0f, 0);
+  // epiano->setADSR(0, 20, 0.0f, 0);
+  epiano->setADSR(0, 80, 0.0f, 0);
   epiano->setFilter(63 / 255.0f, 128 / 63.0f);
   song->addInstrument(move(epiano));
 
-  auto test = make_unique<FMInstrument>(0, 1, 1, 2.01);
+  auto test = make_unique<FMInstrument>(0, 1, 1);
   test->setName("test");
   test->setADSR(2, 15, 0.0f, 10);
-  // test->setTranspose(12);
   // test->addEffect(make_unique<Distortion>(Distortion::CLIP, 0.5f));
   // test->addEffect(make_unique<Chorus>(5.0f, 0.0f));
   test->setFilter(100, 30);
   song->addInstrument(move(test));
   
-  auto harpsichord = make_unique<FMInstrument>(7.8, 3, 5);
+  auto harpsichord = make_unique<FMInstrument>(7.8, 3, 5, 4);
   harpsichord->setName("harpsichord");
   harpsichord->setADSR(2, 15, 0.0f, 10);
-  harpsichord->setTranspose(24);
   // harpsichord->setFilter(200, 20, true);
   song->addInstrument(move(harpsichord));
 
