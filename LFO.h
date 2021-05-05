@@ -5,13 +5,16 @@ static inline float tsf_cents2Hertz(float cents) { return 8.176f * powf(2.0f, ce
 
 class LFO {
  public:
-  LFO() : samplesUntil(0), level(0), delta(0) { }
+  enum Type { SAW = 1, SINE };
+  
+  LFO(Type _type = SAW) : type(_type), samplesUntil(0), level(0), delta(0) { }
   LFO(float delay, int freqCents, float outSampleRate)
-    : samplesUntil((int)(delay * outSampleRate)),
-    delta(4.0f * tsf_cents2Hertz((float)freqCents) / outSampleRate),
-    level(0)
-    {
-    }
+    : type(SAW),
+      samplesUntil((int)(delay * outSampleRate)),
+      delta(4.0f * tsf_cents2Hertz((float)freqCents) / outSampleRate),
+      level(0)
+  {
+  }
   
   void process(int blockSamples) {
     if (samplesUntil > blockSamples) {
@@ -28,6 +31,11 @@ class LFO {
     }
   }
 
+  float getLevel() const { return level; }
+  float getDelta() const { return delta; }
+
+private:
+  Type type;
   int samplesUntil;
   float level, delta;
 };
