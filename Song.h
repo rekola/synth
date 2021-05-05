@@ -1,7 +1,7 @@
 #ifndef _SONG_H_
 #define _SONG_H_
 
-#include "Track.h"
+#include "MasterTrack.h"
 #include "Pattern.h"
 // #include "Sequence.h"
 #include "InstrumentSet.h"
@@ -20,9 +20,6 @@ class Song {
   
   short getTempo() const { return bpm; }
   void setTempo(short _bpm) { bpm = _bpm; }
-
-  float getMasterVolume() const { return master_volume; }
-  void setMasterVolume(float v) { master_volume = v; }
   
   const std::vector<Pattern> & getPatterns() const { return patterns; }
   const Pattern & getPattern(size_t i) const { return i < patterns.size() ? patterns[i] : empty_pattern; }
@@ -63,14 +60,13 @@ private:
   float randomization_factor;
   std::string name;
   int bpm = 90;
-  float master_volume = 1.0;
 
   std::vector<std::unique_ptr<Instrument> > instruments;
   std::vector<Pattern> patterns;
   Pattern empty_pattern;
   int version = 1;
 
-  Track master_track;
+  MasterTrack master_track;
 };
 
 #endif

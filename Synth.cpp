@@ -11,9 +11,6 @@ using namespace std;
 
 SampleData
 Synth::play(Song & song, size_t frames) {
-  SampleData master(2, frames);
-  float * out = master.data();
-
   auto & mastertrack = song.getMasterTrack();
   auto & tracks = mastertrack.getChildren();
 
@@ -48,7 +45,7 @@ Synth::play(Song & song, size_t frames) {
 		frequency = tuner.getFrequency(tuning, key, note);
 		velocity = note.getVelocityAsFloat();
 	      }
-	      float delay = song.getRandomizationFactor() * samplerate * rand() / RAND_MAX;
+	      float delay = 0; // song.getRandomizationFactor() * samplerate * rand() / RAND_MAX;
 	      track_events.addPendingEvent(col, i, int(j), delay, frequency, velocity);
 	    }
 	  }
@@ -104,9 +101,13 @@ Synth::play(Song & song, size_t frames) {
     mixer.accumulate(buffer, frames, track.getVolume(), track.getDistance(), track.getAzimuth(), track.getElevation());
   }
 
-  mixer.encode(out, frames, song.getMasterVolume());
-
   assert(track_events.empty());
+
+  SampleData master(2, frames);
+  float * out = master.data();
+  
+  mixer.encode(out, frames, mastertrack.getVolume());
+  mastertrack.applyEffects(master);
   
   return master;
 }
