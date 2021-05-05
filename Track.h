@@ -1,6 +1,7 @@
 #ifndef _TRACK_H_
 #define _TRACK_H_
 
+#include "TreeElement.h"
 #include "Note.h"
 #include "Instrument.h"
 #include "InstrumentVoice.h"
@@ -10,7 +11,7 @@
 #include <vector>
 #include <memory>
 
-class Track {
+class Track : public TreeElement {
  public:
   enum Type { MASTER = 1, GROUP, SEQUENCER, SAMPLE, SUBSONG };
 
