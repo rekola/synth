@@ -3,19 +3,23 @@
 
 #include "Note.h"
 #include "EnvelopeGenerator.h"
-#include "Envelope.h"
 
 class InstrumentVoice {
  public:
   InstrumentVoice(int _identifier)
     : identifier(_identifier) { }
   InstrumentVoice(int _identifier, const Envelope & _amp_envelope)
-    : identifier(_identifier), amp_envelope(_amp_envelope) { }
+    : identifier(_identifier), amp_envelope(_amp_envelope) {
+
+  }
   virtual ~InstrumentVoice() { }
   
   virtual void render(float * buffer, size_t frames, size_t offset = 0) = 0;
 
   virtual void stopNote() {
+    ampenv.nextSegment(EnvelopeGenerator::SUSTAIN);
+    modenv.nextSegment(EnvelopeGenerator::SUSTAIN);
+
     if (adsrstate == -1) { // from delay, jump directly to end
       adsrstate = 4;
     } else if (adsrstate < 2) { // otherwise, wait till sustain
@@ -27,17 +31,25 @@ class InstrumentVoice {
   }
 
   virtual void killNote() {
+    ampenv.nextSegment(EnvelopeGenerator::DONE);
+    modenv.nextSegment(EnvelopeGenerator::DONE);
+
     adsrstate = 4;
+    freq = 0.0f;
   }
   
   virtual void playNote(float _frequency, float velocity, float _delay, float _detune) {
+    int midiVelocity = int(velocity * 127);
+    if (midiVelocity > 127) midiVelocity = 127;
+    ampenv = EnvelopeGenerator(amp_envelope, 0, midiVelocity, true, 44100, _delay);
+    modenv = EnvelopeGenerator(mod_envelope, 0, midiVelocity, false, 44100, _delay);
+	
     freq = _frequency;
     detune = _detune;
-    delay = _delay;
-
+        
     setGainDB(-gainToDecibels(1.0f / velocity));
     
-    adsrstate = -1;
+    adsrstate = 0;
     adsrpos = 0;
     wave_position = 0;
     is_stopped = false;
@@ -46,7 +58,12 @@ class InstrumentVoice {
   virtual bool isPlaying() const { return adsrstate < 4 && freq != 0; }
 
   float updateADSR() {
-    int del = int((delay + amp_envelope.getDelay()) * 44100);
+#if 1
+    float gain = ampenv.getLevel();
+    ampenv.process(1);
+    return gain;
+#else
+    int del = 0; // int((delay + amp_envelope.getDelay()) * 44100);
     int attack = int(amp_envelope.getAttack() * 44100);
     int decay = int(amp_envelope.getDecay() * 44100);
     float sustain = amp_envelope.getSustain();
@@ -103,6 +120,7 @@ class InstrumentVoice {
     adsrpos++;
 
     return adsrvol;
+#endif
   }
 
   void setIdentifier(int id) { identifier = id; }
@@ -125,7 +143,6 @@ class InstrumentVoice {
 
 protected:
   float getWavePosition() const { return wave_position; }
-  float getDelay() const { return delay; }
 
   void stepForward() {
     wave_position += freq;
@@ -135,13 +152,12 @@ protected:
 
 private:
   int identifier;
-  float delay = 0.0f;
   float wave_position = 0.0f, freq = 0.0f, detune = 0.0f;
   float noteGainDB = 0.0f;
 
   // adsr state
-  int adsrstate = -1, adsrpos = 0;
-  Envelope amp_envelope;
+  int adsrstate = 0, adsrpos = 0;
+  Envelope amp_envelope, mod_envelope;
   bool is_stopped = false;
 };
 
