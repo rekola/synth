@@ -1,3 +1,26 @@
+/* LICENSE (MIT)
+
+   Copyright (C) 2021, Mikael Rekola
+   Based on TinySoundFont, Copyright (C) 2017, 2018 Bernhard Schelling
+   Based on SFZero, Copyright (C) 2012 Steve Folta (https://github.com/stevefolta/SFZero)
+
+   Permission is hereby granted, free of charge, to any person obtaining a copy of this
+   software and associated documentation files (the "Software"), to deal in the Software
+   without restriction, including without limitation the rights to use, copy, modify, merge,
+   publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
+   to whom the Software is furnished to do so, subject to the following conditions:
+
+   The above copyright notice and this permission notice shall be included in all
+   copies or substantial portions of the Software.
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+   INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+   PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+   LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+   TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+   USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
+
 #ifndef _ENVELOPEGENERATOR_H_
 #define _ENVELOPEGENERATOR_H_
 
@@ -10,10 +33,10 @@ static inline float tsf_timecents2Secsf(float timecents) { return powf(2.0f, tim
 
 class EnvelopeGenerator {
  public:
-  enum Segment { NONE, DELAY, ATTACK, HOLD, DECAY, SUSTAIN, RELEASE, DONE };
+  enum Segment { NONE = 0, DELAY, ATTACK, HOLD, DECAY, SUSTAIN, RELEASE, DONE };
   
   EnvelopeGenerator()
-    : level(0.0f), slope(0.0f), samplesUntilNextSegment(0), segment(0), midiVelocity(0), segmentIsExponential(false), isAmpEnv(false), outSampleRate(0) { }
+    : level(0.0f), slope(0.0f), samplesUntilNextSegment(0), midiVelocity(0), segmentIsExponential(false), isAmpEnv(false), outSampleRate(0) { }
 
   EnvelopeGenerator(const Envelope & _parameters, int midiNoteNumber, short _midiVelocity, bool _isAmpEnv, float _outSampleRate, float _note_delay = 0.0f)
     : parameters(_parameters),
@@ -141,9 +164,10 @@ class EnvelopeGenerator {
   Envelope parameters;
 
 private:
+  Segment segment = NONE;
   float level, slope;
   int samplesUntilNextSegment;
-  short segment, midiVelocity;
+  short midiVelocity;
   bool segmentIsExponential, isAmpEnv;
   float outSampleRate;
   float note_delay;
