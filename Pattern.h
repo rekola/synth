@@ -94,10 +94,10 @@ class Pattern {
   }
 
 private:
-  short key_note_number;
-  Tuning tuning;
-  std::string name;
   size_t num_rows;
+  Tuning tuning;
+  short key_note_number;
+  std::string name;
   // sparse note matrix: row, track, note_column
   std::unordered_map<unsigned short, std::unordered_map<unsigned short, std::vector<Note> > > notes;
   Note empty_note;
