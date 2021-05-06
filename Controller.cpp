@@ -11,6 +11,7 @@
 #include "Delay.h"
 #include "SongState.h"
 #include "Compressor.h"
+#include "Filter.h"
 
 #include "default_song.h"
 
@@ -19,6 +20,38 @@
 #include <unordered_map>
 
 using namespace std;
+
+void
+Controller::loadDemo5() {
+  auto song = make_shared<Song>(Tuning::TET31, 0);
+  song->setTempo(220);
+  auto sampleRate = state->getSampleRate();
+
+  auto fluid = make_unique<SoundFont>(sampleRate, "data/FluidR3_GM.sf2");
+  song->addInstruments(*fluid);
+
+  auto & track = song->addChild();
+  track.addEffect(make_unique<Reverb>(sampleRate, Reverb::STADIUM));
+  // track.setVolume(0.5f);
+  track.setElevation(50);
+  track.setAzimuth(30);
+  track.setInstrumentId(0);
+
+  auto & pattern = song->addPattern(64);  
+  pattern.setNote(0, 0, 0, Note("D-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 2, 0, Note("G-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 4, 0, Note("A-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 6, 0, Note("B-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 8, 0, Note("C-5", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 10, 0, Note("B-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 12, 0, Note("A-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 14, 0, Note("G-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 16, 0, Note("F-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 18, 0, Note("B-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 20, 0, Note("A-4", 0x3f, Tuning::TET31));
+
+  current_song = song;
+}
 
 void
 Controller::loadDemo4() {
@@ -196,7 +229,7 @@ Controller::loadDemo2() {
   auto epiano = make_unique<BasicInstrument>(WaveformType::SAW);
   epiano->setName("Electric Piano");
   epiano->setAmpEnvelope(Envelope(0.0f, 10 * 20 / 255.0f, 0.0f, 0.0));
-  epiano->setFilter(63 / 255.0f, 128 / 63.0f);
+  epiano->addEffect(make_unique<Filter>(63 / 255.0f, 128 / 63.0f, false, sampleRate));
   song->addInstrument(move(epiano));
 
   auto oboe = make_unique<FMInstrument>(0.7, 1, 3, 4);
@@ -685,6 +718,7 @@ Controller::loadDemo2() {
 void
 Controller::loadDemo() {
   auto song = make_shared<Song>(Tuning::TET12, 0);
+  auto sampleRate = state->getSampleRate();
 
   const unsigned char * song_data = tr;
   
@@ -695,99 +729,99 @@ Controller::loadDemo() {
   float fd1 = (float)(*song_data++) / 255;
   float delaymix1 = (float)(*song_data++) / 255;
 
+  // void setADSR(int _a, int _d, float _s, int _r) { setAmpEnvelope(Envelope(5 * _a / 255.0f, 2 * 5 * _d / 255.0f, _s, 5 * _r / 255.0f)); }
+  
   auto i0 = make_unique<BasicInstrument>(WaveformType::SAW);
   i0->setName("drone1");
-  i0->setADSR(255, 64, 0.25f, 0);
-  i0->setFilter(0, 0.08f, true);
+  i0->setAmpEnvelope(Envelope(5, 10 * 64 / 255.0f, 0.25f, 0));
+  i0->addEffect(make_unique<Filter>(0, 0.08f, true, sampleRate));
   song->addInstrument(move(i0));
 
   auto i1 = make_unique<BasicInstrument>(WaveformType::SAW);
   i1->setName("drone2");
-  i1->setADSR(255, 64, 0.25f, 0);
-  i1->setFilter(0, 0.08f, true);
+  i1->setAmpEnvelope(Envelope(5, 10 * 64 / 255.0f, 0.25f, 0));
+  i1->addEffect(make_unique<Filter>(0, 0.08f, true, sampleRate));
   song->addInstrument(move(i1));
 
   auto i2 = make_unique<BasicInstrument>(WaveformType::SAW);
   i2->setName("drone3");
-  i2->setADSR(255, 64, 0.25f, 0);
-  i2->setFilter(0, 0.08f, true);
+  i2->setAmpEnvelope(Envelope(5, 10 * 64 / 255.0f, 0.25f, 0));
+  i2->addEffect(make_unique<Filter>(0, 0.08f, true, sampleRate));
   song->addInstrument(move(i2));
 
   auto i3 = make_unique<BasicInstrument>(WaveformType::SINE);
   i3->setName("bass drum");
-  i3->setADSR(0, 15, 0.0f, 0);
+  i3->setAmpEnvelope(Envelope(0, 10 * 15 / 255.0f, 0.0f, 0));
   song->addInstrument(move(i3));
 
   auto i4 = make_unique<BasicInstrument>(WaveformType::NOISE);
   i4->setName("hihat closed");
-  i4->setADSR(0, 8, 0.0f, 0);
-  i4->setFilter(0.75f, 2.0f);
+  i4->setAmpEnvelope(Envelope(0, 10 * 8 / 255.0f, 0.0f, 0));
+  i4->addEffect(make_unique<Filter>(0.75f, 2.0f, false, sampleRate));
   i4->addEffect(make_unique<Delay>(delay1, fd1, delaymix1));
   song->addInstrument(move(i4));
 
   auto i5 = make_unique<BasicInstrument>(WaveformType::NOISE);
   i5->setName("hihat open");
-  i5->setADSR(0, 13, 0.0f, 0);
+  i5->setAmpEnvelope(Envelope(0, 10 * 13 / 255.0f, 0.0f, 0));
   song->addInstrument(move(i5));
 
   auto i6 = make_unique<BasicInstrument>(WaveformType::SAW);
   i6->setName("unused");
-  i6->setADSR(0, 25, 0.0f, 0);
+  i6->setAmpEnvelope(Envelope(0, 10 * 25 / 255.0f, 0.0f, 0));
   song->addInstrument(move(i6));
 
   auto i7 = make_unique<BasicInstrument>(WaveformType::SQUARE);
   i7->setName("bass");
-  i7->setADSR(0, 15, 0.0f, 0);
-  i7->setFilter(0.78f, 0.32f);
+  i7->setAmpEnvelope(Envelope(0, 10 * 15 / 255.0f, 0.0f, 0));
+  i7->addEffect(make_unique<Filter>(0.78f, 0.32f, false, sampleRate));
   song->addInstrument(move(i7));
 
 #if 0
   auto i8 = make_unique<BasicInstrument>(WaveformType::NOISE);
-  i8->setName("hihat closed");
-  i8->setADSR(0, 3, 0.0f, 0);
+  i8->setAmpEnvelope(Envelope(0, 10 * 3 / 255.0f, 0.0f, 0));
 #else
   auto i8 = make_unique<FileInstrument>("./samples/Closed-Hi-Hat-1.wav");
-  i8->setName("hihat closed");
-  // i8->setADSR(0, 3, 0.0f, 0);
 #endif
+  i8->setName("hihat closed");
   song->addInstrument(move(i8));
   
   auto i9 = make_unique<BasicInstrument>(WaveformType::NOISE);
   i9->setName("snare");
-  i9->setADSR(0, 15, 0.0f, 0);
+  i9->setAmpEnvelope(Envelope(0, 10 * 15 / 255.0f, 0.0f, 0));
   i9->addEffect(make_unique<Delay>(delay1, fd1, delaymix1));
   song->addInstrument(move(i9));
 
   auto i10 = make_unique<BasicInstrument>(WaveformType::SAW);
   i10->setName("bass");
-  i10->setADSR(0, 30, 0.0f, 0);
-  i10->setFilter(0.4f, 0.0f);
+  i10->setAmpEnvelope(Envelope(0, 10 * 30 / 255.0f, 0.0f, 0));
+  i10->addEffect(make_unique<Filter>(0.4f, 0.0f, false, sampleRate));
   i10->addEffect(make_unique<Delay>(delay1, fd1, delaymix1));
   song->addInstrument(move(i10));
 
   auto i11 = make_unique<BasicInstrument>(WaveformType::SAW);
   i11->setName("bass");
-  i11->setADSR(0, 20, 0.0f, 0);
-  i11->setFilter(0.25f, 2.0f);
+  i11->setAmpEnvelope(Envelope(0, 10 * 20 / 255.0f, 0.0f, 0));
+  i11->addEffect(make_unique<Filter>(0.25f, 2.0f, false, sampleRate));
   i11->addEffect(make_unique<Delay>(delay1, fd1, delaymix1));
   song->addInstrument(move(i11));
 
   auto i12 = make_unique<BasicInstrument>(WaveformType::SQUARE);
   i12->setName("bass");
-  i12->setADSR(0, 14, 0.0f, 0);
-  i12->setFilter(0.78f, 0.32f);
+  i12->setAmpEnvelope(Envelope(0, 10 * 14 / 255.0f, 0.0f, 0));
+  i12->addEffect(make_unique<Filter>(0.78f, 0.32f, false, sampleRate));
   song->addInstrument(move(i12));
 
   auto i13 = make_unique<BasicInstrument>(WaveformType::SINE);
   i13->setName("bass drum");
-  i13->setADSR(0, 8, 0.0f, 0);
-  i13->setFilter(0.96f, 0.0f);
+  i13->setAmpEnvelope(Envelope(0, 10 * 8 / 255.0f, 0.0f, 0));
+  i13->addEffect(make_unique<Filter>(0.96f, 0.0f, false, sampleRate));
   song->addInstrument(move(i13));
 
   auto i14 = make_unique<BasicInstrument>(WaveformType::NOISE);
   i14->setName("snare");
-  i14->setADSR(0, 5, 0.0f, 0);
-  i14->setFilter(0.6f, 4.0f);
+  i14->setAmpEnvelope(Envelope(0, 10 * 5 / 255.0f, 0.0f, 0));
+  i14->addEffect(make_unique<Filter>(0.6f, 4.0f, false, sampleRate));
   song->addInstrument(move(i14));
   
   int ptrncnt = *song_data++;
@@ -853,46 +887,6 @@ Controller::loadDemo() {
 void
 Controller::createNewSong() {
   auto song = make_shared<Song>();
-
-  auto sampleRate = state->getSampleRate();
-
-  auto oboe = make_unique<FMInstrument>(0.7, 1, 3, 4);
-  oboe->setName("oboe");
-  oboe->setADSR(2, 15, 0.5f, 10);
-  // oboe->addEffect(make_unique<Distortion>(Distortion::CLIP, 0.5f));
-  // oboe->addEffect(make_unique<Chorus>(5.0f, 0.0f));
-  // oboe->addEffect(make_unique<Reverb>(sampleRate, Reverb::DEFAULT)); // LARGEROOM1));
-  // oboe->setFilter(100, 30);
-  song->addInstrument(move(oboe));
-
-  auto epiano = make_unique<BasicInstrument>(WaveformType::SAW);
-  epiano->setName("Electric Piano");
-  // epiano->setADSR(0, 20, 0.0f, 0);
-  epiano->setADSR(0, 80, 0.0f, 0);
-  epiano->setFilter(63 / 255.0f, 128 / 63.0f);
-  song->addInstrument(move(epiano));
-
-  auto test = make_unique<FMInstrument>(0, 1, 1);
-  test->setName("test");
-  test->setADSR(2, 15, 0.0f, 10);
-  // test->addEffect(make_unique<Distortion>(Distortion::CLIP, 0.5f));
-  // test->addEffect(make_unique<Chorus>(5.0f, 0.0f));
-  test->setFilter(100, 30);
-  song->addInstrument(move(test));
-  
-  auto harpsichord = make_unique<FMInstrument>(7.8, 3, 5, 4);
-  harpsichord->setName("harpsichord");
-  harpsichord->setADSR(2, 15, 0.0f, 10);
-  // harpsichord->setFilter(200, 20, true);
-  song->addInstrument(move(harpsichord));
-
-  auto bell = make_unique<FMInstrument>(3.5, 7, 9);
-  bell->setName("bell");
-  bell->setADSR(2, 15, 0.0f, 10);
-  // bell->setFilter(200, 20, true);
-  song->addInstrument(move(bell));
-
-// Bell 3.5 7 9 0 0.01 0.2 0.3 1.5
   
   Pattern pattern;
   song->addPattern(pattern);  
