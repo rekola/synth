@@ -24,12 +24,11 @@ public:
   void setName(const std::string & _name) { name = _name; }
   const std::string & getName() const { return name; }
           
-  void setFilter(float fcut, float fres, bool is_highpass = false) {
-    addEffect(std::make_unique<Filter>(fcut, fres, is_highpass));
+  void setFilter(float fcut, float fres, bool is_highpass, int samplerate) {
+    addEffect(std::make_unique<Filter>(fcut, fres, is_highpass, samplerate));
   }
 
   void setAmpEnvelope(const Envelope & _amp_envelope) { amp_envelope = _amp_envelope; }  
-  void setADSR(int _a, int _d, float _s, int _r) { setAmpEnvelope(Envelope(5 * _a / 255.0f, 2 * 5 * _d / 255.0f, _s, 5 * _r / 255.0f)); }
   const Envelope & getAmpEnvelope() const { return amp_envelope; }
   const Envelope & getModEnvelope() const { return mod_envelope; }
   
