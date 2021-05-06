@@ -33,8 +33,8 @@ class Song {
 
   Pattern & addPattern(size_t rows) { return addPattern(Pattern(rows)); }
 
-  Track & getMasterTrack() { return master_track; }
-  const Track & getMasterTrack() const { return master_track; }
+  MasterTrack & getMasterTrack() { return master_track; }
+  const MasterTrack & getMasterTrack() const { return master_track; }
     
   const std::vector<std::unique_ptr<Instrument> > & getInstruments() const { return instruments; }
   Instrument & getInstrument(size_t i) { return *(instruments[i]); }

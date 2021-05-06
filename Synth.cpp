@@ -16,9 +16,6 @@ Synth::play(Song & song, size_t frames) {
 
   Tuner tuner;
   TrackEventQueue track_events;
-
-  auto & mixer = state.getMixer();
-  mixer.reset();
   
 #if 0
   size_t tick_frames = getTickInterval(song);
@@ -56,20 +53,5 @@ Synth::play(Song & song, size_t frames) {
     }
   }
 
-  for (size_t track_idx = 0; track_idx < tracks.size(); track_idx++) {
-    auto & track = tracks[track_idx];
-    auto & instrument = song.getInstrument(track.getInstrumentId());
-    
-    SampleData data = track.render(frames, instrument, track_events.getPendingEvents(track_idx));
-    mixer.accumulate(data, track.getVolume(), track.getDistance(), track.getAzimuth(), track.getElevation());
-  }
-  assert(track_events.empty());
-
-  SampleData master(2, frames);
-  float * out = master.data();
-  
-  mixer.encode(out, frames, mastertrack.getVolume());
-  mastertrack.applyEffects(master);
-  
-  return master;
+  return mastertrack.render(frames, song, state, track_events);
 }

@@ -73,9 +73,12 @@ HRFT::accumulate(const SampleData & data, float volume, float distance, float az
 }
 
 void
-HRFT::encode(float * output, size_t frames, float master_volume) {
+HRFT::encode(SampleData & out, float master_volume) {
+  float * output = out.data();
+  size_t frames = out.size();
+  
   if (!is_initialized) initialize(frames);
-
+  
   float * buffers[2] = { left_buffer.get(), right_buffer.get() };
   
   myBinauralizer->Process(myBFormat.get(), buffers);
