@@ -3,6 +3,8 @@
 
 #include "Effect.h"
 
+#include <cmath>
+
 class LowpassFilter : public Effect  {
 public:
   LowpassFilter() {
