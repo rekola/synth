@@ -3,14 +3,12 @@
 
 #include "Track.h"
 #include "Pattern.h"
-// #include "Sequence.h"
 #include "InstrumentSet.h"
 
 #include <memory>
 #include <vector>
 
 class SongState;
-class TrackEventQueue;
 
 class Song : public Track {
  public:
@@ -23,6 +21,7 @@ class Song : public Track {
   void setKey(int key) { key_note_number = key; }
   
   float getRandomizationFactor() const { return randomization_factor; }
+  void setRandomizationFactor(float f) { randomization_factor = f; }
   const std::string & getName() const { return name; }
   
   short getTempo() const { return bpm; }
@@ -58,7 +57,7 @@ class Song : public Track {
   void open(const std::string & filename);
   void save(const std::string & filename) const;
 
-  SampleData render(size_t frames, SongState & state, TrackEventQueue & track_events);
+  SampleData render(size_t frames, SongState & state);
 
 private:
   Tuning tuning;

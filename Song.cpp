@@ -2,6 +2,8 @@
 
 #include "SongState.h"
 #include "TrackEventQueue.h"
+#include "SampleData.h"
+#include "Tuner.h"
 
 #include "tinyxml2.h"
 
@@ -23,6 +25,9 @@ Tuning parse_tuning(const char * tuning_text) {
 
 void
 Song::open(const std::string & filename) {
+  char * oldLocale = setlocale(LC_ALL, 0);
+  setlocale(LC_ALL, "C");
+
   XMLDocument doc;
   doc.LoadFile(filename.c_str());
 
@@ -34,19 +39,25 @@ Song::open(const std::string & filename) {
     auto key_text = song->Attribute("key");
     setKey(key_text ? Note::stringToKey(song_tuning, key_text) : -1);
 
-    auto tracks = song->FirstChildElement("tracks");
-    if (tracks) {
-      auto it = tracks->FirstChildElement("track");
-      for ( ; it ; it = it->NextSiblingElement() ) {
-	auto & track = addChild();
-      }
-    }
-
+    auto volume_text = song->Attribute("volume");
+    setVolume(volume_text ? atof(volume_text) : 1.0f);
+    
+    auto randomization_text = song->Attribute("randomization");
+    setRandomizationFactor(randomization_text ? atof(randomization_text) : 1.0f);
+    
     auto instruments = song->FirstChildElement("instruments");
     if (instruments) {
       auto it = instruments->FirstChildElement("instrument");
       for ( ; it ; it = it->NextSiblingElement() ) {
 	// ?
+      }
+    }
+
+    auto tracks = song->FirstChildElement("tracks");
+    if (tracks) {
+      auto it = tracks->FirstChildElement("track");
+      for ( ; it ; it = it->NextSiblingElement() ) {
+	auto & track = addChild();
       }
     }
     
@@ -86,10 +97,14 @@ Song::open(const std::string & filename) {
       }
     }
   }
+  setlocale(LC_ALL, oldLocale);
 }
 
 void
 Song::save(const std::string & filename) const {
+  char * oldLocale = setlocale(LC_ALL, 0);
+  setlocale(LC_ALL, "C");
+ 
   XMLDocument doc;
   doc.InsertEndChild(doc.NewDeclaration());
   
@@ -104,13 +119,14 @@ Song::save(const std::string & filename) const {
   root->SetAttribute("tuning", song_tuning_text.c_str());
   root->SetAttribute("tempo", getTempo());
   root->SetAttribute("volume", getVolume());
+  root->SetAttribute("randomization", getRandomizationFactor());
   doc.InsertEndChild(root);
-
-  XMLElement * tracks = doc.NewElement("tracks");
-  root->InsertEndChild(tracks);
 
   XMLElement * instruments = doc.NewElement("instruments");
   root->InsertEndChild(instruments);
+
+  XMLElement * tracks = doc.NewElement("tracks");
+  root->InsertEndChild(tracks);
   
   XMLElement * patterns = doc.NewElement("patterns");
   root->InsertEndChild(patterns);
@@ -129,23 +145,28 @@ Song::save(const std::string & filename) const {
       pattern_element->SetAttribute("tuning", tuning_text.c_str());
     }
 
-    auto notes = pattern.getNotes();
-    for (auto & d0 : notes) {
-      auto track = d0.first;
-      for (auto & d1 : d0.second) {
-	auto row = d1.first;
-	auto & nv = d1.second;
-	for (size_t i = 0; i < nv.size(); i++) {
-	  auto & note = nv[i];
+    for (size_t row = 0; row < pattern.getNumRows(); row++) {
+      for (size_t track = 0; track < getChildren().size(); track++) {
+	auto & nv = pattern.getNotes(track, row);
+	for (size_t col = 0; col < nv.size(); col++) {
+	  auto & note = nv[col];
 	  auto note_text = note.toString(tuning);
 	  XMLElement * note_element = doc.NewElement("note");
 	  note_element->SetAttribute("track", track);
 	  note_element->SetAttribute("row", row);
-	  if (i > 0) note_element->SetAttribute("column", i);
+	  if (col > 0) note_element->SetAttribute("column", col);
 	  note_element->SetAttribute("velocity", note.getVelocity());
 	  note_element->SetAttribute("value", note_text.c_str());
 	  pattern_element->InsertEndChild(note_element);
   	}
+      }
+
+      auto & annotation = pattern.getAnnotation(row);
+      if (!annotation.empty()) {
+	XMLElement * annotation_element = doc.NewElement("annotation");
+	annotation_element->SetAttribute("row", row);
+	annotation_element->SetText(annotation.c_str());
+	pattern_element->InsertEndChild(annotation_element);      
       }
     }
     
@@ -174,14 +195,49 @@ Song::save(const std::string & filename) const {
   }
   
   doc.SaveFile(filename.c_str());
+
+  setlocale(LC_ALL, oldLocale);
 }
 
 SampleData
-Song::render(size_t frames, SongState & state, TrackEventQueue & track_events) {
+Song::render(size_t frames, SongState & state) {
+  auto & tracks = getChildren();
+
+  Tuner tuner;
+  TrackEventQueue track_events;
+  
+  if (state.isPlaying()) {
+    for (size_t i = 0; i < frames; i++) {
+      if (state.getSamplePos() == 0) {
+	auto & pattern = getPattern(state.getPatternPosition());
+	auto tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : getTuning();
+	int key = pattern.getKey() >= 0 ? pattern.getKey() : getKey();
+
+	for (size_t col = 0; col < tracks.size(); col++) {
+	  auto & notes = pattern.getNotes(col, state.getTrackPosition());
+	  for (size_t j = 0; j < notes.size(); j++) {
+	    if (notes[j].isDefined()) {
+	      auto & note = notes[j];
+	      float frequency, velocity;
+	      if (note.isOff()) {
+		frequency = velocity = 0.0f;
+	      } else {
+		frequency = tuner.getFrequency(tuning, key, note);
+		velocity = note.getVelocityAsFloat();
+	      }
+	      float delay = 0; // getRandomizationFactor() * samplerate * rand() / RAND_MAX;
+	      track_events.addPendingEvent(col, i, int(j), delay, frequency, velocity);
+	    }
+	  }
+	}
+      }
+
+      state.moveForwardSample(*this);
+    }
+  }
+  
   auto & mixer = state.getMixer();
   mixer.reset();
-
-  auto & tracks = getChildren();
   
   for (size_t track_idx = 0; track_idx < tracks.size(); track_idx++) {
     auto & track = tracks[track_idx];
