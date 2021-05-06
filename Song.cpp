@@ -138,6 +138,7 @@ Song::save(const std::string & filename) const {
     if (pattern.getKey() >= 0) key_text = Note::keyToString(tuning, pattern.getKey());
       
     XMLElement * pattern_element = doc.NewElement("pattern");
+    pattern_element->SetAttribute("rows", pattern.getNumRows());
     if (!pattern.getName().empty()) pattern_element->SetAttribute("name", pattern.getName().c_str());
     if (!key_text.empty()) pattern_element->SetAttribute("key", key_text.c_str());
     if (pattern.getTuning() != Tuning::INHERIT) {
