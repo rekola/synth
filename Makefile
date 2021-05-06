@@ -14,7 +14,6 @@ OBJS = main.o \
 	Song.o \
 	HRFT.o \
 	Track.o \
-	MasterTrack.o \
 	tinyxml2.o
 
 CC = g++

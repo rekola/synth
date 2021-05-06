@@ -24,8 +24,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   size_t score_playing_row = state.getTrackPosition();
   auto & song = getController().getSong();
   auto & current_pattern = song.getPattern(score_pattern);
-  auto & mastertrack = song.getMasterTrack();
-  auto & tracks = mastertrack.getChildren();
+  auto & tracks = song.getChildren();
 
   auto track_widths = current_pattern.getTrackWidths();
   size_t score_total_columns = 0;
@@ -136,8 +135,7 @@ bool
 PatternEditor::offerInput(const UIInput & input) {
   auto & song = getController().getSong();
   auto & state = getController().getSongState();
-  auto & mastertrack = song.getMasterTrack();
-  auto & tracks = mastertrack.getChildren();
+  auto & tracks = song.getChildren();
   size_t num_columns = tracks.size();
 
   if (input.hasCtrl()) {
@@ -148,7 +146,7 @@ PatternEditor::offerInput(const UIInput & input) {
 	current_track.setSample(sample);
       } else {
 	new_score_cursor_col = tracks.size();
-	auto & track = mastertrack.addChild(Track::SAMPLE);
+	auto & track = song.addChild(Track::SAMPLE);
 	track.setSample(sample);
       }
       song.incVersion();
@@ -162,7 +160,7 @@ PatternEditor::offerInput(const UIInput & input) {
       return true;
     } else if (input.getId() == 't' || input.getId() == 'T') {
       int instrument_id = 0; // pattern.getTracks().back().getInstrumentId();
-      auto & track = mastertrack.addChild();
+      auto & track = song.addChild();
       track.setInstrumentId(instrument_id); // + 1);
       song.incVersion();
     } else if (input.getId() == 'g' || input.getId() == 'G') {
@@ -293,8 +291,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<siz
   putstr(1, 1, padding);
   putstr(2, 1, padding);
 
-  auto & mastertrack = song.getMasterTrack();
-  auto & tracks = mastertrack.getChildren();
+  auto & tracks = song.getChildren();
   auto & instruments = song.getInstruments();
 
   size_t current_pos = 6;
@@ -347,8 +344,7 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<size_t>
     setBgColor(styles.window_bg_color);
     putstr(3 + row - current_scroll_row, 1, padding);
 
-    auto & mastertrack = song.getMasterTrack();
-    auto & tracks = mastertrack.getChildren();
+    auto & tracks = song.getChildren();
     Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
     
     size_t current_pos = 1;

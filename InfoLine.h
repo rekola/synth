@@ -29,9 +29,8 @@ class InfoLine : public UIElement {
       auto [ rows, cols ] = getDim();
       
       size_t section_index = state.getPatternPosition();
-      auto & mastertrack = song.getMasterTrack();
-      size_t num_voices = mastertrack.getVoiceCount();
-      size_t num_allocated_voices = mastertrack.getAllocatedVoiceCount();
+      size_t num_voices = song.getVoiceCount();
+      size_t num_allocated_voices = song.getAllocatedVoiceCount();
       
       auto s = fmt::format(" {:02x} {:02d}:{:02d} pattern:{} voices:{}/{}", state.getAbsolutePosition(), minutes, seconds, section_index, num_voices, num_allocated_voices);
       while (s.size() < cols) s += ' ';

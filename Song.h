@@ -1,7 +1,7 @@
 #ifndef _SONG_H_
 #define _SONG_H_
 
-#include "MasterTrack.h"
+#include "Track.h"
 #include "Pattern.h"
 // #include "Sequence.h"
 #include "InstrumentSet.h"
@@ -9,12 +9,19 @@
 #include <memory>
 #include <vector>
 
-class Song {
+class SongState;
+class TrackEventQueue;
+
+class Song : public Track {
  public:
   Song(Tuning _tuning = Tuning::TET12, short _key = -1, float _randomization_factor = 0.01f) : tuning(_tuning), key_note_number(_key), randomization_factor(_randomization_factor) { }
 
   Tuning getTuning() const { return tuning; }
+  void setTuning(Tuning _tuning) { tuning = _tuning; }
+  
   short getKey() const { return key_note_number; }
+  void setKey(int key) { key_note_number = key; }
+  
   float getRandomizationFactor() const { return randomization_factor; }
   const std::string & getName() const { return name; }
   
@@ -31,10 +38,7 @@ class Song {
     return patterns.back();
   }
 
-  Pattern & addPattern(size_t rows) { return addPattern(Pattern(rows)); }
-
-  MasterTrack & getMasterTrack() { return master_track; }
-  const MasterTrack & getMasterTrack() const { return master_track; }
+  Pattern & addPattern(size_t rows, Tuning tuning = Tuning::TET12, int key = -1) { return addPattern(Pattern(rows, tuning, key)); }
     
   const std::vector<std::unique_ptr<Instrument> > & getInstruments() const { return instruments; }
   Instrument & getInstrument(size_t i) { return *(instruments[i]); }
@@ -54,6 +58,8 @@ class Song {
   void open(const std::string & filename);
   void save(const std::string & filename) const;
 
+  SampleData render(size_t frames, SongState & state, TrackEventQueue & track_events);
+
 private:
   Tuning tuning;
   short key_note_number;
@@ -65,8 +71,6 @@ private:
   std::vector<Pattern> patterns;
   Pattern empty_pattern;
   int version = 1;
-
-  MasterTrack master_track;
 };
 
 #endif

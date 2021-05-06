@@ -11,8 +11,7 @@ using namespace std;
 
 SampleData
 SongState::render(Song & song, size_t frames) {
-  auto & mastertrack = song.getMasterTrack();
-  auto & tracks = mastertrack.getChildren();
+  auto & tracks = song.getChildren();
 
   Tuner tuner;
   TrackEventQueue track_events;
@@ -53,5 +52,5 @@ SongState::render(Song & song, size_t frames) {
     }
   }
 
-  return mastertrack.render(frames, song, *this, track_events);
+  return song.render(frames, *this, track_events);
 }
