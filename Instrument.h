@@ -31,6 +31,7 @@ public:
   void setAmpEnvelope(const Envelope & _amp_envelope) { amp_envelope = _amp_envelope; }  
   void setADSR(int _a, int _d, float _s, int _r) { setAmpEnvelope(Envelope(5 * _a / 255.0f, 2 * 5 * _d / 255.0f, _s, 5 * _r / 255.0f)); }
   const Envelope & getAmpEnvelope() const { return amp_envelope; }
+  const Envelope & getModEnvelope() const { return mod_envelope; }
   
   void applyEffects(SampleData & data) {
     for (auto & effect : effects) {
