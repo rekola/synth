@@ -48,12 +48,6 @@ class InstrumentVoice {
 
   virtual bool isPlaying() const { return freq != 0 && !ampenv.isDone(); }
 
-  float updateADSR() {
-    float gain = ampenv.getLevel();
-    ampenv.process(1);
-    return gain;
-  }
-
   void setIdentifier(int id) { identifier = id; }
   int getIdentifier() const { return identifier; }
   
