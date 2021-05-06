@@ -117,7 +117,7 @@ private:
   int instrument_id = 0;
   std::vector<std::shared_ptr<InstrumentVoice> > voices;
   bool solo = false, mute = false;
-  float volume = 0.75f;
+  float volume = 1.00f;
   float detune = 0;
   std::string name;
   std::vector<Track> children;
