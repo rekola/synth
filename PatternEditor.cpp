@@ -1,7 +1,7 @@
 #include "PatternEditor.h"
 
 #include "UIInput.h"
-#include "Synth.h"
+#include "SongState.h"
 #include "Controller.h"
 #include "StyleProvider.h"
 #include "Tuner.h"
@@ -19,9 +19,9 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
 bool
 PatternEditor::render(const StyleProvider & styles, bool refresh) {  
   bool render_all = refresh;
-  auto & synth = getController().getSynth();
-  size_t score_pattern = synth.getPatternPosition();
-  size_t score_playing_row = synth.getTrackPosition();
+  auto & state = getController().getSongState();
+  size_t score_pattern = state.getPatternPosition();
+  size_t score_playing_row = state.getTrackPosition();
   auto & song = getController().getSong();
   auto & current_pattern = song.getPattern(score_pattern);
   auto & mastertrack = song.getMasterTrack();
@@ -135,7 +135,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
 bool
 PatternEditor::offerInput(const UIInput & input) {
   auto & song = getController().getSong();
-  auto & synth = getController().getSynth();
+  auto & state = getController().getSongState();
   auto & mastertrack = song.getMasterTrack();
   auto & tracks = mastertrack.getChildren();
   size_t num_columns = tracks.size();
@@ -217,30 +217,30 @@ PatternEditor::offerInput(const UIInput & input) {
     }
     return true;
   } else if (input.getId() == NCKEY_UP || input.getId() == NCKEY_BUTTON4) {
-    if (!synth.isPlaying()) synth.moveBackwards(song);
+    if (!state.isPlaying()) state.moveBackwards(song);
     return true;
   } else if (input.getId() == NCKEY_DOWN || input.getId() == NCKEY_BUTTON5) {
-    if (!synth.isPlaying()) synth.moveForward(song);
+    if (!state.isPlaying()) state.moveForward(song);
     return true;
   } else if (input.getId() == '\t') {
     // next note column
     return true;
   } else if (input.getId() == NCKEY_PGUP) {
-    if (!synth.isPlaying()) synth.moveBackwards(song, 16);
+    if (!state.isPlaying()) state.moveBackwards(song, 16);
     return true;
   } else if (input.getId() == NCKEY_PGDOWN) { // scrollwheel down
-    if (!synth.isPlaying()) synth.moveForward(song, 16);
+    if (!state.isPlaying()) state.moveForward(song, 16);
     return true;
   } else if (input.getId() == '\\') {
     tracks[current_score_cursor_col].setMute(true);   
   } else {
-    auto & pattern = song.getPattern(synth.getPatternPosition());
+    auto & pattern = song.getPattern(state.getPatternPosition());
     Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
     int midi_note = input.toMidiNote(tuning);
     bool is_delete = input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE;
     if (is_delete || midi_note >= 0) {
       if (is_delete) {
-	pattern.deleteNote(current_score_cursor_col, synth.getTrackPosition());
+	pattern.deleteNote(current_score_cursor_col, state.getTrackPosition());
       } else {
 	Note note(midi_note);
 	auto & track = tracks[current_score_cursor_col];
@@ -248,9 +248,9 @@ PatternEditor::offerInput(const UIInput & input) {
 
 	size_t note_column = 0;
 	if (input.hasShift()) {
-	  note_column = pattern.pushNote(current_score_cursor_col, synth.getTrackPosition(), note);
+	  note_column = pattern.pushNote(current_score_cursor_col, state.getTrackPosition(), note);
 	} else {
-	  pattern.setNote(current_score_cursor_col, synth.getTrackPosition(), 0, note);
+	  pattern.setNote(current_score_cursor_col, state.getTrackPosition(), 0, note);
 	}
 
 	row_edited = true;
@@ -266,9 +266,9 @@ PatternEditor::offerInput(const UIInput & input) {
 	}
       }
 
-      if (!synth.isPlaying()) {
-	if (input.getId() == NCKEY_BACKSPACE) synth.moveBackwards(song, edit_step_size);
-	else if (input.getId() != NCKEY_DEL) synth.moveForward(song, edit_step_size);
+      if (!state.isPlaying()) {
+	if (input.getId() == NCKEY_BACKSPACE) state.moveBackwards(song, edit_step_size);
+	else if (input.getId() != NCKEY_DEL) state.moveForward(song, edit_step_size);
       }
       
       return true;
@@ -281,8 +281,8 @@ PatternEditor::offerInput(const UIInput & input) {
 void
 PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<size_t> & track_widths) {
   auto & song = getController().getSong();
-  auto & synth = getController().getSynth();
-  auto & pattern = song.getPattern(synth.getPatternPosition());
+  auto & state = getController().getSongState();
+  auto & pattern = song.getPattern(state.getPatternPosition());
 
   auto [rows, cols] = getDim();
   
@@ -338,8 +338,8 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<size_t>
 
   if (row >= current_scroll_row && row < current_scroll_row + rows - 4) {
     auto & song = getController().getSong();
-    auto & synth = getController().getSynth();
-    auto & pattern = song.getPattern(synth.getPatternPosition());
+    auto & state = getController().getSongState();
+    auto & pattern = song.getPattern(state.getPatternPosition());
     
     string padding;
     for (size_t i = 1; i < cols - 1; i++) padding += ' ';

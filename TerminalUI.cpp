@@ -1,6 +1,6 @@
 #include "TerminalUI.h"
 
-#include "Synth.h"
+#include "SongState.h"
 #include "AudioAPI.h"
 #include "SampleData.h"
 #include "UIInput.h"
@@ -386,7 +386,7 @@ TerminalUI::start(AudioAPI & audio) {
 	  if (i  == 0) {
 	    render |= readInput();
 	  } else if (i - 1 < num_playback_desc) {
-	    auto data = getController().getSynth().play(getController().getSong(), audio.getFrameCount());
+	    auto data = getController().getSongState().render(getController().getSong(), audio.getFrameCount());
 	    audio.play(data, *this);
 
 	    time_t current_time = now();

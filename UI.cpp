@@ -80,7 +80,7 @@ UI::offerInput(const UIInput & input) {
     
     handled = true;
   } else if (input.getId() == ' ') {
-    if (getController().getSynth().togglePlayback()) {
+    if (getController().getSongState().togglePlayback()) {
       setStatus("Playing");
     } else {
       setStatus("Stopped");

@@ -3,7 +3,7 @@
 
 #include "UIElement.h"
 #include "Controller.h"
-#include "Synth.h"
+#include "SongState.h"
 
 #include <fmt/core.h>
 
@@ -15,25 +15,25 @@ class InfoLine : public UIElement {
   }
 
   bool render(const StyleProvider & styles, bool refresh = false) {
-    auto & synth = getController().getSynth();
+    auto & state = getController().getSongState();
     auto & song = getController().getSong();
 
     int new_version = song.getVersion();
-    size_t new_position = synth.getAbsolutePosition();
+    size_t new_position = state.getAbsolutePosition();
     
     if (refresh || new_version != current_version || new_position != current_position) {
-      int seconds = (int)synth.gettime(song);
+      int seconds = (int)state.gettime(song);
       int minutes = seconds / 60;
       seconds %= 60;
       
       auto [ rows, cols ] = getDim();
       
-      size_t section_index = synth.getPatternPosition();
+      size_t section_index = state.getPatternPosition();
       auto & mastertrack = song.getMasterTrack();
       size_t num_voices = mastertrack.getVoiceCount();
       size_t num_allocated_voices = mastertrack.getAllocatedVoiceCount();
       
-      auto s = fmt::format(" {:02x} {:02d}:{:02d} pattern:{} voices:{}/{}", synth.getAbsolutePosition(), minutes, seconds, section_index, num_voices, num_allocated_voices);
+      auto s = fmt::format(" {:02x} {:02d}:{:02d} pattern:{} voices:{}/{}", state.getAbsolutePosition(), minutes, seconds, section_index, num_voices, num_allocated_voices);
       while (s.size() < cols) s += ' ';
       
       putstr(0, 0, s);

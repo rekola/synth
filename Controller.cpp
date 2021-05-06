@@ -9,7 +9,8 @@
 #include "Distortion.h"
 #include "Reverb.h"
 #include "Delay.h"
-#include "Synth.h"
+#include "SongState.h"
+#include "Compressor.h"
 
 #include "default_song.h"
 
@@ -23,7 +24,7 @@ void
 Controller::loadDemo4() {
   auto song = make_shared<Song>(Tuning::TET31, 0);
   song->setTempo(220);
-  auto sampleRate = synth->getSampleRate();
+  auto sampleRate = state->getSampleRate();
 
   auto fluid = make_unique<SoundFont>(sampleRate, "data/FluidR3_GM.sf2");
   // auto instrument = fluid->createInstrument(10);
@@ -74,23 +75,10 @@ void
 Controller::loadDemo3() {
   auto song = make_shared<Song>(Tuning::TET31, 0);
   song->setTempo(220);
-  auto sampleRate = synth->getSampleRate();
+  auto sampleRate = state->getSampleRate();
 
-#if 0
-  auto oboe = make_unique<FMInstrument>(0.7, 1, 3, 4);
-  oboe->setName("oboe");
-  oboe->setADSR(2, 15, 0.5f, 10);
-  // oboe->addEffect(make_unique<Distortion>(Distortion::CLIP, 0.5f));
-  // oboe->addEffect(make_unique<Chorus>(5.0f, 0.0f));
-  // oboe->setFilter(100, 30);
-  // oboe->addEffect(make_unique<Chorus>(5.0f, 0.0f));
-  song->addInstrument(move(oboe));
-#else
   auto fluid = make_unique<SoundFont>(sampleRate, "data/FluidR3_GM.sf2");
-  // auto instrument = fluid->createInstrument(10);
-  // instrument->addEffect(make_unique<Distortion>(Distortion::ZEROES, 0.1, 0.0));
   song->addInstruments(*fluid);
-#endif
 
   // int melody_instrument = 10;
   int melody_instrument = 45;
@@ -203,29 +191,18 @@ void
 Controller::loadDemo2() {
   auto song = make_shared<Song>(Tuning::TET31, 0); // Key of C
 
-  auto sampleRate = synth->getSampleRate();
+  auto sampleRate = state->getSampleRate();
 
-#if 0
-  auto fluid = make_unique<SoundFont>(sampleRate, "data/FluidR3_GM.sf2");
-  auto instrument = fluid->createInstrument(2);
-  // instrument->addEffect(make_unique<Distortion>(Distortion::ZEROES, 0.1, 0.0));  
-  song->addInstrument(move(instrument));
-#else
   auto epiano = make_unique<BasicInstrument>(WaveformType::SAW);
   epiano->setName("Electric Piano");
-  epiano->setADSR(0, 20, 0.0f, 0);
+  epiano->setAmpEnvelope(Envelope(0.0f, 10 * 20 / 255.0f, 0.0f, 0.0));
   epiano->setFilter(63 / 255.0f, 128 / 63.0f);
   song->addInstrument(move(epiano));
 
   auto oboe = make_unique<FMInstrument>(0.7, 1, 3, 4);
   oboe->setName("oboe");
-  oboe->setADSR(2, 15, 0.5f, 10);
-  // oboe->addEffect(make_unique<Distortion>(Distortion::CLIP, 0.5f));
-  // oboe->addEffect(make_unique<Chorus>(5.0f, 0.0f));
-  // oboe->addEffect(make_unique<Reverb>(sampleRate, Reverb::DEFAULT)); // LARGEROOM1));
-  // oboe->setFilter(100, 30);
+  oboe->setAmpEnvelope(Envelope(5 * 2 / 255.0f, 10 * 15 / 255.0f, 0.5f, 5 * 10 / 255.0f));
   song->addInstrument(move(oboe));  
-#endif
 
   auto & track = song->getMasterTrack().addChild();
   // track.addEffect(make_unique<Chorus>(5.0f, 0.0f));
@@ -712,7 +689,7 @@ Controller::loadDemo() {
   const unsigned char * song_data = tr;
   
   song->setTempo(*song_data++);
-  song->setMasterVolume((*song_data++) / 127.0f);
+  song->getMasterTrack().setVolume((*song_data++) / 127.0f);
   
   int delay1 = (int)(MAXDELAYSAMPLES * ((float)(*song_data++) / 255));
   float fd1 = (float)(*song_data++) / 255;
@@ -877,7 +854,7 @@ void
 Controller::createNewSong() {
   auto song = make_shared<Song>();
 
-  auto sampleRate = synth->getSampleRate();
+  auto sampleRate = state->getSampleRate();
 
   auto oboe = make_unique<FMInstrument>(0.7, 1, 3, 4);
   oboe->setName("oboe");

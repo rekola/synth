@@ -6,7 +6,7 @@
 #include <memory>
 
 class Song;
-class Synth;
+class SongState;
 
 class Controller {
  public:
@@ -15,10 +15,10 @@ class Controller {
   const Song & getSong() const { return *current_song; }
   Song & getSong() { return *current_song; }
 
-  const Synth & getSynth() const { return *synth; }
-  Synth & getSynth() { return *synth; }
+  const SongState & getSongState() const { return *state; }
+  SongState & getSongState() { return *state; }
 
-  void setSynth(std::shared_ptr<Synth> & _synth) { synth = _synth; }
+  void setSongState(std::shared_ptr<SongState> & _state) { state = _state; }
   
   void createNewSong();
   void loadDemo();
@@ -40,7 +40,7 @@ class Controller {
   }
   
  private:
-  std::shared_ptr<Synth> synth;
+  std::shared_ptr<SongState> state;
   std::shared_ptr<Song> current_song;
   std::shared_ptr<SampleData> current_sample;
   SampleData empty_sample;

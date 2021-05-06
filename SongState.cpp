@@ -1,4 +1,4 @@
-#include "Synth.h"
+#include "SongState.h"
 
 #include "SampleData.h"
 #include "Tuner.h"
@@ -10,7 +10,7 @@
 using namespace std;
 
 SampleData
-Synth::play(Song & song, size_t frames) {
+SongState::render(Song & song, size_t frames) {
   auto & mastertrack = song.getMasterTrack();
   auto & tracks = mastertrack.getChildren();
 
@@ -53,5 +53,5 @@ Synth::play(Song & song, size_t frames) {
     }
   }
 
-  return mastertrack.render(frames, song, state, track_events);
+  return mastertrack.render(frames, song, *this, track_events);
 }

@@ -1,6 +1,6 @@
 OBJS = main.o \
 	UI.o \
-	Synth.o \
+	SongState.o \
 	AlsaAudio.o \
 	BasicInstrument.o \
 	FileInstrument.o \

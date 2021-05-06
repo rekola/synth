@@ -1,7 +1,7 @@
 #include "AlsaAudio.h"
 #include "TerminalUI.h"
 #include "Controller.h"
-#include "Synth.h"
+#include "SongState.h"
 
 #include <iostream>
 #include <cstring>
@@ -36,8 +36,8 @@ int main(int argc, char *argv[]) {
   AlsaAudio audio(44100, 2);
   audio.initialize(ui);
   
-  auto synth = make_shared<Synth>(audio.getFrequency());
-  controller->setSynth(synth);
+  auto state = make_shared<SongState>(audio.getFrequency());
+  controller->setSongState(state);
 
   if (load_demo == 1) {
     controller->loadDemo();
