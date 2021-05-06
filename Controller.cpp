@@ -839,7 +839,7 @@ Controller::loadDemo() {
 	  Note note = track_notes[track_id][k];
 	  if (note.isDefined()) pattern.setNote(track_id, k, 0, note);
 	  else {
-	    cerr << "note missing: pattern=" << i << ", track = " << track_id << ", row = " << k << endl;
+	    // cerr << "note missing: pattern=" << i << ", track = " << track_id << ", row = " << k << endl;
 	  }
 	}
       }
