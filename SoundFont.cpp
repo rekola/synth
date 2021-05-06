@@ -83,6 +83,8 @@ struct tsf_stream {
 // Generic SoundFont loading method using the stream structure above
 void tsf_load(SoundFontFile * f, struct tsf_stream* stream);
 
+static inline float tsf_cents2Hertz(float cents) { return 8.176f * powf(2.0f, cents / 1200.0f); }
+
 // Returns the number of presets in the loaded SoundFont
 // int tsf_get_presetcount(const SoundFontFile* f);
 
@@ -947,8 +949,8 @@ SoundFontVoice::playNote(float frequency, float velocity, float delay, float det
     if (lowpass.active) lowpass.setup(lowpassFc);
     
     // Setup LFO filters.
-    modlfo = LFO(region->delayModLFO, region->freqModLFO, f->outSampleRate);
-    viblfo = LFO(region->delayVibLFO, region->freqVibLFO, f->outSampleRate);
+    modlfo = LFO(region->delayModLFO, tsf_cents2Hertz(region->freqModLFO), f->outSampleRate);
+    viblfo = LFO(region->delayVibLFO, tsf_cents2Hertz(region->freqVibLFO), f->outSampleRate);
 
     break; // FIXME, add subvoices
   }
