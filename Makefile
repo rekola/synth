@@ -13,7 +13,8 @@ OBJS = main.o \
 	Song.o \
 	HRFT.o \
 	Track.o \
-	tinyxml2.o
+	tinyxml2.o \
+	Filter.o
 
 CC = g++
 
