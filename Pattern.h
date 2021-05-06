@@ -93,6 +93,8 @@ class Pattern {
     else return empty_string;
   }
 
+  const std::unordered_map<unsigned short, std::string> & getAnnotations() const { return annotations; }
+  
 private:
   size_t num_rows;
   Tuning tuning;
