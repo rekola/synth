@@ -19,7 +19,6 @@
    LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
    USE OR OTHER DEALINGS IN THE SOFTWARE.
-
 */
 
 #include "SoundFont.h"
@@ -661,7 +660,6 @@ public:
   double apparentPlayingKey;
   struct tsf_region * voiceRegion;
   double pitchInputTimecents, pitchOutputFactor;
-  double sourceSamplePosition;
   unsigned int loopStart, loopEnd;
   LowpassFilter lowpass;
   LFO modlfo, viblfo;
@@ -680,8 +678,8 @@ SoundFontVoice::render(float* outputBuffer, size_t numSamples, size_t offset) {
   float* output = outputBuffer + offset;
 
   bool updateModEnv = (voiceRegion->modEnvToPitch || voiceRegion->modEnvToFilterFc);
-  bool updateModLFO = (modlfo.delta && (voiceRegion->modLfoToPitch || voiceRegion->modLfoToFilterFc || voiceRegion->modLfoToVolume));
-  bool updateVibLFO = (viblfo.delta && (voiceRegion->vibLfoToPitch));
+  bool updateModLFO = (modlfo.getDelta() && (voiceRegion->modLfoToPitch || voiceRegion->modLfoToFilterFc || voiceRegion->modLfoToVolume));
+  bool updateVibLFO = (viblfo.getDelta() && (voiceRegion->vibLfoToPitch));
   bool isLooping    = (loopStart < loopEnd);
   double sampleEndDbl = (double)voiceRegion->end;
   double loopEndDbl = (double)loopEnd + 1.0;
@@ -719,18 +717,18 @@ SoundFontVoice::render(float* outputBuffer, size_t numSamples, size_t offset) {
     numSamples -= blockSamples;
 
     if (dynamicLowpass) {
-      float fres = tmpInitialFilterFc + modlfo.level * tmpModLfoToFilterFc + modenv.getLevel() * tmpModEnvToFilterFc;
+      float fres = tmpInitialFilterFc + modlfo.getLevel() * tmpModLfoToFilterFc + modenv.getLevel() * tmpModEnvToFilterFc;
       float lowpassFc = (fres <= 13500 ? tsf_cents2Hertz(fres) / sampleRate : 1.0f);
       lowpass.active = (lowpassFc < 0.499f);
       if (lowpass.active) lowpass.setup(lowpassFc);
     }
 
     if (dynamicPitchRatio) {
-      pitchRatio = tsf_timecents2Secsd(pitchInputTimecents + (modlfo.level * tmpModLfoToPitch + viblfo.level * tmpVibLfoToPitch + modenv.getLevel() * tmpModEnvToPitch)) * pitchOutputFactor;
+      pitchRatio = tsf_timecents2Secsd(pitchInputTimecents + (modlfo.getLevel() * tmpModLfoToPitch + viblfo.getLevel() * tmpVibLfoToPitch + modenv.getLevel() * tmpModEnvToPitch)) * pitchOutputFactor;
     }
 
     if (dynamicGain) {
-      noteGain = decibelsToGain(getGainDB() + (modlfo.level * tmpModLfoToVolume));
+      noteGain = decibelsToGain(getGainDB() + (modlfo.getLevel() * tmpModLfoToVolume));
     }
 
     float gainMono = noteGain * ampenv.getLevel();
