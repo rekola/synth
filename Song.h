@@ -38,7 +38,7 @@ class Song : public Track {
     return patterns.back();
   }
 
-  Pattern & addPattern(size_t rows, Tuning tuning = Tuning::TET12, int key = -1) { return addPattern(Pattern(rows, tuning, key)); }
+  Pattern & addPattern(size_t rows, Tuning tuning = Tuning::INHERIT, int key = -1) { return addPattern(Pattern(rows, tuning, key)); }
     
   const std::vector<std::unique_ptr<Instrument> > & getInstruments() const { return instruments; }
   Instrument & getInstrument(size_t i) { return *(instruments[i]); }
