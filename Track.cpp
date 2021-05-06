@@ -10,7 +10,6 @@ Track::render(size_t frames, SongState & state, size_t track_idx, Instrument & i
   assert(num_channels == 1);
   
   SampleData data(num_channels, frames);
-  auto buffer = data.data();
 
   for (size_t i = 0; i < frames; ) {
     size_t render_size = frames - i;
@@ -33,14 +32,14 @@ Track::render(size_t frames, SongState & state, size_t track_idx, Instrument & i
     
     for (auto & voice : state.getVoices(track_idx)) {
       if (voice->isPlaying()) {
-	voice->render(buffer, render_size, i);
+	auto voice_data = voice->render(render_size);
+	data.mix(voice_data, i);	
       }
     }
     
     i += render_size;
   }
 
-  instrument.applyEffects(data);
   applyEffects(data);
 
   return data;

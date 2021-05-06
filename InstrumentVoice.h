@@ -18,7 +18,7 @@ class InstrumentVoice {
   }
   virtual ~InstrumentVoice() { }
   
-  virtual void render(float * buffer, size_t frames, size_t offset = 0) = 0;
+  virtual SampleData render(size_t frames) = 0;
 
   virtual void stopNote() {
     ampenv.nextSegment(EnvelopeGenerator::SUSTAIN);
@@ -48,6 +48,12 @@ class InstrumentVoice {
 
   virtual bool isPlaying() const { return freq != 0 && !ampenv.isDone(); }
 
+  void applyEffects(SampleData & data) {
+    for (auto & state : effect_states) {
+      state->apply(data);
+    }
+  }
+    
   void setIdentifier(int id) { identifier = id; }
   int getIdentifier() const { return identifier; }
   
@@ -81,6 +87,7 @@ private:
   float freq = 0.0f, detune = 0.0f;
   float noteGainDB = 0.0f;
   Envelope amp_envelope, mod_envelope;
+  std::vector<std::unique_ptr<EffectState> > effect_states;
 };
 
 #endif

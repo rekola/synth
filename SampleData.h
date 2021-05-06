@@ -45,6 +45,14 @@ class SampleData {
     frames += other.size();
   }
 
+  void mix(const SampleData & other, size_t offset = 0) {
+    size_t n = other.size();
+    if (offset + n > size()) n = size() - offset;
+    for (size_t i = 0; i < n; i++) {
+      _data[offset + i] += other._data[i];
+    }
+  }
+  
   void shortenToPowerofTwo() {
     size_t new_size = 1;
     for ( ; new_size * 2 <= frames; new_size *= 2) { }

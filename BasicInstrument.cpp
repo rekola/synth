@@ -1,33 +1,24 @@
 #include "BasicInstrument.h"
 
-#if 0
-bool BasicInstrument::is_initialized = false;
-float BasicInstrument::waves[4][WAVESIZE];
+#include "InstrumentVoice.h"
 
-void
-BasicInstrument::initialize() {
-  is_initialized = true;
-
-  for (int i = 0; i < WAVESIZE; i++) {
-    waves[int(WaveformType::SINE)][i] = sinf(i * 2.0 * M_PI / (float)WAVESIZE);
-    waves[int(WaveformType::SAW)][i] = -1.0 + fmod(1.0 + 2.0 * i / (float)WAVESIZE, 2.0);
-    waves[int(WaveformType::SQUARE)][i] = (i < WAVESIZE / 2) ? -1.0 : 1.0;
-    waves[int(WaveformType::NOISE)][i] = ((float)rand() / RAND_MAX) * 2.0 - 1.0;
-  }
-}
-#endif
+using namespace std;
 
 class BasicInstrumentVoice : public InstrumentVoice {
 public:
   BasicInstrumentVoice(int _identifier, const Envelope & amp_envelope, WaveformType _type) : InstrumentVoice(_identifier, amp_envelope), type(_type) { }
 
-  void render(float * buffer, size_t frames, size_t offset) override {
-    float gain = decibelsToGain(getGainDB());
+  SampleData render(size_t frames) override {
+    float gain0 = decibelsToGain(getGainDB());
 
+    SampleData output(1, frames);
+    auto buffer = output.data();
+    
     for (size_t k = 0; k < frames; k++) {
-      float adsrvol = updateADSR();
+      float gain = gain0 * ampenv.getLevel();
 
       float i = fmod(getSourceSamplePosition() / 44100.0f, 1.0);
+      
       stepForward();
 
       float s;
@@ -48,15 +39,21 @@ public:
 	s = 0.0f;
       }
 
-      buffer[k + offset] = s * gain * adsrvol;
+      buffer[k] += s * gain;
+      
+      ampenv.process(1);
     }
+
+    applyEffects(output);
+
+    return output;
   }
   
 private:
   WaveformType type;
 };
 
-std::shared_ptr<InstrumentVoice>
+std::unique_ptr<InstrumentVoice>
 BasicInstrument::createVoice(int _identifier) const {
-  return std::make_shared<BasicInstrumentVoice>(_identifier, getAmpEnvelope(), type);
+  return std::make_unique<BasicInstrumentVoice>(_identifier, getAmpEnvelope(), type);
 }

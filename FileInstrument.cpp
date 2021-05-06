@@ -1,5 +1,8 @@
 #include "FileInstrument.h"
 
+#include "SampleData.h"
+#include "InstrumentVoice.h"
+
 #include <sndfile.h>
 #include <cstring>
 
@@ -53,9 +56,12 @@ class FileInstrumentVoice : public InstrumentVoice {
 public:
   FileInstrumentVoice(int _identifier, std::shared_ptr<SampleData> _samples) : InstrumentVoice(_identifier), samples(_samples) { }
 
-  void render(float * buffer, size_t frames, size_t offset) override {
+  SampleData render(size_t frames) override {
     float gain = decibelsToGain(getGainDB());
 
+    SampleData output(1, frames);
+    auto buffer = output.data();
+    
     bool ended = false;
     for (size_t k = 0; k < frames; k++) {
       // float i = getFphase() * WAVESIZE / 44100.0f;
@@ -71,10 +77,14 @@ public:
 	is_playing = false;
       }
 
-      buffer[k + offset] = s * gain;
+      buffer[k] += s * gain;
     }
     
     if (ended) killNote();
+
+    applyEffects(output);
+    
+    return output;
   }
 
   void stopNote() override {
@@ -94,7 +104,7 @@ private:
   std::shared_ptr<SampleData> samples;
 };
 
-std::shared_ptr<InstrumentVoice>
+std::unique_ptr<InstrumentVoice>
 FileInstrument::createVoice(int _identifier) const {
-  return std::make_shared<FileInstrumentVoice>(_identifier, samples);
+  return std::make_unique<FileInstrumentVoice>(_identifier, samples);
 }

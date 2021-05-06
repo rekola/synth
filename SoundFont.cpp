@@ -386,23 +386,22 @@ static void tsf_region_envtosecs(Envelope * p, bool sustainIsGain) {
   else p->sustain = 1.0f - (p->sustain / 1000.0f);
 }
 
-static void tsf_load_samples(float** fontSamples, unsigned int* fontSampleCount, struct tsf_riffchunk *chunkSmpl, struct tsf_stream* stream)
-{
-	// Read sample data into float format buffer.
-	float* out; unsigned int samplesLeft, samplesToRead, samplesToConvert;
-	samplesLeft = *fontSampleCount = chunkSmpl->size / sizeof(short);
-	out = *fontSamples = (float*)malloc(samplesLeft * sizeof(float));
-	for (; samplesLeft; samplesLeft -= samplesToRead)
-	{
-		short sampleBuffer[1024], *in = sampleBuffer;;
-		samplesToRead = (samplesLeft > 1024 ? 1024 : samplesLeft);
-		stream->read(stream->data, sampleBuffer, samplesToRead * sizeof(short));
-
-		// Convert from signed 16-bit to float.
-		for (samplesToConvert = samplesToRead; samplesToConvert > 0; --samplesToConvert)
-			// If we ever need to compile for big-endian platforms, we'll need to byte-swap here.
-			*out++ = (float)(*in++ / 32767.0);
-	}
+static void tsf_load_samples(float** fontSamples, unsigned int* fontSampleCount, struct tsf_riffchunk *chunkSmpl, struct tsf_stream* stream) {
+  // Read sample data into float format buffer.
+  unsigned int samplesToRead;
+  unsigned int samplesLeft = *fontSampleCount = chunkSmpl->size / sizeof(short);
+  float * out = *fontSamples = (float*)malloc(samplesLeft * sizeof(float));
+  for (; samplesLeft; samplesLeft -= samplesToRead) {
+    short sampleBuffer[1024], *in = sampleBuffer;
+    samplesToRead = (samplesLeft > 1024 ? 1024 : samplesLeft);
+    stream->read(stream->data, sampleBuffer, samplesToRead * sizeof(short));
+      
+    // Convert from signed 16-bit to float.
+    for (unsigned int samplesToConvert = samplesToRead; samplesToConvert > 0; --samplesToConvert) {
+      // If we ever need to compile for big-endian platforms, we'll need to byte-swap here.
+      *out++ = (float)(*in++ / 32767.0);
+    }
+  }
 }
 
 class SoundFontFile {
@@ -631,7 +630,7 @@ public:
     playingPreset = -1;
   }
 
-  void render(float * outputBuffer, size_t numSamples, size_t offset) override;
+  SampleData render(size_t numSamples) override;
   
   void stopNote() override {
     InstrumentVoice::stopNote();
@@ -672,14 +671,15 @@ private:
   size_t preset;
 };
 
-void
-SoundFontVoice::render(float* outputBuffer, size_t numSamples, size_t offset) {
+SampleData
+SoundFontVoice::render(size_t numSamples) {
   auto f = sf->getHandle();
-
-  // struct tsf_region* region = voiceRegion;
+  
+  SampleData outputData(1, numSamples);
+  float * output = outputData.data();
+    
   float* input = f->fontSamples;
-  float* output = outputBuffer + offset;
-
+  
   bool updateModEnv = (voiceRegion->modEnvToPitch || voiceRegion->modEnvToFilterFc);
   bool updateModLFO = (modlfo.getDelta() && (voiceRegion->modLfoToPitch || voiceRegion->modLfoToFilterFc || voiceRegion->modLfoToVolume));
   bool updateVibLFO = (viblfo.getDelta() && (voiceRegion->vibLfoToPitch));
@@ -766,6 +766,10 @@ SoundFontVoice::render(float* outputBuffer, size_t numSamples, size_t offset) {
       break;
     }
   }
+
+  // applyEffects(outputData);
+
+  return outputData;
 }
 
 void tsf_load(SoundFontFile* res, struct tsf_stream* stream) {  
@@ -961,8 +965,8 @@ class SoundFontInstrument : public Instrument {
 public:
   SoundFontInstrument(std::shared_ptr<SoundFontFile> _sf, size_t _preset) : Instrument(1), sf(_sf), preset(_preset) { }
   
-  std::shared_ptr<InstrumentVoice> createVoice(int identifier) const override {
-    return make_shared<SoundFontVoice>(identifier, sf, preset);
+  std::unique_ptr<InstrumentVoice> createVoice(int identifier) const override {
+    return make_unique<SoundFontVoice>(identifier, sf, preset);
   }
 
 private:

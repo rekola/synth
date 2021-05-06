@@ -1,6 +1,11 @@
+
 #include "FMInstrument.h"
 
+#include "InstrumentVoice.h"
+
 #include <cmath>
+
+using namespace std;
 
 // <FM>	Strength of the frequency modulation
 // <harmonic>	Harmonic of the modulator (integer)
@@ -18,14 +23,17 @@ public:
       modulation(_modulation), harmonic(_harmonic), subharmonic(_subharmonic), transpose(_transpose)
   { }
 
-  void render(float * buffer, size_t frames, size_t offset) override {
-    float gain = decibelsToGain(getGainDB());
-      
-    for (size_t i = 0; i < frames; i++) {
-      float adsrvol = updateADSR();
+  SampleData render(size_t frames) override {
+    float gain0 = 0.5 * decibelsToGain(getGainDB());
 
+    SampleData output(1, frames);
+    auto buffer = output.data();
+
+    for (size_t i = 0; i < frames; i++) {
+      float gain = gain0 * ampenv.getLevel();
+      
       double phi = transpose * getSourceSamplePosition() * 2 * M_PI / 44100.0f;
-      float s = sinf(phi + modulation * sinf(phi * harmonic / subharmonic));
+      float s = sinf(phi + modenv.getLevel() * modulation * sinf(phi * harmonic / subharmonic));
 
       // return s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s;
       // return s;
@@ -35,8 +43,15 @@ public:
       
       stepForward();
       
-      buffer[i + offset] = s * gain * 0.5f * adsrvol;
+      buffer[i] += s * gain;
+
+      ampenv.process(1);
+      modenv.process(1);
     }
+
+    applyEffects(output);
+	
+    return output;
   }
 
 private:
@@ -44,7 +59,7 @@ private:
   int harmonic, subharmonic;
 };
 
-std::shared_ptr<InstrumentVoice>
+std::unique_ptr<InstrumentVoice>
 FMInstrument::createVoice(int _identifier) const {
-  return std::make_shared<FMInstrumentVoice>(_identifier, getAmpEnvelope(), getModEnvelope(), modulation, harmonic, subharmonic, transpose);
+  return std::make_unique<FMInstrumentVoice>(_identifier, getAmpEnvelope(), getModEnvelope(), modulation, harmonic, subharmonic, transpose);
 }
