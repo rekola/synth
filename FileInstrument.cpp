@@ -59,7 +59,7 @@ public:
     bool ended = false;
     for (size_t k = 0; k < frames; k++) {
       // float i = getFphase() * WAVESIZE / 44100.0f;
-      size_t i = (size_t)getWavePosition();
+      size_t i = (size_t)getSourceSamplePosition();
       stepForward();
 
       float s;
@@ -68,6 +68,7 @@ public:
       } else {
 	s = 0.0f;
 	ended = true;
+	is_playing = false;
       }
 
       buffer[k + offset] = s * gain;
@@ -75,8 +76,21 @@ public:
     
     if (ended) killNote();
   }
-  
+
+  void stopNote() override {
+    // is_playing = false;
+  }
+  bool isPlaying() const override { return is_playing; }
+  void killNote() override {
+    // nothing, because otherwise Envelope kills us
+  }
+  void playNote(float _frequency, float velocity, float _delay, float _detune) override {
+    InstrumentVoice::playNote(_frequency, velocity, _delay, _detune);
+    is_playing = true;
+  }
+
 private:
+  bool is_playing;
   std::shared_ptr<SampleData> samples;
 };
 
