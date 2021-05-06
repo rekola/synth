@@ -27,19 +27,19 @@ public:
     for (size_t k = 0; k < frames; k++) {
       float adsrvol = updateADSR();
 
-      float i = 2 * M_PI * getWavePosition() / 44100.0f;
+      float i = fmod(getSourceSamplePosition() / 44100.0f, 1.0);
       stepForward();
 
       float s;
       switch (type) {
       case WaveformType::SINE:
-	s = sinf(i);
+	s = sinf(2 * M_PI * i);
 	break;
       case WaveformType::SAW:
-	s = -1.0 + fmodf(1.0 + 2.0 * i / (2.0f * M_PI), 2.0);
+	s = -1.0 + fmodf(1.0 + 2.0 * i, 2.0);
 	break;
       case WaveformType::SQUARE:
-	s = fmodf(i, 2.0f * M_PI) < M_PI ? -1.0 : 1.0;
+	s = i < 0.5 ? -1.0 : 1.0;
 	break;
       case WaveformType::NOISE:
 	s = ((float)rand() / RAND_MAX) * 2.0 - 1.0;
