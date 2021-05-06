@@ -12,70 +12,7 @@ class Note {
   explicit Note() : value(-1), velocity(0x3f) { }
   explicit Note(int _value, short _velocity = 0x3f) : value(_value), velocity(_velocity) { }
   explicit Note(std::string input_value, short _velocity = 0x3f, Tuning tuning = Tuning::TET12) : velocity(_velocity) {
-    replace(input_value, "♯", "#");
-    replace(input_value, "♭", "b");
-    replace(input_value, "𝄫", "bb");
-    replace(input_value, "𝄪", "x");
-
-    int octave;
-    std::string::size_type pos = input_value.find_first_of("0123456789");
-    if (pos != std::string::npos) {
-      octave = stoi(input_value.substr(pos));
-      input_value.erase(pos);
-    } else {
-      octave = 4;
-    }
-    char letter = input_value[0];
-    std::string accidental = input_value.substr(1);
-
-    assert(letter >= 'A' && letter <= 'G');
-      
-    if (tuning == Tuning::TET12) {
-      value = (octave + 1) * 12;
-      
-      // C C# D D# E F F# G G# A A# B
-
-      if (letter >= 'C' && letter <= 'E') value += (letter - 'C') * 2;
-      else if (letter == 'F' || letter == 'G') value += 5 + (letter - 'F') * 2;
-      else if (letter == 'A' || letter == 'B') value += 9 + (letter - 'A') * 2;
-      else {
-	assert(0);
-      }
-      
-      if (accidental == "#") value++;
-      else if (accidental == "b") value--;
-      else {
-	assert(accidental == "-");
-      }
-    } else if (tuning == Tuning::TET19) {
-      value = (octave + 1) * 19;
-
-      // C C♯ D♭ D D♯ E♭ E E♯ F♭ F F♯ G♭ G G♯ A♭ A A♯ B♭ B B♯ C♭
-      assert(0);
-      value = 0;
-    } else {
-      value = (octave + 1) * 31;
-      
-      // C D𝄫 C♯ D♭ C𝄪 D E𝄫 D♯,
-      // E♭ D𝄪 E F♭ E♯ F G𝄫 F♯,
-      // G♭ F𝄪 G A𝄫 G♯ A♭ G𝄪 A,
-      // B𝄫 A♯ B♭ A𝄪 B C♭ B♯
-
-      if (letter >= 'C' && letter <= 'E') value += (letter - 'C') * 5;
-      else if (letter >= 'F' && letter <= 'G') value += 13 + (letter - 'F') * 5;
-      else if (letter >= 'A' && letter <= 'B') value += 23 + (letter - 'A') * 5;
-      else {
-	assert(0);
-      }
-
-      if (accidental == "#") value += 2;
-      else if (accidental == "b") value -= 2;
-      else if (accidental == "x") value += 4;
-      else if (accidental == "bb") value -= 4;
-      else {
-	assert(accidental == "-");
-      }
-    }
+    value = stringToKey(tuning, input_value);    
   }
 
   short getValue() const { return value; }
@@ -110,6 +47,77 @@ class Note {
     } else {
       return note_names_12tet[value % 12];
     }    
+  }
+
+  static inline int stringToKey(Tuning tuning, std::string input_value) {
+    replace(input_value, "♯", "#");
+    replace(input_value, "♭", "b");
+    replace(input_value, "𝄫", "bb");
+    replace(input_value, "𝄪", "x");
+    
+    int octave;
+    std::string::size_type pos = input_value.find_first_of("0123456789");
+    if (pos != std::string::npos) {
+      octave = stoi(input_value.substr(pos));
+      input_value.erase(pos);
+    } else {
+      octave = 4;
+    }
+    char letter = input_value[0];
+    std::string accidental = input_value.substr(1);
+
+    assert(letter >= 'A' && letter <= 'G');
+      
+    if (tuning == Tuning::TET12) {
+      int value = (octave + 1) * 12;
+      
+      // C C# D D# E F F# G G# A A# B
+
+      if (letter >= 'C' && letter <= 'E') value += (letter - 'C') * 2;
+      else if (letter == 'F' || letter == 'G') value += 5 + (letter - 'F') * 2;
+      else if (letter == 'A' || letter == 'B') value += 9 + (letter - 'A') * 2;
+      else {
+	assert(0);
+      }
+      
+      if (accidental == "#") value++;
+      else if (accidental == "b") value--;
+      else {
+	assert(accidental == "-");
+      }
+
+      return value;
+    } else if (tuning == Tuning::TET19) {
+      int value = (octave + 1) * 19;
+
+      // C C♯ D♭ D D♯ E♭ E E♯ F♭ F F♯ G♭ G G♯ A♭ A A♯ B♭ B B♯ C♭
+      assert(0);
+      return value;
+    } else {
+      int value = (octave + 1) * 31;
+      
+      // C D𝄫 C♯ D♭ C𝄪 D E𝄫 D♯,
+      // E♭ D𝄪 E F♭ E♯ F G𝄫 F♯,
+      // G♭ F𝄪 G A𝄫 G♯ A♭ G𝄪 A,
+      // B𝄫 A♯ B♭ A𝄪 B C♭ B♯
+
+      if (letter >= 'C' && letter <= 'E') value += (letter - 'C') * 5;
+      else if (letter >= 'F' && letter <= 'G') value += 13 + (letter - 'F') * 5;
+      else if (letter >= 'A' && letter <= 'B') value += 23 + (letter - 'A') * 5;
+      else {
+	assert(0);
+      }
+
+      if (accidental == "#") value += 2;
+      else if (accidental == "b") value -= 2;
+      else if (accidental == "x") value += 4;
+      else if (accidental == "bb") value -= 4;
+      else {
+	assert(accidental == "-");
+      }
+
+      return value;
+    }
   }
   
   std::string toString(Tuning tuning) const {
