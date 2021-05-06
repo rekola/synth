@@ -15,13 +15,13 @@
 
 class FMInstrument : public Instrument {
 public:
-  explicit FMInstrument(float _modulation, int _harmonic, int _subharmonic, float _n = 2)
-    : Instrument(1), modulation(_modulation), harmonic(_harmonic), subharmonic(_subharmonic), noise(0), n(_n) { }
+  explicit FMInstrument(float _modulation, int _harmonic, int _subharmonic, float _transpose = 1.0f, float _n = 2)
+    : Instrument(1), modulation(_modulation), harmonic(_harmonic), subharmonic(_subharmonic), transpose(_transpose), noise(0), n(_n) { }
 
   std::shared_ptr<InstrumentVoice> createVoice(int _identifier) const override;
   
 private:
-  float modulation;
+  float modulation, transpose;
   // velocity, attack, decay, sustain, release, env_time, env_level;
   int harmonic, subharmonic;
   // , transpose, note, gate, note_active, rate;
