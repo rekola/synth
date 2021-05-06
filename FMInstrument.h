@@ -22,9 +22,7 @@ public:
   
 private:
   float modulation, transpose;
-  // velocity, attack, decay, sustain, release, env_time, env_level;
   int harmonic, subharmonic;
-  // , transpose, note, gate, note_active, rate;
   float noise, n;
 };
 
