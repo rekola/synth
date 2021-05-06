@@ -1,7 +1,11 @@
 #include "Track.h"
 
+#include "SongState.h"
+
+using namespace std;
+
 SampleData
-Track::render(size_t frames, Instrument & instrument, std::map<unsigned int, std::vector<TrackEvent> > & pending_events) {
+Track::render(size_t frames, SongState & state, size_t track_idx, Instrument & instrument, std::map<unsigned int, std::vector<TrackEvent> > & pending_events) {
   size_t num_channels = instrument.getNumChannels();
   assert(num_channels == 1);
   
@@ -17,9 +21,9 @@ Track::render(size_t frames, Instrument & instrument, std::map<unsigned int, std
       if (i == it->first) {
 	for (auto & ev : it->second) {
 	  if (ev.isOff()) {
-	    stopNote(ev.getId());
+	    state.stopNote(track_idx, ev.getId());
 	  } else {
-	    playNote(ev.getFrequency(), ev.getVelocity(), ev.getDelay(), instrument, ev.getId());
+	    state.playNote(track_idx, ev.getId(), ev.getFrequency(), ev.getVelocity(), detune, ev.getDelay(), instrument);
 	  }
 	}
 	it = pending_events.erase(it);
@@ -27,7 +31,7 @@ Track::render(size_t frames, Instrument & instrument, std::map<unsigned int, std
       if (it != pending_events.end() && it->first - i < render_size) render_size = it->first - i;
     }     
     
-    for (auto & voice : getVoices()) {
+    for (auto & voice : state.getVoices(track_idx)) {
       if (voice->isPlaying()) {
 	voice->render(buffer, render_size, i);
       }

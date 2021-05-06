@@ -3,6 +3,7 @@
 
 #include "Song.h"
 #include "HRFT.h"
+#include "InstrumentVoice.h"
 
 #define NOTEDOMAIN ((float)1/4)
 
@@ -83,11 +84,65 @@ class SongState {
 
   Mixer & getMixer() { return hrft; }
 
+  void stopNote(size_t track, size_t column) {
+    auto it = voices.find(track);
+    if (it != voices.end()) {
+      for (auto & voice : it->second) {
+	if (column == voice->getIdentifier() && voice->isPlaying()) {
+	  voice->stopNote();
+	}
+      }
+    }
+  }
+  
+  void playNote(size_t track, size_t column, float frequency, float velocity, float detune, float delay, const Instrument & instrument) {
+    auto & track_voices = voices[track];
+    
+    bool voice_found = false;
+    for (auto & voice : track_voices) {
+      if (!voice_found && !voice->isPlaying()) {
+	voice->setIdentifier(column);
+	voice->playNote(frequency, velocity, delay, detune);
+	voice_found = true;
+      } else if (column == voice->getIdentifier() && voice->isPlaying()) {
+	voice->stopNote();
+      }
+    }
+    if (!voice_found) {
+      track_voices.push_back(instrument.createVoice(column));
+      track_voices.back()->playNote(frequency, velocity, delay, detune);
+    }
+  }
+
+  std::vector<std::shared_ptr<InstrumentVoice> > & getVoices(size_t track) { return voices[track]; }
+
+  void clearVoices() { voices.clear(); }
+
+  size_t getVoiceCount() const {
+    size_t n = 0;
+    for (auto & d : voices) {
+      for (auto & voice : d.second) {
+	if (voice->isPlaying()) n++;
+      }
+    }
+    return n;
+  }
+
+  size_t getAllocatedVoiceCount() const {
+    size_t n = 0;
+    for (auto & track_voices : voices) {
+      n += track_voices.second.size();
+    }
+    return n;
+  }
+
 private:
   bool is_playing = false;
 
   size_t sample_pos = 0, track_pos = 0, pattern_pos = 0, absolute_pos = 0;
   size_t samplerate;
+
+  std::unordered_map<unsigned short, std::vector<std::shared_ptr<InstrumentVoice> > > voices;
 
   HRFT hrft;
 };

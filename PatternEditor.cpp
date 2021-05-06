@@ -163,6 +163,7 @@ PatternEditor::offerInput(const UIInput & input) {
       auto & track = song.addChild();
       track.setInstrumentId(instrument_id); // + 1);
       song.incVersion();
+      state.clearVoices();
     } else if (input.getId() == 'g' || input.getId() == 'G') {
       // create group
       return true;
@@ -254,13 +255,13 @@ PatternEditor::offerInput(const UIInput & input) {
 	row_edited = true;
 
 	if (note.isOff()) {
-	  track.stopNote(note_column);
+	  state.stopNote(current_score_cursor_col, note_column);
 	} else {
 	  Tuner tuner;
 	  Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
 	  int key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
 	  float frequency = tuner.getFrequency(tuning, key, note);
-	  track.playNote(frequency, note.getVelocity() / 127.0f, 0.0f, instrument, note_column);
+	  state.playNote(current_score_cursor_col, note_column, frequency, note.getVelocity() / 127.0f, track.getDetune(), 0.0f, instrument);
 	}
       }
 

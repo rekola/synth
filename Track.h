@@ -4,7 +4,6 @@
 #include "TreeElement.h"
 #include "Note.h"
 #include "Instrument.h"
-#include "InstrumentVoice.h"
 #include "SampleData.h"
 #include "Effect.h"
 #include "SampleData.h"
@@ -13,6 +12,8 @@
 #include <vector>
 #include <memory>
 #include <map>
+
+class SongState;
 
 class Track : public TreeElement {
  public:
@@ -32,58 +33,13 @@ class Track : public TreeElement {
   void setMute(bool m) { mute = m; }
 
   int getInstrumentId() const { return instrument_id; }
-  void setInstrumentId(int id) {
-    if (id != instrument_id) {
-      instrument_id = id;
-      voices.clear(); // the voices have wrong instrument
-    }
-  }
-
+  void setInstrumentId(int id) { instrument_id = id; }
+  
   float getDetune() const { return detune; }
   void setDetune(float _detune) { detune = _detune; }
-
-  std::vector<std::shared_ptr<InstrumentVoice> > & getVoices() { return voices; }
   
-  void stopNote(int identifier) {
-    for (auto & voice : voices) {
-      if (identifier == voice->getIdentifier() && voice->isPlaying()) {
-	voice->stopNote();
-      }
-    }
-  }
+  SampleData render(size_t frames, SongState & state, size_t track_idx, Instrument & instrument, std::map<unsigned int, std::vector<TrackEvent> > & pending_events);
   
-  void playNote(float frequency, float velocity, float delay, const Instrument & instrument, int identifier) {
-    bool voice_found = false;
-    for (auto & voice : voices) {
-      if (!voice_found && !voice->isPlaying()) {
-	voice->setIdentifier(identifier);
-	voice->playNote(frequency, velocity, delay, detune);
-	voice_found = true;
-      } else if (identifier == voice->getIdentifier() && voice->isPlaying()) {
-	voice->stopNote();
-      }
-    }
-    if (!voice_found) {
-      voices.push_back(instrument.createVoice(identifier));
-      voices.back()->playNote(frequency, velocity, delay, detune);
-    }
-  }
-
-  SampleData render(size_t frames, Instrument & instrument, std::map<unsigned int, std::vector<TrackEvent> > & pending_events);
-  
-  size_t getVoiceCount() const {
-    size_t n = 0;
-    for (auto & voice : voices) if (voice->isPlaying()) n++;
-    for (auto & child : children) n += child.getVoiceCount();
-    return n;
-  }
-
-  size_t getAllocatedVoiceCount() const {
-    size_t n = voices.size();
-    for (auto & child : children) n += child.getAllocatedVoiceCount();
-    return n;
-  }
-
   void setSample(std::shared_ptr<SampleData> _sample) { sample = _sample; }
 
   const std::string & getName() const { return name; }
@@ -115,7 +71,6 @@ class Track : public TreeElement {
 private:
   Type type;
   int instrument_id = 0;
-  std::vector<std::shared_ptr<InstrumentVoice> > voices;
   bool solo = false, mute = false;
   float volume = 1.00f;
   float detune = 0;
