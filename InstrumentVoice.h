@@ -12,6 +12,10 @@ class InstrumentVoice {
     : identifier(_identifier), amp_envelope(_amp_envelope) {
 
   }
+  InstrumentVoice(int _identifier, const Envelope & _amp_envelope, const Envelope & _mod_envelope)
+    : identifier(_identifier), amp_envelope(_amp_envelope), mod_envelope(_mod_envelope) {
+    
+  }
   virtual ~InstrumentVoice() { }
   
   virtual void render(float * buffer, size_t frames, size_t offset = 0) = 0;
@@ -40,10 +44,9 @@ class InstrumentVoice {
     setGainDB(-gainToDecibels(1.0f / velocity));
     
     sourceSamplePosition = 0;
-    is_stopped = false;
   }
 
-  virtual bool isPlaying() const { return freq != 0; }
+  virtual bool isPlaying() const { return freq != 0 && !ampenv.isDone(); }
 
   float updateADSR() {
     float gain = ampenv.getLevel();
@@ -84,7 +87,6 @@ private:
   float freq = 0.0f, detune = 0.0f;
   float noteGainDB = 0.0f;
   Envelope amp_envelope, mod_envelope;
-  bool is_stopped = false;
 };
 
 #endif
