@@ -27,6 +27,7 @@
 #include "FourCC.h"
 #include "EnvelopeGenerator.h"
 #include "LFO.h"
+#include "InstrumentVoice.h"
 
 using namespace std;
 
