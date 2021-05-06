@@ -11,9 +11,9 @@ class Note {
  public:  
   explicit Note() : value(-1), velocity(0x3f) { }
   explicit Note(int _value, short _velocity = 0x3f) : value(_value), velocity(_velocity) { }
-  explicit Note(std::string input_value, short _velocity = 0x3f, Tuning tuning = Tuning::TET12) : velocity(_velocity) {
-    value = stringToKey(tuning, input_value);    
-  }
+  explicit Note(std::string input_value, short _velocity = 0x3f, Tuning tuning = Tuning::TET12)
+    : value(stringToKey(tuning, input_value)),
+      velocity(_velocity) { }
 
   short getValue() const { return value; }
   short getVelocity() const { return velocity; }
