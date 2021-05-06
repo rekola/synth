@@ -2,51 +2,39 @@
 #define _INSTRUMENT_H_
 
 #include "Effect.h"
-#include "Filter.h"
-#include "Note.h"
-#include "InstrumentVoice.h"
 #include "Envelope.h"
 
 #include <string>
 #include <vector>
-#include <cmath>
 #include <memory>
+
+class InstrumentVoice;
 
 class Instrument {
 public:
   explicit Instrument(size_t _num_channels) : num_channels(_num_channels) { }
   virtual ~Instrument() { }
 
-  virtual std::shared_ptr<InstrumentVoice> createVoice(int _identifier) const = 0;
+  virtual std::unique_ptr<InstrumentVoice> createVoice(int _identifier) const = 0;
 
   size_t getNumChannels() const { return num_channels; }
   
   void setName(const std::string & _name) { name = _name; }
   const std::string & getName() const { return name; }
-          
-  void setFilter(float fcut, float fres, bool is_highpass, int samplerate) {
-    addEffect(std::make_unique<Filter>(fcut, fres, is_highpass, samplerate));
-  }
-
+  
   void setAmpEnvelope(const Envelope & _amp_envelope) { amp_envelope = _amp_envelope; }  
   const Envelope & getAmpEnvelope() const { return amp_envelope; }
   const Envelope & getModEnvelope() const { return mod_envelope; }
   
-  void applyEffects(SampleData & data) {
-    for (auto & effect : effects) {
-      effect->apply(data);
-    }
-  }
-
   void addEffect(std::unique_ptr<Effect> effect) { effects.push_back(std::move(effect)); }
 
-  bool autoPan() const { return autopan; }
+  float getGain() const { return gain; }
   
 protected:
   size_t num_channels;
   std::string name;
-  bool autopan = true;
   Envelope amp_envelope, mod_envelope;
+  float gain = 1.0f;
 
   std::vector<std::unique_ptr<Effect> > effects;
 };
