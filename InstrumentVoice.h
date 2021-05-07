@@ -6,15 +6,13 @@
 
 class InstrumentVoice {
  public:
-  InstrumentVoice(int _identifier)
-    : identifier(_identifier) { }
-  InstrumentVoice(int _identifier, const Envelope & _amp_envelope)
-    : identifier(_identifier), amp_envelope(_amp_envelope) {
-
+  InstrumentVoice(unsigned int _outSampleRate, int _identifier)
+    : outSampleRate(_outSampleRate), identifier(_identifier) { }
+  InstrumentVoice(unsigned int _outSampleRate, int _identifier, const Envelope & _amp_envelope)
+    : outSampleRate(_outSampleRate), identifier(_identifier), amp_envelope(_amp_envelope) {
   }
-  InstrumentVoice(int _identifier, const Envelope & _amp_envelope, const Envelope & _mod_envelope)
-    : identifier(_identifier), amp_envelope(_amp_envelope), mod_envelope(_mod_envelope) {
-    
+  InstrumentVoice(unsigned int _outSampleRate, int _identifier, const Envelope & _amp_envelope, const Envelope & _mod_envelope)
+    : outSampleRate(_outSampleRate), identifier(_identifier), amp_envelope(_amp_envelope), mod_envelope(_mod_envelope) {   
   }
   virtual ~InstrumentVoice() { }
   
@@ -53,7 +51,7 @@ class InstrumentVoice {
       state->apply(data);
     }
   }
-    
+  
   void setIdentifier(int id) { identifier = id; }
   int getIdentifier() const { return identifier; }
   
@@ -73,6 +71,7 @@ class InstrumentVoice {
   }
 
 protected:
+  unsigned int getOutSampleRate() const { return outSampleRate; }
   double getSourceSamplePosition() const { return sourceSamplePosition; }
 
   void stepForward() {
@@ -83,6 +82,7 @@ protected:
   double sourceSamplePosition = 0.0;
 
 private:
+  unsigned int outSampleRate;
   int identifier;
   float freq = 0.0f, detune = 0.0f;
   float noteGainDB = 0.0f;

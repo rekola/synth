@@ -6,7 +6,8 @@ using namespace std;
 
 class BasicInstrumentVoice : public InstrumentVoice {
 public:
-  BasicInstrumentVoice(int _identifier, const Envelope & amp_envelope, WaveformType _type) : InstrumentVoice(_identifier, amp_envelope), type(_type) { }
+  BasicInstrumentVoice(unsigned int _outSampleRate, int _identifier, const Envelope & amp_envelope, WaveformType _type)
+    : InstrumentVoice(_outSampleRate, _identifier, amp_envelope), type(_type) { }
 
   SampleData render(size_t frames) override {
     float gain0 = decibelsToGain(getGainDB());
@@ -54,6 +55,6 @@ private:
 };
 
 std::unique_ptr<InstrumentVoice>
-BasicInstrument::createVoice(int _identifier) const {
-  return std::make_unique<BasicInstrumentVoice>(_identifier, getAmpEnvelope(), type);
+BasicInstrument::createVoice(unsigned int outSampleRate, int identifier) const {
+  return std::make_unique<BasicInstrumentVoice>(outSampleRate, identifier, getAmpEnvelope(), type);
 }

@@ -15,7 +15,7 @@ class BasicInstrument : public Instrument {
  public:  
   explicit BasicInstrument(WaveformType _type) : Instrument(1), type(_type) { }
 
-  std::unique_ptr<InstrumentVoice> createVoice(int _identifier) const;
+  std::unique_ptr<InstrumentVoice> createVoice(unsigned int outSampleRate, int identifier) const;
   
  private:
   WaveformType type;

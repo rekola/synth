@@ -12,7 +12,7 @@ class FileInstrument : public Instrument {
     openFile();
   }
 
-  std::unique_ptr<InstrumentVoice> createVoice(int _identifier) const;
+  std::unique_ptr<InstrumentVoice> createVoice(unsigned int outSampleRate, int identifier) const;
   
 protected:
   void openFile();

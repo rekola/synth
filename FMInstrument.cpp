@@ -18,8 +18,8 @@ static inline float spow(float a, float p) {
 
 class FMInstrumentVoice : public InstrumentVoice {
 public:
-  FMInstrumentVoice(int _identifier, const Envelope & amp_envelope, const Envelope & mod_envelope, float _modulation, int _harmonic, int _subharmonic, float _transpose)
-    : InstrumentVoice(_identifier, amp_envelope, mod_envelope),
+  FMInstrumentVoice(unsigned int _outSampleRate, int _identifier, const Envelope & amp_envelope, const Envelope & mod_envelope, float _modulation, int _harmonic, int _subharmonic, float _transpose)
+    : InstrumentVoice(_outSampleRate, _identifier, amp_envelope, mod_envelope),
       modulation(_modulation), harmonic(_harmonic), subharmonic(_subharmonic), transpose(_transpose)
   { }
 
@@ -60,6 +60,6 @@ private:
 };
 
 std::unique_ptr<InstrumentVoice>
-FMInstrument::createVoice(int _identifier) const {
-  return std::make_unique<FMInstrumentVoice>(_identifier, getAmpEnvelope(), getModEnvelope(), modulation, harmonic, subharmonic, transpose);
+FMInstrument::createVoice(unsigned int outSampleRate, int identifier) const {
+  return std::make_unique<FMInstrumentVoice>(outSampleRate, identifier, getAmpEnvelope(), getModEnvelope(), modulation, harmonic, subharmonic, transpose);
 }

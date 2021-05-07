@@ -11,13 +11,13 @@
 
 class SongState {
  public:
-  explicit SongState(int samplerate) : samplerate(samplerate) { }
+  explicit SongState(int _outSampleRate) : outSampleRate(_outSampleRate), hrft(_outSampleRate) { }
   
-  size_t getSampleRate() const { return samplerate; }
+  size_t getOutSampleRate() const { return outSampleRate; }
   
   size_t getSampleInterval(const Song & song) const {
     float tnote = (float)60 / song.getTempo() * NOTEDOMAIN * 2;
-    return (size_t)(tnote * samplerate);
+    return (size_t)(tnote * outSampleRate);
   }
 
   size_t getTickInterval(const Song & song) const {
@@ -25,7 +25,7 @@ class SongState {
   }
       
   float gettime(const Song & song) const {
-    return (float)(absolute_pos * getSampleInterval(song) + sample_pos) / samplerate;
+    return (float)(absolute_pos * getSampleInterval(song) + sample_pos) / outSampleRate;
   }
   
   bool togglePlayback() {
@@ -109,7 +109,7 @@ class SongState {
       }
     }
     if (!voice_found) {
-      track_voices.push_back(instrument.createVoice(column));
+      track_voices.push_back(instrument.createVoice(outSampleRate, column));
       track_voices.back()->playNote(frequency, velocity, delay, detune);
     }
   }
@@ -140,7 +140,7 @@ private:
   bool is_playing = false;
 
   size_t sample_pos = 0, track_pos = 0, pattern_pos = 0, absolute_pos = 0;
-  size_t samplerate;
+  size_t outSampleRate;
 
   std::unordered_map<unsigned short, std::vector<std::shared_ptr<InstrumentVoice> > > voices;
 

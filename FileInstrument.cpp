@@ -54,7 +54,8 @@ FileInstrument::openFile() {
 
 class FileInstrumentVoice : public InstrumentVoice {
 public:
-  FileInstrumentVoice(int _identifier, std::shared_ptr<SampleData> _samples) : InstrumentVoice(_identifier), samples(_samples) { }
+  FileInstrumentVoice(unsigned int _outSampleRate, int _identifier, std::shared_ptr<SampleData> _samples)
+    : InstrumentVoice(_outSampleRate, _identifier), samples(_samples) { }
 
   SampleData render(size_t frames) override {
     float gain = decibelsToGain(getGainDB());
@@ -105,6 +106,6 @@ private:
 };
 
 std::unique_ptr<InstrumentVoice>
-FileInstrument::createVoice(int _identifier) const {
-  return std::make_unique<FileInstrumentVoice>(_identifier, samples);
+FileInstrument::createVoice(unsigned int outSampleRate, int identifier) const {
+  return std::make_unique<FileInstrumentVoice>(outSampleRate, identifier, samples);
 }

@@ -18,7 +18,7 @@ public:
   explicit FMInstrument(float _modulation, int _harmonic, int _subharmonic, float _transpose = 1.0f, float _n = 2)
     : Instrument(1), modulation(_modulation), harmonic(_harmonic), subharmonic(_subharmonic), transpose(_transpose), noise(0), n(_n) { }
 
-  std::unique_ptr<InstrumentVoice> createVoice(int _identifier) const override;
+  std::unique_ptr<InstrumentVoice> createVoice(unsigned int outSampleRate, int identifier) const override;
   
 private:
   float modulation, transpose;

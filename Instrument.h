@@ -15,7 +15,7 @@ public:
   explicit Instrument(size_t _num_channels) : num_channels(_num_channels) { }
   virtual ~Instrument() { }
 
-  virtual std::unique_ptr<InstrumentVoice> createVoice(int _identifier) const = 0;
+  virtual std::unique_ptr<InstrumentVoice> createVoice(unsigned int outSampleRate, int _identifier) const = 0;
 
   size_t getNumChannels() const { return num_channels; }
   
