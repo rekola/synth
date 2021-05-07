@@ -26,6 +26,8 @@
 
 #include "Envelope.h"
 
+#include <cmath>
+
 static inline float tsf_timecents2Secsf(float timecents) { return powf(2.0f, timecents / 1200.0f); }
 
 // Grace release time for quick voice off (avoid clicking noise)
