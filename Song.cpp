@@ -233,7 +233,15 @@ Song::render(size_t frames, SongState & state) {
 	}
       }
 
-      state.moveForwardSample(*this);
+      size_t remaining = state.samplesUntilNextRow(*this);
+      if (i + remaining <= frames) {
+	i += remaining;
+	state.moveForward(*this);
+      } else {
+	for (; i < frames; i++) {
+	  state.moveForwardSample(*this);
+	}
+      }
     }
   }
   
