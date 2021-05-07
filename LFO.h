@@ -5,7 +5,7 @@ class LFO {
  public:
   enum Type { NONE = 0, SAW, SINE };
   
-  LFO() : type(NONE), samplesUntil(0), level(0), delta(0) { }
+  LFO() : type(NONE), samplesUntil(0), delta(0), level(0) { }
   
   LFO(float delay, float frequency, float outSampleRate)
     : type(SAW),
@@ -36,7 +36,7 @@ class LFO {
 private:
   Type type;
   int samplesUntil;
-  float level, delta;
+  float delta, level;
 };
 
 #endif
