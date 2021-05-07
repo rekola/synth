@@ -406,14 +406,12 @@ static void tsf_load_samples(float** fontSamples, unsigned int* fontSampleCount,
 
 class SoundFontFile {
 public:
-  SoundFontFile(int samplerate, std::string filename) {
+  SoundFontFile(std::string filename) {
     presets = 0;
     fontSamples = 0;
     presetNum = 0;
 
     loadFile(filename);
-    
-    outSampleRate = samplerate;
   }
   ~SoundFontFile() {
     struct tsf_preset *preset, *presetEnd;
@@ -460,14 +458,11 @@ public:
     return -1;
   }
 
-  SoundFontFile * getHandle() { return this; }
-  const SoundFontFile * getHandle() const { return this; }
   size_t getPresetCount() const { return presetNum; }
   
-  struct tsf_preset* presets;
-  float* fontSamples;  
+  struct tsf_preset * presets;
+  float * fontSamples;  
   int presetNum;
-  float outSampleRate;
 };
 
 static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsigned int fontSampleCount) {
@@ -618,8 +613,8 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
 
 class SoundFontVoice : public InstrumentVoice {
 public:
-  SoundFontVoice(int _identifier, std::shared_ptr<SoundFontFile> _sf, size_t _preset = 0)
-    : InstrumentVoice(_identifier), sf(_sf), preset(_preset) {
+  SoundFontVoice(unsigned int _outSampleRate, int _identifier, std::shared_ptr<SoundFontFile> _sf, size_t _preset = 0)
+    : InstrumentVoice(_outSampleRate, _identifier), sf(_sf), preset(_preset) {
     playingPreset = -1;
   }
   
@@ -641,8 +636,6 @@ public:
   }
 
   void stopNoteQuick() {
-    auto f = sf->getHandle();
-
     ampenv.parameters.release = 0.0f;
     ampenv.nextSegment(EnvelopeGenerator::SUSTAIN);
     
@@ -650,12 +643,12 @@ public:
     modenv.nextSegment(EnvelopeGenerator::SUSTAIN);
   }
 
-  void calcPitchRatio(float pitchShift, float outSampleRate) {
+  void calcPitchRatio(float pitchShift) {
     double note = apparentPlayingKey + voiceRegion->transpose + voiceRegion->tune / 100.0;
     double adjustedPitch = voiceRegion->pitch_keycenter + (note - voiceRegion->pitch_keycenter) * (voiceRegion->pitch_keytrack / 100.0);
     if (pitchShift) adjustedPitch += pitchShift;
     pitchInputTimecents = adjustedPitch * 100.0;
-    pitchOutputFactor = voiceRegion->sample_rate / (tsf_timecents2Secsd(voiceRegion->pitch_keycenter * 100.0) * outSampleRate);
+    pitchOutputFactor = voiceRegion->sample_rate / (tsf_timecents2Secsd(voiceRegion->pitch_keycenter * 100.0) * getOutSampleRate());
   }
     
   int playingPreset;
@@ -673,7 +666,7 @@ private:
 
 SampleData
 SoundFontVoice::render(size_t numSamples) {
-  auto f = sf->getHandle();
+  auto f = sf.get();
   
   SampleData outputData(1, numSamples);
   float * output = outputData.data();
@@ -687,7 +680,7 @@ SoundFontVoice::render(size_t numSamples) {
   double sampleEndDbl = (double)voiceRegion->end;
   double loopEndDbl = (double)loopEnd + 1.0;
   bool dynamicGain = (voiceRegion->modLfoToVolume != 0);
-  float sampleRate = f->outSampleRate;
+  float sampleRate = getOutSampleRate();
   bool dynamicLowpass = (voiceRegion->modLfoToFilterFc || voiceRegion->modEnvToFilterFc);
   bool dynamicPitchRatio = (voiceRegion->modLfoToPitch || voiceRegion->modEnvToPitch || voiceRegion->vibLfoToPitch);
   
@@ -838,7 +831,6 @@ void tsf_load(SoundFontFile* res, struct tsf_stream* stream) {
       res->presetNum = hydra.phdrNum - 1;
       res->presets = (struct tsf_preset*)malloc(res->presetNum * sizeof(struct tsf_preset));
       res->fontSamples = fontSamples;
-      res->outSampleRate = 44100.0f;
       fontSamples = NULL; //don't free below
       tsf_load_presets(res, &hydra, fontSampleCount);
     }
@@ -853,7 +845,7 @@ static void tsf_channel_setup_voice(SoundFontFile* f, SoundFontVoice * v) {
   struct tsf_channel* c = &f->channels->channels[f->channels->activeChannel];
   v->playingChannel = f->channels->activeChannel;
   v->noteGainDB += c->gainDB;
-  v->calcPitchRatio((c->pitchWheel == 8192 ? c->tuning : ((c->pitchWheel / 16383.0f * c->pitchRange * 2.0f) - c->pitchRange + c->tuning)), f->outSampleRate);
+  v->calcPitchRatio((c->pitchWheel == 8192 ? c->tuning : ((c->pitchWheel / 16383.0f * c->pitchRange * 2.0f) - c->pitchRange + c->tuning)));
 }
 
 static void tsf_channel_applypitch(SoundFontFile* f, int channel, struct tsf_channel* c)
@@ -862,7 +854,7 @@ static void tsf_channel_applypitch(SoundFontFile* f, int channel, struct tsf_cha
 	float pitchShift = (c->pitchWheel == 8192 ? c->tuning : ((c->pitchWheel / 16383.0f * c->pitchRange * 2.0f) - c->pitchRange + c->tuning));
 	for (v = f->voices, vEnd = v + f->voiceNum; v != vEnd; v++)
 		if (v->playingChannel == channel && v->playingPreset != -1)
-			v->calcPitchRatio(pitchShift, f->outSampleRate);
+			v->calcPitchRatio(pitchShift);
 }
 
 void tsf_channel_set_pitchwheel(SoundFontFile* f, int channel, int pitch_wheel)
@@ -892,7 +884,7 @@ void tsf_channel_set_tuning(SoundFontFile* f, int channel, float tuning)
 
 void
 SoundFont::openFile() {
-  sf = make_shared<SoundFontFile>(samplerate, filename);  
+  sf = make_shared<SoundFontFile>(filename);  
 }  
 
 void
@@ -903,7 +895,7 @@ SoundFontVoice::playNote(float frequency, float velocity, float delay, float det
   }
   assert(frequency > 0);
 
-  auto f = sf->getHandle();
+  auto f = sf.get();
 
   int preset_index = preset;
   if (preset_index < 0 || preset_index >= f->presetNum) return;
@@ -931,7 +923,7 @@ SoundFontVoice::playNote(float frequency, float velocity, float delay, float det
     apparentPlayingKey = apparent_key;
     // voice->playingFrequency = frequency;
     setGainDB(- region->attenuation - gainToDecibels(1.0f / velocity));
-    calcPitchRatio(0, f->outSampleRate);
+    calcPitchRatio(0);
     
     // Offset/end.
     sourceSamplePosition = region->offset;
@@ -942,11 +934,11 @@ SoundFontVoice::playNote(float frequency, float velocity, float delay, float det
     loopEnd = (doLoop ? region->loop_end : 0);
     
     // Setup envelopes.
-    ampenv = EnvelopeGenerator(region->ampenv, apparent_key, midiVelocity, true, f->outSampleRate, delay);
-    modenv = EnvelopeGenerator(region->modenv, apparent_key, midiVelocity, false, f->outSampleRate, delay);
+    ampenv = EnvelopeGenerator(region->ampenv, apparent_key, midiVelocity, true, getOutSampleRate(), delay);
+    modenv = EnvelopeGenerator(region->modenv, apparent_key, midiVelocity, false, getOutSampleRate(), delay);
     
     // Setup lowpass filter.
-    lowpassFc = (region->initialFilterFc <= 13500 ? tsf_cents2Hertz((float)region->initialFilterFc) / f->outSampleRate : 1.0f);
+    lowpassFc = (region->initialFilterFc <= 13500 ? tsf_cents2Hertz((float)region->initialFilterFc) / getOutSampleRate() : 1.0f);
     lowpassFilterQDB = region->initialFilterQ / 10.0f;
     lowpass.QInv = 1.0 / pow(10.0, (lowpassFilterQDB / 20.0));
     lowpass.z1 = lowpass.z2 = 0;
@@ -954,8 +946,8 @@ SoundFontVoice::playNote(float frequency, float velocity, float delay, float det
     if (lowpass.active) lowpass.setup(lowpassFc);
     
     // Setup LFO filters.
-    modlfo = LFO(region->delayModLFO, tsf_cents2Hertz(region->freqModLFO), f->outSampleRate);
-    viblfo = LFO(region->delayVibLFO, tsf_cents2Hertz(region->freqVibLFO), f->outSampleRate);
+    modlfo = LFO(region->delayModLFO, tsf_cents2Hertz(region->freqModLFO), getOutSampleRate());
+    viblfo = LFO(region->delayVibLFO, tsf_cents2Hertz(region->freqVibLFO), getOutSampleRate());
 
     break; // FIXME, add subvoices
   }
@@ -965,8 +957,8 @@ class SoundFontInstrument : public Instrument {
 public:
   SoundFontInstrument(std::shared_ptr<SoundFontFile> _sf, size_t _preset) : Instrument(1), sf(_sf), preset(_preset) { }
   
-  std::unique_ptr<InstrumentVoice> createVoice(int identifier) const override {
-    return make_unique<SoundFontVoice>(identifier, sf, preset);
+  std::unique_ptr<InstrumentVoice> createVoice(unsigned int outSampleRate, int identifier) const override {
+    return make_unique<SoundFontVoice>(outSampleRate, identifier, sf, preset);
   }
 
 private:

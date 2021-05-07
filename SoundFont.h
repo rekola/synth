@@ -9,7 +9,7 @@ class SoundFontFile;
 
 class SoundFont : public InstrumentSet {
  public:  
-  explicit SoundFont(int _samplerate, std::string _filename) : samplerate(_samplerate), filename(_filename) {
+  explicit SoundFont(std::string _filename) : filename(_filename) {
     openFile();
   }
 
@@ -20,7 +20,6 @@ protected:
   void openFile();
 
 private:
-  int samplerate;
   std::string filename;
   std::shared_ptr<SoundFontFile> sf;
 };
