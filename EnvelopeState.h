@@ -21,8 +21,8 @@
    USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-#ifndef _ENVELOPEGENERATOR_H_
-#define _ENVELOPEGENERATOR_H_
+#ifndef _ENVELOPESTATE_H_
+#define _ENVELOPESTATE_H_
 
 #include "Envelope.h"
 
@@ -33,14 +33,14 @@ static inline float tsf_timecents2Secsf(float timecents) { return powf(2.0f, tim
 // Grace release time for quick voice off (avoid clicking noise)
 #define TSF_FASTRELEASETIME 0.01f
 
-class EnvelopeGenerator {
+class EnvelopeState {
  public:
   enum Segment { NONE = 0, DELAY, ATTACK, HOLD, DECAY, SUSTAIN, RELEASE, DONE };
   
-  EnvelopeGenerator()
+  EnvelopeState()
     : level(0.0f), slope(0.0f), samplesUntilNextSegment(0), midiVelocity(0), segmentIsExponential(false), isAmpEnv(false), outSampleRate(0) { }
 
-  EnvelopeGenerator(const Envelope & _parameters, int midiNoteNumber, short _midiVelocity, bool _isAmpEnv, float _outSampleRate, float _note_delay = 0.0f)
+  EnvelopeState(const Envelope & _parameters, int midiNoteNumber, short _midiVelocity, bool _isAmpEnv, float _outSampleRate, float _note_delay = 0.0f)
     : parameters(_parameters),
       midiVelocity(_midiVelocity),
       isAmpEnv(_isAmpEnv),

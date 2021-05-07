@@ -2,7 +2,7 @@
 #define _INSTRUMENTVOICE_H_
 
 #include "Note.h"
-#include "EnvelopeGenerator.h"
+#include "EnvelopeState.h"
 
 class InstrumentVoice {
  public:
@@ -19,13 +19,13 @@ class InstrumentVoice {
   virtual SampleData render(size_t frames) = 0;
 
   virtual void stopNote() {
-    ampenv.nextSegment(EnvelopeGenerator::SUSTAIN);
-    modenv.nextSegment(EnvelopeGenerator::SUSTAIN);
+    ampenv.nextSegment(EnvelopeState::SUSTAIN);
+    modenv.nextSegment(EnvelopeState::SUSTAIN);
   }
 
   virtual void killNote() {
-    ampenv.nextSegment(EnvelopeGenerator::DONE);
-    modenv.nextSegment(EnvelopeGenerator::DONE);
+    ampenv.nextSegment(EnvelopeState::DONE);
+    modenv.nextSegment(EnvelopeState::DONE);
 
     freq = 0.0f;
   }
@@ -33,8 +33,8 @@ class InstrumentVoice {
   virtual void playNote(float _frequency, float velocity, float _delay, float _detune) {
     int midiVelocity = int(velocity * 127);
     if (midiVelocity > 127) midiVelocity = 127;
-    ampenv = EnvelopeGenerator(amp_envelope, 0, midiVelocity, true, 44100, _delay);
-    modenv = EnvelopeGenerator(mod_envelope, 0, midiVelocity, false, 44100, _delay);
+    ampenv = EnvelopeState(amp_envelope, 0, midiVelocity, true, 44100, _delay);
+    modenv = EnvelopeState(mod_envelope, 0, midiVelocity, false, 44100, _delay);
 	
     freq = _frequency;
     detune = _detune;
@@ -78,7 +78,7 @@ protected:
     sourceSamplePosition += freq;
   }
 
-  EnvelopeGenerator ampenv, modenv;
+  EnvelopeState ampenv, modenv;
   double sourceSamplePosition = 0.0;
 
 private:

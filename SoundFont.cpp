@@ -25,7 +25,7 @@
 
 #include "LowpassFilter.h"
 #include "FourCC.h"
-#include "EnvelopeGenerator.h"
+#include "EnvelopeState.h"
 #include "LFO.h"
 #include "InstrumentVoice.h"
 
@@ -637,10 +637,10 @@ public:
 
   void stopNoteQuick() {
     ampenv.parameters.release = 0.0f;
-    ampenv.nextSegment(EnvelopeGenerator::SUSTAIN);
+    ampenv.nextSegment(EnvelopeState::SUSTAIN);
     
     modenv.parameters.release = 0.0f;
-    modenv.nextSegment(EnvelopeGenerator::SUSTAIN);
+    modenv.nextSegment(EnvelopeState::SUSTAIN);
   }
 
   void calcPitchRatio(float pitchShift) {
@@ -934,8 +934,8 @@ SoundFontVoice::playNote(float frequency, float velocity, float delay, float det
     loopEnd = (doLoop ? region->loop_end : 0);
     
     // Setup envelopes.
-    ampenv = EnvelopeGenerator(region->ampenv, apparent_key, midiVelocity, true, getOutSampleRate(), delay);
-    modenv = EnvelopeGenerator(region->modenv, apparent_key, midiVelocity, false, getOutSampleRate(), delay);
+    ampenv = EnvelopeState(region->ampenv, apparent_key, midiVelocity, true, getOutSampleRate(), delay);
+    modenv = EnvelopeState(region->modenv, apparent_key, midiVelocity, false, getOutSampleRate(), delay);
     
     // Setup lowpass filter.
     lowpassFc = (region->initialFilterFc <= 13500 ? tsf_cents2Hertz((float)region->initialFilterFc) / getOutSampleRate() : 1.0f);
