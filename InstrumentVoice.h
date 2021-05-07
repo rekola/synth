@@ -51,6 +51,12 @@ class InstrumentVoice {
       state->apply(data);
     }
   }
+
+  void createEffectStates(const std::vector<std::unique_ptr<Effect> > & effects) {
+    for (auto & effect : effects) {
+      effect_states.push_back(effect->createState(outSampleRate));
+    }
+  }
   
   void setIdentifier(int id) { identifier = id; }
   int getIdentifier() const { return identifier; }

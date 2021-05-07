@@ -61,5 +61,7 @@ private:
 
 std::unique_ptr<InstrumentVoice>
 FMInstrument::createVoice(unsigned int outSampleRate, int identifier) const {
-  return std::make_unique<FMInstrumentVoice>(outSampleRate, identifier, getAmpEnvelope(), getModEnvelope(), modulation, harmonic, subharmonic, transpose);
+  auto v = std::make_unique<FMInstrumentVoice>(outSampleRate, identifier, getAmpEnvelope(), getModEnvelope(), modulation, harmonic, subharmonic, transpose);
+  v->createEffectStates(getEffects());
+  return move(v);
 }

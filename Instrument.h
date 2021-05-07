@@ -27,7 +27,8 @@ public:
   const Envelope & getModEnvelope() const { return mod_envelope; }
   
   void addEffect(std::unique_ptr<Effect> effect) { effects.push_back(std::move(effect)); }
-
+  const std::vector<std::unique_ptr<Effect> > & getEffects() const { return effects; }
+  
   float getGain() const { return gain; }
   
 protected:

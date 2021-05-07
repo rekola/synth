@@ -6,17 +6,11 @@
 
 #include <memory>
 
-class SampleData;
-
 class Effect : public TreeElement {
  public:
   Effect() { }
   
-  virtual void apply(SampleData & input) = 0;
-  virtual std::unique_ptr<EffectState> createState(unsigned int samplerate) { return std::unique_ptr<EffectState>(nullptr); }
-
- private:
-  
+  virtual std::unique_ptr<EffectState> createState(unsigned int outSamplerate) const = 0;
 };
 
 #endif

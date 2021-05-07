@@ -958,7 +958,9 @@ public:
   SoundFontInstrument(std::shared_ptr<SoundFontFile> _sf, size_t _preset) : Instrument(1), sf(_sf), preset(_preset) { }
   
   std::unique_ptr<InstrumentVoice> createVoice(unsigned int outSampleRate, int identifier) const override {
-    return make_unique<SoundFontVoice>(outSampleRate, identifier, sf, preset);
+    auto v = make_unique<SoundFontVoice>(outSampleRate, identifier, sf, preset);
+    v->createEffectStates(getEffects());
+    return move(v);
   }
 
 private:

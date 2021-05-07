@@ -56,5 +56,7 @@ private:
 
 std::unique_ptr<InstrumentVoice>
 BasicInstrument::createVoice(unsigned int outSampleRate, int identifier) const {
-  return std::make_unique<BasicInstrumentVoice>(outSampleRate, identifier, getAmpEnvelope(), type);
+  auto v = std::make_unique<BasicInstrumentVoice>(outSampleRate, identifier, getAmpEnvelope(), type);
+  v->createEffectStates(getEffects());
+  return v;
 }

@@ -14,7 +14,10 @@ OBJS = main.o \
 	HRFT.o \
 	Track.o \
 	tinyxml2.o \
-	Filter.o
+	Filter.o \
+	Delay.o \
+	Distortion.o \
+	Reverb.o
 
 CC = g++
 

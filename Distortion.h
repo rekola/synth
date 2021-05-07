@@ -3,24 +3,17 @@
 
 #include "Effect.h"
 
+enum class DistortionType { CLIP = 1, BITCRUSH };
+
 class Distortion : public Effect {
  public:
-  enum DistortionType { CLIP = 1, BITCRUSH };
-  
- Distortion(DistortionType _type, float _param) : type(_type), param(_param) { }
+  Distortion(DistortionType _type, float _param, float _drymix) : type(_type), param(_param), drymix(_drymix) { }
 
-  void apply(SampleData & input) override {
-    auto buffer = input.data();
-    for (size_t i = 0; i < input.getChannels() * input.size(); i++) {
-      float v = buffer[i];
-      if (v > param) buffer[i] = param;
-      if (v < -param) buffer[i] = -param;      
-    }
-  }
-  
+  std::unique_ptr<EffectState> createState(unsigned int outSamplerate) const override;
+
  private:
   DistortionType type;
-  float param;
+  float param, drymix;
 };
 
 #endif

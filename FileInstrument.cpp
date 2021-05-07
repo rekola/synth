@@ -107,5 +107,7 @@ private:
 
 std::unique_ptr<InstrumentVoice>
 FileInstrument::createVoice(unsigned int outSampleRate, int identifier) const {
-  return std::make_unique<FileInstrumentVoice>(outSampleRate, identifier, samples);
+  auto v = std::make_unique<FileInstrumentVoice>(outSampleRate, identifier, samples);
+  v->createEffectStates(getEffects());
+  return move(v);
 }
