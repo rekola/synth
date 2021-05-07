@@ -22,12 +22,43 @@
 using namespace std;
 
 void
+Controller::loadDemo6() {
+  auto song = make_shared<Song>(Tuning::TET31, 0);
+  song->setTempo(300);
+  auto sampleRate = state->getOutSampleRate();
+
+  auto fluid = make_unique<SoundFont>("data/FluidR3_GM.sf2");
+  song->addInstruments(*fluid);
+
+  auto & track = song->addChild();
+  track.addEffect(make_unique<Reverb>(sampleRate, Reverb::STADIUM));
+  // track.setVolume(0.5f);
+  track.setElevation(50);
+  track.setAzimuth(30);
+  track.setInstrumentId(0);
+
+  auto & pattern = song->addPattern(64);  
+  pattern.setNote(0, 0, 0, Note("C-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 2, 0, Note("C-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 4, 0, Note("C-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 8, 0, Note("C-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 12, 0, Note("C-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 14, 0, Note("C-4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 16, 0, Note("Db4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 18, 0, Note("Db4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 20, 0, Note("Db4", 0x3f, Tuning::TET31));
+  pattern.setNote(0, 22, 0, Note("C-4", 0x3f, Tuning::TET31));
+
+  current_song = song;
+}
+
+void
 Controller::loadDemo5() {
   auto song = make_shared<Song>(Tuning::TET31, 0);
   song->setTempo(220);
-  auto sampleRate = state->getSampleRate();
+  auto sampleRate = state->getOutSampleRate();
 
-  auto fluid = make_unique<SoundFont>(sampleRate, "data/FluidR3_GM.sf2");
+  auto fluid = make_unique<SoundFont>("data/FluidR3_GM.sf2");
   song->addInstruments(*fluid);
 
   auto & track = song->addChild();
@@ -57,9 +88,9 @@ void
 Controller::loadDemo4() {
   auto song = make_shared<Song>(Tuning::TET31, 0);
   song->setTempo(220);
-  auto sampleRate = state->getSampleRate();
+  auto sampleRate = state->getOutSampleRate();
 
-  auto fluid = make_unique<SoundFont>(sampleRate, "data/FluidR3_GM.sf2");
+  auto fluid = make_unique<SoundFont>("data/FluidR3_GM.sf2");
   // auto instrument = fluid->createInstrument(10);
   // instrument->addEffect(make_unique<Distortion>(Distortion::ZEROES, 0.1, 0.0));
   song->addInstruments(*fluid);
@@ -108,9 +139,9 @@ void
 Controller::loadDemo3() {
   auto song = make_shared<Song>(Tuning::TET31, 0);
   song->setTempo(220);
-  auto sampleRate = state->getSampleRate();
+  auto sampleRate = state->getOutSampleRate();
 
-  auto fluid = make_unique<SoundFont>(sampleRate, "data/FluidR3_GM.sf2");
+  auto fluid = make_unique<SoundFont>("data/FluidR3_GM.sf2");
   song->addInstruments(*fluid);
 
   // int melody_instrument = 10;
@@ -224,7 +255,7 @@ void
 Controller::loadDemo2() {
   auto song = make_shared<Song>(Tuning::TET31, 0); // Key of C
 
-  auto sampleRate = state->getSampleRate();
+  auto sampleRate = state->getOutSampleRate();
 
   auto epiano = make_unique<BasicInstrument>(WaveformType::SAW);
   epiano->setName("Electric Piano");
@@ -718,7 +749,7 @@ Controller::loadDemo2() {
 void
 Controller::loadDemo() {
   auto song = make_shared<Song>(Tuning::TET12, 0);
-  auto sampleRate = state->getSampleRate();
+  auto sampleRate = state->getOutSampleRate();
 
   const unsigned char * song_data = tr;
   

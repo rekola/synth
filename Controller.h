@@ -26,6 +26,7 @@ class Controller {
   void loadDemo3();
   void loadDemo4();
   void loadDemo5();
+  void loadDemo6();
   bool sendCommand(const std::string & s);
 
   std::shared_ptr<SampleData> startRecording() {
