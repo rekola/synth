@@ -11,7 +11,7 @@ class CBFormat;
 
 class HRFT : public Mixer {
  public:
-  HRFT() { }
+  HRFT(unsigned int _sampleRate) : sampleRate(_sampleRate) { }
   
   void reset() override;
   void accumulate(const SampleData & data, float volume, float distance, float azimuth, float elevation) override;
@@ -19,7 +19,8 @@ class HRFT : public Mixer {
   
 private:
   void initialize(size_t frames);
-  
+
+  unsigned int sampleRate;
   bool is_initialized = false;
   std::shared_ptr<CAmbisonicEncoder> myEncoder;
   std::shared_ptr<CAmbisonicBinauralizer> myBinauralizer;

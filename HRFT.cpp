@@ -25,7 +25,7 @@ HRFT::initialize(size_t frames) {
   
   myBinauralizer = make_shared<CAmbisonicBinauralizer>();
   unsigned tailLength;
-  if (!myBinauralizer->Configure(order, is_3d, 44100, frames, tailLength, "")) { //./SADIE_KEMAR_DFC_256_order_fir_48000")) {
+  if (!myBinauralizer->Configure(order, is_3d, sampleRate, frames, tailLength, "")) { //./SADIE_KEMAR_DFC_256_order_fir_48000")) {
     // /home/rekola/src/personal/syna/D1_44K_24bit_256tap_FIR_SOFA.sofa")) {
     cerr << "decoder config failed\n";
     exit(1);
