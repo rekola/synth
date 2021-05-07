@@ -163,7 +163,6 @@ PatternEditor::offerInput(const UIInput & input) {
       auto & track = song.addChild();
       track.setInstrumentId(instrument_id); // + 1);
       song.incVersion();
-      state.clearVoices();
     } else if (input.getId() == 'g' || input.getId() == 'G') {
       // create group
       return true;
@@ -185,6 +184,7 @@ PatternEditor::offerInput(const UIInput & input) {
       if (track.getInstrumentId() > 0) {
 	track.setInstrumentId(track.getInstrumentId() - 1);
 	song.incVersion();
+	state.clearVoices();
       }
       return true;
     } else if (input.getId() == NCKEY_RIGHT || input.getId() == 'i' || input.getId() == 'i' || input.getId() == 'o') {
@@ -193,6 +193,7 @@ PatternEditor::offerInput(const UIInput & input) {
       if (track.getInstrumentId() + 1 < instruments.size()) {
 	track.setInstrumentId(track.getInstrumentId() + 1);
 	song.incVersion();
+	state.clearVoices();
       }
       return true;
     } else if (input.getId() == '\\') {
