@@ -1,5 +1,7 @@
 #include "Filter.h"
 
+#include "SampleData.h"
+
 #include <cassert>
 
 using namespace std;
