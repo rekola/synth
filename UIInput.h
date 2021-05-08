@@ -78,45 +78,46 @@ class UIInput {
     } else if (tuning == Tuning::TET31) {
       switch (id) {
       case 'z': return 155; // C-4
-      // case '?': return 156;
-      // case '?': return 157;
-      // case '?': return 158;
-      // case '?': return 159;
+      case '1': return 156; // Dbb4
+      case 'w': return 157; // C#4
+      case 's': return 158; // Db4
+      case '2': return 159; // Cx4
       case 'x': return 160; // D-4
-      // case '?': return 161;
-      // case '?': return 162;
-      // case '?': return 163;
-      // case '?': return 164;
+      case '3': return 161; // Ebb4
+      case 'e': return 162; // D#4
+      case 'd': return 163; // Eb4
+      case '4': return 164; // Dx4
       case 'c': return 165; // E-4
       case 'r': return 166; // F♭4
       case 'f': return 167; // E#4
       case 'v': return 168; // F-4
-	// case '?': return 169;
-	// case '?': return 170;
-	// case '?': return 171;
-	// case '?': return 172;
+      case '5': return 169; // Gbb4
+      case 't': return 170; // F#4
+      case 'g': return 171; // Gb4
+      case '6': return 172; // Fx4
       case 'b': return 173; // G-4
-	// case '?': return 174;
-	// case '?': return 175;
-	// case '?': return 176;
-	// case '?': return 177;
+      case '7': return 174; // Abb4
+      case 'y': return 175; // G#4
+      case 'h': return 176; // Ab4
+      case '8': return 177; // Gx4
       case 'n': return 178; // A-4
-	// case '?': return 179;
-	// case '?': return 180;
-	// case '?': return 181;
-	// case '?': return 182;
+      case '9': return 179; // Bbb4
+      case 'u': return 180; // A#4
+      case 'j': return 181; // Bb4
+      case '0': return 182; // Ax4
       case 'm': return 183; // B-4
-      case 'i': return 184; // C♭4
+      case 'i': return 184; // C♭5
       case 'k': return 185; // B♯4
       case ',': return 186; // C-5
-	// case '?': return 187;
-	// case '?': return 188;
-	// case '?': return 190;
+      case '+': return 187; // Dbb5
+      case 'o': return 188; // C#5
+      case 'l': return 189; // Db5
+	// case '?': return 190; // Cx5
       case '.': return 191; // D-5
-	// case '?': return 192;
-	// case '?': return 193;
-	// case '?': return 194;
-	// case '?': return 195;
+	// case '?': return 192; // Ebb5
+      case 'p': return 193; // D#5
+	// case '?': return 194; // Eb5
+	// case '?': return 195; // Dx5
       case '-': return 196; // E-5
       }
     }
