@@ -600,8 +600,8 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
 
 class SoundFontVoice : public InstrumentVoice {
 public:
-  SoundFontVoice(unsigned int _outSampleRate, int _identifier, std::shared_ptr<SoundFontFile> _sf, size_t _preset = 0)
-    : InstrumentVoice(_outSampleRate, _identifier), sf(_sf), preset(_preset) {
+  SoundFontVoice(unsigned int _outSampleRate, int _identifier, std::shared_ptr<SoundFontFile> _sf, size_t _preset = 0, size_t _fixedMidiKey = 0)
+    : InstrumentVoice(_outSampleRate, _identifier), sf(_sf), preset(_preset), fixedMidiKey(_fixedMidiKey) {
     playingPreset = -1;
   }
   
@@ -648,7 +648,7 @@ public:
 
 private:
   shared_ptr<SoundFontFile> sf;
-  size_t preset;
+  size_t preset, fixedMidiKey;
 };
 
 SampleData
@@ -884,7 +884,8 @@ SoundFontVoice::playNote(float frequency, float velocity, float delay, float det
   if (preset_index < 0 || preset_index >= f->presetNum) return;
 
   double apparent_key = log2(frequency / 440) * 12 + 69;
-  int midiKey = int(apparent_key);
+  int midiKey = fixedMidiKey ? fixedMidiKey : int(apparent_key);
+
   short midiVelocity = (short)(velocity * 127);
   if (midiVelocity > 127) midiVelocity = 127;
   
@@ -938,10 +939,10 @@ SoundFontVoice::playNote(float frequency, float velocity, float delay, float det
 
 class SoundFontInstrument : public Instrument {
 public:
-  SoundFontInstrument(std::shared_ptr<SoundFontFile> _sf, size_t _preset) : Instrument(1), sf(_sf), preset(_preset) { }
+  SoundFontInstrument(std::shared_ptr<SoundFontFile> _sf, size_t _preset, size_t _fixedMidiKey) : Instrument(1), sf(_sf), preset(_preset), fixedMidiKey(_fixedMidiKey) { }
   
   std::unique_ptr<InstrumentVoice> createVoice(unsigned int outSampleRate, int identifier) const override {
-    auto v = make_unique<SoundFontVoice>(outSampleRate, identifier, sf, preset);
+    auto v = make_unique<SoundFontVoice>(outSampleRate, identifier, sf, preset, fixedMidiKey);
     v->createEffectStates(getEffects());
     return move(v);
   }
@@ -949,11 +950,12 @@ public:
 private:
   shared_ptr<SoundFontFile> sf;
   size_t preset;
+  size_t fixedMidiKey = 0;
 };
 
 std::unique_ptr<Instrument>
-SoundFont::createInstrument(size_t preset) {
-  auto instrument = make_unique<SoundFontInstrument>(sf, preset);
+SoundFont::createInstrument(size_t preset, size_t fixedMidiKey) {
+  auto instrument = make_unique<SoundFontInstrument>(sf, preset, fixedMidiKey);
   instrument->setName(sf->getPresetName(preset));
   return instrument;
 }
