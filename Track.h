@@ -42,6 +42,7 @@ class Track : public TreeElement {
   
   void setSample(std::shared_ptr<SampleData> _sample) { sample = _sample; }
 
+  void setName(std::string _name) { name = _name; }
   const std::string & getName() const { return name; }
 
   std::vector<Track> & getChildren() { return children; }
