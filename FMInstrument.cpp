@@ -2,6 +2,7 @@
 #include "FMInstrument.h"
 
 #include "InstrumentVoice.h"
+#include "SampleData.h"
 
 #include <cmath>
 
