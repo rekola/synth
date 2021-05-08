@@ -52,12 +52,6 @@ class Track : public TreeElement {
   Track & addChild(const Track & s) { children.push_back(s); return children.back(); }
   Track & addChild(Track::Type type = Track::SEQUENCER) { return addChild(Track(type)); }
 
-  void applyEffects(SampleData & data) {
-    for (auto & effect : effects) {
-      effect->apply(data);
-    }
-  }
-
   void addEffect(std::unique_ptr<Effect> effect) { effects.push_back(std::move(effect)); }
 
   void setElevation(float e) { elevation = e; }
