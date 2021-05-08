@@ -5,12 +5,14 @@
 using namespace std;
 
 SampleData
-Track::render(size_t frames, SongState & state, size_t track_idx, Instrument & instrument, std::map<unsigned int, std::vector<TrackEvent> > & pending_events) {
+Track::render(size_t frames, SongState & song_state, size_t track_idx, Instrument & instrument, std::map<unsigned int, std::vector<TrackEvent> > & pending_events) {
   size_t num_channels = instrument.getNumChannels();
   assert(num_channels == 1);
   
   SampleData data(num_channels, frames);
 
+  auto & state = song_state.getTrackState(track_idx);
+					  
   for (size_t i = 0; i < frames; ) {
     size_t render_size = frames - i;
     if (!pending_events.empty()) {
@@ -20,27 +22,22 @@ Track::render(size_t frames, SongState & state, size_t track_idx, Instrument & i
       if (i == it->first) {
 	for (auto & ev : it->second) {
 	  if (ev.isOff()) {
-	    state.stopNote(track_idx, ev.getId());
+	    state.stopNote(ev.getId());
 	  } else {
-	    state.playNote(track_idx, ev.getId(), ev.getFrequency(), ev.getVelocity(), detune, ev.getDelay(), instrument);
+	    state.playNote(ev.getId(), ev.getFrequency(), ev.getVelocity(), ev.getDelay(), detune, instrument);
 	  }
 	}
 	it = pending_events.erase(it);
       }
       if (it != pending_events.end() && it->first - i < render_size) render_size = it->first - i;
     }     
-    
-    for (auto & voice : state.getVoices(track_idx)) {
-      if (voice->isPlaying()) {
-	auto voice_data = voice->render(render_size);
-	data.mix(voice_data, i);	
-      }
-    }
+
+    state.renderVoices(data, render_size, i);
     
     i += render_size;
   }
 
-  applyEffects(data);
+  state.applyEffects(data);
 
   return data;
 }
