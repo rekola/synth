@@ -17,6 +17,9 @@
 #ifndef EMVERB_H
 #define EMVERB_H
 
+#include <cstring>
+#include <cmath>
+
 //forward declaration
 template<typename T, int maxLength> class Allpass;
 template<typename T, int maxLength> class StaticAllpassFourTap;
