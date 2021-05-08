@@ -260,7 +260,7 @@ Song::render(size_t frames, SongState & state) {
   SampleData master(2, frames);
   
   mixer.encode(master, getVolume());
-  applyEffects(master);
+  // applyEffects(master);
   
   return master;
 }
