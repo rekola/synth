@@ -203,18 +203,18 @@ static void tsf_region_operator(struct tsf_region* region, uint16_t genOper, uni
 	GEN_KEYCENTER        = 0x09,
 	
 	_GEN_LIMIT_MASK      = 0xF0,
-	GEN_INT_LIMIT12K     = 0x10, //min -12000, max 12000
-	GEN_INT_LIMITFC      = 0x20, //min 1500, max 13500
-	GEN_INT_LIMITQ       = 0x30, //min 0, max 960
-	GEN_INT_LIMIT960     = 0x40, //min -960, max 960
-	GEN_INT_LIMIT16K4500 = 0x50, //min -16000, max 4500
-	GEN_FLOAT_LIMIT12K5K = 0x60, //min -12000, max 5000
-	GEN_FLOAT_LIMIT12K8K = 0x70, //min -12000, max 8000
-	GEN_FLOAT_LIMIT1200  = 0x80, //min -1200, max 1200
-	GEN_FLOAT_LIMITPAN   = 0x90, //* .001f, min -.5f, max .5f,
-	GEN_FLOAT_LIMITATTN  = 0xA0, //* .1f, min 0, max 144.0
-	GEN_FLOAT_MAX1000    = 0xB0, //min 0, max 1000
-	GEN_FLOAT_MAX1440    = 0xC0, //min 0, max 1440
+	GEN_INT_LIMIT12K     = 0x10, // min -12000, max 12000
+	GEN_INT_LIMITFC      = 0x20, // min 1500, max 13500
+	GEN_INT_LIMITQ       = 0x30, // min 0, max 960
+	GEN_INT_LIMIT960     = 0x40, // min -960, max 960
+	GEN_INT_LIMIT16K4500 = 0x50, // min -16000, max 4500
+	GEN_FLOAT_LIMIT12K5K = 0x60, // min -12000, max 5000
+	GEN_FLOAT_LIMIT12K8K = 0x70, // min -12000, max 8000
+	GEN_FLOAT_LIMIT1200  = 0x80, // min -1200, max 1200
+	GEN_FLOAT_LIMITPAN   = 0x90, // * .001f, min -.5f, max .5f,
+	GEN_FLOAT_LIMITATTN  = 0xA0, // * .1f, min 0, max 144.0
+	GEN_FLOAT_MAX1000    = 0xB0, // min 0, max 1000
+	GEN_FLOAT_MAX1440    = 0xC0, // min 0, max 1440
 	
 	_GEN_MAX = 59,
   };
