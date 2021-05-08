@@ -1,11 +1,9 @@
 #ifndef _LOWPASSFILTER_H_
 #define _LOWPASSFILTER_H_
 
-#include "Effect.h"
-
 #include <cmath>
 
-class LowpassFilter : public Effect  {
+class LowpassFilter {
 public:
   LowpassFilter() {
 
@@ -20,10 +18,6 @@ public:
     b1 = 2 * (KK - 1) * norm;
     b2 = (1 - K * QInv + KK) * norm;
   }  
-
-  void apply(SampleData & input) override {
-
-  }
 
   float process(double In) {
     double Out = In * a0 + z1;
