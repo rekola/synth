@@ -32,16 +32,9 @@
 
 using namespace std;
 
-typedef signed char tsf_s8;
-typedef unsigned char tsf_u8;
-typedef unsigned short tsf_u16;
-typedef signed short tsf_s16;
-typedef unsigned int tsf_u32;
-typedef char tsf_char20[20];
-
 struct tsf_riffchunk {
   FourCC id;
-  tsf_u32 size;
+  uint32_t size;
 };
 
 struct tsf_region {
@@ -62,8 +55,8 @@ struct tsf_region {
 };
 
 struct tsf_preset {
-  tsf_char20 presetName;
-  tsf_u16 preset, bank;
+  char presetName[20];
+  uint16_t preset, bank;
   struct tsf_region* regions;
   int regionNum;
 };
@@ -138,16 +131,16 @@ struct tsf_hydra {
   int phdrNum, pbagNum, pmodNum, pgenNum, instNum, ibagNum, imodNum, igenNum, shdrNum;
 };
 
-union tsf_hydra_genamount { struct { tsf_u8 lo, hi; } range; tsf_s16 shortAmount; tsf_u16 wordAmount; };
-struct tsf_hydra_phdr { tsf_char20 presetName; tsf_u16 preset, bank, presetBagNdx; tsf_u32 library, genre, morphology; };
-struct tsf_hydra_pbag { tsf_u16 genNdx, modNdx; };
-struct tsf_hydra_pmod { tsf_u16 modSrcOper, modDestOper; tsf_s16 modAmount; tsf_u16 modAmtSrcOper, modTransOper; };
-struct tsf_hydra_pgen { tsf_u16 genOper; union tsf_hydra_genamount genAmount; };
-struct tsf_hydra_inst { tsf_char20 instName; tsf_u16 instBagNdx; };
-struct tsf_hydra_ibag { tsf_u16 instGenNdx, instModNdx; };
-struct tsf_hydra_imod { tsf_u16 modSrcOper, modDestOper; tsf_s16 modAmount; tsf_u16 modAmtSrcOper, modTransOper; };
-struct tsf_hydra_igen { tsf_u16 genOper; union tsf_hydra_genamount genAmount; };
-struct tsf_hydra_shdr { tsf_char20 sampleName; tsf_u32 start, end, startLoop, endLoop, sampleRate; tsf_u8 originalPitch; tsf_s8 pitchCorrection; tsf_u16 sampleLink, sampleType; };
+union tsf_hydra_genamount { struct { uint8_t lo, hi; } range; int16_t shortAmount; uint16_t wordAmount; };
+struct tsf_hydra_phdr { char presetName[20]; uint16_t preset, bank, presetBagNdx; uint32_t library, genre, morphology; };
+struct tsf_hydra_pbag { uint16_t genNdx, modNdx; };
+struct tsf_hydra_pmod { uint16_t modSrcOper, modDestOper; int16_t modAmount; uint16_t modAmtSrcOper, modTransOper; };
+struct tsf_hydra_pgen { uint16_t genOper; union tsf_hydra_genamount genAmount; };
+struct tsf_hydra_inst { char instName[20]; uint16_t instBagNdx; };
+struct tsf_hydra_ibag { uint16_t instGenNdx, instModNdx; };
+struct tsf_hydra_imod { uint16_t modSrcOper, modDestOper; int16_t modAmount; uint16_t modAmtSrcOper, modTransOper; };
+struct tsf_hydra_igen { uint16_t genOper; union tsf_hydra_genamount genAmount; };
+struct tsf_hydra_shdr { char sampleName[20]; uint32_t start, end, startLoop, endLoop, sampleRate; uint8_t originalPitch; int8_t pitchCorrection; uint16_t sampleLink, sampleType; };
 
 #define TSFR(FIELD) stream->read(stream->data, &i->FIELD, sizeof(i->FIELD));
 static void tsf_hydra_read_phdr(struct tsf_hydra_phdr* i, struct tsf_stream* stream) { TSFR(presetName) TSFR(preset) TSFR(bank) TSFR(presetBagNdx) TSFR(library) TSFR(genre) TSFR(morphology) }
@@ -164,11 +157,11 @@ static void tsf_hydra_read_shdr(struct tsf_hydra_shdr* i, struct tsf_stream* str
 static double tsf_timecents2Secsd(double timecents) { return pow(2.0, timecents / 1200.0); }
 
 static bool tsf_riffchunk_read(struct tsf_riffchunk* parent, struct tsf_riffchunk* chunk, struct tsf_stream* stream) {
-  if (parent && sizeof(FourCC) + sizeof(tsf_u32) > parent->size) return false;
+  if (parent && sizeof(FourCC) + sizeof(uint32_t) > parent->size) return false;
   if (!stream->read(stream->data, &chunk->id, sizeof(FourCC)) || chunk->id.data()[0] <= ' ' || chunk->id.data()[0] >= 'z') return false;
-  if (!stream->read(stream->data, &chunk->size, sizeof(tsf_u32))) return false;
-  if (parent && sizeof(FourCC) + sizeof(tsf_u32) + chunk->size > parent->size) return false;
-  if (parent) parent->size -= sizeof(FourCC) + sizeof(tsf_u32) + chunk->size;
+  if (!stream->read(stream->data, &chunk->size, sizeof(uint32_t))) return false;
+  if (parent && sizeof(FourCC) + sizeof(uint32_t) + chunk->size > parent->size) return false;
+  if (parent) parent->size -= sizeof(FourCC) + sizeof(uint32_t) + chunk->size;
   bool IsRiff = chunk->id == "RIFF", IsList = chunk->id == "LIST";
   if (IsRiff && parent) return false; // not allowed
   if (!IsRiff && !IsList) return true; // custom type without sub type
@@ -196,7 +189,7 @@ static void tsf_region_clear(struct tsf_region* i, bool for_relative) {
   i->delayVibLFO = -12000.0f;
 }
 
-static void tsf_region_operator(struct tsf_region* region, tsf_u16 genOper, union tsf_hydra_genamount* amount, struct tsf_region* merge_region) {
+static void tsf_region_operator(struct tsf_region* region, uint16_t genOper, union tsf_hydra_genamount* amount, struct tsf_region* merge_region) {
   enum {
 	_GEN_TYPE_MASK       = 0x0F,
 	GEN_FLOAT            = 0x01,
@@ -528,7 +521,7 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
 	      if (ppgen->genOper == GenInstrument)
 		{
 		  struct tsf_region instRegion;
-		  tsf_u16 whichInst = ppgen->genAmount.wordAmount;
+		  uint16_t whichInst = ppgen->genAmount.wordAmount;
 		  if (whichInst >= hydra->instNum) continue;
 		  
 		  tsf_region_clear(&instRegion, false);
