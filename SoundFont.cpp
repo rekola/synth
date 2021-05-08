@@ -28,10 +28,9 @@
 #include "EnvelopeState.h"
 #include "LFO.h"
 #include "InstrumentVoice.h"
+#include "SampleData.h"
 
 using namespace std;
-
-typedef struct tsf tsf;
 
 typedef signed char tsf_s8;
 typedef unsigned char tsf_u8;
