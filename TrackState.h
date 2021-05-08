@@ -18,6 +18,12 @@ class TrackState : public State {
     }
   }
 
+  void applyEffects(SampleData & data) {
+    for (auto & state : effect_states) {
+      state->apply(data);
+    }
+  }
+
   void clearVoices() { voices.clear(); }
   
   size_t getVoiceCount() const {
