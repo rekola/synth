@@ -406,10 +406,6 @@ static void tsf_load_samples(float** fontSamples, unsigned int* fontSampleCount,
 class SoundFontFile {
 public:
   SoundFontFile(std::string filename) {
-    presets = 0;
-    fontSamples = 0;
-    presetNum = 0;
-
     loadFile(filename);
   }
   ~SoundFontFile() {
@@ -448,8 +444,7 @@ public:
   // Returns the preset index from a bank and preset number, or -1 if it does not exist in the loaded SoundFont
 
   int getPresetIndex(int bank, int preset_number) const {
-    int i, iMax;
-    for (i = 0; i < presetNum; i++) {
+    for (size_t i = 0; i < presetNum; i++) {
       if (presets[i].preset == preset_number && presets[i].bank == bank) {
 	return i;
       }
@@ -459,9 +454,9 @@ public:
 
   size_t getPresetCount() const { return presetNum; }
   
-  struct tsf_preset * presets;
-  float * fontSamples;  
-  int presetNum;
+  struct tsf_preset * presets = 0;
+  float * fontSamples = 0; 
+  size_t presetNum = 0;
 };
 
 static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsigned int fontSampleCount) {
@@ -817,22 +812,18 @@ void tsf_load(SoundFontFile* res, struct tsf_stream* stream) {
       }
     else stream->skip(stream->data, chunkList.size);
   }
-  if (!hydra.phdrs || !hydra.pbags || !hydra.pmods || !hydra.pgens || !hydra.insts || !hydra.ibags || !hydra.imods || !hydra.igens || !hydra.shdrs)
-    {
-      //if (e) *e = TSF_INVALID_INCOMPLETE;
-    }
-  else if (fontSamples == NULL)
-    {
-      //if (e) *e = TSF_INVALID_NOSAMPLEDATA;
-    }
-  else
-    {
-      res->presetNum = hydra.phdrNum - 1;
-      res->presets = (struct tsf_preset*)malloc(res->presetNum * sizeof(struct tsf_preset));
-      res->fontSamples = fontSamples;
-      fontSamples = NULL; //don't free below
-      tsf_load_presets(res, &hydra, fontSampleCount);
-    }
+  
+  if (!hydra.phdrs || !hydra.pbags || !hydra.pmods || !hydra.pgens || !hydra.insts || !hydra.ibags || !hydra.imods || !hydra.igens || !hydra.shdrs) {
+    //if (e) *e = TSF_INVALID_INCOMPLETE;
+  } else if (fontSamples == NULL) {
+    //if (e) *e = TSF_INVALID_NOSAMPLEDATA;
+  } else {
+    res->presetNum = hydra.phdrNum - 1;
+    res->presets = (struct tsf_preset*)malloc(res->presetNum * sizeof(struct tsf_preset));
+    res->fontSamples = fontSamples;
+    fontSamples = NULL; //don't free below
+    tsf_load_presets(res, &hydra, fontSampleCount);
+  }
   free(hydra.phdrs); free(hydra.pbags); free(hydra.pmods);
   free(hydra.pgens); free(hydra.insts); free(hydra.ibags);
   free(hydra.imods); free(hydra.igens); free(hydra.shdrs);
