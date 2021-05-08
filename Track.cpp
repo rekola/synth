@@ -5,13 +5,11 @@
 using namespace std;
 
 SampleData
-Track::render(size_t frames, SongState & song_state, size_t track_idx, Instrument & instrument, std::map<unsigned int, std::vector<TrackEvent> > & pending_events) {
+Track::render(size_t frames, TrackState & state, Instrument & instrument, std::map<unsigned int, std::vector<TrackEvent> > & pending_events) {
   size_t num_channels = instrument.getNumChannels();
   assert(num_channels == 1);
   
   SampleData data(num_channels, frames);
-
-  auto & state = song_state.getTrackState(track_idx);
 					  
   for (size_t i = 0; i < frames; ) {
     size_t render_size = frames - i;

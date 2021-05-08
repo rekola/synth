@@ -251,8 +251,9 @@ Song::render(size_t frames, SongState & state) {
   for (size_t track_idx = 0; track_idx < tracks.size(); track_idx++) {
     auto & track = tracks[track_idx];
     auto & instrument = getInstrument(track.getInstrumentId());
-    
-    SampleData data = track.render(frames, state, track_idx, instrument, track_events.getPendingEvents(track_idx));
+    auto & track_state = state.getTrackState(track_idx);
+
+    SampleData data = track.render(frames, track_state, instrument, track_events.getPendingEvents(track_idx));
     mixer.accumulate(data, track.getVolume(), track.getDistance(), track.getAzimuth(), track.getElevation());
   }
   assert(track_events.empty());

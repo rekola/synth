@@ -13,7 +13,7 @@
 #include <memory>
 #include <map>
 
-class SongState;
+class TrackState;
 
 class Track : public TreeElement {
  public:
@@ -38,7 +38,7 @@ class Track : public TreeElement {
   float getDetune() const { return detune; }
   void setDetune(float _detune) { detune = _detune; }
   
-  SampleData render(size_t frames, SongState & state, size_t track_idx, Instrument & instrument, std::map<unsigned int, std::vector<TrackEvent> > & pending_events);
+  SampleData render(size_t frames, TrackState & state, Instrument & instrument, std::map<unsigned int, std::vector<TrackEvent> > & pending_events);
   
   void setSample(std::shared_ptr<SampleData> _sample) { sample = _sample; }
 
