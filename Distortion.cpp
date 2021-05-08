@@ -1,5 +1,7 @@
 #include "Distortion.h"
 
+#include "SampleData.h"
+
 using namespace std;
 
 class DistortionState : public EffectState {
