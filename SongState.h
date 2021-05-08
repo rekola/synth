@@ -1,20 +1,19 @@
 #ifndef _SONGSTATE_H_
 #define _SONGSTATE_H_
 
+#include "State.h"
 #include "Song.h"
 #include "HRFT.h"
-#include "InstrumentVoice.h"
+#include "TrackState.h"
 
 #define NOTEDOMAIN ((float)1/4)
 
 #include <memory>
 
-class SongState {
+class SongState : public State {
  public:
-  explicit SongState(int _outSampleRate) : outSampleRate(_outSampleRate), hrft(_outSampleRate) { }
-  
-  size_t getOutSampleRate() const { return outSampleRate; }
-  
+  explicit SongState(int _outSampleRate) : State(_outSampleRate), hrft(_outSampleRate) { }
+    
   size_t getSampleInterval(const Song & song) const {
     float tnote = (float)60 / song.getTempo() * NOTEDOMAIN * 2;
     return (size_t)(tnote * outSampleRate);
@@ -48,6 +47,11 @@ class SongState {
 	moveForward(song);
       }
     }
+  }
+
+  size_t samplesUntilNextRow(const Song & song) const {
+    auto sinterval = getSampleInterval(song);
+    return sample_pos == 0 ? sinterval : sinterval - sample_pos;    
   }
   
   void moveForward(const Song & song) {
@@ -83,55 +87,36 @@ class SongState {
   }
 
   Mixer & getMixer() { return hrft; }
-
-  void stopNote(size_t track, size_t column) {
-    auto it = voices.find(track);
-    if (it != voices.end()) {
-      for (auto & voice : it->second) {
-	if (column == voice->getIdentifier() && voice->isPlaying()) {
-	  voice->stopNote();
-	}
-      }
-    }
-  }
   
-  void playNote(size_t track, size_t column, float frequency, float velocity, float detune, float delay, const Instrument & instrument) {
-    auto & track_voices = voices[track];
-    
-    bool voice_found = false;
-    for (auto & voice : track_voices) {
-      if (!voice_found && !voice->isPlaying()) {
-	voice->setIdentifier(column);
-	voice->playNote(frequency, velocity, delay, detune);
-	voice_found = true;
-      } else if (column == voice->getIdentifier() && voice->isPlaying()) {
-	voice->stopNote();
-      }
-    }
-    if (!voice_found) {
-      track_voices.push_back(instrument.createVoice(outSampleRate, column));
-      track_voices.back()->playNote(frequency, velocity, delay, detune);
+  TrackState & getTrackState(unsigned short track_idx) {
+    auto it = track_states.find(track_idx);
+    if (it != track_states.end()) {
+      return *(it->second);
+    } else {
+      auto s = std::make_unique<TrackState>(getOutSampleRate());
+      auto ptr = s.get();
+      track_states[track_idx] = std::move(s);
+      return *ptr;
     }
   }
 
-  std::vector<std::shared_ptr<InstrumentVoice> > & getVoices(size_t track) { return voices[track]; }
-
-  void clearVoices() { voices.clear(); }
+  void clearVoices(unsigned short track_idx) {
+    auto it = track_states.find(track_idx);
+    if (it != track_states.end()) it->second->clearVoices();
+  }
 
   size_t getVoiceCount() const {
     size_t n = 0;
-    for (auto & d : voices) {
-      for (auto & voice : d.second) {
-	if (voice->isPlaying()) n++;
-      }
+    for (auto & td : track_states) {
+      n += td.second->getVoiceCount();      
     }
     return n;
   }
 
   size_t getAllocatedVoiceCount() const {
     size_t n = 0;
-    for (auto & track_voices : voices) {
-      n += track_voices.second.size();
+    for (auto & td : track_states) {
+      n += td.second->getAllocatedVoiceCount();
     }
     return n;
   }
@@ -142,10 +127,11 @@ private:
   size_t sample_pos = 0, track_pos = 0, pattern_pos = 0, absolute_pos = 0;
   size_t outSampleRate;
 
-  std::unordered_map<unsigned short, std::vector<std::shared_ptr<InstrumentVoice> > > voices;
-
+  std::unordered_map<unsigned short, std::unique_ptr<TrackState> > track_states;
+  
   HRFT hrft;
 };
-
+  
 #endif
  
+  
