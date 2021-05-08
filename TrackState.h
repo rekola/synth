@@ -11,11 +11,13 @@
 class TrackState : public State {
  public:
   TrackState(unsigned int _outSampleRate) : State(_outSampleRate) { }
-  
-  void createEffectStates(const std::vector<std::unique_ptr<Effect> > & effects) {
+
+  bool isInitialized() const { return is_initialized; }
+  void initialize(const std::vector<std::shared_ptr<Effect> > & effects) {
     for (auto & effect : effects) {
       effect_states.push_back(effect->createState(getOutSampleRate()));
-    }
+    }    
+    is_initialized = true;
   }
 
   void applyEffects(SampleData & data) {
@@ -73,6 +75,7 @@ class TrackState : public State {
  private:
   std::vector<std::unique_ptr<EffectState> > effect_states; 
   std::vector<std::unique_ptr<InstrumentVoice> > voices;
+  bool is_initialized = false;
 };
 
 #endif
