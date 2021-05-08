@@ -1,6 +1,7 @@
 #include "BasicInstrument.h"
 
 #include "InstrumentVoice.h"
+#include "SampleData.h"
 
 using namespace std;
 
