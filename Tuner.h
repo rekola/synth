@@ -20,15 +20,18 @@ class Tuner {
 
       if (tuning == Tuning::TET12) {
 	return 440.0f * powf(2.0f, (octave * 12 + key - 69.0f) / 12.0f) * numerator / denominator;
+      } else if (tuning == Tuning::TET19) {
+	return 440.0f * powf(2.0f, (octave * 19 + key - 109.0f) / 19.0f) * numerator / denominator;
       } else if (tuning == Tuning::TET31) {
 	return 440.0f * powf(2.0f, (octave * 31 + key - 178.0f) / 31.0f) * numerator / denominator;
       }
-    } else if (tuning == Tuning::TET31) {
-      return 440.0f * powf(2.0f, (note.getValue() - 178.0f) / 31.0f);
     } else if (tuning == Tuning::TET12) {
       return 440.0f * powf(2.0f, (note.getValue() - 69.0f) / 12.0f);
+    } else if (tuning == Tuning::TET19) {
+      return 440.0f * powf(2.0f, (note.getValue() - 109.0f) / 19.0f);
+    } else if (tuning == Tuning::TET31) {
+      return 440.0f * powf(2.0f, (note.getValue() - 178.0f) / 31.0f);
     }
-    
     assert(0);
     return 0.0f;
   }
@@ -67,6 +70,7 @@ private:
       break;
     case Tuning::TET19:
       switch (steps) {
+      case 0: return std::pair(1, 1);
       case 1: return std::pair(25, 24); // or 21:20, 28:27	  
       case 2: return std::pair(15, 14); // or 13:12, 14:13
       case 3: return std::pair(9, 8); // or 10:9

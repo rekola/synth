@@ -33,11 +33,11 @@ class Note {
 
   static inline std::string keyToString(Tuning tuning, int value) {
     static const char * note_names_31tet[] = { "C", "D𝄫", "C♯", "D♭", "C𝄪", "D", "E𝄫", "D♯",
-						      "E♭", "D𝄪", "E", "F♭", "E♯", "F", "G𝄫", "F♯",
-						      "G♭", "F𝄪", "G", "A𝄫", "G♯", "A♭", "G𝄪", "A",
-						      "B𝄫", "A♯", "B♭", "A𝄪", "B", "C♭", "B♯" };
-    static const char * note_names_19tet[] = { "C", "C♯", "D♭", "D", "D♯", "E♭", "E", "E♯", "F♭", "F", "F♯",
-						      "G♭", "G", "G♯", "A♭", "A", "A♯", "B♭", "B", "B♯", "C♭" };
+					       "E♭", "D𝄪", "E", "F♭", "E♯", "F", "G𝄫", "F♯",
+					       "G♭", "F𝄪", "G", "A𝄫", "G♯", "A♭", "G𝄪", "A",
+					       "B𝄫", "A♯", "B♭", "A𝄪", "B", "C♭", "B♯" };
+    static const char * note_names_19tet[] = { "C", "C♯", "D♭", "D", "D♯", "E♭", "E", "E♯", "F", "F♯",
+					       "G♭", "G", "G♯", "A♭", "A", "A♯", "B♭", "B", "C♭" };
     static const char * note_names_12tet[] = { "C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B" };
     
     if (tuning == Tuning::TET31) {
