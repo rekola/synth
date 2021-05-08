@@ -22,6 +22,35 @@
 using namespace std;
 
 void
+Controller::loadDemo7() {
+  auto song = make_shared<Song>(Tuning::TET31, 0);
+  song->setTempo(100);
+
+  auto fluid = make_unique<SoundFont>("data/FluidR3_GM.sf2");
+  song->addInstruments(*fluid);
+
+  auto & track = song->addChild();
+  track.addEffect(make_unique<Distortion>(DistortionType::TANH, 0, 0));
+  track.addEffect(make_unique<Reverb>(ReverbPreset::STADIUM));  
+  // track.setVolume(0.5f);
+  track.setElevation(50);
+  track.setAzimuth(30);
+  track.setInstrumentId(4);
+
+  auto & pattern = song->addPattern(64);  
+  pattern.setNote(0, 0, 0, Note(95));
+  pattern.setNote(0, 1, 0, Note(95 + 3));
+  pattern.setNote(0, 2, 0, Note(95 + 3 + 3));
+  pattern.setNote(0, 3, 0, Note(95 + 3 + 3 + 2));
+  pattern.setNote(0, 4, 0, Note(95 + 3 + 3 + 2 + 3));
+  pattern.setNote(0, 5, 0, Note(95 + 3 + 3 + 2 + 3 + 3));
+  pattern.setNote(0, 6, 0, Note(95 + 3 + 3 + 2 + 3 + 3 + 3));
+  pattern.setNote(0, 7, 0, Note(95 + 3 + 3 + 2 + 3 + 3 + 3 + 2));
+
+  current_song = song;
+}
+
+void
 Controller::loadDemo6() {
   auto song = make_shared<Song>(Tuning::TET31, 0);
   song->setTempo(300);
