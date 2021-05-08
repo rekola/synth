@@ -37,13 +37,13 @@ Song::open(const std::string & filename) {
     setTuning(song_tuning);
 
     auto key_text = song->Attribute("key");
-    setKey(key_text ? Note::stringToKey(song_tuning, key_text) : -1);
+    if (key_text) setKey(Note::stringToKey(song_tuning, key_text));
 
     auto volume_text = song->Attribute("volume");
-    setVolume(volume_text ? atof(volume_text) : 1.0f);
+    if (volume_text) setVolume(atof(volume_text));
     
     auto randomization_text = song->Attribute("randomization");
-    setRandomizationFactor(randomization_text ? atof(randomization_text) : 1.0f);
+    if (randomization_text) setRandomizationFactor(atof(randomization_text));
     
     auto instruments = song->FirstChildElement("instruments");
     if (instruments) {
@@ -58,6 +58,26 @@ Song::open(const std::string & filename) {
       auto it = tracks->FirstChildElement("track");
       for ( ; it ; it = it->NextSiblingElement() ) {
 	auto & track = addChild();
+
+	auto name_text = it->Attribute("name");
+	auto azimuth_text = it->Attribute("azimuth");
+	auto distance_text = it->Attribute("distance");
+	auto elevation_text = it->Attribute("elevation");
+	auto volume_text = it->Attribute("volume");
+	auto instrument_text = it->Attribute("instrument");
+	auto solo_text = it->Attribute("solo");
+	auto mute_text = it->Attribute("mute");
+	auto detune_text = it->Attribute("detune");
+
+	if (name_text) track.setName(name_text);
+	if (azimuth_text) track.setAzimuth(atof(azimuth_text));
+	if (distance_text) track.setDistance(atof(distance_text));
+	if (elevation_text) track.setElevation(atof(elevation_text));
+	if (volume_text) track.setVolume(atof(volume_text));
+	if (instrument_text) track.setInstrumentId(atoi(instrument_text));
+	if (solo_text) track.setSolo(atoi(solo_text) ? true : false);
+	if (mute_text) track.setMute(atoi(mute_text) ? true : false);
+	if (detune_text) track.setDetune(atof(detune_text));
       }
     }
     
@@ -252,6 +272,10 @@ Song::render(size_t frames, SongState & state) {
     auto & track = tracks[track_idx];
     auto & instrument = getInstrument(track.getInstrumentId());
     auto & track_state = state.getTrackState(track_idx);
+
+    if (!track_state.isInitialized()) {
+      track_state.initialize(track.getEffects());
+    }
 
     SampleData data = track.render(frames, track_state, instrument, track_events.getPendingEvents(track_idx));
     mixer.accumulate(data, track.getVolume(), track.getDistance(), track.getAzimuth(), track.getElevation());
