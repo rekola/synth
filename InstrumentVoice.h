@@ -34,8 +34,8 @@ class InstrumentVoice : public State{
   virtual void playNote(float _frequency, float velocity, float _delay, float _detune) {
     int midiVelocity = int(velocity * 127);
     if (midiVelocity > 127) midiVelocity = 127;
-    ampenv = EnvelopeState(amp_envelope, 0, midiVelocity, true, 44100, _delay);
-    modenv = EnvelopeState(mod_envelope, 0, midiVelocity, false, 44100, _delay);
+    ampenv = EnvelopeState(getOutSampleRate(), amp_envelope, 0, midiVelocity, true, _delay);
+    modenv = EnvelopeState(getOutSampleRate(), mod_envelope, 0, midiVelocity, false, _delay);
 	
     freq = _frequency;
     detune = _detune;

@@ -933,8 +933,8 @@ SoundFontVoice::playNote(float frequency, float velocity, float delay, float det
     loopEnd = (doLoop ? region->loop_end : 0);
     
     // Setup envelopes.
-    ampenv = EnvelopeState(region->ampenv, apparent_key, midiVelocity, true, getOutSampleRate(), delay);
-    modenv = EnvelopeState(region->modenv, apparent_key, midiVelocity, false, getOutSampleRate(), delay);
+    ampenv = EnvelopeState(getOutSampleRate(), region->ampenv, apparent_key, midiVelocity, true, delay);
+    modenv = EnvelopeState(getOutSampleRate(), region->modenv, apparent_key, midiVelocity, false, delay);
     
     // Setup lowpass filter.
     lowpassFc = (region->initialFilterFc <= 13500 ? tsf_cents2Hertz((float)region->initialFilterFc) / getOutSampleRate() : 1.0f);

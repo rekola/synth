@@ -24,6 +24,7 @@
 #ifndef _ENVELOPESTATE_H_
 #define _ENVELOPESTATE_H_
 
+#include "State.h"
 #include "Envelope.h"
 
 #include <cmath>
@@ -33,18 +34,18 @@ static inline float tsf_timecents2Secsf(float timecents) { return powf(2.0f, tim
 // Grace release time for quick voice off (avoid clicking noise)
 #define TSF_FASTRELEASETIME 0.01f
 
-class EnvelopeState {
+class EnvelopeState : public State {
  public:
   enum Segment { NONE = 0, DELAY, ATTACK, HOLD, DECAY, SUSTAIN, RELEASE, DONE };
   
   EnvelopeState()
-    : level(0.0f), slope(0.0f), samplesUntilNextSegment(0), midiVelocity(0), segmentIsExponential(false), isAmpEnv(false), outSampleRate(0) { }
+    : State(0), level(0.0f), slope(0.0f), samplesUntilNextSegment(0), midiVelocity(0), segmentIsExponential(false), isAmpEnv(false) { }
 
-  EnvelopeState(const Envelope & _parameters, int midiNoteNumber, short _midiVelocity, bool _isAmpEnv, float _outSampleRate, float _note_delay = 0.0f)
-    : parameters(_parameters),
+  EnvelopeState(unsigned int _outSampleRate, const Envelope & _parameters, int midiNoteNumber, short _midiVelocity, bool _isAmpEnv, float _note_delay = 0.0f)
+    : State(_outSampleRate),
+      parameters(_parameters),
       midiVelocity(_midiVelocity),
       isAmpEnv(_isAmpEnv),
-      outSampleRate(_outSampleRate),
       note_delay(_note_delay) {
 
     if (parameters.keynumToHold) {
@@ -62,7 +63,7 @@ class EnvelopeState {
   void nextSegment(short active_segment) {
     switch (active_segment) {
     case NONE:
-      samplesUntilNextSegment = (int)((note_delay + parameters.delay) * outSampleRate);
+      samplesUntilNextSegment = (int)((note_delay + parameters.delay) * getOutSampleRate());
       if (samplesUntilNextSegment > 0) {
 	segment = DELAY;
 	segmentIsExponential = false;
@@ -72,11 +73,11 @@ class EnvelopeState {
       }
       /* fall through */
     case DELAY:
-      samplesUntilNextSegment = (int)(parameters.attack * outSampleRate);
+      samplesUntilNextSegment = (int)(parameters.attack * getOutSampleRate());
       if (samplesUntilNextSegment > 0) {
 	if (!isAmpEnv) {
 	  // mod env attack duration scales with velocity (velocity of 1 is full duration, max velocity is 0.125 times duration)
-	  samplesUntilNextSegment = (int)(parameters.attack * ((145 - midiVelocity) / 144.0f) * outSampleRate);
+	  samplesUntilNextSegment = (int)(parameters.attack * ((145 - midiVelocity) / 144.0f) * getOutSampleRate());
 	}
 	segment = ATTACK;
 	segmentIsExponential = false;
@@ -86,7 +87,7 @@ class EnvelopeState {
       }
       /* fall through */
     case ATTACK:
-      samplesUntilNextSegment = (int)(parameters.hold * outSampleRate);
+      samplesUntilNextSegment = (int)(parameters.hold * getOutSampleRate());
       if (samplesUntilNextSegment > 0) {
 	segment = HOLD;
 	segmentIsExponential = false;
@@ -96,7 +97,7 @@ class EnvelopeState {
       }
       /* fall through */
     case HOLD:
-      samplesUntilNextSegment = (int)(parameters.decay * outSampleRate);
+      samplesUntilNextSegment = (int)(parameters.decay * getOutSampleRate());
       if (samplesUntilNextSegment > 0) {
 	segment = DECAY;
 	level = 1.0f;
@@ -115,7 +116,7 @@ class EnvelopeState {
 	  }
 	} else {
 	  slope = -1.0f / samplesUntilNextSegment;
-	  samplesUntilNextSegment = (int)(parameters.decay * (1.0f - parameters.sustain) * outSampleRate);
+	  samplesUntilNextSegment = (int)(parameters.decay * (1.0f - parameters.sustain) * getOutSampleRate());
 	  segmentIsExponential = false;
 	}
 	return;
@@ -130,7 +131,7 @@ class EnvelopeState {
       return;
     case SUSTAIN:
       segment = RELEASE;
-      samplesUntilNextSegment = (int)((parameters.release <= 0 ? TSF_FASTRELEASETIME : parameters.release) * outSampleRate);
+      samplesUntilNextSegment = (int)((parameters.release <= 0 ? TSF_FASTRELEASETIME : parameters.release) * getOutSampleRate());
       if (isAmpEnv) {
 	// I don't truly understand this; just following what LinuxSampler does.
 	float mysterySlope = -9.226f / samplesUntilNextSegment;
@@ -171,7 +172,6 @@ private:
   int samplesUntilNextSegment;
   short midiVelocity;
   bool segmentIsExponential, isAmpEnv;
-  float outSampleRate;
   float note_delay;
 };
 
