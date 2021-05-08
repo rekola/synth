@@ -13,10 +13,10 @@ public:
 
     assert(input_data.getChannels() == 1);
     float * buffer = input_data.data();
-    float dphi1 = M_PI * delay1_mod_freq / 22050;
+    float dphi1 = 2 * M_PI * delay1_mod_freq / getOutSampleRate();
     
     for (size_t i = 0; i < input_data.size(); i++) {
-      int delay1_offset = (size_t)((delay1 + delay1_mod_amount * sinf(delay1_phi)) / 1000 * 44100);
+      int delay1_offset = (size_t)((delay1 + delay1_mod_amount * sinf(delay1_phi)) / 1000 * getOutSampleRate());
       float x = buffer[i];
       float y = delaybuf1[(CHORUS_MAX_DELAY_SAMPLES + delc1 - delay1_offset) % CHORUS_MAX_DELAY_SAMPLES];
       

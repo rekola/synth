@@ -33,7 +33,7 @@ public:
     for (size_t i = 0; i < frames; i++) {
       float gain = gain0 * ampenv.getLevel();
       
-      double phi = transpose * getSourceSamplePosition() * 2 * M_PI / 44100.0f;
+      double phi = transpose * getSourceSamplePosition() * 2 * M_PI / getOutSampleRate();
       float s = sinf(phi + modenv.getLevel() * modulation * sinf(phi * harmonic / subharmonic));
 
       // return s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s*s;

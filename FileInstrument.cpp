@@ -65,7 +65,7 @@ public:
     
     bool ended = false;
     for (size_t k = 0; k < frames; k++) {
-      // float i = getFphase() * WAVESIZE / 44100.0f;
+      // float i = getFphase() * WAVESIZE / getOutSampleRate();
       size_t i = (size_t)getSourceSamplePosition();
       stepForward();
 

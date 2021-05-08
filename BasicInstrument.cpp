@@ -19,7 +19,7 @@ public:
     for (size_t k = 0; k < frames; k++) {
       float gain = gain0 * ampenv.getLevel();
 
-      float i = fmod(getSourceSamplePosition() / 44100.0f, 1.0);
+      float i = fmod(getSourceSamplePosition() / getOutSampleRate(), 1.0);
       
       stepForward();
 
