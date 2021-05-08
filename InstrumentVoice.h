@@ -1,20 +1,21 @@
 #ifndef _INSTRUMENTVOICE_H_
 #define _INSTRUMENTVOICE_H_
 
+#include "State.h"
+
 #include "Note.h"
 #include "EnvelopeState.h"
 
-class InstrumentVoice {
+class InstrumentVoice : public State{
  public:
   InstrumentVoice(unsigned int _outSampleRate, int _identifier)
-    : outSampleRate(_outSampleRate), identifier(_identifier) { }
+    : State(_outSampleRate), identifier(_identifier) { }
   InstrumentVoice(unsigned int _outSampleRate, int _identifier, const Envelope & _amp_envelope)
-    : outSampleRate(_outSampleRate), identifier(_identifier), amp_envelope(_amp_envelope) {
+    : State(_outSampleRate), identifier(_identifier), amp_envelope(_amp_envelope) {
   }
   InstrumentVoice(unsigned int _outSampleRate, int _identifier, const Envelope & _amp_envelope, const Envelope & _mod_envelope)
-    : outSampleRate(_outSampleRate), identifier(_identifier), amp_envelope(_amp_envelope), mod_envelope(_mod_envelope) {   
+    : State(_outSampleRate), identifier(_identifier), amp_envelope(_amp_envelope), mod_envelope(_mod_envelope) {   
   }
-  virtual ~InstrumentVoice() { }
   
   virtual SampleData render(size_t frames) = 0;
 
@@ -54,7 +55,7 @@ class InstrumentVoice {
 
   void createEffectStates(const std::vector<std::unique_ptr<Effect> > & effects) {
     for (auto & effect : effects) {
-      effect_states.push_back(effect->createState(outSampleRate));
+      effect_states.push_back(effect->createState(getOutSampleRate()));
     }
   }
   
@@ -77,7 +78,6 @@ class InstrumentVoice {
   }
 
 protected:
-  unsigned int getOutSampleRate() const { return outSampleRate; }
   double getSourceSamplePosition() const { return sourceSamplePosition; }
 
   void stepForward() {
@@ -88,7 +88,6 @@ protected:
   double sourceSamplePosition = 0.0;
 
 private:
-  unsigned int outSampleRate;
   int identifier;
   float freq = 0.0f, detune = 0.0f;
   float noteGainDB = 0.0f;
