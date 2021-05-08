@@ -53,6 +53,7 @@ class Track : public TreeElement {
   Track & addChild(Track::Type type = Track::SEQUENCER) { return addChild(Track(type)); }
 
   void addEffect(std::unique_ptr<Effect> effect) { effects.push_back(std::move(effect)); }
+  const std::vector<std::shared_ptr<Effect> > & getEffects() const { return effects; }
 
   void setElevation(float e) { elevation = e; }
   void setAzimuth(float a) { azimuth = a; }
@@ -60,7 +61,7 @@ class Track : public TreeElement {
 
   float getElevation() const { return elevation; }
   float getAzimuth() const { return azimuth; }
-  float getDistance() const { return distance; }
+  float getDistance() const { return distance; }  
     
 private:
   Type type;
