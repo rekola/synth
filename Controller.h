@@ -2,6 +2,7 @@
 #define _CONTROLLER_H_
 
 #include "SampleData.h"
+#include "InstrumentProvider.h"
 
 #include <memory>
 
@@ -10,7 +11,7 @@ class SongState;
 
 class Controller {
  public:
-  Controller() { }
+  Controller();
 
   const Song & getSong() const { return *current_song; }
   Song & getSong() { return *current_song; }
@@ -21,6 +22,8 @@ class Controller {
   void setSongState(std::shared_ptr<SongState> & _state) { state = _state; }
   
   void createNewSong();
+  void openSong(std::string filename);
+  
   void loadDemo();
   void loadDemo2();
   void loadDemo3();
@@ -47,6 +50,7 @@ class Controller {
   std::shared_ptr<Song> current_song;
   std::shared_ptr<SampleData> current_sample;
   SampleData empty_sample;
+  InstrumentProvider instrument_provider;
 };
 
 #endif

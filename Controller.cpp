@@ -21,24 +21,44 @@
 
 using namespace std;
 
+Controller::Controller() {
+#if 0
+  instrument_provider.loadSoundFont("data/FluidR3_GM.sf2");
+#endif
+}
+
 void
 Controller::loadDemo7() {
   auto song = make_shared<Song>(Tuning::TET31, 0);
   song->setTempo(100);
 
   auto fluid = make_unique<SoundFont>("data/FluidR3_GM.sf2");
-  song->addInstruments(*fluid);
-
+  // song->addInstruments(*fluid);
+  auto rhodes = fluid->createInstrument(4);
+  auto bd = fluid->createInstrument(160, 35);
+  song->addInstrument(move(rhodes));
+  song->addInstrument(move(bd));
+  
   auto & track = song->addChild();
   track.addEffect(make_unique<Distortion>(DistortionType::TANH, 0, 0));
   track.addEffect(make_unique<Reverb>(ReverbPreset::STADIUM));  
   // track.setVolume(0.5f);
   track.setElevation(50);
   track.setAzimuth(30);
-  track.setInstrumentId(4);
+  track.setInstrumentId(0);
+  
+  auto & track2 = song->addChild();
+  track2.addEffect(make_unique<Distortion>(DistortionType::TANH, 0, 0));
+  track2.addEffect(make_unique<Reverb>(ReverbPreset::STADIUM));  
+  // track2.setVolume(0.5f);
+  track2.setElevation(50);
+  track2.setAzimuth(-30);
+  track2.setInstrumentId(1);
 
   auto & pattern = song->addPattern(64);  
   pattern.setNote(0, 0, 0, Note(95));
+  // pattern.setNote(1, 0, 0, Note("C-4", 0x3f, Tuning::TET31));
+  
   pattern.setNote(0, 1, 0, Note(95 + 3));
   pattern.setNote(0, 2, 0, Note(95 + 3 + 3));
   pattern.setNote(0, 3, 0, Note(95 + 3 + 3 + 2));
@@ -46,7 +66,7 @@ Controller::loadDemo7() {
   pattern.setNote(0, 5, 0, Note(95 + 3 + 3 + 2 + 3 + 3));
   pattern.setNote(0, 6, 0, Note(95 + 3 + 3 + 2 + 3 + 3 + 3));
   pattern.setNote(0, 7, 0, Note(95 + 3 + 3 + 2 + 3 + 3 + 3 + 2));
-
+  
   current_song = song;
 }
 
@@ -945,6 +965,13 @@ Controller::createNewSong() {
   song->addPattern(pattern);  
   song->addChild();
   
+  current_song = song;
+}
+
+void
+Controller::openSong(string filename) {
+  auto song = make_shared<Song>();
+  song->open(filename);
   current_song = song;
 }
 
