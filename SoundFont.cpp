@@ -37,7 +37,8 @@ struct tsf_riffchunk {
   uint32_t size;
 };
 
-struct tsf_region {
+class tsf_region {
+public:
   int loop_mode;
   unsigned int sample_rate;
   unsigned char lokey, hikey, lovel, hivel;
@@ -52,13 +53,56 @@ struct tsf_region {
   int freqModLFO, modLfoToPitch;
   float delayVibLFO;
   int freqVibLFO, vibLfoToPitch;
+
+  void clear(bool for_relative) {
+    // memset(i, 0, sizeof(struct tsf_region));
+    loop_mode = 0;
+    sample_rate = 0;
+    lokey = lovel = 0;
+    group = 0;
+    offset = 0;
+    end = 0;
+    loop_start = loop_end = 0;
+    transpose = 0;
+    tune = 0;
+    pitch_keytrack = 0;
+    attenuation = 0;
+    pan = 0;
+
+    ampenv.delay = ampenv.attack = ampenv.hold = ampenv.decay = ampenv.release = 0;
+    modenv.delay = modenv.attack = modenv.hold = modenv.decay = modenv.release = 0;
+
+    initialFilterQ = initialFilterFc = 0;
+    modEnvToPitch = modEnvToFilterFc = 0;
+    modLfoToFilterFc = modLfoToVolume = 0;
+    delayModLFO = 0;
+    freqModLFO = modLfoToPitch = 0;
+    delayVibLFO = 0;
+    freqVibLFO = vibLfoToPitch = 0;
+    
+    hikey = hivel = 127;
+    pitch_keycenter = 60; // C4
+    
+    if (for_relative) return;
+    
+    pitch_keytrack = 100;
+    pitch_keycenter = -1;
+    
+    // SF2 defaults in timecents.
+    ampenv.delay = ampenv.attack = ampenv.hold = ampenv.decay = ampenv.release = -12000.0f;
+    modenv.delay = modenv.attack = modenv.hold = modenv.decay = modenv.release = -12000.0f;
+    
+    initialFilterFc = 13500;
+    
+    delayModLFO = -12000.0f;
+    delayVibLFO = -12000.0f;
+  }
 };
 
 struct tsf_preset {
   char presetName[20];
   uint16_t preset, bank;
-  struct tsf_region* regions;
-  int regionNum;
+  vector<tsf_region> regions;
 };
 
 // Stream structure for the generic loading
@@ -104,23 +148,6 @@ static inline float tsf_cents2Hertz(float cents) { return 8.176f * powf(2.0f, ce
 
 static int tsf_stream_stdio_read(FILE* f, void* ptr, unsigned int size) { return (int)fread(ptr, 1, size, f); }
 static int tsf_stream_stdio_skip(FILE* f, unsigned int count) { return !fseek(f, count, SEEK_CUR); }
-
-#if 0
-// Load a SoundFont from a block of memory
-
-struct tsf_stream_memory { const char* buffer; unsigned int total, pos; };
-static int tsf_stream_memory_read(struct tsf_stream_memory* m, void* ptr, unsigned int size) { if (size > m->total - m->pos) size = m->total - m->pos; memcpy(ptr, m->buffer+m->pos, size); m->pos += size; return size; }
-static int tsf_stream_memory_skip(struct tsf_stream_memory* m, unsigned int count) { if (m->pos + count > m->total) return 0; m->pos += count; return 1; }
-
-SoundFontFile* tsf_load_memory(const void* buffer, int size) {
-  struct tsf_stream stream = { NULL, (int(*)(void*,void*,unsigned int))&tsf_stream_memory_read, (int(*)(void*,unsigned int))&tsf_stream_memory_skip };
-  struct tsf_stream_memory f = { 0, 0, 0 };
-  f.buffer = (const char*)buffer;
-  f.total = size;
-  stream.data = &f;
-  return tsf_load(&stream);
-}
-#endif
 
 enum { TSF_LOOPMODE_NONE, TSF_LOOPMODE_CONTINUOUS, TSF_LOOPMODE_SUSTAIN };
 
@@ -168,25 +195,6 @@ static bool tsf_riffchunk_read(struct tsf_riffchunk* parent, struct tsf_riffchun
   if (!stream->read(stream->data, &chunk->id, sizeof(FourCC)) || chunk->id.data()[0] <= ' ' || chunk->id.data()[0] >= 'z') return false;
   chunk->size -= sizeof(FourCC);
   return true;
-}
-
-static void tsf_region_clear(struct tsf_region* i, bool for_relative) {
-  memset(i, 0, sizeof(struct tsf_region));
-  i->hikey = i->hivel = 127;
-  i->pitch_keycenter = 60; // C4
-  if (for_relative) return;
-  
-  i->pitch_keytrack = 100;
-  i->pitch_keycenter = -1;
-  
-  // SF2 defaults in timecents.
-  i->ampenv.delay = i->ampenv.attack = i->ampenv.hold = i->ampenv.decay = i->ampenv.release = -12000.0f;
-  i->modenv.delay = i->modenv.attack = i->modenv.hold = i->modenv.decay = i->modenv.release = -12000.0f;
-  
-  i->initialFilterFc = 13500;
-  
-  i->delayModLFO = -12000.0f;
-  i->delayVibLFO = -12000.0f;
 }
 
 static void tsf_region_operator(struct tsf_region* region, uint16_t genOper, union tsf_hydra_genamount* amount, struct tsf_region* merge_region) {
@@ -402,19 +410,14 @@ public:
     loadFile(filename);
   }
   ~SoundFontFile() {
-    struct tsf_preset *preset, *presetEnd;
-    for (preset = presets, presetEnd = preset + presetNum; preset != presetEnd; preset++) {
-      free(preset->regions);
-    }
-    free(presets);
     free(fontSamples);
   }
 
   // Directly load a SoundFont from a .sf2 file path
   void loadFile(const std::string & filename) {
-    struct tsf_stream stream = { NULL, (int(*)(void*,void*,unsigned int))&tsf_stream_stdio_read, (int(*)(void*,unsigned int))&tsf_stream_stdio_skip };
+    struct tsf_stream stream = { nullptr, (int(*)(void*,void*,unsigned int))&tsf_stream_stdio_read, (int(*)(void*,unsigned int))&tsf_stream_stdio_skip };
 #if __STDC_WANT_SECURE_LIB__
-    FILE * fh = NULL;
+    FILE * fh = nullptr;
     fopen_s(&fh, filename, "rb");
 #else
     FILE * fh = fopen(filename.c_str(), "rb");
@@ -430,14 +433,14 @@ public:
 
   // Returns the name of a preset index >= 0 and < tsf_get_presetcount()
   string getPresetName(size_t index) const {
-    if (index < presetNum) return presets[index].presetName;
+    if (index < presets.size()) return presets[index].presetName;
     else return "";
   }
 
   // Returns the preset index from a bank and preset number, or -1 if it does not exist in the loaded SoundFont
 
   int getPresetIndex(int bank, int preset_number) const {
-    for (size_t i = 0; i < presetNum; i++) {
+    for (size_t i = 0; i < presets.size(); i++) {
       if (presets[i].preset == preset_number && presets[i].bank == bank) {
 	return i;
       }
@@ -445,11 +448,10 @@ public:
     return -1;
   }
 
-  size_t getPresetCount() const { return presetNum; }
+  size_t getPresetCount() const { return presets.size(); }
   
-  struct tsf_preset * presets = 0;
-  float * fontSamples = 0; 
-  size_t presetNum = 0;
+  std::vector<tsf_preset> presets;
+  float * fontSamples = 0;
 };
 
 static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsigned int fontSampleCount) {
@@ -460,7 +462,6 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
     {
       int sortedIndex = 0, region_index = 0;
       struct tsf_hydra_phdr *otherphdr;
-      struct tsf_preset* preset;
       struct tsf_hydra_pbag *ppbag, *ppbagEnd;
       struct tsf_region globalRegion;
       for (otherphdr = hydra->phdrs; otherphdr != pphdrMax; otherphdr++)
@@ -471,41 +472,39 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
 	  else if (otherphdr->preset < pphdr->preset) sortedIndex++;
 	  else if (otherphdr < pphdr) sortedIndex++;
 	}
+
+      struct tsf_preset * preset = &(res->presets[sortedIndex]);
       
-      preset = &res->presets[sortedIndex];
       memcpy(preset->presetName, pphdr->presetName, sizeof(preset->presetName));
       preset->presetName[sizeof(preset->presetName)-1] = '\0'; //should be zero terminated in source file but make sure
       preset->bank = pphdr->bank;
       preset->preset = pphdr->preset;
-      preset->regionNum = 0;
+
+      size_t regionNum = 0;
       
-      //count regions covered by this preset
-      for (ppbag = hydra->pbags + pphdr->presetBagNdx, ppbagEnd = hydra->pbags + pphdr[1].presetBagNdx; ppbag != ppbagEnd; ppbag++)
-	{
-	  unsigned char plokey = 0, phikey = 127, plovel = 0, phivel = 127;
-	  struct tsf_hydra_pgen *ppgen, *ppgenEnd; struct tsf_hydra_inst *pinst; struct tsf_hydra_ibag *pibag, *pibagEnd; struct tsf_hydra_igen *pigen, *pigenEnd;
-	  for (ppgen = hydra->pgens + ppbag->genNdx, ppgenEnd = hydra->pgens + ppbag[1].genNdx; ppgen != ppgenEnd; ppgen++)
-	    {
-	      if (ppgen->genOper == GenKeyRange) { plokey = ppgen->genAmount.range.lo; phikey = ppgen->genAmount.range.hi; continue; }
-	      if (ppgen->genOper == GenVelRange) { plovel = ppgen->genAmount.range.lo; phivel = ppgen->genAmount.range.hi; continue; }
-	      if (ppgen->genOper != GenInstrument) continue;
-	      if (ppgen->genAmount.wordAmount >= hydra->instNum) continue;
-	      pinst = hydra->insts + ppgen->genAmount.wordAmount;
-	      for (pibag = hydra->ibags + pinst->instBagNdx, pibagEnd = hydra->ibags + pinst[1].instBagNdx; pibag != pibagEnd; pibag++)
-		{
-		  unsigned char ilokey = 0, ihikey = 127, ilovel = 0, ihivel = 127;
-		  for (pigen = hydra->igens + pibag->instGenNdx, pigenEnd = hydra->igens + pibag[1].instGenNdx; pigen != pigenEnd; pigen++)
-		    {
-		      if (pigen->genOper == GenKeyRange) { ilokey = pigen->genAmount.range.lo; ihikey = pigen->genAmount.range.hi; continue; }
-		      if (pigen->genOper == GenVelRange) { ilovel = pigen->genAmount.range.lo; ihivel = pigen->genAmount.range.hi; continue; }
-		      if (pigen->genOper == GenSampleID && ihikey >= plokey && ilokey <= phikey && ihivel >= plovel && ilovel <= phivel) preset->regionNum++;
-		    }
-		}
+      // count regions covered by this preset
+      for (ppbag = hydra->pbags + pphdr->presetBagNdx, ppbagEnd = hydra->pbags + pphdr[1].presetBagNdx; ppbag != ppbagEnd; ppbag++) {
+	unsigned char plokey = 0, phikey = 127, plovel = 0, phivel = 127;
+	struct tsf_hydra_pgen *ppgen, *ppgenEnd; struct tsf_hydra_inst *pinst; struct tsf_hydra_ibag *pibag, *pibagEnd; struct tsf_hydra_igen *pigen, *pigenEnd;
+	for (ppgen = hydra->pgens + ppbag->genNdx, ppgenEnd = hydra->pgens + ppbag[1].genNdx; ppgen != ppgenEnd; ppgen++) {
+	  if (ppgen->genOper == GenKeyRange) { plokey = ppgen->genAmount.range.lo; phikey = ppgen->genAmount.range.hi; continue; }
+	  if (ppgen->genOper == GenVelRange) { plovel = ppgen->genAmount.range.lo; phivel = ppgen->genAmount.range.hi; continue; }
+	  if (ppgen->genOper != GenInstrument) continue;
+	  if (ppgen->genAmount.wordAmount >= hydra->instNum) continue;
+	  pinst = hydra->insts + ppgen->genAmount.wordAmount;
+	  for (pibag = hydra->ibags + pinst->instBagNdx, pibagEnd = hydra->ibags + pinst[1].instBagNdx; pibag != pibagEnd; pibag++) {
+	    unsigned char ilokey = 0, ihikey = 127, ilovel = 0, ihivel = 127;
+	    for (pigen = hydra->igens + pibag->instGenNdx, pigenEnd = hydra->igens + pibag[1].instGenNdx; pigen != pigenEnd; pigen++) {
+	      if (pigen->genOper == GenKeyRange) { ilokey = pigen->genAmount.range.lo; ihikey = pigen->genAmount.range.hi; continue; }
+	      if (pigen->genOper == GenVelRange) { ilovel = pigen->genAmount.range.lo; ihivel = pigen->genAmount.range.hi; continue; }
+	      if (pigen->genOper == GenSampleID && ihikey >= plokey && ilokey <= phikey && ihivel >= plovel && ilovel <= phivel) regionNum++;
 	    }
+	  }
 	}
-      
-      preset->regions = (struct tsf_region*)malloc(preset->regionNum * sizeof(struct tsf_region));
-      tsf_region_clear(&globalRegion, true);
+      }
+
+      preset->regions.resize(regionNum);
+      globalRegion.clear(true);
       
       // Zones.
       for (ppbag = hydra->pbags + pphdr->presetBagNdx, ppbagEnd = hydra->pbags + pphdr[1].presetBagNdx; ppbag != ppbagEnd; ppbag++)
@@ -524,7 +523,7 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
 		  uint16_t whichInst = ppgen->genAmount.wordAmount;
 		  if (whichInst >= hydra->instNum) continue;
 		  
-		  tsf_region_clear(&instRegion, false);
+		  instRegion.clear(false);
 		  pinst = &hydra->insts[whichInst];
 		  for (pibag = hydra->ibags + pinst->instBagNdx, pibagEnd = hydra->ibags + pinst[1].instBagNdx; pibag != pibagEnd; pibag++)
 		    {
@@ -546,7 +545,7 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
 			      if (presetRegion.hivel < zoneRegion.hivel) zoneRegion.hivel = presetRegion.hivel;
 			      
 			      // sum regions
-			      tsf_region_operator(&zoneRegion, 0, NULL, &presetRegion);
+			      tsf_region_operator(&zoneRegion, 0, nullptr, &presetRegion);
 			      
 			      // EG times need to be converted from timecents to seconds.
 			      tsf_region_envtosecs(&zoneRegion.ampenv, true);
@@ -573,7 +572,7 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
 			      region_index++;
 			      hadSampleID = 1;
 			    }
-			  else tsf_region_operator(&zoneRegion, pigen->genOper, &pigen->genAmount, NULL);
+			  else tsf_region_operator(&zoneRegion, pigen->genOper, &pigen->genAmount, nullptr);
 			}
 		      
 		      // Handle instrument's global zone.
@@ -585,7 +584,7 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
 		    }
 		  hadGenInstrument = 1;
 		}
-	      else tsf_region_operator(&presetRegion, ppgen->genOper, &ppgen->genAmount, NULL);
+	      else tsf_region_operator(&presetRegion, ppgen->genOper, &ppgen->genAmount, nullptr);
 	    }
 	  
 	  // Modulators (TODO)
@@ -658,7 +657,7 @@ SoundFontVoice::render(size_t numSamples) {
   SampleData outputData(1, numSamples);
   float * output = outputData.data();
     
-  float* input = f->fontSamples;
+  float * input = f->fontSamples;
   
   bool updateModEnv = (voiceRegion->modEnvToPitch || voiceRegion->modEnvToFilterFc);
   bool updateModLFO = (modlfo.getDelta() && (voiceRegion->modLfoToPitch || voiceRegion->modLfoToFilterFc || voiceRegion->modLfoToVolume));
@@ -756,10 +755,10 @@ void tsf_load(SoundFontFile* res, struct tsf_stream* stream) {
   struct tsf_riffchunk chunkHead;
   struct tsf_riffchunk chunkList;
   struct tsf_hydra hydra;
-  float* fontSamples = NULL;
+  float * fontSamples = nullptr;
   unsigned int fontSampleCount = 0;
   
-  if (!tsf_riffchunk_read(NULL, &chunkHead, stream) || !(chunkHead.id == "sfbk")) {
+  if (!tsf_riffchunk_read(nullptr, &chunkHead, stream) || !(chunkHead.id == "sfbk")) {
     //if (e) *e = TSF_INVALID_NOSF2HEADER;
     return;
   }
@@ -808,13 +807,14 @@ void tsf_load(SoundFontFile* res, struct tsf_stream* stream) {
   
   if (!hydra.phdrs || !hydra.pbags || !hydra.pmods || !hydra.pgens || !hydra.insts || !hydra.ibags || !hydra.imods || !hydra.igens || !hydra.shdrs) {
     //if (e) *e = TSF_INVALID_INCOMPLETE;
-  } else if (fontSamples == NULL) {
+  } else if (fontSamples == nullptr) {
     //if (e) *e = TSF_INVALID_NOSAMPLEDATA;
   } else {
-    res->presetNum = hydra.phdrNum - 1;
-    res->presets = (struct tsf_preset*)malloc(res->presetNum * sizeof(struct tsf_preset));
+    size_t presetNum = hydra.phdrNum - 1;
+    // res->presets = (struct tsf_preset*)malloc(res->presetNum * sizeof(struct tsf_preset));
+    res->presets.resize(presetNum);
     res->fontSamples = fontSamples;
-    fontSamples = NULL; //don't free below
+    fontSamples = nullptr; //don't free below
     tsf_load_presets(res, &hydra, fontSampleCount);
   }
   free(hydra.phdrs); free(hydra.pbags); free(hydra.pmods);
@@ -881,7 +881,7 @@ SoundFontVoice::playNote(float frequency, float velocity, float delay, float det
   auto f = sf.get();
 
   int preset_index = preset;
-  if (preset_index < 0 || preset_index >= f->presetNum) return;
+  if (preset_index < 0 || preset_index >= f->presets.size()) return;
 
   double apparent_key = log2(frequency / 440) * 12 + 69;
   int midiKey = fixedMidiKey ? fixedMidiKey : int(apparent_key);
@@ -890,48 +890,47 @@ SoundFontVoice::playNote(float frequency, float velocity, float delay, float det
   if (midiVelocity > 127) midiVelocity = 127;
   
   // Play all matching regions.
-  struct tsf_region *region, *regionEnd;
 
-  for (region = f->presets[preset_index].regions, regionEnd = region + f->presets[preset_index].regionNum; region != regionEnd; region++) {
+  for (auto & region : f->presets[preset_index].regions) {
     bool doLoop;
     float lowpassFilterQDB, lowpassFc;
     
-    if (midiKey < region->lokey || midiKey > region->hikey || midiVelocity < region->lovel || midiVelocity > region->hivel) continue;
+    if (midiKey < region.lokey || midiKey > region.hikey || midiVelocity < region.lovel || midiVelocity > region.hivel) continue;
     
-    if (region->group) {
+    if (region.group) {
       // FIXME: here we should end all voices with the same instrument and group
     }
     
-    voiceRegion = region;
+    voiceRegion = &region;
     playingPreset = preset_index;
     apparentPlayingKey = apparent_key;
     // voice->playingFrequency = frequency;
-    setGainDB(- region->attenuation - gainToDecibels(1.0f / velocity));
+    setGainDB(- region.attenuation - gainToDecibels(1.0f / velocity));
     calcPitchRatio(0);
     
     // Offset/end.
-    sourceSamplePosition = region->offset;
+    sourceSamplePosition = region.offset;
     
     // Loop.
-    doLoop = (region->loop_mode != TSF_LOOPMODE_NONE && region->loop_start < region->loop_end);
-    loopStart = (doLoop ? region->loop_start : 0);
-    loopEnd = (doLoop ? region->loop_end : 0);
+    doLoop = (region.loop_mode != TSF_LOOPMODE_NONE && region.loop_start < region.loop_end);
+    loopStart = (doLoop ? region.loop_start : 0);
+    loopEnd = (doLoop ? region.loop_end : 0);
     
     // Setup envelopes.
-    ampenv = EnvelopeState(getOutSampleRate(), region->ampenv, apparent_key, midiVelocity, true, delay);
-    modenv = EnvelopeState(getOutSampleRate(), region->modenv, apparent_key, midiVelocity, false, delay);
+    ampenv = EnvelopeState(getOutSampleRate(), region.ampenv, apparent_key, midiVelocity, true, delay);
+    modenv = EnvelopeState(getOutSampleRate(), region.modenv, apparent_key, midiVelocity, false, delay);
     
     // Setup lowpass filter.
-    lowpassFc = (region->initialFilterFc <= 13500 ? tsf_cents2Hertz((float)region->initialFilterFc) / getOutSampleRate() : 1.0f);
-    lowpassFilterQDB = region->initialFilterQ / 10.0f;
+    lowpassFc = (region.initialFilterFc <= 13500 ? tsf_cents2Hertz((float)region.initialFilterFc) / getOutSampleRate() : 1.0f);
+    lowpassFilterQDB = region.initialFilterQ / 10.0f;
     lowpass.QInv = 1.0 / pow(10.0, (lowpassFilterQDB / 20.0));
     lowpass.z1 = lowpass.z2 = 0;
     lowpass.active = (lowpassFc < 0.499f);
     if (lowpass.active) lowpass.setup(lowpassFc);
     
     // Setup LFO filters.
-    modlfo = LFO(region->delayModLFO, tsf_cents2Hertz(region->freqModLFO), getOutSampleRate());
-    viblfo = LFO(region->delayVibLFO, tsf_cents2Hertz(region->freqVibLFO), getOutSampleRate());
+    modlfo = LFO(region.delayModLFO, tsf_cents2Hertz(region.freqModLFO), getOutSampleRate());
+    viblfo = LFO(region.delayVibLFO, tsf_cents2Hertz(region.freqVibLFO), getOutSampleRate());
 
     break; // FIXME, add subvoices
   }
