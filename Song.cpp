@@ -47,9 +47,17 @@ Song::open(const std::string & filename) {
     
     auto instruments = song->FirstChildElement("instruments");
     if (instruments) {
-      auto it = instruments->FirstChildElement("instrument");
+      auto it = instruments->FirstChildElement();
       for ( ; it ; it = it->NextSiblingElement() ) {
-	// ?
+	string tag_name = it->Name();
+	if (tag_name == "genericInstrument") {
+	  auto name = it->Attribute("name");
+	  
+	} else if (tag_name == "fmInstrument") {
+	  
+	} else if (tag_name == "subtractiveInstrument") {
+	  
+	}
       }
     }
 
