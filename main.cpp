@@ -11,6 +11,7 @@ using namespace std;
 int main(int argc, char *argv[]) {
   int load_demo = 0;
   bool relative = false;
+  vector<string> input;
   
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "--demo") == 0) {
@@ -22,9 +23,11 @@ int main(int argc, char *argv[]) {
       }
     } else if (strcmp(argv[i], "--relative") == 0) {
       relative = true;
-    } else {
+    } else if (argv[i][0] == '-') {
       cerr << "invalid parameter\n";
       exit(1);
+    } else {
+      input.push_back(argv[i]);
     }
   }
       
@@ -39,7 +42,9 @@ int main(int argc, char *argv[]) {
   auto state = make_shared<SongState>(audio.getFrequency());
   controller->setSongState(state);
 
-  if (load_demo == 1) {
+  if (!input.empty()) {
+    controller->openSong(input.front());
+  } else if (load_demo == 1) {
     controller->loadDemo();
   } else if (load_demo == 2) {
     controller->loadDemo2();
