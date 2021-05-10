@@ -142,8 +142,8 @@ PatternEditor::offerInput(const UIInput & input) {
     if (input.getId() == 'r') {
       auto sample = getController().startRecording();
       auto & current_track = tracks[current_score_cursor_col];
-      if (current_track.getType() == Track::SAMPLE) {
-	current_track.setSample(sample);
+      if (current_track->getType() == Track::SAMPLE) {
+	current_track->setSample(sample);
       } else {
 	new_score_cursor_col = tracks.size();
 	auto & track = song.addChild(Track::SAMPLE);
@@ -181,8 +181,8 @@ PatternEditor::offerInput(const UIInput & input) {
       return true;
     } else if (input.getId() == NCKEY_LEFT || input.getId() == 'p') {
       auto & track = tracks[current_score_cursor_col];
-      if (track.getInstrumentId() > 0) {
-	track.setInstrumentId(track.getInstrumentId() - 1);
+      if (track->getInstrumentId() > 0) {
+	track->setInstrumentId(track->getInstrumentId() - 1);
 	song.incVersion();
 	state.clearVoices(current_score_cursor_col);
       }
@@ -190,14 +190,14 @@ PatternEditor::offerInput(const UIInput & input) {
     } else if (input.getId() == NCKEY_RIGHT || input.getId() == 'i' || input.getId() == 'i' || input.getId() == 'o') {
       auto & track = tracks[current_score_cursor_col];
       auto & instruments = song.getInstruments();
-      if (track.getInstrumentId() + 1 < instruments.size()) {
-	track.setInstrumentId(track.getInstrumentId() + 1);
+      if (track->getInstrumentId() + 1 < instruments.size()) {
+	track->setInstrumentId(track->getInstrumentId() + 1);
 	song.incVersion();
 	state.clearVoices(current_score_cursor_col);
       }
       return true;
     } else if (input.getId() == '\\') {
-      tracks[current_score_cursor_col].setSolo(true);
+      tracks[current_score_cursor_col]->setSolo(true);
     } else if (input.hasShift()) {
       if (input.getId() == 't' || input.getId() == 'T') {
 	// delete track
@@ -232,7 +232,7 @@ PatternEditor::offerInput(const UIInput & input) {
     if (!state.isPlaying()) state.moveForward(song, 16);
     return true;
   } else if (input.getId() == '\\') {
-    tracks[current_score_cursor_col].setMute(true);   
+    tracks[current_score_cursor_col]->setMute(true);   
   } else {
     auto & pattern = song.getPattern(state.getPatternPosition());
     Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
@@ -244,7 +244,7 @@ PatternEditor::offerInput(const UIInput & input) {
       } else {
 	Note note(midi_note);
 	auto & track = tracks[current_score_cursor_col];
-	auto & instrument = song.getInstrument(track.getInstrumentId());
+	auto & instrument = song.getInstrument(track->getInstrumentId());
 
 	size_t note_column = 0;
 	if (input.hasShift()) {
@@ -264,7 +264,7 @@ PatternEditor::offerInput(const UIInput & input) {
 	  Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
 	  int key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
 	  float frequency = tuner.getFrequency(tuning, key, note);
-	  track_state.playNote(note_column, frequency, note.getVelocity() / 127.0f, 0.0f, track.getDetune(), instrument);
+	  track_state.playNote(note_column, frequency, note.getVelocity() / 127.0f, 0.0f, track->getDetune(), instrument);
 	}
       }
 
@@ -322,10 +322,10 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<siz
     setBgColor(styles.window_bg_color);
 
     string instrument_name;
-    if (track.getType() == Track::SAMPLE) {
+    if (track->getType() == Track::SAMPLE) {
       instrument_name = "Sample";
-    } else if (track.getInstrumentId() >= 0 && track.getInstrumentId() < instruments.size()) {
-      instrument_name = instruments[track.getInstrumentId()]->getName();
+    } else if (track->getInstrumentId() >= 0 && track->getInstrumentId() < instruments.size()) {
+      instrument_name = instruments[track->getInstrumentId()]->getName();
     }
     putstr(2, current_pos, instrument_name);
     
@@ -399,7 +399,7 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<size_t>
 	  setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 
-	  if (track.getType() == Track::SAMPLE) {
+	  if (track->getType() == Track::SAMPLE) {
 	    putstr(3 + row - current_scroll_row, current_pos, "      ");
 	  } else {
 	    string s;

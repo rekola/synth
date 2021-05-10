@@ -45,16 +45,16 @@ class Track : public TreeElement {
   void setName(std::string _name) { name = _name; }
   const std::string & getName() const { return name; }
 
-  std::vector<Track> & getChildren() { return children; }
-  const std::vector<Track> & getChildren() const { return children; }
+  std::vector<std::unique_ptr<Track> > & getChildren() { return children; }
+  const std::vector<std::unique_ptr<Track> > & getChildren() const { return children; }
 
-  const Track & getChild(size_t i) const { return children[i]; }
-  Track & getChild(size_t i) { return children[i]; }
-  Track & addChild(const Track & s) { children.push_back(s); return children.back(); }
-  Track & addChild(Track::Type type = Track::SEQUENCER) { return addChild(Track(type)); }
+  const Track & getChild(size_t i) const { return *(children[i]); }
+  Track & getChild(size_t i) { return *(children[i]); }
+  Track & addChild(std::unique_ptr<Track> track) { children.push_back(std::move(track)); return *(children.back()); }
+  Track & addChild(Track::Type type = Track::SEQUENCER) { return addChild(std::make_unique<Track>(type)); }
 
   void addEffect(std::unique_ptr<Effect> effect) { effects.push_back(std::move(effect)); }
-  const std::vector<std::shared_ptr<Effect> > & getEffects() const { return effects; }
+  const std::vector<std::unique_ptr<Effect> > & getEffects() const { return effects; }
 
   void setElevation(float e) { elevation = e; }
   void setAzimuth(float a) { azimuth = a; }
@@ -71,11 +71,11 @@ private:
   float volume = 1.00f;
   float detune = 0;
   std::string name;
-  std::vector<Track> children;
+  std::vector<std::unique_ptr<Track> > children;
   std::shared_ptr<SampleData> sample;
   float elevation = 0, azimuth = 0, distance = 0;
 
-  std::vector<std::shared_ptr<Effect> > effects;
+  std::vector<std::unique_ptr<Effect> > effects;
 };
 
 #endif

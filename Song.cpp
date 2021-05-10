@@ -204,15 +204,15 @@ Song::save(const std::string & filename) const {
 
   for (auto & track : getChildren()) {
     XMLElement * track_element = doc.NewElement("track");
-    if (!track.getName().empty()) track_element->SetAttribute("name", track.getName().c_str());
-    if (track.isSolo()) track_element->SetAttribute("solo", "1");
-    if (track.isMuted()) track_element->SetAttribute("mute", "1");
-    track_element->SetAttribute("azimuth", track.getAzimuth());
-    track_element->SetAttribute("distance", track.getDistance());
-    track_element->SetAttribute("elevation", track.getElevation());
-    track_element->SetAttribute("volume", track.getVolume());
-    if (track.getDetune() != 0) track_element->SetAttribute("detune", track.getDetune());
-    track_element->SetAttribute("instrument", track.getInstrumentId());
+    if (!track->getName().empty()) track_element->SetAttribute("name", track->getName().c_str());
+    if (track->isSolo()) track_element->SetAttribute("solo", "1");
+    if (track->isMuted()) track_element->SetAttribute("mute", "1");
+    track_element->SetAttribute("azimuth", track->getAzimuth());
+    track_element->SetAttribute("distance", track->getDistance());
+    track_element->SetAttribute("elevation", track->getElevation());
+    track_element->SetAttribute("volume", track->getVolume());
+    if (track->getDetune() != 0) track_element->SetAttribute("detune", track->getDetune());
+    track_element->SetAttribute("instrument", track->getInstrumentId());
     
     tracks->InsertEndChild(track_element);    
   }
@@ -278,15 +278,15 @@ Song::render(size_t frames, SongState & state) {
   
   for (size_t track_idx = 0; track_idx < tracks.size(); track_idx++) {
     auto & track = tracks[track_idx];
-    auto & instrument = getInstrument(track.getInstrumentId());
+    auto & instrument = getInstrument(track->getInstrumentId());
     auto & track_state = state.getTrackState(track_idx);
 
     if (!track_state.isInitialized()) {
-      track_state.initialize(track.getEffects());
+      track_state.initialize(track->getEffects());
     }
 
-    SampleData data = track.render(frames, track_state, instrument, track_events.getPendingEvents(track_idx));
-    mixer.accumulate(data, track.getVolume(), track.getDistance(), track.getAzimuth(), track.getElevation());
+    SampleData data = track->render(frames, track_state, instrument, track_events.getPendingEvents(track_idx));
+    mixer.accumulate(data, track->getVolume(), track->getDistance(), track->getAzimuth(), track->getElevation());
   }
   assert(track_events.empty());
 

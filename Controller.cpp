@@ -901,7 +901,7 @@ Controller::loadDemo() {
 
   unordered_map<unsigned short, unordered_map<unsigned short, Note> > track_notes;
   for (int i = 0; i < ptrncnt; i++) {
-    Track track;
+    auto & track = song->addChild();
     track.setInstrumentId(*song_data++);
     track.setDetune((*song_data++ - 127) / 512.0);
     track.setAzimuth(*song_data++ / 360.0f - 180.0);
@@ -910,7 +910,6 @@ Controller::loadDemo() {
     if (volume > 1.0f) {
       track.addEffect(make_unique<Distortion>(DistortionType::CLIP, 1.0f, 0.0f));
     }
-    song->addChild(track);
     
     for (size_t j = 0; ; j++) {
       int val = *song_data++;
