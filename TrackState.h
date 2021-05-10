@@ -13,7 +13,7 @@ class TrackState : public State {
   TrackState(unsigned int _outSampleRate) : State(_outSampleRate) { }
 
   bool isInitialized() const { return is_initialized; }
-  void initialize(const std::vector<std::shared_ptr<Effect> > & effects) {
+  void initialize(const std::vector<std::unique_ptr<Effect> > & effects) {
     for (auto & effect : effects) {
       effect_states.push_back(effect->createState(getOutSampleRate()));
     }    
