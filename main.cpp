@@ -10,6 +10,7 @@ using namespace std;
 
 int main(int argc, char *argv[]) {
   int load_demo = 0;
+  int samplerate = 44100;
   bool relative = false;
   vector<string> input;
   
@@ -20,6 +21,16 @@ int main(int argc, char *argv[]) {
 	load_demo = atoi(argv[i]);
       } else {
 	load_demo = 1;
+      }
+    } else if (strcmp(argv[i], "--samplerate") == 0) {
+      samplerate = 0;
+      if (i + 1 < argc && argv[i + 1][0] != '-') {
+	i++;
+	samplerate = atoi(argv[i]);	
+      }
+      if (!samplerate) {
+	cerr << "invalid parameters for samplerate\n";
+	exit(1);
       }
     } else if (strcmp(argv[i], "--relative") == 0) {
       relative = true;
@@ -36,7 +47,7 @@ int main(int argc, char *argv[]) {
   TerminalUI ui;
   ui.initialize(controller);
   
-  AlsaAudio audio(44100, 2);
+  AlsaAudio audio(samplerate, 2);
   audio.initialize(ui);
   
   auto state = make_shared<SongState>(audio.getFrequency());
