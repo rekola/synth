@@ -10,12 +10,19 @@
 
 class InstrumentVoice;
 
+namespace tinyxml2 {
+  class XMLDocument;
+  class XMLElement;
+};
+
 class Instrument {
 public:
   explicit Instrument(size_t _num_channels) : num_channels(_num_channels) { }
+  explicit Instrument(size_t _num_channels, std::string _name) : num_channels(_num_channels), name(_name) { }
   virtual ~Instrument() { }
 
   virtual std::unique_ptr<InstrumentVoice> createVoice(unsigned int outSampleRate, int _identifier) const = 0;
+  virtual tinyxml2::XMLElement * createXML(tinyxml2::XMLDocument & doc) const { return 0; }
 
   size_t getNumChannels() const { return num_channels; }
   
@@ -30,7 +37,7 @@ public:
   const std::vector<std::unique_ptr<Effect> > & getEffects() const { return effects; }
   
   float getGain() const { return gain; }
-  
+
 protected:
   size_t num_channels;
   std::string name;
