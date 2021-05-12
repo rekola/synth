@@ -9,6 +9,7 @@
 #include <vector>
 
 class SongState;
+class InstrumentProvider;
 
 class Song : public Track {
  public:
@@ -54,7 +55,7 @@ class Song : public Track {
   void incVersion() { version++; }
   int getVersion() const { return version; }
 
-  void open(const std::string & filename);
+  void open(const std::string & filename, const InstrumentProvider & provider);
   void save(const std::string & filename) const;
 
   SampleData render(size_t frames, SongState & state);

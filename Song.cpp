@@ -5,26 +5,31 @@
 #include "SampleData.h"
 #include "Tuner.h"
 
+#include "SubtractiveInstrument.h"
+#include "GenericInstrument.h"
+
 #include "tinyxml2.h"
 
 using namespace std;
 using namespace tinyxml2;
 
-Tuning parse_tuning(const char * tuning_text) {
-  if (tuning_text && strcmp(tuning_text, "12-TET") != 0) {
-    if (strcmp(tuning_text, "31-TET") == 0) {
+Tuning parse_tuning(const char * tuning_text, Tuning default_tuning = Tuning::INHERIT) {
+  if (tuning_text) {
+    if (strcmp(tuning_text, "12-TET") == 0) {
+      return Tuning::TET12;
+    } else if (strcmp(tuning_text, "31-TET") == 0) {
       return Tuning::TET31;
     } else if (strcmp(tuning_text, "19-TET") == 0) {
       return Tuning::TET19;
     } else {
-      assert(0);      
+      assert(0);
     }
   }
-  return Tuning::TET12;
+  return default_tuning;
 }
 
 void
-Song::open(const std::string & filename) {
+Song::open(const std::string & filename, const InstrumentProvider & provider) {
   char * oldLocale = setlocale(LC_ALL, 0);
   setlocale(LC_ALL, "C");
 
@@ -33,12 +38,15 @@ Song::open(const std::string & filename) {
 
   auto song = doc.FirstChildElement("song");
   if (song) {   
-    Tuning song_tuning = parse_tuning(song->Attribute("tuning"));
+    Tuning song_tuning = parse_tuning(song->Attribute("tuning"), Tuning::TET12);
     setTuning(song_tuning);
 
     auto key_text = song->Attribute("key");
-    if (key_text) setKey(Note::stringToKey(song_tuning, key_text));
+    if (key_text && strlen(key_text) > 0) setKey(Note::stringToKey(song_tuning, key_text));
 
+    auto tempo_text = song->Attribute("tempo");
+    if (tempo_text) setTempo(atoi(tempo_text));
+    
     auto volume_text = song->Attribute("volume");
     if (volume_text) setVolume(atof(volume_text));
     
@@ -47,16 +55,20 @@ Song::open(const std::string & filename) {
     
     auto instruments = song->FirstChildElement("instruments");
     if (instruments) {
-      auto it = instruments->FirstChildElement();
-      for ( ; it ; it = it->NextSiblingElement() ) {
+      for (auto it = instruments->FirstChildElement(); it; it = it->NextSiblingElement() ) {
 	string tag_name = it->Name();
 	if (tag_name == "genericInstrument") {
 	  auto name = it->Attribute("name");
-	  
+	  if (name) addInstrument(make_unique<GenericInstrument>(name, provider));
+	  else addInstrument(make_unique<GenericInstrument>(provider));
 	} else if (tag_name == "fmInstrument") {
-	  
+#if 0
+	  auto instrument = make_unique<FMInstrument>();
+#endif	  
 	} else if (tag_name == "subtractiveInstrument") {
-	  
+#if 0	  
+	  auto instrument = make_unique<SubtractiveInstrument>();
+#endif	  
 	}
       }
     }
@@ -91,23 +103,20 @@ Song::open(const std::string & filename) {
     
     auto patterns = song->FirstChildElement("patterns");
     if (patterns) {
-      auto it = patterns->FirstChildElement("pattern");
-      for ( ; it ; it = it->NextSiblingElement() ) {
-	auto it2 = it->FirstChildElement("note");
-
-	auto rows_text = it2->Attribute("rows");
-	auto tuning_text = it2->Attribute("tuning");
-	auto pattern_key_text = it2->Attribute("key");
+      for (auto it = patterns->FirstChildElement("pattern"); it ; it = it->NextSiblingElement() ) {
+	auto rows_text = it->Attribute("rows");
+	auto tuning_text = it->Attribute("tuning");
+	auto pattern_key_text = it->Attribute("key");
 
 	Tuning pattern_tuning = parse_tuning(tuning_text);
 	Tuning actual_pattern_tuning = pattern_tuning != Tuning::INHERIT ? pattern_tuning : song_tuning;
 
 	int rows = rows_text ? atoi(rows_text) : 0;
-	int key = pattern_key_text ? Note::stringToKey(actual_pattern_tuning, pattern_key_text) : -1;
+	int key = pattern_key_text && strlen(pattern_key_text) > 0 ? Note::stringToKey(actual_pattern_tuning, pattern_key_text) : -1;
 	
 	auto & pattern = addPattern(rows, pattern_tuning, key);
-	
-	for ( ; it2 ; it2 = it2->NextSiblingElement() ) {
+
+	for (auto it2 = it->FirstChildElement("note"); it2 ; it2 = it2->NextSiblingElement() ) {
 	  auto track_text = it2->Attribute("track");
 	  auto row_text = it2->Attribute("row");
 	  auto column_text = it2->Attribute("column");
@@ -142,7 +151,7 @@ Song::save(const std::string & filename) const {
 
   XMLElement * root = doc.NewElement("song");
   if (!getName().empty()) root->SetAttribute("name", getName().c_str());
-  root->SetAttribute("key", song_key_text.c_str());
+  if (!song_key_text.empty()) root->SetAttribute("key", song_key_text.c_str());
   if (!getName().empty()) root->SetAttribute("name", getName().c_str());
   root->SetAttribute("tuning", song_tuning_text.c_str());
   root->SetAttribute("tempo", getTempo());
@@ -170,7 +179,7 @@ Song::save(const std::string & filename) const {
     if (!pattern.getName().empty()) pattern_element->SetAttribute("name", pattern.getName().c_str());
     if (!key_text.empty()) pattern_element->SetAttribute("key", key_text.c_str());
     if (pattern.getTuning() != Tuning::INHERIT) {
-      string tuning_text = to_string(getTuning());
+      string tuning_text = to_string(pattern.getTuning());
       pattern_element->SetAttribute("tuning", tuning_text.c_str());
     }
 
@@ -218,9 +227,10 @@ Song::save(const std::string & filename) const {
   }
 
   for (auto & instrument : getInstruments()) {
-    XMLElement * instrument_element = doc.NewElement("instrument");
-    if (!instrument->getName().empty()) instrument_element->SetAttribute("name", instrument->getName().c_str());
-    instruments->InsertEndChild(instrument_element);    
+    auto instrument_element = instrument->createXML(doc);
+    if (instrument_element) {
+      instruments->InsertEndChild(instrument_element);
+    }
   }
   
   doc.SaveFile(filename.c_str());
