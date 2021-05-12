@@ -44,15 +44,6 @@ int main(int argc, char *argv[]) {
       
   auto controller = make_shared<Controller>();
 
-  TerminalUI ui;
-  ui.initialize(controller);
-  
-  AlsaAudio audio(samplerate, 2);
-  audio.initialize(ui);
-  
-  auto state = make_shared<SongState>(audio.getFrequency());
-  controller->setSongState(state);
-
   if (!input.empty()) {
     controller->openSong(input.front());
   } else if (load_demo == 1) {
@@ -72,6 +63,15 @@ int main(int argc, char *argv[]) {
   } else {
     controller->createNewSong();
   }
+
+  TerminalUI ui;
+  ui.initialize(controller);
+  
+  AlsaAudio audio(samplerate, 2);
+  audio.initialize(ui);
+  
+  auto state = make_shared<SongState>(audio.getFrequency());
+  controller->setSongState(state);
 
   ui.start(audio);
 
