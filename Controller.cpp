@@ -1,7 +1,7 @@
 #include "Controller.h"
 
 #include "Song.h"
-#include "BasicInstrument.h"
+#include "SubtractiveInstrument.h"
 #include "FMInstrument.h"
 #include "FileInstrument.h"
 #include "SoundFont.h"
@@ -300,7 +300,7 @@ void
 Controller::loadDemo2() {
   auto song = make_shared<Song>(Tuning::TET31, 0); // Key of C
 
-  auto epiano = make_unique<BasicInstrument>(WaveformType::SAW);
+  auto epiano = make_unique<SubtractiveInstrument>(WaveformType::SAW);
   epiano->setName("Electric Piano");
   epiano->setAmpEnvelope(Envelope(0.0f, 10 * 20 / 255.0f, 0.0f, 0.0));
   epiano->addEffect(make_unique<Filter>(63 / 255.0f, 128 / 63.0f, false));
@@ -502,7 +502,7 @@ Controller::loadDemo2() {
   pattern.setNote(0, 169, 0, Note(184)); // Cb4
   pattern.setNote(0, 170, 0, Note(186)); // C-5  2:1		5
 
-  pattern.setAnnotation(180, "7-limit scale (11 tone )");
+  pattern.setAnnotation(180, "7-limit scale (11 tone)");
   pattern.setNote(0, 180, 0, Note(155)); // C-4  1:1		0
   // pattern.setNote(0, 141, 0, Note(156)); // Dbb4 36:35
   // 157 C#4
@@ -804,54 +804,54 @@ Controller::loadDemo() {
 
   // void setADSR(int _a, int _d, float _s, int _r) { setAmpEnvelope(Envelope(5 * _a / 255.0f, 2 * 5 * _d / 255.0f, _s, 5 * _r / 255.0f)); }
   
-  auto i0 = make_unique<BasicInstrument>(WaveformType::SAW);
+  auto i0 = make_unique<SubtractiveInstrument>(WaveformType::SAW);
   i0->setName("drone1");
   i0->setAmpEnvelope(Envelope(5, 10 * 64 / 255.0f, 0.25f, 0));
   i0->addEffect(make_unique<Filter>(0, 0.08f, true));
   song->addInstrument(move(i0));
 
-  auto i1 = make_unique<BasicInstrument>(WaveformType::SAW);
+  auto i1 = make_unique<SubtractiveInstrument>(WaveformType::SAW);
   i1->setName("drone2");
   i1->setAmpEnvelope(Envelope(5, 10 * 64 / 255.0f, 0.25f, 0));
   i1->addEffect(make_unique<Filter>(0, 0.08f, true));
   song->addInstrument(move(i1));
 
-  auto i2 = make_unique<BasicInstrument>(WaveformType::SAW);
+  auto i2 = make_unique<SubtractiveInstrument>(WaveformType::SAW);
   i2->setName("drone3");
   i2->setAmpEnvelope(Envelope(5, 10 * 64 / 255.0f, 0.25f, 0));
   i2->addEffect(make_unique<Filter>(0, 0.08f, true));
   song->addInstrument(move(i2));
 
-  auto i3 = make_unique<BasicInstrument>(WaveformType::SINE);
+  auto i3 = make_unique<SubtractiveInstrument>(WaveformType::SINE);
   i3->setName("bass drum");
   i3->setAmpEnvelope(Envelope(0, 10 * 15 / 255.0f, 0.0f, 0));
   song->addInstrument(move(i3));
 
-  auto i4 = make_unique<BasicInstrument>(WaveformType::NOISE);
+  auto i4 = make_unique<SubtractiveInstrument>(WaveformType::NOISE);
   i4->setName("hihat closed");
   i4->setAmpEnvelope(Envelope(0, 10 * 8 / 255.0f, 0.0f, 0));
   i4->addEffect(make_unique<Filter>(0.75f, 2.0f, false));
   i4->addEffect(make_unique<Delay>(delay1, fd1, delaymix1));
   song->addInstrument(move(i4));
 
-  auto i5 = make_unique<BasicInstrument>(WaveformType::NOISE);
+  auto i5 = make_unique<SubtractiveInstrument>(WaveformType::NOISE);
   i5->setName("hihat open");
   i5->setAmpEnvelope(Envelope(0, 10 * 13 / 255.0f, 0.0f, 0));
   song->addInstrument(move(i5));
 
-  auto i6 = make_unique<BasicInstrument>(WaveformType::SAW);
+  auto i6 = make_unique<SubtractiveInstrument>(WaveformType::SAW);
   i6->setName("unused");
   i6->setAmpEnvelope(Envelope(0, 10 * 25 / 255.0f, 0.0f, 0));
   song->addInstrument(move(i6));
 
-  auto i7 = make_unique<BasicInstrument>(WaveformType::SQUARE);
+  auto i7 = make_unique<SubtractiveInstrument>(WaveformType::SQUARE);
   i7->setName("bass");
   i7->setAmpEnvelope(Envelope(0, 10 * 15 / 255.0f, 0.0f, 0));
   i7->addEffect(make_unique<Filter>(0.78f, 0.32f, false));
   song->addInstrument(move(i7));
 
 #if 0
-  auto i8 = make_unique<BasicInstrument>(WaveformType::NOISE);
+  auto i8 = make_unique<SubtractiveInstrument>(WaveformType::NOISE);
   i8->setAmpEnvelope(Envelope(0, 10 * 3 / 255.0f, 0.0f, 0));
 #else
   auto i8 = make_unique<FileInstrument>("./samples/Closed-Hi-Hat-1.wav");
@@ -859,39 +859,39 @@ Controller::loadDemo() {
   i8->setName("hihat closed");
   song->addInstrument(move(i8));
   
-  auto i9 = make_unique<BasicInstrument>(WaveformType::NOISE);
+  auto i9 = make_unique<SubtractiveInstrument>(WaveformType::NOISE);
   i9->setName("snare");
   i9->setAmpEnvelope(Envelope(0, 10 * 15 / 255.0f, 0.0f, 0));
   i9->addEffect(make_unique<Delay>(delay1, fd1, delaymix1));
   song->addInstrument(move(i9));
 
-  auto i10 = make_unique<BasicInstrument>(WaveformType::SAW);
+  auto i10 = make_unique<SubtractiveInstrument>(WaveformType::SAW);
   i10->setName("bass");
   i10->setAmpEnvelope(Envelope(0, 10 * 30 / 255.0f, 0.0f, 0));
   i10->addEffect(make_unique<Filter>(0.4f, 0.0f, false));
   i10->addEffect(make_unique<Delay>(delay1, fd1, delaymix1));
   song->addInstrument(move(i10));
 
-  auto i11 = make_unique<BasicInstrument>(WaveformType::SAW);
+  auto i11 = make_unique<SubtractiveInstrument>(WaveformType::SAW);
   i11->setName("bass");
   i11->setAmpEnvelope(Envelope(0, 10 * 20 / 255.0f, 0.0f, 0));
   i11->addEffect(make_unique<Filter>(0.25f, 2.0f, false));
   i11->addEffect(make_unique<Delay>(delay1, fd1, delaymix1));
   song->addInstrument(move(i11));
 
-  auto i12 = make_unique<BasicInstrument>(WaveformType::SQUARE);
+  auto i12 = make_unique<SubtractiveInstrument>(WaveformType::SQUARE);
   i12->setName("bass");
   i12->setAmpEnvelope(Envelope(0, 10 * 14 / 255.0f, 0.0f, 0));
   i12->addEffect(make_unique<Filter>(0.78f, 0.32f, false));
   song->addInstrument(move(i12));
 
-  auto i13 = make_unique<BasicInstrument>(WaveformType::SINE);
+  auto i13 = make_unique<SubtractiveInstrument>(WaveformType::SINE);
   i13->setName("bass drum");
   i13->setAmpEnvelope(Envelope(0, 10 * 8 / 255.0f, 0.0f, 0));
   i13->addEffect(make_unique<Filter>(0.96f, 0.0f, false));
   song->addInstrument(move(i13));
 
-  auto i14 = make_unique<BasicInstrument>(WaveformType::NOISE);
+  auto i14 = make_unique<SubtractiveInstrument>(WaveformType::NOISE);
   i14->setName("snare");
   i14->setAmpEnvelope(Envelope(0, 10 * 5 / 255.0f, 0.0f, 0));
   i14->addEffect(make_unique<Filter>(0.6f, 4.0f, false));
@@ -960,6 +960,8 @@ void
 Controller::createNewSong() {
   auto song = make_shared<Song>();
   
+  auto & track = song->addChild();
+
   Pattern pattern;
   song->addPattern(pattern);  
   song->addChild();
@@ -970,7 +972,7 @@ Controller::createNewSong() {
 void
 Controller::openSong(string filename) {
   auto song = make_shared<Song>();
-  song->open(filename);
+  song->open(filename, instrument_provider);
   current_song = song;
 }
 
