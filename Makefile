@@ -1,7 +1,7 @@
 OBJS = main.o \
 	UI.o \
 	AlsaAudio.o \
-	BasicInstrument.o \
+	SubtractiveInstrument.o \
 	FileInstrument.o \
 	TerminalUI.o \
 	Chart.o \
