@@ -1,13 +1,13 @@
-#include "BasicInstrument.h"
+#include "SubtractiveInstrument.h"
 
 #include "InstrumentVoice.h"
 #include "SampleData.h"
 
 using namespace std;
 
-class BasicInstrumentVoice : public InstrumentVoice {
+class SubtractiveInstrumentVoice : public InstrumentVoice {
 public:
-  BasicInstrumentVoice(unsigned int _outSampleRate, int _identifier, const Envelope & amp_envelope, WaveformType _type)
+  SubtractiveInstrumentVoice(unsigned int _outSampleRate, int _identifier, const Envelope & amp_envelope, WaveformType _type)
     : InstrumentVoice(_outSampleRate, _identifier, amp_envelope), type(_type) { }
 
   SampleData render(size_t frames) override {
@@ -56,8 +56,8 @@ private:
 };
 
 std::unique_ptr<InstrumentVoice>
-BasicInstrument::createVoice(unsigned int outSampleRate, int identifier) const {
-  auto v = std::make_unique<BasicInstrumentVoice>(outSampleRate, identifier, getAmpEnvelope(), type);
+SubtractiveInstrument::createVoice(unsigned int outSampleRate, int identifier) const {
+  auto v = std::make_unique<SubtractiveInstrumentVoice>(outSampleRate, identifier, getAmpEnvelope(), type);
   v->createEffectStates(getEffects());
   return v;
 }

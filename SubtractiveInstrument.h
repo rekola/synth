@@ -1,5 +1,5 @@
-#ifndef _BASICINSTRUMENT_H_
-#define _BASICINSTRUMENT_H_
+#ifndef _SUBTRACTIVEINSTRUMENT_H_
+#define _SUBTRACTIVEINSTRUMENT_H_
 
 #include "Instrument.h"
 
@@ -11,9 +11,9 @@ enum class WaveformType
    NOISE,
   };
   
-class BasicInstrument : public Instrument {
+class SubtractiveInstrument : public Instrument {
  public:  
-  explicit BasicInstrument(WaveformType _type) : Instrument(1), type(_type) { }
+  explicit SubtractiveInstrument(WaveformType _type) : Instrument(1), type(_type) { }
 
   std::unique_ptr<InstrumentVoice> createVoice(unsigned int outSampleRate, int identifier) const;
   
