@@ -43,9 +43,6 @@ class InstrumentProvider {
   }
 
 protected:
-  void addInstrument(std::unique_ptr<Instrument> instrument) {
-    addInstrument(move(instrument));
-  }
   void addInstrument(std::shared_ptr<Instrument> instrument) {
     instruments_by_name[instrument->getName()] = instrument;
   }
