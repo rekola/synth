@@ -22,9 +22,7 @@
 using namespace std;
 
 Controller::Controller() {
-#if 0
   instrument_provider.loadSoundFont("data/FluidR3_GM.sf2");
-#endif
 }
 
 void
