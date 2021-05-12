@@ -27,9 +27,6 @@ class Controller {
   void loadDemo();
   void loadDemo2();
   void loadDemo3();
-  void loadDemo4();
-  void loadDemo5();
-  void loadDemo6();
   void loadDemo7();
   bool sendCommand(const std::string & s);
 

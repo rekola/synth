@@ -52,12 +52,6 @@ int main(int argc, char *argv[]) {
     controller->loadDemo2();
   } else if (load_demo == 3) {
     controller->loadDemo3();
-  } else if (load_demo == 4) {
-    controller->loadDemo4();
-  } else if (load_demo == 5) {
-    controller->loadDemo5();
-  } else if (load_demo == 6) {
-    controller->loadDemo6();
   } else if (load_demo == 7) {
     controller->loadDemo7();
   } else {
