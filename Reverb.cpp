@@ -13,11 +13,14 @@ public:
   }
 
   void apply(SampleData & input) override {
-    float * left_in = new float[input.size()];
-    float * right_in = new float[input.size()];
-    float * left_out = new float[input.size()];
-    float * right_out = new float[input.size()];
+    auto left_in_ptr = unique_ptr<float[]>(new float[input.size()]);
+    auto right_in_ptr = unique_ptr<float[]>(new float[input.size()]);
+    auto left_out_ptr = unique_ptr<float[]>(new float[input.size()]);
+    auto right_out_ptr = unique_ptr<float[]>(new float[input.size()]);
 
+    auto left_in = left_in_ptr.get(), right_in = right_in_ptr.get();
+    auto left_out = left_out_ptr.get(), right_out = right_out_ptr.get();
+    
     memset(left_out, 0, input.size() * sizeof(float));
     memset(right_out, 0, input.size() * sizeof(float));
 
@@ -31,7 +34,7 @@ public:
 	right_in[i] = io_data[2 * i + 1];
       }
       mverb.process(in, out, input.size());
-
+      
       for (size_t i = 0; i < input.size(); i++) {
 	io_data[2 * i + 0] = left_out[i];
 	io_data[2 * i + 1] = right_out[i];
@@ -47,11 +50,6 @@ public:
 	io_data[i] = left_out[i];
       }
     }
-        
-    delete[] left_in;
-    delete[] right_in;
-    delete[] left_out;
-    delete[] right_out;
   }
 
 private:
