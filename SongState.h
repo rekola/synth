@@ -102,13 +102,13 @@ class SongState : public State {
 
   void clearVoices(unsigned short track_idx) {
     auto it = track_states.find(track_idx);
-    if (it != track_states.end()) it->second->clearVoices();
+    if (it != track_states.end()) it->second->getVoices().clear();
   }
 
   size_t getVoiceCount() const {
     size_t n = 0;
     for (auto & td : track_states) {
-      n += td.second->getVoiceCount();      
+      n += td.second->getVoices().getVoiceCount();      
     }
     return n;
   }
@@ -116,7 +116,7 @@ class SongState : public State {
   size_t getAllocatedVoiceCount() const {
     size_t n = 0;
     for (auto & td : track_states) {
-      n += td.second->getAllocatedVoiceCount();
+      n += td.second->getVoices().getAllocatedVoiceCount();
     }
     return n;
   }

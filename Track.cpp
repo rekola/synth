@@ -20,9 +20,9 @@ Track::render(size_t frames, TrackState & state, Instrument & instrument, std::m
       if (i == it->first) {
 	for (auto & ev : it->second) {
 	  if (ev.isOff()) {
-	    state.stopNote(ev.getId());
+	    state.getVoices().stopNote(ev.getId());
 	  } else {
-	    state.playNote(ev.getId(), ev.getFrequency(), ev.getVelocity(), ev.getDelay(), detune, instrument);
+	    instrument.playNote(ev.getId(), ev.getFrequency(), ev.getVelocity(), ev.getDelay(), detune, state.getVoices());
 	  }
 	}
 	it = pending_events.erase(it);
@@ -30,7 +30,7 @@ Track::render(size_t frames, TrackState & state, Instrument & instrument, std::m
       if (it != pending_events.end() && it->first - i < render_size) render_size = it->first - i;
     }     
 
-    state.renderVoices(data, render_size, i);
+    state.getVoices().render(data, render_size, i);
     
     i += render_size;
   }

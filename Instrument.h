@@ -3,6 +3,7 @@
 
 #include "Effect.h"
 #include "Envelope.h"
+#include "VoicePool.h"
 
 #include <string>
 #include <vector>
@@ -22,6 +23,24 @@ public:
   virtual ~Instrument() { }
 
   virtual std::unique_ptr<InstrumentVoice> createVoice(unsigned int outSampleRate, int _identifier) const = 0;
+
+  virtual void playNote(size_t column, float frequency, float velocity, float delay, float detune, VoicePool & voices) {
+    bool voice_found = false;
+    for (auto & voice : voices.getVoices()) {
+      if (!voice_found && !voice->isPlaying()) {
+	voice->setIdentifier(column);
+	voice->playNote(frequency, velocity, delay, detune);
+	voice_found = true;
+      } else if (column == voice->getIdentifier() && voice->isPlaying()) {
+	voice->stopNote();
+      }
+    }
+    if (!voice_found) {
+      auto & voice = voices.addVoice(createVoice(voices.getOutSampleRate(), column));
+      voice.playNote(frequency, velocity, delay, detune);
+    }
+  }
+
   virtual tinyxml2::XMLElement * createXML(tinyxml2::XMLDocument & doc) const { return 0; }
 
   size_t getNumChannels() const { return num_channels; }

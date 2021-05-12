@@ -6,6 +6,8 @@
 #include "Note.h"
 #include "EnvelopeState.h"
 
+#include <vector>
+
 class InstrumentVoice : public State{
  public:
   InstrumentVoice(unsigned int _outSampleRate, int _identifier)
