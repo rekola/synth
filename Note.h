@@ -49,7 +49,7 @@ class Note {
     }    
   }
 
-  static inline int stringToKey(Tuning tuning, std::string input_value) {
+  static inline int stringToKey(Tuning tuning, std::string input_value) {   
     replace(input_value, "♯", "#");
     replace(input_value, "♭", "b");
     replace(input_value, "𝄫", "bb");
@@ -63,8 +63,8 @@ class Note {
     } else {
       octave = 4;
     }
-    char letter = input_value[0];
-    std::string accidental = input_value.substr(1);
+    auto letter = input_value[0];
+    auto accidental = input_value.substr(1);
 
     assert(letter >= 'A' && letter <= 'G');
       
@@ -113,7 +113,7 @@ class Note {
       else if (accidental == "x") value += 4;
       else if (accidental == "bb") value -= 4;
       else {
-	assert(accidental == "-");
+	assert(accidental.empty() || accidental == "-");
       }
 
       return value;
