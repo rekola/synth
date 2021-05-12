@@ -243,8 +243,6 @@ PatternEditor::offerInput(const UIInput & input) {
 	pattern.deleteNote(current_score_cursor_col, state.getTrackPosition());
       } else {
 	Note note(midi_note);
-	auto & track = tracks[current_score_cursor_col];
-	auto & instrument = song.getInstrument(track->getInstrumentId());
 
 	size_t note_column = 0;
 	if (input.hasShift()) {
@@ -252,19 +250,23 @@ PatternEditor::offerInput(const UIInput & input) {
 	} else {
 	  pattern.setNote(current_score_cursor_col, state.getTrackPosition(), 0, note);
 	}
-
+	  
 	row_edited = true;
 
-	auto & track_state = state.getTrackState(current_score_cursor_col);
-	
-	if (note.isOff()) {
-	  track_state.stopNote(note_column);
-	} else {
-	  Tuner tuner;
-	  Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
-	  int key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
-	  float frequency = tuner.getFrequency(tuning, key, note);
-	  track_state.playNote(note_column, frequency, note.getVelocity() / 127.0f, 0.0f, track->getDetune(), instrument);
+	auto & track = tracks[current_score_cursor_col];
+	if (track->getInstrumentId() < song.getInstruments().size()) {
+	  auto & instrument = song.getInstrument(track->getInstrumentId());
+	  auto & track_state = state.getTrackState(current_score_cursor_col);
+	  
+	  if (note.isOff()) {
+	    track_state.stopNote(note_column);
+	  } else {
+	    Tuner tuner;
+	    Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
+	    int key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
+	    float frequency = tuner.getFrequency(tuning, key, note);
+	    track_state.playNote(note_column, frequency, note.getVelocity() / 127.0f, 0.0f, track->getDetune(), instrument);
+	  }
 	}
       }
 
