@@ -30,15 +30,17 @@ Controller::loadDemo7() {
   auto song = make_shared<Song>(Tuning::TET31, 0);
   song->setTempo(100);
 
-  auto fluid = make_unique<SoundFont>("data/FluidR3_GM.sf2");
-  // song->addInstruments(*fluid);
+  auto fluid = make_unique<SoundFont>("data/Essential Keys-sforzando-v9.6.sf2");
+  song->addInstruments(*fluid);
+#if 0
   auto rhodes = fluid->createInstrument(4);
   auto bd = fluid->createInstrument(160, 35);
   song->addInstrument(move(rhodes));
   song->addInstrument(move(bd));
+#endif
   
   auto & track = song->addChild();
-  track.addEffect(make_unique<Distortion>(DistortionType::TANH, 0, 0));
+  // track.addEffect(make_unique<Distortion>(DistortionType::TANH, 0, 0));
   track.addEffect(make_unique<Reverb>(ReverbPreset::STADIUM));  
   // track.setVolume(0.5f);
   track.setElevation(50);
@@ -54,16 +56,15 @@ Controller::loadDemo7() {
   track2.setInstrumentId(1);
 
   auto & pattern = song->addPattern(64);  
-  pattern.setNote(0, 0, 0, Note(95));
-  // pattern.setNote(1, 0, 0, Note("C-4", 0x3f, Tuning::TET31));
-  
-  pattern.setNote(0, 1, 0, Note(95 + 3));
-  pattern.setNote(0, 2, 0, Note(95 + 3 + 3));
-  pattern.setNote(0, 3, 0, Note(95 + 3 + 3 + 2));
-  pattern.setNote(0, 4, 0, Note(95 + 3 + 3 + 2 + 3));
-  pattern.setNote(0, 5, 0, Note(95 + 3 + 3 + 2 + 3 + 3));
-  pattern.setNote(0, 6, 0, Note(95 + 3 + 3 + 2 + 3 + 3 + 3));
-  pattern.setNote(0, 7, 0, Note(95 + 3 + 3 + 2 + 3 + 3 + 3 + 2));
+  pattern.setNote(0, 0, 0, Note(155));
+  pattern.setNote(0, 1, 0, Note(155 + 3));
+  pattern.setNote(0, 2, 0, Note(155 + 3 + 3));
+  pattern.setNote(0, 3, 0, Note(155 + 3 + 3 + 2));
+  pattern.setNote(0, 4, 0, Note(155 + 3 + 3 + 2 + 3));
+  pattern.setNote(0, 5, 0, Note(155 + 3 + 3 + 2 + 3 + 3));
+  pattern.setNote(0, 6, 0, Note(155 + 3 + 3 + 2 + 3 + 3 + 3));
+  pattern.setNote(0, 7, 0, Note(155 + 3 + 3 + 2 + 3 + 3 + 3 + 2));
+  pattern.setNote(0, 8, 0, Note("C-5", 0x3f, Tuning::TET31));
   
   current_song = song;
 }
@@ -847,19 +848,17 @@ void
 Controller::createNewSong() {
   auto song = make_shared<Song>();
   
-  auto & track = song->addChild();
-
-  Pattern pattern;
-  song->addPattern(pattern);  
   song->addChild();
+  song->addPattern(64);
   
   current_song = song;
 }
 
 void
-Controller::openSong(string filename) {
+Controller::openSong(string filename) {  
   auto song = make_shared<Song>();
   song->open(filename, instrument_provider);
+
   current_song = song;
 }
 
