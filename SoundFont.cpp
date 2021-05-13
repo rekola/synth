@@ -604,7 +604,55 @@ public:
     playingPreset = -1;
   }
   
-  void playNote(float frequency, float velocity, float delay, float detune) override;
+  void playNote(float frequency, float velocity, float delay, float detune, unsigned short subvoice = 0) override {
+    assert(frequency > 0);
+
+    auto f = sf.get();
+
+    if (preset < 0 || preset >= f->presets.size()) return;
+
+    double apparent_key = log2(frequency / 440) * 12 + 69;
+    int midiKey = fixedMidiKey ? fixedMidiKey : int(apparent_key);
+    short midiVelocity = (short)(velocity * 127);
+    if (midiVelocity > 127) midiVelocity = 127;
+  
+    auto & regions = f->presets[preset].regions;
+    assert(subvoice < regions.size());
+    auto & region = regions[subvoice];
+                
+    voiceRegion = &region;
+    playingPreset = preset;
+    apparentPlayingKey = apparent_key;
+    // voice->playingFrequency = frequency;
+    setGainDB(- region.attenuation - gainToDecibels(1.0f / velocity));
+    calcPitchRatio(0);
+    
+    // Offset/end.
+    sourceSamplePosition = region.offset;
+    
+    // Loop.
+    bool doLoop = (region.loop_mode != TSF_LOOPMODE_NONE && region.loop_start < region.loop_end);
+    loopStart = (doLoop ? region.loop_start : 0);
+    loopEnd = (doLoop ? region.loop_end : 0);
+    
+    // Setup envelopes.
+    ampenv = EnvelopeState(getOutSampleRate(), region.ampenv, apparent_key, midiVelocity, true, delay);
+    modenv = EnvelopeState(getOutSampleRate(), region.modenv, apparent_key, midiVelocity, false, delay);
+    
+    // Setup lowpass filter.
+    float lowpassFc = (region.initialFilterFc <= 13500 ? tsf_cents2Hertz((float)region.initialFilterFc) / getOutSampleRate() : 1.0f);
+    float lowpassFilterQDB = region.initialFilterQ / 10.0f;
+    
+    lowpass.QInv = 1.0 / pow(10.0, (lowpassFilterQDB / 20.0));
+    lowpass.z1 = lowpass.z2 = 0;
+    lowpass.active = (lowpassFc < 0.499f);
+    if (lowpass.active) lowpass.setup(lowpassFc);
+    
+    // Setup LFO filters.
+    modlfo = LFO(region.delayModLFO, tsf_cents2Hertz(region.freqModLFO), getOutSampleRate());
+    viblfo = LFO(region.delayVibLFO, tsf_cents2Hertz(region.freqVibLFO), getOutSampleRate());
+  }
+
   bool isPlaying() const override { return playingPreset != -1; }
 
   void killNote() override {
@@ -870,72 +918,6 @@ SoundFont::openFile() {
   sf = make_shared<SoundFontFile>(filename);  
 }  
 
-void
-SoundFontVoice::playNote(float frequency, float velocity, float delay, float detune) {
-  if (velocity <= 0.0f) {
-    stopNote();
-    return;
-  }
-  assert(frequency > 0);
-
-  auto f = sf.get();
-
-  int preset_index = preset;
-  if (preset_index < 0 || preset_index >= f->presets.size()) return;
-
-  double apparent_key = log2(frequency / 440) * 12 + 69;
-  int midiKey = fixedMidiKey ? fixedMidiKey : int(apparent_key);
-
-  short midiVelocity = (short)(velocity * 127);
-  if (midiVelocity > 127) midiVelocity = 127;
-  
-  // Play all matching regions.
-
-  for (auto & region : f->presets[preset_index].regions) {
-    bool doLoop;
-    float lowpassFilterQDB, lowpassFc;
-    
-    if (midiKey < region.lokey || midiKey > region.hikey || midiVelocity < region.lovel || midiVelocity > region.hivel) continue;
-    
-    if (region.group) {
-      // FIXME: here we should end all voices with the same instrument and group
-    }
-    
-    voiceRegion = &region;
-    playingPreset = preset_index;
-    apparentPlayingKey = apparent_key;
-    // voice->playingFrequency = frequency;
-    setGainDB(- region.attenuation - gainToDecibels(1.0f / velocity));
-    calcPitchRatio(0);
-    
-    // Offset/end.
-    sourceSamplePosition = region.offset;
-    
-    // Loop.
-    doLoop = (region.loop_mode != TSF_LOOPMODE_NONE && region.loop_start < region.loop_end);
-    loopStart = (doLoop ? region.loop_start : 0);
-    loopEnd = (doLoop ? region.loop_end : 0);
-    
-    // Setup envelopes.
-    ampenv = EnvelopeState(getOutSampleRate(), region.ampenv, apparent_key, midiVelocity, true, delay);
-    modenv = EnvelopeState(getOutSampleRate(), region.modenv, apparent_key, midiVelocity, false, delay);
-    
-    // Setup lowpass filter.
-    lowpassFc = (region.initialFilterFc <= 13500 ? tsf_cents2Hertz((float)region.initialFilterFc) / getOutSampleRate() : 1.0f);
-    lowpassFilterQDB = region.initialFilterQ / 10.0f;
-    lowpass.QInv = 1.0 / pow(10.0, (lowpassFilterQDB / 20.0));
-    lowpass.z1 = lowpass.z2 = 0;
-    lowpass.active = (lowpassFc < 0.499f);
-    if (lowpass.active) lowpass.setup(lowpassFc);
-    
-    // Setup LFO filters.
-    modlfo = LFO(region.delayModLFO, tsf_cents2Hertz(region.freqModLFO), getOutSampleRate());
-    viblfo = LFO(region.delayVibLFO, tsf_cents2Hertz(region.freqVibLFO), getOutSampleRate());
-
-    break; // FIXME, add subvoices
-  }
-}
-
 class SoundFontInstrument : public Instrument {
 public:
   SoundFontInstrument(std::shared_ptr<SoundFontFile> _sf, size_t _preset, size_t _fixedMidiKey) : Instrument(1), sf(_sf), preset(_preset), fixedMidiKey(_fixedMidiKey) { }
@@ -946,6 +928,36 @@ public:
     return move(v);
   }
 
+  void playNote(size_t column, float frequency, float velocity, float delay, float detune, VoicePool & voices) const override {
+    voices.stopVoices(column);
+
+    assert(frequency > 0);
+    auto f = sf.get();
+
+    if (preset >= f->presets.size()) return;
+
+    double apparent_key = log2(frequency / 440) * 12 + 69;
+    int midiKey = fixedMidiKey ? fixedMidiKey : int(apparent_key);
+    
+    short midiVelocity = (short)(velocity * 127);
+    if (midiVelocity > 127) midiVelocity = 127;
+  
+    // Play all matching regions.
+
+    auto & regions = f->presets[preset].regions;
+    
+    for (size_t region_idx = 0; region_idx < regions.size(); region_idx++) {
+      auto & region = regions[region_idx];
+      if (midiKey < region.lokey || midiKey > region.hikey || midiVelocity < region.lovel || midiVelocity > region.hivel) continue;
+
+      if (region.group) {
+	// FIXME: here we should end all voices with the same instrument and group
+      }
+
+      getVoice(column, voices).playNote(frequency, velocity, delay, detune, region_idx);
+    }
+  }
+  
 private:
   shared_ptr<SoundFontFile> sf;
   size_t preset;

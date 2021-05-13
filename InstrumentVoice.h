@@ -8,7 +8,7 @@
 
 #include <vector>
 
-class InstrumentVoice : public State{
+class InstrumentVoice : public State {
  public:
   InstrumentVoice(unsigned int _outSampleRate, int _identifier)
     : State(_outSampleRate), identifier(_identifier) { }
@@ -33,7 +33,7 @@ class InstrumentVoice : public State{
     freq = 0.0f;
   }
   
-  virtual void playNote(float _frequency, float velocity, float _delay, float _detune) {
+  virtual void playNote(float _frequency, float velocity, float _delay, float _detune, unsigned short subvoice = 0) {
     int midiVelocity = int(velocity * 127);
     if (midiVelocity > 127) midiVelocity = 127;
     ampenv = EnvelopeState(getOutSampleRate(), amp_envelope, 0, midiVelocity, true, _delay);

@@ -47,6 +47,14 @@ class VoicePool : public State {
     voices.push_back(std::move(voice));
     return *(voices.back());
   }
+
+  void stopVoices(size_t column) {
+    for (auto & voice : voices) {
+      if (column == voice->getIdentifier() && voice->isPlaying()) {
+	voice->stopNote();
+      }
+    }
+  }
   
  private:
   std::vector<std::unique_ptr<InstrumentVoice> > voices;

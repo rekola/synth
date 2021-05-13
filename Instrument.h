@@ -24,23 +24,11 @@ public:
 
   virtual std::unique_ptr<InstrumentVoice> createVoice(unsigned int outSampleRate, int _identifier) const = 0;
 
-  virtual void playNote(size_t column, float frequency, float velocity, float delay, float detune, VoicePool & voices) {
-    bool voice_found = false;
-    for (auto & voice : voices.getVoices()) {
-      if (!voice_found && !voice->isPlaying()) {
-	voice->setIdentifier(column);
-	voice->playNote(frequency, velocity, delay, detune);
-	voice_found = true;
-      } else if (column == voice->getIdentifier() && voice->isPlaying()) {
-	voice->stopNote();
-      }
-    }
-    if (!voice_found) {
-      auto & voice = voices.addVoice(createVoice(voices.getOutSampleRate(), column));
-      voice.playNote(frequency, velocity, delay, detune);
-    }
+  virtual void playNote(size_t column, float frequency, float velocity, float delay, float detune, VoicePool & voices) const {
+    voices.stopVoices(column);
+    getVoice(column, voices).playNote(frequency, velocity, delay, detune);
   }
-
+  
   virtual tinyxml2::XMLElement * createXML(tinyxml2::XMLDocument & doc) const { return 0; }
 
   size_t getNumChannels() const { return num_channels; }
@@ -58,6 +46,16 @@ public:
   float getGain() const { return gain; }
 
 protected:
+  InstrumentVoice & getVoice(size_t column, VoicePool & voices) const {
+    for (auto & voice : voices.getVoices()) {
+      if (!voice->isPlaying()) {
+	voice->setIdentifier(column);
+	return *voice;	
+      }
+    }
+    return voices.addVoice(createVoice(voices.getOutSampleRate(), column));
+  }
+
   size_t num_channels;
   std::string name;
   Envelope amp_envelope, mod_envelope;

@@ -95,7 +95,7 @@ public:
   void killNote() override {
     // nothing, because otherwise Envelope kills us
   }
-  void playNote(float _frequency, float velocity, float _delay, float _detune) override {
+  void playNote(float _frequency, float velocity, float _delay, float _detune, unsigned short subvoice = 0) override {
     InstrumentVoice::playNote(_frequency, velocity, _delay, _detune);
     is_playing = true;
   }
