@@ -32,7 +32,7 @@ void
 Song::open(const std::string & filename, const InstrumentProvider & provider) {
   char * oldLocale = setlocale(LC_ALL, 0);
   setlocale(LC_ALL, "C");
-
+  
   XMLDocument doc;
   doc.LoadFile(filename.c_str());
 
@@ -75,8 +75,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 
     auto tracks = song->FirstChildElement("tracks");
     if (tracks) {
-      auto it = tracks->FirstChildElement("track");
-      for ( ; it ; it = it->NextSiblingElement() ) {
+      for (auto it = tracks->FirstChildElement(); it ; it = it->NextSiblingElement() ) {
 	auto & track = addChild();
 
 	auto name_text = it->Attribute("name");
@@ -103,7 +102,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
     
     auto patterns = song->FirstChildElement("patterns");
     if (patterns) {
-      for (auto it = patterns->FirstChildElement("pattern"); it ; it = it->NextSiblingElement() ) {
+      for (auto it = patterns->FirstChildElement("pattern"); it ; it = it->NextSiblingElement("pattern") ) {
 	auto rows_text = it->Attribute("rows");
 	auto tuning_text = it->Attribute("tuning");
 	auto pattern_key_text = it->Attribute("key");
@@ -116,7 +115,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	
 	auto & pattern = addPattern(rows, pattern_tuning, key);
 
-	for (auto it2 = it->FirstChildElement("note"); it2 ; it2 = it2->NextSiblingElement() ) {
+	for (auto it2 = it->FirstChildElement("note"); it2 ; it2 = it2->NextSiblingElement("note") ) {
 	  auto track_text = it2->Attribute("track");
 	  auto row_text = it2->Attribute("row");
 	  auto column_text = it2->Attribute("column");
@@ -134,6 +133,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
       }
     }
   }
+
   setlocale(LC_ALL, oldLocale);
 }
 
@@ -285,25 +285,30 @@ Song::render(size_t frames, SongState & state) {
   
   auto & mixer = state.getMixer();
   mixer.reset();
-  
-  for (size_t track_idx = 0; track_idx < tracks.size(); track_idx++) {
-    auto & track = tracks[track_idx];
-    auto & instrument = getInstrument(track->getInstrumentId());
-    auto & track_state = state.getTrackState(track_idx);
-
-    if (!track_state.isInitialized()) {
-      track_state.initialize(track->getEffects());
-    }
-
-    SampleData data = track->render(frames, track_state, instrument, track_events.getPendingEvents(track_idx));
-    mixer.accumulate(data, track->getVolume(), track->getDistance(), track->getAzimuth(), track->getElevation());
-  }
-  assert(track_events.empty());
 
   SampleData master(2, frames);
-  
-  mixer.encode(master, getVolume());
-  // applyEffects(master);
+
+  if (!tracks.empty() && !instruments.empty()) {
+    for (size_t track_idx = 0; track_idx < tracks.size(); track_idx++) {
+      auto & track = tracks[track_idx];
+
+      if (track->getInstrumentId() >= 0 && track->getInstrumentId() < instruments.size()) {
+	auto & instrument = getInstrument(track->getInstrumentId());
+	auto & track_state = state.getTrackState(track_idx);
+	
+	if (!track_state.isInitialized()) {
+	  track_state.initialize(track->getEffects());
+	}
+	
+	SampleData data = track->render(frames, track_state, instrument, track_events.getPendingEvents(track_idx));
+	mixer.accumulate(data, track->getVolume(), track->getDistance(), track->getAzimuth(), track->getElevation());
+      }
+    }
+    assert(track_events.empty());
+    
+    mixer.encode(master, getVolume());
+    // applyEffects(master);
+  }
   
   return master;
 }
