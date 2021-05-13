@@ -965,9 +965,9 @@ private:
 };
 
 std::unique_ptr<Instrument>
-SoundFont::createInstrument(size_t preset, size_t fixedMidiKey) {
+SoundFont::createInstrument(size_t preset, size_t fixedMidiKey, const char * name) {
   auto instrument = make_unique<SoundFontInstrument>(sf, preset, fixedMidiKey);
-  instrument->setName(sf->getPresetName(preset));
+  instrument->setName(name ? name : sf->getPresetName(preset));
   return instrument;
 }
 
