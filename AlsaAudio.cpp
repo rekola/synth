@@ -1,6 +1,6 @@
 #include "AlsaAudio.h"
 
-#include "UI.h"
+#include "Logger.h"
 #include "SampleData.h"
 
 #include <stdio.h>
@@ -22,7 +22,7 @@ AlsaAudio::~AlsaAudio() {
   }
 }
 
-static size_t initialize_alsa_dev(UI & ui, snd_pcm_t * handle, unsigned int rate, size_t channels, bool capture) {
+static size_t initialize_alsa_dev(Logger & logger, snd_pcm_t * handle, unsigned int rate, size_t channels, bool capture) {
   int r;
   
   // Allocate parameters object and fill it with default values
@@ -32,22 +32,22 @@ static size_t initialize_alsa_dev(UI & ui, snd_pcm_t * handle, unsigned int rate
 
   // Set parameters
   if ((r = snd_pcm_hw_params_set_access(handle, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED)) < 0) {
-    ui.setStatus(string("ERROR: Can't set interleaved mode: ") + snd_strerror(r));
+    logger.log(string("ERROR: Can't set interleaved mode: ") + snd_strerror(r));
     return 0;
   }
 
   if ((r = snd_pcm_hw_params_set_format(handle, hw_params, SND_PCM_FORMAT_FLOAT_LE)) < 0) {
-    ui.setStatus(string("ERROR: Can't set format: ") + snd_strerror(r));
+    logger.log(string("ERROR: Can't set format: ") + snd_strerror(r));
     return 0;
   }
 
   if ((r = snd_pcm_hw_params_set_channels(handle, hw_params, channels)) < 0) {
-    ui.setStatus(string("ERROR: Can't set channels number: ") + snd_strerror(r));
+    logger.log(string("ERROR: Can't set channels number: ") + snd_strerror(r));
     return 0;
   }
 
   if ((r = snd_pcm_hw_params_set_rate_near(handle, hw_params, &rate, 0)) < 0) {
-    ui.setStatus(string("ERROR: Can't set rate: ") + snd_strerror(r));
+    logger.log(string("ERROR: Can't set rate: ") + snd_strerror(r));
     return 0;
   }
 
@@ -55,32 +55,32 @@ static size_t initialize_alsa_dev(UI & ui, snd_pcm_t * handle, unsigned int rate
   int dir;
   
   if ((r = snd_pcm_hw_params_get_periods_min(hw_params, &min_periods, &dir)) < 0) {
-    ui.setStatus(string("ERROR: Can't get min periods: ") + snd_strerror(r));
+    logger.log(string("ERROR: Can't get min periods: ") + snd_strerror(r));
     return 0;
   }
 
   if ((r = snd_pcm_hw_params_set_periods(handle, hw_params, min_periods > 2 ? min_periods : 2, 0)) < 0) {
-    ui.setStatus(string("ERROR: Failed to set periods: ") + snd_strerror(r));
+    logger.log(string("ERROR: Failed to set periods: ") + snd_strerror(r));
     return 0;
   }
 
   snd_pcm_uframes_t min_period_size;
   if ((r = snd_pcm_hw_params_get_period_size_min(hw_params, &min_period_size, &dir)) < 0) {
-    ui.setStatus(string("ERROR: Failed to get minimum period size: ") + snd_strerror(r));    
+    logger.log(string("ERROR: Failed to get minimum period size: ") + snd_strerror(r));    
     return 0;
   }
 
-  int wanted_period = 4096;
+  int wanted_period = 1024; // 4096;
   if (!capture || 1) {
     if ((r = snd_pcm_hw_params_set_period_size(handle, hw_params, min_period_size > wanted_period ? min_period_size : wanted_period, 0)) < 0) {
-      ui.setStatus(string("ERROR: Failed to set period size: ") + snd_strerror(r));
+      logger.log(string("ERROR: Failed to set period size: ") + snd_strerror(r));
       return 0;
     }
   }
     
   // Write parameters
   if ((r = snd_pcm_hw_params(handle, hw_params)) < 0) {
-    ui.setStatus(string("ERROR: Can't set hardware parameters: ") + snd_strerror(r));
+    logger.log(string("ERROR: Can't set hardware parameters: ") + snd_strerror(r));
     return 0;
   }
 
@@ -99,47 +99,47 @@ static size_t initialize_alsa_dev(UI & ui, snd_pcm_t * handle, unsigned int rate
 }
 
 void
-AlsaAudio::initialize(UI & ui) {
+AlsaAudio::initialize(Logger & logger) {
   int r;
 
   // Open the PCM device in playback mode
   if ((r = snd_pcm_open(&pcm_handle, "default", SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
-    ui.setStatus(string("ERROR: Can't open PCM device for playback: ") + snd_strerror(r));
+    logger.log(string("ERROR: Can't open PCM device for playback: ") + snd_strerror(r));
     return;
   }
 
   // Open the PCM device in capture mode
   if ((r = snd_pcm_open(&capture_handle, "default", SND_PCM_STREAM_CAPTURE, 0)) < 0) {
-    ui.setStatus(string("ERROR: Can't open PCM device for capture: ") + snd_strerror(r));
+    logger.log(string("ERROR: Can't open PCM device for capture: ") + snd_strerror(r));
     return;
   }
 
-  output_frames = initialize_alsa_dev(ui, pcm_handle, getFrequency(), getChannels(), false);
+  output_frames = initialize_alsa_dev(logger, pcm_handle, getFrequency(), getChannels(), false);
   if (!output_frames) return;
   
-  input_frames = initialize_alsa_dev(ui, capture_handle, getFrequency(), 1, true);
+  input_frames = initialize_alsa_dev(logger, capture_handle, getFrequency(), 1, true);
   if (!input_frames) return;
   
 #if 0
   unsigned int rate;
   if ((r = snd_pcm_hw_params_get_rate(hw_params, &rate, 0)) < 0) {
-    ui.setStatus(string("ERROR: Failed to get rate: ") + snd_strerror(r));
+    logger.log(string("ERROR: Failed to get rate: ") + snd_strerror(r));
     return;
   }
 
   if (rate != getFrequency()) {
-    ui.setStatus("Changing frequency to " + to_string(rate));
+    logger.log("Changing frequency to " + to_string(rate));
     setFrequency(rate);
   }
 
   unsigned int channels;
   if ((r = snd_pcm_hw_params_get_channels(hw_params, &channels)) < 0) {
-    ui.setStatus(string("ERROR: Failed to get channels: ") + snd_strerror(r));
+    logger.log(string("ERROR: Failed to get channels: ") + snd_strerror(r));
     return;
   }
 #endif
 
-  ui.setStatus(string("Playback: name = ") + string(snd_pcm_name(pcm_handle)) + string(", state = ") + string(snd_pcm_state_name(snd_pcm_state(pcm_handle))) + string(" Capture: name = ") + string(snd_pcm_name(capture_handle)) + string(", state = ") + string(snd_pcm_state_name(snd_pcm_state(capture_handle))));
+  logger.log(string("Playback: name = ") + string(snd_pcm_name(pcm_handle)) + string(", state = ") + string(snd_pcm_state_name(snd_pcm_state(pcm_handle))) + string(" Capture: name = ") + string(snd_pcm_name(capture_handle)) + string(", state = ") + string(snd_pcm_state_name(snd_pcm_state(capture_handle))));
 
   setPlaybackDescriptors(getPollDescriptors(pcm_handle));
   setCaptureDescriptors(getPollDescriptors(capture_handle));
@@ -163,18 +163,18 @@ AlsaAudio::getPollDescriptors(snd_pcm_t * handle) {
 }
   
 void
-AlsaAudio::play(SampleData & data, UI & ui) {
+AlsaAudio::play(SampleData & data, Logger & logger) {
   int r;
   if ((r = snd_pcm_writei(pcm_handle, data.data(), data.size())) == -EPIPE) {
-    ui.setStatus("XRUN.");
+    logger.log("XRUN.");
     snd_pcm_prepare(pcm_handle);
   } else if (r < 0) {
-    ui.setStatus(string("ERROR. Can't write to PCM device. ") + snd_strerror(r));
+    logger.log(string("ERROR. Can't write to PCM device. ") + snd_strerror(r));
   }
 }
 
 SampleData
-AlsaAudio::record(UI & ui) {
+AlsaAudio::record(Logger & logger) {
   startRecording();
   
   size_t frames = snd_pcm_avail_update(capture_handle);
@@ -183,10 +183,10 @@ AlsaAudio::record(UI & ui) {
   if (frames) {
     int r;
     if ((r = snd_pcm_readi(capture_handle, data.data(), frames)) == -EPIPE) {
-      ui.setStatus("XRUN.(2)");
+      logger.log("XRUN.(2)");
       snd_pcm_prepare(capture_handle);
     } else if (r < 0) {
-      ui.setStatus(string("ERROR. Can't read PCM device. ") + snd_strerror(r));
+      logger.log(string("ERROR. Can't read PCM device. ") + snd_strerror(r));
     }
   }
   
@@ -198,7 +198,7 @@ AlsaAudio::startRecording() {
   if (!recording_started) {
     int r;
     if ((r = snd_pcm_start(capture_handle)) < 0) {
-      // ui.setStatus(string("ERROR. Failed to start recording: ") + snd_strerror(r));
+      // logger.log(string("ERROR. Failed to start recording: ") + snd_strerror(r));
       // return SampleData();
       exit(1);
     }

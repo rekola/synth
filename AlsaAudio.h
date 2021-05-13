@@ -10,10 +10,10 @@ class AlsaAudio : public AudioAPI {
   explicit AlsaAudio(int _freq, int _channels) : AudioAPI(_freq, _channels) { }
   ~AlsaAudio();
 
-  void initialize(UI & ui);
+  void initialize(Logger & logger);
 
-  void play(SampleData & data, UI & ui) override;
-  SampleData record(UI & ui) override;
+  void play(SampleData & data, Logger & logger) override;
+  SampleData record(Logger & logger) override;
   size_t getFrameCount() const override { return output_frames; }
   void startRecording() override;
   void stopRecording() override;
