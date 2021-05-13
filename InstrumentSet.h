@@ -13,7 +13,7 @@ class InstrumentSet {
   }
   virtual ~InstrumentSet() { }
   
-  virtual std::unique_ptr<Instrument> createInstrument(size_t preset, size_t fixedMidiKey = 0) = 0;
+  virtual std::unique_ptr<Instrument> createInstrument(size_t preset, size_t fixedMidiKey = 0, const char * name = 0) = 0;
   virtual std::vector<std::unique_ptr<Instrument> > createAll() = 0;  
 };
 
