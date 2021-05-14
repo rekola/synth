@@ -15,24 +15,24 @@ class InfoLine : public UIElement {
   }
 
   bool render(const StyleProvider & styles, bool refresh = false) {
-    auto & state = getController().getSongState();
+    auto & info = getController().getPlaybackInfo();
     auto & song = getController().getSong();
 
     int new_version = song.getVersion();
-    size_t new_position = state.getAbsolutePosition();
+    size_t new_position = info.getAbsolutePosition();
     
     if (refresh || new_version != current_version || new_position != current_position) {
-      int seconds = (int)state.gettime(song);
+      int seconds = (int)info.getTime();
       int minutes = seconds / 60;
       seconds %= 60;
       
       auto [ rows, cols ] = getDim();
       
-      size_t section_index = state.getPatternPosition();
-      size_t num_voices = state.getVoiceCount();
-      size_t num_allocated_voices = state.getAllocatedVoiceCount();
+      size_t section_index = info.getPatternPosition();
+      size_t num_voices = info.getVoiceCount();
+      size_t num_allocated_voices = info.getAllocatedVoiceCount();
       
-      auto s = fmt::format(" {:02x} {:02d}:{:02d} pattern:{} voices:{}/{}", state.getAbsolutePosition(), minutes, seconds, section_index, num_voices, num_allocated_voices);
+      auto s = fmt::format(" {:02x} {:02d}:{:02d} pattern:{} voices:{}/{}", info.getAbsolutePosition(), minutes, seconds, section_index, num_voices, num_allocated_voices);
       while (s.size() < cols) s += ' ';
       
       putstr(0, 0, s);

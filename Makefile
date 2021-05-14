@@ -25,7 +25,7 @@ CPPFLAGS = -O1 -Wall -std=c++1z -Werror=return-type -Werror=conversion-null -Wer
 # -fno-diagnostics-show-caret
 
 CXXFLAGS+= -Werror=return-local-addr -Werror=multichar -Werror=enum-compare
-LIBS = -lm -lasound -lsndfile -lnotcurses++ -lnotcurses -lnotcurses-core -lfmt -lfftw3 -lspatialaudio
+LIBS = -lm -lasound -lsndfile -lnotcurses++ -lnotcurses -lnotcurses-core -lfmt -lfftw3 -lspatialaudio -lpthread
 all:	musiceditor
 
 musiceditor:	$(OBJS)

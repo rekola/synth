@@ -3,11 +3,12 @@
 
 #include "SampleData.h"
 #include "InstrumentProvider.h"
+#include "EventQueue.h"
+#include "PlaybackInfo.h"
 
 #include <memory>
 
 class Song;
-class SongState;
 
 class Controller {
  public:
@@ -16,11 +17,6 @@ class Controller {
   const Song & getSong() const { return *current_song; }
   Song & getSong() { return *current_song; }
 
-  const SongState & getSongState() const { return *state; }
-  SongState & getSongState() { return *state; }
-
-  void setSongState(std::shared_ptr<SongState> & _state) { state = _state; }
-  
   void createNewSong();
   void openSong(std::string filename);
   
@@ -41,13 +37,19 @@ class Controller {
   void addToSample(const SampleData & other) {
     if (current_sample) current_sample->append(other);
   }
+
+  EventQueue & getEventQueue() { return event_queue; }
+
+  void setPlaybackInfo(const PlaybackInfo & info) { playback_info = info; }
+  const PlaybackInfo & getPlaybackInfo() const { return playback_info; }
   
  private:
-  std::shared_ptr<SongState> state;
   std::shared_ptr<Song> current_song;
   std::shared_ptr<SampleData> current_sample;
   SampleData empty_sample;
   InstrumentProvider instrument_provider;
+  EventQueue event_queue;
+  PlaybackInfo playback_info;
 };
 
 #endif

@@ -1,7 +1,6 @@
 #include "AlsaAudio.h"
 #include "TerminalUI.h"
 #include "Controller.h"
-#include "SongState.h"
 #include "StderrLogger.h"
 
 #include <iostream>
@@ -64,9 +63,6 @@ int main(int argc, char *argv[]) {
   AlsaAudio audio(samplerate, 2);
   audio.initialize(logger);
   
-  auto state = make_shared<SongState>(audio.getFrequency());
-  controller->setSongState(state);
-
   TerminalUI ui;
   ui.initialize(controller);
   ui.start(audio);

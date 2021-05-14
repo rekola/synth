@@ -2,8 +2,8 @@
 #define _UI_H_
 
 #include "UIElement.h"
-
 #include "StyleProvider.h"
+#include "Event.h"
 
 class UIMenu;
 class Chart;
@@ -12,6 +12,7 @@ class StatusLine;
 class PatternEditor;
 class InstrumentList;
 class UIElement;
+class PlaybackEvent;
 
 #include <memory>
 #include <string>
@@ -22,6 +23,7 @@ class UI : public UIElement {
 
   virtual void refresh() = 0;
   virtual void render() = 0;
+  virtual void handlePlaybackEvent(PlaybackEvent & ev) { }
 
   void setStatus(std::string s);
   bool offerInput(const UIInput & input);
@@ -32,13 +34,15 @@ protected:
   bool renderComponents(bool refresh = false);
   bool tryActivate(int y, int x, std::shared_ptr<UIElement> element);
 
+  void handleEvent(Event & event) { event.dispatch(*this); }
+  
   std::shared_ptr<UIMenu> menu;
   std::shared_ptr<Chart> chart, volume_meter;
   std::shared_ptr<StatusLine> status_line;
     
   bool close_ui = false;
   bool is_recording = false;
-  StyleProvider styles;
+  StyleProvider styles;  
 
 private:
   std::shared_ptr<InfoLine> info_line;

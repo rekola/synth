@@ -16,7 +16,17 @@ class SampleData {
     _data = new float[channels * frames];
     memcpy(_data, other.data(), channels * frames * sizeof(float));
   }
-  const SampleData & operator=(const SampleData & other) = delete;
+  const SampleData & operator=(const SampleData & other) {
+    delete[] _data;
+
+    channels = other.channels;
+    frames = other.frames;
+    
+    _data = new float[channels * frames];
+    memcpy(_data, other.data(), channels * frames * sizeof(float));
+
+    return *this;
+  }
   
   ~SampleData() {
     delete[] _data;
@@ -58,7 +68,7 @@ class SampleData {
     for ( ; new_size * 2 <= frames; new_size *= 2) { }
   }
 
-  std::pair<float, float> calculateLoudness() {
+  std::pair<float, float> calculateLoudness() const {
     if (channels == 1) {
       float sum_squares = 0;
       for (size_t i = 0; i < frames; i++) {

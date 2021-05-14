@@ -37,6 +37,8 @@ class TerminalUI : public UI {
   void refresh() override;
   void render() override;
 
+  void handlePlaybackEvent(PlaybackEvent & ev);
+
 protected:
   bool readInput();
 

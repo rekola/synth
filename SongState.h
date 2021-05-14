@@ -22,10 +22,6 @@ class SongState : public State {
   size_t getTickInterval(const Song & song) const {
     return getSampleInterval(song) / 12;
   }
-      
-  float gettime(const Song & song) const {
-    return (float)(absolute_pos * getSampleInterval(song) + sample_pos) / getOutSampleRate();
-  }
   
   bool togglePlayback() {
     is_playing = !is_playing;
@@ -122,7 +118,7 @@ class SongState : public State {
   }
 
 private:
-  bool is_playing = false;
+  bool is_playing = true;
   size_t sample_pos = 0, track_pos = 0, pattern_pos = 0, absolute_pos = 0;
 
   std::unordered_map<unsigned short, std::unique_ptr<TrackState> > track_states;
