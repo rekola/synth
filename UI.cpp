@@ -118,6 +118,8 @@ UI::offerInput(const UIInput & input) {
 
 void
 UI::setStatus(std::string s) {
-  status_line->setMessage(s);
-  render();
+  if (status_line) {
+    status_line->setMessage(s);
+    render();
+  }
 }

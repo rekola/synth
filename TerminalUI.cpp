@@ -353,18 +353,21 @@ void
 TerminalUI::start(AudioAPI & audio) {
   size_t num_playback_desc = audio.getPlaybackDescriptors().size();
   size_t num_capture_desc = audio.getCaptureDescriptors().size();
-  size_t num_descriptors = 1 + num_playback_desc + num_capture_desc;
+  size_t num_descriptors = 2 + num_playback_desc + num_capture_desc;
   auto descriptors = std::make_unique<pollfd[]>(num_descriptors);
   
   descriptors[0].fd = nc->get_inputready_fd();
   descriptors[0].events = POLLIN;
 
+  descriptors[1].fd = getController().getEventQueue().getPollFd();
+  descriptors[1].events = POLLIN;
+
   for (size_t i = 0; i < num_playback_desc; i++) {
-    descriptors[1 + i] = audio.getPlaybackDescriptors()[i];
+    descriptors[2 + i] = audio.getPlaybackDescriptors()[i];
   }
 
   for (size_t i = 0; i < num_capture_desc; i++) {
-    descriptors[1 + num_playback_desc + i] = audio.getCaptureDescriptors()[i];
+    descriptors[2 + num_playback_desc + i] = audio.getCaptureDescriptors()[i];
   }
 
   // setStatus("Starting... nd = " + to_string(num_descriptors));
@@ -383,11 +386,16 @@ TerminalUI::start(AudioAPI & audio) {
       for (size_t i = 0; i < num_descriptors; i++) {
 	auto & d = descriptors[i];
 	if (d.revents) {
-	  if (i  == 0) {
+	  if (i == 0) {	   
 	    render |= readInput();
-	  } else if (i - 1 < num_playback_desc) {
+	  } else if (i == 1) {
+	    auto event = getController().getEventQueue().pop();
+	    while ( getController().getEventQueue().hasEvents() ) {
+	      auto event = getController().getEventQueue().pop();	      
+	    }
+	  } else if (i - 2 < num_playback_desc) {
 	    auto data = getController().getSong().render(audio.getFrameCount(), getController().getSongState());
-	    audio.play(data, *this);
+	    audio.play(data, logger);
 
 	    time_t current_time = now();
 
@@ -410,7 +418,7 @@ TerminalUI::start(AudioAPI & audio) {
 	      render = true;	      
 	    }
 	  } else {
-	    auto data = audio.record(*this);
+	    auto data = audio.record(logger);
 	    if (getController().isRecording()) {
 	      setStatus(format("recorded {} frames", data.size()));
 	      getController().addToSample(data);

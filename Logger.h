@@ -1,15 +1,14 @@
 #ifndef _LOGGER_H_
 #define _LOGGER_H_
 
-#include <iostream>
+#include <string>
 
 class Logger {
  public:
   Logger() { }
-
-  void log(std::string s) {
-    std::cerr << s << "\n";
-  }
+  virtual ~Logger() { }
+  
+  virtual void log(std::string s) = 0;
 };
 
 #endif

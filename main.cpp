@@ -2,7 +2,7 @@
 #include "TerminalUI.h"
 #include "Controller.h"
 #include "SongState.h"
-#include "Logger.h"
+#include "StderrLogger.h"
 
 #include <iostream>
 #include <cstring>
@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
     controller->createNewSong();
   }
 
-  Logger logger;
+  StderrLogger logger;
   
   AlsaAudio audio(samplerate, 2);
   audio.initialize(logger);
