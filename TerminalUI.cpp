@@ -8,6 +8,7 @@
 #include "UIMenu.h"
 #include "Chart.h"
 #include "PlaybackEvent.h"
+#include "Player.h"
 
 #include <thread>
 
@@ -34,64 +35,8 @@ using namespace std;
 using namespace fmt;
 
 void audio_thread_func(Logger * logger, Controller * controller, AudioAPI * audio) {
-  SongState state(audio->getFrequency());
-  // controller->setSongState(state);
-  
-  size_t num_playback_desc = audio->getPlaybackDescriptors().size();
-  size_t num_capture_desc = audio->getCaptureDescriptors().size();
-  size_t num_descriptors = num_playback_desc + num_capture_desc;
-
-  auto descriptors = std::make_unique<pollfd[]>(num_descriptors);
-
-  for (size_t i = 0; i < num_playback_desc; i++) {
-    descriptors[i] = audio->getPlaybackDescriptors()[i];
-  }
-
-  for (size_t i = 0; i < num_capture_desc; i++) {
-    descriptors[num_playback_desc + i] = audio->getCaptureDescriptors()[i];
-  }
-
-  audio->startRecording();
-
-  auto & song = controller->getSong();
-  
-  while ( 1 ) {
-    if (poll(descriptors.get(), num_descriptors, 1000) > 0) {
-      for (size_t i = 0; i < num_descriptors; i++) {
-	auto & d = descriptors[i];
-	if (d.revents) {
-	  if (i < num_playback_desc) {
-	    auto data = song.render(audio->getFrameCount(), state);
-	    audio->play(data, *logger);
-
-	    PlaybackInfo info;
-	    info.is_playing = true;
-	    info.outSampleRate = state.getOutSampleRate();
-	    info.sample_interval = state.getSampleInterval(song);
-	    info.sample_pos = state.getSamplePos();
-	    info.track_pos = state.getTrackPosition();
-	    info.pattern_pos = state.getPatternPosition();
-	    info.absolute_pos = state.getAbsolutePosition();
-	    info.voice_count = state.getVoiceCount();
-	    info.allocated_voice_count = state.getAllocatedVoiceCount();
-
-	    auto playback_event = make_unique<PlaybackEvent>(info);
-	    playback_event->setData(data);
-	    playback_event->setLoudness(data.calculateLoudness());
-	    controller->getEventQueue().push(move(playback_event));
-	  } else {
-	    auto data = audio->record(*logger);
-#if 0
-	    if (getController().isRecording()) {
-	      setStatus(format("recorded {} frames", data.size()));
-	      getController().addToSample(data);
-	    }
-#endif
-	  }
-	}
-      }
-    }
-  }
+  Player player;
+  player.play(*logger, *controller, *audio);
 }
 
 static inline ncinput to_ncinput(const UIInput & input) {
@@ -415,14 +360,16 @@ TerminalUI::readInput() {
 
 void
 TerminalUI::handlePlaybackEvent(PlaybackEvent & ev) {
-  auto & data = ev.getData();
-  
-  chart->displayFFT(data);
-  auto [left, right] = ev.getLoudness();
-  volume_meter->setSample(0, left);
-  volume_meter->setSample(1, right);
-
   getController().setPlaybackInfo(ev.getInfo());
+
+  auto & data = ev.getData();
+
+  if (!data.empty()) {
+    chart->displayFFT(data);
+    auto [left, right] = ev.getLoudness();
+    volume_meter->setSample(0, left);
+    volume_meter->setSample(1, right);
+  }
     
   ev.redraw();
 }
@@ -447,7 +394,7 @@ TerminalUI::start(AudioAPI & audio) {
   descriptors[0].fd = nc->get_inputready_fd();
   descriptors[0].events = POLLIN;
 
-  descriptors[1].fd = getController().getEventQueue().getPollFd();
+  descriptors[1].fd = getController().getUIEventQueue().getPollFd();
   descriptors[1].events = POLLIN;
 
   // setStatus("Starting... nd = " + to_string(num_descriptors));
@@ -466,11 +413,11 @@ TerminalUI::start(AudioAPI & audio) {
 	  if (i == 0) {	   
 	    render |= readInput();
 	  } else if (i == 1) {
-	    auto event = getController().getEventQueue().pop();
+	    auto event = getController().getUIEventQueue().pop();
 	    handleEvent(*event);
 	    if (event->needRedraw()) render = true;
-	    while ( getController().getEventQueue().hasEvents() ) {
-	      auto event = getController().getEventQueue().pop();	      
+	    while ( getController().getUIEventQueue().hasEvents() ) {
+	      auto event = getController().getUIEventQueue().pop();	      
 	      handleEvent(*event);
 	      if (event->needRedraw()) render = true;
 	    }
@@ -484,5 +431,7 @@ TerminalUI::start(AudioAPI & audio) {
 	nc->render();
       }
     }
-  }  
+  }
+
+  audio_thread.join();
 }

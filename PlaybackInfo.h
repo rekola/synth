@@ -3,6 +3,9 @@
 
 class PlaybackInfo {
  public:
+  PlaybackInfo() { }
+  
+  bool isPlaying() const { return is_playing; }
   const size_t getAbsolutePosition() const { return absolute_pos; }
   const size_t getPatternPosition() const { return pattern_pos; }
   const size_t getTrackPosition() const { return track_pos; }

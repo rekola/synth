@@ -80,12 +80,11 @@ UI::offerInput(const UIInput & input) {
     
     handled = true;
   } else if (input.getId() == ' ') {
-    if (getController().getSongState().togglePlayback()) {
-      setStatus("Playing");
-    } else {
-      setStatus("Stopped");
-    }
-
+    auto info = getController().getPlaybackInfo();
+    info.is_playing = !info.is_playing;
+    getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(info.is_playing ? PlaybackControlEvent::PLAY : PlaybackControlEvent::STOP));
+    setStatus(info.is_playing ? "Playing" : "Stopped");
+    getController().setPlaybackInfo(info);
     handled = true;
   } else if (input.hasCtrl() && input.getId() == 'R') {
     setStatus("Recording");

@@ -1,19 +1,55 @@
 #ifndef _SONGSTATE_H_
 #define _SONGSTATE_H_
 
-#include "State.h"
+#include "EventHandler.h"
 #include "Song.h"
 #include "HRFT.h"
 #include "TrackState.h"
+#include "PlaybackControlEvent.h"
 
 #define NOTE_DOMAIN ((float)1/4)
 
 #include <memory>
 
-class SongState : public State {
+class SongState : public EventHandler {
  public:
-  explicit SongState(int _outSampleRate) : State(_outSampleRate), hrft(_outSampleRate) { }
-    
+  explicit SongState(int _outSampleRate) : outSampleRate(_outSampleRate), hrft(_outSampleRate) { }
+
+  void handlePlaybackControlEvent(PlaybackControlEvent & ev) {
+    switch (ev.getType()) {
+    case PlaybackControlEvent::PLAY:
+      is_playing = true;
+      break;
+    case PlaybackControlEvent::STOP:
+      is_playing = false;
+      break;
+    case PlaybackControlEvent::MOVE_POSITION:
+      {
+	
+      }
+      break;
+    case PlaybackControlEvent::CLEAR_VOICES:
+      {
+	auto it = track_states.find(ev.getParameter1());
+	if (it != track_states.end()) it->second->getVoices().clear();
+      }
+      break;
+    case PlaybackControlEvent::PLAY_NOTE:
+      break;
+    case PlaybackControlEvent::STOP_NOTE:
+      {
+	auto it = track_states.find(ev.getParameter1());
+	if (it != track_states.end()) {
+	  auto & track_state = it->second;
+	  track_state->getVoices().stopNote(ev.getParameter2());
+	}
+      }
+      break;
+    default:
+      break;
+    }
+  }
+
   size_t getSampleInterval(const Song & song) const {
     float tnote = (float)60 / song.getTempo() * NOTE_DOMAIN * 2;
     return (size_t)(tnote * getOutSampleRate());
@@ -23,10 +59,6 @@ class SongState : public State {
     return getSampleInterval(song) / 12;
   }
   
-  bool togglePlayback() {
-    is_playing = !is_playing;
-    return is_playing;
-  }
   bool isPlaying() const { return is_playing; }
 
   const size_t getAbsolutePosition() const { return absolute_pos; }
@@ -96,11 +128,6 @@ class SongState : public State {
     }
   }
 
-  void clearVoices(unsigned short track_idx) {
-    auto it = track_states.find(track_idx);
-    if (it != track_states.end()) it->second->getVoices().clear();
-  }
-
   size_t getVoiceCount() const {
     size_t n = 0;
     for (auto & td : track_states) {
@@ -117,7 +144,10 @@ class SongState : public State {
     return n;
   }
 
+  unsigned int getOutSampleRate() const { return outSampleRate; }
+
 private:
+  unsigned int outSampleRate;
   bool is_playing = true;
   size_t sample_pos = 0, track_pos = 0, pattern_pos = 0, absolute_pos = 0;
 

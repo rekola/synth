@@ -2,14 +2,15 @@
 #define _PLAYBACKEVENT_H_
 
 #include "Event.h"
+#include "EventHandler.h"
 #include "SampleData.h"
-#include "UI.h"
+#include "PlaybackInfo.h"
 
 class PlaybackEvent : public Event {
 public:
   PlaybackEvent(const PlaybackInfo & _info) : info(_info) { }
 
-  void dispatch(UI & ui) override { ui.handlePlaybackEvent(*this); }
+  void dispatch(EventHandler & evh) override { evh.handlePlaybackEvent(*this); }
   
   const SampleData & getData() const { return data; }
   void setData(SampleData _data) { data = _data; }

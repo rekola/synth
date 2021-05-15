@@ -38,7 +38,8 @@ class Controller {
     if (current_sample) current_sample->append(other);
   }
 
-  EventQueue & getEventQueue() { return event_queue; }
+  EventQueue & getUIEventQueue() { return ui_event_queue; }
+  EventQueue & getPlaybackEventQueue() { return playback_event_queue; }
 
   void setPlaybackInfo(const PlaybackInfo & info) { playback_info = info; }
   const PlaybackInfo & getPlaybackInfo() const { return playback_info; }
@@ -48,7 +49,7 @@ class Controller {
   std::shared_ptr<SampleData> current_sample;
   SampleData empty_sample;
   InstrumentProvider instrument_provider;
-  EventQueue event_queue;
+  EventQueue ui_event_queue, playback_event_queue;
   PlaybackInfo playback_info;
 };
 

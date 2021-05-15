@@ -17,7 +17,8 @@ OBJS = main.o \
 	Filter.o \
 	Delay.o \
 	Distortion.o \
-	Reverb.o
+	Reverb.o \
+	Player.o
 
 CC = g++
 

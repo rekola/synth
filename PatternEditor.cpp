@@ -133,11 +133,12 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
 
 bool
 PatternEditor::offerInput(const UIInput & input) {
-#if 0
   auto & song = getController().getSong();
   auto & info = getController().getPlaybackInfo();
   auto & tracks = song.getChildren();
   size_t num_columns = tracks.size();
+
+  auto & event_queue = getController().getPlaybackEventQueue();
 
   if (input.hasCtrl()) {
     if (input.getId() == 'r') {
@@ -185,7 +186,7 @@ PatternEditor::offerInput(const UIInput & input) {
       if (track->getInstrumentId() > 0) {
 	track->setInstrumentId(track->getInstrumentId() - 1);
 	song.incVersion();
-	state.clearVoices(current_score_cursor_col);
+	event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, current_score_cursor_col));
       }
       return true;
     } else if (input.getId() == NCKEY_RIGHT || input.getId() == 'i' || input.getId() == 'i' || input.getId() == 'o') {
@@ -194,7 +195,7 @@ PatternEditor::offerInput(const UIInput & input) {
       if (track->getInstrumentId() + 1 < instruments.size()) {
 	track->setInstrumentId(track->getInstrumentId() + 1);
 	song.incVersion();
-	state.clearVoices(current_score_cursor_col);
+	event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, current_score_cursor_col));
       }
       return true;
     } else if (input.getId() == '\\') {
@@ -218,19 +219,27 @@ PatternEditor::offerInput(const UIInput & input) {
     }
     return true;
   } else if (input.getId() == NCKEY_UP || input.getId() == NCKEY_BUTTON4) {
-    if (!state.isPlaying()) state.moveBackwards(song);
+    if (!info.isPlaying()) {
+      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, -1));
+    }
     return true;
   } else if (input.getId() == NCKEY_DOWN || input.getId() == NCKEY_BUTTON5) {
-    if (!state.isPlaying()) state.moveForward(song);
+    if (!info.isPlaying()) {
+      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, 1));
+    }
     return true;
   } else if (input.getId() == '\t') {
     // next note column
     return true;
   } else if (input.getId() == NCKEY_PGUP) {
-    if (!state.isPlaying()) state.moveBackwards(song, 16);
-    return true;
+    if (!info.isPlaying()) {
+      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, -16));
+    }
+    return true;    
   } else if (input.getId() == NCKEY_PGDOWN) { // scrollwheel down
-    if (!state.isPlaying()) state.moveForward(song, 16);
+    if (!info.isPlaying()) {
+      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, 16));
+    }
     return true;
   } else if (input.getId() == '\\') {
     tracks[current_score_cursor_col]->setMute(true);   
@@ -254,32 +263,35 @@ PatternEditor::offerInput(const UIInput & input) {
 	  
 	row_edited = true;
 
-	auto & track = tracks[current_score_cursor_col];
-	if (track->getInstrumentId() < song.getInstruments().size()) {
-	  auto & instrument = song.getInstrument(track->getInstrumentId());
-	  auto & track_state = state.getTrackState(current_score_cursor_col);
-	  
-	  if (note.isOff()) {
-	    track_state.getVoices().stopNote(note_column);
-	  } else {
+	if (note.isOff()) {
+	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, current_score_cursor_col, note_column));
+	} else {
+#if 0
+	  auto & track = tracks[current_score_cursor_col];
+	  if (track->getInstrumentId() < song.getInstruments().size()) {
+	    auto & instrument = song.getInstrument(track->getInstrumentId());
 	    Tuner tuner;
 	    Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
 	    int key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
 	    float frequency = tuner.getFrequency(tuning, key, note);
 	    instrument.playNote(note_column, frequency, note.getVelocity() / 127.0f, 0.0f, track->getDetune(), track_state.getVoices());
 	  }
+#endif
 	}
       }
-
+      
       if (!info.isPlaying()) {
-	if (input.getId() == NCKEY_BACKSPACE) state.moveBackwards(song, edit_step_size);
-	else if (input.getId() != NCKEY_DEL) state.moveForward(song, edit_step_size);
+	int n = 0;
+	if (input.getId() == NCKEY_BACKSPACE) n = -edit_step_size;
+	else if (input.getId() != NCKEY_DEL) n = edit_step_size;
+	if (n) {
+	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, n));
+	}
       }
       
       return true;
     }
   }
-#endif
   
   return false;
 }

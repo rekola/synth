@@ -1,6 +1,7 @@
 #ifndef _UIELEMENT_H_
 #define _UIELEMENT_H_
 
+#include "EventHandler.h"
 #include "UIPlane.h"
 
 #include "UIColor.h"
@@ -10,7 +11,7 @@
 
 class UIInput;
 
-class UIElement {
+class UIElement : public EventHandler {
  public:
   explicit UIElement() { }
   explicit UIElement(UIPlane & parent) {
