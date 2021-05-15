@@ -601,7 +601,6 @@ class SoundFontVoice : public InstrumentVoice {
 public:
   SoundFontVoice(unsigned int _outSampleRate, int _identifier, std::shared_ptr<SoundFontFile> _sf, size_t _preset = 0, size_t _fixedMidiKey = 0)
     : InstrumentVoice(_outSampleRate, _identifier), sf(_sf), preset(_preset), fixedMidiKey(_fixedMidiKey) {
-    playingPreset = -1;
   }
   
   void playNote(float frequency, float velocity, float delay, float detune, unsigned short subvoice = 0) override {
@@ -621,7 +620,6 @@ public:
     auto & region = regions[subvoice];
                 
     voiceRegion = &region;
-    playingPreset = preset;
     apparentPlayingKey = apparent_key;
     // voice->playingFrequency = frequency;
     setGainDB(- region.attenuation - gainToDecibels(1.0f / velocity));
@@ -653,11 +651,7 @@ public:
     viblfo = LFO(region.delayVibLFO, tsf_cents2Hertz(region.freqVibLFO), getOutSampleRate());
   }
 
-  bool isPlaying() const override { return playingPreset != -1; }
-
-  void killNote() override {
-    playingPreset = -1;
-  }
+  bool isPlaying() const override { return voiceRegion && sourceSamplePosition < voiceRegion->end && !ampenv.isDone(); }
 
   SampleData render(size_t numSamples) override;
   
@@ -685,11 +679,10 @@ public:
     pitchOutputFactor = voiceRegion->sample_rate / (tsf_timecents2Secsd(voiceRegion->pitch_keycenter * 100.0) * getOutSampleRate());
   }
     
-  int playingPreset;
-  double apparentPlayingKey;
-  struct tsf_region * voiceRegion;
-  double pitchInputTimecents, pitchOutputFactor;
-  unsigned int loopStart, loopEnd;
+  double apparentPlayingKey = 0;
+  struct tsf_region * voiceRegion = 0;
+  double pitchInputTimecents = 0, pitchOutputFactor = 0;
+  unsigned int loopStart = 0, loopEnd = 0;
   LowpassFilter lowpass;
   LFO modlfo, viblfo;
 
@@ -788,8 +781,7 @@ SoundFontVoice::render(size_t numSamples) {
       if (sourceSamplePosition >= loopEndDbl && isLooping) sourceSamplePosition -= (loopEnd - loopStart + 1.0);
     }
     
-    if (sourceSamplePosition >= sampleEndDbl || ampenv.isDone()) {
-      killNote();
+    if (!isPlaying()) {
       break;
     }
   }
