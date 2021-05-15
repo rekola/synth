@@ -9,9 +9,8 @@
 
 using namespace std;
 
-void
-HRFT::initialize(size_t frames) {
-  is_initialized = true;
+HRFT::HRFT(unsigned int _outSampleRate) : Mixer(_outSampleRate) {
+  size_t frames = 1024;
       
   int order = 1;
   bool is_3d = true;
@@ -25,7 +24,7 @@ HRFT::initialize(size_t frames) {
   
   myBinauralizer = make_shared<CAmbisonicBinauralizer>();
   unsigned tailLength;
-  if (!myBinauralizer->Configure(order, is_3d, sampleRate, frames, tailLength, "/home/rekola/src/personal/syna/data/D1_44K_16bit_256tap_FIR_SOFA.sofa")) {
+  if (!myBinauralizer->Configure(order, is_3d, getOutSampleRate(), frames, tailLength, "/home/rekola/src/personal/syna/data/D1_44K_16bit_256tap_FIR_SOFA.sofa")) {
     cerr << "decoder config failed\n";
     exit(1);
   }
@@ -43,7 +42,7 @@ HRFT::initialize(size_t frames) {
 
 void
 HRFT::reset() {
-  if (is_initialized) myBFormat->Reset();
+  myBFormat->Reset();
 }
 
 void
@@ -52,8 +51,6 @@ HRFT::accumulate(const SampleData & data, float volume, float distance, float az
   
   size_t frames = data.size();
   const float * input = data.data();
-  
-  if (!is_initialized) initialize(frames);
   
   PolarPoint position;
   position.fDistance = distance;
@@ -75,8 +72,6 @@ void
 HRFT::encode(SampleData & out, float master_volume) {
   float * output = out.data();
   size_t frames = out.size();
-  
-  if (!is_initialized) initialize(frames);
   
   float * buffers[2] = { left_buffer.get(), right_buffer.get() };
   
