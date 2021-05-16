@@ -72,13 +72,15 @@ Player::play(Logger & logger, Controller & controller, AudioAPI & audio) {
 
 std::unique_ptr<PlaybackEvent>
 Player::createPlaybackEvent(const Song & song, SongState & state) {
+  auto [ pattern_idx, row_idx ] = state.getRelativePosition(song);
+
   PlaybackInfo info;
-  info.is_playing = true;
+  info.is_playing = state.isPlaying();
   info.outSampleRate = state.getOutSampleRate();
   info.sample_interval = state.getSampleInterval(song);
   info.sample_pos = state.getSamplePos();
-  info.track_pos = state.getTrackPosition();
-  info.pattern_pos = state.getPatternPosition();
+  info.pattern_idx = pattern_idx;
+  info.row_idx = row_idx;
   info.absolute_pos = state.getAbsolutePosition();
   info.voice_count = state.getVoiceCount();
   info.allocated_voice_count = state.getAllocatedVoiceCount();

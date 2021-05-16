@@ -854,12 +854,15 @@ Controller::createNewSong() {
   current_song = song;
 }
 
-void
+bool
 Controller::openSong(string filename) {  
   auto song = make_shared<Song>();
-  song->open(filename, instrument_provider);
+  if (!song->open(filename, instrument_provider)) {
+    return false;
+  }
 
   current_song = song;
+  return true;
 }
 
 bool

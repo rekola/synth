@@ -20,8 +20,8 @@ bool
 PatternEditor::render(const StyleProvider & styles, bool refresh) {
   bool render_all = refresh;
   auto & info = getController().getPlaybackInfo();
-  size_t score_pattern = info.getPatternPosition();
-  size_t score_playing_row = info.getTrackPosition();
+  auto score_pattern = info.getPatternIndex();
+  size_t score_playing_row = info.getRowIndex();
   auto & song = getController().getSong();
   auto & current_pattern = song.getPattern(score_pattern);
   auto & tracks = song.getChildren();
@@ -244,21 +244,21 @@ PatternEditor::offerInput(const UIInput & input) {
   } else if (input.getId() == '\\') {
     tracks[current_score_cursor_col]->setMute(true);   
   } else {
-    auto & pattern = song.getPattern(info.getPatternPosition());
+    auto & pattern = song.getPattern(info.getPatternIndex());
     Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
     int midi_note = input.toMidiNote(tuning);
     bool is_delete = input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE;
     if (is_delete || midi_note >= 0) {
       if (is_delete) {
-	pattern.deleteNote(current_score_cursor_col, info.getTrackPosition());
+	pattern.deleteNote(current_score_cursor_col, info.getRowIndex());
       } else {
 	Note note(midi_note);
 
 	size_t note_column = 0;
 	if (input.hasShift()) {
-	  note_column = pattern.pushNote(current_score_cursor_col, info.getTrackPosition(), note);
+	  note_column = pattern.pushNote(current_score_cursor_col, info.getRowIndex(), note);
 	} else {
-	  pattern.setNote(current_score_cursor_col, info.getTrackPosition(), 0, note);
+	  pattern.setNote(current_score_cursor_col, info.getRowIndex(), 0, note);
 	}
 	  
 	row_edited = true;
@@ -300,7 +300,7 @@ void
 PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<size_t> & track_widths) {
   auto & song = getController().getSong();
   auto & info = getController().getPlaybackInfo();
-  auto & pattern = song.getPattern(info.getPatternPosition());
+  auto & pattern = song.getPattern(info.getPatternIndex());
 
   auto [rows, cols] = getDim();
   
@@ -356,7 +356,7 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<size_t>
   if (row >= current_scroll_row && row < current_scroll_row + rows - 4) {
     auto & song = getController().getSong();
     auto & info = getController().getPlaybackInfo();
-    auto & pattern = song.getPattern(info.getPatternPosition());
+    auto & pattern = song.getPattern(info.getPatternIndex());
     
     string padding;
     for (size_t i = 1; i < cols - 1; i++) padding += ' ';

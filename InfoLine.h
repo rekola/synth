@@ -28,11 +28,12 @@ class InfoLine : public UIElement {
       
       auto [ rows, cols ] = getDim();
       
-      size_t section_index = info.getPatternPosition();
+      size_t pattern_idx = info.getPatternIndex();
       size_t num_voices = info.getVoiceCount();
       size_t num_allocated_voices = info.getAllocatedVoiceCount();
       
-      auto s = fmt::format(" {:02x} {:02d}:{:02d} pattern:{} voices:{}/{}", info.getAbsolutePosition(), minutes, seconds, section_index, num_voices, num_allocated_voices);
+      auto s = fmt::format(" {:02x} {:02d}:{:02d} pattern:{} voices:{}/{}", info.getAbsolutePosition(), minutes, seconds, pattern_idx, num_voices, num_allocated_voices);
+      if (info.isPlaying()) s += " PLAYING";
       while (s.size() < cols) s += ' ';
       
       putstr(0, 0, s);

@@ -28,13 +28,15 @@ Tuning parse_tuning(const char * tuning_text, Tuning default_tuning = Tuning::IN
   return default_tuning;
 }
 
-void
+bool
 Song::open(const std::string & filename, const InstrumentProvider & provider) {
   char * oldLocale = setlocale(LC_ALL, 0);
   setlocale(LC_ALL, "C");
   
   XMLDocument doc;
-  doc.LoadFile(filename.c_str());
+  if (doc.LoadFile(filename.c_str()) != 0) {
+    return false;
+  }
 
   auto song = doc.FirstChildElement("song");
   if (song) {   
@@ -135,6 +137,8 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
   }
 
   setlocale(LC_ALL, oldLocale);
+
+  return true;
 }
 
 void
@@ -248,12 +252,13 @@ Song::render(size_t frames, SongState & state) {
   if (state.isPlaying()) {
     for (size_t i = 0; i < frames; i++) {
       if (state.getSamplePos() == 0) {
-	auto & pattern = getPattern(state.getPatternPosition());
+	auto [ pattern_idx, row_idx ] = state.getRelativePosition(*this);
+	auto & pattern = getPattern(pattern_idx);
 	auto tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : getTuning();
 	int key = pattern.getKey() >= 0 ? pattern.getKey() : getKey();
 
 	for (size_t col = 0; col < tracks.size(); col++) {
-	  auto & notes = pattern.getNotes(col, state.getTrackPosition());
+	  auto & notes = pattern.getNotes(col, row_idx);
 	  for (size_t j = 0; j < notes.size(); j++) {
 	    if (notes[j].isDefined()) {
 	      auto & note = notes[j];
@@ -274,7 +279,7 @@ Song::render(size_t frames, SongState & state) {
       size_t remaining = state.samplesUntilNextRow(*this);
       if (i + remaining <= frames) {
 	i += remaining;
-	state.moveForward(*this);
+	state.moveForward();
       } else {
 	for (; i < frames; i++) {
 	  state.moveForwardSample(*this);

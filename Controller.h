@@ -18,7 +18,7 @@ class Controller {
   Song & getSong() { return *current_song; }
 
   void createNewSong();
-  void openSong(std::string filename);
+  bool openSong(std::string filename);
   
   void loadDemo();
   void loadDemo2();

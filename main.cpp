@@ -45,7 +45,10 @@ int main(int argc, char *argv[]) {
   auto controller = make_shared<Controller>();
 
   if (!input.empty()) {
-    controller->openSong(input.front());
+    if (!controller->openSong(input.front())) {
+      cerr << "Could not find file " << input.front() << endl;
+      exit(1);
+    }
   } else if (load_demo == 1) {
     controller->loadDemo();
   } else if (load_demo == 2) {

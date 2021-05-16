@@ -25,7 +25,8 @@ class SongState : public EventHandler {
       break;
     case PlaybackControlEvent::MOVE_POSITION:
       {
-	
+	if (ev.getParameter1() > 0) moveForward(ev.getParameter1());
+	else if (ev.getParameter1() < 0) moveBackwards(-ev.getParameter1());
       }
       break;
     case PlaybackControlEvent::CLEAR_VOICES:
@@ -62,19 +63,28 @@ class SongState : public EventHandler {
   bool isPlaying() const { return is_playing; }
 
   const size_t getAbsolutePosition() const { return absolute_pos; }
-  const size_t getPatternPosition() const { return pattern_pos; }
-  const size_t getTrackPosition() const { return track_pos; }
   const size_t getSamplePos() const { return sample_pos; }
     
   void moveForwardSample(const Song & song) {
     auto sinterval = getSampleInterval(song);
-    if (sample_pos + 1 < sinterval || track_pos + 1 < song.getPattern(pattern_pos).getNumRows() || pattern_pos + 1 < song.getPatterns().size()) {
-      sample_pos++;
+    sample_pos++;
       
-      if (sample_pos == sinterval) {
-	moveForward(song);
+    if (sample_pos == sinterval) {
+      moveForward();
+    }
+  }
+
+  std::pair<size_t, size_t> getRelativePosition(const Song & song) const {
+    std::pair<size_t, size_t> rv(0, absolute_pos);
+    for (auto & pattern : song.getPatterns()) {
+      if (rv.second >= pattern.getNumRows()) {
+	rv.second -= pattern.getNumRows();
+	rv.first++;
+      } else {
+	break;
       }
     }
+    return rv;
   }
 
   size_t samplesUntilNextRow(const Song & song) const {
@@ -82,36 +92,18 @@ class SongState : public EventHandler {
     return sample_pos == 0 ? sinterval : sinterval - sample_pos;    
   }
   
-  void moveForward(const Song & song) {
+  void moveForward(size_t rows = 1) {
     sample_pos = 0;
-    if (track_pos + 1 < song.getPattern(pattern_pos).getNumRows()) {
-      track_pos++;
-      absolute_pos++;
-    } else if (pattern_pos + 1 < song.getPatterns().size()) {
-      pattern_pos++;
-      track_pos = 0;
-      absolute_pos++;      
-    }
+    absolute_pos += rows;
   }
 
-  void moveBackwards(const Song & song) {
+  void moveBackwards(size_t rows = 1) {
     sample_pos = 0;
-    if (track_pos > 0) {
-      track_pos--;
-      absolute_pos--;
-    } else if (pattern_pos > 0) {
-      pattern_pos--;
-      track_pos = song.getPattern(pattern_pos).getNumRows() - 1;
-      absolute_pos--;
+    if (absolute_pos > rows) {
+      absolute_pos -= rows;
+    } else {
+      absolute_pos = 0;
     }
-  }
-
-  void moveForward(const Song & song, size_t rows) {
-    for (size_t i = 0; i < rows; i++) moveForward(song);
-  }
-
-  void moveBackwards(const Song & song, size_t rows) {
-    for (size_t i = 0; i < rows; i++) moveBackwards(song);
   }
 
   Mixer & getMixer() { return hrft; }
@@ -148,8 +140,8 @@ class SongState : public EventHandler {
 
 private:
   unsigned int outSampleRate;
-  bool is_playing = true;
-  size_t sample_pos = 0, track_pos = 0, pattern_pos = 0, absolute_pos = 0;
+  bool is_playing = false;
+  size_t sample_pos = 0, absolute_pos = 0;
 
   std::unordered_map<unsigned short, std::unique_ptr<TrackState> > track_states;
   
