@@ -6,8 +6,14 @@
 #include "StatusLine.h"
 #include "PatternEditor.h"
 #include "InstrumentList.h"
+#include "AudioAPI.h"
+#include "Player.h"
+
+#include "PlaybackEvent.h"
+#include "LogEvent.h"
 
 #include <fmt/core.h>
+#include <thread>
 
 using namespace std;
 using namespace fmt;
@@ -121,4 +127,55 @@ UI::setStatus(std::string s) {
     status_line->setMessage(s);
     render();
   }
+}
+
+void
+UI::handlePlaybackEvent(PlaybackEvent & ev) {
+  getController().setPlaybackInfo(ev.getInfo());
+
+  auto & data = ev.getData();
+
+  if (!data.empty()) {
+    chart->displayFFT(data);
+    auto [left, right] = ev.getLoudness();
+    volume_meter->setSample(0, left);
+    volume_meter->setSample(1, right);
+  }
+    
+  ev.redraw();
+}
+
+#if 0
+void
+UI::handleRecordEvent(RecordEvent & ev) {  
+  if (getController().isRecording()) {
+    setStatus(format("recorded {} frames", data.size()));
+    getController().addToSample(data);
+  }
+}
+#endif
+
+void
+UI::handleLogEvent(LogEvent & ev) {
+  setStatus(ev.getText());
+}
+
+
+void audio_thread_func(Controller * controller, AudioAPI * audio) {
+  Player player;
+  player.play(*controller, *audio);
+}
+
+void
+UI::start(AudioAPI & audio) {
+  std::thread audio_thread(audio_thread_func, &(getController()), &audio);
+
+  startUI();
+
+  audio_thread.join();
+}
+
+void
+StatusLogger::log(std::string s) {
+  ui->setStatus(s);
 }

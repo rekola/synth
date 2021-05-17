@@ -3,11 +3,27 @@
 #include "AudioAPI.h"
 #include "Controller.h"
 #include "SongState.h"
+#include "LogEvent.h"
+#include "Logger.h"
 
 using namespace std;
 
+class EventLogger : public Logger {
+ public:
+  EventLogger(EventQueue * _event_queue) : event_queue(_event_queue) { }
+
+  void log(std::string s) override {
+    event_queue->push(make_unique<LogEvent>(s));
+  }
+
+private:
+  EventQueue * event_queue;
+};
+
 void
-Player::play(Logger & logger, Controller & controller, AudioAPI & audio) {
+Player::play(Controller & controller, AudioAPI & audio) {
+  EventLogger logger(&(controller.getUIEventQueue()));
+  
   auto & event_queue = controller.getPlaybackEventQueue();
     
   SongState state(audio.getFrequency());

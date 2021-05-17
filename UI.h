@@ -4,6 +4,10 @@
 #include "UIElement.h"
 #include "StyleProvider.h"
 #include "Event.h"
+#include "Logger.h"
+
+#include <memory>
+#include <string>
 
 class UIMenu;
 class Chart;
@@ -12,21 +16,36 @@ class StatusLine;
 class PatternEditor;
 class InstrumentList;
 class UIElement;
+class AudioAPI;
+class UI;
 
-#include <memory>
-#include <string>
+class StatusLogger : public Logger {
+public:
+  StatusLogger(UI * _ui) : ui(_ui) { }
+
+  void log(std::string s) override;
+
+private:
+  UI * ui;
+};
 
 class UI : public UIElement {
  public:
-  explicit UI() { }
+  explicit UI() : logger(this) { }
 
   virtual void refresh() = 0;
   virtual void render() = 0;
-  
+
+  void start(AudioAPI & audio); 
   void setStatus(std::string s);
   bool offerInput(const UIInput & input);
-  
+
+  void handlePlaybackEvent(PlaybackEvent & ev);
+  void handleLogEvent(LogEvent & ev);
+
 protected:
+  virtual void startUI() = 0;
+
   void initialize();
   void layout();
   bool renderComponents(bool refresh = false);
@@ -46,6 +65,8 @@ private:
   std::shared_ptr<InstrumentList> instrument_list;
 
   std::weak_ptr<UIElement> active_element;
+
+  StatusLogger logger;
 };
 
 #endif

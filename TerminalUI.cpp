@@ -1,16 +1,9 @@
 #include "TerminalUI.h"
 
-#include "SongState.h"
-#include "AudioAPI.h"
-#include "SampleData.h"
 #include "UIInput.h"
 #include "Controller.h"
 #include "UIMenu.h"
 #include "Chart.h"
-#include "PlaybackEvent.h"
-#include "Player.h"
-
-#include <thread>
 
 #include <cstdio>
 #include <cstdlib>
@@ -30,14 +23,11 @@
 #include <ncpp/Menu.hh>
 #include <ncpp/Selector.hh>
 
+#include <poll.h>
+
 using namespace ncpp;
 using namespace std;
 using namespace fmt;
-
-void audio_thread_func(Logger * logger, Controller * controller, AudioAPI * audio) {
-  Player player;
-  player.play(*logger, *controller, *audio);
-}
 
 static inline ncinput to_ncinput(const UIInput & input) {
   ncinput ni = { .id = input.getId(), .y = input.getY(), .x = input.getX(), .alt = input.hasAlt(), .shift = input.hasShift(), .ctrl = input.hasCtrl(), .seqnum = input.getSeqnum() };
@@ -359,35 +349,7 @@ TerminalUI::readInput() {
 }
 
 void
-TerminalUI::handlePlaybackEvent(PlaybackEvent & ev) {
-  getController().setPlaybackInfo(ev.getInfo());
-
-  auto & data = ev.getData();
-
-  if (!data.empty()) {
-    chart->displayFFT(data);
-    auto [left, right] = ev.getLoudness();
-    volume_meter->setSample(0, left);
-    volume_meter->setSample(1, right);
-  }
-    
-  ev.redraw();
-}
-
-#if 0
-void
-TerminalUI::handleRecordEvent(RecordEvent & ev) {  
-  if (getController().isRecording()) {
-    setStatus(format("recorded {} frames", data.size()));
-    getController().addToSample(data);
-  }
-}
-#endif
-
-void
-TerminalUI::start(AudioAPI & audio) {
-  std::thread audio_thread(audio_thread_func, &logger, &(getController()), &audio);
-
+TerminalUI::startUI() {
   size_t num_descriptors = 2;
   auto descriptors = std::make_unique<pollfd[]>(num_descriptors);
   
@@ -432,6 +394,4 @@ TerminalUI::start(AudioAPI & audio) {
       }
     }
   }
-
-  audio_thread.join();
 }
