@@ -17,8 +17,12 @@ class GenericInstrument : public Instrument {
     {
     }
 
-  std::unique_ptr<InstrumentVoice> createVoice(unsigned int outSampleRate, int identifier) const {
+  std::unique_ptr<InstrumentVoice> createVoice(unsigned int outSampleRate, int identifier) const override {
     return concrete_instrument->createVoice(outSampleRate, identifier);
+  }
+
+  void playNote(size_t column, float frequency, float velocity, float delay, float detune, VoicePool & voices) const override {
+    concrete_instrument->playNote(column, frequency, velocity, delay, detune, voices);    
   }
 
   tinyxml2::XMLElement * createXML(tinyxml2::XMLDocument & doc) const {
