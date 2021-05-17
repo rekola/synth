@@ -117,7 +117,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	
 	auto & pattern = addPattern(rows, pattern_tuning, key);
 
-	for (auto it2 = it->FirstChildElement("note"); it2 ; it2 = it2->NextSiblingElement("note") ) {
+	for (auto it2 = it->FirstChildElement("note"); it2 ; it2 = it2->NextSiblingElement("note")) {
 	  auto track_text = it2->Attribute("track");
 	  auto row_text = it2->Attribute("row");
 	  auto column_text = it2->Attribute("column");
@@ -131,6 +131,15 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	  
 	  Note note(value_text, velocity, actual_pattern_tuning);
 	  pattern.setNote(track, row, column, note);
+	}
+
+	for (auto it2 = it->FirstChildElement("annotation"); it2; it2 = it2->NextSiblingElement("annotation")) {
+	  auto row_text = it2->Attribute("row");
+	  if (row_text) {
+	    int row = atoi(row_text);
+	    auto s = it2->GetText();
+	    pattern.setAnnotation(row, s ? s : "");
+	  }
 	}
       }
     }
