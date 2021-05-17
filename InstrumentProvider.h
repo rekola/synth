@@ -1,4 +1,3 @@
-
 #ifndef _INSTRUMENTPROVIDER_H_
 #define _INSTRUMENTPROVIDER_H_
 
