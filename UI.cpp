@@ -162,8 +162,8 @@ UI::handleLogEvent(LogEvent & ev) {
 
 
 void audio_thread_func(Controller * controller, AudioAPI * audio) {
-  Player player;
-  player.play(*controller, *audio);
+  Player player(audio->getFrequency(), controller);
+  player.play(*audio);
 }
 
 void

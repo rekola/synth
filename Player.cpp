@@ -2,9 +2,9 @@
 #include "PlaybackEvent.h"
 #include "AudioAPI.h"
 #include "Controller.h"
-#include "SongState.h"
 #include "LogEvent.h"
 #include "Logger.h"
+#include "Tuner.h"
 
 using namespace std;
 
@@ -21,14 +21,48 @@ private:
 };
 
 void
-Player::play(Controller & controller, AudioAPI & audio) {
-  EventLogger logger(&(controller.getUIEventQueue()));
+Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
+  auto & song = controller->getSong();
+  auto & tracks = song.getChildren();
+
+  switch (ev.getType()) {
+  case PlaybackControlEvent::PLAY_NOTE:
+    {
+      auto track_idx = ev.getParameter1();
+      auto column = ev.getParameter2();
+      auto midi_note = ev.getParameter3();
+      
+      auto & track = tracks[track_idx];
+      if (track->getInstrumentId() < song.getInstruments().size()) {
+	auto & instrument = song.getInstrument(track->getInstrumentId());
+	auto & track_state = state.getTrackState(track_idx);
+	
+	auto [ pattern_idx, row_idx ] = state.getRelativePosition(song);
+	auto & pattern = song.getPattern(pattern_idx);
+	
+	Tuner tuner;
+	Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
+	Note note(midi_note);
+	
+	int key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
+	float frequency = tuner.getFrequency(tuning, key, note);
+	instrument.playNote(column, frequency, note.getVelocity() / 127.0f, 0.0f, track->getDetune(), track_state.getVoices());
+      }
+    }
+    break;
+  default:
+    break;
+  }
+
+  state.handleEvent(ev);
+}
+
+void
+Player::play(AudioAPI & audio) {
+  EventLogger logger(&(controller->getUIEventQueue()));
   
-  auto & event_queue = controller.getPlaybackEventQueue();
-    
-  SongState state(audio.getFrequency());
-  // controller.setSongState(state);
-  
+  auto & event_queue = controller->getPlaybackEventQueue();
+      
   size_t num_playback_desc = audio.getPlaybackDescriptors().size();
   size_t num_capture_desc = audio.getCaptureDescriptors().size();
   size_t num_descriptors = 1 + num_playback_desc + num_capture_desc;
@@ -48,7 +82,7 @@ Player::play(Controller & controller, AudioAPI & audio) {
 
   audio.startRecording();
 
-  auto & song = controller.getSong();
+  auto & song = controller->getSong();
   
   while ( 1 ) {
     if (poll(descriptors.get(), num_descriptors, 1000) > 0) {
@@ -57,20 +91,20 @@ Player::play(Controller & controller, AudioAPI & audio) {
 	if (d.revents) {
 	  if (i == 0) {
 	    auto event = event_queue.pop();
-	    state.handleEvent(*event);
+	    handleEvent(*event);
 	    while ( event_queue.hasEvents() ) {
 	      auto event = event_queue.pop();	      
-	      state.handleEvent(*event);
+	      handleEvent(*event);
 	    }
 	    auto ev = createPlaybackEvent(song, state);
-	    controller.getUIEventQueue().push(move(ev));
+	    controller->getUIEventQueue().push(move(ev));
 	  } else if (i - 1 < num_playback_desc) {
 	    auto data = song.render(audio.getFrameCount(), state);
 	    audio.play(data, logger);
 	    auto ev = createPlaybackEvent(song, state);
 	    ev->setData(data);
 	    ev->setLoudness(data.calculateLoudness());
-	    controller.getUIEventQueue().push(move(ev));
+	    controller->getUIEventQueue().push(move(ev));
 	  } else {
 	    auto data = audio.record(logger);
 #if 0

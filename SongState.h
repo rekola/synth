@@ -35,8 +35,6 @@ class SongState : public EventHandler {
 	if (it != track_states.end()) it->second->getVoices().clear();
       }
       break;
-    case PlaybackControlEvent::PLAY_NOTE:
-      break;
     case PlaybackControlEvent::STOP_NOTE:
       {
 	auto it = track_states.find(ev.getParameter1());
@@ -45,7 +43,7 @@ class SongState : public EventHandler {
 	  track_state->getVoices().stopNote(ev.getParameter2());
 	}
       }
-      break;
+      break;      
     default:
       break;
     }

@@ -266,17 +266,7 @@ PatternEditor::offerInput(const UIInput & input) {
 	if (note.isOff()) {
 	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, current_score_cursor_col, note_column));
 	} else {
-#if 0
-	  auto & track = tracks[current_score_cursor_col];
-	  if (track->getInstrumentId() < song.getInstruments().size()) {
-	    auto & instrument = song.getInstrument(track->getInstrumentId());
-	    Tuner tuner;
-	    Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
-	    int key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
-	    float frequency = tuner.getFrequency(tuning, key, note);
-	    instrument.playNote(note_column, frequency, note.getVelocity() / 127.0f, 0.0f, track->getDetune(), track_state.getVoices());
-	  }
-#endif
+	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, current_score_cursor_col, note_column, midi_note));
 	}
       }
       
