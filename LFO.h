@@ -3,12 +3,12 @@
 
 class LFO {
  public:
-  enum Type { NONE = 0, SAW, SINE };
+  enum Type { NONE = 0, TRIANGLE, SQUARE, SAW, SINE };
   
   LFO() : type(NONE), samplesUntil(0), delta(0), level(0) { }
   
   LFO(float delay, float frequency, float outSampleRate)
-    : type(SAW),
+    : type(TRIANGLE),
       samplesUntil((int)(delay * outSampleRate)),
       delta(4.0f * frequency / outSampleRate),
       level(0)
