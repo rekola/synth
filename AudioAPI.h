@@ -12,7 +12,7 @@ class AudioAPI {
   explicit AudioAPI(unsigned int _frequency, unsigned short _channels) : frequency(_frequency), channels(_channels) { }
   virtual ~AudioAPI() { }
   
-  virtual void play(SampleData & data, Logger & logger) = 0;
+  virtual void play(const SampleData & data, Logger & logger) = 0;
   virtual SampleData record(Logger & logger) = 0;
   virtual size_t getFrameCount() const = 0;
   virtual void startRecording() = 0;

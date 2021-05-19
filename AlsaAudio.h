@@ -12,7 +12,7 @@ class AlsaAudio : public AudioAPI {
 
   void initialize(Logger & logger);
 
-  void play(SampleData & data, Logger & logger) override;
+  void play(const SampleData & data, Logger & logger) override;
   SampleData record(Logger & logger) override;
   size_t getFrameCount() const override { return output_frames; }
   void startRecording() override;

@@ -163,7 +163,7 @@ AlsaAudio::getPollDescriptors(snd_pcm_t * handle) {
 }
   
 void
-AlsaAudio::play(SampleData & data, Logger & logger) {
+AlsaAudio::play(const SampleData & data, Logger & logger) {
   int r;
   if ((r = snd_pcm_writei(pcm_handle, data.data(), data.size())) == -EPIPE) {
     logger.log("XRUN.");
