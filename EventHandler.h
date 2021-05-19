@@ -6,6 +6,7 @@
 class PlaybackEvent;
 class PlaybackControlEvent;
 class LogEvent;
+class RecordEvent;
 
 class EventHandler {
  public:
@@ -17,6 +18,7 @@ class EventHandler {
   virtual void handlePlaybackEvent(PlaybackEvent & ev) { }
   virtual void handlePlaybackControlEvent(PlaybackControlEvent & ev) { }
   virtual void handleLogEvent(LogEvent & ev) { }
+  virtual void handleRecordEvent(RecordEvent & ev) { }
 };
 
 #endif

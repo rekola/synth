@@ -1,10 +1,12 @@
 #include "Player.h"
-#include "PlaybackEvent.h"
 #include "AudioAPI.h"
 #include "Controller.h"
-#include "LogEvent.h"
 #include "Logger.h"
 #include "Tuner.h"
+
+#include "LogEvent.h"
+#include "PlaybackEvent.h"
+#include "RecordEvent.h"
 
 using namespace std;
 
@@ -101,18 +103,14 @@ Player::play(AudioAPI & audio) {
 	  } else if (i - 1 < num_playback_desc) {
 	    auto data = song.render(audio.getFrameCount(), state);
 	    audio.play(data, logger);
+	    
 	    auto ev = createPlaybackEvent(song, state);
 	    ev->setData(data);
 	    ev->setLoudness(data.calculateLoudness());
 	    controller->getUIEventQueue().push(move(ev));
 	  } else {
 	    auto data = audio.record(logger);
-#if 0
-	    if (getController().isRecording()) {
-	      setStatus(format("recorded {} frames", data.size()));
-	      getController().addToSample(data);
-	    }
-#endif
+	    controller->getUIEventQueue().push(make_unique<RecordEvent>(data));
 	  }
 	}
       }

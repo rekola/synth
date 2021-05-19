@@ -38,10 +38,12 @@ class UI : public UIElement {
 
   void start(AudioAPI & audio); 
   void setStatus(std::string s);
-  bool offerInput(const UIInput & input);
+  
+  bool offerInput(const UIInput & input) override;
 
-  void handlePlaybackEvent(PlaybackEvent & ev);
-  void handleLogEvent(LogEvent & ev);
+  void handlePlaybackEvent(PlaybackEvent & ev) override;
+  void handleLogEvent(LogEvent & ev) override;
+  void handleRecordEvent(RecordEvent & ev) override;
 
 protected:
   virtual void startUI() = 0;

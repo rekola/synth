@@ -11,6 +11,7 @@
 
 #include "PlaybackEvent.h"
 #include "LogEvent.h"
+#include "RecordEvent.h"
 
 #include <fmt/core.h>
 #include <thread>
@@ -145,21 +146,18 @@ UI::handlePlaybackEvent(PlaybackEvent & ev) {
   ev.redraw();
 }
 
-#if 0
 void
-UI::handleRecordEvent(RecordEvent & ev) {  
+UI::handleRecordEvent(RecordEvent & ev) {
   if (getController().isRecording()) {
-    setStatus(format("recorded {} frames", data.size()));
-    getController().addToSample(data);
+    setStatus(format("recorded {} frames", ev.getData().size()));
+    getController().addToSample(ev.getData());
   }
 }
-#endif
 
 void
 UI::handleLogEvent(LogEvent & ev) {
   setStatus(ev.getText());
 }
-
 
 void audio_thread_func(Controller * controller, AudioAPI * audio) {
   Player player(audio->getFrequency(), controller);
