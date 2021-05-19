@@ -276,7 +276,7 @@ Song::render(size_t frames, SongState & state) {
 		frequency = velocity = 0.0f;
 	      } else {
 		frequency = tuner.getFrequency(tuning, key, note);
-		velocity = note.getVelocityAsFloat() * getRandomizationFactor() * rand() / RAND_MAX;
+		velocity = note.getVelocityAsFloat() * (1 + getRandomizationFactor() * rand() / RAND_MAX);
 	      }
 	      float delay = getRandomizationFactor() * rand() / RAND_MAX;
 	      track_events.addPendingEvent(col, i, int(j), delay, frequency, velocity);
