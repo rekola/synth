@@ -350,7 +350,15 @@ TerminalUI::readInput() {
 
 void
 TerminalUI::startUI() {
-  size_t num_descriptors = 2;
+  int out_pipe[2];
+
+  if (pipe(out_pipe) != 0) { // make a pipe
+    exit(1);
+  }
+  dup2(out_pipe[1], STDERR_FILENO); // redirect stderr to the pipe
+  close(out_pipe[1]);
+  
+  size_t num_descriptors = 3;
   auto descriptors = std::make_unique<pollfd[]>(num_descriptors);
   
   descriptors[0].fd = nc->get_inputready_fd();
@@ -359,10 +367,15 @@ TerminalUI::startUI() {
   descriptors[1].fd = getController().getUIEventQueue().getPollFd();
   descriptors[1].events = POLLIN;
 
+  descriptors[2].fd = out_pipe[0];
+  descriptors[2].events = POLLIN;
+
   // setStatus("Starting... nd = " + to_string(num_descriptors));
 
   time_t prev_update = 0;
   renderComponents(true);
+
+  string waiting_stderr;
   
   while ( !close_ui ) {
     bool render = false;
@@ -382,6 +395,19 @@ TerminalUI::startUI() {
 	      auto event = getController().getUIEventQueue().pop();	      
 	      handleEvent(*event);
 	      if (event->needRedraw()) render = true;
+	    }
+	  } else if (i == 2) {
+	    char buffer[4096];
+	    int r = read(out_pipe[0], buffer, 4096);
+	    waiting_stderr += string(buffer, r);
+	    while ( 1 ) {
+	      auto pos = waiting_stderr.find('\n');
+	      if (pos != string::npos) {
+		setStatus(waiting_stderr.substr(0, pos));
+		waiting_stderr.erase(0, pos + 1);
+	      } else {
+		break;
+	      }
 	    }
 	  }
 	}
