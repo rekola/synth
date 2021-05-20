@@ -23,13 +23,13 @@ protected:
   
   size_t current_score_playing_row = 0;
   size_t current_score_pattern = 0;
-  size_t current_score_cursor_col = 0;
+  size_t current_score_cursor_track = 0, current_score_cursor_col = 0, current_score_cursor_subcol = 0;
   size_t current_score_total_columns = 0;
-  size_t current_scroll_row = 0, current_scroll_col = 0;
+  size_t current_scroll_row = 0, current_scroll_track = 0, current_scroll_col = 0;
   Tuning current_tuning = Tuning::INHERIT;
   int current_tempo = 0, current_key = 0;
   
-  size_t new_score_cursor_col = 0;
+  size_t new_score_cursor_track = 0, new_score_cursor_col = 0, new_score_cursor_subcol = 0;
 
   int edit_step_size = 1, new_edit_step_size = 1;
   bool row_edited = false;

@@ -60,6 +60,20 @@ class Song : public Track {
 
   SampleData render(size_t frames, SongState & state);
 
+  const std::vector<size_t> getTrackWidths(size_t pattern_idx) const {
+    std::vector<size_t> r;
+    if (pattern_idx < patterns.size()) r = patterns[pattern_idx].getTrackWidths();
+    while (r.size() < getChildren().size()) r.push_back(0);
+    
+    // at least one note column + one effect column
+    for (auto & w : r) {
+      if (w == 0) w++;
+      w++;
+    }
+
+    return r;
+  }
+
 private:
   Tuning tuning;
   short key_note_number;

@@ -3,6 +3,7 @@
 
 #include "Note.h"
 #include "Tuning.h"
+#include "Command.h"
 
 #define DEFAULT_PATTERN_LENGTH 32
 
@@ -68,6 +69,21 @@ class Pattern {
     }
     return empty_notes;
   }
+
+  void setCommand(size_t track, size_t row, Command command) {
+    commands[track][row] = command;
+  }
+
+  const Command & getCommand(size_t track, size_t row) const {
+    auto it = commands.find(track);
+    if (it != commands.end()) {
+      auto it2 = it->second.find(row);
+      if (it2 != it->second.end()) {
+	return it2->second;
+      }
+    }
+    return empty_command;
+  }
   
   const std::vector<size_t> getTrackWidths() const {
     std::vector<size_t> r;
@@ -102,10 +118,13 @@ private:
   std::string name;
   // sparse note matrix: row, track, note_column
   std::unordered_map<unsigned short, std::unordered_map<unsigned short, std::vector<Note> > > notes;
+  std::unordered_map<unsigned short, std::string> annotations;
+  std::unordered_map<unsigned short, std::unordered_map<unsigned short, Command> > commands;
+
   Note empty_note;
   std::vector<Note> empty_notes;
-  std::unordered_map<unsigned short, std::string> annotations;
   std::string empty_string;
+  Command empty_command;
 };
 
 #endif

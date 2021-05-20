@@ -141,6 +141,20 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	    pattern.setAnnotation(row, s ? s : "");
 	  }
 	}
+
+	for (auto it2 = it->FirstChildElement("command"); it2; it2 = it2->NextSiblingElement("command")) {
+	  auto track_text = it2->Attribute("track");
+	  auto row_text = it2->Attribute("row");
+	  auto data_text = it2->Attribute("data");
+
+	  int track = track_text ? atoi(track_text) : 0;
+	  int row = row_text ? atoi(row_text) : 0;
+
+	  if (data_text) {
+	    Command command(data_text);
+	    pattern.setCommand(track, row, command);
+	  }
+	}	
       }
     }
   }
@@ -209,7 +223,16 @@ Song::save(const std::string & filename) const {
 	  note_element->SetAttribute("velocity", note.getVelocity());
 	  note_element->SetAttribute("value", note_text.c_str());
 	  pattern_element->InsertEndChild(note_element);
-  	}
+	}
+	
+	auto & command = pattern.getCommand(track, row);
+	if (command.isDefined()) {
+	  string data = command.toString();	  
+	  
+	  XMLElement * command_element = doc.NewElement("command");
+	  command_element->SetAttribute("data", data.c_str());
+	  pattern_element->InsertEndChild(command_element);
+	}
       }
 
       auto & annotation = pattern.getAnnotation(row);
