@@ -9,7 +9,7 @@
 
 class Note {
  public:  
-  explicit Note() : value(-1), velocity(0x3f) { }
+  explicit Note() : value(-1), velocity(0) { }
   explicit Note(int _value, short _velocity = 0x3f) : value(_value), velocity(_velocity) { }
   explicit Note(std::string input_value, short _velocity = 0x3f, Tuning tuning = Tuning::TET12)
     : value(stringToKey(tuning, input_value)),
@@ -21,6 +21,11 @@ class Note {
   bool isDefined() const { return value >= 0; }
   bool isOff() const { return value == 0 || velocity == 0; }
 
+  void clear() {
+    value = -1;
+    velocity = 0;
+  }
+  
   static void inline replace(std::string & data, const std::string from, std::string to) {
     std::string::size_type pos = 0;
     while ( 1 ) {
