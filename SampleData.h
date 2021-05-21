@@ -3,6 +3,7 @@
 
 #include <cstring>
 #include <cmath>
+#include <cassert>
 
 class SampleData {
  public:
@@ -45,8 +46,12 @@ class SampleData {
   bool empty() const { return frames == 0; }
   
   void append(const SampleData & other) {
-    if (!other.size()) return;
-    
+    if (other.empty()) return;
+    if (empty()) {
+      channels = other.channels;
+    } else {
+      assert(channels == other.channels);
+    }
     float * new_data = new float[2 * (size() + other.size())];
     if (frames) memcpy(new_data, _data, channels * frames * sizeof(float));
     delete[] _data;
@@ -66,6 +71,7 @@ class SampleData {
   void shortenToPowerofTwo() {
     size_t new_size = 1;
     for ( ; new_size * 2 <= frames; new_size *= 2) { }
+    frames = new_size;
   }
 
   std::pair<float, float> calculateLoudness() const {
