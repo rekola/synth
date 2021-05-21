@@ -39,8 +39,21 @@ class Pattern {
     return index;
   }
 
-  void deleteNote(size_t track, size_t row) {
-    notes[track].erase(row);
+  void deleteNote(size_t track, size_t row, size_t column) {
+    auto it = notes.find(track);
+    if (it != notes.end()) {
+      auto it2 = it->second.find(row);
+      if (it2 != it->second.end()) {
+	auto & nv = it2->second;
+	if (column == 0 && nv.size() == 1) {
+	  it->second.erase(it2);
+	} else if (column + 1 == nv.size()) {
+	  nv.pop_back();
+	} else if (column < nv.size()) {
+	  nv[column].clear();
+	}
+      }
+    }
   }
 
   const std::unordered_map<unsigned short, std::unordered_map<unsigned short, std::vector<Note> > > & getNotes() const {
