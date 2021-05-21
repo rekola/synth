@@ -268,7 +268,7 @@ PatternEditor::offerInput(const UIInput & input) {
     auto & pattern = song.getPattern(info.getPatternIndex());
 
     if (new_score_cursor_col + 1 == num_columns) {
-      if ((input.getId() >= 'a' && input.getId() <= 'z') || (input.getId() >= '0' || input.getId() <= '9') || input.getId() == '-') {
+      if ((input.getId() >= 'a' && input.getId() <= 'z') || (input.getId() >= '0' && input.getId() <= '9') || input.getId() == '-') {
 	auto command = pattern.getCommand(new_score_cursor_track, info.getRowIndex());
 	command.updateData(new_score_cursor_subcol, toupper(input.getId()));
 	pattern.setCommand(new_score_cursor_track, info.getRowIndex(), command);
@@ -289,7 +289,8 @@ PatternEditor::offerInput(const UIInput & input) {
       bool is_delete = input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE;
       if (is_delete || midi_note >= 0) {
 	if (is_delete) {
-	  pattern.deleteNote(current_score_cursor_track, info.getRowIndex());
+	  pattern.deleteNote(current_score_cursor_track, info.getRowIndex(), current_score_cursor_col);
+	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, current_score_cursor_track, current_score_cursor_col));
 	} else {
 	  Note note(midi_note);
 	  
@@ -297,17 +298,17 @@ PatternEditor::offerInput(const UIInput & input) {
 	  if (input.hasShift()) {
 	    note_column = pattern.pushNote(current_score_cursor_track, info.getRowIndex(), note);
 	  } else {
-	    pattern.setNote(current_score_cursor_track, info.getRowIndex(), 0, note);
+	    pattern.setNote(current_score_cursor_track, info.getRowIndex(), current_score_cursor_col, note);
 	  }
-	  
-	  row_edited = true;
-	  
+	  	  
 	  if (note.isOff()) {
 	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, current_score_cursor_track, note_column));
 	  } else {
 	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, current_score_cursor_track, note_column, midi_note));
 	  }
 	}
+
+	row_edited = true;
 	
 	if (!info.isPlaying()) {
 	  int n = 0;
@@ -433,25 +434,42 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<size_t>
 	auto & command = pattern.getCommand(i, row);
 	auto track_columns = track_widths[i];
 
-	for (size_t k = 0; k < track_columns; k++) {
-	  if (highlight && i == (int)current_score_cursor_track && k == current_score_cursor_col) {
-	    cell_fg = UIColor("#000000");
-	    cell_bg = UIColor("#a0ffa0");
-	  } else {
-	    cell_fg = fg;
-	    cell_bg = bg;
-	  }
-      
-	  setFgColor(cell_fg);
-	  setBgColor(cell_bg);
-
+	for (size_t k = 0; k < track_columns; k++) {      
 	  if (k == track_columns - 1) { // effect column
-	    putstr(3 + row - current_scroll_row, current_pos, " " + command.toString());
+	    putstr(3 + row - current_scroll_row, current_pos, " ");
+	    current_pos++;
+	    for (size_t l = 0; l < 4; l++) {
+	      if (highlight && i == (int)current_score_cursor_track && k == current_score_cursor_col && l == current_score_cursor_subcol) {
+		cell_fg = UIColor("#000000");
+		cell_bg = UIColor("#a0ffa0");
+	      } else {
+		cell_fg = fg;
+		cell_bg = bg;
+	      }
+	      setFgColor(cell_fg);
+	      setBgColor(cell_bg);
+
+	      string s;
+	      s += command.data()[l];
+	      putstr(3 + row - current_scroll_row, current_pos, s);
+	      current_pos++;
+	    }
+	    
 	    setFgColor(styles.window_border_color);
 	    setBgColor(bg);
-	    putstr(3 + row - current_scroll_row, current_pos + 5, "│");	
-	    current_pos += 6;
+	    putstr(3 + row - current_scroll_row, current_pos, "│");
+	    current_pos++;
 	  } else {
+	    if (highlight && i == (int)current_score_cursor_track && k == current_score_cursor_col) {
+	      cell_fg = UIColor("#000000");
+	      cell_bg = UIColor("#a0ffa0");
+	    } else {
+	      cell_fg = fg;
+	      cell_bg = bg;
+	    }
+	    setFgColor(cell_fg);
+	    setBgColor(cell_bg);
+
 	    if (track->getType() == Track::SAMPLE) {
 	      putstr(3 + row - current_scroll_row, current_pos, "      ");
 	    } else {
