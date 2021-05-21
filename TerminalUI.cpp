@@ -1,6 +1,6 @@
 #include "TerminalUI.h"
 
-#include "UIInput.h"
+#include "InputEvent.h"
 #include "Controller.h"
 #include "UIMenu.h"
 #include "Chart.h"
@@ -29,7 +29,7 @@ using namespace ncpp;
 using namespace std;
 using namespace fmt;
 
-static inline ncinput to_ncinput(const UIInput & input) {
+static inline ncinput to_ncinput(const InputEvent & input) {
   ncinput ni = { .id = input.getId(), .y = input.getY(), .x = input.getX(), .alt = input.hasAlt(), .shift = input.hasShift(), .ctrl = input.hasCtrl(), .seqnum = input.getSeqnum() };
   return ni;
 }
@@ -188,7 +188,7 @@ public:
 
   }
 
-  bool offerInput(const UIInput & input) override {
+  bool offerInput(const InputEvent & input) override {
     if (reader) {
       auto ni = to_ncinput(input);
       ncreader_offer_input(reader, &ni);
@@ -235,7 +235,7 @@ public:
     menu = make_unique<Menu>(&mopts);    
   }
 
-  bool offerInput(const UIInput & input) override {
+  bool offerInput(const InputEvent & input) override {
     auto ni = to_ncinput(input);
     auto r = menu->offer_input(&ni);
     auto s = menu->get_selected();
@@ -341,7 +341,7 @@ TerminalUI::readInput() {
       id = tolower(id);
       shift = true;
     }
-    UIInput input(ni.seqnum, id, ni.y, ni.x, ni.alt, shift, ni.ctrl);
+    InputEvent input(ni.seqnum, id, ni.y, ni.x, ni.alt, shift, ni.ctrl);
     offerInput(input);
   }
 

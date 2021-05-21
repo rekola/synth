@@ -1,6 +1,6 @@
 #include "PatternEditor.h"
 
-#include "UIInput.h"
+#include "InputEvent.h"
 #include "SongState.h"
 #include "Controller.h"
 #include "StyleProvider.h"
@@ -131,7 +131,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
 }
 
 bool
-PatternEditor::offerInput(const UIInput & input) {
+PatternEditor::offerInput(const InputEvent & input) {
   auto & song = getController().getSong();
   auto & info = getController().getPlaybackInfo();
   auto & tracks = song.getChildren();

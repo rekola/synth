@@ -11,7 +11,7 @@ class InstrumentList : public UIElement {
 
   }
 
-  bool offerInput(const UIInput & input) override;
+  bool offerInput(const InputEvent & input) override;
   bool render(const StyleProvider & styles, bool refresh = false);
 
 protected:

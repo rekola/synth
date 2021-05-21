@@ -1,5 +1,5 @@
-#ifndef _UIINPUT_H_
-#define _UIINPUT_H_
+#ifndef _INPUTEVENT_H_
+#define _INPUTEVENT_H_
 
 #include "Tuning.h"
 
@@ -33,10 +33,12 @@
 
 #endif
   
-class UIInput {
+class InputEvent : public Event {
  public:
-  UIInput(size_t _seqnum, int _id, int _y, int _x, bool _alt, bool _shift, bool _ctrl)
+  InputEvent(size_t _seqnum, int _id, int _y, int _x, bool _alt, bool _shift, bool _ctrl)
     : seqnum(_seqnum), id(_id), y(_y), x(_x), alt(_alt), shift(_shift), ctrl(_ctrl) { }
+
+  void dispatch(EventHandler & evh) override { evh.handleInputEvent(*this); }
 
   size_t getSeqnum() const { return seqnum; }
   int getId() const { return id; }

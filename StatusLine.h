@@ -2,7 +2,7 @@
 #define _STATUSLINE_H_
 
 #include "UIElement.h"
-#include "UIInput.h"
+#include "InputEvent.h"
 
 class StatusLine : public UIElement {
  public:
@@ -17,7 +17,7 @@ class StatusLine : public UIElement {
     }
   }
 
-  bool offerInput(const UIInput & input) override {
+  bool offerInput(const InputEvent & input) override {
     if (getPlane().readerActive()) {
       if (input.getId() == NCKEY_ENTER) {
 	std::string cmd = closeReader();

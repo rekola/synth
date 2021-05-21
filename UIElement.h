@@ -9,8 +9,6 @@
 #include <cstddef>
 #include <memory>
 
-class UIInput;
-
 class UIElement : public EventHandler {
  public:
   explicit UIElement() { }
@@ -19,7 +17,7 @@ class UIElement : public EventHandler {
   }
   virtual ~UIElement() { }  
 
-  virtual bool offerInput(const UIInput & input) {
+  virtual bool offerInput(const InputEvent & input) {
     if (plane) {
       return plane->offerInput(input);
     } else {

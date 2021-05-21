@@ -40,7 +40,7 @@ class UI : public UIElement {
   void start(AudioAPI & audio); 
   void setStatus(std::string s);
   
-  bool offerInput(const UIInput & input) override;
+  bool offerInput(const InputEvent & input) override;
 
   void handlePlaybackEvent(PlaybackEvent & ev) override;
   void handleLogEvent(LogEvent & ev) override;

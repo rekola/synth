@@ -2,7 +2,7 @@
 
 #include "Controller.h"
 #include "Song.h"
-#include "UIInput.h"
+#include "InputEvent.h"
 #include "StyleProvider.h"
 
 #include <fmt/core.h>
@@ -65,7 +65,7 @@ InstrumentList::renderRow(const StyleProvider & styles, size_t row, bool highlig
 }
 
 bool
-InstrumentList::offerInput(const UIInput & input) {
+InstrumentList::offerInput(const InputEvent & input) {
   auto & song = getController().getSong();
   auto [rows, cols] = getDim();
   size_t num_instruments = song.getInstruments().size();

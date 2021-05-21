@@ -7,7 +7,7 @@
 #include <vector>
 
 class Synth;
-class UIInput;
+class InputEvent;
 class StyleProvider;
 
 class PatternEditor : public UIElement {
@@ -15,7 +15,7 @@ class PatternEditor : public UIElement {
   PatternEditor(UIPlane & parent);
 
   bool render(const StyleProvider & styles, bool refresh = false);
-  bool offerInput(const UIInput & input) override;
+  bool offerInput(const InputEvent & input) override;
 
 protected:
   void renderHeading(const StyleProvider & styles, const std::vector<size_t> & track_widths);

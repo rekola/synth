@@ -73,7 +73,7 @@ UI::tryActivate(int y, int x, std::shared_ptr<UIElement> element) {
 }
 
 bool
-UI::offerInput(const UIInput & input) {
+UI::offerInput(const InputEvent & input) {
   // if (ni.ctrl && ni.id == 'L') notcurses_refresh(*nc, NULL, NULL);
   // if (ni.ctrl && (ni.id == 'q' || ni.id == 'Q')) close_ui = true;
   bool handled = false;
