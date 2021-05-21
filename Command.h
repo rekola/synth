@@ -6,34 +6,36 @@
 class Command {
  public:
   Command() {
-    data[0] = '-';
-    data[1] = '-';
-    data[2] = '-';
-    data[3] = '-';
+    values[0] = '-';
+    values[1] = '-';
+    values[2] = '-';
+    values[3] = '-';
   }
 
-  Command(const char * _data) {
-    data[0] = _data[0];
-    data[1] = _data[1];
-    data[2] = _data[2];
-    data[3] = _data[3];
+  Command(const char * _values) {
+    values[0] = _values[0];
+    values[1] = _values[1];
+    values[2] = _values[2];
+    values[3] = _values[3];
   }
 
-  void updateData(size_t i, char c) { if (i < 4) data[i] = c; }
+  void updateData(size_t i, char c) { if (i < 4) values[i] = c; }
   
-  bool isDefined() const { return data[0] != '-' || data[1] != '-' || data[2] != '-' || data[3] != '-'; }
+  bool isDefined() const { return values[0] != '-' || values[1] != '-' || values[2] != '-' || values[3] != '-'; }
 
   std::string toString() const {
     std::string s;
-    s += data[0];
-    s += data[1];
-    s += data[2];
-    s += data[3];
+    s += values[0];
+    s += values[1];
+    s += values[2];
+    s += values[3];
     return s;
   }
+
+  const char * data() const { return &(values[0]); }
   
  private:
-  char data[4];
+  char values[4];
 };
 
 #endif
