@@ -2,12 +2,9 @@
 #define _TERMINALUI_H_
 
 #include "UI.h"
-#include "SampleData.h"
 
 #include <ncpp/NotCurses.hh>
 #include <memory>
-
-class AudioAPI;
 
 namespace ncpp {
   class NotCurses;
@@ -25,13 +22,10 @@ class TerminalUI : public UI {
 
 protected:
   void startUI() override;
-
   bool readInput();
 
 private:
   std::unique_ptr<ncpp::NotCurses> nc;
-  
-  SampleData waiting_data;
 };
 
 #endif
