@@ -45,12 +45,10 @@ class Pattern {
       auto it2 = it->second.find(row);
       if (it2 != it->second.end()) {
 	auto & nv = it2->second;
-	if (column == 0 && nv.size() == 1) {
-	  it->second.erase(it2);
-	} else if (column + 1 == nv.size()) {
-	  nv.pop_back();
-	} else if (column < nv.size()) {
+	if (column < nv.size()) {
 	  nv[column].clear();
+	  while (!nv.empty() && !nv.back().isDefined()) nv.pop_back();
+	  if (nv.empty()) it->second.erase(it2);
 	}
       }
     }
