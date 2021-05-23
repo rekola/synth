@@ -5,7 +5,6 @@ OBJS = main.o \
 	FileInstrument.o \
 	TerminalUI.o \
 	Chart.o \
-	PatternEditor.o \
 	Controller.o \
 	FMInstrument.o \
 	InstrumentList.o \
@@ -13,12 +12,14 @@ OBJS = main.o \
 	Song.o \
 	HRFT.o \
 	Track.o \
+	InstrumentTrack.o \
 	tinyxml2.o \
 	Filter.o \
 	Delay.o \
 	Distortion.o \
 	Reverb.o \
-	Player.o
+	Player.o \
+	PatternEditor.o
 
 CC = g++
 

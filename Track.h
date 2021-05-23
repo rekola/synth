@@ -1,28 +1,31 @@
 #ifndef _TRACK_H_
 #define _TRACK_H_
 
-#include "TreeElement.h"
-#include "Note.h"
-#include "Instrument.h"
-#include "SampleData.h"
-#include "Effect.h"
-#include "SampleData.h"
-#include "TrackEvent.h"
-
+#include <string>
 #include <vector>
 #include <memory>
 #include <map>
 
 class TrackState;
+class TrackEvent;
+class Instrument;
+class SampleData;
 
-class Track : public TreeElement {
+namespace tinyxml2 {
+  class XMLElement;
+};
+
+class Track {
  public:
-  enum Type { GROUP = 1, SEQUENCER, SAMPLE, SUBSONG };
-
-  Track(Type _type = SEQUENCER) : type(_type) { }
-
-  Type getType() { return type; }
+  enum Type { MASTER = 1, GROUP, INSTRUMENT, EFFECT, SAMPLE, SUBSONG };
+  Track(Type _type) : type(_type) { }
+  virtual ~Track() { }
   
+  virtual SampleData render(size_t frames, TrackState & state, const std::vector<std::unique_ptr<Instrument> > & instruments, std::map<unsigned int, std::vector<TrackEvent> > & pending_events) = 0;
+  virtual void populateXML(tinyxml2::XMLElement & element) const;
+    
+  Type getType() { return type; }
+
   float getVolume() const { return volume; }
   void setVolume(float _volume) { volume = _volume; }
 
@@ -32,30 +35,6 @@ class Track : public TreeElement {
   bool isMuted() const { return mute; }
   void setMute(bool m) { mute = m; }
 
-  int getInstrumentId() const { return instrument_id; }
-  void setInstrumentId(int id) { instrument_id = id; }
-  
-  float getDetune() const { return detune; }
-  void setDetune(float _detune) { detune = _detune; }
-  
-  SampleData render(size_t frames, TrackState & state, Instrument & instrument, std::map<unsigned int, std::vector<TrackEvent> > & pending_events);
-  
-  void setSample(std::shared_ptr<SampleData> _sample) { sample = _sample; }
-
-  void setName(std::string _name) { name = _name; }
-  const std::string & getName() const { return name; }
-
-  std::vector<std::unique_ptr<Track> > & getChildren() { return children; }
-  const std::vector<std::unique_ptr<Track> > & getChildren() const { return children; }
-
-  const Track & getChild(size_t i) const { return *(children[i]); }
-  Track & getChild(size_t i) { return *(children[i]); }
-  Track & addChild(std::unique_ptr<Track> track) { children.push_back(std::move(track)); return *(children.back()); }
-  Track & addChild(Track::Type type = Track::SEQUENCER) { return addChild(std::make_unique<Track>(type)); }
-
-  void addEffect(std::unique_ptr<Effect> effect) { effects.push_back(std::move(effect)); }
-  const std::vector<std::unique_ptr<Effect> > & getEffects() const { return effects; }
-
   void setElevation(float e) { elevation = e; }
   void setAzimuth(float a) { azimuth = a; }
   void setDistance(float d) { distance = d; }
@@ -63,19 +42,24 @@ class Track : public TreeElement {
   float getElevation() const { return elevation; }
   float getAzimuth() const { return azimuth; }
   float getDistance() const { return distance; }  
-    
-private:
+
+  void setName(std::string _name) { name = _name; }
+  const std::string & getName() const { return name; }
+
+  const Track & getChild(size_t i) const { return *(children[i]); }
+  Track & getChild(size_t i) { return *(children[i]); }
+  Track & addChild(std::unique_ptr<Track> track) { children.push_back(std::move(track)); return *(children.back()); }
+
+  std::vector<std::unique_ptr<Track> > & getChildren() { return children; }
+  const std::vector<std::unique_ptr<Track> > & getChildren() const { return children; }
+
+ private:
   Type type;
-  int instrument_id = 0;
-  bool solo = false, mute = false;
   float volume = 1.00f;
-  float detune = 0;
+  bool solo = false, mute = false;
+  float elevation = 0, azimuth = 0, distance = 0;
   std::string name;
   std::vector<std::unique_ptr<Track> > children;
-  std::shared_ptr<SampleData> sample;
-  float elevation = 0, azimuth = 0, distance = 0;
-
-  std::vector<std::unique_ptr<Effect> > effects;
 };
 
 #endif

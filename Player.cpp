@@ -3,6 +3,7 @@
 #include "Controller.h"
 #include "Logger.h"
 #include "Tuner.h"
+#include "InstrumentTrack.h"
 
 #include "LogEvent.h"
 #include "PlaybackEvent.h"
@@ -35,20 +36,24 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       auto midi_note = ev.getParameter3();
       
       auto & track = tracks[track_idx];
-      if (track->getInstrumentId() < song.getInstruments().size()) {
-	auto & instrument = song.getInstrument(track->getInstrumentId());
-	auto & track_state = state.getTrackState(track_idx);
+      if (track->getType() == Track::INSTRUMENT) {
+	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
 	
-	auto [ pattern_idx, row_idx ] = state.getRelativePosition(song);
-	auto & pattern = song.getPattern(pattern_idx);
+	if (instrument_track.getInstrumentId() < song.getInstruments().size()) {
+	  auto & instrument = song.getInstrument(instrument_track.getInstrumentId());
+	  auto & track_state = state.getTrackState(track_idx);
 	
-	Tuner tuner;
-	Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
-	Note note(midi_note);
+	  auto [ pattern_idx, row_idx ] = state.getRelativePosition(song);
+	  auto & pattern = song.getPattern(pattern_idx);
 	
-	int key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
-	float frequency = tuner.getFrequency(tuning, key, note);
-	instrument.playNote(column, frequency, note.getVelocity() / 127.0f, 0.0f, track->getDetune(), track_state.getVoices());
+	  Tuner tuner;
+	  Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
+	  Note note(midi_note);
+	  
+	  int key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
+	  float frequency = tuner.getFrequency(tuning, key, note);
+	  instrument.playNote(column, frequency, note.getVelocity() / 127.0f, 0.0f, instrument_track.getDetune(), track_state.getVoices());
+	}
       }
     }
     break;

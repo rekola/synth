@@ -12,6 +12,7 @@
 #include "SongState.h"
 // #include "Compressor.h"
 #include "Filter.h"
+#include "InstrumentTrack.h"
 
 #include "default_song.h"
 
@@ -39,21 +40,19 @@ Controller::loadDemo7() {
   song->addInstrument(move(bd));
 #endif
   
-  auto & track = song->addChild();
+  auto & track = song->addChild(make_unique<InstrumentTrack>(0));
   // track.addEffect(make_unique<Distortion>(DistortionType::TANH, 0, 0));
-  track.addEffect(make_unique<Reverb>(ReverbPreset::STADIUM));  
+  // track.addEffect(make_unique<Reverb>(ReverbPreset::STADIUM));  
   // track.setVolume(0.5f);
   track.setElevation(50);
   track.setAzimuth(30);
-  track.setInstrumentId(0);
   
-  auto & track2 = song->addChild();
-  track2.addEffect(make_unique<Distortion>(DistortionType::TANH, 0, 0));
-  track2.addEffect(make_unique<Reverb>(ReverbPreset::STADIUM));  
+  auto & track2 = song->addChild(make_unique<InstrumentTrack>(1));
+  // track2.addEffect(make_unique<Distortion>(DistortionType::TANH, 0, 0));
+  // track2.addEffect(make_unique<Reverb>(ReverbPreset::STADIUM));  
   // track2.setVolume(0.5f);
   track2.setElevation(50);
   track2.setAzimuth(-30);
-  track2.setInstrumentId(1);
 
   auto & pattern = song->addPattern(64);  
   pattern.setNote(0, 0, 0, Note(155));
@@ -80,48 +79,42 @@ Controller::loadDemo3() {
   // int melody_instrument = 10;
   int melody_instrument = 45;
   
-  auto & track = song->addChild();
-  track.addEffect(make_unique<Reverb>(ReverbPreset::STADIUM));
+  auto & track = song->addChild(make_unique<InstrumentTrack>(melody_instrument));
+  // track.addEffect(make_unique<Reverb>(ReverbPreset::STADIUM));
   // track.setVolume(0.5f);
   track.setElevation(50);
   track.setAzimuth(30);
-  track.setInstrumentId(melody_instrument);
 
-  auto & track2 = song->addChild();
-  track2.addEffect(make_unique<Reverb>(ReverbPreset::STADIUM));
+  auto & track2 = song->addChild(make_unique<InstrumentTrack>(melody_instrument));
+  // track2.addEffect(make_unique<Reverb>(ReverbPreset::STADIUM));
   // track2.setVolume(0.5f);
   track2.setElevation(0);
   track2.setAzimuth(0);
-  track2.setInstrumentId(melody_instrument);
   
-  auto & track3 = song->addChild();
-  track3.addEffect(make_unique<Reverb>(ReverbPreset::STADIUM));
+  auto & track3 = song->addChild(make_unique<InstrumentTrack>(melody_instrument));
+  // track3.addEffect(make_unique<Reverb>(ReverbPreset::STADIUM));
   // track3.setVolume(0.5f);
   track3.setElevation(-40);
   track3.setAzimuth(-30);
-  track3.setInstrumentId(melody_instrument);
 
-  auto & track4 = song->addChild();
-  track4.addEffect(make_unique<Reverb>(ReverbPreset::STADIUM));
+  auto & track4 = song->addChild(make_unique<InstrumentTrack>(33));
+  // track4.addEffect(make_unique<Reverb>(ReverbPreset::STADIUM));
   track4.setVolume(0.5f);
   track4.setElevation(90);
   track4.setAzimuth(0);
-  track4.setInstrumentId(33);
 
-  auto & track5 = song->addChild();
-  track5.addEffect(make_unique<Reverb>(ReverbPreset::STADIUM));
+  auto & track5 = song->addChild(make_unique<InstrumentTrack>(160));
+  // track5.addEffect(make_unique<Reverb>(ReverbPreset::STADIUM));
   // track5.setVolume(0.5f);
   track5.setElevation(-20);
   track5.setAzimuth(15);
-  track5.setInstrumentId(160);
-
-  auto & track6 = song->addChild();
-  track6.addEffect(make_unique<Reverb>(ReverbPreset::STADIUM));
+  
+  auto & track6 = song->addChild(make_unique<InstrumentTrack>(160));
+  // track6.addEffect(make_unique<Reverb>(ReverbPreset::STADIUM));
   // track6.setVolume(0.3f);
   track6.setElevation(90);
   track6.setAzimuth(0);
-  track6.setInstrumentId(160);
-
+  
   auto & pattern0 = song->addPattern(4);
   pattern0.setNote(3, 0, 0, Note("G-2", 0x50, Tuning::TET31));
 
@@ -199,10 +192,10 @@ Controller::loadDemo2() {
   oboe->setAmpEnvelope(Envelope(5 * 2 / 255.0f, 10 * 15 / 255.0f, 0.5f, 5 * 10 / 255.0f));
   song->addInstrument(move(oboe));  
 
-  auto & track = song->addChild();
+  auto & track = song->addChild(make_unique<InstrumentTrack>());
   // track.addEffect(make_unique<Chorus>(5.0f, 0.0f));
   // track.addEffect(make_unique<Filter>(63 / 255.0f, 128 / 63.0f, false));
-  track.addEffect(make_unique<Reverb>(ReverbPreset::DARK));
+  // track.addEffect(make_unique<Reverb>(ReverbPreset::DARK));
   track.setElevation(-30);
   track.setAzimuth(15);
   track.setVolume(0.5f);
@@ -789,14 +782,16 @@ Controller::loadDemo() {
 
   unordered_map<unsigned short, unordered_map<unsigned short, Note> > track_notes;
   for (int i = 0; i < ptrncnt; i++) {
-    auto & track = song->addChild();
-    track.setInstrumentId(*song_data++);
-    track.setDetune((*song_data++ - 127) / 512.0);
-    track.setAzimuth(*song_data++ / 360.0f - 180.0);
-    float volume = *song_data++ / 127.0f;
+    auto instrument_id = *song_data++;
+    auto detune = (*song_data++ - 127) / 512.0;
+    auto pan = *song_data++ / 255.0f;
+    auto volume = *song_data++ / 127.0f;
+
+    auto & track = song->addChild(make_unique<InstrumentTrack>(instrument_id, detune));
+    track.setAzimuth(pan - 0.5 * 360);
     track.setVolume(volume);
     if (volume > 1.0f) {
-      track.addEffect(make_unique<Distortion>(DistortionType::CLIP, 1.0f, 0.0f));
+      // track.addEffect(make_unique<Distortion>(DistortionType::CLIP, 1.0f, 0.0f));
     }
     
     for (size_t j = 0; ; j++) {
@@ -848,7 +843,7 @@ void
 Controller::createNewSong() {
   auto song = make_shared<Song>();
   
-  song->addChild();
+  song->addChild(make_unique<InstrumentTrack>());
   song->addPattern(64);
   
   current_song = song;

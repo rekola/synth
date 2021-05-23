@@ -4,6 +4,7 @@
 #include "TrackEventQueue.h"
 #include "SampleData.h"
 #include "Tuner.h"
+#include "InstrumentTrack.h"
 
 #include "SubtractiveInstrument.h"
 #include "GenericInstrument.h"
@@ -78,8 +79,6 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
     auto tracks = song->FirstChildElement("tracks");
     if (tracks) {
       for (auto it = tracks->FirstChildElement(); it ; it = it->NextSiblingElement() ) {
-	auto & track = addChild();
-
 	auto name_text = it->Attribute("name");
 	auto azimuth_text = it->Attribute("azimuth");
 	auto distance_text = it->Attribute("distance");
@@ -90,15 +89,18 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	auto mute_text = it->Attribute("mute");
 	auto detune_text = it->Attribute("detune");
 
+	int instrument_id = instrument_text ? atoi(instrument_text) : 0;
+	float detune = detune_text ? atof(detune_text) : 0.0f;
+	
+	auto & track = addChild(make_unique<InstrumentTrack>(instrument_id, detune));
+
 	if (name_text) track.setName(name_text);
 	if (azimuth_text) track.setAzimuth(atof(azimuth_text));
 	if (distance_text) track.setDistance(atof(distance_text));
 	if (elevation_text) track.setElevation(atof(elevation_text));
 	if (volume_text) track.setVolume(atof(volume_text));
-	if (instrument_text) track.setInstrumentId(atoi(instrument_text));
 	if (solo_text) track.setSolo(atoi(solo_text) ? true : false);
-	if (mute_text) track.setMute(atoi(mute_text) ? true : false);
-	if (detune_text) track.setDetune(atof(detune_text));
+	if (mute_text) track.setMute(atoi(mute_text) ? true : false);	
       }
     }
     
@@ -249,15 +251,7 @@ Song::save(const std::string & filename) const {
 
   for (auto & track : getChildren()) {
     XMLElement * track_element = doc.NewElement("track");
-    if (!track->getName().empty()) track_element->SetAttribute("name", track->getName().c_str());
-    if (track->isSolo()) track_element->SetAttribute("solo", "1");
-    if (track->isMuted()) track_element->SetAttribute("mute", "1");
-    track_element->SetAttribute("azimuth", track->getAzimuth());
-    track_element->SetAttribute("distance", track->getDistance());
-    track_element->SetAttribute("elevation", track->getElevation());
-    track_element->SetAttribute("volume", track->getVolume());
-    if (track->getDetune() != 0) track_element->SetAttribute("detune", track->getDetune());
-    track_element->SetAttribute("instrument", track->getInstrumentId());
+    track->populateXML(*track_element);
     
     tracks->InsertEndChild(track_element);    
   }
@@ -331,18 +325,14 @@ Song::render(size_t frames, SongState & state) {
   if (!tracks.empty() && !instruments.empty()) {
     for (size_t track_idx = 0; track_idx < tracks.size(); track_idx++) {
       auto & track = tracks[track_idx];
-
-      if (track->getInstrumentId() >= 0 && track->getInstrumentId() < instruments.size()) {
-	auto & instrument = getInstrument(track->getInstrumentId());
-	auto & track_state = state.getTrackState(track_idx);
+      auto & track_state = state.getTrackState(track_idx);
 	
-	if (!track_state.isInitialized()) {
-	  track_state.initialize(track->getEffects());
-	}
-	
-	SampleData data = track->render(frames, track_state, instrument, track_events.getPendingEvents(track_idx));
-	mixer.accumulate(data, track->getVolume(), track->getDistance(), track->getAzimuth(), track->getElevation());
+      if (!track_state.isInitialized()) {
+	// track_state.initialize(track->getEffects());
       }
+      
+      SampleData data = track->render(frames, track_state, instruments, track_events.getPendingEvents(track_idx));
+      mixer.accumulate(data, track->getVolume(), track->getDistance(), track->getAzimuth(), track->getElevation());
     }
     assert(track_events.empty());
     

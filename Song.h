@@ -13,7 +13,7 @@ class InstrumentProvider;
 
 class Song : public Track {
  public:
-  Song(Tuning _tuning = Tuning::TET12, short _key = -1, float _randomization_factor = 0.01f) : tuning(_tuning), key_note_number(_key), randomization_factor(_randomization_factor) { }
+  Song(Tuning _tuning = Tuning::TET12, short _key = -1, float _randomization_factor = 0.01f) : Track(MASTER), tuning(_tuning), key_note_number(_key), randomization_factor(_randomization_factor) { }
 
   Tuning getTuning() const { return tuning; }
   void setTuning(Tuning _tuning) { tuning = _tuning; }
@@ -41,7 +41,7 @@ class Song : public Track {
   Pattern & addPattern(size_t rows, Tuning tuning = Tuning::INHERIT, int key = -1) { return addPattern(Pattern(rows, tuning, key)); }
     
   const std::vector<std::unique_ptr<Instrument> > & getInstruments() const { return instruments; }
-  Instrument & getInstrument(size_t i) { return *(instruments[i]); }
+  const Instrument & getInstrument(size_t i) const { return *(instruments[i]); }
   void addInstrument(std::unique_ptr<Instrument> i) {
     instruments.push_back(std::move(i));
     incVersion();
@@ -59,6 +59,10 @@ class Song : public Track {
   void save(const std::string & filename) const;
 
   SampleData render(size_t frames, SongState & state);
+
+  SampleData render(size_t frames, TrackState & state, const std::vector<std::unique_ptr<Instrument> > & instruments, std::map<unsigned int, std::vector<TrackEvent> > & pending_events) override {
+    return SampleData();
+  }
 
   const std::vector<size_t> getTrackWidths(size_t pattern_idx) const {
     std::vector<size_t> r;

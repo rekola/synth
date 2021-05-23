@@ -5,6 +5,8 @@
 #include "Controller.h"
 #include "StyleProvider.h"
 #include "Tuner.h"
+#include "InstrumentTrack.h"
+#include "SampleTrack.h"
 
 #include <string>
 #include <fmt/core.h>
@@ -150,11 +152,11 @@ PatternEditor::offerInput(const InputEvent & input) {
       auto sample = getController().startRecording();
       auto & current_track = tracks[current_score_cursor_track];
       if (current_track->getType() == Track::SAMPLE) {
-	current_track->setSample(sample);
+	SampleTrack & sample_track = dynamic_cast<SampleTrack&>(*current_track);
+	sample_track.setSample(sample);
       } else {
 	new_score_cursor_track = tracks.size();
-	auto & track = song.addChild(Track::SAMPLE);
-	track.setSample(sample);
+	song.addChild(make_unique<SampleTrack>(sample));
       }
       song.incVersion();
     } else if (input.getId() == 'e') {
@@ -169,8 +171,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       return true;
     } else if (input.getId() == 't' || input.getId() == 'T') {
       int instrument_id = 0; // pattern.getTracks().back().getInstrumentId();
-      auto & track = song.addChild();
-      track.setInstrumentId(instrument_id); // + 1);
+      auto & track = song.addChild(make_unique<InstrumentTrack>(instrument_id));
       song.incVersion();
     } else if (input.getId() == 'g' || input.getId() == 'G') {
       // create group
@@ -190,19 +191,25 @@ PatternEditor::offerInput(const InputEvent & input) {
       return true;
     } else if (input.getId() == NCKEY_LEFT || input.getId() == 'p') {
       auto & track = tracks[current_score_cursor_track];
-      if (track->getInstrumentId() > 0) {
-	track->setInstrumentId(track->getInstrumentId() - 1);
-	song.incVersion();
-	event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, current_score_cursor_track));
+      if (track->getType() == Track::INSTRUMENT) {
+	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
+	if (instrument_track.getInstrumentId() > 0) {
+	  instrument_track.setInstrumentId(instrument_track.getInstrumentId() - 1);
+	  song.incVersion();
+	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, current_score_cursor_track));
+	}
       }
       return true;
     } else if (input.getId() == NCKEY_RIGHT || input.getId() == 'i' || input.getId() == 'i' || input.getId() == 'o') {
       auto & track = tracks[current_score_cursor_track];
-      auto & instruments = song.getInstruments();
-      if (track->getInstrumentId() + 1 < instruments.size()) {
-	track->setInstrumentId(track->getInstrumentId() + 1);
-	song.incVersion();
-	event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, current_score_cursor_track));
+      if (track->getType() == Track::INSTRUMENT) {
+	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
+	auto & instruments = song.getInstruments();
+	if (instrument_track.getInstrumentId() + 1 < instruments.size()) {
+	  instrument_track.setInstrumentId(instrument_track.getInstrumentId() + 1);
+	  song.incVersion();
+	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, current_score_cursor_track));
+	}
       }
       return true;
     } else if (input.getId() == '\\') {
@@ -370,8 +377,11 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<siz
     string instrument_name;
     if (track->getType() == Track::SAMPLE) {
       instrument_name = "Sample";
-    } else if (track->getInstrumentId() >= 0 && track->getInstrumentId() < instruments.size()) {
-      instrument_name = instruments[track->getInstrumentId()]->getName();
+    } else if (track->getType() == Track::INSTRUMENT) {
+      auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
+      if (instrument_track.getInstrumentId() >= 0 && instrument_track.getInstrumentId() < instruments.size()) {
+	instrument_name = instruments[instrument_track.getInstrumentId()]->getName();
+      }
     }
     if (instrument_name.size() > actual_width - 1) instrument_name.erase(actual_width - 1);
     putstr(2, current_pos, instrument_name);
