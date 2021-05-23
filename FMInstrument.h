@@ -21,8 +21,9 @@ public:
   std::unique_ptr<InstrumentVoice> createVoice(unsigned int outSampleRate, int identifier) const override;
   
 private:
-  float modulation, transpose;
+  float modulation;
   int harmonic, subharmonic;
+  float transpose;
   float noise, n;
 };
 
