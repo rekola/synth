@@ -63,12 +63,15 @@ class SongState : public EventHandler {
   const size_t getAbsolutePosition() const { return absolute_pos; }
   const size_t getSamplePos() const { return sample_pos; }
     
-  void moveForwardSample(const Song & song) {
+  void moveForwardSamples(const Song & song, size_t n = 1) {
     auto sinterval = getSampleInterval(song);
-    sample_pos++;
+
+    for (size_t i = 0; i < n; i++) {
+      sample_pos++;
       
-    if (sample_pos == sinterval) {
-      moveForward();
+      if (sample_pos == sinterval) {
+	moveForward();
+      }
     }
   }
 

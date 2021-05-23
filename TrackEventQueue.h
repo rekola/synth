@@ -11,8 +11,8 @@ class TrackEventQueue {
  public:
   TrackEventQueue() { }
 
-  void addPendingEvent(unsigned short track, size_t frame, short id, float delay, float frequency, float velocity) {
-    pending_events[track][frame].push_back(TrackEvent(id, delay, frequency, velocity));
+  void addPendingEvent(TrackEvent::Type type, unsigned short track, size_t frame, short id, float delay, float frequency, float velocity) {
+    pending_events[track][frame].push_back(TrackEvent(type, id, delay, frequency, velocity));
   }
   
   std::map<unsigned int, std::vector<TrackEvent> > & getPendingEvents(unsigned short track) { return pending_events[track]; }

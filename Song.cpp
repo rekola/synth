@@ -302,8 +302,12 @@ Song::render(size_t frames, SongState & state) {
 		velocity = note.getVelocityAsFloat() * (1 + getRandomizationFactor() * rand() / RAND_MAX);
 	      }
 	      float delay = getRandomizationFactor() * rand() / RAND_MAX;
-	      track_events.addPendingEvent(col, i, int(j), delay, frequency, velocity);
+	      track_events.addPendingEvent(TrackEvent::PLAY_NOTE, col, i, int(j), delay, frequency, velocity);
 	    }
+	  }
+	  auto & command = pattern.getCommand(col, row_idx);
+	  if (command.isDefined()) {
+	    // track_events.addPendingEvent(col, i, command);
 	  }
 	}
       }
@@ -313,9 +317,8 @@ Song::render(size_t frames, SongState & state) {
 	i += remaining;
 	state.moveForward();
       } else {
-	for (; i < frames; i++) {
-	  state.moveForwardSample(*this);
-	}
+	i += frames;
+	state.moveForwardSamples(*this, frames);
       }
     }
   }
