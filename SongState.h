@@ -109,14 +109,14 @@ class SongState : public EventHandler {
 
   Mixer & getMixer() { return hrft; }
   
-  TrackState & getTrackState(unsigned short track_idx) {
-    auto it = track_states.find(track_idx);
+  TrackState & getTrackState(int track_id) {
+    auto it = track_states.find(track_id);
     if (it != track_states.end()) {
       return *(it->second);
     } else {
       auto s = std::make_unique<TrackState>(getOutSampleRate());
       auto ptr = s.get();
-      track_states[track_idx] = std::move(s);
+      track_states[track_id] = std::move(s);
       return *ptr;
     }
   }
@@ -144,7 +144,7 @@ private:
   bool is_playing = false;
   size_t sample_pos = 0, absolute_pos = 0;
 
-  std::unordered_map<unsigned short, std::unique_ptr<TrackState> > track_states;
+  std::unordered_map<int, std::unique_ptr<TrackState> > track_states;
   
   HRFT hrft;
 };

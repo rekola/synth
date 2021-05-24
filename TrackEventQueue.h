@@ -11,11 +11,13 @@ class TrackEventQueue {
  public:
   TrackEventQueue() { }
 
-  void addPendingEvent(TrackEvent::Type type, unsigned short track, size_t frame, short id, float delay, float frequency, float velocity) {
-    pending_events[track][frame].push_back(TrackEvent(type, id, delay, frequency, velocity));
+  void addPendingEvent(TrackEvent::Type type, int track_id, size_t frame, short id, float delay, float frequency, float velocity) {
+    pending_events[track_id][frame].push_back(TrackEvent(type, id, delay, frequency, velocity));
   }
   
-  std::map<unsigned int, std::vector<TrackEvent> > & getPendingEvents(unsigned short track) { return pending_events[track]; }
+  std::map<unsigned int, std::vector<TrackEvent> > & getPendingEvents(int track_id) {
+    return pending_events[track_id];
+  }
 
   bool empty() const {
     for (auto & td : pending_events) {
@@ -25,7 +27,7 @@ class TrackEventQueue {
   }
 
  private:
-  std::unordered_map<unsigned short, std::map<unsigned int, std::vector<TrackEvent> > > pending_events;
+  std::unordered_map<int, std::map<unsigned int, std::vector<TrackEvent> > > pending_events;
 };
 
 #endif

@@ -20,14 +20,18 @@ class Pattern {
   size_t getNumRows() const { return num_rows; }
   const std::string & getName() const { return name; }
   
-  void setNote(size_t track, size_t row, size_t note_column, Note note) {
-    auto & columns = notes[track][row];
+  void setNote(size_t row, int track_id, size_t note_column, Note note) {
+    auto & columns = notes[row][track_id];
     while (note_column >= columns.size()) columns.push_back(Note());
     columns[note_column] = note;
   }
 
-  size_t pushNote(size_t track, size_t row, Note note) {
-    auto & columns = notes[track][row];
+  void setNoteSwapped(int track_id, size_t row, size_t note_column, Note note) {
+    setNote(row, track_id, note_column, note);
+  }
+  
+  size_t pushNote(size_t row, int track_id, Note note) {
+    auto & columns = notes[row][track_id];
     for (size_t i = 0; i < columns.size(); i++) {
       if (!columns[i].isDefined()) {
 	columns[i] = note;
@@ -39,10 +43,10 @@ class Pattern {
     return index;
   }
 
-  void deleteNote(size_t track, size_t row, size_t column) {
-    auto it = notes.find(track);
+  void deleteNote(size_t row, int track_id, size_t column) {
+    auto it = notes.find(row);
     if (it != notes.end()) {
-      auto it2 = it->second.find(row);
+      auto it2 = it->second.find(track_id);
       if (it2 != it->second.end()) {
 	auto & nv = it2->second;
 	if (column < nv.size()) {
@@ -54,14 +58,10 @@ class Pattern {
     }
   }
 
-  const std::unordered_map<unsigned short, std::unordered_map<unsigned short, std::vector<Note> > > & getNotes() const {
-    return notes;
-  }
-  
-  const Note & getNote(size_t track, size_t row, size_t note_column) const {
-    auto it = notes.find(track);
+  const Note & getNote(size_t row, int track_id, size_t note_column) const {
+    auto it = notes.find(row);
     if (it != notes.end()) {
-      auto it2 = it->second.find(row);
+      auto it2 = it->second.find(track_id);
       if (it2 != it->second.end()) {
 	auto & columns = it2->second;
 	if (note_column < columns.size()) return columns[note_column];	
@@ -70,10 +70,10 @@ class Pattern {
     return empty_note;
   }
 
-  const std::vector<Note> & getNotes(size_t track, size_t row) const {
-    auto it = notes.find(track);
+  const std::vector<Note> & getNotes(size_t row, int track_id) const {
+    auto it = notes.find(row);
     if (it != notes.end()) {
-      auto it2 = it->second.find(row);
+      auto it2 = it->second.find(track_id);
       if (it2 != it->second.end()) {
 	return it2->second;
       }
@@ -81,30 +81,47 @@ class Pattern {
     return empty_notes;
   }
 
-  void setCommand(size_t track, size_t row, Command command) {
-    commands[track][row] = command;
+  const std::unordered_map<int, std::vector<Note> > & getNotes(size_t row) const {
+    auto it = notes.find(row);
+    if (it != notes.end()) {
+      return it->second;
+    } else {
+      return empty_notes2;
+    }
   }
 
-  const Command & getCommand(size_t track, size_t row) const {
-    auto it = commands.find(track);
+  void setCommand(size_t row, int track_id, Command command) {
+    commands[row][track_id] = command;
+  }
+
+  const Command & getCommand(size_t row, int track_id) const {
+    auto it = commands.find(row);
     if (it != commands.end()) {
-      auto it2 = it->second.find(row);
+      auto it2 = it->second.find(track_id);
       if (it2 != it->second.end()) {
 	return it2->second;
       }
     }
     return empty_command;
   }
-  
-  const std::vector<size_t> getTrackWidths() const {
-    std::vector<size_t> r;
+
+  const std::unordered_map<int, Command> & getCommands(size_t row) const {
+    auto it = commands.find(row);
+    if (it != commands.end()) {
+      return it->second;
+    } else {
+      return empty_commands;
+    }
+  }
+
+  const std::unordered_map<int, size_t> getTrackWidths() const {
+    std::unordered_map<int, size_t> r;
     for (auto & d0 : notes) {
-      auto track = d0.first;
+      // auto row = d0.first;
       for (auto & d1 : d0.second) {
-	// auto row = d1.first;
+	auto track_id = d1.first;
 	size_t w = d1.second.size();
-	while (r.size() <= track) r.push_back(0);
-	if (w > r[track]) r[track] = w;
+	if (w > r[track_id]) r[track_id] = w;
       }
     }
     return r;
@@ -128,13 +145,15 @@ private:
   short key_note_number;
   std::string name;
   // sparse note matrix: row, track, note_column
-  std::unordered_map<unsigned short, std::unordered_map<unsigned short, std::vector<Note> > > notes;
+  std::unordered_map<unsigned short, std::unordered_map<int, std::vector<Note> > > notes;
+  std::unordered_map<unsigned short, std::unordered_map<int, Command> > commands;
   std::unordered_map<unsigned short, std::string> annotations;
-  std::unordered_map<unsigned short, std::unordered_map<unsigned short, Command> > commands;
 
   Note empty_note;
   std::vector<Note> empty_notes;
+  std::unordered_map<int, std::vector<Note> > empty_notes2;
   std::string empty_string;
+  std::unordered_map<int, Command> empty_commands;
   Command empty_command;
 };
 

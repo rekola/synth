@@ -60,21 +60,21 @@ class Song : public Track {
 
   SampleData render(size_t frames, SongState & state);
 
-  SampleData render(size_t frames, TrackState & state, const std::vector<std::unique_ptr<Instrument> > & instruments, std::map<unsigned int, std::vector<TrackEvent> > & pending_events) override {
-    return SampleData();
-  }
-
-  const std::vector<size_t> getTrackWidths(size_t pattern_idx) const {
-    std::vector<size_t> r;
+  SampleData render(size_t frames, SongState & song_state, const std::vector<std::unique_ptr<Instrument> > & instruments, TrackEventQueue & events) override;
+  
+  const std::unordered_map<int, size_t> getTrackWidths(size_t pattern_idx) const {
+    std::unordered_map<int, size_t> r;
     if (pattern_idx < patterns.size()) r = patterns[pattern_idx].getTrackWidths();
-    while (r.size() < getChildren().size()) r.push_back(0);
     
-    // at least one note column + one effect column
-    for (auto & w : r) {
-      if (w == 0) w++;
-      w++;
-    }
+    for (auto & track : getChildren()) {
+      auto id = track->getId();
+      auto it = r.find(id);
 
+      // at least one note column + one effect column
+      if (it != r.end()) it->second++;
+      else r[id] = 2;            
+    }
+    
     return r;
   }
 

@@ -4,7 +4,10 @@
 #include "TrackEventQueue.h"
 #include "SampleData.h"
 #include "Tuner.h"
+
 #include "InstrumentTrack.h"
+#include "GroupTrack.h"
+#include "Reverb.h"
 
 #include "SubtractiveInstrument.h"
 #include "GenericInstrument.h"
@@ -29,6 +32,25 @@ Tuning parse_tuning(const char * tuning_text, Tuning default_tuning = Tuning::IN
   return default_tuning;
 }
 
+static unique_ptr<Track> createTrack(string name) {
+  if (name == "track") return make_unique<InstrumentTrack>();
+  else if (name == "reverb") return make_unique<Reverb>();
+  else if (name == "group") return make_unique<GroupTrack>();
+  else {
+    assert(0);
+    return unique_ptr<Track>(nullptr);
+  }
+}
+
+static void parseChildTrack(Track & parent, XMLElement & element) {
+  auto & track = parent.addChild(createTrack(element.Name()));
+  track.readXML(element);
+  
+  for (auto it = element.FirstChildElement(); it ; it = it->NextSiblingElement() ) {
+    parseChildTrack(track, *it);
+  }
+}
+		      
 bool
 Song::open(const std::string & filename, const InstrumentProvider & provider) {
   char * oldLocale = setlocale(LC_ALL, 0);
@@ -79,28 +101,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
     auto tracks = song->FirstChildElement("tracks");
     if (tracks) {
       for (auto it = tracks->FirstChildElement(); it ; it = it->NextSiblingElement() ) {
-	auto name_text = it->Attribute("name");
-	auto azimuth_text = it->Attribute("azimuth");
-	auto distance_text = it->Attribute("distance");
-	auto elevation_text = it->Attribute("elevation");
-	auto volume_text = it->Attribute("volume");
-	auto instrument_text = it->Attribute("instrument");
-	auto solo_text = it->Attribute("solo");
-	auto mute_text = it->Attribute("mute");
-	auto detune_text = it->Attribute("detune");
-
-	int instrument_id = instrument_text ? atoi(instrument_text) : 0;
-	float detune = detune_text ? atof(detune_text) : 0.0f;
-	
-	auto & track = addChild(make_unique<InstrumentTrack>(instrument_id, detune));
-
-	if (name_text) track.setName(name_text);
-	if (azimuth_text) track.setAzimuth(atof(azimuth_text));
-	if (distance_text) track.setDistance(atof(distance_text));
-	if (elevation_text) track.setElevation(atof(elevation_text));
-	if (volume_text) track.setVolume(atof(volume_text));
-	if (solo_text) track.setSolo(atoi(solo_text) ? true : false);
-	if (mute_text) track.setMute(atoi(mute_text) ? true : false);	
+	parseChildTrack(*this, *it);	
       }
     }
     
@@ -132,7 +133,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	  int velocity = velocity_text ? atoi(velocity_text) : 0;
 	  
 	  Note note(value_text, velocity, actual_pattern_tuning);
-	  pattern.setNote(track, row, column, note);
+	  pattern.setNote(row, track, column, note);
 	}
 
 	for (auto it2 = it->FirstChildElement("annotation"); it2; it2 = it2->NextSiblingElement("annotation")) {
@@ -154,7 +155,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 
 	  if (data_text) {
 	    Command command(data_text);
-	    pattern.setCommand(track, row, command);
+	    pattern.setCommand(row, track, command);
 	  }
 	}	
       }
@@ -213,28 +214,30 @@ Song::save(const std::string & filename) const {
     }
 
     for (size_t row = 0; row < pattern.getNumRows(); row++) {
-      for (size_t track = 0; track < getChildren().size(); track++) {
-	auto & nv = pattern.getNotes(track, row);
+      auto & notes = pattern.getNotes(row);
+
+      for (auto & [ track_id, nv ] : notes) {
 	for (size_t col = 0; col < nv.size(); col++) {
 	  auto & note = nv[col];
 	  auto note_text = note.toString(tuning);
 	  XMLElement * note_element = doc.NewElement("note");
-	  note_element->SetAttribute("track", track);
+	  note_element->SetAttribute("track", track_id);
 	  note_element->SetAttribute("row", row);
 	  if (col > 0) note_element->SetAttribute("column", col);
 	  note_element->SetAttribute("velocity", note.getVelocity());
 	  note_element->SetAttribute("value", note_text.c_str());
 	  pattern_element->InsertEndChild(note_element);
 	}
+      }
 	
-	auto & command = pattern.getCommand(track, row);
-	if (command.isDefined()) {
-	  string data = command.toString();	  
+      auto & commands = pattern.getCommands(row);
+      for (auto & [ track_id, command ] : commands) {
+	string data = command.toString();	  
 	  
-	  XMLElement * command_element = doc.NewElement("command");
-	  command_element->SetAttribute("data", data.c_str());
-	  pattern_element->InsertEndChild(command_element);
-	}
+	XMLElement * command_element = doc.NewElement("command");
+	command_element->SetAttribute("track", track_id);
+	command_element->SetAttribute("data", data.c_str());
+	pattern_element->InsertEndChild(command_element);
       }
 
       auto & annotation = pattern.getAnnotation(row);
@@ -270,8 +273,6 @@ Song::save(const std::string & filename) const {
 
 SampleData
 Song::render(size_t frames, SongState & state) {
-  auto & tracks = getChildren();
-
   Tuner tuner;
   TrackEventQueue track_events;
   
@@ -283,8 +284,8 @@ Song::render(size_t frames, SongState & state) {
 	auto tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : getTuning();
 	int key = pattern.getKey() >= 0 ? pattern.getKey() : getKey();
 
-	for (size_t col = 0; col < tracks.size(); col++) {
-	  auto & notes = pattern.getNotes(col, row_idx);
+	auto & notes = pattern.getNotes(row_idx);
+	for (auto & [ track_id, notes ] : notes) {
 	  for (size_t j = 0; j < notes.size(); j++) {
 	    if (notes[j].isDefined()) {
 	      auto & note = notes[j];
@@ -296,13 +297,13 @@ Song::render(size_t frames, SongState & state) {
 		velocity = note.getVelocityAsFloat() * (1 + getRandomizationFactor() * rand() / RAND_MAX);
 	      }
 	      float delay = getRandomizationFactor() * rand() / RAND_MAX;
-	      track_events.addPendingEvent(TrackEvent::PLAY_NOTE, col, i, int(j), delay, frequency, velocity);
+	      track_events.addPendingEvent(TrackEvent::PLAY_NOTE, track_id, i, int(j), delay, frequency, velocity);
 	    }
 	  }
-	  auto & command = pattern.getCommand(col, row_idx);
-	  if (command.isDefined()) {
-	    // track_events.addPendingEvent(col, i, command);
-	  }
+	}
+	auto & commands = pattern.getCommands(row_idx);
+	for (auto & [ track_id, command ] : commands) {
+	  // track_events.addPendingEvent(col, i, command);
 	}
       }
 
@@ -316,25 +317,23 @@ Song::render(size_t frames, SongState & state) {
       }
     }
   }
-  
-  auto & mixer = state.getMixer();
+
+  return render(frames, state, instruments, track_events);
+}
+
+SampleData
+Song::render(size_t frames, SongState & song_state, const std::vector<std::unique_ptr<Instrument> > & instruments, TrackEventQueue & events) {
+  auto & mixer = song_state.getMixer();
   mixer.reset();
 
   SampleData master(2, frames);
 
-  if (!tracks.empty() && !instruments.empty()) {
-    for (size_t track_idx = 0; track_idx < tracks.size(); track_idx++) {
-      auto & track = tracks[track_idx];
-      auto & track_state = state.getTrackState(track_idx);
-	
-      if (!track_state.isInitialized()) {
-	// track_state.initialize(track->getEffects());
-      }
-      
-      SampleData data = track->render(frames, track_state, instruments, track_events.getPendingEvents(track_idx));
+  if (!getChildren().empty() && !instruments.empty()) {
+    for (auto & track : getChildren()) {      
+      SampleData data = track->render(frames, song_state, instruments, events);
       mixer.accumulate(data, track->getVolume(), track->getDistance(), track->getAzimuth(), track->getElevation());
     }
-    assert(track_events.empty());
+    assert(events.empty());
     
     mixer.encode(master, getVolume());
     // applyEffects(master);
@@ -342,4 +341,4 @@ Song::render(size_t frames, SongState & state) {
   
   return master;
 }
-
+  

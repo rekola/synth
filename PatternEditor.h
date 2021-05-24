@@ -5,6 +5,7 @@
 #include "Tuning.h"
 
 #include <vector>
+#include <unordered_map>
 
 class Synth;
 class InputEvent;
@@ -18,8 +19,8 @@ class PatternEditor : public UIElement {
   bool offerInput(const InputEvent & input) override;
 
 protected:
-  void renderHeading(const StyleProvider & styles, const std::vector<size_t> & track_widths);
-  void renderRow(const StyleProvider & styles, const std::vector<size_t> & track_widths, size_t row, bool highlight);
+  void renderHeading(const StyleProvider & styles, const std::unordered_map<int, size_t> & track_widths);
+  void renderRow(const StyleProvider & styles, const std::unordered_map<int, size_t> & track_widths, size_t row, bool highlight);
   
   size_t current_score_playing_row = 0;
   size_t current_score_pattern = 0;

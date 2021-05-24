@@ -7,7 +7,7 @@ enum class ReverbPreset { SUBTLE = 0, STADIUM, CUPBOARD, DARK, HALVES };
 
 class Reverb : public Effect {
  public:
-  explicit Reverb(ReverbPreset _preset) : preset(_preset) { }
+  explicit Reverb(ReverbPreset _preset = ReverbPreset::SUBTLE) : preset(_preset) { }
 
   std::unique_ptr<EffectState> createState(unsigned int outSamplerate) const override;
 

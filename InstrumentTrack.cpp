@@ -4,6 +4,7 @@
 #include "TrackEvent.h"
 #include "Instrument.h"
 #include "SampleData.h"
+#include "TrackEventQueue.h"
 
 #include "tinyxml2.h"
 
@@ -11,12 +12,19 @@ using namespace tinyxml2;
 using namespace std;
 
 SampleData
-InstrumentTrack::render(size_t frames, TrackState & state, const std::vector<std::unique_ptr<Instrument> > & instruments, std::map<unsigned int, std::vector<TrackEvent> > & pending_events) {
+InstrumentTrack::render(size_t frames, SongState & song_state, const std::vector<std::unique_ptr<Instrument> > & instruments, TrackEventQueue & events) {
   assert(getInstrumentId() >= 0 && getInstrumentId() < instruments.size());
   auto & instrument = instruments[getInstrumentId()];
 
+  auto & track_state = song_state.getTrackState(getId());
+  if (!track_state.isInitialized()) {
+    // track_state.initialize(track->getEffects());
+  }
+
   size_t num_channels = instrument->getNumChannels();
   assert(num_channels == 1);
+
+  auto & pending_events = events.getPendingEvents(getId());
   
   SampleData data(num_channels, frames);
 					  
@@ -29,9 +37,9 @@ InstrumentTrack::render(size_t frames, TrackState & state, const std::vector<std
       if (i == it->first) {
 	for (auto & ev : it->second) {
 	  if (ev.isOff()) {
-	    state.getVoices().stopNote(ev.getId());
+	    track_state.getVoices().stopNote(ev.getId());
 	  } else {
-	    instrument->playNote(ev.getId(), ev.getFrequency(), ev.getVelocity(), ev.getDelay(), detune, state.getVoices());
+	    instrument->playNote(ev.getId(), ev.getFrequency(), ev.getVelocity(), ev.getDelay(), detune, track_state.getVoices());
 	  }
 	}
 	it = pending_events.erase(it);
@@ -39,14 +47,25 @@ InstrumentTrack::render(size_t frames, TrackState & state, const std::vector<std
       if (it != pending_events.end() && it->first - i < render_size) render_size = it->first - i;
     }     
 
-    state.getVoices().render(data, render_size, i);
+    track_state.getVoices().render(data, render_size, i);
     
     i += render_size;
   }
 
-  state.applyEffects(data);
+  track_state.applyEffects(data);
 
   return data;
+}
+
+void
+InstrumentTrack::readXML(XMLElement & element) {
+  Track::readXML(element);
+
+  auto instrument_text = element.Attribute("instrument");
+  auto detune_text = element.Attribute("detune");
+
+  setInstrumentId(instrument_text ? atoi(instrument_text) : 0);
+  setDetune(detune_text ? atof(detune_text) : 0.0f);
 }
 
 void

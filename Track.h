@@ -5,11 +5,12 @@
 #include <vector>
 #include <memory>
 #include <map>
+#include <atomic>
 
-class TrackState;
-class TrackEvent;
+class SongState;
 class Instrument;
 class SampleData;
+class TrackEventQueue;
 
 namespace tinyxml2 {
   class XMLElement;
@@ -18,13 +19,17 @@ namespace tinyxml2 {
 class Track {
  public:
   enum Type { MASTER = 1, GROUP, INSTRUMENT, EFFECT, SAMPLE, SUBSONG };
-  Track(Type _type) : type(_type) { }
+  Track(Type _type) : id(getNextId()), type(_type) {    
+  }
+  Track(int _id, Type _type) : id(_id != -1 ? _id : getNextId()), type(_type) { }
   virtual ~Track() { }
   
-  virtual SampleData render(size_t frames, TrackState & state, const std::vector<std::unique_ptr<Instrument> > & instruments, std::map<unsigned int, std::vector<TrackEvent> > & pending_events) = 0;
+  virtual SampleData render(size_t frames, SongState & song_state, const std::vector<std::unique_ptr<Instrument> > & instruments, TrackEventQueue & events) = 0;
+  virtual void readXML(tinyxml2::XMLElement & element);
   virtual void populateXML(tinyxml2::XMLElement & element) const;
-    
-  Type getType() { return type; }
+
+  int getId() const { return id; }
+  Type getType() const { return type; }
 
   float getVolume() const { return volume; }
   void setVolume(float _volume) { volume = _volume; }
@@ -53,13 +58,23 @@ class Track {
   std::vector<std::unique_ptr<Track> > & getChildren() { return children; }
   const std::vector<std::unique_ptr<Track> > & getChildren() const { return children; }
 
+  static int getNextId() {
+    return next_id.fetch_add(1);
+  }
+
+protected:
+  void setId(int _id) { id = _id; }
+  
  private:
+  int id;
   Type type;
   float volume = 1.00f;
   bool solo = false, mute = false;
   float elevation = 0, azimuth = 0, distance = 0;
   std::string name;
   std::vector<std::unique_ptr<Track> > children;
+  
+  static std::atomic<int> next_id;
 };
 
 #endif

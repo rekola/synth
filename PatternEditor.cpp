@@ -30,7 +30,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
 
   auto track_widths = song.getTrackWidths(score_pattern);
   size_t score_total_columns = 0;
-  for (auto w : track_widths) score_total_columns += w;
+  for (auto wd : track_widths) score_total_columns += wd.second;
 
   auto [rows, cols] = getDim();
 
@@ -48,7 +48,9 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
     while ( 0 ) {
       size_t pos = 6;
       for (size_t i = new_scroll_track; i < tracks.size() && i <= new_score_cursor_track; i++) {
-	pos += track_widths[i] * 7 - 1;
+	auto id = tracks[i]->getId();
+	auto it = track_widths.find(id);
+	pos += (it != track_widths.end() ? it->second : 0) * 7 - 1;
       }
       if (pos >= (size_t)cols) {
 	new_scroll_track++;
@@ -142,15 +144,16 @@ PatternEditor::offerInput(const InputEvent & input) {
   auto score_pattern = info.getPatternIndex();
   auto & current_pattern = song.getPattern(score_pattern);
   auto track_widths = song.getTrackWidths(score_pattern);
+  auto & current_track = tracks[current_score_cursor_track];
 
-  size_t num_columns = track_widths[current_score_cursor_track];
-  
+  auto it0 = track_widths.find(current_track->getId());
+  size_t num_columns = it0 != track_widths.end() ? it0->second : 0;
+ 
   auto & event_queue = getController().getPlaybackEventQueue();
 
   if (input.hasCtrl()) {
     if (input.getId() == 'r') {
       auto sample = getController().startRecording();
-      auto & current_track = tracks[current_score_cursor_track];
       if (current_track->getType() == Track::SAMPLE) {
 	SampleTrack & sample_track = dynamic_cast<SampleTrack&>(*current_track);
 	sample_track.setSample(sample);
@@ -168,10 +171,13 @@ PatternEditor::offerInput(const InputEvent & input) {
       new_score_cursor_track = num_tracks > 1 ? num_tracks - 1 : 0;
       new_score_cursor_col = track_widths[new_score_cursor_track] - 1;
       new_score_cursor_subcol = 0;
+
+      auto it = track_widths.find(tracks[new_score_cursor_track]->getId());
+      new_score_cursor_col = it != track_widths.end() ? it->second - 1: 0;
       return true;
     } else if (input.getId() == 't' || input.getId() == 'T') {
       int instrument_id = 0; // pattern.getTracks().back().getInstrumentId();
-      auto & track = song.addChild(make_unique<InstrumentTrack>(instrument_id));
+      auto & track = song.addChild(make_unique<InstrumentTrack>(-1, instrument_id, 0.0f));
       song.incVersion();
     } else if (input.getId() == 'g' || input.getId() == 'G') {
       // create group
@@ -228,8 +234,10 @@ PatternEditor::offerInput(const InputEvent & input) {
       new_score_cursor_subcol = 0;
     } else if (new_score_cursor_track > 0) {
       new_score_cursor_track--;
-      new_score_cursor_col = track_widths[new_score_cursor_track] - 1;
       new_score_cursor_subcol = 0;
+
+      auto it = track_widths.find(tracks[new_score_cursor_track]->getId());
+      new_score_cursor_col = it != track_widths.end() ? it->second - 1 : 0;
     }
     return true;
   } else if (input.getId() == NCKEY_RIGHT) {
@@ -276,9 +284,9 @@ PatternEditor::offerInput(const InputEvent & input) {
 
     if (new_score_cursor_col + 1 == num_columns) {
       if ((input.getId() >= 'a' && input.getId() <= 'z') || (input.getId() >= '0' && input.getId() <= '9') || input.getId() == '-') {
-	auto command = pattern.getCommand(new_score_cursor_track, info.getRowIndex());
+	auto command = pattern.getCommand(info.getRowIndex(), new_score_cursor_track);
 	command.updateData(new_score_cursor_subcol, toupper(input.getId()));
-	pattern.setCommand(new_score_cursor_track, info.getRowIndex(), command);
+	pattern.setCommand(info.getRowIndex(), new_score_cursor_track, command);
 	row_edited = true;
 	
 	if (new_score_cursor_subcol + 1 < 4) {
@@ -303,9 +311,9 @@ PatternEditor::offerInput(const InputEvent & input) {
 	  
 	  size_t note_column = 0;
 	  if (input.hasShift()) {
-	    note_column = pattern.pushNote(current_score_cursor_track, info.getRowIndex(), note);
+	    note_column = pattern.pushNote(info.getRowIndex(), current_score_cursor_track, note);
 	  } else {
-	    pattern.setNote(current_score_cursor_track, info.getRowIndex(), current_score_cursor_col, note);
+	    pattern.setNote(info.getRowIndex(), current_score_cursor_track, current_score_cursor_col, note);
 	  }
 	  	  
 	  if (note.isOff()) {
@@ -335,7 +343,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 }
 
 void
-PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<size_t> & track_widths) {
+PatternEditor::renderHeading(const StyleProvider & styles, const std::unordered_map<int, size_t> & track_widths) {
   auto & song = getController().getSong();
   auto & info = getController().getPlaybackInfo();
   auto & pattern = song.getPattern(info.getPatternIndex());
@@ -358,7 +366,8 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<siz
     if (current_pos >= cols) break;
 
     auto & track = tracks[i];
-    size_t actual_width = track_widths[i] * 7 - 1;
+    auto it = track_widths.find(track->getId());
+    size_t actual_width = (it != track_widths.end() ? it->second : 0) * 7 - 1;
     
     setFgColor(0x00, 0x00, 0x00);
     setBgColor(0xf0, 0x80, 0x10);
@@ -391,7 +400,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<siz
 }
 
 void
-PatternEditor::renderRow(const StyleProvider & styles, const std::vector<size_t> & track_widths, size_t row, bool highlight) {
+PatternEditor::renderRow(const StyleProvider & styles, const std::unordered_map<int, size_t> & track_widths, size_t row, bool highlight) {
   auto [rows, cols] = getDim();
 
   if (row >= current_scroll_row && row < current_scroll_row + rows - 4) {
@@ -440,9 +449,10 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<size_t>
 	current_pos += 5;
       } else {
 	auto & track = tracks[i];
-	auto & notes = pattern.getNotes(i, row);
-	auto & command = pattern.getCommand(i, row);
-	auto track_columns = track_widths[i];
+	auto & notes = pattern.getNotes(row, track->getId());
+	auto & command = pattern.getCommand(row, track->getId());
+	auto it = track_widths.find(track->getId());
+	size_t track_columns = it != track_widths.end() ? it->second : 0;
 
 	for (size_t k = 0; k < track_columns; k++) {      
 	  if (k == track_columns - 1) { // effect column

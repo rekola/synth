@@ -7,18 +7,19 @@ class GroupTrack : public Track {
  public:
   GroupTrack() : Track(GROUP) { }
 
-  SampleData render(size_t frames, TrackState & state, Instrument & instrument, std::map<unsigned int, std::vector<TrackEvent> > & pending_events) override {
+  SampleData render(size_t frames, SongState & song_state, const std::vector<std::unique_ptr<Instrument> > & instruments, TrackEventQueue & events) override {
     if (getChildren().empty()) {
       return SampleData(1, frames);
     } else {
       auto it = getChildren().begin();
-      auto sd = it->render(frames, state, instrument, pending_events);
+      auto sd = (*it)->render(frames, song_state, instruments, events);
       for ( ; it != getChildren().end(); it++) {
-	auto sd2 = it->render(frames, state, instrument, pending_events);
+	auto sd2 = (*it)->render(frames, song_state, instruments, events);
 	sd.mix(sd2);
       }
       return sd;
     }
   }  
 };
+
 #endif
