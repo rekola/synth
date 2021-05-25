@@ -19,8 +19,7 @@ namespace tinyxml2 {
 class Track {
  public:
   enum Type { MASTER = 1, GROUP, INSTRUMENT, EFFECT, SAMPLE, SUBSONG };
-  Track(Type _type) : id(getNextId()), type(_type) {    
-  }
+  Track(Type _type) : id(getNextId()), type(_type) { }
   Track(int _id, Type _type) : id(_id != -1 ? _id : getNextId()), type(_type) { }
   virtual ~Track() { }
   
@@ -57,6 +56,24 @@ class Track {
 
   std::vector<std::unique_ptr<Track> > & getChildren() { return children; }
   const std::vector<std::unique_ptr<Track> > & getChildren() const { return children; }
+
+  const Track * getChildById(int _id) const {
+    if (id == _id) return this;
+    for (auto & child : children) {
+      auto r = child->getChildById(_id);
+      if (r) return r;
+    }
+    return nullptr;
+  }
+
+  Track * getChildById(int _id) {
+    if (id == _id) return this;
+    for (auto & child : children) {
+      auto r = child->getChildById(_id);
+      if (r) return r;
+    }
+    return nullptr;
+  }
 
   static int getNextId() {
     return next_id.fetch_add(1);

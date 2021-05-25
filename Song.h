@@ -62,22 +62,6 @@ class Song : public Track {
 
   SampleData render(size_t frames, SongState & song_state, const std::vector<std::unique_ptr<Instrument> > & instruments, TrackEventQueue & events) override;
   
-  const std::unordered_map<int, size_t> getTrackWidths(size_t pattern_idx) const {
-    std::unordered_map<int, size_t> r;
-    if (pattern_idx < patterns.size()) r = patterns[pattern_idx].getTrackWidths();
-    
-    for (auto & track : getChildren()) {
-      auto id = track->getId();
-      auto it = r.find(id);
-
-      // at least one note column + one effect column
-      if (it != r.end()) it->second++;
-      else r[id] = 2;            
-    }
-    
-    return r;
-  }
-
 private:
   Tuning tuning;
   short key_note_number;

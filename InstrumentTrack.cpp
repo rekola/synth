@@ -17,9 +17,6 @@ InstrumentTrack::render(size_t frames, SongState & song_state, const std::vector
   auto & instrument = instruments[getInstrumentId()];
 
   auto & track_state = song_state.getTrackState(getId());
-  if (!track_state.isInitialized()) {
-    // track_state.initialize(track->getEffects());
-  }
 
   size_t num_channels = instrument->getNumChannels();
   assert(num_channels == 1);
@@ -51,9 +48,7 @@ InstrumentTrack::render(size_t frames, SongState & song_state, const std::vector
     
     i += render_size;
   }
-
-  track_state.applyEffects(data);
-
+ 
   return data;
 }
 

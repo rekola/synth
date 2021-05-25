@@ -221,8 +221,8 @@ Song::save(const std::string & filename) const {
 	  auto & note = nv[col];
 	  auto note_text = note.toString(tuning);
 	  XMLElement * note_element = doc.NewElement("note");
-	  note_element->SetAttribute("track", track_id);
 	  note_element->SetAttribute("row", row);
+	  note_element->SetAttribute("track", track_id);
 	  if (col > 0) note_element->SetAttribute("column", col);
 	  note_element->SetAttribute("velocity", note.getVelocity());
 	  note_element->SetAttribute("value", note_text.c_str());
@@ -235,6 +235,7 @@ Song::save(const std::string & filename) const {
 	string data = command.toString();	  
 	  
 	XMLElement * command_element = doc.NewElement("command");
+	command_element->SetAttribute("row", row);
 	command_element->SetAttribute("track", track_id);
 	command_element->SetAttribute("data", data.c_str());
 	pattern_element->InsertEndChild(command_element);

@@ -6,6 +6,7 @@
 #include "HRFT.h"
 #include "TrackState.h"
 #include "PlaybackControlEvent.h"
+#include "Effect.h"
 
 #define NOTE_DOMAIN ((float)1/4)
 
@@ -139,12 +140,22 @@ class SongState : public EventHandler {
 
   unsigned int getOutSampleRate() const { return outSampleRate; }
 
+  EffectState & getEffectState(const Effect & effect) {
+    auto it = effect_states.find(effect.getId());
+    if (it != effect_states.end()) return *(it->second);
+    auto state = effect.createState(outSampleRate);
+    auto ptr = state.get();
+    effect_states[effect.getId()] = move(state);
+    return *ptr;
+  }
+  
 private:
   unsigned int outSampleRate;
   bool is_playing = false;
   size_t sample_pos = 0, absolute_pos = 0;
 
   std::unordered_map<int, std::unique_ptr<TrackState> > track_states;
+  std::unordered_map<int, std::unique_ptr<EffectState> > effect_states;
   
   HRFT hrft;
 };

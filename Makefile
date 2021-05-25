@@ -19,7 +19,8 @@ OBJS = main.o \
 	Distortion.o \
 	Reverb.o \
 	Player.o \
-	PatternEditor.o
+	PatternEditor.o \
+	Effect.o
 
 CC = g++
 

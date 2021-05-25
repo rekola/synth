@@ -3,6 +3,8 @@
 #include "MVerb.h"
 #include "SampleData.h"
 
+#include "tinyxml2.h"
+
 using namespace std;
 
 class ReverbState : public EffectState {
@@ -59,4 +61,23 @@ private:
 std::unique_ptr<EffectState>
 Reverb::createState(unsigned int outSampleRate) const {
   return make_unique<ReverbState>(outSampleRate, preset);
+}
+
+void
+Reverb::readXML(tinyxml2::XMLElement & element) {
+  Effect::readXML(element);
+  
+  auto preset_text = element.Attribute("preset");
+  if (preset_text) {
+    if (strcmp(preset_text, "subtle") == 0) preset = ReverbPreset::SUBTLE;
+    else if (strcmp(preset_text, "stadium") == 0) preset = ReverbPreset::STADIUM;
+    else if (strcmp(preset_text, "cupboard") == 0) preset = ReverbPreset::CUPBOARD;
+    else if (strcmp(preset_text, "dark") == 0) preset = ReverbPreset::DARK;
+    else if (strcmp(preset_text, "halves") == 0) preset = ReverbPreset::HALVES;
+  }
+}
+
+void
+Reverb::populateXML(tinyxml2::XMLElement & element) const {
+  Effect::populateXML(element);  
 }
