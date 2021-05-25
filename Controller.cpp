@@ -63,7 +63,7 @@ Controller::loadDemo7() {
   pattern.setNoteSwapped(0, 5, 0, Note(155 + 3 + 3 + 2 + 3 + 3));
   pattern.setNoteSwapped(0, 6, 0, Note(155 + 3 + 3 + 2 + 3 + 3 + 3));
   pattern.setNoteSwapped(0, 7, 0, Note(155 + 3 + 3 + 2 + 3 + 3 + 3 + 2));
-  pattern.setNoteSwapped(0, 8, 0, Note("C-5", 0x3f, Tuning::TET31));
+  pattern.setNoteSwapped(0, 8, 0, Note("C-5", 0x40, Tuning::TET31));
   
   current_song = song;
 }
@@ -119,60 +119,60 @@ Controller::loadDemo3() {
   pattern0.setNoteSwapped(3, 0, 0, Note("G-2", 0x50, Tuning::TET31));
 
   auto & pattern = song->addPattern(64);  
-  pattern.setNoteSwapped(0, 0, 0, Note("C-4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(0, 0, 1, Note("Eb4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(0, 0, 2, Note("G-4", 0x3f, Tuning::TET31));
+  pattern.setNoteSwapped(0, 0, 0, Note("C-4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(0, 0, 1, Note("Eb4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(0, 0, 2, Note("G-4", 0x40, Tuning::TET31));
 
-  pattern.setNoteSwapped(3, 0, 0, Note("C-3", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(4, 0, 0, Note("E-4", 0x3f, Tuning::TET31));
+  pattern.setNoteSwapped(3, 0, 0, Note("C-3", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(4, 0, 0, Note("E-4", 0x40, Tuning::TET31));
 
-  // pattern.setNoteSwapped(2, 3, 0, Note("C♭4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(1, 4, 0, Note("C-4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(2, 6, 0, Note("D-4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(3, 6, 0, Note("C-4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(4, 8, 0, Note("E-4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(2, 12, 0, Note("Eb4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(3, 12, 0, Note("Eb3", 0x3f, Tuning::TET31));
+  // pattern.setNoteSwapped(2, 3, 0, Note("C♭4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(1, 4, 0, Note("C-4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(2, 6, 0, Note("D-4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(3, 6, 0, Note("C-4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(4, 8, 0, Note("E-4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(2, 12, 0, Note("Eb4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(3, 12, 0, Note("Eb3", 0x40, Tuning::TET31));
 
-  pattern.setNoteSwapped(0, 16, 0, Note("D-4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(0, 16, 1, Note("F-4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(0, 16, 2, Note("Ab4", 0x3f, Tuning::TET31));  
-  pattern.setNoteSwapped(3, 16, 0, Note("D-3", 0x3f, Tuning::TET31));
+  pattern.setNoteSwapped(0, 16, 0, Note("D-4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(0, 16, 1, Note("F-4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(0, 16, 2, Note("Ab4", 0x40, Tuning::TET31));  
+  pattern.setNoteSwapped(3, 16, 0, Note("D-3", 0x40, Tuning::TET31));
 
-  pattern.setNoteSwapped(4, 16, 0, Note("E-4", 0x3f, Tuning::TET31));
+  pattern.setNoteSwapped(4, 16, 0, Note("E-4", 0x40, Tuning::TET31));
 
-  pattern.setNoteSwapped(1, 20, 0, Note("D-4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(2, 22, 0, Note("F-4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(4, 24, 0, Note("E-4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(2, 26, 0, Note("Eb4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(1, 28, 0, Note("E𝄫4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(3, 28, 0, Note("E𝄫3", 0x3f, Tuning::TET31));
-  // pattern.setNoteSwapped(5, 28, 0, Note("E𝄫3", 0x3f, Tuning::TET31));
+  pattern.setNoteSwapped(1, 20, 0, Note("D-4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(2, 22, 0, Note("F-4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(4, 24, 0, Note("E-4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(2, 26, 0, Note("Eb4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(1, 28, 0, Note("E𝄫4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(3, 28, 0, Note("E𝄫3", 0x40, Tuning::TET31));
+  // pattern.setNoteSwapped(5, 28, 0, Note("E𝄫3", 0x40, Tuning::TET31));
 
-  pattern.setNoteSwapped(0, 30, 0, Note("C-4", 0x3f, Tuning::TET31));
+  pattern.setNoteSwapped(0, 30, 0, Note("C-4", 0x40, Tuning::TET31));
 
-  pattern.setNoteSwapped(0, 32, 0, Note("C-4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(0, 32, 1, Note("Eb4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(0, 32, 2, Note("G-4", 0x3f, Tuning::TET31));
-  // pattern.setNoteSwapped(0, 32, 2, Note("Bb4", 0x3f, Tuning::TET31));
-  // pattern.setNoteSwapped(0, 32, 1, Note("A𝄫4", 0x3f, Tuning::TET31));
-  // pattern.setNoteSwapped(0, 32, 1, Note("F-4", 0x3f, Tuning::TET31));
-  // pattern.setNoteSwapped(0, 32, 2, Note("G-4", 0x3f, Tuning::TET31));
-  // pattern.setNoteSwapped(0, 32, 2, Note("A♭4", 0x3f, Tuning::TET31)); // 4:3
+  pattern.setNoteSwapped(0, 32, 0, Note("C-4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(0, 32, 1, Note("Eb4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(0, 32, 2, Note("G-4", 0x40, Tuning::TET31));
+  // pattern.setNoteSwapped(0, 32, 2, Note("Bb4", 0x40, Tuning::TET31));
+  // pattern.setNoteSwapped(0, 32, 1, Note("A𝄫4", 0x40, Tuning::TET31));
+  // pattern.setNoteSwapped(0, 32, 1, Note("F-4", 0x40, Tuning::TET31));
+  // pattern.setNoteSwapped(0, 32, 2, Note("G-4", 0x40, Tuning::TET31));
+  // pattern.setNoteSwapped(0, 32, 2, Note("A♭4", 0x40, Tuning::TET31)); // 4:3
   
-  pattern.setNoteSwapped(3, 32, 0, Note("Eb3", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(4, 32, 0, Note("E-4", 0x3f, Tuning::TET31));
-  // pattern.setNoteSwapped(5, 32, 0, Note("Eb3", 0x3f, Tuning::TET31));
+  pattern.setNoteSwapped(3, 32, 0, Note("Eb3", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(4, 32, 0, Note("E-4", 0x40, Tuning::TET31));
+  // pattern.setNoteSwapped(5, 32, 0, Note("Eb3", 0x40, Tuning::TET31));
 
-  pattern.setNoteSwapped(0, 36, 0, Note("Eb4", 0x3f, Tuning::TET31));
-  // pattern.setNoteSwapped(1, 38, 0, Note("A𝄫4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(1, 38, 0, Note("G-4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(4, 40, 0, Note("E-4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(2, 44, 0, Note("A♭4", 0x3f, Tuning::TET31));
-  // pattern.setNoteSwapped(2, 44, 0, Note("G-4", 0x3f, Tuning::TET31));
-  // pattern.setNoteSwapped(1, 48, 0, Note("A𝄫4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(1, 48, 0, Note("G-4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(4, 48, 0, Note("E-4", 0x3f, Tuning::TET31));
+  pattern.setNoteSwapped(0, 36, 0, Note("Eb4", 0x40, Tuning::TET31));
+  // pattern.setNoteSwapped(1, 38, 0, Note("A𝄫4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(1, 38, 0, Note("G-4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(4, 40, 0, Note("E-4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(2, 44, 0, Note("A♭4", 0x40, Tuning::TET31));
+  // pattern.setNoteSwapped(2, 44, 0, Note("G-4", 0x40, Tuning::TET31));
+  // pattern.setNoteSwapped(1, 48, 0, Note("A𝄫4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(1, 48, 0, Note("G-4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(4, 48, 0, Note("E-4", 0x40, Tuning::TET31));
 
   current_song = song;    
 }
@@ -278,11 +278,11 @@ Controller::loadDemo2() {
   pattern.setNoteSwapped(0, 87, 0, Note(186)); // C-5  
 
   pattern.setAnnotation(90, "Sad scale");
-  pattern.setNoteSwapped(0, 90, 0, Note("C-4", 0x3f, Tuning::TET31)); // C-4
-  pattern.setNoteSwapped(0, 91, 0, Note("E𝄫4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(0, 92, 0, Note("D#4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(0, 93, 0, Note("F-4", 0x3f, Tuning::TET31));
-  pattern.setNoteSwapped(0, 97, 0, Note("C-5", 0x3f, Tuning::TET31));
+  pattern.setNoteSwapped(0, 90, 0, Note("C-4", 0x40, Tuning::TET31)); // C-4
+  pattern.setNoteSwapped(0, 91, 0, Note("E𝄫4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(0, 92, 0, Note("D#4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(0, 93, 0, Note("F-4", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(0, 97, 0, Note("C-5", 0x40, Tuning::TET31));
 
   #if 0
   pattern.setAnnotation(100, "7-limit scale");
@@ -799,7 +799,7 @@ Controller::loadDemo() {
       if (val == 255) break;
       int midi_note = val & 0x7f;
       bool has_accent = val & 0x80;
-      if (midi_note != 0) track_notes[i][j] = Note(midi_note, has_accent ? 0x60 : 0x3f);
+      if (midi_note != 0) track_notes[i][j] = Note(midi_note, has_accent ? 0x60 : 0x40);
     }
   }
 

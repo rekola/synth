@@ -10,8 +10,8 @@
 class Note {
  public:  
   explicit Note() : value(-1), velocity(0) { }
-  explicit Note(int _value, short _velocity = 0x3f) : value(_value), velocity(_velocity) { }
-  explicit Note(std::string input_value, short _velocity = 0x3f, Tuning tuning = Tuning::TET12)
+  explicit Note(int _value, short _velocity = 0x40) : value(_value), velocity(_velocity) { }
+  explicit Note(std::string input_value, short _velocity = 0x40, Tuning tuning = Tuning::TET12)
     : value(stringToKey(tuning, input_value)),
       velocity(_velocity) { }
 
