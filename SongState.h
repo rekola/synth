@@ -4,7 +4,7 @@
 #include "EventHandler.h"
 #include "Song.h"
 #include "HRFT.h"
-#include "TrackState.h"
+#include "VoicePool.h"
 #include "PlaybackControlEvent.h"
 #include "Effect.h"
 
@@ -32,16 +32,15 @@ class SongState : public EventHandler {
       break;
     case PlaybackControlEvent::CLEAR_VOICES:
       {
-	auto it = track_states.find(ev.getParameter1());
-	if (it != track_states.end()) it->second->getVoices().clear();
+	auto it = track_voices.find(ev.getParameter1());
+	if (it != track_voices.end()) it->second->clear();
       }
       break;
     case PlaybackControlEvent::STOP_NOTE:
       {
-	auto it = track_states.find(ev.getParameter1());
-	if (it != track_states.end()) {
-	  auto & track_state = it->second;
-	  track_state->getVoices().stopNote(ev.getParameter2());
+	auto it = track_voices.find(ev.getParameter1());
+	if (it != track_voices.end()) {
+	  it->second->stopNote(ev.getParameter2());
 	}
       }
       break;      
@@ -110,30 +109,30 @@ class SongState : public EventHandler {
 
   Mixer & getMixer() { return hrft; }
   
-  TrackState & getTrackState(int track_id) {
-    auto it = track_states.find(track_id);
-    if (it != track_states.end()) {
+  VoicePool & getTrackVoices(int track_id) {
+    auto it = track_voices.find(track_id);
+    if (it != track_voices.end()) {
       return *(it->second);
     } else {
-      auto s = std::make_unique<TrackState>(getOutSampleRate());
+      auto s = std::make_unique<VoicePool>(getOutSampleRate());
       auto ptr = s.get();
-      track_states[track_id] = std::move(s);
+      track_voices[track_id] = std::move(s);
       return *ptr;
     }
   }
 
   size_t getVoiceCount() const {
     size_t n = 0;
-    for (auto & td : track_states) {
-      n += td.second->getVoices().getVoiceCount();      
+    for (auto & td : track_voices) {
+      n += td.second->getVoiceCount();
     }
     return n;
   }
 
   size_t getAllocatedVoiceCount() const {
     size_t n = 0;
-    for (auto & td : track_states) {
-      n += td.second->getVoices().getAllocatedVoiceCount();
+    for (auto & td : track_voices) {
+      n += td.second->getAllocatedVoiceCount();
     }
     return n;
   }
@@ -154,12 +153,10 @@ private:
   bool is_playing = false;
   size_t sample_pos = 0, absolute_pos = 0;
 
-  std::unordered_map<int, std::unique_ptr<TrackState> > track_states;
+  std::unordered_map<int, std::unique_ptr<VoicePool> > track_voices;
   std::unordered_map<int, std::unique_ptr<EffectState> > effect_states;
   
   HRFT hrft;
 };
   
 #endif
- 
-  

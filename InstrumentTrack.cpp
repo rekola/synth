@@ -16,7 +16,7 @@ InstrumentTrack::render(size_t frames, SongState & song_state, const std::vector
   assert(getInstrumentId() >= 0 && getInstrumentId() < instruments.size());
   auto & instrument = instruments[getInstrumentId()];
 
-  auto & track_state = song_state.getTrackState(getId());
+  auto & track_voices = song_state.getTrackVoices(getId());
 
   size_t num_channels = instrument->getNumChannels();
   assert(num_channels == 1);
@@ -34,9 +34,9 @@ InstrumentTrack::render(size_t frames, SongState & song_state, const std::vector
       if (i == it->first) {
 	for (auto & ev : it->second) {
 	  if (ev.isOff()) {
-	    track_state.getVoices().stopNote(ev.getId());
+	    track_voices.stopNote(ev.getId());
 	  } else {
-	    instrument->playNote(ev.getId(), ev.getFrequency(), ev.getVelocity(), ev.getDelay(), detune, track_state.getVoices());
+	    instrument->playNote(ev.getId(), ev.getFrequency(), ev.getVelocity(), ev.getDelay(), detune, track_voices);
 	  }
 	}
 	it = pending_events.erase(it);
@@ -44,7 +44,7 @@ InstrumentTrack::render(size_t frames, SongState & song_state, const std::vector
       if (it != pending_events.end() && it->first - i < render_size) render_size = it->first - i;
     }     
 
-    track_state.getVoices().render(data, render_size, i);
+    track_voices.render(data, render_size, i);
     
     i += render_size;
   }

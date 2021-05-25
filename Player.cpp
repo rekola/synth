@@ -41,7 +41,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	
 	if (instrument_track.getInstrumentId() < song.getInstruments().size()) {
 	  auto & instrument = song.getInstrument(instrument_track.getInstrumentId());
-	  auto & track_state = state.getTrackState(track_idx);
+	  auto & track_voices = state.getTrackVoices(track_idx);
 	
 	  auto [ pattern_idx, row_idx ] = state.getRelativePosition(song);
 	  auto & pattern = song.getPattern(pattern_idx);
@@ -52,7 +52,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	  
 	  int key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
 	  float frequency = tuner.getFrequency(tuning, key, note);
-	  instrument.playNote(column, frequency, note.getVelocity() / 127.0f, 0.0f, instrument_track.getDetune(), track_state.getVoices());
+	  instrument.playNote(column, frequency, note.getVelocity() / 127.0f, 0.0f, instrument_track.getDetune(), track_voices);
 	}
       }
     }
