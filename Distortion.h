@@ -11,6 +11,7 @@ class Distortion : public Effect {
   Distortion(DistortionType _type, float _param, float _drymix) : type(_type), param(_param), drymix(_drymix) { }
 
   std::unique_ptr<EffectState> createState(unsigned int outSamplerate) const override;
+  std::string getElementName() const override { return "distortion"; }
   void readXML(tinyxml2::XMLElement & element) override;
   void populateXML(tinyxml2::XMLElement & element) const override;
 

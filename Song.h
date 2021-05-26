@@ -60,6 +60,7 @@ class Song : public Track {
 
   SampleData render(size_t frames, SongState & state);
 
+  std::string getElementName() const override { return "song"; }
   SampleData render(size_t frames, SongState & song_state, const std::vector<std::unique_ptr<Instrument> > & instruments, TrackEventQueue & events) override;
   
 private:

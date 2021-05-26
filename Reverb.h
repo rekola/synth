@@ -10,6 +10,7 @@ class Reverb : public Effect {
   explicit Reverb(ReverbPreset _preset = ReverbPreset::SUBTLE) : preset(_preset) { }
 
   std::unique_ptr<EffectState> createState(unsigned int outSamplerate) const override;
+  std::string getElementName() const override { return "reverb"; }
   void readXML(tinyxml2::XMLElement & element) override;
   void populateXML(tinyxml2::XMLElement & element) const override;
 
