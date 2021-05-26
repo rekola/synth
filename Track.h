@@ -1,6 +1,8 @@
 #ifndef _TRACK_H_
 #define _TRACK_H_
 
+#include "SampleData.h"
+
 #include <string>
 #include <vector>
 #include <memory>
@@ -23,9 +25,23 @@ class Track {
   Track(int _id, Type _type) : id(_id != -1 ? _id : getNextId()), type(_type) { }
   virtual ~Track() { }
   
-  virtual SampleData render(size_t frames, SongState & song_state, const std::vector<std::unique_ptr<Instrument> > & instruments, TrackEventQueue & events) = 0;
+  virtual SampleData render(size_t frames, SongState & song_state, const std::vector<std::unique_ptr<Instrument> > & instruments, TrackEventQueue & events) {
+    if (getChildren().empty()) {
+      return SampleData(1, frames);
+    } else {
+      auto it = getChildren().begin();
+      auto sd = (*it)->render(frames, song_state, instruments, events);
+      for (it++; it != getChildren().end(); it++) {
+	auto sd2 = (*it)->render(frames, song_state, instruments, events);
+	sd.mix(sd2);
+      }
+      return sd;
+    }    
+  }
+  
   virtual void readXML(tinyxml2::XMLElement & element);
   virtual void populateXML(tinyxml2::XMLElement & element) const;
+  virtual std::string getElementName() const { return "track"; }
 
   int getId() const { return id; }
   Type getType() const { return type; }
