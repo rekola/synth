@@ -8,6 +8,9 @@
 #include "InstrumentTrack.h"
 #include "GroupTrack.h"
 #include "Reverb.h"
+#include "Distortion.h"
+#include "Filter.h"
+#include "Compressor.h"
 
 #include "SubtractiveInstrument.h"
 #include "GenericInstrument.h"
@@ -35,6 +38,9 @@ Tuning parse_tuning(const char * tuning_text, Tuning default_tuning = Tuning::IN
 static unique_ptr<Track> createTrack(string name) {
   if (name == "track") return make_unique<InstrumentTrack>();
   else if (name == "reverb") return make_unique<Reverb>();
+  else if (name == "distortion") return make_unique<Distortion>();
+  else if (name == "filter") return make_unique<Filter>();
+  else if (name == "compressor") return make_unique<Compressor>();
   else if (name == "group") return make_unique<GroupTrack>();
   else {
     assert(0);
