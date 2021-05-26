@@ -77,6 +77,10 @@ else if RMS < thresh,
     }
   }
 
+  TrackInfo getInfo() const override {
+    return TrackInfo(attackFlag != 0);
+  }
+
 protected:
   float rms(float * block, size_t n) {
     float sum = 0;

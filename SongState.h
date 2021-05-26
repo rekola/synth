@@ -147,7 +147,9 @@ class SongState : public EventHandler {
     effect_states[effect.getId()] = move(state);
     return *ptr;
   }
-  
+
+  const std::unordered_map<int, std::unique_ptr<EffectState> > & getEffectStates() const { return effect_states; }
+
 private:
   unsigned int outSampleRate;
   bool is_playing = false;

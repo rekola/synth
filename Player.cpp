@@ -111,6 +111,7 @@ Player::play(AudioAPI & audio) {
 	    auto ev = createPlaybackEvent(song, state);
 	    ev->setData(data);
 	    ev->setLoudness(data.calculateLoudness());
+	    
 	    controller->getUIEventQueue().push(move(ev));
 	  } else {
 	    auto data = audio.record(logger);
@@ -136,6 +137,10 @@ Player::createPlaybackEvent(const Song & song, SongState & state) {
   info.absolute_pos = state.getAbsolutePosition();
   info.voice_count = state.getVoiceCount();
   info.allocated_voice_count = state.getAllocatedVoiceCount();
+
+  for (auto & [ track_id, state ] : state.getEffectStates()) {
+    info.setTrackInfo(track_id, state->getInfo());
+  }
   
   return make_unique<PlaybackEvent>(info);
 }
