@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<song key="C" tuning="31-TET" tempo="90">
+  <effects>
+  </effects>
+
+  <instruments>
+  </instruments>
+
+  <tracks>
+    <track type="master">
+      <track type="sample" name="vocals" />
+      <track type="group" name="percussion">
+	<track name="hihat" />
+	<track name="tom" />
+      </track>
+    </track>
+  </tracks>
+
+  <samples>
+  </samples>
+  
+  <patterns>
+    <pattern key="C" tuning="31-TET" size="32">
+      <note track="0" row="0" column="0" value="C-4" velocity="0.25" />      
+    </pattern>
+  </patterns>
+</song>
