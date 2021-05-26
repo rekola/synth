@@ -10,6 +10,7 @@ class Filter : public Effect {
   Filter(float _fcut, float _fres, bool is_highpass) : fcut(_fcut), fres(_fres), is_highpass(is_highpass) { }
 
   std::unique_ptr<EffectState> createState(unsigned int samplerate) const override;
+  std::string getElementName() const override { return "filter"; }
   void readXML(tinyxml2::XMLElement & element) override;
   void populateXML(tinyxml2::XMLElement & element) const override;
 
