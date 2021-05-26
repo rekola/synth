@@ -5,6 +5,7 @@
 
 #include "Note.h"
 #include "EnvelopeState.h"
+#include "EffectState.h"
 
 #include <vector>
 
