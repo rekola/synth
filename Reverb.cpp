@@ -2,6 +2,7 @@
 
 #include "MVerb.h"
 #include "SampleData.h"
+#include "EffectState.h"
 
 #include "tinyxml2.h"
 
