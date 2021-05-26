@@ -26,22 +26,21 @@ private:
 void
 Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
   auto & song = controller->getSong();
-  auto & tracks = song.getChildren();
 
   switch (ev.getType()) {
   case PlaybackControlEvent::PLAY_NOTE:
     {
-      auto track_idx = ev.getParameter1();
+      auto track_id = ev.getParameter1();
       auto column = ev.getParameter2();
       auto midi_note = ev.getParameter3();
       
-      auto & track = tracks[track_idx];
-      if (track->getType() == Track::INSTRUMENT) {
+      auto * track = song.getChildById(track_id);
+      if (track && track->getType() == Track::INSTRUMENT) {
 	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
 	
 	if (instrument_track.getInstrumentId() < song.getInstruments().size()) {
 	  auto & instrument = song.getInstrument(instrument_track.getInstrumentId());
-	  auto & track_voices = state.getTrackVoices(track_idx);
+	  auto & track_voices = state.getTrackVoices(track_id);
 	
 	  auto [ pattern_idx, row_idx ] = state.getRelativePosition(song);
 	  auto & pattern = song.getPattern(pattern_idx);
