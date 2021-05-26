@@ -1,5 +1,7 @@
 #include "Delay.h"
 
+#include "EffectState.h"
+
 #define MAX_DELAY_SAMPLES 44100 * 5
 
 using namespace std;
