@@ -15,6 +15,7 @@ OBJS = main.o \
 	InstrumentTrack.o \
 	tinyxml2.o \
 	Filter.o \
+	Compressor.o \
 	Delay.o \
 	Distortion.o \
 	Reverb.o \
