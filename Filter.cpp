@@ -1,6 +1,9 @@
 #include "Filter.h"
 
 #include "SampleData.h"
+#include "EffectState.h"
+
+#include "tinyxml2.h"
 
 #include <cassert>
 
@@ -59,4 +62,20 @@ private:
 std::unique_ptr<EffectState>
 Filter::createState(unsigned int outSampleRate) const {
   return make_unique<FilterState>(outSampleRate, *this);
+}
+
+void
+Filter::readXML(tinyxml2::XMLElement & element) {
+  Effect::readXML(element);
+  
+  auto fcut_text = element.Attribute("fcut");
+  fcut = fcut_text ? atof(fcut_text) : 0.0f;
+
+  auto fres_text = element.Attribute("fres");
+  fres = fres_text ? atof(fres_text) : 0.0f;
+}
+
+void
+Filter::populateXML(tinyxml2::XMLElement & element) const {
+  Effect::populateXML(element);  
 }

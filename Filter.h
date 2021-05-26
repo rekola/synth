@@ -6,9 +6,12 @@
 
 class Filter : public Effect {
  public:
+  Filter() : fcut(0.0f), fres(0.0f), is_highpass(false) { }
   Filter(float _fcut, float _fres, bool is_highpass) : fcut(_fcut), fres(_fres), is_highpass(is_highpass) { }
 
   std::unique_ptr<EffectState> createState(unsigned int samplerate) const override;
+  void readXML(tinyxml2::XMLElement & element) override;
+  void populateXML(tinyxml2::XMLElement & element) const override;
 
   float get_fcut() const { return fcut; }
   float get_fres() const { return fres; }
