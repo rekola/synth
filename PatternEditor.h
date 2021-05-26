@@ -20,7 +20,7 @@ class PatternEditor : public UIElement {
 
 protected:
   void renderHeading(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, size_t> & track_widths);
-  void renderRow(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, size_t> & track_widths, size_t row, bool highlight);
+  void renderRow(const StyleProvider & styles, size_t heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, size_t> & track_widths, size_t row, bool highlight);
   
   size_t current_score_playing_row = 0;
   size_t current_score_pattern = 0;

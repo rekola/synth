@@ -18,6 +18,15 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   // getPlane().setScrolling(true);  
 }
 
+static size_t get_depth(const Track & track) {
+  size_t max_depth = 0;  
+  for (auto & child : track.getChildren()) {
+    auto d = get_depth(*child);
+    if (d > max_depth) max_depth = d;
+  }
+  return 1 + max_depth;
+}
+
 static void get_instrument_track_ids(const Track & track, vector<int> & track_ids) {
   for (auto & child : track.getChildren()) {
     if (child->getType() == Track::INSTRUMENT) {
@@ -28,7 +37,7 @@ static void get_instrument_track_ids(const Track & track, vector<int> & track_id
   }
 }
 
-void fill_track_widths(const Track & track, std::unordered_map<int, size_t> & widths) {
+static void fill_track_widths(const Track & track, std::unordered_map<int, size_t> & widths) {
   for (auto & child : track.getChildren()) {
     if (child->getType() == Track::INSTRUMENT) {
       auto it = widths.find(child->getId());
@@ -42,6 +51,13 @@ void fill_track_widths(const Track & track, std::unordered_map<int, size_t> & wi
   }
 }
 
+static void get_track_parents(Track & track, std::unordered_map<int, Track *> & parents) {
+  for (auto & child : track.getChildren()) {
+    parents[child->getId()] = &track;
+    get_track_parents(*child, parents);
+  }
+}
+
 bool
 PatternEditor::render(const StyleProvider & styles, bool refresh) {
   bool render_all = refresh;
@@ -51,6 +67,8 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   auto & song = getController().getSong();
   auto & current_pattern = song.getPattern(score_pattern);
 
+  auto heading_height = get_depth(song);
+  
   auto track_widths = current_pattern.getTrackWidths();
   fill_track_widths(song, track_widths);
 
@@ -107,7 +125,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   current_score_cursor_track = new_score_cursor_track;
   current_score_cursor_col = new_score_cursor_col;
   current_score_cursor_subcol = new_score_cursor_subcol;
-
+  
   bool need_redraw = false;
   if (render_all) {
     current_scroll_row = new_scroll_row;
@@ -121,15 +139,15 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
     
     renderHeading(styles, track_ids, track_widths);
     for (size_t row = 0; row < current_pattern.getNumRows(); row++) {
-      renderRow(styles, track_ids, track_widths, row, row == score_playing_row);
+      renderRow(styles, heading_height, track_ids, track_widths, row, row == score_playing_row);
     }
     need_redraw = true;
   } else if (current_score_playing_row != score_playing_row) {
-    renderRow(styles, track_ids, track_widths, current_score_playing_row, false);
-    renderRow(styles, track_ids, track_widths, score_playing_row, true);
+    renderRow(styles, heading_height, track_ids, track_widths, current_score_playing_row, false);
+    renderRow(styles, heading_height, track_ids, track_widths, score_playing_row, true);
     need_redraw = true;
   } else if (cursor_changed || row_edited) {
-    renderRow(styles, track_ids, track_widths, score_playing_row, true);
+    renderRow(styles, heading_height, track_ids, track_widths, score_playing_row, true);
     need_redraw = true;
   }
 
@@ -321,12 +339,13 @@ PatternEditor::offerInput(const InputEvent & input) {
     if (track) track->setMute(true);   
   } else {
     auto & pattern = song.getPattern(info.getPatternIndex());
-
+    int track_id = track_ids[new_score_cursor_track];
+    
     if (new_score_cursor_col + 1 == num_columns) {
-      if ((input.getId() >= 'a' && input.getId() <= 'z') || (input.getId() >= '0' && input.getId() <= '9') || input.getId() == '-') {
-	auto command = pattern.getCommand(info.getRowIndex(), new_score_cursor_track);
+      if ((input.getId() >= 'a' && input.getId() <= 'z') || (input.getId() >= '0' && input.getId() <= '9') || input.getId() == '-') {	
+	auto command = pattern.getCommand(info.getRowIndex(), track_id);
 	command.updateData(new_score_cursor_subcol, toupper(input.getId()));
-	pattern.setCommand(info.getRowIndex(), new_score_cursor_track, command);
+	pattern.setCommand(info.getRowIndex(), track_id, command);
 	row_edited = true;
 	
 	if (new_score_cursor_subcol + 1 < 4) {
@@ -344,22 +363,22 @@ PatternEditor::offerInput(const InputEvent & input) {
       bool is_delete = input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE;
       if (is_delete || midi_note >= 0) {
 	if (is_delete) {
-	  pattern.deleteNote(current_score_cursor_track, info.getRowIndex(), current_score_cursor_col);
-	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, current_score_cursor_track, current_score_cursor_col));
+	  pattern.deleteNote(info.getRowIndex(), track_id, current_score_cursor_col);
+	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, track_id, current_score_cursor_col));
 	} else {
 	  Note note(midi_note);
 	  
 	  size_t note_column = 0;
 	  if (input.hasShift()) {
-	    note_column = pattern.pushNote(info.getRowIndex(), current_score_cursor_track, note);
+	    note_column = pattern.pushNote(info.getRowIndex(), track_id, note);
 	  } else {
-	    pattern.setNote(info.getRowIndex(), current_score_cursor_track, current_score_cursor_col, note);
+	    pattern.setNote(info.getRowIndex(), track_id, current_score_cursor_col, note);
 	  }
 	  	  
 	  if (note.isOff()) {
-	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, current_score_cursor_track, note_column));
+	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, track_id, note_column));
 	  } else {
-	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, current_score_cursor_track, note_column, midi_note));
+	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, track_id, note_column, midi_note));
 	  }
 	}
 
@@ -383,66 +402,105 @@ PatternEditor::offerInput(const InputEvent & input) {
 }
 
 void
-PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, size_t> & track_widths) {
+PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, size_t> & track_widths0) {
   auto & song = getController().getSong();
   auto & info = getController().getPlaybackInfo();
   auto & pattern = song.getPattern(info.getPatternIndex());
 
   auto [rows, cols] = getDim();
-  
+
+  unordered_map<int, Track *> track_parents;
+  get_track_parents(song, track_parents);
+
+  auto heading_height = get_depth(song);
+
   string padding;
   for (size_t i = 1; i < cols - 1; i++) padding += ' ';
 
   setBgColor(styles.window_bg_color);
-  putstr(1, 1, padding);
-  putstr(2, 1, padding);
-
+  for (size_t i = 0; i < heading_height; i++) {
+    putstr(1 + i, 1, padding);
+  }
+  
   auto & instruments = song.getInstruments();
 
-  size_t current_pos = 6;
-  for (size_t i = 0; i < track_ids.size(); i++) {
-    if (i < current_scroll_track) continue;
-    if (current_pos >= cols) break;
+  for (size_t level = 0; level < heading_height - 1; level++) {
+    vector<Track *> tracks;
+    vector<size_t> track_widths;
 
-    int track_id = track_ids[i];
-    auto it = track_widths.find(track_id);
-    size_t actual_width = (it != track_widths.end() ? it->second : 0) * 7 - 1;
-    
-    setFgColor(0x00, 0x00, 0x00);
-    setBgColor(0xf0, 0x80, 0x10);
-    
-    string name = format("Trk {:02d}", i);
-    if (name.size() > actual_width - 1) name.erase(actual_width - 1);
-    else {
-      while (name.size() < actual_width - 1) name += ' ';
-    }
-    name += "│";
-    putstr(1, current_pos, name);
+    for (size_t i = 0; i < track_ids.size(); i++) {
+      int track_id = track_ids[i];
+      auto track = song.getChildById(track_id);
+      for (size_t k = 0; k < level && track; k++) {
+	track = track_parents[track->getId()];
+      }
+      auto it = track_widths0.find(track_id);
+      auto w = (it != track_widths0.end() ? it->second : 0) * 7 - 1;
 
-    setFgColor(0xf0, 0xf0, 0xf0);
-    setBgColor(styles.window_bg_color);
-
-    string instrument_name;
-    auto * track = song.getChildById(track_id);
-    if (track) {
-      if (track->getType() == Track::SAMPLE) {
-	instrument_name = "Sample";
-      } else if (track->getType() == Track::INSTRUMENT) {
-	auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
-	if (instrument_track.getInstrumentId() >= 0 && instrument_track.getInstrumentId() < instruments.size()) {
-	  instrument_name = instruments[instrument_track.getInstrumentId()]->getName();
-	}
+      if (!tracks.empty() && tracks.back() == track) {
+	track_widths.back() += w;
+      } else {
+	tracks.push_back(track);
+	track_widths.push_back(w);
       }
     }
-    if (instrument_name.size() > actual_width - 1) instrument_name.erase(actual_width - 1);
-    putstr(2, current_pos, instrument_name);
     
-    current_pos += actual_width;
+    size_t current_pos = 6;
+    for (size_t i = 0; i < tracks.size(); i++) {
+      if (i < current_scroll_track) continue;
+      if (current_pos >= cols) break;
+
+      auto track = tracks[i];
+      auto actual_width = track_widths[i];
+
+      if (track) {
+	if (level == 0) {
+	  setFgColor(0x00, 0x00, 0x00);
+	  setBgColor(0xf0, 0x80, 0x10);
+
+	  string name = format("Trk {:02d}", i);
+	  if (name.size() > actual_width - 1) name.erase(actual_width - 1);
+	  else {
+	    while (name.size() < actual_width - 1) name += ' ';
+	  }
+	  name += "│";
+	  putstr(1 + heading_height - 2 - level, current_pos, name);
+	  
+	  setFgColor(0xf0, 0xf0, 0xf0);
+	  setBgColor(styles.window_bg_color);
+	  
+	  string instrument_name;
+	  if (track->getType() == Track::SAMPLE) {
+	    instrument_name = "Sample";
+	  } else if (track->getType() == Track::INSTRUMENT) {
+	    auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
+	    if (instrument_track.getInstrumentId() >= 0 && instrument_track.getInstrumentId() < instruments.size()) {
+	      instrument_name = instruments[instrument_track.getInstrumentId()]->getName();
+	    }
+	  }
+	  if (instrument_name.size() > actual_width - 1) instrument_name.erase(actual_width - 1);
+	  putstr(2 + heading_height - 2 - level, current_pos, instrument_name);
+	} else {
+	  setFgColor(0xe0, 0xe0, 0xe0);
+	  setBgColor(0x50, 0x50, 0x60);
+
+	  string name = track->getElementName();
+	  if (name.size() > actual_width - 1) name.erase(actual_width - 1);
+	  else {
+	    while (name.size() < actual_width - 1) name += ' ';
+	  }
+	  
+	  putstr(1 + heading_height - 2 - level, current_pos, name);
+	}
+      }
+      
+      current_pos += actual_width;
+    }
   }
 }
 
 void
-PatternEditor::renderRow(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, size_t> & track_widths, size_t row, bool highlight) {
+PatternEditor::renderRow(const StyleProvider & styles, size_t heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, size_t> & track_widths, size_t row, bool highlight) {
   auto [rows, cols] = getDim();
 
   if (row >= current_scroll_row && row < current_scroll_row + rows - 4) {
@@ -454,7 +512,7 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<int> & 
     for (size_t i = 1; i < cols - 1; i++) padding += ' ';
     
     setBgColor(styles.window_bg_color);
-    putstr(3 + row - current_scroll_row, 1, padding);
+    putstr(1 + heading_height + row - current_scroll_row, 1, padding);
 
     Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
     
@@ -480,12 +538,12 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<int> & 
 	setFgColor(fg);
 	setBgColor(bg);
 	
-	putstr(3 + row - current_scroll_row, current_pos, format(" {:02x} ", row));
+	putstr(1 + heading_height + row - current_scroll_row, current_pos, format(" {:02x} ", row));
 	
 	setFgColor(styles.window_border_color);
 	setBgColor(styles.window_bg_color);
 	
-	putstr(3 + row - current_scroll_row, current_pos + 4, "│");
+	putstr(1 + heading_height + row - current_scroll_row, current_pos + 4, "│");
 	
 	current_pos += 5;
       } else {
@@ -498,7 +556,7 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<int> & 
 	
 	for (size_t k = 0; k < track_columns; k++) {      
 	  if (k == track_columns - 1) { // effect column
-	    putstr(3 + row - current_scroll_row, current_pos, " ");
+	    putstr(1 + heading_height + row - current_scroll_row, current_pos, " ");
 	    current_pos++;
 	    for (size_t l = 0; l < 4; l++) {
 	      if (highlight && i == (int)current_score_cursor_track && k == current_score_cursor_col && l == current_score_cursor_subcol) {
@@ -513,13 +571,13 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<int> & 
 
 	      string s;
 	      s += command.data()[l];
-	      putstr(3 + row - current_scroll_row, current_pos, s);
+	      putstr(1 + heading_height + row - current_scroll_row, current_pos, s);
 	      current_pos++;
 	    }
 	    
 	    setFgColor(styles.window_border_color);
 	    setBgColor(bg);
-	    putstr(3 + row - current_scroll_row, current_pos, "│");
+	    putstr(1 + heading_height + row - current_scroll_row, current_pos, "│");
 	    current_pos++;
 	  } else {
 	    if (highlight && i == (int)current_score_cursor_track && k == current_score_cursor_col) {
@@ -533,7 +591,7 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<int> & 
 	    setBgColor(cell_bg);
 
 	    if (track && track->getType() == Track::SAMPLE) {
-	      putstr(3 + row - current_scroll_row, current_pos, "      ");
+	      putstr(1 + heading_height + row - current_scroll_row, current_pos, "      ");
 	    } else {
 	      string s;
 	      if (k < notes.size() && notes[k].isDefined()) {
@@ -542,13 +600,13 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<int> & 
 	      } else {
 		s = "... ..";
 	      }	    
-	      putstr(3 + row - current_scroll_row, current_pos, s);
+	      putstr(1 + heading_height + row - current_scroll_row, current_pos, s);
 	    }
 	    
 	    setFgColor(styles.window_border_color);
 	    setBgColor(bg);
 	    
-	    putstr(3 + row - current_scroll_row, current_pos + 6, " ");
+	    putstr(1 + heading_height + row - current_scroll_row, current_pos + 6, " ");
 	    
 	    current_pos += 7;
 	  }
@@ -561,7 +619,7 @@ PatternEditor::renderRow(const StyleProvider & styles, const std::vector<int> & 
       if (!annotation.empty()) {
 	setFgColor("#e03030");
 	setBgColor("#702020");
-	putstr(3 + row - current_scroll_row, current_pos + 2, annotation);
+	putstr(1 + heading_height + row - current_scroll_row, current_pos + 2, annotation);
       }
     }
   }
