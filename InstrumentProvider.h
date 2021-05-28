@@ -65,7 +65,7 @@ class InstrumentProvider {
 // 58 Vibra Slap
 // 59 Ride Cymbal 2
 // 60 High Bongo
-// 61 Low Bongo
+    addInstrument(sf->createInstrument(160, 61, "Low Bongo"));
 // 62 Mute High Conga
 // 63 Open High Conga
 // 64 Low Conga
