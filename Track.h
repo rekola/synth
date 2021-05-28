@@ -26,17 +26,14 @@ class Track {
   virtual ~Track() { }
   
   virtual SampleData render(size_t frames, SongState & song_state, const std::vector<std::unique_ptr<Instrument> > & instruments, TrackEventQueue & events) {
-    if (getChildren().empty()) {
-      return SampleData(1, frames);
-    } else {
-      auto it = getChildren().begin();
-      auto sd = (*it)->render(frames, song_state, instruments, events);
-      for (it++; it != getChildren().end(); it++) {
-	auto sd2 = (*it)->render(frames, song_state, instruments, events);
+    SampleData sd(1, frames);
+    for (auto it = getChildren().begin(); it != getChildren().end(); it++) {
+      auto sd2 = (*it)->render(frames, song_state, instruments, events);
+      if (!(*it)->isMuted()) {
 	sd.mix(sd2);
       }
-      return sd;
-    }    
+    }
+    return sd;
   }
   
   virtual void readXML(tinyxml2::XMLElement & element);
