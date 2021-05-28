@@ -1,5 +1,7 @@
 #include "Chorus.h"
 
+#include "EffectState.h"
+
 using namespace std;
 
 #define CHORUS_MAX_DELAY_SAMPLES 44100
@@ -44,6 +46,6 @@ private:
 };
 
 std::unique_ptr<EffectState>
-Chorus::createState(unsigned int outSamplerate) {
-  return make_unique<ChorusState>(outSampleRate, delay1, delay2));
+Chorus::createState(unsigned int outSampleRate) const {
+  return make_unique<ChorusState>(outSampleRate, delay1, delay2);
 }

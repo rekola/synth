@@ -5,9 +5,10 @@
 
 class Chorus : public Effect {
  public:
-  Chorus(float _delay1, float _delay2) : delay1(_delay1), delay2(_delay2) { }
+  Chorus(float _delay1 = 0.0f, float _delay2 = 0.0f) : delay1(_delay1), delay2(_delay2) { }
 
   std::unique_ptr<EffectState> createState(unsigned int outSamplerate) const override;
+  std::string getElementName() const override { return "chorus"; }
 
  private:
   float delay1, delay2; // ms
