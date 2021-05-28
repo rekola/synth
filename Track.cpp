@@ -4,7 +4,7 @@
 
 using namespace tinyxml2;
 
-std::atomic<int> Track::next_id(1);
+std::atomic<int> Track::next_id(1000);
 
 void
 Track::readXML(XMLElement & element) {
