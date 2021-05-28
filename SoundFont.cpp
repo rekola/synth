@@ -458,143 +458,159 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
   enum { GenInstrument = 41, GenKeyRange = 43, GenVelRange = 44, GenSampleID = 53 };
   // Read each preset.
   struct tsf_hydra_phdr *pphdr, *pphdrMax;
-  for (pphdr = hydra->phdrs, pphdrMax = pphdr + hydra->phdrNum - 1; pphdr != pphdrMax; pphdr++)
-    {
-      int sortedIndex = 0, region_index = 0;
-      struct tsf_hydra_phdr *otherphdr;
-      struct tsf_hydra_pbag *ppbag, *ppbagEnd;
-      struct tsf_region globalRegion;
-      for (otherphdr = hydra->phdrs; otherphdr != pphdrMax; otherphdr++)
-	{
-	  if (otherphdr == pphdr || otherphdr->bank > pphdr->bank) continue;
-	  else if (otherphdr->bank < pphdr->bank) sortedIndex++;
-	  else if (otherphdr->preset > pphdr->preset) continue;
-	  else if (otherphdr->preset < pphdr->preset) sortedIndex++;
-	  else if (otherphdr < pphdr) sortedIndex++;
+  for (pphdr = hydra->phdrs, pphdrMax = pphdr + hydra->phdrNum - 1; pphdr != pphdrMax; pphdr++) {
+    int sortedIndex = 0, region_index = 0;
+    struct tsf_hydra_phdr *otherphdr;
+    struct tsf_hydra_pbag *ppbag, *ppbagEnd;
+    struct tsf_region globalRegion;
+    for (otherphdr = hydra->phdrs; otherphdr != pphdrMax; otherphdr++) {
+      if (otherphdr == pphdr || otherphdr->bank > pphdr->bank) continue;
+      else if (otherphdr->bank < pphdr->bank) sortedIndex++;
+      else if (otherphdr->preset > pphdr->preset) continue;
+      else if (otherphdr->preset < pphdr->preset) sortedIndex++;
+      else if (otherphdr < pphdr) sortedIndex++;
+    }
+    
+    struct tsf_preset * preset = &(res->presets[sortedIndex]);
+    
+    memcpy(preset->presetName, pphdr->presetName, sizeof(preset->presetName));
+    preset->presetName[sizeof(preset->presetName)-1] = '\0'; //should be zero terminated in source file but make sure
+    preset->bank = pphdr->bank;
+    preset->preset = pphdr->preset;
+    
+    size_t regionNum = 0;
+    
+    // count regions covered by this preset
+    for (ppbag = hydra->pbags + pphdr->presetBagNdx, ppbagEnd = hydra->pbags + pphdr[1].presetBagNdx; ppbag != ppbagEnd; ppbag++) {
+      unsigned char plokey = 0, phikey = 127, plovel = 0, phivel = 127;
+      struct tsf_hydra_pgen *ppgen, *ppgenEnd;
+      struct tsf_hydra_ibag *pibag, *pibagEnd;
+      struct tsf_hydra_igen *pigen, *pigenEnd;
+      
+      for (ppgen = hydra->pgens + ppbag->genNdx, ppgenEnd = hydra->pgens + ppbag[1].genNdx; ppgen != ppgenEnd; ppgen++) {
+	if (ppgen->genOper == GenKeyRange) {
+	  plokey = ppgen->genAmount.range.lo;
+	  phikey = ppgen->genAmount.range.hi;
+	  continue;
 	}
-
-      struct tsf_preset * preset = &(res->presets[sortedIndex]);
-      
-      memcpy(preset->presetName, pphdr->presetName, sizeof(preset->presetName));
-      preset->presetName[sizeof(preset->presetName)-1] = '\0'; //should be zero terminated in source file but make sure
-      preset->bank = pphdr->bank;
-      preset->preset = pphdr->preset;
-
-      size_t regionNum = 0;
-      
-      // count regions covered by this preset
-      for (ppbag = hydra->pbags + pphdr->presetBagNdx, ppbagEnd = hydra->pbags + pphdr[1].presetBagNdx; ppbag != ppbagEnd; ppbag++) {
-	unsigned char plokey = 0, phikey = 127, plovel = 0, phivel = 127;
-	struct tsf_hydra_pgen *ppgen, *ppgenEnd; struct tsf_hydra_inst *pinst; struct tsf_hydra_ibag *pibag, *pibagEnd; struct tsf_hydra_igen *pigen, *pigenEnd;
-	for (ppgen = hydra->pgens + ppbag->genNdx, ppgenEnd = hydra->pgens + ppbag[1].genNdx; ppgen != ppgenEnd; ppgen++) {
-	  if (ppgen->genOper == GenKeyRange) { plokey = ppgen->genAmount.range.lo; phikey = ppgen->genAmount.range.hi; continue; }
-	  if (ppgen->genOper == GenVelRange) { plovel = ppgen->genAmount.range.lo; phivel = ppgen->genAmount.range.hi; continue; }
-	  if (ppgen->genOper != GenInstrument) continue;
-	  if (ppgen->genAmount.wordAmount >= hydra->instNum) continue;
-	  pinst = hydra->insts + ppgen->genAmount.wordAmount;
-	  for (pibag = hydra->ibags + pinst->instBagNdx, pibagEnd = hydra->ibags + pinst[1].instBagNdx; pibag != pibagEnd; pibag++) {
-	    unsigned char ilokey = 0, ihikey = 127, ilovel = 0, ihivel = 127;
-	    for (pigen = hydra->igens + pibag->instGenNdx, pigenEnd = hydra->igens + pibag[1].instGenNdx; pigen != pigenEnd; pigen++) {
-	      if (pigen->genOper == GenKeyRange) { ilokey = pigen->genAmount.range.lo; ihikey = pigen->genAmount.range.hi; continue; }
-	      if (pigen->genOper == GenVelRange) { ilovel = pigen->genAmount.range.lo; ihivel = pigen->genAmount.range.hi; continue; }
-	      if (pigen->genOper == GenSampleID && ihikey >= plokey && ilokey <= phikey && ihivel >= plovel && ilovel <= phivel) regionNum++;
+	if (ppgen->genOper == GenVelRange) {
+	  plovel = ppgen->genAmount.range.lo;
+	  phivel = ppgen->genAmount.range.hi;
+	  continue;
+	}
+	if (ppgen->genOper != GenInstrument) continue;
+	if (ppgen->genAmount.wordAmount >= hydra->instNum) continue;
+	
+	struct tsf_hydra_inst * pinst = hydra->insts + ppgen->genAmount.wordAmount;
+	for (pibag = hydra->ibags + pinst->instBagNdx, pibagEnd = hydra->ibags + pinst[1].instBagNdx; pibag != pibagEnd; pibag++) {
+	  unsigned char ilokey = 0, ihikey = 127, ilovel = 0, ihivel = 127;
+	  for (pigen = hydra->igens + pibag->instGenNdx, pigenEnd = hydra->igens + pibag[1].instGenNdx; pigen != pigenEnd; pigen++) {
+	    if (pigen->genOper == GenKeyRange) {
+	      ilokey = pigen->genAmount.range.lo;
+	      ihikey = pigen->genAmount.range.hi;
+	      continue;
 	    }
+	    if (pigen->genOper == GenVelRange) {
+	      ilovel = pigen->genAmount.range.lo;
+	      ihivel = pigen->genAmount.range.hi;
+	      continue;
+	    }
+	    if (pigen->genOper == GenSampleID && ihikey >= plokey && ilokey <= phikey && ihivel >= plovel && ilovel <= phivel) regionNum++;
 	  }
 	}
       }
-
-      preset->regions.resize(regionNum);
-      globalRegion.clear(true);
-      
-      // Zones.
-      for (ppbag = hydra->pbags + pphdr->presetBagNdx, ppbagEnd = hydra->pbags + pphdr[1].presetBagNdx; ppbag != ppbagEnd; ppbag++)
-	{
-	  struct tsf_hydra_pgen *ppgen, *ppgenEnd; struct tsf_hydra_inst *pinst; struct tsf_hydra_ibag *pibag, *pibagEnd; struct tsf_hydra_igen *pigen, *pigenEnd;
-	  struct tsf_region presetRegion = globalRegion;
-	  int hadGenInstrument = 0;
-	  
-	  // Generators.
-	  for (ppgen = hydra->pgens + ppbag->genNdx, ppgenEnd = hydra->pgens + ppbag[1].genNdx; ppgen != ppgenEnd; ppgen++)
-	    {
-	      // Instrument.
-	      if (ppgen->genOper == GenInstrument)
-		{
-		  struct tsf_region instRegion;
-		  uint16_t whichInst = ppgen->genAmount.wordAmount;
-		  if (whichInst >= hydra->instNum) continue;
-		  
-		  instRegion.clear(false);
-		  pinst = &hydra->insts[whichInst];
-		  for (pibag = hydra->ibags + pinst->instBagNdx, pibagEnd = hydra->ibags + pinst[1].instBagNdx; pibag != pibagEnd; pibag++)
-		    {
-		      // Generators.
-		      struct tsf_region zoneRegion = instRegion;
-		      int hadSampleID = 0;
-		      for (pigen = hydra->igens + pibag->instGenNdx, pigenEnd = hydra->igens + pibag[1].instGenNdx; pigen != pigenEnd; pigen++)
-			{
-			  if (pigen->genOper == GenSampleID)
-			    {
-			      struct tsf_hydra_shdr* pshdr;
-			      
-			      // preset region key and vel ranges are a filter for the zone regions
-			      if (zoneRegion.hikey < presetRegion.lokey || zoneRegion.lokey > presetRegion.hikey) continue;
-			      if (zoneRegion.hivel < presetRegion.lovel || zoneRegion.lovel > presetRegion.hivel) continue;
-			      if (presetRegion.lokey > zoneRegion.lokey) zoneRegion.lokey = presetRegion.lokey;
-			      if (presetRegion.hikey < zoneRegion.hikey) zoneRegion.hikey = presetRegion.hikey;
-			      if (presetRegion.lovel > zoneRegion.lovel) zoneRegion.lovel = presetRegion.lovel;
-			      if (presetRegion.hivel < zoneRegion.hivel) zoneRegion.hivel = presetRegion.hivel;
-			      
-			      // sum regions
-			      tsf_region_operator(&zoneRegion, 0, nullptr, &presetRegion);
-			      
-			      // EG times need to be converted from timecents to seconds.
-			      tsf_region_envtosecs(&zoneRegion.ampenv, true);
-			      tsf_region_envtosecs(&zoneRegion.modenv, false);
-			      
-			      // LFO times need to be converted from timecents to seconds.
-			      zoneRegion.delayModLFO = (zoneRegion.delayModLFO < -11950.0f ? 0.0f : tsf_timecents2Secsf(zoneRegion.delayModLFO));
-			      zoneRegion.delayVibLFO = (zoneRegion.delayVibLFO < -11950.0f ? 0.0f : tsf_timecents2Secsf(zoneRegion.delayVibLFO));
-			      
-			      // Fixup sample positions
-			      pshdr = &hydra->shdrs[pigen->genAmount.wordAmount];
-			      zoneRegion.offset += pshdr->start;
-			      zoneRegion.end += pshdr->end;
-			      zoneRegion.loop_start += pshdr->startLoop;
-			      zoneRegion.loop_end += pshdr->endLoop;
-			      if (pshdr->endLoop > 0) zoneRegion.loop_end -= 1;
-			      if (zoneRegion.pitch_keycenter == -1) zoneRegion.pitch_keycenter = pshdr->originalPitch;
-			      zoneRegion.tune += pshdr->pitchCorrection;
-			      zoneRegion.sample_rate = pshdr->sampleRate;
-			      if (zoneRegion.end && zoneRegion.end < fontSampleCount) zoneRegion.end++;
-			      else zoneRegion.end = fontSampleCount;
-			      
-			      preset->regions[region_index] = zoneRegion;
-			      region_index++;
-			      hadSampleID = 1;
-			    }
-			  else tsf_region_operator(&zoneRegion, pigen->genOper, &pigen->genAmount, nullptr);
-			}
-		      
-		      // Handle instrument's global zone.
-		      if (pibag == hydra->ibags + pinst->instBagNdx && !hadSampleID)
-			instRegion = zoneRegion;
-		      
-		      // Modulators (TODO)
-		      //if (ibag->instModNdx < ibag[1].instModNdx) addUnsupportedOpcode("any modulator");
-		    }
-		  hadGenInstrument = 1;
-		}
-	      else tsf_region_operator(&presetRegion, ppgen->genOper, &ppgen->genAmount, nullptr);
-	    }
-	  
-	  // Modulators (TODO)
-	  //if (pbag->modNdx < pbag[1].modNdx) addUnsupportedOpcode("any modulator");
-	  
-	  // Handle preset's global zone.
-	  if (ppbag == hydra->pbags + pphdr->presetBagNdx && !hadGenInstrument)
-	    globalRegion = presetRegion;
-	}
     }
+    
+    preset->regions.resize(regionNum);
+    globalRegion.clear(true);
+    
+    // Zones.
+    for (ppbag = hydra->pbags + pphdr->presetBagNdx, ppbagEnd = hydra->pbags + pphdr[1].presetBagNdx; ppbag != ppbagEnd; ppbag++) {
+      struct tsf_hydra_pgen *ppgen, *ppgenEnd; struct tsf_hydra_inst *pinst; struct tsf_hydra_ibag *pibag, *pibagEnd; struct tsf_hydra_igen *pigen, *pigenEnd;
+      struct tsf_region presetRegion = globalRegion;
+      int hadGenInstrument = 0;
+      
+      // Generators.
+      for (ppgen = hydra->pgens + ppbag->genNdx, ppgenEnd = hydra->pgens + ppbag[1].genNdx; ppgen != ppgenEnd; ppgen++)	{
+	// Instrument.
+	if (ppgen->genOper == GenInstrument) {
+	  struct tsf_region instRegion;
+	  uint16_t whichInst = ppgen->genAmount.wordAmount;
+	  if (whichInst >= hydra->instNum) continue;
+	  
+	  instRegion.clear(false);
+	  pinst = &hydra->insts[whichInst];
+	  for (pibag = hydra->ibags + pinst->instBagNdx, pibagEnd = hydra->ibags + pinst[1].instBagNdx; pibag != pibagEnd; pibag++) {
+	    // Generators.
+	    struct tsf_region zoneRegion = instRegion;
+	    int hadSampleID = 0;
+	    for (pigen = hydra->igens + pibag->instGenNdx, pigenEnd = hydra->igens + pibag[1].instGenNdx; pigen != pigenEnd; pigen++) {
+	      if (pigen->genOper == GenSampleID) {
+		struct tsf_hydra_shdr* pshdr;
+		
+		// preset region key and vel ranges are a filter for the zone regions
+		if (zoneRegion.hikey < presetRegion.lokey || zoneRegion.lokey > presetRegion.hikey) continue;
+		if (zoneRegion.hivel < presetRegion.lovel || zoneRegion.lovel > presetRegion.hivel) continue;
+		if (presetRegion.lokey > zoneRegion.lokey) zoneRegion.lokey = presetRegion.lokey;
+		if (presetRegion.hikey < zoneRegion.hikey) zoneRegion.hikey = presetRegion.hikey;
+		if (presetRegion.lovel > zoneRegion.lovel) zoneRegion.lovel = presetRegion.lovel;
+		if (presetRegion.hivel < zoneRegion.hivel) zoneRegion.hivel = presetRegion.hivel;
+		
+		// sum regions
+		tsf_region_operator(&zoneRegion, 0, nullptr, &presetRegion);
+		
+		// EG times need to be converted from timecents to seconds.
+		tsf_region_envtosecs(&zoneRegion.ampenv, true);
+		tsf_region_envtosecs(&zoneRegion.modenv, false);
+		
+		// LFO times need to be converted from timecents to seconds.
+		zoneRegion.delayModLFO = (zoneRegion.delayModLFO < -11950.0f ? 0.0f : tsf_timecents2Secsf(zoneRegion.delayModLFO));
+		zoneRegion.delayVibLFO = (zoneRegion.delayVibLFO < -11950.0f ? 0.0f : tsf_timecents2Secsf(zoneRegion.delayVibLFO));
+		
+		// Fixup sample positions
+		pshdr = &hydra->shdrs[pigen->genAmount.wordAmount];
+		zoneRegion.offset += pshdr->start;
+		zoneRegion.end += pshdr->end;
+		zoneRegion.loop_start += pshdr->startLoop;
+		zoneRegion.loop_end += pshdr->endLoop;
+		if (pshdr->endLoop > 0) zoneRegion.loop_end -= 1;
+		if (zoneRegion.pitch_keycenter == -1) zoneRegion.pitch_keycenter = pshdr->originalPitch;
+		zoneRegion.tune += pshdr->pitchCorrection;
+		zoneRegion.sample_rate = pshdr->sampleRate;
+		if (zoneRegion.end && zoneRegion.end < fontSampleCount) zoneRegion.end++;
+		else zoneRegion.end = fontSampleCount;
+		
+		preset->regions[region_index] = zoneRegion;
+		region_index++;
+		hadSampleID = 1;
+	      } else {
+		tsf_region_operator(&zoneRegion, pigen->genOper, &pigen->genAmount, nullptr);
+	      }
+	    }
+	    
+	    // Handle instrument's global zone.
+	    if (pibag == hydra->ibags + pinst->instBagNdx && !hadSampleID) {
+	      instRegion = zoneRegion;
+	    }
+		      
+	    // Modulators (TODO)
+	    //if (ibag->instModNdx < ibag[1].instModNdx) addUnsupportedOpcode("any modulator");
+	  }
+	  hadGenInstrument = 1;
+	} else {
+	  tsf_region_operator(&presetRegion, ppgen->genOper, &ppgen->genAmount, nullptr);
+	}
+      }
+      
+      // Modulators (TODO)
+      // if (pbag->modNdx < pbag[1].modNdx) addUnsupportedOpcode("any modulator");
+      
+      // Handle preset's global zone.
+      if (ppbag == hydra->pbags + pphdr->presetBagNdx && !hadGenInstrument) {
+	globalRegion = presetRegion;
+      }
+    }
+  }
 }
 
 class SoundFontVoice : public InstrumentVoice {
