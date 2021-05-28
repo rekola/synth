@@ -26,11 +26,19 @@ class Track {
   virtual ~Track() { }
   
   virtual SampleData render(size_t frames, SongState & song_state, const std::vector<std::unique_ptr<Instrument> > & instruments, TrackEventQueue & events) {
-    SampleData sd(1, frames);
-    for (auto it = getChildren().begin(); it != getChildren().end(); it++) {
-      auto sd2 = (*it)->render(frames, song_state, instruments, events);
-      if (!(*it)->isMuted()) {
-	sd.mix(sd2);
+    bool child_has_solo = false;
+    for (auto & child : getChildren()) {
+      if (child->isSolo()) {
+	child_has_solo = true;
+	break;
+      }
+    }
+    SampleData sd(1, frames, isSolo() || child_has_solo);
+     	   
+    for (auto & child : getChildren()) {
+      auto sd2 = child->render(frames, song_state, instruments, events);
+      if (!child->isMuted() && (!child_has_solo || child->isSolo())) {
+	sd.mix(sd2, child->getVolume());
       }
     }
     return sd;
