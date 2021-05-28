@@ -23,7 +23,7 @@ InstrumentTrack::render(size_t frames, SongState & song_state, const std::vector
 
   auto & pending_events = events.getPendingEvents(getId());
   
-  SampleData data(num_channels, frames);
+  SampleData data(num_channels, frames, isSolo());
 					  
   for (size_t i = 0; i < frames; ) {
     size_t render_size = frames - i;
