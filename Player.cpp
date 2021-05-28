@@ -56,6 +56,11 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       }
     }
     break;
+  case PlaybackControlEvent::TERMINATE:
+    {
+      terminate = true;
+    }
+    break;
   default:
     break;
   }
@@ -90,7 +95,7 @@ Player::play(AudioAPI & audio) {
 
   auto & song = controller->getSong();
   
-  while ( 1 ) {
+  while ( !terminate ) {
     if (poll(descriptors.get(), num_descriptors, 1000) > 0) {
       for (size_t i = 0; i < num_descriptors; i++) {
 	auto & d = descriptors[i];

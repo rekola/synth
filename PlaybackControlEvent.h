@@ -5,7 +5,7 @@
 
 class PlaybackControlEvent : public Event {
  public:
-  enum Type { PLAY = 1, STOP, MOVE_POSITION, CLEAR_VOICES, PLAY_NOTE, STOP_NOTE };
+  enum Type { PLAY = 1, STOP, TERMINATE, MOVE_POSITION, CLEAR_VOICES, PLAY_NOTE, STOP_NOTE };
   
   PlaybackControlEvent(Type _type, int _parameter1 = 0, int _parameter2 = 0, int _parameter3 = 0)
     : type(_type), parameter1(_parameter1), parameter2(_parameter2), parameter3(_parameter3) { }

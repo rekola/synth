@@ -8,8 +8,6 @@
 
 class Controller;
 class AudioAPI;
-class SongState;
-class EventQueue;
 class Song;
 
 class Player : public EventHandler {
@@ -26,6 +24,7 @@ private:
   unsigned int outSampleRate;
   Controller * controller;
   SongState state;
+  bool terminate = false;
 };
 
 #endif
