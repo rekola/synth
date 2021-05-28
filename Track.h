@@ -2,6 +2,7 @@
 #define _TRACK_H_
 
 #include "SampleData.h"
+#include "TrackState.h"
 
 #include <string>
 #include <vector>
@@ -43,7 +44,10 @@ class Track {
     }
     return sd;
   }
-  
+  virtual std::unique_ptr<TrackState> createState(unsigned int outSampleRate) const {
+    return std::make_unique<TrackState>(outSampleRate);
+  }
+
   virtual void readXML(tinyxml2::XMLElement & element);
   virtual void populateXML(tinyxml2::XMLElement & element) const;
   virtual std::string getElementName() const { return "track"; }

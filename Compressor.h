@@ -7,7 +7,7 @@ class Compressor : public Effect {
  public:
   Compressor() { }
 
-  std::unique_ptr<EffectState> createState(unsigned int outSampleRate) const override;
+  std::unique_ptr<TrackState> createState(unsigned int outSampleRate) const override;
   std::string getElementName() const override { return "compressor"; }
   void readXML(tinyxml2::XMLElement & element) override;
   void populateXML(tinyxml2::XMLElement & element) const override;
@@ -23,7 +23,7 @@ class Compressor : public Effect {
   float getRelease() const { return f_release; }
   
 private:
-  float f_thresh = 1.0f;	// The level above which the compressor activates (0.05)
+  float f_thresh = 0.05f;	// The level above which the compressor activates (0.05)
   float f_ratio = 10;		// The input to output ratio of gain reduction
   float f_attack = 50;		// The length in time it takes for the compressor to begin reducing gain after the signal has crossed above the threshold
   float f_release = 50;		// The lenght in time it takes for the compressor to stop reducing gain after the signal has crossed below the threshold

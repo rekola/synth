@@ -1,14 +1,14 @@
 #include "Chorus.h"
 
-#include "EffectState.h"
+#include "TrackState.h"
 
 using namespace std;
 
 #define CHORUS_MAX_DELAY_SAMPLES 44100
 
-class ChorusState : public EffectState {
+class ChorusState : public TrackState {
 public:
-  ChorusState(unsigned int outSampleRate, float _delay1, float _delay2) : EffectState(outSampleRate), delay1(_delay1), delay2(_delay2) { }
+  ChorusState(unsigned int outSampleRate, float _delay1, float _delay2) : TrackState(outSampleRate), delay1(_delay1), delay2(_delay2) { }
 
   void apply(SampleData & input_data) override {
     if (delay1 <= 0) return;
@@ -45,7 +45,7 @@ private:
   float delaybuf1[CHORUS_MAX_DELAY_SAMPLES], delaybuf2[CHORUS_MAX_DELAY_SAMPLES];
 };
 
-std::unique_ptr<EffectState>
+std::unique_ptr<TrackState>
 Chorus::createState(unsigned int outSampleRate) const {
   return make_unique<ChorusState>(outSampleRate, delay1, delay2);
 }

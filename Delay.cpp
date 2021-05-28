@@ -1,15 +1,15 @@
 #include "Delay.h"
 
-#include "EffectState.h"
+#include "TrackState.h"
 
 #define MAX_DELAY_SAMPLES 44100 * 5
 
 using namespace std;
 
-class DelayState : public EffectState {
+class DelayState : public TrackState {
 public:
   DelayState(unsigned int outSampleRate, int _delay, float _fd, float _delaymix)
-    : EffectState(outSampleRate), delay(_delay), fd(_fd), delaymix(_delaymix) {
+    : TrackState(outSampleRate), delay(_delay), fd(_fd), delaymix(_delaymix) {
     memset(delaybuf, 0, MAX_DELAY_SAMPLES * sizeof(float));
   }
  
@@ -37,7 +37,7 @@ private:
   float delaybuf[MAX_DELAY_SAMPLES];
 };
 
-std::unique_ptr<EffectState>
+std::unique_ptr<TrackState>
 Delay::createState(unsigned int outSampleRate) const {
   return make_unique<DelayState>(outSampleRate, delay, fd, delaymix);
 }

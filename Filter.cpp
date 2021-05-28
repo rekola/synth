@@ -1,7 +1,7 @@
 #include "Filter.h"
 
 #include "SampleData.h"
-#include "EffectState.h"
+#include "TrackState.h"
 
 #include "tinyxml2.h"
 
@@ -9,10 +9,10 @@
 
 using namespace std;
 
-class FilterState : public EffectState {
+class FilterState : public TrackState {
 public:
   FilterState(int samplerate, const Filter & filter)
-    : EffectState(samplerate), fcut(filter.get_fcut()), fres(filter.get_fres()), is_highpass(filter.get_is_highpass()) { }
+    : TrackState(samplerate), fcut(filter.get_fcut()), fres(filter.get_fres()), is_highpass(filter.get_is_highpass()) { }
   
   void apply(SampleData & input_data) override {
     if (!(fcut < 1.0 || fres > 0.0)) return;
@@ -59,7 +59,7 @@ private:
   LFO lfo;
 };
 
-std::unique_ptr<EffectState>
+std::unique_ptr<TrackState>
 Filter::createState(unsigned int outSampleRate) const {
   return make_unique<FilterState>(outSampleRate, *this);
 }

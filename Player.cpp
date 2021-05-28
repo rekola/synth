@@ -143,7 +143,7 @@ Player::createPlaybackEvent(const Song & song, SongState & state) {
   info.voice_count = state.getVoiceCount();
   info.allocated_voice_count = state.getAllocatedVoiceCount();
 
-  for (auto & [ track_id, state ] : state.getEffectStates()) {
+  for (auto & [ track_id, state ] : state.getTrackStates()) {
     info.setTrackInfo(track_id, state->getInfo());
   }
   

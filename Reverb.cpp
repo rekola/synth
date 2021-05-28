@@ -2,16 +2,16 @@
 
 #include "MVerb.h"
 #include "SampleData.h"
-#include "EffectState.h"
+#include "TrackState.h"
 
 #include "tinyxml2.h"
 
 using namespace std;
 
-class ReverbState : public EffectState {
+class ReverbState : public TrackState {
 public:
   ReverbState(unsigned int outSampleRate, ReverbPreset preset)
-    : EffectState(outSampleRate), mverb(outSampleRate, int(preset)) {
+    : TrackState(outSampleRate), mverb(outSampleRate, int(preset)) {
 
   }
 
@@ -59,7 +59,7 @@ private:
   MVerb<float> mverb;
 };
 
-std::unique_ptr<EffectState>
+std::unique_ptr<TrackState>
 Reverb::createState(unsigned int outSampleRate) const {
   return make_unique<ReverbState>(outSampleRate, preset);
 }

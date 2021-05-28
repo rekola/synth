@@ -1,16 +1,16 @@
 #include "Distortion.h"
 
 #include "SampleData.h"
-#include "EffectState.h"
+#include "TrackState.h"
 
 #include "tinyxml2.h"
 
 using namespace std;
 
-class DistortionState : public EffectState {
+class DistortionState : public TrackState {
 public:
   DistortionState(unsigned int outSampleRate, DistortionType _type, float _param, float _drymix)
-    : EffectState(outSampleRate), type(_type), param(_param), drymix(_drymix) { }
+    : TrackState(outSampleRate), type(_type), param(_param), drymix(_drymix) { }
   
   void apply(SampleData & input) override {
     auto buffer = input.data();
@@ -53,7 +53,7 @@ private:
   float param, drymix;
 };
 
-std::unique_ptr<EffectState>
+std::unique_ptr<TrackState>
 Distortion::createState(unsigned int outSampleRate) const {
   return make_unique<DistortionState>(outSampleRate, type, param, drymix);
 }

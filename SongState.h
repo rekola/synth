@@ -6,7 +6,7 @@
 #include "HRFT.h"
 #include "VoicePool.h"
 #include "PlaybackControlEvent.h"
-#include "Effect.h"
+#include "TrackState.h"
 
 #define NOTE_DOMAIN ((float)1/4)
 
@@ -139,16 +139,16 @@ class SongState : public EventHandler {
 
   unsigned int getOutSampleRate() const { return outSampleRate; }
 
-  EffectState & getEffectState(const Effect & effect) {
-    auto it = effect_states.find(effect.getId());
-    if (it != effect_states.end()) return *(it->second);
-    auto state = effect.createState(outSampleRate);
+  TrackState & getTrackState(const Track & track) {
+    auto it = track_states.find(track.getId());
+    if (it != track_states.end()) return *(it->second);
+    auto state = track.createState(outSampleRate);
     auto ptr = state.get();
-    effect_states[effect.getId()] = move(state);
+    track_states[track.getId()] = move(state);
     return *ptr;
   }
 
-  const std::unordered_map<int, std::unique_ptr<EffectState> > & getEffectStates() const { return effect_states; }
+  const std::unordered_map<int, std::unique_ptr<TrackState> > & getTrackStates() const { return track_states; }
 
 private:
   unsigned int outSampleRate;
@@ -156,7 +156,7 @@ private:
   size_t sample_pos = 0, absolute_pos = 0;
 
   std::unordered_map<int, std::unique_ptr<VoicePool> > track_voices;
-  std::unordered_map<int, std::unique_ptr<EffectState> > effect_states;
+  std::unordered_map<int, std::unique_ptr<TrackState> > track_states;
   
   HRFT hrft;
 };

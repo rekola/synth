@@ -1,6 +1,6 @@
 #include "Compressor.h"
 
-#include "EffectState.h"
+#include "TrackState.h"
 
 #include "tinyxml2.h"
 
@@ -9,10 +9,10 @@
 
 using namespace std;
 
-class CompressorState : public EffectState {
+class CompressorState : public TrackState {
 public:
   CompressorState(int samplerate, const Compressor & compressor)
-    : EffectState(samplerate),
+    : TrackState(samplerate),
       f_thresh(compressor.getTreshold()),
       f_ratio(compressor.getRatio()),
       f_attack(compressor.getAttack()),
@@ -118,7 +118,7 @@ private:
   int attackFlag = 0;
 };
 
-std::unique_ptr<EffectState>
+std::unique_ptr<TrackState>
 Compressor::createState(unsigned int outSampleRate) const {
   return make_unique<CompressorState>(outSampleRate, *this);
 }
