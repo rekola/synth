@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song key="C" tuning="31-TET" tempo="220" volume="1" randomization="0.0099999998">
+  <instruments>
+    <genericInstrument name="Pizzicato Section" />
+    <genericInstrument name="Fingered Bass" />
+    <genericInstrument name="Low Bongo" />
+  </instruments>
+  <tracks>
+    <track id="0" azimuth="30" distance="0" elevation="50" volume="1" instrument="0"/>
+    <track id="1" azimuth="0" distance="0" elevation="0" volume="1" instrument="0"/>
+    <track id="2" azimuth="-30" distance="0" elevation="-40" volume="1" instrument="0"/>
+    <track id="3" azimuth="0" distance="0" elevation="90" volume="0.5" instrument="1"/>
+    <track id="4" azimuth="15" distance="0" elevation="-20" volume="1" instrument="2"/>
+  </tracks>
+  <patterns>
+    <pattern rows="4">
+      <note row="0" track="3" velocity="80" value="G-2"/>
+    </pattern>
+    <pattern rows="64">
+      <note row="0" track="4" velocity="64" value="E-4"/>
+      <note row="0" track="3" velocity="64" value="C-3"/>
+      <note row="0" track="0" velocity="64" value="C-4"/>
+      <note row="0" track="0" column="1" velocity="64" value="E♭4"/>
+      <note row="0" track="0" column="2" velocity="64" value="G-4"/>
+      <note row="4" track="1" velocity="64" value="C-4"/>
+      <note row="6" track="3" velocity="64" value="C-4"/>
+      <note row="6" track="2" velocity="64" value="D-4"/>
+      <note row="8" track="4" velocity="64" value="E-4"/>
+      <note row="12" track="3" velocity="64" value="E♭3"/>
+      <note row="12" track="2" velocity="64" value="E♭4"/>
+      <note row="16" track="4" velocity="64" value="E-4"/>
+      <note row="16" track="3" velocity="64" value="D-3"/>
+      <note row="16" track="0" velocity="64" value="D-4"/>
+      <note row="16" track="0" column="1" velocity="64" value="F-4"/>
+      <note row="16" track="0" column="2" velocity="64" value="A♭4"/>
+      <note row="20" track="1" velocity="64" value="D-4"/>
+      <note row="22" track="2" velocity="64" value="F-4"/>
+      <note row="24" track="4" velocity="64" value="E-4"/>
+      <note row="26" track="2" velocity="64" value="E♭4"/>
+      <note row="28" track="3" velocity="64" value="E𝄫3"/>
+      <note row="28" track="1" velocity="64" value="E𝄫4"/>
+      <note row="30" track="0" velocity="64" value="C-4"/>
+      <note row="32" track="4" velocity="64" value="E-4"/>
+      <note row="32" track="3" velocity="64" value="E♭3"/>
+      <note row="32" track="0" velocity="64" value="C-4"/>
+      <note row="32" track="0" column="1" velocity="64" value="E♭4"/>
+      <note row="32" track="0" column="2" velocity="64" value="G-4"/>
+      <note row="36" track="0" velocity="64" value="E♭4"/>
+      <note row="38" track="1" velocity="64" value="G-4"/>
+      <note row="40" track="4" velocity="64" value="E-4"/>
+      <note row="44" track="2" velocity="64" value="A♭4"/>
+      <note row="48" track="4" velocity="64" value="E-4"/>
+      <note row="48" track="1" velocity="64" value="G-4"/>
+    </pattern>
+  </patterns>
+</song>
