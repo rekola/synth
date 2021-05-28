@@ -27,12 +27,12 @@ static size_t get_depth(const Track & track) {
   return 1 + max_depth;
 }
 
-static void get_instrument_track_ids(const Track & track, vector<int> & track_ids) {
+static void get_root_track_ids(const Track & track, vector<int> & track_ids) {
   for (auto & child : track.getChildren()) {
-    if (child->getType() == Track::INSTRUMENT) {
+    if (child->getType() == Track::INSTRUMENT || child->getType() == Track::SAMPLE) {
       track_ids.push_back(child->getId());
     } else {
-      get_instrument_track_ids(*child, track_ids);
+      get_root_track_ids(*child, track_ids);
     }
   }
 }
@@ -73,7 +73,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   fill_track_widths(song, track_widths);
 
   vector<int> track_ids;
-  get_instrument_track_ids(song, track_ids);
+  get_root_track_ids(song, track_ids);
 			      
   size_t score_total_columns = 0;
   for (auto wd : track_widths) score_total_columns += wd.second;
@@ -195,7 +195,7 @@ PatternEditor::offerInput(const InputEvent & input) {
   fill_track_widths(song, track_widths);
 
   vector<int> track_ids;
-  get_instrument_track_ids(song, track_ids);
+  get_root_track_ids(song, track_ids);
   size_t num_tracks = track_ids.size();
   
   auto * current_track = song.getChildById(track_ids[current_score_cursor_track]);
@@ -210,14 +210,18 @@ PatternEditor::offerInput(const InputEvent & input) {
 
   if (input.hasCtrl()) {
     if (input.getId() == 'r') {
+      int track_id;
       auto sample = getController().startRecording();
       if (current_track && current_track->getType() == Track::SAMPLE) {
 	SampleTrack & sample_track = dynamic_cast<SampleTrack&>(*current_track);
 	sample_track.setSample(sample);
+	track_id = sample_track.getId();
       } else {
 	new_score_cursor_track = track_ids.size();
-	song.addChild(make_unique<SampleTrack>(sample));
+	auto & track = song.addChild(make_unique<SampleTrack>(sample));
+	track_id = track.getId();
       }
+      getController().setRecordingTrackId(track_id);
       song.incVersion();
     } else if (input.getId() == 'e') {
       getController().stopRecording();
@@ -311,33 +315,36 @@ PatternEditor::offerInput(const InputEvent & input) {
   } else if (input.getId() == NCKEY_UP || input.getId() == NCKEY_BUTTON4) {
     if (!info.isPlaying()) {
       event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, -1));
-      new_score_cursor_subcol = 0;
+      // new_score_cursor_subcol = 0;
     }
     return true;
   } else if (input.getId() == NCKEY_DOWN || input.getId() == NCKEY_BUTTON5) {
     if (!info.isPlaying()) {
       event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, 1));
-      new_score_cursor_subcol = 0;
+      // new_score_cursor_subcol = 0;
     }
-    return true;
-  } else if (input.getId() == '\t') {
-    // next note column
     return true;
   } else if (input.getId() == NCKEY_PGUP) {
     if (!info.isPlaying()) {
       event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, -16));
-      new_score_cursor_subcol = 0;
+      // new_score_cursor_subcol = 0;
     }
     return true;    
   } else if (input.getId() == NCKEY_PGDOWN) { // scrollwheel down
     if (!info.isPlaying()) {
       event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, 16));
-      new_score_cursor_subcol = 0;
+      // new_score_cursor_subcol = 0;
     }
     return true;
   } else if (input.getId() == '\\') {
     Track * track = song.getChildById(track_ids[current_score_cursor_track]);
-    if (track) track->setMute(true);   
+    if (track) track->setMute(true);
+  } else if (input.getId() == '\t') {
+    if (new_score_cursor_col + 1 == num_columns) { // effect
+      new_score_cursor_subcol = (new_score_cursor_subcol + 1) % 4;
+    } else {
+      new_score_cursor_subcol = (new_score_cursor_subcol + 1) % 2;
+    }
   } else {
     auto & pattern = song.getPattern(info.getPatternIndex());
     int track_id = track_ids[new_score_cursor_track];
@@ -460,7 +467,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  setFgColor(0x00, 0x00, 0x00);
 	  setBgColor(0xf0, 0x80, 0x10);
 
-	  string name = format("Trk {:02d}", i);
+	  string name = !track->getName().empty() ? track->getName() : format("Trk {:02d}", track->getId());
 	  if (name.size() > actual_width - 1) name.erase(actual_width - 1);
 	  else {
 	    while (name.size() < actual_width - 1) name += ' ';
@@ -495,7 +502,8 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  setBgColor(0x50, 0x50, 0x60);
 	  setFgColor(0x10, 0xe0, 0x40);
 	  putstr(1 + heading_height - 2 - level, current_pos, track_info.isActive() ? " • " : "   ");
-	  setFgColor(0xe0, 0xe0, 0xe0);
+	  
+	  setFgColor(0x00, 0x00, 0x00);
 	  putstr(1 + heading_height - 2 - level, current_pos + 3, name);
 	}
       }
@@ -585,7 +593,7 @@ PatternEditor::renderRow(const StyleProvider & styles, size_t heading_height, co
 	    setBgColor(bg);
 	    putstr(1 + heading_height + row - current_scroll_row, current_pos, "│");
 	    current_pos++;
-	  } else {
+	  } else if (track && track->getType() == Track::SAMPLE) {
 	    if (highlight && i == (int)current_score_cursor_track && k == current_score_cursor_col) {
 	      cell_fg = UIColor("#000000");
 	      cell_bg = UIColor("#a0ffa0");
@@ -593,28 +601,46 @@ PatternEditor::renderRow(const StyleProvider & styles, size_t heading_height, co
 	      cell_fg = fg;
 	      cell_bg = bg;
 	    }
-	    setFgColor(cell_fg);
-	    setBgColor(cell_bg);
 
-	    if (track && track->getType() == Track::SAMPLE) {
-	      putstr(1 + heading_height + row - current_scroll_row, current_pos, "      ");
+	    if (k < notes.size() && notes[k].isDefined()) {
+	      auto & note = notes[k];
+	      putstr(1 + heading_height + row - current_scroll_row, current_pos, "xxxxxx");
 	    } else {
+	      putstr(1 + heading_height + row - current_scroll_row, current_pos, "      ");	    
+	    }
+	  } else {
+	    for (size_t l = 0; l < 2; l++) {
+	      if (highlight && i == (int)current_score_cursor_track && k == current_score_cursor_col && l == current_score_cursor_subcol) {
+		cell_fg = UIColor("#000000");
+		cell_bg = UIColor("#a0ffa0");
+	      } else {
+		cell_fg = fg;
+		cell_bg = bg;
+	      }
+	      setFgColor(cell_fg);
+	      setBgColor(cell_bg);
+	      
 	      string s;
 	      if (k < notes.size() && notes[k].isDefined()) {
 		auto & note = notes[k];
-		s = note.toString(tuning) + format(" {:02x}", note.getVelocity());
+		if (l == 0) {
+		  s = note.toString(tuning);
+		} else {
+		  s = format(" {:02x}", note.getVelocity());
+		}
 	      } else {
-		s = "... ..";
-	      }	    
+		if (l == 0) s = "...";
+		else s = " ..";
+	      }
 	      putstr(1 + heading_height + row - current_scroll_row, current_pos, s);
+	      
+	      setFgColor(styles.window_border_color);
+	      setBgColor(bg);
+	      
+	      putstr(1 + heading_height + row - current_scroll_row, current_pos + 6, " ");
+	      
+	      current_pos += l == 0 ? 3 : 4;
 	    }
-	    
-	    setFgColor(styles.window_border_color);
-	    setBgColor(bg);
-	    
-	    putstr(1 + heading_height + row - current_scroll_row, current_pos + 6, " ");
-	    
-	    current_pos += 7;
 	  }
 	}
       }
