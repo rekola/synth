@@ -33,6 +33,8 @@ class Controller {
 
   void stopRecording() { current_sample.reset(); }
   bool isRecording() const { return current_sample.get() != nullptr; }
+  int getRecordingTrackId() const { return recording_track_id; }
+  void setRecordingTrackId(int track_id) { recording_track_id = track_id; }
   const SampleData & getCurrentSample() const { return current_sample ? *current_sample : empty_sample; }
   void addToSample(const SampleData & other) {
     if (current_sample) current_sample->append(other);
@@ -51,6 +53,7 @@ class Controller {
   InstrumentProvider instrument_provider;
   EventQueue ui_event_queue, playback_event_queue;
   PlaybackInfo playback_info;
+  int recording_track_id = 0;
 };
 
 #endif
