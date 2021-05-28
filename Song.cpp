@@ -11,6 +11,8 @@
 #include "Distortion.h"
 #include "Filter.h"
 #include "Compressor.h"
+#include "Delay.h"
+#include "Chorus.h"
 
 #include "SubtractiveInstrument.h"
 #include "GenericInstrument.h"
@@ -42,6 +44,8 @@ static unique_ptr<Track> createTrack(string name) {
   else if (name == "filter") return make_unique<Filter>();
   else if (name == "compressor") return make_unique<Compressor>();
   else if (name == "group") return make_unique<GroupTrack>();
+  else if (name == "delay") return make_unique<Delay>();
+  else if (name == "chorus") return make_unique<Chorus>();
   else {
     assert(0);
     return unique_ptr<Track>(nullptr);
@@ -336,7 +340,7 @@ Song::render(size_t frames, SongState & song_state, const std::vector<std::uniqu
   SampleData master(2, frames);
 
   if (!getChildren().empty() && !instruments.empty()) {
-    for (auto & track : getChildren()) {      
+    for (auto & track : getChildren()) {
       SampleData data = track->render(frames, song_state, instruments, events);
       mixer.accumulate(data, track->getVolume(), track->getDistance(), track->getAzimuth(), track->getElevation());
     }
