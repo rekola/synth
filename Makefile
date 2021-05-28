@@ -21,7 +21,8 @@ OBJS = main.o \
 	Reverb.o \
 	Player.o \
 	PatternEditor.o \
-	Effect.o
+	Effect.o \
+	Chorus.o
 
 CC = g++
 
