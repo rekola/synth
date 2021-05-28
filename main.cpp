@@ -53,8 +53,6 @@ int main(int argc, char *argv[]) {
     controller->loadDemo();
   } else if (load_demo == 2) {
     controller->loadDemo2();
-  } else if (load_demo == 3) {
-    controller->loadDemo3();
   } else if (load_demo == 7) {
     controller->loadDemo7();
   } else {
