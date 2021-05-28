@@ -342,12 +342,13 @@ Song::render(size_t frames, SongState & song_state, const std::vector<std::uniqu
   if (!getChildren().empty() && !instruments.empty()) {
     for (auto & track : getChildren()) {
       SampleData data = track->render(frames, song_state, instruments, events);
-      mixer.accumulate(data, track->getVolume(), track->getDistance(), track->getAzimuth(), track->getElevation());
+      if (!track->isMuted()) {
+	mixer.accumulate(data, track->getVolume(), track->getDistance(), track->getAzimuth(), track->getElevation());
+      }
     }
     assert(events.empty());
     
     mixer.encode(master, getVolume());
-    // applyEffects(master);
   }
   
   return master;
