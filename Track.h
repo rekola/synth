@@ -21,8 +21,9 @@ namespace tinyxml2 {
 
 class Track {
  public:
-  enum Type { MASTER = 1, GROUP, INSTRUMENT, EFFECT, SAMPLE, SUBSONG };
+  enum Type { MASTER = 1, ROOT, GROUP, INSTRUMENT_TRACK, EFFECT, SAMPLE, SUBSONG, INSTRUMENT };
   Track(Type _type) : id(getNextId()), type(_type) { }
+  Track(Type _type, std::string _name) : id(getNextId()), type(_type), name(_name) { }
   Track(int _id, Type _type) : id(_id != -1 ? _id : getNextId()), type(_type) { }
   virtual ~Track() { }
   
@@ -64,14 +65,6 @@ class Track {
   bool isMuted() const { return mute; }
   void setMute(bool m) { mute = m; }
 
-  void setElevation(float e) { elevation = e; }
-  void setAzimuth(float a) { azimuth = a; }
-  void setDistance(float d) { distance = d; }
-
-  float getElevation() const { return elevation; }
-  float getAzimuth() const { return azimuth; }
-  float getDistance() const { return distance; }  
-
   void setName(std::string _name) { name = _name; }
   const std::string & getName() const { return name; }
 
@@ -112,7 +105,6 @@ protected:
   Type type;
   float volume = 1.00f;
   bool solo = false, mute = false;
-  float elevation = 0, azimuth = 0, distance = 0;
   std::string name;
   std::vector<std::unique_ptr<Track> > children;
   

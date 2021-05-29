@@ -7,6 +7,7 @@
 
 #include "InstrumentTrack.h"
 #include "GroupTrack.h"
+#include "RootTrack.h"
 #include "Reverb.h"
 #include "Distortion.h"
 #include "Filter.h"
@@ -46,6 +47,7 @@ static unique_ptr<Track> createTrack(string name) {
   else if (name == "group") return make_unique<GroupTrack>();
   else if (name == "delay") return make_unique<Delay>();
   else if (name == "chorus") return make_unique<Chorus>();
+  else if (name == "root") return make_unique<RootTrack>();
   else {
     assert(0);
     return unique_ptr<Track>(nullptr);
@@ -343,7 +345,14 @@ Song::render(size_t frames, SongState & song_state, const std::vector<std::uniqu
     for (auto & track : getChildren()) {
       SampleData data = track->render(frames, song_state, instruments, events);
       if (!track->isMuted()) {
-	mixer.accumulate(data, track->getVolume(), track->getDistance(), track->getAzimuth(), track->getElevation());
+	float distance = 0, azimuth = 0, elevation = 0;
+	if (track->getType() == Track::ROOT) {
+	  auto & root_track = dynamic_cast<RootTrack&>(*track);
+	  distance = root_track.getDistance();
+	  azimuth = root_track.getAzimuth();
+	  elevation = root_track.getElevation();
+	}
+	mixer.accumulate(data, track->getVolume(), distance, azimuth, elevation);
       }
     }
     assert(events.empty());
