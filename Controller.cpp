@@ -12,6 +12,7 @@
 #include "SongState.h"
 #include "Filter.h"
 #include "InstrumentTrack.h"
+#include "RootTrack.h"
 
 #include "default_song.h"
 
@@ -43,15 +44,11 @@ Controller::loadDemo7() {
   // track.addEffect(make_unique<Distortion>(DistortionType::TANH, 0, 0));
   // track.addEffect(make_unique<Reverb>(ReverbPreset::STADIUM));  
   // track.setVolume(0.5f);
-  track.setElevation(50);
-  track.setAzimuth(30);
   
   auto & track2 = song->addChild(make_unique<InstrumentTrack>(-1, 1, 0.0f));
   // track2.addEffect(make_unique<Distortion>(DistortionType::TANH, 0, 0));
   // track2.addEffect(make_unique<Reverb>(ReverbPreset::STADIUM));  
   // track2.setVolume(0.5f);
-  track2.setElevation(50);
-  track2.setAzimuth(-30);
 
   auto & pattern = song->addPattern(64);  
   pattern.setNoteSwapped(0, 0, 0, Note(155));
@@ -86,8 +83,6 @@ Controller::loadDemo2() {
   // track.addEffect(make_unique<Chorus>(5.0f, 0.0f));
   // track.addEffect(make_unique<Filter>(63 / 255.0f, 128 / 63.0f, false));
   // track.addEffect(make_unique<Reverb>(ReverbPreset::DARK));
-  track.setElevation(-30);
-  track.setAzimuth(15);
   track.setVolume(0.5f);
 
   Pattern pattern(256);
@@ -677,9 +672,9 @@ Controller::loadDemo() {
     auto pan = *song_data++ / 255.0f;
     auto volume = *song_data++ / 127.0f;
 
-    auto & track = song->addChild(make_unique<InstrumentTrack>(i, instrument_id, detune));
-    track.setAzimuth(pan - 0.5 * 360);
-    track.setVolume(volume);
+    auto & root = song->addChild(make_unique<RootTrack>(100 + i, pan - 0.5 * 360));
+    root.setVolume(volume);
+    auto & track = root.addChild(make_unique<InstrumentTrack>(i, instrument_id, detune));
     if (volume > 1.0f) {
       // track.addEffect(make_unique<Distortion>(DistortionType::CLIP, 1.0f, 0.0f));
     }
