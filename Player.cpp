@@ -35,7 +35,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       auto midi_note = ev.getParameter3();
       
       auto * track = song.getChildById(track_id);
-      if (track && track->getType() == Track::INSTRUMENT) {
+      if (track && track->getType() == Track::INSTRUMENT_TRACK) {
 	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
 	
 	if (instrument_track.getInstrumentId() < song.getInstruments().size()) {

@@ -1,6 +1,7 @@
 #ifndef _INSTRUMENT_H_
 #define _INSTRUMENT_H_
 
+#include "Track.h"
 #include "Effect.h"
 #include "Envelope.h"
 #include "VoicePool.h"
@@ -16,11 +17,10 @@ namespace tinyxml2 {
   class XMLElement;
 };
 
-class Instrument {
+class Instrument : public Track {
 public:
-  explicit Instrument(size_t _num_channels) : num_channels(_num_channels) { }
-  explicit Instrument(size_t _num_channels, std::string _name) : num_channels(_num_channels), name(_name) { }
-  virtual ~Instrument() { }
+  explicit Instrument(size_t _num_channels) : Track(INSTRUMENT), num_channels(_num_channels) { }
+  explicit Instrument(size_t _num_channels, std::string _name) : Track(INSTRUMENT, _name), num_channels(_num_channels) { }
 
   virtual std::unique_ptr<InstrumentVoice> createVoice(unsigned int outSampleRate, int _identifier) const = 0;
 
@@ -32,10 +32,7 @@ public:
   virtual tinyxml2::XMLElement * createXML(tinyxml2::XMLDocument & doc) const { return 0; }
 
   size_t getNumChannels() const { return num_channels; }
-  
-  void setName(const std::string & _name) { name = _name; }
-  const std::string & getName() const { return name; }
-  
+    
   void setAmpEnvelope(const Envelope & _amp_envelope) { amp_envelope = _amp_envelope; }  
   const Envelope & getAmpEnvelope() const { return amp_envelope; }
   const Envelope & getModEnvelope() const { return mod_envelope; }
@@ -57,7 +54,6 @@ protected:
   }
 
   size_t num_channels;
-  std::string name;
   Envelope amp_envelope, mod_envelope;
   float gain = 1.0f;
 

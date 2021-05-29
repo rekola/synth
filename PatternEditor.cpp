@@ -29,7 +29,7 @@ static size_t get_depth(const Track & track) {
 
 static void get_root_track_ids(const Track & track, vector<int> & track_ids) {
   for (auto & child : track.getChildren()) {
-    if (child->getType() == Track::INSTRUMENT || child->getType() == Track::SAMPLE) {
+    if (child->getType() == Track::INSTRUMENT_TRACK || child->getType() == Track::SAMPLE) {
       track_ids.push_back(child->getId());
     } else {
       get_root_track_ids(*child, track_ids);
@@ -39,7 +39,7 @@ static void get_root_track_ids(const Track & track, vector<int> & track_ids) {
 
 static void fill_track_widths(const Track & track, std::unordered_map<int, size_t> & widths) {
   for (auto & child : track.getChildren()) {
-    if (child->getType() == Track::INSTRUMENT) {
+    if (child->getType() == Track::INSTRUMENT_TRACK || child->getType() == Track::SAMPLE) {
       auto it = widths.find(child->getId());
       
       // at least one note column + one effect column
@@ -258,7 +258,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       return true;
     } else if (input.getId() == NCKEY_LEFT || input.getId() == 'p') {
       Track * track = song.getChildById(track_ids[current_score_cursor_track]);
-      if (track && track->getType() == Track::INSTRUMENT) {
+      if (track && track->getType() == Track::INSTRUMENT_TRACK) {
 	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
 	if (instrument_track.getInstrumentId() > 0) {
 	  instrument_track.setInstrumentId(instrument_track.getInstrumentId() - 1);
@@ -269,7 +269,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       return true;
     } else if (input.getId() == NCKEY_RIGHT || input.getId() == 'i' || input.getId() == 'i' || input.getId() == 'o') {
       Track * track = song.getChildById(track_ids[current_score_cursor_track]);
-      if (track && track->getType() == Track::INSTRUMENT) {
+      if (track && track->getType() == Track::INSTRUMENT_TRACK) {
 	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
 	auto & instruments = song.getInstruments();
 	if (instrument_track.getInstrumentId() + 1 < instruments.size()) {
@@ -481,7 +481,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  string instrument_name;
 	  if (track->getType() == Track::SAMPLE) {
 	    instrument_name = "Sample";
-	  } else if (track->getType() == Track::INSTRUMENT) {
+	  } else if (track->getType() == Track::INSTRUMENT_TRACK) {
 	    auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
 	    if (instrument_track.getInstrumentId() >= 0 && instrument_track.getInstrumentId() < instruments.size()) {
 	      instrument_name = instruments[instrument_track.getInstrumentId()]->getName();

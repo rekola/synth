@@ -5,8 +5,8 @@
 
 class InstrumentTrack : public Track {
  public:
-  InstrumentTrack() : Track(-1, INSTRUMENT), instrument_id(0), detune(0.0f) { }
-  InstrumentTrack(int _id, int _instrument_id, float _detune) : Track(_id, INSTRUMENT), instrument_id(_instrument_id), detune(_detune) { }
+  InstrumentTrack() : Track(-1, INSTRUMENT_TRACK), instrument_id(0), detune(0.0f) { }
+  InstrumentTrack(int _id, int _instrument_id, float _detune) : Track(_id, INSTRUMENT_TRACK), instrument_id(_instrument_id), detune(_detune) { }
   
   int getInstrumentId() const { return instrument_id; }
   void setInstrumentId(int id) { instrument_id = id; }
