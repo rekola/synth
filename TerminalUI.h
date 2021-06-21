@@ -2,8 +2,6 @@
 #define _TERMINALUI_H_
 
 #include "UI.h"
-
-#include <ncpp/NotCurses.hh>
 #include <memory>
 
 namespace ncpp {
@@ -12,7 +10,7 @@ namespace ncpp {
 
 class TerminalUI : public UI {
  public:
-  explicit TerminalUI() { }
+  explicit TerminalUI(std::shared_ptr<ncpp::NotCurses> _nc) : nc(_nc) { }
   ~TerminalUI() { }
   
   void initialize(std::shared_ptr<Controller> & controller);
@@ -25,7 +23,7 @@ protected:
   bool readInput();
 
 private:
-  std::unique_ptr<ncpp::NotCurses> nc;
+  std::shared_ptr<ncpp::NotCurses> nc;
 };
 
 #endif

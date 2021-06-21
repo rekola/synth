@@ -5,6 +5,9 @@
 
 #include <iostream>
 #include <cstring>
+#include <signal.h>
+
+#include <ncpp/NotCurses.hh>
 
 using namespace std;
 
@@ -63,8 +66,26 @@ int main(int argc, char *argv[]) {
   
   AlsaAudio audio(samplerate, 2);
   audio.initialize(logger);
+
+
+#if 0
+  if (!setlocale(LC_ALL, "")){
+    fprintf(stderr, "Couldn't set locale\n");
+    exit(1);
+  }
+#endif
   
-  TerminalUI ui;
+  signal(SIGINT, SIG_IGN); /* disable ctrl-C */
+  signal(SIGQUIT, SIG_IGN);
+  signal(SIGTSTP, SIG_IGN); /* disable ctrl-Z */
+  signal(SIGABRT, SIG_IGN); /* disable ctrl-\ */
+ 
+  // notcurses_options nopts{};
+  // nopts.flags = NCOPTION_INHIBIT_SETLOCALE;
+  auto nc = make_shared<ncpp::NotCurses>();
+  nc->mouse_enable();
+
+  TerminalUI ui(nc);
   ui.initialize(controller);
   ui.start(audio);
 

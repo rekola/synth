@@ -17,6 +17,7 @@
 #include <sys/time.h>
 #include <iostream>
 
+#include <ncpp/NotCurses.hh>
 #include <ncpp/Plane.hh>
 #include <ncpp/Plot.hh>
 #include <ncpp/Reader.hh>
@@ -288,21 +289,7 @@ private:
 };
   
 void
-TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
-#if 0
-  if (!setlocale(LC_ALL, "")){
-    fprintf(stderr, "Couldn't set locale\n");
-    exit(1);
-  }
-#endif
-
-  if (!nc) {
-    notcurses_options nopts{};
-    // nopts.flags = NCOPTION_INHIBIT_SETLOCALE;
-    nc = make_unique<NotCurses>(nopts);
-    nc->mouse_enable();
-  }
-  
+TerminalUI::initialize(std::shared_ptr<Controller> & controller) { 
   auto root_plane = make_unique<TerminalPlane>(controller, nc->get_stdplane(), false);
   setPlane(std::move(root_plane));
 
