@@ -24,7 +24,7 @@ HRFT::HRFT(unsigned int _outSampleRate) : Mixer(_outSampleRate) {
   
   myBinauralizer = make_shared<CAmbisonicBinauralizer>();
   unsigned tailLength;
-  if (!myBinauralizer->Configure(order, is_3d, getOutSampleRate(), frames, tailLength, "/home/rekola/src/personal/syna/data/D1_44K_16bit_256tap_FIR_SOFA.sofa")) {
+  if (!myBinauralizer->Configure(order, is_3d, getOutSampleRate(), frames, tailLength, "/home/rekola/src/personal/syna/build/data/D1_44K_16bit_256tap_FIR_SOFA.sofa")) {
     cerr << "decoder config failed\n";
     exit(1);
   }
