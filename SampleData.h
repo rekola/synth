@@ -7,8 +7,8 @@
 
 class SampleData {
  public:
-  explicit SampleData() : channels(0), frames(0), _data(0) { }
-  explicit SampleData(size_t _channels, size_t _frames) : channels(_channels), frames(_frames) {
+  explicit SampleData() : channels(0), frames(0), _data(0), is_solo(false) { }
+  explicit SampleData(size_t _channels, size_t _frames, bool _is_solo = false) : channels(_channels), frames(_frames), is_solo(_is_solo) {
     _data = new float[channels * frames];
     memset(_data, 0, channels * frames * sizeof(float));
   }
@@ -67,7 +67,14 @@ class SampleData {
       _data[offset + i] += other._data[i];
     }
   }
-  
+
+  void mix(const SampleData & other, float volume = 1.0f) {
+    size_t n = size() < other.size() ? size() : other.size();
+    for (size_t i = 0; i < n; i++) {
+      _data[i] += volume * other._data[i];
+    }
+  }
+
   void shortenToPowerofTwo() {
     size_t new_size = 1;
     for ( ; new_size * 2 <= frames; new_size *= 2) { }
@@ -90,10 +97,13 @@ class SampleData {
       return std::pair(sqrtf(sum_squares_left), sqrtf(sum_squares_right));
     }
   }
-    
+
+  bool isSolo() const { return is_solo; }
+  
 private:
   size_t channels, frames;
   float * _data;
+  bool is_solo;
 };
 
 #endif
