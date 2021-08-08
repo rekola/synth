@@ -9,6 +9,8 @@ class Chorus : public Effect {
 
   std::unique_ptr<TrackState> createState(unsigned int outSamplerate) const override;
   std::string getElementName() const override { return "chorus"; }
+  void readXML(tinyxml2::XMLElement & element) override;
+  void populateXML(tinyxml2::XMLElement & element) const override;
 
  private:
   float delay1, delay2; // ms

@@ -80,5 +80,27 @@ Reverb::readXML(tinyxml2::XMLElement & element) {
 
 void
 Reverb::populateXML(tinyxml2::XMLElement & element) const {
-  Effect::populateXML(element);  
+  Effect::populateXML(element);
+
+  switch (preset) {
+  case ReverbPreset::SUBTLE:
+    element.SetAttribute("preset", "subtle");
+    break;
+
+  case ReverbPreset::STADIUM:
+    element.SetAttribute("preset", "stadium");
+    break;
+
+  case ReverbPreset::CUPBOARD:
+    element.SetAttribute("preset", "cupboard");
+    break;
+
+  case ReverbPreset::DARK:
+    element.SetAttribute("preset", "dark");
+    break;
+
+  case ReverbPreset::HALVES:
+    element.SetAttribute("preset", "halves");
+    break;
+  }
 }

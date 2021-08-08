@@ -2,6 +2,8 @@
 
 #include "TrackState.h"
 
+#include "tinyxml2.h"
+
 using namespace std;
 
 #define CHORUS_MAX_DELAY_SAMPLES 44100
@@ -48,4 +50,23 @@ private:
 std::unique_ptr<TrackState>
 Chorus::createState(unsigned int outSampleRate) const {
   return make_unique<ChorusState>(outSampleRate, delay1, delay2);
+}
+
+void
+Chorus::readXML(tinyxml2::XMLElement & element) {
+  Effect::readXML(element);
+  
+  auto delay1_text = element.Attribute("delay1");
+  if (delay1_text) delay1 = atof(delay1_text);
+
+  auto delay2_text = element.Attribute("delay2");
+  if (delay2_text) delay2 = atof(delay1_text);
+}
+
+void
+Chorus::populateXML(tinyxml2::XMLElement & element) const {
+  Effect::populateXML(element);
+
+  element.SetAttribute("delay1", delay1);
+  element.SetAttribute("delay2", delay1);
 }

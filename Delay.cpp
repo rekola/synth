@@ -2,6 +2,8 @@
 
 #include "TrackState.h"
 
+#include "tinyxml2.h"
+
 #define MAX_DELAY_SAMPLES 44100 * 5
 
 using namespace std;
@@ -40,4 +42,27 @@ private:
 std::unique_ptr<TrackState>
 Delay::createState(unsigned int outSampleRate) const {
   return make_unique<DelayState>(outSampleRate, delay, fd, delaymix);
+}
+
+void
+Delay::readXML(tinyxml2::XMLElement & element) {
+  Effect::readXML(element);
+  
+  auto delay_text = element.Attribute("delay");
+  if (delay_text) delay = atoi(delay_text);
+
+  auto fd_text = element.Attribute("fd");
+  if (fd_text) fd = atof(fd_text);
+
+  auto delaymix_text = element.Attribute("mix");
+  if (delaymix_text) delaymix = atof(delaymix_text);
+}
+
+void
+Delay::populateXML(tinyxml2::XMLElement & element) const {
+  Effect::populateXML(element);
+
+  element.SetAttribute("delay", delay);
+  element.SetAttribute("fd", fd);
+  element.SetAttribute("mix", delaymix);
 }
