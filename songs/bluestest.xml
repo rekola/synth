@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="31-TET" tempo="250" volume="1.0" randomization="0.0099999998">
+  <instruments>
+    <genericInstrument name="Yamaha C5 Grand" />
+    
+    <genericInstrument name="Electric Piano 1" />
+    <genericInstrument name="Electric Piano 2" />
+    <genericInstrument name="Electric Grand Piano" />
+    <genericInstrument name="Yamaha Grand Piano" />
+    <genericInstrument name="Acoustic Bass Drum" />
+    <genericInstrument name="Synth Brass 1" />
+  </instruments>
+  
+  <tracks>
+    <reverb id="100" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle">
+      <track id="0" instrument="0" />
+    </reverb>
+  </tracks>
+  
+  <patterns>
+    <pattern rows="42">
+      <note row="0" track="0" column="0" velocity="80" value="C-3"/>
+      <note row="0" track="0" column="1" velocity="80" value="C-4"/>
+      <note row="2" track="0" column="1" velocity="80" value="Eb4"/>
+      <note row="4" track="0" column="1" velocity="80" value="F-4"/>
+      
+      <note row="6" track="0" column="0" velocity="80" value="F#3"/>
+      <note row="6" track="0" column="1" velocity="80" value="F#4"/>
+
+      <note row="10" track="0" column="1" velocity="80" value="F-4"/>
+      <note row="12" track="0" column="0" velocity="80" value="F#3"/>
+      <note row="12" track="0" column="1" velocity="80" value="F#4"/>
+
+      <note row="16" track="0" column="1" velocity="80" value="F-4"/>
+      <note row="18" track="0" column="0" velocity="80" value="F#3"/>
+      <note row="18" track="0" column="1" velocity="80" value="F#4"/>
+
+      <note row="22" track="0" column="1" velocity="80" value="F-4"/>
+      <note row="24" track="0" column="1" velocity="80" value="D#4"/>
+      <note row="28" track="0" column="1" velocity="80" value="C-4"/>
+    </pattern>
+
+  </patterns>
+</song>
