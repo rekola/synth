@@ -9,9 +9,16 @@
 
 using namespace std;
 
+static const char * get_filename(unsigned int outSampleRate) {
+  switch (outSampleRate) {
+  case 44100: return "/home/rekola/src/personal/syna/build/data/D1_44K_16bit_256tap_FIR_SOFA.sofa";
+  case 48000: return "/home/rekola/src/personal/syna/build/data/D1_48K_24bit_256tap_FIR_SOFA.sofa";
+  case 96000: return "/home/rekola/src/personal/syna/build/data/D1_96K_24bit_512tap_FIR_SOFA.sofa";
+  }
+  return "";
+}
+
 HRFT::HRFT(unsigned int _outSampleRate) : Mixer(_outSampleRate) {
-  size_t frames = 1024;
-      
   int order = 1;
   bool is_3d = true;
     
@@ -23,8 +30,9 @@ HRFT::HRFT(unsigned int _outSampleRate) : Mixer(_outSampleRate) {
   }
   
   myBinauralizer = make_shared<CAmbisonicBinauralizer>();
-  unsigned tailLength;
-  if (!myBinauralizer->Configure(order, is_3d, getOutSampleRate(), frames, tailLength, "/home/rekola/src/personal/syna/build/data/D1_44K_16bit_256tap_FIR_SOFA.sofa")) {
+  unsigned tailLength;  
+  
+  if (!myBinauralizer->Configure(order, is_3d, getOutSampleRate(), frames, tailLength, get_filename(_outSampleRate))) {
     cerr << "decoder config failed\n";
     exit(1);
   }
@@ -48,8 +56,8 @@ HRFT::reset() {
 void
 HRFT::accumulate(const SampleData & data, float volume, float distance, float azimuth, float elevation) {
   assert(data.getChannels() == 1);
+  assert(data.size() == frames);
   
-  size_t frames = data.size();
   const float * input = data.data();
   
   PolarPoint position;
@@ -58,20 +66,14 @@ HRFT::accumulate(const SampleData & data, float volume, float distance, float az
   position.fElevation = elevation * M_PI / 180.0f;
 
   myEncoder->SetPosition(position);
-  myEncoder->Refresh();
-
-  assert(frames == 1024);
-  
-  // memset(left, 0, frames * sizeof(float));
-  // memset(right, 0, frames * sizeof(float));
-  
+  myEncoder->Refresh();    
   myEncoder->ProcessAccumul((float *)input, frames, myBFormat.get(), 0, volume);
 }
 
-void
-HRFT::encode(SampleData & out, float master_volume) {
+SampleData
+HRFT::encode(float master_volume) {
+  SampleData out(2, frames);
   float * output = out.data();
-  size_t frames = out.size();
   
   float * buffers[2] = { left_buffer.get(), right_buffer.get() };
   
@@ -93,4 +95,6 @@ HRFT::encode(SampleData & out, float master_volume) {
     output[2 * i + 0] = l;
     output[2 * i + 1] = r;
   }
+
+  return out;
 }
