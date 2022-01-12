@@ -24,6 +24,7 @@ using namespace std;
 
 Controller::Controller() {
   instrument_provider.loadSoundFont("data/FluidR3_GM.sf2");
+  instrument_provider.loadSoundFont("data/Essential Keys-sforzando-v9.6.sf2", false);
 }
 
 void
@@ -68,6 +69,10 @@ void
 Controller::loadDemo2() {
   auto song = make_shared<Song>(Tuning::TET31, 0); // Key of C
 
+  auto fluid = make_unique<SoundFont>("data/Essential Keys-sforzando-v9.6.sf2");
+  song->addInstruments(*fluid);
+
+#if 0
   auto epiano = make_unique<SubtractiveInstrument>(WaveformType::SAW);
   epiano->setName("Electric Piano");
   epiano->setAmpEnvelope(Envelope(0.0f, 10 * 20 / 255.0f, 0.0f, 0.0));
@@ -78,12 +83,13 @@ Controller::loadDemo2() {
   oboe->setName("oboe");
   oboe->setAmpEnvelope(Envelope(5 * 2 / 255.0f, 10 * 15 / 255.0f, 0.5f, 5 * 10 / 255.0f));
   song->addInstrument(move(oboe));  
-
-  auto & track = song->addChild(make_unique<InstrumentTrack>(-1, 0, 0.0f));
+#endif
+  
+  auto & track = song->addChild(make_unique<InstrumentTrack>(0, 0, 0.0f));
   // track.addEffect(make_unique<Chorus>(5.0f, 0.0f));
   // track.addEffect(make_unique<Filter>(63 / 255.0f, 128 / 63.0f, false));
   // track.addEffect(make_unique<Reverb>(ReverbPreset::DARK));
-  track.setVolume(0.5f);
+  track.setVolume(0.1f);
 
   Pattern pattern(256);
 
