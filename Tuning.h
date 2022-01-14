@@ -5,21 +5,19 @@
 
 enum class Tuning {
   INHERIT = 0,
-    TET5,
-    TET7,
     TET12,
     TET19,
-    TET31
+    TET31,
+    TET53
 };
 
 static inline const std::string to_string(Tuning tuning) {
   switch (tuning) {
   case Tuning::INHERIT: return "inherit";
-  case Tuning::TET5: return "5-TET";
-  case Tuning::TET7: return "7-TET";
-  case Tuning::TET12: return "12-TET";
-  case Tuning::TET19: return "19-TET";
-  case Tuning::TET31: return "31-TET";
+  case Tuning::TET12: return "12edo";
+  case Tuning::TET19: return "19edo";
+  case Tuning::TET31: return "31edo";
+  case Tuning::TET53: return "53edo";
   default: return "unknown";
   }
 }
