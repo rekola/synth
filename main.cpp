@@ -52,12 +52,8 @@ int main(int argc, char *argv[]) {
       cerr << "Could not find file " << input.front() << endl;
       exit(1);
     }
-  } else if (load_demo == 1) {
-    controller->loadDemo();
   } else if (load_demo == 2) {
     controller->loadDemo2();
-  } else if (load_demo == 7) {
-    controller->loadDemo7();
   } else {
     controller->createNewSong();
   }
@@ -67,24 +63,19 @@ int main(int argc, char *argv[]) {
   AlsaAudio audio(samplerate, 2);
   audio.initialize(logger);
 
-
 #if 0
   if (!setlocale(LC_ALL, "")){
     fprintf(stderr, "Couldn't set locale\n");
     exit(1);
   }
 #endif
-  
-  signal(SIGINT, SIG_IGN); /* disable ctrl-C */
-  signal(SIGQUIT, SIG_IGN);
-  signal(SIGTSTP, SIG_IGN); /* disable ctrl-Z */
-  signal(SIGABRT, SIG_IGN); /* disable ctrl-\ */
- 
+   
   // notcurses_options nopts{};
   // nopts.flags = NCOPTION_INHIBIT_SETLOCALE;
   auto nc = make_shared<ncpp::NotCurses>();
-  nc->mouse_enable();
-
+  // nc->mouse_enable(NCMICE_ALL_EVENTS);
+  nc->linesigs_disable();
+  
   TerminalUI ui(nc);
   ui.initialize(controller);
   ui.start(audio);
