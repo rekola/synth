@@ -16,6 +16,7 @@ static inline int color_get_xdigit(char c) {
 class UIColor {
  public:
   explicit UIColor() : red(0), green(0), blue(0) { }
+  explicit UIColor(int _red, int _green, int _blue) : red(_red), green(_green), blue(_blue) { }
   UIColor(std::string s) {
     setValue(s);
   }
@@ -34,6 +35,14 @@ class UIColor {
   int getRed() const { return red; }
   int getGreen() const { return green; }
   int getBlue() const { return blue; }
+
+  UIColor blend(const UIColor & other, float f) const {
+    float inv_f = 1-f;
+    return UIColor(int(red * f + other.red * inv_f),
+		   int(green * f + other.green * inv_f),
+		   int(blue * f + other.blue * inv_f)
+		   );
+  }
 
  private:
   void setValue(std::string s) {
