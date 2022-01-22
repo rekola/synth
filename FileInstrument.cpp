@@ -54,8 +54,8 @@ FileInstrument::openFile() {
 
 class FileInstrumentVoice : public InstrumentVoice {
 public:
-  FileInstrumentVoice(unsigned int _outSampleRate, int _identifier, std::shared_ptr<SampleData> _samples)
-    : InstrumentVoice(_outSampleRate, _identifier), samples(_samples) { }
+  FileInstrumentVoice(unsigned int _outSampleRate, std::shared_ptr<SampleData> _samples)
+    : InstrumentVoice(_outSampleRate), samples(_samples) { }
 
   SampleData render(size_t frames) override {
     float gain = decibelsToGain(getGainDB());
@@ -63,51 +63,35 @@ public:
     SampleData output(1, frames);
     auto buffer = output.data();
     
-    bool ended = false;
     for (size_t k = 0; k < frames; k++) {
       // float i = getFphase() * WAVESIZE / getOutSampleRate();
       size_t i = (size_t)getSourceSamplePosition();
-      stepForward();
+      stepForward(1);
 
       float s;
       if (i < samples->size()) {
 	s = samples->data()[i];
       } else {
 	s = 0.0f;
-	ended = true;
-	is_playing = false;
       }
 
       buffer[k] += s * gain;
     }
-    
-    if (ended) killNote();
-
-    applyEffects(output);
-    
+        
     return output;
   }
 
-  void stopNote() override {
-    // is_playing = false;
-  }
-  bool isPlaying() const override { return is_playing; }
-  void killNote() override {
-    // nothing, because otherwise Envelope kills us
-  }
-  void playNote(float _frequency, float velocity, float _delay, float _detune, unsigned short subvoice = 0) override {
-    InstrumentVoice::playNote(_frequency, velocity, _delay, _detune);
-    is_playing = true;
-  }
+  void stopNote() override { sourceSamplePosition = samples->size(); }
+  bool isPlaying() const override { return sourceSamplePosition < samples->size(); }
+  void killNote() override { stopNote(); }
 
 private:
-  bool is_playing;
   std::shared_ptr<SampleData> samples;
 };
 
-std::unique_ptr<InstrumentVoice>
-FileInstrument::createVoice(unsigned int outSampleRate, int identifier) const {
-  auto v = std::make_unique<FileInstrumentVoice>(outSampleRate, identifier, samples);
-  v->createEffectStates(getEffects());
-  return move(v);
+std::unique_ptr<TrackState>
+FileInstrument::playNote(float frequency, float velocity, unsigned int outSampleRate, float start_phase) const {
+  auto voice = std::make_unique<FileInstrumentVoice>(outSampleRate, samples);
+  voice->playNote(frequency, velocity, start_phase);
+  return voice;
 }

@@ -139,10 +139,23 @@ AlsaAudio::initialize(Logger & logger) {
   }
 #endif
 
+  if (snd_seq_open(&seq_handle, "default", SND_SEQ_OPEN_DUPLEX, 0) < 0) {
+    logger.log("Error opening ALSA sequencer");
+    return;
+  }
+  snd_seq_set_client_name(seq_handle, "musiceditor");
+  if (snd_seq_create_simple_port(seq_handle, "musiceditor",
+				 SND_SEQ_PORT_CAP_WRITE|SND_SEQ_PORT_CAP_SUBS_WRITE,
+				 SND_SEQ_PORT_TYPE_APPLICATION) < 0) {
+    logger.log("Error creating sequencer port");
+    exit(1);
+  }
+
   logger.log(string("Playback: name = ") + string(snd_pcm_name(pcm_handle)) + string(", state = ") + string(snd_pcm_state_name(snd_pcm_state(pcm_handle))) + string(" Capture: name = ") + string(snd_pcm_name(capture_handle)) + string(", state = ") + string(snd_pcm_state_name(snd_pcm_state(capture_handle))));
 
   setPlaybackDescriptors(getPollDescriptors(pcm_handle));
   setCaptureDescriptors(getPollDescriptors(capture_handle));
+  setMidiCaptureDescriptors(getMidiPollDescriptors(seq_handle));
 }
 
 std::vector<pollfd>
@@ -161,7 +174,25 @@ AlsaAudio::getPollDescriptors(snd_pcm_t * handle) {
   }
   return r;
 }
-  
+
+std::vector<pollfd>
+AlsaAudio::getMidiPollDescriptors(snd_seq_t * handle) {
+  size_t nfds = snd_seq_poll_descriptors_count(handle, POLLIN);
+
+  struct pollfd * pfds = (struct pollfd *)alloca(sizeof(struct pollfd) * (nfds + 1));
+
+  if (snd_seq_poll_descriptors(handle, pfds, nfds, POLLIN) < 0) {
+    cerr << "Error getting descriptor\n";
+    exit(1);
+  }
+
+  vector<pollfd> r;
+  for (size_t i = 0; i < nfds; i++) {
+    r.push_back(pfds[i]);
+  }
+  return r;
+}
+
 void
 AlsaAudio::play(const SampleData & data, Logger & logger) {
   int r;
@@ -209,4 +240,49 @@ AlsaAudio::startRecording() {
 void
 AlsaAudio::stopRecording() {
   
+}
+
+vector<MidiEvent>
+AlsaAudio::recordMIDI() {
+  vector<MidiEvent> r;
+
+  do {
+    snd_seq_event_t *ev;
+    snd_seq_event_input(seq_handle, &ev);
+
+    switch (ev->type) {
+    case SND_SEQ_EVENT_SYSTEM:
+      break;
+    case SND_SEQ_EVENT_RESULT:
+      break;
+    case SND_SEQ_EVENT_KEYPRESS:
+      // cerr << "aftertouch: note " << ev->data.note.note << ", vel = " << ev->data.note.velocity << endl;
+      r.push_back(MidiEvent(MidiEvent::NOTE_PRESSURE, ev->data.note.note, ev->data.note.velocity));
+      break;
+    case SND_SEQ_EVENT_CHANPRESS:
+      break;
+    case SND_SEQ_EVENT_PITCHBEND:
+#if 0
+      pitch = (double)ev->data.control.value / 8192.0;
+#endif
+      break;
+    case SND_SEQ_EVENT_CONTROLLER:
+#if 0
+      if (ev->data.control.param == 1) {
+	modulation = (double)ev->data.control.value / 10.0;
+      }
+#endif
+      break;
+    case SND_SEQ_EVENT_NOTEON:
+      r.push_back(MidiEvent(MidiEvent::NOTE_ON, ev->data.note.note, ev->data.note.velocity));
+      break;        
+    case SND_SEQ_EVENT_NOTEOFF:
+      r.push_back(MidiEvent(MidiEvent::NOTE_OFF, ev->data.note.note, 0));
+      break;
+    }
+
+    snd_seq_free_event(ev);
+  } while (snd_seq_event_input_pending(seq_handle, 0) > 0);
+  
+  return r;
 }

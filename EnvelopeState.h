@@ -41,12 +41,11 @@ class EnvelopeState : public State {
   EnvelopeState()
     : State(0), level(0.0f), slope(0.0f), samplesUntilNextSegment(0), midiVelocity(0), segmentIsExponential(false), isAmpEnv(false) { }
 
-  EnvelopeState(unsigned int _outSampleRate, const Envelope & _parameters, int midiNoteNumber, short _midiVelocity, bool _isAmpEnv, float _note_delay = 0.0f)
+  EnvelopeState(unsigned int _outSampleRate, const Envelope & _parameters, int midiNoteNumber, short _midiVelocity, bool _isAmpEnv)
     : State(_outSampleRate),
       parameters(_parameters),
       midiVelocity(_midiVelocity),
-      isAmpEnv(_isAmpEnv),
-      note_delay(_note_delay) {
+      isAmpEnv(_isAmpEnv) {
 
     if (parameters.keynumToHold) {
       parameters.hold += parameters.keynumToHold * (60.0f - midiNoteNumber);
@@ -63,7 +62,7 @@ class EnvelopeState : public State {
   void nextSegment(short active_segment) {
     switch (active_segment) {
     case NONE:
-      samplesUntilNextSegment = (int)((note_delay + parameters.delay) * getOutSampleRate());
+      samplesUntilNextSegment = (int)((parameters.delay) * getOutSampleRate());
       if (samplesUntilNextSegment > 0) {
 	segment = DELAY;
 	segmentIsExponential = false;
@@ -161,6 +160,7 @@ class EnvelopeState : public State {
     }
   }
 
+  bool isReleased() const { return segment == RELEASE || isDone(); }
   bool isDone() const { return segment == DONE; }
   float getLevel() const { return level; }
 
@@ -172,7 +172,6 @@ private:
   int samplesUntilNextSegment;
   short midiVelocity;
   bool segmentIsExponential, isAmpEnv;
-  float note_delay;
 };
 
 #endif

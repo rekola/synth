@@ -52,10 +52,10 @@ Delay::readXML(tinyxml2::XMLElement & element) {
   if (delay_text) delay = atoi(delay_text);
 
   auto fd_text = element.Attribute("fd");
-  if (fd_text) fd = atof(fd_text);
+  if (fd_text) fd = strtof(fd_text, nullptr);
 
   auto delaymix_text = element.Attribute("mix");
-  if (delaymix_text) delaymix = atof(delaymix_text);
+  if (delaymix_text) delaymix = strtof(delaymix_text, nullptr);
 }
 
 void

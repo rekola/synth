@@ -3,7 +3,7 @@
 
 #include "Instrument.h"
 #include "SoundFont.h"
-#include "SubtractiveInstrument.h"
+#include "Oscilator.h"
 #include "Filter.h"
 
 #include <string>
@@ -13,10 +13,10 @@
 class InstrumentProvider {
  public:
   InstrumentProvider() {
-    auto epiano = std::make_shared<SubtractiveInstrument>(WaveformType::SAW);
+    auto epiano = std::make_shared<Oscilator>(WaveformType::SAW);
     epiano->setName("Electric Piano");
-    epiano->setAmpEnvelope(Envelope(0.0f, 10 * 20 / 255.0f, 0.0f, 0.0));
-    epiano->addEffect(std::make_unique<Filter>(63 / 255.0f, 128 / 63.0f, false));
+    // epiano->setAmpEnvelope(Envelope(0.0f, 10 * 20 / 255.0f, 0.0f, 0.0));
+    // epiano->addEffect(std::make_unique<Filter>(63 / 255.0f, 128 / 63.0f, false));
     addInstrument(epiano);
 
     default_instrument = epiano;
@@ -36,12 +36,22 @@ class InstrumentProvider {
       addInstrument(sf->createInstrument(6, 0, "Harpsichord"));
       addInstrument(sf->createInstrument(7, 0, "Clavinet"));
       
+      addInstrument(sf->createInstrument(24, 0, "Acoustic Guitar (nylon)"));
+      addInstrument(sf->createInstrument(25, 0, "Acoustic Guitar (steel)"));
+
       addInstrument(sf->createInstrument(34, 0, "Electric Bass (finger)"));
       addInstrument(sf->createInstrument(42, 0, "Cello"));
       addInstrument(sf->createInstrument(45, 0, "Pizzicato Strings"));
 
       addInstrument(sf->createInstrument(88, 0, "Pad 1 (new age)"));
-		    
+      addInstrument(sf->createInstrument(89, 0, "Pad 2 (warm)"));
+      addInstrument(sf->createInstrument(90, 0, "Pad 3 (polysynth)"));
+      addInstrument(sf->createInstrument(91, 0, "Pad 4 (choir)"));
+      addInstrument(sf->createInstrument(92, 0, "Pad 5 (bowed)"));
+      addInstrument(sf->createInstrument(93, 0, "Pad 6 (metallic)"));
+      addInstrument(sf->createInstrument(94, 0, "Pad 7 (halo)"));
+      addInstrument(sf->createInstrument(95, 0, "Pad 8 (sweep)"));
+
       // 27 High Q
       // 28 Slap
       // 29 Stratch Push

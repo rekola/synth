@@ -23,19 +23,20 @@ class Command {
   
   bool isDefined() const { return values[0] != '-' || values[1] != '-' || values[2] != '-' || values[3] != '-'; }
 
-  std::string toString() const {
-    std::string s;
-    s += values[0];
-    s += values[1];
-    s += values[2];
-    s += values[3];
-    return s;
-  }
-
   const char * data() const { return &(values[0]); }
   
  private:
   char values[4];
 };
+
+static inline const std::string to_string(const Command & command) {
+  const char * values = command.data();
+  std::string s;
+  s += values[0];
+  s += values[1];
+  s += values[2];
+  s += values[3];
+  return s;
+}
 
 #endif

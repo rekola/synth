@@ -36,7 +36,8 @@ Chart::displayFFT(const SampleData & data) {
 
     size_t num_bins = 2 * columns;
     size_t actual_data_size = data.size() / 2;
-    size_t bin_size = actual_data_size / num_bins;
+    float start_value = log(40), end_value = log(40 + actual_data_size);
+    float bin_size = (end_value - start_value) / num_bins;
     
     vector<float> bins;
     for (int i = 0; i < num_bins; i++) bins.push_back(0);
@@ -44,7 +45,7 @@ Chart::displayFFT(const SampleData & data) {
     for (size_t i = 0; i < actual_data_size; i++) {
       // double mag = sqrt(result[i][0] * result[i][0] + result[i][1] * result[i][1]);
       double mag = Decibels(result[i][0], result[i][1]);
-      size_t i2 = i / bin_size;
+      size_t i2 = (size_t)((log(40 + i) - start_value) / bin_size);
       if (mag > bins[i2]) bins[i2] = mag;
       // bins[i2] += mag;
     }

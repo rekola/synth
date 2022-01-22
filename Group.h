@@ -1,11 +1,11 @@
-#ifndef _GROUPTRACK_H_
-#define _GROUPTRACK_H_
+#ifndef _GROUP_H_
+#define _GROUP_H_
 
 #include "Track.h"
 
-class GroupTrack : public Track {
+class Group : public Track {
  public:
-  GroupTrack() : Track(GROUP) { }
+  Group() : Track(GROUP) { }
 
   virtual std::string getElementName() const override { return "group"; }
 };

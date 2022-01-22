@@ -20,9 +20,7 @@ class Controller {
   void createNewSong();
   bool openSong(std::string filename);
   
-  void loadDemo();
   void loadDemo2();
-  void loadDemo7();
   bool sendCommand(const std::string & s);
 
   std::shared_ptr<SampleData> startRecording() {

@@ -13,7 +13,6 @@
          "generator": "Ninja",
          "binaryDir": "${sourceDir}/build",
          "cacheVariables": {
-            "CMAKE_CXX_FLAGS": "-Wall -Wsuggest-override -Werror=return-local-addr -Werror=multichar -Werror=enum-compare -Werror=return-type -Werror=conversion-null -Werror=parentheses -Werror=switch -Werror=address -Werror=trigraphs -Werror=pointer-arith -Werror=cast-qual -Werror=non-virtual-dtor -ffast-math -fno-math-errno"
          }
       },
       {

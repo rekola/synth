@@ -9,7 +9,7 @@ class Effect : public Track {
 
   std::string getElementName() const override { return "effect"; }
 
-  SampleData render(size_t frames, SongState & song_state, const std::vector<std::unique_ptr<Instrument> > & instruments, TrackEventQueue & events) override;  
+  SampleData render(size_t frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) override;
 };
 
 #endif

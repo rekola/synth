@@ -27,7 +27,9 @@ class EventQueue {
     std::lock_guard<std::mutex> guard(event_mutex);
     events.push_front(std::move(event));
     uint8_t a = 0;
-    write(push_fd, &a, sizeof(uint8_t));
+    if (write(push_fd, &a, sizeof(uint8_t)) != sizeof(uint8_t)) {
+      throw std::runtime_error("unable to write to queue");
+    }
   }
 
   int getPollFd() const { return poll_fd; }

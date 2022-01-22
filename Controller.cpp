@@ -1,20 +1,8 @@
 #include "Controller.h"
 
 #include "Song.h"
-#include "SubtractiveInstrument.h"
-#include "FMInstrument.h"
-#include "FileInstrument.h"
 #include "SoundFont.h"
-#include "Chorus.h"
-#include "Distortion.h"
-#include "Reverb.h"
-#include "Delay.h"
-#include "SongState.h"
-#include "Filter.h"
 #include "InstrumentTrack.h"
-#include "RootTrack.h"
-
-#include "default_song.h"
 
 #include <cassert>
 #include <iostream>
@@ -28,67 +16,17 @@ Controller::Controller() {
 }
 
 void
-Controller::loadDemo7() {
-  auto song = make_shared<Song>(Tuning::TET31, 0);
-  song->setTempo(100);
-
-  auto fluid = make_unique<SoundFont>("data/Essential Keys-sforzando-v9.6.sf2");
-  song->addInstruments(*fluid);
-#if 0
-  auto rhodes = fluid->createInstrument(4);
-  auto bd = fluid->createInstrument(160, 35);
-  song->addInstrument(move(rhodes));
-  song->addInstrument(move(bd));
-#endif
-  
-  auto & track = song->addChild(make_unique<InstrumentTrack>(-1, 0, 0.0f));
-  // track.addEffect(make_unique<Distortion>(DistortionType::TANH, 0, 0));
-  // track.addEffect(make_unique<Reverb>(ReverbPreset::STADIUM));  
-  // track.setVolume(0.5f);
-  
-  auto & track2 = song->addChild(make_unique<InstrumentTrack>(-1, 1, 0.0f));
-  // track2.addEffect(make_unique<Distortion>(DistortionType::TANH, 0, 0));
-  // track2.addEffect(make_unique<Reverb>(ReverbPreset::STADIUM));  
-  // track2.setVolume(0.5f);
-
-  auto & pattern = song->addPattern(64);  
-  pattern.setNoteSwapped(0, 0, 0, Note(155));
-  pattern.setNoteSwapped(0, 1, 0, Note(155 + 3));
-  pattern.setNoteSwapped(0, 2, 0, Note(155 + 3 + 3));
-  pattern.setNoteSwapped(0, 3, 0, Note(155 + 3 + 3 + 2));
-  pattern.setNoteSwapped(0, 4, 0, Note(155 + 3 + 3 + 2 + 3));
-  pattern.setNoteSwapped(0, 5, 0, Note(155 + 3 + 3 + 2 + 3 + 3));
-  pattern.setNoteSwapped(0, 6, 0, Note(155 + 3 + 3 + 2 + 3 + 3 + 3));
-  pattern.setNoteSwapped(0, 7, 0, Note(155 + 3 + 3 + 2 + 3 + 3 + 3 + 2));
-  pattern.setNoteSwapped(0, 8, 0, Note("C-5", 0x40, Tuning::TET31));
-  
-  current_song = song;
-}
-
-void
 Controller::loadDemo2() {
   auto song = make_shared<Song>(Tuning::TET31, 0); // Key of C
 
+#if 0
   auto fluid = make_unique<SoundFont>("data/Essential Keys-sforzando-v9.6.sf2");
   song->addInstruments(*fluid);
-
-#if 0
-  auto epiano = make_unique<SubtractiveInstrument>(WaveformType::SAW);
-  epiano->setName("Electric Piano");
-  epiano->setAmpEnvelope(Envelope(0.0f, 10 * 20 / 255.0f, 0.0f, 0.0));
-  epiano->addEffect(make_unique<Filter>(63 / 255.0f, 128 / 63.0f, false));
-  song->addInstrument(move(epiano));
-
-  auto oboe = make_unique<FMInstrument>(0.7, 1, 3, 4);
-  oboe->setName("oboe");
-  oboe->setAmpEnvelope(Envelope(5 * 2 / 255.0f, 10 * 15 / 255.0f, 0.5f, 5 * 10 / 255.0f));
-  song->addInstrument(move(oboe));  
 #endif
   
-  auto & track = song->addChild(make_unique<InstrumentTrack>(0, 0, 0.0f));
+  auto & track = song->addChild(make_unique<InstrumentTrack>(0, 0));
   // track.addEffect(make_unique<Chorus>(5.0f, 0.0f));
   // track.addEffect(make_unique<Filter>(63 / 255.0f, 128 / 63.0f, false));
-  // track.addEffect(make_unique<Reverb>(ReverbPreset::DARK));
   track.setVolume(0.1f);
 
   Pattern pattern(256);
@@ -169,11 +107,11 @@ Controller::loadDemo2() {
   pattern.setNoteSwapped(0, 87, 0, Note(186)); // C-5  
 
   pattern.setAnnotation(90, "Sad scale");
-  pattern.setNoteSwapped(0, 90, 0, Note("C-4", 0x40, Tuning::TET31)); // C-4
-  pattern.setNoteSwapped(0, 91, 0, Note("E𝄫4", 0x40, Tuning::TET31));
-  pattern.setNoteSwapped(0, 92, 0, Note("D#4", 0x40, Tuning::TET31));
-  pattern.setNoteSwapped(0, 93, 0, Note("F-4", 0x40, Tuning::TET31));
-  pattern.setNoteSwapped(0, 97, 0, Note("C-5", 0x40, Tuning::TET31));
+  pattern.setNoteSwapped(0, 90, 0, Note("C-4", 0x40, 0, Tuning::TET31)); // C-4
+  pattern.setNoteSwapped(0, 91, 0, Note("E𝄫4", 0x40, 0, Tuning::TET31));
+  pattern.setNoteSwapped(0, 92, 0, Note("D#4", 0x40, 0, Tuning::TET31));
+  pattern.setNoteSwapped(0, 93, 0, Note("F-4", 0x40, 0, Tuning::TET31));
+  pattern.setNoteSwapped(0, 97, 0, Note("C-5", 0x40, 0, Tuning::TET31));
 
   #if 0
   pattern.setAnnotation(100, "7-limit scale");
@@ -562,179 +500,10 @@ Controller::loadDemo2() {
 }
 
 void
-Controller::loadDemo() {
-  auto song = make_shared<Song>(Tuning::TET12, 0);
-
-  const unsigned char * song_data = tr;
-  
-  song->setTempo(*song_data++);
-  song->setVolume((*song_data++) / 127.0f);
-  
-  int delay1 = (int)(44100 * 5 * ((float)(*song_data++) / 255));
-  float fd1 = (float)(*song_data++) / 255;
-  float delaymix1 = (float)(*song_data++) / 255;
-
-  // void setADSR(int _a, int _d, float _s, int _r) { setAmpEnvelope(Envelope(5 * _a / 255.0f, 2 * 5 * _d / 255.0f, _s, 5 * _r / 255.0f)); }
-  
-  auto i0 = make_unique<SubtractiveInstrument>(WaveformType::SAW);
-  i0->setName("drone1");
-  i0->setAmpEnvelope(Envelope(5, 10 * 64 / 255.0f, 0.25f, 0));
-  i0->addEffect(make_unique<Filter>(0, 0.08f, true));
-  song->addInstrument(move(i0));
-
-  auto i1 = make_unique<SubtractiveInstrument>(WaveformType::SAW);
-  i1->setName("drone2");
-  i1->setAmpEnvelope(Envelope(5, 10 * 64 / 255.0f, 0.25f, 0));
-  i1->addEffect(make_unique<Filter>(0, 0.08f, true));
-  song->addInstrument(move(i1));
-
-  auto i2 = make_unique<SubtractiveInstrument>(WaveformType::SAW);
-  i2->setName("drone3");
-  i2->setAmpEnvelope(Envelope(5, 10 * 64 / 255.0f, 0.25f, 0));
-  i2->addEffect(make_unique<Filter>(0, 0.08f, true));
-  song->addInstrument(move(i2));
-
-  auto i3 = make_unique<SubtractiveInstrument>(WaveformType::SINE);
-  i3->setName("bass drum");
-  i3->setAmpEnvelope(Envelope(0, 10 * 15 / 255.0f, 0.0f, 0));
-  song->addInstrument(move(i3));
-
-  auto i4 = make_unique<SubtractiveInstrument>(WaveformType::NOISE);
-  i4->setName("hihat closed");
-  i4->setAmpEnvelope(Envelope(0, 10 * 8 / 255.0f, 0.0f, 0));
-  i4->addEffect(make_unique<Filter>(0.75f, 2.0f, false));
-  i4->addEffect(make_unique<Delay>(delay1, fd1, delaymix1));
-  song->addInstrument(move(i4));
-
-  auto i5 = make_unique<SubtractiveInstrument>(WaveformType::NOISE);
-  i5->setName("hihat open");
-  i5->setAmpEnvelope(Envelope(0, 10 * 13 / 255.0f, 0.0f, 0));
-  song->addInstrument(move(i5));
-
-  auto i6 = make_unique<SubtractiveInstrument>(WaveformType::SAW);
-  i6->setName("unused");
-  i6->setAmpEnvelope(Envelope(0, 10 * 25 / 255.0f, 0.0f, 0));
-  song->addInstrument(move(i6));
-
-  auto i7 = make_unique<SubtractiveInstrument>(WaveformType::SQUARE);
-  i7->setName("bass");
-  i7->setAmpEnvelope(Envelope(0, 10 * 15 / 255.0f, 0.0f, 0));
-  i7->addEffect(make_unique<Filter>(0.78f, 0.32f, false));
-  song->addInstrument(move(i7));
-
-#if 0
-  auto i8 = make_unique<SubtractiveInstrument>(WaveformType::NOISE);
-  i8->setAmpEnvelope(Envelope(0, 10 * 3 / 255.0f, 0.0f, 0));
-#else
-  auto i8 = make_unique<FileInstrument>("./samples/Closed-Hi-Hat-1.wav");
-#endif
-  i8->setName("hihat closed");
-  song->addInstrument(move(i8));
-  
-  auto i9 = make_unique<SubtractiveInstrument>(WaveformType::NOISE);
-  i9->setName("snare");
-  i9->setAmpEnvelope(Envelope(0, 10 * 15 / 255.0f, 0.0f, 0));
-  i9->addEffect(make_unique<Delay>(delay1, fd1, delaymix1));
-  song->addInstrument(move(i9));
-
-  auto i10 = make_unique<SubtractiveInstrument>(WaveformType::SAW);
-  i10->setName("bass");
-  i10->setAmpEnvelope(Envelope(0, 10 * 30 / 255.0f, 0.0f, 0));
-  i10->addEffect(make_unique<Filter>(0.4f, 0.0f, false));
-  i10->addEffect(make_unique<Delay>(delay1, fd1, delaymix1));
-  song->addInstrument(move(i10));
-
-  auto i11 = make_unique<SubtractiveInstrument>(WaveformType::SAW);
-  i11->setName("bass");
-  i11->setAmpEnvelope(Envelope(0, 10 * 20 / 255.0f, 0.0f, 0));
-  i11->addEffect(make_unique<Filter>(0.25f, 2.0f, false));
-  i11->addEffect(make_unique<Delay>(delay1, fd1, delaymix1));
-  song->addInstrument(move(i11));
-
-  auto i12 = make_unique<SubtractiveInstrument>(WaveformType::SQUARE);
-  i12->setName("bass");
-  i12->setAmpEnvelope(Envelope(0, 10 * 14 / 255.0f, 0.0f, 0));
-  i12->addEffect(make_unique<Filter>(0.78f, 0.32f, false));
-  song->addInstrument(move(i12));
-
-  auto i13 = make_unique<SubtractiveInstrument>(WaveformType::SINE);
-  i13->setName("bass drum");
-  i13->setAmpEnvelope(Envelope(0, 10 * 8 / 255.0f, 0.0f, 0));
-  i13->addEffect(make_unique<Filter>(0.96f, 0.0f, false));
-  song->addInstrument(move(i13));
-
-  auto i14 = make_unique<SubtractiveInstrument>(WaveformType::NOISE);
-  i14->setName("snare");
-  i14->setAmpEnvelope(Envelope(0, 10 * 5 / 255.0f, 0.0f, 0));
-  i14->addEffect(make_unique<Filter>(0.6f, 4.0f, false));
-  song->addInstrument(move(i14));
-  
-  int ptrncnt = *song_data++;
-
-  unordered_map<unsigned short, unordered_map<unsigned short, Note> > track_notes;
-  for (int i = 0; i < ptrncnt; i++) {
-    auto instrument_id = *song_data++;
-    auto detune = (*song_data++ - 127) / 512.0;
-    auto pan = *song_data++ / 255.0f;
-    auto volume = *song_data++ / 127.0f;
-
-    auto & root = song->addChild(make_unique<RootTrack>(100 + i, pan - 0.5 * 360));
-    root.setVolume(volume);
-    auto & track = root.addChild(make_unique<InstrumentTrack>(i, instrument_id, detune));
-    if (volume > 1.0f) {
-      // track.addEffect(make_unique<Distortion>(DistortionType::CLIP, 1.0f, 0.0f));
-    }
-    
-    for (size_t j = 0; ; j++) {
-      int val = *song_data++;
-      if (val == 255) break;
-      int midi_note = val & 0x7f;
-      bool has_accent = val & 0x80;
-      if (midi_note != 0) track_notes[i][j] = Note(midi_note, has_accent ? 0x60 : 0x40);
-    }
-  }
-
-  size_t max_track_length = 0;
-  vector<vector<int> > track_vectors;
-  int trkcnt = *song_data++;
-  for (int i = 0; i < trkcnt; i++) {
-    vector<int> seqs;
-    while (1) {
-      size_t val = *song_data++;
-      if (val == 255) break;
-      seqs.push_back(val);
-    }
-    
-    track_vectors.push_back(seqs);
-    if (seqs.size() > max_track_length) max_track_length = seqs.size();
-  }
-
-  for (size_t i = 0; i < max_track_length; i++) {
-    Pattern pattern;
-    for (size_t j = 0; j < track_vectors.size(); j++) {
-      auto & tracks = track_vectors[j];
-      if (i < tracks.size()) {
-	auto track_id = tracks[i];
-	for (size_t k = 0; k < 32; k++) {
-	  Note note = track_notes[track_id][k];
-	  if (note.isDefined()) pattern.setNote(k, track_id, 0, note);
-	  else {
-	    // cerr << "note missing: pattern=" << i << ", track = " << track_id << ", row = " << k << endl;
-	  }
-	}
-      }
-    }
-    song->addPattern(pattern);
-  }
-
-  current_song = song;
-}
-
-void
 Controller::createNewSong() {
   auto song = make_shared<Song>();
   
-  song->addChild(make_unique<InstrumentTrack>(-1, 0, 0.0f));
+  song->addChild(make_unique<InstrumentTrack>(-1, 0));
   song->addPattern(64);
   
   current_song = song;
@@ -757,6 +526,18 @@ Controller::sendCommand(const std::string & cmd) {
     createNewSong();
   } else if (cmd == "save-song") {
     current_song->save("tmp.xml");
+  } else if (cmd == "add-filter") {
+
+  } else if (cmd == "transpose-down") {
+    auto & info = getPlaybackInfo();
+    auto & pattern = current_song->getPattern(info.getPatternIndex());
+    pattern.transposeDown();
+    current_song->incVersion();
+  } else if (cmd == "transpose-up") {
+    auto & info = getPlaybackInfo();
+    auto & pattern = current_song->getPattern(info.getPatternIndex());
+    pattern.transposeUp();
+    current_song->incVersion();    
   } else {
     return false;
   }

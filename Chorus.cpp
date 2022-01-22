@@ -57,10 +57,10 @@ Chorus::readXML(tinyxml2::XMLElement & element) {
   Effect::readXML(element);
   
   auto delay1_text = element.Attribute("delay1");
-  if (delay1_text) delay1 = atof(delay1_text);
+  if (delay1_text) delay1 = strtof(delay1_text, nullptr);
 
   auto delay2_text = element.Attribute("delay2");
-  if (delay2_text) delay2 = atof(delay1_text);
+  if (delay2_text) delay2 = strtof(delay1_text, nullptr);
 }
 
 void

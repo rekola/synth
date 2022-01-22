@@ -6,6 +6,9 @@
 #include "SongState.h"
 
 #include <fmt/core.h>
+#include <iostream>
+
+using namespace std;
 
 class InfoLine : public UIElement {
  public:
@@ -37,6 +40,21 @@ class InfoLine : public UIElement {
       while (s.size() < cols) s += ' ';
       
       putstr(0, 0, s);
+
+      auto & pattern = song.getPattern(info.getPatternIndex());
+      Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
+
+      // setFgColor(styles.window_border_color);
+      // setBgColor(styles.window_bg_color);
+
+      std::string tuning_text = to_string(tuning);
+
+      int new_key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
+      std::string key = new_key >= 0 ? Note::keyToString(tuning, new_key) : "?";
+      int tempo = song.getTempo();
+
+      int edit_step_size = 0, current_score_cursor_track = 0, current_score_cursor_col = 0;
+      putstr(0, cols / 2, fmt::format("{:2d} {} {} {} {}:{}", edit_step_size, tuning_text, key, tempo, current_score_cursor_track, current_score_cursor_col));
 
       current_version = new_version;
       current_position = new_position;

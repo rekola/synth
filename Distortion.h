@@ -3,11 +3,11 @@
 
 #include "Effect.h"
 
-enum class DistortionType { CLIP = 1, TANH, BITCRUSH };
+enum class DistortionType { HARD_CLIP = 1, SOFT_CLIP, BITCRUSH, TANH };
 
 class Distortion : public Effect {
  public:
-  Distortion() : type(DistortionType::CLIP), param(1.0f), drymix(0) { }
+  Distortion() : type(DistortionType::HARD_CLIP), param(1.0f), drymix(0) { }
   Distortion(DistortionType _type, float _param, float _drymix) : type(_type), param(_param), drymix(_drymix) { }
 
   std::unique_ptr<TrackState> createState(unsigned int outSamplerate) const override;
@@ -18,6 +18,7 @@ class Distortion : public Effect {
  private:
   DistortionType type;
   float param, drymix;
+  float drive = 1.0f;
 };
 
 #endif

@@ -67,7 +67,7 @@ HRFT::accumulate(const SampleData & data, float volume, float distance, float az
 
   myEncoder->SetPosition(position);
   myEncoder->Refresh();    
-  myEncoder->ProcessAccumul((float *)input, frames, myBFormat.get(), 0, volume);
+  myEncoder->ProcessAccumul(const_cast<float *>(input), frames, myBFormat.get(), 0, volume);
 }
 
 SampleData

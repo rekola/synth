@@ -12,8 +12,8 @@ class FileInstrument : public Instrument {
     openFile();
   }
 
-  std::unique_ptr<InstrumentVoice> createVoice(unsigned int outSampleRate, int identifier) const;
-  
+  std::unique_ptr<TrackState> playNote(float frequency, float velocity, unsigned int outSampleRate, float start_phase) const override;
+
 protected:
   void openFile();
 

@@ -2,7 +2,10 @@
 #define _AUDIOAPI_H_
 
 #include <poll.h>
+#include <cstddef>
 #include <vector>
+
+#include "MidiEvent.h"
 
 class SampleData;
 class Logger;
@@ -17,22 +20,25 @@ class AudioAPI {
   virtual size_t getFrameCount() const = 0;
   virtual void startRecording() = 0;
   virtual void stopRecording() = 0;
+  virtual std::vector<MidiEvent> recordMIDI() = 0;
   
   unsigned int getFrequency() const { return frequency; }
   unsigned short getChannels() const { return channels; }
 
   const std::vector<pollfd> getPlaybackDescriptors() const { return playback_descriptors; }
   const std::vector<pollfd> getCaptureDescriptors() const { return capture_descriptors; }
+  const std::vector<pollfd> getMidiCaptureDescriptors() const { return midi_capture_descriptors; }
   
 protected:
   void setFrequency(int _frequency) { frequency = _frequency; }
   void setPlaybackDescriptors(const std::vector<pollfd> & d) { playback_descriptors = d; }
   void setCaptureDescriptors(const std::vector<pollfd> & d) { capture_descriptors = d; }
+  void setMidiCaptureDescriptors(const std::vector<pollfd> & d) { midi_capture_descriptors = d; }
   
 private:
   unsigned int frequency;
   unsigned short channels;
-  std::vector<pollfd> playback_descriptors, capture_descriptors;
+  std::vector<pollfd> playback_descriptors, capture_descriptors, midi_capture_descriptors;
 };
 
 #endif
