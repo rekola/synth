@@ -3,6 +3,8 @@
 
 #include "EventHandler.h"
 #include "SongState.h"
+#include "MixerType.h"
+#include "Mixer.h"
 
 #include <memory>
 
@@ -21,10 +23,14 @@ class Player : public EventHandler {
   std::unique_ptr<PlaybackEvent> createPlaybackEvent(const Song & song, SongState & state);
 
 private:
+  Mixer & getMixer(MixerType type);
+  
   unsigned int outSampleRate;
   Controller * controller;
   SongState state;
   bool terminate = false;
+  
+  std::unique_ptr<Mixer> basic_mixer, hrft_mixer;
 };
 
 #endif

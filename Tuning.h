@@ -18,7 +18,7 @@ static inline const std::string to_string(Tuning tuning) {
   case Tuning::TET19: return "19edo";
   case Tuning::TET31: return "31edo";
   case Tuning::TET53: return "53edo";
-  default: return "unknown";
+  default: return "";
   }
 }
 

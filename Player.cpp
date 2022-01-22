@@ -4,10 +4,14 @@
 #include "Logger.h"
 #include "Tuner.h"
 #include "InstrumentTrack.h"
+#include "SampleData.h"
 
 #include "LogEvent.h"
 #include "PlaybackEvent.h"
 #include "RecordEvent.h"
+
+#include "HRFT.h"
+#include "BasicMixer.h"
 
 using namespace std;
 
@@ -29,10 +33,12 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 
   switch (ev.getType()) {
   case PlaybackControlEvent::PLAY_NOTE:
+  case PlaybackControlEvent::NOTE_PRESSURE:
     {
       auto track_id = ev.getParameter1();
       auto column = ev.getParameter2();
       auto midi_note = ev.getParameter3();
+      auto midi_velocity = ev.getParameter4();
       
       auto * track = song.getChildById(track_id);
       if (track && track->getType() == Track::INSTRUMENT_TRACK) {
@@ -46,16 +52,26 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	  auto & pattern = song.getPattern(pattern_idx);
 	
 	  Tuner tuner;
-	  Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
-	  Note note(midi_note);
-	  
-	  int key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
-	  float frequency = tuner.getFrequency(tuning, key, note);
-	  instrument.playNote(column, frequency, note.getVelocity() / 127.0f, 0.0f, instrument_track.getDetune(), track_voices);
+
+	  if (ev.getType() == PlaybackControlEvent::PLAY_NOTE) {
+	    Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
+	    Note note(midi_note, midi_velocity);
+	    
+	    int key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
+	    float frequency = tuner.getFrequency(tuning, key, note);
+	    // frequency *= instrument_track.getDetune();
+	    
+	    track_voices.stopVoices(column);
+	    auto voice = instrument.playNote(frequency, note.getVelocityAsFloat(), state.getOutSampleRate());
+	    track_voices.addVoice(column, move(voice));
+	  } else {
+	    track_voices.applyAftertouch(column, midi_velocity);
+	  }
 	}
       }
     }
     break;
+    
   case PlaybackControlEvent::TERMINATE:
     {
       terminate = true;
@@ -76,6 +92,7 @@ Player::play(AudioAPI & audio) {
       
   size_t num_playback_desc = audio.getPlaybackDescriptors().size();
   size_t num_capture_desc = audio.getCaptureDescriptors().size();
+  
   size_t num_descriptors = 1 + num_playback_desc + num_capture_desc;
 
   auto descriptors = std::make_unique<pollfd[]>(num_descriptors);
@@ -110,18 +127,20 @@ Player::play(AudioAPI & audio) {
 	    auto ev = createPlaybackEvent(song, state);
 	    controller->getUIEventQueue().push(move(ev));
 	  } else if (i - 1 < num_playback_desc) {
-	    auto data = song.render(audio.getFrameCount(), state);
-	    audio.play(data, logger);
+	    auto & mixer = getMixer(song.getMixerType());
+	    song.render(audio.getFrameCount(), state, mixer);
+	    auto master = mixer.encode(song.getVolume());
+	    audio.play(master, logger);
 	    
 	    auto ev = createPlaybackEvent(song, state);
-	    ev->setData(data);
-	    ev->setLoudness(data.calculateLoudness());
+	    ev->setData(master);
+	    ev->setLoudness(master.calculateLoudness());
 	    
 	    controller->getUIEventQueue().push(move(ev));
-	  } else {
+	  } else if (i - 1 - num_playback_desc < num_capture_desc) {
 	    auto data = audio.record(logger);
 	    controller->getUIEventQueue().push(make_unique<RecordEvent>(data));
-	  }
+	  }	  
 	}
       }
     }
@@ -135,7 +154,7 @@ Player::createPlaybackEvent(const Song & song, SongState & state) {
   PlaybackInfo info;
   info.is_playing = state.isPlaying();
   info.outSampleRate = state.getOutSampleRate();
-  info.sample_interval = state.getSampleInterval(song);
+  info.sample_interval = song.getSampleInterval(state.getOutSampleRate());
   info.sample_pos = state.getSamplePos();
   info.pattern_idx = pattern_idx;
   info.row_idx = row_idx;
@@ -148,4 +167,18 @@ Player::createPlaybackEvent(const Song & song, SongState & state) {
   }
   
   return make_unique<PlaybackEvent>(info);
+}
+
+Mixer &
+Player::getMixer(MixerType type) {
+  switch (type) {
+  case MixerType::HRFT:
+    if (!hrft_mixer) hrft_mixer = make_unique<HRFT>(outSampleRate);
+    return *hrft_mixer;
+    
+  case MixerType::BASIC:
+  default:
+    if (!basic_mixer) basic_mixer = make_unique<BasicMixer>(outSampleRate);
+    return *basic_mixer;
+  }
 }

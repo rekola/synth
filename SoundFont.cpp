@@ -29,6 +29,9 @@
 #include "LFO.h"
 #include "InstrumentVoice.h"
 #include "SampleData.h"
+#include "VoicePool.h"
+
+#include "defaults.h"
 
 using namespace std;
 
@@ -136,11 +139,6 @@ static inline float tsf_cents2Hertz(float cents) { return 8.176f * powf(2.0f, ce
 //   pitch_range: range of the pitch wheel in semitones (default 2.0, total +/- 2 semitones)
 //   tuning: tuning of all playing voices in semitones (default 0.0, standard (A440) tuning)
 //   (set_preset_number and set_bank_preset return 0 if preset does not exist, otherwise 1)
-
-// The lower this block size is the more accurate the effects are.
-// Increasing the value significantly lowers the CPU usage of the voice rendering.
-// If LFO affects the low-pass filter it can be hearable even as low as 8.
-#define TSF_RENDER_EFFECTSAMPLEBLOCK 64
 
 #include <cstring>
 #include <cmath>
@@ -526,8 +524,12 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
     
     // Zones.
     for (ppbag = hydra->pbags + pphdr->presetBagNdx, ppbagEnd = hydra->pbags + pphdr[1].presetBagNdx; ppbag != ppbagEnd; ppbag++) {
-      struct tsf_hydra_pgen *ppgen, *ppgenEnd; struct tsf_hydra_inst *pinst; struct tsf_hydra_ibag *pibag, *pibagEnd; struct tsf_hydra_igen *pigen, *pigenEnd;
+      struct tsf_hydra_pgen *ppgen, *ppgenEnd;
+      struct tsf_hydra_inst *pinst;
+      struct tsf_hydra_ibag *pibag, *pibagEnd;
+      struct tsf_hydra_igen *pigen, *pigenEnd;
       struct tsf_region presetRegion = globalRegion;
+      
       int hadGenInstrument = 0;
       
       // Generators.
@@ -615,11 +617,11 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
 
 class SoundFontVoice : public InstrumentVoice {
 public:
-  SoundFontVoice(unsigned int _outSampleRate, int _identifier, std::shared_ptr<SoundFontFile> _sf, size_t _preset = 0, size_t _fixedMidiKey = 0)
-    : InstrumentVoice(_outSampleRate, _identifier), sf(_sf), preset(_preset), fixedMidiKey(_fixedMidiKey) {
+  SoundFontVoice(unsigned int _outSampleRate, std::shared_ptr<SoundFontFile> _sf, size_t _preset, size_t _region_idx, size_t _fixedMidiKey)
+    : InstrumentVoice(_outSampleRate), sf(_sf), preset(_preset), region_idx(_region_idx), fixedMidiKey(_fixedMidiKey) {
   }
   
-  void playNote(float frequency, float velocity, float delay, float detune, unsigned short subvoice = 0) override {
+  void playNote(float frequency, float velocity, float start_phase) override {
     assert(frequency > 0);
 
     auto f = sf.get();
@@ -632,8 +634,8 @@ public:
     if (midiVelocity > 127) midiVelocity = 127;
   
     auto & regions = f->presets[preset].regions;
-    assert(subvoice < regions.size());
-    auto & region = regions[subvoice];
+    assert(region_idx < regions.size());
+    auto & region = regions[region_idx];
                 
     voiceRegion = &region;
     apparentPlayingKey = apparent_key;
@@ -650,8 +652,8 @@ public:
     loopEnd = (doLoop ? region.loop_end : 0);
     
     // Setup envelopes.
-    ampenv = EnvelopeState(getOutSampleRate(), region.ampenv, apparent_key, midiVelocity, true, delay);
-    modenv = EnvelopeState(getOutSampleRate(), region.modenv, apparent_key, midiVelocity, false, delay);
+    ampenv = EnvelopeState(getOutSampleRate(), region.ampenv, apparent_key, midiVelocity, true);
+    modenv = EnvelopeState(getOutSampleRate(), region.modenv, apparent_key, midiVelocity, false);
     
     // Setup lowpass filter.
     float lowpassFc = (region.initialFilterFc <= 13500 ? tsf_cents2Hertz((float)region.initialFilterFc) / getOutSampleRate() : 1.0f);
@@ -667,12 +669,28 @@ public:
     viblfo = LFO(region.delayVibLFO, tsf_cents2Hertz(region.freqVibLFO), getOutSampleRate());
   }
 
-  bool isPlaying() const override { return voiceRegion && sourceSamplePosition < voiceRegion->end && !ampenv.isDone(); }
+  bool isPlaying() const override {
+    return (voiceRegion && sourceSamplePosition < voiceRegion->end && !ampenv.isDone());
+  }
+  bool isReleased() const override {
+    return isPlaying() && ampenv.isReleased();
+  }
 
   SampleData render(size_t numSamples) override;
   
+  void killNote() override {
+    // do not stop children
+    
+    ampenv.nextSegment(EnvelopeState::DONE);
+    modenv.nextSegment(EnvelopeState::DONE);
+  }
+
   void stopNote() override {
-    InstrumentVoice::stopNote();
+    // do not stop children
+    
+    ampenv.nextSegment(EnvelopeState::SUSTAIN);
+    modenv.nextSegment(EnvelopeState::SUSTAIN);
+
     if (voiceRegion->loop_mode == TSF_LOOPMODE_SUSTAIN) {
       // Continue playing, but stop looping.
       loopEnd = loopStart;
@@ -701,10 +719,12 @@ public:
   unsigned int loopStart = 0, loopEnd = 0;
   LowpassFilter lowpass;
   LFO modlfo, viblfo;
-
+  
 private:
   shared_ptr<SoundFontFile> sf;
-  size_t preset, fixedMidiKey;
+  size_t preset, region_idx, fixedMidiKey;
+  EnvelopeState ampenv, modenv;
+  Envelope amp_envelope, mod_envelope;
 };
 
 SampleData
@@ -752,7 +772,7 @@ SoundFontVoice::render(size_t numSamples) {
   }
   
   while (numSamples) {
-    int blockSamples = (numSamples > TSF_RENDER_EFFECTSAMPLEBLOCK ? TSF_RENDER_EFFECTSAMPLEBLOCK : numSamples);
+    int blockSamples = (numSamples > RENDER_EFFECTSAMPLEBLOCK ? RENDER_EFFECTSAMPLEBLOCK : numSamples);
     numSamples -= blockSamples;
 
     if (dynamicLowpass) {
@@ -930,39 +950,48 @@ class SoundFontInstrument : public Instrument {
 public:
   SoundFontInstrument(std::shared_ptr<SoundFontFile> _sf, size_t _preset, size_t _fixedMidiKey) : Instrument(1), sf(_sf), preset(_preset), fixedMidiKey(_fixedMidiKey) { }
   
-  std::unique_ptr<InstrumentVoice> createVoice(unsigned int outSampleRate, int identifier) const override {
-    auto v = make_unique<SoundFontVoice>(outSampleRate, identifier, sf, preset, fixedMidiKey);
-    v->createEffectStates(getEffects());
-    return move(v);
-  }
-
-  void playNote(size_t column, float frequency, float velocity, float delay, float detune, VoicePool & voices) const override {
-    voices.stopVoices(column);
-
+  std::unique_ptr<TrackState> playNote(float frequency, float velocity, unsigned int outSampleRate, float start_phase) const override {    
     assert(frequency > 0);
+    vector<unique_ptr<TrackState> > voices;
+
     auto f = sf.get();
+    if (preset <= f->presets.size()) {
+      double apparent_key = log2(frequency / 440) * 12 + 69;
+      int midiKey = fixedMidiKey ? fixedMidiKey : int(apparent_key);
+      
+      short midiVelocity = (short)(velocity * 127);
+      if (midiVelocity > 127) midiVelocity = 127;
+      
+      // Play all matching regions.
+      
+      auto & regions = f->presets[preset].regions;
+      
+      for (size_t region_idx = 0; region_idx < regions.size(); region_idx++) {
+	auto & region = regions[region_idx];
+	if (midiKey < region.lokey || midiKey > region.hikey || midiVelocity < region.lovel || midiVelocity > region.hivel) continue;
+	
+	if (region.group) {
+	  // FIXME: here we should end all voices with the same instrument and group
+	}
+	
+	auto voice = make_unique<SoundFontVoice>(outSampleRate, sf, preset, region_idx, fixedMidiKey);
+	voice->playNote(frequency, velocity, start_phase);
 
-    if (preset >= f->presets.size()) return;
+	for (auto & child : getChildren()) {
+	  auto modulator = child->playNote(frequency, velocity, outSampleRate, start_phase);
+	  if (modulator.get()) voice->addChild(move(modulator));
+	}
 
-    double apparent_key = log2(frequency / 440) * 12 + 69;
-    int midiKey = fixedMidiKey ? fixedMidiKey : int(apparent_key);
-    
-    short midiVelocity = (short)(velocity * 127);
-    if (midiVelocity > 127) midiVelocity = 127;
-  
-    // Play all matching regions.
-
-    auto & regions = f->presets[preset].regions;
-    
-    for (size_t region_idx = 0; region_idx < regions.size(); region_idx++) {
-      auto & region = regions[region_idx];
-      if (midiKey < region.lokey || midiKey > region.hikey || midiVelocity < region.lovel || midiVelocity > region.hivel) continue;
-
-      if (region.group) {
-	// FIXME: here we should end all voices with the same instrument and group
+	voices.push_back(move(voice));
       }
+    }
 
-      getVoice(column, voices).playNote(frequency, velocity, delay, detune, region_idx);
+    if (voices.size() == 1) {
+      return move(voices[0]);
+    } else {
+      auto group = make_unique<TrackState>(outSampleRate);
+      for (auto & v : voices) group->addChild(move(v));
+      return group;
     }
   }
   
@@ -976,6 +1005,7 @@ std::unique_ptr<Instrument>
 SoundFont::createInstrument(size_t preset, size_t fixedMidiKey, const char * name) {
   auto instrument = make_unique<SoundFontInstrument>(sf, preset, fixedMidiKey);
   instrument->setName(name ? name : sf->getPresetName(preset));
+  instrument->setIsPercussion(fixedMidiKey != 0);
   return instrument;
 }
 

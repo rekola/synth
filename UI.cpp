@@ -74,13 +74,14 @@ UI::tryActivate(int y, int x, std::shared_ptr<UIElement> element) {
 
 bool
 UI::offerInput(const InputEvent & input) {
-  // if (ni.ctrl && ni.id == 'L') notcurses_refresh(*nc, NULL, NULL);
-  // if (ni.ctrl && (ni.id == 'q' || ni.id == 'Q')) close_ui = true;
   bool handled = false;
   
   if (input.getId() == NCKEY_RESIZE) {
     layout();
     refresh();
+  } else if (input.hasCtrl()) {
+    if (input.getId() == 'l' || input.getId() == 'L') refresh();
+    else if (input.getId() == 'q' || input.getId() == 'Q') close_ui = true;
   } else if ((input.getId() == 'n' || input.getId() == 'N') && input.hasCtrl()) {
     setStatus("New song");
     getController().createNewSong();
@@ -93,9 +94,6 @@ UI::offerInput(const InputEvent & input) {
     setStatus(info.is_playing ? "Playing" : "Stopped");
     getController().setPlaybackInfo(info);
     handled = true;
-  } else if (input.hasCtrl() && input.getId() == 'R') {
-    setStatus("Recording");
-    is_recording = true;
   } else if (input.getId() == NCKEY_BUTTON1) {
     setStatus(format("mouse: {} {}", input.getY(), input.getX()));
 
@@ -158,12 +156,22 @@ UI::handleRecordEvent(RecordEvent & ev) {
   if (getController().isRecording()) {
     setStatus(format("recorded {} frames", ev.getData().size()));
     getController().addToSample(ev.getData());
+    auto & song = getController().getSong();
+    auto & info = getController().getPlaybackInfo();
+    auto & pattern = song.getPattern(info.getPatternIndex());
+    pattern.setNote(info.getRowIndex(), getController().getRecordingTrackId(), 0, Note(1));    
   }
 }
 
 void
 UI::handleLogEvent(LogEvent & ev) {
   setStatus(ev.getText());
+}
+
+void
+UI::handleMidiEvent(MidiEvent & ev) {
+  logger.log("midi event");
+  pattern_editor->handleMidiEvent(ev);
 }
 
 void audio_thread_func(Controller * controller, AudioAPI * audio) {
@@ -175,8 +183,10 @@ void
 UI::start(AudioAPI & audio) {
   std::thread audio_thread(audio_thread_func, &(getController()), &audio);
 
-  startUI();
+  startUI(audio);
 
+  getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::TERMINATE));
+  
   audio_thread.join();
 }
 

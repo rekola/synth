@@ -4,6 +4,7 @@
 #include "Note.h"
 #include "Tuning.h"
 #include "Command.h"
+#include "VisibleTrackInfo.h"
 
 #define DEFAULT_PATTERN_LENGTH 32
 
@@ -19,6 +20,10 @@ class Pattern {
   short getKey() const { return key_note_number; }
   size_t getNumRows() const { return num_rows; }
   const std::string & getName() const { return name; }
+
+  void setNotes(size_t row, int track_id, const std::vector<Note> & n) {
+    notes[row][track_id] = n;
+  }
   
   void setNote(size_t row, int track_id, size_t note_column, Note note) {
     auto & columns = notes[row][track_id];
@@ -43,6 +48,13 @@ class Pattern {
     return index;
   }
 
+  void clearNotes(size_t row, int track_id) {
+    auto it = notes.find(row);
+    if (it != notes.end()) {
+      it->second.erase(track_id);
+    }
+  }
+  
   void deleteNote(size_t row, int track_id, size_t column) {
     auto it = notes.find(row);
     if (it != notes.end()) {
@@ -56,6 +68,13 @@ class Pattern {
 	}
       }
     }
+  }
+
+  void insertRow(size_t row, int track_id) {
+    for (size_t i = getNumRows() - 1; i > row; i--) {
+      setNotes(i, track_id, getNotes(i - 1, track_id));
+    }
+    clearNotes(row, track_id);
   }
 
   const Note & getNote(size_t row, int track_id, size_t note_column) const {
@@ -114,17 +133,16 @@ class Pattern {
     }
   }
 
-  const std::unordered_map<int, size_t> getTrackWidths() const {
-    std::unordered_map<int, size_t> r;
+  void getTrackInformation(std::unordered_map<int, VisibleTrackInfo> & track_info) const {
     for (auto & d0 : notes) {
       // auto row = d0.first;
       for (auto & d1 : d0.second) {
 	auto track_id = d1.first;
-	size_t w = d1.second.size();
-	if (w > r[track_id]) r[track_id] = w;
+	size_t num_notes = d1.second.size();
+	auto & info = track_info[track_id];
+	if (num_notes > info.num_note_columns) info.num_note_columns = num_notes;
       }
     }
-    return r;
   }
 
   void setAnnotation(size_t row, std::string s) {
@@ -138,6 +156,26 @@ class Pattern {
   }
 
   const std::unordered_map<unsigned short, std::string> & getAnnotations() const { return annotations; }
+
+  void transposeUp() {
+    for (auto & d0 : notes) {
+      for (auto & d1 : d0.second) {
+	for (auto & note : d1.second) {
+	  note.transposeUp();
+	}
+      }
+    }    
+  }
+
+  void transposeDown() {
+    for (auto & d0 : notes) {
+      for (auto & d1 : d0.second) {
+	for (auto & note : d1.second) {
+	  note.transposeDown();
+	}
+      }
+    }    
+  }
   
 private:
   size_t num_rows;

@@ -4,6 +4,7 @@
 #include "Controller.h"
 #include "UIMenu.h"
 #include "Chart.h"
+#include "AudioAPI.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -31,7 +32,7 @@ using namespace std;
 using namespace fmt;
 
 static inline ncinput to_ncinput(const InputEvent & input) {
-  ncinput ni = { .id = input.getId(), .y = input.getY(), .x = input.getX(), .alt = input.hasAlt(), .shift = input.hasShift(), .ctrl = input.hasCtrl(), .seqnum = input.getSeqnum() };
+  ncinput ni = { .id = input.getId(), .y = input.getY(), .x = input.getX(), .utf8 = { 0, 0, 0, 0, 0 }, .alt = input.hasAlt(), .shift = input.hasShift(), .ctrl = input.hasCtrl(), .evtype = ncinput::NCTYPE_UNKNOWN, .ypx = -1, .xpx = -1 };
   return ni;
 }
 
@@ -48,7 +49,7 @@ static inline long long now() {
 class TerminalPlane : public UIPlane {
 public:
   TerminalPlane(std::shared_ptr<Controller> & _controller, Plane * _plane, bool _owner = true) : UIPlane(_controller), plane(_plane), owner(_owner) {
-    int y, x;
+    unsigned int y, x;
     plane->get_dim(&y, &x);
     setDim(pair(y, x));
     setPosition(pair(0, 0));
@@ -70,13 +71,20 @@ public:
   }
   void setFgColor(int r, int g, int b) override { plane->set_fg_rgb8(r, g, b); }
   void setBgColor(int r, int g, int b) override { plane->set_bg_rgb8(r, g, b); }
+  void setUnderline(bool b) override {
+    if (b) {
+      plane->styles_set(CellStyle::Underline);
+    } else {
+      plane->styles_set(CellStyle::None);
+    }
+  }
   void erase() override { plane->erase(); }
   void putstr(int y, int x, std::string s) override { plane->putstr(y, x, s.c_str()); }
   unique_ptr<UIPlane> createChild() override {
     auto plane = new Plane(1, 1, 0, 0);
-    plane->set_base("", 0, CHANNELS_RGB_INITIALIZER(0xc0, 0x80, 0xc0, 0x20, 0, 0x20));
+    plane->set_base("", 0, NCCHANNELS_INITIALIZER(0xc0, 0x80, 0xc0, 0x20, 0, 0x20));
     // plane->set_scrolling(true);
-    // plane->rounded_box(NCSTYLE_NONE, CHANNELS_RGB_INITIALIZER(0xc0, 0x80, 0xc0, 0x20, 0, 0x20), 0, 0, 0);
+    // plane->rounded_box(NCSTYLE_NONE, NCCHANNELS_INITIALIZER(0xc0, 0x80, 0xc0, 0x20, 0, 0x20), 0, 0, 0);
     // plane->putstr("");
     return make_unique<TerminalPlane>(getController(), plane);
   }
@@ -90,29 +98,29 @@ public:
     unsigned bg_red, bg_green, bg_blue;
     plane->get_bg_rgb8(&bg_red, &bg_green, &bg_blue);
 
-    auto channels = CHANNELS_RGB_INITIALIZER(fg_red, fg_green, fg_blue, bg_red, bg_green, bg_blue);
+    auto channels = NCCHANNELS_INITIALIZER(fg_red, fg_green, fg_blue, bg_red, bg_green, bg_blue);
     
-    nccell ul = CELL_TRIVIAL_INITIALIZER, ur = CELL_TRIVIAL_INITIALIZER;
-    nccell lr = CELL_TRIVIAL_INITIALIZER, ll = CELL_TRIVIAL_INITIALIZER;
-    nccell hl = CELL_TRIVIAL_INITIALIZER, vl = CELL_TRIVIAL_INITIALIZER;
+    nccell ul = NCCELL_TRIVIAL_INITIALIZER, ur = NCCELL_TRIVIAL_INITIALIZER;
+    nccell lr = NCCELL_TRIVIAL_INITIALIZER, ll = NCCELL_TRIVIAL_INITIALIZER;
+    nccell hl = NCCELL_TRIVIAL_INITIALIZER, vl = NCCELL_TRIVIAL_INITIALIZER;
     if (nccells_rounded_box(plane->to_ncplane(), NCSTYLE_NONE, 0, &ul, &ur, &ll, &lr, &hl, &vl)) {
       return;
     }
     ul.channels = ur.channels = ll.channels = lr.channels = hl.channels = vl.channels = channels;
-    cell_set_bg_alpha(&ul, CELL_ALPHA_BLEND);
-    cell_set_bg_alpha(&ur, CELL_ALPHA_BLEND);
-    cell_set_bg_alpha(&ll, CELL_ALPHA_BLEND);
-    cell_set_bg_alpha(&lr, CELL_ALPHA_BLEND);
-    cell_set_bg_alpha(&hl, CELL_ALPHA_BLEND);
-    cell_set_bg_alpha(&vl, CELL_ALPHA_BLEND);
+    nccell_set_bg_alpha(&ul, NCALPHA_BLEND);
+    nccell_set_bg_alpha(&ur, NCALPHA_BLEND);
+    nccell_set_bg_alpha(&ll, NCALPHA_BLEND);
+    nccell_set_bg_alpha(&lr, NCALPHA_BLEND);
+    nccell_set_bg_alpha(&hl, NCALPHA_BLEND);
+    nccell_set_bg_alpha(&vl, NCALPHA_BLEND);
     
     if (ncplane_perimeter(plane->to_ncplane(), &ul, &ur, &ll, &lr, &hl, &vl, 0)) {
       nccell_release(plane->to_ncplane(), &ul); nccell_release(plane->to_ncplane(), &ur); nccell_release(plane->to_ncplane(), &hl);
       nccell_release(plane->to_ncplane(), &ll); nccell_release(plane->to_ncplane(), &lr); nccell_release(plane->to_ncplane(), &vl);
       return;
     }
-    cell_release(plane->to_ncplane(), &ul); cell_release(plane->to_ncplane(), &ur); cell_release(plane->to_ncplane(), &hl);
-    cell_release(plane->to_ncplane(), &ll); cell_release(plane->to_ncplane(), &lr); cell_release(plane->to_ncplane(), &vl);
+    nccell_release(plane->to_ncplane(), &ul); nccell_release(plane->to_ncplane(), &ur); nccell_release(plane->to_ncplane(), &hl);
+    nccell_release(plane->to_ncplane(), &ll); nccell_release(plane->to_ncplane(), &lr); nccell_release(plane->to_ncplane(), &vl);
   }
   
   void showReader() override {
@@ -120,16 +128,29 @@ public:
       setOwning(false);
             
       ncreader_options reader_opts;
-      reader_opts.tchannels = 0;
-      channels_set_fg_rgb(&reader_opts.tchannels, 0xffffff);
-      channels_set_bg_rgb(&reader_opts.tchannels, 0x000000);
-      channels_set_fg_alpha(&reader_opts.tchannels, CELL_ALPHA_HIGHCONTRAST);
-      channels_set_bg_alpha(&reader_opts.tchannels, CELL_ALPHA_BLEND);
+      reader_opts.tchannels = NCCHANNELS_INITIALIZER(0xff, 0xff, 0xff, 0x00, 0x00, 0x00);
+      ncchannels_set_fg_alpha(&reader_opts.tchannels, NCALPHA_HIGHCONTRAST);
+      ncchannels_set_bg_alpha(&reader_opts.tchannels, NCALPHA_BLEND);
       reader_opts.tattrword = 0; // attributes used for input
       reader_opts.flags = NCREADER_OPTION_CURSOR | NCREADER_OPTION_HORSCROLL;
 
       auto [rows, cols] = getDim();
-      auto reader_plane = ncplane_new(getPlane().to_ncplane(), rows, cols, 0, 4, nullptr, nullptr);
+
+      ncplane_options opts = {
+	// 0, 4, nullptr, nullptr);
+	.y = 0,
+	.x = 0,
+	.rows = (unsigned int)rows,
+	.cols = (unsigned int)cols,
+	.userptr = nullptr,
+	.name = nullptr,
+	.resizecb = nullptr,
+	.flags = 0,
+	.margin_b = 0,
+	.margin_r = 0
+      };
+      
+      auto reader_plane = ncplane_create(getPlane().to_ncplane(), &opts); 
       ncplane_set_fg_rgb8(reader_plane, 0x80, 0xc0, 0x80);
       ncplane_set_bg_rgb8(reader_plane, 0x00, 0x40, 0x00);
       ncplane_set_base(reader_plane, "", 0, 0);
@@ -177,9 +198,7 @@ public:
       ncselector_item item =
 	{
 	 .option = option,
-	 .desc = desc,
-	 .opcolumns = 0,
-	 .desccolumns = 0,
+	 .desc = desc
 	};
       selector->additem(&item);
     }
@@ -223,17 +242,13 @@ public:
     
     ncmenu_section sections[] = { { .name = "File", .itemcount = 1, .items = file_items, .shortcut = { .id = 'f', .alt = true } }
     };
-    uint64_t headerchannels = 0;                                                  
-    uint64_t sectionchannels = 0;                                                 
-    channels_set_fg_rgb(&sectionchannels, 0xffffff);                              
-    channels_set_bg_rgb(&sectionchannels, 0x000000);                              
-    channels_set_fg_alpha(&sectionchannels, CELL_ALPHA_HIGHCONTRAST);             
-    channels_set_bg_alpha(&sectionchannels, CELL_ALPHA_BLEND);                    
-    channels_set_fg_rgb(&headerchannels, 0xffffff);                               
-    channels_set_bg_rgb(&headerchannels, 0x7f347f);                               
-    channels_set_bg_alpha(&headerchannels, CELL_ALPHA_BLEND);
+    uint64_t headerchannels = NCCHANNELS_INITIALIZER(0xff, 0xff, 0xff, 0x7f, 0x34, 0x7f);
+    uint64_t sectionchannels = NCCHANNELS_INITIALIZER(0xff, 0xff, 0xff, 0x00, 0x00, 0x00);
+    ncchannels_set_fg_alpha(&sectionchannels, NCALPHA_HIGHCONTRAST);
+    ncchannels_set_bg_alpha(&sectionchannels, NCALPHA_BLEND);
+    ncchannels_set_bg_alpha(&headerchannels, NCALPHA_BLEND);
     ncmenu_options mopts = { .sections = sections, .sectioncount = 1, .headerchannels = headerchannels, .sectionchannels = sectionchannels, .flags = 0 };
-    menu = make_unique<Menu>(&mopts);    
+    menu = make_unique<Menu>(&mopts);
   }
 
   bool offerInput(const InputEvent & input) override {
@@ -270,12 +285,10 @@ public:
       opts.gridtype = getType() == DOTS ? NCBLIT_BRAILLE : NCBLIT_2x2;
       // opts.gridtype = NCBLIT_8x1;
       
-      channels_set_fg_rgb8(&opts.minchannels, 0x80, 0x80, 0xff);
-      channels_set_bg_rgb(&opts.minchannels, 0x201020);
-      channels_set_bg_alpha(&opts.minchannels, CELL_ALPHA_BLEND);
-      channels_set_fg_rgb8(&opts.maxchannels, 0x80, 0xff, 0x80);
-      channels_set_bg_rgb(&opts.maxchannels, 0x201020);
-      channels_set_bg_alpha(&opts.maxchannels, CELL_ALPHA_BLEND);
+      opts.minchannels = NCCHANNELS_INITIALIZER(0x80, 0x80, 0xff, 0x20, 0x10, 0x20);
+      ncchannels_set_bg_alpha(&opts.minchannels, NCALPHA_BLEND);
+      opts.maxchannels = NCCHANNELS_INITIALIZER(0x80, 0xff, 0x80, 0x20, 0x10, 0x20);
+      ncchannels_set_bg_alpha(&opts.maxchannels, NCALPHA_BLEND);
       
       plot = std::make_shared<PlotD>(tplane.getPlane(), &opts);
     }
@@ -321,14 +334,16 @@ TerminalUI::refresh() {
 bool
 TerminalUI::readInput() {
   ncinput ni;
-  if (nc->getc(true, &ni) != (char32_t)-1) {
+  while (nc->get(false, &ni) > 0) {
     bool handled = false, shift = ni.shift;
     int id = ni.id;
     if (id >= 'A' && id <= 'Z') {
       id = tolower(id);
       shift = true;
     }
-    InputEvent input(ni.seqnum, id, ni.y, ni.x, ni.alt, shift, ni.ctrl);
+    setStatus("input: " + to_string(id) + " (" + string(ni.utf8) + ")");
+
+    InputEvent input(id, ni.y, ni.x, ni.alt, shift, ni.ctrl);
     offerInput(input);
   }
 
@@ -336,7 +351,7 @@ TerminalUI::readInput() {
 }
 
 void
-TerminalUI::startUI() {
+TerminalUI::startUI(AudioAPI & audio) {
   int out_pipe[2];
 
   if (pipe(out_pipe) != 0) { // make a pipe
@@ -344,11 +359,16 @@ TerminalUI::startUI() {
   }
   dup2(out_pipe[1], STDERR_FILENO); // redirect stderr to the pipe
   close(out_pipe[1]);
-  
-  size_t num_descriptors = 3;
+
+  size_t num_midi_capture_desc = audio.getMidiCaptureDescriptors().size();
+  size_t num_descriptors = 3 + num_midi_capture_desc;
   auto descriptors = std::make_unique<pollfd[]>(num_descriptors);
-  
+
+#if 1
   descriptors[0].fd = nc->get_inputready_fd();
+#else
+  descriptors[0].fd = 0;
+#endif
   descriptors[0].events = POLLIN;
 
   descriptors[1].fd = getController().getUIEventQueue().getPollFd();
@@ -356,6 +376,10 @@ TerminalUI::startUI() {
 
   descriptors[2].fd = out_pipe[0];
   descriptors[2].events = POLLIN;
+
+  for (size_t i = 0; i < num_midi_capture_desc; i++) {
+    descriptors[3 + i] = audio.getMidiCaptureDescriptors()[i];
+  }
 
   // setStatus("Starting... nd = " + to_string(num_descriptors));
 
@@ -372,7 +396,7 @@ TerminalUI::startUI() {
       for (size_t i = 0; i < num_descriptors; i++) {
 	auto & d = descriptors[i];
 	if (d.revents) {
-	  if (i == 0) {	   
+	  if (i == 0) {
 	    render |= readInput();
 	  } else if (i == 1) {
 	    auto event = getController().getUIEventQueue().pop();
@@ -396,10 +420,18 @@ TerminalUI::startUI() {
 		break;
 	      }
 	    }
+	  } else {
+	    auto evs = audio.recordMIDI();
+	    // setStatus("got midi events: " + to_string(evs.size()));
+
+	    for (auto & ev : evs) {
+	      handleEvent(ev);
+	      if (ev.needRedraw()) render = true;
+	    }
 	  }
 	}
       }
-
+      
       render |= renderComponents();
 
       if (render) {

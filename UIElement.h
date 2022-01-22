@@ -29,6 +29,14 @@ class UIElement : public EventHandler {
     if (plane) plane->putstr(y, x, s);
     return *this;
   }
+  UIElement & putstr(int y, int x, char c) {
+    if (plane) {
+      std::string s;
+      s += c;
+      plane->putstr(y, x, s);
+    }
+    return *this;
+  }
 #if 0
   UIElement & putstrN(int y, int x, std::string s, size_t limit) {
     
@@ -63,13 +71,15 @@ class UIElement : public EventHandler {
     if (plane) plane->setBgColor(r, g, b);
     return *this;
   }
-
   UIElement & setFgColor(UIColor color) {
     return setFgColor(color.getRed(), color.getGreen(), color.getBlue());
   }
-
   UIElement & setBgColor(UIColor color) {
     return setBgColor(color.getRed(), color.getGreen(), color.getBlue());
+  }
+  UIElement & setUnderline(bool b) {
+    if (plane) plane->setUnderline(b);
+    return *this;
   }
 
   std::pair<int, int> getPosition() const {

@@ -1,70 +1,28 @@
 #ifndef _INSTRUMENTVOICE_H_
 #define _INSTRUMENTVOICE_H_
 
-#include "State.h"
+#include "TrackState.h"
 
-#include "Note.h"
-#include "EnvelopeState.h"
-#include "EffectState.h"
-
-#include <vector>
-
-class InstrumentVoice : public State {
+class InstrumentVoice : public TrackState {
  public:
-  InstrumentVoice(unsigned int _outSampleRate, int _identifier)
-    : State(_outSampleRate), identifier(_identifier) { }
-  InstrumentVoice(unsigned int _outSampleRate, int _identifier, const Envelope & _amp_envelope)
-    : State(_outSampleRate), identifier(_identifier), amp_envelope(_amp_envelope) {
-  }
-  InstrumentVoice(unsigned int _outSampleRate, int _identifier, const Envelope & _amp_envelope, const Envelope & _mod_envelope)
-    : State(_outSampleRate), identifier(_identifier), amp_envelope(_amp_envelope), mod_envelope(_mod_envelope) {   
-  }
-  
-  virtual SampleData render(size_t frames) = 0;
+  InstrumentVoice(unsigned int _outSampleRate) : TrackState(_outSampleRate) { }
 
-  virtual void stopNote() {
-    ampenv.nextSegment(EnvelopeState::SUSTAIN);
-    modenv.nextSegment(EnvelopeState::SUSTAIN);
-  }
-
-  virtual void killNote() {
-    ampenv.nextSegment(EnvelopeState::DONE);
-    modenv.nextSegment(EnvelopeState::DONE);
+  void killNote() override {
+    TrackState::killNote();
 
     freq = 0.0f;
   }
-  
-  virtual void playNote(float _frequency, float velocity, float _delay, float _detune, unsigned short subvoice = 0) {
-    int midiVelocity = int(velocity * 127);
-    if (midiVelocity > 127) midiVelocity = 127;
-    ampenv = EnvelopeState(getOutSampleRate(), amp_envelope, 0, midiVelocity, true, _delay);
-    modenv = EnvelopeState(getOutSampleRate(), mod_envelope, 0, midiVelocity, false, _delay);
-	
-    freq = _frequency;
-    detune = _detune;
-        
-    setGainDB(-gainToDecibels(1.0f / velocity));
+  void stopNote() override { killNote(); }
     
-    sourceSamplePosition = 0;
+  virtual void playNote(float _frequency, float velocity, float start_phase) {	
+    freq = _frequency;
+    setGainDB(-gainToDecibels(1.0f / velocity));
+    sourceSamplePosition = start_phase * getOutSampleRate();
   }
 
-  virtual bool isPlaying() const { return freq != 0 && !ampenv.isDone(); }
-
-  void applyEffects(SampleData & data) {
-    for (auto & state : effect_states) {
-      state->apply(data);
-    }
-  }
-
-  void createEffectStates(const std::vector<std::unique_ptr<Effect> > & effects) {
-    for (auto & effect : effects) {
-      effect_states.push_back(effect->createState(getOutSampleRate()));
-    }
-  }
-  
-  void setIdentifier(int id) { identifier = id; }
-  int getIdentifier() const { return identifier; }
-  
+  bool isPlaying() const override { return freq != 0.0f; }
+  bool isReleased() const { return false; }
+    
   void setVolume(float volume) {
     setGainDB(gainToDecibels(volume));
   }
@@ -79,23 +37,21 @@ class InstrumentVoice : public State {
   static inline float decibelsToGain(float db) {
     return (db > -100.f ? powf(10.0f, db * 0.05f) : 0);
   }
-
+  
 protected:
   double getSourceSamplePosition() const { return sourceSamplePosition; }
 
-  void stepForward() {
-    sourceSamplePosition += freq;
+  inline void stepForward(size_t frames) {
+    sourceSamplePosition += freq * frames;
   }
 
-  EnvelopeState ampenv, modenv;
+  inline float getFrequency() const { return freq; }
+
   double sourceSamplePosition = 0.0;
 
 private:
-  int identifier;
-  float freq = 0.0f, detune = 0.0f;
+  float freq = 0.0f;
   float noteGainDB = 0.0f;
-  Envelope amp_envelope, mod_envelope;
-  std::vector<std::unique_ptr<EffectState> > effect_states;
 };
 
 #endif

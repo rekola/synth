@@ -11,9 +11,9 @@ Track::readXML(XMLElement & element) {
   auto distance_text = element.Attribute("distance");
   auto elevation_text = element.Attribute("elevation");
   
-  setAzimuth(azimuth_text ? atof(azimuth_text) : 0.0f);
-  setDistance(distance_text ? atof(distance_text) : 0.0f);
-  setElevation(elevation_text ? atof(elevation_text) : 0.0f);  
+  setAzimuth(azimuth_text ? strtof(azimuth_text, nullptr) : 0.0f);
+  setDistance(distance_text ? strtof(distance_text, nullptr) : 0.0f);
+  setElevation(elevation_text ? strtof(elevation_text, nullptr) : 0.0f);  
 }
 
 void

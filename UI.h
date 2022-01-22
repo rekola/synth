@@ -45,21 +45,22 @@ class UI : public UIElement {
   void handlePlaybackEvent(PlaybackEvent & ev) override;
   void handleLogEvent(LogEvent & ev) override;
   void handleRecordEvent(RecordEvent & ev) override;
+  void handleMidiEvent(MidiEvent & ev) override;
 
 protected:
-  virtual void startUI() = 0;
+  virtual void startUI(AudioAPI & audio) = 0;
 
   void initialize();
   void layout();
   bool renderComponents(bool refresh = false);
   bool tryActivate(int y, int x, std::shared_ptr<UIElement> element);
+  Logger & getLogger() { return logger; }
   
   std::shared_ptr<UIMenu> menu;
   std::shared_ptr<Chart> chart, volume_meter;
   std::shared_ptr<StatusLine> status_line;
     
   bool close_ui = false;
-  bool is_recording = false;
   StyleProvider styles;  
 
 private:

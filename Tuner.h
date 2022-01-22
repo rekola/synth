@@ -1,19 +1,75 @@
 #ifndef _TUNER_H_
 #define _TUNER_H_
 
-#include "Tuner.h"
+#include <set>
+#include <unordered_map>
 
 class Tuner {
  public:
   Tuner() { }
 
+  void tune(Tuning tuning, int key, const std::unordered_map<int, std::vector<Note> > & notes) {
+    int octave_steps = get_octave_steps(tuning);
+    key = key % octave_steps;
+
+    std::set<int> unique_notes;
+      
+    for (auto & [ track_id, notes ] : notes) {      
+      for (size_t j = 0; j < notes.size(); j++) {
+	if (notes[j].isDefined()) {
+	  auto & note = notes[j];
+	  if (!note.isOff()) {
+	    unique_notes.insert(note.getValue());
+	  }
+	}
+      }
+    }
+
+    if (unique_notes.size() >= 2) {
+      auto it = unique_notes.begin();
+      root = *it;
+      dynamic_tuning.clear();
+    } else if (!root) {
+      root = key;
+    }
+
+    int root_key = root % octave_steps;
+    
+    for (auto & note_value : unique_notes) {
+      int value = note_value - root_key;
+      int octave = value / octave_steps, steps = value % octave_steps;
+      auto [ numerator, denominator ] = get_just_interval(tuning, steps);
+      
+      float frequency = 0.0f;
+      if (tuning == Tuning::TET12) {
+	frequency = 440.0f * powf(2.0f, (octave * 12 + root_key - 69.0f) / 12.0f) * numerator / denominator;
+      } else if (tuning == Tuning::TET19) {
+	frequency = 440.0f * powf(2.0f, (octave * 19 + root_key - 109.0f) / 19.0f) * numerator / denominator;
+      } else if (tuning == Tuning::TET31) {
+	frequency = 440.0f * powf(2.0f, (octave * 31 + root_key - 178.0f) / 31.0f) * numerator / denominator;
+      }
+      
+      dynamic_tuning[note_value] = frequency;
+    }
+  }
+
   float getFrequency(Tuning tuning, int key, const Note & note) const {
-    if (note.isOff() || !note.isDefined()) {
+    if (note.isOff() || !note.isDefined() || note.isAftertouch()) {
       return 0.0f;
-    } else if (key >= 0) { // apply just tuning if key is defined
+    } else {
+      return getFrequency(tuning, key, note.getValue());
+    }
+  }
+  
+  float getFrequency(Tuning tuning, int key, int note_value) const {
+    if (!dynamic_tuning.empty()) {
+      auto it = dynamic_tuning.find(note_value);
+      if (it != dynamic_tuning.end()) return it->second;
+      else return 0.0f;
+    } else if (false && key >= 0) { // apply just tuning if key is defined
       int octave_steps = get_octave_steps(tuning);
       key = key % octave_steps;
-      int value = note.getValue() - key;
+      int value = note_value - key;
       int octave = value / octave_steps, steps = value % octave_steps;
 
       auto [ numerator, denominator ] = get_just_interval(tuning, steps);
@@ -25,25 +81,30 @@ class Tuner {
       } else if (tuning == Tuning::TET31) {
 	return 440.0f * powf(2.0f, (octave * 31 + key - 178.0f) / 31.0f) * numerator / denominator;
       }
-    } else if (tuning == Tuning::TET12) {
-      return 440.0f * powf(2.0f, (note.getValue() - 69.0f) / 12.0f);
-    } else if (tuning == Tuning::TET19) {
-      return 440.0f * powf(2.0f, (note.getValue() - 109.0f) / 19.0f);
-    } else if (tuning == Tuning::TET31) {
-      return 440.0f * powf(2.0f, (note.getValue() - 178.0f) / 31.0f);
+    } else {
+      return get_et_frequency(tuning, note_value);
     }
     assert(0);
     return 0.0f;
   }
 
 private:
+  static float get_et_frequency(Tuning tuning, int note_value) {
+    switch (tuning) {
+    case Tuning::TET12: return 440.0f * powf(2.0f, (note_value - 69.0f) / 12.0f);
+    case Tuning::TET19: return 440.0f * powf(2.0f, (note_value - 109.0f) / 19.0f);
+    case Tuning::TET31: return 440.0f * powf(2.0f, (note_value - 178.0f) / 31.0f);
+    default:
+      return 0.0f;
+    }
+  }
+  
   static inline int get_octave_steps(Tuning tuning) {
     switch (tuning) {
-    case Tuning::TET5: return 5;
-    case Tuning::TET7: return 7;
     case Tuning::TET12: return 12;
     case Tuning::TET19: return 19;
     case Tuning::TET31: return 31;
+    case Tuning::TET53: return 53;
     default:
       assert(0);
       return 1;
@@ -96,8 +157,8 @@ private:
       case 0: return std::pair(1, 1);
       case 1: return std::pair(45, 44); // or 45/44, 49/48, 46/45, 128/125, 36/35
       case 2: return std::pair(25, 24); // or 25/24, 21/20, 22/21, 23/22
-      case 3: return std::pair(16, 15); // or 15/14
-      case 4: return std::pair(12, 11); // or 11/10, 35/32
+      case 3: return std::pair(15, 14); // or 16/15
+      case 4: return std::pair(11, 10); // or 12/11, 35/32
       case 5: return std::pair(9, 8); // or 10/9, 19/17, 28/25
       case 6: return std::pair(8, 7); // or 144/125
       case 7: return std::pair(7, 6); // or 75/64
@@ -132,6 +193,9 @@ private:
     assert(0);
     return std::pair(0, 0);
   }
+
+  int root = 0;
+  std::unordered_map<int, float> dynamic_tuning;
 };
 
 #endif

@@ -11,11 +11,10 @@
 #include <atomic>
 
 class SongState;
-class Instrument;
-class SampleData;
 class TrackEventQueue;
 
 namespace tinyxml2 {
+  class XMLDocument;
   class XMLElement;
 };
 
@@ -27,7 +26,7 @@ class Track {
   Track(int _id, Type _type) : id(_id != -1 ? _id : getNextId()), type(_type) { }
   virtual ~Track() { }
   
-  virtual SampleData render(size_t frames, SongState & song_state, const std::vector<std::unique_ptr<Instrument> > & instruments, TrackEventQueue & events) {
+  virtual SampleData render(size_t frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) {
     bool child_has_solo = false;
     for (auto & child : getChildren()) {
       if (child->isSolo()) {
@@ -49,9 +48,19 @@ class Track {
     return std::make_unique<TrackState>(outSampleRate);
   }
 
+  virtual tinyxml2::XMLElement * createXML(tinyxml2::XMLDocument & doc) const { return 0; }
   virtual void readXML(tinyxml2::XMLElement & element);
   virtual void populateXML(tinyxml2::XMLElement & element) const;
   virtual std::string getElementName() const { return "track"; }
+
+  virtual std::unique_ptr<TrackState> playNote(float frequency, float velocity, unsigned int outSampleRate, float start_phase = 0.0f) const {
+    auto group = createState(outSampleRate);
+    for (auto & child : children) {
+      auto voice = child->playNote(frequency, velocity, outSampleRate, start_phase);
+      if (voice.get()) group->addChild(move(voice));
+    }
+    return group;
+  }
 
   int getId() const { return id; }
   Type getType() const { return type; }
@@ -97,6 +106,18 @@ class Track {
     return next_id.fetch_add(1);
   }
 
+  void setElevation(float e) { elevation = e; }
+  void setAzimuth(float a) { azimuth = a; }
+  void setDistance(float d) { distance = d; }
+  
+  float getElevation() const { return elevation; }
+  float getAzimuth() const { return azimuth; }
+  float getDistance() const { return distance; }
+
+  bool showVelocityColumn() const { return show_velocity_column; }
+  bool showEffectsColumn() const { return show_effects_column; }
+  bool showDelayColumn() const { return show_delay_column; }
+
 protected:
   void setId(int _id) { id = _id; }
   
@@ -107,7 +128,13 @@ protected:
   bool solo = false, mute = false;
   std::string name;
   std::vector<std::unique_ptr<Track> > children;
+  float elevation = 0, azimuth = 0, distance = 0;
   
+  bool show_velocity_column = true;
+  bool show_delay_column = true;
+  bool show_aftertouch_column = false;
+  bool show_effects_column = true;
+
   static std::atomic<int> next_id;
 };
 

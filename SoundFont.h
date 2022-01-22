@@ -14,7 +14,6 @@ class SoundFont : public InstrumentSet {
   }
 
   std::unique_ptr<Instrument> createInstrument(size_t preset, size_t fixedMidiKey = 0, const char * name = 0) override;
-  
   std::vector<std::unique_ptr<Instrument> > createAll() override;
   
 protected:

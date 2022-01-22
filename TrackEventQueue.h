@@ -11,8 +11,8 @@ class TrackEventQueue {
  public:
   TrackEventQueue() { }
 
-  void addPendingEvent(TrackEvent::Type type, int track_id, size_t frame, short id, float delay, float frequency, float velocity) {
-    pending_events[track_id][frame].push_back(TrackEvent(type, id, delay, frequency, velocity));
+  void addPendingEvent(int track_id, size_t frame, short id, float frequency, float velocity) {
+    pending_events[track_id][frame].push_back(TrackEvent(id, frequency, velocity));
   }
   
   std::map<unsigned int, std::vector<TrackEvent> > & getPendingEvents(int track_id) {
@@ -24,6 +24,17 @@ class TrackEventQueue {
       if (!td.second.empty()) return false;
     }
     return true;
+  }
+
+  void updateFrameOffset(int offset) {
+    for (auto & [ track_id, events ] : pending_events) {
+      auto old_events = events;
+      events.clear();
+      for (auto & [ frame, frame_events ] : old_events) {
+	int new_frame = frame + offset;
+	if (new_frame >= 0) events[new_frame] = frame_events;
+      }
+    }
   }
 
  private:
