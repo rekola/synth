@@ -44,8 +44,8 @@ class Track {
     }
     return sd;
   }
-  virtual std::unique_ptr<TrackState> createState(unsigned int outSampleRate) const {
-    return std::make_unique<TrackState>(outSampleRate);
+  virtual std::unique_ptr<TrackState> createState(ChannelConfiguration config, unsigned int outSampleRate) const {
+    return std::make_unique<TrackState>(config, outSampleRate);
   }
 
   virtual tinyxml2::XMLElement * createXML(tinyxml2::XMLDocument & doc) const { return 0; }
@@ -53,10 +53,10 @@ class Track {
   virtual void populateXML(tinyxml2::XMLElement & element) const;
   virtual std::string getElementName() const { return "track"; }
 
-  virtual std::unique_ptr<TrackState> playNote(float frequency, float velocity, unsigned int outSampleRate, float start_phase = 0.0f) const {
-    auto group = createState(outSampleRate);
+  virtual std::unique_ptr<TrackState> playNote(ChannelConfiguration config, unsigned int outSampleRate, float azimuth, float frequency, float velocity, float start_phase = 0.0f) const {
+    auto group = createState(config, outSampleRate);
     for (auto & child : children) {
-      auto voice = child->playNote(frequency, velocity, outSampleRate, start_phase);
+      auto voice = child->playNote(config, outSampleRate, azimuth, frequency, velocity, start_phase);
       if (voice.get()) group->addChild(move(voice));
     }
     return group;
@@ -106,14 +106,6 @@ class Track {
     return next_id.fetch_add(1);
   }
 
-  void setElevation(float e) { elevation = e; }
-  void setAzimuth(float a) { azimuth = a; }
-  void setDistance(float d) { distance = d; }
-  
-  float getElevation() const { return elevation; }
-  float getAzimuth() const { return azimuth; }
-  float getDistance() const { return distance; }
-
   bool showVelocityColumn() const { return show_velocity_column; }
   bool showEffectsColumn() const { return show_effects_column; }
   bool showDelayColumn() const { return show_delay_column; }
@@ -128,7 +120,6 @@ protected:
   bool solo = false, mute = false;
   std::string name;
   std::vector<std::unique_ptr<Track> > children;
-  float elevation = 0, azimuth = 0, distance = 0;
   
   bool show_velocity_column = true;
   bool show_delay_column = true;

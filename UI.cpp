@@ -175,7 +175,7 @@ UI::handleMidiEvent(MidiEvent & ev) {
 }
 
 void audio_thread_func(Controller * controller, AudioAPI * audio) {
-  Player player(audio->getFrequency(), controller);
+  Player player(controller->getChannelConfiguration(), audio->getFrequency(), controller);
   player.play(*audio);
 }
 

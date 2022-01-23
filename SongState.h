@@ -13,7 +13,7 @@
 
 class SongState : public EventHandler {
  public:
-  explicit SongState(int _outSampleRate) : outSampleRate(_outSampleRate) { }
+  explicit SongState(ChannelConfiguration _channel_config, int _outSampleRate) : channel_config(_channel_config), outSampleRate(_outSampleRate) { }
 
   void handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     switch (ev.getType()) {
@@ -134,9 +134,9 @@ class SongState : public EventHandler {
   TrackState & getTrackState(const Track & track) {
     auto it = track_states.find(track.getId());
     if (it != track_states.end()) return *(it->second);
-    auto state = track.createState(outSampleRate);
+    auto state = track.createState(channel_config, outSampleRate);
     auto ptr = state.get();
-    track_states[track.getId()] = move(state);
+    track_states[track.getId()] = std::move(state);
     return *ptr;
   }
 
@@ -144,8 +144,11 @@ class SongState : public EventHandler {
   
   Tuner & getTuner() { return tuner; }
   TrackEventQueue & getEventQueue() { return track_events; }
-  
+
+  ChannelConfiguration getChannelConfiguration() const { return channel_config; }
+
 private:
+  ChannelConfiguration channel_config;
   unsigned int outSampleRate;
   bool is_playing = false;
   size_t sample_pos = 0, absolute_pos = 0;

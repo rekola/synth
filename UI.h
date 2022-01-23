@@ -63,14 +63,14 @@ protected:
   bool close_ui = false;
   StyleProvider styles;  
 
-private:
+private:  
+  StatusLogger logger;
+
   std::shared_ptr<InfoLine> info_line;
   std::shared_ptr<PatternEditor> pattern_editor;
   std::shared_ptr<InstrumentList> instrument_list;
   std::weak_ptr<UIElement> active_element;
   SampleData waiting_data;
-
-  StatusLogger logger;
 };
 
 #endif
