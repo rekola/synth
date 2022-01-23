@@ -4,7 +4,6 @@
 #include "Logger.h"
 #include "Tuner.h"
 #include "InstrumentTrack.h"
-#include "SampleData.h"
 
 #include "LogEvent.h"
 #include "PlaybackEvent.h"
@@ -62,7 +61,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	    // frequency *= instrument_track.getDetune();
 	    
 	    track_voices.stopVoices(column);
-	    auto voice = instrument.playNote(frequency, note.getVelocityAsFloat(), state.getOutSampleRate());
+	    auto voice = instrument.playNote(state.getChannelConfiguration(), state.getOutSampleRate(), instrument_track.getAzimuth(), frequency, note.getVelocityAsFloat());
 	    track_voices.addVoice(column, move(voice));
 	  } else {
 	    track_voices.applyAftertouch(column, midi_velocity);
@@ -111,6 +110,7 @@ Player::play(AudioAPI & audio) {
   audio.startRecording();
 
   auto & song = controller->getSong();
+  auto mixer = createMixer(audio.getChannels(), song.getMixerType());
   
   while ( !terminate ) {
     if (poll(descriptors.get(), num_descriptors, 1000) > 0) {
@@ -127,9 +127,8 @@ Player::play(AudioAPI & audio) {
 	    auto ev = createPlaybackEvent(song, state);
 	    controller->getUIEventQueue().push(move(ev));
 	  } else if (i - 1 < num_playback_desc) {
-	    auto & mixer = getMixer(song.getMixerType());
-	    song.render(audio.getFrameCount(), state, mixer);
-	    auto master = mixer.encode(song.getVolume());
+	    song.render(audio.getFrameCount(), state, *mixer);
+	    auto master = mixer->encode(song.getVolume());
 	    audio.play(master, logger);
 	    
 	    auto ev = createPlaybackEvent(song, state);
@@ -169,16 +168,14 @@ Player::createPlaybackEvent(const Song & song, SongState & state) {
   return make_unique<PlaybackEvent>(info);
 }
 
-Mixer &
-Player::getMixer(MixerType type) {
+
+std::unique_ptr<Mixer>
+Player::createMixer(unsigned int out_channels, MixerType type) {
   switch (type) {
-  case MixerType::HRFT:
-    if (!hrft_mixer) hrft_mixer = make_unique<HRFT>(outSampleRate);
-    return *hrft_mixer;
-    
-  case MixerType::BASIC:
+  case MixerType::HRFT: return make_unique<HRFT>(out_channels, outSampleRate);
+  case MixerType::BASIC: return make_unique<BasicMixer>(out_channels, outSampleRate);
   default:
-    if (!basic_mixer) basic_mixer = make_unique<BasicMixer>(outSampleRate);
-    return *basic_mixer;
+    assert(0);
+    return unique_ptr<Mixer>(nullptr);
   }
 }

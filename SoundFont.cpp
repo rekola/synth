@@ -773,9 +773,9 @@ SoundFontVoice::render(size_t numSamples) {
     noteGain = decibelsToGain(getGainDB());
   }
 
-  float pan = sin(getAzimuth() / 180.0f * M_PI) / 2 + voiceRegion->pan;
-  if (pan < 0) pan = 0;
-  else if (pan > 1) pan = 1;
+  float pan = sin(getAzimuth() / 180.0f * M_PI) / 2 + (voiceRegion->pan - 0.5);
+  if (pan < -0.5) pan = -0.5;
+  else if (pan > 0.5) pan = 0.5;
   float panFactorLeft = sqrtf(0.5f - pan), panFactorRight = sqrtf(0.5f + pan);
 
   while (numSamples) {

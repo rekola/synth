@@ -5,7 +5,8 @@
 
 class InstrumentVoice : public TrackState {
  public:
-  InstrumentVoice(unsigned int _outSampleRate) : TrackState(_outSampleRate) { }
+  InstrumentVoice(ChannelConfiguration _channel_config, unsigned int _outSampleRate, float _azimuth)
+    : TrackState(_channel_config, _outSampleRate), azimuth(_azimuth) { }
 
   void killNote() override {
     TrackState::killNote();
@@ -45,13 +46,15 @@ protected:
     sourceSamplePosition += freq * frames;
   }
 
-  inline float getFrequency() const { return freq; }
-
+  float getFrequency() const { return freq; }
+  float getAzimuth() const { return azimuth; }
+  
   double sourceSamplePosition = 0.0;
 
 private:
   float freq = 0.0f;
   float noteGainDB = 0.0f;
+  float azimuth;
 };
 
 #endif

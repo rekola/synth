@@ -10,7 +10,7 @@
 
 using namespace std;
 
-Controller::Controller() {
+Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_channel_config) {
   instrument_provider.loadSoundFont("data/FluidR3_GM.sf2");
   instrument_provider.loadSoundFont("data/Essential Keys-sforzando-v9.6.sf2", false);
 }

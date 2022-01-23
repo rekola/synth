@@ -1,5 +1,7 @@
 #include "Track.h"
 
+#include "SongState.h"
+
 #include "tinyxml2.h"
 
 using namespace tinyxml2;
@@ -27,4 +29,27 @@ Track::populateXML(tinyxml2::XMLElement & element) const {
   if (isSolo()) element.SetAttribute("solo", "1");
   if (isMuted()) element.SetAttribute("mute", "1");
   element.SetAttribute("volume", getVolume());
+}
+
+SampleData
+Track::render(size_t frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) {
+  bool child_has_solo = false;
+  for (auto & child : getChildren()) {
+    if (child->isSolo()) {
+      child_has_solo = true;
+      break;
+    }
+  }
+
+  unsigned int numChannels = song_state.getChannelConfiguration() == ChannelConfiguration::MONO ? 1 : 2;
+    
+  SampleData sd(numChannels, frames, isSolo() || child_has_solo);
+     	   
+  for (auto & child : getChildren()) {
+    auto sd2 = child->render(frames, song_state, instruments, events);
+    if (!child->isMuted() && (!child_has_solo || child->isSolo())) {
+      sd.mix(sd2, child->getVolume());
+    }
+  }
+  return sd;
 }

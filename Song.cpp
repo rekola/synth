@@ -407,10 +407,7 @@ Song::render(size_t frames, SongState & state, Mixer & mixer) {
     for (auto & track : getChildren()) {
       SampleData data = track->render(frames, state, instruments, track_events);
       if (!track->isMuted()) {
-	float distance = track->getDistance();
-	float azimuth = track->getAzimuth();
-	float elevation = track->getElevation();
-	mixer.accumulate(data, track->getVolume(), distance, azimuth, elevation);
+	mixer.accumulate(data, track->getVolume());
       }
     }
   }

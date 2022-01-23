@@ -5,6 +5,7 @@
 #include "InstrumentProvider.h"
 #include "EventQueue.h"
 #include "PlaybackInfo.h"
+#include "ChannelConfiguration.h"
 
 #include <memory>
 
@@ -12,7 +13,7 @@ class Song;
 
 class Controller {
  public:
-  Controller();
+  Controller(ChannelConfiguration _channel_config);
 
   const Song & getSong() const { return *current_song; }
   Song & getSong() { return *current_song; }
@@ -42,8 +43,12 @@ class Controller {
 
   void setPlaybackInfo(const PlaybackInfo & info) { playback_info = info; }
   const PlaybackInfo & getPlaybackInfo() const { return playback_info; }
+
+  ChannelConfiguration getChannelConfiguration() const { return channel_config; }
   
  private:
+  ChannelConfiguration channel_config;
+
   std::shared_ptr<Song> current_song;
   std::shared_ptr<SampleData> current_sample;
   SampleData empty_sample;

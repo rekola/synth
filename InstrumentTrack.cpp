@@ -13,9 +13,8 @@ using namespace std;
 
 SampleData
 InstrumentTrack::render(size_t frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) {
-  size_t num_channels = 1; // instrument->getNumChannels();
-  assert(num_channels == 1);
-
+  size_t num_channels = song_state.getChannelConfiguration() == ChannelConfiguration::MONO ? 1 : 2;
+  
   SampleData data(num_channels, frames, isSolo());
 
   assert(getInstrumentId() >= 0 && getInstrumentId() < instruments.size());
@@ -37,7 +36,7 @@ InstrumentTrack::render(size_t frames, SongState & song_state, const std::vector
 	    } else {
 	      track_voices.stopVoices(ev.getId());
 	      if (!ev.isOff()) {
-		auto voice = instrument->playNote(ev.getFrequency(), ev.getVelocity(), song_state.getOutSampleRate());
+		auto voice = instrument->playNote(song_state.getChannelConfiguration(), song_state.getOutSampleRate(), azimuth, ev.getFrequency(), ev.getVelocity());
 		track_voices.addVoice(ev.getId(), move(voice));
 	      }
 	    }
@@ -62,11 +61,23 @@ InstrumentTrack::readXML(XMLElement & element) {
 
   auto instrument_text = element.Attribute("instrument");
   setInstrumentId(instrument_text ? atoi(instrument_text) : 0);
+
+  auto azimuth_text = element.Attribute("azimuth");
+  auto distance_text = element.Attribute("distance");
+  auto elevation_text = element.Attribute("elevation");
+
+  setAzimuth(azimuth_text ? strtof(azimuth_text, nullptr) : 0.0f);
+  setDistance(distance_text ? strtof(distance_text, nullptr) : 0.0f);
+  setElevation(elevation_text ? strtof(elevation_text, nullptr) : 0.0f);  
 }
 
 void
 InstrumentTrack::populateXML(XMLElement & element) const {
   Track::populateXML(element);
   
-  element.SetAttribute("instrument", getInstrumentId());  
+  element.SetAttribute("instrument", getInstrumentId());
+  
+  element.SetAttribute("azimuth", getAzimuth());
+  element.SetAttribute("distance", getDistance());
+  element.SetAttribute("elevation", getElevation());
 }

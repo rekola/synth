@@ -25,11 +25,11 @@ static inline const std::string to_string(WaveformType type) {
 
 class Oscilator : public Instrument {
  public:  
-  explicit Oscilator(WaveformType _type) : Instrument(1), type(_type) { }
+  explicit Oscilator(WaveformType _type) : type(_type) { }
 
   void readXML(tinyxml2::XMLElement & element) override;
   void populateXML(tinyxml2::XMLElement & element) const override;
-  std::unique_ptr<TrackState> playNote(float frequency, float velocity, unsigned int outSampleRate, float start_phase) const override;
+  std::unique_ptr<TrackState> playNote(ChannelConfiguration config, unsigned int outSampleRate, float azimuth, float frequency, float velocity, float start_phase) const override;
 
  private:
   WaveformType type;

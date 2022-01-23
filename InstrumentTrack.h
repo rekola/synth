@@ -15,9 +15,18 @@ class InstrumentTrack : public Track {
   
   void readXML(tinyxml2::XMLElement & element);
   void populateXML(tinyxml2::XMLElement & xml_element) const override;
-      
+
+  void setElevation(float e) { elevation = e; }
+  void setAzimuth(float a) { azimuth = a; }
+  void setDistance(float d) { distance = d; }
+  
+  float getElevation() const { return elevation; }
+  float getAzimuth() const { return azimuth; }
+  float getDistance() const { return distance; }
+
 private:
   int instrument_id = 0;
+  float elevation = 0, azimuth = 0, distance = 0;
 };
 
 #endif

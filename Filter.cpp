@@ -10,10 +10,41 @@
 
 using namespace std;
 
+struct filter_state_s {
+  float in1 = 0, in2 = 0, in3 = 0, in4 = 0;
+  float out1 = 0, out2 = 0, out3 = 0, out4 = 0;
+
+  void apply(unsigned int numChannels, size_t blockSamples, unsigned int channel, float * buffer, float fcut, float fres, bool is_highpass) {
+    for (size_t i = 0; i < blockSamples; i++) {
+      size_t offset = numChannels * i + channel;
+      float input = buffer[offset];
+      float si = input;
+      float f = fcut * 1.16;
+      float ff = f * f;
+      float fb = fres * (1.0 - 0.15 * ff);
+      f = 1 - f;
+      
+      input -= out4 * fb;
+      input *= 0.35013f * ff * ff;
+      out1 = input + 0.3 * in1 + f * out1; // Pole 1
+      in1  = input;
+      out2 = out1 + 0.3 * in2 + f * out2;  // Pole 2
+      in2 = out1;
+      out3 = out2 + 0.3 * in3 + f * out3;  // Pole 3
+      in3  = out2;
+      out4 = out3 + 0.3 * in4 + f * out4;  // Pole 4
+      in4  = out3;
+      
+      if (is_highpass) buffer[offset] = si - out4;
+      else buffer[offset] = out4;
+    }
+  }
+};
+
 class FilterState : public TrackState {
 public:
-  FilterState(unsigned int _outSampleRate, const Filter & filter, const Envelope & envelope)
-    : TrackState(_outSampleRate), fcut_min(filter.get_fcut_min()), fcut_max(filter.get_fcut_max()), fres(filter.get_fres()), is_highpass(filter.get_is_highpass()), envelope_state(_outSampleRate, envelope, 0, 0, true) { }
+  FilterState(ChannelConfiguration _channel_config, unsigned int _outSampleRate, const Filter & filter, const Envelope & envelope)
+    : TrackState(_channel_config, _outSampleRate), fcut_min(filter.get_fcut_min()), fcut_max(filter.get_fcut_max()), fres(filter.get_fres()), is_highpass(filter.get_is_highpass()), envelope_state(_outSampleRate, envelope, 0, 0, true) { }
 
   void applyAftertouch(float aftertouch) override {
     TrackState::applyAftertouch(aftertouch);
@@ -28,39 +59,22 @@ public:
 	 )
 	) return;
     
-    assert(input_data.getChannels() == 1);
     float * buffer = input_data.data();
     size_t numSamples = input_data.size();
+    unsigned int numChannels = input_data.getChannels();
     
     while (numSamples) {
       size_t blockSamples = numSamples > RENDER_EFFECTSAMPLEBLOCK ? RENDER_EFFECTSAMPLEBLOCK : numSamples;
-
       float current_fcut = fcut_min + envelope_state.getLevel() * (fcut_max - fcut_min);
 
-      for (size_t i = 0; i < blockSamples; i++) {
-	float input = buffer[i];
-	float si = input;
-	float f = current_fcut * 1.16;
-	float ff = f * f;
-	float fb = fres * (1.0 - 0.15 * ff);
-	f = 1 - f;
-	
-	input -= out4 * fb;
-	input *= 0.35013f * ff * ff;
-	out1 = input + 0.3 * in1 + f * out1; // Pole 1
-	in1  = input;
-	out2 = out1 + 0.3 * in2 + f * out2;  // Pole 2
-	in2 = out1;
-	out3 = out2 + 0.3 * in3 + f * out3;  // Pole 3
-	in3  = out2;
-	out4 = out3 + 0.3 * in4 + f * out4;  // Pole 4
-	in4  = out3;
-	
-	if (is_highpass) buffer[i] = si - out4;
-	else buffer[i] = out4;
+      if (numChannels == 1) {
+	left_state.apply(numChannels, blockSamples, 0, buffer, current_fcut, fres, is_highpass);
+      } else {
+	left_state.apply(numChannels, blockSamples, 0, buffer, current_fcut, fres, is_highpass);
+	right_state.apply(numChannels, blockSamples, 1, buffer, current_fcut, fres, is_highpass);
       }
-
-      buffer += blockSamples;
+            
+      buffer += numChannels * blockSamples;
       numSamples -= blockSamples;
       envelope_state.process(blockSamples);
     }
@@ -69,17 +83,15 @@ public:
 private:
   float fcut_min, fcut_max, fres;
   bool is_highpass;
-    
-  // filter state
-  float in1 = 0, in2 = 0, in3 = 0, in4 = 0;
-  float out1 = 0, out2 = 0, out3 = 0, out4 = 0;
+
+  filter_state_s left_state, right_state;
 
   EnvelopeState envelope_state;
 };
 
 std::unique_ptr<TrackState>
-Filter::createState(unsigned int outSampleRate) const {
-  return make_unique<FilterState>(outSampleRate, *this, envelope);
+Filter::createState(ChannelConfiguration config, unsigned int outSampleRate) const {
+  return make_unique<FilterState>(config, outSampleRate, *this, envelope);
 }
 
 void
