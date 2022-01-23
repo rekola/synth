@@ -7,10 +7,10 @@
 
 class GenericInstrument : public Instrument {
  public:
-  GenericInstrument() : Instrument(1) { }
+  GenericInstrument() { }
 
-  std::unique_ptr<TrackState> playNote(float frequency, float velocity, unsigned int outSampleRate, float start_phase) const override {
-    return concrete_instrument->playNote(frequency, velocity, outSampleRate, start_phase);
+  std::unique_ptr<TrackState> playNote(ChannelConfiguration channel_config, unsigned int outSampleRate, float azimuth, float frequency, float velocity, float start_phase) const override {
+    return concrete_instrument->playNote(channel_config, outSampleRate, azimuth, frequency, velocity, start_phase);
   }
 
   tinyxml2::XMLElement * createXML(tinyxml2::XMLDocument & doc) const {

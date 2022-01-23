@@ -8,7 +8,7 @@ class EnvelopeFilter : public Effect {
  public:
   EnvelopeFilter() { }
   
-  std::unique_ptr<TrackState> createState(unsigned int outSampleRate) const override;
+  std::unique_ptr<TrackState> createState(ChannelConfiguration channel_config, unsigned int outSampleRate) const override;
   std::string getElementName() const override { return "envelope"; }
   void readXML(tinyxml2::XMLElement & element) override;
   void populateXML(tinyxml2::XMLElement & element) const override;

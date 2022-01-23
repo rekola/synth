@@ -10,8 +10,8 @@ using namespace std;
 
 class DelayState : public TrackState {
 public:
-  DelayState(unsigned int outSampleRate, int _delay, float _fd, float _delaymix)
-    : TrackState(outSampleRate), delay(_delay), fd(_fd), delaymix(_delaymix) {
+  DelayState(ChannelConfiguration _channel_config, unsigned int _outSampleRate, int _delay, float _fd, float _delaymix)
+    : TrackState(_channel_config, _outSampleRate), delay(_delay), fd(_fd), delaymix(_delaymix) {
     memset(delaybuf, 0, MAX_DELAY_SAMPLES * sizeof(float));
   }
  
@@ -40,8 +40,8 @@ private:
 };
 
 std::unique_ptr<TrackState>
-Delay::createState(unsigned int outSampleRate) const {
-  return make_unique<DelayState>(outSampleRate, delay, fd, delaymix);
+Delay::createState(ChannelConfiguration channel_config, unsigned int outSampleRate) const {
+  return make_unique<DelayState>(channel_config, outSampleRate, delay, fd, delaymix);
 }
 
 void

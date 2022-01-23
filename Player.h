@@ -4,7 +4,6 @@
 #include "EventHandler.h"
 #include "SongState.h"
 #include "MixerType.h"
-#include "Mixer.h"
 
 #include <memory>
 
@@ -14,8 +13,8 @@ class Song;
 
 class Player : public EventHandler {
  public:
-  Player(unsigned int _outSampleRate, Controller * _controller)
-    : outSampleRate(_outSampleRate), controller(_controller), state(_outSampleRate) { }
+  Player(ChannelConfiguration _channel_config, unsigned int _outSampleRate, Controller * _controller)
+    : outSampleRate(_outSampleRate), controller(_controller), state(_channel_config, _outSampleRate) { }
 
   void handlePlaybackControlEvent(PlaybackControlEvent & ev) override;
 
@@ -23,14 +22,12 @@ class Player : public EventHandler {
   std::unique_ptr<PlaybackEvent> createPlaybackEvent(const Song & song, SongState & state);
 
 private:
-  Mixer & getMixer(MixerType type);
+  std::unique_ptr<Mixer> createMixer(unsigned int outChannels, MixerType type);
   
   unsigned int outSampleRate;
   Controller * controller;
   SongState state;
   bool terminate = false;
-  
-  std::unique_ptr<Mixer> basic_mixer, hrft_mixer;
 };
 
 #endif

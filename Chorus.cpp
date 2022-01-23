@@ -10,7 +10,8 @@ using namespace std;
 
 class ChorusState : public TrackState {
 public:
-  ChorusState(unsigned int outSampleRate, float _delay1, float _delay2) : TrackState(outSampleRate), delay1(_delay1), delay2(_delay2) { }
+  ChorusState(ChannelConfiguration _channel_config, unsigned int _outSampleRate, float _delay1, float _delay2)
+    : TrackState(_channel_config, _outSampleRate), delay1(_delay1), delay2(_delay2) { }
 
   void apply(SampleData & input_data) override {
     if (delay1 <= 0) return;
@@ -48,8 +49,8 @@ private:
 };
 
 std::unique_ptr<TrackState>
-Chorus::createState(unsigned int outSampleRate) const {
-  return make_unique<ChorusState>(outSampleRate, delay1, delay2);
+Chorus::createState(ChannelConfiguration channel_config, unsigned int outSampleRate) const {
+  return make_unique<ChorusState>(channel_config, outSampleRate, delay1, delay2);
 }
 
 void

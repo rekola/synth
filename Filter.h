@@ -8,7 +8,7 @@ class Filter : public Effect {
  public:
   Filter() { }
 
-  std::unique_ptr<TrackState> createState(unsigned int outSampleRate) const override;
+  std::unique_ptr<TrackState> createState(ChannelConfiguration config, unsigned int outSampleRate) const override;
   std::string getElementName() const override { return "filter"; }
   void readXML(tinyxml2::XMLElement & element) override;
   void populateXML(tinyxml2::XMLElement & element) const override;

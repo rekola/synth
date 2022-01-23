@@ -54,8 +54,8 @@ FileInstrument::openFile() {
 
 class FileInstrumentVoice : public InstrumentVoice {
 public:
-  FileInstrumentVoice(unsigned int _outSampleRate, std::shared_ptr<SampleData> _samples)
-    : InstrumentVoice(_outSampleRate), samples(_samples) { }
+  FileInstrumentVoice(ChannelConfiguration _channel_config, unsigned int _outSampleRate, float _azimuth, std::shared_ptr<SampleData> _samples)
+    : InstrumentVoice(_channel_config, _outSampleRate, _azimuth), samples(_samples) { }
 
   SampleData render(size_t frames) override {
     float gain = decibelsToGain(getGainDB());
@@ -90,8 +90,8 @@ private:
 };
 
 std::unique_ptr<TrackState>
-FileInstrument::playNote(float frequency, float velocity, unsigned int outSampleRate, float start_phase) const {
-  auto voice = std::make_unique<FileInstrumentVoice>(outSampleRate, samples);
+FileInstrument::playNote(ChannelConfiguration channel_config, unsigned int outSampleRate, float azimuth, float frequency, float velocity, float start_phase) const {
+  auto voice = std::make_unique<FileInstrumentVoice>(channel_config, outSampleRate, azimuth, samples);
   voice->playNote(frequency, velocity, start_phase);
   return voice;
 }

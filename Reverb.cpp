@@ -10,8 +10,8 @@ using namespace std;
 
 class ReverbState : public TrackState {
 public:
-  ReverbState(unsigned int outSampleRate, ReverbPreset preset)
-    : TrackState(outSampleRate), mverb(outSampleRate, int(preset)) {
+  ReverbState(ChannelConfiguration _channel_config, unsigned int _outSampleRate, ReverbPreset preset)
+    : TrackState(_channel_config, _outSampleRate), mverb(_outSampleRate, int(preset)) {
 
   }
 
@@ -37,7 +37,7 @@ public:
 	right_in[i] = io_data[2 * i + 1];
       }
       mverb.process(in, out, input.size());
-      
+
       for (size_t i = 0; i < input.size(); i++) {
 	io_data[2 * i + 0] = left_out[i];
 	io_data[2 * i + 1] = right_out[i];
@@ -60,8 +60,8 @@ private:
 };
 
 std::unique_ptr<TrackState>
-Reverb::createState(unsigned int outSampleRate) const {
-  return make_unique<ReverbState>(outSampleRate, preset);
+Reverb::createState(ChannelConfiguration channel_config, unsigned int outSampleRate) const {
+  return make_unique<ReverbState>(channel_config, outSampleRate, preset);
 }
 
 void

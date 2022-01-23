@@ -8,11 +8,11 @@
 
 class FileInstrument : public Instrument {
  public:
-  explicit FileInstrument(const std::string & _filename) : Instrument(1), filename(_filename) {
+  explicit FileInstrument(const std::string & _filename) : filename(_filename) {
     openFile();
   }
 
-  std::unique_ptr<TrackState> playNote(float frequency, float velocity, unsigned int outSampleRate, float start_phase) const override;
+  std::unique_ptr<TrackState> playNote(ChannelConfiguration channel_config, unsigned int outSampleRate, float azimuth, float frequency, float velocity, float start_phase) const override;
 
 protected:
   void openFile();

@@ -48,7 +48,7 @@ public:
   unsigned int group, offset, end, loop_start, loop_end;
   int transpose, tune, pitch_keycenter, pitch_keytrack;
   float attenuation;
-  float pan; // not supported
+  float pan;
   Envelope ampenv, modenv;
   int initialFilterQ, initialFilterFc;
   int modEnvToPitch, modEnvToFilterFc, modLfoToFilterFc, modLfoToVolume;
@@ -617,8 +617,8 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
 
 class SoundFontVoice : public InstrumentVoice {
 public:
-  SoundFontVoice(unsigned int _outSampleRate, std::shared_ptr<SoundFontFile> _sf, size_t _preset, size_t _region_idx, size_t _fixedMidiKey)
-    : InstrumentVoice(_outSampleRate), sf(_sf), preset(_preset), region_idx(_region_idx), fixedMidiKey(_fixedMidiKey) {
+  SoundFontVoice(ChannelConfiguration _channel_config, unsigned int _outSampleRate, float _azimuth, std::shared_ptr<SoundFontFile> _sf, size_t _preset, size_t _region_idx, size_t _fixedMidiKey)
+    : InstrumentVoice(_channel_config, _outSampleRate, _azimuth), sf(_sf), preset(_preset), region_idx(_region_idx), fixedMidiKey(_fixedMidiKey) {
   }
   
   void playNote(float frequency, float velocity, float start_phase) override {
@@ -730,8 +730,10 @@ private:
 SampleData
 SoundFontVoice::render(size_t numSamples) {
   auto f = sf.get();
+
+  unsigned int num_channels = getChannelConfiguration() == ChannelConfiguration::MONO ? 1 : 2;
   
-  SampleData outputData(1, numSamples);
+  SampleData outputData(num_channels, numSamples);
   float * output = outputData.data();
     
   float * input = f->fontSamples;
@@ -770,7 +772,12 @@ SoundFontVoice::render(size_t numSamples) {
   } else {
     noteGain = decibelsToGain(getGainDB());
   }
-  
+
+  float pan = sin(getAzimuth() / 180.0f * M_PI) / 2 + voiceRegion->pan;
+  if (pan < 0) pan = 0;
+  else if (pan > 1) pan = 1;
+  float panFactorLeft = sqrtf(0.5f - pan), panFactorRight = sqrtf(0.5f + pan);
+
   while (numSamples) {
     int blockSamples = (numSamples > RENDER_EFFECTSAMPLEBLOCK ? RENDER_EFFECTSAMPLEBLOCK : numSamples);
     numSamples -= blockSamples;
@@ -809,8 +816,13 @@ SoundFontVoice::render(size_t numSamples) {
       
       // Low-pass filter.
       if (lowpass.active) val = lowpass.process(val);
-      
-      *output++ += val * gainMono;
+
+      if (num_channels == 1) {
+	  *output++ = val * gainMono;
+      } else if (num_channels == 2) {
+	*output++ = val * gainMono * panFactorLeft;
+	*output++ = val * gainMono * panFactorRight;
+      }
 	
       // Next sample.
       sourceSamplePosition += pitchRatio;
@@ -821,8 +833,6 @@ SoundFontVoice::render(size_t numSamples) {
       break;
     }
   }
-
-  // applyEffects(outputData);
 
   return outputData;
 }
@@ -948,9 +958,9 @@ SoundFont::openFile() {
 
 class SoundFontInstrument : public Instrument {
 public:
-  SoundFontInstrument(std::shared_ptr<SoundFontFile> _sf, size_t _preset, size_t _fixedMidiKey) : Instrument(1), sf(_sf), preset(_preset), fixedMidiKey(_fixedMidiKey) { }
+  SoundFontInstrument(std::shared_ptr<SoundFontFile> _sf, size_t _preset, size_t _fixedMidiKey) : sf(_sf), preset(_preset), fixedMidiKey(_fixedMidiKey) { }
   
-  std::unique_ptr<TrackState> playNote(float frequency, float velocity, unsigned int outSampleRate, float start_phase) const override {    
+  std::unique_ptr<TrackState> playNote(ChannelConfiguration channel_config, unsigned int outSampleRate, float azimuth, float frequency, float velocity, float start_phase) const override {    
     assert(frequency > 0);
     vector<unique_ptr<TrackState> > voices;
 
@@ -974,11 +984,12 @@ public:
 	  // FIXME: here we should end all voices with the same instrument and group
 	}
 	
-	auto voice = make_unique<SoundFontVoice>(outSampleRate, sf, preset, region_idx, fixedMidiKey);
+	auto voice = make_unique<SoundFontVoice>(channel_config, outSampleRate, azimuth, sf, preset, region_idx, fixedMidiKey);
 	voice->playNote(frequency, velocity, start_phase);
 
+	// create modulators for voice
 	for (auto & child : getChildren()) {
-	  auto modulator = child->playNote(frequency, velocity, outSampleRate, start_phase);
+	  auto modulator = child->playNote(ChannelConfiguration::MONO, outSampleRate, azimuth, frequency, velocity, start_phase);
 	  if (modulator.get()) voice->addChild(move(modulator));
 	}
 
@@ -989,7 +1000,7 @@ public:
     if (voices.size() == 1) {
       return move(voices[0]);
     } else {
-      auto group = make_unique<TrackState>(outSampleRate);
+      auto group = make_unique<TrackState>(channel_config, outSampleRate);
       for (auto & v : voices) group->addChild(move(v));
       return group;
     }

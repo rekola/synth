@@ -26,24 +26,8 @@ class Track {
   Track(int _id, Type _type) : id(_id != -1 ? _id : getNextId()), type(_type) { }
   virtual ~Track() { }
   
-  virtual SampleData render(size_t frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) {
-    bool child_has_solo = false;
-    for (auto & child : getChildren()) {
-      if (child->isSolo()) {
-	child_has_solo = true;
-	break;
-      }
-    }
-    SampleData sd(1, frames, isSolo() || child_has_solo);
-     	   
-    for (auto & child : getChildren()) {
-      auto sd2 = child->render(frames, song_state, instruments, events);
-      if (!child->isMuted() && (!child_has_solo || child->isSolo())) {
-	sd.mix(sd2, child->getVolume());
-      }
-    }
-    return sd;
-  }
+  virtual SampleData render(size_t frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events);
+
   virtual std::unique_ptr<TrackState> createState(ChannelConfiguration config, unsigned int outSampleRate) const {
     return std::make_unique<TrackState>(config, outSampleRate);
   }
@@ -57,7 +41,7 @@ class Track {
     auto group = createState(config, outSampleRate);
     for (auto & child : children) {
       auto voice = child->playNote(config, outSampleRate, azimuth, frequency, velocity, start_phase);
-      if (voice.get()) group->addChild(move(voice));
+      if (voice.get()) group->addChild(std::move(voice));
     }
     return group;
   }

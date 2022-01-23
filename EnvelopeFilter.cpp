@@ -8,25 +8,25 @@ using namespace std;
 
 class EnvelopeFilterState : public TrackState {
 public:
-  EnvelopeFilterState(unsigned int _outSampleRate, const Envelope & envelope)
-    : TrackState(_outSampleRate), envelope_state(_outSampleRate, envelope, 0, 0, true) {
+  EnvelopeFilterState(ChannelConfiguration _channel_config, unsigned int _outSampleRate, const Envelope & envelope)
+    : TrackState(_channel_config, _outSampleRate), envelope_state(_outSampleRate, envelope, 0, 0, true) {
       
   }
 
   void apply(SampleData & input_data) override {
-    assert(input_data.getChannels() == 1);
     float * buffer = input_data.data();
     size_t numSamples = input_data.size();
+    size_t numChannels = input_data.getChannels();
 
     while (numSamples) {
       size_t blockSamples = numSamples > RENDER_EFFECTSAMPLEBLOCK ? RENDER_EFFECTSAMPLEBLOCK : numSamples;
       float gain = envelope_state.getLevel();
       
-      for (size_t i = 0; i < blockSamples; i++) {
+      for (size_t i = 0; i < numChannels * blockSamples; i++) {
 	buffer[i] *= gain;
       }
       
-      buffer += blockSamples;
+      buffer += blockSamples * numChannels;
       numSamples -= blockSamples;
       envelope_state.process(blockSamples);
     }
@@ -50,8 +50,8 @@ public:
 };
 
 std::unique_ptr<TrackState>
-EnvelopeFilter::createState(unsigned int outSampleRate) const {
-  return make_unique<EnvelopeFilterState>(outSampleRate, envelope);
+EnvelopeFilter::createState(ChannelConfiguration channel_config, unsigned int outSampleRate) const {
+  return make_unique<EnvelopeFilterState>(channel_config, outSampleRate, envelope);
 }
 
 void

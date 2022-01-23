@@ -55,7 +55,7 @@ class SampleData final {
   void clear() {
     free(_data);
     _data = 0;
-    channels = frames = 0;
+    frames = 0;
   }
   
   size_t getChannels() const { return channels; }
@@ -79,16 +79,20 @@ class SampleData final {
   }
 
   void mix(const SampleData & other, size_t offset = 0) {
+    assert(channels == other.channels);
+    
     size_t n = other.size();
     if (offset + n > size()) n = size() - offset;
-    for (size_t i = 0; i < n; i++) {
-      _data[offset + i] += other._data[i];
+    for (size_t i = 0; i < channels * n; i++) {
+      _data[offset * channels + i] += other._data[i];
     }
   }
 
   void mix(const SampleData & other, float volume = 1.0f) {
+    assert(channels == other.channels);
+
     size_t n = size() < other.size() ? size() : other.size();
-    for (size_t i = 0; i < n; i++) {
+    for (size_t i = 0; i < channels * n; i++) {
       _data[i] += volume * other._data[i];
     }
   }

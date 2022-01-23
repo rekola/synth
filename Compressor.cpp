@@ -11,8 +11,8 @@ using namespace std;
 
 class CompressorState : public TrackState {
 public:
-  CompressorState(int samplerate, const Compressor & compressor)
-    : TrackState(samplerate),
+  CompressorState(ChannelConfiguration _channel_config, unsigned int _outSampleRate, const Compressor & compressor)
+    : TrackState(_channel_config, _outSampleRate),
       f_thresh(compressor.getTreshold()),
       f_ratio(compressor.getRatio()),
       f_attack(compressor.getAttack()),
@@ -119,8 +119,8 @@ private:
 };
 
 std::unique_ptr<TrackState>
-Compressor::createState(unsigned int outSampleRate) const {
-  return make_unique<CompressorState>(outSampleRate, *this);
+Compressor::createState(ChannelConfiguration channel_config, unsigned int outSampleRate) const {
+  return make_unique<CompressorState>(channel_config, outSampleRate, *this);
 }
 
 void

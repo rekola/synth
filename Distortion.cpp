@@ -10,8 +10,8 @@ using namespace std;
 
 class DistortionState : public TrackState {
 public:
-  DistortionState(unsigned int outSampleRate, DistortionType _type, float _param, float _drymix, float _drive)
-    : TrackState(outSampleRate), type(_type), param(_param), drymix(_drymix), drive(_drive) { }
+  DistortionState(ChannelConfiguration _channel_config, unsigned int _outSampleRate, DistortionType _type, float _param, float _drymix, float _drive)
+    : TrackState(_channel_config, _outSampleRate), type(_type), param(_param), drymix(_drymix), drive(_drive) { }
   
   void apply(SampleData & input) override {    
     auto buffer = input.data();
@@ -68,8 +68,8 @@ private:
 };
 
 std::unique_ptr<TrackState>
-Distortion::createState(unsigned int outSampleRate) const {
-  return make_unique<DistortionState>(outSampleRate, type, param, drymix, drive);
+Distortion::createState(ChannelConfiguration channel_config, unsigned int outSampleRate) const {
+  return make_unique<DistortionState>(channel_config, outSampleRate, type, param, drymix, drive);
 }
 
 void
