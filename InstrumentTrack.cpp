@@ -13,14 +13,12 @@ using namespace std;
 
 SampleData
 InstrumentTrack::render(size_t frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) {
-  size_t num_channels = song_state.getChannelConfiguration() == ChannelConfiguration::MONO ? 1 : 2;
-  
-  SampleData data(num_channels, frames, isSolo());
+  SampleData data(song_state.getChannelConfiguration(), frames, isSolo());
 
   assert(getInstrumentId() >= 0 && getInstrumentId() < instruments.size());
   if (getInstrumentId() >= 0 && getInstrumentId() < instruments.size()) {
     auto & instrument = instruments[getInstrumentId()];
-    auto & track_voices = song_state.getTrackVoices(getId());
+    auto & track_state = song_state.getTrackState(*this);
     auto & pending_events = events.getPendingEvents(getId());
   					  
     for (size_t i = 0; i < frames; ) {
@@ -32,12 +30,12 @@ InstrumentTrack::render(size_t frames, SongState & song_state, const std::vector
 	if (i == it->first) {
 	  for (auto & ev : it->second) {
 	    if (ev.isAftertouch()) {
-	      track_voices.applyAftertouch(ev.getId(), ev.getVelocity());
+	      track_state.applyAftertouch(ev.getId(), ev.getVelocity());
 	    } else {
-	      track_voices.stopVoices(ev.getId());
+	      track_state.stopVoices(ev.getId());
 	      if (!ev.isOff()) {
 		auto voice = instrument->playNote(song_state.getChannelConfiguration(), song_state.getOutSampleRate(), azimuth, ev.getFrequency(), ev.getVelocity());
-		track_voices.addVoice(ev.getId(), move(voice));
+		track_state.addVoice(ev.getId(), move(voice));
 	      }
 	    }
 	  }
@@ -46,7 +44,7 @@ InstrumentTrack::render(size_t frames, SongState & song_state, const std::vector
 	if (it != pending_events.end() && it->first - i < render_size) render_size = it->first - i;
       }     
       
-      track_voices.render(data, render_size, i);
+      track_state.render(data, render_size, i);
       
       i += render_size;
     }
