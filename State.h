@@ -3,13 +3,13 @@
 
 class State {
  public:
-  State(unsigned int _outSampleRate) : outSampleRate(_outSampleRate) { }
+  explicit State(int outSampleRate) : outSampleRate_(outSampleRate) { }
   virtual ~State() { }
 
-  unsigned int getOutSampleRate() const { return outSampleRate; }
+  int getOutSampleRate() const { return outSampleRate_; }
   
  private:
-  unsigned int outSampleRate;
+  int outSampleRate_;
 };
 
 #endif

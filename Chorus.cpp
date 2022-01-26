@@ -2,15 +2,13 @@
 
 #include "TrackState.h"
 
-#include "tinyxml2.h"
-
 using namespace std;
 
 #define CHORUS_MAX_DELAY_SAMPLES 44100
 
 class ChorusState : public TrackState {
 public:
-  ChorusState(ChannelConfiguration _channel_config, unsigned int _outSampleRate, float _delay1, float _delay2)
+  ChorusState(ChannelConfiguration _channel_config, int _outSampleRate, float _delay1, float _delay2)
     : TrackState(_channel_config, _outSampleRate), delay1(_delay1), delay2(_delay2) { }
 
   void apply(SampleData & input_data) override {
@@ -49,25 +47,22 @@ private:
 };
 
 std::unique_ptr<TrackState>
-Chorus::createState(ChannelConfiguration channel_config, unsigned int outSampleRate) const {
+Chorus::createState(ChannelConfiguration channel_config, int outSampleRate) const {
   return make_unique<ChorusState>(channel_config, outSampleRate, delay1, delay2);
 }
 
 void
-Chorus::readXML(tinyxml2::XMLElement & element) {
-  Effect::readXML(element);
-  
-  auto delay1_text = element.Attribute("delay1");
-  if (delay1_text) delay1 = strtof(delay1_text, nullptr);
+Chorus::loadParameters(const ParameterSource & input) {
+  Effect::loadParameters(input);
 
-  auto delay2_text = element.Attribute("delay2");
-  if (delay2_text) delay2 = strtof(delay1_text, nullptr);
+  delay1 = input.getFloat("delay1");
+  delay2 = input.getFloat("delay2");  
 }
 
 void
-Chorus::populateXML(tinyxml2::XMLElement & element) const {
-  Effect::populateXML(element);
+Chorus::storeParameters(ParameterSource & output) const {
+  Effect::storeParameters(output);
 
-  element.SetAttribute("delay1", delay1);
-  element.SetAttribute("delay2", delay1);
+  output.set("delay1", delay1);
+  output.set("delay2", delay2);
 }

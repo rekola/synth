@@ -4,13 +4,11 @@
 #include "SampleData.h"
 #include "TrackState.h"
 
-#include "tinyxml2.h"
-
 using namespace std;
 
 class ReverbState : public TrackState {
 public:
-  ReverbState(ChannelConfiguration _channel_config, unsigned int _outSampleRate, ReverbPreset preset)
+  ReverbState(ChannelConfiguration _channel_config, int _outSampleRate, ReverbPreset preset)
     : TrackState(_channel_config, _outSampleRate), mverb(_outSampleRate, int(preset)) {
 
   }
@@ -60,47 +58,25 @@ private:
 };
 
 std::unique_ptr<TrackState>
-Reverb::createState(ChannelConfiguration channel_config, unsigned int outSampleRate) const {
+Reverb::createState(ChannelConfiguration channel_config, int outSampleRate) const {
   return make_unique<ReverbState>(channel_config, outSampleRate, preset);
 }
 
 void
-Reverb::readXML(tinyxml2::XMLElement & element) {
-  Effect::readXML(element);
+Reverb::loadParameters(const ParameterSource & input) {
+  Effect::loadParameters(input);
   
-  auto preset_text = element.Attribute("preset");
-  if (preset_text) {
-    if (strcmp(preset_text, "subtle") == 0) preset = ReverbPreset::SUBTLE;
-    else if (strcmp(preset_text, "stadium") == 0) preset = ReverbPreset::STADIUM;
-    else if (strcmp(preset_text, "cupboard") == 0) preset = ReverbPreset::CUPBOARD;
-    else if (strcmp(preset_text, "dark") == 0) preset = ReverbPreset::DARK;
-    else if (strcmp(preset_text, "halves") == 0) preset = ReverbPreset::HALVES;
-  }
+  auto preset_text = input.getText("preset");
+  if (preset_text == "subtle") preset = ReverbPreset::SUBTLE;
+  else if (preset_text == "stadium") preset = ReverbPreset::STADIUM;
+  else if (preset_text == "cupboard") preset = ReverbPreset::CUPBOARD;
+  else if (preset_text == "dark") preset = ReverbPreset::DARK;
+  else if (preset_text == "halves") preset = ReverbPreset::HALVES;
 }
 
 void
-Reverb::populateXML(tinyxml2::XMLElement & element) const {
-  Effect::populateXML(element);
+Reverb::storeParameters(ParameterSource & output) const {
+  Effect::storeParameters(output);
 
-  switch (preset) {
-  case ReverbPreset::SUBTLE:
-    element.SetAttribute("preset", "subtle");
-    break;
-
-  case ReverbPreset::STADIUM:
-    element.SetAttribute("preset", "stadium");
-    break;
-
-  case ReverbPreset::CUPBOARD:
-    element.SetAttribute("preset", "cupboard");
-    break;
-
-  case ReverbPreset::DARK:
-    element.SetAttribute("preset", "dark");
-    break;
-
-  case ReverbPreset::HALVES:
-    element.SetAttribute("preset", "halves");
-    break;
-  }
+  output.set("preset", to_string(preset));
 }

@@ -5,7 +5,7 @@
 
 class InstrumentVoice : public TrackState {
  public:
-  InstrumentVoice(ChannelConfiguration _channel_config, unsigned int _outSampleRate, float _azimuth)
+  InstrumentVoice(ChannelConfiguration _channel_config, int _outSampleRate, float _azimuth)
     : TrackState(_channel_config, _outSampleRate), azimuth(_azimuth) { }
 
   void killNote() override {

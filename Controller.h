@@ -45,7 +45,9 @@ class Controller {
   const PlaybackInfo & getPlaybackInfo() const { return playback_info; }
 
   ChannelConfiguration getChannelConfiguration() const { return channel_config; }
-  
+
+  bool togglePlaying();
+
  private:
   ChannelConfiguration channel_config;
 

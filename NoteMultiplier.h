@@ -8,9 +8,9 @@ class NoteMultiplier : public Effect {
   NoteMultiplier() { }
 
   std::string getElementName() const override { return "multiply"; }
-  void readXML(tinyxml2::XMLElement & element) override;
-  void populateXML(tinyxml2::XMLElement & element) const override;
-  std::unique_ptr<TrackState> playNote(ChannelConfiguration channel_config, unsigned int outSampleRate, float azimuth, float frequency, float velocity, float start_phase) const override;
+  void loadParameters(const ParameterSource & input) override;
+  void storeParameters(ParameterSource & output) const override;
+  std::unique_ptr<TrackState> playNote(ChannelConfiguration channel_config, int outSampleRate, float azimuth, float frequency, float velocity, float start_phase) const override;
 
 private:
   int unisons = 0;

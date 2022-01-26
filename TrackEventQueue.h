@@ -15,7 +15,7 @@ class TrackEventQueue {
     pending_events[track_id][frame].push_back(TrackEvent(id, frequency, velocity));
   }
   
-  std::map<unsigned int, std::vector<TrackEvent> > & getPendingEvents(int track_id) {
+  std::map<int, std::vector<TrackEvent> > & getPendingEvents(int track_id) {
     return pending_events[track_id];
   }
 
@@ -31,14 +31,14 @@ class TrackEventQueue {
       auto old_events = events;
       events.clear();
       for (auto & [ frame, frame_events ] : old_events) {
-	int new_frame = frame + offset;
+	auto new_frame = frame + offset;
 	if (new_frame >= 0) events[new_frame] = frame_events;
       }
     }
   }
 
  private:
-  std::unordered_map<int, std::map<unsigned int, std::vector<TrackEvent> > > pending_events;
+  std::unordered_map<int, std::map<int, std::vector<TrackEvent> > > pending_events;
 };
 
 #endif

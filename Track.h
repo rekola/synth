@@ -3,6 +3,7 @@
 
 #include "SampleData.h"
 #include "TrackState.h"
+#include "ParameterSource.h"
 
 #include <string>
 #include <vector>
@@ -12,11 +13,6 @@
 
 class SongState;
 class TrackEventQueue;
-
-namespace tinyxml2 {
-  class XMLDocument;
-  class XMLElement;
-};
 
 class Track {
  public:
@@ -28,16 +24,15 @@ class Track {
   
   virtual SampleData render(size_t frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events);
 
-  virtual std::unique_ptr<TrackState> createState(ChannelConfiguration config, unsigned int outSampleRate) const {
+  virtual std::unique_ptr<TrackState> createState(ChannelConfiguration config, int outSampleRate) const {
     return std::make_unique<TrackState>(config, outSampleRate);
   }
 
-  virtual tinyxml2::XMLElement * createXML(tinyxml2::XMLDocument & doc) const { return 0; }
-  virtual void readXML(tinyxml2::XMLElement & element);
-  virtual void populateXML(tinyxml2::XMLElement & element) const;
+  virtual void loadParameters(const ParameterSource & input);
+  virtual void storeParameters(ParameterSource & output) const;
   virtual std::string getElementName() const { return "track"; }
 
-  virtual std::unique_ptr<TrackState> playNote(ChannelConfiguration config, unsigned int outSampleRate, float azimuth, float frequency, float velocity, float start_phase = 0.0f) const {
+  virtual std::unique_ptr<TrackState> playNote(ChannelConfiguration config, int outSampleRate, float azimuth, float frequency, float velocity, float start_phase = 0.0f) const {
     auto group = createState(config, outSampleRate);
     for (auto & child : children) {
       auto voice = child->playNote(config, outSampleRate, azimuth, frequency, velocity, start_phase);

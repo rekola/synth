@@ -1,13 +1,11 @@
 #include "NoteMultiplier.h"
 
-#include "tinyxml2.h"
-
 #include <cassert>
 
 using namespace std;
 
 std::unique_ptr<TrackState>
-NoteMultiplier::playNote(ChannelConfiguration channel_config, unsigned int outSampleRate, float azimuth, float frequency, float velocity, float start_phase) const {
+NoteMultiplier::playNote(ChannelConfiguration channel_config, int outSampleRate, float azimuth, float frequency, float velocity, float start_phase) const {
   auto group = createState(channel_config, outSampleRate);
   for (auto & child : getChildren()) {
     float unison_velocity = velocity; // / (unisons + 1);
@@ -62,22 +60,15 @@ NoteMultiplier::playNote(ChannelConfiguration channel_config, unsigned int outSa
 }
 
 void
-NoteMultiplier::readXML(tinyxml2::XMLElement & element) {
-  Effect::readXML(element);
+NoteMultiplier::loadParameters(const ParameterSource & input) {
+  Effect::loadParameters(input);
 
-  auto unisons_text = element.Attribute("unisons");
-  auto octaves_text = element.Attribute("octaves");
-  auto fifths_text = element.Attribute("fifths");
-  auto fourths_text = element.Attribute("fourths");
-  auto detune_text = element.Attribute("detune");
-  auto spread_text = element.Attribute("spread");
-
-  unisons = unisons_text ? atoi(unisons_text) : 0;
-  octaves = octaves_text ? atoi(octaves_text) : 0;
-  fifths = fifths_text ? atoi(fifths_text) : 0;
-  fourths = fourths_text ? atoi(fourths_text) : 0;
-  detune = detune_text ? strtof(detune_text, nullptr) : 0;
-  spread = spread_text ? strtof(spread_text, nullptr) : 0;
+  unisons = input.getInt("unisons");
+  octaves = input.getInt("octaves");
+  fifths = input.getInt("fifths");
+  fourths = input.getInt("fourths");
+  detune = input.getFloat("detune");
+  spread = input.getFloat("spread");
 
   if (unisons & 1) unisons--;
   if (octaves & 1) octaves--;
@@ -86,6 +77,6 @@ NoteMultiplier::readXML(tinyxml2::XMLElement & element) {
 }
 
 void
-NoteMultiplier::populateXML(tinyxml2::XMLElement & element) const {
-  Effect::populateXML(element);  
+NoteMultiplier::storeParameters(ParameterSource & output) const {
+  Effect::storeParameters(output);
 }

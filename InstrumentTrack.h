@@ -13,8 +13,8 @@ class InstrumentTrack : public Track {
     
   SampleData render(size_t frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) override;
   
-  void readXML(tinyxml2::XMLElement & element);
-  void populateXML(tinyxml2::XMLElement & xml_element) const override;
+  void loadParameters(const ParameterSource & input);
+  void storeParameters(ParameterSource & output) const override;
 
   void setElevation(float e) { elevation = e; }
   void setAzimuth(float a) { azimuth = a; }

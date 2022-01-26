@@ -3,8 +3,6 @@
 #include "InstrumentVoice.h"
 #include "SampleData.h"
 
-#include "tinyxml2.h"
-
 using namespace std;
 
 static inline float create_sine(double i0) {
@@ -33,15 +31,15 @@ static inline float create_noise() {
 
 class OscilatorVoice : public InstrumentVoice {
 public:
-  OscilatorVoice(ChannelConfiguration _config, unsigned int _outSampleRate, float _azimuth, WaveformType _type, int _harmonic, int _subharmonic, float _level)
+  OscilatorVoice(ChannelConfiguration _config, int _outSampleRate, float _azimuth, WaveformType _type, int _harmonic, int _subharmonic, float _level)
     : InstrumentVoice(_config, _outSampleRate, _azimuth), type(_type), harmonic(_harmonic), subharmonic(_subharmonic), level(_level) {
   }
 
   SampleData render(size_t frames) override {
     float gain = decibelsToGain(getGainDB()) * level;
 
-    unsigned int num_channels = getChannelConfiguration() == ChannelConfiguration::MONO ? 1 : 2;
-    SampleData data(num_channels, frames);
+    SampleData data(getChannelConfiguration() == ChannelConfiguration::MONO ? 1 : 2, frames);
+    auto num_channels = data.getChannels();
     auto buffer = data.data();
     
     double pos = getSourceSamplePosition() / getOutSampleRate();    
@@ -221,7 +219,7 @@ private:
 };
 
 std::unique_ptr<TrackState>
-Oscilator::playNote(ChannelConfiguration config, unsigned int outSampleRate, float azimuth, float frequency, float velocity, float start_phase) const {  
+Oscilator::playNote(ChannelConfiguration config, int outSampleRate, float azimuth, float frequency, float velocity, float start_phase) const {  
   auto voice = std::make_unique<OscilatorVoice>(config, outSampleRate, azimuth, type, harmonic, subharmonic, level);
   voice->playNote(frequency, velocity, start_phase);
 
@@ -235,29 +233,22 @@ Oscilator::playNote(ChannelConfiguration config, unsigned int outSampleRate, flo
 }
 
 void
-Oscilator::readXML(tinyxml2::XMLElement & element) {
-  Instrument::readXML(element);
+Oscilator::loadParameters(const ParameterSource & input) {
+  Instrument::loadParameters(input);
   
-  auto type_text = element.Attribute("type");
-  if (type_text) {
-    if (strcmp(type_text, "sine") == 0) type = WaveformType::SINE;
-    else if (strcmp(type_text, "saw") == 0) type = WaveformType::SAW;
-    else if (strcmp(type_text, "triangle") == 0) type = WaveformType::TRIANGLE;
-    else if (strcmp(type_text, "square") == 0) type = WaveformType::SQUARE;
-  }
+  auto type_text = input.getText("type");
+  if (type_text == "sine") type = WaveformType::SINE;
+  else if (type_text == "saw") type = WaveformType::SAW;
+  else if (type_text == "triangle") type = WaveformType::TRIANGLE;
+  else if (type_text == "square") type = WaveformType::SQUARE;
 
-  auto level_text = element.Attribute("level");
-  level = level_text ? strtof(level_text, nullptr) : 1.0f;
-
-  auto harmonic_text = element.Attribute("harmonic");
-  harmonic = harmonic_text ? atoi(harmonic_text) : 1;
-
-  auto subharmonic_text = element.Attribute("subharmonic");
-  subharmonic = subharmonic_text ? atoi(subharmonic_text) : 1;
+  level = input.getFloat("level", 1.0f);
+  harmonic = input.getInt("harmonic", 1);
+  subharmonic = input.getInt("subharmonic", 1);  
 }
 
 void
-Oscilator::populateXML(tinyxml2::XMLElement & element) const {
-  Instrument::populateXML(element);  
-  element.SetAttribute("type", to_string(type).c_str());  
+Oscilator::storeParameters(ParameterSource & output) const {
+  Instrument::storeParameters(output);
+  output.set("type", to_string(type));
 }

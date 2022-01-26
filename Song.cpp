@@ -23,6 +23,33 @@
 using namespace std;
 using namespace tinyxml2;
 
+class XMLParameterSource : public ParameterSource {
+public:
+  XMLParameterSource(XMLElement * element) : element_(element) { }
+
+  bool has(const std::string & name) const override { return element_->Attribute(name.c_str()) != 0; }
+
+  void set(const std::string & name, int value) override { element_->SetAttribute(name.c_str(), value); }
+  virtual void set(const std::string & name, float value) { element_->SetAttribute(name.c_str(), value); }
+  virtual void set(const std::string & name, const std::string & value) { element_->SetAttribute(name.c_str(), value.c_str()); }
+  
+  int getInt(const std::string & name, int default_value = 0) const override {
+    auto value = element_->Attribute(name.c_str());
+    return value ? atoi(value) : default_value;
+  }
+  string getText(const std::string & name, const std::string & default_value) const override{
+    auto value = element_->Attribute(name.c_str());
+    return value ? value : default_value;
+  }
+  float getFloat(const std::string & name, float default_value = 0) const override {
+    auto value = element_->Attribute(name.c_str());
+    return value ? strtof(value, nullptr) : default_value;
+  }
+
+private:
+  XMLElement * element_;
+};
+
 vector<string> split_notes(const string & line) {
   vector<string> r;
   
@@ -30,7 +57,7 @@ vector<string> split_notes(const string & line) {
     char * str = new char[line.size() + 1];
     strcpy(str, line.c_str());
     char * current = str;
-    for (unsigned int i = 0, len = (int)line.size(); i < len; i++) {
+    for (int i = 0, len = static_cast<int>(line.size()); i < len; i++) {
       if (isspace(str[i])) {
 	str[i] = 0;
 	r.push_back(current);
@@ -87,7 +114,7 @@ static unique_ptr<Track> createTrack(string name) {
 
 static void parseChildTrack(Track & parent, XMLElement & element) {
   auto & track = parent.addChild(createTrack(element.Name()));
-  track.readXML(element);
+  track.loadParameters(XMLParameterSource(&element));
   
   for (auto it = element.FirstChildElement(); it ; it = it->NextSiblingElement() ) {
     parseChildTrack(track, *it);
@@ -98,7 +125,7 @@ static void parseChildInstrument(Track & parent, XMLElement & element, const Ins
   auto track = createTrack(element.Name());
   if (!track) return;
 
-  track->readXML(element);
+  track->loadParameters(XMLParameterSource(&element));
 
   auto * instrument = dynamic_cast<Instrument *>(track.get());
   if (instrument) {
@@ -197,7 +224,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 
 	  auto notes = split_notes(value_text);
 
-	  for (unsigned int i = 0; i < notes.size(); i++) {
+	  for (int i = 0; i < static_cast<int>(notes.size()); i++) {
 	    if (notes[i] == "off") {
 	      pattern.setNote(row, track, start_column + i, Note(0, 0));
 	    } else {
@@ -330,16 +357,18 @@ Song::save(const std::string & filename) const {
 
   for (auto & track : getChildren()) {
     XMLElement * track_element = doc.NewElement("track");
-    track->populateXML(*track_element);
+    XMLParameterSource parameters(track_element);
+    track->storeParameters(parameters);
     
     tracks->InsertEndChild(track_element);    
   }
 
   for (auto & instrument : getInstruments()) {
-    auto instrument_element = instrument->createXML(doc);
-    if (instrument_element) {
-      instruments->InsertEndChild(instrument_element);
-    }
+    auto name = instrument->getElementName();
+    auto instrument_element = doc.NewElement(name.c_str());
+    XMLParameterSource parameters(instrument_element);
+    instrument->storeParameters(parameters);
+    instruments->InsertEndChild(instrument_element);
   }
   
   doc.SaveFile(filename.c_str());
@@ -395,7 +424,7 @@ Song::render(size_t frames, SongState & state, Mixer & mixer) {
       size_t remaining = state.samplesUntilNextRow(*this);
       if (i + remaining <= frames) {
 	i += remaining;
-	state.moveForward();
+	state.movePosition(1);
       } else {
 	i += frames;
 	state.moveForwardSamples(*this, frames);

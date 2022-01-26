@@ -35,7 +35,7 @@ class EventQueue {
   int getPollFd() const { return poll_fd; }
   
   std::unique_ptr<Event> pop() {
-    while (!pending_event_count) {
+    while (!hasEvents()) {
       unsigned char buffer[4096];
       auto s = read(poll_fd, buffer, 4096);
       if (s >= 0) {
@@ -58,7 +58,7 @@ class EventQueue {
   int poll_fd, push_fd;
   std::mutex event_mutex;
   std::deque<std::unique_ptr<Event> > events;
-  size_t pending_event_count = 0;
+  int pending_event_count = 0;
 };
 
 #endif

@@ -1,14 +1,13 @@
 #include "EnvelopeFilter.h"
 
 #include "EnvelopeState.h"
-#include "tinyxml2.h"
 #include "defaults.h"
 
 using namespace std;
 
 class EnvelopeFilterState : public TrackState {
 public:
-  EnvelopeFilterState(ChannelConfiguration _channel_config, unsigned int _outSampleRate, const Envelope & envelope)
+  EnvelopeFilterState(ChannelConfiguration _channel_config, int _outSampleRate, const Envelope & envelope)
     : TrackState(_channel_config, _outSampleRate), envelope_state(_outSampleRate, envelope, 0, 0, true) {
       
   }
@@ -50,31 +49,19 @@ public:
 };
 
 std::unique_ptr<TrackState>
-EnvelopeFilter::createState(ChannelConfiguration channel_config, unsigned int outSampleRate) const {
+EnvelopeFilter::createState(ChannelConfiguration channel_config, int outSampleRate) const {
   return make_unique<EnvelopeFilterState>(channel_config, outSampleRate, envelope);
 }
 
 void
-EnvelopeFilter::readXML(tinyxml2::XMLElement & element) {
-  Effect::readXML(element);
+EnvelopeFilter::loadParameters(const ParameterSource & input) {
+  Effect::loadParameters(input);
 
-  auto attack_text = element.Attribute("attack");
-  envelope.attack = attack_text ? strtof(attack_text, nullptr) : 0.0f;
-
-  auto hold_text = element.Attribute("hold");
-  envelope.hold = hold_text ? strtof(hold_text, nullptr) : 0.0f;
-
-  auto decay_text = element.Attribute("decay");
-  envelope.decay = decay_text ? strtof(decay_text, nullptr) : 0.0f;
-
-  auto sustain_text = element.Attribute("sustain");
-  envelope.sustain = sustain_text ? strtof(sustain_text, nullptr) : 1.0f;
-
-  auto release_text = element.Attribute("release");
-  envelope.release = release_text ? strtof(release_text, nullptr) : 0.0f;
+  envelope.loadParameters(input);
 }
 
 void
-EnvelopeFilter::populateXML(tinyxml2::XMLElement & element) const {
-  Effect::populateXML(element);  
+EnvelopeFilter::storeParameters(ParameterSource & output) const {
+  Effect::storeParameters(output);
+  envelope.storeParameters(output);
 }

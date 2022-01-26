@@ -27,9 +27,9 @@ class Oscilator : public Instrument {
  public:  
   explicit Oscilator(WaveformType _type) : type(_type) { }
 
-  void readXML(tinyxml2::XMLElement & element) override;
-  void populateXML(tinyxml2::XMLElement & element) const override;
-  std::unique_ptr<TrackState> playNote(ChannelConfiguration config, unsigned int outSampleRate, float azimuth, float frequency, float velocity, float start_phase) const override;
+  void loadParameters(const ParameterSource & input) override;
+  void storeParameters(ParameterSource & output) const override;
+  std::unique_ptr<TrackState> playNote(ChannelConfiguration config, int outSampleRate, float azimuth, float frequency, float velocity, float start_phase) const override;
 
  private:
   WaveformType type;

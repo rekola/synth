@@ -5,14 +5,25 @@
 
 enum class ReverbPreset { SUBTLE = 0, STADIUM, CUPBOARD, DARK, HALVES };
 
+static inline const std::string to_string(ReverbPreset preset) {
+  switch (preset) {
+  case ReverbPreset::SUBTLE: return "subtle";
+  case ReverbPreset::STADIUM: return "stadium";
+  case ReverbPreset::CUPBOARD: return "cupboard";
+  case ReverbPreset::DARK: return "dark";
+  case ReverbPreset::HALVES: return "halves";
+  default: return "";
+  }
+}
+
 class Reverb : public Effect {
  public:
   explicit Reverb(ReverbPreset _preset = ReverbPreset::SUBTLE) : preset(_preset) { }
 
-  std::unique_ptr<TrackState> createState(ChannelConfiguration channel_config, unsigned int outSamplerate) const override;
+  std::unique_ptr<TrackState> createState(ChannelConfiguration channel_config, int outSamplerate) const override;
   std::string getElementName() const override { return "reverb"; }
-  void readXML(tinyxml2::XMLElement & element) override;
-  void populateXML(tinyxml2::XMLElement & element) const override;
+  void loadParameters(const ParameterSource & element) override;
+  void storeParameters(ParameterSource & element) const override;
 
 private:
   ReverbPreset preset;

@@ -8,20 +8,20 @@ class Filter : public Effect {
  public:
   Filter() { }
 
-  std::unique_ptr<TrackState> createState(ChannelConfiguration config, unsigned int outSampleRate) const override;
+  std::unique_ptr<TrackState> createState(ChannelConfiguration config, int outSampleRate) const override;
   std::string getElementName() const override { return "filter"; }
-  void readXML(tinyxml2::XMLElement & element) override;
-  void populateXML(tinyxml2::XMLElement & element) const override;
+  void loadParameters(const ParameterSource & input) override;
+  void storeParameters(ParameterSource & output) const override;
 
-  float get_fcut_min() const { return fcut_min; }
-  float get_fcut_max() const { return fcut_max; }
-  float get_fres() const { return fres; }
-  bool get_is_highpass() const { return is_highpass; }
+  float get_fcut_min() const { return fcut_min_; }
+  float get_fcut_max() const { return fcut_max_; }
+  float get_fres() const { return fres_; }
+  bool get_is_highpass() const { return is_highpass_; }
 
 private:
-  float fcut_min = 0.0f, fcut_max = 0.0f, fres = 0.0f;
-  bool is_highpass = false, aftertouch = false;
-  Envelope envelope;
+  float fcut_min_ = 0.0f, fcut_max_ = 0.0f, fres_ = 0.0f;
+  bool is_highpass_ = false, aftertouch_ = false;
+  Envelope envelope_;
 };
 
 #endif

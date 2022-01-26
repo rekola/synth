@@ -40,7 +40,7 @@ protected:
   bool row_edited = false;
   int current_song_version = 0;
 
-  std::vector<int> active_midi_notes;
+  std::unordered_map<int, int> active_midi_notes;
 };
 
 #endif

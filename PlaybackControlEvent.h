@@ -2,6 +2,7 @@
 #define _PLAYBACKCONTROLEVENT_H_
 
 #include "Event.h"
+#include "EventHandler.h"
 
 class PlaybackControlEvent : public Event {
  public:

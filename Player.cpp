@@ -8,6 +8,7 @@
 #include "LogEvent.h"
 #include "PlaybackEvent.h"
 #include "RecordEvent.h"
+#include "PlaybackControlEvent.h"
 
 #include "HRFT.h"
 #include "BasicMixer.h"
@@ -45,7 +46,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	
 	if (instrument_track.getInstrumentId() < song.getInstruments().size()) {
 	  auto & instrument = song.getInstrument(instrument_track.getInstrumentId());
-	  auto & track_voices = state.getTrackVoices(track_id);
+	  auto & track_state = state.getTrackState(instrument_track);
 	
 	  auto [ pattern_idx, row_idx ] = state.getRelativePosition(song);
 	  auto & pattern = song.getPattern(pattern_idx);
@@ -60,11 +61,11 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	    float frequency = tuner.getFrequency(tuning, key, note);
 	    // frequency *= instrument_track.getDetune();
 	    
-	    track_voices.stopVoices(column);
+	    track_state.stopVoices(column);
 	    auto voice = instrument.playNote(state.getChannelConfiguration(), state.getOutSampleRate(), instrument_track.getAzimuth(), frequency, note.getVelocityAsFloat());
-	    track_voices.addVoice(column, move(voice));
+	    track_state.addVoice(column, move(voice));
 	  } else {
-	    track_voices.applyAftertouch(column, midi_velocity);
+	    track_state.applyAftertouch(column, midi_velocity / 127.0f);
 	  }
 	}
       }
@@ -72,15 +73,35 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     break;
     
   case PlaybackControlEvent::TERMINATE:
+    terminate = true;
+    break;
+
+  case PlaybackControlEvent::PLAY:
+    state.setIsPlaying(true);
+    break;
+    
+  case PlaybackControlEvent::STOP:
+    state.setIsPlaying(false);
+    break;
+    
+  case PlaybackControlEvent::MOVE_POSITION:
+    state.movePosition(ev.getParameter1());
+    break;
+    
+  case PlaybackControlEvent::CLEAR_VOICES:
     {
-      terminate = true;
+      auto track_state = state.getTrackState(ev.getParameter1());
+      if (track_state) track_state->clearVoices();
     }
     break;
-  default:
-    break;
+    
+  case PlaybackControlEvent::STOP_NOTE:
+    {
+      auto track_state = state.getTrackState(ev.getParameter1());
+      if (track_state) track_state->stopVoices(ev.getParameter2());
+    }      
+    break;            
   }
-
-  state.handleEvent(ev);
 }
 
 void
@@ -170,7 +191,7 @@ Player::createPlaybackEvent(const Song & song, SongState & state) {
 
 
 std::unique_ptr<Mixer>
-Player::createMixer(unsigned int out_channels, MixerType type) {
+Player::createMixer(short out_channels, MixerType type) {
   switch (type) {
   case MixerType::HRFT: return make_unique<HRFT>(out_channels, outSampleRate);
   case MixerType::BASIC: return make_unique<BasicMixer>(out_channels, outSampleRate);

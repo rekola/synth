@@ -38,14 +38,14 @@ FileInstrument::openFile() {
   int k, readcount;
   while ((readcount = (int) sf_readf_float (infile, buf, frames)) > 0) {
     for (k = 0 ; k < readcount; k++) {
-      buffer.push_back(buf[k * channels + 0]);
+      buffer.push_back(buf[k]);
     }
   }
 
   free(buf);
   sf_close(infile);
 
-  samples = make_shared<SampleData>(1, buffer.size());
+  samples = make_shared<SampleData>(channels, buffer.size());
   auto out_buffer = samples->data();
   for (size_t i = 0; i < samples->size(); i++) {
     out_buffer[i] = buffer[i];
@@ -54,28 +54,38 @@ FileInstrument::openFile() {
 
 class FileInstrumentVoice : public InstrumentVoice {
 public:
-  FileInstrumentVoice(ChannelConfiguration _channel_config, unsigned int _outSampleRate, float _azimuth, std::shared_ptr<SampleData> _samples)
+  FileInstrumentVoice(ChannelConfiguration _channel_config, int _outSampleRate, float _azimuth, std::shared_ptr<SampleData> _samples)
     : InstrumentVoice(_channel_config, _outSampleRate, _azimuth), samples(_samples) { }
 
   SampleData render(size_t frames) override {
     float gain = decibelsToGain(getGainDB());
 
-    SampleData output(1, frames);
+    SampleData output(getChannelConfiguration(), frames);
+    auto outChannels = output.getChannels();
     auto buffer = output.data();
+
+    auto inChannels = samples->getChannels();
     
     for (size_t k = 0; k < frames; k++) {
       // float i = getFphase() * WAVESIZE / getOutSampleRate();
       size_t i = (size_t)getSourceSamplePosition();
       stepForward(1);
 
-      float s;
-      if (i < samples->size()) {
-	s = samples->data()[i];
+      if (i >= samples->size()) {
+	for (size_t l = 0; l < outChannels; l++) {
+	  buffer[outChannels * k + l] = 0.0f;
+	}
+      } else if (outChannels == inChannels) {	
+	for (size_t l = 0; l < outChannels; l++) {
+	  buffer[outChannels * k + l] = samples->data()[i * inChannels + l] * gain;
+	}
+      } else if (inChannels == 1) {
+	for (size_t l = 0; l < outChannels; l++) {
+	  buffer[outChannels * k + l] = samples->data()[i] * gain;
+	}
       } else {
-	s = 0.0f;
+	assert(0);
       }
-
-      buffer[k] += s * gain;
     }
         
     return output;
@@ -90,7 +100,7 @@ private:
 };
 
 std::unique_ptr<TrackState>
-FileInstrument::playNote(ChannelConfiguration channel_config, unsigned int outSampleRate, float azimuth, float frequency, float velocity, float start_phase) const {
+FileInstrument::playNote(ChannelConfiguration channel_config, int outSampleRate, float azimuth, float frequency, float velocity, float start_phase) const {
   auto voice = std::make_unique<FileInstrumentVoice>(channel_config, outSampleRate, azimuth, samples);
   voice->playNote(frequency, velocity, start_phase);
   return voice;

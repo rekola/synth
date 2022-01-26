@@ -15,7 +15,7 @@ int main(int argc, char *argv[]) {
   int load_demo = 0;
   int samplerate = 44100;
   bool relative = false;
-  ChannelConfiguration channel_config = ChannelConfiguration::MONO;
+  ChannelConfiguration channel_config = ChannelConfiguration::STEREO;
   vector<string> input;
   
   for (int i = 1; i < argc; i++) {

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="31edo" tempo="300" volume="1.0" randomization="0.0099999998">
+  <instruments>
+    <filter name="sub test" fcut="0.4" fres="0.9">
+      <multiply unisons="8" detune="0.005">
+	<oscilator type="triangle" />
+      </multiply>
+    </filter>
+
+    <distortion name="bass1" param="0.9" drive="1.5" type="hardclip">
+      <envelope attack="0.02" hold="0.519" decay="1.35" sustain="0.0" release="0.015" >
+	<oscilator type="sine" level="2.0">
+	  <oscilator type="sine" harmonic="2" subharmonic="3"/>
+	</oscilator>
+      </envelope>
+    </distortion>
+
+    <distortion name="bass2" param="1.0" type="softclip" drive="15.0">
+      <envelope attack="0.02" hold="0.519" decay="1.35" sustain="0.0" release="0.015">	
+	<filter fcut="0.1" fres="0.4">
+	  <multiply unisons="8" detune="0.005">
+	    <oscilator type="saw" />
+	  </multiply>
+	</filter>
+      </envelope>
+    </distortion>
+
+    <envelope name="bass3" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">	
+      <filter fcutmin="0.05" fcutmax="0.5" fres="0.1" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">
+	<oscilator type="square" />
+	<multiply unisons="8" detune="0.005">
+	  <oscilator type="triangle" harmonic="2" />
+	</multiply>
+      </filter>
+    </envelope>
+
+    <oscilator name="fm test" type="sine">
+      <oscilator type="sine" level="0.7" harmonic="3" subharmonic="4"/>	
+    </oscilator>
+
+    <genericInstrument name="Cello">
+      <oscilator name="blah" type="sine" harmonic="3" subharmonic="4"/>
+    </genericInstrument>
+
+    <genericInstrument name="Cello">
+      <genericInstrument name="Acoustic Guitar (nylon)" />
+    </genericInstrument>
+
+    <genericInstrument name="Cello">
+    </genericInstrument>
+
+    <group>
+      <genericInstrument name="Acoustic Guitar (nylon)" />
+      <genericInstrument name="Yamaha C5 Grand" />
+    </group>
+
+    <distortion name="distortion test" param="0.25">
+      <genericInstrument name="Rhodes Piano" />
+    </distortion>
+    
+    <filter fcut="0.1" fres="0.1">
+      <oscilator name="test1" type="saw" />
+    </filter>
+    <filter fcut="0.1" fres="0.1">
+      <oscilator name="test2" type="square" />
+    </filter>
+  </instruments>
+  <tracks>
+    <track id="0" instrument="0" />
+    <track id="1" instrument="1" />
+  </tracks>
+  
+  <patterns>
+    <pattern rows="128">
+      <note row="0" track="0" velocity="40">C-4</note>
+      <note row="2" track="0" velocity="40">D#4</note>
+      <note row="4" track="0" velocity="40">G-4</note>
+      <note row="6" track="0" velocity="40">A-4</note>
+    </pattern>
+  </patterns>
+</song>

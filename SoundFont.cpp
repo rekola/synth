@@ -29,7 +29,6 @@
 #include "LFO.h"
 #include "InstrumentVoice.h"
 #include "SampleData.h"
-#include "VoicePool.h"
 
 #include "defaults.h"
 
@@ -617,7 +616,7 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
 
 class SoundFontVoice : public InstrumentVoice {
 public:
-  SoundFontVoice(ChannelConfiguration _channel_config, unsigned int _outSampleRate, float _azimuth, std::shared_ptr<SoundFontFile> _sf, size_t _preset, size_t _region_idx, size_t _fixedMidiKey)
+  SoundFontVoice(ChannelConfiguration _channel_config, int _outSampleRate, float _azimuth, std::shared_ptr<SoundFontFile> _sf, size_t _preset, size_t _region_idx, size_t _fixedMidiKey)
     : InstrumentVoice(_channel_config, _outSampleRate, _azimuth), sf(_sf), preset(_preset), region_idx(_region_idx), fixedMidiKey(_fixedMidiKey) {
   }
   
@@ -731,9 +730,8 @@ SampleData
 SoundFontVoice::render(size_t numSamples) {
   auto f = sf.get();
 
-  unsigned int num_channels = getChannelConfiguration() == ChannelConfiguration::MONO ? 1 : 2;
-  
-  SampleData outputData(num_channels, numSamples);
+  SampleData outputData(getChannelConfiguration(), numSamples);
+  auto num_channels = outputData.getChannels();
   float * output = outputData.data();
     
   float * input = f->fontSamples;
@@ -960,7 +958,7 @@ class SoundFontInstrument : public Instrument {
 public:
   SoundFontInstrument(std::shared_ptr<SoundFontFile> _sf, size_t _preset, size_t _fixedMidiKey) : sf(_sf), preset(_preset), fixedMidiKey(_fixedMidiKey) { }
   
-  std::unique_ptr<TrackState> playNote(ChannelConfiguration channel_config, unsigned int outSampleRate, float azimuth, float frequency, float velocity, float start_phase) const override {    
+  std::unique_ptr<TrackState> playNote(ChannelConfiguration channel_config, int outSampleRate, float azimuth, float frequency, float velocity, float start_phase) const override {    
     assert(frequency > 0);
     vector<unique_ptr<TrackState> > voices;
 
@@ -989,7 +987,7 @@ public:
 
 	// create modulators for voice
 	for (auto & child : getChildren()) {
-	  auto modulator = child->playNote(ChannelConfiguration::MONO, outSampleRate, azimuth, frequency, velocity, start_phase);
+	  auto modulator = child->playNote(ChannelConfiguration::MONO, outSampleRate, 0.0f, frequency, velocity, start_phase);
 	  if (modulator.get()) voice->addChild(move(modulator));
 	}
 

@@ -12,6 +12,7 @@
 #include "PlaybackEvent.h"
 #include "LogEvent.h"
 #include "RecordEvent.h"
+#include "PlaybackControlEvent.h"
 
 #include <fmt/core.h>
 #include <thread>
@@ -88,11 +89,8 @@ UI::offerInput(const InputEvent & input) {
     
     handled = true;
   } else if (input.getId() == ' ') {
-    auto info = getController().getPlaybackInfo();
-    info.is_playing = !info.is_playing;
-    getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(info.is_playing ? PlaybackControlEvent::PLAY : PlaybackControlEvent::STOP));
-    setStatus(info.is_playing ? "Playing" : "Stopped");
-    getController().setPlaybackInfo(info);
+    bool playing = getController().togglePlaying();
+    setStatus(playing ? "Playing" : "Stopped");
     handled = true;
   } else if (input.getId() == NCKEY_BUTTON1) {
     setStatus(format("mouse: {} {}", input.getY(), input.getX()));
@@ -170,7 +168,6 @@ UI::handleLogEvent(LogEvent & ev) {
 
 void
 UI::handleMidiEvent(MidiEvent & ev) {
-  logger.log("midi event");
   pattern_editor->handleMidiEvent(ev);
 }
 

@@ -27,7 +27,7 @@ class PlaybackInfo {
   void setTrackInfo(int track_id, TrackInfo info) { effect_info[track_id] = info; }
   
   bool is_playing = true;
-  unsigned int outSampleRate = 0;
+  int outSampleRate = 0;
   size_t sample_interval = 0;
   size_t sample_pos = 0, pattern_idx = 0, row_idx = 0, absolute_pos = 0;
   size_t voice_count = 0, allocated_voice_count = 0;

@@ -2,8 +2,6 @@
 
 #include "TrackState.h"
 
-#include "tinyxml2.h"
-
 #include <cmath>
 #include <cstddef>
 
@@ -11,7 +9,7 @@ using namespace std;
 
 class CompressorState : public TrackState {
 public:
-  CompressorState(ChannelConfiguration _channel_config, unsigned int _outSampleRate, const Compressor & compressor)
+  CompressorState(ChannelConfiguration _channel_config, int _outSampleRate, const Compressor & compressor)
     : TrackState(_channel_config, _outSampleRate),
       f_thresh(compressor.getTreshold()),
       f_ratio(compressor.getRatio()),
@@ -119,16 +117,16 @@ private:
 };
 
 std::unique_ptr<TrackState>
-Compressor::createState(ChannelConfiguration channel_config, unsigned int outSampleRate) const {
+Compressor::createState(ChannelConfiguration channel_config, int outSampleRate) const {
   return make_unique<CompressorState>(channel_config, outSampleRate, *this);
 }
 
 void
-Compressor::readXML(tinyxml2::XMLElement & element) {
-  Effect::readXML(element);
+Compressor::loadParameters(const ParameterSource & input) {
+  Effect::loadParameters(input);
 }
 
 void
-Compressor::populateXML(tinyxml2::XMLElement & element) const {
-  Effect::populateXML(element);  
+Compressor::storeParameters(ParameterSource & output) const {
+  Effect::storeParameters(output);
 }

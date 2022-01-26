@@ -3,6 +3,7 @@
 #include "Song.h"
 #include "SoundFont.h"
 #include "InstrumentTrack.h"
+#include "PlaybackControlEvent.h"
 
 #include <cassert>
 #include <iostream>
@@ -542,4 +543,13 @@ Controller::sendCommand(const std::string & cmd) {
     return false;
   }
   return true;
+}
+
+bool
+Controller::togglePlaying() {
+  auto info = getPlaybackInfo();
+  info.is_playing = !info.is_playing;
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(info.is_playing ? PlaybackControlEvent::PLAY : PlaybackControlEvent::STOP));
+  setPlaybackInfo(info);
+  return info.is_playing;
 }

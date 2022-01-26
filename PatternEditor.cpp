@@ -8,6 +8,7 @@
 #include "InstrumentTrack.h"
 #include "SampleTrack.h"
 #include "MidiEvent.h"
+#include "PlaybackControlEvent.h"
 
 #include <string>
 #include <fmt/core.h>
@@ -193,6 +194,8 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
   auto & song = getController().getSong();
   auto & info = getController().getPlaybackInfo();
 
+  bool was_playing = !active_midi_notes.empty();
+
   vector<int> track_ids;
   get_root_track_ids(song, track_ids);
 
@@ -203,7 +206,6 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
   int key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
 
   bool is_off = ev.getType() == MidiEvent::NOTE_OFF || (ev.getType() == MidiEvent::NOTE_ON && ev.getVelocity() == 0);
-  int note_column = 0;
 
   int note_value = 0;
   if (tuning == Tuning::TET12) note_value = ev.getNote();
@@ -218,26 +220,22 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
       }
     }   
   }
-  
-  for (; note_column < active_midi_notes.size(); note_column++) {
-    if (active_midi_notes[note_column] == ev.getNote()) {
-      break;
-    } else if (active_midi_notes[note_column] == 0) {
-      active_midi_notes[note_column] = ev.getNote();
-      break;
-    }
-  }
-  
-  if (note_column >= active_midi_notes.size()) {
-    active_midi_notes.push_back(ev.getNote());
-  }
 
+  int note_column;
+  auto it = active_midi_notes.find(ev.getNote());
+  if (it != active_midi_notes.end()) {
+    note_column = it->second;
+  } else {
+    active_midi_notes[ev.getNote()] = note_column = active_midi_notes.size();
+    cerr << "new note: " << note_column << endl;
+  }
+  
   if (is_off) {
-    active_midi_notes[note_column] = 0;
+    active_midi_notes.erase(ev.getNote());
     event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, track_id, note_column));
-  } else if (ev.getType() == MidiEvent::NOTE_ON) {
-    active_midi_notes[note_column] = ev.getNote();
 
+    pattern.setNote(info.getRowIndex(), track_id, note_column, Note(0, 0));
+  } else if (ev.getType() == MidiEvent::NOTE_ON) {
     event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, track_id, note_column, note_value, ev.getVelocity()));
 
     Note note(note_value, ev.getVelocity());
@@ -252,11 +250,11 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
     row_edited = true;
   }
 
-#if 0
-  if (row_edited && !info.isPlaying()) {
-    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, edit_step_size));
+  if ((!was_playing && !active_midi_notes.empty() && !info.is_playing) ||
+      (was_playing && active_midi_notes.empty() && info.is_playing)) {
+    bool playing = getController().togglePlaying();
+    // setStatus(playing ? "Playing" : "Stopped");
   }
-#endif
 }
 
 bool
@@ -344,7 +342,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	if (instrument_track.getInstrumentId() > 0) {
 	  instrument_track.setInstrumentId(instrument_track.getInstrumentId() - 1);
 	  song.incVersion();
-	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, current_cursor.track));
+	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, instrument_track.getId()));
 	}
       }
       return true;
@@ -356,7 +354,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	if (instrument_track.getInstrumentId() + 1 < instruments.size()) {
 	  instrument_track.setInstrumentId(instrument_track.getInstrumentId() + 1);
 	  song.incVersion();
-	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, current_cursor.track));
+	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, instrument_track.getId()));
 	}
       }
       return true;

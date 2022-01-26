@@ -3,14 +3,13 @@
 #include "SampleData.h"
 #include "TrackState.h"
 
-#include "tinyxml2.h"
 #include <iostream>
 
 using namespace std;
 
 class DistortionState : public TrackState {
 public:
-  DistortionState(ChannelConfiguration _channel_config, unsigned int _outSampleRate, DistortionType _type, float _param, float _drymix, float _drive)
+  DistortionState(ChannelConfiguration _channel_config, int _outSampleRate, DistortionType _type, float _param, float _drymix, float _drive)
     : TrackState(_channel_config, _outSampleRate), type(_type), param(_param), drymix(_drymix), drive(_drive) { }
   
   void apply(SampleData & input) override {    
@@ -68,50 +67,28 @@ private:
 };
 
 std::unique_ptr<TrackState>
-Distortion::createState(ChannelConfiguration channel_config, unsigned int outSampleRate) const {
+Distortion::createState(ChannelConfiguration channel_config, int outSampleRate) const {
   return make_unique<DistortionState>(channel_config, outSampleRate, type, param, drymix, drive);
 }
 
 void
-Distortion::readXML(tinyxml2::XMLElement & element) {
-  Effect::readXML(element);
+Distortion::loadParameters(const ParameterSource & input) {
+  Effect::loadParameters(input);
+   
+  param = input.getFloat("param");
+  drive = input.getFloat("drive");
   
-  auto param_text = element.Attribute("param");
-  param = param_text ? strtof(param_text, nullptr) : 1.0f;
-
-  auto drive_text = element.Attribute("drive");
-  drive = drive_text ? strtof(drive_text, nullptr) : 1.0f;
-
-  auto type_text = element.Attribute("type");
-  if (type_text) {
-    if (strcmp(type_text, "hardclip") == 0) type = DistortionType::HARD_CLIP;
-    else if (strcmp(type_text, "softclip") == 0) type = DistortionType::SOFT_CLIP;
-    else if (strcmp(type_text, "bitchrush") == 0) type = DistortionType::BITCRUSH;
-  }
+  auto type_text = input.getText("type");
+  if (type_text == "hardclip") type = DistortionType::HARD_CLIP;
+  else if (type_text == "softclip") type = DistortionType::SOFT_CLIP;
+  else if (type_text == "bitchrush") type = DistortionType::BITCRUSH;  
 }
 
 void
-Distortion::populateXML(tinyxml2::XMLElement & element) const {
-  Effect::populateXML(element);  
+Distortion::storeParameters(ParameterSource & output) const {
+  Effect::storeParameters(output);
 
-  element.SetAttribute("param", param);
-  element.SetAttribute("drive", drive);
-
-  switch (type) {
-  case DistortionType::HARD_CLIP:
-    element.SetAttribute("type", "hardclip");
-    break;
-
-  case DistortionType::SOFT_CLIP:
-    element.SetAttribute("type", "softclip");    
-    break;
-    
-  case DistortionType::BITCRUSH:
-    element.SetAttribute("type", "bitcrush");
-    break;
-
-  case DistortionType::TANH:
-    element.SetAttribute("type", "tanh");
-    break;
-  }
+  output.set("param", param);
+  output.set("drive", drive);
+  output.set("type", to_string(type));
 }

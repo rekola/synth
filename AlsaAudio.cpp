@@ -22,7 +22,7 @@ AlsaAudio::~AlsaAudio() {
   }
 }
 
-static size_t initialize_alsa_dev(Logger & logger, snd_pcm_t * handle, unsigned int rate, size_t channels, bool capture) {
+static size_t initialize_alsa_dev(Logger & logger, snd_pcm_t * handle, int rate, short channels, bool capture) {
   int r;
   
   // Allocate parameters object and fill it with default values
@@ -46,7 +46,8 @@ static size_t initialize_alsa_dev(Logger & logger, snd_pcm_t * handle, unsigned 
     return 0;
   }
 
-  if ((r = snd_pcm_hw_params_set_rate_near(handle, hw_params, &rate, 0)) < 0) {
+  unsigned int actual_rate = rate;
+  if ((r = snd_pcm_hw_params_set_rate_near(handle, hw_params, &actual_rate, 0)) < 0) {
     logger.log(string("ERROR: Can't set rate: ") + snd_strerror(r));
     return 0;
   }

@@ -6,9 +6,6 @@
 #include "SampleData.h"
 #include "TrackEventQueue.h"
 
-#include "tinyxml2.h"
-
-using namespace tinyxml2;
 using namespace std;
 
 SampleData
@@ -54,28 +51,21 @@ InstrumentTrack::render(size_t frames, SongState & song_state, const std::vector
 }
 
 void
-InstrumentTrack::readXML(XMLElement & element) {
-  Track::readXML(element);
+InstrumentTrack::loadParameters(const ParameterSource & input) {
+  Track::loadParameters(input);
 
-  auto instrument_text = element.Attribute("instrument");
-  setInstrumentId(instrument_text ? atoi(instrument_text) : 0);
-
-  auto azimuth_text = element.Attribute("azimuth");
-  auto distance_text = element.Attribute("distance");
-  auto elevation_text = element.Attribute("elevation");
-
-  setAzimuth(azimuth_text ? strtof(azimuth_text, nullptr) : 0.0f);
-  setDistance(distance_text ? strtof(distance_text, nullptr) : 0.0f);
-  setElevation(elevation_text ? strtof(elevation_text, nullptr) : 0.0f);  
+  setInstrumentId(input.getInt("instrument"));
+  setAzimuth(input.getFloat("azimuth"));
+  setDistance(input.getFloat("distance"));
+  setElevation(input.getFloat("elevation"));
 }
 
 void
-InstrumentTrack::populateXML(XMLElement & element) const {
-  Track::populateXML(element);
+InstrumentTrack::storeParameters(ParameterSource & output) const {
+  Track::storeParameters(output);
   
-  element.SetAttribute("instrument", getInstrumentId());
-  
-  element.SetAttribute("azimuth", getAzimuth());
-  element.SetAttribute("distance", getDistance());
-  element.SetAttribute("elevation", getElevation());
+  output.set("instrument", getInstrumentId());
+  output.set("azimuth", getAzimuth());
+  output.set("distance", getDistance());
+  output.set("elevation", getElevation());
 }

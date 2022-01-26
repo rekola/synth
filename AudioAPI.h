@@ -12,7 +12,7 @@ class Logger;
 
 class AudioAPI {
  public:
-  explicit AudioAPI(unsigned int _frequency, unsigned short _channels) : frequency(_frequency), channels(_channels) { }
+  explicit AudioAPI(int _frequency, short _channels) : frequency(_frequency), channels(_channels) { }
   virtual ~AudioAPI() { }
   
   virtual void play(const SampleData & data, Logger & logger) = 0;
@@ -22,8 +22,8 @@ class AudioAPI {
   virtual void stopRecording() = 0;
   virtual std::vector<MidiEvent> recordMIDI() = 0;
   
-  unsigned int getFrequency() const { return frequency; }
-  unsigned short getChannels() const { return channels; }
+  int getFrequency() const { return frequency; }
+  short getChannels() const { return channels; }
 
   const std::vector<pollfd> getPlaybackDescriptors() const { return playback_descriptors; }
   const std::vector<pollfd> getCaptureDescriptors() const { return capture_descriptors; }
@@ -36,8 +36,8 @@ protected:
   void setMidiCaptureDescriptors(const std::vector<pollfd> & d) { midi_capture_descriptors = d; }
   
 private:
-  unsigned int frequency;
-  unsigned short channels;
+  int frequency;
+  short channels;
   std::vector<pollfd> playback_descriptors, capture_descriptors, midi_capture_descriptors;
 };
 

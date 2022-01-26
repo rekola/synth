@@ -4,7 +4,6 @@
 #include "TrackState.h"
 #include "EnvelopeState.h"
 
-#include "tinyxml2.h"
 #include "defaults.h"
 #include <cassert>
 
@@ -14,7 +13,7 @@ struct filter_state_s {
   float in1 = 0, in2 = 0, in3 = 0, in4 = 0;
   float out1 = 0, out2 = 0, out3 = 0, out4 = 0;
 
-  void apply(unsigned int numChannels, size_t blockSamples, unsigned int channel, float * buffer, float fcut, float fres, bool is_highpass) {
+  void apply(int numChannels, size_t blockSamples, int channel, float * buffer, float fcut, float fres, bool is_highpass) {
     for (size_t i = 0; i < blockSamples; i++) {
       size_t offset = numChannels * i + channel;
       float input = buffer[offset];
@@ -43,13 +42,12 @@ struct filter_state_s {
 
 class FilterState : public TrackState {
 public:
-  FilterState(ChannelConfiguration _channel_config, unsigned int _outSampleRate, const Filter & filter, const Envelope & envelope)
+  FilterState(ChannelConfiguration _channel_config, int _outSampleRate, const Filter & filter, const Envelope & envelope)
     : TrackState(_channel_config, _outSampleRate), fcut_min(filter.get_fcut_min()), fcut_max(filter.get_fcut_max()), fres(filter.get_fres()), is_highpass(filter.get_is_highpass()), envelope_state(_outSampleRate, envelope, 0, 0, true) { }
 
-  void applyAftertouch(float aftertouch) override {
+  void applyAftertouch(float _aftertouch) override {
     TrackState::applyAftertouch(aftertouch);
-
-    
+    aftertouch = _aftertouch;
   }
   
   void apply(SampleData & input_data) override {
@@ -59,13 +57,13 @@ public:
 	 )
 	) return;
     
-    float * buffer = input_data.data();
-    size_t numSamples = input_data.size();
-    unsigned int numChannels = input_data.getChannels();
+    auto buffer = input_data.data();
+    auto numSamples = input_data.size();
+    auto numChannels = input_data.getChannels();
     
     while (numSamples) {
       size_t blockSamples = numSamples > RENDER_EFFECTSAMPLEBLOCK ? RENDER_EFFECTSAMPLEBLOCK : numSamples;
-      float current_fcut = fcut_min + envelope_state.getLevel() * (fcut_max - fcut_min);
+      float current_fcut = fcut_min + aftertouch * envelope_state.getLevel() * (fcut_max - fcut_min);
 
       if (numChannels == 1) {
 	left_state.apply(numChannels, blockSamples, 0, buffer, current_fcut, fres, is_highpass);
@@ -82,6 +80,7 @@ public:
 
 private:
   float fcut_min, fcut_max, fres;
+  float aftertouch = 1.0f;
   bool is_highpass;
 
   filter_state_s left_state, right_state;
@@ -90,48 +89,30 @@ private:
 };
 
 std::unique_ptr<TrackState>
-Filter::createState(ChannelConfiguration config, unsigned int outSampleRate) const {
-  return make_unique<FilterState>(config, outSampleRate, *this, envelope);
+Filter::createState(ChannelConfiguration config, int outSampleRate) const {
+  return make_unique<FilterState>(config, outSampleRate, *this, envelope_);
 }
 
 void
-Filter::readXML(tinyxml2::XMLElement & element) {
-  Effect::readXML(element);
+Filter::loadParameters(const ParameterSource & input) {
+  Effect::loadParameters(input);
   
-  auto fcut_text = element.Attribute("fcut");
-  if (fcut_text) {
-    fcut_min = fcut_max = strtof(fcut_text, nullptr);
+  if (input.has("fcut")) {
+    fcut_min_ = fcut_max_ = input.getFloat("fcut", 0.0f);
   } else {
-    auto fcut_min_text = element.Attribute("fcutmin");
-    fcut_min = fcut_min_text ? strtof(fcut_min_text, nullptr) : 0.0f;
-
-    auto fcut_max_text = element.Attribute("fcutmax");
-    fcut_max = fcut_max_text ? strtof(fcut_max_text, nullptr) : 0.0f;
+    fcut_min_ = input.getFloat("fcutmin", 0.0f);
+    fcut_max_ = input.getFloat("fcutmax", 0.0f);
   }
 
-  auto fres_text = element.Attribute("fres");
-  fres = fres_text ? strtof(fres_text, nullptr) : 0.0f;
+  fres_ = input.getFloat("fres");
+  aftertouch_ = input.getBool("aftertouch");
 
-  auto attack_text = element.Attribute("attack");
-  envelope.attack = attack_text ? strtof(attack_text, nullptr) : 0.0f;
-
-  auto hold_text = element.Attribute("hold");
-  envelope.hold = hold_text ? strtof(hold_text, nullptr) : 0.0f;
-
-  auto decay_text = element.Attribute("decay");
-  envelope.decay = decay_text ? strtof(decay_text, nullptr) : 0.0f;
-
-  auto sustain_text = element.Attribute("sustain");
-  envelope.sustain = sustain_text ? strtof(sustain_text, nullptr) : 1.0f;
-
-  auto release_text = element.Attribute("release");
-  envelope.release = release_text ? strtof(release_text, nullptr) : 0.0f;
-
-  auto aftertouch_text = element.Attribute("aftertouch");
-  aftertouch = aftertouch_text && atoi(aftertouch_text) ? true : false;
+  envelope_.loadParameters(input);
 }
 
 void
-Filter::populateXML(tinyxml2::XMLElement & element) const {
-  Effect::populateXML(element);  
+Filter::storeParameters(ParameterSource & output) const {
+  Effect::storeParameters(output);
+
+  envelope_.storeParameters(output);
 }

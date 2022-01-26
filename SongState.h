@@ -1,58 +1,23 @@
 #ifndef _SONGSTATE_H_
 #define _SONGSTATE_H_
 
-#include "EventHandler.h"
 #include "Song.h"
-#include "VoicePool.h"
-#include "PlaybackControlEvent.h"
 #include "TrackState.h"
 #include "Tuner.h"
 #include "TrackEventQueue.h"
 
 #include <memory>
 
-class SongState : public EventHandler {
+class SongState : public TrackState {
  public:
-  explicit SongState(ChannelConfiguration _channel_config, int _outSampleRate) : channel_config(_channel_config), outSampleRate(_outSampleRate) { }
-
-  void handlePlaybackControlEvent(PlaybackControlEvent & ev) {
-    switch (ev.getType()) {
-    case PlaybackControlEvent::PLAY:
-      is_playing = true;
-      break;
-    case PlaybackControlEvent::STOP:
-      is_playing = false;
-      break;
-    case PlaybackControlEvent::MOVE_POSITION:
-      {
-	if (ev.getParameter1() > 0) moveForward(ev.getParameter1());
-	else if (ev.getParameter1() < 0) moveBackwards(-ev.getParameter1());
-      }
-      break;
-    case PlaybackControlEvent::CLEAR_VOICES:
-      {
-	auto it = track_voices.find(ev.getParameter1());
-	if (it != track_voices.end()) it->second->clear();
-      }
-      break;
-    case PlaybackControlEvent::STOP_NOTE:
-      {
-	auto it = track_voices.find(ev.getParameter1());
-	if (it != track_voices.end()) {
-	  it->second->stopVoices(ev.getParameter2());
-	}
-      }
-      break;      
-    default:
-      break;
-    }
-  }
+  explicit SongState(ChannelConfiguration channel_config, int outSampleRate) : TrackState(channel_config, outSampleRate) { }
 
   size_t getTickInterval(const Song & song) const {
     return song.getSampleInterval(getOutSampleRate()) / 12;
   }
   
   bool isPlaying() const { return is_playing; }
+  void setIsPlaying(bool b) { is_playing = b; }
 
   const size_t getAbsolutePosition() const { return absolute_pos; }
   const size_t getSamplePos() const { return sample_pos; }
@@ -64,7 +29,7 @@ class SongState : public EventHandler {
       sample_pos++;
       
       if (sample_pos == sinterval) {
-	moveForward();
+	movePosition(1);
       }
     }
   }
@@ -87,35 +52,18 @@ class SongState : public EventHandler {
     return sample_pos == 0 ? sinterval : sinterval - sample_pos;    
   }
   
-  void moveForward(size_t rows = 1) {
+  void movePosition(int n_rows) {
     sample_pos = 0;
-    absolute_pos += rows;
-  }
-
-  void moveBackwards(size_t rows = 1) {
-    sample_pos = 0;
-    if (absolute_pos > rows) {
-      absolute_pos -= rows;
+    if (n_rows >= 0 || absolute_pos + n_rows >= 0) {
+      absolute_pos += n_rows;
     } else {
       absolute_pos = 0;
     }
   }
   
-  VoicePool & getTrackVoices(int track_id) {
-    auto it = track_voices.find(track_id);
-    if (it != track_voices.end()) {
-      return *(it->second);
-    } else {
-      auto s = std::make_unique<VoicePool>(getOutSampleRate());
-      auto ptr = s.get();
-      track_voices[track_id] = std::move(s);
-      return *ptr;
-    }
-  }
-
   size_t getVoiceCount() const {
     size_t n = 0;
-    for (auto & td : track_voices) {
+    for (auto & td : track_states) {
       n += td.second->getVoiceCount();
     }
     return n;
@@ -123,21 +71,25 @@ class SongState : public EventHandler {
 
   size_t getAllocatedVoiceCount() const {
     size_t n = 0;
-    for (auto & td : track_voices) {
+    for (auto & td : track_states) {
       n += td.second->getAllocatedVoiceCount();
     }
     return n;
   }
 
-  unsigned int getOutSampleRate() const { return outSampleRate; }
-
   TrackState & getTrackState(const Track & track) {
     auto it = track_states.find(track.getId());
     if (it != track_states.end()) return *(it->second);
-    auto state = track.createState(channel_config, outSampleRate);
+    auto state = track.createState(getChannelConfiguration(), getOutSampleRate());
     auto ptr = state.get();
     track_states[track.getId()] = std::move(state);
     return *ptr;
+  }
+
+  TrackState * getTrackState(int id) {
+    auto it = track_states.find(id);
+    if (it != track_states.end()) return it->second.get();
+    return nullptr;    
   }
 
   const std::unordered_map<int, std::unique_ptr<TrackState> > & getTrackStates() const { return track_states; }
@@ -145,17 +97,12 @@ class SongState : public EventHandler {
   Tuner & getTuner() { return tuner; }
   TrackEventQueue & getEventQueue() { return track_events; }
 
-  ChannelConfiguration getChannelConfiguration() const { return channel_config; }
-
 private:
-  ChannelConfiguration channel_config;
-  unsigned int outSampleRate;
   bool is_playing = false;
-  size_t sample_pos = 0, absolute_pos = 0;
+  int sample_pos = 0, absolute_pos = 0;
   Tuner tuner;
   TrackEventQueue track_events;
   
-  std::unordered_map<int, std::unique_ptr<VoicePool> > track_voices;
   std::unordered_map<int, std::unique_ptr<TrackState> > track_states;
 };
   

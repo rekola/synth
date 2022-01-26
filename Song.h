@@ -82,7 +82,7 @@ class Song : public Track {
 
   std::string getElementName() const override { return "song"; }
 
-  size_t getSampleInterval(unsigned int outSampleRate) const {
+  size_t getSampleInterval(int outSampleRate) const {
     return (size_t)(60.0f / getTempo() * 0.25f * 2.0f * outSampleRate);
   }
 

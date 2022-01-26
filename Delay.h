@@ -8,10 +8,10 @@ class Delay : public Effect {
   Delay(int _delay = 0.0f, float _fd = 0.0f, float _delaymix = 0.0f) : delay(_delay), fd(_fd), delaymix(_delaymix) {
   }
 
-  std::unique_ptr<TrackState> createState(ChannelConfiguration channel_config, unsigned int outSamplerate) const override;
+  std::unique_ptr<TrackState> createState(ChannelConfiguration channel_config, int outSamplerate) const override;
   std::string getElementName() const override { return "delay"; }
-  void readXML(tinyxml2::XMLElement & element) override;
-  void populateXML(tinyxml2::XMLElement & element) const override;
+  void loadParameters(const ParameterSource & input) override;
+  void storeParameters(ParameterSource & output) const override;
 
  private:
   int delay;

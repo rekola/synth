@@ -51,7 +51,7 @@ public:
   TerminalPlane(std::shared_ptr<Controller> & _controller, Plane * _plane, bool _owner = true) : UIPlane(_controller), plane(_plane), owner(_owner) {
     unsigned int y, x;
     plane->get_dim(&y, &x);
-    setDim(pair(y, x));
+    setDim(pair(static_cast<int>(y), static_cast<int>(x)));
     setPosition(pair(0, 0));
   }
   ~TerminalPlane() {
@@ -140,8 +140,8 @@ public:
 	// 0, 4, nullptr, nullptr);
 	.y = 0,
 	.x = 0,
-	.rows = (unsigned int)rows,
-	.cols = (unsigned int)cols,
+	.rows = static_cast<unsigned int>(rows),
+	.cols = static_cast<unsigned int>(cols),
 	.userptr = nullptr,
 	.name = nullptr,
 	.resizecb = nullptr,

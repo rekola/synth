@@ -2,15 +2,13 @@
 
 #include "TrackState.h"
 
-#include "tinyxml2.h"
-
 #define MAX_DELAY_SAMPLES 44100 * 5
 
 using namespace std;
 
 class DelayState : public TrackState {
 public:
-  DelayState(ChannelConfiguration _channel_config, unsigned int _outSampleRate, int _delay, float _fd, float _delaymix)
+  DelayState(ChannelConfiguration _channel_config, int _outSampleRate, int _delay, float _fd, float _delaymix)
     : TrackState(_channel_config, _outSampleRate), delay(_delay), fd(_fd), delaymix(_delaymix) {
     memset(delaybuf, 0, MAX_DELAY_SAMPLES * sizeof(float));
   }
@@ -40,29 +38,24 @@ private:
 };
 
 std::unique_ptr<TrackState>
-Delay::createState(ChannelConfiguration channel_config, unsigned int outSampleRate) const {
+Delay::createState(ChannelConfiguration channel_config, int outSampleRate) const {
   return make_unique<DelayState>(channel_config, outSampleRate, delay, fd, delaymix);
 }
 
 void
-Delay::readXML(tinyxml2::XMLElement & element) {
-  Effect::readXML(element);
-  
-  auto delay_text = element.Attribute("delay");
-  if (delay_text) delay = atoi(delay_text);
-
-  auto fd_text = element.Attribute("fd");
-  if (fd_text) fd = strtof(fd_text, nullptr);
-
-  auto delaymix_text = element.Attribute("mix");
-  if (delaymix_text) delaymix = strtof(delaymix_text, nullptr);
+Delay::loadParameters(const ParameterSource & input) {
+  Effect::loadParameters(input);
+    
+  delay = input.getInt("delay");
+  fd = input.getFloat("fd");
+  delaymix = input.getFloat("mix");
 }
 
 void
-Delay::populateXML(tinyxml2::XMLElement & element) const {
-  Effect::populateXML(element);
+Delay::storeParameters(ParameterSource & output) const {
+  Effect::storeParameters(output);
 
-  element.SetAttribute("delay", delay);
-  element.SetAttribute("fd", fd);
-  element.SetAttribute("mix", delaymix);
+  output.set("delay", delay);
+  output.set("fd", fd);
+  output.set("mix", delaymix);
 }

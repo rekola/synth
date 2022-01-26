@@ -2,33 +2,23 @@
 
 #include "SongState.h"
 
-#include "tinyxml2.h"
-
-using namespace tinyxml2;
-
 std::atomic<int> Track::next_id(1000);
 
 void
-Track::readXML(XMLElement & element) {
-  auto id_text = element.Attribute("id");
-  auto name_text = element.Attribute("name");
-  auto volume_text = element.Attribute("volume");
-  auto solo_text = element.Attribute("solo");
-  auto mute_text = element.Attribute("mute");
-
-  setId(id_text ? atoi(id_text) : -1);
-  setName(name_text ? name_text : "");
-  setVolume(volume_text ? strtof(volume_text, nullptr) : 1.0f);
-  setSolo(solo_text && atoi(solo_text) ? true : false);
-  setMute(mute_text && atoi(mute_text) ? true : false);
+Track::loadParameters(const ParameterSource & input) {
+  setId(input.getInt("id", -1));
+  setName(input.getText("name"));
+  setVolume(input.getFloat("volume", 1.0f));
+  setSolo(input.getBool("solo"));
+  setMute(input.getBool("mute"));
 }
 
 void
-Track::populateXML(tinyxml2::XMLElement & element) const {
-  if (!getName().empty()) element.SetAttribute("name", getName().c_str());
-  if (isSolo()) element.SetAttribute("solo", "1");
-  if (isMuted()) element.SetAttribute("mute", "1");
-  element.SetAttribute("volume", getVolume());
+Track::storeParameters(ParameterSource & output) const {
+  if (!getName().empty()) output.set("name", getName());
+  if (isSolo()) output.set("solo", true);
+  if (isMuted()) output.set("mute", true);
+  output.set("volume", getVolume());
 }
 
 SampleData
@@ -41,9 +31,7 @@ Track::render(size_t frames, SongState & song_state, const std::vector<std::uniq
     }
   }
 
-  unsigned int numChannels = song_state.getChannelConfiguration() == ChannelConfiguration::MONO ? 1 : 2;
-    
-  SampleData sd(numChannels, frames, isSolo() || child_has_solo);
+  SampleData sd(song_state.getChannelConfiguration(), frames, isSolo() || child_has_solo);
      	   
   for (auto & child : getChildren()) {
     auto sd2 = child->render(frames, song_state, instruments, events);

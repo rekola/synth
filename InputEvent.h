@@ -44,7 +44,7 @@ class InputEvent : public Event {
 
   void dispatch(EventHandler & evh) override { evh.handleInputEvent(*this); }
 
-  unsigned int getId() const { return id; }
+  int getId() const { return id; }
   int getY() const { return y; }
   int getX() const { return x; }
   bool hasAlt() const { return alt; }
@@ -106,8 +106,7 @@ class InputEvent : public Event {
   }
 
  private:
-  unsigned int id;
-  int y, x;
+  int id, y, x;
   bool alt, shift, ctrl;
 };
 

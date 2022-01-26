@@ -41,7 +41,7 @@ class EnvelopeState : public State {
   EnvelopeState()
     : State(0), level(0.0f), slope(0.0f), samplesUntilNextSegment(0), midiVelocity(0), segmentIsExponential(false), isAmpEnv(false) { }
 
-  EnvelopeState(unsigned int _outSampleRate, const Envelope & _parameters, int midiNoteNumber, short _midiVelocity, bool _isAmpEnv)
+  EnvelopeState(int _outSampleRate, const Envelope & _parameters, int midiNoteNumber, short _midiVelocity, bool _isAmpEnv)
     : State(_outSampleRate),
       parameters(_parameters),
       midiVelocity(_midiVelocity),

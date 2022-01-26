@@ -12,7 +12,7 @@
 
 class TrackState : public State {
  public:
-  TrackState(ChannelConfiguration _channel_config, int _outSampleRate) : State(_outSampleRate), channel_config(_channel_config) { }
+  explicit TrackState(ChannelConfiguration channel_config, int outSampleRate) : State(outSampleRate), channel_config_(channel_config) { }
 
   virtual void apply(SampleData & input_data) { }
   virtual TrackInfo getInfo() const { return TrackInfo(true); }
@@ -31,10 +31,10 @@ class TrackState : public State {
     }
   }
   
-  void clearVoices() { voices.clear(); }
+  void clearVoices() { voices_.clear(); }
 
   void render(SampleData & output, size_t frames, size_t offset) {
-    for (auto & [ id, voice ] : voices) {
+    for (auto & [ id, voice ] : voices_) {
       if (voice->isPlaying()) {
 	auto voice_data = voice->render(frames);
 	output.mix(voice_data, offset);
@@ -49,7 +49,7 @@ class TrackState : public State {
   }
 
   void applyAftertouch(int column, float aftertouch) {
-    for (auto & [id, voice] : voices) {
+    for (auto & [id, voice] : voices_) {
       if (column == id && voice->isPlaying()) {
 	voice->applyAftertouch(aftertouch);
       }
@@ -87,7 +87,7 @@ class TrackState : public State {
   size_t getVoiceCount() const {
     size_t n = 0;
     if (isPlaying()) n++;
-    for (auto & [ id, voice ] : voices) {
+    for (auto & [ id, voice ] : voices_) {
       n += voice->getVoiceCount();
     }
     return n;
@@ -95,37 +95,37 @@ class TrackState : public State {
   
   size_t getAllocatedVoiceCount() const {
     size_t n = 1;
-    for (auto & [ id, voice ] : voices) {
+    for (auto & [ id, voice ] : voices_) {
       n += voice->getAllocatedVoiceCount();
     }
     return n;
   }
 
   TrackState & addVoice(int identifier, std::unique_ptr<TrackState> voice) {
-    voices.erase(std::remove_if(voices.begin(), voices.end(), is_not_playing), voices.end());
+    voices_.erase(std::remove_if(voices_.begin(), voices_.end(), is_not_playing), voices_.end());
     
-    voices.push_back(std::pair(identifier, std::move(voice)));
-    return *(voices.back().second);
+    voices_.push_back(std::pair(identifier, std::move(voice)));
+    return *(voices_.back().second);
   }
 
   void stopVoices(int column) {
-    for (auto & [id, voice] : voices) {
+    for (auto & [id, voice] : voices_) {
       if (column == id && voice->isPlaying()) {
 	voice->stopNote();
       }
     }
   }
 
-  ChannelConfiguration getChannelConfiguration() const { return channel_config; }
+  ChannelConfiguration getChannelConfiguration() const { return channel_config_; }
 
-  void addChild(std::unique_ptr<TrackState> child) { children.push_back(std::move(child)); }
-  const std::vector<std::unique_ptr<TrackState> > & getChildren() const { return children; }
-  std::vector<std::unique_ptr<TrackState> > & getChildren() { return children; }
+  void addChild(std::unique_ptr<TrackState> child) { children_.push_back(std::move(child)); }
+  const std::vector<std::unique_ptr<TrackState> > & getChildren() const { return children_; }
+  std::vector<std::unique_ptr<TrackState> > & getChildren() { return children_; }
 
 private:
-  ChannelConfiguration channel_config;
-  std::vector<std::unique_ptr<TrackState> > children;
-  std::vector<std::pair<int, std::unique_ptr<TrackState> > > voices;
+  ChannelConfiguration channel_config_;
+  std::vector<std::unique_ptr<TrackState> > children_;
+  std::vector<std::pair<int, std::unique_ptr<TrackState> > > voices_;
 };
 
 #endif

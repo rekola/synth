@@ -1,75 +1,220 @@
+Refactoror TrackState:
+ - move voice stuff to InstrumentTrackState
+ - or use normal children for voices
+ - or add Columns as children
+
+Test:
+ - play tonic note in pattern
+ - bass drones
+
+Add equalizer for piano => too much frequencies
+
+add start phase to soundfont and test multiply again
+
+midi recording leaves invisible notes
+
+add default aftertouch to SoundFont
+ - volume?
+ - vibrato?
+ - brightness?
+ 
+add aftertouch filters
+ - pitch
+ - vibrato
+
+use azimuth in FileInstrument
+
+Remove size_t
+
+Add time spacing to Multiply
+Try adding switch to create_signal to see if it is optimized out
+
+the current random phase for 44100 is a second long => too much
+
+samplePosition should be long long and we could increment it by one all the time
+
+Add SoundPosition class for azimuth, elevation and distance
+
+Add SampleData.getChannel(x) to extract single channel, so that modulators are forced to single channel if they aren't
+ - no-op if the sampledata is modo, range otherwise
+
+remove Instrument class
+
+Do not interleave left right samples to improve caching for filters
+  - oscilators get worse caching
+  - For dynamic channel placement, interleaving is probably impossible
+
+Add SampleDataRange class
+
+lookup midi event handling from TinySoundFont
+ - volume
+ - pan
+ - bank selection
+ - rpn?
+ - all sound off, all notes off, all ctrl off
+ - data: pitch range, tuning
+  
+Add random phase to InstrumentTrack to play notes
+
+Add better unit to MultiplyNote detune (similar to other synths)
+
+Oscilator doesn't pass velocity or azimuth to children
+
+Add speaker setup ??
+ STEREO
+ 5.1
+
+Add VoicingMode: MONO / POLY, LEGATO
+NoteMultiplier phases should not be random
+Use internal id to keep track of states
+
+Why does LowpassFilter use doubles?
+Combine Filter and LowpassFilter (as a biquad mode)
+
+Where to handle velocity? Before distortion or after distortion?
+ - For soundfont, the matter is obvious 
+
+Combine TrackInfo and VisibleTrackInfo
+
+InstrumentVoice::playnote might be useful when gliding notes
+
+Get basic drum patterns from the Yamaha keyboard
+
+copy linear interpolation for SoundFont to FileInstrument
+
+add to docs:
+ // modulation:	Strength of the frequency modulation
+ // harmonic:	Harmonic of the modulator
+ // subharmonic:	Subharmonic of the modulator
+ // transpose:	Common frequency scale for carrier and modulator
+
+Bass:
+ - saw single voice
+  - Add filter envelope to first play the high frequencies
+ - saw five voices less filter less volume
+ - soft clipping (with tan)
+ 
+Encapsulate XML serialization and deserialization
+
+Add Vibrato effect + envelope
+
+Make song:
+ C Db D
+ G A A#
+ Db D D#
+
+Filter doesn't save XML parameters
+  
+Keep track of instrument ids for voices. If same instrument is playing same note in the same column, kill it instantly
+
+Song should not be Track, but a NamedObject (or XMLElement or Element or Object or SongObject), since it doesn't override any Track methods and it has two sets of children and patterns
+
+Use Instrument::createXML for everything
+
+if non existing instrument is used in a track => crash
+
+#if 0
+  auto epiano = make_unique<SubtractiveInstrument>(WaveformType::SAW);
+  epiano->setName("Electric Piano");
+  epiano->setAmpEnvelope(Envelope(0.0f, 10 * 20 / 255.0f, 0.0f, 0.0));
+  epiano->addEffect(make_unique<Filter>(63 / 255.0f, 128 / 63.0f, false));
+  song->addInstrument(move(epiano));
+
+  auto oboe = make_unique<FMInstrument>(0.7, 1, 3, 4);
+  oboe->setName("oboe");
+  oboe->setAmpEnvelope(Envelope(5 * 2 / 255.0f, 10 * 15 / 255.0f, 0.5f, 5 * 10 / 255.0f));
+  song->addInstrument(move(oboe));  
+#endif
+
+Add predefined drum patterns => how to play them?
+
+Combine event types: PlaybackControlEvent and TrackEvent
+combine State::getRelativePosition and song.normalizePosition()
+When stopping playback, notes are never offed
+
+IF XML is malformed, the loader claims it doesn't exist
+Add nonstandard soundfont instruments by name
+Add soundfont browser
+Look for atmospheric music sound effects
+Add instrument lookup choices "Yamaha Grand Piano, piano"
+
+Create double octave key
+ - We can start with Dm, but in the second octave use D to let G keep it's D
+
+Composition
+ - harmony notes
+ - passing note
+ - auxiliary note
+ - anticipatory note
+
+Dynamic tuning
+ - disable dynamic tuning for percussion
+   - Don't use notes for percussion
+     - not possible because we can switch instruments between percussion and non percussion     
+
+Increasing sampling rate slows the song
+
+If same note is played multiple times, the notes should not have individual decays
+
+Add status line with dynamic tuner changes: D+1c Eb+42c
+
+C	1:1		C major		C-E-G
+C	1:1		C minor		C-Eb-G
+C	1:1		C q. major	C-D#-F
+D𝄫
+C#
+D♭
+D	9:8		D minor		D-F-A
+E𝄫	8:7		?		?
+D#	7:6		D q. dim	D#-F-A#
+Eb	6:5		Eb major	Eb-G-Bb
+E	5:4		E minor		E-G-B
+F	4:3		F major		F-A-C
+G	3:2 = 1+1:2	G minor		G-Bb-D
+G	3:2 = 1+1:2	G major		G-B-D
+G	3:2 = 1+1:2	G q. major	G-A#-C
+Ab ???			Ab major	Ab-C-Eb
+A	5:3 = 1+2:3	A minor		A-C-E
+A#	7:4 = 1+3:4	A# q. minor	A#-C-D#
+Bb	9:5 = 1+4:5	Bb major	Bb-D-F
+Bb	9:5 = 1+4:5	Bb q. minor	Bb-D𝄫-Eb
+A𝄪4     11:6 = 1+5:6
+	13:7 = 1+6:7
+B	15:8 = 1+7:8	B dim		B-D-F		
+B	15:8 = 1+7:8	B q. minor	B-D♭-E		
+	17:9 = 1+8:9
+
 add FileInstrument recording
  - could be done from menu
  
 Fix FileInstrument and add aftertouch to test scrubbing
  - When recording, add aftertouch signals using mousewheel
 
-Remove instrument track name rows and add ids to root tracks
- - not certain. Instrument tracks could just show instrumentTrack and name and the instrument name could be separate
- 
-Instrument voice modulation
- * modulate sine wave with instrumentVoice
- * modulate other instrumentvoice with instrumentvoice
- * <waveform type="sine"><instrument harmonic="2" subharmonic="3" /></waveform>
- * replace FMinstrument?
- * where to put modenv?
- * add muting and solo to instruments
- * instrument needs to be a Track
-   - remove extra fields from Track
-
-* let Track handle mixing, since only root track knows how to add azimuth etc.
-
-Instrument effects
- * it's silly to use the track effects in instruments
-   + not really sinces instruments are tracks also
- * could we just define LowpassFilter in the voice class and use it
- * <instrument>
-     <filter res="2" cut="0.25">
-       <waveform type="square" />
-     </filter>
-   </instrument>
- 
 Propagate isSolo with SampleData
+  => it discards all others
 
-Could scrubbing be done with aftertouch?
-
-Does track name really belong to instrument track or the root track?
-
+Where do track and instrument names belong?
+ - the InstrumentTrack or the root filter?
+ -
+ 
 should samples be outside pattern?
  - If we record on track, the recording doesn't really honor the pattern boundaries
  - If the pattern is shortened, the samples would have to be moved to another track
  - Or if the pattern runs out, where do we put the samples?
  
-ctrl-\ crashes
-
-add XML to chorus and Delay
-
 SoundFont:
   Implement chorus and reverb in SoundFont
     - the parameter means how much of the signal is sent to the effect
   Reverb and Chorus should be always present, but how do we differentiate between controllable reverb / chorus and always active ones
     - should they be instrument filters?
-  Pan is supposed to be a send
   Add modulators
     - check the original lib, or maybe fluidsynth
   What kind of lazy mixing could we do to keep the data from different regions with different settings separate
     - none, since they are instrument filters
 
-Add mute and solo flags to track header
-Put solo flag into SampleData => it discards all others
-
-If track never plays anything, do not activate effects
- - InstrumentTrack could return SampleData with zero channels
-
- 
-How to add instruments into filter tree?
-
 Consider keeping effect parameters in separate structure that can be passed to states
 
 Copy Compressor from Audacity
-
-If no regions are found for voice, pick best (contrabass)
-Try splitting minor third into an arpeggio
 
 Add sample blocks into sampletrack when recording
 Implement sample playback
@@ -77,7 +222,8 @@ Implement sample playback
 How to remove Soundfont violin default vibrato?
   - it's not cool to remove it, but there might not be any choice
   - we would get double vibrato if we try to control it
-  - since we only have soundfonts, we could not have vibrato at all
+  - since we only have soundfonts, we could not have vibrato at all (What?)
+  - irrelevant
   
 Add ParameterProvider
   - parameters can come from XML or something else
@@ -86,12 +232,7 @@ id system is not very nice
   - it can set duplicate ids
   - maybe song should have next_insert_id variable
 
-implement Reverb::populateXML, Distortion::populateXML
-
 XML saving doesn't work, since it saves only children and doesn't use ids correctly
-
-Aftertouch:
-  - adjust anything on Soundfont (vibrato, brightness, etc.)
 
 Is there a generic way to handle grooves?
   - some separate repeating pattern with global delays
@@ -105,9 +246,7 @@ How to do note effects correctly?
   - They are completely dissimilar to effects
   - hard to read
   - If we have a track for lowpass filter, it will need a column, and it could have a proper effect control
-    + use aftertouch for filter control?
-
-InstrumentTrack needs better name than track
+    + use aftertouch for filter control
 
 Hierarchy:
   - add song as parameter to Track::render() or InstrumentCollection
@@ -115,17 +254,8 @@ Hierarchy:
   - Add track colors to XML
     - it makes drawing harder and we cannot have black divider
   - what if we slow the time of master track or apply separate patterns
-
-Use Primary Triad Construction to build new scales
-  - take the primary triad, and use those notes to build two new chords
-
-Use generator to build new scales
-  - stack single interval repeatedly
-  - C-F or C-Cx
   
 Can we do interpolation for events?
-
-Combine PlaybackControlEvent and TrackEvent
 
 Try to maintain column
   - If we are in an effect column, but scroll to a pattern with more note columns, the column changes
@@ -139,27 +269,10 @@ Add blitting
 
 Add effect control command
 
-Percussion track
-  - All percussion in single channel as in MIDI
-
-Chord track:
-  - Cmaj7
-  - add class Chord
-  - 
-
 UTF8 fixes
   - Add UTF8 string
   - Add ellipsis to track name and instrument name
   - Use utf8 erase when limiting track name and instrument name
-  
-Perlin chords
-  - Add infinitely many octaves automatically
-  - Or possibly a filter that adds the octaves for a note
-  
-- note / effect delays and randomization
-  - playnote stops another note instantly, even if it has a long delay
-  - off should also have delay
-  - should effect commands have delay?
   
 is loopStart or loopEnd unnecessary?
 
@@ -171,12 +284,12 @@ Display show black initially
    - add debug info
    - could it be loaded lazily?
  - genericInstrument can be loaded lazily too, but instrumentProvider must be passed to thread
-
+              
 How to protect song across thread?
  - Send only playback events to be renderer
  - Add mutexes
  - Copy song
- 
+
 Add CSS like instruments:
  - instrument-family: Electric Piano, Piano;
  - volume: 0.5;
@@ -186,7 +299,7 @@ Add CSS like instruments:
 
 Handle InputEvent correctly without offerInput
 
-Make sure notes are in the correct octave
+Make sure notes are in the correct octave (important)
  - "B3" and all of its possible variants (Bdouble flat, B♭, B, B♯, Bdouble sharp) would properly be designated as being in octave "3".
  - "C4" and all of its possible variants (Cdouble flat, C♭, C, C♯, Cdouble sharp) would properly be designated as being in octave "4".
 
@@ -208,33 +321,11 @@ Seamless chord changes
 Add aliases: Electric Piano == Electric Grand Piano
 Add soundfont instruments by index to get the correct midi names
 
-With just intonation, D chord is bad
- - Do we need to retune all the time?
- - calculate D chord intervals
-
-Demo song 1 has delay in hihat track
-
-Major scale gets diminished chord as 7th.
- - What if the seventh were Bb?
- - Try to create a scale, that keeps all chords nice
- - C D E F G A B
- 
-Add soundfont loading from Command line
-Try HRFT in 48000
-
 Add oversampling possibility
 Add WaveShaper
 
 Misc:
- - Stacking fifths?
  - Copy drum patterns and everything from Microtonal christmas video
- - The grid still limits us
-
-Fill in chord:
- - Type a root note, the ctrl-x and
-  1 => major triad
-  2 => minor triad
- - or maybe ctrl-x key and type
 
 Add note mode
  - Glide to next node (Portamento?)
@@ -245,8 +336,6 @@ Pattern specific keys do not really work
  - If we do a modulation, for example, from C -> D, the D should be the D from just tuning of C
  - We should have a command for retuning to a note
  - Unless there are child patterns.
-
-When offing FMInstrument there is an attack
 
 Delay:
   - Lookup Delay parameters from some existing Delay effect
@@ -264,11 +353,6 @@ Add LFOState that keeps the samplerate etc.
 AddInstrument dialog:
   - search field in top
 
-MVerb loses time since it does always two channels
-
-Simolle:
- - Badding konsertin hinta
-
 MIDI:
  - Since GM2 has multiple percussion banks, we should be able to select a specific bank
  - are we sure, the percussion banks are always at the same presets?
@@ -278,22 +362,10 @@ MIDI:
  
 Consider adding laziness to mixing
  - If the channels have different positions, we could delay mixing
- - what about BFormat?
  - Of course, in a perfect world master channel location would translate it's children (+ rotate and scale)
 
-Lover oboe sustain so that volume is smaller
+LFO misses a step when period changes ?
 
-LFO misses a step when period changes
-
-Should clipping be done before filtering in demo song 0? Now clipping causes clicks
- - clipping should be moved to Instrument
-
-Add move constructor for SampleData
-
-Differentiate black box instrument such as SoundFont from those that have editable Envelopes
- - GenericInstrument
- 
-Consider doing the inner loop of voices with floats
 Add pitch bend effect
 
 Compression / Vocoder
@@ -306,30 +378,9 @@ SongState
  - add mixer settings
  - add export settings
  - add LFO states?
- - could hold effect plan also that does SIMD stuff
- - fallback to simple mixer if hrft doesn't work
-
-Envelops:
- - add mod envelope to FMInstrument
- - consider updatint envelops for all samples
-
-FileInstrument:
- - needs an envelope for release
- - current envelope fucks everything
- - doesn't work
 
 Add vocoder to vocode sample based on sequencer track
-
-Add multiple waveforms to subtractiveinstrument
- - possibly with separate filters
- 
-How should effects be applied, if they are update all the time?
- - use LFO with lowpass to test
- - they should be updated the same way notes are => render until the next change
- - Of course, slopes should be set, so that we can interpolate parameter changes between control
- 
-infobar probabily isn't updated
-
+  
 Other ratios in tonality cube:
  - 7:8:10 => 28:35:40
  - 6:7:8 => 21:24:28
@@ -342,9 +393,6 @@ Tempo is fucked up => fix with metronome
 Decrease CPU activity for inactive song or tracks:
  - If synth is not playing and no voices are active, stop playing at some point
  - If track output is empty, don't send it to mixer
- - noise cut off, or what was the effect?
-
-remove tritones from test song in demo 2
 
 - Rendering:
   * when rendering a song, select output type (stereo, binaural, 5.1)
@@ -352,8 +400,9 @@ remove tritones from test song in demo 2
   * possibly even render a video
   * add cover art
   * select bitrate
+  * make render() methods const
+  
 - HRFT and mixing:
-  => song can configure all mixers in XML
   - If accumulate distance is zero:
      - no HRFT is done, no panning is done
      - for HRFT mix the track to master
@@ -362,11 +411,8 @@ remove tritones from test song in demo 2
   - Perhaps we should keep track of channels and their positions
   - normal mixer could use distance as well as azimuth
   - if hrtf doesn't use distance, we could use it by ourselves
-  - test if very large samplerates could give better results
   
 Recreate Täällä pohjantähden alla waltz
-
-Why are example song notes shown as C-0, but we know they are lower
 
 remove automatic scaling from volume meter
  - print maximum values to status
@@ -388,24 +434,15 @@ Can we split other than superparticular ratios? Like 5:3
    A D ?
    B ? ?   ??
 
-detune doesn't work
- - it could be a scaler
- 
 Effects:
  - add delay modulator => delay is used to speed or slow input signal possibly with noise as the signal
- - modulate multiple sound effects, like string with very slow strings
  - lowpassed noise
    => modulate or just play
  - sidechain peak compression (Peak Controller from LMMS)
  - add tempo sync
- - WaveShaper
   
-add linear interpolation to FileInstrument
-
 Stereo:
  - Make FileInstrument produce stereo sound if sample is stero
- - FileInstrument doesn't give proper channel count to Instrument constructor
- - Filter has no stereo support
 
 Samples:
  - Record egg shell cracking
@@ -413,10 +450,6 @@ Samples:
    - raindrops on roof
    - waves crashing against shore
    - probably have multiple locations
-
-Tuning may not have correct name
- - Is TET just a layout? and equal tuning the tuning
- - EDO?
 
 Add table based editor for instruments and effects
  - tree based table
@@ -429,20 +462,9 @@ add putstrN method that limits printing and adds epplisis
 
 Try english mac keyboard to see what layout works
 
-try fitting 5:4 and 11:10 together
-try fitting 3:2 and 7:6 together
-try fitting 6:5 and 7:6 together, the wrong way
-try fitting supermajor and 7:6 together
-try supermajor
-try the original patterns we had
-
 Instruments:
  - instrument system should have predefined slots show that if the track is set to electric piano, any electric piano is used unless user changes it
  - midi:electric_piano, midi:43
-
-- add Filter and note control to TrackEvent
-
-scrolling right doesnt't work
 
 Use tab key to temporarily add note column for editing
 
@@ -452,24 +474,19 @@ Use tab key to temporarily add note column for editing
   - Panda
   - Calf Gate
   - ZamGEQ31
-  
+
 - Release:
-  - refactor getSampleInterval() and fix tempo
+  - refactor getSampleInterval() and fix tempo (rename it, samples per row)
   - Refactor Delay parameter names
-  - Filter?
-  - removeFMInstrument comments
-  - remove default song (maybe save it first?)
-  - Move default song delay effects to tracks
+      
+Add FM instruments:
+// Harpsichord 7.8 3 5 24 0.01 0.8 0.0 0.1                                                                    
+// Bell 3.5 7 9 0 0.01 0.2 0.3 1.5                                                                            
+// Oboe 0.7 1 3 24 0.05 0.3 0.8 0.2
 
 XML:
- - since effects are tracks, instrument effects should be tracks also...
  - Add separate XML element for soundfont import
    - we can pick instruments
- - store instrument effects
-   - but maybe not for SoundFont
- - store instrument envelopes
- - store instrument transpose
- - Pick single percussion instruments from percussion (what?)
  - <instrumentSets>
      <instrumentSet src="file.sf2" default />
      <instrumentSet id="1" src="tabla.sf2"/>     
@@ -499,6 +516,7 @@ XML:
   - Add separate Envelope that holds parameters in cents
   - Generate hold and decay parameters for SoundFont enevelope states in SoundFont
   - Since render interval is pattern dependant, soundfont effect rate can change
+    - what?
   - SoundFont crashes if file is not found
   - move pitchRatio from SoundFontVoice data to InstrumentVoice
     - also pitch calculation
@@ -521,6 +539,9 @@ XML:
 
 - make filters and instruments arrays so that they can process multiple tracks at the same time and use SIMD
 
+- nonlinear songs
+  - song as a graph?
+
 - we want smooth distortion:
   - interesting distortion was achieved by adding input to uncleared data
   - clear samples from signal
@@ -530,10 +551,7 @@ XML:
 - Study effects / instruments in other software:
   - Audacity
   - LMMS has multiple interesting instruments such as vibrating string
-  
-- Depending on key, switch sharps to flats
-- Add possibility for user defined notes... hmmm
-  
+    
 - Renoise
   -  Add groove
     - add delay to every nth line
@@ -543,13 +561,6 @@ XML:
   - add track collapse
   - add track colors
   - ESC => edit mode
-  - columns to add:
-    - instrument: NO, instrument per track is more than enough
-    - volume: NO, velocity is better
-    - panning: NO, 1d panning is too limited
-    - delay: ? [interesting!]
-    - FX: ?
-    - velocity: ?
   - End note with capslock
   - If recordings can be copied from track to track, shouldn't notes also have to be able to be copied while retaining the instrument
     - If recordings were to be copied to different track, we could create a new subtrack for the recording
@@ -573,17 +584,13 @@ XML:
       Transpose One Octave Up: fn option F12
       Transpose One Octave Down: fn option F11
 
-- make spectrum logarithmic
-
 - update plane dimensions on resize
   - every plane should handle the resize input
 
 - add scratching mode:
   - should be possible to stratch any channel, but how? scratching institutes a new time
   - subsongs
-  
-- add instrument volume
-
+    
 - add recording
   - remove parts of recording using backspace
   - also copy parts of recording to different tracks
@@ -601,10 +608,7 @@ XML:
   - track latency: int snd_pcm_avail_delay(snd_pcm_t * pcm, snd_pcm_sframes_t * availp, snd_pcm_sframes_t * delayp)
   - https://www.alsa-project.org/main/index.php/Test_latency.c
 
-- add move constructor to Note
 - keep track of current song and refresh InstrumentList and ScoreDisplay if it changes
-- update notcurses documentation:
-  * doctest-dev libunistring-dev
 - implement chart natively
 - add table that layouts planes automatically and draws the borders
 - starting a reader, loses plane ownership
@@ -613,7 +617,6 @@ XML:
 - add generic parameters and window for editing
 - add EditablePlane and use it for column headings => they can be clicked and edited
 
-- add LFO (to what?)
 - remove sample rate constants (44100, 22050)
 - song.gettime() doesn't account for tempo changes
   - should integrate the time in moveForward and moveForwardSample
@@ -689,30 +692,17 @@ V	G
 VI	Am	M6 P8 M10
 VIIo	Bdim
 
----
-C E G
-M3 5:4 15:8
-B D# F#
-15:8 * 5:4 => 
-
---
-
-C E G
-C# F G#
-D F# A
-D# G A#
-E G# B
-F A C
-F# A# C#
-G B D
-G# C D#
-A C# E
-A# D F
-B D# F#
-
 ------------------
 
 Constructions:
+
+2-limit biad => 1:1 2:1 => C C'
+
+3-limit minor triad => 3:2 2:1 1:1 => G C' C
+3-limit major triad => 4:3 2:1 1:1 => F C' C
+
+5-limit major triad => 5:4 3:2 2:1 1:1 => E G C' C
+5-limit minor triad => 6:5 3:2 2:1 1:1 => Eb G C' C
 
 7-limit major triad => 7:6 4:3 2:1 1:1 => D# F C' C
 7-limit minor triad => 8:7 4:3 2:1 1:1 => E♭♭ F C' C
@@ -720,22 +710,8 @@ Constructions:
 11-limit major tetrad => 11:10 6:5 3:2 2:1 1:1 => ? Eb G C' C
 11-limit minor tetrad => 12:11 6:5 3:2 2:1 1:1 => ? Eb G C' C
 
-5-limit major triad => 5:4 3:2 2:1 1:1 => E G C' C
-5-limit minor triad => 6:5 3:2 2:1 1:1 => Eb G C' C
-
-3-limit minor triad => 3:2 2:1 1:1 => G C' C
-3-limit major triad => 4:3 2:1 1:1 => F C' C
-
-8:5 = 1+4:5 =
-5:3 =
-
-10:7
-7:6
-
 17-limit => 17:16 9:8
 17-limit => 18:17 9:8
-
-2-limit chord => 1:1 2:1 => C C'
 
 7-limit subminor triad ratio:  42:48:56
 
