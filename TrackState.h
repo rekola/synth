@@ -17,14 +17,14 @@ class TrackState : public State {
   virtual void apply(SampleData & input_data) { }
   virtual TrackInfo getInfo() const { return TrackInfo(true); }
 
-  virtual SampleData render(size_t frames) {
+  virtual SampleData render(int frames) {
     if (getChildren().empty()) {
       return SampleData(getChannelConfiguration(), frames);
     } else {
       auto it = getChildren().begin();
       auto data = (*it)->render(frames);
       for (it++; it != getChildren().end(); it++) {
-	data.mix((*it)->render(frames), (size_t)0);
+	data.mix((*it)->render(frames), 0, 1.0f);
       }
       apply(data);
       return data;
@@ -33,11 +33,11 @@ class TrackState : public State {
   
   void clearVoices() { voices_.clear(); }
 
-  void render(SampleData & output, size_t frames, size_t offset) {
+  void render(SampleData & output, int frames, int offset) {
     for (auto & [ id, voice ] : voices_) {
       if (voice->isPlaying()) {
 	auto voice_data = voice->render(frames);
-	output.mix(voice_data, offset);
+	output.mix(voice_data, offset, 1.0f);
       }
     }   
   }
@@ -84,8 +84,8 @@ class TrackState : public State {
 
   static inline bool is_not_playing(const std::pair<int, std::unique_ptr<TrackState> > & a) { return !a.second->isPlaying(); }
 
-  size_t getVoiceCount() const {
-    size_t n = 0;
+  int getVoiceCount() const {
+    int n = 0;
     if (isPlaying()) n++;
     for (auto & [ id, voice ] : voices_) {
       n += voice->getVoiceCount();
@@ -93,8 +93,8 @@ class TrackState : public State {
     return n;
   }
   
-  size_t getAllocatedVoiceCount() const {
-    size_t n = 1;
+  int getAllocatedVoiceCount() const {
+    int n = 1;
     for (auto & [ id, voice ] : voices_) {
       n += voice->getAllocatedVoiceCount();
     }

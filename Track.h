@@ -22,7 +22,7 @@ class Track {
   Track(int _id, Type _type) : id(_id != -1 ? _id : getNextId()), type(_type) { }
   virtual ~Track() { }
   
-  virtual SampleData render(size_t frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events);
+  virtual SampleData render(int frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events);
 
   virtual std::unique_ptr<TrackState> createState(ChannelConfiguration config, int outSampleRate) const {
     return std::make_unique<TrackState>(config, outSampleRate);
@@ -56,8 +56,9 @@ class Track {
   void setName(std::string _name) { name = _name; }
   const std::string & getName() const { return name; }
 
-  const Track & getChild(size_t i) const { return *(children[i]); }
-  Track & getChild(size_t i) { return *(children[i]); }
+  const Track & getChild(int i) const { return *(children[i]); }
+  Track & getChild(int i) { return *(children[i]); }
+  
   Track & addChild(std::unique_ptr<Track> track) { children.push_back(std::move(track)); return *(children.back()); }
 
   std::vector<std::unique_ptr<Track> > & getChildren() { return children; }
