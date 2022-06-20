@@ -7,7 +7,7 @@ class InstrumentProvider;
 
 class Instrument : public Track {
 public:
-  explicit Instrument() : Track(INSTRUMENT) { }
+  explicit Instrument() : Track(TrackType::INSTRUMENT) { }
   
   virtual void prepare(const InstrumentProvider & provider) { }
       

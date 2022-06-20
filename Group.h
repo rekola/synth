@@ -5,7 +5,7 @@
 
 class Group : public Track {
  public:
-  Group() : Track(GROUP) { }
+  Group() : Track(TrackType::GROUP) { }
 
   virtual std::string getElementName() const override { return "group"; }
 };
