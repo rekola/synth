@@ -8,23 +8,23 @@
 
 class PlaybackEvent : public Event {
 public:
-  PlaybackEvent(const PlaybackInfo & _info) : info(_info) { }
+  PlaybackEvent(const PlaybackInfo & info) : info_(info) { }
 
   void dispatch(EventHandler & evh) override { evh.handlePlaybackEvent(*this); }
   
-  const SampleData & getData() const { return data; }
-  void setData(SampleData _data) { data = _data; }
+  const SampleData & getData() const { return data_; }
+  void setData(SampleData data) { data_ = std::move(data); }
 
-  void setLoudness(std::pair<float, float> _loudness) { loudness = _loudness; }
-  const std::pair<float, float> & getLoudness() const { return loudness; }
+  void setLoudness(std::pair<float, float> loudness) { loudness_ = loudness; }
+  const std::pair<float, float> & getLoudness() const { return loudness_; }
 
-  void setInfo(const PlaybackInfo & _info) { info = _info; }
-  const PlaybackInfo & getInfo() const { return info; }
+  void setInfo(const PlaybackInfo & info) { info_ = info; }
+  const PlaybackInfo & getInfo() const { return info_; }
   
 private:
-  SampleData data;
-  std::pair<float, float> loudness;
-  PlaybackInfo info;
+  SampleData data_;
+  std::pair<float, float> loudness_;
+  PlaybackInfo info_;
 };
 
 #endif
