@@ -15,7 +15,7 @@ class Mixer;
 
 class Song : public Track {
  public:
-  Song(Tuning _tuning = Tuning::TET12, short _key = -1, float _randomization_factor = 0.01f) : Track(MASTER), tuning(_tuning), key_note_number(_key), randomization_factor(_randomization_factor) { }
+  Song(Tuning _tuning = Tuning::TET12, short _key = -1, float _randomization_factor = 0.01f) : Track(TrackType::MASTER), tuning(_tuning), key_note_number(_key), randomization_factor(_randomization_factor) { }
 
   Tuning getTuning() const { return tuning; }
   void setTuning(Tuning _tuning) { tuning = _tuning; }
@@ -34,11 +34,11 @@ class Song : public Track {
   void setTempo(short _bpm) { bpm = _bpm; }
   
   const std::vector<Pattern> & getPatterns() const { return patterns; }
-  const Pattern & getPattern(size_t i) const { return i < patterns.size() ? patterns[i] : empty_pattern; }
-  Pattern & getPattern(size_t i) { return i < patterns.size() ? patterns[i] : empty_pattern; }
+  const Pattern & getPattern(int i) const { return i >= 0 && i < static_cast<int>(patterns.size()) ? patterns[i] : empty_pattern; }
+  Pattern & getPattern(int i) { return i >= 0 && i < static_cast<int>(patterns.size()) ? patterns[i] : empty_pattern; }
 
-  std::pair<size_t, size_t> normalizePosition(size_t pattern_idx, size_t row_idx) const {
-    while (pattern_idx < patterns.size()) {
+  std::pair<int, int> normalizePosition(int pattern_idx, int row_idx) const {
+    while (pattern_idx < static_cast<int>(patterns.size())) {
       auto & pattern = patterns[pattern_idx];
       if (row_idx < pattern.getNumRows()) {
 	break;
@@ -56,21 +56,14 @@ class Song : public Track {
     return patterns.back();
   }
 
-  Pattern & addPattern(size_t rows, Tuning tuning = Tuning::INHERIT, int key = -1) { return addPattern(Pattern(rows, tuning, key)); }
+  Pattern & addPattern(int rows, Tuning tuning = Tuning::INHERIT, int key = -1) { return addPattern(Pattern(rows, tuning, key)); }
     
   const std::vector<std::unique_ptr<Track> > & getInstruments() const { return instruments; }
-  const Track & getInstrument(size_t i) const { return *(instruments[i]); }
+  const Track & getInstrument(int i) const { return *(instruments[i]); }
   void addInstrument(std::unique_ptr<Track> i) {
     instruments.push_back(std::move(i));
     incVersion();
   }
-
-#if 0
-  void addInstruments(InstrumentSet & is) {
-    auto v = is.createAll();
-    for (auto & instrument : v) addInstrument(std::move(instrument));
-  }
-#endif
 
   void incVersion() { version++; }
   int getVersion() const { return version; }
@@ -78,12 +71,12 @@ class Song : public Track {
   bool open(const std::string & filename, const InstrumentProvider & provider);
   void save(const std::string & filename) const;
 
-  void render(size_t frames, SongState & state, Mixer & mixer);
+  void render(int frames, SongState & state, Mixer & mixer);
 
   std::string getElementName() const override { return "song"; }
 
-  size_t getSampleInterval(int outSampleRate) const {
-    return (size_t)(60.0f / getTempo() * 0.25f * 2.0f * outSampleRate);
+  int getSampleInterval(int outSampleRate) const {
+    return 60.0f / getTempo() * 0.25f * 2.0f * outSampleRate;
   }
 
 private:

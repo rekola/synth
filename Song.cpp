@@ -50,23 +50,19 @@ private:
   XMLElement * element_;
 };
 
-vector<string> split_notes(const string & line) {
+static inline vector<string> split_notes(const string & line) {
   vector<string> r;
   
   if (!line.empty()) {
-    char * str = new char[line.size() + 1];
-    strcpy(str, line.c_str());
-    char * current = str;
-    for (int i = 0, len = static_cast<int>(line.size()); i < len; i++) {
-      if (isspace(str[i])) {
-	str[i] = 0;
-	r.push_back(current);
-	while (isspace(str[i + 1])) i++;
-	current = str + i + 1;
+    size_t i0 = 0, i = 0;
+    for ( ; i < line.size(); i++) {
+      if (isspace(line[i])) {
+	r.push_back(line.substr(i0, i - i0));
+	while (isspace(line[i + 1])) i++;
+	i0 = i + 1;
       }
     }
-    r.push_back(current);
-    delete[] str;
+    r.push_back(line.substr(i0, i - i0));
   }
   return r;
 }
@@ -377,7 +373,7 @@ Song::save(const std::string & filename) const {
 }
 
 void
-Song::render(size_t frames, SongState & state, Mixer & mixer) {
+Song::render(int frames, SongState & state, Mixer & mixer) {
   mixer.reset();
 
   auto & track_events = state.getEventQueue();
@@ -410,7 +406,7 @@ Song::render(size_t frames, SongState & state, Mixer & mixer) {
 		delay = note.getDelayAsFloat();
 	      }
 	      delay += getRandomizationFactor() * rand() / RAND_MAX;
-	      size_t delay_samples = (size_t)(delay * getSampleInterval(state.getOutSampleRate()));   
+	      size_t delay_samples = (size_t)(delay * getSampleInterval(state.getChannelConfiguration().getAudioOutSampleRate()));   
 	      track_events.addPendingEvent(track_id, i + delay_samples, int(j), frequency, velocity);
 	    }
 	  }
@@ -434,7 +430,7 @@ Song::render(size_t frames, SongState & state, Mixer & mixer) {
 
   if (!getChildren().empty() && !instruments.empty()) {
     for (auto & track : getChildren()) {
-      SampleData data = track->render(frames, state, instruments, track_events);
+      auto data = track->render(frames, state, instruments, track_events);
       if (!track->isMuted()) {
 	mixer.accumulate(data, track->getVolume());
       }
