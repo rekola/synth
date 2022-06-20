@@ -1,11 +1,116 @@
-Refactoror TrackState:
- - move voice stuff to InstrumentTrackState
- - or use normal children for voices
- - or add Columns as children
+Use Eigen for everything
+
+add ranges:
+    auto rng = song.range(row0, col0, row1, col1);
+    auto rng = song.range(SongCellReference(row0, col0), XLCellReference(row1, col1));
+
+    // An XLCellRange object provides begin and end iterators, and can be used in
+    // range-based for-loops. The next line iterates through all the cells in the
+    // range and assigns a random number to each cell:
+    for (auto& cell : rng) cell.value() = distr(generator);
+
+    // Saving a large spreadsheet can take a while...
+    cout << "Saving spreadsheet ..." << endl;
+    doc.save();
+    doc.close();
+
+    // Reopen the spreadsheet..
+    cout << "Re-opening spreadsheet ..." << endl;
+    doc.open("./Demo05.xlsx");
+    wks = doc.workbook().worksheet("Sheet1");
+
+    // Create the range, count the cells in the range, and sum the numbers assigned
+    // to the cells in the range.
+    cout << "Reading data from spreadsheet ..." << endl;
+    rng = wks.range(XLCellReference("A1"), XLCellReference(OpenXLSX::MAX_ROWS, 8));
+    cout << "Cell count: " << std::distance(rng.begin(), rng.end()) << endl;
+    cout << "Sum of cell values: "
+         << accumulate(rng.begin(), rng.end(), 0, [](uint64_t a, XLCell& b) { return a + b.value().get<int64_t>(); });
+
+    doc.close();
+
+--
+use templates: A1.get<double>()
+How to play white color on launchpad if it only outputs single frequencies
+
+ 
+- If note has been set, do not off it
+
+- If not playing, do lowpass filtering for the aftertouch so that the selected level doesn't get cleared when user releases
+
+Add catmull-rom interpolation for aftertouch
+
+Add light colors to launchpad when lighting track is active
+
+Add LightingInstrument class
+ - add AUDIO_SOURCE and LIGHTING_SOURCE types
+
+Visualisation:
+ - lyrics
+ - images
+ - can Filter lowpass images?
+ 
+Add search to HierachyView
+
+Add lighting control
+ - https://www.thomann.de/fi/enttec_dmx_usb_pro_interface_bundle.htm
+ - https://www.thomann.de/fi/enttec_open_dmx_usb_interface.htm
+ - Add lighting control to note
+   + what fields?
+ - Color has frequency so we can use note as the color
+   + Add tuning for color
+ - Tuning is pattern specific
+ - Convert midi frequency to light frequency
+ 
+We can output DMX at the same frequency as audio, and resample, but video is different matter
+
+rename Song and SongState
+ - Program?
+ - Project?
+ 
+ChannelConfiguration
+ - or BusConfiguration
+
+Keyboard input:
+ - root note
+ - fifth or fourth
+ - chord
+ - song has the key and quality
+   - C major
+   - natural_minor
+   - harmonic_minor
+   - quartal_major
+   - quartal_minor
+
+SampleData:
+ - Add DMX data
+ - Add MIDI data
+ - Add Visual data
+ - add separate AudioChannel class returned by channel(x), or audioChannel(x)
+ - numberOfChannels(), numberOfAudioChannels()
+ - rename to BusData, AudioBus
+ - Do not interleave left right samples to improve caching for filters
+    - oscilators get worse caching
+    - For dynamic channel placement, interleaving is probably impossible
+ - Add SampleDataRange class
+
+Add scenes:
+ - Add scene header
+ - multiple patterns per scene
+ - patterns can span multiple scenes
+   + for example, same drum pattern can play troughout the program
+ - mode: once, repeat
+ 
+remove track states from SongState:
+ - just render song state, and it renders it's InstrumentTrackState children
 
 Test:
  - play tonic note in pattern
  - bass drones
+
+Copy effects from Zynaddsubfx
+ - https://zynaddsubfx.sourceforge.io/
+ - http://yoshimi.sourceforge.net/
 
 Add equalizer for piano => too much frequencies
 
@@ -17,14 +122,22 @@ add default aftertouch to SoundFont
  - volume?
  - vibrato?
  - brightness?
- 
+
 add aftertouch filters
  - pitch
  - vibrato
 
-use azimuth in FileInstrument
+FileInstrument
+ - add modulation
+ - add azimuth
+ - add vocoder
+ - copy linear interpolation from SoundFont
+ - add recording
+   - could be done from menu
+ - add aftertouch to test scrubbing
 
-Remove size_t
+
+- When recording, add aftertouch signals using mousewheel
 
 Add time spacing to Multiply
 Try adding switch to create_signal to see if it is optimized out
@@ -34,17 +147,6 @@ the current random phase for 44100 is a second long => too much
 samplePosition should be long long and we could increment it by one all the time
 
 Add SoundPosition class for azimuth, elevation and distance
-
-Add SampleData.getChannel(x) to extract single channel, so that modulators are forced to single channel if they aren't
- - no-op if the sampledata is modo, range otherwise
-
-remove Instrument class
-
-Do not interleave left right samples to improve caching for filters
-  - oscilators get worse caching
-  - For dynamic channel placement, interleaving is probably impossible
-
-Add SampleDataRange class
 
 lookup midi event handling from TinySoundFont
  - volume
@@ -66,7 +168,6 @@ Add speaker setup ??
 
 Add VoicingMode: MONO / POLY, LEGATO
 NoteMultiplier phases should not be random
-Use internal id to keep track of states
 
 Why does LowpassFilter use doubles?
 Combine Filter and LowpassFilter (as a biquad mode)
@@ -79,8 +180,6 @@ Combine TrackInfo and VisibleTrackInfo
 InstrumentVoice::playnote might be useful when gliding notes
 
 Get basic drum patterns from the Yamaha keyboard
-
-copy linear interpolation for SoundFont to FileInstrument
 
 add to docs:
  // modulation:	Strength of the frequency modulation
@@ -102,14 +201,10 @@ Make song:
  C Db D
  G A A#
  Db D D#
-
-Filter doesn't save XML parameters
   
 Keep track of instrument ids for voices. If same instrument is playing same note in the same column, kill it instantly
 
 Song should not be Track, but a NamedObject (or XMLElement or Element or Object or SongObject), since it doesn't override any Track methods and it has two sets of children and patterns
-
-Use Instrument::createXML for everything
 
 if non existing instrument is used in a track => crash
 
@@ -184,12 +279,6 @@ B	15:8 = 1+7:8	B dim		B-D-F
 B	15:8 = 1+7:8	B q. minor	B-D♭-E		
 	17:9 = 1+8:9
 
-add FileInstrument recording
- - could be done from menu
- 
-Fix FileInstrument and add aftertouch to test scrubbing
- - When recording, add aftertouch signals using mousewheel
-
 Propagate isSolo with SampleData
   => it discards all others
 
@@ -224,9 +313,6 @@ How to remove Soundfont violin default vibrato?
   - we would get double vibrato if we try to control it
   - since we only have soundfonts, we could not have vibrato at all (What?)
   - irrelevant
-  
-Add ParameterProvider
-  - parameters can come from XML or something else
   
 id system is not very nice
   - it can set duplicate ids
@@ -350,9 +436,6 @@ Pass Instrument as parameter to InstrumentVoice constructor, so that it can pick
 
 Add LFOState that keeps the samplerate etc.
 
-AddInstrument dialog:
-  - search field in top
-
 MIDI:
  - Since GM2 has multiple percussion banks, we should be able to select a specific bank
  - are we sure, the percussion banks are always at the same presets?
@@ -440,9 +523,6 @@ Effects:
    => modulate or just play
  - sidechain peak compression (Peak Controller from LMMS)
  - add tempo sync
-  
-Stereo:
- - Make FileInstrument produce stereo sound if sample is stero
 
 Samples:
  - Record egg shell cracking
@@ -478,6 +558,7 @@ Use tab key to temporarily add note column for editing
 - Release:
   - refactor getSampleInterval() and fix tempo (rename it, samples per row)
   - Refactor Delay parameter names
+  - Compressor
       
 Add FM instruments:
 // Harpsichord 7.8 3 5 24 0.01 0.8 0.0 0.1                                                                    
