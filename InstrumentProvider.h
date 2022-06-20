@@ -127,6 +127,8 @@ class InstrumentProvider {
     }
   }
 
+  const std::unordered_map<std::string, std::shared_ptr<Instrument> > & getInstruments() const { return instruments_by_name; }
+
 protected:
   void addInstrument(std::shared_ptr<Instrument> instrument) {
     instruments_by_name[instrument->getName()] = instrument;
