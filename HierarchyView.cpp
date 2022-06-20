@@ -13,20 +13,25 @@ bool
 HierarchyView::render(const StyleProvider & styles, bool refresh) {
   bool render_all = refresh;
   auto & song = getController().getSong();
-
+  auto & instrument_provider = getController().getInstrumentProvider();
+  
   data_.clear();
-  data_.push_back( { 0, "Library" });
-  data_.push_back( { 1, "Rhytms" });
-  data_.push_back( { 1, "Instruments" });
-  data_.push_back( { 0, "Song" });
-  data_.push_back( { 1, "Instruments" });
-  for (int i = 0; i < static_cast<int>(song.getInstruments().size()); i++) {
+  data_.push_back( { 0, TrackType::MASTER, "Song" });
+  data_.push_back( { 1, TrackType::UNKNOWN, "Instruments" });
+  for (size_t i = 0; i < song.getInstruments().size(); i++) {
     auto & instrument = *(song.getInstruments()[i]);       
-    data_.push_back( { 2, instrument.getName() } );
+    data_.push_back( { 2, TrackType::INSTRUMENT, instrument.getName() } );
   }
-  data_.push_back( { 1, "Tracks" });
-  for (int i = 0; i < static_cast<int>(song.getChildren().size()); i++) {
-    data_.push_back( { 2, "Track #" + to_string(i) });
+  data_.push_back( { 1, TrackType::UNKNOWN, "Tracks" });
+  for (size_t i = 0; i < song.getChildren().size(); i++) {
+    auto & track = song.getChildren()[i];
+    data_.push_back( { 2, track->getType(), "Track #" + to_string(i) });
+  }
+  data_.push_back( { 0, TrackType::UNKNOWN, "Library" });
+  data_.push_back( { 1, TrackType::UNKNOWN, "Rhythms" });
+  data_.push_back( { 1, TrackType::UNKNOWN, "Instruments" });
+  for (auto & [ name, instrument ] : instrument_provider.getInstruments()) {
+    data_.push_back( { 2, TrackType::INSTRUMENT, name });
   }
 
   if (song.getVersion() != current_song_version_ || new_scroll_pos_ != current_scroll_pos_) {
@@ -44,12 +49,12 @@ HierarchyView::render(const StyleProvider & styles, bool refresh) {
     
     auto [rows, cols] = getDim();
     for (int i = 0; i < rows - 2; i++) {
-      renderRow(styles, i, i == new_cursor_row_);
+      renderRow(styles, i, i == new_cursor_row_ - current_scroll_pos_);
     }
     need_refresh = true;
   } else if (new_cursor_row_ != current_cursor_row_) {
-    renderRow(styles, current_cursor_row_, false);
-    renderRow(styles, new_cursor_row_, true);
+    renderRow(styles, current_cursor_row_ - current_scroll_pos_, false);
+    renderRow(styles, new_cursor_row_ - current_scroll_pos_, true);
     need_refresh = true;
   }
 
@@ -63,23 +68,24 @@ void
 HierarchyView::renderRow(const StyleProvider & styles, int display_row, bool highlight) {
   auto [rows, cols] = getDim();
 
-  auto data_row = display_row + current_scroll_pos_;
-
-  if (highlight) {
-    setFgColor(styles.highlight_fg_color);
-    setBgColor(styles.highlight_bg_color);
-  } else {
-    setFgColor(styles.window_fg_color);
-    setBgColor(styles.window_bg_color);
-  }
+  if (display_row >= 0 && display_row < rows - 2) {
+    if (highlight) {
+      setFgColor(styles.highlight_fg_color);
+      setBgColor(styles.highlight_bg_color);
+    } else {
+      setFgColor(styles.window_fg_color);
+      setBgColor(styles.window_bg_color);
+    }
   
-  string padding(cols - 2, ' ');
-  putstr(1 + display_row, 1, padding);   
-    
-  if (data_row >= 0 && data_row < static_cast<int>(data_.size())) {
-    auto & data = data_[data_row];
+    string padding(cols - 2, ' ');
+    putstr(1 + display_row, 1, padding);   
+
+    auto data_row = static_cast<size_t>(display_row + current_scroll_pos_);
+    if (data_row < data_.size()) {
+      auto & data = data_[data_row];
         
-    putstr(1 + display_row, 1 + data.level * 3, data.label);
+      putstr(1 + display_row, 1 + data.level * 3, data.label);
+    }
   }
 }
 
@@ -105,7 +111,7 @@ HierarchyView::offerInput(const InputEvent & input) {
     if (midi_note != -1) {
       Note note(midi_note, 0x40);
       auto & instrument = song.getInstrument(new_cursor_row);
-      // instrument_state.playNote(note, instrument.getTranspose(), instrument.getDetune());
+      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, track_id, note_column, note.getValue(), note.getVelocity()));
     }
 #endif
   }

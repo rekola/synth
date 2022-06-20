@@ -2,6 +2,7 @@
 #define _HIERARCHYVIEW_H_
 
 #include "UIElement.h"
+#include "TrackType.h"
 
 #include <vector>
 #include <string>
@@ -10,6 +11,7 @@ class StyleProvider;
 
 struct hierarchy_row_s {
   int level = 0;
+  TrackType type;
   std::string label;  
 };
 
