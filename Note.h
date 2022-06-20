@@ -34,8 +34,12 @@ class Note {
     delay = 0;
   }
 
-  void transposeUp() { value++; }
-  void transposeDown() { value--; }
+  void transposeUp() {
+    if (isDefined() && !isOff() && !isAftertouch()) value++;
+  }
+  void transposeDown() {
+    if (isDefined() && !isOff() && !isAftertouch()) value--;
+  }
   
   static void inline replace(std::string & data, const std::string from, std::string to) {
     std::string::size_type pos = 0;
