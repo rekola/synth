@@ -7,14 +7,14 @@
 
 class RecordEvent : public Event {
 public:
-  RecordEvent(const SampleData & _data) : data(_data) { }
+  RecordEvent(SampleData data) : data_(std::move(data)) { }
 
   void dispatch(EventHandler & evh) override { evh.handleRecordEvent(*this); }
   
-  const SampleData & getData() const { return data; }
+  const SampleData & getData() const { return data_; }
   
 private:
-  SampleData data;
+  SampleData data_;
 };
 
 #endif
