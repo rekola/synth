@@ -5,10 +5,10 @@ class Cursor {
  public:
   Cursor() { }
 
-  bool isHighlighted(size_t _track, size_t _col) const { return _track == track && _col == col; }
+  bool isHighlighted(int _track, int _col) const { return _track == track && _col == col; }
 
-  size_t start_track = 0;
-  size_t track = 0, col = 0, subcol = 0;
+  int start_track = 0;
+  int track = 0, col = 0, subcol = 0;
 };
 
 #endif
