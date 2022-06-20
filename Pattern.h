@@ -14,54 +14,54 @@
 
 class Pattern {
  public:
-  explicit Pattern(size_t _num_rows = DEFAULT_PATTERN_LENGTH, Tuning _tuning = Tuning::INHERIT, short _key = -1) : num_rows(_num_rows), tuning(_tuning), key_note_number(_key) { }
+  explicit Pattern(int _num_rows = DEFAULT_PATTERN_LENGTH, Tuning _tuning = Tuning::INHERIT, short _key = -1) : num_rows(_num_rows), tuning(_tuning), key_note_number(_key) { }
 
   Tuning getTuning() const { return tuning; }
   short getKey() const { return key_note_number; }
-  size_t getNumRows() const { return num_rows; }
+  int getNumRows() const { return num_rows; }
   const std::string & getName() const { return name; }
 
-  void setNotes(size_t row, int track_id, const std::vector<Note> & n) {
+  void setNotes(int row, int track_id, const std::vector<Note> & n) {
     notes[row][track_id] = n;
   }
   
-  void setNote(size_t row, int track_id, size_t note_column, Note note) {
+  void setNote(int row, int track_id, int note_column, Note note) {
     auto & columns = notes[row][track_id];
     while (note_column >= columns.size()) columns.push_back(Note());
     columns[note_column] = note;
   }
 
-  void setNoteSwapped(int track_id, size_t row, size_t note_column, Note note) {
+  void setNoteSwapped(int track_id, size_t row, int note_column, Note note) {
     setNote(row, track_id, note_column, note);
   }
-  
-  size_t pushNote(size_t row, int track_id, Note note) {
+
+  int pushNote(int row, int track_id, Note note) {
     auto & columns = notes[row][track_id];
-    for (size_t i = 0; i < columns.size(); i++) {
+    for (int i = 0; i < static_cast<int>(columns.size()); i++) {
       if (!columns[i].isDefined()) {
 	columns[i] = note;
 	return i;
       }
     }
-    size_t index = columns.size();
+    auto index = columns.size();
     columns.push_back(note);
     return index;
   }
 
-  void clearNotes(size_t row, int track_id) {
+  void clearNotes(int row, int track_id) {
     auto it = notes.find(row);
     if (it != notes.end()) {
       it->second.erase(track_id);
     }
   }
   
-  void deleteNote(size_t row, int track_id, size_t column) {
+  void deleteNote(int row, int track_id, int column) {
     auto it = notes.find(row);
     if (it != notes.end()) {
       auto it2 = it->second.find(track_id);
       if (it2 != it->second.end()) {
 	auto & nv = it2->second;
-	if (column < nv.size()) {
+	if (column < static_cast<int>(nv.size())) {
 	  nv[column].clear();
 	  while (!nv.empty() && !nv.back().isDefined()) nv.pop_back();
 	  if (nv.empty()) it->second.erase(it2);
@@ -70,14 +70,14 @@ class Pattern {
     }
   }
 
-  void insertRow(size_t row, int track_id) {
-    for (size_t i = getNumRows() - 1; i > row; i--) {
+  void insertRow(int row, int track_id) {
+    for (int i = getNumRows() - 1; i > row; i--) {
       setNotes(i, track_id, getNotes(i - 1, track_id));
     }
     clearNotes(row, track_id);
   }
 
-  const Note & getNote(size_t row, int track_id, size_t note_column) const {
+  const Note & getNote(int row, int track_id, int note_column) const {
     auto it = notes.find(row);
     if (it != notes.end()) {
       auto it2 = it->second.find(track_id);
@@ -89,7 +89,7 @@ class Pattern {
     return empty_note;
   }
 
-  const std::vector<Note> & getNotes(size_t row, int track_id) const {
+  const std::vector<Note> & getNotes(int row, int track_id) const {
     auto it = notes.find(row);
     if (it != notes.end()) {
       auto it2 = it->second.find(track_id);
@@ -100,7 +100,7 @@ class Pattern {
     return empty_notes;
   }
 
-  const std::unordered_map<int, std::vector<Note> > & getNotes(size_t row) const {
+  const std::unordered_map<int, std::vector<Note> > & getNotes(int row) const {
     auto it = notes.find(row);
     if (it != notes.end()) {
       return it->second;
@@ -109,11 +109,11 @@ class Pattern {
     }
   }
 
-  void setCommand(size_t row, int track_id, Command command) {
+  void setCommand(int row, int track_id, Command command) {
     commands[row][track_id] = command;
   }
 
-  const Command & getCommand(size_t row, int track_id) const {
+  const Command & getCommand(int row, int track_id) const {
     auto it = commands.find(row);
     if (it != commands.end()) {
       auto it2 = it->second.find(track_id);
@@ -124,7 +124,7 @@ class Pattern {
     return empty_command;
   }
 
-  const std::unordered_map<int, Command> & getCommands(size_t row) const {
+  const std::unordered_map<int, Command> & getCommands(int row) const {
     auto it = commands.find(row);
     if (it != commands.end()) {
       return it->second;
@@ -138,18 +138,18 @@ class Pattern {
       // auto row = d0.first;
       for (auto & d1 : d0.second) {
 	auto track_id = d1.first;
-	size_t num_notes = d1.second.size();
+	auto num_notes = d1.second.size();
 	auto & info = track_info[track_id];
-	if (num_notes > info.num_note_columns) info.num_note_columns = num_notes;
+	info.updateNumSubtracks(num_notes);
       }
     }
   }
 
-  void setAnnotation(size_t row, std::string s) {
+  void setAnnotation(int row, std::string s) {
     annotations[row] = s;
   }
   
-  const std::string & getAnnotation(size_t row) const {
+  const std::string & getAnnotation(int row) const {
     auto it = annotations.find(row);
     if (it != annotations.end()) return it->second;
     else return empty_string;
@@ -178,7 +178,7 @@ class Pattern {
   }
   
 private:
-  size_t num_rows;
+  int num_rows;
   Tuning tuning;
   short key_note_number;
   std::string name;
