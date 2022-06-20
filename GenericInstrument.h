@@ -8,8 +8,8 @@ class GenericInstrument : public Instrument {
  public:
   GenericInstrument() { }
 
-  std::unique_ptr<TrackState> playNote(ChannelConfiguration channel_config, int outSampleRate, float azimuth, float frequency, float velocity, float start_phase) const override {
-    return concrete_instrument->playNote(channel_config, outSampleRate, azimuth, frequency, velocity, start_phase);
+  std::unique_ptr<TrackState> playNote(const ChannelConfiguration & channel_config, float azimuth, float frequency, float velocity, float start_phase) const override {
+    return concrete_instrument->playNote(channel_config, azimuth, frequency, velocity, start_phase);
   }
 
   std::string getElementName() const { return "genericInstrument"; }
