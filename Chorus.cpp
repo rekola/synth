@@ -8,61 +8,67 @@ using namespace std;
 
 class ChorusState : public TrackState {
 public:
-  ChorusState(ChannelConfiguration _channel_config, int _outSampleRate, float _delay1, float _delay2)
-    : TrackState(_channel_config, _outSampleRate), delay1(_delay1), delay2(_delay2) { }
+  ChorusState(const ChannelConfiguration & channel_config, float delay1, float delay2)
+    : TrackState(channel_config), delay1_(delay1), delay2_(delay2) { }
 
-  void apply(SampleData & input_data) override {
-    if (delay1 <= 0) return;
-
-    assert(input_data.getChannels() == 1);
-    float * buffer = input_data.data();
-    float dphi1 = 2 * M_PI * delay1_mod_freq / getOutSampleRate();
+  SampleData render(int frames) override {
+    auto input_data = TrackState::render(frames);
     
-    for (size_t i = 0; i < input_data.size(); i++) {
-      int delay1_offset = (size_t)((delay1 + delay1_mod_amount * sinf(delay1_phi)) / 1000 * getOutSampleRate());
-      float x = buffer[i];
-      float y = delaybuf1[(CHORUS_MAX_DELAY_SAMPLES + delc1 - delay1_offset) % CHORUS_MAX_DELAY_SAMPLES];
-      
-      delaybuf1[delc1] = x + feedback * y;
-      buffer[i] += y;
-			     
-      delc1++;
-      if (delc1 > CHORUS_MAX_DELAY_SAMPLES) delc1 = 0;
+    if (delay1_ > 0) {
+      assert(input_data.numberOfChannels() == 1);
 
-      delay1_phi += dphi1;
-      if (delay1_phi > 2 * M_PI) delay1_phi -= 2 * M_PI;
+      auto outSampleRate = getChannelConfiguration().getAudioOutSampleRate();
+      float * buffer = input_data.data();
+      float dphi1 = 2 * M_PI * delay1_mod_freq_ / outSampleRate;
+      
+      for (int i = 0; i < input_data.size(); i++) {
+	int delay1_offset = (delay1_ + delay1_mod_amount_ * sinf(delay1_phi_)) / 1000 * outSampleRate;
+	float x = buffer[i];
+	float y = delaybuf1_[(CHORUS_MAX_DELAY_SAMPLES + delc1_ - delay1_offset) % CHORUS_MAX_DELAY_SAMPLES];
+	
+	delaybuf1_[delc1_] = x + feedback_ * y;
+	buffer[i] += y;
+	
+	delc1_++;
+	if (delc1_ > CHORUS_MAX_DELAY_SAMPLES) delc1_ = 0;
+	
+	delay1_phi_ += dphi1;
+	if (delay1_phi_ > 2 * M_PI) delay1_phi_ -= 2 * M_PI;
+      }
     }
+    
+    return input_data;
   }
 
 private:
-  float delay1, delay2;
+  float delay1_, delay2_;
   
-  float feedback = 0.0f;
-  float delay1_mod_amount = 2.0f, delay1_mod_freq = 2.0f;
+  float feedback_ = 0.0f;
+  float delay1_mod_amount_ = 2.0f, delay1_mod_freq_ = 2.0f;
   
   // state
-  float delay1_phi = 0;
-  size_t delc1 = 0, delc2 = 0;
-  float delaybuf1[CHORUS_MAX_DELAY_SAMPLES], delaybuf2[CHORUS_MAX_DELAY_SAMPLES];
+  float delay1_phi_ = 0;
+  int delc1_ = 0, delc2_ = 0;
+  float delaybuf1_[CHORUS_MAX_DELAY_SAMPLES], delaybuf2_[CHORUS_MAX_DELAY_SAMPLES];
 };
 
 std::unique_ptr<TrackState>
-Chorus::createState(ChannelConfiguration channel_config, int outSampleRate) const {
-  return make_unique<ChorusState>(channel_config, outSampleRate, delay1, delay2);
+Chorus::createState(const ChannelConfiguration & channel_config) const {
+  return make_unique<ChorusState>(channel_config, delay1_, delay2_);
 }
 
 void
 Chorus::loadParameters(const ParameterSource & input) {
-  Effect::loadParameters(input);
+  Track::loadParameters(input);
 
-  delay1 = input.getFloat("delay1");
-  delay2 = input.getFloat("delay2");  
+  delay1_ = input.getFloat("delay1");
+  delay2_ = input.getFloat("delay2");  
 }
 
 void
 Chorus::storeParameters(ParameterSource & output) const {
-  Effect::storeParameters(output);
+  Track::storeParameters(output);
 
-  output.set("delay1", delay1);
-  output.set("delay2", delay2);
+  output.set("delay1", delay1_);
+  output.set("delay2", delay2_);
 }
