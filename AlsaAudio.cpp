@@ -115,7 +115,7 @@ AlsaAudio::initialize(Logger & logger) {
     return;
   }
 
-  output_frames = initialize_alsa_dev(logger, pcm_handle, getFrequency(), getChannels(), false);
+  output_frames = initialize_alsa_dev(logger, pcm_handle, getFrequency(), numberOfChannels(), false);
   if (!output_frames) return;
   
   input_frames = initialize_alsa_dev(logger, capture_handle, getFrequency(), 1, true);
@@ -209,7 +209,7 @@ SampleData
 AlsaAudio::record(Logger & logger) {
   startRecording();
   
-  size_t frames = snd_pcm_avail_update(capture_handle);
+  auto frames = snd_pcm_avail_update(capture_handle);
   SampleData data(1, frames);
 
   if (frames) {
