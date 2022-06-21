@@ -1,29 +1,29 @@
 #ifndef _UICOLOR_H_
 #define _UICOLOR_H_
 
-static inline int color_get_xdigit(char c) {                                                             
-  if (c >= '0' && c <= '9') {                                                               
-    return c - '0';                                                                         
-  } else if (c >= 'A' && c <= 'F') {                                                        
-    return c - 'A' + 10;                                                                    
-  } else if (c >= 'a' && c <= 'f') {                                                        
-    return c - 'a' + 10;                                                                    
-  } else {                                                                                  
-    return 0;                                                                               
-  }                                                                                         
+static inline int color_get_xdigit(char c) {
+  if (c >= '0' && c <= '9') {
+    return c - '0';
+  } else if (c >= 'A' && c <= 'F') {
+    return c - 'A' + 10;
+  } else if (c >= 'a' && c <= 'f') {
+    return c - 'a' + 10;
+  } else {
+    return 0;
+  }
 }
 
 class UIColor {
  public:
   explicit UIColor() : red(0), green(0), blue(0) { }
   explicit UIColor(int _red, int _green, int _blue) : red(_red), green(_green), blue(_blue) { }
-  UIColor(std::string s) {
+  UIColor(const std::string & s) {
     setValue(s);
   }
   UIColor(const char * s) {
     setValue(s);
   }
-  UIColor & operator=(std::string s) {
+  UIColor & operator=(const std::string & s) {
     setValue(s);
     return *this;
   }
@@ -31,21 +31,20 @@ class UIColor {
     setValue(s);
     return *this;
   }
-
   int getRed() const { return red; }
   int getGreen() const { return green; }
   int getBlue() const { return blue; }
 
-  UIColor blend(const UIColor & other, float f) const {
+  UIColor blend(float f, const UIColor & other) const {
     float inv_f = 1-f;
-    return UIColor(int(red * f + other.red * inv_f),
-		   int(green * f + other.green * inv_f),
-		   int(blue * f + other.blue * inv_f)
+    return UIColor(int(red * inv_f + other.red * f),
+		   int(green * inv_f + other.green * f),
+		   int(blue * inv_f + other.blue * f)
 		   );
   }
 
  private:
-  void setValue(std::string s) {
+  void setValue(const std::string & s) {
     size_t pos = 0;
     if (s.size() && s[0] == '#') pos++;
     if (s.size() >= pos + 6) {
