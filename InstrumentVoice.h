@@ -5,8 +5,8 @@
 
 class InstrumentVoice : public TrackState {
  public:
-  InstrumentVoice(ChannelConfiguration _channel_config, int _outSampleRate, float _azimuth)
-    : TrackState(_channel_config, _outSampleRate), azimuth(_azimuth) { }
+  InstrumentVoice(const ChannelConfiguration & _channel_config, float _azimuth)
+    : TrackState(_channel_config), azimuth(_azimuth) { }
 
   void killNote() override {
     TrackState::killNote();
@@ -18,7 +18,7 @@ class InstrumentVoice : public TrackState {
   virtual void playNote(float _frequency, float velocity, float start_phase) {	
     freq = _frequency;
     setGainDB(-gainToDecibels(1.0f / velocity));
-    sourceSamplePosition = start_phase * getOutSampleRate();
+    sourceSamplePosition = start_phase * getChannelConfiguration().getAudioOutSampleRate();
   }
 
   bool isPlaying() const override { return freq != 0.0f; }
