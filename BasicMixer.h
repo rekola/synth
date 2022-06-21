@@ -20,11 +20,11 @@ class BasicMixer : public Mixer {
       clear();
     }
 
-    if (getOutChannels() == input.getChannels()) {
-      for (size_t i = 0; i < input.getChannels() * input.size(); i++) {
+    if (getOutChannels() == input.numberOfChannels()) {
+      for (size_t i = 0; i < input.numberOfChannels() * input.size(); i++) {
 	buffer[i] += input.data()[i];
       }
-    } else if (getOutChannels() == 2 && input.getChannels() == 1) {
+    } else if (getOutChannels() == 2 && input.numberOfChannels() == 1) {
       for (size_t i = 0; i < input.size(); i++) {
 	float ss = input.data()[i];
 	
