@@ -11,7 +11,7 @@ enum class Tuning {
     TET53
 };
 
-static inline const std::string to_string(Tuning tuning) {
+static inline std::string to_string(Tuning tuning) {
   switch (tuning) {
   case Tuning::INHERIT: return "inherit";
   case Tuning::TET12: return "12edo";
