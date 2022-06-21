@@ -4,7 +4,6 @@
 class State {
  public:
   explicit State(int outSampleRate) : outSampleRate_(outSampleRate) { }
-  virtual ~State() { }
 
   int getOutSampleRate() const { return outSampleRate_; }
   
