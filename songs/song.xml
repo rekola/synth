@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<song key="C" tuning="31-TET" tempo="90">
+<song key="C" temperament="31edo" tempo="90">
   <effects>
   </effects>
 

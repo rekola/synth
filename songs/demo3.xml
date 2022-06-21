@@ -1,36 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song key="C" tuning="31-TET" tempo="220" volume="1" randomization="0.0099999998">
+<song mixer="hrft" key="C" temperament="31edo" tempo="220" volume="1" randomization="0.0099999998">
   <instruments>
-    <genericInstrument name="Pizzicato Section" />
-    <genericInstrument name="Fingered Bass" />
+    <genericInstrument name="Pizzicato Strings" />
+    <genericInstrument name="Electric Bass (finger)" />
     <genericInstrument name="Low Bongo" />
   </instruments>
   <tracks>
-    <root id="200" azimuth="30" distance="0" elevation="50">
-      <reverb id="100" preset="stadium">
-	<track id="0" instrument="0" volume="1"/>
-      </reverb>
-    </root>
-    <root id="201" azimuth="0" distance="0" elevation="0">
-      <reverb id="101" preset="stadium">
-	<track id="1" instrument="0"/>
-      </reverb>
-    </root>
-    <root id="202" azimuth="-30" distance="0" elevation="-40">
-      <reverb id="102" preset="stadium">
-	<track id="2" instrument="0"/>
-      </reverb>
-    </root>
-    <root id="203" azimuth="0" distance="0" elevation="90">
-      <reverb id="103" preset="stadium" volume="0.5">
-	<track id="3" instrument="1"/>
-      </reverb>
-    </root>
-    <root id="204" azimuth="15" distance="0" elevation="-20">
-      <reverb id="104" preset="stadium">
-	<track id="4" instrument="2"/>
-      </reverb>
-    </root>
+    <reverb id="100" preset="stadium" azimuth="30" distance="0" elevation="50">
+      <track id="0" instrument="0" volume="1"/>
+    </reverb>
+    <reverb id="101" preset="stadium" azimuth="0" distance="0" elevation="0">
+      <track id="1" instrument="0"/>
+    </reverb>
+    <reverb id="102" preset="stadium" azimuth="-30" distance="0" elevation="-40">
+      <track id="2" instrument="0"/>
+    </reverb>
+    <reverb id="103" preset="stadium" volume="0.5" azimuth="0" distance="0" elevation="90">
+      <track id="3" instrument="1"/>
+    </reverb>
+    <reverb id="104" preset="stadium" azimuth="15" distance="0" elevation="-20">
+      <track id="4" instrument="2"/>
+    </reverb>
   </tracks>
   <patterns>
     <pattern rows="4">
@@ -57,8 +47,8 @@
       <note row="22" track="2" velocity="64" value="F-4"/>
       <note row="24" track="4" velocity="64" value="E-4"/>
       <note row="26" track="2" velocity="64" value="E♭4"/>
-      <note row="28" track="3" velocity="64" value="E𝄫3"/>
-      <note row="28" track="1" velocity="64" value="E𝄫4"/>
+      <note row="28" track="3" velocity="64" value="D-3"/>
+      <note row="28" track="1" velocity="64" value="D-4"/>
       <note row="30" track="0" velocity="64" value="C-4"/>
       <note row="32" track="4" velocity="64" value="E-4"/>
       <note row="32" track="3" velocity="64" value="E♭3"/>
