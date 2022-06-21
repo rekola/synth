@@ -5,13 +5,13 @@
 
 class InstrumentTrack : public Track {
  public:
-  InstrumentTrack() : Track(-1, INSTRUMENT_TRACK), instrument_id(0) { }
-  InstrumentTrack(int _id, int _instrument_id) : Track(_id, INSTRUMENT_TRACK), instrument_id(_instrument_id) { }
+  InstrumentTrack() : Track(-1, TrackType::INSTRUMENT_CONTROL), instrument_id(0) { }
+  InstrumentTrack(int _id, int _instrument_id) : Track(_id, TrackType::INSTRUMENT_CONTROL), instrument_id(_instrument_id) { }
   
   int getInstrumentId() const { return instrument_id; }
   void setInstrumentId(int id) { instrument_id = id; }
     
-  SampleData render(size_t frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) override;
+  SampleData render(int frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) override;
   
   void loadParameters(const ParameterSource & input);
   void storeParameters(ParameterSource & output) const override;
