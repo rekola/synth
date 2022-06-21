@@ -32,11 +32,12 @@ Track::render(int frames, SongState & song_state, const std::vector<std::unique_
   }
 
   SampleData sd(song_state.getChannelConfiguration(), frames, isSolo() || child_has_solo);
-     	   
+  sd.zero();
+  
   for (auto & child : getChildren()) {
     auto sd2 = child->render(frames, song_state, instruments, events);
     if (!child->isMuted() && (!child_has_solo || child->isSolo())) {
-      sd.mix(sd2, 0, child->getVolume());
+      sd.mix(sd2, child->getVolume());
     }
   }
   return sd;
