@@ -48,6 +48,8 @@ class Controller {
 
   bool togglePlaying();
 
+  const InstrumentProvider & getInstrumentProvider() const { return instrument_provider; }
+  
  private:
   ChannelConfiguration channel_config;
 
