@@ -29,7 +29,7 @@ class Oscilator : public Instrument {
 
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;
-  std::unique_ptr<TrackState> playNote(ChannelConfiguration config, int outSampleRate, float azimuth, float frequency, float velocity, float start_phase) const override;
+  std::unique_ptr<TrackState> playNote(const ChannelConfiguration & config, float azimuth, float frequency, float velocity, float start_phase) const override;
 
  private:
   WaveformType type;
