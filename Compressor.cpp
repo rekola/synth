@@ -9,17 +9,19 @@ using namespace std;
 
 class CompressorState : public TrackState {
 public:
-  CompressorState(ChannelConfiguration _channel_config, int _outSampleRate, const Compressor & compressor)
-    : TrackState(_channel_config, _outSampleRate),
+  CompressorState(const ChannelConfiguration & _channel_config, const Compressor & compressor)
+    : TrackState(_channel_config),
       f_thresh(compressor.getTreshold()),
       f_ratio(compressor.getRatio()),
       f_attack(compressor.getAttack()),
       f_release(compressor.getRelease())
   { }
   
-  void apply(SampleData & input) override {
-    float * in = input.data();
-    size_t n = input.size();	
+  SampleData render(int frames) override {
+    auto input = TrackState::render(frames);
+    
+    auto in = input.data();
+    auto n = input.size();	
 	
     float current_rms = rms(in, n);
 
@@ -73,6 +75,8 @@ else if RMS < thresh,
       // makeup gain stage here	
       (*in++) *= f_coeff;
     }
+
+    return input;
   }
 
   TrackInfo getInfo() const override {
@@ -95,7 +99,7 @@ protected:
     
     float ampdif = f_gain_target - f_coeff;
     
-    i_fadesamps = getOutSampleRate() * (time / 1000);
+    i_fadesamps = getChannelConfiguration().getAudioOutSampleRate() * (time / 1000);
     f_gain_change = ampdif / (i_fadesamps - 1);
   } 
   
@@ -117,16 +121,16 @@ private:
 };
 
 std::unique_ptr<TrackState>
-Compressor::createState(ChannelConfiguration channel_config, int outSampleRate) const {
-  return make_unique<CompressorState>(channel_config, outSampleRate, *this);
+Compressor::createState(const ChannelConfiguration & channel_config) const {
+  return make_unique<CompressorState>(channel_config, *this);
 }
 
 void
 Compressor::loadParameters(const ParameterSource & input) {
-  Effect::loadParameters(input);
+  Track::loadParameters(input);
 }
 
 void
 Compressor::storeParameters(ParameterSource & output) const {
-  Effect::storeParameters(output);
+  Track::storeParameters(output);
 }

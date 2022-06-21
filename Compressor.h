@@ -1,13 +1,13 @@
 #ifndef _COMPRESSOR_H_
 #define _COMPRESSOR_H_
 
-#include "Effect.h"
+#include "Track.h"
 
-class Compressor : public Effect {
+class Compressor : public Track {
  public:
-  Compressor() { }
+  Compressor() : Track(TrackType::EFFECT) { }
 
-  std::unique_ptr<TrackState> createState(ChannelConfiguration channel_config, int outSampleRate) const override;
+  std::unique_ptr<TrackState> createState(const ChannelConfiguration & channel_config) const override;
   std::string getElementName() const override { return "compressor"; }
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;
