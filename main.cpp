@@ -13,9 +13,8 @@ using namespace std;
 
 int main(int argc, char *argv[]) {
   int load_demo = 0;
-  int samplerate = 44100;
   bool relative = false;
-  ChannelConfiguration channel_config = ChannelConfiguration::STEREO;
+  ChannelConfiguration channel_config(ChannelConfiguration::STEREO, 44100);
   vector<string> input;
   
   for (int i = 1; i < argc; i++) {
@@ -27,7 +26,7 @@ int main(int argc, char *argv[]) {
 	load_demo = 1;
       }
     } else if (strcmp(argv[i], "--samplerate") == 0) {
-      samplerate = 0;
+      int samplerate = 0;
       if (i + 1 < argc && argv[i + 1][0] != '-') {
 	i++;
 	samplerate = atoi(argv[i]);	
@@ -36,14 +35,15 @@ int main(int argc, char *argv[]) {
 	cerr << "invalid parameters for samplerate\n";
 	exit(1);
       }
+      channel_config.setAudioOutSampleRate(samplerate);
     } else if (strcmp(argv[i], "--relative") == 0) {
       relative = true;
     } else if (strcmp(argv[i], "--mono") == 0) {
-      channel_config = ChannelConfiguration::MONO;
+      channel_config.setType(ChannelConfiguration::MONO);
     } else if (strcmp(argv[i], "--stereo") == 0) {
-      channel_config = ChannelConfiguration::STEREO;
+      channel_config.setType(ChannelConfiguration::STEREO);
     } else if (strcmp(argv[i], "--surround") == 0) {
-      channel_config = ChannelConfiguration::SURROUND_5_1;
+      channel_config.setType(ChannelConfiguration::SURROUND_5_1);
     } else if (argv[i][0] == '-') {
       cerr << "invalid parameter\n";
       exit(1);
@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
 
   StderrLogger logger;
   
-  AlsaAudio audio(samplerate, channel_config == ChannelConfiguration::MONO ? 1 : 2);
+  AlsaAudio audio(channel_config.getAudioOutSampleRate(), channel_config.numberOfChannels());
   audio.initialize(logger);
 
 #if 0
@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
   // notcurses_options nopts{};
   // nopts.flags = NCOPTION_INHIBIT_SETLOCALE;
   auto nc = make_shared<ncpp::NotCurses>();
-  // nc->mouse_enable(NCMICE_ALL_EVENTS);
+  nc->mouse_enable(NCMICE_ALL_EVENTS);
   nc->linesigs_disable();
   
   TerminalUI ui(nc);
