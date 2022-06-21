@@ -10,22 +10,24 @@
 
 class SongState : public TrackState {
  public:
-  explicit SongState(ChannelConfiguration channel_config, int outSampleRate) : TrackState(channel_config, outSampleRate) { }
+  explicit SongState(ChannelConfiguration channel_config) : TrackState(channel_config) { }
 
-  size_t getTickInterval(const Song & song) const {
-    return song.getSampleInterval(getOutSampleRate()) / 12;
+#if 0
+  int getTickInterval(const Song & song) const {
+    return song.getSampleInterval(channel_config.getAudioOutSampleRate()) / 12;
   }
+#endif
   
   bool isPlaying() const { return is_playing; }
   void setIsPlaying(bool b) { is_playing = b; }
 
-  const size_t getAbsolutePosition() const { return absolute_pos; }
-  const size_t getSamplePos() const { return sample_pos; }
+  int getAbsolutePosition() const { return absolute_pos; }
+  int getSamplePos() const { return sample_pos; }
     
-  void moveForwardSamples(const Song & song, size_t n = 1) {
-    auto sinterval = song.getSampleInterval(getOutSampleRate());
+  void moveForwardSamples(const Song & song, int n = 1) {
+    auto sinterval = song.getSampleInterval(getChannelConfiguration().getAudioOutSampleRate());
 
-    for (size_t i = 0; i < n; i++) {
+    for (int i = 0; i < n; i++) {
       sample_pos++;
       
       if (sample_pos == sinterval) {
@@ -34,8 +36,8 @@ class SongState : public TrackState {
     }
   }
 
-  std::pair<size_t, size_t> getRelativePosition(const Song & song) const {
-    std::pair<size_t, size_t> rv(0, absolute_pos);
+  std::pair<int, int> getRelativePosition(const Song & song) const {
+    std::pair<int, int> rv(0, absolute_pos);
     for (auto & pattern : song.getPatterns()) {
       if (rv.second >= pattern.getNumRows()) {
 	rv.second -= pattern.getNumRows();
@@ -47,8 +49,8 @@ class SongState : public TrackState {
     return rv;
   }
 
-  size_t samplesUntilNextRow(const Song & song) const {
-    auto sinterval = song.getSampleInterval(getOutSampleRate());
+  int samplesUntilNextRow(const Song & song) const {
+    auto sinterval = song.getSampleInterval(getChannelConfiguration().getAudioOutSampleRate());
     return sample_pos == 0 ? sinterval : sinterval - sample_pos;    
   }
   
@@ -61,16 +63,16 @@ class SongState : public TrackState {
     }
   }
   
-  size_t getVoiceCount() const {
-    size_t n = 0;
+  int getVoiceCount() const {
+    int n = 0;
     for (auto & td : track_states) {
       n += td.second->getVoiceCount();
     }
     return n;
   }
 
-  size_t getAllocatedVoiceCount() const {
-    size_t n = 0;
+  int getAllocatedVoiceCount() const {
+    int n = 0;
     for (auto & td : track_states) {
       n += td.second->getAllocatedVoiceCount();
     }
@@ -80,7 +82,7 @@ class SongState : public TrackState {
   TrackState & getTrackState(const Track & track) {
     auto it = track_states.find(track.getId());
     if (it != track_states.end()) return *(it->second);
-    auto state = track.createState(getChannelConfiguration(), getOutSampleRate());
+    auto state = track.createState(getChannelConfiguration());
     auto ptr = state.get();
     track_states[track.getId()] = std::move(state);
     return *ptr;
