@@ -8,17 +8,17 @@ class PlaybackInfo {
   PlaybackInfo() { }
   
   bool isPlaying() const { return is_playing; }
-  const size_t getAbsolutePosition() const { return absolute_pos; }
-  const size_t getPatternIndex() const { return pattern_idx; }
-  const size_t getRowIndex() const { return row_idx; }
-  const size_t getSamplePos() const { return sample_pos; }
+  const int getAbsolutePosition() const { return absolute_pos; }
+  const int getPatternIndex() const { return pattern_idx; }
+  const int getRowIndex() const { return row_idx; }
+  const int getSamplePos() const { return sample_pos; }
 
   float getTime() const {
     return (float)(absolute_pos * sample_interval + sample_pos) / outSampleRate;
   }
 
-  size_t getVoiceCount() const { return voice_count; }
-  size_t getAllocatedVoiceCount() const { return allocated_voice_count; }
+  int getVoiceCount() const { return voice_count; }
+  int getAllocatedVoiceCount() const { return allocated_voice_count; }
 
   const TrackInfo & getTrackInfo(int track_id) const {
     auto it = effect_info.find(track_id);
@@ -28,9 +28,9 @@ class PlaybackInfo {
   
   bool is_playing = true;
   int outSampleRate = 0;
-  size_t sample_interval = 0;
-  size_t sample_pos = 0, pattern_idx = 0, row_idx = 0, absolute_pos = 0;
-  size_t voice_count = 0, allocated_voice_count = 0;
+  int sample_interval = 0;
+  int sample_pos = 0, pattern_idx = 0, row_idx = 0, absolute_pos = 0;
+  int voice_count = 0, allocated_voice_count = 0;
 
 private:
   std::unordered_map<int, TrackInfo> effect_info;
