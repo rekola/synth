@@ -15,12 +15,12 @@ class InstrumentList : public UIElement {
   bool render(const StyleProvider & styles, bool refresh = false);
 
 protected:
-  void renderRow(const StyleProvider & styles, size_t row, bool highlight);
+  void renderRow(const StyleProvider & styles, int row, bool highlight);
 
  private:
   int current_song_version = 0;
-  size_t new_scroll_pos = 0, current_scroll_pos = 0;
-  size_t new_cursor_row = 0, current_cursor_row = 0;
+  int new_scroll_pos = 0, current_scroll_pos = 0;
+  int new_cursor_row = 0, current_cursor_row = 0;
 };
 
 #endif

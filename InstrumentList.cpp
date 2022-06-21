@@ -27,7 +27,7 @@ InstrumentList::render(const StyleProvider & styles, bool refresh) {
     
     getPlane().drawBorder();
     
-    for (size_t i = 0; i < song.getInstruments().size(); i++) {
+    for (int i = 0; i < song.getInstruments().size(); i++) {
       renderRow(styles, i, i == new_cursor_row);
     }
     need_refresh = true;
@@ -44,7 +44,7 @@ InstrumentList::render(const StyleProvider & styles, bool refresh) {
 }
 
 void
-InstrumentList::renderRow(const StyleProvider & styles, size_t row, bool highlight) {
+InstrumentList::renderRow(const StyleProvider & styles, int row, bool highlight) {
   auto [rows, cols] = getDim();
 
   if (row >= current_scroll_pos && row < current_scroll_pos + rows - 2) {
@@ -68,7 +68,7 @@ bool
 InstrumentList::offerInput(const InputEvent & input) {
   auto & song = getController().getSong();
   auto [rows, cols] = getDim();
-  size_t num_instruments = song.getInstruments().size();
+  auto num_instruments = song.getInstruments().size();
 
   if (input.getId() == NCKEY_UP) {
     if (new_cursor_row > 0) new_cursor_row--;
