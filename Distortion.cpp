@@ -9,15 +9,17 @@ using namespace std;
 
 class DistortionState : public TrackState {
 public:
-  DistortionState(ChannelConfiguration _channel_config, int _outSampleRate, DistortionType _type, float _param, float _drymix, float _drive)
-    : TrackState(_channel_config, _outSampleRate), type(_type), param(_param), drymix(_drymix), drive(_drive) { }
+  DistortionState(const ChannelConfiguration & _channel_config, DistortionType _type, float _param, float _drymix, float _drive)
+    : TrackState(_channel_config), type(_type), param(_param), drymix(_drymix), drive(_drive) { }
   
-  void apply(SampleData & input) override {    
+  SampleData render(int frames) override {
+    auto input = TrackState::render(frames);
+    
     auto buffer = input.data();
     switch (type) {
     case DistortionType::HARD_CLIP:
 
-      for (size_t i = 0; i < input.getChannels() * input.size(); i++) {
+      for (size_t i = 0; i < input.numberOfChannels() * input.size(); i++) {
 	float x = buffer[i];
 	float y = drive * x;
 	if (y > param) y = param;
@@ -27,7 +29,7 @@ public:
       break;
 
     case DistortionType::SOFT_CLIP:
-      for (size_t i = 0; i < input.getChannels() * input.size(); i++) {
+      for (size_t i = 0; i < input.numberOfChannels() * input.size(); i++) {
 	float x = buffer[i];
 	float y = drive * x;
 	if (y > 1.0) y = 1.0;
@@ -43,7 +45,7 @@ public:
 	float timbre = 1.0f;
 	float depth = 1.0f;
 	float timbreInverse = (1 - (timbre * 0.099)) * 10;
-	for (size_t i = 0; i < input.getChannels() * input.size(); i++) {
+	for (size_t i = 0; i < input.numberOfChannels() * input.size(); i++) {
 	  float x = buffer[i];
 	  x *= depth;
 	  x = tanhf(x * (timbre + 1));
@@ -59,6 +61,8 @@ public:
     case DistortionType::BITCRUSH:
       break;
     }
+
+    return input;
   }
 
 private:
@@ -67,13 +71,13 @@ private:
 };
 
 std::unique_ptr<TrackState>
-Distortion::createState(ChannelConfiguration channel_config, int outSampleRate) const {
-  return make_unique<DistortionState>(channel_config, outSampleRate, type, param, drymix, drive);
+Distortion::createState(const ChannelConfiguration & channel_config) const {
+  return make_unique<DistortionState>(channel_config, type, param, drymix, drive);
 }
 
 void
 Distortion::loadParameters(const ParameterSource & input) {
-  Effect::loadParameters(input);
+  Track::loadParameters(input);
    
   param = input.getFloat("param");
   drive = input.getFloat("drive");
@@ -86,7 +90,7 @@ Distortion::loadParameters(const ParameterSource & input) {
 
 void
 Distortion::storeParameters(ParameterSource & output) const {
-  Effect::storeParameters(output);
+  Track::storeParameters(output);
 
   output.set("param", param);
   output.set("drive", drive);

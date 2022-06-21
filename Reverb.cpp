@@ -8,12 +8,14 @@ using namespace std;
 
 class ReverbState : public TrackState {
 public:
-  ReverbState(ChannelConfiguration _channel_config, int _outSampleRate, ReverbPreset preset)
-    : TrackState(_channel_config, _outSampleRate), mverb(_outSampleRate, int(preset)) {
+  ReverbState(const ChannelConfiguration & channel_config, ReverbPreset preset)
+    : TrackState(channel_config), mverb(channel_config.getAudioOutSampleRate(), int(preset)) {
 
   }
 
-  void apply(SampleData & input) override {
+  SampleData render(int frames) override {
+    auto input = TrackState::render(frames);
+    
     auto left_in_ptr = unique_ptr<float[]>(new float[input.size()]);
     auto right_in_ptr = unique_ptr<float[]>(new float[input.size()]);
     auto left_out_ptr = unique_ptr<float[]>(new float[input.size()]);
@@ -29,7 +31,7 @@ public:
     float * out[2] = { left_out, right_out };
     float * io_data = input.data();
     
-    if (input.getChannels() == 2) {
+    if (input.numberOfChannels() == 2) {
       for (size_t i = 0; i < input.size(); i++) {
 	left_in[i] = io_data[2 * i + 0];
 	right_in[i] = io_data[2 * i + 1];
@@ -51,6 +53,8 @@ public:
 	io_data[i] = left_out[i];
       }
     }
+
+    return input;
   }
 
 private:
@@ -58,13 +62,13 @@ private:
 };
 
 std::unique_ptr<TrackState>
-Reverb::createState(ChannelConfiguration channel_config, int outSampleRate) const {
-  return make_unique<ReverbState>(channel_config, outSampleRate, preset);
+Reverb::createState(const ChannelConfiguration & channel_config) const {
+  return make_unique<ReverbState>(channel_config, preset);
 }
 
 void
 Reverb::loadParameters(const ParameterSource & input) {
-  Effect::loadParameters(input);
+  Track::loadParameters(input);
   
   auto preset_text = input.getText("preset");
   if (preset_text == "subtle") preset = ReverbPreset::SUBTLE;
@@ -76,7 +80,7 @@ Reverb::loadParameters(const ParameterSource & input) {
 
 void
 Reverb::storeParameters(ParameterSource & output) const {
-  Effect::storeParameters(output);
+  Track::storeParameters(output);
 
   output.set("preset", to_string(preset));
 }
