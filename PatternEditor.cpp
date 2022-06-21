@@ -22,8 +22,8 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   // getPlane().setScrolling(true);  
 }
 
-static size_t get_depth(const Track & track) {
-  size_t max_depth = 0;  
+static int get_depth(const Track & track) {
+  int max_depth = 0;  
   for (auto & child : track.getChildren()) {
     auto d = get_depth(*child);
     if (d > max_depth) max_depth = d;
@@ -33,7 +33,7 @@ static size_t get_depth(const Track & track) {
 
 static void get_root_track_ids(const Track & track, vector<int> & track_ids) {
   for (auto & child : track.getChildren()) {
-    if (child->getType() == Track::INSTRUMENT_TRACK || child->getType() == Track::SAMPLE) {
+    if (child->getType() == TrackType::INSTRUMENT_CONTROL || child->getType() == TrackType::SAMPLE) {
       track_ids.push_back(child->getId());
     } else {
       get_root_track_ids(*child, track_ids);
@@ -43,11 +43,12 @@ static void get_root_track_ids(const Track & track, vector<int> & track_ids) {
 
 static void fill_track_info(const Track & track, std::unordered_map<int, VisibleTrackInfo> & track_info) {
   for (auto & child : track.getChildren()) {
-    if (child->getType() == Track::INSTRUMENT_TRACK || child->getType() == Track::SAMPLE) {
+    if (child->getType() == TrackType::INSTRUMENT_CONTROL || child->getType() == TrackType::SAMPLE) {
       auto & info = track_info[child->getId()];
-      info.has_velocity_column = child->showVelocityColumn();
-      info.has_delay_column = child->showDelayColumn();
-      info.has_effect_column = child->showEffectsColumn();
+      info.has_note_column_ = child->showNoteColumn();
+      info.num_velocity_columns_ = child->showVelocityColumn() ? 1 : 0;
+      info.has_delay_column_ = child->showDelayColumn();
+      info.has_effect_column_ = child->showEffectsColumn();
     } else {
       fill_track_info(*child, track_info);
     }
@@ -68,7 +69,7 @@ PatternEditor::getTrackInformation(const Song & song) const {
   auto & info = getController().getPlaybackInfo();
 
   std::unordered_map<int, VisibleTrackInfo> track_info;
-  for (size_t row = 0; row < rows - heading_height; ) {
+  for (auto row = 0; row < rows - heading_height; ) {
     auto [ pattern_idx, pattern_row ] = song.normalizePosition(info.getPatternIndex(), row + current_scroll_row);
     if (pattern_idx >= song.getPatterns().size()) break;
     
@@ -86,7 +87,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   bool render_all = refresh;
   auto & info = getController().getPlaybackInfo();
   auto score_pattern = info.getPatternIndex();
-  size_t score_playing_row = info.getRowIndex();
+  auto score_playing_row = info.getRowIndex();
   auto & song = getController().getSong();
   
   auto track_info = getTrackInformation(song);
@@ -97,28 +98,28 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   vector<int> track_ids;
   get_root_track_ids(song, track_ids);
 			      
-  size_t score_total_columns = 0;
+  auto score_total_columns = 0;
   for (auto wd : track_info) score_total_columns += wd.second.getColumnCount();
 
-  size_t new_scroll_row = current_scroll_row;
+  auto new_scroll_row = current_scroll_row;
   if (score_playing_row < new_scroll_row) {
     new_scroll_row = score_playing_row;
   } else if (score_playing_row >= new_scroll_row + rows - heading_height) {
     new_scroll_row = score_playing_row - (rows - heading_height) + 1;
   }
 
-  size_t new_scroll_track = current_scroll_track;
+  auto new_scroll_track = current_scroll_track;
   if (new_cursor.track < new_scroll_track) {
     new_scroll_track = new_cursor.track;
   } else {
     while ( 1 ) {
-      size_t pos = 6;
-      for (size_t i = new_scroll_track; i < track_ids.size() && i <= new_cursor.track; i++) {
+      auto pos = 6;
+      for (auto i = new_scroll_track; i < track_ids.size() && i <= new_cursor.track; i++) {
 	auto id = track_ids[i];
 	auto it = track_info.find(id);
 	pos += (it != track_info.end() ? it->second.getTrackWidth() : 0);
       }
-      if (pos >= (size_t)cols) {
+      if (pos >= cols) {
 	new_scroll_track++;
       } else {
 	break;
@@ -137,9 +138,6 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   
   bool cursor_changed = new_cursor.track != current_cursor.track || new_cursor.col != current_cursor.col || new_cursor.subcol != current_cursor.subcol;
   
-  // size_t old_cursor_row = current_cursor.row;
-  
-  // current_cursor.row = new_cursor.row;
   current_cursor.track = new_cursor.track;
   current_cursor.col = new_cursor.col;
   current_cursor.subcol = new_cursor.subcol;
@@ -155,7 +153,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
     fill();
     
     renderHeading(styles, track_ids, track_info);
-    for (size_t row = 0; row < rows - heading_height; row++) {
+    for (auto row = 0; row < rows - heading_height; row++) {
       renderRow(styles, heading_height, track_ids, track_info, row, (row + current_scroll_row) == score_playing_row);
     }
     need_redraw = true;
@@ -250,11 +248,13 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
     row_edited = true;
   }
 
+#if 0
   if ((!was_playing && !active_midi_notes.empty() && !info.is_playing) ||
       (was_playing && active_midi_notes.empty() && info.is_playing)) {
     bool playing = getController().togglePlaying();
     // setStatus(playing ? "Playing" : "Stopped");
   }
+#endif
 }
 
 bool
@@ -266,9 +266,9 @@ PatternEditor::offerInput(const InputEvent & input) {
 
   vector<int> track_ids;
   get_root_track_ids(song, track_ids);
-  size_t num_tracks = track_ids.size();
+  auto num_tracks = static_cast<int>(track_ids.size());
   
-  auto * current_track = song.getChildById(track_ids[current_cursor.track]);
+  auto current_track = song.getChildById(track_ids[current_cursor.track]);
 
   VisibleTrackInfo track_info;
   if (current_track) {
@@ -292,7 +292,7 @@ PatternEditor::offerInput(const InputEvent & input) {
      if (input.getId() == 'r') {
       int track_id;
       auto sample = getController().startRecording();
-      if (current_track && current_track->getType() == Track::SAMPLE) {
+      if (current_track && current_track->getType() == TrackType::SAMPLE) {
 	SampleTrack & sample_track = dynamic_cast<SampleTrack&>(*current_track);
 	sample_track.setSample(sample);
 	track_id = sample_track.getId();
@@ -337,7 +337,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       return true;
     } else if (input.getId() == NCKEY_LEFT || input.getId() == 'p') {
       Track * track = song.getChildById(track_ids[current_cursor.track]);
-      if (track && track->getType() == Track::INSTRUMENT_TRACK) {
+      if (track && track->getType() == TrackType::INSTRUMENT_CONTROL) {
 	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
 	if (instrument_track.getInstrumentId() > 0) {
 	  instrument_track.setInstrumentId(instrument_track.getInstrumentId() - 1);
@@ -348,7 +348,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       return true;
     } else if (input.getId() == NCKEY_RIGHT || input.getId() == 'i' || input.getId() == 'i' || input.getId() == 'o') {
       Track * track = song.getChildById(track_ids[current_cursor.track]);
-      if (track && track->getType() == Track::INSTRUMENT_TRACK) {
+      if (track && track->getType() == TrackType::INSTRUMENT_CONTROL) {
 	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
 	auto & instruments = song.getInstruments();
 	if (instrument_track.getInstrumentId() + 1 < instruments.size()) {
@@ -465,7 +465,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       if (is_hex) {
 	int input_value = input.getId() >= '0' && input.getId() <= '9' ? input.getId() - '0' : input.getId() - 'a' + 10;
 	auto & notes = pattern.getNotes(info.getRowIndex(), track_id);
-	size_t note_column = track_info.getNoteNumber(new_cursor.col);
+	auto note_column = track_info.getNoteNumber(new_cursor.col);
 	Note note;
 	if (note_column < notes.size()) note = notes[note_column];
 	int current_value = column_type == ColumnType::VELOCITY ? note.getVelocity() : note.getDelay();
@@ -486,7 +486,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
       bool is_off = input.getId() == 'a';
       bool is_delete = input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE;
-      size_t note_column = track_info.getNoteNumber(new_cursor.col);
+      auto note_column = track_info.getNoteNumber(new_cursor.col);
 
       int midi_note = -1;
       if (!is_off) {
@@ -544,24 +544,23 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 
   auto heading_height = get_depth(song);
 
-  string padding;
-  for (size_t i = 0; i < cols; i++) padding += ' ';
-
+  string padding(cols, ' ');
+  
   setBgColor(styles.window_bg_color);
-  for (size_t i = 0; i < heading_height; i++) {
+  for (auto i = 0; i < heading_height; i++) {
     putstr(i, 0, padding);
   }
   
   auto & instruments = song.getInstruments();
 
-  for (size_t level = 0; level < heading_height - 1; level++) {
+  for (auto level = 0; level < heading_height - 1; level++) {
     vector<Track *> tracks;
-    vector<size_t> track_widths;
+    vector<int> track_widths;
 
-    for (size_t i = 0; i < track_ids.size(); i++) {
+    for (auto i = 0; i < static_cast<int>(track_ids.size()); i++) {
       int track_id = track_ids[i];
       auto track = song.getChildById(track_id);
-      for (size_t k = 0; k < level && track; k++) {
+      for (auto k = 0; k < level && track; k++) {
 	track = track_parents[track->getId()];
 	if (track == &song) track = nullptr;
       }
@@ -576,8 +575,8 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
       }
     }
     
-    size_t current_pos = 5;
-    for (size_t i = 0; i < tracks.size(); i++) {
+    auto current_pos = 5;
+    for (auto i = 0; i < static_cast<int>(tracks.size()); i++) {
       if (i < current_scroll_track) continue;
       if (current_pos >= cols) break;
 
@@ -609,9 +608,9 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  setBgColor(styles.window_bg_color);
 	  
 	  string instrument_name;
-	  if (track->getType() == Track::SAMPLE) {
+	  if (track->getType() == TrackType::SAMPLE) {
 	    instrument_name = "Sample";
-	  } else if (track->getType() == Track::INSTRUMENT_TRACK) {
+	  } else if (track->getType() == TrackType::INSTRUMENT_CONTROL) {
 	    auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
 	    if (instrument_track.getInstrumentId() >= 0 && instrument_track.getInstrumentId() < instruments.size()) {
 	      instrument_name = instruments[instrument_track.getInstrumentId()]->getName();
@@ -644,7 +643,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 }
 
 void
-PatternEditor::renderRow(const StyleProvider & styles, size_t heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & all_track_info, size_t display_row, bool highlight) {
+PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & all_track_info, int display_row, bool highlight) {
   auto [rows, cols] = getDim();
 
   if (display_row >= rows - heading_height) {
@@ -660,15 +659,14 @@ PatternEditor::renderRow(const StyleProvider & styles, size_t heading_height, co
 
   display_row += heading_height;
           
-  string padding;
-  for (size_t i = 0; i < cols; i++) padding += ' ';
+  string padding(cols, ' ');
     
   setBgColor(styles.window_bg_color);
   putstr(display_row, 0, padding);
     
-  size_t current_pos = 0;
-  for (int i = -1; i < (int)track_ids.size(); i++) {
-    if (i >= 0 && (size_t)i < current_scroll_track) continue;
+  auto current_pos = 0;
+  for (int i = -1; i < static_cast<int>(track_ids.size()); i++) {
+    if (i >= 0 && i < current_scroll_track) continue;
     if (current_pos >= cols) break;
     
     UIColor fg, bg, cell_fg, cell_bg;
@@ -686,8 +684,8 @@ PatternEditor::renderRow(const StyleProvider & styles, size_t heading_height, co
 
     if (is_neighboring_pattern) {
       UIColor black;
-      bg = bg.blend(black, 0.25f);
-      fg = fg.blend(black, 0.25f);
+      bg = bg.blend(0.75f, black);
+      fg = fg.blend(0.75f, black);
     }
             
     if (i == -1) {
@@ -711,7 +709,7 @@ PatternEditor::renderRow(const StyleProvider & styles, size_t heading_height, co
       if (it != all_track_info.end()) track_info = it->second;
       auto track = song.getChildById(track_id);
 	
-      for (size_t k = 0; k < track_info.getColumnCount(); k++) {
+      for (auto k = 0; k < track_info.getColumnCount(); k++) {
 	if (k != 0) {
 	  putstr(display_row, current_pos++, " ");
 	}
@@ -726,7 +724,7 @@ PatternEditor::renderRow(const StyleProvider & styles, size_t heading_height, co
 	  setBgColor(bg);
 	}
 	auto column_type = track_info.getColumnType(k);
-	if (track && track->getType() == Track::SAMPLE) {
+	if (track && track->getType() == TrackType::SAMPLE) {
 	  if (!column_highlighted) {
 	    cell_fg = fg;
 	    cell_bg = bg;
@@ -742,7 +740,7 @@ PatternEditor::renderRow(const StyleProvider & styles, size_t heading_height, co
 	  }
 	} else if (column_type == ColumnType::EFFECT) {
 	  if (!column_highlighted && command.isDefined()) {
-	    cell_fg = UIColor("#c67610");
+	    cell_fg = styles.command_column_color;
 	    cell_bg = bg;
 	    setFgColor(cell_fg);
 	    setBgColor(cell_bg);
@@ -756,37 +754,41 @@ PatternEditor::renderRow(const StyleProvider & styles, size_t heading_height, co
 	  }
 	  current_pos += 4;
 	} else if (column_type == ColumnType::NOTE) {
+	  auto l = track_info.getNoteNumber(k);
+	  auto note = l < notes.size() ? notes[l] : Note();
+
 	  if (!column_highlighted) {
 	    cell_fg = fg;
 	    cell_bg = bg;
+	    if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
 	    setFgColor(cell_fg);
 	    setBgColor(cell_bg);
 	  }
 
-	  size_t l = track_info.getNoteNumber(k);
-	  Note note;
-	  if (l < notes.size()) note = notes[l];
 	  putstr(display_row, current_pos, to_string(note, tuning));
 	  current_pos += 3;
-	} else if (column_type == ColumnType::VELOCITY || column_type == ColumnType::DELAY) {
-	  if (!column_highlighted) {
-	    cell_fg = column_type == ColumnType::VELOCITY ? UIColor("#bfa426") : UIColor("#42c1ea");
-	    cell_bg = bg;
-	    setFgColor(cell_fg);
-	    setBgColor(cell_bg);
-	  }
-	  	      
-	  size_t l = track_info.getNoteNumber(k);
+	} else if (column_type == ColumnType::VELOCITY || column_type == ColumnType::DELAY) {	  	      
+	  auto l = track_info.getNoteNumber(k);
+	  Note note = l < notes.size() ? notes[l] : Note();
 	  string s;
-	  if (l < notes.size() && notes[l].isDefined()) {
-	    if (column_type == ColumnType::VELOCITY && notes[l].isOff()) {
+	  if (note.isDefined()) {
+	    if (column_type == ColumnType::VELOCITY && note.isOff()) {
 	      s = "  ";
 	    } else {
-	      s = format("{:02x}", column_type == ColumnType::VELOCITY ? notes[l].getVelocity() : notes[l].getDelay());
+	      s = format("{:02x}", column_type == ColumnType::VELOCITY ? note.getVelocity() : note.getDelay());
 	    }
 	  } else {
 	    s = "--";
 	  }
+
+	  if (!column_highlighted) {
+	    cell_fg = column_type == ColumnType::VELOCITY ? UIColor("#bfa426") : UIColor("#42c1ea");
+	    cell_bg = bg;
+	    if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
+	    setFgColor(cell_fg);
+	    setBgColor(cell_bg);
+	  }
+
 	  putstr(display_row, current_pos, s);
 	  if (column_highlighted) {
 	    setUnderline(true);
@@ -804,7 +806,7 @@ PatternEditor::renderRow(const StyleProvider & styles, size_t heading_height, co
     }
   }
 
-  if (current_pos + 2 < (size_t)cols) {
+  if (current_pos + 2 < cols) {
     auto & annotation = pattern.getAnnotation(pattern_row);
     if (!annotation.empty()) {
       setFgColor("#e03030");

@@ -25,14 +25,14 @@ class PatternEditor : public UIElement {
 protected:
   std::unordered_map<int, VisibleTrackInfo> getTrackInformation(const Song & song) const;
   void renderHeading(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info);
-  void renderRow(const StyleProvider & styles, size_t heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, size_t row, bool highlight);
+  void renderRow(const StyleProvider & styles, int heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, int row, bool highlight);
 
   Cursor current_cursor, new_cursor;
   
-  size_t current_score_playing_row = 0;
-  size_t current_score_pattern = 0;  
-  size_t current_score_total_columns = 0;
-  size_t current_scroll_row = 0, current_scroll_track = 0, current_scroll_col = 0;
+  int current_score_playing_row = 0;
+  int current_score_pattern = 0;  
+  int current_score_total_columns = 0;
+  int current_scroll_row = 0, current_scroll_track = 0, current_scroll_col = 0;
   int current_tempo = 0;
   int current_keyboard_octave = 4;
   
