@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="31edo" tempo="200" volume="1.0" randomization="0.0099999998">
+  <instruments>
+    <genericInstrument name="Yamaha C5 Grand" />
+    
+    <envelope attack="0.02" hold="0.519" decay="1.35" sustain="0.0" release="0.015">	
+      <filter fcut="0.1" fres="0.4">
+	<multiply unisons="8" detune="0.0025">
+	  <oscilator type="saw" level="0.5" />
+	</multiply>
+      </filter>
+    </envelope>
+
+  </instruments>
+  
+  <tracks>
+    <reverb id="100" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle">
+      <track id="0" instrument="0" />
+    </reverb>
+    <reverb id="101" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle">
+      <track id="1" instrument="0" />
+    </reverb>
+  </tracks>
+  
+  <patterns>
+    <pattern rows="64">
+      <note row="0" track="0" velocity="40">C-4</note>
+      <note row="2" track="0" velocity="40">C-4</note>
+      <note row="4" track="0" velocity="40">Db4</note>
+      <note row="6" track="0" velocity="40">D-4</note>
+      <note row="6" track="1" velocity="30">D-3 A-3 F-3</note>
+
+      <note row="10" track="0" velocity="40" value="G-4"/>
+      <note row="12" track="0" velocity="40" value="A-4"/>
+      <note row="14" track="0" velocity="40" value="A#4"/>
+      <note row="14" track="1" velocity="30">A#3 C-4 D#4</note>
+
+      <note row="16" track="0" velocity="40" value="Db4"/>
+      <note row="18" track="0" velocity="40" value="Db4"/>
+      <note row="20" track="0" velocity="40" value="D-4"/>
+      <note row="22" track="0" velocity="40" value="D#4"/>
+      <note row="22" track="1" velocity="30">D#3 F-3 A#3</note>
+    </pattern>
+
+    <pattern rows="64">
+      <note row="0" track="0" velocity="40" value="F#4"/>
+      <note row="2" track="0" velocity="40" value="F-4"/>
+      <note row="4" track="0" velocity="40" value="F#4"/>
+      <note row="6" track="0" velocity="40" value="D-4"/>
+      <note row="8" track="0" velocity="40" value="Db4"/>
+    </pattern>
+  </patterns>
+</song>

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="31edo" tempo="200" volume="1" randomization="0.0099999998" mixer="basic">
+    <instruments>
+      <genericInstrument name="Yamaha C5 Grand" volume="1"/>
+    </instruments>
+    <tracks>
+        <track id="0" volume="1" preset="subtle"/>
+    </tracks>
+    <patterns>
+        <pattern rows="512">
+            <note row="9" track="0" velocity="20">D♯6</note>
+            <note row="13" track="0" velocity="0">OFF</note>
+            <note row="13" track="0" column="1" velocity="44">D-6</note>
+            <note row="16" track="0" velocity="55">C-6</note>
+            <note row="16" track="0" column="1" velocity="0">OFF</note>
+            <note row="20" track="0" velocity="0">OFF</note>
+            <note row="22" track="0" velocity="64">C-6</note>
+            <note row="25" track="0" velocity="0">OFF</note>
+            <note row="26" track="0" velocity="83">C-6</note>
+            <note row="27" track="0" velocity="0">OFF</note>
+            <note row="29" track="0" velocity="87">C-6</note>
+            <note row="30" track="0" velocity="0">OFF</note>
+            <note row="32" track="0" velocity="68">C-6</note>
+            <note row="35" track="0" velocity="0">OFF</note>
+            <note row="37" track="0" velocity="24">G♯5</note>
+            <note row="39" track="0" velocity="0">OFF</note>
+            <note row="40" track="0" velocity="18">G♯5</note>
+            <note row="42" track="0" velocity="0">OFF</note>
+            <note row="45" track="0" velocity="49">G♯5</note>
+            <note row="47" track="0" velocity="0">OFF</note>
+            <note row="48" track="0" velocity="52">G♯5</note>
+            <note row="49" track="0" velocity="0">OFF</note>
+            <note row="50" track="0" velocity="23">G♯5</note>
+            <note row="52" track="0" velocity="0">OFF</note>
+            <note row="54" track="0" velocity="78">C-6</note>
+            <note row="56" track="0" velocity="0">OFF</note>
+            <note row="59" track="0" velocity="23">F-5</note>
+            <note row="60" track="0" velocity="0">OFF</note>
+            <note row="61" track="0" velocity="22">F-5</note>
+            <note row="62" track="0" velocity="0">OFF</note>
+            <note row="65" track="0" velocity="34">F-5</note>
+            <note row="67" track="0" velocity="0">OFF</note>
+            <note row="69" track="0" velocity="30">F-5</note>
+            <note row="70" track="0" velocity="21">F-5</note>
+            <note row="72" track="0" velocity="0">OFF</note>
+            <note row="74" track="0" velocity="66">C-6</note>
+            <note row="76" track="0" velocity="0">OFF</note>
+            <note row="78" track="0" velocity="37">G-5</note>
+            <note row="79" track="0" velocity="0">OFF</note>
+            <note row="80" track="0" velocity="52">G-5</note>
+            <note row="82" track="0" velocity="0">OFF</note>
+            <note row="84" track="0" velocity="29">F♯5</note>
+            <note row="86" track="0" velocity="0">OFF</note>
+            <note row="87" track="0" velocity="23">G-5</note>
+            <note row="89" track="0" velocity="34">F♯5</note>
+            <note row="91" track="0" velocity="0">OFF</note>
+            <note row="92" track="0" velocity="25">G-5</note>
+            <note row="95" track="0" velocity="0">OFF</note>
+        </pattern>
+    </patterns>
+</song>
