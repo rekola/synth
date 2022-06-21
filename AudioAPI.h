@@ -23,7 +23,7 @@ class AudioAPI {
   virtual std::vector<MidiEvent> recordMIDI() = 0;
   
   int getFrequency() const { return frequency; }
-  short getChannels() const { return channels; }
+  short numberOfChannels() const { return channels; }
 
   const std::vector<pollfd> getPlaybackDescriptors() const { return playback_descriptors; }
   const std::vector<pollfd> getCaptureDescriptors() const { return capture_descriptors; }
