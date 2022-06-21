@@ -1,14 +1,14 @@
 #ifndef _FILTER_H_
 #define _FILTER_H_
 
-#include "Effect.h"
+#include "Track.h"
 #include "Envelope.h"
 
-class Filter : public Effect {
+class Filter : public Track {
  public:
-  Filter() { }
+  Filter() : Track(TrackType::EFFECT) { }
 
-  std::unique_ptr<TrackState> createState(ChannelConfiguration config, int outSampleRate) const override;
+  std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override;
   std::string getElementName() const override { return "filter"; }
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;

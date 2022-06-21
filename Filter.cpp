@@ -42,40 +42,40 @@ struct filter_state_s {
 
 class FilterState : public TrackState {
 public:
-  FilterState(ChannelConfiguration _channel_config, int _outSampleRate, const Filter & filter, const Envelope & envelope)
-    : TrackState(_channel_config, _outSampleRate), fcut_min(filter.get_fcut_min()), fcut_max(filter.get_fcut_max()), fres(filter.get_fres()), is_highpass(filter.get_is_highpass()), envelope_state(_outSampleRate, envelope, 0, 0, true) { }
+  FilterState(const ChannelConfiguration & channel_config, const Filter & filter, const Envelope & envelope)
+    : TrackState(channel_config), fcut_min(filter.get_fcut_min()), fcut_max(filter.get_fcut_max()), fres(filter.get_fres()), is_highpass(filter.get_is_highpass()), envelope_state(channel_config.getAudioOutSampleRate(), envelope, 0, 0, true) { }
 
   void applyAftertouch(float _aftertouch) override {
     TrackState::applyAftertouch(aftertouch);
     aftertouch = _aftertouch;
   }
   
-  void apply(SampleData & input_data) override {
-    if (!
-	(
-	 (fcut_min < 1.0 && fcut_max < 1.0) || fres > 0.0
-	 )
-	) return;
-    
-    auto buffer = input_data.data();
-    auto numSamples = input_data.size();
-    auto numChannels = input_data.getChannels();
-    
-    while (numSamples) {
-      size_t blockSamples = numSamples > RENDER_EFFECTSAMPLEBLOCK ? RENDER_EFFECTSAMPLEBLOCK : numSamples;
-      float current_fcut = fcut_min + aftertouch * envelope_state.getLevel() * (fcut_max - fcut_min);
+  SampleData render(int frames) override {
+    auto input_data = TrackState::render(frames);
 
-      if (numChannels == 1) {
-	left_state.apply(numChannels, blockSamples, 0, buffer, current_fcut, fres, is_highpass);
-      } else {
-	left_state.apply(numChannels, blockSamples, 0, buffer, current_fcut, fres, is_highpass);
-	right_state.apply(numChannels, blockSamples, 1, buffer, current_fcut, fres, is_highpass);
+    if ((fcut_min < 1.0 && fcut_max < 1.0) || fres > 0.0) {    
+      auto buffer = input_data.data();
+      auto numSamples = input_data.size();
+      auto numChannels = input_data.numberOfChannels();
+      
+      while (numSamples) {
+	size_t blockSamples = numSamples > RENDER_EFFECTSAMPLEBLOCK ? RENDER_EFFECTSAMPLEBLOCK : numSamples;
+	float current_fcut = fcut_min + aftertouch * envelope_state.getLevel() * (fcut_max - fcut_min);
+	
+	if (numChannels == 1) {
+	  left_state.apply(numChannels, blockSamples, 0, buffer, current_fcut, fres, is_highpass);
+	} else {
+	  left_state.apply(numChannels, blockSamples, 0, buffer, current_fcut, fres, is_highpass);
+	  right_state.apply(numChannels, blockSamples, 1, buffer, current_fcut, fres, is_highpass);
+	}
+	
+	buffer += numChannels * blockSamples;
+	numSamples -= blockSamples;
+	envelope_state.process(blockSamples);
       }
-            
-      buffer += numChannels * blockSamples;
-      numSamples -= blockSamples;
-      envelope_state.process(blockSamples);
     }
+
+    return input_data;
   }
 
 private:
@@ -89,13 +89,13 @@ private:
 };
 
 std::unique_ptr<TrackState>
-Filter::createState(ChannelConfiguration config, int outSampleRate) const {
-  return make_unique<FilterState>(config, outSampleRate, *this, envelope_);
+Filter::createState(const ChannelConfiguration & config) const {
+  return make_unique<FilterState>(config, *this, envelope_);
 }
 
 void
 Filter::loadParameters(const ParameterSource & input) {
-  Effect::loadParameters(input);
+  Track::loadParameters(input);
   
   if (input.has("fcut")) {
     fcut_min_ = fcut_max_ = input.getFloat("fcut", 0.0f);
@@ -112,7 +112,17 @@ Filter::loadParameters(const ParameterSource & input) {
 
 void
 Filter::storeParameters(ParameterSource & output) const {
-  Effect::storeParameters(output);
+  Track::storeParameters(output);
+
+  if (fcut_min_ == fcut_max_) {
+    output.set("fcut", fcut_min_);
+  } else {
+    output.set("fcutmin", fcut_min_);
+    output.set("fcutmax", fcut_max_);
+  }
+
+  output.set("fres", fres_);
+  output.set("aftertouch", aftertouch_);
 
   envelope_.storeParameters(output);
 }
