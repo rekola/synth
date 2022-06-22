@@ -4,6 +4,7 @@
 #include "SampleData.h"
 #include "TrackState.h"
 #include "ParameterSource.h"
+#include "TrackType.h"
 
 #include <string>
 #include <vector>
@@ -16,33 +17,32 @@ class TrackEventQueue;
 
 class Track {
  public:
-  enum Type { MASTER = 1, ROOT, GROUP, INSTRUMENT_TRACK, EFFECT, SAMPLE, SUBSONG, INSTRUMENT };
-  Track(Type _type) : id(getNextId()), type(_type) { }
-  Track(Type _type, std::string _name) : id(getNextId()), type(_type), name(_name) { }
-  Track(int _id, Type _type) : id(_id != -1 ? _id : getNextId()), type(_type) { }
+  Track(TrackType _type) : id(getNextId()), type(_type) { }
+  Track(TrackType _type, std::string _name) : id(getNextId()), type(_type), name(_name) { }
+  Track(int _id, TrackType _type) : id(_id != -1 ? _id : getNextId()), type(_type) { }
   virtual ~Track() { }
   
   virtual SampleData render(int frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events);
 
-  virtual std::unique_ptr<TrackState> createState(ChannelConfiguration config, int outSampleRate) const {
-    return std::make_unique<TrackState>(config, outSampleRate);
+  virtual std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const {
+    return std::make_unique<TrackState>(config);
   }
 
   virtual void loadParameters(const ParameterSource & input);
   virtual void storeParameters(ParameterSource & output) const;
   virtual std::string getElementName() const { return "track"; }
 
-  virtual std::unique_ptr<TrackState> playNote(ChannelConfiguration config, int outSampleRate, float azimuth, float frequency, float velocity, float start_phase = 0.0f) const {
-    auto group = createState(config, outSampleRate);
+  virtual std::unique_ptr<TrackState> playNote(const ChannelConfiguration & config, float azimuth, float frequency, float velocity, float start_phase = 0.0f) const {
+    auto group = createState(config);
     for (auto & child : children) {
-      auto voice = child->playNote(config, outSampleRate, azimuth, frequency, velocity, start_phase);
+      auto voice = child->playNote(config, azimuth, frequency, velocity, start_phase);
       if (voice.get()) group->addChild(std::move(voice));
     }
     return group;
   }
 
   int getId() const { return id; }
-  Type getType() const { return type; }
+  TrackType getType() const { return type; }
 
   float getVolume() const { return volume; }
   void setVolume(float _volume) { volume = _volume; }
@@ -86,6 +86,7 @@ class Track {
     return next_id.fetch_add(1);
   }
 
+  bool showNoteColumn() const { return show_note_column; }
   bool showVelocityColumn() const { return show_velocity_column; }
   bool showEffectsColumn() const { return show_effects_column; }
   bool showDelayColumn() const { return show_delay_column; }
@@ -95,15 +96,15 @@ protected:
   
  private:
   int id;
-  Type type;
+  TrackType type;
   float volume = 1.00f;
   bool solo = false, mute = false;
   std::string name;
   std::vector<std::unique_ptr<Track> > children;
-  
+
+  bool show_note_column = true;
   bool show_velocity_column = true;
   bool show_delay_column = true;
-  bool show_aftertouch_column = false;
   bool show_effects_column = true;
 
   static std::atomic<int> next_id;
