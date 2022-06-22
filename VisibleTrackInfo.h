@@ -1,50 +1,64 @@
 #ifndef _VISIBLETRACKINFO_H_
 
 enum class ColumnType {
-  NOTE = 1,
-    VELOCITY,
-    DELAY,
-    EFFECT
+  UNKNOWN = 0,
+  NOTE,
+  VELOCITY,
+  DELAY,
+  EFFECT
 };
 
 class VisibleTrackInfo {
 public:
   VisibleTrackInfo() { }
 
-  size_t getColumnCount() const { return num_note_columns * (1 + (has_velocity_column ? 1 : 0) + (has_delay_column ? 1 : 0)) + (has_effect_column ? 1 : 0); }
-  size_t getTrackWidth() const {
-    return num_note_columns * (4 + (has_velocity_column ? 3 : 0) + (has_delay_column ? 3 : 0)) + (has_effect_column ? 5 : 0);
+  int getColumnCount() const { return num_subtracks_ * ((has_note_column_ ? 1 : 0) + num_velocity_columns_ + (has_delay_column_ ? 1 : 0)) + (has_effect_column_ ? 1 : 0); }
+  int getTrackWidth() const {
+    return num_subtracks_ * ((has_note_column_ ? 4 : 0) + num_velocity_columns_ * 3 + (has_delay_column_ ? 3 : 0)) + (has_effect_column_ ? 5 : 0);
   }
-  ColumnType getColumnType(size_t k) const {
+  ColumnType getColumnType(int k) const {
     auto column_count = getColumnCount();
-    if (has_effect_column && k == column_count - 1) {
+    if (has_effect_column_ && k == column_count - 1) {
       return ColumnType::EFFECT;
     } else {
-      size_t n = 1 + (has_velocity_column ? 1 : 0) + (has_delay_column ? 1 : 0);
+      auto n = (has_note_column_ ? 1 : 0) + num_velocity_columns_ + (has_delay_column_ ? 1 : 0);
+      k = k % n;
 
-      if (has_velocity_column && k % n == 1) {
-	return ColumnType::VELOCITY;
-      } else if (has_delay_column && k % n == (n - 1)) {
-	return ColumnType::DELAY;
-      } else {
-	return ColumnType::NOTE;
+      if (has_note_column_) {
+	if (k == 0) return ColumnType::NOTE;
+	else k--;
       }
+
+      if (k < num_velocity_columns_) return ColumnType::VELOCITY;
+      else k -= num_velocity_columns_;
+
+      if (has_delay_column_) {
+	if (k == 0) return ColumnType::DELAY;
+	else k--;      
+      }
+      
+      return ColumnType::UNKNOWN;
     }
   }
-  bool isNoteColumn(size_t k) const { return getColumnType(k) == ColumnType::NOTE; }
-  bool isVelocityColumn(size_t k) const { return getColumnType(k) == ColumnType::VELOCITY; }
-  bool isDelayColumn(size_t k) const { return getColumnType(k) == ColumnType::DELAY; }
-  bool isEffectColumn(size_t k) const { return getColumnType(k) == ColumnType::EFFECT; }
+  bool isNoteColumn(int k) const { return getColumnType(k) == ColumnType::NOTE; }
+  bool isVelocityColumn(int k) const { return getColumnType(k) == ColumnType::VELOCITY; }
+  bool isDelayColumn(int k) const { return getColumnType(k) == ColumnType::DELAY; }
+  bool isEffectColumn(int k) const { return getColumnType(k) == ColumnType::EFFECT; }
   
-  size_t getNoteNumber(size_t k) const {
-    size_t n = 1 + (has_velocity_column ? 1 : 0) + (has_delay_column ? 1 : 0);
+  int getNoteNumber(int k) const {
+    auto n = (has_note_column_ ? 1 : 0) + num_velocity_columns_ + (has_delay_column_ ? 1 : 0);
     return k / n;
   }
+
+  void updateNumSubtracks(int n) {  
+    if (n > num_subtracks_) num_subtracks_ = n;
+  }
   
-  size_t num_note_columns = 1;
-  bool has_velocity_column = false;
-  bool has_delay_column = false;
-  bool has_effect_column = false;
+  int num_subtracks_ = 1;
+  int num_velocity_columns_ = 0;
+  bool has_note_column_ = true;
+  bool has_delay_column_ = false;
+  bool has_effect_column_ = false;
 };
 
 #endif
