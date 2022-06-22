@@ -54,8 +54,8 @@ FileInstrument::openFile() {
 
 class FileInstrumentVoice : public InstrumentVoice {
 public:
-  FileInstrumentVoice(const ChannelConfiguration & _channel_config, float _azimuth, std::shared_ptr<SampleData> _samples)
-    : InstrumentVoice(_channel_config, _azimuth), samples(_samples) { }
+  FileInstrumentVoice(const ChannelConfiguration & channel_config, float azimuth, std::shared_ptr<SampleData> samples)
+    : InstrumentVoice(channel_config, azimuth), samples_(samples) { }
 
   SampleData render(int frames) override {
     auto gain = decibelsToGain(getGainDB());
@@ -64,24 +64,24 @@ public:
     auto outChannels = output.numberOfChannels();
     auto buffer = output.data();
 
-    auto inChannels = samples->numberOfChannels();
+    auto inChannels = samples_->numberOfChannels();
     
     for (int k = 0; k < frames; k++) {
       // float i = getFphase() * WAVESIZE / getOutSampleRate();
       int i = getSourceSamplePosition();
       stepForward(1);
 
-      if (i >= samples->size()) {
+      if (i >= samples_->size()) {
 	for (auto l = 0; l < outChannels; l++) {
 	  buffer[outChannels * k + l] = 0.0f;
 	}
       } else if (outChannels == inChannels) {	
 	for (auto l = 0; l < outChannels; l++) {
-	  buffer[outChannels * k + l] = samples->data()[i * inChannels + l] * gain;
+	  buffer[outChannels * k + l] = samples_->data()[i * inChannels + l] * gain;
 	}
       } else if (inChannels == 1) {
 	for (auto l = 0; l < outChannels; l++) {
-	  buffer[outChannels * k + l] = samples->data()[i] * gain;
+	  buffer[outChannels * k + l] = samples_->data()[i] * gain;
 	}
       } else {
 	assert(0);
@@ -91,12 +91,12 @@ public:
     return output;
   }
 
-  void stopNote() override { sourceSamplePosition = samples->size(); }
-  bool isPlaying() const override { return sourceSamplePosition < samples->size(); }
+  void stopNote() override { sourceSamplePosition_ = samples_->size(); }
+  bool isPlaying() const override { return sourceSamplePosition_ < samples_->size(); }
   void killNote() override { stopNote(); }
 
 private:
-  std::shared_ptr<SampleData> samples;
+  std::shared_ptr<SampleData> samples_;
 };
 
 std::unique_ptr<TrackState>
