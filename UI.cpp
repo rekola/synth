@@ -5,7 +5,7 @@
 #include "InfoLine.h"
 #include "StatusLine.h"
 #include "PatternEditor.h"
-#include "InstrumentList.h"
+#include "HierarchyView.h"
 #include "AudioAPI.h"
 #include "Player.h"
 
@@ -26,7 +26,7 @@ UI::initialize() {
   pattern_editor = make_shared<PatternEditor>(getPlane());
   info_line = make_shared<InfoLine>(getPlane());
   status_line = make_shared<StatusLine>(getPlane());
-  instrument_list = make_shared<InstrumentList>(getPlane());
+  hierarchy_view = make_shared<HierarchyView>(getPlane());
 
   active_element = pattern_editor;
 }
@@ -34,18 +34,11 @@ UI::initialize() {
 void
 UI::layout() {
   auto [ rows, cols ] = getDim();
-
-#if 0
-  root_plane->cursor_move(5, 0);
-  root_plane->hline(Cell('-'), cols);
-  root_plane->cursor_move(1, left_width);
-  root_plane->vline(Cell('|'), 4);
-#endif
   
-  chart->resize(4, cols - 40).move(1, 0);
-  instrument_list->resize(4, 39).move(1, cols - 40);
+  chart->resize(4, cols).move(1, 0);
   volume_meter->resize(rows - 3, 1).move(1, cols - 1);
-  pattern_editor->resize(rows - 7, cols - 1).move(5, 0);
+  hierarchy_view->resize(rows - 7, 39).move(5, cols - 40);
+  pattern_editor->resize(rows - 7, cols - 40).move(5, 0);
   info_line->resize(1, cols).move(rows - 2, 0);
   status_line->resize(1, cols - 1).move(rows - 1, 0);
 }
@@ -54,7 +47,7 @@ bool
 UI::renderComponents(bool refresh) {
   bool render = false;
   render |= pattern_editor->render(styles, refresh);
-  render |= instrument_list->render(styles, refresh);
+  render |= hierarchy_view->render(styles, refresh);
   render |= info_line->render(styles, refresh);
   return render;
 }
@@ -99,7 +92,7 @@ UI::offerInput(const InputEvent & input) {
     
     tryActivate(input.getY(), input.getX(), status_line) ||
       tryActivate(input.getY(), input.getX(), pattern_editor) ||
-      tryActivate(input.getY(), input.getX(), instrument_list) ||
+      tryActivate(input.getY(), input.getX(), hierarchy_view) ||
       false;
   }
 
@@ -172,7 +165,7 @@ UI::handleMidiEvent(MidiEvent & ev) {
 }
 
 void audio_thread_func(Controller * controller, AudioAPI * audio) {
-  Player player(controller->getChannelConfiguration(), audio->getFrequency(), controller);
+  Player player(controller->getChannelConfiguration(), controller);
   player.play(*audio);
 }
 

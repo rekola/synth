@@ -15,7 +15,7 @@ class Chart;
 class InfoLine;
 class StatusLine;
 class PatternEditor;
-class InstrumentList;
+class HierarchyView;
 class UIElement;
 class AudioAPI;
 class UI;
@@ -68,7 +68,7 @@ private:
 
   std::shared_ptr<InfoLine> info_line;
   std::shared_ptr<PatternEditor> pattern_editor;
-  std::shared_ptr<InstrumentList> instrument_list;
+  std::shared_ptr<HierarchyView> hierarchy_view;
   std::weak_ptr<UIElement> active_element;
   SampleData waiting_data;
 };
