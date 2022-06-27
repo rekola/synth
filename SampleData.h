@@ -12,17 +12,13 @@ class SampleData final {
  public:
   explicit SampleData() : channels_(0), frames_(0), data_(0), is_solo_(false) { }
   explicit SampleData(short channels, int frames, bool is_solo = false) : channels_(channels), frames_(frames), is_solo_(is_solo) {
-    auto s = getAlignedSize(channels_ * frames_);
-    data_ = (float *)aligned_alloc(16, s);
-    memset(data_, 0, s);
+    data_ = (float *)aligned_alloc(16, getAlignedSize(channels_ * frames_));
   }
   explicit SampleData(ChannelConfiguration config, int frames, bool is_solo = false)
-    : channels_(config == ChannelConfiguration::MONO ? 1 : 2),
+    : channels_(config.numberOfChannels()),
     frames_(frames),
     is_solo_(is_solo) {
-    auto s = getAlignedSize(channels_ * frames_);
-    data_ = (float *)aligned_alloc(16, s);
-    memset(data_, 0, s);    
+    data_ = (float *)aligned_alloc(16, getAlignedSize(channels_ * frames_));
   }
   SampleData(const SampleData & other) : channels_(other.channels_), frames_(other.frames_), is_solo_(other.is_solo_) {
     auto s = getAlignedSize(channels_ * frames_);
@@ -62,13 +58,17 @@ class SampleData final {
   float * data() { return data_; }
   const float * data() const { return data_; }
 
+  void zero() {
+    memset(data_, 0, getAlignedSize(channels_ * frames_));
+  }
+  
   void clear() {
     free(data_);
     data_ = 0;
     frames_ = 0;
   }
   
-  short getChannels() const { return channels_; }
+  short numberOfChannels() const { return channels_; }
   int size() const { return frames_; }
   bool empty() const { return channels_ == 0 || frames_ == 0; }
   
@@ -88,13 +88,12 @@ class SampleData final {
     frames_ += other.size();
   }
 
-  void mix(const SampleData & other, int offset, float volume) {
+  void mix(const SampleData & other, float volume) {
     assert(channels_ == other.channels_);
     
-    int n = other.size();
-    if (offset + n > size()) n = size() - offset;
+    int n = size() < other.size() ? size() : other.size();
     for (int i = 0; i < channels_ * n; i++) {
-      data_[offset * channels_ + i] += volume * other.data_[i];
+      data_[i] += volume * other.data_[i];
     }
   }
 
@@ -130,6 +129,8 @@ private:
   int frames_;
   float * data_;
   bool is_solo_;
+
+  // ChannelData
 };
 
 #endif
