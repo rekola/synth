@@ -384,7 +384,7 @@ Song::render(int frames, SongState & state, Mixer & mixer) {
 	auto [ pattern_idx, row_idx ] = state.getRelativePosition(*this);
 	auto & pattern = getPattern(pattern_idx);
 	auto tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : getTuning();
-	int key = pattern.getKey() >= 0 ? pattern.getKey() : getKey();
+	auto key = pattern.getKey() >= 0 ? pattern.getKey() : getKey();
 
 	auto & notes = pattern.getNotes(row_idx);
 
@@ -406,7 +406,8 @@ Song::render(int frames, SongState & state, Mixer & mixer) {
 		delay = note.getDelayAsFloat();
 	      }
 	      delay += getRandomizationFactor() * rand() / RAND_MAX;
-	      size_t delay_samples = (size_t)(delay * getSampleInterval(state.getChannelConfiguration().getAudioOutSampleRate()));   
+	      auto delay_samples = int(delay * getSampleInterval(state.getChannelConfiguration().getAudioOutSampleRate()));
+	      // delay_samples = 0;
 	      track_events.addPendingEvent(track_id, i + delay_samples, int(j), frequency, velocity);
 	    }
 	  }
@@ -417,7 +418,7 @@ Song::render(int frames, SongState & state, Mixer & mixer) {
 	}
       }
 
-      size_t remaining = state.samplesUntilNextRow(*this);
+      auto remaining = state.samplesUntilNextRow(*this);
       if (i + remaining <= frames) {
 	i += remaining;
 	state.movePosition(1);
