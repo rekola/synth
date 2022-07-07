@@ -11,7 +11,7 @@ class TrackEventQueue {
  public:
   TrackEventQueue() { }
 
-  void addPendingEvent(int track_id, size_t frame, short id, float frequency, float velocity) {
+  void addPendingEvent(int track_id, int frame, short id, float frequency, float velocity) {
     pending_events[track_id][frame].push_back(TrackEvent(id, frequency, velocity));
   }
   
