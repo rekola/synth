@@ -407,7 +407,7 @@ public:
     loadFile(filename);
   }
   ~SoundFontFile() {
-    free(fontSamples);
+    free(fontSamples_);
   }
 
   // Directly load a SoundFont from a .sf2 file path
@@ -415,7 +415,7 @@ public:
     struct tsf_stream stream = { nullptr, (int(*)(void*,void*,unsigned int))&tsf_stream_stdio_read, (int(*)(void*,unsigned int))&tsf_stream_stdio_skip };
 #if __STDC_WANT_SECURE_LIB__
     FILE * fh = nullptr;
-    fopen_s(&fh, filename, "rb");
+    fopen_s(&fh, filename.c_str(), "rb");
 #else
     FILE * fh = fopen(filename.c_str(), "rb");
 #endif
@@ -430,25 +430,25 @@ public:
 
   // Returns the name of a preset index >= 0 and < tsf_get_presetcount()
   string getPresetName(size_t index) const {
-    if (index < presets.size()) return presets[index].presetName;
+    if (index < presets_.size()) return presets_[index].presetName;
     else return "";
   }
 
   // Returns the preset index from a bank and preset number, or -1 if it does not exist in the loaded SoundFont
 
   int getPresetIndex(int bank, int preset_number) const {
-    for (size_t i = 0; i < presets.size(); i++) {
-      if (presets[i].preset == preset_number && presets[i].bank == bank) {
+    for (size_t i = 0; i < presets_.size(); i++) {
+      if (presets_[i].preset == preset_number && presets_[i].bank == bank) {
 	return i;
       }
     }
     return -1;
   }
 
-  size_t getPresetCount() const { return presets.size(); }
+  size_t getPresetCount() const { return presets_.size(); }
   
-  std::vector<tsf_preset> presets;
-  float * fontSamples = 0;
+  std::vector<tsf_preset> presets_;
+  float * fontSamples_ = nullptr;
 };
 
 static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsigned int fontSampleCount) {
@@ -456,7 +456,7 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
   // Read each preset.
   struct tsf_hydra_phdr *pphdr, *pphdrMax;
   for (pphdr = hydra->phdrs, pphdrMax = pphdr + hydra->phdrNum - 1; pphdr != pphdrMax; pphdr++) {
-    int sortedIndex = 0, region_index = 0;
+    size_t sortedIndex = 0, region_index = 0;
     struct tsf_hydra_phdr *otherphdr;
     struct tsf_hydra_pbag *ppbag, *ppbagEnd;
     struct tsf_region globalRegion;
@@ -468,7 +468,7 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
       else if (otherphdr < pphdr) sortedIndex++;
     }
     
-    struct tsf_preset * preset = &(res->presets[sortedIndex]);
+    auto preset = &(res->presets_[sortedIndex]);
     
     memcpy(preset->presetName, pphdr->presetName, sizeof(preset->presetName));
     preset->presetName[sizeof(preset->presetName)-1] = '\0'; //should be zero terminated in source file but make sure
@@ -616,162 +616,164 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
 
 class SoundFontVoice : public InstrumentVoice {
 public:
-  SoundFontVoice(ChannelConfiguration _channel_config, int _outSampleRate, float _azimuth, std::shared_ptr<SoundFontFile> _sf, size_t _preset, size_t _region_idx, size_t _fixedMidiKey)
-    : InstrumentVoice(_channel_config, _outSampleRate, _azimuth), sf(_sf), preset(_preset), region_idx(_region_idx), fixedMidiKey(_fixedMidiKey) {
+  SoundFontVoice(const ChannelConfiguration & channel_config, float azimuth, std::shared_ptr<SoundFontFile> sf, size_t preset, size_t region_idx, size_t fixedMidiKey)
+    : InstrumentVoice(channel_config, azimuth), sf_(sf), preset_(preset), region_idx_(region_idx), fixedMidiKey_(fixedMidiKey) {
   }
   
   void playNote(float frequency, float velocity, float start_phase) override {
     assert(frequency > 0);
 
-    auto f = sf.get();
+    auto f = sf_.get();
 
-    if (preset < 0 || preset >= f->presets.size()) return;
+    if (preset_ < 0 || preset_ >= f->presets_.size()) return;
 
-    double apparent_key = log2(frequency / 440) * 12 + 69;
-    int midiKey = fixedMidiKey ? fixedMidiKey : int(apparent_key);
-    short midiVelocity = (short)(velocity * 127);
+    auto apparent_key = log2(frequency / 440) * 12 + 69;
+    // int midiKey = fixedMidiKey ? fixedMidiKey : int(apparent_key);
+    auto midiVelocity = (short)(velocity * 127);
     if (midiVelocity > 127) midiVelocity = 127;
   
-    auto & regions = f->presets[preset].regions;
-    assert(region_idx < regions.size());
-    auto & region = regions[region_idx];
+    auto & regions = f->presets_[preset_].regions;
+    assert(region_idx_ < regions.size());
+    auto & region = regions[region_idx_];
                 
-    voiceRegion = &region;
-    apparentPlayingKey = apparent_key;
+    voiceRegion_ = &region;
+    apparentPlayingKey_ = apparent_key;
     // voice->playingFrequency = frequency;
     setGainDB(- region.attenuation - gainToDecibels(1.0f / velocity));
     calcPitchRatio(0);
     
     // Offset/end.
-    sourceSamplePosition = region.offset;
+    sourceSamplePosition_ = region.offset;
     
     // Loop.
     bool doLoop = (region.loop_mode != TSF_LOOPMODE_NONE && region.loop_start < region.loop_end);
-    loopStart = (doLoop ? region.loop_start : 0);
-    loopEnd = (doLoop ? region.loop_end : 0);
-    
+    loopStart_ = (doLoop ? region.loop_start : 0);
+    loopEnd_ = (doLoop ? region.loop_end : 0);
+
+    auto outSampleRate = getChannelConfiguration().getAudioOutSampleRate();
+
     // Setup envelopes.
-    ampenv = EnvelopeState(getOutSampleRate(), region.ampenv, apparent_key, midiVelocity, true);
-    modenv = EnvelopeState(getOutSampleRate(), region.modenv, apparent_key, midiVelocity, false);
+    ampenv_ = EnvelopeState(outSampleRate, region.ampenv, apparent_key, midiVelocity, true);
+    modenv_ = EnvelopeState(outSampleRate, region.modenv, apparent_key, midiVelocity, false);
     
     // Setup lowpass filter.
-    float lowpassFc = (region.initialFilterFc <= 13500 ? tsf_cents2Hertz((float)region.initialFilterFc) / getOutSampleRate() : 1.0f);
+    float lowpassFc = (region.initialFilterFc <= 13500 ? tsf_cents2Hertz((float)region.initialFilterFc) / outSampleRate : 1.0f);
     float lowpassFilterQDB = region.initialFilterQ / 10.0f;
     
-    lowpass.QInv = 1.0 / pow(10.0, (lowpassFilterQDB / 20.0));
-    lowpass.z1 = lowpass.z2 = 0;
-    lowpass.active = (lowpassFc < 0.499f);
-    if (lowpass.active) lowpass.setup(lowpassFc);
+    lowpass_.QInv = 1.0 / pow(10.0, (lowpassFilterQDB / 20.0));
+    lowpass_.z1 = lowpass_.z2 = 0;
+    lowpass_.active = (lowpassFc < 0.499f);
+    if (lowpass_.active) lowpass_.setup(lowpassFc);
     
     // Setup LFO filters.
-    modlfo = LFO(region.delayModLFO, tsf_cents2Hertz(region.freqModLFO), getOutSampleRate());
-    viblfo = LFO(region.delayVibLFO, tsf_cents2Hertz(region.freqVibLFO), getOutSampleRate());
+    modlfo_ = LFO(region.delayModLFO, tsf_cents2Hertz(region.freqModLFO), outSampleRate);
+    viblfo_ = LFO(region.delayVibLFO, tsf_cents2Hertz(region.freqVibLFO), outSampleRate);
   }
 
   bool isPlaying() const override {
-    return (voiceRegion && sourceSamplePosition < voiceRegion->end && !ampenv.isDone());
+    return (voiceRegion_ && sourceSamplePosition_ < voiceRegion_->end && !ampenv_.isDone());
   }
   bool isReleased() const override {
-    return isPlaying() && ampenv.isReleased();
+    return isPlaying() && ampenv_.isReleased();
   }
 
-  SampleData render(size_t numSamples) override;
+  SampleData render(int numSamples) override;
   
   void killNote() override {
     // do not stop children
     
-    ampenv.nextSegment(EnvelopeState::DONE);
-    modenv.nextSegment(EnvelopeState::DONE);
+    ampenv_.nextSegment(EnvelopeState::DONE);
+    modenv_.nextSegment(EnvelopeState::DONE);
   }
 
   void stopNote() override {
     // do not stop children
     
-    ampenv.nextSegment(EnvelopeState::SUSTAIN);
-    modenv.nextSegment(EnvelopeState::SUSTAIN);
+    ampenv_.nextSegment(EnvelopeState::SUSTAIN);
+    modenv_.nextSegment(EnvelopeState::SUSTAIN);
 
-    if (voiceRegion->loop_mode == TSF_LOOPMODE_SUSTAIN) {
+    if (voiceRegion_->loop_mode == TSF_LOOPMODE_SUSTAIN) {
       // Continue playing, but stop looping.
-      loopEnd = loopStart;
+      loopEnd_ = loopStart_;
     }
   }
 
   void stopNoteQuick() {
-    ampenv.parameters.release = 0.0f;
-    ampenv.nextSegment(EnvelopeState::SUSTAIN);
+    ampenv_.parameters.release = 0.0f;
+    ampenv_.nextSegment(EnvelopeState::SUSTAIN);
     
-    modenv.parameters.release = 0.0f;
-    modenv.nextSegment(EnvelopeState::SUSTAIN);
+    modenv_.parameters.release = 0.0f;
+    modenv_.nextSegment(EnvelopeState::SUSTAIN);
   }
 
   void calcPitchRatio(float pitchShift) {
-    double note = apparentPlayingKey + voiceRegion->transpose + voiceRegion->tune / 100.0;
-    double adjustedPitch = voiceRegion->pitch_keycenter + (note - voiceRegion->pitch_keycenter) * (voiceRegion->pitch_keytrack / 100.0);
+    auto note = apparentPlayingKey_ + voiceRegion_->transpose + voiceRegion_->tune / 100.0;
+    auto adjustedPitch = voiceRegion_->pitch_keycenter + (note - voiceRegion_->pitch_keycenter) * (voiceRegion_->pitch_keytrack / 100.0);
     if (pitchShift) adjustedPitch += pitchShift;
-    pitchInputTimecents = adjustedPitch * 100.0;
-    pitchOutputFactor = voiceRegion->sample_rate / (tsf_timecents2Secsd(voiceRegion->pitch_keycenter * 100.0) * getOutSampleRate());
+    pitchInputTimecents_ = adjustedPitch * 100.0;
+    pitchOutputFactor_ = voiceRegion_->sample_rate / (tsf_timecents2Secsd(voiceRegion_->pitch_keycenter * 100.0) * getChannelConfiguration().getAudioOutSampleRate());
   }
     
-  double apparentPlayingKey = 0;
-  struct tsf_region * voiceRegion = 0;
-  double pitchInputTimecents = 0, pitchOutputFactor = 0;
-  unsigned int loopStart = 0, loopEnd = 0;
-  LowpassFilter lowpass;
-  LFO modlfo, viblfo;
+  double apparentPlayingKey_ = 0;
+  struct tsf_region * voiceRegion_ = nullptr;
+  double pitchInputTimecents_ = 0, pitchOutputFactor_ = 0;
+  unsigned int loopStart_ = 0, loopEnd_ = 0;
+  LowpassFilter lowpass_;
+  LFO modlfo_, viblfo_;
   
 private:
-  shared_ptr<SoundFontFile> sf;
-  size_t preset, region_idx, fixedMidiKey;
-  EnvelopeState ampenv, modenv;
-  Envelope amp_envelope, mod_envelope;
+  shared_ptr<SoundFontFile> sf_;
+  size_t preset_, region_idx_, fixedMidiKey_;
+  EnvelopeState ampenv_, modenv_;
+  Envelope amp_envelope_, mod_envelope_;
 };
 
 SampleData
-SoundFontVoice::render(size_t numSamples) {
-  auto f = sf.get();
-
+SoundFontVoice::render(int numSamples) {
+  auto f = sf_.get();
+  
   SampleData outputData(getChannelConfiguration(), numSamples);
-  auto num_channels = outputData.getChannels();
-  float * output = outputData.data();
-    
-  float * input = f->fontSamples;
+  auto num_channels = outputData.numberOfChannels();
+  auto output = outputData.data();
+
+  auto input = f->fontSamples_;
   
-  bool updateModEnv = (voiceRegion->modEnvToPitch || voiceRegion->modEnvToFilterFc);
-  bool updateModLFO = (modlfo.getDelta() && (voiceRegion->modLfoToPitch || voiceRegion->modLfoToFilterFc || voiceRegion->modLfoToVolume));
-  bool updateVibLFO = (viblfo.getDelta() && (voiceRegion->vibLfoToPitch));
-  bool isLooping    = (loopStart < loopEnd);
-  double sampleEndDbl = (double)voiceRegion->end;
-  double loopEndDbl = (double)loopEnd + 1.0;
-  bool dynamicGain = (voiceRegion->modLfoToVolume != 0);
-  float sampleRate = getOutSampleRate();
-  bool dynamicLowpass = (voiceRegion->modLfoToFilterFc || voiceRegion->modEnvToFilterFc);
-  bool dynamicPitchRatio = (voiceRegion->modLfoToPitch || voiceRegion->modEnvToPitch || voiceRegion->vibLfoToPitch);
+  bool updateModEnv = (voiceRegion_->modEnvToPitch || voiceRegion_->modEnvToFilterFc);
+  bool updateModLFO = (modlfo_.getDelta() && (voiceRegion_->modLfoToPitch || voiceRegion_->modLfoToFilterFc || voiceRegion_->modLfoToVolume));
+  bool updateVibLFO = (viblfo_.getDelta() && (voiceRegion_->vibLfoToPitch));
+  bool isLooping    = (loopStart_ < loopEnd_);
+  double sampleEndDbl = (double)voiceRegion_->end;
+  double loopEndDbl = (double)loopEnd_ + 1.0;
+  bool dynamicGain = (voiceRegion_->modLfoToVolume != 0);
+  float sampleRate = getChannelConfiguration().getAudioOutSampleRate();
+  bool dynamicLowpass = (voiceRegion_->modLfoToFilterFc || voiceRegion_->modEnvToFilterFc);
+  bool dynamicPitchRatio = (voiceRegion_->modLfoToPitch || voiceRegion_->modEnvToPitch || voiceRegion_->vibLfoToPitch);
   
-  float tmpInitialFilterFc = 0, tmpModLfoToFilterFc = 0, tmpModEnvToFilterFc = 0;
+  auto tmpInitialFilterFc = 0, tmpModLfoToFilterFc = 0, tmpModEnvToFilterFc = 0;
   if (dynamicLowpass) {
-    tmpInitialFilterFc = (float)voiceRegion->initialFilterFc;
-    tmpModLfoToFilterFc = (float)voiceRegion->modLfoToFilterFc;
-    tmpModEnvToFilterFc = (float)voiceRegion->modEnvToFilterFc;
+    tmpInitialFilterFc = (float)voiceRegion_->initialFilterFc;
+    tmpModLfoToFilterFc = (float)voiceRegion_->modLfoToFilterFc;
+    tmpModEnvToFilterFc = (float)voiceRegion_->modEnvToFilterFc;
   }
 
-  float tmpModLfoToPitch = 0.0f, tmpVibLfoToPitch = 0.0f, tmpModEnvToPitch = 0.0f;
-  double pitchRatio = 0.0;
+  auto tmpModLfoToPitch = 0.0f, tmpVibLfoToPitch = 0.0f, tmpModEnvToPitch = 0.0f;
+  auto pitchRatio = 0.0;
   if (dynamicPitchRatio) {
-    tmpModLfoToPitch = (float)voiceRegion->modLfoToPitch;
-    tmpVibLfoToPitch = (float)voiceRegion->vibLfoToPitch;
-    tmpModEnvToPitch = (float)voiceRegion->modEnvToPitch;
+    tmpModLfoToPitch = (float)voiceRegion_->modLfoToPitch;
+    tmpVibLfoToPitch = (float)voiceRegion_->vibLfoToPitch;
+    tmpModEnvToPitch = (float)voiceRegion_->modEnvToPitch;
   } else {
-    pitchRatio = tsf_timecents2Secsd(pitchInputTimecents) * pitchOutputFactor;
+    pitchRatio = tsf_timecents2Secsd(pitchInputTimecents_) * pitchOutputFactor_;
   }
 
-  float noteGain = 0.0f, tmpModLfoToVolume = 0.0f;
+  auto noteGain = 0.0f, tmpModLfoToVolume = 0.0f;
   if (dynamicGain) {
-    tmpModLfoToVolume = (float)voiceRegion->modLfoToVolume * 0.1f;
+    tmpModLfoToVolume = (float)voiceRegion_->modLfoToVolume * 0.1f;
   } else {
     noteGain = decibelsToGain(getGainDB());
   }
 
-  float pan = sin(getAzimuth() / 180.0f * M_PI) / 2 + (voiceRegion->pan - 0.5);
+  float pan = sin(getAzimuth() / 180.0f * M_PI) / 2 + (voiceRegion_->pan - 0.5);
   if (pan < -0.5) pan = -0.5;
   else if (pan > 0.5) pan = 0.5;
   float panFactorLeft = sqrtf(0.5f - pan), panFactorRight = sqrtf(0.5f + pan);
@@ -781,50 +783,50 @@ SoundFontVoice::render(size_t numSamples) {
     numSamples -= blockSamples;
 
     if (dynamicLowpass) {
-      float fres = tmpInitialFilterFc + modlfo.getLevel() * tmpModLfoToFilterFc + modenv.getLevel() * tmpModEnvToFilterFc;
+      float fres = tmpInitialFilterFc + modlfo_.getLevel() * tmpModLfoToFilterFc + modenv_.getLevel() * tmpModEnvToFilterFc;
       float lowpassFc = (fres <= 13500 ? tsf_cents2Hertz(fres) / sampleRate : 1.0f);
-      lowpass.active = (lowpassFc < 0.499f);
-      if (lowpass.active) lowpass.setup(lowpassFc);
+      lowpass_.active = (lowpassFc < 0.499f);
+      if (lowpass_.active) lowpass_.setup(lowpassFc);
     }
 
     if (dynamicPitchRatio) {
-      pitchRatio = tsf_timecents2Secsd(pitchInputTimecents + (modlfo.getLevel() * tmpModLfoToPitch + viblfo.getLevel() * tmpVibLfoToPitch + modenv.getLevel() * tmpModEnvToPitch)) * pitchOutputFactor;
+      pitchRatio = tsf_timecents2Secsd(pitchInputTimecents_ + (modlfo_.getLevel() * tmpModLfoToPitch + viblfo_.getLevel() * tmpVibLfoToPitch + modenv_.getLevel() * tmpModEnvToPitch)) * pitchOutputFactor_;
     }
 
     if (dynamicGain) {
-      noteGain = decibelsToGain(getGainDB() + (modlfo.getLevel() * tmpModLfoToVolume));
+      noteGain = decibelsToGain(getGainDB() + (modlfo_.getLevel() * tmpModLfoToVolume));
     }
 
-    float gainMono = noteGain * ampenv.getLevel();
+    auto gainMono = noteGain * ampenv_.getLevel();
     
     // Update EG.
-    ampenv.process(blockSamples);
-    if (updateModEnv) modenv.process(blockSamples);
+    ampenv_.process(blockSamples);
+    if (updateModEnv) modenv_.process(blockSamples);
     
     // Update LFOs.
-    if (updateModLFO) modlfo.process(blockSamples);
-    if (updateVibLFO) viblfo.process(blockSamples);
+    if (updateModLFO) modlfo_.process(blockSamples);
+    if (updateVibLFO) viblfo_.process(blockSamples);
                 
-    while (blockSamples-- && sourceSamplePosition < sampleEndDbl) {
-      unsigned int pos = (unsigned int)sourceSamplePosition, nextPos = (pos >= loopEnd && isLooping ? loopStart : pos + 1);
+    while (blockSamples-- && sourceSamplePosition_ < sampleEndDbl) {
+      unsigned int pos = (unsigned int)sourceSamplePosition_, nextPos = (pos >= loopEnd_ && isLooping ? loopStart_ : pos + 1);
       
       // Simple linear interpolation.
-      float alpha = (float)(sourceSamplePosition - pos);
+      float alpha = (float)(sourceSamplePosition_ - pos);
       float val = (input[pos] * (1.0f - alpha) + input[nextPos] * alpha);
       
       // Low-pass filter.
-      if (lowpass.active) val = lowpass.process(val);
+      if (lowpass_.active) val = lowpass_.process(val);
 
       if (num_channels == 1) {
-	  *output++ = val * gainMono;
+	*output++ = val * gainMono;
       } else if (num_channels == 2) {
 	*output++ = val * gainMono * panFactorLeft;
 	*output++ = val * gainMono * panFactorRight;
       }
 	
       // Next sample.
-      sourceSamplePosition += pitchRatio;
-      if (sourceSamplePosition >= loopEndDbl && isLooping) sourceSamplePosition -= (loopEnd - loopStart + 1.0);
+      sourceSamplePosition_ += pitchRatio;
+      if (sourceSamplePosition_ >= loopEndDbl && isLooping) sourceSamplePosition_ -= (loopEnd_ - loopStart_ + 1.0);
     }
     
     if (!isPlaying()) {
@@ -896,9 +898,9 @@ void tsf_load(SoundFontFile* res, struct tsf_stream* stream) {
   } else {
     size_t presetNum = hydra.phdrNum - 1;
     // res->presets = (struct tsf_preset*)malloc(res->presetNum * sizeof(struct tsf_preset));
-    res->presets.resize(presetNum);
-    res->fontSamples = fontSamples;
-    fontSamples = nullptr; //don't free below
+    res->presets_.resize(presetNum);
+    res->fontSamples_ = fontSamples;
+    fontSamples = nullptr; // don't free below
     tsf_load_presets(res, &hydra, fontSampleCount);
   }
   free(hydra.phdrs); free(hydra.pbags); free(hydra.pmods);
@@ -951,28 +953,28 @@ void tsf_channel_set_tuning(SoundFontFile* f, int channel, float tuning)
 
 void
 SoundFont::openFile() {
-  sf = make_shared<SoundFontFile>(filename);  
+  sf_ = make_shared<SoundFontFile>(filename_);
 }  
 
 class SoundFontInstrument : public Instrument {
 public:
-  SoundFontInstrument(std::shared_ptr<SoundFontFile> _sf, size_t _preset, size_t _fixedMidiKey) : sf(_sf), preset(_preset), fixedMidiKey(_fixedMidiKey) { }
+  SoundFontInstrument(std::shared_ptr<SoundFontFile> sf, size_t preset, size_t fixedMidiKey) : sf_(sf), preset_(preset), fixedMidiKey_(fixedMidiKey) { }
   
-  std::unique_ptr<TrackState> playNote(ChannelConfiguration channel_config, int outSampleRate, float azimuth, float frequency, float velocity, float start_phase) const override {    
+  std::unique_ptr<TrackState> playNote(const ChannelConfiguration & channel_config, float azimuth, float frequency, float velocity, float start_phase) const override {    
     assert(frequency > 0);
     vector<unique_ptr<TrackState> > voices;
 
-    auto f = sf.get();
-    if (preset <= f->presets.size()) {
-      double apparent_key = log2(frequency / 440) * 12 + 69;
-      int midiKey = fixedMidiKey ? fixedMidiKey : int(apparent_key);
+    auto f = sf_.get();
+    if (preset_ <= f->presets_.size()) {
+      auto apparent_key = log2(frequency / 440) * 12 + 69;
+      auto midiKey = fixedMidiKey_ ? fixedMidiKey_ : int(apparent_key);
       
-      short midiVelocity = (short)(velocity * 127);
+      auto midiVelocity = (short)(velocity * 127);
       if (midiVelocity > 127) midiVelocity = 127;
       
       // Play all matching regions.
       
-      auto & regions = f->presets[preset].regions;
+      auto & regions = f->presets_[preset_].regions;
       
       for (size_t region_idx = 0; region_idx < regions.size(); region_idx++) {
 	auto & region = regions[region_idx];
@@ -982,15 +984,20 @@ public:
 	  // FIXME: here we should end all voices with the same instrument and group
 	}
 	
-	auto voice = make_unique<SoundFontVoice>(channel_config, outSampleRate, azimuth, sf, preset, region_idx, fixedMidiKey);
+	auto voice = make_unique<SoundFontVoice>(channel_config, azimuth, sf_, preset_, region_idx, fixedMidiKey_);
 	voice->playNote(frequency, velocity, start_phase);
 
-	// create modulators for voice
-	for (auto & child : getChildren()) {
-	  auto modulator = child->playNote(ChannelConfiguration::MONO, outSampleRate, 0.0f, frequency, velocity, start_phase);
-	  if (modulator.get()) voice->addChild(move(modulator));
+	if (!getChildren().empty()) {
+	  // create modulators for voice
+	  auto child_config = channel_config;
+	  child_config.setType(ChannelConfiguration::MONO);
+	  
+	  for (auto & child : getChildren()) {
+	    auto modulator = child->playNote(child_config, 0.0f, frequency, velocity, start_phase);
+	    if (modulator.get()) voice->addChild(move(modulator));
+	  }
 	}
-
+	
 	voices.push_back(move(voice));
       }
     }
@@ -998,22 +1005,22 @@ public:
     if (voices.size() == 1) {
       return move(voices[0]);
     } else {
-      auto group = make_unique<TrackState>(channel_config, outSampleRate);
+      auto group = make_unique<TrackState>(channel_config);
       for (auto & v : voices) group->addChild(move(v));
       return group;
     }
   }
   
 private:
-  shared_ptr<SoundFontFile> sf;
-  size_t preset;
-  size_t fixedMidiKey = 0;
+  shared_ptr<SoundFontFile> sf_;
+  size_t preset_;
+  size_t fixedMidiKey_ = 0;
 };
 
 std::unique_ptr<Instrument>
 SoundFont::createInstrument(size_t preset, size_t fixedMidiKey, const char * name) {
-  auto instrument = make_unique<SoundFontInstrument>(sf, preset, fixedMidiKey);
-  instrument->setName(name ? name : sf->getPresetName(preset));
+  auto instrument = make_unique<SoundFontInstrument>(sf_, preset, fixedMidiKey);
+  instrument->setName(name ? name : sf_->getPresetName(preset));
   instrument->setIsPercussion(fixedMidiKey != 0);
   return instrument;
 }
@@ -1021,7 +1028,7 @@ SoundFont::createInstrument(size_t preset, size_t fixedMidiKey, const char * nam
 std::vector<std::unique_ptr<Instrument> >
 SoundFont::createAll() {
   std::vector<std::unique_ptr<Instrument> > r;
-  size_t n = sf->getPresetCount();
+  size_t n = sf_->getPresetCount();
   for (size_t i = 0; i < n; i++) r.push_back(createInstrument(i));
   return r;
 }
