@@ -51,7 +51,7 @@ class InfoLine : public UIElement {
 
       int new_key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
       std::string key = new_key >= 0 ? Note::keyToString(tuning, new_key) : "?";
-      int tempo = song.getTempo();
+      auto tempo = song.getTempo();
 
       int edit_step_size = 0, current_score_cursor_track = 0, current_score_cursor_col = 0;
       putstr(0, cols / 2, fmt::format("{:2d} {} {} {} {}:{}", edit_step_size, tuning_text, key, tempo, current_score_cursor_track, current_score_cursor_col));
