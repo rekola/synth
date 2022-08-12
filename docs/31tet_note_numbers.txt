@@ -22,7 +22,7 @@
 176	A♭4	21	8:5
 177	G𝄪4	22	18:11, 44:27, 13:8, 49:30, 80:49
 178	A-4	23	5:3
-179	B𝄫4	24	12:7
+179	B𝄫4	24	12:7					septimal major sixth / supermajor sixth
 180	A♯4	25	7:4					harmonic seventh
 181	B♭4	26	9:5					minor seventh
 182	A𝄪4	27	11:6, 20:11, 64:35
