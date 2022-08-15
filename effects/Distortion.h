@@ -17,8 +17,8 @@ static inline const std::string to_string(DistortionType type) {
 
 class Distortion : public Track {
  public:
-  Distortion() : Track(TrackType::EFFECT), type(DistortionType::HARD_CLIP), param(1.0f), drymix(0) { }
-  Distortion(DistortionType _type, float _param, float _drymix) : Track(TrackType::EFFECT), type(_type), param(_param), drymix(_drymix) { }
+  Distortion() : Track(TrackType::EFFECT), type_(DistortionType::HARD_CLIP), param_(1.0f), drymix_(0) { }
+  Distortion(DistortionType type, float param, float drymix) : Track(TrackType::EFFECT), type_(type), param_(param), drymix_(drymix) { }
 
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & channel_config) const override;
   std::string getElementName() const override { return "distortion"; }
@@ -26,9 +26,9 @@ class Distortion : public Track {
   void storeParameters(ParameterSource & output) const override;
 
  private:
-  DistortionType type;
-  float param, drymix;
-  float drive = 1.0f;
+  DistortionType type_;
+  float param_, drymix_;
+  float drive_ = 1.0f;
 };
 
 #endif

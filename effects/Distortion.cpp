@@ -1,42 +1,39 @@
 #include "Distortion.h"
 
-#include "SampleData.h"
 #include "TrackState.h"
-
-#include <iostream>
 
 using namespace std;
 
 class DistortionState : public TrackState {
 public:
-  DistortionState(const ChannelConfiguration & _channel_config, DistortionType _type, float _param, float _drymix, float _drive)
-    : TrackState(_channel_config), type(_type), param(_param), drymix(_drymix), drive(_drive) { }
+  DistortionState(const ChannelConfiguration & channel_config, DistortionType type, float param, float drymix, float drive)
+    : TrackState(channel_config), type_(type), param_(param), drymix_(drymix), drive_(drive) { }
   
   SampleData render(int frames) override {
     auto input = TrackState::render(frames);
     
     auto buffer = input.data();
-    switch (type) {
+    switch (type_) {
     case DistortionType::HARD_CLIP:
 
       for (size_t i = 0; i < input.numberOfChannels() * input.size(); i++) {
-	float x = buffer[i];
-	float y = drive * x;
-	if (y > param) y = param;
-	if (y < -param) y = -param;
-	buffer[i] = drymix * x + (1.0f - drymix) * y;
+	auto x = buffer[i];
+	auto y = drive_ * x;
+	if (y > param_) y = param_;
+	if (y < -param_) y = -param_;
+	buffer[i] = drymix_ * x + (1.0f - drymix_) * y;
       }
       break;
 
     case DistortionType::SOFT_CLIP:
       for (size_t i = 0; i < input.numberOfChannels() * input.size(); i++) {
-	float x = buffer[i];
-	float y = drive * x;
+	auto x = buffer[i];
+	auto y = drive_ * x;
 	if (y > 1.0) y = 1.0;
 	else if (y < -1.0) y = -1.0;
 	y = y - y*y*y/3.0f;
 	y = 1.5 * y - 0.5 * y*y*y;
-	buffer[i] = drymix * x + (1.0f - drymix) * y;
+	buffer[i] = drymix_ * x + (1.0f - drymix_) * y;
       }
       break;
     
@@ -46,13 +43,13 @@ public:
 	float depth = 1.0f;
 	float timbreInverse = (1 - (timbre * 0.099)) * 10;
 	for (size_t i = 0; i < input.numberOfChannels() * input.size(); i++) {
-	  float x = buffer[i];
+	  auto x = buffer[i];
 	  x *= depth;
 	  x = tanhf(x * (timbre + 1));
 	  x = x * ((0.1 + timbre) * timbreInverse);
 	  x = cos((x + (timbre + 0.25)));
-	  x = tanh(x * (timbre + 1));                  
-	  x = x * 0.125;                      
+	  x = tanh(x * (timbre + 1));
+	  x = x * 0.125;
 	  buffer[i] = x;
       	}
       }
@@ -66,33 +63,33 @@ public:
   }
 
 private:
-  DistortionType type;
-  float param, drymix, drive;
+  DistortionType type_;
+  float param_, drymix_, drive_;
 };
 
 std::unique_ptr<TrackState>
 Distortion::createState(const ChannelConfiguration & channel_config) const {
-  return make_unique<DistortionState>(channel_config, type, param, drymix, drive);
+  return make_unique<DistortionState>(channel_config, type_, param_, drymix_, drive_);
 }
 
 void
 Distortion::loadParameters(const ParameterSource & input) {
   Track::loadParameters(input);
    
-  param = input.getFloat("param");
-  drive = input.getFloat("drive");
+  param_ = input.getFloat("param");
+  drive_ = input.getFloat("drive");
   
   auto type_text = input.getText("type");
-  if (type_text == "hardclip") type = DistortionType::HARD_CLIP;
-  else if (type_text == "softclip") type = DistortionType::SOFT_CLIP;
-  else if (type_text == "bitchrush") type = DistortionType::BITCRUSH;  
+  if (type_text == "hardclip") type_ = DistortionType::HARD_CLIP;
+  else if (type_text == "softclip") type_ = DistortionType::SOFT_CLIP;
+  else if (type_text == "bitchrush") type_ = DistortionType::BITCRUSH;  
 }
 
 void
 Distortion::storeParameters(ParameterSource & output) const {
   Track::storeParameters(output);
 
-  output.set("param", param);
-  output.set("drive", drive);
-  output.set("type", to_string(type));
+  output.set("param", param_);
+  output.set("drive", drive_);
+  output.set("type", to_string(type_));
 }
