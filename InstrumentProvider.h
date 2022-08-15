@@ -4,7 +4,7 @@
 #include "Instrument.h"
 #include "SoundFont.h"
 #include "Oscilator.h"
-#include "Filter.h"
+#include "effects/Filter.h"
 
 #include <string>
 #include <memory>
@@ -27,9 +27,14 @@ class InstrumentProvider {
 
     if (as_midi_default) {
       // Piano
+      addInstrument(sf->createInstrument(0, 0, "Piano"));
       addInstrument(sf->createInstrument(0, 0, "Acoustic Grand Piano"));
+      
       addInstrument(sf->createInstrument(1, 0, "Bright Acoustic Piano"));
+
       addInstrument(sf->createInstrument(2, 0, "Electric Grand Piano"));
+      addInstrument(sf->createInstrument(2, 0, "Electric Piano"));
+
       addInstrument(sf->createInstrument(3, 0, "Honky-tonk Piano"));
       addInstrument(sf->createInstrument(4, 0, "Rhodes Piano"));
       addInstrument(sf->createInstrument(5, 0, "Chorused Piano"));
@@ -37,11 +42,20 @@ class InstrumentProvider {
       addInstrument(sf->createInstrument(7, 0, "Clavinet"));
       
       addInstrument(sf->createInstrument(24, 0, "Acoustic Guitar (nylon)"));
+      addInstrument(sf->createInstrument(24, 0, "Acoustic Guitar"));
+
       addInstrument(sf->createInstrument(25, 0, "Acoustic Guitar (steel)"));
 
       addInstrument(sf->createInstrument(34, 0, "Electric Bass (finger)"));
+
+      addInstrument(sf->createInstrument(40, 0, "Violin"));
+      addInstrument(sf->createInstrument(40, 0, "Viola"));      
       addInstrument(sf->createInstrument(42, 0, "Cello"));
       addInstrument(sf->createInstrument(45, 0, "Pizzicato Strings"));
+      addInstrument(sf->createInstrument(46, 0, "Orchestral Harp"));
+
+      addInstrument(sf->createInstrument(62, 0, "Synth Brass 1"));
+      addInstrument(sf->createInstrument(63, 0, "Synth Brass 2"));
 
       addInstrument(sf->createInstrument(88, 0, "Pad 1 (new age)"));
       addInstrument(sf->createInstrument(89, 0, "Pad 2 (warm)"));
