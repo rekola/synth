@@ -1,6 +1,6 @@
 #include "Compressor.h"
 
-#include "TrackState.h"
+#include "../TrackState.h"
 
 #include <cmath>
 #include <cstddef>

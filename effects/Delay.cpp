@@ -1,6 +1,6 @@
 #include "Delay.h"
 
-#include "TrackState.h"
+#include "../TrackState.h"
 
 #define MAX_DELAY_SAMPLES 44100 * 5
 

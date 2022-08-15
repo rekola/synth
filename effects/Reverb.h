@@ -1,7 +1,7 @@
 #ifndef _REVERB_H_
 #define _REVERB_H_
 
-#include "Track.h"
+#include "../Track.h"
 
 enum class ReverbPreset { SUBTLE = 0, STADIUM, CUPBOARD, DARK, HALVES };
 

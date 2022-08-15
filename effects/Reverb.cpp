@@ -1,8 +1,7 @@
 #include "Reverb.h"
 
 #include "MVerb.h"
-#include "SampleData.h"
-#include "TrackState.h"
+#include "../TrackState.h"
 
 using namespace std;
 

@@ -1,10 +1,9 @@
 #include "Filter.h"
 
-#include "SampleData.h"
-#include "TrackState.h"
-#include "EnvelopeState.h"
+#include "../TrackState.h"
+#include "../EnvelopeState.h"
 
-#include "defaults.h"
+#include "../defaults.h"
 #include <cassert>
 
 using namespace std;

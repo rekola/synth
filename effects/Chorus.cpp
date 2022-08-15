@@ -1,10 +1,10 @@
 #include "Chorus.h"
 
-#include "TrackState.h"
-
-using namespace std;
+#include "../TrackState.h"
 
 #define CHORUS_MAX_DELAY_SAMPLES 44100
+
+using namespace std;
 
 class ChorusState : public TrackState {
 public:

@@ -1,7 +1,7 @@
 #ifndef _DELAY_H_
 #define _DELAY_H_
 
-#include "Track.h"
+#include "../Track.h"
 
 class Delay : public Track {
  public:

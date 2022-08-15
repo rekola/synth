@@ -1,8 +1,8 @@
 #ifndef _FILTER_H_
 #define _FILTER_H_
 
-#include "Track.h"
-#include "Envelope.h"
+#include "../Track.h"
+#include "../Envelope.h"
 
 class Filter : public Track {
  public:

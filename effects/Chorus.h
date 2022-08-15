@@ -1,7 +1,7 @@
 #ifndef _CHORUS_H_
 #define _CHORUS_H_
 
-#include "Track.h"
+#include "../Track.h"
 
 class Chorus : public Track {
  public:
