@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="200" volume="1" randomization="0.0099999998" mixer="basic">
     <instruments>
-      <genericInstrument name="Yamaha C5 Grand" volume="1"/>
+      <genericInstrument name="Piano" volume="1"/>
     </instruments>
     <tracks>
         <track id="0" volume="1" preset="subtle"/>

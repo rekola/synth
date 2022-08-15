@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song key="C" temperament="31edo" tempo="220" volume="1" randomization="0.0099999998">
   <instruments>
-    <genericInstrument name="Electric Piano" />
+    <genericInstrument name="Rhodes Piano" />
   </instruments>
   <tracks>
     <track id="1" azimuth="30" distance="0" elevation="50" volume="1" instrument="0"/>

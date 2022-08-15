@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="200" volume="1.0" randomization="0.0099999998">
   <instruments>
-    <genericInstrument name="Yamaha Grand Piano" />
+    <genericInstrument name="Piano" />
     <genericInstrument name="Violin" />
   </instruments>
   

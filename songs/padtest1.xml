@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="300" volume="1.0" randomization="0.0099999998">
   <instruments>
-    <genericInstrument name="Yamaha C5 Grand" />
+    <genericInstrument name="Piano" />
 
     <envelope attack="1" release="2" name="padtest2">
       <filter fcutmin="0.05" fcutmax="0.8" fres="0.9" attack="3" decay="3" sustain="0.0">
@@ -18,8 +18,6 @@
 	</multiply>
       </filter>
     </envelope>
-
-    <genericInstrument name="Yamaha C5 Grand" />
 </instruments>
   
   <tracks>

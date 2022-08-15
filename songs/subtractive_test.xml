@@ -51,7 +51,7 @@
 
     <group>
       <genericInstrument name="Acoustic Guitar (nylon)" />
-      <genericInstrument name="Yamaha C5 Grand" />
+      <genericInstrument name="Piano" />
     </group>
 
     <distortion name="distortion test" param="0.25">

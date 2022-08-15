@@ -2,7 +2,7 @@
 <song temperament="31edo" tempo="300" volume="1.0" randomization="0.0099999998">
   <instruments>
     <genericInstrument name="Electric Bass (finger)" />
-    <genericInstrument name="Yamaha C5 Grand" />
+    <genericInstrument name="Piano" />
   </instruments>
   
   <tracks>

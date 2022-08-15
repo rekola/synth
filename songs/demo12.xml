@@ -3,7 +3,7 @@
   <instruments>
     <genericInstrument name="Acoustic Bass Drum" />
     <genericInstrument name="Synth Brass 1" />
-    <genericInstrument name="Yamaha Grand Piano" />
+    <genericInstrument name="Piano" />
   </instruments>
   
   <tracks>

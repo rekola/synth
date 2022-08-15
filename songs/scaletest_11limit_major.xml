@@ -1,12 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="200" volume="0.75" randomization="0.0099999998">
   <instruments>
-    <genericInstrument name="Yamaha C5 Grand" />
-    
+    <genericInstrument name="Piano" />
     <genericInstrument name="Electric Piano 1" />
     <genericInstrument name="Electric Piano 2" />
     <genericInstrument name="Electric Grand Piano" />
-    <genericInstrument name="Yamaha Grand Piano" />
     <genericInstrument name="Acoustic Bass Drum" />
     <genericInstrument name="Synth Brass 1" />
   </instruments>
@@ -18,7 +16,7 @@
   </tracks>
   
   <patterns>
-    <pattern rows="42">
+    <pattern rows="64">
       <annotation row="0">C quartal major</annotation>
       <note row="0" track="0" velocity="40">C-4 D#4 F-4</note>
       
@@ -50,5 +48,7 @@
       <note row="36" track="0" velocity="40">B-4 Cx5 E-5</note>
     </pattern>
 
+    <pattern rows="64">
+    </pattern>
   </patterns>
 </song>
