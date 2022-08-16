@@ -5,38 +5,38 @@ class LFO {
  public:
   enum Type { NONE = 0, TRIANGLE, SQUARE, SAW, SINE };
   
-  LFO() : type(NONE), samplesUntil(0), delta(0), level(0) { }
+  LFO() : type_(NONE), samplesUntil_(0), delta_(0.0f) { }
   
   LFO(float delay, float frequency, float outSampleRate)
-    : type(TRIANGLE),
-      samplesUntil((int)(delay * outSampleRate)),
-      delta(4.0f * frequency / outSampleRate),
-      level(0)
+    : type_(TRIANGLE),
+      samplesUntil_((int)(delay * outSampleRate)),
+      delta_(4.0f * frequency / outSampleRate)
   {
   }
   
   void process(int blockSamples) {
-    if (samplesUntil > blockSamples) {
-      samplesUntil -= blockSamples;
+    if (samplesUntil_ > blockSamples) {
+      samplesUntil_ -= blockSamples;
       return;
     }
-    level += delta * blockSamples;
-    if (level >  1.0f) {
-      delta = -delta;
-      level = 2.0f - level;
-    } else if (level < -1.0f) {
-      delta = -delta;
-      level = -2.0f - level;
+    level_ += delta_ * blockSamples;
+    if (level_ > 1.0f) {
+      delta_ = -delta_;
+      level_ = 2.0f - level_;
+    } else if (level_ < -1.0f) {
+      delta_ = -delta_;
+      level_ = -2.0f - level_;
     }
   }
 
-  float getLevel() const { return level; }
-  float getDelta() const { return delta; }
+  float getLevel() const { return level_; }
+  float getDelta() const { return delta_; }
 
 private:
-  Type type;
-  int samplesUntil;
-  float delta, level;
+  Type type_;
+  int samplesUntil_;
+  float delta_;
+  float level_ = 0.0f;
 };
 
 #endif
