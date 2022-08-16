@@ -1,7 +1,7 @@
 #include "EnvelopeFilter.h"
 
 #include "EnvelopeState.h"
-#include "defaults.h"
+#include "constants.h"
 
 using namespace std;
 
@@ -20,7 +20,7 @@ public:
     auto numChannels = input_data.numberOfChannels();
 
     while (numSamples) {
-      auto blockSamples = numSamples > RENDER_EFFECTSAMPLEBLOCK ? RENDER_EFFECTSAMPLEBLOCK : numSamples;
+      auto blockSamples = numSamples > constants::RENDER_EFFECTSAMPLEBLOCK ? constants::RENDER_EFFECTSAMPLEBLOCK : numSamples;
       auto gain = envelope_state.getLevel();
       
       for (auto i = 0; i < numChannels * blockSamples; i++) {
