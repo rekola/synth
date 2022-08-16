@@ -1,3 +1,4 @@
+
 #include "Song.h"
 
 #include "SongState.h"
@@ -5,14 +6,16 @@
 
 #include "InstrumentTrack.h"
 #include "Group.h"
-#include "Reverb.h"
-#include "Distortion.h"
-#include "Filter.h"
-#include "Compressor.h"
-#include "Delay.h"
-#include "Chorus.h"
 #include "NoteMultiplier.h"
 #include "EnvelopeFilter.h"
+
+#include "effects/Distortion.h"
+#include "effects/Reverb.h"
+#include "effects/Filter.h"
+#include "effects/Compressor.h"
+#include "effects/Delay.h"
+#include "effects/Chorus.h"
+#include "effects/Tremolo.h"
 
 #include "Oscilator.h"
 #include "GenericInstrument.h"
@@ -95,6 +98,7 @@ static unique_ptr<Track> createTrack(string name) {
   else if (name == "compressor") return make_unique<Compressor>();
   else if (name == "delay") return make_unique<Delay>();
   else if (name == "chorus") return make_unique<Chorus>();
+  else if (name == "tremolo") return make_unique<Tremolo>();
   else if (name == "multiply") return make_unique<NoteMultiplier>();
   else if (name == "envelope") return make_unique<EnvelopeFilter>();
   
@@ -221,7 +225,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	  auto notes = split_notes(value_text);
 
 	  for (int i = 0; i < static_cast<int>(notes.size()); i++) {
-	    if (notes[i] == "off") {
+	    if (notes[i] == "off" || notes[i] == "OFF") {
 	      pattern.setNote(row, track, start_column + i, Note(0, 0));
 	    } else {
 	      pattern.setNote(row, track, start_column + i, Note(notes[i], velocity, delay, actual_pattern_tuning));
