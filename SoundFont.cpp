@@ -1,3 +1,4 @@
+
 /* LICENSE (MIT)
 
    Copyright (C) 2021, Mikael Rekola
@@ -30,7 +31,7 @@
 #include "InstrumentVoice.h"
 #include "SampleData.h"
 
-#include "defaults.h"
+#include "constants.h"
 
 using namespace std;
 
@@ -671,7 +672,7 @@ public:
   }
 
   bool isPlaying() const override {
-    return (voiceRegion_ && sourceSamplePosition_ < voiceRegion_->end && !ampenv_.isDone());
+    return voiceRegion_ && sourceSamplePosition_ < voiceRegion_->end && !ampenv_.isDone();
   }
   bool isReleased() const override {
     return isPlaying() && ampenv_.isReleased();
@@ -733,6 +734,12 @@ SoundFontVoice::render(int numSamples) {
   auto f = sf_.get();
   
   SampleData outputData(getChannelConfiguration(), numSamples);
+  outputData.zero(); // outputData must be zeroed because we don't fill if after stopping playing
+  
+  if (!isPlaying()) {
+    return outputData;
+  }
+
   auto num_channels = outputData.numberOfChannels();
   auto output = outputData.data();
 
@@ -779,7 +786,7 @@ SoundFontVoice::render(int numSamples) {
   float panFactorLeft = sqrtf(0.5f - pan), panFactorRight = sqrtf(0.5f + pan);
 
   while (numSamples) {
-    int blockSamples = (numSamples > RENDER_EFFECTSAMPLEBLOCK ? RENDER_EFFECTSAMPLEBLOCK : numSamples);
+    int blockSamples = (numSamples > constants::RENDER_EFFECTSAMPLEBLOCK ? constants::RENDER_EFFECTSAMPLEBLOCK : numSamples);
     numSamples -= blockSamples;
 
     if (dynamicLowpass) {
