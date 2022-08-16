@@ -225,6 +225,12 @@ public:
 
   Plane & getPlane() { return *plane; }
 
+  void refresh() override {
+    unsigned int y, x;
+    plane->get_dim(&y, &x);
+    setDim(pair(static_cast<int>(y), static_cast<int>(x)));    
+  }
+
 private:
   Plane * plane;
   ncreader * reader = 0;
@@ -335,16 +341,21 @@ bool
 TerminalUI::readInput() {
   ncinput ni;
   while (nc->get(false, &ni) > 0) {
-    bool handled = false, shift = ni.shift;
+    bool shift = ni.shift;
     int id = ni.id;
     if (id >= 'A' && id <= 'Z') {
       id = tolower(id);
-      shift = true;
+      // shift = true;
     }
-    setStatus("input: " + to_string(id) + " (" + string(ni.utf8) + ")");
-
+    
     InputEvent input(id, ni.y, ni.x, ni.alt, shift, ni.ctrl);
-    offerInput(input);
+    auto handled = offerInput(input);
+
+    if (input.getId() == NCKEY_BUTTON1) {
+      setStatus(format("mouse input: {} {}", input.getY(), input.getX()));
+    } else {
+      setStatus("key input: " + to_string(id) + " (" + string(ni.utf8) + ", shift = " + (shift ? "yes" : "no") + ", ctrl = " + (ni.ctrl ? "yes" : "no") + ", handled = " + (handled ? "yes" : "no") + ")");
+    }
   }
 
   return true;
