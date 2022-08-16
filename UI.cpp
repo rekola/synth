@@ -32,9 +32,10 @@ UI::initialize() {
 }
 
 void
-UI::layout() {
+UI::layout() { 
   auto [ rows, cols ] = getDim();
-  
+  setStatus("Layout (rows = " + to_string(rows) + ", cols = " + to_string(cols) + ")");
+
   chart->resize(4, cols).move(1, 0);
   volume_meter->resize(rows - 3, 1).move(1, cols - 1);
   hierarchy_view->resize(rows - 7, 39).move(5, cols - 40);
@@ -71,23 +72,23 @@ UI::offerInput(const InputEvent & input) {
   bool handled = false;
   
   if (input.getId() == NCKEY_RESIZE) {
+    getPlane().refresh();
     layout();
     refresh();
-  } else if (input.hasCtrl()) {
-    if (input.getId() == 'l' || input.getId() == 'L') refresh();
-    else if (input.getId() == 'q' || input.getId() == 'Q') close_ui = true;
-  } else if ((input.getId() == 'n' || input.getId() == 'N') && input.hasCtrl()) {
+  } else if (input.hasCtrl() && input.getId() == 'l') {
+    refresh();
+  } else if (input.hasCtrl() && input.getId() == 'q') {
+    close_ui = true;
+  } else if (input.hasCtrl() && input.getId() == 'n') {
     setStatus("New song");
     getController().createNewSong();
     
     handled = true;
-  } else if (input.getId() == ' ') {
+  } else if (!input.hasCtrl() && input.getId() == ' ') {
     bool playing = getController().togglePlaying();
     setStatus(playing ? "Playing" : "Stopped");
     handled = true;
   } else if (input.getId() == NCKEY_BUTTON1) {
-    setStatus(format("mouse: {} {}", input.getY(), input.getX()));
-
     active_element.reset();
     
     tryActivate(input.getY(), input.getX(), status_line) ||
@@ -100,7 +101,9 @@ UI::offerInput(const InputEvent & input) {
     handled |= menu->offerInput(input);
     if (handled) setStatus("menu: " + menu->getSelected());
   }
-  if (!handled) handled |= status_line->offerInput(input);
+  if (!handled) {
+    handled |= status_line->offerInput(input);
+  }
 
   if (!handled) {
     if (auto el = active_element.lock()) { 
