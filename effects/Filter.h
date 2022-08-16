@@ -20,7 +20,7 @@ class Filter : public Track {
 
 private:
   float fcut_min_ = 0.0f, fcut_max_ = 0.0f, fres_ = 0.0f;
-  bool is_highpass_ = false, aftertouch_ = false;
+  bool is_highpass_ = false, use_aftertouch_ = false;
   Envelope envelope_;
 };
 
