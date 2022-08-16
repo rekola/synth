@@ -76,7 +76,7 @@ class Song : public Track {
   std::string getElementName() const override { return "song"; }
 
   int getSampleInterval(int outSampleRate) const {
-    return 60.0f / getTempo() * 0.25f * 2.0f * outSampleRate;
+    return 60.0 / 4.0 / getTempo() * outSampleRate;
   }
 
 private:
