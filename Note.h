@@ -69,74 +69,78 @@ class Note {
     }    
   }
 
-  static inline int stringToKey(Tuning tuning, std::string input_value) {   
-    replace(input_value, "♯", "#");
-    replace(input_value, "♭", "b");
-    replace(input_value, "𝄫", "bb");
-    replace(input_value, "𝄪", "x");
+  static inline int stringToKey(Tuning tuning, std::string input_value) {
+    if (input_value == "off" || input_value == "OFF") {
+      return 0;
+    } else {
+      replace(input_value, "♯", "#");
+      replace(input_value, "♭", "b");
+      replace(input_value, "𝄫", "bb");
+      replace(input_value, "𝄪", "x");
     
-    int octave;
-    std::string::size_type pos = input_value.find_first_of("0123456789");
-    if (pos != std::string::npos) {
-      octave = stoi(input_value.substr(pos));
-      input_value.erase(pos);
-    } else {
-      octave = 4;
-    }
-    auto letter = input_value[0];
-    auto accidental = input_value.substr(1);
+      int octave;
+      auto pos = input_value.find_first_of("0123456789");
+      if (pos != std::string::npos) {
+	octave = stoi(input_value.substr(pos));
+	input_value.erase(pos);
+      } else {
+	octave = 4;
+      }
+      auto letter = input_value[0];
+      auto accidental = input_value.substr(1);
 
-    assert(letter >= 'A' && letter <= 'G');
+      assert(letter >= 'A' && letter <= 'G');
       
-    if (tuning == Tuning::TET12) {
-      int value = (octave + 1) * 12;
+      if (tuning == Tuning::TET12) {
+	int value = (octave + 1) * 12;
       
-      // C C# D D# E F F# G G# A A# B
+	// C C# D D# E F F# G G# A A# B
 
-      if (letter >= 'C' && letter <= 'E') value += (letter - 'C') * 2;
-      else if (letter == 'F' || letter == 'G') value += 5 + (letter - 'F') * 2;
-      else if (letter == 'A' || letter == 'B') value += 9 + (letter - 'A') * 2;
-      else {
+	if (letter >= 'C' && letter <= 'E') value += (letter - 'C') * 2;
+	else if (letter == 'F' || letter == 'G') value += 5 + (letter - 'F') * 2;
+	else if (letter == 'A' || letter == 'B') value += 9 + (letter - 'A') * 2;
+	else {
+	  assert(0);
+	}
+      
+	if (accidental == "#") value++;
+	else if (accidental == "b") value--;
+	else {
+	  assert(accidental == "-");
+	}
+
+	return value;
+      } else if (tuning == Tuning::TET19) {
+	int value = (octave + 1) * 19;
+
+	// C C♯ D♭ D D♯ E♭ E E♯ F♭ F F♯ G♭ G G♯ A♭ A A♯ B♭ B B♯ C♭
 	assert(0);
-      }
+	return value;
+      } else {
+	int value = (octave + 1) * 31;
       
-      if (accidental == "#") value++;
-      else if (accidental == "b") value--;
-      else {
-	assert(accidental == "-");
+	// C D𝄫 C♯ D♭ C𝄪 D E𝄫 D♯,
+	// E♭ D𝄪 E F♭ E♯ F G𝄫 F♯,
+	// G♭ F𝄪 G A𝄫 G♯ A♭ G𝄪 A,
+	// B𝄫 A♯ B♭ A𝄪 B C♭ B♯
+
+	if (letter >= 'C' && letter <= 'E') value += (letter - 'C') * 5;
+	else if (letter >= 'F' && letter <= 'G') value += 13 + (letter - 'F') * 5;
+	else if (letter >= 'A' && letter <= 'B') value += 23 + (letter - 'A') * 5;
+	else {
+	  assert(0);
+	}
+
+	if (accidental == "#") value += 2;
+	else if (accidental == "b") value -= 2;
+	else if (accidental == "x") value += 4;
+	else if (accidental == "bb") value -= 4;
+	else {
+	  assert(accidental.empty() || accidental == "-");
+	}
+
+	return value;
       }
-
-      return value;
-    } else if (tuning == Tuning::TET19) {
-      int value = (octave + 1) * 19;
-
-      // C C♯ D♭ D D♯ E♭ E E♯ F♭ F F♯ G♭ G G♯ A♭ A A♯ B♭ B B♯ C♭
-      assert(0);
-      return value;
-    } else {
-      int value = (octave + 1) * 31;
-      
-      // C D𝄫 C♯ D♭ C𝄪 D E𝄫 D♯,
-      // E♭ D𝄪 E F♭ E♯ F G𝄫 F♯,
-      // G♭ F𝄪 G A𝄫 G♯ A♭ G𝄪 A,
-      // B𝄫 A♯ B♭ A𝄪 B C♭ B♯
-
-      if (letter >= 'C' && letter <= 'E') value += (letter - 'C') * 5;
-      else if (letter >= 'F' && letter <= 'G') value += 13 + (letter - 'F') * 5;
-      else if (letter >= 'A' && letter <= 'B') value += 23 + (letter - 'A') * 5;
-      else {
-	assert(0);
-      }
-
-      if (accidental == "#") value += 2;
-      else if (accidental == "b") value -= 2;
-      else if (accidental == "x") value += 4;
-      else if (accidental == "bb") value -= 4;
-      else {
-	assert(accidental.empty() || accidental == "-");
-      }
-
-      return value;
     }
   }
   
