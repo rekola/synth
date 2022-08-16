@@ -32,7 +32,8 @@ class UIPlane {
   virtual void showPicker() = 0;
   virtual void addItem(std::string id, std::string description) = 0;
   virtual void clearItems() = 0;
-
+  virtual void refresh() = 0;
+  
   const std::pair<int, int> & getPosition() const { return plane_pos; }
   const std::pair<int, int> & getDim() const { return plane_dim; }
 

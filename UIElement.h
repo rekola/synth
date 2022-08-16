@@ -90,7 +90,7 @@ class UIElement : public EventHandler {
     if (plane_) return plane_->getDim();
     else return std::pair(0, 0);
   }
-
+  
   Controller & getController() const { return *(plane_->getController()); }
 
 protected:
