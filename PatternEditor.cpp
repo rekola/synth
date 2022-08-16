@@ -278,7 +278,9 @@ PatternEditor::offerInput(const InputEvent & input) {
  
   auto & event_queue = getController().getPlaybackEventQueue();
 
-  if (input.hasCtrl() && input.hasShift()) {
+  if (input.getId() == NCKEY_BUTTON1) {
+    
+  } else if (input.hasCtrl() && input.hasShift()) {
     if (input.getId() == NCKEY_UP) {
       auto & pattern = song.getPattern(info.getPatternIndex());
       pattern.transposeUp();
@@ -287,9 +289,14 @@ PatternEditor::offerInput(const InputEvent & input) {
       auto & pattern = song.getPattern(info.getPatternIndex());
       pattern.transposeDown();
       song.incVersion();
+    } else if (input.getId() == 't') {
+      // delete track
+      return true;
     }
   } else if (input.hasCtrl()) {
-     if (input.getId() == 'r') {
+    if (input.getId() == ' ') {
+      // setStatus("marking");
+    } else if (input.getId() == 'r') {
       int track_id;
       auto sample = getController().startRecording();
       if (current_track && current_track->getType() == TrackType::SAMPLE) {
@@ -303,7 +310,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       }
       getController().setRecordingTrackId(track_id);
       song.incVersion();
-    } else if (input.getId() == 'e') {
+    } else if (0 && (input.getId() == 'e' || input.getId() == 'E')) {
       getController().stopRecording();
     } else if (input.getId() == 'a' || input.getId() == 'A') {
       new_cursor.track = new_cursor.col = new_cursor.subcol = 0;
@@ -315,14 +322,15 @@ PatternEditor::offerInput(const InputEvent & input) {
       auto it = all_track_info.find(track_ids[new_cursor.track]);
       new_cursor.col = it != all_track_info.end() ? it->second.getColumnCount() - 1: 0;
       return true;
-    } else if (input.getId() == 't' || input.getId() == 'T') {
+    } else if (input.getId() == 't') {
       int instrument_id = 0; // pattern.getTracks().back().getInstrumentId();
       auto & track = song.addChild(make_unique<InstrumentTrack>(-1, instrument_id));
       song.incVersion();
-    } else if (input.getId() == 'g' || input.getId() == 'G') {
+      // setStatus("created new track");
+    } else if (input.getId() == 'g') {
       // create group
       return true;
-    } else if (input.getId() == 'd' || input.getId() == 'D') {
+    } else if (input.getId() == 'd') {
       // duplicate track
       return true;
     } else if (input.getId() == '+') {
@@ -336,7 +344,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       // move selected track to right
       return true;
     } else if (input.getId() == NCKEY_LEFT || input.getId() == 'p') {
-      Track * track = song.getChildById(track_ids[current_cursor.track]);
+      auto track = song.getChildById(track_ids[current_cursor.track]);
       if (track && track->getType() == TrackType::INSTRUMENT_CONTROL) {
 	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
 	if (instrument_track.getInstrumentId() > 0) {
@@ -346,8 +354,8 @@ PatternEditor::offerInput(const InputEvent & input) {
 	}
       }
       return true;
-    } else if (input.getId() == NCKEY_RIGHT || input.getId() == 'i' || input.getId() == 'i' || input.getId() == 'o') {
-      Track * track = song.getChildById(track_ids[current_cursor.track]);
+    } else if (input.getId() == NCKEY_RIGHT || input.getId() == 'i' || input.getId() == 'o') {
+      auto track = song.getChildById(track_ids[current_cursor.track]);
       if (track && track->getType() == TrackType::INSTRUMENT_CONTROL) {
 	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
 	auto & instruments = song.getInstruments();
@@ -359,15 +367,10 @@ PatternEditor::offerInput(const InputEvent & input) {
       }
       return true;
     } else if (input.getId() == '\\') {
-      Track * track = song.getChildById(track_ids[current_cursor.track]);
+      auto track = song.getChildById(track_ids[current_cursor.track]);
       if (track) {
 	track->setSolo(!track->isSolo());
 	song.incVersion();
-      }
-    } else if (input.hasShift()) {
-      if (input.getId() == 't' || input.getId() == 'T') {
-	// delete track
-	return true;
       }
     } else {
       return false;
