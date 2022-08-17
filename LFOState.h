@@ -1,13 +1,13 @@
-#ifndef _LFO_H_
-#define _LFO_H_
+#ifndef _LFOSTATE_H_
+#define _LFOSTATE_H_
 
-class LFO {
+class LFOState {
  public:
   enum Type { NONE = 0, TRIANGLE, SQUARE, SAW, SINE };
   
-  LFO() : type_(NONE), samplesUntil_(0), delta_(0.0f) { }
+  LFOState() : type_(NONE), samplesUntil_(0), delta_(0.0f) { }
   
-  LFO(float delay, float frequency, float outSampleRate)
+  LFOState(float delay, float frequency, float outSampleRate)
     : type_(TRIANGLE),
       samplesUntil_((int)(delay * outSampleRate)),
       delta_(4.0f * frequency / outSampleRate)

@@ -27,7 +27,7 @@
 #include "LowpassFilter.h"
 #include "FourCC.h"
 #include "EnvelopeState.h"
-#include "LFO.h"
+#include "LFOState.h"
 #include "InstrumentVoice.h"
 #include "SampleData.h"
 
@@ -72,8 +72,8 @@ public:
     attenuation = 0;
     pan = 0;
 
-    ampenv.delay = ampenv.attack = ampenv.hold = ampenv.decay = ampenv.release = 0;
-    modenv.delay = modenv.attack = modenv.hold = modenv.decay = modenv.release = 0;
+    ampenv.delay_ = ampenv.attack_ = ampenv.hold_ = ampenv.decay_ = ampenv.release_ = 0;
+    modenv.delay_ = modenv.attack_ = modenv.hold_ = modenv.decay_ = modenv.release_ = 0;
 
     initialFilterQ = initialFilterFc = 0;
     modEnvToPitch = modEnvToFilterFc = 0;
@@ -92,8 +92,8 @@ public:
     pitch_keycenter = -1;
     
     // SF2 defaults in timecents.
-    ampenv.delay = ampenv.attack = ampenv.hold = ampenv.decay = ampenv.release = -12000.0f;
-    modenv.delay = modenv.attack = modenv.hold = modenv.decay = modenv.release = -12000.0f;
+    ampenv.delay_ = ampenv.attack_ = ampenv.hold_ = ampenv.decay_ = ampenv.release_ = -12000.0f;
+    modenv.delay_ = modenv.attack_ = modenv.hold_ = modenv.decay_ = modenv.release_ = -12000.0f;
     
     initialFilterFc = 13500;
     
@@ -255,22 +255,22 @@ static void tsf_region_operator(struct tsf_region* region, uint16_t genOper, uni
 		{ GEN_INT   | GEN_INT_LIMIT16K4500 , _TSFREGIONOFFSET(         int, freqModLFO           ) }, //22 FreqModLFO
 		{ GEN_FLOAT | GEN_FLOAT_LIMIT12K5K , _TSFREGIONOFFSET(       float, delayVibLFO          ) }, //23 DelayVibLFO
 		{ GEN_INT   | GEN_INT_LIMIT16K4500 , _TSFREGIONOFFSET(         int, freqVibLFO           ) }, //24 FreqVibLFO
-		{ GEN_FLOAT | GEN_FLOAT_LIMIT12K5K , _TSFREGIONENVOFFSET(    float, modenv, delay        ) }, //25 DelayModEnv
-		{ GEN_FLOAT | GEN_FLOAT_LIMIT12K8K , _TSFREGIONENVOFFSET(    float, modenv, attack       ) }, //26 AttackModEnv
-		{ GEN_FLOAT | GEN_FLOAT_LIMIT12K5K , _TSFREGIONENVOFFSET(    float, modenv, hold         ) }, //27 HoldModEnv
-		{ GEN_FLOAT | GEN_FLOAT_LIMIT12K8K , _TSFREGIONENVOFFSET(    float, modenv, decay        ) }, //28 DecayModEnv
-		{ GEN_FLOAT | GEN_FLOAT_MAX1000    , _TSFREGIONENVOFFSET(    float, modenv, sustain      ) }, //29 SustainModEnv
-		{ GEN_FLOAT | GEN_FLOAT_LIMIT12K8K , _TSFREGIONENVOFFSET(    float, modenv, release      ) }, //30 ReleaseModEnv
-		{ GEN_FLOAT | GEN_FLOAT_LIMIT1200  , _TSFREGIONENVOFFSET(    float, modenv, keynumToHold ) }, //31 KeynumToModEnvHold
-		{ GEN_FLOAT | GEN_FLOAT_LIMIT1200  , _TSFREGIONENVOFFSET(    float, modenv, keynumToDecay) }, //32 KeynumToModEnvDecay
-		{ GEN_FLOAT | GEN_FLOAT_LIMIT12K5K , _TSFREGIONENVOFFSET(    float, ampenv, delay        ) }, //33 DelayVolEnv
-		{ GEN_FLOAT | GEN_FLOAT_LIMIT12K8K , _TSFREGIONENVOFFSET(    float, ampenv, attack       ) }, //34 AttackVolEnv
-		{ GEN_FLOAT | GEN_FLOAT_LIMIT12K5K , _TSFREGIONENVOFFSET(    float, ampenv, hold         ) }, //35 HoldVolEnv
-		{ GEN_FLOAT | GEN_FLOAT_LIMIT12K8K , _TSFREGIONENVOFFSET(    float, ampenv, decay        ) }, //36 DecayVolEnv
-		{ GEN_FLOAT | GEN_FLOAT_MAX1440    , _TSFREGIONENVOFFSET(    float, ampenv, sustain      ) }, //37 SustainVolEnv
-		{ GEN_FLOAT | GEN_FLOAT_LIMIT12K8K , _TSFREGIONENVOFFSET(    float, ampenv, release      ) }, //38 ReleaseVolEnv
-		{ GEN_FLOAT | GEN_FLOAT_LIMIT1200  , _TSFREGIONENVOFFSET(    float, ampenv, keynumToHold ) }, //39 KeynumToVolEnvHold
-		{ GEN_FLOAT | GEN_FLOAT_LIMIT1200  , _TSFREGIONENVOFFSET(    float, ampenv, keynumToDecay) }, //40 KeynumToVolEnvDecay
+		{ GEN_FLOAT | GEN_FLOAT_LIMIT12K5K , _TSFREGIONENVOFFSET(    float, modenv, delay_       ) }, //25 DelayModEnv
+		{ GEN_FLOAT | GEN_FLOAT_LIMIT12K8K , _TSFREGIONENVOFFSET(    float, modenv, attack_      ) }, //26 AttackModEnv
+		{ GEN_FLOAT | GEN_FLOAT_LIMIT12K5K , _TSFREGIONENVOFFSET(    float, modenv, hold_        ) }, //27 HoldModEnv
+		{ GEN_FLOAT | GEN_FLOAT_LIMIT12K8K , _TSFREGIONENVOFFSET(    float, modenv, decay_       ) }, //28 DecayModEnv
+		{ GEN_FLOAT | GEN_FLOAT_MAX1000    , _TSFREGIONENVOFFSET(    float, modenv, sustain_     ) }, //29 SustainModEnv
+		{ GEN_FLOAT | GEN_FLOAT_LIMIT12K8K , _TSFREGIONENVOFFSET(    float, modenv, release_     ) }, //30 ReleaseModEnv
+		{ GEN_FLOAT | GEN_FLOAT_LIMIT1200  , _TSFREGIONENVOFFSET(    float, modenv, keynumToHold_) }, //31 KeynumToModEnvHold
+		{ GEN_FLOAT | GEN_FLOAT_LIMIT1200  , _TSFREGIONENVOFFSET(    float, modenv, keynumToDecay_) }, //32 KeynumToModEnvDecay
+		{ GEN_FLOAT | GEN_FLOAT_LIMIT12K5K , _TSFREGIONENVOFFSET(    float, ampenv, delay_       ) }, //33 DelayVolEnv
+		{ GEN_FLOAT | GEN_FLOAT_LIMIT12K8K , _TSFREGIONENVOFFSET(    float, ampenv, attack_      ) }, //34 AttackVolEnv
+		{ GEN_FLOAT | GEN_FLOAT_LIMIT12K5K , _TSFREGIONENVOFFSET(    float, ampenv, hold_        ) }, //35 HoldVolEnv
+		{ GEN_FLOAT | GEN_FLOAT_LIMIT12K8K , _TSFREGIONENVOFFSET(    float, ampenv, decay_       ) }, //36 DecayVolEnv
+		{ GEN_FLOAT | GEN_FLOAT_MAX1440    , _TSFREGIONENVOFFSET(    float, ampenv, sustain_     ) }, //37 SustainVolEnv
+		{ GEN_FLOAT | GEN_FLOAT_LIMIT12K8K , _TSFREGIONENVOFFSET(    float, ampenv, release_     ) }, //38 ReleaseVolEnv
+		{ GEN_FLOAT | GEN_FLOAT_LIMIT1200  , _TSFREGIONENVOFFSET(    float, ampenv, keynumToHold_) }, //39 KeynumToVolEnvHold
+		{ GEN_FLOAT | GEN_FLOAT_LIMIT1200  , _TSFREGIONENVOFFSET(    float, ampenv, keynumToDecay_) }, //40 KeynumToVolEnvDecay
 		{ 0                                , (0                                                  ) }, //   Instrument (special)
 		{ 0                                , (0                                                  ) }, //   Reserved
 		{ GEN_KEYRANGE                     , (0                                                  ) }, //43 KeyRange
@@ -370,18 +370,18 @@ static void tsf_region_envtosecs(Envelope * p, bool sustainIsGain) {
   // EG times need to be converted from timecents to seconds.
   // Pin very short EG segments.  Timecents don't get to zero, and our EG is
   // happier with zero values.
-  p->delay   = (p->delay   < -11950.0f ? 0.0f : tsf_timecents2Secsf(p->delay));
-  p->attack  = (p->attack  < -11950.0f ? 0.0f : tsf_timecents2Secsf(p->attack));
-  p->release = (p->release < -11950.0f ? 0.0f : tsf_timecents2Secsf(p->release));
+  p->delay_   = (p->delay_  < -11950.0f ? 0.0f : tsf_timecents2Secsf(p->delay_));
+  p->attack_  = (p->attack_  < -11950.0f ? 0.0f : tsf_timecents2Secsf(p->attack_));
+  p->release_ = (p->release_ < -11950.0f ? 0.0f : tsf_timecents2Secsf(p->release_));
   
   // If we have dynamic hold or decay times depending on key number we need
   // to keep the values in timecents so we can calculate it during startNote
-  if (!p->keynumToHold)  p->hold  = (p->hold  < -11950.0f ? 0.0f : tsf_timecents2Secsf(p->hold));
-  if (!p->keynumToDecay) p->decay = (p->decay < -11950.0f ? 0.0f : tsf_timecents2Secsf(p->decay));
+  if (!p->keynumToHold_)  p->hold_  = (p->hold_  < -11950.0f ? 0.0f : tsf_timecents2Secsf(p->hold_));
+  if (!p->keynumToDecay_) p->decay_ = (p->decay_ < -11950.0f ? 0.0f : tsf_timecents2Secsf(p->decay_));
   
-  if (p->sustain < 0.0f) p->sustain = 0.0f;
-  else if (sustainIsGain) p->sustain = InstrumentVoice::decibelsToGain(-p->sustain / 10.0f);
-  else p->sustain = 1.0f - (p->sustain / 1000.0f);
+  if (p->sustain_ < 0.0f) p->sustain_ = 0.0f;
+  else if (sustainIsGain) p->sustain_ = InstrumentVoice::decibelsToGain(-p->sustain_ / 10.0f);
+  else p->sustain_ = 1.0f - (p->sustain_ / 1000.0f);
 }
 
 static void tsf_load_samples(float** fontSamples, unsigned int* fontSampleCount, struct tsf_riffchunk *chunkSmpl, struct tsf_stream* stream) {
@@ -667,8 +667,8 @@ public:
     if (lowpass_.active) lowpass_.setup(lowpassFc);
     
     // Setup LFO filters.
-    modlfo_ = LFO(region.delayModLFO, tsf_cents2Hertz(region.freqModLFO), outSampleRate);
-    viblfo_ = LFO(region.delayVibLFO, tsf_cents2Hertz(region.freqVibLFO), outSampleRate);
+    modlfo_ = LFOState(region.delayModLFO, tsf_cents2Hertz(region.freqModLFO), outSampleRate);
+    viblfo_ = LFOState(region.delayVibLFO, tsf_cents2Hertz(region.freqVibLFO), outSampleRate);
   }
 
   bool isPlaying() const override {
@@ -700,10 +700,10 @@ public:
   }
 
   void stopNoteQuick() {
-    ampenv_.parameters.release = 0.0f;
+    ampenv_.parameters.release_ = 0.0f;
     ampenv_.nextSegment(EnvelopeState::SUSTAIN);
     
-    modenv_.parameters.release = 0.0f;
+    modenv_.parameters.release_ = 0.0f;
     modenv_.nextSegment(EnvelopeState::SUSTAIN);
   }
 
@@ -720,7 +720,7 @@ public:
   double pitchInputTimecents_ = 0, pitchOutputFactor_ = 0;
   unsigned int loopStart_ = 0, loopEnd_ = 0;
   LowpassFilter lowpass_;
-  LFO modlfo_, viblfo_;
+  LFOState modlfo_, viblfo_;
   
 private:
   shared_ptr<SoundFontFile> sf_;
