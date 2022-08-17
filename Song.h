@@ -85,20 +85,31 @@ class Song : public SongObject {
 
   const Track * getTrackById(int id) const {
     for (auto & track : tracks) {
-      if (track->getId() == id) return track.get();
+      auto r = track->getChildById(id);
+      if (r) return r;
     }
     return nullptr;
   }
 
   Track * getTrackById(int id) {
     for (auto & track : tracks) {
-      if (track->getId() == id) return track.get();
+      auto r = track->getChildById(id);
+      if (r) return r;
     }
     return nullptr;
   }
 
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;
+
+  int getTrackDepth() const {
+    int max_depth = 0;  
+    for (auto & track : getTracks()) {
+      auto d = track->getDepth();
+      if (d > max_depth) max_depth = d;
+    }
+    return max_depth;
+  }
 
 private:
   Tuning tuning = Tuning::TET12;
