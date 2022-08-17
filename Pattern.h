@@ -1,25 +1,20 @@
 #ifndef _PATTERN_H_
 #define _PATTERN_H_
 
+#include "SongObject.h"
 #include "Note.h"
-#include "Tuning.h"
 #include "Command.h"
 #include "VisibleTrackInfo.h"
-
-#define DEFAULT_PATTERN_LENGTH 32
 
 #include <string>
 #include <vector>
 #include <unordered_map>
 
-class Pattern {
+class Pattern : public SongObject {
  public:
-  explicit Pattern(int _num_rows = DEFAULT_PATTERN_LENGTH, Tuning _tuning = Tuning::INHERIT, short _key = -1) : num_rows(_num_rows), tuning(_tuning), key_note_number(_key) { }
+  explicit Pattern(int _num_rows = 0) : num_rows(_num_rows) { }
 
-  Tuning getTuning() const { return tuning; }
-  short getKey() const { return key_note_number; }
   int getNumRows() const { return num_rows; }
-  const std::string & getName() const { return name; }
 
   void setNotes(int row, int track_id, const std::vector<Note> & n) {
     notes[row][track_id] = n;
@@ -176,12 +171,20 @@ class Pattern {
       }
     }    
   }
+
+  void loadParameters(const ParameterSource & input) override {
+    SongObject::loadParameters(input);
+    num_rows = input.getInt("rows");	
+  }
   
+  void storeParameters(ParameterSource & output) const override {
+    SongObject::storeParameters(output);
+    output.set("rows", getNumRows());    
+  }
+
 private:
   int num_rows;
-  Tuning tuning;
-  short key_note_number;
-  std::string name;
+
   // sparse note matrix: row, track, note_column
   std::unordered_map<unsigned short, std::unordered_map<int, std::vector<Note> > > notes;
   std::unordered_map<unsigned short, std::unordered_map<int, Command> > commands;
