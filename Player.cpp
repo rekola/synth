@@ -40,9 +40,9 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       auto midi_note = ev.getParameter3();
       auto midi_velocity = ev.getParameter4();
       
-      auto * track = song.getChildById(track_id);
+      auto * track = song.getTrackById(track_id);
       if (track && track->getType() == TrackType::INSTRUMENT_CONTROL) {
-	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
+	auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
 	
 	if (instrument_track.getInstrumentId() < song.getInstruments().size()) {
 	  auto & instrument = song.getInstrument(instrument_track.getInstrumentId());
@@ -54,11 +54,8 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	  Tuner tuner;
 
 	  if (ev.getType() == PlaybackControlEvent::PLAY_NOTE) {
-	    Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
-	    Note note(midi_note, midi_velocity);
-	    
-	    int key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
-	    float frequency = tuner.getFrequency(tuning, key, note);
+	    Note note(midi_note, midi_velocity);	    
+	    float frequency = tuner.getFrequency(song.getTuning(), song.getKey(), note);
 	    // frequency *= instrument_track.getDetune();
 	    
 	    track_state.stopVoices(column);
