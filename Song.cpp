@@ -150,7 +150,12 @@ static void parseChildInstrument(SongObject & parent, XMLElement & element, cons
     }
   }
 }  
-		      
+
+std::unique_ptr<TrackState>
+Song::createState(const ChannelConfiguration & config) const {
+  return make_unique<SongState>(config);
+}
+
 bool
 Song::open(const std::string & filename, const InstrumentProvider & provider) {
   char * oldLocale = setlocale(LC_ALL, 0);

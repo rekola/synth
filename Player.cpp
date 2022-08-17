@@ -12,6 +12,7 @@
 
 #include "HRFT.h"
 #include "BasicMixer.h"
+#include "InstrumentTrackState.h"
 
 using namespace std;
 
@@ -46,7 +47,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	
 	if (instrument_track.getInstrumentId() < song.getInstruments().size()) {
 	  auto & instrument = song.getInstrument(instrument_track.getInstrumentId());
-	  auto & track_state = state_.getTrackState(instrument_track);
+	  auto & track_state = dynamic_cast<InstrumentTrackState&>(state_.getTrackState(instrument_track));
 	
 	  auto [ pattern_idx, row_idx ] = state_.getRelativePosition(song);
 	  auto & pattern = song.getPattern(pattern_idx);
@@ -94,7 +95,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     
   case PlaybackControlEvent::STOP_NOTE:
     {
-      auto track_state = state_.getTrackState(ev.getParameter1());
+      auto track_state = dynamic_cast<InstrumentTrackState*>(state_.getTrackState(ev.getParameter1()));
       if (track_state) track_state->stopVoices(ev.getParameter2());
     }      
     break;            

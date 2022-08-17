@@ -1,10 +1,9 @@
 #ifndef _TRACK_H_
 #define _TRACK_H_
 
-#include "SongObject.h"
+#include "StatefulSongObject.h"
 
 #include "SampleData.h"
-#include "TrackState.h"
 #include "TrackType.h"
 
 #include <string>
@@ -15,16 +14,24 @@
 class SongState;
 class TrackEventQueue;
 
-class Track : public SongObject {
+class Track : public StatefulSongObject {
  public:
   Track(TrackType _type) : type(_type) { }
-  Track(TrackType _type, std::string _name) : SongObject(_name), type(_type) { }
-  Track(int _id, TrackType _type) : SongObject(_id), type(_type) { }
+  Track(TrackType _type, std::string _name) : StatefulSongObject(_name), type(_type) { }
+  Track(int _id, TrackType _type) : StatefulSongObject(_id), type(_type) { }
   
   virtual SampleData render(int frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) const;
 
-  virtual std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const {
+  std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override {
     return std::make_unique<TrackState>(config);
+  }
+
+  std::unique_ptr<TrackState> createStateTree(const ChannelConfiguration & config) {
+    auto state = createState(config);
+    for (auto & child : getChildren()) {
+      state->addChild(child->createStateTree(config));
+    }
+    return state;
   }
 
   void loadParameters(const ParameterSource & input) override {

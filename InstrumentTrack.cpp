@@ -1,54 +1,20 @@
-
 #include "InstrumentTrack.h"
 
 #include "SongState.h"
-#include "TrackEvent.h"
-#include "Instrument.h"
-#include "SampleData.h"
-#include "TrackEventQueue.h"
+#include "InstrumentTrackState.h"
 
 using namespace std;
+  
+std::unique_ptr<TrackState>
+InstrumentTrack::createState(const ChannelConfiguration & config) const {
+  assert(getInstrumentId() >= 0 && getInstrumentId() < instruments.size());
+  return std::make_unique<InstrumentTrackState>(config, getId(), getInstrumentId(), getAzimuth(), isSolo());
+}
 
 SampleData
-InstrumentTrack::render(int frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) {
-  SampleData data(song_state.getChannelConfiguration(), 0, isSolo());
-
-  assert(getInstrumentId() >= 0 && getInstrumentId() < instruments.size());
-  if (getInstrumentId() >= 0 && getInstrumentId() < instruments.size()) {
-    auto & instrument = instruments[getInstrumentId()];
-    auto & track_state = song_state.getTrackState(*this);
-    auto & pending_events = events.getPendingEvents(getId());
-  					  
-    for (int i = 0; i < frames; ) {
-      int render_size = frames - i;
-      if (!pending_events.empty()) {
-	auto it = pending_events.begin();
-	assert(i <= it->first);
-	assert(i == 0 || i == it->first); 
-	if (i == it->first) {
-	  for (auto & ev : it->second) {
-	    if (ev.isAftertouch()) {
-	      track_state.applyAftertouch(ev.getId(), ev.getVelocity());
-	    } else {
-	      track_state.stopVoices(ev.getId());
-	      if (!ev.isOff()) {
-		auto voice = instrument->playNote(song_state.getChannelConfiguration(), azimuth, ev.getFrequency(), ev.getVelocity());
-		track_state.addVoice(ev.getId(), move(voice));
-	      }
-	    }
-	  }
-	  it = pending_events.erase(it);
-	}
-	if (it != pending_events.end() && it->first - i < render_size) render_size = it->first - i;
-      }     
-      
-      data.append(track_state.render(render_size));
-      
-      i += render_size;
-    }
-  }
- 
-  return data;
+InstrumentTrack::render(int frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) const {
+  auto & track_state = song_state.getTrackState(*this);
+  return track_state.render(frames, instruments, events);
 }
 
 void

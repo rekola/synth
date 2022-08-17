@@ -1,7 +1,7 @@
 #ifndef _SONG_H_
 #define _SONG_H_
 
-#include "SongObject.h"
+#include "StatefulSongObject.h"
 #include "Track.h"
 #include "Pattern.h"
 #include "InstrumentSet.h"
@@ -14,10 +14,12 @@ class SongState;
 class InstrumentProvider;
 class Mixer;
 
-class Song : public SongObject {
+class Song : public StatefulSongObject {
  public:
   Song(Tuning _tuning = Tuning::TET12, short _key = -1, float _randomization_factor = 0.01f) : tuning(_tuning), key_note_number(_key), randomization_factor(_randomization_factor) { }
 
+  std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const;
+  
   Tuning getTuning() const { return tuning; }
   void setTuning(Tuning _tuning) { tuning = _tuning; }
 

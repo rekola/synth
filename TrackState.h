@@ -10,9 +10,13 @@
 #include <memory>
 #include <algorithm>
 
+class Track;
+class TrackEventQueue;
+
 class TrackState {
  public:
   explicit TrackState(const ChannelConfiguration & channel_config) : channel_config_(channel_config) { }
+
   virtual ~TrackState() { }
 
   virtual TrackInfo getInfo() const { return TrackInfo(true); }
@@ -21,7 +25,7 @@ class TrackState {
     SampleData data(getChannelConfiguration(), frames);
     bool is_initialized = false;
     
-    for (auto & [ id, child ] : getChildren()) {
+    for (auto & child : getChildren()) {
       if (child->isPlaying()) {
 	if (!is_initialized) {
 	  is_initialized = true;
@@ -38,98 +42,78 @@ class TrackState {
     
     return data;    
   }
-  
-  void clear() { children_.clear(); }
+
+  virtual SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) {
+    return SampleData();
+  }
+
+  virtual void clear() { children_.clear(); }
 
   void applyAftertouch(float aftertouch) {
     aftertouch_ = aftertouch;
     
-    for (auto & [ id, child ] : getChildren()) {
+    for (auto & child : getChildren()) {
       child->applyAftertouch(aftertouch);
-    }
-  }
-
-  void applyAftertouch(int column, float aftertouch) {
-    for (auto & [ id, voice ] : children_) {
-      if (column == id && voice->isPlaying()) {
-	voice->applyAftertouch(aftertouch);
-      }
     }
   }
 
   float getAftertouch() const { return aftertouch_; }
   
   virtual void stopNote() {
-    for (auto & [ id, child ] : getChildren()) {
+    for (auto & child : getChildren()) {
       child->stopNote();
     }
   }
 
-  void stopVoices(int column) {
-    for (auto & [id, child] : children_) {
-      if (column == id && child->isPlaying()) {
-	child->stopNote();
-      }
-    }
-  }
-
   virtual void killNote() {
-    for (auto & [ id, child ] : getChildren()) {
+    for (auto & child : getChildren()) {
       child->killNote();
     }
   }
 
   virtual bool isPlaying() const {
-    for (auto & [ id, child ] : getChildren()) {
+    for (auto & child : getChildren()) {
       if (child->isPlaying()) return true;
     }
     return false;
   }
   
   virtual bool isReleased() const {
-    for (auto & [ id, child ] : getChildren()) {
+    for (auto & child : getChildren()) {
       if (!child->isReleased()) return false;
     }
     return true;
   }
 
-  static inline bool is_not_playing(const std::pair<int, std::unique_ptr<TrackState> > & a) { return a.first >= 0 && !a.second->isPlaying(); }
-
-  int getVoiceCount() const {
+  virtual int getVoiceCount() const {
     int n = 0;
     if (isPlaying()) n++;
-    for (auto & [ id, voice ] : children_) {
-      n += voice->getVoiceCount();
+    for (auto & child : children_) {
+      n += child->getVoiceCount();
     }
     return n;
   }
   
-  int getAllocatedVoiceCount() const {
+  virtual int getAllocatedVoiceCount() const {
     int n = 1;
-    for (auto & [ id, voice ] : children_) {
-      n += voice->getAllocatedVoiceCount();
+    for (auto & child : children_) {
+      n += child->getAllocatedVoiceCount();
     }
     return n;
-  }
-
-  TrackState & addVoice(int identifier, std::unique_ptr<TrackState> voice) {
-    children_.erase(std::remove_if(children_.begin(), children_.end(), is_not_playing), children_.end());
-    
-    children_.emplace_back(identifier, std::move(voice));
-    return *(children_.back().second);
   }
 
   const ChannelConfiguration & getChannelConfiguration() const { return channel_config_; }
 
-  void addChild(int column, std::unique_ptr<TrackState> child) { children_.push_back(std::pair(column, std::move(child))); }
-  void addChild(std::unique_ptr<TrackState> child) { addChild(-1, std::move(child)); }
+  void addChild(std::unique_ptr<TrackState> child) { children_.push_back(std::move(child)); }
   
-  const std::vector<std::pair<int, std::unique_ptr<TrackState> > > & getChildren() const { return children_; }
-  std::vector<std::pair<int, std::unique_ptr<TrackState> > > & getChildren() { return children_; }
+  const std::vector<std::unique_ptr<TrackState> > & getChildren() const { return children_; }
+  std::vector<std::unique_ptr<TrackState> > & getChildren() { return children_; }
+
+protected:
+  std::vector<std::unique_ptr<TrackState> > children_;
 
 private:
   ChannelConfiguration channel_config_;
-  std::vector<std::pair<int, std::unique_ptr<TrackState> > > children_;
   float aftertouch_ = 1.0f;
 };
 
