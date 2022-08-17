@@ -10,11 +10,19 @@ class EnvelopeFilter : public Track {
   
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & channel_config) const override;
   std::string getElementName() const override { return "envelope"; }
-  void loadParameters(const ParameterSource & input) override;
-  void storeParameters(ParameterSource & output) const override;
+
+  void loadParameters(const ParameterSource & input) override {
+    Track::loadParameters(input);
+    envelope_.loadParameters(input);
+  }
+
+  void storeParameters(ParameterSource & output) const override {
+    Track::storeParameters(output);
+    envelope_.storeParameters(output);
+  }
 
  private:
-  Envelope envelope;
+  Envelope envelope_;
 };
 
 #endif
