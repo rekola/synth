@@ -145,7 +145,7 @@ Player::play(AudioAPI & audio) {
 	    auto ev = createPlaybackEvent(song, state_);
 	    controller_->getUIEventQueue().push(move(ev));
 	  } else if (i - 1 < num_playback_desc) {
-	    song.render(audio.getFrameCount(), state_, *mixer);
+	    state_.render(audio.getFrameCount(), song, *mixer);
 	    auto master = mixer->encode(song.getVolume());
 	    audio.play(master, logger);
 	    

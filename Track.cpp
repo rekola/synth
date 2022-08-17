@@ -3,7 +3,7 @@
 #include "SongState.h"
 
 SampleData
-Track::render(int frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) {
+Track::render(int frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) const {
   bool child_has_solo = false;
   for (auto & child : getChildren()) {
     if (child->isSolo()) {

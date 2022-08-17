@@ -72,8 +72,6 @@ class Song : public SongObject {
   bool open(const std::string & filename, const InstrumentProvider & provider);
   void save(const std::string & filename) const;
 
-  void render(int frames, SongState & state, Mixer & mixer);
-
   int getSampleInterval(int outSampleRate) const {
     return 60.0 / 4.0 / getTempo() * outSampleRate;
   }

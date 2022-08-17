@@ -21,7 +21,7 @@ class Track : public SongObject {
   Track(TrackType _type, std::string _name) : SongObject(_name), type(_type) { }
   Track(int _id, TrackType _type) : SongObject(_id), type(_type) { }
   
-  virtual SampleData render(int frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events);
+  virtual SampleData render(int frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) const;
 
   virtual std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const {
     return std::make_unique<TrackState>(config);

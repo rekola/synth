@@ -10,7 +10,7 @@
 using namespace std;
 
 SampleData
-InstrumentTrack::render(int frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) {
+InstrumentTrack::render(int frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) const {
   SampleData data(song_state.getChannelConfiguration(), 0, isSolo());
 
   assert(getInstrumentId() >= 0 && getInstrumentId() < instruments.size());
@@ -20,7 +20,7 @@ InstrumentTrack::render(int frames, SongState & song_state, const std::vector<st
     auto & pending_events = events.getPendingEvents(getId());
   					  
     for (int i = 0; i < frames; ) {
-      int render_size = frames - i;
+      auto render_size = frames - i;
       if (!pending_events.empty()) {
 	auto it = pending_events.begin();
 	assert(i <= it->first);

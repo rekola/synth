@@ -9,7 +9,7 @@ public:
 
   std::string getElementName() const override { return "sampleTrack"; }
 
-  SampleData render(int frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) override {
+  SampleData render(int frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) const override {
     return SampleData(1, frames);
   }
 

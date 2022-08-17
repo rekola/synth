@@ -19,7 +19,6 @@
 #include "Oscilator.h"
 #include "LFO.h"
 #include "GenericInstrument.h"
-#include "Mixer.h"
 
 #include "tinyxml2.h"
 
@@ -333,72 +332,6 @@ Song::save(const std::string & filename) const {
   doc.SaveFile(filename.c_str());
 
   setlocale(LC_ALL, oldLocale);
-}
-
-void
-Song::render(int frames, SongState & state, Mixer & mixer) {
-  mixer.reset();
-
-  auto & track_events = state.getEventQueue();
-  
-  if (state.isPlaying()) {
-    for (size_t i = 0; i < frames; i++) {
-      if (state.getSamplePos() == 0) {
-	auto [ pattern_idx, row_idx ] = state.getRelativePosition(*this);
-	auto & pattern = getPattern(pattern_idx);
-	auto & notes = pattern.getNotes(row_idx);
-
-	if (getKey() >= 0) {
-	  state.getTuner().tune(getTuning(), getKey(), notes);
-	}
-	
-	for (auto & [ track_id, notes ] : notes) {
-	  for (size_t j = 0; j < notes.size(); j++) {
-	    if (notes[j].isDefined()) {
-	      auto & note = notes[j];
-	      float frequency = 0.0f, velocity = 0.0f;
-	      float delay = 0;
-	      if (note.isAftertouch()) {
-		velocity = note.getVelocityAsFloat();
-	      } else if (!note.isOff()) {
-		frequency = state.getTuner().getFrequency(getTuning(), getKey(), note);
-		velocity = note.getVelocityAsFloat() * (1 + getRandomizationFactor() * rand() / RAND_MAX);
-		delay = note.getDelayAsFloat();
-	      }
-	      delay += getRandomizationFactor() * rand() / RAND_MAX;
-	      auto delay_samples = int(delay * getSampleInterval(state.getChannelConfiguration().getAudioOutSampleRate()));
-	      // delay_samples = 0;
-	      track_events.addPendingEvent(track_id, i + delay_samples, int(j), frequency, velocity);
-	    }
-	  }
-	}
-	auto & commands = pattern.getCommands(row_idx);
-	for (auto & [ track_id, command ] : commands) {
-	  // track_events.addPendingEvent(col, i, command);
-	}
-      }
-
-      auto remaining = state.samplesUntilNextRow(*this);
-      if (i + remaining <= frames) {
-	i += remaining;
-	state.movePosition(1);
-      } else {
-	i += frames;
-	state.moveForwardSamples(*this, frames);
-      }
-    }
-  }
-
-  if (!getTracks().empty() && !instruments.empty()) {
-    for (auto & track : getTracks()) {
-      auto data = track->render(frames, state, instruments, track_events);
-      if (!track->isMuted()) {
-	mixer.accumulate(data, track->getVolume());
-      }
-    }
-  }
-
-  track_events.updateFrameOffset(-frames);
 }
   
 void
