@@ -1,6 +1,8 @@
 #ifndef _TRACK_H_
 #define _TRACK_H_
 
+#include "SongObject.h"
+
 #include "SampleData.h"
 #include "TrackState.h"
 #include "ParameterSource.h"
@@ -15,12 +17,11 @@
 class SongState;
 class TrackEventQueue;
 
-class Track {
+class Track : public SongObject {
  public:
-  Track(TrackType _type) : id(getNextId()), type(_type) { }
-  Track(TrackType _type, std::string _name) : id(getNextId()), type(_type), name(_name) { }
-  Track(int _id, TrackType _type) : id(_id != -1 ? _id : getNextId()), type(_type) { }
-  virtual ~Track() { }
+  Track(TrackType _type) : type(_type) { }
+  Track(TrackType _type, std::string _name) : type(_type), name(_name) { }
+  Track(int _id, TrackType _type) : SongObject(_id), type(_type) { }
   
   virtual SampleData render(int frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events);
 
@@ -28,8 +29,21 @@ class Track {
     return std::make_unique<TrackState>(config);
   }
 
-  virtual void loadParameters(const ParameterSource & input);
-  virtual void storeParameters(ParameterSource & output) const;
+  virtual void loadParameters(const ParameterSource & input) {
+    setId(input.getInt("id", -1));
+    setName(input.getText("name"));
+    setVolume(input.getFloat("volume", 1.0f));
+    setSolo(input.getBool("solo"));
+    setMute(input.getBool("mute"));
+  }
+
+  virtual void storeParameters(ParameterSource & output) const {
+    if (!getName().empty()) output.set("name", getName());
+    if (isSolo()) output.set("solo", true);
+    if (isMuted()) output.set("mute", true);
+    output.set("volume", getVolume());
+  }
+  
   virtual std::string getElementName() const = 0;
 
   virtual std::unique_ptr<TrackState> playNote(const ChannelConfiguration & config, float azimuth, float frequency, float velocity, float start_phase = 0.0f) const {
@@ -41,7 +55,6 @@ class Track {
     return group;
   }
 
-  int getId() const { return id; }
   TrackType getType() const { return type; }
 
   float getVolume() const { return volume; }
@@ -64,38 +77,30 @@ class Track {
   std::vector<std::unique_ptr<Track> > & getChildren() { return children; }
   const std::vector<std::unique_ptr<Track> > & getChildren() const { return children; }
 
-  const Track * getChildById(int _id) const {
-    if (id == _id) return this;
+  const Track * getChildById(int id) const {
+    if (id == getId()) return this;
     for (auto & child : children) {
-      auto r = child->getChildById(_id);
+      auto r = child->getChildById(id);
       if (r) return r;
     }
     return nullptr;
   }
 
-  Track * getChildById(int _id) {
-    if (id == _id) return this;
+  Track * getChildById(int id) {
+    if (id == getId()) return this;
     for (auto & child : children) {
-      auto r = child->getChildById(_id);
+      auto r = child->getChildById(id);
       if (r) return r;
     }
     return nullptr;
-  }
-
-  static int getNextId() {
-    return next_id.fetch_add(1);
   }
 
   bool showNoteColumn() const { return show_note_column; }
   bool showVelocityColumn() const { return show_velocity_column; }
   bool showEffectsColumn() const { return show_effects_column; }
   bool showDelayColumn() const { return show_delay_column; }
-
-protected:
-  void setId(int _id) { id = _id; }
   
  private:
-  int id;
   TrackType type;
   float volume = 1.00f;
   bool solo = false, mute = false;
@@ -106,8 +111,6 @@ protected:
   bool show_velocity_column = true;
   bool show_delay_column = true;
   bool show_effects_column = true;
-
-  static std::atomic<int> next_id;
 };
 
 #endif

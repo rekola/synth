@@ -2,25 +2,6 @@
 
 #include "SongState.h"
 
-std::atomic<int> Track::next_id(1000);
-
-void
-Track::loadParameters(const ParameterSource & input) {
-  setId(input.getInt("id", -1));
-  setName(input.getText("name"));
-  setVolume(input.getFloat("volume", 1.0f));
-  setSolo(input.getBool("solo"));
-  setMute(input.getBool("mute"));
-}
-
-void
-Track::storeParameters(ParameterSource & output) const {
-  if (!getName().empty()) output.set("name", getName());
-  if (isSolo()) output.set("solo", true);
-  if (isMuted()) output.set("mute", true);
-  output.set("volume", getVolume());
-}
-
 SampleData
 Track::render(int frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) {
   bool child_has_solo = false;
