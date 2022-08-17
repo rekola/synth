@@ -42,15 +42,12 @@ class InfoLine : public UIElement {
       putstr(0, 0, s);
 
       auto & pattern = song.getPattern(info.getPatternIndex());
-      Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
 
       // setFgColor(styles.window_border_color);
       // setBgColor(styles.window_bg_color);
 
-      std::string tuning_text = to_string(tuning);
-
-      int new_key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
-      std::string key = new_key >= 0 ? Note::keyToString(tuning, new_key) : "?";
+      auto tuning_text = to_string(song.getTuning());
+      auto key = song.getKey() >= 0 ? Note::keyToString(song.getTuning(), song.getKey()) : "?";
       auto tempo = song.getTempo();
 
       int edit_step_size = 0, current_score_cursor_track = 0, current_score_cursor_col = 0;
