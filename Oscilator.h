@@ -25,16 +25,16 @@ static inline const std::string to_string(WaveformType type) {
 
 class Oscilator : public Instrument {
  public:  
-  explicit Oscilator(WaveformType _type) : type(_type) { }
+  explicit Oscilator(WaveformType type) : type_(type) { }
 
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;
   std::unique_ptr<TrackState> playNote(const ChannelConfiguration & config, float azimuth, float frequency, float velocity, float start_phase) const override;
 
  private:
-  WaveformType type;
-  int harmonic = 1, subharmonic = 1;
-  float level = 1.0f;
+  WaveformType type_;
+  int harmonic_ = 1, subharmonic_ = 1;
+  float level_ = 1.0f;
 };
 
 #endif

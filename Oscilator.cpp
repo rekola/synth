@@ -31,44 +31,46 @@ static inline float create_noise() {
 
 class OscilatorVoice : public InstrumentVoice {
 public:
-  OscilatorVoice(ChannelConfiguration _config, float _azimuth, WaveformType _type, int _harmonic, int _subharmonic, float _level)
-    : InstrumentVoice(_config, _azimuth), type(_type), harmonic(_harmonic), subharmonic(_subharmonic), level(_level) {
+  OscilatorVoice(ChannelConfiguration config, float azimuth, WaveformType type, float level)
+    : InstrumentVoice(config, azimuth), type_(type), level_(level) {
   }
 
-  SampleData render(int frames) override {
-    float gain = decibelsToGain(getGainDB()) * level;
+  SampleData render(int frames) override {    
+    float gain = decibelsToGain(getGainDB()) * level_;
 
     SampleData data(getChannelConfiguration(), frames);
     auto num_channels = data.numberOfChannels();
     auto buffer = data.data();
     
     double pos = getSourceSamplePosition() / getChannelConfiguration().getAudioOutSampleRate();
-    double rate = getFrequency() / getChannelConfiguration().getAudioOutSampleRate() * harmonic / subharmonic;
+    double rate = (double)getFrequency() / getChannelConfiguration().getAudioOutSampleRate();
 
     if (num_channels == 2) {
       float pan = sin(getAzimuth() / 180.0f * M_PI) / 2;
       if (pan < -0.5) pan = -0.5;
       else if (pan > 0.5) pan = 0.5;
       float left_gain = sqrtf(0.5f - pan) * gain, right_gain = sin(0.5f + pan) * gain;
-
-      if (!getChildren().empty() && type != WaveformType::NOISE) {
+      
+      if (!getChildren().empty() && type_ != WaveformType::NOISE) {
 	// render children
 	auto modulator = InstrumentVoice::render(frames);
-	assert(modulator.numberOfChannels() == 1);
+	assert(modulator.numberOfChannels() == 2);
 	auto modulator_data = modulator.data();
 	
-	switch (type) {
+	switch (type_) {
 	case WaveformType::SINE:
 	  for (int k = 0; k < frames; k++) {
-	    auto a = create_sine(pos + modulator_data[k]);
+	    auto a = create_sine(pos + modulator_data[2 * k + 0]);
+	    
 	    buffer[2 * k + 0] = left_gain * a;
 	    buffer[2 * k + 1] = right_gain * a;
+
 	    pos += rate;
 	  }
 	  break;
 	case WaveformType::SAW:
 	  for (int k = 0; k < frames; k++) {
-	    auto a = create_saw(pos + modulator_data[k]);
+	    auto a = create_saw(pos + modulator_data[2 * k + 0]);
 	    buffer[2 * k + 0] = left_gain * a;
 	    buffer[2 * k + 1] = right_gain * a;
 	    pos += rate;
@@ -76,7 +78,7 @@ public:
 	  break;
 	case WaveformType::TRIANGLE:
 	  for (int k = 0; k < frames; k++) {
-	    float a = create_triangle(pos + modulator_data[k]);
+	    float a = create_triangle(pos + modulator_data[2 * k + 0]);
 	    buffer[2 * k + 0] = left_gain * a;
 	    buffer[2 * k + 1] = right_gain * a;
 	    pos += rate;
@@ -84,7 +86,7 @@ public:
 	  break;
 	case WaveformType::SQUARE:
 	  for (int k = 0; k < frames; k++) {
-	    float a = create_square(pos + modulator_data[k]);
+	    float a = create_square(pos + modulator_data[2 * k + 0]);
 	    buffer[2 * k + 0] = left_gain * a;
 	    buffer[2 * k + 1] = right_gain * a;
 	    pos += rate;
@@ -95,7 +97,7 @@ public:
 	  break;
 	}
       } else {
-	switch (type) {
+	switch (type_) {
 	case WaveformType::SINE:
 	  for (int k = 0; k < frames; k++) {
 	    auto a = create_sine(pos);
@@ -139,11 +141,11 @@ public:
 	}
       }
     } else {
-      if (!getChildren().empty() && type != WaveformType::NOISE) {
+      if (!getChildren().empty() && type_ != WaveformType::NOISE) {
 	auto modulator = InstrumentVoice::render(frames);
 	auto modulator_data = modulator.data();
 	
-	switch (type) {
+	switch (type_) {
 	case WaveformType::SINE:
 	  for (int k = 0; k < frames; k++) {	  
 	    buffer[k] = create_sine(pos + modulator_data[k]) * gain;
@@ -173,7 +175,7 @@ public:
 	  break;
 	}
       } else {
-	switch (type) {
+	switch (type_) {
 	case WaveformType::SINE:
 	  for (int k = 0; k < frames; k++) {
 	    buffer[k] = create_sine(pos) * gain;
@@ -214,23 +216,25 @@ public:
   }
   
 private:
-  WaveformType type;
-  int harmonic, subharmonic;
-  float level;
+  WaveformType type_;
+  float level_;
 };
 
 std::unique_ptr<TrackState>
 Oscilator::playNote(const ChannelConfiguration & config, float azimuth, float frequency, float velocity, float start_phase) const {  
-  auto voice = std::make_unique<OscilatorVoice>(config, azimuth, type, harmonic, subharmonic, level);
+  frequency *= harmonic_;
+  frequency /= subharmonic_;
+
+  auto voice = std::make_unique<OscilatorVoice>(config, azimuth, type_, level_);
   voice->playNote(frequency, velocity, start_phase);
 
-  ChannelConfiguration child_config = config;
-  child_config.setType(ChannelConfiguration::MONO);
+  // ChannelConfiguration child_config = config;
+  // child_config.setType(ChannelConfiguration::MONO);
   
   // don't pass velocity or azimuth to children
   for (auto & child : getChildren()) {    
-    auto modulator = child->playNote(child_config, 0.0f, frequency, 1.0, start_phase);
-    if (modulator.get()) voice->addChild(move(modulator));
+    auto modulator = child->playNote(config, 0.0f, frequency, 1.0, start_phase);
+    if (modulator) voice->addChild(move(modulator));
   }
   
   return voice;
@@ -240,19 +244,20 @@ void
 Oscilator::loadParameters(const ParameterSource & input) {
   Instrument::loadParameters(input);
   
-  auto type_text = input.getText("type");
-  if (type_text == "sine") type = WaveformType::SINE;
-  else if (type_text == "saw") type = WaveformType::SAW;
-  else if (type_text == "triangle") type = WaveformType::TRIANGLE;
-  else if (type_text == "square") type = WaveformType::SQUARE;
-
-  level = input.getFloat("level", 1.0f);
-  harmonic = input.getInt("harmonic", 1);
-  subharmonic = input.getInt("subharmonic", 1);  
+  auto type_text = input.getText("type", "sine");
+  if (type_text == "sine") type_ = WaveformType::SINE;
+  else if (type_text == "saw") type_ = WaveformType::SAW;
+  else if (type_text == "triangle") type_ = WaveformType::TRIANGLE;
+  else if (type_text == "square") type_ = WaveformType::SQUARE;
+  else type_ = WaveformType::SINE;
+  
+  level_ = input.getFloat("level", 1.0f);
+  harmonic_ = input.getInt("harmonic", 1);
+  subharmonic_ = input.getInt("subharmonic", 1);  
 }
 
 void
 Oscilator::storeParameters(ParameterSource & output) const {
   Instrument::storeParameters(output);
-  output.set("type", to_string(type));
+  output.set("type", to_string(type_));
 }
