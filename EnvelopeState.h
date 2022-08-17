@@ -160,7 +160,6 @@ class EnvelopeState : public State {
     }
   }
 
-  bool isReleased() const { return segment == RELEASE || isDone(); }
   bool isDone() const { return segment == DONE; }
   float getLevel() const { return level; }
 

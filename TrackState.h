@@ -22,22 +22,23 @@ class TrackState {
   virtual TrackInfo getInfo() const { return TrackInfo(true); }
 
   virtual SampleData render(int frames) {
-    SampleData data(getChannelConfiguration(), frames);
-    bool is_initialized = false;
-    
-    for (auto & child : getChildren()) {
-      if (child->isPlaying()) {
-	if (!is_initialized) {
-	  is_initialized = true;
-	  data = child->render(frames);
-	} else {
-	  data.mix(child->render(frames), 1.0f);
+    SampleData data;
+
+    if (frames > 0) {  
+      for (auto & child : getChildren()) {
+	if (child->isPlaying()) {
+	  if (data.empty()) {
+	    data = child->render(frames);
+	  } else {
+	    data.mix(child->render(frames), 1.0f);
+	  }
 	}
       }
-    }
 
-    if (!is_initialized) {
-      data.zero();
+      if (data.empty()) {
+	data = SampleData(getChannelConfiguration(), frames);
+	data.zero();
+      }
     }
     
     return data;    
@@ -78,13 +79,6 @@ class TrackState {
     return false;
   }
   
-  virtual bool isReleased() const {
-    for (auto & child : getChildren()) {
-      if (!child->isReleased()) return false;
-    }
-    return true;
-  }
-
   virtual int getVoiceCount() const {
     int n = 0;
     if (isPlaying()) n++;
@@ -109,11 +103,9 @@ class TrackState {
   const std::vector<std::unique_ptr<TrackState> > & getChildren() const { return children_; }
   std::vector<std::unique_ptr<TrackState> > & getChildren() { return children_; }
 
-protected:
-  std::vector<std::unique_ptr<TrackState> > children_;
-
 private:
   ChannelConfiguration channel_config_;
+  std::vector<std::unique_ptr<TrackState> > children_;
   float aftertouch_ = 1.0f;
 };
 

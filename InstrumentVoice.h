@@ -22,7 +22,6 @@ class InstrumentVoice : public TrackState {
   }
 
   bool isPlaying() const override { return freq_ != 0.0f; }
-  bool isReleased() const { return false; }
     
   void setVolume(float volume) {
     setGainDB(gainToDecibels(volume));

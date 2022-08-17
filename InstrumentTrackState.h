@@ -51,22 +51,23 @@ public:
   }
 
   SampleData render(int frames) override {
-    SampleData data(getChannelConfiguration(), frames, is_solo_);
-    bool is_initialized = false;
-    
-    for (auto & [ id, child ] : getVoices()) {
-      if (child->isPlaying()) {
-	if (!is_initialized) {
-	  is_initialized = true;
-	  data = child->render(frames);
-	} else {
-	  data.mix(child->render(frames), 1.0f);
+    SampleData data;
+
+    if (frames > 0) {
+      for (auto & [ id, child ] : getVoices()) {
+	if (child->isPlaying()) {
+	  if (data.empty()) {
+	    data = child->render(frames);
+	  } else {
+	    data.mix(child->render(frames), 1.0f);
+	  }
 	}
       }
-    }
-
-    if (!is_initialized) {
-      data.zero();
+      
+      if (data.empty()) {
+	data = SampleData(getChannelConfiguration(), frames, is_solo_);
+	data.zero();
+      }
     }
     
     return data;    

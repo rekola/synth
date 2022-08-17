@@ -36,7 +36,6 @@ public:
   }
   
   bool isPlaying() const override { return !envelope_state_.isDone(); }
-  bool isReleased() const override { return isPlaying() && envelope_state_.isReleased(); }
 
   void stopNote() override {
     // let children play

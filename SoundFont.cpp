@@ -673,9 +673,6 @@ public:
   bool isPlaying() const override {
     return voiceRegion_ && sourceSamplePosition_ < voiceRegion_->end && !ampenv_.isDone();
   }
-  bool isReleased() const override {
-    return isPlaying() && ampenv_.isReleased();
-  }
 
   SampleData render(int numSamples) override;
   
