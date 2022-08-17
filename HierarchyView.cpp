@@ -23,8 +23,8 @@ HierarchyView::render(const StyleProvider & styles, bool refresh) {
     data_.push_back( { 2, TrackType::INSTRUMENT, instrument.getName() } );
   }
   data_.push_back( { 1, TrackType::UNKNOWN, "Tracks" });
-  for (size_t i = 0; i < song.getChildren().size(); i++) {
-    auto & track = song.getChildren()[i];
+  for (size_t i = 0; i < song.getTracks().size(); i++) {
+    auto & track = song.getTracks()[i];
     data_.push_back( { 2, track->getType(), "Track #" + to_string(i) });
   }
   data_.push_back( { 0, TrackType::UNKNOWN, "Library" });
