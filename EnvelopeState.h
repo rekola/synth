@@ -47,13 +47,13 @@ class EnvelopeState : public State {
       midiVelocity(_midiVelocity),
       isAmpEnv(_isAmpEnv) {
 
-    if (parameters.keynumToHold) {
-      parameters.hold += parameters.keynumToHold * (60.0f - midiNoteNumber);
-      parameters.hold = (parameters.hold < -10000.0f ? 0.0f : tsf_timecents2Secsf(parameters.hold));
+    if (parameters.keynumToHold_) {
+      parameters.hold_ += parameters.keynumToHold_ * (60.0f - midiNoteNumber);
+      parameters.hold_ = (parameters.hold_ < -10000.0f ? 0.0f : tsf_timecents2Secsf(parameters.hold_));
     }
-    if (parameters.keynumToDecay) {
-      parameters.decay += parameters.keynumToDecay * (60.0f - midiNoteNumber);
-      parameters.decay = (parameters.decay < -10000.0f ? 0.0f : tsf_timecents2Secsf(parameters.decay));
+    if (parameters.keynumToDecay_) {
+      parameters.decay_ += parameters.keynumToDecay_ * (60.0f - midiNoteNumber);
+      parameters.decay_ = (parameters.decay_ < -10000.0f ? 0.0f : tsf_timecents2Secsf(parameters.decay_));
     }
         
     nextSegment(NONE);
@@ -62,7 +62,7 @@ class EnvelopeState : public State {
   void nextSegment(short active_segment) {
     switch (active_segment) {
     case NONE:
-      samplesUntilNextSegment = (int)((parameters.delay) * getOutSampleRate());
+      samplesUntilNextSegment = (int)((parameters.delay_) * getOutSampleRate());
       if (samplesUntilNextSegment > 0) {
 	segment = DELAY;
 	segmentIsExponential = false;
@@ -72,11 +72,11 @@ class EnvelopeState : public State {
       }
       /* fall through */
     case DELAY:
-      samplesUntilNextSegment = (int)(parameters.attack * getOutSampleRate());
+      samplesUntilNextSegment = (int)(parameters.attack_ * getOutSampleRate());
       if (samplesUntilNextSegment > 0) {
 	if (!isAmpEnv) {
 	  // mod env attack duration scales with velocity (velocity of 1 is full duration, max velocity is 0.125 times duration)
-	  samplesUntilNextSegment = (int)(parameters.attack * ((145 - midiVelocity) / 144.0f) * getOutSampleRate());
+	  samplesUntilNextSegment = (int)(parameters.attack_ * ((145 - midiVelocity) / 144.0f) * getOutSampleRate());
 	}
 	segment = ATTACK;
 	segmentIsExponential = false;
@@ -86,7 +86,7 @@ class EnvelopeState : public State {
       }
       /* fall through */
     case ATTACK:
-      samplesUntilNextSegment = (int)(parameters.hold * getOutSampleRate());
+      samplesUntilNextSegment = (int)(parameters.hold_ * getOutSampleRate());
       if (samplesUntilNextSegment > 0) {
 	segment = HOLD;
 	segmentIsExponential = false;
@@ -96,7 +96,7 @@ class EnvelopeState : public State {
       }
       /* fall through */
     case HOLD:
-      samplesUntilNextSegment = (int)(parameters.decay * getOutSampleRate());
+      samplesUntilNextSegment = (int)(parameters.decay_ * getOutSampleRate());
       if (samplesUntilNextSegment > 0) {
 	segment = DECAY;
 	level = 1.0f;
@@ -105,17 +105,17 @@ class EnvelopeState : public State {
 	  float mysterySlope = -9.226f / samplesUntilNextSegment;
 	  slope = expf(mysterySlope);
 	  segmentIsExponential = true;
-	  if (parameters.sustain > 0.0f) {
+	  if (parameters.sustain_ > 0.0f) {
 	    // Again, this is following LinuxSampler's example, which is similar to
 	    // SF2-style decay, where "decay" specifies the time it would take to
 	    // get to zero, not to the sustain level.  The SFZ spec is not that
 	    // specific about what "decay" means, so perhaps it's really supposed
 	    // to specify the time to reach the sustain level.
-	    samplesUntilNextSegment = (int)(log(parameters.sustain) / mysterySlope);
+	    samplesUntilNextSegment = (int)(log(parameters.sustain_) / mysterySlope);
 	  }
 	} else {
 	  slope = -1.0f / samplesUntilNextSegment;
-	  samplesUntilNextSegment = (int)(parameters.decay * (1.0f - parameters.sustain) * getOutSampleRate());
+	  samplesUntilNextSegment = (int)(parameters.decay_ * (1.0f - parameters.sustain_) * getOutSampleRate());
 	  segmentIsExponential = false;
 	}
 	return;
@@ -123,14 +123,14 @@ class EnvelopeState : public State {
       /* fall through */
     case DECAY:
       segment = SUSTAIN;
-      level = parameters.sustain;
+      level = parameters.sustain_;
       slope = 0.0f;
       samplesUntilNextSegment = 0x7FFFFFFF;
       segmentIsExponential = false;
       return;
     case SUSTAIN:
       segment = RELEASE;
-      samplesUntilNextSegment = (int)((parameters.release <= 0 ? TSF_FASTRELEASETIME : parameters.release) * getOutSampleRate());
+      samplesUntilNextSegment = (int)((parameters.release_ <= 0 ? TSF_FASTRELEASETIME : parameters.release_) * getOutSampleRate());
       if (isAmpEnv) {
 	// I don't truly understand this; just following what LinuxSampler does.
 	float mysterySlope = -9.226f / samplesUntilNextSegment;
