@@ -7,7 +7,9 @@ class InstrumentTrack : public Track {
  public:
   InstrumentTrack() : Track(-1, TrackType::INSTRUMENT_CONTROL), instrument_id(0) { }
   InstrumentTrack(int _id, int _instrument_id) : Track(_id, TrackType::INSTRUMENT_CONTROL), instrument_id(_instrument_id) { }
-  
+
+  std::string getElementName() const override { return "track"; }
+
   int getInstrumentId() const { return instrument_id; }
   void setInstrumentId(int id) { instrument_id = id; }
     

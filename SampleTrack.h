@@ -7,6 +7,8 @@ class SampleTrack : public Track {
 public:
   SampleTrack(const std::shared_ptr<SampleData> & _sample) : Track(TrackType::SAMPLE), sample(_sample) { }
 
+  std::string getElementName() const override { return "sampleTrack"; }
+
   SampleData render(int frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) override {
     return SampleData(1, frames);
   }

@@ -30,7 +30,7 @@ class Track {
 
   virtual void loadParameters(const ParameterSource & input);
   virtual void storeParameters(ParameterSource & output) const;
-  virtual std::string getElementName() const { return "track"; }
+  virtual std::string getElementName() const = 0;
 
   virtual std::unique_ptr<TrackState> playNote(const ChannelConfiguration & config, float azimuth, float frequency, float velocity, float start_phase = 0.0f) const {
     auto group = createState(config);
