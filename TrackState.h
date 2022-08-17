@@ -17,21 +17,33 @@ class TrackState {
 
   virtual TrackInfo getInfo() const { return TrackInfo(true); }
 
-  virtual SampleData render(int frames) {    
+  virtual SampleData render(int frames) {
     SampleData data(getChannelConfiguration(), frames);
-    data.zero();
+    bool is_initialized = false;
     
     for (auto & [ id, child ] : getChildren()) {
       if (child->isPlaying()) {
-	data.mix(child->render(frames), 1.0f);
+	if (!is_initialized) {
+	  is_initialized = true;
+	  data = child->render(frames);
+	} else {
+	  data.mix(child->render(frames), 1.0f);
+	}
       }
     }
-    return data;
+
+    if (!is_initialized) {
+      data.zero();
+    }
+    
+    return data;    
   }
   
   void clear() { children_.clear(); }
 
-  virtual void applyAftertouch(float aftertouch) {
+  void applyAftertouch(float aftertouch) {
+    aftertouch_ = aftertouch;
+    
     for (auto & [ id, child ] : getChildren()) {
       child->applyAftertouch(aftertouch);
     }
@@ -44,6 +56,8 @@ class TrackState {
       }
     }
   }
+
+  float getAftertouch() const { return aftertouch_; }
   
   virtual void stopNote() {
     for (auto & [ id, child ] : getChildren()) {
@@ -67,9 +81,9 @@ class TrackState {
 
   virtual bool isPlaying() const {
     for (auto & [ id, child ] : getChildren()) {
-      if (!child->isPlaying()) return false;
+      if (child->isPlaying()) return true;
     }
-    return true;
+    return false;
   }
   
   virtual bool isReleased() const {
@@ -101,7 +115,7 @@ class TrackState {
   TrackState & addVoice(int identifier, std::unique_ptr<TrackState> voice) {
     children_.erase(std::remove_if(children_.begin(), children_.end(), is_not_playing), children_.end());
     
-    children_.push_back(std::pair(identifier, std::move(voice)));
+    children_.emplace_back(identifier, std::move(voice));
     return *(children_.back().second);
   }
 
@@ -116,6 +130,7 @@ class TrackState {
 private:
   ChannelConfiguration channel_config_;
   std::vector<std::pair<int, std::unique_ptr<TrackState> > > children_;
+  float aftertouch_ = 1.0f;
 };
 
 #endif
