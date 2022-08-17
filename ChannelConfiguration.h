@@ -7,14 +7,6 @@ class ChannelConfiguration {
 
   ChannelConfiguration() : type_(MONO), audioOutSampleRate_(44100), dmxOutSampleRate_(0) { }
   ChannelConfiguration(ConfigurationType type, int audioOutSampleRate) : type_(type), audioOutSampleRate_(audioOutSampleRate), dmxOutSampleRate_(0) { }
-  ChannelConfiguration & operator=(const ChannelConfiguration & other) {
-    if (this != &other) {
-      type_ = other.type_;
-      audioOutSampleRate_ = other.audioOutSampleRate_;
-      dmxOutSampleRate_ = other.dmxOutSampleRate_;
-    }
-    return *this;
-  }
   bool operator==(const ChannelConfiguration & other) const {
     return type_ == other.type_ && audioOutSampleRate_ == other.audioOutSampleRate_ && dmxOutSampleRate_ == other.dmxOutSampleRate_;
   }
