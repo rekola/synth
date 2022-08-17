@@ -26,9 +26,19 @@ class InstrumentTrack : public Track {
   float getAzimuth() const { return azimuth; }
   float getDistance() const { return distance; }
 
+  bool showNoteColumn() const { return show_note_column; }
+  bool showVelocityColumn() const { return show_velocity_column; }
+  bool showEffectsColumn() const { return show_effects_column; }
+  bool showDelayColumn() const { return show_delay_column; }
+
 private:
   int instrument_id = 0;
   float elevation = 0, azimuth = 0, distance = 0;
+
+  bool show_note_column = true;
+  bool show_velocity_column = true;
+  bool show_delay_column = true;
+  bool show_effects_column = true;
 };
 
 #endif

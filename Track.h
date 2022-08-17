@@ -66,20 +66,37 @@ class Track : public SongObject {
   std::vector<std::unique_ptr<Track> > & getChildren() { return children; }
   const std::vector<std::unique_ptr<Track> > & getChildren() const { return children; }
 
-  bool showNoteColumn() const { return show_note_column; }
-  bool showVelocityColumn() const { return show_velocity_column; }
-  bool showEffectsColumn() const { return show_effects_column; }
-  bool showDelayColumn() const { return show_delay_column; }
-  
+  int getDepth() const {
+    int max_depth = 0;
+    for (auto & child : getChildren()) {
+      auto d = child->getDepth();
+      if (d > max_depth) max_depth = d;
+    }
+    return 1 + max_depth;
+  }
+
+  const Track * getChildById(int id) const {
+    if (getId() == id) return this;
+    for (auto & child : children) {
+      auto r = child->getChildById(id);
+      if (r) return r;
+    }
+    return nullptr;
+  }
+
+  Track * getChildById(int id) {
+    if (getId() == id) return this;
+    for (auto & child : children) {
+      auto r = child->getChildById(id);
+      if (r) return r;
+    }
+    return nullptr;
+  }
+
  private:
   TrackType type;
   bool solo = false, mute = false;
   std::vector<std::unique_ptr<Track> > children;
-
-  bool show_note_column = true;
-  bool show_velocity_column = true;
-  bool show_delay_column = true;
-  bool show_effects_column = true;
 };
 
 #endif
