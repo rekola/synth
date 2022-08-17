@@ -1,6 +1,7 @@
 #ifndef _SONG_H_
 #define _SONG_H_
 
+#include "SongObject.h"
 #include "Track.h"
 #include "Pattern.h"
 #include "InstrumentSet.h"
@@ -13,9 +14,9 @@ class SongState;
 class InstrumentProvider;
 class Mixer;
 
-class Song : public Track {
+class Song : public SongObject {
  public:
-  Song(Tuning _tuning = Tuning::TET12, short _key = -1, float _randomization_factor = 0.01f) : Track(TrackType::MASTER), tuning(_tuning), key_note_number(_key), randomization_factor(_randomization_factor) { }
+  Song(Tuning _tuning = Tuning::TET12, short _key = -1, float _randomization_factor = 0.01f) : tuning(_tuning), key_note_number(_key), randomization_factor(_randomization_factor) { }
 
   Tuning getTuning() const { return tuning; }
   void setTuning(Tuning _tuning) { tuning = _tuning; }
@@ -50,13 +51,13 @@ class Song : public Track {
     return std::pair(pattern_idx, row_idx);
   }
   
-  Pattern & addPattern(const Pattern & pattern) {
+  Pattern & addPattern(Pattern pattern) {
     incVersion();
-    patterns.push_back(pattern);
+    patterns.push_back(std::move(pattern));
     return patterns.back();
   }
 
-  Pattern & addPattern(int rows, Tuning tuning = Tuning::INHERIT, int key = -1) { return addPattern(Pattern(rows, tuning, key)); }
+  Pattern & addPattern(int rows) { return addPattern(Pattern(rows)); }
     
   const std::vector<std::unique_ptr<Track> > & getInstruments() const { return instruments; }
   const Track & getInstrument(int i) const { return *(instruments[i]); }
@@ -73,21 +74,43 @@ class Song : public Track {
 
   void render(int frames, SongState & state, Mixer & mixer);
 
-  std::string getElementName() const override { return "song"; }
-
   int getSampleInterval(int outSampleRate) const {
     return 60.0 / 4.0 / getTempo() * outSampleRate;
   }
 
+  std::vector<std::unique_ptr<Track> > & getTracks() { return tracks; }
+  const std::vector<std::unique_ptr<Track> > & getTracks() const { return tracks; }
+
+  Track & addTrack(std::unique_ptr<Track> track) { tracks.push_back(std::move(track)); return *(tracks.back()); }
+
+  const Track * getTrackById(int id) const {
+    for (auto & track : tracks) {
+      if (track->getId() == id) return track.get();
+    }
+    return nullptr;
+  }
+
+  Track * getTrackById(int id) {
+    for (auto & track : tracks) {
+      if (track->getId() == id) return track.get();
+    }
+    return nullptr;
+  }
+
+  void loadParameters(const ParameterSource & input) override;
+  void storeParameters(ParameterSource & output) const override;
+
 private:
-  Tuning tuning;
+  Tuning tuning = Tuning::TET12;
   MixerType mixer_type = MixerType::BASIC;
-  short key_note_number;
-  float randomization_factor;
+  short key_note_number = 0;
+  float randomization_factor = 0.0f;
   std::string name;
   int bpm = 90;
 
   std::vector<std::unique_ptr<Track> > instruments;
+  std::vector<std::unique_ptr<Track> > tracks;
+
   std::vector<Pattern> patterns;
   Pattern empty_pattern;
   int version = 1;

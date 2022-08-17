@@ -70,24 +70,16 @@ static inline vector<string> split_notes(const string & line) {
   return r;
 }
 
-Tuning parse_tuning(const char * tuning_text, Tuning default_tuning = Tuning::INHERIT) {
-  if (tuning_text) {
-    if (strcmp(tuning_text, "12edo") == 0) {
-      return Tuning::TET12;
-    } else if (strcmp(tuning_text, "31edo") == 0) {
-      return Tuning::TET31;
-    } else if (strcmp(tuning_text, "19edo") == 0) {
-      return Tuning::TET19;
-    } else if (strcmp(tuning_text, "53edo") == 0) {
-      return Tuning::TET53;
-    } else {
-      assert(0);
-    }
-  }
+Tuning parse_tuning(const std::string & tuning_text, Tuning default_tuning = Tuning::INHERIT) {
+  if (tuning_text == "12edo") return Tuning::TET12;
+  else if (tuning_text == "31edo") return Tuning::TET31;
+  else if (tuning_text == "19edo") return Tuning::TET19;
+  else if (tuning_text == "53edo") return Tuning::TET53;
+  assert(0);
   return default_tuning;
 }
 
-static unique_ptr<Track> createTrack(string name) {  
+static unique_ptr<Track> createTrack(const string & name) {  
   if (name == "track") return make_unique<InstrumentTrack>();
   else if (name == "group") return make_unique<Group>();
 
@@ -113,16 +105,28 @@ static unique_ptr<Track> createTrack(string name) {
   }
 }
 
-static void parseChildTrack(Track & parent, XMLElement & element) {
-  auto & track = parent.addChild(createTrack(element.Name()));
-  track.loadParameters(XMLParameterSource(&element));
+static void parseChildTrack(SongObject & parent, XMLElement & element) {
+  auto track = createTrack(element.Name());
+  if (!track) return;
   
+  track->loadParameters(XMLParameterSource(&element));
+
   for (auto it = element.FirstChildElement(); it ; it = it->NextSiblingElement() ) {
-    parseChildTrack(track, *it);
+    parseChildTrack(*track, *it);
+  }
+
+  auto song = dynamic_cast<Song *>(&parent);
+  if (song) {
+    song->addTrack(std::move(track));
+  } else {
+    auto parent_track = dynamic_cast<Track *>(&parent);
+    if (track) {
+      parent_track->addChild(move(track));
+    }
   }
 }
 
-static void parseChildInstrument(Track & parent, XMLElement & element, const InstrumentProvider & provider) {
+static void parseChildInstrument(SongObject & parent, XMLElement & element, const InstrumentProvider & provider) {
   auto track = createTrack(element.Name());
   if (!track) return;
 
@@ -141,7 +145,10 @@ static void parseChildInstrument(Track & parent, XMLElement & element, const Ins
   if (song) {
     song->addInstrument(move(track));
   } else {
-    parent.addChild(move(track));
+    auto parent_track = dynamic_cast<Track *>(&parent);
+    if (track) {
+      parent_track->addChild(move(track));
+    }
   }
 }  
 		      
@@ -156,27 +163,8 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
   }
 
   auto song = doc.FirstChildElement("song");
-  if (song) {   
-    Tuning song_tuning = parse_tuning(song->Attribute("temperament"), Tuning::TET12);
-    setTuning(song_tuning);
-
-    auto key_text = song->Attribute("key");
-    if (key_text && strlen(key_text) > 0) setKey(Note::stringToKey(song_tuning, key_text));
-
-    auto tempo_text = song->Attribute("tempo");
-    if (tempo_text) setTempo(atoi(tempo_text));
-    
-    auto volume_text = song->Attribute("volume");
-    if (volume_text) setVolume(strtof(volume_text, nullptr));
-    
-    auto randomization_text = song->Attribute("randomization");
-    if (randomization_text) setRandomizationFactor(strtof(randomization_text, nullptr));
-
-    auto mixer_text = song->Attribute("mixer");
-    if (mixer_text) {
-      if (strcmp(mixer_text, "basic") == 0) setMixerType(MixerType::BASIC);
-      else if (strcmp(mixer_text, "hrft") == 0) setMixerType(MixerType::HRFT);
-    }
+  if (song) {
+    loadParameters(XMLParameterSource(song));
     
     auto instruments = song->FirstChildElement("instruments");
     if (instruments) {
@@ -195,18 +183,9 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
     auto patterns = song->FirstChildElement("patterns");
     if (patterns) {
       for (auto it = patterns->FirstChildElement("pattern"); it ; it = it->NextSiblingElement("pattern") ) {
-	auto rows_text = it->Attribute("rows");
-	auto tuning_text = it->Attribute("temperament");
-	auto pattern_key_text = it->Attribute("key");
-
-	Tuning pattern_tuning = parse_tuning(tuning_text);
-	Tuning actual_pattern_tuning = pattern_tuning != Tuning::INHERIT ? pattern_tuning : song_tuning;
-
-	int rows = rows_text ? atoi(rows_text) : 0;
-	int key = pattern_key_text && strlen(pattern_key_text) > 0 ? Note::stringToKey(actual_pattern_tuning, pattern_key_text) : -1;
+	auto & pattern = addPattern(Pattern());
+	pattern.loadParameters(XMLParameterSource(it));
 	
-	auto & pattern = addPattern(rows, pattern_tuning, key);
-
 	for (auto it2 = it->FirstChildElement("note"); it2 ; it2 = it2->NextSiblingElement("note")) {
 	  auto track_text = it2->Attribute("track");
 	  auto row_text = it2->Attribute("row");
@@ -229,7 +208,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	    if (notes[i] == "off" || notes[i] == "OFF") {
 	      pattern.setNote(row, track, start_column + i, Note(0, 0));
 	    } else {
-	      pattern.setNote(row, track, start_column + i, Note(notes[i], velocity, delay, actual_pattern_tuning));
+	      pattern.setNote(row, track, start_column + i, Note(notes[i], velocity, delay, getTuning()));
 	    }
 	  }
 	}
@@ -272,46 +251,25 @@ Song::save(const std::string & filename) const {
  
   XMLDocument doc;
   doc.InsertEndChild(doc.NewDeclaration());
-  
-  string song_tuning_text = to_string(getTuning());
-  string song_key_text;
-  if (getKey() >= 0) song_key_text = Note::keyToString(getTuning(), getKey());
-  string mixer_text = to_string(getMixerType());
-  
-  XMLElement * root = doc.NewElement("song");
-  if (!getName().empty()) root->SetAttribute("name", getName().c_str());
-  if (!song_key_text.empty()) root->SetAttribute("key", song_key_text.c_str());
-  if (!getName().empty()) root->SetAttribute("name", getName().c_str());
-  root->SetAttribute("temperament", song_tuning_text.c_str());
-  root->SetAttribute("tempo", getTempo());
-  root->SetAttribute("volume", getVolume());
-  root->SetAttribute("randomization", getRandomizationFactor());
-  root->SetAttribute("mixer", mixer_text.c_str());
+    
+  auto root = doc.NewElement("song");
+  XMLParameterSource song_parameters(root);
+  storeParameters(song_parameters);
   doc.InsertEndChild(root);
 
-  XMLElement * instruments = doc.NewElement("instruments");
+  auto instruments = doc.NewElement("instruments");
   root->InsertEndChild(instruments);
 
-  XMLElement * tracks = doc.NewElement("tracks");
+  auto tracks = doc.NewElement("tracks");
   root->InsertEndChild(tracks);
   
-  XMLElement * patterns = doc.NewElement("patterns");
+  auto patterns = doc.NewElement("patterns");
   root->InsertEndChild(patterns);
 
-  for (auto & pattern : getPatterns()) {
-    Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : getTuning();
-
-    string key_text;
-    if (pattern.getKey() >= 0) key_text = Note::keyToString(tuning, pattern.getKey());
-      
-    XMLElement * pattern_element = doc.NewElement("pattern");
-    pattern_element->SetAttribute("rows", pattern.getNumRows());
-    if (!pattern.getName().empty()) pattern_element->SetAttribute("name", pattern.getName().c_str());
-    if (!key_text.empty()) pattern_element->SetAttribute("key", key_text.c_str());
-    if (pattern.getTuning() != Tuning::INHERIT) {
-      string tuning_text = to_string(pattern.getTuning());
-      pattern_element->SetAttribute("temperament", tuning_text.c_str());
-    }
+  for (auto & pattern : getPatterns()) {     
+    auto pattern_element = doc.NewElement("pattern");
+    XMLParameterSource pattern_parameters(pattern_element);
+    pattern.storeParameters(pattern_parameters);
 
     for (size_t row = 0; row < pattern.getNumRows(); row++) {
       auto & notes = pattern.getNotes(row);
@@ -322,7 +280,7 @@ Song::save(const std::string & filename) const {
 	for (size_t col = 0; col < nv.size(); col++) {
 	  auto & note = nv[col];
 	  auto note_text = to_string(note, tuning);
-	  XMLElement * note_element = doc.NewElement("note");
+	  auto note_element = doc.NewElement("note");
 	  note_element->SetAttribute("row", row);
 	  note_element->SetAttribute("track", track_id);
 	  if (col > 0) note_element->SetAttribute("column", col);
@@ -337,7 +295,7 @@ Song::save(const std::string & filename) const {
       for (auto & [ track_id, command ] : commands) {
 	auto data = to_string(command);
 	  
-	XMLElement * command_element = doc.NewElement("command");
+	auto command_element = doc.NewElement("command");
 	command_element->SetAttribute("row", row);
 	command_element->SetAttribute("track", track_id);
 	command_element->SetAttribute("data", data.c_str());
@@ -346,7 +304,7 @@ Song::save(const std::string & filename) const {
 
       auto & annotation = pattern.getAnnotation(row);
       if (!annotation.empty()) {
-	XMLElement * annotation_element = doc.NewElement("annotation");
+	auto annotation_element = doc.NewElement("annotation");
 	annotation_element->SetAttribute("row", row);
 	annotation_element->SetText(annotation.c_str());
 	pattern_element->InsertEndChild(annotation_element);      
@@ -356,8 +314,8 @@ Song::save(const std::string & filename) const {
     patterns->InsertEndChild(pattern_element);
   }
 
-  for (auto & track : getChildren()) {
-    XMLElement * track_element = doc.NewElement("track");
+  for (auto & track : getTracks()) {
+    auto track_element = doc.NewElement("track");
     XMLParameterSource parameters(track_element);
     track->storeParameters(parameters);
     
@@ -388,13 +346,10 @@ Song::render(int frames, SongState & state, Mixer & mixer) {
       if (state.getSamplePos() == 0) {
 	auto [ pattern_idx, row_idx ] = state.getRelativePosition(*this);
 	auto & pattern = getPattern(pattern_idx);
-	auto tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : getTuning();
-	auto key = pattern.getKey() >= 0 ? pattern.getKey() : getKey();
-
 	auto & notes = pattern.getNotes(row_idx);
 
-	if (key >= 0) {
-	  state.getTuner().tune(tuning, key, notes);
+	if (getKey() >= 0) {
+	  state.getTuner().tune(getTuning(), getKey(), notes);
 	}
 	
 	for (auto & [ track_id, notes ] : notes) {
@@ -406,7 +361,7 @@ Song::render(int frames, SongState & state, Mixer & mixer) {
 	      if (note.isAftertouch()) {
 		velocity = note.getVelocityAsFloat();
 	      } else if (!note.isOff()) {
-		frequency = state.getTuner().getFrequency(tuning, key, note);
+		frequency = state.getTuner().getFrequency(getTuning(), getKey(), note);
 		velocity = note.getVelocityAsFloat() * (1 + getRandomizationFactor() * rand() / RAND_MAX);
 		delay = note.getDelayAsFloat();
 	      }
@@ -434,8 +389,8 @@ Song::render(int frames, SongState & state, Mixer & mixer) {
     }
   }
 
-  if (!getChildren().empty() && !instruments.empty()) {
-    for (auto & track : getChildren()) {
+  if (!getTracks().empty() && !instruments.empty()) {
+    for (auto & track : getTracks()) {
       auto data = track->render(frames, state, instruments, track_events);
       if (!track->isMuted()) {
 	mixer.accumulate(data, track->getVolume());
@@ -446,3 +401,32 @@ Song::render(int frames, SongState & state, Mixer & mixer) {
   track_events.updateFrameOffset(-frames);
 }
   
+void
+Song::loadParameters(const ParameterSource & input) {
+  SongObject::loadParameters(input);
+    
+  auto song_tuning = parse_tuning(input.getText("temperament"), Tuning::TET12);
+  setTuning(song_tuning);
+
+  auto key_text = input.getText("key");
+  if (!key_text.empty()) setKey(Note::stringToKey(song_tuning, key_text));
+
+  setTempo(input.getInt("tempo", 90));
+  setVolume(input.getFloat("volume", 1.0f));
+  setRandomizationFactor(input.getFloat("randomization", 0.01f));
+
+  auto mixer_text = input.getText("mixer");
+  if (mixer_text == "basic") setMixerType(MixerType::BASIC);
+  else if (mixer_text == "hrft") setMixerType(MixerType::HRFT);
+}
+
+void
+Song::storeParameters(ParameterSource & output) const {
+  SongObject::storeParameters(output);
+
+  if (getKey() >= 0) output.set("key", Note::keyToString(getTuning(), getKey()));
+  output.set("temperament", to_string(getTuning()));
+  output.set("tempo", getTempo());
+  output.set("randomization", getRandomizationFactor());
+  output.set("mixer", to_string(getMixerType())); 
+}
