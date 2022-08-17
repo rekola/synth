@@ -25,7 +25,7 @@ Controller::loadDemo2() {
   song->addInstruments(*fluid);
 #endif
   
-  auto & track = song->addChild(make_unique<InstrumentTrack>(0, 0));
+  auto & track = song->addTrack(make_unique<InstrumentTrack>(0, 0));
   // track.addEffect(make_unique<Chorus>(5.0f, 0.0f));
   // track.addEffect(make_unique<Filter>(63 / 255.0f, 128 / 63.0f, false));
   track.setVolume(0.1f);
@@ -504,7 +504,7 @@ void
 Controller::createNewSong() {
   auto song = make_shared<Song>();
   
-  song->addChild(make_unique<InstrumentTrack>(-1, 0));
+  song->addTrack(make_unique<InstrumentTrack>(-1, 0));
   song->addPattern(64);
   
   current_song = song;
