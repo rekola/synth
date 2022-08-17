@@ -1,4 +1,3 @@
-
 /* LICENSE (MIT)
 
    Copyright (C) 2021, Mikael Rekola
@@ -966,9 +965,15 @@ SoundFont::openFile() {
 class SoundFontInstrument : public Instrument {
 public:
   SoundFontInstrument(std::shared_ptr<SoundFontFile> sf, size_t preset, size_t fixedMidiKey) : sf_(sf), preset_(preset), fixedMidiKey_(fixedMidiKey) { }
-  
+
+  virtual std::string getElementName() const { return "soundFontInstrument"; }
+
   std::unique_ptr<TrackState> playNote(const ChannelConfiguration & channel_config, float azimuth, float frequency, float velocity, float start_phase) const override {    
     assert(frequency > 0);
+
+    frequency *= getHarmonic();
+    frequency /= getSubharmonic();
+
     vector<unique_ptr<TrackState> > voices;
 
     auto f = sf_.get();
@@ -996,11 +1001,11 @@ public:
 
 	if (!getChildren().empty()) {
 	  // create modulators for voice
-	  auto child_config = channel_config;
-	  child_config.setType(ChannelConfiguration::MONO);
+	  // auto child_config = channel_config;
+	  // child_config.setType(ChannelConfiguration::MONO);
 	  
 	  for (auto & child : getChildren()) {
-	    auto modulator = child->playNote(child_config, 0.0f, frequency, velocity, start_phase);
+	    auto modulator = child->playNote(channel_config, 0.0f, frequency, velocity, start_phase);
 	    if (modulator.get()) voice->addChild(move(modulator));
 	  }
 	}
