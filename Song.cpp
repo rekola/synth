@@ -1,4 +1,3 @@
-
 #include "Song.h"
 
 #include "SongState.h"
@@ -18,6 +17,7 @@
 #include "effects/Tremolo.h"
 
 #include "Oscilator.h"
+#include "LFO.h"
 #include "GenericInstrument.h"
 #include "Mixer.h"
 
@@ -105,6 +105,7 @@ static unique_ptr<Track> createTrack(string name) {
   // instruments
   else if (name == "genericInstrument") return make_unique<GenericInstrument>();
   else if (name == "oscilator") return make_unique<Oscilator>(WaveformType::SAW);
+  else if (name == "LFO") return make_unique<LFO>();
 
   else {
     assert(0);
