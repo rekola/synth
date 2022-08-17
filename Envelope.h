@@ -5,32 +5,38 @@
 
 class Envelope {
  public:
-  Envelope() : delay(0.0f), attack(0.0f), hold(0.0f), decay(0.0f), sustain(1.0f), release(0.0f), keynumToHold(0.0f), keynumToDecay(0.0f) { }
+  Envelope() : delay_(0.0f), attack_(0.0f), hold_(0.0f), decay_(0.0f), sustain_(1.0f), release_(0.0f),
+	       keynumToHold_(0.0f), keynumToDecay_(0.0f) { }
   Envelope(float _a, float _d, float _s, float _r)
-    : delay(0.0f), attack(_a), hold(0.0f), decay(_d), sustain(_s), release(_r), keynumToHold(0.0f), keynumToDecay(0.0f)
+    : delay_(0.0f), attack_(_a), hold_(0.0f), decay_(_d), sustain_(_s), release_(_r),
+      keynumToHold_(0.0f), keynumToDecay_(0.0f)
     {
       
     }
 
-  float getDelay() const { return delay; }
-  float getAttack() const { return attack; }
-  float getDecay() const { return decay; }
-  float getSustain() const { return sustain; }
-  float getRelease() const { return release; }
+  float getDelay() const { return delay_; }
+  float getAttack() const { return attack_; }
+  float getDecay() const { return decay_; }
+  float getSustain() const { return sustain_; }
+  float getRelease() const { return release_; }
 
   void loadParameters(const ParameterSource & input) {
-    attack = input.getFloat("attack", 0.0f);
-    hold = input.getFloat("hold", 0.0f);
-    decay = input.getFloat("decay", 0.0f);
-    sustain = input.getFloat("sustain", 1.0f);
-    release = input.getFloat("release", 0.0f);    
+    attack_ = input.getFloat("attack", 0.0f);
+    hold_ = input.getFloat("hold", 0.0f);
+    decay_ = input.getFloat("decay", 0.0f);
+    sustain_ = input.getFloat("sustain", 1.0f);
+    release_ = input.getFloat("release", 0.0f);    
   }
 
   void storeParameters(ParameterSource & output) const {
-    // TODO
+    output.set("attack", attack_);
+    output.set("hold", hold_);
+    output.set("decay", decay_);
+    output.set("sustain", sustain_);
+    output.set("release", release_);
   }
 
-  float delay, attack, hold, decay, sustain, release, keynumToHold, keynumToDecay;  
+  float delay_, attack_, hold_, decay_, sustain_, release_, keynumToHold_, keynumToDecay_;
 };
 
 #endif
