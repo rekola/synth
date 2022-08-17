@@ -22,50 +22,48 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   // getPlane().setScrolling(true);  
 }
 
-static int get_depth(const Track & track) {
-  int max_depth = 0;  
-  for (auto & child : track.getChildren()) {
-    auto d = get_depth(*child);
-    if (d > max_depth) max_depth = d;
-  }
-  return 1 + max_depth;
-}
-
 static void get_root_track_ids(const Track & track, vector<int> & track_ids) {
-  for (auto & child : track.getChildren()) {
-    if (child->getType() == TrackType::INSTRUMENT_CONTROL || child->getType() == TrackType::SAMPLE) {
-      track_ids.push_back(child->getId());
-    } else {
+  if (track.getType() == TrackType::INSTRUMENT_CONTROL || track.getType() == TrackType::SAMPLE) {
+    track_ids.push_back(track.getId());
+  } else {
+    for (auto & child : track.getChildren()) {
       get_root_track_ids(*child, track_ids);
     }
   }
 }
 
+static void get_root_track_ids(const Song & song, vector<int> & track_ids) {
+  for (auto & child : song.getTracks()) {
+    get_root_track_ids(*child, track_ids);
+  }
+}
+
 static void fill_track_info(const Track & track, std::unordered_map<int, VisibleTrackInfo> & track_info) {
-  for (auto & child : track.getChildren()) {
-    if (child->getType() == TrackType::INSTRUMENT_CONTROL || child->getType() == TrackType::SAMPLE) {
-      auto & info = track_info[child->getId()];
-      info.has_note_column_ = child->showNoteColumn();
-      info.num_velocity_columns_ = child->showVelocityColumn() ? 1 : 0;
-      info.has_delay_column_ = child->showDelayColumn();
-      info.has_effect_column_ = child->showEffectsColumn();
-    } else {
+  if (track.getType() == TrackType::INSTRUMENT_CONTROL) {
+    auto & info = track_info[track.getId()];
+    auto & instrument_track = dynamic_cast<const InstrumentTrack&>(track);
+    info.has_note_column_ = instrument_track.showNoteColumn();
+    info.num_velocity_columns_ = instrument_track.showVelocityColumn() ? 1 : 0;
+    info.has_delay_column_ = instrument_track.showDelayColumn();
+    info.has_effect_column_ = instrument_track.showEffectsColumn();
+  } else {
+    for (auto & child : track.getChildren()) {
       fill_track_info(*child, track_info);
     }
   }
 }
 
-static void get_track_parents(Track & track, std::unordered_map<int, Track *> & parents) {
+static void get_track_parents(Track & track, Track * parent, std::unordered_map<int, Track *> & parents) {
+  parents[track.getId()] = parent;
   for (auto & child : track.getChildren()) {
-    parents[child->getId()] = &track;
-    get_track_parents(*child, parents);
+    get_track_parents(*child, &track, parents);
   }
 }
 
 std::unordered_map<int, VisibleTrackInfo>
 PatternEditor::getTrackInformation(const Song & song) const {
   auto [rows, cols] = getDim();
-  auto heading_height = get_depth(song);
+  auto heading_height = song.getTrackDepth() + 1;
   auto & info = getController().getPlaybackInfo();
 
   std::unordered_map<int, VisibleTrackInfo> track_info;
@@ -77,8 +75,10 @@ PatternEditor::getTrackInformation(const Song & song) const {
     pattern.getTrackInformation(track_info);
     row += pattern.getNumRows() - pattern_row;
   }
-  fill_track_info(song, track_info);
-
+  for (auto & track : song.getTracks()) {
+    fill_track_info(*track, track_info);
+  }
+  
   return track_info;
 }
 
@@ -93,7 +93,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   auto track_info = getTrackInformation(song);
 
   auto [rows, cols] = getDim();
-  auto heading_height = get_depth(song);
+  auto heading_height = song.getTrackDepth() + 1;
   
   vector<int> track_ids;
   get_root_track_ids(song, track_ids);
@@ -200,18 +200,15 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
   auto & pattern = song.getPattern(info.getPatternIndex());
   int track_id = track_ids[new_cursor.track];
 
-  Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
-  int key = pattern.getKey() >= 0 ? pattern.getKey() : song.getKey();
-
   bool is_off = ev.getType() == MidiEvent::NOTE_OFF || (ev.getType() == MidiEvent::NOTE_ON && ev.getVelocity() == 0);
 
   int note_value = 0;
-  if (tuning == Tuning::TET12) note_value = ev.getNote();
+  if (song.getTuning() == Tuning::TET12) note_value = ev.getNote();
   else {
     Tuner tuner;
-    float best_diff = 1000000.0f, f = tuner.getFrequency(Tuning::TET12, key, ev.getNote());
+    float best_diff = 1000000.0f, f = tuner.getFrequency(Tuning::TET12, song.getKey(), ev.getNote());
     for (int i = 0; i < 255; i++) {
-      float diff = fabsf(f - tuner.getFrequency(tuning, key, i));
+      float diff = fabsf(f - tuner.getFrequency(song.getTuning(), song.getKey(), i));
       if (diff < best_diff) {
 	note_value = i;
 	best_diff = diff;
@@ -268,7 +265,7 @@ PatternEditor::offerInput(const InputEvent & input) {
   get_root_track_ids(song, track_ids);
   auto num_tracks = static_cast<int>(track_ids.size());
   
-  auto current_track = song.getChildById(track_ids[current_cursor.track]);
+  auto current_track = song.getTrackById(track_ids[current_cursor.track]);
 
   VisibleTrackInfo track_info;
   if (current_track) {
@@ -305,7 +302,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	track_id = sample_track.getId();
       } else {
 	new_cursor.track = track_ids.size();
-	auto & track = song.addChild(make_unique<SampleTrack>(sample));
+	auto & track = song.addTrack(make_unique<SampleTrack>(sample));
 	track_id = track.getId();
       }
       getController().setRecordingTrackId(track_id);
@@ -324,7 +321,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       return true;
     } else if (input.getId() == 't') {
       int instrument_id = 0; // pattern.getTracks().back().getInstrumentId();
-      auto & track = song.addChild(make_unique<InstrumentTrack>(-1, instrument_id));
+      auto & track = song.addTrack(make_unique<InstrumentTrack>(-1, instrument_id));
       song.incVersion();
       // setStatus("created new track");
     } else if (input.getId() == 'g') {
@@ -344,7 +341,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       // move selected track to right
       return true;
     } else if (input.getId() == NCKEY_LEFT || input.getId() == 'p') {
-      auto track = song.getChildById(track_ids[current_cursor.track]);
+      auto track = song.getTrackById(track_ids[current_cursor.track]);
       if (track && track->getType() == TrackType::INSTRUMENT_CONTROL) {
 	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
 	if (instrument_track.getInstrumentId() > 0) {
@@ -355,7 +352,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       }
       return true;
     } else if (input.getId() == NCKEY_RIGHT || input.getId() == 'i' || input.getId() == 'o') {
-      auto track = song.getChildById(track_ids[current_cursor.track]);
+      auto track = song.getTrackById(track_ids[current_cursor.track]);
       if (track && track->getType() == TrackType::INSTRUMENT_CONTROL) {
 	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
 	auto & instruments = song.getInstruments();
@@ -367,7 +364,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       }
       return true;
     } else if (input.getId() == '\\') {
-      auto track = song.getChildById(track_ids[current_cursor.track]);
+      auto track = song.getTrackById(track_ids[current_cursor.track]);
       if (track) {
 	track->setSolo(!track->isSolo());
 	song.incVersion();
@@ -426,7 +423,7 @@ PatternEditor::offerInput(const InputEvent & input) {
     }
     return true;
   } else if (input.getId() == '\\') {
-    Track * track = song.getChildById(track_ids[current_cursor.track]);
+    auto track = song.getTrackById(track_ids[current_cursor.track]);
     if (track) {
       track->setMute(!track->isMuted());
       song.incVersion();
@@ -486,14 +483,13 @@ PatternEditor::offerInput(const InputEvent & input) {
 	}
       }
     } else {
-      Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
       bool is_off = input.getId() == 'a';
       bool is_delete = input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE;
       auto note_column = track_info.getNoteNumber(new_cursor.col);
 
       int midi_note = -1;
       if (!is_off) {
-	midi_note = input.toMidiNote(current_keyboard_octave, tuning);
+	midi_note = input.toMidiNote(current_keyboard_octave, song.getTuning());
       }
       
       if (is_delete || midi_note >= 0 || is_off) {
@@ -543,9 +539,11 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
   auto [rows, cols] = getDim();
 
   unordered_map<int, Track *> track_parents;
-  get_track_parents(song, track_parents);
+  for (auto & track : song.getTracks()) {
+    get_track_parents(*track, nullptr, track_parents);
+  }
 
-  auto heading_height = get_depth(song);
+  auto heading_height = song.getTrackDepth() + 1;
 
   string padding(cols, ' ');
   
@@ -562,10 +560,11 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 
     for (auto i = 0; i < static_cast<int>(track_ids.size()); i++) {
       int track_id = track_ids[i];
-      auto track = song.getChildById(track_id);
+      auto track = song.getTrackById(track_id);
       for (auto k = 0; k < level && track; k++) {
-	track = track_parents[track->getId()];
-	if (track == &song) track = nullptr;
+	auto it = track_parents.find(track->getId());
+	if (it != track_parents.end()) track = it->second;
+	else track = nullptr;	
       }
       auto it = all_track_info.find(track_id);
       auto w = it != all_track_info.end() ? it->second.getTrackWidth() : 0;
@@ -622,7 +621,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  if (instrument_name.size() > actual_width - 1) instrument_name.erase(actual_width - 1);
 	  putstr(heading_height - 2 - level + 1, current_pos, instrument_name);
 	} else {	  
-	  string name = track->getElementName();
+	  auto name = track->getElementName();
 	  auto & track_info = info.getTrackInfo(track->getId());
 	  
 	  if (name.size() > actual_width - 4) name.erase(actual_width - 4);
@@ -658,7 +657,6 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   auto [ pattern_idx, pattern_row ] = song.normalizePosition(info.getPatternIndex(), display_row + current_scroll_row);  
   bool is_neighboring_pattern = info.getPatternIndex() != pattern_idx;
   auto & pattern = song.getPattern(pattern_idx);
-  Tuning tuning = pattern.getTuning() != Tuning::INHERIT ? pattern.getTuning() : song.getTuning();
 
   display_row += heading_height;
           
@@ -710,7 +708,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       VisibleTrackInfo track_info;
       auto it = all_track_info.find(track_id);
       if (it != all_track_info.end()) track_info = it->second;
-      auto track = song.getChildById(track_id);
+      auto track = song.getTrackById(track_id);
 	
       for (auto k = 0; k < track_info.getColumnCount(); k++) {
 	if (k != 0) {
@@ -768,7 +766,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	    setBgColor(cell_bg);
 	  }
 
-	  putstr(display_row, current_pos, to_string(note, tuning));
+	  putstr(display_row, current_pos, to_string(note, song.getTuning()));
 	  current_pos += 3;
 	} else if (column_type == ColumnType::VELOCITY || column_type == ColumnType::DELAY) {	  	      
 	  auto l = track_info.getNoteNumber(k);
