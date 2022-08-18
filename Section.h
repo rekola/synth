@@ -8,9 +8,11 @@
 class Section : public SongObject{
  public:
   Section() { }
+
+  void addPattern(int id) { pattern_ids_.push_back(id); }
   
  private:
-  std::vector<int> patterns;
+  std::vector<int> pattern_ids_;
 };
 
 #endif
