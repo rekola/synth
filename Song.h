@@ -61,6 +61,9 @@ class Song : public StatefulSongObject {
     return sections.back();
   }
 
+
+  Section & addSection() { return addSection(Section()); }
+
   Pattern & addPattern(Pattern pattern) {
     incVersion();
     patterns.push_back(std::move(pattern));
