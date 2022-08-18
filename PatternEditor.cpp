@@ -593,7 +593,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 
 	  auto text_width = actual_width - 3;
 	  
-	  string name = !track->getName().empty() ? track->getName() : format("Trk {:02d}", track->getInternalId());
+	  std::string name = !track->getName().empty() ? track->getName() : (!track->getId().empty() ? "Trk " + track->getId() : format("Trk {:02d}", track->getInternalId()));
 	  if (name.size() > text_width) name.erase(text_width);
 	  else {
 	    while (name.size() < text_width) name += ' ';
