@@ -1,4 +1,3 @@
-
 #include "Song.h"
 
 #include "SongState.h"
@@ -109,31 +108,10 @@ static unique_ptr<Track> createTrack(const string & name) {
   }
 }
 
-static void parseChildTrack(SongObject & parent, XMLElement & element) {
+static std::unique_ptr<Track> parseChildTrack(XMLElement & element, const InstrumentProvider & provider) {
   auto track = createTrack(element.Name());
-  if (!track) return;
+  if (!track) return std::unique_ptr<Track>(nullptr);
   
-  track->loadParameters(XMLParameterSource(&element));
-
-  for (auto it = element.FirstChildElement(); it ; it = it->NextSiblingElement() ) {
-    parseChildTrack(*track, *it);
-  }
-
-  auto song = dynamic_cast<Song *>(&parent);
-  if (song) {
-    song->addTrack(std::move(track));
-  } else {
-    auto parent_track = dynamic_cast<Track *>(&parent);
-    if (track) {
-      parent_track->addChild(move(track));
-    }
-  }
-}
-
-static void parseChildInstrument(SongObject & parent, XMLElement & element, const InstrumentProvider & provider) {
-  auto track = createTrack(element.Name());
-  if (!track) return;
-
   track->loadParameters(XMLParameterSource(&element));
 
   auto instrument = dynamic_cast<Instrument *>(track.get());
@@ -142,19 +120,26 @@ static void parseChildInstrument(SongObject & parent, XMLElement & element, cons
   }
 
   for (auto it = element.FirstChildElement(); it ; it = it->NextSiblingElement() ) {
-    parseChildInstrument(*track, *it, provider);
+    auto child = parseChildTrack(*it, provider);
+    if (!child) return std::unique_ptr<Track>(nullptr);
+    track->addChild(std::move(child));
   }
 
-  Song * song = dynamic_cast<Song *>(&parent);
-  if (song) {
-    song->addInstrument(move(track));
-  } else {
-    auto parent_track = dynamic_cast<Track *>(&parent);
-    if (track) {
-      parent_track->addChild(move(track));
-    }
+  return track;
+}
+
+static void storeChildTrack(const Track & track, XMLDocument & doc, XMLElement * target_element) {
+  auto name = track.getElementName();
+  auto track_element = doc.NewElement(name.c_str());
+  XMLParameterSource parameters(track_element);
+  track.storeParameters(parameters);
+
+  for (auto & child : track.getChildren()) {
+    storeChildTrack(*child, doc, track_element);
   }
-}  
+  
+  target_element->InsertEndChild(track_element);  
+}
 
 std::unique_ptr<TrackState>
 Song::createState(const ChannelConfiguration & config) const {
@@ -178,14 +163,20 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
     auto instruments = song->FirstChildElement("instruments");
     if (instruments) {
       for (auto it = instruments->FirstChildElement(); it; it = it->NextSiblingElement() ) {
-	parseChildInstrument(*this, *it, provider);
+	auto instrument = parseChildTrack(*it, provider);
+	if (instrument) {
+	  addInstrument(move(instrument));
+	}	
       }
     }
 
     auto tracks = song->FirstChildElement("tracks");
     if (tracks) {
       for (auto it = tracks->FirstChildElement(); it ; it = it->NextSiblingElement() ) {
-	parseChildTrack(*this, *it);	
+	auto track = parseChildTrack(*it, provider);
+	if (track) {
+	  addTrack(move(track));
+	}
       }
     }
     
@@ -341,19 +332,11 @@ Song::save(const std::string & filename) const {
   }
 
   for (auto & track : getTracks()) {
-    auto track_element = doc.NewElement("track");
-    XMLParameterSource parameters(track_element);
-    track->storeParameters(parameters);
-    
-    tracks->InsertEndChild(track_element);    
+    storeChildTrack(*track, doc, tracks);
   }
 
   for (auto & instrument : getInstruments()) {
-    auto name = instrument->getElementName();
-    auto instrument_element = doc.NewElement(name.c_str());
-    XMLParameterSource parameters(instrument_element);
-    instrument->storeParameters(parameters);
-    instruments->InsertEndChild(instrument_element);
+    storeChildTrack(*instrument, doc, instruments);
   }
   
   doc.SaveFile(filename.c_str());
