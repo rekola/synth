@@ -214,7 +214,7 @@ private:
   }
   
   static inline float create_noise() {
-    return ((float)rand() / RAND_MAX) * 2.0f - 1.0f;
+    return getRandF() * 2.0f - 1.0f;
   }
 
   WaveformType type_;

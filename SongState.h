@@ -1,4 +1,5 @@
 
+
 #ifndef _SONGSTATE_H_
 #define _SONGSTATE_H_
 
@@ -38,10 +39,10 @@ class SongState : public TrackState {
 		  velocity = note.getVelocityAsFloat();
 		} else if (!note.isOff()) {
 		  frequency = getTuner().getFrequency(song.getTuning(), song.getKey(), note);
-		  velocity = note.getVelocityAsFloat() * (1 + song.getRandomizationFactor() * rand() / RAND_MAX);
+		  velocity = note.getVelocityAsFloat() * (1 + song.getRandomizationFactor() * getRandF());
 		  delay = note.getDelayAsFloat();
 		}
-		delay += song.getRandomizationFactor() * rand() / RAND_MAX;
+		delay += song.getRandomizationFactor() * getRandF();
 		auto delay_samples = int(delay * song.getSampleInterval(getChannelConfiguration().getAudioOutSampleRate()));
 		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), frequency, velocity);
 	      }

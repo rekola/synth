@@ -103,6 +103,11 @@ class TrackState {
   const std::vector<std::unique_ptr<TrackState> > & getChildren() const { return children_; }
   std::vector<std::unique_ptr<TrackState> > & getChildren() { return children_; }
 
+protected:
+  static inline float getRandF() {
+    return (float)rand() / RAND_MAX;
+  }
+  
 private:
   ChannelConfiguration channel_config_;
   std::vector<std::unique_ptr<TrackState> > children_;

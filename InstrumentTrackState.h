@@ -31,7 +31,7 @@ public:
 	      } else {
 		stopVoices(ev.getId());
 		if (!ev.isOff()) {
-		  auto voice = instrument->playNote(getChannelConfiguration(), azimuth_, ev.getFrequency(), ev.getVelocity());
+		  auto voice = instrument->playNote(getChannelConfiguration(), azimuth_, ev.getFrequency(), ev.getVelocity(), getRandF());
 		  addVoice(ev.getId(), move(voice));
 		}
 	      }
