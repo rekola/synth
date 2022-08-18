@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song key="C" temperament="31edo" tempo="200" volume="1.0" randomization="0.0099999998">
+<song key="C" temperament="31edo" tempo="100" volume="1.0" randomization="0.0099999998">
   <instruments>
     <genericInstrument name="Piano" />
     <genericInstrument name="Cello" />    
