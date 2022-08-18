@@ -21,9 +21,10 @@ class Player : public EventHandler {
   void play(AudioAPI & audio);
   std::unique_ptr<PlaybackEvent> createPlaybackEvent(const Song & song, SongState & state);
 
-private:
+protected:
   std::unique_ptr<Mixer> createMixer(short outChannels, int outSampleRate, MixerType type);
-  
+
+private:
   SongState state_;
   Controller * controller_;
   bool terminate_ = false;
