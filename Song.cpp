@@ -28,6 +28,8 @@ using namespace tinyxml2;
 class XMLParameterSource : public ParameterSource {
 public:
   XMLParameterSource(XMLElement * element) : element_(element) { }
+  XMLParameterSource(XMLElement * element, std::shared_ptr<std::unordered_map<std::string, int>> id_mapping)
+    : ParameterSource(std::move(id_mapping)), element_(element) { }
 
   bool has(const std::string & name) const override { return element_->Attribute(name.c_str()) != 0; }
 
@@ -131,7 +133,7 @@ static void parseChildInstrument(SongObject & parent, XMLElement & element, cons
 
   track->loadParameters(XMLParameterSource(&element));
 
-  auto * instrument = dynamic_cast<Instrument *>(track.get());
+  auto instrument = dynamic_cast<Instrument *>(track.get());
   if (instrument) {
     instrument->prepare(provider);
   }
