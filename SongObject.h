@@ -19,8 +19,6 @@ class SongObject {
 
   virtual void loadParameters(const ParameterSource & input) {
     id_ = input.getText("id");
-    internal_id_ = input.getInt("id", -1);
-    if (internal_id_ == -1) internal_id_ = getNextId();    
     setName(input.getText("name"));
     setVolume(input.getFloat("volume", 1.0f));
   }
