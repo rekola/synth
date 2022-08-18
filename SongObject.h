@@ -8,15 +8,10 @@
 class SongObject {
  public:
   SongObject() : internal_id_(getNextId()) { }
-  SongObject(std::string name) : internal_id_(getNextId()), name_(std::move(name)) { }
   virtual ~SongObject() { }
   
   int getInternalId() const { return internal_id_; }
   
-  static int getNextId() {
-    return next_id.fetch_add(1);
-  }
-
   virtual void loadParameters(const ParameterSource & input) {
     id_ = input.getText("id");
     setName(input.getText("name"));
@@ -37,6 +32,9 @@ class SongObject {
 
   float getVolume() const { return volume_; }
   void setVolume(float volume) { volume_ = volume; }
+
+protected:
+  static int getNextId() { return next_id.fetch_add(1); }
 
  private:
   int internal_id_;

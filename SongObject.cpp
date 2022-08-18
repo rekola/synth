@@ -1,3 +1,3 @@
 #include "SongObject.h"
 
-std::atomic<int> SongObject::next_id(1000);
+std::atomic<int> SongObject::next_id(1);

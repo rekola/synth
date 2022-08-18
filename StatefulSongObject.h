@@ -7,7 +7,6 @@
 class StatefulSongObject : public SongObject {
  public:
   StatefulSongObject() { }
-  StatefulSongObject(std::string name) : SongObject(std::move(name)) { }
 
   virtual std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const = 0;
 };

@@ -18,7 +18,6 @@ class TrackEventQueue;
 class Track : public StatefulSongObject {
  public:
   Track(TrackType _type) : type(_type) { }
-  Track(TrackType _type, std::string _name) : StatefulSongObject(_name), type(_type) { }
   
   virtual SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) const {
     bool child_has_solo = false;
