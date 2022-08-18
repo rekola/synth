@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="200" volume="1.0" randomization="0.0099999998">
+<song temperament="31edo" tempo="100" volume="1.0" randomization="0.0099999998">
   <instruments>
     <genericInstrument name="Piano" />
     
     <envelope attack="0.02" hold="0.519" decay="1.35" sustain="0.0" release="0.015">	
-      <filter fcut="0.1" fres="0.4">
+      <filter cut="0.1" res="0.4">
 	<multiply unisons="8" detune="0.0025">
 	  <oscilator type="saw" level="0.5" />
 	</multiply>

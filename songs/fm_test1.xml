@@ -22,7 +22,7 @@
     </envelope>
 
     <envelope name="Electric Piano" attack="0" decay="1.6" sustain="0" release="0">
-      <filter fcut="0.25" fres="2">
+      <filter cut="0.25" res="2">
 	<oscilator type="saw">
 	  <LFO frequency="3" level="0.5"/>
 	</oscilator>

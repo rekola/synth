@@ -4,7 +4,7 @@
     <genericInstrument name="Piano" />
 
     <envelope attack="0.01" decay="1.0" sustain="0.0" release="3.0" name="padtest2">
-      <filter fcut="0.05" fres="0.9">
+      <filter cut="0.05" res="0.9">
 	<multiply unisons="16" detune="0.005">
 	  <oscilator type="saw" level="0.25" />
 	</multiply>
@@ -12,7 +12,7 @@
     </envelope>
 
     <envelope attack="0.01" decay="1.0" sustain="0.0" release="0.0" name="padtest2">
-      <filter fcutmin="0.05" fcutmax="0.8" fres="0.9" attack="3" decay="3" sustain="0.0">
+      <filter cutmin="0.05" cutmax="0.8" res="0.9" attack="3" decay="3" sustain="0.0">
 	<multiply unisons="16" detune="0.005">
 	  <oscilator type="saw" level="0.25" />
 	</multiply>
