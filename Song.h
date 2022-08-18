@@ -111,6 +111,22 @@ class Song : public StatefulSongObject {
     return nullptr;
   }
 
+  const Track * getTrackById(std::string_view id) const {
+    for (auto & track : tracks) {
+      auto r = track->getChildById(id);
+      if (r) return r;
+    }
+    return nullptr;
+  }
+
+  Track * getTrackById(std::string_view id) {
+    for (auto & track : tracks) {
+      auto r = track->getChildById(id);
+      if (r) return r;
+    }
+    return nullptr;
+  }
+
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;
 

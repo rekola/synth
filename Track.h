@@ -119,6 +119,24 @@ class Track : public StatefulSongObject {
     return nullptr;
   }
 
+  const Track * getChildById(std::string_view id) const {
+    if (getId() == id) return this;
+    for (auto & child : children) {
+      auto r = child->getChildById(id);
+      if (r) return r;
+    }
+    return nullptr;
+  }
+
+  Track * getChildById(std::string_view id) {
+    if (getId() == id) return this;
+    for (auto & child : children) {
+      auto r = child->getChildById(id);
+      if (r) return r;
+    }
+    return nullptr;
+  }
+
  private:
   TrackType type;
   bool solo = false, mute = false;
