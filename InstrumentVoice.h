@@ -41,7 +41,7 @@ class InstrumentVoice : public TrackState {
 protected:
   double getSourceSamplePosition() const { return sourceSamplePosition_; }
 
-  inline void stepForward(size_t frames) {
+  inline void stepForward(int frames) {
     sourceSamplePosition_ += freq_ * frames;
   }
 
