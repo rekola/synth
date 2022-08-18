@@ -1,3 +1,4 @@
+
 #ifndef _INSTRUMENTTRACKSTATE_H_
 #define _INSTRUMENTTRACKSTATE_H_
 
@@ -12,6 +13,8 @@ public:
     : TrackState(channel_config), track_id_(track_id), instrument_id_(instrument_id), azimuth_(azimuth), is_solo_(is_solo) { }
   
   SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override {
+    clearFinishedVoices();
+
     SampleData data(getChannelConfiguration(), 0, is_solo_);
 
     if (instrument_id_ >= 0 && instrument_id_ < instruments.size()) {
@@ -28,9 +31,23 @@ public:
 	    for (auto & ev : it->second) {
 	      if (ev.isAftertouch()) {
 		applyAftertouch(ev.getId(), ev.getVelocity());
-	      } else {
+	      } else if (ev.isOff()) {
 		stopVoices(ev.getId());
-		if (!ev.isOff()) {
+	      } else {
+		bool legato_done = false;
+		if (is_legato_) {
+		  auto it = voices_.find(ev.getId());
+		  if (it != voices_.end()) {
+		    for (auto & voice : it->second) {
+		      if (voice->isPlaying()) {
+			voice->playNote(ev.getFrequency(), ev.getVelocity());
+			legato_done = true;
+		      }
+		    }
+		  }		    
+		}
+		if (!legato_done) {
+		  stopVoices(ev.getId());
 		  auto voice = instrument->playNote(getChannelConfiguration(), azimuth_, ev.getFrequency(), ev.getVelocity(), getRandF());
 		  addVoice(ev.getId(), move(voice));
 		}
@@ -54,12 +71,14 @@ public:
     SampleData data;
 
     if (frames > 0) {
-      for (auto & [ id, child ] : getVoices()) {
-	if (child->isPlaying()) {
-	  if (data.empty()) {
-	    data = child->render(frames);
-	  } else {
-	    data.mix(child->render(frames), 1.0f);
+      for (auto & [ column, voices ] : voices_) {
+	for (auto & voice : voices) {
+	  if (voice->isPlaying()) {
+	    if (data.empty()) {
+	      data = voice->render(frames);
+	    } else {
+	      data.mix(voice->render(frames), 1.0f);
+	    }
 	  }
 	}
       }
@@ -73,25 +92,23 @@ public:
     return data;    
   }
 
-  TrackState & addVoice(int identifier, std::unique_ptr<TrackState> voice) {
-    voices_.erase(std::remove_if(voices_.begin(), voices_.end(), is_not_playing), voices_.end());
-    voices_.emplace_back(identifier, std::move(voice));
-    return *(voices_.back().second);
+  TrackState & addVoice(int column, std::unique_ptr<TrackState> voice) {
+    auto v = voice.get();
+    voices_[column].push_back(std::move(voice));
+    return *v;
   }
   
   void applyAftertouch(int column, float aftertouch) {
-    for (auto & [ id, voice ] : voices_) {
-      if (column == id && voice->isPlaying()) {
-	voice->applyAftertouch(aftertouch);
-      }
+    auto it = voices_.find(column);
+    if (it != voices_.end()) {
+      for (auto & voice : it->second) if (voice->isPlaying()) voice->applyAftertouch(aftertouch);
     }
   }
 
   void stopVoices(int column) {
-    for (auto & [id, child] : voices_) {
-      if (column == id && child->isPlaying()) {
-	child->stopNote();
-      }
+    auto it = voices_.find(column);
+    if (it != voices_.end()) {
+      for (auto & voice : it->second) if (voice->isPlaying()) voice->stopNote();
     }
   }
 
@@ -102,32 +119,40 @@ public:
   
   int getVoiceCount() const override {
     int n = TrackState::getVoiceCount();
-    for (auto & [ id, voice ] : voices_) {
-      n += voice->getVoiceCount();
+    for (auto & [ column, voices ] : voices_) {
+      for (auto & voice : voices) {
+	n += voice->getVoiceCount();
+      }
     }
     return n;
   }
   
   int getAllocatedVoiceCount() const override {
     int n = TrackState::getAllocatedVoiceCount();
-    for (auto & [ id, voice ] : voices_) {
-      n += voice->getAllocatedVoiceCount();
+    for (auto & [ column, voices ] : voices_) {
+      for (auto & voice : voices) {
+	n += voice->getAllocatedVoiceCount();
+      }
     }
     return n;
   }
 
-  const std::vector<std::pair<int, std::unique_ptr<TrackState> > > & getVoices() const { return voices_; }
-  std::vector<std::pair<int, std::unique_ptr<TrackState> > > & getVoices() { return voices_; }
-
 protected:
-  static inline bool is_not_playing(const std::pair<int, std::unique_ptr<TrackState> > & a) { return a.first >= 0 && !a.second->isPlaying(); }
+  static inline bool is_not_playing(const std::unique_ptr<TrackState> & voice) { return !voice->isPlaying(); }
 
+  void clearFinishedVoices() {
+    for (auto & [ id, voices ] : voices_) {
+      voices.erase(std::remove_if(voices.begin(), voices.end(), is_not_playing), voices.end());      
+    }
+  }
+  
 private:
   int track_id_, instrument_id_;
   float azimuth_;
   bool is_solo_;
+  bool is_legato_ = true;
 
-  std::vector<std::pair<int, std::unique_ptr<TrackState> > > voices_;
+  std::unordered_map<int, std::vector<std::unique_ptr<TrackState> > > voices_;
 };
 
 #endif

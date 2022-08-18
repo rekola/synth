@@ -1,3 +1,4 @@
+
 #include "LFO.h"
 
 #include "OscilatorVoice.h"
@@ -6,8 +7,8 @@ using namespace std;
 
 std::unique_ptr<TrackState>
 LFO::playNote(const ChannelConfiguration & config, float azimuth, float frequency, float velocity, float start_phase) const {  
-  auto voice = std::make_unique<OscilatorVoice>(config, azimuth, WaveformType::SINE, level_);
-  voice->playNote(frequency_, velocity, start_phase);  
+  auto voice = std::make_unique<OscilatorVoice>(config, azimuth, start_phase, WaveformType::SINE, level_);
+  voice->playNote(frequency_, velocity);  
   return voice;
 }
 

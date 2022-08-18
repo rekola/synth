@@ -9,8 +9,8 @@ Oscilator::playNote(const ChannelConfiguration & config, float azimuth, float fr
   frequency *= getHarmonic();
   frequency /= getSubharmonic();
 
-  auto voice = std::make_unique<OscilatorVoice>(config, azimuth, type_, level_);
-  voice->playNote(frequency, velocity, start_phase);
+  auto voice = std::make_unique<OscilatorVoice>(config, azimuth, start_phase, type_, level_);
+  voice->playNote(frequency, velocity);
 
   // ChannelConfiguration child_config = config;
   // child_config.setType(ChannelConfiguration::MONO);

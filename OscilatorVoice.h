@@ -6,8 +6,8 @@
 
 class OscilatorVoice : public InstrumentVoice {
 public:
-  OscilatorVoice(ChannelConfiguration config, float azimuth, WaveformType type, float level)
-    : InstrumentVoice(config, azimuth), type_(type), level_(level) {
+  OscilatorVoice(ChannelConfiguration config, float azimuth, float start_phase, WaveformType type, float level)
+    : InstrumentVoice(config, azimuth, start_phase), type_(type), level_(level) {
   }
 
   SampleData render(int frames) override {    

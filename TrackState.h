@@ -50,22 +50,18 @@ class TrackState {
 
   virtual void clear() { children_.clear(); }
 
-  void applyAftertouch(float aftertouch) {
-    aftertouch_ = aftertouch;
-    
+  virtual void playNote(float frequency, float velocity) {
     for (auto & child : getChildren()) {
-      child->applyAftertouch(aftertouch);
+      child->playNote(frequency, velocity);
     }
   }
 
-  float getAftertouch() const { return aftertouch_; }
-  
   virtual void stopNote() {
     for (auto & child : getChildren()) {
       child->stopNote();
     }
   }
-
+  
   virtual void killNote() {
     for (auto & child : getChildren()) {
       child->killNote();
@@ -95,6 +91,16 @@ class TrackState {
     }
     return n;
   }
+
+  void applyAftertouch(float aftertouch) {
+    aftertouch_ = aftertouch;
+    
+    for (auto & child : getChildren()) {
+      child->applyAftertouch(aftertouch);
+    }
+  }
+
+  float getAftertouch() const { return aftertouch_; }
 
   const ChannelConfiguration & getChannelConfiguration() const { return channel_config_; }
 

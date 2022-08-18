@@ -616,58 +616,61 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
 
 class SoundFontVoice : public InstrumentVoice {
 public:
-  SoundFontVoice(const ChannelConfiguration & channel_config, float azimuth, std::shared_ptr<SoundFontFile> sf, size_t preset, size_t region_idx, size_t fixedMidiKey)
-    : InstrumentVoice(channel_config, azimuth), sf_(sf), preset_(preset), region_idx_(region_idx), fixedMidiKey_(fixedMidiKey) {
+  SoundFontVoice(const ChannelConfiguration & channel_config, float azimuth, float start_phase, std::shared_ptr<SoundFontFile> sf, size_t preset, size_t region_idx)
+    : InstrumentVoice(channel_config, azimuth, start_phase), sf_(sf)
+  {
+    auto f = sf_.get();
+    if (preset < f->presets_.size()) {
+      auto & regions = f->presets_[preset].regions;
+      assert(region_idx < regions.size());
+      if (region_idx < regions.size()) {
+	auto & region = regions[region_idx];
+	voiceRegion_ = &region;
+	
+	// Offset/end.
+	sourceSamplePosition_ = voiceRegion_->offset;
+
+	auto outSampleRate = getChannelConfiguration().getAudioOutSampleRate();
+
+	// Loop.
+	bool doLoop = (voiceRegion_->loop_mode != TSF_LOOPMODE_NONE && voiceRegion_->loop_start < voiceRegion_->loop_end);
+	loopStart_ = (doLoop ? voiceRegion_->loop_start : 0);
+	loopEnd_ = (doLoop ? voiceRegion_->loop_end : 0);
+
+	// Setup LFO filters.
+	modlfo_ = LFOState(voiceRegion_->delayModLFO, tsf_cents2Hertz(voiceRegion_->freqModLFO), outSampleRate);
+	viblfo_ = LFOState(voiceRegion_->delayVibLFO, tsf_cents2Hertz(voiceRegion_->freqVibLFO), outSampleRate);	
+	
+	// Setup lowpass filter.
+	float lowpassFc = (voiceRegion_->initialFilterFc <= 13500 ? tsf_cents2Hertz((float)voiceRegion_->initialFilterFc) / outSampleRate : 1.0f);
+	float lowpassFilterQDB = voiceRegion_->initialFilterQ / 10.0f;
+	
+	lowpass_.QInv = 1.0 / pow(10.0, (lowpassFilterQDB / 20.0));
+	lowpass_.z1 = lowpass_.z2 = 0;
+	lowpass_.active = (lowpassFc < 0.499f);
+	if (lowpass_.active) lowpass_.setup(lowpassFc);
+      }
+    }
   }
   
-  void playNote(float frequency, float velocity, float start_phase) override {
+  void playNote(float frequency, float velocity) override {
     assert(frequency > 0);
-
-    auto f = sf_.get();
-
-    if (preset_ < 0 || preset_ >= f->presets_.size()) return;
-
+    if (!voiceRegion_) return;
+    
     auto apparent_key = log2(frequency / 440) * 12 + 69;
-    // int midiKey = fixedMidiKey ? fixedMidiKey : int(apparent_key);
     auto midiVelocity = (short)(velocity * 127);
     if (midiVelocity > 127) midiVelocity = 127;
-  
-    auto & regions = f->presets_[preset_].regions;
-    assert(region_idx_ < regions.size());
-    auto & region = regions[region_idx_];
-                
-    voiceRegion_ = &region;
+                  
     apparentPlayingKey_ = apparent_key;
     // voice->playingFrequency = frequency;
-    setGainDB(- region.attenuation - gainToDecibels(1.0f / velocity));
+    setGainDB(- voiceRegion_->attenuation - gainToDecibels(1.0f / velocity));
     calcPitchRatio(0);
-    
-    // Offset/end.
-    sourceSamplePosition_ = region.offset;
-    
-    // Loop.
-    bool doLoop = (region.loop_mode != TSF_LOOPMODE_NONE && region.loop_start < region.loop_end);
-    loopStart_ = (doLoop ? region.loop_start : 0);
-    loopEnd_ = (doLoop ? region.loop_end : 0);
-
+        
     auto outSampleRate = getChannelConfiguration().getAudioOutSampleRate();
 
     // Setup envelopes.
-    ampenv_ = EnvelopeState(outSampleRate, region.ampenv, apparent_key, midiVelocity, true);
-    modenv_ = EnvelopeState(outSampleRate, region.modenv, apparent_key, midiVelocity, false);
-    
-    // Setup lowpass filter.
-    float lowpassFc = (region.initialFilterFc <= 13500 ? tsf_cents2Hertz((float)region.initialFilterFc) / outSampleRate : 1.0f);
-    float lowpassFilterQDB = region.initialFilterQ / 10.0f;
-    
-    lowpass_.QInv = 1.0 / pow(10.0, (lowpassFilterQDB / 20.0));
-    lowpass_.z1 = lowpass_.z2 = 0;
-    lowpass_.active = (lowpassFc < 0.499f);
-    if (lowpass_.active) lowpass_.setup(lowpassFc);
-    
-    // Setup LFO filters.
-    modlfo_ = LFOState(region.delayModLFO, tsf_cents2Hertz(region.freqModLFO), outSampleRate);
-    viblfo_ = LFOState(region.delayVibLFO, tsf_cents2Hertz(region.freqVibLFO), outSampleRate);
+    ampenv_ = EnvelopeState(outSampleRate, voiceRegion_->ampenv, apparent_key, midiVelocity, true);
+    modenv_ = EnvelopeState(outSampleRate, voiceRegion_->modenv, apparent_key, midiVelocity, false);
   }
 
   bool isPlaying() const override {
@@ -720,9 +723,7 @@ public:
   
 private:
   shared_ptr<SoundFontFile> sf_;
-  size_t preset_, region_idx_, fixedMidiKey_;
   EnvelopeState ampenv_, modenv_;
-  Envelope amp_envelope_, mod_envelope_;
 };
 
 SampleData
@@ -993,8 +994,8 @@ public:
 	  // FIXME: here we should end all voices with the same instrument and group
 	}
 	
-	auto voice = make_unique<SoundFontVoice>(channel_config, azimuth, sf_, preset_, region_idx, fixedMidiKey_);
-	voice->playNote(frequency, velocity, start_phase);
+	auto voice = make_unique<SoundFontVoice>(channel_config, azimuth, start_phase, sf_, preset_, region_idx);
+	voice->playNote(frequency, velocity);
 
 	if (!getChildren().empty()) {
 	  // create modulators for voice
