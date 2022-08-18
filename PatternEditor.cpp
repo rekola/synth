@@ -24,7 +24,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
 
 static void get_root_track_ids(const Track & track, vector<int> & track_ids) {
   if (track.getType() == TrackType::INSTRUMENT_CONTROL || track.getType() == TrackType::SAMPLE) {
-    track_ids.push_back(track.getId());
+    track_ids.push_back(track.getInternalId());
   } else {
     for (auto & child : track.getChildren()) {
       get_root_track_ids(*child, track_ids);
@@ -40,7 +40,7 @@ static void get_root_track_ids(const Song & song, vector<int> & track_ids) {
 
 static void fill_track_info(const Track & track, std::unordered_map<int, VisibleTrackInfo> & track_info) {
   if (track.getType() == TrackType::INSTRUMENT_CONTROL) {
-    auto & info = track_info[track.getId()];
+    auto & info = track_info[track.getInternalId()];
     auto & instrument_track = dynamic_cast<const InstrumentTrack&>(track);
     info.has_note_column_ = instrument_track.showNoteColumn();
     info.num_velocity_columns_ = instrument_track.showVelocityColumn() ? 1 : 0;
@@ -54,7 +54,7 @@ static void fill_track_info(const Track & track, std::unordered_map<int, Visible
 }
 
 static void get_track_parents(Track & track, Track * parent, std::unordered_map<int, Track *> & parents) {
-  parents[track.getId()] = parent;
+  parents[track.getInternalId()] = parent;
   for (auto & child : track.getChildren()) {
     get_track_parents(*child, &track, parents);
   }
@@ -265,11 +265,11 @@ PatternEditor::offerInput(const InputEvent & input) {
   get_root_track_ids(song, track_ids);
   auto num_tracks = static_cast<int>(track_ids.size());
   
-  auto current_track = song.getTrackById(track_ids[current_cursor.track]);
+  auto current_track = song.getTrackByInternalId(track_ids[current_cursor.track]);
 
   VisibleTrackInfo track_info;
   if (current_track) {
-    auto it0 = all_track_info.find(current_track->getId());
+    auto it0 = all_track_info.find(current_track->getInternalId());
     if (it0 != all_track_info.end()) track_info = it0->second;
   }
  
@@ -297,13 +297,13 @@ PatternEditor::offerInput(const InputEvent & input) {
       int track_id;
       auto sample = getController().startRecording();
       if (current_track && current_track->getType() == TrackType::SAMPLE) {
-	SampleTrack & sample_track = dynamic_cast<SampleTrack&>(*current_track);
+	auto & sample_track = dynamic_cast<SampleTrack&>(*current_track);
 	sample_track.setSample(sample);
-	track_id = sample_track.getId();
+	track_id = sample_track.getInternalId();
       } else {
 	new_cursor.track = track_ids.size();
 	auto & track = song.addTrack(make_unique<SampleTrack>(sample));
-	track_id = track.getId();
+	track_id = track.getInternalId();
       }
       getController().setRecordingTrackId(track_id);
       song.incVersion();
@@ -320,10 +320,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       new_cursor.col = it != all_track_info.end() ? it->second.getColumnCount() - 1: 0;
       return true;
     } else if (input.getId() == 't') {
-      int instrument_id = 0; // pattern.getTracks().back().getInstrumentId();
-      auto & track = song.addTrack(make_unique<InstrumentTrack>(-1, instrument_id));
-      song.incVersion();
-      // setStatus("created new track");
+      song.addTrack(make_unique<InstrumentTrack>(0));
     } else if (input.getId() == 'g') {
       // create group
       return true;
@@ -335,30 +332,30 @@ PatternEditor::offerInput(const InputEvent & input) {
     } else if (input.getId() == '-') {
       if (edit_step_size > 0) edit_step_size--;
     } else if (input.getId() == NCKEY_LEFT || input.getId() == 'p') {
-      auto track = song.getTrackById(track_ids[current_cursor.track]);
+      auto track = song.getTrackByInternalId(track_ids[current_cursor.track]);
       if (track && track->getType() == TrackType::INSTRUMENT_CONTROL) {
 	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
 	if (instrument_track.getInstrumentId() > 0) {
 	  instrument_track.setInstrumentId(instrument_track.getInstrumentId() - 1);
 	  song.incVersion();
-	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, instrument_track.getId()));
+	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, instrument_track.getInternalId()));
 	}
       }
       return true;
     } else if (input.getId() == NCKEY_RIGHT || input.getId() == 'i' || input.getId() == 'o') {
-      auto track = song.getTrackById(track_ids[current_cursor.track]);
+      auto track = song.getTrackByInternalId(track_ids[current_cursor.track]);
       if (track && track->getType() == TrackType::INSTRUMENT_CONTROL) {
 	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
 	auto & instruments = song.getInstruments();
 	if (instrument_track.getInstrumentId() + 1 < instruments.size()) {
 	  instrument_track.setInstrumentId(instrument_track.getInstrumentId() + 1);
 	  song.incVersion();
-	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, instrument_track.getId()));
+	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, instrument_track.getInternalId()));
 	}
       }
       return true;
     } else if (input.getId() == '\\') {
-      auto track = song.getTrackById(track_ids[current_cursor.track]);
+      auto track = song.getTrackByInternalId(track_ids[current_cursor.track]);
       if (track) {
 	track->setSolo(!track->isSolo());
 	song.incVersion();
@@ -426,7 +423,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       }
       return true;
     } else if (input.getId() == '\\') {
-      auto track = song.getTrackById(track_ids[current_cursor.track]);
+      auto track = song.getTrackByInternalId(track_ids[current_cursor.track]);
       if (track) {
 	track->setMute(!track->isMuted());
 	song.incVersion();
@@ -564,9 +561,9 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 
     for (auto i = 0; i < static_cast<int>(track_ids.size()); i++) {
       int track_id = track_ids[i];
-      auto track = song.getTrackById(track_id);
+      auto track = song.getTrackByInternalId(track_id);
       for (auto k = 0; k < level && track; k++) {
-	auto it = track_parents.find(track->getId());
+	auto it = track_parents.find(track->getInternalId());
 	if (it != track_parents.end()) track = it->second;
 	else track = nullptr;	
       }
@@ -596,7 +593,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 
 	  auto text_width = actual_width - 3;
 	  
-	  string name = !track->getName().empty() ? track->getName() : format("Trk {:02d}", track->getId());
+	  string name = !track->getName().empty() ? track->getName() : format("Trk {:02d}", track->getInternalId());
 	  if (name.size() > text_width) name.erase(text_width);
 	  else {
 	    while (name.size() < text_width) name += ' ';
@@ -626,7 +623,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  putstr(heading_height - 2 - level + 1, current_pos, instrument_name);
 	} else {	  
 	  auto name = track->getElementName();
-	  auto & track_info = info.getTrackInfo(track->getId());
+	  auto & track_info = info.getTrackInfo(track->getInternalId());
 	  
 	  if (name.size() > actual_width - 4) name.erase(actual_width - 4);
 	  else {
@@ -712,7 +709,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       VisibleTrackInfo track_info;
       auto it = all_track_info.find(track_id);
       if (it != all_track_info.end()) track_info = it->second;
-      auto track = song.getTrackById(track_id);
+      auto track = song.getTrackByInternalId(track_id);
 	
       for (auto k = 0; k < track_info.getColumnCount(); k++) {
 	if (k != 0) {

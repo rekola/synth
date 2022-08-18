@@ -41,13 +41,13 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       auto midi_note = ev.getParameter3();
       auto midi_velocity = ev.getParameter4();
       
-      auto * track = song.getTrackById(track_id);
+      auto * track = song.getTrackByInternalId(track_id);
       if (track && track->getType() == TrackType::INSTRUMENT_CONTROL) {
 	auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
 	
 	if (instrument_track.getInstrumentId() < song.getInstruments().size()) {
 	  auto & instrument = song.getInstrument(instrument_track.getInstrumentId());
-	  auto track_state = dynamic_cast<InstrumentTrackState*>(state_.getRenderContext().getTrackState(instrument_track.getId()));
+	  auto track_state = dynamic_cast<InstrumentTrackState*>(state_.getRenderContext().getTrackState(instrument_track.getInternalId()));
 
 	  if (track_state) {
 	    auto [ pattern_idx, row_idx ] = state_.getRelativePosition(song);

@@ -19,7 +19,6 @@ class Track : public StatefulSongObject {
  public:
   Track(TrackType _type) : type(_type) { }
   Track(TrackType _type, std::string _name) : StatefulSongObject(_name), type(_type) { }
-  Track(int _id, TrackType _type) : StatefulSongObject(_id), type(_type) { }
   
   virtual SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) const {
     bool child_has_solo = false;
@@ -102,19 +101,19 @@ class Track : public StatefulSongObject {
     return 1 + max_depth;
   }
 
-  const Track * getChildById(int id) const {
-    if (getId() == id) return this;
+  const Track * getChildByInternalId(int id) const {
+    if (getInternalId() == id) return this;
     for (auto & child : children) {
-      auto r = child->getChildById(id);
+      auto r = child->getChildByInternalId(id);
       if (r) return r;
     }
     return nullptr;
   }
 
-  Track * getChildById(int id) {
-    if (getId() == id) return this;
+  Track * getChildByInternalId(int id) {
+    if (getInternalId() == id) return this;
     for (auto & child : children) {
-      auto r = child->getChildById(id);
+      auto r = child->getChildByInternalId(id);
       if (r) return r;
     }
     return nullptr;

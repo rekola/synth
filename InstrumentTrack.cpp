@@ -8,16 +8,16 @@ using namespace std;
 std::unique_ptr<TrackState>
 InstrumentTrack::createState(const ChannelConfiguration & config) const {
   assert(getInstrumentId() >= 0 && getInstrumentId() < instruments.size());
-  return std::make_unique<InstrumentTrackState>(config, getId(), getInstrumentId(), getAzimuth(), isSolo());
+  return std::make_unique<InstrumentTrackState>(config, getInternalId(), getInstrumentId(), getAzimuth(), isSolo());
 }
 
 SampleData
 InstrumentTrack::render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) const {
-  auto track_state = context.getTrackState(getId());
+  auto track_state = context.getTrackState(getInternalId());
   if (!track_state) {
     auto state = createState(context.getChannelConfiguration());
     track_state = state.get();
-    context.setTrackState(getId(), std::move(state));
+    context.setTrackState(getInternalId(), std::move(state));
   }  
   return track_state->render(frames, instruments, context);
 }

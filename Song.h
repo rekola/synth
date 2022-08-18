@@ -1,3 +1,4 @@
+
 #ifndef _SONG_H_
 #define _SONG_H_
 
@@ -88,19 +89,23 @@ class Song : public StatefulSongObject {
   std::vector<std::unique_ptr<Track> > & getTracks() { return tracks; }
   const std::vector<std::unique_ptr<Track> > & getTracks() const { return tracks; }
 
-  Track & addTrack(std::unique_ptr<Track> track) { tracks.push_back(std::move(track)); return *(tracks.back()); }
+  Track & addTrack(std::unique_ptr<Track> track) {
+    tracks.push_back(std::move(track));
+    incVersion();
+    return *(tracks.back());
+  }
 
-  const Track * getTrackById(int id) const {
+  const Track * getTrackByInternalId(int id) const {
     for (auto & track : tracks) {
-      auto r = track->getChildById(id);
+      auto r = track->getChildByInternalId(id);
       if (r) return r;
     }
     return nullptr;
   }
 
-  Track * getTrackById(int id) {
+  Track * getTrackByInternalId(int id) {
     for (auto & track : tracks) {
-      auto r = track->getChildById(id);
+      auto r = track->getChildByInternalId(id);
       if (r) return r;
     }
     return nullptr;

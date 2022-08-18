@@ -7,38 +7,42 @@
 
 class SongObject {
  public:
-  SongObject() : id_(getNextId()) { }
-  SongObject(int id) : id_(id != -1 ? id : getNextId()) { }
-  SongObject(std::string name) : id_(getNextId()), name_(std::move(name)) { }
+  SongObject() : internal_id_(getNextId()) { }
+  SongObject(std::string name) : internal_id_(getNextId()), name_(std::move(name)) { }
   virtual ~SongObject() { }
   
-  int getId() const { return id_; }
+  int getInternalId() const { return internal_id_; }
   
   static int getNextId() {
     return next_id.fetch_add(1);
   }
 
   virtual void loadParameters(const ParameterSource & input) {
-    id_ = input.getInt("id", -1);
+    id_ = input.getText("id");
+    internal_id_ = input.getInt("id", -1);
+    if (internal_id_ == -1) internal_id_ = getNextId();    
     setName(input.getText("name"));
     setVolume(input.getFloat("volume", 1.0f));
   }
 
   virtual void storeParameters(ParameterSource & output) const {
-    output.set("id", id_);
+    if (!getId().empty()) output.set("id", id_);
     if (!getName().empty()) output.set("name", getName());
-    output.set("volume", getVolume());
+    if (getVolume() != 1.0f) output.set("volume", getVolume());
   }
 
-  float getVolume() const { return volume_; }
-  void setVolume(float volume) { volume_ = volume; }
+  void setId(std::string id) { id_ = std::move(id); }
+  const std::string & getId() const { return id_; }
 
   void setName(std::string name) { name_ = std::move(name); }
   const std::string & getName() const { return name_; }
 
+  float getVolume() const { return volume_; }
+  void setVolume(float volume) { volume_ = volume; }
+
  private:
-  int id_;
-  std::string name_;
+  int internal_id_;
+  std::string id_, name_;
   float volume_ = 1.00f;
 
   static std::atomic<int> next_id;

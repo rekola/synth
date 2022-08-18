@@ -6,8 +6,8 @@
 
 class InstrumentTrack : public Track {
  public:
-  InstrumentTrack() : Track(-1, TrackType::INSTRUMENT_CONTROL), instrument_id(0) { }
-  InstrumentTrack(int _id, int _instrument_id) : Track(_id, TrackType::INSTRUMENT_CONTROL), instrument_id(_instrument_id) { }
+  InstrumentTrack() : Track(TrackType::INSTRUMENT_CONTROL), instrument_id(0) { }
+  InstrumentTrack(int _instrument_id) : Track(TrackType::INSTRUMENT_CONTROL), instrument_id(_instrument_id) { }
 
   std::string getElementName() const override { return "track"; }
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override;
