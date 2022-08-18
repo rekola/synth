@@ -1,4 +1,3 @@
-
 #include "Song.h"
 
 #include "SongState.h"
@@ -201,19 +200,24 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	  auto value_text = it2->GetText();
 	  if (!value_text) value_text = it2->Attribute("value");
 	  
-	  int track = track_text ? atoi(track_text) : 0;
 	  int row = row_text ? atoi(row_text) : 0;
 	  int start_column = column_text ? atoi(column_text) : 0;
 	  int velocity = velocity_text ? atoi(velocity_text) : 0;
 	  int delay = delay_text ? atoi(delay_text) : 0;
 
-	  auto notes = split_notes(value_text);
+	  if (track_text) {
+	    auto track = getTrackById(track_text);
+	    if (track) {
+	      int track_id = track->getInternalId();
+	      auto notes = split_notes(value_text);
 
-	  for (int i = 0; i < static_cast<int>(notes.size()); i++) {
-	    if (notes[i] == "off" || notes[i] == "OFF") {
-	      pattern.setNote(row, track, start_column + i, Note(0, 0));
-	    } else {
-	      pattern.setNote(row, track, start_column + i, Note(notes[i], velocity, delay, getTuning()));
+	      for (int i = 0; i < static_cast<int>(notes.size()); i++) {
+		if (notes[i] == "off" || notes[i] == "OFF") {
+		  pattern.setNote(row, track_id, start_column + i, Note(0, 0));
+		} else {
+		  pattern.setNote(row, track_id, start_column + i, Note(notes[i], velocity, delay, getTuning()));
+		}
+	      }
 	    }
 	  }
 	}
