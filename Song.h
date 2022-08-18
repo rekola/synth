@@ -3,6 +3,7 @@
 
 #include "StatefulSongObject.h"
 #include "Track.h"
+#include "Section.h"
 #include "Pattern.h"
 #include "InstrumentSet.h"
 #include "MixerType.h"
@@ -53,6 +54,12 @@ class Song : public StatefulSongObject {
     return std::pair(pattern_idx, row_idx);
   }
   
+  Section & addSection(Section section) {
+    incVersion();
+    sections.push_back(std::move(section));
+    return sections.back();
+  }
+
   Pattern & addPattern(Pattern pattern) {
     incVersion();
     patterns.push_back(std::move(pattern));
@@ -121,10 +128,12 @@ private:
 
   std::vector<std::unique_ptr<Track> > instruments;
   std::vector<std::unique_ptr<Track> > tracks;
-
+  std::vector<Section> sections;
+  
   std::vector<Pattern> patterns;
-  Pattern empty_pattern;
   int version = 1;
+
+  Pattern empty_pattern;
 };
 
 #endif

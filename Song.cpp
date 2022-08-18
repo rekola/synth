@@ -1,3 +1,4 @@
+
 #include "Song.h"
 
 #include "SongState.h"
@@ -239,6 +240,18 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	    pattern.setCommand(row, track, command);
 	  }
 	}	
+      }
+    }
+
+    auto sections = song->FirstChildElement("sections");
+    if (sections) {
+      for (auto it = patterns->FirstChildElement("section"); it ; it = it->NextSiblingElement("section") ) {
+	auto & section = addSection(Section());
+	section.loadParameters(XMLParameterSource(it));
+
+	for (auto it2 = it->FirstChildElement("pattern"); it2 ; it2 = it2->NextSiblingElement("pattern")) {
+	  
+	}
       }
     }
   }
