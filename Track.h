@@ -5,6 +5,7 @@
 
 #include "SampleData.h"
 #include "TrackType.h"
+#include "RenderContext.h"
 
 #include <string>
 #include <vector>
@@ -20,7 +21,26 @@ class Track : public StatefulSongObject {
   Track(TrackType _type, std::string _name) : StatefulSongObject(_name), type(_type) { }
   Track(int _id, TrackType _type) : StatefulSongObject(_id), type(_type) { }
   
-  virtual SampleData render(int frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) const;
+  virtual SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) const {
+    bool child_has_solo = false;
+    for (auto & child : getChildren()) {
+      if (child->isSolo()) {
+	child_has_solo = true;
+	break;
+      }
+    }
+    
+    SampleData sd(context.getChannelConfiguration(), frames, isSolo() || child_has_solo);
+    sd.zero();
+    
+    for (auto & child : getChildren()) {
+      auto sd2 = child->render(frames, instruments, context);
+      if (!child->isMuted() && (!child_has_solo || child->isSolo())) {
+	sd.mix(sd2, child->getVolume());
+      }
+    }
+    return sd;
+  }
 
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override {
     return std::make_unique<TrackState>(config);

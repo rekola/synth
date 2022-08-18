@@ -11,7 +11,7 @@
 #include <algorithm>
 
 class Track;
-class TrackEventQueue;
+class RenderContext;
 
 class TrackState {
  public:
@@ -44,7 +44,7 @@ class TrackState {
     return data;    
   }
 
-  virtual SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) {
+  virtual SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) {
     return SampleData();
   }
 

@@ -4,19 +4,19 @@
 #include "TrackEvent.h"
 #include "Instrument.h"
 #include "SampleData.h"
-#include "TrackEventQueue.h"
+#include "RenderContext.h"
 
 class InstrumentTrackState : public TrackState {
 public:
   explicit InstrumentTrackState(const ChannelConfiguration & channel_config, int track_id, int instrument_id, float azimuth, bool is_solo)
     : TrackState(channel_config), track_id_(track_id), instrument_id_(instrument_id), azimuth_(azimuth), is_solo_(is_solo) { }
   
-  SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) override {
+  SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override {
     SampleData data(getChannelConfiguration(), 0, is_solo_);
 
     if (instrument_id_ >= 0 && instrument_id_ < instruments.size()) {
       auto & instrument = instruments[instrument_id_];
-      auto & pending_events = events.getPendingEvents(track_id_);
+      auto & pending_events = context.getPendingEvents(track_id_);
       
       for (int i = 0; i < frames; ) {
 	int render_size = frames - i;

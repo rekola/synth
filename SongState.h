@@ -1,22 +1,21 @@
+
 #ifndef _SONGSTATE_H_
 #define _SONGSTATE_H_
 
 #include "Song.h"
 #include "TrackState.h"
 #include "Tuner.h"
-#include "TrackEventQueue.h"
+#include "RenderContext.h"
 #include "Mixer.h"
 
 #include <memory>
 
 class SongState : public TrackState {
  public:
-  explicit SongState(ChannelConfiguration channel_config) : TrackState(channel_config) { }
+  explicit SongState(ChannelConfiguration channel_config) : TrackState(channel_config), render_context_(channel_config) { }
 
   void render(int frames, const Song & song, Mixer & mixer) {
     mixer.reset();
-
-    auto & track_events = getEventQueue();
   
     if (isPlaying()) {
       for (size_t i = 0; i < frames; i++) {
@@ -44,13 +43,13 @@ class SongState : public TrackState {
 		}
 		delay += song.getRandomizationFactor() * rand() / RAND_MAX;
 		auto delay_samples = int(delay * song.getSampleInterval(getChannelConfiguration().getAudioOutSampleRate()));
-		track_events.addPendingEvent(track_id, i + delay_samples, int(j), frequency, velocity);
+		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), frequency, velocity);
 	      }
 	    }
 	  }
 	  auto & commands = pattern.getCommands(row_idx);
 	  for (auto & [ track_id, command ] : commands) {
-	    // track_events.addPendingEvent(col, i, command);
+	    // render_context_.addPendingEvent(col, i, command);
 	  }
 	}
 	
@@ -67,14 +66,14 @@ class SongState : public TrackState {
     
     if (!song.getInstruments().empty()) {
       for (auto & track : song.getTracks()) {
-	auto data = track->render(frames, *this, song.getInstruments(), track_events);
+	auto data = track->render(frames, song.getInstruments(), render_context_);
 	if (!track->isMuted()) {
 	  mixer.accumulate(data, track->getVolume());
 	}
       }
     }
     
-    track_events.updateFrameOffset(-frames);
+    render_context_.updateFrameOffset(-frames);
   }
 
 #if 0
@@ -83,26 +82,26 @@ class SongState : public TrackState {
   }
 #endif
   
-  bool isPlaying() const override { return is_playing; }
-  void setIsPlaying(bool b) { is_playing = b; }
+  bool isPlaying() const override { return is_playing_; }
+  void setIsPlaying(bool b) { is_playing_ = b; }
 
-  int getAbsolutePosition() const { return absolute_pos; }
-  int getSamplePos() const { return sample_pos; }
+  int getAbsolutePosition() const { return absolute_pos_; }
+  int getSamplePos() const { return sample_pos_; }
     
   void moveForwardSamples(const Song & song, int n = 1) {
     auto sinterval = song.getSampleInterval(getChannelConfiguration().getAudioOutSampleRate());
 
     for (int i = 0; i < n; i++) {
-      sample_pos++;
+      sample_pos_++;
       
-      if (sample_pos == sinterval) {
+      if (sample_pos_ == sinterval) {
 	movePosition(1);
       }
     }
   }
 
   std::pair<int, int> getRelativePosition(const Song & song) const {
-    std::pair<int, int> rv(0, absolute_pos);
+    std::pair<int, int> rv(0, absolute_pos_);
     for (auto & pattern : song.getPatterns()) {
       if (rv.second >= pattern.getNumRows()) {
 	rv.second -= pattern.getNumRows();
@@ -116,21 +115,21 @@ class SongState : public TrackState {
 
   int samplesUntilNextRow(const Song & song) const {
     auto sinterval = song.getSampleInterval(getChannelConfiguration().getAudioOutSampleRate());
-    return sample_pos == 0 ? sinterval : sinterval - sample_pos;    
+    return sample_pos_ == 0 ? sinterval : sinterval - sample_pos_;
   }
   
   void movePosition(int n_rows) {
-    sample_pos = 0;
-    if (n_rows >= 0 || absolute_pos + n_rows >= 0) {
-      absolute_pos += n_rows;
+    sample_pos_ = 0;
+    if (n_rows >= 0 || absolute_pos_ + n_rows >= 0) {
+      absolute_pos_ += n_rows;
     } else {
-      absolute_pos = 0;
+      absolute_pos_ = 0;
     }
   }
   
   int getVoiceCount() const {
     int n = 0;
-    for (auto & td : track_states) {
+    for (auto & td : render_context_.getTrackStates()) {
       n += td.second->getVoiceCount();
     }
     return n;
@@ -138,39 +137,20 @@ class SongState : public TrackState {
 
   int getAllocatedVoiceCount() const {
     int n = 0;
-    for (auto & td : track_states) {
+    for (auto & td : render_context_.getTrackStates()) {
       n += td.second->getAllocatedVoiceCount();
     }
     return n;
   }
 
-  TrackState & getTrackState(const Track & track) {
-    auto it = track_states.find(track.getId());
-    if (it != track_states.end()) return *(it->second);
-    auto state = track.createState(getChannelConfiguration());
-    auto ptr = state.get();
-    track_states[track.getId()] = std::move(state);
-    return *ptr;
-  }
-
-  TrackState * getTrackState(int id) {
-    auto it = track_states.find(id);
-    if (it != track_states.end()) return it->second.get();
-    return nullptr;    
-  }
-
-  const std::unordered_map<int, std::unique_ptr<TrackState> > & getTrackStates() const { return track_states; }
-  
-  Tuner & getTuner() { return tuner; }
-  TrackEventQueue & getEventQueue() { return track_events; }
+  Tuner & getTuner() { return tuner_; }
+  RenderContext & getRenderContext() { return render_context_; }
 
 private:
-  bool is_playing = false;
-  int sample_pos = 0, absolute_pos = 0;
-  Tuner tuner;
-  TrackEventQueue track_events;
-  
-  std::unordered_map<int, std::unique_ptr<TrackState> > track_states;
+  bool is_playing_ = false;
+  int sample_pos_ = 0, absolute_pos_ = 0;
+  Tuner tuner_;
+  RenderContext render_context_;
 };
   
 #endif

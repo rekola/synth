@@ -47,23 +47,25 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	
 	if (instrument_track.getInstrumentId() < song.getInstruments().size()) {
 	  auto & instrument = song.getInstrument(instrument_track.getInstrumentId());
-	  auto & track_state = dynamic_cast<InstrumentTrackState&>(state_.getTrackState(instrument_track));
-	
-	  auto [ pattern_idx, row_idx ] = state_.getRelativePosition(song);
-	  auto & pattern = song.getPattern(pattern_idx);
-	
-	  Tuner tuner;
+	  auto track_state = dynamic_cast<InstrumentTrackState*>(state_.getRenderContext().getTrackState(instrument_track.getId()));
 
-	  if (ev.getType() == PlaybackControlEvent::PLAY_NOTE) {
-	    Note note(midi_note, midi_velocity);	    
-	    float frequency = tuner.getFrequency(song.getTuning(), song.getKey(), note);
-	    // frequency *= instrument_track.getDetune();
+	  if (track_state) {
+	    auto [ pattern_idx, row_idx ] = state_.getRelativePosition(song);
+	    auto & pattern = song.getPattern(pattern_idx);
 	    
-	    track_state.stopVoices(column);
-	    auto voice = instrument.playNote(state_.getChannelConfiguration(), instrument_track.getAzimuth(), frequency, note.getVelocityAsFloat());
-	    track_state.addVoice(column, move(voice));
-	  } else {
-	    track_state.applyAftertouch(column, midi_velocity / 127.0f);
+	    Tuner tuner;
+	    
+	    if (ev.getType() == PlaybackControlEvent::PLAY_NOTE) {
+	      Note note(midi_note, midi_velocity);	    
+	      float frequency = tuner.getFrequency(song.getTuning(), song.getKey(), note);
+	      // frequency *= instrument_track.getDetune();
+	      
+	      track_state->stopVoices(column);
+	      auto voice = instrument.playNote(state_.getChannelConfiguration(), instrument_track.getAzimuth(), frequency, note.getVelocityAsFloat());
+	      track_state->addVoice(column, move(voice));
+	    } else {
+	      track_state->applyAftertouch(column, midi_velocity / 127.0f);
+	    }
 	  }
 	}
       }
@@ -88,14 +90,14 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     
   case PlaybackControlEvent::CLEAR_VOICES:
     {
-      auto track_state = state_.getTrackState(ev.getParameter1());
+      auto track_state = state_.getRenderContext().getTrackState(ev.getParameter1());
       if (track_state) track_state->clear();
     }
     break;
     
   case PlaybackControlEvent::STOP_NOTE:
     {
-      auto track_state = dynamic_cast<InstrumentTrackState*>(state_.getTrackState(ev.getParameter1()));
+      auto track_state = dynamic_cast<InstrumentTrackState*>(state_.getRenderContext().getTrackState(ev.getParameter1()));
       if (track_state) track_state->stopVoices(ev.getParameter2());
     }      
     break;            
@@ -180,7 +182,7 @@ Player::createPlaybackEvent(const Song & song, SongState & state) {
   info.voice_count = state.getVoiceCount();
   info.allocated_voice_count = state.getAllocatedVoiceCount();
 
-  for (auto & [ track_id, state ] : state.getTrackStates()) {
+  for (auto & [ track_id, state ] : state.getRenderContext().getTrackStates()) {
     info.setTrackInfo(track_id, state->getInfo());
   }
   

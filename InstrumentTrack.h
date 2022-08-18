@@ -1,3 +1,4 @@
+
 #ifndef _INSTRUMENTTRACK_H_
 #define _INSTRUMENTTRACK_H_
 
@@ -14,7 +15,7 @@ class InstrumentTrack : public Track {
   int getInstrumentId() const { return instrument_id; }
   void setInstrumentId(int id) { instrument_id = id; }
     
-  SampleData render(int frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) const override;
+  SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) const override;
   
   void loadParameters(const ParameterSource & input);
   void storeParameters(ParameterSource & output) const override;

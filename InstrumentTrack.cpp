@@ -12,9 +12,14 @@ InstrumentTrack::createState(const ChannelConfiguration & config) const {
 }
 
 SampleData
-InstrumentTrack::render(int frames, SongState & song_state, const std::vector<std::unique_ptr<Track> > & instruments, TrackEventQueue & events) const {
-  auto & track_state = song_state.getTrackState(*this);
-  return track_state.render(frames, instruments, events);
+InstrumentTrack::render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) const {
+  auto track_state = context.getTrackState(getId());
+  if (!track_state) {
+    auto state = createState(context.getChannelConfiguration());
+    track_state = state.get();
+    context.setTrackState(getId(), std::move(state));
+  }  
+  return track_state->render(frames, instruments, context);
 }
 
 void
