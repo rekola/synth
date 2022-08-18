@@ -1,3 +1,4 @@
+
 #include "Song.h"
 
 #include "SongState.h"
@@ -6,6 +7,7 @@
 #include "InstrumentTrack.h"
 #include "Group.h"
 #include "NoteMultiplier.h"
+#include "Arpeggiator.h"
 #include "EnvelopeFilter.h"
 
 #include "effects/Distortion.h"
@@ -93,6 +95,7 @@ static unique_ptr<Track> createTrack(const string & name) {
   else if (name == "chorus") return make_unique<Chorus>();
   else if (name == "tremolo") return make_unique<Tremolo>();
   else if (name == "multiply") return make_unique<NoteMultiplier>();
+  else if (name == "arpeggiator") return make_unique<Arpeggiator>();
   else if (name == "envelope") return make_unique<EnvelopeFilter>();
   
   // instruments
