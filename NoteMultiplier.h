@@ -13,13 +13,13 @@ class NoteMultiplier : public Track {
   std::unique_ptr<TrackState> playNote(const ChannelConfiguration & channel_config, float azimuth, float frequency, float velocity, float start_phase) const override;
 
 private:
-  int unisons = 0;
-  int octaves = 0;
-  int fifths = 0;
-  int fourths = 0;
+  int unisons_ = 0;
+  int octaves_ = 0;
+  int fifths_ = 0;
+  int fourths_ = 0;
 
-  float detune = 0;
-  float spread = 0;
+  float detune_ = 0;
+  float spread_ = 0;
 };
 
 #endif
