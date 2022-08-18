@@ -505,7 +505,9 @@ Controller::createNewSong() {
   auto song = make_shared<Song>();
   
   song->addTrack(make_unique<InstrumentTrack>(0));
-  song->addPattern(64);
+  auto & pattern = song->addPattern(64);
+  auto & section = song->addSection();
+  section.addPattern(pattern.getInternalId());
   
   current_song = song;
 }
