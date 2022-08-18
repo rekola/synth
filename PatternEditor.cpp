@@ -277,7 +277,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 
   if (input.getId() == NCKEY_BUTTON1) {
     
-  } else if (input.hasCtrl() && input.hasShift()) {
+  } else if (input.hasCtrl() && input.hasShift() && !input.hasMeta()) {
     if (input.getId() == NCKEY_UP) {
       auto & pattern = song.getPattern(info.getPatternIndex());
       pattern.transposeUp();
@@ -290,7 +290,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       // delete track
       return true;
     }
-  } else if (input.hasCtrl()) {
+  } else if (input.hasCtrl() && !input.hasMeta()) {
     if (input.getId() == ' ') {
       // setStatus("marking");
     } else if (input.getId() == 'r') {
@@ -307,12 +307,12 @@ PatternEditor::offerInput(const InputEvent & input) {
       }
       getController().setRecordingTrackId(track_id);
       song.incVersion();
-    } else if (0 && (input.getId() == 'e' || input.getId() == 'E')) {
+    } else if (0 && (input.getId() == 'e')) {
       getController().stopRecording();
-    } else if (input.getId() == 'a' || input.getId() == 'A') {
+    } else if (input.getId() == 'a') {
       new_cursor.track = new_cursor.col = new_cursor.subcol = 0;
       return true;
-    } else if (input.getId() == 'e' || input.getId() == 'E') {
+    } else if (input.getId() == 'e') {
       new_cursor.track = num_tracks > 1 ? num_tracks - 1 : 0;
       new_cursor.subcol = 0;
 
@@ -334,12 +334,6 @@ PatternEditor::offerInput(const InputEvent & input) {
       edit_step_size++;
     } else if (input.getId() == '-') {
       if (edit_step_size > 0) edit_step_size--;
-    } else if (input.hasAlt() && input.getId() == NCKEY_LEFT) {
-      // move selected track to left
-      return true;
-    } else if (input.hasAlt() && input.getId() == NCKEY_RIGHT) {
-      // move selected track to right
-      return true;
     } else if (input.getId() == NCKEY_LEFT || input.getId() == 'p') {
       auto track = song.getTrackById(track_ids[current_cursor.track]);
       if (track && track->getType() == TrackType::INSTRUMENT_CONTROL) {
@@ -372,157 +366,167 @@ PatternEditor::offerInput(const InputEvent & input) {
     } else {
       return false;
     }
-  } else if (input.getId() == '[') {
-    if (current_keyboard_octave > 0) current_keyboard_octave--;
-  } else if (input.getId() == ']') {
-    if (current_keyboard_octave < 9) current_keyboard_octave++;
-  } else if (input.getId() == NCKEY_LEFT) {
-    if (new_cursor.col > 0) {
-      new_cursor.col--;
-      new_cursor.subcol = 0;
-    } else if (new_cursor.track > 0) {
-      new_cursor.track--;
-      new_cursor.subcol = 0;
+  } else if (input.hasAlt()) {
+    if (input.getId() == NCKEY_LEFT) {
+      // move selected track to left
+      return true;
+    } else if (input.getId() == NCKEY_RIGHT) {
+      // move selected track to right
+      return true;
+    }
+  } else if (!input.hasMeta()) {
+    if (input.getId() == '[') {
+      if (current_keyboard_octave > 0) current_keyboard_octave--;
+    } else if (input.getId() == ']') {
+      if (current_keyboard_octave < 9) current_keyboard_octave++;
+    } else if (input.getId() == NCKEY_LEFT) {
+      if (new_cursor.col > 0) {
+	new_cursor.col--;
+	new_cursor.subcol = 0;
+      } else if (new_cursor.track > 0) {
+	new_cursor.track--;
+	new_cursor.subcol = 0;
 
-      auto it = all_track_info.find(track_ids[new_cursor.track]);
-      new_cursor.col = it != all_track_info.end() ? it->second.getColumnCount() - 1 : 0;
-    }
-    return true;
-  } else if (input.getId() == NCKEY_RIGHT) {
-    if (new_cursor.col + 1 < track_info.getColumnCount()) {
-      new_cursor.col++;
-      new_cursor.subcol = 0;
-    } else if (new_cursor.track + 1 < num_tracks) {
-      new_cursor.track++;
-      new_cursor.col = 0;
-      new_cursor.subcol = 0;
-    }
-    return true;
-  } else if (input.getId() == NCKEY_UP || input.getId() == NCKEY_BUTTON4) {
-    if (!info.isPlaying()) {
-      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, -1));
-      new_cursor.subcol = 0;
-    }
-    return true;
-  } else if (input.getId() == NCKEY_DOWN || input.getId() == NCKEY_BUTTON5) {
-    if (!info.isPlaying()) {
-      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, 1));
-      new_cursor.subcol = 0;
-    }
-    return true;
-  } else if (input.getId() == NCKEY_PGUP) {
-    if (!info.isPlaying()) {
-      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, -16));
-      new_cursor.subcol = 0;
-    }
-    return true;    
-  } else if (input.getId() == NCKEY_PGDOWN) { // scrollwheel down
-    if (!info.isPlaying()) {
-      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, 16));
-      new_cursor.subcol = 0;
-    }
-    return true;
-  } else if (input.getId() == '\\') {
-    auto track = song.getTrackById(track_ids[current_cursor.track]);
-    if (track) {
-      track->setMute(!track->isMuted());
-      song.incVersion();
-    }
-  } else if (input.getId() == '\t') {
-    if (track_info.isEffectColumn(new_cursor.col)) { // effect
-      new_cursor.subcol = (new_cursor.subcol + 1) % 4;
-    } else if (!track_info.isNoteColumn(new_cursor.col)) {
-      new_cursor.subcol = (new_cursor.subcol + 1) % 2;
-    }
-  } else if (input.getId() == NCKEY_INS) {
-    auto & pattern = song.getPattern(info.getPatternIndex());
-    int track_id = track_ids[new_cursor.track];
-    pattern.insertRow(info.getRowIndex(), track_id);
-    song.incVersion();
-  } else {
-    auto & pattern = song.getPattern(info.getPatternIndex());
-    int track_id = track_ids[new_cursor.track];
-    bool is_hex = (input.getId() >= 'a' && input.getId() <= 'z') || (input.getId() >= '0' && input.getId() <= '9');
-    auto column_type = track_info.getColumnType(new_cursor.col);
-    
-    if (column_type == ColumnType::EFFECT) {
-      if (is_hex || input.getId() == '-') {	
-	auto command = pattern.getCommand(info.getRowIndex(), track_id);
-	command.updateData(new_cursor.subcol, toupper(input.getId()));
-	pattern.setCommand(info.getRowIndex(), track_id, command);
-	row_edited = true;
-	
-	if (new_cursor.subcol + 1 < 4) {
-	  new_cursor.subcol++;
-	} else if (new_cursor.track + 1 < num_tracks) {
-	  new_cursor.track++;
-	  new_cursor.col = 0;
-	  new_cursor.subcol = 0;
-	}
+	auto it = all_track_info.find(track_ids[new_cursor.track]);
+	new_cursor.col = it != all_track_info.end() ? it->second.getColumnCount() - 1 : 0;
       }
       return true;
-    } else if (column_type == ColumnType::VELOCITY || column_type == ColumnType::DELAY) {
-      if (is_hex) {
-	int input_value = input.getId() >= '0' && input.getId() <= '9' ? input.getId() - '0' : input.getId() - 'a' + 10;
-	auto & notes = pattern.getNotes(info.getRowIndex(), track_id);
-	auto note_column = track_info.getNoteNumber(new_cursor.col);
-	Note note;
-	if (note_column < notes.size()) note = notes[note_column];
-	int current_value = column_type == ColumnType::VELOCITY ? note.getVelocity() : note.getDelay();
-	if (new_cursor.subcol == 0) current_value = (input_value << 4) | (current_value & 0x0f);
-	else current_value = (current_value & 0xf0) | input_value;
-	if (column_type == ColumnType::VELOCITY) note.setVelocity(current_value);
-	else note.setDelay(current_value);
-	pattern.setNote(info.getRowIndex(), track_id, note_column, note);	
-	row_edited = true;
-	if (new_cursor.subcol == 0) {
-	  new_cursor.subcol++;
-	} else {
-	  new_cursor.col++;
-	  new_cursor.subcol = 0;
-	}
+    } else if (input.getId() == NCKEY_RIGHT) {
+      if (new_cursor.col + 1 < track_info.getColumnCount()) {
+	new_cursor.col++;
+	new_cursor.subcol = 0;
+      } else if (new_cursor.track + 1 < num_tracks) {
+	new_cursor.track++;
+	new_cursor.col = 0;
+	new_cursor.subcol = 0;
       }
+      return true;
+    } else if (input.getId() == NCKEY_UP || input.getId() == NCKEY_BUTTON4) {
+      if (!info.isPlaying()) {
+	event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, -1));
+	new_cursor.subcol = 0;
+      }
+      return true;
+    } else if (input.getId() == NCKEY_DOWN || input.getId() == NCKEY_BUTTON5) {
+      if (!info.isPlaying()) {
+	event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, 1));
+	new_cursor.subcol = 0;
+      }
+      return true;
+    } else if (input.getId() == NCKEY_PGUP) {
+      if (!info.isPlaying()) {
+	event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, -16));
+	new_cursor.subcol = 0;
+      }
+      return true;    
+    } else if (input.getId() == NCKEY_PGDOWN) { // scrollwheel down
+      if (!info.isPlaying()) {
+	event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, 16));
+	new_cursor.subcol = 0;
+      }
+      return true;
+    } else if (input.getId() == '\\') {
+      auto track = song.getTrackById(track_ids[current_cursor.track]);
+      if (track) {
+	track->setMute(!track->isMuted());
+	song.incVersion();
+      }
+    } else if (input.getId() == '\t') {
+      if (track_info.isEffectColumn(new_cursor.col)) { // effect
+	new_cursor.subcol = (new_cursor.subcol + 1) % 4;
+      } else if (!track_info.isNoteColumn(new_cursor.col)) {
+	new_cursor.subcol = (new_cursor.subcol + 1) % 2;
+      }
+    } else if (input.getId() == NCKEY_INS) {
+      auto & pattern = song.getPattern(info.getPatternIndex());
+      int track_id = track_ids[new_cursor.track];
+      pattern.insertRow(info.getRowIndex(), track_id);
+      song.incVersion();
     } else {
-      bool is_off = input.getId() == 'a';
-      bool is_delete = input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE;
-      auto note_column = track_info.getNoteNumber(new_cursor.col);
-
-      int midi_note = -1;
-      if (!is_off) {
-	midi_note = input.toMidiNote(current_keyboard_octave, song.getTuning());
-      }
-      
-      if (is_delete || midi_note >= 0 || is_off) {
-	if (is_delete) {
-	  pattern.deleteNote(info.getRowIndex(), track_id, note_column);
-	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, track_id, note_column));
-	} else if (is_off) {
-	  pattern.setNote(info.getRowIndex(), track_id, note_column, Note(0, 0)); 
-	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, track_id, note_column));
-	} else {
-	  Note note(midi_note);
-
-	  if (input.hasShift()) {
-	    note_column = pattern.pushNote(info.getRowIndex(), track_id, note);
-	  } else {
-	    pattern.setNote(info.getRowIndex(), track_id, note_column, note); 
-	  }
-	  
-	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, track_id, note_column, note.getValue(), note.getVelocity()));
-	}
-
-	row_edited = true;
+      auto & pattern = song.getPattern(info.getPatternIndex());
+      int track_id = track_ids[new_cursor.track];
+      bool is_hex = (input.getId() >= 'a' && input.getId() <= 'z') || (input.getId() >= '0' && input.getId() <= '9');
+      auto column_type = track_info.getColumnType(new_cursor.col);
+    
+      if (column_type == ColumnType::EFFECT) {
+	if (is_hex || input.getId() == '-') {	
+	  auto command = pattern.getCommand(info.getRowIndex(), track_id);
+	  command.updateData(new_cursor.subcol, toupper(input.getId()));
+	  pattern.setCommand(info.getRowIndex(), track_id, command);
+	  row_edited = true;
 	
-	if (!info.isPlaying()) {
-	  int n = 0;
-	  if (input.getId() == NCKEY_BACKSPACE) n = -1;
-	  else if (input.getId() != NCKEY_DEL) n = 1;
-	  if (n) {
-	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, n * edit_step_size));
+	  if (new_cursor.subcol + 1 < 4) {
+	    new_cursor.subcol++;
+	  } else if (new_cursor.track + 1 < num_tracks) {
+	    new_cursor.track++;
+	    new_cursor.col = 0;
+	    new_cursor.subcol = 0;
 	  }
 	}
-      
 	return true;
+      } else if (column_type == ColumnType::VELOCITY || column_type == ColumnType::DELAY) {
+	if (is_hex) {
+	  int input_value = input.getId() >= '0' && input.getId() <= '9' ? input.getId() - '0' : input.getId() - 'a' + 10;
+	  auto & notes = pattern.getNotes(info.getRowIndex(), track_id);
+	  auto note_column = track_info.getNoteNumber(new_cursor.col);
+	  Note note;
+	  if (note_column < notes.size()) note = notes[note_column];
+	  int current_value = column_type == ColumnType::VELOCITY ? note.getVelocity() : note.getDelay();
+	  if (new_cursor.subcol == 0) current_value = (input_value << 4) | (current_value & 0x0f);
+	  else current_value = (current_value & 0xf0) | input_value;
+	  if (column_type == ColumnType::VELOCITY) note.setVelocity(current_value);
+	  else note.setDelay(current_value);
+	  pattern.setNote(info.getRowIndex(), track_id, note_column, note);	
+	  row_edited = true;
+	  if (new_cursor.subcol == 0) {
+	    new_cursor.subcol++;
+	  } else {
+	    new_cursor.col++;
+	    new_cursor.subcol = 0;
+	  }
+	}
+      } else {
+	bool is_off = input.getId() == 'a';
+	bool is_delete = input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE;
+	auto note_column = track_info.getNoteNumber(new_cursor.col);
+
+	int midi_note = -1;
+	if (!is_off) {
+	  midi_note = input.toMidiNote(current_keyboard_octave, song.getTuning());
+	}
+      
+	if (is_delete || midi_note >= 0 || is_off) {
+	  if (is_delete) {
+	    pattern.deleteNote(info.getRowIndex(), track_id, note_column);
+	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, track_id, note_column));
+	  } else if (is_off) {
+	    pattern.setNote(info.getRowIndex(), track_id, note_column, Note(0, 0)); 
+	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, track_id, note_column));
+	  } else {
+	    Note note(midi_note);
+
+	    if (input.hasShift()) {
+	      note_column = pattern.pushNote(info.getRowIndex(), track_id, note);
+	    } else {
+	      pattern.setNote(info.getRowIndex(), track_id, note_column, note); 
+	    }
+	  
+	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, track_id, note_column, note.getValue(), note.getVelocity()));
+	  }
+
+	  row_edited = true;
+	
+	  if (!info.isPlaying()) {
+	    int n = 0;
+	    if (input.getId() == NCKEY_BACKSPACE) n = -1;
+	    else if (input.getId() != NCKEY_DEL) n = 1;
+	    if (n) {
+	      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, n * edit_step_size));
+	    }
+	  }
+      
+	  return true;
+	}
       }
     }
   }

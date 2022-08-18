@@ -32,7 +32,7 @@ using namespace std;
 using namespace fmt;
 
 static inline ncinput to_ncinput(const InputEvent & input) {
-  ncinput ni = { .id = input.getId(), .y = input.getY(), .x = input.getX(), .utf8 = { 0, 0, 0, 0, 0 }, .alt = input.hasAlt(), .shift = input.hasShift(), .ctrl = input.hasCtrl(), .evtype = ncinput::NCTYPE_UNKNOWN, .ypx = -1, .xpx = -1 };
+  ncinput ni = { .id = input.getId(), .y = input.getY(), .x = input.getX(), .utf8 = { 0, 0, 0, 0, 0 }, .alt = input.hasAlt(), .shift = input.hasShift(), .ctrl = input.hasCtrl(), .evtype = NCTYPE_UNKNOWN, .modifiers = ((input.hasAlt() ? NCKEY_MOD_ALT : 0) | (input.hasCtrl() ? NCKEY_MOD_CTRL : 0) | (input.hasShift() ? NCKEY_MOD_SHIFT : 0) | (input.hasMeta() ? NCKEY_MOD_META : 0)), .ypx = -1, .xpx = -1 };
   return ni;
 }
 
@@ -341,20 +341,24 @@ bool
 TerminalUI::readInput() {
   ncinput ni;
   while (nc->get(false, &ni) > 0) {
-    bool shift = ni.shift;
+    bool alt = ni.modifiers & NCKEY_MOD_ALT;
+    bool shift = ni.modifiers & NCKEY_MOD_SHIFT;
+    bool ctrl = ni.modifiers & NCKEY_MOD_CTRL;
+    bool meta = ni.modifiers & NCKEY_MOD_META;
+    
     int id = ni.id;
     if (id >= 'A' && id <= 'Z') {
       id = tolower(id);
-      // shift = true;
+      shift = true;
     }
     
-    InputEvent input(id, ni.y, ni.x, ni.alt, shift, ni.ctrl);
+    InputEvent input(id, ni.y, ni.x, alt, shift, ctrl, meta);
     auto handled = offerInput(input);
 
     if (input.getId() == NCKEY_BUTTON1) {
       setStatus(format("mouse input: {} {}", input.getY(), input.getX()));
     } else {
-      setStatus("key input: " + to_string(id) + " (" + string(ni.utf8) + ", shift = " + (shift ? "yes" : "no") + ", ctrl = " + (ni.ctrl ? "yes" : "no") + ", handled = " + (handled ? "yes" : "no") + ")");
+      setStatus("key input: " + to_string(id) + " (" + string(ni.utf8) + ", shift = " + (input.hasShift() ? "yes" : "no") + ", ctrl = " + (input.hasCtrl() ? "yes" : "no") + ", meta = " + (input.hasMeta() ? "yes" : "no") + ", handled = " + (handled ? "yes" : "no") + ")");
     }
   }
 

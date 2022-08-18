@@ -9,9 +9,9 @@
 #define PRETERUNICODEBASE 1115000                                                                                               
 #define preterunicode(w) ((w) + PRETERUNICODEBASE)  
 
+#define NCKEY_TAB      0x09
 #define NCKEY_ESC      0x1b
 #define NCKEY_SPACE    0x20
-#define NCKEY_TAB      0x09
 
 // Special composed key definitions. These values are added to 0x100000.                 
 #define NCKEY_INVALID preterunicode(0)                                                      
@@ -39,22 +39,23 @@
   
 class InputEvent : public Event {
  public:
-  InputEvent(int _id, int _y, int _x, bool _alt, bool _shift, bool _ctrl)
-    : id(_id), y(_y), x(_x), alt(_alt), shift(_shift), ctrl(_ctrl) { }
+  InputEvent(int id, int y, int x, bool alt, bool shift, bool ctrl, bool meta)
+    : id_(id), y_(y), x_(x), alt_(alt), shift_(shift), ctrl_(ctrl), meta_(meta) { }
 
   void dispatch(EventHandler & evh) override { evh.handleInputEvent(*this); }
 
-  int getId() const { return id; }
-  int getY() const { return y; }
-  int getX() const { return x; }
-  bool hasAlt() const { return alt; }
-  bool hasShift() const { return shift; }
-  bool hasCtrl() const { return ctrl; }
-
+  int getId() const { return id_; }
+  int getY() const { return y_; }
+  int getX() const { return x_; }
+  bool hasAlt() const { return alt_; }
+  bool hasShift() const { return shift_; }
+  bool hasCtrl() const { return ctrl_; }
+  bool hasMeta() const { return meta_; }
+  
   int toMidiNote(int octave, Tuning tuning) const {
     if (tuning == Tuning::TET12) {
       int base = (octave - 4) * 12;
-      switch (id) {
+      switch (id_) {
       case 'z': return base + 48;
       case 's': return base + 49;
       case 'x': return base + 50;
@@ -81,7 +82,7 @@ class InputEvent : public Event {
       }
     } else if (tuning == Tuning::TET31) {
       int base = (octave - 4) * 31;
-      switch (id) {
+      switch (id_) {
       case 'z': return base + 155; // C-4
       case 'x': return base + 158; // Db4
       case 'c': return base + 160; // D-4
@@ -106,8 +107,8 @@ class InputEvent : public Event {
   }
 
  private:
-  int id, y, x;
-  bool alt, shift, ctrl;
+  int id_, y_, x_;
+  bool alt_, shift_, ctrl_, meta_;
 };
 
 #endif
