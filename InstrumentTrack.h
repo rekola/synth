@@ -1,4 +1,3 @@
-
 #ifndef _INSTRUMENTTRACK_H_
 #define _INSTRUMENTTRACK_H_
 
@@ -6,41 +5,45 @@
 
 class InstrumentTrack : public Track {
  public:
-  InstrumentTrack() : Track(TrackType::INSTRUMENT_CONTROL), instrument_id(0) { }
-  InstrumentTrack(int _instrument_id) : Track(TrackType::INSTRUMENT_CONTROL), instrument_id(_instrument_id) { }
+  InstrumentTrack() : Track(TrackType::INSTRUMENT_CONTROL), instrument_id_(0) { }
+  InstrumentTrack(int instrument_id) : Track(TrackType::INSTRUMENT_CONTROL), instrument_id_(instrument_id) { }
 
   std::string getElementName() const override { return "track"; }
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override;
 
-  int getInstrumentId() const { return instrument_id; }
-  void setInstrumentId(int id) { instrument_id = id; }
-    
   SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) const override;
   
   void loadParameters(const ParameterSource & input);
   void storeParameters(ParameterSource & output) const override;
 
-  void setElevation(float e) { elevation = e; }
-  void setAzimuth(float a) { azimuth = a; }
-  void setDistance(float d) { distance = d; }
-  
-  float getElevation() const { return elevation; }
-  float getAzimuth() const { return azimuth; }
-  float getDistance() const { return distance; }
+  int getInstrumentId() const { return instrument_id_; }
+  void setInstrumentId(int id) { instrument_id_ = id; }  
 
-  bool showNoteColumn() const { return show_note_column; }
-  bool showVelocityColumn() const { return show_velocity_column; }
-  bool showEffectsColumn() const { return show_effects_column; }
-  bool showDelayColumn() const { return show_delay_column; }
+  void setElevation(float e) { elevation_ = e; }
+  void setAzimuth(float a) { azimuth_ = a; }
+  void setDistance(float d) { distance_ = d; }
+  
+  float getElevation() const { return elevation_; }
+  float getAzimuth() const { return azimuth_; }
+  float getDistance() const { return distance_; }
+
+  void setColor(std::string_view color) { color_ = color; }
+  const std::string & getColor() const { return color_; }
+
+  bool showNoteColumn() const { return show_note_column_; }
+  bool showVelocityColumn() const { return show_velocity_column_; }
+  bool showEffectsColumn() const { return show_effects_column_; }
+  bool showDelayColumn() const { return show_delay_column_; }
 
 private:
-  int instrument_id = 0;
-  float elevation = 0, azimuth = 0, distance = 0;
+  int instrument_id_ = 0;
+  float elevation_ = 0, azimuth_ = 0, distance_ = 0;
+  std::string color_;
 
-  bool show_note_column = true;
-  bool show_velocity_column = true;
-  bool show_delay_column = true;
-  bool show_effects_column = true;
+  bool show_note_column_ = true;
+  bool show_velocity_column_ = true;
+  bool show_delay_column_ = true;
+  bool show_effects_column_ = true;
 };
 
 #endif
