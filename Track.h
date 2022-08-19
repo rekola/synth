@@ -66,10 +66,10 @@ class Track : public StatefulSongObject {
   
   virtual std::string getElementName() const = 0;
 
-  virtual std::unique_ptr<TrackState> playNote(const ChannelConfiguration & config, float azimuth, float frequency, float velocity, float start_phase = 0.0f) const {
+  virtual std::unique_ptr<TrackState> playNote(const ChannelConfiguration & config, float azimuth, float frequency, float detune, float velocity, float start_phase) const {
     auto group = createState(config);
     for (auto & child : children) {
-      auto voice = child->playNote(config, azimuth, frequency, velocity, start_phase);
+      auto voice = child->playNote(config, azimuth, frequency, detune, velocity, start_phase);
       if (voice.get()) group->addChild(std::move(voice));
     }
     return group;

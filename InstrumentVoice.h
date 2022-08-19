@@ -5,10 +5,11 @@
 
 class InstrumentVoice : public TrackState {
  public:
-  InstrumentVoice(const ChannelConfiguration & channel_config, float azimuth, float start_phase)
+  InstrumentVoice(const ChannelConfiguration & channel_config, float azimuth, float detune, float start_phase)
     : TrackState(channel_config),
       sourceSamplePosition_(start_phase * getChannelConfiguration().getAudioOutSampleRate()),
-      azimuth_(azimuth)
+      azimuth_(azimuth),
+      detune_(detune)
   {
     
   }
@@ -21,10 +22,12 @@ class InstrumentVoice : public TrackState {
   void stopNote() override { killNote(); }
     
   void playNote(float frequency, float velocity) override {
+    TrackState::playNote(frequency, velocity);
+    
     if (freq_ == 0.0f) {
       setGainDB(-gainToDecibels(1.0f / velocity));
     }
-    freq_ = frequency;
+    freq_ = frequency * detune_;
   }
 
   bool isPlaying() const override { return freq_ != 0.0f; }
@@ -53,6 +56,7 @@ protected:
 
   float getFrequency() const { return freq_; }
   float getAzimuth() const { return azimuth_; }
+  float getDetune() const { return detune_; }
   
   double sourceSamplePosition_;
 
@@ -60,6 +64,7 @@ private:
   float freq_ = 0.0f;
   float noteGainDB_ = 0.0f;
   float azimuth_;
+  float detune_;
 };
 
 #endif

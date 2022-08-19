@@ -12,7 +12,7 @@ class FileInstrument : public Instrument {
     openFile();
   }
 
-  std::unique_ptr<TrackState> playNote(const ChannelConfiguration & channel_config, float azimuth, float frequency, float velocity, float start_phase) const override;
+  std::unique_ptr<TrackState> playNote(const ChannelConfiguration & channel_config, float azimuth, float frequency, float detune, float velocity, float start_phase) const override;
 
 protected:
   void openFile();

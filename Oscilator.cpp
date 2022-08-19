@@ -5,11 +5,11 @@
 using namespace std;
 
 std::unique_ptr<TrackState>
-Oscilator::playNote(const ChannelConfiguration & config, float azimuth, float frequency, float velocity, float start_phase) const {  
-  frequency *= getHarmonic();
-  frequency /= getSubharmonic();
+Oscilator::playNote(const ChannelConfiguration & config, float azimuth, float frequency, float detune, float velocity, float start_phase) const {  
+  detune *= getHarmonic();
+  detune /= getSubharmonic();
 
-  auto voice = std::make_unique<OscilatorVoice>(config, azimuth, start_phase, type_, level_);
+  auto voice = std::make_unique<OscilatorVoice>(config, azimuth, detune, start_phase, type_, level_);
   voice->playNote(frequency, velocity);
 
   // ChannelConfiguration child_config = config;
@@ -17,7 +17,7 @@ Oscilator::playNote(const ChannelConfiguration & config, float azimuth, float fr
   
   // don't pass velocity or azimuth to children
   for (auto & child : getChildren()) {    
-    auto modulator = child->playNote(config, 0.0f, frequency, 1.0, start_phase);
+    auto modulator = child->playNote(config, 0.0f, frequency, detune, 1.0, start_phase);
     if (modulator) voice->addChild(move(modulator));
   }
   

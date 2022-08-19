@@ -61,7 +61,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	      // frequency *= instrument_track.getDetune();
 	      
 	      track_state->stopVoices(column);
-	      auto voice = instrument.playNote(state_.getChannelConfiguration(), instrument_track.getAzimuth(), frequency, note.getVelocityAsFloat());
+	      auto voice = instrument.playNote(state_.getChannelConfiguration(), instrument_track.getAzimuth(), frequency, 1.0f, note.getVelocityAsFloat(), 0.0f);
 	      track_state->addVoice(column, move(voice));
 	    } else {
 	      track_state->applyAftertouch(column, midi_velocity / 127.0f);

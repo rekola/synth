@@ -48,7 +48,7 @@ public:
 		}
 		if (!legato_done) {
 		  stopVoices(ev.getId());
-		  auto voice = instrument->playNote(getChannelConfiguration(), azimuth_, ev.getFrequency(), ev.getVelocity(), getRandF());
+		  auto voice = instrument->playNote(getChannelConfiguration(), azimuth_, ev.getFrequency(), 1.0f, ev.getVelocity(), getRandF());
 		  addVoice(ev.getId(), move(voice));
 		}
 	      }
@@ -150,7 +150,7 @@ private:
   int track_id_, instrument_id_;
   float azimuth_;
   bool is_solo_;
-  bool is_legato_ = true;
+  bool is_legato_ = false;
 
   std::unordered_map<int, std::vector<std::unique_ptr<TrackState> > > voices_;
 };

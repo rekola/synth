@@ -616,8 +616,8 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
 
 class SoundFontVoice : public InstrumentVoice {
 public:
-  SoundFontVoice(const ChannelConfiguration & channel_config, float azimuth, float start_phase, std::shared_ptr<SoundFontFile> sf, size_t preset, size_t region_idx)
-    : InstrumentVoice(channel_config, azimuth, start_phase), sf_(sf)
+  SoundFontVoice(const ChannelConfiguration & channel_config, float azimuth, float detune, float start_phase, std::shared_ptr<SoundFontFile> sf, size_t preset, size_t region_idx)
+    : InstrumentVoice(channel_config, azimuth, detune, start_phase), sf_(sf)
   {
     auto f = sf_.get();
     if (preset < f->presets_.size()) {
@@ -627,8 +627,8 @@ public:
 	auto & region = regions[region_idx];
 	voiceRegion_ = &region;
 	
-	// Offset/end.
-	sourceSamplePosition_ = voiceRegion_->offset;
+	// Offset/end (add to the start phase)
+	sourceSamplePosition_ += voiceRegion_->offset;
 
 	auto outSampleRate = getChannelConfiguration().getAudioOutSampleRate();
 
@@ -657,7 +657,7 @@ public:
     assert(frequency > 0);
     if (!voiceRegion_) return;
     
-    auto apparent_key = log2(frequency / 440) * 12 + 69;
+    auto apparent_key = log2(frequency * getDetune()/ 440) * 12 + 69;
     auto midiVelocity = (short)(velocity * 127);
     if (midiVelocity > 127) midiVelocity = 127;
                   
@@ -966,17 +966,17 @@ public:
 
   virtual std::string getElementName() const { return "soundFontInstrument"; }
 
-  std::unique_ptr<TrackState> playNote(const ChannelConfiguration & channel_config, float azimuth, float frequency, float velocity, float start_phase) const override {    
+  std::unique_ptr<TrackState> playNote(const ChannelConfiguration & channel_config, float azimuth, float frequency, float detune, float velocity, float start_phase) const override {    
     assert(frequency > 0);
 
-    frequency *= getHarmonic();
-    frequency /= getSubharmonic();
+    detune *= getHarmonic();
+    detune /= getSubharmonic();
 
     vector<unique_ptr<TrackState> > voices;
 
     auto f = sf_.get();
     if (preset_ <= f->presets_.size()) {
-      auto apparent_key = log2(frequency / 440) * 12 + 69;
+      auto apparent_key = log2(frequency * detune / 440) * 12 + 69;
       auto midiKey = fixedMidiKey_ ? fixedMidiKey_ : int(apparent_key);
       
       auto midiVelocity = (short)(velocity * 127);
@@ -994,7 +994,7 @@ public:
 	  // FIXME: here we should end all voices with the same instrument and group
 	}
 	
-	auto voice = make_unique<SoundFontVoice>(channel_config, azimuth, start_phase, sf_, preset_, region_idx);
+	auto voice = make_unique<SoundFontVoice>(channel_config, azimuth, detune, start_phase, sf_, preset_, region_idx);
 	voice->playNote(frequency, velocity);
 
 	if (!getChildren().empty()) {
@@ -1003,7 +1003,7 @@ public:
 	  // child_config.setType(ChannelConfiguration::MONO);
 	  
 	  for (auto & child : getChildren()) {
-	    auto modulator = child->playNote(channel_config, 0.0f, frequency, velocity, start_phase);
+	    auto modulator = child->playNote(channel_config, 0.0f, frequency, detune, velocity, start_phase);
 	    if (modulator.get()) voice->addChild(move(modulator));
 	  }
 	}
