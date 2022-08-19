@@ -72,8 +72,9 @@ static inline vector<string> split_notes(const string & line) {
   return r;
 }
 
-Tuning parse_tuning(const std::string & tuning_text, Tuning default_tuning = Tuning::INHERIT) {
-  if (tuning_text == "12edo") return Tuning::TET12;
+Tuning parse_tuning(const std::string & tuning_text, Tuning default_tuning = Tuning::TET12) {
+  if (tuning_text == "perc") return Tuning::PERCUSSION;
+  else if (tuning_text == "12edo") return Tuning::TET12;
   else if (tuning_text == "31edo") return Tuning::TET31;
   else if (tuning_text == "19edo") return Tuning::TET19;
   else if (tuning_text == "53edo") return Tuning::TET53;

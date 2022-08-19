@@ -4,7 +4,7 @@
 #include <string>
 
 enum class Tuning {
-  INHERIT = 0,
+  PERCUSSION = 0,
     TET12,
     TET19,
     TET31,
@@ -13,7 +13,7 @@ enum class Tuning {
 
 static inline std::string to_string(Tuning tuning) {
   switch (tuning) {
-  case Tuning::INHERIT: return "inherit";
+  case Tuning::PERCUSSION: return "percussion";
   case Tuning::TET12: return "12edo";
   case Tuning::TET19: return "19edo";
   case Tuning::TET31: return "31edo";
