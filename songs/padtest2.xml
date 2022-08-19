@@ -5,7 +5,7 @@
 
     <envelope attack="1" release="2" name="padtest2">
       <filter cutmin="0.05" cutmax="0.8" res="0.9" attack="3" decay="3" sustain="0.0">
-	<multiply unisons="16" detune="0.005">
+	<multiply unisons="16" detune="10">
 	  <oscilator type="saw" level="0.25" />
 	</multiply>
       </filter>
@@ -13,7 +13,7 @@
 
     <envelope attack="1" release="2" name="simple">
       <filter cutmin="0.05" cutmax="0.8" res="0.9" attack="3" decay="3" sustain="0.0">
-	<multiply unisons="32" detune="0.005" spread="180">
+	<multiply unisons="32" detune="10" spread="180">
 	  <oscilator type="saw" level="0.25" />
 	</multiply>
       </filter>
@@ -21,29 +21,34 @@
 
     <envelope attack="0.5" release="2" name="simple a">
       <filter cutmin="0.025" cutmax="0.9" res="0.9">
-	<multiply unisons="32" detune="0.005" spread="180">
+	<multiply unisons="32" detune="10" spread="180">
 	  <oscilator type="saw" level="0.25" />
 	</multiply>
       </filter>
     </envelope>
 
-    <multiply unisons="32" detune="0.005" spread="180">
+    <multiply unisons="32" detune="10" spread="180" name="Piano group">
       <genericInstrument name="Piano" />
     </multiply>
+
+    <genericInstrument name="Piano" />
   </instruments>
   
   <tracks>
-    <reverb id="100" azimuth="30" distance="0" elevation="50" volume="1.0" preset="stadium">
+    <reverb azimuth="30" distance="0" elevation="50" volume="1.0" preset="stadium">
       <track id="0" instrument="1" />
     </reverb>
-    <reverb id="101" azimuth="30" distance="0" elevation="50" volume="1.0" preset="dark">
+    <reverb azimuth="30" distance="0" elevation="50" volume="1.0" preset="dark">
       <track id="1" instrument="1" />
     </reverb>
-    <reverb id="102" azimuth="30" distance="0" elevation="50" volume="1.0" preset="halves">
+    <reverb azimuth="30" distance="0" elevation="50" volume="1.0" preset="halves">
       <track id="2" instrument="2"/>
     </reverb>
-    <reverb id="103" azimuth="30" distance="0" elevation="50" volume="1.0" preset="cupboard">
+    <reverb azimuth="30" distance="0" elevation="50" volume="1.0" preset="cupboard">
       <track id="3" instrument="3"/>
+    </reverb>
+    <reverb azimuth="30" distance="0" elevation="50" volume="1.0" preset="cupboard">
+      <track id="4" instrument="4"/>
     </reverb>
   </tracks>
   
