@@ -628,7 +628,8 @@ public:
 	voiceRegion_ = &region;
 	
 	// Offset/end (add to the start phase)
-	sourceSamplePosition_ += voiceRegion_->offset;
+	// sourceSamplePosition_ += voiceRegion_->offset;
+	sourceSamplePosition_ = voiceRegion_->offset;
 
 	auto outSampleRate = getChannelConfiguration().getAudioOutSampleRate();
 
@@ -656,21 +657,24 @@ public:
   void playNote(float frequency, float velocity) override {
     assert(frequency > 0);
     if (!voiceRegion_) return;
+
+    bool first_play = apparentPlayingKey_ == 0.0;
     
-    auto apparent_key = log2(frequency * getDetune()/ 440) * 12 + 69;
-    auto midiVelocity = (short)(velocity * 127);
-    if (midiVelocity > 127) midiVelocity = 127;
+    apparentPlayingKey_ = log2(frequency * getDetune()/ 440) * 12 + 69;
+
+    if (first_play) {
+      auto midiVelocity = (short)(velocity * 127);
+      if (midiVelocity > 127) midiVelocity = 127;
+
+      auto outSampleRate = getChannelConfiguration().getAudioOutSampleRate();
+
+      // Setup envelopes.
+      ampenv_ = EnvelopeState(outSampleRate, voiceRegion_->ampenv, apparentPlayingKey_, midiVelocity, true);
+      modenv_ = EnvelopeState(outSampleRate, voiceRegion_->modenv, apparentPlayingKey_, midiVelocity, false);
+    }
                   
-    apparentPlayingKey_ = apparent_key;
-    // voice->playingFrequency = frequency;
     setGainDB(- voiceRegion_->attenuation - gainToDecibels(1.0f / velocity));
     calcPitchRatio(0);
-        
-    auto outSampleRate = getChannelConfiguration().getAudioOutSampleRate();
-
-    // Setup envelopes.
-    ampenv_ = EnvelopeState(outSampleRate, voiceRegion_->ampenv, apparent_key, midiVelocity, true);
-    modenv_ = EnvelopeState(outSampleRate, voiceRegion_->modenv, apparent_key, midiVelocity, false);
   }
 
   bool isPlaying() const override {
@@ -713,7 +717,8 @@ public:
     pitchInputTimecents_ = adjustedPitch * 100.0;
     pitchOutputFactor_ = voiceRegion_->sample_rate / (tsf_timecents2Secsd(voiceRegion_->pitch_keycenter * 100.0) * getChannelConfiguration().getAudioOutSampleRate());
   }
-    
+
+protected:
   double apparentPlayingKey_ = 0;
   struct tsf_region * voiceRegion_ = nullptr;
   double pitchInputTimecents_ = 0, pitchOutputFactor_ = 0;
@@ -912,48 +917,6 @@ void tsf_load(SoundFontFile* res, struct tsf_stream* stream) {
   free(hydra.imods); free(hydra.igens); free(hydra.shdrs);
   free(fontSamples);
 }
-
-#if 0
-static void tsf_channel_setup_voice(SoundFontFile* f, SoundFontVoice * v) {
-  struct tsf_channel* c = &f->channels->channels[f->channels->activeChannel];
-  v->playingChannel = f->channels->activeChannel;
-  v->noteGainDB += c->gainDB;
-  v->calcPitchRatio((c->pitchWheel == 8192 ? c->tuning : ((c->pitchWheel / 16383.0f * c->pitchRange * 2.0f) - c->pitchRange + c->tuning)));
-}
-
-static void tsf_channel_applypitch(SoundFontFile* f, int channel, struct tsf_channel* c)
-{
-	struct tsf_voice *v, *vEnd;
-	float pitchShift = (c->pitchWheel == 8192 ? c->tuning : ((c->pitchWheel / 16383.0f * c->pitchRange * 2.0f) - c->pitchRange + c->tuning));
-	for (v = f->voices, vEnd = v + f->voiceNum; v != vEnd; v++)
-		if (v->playingChannel == channel && v->playingPreset != -1)
-			v->calcPitchRatio(pitchShift);
-}
-
-void tsf_channel_set_pitchwheel(SoundFontFile* f, int channel, int pitch_wheel)
-{
-	struct tsf_channel *c = tsf_channel_init(f, channel);
-	if (c->pitchWheel == pitch_wheel) return;
-	c->pitchWheel = (unsigned short)pitch_wheel;
-	tsf_channel_applypitch(f, channel, c);
-}
-
-void tsf_channel_set_pitchrange(SoundFontFile* f, int channel, float pitch_range)
-{
-	struct tsf_channel *c = tsf_channel_init(f, channel);
-	if (c->pitchRange == pitch_range) return;
-	c->pitchRange = pitch_range;
-	if (c->pitchWheel != 8192) tsf_channel_applypitch(f, channel, c);
-}
-
-void tsf_channel_set_tuning(SoundFontFile* f, int channel, float tuning)
-{
-	struct tsf_channel *c = tsf_channel_init(f, channel);
-	if (c->tuning == tuning) return;
-	c->tuning = tuning;
-	tsf_channel_applypitch(f, channel, c);
-}
-#endif
 
 void
 SoundFont::openFile() {
