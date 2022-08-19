@@ -21,19 +21,19 @@ class InfoLine : public UIElement {
     auto & info = getController().getPlaybackInfo();
     auto & song = getController().getSong();
 
-    int new_version = song.getVersion();
-    size_t new_position = info.getAbsolutePosition();
+    auto new_version = song.getVersion();
+    auto new_position = info.getAbsolutePosition();
     
-    if (refresh || new_version != current_version || new_position != current_position) {
-      int seconds = (int)info.getTime();
-      int minutes = seconds / 60;
+    if (refresh || new_version != current_version_ || new_position != current_position_) {
+      auto seconds = (int)info.getTime();
+      auto minutes = seconds / 60;
       seconds %= 60;
       
       auto [ rows, cols ] = getDim();
       
-      size_t pattern_idx = info.getPatternIndex();
-      size_t num_voices = info.getVoiceCount();
-      size_t num_allocated_voices = info.getAllocatedVoiceCount();
+      auto pattern_idx = info.getPatternIndex();
+      auto num_voices = info.getVoiceCount();
+      auto num_allocated_voices = info.getAllocatedVoiceCount();
       
       auto s = fmt::format(" {:02x} {:02d}:{:02d} pattern:{} voices:{}/{}", info.getAbsolutePosition(), minutes, seconds, pattern_idx, num_voices, num_allocated_voices);
       if (info.isPlaying()) s += " PLAYING";
@@ -53,8 +53,8 @@ class InfoLine : public UIElement {
       int edit_step_size = 0, current_score_cursor_track = 0, current_score_cursor_col = 0;
       putstr(0, cols / 2, fmt::format("{:2d} {} {} {} {}:{}", edit_step_size, tuning_text, key, tempo, current_score_cursor_track, current_score_cursor_col));
 
-      current_version = new_version;
-      current_position = new_position;
+      current_version_ = new_version;
+      current_position_ = new_position;
 
       return true;
     } else {
@@ -63,8 +63,7 @@ class InfoLine : public UIElement {
   }
 
 private:
-  size_t current_position = 0;
-  int current_version = 0;
+  int current_position_ = 0, current_version_ = 0;
 };
 
 #endif
