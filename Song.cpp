@@ -299,19 +299,23 @@ Song::save(const std::string & filename) const {
 	// TODO: check if velocity and delay are same, and store notes in single element
 
 	auto track = getTrackByInternalId(track_id);
-	auto track_tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : tuning;
+	assert(track);
 	
-	for (size_t col = 0; col < nv.size(); col++) {
-	  auto & note = nv[col];
-	  auto note_text = note.toString(track_tuning);
-	  auto note_element = doc.NewElement("note");
-	  note_element->SetAttribute("row", row);
-	  note_element->SetAttribute("track", track_id);
-	  if (col > 0) note_element->SetAttribute("column", col);
-	  note_element->SetAttribute("velocity", note.getVelocity());
-	  if (note.getDelay() > 0) note_element->SetAttribute("delay", note.getDelay());
-	  note_element->SetText(note_text.c_str());
-	  pattern_element->InsertEndChild(note_element);
+	if (track) {
+	  auto track_tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : getTuning();
+	  
+	  for (size_t col = 0; col < nv.size(); col++) {
+	    auto & note = nv[col];
+	    auto note_text = note.toString(track_tuning);
+	    auto note_element = doc.NewElement("note");
+	    note_element->SetAttribute("row", row);
+	    note_element->SetAttribute("track", track_id);
+	    if (col > 0) note_element->SetAttribute("column", col);
+	    note_element->SetAttribute("velocity", note.getVelocity());
+	    if (note.getDelay() > 0) note_element->SetAttribute("delay", note.getDelay());
+	    note_element->SetText(note_text.c_str());
+	    pattern_element->InsertEndChild(note_element);
+	  }
 	}
       }
 	
