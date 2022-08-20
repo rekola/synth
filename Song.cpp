@@ -4,6 +4,7 @@
 #include "SampleData.h"
 
 #include "InstrumentTrack.h"
+#include "PercussionTrack.h"
 #include "Group.h"
 #include "NoteMultiplier.h"
 #include "Arpeggiator.h"
@@ -84,6 +85,7 @@ Tuning parse_tuning(const std::string & tuning_text, Tuning default_tuning = Tun
 
 static unique_ptr<Track> createTrack(const string & name) {  
   if (name == "track") return make_unique<InstrumentTrack>();
+  if (name == "percussionTrack") return make_unique<PercussionTrack>();
   else if (name == "group") return make_unique<Group>();
 
   // effects
@@ -149,7 +151,7 @@ Song::createState(const ChannelConfiguration & config) const {
 
 bool
 Song::open(const std::string & filename, const InstrumentProvider & provider) {
-  char * oldLocale = setlocale(LC_ALL, 0);
+  auto oldLocale = setlocale(LC_ALL, 0);
   setlocale(LC_ALL, "C");
   
   XMLDocument doc;
@@ -205,14 +207,15 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	  if (track_text) {
 	    auto track = getTrackById(track_text);
 	    if (track) {
-	      int track_id = track->getInternalId();
+	      auto track_id = track->getInternalId();
+	      auto tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : getTuning();
 	      auto notes = split_notes(value_text);
 
 	      for (int i = 0; i < static_cast<int>(notes.size()); i++) {
 		if (notes[i] == "off" || notes[i] == "OFF") {
 		  pattern.setNote(row, track_id, start_column + i, Note(0, 0));
 		} else {
-		  pattern.setNote(row, track_id, start_column + i, Note(notes[i], velocity, delay, getTuning()));
+		  pattern.setNote(row, track_id, start_column + i, Note(notes[i], velocity, delay, tuning));
 		}
 	      }
 	    }
@@ -264,7 +267,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 
 void
 Song::save(const std::string & filename) const {
-  char * oldLocale = setlocale(LC_ALL, 0);
+  auto oldLocale = setlocale(LC_ALL, 0);
   setlocale(LC_ALL, "C");
  
   XMLDocument doc;
@@ -294,10 +297,13 @@ Song::save(const std::string & filename) const {
 
       for (auto & [ track_id, nv ] : notes) {
 	// TODO: check if velocity and delay are same, and store notes in single element
+
+	auto track = getTrackByInternalId(track_id);
+	auto track_tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : tuning;
 	
 	for (size_t col = 0; col < nv.size(); col++) {
 	  auto & note = nv[col];
-	  auto note_text = to_string(note, tuning);
+	  auto note_text = note.toString(track_tuning);
 	  auto note_element = doc.NewElement("note");
 	  note_element->SetAttribute("row", row);
 	  note_element->SetAttribute("track", track_id);

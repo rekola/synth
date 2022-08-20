@@ -9,6 +9,8 @@ class Tuner {
   Tuner() { }
 
   void tune(Tuning tuning, int key, const std::unordered_map<int, std::vector<Note> > & notes) {
+    if (tuning == Tuning::PERCUSSION) return;
+    
     int octave_steps = get_octave_steps(tuning);
     key = key % octave_steps;
 
@@ -91,7 +93,8 @@ class Tuner {
 private:
   static float get_et_frequency(Tuning tuning, int note_value) {
     switch (tuning) {
-    case Tuning::TET12: return 440.0f * powf(2.0f, (note_value - 69.0f) / 12.0f);
+    case Tuning::TET12:
+    case Tuning::PERCUSSION: return 440.0f * powf(2.0f, (note_value - 69.0f) / 12.0f);
     case Tuning::TET19: return 440.0f * powf(2.0f, (note_value - 109.0f) / 19.0f);
     case Tuning::TET31: return 440.0f * powf(2.0f, (note_value - 178.0f) / 31.0f);
     default:

@@ -23,7 +23,9 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
 }
 
 static void get_root_track_ids(const Track & track, vector<int> & track_ids) {
-  if (track.getType() == TrackType::INSTRUMENT_CONTROL || track.getType() == TrackType::SAMPLE) {
+  if (track.getType() == TrackType::INSTRUMENT_CONTROL ||
+      track.getType() == TrackType::PERCUSSION_CONTROL ||
+      track.getType() == TrackType::SAMPLE) {
     track_ids.push_back(track.getInternalId());
   } else {
     for (auto & child : track.getChildren()) {
@@ -39,7 +41,8 @@ static void get_root_track_ids(const Song & song, vector<int> & track_ids) {
 }
 
 static void fill_track_info(const Track & track, std::unordered_map<int, VisibleTrackInfo> & track_info) {
-  if (track.getType() == TrackType::INSTRUMENT_CONTROL) {
+  if (track.getType() == TrackType::INSTRUMENT_CONTROL ||
+      track.getType() == TrackType::PERCUSSION_CONTROL) {
     auto & info = track_info[track.getInternalId()];
     auto & instrument_track = dynamic_cast<const InstrumentTrack&>(track);
     info.has_note_column_ = instrument_track.showNoteColumn();
@@ -489,7 +492,9 @@ PatternEditor::offerInput(const InputEvent & input) {
 
 	int midi_note = -1;
 	if (!is_off) {
-	  midi_note = input.toMidiNote(current_keyboard_octave, song.getTuning());
+	  auto track = song.getTrackByInternalId(track_id);
+	  auto tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
+	  midi_note = input.toMidiNote(current_keyboard_octave, tuning);
 	}
       
 	if (is_delete || midi_note >= 0 || is_off) {
@@ -554,7 +559,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
   }
   
   auto & instruments = song.getInstruments();
-
+  
   for (auto level = 0; level < heading_height - 1; level++) {
     vector<Track *> tracks;
     vector<int> track_widths;
@@ -582,7 +587,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
     for (auto i = 0; i < static_cast<int>(tracks.size()); i++) {
       if (i < current_scroll_track) continue;
       if (current_pos >= cols) break;
-
+      
       auto track = tracks[i];
       auto actual_width = track_widths[i];
 
@@ -613,6 +618,8 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  string instrument_name;
 	  if (track->getType() == TrackType::SAMPLE) {
 	    instrument_name = "Sample";
+	  } else if (track->getType() == TrackType::PERCUSSION_CONTROL) {
+	    instrument_name = "Percussion";
 	  } else if (track->getType() == TrackType::INSTRUMENT_CONTROL) {
 	    auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
 	    if (instrument_track.getInstrumentId() >= 0 && instrument_track.getInstrumentId() < instruments.size()) {
@@ -766,8 +773,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	    setFgColor(cell_fg);
 	    setBgColor(cell_bg);
 	  }
-
-	  putstr(display_row, current_pos, to_string(note, song.getTuning()));
+	  auto tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
+	  putstr(display_row, current_pos, note.toString(tuning));
 	  current_pos += 3;
 	} else if (column_type == ColumnType::VELOCITY || column_type == ColumnType::DELAY) {	  	      
 	  auto l = track_info.getNoteNumber(k);

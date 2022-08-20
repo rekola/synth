@@ -40,6 +40,31 @@ class Note {
   void transposeDown() {
     if (isDefined() && !isOff() && !isAftertouch()) value--;
   }
+
+  std::string toString(Tuning tuning) const {
+    if (isDefined() && !isAftertouch()) {
+      if (isOff()) {
+	return "OFF";
+      } else {
+	auto key_name = keyToString(tuning, getValue());
+	if (tuning == Tuning::PERCUSSION) {
+	  key_name += ' ';
+	} else {
+	  if (key_name.size() == 1) key_name += '-';
+	  if (tuning == Tuning::TET31) {
+	    key_name += std::to_string((getValue() / 31) - 1);
+	  } else if (tuning == Tuning::TET19) {
+	    key_name += std::to_string((getValue() / 19) - 1);
+	  } else {
+	    key_name += std::to_string((getValue() / 12) - 1);
+	  }
+	}
+	return key_name;
+      }
+    } else {
+      return "···";
+    }
+  }
   
   static void inline replace(std::string & data, const std::string from, std::string to) {
     std::string::size_type pos = 0;
@@ -177,28 +202,5 @@ class Note {
   short velocity;
   short delay;  
 };
-
-static inline const std::string to_string(const Note & note, Tuning tuning) {
-  if (note.isDefined() && !note.isAftertouch()) {
-    if (note.isOff()) {
-      return "OFF";
-    } else {
-      auto key_name = Note::keyToString(tuning, note.getValue());
-      if (tuning != Tuning::PERCUSSION) {      
-	if (key_name.size() == 1) key_name += '-';
-	if (tuning == Tuning::TET31) {
-	  key_name += std::to_string((note.getValue() / 31) - 1);
-	} else if (tuning == Tuning::TET19) {
-	  key_name += std::to_string((note.getValue() / 19) - 1);
-	} else {
-	  key_name += std::to_string((note.getValue() / 12) - 1);
-	}
-      }
-      return key_name;
-    }
-  } else {
-    return "···";
-  }
-}
 
 #endif

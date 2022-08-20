@@ -1,5 +1,3 @@
-
-
 #ifndef _SONGSTATE_H_
 #define _SONGSTATE_H_
 
@@ -30,6 +28,9 @@ class SongState : public TrackState {
 	  }
 	  
 	  for (auto & [ track_id, notes ] : notes) {
+	    auto track = song.getTrackByInternalId(track_id);
+	    auto tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
+
 	    for (size_t j = 0; j < notes.size(); j++) {
 	      if (notes[j].isDefined()) {
 		auto & note = notes[j];
@@ -38,7 +39,7 @@ class SongState : public TrackState {
 		if (note.isAftertouch()) {
 		  velocity = note.getVelocityAsFloat();
 		} else if (!note.isOff()) {
-		  frequency = getTuner().getFrequency(song.getTuning(), song.getKey(), note);
+		  frequency = getTuner().getFrequency(tuning, song.getKey(), note);
 		  velocity = note.getVelocityAsFloat() * (1 + song.getRandomizationFactor() * getRandF());
 		  delay = note.getDelayAsFloat();
 		}

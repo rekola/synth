@@ -6,7 +6,8 @@
 
 #ifndef PRETERUNICODEBASE
 
-#define PRETERUNICODEBASE 1115000                                                                                               
+#define PRETERUNICODEBASE 1115000
+
 #define preterunicode(w) ((w) + PRETERUNICODEBASE)  
 
 #define NCKEY_TAB      0x09
@@ -53,7 +54,66 @@ class InputEvent : public Event {
   bool hasMeta() const { return meta_; }
   
   int toMidiNote(int octave, Tuning tuning) const {
-    if (tuning == Tuning::TET12) {
+    if (tuning == Tuning::PERCUSSION) {
+      switch (id_) {
+      case '1': return 27; // High Q
+      case '2': return 28; // Slap
+      case '3': return 29; // Stratch Push
+      case '4': return 30; // Stratch Pull
+      case '5': return 31; // Sticks
+      case '6': return 32; // Square Click
+      case '7': return 33; // Metronome Click
+      case '8': return 34; //  Metronome Bell
+      case '9': return 35; // Acoustic Bass Drum
+      case '0': return 36; // Electric Bass Drum
+      case 'q': return 37; // Side Stick
+      case 'w': return 38; // Acoustic Snare
+      case 'e': return 39; // Hand Clap
+      case 'r': return 40; // Electric Snare
+      case 't': return 41; // Low Floor Tom
+      case 'y': return 42; // Closed Hi-hat
+      case 'u': return 43; // High Floor Tom
+      case 'i': return 44; // Pedal Hi-hat
+      case 'o': return 45; // Low Tom
+      case 'p': return 46; // Open Hi-hat
+      case 's': return 47; // Low-Mid Tom
+      case 'd': return 48; // Hi-Mid Tom
+      case 'f': return 49; // Crash Cymbal 1
+      case 'g': return 50; // High Tom
+      case 'h': return 51; // Ride Cymbal 1
+      case 'j': return 52; // Chinese Cymbal
+      case 'k': return 53; // Ride Bell
+      case 'l': return 54; // Tambourine
+      case 'z': return 55; // Splash Cymbal
+      case 'x': return 56; // Cowbell
+      case 'c': return 57; // Crash Cymbal 2
+      case 'v': return 58; // Vibra Slap
+      case 'b': return 59; // Ride Cymbal 2
+      case 'n': return 60; // High Bongo
+      case 'm': return 61; // Low Bongo
+      case '.': return 62; // Mute High Conga
+      case ',': return 63; // Open High Conga
+      case '-': return 64; // Low Conga
+	// 65 High Timbale
+	// 66 Low Timbale
+	// 67 High Agogô
+	// 68 Low Agogô
+	// 69 Cabasa
+	// 70 Maracas
+	// 71 Short Whistle
+	// 72 Long Whistle
+	// 73 Short Guiro
+	// 74 Long Guiro
+	// 75 Claves
+	// 76 High Woodblock
+	// 77 Low Woodblock
+	// 78 Mute Cuica
+	// 79 Open Cuica
+	// 80 Mute Triangle
+	// 81 Open Triangle
+	// 82 Shaker
+      }
+    } else if (tuning == Tuning::TET12) {
       int base = (octave - 4) * 12;
       switch (id_) {
       case 'z': return base + 48;

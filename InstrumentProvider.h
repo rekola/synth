@@ -66,6 +66,8 @@ class InstrumentProvider {
       addInstrument(sf->createInstrument(94, 0, "Pad 7 (halo)"));
       addInstrument(sf->createInstrument(95, 0, "Pad 8 (sweep)"));
 
+      addInstrument(sf->createInstrument(160, 0, "Percussion"));
+
       // 27 High Q
       // 28 Slap
       // 29 Stratch Push
