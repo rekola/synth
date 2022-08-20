@@ -88,12 +88,22 @@ class SampleData final {
     frames_ += other.size();
   }
 
-  void mix(const SampleData & other, float volume) {
-    assert(channels_ == other.channels_);
-    
+  void mix(const SampleData & other, float volume) {    
     int n = size() < other.size() ? size() : other.size();
-    for (int i = 0; i < channels_ * n; i++) {
-      data_[i] += volume * other.data_[i];
+
+    if (channels_ == other.channels_) {
+      for (int i = 0; i < channels_ * n; i++) {
+	data_[i] += volume * other.data_[i];
+      }
+    } else if (other.channels_ == 1) {
+      for (int i = 0; i < n; i++) {
+	float v = other.data_[i];
+	for (int j = 0; j < channels_; j++) {
+	  data_[i * channels_ + j] += volume * v;
+	}
+      }
+    } else {
+      assert(0);
     }
   }
 
