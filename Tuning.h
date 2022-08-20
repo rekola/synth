@@ -5,10 +5,11 @@
 
 enum class Tuning {
   PERCUSSION = 0,
-    TET12,
-    TET19,
-    TET31,
-    TET53
+  TET12,
+  TET19,
+  TET31,
+  TET53,
+  LIGHTING  
 };
 
 static inline std::string to_string(Tuning tuning) {
@@ -18,6 +19,7 @@ static inline std::string to_string(Tuning tuning) {
   case Tuning::TET19: return "19edo";
   case Tuning::TET31: return "31edo";
   case Tuning::TET53: return "53edo";
+  case Tuning::LIGHTING: return "lighting";
   default: return "";
   }
 }
