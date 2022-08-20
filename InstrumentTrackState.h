@@ -67,27 +67,17 @@ public:
   }
 
   SampleData render(int frames) override {
-    SampleData data;
+    SampleData data(getChannelConfiguration(), frames, is_solo_);
+    data.zero();
 
-    if (frames > 0) {
-      for (auto & [ column, voices ] : voices_) {
-	for (auto & voice : voices) {
-	  if (voice->isPlaying()) {
-	    if (data.empty()) {
-	      data = voice->render(frames);
-	    } else {
-	      data.mix(voice->render(frames), 1.0f);
-	    }
-	  }
+    for (auto & [ column, voices ] : voices_) {
+      for (auto & voice : voices) {
+	if (voice->isPlaying()) {
+	  data.mix(voice->render(frames), 1.0f);
 	}
       }
-      
-      if (data.empty()) {
-	data = SampleData(getChannelConfiguration(), frames, is_solo_);
-	data.zero();
-      }
     }
-    
+        
     return data;    
   }
 

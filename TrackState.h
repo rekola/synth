@@ -22,22 +22,12 @@ class TrackState {
   virtual TrackInfo getInfo() const { return TrackInfo(true); }
 
   virtual SampleData render(int frames) {
-    SampleData data;
+    SampleData data(getChannelConfiguration(), frames);
+    data.zero();
 
-    if (frames > 0) {  
-      for (auto & child : getChildren()) {
-	if (child->isPlaying()) {
-	  if (data.empty()) {
-	    data = child->render(frames);
-	  } else {
-	    data.mix(child->render(frames), 1.0f);
-	  }
-	}
-      }
-
-      if (data.empty()) {
-	data = SampleData(getChannelConfiguration(), frames);
-	data.zero();
+    for (auto & child : getChildren()) {
+      if (child->isPlaying()) {
+	data.mix(child->render(frames), 1.0f);
       }
     }
     
