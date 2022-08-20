@@ -76,7 +76,7 @@ class Note {
 					       "G♭", "G", "G♯", "A♭", "A", "A♯", "B♭", "B", "C♭" };
     static const char * note_names_12tet[] = { "C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B" };
 
-    static const char * percussion_names[] = { "HighQ", "Slap", "Stratch Push", "Stratch Pull", "Sticks", "Square Click", "Metr.Click", "Metr.Bell", "BD", "eBD", "Side Stick", "SD", "Hand Clap", "eSnare", "Low Floor Tom", "CH", "High Floor Tom", "HF", "T4", "OH", "T3", "T2", "CC1", "T1", "RC1", "Chinese Cymbal", "Ride Bell", "TA", "SC", "CB", "CC2", "Vibra Slap", "RC2", "High Bongo", "Low Bongo", "Mute High Conga", "Open High Conga", "Low Conga", "High Timbale", "Low Timbale", "High Agogô", "Low Agogô", "Cabasa", "Maracas", "Short Whistle", "Long Whistle", "Short Guiro", "Long Guiro", "Claves", "WB1", "WB2", "Mute Cuica", "Open Cuica", "Mute Triangle", "Open Triangle", "SH" };
+    static const char * percussion_names[] = { "HighQ", "Slap", "Stratch Push", "Stratch Pull", "Sticks", "Square Click", "Metr.Click", "Metr.Bell", "BD", "eBD", "Side Stick", "SD", "Hand Clap", "eSnare", "Low Floor Tom", "CH", "High Floor Tom", "HF", "T4", "OH", "T3", "T2", "CC1", "T1", "RC1", "Chinese Cymbal", "Ride Bell", "TA", "SC", "CB", "CC2", "Vibra Slap", "RC2", "B1", "B2", "Mute High Conga", "Open High Conga", "Low Conga", "High Timbale", "Low Timbale", "High Agogô", "Low Agogô", "Cabasa", "Maracas", "Short Whistle", "Long Whistle", "Short Guiro", "Long Guiro", "Claves", "WB1", "WB2", "Mute Cuica", "Open Cuica", "Mute Triangle", "Open Triangle", "SH" };
 
     if (tuning == Tuning::PERCUSSION) {
       if (value >= 27 && value <= 82) return percussion_names[value - 27];
@@ -112,6 +112,8 @@ class Note {
       else if (input_value == "CB") return 56; // Cowbell
       else if (input_value == "CC2") return 57; // Crash Cymbal 2
       else if (input_value == "RC2") return 59; // Ride Cymbal 2
+      else if (input_value == "B1") return 60; // High Bongo
+      else if (input_value == "B2") return 61; // Low Bongo
       else if (input_value == "WB1") return 76; // High Woodblock
       else if (input_value == "WB2") return 77; // Low Woodblock
       else if (input_value == "SH") return 82; // Shaker
