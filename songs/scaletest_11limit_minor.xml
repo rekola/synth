@@ -2,11 +2,6 @@
 <song temperament="31edo" tempo="200" volume="0.75" randomization="0.0099999998">
   <instruments>
     <genericInstrument name="Piano" />    
-    <genericInstrument name="Electric Piano 1" />
-    <genericInstrument name="Electric Piano 2" />
-    <genericInstrument name="Electric Grand Piano" />
-    <genericInstrument name="Acoustic Bass Drum" />
-    <genericInstrument name="Synth Brass 1" />
   </instruments>
   
   <tracks>

@@ -17,7 +17,7 @@
     <envelope name="Oboe" attack="0.05" decay="0.3" sustain="0.8" release="0.2">
       <oscilator harmonic="4">
 	<oscilator level="0.7" harmonic="1" subharmonic="3"/>
-	<LFO frequency="3" level="0.5"/>
+	<LFO frequency="2" level="0.4"/>
       </oscilator>
     </envelope>
 

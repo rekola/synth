@@ -2,8 +2,6 @@
 <song temperament="31edo" tempo="200" volume="1.0" randomization="0.0099999998">
   <instruments>
     <genericInstrument name="Piano" />
-    <genericInstrument name="Acoustic Bass Drum" />
-    <genericInstrument name="Synth Brass 1" />
   </instruments>
   
   <tracks>

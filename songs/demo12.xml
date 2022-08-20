@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="200" volume="1.0" randomization="0.0099999998">
   <instruments>
-    <genericInstrument name="Acoustic Bass Drum" />
+    <genericInstrument name="Percussion" />
     <genericInstrument name="Synth Brass 1" />
     <genericInstrument name="Piano" />
   </instruments>
   
   <tracks>
-    <reverb id="100" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle">
-      <compressor id="101">
-	<track id="0" instrument="0" volume="3.0"/>
+    <reverb azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle">
+      <compressor>
+	<percussionTrack id="0" instrument="0" volume="3.0"/>
 	<track id="1" instrument="1"/>	
       </compressor>
     </reverb>
@@ -17,16 +17,16 @@
   
   <patterns>
     <pattern rows="32">
-      <note row="0" track="0" velocity="127" value="C-4"/>
+      <note row="0" track="0" velocity="127" value="BD"/>
       <note row="0" track="1" velocity="127" value="C-4"/>
       
-      <note row="4" track="0" velocity="127" value="C-4"/>
-      <note row="8" track="0" velocity="127" value="C-4"/>
-      <note row="12" track="0" velocity="127" value="C-4"/>
-      <note row="16" track="0" velocity="127" value="C-4"/>
-      <note row="20" track="0" velocity="127" value="C-4"/>
-      <note row="24" track="0" velocity="127" value="C-4"/>
-      <note row="28" track="0" velocity="127" value="C-4"/>      
+      <note row="4" track="0" velocity="127" value="BD"/>
+      <note row="8" track="0" velocity="127" value="BD"/>
+      <note row="12" track="0" velocity="127" value="BD"/>
+      <note row="16" track="0" velocity="127" value="BD"/>
+      <note row="20" track="0" velocity="127" value="BD"/>
+      <note row="24" track="0" velocity="127" value="BD"/>
+      <note row="28" track="0" velocity="127" value="BD"/>      
     </pattern>
   </patterns>
 </song>
