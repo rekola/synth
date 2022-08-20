@@ -17,7 +17,7 @@ class SongState : public TrackState {
     mixer.reset();
   
     if (isPlaying()) {
-      for (size_t i = 0; i < frames; i++) {
+      for (int i = 0; i < frames; i++) {
 	if (getSamplePos() == 0) {
 	  auto [ pattern_idx, row_idx ] = getRelativePosition(song);
 	  auto & pattern = song.getPattern(pattern_idx);
@@ -35,15 +35,13 @@ class SongState : public TrackState {
 	      if (notes[j].isDefined()) {
 		auto & note = notes[j];
 		float frequency = 0.0f, velocity = 0.0f;
-		float delay = 0;
 		if (note.isAftertouch()) {
 		  velocity = note.getVelocityAsFloat();
 		} else if (!note.isOff()) {
 		  frequency = getTuner().getFrequency(tuning, song.getKey(), note);
 		  velocity = note.getVelocityAsFloat() * (1 + song.getRandomizationFactor() * getRandF());
-		  delay = note.getDelayAsFloat();
 		}
-		delay += song.getRandomizationFactor() * getRandF();
+		float delay = note.getDelayAsFloat() + song.getRandomizationFactor() * getRandF();
 		auto delay_samples = int(delay * song.getSampleInterval(getChannelConfiguration().getAudioOutSampleRate()));
 		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), frequency, velocity);
 	      }
