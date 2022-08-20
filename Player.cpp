@@ -21,7 +21,7 @@ class EventLogger : public Logger {
   EventLogger(EventQueue * _event_queue) : event_queue(_event_queue) { }
 
   void log(std::string s) override {
-    event_queue->push(make_unique<LogEvent>(s));
+    event_queue->push(make_unique<LogEvent>(std::move(s)));
   }
 
 private:

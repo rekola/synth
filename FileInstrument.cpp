@@ -10,17 +10,15 @@ using namespace std;
 
 #define BLOCK_SIZE 4096
 
-void
+bool
 FileInstrument::openFile() {
   SNDFILE * infile = 0;
   SF_INFO sfinfo;
 
   memset(&sfinfo, 0, sizeof(sfinfo));
 
-  if ((infile = sf_open(filename.c_str(), SFM_READ, &sfinfo)) == NULL) {
-    // printf ("Not able to open input file %s.\n", filename.c_str());
-    // puts (sf_strerror (NULL)) ;
-    return;
+  if ((infile = sf_open(filename_.c_str(), SFM_READ, &sfinfo)) == NULL) {
+    return false;
   }
 
   // printf("# Channels %d, Sample rate %d\n", sfinfo.channels, sfinfo.samplerate) ;
@@ -28,8 +26,7 @@ FileInstrument::openFile() {
   
   float * buf = (float *)malloc(BLOCK_SIZE * sizeof (float));
   if (buf == NULL) {
-    // printf ("Error : Out of memory.\n\n") ;
-    return;
+    return false;
   }
   
   sf_count_t frames = BLOCK_SIZE / channels;
@@ -45,11 +42,13 @@ FileInstrument::openFile() {
   free(buf);
   sf_close(infile);
 
-  samples = make_shared<SampleData>(channels, buffer.size());
-  auto out_buffer = samples->data();
-  for (int i = 0; i < samples->size(); i++) {
+  samples_ = make_shared<SampleData>(channels, buffer.size());
+  auto out_buffer = samples_->data();
+  for (int i = 0; i < samples_->size(); i++) {
     out_buffer[i] = buffer[i];
   }
+
+  return true;
 }
 
 class FileInstrumentVoice : public InstrumentVoice {
@@ -101,7 +100,7 @@ private:
 
 std::unique_ptr<TrackState>
 FileInstrument::playNote(const ChannelConfiguration & channel_config, float azimuth, float frequency, float detune, float velocity, float start_phase) const {
-  auto voice = std::make_unique<FileInstrumentVoice>(channel_config, azimuth, detune, start_phase, samples);
+  auto voice = std::make_unique<FileInstrumentVoice>(channel_config, azimuth, detune, start_phase, samples_);
   voice->playNote(frequency, velocity);
   return voice;
 }

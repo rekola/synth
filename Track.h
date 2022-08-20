@@ -64,7 +64,7 @@ class Track : public StatefulSongObject {
     if (isMuted()) output.set("mute", true);
   }
   
-  virtual std::string getElementName() const = 0;
+  virtual const char * getElementName() const = 0;
 
   virtual std::unique_ptr<TrackState> playNote(const ChannelConfiguration & config, float azimuth, float frequency, float detune, float velocity, float start_phase) const {
     auto group = createState(config);

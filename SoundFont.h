@@ -9,7 +9,7 @@ class SoundFontFile;
 
 class SoundFont : public InstrumentSet {
  public:  
-  explicit SoundFont(std::string filename) : filename_(filename) {
+  explicit SoundFont(std::string filename) : filename_(std::move(filename)) {
     openFile();
   }
 

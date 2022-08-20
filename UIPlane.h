@@ -22,7 +22,7 @@ class UIPlane {
   virtual void setBgColor(int r, int g, int b) = 0;
   virtual void setUnderline(bool b) = 0;
   virtual void erase() = 0;
-  virtual void putstr(int y, int x, std::string s) = 0;
+  virtual void putstr(int y, int x, const std::string & s) = 0;
   virtual std::unique_ptr<UIPlane> createChild() = 0;
   virtual void drawBorder() = 0;
   virtual bool offerInput(const InputEvent & input) = 0;
@@ -30,7 +30,7 @@ class UIPlane {
   virtual std::string closeReader() = 0;
   virtual bool readerActive() const = 0;
   virtual void showPicker() = 0;
-  virtual void addItem(std::string id, std::string description) = 0;
+  virtual void addItem(const std::string & id, const std::string & description) = 0;
   virtual void clearItems() = 0;
   virtual void refresh() = 0;
   

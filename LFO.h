@@ -7,7 +7,7 @@ class LFO : public Instrument {
  public:
   LFO() { }
   
-  std::string getElementName() const override { return "LFO"; }
+  const char * getElementName() const override { return "LFO"; }
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;
   std::unique_ptr<TrackState> playNote(const ChannelConfiguration & config, float azimuth, float frequency, float detune, float velocity, float start_phase) const override;

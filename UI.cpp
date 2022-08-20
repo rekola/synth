@@ -117,7 +117,7 @@ UI::offerInput(const InputEvent & input) {
 void
 UI::setStatus(std::string s) {
   if (status_line) {
-    status_line->setMessage(s);
+    status_line->setMessage(std::move(s));
     render();
   }
 }
@@ -185,5 +185,5 @@ UI::start(AudioAPI & audio) {
 
 void
 StatusLogger::log(std::string s) {
-  ui->setStatus(s);
+  ui->setStatus(std::move(s));
 }

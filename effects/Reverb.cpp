@@ -62,7 +62,7 @@ private:
 
 std::unique_ptr<TrackState>
 Reverb::createState(const ChannelConfiguration & channel_config) const {
-  return make_unique<ReverbState>(channel_config, preset);
+  return make_unique<ReverbState>(channel_config, preset_);
 }
 
 void
@@ -70,16 +70,16 @@ Reverb::loadParameters(const ParameterSource & input) {
   Track::loadParameters(input);
   
   auto preset_text = input.getText("preset");
-  if (preset_text == "subtle") preset = ReverbPreset::SUBTLE;
-  else if (preset_text == "stadium") preset = ReverbPreset::STADIUM;
-  else if (preset_text == "cupboard") preset = ReverbPreset::CUPBOARD;
-  else if (preset_text == "dark") preset = ReverbPreset::DARK;
-  else if (preset_text == "halves") preset = ReverbPreset::HALVES;
+  if (preset_text == "subtle") preset_ = ReverbPreset::SUBTLE;
+  else if (preset_text == "stadium") preset_ = ReverbPreset::STADIUM;
+  else if (preset_text == "cupboard") preset_ = ReverbPreset::CUPBOARD;
+  else if (preset_text == "dark") preset_ = ReverbPreset::DARK;
+  else if (preset_text == "halves") preset_ = ReverbPreset::HALVES;
 }
 
 void
 Reverb::storeParameters(ParameterSource & output) const {
   Track::storeParameters(output);
 
-  output.set("preset", to_string(preset));
+  output.set("preset", to_string(preset_));
 }

@@ -403,7 +403,7 @@ static void tsf_load_samples(float** fontSamples, unsigned int* fontSampleCount,
 
 class SoundFontFile {
 public:
-  SoundFontFile(std::string filename) {
+  SoundFontFile(const std::string & filename) {
     loadFile(filename);
   }
   ~SoundFontFile() {
@@ -429,7 +429,7 @@ public:
   }
 
   // Returns the name of a preset index >= 0 and < tsf_get_presetcount()
-  string getPresetName(size_t index) const {
+  const char * getPresetName(size_t index) const {
     if (index < presets_.size()) return presets_[index].presetName;
     else return "";
   }
@@ -927,7 +927,7 @@ class SoundFontInstrument : public Instrument {
 public:
   SoundFontInstrument(std::shared_ptr<SoundFontFile> sf, size_t preset, size_t fixedMidiKey) : sf_(sf), preset_(preset), fixedMidiKey_(fixedMidiKey) { }
 
-  virtual std::string getElementName() const { return "soundFontInstrument"; }
+  const char * getElementName() const override { return "soundFontInstrument"; }
 
   std::unique_ptr<TrackState> playNote(const ChannelConfiguration & channel_config, float azimuth, float frequency, float detune, float velocity, float start_phase) const override {    
     assert(frequency > 0);
@@ -994,7 +994,6 @@ std::unique_ptr<Instrument>
 SoundFont::createInstrument(size_t preset, size_t fixedMidiKey, const char * name) {
   auto instrument = make_unique<SoundFontInstrument>(sf_, preset, fixedMidiKey);
   instrument->setName(name ? name : sf_->getPresetName(preset));
-  instrument->setIsPercussion(fixedMidiKey != 0);
   return instrument;
 }
 

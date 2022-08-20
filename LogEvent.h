@@ -7,14 +7,14 @@
 
 class LogEvent : public Event {
  public:
-  explicit LogEvent(std::string _text) : text(_text) { }
+  explicit LogEvent(std::string text) : text_(std::move(text)) { }
 
   void dispatch(EventHandler & evh) override { evh.handleLogEvent(*this); }
 
-  const std::string & getText() const { return text; }
+  const std::string & getText() const { return text_; }
 
 private:
-  std::string text;
+  std::string text_;
 };
 
 #endif

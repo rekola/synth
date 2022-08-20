@@ -140,8 +140,8 @@ class Pattern : public SongObject {
     }
   }
 
-  void setAnnotation(int row, std::string s) {
-    annotations[row] = s;
+  void setAnnotation(int row, std::string a) {
+    annotations[row] = std::move(a);
   }
   
   const std::string & getAnnotation(int row) const {

@@ -9,7 +9,7 @@ class EnvelopeFilter : public Track {
   EnvelopeFilter() : Track(TrackType::EFFECT) { }
   
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & channel_config) const override;
-  std::string getElementName() const override { return "envelope"; }
+  const char * getElementName() const override { return "envelope"; }
 
   void loadParameters(const ParameterSource & input) override {
     Track::loadParameters(input);

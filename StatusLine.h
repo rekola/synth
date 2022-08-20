@@ -8,9 +8,9 @@ class StatusLine : public UIElement {
  public:
   StatusLine(UIPlane & parent) : UIElement(parent) { }
 
-  void setMessage(const std::string & s) {
+  void setMessage(std::string s) {
     if (getPlane().readerActive()) {
-      pending_message = s;
+      pending_message = std::move(s);
     } else {
       erase();
       putstr(0, 0, s.c_str());
@@ -20,7 +20,7 @@ class StatusLine : public UIElement {
   bool offerInput(const InputEvent & input) override {
     if (getPlane().readerActive()) {
       if (input.getId() == NCKEY_ENTER) {
-	std::string cmd = closeReader();
+	auto cmd = closeReader();
 	if (!getController().sendCommand(cmd)) {
 	  setMessage("Invalid command");
 	}
@@ -45,11 +45,11 @@ class StatusLine : public UIElement {
   }
 
   std::string closeReader() {
-    std::string cmd = getPlane().closeReader();
+    auto cmd = getPlane().closeReader();
     if (pending_message.empty()) {
       setMessage("");
     } else {
-      setMessage(pending_message);
+      setMessage(std::move(pending_message));
       pending_message.clear();
     }
     return cmd;

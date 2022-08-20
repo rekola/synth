@@ -513,7 +513,7 @@ Controller::createNewSong() {
 }
 
 bool
-Controller::openSong(string filename) {  
+Controller::openSong(const string & filename) {  
   auto song = make_shared<Song>();
   if (!song->open(filename, instrument_provider)) {
     return false;
@@ -524,7 +524,7 @@ Controller::openSong(string filename) {
 }
 
 bool
-Controller::sendCommand(const std::string & cmd) {  
+Controller::sendCommand(std::string_view cmd) {  
   if (cmd == "new-song") {
     createNewSong();
   } else if (cmd == "save-song") {

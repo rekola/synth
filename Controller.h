@@ -1,3 +1,4 @@
+
 #ifndef _CONTROLLER_H_
 #define _CONTROLLER_H_
 
@@ -19,10 +20,10 @@ class Controller {
   Song & getSong() { return *current_song; }
 
   void createNewSong();
-  bool openSong(std::string filename);
+  bool openSong(const std::string & filename);
   
   void loadDemo2();
-  bool sendCommand(const std::string & s);
+  bool sendCommand(std::string_view s);
 
   std::shared_ptr<SampleData> startRecording() {
     current_sample = std::make_shared<SampleData>(1, 0);

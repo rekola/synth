@@ -18,15 +18,15 @@ static inline const std::string to_string(ReverbPreset preset) {
 
 class Reverb : public Track {
  public:
-  explicit Reverb(ReverbPreset _preset = ReverbPreset::SUBTLE) : Track(TrackType::EFFECT), preset(_preset) { }
+  explicit Reverb(ReverbPreset preset = ReverbPreset::SUBTLE) : Track(TrackType::EFFECT), preset_(preset) { }
 
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & channel_config) const override;
-  std::string getElementName() const override { return "reverb"; }
+  const char * getElementName() const override { return "reverb"; }
   void loadParameters(const ParameterSource & element) override;
   void storeParameters(ParameterSource & element) const override;
 
 private:
-  ReverbPreset preset;
+  ReverbPreset preset_;
 };
 
 #endif

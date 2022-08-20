@@ -21,7 +21,7 @@ class Distortion : public Track {
   Distortion(DistortionType type, float param, float drymix) : Track(TrackType::EFFECT), type_(type), param_(param), drymix_(drymix) { }
 
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & channel_config) const override;
-  std::string getElementName() const override { return "distortion"; }
+  const char * getElementName() const override { return "distortion"; }
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;
 

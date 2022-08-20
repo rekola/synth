@@ -2,35 +2,40 @@
 #define _COMMAND_H_
 
 #include <string>
+#include <string_view>
+#include <cassert>
 
 class Command {
  public:
   Command() {
-    values[0] = '-';
-    values[1] = '-';
-    values[2] = '-';
-    values[3] = '-';
+    values_[0] = '-';
+    values_[1] = '-';
+    values_[2] = '-';
+    values_[3] = '-';
   }
 
-  Command(const char * _values) {
-    values[0] = _values[0];
-    values[1] = _values[1];
-    values[2] = _values[2];
-    values[3] = _values[3];
+  Command(std::string_view values) {
+    assert(values.size() == 4);
+    if (values.size() >= 4) {
+      values_[0] = values[0];
+      values_[1] = values[1];
+      values_[2] = values[2];
+      values_[3] = values[3];
+    }
   }
 
-  void updateData(size_t i, char c) { if (i < 4) values[i] = c; }
+  void updateData(size_t i, char c) { if (i < 4) values_[i] = c; }
   
-  bool isDefined() const { return values[0] != '-' || values[1] != '-' || values[2] != '-' || values[3] != '-'; }
+  bool isDefined() const { return values_[0] != '-' || values_[1] != '-' || values_[2] != '-' || values_[3] != '-'; }
 
-  const char * data() const { return &(values[0]); }
+  const char * data() const { return &(values_[0]); }
   
  private:
-  char values[4];
+  char values_[4];
 };
 
 static inline const std::string to_string(const Command & command) {
-  const char * values = command.data();
+  auto values = command.data();
   std::string s;
   s += values[0];
   s += values[1];

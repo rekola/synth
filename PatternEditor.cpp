@@ -598,7 +598,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 
 	  auto text_width = actual_width - 3;
 	  
-	  std::string name = !track->getName().empty() ? track->getName() : (!track->getId().empty() ? "Trk " + track->getId() : format("Trk {:02d}", track->getInternalId()));
+	  auto name = !track->getName().empty() ? track->getName() : (!track->getId().empty() ? "Trk " + track->getId() : format("Trk {:02d}", track->getInternalId()));
 	  if (name.size() > text_width) name.erase(text_width);
 	  else {
 	    while (name.size() < text_width) name += ' ';
@@ -629,7 +629,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  if (instrument_name.size() > actual_width - 1) instrument_name.erase(actual_width - 1);
 	  putstr(heading_height - 2 - level + 1, current_pos, instrument_name);
 	} else {	  
-	  auto name = track->getElementName();
+	  std::string name = track->getElementName();
 	  auto & track_info = info.getTrackInfo(track->getInternalId());
 	  
 	  if (name.size() > actual_width - 4) name.erase(actual_width - 4);
@@ -754,7 +754,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	    setFgColor(cell_fg);
 	    setBgColor(cell_bg);
 	  }
-	  string s = to_string(command);
+	  auto s = to_string(command);
 	  putstr(display_row, current_pos, s);
 	  if (column_highlighted) {
 	    setUnderline(true);
@@ -778,7 +778,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  current_pos += 3;
 	} else if (column_type == ColumnType::VELOCITY || column_type == ColumnType::DELAY) {	  	      
 	  auto l = track_info.getNoteNumber(k);
-	  Note note = l < notes.size() ? notes[l] : Note();
+	  auto note = l < notes.size() ? notes[l] : Note();
 	  string s;
 	  if (note.isDefined()) {
 	    if (column_type == ColumnType::VELOCITY && note.isOff()) {

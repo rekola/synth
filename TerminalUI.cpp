@@ -79,7 +79,7 @@ public:
     }
   }
   void erase() override { plane->erase(); }
-  void putstr(int y, int x, std::string s) override { plane->putstr(y, x, s.c_str()); }
+  void putstr(int y, int x, const std::string & s) override { plane->putstr(y, x, s.c_str()); }
   unique_ptr<UIPlane> createChild() override {
     auto plane = new Plane(1, 1, 0, 0);
     plane->set_base("", 0, NCCHANNELS_INITIALIZER(0xc0, 0x80, 0xc0, 0x20, 0, 0x20));
@@ -187,7 +187,7 @@ public:
     selector = make_unique<Selector>(getPlane(), &opts);
   }
 
-  void addItem(string id, string label) override {
+  void addItem(const string & id, const string & label) override {
     if (selector) {
       char * option = new char[id.size() + 1];
       char * desc = new char[label.size() + 1];

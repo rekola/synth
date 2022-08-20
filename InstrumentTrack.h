@@ -9,7 +9,7 @@ class InstrumentTrack : public Track {
   InstrumentTrack(int instrument_id) : Track(TrackType::INSTRUMENT_CONTROL), instrument_id_(instrument_id) { }
   InstrumentTrack(TrackType type) : Track(type), instrument_id_(0) { }
 
-  std::string getElementName() const override { return "track"; }
+  const char * getElementName() const override { return "track"; }
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override;
 
   SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) const override;
@@ -28,7 +28,7 @@ class InstrumentTrack : public Track {
   float getAzimuth() const { return azimuth_; }
   float getDistance() const { return distance_; }
 
-  void setColor(std::string_view color) { color_ = color; }
+  void setColor(std::string color) { color_ = std::move(color); }
   const std::string & getColor() const { return color_; }
 
   bool showNoteColumn() const { return show_note_column_; }

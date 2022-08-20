@@ -12,7 +12,7 @@ class Arpeggiator : public Track {
   };
   Arpeggiator() : Track(TrackType::EFFECT) { }
 
-  std::string getElementName() const override { return "arpeggiator"; }
+  const char * getElementName() const override { return "arpeggiator"; }
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;
   std::unique_ptr<TrackState> playNote(const ChannelConfiguration & channel_config, float azimuth, float frequency, float detune, float velocity, float start_phase) const override;

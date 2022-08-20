@@ -9,7 +9,7 @@ class Delay : public Track {
   }
 
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & channel_config) const override;
-  std::string getElementName() const override { return "delay"; }
+  const char * getElementName() const override { return "delay"; }
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;
 

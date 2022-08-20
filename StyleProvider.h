@@ -3,11 +3,8 @@
 
 #include "UIColor.h"
 
-#include <string>
-
 class StyleProvider {
  public:
-
   UIColor highlight_fg_color = "#000000";
   UIColor highlight_bg_color = "#a0ffa0";
 

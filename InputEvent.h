@@ -63,7 +63,7 @@ class InputEvent : public Event {
       case '5': return 31; // Sticks
       case '6': return 32; // Square Click
       case '7': return 33; // Metronome Click
-      case '8': return 34; //  Metronome Bell
+      case '8': return 34; // Metronome Bell
       case '9': return 35; // Acoustic Bass Drum
       case '0': return 36; // Electric Bass Drum
       case 'q': return 37; // Side Stick

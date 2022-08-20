@@ -12,7 +12,7 @@ class GenericInstrument : public Instrument {
     detune *= getHarmonic();
     detune /= getSubharmonic();
 
-    auto voice = concrete_instrument->playNote(channel_config, azimuth, frequency, detune, velocity, start_phase);
+    auto voice = concrete_instrument_->playNote(channel_config, azimuth, frequency, detune, velocity, start_phase);
 
     // don't pass velocity or azimuth to children
     for (auto & child : getChildren()) {    
@@ -23,14 +23,14 @@ class GenericInstrument : public Instrument {
     return voice;
   }
 
-  std::string getElementName() const { return "genericInstrument"; }
+  const char * getElementName() const override { return "genericInstrument"; }
 
   void prepare(const InstrumentProvider & provider) override {
-    concrete_instrument = provider.getInstrumentByName(getName());
+    concrete_instrument_ = provider.getInstrumentByName(getName());
   }
 
  private:
-  std::shared_ptr<Instrument> concrete_instrument;
+  std::shared_ptr<Instrument> concrete_instrument_;
 };
 
 #endif

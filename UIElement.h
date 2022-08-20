@@ -25,7 +25,7 @@ class UIElement : public EventHandler {
     }
   }
 
-  UIElement & putstr(int y, int x, std::string s) {
+  UIElement & putstr(int y, int x, const std::string & s) {
     if (plane_) plane_->putstr(y, x, s);
     return *this;
   }
@@ -38,7 +38,7 @@ class UIElement : public EventHandler {
     return *this;
   }
 #if 0
-  UIElement & putstrN(int y, int x, std::string s, int limit) {
+  UIElement & putstrN(int y, int x, const std::string & s, int limit) {
     
   }
 #endif

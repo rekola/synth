@@ -23,7 +23,7 @@ class InstrumentProvider {
   }
 
   void loadSoundFont(std::string filename, bool as_midi_default = true) {
-    auto sf = std::make_unique<SoundFont>(filename);
+    auto sf = std::make_unique<SoundFont>(std::move(filename));
 
     if (as_midi_default) {
       // Piano
@@ -134,7 +134,7 @@ class InstrumentProvider {
     }
   }
   
-  std::shared_ptr<Instrument> getInstrumentByName(std::string name) const {
+  std::shared_ptr<Instrument> getInstrumentByName(const std::string & name) const {
     auto it = instruments_by_name.find(name);
     if (it != instruments_by_name.end()) {
       return it->second;

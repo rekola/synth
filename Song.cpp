@@ -56,24 +56,24 @@ private:
   XMLElement * element_;
 };
 
-static inline vector<string> split_notes(const string & line) {
+static inline vector<string> split_notes(string_view line) {
   vector<string> r;
   
   if (!line.empty()) {
     size_t i0 = 0, i = 0;
     for ( ; i < line.size(); i++) {
       if (isspace(line[i])) {
-	r.push_back(line.substr(i0, i - i0));
+	r.push_back(string(line.substr(i0, i - i0)));
 	while (isspace(line[i + 1])) i++;
 	i0 = i + 1;
       }
     }
-    r.push_back(line.substr(i0, i - i0));
+    r.push_back(string(line.substr(i0, i - i0)));
   }
   return r;
 }
 
-Tuning parse_tuning(const std::string & tuning_text, Tuning default_tuning = Tuning::TET12) {
+static Tuning parse_tuning(string_view tuning_text, Tuning default_tuning = Tuning::TET12) {
   if (tuning_text == "perc") return Tuning::PERCUSSION;
   else if (tuning_text == "12edo") return Tuning::TET12;
   else if (tuning_text == "31edo") return Tuning::TET31;
@@ -83,7 +83,7 @@ Tuning parse_tuning(const std::string & tuning_text, Tuning default_tuning = Tun
   return default_tuning;
 }
 
-static unique_ptr<Track> createTrack(const string & name) {  
+static unique_ptr<Track> createTrack(string_view name) {  
   if (name == "track") return make_unique<InstrumentTrack>();
   if (name == "percussionTrack") return make_unique<PercussionTrack>();
   else if (name == "group") return make_unique<Group>();
@@ -133,7 +133,7 @@ static std::unique_ptr<Track> parseChildTrack(XMLElement & element, const Instru
 
 static void storeChildTrack(const Track & track, XMLDocument & doc, XMLElement * target_element) {
   auto name = track.getElementName();
-  auto track_element = doc.NewElement(name.c_str());
+  auto track_element = doc.NewElement(name);
   XMLParameterSource parameters(track_element);
   track.storeParameters(parameters);
 
