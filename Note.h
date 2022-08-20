@@ -3,16 +3,17 @@
 
 #include "Tuning.h"
 
-#include <cmath>
 #include <string>
+#include <string_view>
 #include <cassert>
+#include <charconv>
 
 class Note {
  public:  
   explicit Note() : value(-1), velocity(0), delay(0) { }
   explicit Note(int _value, short _velocity = 0x28, short _delay = 0) : value(_value), velocity(_velocity), delay(_delay) { }
-  explicit Note(std::string input_value, short _velocity = 0x28, short _delay = 0, Tuning tuning = Tuning::TET12)
-    : value(stringToKey(tuning, input_value)),
+  explicit Note(std::string_view input_value, short _velocity = 0x28, short _delay = 0, Tuning tuning = Tuning::TET12)
+    : value(stringToKey(tuning, std::move(input_value))),
       velocity(_velocity),
       delay(_delay) { }
 
@@ -65,16 +66,6 @@ class Note {
       return "···";
     }
   }
-  
-  static void inline replace(std::string & data, const std::string from, std::string to) {
-    std::string::size_type pos = 0;
-    while ( 1 ) {
-      pos = data.find(from, pos);
-      if (pos == std::string::npos) break;
-      data.replace(pos, from.size(), to);
-      pos += to.size();
-    }
-  }
 
   static inline std::string keyToString(Tuning tuning, int value) {
     static const char * note_names_31tet[] = { "C", "D𝄫", "C♯", "D♭", "C𝄪", "D", "E𝄫", "D♯",
@@ -99,7 +90,7 @@ class Note {
     }    
   }
 
-  static inline int stringToKey(Tuning tuning, std::string input_value) {
+  static inline int stringToKey(Tuning tuning, std::string_view input_value) {
     if (input_value == "off" || input_value == "OFF") {
       return 0;
     } else if (tuning == Tuning::PERCUSSION) {
@@ -125,19 +116,14 @@ class Note {
       else if (input_value == "WB2") return 77; // Low Woodblock
       else if (input_value == "SH") return 82; // Shaker
       else return 0;
-    } else {
-      replace(input_value, "♯", "#");
-      replace(input_value, "♭", "b");
-      replace(input_value, "𝄫", "bb");
-      replace(input_value, "𝄪", "x");
-    
-      int octave;
+    } else {     
+      int octave = 4;
       auto pos = input_value.find_first_of("0123456789");
-      if (pos != std::string::npos) {
-	octave = stoi(input_value.substr(pos));
-	input_value.erase(pos);
-      } else {
-	octave = 4;
+      if (pos != std::string_view::npos) {
+	auto octave_text = input_value.substr(pos);
+	auto result = std::from_chars(octave_text.data(), octave_text.data() + octave_text.size(), octave);
+	if (result.ec == std::errc::invalid_argument) return 0;
+	input_value.remove_suffix(octave_text.size());
       }
       auto letter = input_value[0];
       auto accidental = input_value.substr(1);
@@ -145,7 +131,7 @@ class Note {
       assert(letter >= 'A' && letter <= 'G');
       
       if (tuning == Tuning::TET12) {
-	int value = (octave + 1) * 12;
+	auto value = (octave + 1) * 12;
       
 	// C C# D D# E F F# G G# A A# B
 
@@ -155,26 +141,26 @@ class Note {
 	else {
 	  assert(0);
 	}
-      
-	if (accidental == "#") value++;
-	else if (accidental == "b") value--;
+
+	if (accidental == "#" || accidental == "♯") value++;
+	else if (accidental == "b" || accidental == "♭") value--;
 	else {
 	  assert(accidental == "-");
 	}
 
 	return value;
       } else if (tuning == Tuning::TET19) {
-	int value = (octave + 1) * 19;
+	auto value = (octave + 1) * 19;
 
 	// C C♯ D♭ D D♯ E♭ E E♯ F♭ F F♯ G♭ G G♯ A♭ A A♯ B♭ B B♯ C♭
 	assert(0);
 	return value;
       } else {
-	int value = (octave + 1) * 31;
+	auto value = (octave + 1) * 31;
       
-	// C D𝄫 C♯ D♭ C𝄪 D E𝄫 D♯,
-	// E♭ D𝄪 E F♭ E♯ F G𝄫 F♯,
-	// G♭ F𝄪 G A𝄫 G♯ A♭ G𝄪 A,
+	// C D𝄫 C♯ D♭ C𝄪 D E𝄫 D♯
+	// E♭ D𝄪/F𝄫 E F♭ E♯ F E𝄪/G𝄫 F♯
+	// G♭ F𝄪 G A𝄫 G♯ A♭ G𝄪 A
 	// B𝄫 A♯ B♭ A𝄪 B C♭ B♯
 
 	if (letter >= 'C' && letter <= 'E') value += (letter - 'C') * 5;
@@ -184,10 +170,10 @@ class Note {
 	  assert(0);
 	}
 
-	if (accidental == "#") value += 2;
-	else if (accidental == "b") value -= 2;
-	else if (accidental == "x") value += 4;
-	else if (accidental == "bb") value -= 4;
+	if (accidental == "#" || accidental == "♯") value += 2;
+	else if (accidental == "b" || accidental == "♭") value -= 2;
+	else if (accidental == "x" || accidental == "𝄪") value += 4;
+	else if (accidental == "bb" || accidental == "𝄫") value -= 4;
 	else {
 	  assert(accidental.empty() || accidental == "-");
 	}
