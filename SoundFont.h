@@ -13,7 +13,7 @@ class SoundFont : public InstrumentSet {
     openFile();
   }
 
-  std::unique_ptr<Instrument> createInstrument(size_t preset, size_t fixedMidiKey = 0, const char * name = 0) override;
+  std::unique_ptr<Instrument> createInstrument(size_t preset, const char * name = 0) override;
   std::vector<std::unique_ptr<Instrument> > createAll() override;
   
 protected:

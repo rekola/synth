@@ -658,19 +658,21 @@ public:
     assert(frequency > 0);
     if (!voiceRegion_) return;
 
-    bool first_play = apparentPlayingKey_ == 0.0;
+    bool first_play = apparentPlayingKey_ == 0.0;    
     
-    apparentPlayingKey_ = log2(frequency * getDetune()/ 440) * 12 + 69;
+    apparentPlayingKey_ = log2(frequency * getDetune() / 440) * 12 + 69;
 
     if (first_play) {
+      // use correctly rounded midiKey for envelopes (should we use detune?)
+      auto midiKey = int(round(log2(frequency / 440) * 12 + 69));
       auto midiVelocity = (short)(velocity * 127);
       if (midiVelocity > 127) midiVelocity = 127;
 
       auto outSampleRate = getChannelConfiguration().getAudioOutSampleRate();
 
       // Setup envelopes.
-      ampenv_ = EnvelopeState(outSampleRate, voiceRegion_->ampenv, apparentPlayingKey_, midiVelocity, true);
-      modenv_ = EnvelopeState(outSampleRate, voiceRegion_->modenv, apparentPlayingKey_, midiVelocity, false);
+      ampenv_ = EnvelopeState(outSampleRate, voiceRegion_->ampenv, midiKey, midiVelocity, true);
+      modenv_ = EnvelopeState(outSampleRate, voiceRegion_->modenv, midiKey, midiVelocity, false);
     }
                   
     setGainDB(- voiceRegion_->attenuation - gainToDecibels(1.0f / velocity));
@@ -925,7 +927,7 @@ SoundFont::openFile() {
 
 class SoundFontInstrument : public Instrument {
 public:
-  SoundFontInstrument(std::shared_ptr<SoundFontFile> sf, size_t preset, size_t fixedMidiKey) : sf_(sf), preset_(preset), fixedMidiKey_(fixedMidiKey) { }
+  SoundFontInstrument(std::shared_ptr<SoundFontFile> sf, size_t preset) : sf_(sf), preset_(preset) { }
 
   const char * getElementName() const override { return "soundFontInstrument"; }
 
@@ -939,9 +941,8 @@ public:
 
     auto f = sf_.get();
     if (preset_ <= f->presets_.size()) {
-      auto apparent_key = log2(frequency * detune / 440) * 12 + 69;
-      auto midiKey = fixedMidiKey_ ? fixedMidiKey_ : int(round(apparent_key));
-      
+      // don't use detune for sample selection
+      auto midiKey = int(round(log2(frequency / 440) * 12 + 69));
       auto midiVelocity = (short)(velocity * 127);
       if (midiVelocity > 127) midiVelocity = 127;
       
@@ -987,12 +988,11 @@ public:
 private:
   shared_ptr<SoundFontFile> sf_;
   size_t preset_;
-  size_t fixedMidiKey_ = 0;
 };
 
 std::unique_ptr<Instrument>
-SoundFont::createInstrument(size_t preset, size_t fixedMidiKey, const char * name) {
-  auto instrument = make_unique<SoundFontInstrument>(sf_, preset, fixedMidiKey);
+SoundFont::createInstrument(size_t preset, const char * name) {
+  auto instrument = make_unique<SoundFontInstrument>(sf_, preset);
   instrument->setName(name ? name : sf_->getPresetName(preset));
   return instrument;
 }
