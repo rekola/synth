@@ -8,7 +8,7 @@ using namespace std;
 std::unique_ptr<TrackState>
 InstrumentTrack::createState(const ChannelConfiguration & config) const {
   assert(getInstrumentId() >= 0 && getInstrumentId() < instruments.size());
-  return std::make_unique<InstrumentTrackState>(config, getInternalId(), getInstrumentId(), getAzimuth(), isSolo());
+  return std::make_unique<InstrumentTrackState>(config, getInternalId(), getInstrumentId(), getAzimuth(), isSolo(), portamento_);
 }
 
 SampleData
@@ -31,6 +31,7 @@ InstrumentTrack::loadParameters(const ParameterSource & input) {
   setDistance(input.getFloat("distance"));
   setElevation(input.getFloat("elevation"));
   setColor(input.getText("color"));
+  portamento_ = input.getFloat("portamento", -1.0f);
 }
 
 void
@@ -42,4 +43,5 @@ InstrumentTrack::storeParameters(ParameterSource & output) const {
   output.set("distance", getDistance());
   output.set("elevation", getElevation());
   output.set("color", getColor());
+  if (portamento_ >= 0.0f) output.set("portamento", portamento_);
 }

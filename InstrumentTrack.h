@@ -7,6 +7,7 @@ class InstrumentTrack : public Track {
  public:
   InstrumentTrack() : Track(TrackType::INSTRUMENT_CONTROL), instrument_id_(0) { }
   InstrumentTrack(int instrument_id) : Track(TrackType::INSTRUMENT_CONTROL), instrument_id_(instrument_id) { }
+  InstrumentTrack(TrackType type) : Track(type), instrument_id_(0) { }
 
   std::string getElementName() const override { return "track"; }
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override;
@@ -39,6 +40,7 @@ private:
   int instrument_id_ = 0;
   float elevation_ = 0, azimuth_ = 0, distance_ = 0;
   std::string color_;
+  float portamento_ = -1.0f;
 
   bool show_note_column_ = true;
   bool show_velocity_column_ = true;
@@ -47,3 +49,4 @@ private:
 };
 
 #endif
+

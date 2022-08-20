@@ -1,4 +1,3 @@
-
 #ifndef _INSTRUMENTTRACKSTATE_H_
 #define _INSTRUMENTTRACKSTATE_H_
 
@@ -9,8 +8,8 @@
 
 class InstrumentTrackState : public TrackState {
 public:
-  explicit InstrumentTrackState(const ChannelConfiguration & channel_config, int track_id, int instrument_id, float azimuth, bool is_solo)
-    : TrackState(channel_config), track_id_(track_id), instrument_id_(instrument_id), azimuth_(azimuth), is_solo_(is_solo) { }
+  explicit InstrumentTrackState(const ChannelConfiguration & channel_config, int track_id, int instrument_id, float azimuth, bool is_solo, float portamento)
+    : TrackState(channel_config), track_id_(track_id), instrument_id_(instrument_id), azimuth_(azimuth), is_solo_(is_solo), portamento_(portamento) { }
   
   SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override {
     clearFinishedVoices();
@@ -34,19 +33,19 @@ public:
 	      } else if (ev.isOff()) {
 		stopVoices(ev.getId());
 	      } else {
-		bool legato_done = false;
-		if (is_legato_) {
+		bool portamento_done = false;
+		if (portamento_ >= 0.0f) {
 		  auto it = voices_.find(ev.getId());
 		  if (it != voices_.end()) {
 		    for (auto & voice : it->second) {
 		      if (voice->isPlaying()) {
 			voice->playNote(ev.getFrequency(), ev.getVelocity());
-			legato_done = true;
+			portamento_done = true;
 		      }
 		    }
 		  }		    
 		}
-		if (!legato_done) {
+		if (!portamento_done) {
 		  stopVoices(ev.getId());
 		  auto voice = instrument->playNote(getChannelConfiguration(), azimuth_, ev.getFrequency(), 1.0f, ev.getVelocity(), getRandF());
 		  addVoice(ev.getId(), move(voice));
@@ -92,10 +91,8 @@ public:
     return data;    
   }
 
-  TrackState & addVoice(int column, std::unique_ptr<TrackState> voice) {
-    auto v = voice.get();
+  void addVoice(int column, std::unique_ptr<TrackState> voice) {
     voices_[column].push_back(std::move(voice));
-    return *v;
   }
   
   void applyAftertouch(int column, float aftertouch) {
@@ -150,7 +147,7 @@ private:
   int track_id_, instrument_id_;
   float azimuth_;
   bool is_solo_;
-  bool is_legato_ = false;
+  float portamento_;
 
   std::unordered_map<int, std::vector<std::unique_ptr<TrackState> > > voices_;
 };
