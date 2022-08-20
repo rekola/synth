@@ -940,7 +940,7 @@ public:
     auto f = sf_.get();
     if (preset_ <= f->presets_.size()) {
       auto apparent_key = log2(frequency * detune / 440) * 12 + 69;
-      auto midiKey = fixedMidiKey_ ? fixedMidiKey_ : int(apparent_key);
+      auto midiKey = fixedMidiKey_ ? fixedMidiKey_ : int(round(apparent_key));
       
       auto midiVelocity = (short)(velocity * 127);
       if (midiVelocity > 127) midiVelocity = 127;
