@@ -13,9 +13,6 @@ public:
       
   float getGain() const { return gain; }
 
-  bool isPercussion() const { return is_percussion; }
-  void setIsPercussion(bool t) { is_percussion = t; }
-
   void loadParameters(const ParameterSource & input) {
     Track::loadParameters(input);
   
@@ -35,7 +32,6 @@ public:
 
 protected:
   float gain = 1.0f;
-  bool is_percussion = false;
   int harmonic_ = 1, subharmonic_ = 1;
 };
 
