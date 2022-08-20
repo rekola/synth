@@ -17,6 +17,7 @@
 #include "effects/Delay.h"
 #include "effects/Chorus.h"
 #include "effects/Tremolo.h"
+#include "effects/Downmix.h"
 
 #include "Oscilator.h"
 #include "LFO.h"
@@ -74,8 +75,7 @@ static inline vector<string> split_notes(string_view line) {
 }
 
 static Tuning parse_tuning(string_view tuning_text, Tuning default_tuning = Tuning::TET12) {
-  if (tuning_text == "perc") return Tuning::PERCUSSION;
-  else if (tuning_text == "12edo") return Tuning::TET12;
+  if (tuning_text == "12edo") return Tuning::TET12;
   else if (tuning_text == "31edo") return Tuning::TET31;
   else if (tuning_text == "19edo") return Tuning::TET19;
   else if (tuning_text == "53edo") return Tuning::TET53;
@@ -96,6 +96,7 @@ static unique_ptr<Track> createTrack(string_view name) {
   else if (name == "delay") return make_unique<Delay>();
   else if (name == "chorus") return make_unique<Chorus>();
   else if (name == "tremolo") return make_unique<Tremolo>();
+  else if (name == "downmix") return make_unique<Downmix>();
   else if (name == "multiply") return make_unique<NoteMultiplier>();
   else if (name == "arpeggiator") return make_unique<Arpeggiator>();
   else if (name == "envelope") return make_unique<EnvelopeFilter>();
