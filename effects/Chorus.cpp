@@ -18,7 +18,7 @@ public:
       assert(input_data.numberOfChannels() == 1);
 
       auto outSampleRate = getChannelConfiguration().getAudioOutSampleRate();
-      float * buffer = input_data.data();
+      auto buffer = input_data.getChannelData(0);
       float dphi1 = 2 * M_PI * delay1_mod_freq_ / outSampleRate;
       
       for (int i = 0; i < input_data.size(); i++) {

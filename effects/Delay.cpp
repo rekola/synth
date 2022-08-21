@@ -17,7 +17,7 @@ public:
     auto input_data = TrackState::render(frames);
     
     assert(input_data.numberOfChannels() == 1);
-    auto buffer = input_data.data();
+    auto buffer = input_data.getChannelData(0);
     
     for (size_t i = 0; i < input_data.size(); i++) {
       float x = buffer[i];

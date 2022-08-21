@@ -1,3 +1,4 @@
+
 #ifndef _INSTRUMENTTRACKSTATE_H_
 #define _INSTRUMENTTRACKSTATE_H_
 
@@ -14,8 +15,8 @@ public:
   SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override {
     clearFinishedVoices();
 
-    SampleData data(getChannelConfiguration(), 0, is_solo_);
-
+    SampleData data(getChannelConfiguration(), frames, is_solo_);
+        
     if (instrument_id_ >= 0 && instrument_id_ < instruments.size()) {
       auto & instrument = instruments[instrument_id_];
       auto & pending_events = context.getPendingEvents(track_id_);
@@ -56,9 +57,8 @@ public:
 	  }
 	  if (it != pending_events.end() && it->first - i < render_size) render_size = it->first - i;
 	}     
-	
-	data.append(render(render_size));
-	
+
+	data.assign(render(render_size), i);
 	i += render_size;
       }
     }

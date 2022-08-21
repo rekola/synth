@@ -12,28 +12,32 @@ public:
   SampleData render(int frames) override {
     auto input = TrackState::render(frames);
     
-    auto buffer = input.data();
     switch (type_) {
     case DistortionType::HARD_CLIP:
-
-      for (size_t i = 0; i < input.numberOfChannels() * input.size(); i++) {
-	auto x = buffer[i];
-	auto y = drive_ * x;
-	if (y > param_) y = param_;
-	if (y < -param_) y = -param_;
-	buffer[i] = drymix_ * x + (1.0f - drymix_) * y;
+      for (int i = 0; i < input.numberOfChannels(); i++) {
+	auto buffer = input.getChannelData(i);
+	for (int j = 0; j < input.size(); j++) {
+	  auto x = buffer[j];
+	  auto y = drive_ * x;
+	  if (y > param_) y = param_;
+	  if (y < -param_) y = -param_;
+	  buffer[j] = drymix_ * x + (1.0f - drymix_) * y;
+	}
       }
       break;
 
     case DistortionType::SOFT_CLIP:
-      for (size_t i = 0; i < input.numberOfChannels() * input.size(); i++) {
-	auto x = buffer[i];
-	auto y = drive_ * x;
-	if (y > 1.0) y = 1.0;
-	else if (y < -1.0) y = -1.0;
-	y = y - y*y*y/3.0f;
-	y = 1.5 * y - 0.5 * y*y*y;
-	buffer[i] = drymix_ * x + (1.0f - drymix_) * y;
+      for (int i = 0; i < input.numberOfChannels(); i++) {
+	auto buffer = input.getChannelData(i);
+	for (int j = 0; j < input.size(); j++) {
+	  auto x = buffer[j];
+	  auto y = drive_ * x;
+	  if (y > 1.0) y = 1.0;
+	  else if (y < -1.0) y = -1.0;
+	  y = y - y*y*y/3.0f;
+	  y = 1.5 * y - 0.5 * y*y*y;
+	  buffer[j] = drymix_ * x + (1.0f - drymix_) * y;
+	}
       }
       break;
     
@@ -42,16 +46,19 @@ public:
 	float timbre = 1.0f;
 	float depth = 1.0f;
 	float timbreInverse = (1 - (timbre * 0.099)) * 10;
-	for (size_t i = 0; i < input.numberOfChannels() * input.size(); i++) {
-	  auto x = buffer[i];
-	  x *= depth;
-	  x = tanhf(x * (timbre + 1));
-	  x = x * ((0.1 + timbre) * timbreInverse);
-	  x = cos((x + (timbre + 0.25)));
-	  x = tanh(x * (timbre + 1));
-	  x = x * 0.125;
-	  buffer[i] = x;
-      	}
+	for (int i = 0; i < input.numberOfChannels(); i++) {
+	  auto buffer = input.getChannelData(i);
+	  for (int j = 0; j < input.size(); j++) {
+	    auto x = buffer[j];
+	    x *= depth;
+	    x = tanhf(x * (timbre + 1));
+	    x = x * ((0.1 + timbre) * timbreInverse);
+	    x = cos((x + (timbre + 0.25)));
+	    x = tanh(x * (timbre + 1));
+	    x = x * 0.125;
+	    buffer[j] = x;
+	  }
+	}
       }
       break;
        

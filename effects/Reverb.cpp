@@ -15,41 +15,33 @@ public:
   SampleData render(int frames) override {
     auto input = TrackState::render(frames);
     
-    auto left_in_ptr = unique_ptr<float[]>(new float[input.size()]);
-    auto right_in_ptr = unique_ptr<float[]>(new float[input.size()]);
     auto left_out_ptr = unique_ptr<float[]>(new float[input.size()]);
     auto right_out_ptr = unique_ptr<float[]>(new float[input.size()]);
-
-    auto left_in = left_in_ptr.get(), right_in = right_in_ptr.get();
     auto left_out = left_out_ptr.get(), right_out = right_out_ptr.get();
     
     memset(left_out, 0, input.size() * sizeof(float));
     memset(right_out, 0, input.size() * sizeof(float));
 
-    float * in[2] = { left_in, right_in };
     float * out[2] = { left_out, right_out };
-    float * io_data = input.data();
     
     if (input.numberOfChannels() == 2) {
-      for (size_t i = 0; i < input.size(); i++) {
-	left_in[i] = io_data[2 * i + 0];
-	right_in[i] = io_data[2 * i + 1];
-      }
+      float * in[2] = { input.getChannelData(0), input.getChannelData(0) };
+      
       mverb.process(in, out, input.size());
-
-      for (size_t i = 0; i < input.size(); i++) {
-	io_data[2 * i + 0] = left_out[i];
-	io_data[2 * i + 1] = right_out[i];
+      
+      auto left_buffer = input.getChannelData(0), right_buffer = input.getChannelData(1);
+      for (int i = 0; i < input.size(); i++) {
+	left_buffer[i] = left_out[i];
+	right_buffer[i] = right_out[i];
       }
     } else {
-      for (size_t i = 0; i < input.size(); i++) {
-	left_in[i] = right_in[i] = io_data[i];
-      }
+      float * in[2] = { input.getChannelData(0), input.getChannelData(1) };
 
       mverb.process(in, out, input.size());
 
-      for (size_t i = 0; i < input.size(); i++) {
-	io_data[i] = left_out[i];
+      auto left_buffer = input.getChannelData(0);
+      for (int i = 0; i < input.size(); i++) {
+	left_buffer[i] = left_out[i];
       }
     }
 

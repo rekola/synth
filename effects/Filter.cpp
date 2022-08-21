@@ -12,10 +12,9 @@ struct filter_state_s {
   float in1 = 0, in2 = 0, in3 = 0, in4 = 0;
   float out1 = 0, out2 = 0, out3 = 0, out4 = 0;
 
-  void apply(int numChannels, size_t blockSamples, int channel, float * buffer, float cut, float res, bool is_highpass) {
+  void apply(size_t blockSamples, float * buffer, float cut, float res, bool is_highpass) {
     for (size_t i = 0; i < blockSamples; i++) {
-      size_t offset = numChannels * i + channel;
-      float input = buffer[offset];
+      float input = buffer[i];
       float si = input;
       float f = cut * 1.16;
       float ff = f * f;
@@ -33,8 +32,8 @@ struct filter_state_s {
       out4 = out3 + 0.3 * in4 + f * out4;  // Pole 4
       in4  = out3;
       
-      if (is_highpass) buffer[offset] = si - out4;
-      else buffer[offset] = out4;
+      if (is_highpass) buffer[i] = si - out4;
+      else buffer[i] = out4;
     }
   }
 };
@@ -55,9 +54,9 @@ public:
     auto input_data = TrackState::render(frames);
     
     if ((cut_min_ < 1.0 && cut_max_ < 1.0) || res_ > 0.0) {    
-      auto buffer = input_data.data();
       auto numSamples = input_data.size();
       auto numChannels = input_data.numberOfChannels();
+      auto left_buffer = input_data.getChannelData(0), right_buffer = input_data.getChannelData(1);
 
       auto aftertouch_value = use_aftertouch_ ? getAftertouch() : 1.0f;
       
@@ -66,13 +65,14 @@ public:
 	float current_cut = cut_min_ + envelope_state_.getLevel() * aftertouch_value * (cut_max_ - cut_min_);
 	
 	if (numChannels == 1) {
-	  left_state_.apply(numChannels, blockSamples, 0, buffer, current_cut, res_, is_highpass_);
+	  left_state_.apply(blockSamples, left_buffer, current_cut, res_, is_highpass_);
 	} else {
-	  left_state_.apply(numChannels, blockSamples, 0, buffer, current_cut, res_, is_highpass_);
-	  right_state_.apply(numChannels, blockSamples, 1, buffer, current_cut, res_, is_highpass_);
+	  left_state_.apply(blockSamples, left_buffer, current_cut, res_, is_highpass_);
+	  right_state_.apply(blockSamples, right_buffer, current_cut, res_, is_highpass_);
 	}
 	
-	buffer += numChannels * blockSamples;
+	left_buffer += blockSamples;
+	right_buffer += blockSamples;
 	numSamples -= blockSamples;
 	envelope_state_.process(blockSamples);
       }

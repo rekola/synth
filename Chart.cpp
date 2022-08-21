@@ -20,22 +20,25 @@ void
 Chart::displayFFT(const SampleData & data) {
   auto [ rows, columns ] = getDim();
   if (columns > 0) {
+    int frames = 1;
+    for ( ; frames * 2 <= data.size(); frames *= 2) { }
 
-    if (data.size() != plan_for_size) {
-      plan_for_size = data.size();
-      signal = (double*)fftw_malloc(sizeof(double) * data.size());
-      result = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * data.size());
-      plan = fftw_plan_dft_r2c_1d(data.size(), signal, result, FFTW_ESTIMATE);
+    if (frames != plan_for_size) {
+      plan_for_size = frames;
+      signal = (double*)fftw_malloc(sizeof(double) * frames);
+      result = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * frames);
+      plan = fftw_plan_dft_r2c_1d(frames, signal, result, FFTW_ESTIMATE);
     }
     
-    for (size_t i = 0; i < data.size(); i++) {
-      signal[i] = data.data()[2 * i + 0] + data.data()[2 * i + 1];
+    auto left_buffer = data.getChannelData(0), right_buffer = data.getChannelData(1);
+    for (int i = 0; i < frames; i++) {
+      signal[i] = left_buffer[i] + right_buffer[i];
     }
     
     fftw_execute(plan);
 
     size_t num_bins = 2 * columns;
-    size_t actual_data_size = data.size() / 2;
+    size_t actual_data_size = frames / 2;
     float start_value = log(40), end_value = log(40 + actual_data_size);
     float bin_size = (end_value - start_value) / num_bins;
     

@@ -196,8 +196,19 @@ AlsaAudio::getMidiPollDescriptors(snd_seq_t * handle) {
 
 void
 AlsaAudio::play(const SampleData & data, Logger & logger) {
+  auto numChannels = data.numberOfChannels();
+  auto tmp_data = unique_ptr<float[]>(new float[data.size() * numChannels]);
+  auto tmp_ptr = tmp_data.get();
+
+  for (int j = 0; j < numChannels; j++) {
+    auto channel_data = data.getChannelData(j);
+    for (int i = 0; i < data.size(); i++) {
+      tmp_ptr[i * numChannels + j] = channel_data[i];
+    }
+  }
+
   int r;
-  if ((r = snd_pcm_writei(pcm_handle, data.data(), data.size())) == -EPIPE) {
+  if ((r = snd_pcm_writei(pcm_handle, tmp_ptr, data.size())) == -EPIPE) {
     logger.log("XRUN.");
     snd_pcm_prepare(pcm_handle);
   } else if (r < 0) {
@@ -214,7 +225,7 @@ AlsaAudio::record(Logger & logger) {
 
   if (frames) {
     int r;
-    if ((r = snd_pcm_readi(capture_handle, data.data(), frames)) == -EPIPE) {
+    if ((r = snd_pcm_readi(capture_handle, data.getChannelData(0), frames)) == -EPIPE) {
       logger.log("XRUN.(2)");
       snd_pcm_prepare(capture_handle);
     } else if (r < 0) {

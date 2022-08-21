@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cassert>
 #include <memory>
+#include <vector>
 
 class SampleData final {
  public:
@@ -23,7 +24,7 @@ class SampleData final {
   SampleData(const SampleData & other) : channels_(other.channels_), frames_(other.frames_), is_solo_(other.is_solo_) {
     auto s = getAlignedSize(channels_ * frames_);
     data_ = (float *)aligned_alloc(16, s);
-    memcpy(data_, other.data(), s);
+    memcpy(data_, other.data_, s);
   }
   SampleData(SampleData && other) noexcept : channels_(other.channels_), frames_(other.frames_), data_(std::exchange(other.data_, nullptr)), is_solo_(other.is_solo_) {
   }
@@ -39,7 +40,7 @@ class SampleData final {
       auto s = getAlignedSize(channels_ * frames_);
       data_ = (float *)aligned_alloc(16, s);
       
-      memcpy(data_, other.data(), s);
+      memcpy(data_, other.data_, s);
     }
     return *this;
   }
@@ -55,8 +56,8 @@ class SampleData final {
     return *this;
   }
 
-  float * data() { return data_; }
-  const float * data() const { return data_; }
+  float * getChannelData(int channel) { return data_ + channel * size(); }
+  const float * getChannelData(int channel) const { return data_ + channel * size(); }  
 
   void zero() {
     memset(data_, 0, getAlignedSize(channels_ * frames_));
@@ -72,20 +73,23 @@ class SampleData final {
   int size() const { return frames_; }
   bool empty() const { return channels_ == 0 || frames_ == 0; }
   
-  void append(const SampleData & other) {
-    if (other.empty()) return;
-    if (empty()) {
-      channels_ = other.channels_;
-    } else {
-      assert(channels_ == other.channels_);
+  void assign(const SampleData & other, int position) {
+    if (other.empty() || position >= size()) return;
+    assert(channels_ == other.channels_);
+    assert(position >= 0);
+    
+    if (channels_ == other.channels_) {
+      int n = other.size() < size() ? other.size() : size();
+      if (position + n > size()) position = size() - n;
+      
+      for (int j = 0; j < channels_; j++) {
+	auto other_channel_data = other.getChannelData(j);
+	auto channel_data = getChannelData(j);
+	for (int i = 0; i < n; i++) {
+	  channel_data[i + position] = other_channel_data[i];
+	}
+      }
     }
-    auto s = getAlignedSize(channels_ * (size() + other.size()));
-    auto new_data = (float *)aligned_alloc(16, s);
-    if (frames_) memcpy(new_data, data_, static_cast<size_t>(channels_ * frames_) * sizeof(float));
-    free(data_);
-    data_ = new_data;
-    memcpy(data_ + channels_ * frames_, other.data(), static_cast<size_t>(channels_ * other.size()) * sizeof(float));
-    frames_ += other.size();
   }
 
   void mix(const SampleData & other, float volume) {    
@@ -96,38 +100,28 @@ class SampleData final {
 	data_[i] += volume * other.data_[i];
       }
     } else if (other.channels_ == 1) {
+      auto left = data_, right = data_ + size();
+      
       for (int i = 0; i < n; i++) {
-	float v = other.data_[i];
-	for (int j = 0; j < channels_; j++) {
-	  data_[i * channels_ + j] += volume * v;
-	}
+	left[i] = right[i] = other.data_[i];
       }
     } else {
       assert(0);
     }
   }
 
-  void shortenToPowerofTwo() {
-    int new_size = 1;
-    for ( ; new_size * 2 <= frames_; new_size *= 2) { }
-    frames_ = new_size;
-  }
-
-  std::pair<float, float> calculateLoudness() const {
-    if (channels_ == 1) {
+  std::vector<float> calculateLoudness() const {
+    std::vector<float> v;
+    for (int i = 0; i < channels_; i++) {
       float sum_squares = 0;
-      for (int i = 0; i < frames_; i++) {
-	sum_squares += data_[i] * data_[i];
+      auto channel_data = getChannelData(i);
+      for (int j = 0; j < frames_; j++) {
+	auto s = channel_data[j];
+	sum_squares += s * s;
       }
-      return std::pair(sqrtf(sum_squares), 0.0f);
-    } else {
-      float sum_squares_left = 0, sum_squares_right = 0;
-      for (int i = 0; i < frames_; i++) {
-	sum_squares_left += data_[2 * i + 0] * data_[2 * i + 0];
-	sum_squares_right += data_[2 * i + 1] * data_[2 * i + 1];
-      }
-      return std::pair(sqrtf(sum_squares_left), sqrtf(sum_squares_right));
+      v.push_back(sqrtf(sum_squares));
     }
+    return v;
   }
 
   bool isSolo() const { return is_solo_; }

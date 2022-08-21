@@ -745,7 +745,7 @@ SoundFontVoice::render(int numSamples) {
   }
 
   auto num_channels = outputData.numberOfChannels();
-  auto output = outputData.data();
+  auto left_output = outputData.getChannelData(0), right_output = outputData.getChannelData(1);
 
   auto input = f->fontSamples_;
   
@@ -817,7 +817,7 @@ SoundFontVoice::render(int numSamples) {
     // Update LFOs.
     if (updateModLFO) modlfo_.process(blockSamples);
     if (updateVibLFO) viblfo_.process(blockSamples);
-                
+   
     while (blockSamples-- && sourceSamplePosition_ < sampleEndDbl) {
       unsigned int pos = (unsigned int)sourceSamplePosition_, nextPos = (pos >= loopEnd_ && isLooping ? loopStart_ : pos + 1);
       
@@ -829,10 +829,10 @@ SoundFontVoice::render(int numSamples) {
       if (lowpass_.active) val = lowpass_.process(val);
 
       if (num_channels == 1) {
-	*output++ = val * gainMono;
+	*left_output++ = val * gainMono;
       } else if (num_channels == 2) {
-	*output++ = val * gainMono * panFactorLeft;
-	*output++ = val * gainMono * panFactorRight;
+	*left_output++ = val * gainMono * panFactorLeft;
+	*right_output++ = val * gainMono * panFactorRight;
       }
 	
       // Next sample.

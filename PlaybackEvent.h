@@ -15,15 +15,15 @@ public:
   const SampleData & getData() const { return data_; }
   void setData(SampleData data) { data_ = std::move(data); }
 
-  void setLoudness(std::pair<float, float> loudness) { loudness_ = loudness; }
-  const std::pair<float, float> & getLoudness() const { return loudness_; }
+  void setLoudness(std::vector<float> loudness) { loudness_ = std::move(loudness); }
+  const std::vector<float> & getLoudness() const { return loudness_; }
 
   void setInfo(const PlaybackInfo & info) { info_ = info; }
   const PlaybackInfo & getInfo() const { return info_; }
   
 private:
   SampleData data_;
-  std::pair<float, float> loudness_;
+  std::vector<float> loudness_;
   PlaybackInfo info_;
 };
 

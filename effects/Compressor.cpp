@@ -20,7 +20,7 @@ public:
   SampleData render(int frames) override {
     auto input = TrackState::render(frames);
     
-    auto in = input.data();
+    auto in = input.getChannelData(0);
     auto n = input.size();	
 	
     float current_rms = rms(in, n);

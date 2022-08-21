@@ -15,7 +15,8 @@ public:
   SampleData render(int frames) override {
     auto input_data = TrackState::render(frames);
     
-    auto buffer = input_data.data();
+    auto left_buffer = input_data.getChannelData(0), right_buffer = input_data.getChannelData(1);
+    
     auto numSamples = input_data.size();
     auto numChannels = input_data.numberOfChannels();
 
@@ -23,11 +24,20 @@ public:
       auto blockSamples = numSamples > constants::RENDER_EFFECTSAMPLEBLOCK ? constants::RENDER_EFFECTSAMPLEBLOCK : numSamples;
       auto gain = envelope_state_.getLevel();
       
-      for (auto i = 0; i < numChannels * blockSamples; i++) {
-	buffer[i] *= gain;
+      if (numChannels == 1) {
+	for (auto i = 0; i < blockSamples; i++) {
+	  left_buffer[i] *= gain;
+	}
+	left_buffer += blockSamples * numChannels;
+      } else {
+	for (auto i = 0; i < blockSamples; i++) {
+	  left_buffer[i] *= gain;
+	  right_buffer[i] *= gain;
+	}
+	left_buffer += blockSamples;
+	right_buffer += blockSamples;
       }
       
-      buffer += blockSamples * numChannels;
       numSamples -= blockSamples;
       envelope_state_.process(blockSamples);
     }

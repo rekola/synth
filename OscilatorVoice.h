@@ -15,7 +15,8 @@ public:
 
     SampleData data(getChannelConfiguration(), frames);
     auto num_channels = data.numberOfChannels();
-    auto buffer = data.data();
+    auto left_buffer = data.getChannelData(0);
+    auto right_buffer = data.getChannelData(1);
     
     double pos = getSourceSamplePosition() / getChannelConfiguration().getAudioOutSampleRate();
     double rate = (double)getFrequency() / getChannelConfiguration().getAudioOutSampleRate();
@@ -29,41 +30,40 @@ public:
       if (!getChildren().empty() && type_ != WaveformType::NOISE) {
 	// render children
 	auto modulator = InstrumentVoice::render(frames);
-	assert(modulator.numberOfChannels() == 2);
-	auto modulator_data = modulator.data();
+	auto modulator_data = modulator.getChannelData(0);
 	
 	switch (type_) {
 	case WaveformType::SINE:
 	  for (int k = 0; k < frames; k++) {
-	    auto a = create_sine(pos + modulator_data[2 * k + 0]);
+	    auto a = create_sine(pos + modulator_data[k]);
 	    
-	    buffer[2 * k + 0] = left_gain * a;
-	    buffer[2 * k + 1] = right_gain * a;
+	    left_buffer[k] = left_gain * a;
+	    right_buffer[k] = right_gain * a;
 
 	    pos += rate;
 	  }
 	  break;
 	case WaveformType::SAW:
 	  for (int k = 0; k < frames; k++) {
-	    auto a = create_saw(pos + modulator_data[2 * k + 0]);
-	    buffer[2 * k + 0] = left_gain * a;
-	    buffer[2 * k + 1] = right_gain * a;
+	    auto a = create_saw(pos + modulator_data[k]);
+	    left_buffer[k] = left_gain * a;
+	    right_buffer[k] = right_gain * a;
 	    pos += rate;
 	  }
 	  break;
 	case WaveformType::TRIANGLE:
 	  for (int k = 0; k < frames; k++) {
-	    float a = create_triangle(pos + modulator_data[2 * k + 0]);
-	    buffer[2 * k + 0] = left_gain * a;
-	    buffer[2 * k + 1] = right_gain * a;
+	    float a = create_triangle(pos + modulator_data[k]);
+	    left_buffer[k] = left_gain * a;
+	    right_buffer[k] = right_gain * a;
 	    pos += rate;
 	  }
 	  break;
 	case WaveformType::SQUARE:
 	  for (int k = 0; k < frames; k++) {
-	    float a = create_square(pos + modulator_data[2 * k + 0]);
-	    buffer[2 * k + 0] = left_gain * a;
-	    buffer[2 * k + 1] = right_gain * a;
+	    float a = create_square(pos + modulator_data[k]);
+	    left_buffer[k] = left_gain * a;
+	    right_buffer[k] = right_gain * a;
 	    pos += rate;
 	  }
 	  break;
@@ -76,40 +76,40 @@ public:
 	case WaveformType::SINE:
 	  for (int k = 0; k < frames; k++) {
 	    auto a = create_sine(pos);
-	    buffer[2 * k + 0] = left_gain * a;
-	    buffer[2 * k + 1] = right_gain * a;
+	    left_buffer[k] = left_gain * a;
+	    right_buffer[k] = right_gain * a;
 	    pos += rate;
 	  }
 	  break;
 	case WaveformType::SAW:
 	  for (int k = 0; k < frames; k++) {
 	    auto a = create_saw(pos);
-	    buffer[2 * k + 0] = left_gain * a;
-	    buffer[2 * k + 1] = right_gain * a;
+	    left_buffer[k] = left_gain * a;
+	    right_buffer[k] = right_gain * a;
 	    pos += rate;
 	  }
 	  break;
 	case WaveformType::TRIANGLE:
 	  for (int k = 0; k < frames; k++) {
 	    auto a = create_triangle(pos);
-	    buffer[2 * k + 0] = left_gain * a;
-	    buffer[2 * k + 1] = right_gain * a;
+	    left_buffer[k] = left_gain * a;
+	    right_buffer[k] = right_gain * a;
 	    pos += rate;
 	  }
 	  break;
 	case WaveformType::SQUARE:
 	  for (int k = 0; k < frames; k++) {
 	    auto a = create_square(pos);
-	    buffer[2 * k + 0] = left_gain * a;
-	    buffer[2 * k + 1] = right_gain * a;
+	    left_buffer[k] = left_gain * a;
+	    right_buffer[k] = right_gain * a;
 	    pos += rate;
 	  }
 	  break;
 	case WaveformType::NOISE:
 	  for (int k = 0; k < frames; k++) {
 	    auto a = create_noise();
-	    buffer[2 * k + 0] = left_gain * a;
-	    buffer[2 * k + 1] = right_gain * a;
+	    left_buffer[k] = left_gain * a;
+	    right_buffer[k] = right_gain * a;
 	    pos += rate;
 	  }
 	  break;
@@ -118,30 +118,30 @@ public:
     } else {
       if (!getChildren().empty() && type_ != WaveformType::NOISE) {
 	auto modulator = InstrumentVoice::render(frames);
-	auto modulator_data = modulator.data();
+	auto modulator_data = modulator.getChannelData(0);
 	
 	switch (type_) {
 	case WaveformType::SINE:
 	  for (int k = 0; k < frames; k++) {	  
-	    buffer[k] = create_sine(pos + modulator_data[k]) * gain;
+	    left_buffer[k] = create_sine(pos + modulator_data[k]) * gain;
 	    pos += rate;
 	  }
 	  break;
 	case WaveformType::SAW:
 	  for (int k = 0; k < frames; k++) {
-	    buffer[k] = create_saw(pos + modulator_data[k]) * gain;
+	    left_buffer[k] = create_saw(pos + modulator_data[k]) * gain;
 	    pos += rate;
 	  }
 	  break;
 	case WaveformType::TRIANGLE:
 	  for (int k = 0; k < frames; k++) {
-	    buffer[k] = create_triangle(pos + modulator_data[k]) * gain;
+	    left_buffer[k] = create_triangle(pos + modulator_data[k]) * gain;
 	    pos += rate;
 	  }
 	  break;
 	case WaveformType::SQUARE:
 	  for (int k = 0; k < frames; k++) {
-	    buffer[k] = create_square(pos + modulator_data[k]) * gain;
+	    left_buffer[k] = create_square(pos + modulator_data[k]) * gain;
 	    pos += rate;
 	  }
 	  break;
@@ -153,31 +153,31 @@ public:
 	switch (type_) {
 	case WaveformType::SINE:
 	  for (int k = 0; k < frames; k++) {
-	    buffer[k] = create_sine(pos) * gain;
+	    left_buffer[k] = create_sine(pos) * gain;
 	    pos += rate;
 	  }
 	  break;
 	case WaveformType::SAW:
 	  for (int k = 0; k < frames; k++) {
-	    buffer[k] = create_saw(pos) * gain;
+	    left_buffer[k] = create_saw(pos) * gain;
 	    pos += rate;
 	  }
 	  break;
 	case WaveformType::TRIANGLE:
 	  for (int k = 0; k < frames; k++) {
-	    buffer[k] = create_triangle(pos) * gain;
+	    left_buffer[k] = create_triangle(pos) * gain;
 	    pos += rate;
 	  }
 	  break;
 	case WaveformType::SQUARE:
 	  for (int k = 0; k < frames; k++) {
-	    buffer[k] = create_square(pos) * gain;
+	    left_buffer[k] = create_square(pos) * gain;
 	    pos += rate;
 	  }
 	  break;
 	case WaveformType::NOISE:
 	  for (int k = 0; k < frames; k++) {
-	    buffer[k] = create_noise() * gain;
+	    left_buffer[k] = create_noise() * gain;
 	    pos += rate;
 	  }
 	  break;

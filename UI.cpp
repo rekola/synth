@@ -132,14 +132,14 @@ UI::handlePlaybackEvent(PlaybackEvent & ev) {
     waiting_data.append(data);
 
     if (waiting_data.size() >= 4096) {
-      waiting_data.shortenToPowerofTwo();
       chart->displayFFT(waiting_data);
       waiting_data.clear();
     }
 
-    auto [left, right] = ev.getLoudness();
-    volume_meter->setSample(0, left);
-    volume_meter->setSample(1, right);
+    if (ev.getLoudness().size() == 2) {
+      volume_meter->setSample(0, ev.getLoudness()[0]);
+      volume_meter->setSample(1, ev.getLoudness()[1]);
+    }
   }
     
   ev.redraw();

@@ -10,23 +10,24 @@ public:
 
   SampleData render(int frames) override {
     auto input = TrackState::render(frames);
-    
-    auto input_data = input.data();
-    auto num_channels = input.numberOfChannels();
-    auto num_samples = input.size();
 
-    SampleData output(1, num_samples, input.isSolo());
-    auto output_data = output.data();
+    auto num_channels = input.numberOfChannels();
+
+    if (num_channels != 2) {
+      return input;
+    } else {
+      auto left_input = input.getChannelData(0), right_input = input.getChannelData(1);
+      auto num_samples = input.size();
+
+      SampleData output(1, num_samples, input.isSolo());
+      auto output_data = output.getChannelData(0);
     
-    for (size_t i = 0; i < num_samples; i++) {
-      auto v = 0.0f;
-      for (size_t j = 0; j < num_channels; j++) {
-	v += input_data[num_channels * i + j];
+      for (size_t i = 0; i < num_samples; i++) {
+	output_data[i] = (left_input[i] + right_input[i]) / 2.0f;
       }
-      output_data[i] = v;
-    }
-    
-    return input;
+      
+      return output;
+    }    
   }
 };
 

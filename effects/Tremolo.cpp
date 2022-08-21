@@ -12,20 +12,20 @@ public:
   SampleData render(int frames) override {
     auto input = TrackState::render(frames);
     
-    auto buffer = input.data();
     auto numChannels = input.numberOfChannels();
     auto numSamples = input.size();
     auto step = 2 * M_PI * frequency_ / getChannelConfiguration().getAudioOutSampleRate();
     auto aftertouch_value = use_aftertouch_ ? getAftertouch() : 1.0f;
     
-    for (size_t i = 0; i < numSamples; i++) { 
-      for (size_t j = 0; j < numChannels; j++) {
-	size_t offset = numChannels * i + j;
-	auto x = buffer[offset] * (1 + aftertouch_value * amplitude_ * sin(phi_));
-	buffer[offset] = x;
+    for (int j = 0; j < numChannels; j++) {
+      auto buffer = input.getChannelData(j);
+      auto phi = phi_;
+      for (int i = 0; i < numSamples; i++, phi += step) { 
+	buffer[i] *= 1 + aftertouch_value * amplitude_ * sin(phi);	
       }
-      phi_ += step;
     }
+
+    phi_ += numSamples * step;
 
     return input;
   }
