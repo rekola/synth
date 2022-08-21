@@ -550,8 +550,8 @@ Controller::sendCommand(std::string_view cmd) {
 bool
 Controller::togglePlaying() {
   auto info = getPlaybackInfo();
-  info.is_playing = !info.is_playing;
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(info.is_playing ? PlaybackControlEvent::PLAY : PlaybackControlEvent::STOP));
+  info.setIsPlaying(!info.isPlaying());
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(info.isPlaying() ? PlaybackControlEvent::PLAY : PlaybackControlEvent::STOP));
   setPlaybackInfo(info);
-  return info.is_playing;
+  return info.isPlaying();
 }

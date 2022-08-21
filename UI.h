@@ -70,7 +70,6 @@ private:
   std::shared_ptr<PatternEditor> pattern_editor;
   std::shared_ptr<HierarchyView> hierarchy_view;
   std::weak_ptr<UIElement> active_element;
-  SampleData waiting_data;
 };
 
 #endif

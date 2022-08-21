@@ -299,8 +299,7 @@ public:
       plot = std::make_shared<PlotD>(tplane.getPlane(), &opts);
     }
 
-    auto [rows, columns] = getDim();
-    plot->set_sample(2 * columns - 1 - i, v);
+    plot->set_sample(i, v);
   }
   
 private:

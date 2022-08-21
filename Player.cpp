@@ -13,6 +13,7 @@
 #include "HRFT.h"
 #include "BasicMixer.h"
 #include "InstrumentTrackState.h"
+#include "FFT.h"
 
 using namespace std;
 
@@ -108,6 +109,8 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 
 void
 Player::play(AudioAPI & audio) {
+  fft_.setSize(4 * audio.getFrameCount());
+    
   EventLogger logger(&(controller_->getUIEventQueue()));
   
   auto & event_queue = controller_->getPlaybackEventQueue();
@@ -155,9 +158,12 @@ Player::play(AudioAPI & audio) {
 	    audio.play(master, logger);
 	    
 	    auto ev = createPlaybackEvent(song, state_);
-	    ev->setData(master);
 	    ev->setLoudness(master.calculateLoudness());
-	    
+	    if (fft_.addData(master)) {
+	      ev->setFFT(fft_.calculateFFT());
+	      fft_.reset();
+	    }
+	    	    
 	    controller_->getUIEventQueue().push(move(ev));
 	  } else if (i - 1 - num_playback_desc < num_capture_desc) {
 	    auto data = audio.record(logger);
@@ -170,19 +176,19 @@ Player::play(AudioAPI & audio) {
 }
 
 std::unique_ptr<PlaybackEvent>
-Player::createPlaybackEvent(const Song & song, SongState & state) {
+Player::createPlaybackEvent(const Song & song, const SongState & state) {
   auto [ pattern_idx, row_idx ] = state.getRelativePosition(song);
 
   PlaybackInfo info;
-  info.is_playing = state.isPlaying();
-  info.outSampleRate = state.getChannelConfiguration().getAudioOutSampleRate();
-  info.sample_interval = song.getSampleInterval(state.getChannelConfiguration().getAudioOutSampleRate());
-  info.sample_pos = state.getSamplePos();
-  info.pattern_idx = pattern_idx;
-  info.row_idx = row_idx;
-  info.absolute_pos = state.getAbsolutePosition();
-  info.voice_count = state.getVoiceCount();
-  info.allocated_voice_count = state.getAllocatedVoiceCount();
+  info.setIsPlaying(state.isPlaying());
+  info.setOutSampleRate(state.getChannelConfiguration().getAudioOutSampleRate());
+  info.setSampleInterval(song.getSampleInterval(state.getChannelConfiguration().getAudioOutSampleRate()));
+  info.setSamplePos(state.getSamplePos());
+  info.setPatternIdx(pattern_idx);
+  info.setRowIdx(row_idx);
+  info.setAbsolutePos(state.getAbsolutePosition());
+  info.setVoiceCount(state.getVoiceCount());
+  info.setAllocatedVoiceCount(state.getAllocatedVoiceCount());
 
   for (auto & [ track_id, state ] : state.getRenderContext().getTrackStates()) {
     info.setTrackInfo(track_id, state->getInfo());

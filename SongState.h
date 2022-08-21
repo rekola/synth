@@ -145,6 +145,7 @@ class SongState : public TrackState {
 
   Tuner & getTuner() { return tuner_; }
   RenderContext & getRenderContext() { return render_context_; }
+  const RenderContext & getRenderContext() const { return render_context_; }
 
 private:
   bool is_playing_ = false;

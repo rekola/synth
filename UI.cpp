@@ -126,20 +126,13 @@ void
 UI::handlePlaybackEvent(PlaybackEvent & ev) {
   getController().setPlaybackInfo(ev.getInfo());
 
-  auto & data = ev.getData();
+  if (!ev.getFFT().empty()) {
+    chart->displayFFT(ev.getFFT());
+  }
 
-  if (!data.empty()) {
-    waiting_data.append(data);
-
-    if (waiting_data.size() >= 4096) {
-      chart->displayFFT(waiting_data);
-      waiting_data.clear();
-    }
-
-    if (ev.getLoudness().size() == 2) {
-      volume_meter->setSample(0, ev.getLoudness()[0]);
-      volume_meter->setSample(1, ev.getLoudness()[1]);
-    }
+  if (ev.getLoudness().size() == 2) {
+    volume_meter->setSample(0, ev.getLoudness()[0]);
+    volume_meter->setSample(1, ev.getLoudness()[1]);
   }
     
   ev.redraw();
