@@ -21,15 +21,18 @@ class BasicMixer : public Mixer {
     }
 
     if (getOutChannels() == input.numberOfChannels()) {
-      for (size_t i = 0; i < input.numberOfChannels() * input.size(); i++) {
-	buffer[i] += input.data()[i];
+      for (int j = 0; j < input.numberOfChannels(); j++) {
+	auto input_buffer = input.getChannelData(j);
+	for (int i = 0; i < input.size(); i++) {
+	  buffer[j * frames + i] += input_buffer[i];
+	}
       }
     } else if (getOutChannels() == 2 && input.numberOfChannels() == 1) {
-      for (size_t i = 0; i < input.size(); i++) {
-	float ss = input.data()[i];
-	
-	buffer[2 * i + 0] += ss;
-	buffer[2 * i + 1] += ss;
+      for (int j = 0; j < input.numberOfChannels(); j++) {
+	auto input_buffer = input.getChannelData(0);
+	for (int i = 0; i < input.size(); i++) {
+	  buffer[j * frames + i] += input_buffer[i];
+	}
       }
     } else {
       assert(0);
@@ -38,11 +41,14 @@ class BasicMixer : public Mixer {
   
   SampleData encode(float master_volume) override {
     SampleData output(getOutChannels(), frames);
-    for (size_t i = 0; i < getOutChannels() * frames; i++) {
-      float s = buffer[i] * master_volume;      
-      if (s > 1.0) s = 1.0;
-      else if (s < -1.0) s = -1.0;
-      output.data()[i] = s;
+    for (int j = 0; j < output.numberOfChannels(); j++) {
+      auto output_buffer = output.getChannelData(j);
+      for (int i = 0; i < output.size(); i++) {
+	float s = buffer[j * frames + i] * master_volume;
+	if (s > 1.0) s = 1.0;
+	else if (s < -1.0) s = -1.0;
+	output_buffer[i] = s;
+      }
     }
     return output;
   }
