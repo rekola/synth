@@ -145,6 +145,7 @@ class InputEvent : public Event {
       switch (id_) {
       case 'z': return base + 155; // C-4
       case 'x': return base + 158; // Db4
+      case 'e': return base + 159; // Cx4
       case 'c': return base + 160; // D-4
       case 'v': return base + 162; // D#4
       case 'b': return base + 165; // E-4
@@ -157,7 +158,7 @@ class InputEvent : public Event {
       case '-': return base + 183; // B-4
 
       case 's': return base + 157; // C#4
-      case 'd': return base + 158; // Db4
+      case 'd': return base + 161; // Ebb4
 	// case 'f': return base + ?;
       case 'g': return base + 163; // Eb4
       case 'j': return base + 170; // F#4
