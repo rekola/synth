@@ -5,7 +5,7 @@
 
 #include <vector>
 
-class Section : public SongObject{
+class Section : public SongObject {
  public:
   Section() { }
 
