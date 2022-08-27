@@ -25,7 +25,8 @@ class PlaybackInfo {
   int getPatternIndex() const { return pattern_idx_; }
   int getRowIndex() const { return row_idx_; }
   int getSamplePos() const { return sample_pos_; }
-
+  int getCurrentDelay() const { return 256 * sample_pos_ / sample_interval_; }
+      
   float getTime() const {
     return (float)(absolute_pos_ * sample_interval_ + sample_pos_) / outSampleRate_;
   }
