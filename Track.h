@@ -53,13 +53,13 @@ class Track : public StatefulSongObject {
   }
 
   void loadParameters(const ParameterSource & input) override {
-    SongObject::loadParameters(input);
+    StatefulSongObject::loadParameters(input);
     setSolo(input.getBool("solo"));
     setMute(input.getBool("mute"));
   }
 
   void storeParameters(ParameterSource & output) const override {
-    SongObject::storeParameters(output);
+    StatefulSongObject::storeParameters(output);
     if (isSolo()) output.set("solo", true);
     if (isMuted()) output.set("mute", true);
   }
