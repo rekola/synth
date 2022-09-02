@@ -1,3 +1,5 @@
+
+
 /* LICENSE (MIT)
 
    Copyright (C) 2021, Mikael Rekola
@@ -29,7 +31,7 @@
 
 #include <cmath>
 
-static inline float tsf_timecents2Secsf(float timecents) { return powf(2.0f, timecents / 1200.0f); }
+static inline float tsf_timecents2Secsf(float timecents) { return powf(2.0f, timecents / 1200.0); }
 
 // Grace release time for quick voice off (avoid clicking noise)
 #define TSF_FASTRELEASETIME 0.01f
@@ -48,14 +50,12 @@ class EnvelopeState : public State {
       isAmpEnv(_isAmpEnv) {
 
     if (parameters.keynumToHold_) {
-      parameters.hold_ += parameters.keynumToHold_ * (60.0f - midiNoteNumber);
-      parameters.hold_ = (parameters.hold_ < -10000.0f ? 0.0f : tsf_timecents2Secsf(parameters.hold_));
+      parameters.hold_ *= tsf_timecents2Secsf(parameters.keynumToHold_ * (60.0f - midiNoteNumber));
     }
     if (parameters.keynumToDecay_) {
-      parameters.decay_ += parameters.keynumToDecay_ * (60.0f - midiNoteNumber);
-      parameters.decay_ = (parameters.decay_ < -10000.0f ? 0.0f : tsf_timecents2Secsf(parameters.decay_));
+      parameters.decay_ *= tsf_timecents2Secsf(parameters.keynumToDecay_ * (60.0f - midiNoteNumber));
     }
-        
+	  
     nextSegment(NONE);
   }
   
