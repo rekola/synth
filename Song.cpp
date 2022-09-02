@@ -357,7 +357,7 @@ Song::save(const std::string & filename) const {
   
 void
 Song::loadParameters(const ParameterSource & input) {
-  SongObject::loadParameters(input);
+  StatefulSongObject::loadParameters(input);
     
   auto song_tuning = parse_tuning(input.getText("temperament"), Tuning::TET12);
   setTuning(song_tuning);
@@ -366,7 +366,6 @@ Song::loadParameters(const ParameterSource & input) {
   if (!key_text.empty()) setKey(Note::stringToKey(song_tuning, key_text));
 
   setTempo(input.getInt("tempo", 90));
-  setVolume(input.getFloat("volume", 1.0f));
   setRandomizationFactor(input.getFloat("randomization", 0.01f));
 
   auto mixer_text = input.getText("mixer");
@@ -376,7 +375,7 @@ Song::loadParameters(const ParameterSource & input) {
 
 void
 Song::storeParameters(ParameterSource & output) const {
-  SongObject::storeParameters(output);
+  StatefulSongObject::storeParameters(output);
 
   if (getKey() >= 0) output.set("key", Note::keyToString(getTuning(), getKey()));
   output.set("temperament", to_string(getTuning()));
