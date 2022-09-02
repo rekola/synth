@@ -151,6 +151,7 @@ class InputEvent : public Event {
       case 'b': return base + 165; // E-4
       case 'n': return base + 168; // F-4
       case 'm': return base + 173; // G-4
+      case 'k': return base + 176; // Ab4
       case ',': return base + 178; // A-4
       case 'l': return base + 179; // B𝄫4
       case '.': return base + 180; // A#4
