@@ -92,10 +92,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     break;
     
   case PlaybackControlEvent::CLEAR_VOICES:
-    {
-      auto track_state = state_.getRenderContext().getTrackState(ev.getParameter1());
-      if (track_state) track_state->clear();
-    }
+    state_.getRenderContext().deleteTrackState(ev.getParameter1());
     break;
     
   case PlaybackControlEvent::STOP_NOTE:
@@ -109,7 +106,9 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 
 void
 Player::play(AudioAPI & audio) {
-  fft_.setSize(4 * audio.getFrameCount());
+  int fft_size = 0;
+  for (; fft_size + audio.getFrameCount() <= audio.getFrequency() / 10; fft_size += audio.getFrameCount()) { }
+  fft_.setSize(fft_size);
     
   EventLogger logger(&(controller_->getUIEventQueue()));
   
@@ -160,8 +159,8 @@ Player::play(AudioAPI & audio) {
 	    auto ev = createPlaybackEvent(song, state_);
 	    ev->setLoudness(master.calculateLoudness());
 	    if (fft_.addData(master)) {
-	      ev->setFFT(fft_.calculateFFT());
 	      fft_.reset();
+	      ev->setFFT(fft_.calculateFFT());
 	    }
 	    	    
 	    controller_->getUIEventQueue().push(move(ev));
