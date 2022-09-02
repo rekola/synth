@@ -24,6 +24,8 @@
 
 #include "tinyxml2.h"
 
+#include "constants.h"
+
 using namespace std;
 using namespace tinyxml2;
 
@@ -197,20 +199,20 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	  auto delay_text = it2->Attribute("delay");
 
 	  auto value_text = it2->GetText();
-	  if (!value_text) value_text = it2->Attribute("value");
+	  if (!value_text) value_text = it2->Attribute("value");	  
 	  
-	  int row = row_text ? atoi(row_text) : 0;
-	  int start_column = column_text ? atoi(column_text) : 0;
-	  int velocity = velocity_text ? atoi(velocity_text) : 0;
-	  int delay = delay_text ? atoi(delay_text) : 0;
+	  if (track_text && value_text) {
+	    int row = row_text ? atoi(row_text) : 0;
+	    int start_column = column_text ? atoi(column_text) : 0;
+	    int velocity = velocity_text ? atoi(velocity_text) : constants::DEFAULT_VELOCITY;
+	    int delay = delay_text ? atoi(delay_text) : 0;
 
-	  if (track_text) {
 	    auto track = getTrackById(track_text);
 	    if (track) {
 	      auto track_id = track->getInternalId();
 	      auto tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : getTuning();
 	      auto notes = split_notes(value_text);
-
+	      
 	      for (int i = 0; i < static_cast<int>(notes.size()); i++) {
 		if (notes[i] == "off" || notes[i] == "OFF") {
 		  pattern.setNote(row, track_id, start_column + i, Note(0, 0));
