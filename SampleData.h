@@ -60,8 +60,8 @@ class SampleData final {
     return *this;
   }
 
-  float * getChannelData(int channel) { return data_ + channel * size(); }
-  const float * getChannelData(int channel) const { return data_ + channel * size(); }  
+  float * getChannelData(int channel) { return data_ + channel * numberOfFrames(); }
+  const float * getChannelData(int channel) const { return data_ + channel * numberOfFrames(); }  
 
   void zero() {
     memset(data_, 0, getAlignedSize(channels_ * frames_));
@@ -75,6 +75,7 @@ class SampleData final {
   
   short numberOfChannels() const { return channels_; }
   int size() const { return frames_; }
+  int numberOfFrames() const { return frames_; }
   bool empty() const { return channels_ == 0 || frames_ == 0; }
 
   void resize(int new_size) {
@@ -88,19 +89,19 @@ class SampleData final {
   }
 
   void append(const SampleData & other) {
-    int old_size = size();
-    resize(size() + other.size());
-    assign(other, old_size);
+    int old_frames = numberOfFrames();
+    resize(old_frames + other.numberOfFrames());
+    assign(other, old_frames);
   }
   
   void assign(const SampleData & other, int position) {
-    if (other.empty() || position >= size()) return;
+    if (other.empty() || position >= numberOfFrames()) return;
     assert(channels_ == other.channels_);
     assert(position >= 0);
     
     if (channels_ == other.channels_) {
-      int n = other.size() < size() ? other.size() : size();
-      if (position + n > size()) position = size() - n;
+      int n = other.numberOfFrames() < numberOfFrames() ? other.numberOfFrames() : numberOfFrames();
+      if (position + n > numberOfFrames()) position = numberOfFrames() - n;
       
       for (int j = 0; j < channels_; j++) {
 	auto other_channel_data = other.getChannelData(j);
@@ -113,14 +114,14 @@ class SampleData final {
   }
 
   void mix(const SampleData & other, float volume) {    
-    int n = size() < other.size() ? size() : other.size();
+    int n = numberOfFrames() < other.numberOfFrames() ? numberOfFrames() : other.numberOfFrames();
 
     if (channels_ == other.channels_) {
       for (int i = 0; i < channels_ * n; i++) {
 	data_[i] += volume * other.data_[i];
       }
     } else if (other.channels_ == 1) {
-      auto left = data_, right = data_ + size();
+      auto left = getChannelData(0), right = getChannelData(1);
       
       for (int i = 0; i < n; i++) {
 	left[i] = right[i] = other.data_[i];
