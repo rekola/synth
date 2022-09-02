@@ -44,9 +44,8 @@ class RenderContext {
     return nullptr;    
   }
   
-  void setTrackState(int id, std::unique_ptr<TrackState> state) {
-    track_states_[id] = std::move(state);
-  }
+  void setTrackState(int id, std::unique_ptr<TrackState> state) { track_states_[id] = std::move(state); }
+  void deleteTrackState(int id) { track_states_.erase(id); }
 
   const std::unordered_map<int, std::unique_ptr<TrackState> > & getTrackStates() const { return track_states_; }
 
