@@ -108,7 +108,8 @@ Filter::loadParameters(const ParameterSource & input) {
 
   res_ = input.getFloat("res");
   use_aftertouch_ = input.getBool("aftertouch");
-
+  is_highpass_ = input.getBool("highpass");
+  
   envelope_.loadParameters(input);
 }
 
