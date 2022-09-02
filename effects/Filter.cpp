@@ -124,6 +124,7 @@ Filter::storeParameters(ParameterSource & output) const {
   }
 
   output.set("res", res_);
+  output.set("highpass", is_highpass_);
   output.set("aftertouch", use_aftertouch_);
 
   envelope_.storeParameters(output);
