@@ -33,6 +33,7 @@ Oscilator::loadParameters(const ParameterSource & input) {
   else if (type_text == "saw") type_ = WaveformType::SAW;
   else if (type_text == "triangle") type_ = WaveformType::TRIANGLE;
   else if (type_text == "square") type_ = WaveformType::SQUARE;
+  else if (type_text == "noise") type_ = WaveformType::NOISE;
   else type_ = WaveformType::SINE;
   
   level_ = input.getFloat("level", 1.0f);
