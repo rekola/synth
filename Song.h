@@ -151,7 +151,7 @@ private:
   std::vector<Section> sections_;
   std::vector<Pattern> patterns_;
   
-  Pattern empty_pattern_;
+  static inline Pattern empty_pattern_;
 };
 
 #endif
