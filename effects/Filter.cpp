@@ -1,42 +1,15 @@
 #include "Filter.h"
 
+#include "MoogVCF.h"
+
 #include "../TrackState.h"
 #include "../EnvelopeState.h"
 
 #include "../constants.h"
+
 #include <cassert>
 
 using namespace std;
-
-struct filter_state_s {
-  float in1 = 0, in2 = 0, in3 = 0, in4 = 0;
-  float out1 = 0, out2 = 0, out3 = 0, out4 = 0;
-
-  void apply(size_t blockSamples, float * buffer, float cut, float res, bool is_highpass) {
-    for (size_t i = 0; i < blockSamples; i++) {
-      float input = buffer[i];
-      float si = input;
-      float f = cut * 1.16;
-      float ff = f * f;
-      float fb = res * (1.0 - 0.15 * ff);
-      f = 1 - f;
-      
-      input -= out4 * fb;
-      input *= 0.35013f * ff * ff;
-      out1 = input + 0.3 * in1 + f * out1; // Pole 1
-      in1  = input;
-      out2 = out1 + 0.3 * in2 + f * out2;  // Pole 2
-      in2 = out1;
-      out3 = out2 + 0.3 * in3 + f * out3;  // Pole 3
-      in3  = out2;
-      out4 = out3 + 0.3 * in4 + f * out4;  // Pole 4
-      in4  = out3;
-      
-      if (is_highpass) buffer[i] = si - out4;
-      else buffer[i] = out4;
-    }
-  }
-};
 
 class FilterState : public TrackState {
 public:
@@ -85,7 +58,7 @@ private:
   float cut_min_, cut_max_, res_;
   bool is_highpass_, use_aftertouch_;
 
-  filter_state_s left_state_, right_state_;
+  MoogVCF<float> left_state_, right_state_;
 
   EnvelopeState envelope_state_;
 };
