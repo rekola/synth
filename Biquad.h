@@ -28,8 +28,47 @@ public:
 
   }
 
-  void setup(float Fc) {
-    T K = std::tan(pi * Fc);
+  Biquad(FilterType type, T fc, T Q, T peakGainDB)
+    : type_(type),
+      fc_(fc),
+      QInv_(1 / Q),
+      peakGain_(peakGainDB)
+  {
+    setup();
+  }
+  
+  inline void apply(size_t blockSamples, float * buffer) {
+    for (size_t i = 0; i < blockSamples; i++) {
+      buffer[i] = process(buffer[i]);
+    }
+  }
+
+  inline float process(float in) {
+    T out = in * a0_ + z1_;
+    z1_ = in * a1_ + z2_ - b1_ * out;
+    z2_ = in * a2_ - b2_ * out;
+    return (float)out;
+  }
+
+  void set(T fc, T Q, T peakGainDB = 0) {
+    fc_ = fc;
+    QInv_ = 1 / Q;
+    peakGain_ = peakGainDB;
+    
+    setup();
+  }
+
+  void setFc(T fc) {
+    fc_ = fc;
+    
+    setup();
+  }
+  
+  bool active_ = false;
+  
+private:
+  void setup() {
+    T K = std::tan(pi * fc_);
     T KK = K * K;
     T norm, V;
     
@@ -142,25 +181,11 @@ public:
     }
   }
 
-  float process(float in) {
-    T out = in * a0_ + z1_;
-    z1_ = in * a1_ + z2_ - b1_ * out;
-    z2_ = in * a2_ - b2_ * out;
-    return (float)out;
-  }
-
-  void reset() {
-    z1_ = z2_ = 0;
-  }
-  
-  T QInv_ = 0;
-  bool active_ = false;
-
-private:
   FilterType type_;
+  T fc_ = 0, QInv_ = 0, peakGain_ = 0;
+
   T a0_, a1_, a2_, b1_, b2_;
   T z1_ = 0, z2_ = 0;
-  T peakGain_ = 0;
 
   static constexpr T pi = T(M_PI);
   static constexpr T sqrt_2 = std::sqrt(2);

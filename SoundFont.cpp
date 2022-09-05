@@ -23,7 +23,7 @@
 
 #include "SoundFont.h"
 
-#include "BiquadFilter.h"
+#include "Biquad.h"
 #include "FourCC.h"
 #include "EnvelopeState.h"
 #include "LFOState.h"
@@ -640,12 +640,12 @@ public:
 	
 	// Setup lowpass filter.
 	float lowpassFc = (voiceRegion_->initialFilterFc <= 13500 ? tsf_cents2Hertz((float)voiceRegion_->initialFilterFc) / outSampleRate : 1.0f);
-	float lowpassFilterQDB = voiceRegion_->initialFilterQ / 10.0f;
 	
-	lowpass_.QInv_ = 1.0 / pow(10.0, (lowpassFilterQDB / 20.0));
-	lowpass_.reset();
 	lowpass_.active_ = (lowpassFc < 0.499f);
-	if (lowpass_.active_) lowpass_.setup(lowpassFc);
+	if (lowpass_.active_) {
+	  float lowpassFilterQDB = voiceRegion_->initialFilterQ / 10.0f;
+	  lowpass_.set(lowpassFc, pow(10.0, (lowpassFilterQDB / 20.0)));
+	}
       }
     }
   }
@@ -721,7 +721,7 @@ protected:
   struct tsf_region * voiceRegion_ = nullptr;
   double pitchInputTimecents_ = 0, pitchOutputFactor_ = 0;
   unsigned int loopStart_ = 0, loopEnd_ = 0;
-  BiquadFilter<double> lowpass_ { FilterType::lowpass };
+  Biquad<double> lowpass_ { FilterType::lowpass };
   LFOState modlfo_, viblfo_;
   
 private:
@@ -793,7 +793,7 @@ SoundFontVoice::render(int numSamples) {
       float fres = tmpInitialFilterFc + modlfo_.getLevel() * tmpModLfoToFilterFc + modenv_.getLevel() * tmpModEnvToFilterFc;
       float lowpassFc = (fres <= 13500 ? tsf_cents2Hertz(fres) / sampleRate : 1.0f);
       lowpass_.active_ = (lowpassFc < 0.499f);
-      if (lowpass_.active_) lowpass_.setup(lowpassFc);
+      if (lowpass_.active_) lowpass_.setFc(lowpassFc);
     }
 
     if (dynamicPitchRatio) {
