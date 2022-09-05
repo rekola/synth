@@ -56,11 +56,12 @@ class Controller {
 
   std::shared_ptr<Song> current_song;
   std::shared_ptr<SampleData> current_sample;
-  SampleData empty_sample;
   InstrumentProvider instrument_provider;
   EventQueue ui_event_queue, playback_event_queue;
   PlaybackInfo playback_info;
   int recording_track_id = 0;
+
+  static inline SampleData empty_sample;
 };
 
 #endif
