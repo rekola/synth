@@ -11,7 +11,7 @@
 
 class SampleData final {
  public:
-  explicit SampleData() noexcept
+  SampleData() noexcept
     : channels_(0), frames_(0), data_(0), is_solo_(false) { }
   explicit SampleData(short channels, int frames, bool is_solo = false) noexcept
     : channels_(channels), frames_(frames), is_solo_(is_solo) {
