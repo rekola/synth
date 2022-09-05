@@ -23,7 +23,7 @@
 
 #include "SoundFont.h"
 
-#include "LowpassFilter.h"
+#include "BiquadFilter.h"
 #include "FourCC.h"
 #include "EnvelopeState.h"
 #include "LFOState.h"
@@ -722,7 +722,7 @@ protected:
   struct tsf_region * voiceRegion_ = nullptr;
   double pitchInputTimecents_ = 0, pitchOutputFactor_ = 0;
   unsigned int loopStart_ = 0, loopEnd_ = 0;
-  LowpassFilter lowpass_;
+  BiquadFilter<double> lowpass_ { FilterType::lowpass };
   LFOState modlfo_, viblfo_;
   
 private:
