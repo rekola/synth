@@ -10,7 +10,7 @@
 
 class Note {
  public:  
-  explicit Note() : value(-1), velocity(0), delay(0) { }
+  Note() : value(-1), velocity(0), delay(0) { }
   explicit Note(int _value, short _velocity = 0x28, short _delay = 0) : value(_value), velocity(_velocity), delay(_delay) { }
   explicit Note(std::string_view input_value, short _velocity = 0x28, short _delay = 0, Tuning tuning = Tuning::TET12)
     : value(stringToKey(tuning, std::move(input_value))),
