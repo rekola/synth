@@ -1,3 +1,14 @@
+/*
+ * CSound source code, Stilson/Smith CCRMA paper., Timo Tossavainen (?) version
+ * Type: 24db resonant lowpass
+ * Created: 2002-01-17 02:04:57
+ * 
+ * in[x] and out[x] are member variables, init to 0.0 the controls:
+ * 
+ * fc = cutoff, nearly linear [0,1] -> [0, fs/2]
+ * res = resonance [0, 4] -> [no resonance, self-oscillation]
+ */
+
 #ifndef _MOOGVCF_H_
 #define _MOOGVCF_H_
 
@@ -7,13 +18,19 @@ public:
   MoogVCF() { }
   
   void apply(size_t blockSamples, float * buffer, T fc, T res) {
+    if (fc < 0) fc = 0;
+    if (fc > 1) fc = 1;
+    if (res < 0) res = 0;
+    if (res > 4) res = 4;
+
+    auto f = fc * 1.16f;
+    auto ff = f * f;
+    auto fb = res * (1.0f - 0.15f * ff);
+
+    f = 1 - f;
+
     for (size_t i = 0; i < blockSamples; i++) {
-      T input = buffer[i];
-      T si = input;
-      T f = fc * 1.16f;
-      T ff = f * f;
-      T fb = res * (1.0f - 0.15f * ff);
-      f = 1 - f;
+      auto input = buffer[i];
       
       input -= out4 * fb;
       input *= 0.35013f * ff * ff;
