@@ -49,7 +49,7 @@ private:
 
   std::unordered_map<int, TrackInfo> effect_info_;
 
-  TrackInfo empty_effect_info_;
+  static inline TrackInfo empty_effect_info_;
 };
 
 #endif
