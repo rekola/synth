@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="150" volume="1.0" randomization="0.0099999998">
   <instruments>
-    <resonantLowpass name="sub test" cut="0.4" res="0.9">
+    <resonantLowpass name="sub test" cut="9000" res="0.9">
       <multiply unisons="8" detune="10">
 	<oscilator type="triangle" />
       </multiply>
@@ -17,7 +17,7 @@
 
     <distortion name="bass2" param="1.0" type="softclip" drive="15.0">
       <envelope attack="0.02" hold="0.519" decay="1.35" sustain="0.0" release="0.015">	
-	<resonantLowpass cut="0.1" res="0.4">
+	<resonantLowpass cut="2200" res="0.4">
 	  <multiply unisons="8" detune="10">
 	    <oscilator type="saw" />
 	  </multiply>
@@ -26,7 +26,7 @@
     </distortion>
 
     <envelope name="bass3" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">	
-      <resonantLowpass cutmin="0.05" cutmax="0.5" res="0.1" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">
+      <resonantLowpass cutmin="1100" cutmax="11000" res="0.1" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">
 	<oscilator type="square" />
 	<multiply unisons="8" detune="10">
 	  <oscilator type="triangle" harmonic="2" />
@@ -55,10 +55,10 @@
       <genericInstrument name="Rhodes Piano" />
     </distortion>
     
-    <resonantLowpass cut="0.1" res="0.1">
+    <resonantLowpass cut="2200" res="0.1">
       <oscilator name="test1" type="saw" />
     </resonantLowpass>
-    <resonantLowpass cut="0.1" res="0.1">
+    <resonantLowpass cut="2200" res="0.1">
       <oscilator name="test2" type="square" />
     </resonantLowpass>
   </instruments>

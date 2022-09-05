@@ -4,7 +4,7 @@
     <genericInstrument name="Piano" />
 
     <envelope attack="1" release="2" name="padtest2">
-      <resonantLowpass cutmin="0.05" cutmax="0.8" res="0.9" attack="3" decay="3" sustain="0.0">
+      <resonantLowpass cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
 	<multiply unisons="16" detune="10">
 	  <oscilator type="triangle" level="0.25" />
 	</multiply>
@@ -12,7 +12,7 @@
     </envelope>
 
     <envelope attack="1" release="2" name="simple">
-      <resonantLowpass cutmin="0.05" cutmax="0.8" res="0.9" attack="3" decay="3" sustain="0.0">
+      <resonantLowpass cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
 	<multiply unisons="32" detune="10" spread="180">
 	  <oscilator type="saw" level="0.25" />
 	</multiply>
@@ -20,7 +20,7 @@
     </envelope>
 
     <envelope attack="0.1" decay="0.5" sustain="0.9" release="0.5" name="fast">
-      <resonantLowpass cut="0.5" res="0.5">
+      <resonantLowpass cut="11000" res="0.5">
 	<multiply unisons="32" detune="10" spread="180">
 	  <oscilator type="triangle" level="0.25" />
 	</multiply>
@@ -28,7 +28,7 @@
     </envelope>
    
     <envelope attack="1" release="2" name="padtest (4th)">
-      <resonantLowpass cutmin="0.05" cutmax="0.8" res="0.9" attack="3" decay="3" sustain="0.0">
+      <resonantLowpass cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
 	<oscilator type="sine" level="0.75" />
 	<oscilator type="sine" level="0.3750" harmonic="2"/>
 	<multiply unisons="0" octaves="16" detune="5">
@@ -39,7 +39,7 @@
 
     <envelope attack="1" release="2" name="padtest (3rd)">
       <oscilator type="sine" level="0.75" />
-      <resonantLowpass cutmin="0.05" cutmax="0.8" res="0.9" attack="3" decay="3" sustain="0.0">
+      <resonantLowpass cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
 	<multiply unisons="0" octaves="0" thirds="16" detune="5">
 	  <oscilator type="saw" level="0.25" />
 	</multiply>
@@ -47,7 +47,7 @@
     </envelope>
 
     <envelope attack="1" release="2" name="padtest (5th)">
-      <resonantLowpass cutmin="0.05" cutmax="0.8" res="0.9" attack="3" decay="3" sustain="0.0">
+      <resonantLowpass cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
 	<multiply unisons="16" detune="5">
 	  <oscilator type="saw" level="0.25" />
 	</multiply>
@@ -57,7 +57,7 @@
     <envelope attack="1" sustain="1" release="1" name="fm pad">
       <oscilator>
 	<envelope attack="5" sustain="1" release="1" name="fm pad">
-	  <resonantLowpass cut="0.5" res="0.5">
+	  <resonantLowpass cut="1100" res="0.5">
 	    <oscilator level="0.5" type="square" harmonic="3">
 	    </oscilator>
 	  </resonantLowpass>

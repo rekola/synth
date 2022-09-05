@@ -25,31 +25,28 @@ public:
   SampleData render(int frames) override {
     auto input_data = TrackState::render(frames);
     
-    if ((cut_min_ < 1.0 && cut_max_ < 1.0) || res_ > 0.0) {    
-      auto numSamples = input_data.size();
-      auto numChannels = input_data.numberOfChannels();
-      auto left_buffer = input_data.getChannelData(0), right_buffer = input_data.getChannelData(1);
-
-      auto aftertouch_value = use_aftertouch_ ? getAftertouch() : 1.0f;
-      
-      while (numSamples) {
-	size_t blockSamples = numSamples > constants::RENDER_EFFECTSAMPLEBLOCK ? constants::RENDER_EFFECTSAMPLEBLOCK : numSamples;
-	float current_cut = cut_min_ + envelope_state_.getLevel() * aftertouch_value * (cut_max_ - cut_min_);
+    auto numSamples = input_data.size();
+    auto numChannels = input_data.numberOfChannels();
+    auto left_buffer = input_data.getChannelData(0), right_buffer = input_data.getChannelData(1);
+    auto aftertouch_value = use_aftertouch_ ? getAftertouch() : 1.0f;
+    
+    while (numSamples) {
+      size_t blockSamples = numSamples > constants::RENDER_EFFECTSAMPLEBLOCK ? constants::RENDER_EFFECTSAMPLEBLOCK : numSamples;
+      float current_cut = (cut_min_ + envelope_state_.getLevel() * aftertouch_value * (cut_max_ - cut_min_)) / (getChannelConfiguration().getAudioOutSampleRate() * 0.5f);
 	
-	if (numChannels == 1) {
-	  left_state_.apply(blockSamples, left_buffer, current_cut, res_);
-	} else {
-	  left_state_.apply(blockSamples, left_buffer, current_cut, res_);
-	  right_state_.apply(blockSamples, right_buffer, current_cut, res_);
-	}
-	
-	left_buffer += blockSamples;
-	right_buffer += blockSamples;
-	numSamples -= blockSamples;
-	envelope_state_.process(blockSamples);
+      if (numChannels == 1) {
+	left_state_.apply(blockSamples, left_buffer, current_cut, res_);
+      } else {
+	left_state_.apply(blockSamples, left_buffer, current_cut, res_);
+	right_state_.apply(blockSamples, right_buffer, current_cut, res_);
       }
+      
+      left_buffer += blockSamples;
+      right_buffer += blockSamples;
+      numSamples -= blockSamples;
+      envelope_state_.process(blockSamples);      
     }
-
+    
     return input_data;
   }
 
