@@ -33,15 +33,25 @@ class FFT {
     result_ = (fftw_complex*)fftw_malloc(sizeof(fftw_complex) * size_);
     plan_ = fftw_plan_dft_r2c_1d(size_, signal_, result_, FFTW_ESTIMATE);
   }
-  void reset() { current_pos_ = 0; }
 
   bool addData(const SampleData & data) {
+    if (current_pos_ == size_) {
+      for (int i = data.size(); i < size_; i++) {
+	signal_[i - data.size()] = signal_[i];
+      }
+      current_pos_ -= data.size();
+    }
     auto left_buffer = data.getChannelData(0), right_buffer = data.getChannelData(1);
     for (int i = 0; i < data.size() && current_pos_ < size_; i++) {
       signal_[current_pos_++] = left_buffer[i] + right_buffer[i];
     }
-    return current_pos_ == size_;
+    
+    newdata_size_ += data.size();
+    
+    return current_pos_ == size_ && 2 * newdata_size_ > size_;
   }
+
+  void reset() { newdata_size_ = 0; }
 
   std::vector<float> calculateFFT() {      
     fftw_execute(plan_);
@@ -61,6 +71,7 @@ class FFT {
  private:
   int size_ = 0;
   int current_pos_ = 0;
+  int newdata_size_ = 0;
   
   fftw_plan plan_;
   double * signal_;
