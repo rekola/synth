@@ -12,16 +12,17 @@
 
 class Pattern : public SongObject {
  public:
-  explicit Pattern(int _num_rows = 0) : num_rows(_num_rows) { }
+  Pattern() : num_rows_(0) { }
+  explicit Pattern(int num_rows) : num_rows_(num_rows) { }
 
-  int getNumRows() const { return num_rows; }
+  int getNumRows() const { return num_rows_; }
 
   void setNotes(int row, int track_id, const std::vector<Note> & n) {
-    notes[row][track_id] = n;
+    notes_[row][track_id] = n;
   }
   
   void setNote(int row, int track_id, int note_column, Note note) {
-    auto & columns = notes[row][track_id];
+    auto & columns = notes_[row][track_id];
     while (note_column >= columns.size()) columns.push_back(Note());
     columns[note_column] = note;
   }
@@ -31,7 +32,7 @@ class Pattern : public SongObject {
   }
 
   int pushNote(int row, int track_id, Note note) {
-    auto & columns = notes[row][track_id];
+    auto & columns = notes_[row][track_id];
     for (int i = 0; i < static_cast<int>(columns.size()); i++) {
       if (!columns[i].isDefined()) {
 	columns[i] = note;
@@ -44,15 +45,15 @@ class Pattern : public SongObject {
   }
 
   void clearNotes(int row, int track_id) {
-    auto it = notes.find(row);
-    if (it != notes.end()) {
+    auto it = notes_.find(row);
+    if (it != notes_.end()) {
       it->second.erase(track_id);
     }
   }
   
   void deleteNote(int row, int track_id, int column) {
-    auto it = notes.find(row);
-    if (it != notes.end()) {
+    auto it = notes_.find(row);
+    if (it != notes_.end()) {
       auto it2 = it->second.find(track_id);
       if (it2 != it->second.end()) {
 	auto & nv = it2->second;
@@ -73,8 +74,8 @@ class Pattern : public SongObject {
   }
 
   const Note & getNote(int row, int track_id, int note_column) const {
-    auto it = notes.find(row);
-    if (it != notes.end()) {
+    auto it = notes_.find(row);
+    if (it != notes_.end()) {
       auto it2 = it->second.find(track_id);
       if (it2 != it->second.end()) {
 	auto & columns = it2->second;
@@ -85,8 +86,8 @@ class Pattern : public SongObject {
   }
 
   const std::vector<Note> & getNotes(int row, int track_id) const {
-    auto it = notes.find(row);
-    if (it != notes.end()) {
+    auto it = notes_.find(row);
+    if (it != notes_.end()) {
       auto it2 = it->second.find(track_id);
       if (it2 != it->second.end()) {
 	return it2->second;
@@ -96,8 +97,8 @@ class Pattern : public SongObject {
   }
 
   const std::unordered_map<int, std::vector<Note> > & getNotes(int row) const {
-    auto it = notes.find(row);
-    if (it != notes.end()) {
+    auto it = notes_.find(row);
+    if (it != notes_.end()) {
       return it->second;
     } else {
       return empty_notes2;
@@ -105,12 +106,12 @@ class Pattern : public SongObject {
   }
 
   void setCommand(int row, int track_id, Command command) {
-    commands[row][track_id] = command;
+    commands_[row][track_id] = command;
   }
 
   const Command & getCommand(int row, int track_id) const {
-    auto it = commands.find(row);
-    if (it != commands.end()) {
+    auto it = commands_.find(row);
+    if (it != commands_.end()) {
       auto it2 = it->second.find(track_id);
       if (it2 != it->second.end()) {
 	return it2->second;
@@ -120,8 +121,8 @@ class Pattern : public SongObject {
   }
 
   const std::unordered_map<int, Command> & getCommands(int row) const {
-    auto it = commands.find(row);
-    if (it != commands.end()) {
+    auto it = commands_.find(row);
+    if (it != commands_.end()) {
       return it->second;
     } else {
       return empty_commands;
@@ -129,8 +130,7 @@ class Pattern : public SongObject {
   }
 
   void getTrackInformation(std::unordered_map<int, VisibleTrackInfo> & track_info) const {
-    for (auto & d0 : notes) {
-      // auto row = d0.first;
+    for (auto & d0 : notes_) {
       for (auto & d1 : d0.second) {
 	auto track_id = d1.first;
 	auto num_notes = d1.second.size();
@@ -141,19 +141,19 @@ class Pattern : public SongObject {
   }
 
   void setAnnotation(int row, std::string a) {
-    annotations[row] = std::move(a);
+    annotations_[row] = std::move(a);
   }
   
   const std::string & getAnnotation(int row) const {
-    auto it = annotations.find(row);
-    if (it != annotations.end()) return it->second;
+    auto it = annotations_.find(row);
+    if (it != annotations_.end()) return it->second;
     else return empty_string;
   }
 
-  const std::unordered_map<unsigned short, std::string> & getAnnotations() const { return annotations; }
+  const std::unordered_map<unsigned short, std::string> & getAnnotations() const { return annotations_; }
 
   void transposeUp() {
-    for (auto & d0 : notes) {
+    for (auto & d0 : notes_) {
       for (auto & d1 : d0.second) {
 	for (auto & note : d1.second) {
 	  note.transposeUp();
@@ -163,7 +163,7 @@ class Pattern : public SongObject {
   }
 
   void transposeDown() {
-    for (auto & d0 : notes) {
+    for (auto & d0 : notes_) {
       for (auto & d1 : d0.second) {
 	for (auto & note : d1.second) {
 	  note.transposeDown();
@@ -174,7 +174,7 @@ class Pattern : public SongObject {
 
   void loadParameters(const ParameterSource & input) override {
     SongObject::loadParameters(input);
-    num_rows = input.getInt("rows");	
+    num_rows_ = input.getInt("rows");	
   }
   
   void storeParameters(ParameterSource & output) const override {
@@ -183,19 +183,19 @@ class Pattern : public SongObject {
   }
 
 private:
-  int num_rows;
+  int num_rows_;
 
   // sparse note matrix: row, track, note_column
-  std::unordered_map<unsigned short, std::unordered_map<int, std::vector<Note> > > notes;
-  std::unordered_map<unsigned short, std::unordered_map<int, Command> > commands;
-  std::unordered_map<unsigned short, std::string> annotations;
+  std::unordered_map<unsigned short, std::unordered_map<int, std::vector<Note> > > notes_;
+  std::unordered_map<unsigned short, std::unordered_map<int, Command> > commands_;
+  std::unordered_map<unsigned short, std::string> annotations_;
 
-  Note empty_note;
-  std::vector<Note> empty_notes;
-  std::unordered_map<int, std::vector<Note> > empty_notes2;
-  std::string empty_string;
-  std::unordered_map<int, Command> empty_commands;
-  Command empty_command;
+  static inline Note empty_note;
+  static inline std::vector<Note> empty_notes;
+  static inline std::unordered_map<int, std::vector<Note> > empty_notes2;
+  static inline std::string empty_string;
+  static inline std::unordered_map<int, Command> empty_commands;
+  static inline Command empty_command;
 };
 
 #endif
