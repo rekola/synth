@@ -14,17 +14,17 @@
 //  for your own purposes, free or commercial.
 //
 
-#ifndef _BIQUADFILTER_H_
-#define _BIQUADFILTER_H_
+#ifndef _BIQUAD_H_
+#define _BIQUAD_H_
 
 #include "FilterType.h"
 
 #include <cmath>
 
 template <class T>
-class BiquadFilter {
+class Biquad {
 public:
-  BiquadFilter(FilterType type) : type_(type) {
+  Biquad(FilterType type) : type_(type) {
 
   }
 
