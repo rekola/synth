@@ -6,13 +6,13 @@ class MoogVCF {
 public:
   MoogVCF() { }
   
-  void apply(size_t blockSamples, float * buffer, float cut, float res, bool is_highpass) {
+  void apply(size_t blockSamples, float * buffer, T fc, T res) {
     for (size_t i = 0; i < blockSamples; i++) {
       T input = buffer[i];
       T si = input;
-      T f = cut * 1.16;
+      T f = fc * 1.16f;
       T ff = f * f;
-      T fb = res * (1.0 - 0.15 * ff);
+      T fb = res * (1.0f - 0.15f * ff);
       f = 1 - f;
       
       input -= out4 * fb;
@@ -26,8 +26,7 @@ public:
       out4 = out3 + 0.3f * in4 + f * out4;  // Pole 4
       in4  = out3;
       
-      if (is_highpass) buffer[i] = si - out4;
-      else buffer[i] = out4;
+      buffer[i] = (float)out4;
     }
   }
 

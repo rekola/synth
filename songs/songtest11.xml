@@ -1,26 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="100" volume="0.75" randomization="0.0099999998">
+<song temperament="31edo" tempo="100" volume="0.75" randomization="0">
   <instruments>
-    <genericInstrument id="guitar" name="Acoustic Guitar (steel)" />
+    <genericInstrument name="Chateau Grand" />
 
     <envelope id="pad" attack="1" release="2" name="padtest2">
-      <filter cutmin="0.01" cutmax="0.5" res="0.9" attack="3" decay="0" sustain="1.0" release="2" >
-	<multiply unisons="16" detune="0.005">
+      <resonantLowpass cutmin="0.01" cutmax="0.5" res="0.9" attack="3" decay="0" sustain="1.0" release="2" >
+	<multiply unisons="16" detune="10" spread="90">
 	  <oscilator type="saw" level="0.25"/>
 	</multiply>
-      </filter>
+      </resonantLowpass>
     </envelope>
 
     <genericInstrument id="harp" name="Orchestral Harp" />
 
     <LFO frequency="400" level="1" name="lfo"/>
+
+    <genericInstrument name="Percussion"/>
   </instruments>
   
   <tracks>
     <reverb preset="subtle">
-      <track id="guitar" instrument="0" azimuth="-30" distance="0" elevation="50" />
-      <track id="pad" instrument="1" azimuth="0" distance="0" elevation="50" />
-      <track id="harp" instrument="2" azimuth="30" distance="0" elevation="50" />
+      <track id="guitar" instrument="0" volume="1.0"/>
+      <track id="pad" instrument="1" azimuth="+0"/>
+      <track id="harp" instrument="2" />
+      <percussionTrack id="perc" instrument="4" />
     </reverb>
   </tracks>
 
@@ -34,7 +37,11 @@
     <pattern rows="64">
       <note row="0" track="pad" velocity="20">C-2 C-3 OFF</note>
       <note row="16" track="pad" velocity="20">G-3 C-4</note>
-      <note row="32" track="pad" velocity="20">F-3 C-4 Ab4</note>      
+      <note row="32" track="pad" velocity="20">F-3 C-4 Ab4</note>
+
+      <note row="0" track="perc" velocity="20">CH</note>
+      <note row="4" track="perc" velocity="20">CH</note>
+      <note row="8" track="perc" velocity="20">CH</note>
     </pattern>
 
     <pattern rows="64">

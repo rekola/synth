@@ -1,4 +1,4 @@
-#include "Filter.h"
+#include "ResonantLowpass.h"
 
 #include "MoogVCF.h"
 
@@ -11,14 +11,13 @@
 
 using namespace std;
 
-class FilterState : public TrackState {
+class ResonantLowpassState : public TrackState {
 public:
-  FilterState(const ChannelConfiguration & channel_config, const Filter & filter, const Envelope & envelope, bool use_aftertouch)
+  ResonantLowpassState(const ChannelConfiguration & channel_config, const ResonantLowpass & ResonantLowpass, const Envelope & envelope, bool use_aftertouch)
     : TrackState(channel_config),
-      cut_min_(filter.get_cut_min()),
-      cut_max_(filter.get_cut_max()),
-      res_(filter.get_res()),
-      is_highpass_(filter.get_is_highpass()),
+      cut_min_(ResonantLowpass.get_cut_min()),
+      cut_max_(ResonantLowpass.get_cut_max()),
+      res_(ResonantLowpass.get_res()),
       envelope_state_(channel_config.getAudioOutSampleRate(), envelope, 0, 0, true),
       use_aftertouch_(use_aftertouch)
   { }  
@@ -38,10 +37,10 @@ public:
 	float current_cut = cut_min_ + envelope_state_.getLevel() * aftertouch_value * (cut_max_ - cut_min_);
 	
 	if (numChannels == 1) {
-	  left_state_.apply(blockSamples, left_buffer, current_cut, res_, is_highpass_);
+	  left_state_.apply(blockSamples, left_buffer, current_cut, res_);
 	} else {
-	  left_state_.apply(blockSamples, left_buffer, current_cut, res_, is_highpass_);
-	  right_state_.apply(blockSamples, right_buffer, current_cut, res_, is_highpass_);
+	  left_state_.apply(blockSamples, left_buffer, current_cut, res_);
+	  right_state_.apply(blockSamples, right_buffer, current_cut, res_);
 	}
 	
 	left_buffer += blockSamples;
@@ -56,7 +55,7 @@ public:
 
 private:
   float cut_min_, cut_max_, res_;
-  bool is_highpass_, use_aftertouch_;
+  bool use_aftertouch_;
 
   MoogVCF<float> left_state_, right_state_;
 
@@ -64,12 +63,12 @@ private:
 };
 
 std::unique_ptr<TrackState>
-Filter::createState(const ChannelConfiguration & config) const {
-  return make_unique<FilterState>(config, *this, envelope_, use_aftertouch_);
+ResonantLowpass::createState(const ChannelConfiguration & config) const {
+  return make_unique<ResonantLowpassState>(config, *this, envelope_, use_aftertouch_);
 }
 
 void
-Filter::loadParameters(const ParameterSource & input) {
+ResonantLowpass::loadParameters(const ParameterSource & input) {
   Track::loadParameters(input);
   
   if (input.has("cut")) {
@@ -81,13 +80,12 @@ Filter::loadParameters(const ParameterSource & input) {
 
   res_ = input.getFloat("res");
   use_aftertouch_ = input.getBool("aftertouch");
-  is_highpass_ = input.getBool("highpass");
   
   envelope_.loadParameters(input);
 }
 
 void
-Filter::storeParameters(ParameterSource & output) const {
+ResonantLowpass::storeParameters(ParameterSource & output) const {
   Track::storeParameters(output);
 
   if (cut_min_ == cut_max_) {
@@ -98,7 +96,6 @@ Filter::storeParameters(ParameterSource & output) const {
   }
 
   output.set("res", res_);
-  output.set("highpass", is_highpass_);
   output.set("aftertouch", use_aftertouch_);
 
   envelope_.storeParameters(output);

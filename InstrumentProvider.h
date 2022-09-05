@@ -4,7 +4,6 @@
 #include "Instrument.h"
 #include "SoundFont.h"
 #include "Oscilator.h"
-#include "effects/Filter.h"
 
 #include <string>
 #include <memory>
@@ -15,8 +14,6 @@ class InstrumentProvider {
   InstrumentProvider() {
     auto epiano = std::make_shared<Oscilator>(WaveformType::SAW);
     epiano->setName("Electric Piano");
-    // epiano->setAmpEnvelope(Envelope(0.0f, 10 * 20 / 255.0f, 0.0f, 0.0));
-    // epiano->addEffect(std::make_unique<Filter>(63 / 255.0f, 128 / 63.0f, false));
     addInstrument(epiano);
 
     default_instrument = epiano;

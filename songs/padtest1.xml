@@ -4,28 +4,74 @@
     <genericInstrument name="Piano" />
 
     <envelope attack="1" release="2" name="padtest2">
-      <filter cutmin="0.05" cutmax="0.8" res="0.9" attack="3" decay="3" sustain="0.0">
+      <resonantLowpass cutmin="0.05" cutmax="0.8" res="0.9" attack="3" decay="3" sustain="0.0">
 	<multiply unisons="16" detune="10">
-	  <oscilator type="saw" level="0.25" />
+	  <oscilator type="triangle" level="0.25" />
 	</multiply>
-      </filter>
+      </resonantLowpass>
     </envelope>
 
     <envelope attack="1" release="2" name="simple">
-      <filter cutmin="0.05" cutmax="0.8" res="0.9" attack="3" decay="3" sustain="0.0">
+      <resonantLowpass cutmin="0.05" cutmax="0.8" res="0.9" attack="3" decay="3" sustain="0.0">
 	<multiply unisons="32" detune="10" spread="180">
 	  <oscilator type="saw" level="0.25" />
 	</multiply>
-      </filter>
+      </resonantLowpass>
+    </envelope>
+
+    <envelope attack="0.1" decay="0.5" sustain="0.9" release="0.5" name="fast">
+      <resonantLowpass cut="0.5" res="0.5">
+	<multiply unisons="32" detune="10" spread="180">
+	  <oscilator type="triangle" level="0.25" />
+	</multiply>
+      </resonantLowpass>
+    </envelope>
+   
+    <envelope attack="1" release="2" name="padtest (4th)">
+      <resonantLowpass cutmin="0.05" cutmax="0.8" res="0.9" attack="3" decay="3" sustain="0.0">
+	<oscilator type="sine" level="0.75" />
+	<oscilator type="sine" level="0.3750" harmonic="2"/>
+	<multiply unisons="0" octaves="16" detune="5">
+	  <oscilator type="square" level="0.05" />
+	</multiply>
+      </resonantLowpass>
+    </envelope>
+
+    <envelope attack="1" release="2" name="padtest (3rd)">
+      <oscilator type="sine" level="0.75" />
+      <resonantLowpass cutmin="0.05" cutmax="0.8" res="0.9" attack="3" decay="3" sustain="0.0">
+	<multiply unisons="0" octaves="0" thirds="16" detune="5">
+	  <oscilator type="saw" level="0.25" />
+	</multiply>
+      </resonantLowpass>
+    </envelope>
+
+    <envelope attack="1" release="2" name="padtest (5th)">
+      <resonantLowpass cutmin="0.05" cutmax="0.8" res="0.9" attack="3" decay="3" sustain="0.0">
+	<multiply unisons="16" detune="5">
+	  <oscilator type="saw" level="0.25" />
+	</multiply>
+      </resonantLowpass>
+    </envelope>
+
+    <envelope attack="1" sustain="1" release="1" name="fm pad">
+      <oscilator>
+	<envelope attack="5" sustain="1" release="1" name="fm pad">
+	  <resonantLowpass cut="0.5" res="0.5">
+	    <oscilator level="0.5" type="square" harmonic="3">
+	    </oscilator>
+	  </resonantLowpass>
+	</envelope>
+      </oscilator>
     </envelope>
 </instruments>
   
   <tracks>
-    <reverb id="100" azimuth="30" distance="0" elevation="50" volume="1.0" preset="stadium">
+    <reverb azimuth="30" distance="0" elevation="50" volume="1.0" preset="stadium">
       <track id="0" instrument="0" />
       <track id="1" instrument="1" />
-      <track id="2" instrument="2"/>
-      <track id="3" instrument="3"/>
+      <track id="2" instrument="2" />
+      <track id="3" instrument="3" />
     </reverb>
   </tracks>
   

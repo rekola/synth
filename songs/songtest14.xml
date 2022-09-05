@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="100" volume="0.75" randomization="0">
   <instruments>
-    <filter cut="0.1" res="2" name="Chords">
+    <resonantLowpass cut="0.1" res="2" name="Chords">
       <downmix>
 	<genericInstrument name="Acoustic Guitar (steel)" />
       </downmix>
-    </filter>
+    </resonantLowpass>
 
     <envelope attack="0.5" release="2" name="Pads">
-      <filter cut="0.1" res="0.5">
+      <resonantLowpass cut="0.1" res="0.5">
 	<multiply unisons="4" detune="5" spread="90">
 	  <oscilator type="square" level="0.25"/>
 	</multiply>
-      </filter>
+      </resonantLowpass>
     </envelope>
 
     <genericInstrument name="Orchestral Harp" />
@@ -77,7 +77,7 @@
 
     </pattern>
 
-    <pattern rows="28">
+    <pattern rows="32">
       <note row="0" track="harp" velocity="30">C-4</note>
       <note row="2" track="harp" velocity="30">D#4</note>
       <note row="4" track="harp" velocity="30">A#4</note> <note row="4" track="pad" velocity="5">C-4</note> <note row="4" track="perc" velocity="20">CH</note> <note row="4" track="guitar" velocity="10">A#4 C-5 D#5</note>
@@ -88,7 +88,37 @@
       <note row="18" track="harp" velocity="30">G-4</note> <note row="20" track="perc" velocity="20">CH</note>
       <note row="20" track="harp" velocity="30">D#4</note> <note row="20" track="guitar" velocity="10">G-4 A#4 C-5</note>
       <note row="22" track="harp" velocity="30">E-4</note>
-      <note row="24" track="harp" velocity="30">F-4</note> <note row="24" track="perc" velocity="20">CH</note> <note row="24" track="guitar" velocity="10">F-4 A-4 C-5 F-5</note>
+      <note row="24" track="harp" velocity="30">F-4</note> <note row="24" track="perc" velocity="20">CH</note> <note row="24" track="guitar" velocity="10">F-4 A-4 C-5</note>
+      <note row="28" track="perc" velocity="20">RC1</note>
+    </pattern>
+
+    <pattern rows="32">
+      <note row="0" track="harp" velocity="30">C-4</note> <note row="0" track="perc" velocity="20">T1</note>
+      <note row="4" track="harp" velocity="30">A#4</note> <note row="4" track="pad" velocity="5">C-4</note> <note row="4" track="perc" velocity="20">CH</note> <note row="4" track="guitar" velocity="10">A#4 C-5 D#5</note>
+      <note row="8" track="harp" velocity="30">C-4</note> <note row="8" track="perc" velocity="20">T1</note>
+      <note row="10" track="harp" velocity="30">A-4</note> <note row="10" track="perc" velocity="20">CH</note> <note row="10" track="guitar" velocity="10">A-4 C-5 E-5</note>
+      <note row="14" track="harp" velocity="30">G-4</note> <note row="14" track="perc" velocity="20">T1</note>
+      <note row="18" track="harp" velocity="30">G-4</note> <note row="18" track="perc" velocity="20">CH</note> <note row="18" track="guitar" velocity="10">G-4 A#4 C-5</note>
+
+      <note row="22" track="harp" velocity="30">G-4</note> <note row="22" track="perc" velocity="20">CH</note>
+      <note row="24" track="harp" velocity="30">E-4</note> <note row="26" track="perc" velocity="20">T1</note>
+      <note row="28" track="harp" velocity="30">F-4</note> <note row="28" track="perc" velocity="20">CH</note> <note row="28" track="guitar" velocity="10">F-4 A-4 C-5</note>
+
+    </pattern>
+
+    <pattern rows="32">
+      <note row="0" track="harp" velocity="30">C-4</note> <note row="0" track="perc" velocity="20">T1</note>
+      <note row="2" track="harp" velocity="30">D#4</note>
+      <note row="4" track="harp" velocity="30">A#4</note> <note row="4" track="pad" velocity="5">C-4</note> <note row="4" track="perc" velocity="20">CH</note> <note row="4" track="guitar" velocity="10">A#4 C-5 D#5</note>
+      <note row="8" track="harp" velocity="30">C-4</note> <note row="8" track="perc" velocity="20">T1</note>
+      <note row="10" track="harp" velocity="30">A-4</note> <note row="10" track="perc" velocity="20">CH</note> <note row="10" track="guitar" velocity="10">A-4 C-5 E-5</note>
+      <note row="14" track="harp" velocity="30">G-4</note> <note row="14" track="perc" velocity="20">T1</note> <note row="14" track="guitar" velocity="10">G-4 A#4 C-5</note>
+
+      <note row="18" track="harp" velocity="30">G-4</note> <note row="18" track="perc" velocity="20">CH</note>
+      <note row="20" track="harp" velocity="30">D#4</note> <note row="20" track="guitar" velocity="10">G-4 A#4 C-5</note> <note row="20" track="perc" velocity="20">OH</note>
+      <note row="22" track="harp" velocity="30">E-4</note>
+      <note row="24" track="harp" velocity="30">F-4</note> <note row="24" track="perc" velocity="20">CH</note> <note row="24" track="guitar" velocity="10">F-4 A-4 C-5</note>
+      <note row="28" track="perc" velocity="20">RC1</note>
     </pattern>
 
     <pattern rows="1">
