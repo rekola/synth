@@ -57,7 +57,6 @@ public:
   int freqVibLFO, vibLfoToPitch;
 
   void clear(bool for_relative) {
-    // memset(i, 0, sizeof(struct tsf_region));
     loop_mode = 0;
     sample_rate = 0;
     lokey = lovel = 0;
@@ -643,10 +642,10 @@ public:
 	float lowpassFc = (voiceRegion_->initialFilterFc <= 13500 ? tsf_cents2Hertz((float)voiceRegion_->initialFilterFc) / outSampleRate : 1.0f);
 	float lowpassFilterQDB = voiceRegion_->initialFilterQ / 10.0f;
 	
-	lowpass_.QInv = 1.0 / pow(10.0, (lowpassFilterQDB / 20.0));
-	lowpass_.z1 = lowpass_.z2 = 0;
-	lowpass_.active = (lowpassFc < 0.499f);
-	if (lowpass_.active) lowpass_.setup(lowpassFc);
+	lowpass_.QInv_ = 1.0 / pow(10.0, (lowpassFilterQDB / 20.0));
+	lowpass_.reset();
+	lowpass_.active_ = (lowpassFc < 0.499f);
+	if (lowpass_.active_) lowpass_.setup(lowpassFc);
       }
     }
   }
@@ -793,8 +792,8 @@ SoundFontVoice::render(int numSamples) {
     if (dynamicLowpass) {
       float fres = tmpInitialFilterFc + modlfo_.getLevel() * tmpModLfoToFilterFc + modenv_.getLevel() * tmpModEnvToFilterFc;
       float lowpassFc = (fres <= 13500 ? tsf_cents2Hertz(fres) / sampleRate : 1.0f);
-      lowpass_.active = (lowpassFc < 0.499f);
-      if (lowpass_.active) lowpass_.setup(lowpassFc);
+      lowpass_.active_ = (lowpassFc < 0.499f);
+      if (lowpass_.active_) lowpass_.setup(lowpassFc);
     }
 
     if (dynamicPitchRatio) {
@@ -823,7 +822,7 @@ SoundFontVoice::render(int numSamples) {
       float val = (input[pos] * (1.0f - alpha) + input[nextPos] * alpha);
       
       // Low-pass filter.
-      if (lowpass_.active) val = lowpass_.process(val);
+      if (lowpass_.active_) val = lowpass_.process(val);
 
       if (num_channels == 1) {
 	*left_output++ = val * gainMono;
