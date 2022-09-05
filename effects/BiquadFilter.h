@@ -1,0 +1,24 @@
+#ifndef _BIQUADFILTER_H_
+#define _BIQUADFILTER_H_
+
+#include "../Track.h"
+#include "../Envelope.h"
+#include "../FilterType.h"
+
+class BiquadFilter : public Track {
+ public:
+  BiquadFilter() : Track(TrackType::EFFECT) { }
+
+  std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override;
+  const char * getElementName() const override { return "biquadFilter"; }
+  void loadParameters(const ParameterSource & input) override;
+  void storeParameters(ParameterSource & output) const override;
+
+private:
+  FilterType type_ { FilterType::lowpass };
+  float fc_ = 0.0f, Q_ = 0.0f, peakGainDB_ = 0.0f;
+  bool use_aftertouch_ = false;
+  Envelope envelope_;
+};
+
+#endif
