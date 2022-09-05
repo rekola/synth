@@ -8,10 +8,12 @@
 #include "NoteMultiplier.h"
 #include "Arpeggiator.h"
 #include "EnvelopeFilter.h"
+#include "HarmonicSeries.h"
 
 #include "effects/Distortion.h"
 #include "effects/Reverb.h"
 #include "effects/Filter.h"
+#include "effects/BiquadFilter.h"
 #include "effects/Compressor.h"
 #include "effects/Delay.h"
 #include "effects/Chorus.h"
@@ -93,6 +95,7 @@ static unique_ptr<Track> createTrack(string_view name) {
   else if (name == "reverb") return make_unique<Reverb>();
   else if (name == "distortion") return make_unique<Distortion>();
   else if (name == "filter") return make_unique<Filter>();
+  else if (name == "biquadFilter") return make_unique<BiquadFilter>();
   else if (name == "compressor") return make_unique<Compressor>();
   else if (name == "delay") return make_unique<Delay>();
   else if (name == "chorus") return make_unique<Chorus>();
@@ -101,6 +104,7 @@ static unique_ptr<Track> createTrack(string_view name) {
   else if (name == "multiply") return make_unique<NoteMultiplier>();
   else if (name == "arpeggiator") return make_unique<Arpeggiator>();
   else if (name == "envelope") return make_unique<EnvelopeFilter>();
+  else if (name == "harmonicSeries") return make_unique<HarmonicSeries>();
   
   // instruments
   else if (name == "genericInstrument") return make_unique<GenericInstrument>();
