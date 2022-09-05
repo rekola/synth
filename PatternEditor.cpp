@@ -219,6 +219,8 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
     }   
   }
 
+  auto current_delay = info.getCurrentDelay();
+  
   int note_column;
   auto it = active_midi_notes.find(ev.getNote());
   if (it != active_midi_notes.end()) {
@@ -232,18 +234,19 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
     active_midi_notes.erase(ev.getNote());
     event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, track_id, note_column));
 
-    pattern.setNote(info.getRowIndex(), track_id, note_column, Note(0, 0));
+    pattern.setNote(info.getRowIndex(), track_id, note_column, Note(0, 0, current_delay));
   } else if (ev.getType() == MidiEvent::NOTE_ON) {
     event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, track_id, note_column, note_value, ev.getVelocity()));
 
-    Note note(note_value, ev.getVelocity());
+    Note note(note_value, ev.getVelocity(), current_delay);
     pattern.setNote(info.getRowIndex(), track_id, note_column, note);
     row_edited = true;
   } else if (ev.getType() == MidiEvent::NOTE_PRESSURE) {
     event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, track_id, note_column, note_value, ev.getVelocity()));    
 
     auto note = pattern.getNote(info.getRowIndex(), track_id, note_column);
-    note.setVelocity(ev.getVelocity());
+    if (!note.isDefined()) note.setDelay(current_delay);
+    note.setVelocity(ev.getVelocity());    
     pattern.setNote(info.getRowIndex(), track_id, note_column, note);
     row_edited = true;
   }
@@ -334,29 +337,29 @@ PatternEditor::offerInput(const InputEvent & input) {
       edit_step_size++;
     } else if (input.getId() == '-') {
       if (edit_step_size > 0) edit_step_size--;
-    } else if (input.getId() == NCKEY_LEFT || input.getId() == 'p') {
+    } else if (input.getId() == NCKEY_LEFT || input.getId() == NCKEY_RIGHT) {
       auto track = song.getTrackByInternalId(track_ids[current_cursor.track]);
-      if (track && track->getType() == TrackType::INSTRUMENT_CONTROL) {
+      if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL)) {
 	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
-	if (instrument_track.getInstrumentId() > 0) {
+	bool changed = false;
+	if (input.getId() == NCKEY_LEFT && instrument_track.getInstrumentId() > 0) {
 	  instrument_track.setInstrumentId(instrument_track.getInstrumentId() - 1);
+	  changed = true;
+	} else {
+	  auto & instruments = song.getInstruments();
+	  if (input.getId() == NCKEY_RIGHT && instrument_track.getInstrumentId() + 1 < instruments.size()) {
+	    instrument_track.setInstrumentId(instrument_track.getInstrumentId() + 1);
+	    changed = true;
+	  }
+	}
+	if (changed) {
 	  song.incVersion();
 	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, instrument_track.getInternalId()));
 	}
       }
       return true;
-    } else if (input.getId() == NCKEY_RIGHT || input.getId() == 'i' || input.getId() == 'o') {
-      auto track = song.getTrackByInternalId(track_ids[current_cursor.track]);
-      if (track && track->getType() == TrackType::INSTRUMENT_CONTROL) {
-	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
-	auto & instruments = song.getInstruments();
-	if (instrument_track.getInstrumentId() + 1 < instruments.size()) {
-	  instrument_track.setInstrumentId(instrument_track.getInstrumentId() + 1);
-	  song.incVersion();
-	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, instrument_track.getInternalId()));
-	}
-      }
-      return true;
+    } else if (input.getId() == 'i') {
+      // create new instrument
     } else if (input.getId() == '\\') {
       auto track = song.getTrackByInternalId(track_ids[current_cursor.track]);
       if (track) {
@@ -489,7 +492,8 @@ PatternEditor::offerInput(const InputEvent & input) {
 	bool is_off = input.getId() == 'a';
 	bool is_delete = input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE;
 	auto note_column = track_info.getNoteNumber(new_cursor.col);
-
+	auto current_delay = info.getCurrentDelay();
+	
 	int midi_note = -1;
 	if (!is_off) {
 	  auto track = song.getTrackByInternalId(track_id);
@@ -502,11 +506,11 @@ PatternEditor::offerInput(const InputEvent & input) {
 	    pattern.deleteNote(info.getRowIndex(), track_id, note_column);
 	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, track_id, note_column));
 	  } else if (is_off) {
-	    pattern.setNote(info.getRowIndex(), track_id, note_column, Note(0, 0)); 
+	    pattern.setNote(info.getRowIndex(), track_id, note_column, Note(0, 0, current_delay)); 
 	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, track_id, note_column));
 	  } else {
-	    Note note(midi_note);
-
+	    Note note(midi_note, 0x28, current_delay);
+	    
 	    if (input.hasShift()) {
 	      note_column = pattern.pushNote(info.getRowIndex(), track_id, note);
 	    } else {
@@ -618,9 +622,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  string instrument_name;
 	  if (track->getType() == TrackType::SAMPLE) {
 	    instrument_name = "Sample";
-	  } else if (track->getType() == TrackType::PERCUSSION_CONTROL) {
-	    instrument_name = "Percussion";
-	  } else if (track->getType() == TrackType::INSTRUMENT_CONTROL) {
+	  } else if (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL) {
 	    auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
 	    if (instrument_track.getInstrumentId() >= 0 && instrument_track.getInstrumentId() < instruments.size()) {
 	      instrument_name = instruments[instrument_track.getInstrumentId()]->getName();
