@@ -7,6 +7,7 @@
 #include <string_view>
 #include <cassert>
 #include <charconv>
+#include <vector>
 
 class Note {
  public:  
@@ -184,7 +185,38 @@ class Note {
       }
     }
   }
+
+  static std::vector<Note> createFromString(std::string_view line, short velocity, short delay, Tuning tuning) {
+    std::vector<Note> r;
     
+    if (!line.empty()) {
+      size_t i0 = 0, i = 0;
+      for ( ; i < line.size(); i++) {
+	if (isspace(line[i])) {
+	  auto s = line.substr(i0, i - i0);
+	  if (s == "off" || s == "OFF") {
+	    r.emplace_back(0, 0);
+	  } else {
+	    r.emplace_back(s, velocity, delay, tuning);
+	  }
+	  while (isspace(line[i + 1])) i++;
+	  i0 = i + 1;
+	}
+      }
+
+      if (i0 < i) {
+	auto s = line.substr(i0, i - i0);
+	if (s == "off" || s == "OFF") {
+	  r.emplace_back(0, 0);
+	} else {
+	  r.emplace_back(s, velocity, delay, tuning);
+	}
+      }
+    }
+
+    return r;
+  }
+
  private:
   int value; // sample position, note value or -1 for undefined note
   short velocity;

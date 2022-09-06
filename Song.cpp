@@ -59,23 +59,6 @@ private:
   XMLElement * element_;
 };
 
-static inline vector<string> split_notes(string_view line) {
-  vector<string> r;
-  
-  if (!line.empty()) {
-    size_t i0 = 0, i = 0;
-    for ( ; i < line.size(); i++) {
-      if (isspace(line[i])) {
-	r.push_back(string(line.substr(i0, i - i0)));
-	while (isspace(line[i + 1])) i++;
-	i0 = i + 1;
-      }
-    }
-    r.push_back(string(line.substr(i0, i - i0)));
-  }
-  return r;
-}
-
 static Tuning parse_tuning(string_view tuning_text, Tuning default_tuning = Tuning::TET12) {
   if (tuning_text == "12edo") return Tuning::TET12;
   else if (tuning_text == "31edo") return Tuning::TET31;
@@ -213,15 +196,10 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	    if (track) {
 	      auto track_id = track->getInternalId();
 	      auto tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : getTuning();
-	      auto notes = split_notes(value_text);
-	      
+	      auto notes = Note::createFromString(value_text, velocity, delay, tuning);
 	      for (int i = 0; i < static_cast<int>(notes.size()); i++) {
-		if (notes[i] == "off" || notes[i] == "OFF") {
-		  pattern.setNote(row, track_id, start_column + i, Note(0, 0));
-		} else {
-		  pattern.setNote(row, track_id, start_column + i, Note(notes[i], velocity, delay, tuning));
-		}
-	      }
+		pattern.setNote(row, track_id, start_column + i, notes[i]);
+	      }	      
 	    }
 	  }
 	}
