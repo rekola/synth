@@ -14,7 +14,6 @@
 #include "effects/Reverb.h"
 #include "effects/ResonantLowpass.h"
 #include "effects/BiquadFilter.h"
-#include "effects/Compressor.h"
 #include "effects/Delay.h"
 #include "effects/Chorus.h"
 #include "effects/Tremolo.h"
@@ -96,7 +95,6 @@ static unique_ptr<Track> createTrack(string_view name) {
   else if (name == "distortion") return make_unique<Distortion>();
   else if (name == "resonantLowpass") return make_unique<ResonantLowpass>();
   else if (name == "biquadFilter") return make_unique<BiquadFilter>();
-  else if (name == "compressor") return make_unique<Compressor>();
   else if (name == "delay") return make_unique<Delay>();
   else if (name == "chorus") return make_unique<Chorus>();
   else if (name == "tremolo") return make_unique<Tremolo>();
