@@ -5,7 +5,8 @@
 
 class Delay : public Track {
  public:
-  Delay(int _delay = 0.0f, float _fd = 0.0f, float _delaymix = 0.0f) : Track(TrackType::EFFECT), delay(_delay), fd(_fd), delaymix(_delaymix) {
+  Delay(float delay = 0.0f, float fd = 0.0f, float delaymix = 0.0f)
+    : Track(TrackType::EFFECT), delay_(delay), fd_(fd), delaymix_(delaymix) {
   }
 
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & channel_config) const override;
@@ -14,8 +15,8 @@ class Delay : public Track {
   void storeParameters(ParameterSource & output) const override;
 
  private:
-  int delay;
-  float fd, delaymix;
+  float delay_; // sec
+  float fd_, delaymix_;
 };
 
 #endif
