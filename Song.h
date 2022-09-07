@@ -18,7 +18,7 @@ class Song : public StatefulSongObject {
  public:
   Song(Tuning tuning = Tuning::TET12, short key = -1, float randomization_factor = 0.01f) : tuning_(tuning), key_note_number_(key), randomization_factor_(randomization_factor) { }
 
-  std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const;
+  std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override;
   
   Tuning getTuning() const { return tuning_; }
   void setTuning(Tuning tuning) { tuning_ = tuning; }
@@ -38,6 +38,7 @@ class Song : public StatefulSongObject {
   void incVersion() { version_++; }
   int getVersion() const { return version_; }
 
+  const std::vector<Section> & getSections() const { return sections_; }
   const std::vector<Pattern> & getPatterns() const { return patterns_; }
   const Pattern & getPattern(int i) const { return i >= 0 && i < static_cast<int>(patterns_.size()) ? patterns_[i] : empty_pattern_; }
   Pattern & getPattern(int i) { return i >= 0 && i < static_cast<int>(patterns_.size()) ? patterns_[i] : empty_pattern_; }
@@ -130,7 +131,7 @@ class Song : public StatefulSongObject {
   void storeParameters(ParameterSource & output) const override;
 
   int getTrackDepth() const {
-    int max_depth = 0;  
+    int max_depth = 0;
     for (auto & track : getTracks()) {
       auto d = track->getDepth();
       if (d > max_depth) max_depth = d;
