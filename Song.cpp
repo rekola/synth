@@ -265,6 +265,17 @@ Song::save(const std::string & filename) const {
 
   auto tracks = doc.NewElement("tracks");
   root->InsertEndChild(tracks);
+
+  auto sections = doc.NewElement("sections");
+  root->InsertEndChild(sections);
+
+  for (auto & section : getSections()) {
+    auto section_element = doc.NewElement("section");
+    XMLParameterSource section_parameters(section_element);
+    section.storeParameters(section_parameters);
+
+    sections->InsertEndChild(section_element);
+  }
   
   auto patterns = doc.NewElement("patterns");
   root->InsertEndChild(patterns);
@@ -293,7 +304,7 @@ Song::save(const std::string & filename) const {
 	    note_element->SetAttribute("row", row);
 	    note_element->SetAttribute("track", track_id);
 	    if (col > 0) note_element->SetAttribute("column", col);
-	    note_element->SetAttribute("velocity", note.getVelocity());
+	    if (note.getVelocity() != constants::DEFAULT_VELOCITY) note_element->SetAttribute("velocity", note.getVelocity());
 	    if (note.getDelay() > 0) note_element->SetAttribute("delay", note.getDelay());
 	    note_element->SetText(note_text.c_str());
 	    pattern_element->InsertEndChild(note_element);
