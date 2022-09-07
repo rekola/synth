@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="100" volume="0.75" randomization="0">
   <instruments>
-    <resonantLowpass cut="2200" res="2" name="Chords">
+    <resonantFilter cut="2200" res="2" name="Chords">
       <downmix>
 	<genericInstrument name="Acoustic Guitar (steel)" />
       </downmix>
-    </resonantLowpass>
+    </resonantFilter>
 
     <envelope attack="0.5" release="2" name="Pads">
-      <resonantLowpass cut="2200" res="0.5">
+      <resonantFilter cut="2200" res="0.5">
 	<multiply unisons="4" detune="5" spread="90">
 	  <oscilator type="square" level="0.25"/>
 	</multiply>
-      </resonantLowpass>
+      </resonantFilter>
     </envelope>
 
     <genericInstrument name="Orchestral Harp" />

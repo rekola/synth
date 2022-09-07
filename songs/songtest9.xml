@@ -4,11 +4,11 @@
     <genericInstrument name="Piano" />
     
     <envelope attack="0.02" hold="0.519" decay="1.35" sustain="0.0" release="0.015">	
-      <resonantLowpass cut="2200" res="0.4">
+      <resonantFilter cut="2200" res="0.4">
 	<multiply unisons="8" detune="0.0025">
 	  <oscilator type="saw" level="0.5" />
 	</multiply>
-      </resonantLowpass>
+      </resonantFilter>
     </envelope>
 
   </instruments>

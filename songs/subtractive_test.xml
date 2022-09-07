@@ -1,11 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="150" volume="1.0" randomization="0.0099999998">
   <instruments>
-    <resonantLowpass name="sub test" cut="9000" res="0.9">
+    <envelope attack="0.1" hold="0.519" decay="1.35" sustain="0.0" release="0.015" >
+      <biquadFilter name="biquad test" type="notch" fc="2000" Q="0.707" >
+	<oscilator type="saw"/>
+      </biquadFilter>
+    </envelope>
+    
+    <resonantFilter name="sub test" cut="9000" res="0.9">
       <multiply unisons="8" detune="10">
 	<oscilator type="triangle" />
       </multiply>
-    </resonantLowpass>
+    </resonantFilter>
 
     <distortion name="bass1" param="0.9" drive="1.5" type="hardclip">
       <envelope attack="0.02" hold="0.519" decay="1.35" sustain="0.0" release="0.015" >
@@ -17,23 +23,25 @@
 
     <distortion name="bass2" param="1.0" type="softclip" drive="15.0">
       <envelope attack="0.02" hold="0.519" decay="1.35" sustain="0.0" release="0.015">	
-	<resonantLowpass cut="2200" res="0.4">
+	<resonantFilter cut="2200" res="0.4">
 	  <multiply unisons="8" detune="10">
 	    <oscilator type="saw" />
 	  </multiply>
-	</resonantLowpass>
+	</resonantFilter>
       </envelope>
     </distortion>
 
     <envelope name="bass3" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">	
-      <resonantLowpass cutmin="1100" cutmax="11000" res="0.1" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">
+      <resonantFilter cutmin="1100" cutmax="11000" res="0.1" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">
 	<oscilator type="square" />
 	<multiply unisons="8" detune="10">
 	  <oscilator type="triangle" harmonic="2" />
 	</multiply>
-      </resonantLowpass>
+      </resonantFilter>
     </envelope>
 
+    <genericInstrument name="Cello" />
+    
     <genericInstrument name="Cello">
       <oscilator type="sine" harmonic="2" subharmonic="3"/>
     </genericInstrument>
@@ -55,12 +63,13 @@
       <genericInstrument name="Rhodes Piano" />
     </distortion>
     
-    <resonantLowpass cut="2200" res="0.1">
+    <resonantFilter cut="2200" res="0.1">
       <oscilator name="test1" type="saw" />
-    </resonantLowpass>
-    <resonantLowpass cut="2200" res="0.1">
+    </resonantFilter>
+    <resonantFilter cut="2200" res="0.1">
       <oscilator name="test2" type="square" />
-    </resonantLowpass>
+    </resonantFilter>
+    
   </instruments>
   <tracks>
     <track id="0" instrument="0" />

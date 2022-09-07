@@ -12,7 +12,7 @@
 
 #include "effects/Distortion.h"
 #include "effects/Reverb.h"
-#include "effects/ResonantLowpass.h"
+#include "effects/ResonantFilter.h"
 #include "effects/BiquadFilter.h"
 #include "effects/Delay.h"
 #include "effects/Chorus.h"
@@ -76,7 +76,7 @@ static unique_ptr<Track> createTrack(string_view name) {
   // effects
   else if (name == "reverb") return make_unique<Reverb>();
   else if (name == "distortion") return make_unique<Distortion>();
-  else if (name == "resonantLowpass") return make_unique<ResonantLowpass>();
+  else if (name == "resonantFilter") return make_unique<ResonantFilter>();
   else if (name == "biquadFilter") return make_unique<BiquadFilter>();
   else if (name == "delay") return make_unique<Delay>();
   else if (name == "chorus") return make_unique<Chorus>();

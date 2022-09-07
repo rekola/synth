@@ -33,11 +33,11 @@
     </envelope>
 
     <envelope name="Electric Piano" attack="0" decay="1.6" sustain="0" release="0">
-      <resonantLowpass cut="5500" res="2">
+      <resonantFilter cut="5500" res="2">
 	<oscilator type="saw">
 	  <LFO frequency="3" level="0.5"/>
 	</oscilator>
-      </resonantLowpass>
+      </resonantFilter>
     </envelope>
   </instruments>
   

@@ -1,4 +1,4 @@
-#include "ResonantLowpass.h"
+#include "ResonantFilter.h"
 
 #include "MoogVCF.h"
 
@@ -11,13 +11,13 @@
 
 using namespace std;
 
-class ResonantLowpassState : public TrackState {
+class ResonantFilterState : public TrackState {
 public:
-  ResonantLowpassState(const ChannelConfiguration & channel_config, const ResonantLowpass & ResonantLowpass, const Envelope & envelope, bool use_aftertouch)
+  ResonantFilterState(const ChannelConfiguration & channel_config, const ResonantFilter & filter, const Envelope & envelope, bool use_aftertouch)
     : TrackState(channel_config),
-      cut_min_(ResonantLowpass.get_cut_min()),
-      cut_max_(ResonantLowpass.get_cut_max()),
-      res_(ResonantLowpass.get_res()),
+      cut_min_(filter.get_cut_min()),
+      cut_max_(filter.get_cut_max()),
+      res_(filter.get_res()),
       envelope_state_(channel_config.getAudioOutSampleRate(), envelope, 0, 0, true),
       use_aftertouch_(use_aftertouch)
   { }  
@@ -56,12 +56,12 @@ private:
 };
 
 std::unique_ptr<TrackState>
-ResonantLowpass::createState(const ChannelConfiguration & config) const {
-  return make_unique<ResonantLowpassState>(config, *this, envelope_, use_aftertouch_);
+ResonantFilter::createState(const ChannelConfiguration & config) const {
+  return make_unique<ResonantFilterState>(config, *this, envelope_, use_aftertouch_);
 }
 
 void
-ResonantLowpass::loadParameters(const ParameterSource & input) {
+ResonantFilter::loadParameters(const ParameterSource & input) {
   Track::loadParameters(input);
   
   if (input.has("cut")) {
@@ -78,7 +78,7 @@ ResonantLowpass::loadParameters(const ParameterSource & input) {
 }
 
 void
-ResonantLowpass::storeParameters(ParameterSource & output) const {
+ResonantFilter::storeParameters(ParameterSource & output) const {
   Track::storeParameters(output);
 
   if (cut_min_ == cut_max_) {

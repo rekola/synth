@@ -1,15 +1,15 @@
-#ifndef _RESONANTLOWPASS_H_
-#define _RESONANTLOWPASS_H_
+#ifndef _RESONANTFILTER_H_
+#define _RESONANTFILTER_H_
 
 #include "../Track.h"
 #include "../Envelope.h"
 
-class ResonantLowpass : public Track {
+class ResonantFilter : public Track {
  public:
-  ResonantLowpass() : Track(TrackType::EFFECT) { }
+  ResonantFilter() : Track(TrackType::EFFECT) { }
 
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override;
-  const char * getElementName() const override { return "resonantLowpass"; }
+  const char * getElementName() const override { return "resonantFilter"; }
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;
 

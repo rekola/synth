@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="100" volume="0.75" randomization="0.0099999998">
   <instruments>
-    <resonantLowpass cut="2200" res="2" name="Chords">
+    <resonantFilter cut="2200" res="2" name="Chords">
       <downmix>
 	<genericInstrument name="Acoustic Guitar (steel)" />
       </downmix>
-    </resonantLowpass>
+    </resonantFilter>
     
     <genericInstrument name="Piano" />    
-</instruments>
+  </instruments>
   
   <tracks>
     <reverb id="100" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle">
