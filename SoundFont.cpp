@@ -933,7 +933,7 @@ public:
     detune *= getHarmonic();
     detune /= getSubharmonic();
 
-    vector<unique_ptr<TrackState> > voices;
+    vector<pair<int, unique_ptr<TrackState> > > voices;
 
     auto f = sf_.get();
     if (preset_ <= f->presets_.size()) {
@@ -964,19 +964,19 @@ public:
 	  
 	  for (auto & child : getChildren()) {
 	    auto modulator = child->playNote(channel_config, 0.0f, frequency, detune, velocity, start_phase);
-	    if (modulator.get()) voice->addChild(move(modulator));
+	    if (modulator.get()) voice->addChild(child->getInternalId(), move(modulator));
 	  }
 	}
 	
-	voices.push_back(move(voice));
+	voices.emplace_back(getInternalId(), move(voice));
       }
     }
 
     if (voices.size() == 1) {
-      return move(voices[0]);
+      return move(voices[0].second);
     } else {
       auto group = make_unique<TrackState>(channel_config);
-      for (auto & v : voices) group->addChild(move(v));
+      for (auto & [ id, voice ] : voices) group->addChild(id, move(voice));
       return group;
     }
   }

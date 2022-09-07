@@ -15,51 +15,79 @@ class RenderContext;
 
 class TrackState {
  public:
-  explicit TrackState(const ChannelConfiguration & channel_config) : channel_config_(channel_config) { }
+  explicit TrackState(const ChannelConfiguration & channel_config)
+    : channel_config_(channel_config), solo_(false), muted_(false) { }
+
+  explicit TrackState(const ChannelConfiguration & channel_config, bool solo, bool muted)
+    : channel_config_(channel_config), solo_(solo), muted_(muted) { }
 
   virtual ~TrackState() { }
 
   virtual TrackInfo getInfo() const { return TrackInfo(true); }
 
+  // For rendering voices
   virtual SampleData render(int frames) {
     SampleData data(getChannelConfiguration(), frames);
     data.zero();
 
-    for (auto & child : getChildren()) {
+    for (auto & [ id, child ] : getChildren()) {
       if (child->isPlaying()) {
-	data.mix(child->render(frames), 1.0f);
+	data.mix(child->render(frames), child->getVolume());
       }
     }
-    
+
+    applyEffect(data);
+   
     return data;    
   }
 
+  // For rendering tracks
   virtual SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) {
-    return SampleData();
+    bool child_has_solo = false;
+    for (auto & [ id, child ] : getChildren()) {
+      if (child->isSolo()) {
+	child_has_solo = true;
+	break;
+      }
+    }
+    
+    SampleData sd(getChannelConfiguration(), frames, isSolo() || child_has_solo);
+    sd.zero();
+    
+    for (auto & [ id, child ] : getChildren()) {
+      auto sd2 = child->render(frames, instruments, context);
+      if (!child->isMuted() && (!child_has_solo || child->isSolo())) {
+	sd.mix(sd2, child->getVolume());
+      }
+    }
+
+    applyEffect(sd);
+
+    return sd;
   }
 
   virtual void clear() { children_.clear(); }
 
   virtual void playNote(float frequency, float velocity) {
-    for (auto & child : getChildren()) {
+    for (auto & [ id, child ] : getChildren()) {
       child->playNote(frequency, velocity);
     }
   }
 
   virtual void stopNote() {
-    for (auto & child : getChildren()) {
+    for (auto & [ id, child ] : getChildren()) {
       child->stopNote();
     }
   }
   
   virtual void killNote() {
-    for (auto & child : getChildren()) {
+    for (auto & [ id, child ] : getChildren()) {
       child->killNote();
     }
   }
 
   virtual bool isPlaying() const {
-    for (auto & child : getChildren()) {
+    for (auto & [ id, child ] : getChildren()) {
       if (child->isPlaying()) return true;
     }
     return false;
@@ -68,7 +96,7 @@ class TrackState {
   virtual int getVoiceCount() const {
     int n = 0;
     if (isPlaying()) n++;
-    for (auto & child : children_) {
+    for (auto & [ id, child ] : getChildren()) {
       n += child->getVoiceCount();
     }
     return n;
@@ -76,7 +104,7 @@ class TrackState {
   
   virtual int getAllocatedVoiceCount() const {
     int n = 1;
-    for (auto & child : children_) {
+    for (auto & [ id, child ] : getChildren()) {
       n += child->getAllocatedVoiceCount();
     }
     return n;
@@ -85,7 +113,7 @@ class TrackState {
   void applyAftertouch(float aftertouch) {
     aftertouch_ = aftertouch;
     
-    for (auto & child : getChildren()) {
+    for (auto & [ id, child ] : getChildren()) {
       child->applyAftertouch(aftertouch);
     }
   }
@@ -94,19 +122,62 @@ class TrackState {
 
   const ChannelConfiguration & getChannelConfiguration() const { return channel_config_; }
 
-  void addChild(std::unique_ptr<TrackState> child) { children_.push_back(std::move(child)); }
-  
-  const std::vector<std::unique_ptr<TrackState> > & getChildren() const { return children_; }
-  std::vector<std::unique_ptr<TrackState> > & getChildren() { return children_; }
+  void addChild(int internal_id, std::unique_ptr<TrackState> child) { children_[internal_id] = std::move(child); }
 
+  TrackState * getChildByInternalId(int id) {
+    for (auto & [ child_id, child ] : getChildren()) {
+      if (id == child_id) return child.get();
+      auto r = child->getChildByInternalId(id);
+      if (r) return r;
+    }
+    return nullptr;
+  }
+
+  const TrackState * getChildByInternalId(int id) const {
+    for (auto & [ child_id, child ] : getChildren()) {
+      if (id == child_id) return child.get();
+      auto r = child->getChildByInternalId(id);
+      if (r) return r;
+    }
+    return nullptr;
+  }
+
+  void removeChild(int id) {
+    auto it = children_.find(id);
+    if (it != children_.end()) children_.erase(it);
+    else {
+      for (auto & [ child_id, child ] : getChildren()) child->removeChild(id);
+    }
+  }
+
+  void getAllTrackInfo(std::unordered_map<int, TrackInfo> & info) const {
+    for (auto & [ id, child ] : getChildren()) {
+      info[id] = child->getInfo();
+      child->getAllTrackInfo(info);
+    }
+  }
+  
+  const std::unordered_map<int, std::unique_ptr<TrackState> > & getChildren() const { return children_; }
+  std::unordered_map<int, std::unique_ptr<TrackState> > & getChildren() { return children_; }
+
+  bool isSolo() const { return solo_; }
+  bool isMuted() const { return muted_; }
+  float getVolume() const { return 1.0f; }
+
+  TrackState & getChildState(const Track & track);
+  
 protected:
+  virtual void applyEffect(SampleData & input) { }
+  
   static inline float getRandF() {
     return (float)rand() / RAND_MAX;
   }
   
 private:
+  int internal_id_;
   ChannelConfiguration channel_config_;
-  std::vector<std::unique_ptr<TrackState> > children_;
+  std::unordered_map<int, std::unique_ptr<TrackState> > children_;
+  bool solo_, muted_;
   float aftertouch_ = 1.0f;
 };
 

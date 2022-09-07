@@ -37,24 +37,12 @@ class RenderContext {
       }
     }
   }
-
-  TrackState * getTrackState(int id) {
-    auto it = track_states_.find(id);
-    if (it != track_states_.end()) return it->second.get();
-    return nullptr;    
-  }
   
-  void setTrackState(int id, std::unique_ptr<TrackState> state) { track_states_[id] = std::move(state); }
-  void deleteTrackState(int id) { track_states_.erase(id); }
-
-  const std::unordered_map<int, std::unique_ptr<TrackState> > & getTrackStates() const { return track_states_; }
-
   const ChannelConfiguration & getChannelConfiguration() const { return channel_config_; }
 
  private:
   ChannelConfiguration channel_config_;
   std::unordered_map<int, std::map<int, std::vector<TrackEvent> > > pending_events_;
-  std::unordered_map<int, std::unique_ptr<TrackState> > track_states_;
 };
 
 #endif

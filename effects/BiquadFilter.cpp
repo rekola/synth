@@ -20,9 +20,7 @@ public:
       use_aftertouch_(use_aftertouch)
   { }
   
-  SampleData render(int frames) override {
-    auto input_data = TrackState::render(frames);
-    
+  void applyEffect(SampleData & input_data) override {    
     auto numSamples = input_data.size();
     auto numChannels = input_data.numberOfChannels();
     auto left_buffer = input_data.getChannelData(0), right_buffer = input_data.getChannelData(1);
@@ -45,8 +43,6 @@ public:
       
       envelope_state_.process(blockSamples);
     }
-
-    return input_data;
   }
 
 private:
@@ -72,6 +68,7 @@ BiquadFilter::loadParameters(const ParameterSource & input) {
   else if (type_text == "peak") type_ = FilterType::peak;
   else if (type_text == "lowshelf") type_ = FilterType::lowshelf;
   else if (type_text == "highshelf") type_ = FilterType::highshelf;
+  else type_ = FilterType::lowpass;
 
   fc_ = input.getFloat("fc");
   Q_ = input.getFloat("Q");

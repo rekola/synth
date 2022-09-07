@@ -1,4 +1,3 @@
-
 #ifndef _INSTRUMENTTRACKSTATE_H_
 #define _INSTRUMENTTRACKSTATE_H_
 
@@ -9,13 +8,13 @@
 
 class InstrumentTrackState : public TrackState {
 public:
-  explicit InstrumentTrackState(const ChannelConfiguration & channel_config, int track_id, int instrument_id, float azimuth, bool is_solo, float portamento)
-    : TrackState(channel_config), track_id_(track_id), instrument_id_(instrument_id), azimuth_(azimuth), is_solo_(is_solo), portamento_(portamento) { }
+  explicit InstrumentTrackState(const ChannelConfiguration & channel_config, bool solo, bool muted, int track_id, int instrument_id, float azimuth, float portamento)
+    : TrackState(channel_config, solo, muted), track_id_(track_id), instrument_id_(instrument_id), azimuth_(azimuth), portamento_(portamento) { }
   
   SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override {
     clearFinishedVoices();
 
-    SampleData data(getChannelConfiguration(), frames, is_solo_);
+    SampleData data(getChannelConfiguration(), frames, isSolo());
         
     if (instrument_id_ >= 0 && instrument_id_ < instruments.size()) {
       auto & instrument = instruments[instrument_id_];
@@ -67,7 +66,7 @@ public:
   }
 
   SampleData render(int frames) override {
-    SampleData data(getChannelConfiguration(), frames, is_solo_);
+    SampleData data(getChannelConfiguration(), frames, isSolo());
     data.zero();
 
     for (auto & [ column, voices ] : voices_) {
@@ -136,7 +135,6 @@ protected:
 private:
   int track_id_, instrument_id_;
   float azimuth_;
-  bool is_solo_;
   float portamento_;
 
   std::unordered_map<int, std::vector<std::unique_ptr<TrackState> > > voices_;

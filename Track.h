@@ -5,49 +5,23 @@
 
 #include "SampleData.h"
 #include "TrackType.h"
-#include "RenderContext.h"
 
 #include <string>
 #include <vector>
 #include <memory>
-#include <map>
-
-class SongState;
-class TrackEventQueue;
 
 class Track : public StatefulSongObject {
  public:
-  Track(TrackType _type) : type(_type) { }
-  
-  virtual SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) const {
-    bool child_has_solo = false;
-    for (auto & child : getChildren()) {
-      if (child->isSolo()) {
-	child_has_solo = true;
-	break;
-      }
-    }
-    
-    SampleData sd(context.getChannelConfiguration(), frames, isSolo() || child_has_solo);
-    sd.zero();
-    
-    for (auto & child : getChildren()) {
-      auto sd2 = child->render(frames, instruments, context);
-      if (!child->isMuted() && (!child_has_solo || child->isSolo())) {
-	sd.mix(sd2, child->getVolume());
-      }
-    }
-    return sd;
-  }
+  Track(TrackType type) : type_(type) { }
 
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override {
     return std::make_unique<TrackState>(config);
   }
 
-  std::unique_ptr<TrackState> createStateTree(const ChannelConfiguration & config) {
+  std::unique_ptr<TrackState> createStateTree(const ChannelConfiguration & config) const {
     auto state = createState(config);
     for (auto & child : getChildren()) {
-      state->addChild(child->createStateTree(config));
+      state->addChild(child->getInternalId(), child->createStateTree(config));
     }
     return state;
   }
@@ -68,28 +42,28 @@ class Track : public StatefulSongObject {
 
   virtual std::unique_ptr<TrackState> playNote(const ChannelConfiguration & config, float azimuth, float frequency, float detune, float velocity, float start_phase) const {
     auto group = createState(config);
-    for (auto & child : children) {
+    for (auto & child : getChildren()) {
       auto voice = child->playNote(config, azimuth, frequency, detune, velocity, start_phase);
-      if (voice.get()) group->addChild(std::move(voice));
+      if (voice.get()) group->addChild(child->getInternalId(), std::move(voice));
     }
     return group;
   }
 
-  TrackType getType() const { return type; }
+  TrackType getType() const { return type_; }
 
-  bool isSolo() const { return solo; }
-  void setSolo(bool s) { solo = s; }
+  bool isSolo() const { return solo_; }
+  void setSolo(bool s) { solo_ = s; }
 
-  bool isMuted() const { return mute; }
-  void setMute(bool m) { mute = m; }
+  bool isMuted() const { return mute_; }
+  void setMute(bool m) { mute_ = m; }
 
-  const Track & getChild(int i) const { return *(children[i]); }
-  Track & getChild(int i) { return *(children[i]); }
+  const Track & getChild(int i) const { return *(children_[i]); }
+  Track & getChild(int i) { return *(children_[i]); }
   
-  Track & addChild(std::unique_ptr<Track> track) { children.push_back(std::move(track)); return *(children.back()); }
+  Track & addChild(std::unique_ptr<Track> track) { children_.push_back(std::move(track)); return *(children_.back()); }
 
-  std::vector<std::unique_ptr<Track> > & getChildren() { return children; }
-  const std::vector<std::unique_ptr<Track> > & getChildren() const { return children; }
+  std::vector<std::unique_ptr<Track> > & getChildren() { return children_; }
+  const std::vector<std::unique_ptr<Track> > & getChildren() const { return children_; }
 
   int getDepth() const {
     int max_depth = 0;
@@ -102,7 +76,7 @@ class Track : public StatefulSongObject {
 
   const Track * getChildByInternalId(int id) const {
     if (getInternalId() == id) return this;
-    for (auto & child : children) {
+    for (auto & child : getChildren()) {
       auto r = child->getChildByInternalId(id);
       if (r) return r;
     }
@@ -111,7 +85,7 @@ class Track : public StatefulSongObject {
 
   Track * getChildByInternalId(int id) {
     if (getInternalId() == id) return this;
-    for (auto & child : children) {
+    for (auto & child : getChildren()) {
       auto r = child->getChildByInternalId(id);
       if (r) return r;
     }
@@ -120,7 +94,7 @@ class Track : public StatefulSongObject {
 
   const Track * getChildById(std::string_view id) const {
     if (getId() == id) return this;
-    for (auto & child : children) {
+    for (auto & child : getChildren()) {
       auto r = child->getChildById(id);
       if (r) return r;
     }
@@ -129,17 +103,17 @@ class Track : public StatefulSongObject {
 
   Track * getChildById(std::string_view id) {
     if (getId() == id) return this;
-    for (auto & child : children) {
+    for (auto & child : getChildren()) {
       auto r = child->getChildById(id);
       if (r) return r;
     }
     return nullptr;
   }
-
+  
  private:
-  TrackType type;
-  bool solo = false, mute = false;
-  std::vector<std::unique_ptr<Track> > children;
+  TrackType type_;
+  bool solo_ = false, mute_ = false;
+  std::vector<std::unique_ptr<Track> > children_;
 };
 
 #endif

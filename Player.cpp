@@ -50,7 +50,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	
 	if (instrument_track.getInstrumentId() < song.getInstruments().size()) {
 	  auto & instrument = song.getInstrument(instrument_track.getInstrumentId());
-	  auto track_state = dynamic_cast<InstrumentTrackState*>(state_.getRenderContext().getTrackState(instrument_track.getInternalId()));
+	  auto track_state = dynamic_cast<InstrumentTrackState*>(state_.getChildByInternalId(instrument_track.getInternalId()));
 
 	  if (track_state) {
 	    auto [ pattern_idx, row_idx ] = state_.getRelativePosition(song);
@@ -92,12 +92,12 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     break;
     
   case PlaybackControlEvent::CLEAR_VOICES:
-    state_.getRenderContext().deleteTrackState(ev.getParameter1());
+    state_.removeChild(ev.getParameter1());
     break;
     
   case PlaybackControlEvent::STOP_NOTE:
     {
-      auto track_state = dynamic_cast<InstrumentTrackState*>(state_.getRenderContext().getTrackState(ev.getParameter1()));
+      auto track_state = dynamic_cast<InstrumentTrackState*>(state_.getChildByInternalId(ev.getParameter1()));
       if (track_state) track_state->stopVoices(ev.getParameter2());
     }      
     break;            
@@ -189,13 +189,12 @@ Player::createPlaybackEvent(const Song & song, const SongState & state) {
   info.setVoiceCount(state.getVoiceCount());
   info.setAllocatedVoiceCount(state.getAllocatedVoiceCount());
 
-  for (auto & [ track_id, state ] : state.getRenderContext().getTrackStates()) {
-    info.setTrackInfo(track_id, state->getInfo());
-  }
+  std::unordered_map<int, TrackInfo> effect_info;
+  state.getAllTrackInfo(effect_info);
+  info.setTrackInfo(move(effect_info));
   
   return make_unique<PlaybackEvent>(info);
 }
-
 
 std::unique_ptr<Mixer>
 Player::createMixer(short out_channels, int outSampleRate, MixerType type) {

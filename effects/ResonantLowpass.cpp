@@ -22,9 +22,7 @@ public:
       use_aftertouch_(use_aftertouch)
   { }  
   
-  SampleData render(int frames) override {
-    auto input_data = TrackState::render(frames);
-    
+  void applyEffect(SampleData & input_data) override {  
     auto numSamples = input_data.size();
     auto numChannels = input_data.numberOfChannels();
     auto left_buffer = input_data.getChannelData(0), right_buffer = input_data.getChannelData(1);
@@ -45,9 +43,7 @@ public:
       right_buffer += blockSamples;
       numSamples -= blockSamples;
       envelope_state_.process(blockSamples);      
-    }
-    
-    return input_data;
+    }   
   }
 
 private:

@@ -11,8 +11,6 @@ class InstrumentTrack : public Track {
 
   const char * getElementName() const override { return "track"; }
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override;
-
-  SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) const override;
   
   void loadParameters(const ParameterSource & input);
   void storeParameters(ParameterSource & output) const override;

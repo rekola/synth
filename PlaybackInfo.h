@@ -38,7 +38,7 @@ class PlaybackInfo {
     auto it = effect_info_.find(track_id);
     return it != effect_info_.end() ? it->second : empty_effect_info_;
   }
-  void setTrackInfo(int track_id, TrackInfo info) { effect_info_[track_id] = std::move(info); }
+  void setTrackInfo(std::unordered_map<int, TrackInfo> info) { effect_info_ = std::move(info); }
     
 private:
   bool is_playing_ = true;

@@ -12,9 +12,8 @@ public:
 
   }
 
-  SampleData render(int frames) override {
-    auto input = TrackState::render(frames);
-    
+protected:
+  void applyEffect(SampleData & input) override {
     auto left_out_ptr = unique_ptr<float[]>(new float[input.size()]);
     auto right_out_ptr = unique_ptr<float[]>(new float[input.size()]);
     auto left_out = left_out_ptr.get(), right_out = right_out_ptr.get();
@@ -44,8 +43,6 @@ public:
 	left_buffer[i] = left_out[i];
       }
     }
-
-    return input;
   }
 
 private:

@@ -17,7 +17,7 @@ class GenericInstrument : public Instrument {
     // don't pass velocity or azimuth to children
     for (auto & child : getChildren()) {    
       auto modulator = child->playNote(channel_config, 0.0f, frequency, detune, 1.0, start_phase);
-      if (modulator) voice->addChild(std::move(modulator));
+      if (modulator) voice->addChild(child->getInternalId(), std::move(modulator));
     }
     
     return voice;

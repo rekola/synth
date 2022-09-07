@@ -18,7 +18,7 @@ Oscilator::playNote(const ChannelConfiguration & config, float azimuth, float fr
   // don't pass velocity or azimuth to children
   for (auto & child : getChildren()) {    
     auto modulator = child->playNote(config, 0.0f, frequency, detune, 1.0, start_phase);
-    if (modulator) voice->addChild(move(modulator));
+    if (modulator) voice->addChild(child->getInternalId(), move(modulator));
   }
   
   return voice;

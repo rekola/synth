@@ -66,8 +66,9 @@ class SongState : public TrackState {
     
     if (!song.getInstruments().empty()) {
       for (auto & track : song.getTracks()) {
-	auto data = track->render(frames, song.getInstruments(), render_context_);
-	if (!track->isMuted()) {
+	auto & state = getChildState(*track);
+	auto data = state.render(frames, song.getInstruments(), render_context_);
+	if (!state.isMuted()) {
 	  mixer.accumulate(data, track->getVolume());
 	}
       }
@@ -127,25 +128,7 @@ class SongState : public TrackState {
     }
   }
   
-  int getVoiceCount() const {
-    int n = 0;
-    for (auto & td : render_context_.getTrackStates()) {
-      n += td.second->getVoiceCount();
-    }
-    return n;
-  }
-
-  int getAllocatedVoiceCount() const {
-    int n = 0;
-    for (auto & td : render_context_.getTrackStates()) {
-      n += td.second->getAllocatedVoiceCount();
-    }
-    return n;
-  }
-
   Tuner & getTuner() { return tuner_; }
-  RenderContext & getRenderContext() { return render_context_; }
-  const RenderContext & getRenderContext() const { return render_context_; }
 
 private:
   bool is_playing_ = false;
