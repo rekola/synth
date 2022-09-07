@@ -69,14 +69,19 @@ public:
     SampleData data(getChannelConfiguration(), frames, isSolo());
     data.zero();
 
+    bool is_active = false;
+    
     for (auto & [ column, voices ] : voices_) {
       for (auto & voice : voices) {
 	if (voice->isPlaying()) {
 	  data.mix(voice->render(frames), 1.0f);
+	  is_active = true;
 	}
       }
     }
-        
+
+    setTrackInfo(TrackInfo( is_active, data.isClipping() ));
+
     return data;    
   }
 

@@ -3,7 +3,8 @@
 
 class TrackInfo {
 public:
-  TrackInfo(bool is_active = false) : is_active_(is_active) { }
+  TrackInfo(bool is_active = false, bool is_clipping = false)
+    : is_active_(is_active), is_clipping_(is_clipping) { }
 
   bool isActive() const { return is_active_; }
   bool isRecording() const { return is_recording_; }

@@ -641,7 +641,13 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  name += "│";
 
 	  setBgColor(0x50, 0x50, 0x60);
-	  setFgColor(0x10, 0xe0, 0x40);
+
+	  if (track_info.isClipping()) {
+	    setFgColor(0xe0, 0x10, 0x40);
+	  } else {
+	    setFgColor(0x10, 0xe0, 0x40);
+	  }
+	  
 	  putstr(heading_height - 2 - level, current_pos, track_info.isActive() ? " • " : "   ");
 	  
 	  setFgColor(0x00, 0x00, 0x00);

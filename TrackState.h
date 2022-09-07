@@ -22,21 +22,22 @@ class TrackState {
     : channel_config_(channel_config), solo_(solo), muted_(muted) { }
 
   virtual ~TrackState() { }
-
-  virtual TrackInfo getInfo() const { return TrackInfo(true); }
-
+  
   // For rendering voices
   virtual SampleData render(int frames) {
     SampleData data(getChannelConfiguration(), frames);
     data.zero();
 
+    bool is_active = false;
     for (auto & [ id, child ] : getChildren()) {
       if (child->isPlaying()) {
 	data.mix(child->render(frames), child->getVolume());
+	is_active = true;
       }
     }
 
     applyEffect(data);
+    setTrackInfo(TrackInfo( is_active, data.isClipping() ));
    
     return data;    
   }
@@ -53,15 +54,18 @@ class TrackState {
     
     SampleData sd(getChannelConfiguration(), frames, isSolo() || child_has_solo);
     sd.zero();
-    
+
+    bool is_active = false;
     for (auto & [ id, child ] : getChildren()) {
       auto sd2 = child->render(frames, instruments, context);
       if (!child->isMuted() && (!child_has_solo || child->isSolo())) {
 	sd.mix(sd2, child->getVolume());
+	is_active = true;
       }
     }
 
     applyEffect(sd);
+    setTrackInfo(TrackInfo( is_active, sd.isClipping() ));
 
     return sd;
   }
@@ -152,7 +156,7 @@ class TrackState {
 
   void getAllTrackInfo(std::unordered_map<int, TrackInfo> & info) const {
     for (auto & [ id, child ] : getChildren()) {
-      info[id] = child->getInfo();
+      info[id] = child->getTrackInfo();
       child->getAllTrackInfo(info);
     }
   }
@@ -168,6 +172,9 @@ class TrackState {
   
 protected:
   virtual void applyEffect(SampleData & input) { }
+
+  const TrackInfo & getTrackInfo() const { return track_info_; }
+  void setTrackInfo(TrackInfo track_info) { track_info_ = std::move(track_info); }
   
   static inline float getRandF() {
     return (float)rand() / RAND_MAX;
@@ -179,6 +186,7 @@ private:
   std::unordered_map<int, std::unique_ptr<TrackState> > children_;
   bool solo_, muted_;
   float aftertouch_ = 1.0f;
+  TrackInfo track_info_;
 };
 
 #endif

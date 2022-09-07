@@ -145,6 +145,14 @@ class SampleData final {
     return v;
   }
 
+  bool isClipping() const {
+    for (int i = 0; i < channels_ * frames_; i++) {
+      auto v = data_[i];
+      if (v < -1.0f || v > +1.0f) return true;
+    }
+    return false;
+  }
+  
   bool isSolo() const { return is_solo_; }
   
 private:
