@@ -24,11 +24,11 @@
 template <class T>
 class Biquad {
 public:
-  Biquad(FilterType type) : type_(type) {
+  explicit Biquad(FilterType type) : type_(type) {
 
   }
 
-  Biquad(FilterType type, T fc, T Q, T peakGainDB)
+  explicit Biquad(FilterType type, T fc, T Q, T peakGainDB = 0)
     : type_(type),
       fc_(fc),
       QInv_(1 / Q),
