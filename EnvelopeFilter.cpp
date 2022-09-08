@@ -12,9 +12,7 @@ public:
       
   }
 
-  SampleData render(int frames) override {
-    auto input_data = TrackState::render(frames);
-    
+  void applyEffect(SampleData & input_data) override {
     auto left_buffer = input_data.getChannelData(0), right_buffer = input_data.getChannelData(1);
     
     auto numSamples = input_data.size();
@@ -41,8 +39,6 @@ public:
       numSamples -= blockSamples;
       envelope_state_.process(blockSamples);
     }
-
-    return input_data;
   }
   
   bool isPlaying() const override { return !envelope_state_.isDone(); }
