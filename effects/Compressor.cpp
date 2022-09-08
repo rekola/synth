@@ -69,12 +69,15 @@ static inline float kneeslope(float x, float k, float linearthreshold) {
 
 static inline float compcurve(float x, float k, float slope, float linearthreshold,
 			      float linearthresholdknee, float threshold, float knee, float kneedboffset) {
-  if (x < linearthreshold)
+  if (x < linearthreshold) {
     return x;
-  if (knee <= 0.0f) // no knee in curve
+  }
+  if (knee <= 0.0f) {// no knee in curve
     return db2lin(threshold + slope * (lin2db(x) - threshold));
-  if (x < linearthresholdknee)
+  }
+  if (x < linearthresholdknee) {
     return kneecurve(x, k, linearthreshold);
+  }
   return db2lin(kneedboffset + slope * (lin2db(x) - threshold - knee));
 }
 
@@ -94,246 +97,50 @@ static inline float absf(float v) {
   return v < 0.0f ? -v : v;
 }
 
+static inline float maxf(float v1, float v2) {
+  return v1 > v2 ? v1 : v2;
+}   
+
 static inline float fixf(float v, float def) {
   // fix NaN and infinity values that sneak in... not sure why this is needed, but it is
-  if (std::isnan(v) || std::isinf(v)) return def;
+  if (std::isnan(v) || std::isinf(v) || v > 24000000) return def;
   return v;
 }
 
 using namespace std;
 
 class CompressorState : public EffectState {
-public:
-  // populate a compressor state with all default values
-  CompressorState(const ChannelConfiguration & _channel_config)
-    : EffectState(_channel_config)
-  {
-    initialize( 0.000f, // pregain
-		-24.000f, // threshold
-		30.000f, // knee
-		12.000f, // ratio
-		0.003f, // attack
-		0.250f, // release
-		0.006f, // predelay
-		0.090f, // releasezone1
-		0.160f, // releasezone2
-		0.420f, // releasezone3
-		0.980f, // releasezone4
-		0.000f, // postgain
-		1.000f  // wet
-		);
-  }
-
-  // populate a compressor state with simple parameters
-  CompressorState(const ChannelConfiguration & _channel_config,
-		  float pregain,   // dB, amount to boost the signal before applying compression [0 to 100]
-		  float threshold, // dB, level where compression kicks in [-100 to 0]
-		  float knee,      // dB, width of the knee [0 to 40]
-		  float ratio,     // unitless, amount to inversely scale the output when applying comp [1 to 20]
-		  float attack,    // seconds, length of the attack phase [0 to 1]
-		  float release    // seconds, length of the release phase [0 to 1]
-		  )
-    : EffectState(_channel_config)
-  {
-    initialize(pregain, threshold, knee, ratio, attack, release,
-	       0.006f, // predelay
-	       0.090f, // releasezone1
-	       0.160f, // releasezone2
-	       0.420f, // releasezone3
-	       0.980f, // releasezone4
-	       0.000f, // postgain
-	       1.000f  // wet
-	       );
-  }
-  
-  // populate a compressor state with advanced parameters
+public:  
   CompressorState(const ChannelConfiguration & channel_config,
-		  // these parameters are the same as the simple version above:
-		  float pregain, float threshold, float knee, float ratio, float attack, float release,
-		  // these are the advanced parameters:
-		  float predelay,     // seconds, length of the predelay buffer [0 to 1]
-		  float releasezone1, // release zones should be increasing between 0 and 1, and are a fraction
-		  float releasezone2, //  of the release time depending on the input dB -- these parameters define
-		  float releasezone3, //  the adaptive release curve, which is discussed in further detail in the
-		  float releasezone4, //  demo: adaptive-release-curve.html
-		  float postgain,     // dB, amount of gain to apply after compression [0 to 100]
-		  float wet           // amount to apply the effect [0 completely dry to 1 completely wet]
+		  float pregain,
+		  float threshold,
+		  float knee,
+		  float ratio,
+		  float attack,
+		  float release,
+		  float predelay,
+		  float releasezone1,
+		  float releasezone2,
+		  float releasezone3,
+		  float releasezone4,
+		  float postgain,
+		  float wet
 		  )
     : EffectState(channel_config)
   {
-    initialize(pregain, threshold, knee, ratio, attack, release,
-	       predelay,
-	       releasezone1, releasezone2, releasezone3, releasezone4,
-	       postgain,
-	       wet
-	       );
-  }
-
-  
-  void applyEffect(SampleData & input) override {
-    // pull out the state into local variables
-    float metergain            = metergain_;
-    float meterrelease         = meterrelease_;
-    float threshold            = threshold_;
-    float knee                 = knee_;
-    float linearpregain        = linearpregain_;
-    float linearthreshold      = linearthreshold_;
-    float slope                = slope_;
-    float attacksamplesinv     = attacksamplesinv_;
-    float satreleasesamplesinv = satreleasesamplesinv_;
-    float wet                  = wet_;
-    float dry                  = dry_;
-    float k                    = k_;
-    float kneedboffset         = kneedboffset_;
-    float linearthresholdknee  = linearthresholdknee_;
-    float mastergain           = mastergain_;
-    float a                    = a_;
-    float b                    = b_;
-    float c                    = c_;
-    float d                    = d_;
-    float detectoravg          = detectoravg_;
-    float compgain             = compgain_;
-    float maxcompdiffdb        = maxcompdiffdb_;
-    int delaybufsize           = delaybufsize_;
-    int delaywritepos          = delaywritepos_;
-    int delayreadpos           = delayreadpos_;
-    auto left_delaybuf = delaybuf_.getChannelData(0);
-    auto right_delaybuf = delaybuf_.getChannelData(1);
-
-    auto left_input = input.getChannelData(0);
-    auto right_input = input.getChannelData(1);
-
-    int samplesperchunk = SF_COMPRESSOR_SPU;
-    int chunks = input.numberOfFrames() / samplesperchunk;
-    float ang90 = (float)M_PI * 0.5f;
-    float ang90inv = 2.0f / (float)M_PI;
-    int samplepos = 0;
-    float spacingdb = SF_COMPRESSOR_SPACINGDB;
-
-    for (int ch = 0; ch < chunks; ch++) {
-      detectoravg = fixf(detectoravg, 1.0f);
-      float desiredgain = detectoravg;
-      float scaleddesiredgain = asinf(desiredgain) * ang90inv;
-      float compdiffdb = lin2db(compgain / scaleddesiredgain);
-
-      // calculate envelope rate based on whether we're attacking or releasing
-      float enveloperate;
-      if (compdiffdb < 0.0f) { // compgain < scaleddesiredgain, so we're releasing
-	compdiffdb = fixf(compdiffdb, -1.0f);
-	maxcompdiffdb = -1; // reset for a future attack mode
-	// apply the adaptive release curve
-	// scale compdiffdb between 0-3
-	float x = (clampf(compdiffdb, -12.0f, 0.0f) + 12.0f) * 0.25f;
-	float releasesamples = adaptivereleasecurve(x, a, b, c, d);
-	enveloperate = db2lin(spacingdb / releasesamples);
-      } else { // compresorgain > scaleddesiredgain, so we're attacking
-	compdiffdb = fixf(compdiffdb, 1.0f);
-	if (maxcompdiffdb == -1 || maxcompdiffdb < compdiffdb) {
-	  maxcompdiffdb = compdiffdb;
-	}
-	float attenuate = maxcompdiffdb;
-	if (attenuate < 0.5f) {
-	  attenuate = 0.5f;
-	}
-	enveloperate = 1.0f - powf(0.25f / attenuate, attacksamplesinv);
-      }
-
-      if ((ch + 1) * samplesperchunk > input.numberOfFrames()) {
-	samplesperchunk = input.numberOfFrames() * ch;
-      }
-
-      // process the chunk
-      for (int chi = 0; chi < samplesperchunk; chi++, samplepos++,
-	     delayreadpos = (delayreadpos + 1) % delaybufsize,
-	     delaywritepos = (delaywritepos + 1) % delaybufsize) {
-
-	float inputL = left_input[samplepos] * linearpregain;
-	float inputR = right_input[samplepos] * linearpregain;
-	left_delaybuf[delaywritepos] = inputL;
-	right_delaybuf[delaywritepos] = inputR;
-
-	inputL = absf(inputL);
-	inputR = absf(inputR);
-	float inputmax = inputL > inputR ? inputL : inputR;
-
-	float attenuation;
-	if (inputmax < 0.0001f) {
-	  attenuation = 1.0f;
-	} else{
-	  float inputcomp = compcurve(inputmax, k, slope, linearthreshold,
-				      linearthresholdknee, threshold, knee, kneedboffset);
-	  attenuation = inputcomp / inputmax;
-	}
-
-	float rate;
-	if (attenuation > detectoravg) { // if releasing
-	  float attenuationdb = -lin2db(attenuation);
-	  if (attenuationdb < 2.0f) {
-	    attenuationdb = 2.0f;
-	  }
-	  float dbpersample = attenuationdb * satreleasesamplesinv;
-	  rate = db2lin(dbpersample) - 1.0f;
-	} else {
-	  rate = 1.0f;
-	}
-	
-	detectoravg += (attenuation - detectoravg) * rate;
-	if (detectoravg > 1.0f) {
-	  detectoravg = 1.0f;
-	}
-	detectoravg = fixf(detectoravg, 1.0f);
-
-	if (enveloperate < 1) { // attack, reduce gain
-	  compgain += (scaleddesiredgain - compgain) * enveloperate;
-	} else { // release, increase gain
-	  compgain *= enveloperate;
-	  if (compgain > 1.0f) {
-	    compgain = 1.0f;
-	  }
-	}
-
-	// the final gain value!
-	float premixgain = sinf(ang90 * compgain);
-	float gain = dry + wet * mastergain * premixgain;
-
-	// calculate metering (not used in core algo, but used to output a meter if desired)
-	float premixgaindb = lin2db(premixgain);
-	if (premixgaindb < metergain) {
-	  metergain = premixgaindb; // spike immediately
-	} else {
-	  metergain += (premixgaindb - metergain) * meterrelease; // fall slowly
-	}
-
-	// apply the gain
-	left_input[samplepos] = left_delaybuf[delayreadpos] * gain;
-	right_input[samplepos] = right_delaybuf[delayreadpos] * gain;
-      }
-    }
-
-    metergain_     = metergain;
-    detectoravg_   = detectoravg;
-    compgain_      = compgain;
-    maxcompdiffdb_ = maxcompdiffdb;
-    delaywritepos_ = delaywritepos;
-    delayreadpos_  = delayreadpos;
-  }
-  
-private:
-  // this is the main initialization function
-  // it does a bunch of pre-calculation so that the inner loop of signal processing is fast
-  void initialize(float pregain, float threshold,
-		  float knee, float ratio, float attack, float release, float predelay, float releasezone1,
-		  float releasezone2, float releasezone3, float releasezone4, float postgain, float wet) {
+    // the main initialization
+    // it does a bunch of pre-calculation so that the inner loop of signal processing is fast
+    
     auto rate = getChannelConfiguration().getAudioOutSampleRate();
     
     // setup the predelay buffer
-    int delaybufsize = rate * predelay;
-    if (delaybufsize < 1) {
-      delaybufsize = 1;
-    } else if (delaybufsize > SF_COMPRESSOR_MAXDELAY) {
-      delaybufsize = SF_COMPRESSOR_MAXDELAY;
+    delaybufsize_ = static_cast<int>(rate * predelay);
+    if (delaybufsize_ < 2) {
+      delaybufsize_ = 2;
+    } else if (delaybufsize_ > SF_COMPRESSOR_MAXDELAY) {
+      delaybufsize_ = SF_COMPRESSOR_MAXDELAY;
     }
-    delaybuf_ = SampleData(getChannelConfiguration(), delaybufsize);
+    delaybuf_ = SampleData(getChannelConfiguration(), delaybufsize_);
     delaybuf_.zero();
     
     // useful values
@@ -345,10 +152,8 @@ private:
     float releasesamples = rate * release;
     float satrelease = 0.0025f; // seconds
     float satreleasesamplesinv = 1.0f / ((float)rate * satrelease);
-    float dry = 1.0f - wet;
     
     // metering values (not used in core algorithm, but used to output a meter if desired)
-    float metergain = 1.0f; // gets overwritten immediately because gain will always be negative
     float meterfalloff = 0.325f; // seconds
     float meterrelease = 1.0f - expf(-1.0f / ((float)rate * meterfalloff));
     
@@ -401,7 +206,7 @@ private:
     slope_                = slope;
     attacksamplesinv_     = attacksamplesinv;
     satreleasesamplesinv_ = satreleasesamplesinv;
-    dry_                  = dry;
+    dry_                  = 1.0f - wet;
     k_                    = k;
     kneedboffset_         = kneedboffset;
     linearthresholdknee_  = linearthresholdknee;
@@ -410,14 +215,134 @@ private:
     b_                    = b;
     c_                    = c;
     d_                    = d;
-    detectoravg_          = 0.0f;
-    compgain_             = 1.0f;
-    maxcompdiffdb_        = -1.0f;
-    delaybufsize_         = delaybufsize;
+
     delaywritepos_        = 0;
-    delayreadpos_         = delaybufsize > 1 ? 1 : 0;
+    delayreadpos_         = delaybufsize_ > 1 ? 1 : 0;
   }
 
+  void applyEffect(SampleData & input) override {    
+    auto left_delaybuf = delaybuf_.getChannelData(0);
+    auto right_delaybuf = delaybuf_.getChannelData(1);
+
+    auto left_input = input.getChannelData(0);
+    auto right_input = input.getChannelData(1);
+
+    constexpr float ang90 = (float)M_PI * 0.5f;
+    constexpr float ang90inv = 2.0f / (float)M_PI;
+
+    int samplesperchunk = SF_COMPRESSOR_SPU;
+    int chunks = input.numberOfFrames() / samplesperchunk;
+    int samplepos = 0;
+    bool compressor_active = false;
+    auto rms = input.calculateLoudness();
+    auto rms_db = 20*log10(rms[0] / 20);
+    
+    for (int ch = 0; ch < chunks; ch++) {
+      detectoravg_ = fixf(detectoravg_, 1.0f);
+
+      float desiredgain = detectoravg_;
+      float scaleddesiredgain = asinf(desiredgain) * ang90inv;
+      float compdiffdb = lin2db(compgain_ / scaleddesiredgain);
+
+      // calculate envelope rate based on whether we're attacking or releasing
+      float enveloperate;
+      if (compdiffdb < 0.0f) { // compgain_ < scaleddesiredgain, so we're releasing
+	compressor_active = true;
+	
+	compdiffdb = fixf(compdiffdb, -1.0f);
+	maxcompdiffdb_ = -1; // reset for a future attack mode
+	// apply the adaptive release curve
+	// scale compdiffdb between 0-3
+	float x = (clampf(compdiffdb, -12.0f, 0.0f) + 12.0f) * 0.25f;
+	float releasesamples = adaptivereleasecurve(x, a_, b_, c_, d_);
+	enveloperate = db2lin(SF_COMPRESSOR_SPACINGDB / releasesamples);
+      } else { // compresorgain > scaleddesiredgain, so we're attacking
+	compdiffdb = fixf(compdiffdb, 1.0f);
+	if (maxcompdiffdb_ == -1 || maxcompdiffdb_ < compdiffdb) {
+	  maxcompdiffdb_ = compdiffdb;
+	}
+	float attenuate = maxcompdiffdb_;
+	if (attenuate < 0.5f) {
+	  attenuate = 0.5f;
+	}
+	enveloperate = 1.0f - powf(0.25f / attenuate, attacksamplesinv_);
+      }
+
+      if ((ch + 1) * samplesperchunk > input.numberOfFrames()) {
+	samplesperchunk = input.numberOfFrames() * ch;
+      }
+
+      // process the chunk
+      for (int chi = 0; chi < samplesperchunk; chi++, samplepos++,
+	     delayreadpos_ = (delayreadpos_ + 1) % delaybufsize_,
+	     delaywritepos_ = (delaywritepos_ + 1) % delaybufsize_) {
+
+	auto inputL = left_input[samplepos] * linearpregain_;
+	auto inputR = right_input[samplepos] * linearpregain_;
+	left_delaybuf[delaywritepos_] = inputL;
+	right_delaybuf[delaywritepos_] = inputR;
+
+	auto inputmax = maxf(absf(inputL), absf(inputR));
+	
+	float attenuation;
+	if (inputmax < 0.0001f) {
+	  attenuation = 1.0f;
+	} else{
+	  float inputcomp = compcurve(inputmax, k_, slope_, linearthreshold_,
+				      linearthresholdknee_, threshold_, knee_, kneedboffset_);
+	  attenuation = inputcomp / inputmax;	  
+	}
+
+	float rate;
+	if (attenuation > detectoravg_) { // if releasing
+	  float attenuationdb = -lin2db(attenuation);
+	  if (attenuationdb < 2.0f) {
+	    attenuationdb = 2.0f;
+	  }
+	  float dbpersample = attenuationdb * satreleasesamplesinv_;
+	  rate = db2lin(dbpersample) - 1.0f;
+	} else {
+	  rate = 1.0f;
+	}
+	
+	detectoravg_ += (attenuation - detectoravg_) * rate;
+	if (detectoravg_ > 1.0f) {
+	  detectoravg_ = 1.0f;
+	}
+	detectoravg_ = fixf(detectoravg_, 1.0f);
+	
+	if (enveloperate < 1) { // attack, reduce gain
+	  compgain_ += (scaleddesiredgain - compgain_) * enveloperate;
+	} else { // release, increase gain
+	  compgain_ *= enveloperate;
+	  if (compgain_ > 1.0f) {
+	    compgain_ = 1.0f;
+	  }
+	}
+
+	// the final gain value!
+	float premixgain = sinf(ang90 * compgain_);
+	float gain = dry_ + wet_ * mastergain_ * premixgain;
+	
+	// calculate metering (not used in core algo, but used to output a meter if desired)
+	float premixgaindb = lin2db(premixgain);
+	if (premixgaindb < metergain_) {
+	  metergain_ = premixgaindb; // spike immediately
+	} else {
+	  metergain_ += (premixgaindb - metergain_) * meterrelease_; // fall slowly
+	}
+
+	// apply the gain
+	left_input[samplepos] = left_delaybuf[delayreadpos_] * gain;
+	right_input[samplepos] = right_delaybuf[delayreadpos_] * gain;
+	// compressor_active = true;
+      }
+    }
+
+    setTrackInfo(TrackInfo( compressor_active, input.isClipping(), metergain_ ));
+  }
+  
+private:
   // user can read the metergain state variable after processing a chunk to see how much dB the
   // compressor would have liked to compress the sample; the meter values aren't used to shape the
   // sound in any way, only used for output if desired
@@ -443,9 +368,9 @@ private:
   float b_;
   float c_;
   float d_;
-  float detectoravg_;
-  float compgain_;
-  float maxcompdiffdb_;
+  float detectoravg_ = 0.0f;
+  float compgain_ = 1.0f;
+  float maxcompdiffdb_ = -1.0f;
   int delaybufsize_;
   int delaywritepos_;
   int delayreadpos_;
@@ -454,15 +379,41 @@ private:
 
 std::unique_ptr<TrackState>
 Compressor::createState(const ChannelConfiguration & channel_config) const {
-  return make_unique<CompressorState>(channel_config);
+  return make_unique<CompressorState>(channel_config,
+				      pregain_,
+				      threshold_,
+				      knee_,
+				      ratio_,
+				      0.003f, // attack
+				      0.250f, // release
+				      0.006f, // predelay
+				      0.090f, // releasezone1
+				      0.160f, // releasezone2
+				      0.420f, // releasezone3
+				      0.980f, // releasezone4
+				      postgain_,
+				      1.000f  // wet
+				      );
 }
 
 void
 Compressor::loadParameters(const ParameterSource & input) {
-  Track::loadParameters(input);
+  Effect::loadParameters(input);
+
+  pregain_ = input.getFloat("pregain", 0.0f);
+  threshold_ = input.getFloat("threshold", -24.0f);
+  knee_ = input.getFloat("knee", 30.0f);
+  ratio_ = input.getFloat("ratio", 12.0f);
+  postgain_ = input.getFloat("postgain", 0.0f);
 }
 
 void
 Compressor::storeParameters(ParameterSource & output) const {
-  Track::storeParameters(output);
+  Effect::storeParameters(output);
+
+  output.set("pregain", pregain_);
+  output.set("threshold", threshold_);
+  output.set("knee", knee_);
+  output.set("ratio", ratio_);
+  output.set("postgain", postgain_);
 }
