@@ -1,46 +1,58 @@
 #include "Delay.h"
 
 #include "../TrackState.h"
+#include "../Biquad.h"
+#include "../constants.h"
 
 using namespace std;
 
 class DelayState : public TrackState {
 public:
   DelayState(const ChannelConfiguration & channel_config, float delay, float fd, float delaymix)
-    : TrackState(channel_config), fd_(fd), delaymix_(delaymix) {
-    delay_size_ = delay * getChannelConfiguration().getAudioOutSampleRate();
-    int channels = getChannelConfiguration().numberOfChannels();
-    buffer_ = std::unique_ptr<float[]>(new float[delay_size_ * channels]);
-    memset(buffer_.get(), 0, delay_size_ * channels * sizeof(float));
+    : TrackState(channel_config),
+      fd_(fd),
+      delaymix_(delaymix),
+      delay_buffer_(channel_config, int(delay * getChannelConfiguration().getAudioOutSampleRate()))
+  {
+    delay_buffer_.zero();
+    for (int i = 0; i < getChannelConfiguration().numberOfChannels(); i++) {
+      filters_.emplace_back(FilterType::lowpass, lowpass_fc_ / getChannelConfiguration().getAudioOutSampleRate(), 0.707f);
+    }
   }
   
 protected:
   void applyEffect(SampleData & input) override {
-    for (int j = 0; j < input.numberOfChannels(); j++) {
-      auto input_buffer = input.getChannelData(j);
-      auto delay_buffer = buffer_.get() + j * delay_size_;
+    auto numSamples = input.size();
+    auto numChannels = input.numberOfChannels();
     
-      for (int i = 0; i < input.size(); i++) {
-	auto buffer_pos = (delay_pos_ + i) % delay_size_;
-	  
-	float x = input_buffer[i];
-	float y = delay_buffer[buffer_pos];
-	delay_buffer[buffer_pos] = x + y * fd_;
+    for (int j = 0; j < numChannels; j++) {
+      auto input_buffer = input.getChannelData(j);
+      auto delay_buffer = delay_buffer_.getChannelData(j);
+      auto & filter = filters_[j];
+      
+      for (int i = 0; i < numSamples; i++) {
+	auto buffer_pos = (delay_pos_ + i) % delay_buffer_.numberOfFrames();
+	
+	auto x = input_buffer[i];
+	auto y = delay_buffer[buffer_pos];
+	delay_buffer[buffer_pos] = filter.process(x + y * fd_);
 	
 	input_buffer[i] = delaymix_ * y + (1 - delaymix_) * x;
       }
     }
-
-    delay_pos_ = (delay_pos_ + input.size()) % delay_size_;
+      
+    delay_pos_ = (delay_pos_ + numSamples) % delay_buffer_.numberOfFrames();
   }
   
 private:
-  float fd_, delaymix_;
+  float fd_, delaymix_, lowpass_fc_ = 5000;
 
   // delay state
   int delay_size_ = 0;
   int delay_pos_ = 0;
-  std::unique_ptr<float[]> buffer_;
+  SampleData delay_buffer_;
+
+  std::vector<Biquad<float>> filters_;
 };
 
 std::unique_ptr<TrackState>
