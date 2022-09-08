@@ -349,6 +349,10 @@ TerminalUI::readInput() {
     if (id >= 'A' && id <= 'Z') {
       id = tolower(id);
       if (!ctrl) shift = true; // fix bug in notcurses
+    } else if (id == 28) {
+      ctrl = true;
+      alt = meta = shift = false;
+      id = '\\';
     }
     
     InputEvent input(id, ni.y, ni.x, alt, shift, ctrl, meta);
