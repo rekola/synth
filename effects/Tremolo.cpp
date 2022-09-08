@@ -40,7 +40,7 @@ Tremolo::createState(const ChannelConfiguration & channel_config) const {
 
 void
 Tremolo::loadParameters(const ParameterSource & input) {
-  Track::loadParameters(input);
+  Effect::loadParameters(input);
 
   frequency_ = input.getFloat("frequency");
   amplitude_ = input.getFloat("amplitude");
@@ -49,7 +49,7 @@ Tremolo::loadParameters(const ParameterSource & input) {
 
 void
 Tremolo::storeParameters(ParameterSource & output) const {
-  Track::storeParameters(output);
+  Effect::storeParameters(output);
 
   output.set("frequency", frequency_);
   output.set("amplitude", amplitude_);

@@ -63,7 +63,7 @@ Delay::createState(const ChannelConfiguration & channel_config) const {
 
 void
 Delay::loadParameters(const ParameterSource & input) {
-  Track::loadParameters(input);
+  Effect::loadParameters(input);
     
   delay_ = input.getFloat("delay");
   fd_ = input.getFloat("fd");
@@ -72,7 +72,7 @@ Delay::loadParameters(const ParameterSource & input) {
 
 void
 Delay::storeParameters(ParameterSource & output) const {
-  Track::storeParameters(output);
+  Effect::storeParameters(output);
 
   output.set("delay", delay_);
   output.set("fd", fd_);

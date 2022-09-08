@@ -12,12 +12,12 @@ class EnvelopeFilter : public Effect {
   const char * getElementName() const override { return "envelope"; }
 
   void loadParameters(const ParameterSource & input) override {
-    Track::loadParameters(input);
+    Effect::loadParameters(input);
     envelope_.loadParameters(input);
   }
 
   void storeParameters(ParameterSource & output) const override {
-    Track::storeParameters(output);
+    Effect::storeParameters(output);
     envelope_.storeParameters(output);
   }
 

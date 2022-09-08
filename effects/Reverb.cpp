@@ -52,6 +52,8 @@ protected:
 	left_buffer[i] = left_out[i];
       }
     }
+
+    setTrackInfo(TrackInfo( true, input.isClipping()));
   }
 
 private:
@@ -135,7 +137,7 @@ Reverb::createState(const ChannelConfiguration & channel_config) const {
 
 void
 Reverb::loadParameters(const ParameterSource & input) {
-  Track::loadParameters(input);
+  Effect::loadParameters(input);
   
   auto preset_text = input.getText("preset");
   if (preset_text == "subtle") preset_ = ReverbPreset::SUBTLE;
@@ -147,7 +149,7 @@ Reverb::loadParameters(const ParameterSource & input) {
 
 void
 Reverb::storeParameters(ParameterSource & output) const {
-  Track::storeParameters(output);
+  Effect::storeParameters(output);
 
   output.set("preset", to_string(preset_));
 }

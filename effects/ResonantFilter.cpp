@@ -42,7 +42,7 @@ public:
       right_buffer += blockSamples;
       numSamples -= blockSamples;
       envelope_state_.process(blockSamples);      
-    }   
+    }
   }
 
 private:
@@ -61,7 +61,7 @@ ResonantFilter::createState(const ChannelConfiguration & config) const {
 
 void
 ResonantFilter::loadParameters(const ParameterSource & input) {
-  Track::loadParameters(input);
+  Effect::loadParameters(input);
   
   if (input.has("cut")) {
     cut_min_ = cut_max_ = input.getFloat("cut", 0.0f);
@@ -78,7 +78,7 @@ ResonantFilter::loadParameters(const ParameterSource & input) {
 
 void
 ResonantFilter::storeParameters(ParameterSource & output) const {
-  Track::storeParameters(output);
+  Effect::storeParameters(output);
 
   if (cut_min_ == cut_max_) {
     output.set("cut", cut_min_);

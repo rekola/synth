@@ -77,7 +77,7 @@ Distortion::createState(const ChannelConfiguration & channel_config) const {
 
 void
 Distortion::loadParameters(const ParameterSource & input) {
-  Track::loadParameters(input);
+  Effect::loadParameters(input);
    
   param_ = input.getFloat("param");
   drive_ = input.getFloat("drive", 1.0f);
@@ -90,7 +90,7 @@ Distortion::loadParameters(const ParameterSource & input) {
 
 void
 Distortion::storeParameters(ParameterSource & output) const {
-  Track::storeParameters(output);
+  Effect::storeParameters(output);
 
   output.set("param", param_);
   output.set("drive", drive_);

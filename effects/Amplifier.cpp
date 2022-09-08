@@ -19,6 +19,8 @@ protected:
     for (int i = 0; i < input.numberOfFrames() * input.numberOfChannels(); i++) {
       data[i] *= g;
     }
+
+    setTrackInfo(TrackInfo( true, input.isClipping() ));
   }
 
 private:
@@ -32,14 +34,14 @@ Amplifier::createState(const ChannelConfiguration & channel_config) const {
 
 void
 Amplifier::loadParameters(const ParameterSource & input) {
-  Track::loadParameters(input);
+  Effect::loadParameters(input);
   
   gain_ = input.getFloat("gain", 0);  
 }
 
 void
 Amplifier::storeParameters(ParameterSource & output) const {
-  Track::storeParameters(output);
+  Effect::storeParameters(output);
 
   output.set("gain", gain_);
 }

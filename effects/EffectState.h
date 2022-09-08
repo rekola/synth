@@ -12,17 +12,22 @@ class EffectState : public TrackState {
     auto data = TrackState::render(frames);
 
     applyEffect(data);
-    setTrackInfo(TrackInfo( true, data.isClipping() ));
+
+#if 0
+    setTrackInfo(TrackInfo( is_active, data.isClipping() ));
+#endif
     
     return data;    
   }
 
   // For rendering tracks
   virtual SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) {
-    auto sd = TrackState::render(frames, instruments, context);
-    applyEffect(sd);
-    setTrackInfo(TrackInfo( true, sd.isClipping() ));
-    return sd;
+    auto data = TrackState::render(frames, instruments, context);
+    applyEffect(data);
+#if 0    
+    setTrackInfo(TrackInfo( is_active, data.isClipping() ));
+#endif
+    return data;
   }
 
  protected:

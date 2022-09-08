@@ -60,7 +60,7 @@ BiquadFilter::createState(const ChannelConfiguration & config) const {
 
 void
 BiquadFilter::loadParameters(const ParameterSource & input) {
-  Track::loadParameters(input);
+  Effect::loadParameters(input);
   
   auto type_text = input.getText("type");
   if (type_text == "lowpass") type_ = FilterType::lowpass;
@@ -82,7 +82,7 @@ BiquadFilter::loadParameters(const ParameterSource & input) {
 
 void
 BiquadFilter::storeParameters(ParameterSource & output) const {
-  Track::storeParameters(output);
+  Effect::storeParameters(output);
 
   output.set("type", to_string(type_));
   output.set("fc", fc_);

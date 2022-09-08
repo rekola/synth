@@ -55,7 +55,7 @@ Chorus::createState(const ChannelConfiguration & channel_config) const {
 
 void
 Chorus::loadParameters(const ParameterSource & input) {
-  Track::loadParameters(input);
+  Effect::loadParameters(input);
 
   delay1_ = input.getFloat("delay1");
   delay2_ = input.getFloat("delay2");  
@@ -63,7 +63,7 @@ Chorus::loadParameters(const ParameterSource & input) {
 
 void
 Chorus::storeParameters(ParameterSource & output) const {
-  Track::storeParameters(output);
+  Effect::storeParameters(output);
 
   output.set("delay1", delay1_);
   output.set("delay2", delay2_);
