@@ -11,8 +11,6 @@ public:
   
   virtual void prepare(const InstrumentProvider & provider) { }
       
-  float getGain() const { return gain_; }
-
   void loadParameters(const ParameterSource & input) {
     Track::loadParameters(input);
   
@@ -31,7 +29,6 @@ public:
   int getSubharmonic() const { return subharmonic_; }
 
 private:
-  float gain_ = 1.0f;
   int harmonic_ = 1, subharmonic_ = 1;
 };
 
