@@ -7,8 +7,10 @@
 #include "Group.h"
 #include "NoteMultiplier.h"
 #include "Arpeggiator.h"
-#include "EnvelopeFilter.h"
 #include "HarmonicSeries.h"
+#include "Oscilator.h"
+#include "LFO.h"
+#include "GenericInstrument.h"
 
 #include "effects/Distortion.h"
 #include "effects/Reverb.h"
@@ -19,10 +21,8 @@
 #include "effects/Tremolo.h"
 #include "effects/Downmix.h"
 #include "effects/Amplifier.h"
-
-#include "Oscilator.h"
-#include "LFO.h"
-#include "GenericInstrument.h"
+#include "effects/EnvelopeFilter.h"
+#include "effects/Compressor.h"
 
 #include "tinyxml2.h"
 
@@ -88,6 +88,7 @@ static unique_ptr<Track> createTrack(string_view name) {
   else if (name == "envelope") return make_unique<EnvelopeFilter>();
   else if (name == "harmonicSeries") return make_unique<HarmonicSeries>();
   else if (name == "amplifier") return make_unique<Amplifier>();
+  else if (name == "compressor") return make_unique<Compressor>();
   
   // instruments
   else if (name == "genericInstrument") return make_unique<GenericInstrument>();
