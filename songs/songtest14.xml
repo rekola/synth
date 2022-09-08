@@ -22,10 +22,18 @@
   
   <tracks>
     <reverb preset="subtle">
-      <track id="guitar" instrument="0" volume="4.0"/>
-      <track id="pad" instrument="1" azimuth="+0"/>
-      <track id="harp" instrument="2" />
-      <percussionTrack id="perc" instrument="3" />
+      <amplifier gain="+10">
+	<track id="guitar" instrument="0" volume="4.0"/>
+      </amplifier>
+      <amplifier gain="+10">
+	<track id="pad" instrument="1" azimuth="+0"/>
+      </amplifier>
+      <amplifier gain="+10">
+	<track id="harp" instrument="2" />
+      </amplifier>
+      <amplifier gain="+10">
+	<percussionTrack id="perc" instrument="3" />
+      </amplifier>
     </reverb>
   </tracks>
 
