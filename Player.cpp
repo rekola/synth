@@ -135,6 +135,7 @@ Player::play(AudioAPI & audio) {
   audio.startRecording();
 
   auto & song = controller_->getSong();
+  state_.initialize(song);
   auto mixer = createMixer(audio.numberOfChannels(), audio.getFrequency(), song.getMixerType());
   
   while ( !terminate_ ) {
@@ -181,7 +182,7 @@ Player::createPlaybackEvent(const Song & song, const SongState & state) {
   PlaybackInfo info;
   info.setIsPlaying(state.isPlaying());
   info.setOutSampleRate(state.getChannelConfiguration().getAudioOutSampleRate());
-  info.setSampleInterval(song.getSampleInterval(state.getChannelConfiguration().getAudioOutSampleRate()));
+  info.setSampleInterval(state.getSampleInterval());
   info.setSamplePos(state.getSamplePos());
   info.setPatternIdx(pattern_idx);
   info.setRowIdx(row_idx);

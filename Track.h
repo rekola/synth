@@ -23,7 +23,17 @@ class Track : public StatefulSongObject {
     }
     return state;
   }
-  
+
+  TrackState & getState(TrackState & parent_state) {
+    auto state = parent_state.getChildByInternalId(getInternalId());
+    if (!state) {
+      auto new_state = createStateTree(parent_state.getChannelConfiguration());
+      state = new_state.get();
+      parent_state.addChild(getInternalId(), std::move(new_state));
+    }
+    return *state;
+  }
+
   virtual const char * getElementName() const = 0;
 
   virtual std::unique_ptr<TrackState> playNote(const ChannelConfiguration & config, float azimuth, float frequency, float detune, float velocity, float start_phase) const {

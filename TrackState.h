@@ -29,9 +29,6 @@ class TrackState {
 	is_active = true;
       }
     }
-
-    applyEffect(data);
-    setTrackInfo(TrackInfo( is_active, data.isClipping() ));
    
     return data;    
   }
@@ -55,9 +52,6 @@ class TrackState {
       }
     }
     
-    applyEffect(sd);
-    setTrackInfo(TrackInfo( active, sd.isClipping() ));
-
     return sd;
   }
 
@@ -155,8 +149,6 @@ class TrackState {
   const std::unordered_map<int, std::unique_ptr<TrackState> > & getChildren() const { return children_; }
   std::unordered_map<int, std::unique_ptr<TrackState> > & getChildren() { return children_; }
 
-  TrackState & getChildState(const Track & track);
-
   static inline float gainToDecibels(float gain) {
     return (gain <= .00001f ? -100.f : (float)(20.0 * log10(gain)));
   }
@@ -166,8 +158,6 @@ class TrackState {
   }
 
 protected:
-  virtual void applyEffect(SampleData & input) { }
-
   const TrackInfo & getTrackInfo() const { return track_info_; }
   void setTrackInfo(TrackInfo track_info) { track_info_ = std::move(track_info); }
   

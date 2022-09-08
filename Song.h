@@ -10,7 +10,6 @@
 #include <memory>
 #include <vector>
 
-class SongState;
 class InstrumentProvider;
 class Mixer;
 
@@ -81,10 +80,6 @@ class Song : public StatefulSongObject {
 
   bool open(const std::string & filename, const InstrumentProvider & provider);
   void save(const std::string & filename) const;
-
-  int getSampleInterval(int outSampleRate) const {
-    return 60.0 / 4.0 / getTempo() * outSampleRate;
-  }
 
   std::vector<std::unique_ptr<Track> > & getTracks() { return tracks_; }
   const std::vector<std::unique_ptr<Track> > & getTracks() const { return tracks_; }

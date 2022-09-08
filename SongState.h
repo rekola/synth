@@ -13,6 +13,10 @@ class SongState : public TrackState {
  public:
   explicit SongState(ChannelConfiguration channel_config) : TrackState(channel_config), render_context_(channel_config) { }
 
+  void initialize(const Song & song) {
+    tempo_ = song.getTempo();
+  }
+  
   void render(int frames, const Song & song, Mixer & mixer) {
     mixer.reset();
   
@@ -42,7 +46,7 @@ class SongState : public TrackState {
 		  velocity = note.getVelocityAsFloat() * (1 + song.getRandomizationFactor() * getRandF());
 		}
 		float delay = note.getDelayAsFloat() + song.getRandomizationFactor() * getRandF();
-		auto delay_samples = int(delay * song.getSampleInterval(getChannelConfiguration().getAudioOutSampleRate()));
+		auto delay_samples = int(delay * getSampleInterval());
 		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), frequency, velocity);
 	      }
 	    }
@@ -53,20 +57,20 @@ class SongState : public TrackState {
 	  }
 	}
 	
-	auto remaining = samplesUntilNextRow(song);
+	auto remaining = samplesUntilNextRow();
 	if (i + remaining <= frames) {
 	  i += remaining;
 	  movePosition(1);
 	} else {
 	  i += frames;
-	  moveForwardSamples(song, frames);
+	  moveForwardSamples(frames);
 	}
       }
     }
     
     if (!song.getInstruments().empty()) {
       for (auto & track : song.getTracks()) {
-	auto data = getChildState(*track).render(frames, song.getInstruments(), render_context_);
+	auto data = track->getState(*this).render(frames, song.getInstruments(), render_context_);
 	mixer.accumulate(data);
       }
     }
@@ -75,8 +79,8 @@ class SongState : public TrackState {
   }
 
 #if 0
-  int getTickInterval(const Song & song) const {
-    return song.getSampleInterval(channel_config.getAudioOutSampleRate()) / 12;
+  int getTickInterval() const {
+    return getSampleInterval() / 12;
   }
 #endif
   
@@ -86,8 +90,8 @@ class SongState : public TrackState {
   int getAbsolutePosition() const { return absolute_pos_; }
   int getSamplePos() const { return sample_pos_; }
     
-  void moveForwardSamples(const Song & song, int n = 1) {
-    auto sinterval = song.getSampleInterval(getChannelConfiguration().getAudioOutSampleRate());
+  void moveForwardSamples(int n = 1) {
+    auto sinterval = getSampleInterval();
 
     for (int i = 0; i < n; i++) {
       sample_pos_++;
@@ -111,8 +115,12 @@ class SongState : public TrackState {
     return rv;
   }
 
-  int samplesUntilNextRow(const Song & song) const {
-    auto sinterval = song.getSampleInterval(getChannelConfiguration().getAudioOutSampleRate());
+  int getSampleInterval() const {
+    return 60.0 / 4.0 / tempo_ * getChannelConfiguration().getAudioOutSampleRate();
+  }
+
+  int samplesUntilNextRow() const {
+    auto sinterval = getSampleInterval();
     return sample_pos_ == 0 ? sinterval : sinterval - sample_pos_;
   }
   
@@ -128,6 +136,7 @@ class SongState : public TrackState {
   Tuner & getTuner() { return tuner_; }
 
 private:
+  int tempo_ = 0;
   bool is_playing_ = false;
   int sample_pos_ = 0, absolute_pos_ = 0;
   Tuner tuner_;
