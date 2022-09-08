@@ -64,7 +64,7 @@ class Tuner {
   }
   
   float getFrequency(Tuning tuning, int key, int note_value) const {
-    if (!dynamic_tuning.empty()) {
+    if (!dynamic_tuning.empty() && tuning != Tuning::PERCUSSION) {
       auto it = dynamic_tuning.find(note_value);
       if (it != dynamic_tuning.end()) return it->second;
       else return 0.0f;
