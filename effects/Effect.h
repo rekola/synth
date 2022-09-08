@@ -11,7 +11,7 @@ class Effect : public Track {
   void setVendorName(std::string vendor_name) { vendor_name_ = std::move(vendor_name); }
   
  private:
-  std::string vendor_name;
+  std::string vendor_name_;
 };
 
 #endif
