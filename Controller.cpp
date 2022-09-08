@@ -28,7 +28,6 @@ Controller::loadDemo2() {
   auto & track = song->addTrack(make_unique<InstrumentTrack>(0));
   // track.addEffect(make_unique<Chorus>(5.0f, 0.0f));
   // track.addEffect(make_unique<Filter>(63 / 255.0f, 128 / 63.0f, false));
-  track.setVolume(0.1f);
 
   Pattern pattern(256);
 
