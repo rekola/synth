@@ -362,8 +362,9 @@ PatternEditor::offerInput(const InputEvent & input) {
       // create new instrument
     } else if (input.getId() == '\\') {
       auto track = song.getTrackByInternalId(track_ids[current_cursor.track]);
-      if (track) {
-	track->setSolo(!track->isSolo());
+      if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL)) {
+	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
+	instrument_track.setSolo(!instrument_track.isSolo());
 	song.incVersion();
       }
     } else {
@@ -430,8 +431,9 @@ PatternEditor::offerInput(const InputEvent & input) {
       return true;
     } else if (input.getId() == '\\') {
       auto track = song.getTrackByInternalId(track_ids[current_cursor.track]);
-      if (track) {
-	track->setMute(!track->isMuted());
+      if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL)) {
+	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
+	instrument_track.setMuted(!instrument_track.isMuted());
 	song.incVersion();
       }
     } else if (input.getId() == '\t') {
@@ -601,24 +603,8 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  setBgColor(0xf0, 0x80, 0x10);
 
 	  auto text_width = actual_width - 3;
-	  
-	  auto name = !track->getName().empty() ? track->getName() : (!track->getId().empty() ? "Trk " + track->getId() : format("Trk {:02d}", track->getInternalId()));
-	  if (name.size() > text_width) name.erase(text_width);
-	  else {
-	    while (name.size() < text_width) name += ' ';
-	  }
-	  putstr(heading_height - 2 - level, current_pos, name);
-	  putstr(heading_height - 2 - level, current_pos + text_width + 2, "│");
-	  if (track->isMuted()) setFgColor(0x00, 0x00, 0x00);
-	  else setFgColor(0xe0, 0x70, 0x08);
-	  putstr(heading_height - 2 - level, current_pos + text_width, "M");
-	  if (track->isSolo()) setFgColor(0x00, 0x00, 0x00);
-	  else setFgColor(0xe0, 0x70, 0x08);
-	  putstr(heading_height - 2 - level, current_pos + text_width + 1, "S");
-	  
-	  setFgColor(0xf0, 0xf0, 0xf0);
-	  setBgColor(styles.window_bg_color);
-	  
+
+	  bool is_solo = false, is_muted = false;
 	  string instrument_name;
 	  if (track->getType() == TrackType::SAMPLE) {
 	    instrument_name = "Sample";
@@ -626,8 +612,27 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
 	    if (instrument_track.getInstrumentId() >= 0 && instrument_track.getInstrumentId() < instruments.size()) {
 	      instrument_name = instruments[instrument_track.getInstrumentId()]->getName();
+	      is_solo = instrument_track.isSolo();
+	      is_muted = instrument_track.isMuted();
 	    }
 	  }
+	  auto name = !track->getName().empty() ? track->getName() : (!track->getId().empty() ? "Trk " + track->getId() : format("Trk {:02d}", track->getInternalId()));
+	  if (name.size() > text_width) name.erase(text_width);
+	  else {
+	    while (name.size() < text_width) name += ' ';
+	  }
+	  putstr(heading_height - 2 - level, current_pos, name);
+	  putstr(heading_height - 2 - level, current_pos + text_width + 2, "│");
+	  if (is_muted) setFgColor(0x00, 0x00, 0x00);
+	  else setFgColor(0xe0, 0x70, 0x08);
+	  putstr(heading_height - 2 - level, current_pos + text_width, "M");
+	  if (is_solo) setFgColor(0x00, 0x00, 0x00);
+	  else setFgColor(0xe0, 0x70, 0x08);
+	  putstr(heading_height - 2 - level, current_pos + text_width + 1, "S");
+	  
+	  setFgColor(0xf0, 0xf0, 0xf0);
+	  setBgColor(styles.window_bg_color);
+	  	  
 	  if (instrument_name.size() > actual_width - 1) instrument_name.erase(actual_width - 1);
 	  putstr(heading_height - 2 - level + 1, current_pos, instrument_name);
 	} else {	  

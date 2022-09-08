@@ -2,14 +2,15 @@
 #define _INSTRUMENTTRACKSTATE_H_
 
 #include "TrackEvent.h"
-#include "Instrument.h"
 #include "SampleData.h"
 #include "RenderContext.h"
+
+#include <algorithm>
 
 class InstrumentTrackState : public TrackState {
 public:
   explicit InstrumentTrackState(const ChannelConfiguration & channel_config, bool solo, bool muted, int track_id, int instrument_id, float azimuth, float portamento)
-    : TrackState(channel_config, solo, muted), track_id_(track_id), instrument_id_(instrument_id), azimuth_(azimuth), portamento_(portamento) { }
+    : TrackState(channel_config), solo_(solo), muted_(muted), track_id_(track_id), instrument_id_(instrument_id), azimuth_(azimuth), portamento_(portamento) { }
   
   SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override {
     clearFinishedVoices();
@@ -47,7 +48,7 @@ public:
 		}
 		if (!portamento_done) {
 		  stopVoices(ev.getId());
-		  auto voice = instrument->playNote(getChannelConfiguration(), azimuth_, ev.getFrequency(), 1.0f, ev.getVelocity(), getRandF());
+		  auto voice = instrument->playNote(getChannelConfiguration(), azimuth_, ev.getFrequency(), 1.0f, ev.getVelocity(), -getRandF());
 		  addVoice(ev.getId(), move(voice));
 		}
 	      }
@@ -74,14 +75,15 @@ public:
     for (auto & [ column, voices ] : voices_) {
       for (auto & voice : voices) {
 	if (voice->isPlaying()) {
-	  data.mix(voice->render(frames), 1.0f);
+	  auto s = voice->render(frames);
+	  if (!isMuted()) data.mix(s);
 	  is_active = true;
 	}
       }
     }
-
+    
     setTrackInfo(TrackInfo( is_active, data.isClipping() ));
-
+    
     return data;    
   }
 
@@ -127,7 +129,7 @@ public:
     }
     return n;
   }
-
+  
 protected:
   static inline bool is_not_playing(const std::unique_ptr<TrackState> & voice) { return !voice->isPlaying(); }
 
@@ -136,8 +138,15 @@ protected:
       voices.erase(std::remove_if(voices.begin(), voices.end(), is_not_playing), voices.end());      
     }
   }
-  
+
+  bool isMuted() const { return muted_; }
+  void setMuted(bool m) { muted_ = m; }
+
+  bool isSolo() const { return solo_; }
+  void setSolo(bool s) { solo_ = s; }
+
 private:
+  bool solo_, muted_;
   int track_id_, instrument_id_;
   float azimuth_;
   float portamento_;

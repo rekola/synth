@@ -18,6 +18,7 @@
 #include "effects/Chorus.h"
 #include "effects/Tremolo.h"
 #include "effects/Downmix.h"
+#include "effects/Amplifier.h"
 
 #include "Oscilator.h"
 #include "LFO.h"
@@ -86,6 +87,7 @@ static unique_ptr<Track> createTrack(string_view name) {
   else if (name == "arpeggiator") return make_unique<Arpeggiator>();
   else if (name == "envelope") return make_unique<EnvelopeFilter>();
   else if (name == "harmonicSeries") return make_unique<HarmonicSeries>();
+  else if (name == "amplifier") return make_unique<Amplifier>();
   
   // instruments
   else if (name == "genericInstrument") return make_unique<GenericInstrument>();

@@ -14,8 +14,10 @@ InstrumentTrack::createState(const ChannelConfiguration & config) const {
 void
 InstrumentTrack::loadParameters(const ParameterSource & input) {
   Track::loadParameters(input);
-
+  
   setInstrumentId(input.getInt("instrument"));
+  setSolo(input.getBool("solo"));
+  setMuted(input.getBool("mute"));
   setAzimuth(input.getFloat("azimuth"));
   setDistance(input.getFloat("distance"));
   setElevation(input.getFloat("elevation"));
@@ -28,6 +30,8 @@ InstrumentTrack::storeParameters(ParameterSource & output) const {
   Track::storeParameters(output);
   
   output.set("instrument", getInstrumentId());
+  if (isSolo()) output.set("solo", true);
+  if (isMuted()) output.set("mute", true);
   output.set("azimuth", getAzimuth());
   output.set("distance", getDistance());
   output.set("elevation", getElevation());

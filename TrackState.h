@@ -1,26 +1,20 @@
 #ifndef _TRACKSTATE_H_
 #define _TRACKSTATE_H_
 
-#include "State.h"
 #include "TrackInfo.h"
 #include "SampleData.h"
 #include "ChannelConfiguration.h"
 
 #include <vector>
 #include <memory>
-#include <algorithm>
+#include <unordered_map>
 
 class Track;
 class RenderContext;
 
 class TrackState {
  public:
-  explicit TrackState(const ChannelConfiguration & channel_config)
-    : channel_config_(channel_config), solo_(false), muted_(false) { }
-
-  explicit TrackState(const ChannelConfiguration & channel_config, bool solo, bool muted)
-    : channel_config_(channel_config), solo_(solo), muted_(muted) { }
-
+  explicit TrackState(const ChannelConfiguration & channel_config) : channel_config_(channel_config) { }
   virtual ~TrackState() { }
   
   // For rendering voices
@@ -31,7 +25,7 @@ class TrackState {
     bool is_active = false;
     for (auto & [ id, child ] : getChildren()) {
       if (child->isPlaying()) {
-	data.mix(child->render(frames), child->getVolume());
+	data.mix(child->render(frames));
 	is_active = true;
       }
     }
@@ -44,28 +38,25 @@ class TrackState {
 
   // For rendering tracks
   virtual SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) {
-    bool child_has_solo = false;
+    SampleData sd(getChannelConfiguration(), frames);
+    sd.zero();
+
+    bool child_has_solo = false, active = false;
     for (auto & [ id, child ] : getChildren()) {
-      if (child->isSolo()) {
+      auto s = child->render(frames, instruments, context);
+      if (s.isSolo() && !child_has_solo) {
 	child_has_solo = true;
-	break;
+	sd.zero();
+	sd.setSolo(true);
+      }
+      if (s.isSolo() || !child_has_solo) {
+	sd.mix(s);
+	active = true;
       }
     }
     
-    SampleData sd(getChannelConfiguration(), frames, isSolo() || child_has_solo);
-    sd.zero();
-
-    bool is_active = false;
-    for (auto & [ id, child ] : getChildren()) {
-      auto sd2 = child->render(frames, instruments, context);
-      if (!child->isMuted() && (!child_has_solo || child->isSolo())) {
-	sd.mix(sd2, child->getVolume());
-	is_active = true;
-      }
-    }
-
     applyEffect(sd);
-    setTrackInfo(TrackInfo( is_active, sd.isClipping() ));
+    setTrackInfo(TrackInfo( active, sd.isClipping() ));
 
     return sd;
   }
@@ -164,12 +155,16 @@ class TrackState {
   const std::unordered_map<int, std::unique_ptr<TrackState> > & getChildren() const { return children_; }
   std::unordered_map<int, std::unique_ptr<TrackState> > & getChildren() { return children_; }
 
-  bool isSolo() const { return solo_; }
-  bool isMuted() const { return muted_; }
-  float getVolume() const { return 1.0f; }
-
   TrackState & getChildState(const Track & track);
-  
+
+  static inline float gainToDecibels(float gain) {
+    return (gain <= .00001f ? -100.f : (float)(20.0 * log10(gain)));
+  }
+
+  static inline float decibelsToGain(float db) {
+    return (db > -100.f ? powf(10.0f, db * 0.05f) : 0);
+  }
+
 protected:
   virtual void applyEffect(SampleData & input) { }
 
@@ -181,10 +176,8 @@ protected:
   }
   
 private:
-  int internal_id_;
   ChannelConfiguration channel_config_;
   std::unordered_map<int, std::unique_ptr<TrackState> > children_;
-  bool solo_, muted_;
   float aftertouch_ = 1.0f;
   TrackInfo track_info_;
 };

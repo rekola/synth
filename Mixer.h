@@ -9,8 +9,8 @@ class Mixer {
   virtual ~Mixer() { }
   
   virtual void reset() = 0;
-  virtual void accumulate(const SampleData & data, float volume = 1.0f) = 0;
-  virtual SampleData encode(float master_volume) = 0;
+  virtual void accumulate(const SampleData & data) = 0;
+  virtual SampleData encode() = 0;
 
   short getOutChannels() const { return out_channels_; }
   int getOutSampleRate() const { return outSampleRate_; }

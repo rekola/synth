@@ -66,11 +66,8 @@ class SongState : public TrackState {
     
     if (!song.getInstruments().empty()) {
       for (auto & track : song.getTracks()) {
-	auto & state = getChildState(*track);
-	auto data = state.render(frames, song.getInstruments(), render_context_);
-	if (!state.isMuted()) {
-	  mixer.accumulate(data, track->getVolume());
-	}
+	auto data = getChildState(*track).render(frames, song.getInstruments(), render_context_);
+	mixer.accumulate(data);
       }
     }
     

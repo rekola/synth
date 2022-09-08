@@ -12,7 +12,7 @@
 class SampleData final {
  public:
   SampleData() noexcept
-    : channels_(0), frames_(0), data_(0), is_solo_(false) { }
+    : channels_(0), frames_(0), data_(0) { }
   explicit SampleData(short channels, int frames, bool is_solo = false) noexcept
     : channels_(channels), frames_(frames), is_solo_(is_solo) {
     data_ = (float *)aligned_alloc(16, getAlignedSize(channels_ * frames_));
@@ -113,18 +113,20 @@ class SampleData final {
     }
   }
 
-  void mix(const SampleData & other, float volume) {    
+  void mix(const SampleData & other) {
     int n = numberOfFrames() < other.numberOfFrames() ? numberOfFrames() : other.numberOfFrames();
 
     if (channels_ == other.channels_) {
       for (int i = 0; i < channels_ * n; i++) {
-	data_[i] += volume * other.data_[i];
+	data_[i] += other.data_[i];
       }
     } else if (other.channels_ == 1) {
       auto left = getChannelData(0), right = getChannelData(1);
       
       for (int i = 0; i < n; i++) {
-	left[i] = right[i] = other.data_[i];
+	auto v = other.data_[i];
+	left[i] += v;
+	right[i] += v;
       }
     } else {
       assert(0);
@@ -154,6 +156,7 @@ class SampleData final {
   }
   
   bool isSolo() const { return is_solo_; }
+  void setSolo(bool s) { is_solo_ = s; }
   
 private:
   static inline size_t getAlignedSize(int frames) { return (static_cast<size_t>(frames) * sizeof(float) + 15ull) & ~15ull; }
@@ -161,7 +164,7 @@ private:
   short channels_;
   int frames_;
   float * data_;
-  bool is_solo_;
+  bool is_solo_ = false;
 
   // ChannelData
 };

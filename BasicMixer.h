@@ -13,7 +13,7 @@ class BasicMixer : public Mixer {
     clear();
   }
   
-  void accumulate(const SampleData & input, float volume) override {
+  void accumulate(const SampleData & input) override {
     if (!buffer || input.size() != frames) {
       frames = input.size();
       buffer = std::unique_ptr<float[]>(new float[frames * getOutChannels()]);
@@ -39,12 +39,12 @@ class BasicMixer : public Mixer {
     }
   }
   
-  SampleData encode(float master_volume) override {
+  SampleData encode() override {
     SampleData output(getOutChannels(), frames);
     for (int j = 0; j < output.numberOfChannels(); j++) {
       auto output_buffer = output.getChannelData(j);
       for (int i = 0; i < output.size(); i++) {
-	float s = buffer[j * frames + i] * master_volume;
+	float s = buffer[j * frames + i];
 	if (s > 1.0) s = 1.0;
 	else if (s < -1.0) s = -1.0;
 	output_buffer[i] = s;

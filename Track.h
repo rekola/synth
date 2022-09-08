@@ -2,11 +2,9 @@
 #define _TRACK_H_
 
 #include "StatefulSongObject.h"
-
-#include "SampleData.h"
 #include "TrackType.h"
 
-#include <string>
+#include <string_view>
 #include <vector>
 #include <memory>
 
@@ -25,18 +23,6 @@ class Track : public StatefulSongObject {
     }
     return state;
   }
-
-  void loadParameters(const ParameterSource & input) override {
-    StatefulSongObject::loadParameters(input);
-    setSolo(input.getBool("solo"));
-    setMute(input.getBool("mute"));
-  }
-
-  void storeParameters(ParameterSource & output) const override {
-    StatefulSongObject::storeParameters(output);
-    if (isSolo()) output.set("solo", true);
-    if (isMuted()) output.set("mute", true);
-  }
   
   virtual const char * getElementName() const = 0;
 
@@ -50,12 +36,6 @@ class Track : public StatefulSongObject {
   }
 
   TrackType getType() const { return type_; }
-
-  bool isSolo() const { return solo_; }
-  void setSolo(bool s) { solo_ = s; }
-
-  bool isMuted() const { return mute_; }
-  void setMute(bool m) { mute_ = m; }
 
   const Track & getChild(int i) const { return *(children_[i]); }
   Track & getChild(int i) { return *(children_[i]); }
@@ -112,7 +92,6 @@ class Track : public StatefulSongObject {
   
  private:
   TrackType type_;
-  bool solo_ = false, mute_ = false;
   std::vector<std::unique_ptr<Track> > children_;
 };
 

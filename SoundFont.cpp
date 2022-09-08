@@ -375,7 +375,7 @@ static void tsf_region_envtosecs(Envelope * p, bool sustainIsGain) {
   p->decay_ = (p->decay_ < -11950.0f ? 0.0f : tsf_timecents2Secsf(p->decay_));
     
   if (p->sustain_ < 0.0f) p->sustain_ = 0.0f;
-  else if (sustainIsGain) p->sustain_ = InstrumentVoice::decibelsToGain(-p->sustain_ / 10.0f);
+  else if (sustainIsGain) p->sustain_ = TrackState::decibelsToGain(-p->sustain_ / 10.0f);
   else p->sustain_ = 1.0f - (p->sustain_ / 1000.0f);
 }
 

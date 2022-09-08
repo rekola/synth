@@ -34,8 +34,15 @@ class InstrumentTrack : public Track {
   bool showEffectsColumn() const { return show_effects_column_; }
   bool showDelayColumn() const { return show_delay_column_; }
 
+  bool isSolo() const { return solo_; }
+  void setSolo(bool s) { solo_ = s; }
+
+  bool isMuted() const { return muted_; }
+  void setMuted(bool m) { muted_ = m; }
+
 private:
   int instrument_id_ = 0;
+  bool solo_ = false, muted_ = false;
   float elevation_ = 0, azimuth_ = 0, distance_ = 0;
   std::string color_;
   float portamento_ = -1.0f;

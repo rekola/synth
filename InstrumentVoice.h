@@ -31,21 +31,6 @@ class InstrumentVoice : public TrackState {
   }
 
   bool isPlaying() const override { return freq_ != 0.0f; }
-    
-  void setVolume(float volume) {
-    setGainDB(gainToDecibels(volume));
-  }
-
-  void setGainDB(float db) { noteGainDB_ = db; }
-  float getGainDB() const { return noteGainDB_; }
-
-  static inline float gainToDecibels(float gain) {
-    return (gain <= .00001f ? -100.f : (float)(20.0 * log10(gain)));
-  }
-
-  static inline float decibelsToGain(float db) {
-    return (db > -100.f ? powf(10.0f, db * 0.05f) : 0);
-  }
   
 protected:
   double getSourceSamplePosition() const { return sourceSamplePosition_; }
@@ -57,6 +42,9 @@ protected:
   float getFrequency() const { return freq_; }
   float getAzimuth() const { return azimuth_; }
   float getDetune() const { return detune_; }
+
+  void setGainDB(float db) { noteGainDB_ = db; }
+  float getGainDB() const { return noteGainDB_; }
   
   double sourceSamplePosition_;
 
