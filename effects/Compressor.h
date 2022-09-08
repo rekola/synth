@@ -1,32 +1,33 @@
 #ifndef _COMPRESSOR_H_
 #define _COMPRESSOR_H_
 
-#include "../Track.h"
+#include "Effect.h"
 
-class Compressor : public Track {
+class Compressor : public Effect {
  public:
-  Compressor() : Track(TrackType::EFFECT) { }
+  Compressor() { }
 
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & channel_config) const override;
   const char * getElementName() const override { return "compressor"; }
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;
-
-  void setTreshold(float thresh) { f_thresh = thresh; }
-  void setRatio(float ratio) { f_ratio = ratio >= 1.0f ? ratio : 1; }
-  void setAttack(float attack) { f_attack = attack >= 1.0f ? attack : 1; }
-  void setRelease(float release) { f_release = release >= 1.0f ? release : 1; }
-
-  float getTreshold() const { return f_thresh; }
-  float getRatio() const { return f_ratio; }
-  float getAttack() const { return f_attack; }
-  float getRelease() const { return f_release; }
   
 private:
-  float f_thresh = 0.05f;	// The level above which the compressor activates (0.05)
-  float f_ratio = 10;		// The input to output ratio of gain reduction
-  float f_attack = 50;		// The length in time it takes for the compressor to begin reducing gain after the signal has crossed above the threshold
-  float f_release = 50;		// The lenght in time it takes for the compressor to stop reducing gain after the signal has crossed below the threshold
+  float pregain_;   // dB, amount to boost the signal before applying compression [0 to 100]
+  float threshold_; // dB, level where compression kicks in [-100 to 0]
+  float knee_;      // dB, width of the knee [0 to 40]
+  float ratio_;     // unitless, amount to inversely scale the output when applying comp [1 to 20]
+  float attack_;    // seconds, length of the attack phase [0 to 1]
+  float release_;   // seconds, length of the release phase [0 to 1]
+
+  // advanced parameters:
+  float predelay_;     // seconds, length of the predelay buffer [0 to 1]
+  float releasezone1_; // release zones should be increasing between 0 and 1, and are a fraction
+  float releasezone2_; //  of the release time depending on the input dB -- these parameters define
+  float releasezone3_; //  the adaptive release curve, which is discussed in further detail in the
+  float releasezone4_; //  demo: adaptive-release-curve.html
+  float postgain_;     // dB, amount of gain to apply after compression [0 to 100]
+  float wet_;          // amount to apply the effect [0 completely dry to 1 completely wet]
 };
 
 #endif
