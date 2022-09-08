@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song key="C" temperament="31edo" tempo="160" volume="1.0" randomization="0.0099999998">
+  <instruments>
+    <genericInstrument name="Chateau Grand" />
+
+    <envelope attack="1" release="2" name="padtest0">
+      <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
+	<harmonicSeries undertone="0">
+	  <oscilator type="sine" level="0.5"/>
+	</harmonicSeries>
+      </resonantFilter>
+    </envelope>
+
+    <envelope attack="1" release="2" name="padtest0 undertone">
+      <oscilator type="sine" level="1"/>
+      <oscilator type="sine" level="0.5" harmonic="2"/>
+      <oscilator type="sine" level="0.8" harmonic="8" subharmonic="3"/>
+      <oscilator type="sine" level="0.5" harmonic="12" subharmonic="7"/>
+      <oscilator type="sine" level="0.25" harmonic="14" subharmonic="8"/>
+    </envelope>
+
+    <envelope attack="1" release="2" name="padtest2">
+      <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
+	<multiply unisons="16" detune="10">
+	  <oscilator type="saw" level="0.25" />
+	</multiply>
+      </resonantFilter>
+    </envelope>
+
+    <envelope attack="1" release="2" name="simple">
+      <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
+	<multiply unisons="32" detune="10" spread="180">
+	  <oscilator type="saw" level="0.25" />
+	</multiply>
+      </resonantFilter>
+    </envelope>
+
+    <envelope attack="0.5" release="2" name="simple a">
+      <resonantFilter cutmin="550" cutmax="19845" res="0.9">
+	<multiply unisons="32" detune="10" spread="180">
+	  <oscilator type="saw" level="0.25" />
+	</multiply>
+      </resonantFilter>
+    </envelope>
+
+    <envelope attack="1" release="2" name="b">
+      <resonantFilter cut="2200" res="0.5">
+	<multiply unisons="16" detune="10">
+	  <oscilator type="saw" level="0.25" />
+	</multiply>
+      </resonantFilter>
+    </envelope>
+
+    <envelope attack="1" release="2" name="b2">
+      <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
+	<multiply unisons="16" detune="10">
+	  <oscilator type="saw" level="0.25" />
+	</multiply>
+      </resonantFilter>
+    </envelope>
+
+    <genericInstrument name="Piano" />
+  </instruments>
+  
+  <tracks>
+    <reverb preset="stadium">
+      <track id="melody" instrument="0" />
+      <track id="melody2" instrument="0" />
+      <track id="chords" instrument="0" />
+      <track id="pad" instrument="1" />
+    </reverb>
+  </tracks>
+  
+  <patterns>
+    <pattern rows="64">
+      <note row="0" track="melody" velocity="40">C-4</note> <note row="0" track="melody2" velocity="40">F-4 A-4</note>
+      <note row="8" track="melody" velocity="40">G-4</note> <note row="8" track="melody2" velocity="40">C-4</note>
+      <note row="16" track="melody" velocity="40">A#4</note> <note row="16" track="melody2" velocity="40">OFF</note>
+      <note row="24" track="melody" velocity="40">A-4</note>
+      <note row="26" track="melody" velocity="40">G-4</note>
+      <note row="28" track="melody" velocity="40">F-4</note>
+
+      <note row="32" track="melody" velocity="40">A#4</note>
+      <note row="40" track="melody" velocity="40">A-4</note>
+      <note row="42" track="melody" velocity="40">G-4</note>
+      <note row="44" track="melody" velocity="40">F-4</note>
+
+      <note row="48" track="melody" velocity="40">A-4</note>
+      <note row="56" track="melody" velocity="40">G-4</note>
+    </pattern>
+  </patterns>
+</song>
