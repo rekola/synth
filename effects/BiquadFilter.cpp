@@ -1,5 +1,7 @@
 #include "BiquadFilter.h"
 
+#include "EffectState.h"
+
 #include "../Biquad.h"
 #include "../TrackState.h"
 #include "../EnvelopeState.h"
@@ -10,10 +12,10 @@
 
 using namespace std;
 
-class BiquadFilterState : public TrackState {
+class BiquadFilterState : public EffectState {
 public:
   BiquadFilterState(const ChannelConfiguration & channel_config, FilterType type, float fc, float Q, float peakGainDB, const Envelope & envelope, bool use_aftertouch)
-    : TrackState(channel_config),
+    : EffectState(channel_config),
       left_state_(type, fc, Q, peakGainDB),
       right_state_(type, fc, Q, peakGainDB),
       envelope_state_(channel_config.getAudioOutSampleRate(), envelope, 0, 0, true),

@@ -1,15 +1,16 @@
 #include "Delay.h"
 
-#include "../TrackState.h"
+#include "EffectState.h"
+
 #include "../Biquad.h"
 #include "../constants.h"
 
 using namespace std;
 
-class DelayState : public TrackState {
+class DelayState : public EffectState {
 public:
   DelayState(const ChannelConfiguration & channel_config, float delay, float fd, float delaymix)
-    : TrackState(channel_config),
+    : EffectState(channel_config),
       fd_(fd),
       delaymix_(delaymix),
       delay_buffer_(channel_config, int(delay * getChannelConfiguration().getAudioOutSampleRate()))

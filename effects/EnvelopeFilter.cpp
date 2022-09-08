@@ -1,14 +1,15 @@
 #include "EnvelopeFilter.h"
 
-#include "EnvelopeState.h"
-#include "constants.h"
+#include "EffectState.h"
+#include "../EnvelopeState.h"
+#include "../constants.h"
 
 using namespace std;
 
-class EnvelopeFilterState : public TrackState {
+class EnvelopeFilterState : public EffectState {
 public:
   EnvelopeFilterState(const ChannelConfiguration & channel_config, const Envelope & envelope)
-    : TrackState(channel_config), envelope_state_(channel_config.getAudioOutSampleRate(), envelope, 0, 0, true) {
+    : EffectState(channel_config), envelope_state_(channel_config.getAudioOutSampleRate(), envelope, 0, 0, true) {
       
   }
 

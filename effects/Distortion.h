@@ -1,7 +1,7 @@
 #ifndef _DISTORTION_H_
 #define _DISTORTION_H_
 
-#include "../Track.h"
+#include "Effect.h"
 
 enum class DistortionType { HARD_CLIP = 1, SOFT_CLIP, BITCRUSH, TANH };
 
@@ -15,10 +15,9 @@ static inline const std::string to_string(DistortionType type) {
   }
 }
 
-class Distortion : public Track {
+class Distortion : public Effect {
  public:
-  Distortion() : Track(TrackType::EFFECT), type_(DistortionType::HARD_CLIP), param_(1.0f), drymix_(0) { }
-  Distortion(DistortionType type, float param, float drymix) : Track(TrackType::EFFECT), type_(type), param_(param), drymix_(drymix) { }
+  Distortion() { }
 
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & channel_config) const override;
   const char * getElementName() const override { return "distortion"; }
@@ -26,8 +25,8 @@ class Distortion : public Track {
   void storeParameters(ParameterSource & output) const override;
 
  private:
-  DistortionType type_;
-  float param_, drymix_;
+  DistortionType type_ { DistortionType::HARD_CLIP };
+  float param_ = 1.0f, drymix_ = 0.0f;
   float drive_ = 1.0f;
 };
 

@@ -1,12 +1,12 @@
 #ifndef _ENVELOPEFILTER_H_
 #define _ENVELOPEFILTER_H_
 
-#include "Track.h"
-#include "Envelope.h"
+#include "Effect.h"
+#include "../Envelope.h"
 
-class EnvelopeFilter : public Track {
+class EnvelopeFilter : public Effect {
  public:
-  EnvelopeFilter() : Track(TrackType::EFFECT) { }
+  EnvelopeFilter() { }
   
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & channel_config) const override;
   const char * getElementName() const override { return "envelope"; }

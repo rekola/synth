@@ -1,13 +1,13 @@
 #include "Amplifier.h"
 
-#include "../TrackState.h"
+#include "EffectState.h"
 
 using namespace std;
 
-class AmplifierState : public TrackState {
+class AmplifierState : public EffectState {
 public:
   AmplifierState(const ChannelConfiguration & channel_config, float gain)
-    : TrackState(channel_config), gain_(gain) {
+    : EffectState(channel_config), gain_(gain) {
     
   }
 
@@ -21,6 +21,7 @@ protected:
     }
   }
 
+private:
   float gain_;
 };
 

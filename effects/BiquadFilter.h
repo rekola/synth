@@ -1,13 +1,13 @@
 #ifndef _BIQUADFILTER_H_
 #define _BIQUADFILTER_H_
 
-#include "../Track.h"
+#include "Effect.h"
 #include "../Envelope.h"
 #include "../FilterType.h"
 
-class BiquadFilter : public Track {
+class BiquadFilter : public Effect {
  public:
-  BiquadFilter() : Track(TrackType::EFFECT) { }
+  BiquadFilter() { }
 
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override;
   const char * getElementName() const override { return "biquadFilter"; }

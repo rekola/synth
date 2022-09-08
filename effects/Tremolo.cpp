@@ -1,17 +1,15 @@
 #include "Tremolo.h"
 
-#include "../TrackState.h"
+#include "EffectState.h"
 
 using namespace std;
 
-class TremoloState : public TrackState {
+class TremoloState : public EffectState {
 public:
   TremoloState(const ChannelConfiguration & channel_config, float frequency, float amplitude, bool use_aftertouch)
-    : TrackState(channel_config), frequency_(frequency), amplitude_(amplitude), use_aftertouch_(use_aftertouch) { }
+    : EffectState(channel_config), frequency_(frequency), amplitude_(amplitude), use_aftertouch_(use_aftertouch) { }
 
-  SampleData render(int frames) override {
-    auto input = TrackState::render(frames);
-    
+  void applyEffect(SampleData & input) override {
     auto numChannels = input.numberOfChannels();
     auto numSamples = input.size();
     auto step = 2 * M_PI * frequency_ / getChannelConfiguration().getAudioOutSampleRate();
@@ -26,8 +24,6 @@ public:
     }
 
     phi_ += numSamples * step;
-
-    return input;
   }
 
 private:

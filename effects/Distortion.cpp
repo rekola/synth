@@ -1,17 +1,15 @@
 #include "Distortion.h"
 
-#include "../TrackState.h"
+#include "EffectState.h"
 
 using namespace std;
 
-class DistortionState : public TrackState {
+class DistortionState : public EffectState {
 public:
   DistortionState(const ChannelConfiguration & channel_config, DistortionType type, float param, float drymix, float drive)
-    : TrackState(channel_config), type_(type), param_(param), drymix_(drymix), drive_(drive) { }
+    : EffectState(channel_config), type_(type), param_(param), drymix_(drymix), drive_(drive) { }
   
-  SampleData render(int frames) override {
-    auto input = TrackState::render(frames);
-    
+  void applyEffect(SampleData & input) override {
     switch (type_) {
     case DistortionType::HARD_CLIP:
       for (int i = 0; i < input.numberOfChannels(); i++) {
@@ -65,8 +63,6 @@ public:
     case DistortionType::BITCRUSH:
       break;
     }
-
-    return input;
   }
 
 private:
@@ -84,7 +80,7 @@ Distortion::loadParameters(const ParameterSource & input) {
   Track::loadParameters(input);
    
   param_ = input.getFloat("param");
-  drive_ = input.getFloat("drive");
+  drive_ = input.getFloat("drive", 1.0f);
   
   auto type_text = input.getText("type");
   if (type_text == "hardclip") type_ = DistortionType::HARD_CLIP;

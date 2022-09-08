@@ -1,11 +1,11 @@
 #ifndef _AMPLIFIER_H_
 #define _AMPLIFIER_H_
 
-#include "../Track.h"
+#include "Effect.h"
 
-class Amplifier : public Track {
+class Amplifier : public Effect {
 public:
-  Amplifier() : Track(TrackType::EFFECT) { }
+  Amplifier() { }
   
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & channel_config) const override;
   const char * getElementName() const override { return "amplifier"; }

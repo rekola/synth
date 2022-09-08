@@ -1,20 +1,19 @@
 #include "ResonantFilter.h"
 
+#include "EffectState.h"
+
 #include "MoogVCF.h"
-
-#include "../TrackState.h"
 #include "../EnvelopeState.h"
-
 #include "../constants.h"
 
 #include <cassert>
 
 using namespace std;
 
-class ResonantFilterState : public TrackState {
+class ResonantFilterState : public EffectState {
 public:
   ResonantFilterState(const ChannelConfiguration & channel_config, const ResonantFilter & filter, const Envelope & envelope, bool use_aftertouch)
-    : TrackState(channel_config),
+    : EffectState(channel_config),
       cut_min_(filter.get_cut_min()),
       cut_max_(filter.get_cut_max()),
       res_(filter.get_res()),

@@ -1,11 +1,11 @@
 #ifndef _TREMOLO_H_
 #define _TREMOLO_H_
 
-#include "../Track.h"
+#include "Effect.h"
 
-class Tremolo : public Track {
+class Tremolo : public Effect {
  public:
-  Tremolo() : Track(TrackType::EFFECT) { }
+  Tremolo() { }
   
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & channel_config) const override;
   const char * getElementName() const override { return "tremolo"; }

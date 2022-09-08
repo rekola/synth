@@ -1,12 +1,12 @@
 #ifndef _RESONANTFILTER_H_
 #define _RESONANTFILTER_H_
 
-#include "../Track.h"
+#include "Effect.h"
 #include "../Envelope.h"
 
-class ResonantFilter : public Track {
+class ResonantFilter : public Effect {
  public:
-  ResonantFilter() : Track(TrackType::EFFECT) { }
+  ResonantFilter() { }
 
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override;
   const char * getElementName() const override { return "resonantFilter"; }

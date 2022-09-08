@@ -1,19 +1,17 @@
 #include "Chorus.h"
 
-#include "../TrackState.h"
+#include "EffectState.h"
 
 #define CHORUS_MAX_DELAY_SAMPLES 44100
 
 using namespace std;
 
-class ChorusState : public TrackState {
+class ChorusState : public EffectState {
 public:
   ChorusState(const ChannelConfiguration & channel_config, float delay1, float delay2)
-    : TrackState(channel_config), delay1_(delay1), delay2_(delay2) { }
+    : EffectState(channel_config), delay1_(delay1), delay2_(delay2) { }
 
-  SampleData render(int frames) override {
-    auto input_data = TrackState::render(frames);
-    
+  void applyEffect(SampleData & input_data) override {
     if (delay1_ > 0) {
       assert(input_data.numberOfChannels() == 1);
 
@@ -36,8 +34,6 @@ public:
 	if (delay1_phi_ > 2 * M_PI) delay1_phi_ -= 2 * M_PI;
       }
     }
-    
-    return input_data;
   }
 
 private:
