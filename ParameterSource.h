@@ -20,7 +20,9 @@ class ParameterSource {
   virtual std::string getText(const std::string & name, const std::string & default_value) const = 0;
   virtual float getFloat(const std::string & name, float default_value = 0) const = 0;
   
-  virtual bool getBool(const std::string & name) const { return getInt(name) != 0; }
+  virtual bool getBool(const std::string & name, bool default_value = false) const {
+    return getInt(name, default_value ? 1 : 0) != 0;
+  }
 
   std::string getText(const std::string & name) const { return getText(name, ""); }
 
