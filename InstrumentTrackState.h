@@ -62,7 +62,9 @@ public:
 	i += render_size;
       }
     }
-    
+
+    setTrackInfo(TrackInfo( isPlaying(), data.isClipping() ));
+
     return data;
   }
 
@@ -109,7 +111,16 @@ public:
     TrackState::clear();
     voices_.clear();
   }
-  
+
+  bool isPlaying() const override {
+    for (auto & [ column, voices ] : voices_) {
+      for (auto & voice : voices) {
+	if (voice->isPlaying()) return true;
+      }
+    }
+    return false;
+  }
+
   int getVoiceCount() const override {
     int n = TrackState::getVoiceCount();
     for (auto & [ column, voices ] : voices_) {
