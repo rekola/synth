@@ -22,11 +22,9 @@ class TrackState {
     SampleData data(getChannelConfiguration(), frames);
     data.zero();
 
-    bool is_active = false;
     for (auto & [ id, child ] : getChildren()) {
-      if (child->isPlaying()) {
+      if (child->isActive()) {
 	data.mix(child->render(frames));
-	is_active = true;
       }
     }
    
@@ -75,16 +73,16 @@ class TrackState {
     }
   }
 
-  virtual bool isPlaying() const {
+  virtual bool isActive() const {
     for (auto & [ id, child ] : getChildren()) {
-      if (child->isPlaying()) return true;
+      if (child->isActive()) return true;
     }
     return false;
   }
   
   virtual int getVoiceCount() const {
     int n = 0;
-    if (isPlaying()) n++;
+    if (isActive()) n++;
     for (auto & [ id, child ] : getChildren()) {
       n += child->getVoiceCount();
     }

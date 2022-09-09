@@ -84,7 +84,7 @@ class SongState : public TrackState {
   }
 #endif
   
-  bool isPlaying() const override { return is_playing_; }
+  bool isPlaying() const { return is_playing_; }
   void setIsPlaying(bool b) { is_playing_ = b; }
 
   int getAbsolutePosition() const { return absolute_pos_; }

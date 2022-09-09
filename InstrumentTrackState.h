@@ -39,7 +39,7 @@ public:
 		  auto it = voices_.find(ev.getId());
 		  if (it != voices_.end()) {
 		    for (auto & voice : it->second) {
-		      if (voice->isPlaying()) {
+		      if (voice->isActive()) {
 			voice->playNote(ev.getFrequency(), ev.getVelocity());
 			portamento_done = true;
 		      }
@@ -63,7 +63,7 @@ public:
       }
     }
 
-    setTrackInfo(TrackInfo( isPlaying(), data.isClipping() ));
+    setTrackInfo(TrackInfo( isActive(), data.isClipping() ));
 
     return data;
   }
@@ -76,7 +76,7 @@ public:
     
     for (auto & [ column, voices ] : voices_) {
       for (auto & voice : voices) {
-	if (voice->isPlaying()) {
+	if (voice->isActive()) {
 	  auto s = voice->render(frames);
 	  if (!isMuted()) data.mix(s);
 	  is_active = true;
@@ -96,14 +96,14 @@ public:
   void applyAftertouch(int column, float aftertouch) {
     auto it = voices_.find(column);
     if (it != voices_.end()) {
-      for (auto & voice : it->second) if (voice->isPlaying()) voice->applyAftertouch(aftertouch);
+      for (auto & voice : it->second) if (voice->isActive()) voice->applyAftertouch(aftertouch);
     }
   }
 
   void stopVoices(int column) {
     auto it = voices_.find(column);
     if (it != voices_.end()) {
-      for (auto & voice : it->second) if (voice->isPlaying()) voice->stopNote();
+      for (auto & voice : it->second) if (voice->isActive()) voice->stopNote();
     }
   }
 
@@ -112,10 +112,10 @@ public:
     voices_.clear();
   }
 
-  bool isPlaying() const override {
+  bool isActive() const override {
     for (auto & [ column, voices ] : voices_) {
       for (auto & voice : voices) {
-	if (voice->isPlaying()) return true;
+	if (voice->isActive()) return true;
       }
     }
     return false;
@@ -142,7 +142,7 @@ public:
   }
   
 protected:
-  static inline bool is_not_playing(const std::unique_ptr<TrackState> & voice) { return !voice->isPlaying(); }
+  static inline bool is_not_playing(const std::unique_ptr<TrackState> & voice) { return !voice->isActive(); }
 
   void clearFinishedVoices() {
     for (auto & [ id, voices ] : voices_) {

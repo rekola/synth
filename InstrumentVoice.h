@@ -30,7 +30,7 @@ class InstrumentVoice : public TrackState {
     freq_ = frequency * detune_;
   }
 
-  bool isPlaying() const override { return freq_ != 0.0f; }
+  bool isActive() const override { return freq_ != 0.0f; }
   
 protected:
   double getSourceSamplePosition() const { return sourceSamplePosition_; }

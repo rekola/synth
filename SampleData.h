@@ -65,12 +65,14 @@ class SampleData final {
 
   void zero() {
     memset(data_, 0, getAlignedSize(channels_ * frames_));
+    is_zero_ = true;
   }
   
   void clear() {
     free(data_);
     data_ = 0;
     frames_ = 0;
+    is_zero_ = true;
   }
   
   short numberOfChannels() const { return channels_; }
@@ -100,6 +102,8 @@ class SampleData final {
     assert(position >= 0);
     
     if (channels_ == other.channels_) {
+      if (!other.is_zero_) is_zero_ = false;
+      
       int n = other.numberOfFrames() < numberOfFrames() ? other.numberOfFrames() : numberOfFrames();
       if (position + n > numberOfFrames()) position = numberOfFrames() - n;
       
@@ -114,40 +118,50 @@ class SampleData final {
   }
 
   void mix(const SampleData & other) {
-    int n = numberOfFrames() < other.numberOfFrames() ? numberOfFrames() : other.numberOfFrames();
-
-    if (channels_ == other.channels_) {
-      for (int i = 0; i < channels_ * n; i++) {
-	data_[i] += other.data_[i];
-      }
-    } else if (other.channels_ == 1) {
-      auto left = getChannelData(0), right = getChannelData(1);
+    if (!other.isZero()) {
+      is_zero_ = false;
       
-      for (int i = 0; i < n; i++) {
-	auto v = other.data_[i];
-	left[i] += v;
-	right[i] += v;
+      int n = numberOfFrames() < other.numberOfFrames() ? numberOfFrames() : other.numberOfFrames();
+            
+      if (channels_ == other.channels_) {
+	for (int i = 0; i < channels_ * n; i++) {
+	  data_[i] += other.data_[i];
+	}
+      } else if (other.channels_ == 1) {
+	auto left = getChannelData(0), right = getChannelData(1);
+	
+	for (int i = 0; i < n; i++) {
+	  auto v = other.data_[i];
+	  left[i] += v;
+	  right[i] += v;
+	}
+      } else {
+	assert(0);
       }
-    } else {
-      assert(0);
     }
   }
 
   std::vector<float> calculateLoudness() const {
     std::vector<float> v;
     for (int i = 0; i < channels_; i++) {
-      float sum_squares = 0;
-      auto channel_data = getChannelData(i);
-      for (int j = 0; j < frames_; j++) {
-	auto s = channel_data[j];
-	sum_squares += s * s;
+      if (isZero()) {
+	v.push_back(0.0f);
+      } else {
+	float sum_squares = 0;
+	auto channel_data = getChannelData(i);
+	for (int j = 0; j < frames_; j++) {
+	  auto s = channel_data[j];
+	  sum_squares += s * s;
+	}
+	v.push_back(sqrtf(sum_squares));
       }
-      v.push_back(sqrtf(sum_squares));
     }
     return v;
   }
 
   bool isClipping() const {
+    if (isZero()) return false;
+    
     for (int i = 0; i < channels_ * frames_; i++) {
       auto v = data_[i];
       if (v < -1.0f || v > +1.0f) return true;
@@ -157,6 +171,9 @@ class SampleData final {
   
   bool isSolo() const { return is_solo_; }
   void setSolo(bool s) { is_solo_ = s; }
+
+  void setNonZero() { is_zero_ = false; }
+  bool isZero() const { return is_zero_; }  
   
 private:
   static inline size_t getAlignedSize(int frames) { return (static_cast<size_t>(frames) * sizeof(float) + 15ull) & ~15ull; }
@@ -164,7 +181,7 @@ private:
   short channels_;
   int frames_;
   float * data_;
-  bool is_solo_ = false;
+  bool is_solo_ = false, is_zero_ = true;
 
   // ChannelData
 };

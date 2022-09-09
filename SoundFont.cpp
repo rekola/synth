@@ -675,7 +675,7 @@ public:
     calcPitchRatio(0);
   }
 
-  bool isPlaying() const override {
+  bool isActive() const override {
     return voiceRegion_ && sourceSamplePosition_ < voiceRegion_->end && !ampenv_.isDone();
   }
 
@@ -736,9 +736,11 @@ SoundFontVoice::render(int numSamples) {
   SampleData outputData(getChannelConfiguration(), numSamples);
   outputData.zero(); // outputData must be zeroed because we don't fill if after stopping playing
   
-  if (!isPlaying()) {
+  if (!isActive()) {
     return outputData;
   }
+
+  outputData.setNonZero();
 
   auto num_channels = outputData.numberOfChannels();
   auto left_output = outputData.getChannelData(0), right_output = outputData.getChannelData(1);
@@ -836,7 +838,7 @@ SoundFontVoice::render(int numSamples) {
       if (sourceSamplePosition_ >= loopEndDbl && isLooping) sourceSamplePosition_ -= (loopEnd_ - loopStart_ + 1.0);
     }
     
-    if (!isPlaying()) {
+    if (!isActive()) {
       break;
     }
   }
