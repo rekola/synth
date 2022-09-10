@@ -143,26 +143,29 @@ class InputEvent : public Event {
     } else if (tuning == Tuning::TET31) {
       int base = (octave - 4) * 31;
       switch (id_) {
-      case 'z': return base + 155; // C-4
-      case 'x': return base + 158; // Db4
-      case 'e': return base + 159; // Cx4
-      case 'c': return base + 160; // D-4
-      case 'v': return base + 162; // D#4
-      case 'b': return base + 165; // E-4
-      case 'n': return base + 168; // F-4
-      case 'm': return base + 173; // G-4
-      case 'k': return base + 176; // Ab4
-      case ',': return base + 178; // A-4
-      case 'l': return base + 179; // B𝄫4
-      case '.': return base + 180; // A#4
-      case 'p': return base + 181; // Bb4
-      case '-': return base + 183; // B-4
-
-      case 's': return base + 157; // C#4
-      case 'd': return base + 161; // Ebb4
-	// case 'f': return base + ?;
-      case 'g': return base + 163; // Eb4
-      case 'j': return base + 170; // F#4
+      case 'z': return base + 155; // C
+      case '1': return base + 157; // C#
+      case 'q': return base + 158; // Db
+      case '2': return base + 159; // Cx
+      case 'w': return base + 160; // D
+      case 's': return base + 161; // E𝄫
+      case 'x': return base + 162; // D#
+      case 'd': return base + 163; // Eb
+      case 'c': return base + 165; // E
+      case 'v': return base + 168; // F
+      case 'g': return base + 170; // F#
+      case 'b': return base + 173; // G
+      case 'h': return base + 176; // Ab
+      case 'n': return base + 178; // A
+      case 'j': return base + 179; // B𝄫
+      case 'm': return base + 180; // A#
+      case 'k': return base + 181; // Bb
+      case 'i': return base + 182; // A𝄪
+      case '8': return base + 183; // B
+      case ',': return base + 186; // C'
+      case 'l': return base + 192; // E𝄫'
+      case '.': return base + 193; // D#'
+      case '-': return base + 196; // E'
       }
     }
     return -1;
