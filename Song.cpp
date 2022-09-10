@@ -9,6 +9,7 @@
 #include "Arpeggiator.h"
 #include "HarmonicSeries.h"
 #include "Oscilator.h"
+#include "Noise.h"
 #include "LFO.h"
 #include "GenericInstrument.h"
 
@@ -93,6 +94,7 @@ static unique_ptr<Track> createTrack(string_view name) {
   // instruments
   else if (name == "genericInstrument") return make_unique<GenericInstrument>();
   else if (name == "oscilator") return make_unique<Oscilator>(WaveformType::SAW);
+  else if (name == "noise") return make_unique<Noise>();
   else if (name == "LFO") return make_unique<LFO>();
 
   else {
