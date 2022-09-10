@@ -21,7 +21,7 @@ public:
       use_aftertouch_(use_aftertouch)
   { }  
   
-  void applyEffect(SampleData & input_data) override {  
+  void applyEffect(SampleData & input_data) override {
     auto numSamples = input_data.size();
     auto numChannels = input_data.numberOfChannels();
     auto left_buffer = input_data.getChannelData(0), right_buffer = input_data.getChannelData(1);
@@ -30,12 +30,17 @@ public:
     while (numSamples) {
       size_t blockSamples = numSamples > constants::RENDER_EFFECTSAMPLEBLOCK ? constants::RENDER_EFFECTSAMPLEBLOCK : numSamples;
       float current_cut = (cut_min_ + envelope_state_.getLevel() * aftertouch_value * (cut_max_ - cut_min_)) / (getChannelConfiguration().getAudioOutSampleRate() * 0.5f);
+
+      if (!input_data.isZero() || is_active_) {
+	input_data.setNonZero();
+	is_active_ = true;
 	
-      if (numChannels == 1) {
-	left_state_.apply(blockSamples, left_buffer, current_cut, res_);
-      } else {
-	left_state_.apply(blockSamples, left_buffer, current_cut, res_);
-	right_state_.apply(blockSamples, right_buffer, current_cut, res_);
+	if (numChannels == 1) {
+	  left_state_.apply(blockSamples, left_buffer, current_cut, res_);
+	} else {
+	  left_state_.apply(blockSamples, left_buffer, current_cut, res_);
+	  right_state_.apply(blockSamples, right_buffer, current_cut, res_);
+	}
       }
       
       left_buffer += blockSamples;
@@ -43,6 +48,8 @@ public:
       numSamples -= blockSamples;
       envelope_state_.process(blockSamples);      
     }
+
+    setTrackInfo(TrackInfo( is_active_, input_data.isClipping()));
   }
 
 private:
@@ -52,6 +59,8 @@ private:
   MoogVCF<float> left_state_, right_state_;
 
   EnvelopeState envelope_state_;
+
+  bool is_active_ = false;
 };
 
 std::unique_ptr<TrackState>

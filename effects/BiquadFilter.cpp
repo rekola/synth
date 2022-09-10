@@ -22,35 +22,43 @@ public:
       use_aftertouch_(use_aftertouch)
   { }
   
-  void applyEffect(SampleData & input_data) override {    
-    auto numSamples = input_data.size();
-    auto numChannels = input_data.numberOfChannels();
-    auto left_buffer = input_data.getChannelData(0), right_buffer = input_data.getChannelData(1);
-    auto aftertouch_value = use_aftertouch_ ? getAftertouch() : 1.0f;
+  void applyEffect(SampleData & input_data) override {
+    if (!input_data.isZero() || is_active_) {
+      input_data.setNonZero();
+      is_active_ = true;
       
-    while (numSamples) {
-      size_t blockSamples = numSamples > constants::RENDER_EFFECTSAMPLEBLOCK ? constants::RENDER_EFFECTSAMPLEBLOCK : numSamples;
-      // float current_cut = cut_min_ + envelope_state_.getLevel() * aftertouch_value * (cut_max_ - cut_min_);
+      auto numSamples = input_data.size();
+      auto numChannels = input_data.numberOfChannels();
+      auto left_buffer = input_data.getChannelData(0), right_buffer = input_data.getChannelData(1);
+      auto aftertouch_value = use_aftertouch_ ? getAftertouch() : 1.0f;
+      
+      while (numSamples) {
+	size_t blockSamples = numSamples > constants::RENDER_EFFECTSAMPLEBLOCK ? constants::RENDER_EFFECTSAMPLEBLOCK : numSamples;
+	// float current_cut = cut_min_ + envelope_state_.getLevel() * aftertouch_value * (cut_max_ - cut_min_);
 	
-      if (numChannels == 1) {
-	left_state_.apply(blockSamples, left_buffer);
-      } else {
-	left_state_.apply(blockSamples, left_buffer);
-	right_state_.apply(blockSamples, right_buffer);
+	if (numChannels == 1) {
+	  left_state_.apply(blockSamples, left_buffer);
+	} else {
+	  left_state_.apply(blockSamples, left_buffer);
+	  right_state_.apply(blockSamples, right_buffer);
+	}
+	
+	left_buffer += blockSamples;
+	right_buffer += blockSamples;
+	numSamples -= blockSamples;
+	
+	envelope_state_.process(blockSamples);
       }
-      
-      left_buffer += blockSamples;
-      right_buffer += blockSamples;
-      numSamples -= blockSamples;
-      
-      envelope_state_.process(blockSamples);
     }
+
+    setTrackInfo(TrackInfo( is_active_, input_data.isClipping()));
   }
 
 private:
   bool use_aftertouch_;
   Biquad<double> left_state_, right_state_;
   EnvelopeState envelope_state_;
+  bool is_active_ = false;
 };
 
 std::unique_ptr<TrackState>

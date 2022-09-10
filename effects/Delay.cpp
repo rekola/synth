@@ -23,26 +23,30 @@ public:
   
 protected:
   void applyEffect(SampleData & input) override {
-    auto numSamples = input.size();
-    auto numChannels = input.numberOfChannels();
+    if (!input.isZero() || is_active_) {
+      auto numSamples = input.size();
+      auto numChannels = input.numberOfChannels();
     
-    for (int j = 0; j < numChannels; j++) {
-      auto input_buffer = input.getChannelData(j);
-      auto delay_buffer = delay_buffer_.getChannelData(j);
-      auto & filter = filters_[j];
-      
-      for (int i = 0; i < numSamples; i++) {
-	auto buffer_pos = (delay_pos_ + i) % delay_buffer_.numberOfFrames();
+      for (int j = 0; j < numChannels; j++) {
+	auto input_buffer = input.getChannelData(j);
+	auto delay_buffer = delay_buffer_.getChannelData(j);
+	auto & filter = filters_[j];
 	
-	auto x = input_buffer[i];
-	auto y = delay_buffer[buffer_pos];
-	delay_buffer[buffer_pos] = filter.process(x + y * fd_);
-	
-	input_buffer[i] = delaymix_ * y + (1 - delaymix_) * x;
+	for (int i = 0; i < numSamples; i++) {
+	  auto buffer_pos = (delay_pos_ + i) % delay_buffer_.numberOfFrames();
+	  
+	  auto x = input_buffer[i];
+	  auto y = delay_buffer[buffer_pos];
+	  delay_buffer[buffer_pos] = filter.process(x + y * fd_);
+	  
+	  input_buffer[i] = delaymix_ * y + (1 - delaymix_) * x;
+	}
       }
-    }
       
-    delay_pos_ = (delay_pos_ + numSamples) % delay_buffer_.numberOfFrames();
+      delay_pos_ = (delay_pos_ + numSamples) % delay_buffer_.numberOfFrames();
+    }
+
+    setTrackInfo(TrackInfo( is_active_, input.isClipping()));
   }
   
 private:
@@ -54,6 +58,8 @@ private:
   SampleData delay_buffer_;
 
   std::vector<Biquad<float>> filters_;
+  
+  bool is_active_ = false;
 };
 
 std::unique_ptr<TrackState>

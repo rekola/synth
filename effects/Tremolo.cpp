@@ -10,20 +10,24 @@ public:
     : EffectState(channel_config), frequency_(frequency), amplitude_(amplitude), use_aftertouch_(use_aftertouch) { }
 
   void applyEffect(SampleData & input) override {
-    auto numChannels = input.numberOfChannels();
-    auto numSamples = input.size();
-    auto step = 2 * M_PI * frequency_ / getChannelConfiguration().getAudioOutSampleRate();
-    auto aftertouch_value = use_aftertouch_ ? getAftertouch() : 1.0f;
+    if (!input.isZero()) {
+      auto numChannels = input.numberOfChannels();
+      auto numSamples = input.size();
+      auto step = 2 * M_PI * frequency_ / getChannelConfiguration().getAudioOutSampleRate();
+      auto aftertouch_value = use_aftertouch_ ? getAftertouch() : 1.0f;
     
-    for (int j = 0; j < numChannels; j++) {
-      auto buffer = input.getChannelData(j);
-      auto phi = phi_;
-      for (int i = 0; i < numSamples; i++, phi += step) { 
-	buffer[i] *= 1 + aftertouch_value * amplitude_ * sin(phi);	
+      for (int j = 0; j < numChannels; j++) {
+	auto buffer = input.getChannelData(j);
+	auto phi = phi_;
+	for (int i = 0; i < numSamples; i++, phi += step) { 
+	  buffer[i] *= 1 + aftertouch_value * amplitude_ * sin(phi);	
+	}
       }
+
+      phi_ += numSamples * step;  
     }
 
-    phi_ += numSamples * step;
+    setTrackInfo(TrackInfo( !input.isZero(), input.isClipping()));
   }
 
 private:

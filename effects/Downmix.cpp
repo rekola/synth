@@ -29,6 +29,8 @@ protected:
       auto num_samples = input.size();
 
       SampleData output(1, num_samples, input.isSolo());
+      if (!input.isZero()) output.setNonZero();
+      
       auto output_data = output.getChannelData(0);
     
       for (size_t i = 0; i < num_samples; i++) {
