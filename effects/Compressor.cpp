@@ -135,8 +135,8 @@ public:
     
     // setup the predelay buffer
     delaybufsize_ = static_cast<int>(rate * predelay);
-    if (delaybufsize_ < 2) {
-      delaybufsize_ = 2;
+    if (delaybufsize_ < 1) {
+      delaybufsize_ = 1;
     } else if (delaybufsize_ > SF_COMPRESSOR_MAXDELAY) {
       delaybufsize_ = SF_COMPRESSOR_MAXDELAY;
     }
@@ -335,10 +335,10 @@ public:
 	// apply the gain
 	left_input[samplepos] = left_delaybuf[delayreadpos_] * gain;
 	right_input[samplepos] = right_delaybuf[delayreadpos_] * gain;
-	// compressor_active = true;
       }
     }
 
+    setEffectActive(!input.isZero());
     setTrackInfo(TrackInfo( compressor_active, input.isClipping(), metergain_ ));
   }
   
