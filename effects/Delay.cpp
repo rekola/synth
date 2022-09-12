@@ -7,13 +7,16 @@
 
 using namespace std;
 
+#define MAX_DELAY	4.0f
+
 class DelayState : public EffectState {
 public:
-  DelayState(const ChannelConfiguration & channel_config, float delay, float fd, float delaymix)
+  DelayState(const ChannelConfiguration & channel_config, float delay, float feedback, float delaymix)
     : EffectState(channel_config),
-      fd_(fd),
+      delay_(delay),
+      feedback_(feedback),      
       delaymix_(delaymix),
-      delay_buffer_(channel_config, int(delay * getChannelConfiguration().getAudioOutSampleRate()))
+      delay_buffer_(channel_config, static_cast<int>(MAX_DELAY * getChannelConfiguration().getAudioOutSampleRate()))
   {
     delay_buffer_.zero();
     for (int i = 0; i < getChannelConfiguration().numberOfChannels(); i++) {
@@ -23,7 +26,16 @@ public:
   
 protected:
   void applyEffect(SampleData & input) override {
-    if (!input.isZero() || is_active_) {
+    float delay = delay_;
+    if (bpm_lock_) {
+      delay *= getChannelConfiguration().getRowDuration(input.getBpm());
+    }
+    int delay_frames = delay * getChannelConfiguration().getAudioOutSampleRate();
+    if (delay_frames > delay_buffer_.numberOfFrames()) delay_frames = delay_buffer_.numberOfFrames();
+    
+    if (!input.isZero() || isEffectActive()) {
+      setEffectActive(true);
+      
       auto numSamples = input.size();
       auto numChannels = input.numberOfChannels();
     
@@ -33,24 +45,24 @@ protected:
 	auto & filter = filters_[j];
 	
 	for (int i = 0; i < numSamples; i++) {
-	  auto buffer_pos = (delay_pos_ + i) % delay_buffer_.numberOfFrames();
+	  auto buffer_pos = (delay_pos_ + i) % delay_frames;
 	  
 	  auto x = input_buffer[i];
 	  auto y = delay_buffer[buffer_pos];
-	  delay_buffer[buffer_pos] = filter.process(x + y * fd_);
+	  delay_buffer[buffer_pos] = filter.process(x + y * feedback_);
 	  
 	  input_buffer[i] = delaymix_ * y + (1 - delaymix_) * x;
 	}
       }
       
-      delay_pos_ = (delay_pos_ + numSamples) % delay_buffer_.numberOfFrames();
+      delay_pos_ = (delay_pos_ + numSamples) % delay_frames;
     }
 
-    setTrackInfo(TrackInfo( is_active_, input.isClipping()));
+    setTrackInfo(TrackInfo( isEffectActive(), input.isClipping()));
   }
   
 private:
-  float fd_, delaymix_, lowpass_fc_ = 5000;
+  float feedback_, delay_, delaymix_, lowpass_fc_ = 5000;
 
   // delay state
   int delay_size_ = 0;
@@ -59,12 +71,12 @@ private:
 
   std::vector<Biquad<float>> filters_;
   
-  bool is_active_ = false;
+  bool is_active_ = false, bpm_lock_ = true;
 };
 
 std::unique_ptr<TrackState>
 Delay::createState(const ChannelConfiguration & channel_config) const {
-  return make_unique<DelayState>(channel_config, delay_, fd_, delaymix_);
+  return make_unique<DelayState>(channel_config, delay_, feedback_, delaymix_);
 }
 
 void
@@ -72,8 +84,9 @@ Delay::loadParameters(const ParameterSource & input) {
   Effect::loadParameters(input);
     
   delay_ = input.getFloat("delay");
-  fd_ = input.getFloat("fd");
+  feedback_ = input.getFloat("feedback");
   delaymix_ = input.getFloat("mix");
+  bpm_lock_ = input.getBool("lock", false);
 }
 
 void
@@ -81,6 +94,7 @@ Delay::storeParameters(ParameterSource & output) const {
   Effect::storeParameters(output);
 
   output.set("delay", delay_);
-  output.set("fd", fd_);
+  output.set("feedback", feedback_);
   output.set("mix", delaymix_);
+  output.set("lock", bpm_lock_);
 }

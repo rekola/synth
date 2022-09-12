@@ -5,9 +5,7 @@
 
 class Delay : public Effect {
  public:
-  Delay(float delay = 0.0f, float fd = 0.0f, float delaymix = 0.0f)
-    : delay_(delay), fd_(fd), delaymix_(delaymix) {
-  }
+  Delay() { }
 
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & channel_config) const override;
   const char * getElementName() const override { return "delay"; }
@@ -15,8 +13,9 @@ class Delay : public Effect {
   void storeParameters(ParameterSource & output) const override;
 
  private:
-  float delay_; // sec
-  float fd_, delaymix_;
+  float delay_ = 0.0f; // sec or rows
+  float feedback_ = 0.0f, delaymix_ = 0.0f;
+  bool bpm_lock_ = false;
 };
 
 #endif
