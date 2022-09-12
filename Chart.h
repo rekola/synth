@@ -11,7 +11,8 @@ class Chart : public UIElement {
 		  DOTS = 1,
 		  BLOCKS,		  
   };
-  explicit Chart(UIPlane & plane, ChartType _type) : UIElement(plane), type(_type) { }
+  explicit Chart(UIPlane & plane, ChartType type, double min_y = 0.0, double max_y = 0.0)
+    : UIElement(plane), type_(type), min_y_(min_y), max_y_(max_y) { }
   
   void displayFFT(const std::vector<float> & v) {
     auto [ rows, columns ] = getDim();
@@ -37,9 +38,13 @@ class Chart : public UIElement {
 
   virtual void setSample(int i, double v) = 0;
 
-  ChartType getType() const { return type; }
+  ChartType getType() const { return type_; }
+
+protected:
+  double min_y_, max_y_;
+  
 private:
-  ChartType type;
+  ChartType type_;
 };
 
 #endif
