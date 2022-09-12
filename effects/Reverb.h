@@ -38,6 +38,8 @@ private:
   float gain_ { 1.0f };
   float mix_ { 1.0f };
   float earlymix_ { 1.0f };
+
+  bool bpm_lock_ { false };
 };
 
 #endif
