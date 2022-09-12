@@ -9,7 +9,7 @@ Oscilator::playNote(const ChannelConfiguration & config, float azimuth, float fr
   detune *= getHarmonic();
   detune /= getSubharmonic();
 
-  auto voice = std::make_unique<OscilatorVoice>(config, azimuth, detune, start_phase, type_, level_);
+  auto voice = std::make_unique<OscilatorVoice>(config, azimuth, detune, start_phase, type_, level_, pulse_width_);
   voice->playNote(frequency, velocity);
 
   // ChannelConfiguration child_config = config;
@@ -36,6 +36,7 @@ Oscilator::loadParameters(const ParameterSource & input) {
   else type_ = WaveformType::SINE;
   
   level_ = input.getFloat("level", 1.0f);
+  pulse_width_ = input.getFloat("width", 0.5f);
 }
 
 void
@@ -43,4 +44,6 @@ Oscilator::storeParameters(ParameterSource & output) const {
   Instrument::storeParameters(output);
   
   output.set("type", to_string(type_));
+  output.set("level", level_);
+  output.set("width", pulse_width_);
 }

@@ -15,7 +15,7 @@ class Oscilator : public Instrument {
 
  private:
   WaveformType type_;
-  float level_ = 1.0f;
+  float level_ = 1.0f, pulse_width_ = 0.5f;
 };
 
 #endif
