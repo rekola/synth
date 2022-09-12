@@ -30,8 +30,18 @@ class EffectState : public TrackState {
     return data;
   }
 
+  // Track is playing if it's child is active or it is active by itself
+  virtual bool isActive() const {
+    return TrackState::isActive() || isEffectActive();
+  }
+  
  protected:
   virtual void applyEffect(SampleData & input) = 0;
+  void setEffectActive(bool is_effect_active) { is_effect_active_ = is_effect_active; }
+  bool isEffectActive() const { return is_effect_active_; }
+  
+private:
+  bool is_effect_active_ = false;
 };
 
 #endif
