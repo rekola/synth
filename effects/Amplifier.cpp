@@ -13,14 +13,17 @@ public:
 
 protected:
   void applyEffect(SampleData & input) override {
-    auto data = input.getChannelData(0);
-    auto g = decibelsToGain(gain_);
-    
-    for (int i = 0; i < input.numberOfFrames() * input.numberOfChannels(); i++) {
-      data[i] *= g;
+    if (!input.isZero()) {
+      auto data = input.getChannelData(0);
+      auto g = decibelsToGain(gain_);
+      
+      for (int i = 0; i < input.numberOfFrames() * input.numberOfChannels(); i++) {
+	data[i] *= g;
+      }
     }
-
-    setTrackInfo(TrackInfo( true, input.isClipping() ));
+    
+    setEffectActive(!input.isZero());
+    setTrackInfo(TrackInfo( isEffectActive(), input.isClipping() ));
   }
 
 private:
