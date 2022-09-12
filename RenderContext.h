@@ -40,9 +40,13 @@ class RenderContext {
   
   const ChannelConfiguration & getChannelConfiguration() const { return channel_config_; }
 
+  void setBpm(float bpm) { bpm_ = bpm; }
+  float getBpm() const { return bpm_; }
+  
  private:
   ChannelConfiguration channel_config_;
   std::unordered_map<int, std::map<int, std::vector<TrackEvent> > > pending_events_;
+  float bpm_ = 0.0f;
 };
 
 #endif
