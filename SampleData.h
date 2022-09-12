@@ -24,13 +24,13 @@ class SampleData final {
     data_ = (float *)aligned_alloc(16, getAlignedSize(channels_ * frames_));
   }
   SampleData(const SampleData & other) noexcept
-    : channels_(other.channels_), frames_(other.frames_), is_solo_(other.is_solo_) {
+    : channels_(other.channels_), frames_(other.frames_), is_solo_(other.is_solo_), is_zero_(other.is_zero_), bpm_(other.bpm_) {
     auto s = getAlignedSize(channels_ * frames_);
     data_ = (float *)aligned_alloc(16, s);
     memcpy(data_, other.data_, s);
   }
   SampleData(SampleData && other) noexcept
-    : channels_(other.channels_), frames_(other.frames_), data_(std::exchange(other.data_, nullptr)), is_solo_(other.is_solo_) {
+    : channels_(other.channels_), frames_(other.frames_), data_(std::exchange(other.data_, nullptr)), is_solo_(other.is_solo_), is_zero_(other.is_zero_), bpm_(other.bpm_) {
   }
   ~SampleData() {
     free(data_);
@@ -40,6 +40,8 @@ class SampleData final {
       channels_ = other.channels_;
       frames_ = other.frames_;
       is_solo_ = other.is_solo_;
+      is_zero_ = other.is_zero_;
+      bpm_ = other.bpm_;
       
       auto s = getAlignedSize(channels_ * frames_);
       data_ = (float *)aligned_alloc(16, s);
@@ -55,6 +57,9 @@ class SampleData final {
       channels_ = other.channels_;
       frames_ = other.frames_;
       is_solo_ = other.is_solo_;
+      is_zero_ = other.is_zero_;
+      bpm_ = other.bpm_;
+      
       data_ = std::exchange(other.data_, nullptr);
     }
     return *this;
@@ -103,6 +108,7 @@ class SampleData final {
     
     if (channels_ == other.channels_) {
       if (!other.is_zero_) is_zero_ = false;
+      if (!bpm_) bpm_ = other.bpm_;
       
       int n = other.numberOfFrames() < numberOfFrames() ? other.numberOfFrames() : numberOfFrames();
       if (position + n > numberOfFrames()) position = numberOfFrames() - n;
@@ -120,7 +126,8 @@ class SampleData final {
   void mix(const SampleData & other) {
     if (!other.isZero()) {
       is_zero_ = false;
-      
+      if (!bpm_) bpm_ = other.bpm_;
+
       int n = numberOfFrames() < other.numberOfFrames() ? numberOfFrames() : other.numberOfFrames();
             
       if (channels_ == other.channels_) {
@@ -174,11 +181,14 @@ class SampleData final {
 
   void setNonZero() { is_zero_ = false; }
   bool isZero() const { return is_zero_; }  
+
+  void setBpm(float bpm) { bpm_ = bpm; }
+  float getBpm() const { return bpm_; }
   
 private:
   static inline size_t getAlignedSize(int frames) { return (static_cast<size_t>(frames) * sizeof(float) + 15ull) & ~15ull; }
   
-  short channels_;
+  short channels_, bpm_ = 0;
   int frames_;
   float * data_;
   bool is_solo_ = false, is_zero_ = true;
