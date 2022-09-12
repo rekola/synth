@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="31edo" tempo="150" volume="1.0" randomization="0.0099999998">
+  <instruments>
+    <group name="bass">
+      <envelope attack="0.0011" sustain="0" decay="0.2">
+	<amplifier gain="20">
+	  <resonantFilter res="3">
+	    <noise />
+	  </resonantFilter>
+	</amplifier>
+      </envelope>
+      <envelope attack="0.0011" hold="0" decay="3" sustain="0" release="0.231">
+	<resonantFilter cut="10000" res="4">
+	  <oscilator type="square" width="0.1" />
+	</resonantFilter>
+      </envelope>
+    </group>
+
+    <genericInstrument name="Percussion"/>
+
+    <envelope name="riser" attack="3" hold="0" sustain="0" decay="0" release="0">
+      <resonantFilter cutmin="220" cutmax="20000" res="2" attack="3">
+	<noise />
+      </resonantFilter>
+    </envelope>
+  </instruments>
+  <tracks>
+    <reverb preset="subtle">
+      <amplifier gain="-10">
+	<track id="bass" instrument="0" />
+      </amplifier>
+      <amplifier gain="+10">
+	<percussionTrack id="perc" instrument="1" />
+      </amplifier>
+      <track id="2" instrument="2" />
+    </reverb>
+  </tracks>
+  
+  <patterns>
+    <pattern rows="32">
+      <note row="0" track="bass" velocity="40">A#2</note> <note row="0" track="perc">BD</note>
+      <note row="2" track="bass" velocity="40" delay="10">C-3</note>
+
+      <note row="6" track="bass" velocity="40">A#2</note>
+      <note row="8" track="bass" velocity="40">A#2</note> <note row="8" track="perc">BD</note>
+      <note row="10" track="bass" velocity="40" delay="10">C-3</note>
+
+      <note row="14" track="bass" velocity="40">A#2</note>
+      <note row="16" track="bass" velocity="40">A#2</note> <note row="16" track="perc">BD</note>
+      <note row="18" track="bass" velocity="40" delay="10">C-3</note>
+
+      <note row="22" track="bass" velocity="40">A#2</note>
+      <note row="24" track="bass" velocity="40">A#2</note> <note row="24" track="perc">BD</note>
+      <note row="26" track="bass" velocity="40" delay="10">C-3</note>
+      <note row="30" track="bass" velocity="40">A#2</note>
+    </pattern>
+
+    <pattern rows="32">
+      <note row="0" track="bass" velocity="40">D#3</note> <note row="0" track="perc">BD</note>
+      <note row="2" track="bass" velocity="40" delay="10">F-3</note>
+
+      <note row="6" track="bass" velocity="40">D#3</note>
+      <note row="8" track="bass" velocity="40">D#3</note> <note row="8" track="perc">BD</note>
+      <note row="10" track="bass" velocity="40" delay="10">F-3</note>
+
+      <note row="14" track="bass" velocity="40">D#3</note>
+      <note row="16" track="bass" velocity="40">D#3</note> <note row="16" track="perc">BD</note>
+      <note row="18" track="bass" velocity="40" delay="10">F-3</note>
+
+      <note row="22" track="bass" velocity="40">D#3</note>
+      <note row="24" track="bass" velocity="40">D#3</note> <note row="24" track="perc">BD</note>
+      <note row="26" track="bass" velocity="40" delay="10">F-3</note>
+      <note row="30" track="bass" velocity="40">D#3</note>
+    </pattern>
+</patterns>
+</song>
