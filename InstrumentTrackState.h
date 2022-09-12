@@ -16,7 +16,8 @@ public:
     clearFinishedVoices();
 
     SampleData data(getChannelConfiguration(), frames, isSolo());
-        
+    data.setBpm(context.getBpm());
+    
     if (instrument_id_ >= 0 && instrument_id_ < instruments.size()) {
       auto & instrument = instruments[instrument_id_];
       auto & pending_events = context.getPendingEvents(track_id_);
