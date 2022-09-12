@@ -41,6 +41,8 @@ class BasicMixer : public Mixer {
   
   SampleData encode() override {
     SampleData output(getOutChannels(), frames);
+    output.setNonZero();
+    
     for (int j = 0; j < output.numberOfChannels(); j++) {
       auto output_buffer = output.getChannelData(j);
       for (int i = 0; i < output.size(); i++) {
