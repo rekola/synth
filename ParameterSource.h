@@ -21,7 +21,12 @@ class ParameterSource {
   virtual float getFloat(const std::string & name, float default_value = 0) const = 0;
   
   virtual bool getBool(const std::string & name, bool default_value = false) const {
-    return getInt(name, default_value ? 1 : 0) != 0;
+    auto s = getText(name);
+    if (s == "1" || s == "yes" || s == "true") return true;
+    else if (s == "0" || s == "no" || s == "false") return false;
+    else {
+      return default_value;
+    }
   }
 
   std::string getText(const std::string & name) const { return getText(name, ""); }
