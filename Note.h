@@ -77,7 +77,7 @@ class Note {
 					       "G♭", "G", "G♯", "A♭", "A", "A♯", "B♭", "B", "C♭" };
     static const char * note_names_12tet[] = { "C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B" };
 
-    static const char * percussion_names[] = { "HighQ", "Slap", "Stratch Push", "Stratch Pull", "Sticks", "Square Click", "Metr.Click", "Metr.Bell", "BD", "eBD", "Side Stick", "SD", "Hand Clap", "eSnare", "Low Floor Tom", "CH", "High Floor Tom", "HF", "T4", "OH", "T3", "T2", "CC1", "T1", "RC1", "Chinese Cymbal", "Ride Bell", "TA", "SC", "CB", "CC2", "Vibra Slap", "RC2", "B1", "B2", "Mute High Conga", "Open High Conga", "Low Conga", "High Timbale", "Low Timbale", "High Agogô", "Low Agogô", "Cabasa", "Maracas", "Short Whistle", "Long Whistle", "Short Guiro", "Long Guiro", "Claves", "WB1", "WB2", "Mute Cuica", "Open Cuica", "Mute Triangle", "Open Triangle", "SH" };
+    static const char * percussion_names[] = { "HighQ", "Slap", "Stratch Push", "Stratch Pull", "Sticks", "Square Click", "Metr.Click", "Metr.Bell", "BD", "eBD", "Side Stick", "SD", "CL", "eSnare", "Low Floor Tom", "CH", "High Floor Tom", "HF", "T4", "OH", "T3", "T2", "CC1", "T1", "RC1", "Chinese Cymbal", "Ride Bell", "TA", "SC", "CB", "CC2", "Vibra Slap", "RC2", "B1", "B2", "Mute High Conga", "Open High Conga", "Low Conga", "High Timbale", "Low Timbale", "High Agogô", "Low Agogô", "Cabasa", "Maracas", "Short Whistle", "Long Whistle", "Short Guiro", "Long Guiro", "Claves", "WB1", "WB2", "Mute Cuica", "Open Cuica", "Mute Triangle", "Open Triangle", "SH" };
 
     if (tuning == Tuning::PERCUSSION) {
       if (value >= 27 && value <= 82) return percussion_names[value - 27];
@@ -97,6 +97,7 @@ class Note {
     } else if (tuning == Tuning::PERCUSSION) {
       if (input_value == "BD") return 35; // Acoustic Base Drum
       else if (input_value == "SD") return 38; // Acoustic Snare (or SN)
+      else if (input_value == "CL") return 39; // Hand Clap
       else if (input_value == "F2") return 41; // Low Floor Tom
       else if (input_value == "CH") return 42; // Closed Hi-hat
       else if (input_value == "F1") return 43; // High Floor Tom
@@ -188,30 +189,22 @@ class Note {
 
   static std::vector<Note> createFromString(std::string_view line, short velocity, short delay, Tuning tuning) {
     std::vector<Note> r;
-    
-    if (!line.empty()) {
-      size_t i0 = 0, i = 0;
-      for ( ; i < line.size(); i++) {
-	if (isspace(line[i])) {
-	  auto s = line.substr(i0, i - i0);
-	  if (s == "off" || s == "OFF") {
-	    r.emplace_back(0, 0);
-	  } else {
-	    r.emplace_back(s, velocity, delay, tuning);
-	  }
-	  while (isspace(line[i + 1])) i++;
-	  i0 = i + 1;
-	}
-      }
 
-      if (i0 < i) {
-	auto s = line.substr(i0, i - i0);
+    auto pos0 = 0;
+    while (pos0 < line.size()) {
+      auto pos1 = line.find_first_of(" \t", pos0);
+      if (pos1 == std::string_view::npos) pos1 = line.size();
+
+      if (pos0 < pos1) {
+	auto s = line.substr(pos0, pos1 - pos0);
 	if (s == "off" || s == "OFF") {
 	  r.emplace_back(0, 0);
 	} else {
 	  r.emplace_back(s, velocity, delay, tuning);
 	}
       }
+
+      pos0 = pos1 + 1;      
     }
 
     return r;
