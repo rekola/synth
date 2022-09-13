@@ -23,9 +23,9 @@ public:
   { }
   
   void applyEffect(SampleData & input_data) override {
-    if (!input_data.isZero() || is_active_) {
+    if (!input_data.isZero() || isEffectActive()) {
       input_data.setNonZero();
-      is_active_ = true;
+      setEffectActive(true);
       
       auto numSamples = input_data.size();
       auto numChannels = input_data.numberOfChannels();
@@ -51,14 +51,13 @@ public:
       }
     }
 
-    setTrackInfo(TrackInfo( is_active_, input_data.isClipping()));
+    setTrackInfo(TrackInfo( isEffectActive(), input_data.isClipping()));
   }
 
 private:
   bool use_aftertouch_;
   Biquad<double> left_state_, right_state_;
   EnvelopeState envelope_state_;
-  bool is_active_ = false;
 };
 
 std::unique_ptr<TrackState>

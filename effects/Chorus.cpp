@@ -34,6 +34,9 @@ public:
 	if (delay1_phi_ > 2 * M_PI) delay1_phi_ -= 2 * M_PI;
       }
     }
+
+    
+    setTrackInfo(TrackInfo( isEffectActive(), input_data.isClipping()));
   }
 
 private:

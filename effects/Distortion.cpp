@@ -66,7 +66,8 @@ public:
       }
     }
 
-    setTrackInfo(TrackInfo( !input.isZero(), input.isClipping()));
+    setEffectActive(!input.isZero());
+    setTrackInfo(TrackInfo( isEffectActive(), input.isClipping()));
   }
 
 private:
