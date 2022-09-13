@@ -19,7 +19,7 @@
   </instruments>
   
   <tracks>
-    <reverb preset="subtle">
+    <reverb preset="stadium">
       <track id="guitar" instrument="0" volume="1.0"/>
       <track id="pad" instrument="1" azimuth="+0"/>
       <track id="harp" instrument="2" />
