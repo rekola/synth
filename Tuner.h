@@ -44,11 +44,13 @@ class Tuner {
       
       float frequency = 0.0f;
       if (tuning == Tuning::TET12) {
-	frequency = 440.0f * powf(2.0f, (octave * 12 + root_key - 69.0f) / 12.0f) * numerator / denominator;
+	frequency = 440.0f * powf(2.0f, (octave * 12 + root_key - 69) / 12.0f) * numerator / denominator;
       } else if (tuning == Tuning::TET19) {
-	frequency = 440.0f * powf(2.0f, (octave * 19 + root_key - 109.0f) / 19.0f) * numerator / denominator;
+	frequency = 440.0f * powf(2.0f, (octave * 19 + root_key - 109) / 19.0f) * numerator / denominator;
       } else if (tuning == Tuning::TET31) {
-	frequency = 440.0f * powf(2.0f, (octave * 31 + root_key - 178.0f) / 31.0f) * numerator / denominator;
+	frequency = 440.0f * powf(2.0f, (octave * 31 + root_key - 178) / 31.0f) * numerator / denominator;
+      } else if (tuning == Tuning::TET53) {
+	frequency = 440.0f * powf(2.0f, (octave * 53 + root_key - 304) / 53.0f) * numerator / denominator;
       }
       
       dynamic_tuning[note_value] = frequency;
@@ -77,11 +79,13 @@ class Tuner {
       auto [ numerator, denominator ] = get_just_interval(tuning, steps);
 
       if (tuning == Tuning::TET12) {
-	return 440.0f * powf(2.0f, (octave * 12 + key - 69.0f) / 12.0f) * numerator / denominator;
+	return 440.0f * powf(2.0f, (octave * 12 + key - 69) / 12.0f) * numerator / denominator;
       } else if (tuning == Tuning::TET19) {
-	return 440.0f * powf(2.0f, (octave * 19 + key - 109.0f) / 19.0f) * numerator / denominator;
+	return 440.0f * powf(2.0f, (octave * 19 + key - 109) / 19.0f) * numerator / denominator;
       } else if (tuning == Tuning::TET31) {
-	return 440.0f * powf(2.0f, (octave * 31 + key - 178.0f) / 31.0f) * numerator / denominator;
+	return 440.0f * powf(2.0f, (octave * 31 + key - 178) / 31.0f) * numerator / denominator;
+      } else if (tuning == Tuning::TET53) {
+	return 440.0f * powf(2.0f, (octave * 53 + key - 304) / 53.0f) * numerator / denominator;
       }
     } else {
       return get_et_frequency(tuning, note_value);
@@ -94,9 +98,10 @@ private:
   static float get_et_frequency(Tuning tuning, int note_value) {
     switch (tuning) {
     case Tuning::TET12:
-    case Tuning::PERCUSSION: return 440.0f * powf(2.0f, (note_value - 69.0f) / 12.0f);
-    case Tuning::TET19: return 440.0f * powf(2.0f, (note_value - 109.0f) / 19.0f);
-    case Tuning::TET31: return 440.0f * powf(2.0f, (note_value - 178.0f) / 31.0f);
+    case Tuning::PERCUSSION: return 440.0f * powf(2.0f, (note_value - 69) / 12.0f);
+    case Tuning::TET19: return 440.0f * powf(2.0f, (note_value - 109) / 19.0f);
+    case Tuning::TET31: return 440.0f * powf(2.0f, (note_value - 178) / 31.0f);
+    case Tuning::TET53: return 440.0f * powf(2.0f, (note_value - 304) / 53.0f);
     default:
       return 0.0f;
     }

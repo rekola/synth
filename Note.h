@@ -53,7 +53,9 @@ class Note {
 	  key_name += ' ';
 	} else {
 	  if (key_name.size() == 1) key_name += '-';
-	  if (tuning == Tuning::TET31) {
+	  if (tuning == Tuning::TET53) {
+	    key_name += std::to_string((getValue() / 53) - 1);
+	  } else if (tuning == Tuning::TET31) {
 	    key_name += std::to_string((getValue() / 31) - 1);
 	  } else if (tuning == Tuning::TET19) {
 	    key_name += std::to_string((getValue() / 19) - 1);
@@ -69,25 +71,33 @@ class Note {
   }
 
   static inline std::string keyToString(Tuning tuning, int value) {
-    static const char * note_names_31tet[] = { "C", "D𝄫", "C♯", "D♭", "C𝄪", "D", "E𝄫", "D♯",
+    static const char * note_names_53edo[] = {
+      "C", "C𝄮", "D𝄫", "C♯", "C𝄰", "D𝄭", "D♭", "C𝄪", "D𝄯", "D", "E𝄫", "D𝄱", "D♯", "D𝄰",
+      "E♭", "F𝄫", "D𝄪", "E", "E𝄮", "F♭", "E♯", "F𝄯", "F", "F𝄮", "E𝄪", "F♯", "F𝄰",
+      "G𝄭", "G♭", "F𝄪", "G𝄯", "G", "A𝄫", "G𝄱", "G♯", "A𝄭", "A♭", "A𝄬", "G𝄪", "A",
+      "A𝄮", "B𝄫", "A♯", "A𝄰", "B𝄭", "B♭", "A𝄪", "B𝄯", "B", "B𝄮", "B𝄱", "B♯", "B𝄰"
+    };
+    static const char * note_names_31edo[] = { "C", "D𝄫", "C♯", "D♭", "C𝄪", "D", "E𝄫", "D♯",
 					       "E♭", "D𝄪", "E", "F♭", "E♯", "F", "G𝄫", "F♯",
 					       "G♭", "F𝄪", "G", "A𝄫", "G♯", "A♭", "G𝄪", "A",
 					       "B𝄫", "A♯", "B♭", "A𝄪", "B", "C♭", "B♯" };
-    static const char * note_names_19tet[] = { "C", "C♯", "D♭", "D", "D♯", "E♭", "E", "E♯", "F", "F♯",
+    static const char * note_names_19edo[] = { "C", "C♯", "D♭", "D", "D♯", "E♭", "E", "E♯", "F", "F♯",
 					       "G♭", "G", "G♯", "A♭", "A", "A♯", "B♭", "B", "C♭" };
-    static const char * note_names_12tet[] = { "C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B" };
+    static const char * note_names_12edo[] = { "C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B" };
 
     static const char * percussion_names[] = { "HighQ", "Slap", "Stratch Push", "Stratch Pull", "Sticks", "Square Click", "Metr.Click", "Metr.Bell", "BD", "eBD", "Side Stick", "SD", "CL", "eSnare", "Low Floor Tom", "CH", "High Floor Tom", "HF", "T4", "OH", "T3", "T2", "CC1", "T1", "RC1", "Chinese Cymbal", "Ride Bell", "TA", "SC", "CB", "CC2", "Vibra Slap", "RC2", "B1", "B2", "Mute High Conga", "Open High Conga", "Low Conga", "High Timbale", "Low Timbale", "High Agogô", "Low Agogô", "Cabasa", "Maracas", "Short Whistle", "Long Whistle", "Short Guiro", "Long Guiro", "Claves", "WB1", "WB2", "Mute Cuica", "Open Cuica", "Mute Triangle", "Open Triangle", "SH" };
 
     if (tuning == Tuning::PERCUSSION) {
       if (value >= 27 && value <= 82) return percussion_names[value - 27];
       return "#" + std::to_string(value);
+    } else if (tuning == Tuning::TET53) {
+      return note_names_53edo[value % 53];
     } else if (tuning == Tuning::TET31) {
-      return note_names_31tet[value % 31];
+      return note_names_31edo[value % 31];
     } else if (tuning == Tuning::TET19) {
-      return note_names_19tet[value % 19];
+      return note_names_19edo[value % 19];
     } else {
-      return note_names_12tet[value % 12];
+      return note_names_12edo[value % 12];
     }    
   }
 
@@ -146,10 +156,10 @@ class Note {
 	  assert(0);
 	}
 
-	if (accidental == "#" || accidental == "♯") value++;
-	else if (accidental == "b" || accidental == "♭") value--;
+	if (accidental == "#" || accidental == "♯" || accidental == "𝄱" || accidental == "𝄰") value++;
+	else if (accidental == "b" || accidental == "♭" || accidental == "𝄭" || accidental == "𝄬") value--;
 	else {
-	  assert(accidental == "-");
+	  assert(accidental == "-" || accidental == "♮" || accidental == "𝄮" || accidental == "𝄯");
 	}
 
 	return value;
@@ -159,7 +169,7 @@ class Note {
 	// C C♯ D♭ D D♯ E♭ E E♯ F♭ F F♯ G♭ G G♯ A♭ A A♯ B♭ B B♯ C♭
 	assert(0);
 	return value;
-      } else {
+      } else if (tuning == Tuning::TET31) {
 	auto value = (octave + 1) * 31;
       
 	// C D𝄫 C♯ D♭ C𝄪 D E𝄫 D♯
@@ -174,12 +184,38 @@ class Note {
 	  assert(0);
 	}
 
-	if (accidental == "#" || accidental == "♯") value += 2;
-	else if (accidental == "b" || accidental == "♭") value -= 2;
+	if (accidental == "#" || accidental == "♯" || accidental == "𝄱" || accidental == "𝄰") value += 2;
+	else if (accidental == "b" || accidental == "♭" || accidental == "𝄭" || accidental == "𝄬") value -= 2;
 	else if (accidental == "x" || accidental == "𝄪") value += 4;
-	else if (accidental == "bb" || accidental == "𝄫") value -= 4;
+	else if (accidental == "bb" || accidental == "𝄫") value -= 4;	
 	else {
-	  assert(accidental.empty() || accidental == "-");
+	  assert(accidental.empty() || accidental == "-" || accidental == "♮" || accidental == "𝄮" || accidental == "𝄯");
+	}
+
+	return value;
+      } else {
+	auto value = (octave + 1) * 53;
+      
+	if (letter == 'C' || letter == 'D') value += (letter - 'C') * 9;
+	else if (letter == 'E' || letter == 'F') value += 17 + (letter - 'E') * 5;
+	else if (letter == 'G') value += 31;
+	else if (letter == 'A' || letter == 'B') value += 39 + (letter - 'A') * 9;
+	else {
+	  assert(0);
+	}
+
+	if (accidental == "x" || accidental == "𝄪") value += 7;
+	else if (accidental == "𝄰") value += 4;
+	else if (accidental == "#" || accidental == "♯") value += 3;
+	else if (accidental == "𝄱") value += 2;
+	else if (accidental == "𝄮") value += 1;
+	else if (accidental == "𝄯") value -= 1;
+	else if (accidental == "𝄬") value -= 2;
+	else if (accidental == "b" || accidental == "♭") value -= 3;
+	else if (accidental == "𝄭") value -= 4;
+	else if (accidental == "bb" || accidental == "𝄫") value -= 7;
+	else {
+	  assert(accidental.empty() || accidental == "-" || accidental == "♮");
 	}
 
 	return value;

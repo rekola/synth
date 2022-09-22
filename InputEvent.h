@@ -167,6 +167,33 @@ class InputEvent : public Event {
       case '.': return base + 193; // D#'
       case '-': return base + 196; // E'
       }
+    } else if (tuning == Tuning::TET53) {
+      int base = (octave - 4) * 53;
+      switch (id_) {
+      case 'z': return base + 265; // C
+      case '1': return base + 268; // C#
+      case 'q': return base + 270; // Db
+      case '2': return base + 272; // Cx
+      case 'w': return base + 274; // D
+      case 's': return base + 275; // E𝄫
+      case 'x': return base + 277; // D#
+      case 'd': return base + 279; // Eb
+      case 'c': return base + 282; // E
+      case 'v': return base + 287; // F
+      case 'g': return base + 290; // F#
+      case 'b': return base + 296; // G
+      case 'h': return base + 301; // Ab
+      case 'n': return base + 304; // A
+      case 'j': return base + 306; // B𝄫
+      case 'm': return base + 308; // A𝄰
+      case 'k': return base + 310; // Bb
+      case 'i': return base + 311; // A𝄪
+      case '8': return base + 313; // B
+      case ',': return base + 53 + 265; // C'
+      case 'l': return base + 53 + 275; // E𝄫'
+      case '.': return base + 53 + 277; // D#'
+      case '-': return base + 53 + 282; // E'
+      }
     }
     return -1;
   }
