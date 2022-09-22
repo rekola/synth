@@ -1,3 +1,13 @@
+0	C--1
+..
+31	C-0
+..
+62	C-1
+..
+93	C-2
+..
+124	C-3
+..
 155	C-4	0
 156	D𝄫4	1	45/44, 49/48, 46/45, 128/125, 36/35	diesis
 157	C♯4	2	25/24					chromatic semitone
@@ -7,12 +17,12 @@
 161	E𝄫4	6	8:7					septimal whole tone
 162	D♯4	7	7:6					septimal minor third
 163	E♭4	8	6:5					minor third
-164	D𝄪4	9	11:9, 16:3				neutral third
+164	D𝄪4/F𝄫4	9	11:9, 16:3				neutral third
 165	E-4	10	5:4					major third
 166	F♭4	11	9:7					diminished fourth
 167	E♯4	12	21:16, 13:10, 17:13, 125:96
 168	F-4	13	4:3					perfect fourth
-169	G𝄫4	14	11:8, 15:11, 26:19			undecimal tritone
+169	E𝄪4/G𝄫4	14	11:8, 15:11, 26:19			undecimal tritone
 170	F♯4	15	7:5					lesser septimal tritone
 171	G♭4	16	10:7, 64:45, 36:25			greater septimal tritone
 172	F𝄪4	17	16:11
@@ -25,12 +35,12 @@
 179	B𝄫4	24	12:7					septimal major sixth / supermajor sixth
 180	A♯4	25	7:4					harmonic seventh
 181	B♭4	26	9:5					minor seventh
-182	A𝄪4	27	11:6, 20:11, 64:35
+182	A𝄪4/C𝄫5	27	11:6, 20:11, 64:35
 183	B-4	28	15/8
 184	C♭5	29	48/25, 40/21, 1+10/11, 44/23
 185	B♯4	30	88/45, 96/49, 1+22/23, 125/64, 1+17/18
 186	C-5	31
-187	D𝄫5	32
+187	B𝄪4/D𝄫5	32
 188	C♯5	33
 189	D♭5	34
 190	C𝄪5	35
