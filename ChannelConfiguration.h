@@ -19,7 +19,15 @@ class ChannelConfiguration {
 
   void setType(ConfigurationType type) { type_ = type; }
   void setAudioOutSampleRate(int audioOutSampleRate) { audioOutSampleRate_ = audioOutSampleRate; }
+
+  inline float getRowDuration(int tempo) const {
+    return 60.0f / 4.0f / tempo;
+  }
   
+  inline int getSampleInterval(int tempo) const {
+    return static_cast<int>(getRowDuration(tempo) * getAudioOutSampleRate());
+  }
+
  private:
   ConfigurationType type_;
   int audioOutSampleRate_;

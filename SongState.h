@@ -15,6 +15,7 @@ class SongState : public TrackState {
 
   void initialize(const Song & song) {
     tempo_ = song.getTempo();
+    render_context_.setBpm(tempo_);
   }
   
   void render(int frames, const Song & song, Mixer & mixer) {
@@ -46,7 +47,7 @@ class SongState : public TrackState {
 		  velocity = note.getVelocityAsFloat() * (1 + song.getRandomizationFactor() * getRandF());
 		}
 		float delay = note.getDelayAsFloat() + song.getRandomizationFactor() * getRandF();
-		auto delay_samples = int(delay * getSampleInterval());
+		auto delay_samples = int(delay * getChannelConfiguration().getSampleInterval(tempo_));
 		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), frequency, velocity);
 	      }
 	    }
@@ -91,7 +92,7 @@ class SongState : public TrackState {
   int getSamplePos() const { return sample_pos_; }
     
   void moveForwardSamples(int n = 1) {
-    auto sinterval = getSampleInterval();
+    auto sinterval = getChannelConfiguration().getSampleInterval(tempo_);
 
     for (int i = 0; i < n; i++) {
       sample_pos_++;
@@ -115,12 +116,8 @@ class SongState : public TrackState {
     return rv;
   }
 
-  int getSampleInterval() const {
-    return 60.0 / 4.0 / tempo_ * getChannelConfiguration().getAudioOutSampleRate();
-  }
-
   int samplesUntilNextRow() const {
-    auto sinterval = getSampleInterval();
+    auto sinterval = getChannelConfiguration().getSampleInterval(tempo_);
     return sample_pos_ == 0 ? sinterval : sinterval - sample_pos_;
   }
   
@@ -134,7 +131,8 @@ class SongState : public TrackState {
   }
   
   Tuner & getTuner() { return tuner_; }
-
+  int getTempo() const { return tempo_; }
+  
 private:
   int tempo_ = 0;
   bool is_playing_ = false;

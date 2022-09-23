@@ -182,7 +182,7 @@ Player::createPlaybackEvent(const Song & song, const SongState & state) {
   PlaybackInfo info;
   info.setIsPlaying(state.isPlaying());
   info.setOutSampleRate(state.getChannelConfiguration().getAudioOutSampleRate());
-  info.setSampleInterval(state.getSampleInterval());
+  info.setSampleInterval(state.getChannelConfiguration().getSampleInterval(state.getTempo()));
   info.setSamplePos(state.getSamplePos());
   info.setPatternIdx(pattern_idx);
   info.setRowIdx(row_idx);
