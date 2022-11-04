@@ -16,7 +16,6 @@
 #include <fmt/core.h>
 
 #include <sys/time.h>
-#include <iostream>
 
 #include <ncpp/NotCurses.hh>
 #include <ncpp/Plane.hh>
@@ -274,10 +273,10 @@ private:
 
 class TerminalChart : public Chart {
 public:
-  TerminalChart(UIPlane & _parent, ChartType _type) : Chart(_parent, _type) { }
+  TerminalChart(UIPlane & parent, ChartType type, double min_y = 0.0, double max_y = 0.0) : Chart(parent, type, min_y, max_y) { }
 
   void setSample(int i, double v) override {
-    if (!plot) {
+    if (!plot_) {
       auto & tplane = dynamic_cast<TerminalPlane&>(getPlane());
       tplane.setOwning(false);
       
@@ -296,14 +295,14 @@ public:
       opts.maxchannels = NCCHANNELS_INITIALIZER(0x80, 0xff, 0x80, 0x20, 0x10, 0x20);
       ncchannels_set_bg_alpha(&opts.maxchannels, NCALPHA_BLEND);
       
-      plot = std::make_shared<PlotD>(tplane.getPlane(), &opts);
+      plot_ = std::make_shared<PlotD>(tplane.getPlane(), &opts);
     }
 
-    plot->set_sample(i, v);
+    plot_->set_sample(i, v);
   }
   
 private:
-  std::shared_ptr<PlotD> plot;
+  std::shared_ptr<PlotD> plot_;
 };
   
 void
@@ -311,14 +310,14 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   auto root_plane = make_unique<TerminalPlane>(controller, nc->get_stdplane(), false);
   setPlane(std::move(root_plane));
 
-  setFgColor(styles.window_fg_color);
-  setBgColor(styles.window_bg_color);
+  setFgColor(styles_.window_fg_color);
+  setBgColor(styles_.window_bg_color);
   fill();
 
-  menu = make_shared<TerminalMenu>();
+  menu_ = make_shared<TerminalMenu>();
   
-  chart = make_shared<TerminalChart>(getPlane(), Chart::DOTS);
-  volume_meter = make_shared<TerminalChart>(getPlane(), Chart::DOTS);
+  chart_ = make_shared<TerminalChart>(getPlane(), Chart::DOTS);
+  volume_meter_ = make_shared<TerminalChart>(getPlane(), Chart::DOTS, -100, 0);
 
   UI::initialize();
   
@@ -406,7 +405,7 @@ TerminalUI::startUI(AudioAPI & audio) {
 
   string waiting_stderr;
   
-  while ( !close_ui ) {
+  while ( !close_ui_ ) {
     bool render = false;
     
     // setStatus("polling");
