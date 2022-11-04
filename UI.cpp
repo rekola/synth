@@ -23,12 +23,15 @@ using namespace fmt;
 void
 UI::initialize() {
   // chart and volume are missing
-  pattern_editor = make_shared<PatternEditor>(getPlane());
-  info_line = make_shared<InfoLine>(getPlane());
-  status_line = make_shared<StatusLine>(getPlane());
-  hierarchy_view = make_shared<HierarchyView>(getPlane());
+  pattern_editor_ = make_shared<PatternEditor>(getPlane());
+  info_line_ = make_shared<InfoLine>(getPlane());
+  status_line_ = make_shared<StatusLine>(getPlane());
 
-  active_element = pattern_editor;
+#if 0
+  windows_.push_back(make_shared<HierarchyView>(getPlane()));
+#endif
+  
+  active_element_ = pattern_editor_;
 }
 
 void
@@ -36,20 +39,27 @@ UI::layout() {
   auto [ rows, cols ] = getDim();
   setStatus("Layout (rows = " + to_string(rows) + ", cols = " + to_string(cols) + ")");
 
-  chart->resize(4, cols).move(1, 0);
-  volume_meter->resize(rows - 3, 1).move(1, cols - 1);
-  hierarchy_view->resize(rows - 7, 39).move(5, cols - 40);
-  pattern_editor->resize(rows - 7, cols - 40).move(5, 0);
-  info_line->resize(1, cols).move(rows - 2, 0);
-  status_line->resize(1, cols - 1).move(rows - 1, 0);
+  chart_->resize(4, cols).move(1, 0);
+  volume_meter_->resize(rows - 3, 1).move(1, cols - 1);
+  pattern_editor_->resize(rows - 7, cols).move(5, 0);
+  info_line_->resize(1, cols).move(rows - 2, 0);
+  status_line_->resize(1, cols - 1).move(rows - 1, 0);
+
+  for (auto & window : windows_) {
+    window->resize(rows - 7, cols).move(5, 0);
+  }
 }
 
 bool
 UI::renderComponents(bool refresh) {
   bool render = false;
-  render |= pattern_editor->render(styles, refresh);
-  render |= hierarchy_view->render(styles, refresh);
-  render |= info_line->render(styles, refresh);
+  render |= pattern_editor_->render(styles_, refresh);
+#if 0
+  for (auto & window : windows_) {
+    render |= window->render(styles_, refresh);
+  }
+#endif
+  render |= info_line_->render(styles_, refresh);
   return render;
 }
 
@@ -60,7 +70,7 @@ UI::tryActivate(int y, int x, std::shared_ptr<UIElement> element) {
 
   if (y >= pos_y && y < pos_y + rows && x >= pos_x && x < pos_x + cols) {
     setStatus("active element changed");
-    active_element = element;
+    active_element_ = element;
     return true;
   } else {
     return false;
@@ -78,7 +88,7 @@ UI::offerInput(const InputEvent & input) {
   } else if (input.hasCtrl() && input.getId() == 'l') {
     refresh();
   } else if (input.hasCtrl() && input.getId() == 'q') {
-    close_ui = true;
+    close_ui_ = true;
   } else if (input.hasCtrl() && input.getId() == 'n') {
     setStatus("New song");
     getController().createNewSong();
@@ -89,24 +99,27 @@ UI::offerInput(const InputEvent & input) {
     setStatus(playing ? "Playing" : "Stopped");
     handled = true;
   } else if (input.getId() == NCKEY_BUTTON1) {
-    active_element.reset();
+    active_element_.reset();
     
-    tryActivate(input.getY(), input.getX(), status_line) ||
-      tryActivate(input.getY(), input.getX(), pattern_editor) ||
-      tryActivate(input.getY(), input.getX(), hierarchy_view) ||
+    tryActivate(input.getY(), input.getX(), status_line_) ||
+      tryActivate(input.getY(), input.getX(), pattern_editor_) ||
       false;
+
+    for (auto & window : windows_) {
+      tryActivate(input.getY(), input.getX(), window);
+    }
   }
 
   if (!handled) {
-    handled |= menu->offerInput(input);
-    if (handled) setStatus("menu: " + menu->getSelected());
+    handled |= menu_->offerInput(input);
+    if (handled) setStatus("menu: " + menu_->getSelected());
   }
   if (!handled) {
-    handled |= status_line->offerInput(input);
+    handled |= status_line_->offerInput(input);
   }
 
   if (!handled) {
-    if (auto el = active_element.lock()) { 
+    if (auto el = active_element_.lock()) { 
       handled |= el->offerInput(input);
     }
   }
@@ -116,8 +129,8 @@ UI::offerInput(const InputEvent & input) {
 
 void
 UI::setStatus(std::string s) {
-  if (status_line) {
-    status_line->setMessage(std::move(s));
+  if (status_line_) {
+    status_line_->setMessage(std::move(s));
     render();
   }
 }
@@ -127,12 +140,19 @@ UI::handlePlaybackEvent(PlaybackEvent & ev) {
   getController().setPlaybackInfo(ev.getInfo());
 
   if (!ev.getFFT().empty()) {
-    chart->displayFFT(ev.getFFT());
+    chart_->displayFFT(ev.getFFT());
   }
 
   if (ev.getLoudness().size() == 2) {
-    volume_meter->setSample(0, ev.getLoudness()[0]);
-    volume_meter->setSample(1, ev.getLoudness()[1]);
+#if 0
+    auto left = 20*log10(ev.getLoudness()[0] / 20);
+    auto right = 20*log10(ev.getLoudness()[1] / 20);
+#else
+    auto left = ev.getLoudness()[0];
+    auto right = ev.getLoudness()[1];
+#endif
+    volume_meter_->setSample(0, left);
+    volume_meter_->setSample(1, right);
   }
     
   ev.redraw();
@@ -157,7 +177,7 @@ UI::handleLogEvent(LogEvent & ev) {
 
 void
 UI::handleMidiEvent(MidiEvent & ev) {
-  pattern_editor->handleMidiEvent(ev);
+  pattern_editor_->handleMidiEvent(ev);
 }
 
 void audio_thread_func(Controller * controller, AudioAPI * audio) {
@@ -178,5 +198,5 @@ UI::start(AudioAPI & audio) {
 
 void
 StatusLogger::log(std::string s) {
-  ui->setStatus(std::move(s));
+  ui_->setStatus(std::move(s));
 }

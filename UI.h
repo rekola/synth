@@ -22,17 +22,17 @@ class UI;
 
 class StatusLogger : public Logger {
 public:
-  StatusLogger(UI * _ui) : ui(_ui) { }
+  StatusLogger(UI * ui) : ui_(ui) { }
 
   void log(std::string s) override;
 
 private:
-  UI * ui;
+  UI * ui_;
 };
 
 class UI : public UIElement {
  public:
-  explicit UI() : logger(this) { }
+  explicit UI() : logger_(this) { }
 
   virtual void refresh() = 0;
   virtual void render() = 0;
@@ -54,22 +54,23 @@ protected:
   void layout();
   bool renderComponents(bool refresh = false);
   bool tryActivate(int y, int x, std::shared_ptr<UIElement> element);
-  Logger & getLogger() { return logger; }
+  Logger & getLogger() { return logger_; }
   
-  std::shared_ptr<UIMenu> menu;
-  std::shared_ptr<Chart> chart, volume_meter;
-  std::shared_ptr<StatusLine> status_line;
+  std::shared_ptr<UIMenu> menu_;
+  std::shared_ptr<Chart> chart_, volume_meter_;
+  std::shared_ptr<StatusLine> status_line_;
     
-  bool close_ui = false;
-  StyleProvider styles;  
+  bool close_ui_ = false;
+  StyleProvider styles_;
 
 private:  
-  StatusLogger logger;
+  StatusLogger logger_;
 
-  std::shared_ptr<InfoLine> info_line;
-  std::shared_ptr<PatternEditor> pattern_editor;
-  std::shared_ptr<HierarchyView> hierarchy_view;
-  std::weak_ptr<UIElement> active_element;
+  std::shared_ptr<InfoLine> info_line_;
+  std::shared_ptr<PatternEditor> pattern_editor_;
+  std::weak_ptr<UIElement> active_element_;
+
+  std::vector<std::shared_ptr<UIElement>> windows_;
 };
 
 #endif
