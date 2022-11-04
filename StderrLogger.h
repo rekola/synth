@@ -3,14 +3,15 @@
 
 #include "Logger.h"
 
-#include <iostream>
+#include <cstdio>
 
 class StderrLogger : public Logger {
  public:
   StderrLogger() { }
 
   void log(std::string s) override {
-    std::cerr << s << "\n";
+    fputs((s + "\n").c_str(), stderr);
+    fflush(stderr);
   }
 };
 
