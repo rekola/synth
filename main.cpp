@@ -3,11 +3,11 @@
 #include "Controller.h"
 #include "StderrLogger.h"
 
-#include <iostream>
 #include <cstring>
 #include <signal.h>
 
 #include <ncpp/NotCurses.hh>
+#include <fmt/core.h>
 
 using namespace std;
 
@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
 	samplerate = atoi(argv[i]);	
       }
       if (!samplerate) {
-	cerr << "invalid parameters for samplerate\n";
+	fmt::print(stderr, "invalid parameters for samplerate\n");
 	exit(1);
       }
       channel_config.setAudioOutSampleRate(samplerate);
@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(argv[i], "--surround") == 0) {
       channel_config.setType(ChannelConfiguration::SURROUND_5_1);
     } else if (argv[i][0] == '-') {
-      cerr << "invalid parameter\n";
+      fmt::print(stderr, "invalid parameter\n");
       exit(1);
     } else {
       input.push_back(argv[i]);
@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
 
   if (!input.empty()) {
     if (!controller->openSong(input.front())) {
-      cerr << "Could not find file " << input.front() << endl;
+      fmt::print(stderr, "Could not find file {}\n", input.front());
       exit(1);
     }
   } else if (load_demo == 2) {
@@ -72,7 +72,7 @@ int main(int argc, char *argv[]) {
 
 #if 0
   if (!setlocale(LC_ALL, "")) {
-    fprintf(stderr, "Couldn't set locale\n");
+    fmt::print(stderr, "Couldn't set locale\n");
     exit(1);
   }
 #endif

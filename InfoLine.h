@@ -6,7 +6,6 @@
 #include "SongState.h"
 
 #include <fmt/core.h>
-#include <iostream>
 
 using namespace std;
 

@@ -3,9 +3,8 @@
 #include "Logger.h"
 #include "SampleData.h"
 
-#include <stdio.h>
-
-#include <iostream>
+#include <cstdio>
+#include <fmt/core.h>
 
 #define ALSA_PCM_NEW_HW_PARAMS_API
 #define PCM_DEVICE "default"
@@ -165,7 +164,7 @@ AlsaAudio::getPollDescriptors(snd_pcm_t * handle) {
   struct pollfd * pfds = (struct pollfd *)alloca(sizeof(struct pollfd) * (nfds + 1));
     
   if (snd_pcm_poll_descriptors(handle, pfds, nfds) < 0) {
-    cerr << "Error getting descriptor\n";
+    fmt::print(stderr, "Error getting descriptor\n");
     exit(1);
   }
 
@@ -183,7 +182,7 @@ AlsaAudio::getMidiPollDescriptors(snd_seq_t * handle) {
   struct pollfd * pfds = (struct pollfd *)alloca(sizeof(struct pollfd) * (nfds + 1));
 
   if (snd_seq_poll_descriptors(handle, pfds, nfds, POLLIN) < 0) {
-    cerr << "Error getting descriptor\n";
+    fmt::print(stderr, "Error getting descriptor\n");
     exit(1);
   }
 
