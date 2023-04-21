@@ -153,9 +153,10 @@ class InputEvent : public Event {
       case 'd': return base + 163; // Eb
       case 'c': return base + 165; // E
       case 'v': return base + 168; // F
-      case 'g': return base + 170; // F#
+      case 'g': return base + 169; // G𝄫
       case 'b': return base + 173; // G
       case 'h': return base + 176; // Ab
+      case 'u': return base + 177; // G𝄪
       case 'n': return base + 178; // A
       case 'j': return base + 179; // B𝄫
       case 'm': return base + 180; // A#
@@ -180,9 +181,10 @@ class InputEvent : public Event {
       case 'd': return base + 279; // Eb
       case 'c': return base + 282; // E
       case 'v': return base + 287; // F
-      case 'g': return base + 290; // F#
+      case 'g': return base + 289; // G𝄫
       case 'b': return base + 296; // G
       case 'h': return base + 301; // Ab
+      case 'u': return base + 303; // G𝄪
       case 'n': return base + 304; // A
       case 'j': return base + 306; // B𝄫
       case 'm': return base + 308; // A𝄰
