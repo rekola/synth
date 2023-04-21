@@ -22,7 +22,7 @@
 166	F♭4	11	9:7					diminished fourth
 167	E♯4	12	21:16, 13:10, 17:13, 125:96
 168	F-4	13	4:3					perfect fourth
-169	E𝄪4/G𝄫4	14	11:8, 15:11, 26:19			undecimal tritone
+169	E𝄪4/G𝄫4	14	11:8, 15:11, 26:19			undecimal tritone, 11th harmonic
 170	F♯4	15	7:5					lesser septimal tritone
 171	G♭4	16	10:7, 64:45, 36:25			greater septimal tritone
 172	F𝄪4	17	16:11
@@ -30,7 +30,7 @@
 174	A𝄫4	19	32/21
 175	G♯4	20	14/9, 11/7, 25/16
 176	A♭4	21	8:5
-177	G𝄪4	22	18:11, 44:27, 13:8, 49:30, 80:49
+177	G𝄪4	22	18:11, 44:27, 13:8, 49:30, 80:49	
 178	A-4	23	5:3
 179	B𝄫4	24	12:7					septimal major sixth / supermajor sixth
 180	A♯4	25	7:4					harmonic seventh
