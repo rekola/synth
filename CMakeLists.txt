@@ -17,28 +17,35 @@ add_executable(musiceditor main.cpp
 	UI.cpp
 	AlsaAudio.cpp
 	Oscilator.cpp
+	Noise.cpp
 	FileInstrument.cpp
 	TerminalUI.cpp
-	Chart.cpp
 	Controller.cpp
 	InstrumentList.cpp
 	SoundFont.cpp
 	Song.cpp
 	HRFT.cpp
-	Track.cpp
+	SongObject.cpp
 	InstrumentTrack.cpp
 	HierarchyView.cpp
 	tinyxml2.cpp
-	Filter.cpp
-	Compressor.cpp
-	Delay.cpp
-	Distortion.cpp
-	Reverb.cpp
+	effects/ResonantFilter.cpp
+	effects/BiquadFilter.cpp
+	effects/Delay.cpp
+	effects/Distortion.cpp
+	effects/Tremolo.cpp
+	effects/Downmix.cpp
+	effects/Reverb.cpp
+	effects/Chorus.cpp
+	effects/Amplifier.cpp
+	effects/EnvelopeFilter.cpp
+	effects/Compressor.cpp
 	Player.cpp
 	PatternEditor.cpp
-	Chorus.cpp
 	NoteMultiplier.cpp
-	EnvelopeFilter.cpp
+	HarmonicSeries.cpp
+	Arpeggiator.cpp
+	LFO.cpp
 )
 
 target_link_libraries(musiceditor m asound sndfile notcurses++ notcurses notcurses-core fmt fftw3 spatialaudio pthread)
