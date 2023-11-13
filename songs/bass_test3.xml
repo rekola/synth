@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="150" volume="1.0" randomization="0.0099999998">
+<song temperament="53edo" tempo="150" volume="1.0" randomization="0.0099999998">
+  <objects>
+    <LFO id="lfo1" />
+  </objects>
+  
   <instruments>
     <distortion name="bass2" param="1.0" type="softclip" drive="15.0">
       <envelope attack="0.02" hold="0.519" decay="1.35" sustain="0.0" release="0.5">	
@@ -28,6 +32,7 @@
       </resonantFilter>
     </envelope>
   </instruments>
+  
   <tracks>
     <reverb preset="halves">
       <track id="0" instrument="0" />
@@ -40,15 +45,15 @@
   
   <patterns>
     <pattern rows="128">
-      <note row="0" track="lead" velocity="40">D#5</note> <note row="0" track="chords">D#3 C-4 A#4</note>
+      <note row="0" track="lead" velocity="40">D#5</note> <note row="0" track="chords">D#3 C-4 A𝄰4</note>
       <note row="4" track="lead" velocity="40">D#5</note>
       <note row="8" track="lead" velocity="40">D#5</note>
       <note row="12" track="lead" velocity="40">D#5</note>
       <note row="16" track="lead" velocity="40">D#5</note>
       <note row="18" track="lead" velocity="40" delay="240">C-5</note>
-      <note row="20" track="lead" velocity="40" delay="128">A#4</note>
+      <note row="20" track="lead" velocity="40" delay="128">A𝄰4</note>
       <note row="22" track="lead" velocity="40" delay="240">A-4</note>
-      <note row="27" track="lead" velocity="40">A#4</note>
+      <note row="27" track="lead" velocity="40">A𝄰4</note>
       <note row="28" track="lead" velocity="40" delay="40">A-4</note>
       <note row="30" track="lead" velocity="40" delay="128">G-4</note>
       <note row="32" track="lead" velocity="40">D#5</note>
@@ -56,7 +61,7 @@
       <note row="40" track="lead" velocity="40">D#5</note>
       <note row="44" track="lead" velocity="40">D#5</note>
       <note row="48" track="lead" velocity="40">D#5</note>
-      <note row="50" track="lead" velocity="40" delay="240">A#4</note>
+      <note row="50" track="lead" velocity="40" delay="240">A𝄰4</note>
       <note row="52" track="lead" velocity="40" delay="128">G-4</note>
       <note row="54" track="lead" velocity="40" delay="240">C-4</note>
     </pattern>

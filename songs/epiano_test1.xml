@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="160" randomization="0.0099999998">
+<song temperament="53edo" tempo="160" randomization="0.0099999998">
   <instruments>
     <amplifier gain="-20">
       <envelope attack="0.05" decay="2.0" sustain="0" release="0.5" name="epiano">
@@ -68,19 +68,19 @@
     </pattern>
     
     <pattern rows="64">
-      <note row="0" track="melody" velocity="20">A#3 C-4 D#4</note> <note row="0" track="perc" velocity="40">BD SC</note>
+      <note row="0" track="melody" velocity="20">A𝄰3 C-4 D#4</note> <note row="0" track="perc" velocity="40">BD SC</note>
 
       <note row="4" track="melody" velocity="20">A-3</note>
-      <note row="8" track="melody" velocity="20">A#3</note>
+      <note row="8" track="melody" velocity="20">A𝄰3</note>
       <note row="12" track="melody" velocity="20">C-4</note>
       <note row="16" track="melody" velocity="20">D#4</note>
       <note row="20" track="melody" velocity="20">F-4</note>
       <note row="24" track="melody" velocity="20">G-4</note>
       <note row="28" track="melody" velocity="20">A-4</note>
 
-      <note row="32" track="melody" velocity="20">A#3 C-4 D#4</note>
+      <note row="32" track="melody" velocity="20">A𝄰3 C-4 D#4</note>
       <note row="36" track="melody" velocity="20">A-3</note>
-      <note row="40" track="melody" velocity="20">A#3</note>
+      <note row="40" track="melody" velocity="20">A𝄰3</note>
       <note row="44" track="melody" velocity="20">C-4</note>
       <note row="48" track="melody" velocity="20">D#4</note>
       <note row="52" track="melody" velocity="20">F-4</note>
@@ -98,9 +98,9 @@
       <note row="24" track="melody" velocity="20">G-4</note>
       <note row="28" track="melody" velocity="20">A-4</note>
 
-      <note row="32" track="melody" velocity="20">A#3 C-4 D#4</note>
+      <note row="32" track="melody" velocity="20">A𝄰3 C-4 D#4</note>
       <note row="36" track="melody" velocity="20">A-3</note>
-      <note row="40" track="melody" velocity="20">A#3</note>
+      <note row="40" track="melody" velocity="20">A𝄰3</note>
       <note row="44" track="melody" velocity="20">C-4</note>
       <note row="48" track="melody" velocity="20">D#4</note>
       <note row="52" track="melody" velocity="20">F-4</note>
