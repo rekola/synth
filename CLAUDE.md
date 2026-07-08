@@ -29,6 +29,27 @@ libsndfile1-dev libasound2-dev` plus CMake and a C++17 compiler.
 (plus the effect/release tail until silence, capped at 10 s) and exits — use
 it to verify audio changes and to regression-test songs.
 
+## Tests
+
+```sh
+cmake --build build -j
+ctest --test-dir build --output-on-failure
+```
+
+`synth_engine` (song model, playback, instruments, effects — everything
+except the notcurses UI and ALSA output) is a separate static library so
+`tests/synth_tests` can link it without a display or audio device. Tests are
+plain functions registered with `TEST(name) { ... }` (see
+`tests/TestFramework.h`) and use `CHECK`/`CHECK_NEAR`; no external test
+framework dependency. `tests/RenderTests.cpp` renders small fixture songs
+from `tests/fixtures/` through the same `renderSongOffline()` used by
+`--render` and asserts properties of the output (pan symmetry, channel
+isolation, no NaN/Inf) — this is how stereo/pan regressions get caught.
+
+Build with `-DSYNTH_ENABLE_SANITIZERS=ON` to enable ASan+UBSan for the whole
+project; useful for chasing memory bugs (e.g. `SampleData`'s copy-assignment
+leak was confirmed this way).
+
 Needs a real terminal (notcurses full-screen UI) and an ALSA output device.
 Options: `--samplerate N`, `--mono | --stereo | --surround`, `--demo [n]`.
 **Space** toggles playback, Ctrl-Q quits, Ctrl-N creates a new song.

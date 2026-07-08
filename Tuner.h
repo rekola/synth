@@ -1,6 +1,10 @@
 #ifndef _TUNER_H_
 #define _TUNER_H_
 
+#include "Tuning.h"
+#include "Note.h"
+
+#include <cmath>
 #include <set>
 #include <unordered_map>
 

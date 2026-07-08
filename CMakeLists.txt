@@ -12,21 +12,25 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pg")
 
 # -Wconversion
 
-# add the executable
-add_executable(musiceditor main.cpp
-	UI.cpp
-	AlsaAudio.cpp
+option(SYNTH_ENABLE_SANITIZERS "Build with -fsanitize=address,undefined" OFF)
+if(SYNTH_ENABLE_SANITIZERS)
+  add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+  add_link_options(-fsanitize=address,undefined)
+endif()
+
+# Engine library: song model, playback, instruments and effects. Has no
+# dependency on the terminal UI (notcurses) or audio device (ALSA), so it can
+# be linked into the test suite and any future offline tooling.
+add_library(synth_engine STATIC
 	Oscilator.cpp
 	Noise.cpp
 	FileInstrument.cpp
-	TerminalUI.cpp
 	Controller.cpp
 	InstrumentList.cpp
 	SoundFont.cpp
 	Song.cpp
 	SongObject.cpp
 	InstrumentTrack.cpp
-	HierarchyView.cpp
 	tinyxml2.cpp
 	effects/ResonantFilter.cpp
 	effects/BiquadFilter.cpp
@@ -40,11 +44,25 @@ add_executable(musiceditor main.cpp
 	effects/EnvelopeFilter.cpp
 	effects/Compressor.cpp
 	Player.cpp
-	PatternEditor.cpp
 	NoteMultiplier.cpp
 	HarmonicSeries.cpp
 	Arpeggiator.cpp
 	LFO.cpp
+	OfflineRenderer.cpp
+)
+target_include_directories(synth_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(synth_engine PUBLIC m sndfile fmt fftw3 pthread)
+
+# add the executable
+add_executable(musiceditor main.cpp
+	UI.cpp
+	AlsaAudio.cpp
+	TerminalUI.cpp
+	HierarchyView.cpp
+	PatternEditor.cpp
 )
 
-target_link_libraries(musiceditor m asound sndfile notcurses++ notcurses notcurses-core fmt fftw3 pthread)
+target_link_libraries(musiceditor synth_engine asound notcurses++ notcurses notcurses-core)
+
+enable_testing()
+add_subdirectory(tests)
