@@ -29,6 +29,7 @@
 #include "LFOState.h"
 #include "InstrumentVoice.h"
 #include "SampleData.h"
+#include "PanLaw.h"
 
 #include "constants.h"
 
@@ -782,10 +783,9 @@ SoundFontVoice::render(int numSamples) {
     noteGain = decibelsToGain(getGainDB());
   }
 
-  float pan = sin(getAzimuth() / 180.0f * M_PI) / 2 + (voiceRegion_->pan - 0.5);
-  if (pan < -0.5) pan = -0.5;
-  else if (pan > 0.5) pan = 0.5;
-  float panFactorLeft = sqrtf(0.5f - pan), panFactorRight = sqrtf(0.5f + pan);
+  float pan = azimuthToPan(getAzimuth()) + (voiceRegion_->pan - 0.5f);
+  auto gains = panToStereoGains(pan);
+  float panFactorLeft = gains.left, panFactorRight = gains.right;
 
   while (numSamples) {
     int blockSamples = (numSamples > constants::RENDER_EFFECTSAMPLEBLOCK ? constants::RENDER_EFFECTSAMPLEBLOCK : numSamples);

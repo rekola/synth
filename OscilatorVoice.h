@@ -3,6 +3,7 @@
 
 #include "InstrumentVoice.h"
 #include "WaveformType.h"
+#include "PanLaw.h"
 
 class OscilatorVoice : public InstrumentVoice {
 public:
@@ -22,10 +23,8 @@ public:
 
     if (num_channels == 2) {
       auto right_buffer = data.getChannelData(1);
-      float pan = sin(getAzimuth() / 180.0f * M_PI) / 2;
-      if (pan < -0.5) pan = -0.5;
-      else if (pan > 0.5) pan = 0.5;
-      float left_gain = sqrtf(0.5f - pan) * gain, right_gain = sqrtf(0.5f + pan) * gain;
+      auto gains = panToStereoGains(azimuthToPan(getAzimuth()));
+      float left_gain = gains.left * gain, right_gain = gains.right * gain;
       
       if (!getChildren().empty()) {
 	// render children
