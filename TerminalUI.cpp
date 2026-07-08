@@ -355,13 +355,7 @@ TerminalUI::readInput() {
     }
     
     InputEvent input(id, ni.y, ni.x, alt, shift, ctrl, meta);
-    auto handled = offerInput(input);
-
-    if (input.getId() == NCKEY_BUTTON1) {
-      setStatus(format("mouse input: {} {}", input.getY(), input.getX()));
-    } else {
-      setStatus("key input: " + to_string(id) + " (" + string(ni.utf8) + ", shift = " + (input.hasShift() ? "yes" : "no") + ", ctrl = " + (input.hasCtrl() ? "yes" : "no") + ", meta = " + (input.hasMeta() ? "yes" : "no") + ", handled = " + (handled ? "yes" : "no") + ")");
-    }
+    offerInput(input);
   }
 
   return true;

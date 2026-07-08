@@ -102,24 +102,31 @@ void
 AlsaAudio::initialize(Logger & logger) {
   int r;
 
-  // Open the PCM device in playback mode
+  // Open the PCM device in playback mode. Without this, there is nothing
+  // useful this class can do, so give up entirely on failure.
   if ((r = snd_pcm_open(&pcm_handle, "default", SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
     logger.log(string("ERROR: Can't open PCM device for playback: ") + snd_strerror(r));
     return;
   }
 
-  // Open the PCM device in capture mode
-  if ((r = snd_pcm_open(&capture_handle, "default", SND_PCM_STREAM_CAPTURE, 0)) < 0) {
-    logger.log(string("ERROR: Can't open PCM device for capture: ") + snd_strerror(r));
-    return;
-  }
-
   output_frames = initialize_alsa_dev(logger, pcm_handle, getFrequency(), numberOfChannels(), false);
   if (!output_frames) return;
-  
-  input_frames = initialize_alsa_dev(logger, capture_handle, getFrequency(), 1, true);
-  if (!input_frames) return;
-  
+
+  // Capture (used for sampling/recording) is optional: a machine without a
+  // capture device (or without permission to open one) should still be able
+  // to play songs.
+  if ((r = snd_pcm_open(&capture_handle, "default", SND_PCM_STREAM_CAPTURE, 0)) < 0) {
+    logger.log(string("WARNING: Can't open PCM device for capture, recording disabled: ") + snd_strerror(r));
+    capture_handle = nullptr;
+  } else {
+    input_frames = initialize_alsa_dev(logger, capture_handle, getFrequency(), 1, true);
+    if (!input_frames) {
+      logger.log("WARNING: Can't configure capture device, recording disabled");
+      snd_pcm_close(capture_handle);
+      capture_handle = nullptr;
+    }
+  }
+
 #if 0
   unsigned int rate;
   if ((r = snd_pcm_hw_params_get_rate(hw_params, &rate, 0)) < 0) {
@@ -151,10 +158,14 @@ AlsaAudio::initialize(Logger & logger) {
     exit(1);
   }
 
-  logger.log(string("Playback: name = ") + string(snd_pcm_name(pcm_handle)) + string(", state = ") + string(snd_pcm_state_name(snd_pcm_state(pcm_handle))) + string(" Capture: name = ") + string(snd_pcm_name(capture_handle)) + string(", state = ") + string(snd_pcm_state_name(snd_pcm_state(capture_handle))));
+  auto status = string("Playback: name = ") + string(snd_pcm_name(pcm_handle)) + string(", state = ") + string(snd_pcm_state_name(snd_pcm_state(pcm_handle)));
+  if (capture_handle) {
+    status += string(" Capture: name = ") + string(snd_pcm_name(capture_handle)) + string(", state = ") + string(snd_pcm_state_name(snd_pcm_state(capture_handle)));
+  }
+  logger.log(status);
 
   setPlaybackDescriptors(getPollDescriptors(pcm_handle));
-  setCaptureDescriptors(getPollDescriptors(capture_handle));
+  if (capture_handle) setCaptureDescriptors(getPollDescriptors(capture_handle));
   setMidiCaptureDescriptors(getMidiPollDescriptors(seq_handle));
 }
 
@@ -217,8 +228,10 @@ AlsaAudio::play(const SampleData & data, Logger & logger) {
 
 SampleData
 AlsaAudio::record(Logger & logger) {
+  if (!capture_handle) return SampleData();
+
   startRecording();
-  
+
   auto frames = snd_pcm_avail_update(capture_handle);
   SampleData data(1, frames);
 
@@ -231,12 +244,14 @@ AlsaAudio::record(Logger & logger) {
       logger.log(string("ERROR. Can't read PCM device. ") + snd_strerror(r));
     }
   }
-  
+
   return data;
 }
 
 void
 AlsaAudio::startRecording() {
+  if (!capture_handle) return;
+
   if (!recording_started) {
     int r;
     if ((r = snd_pcm_start(capture_handle)) < 0) {

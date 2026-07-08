@@ -220,7 +220,16 @@ public:
     delayreadpos_         = delaybufsize_ > 1 ? 1 : 0;
   }
 
-  void applyEffect(SampleData & input) override {    
+  void applyEffect(SampleData & input) override {
+    // The detection/gain-reduction algorithm below is inherently stereo
+    // (joint left/right envelope, per-channel delay line indexed the same
+    // way); pass non-stereo input through unchanged rather than reading
+    // past the end of a mono buffer.
+    if (input.numberOfChannels() != 2) {
+      setTrackInfo(TrackInfo(false, input.isClipping()));
+      return;
+    }
+
     auto left_delaybuf = delaybuf_.getChannelData(0);
     auto right_delaybuf = delaybuf_.getChannelData(1);
 

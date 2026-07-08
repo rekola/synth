@@ -102,6 +102,24 @@ TEST(sample_data_resize_grow_preserves_existing_samples) {
   }
 }
 
+TEST(sample_data_resize_shrink_preserves_remaining_samples) {
+  // resize() previously always copied the *old* frame count into the new
+  // buffer, so shrinking wrote past the end of the smaller allocation.
+  SampleData data(2, 8);
+  data.zero();
+  for (int c = 0; c < 2; c++) {
+    auto buf = data.getChannelData(c);
+    for (int i = 0; i < 8; i++) buf[i] = static_cast<float>(c * 10 + i);
+  }
+
+  data.resize(4);
+  CHECK(data.numberOfFrames() == 4);
+  for (int c = 0; c < 2; c++) {
+    auto buf = data.getChannelData(c);
+    for (int i = 0; i < 4; i++) CHECK_NEAR(buf[i], static_cast<float>(c * 10 + i), 1e-6f);
+  }
+}
+
 TEST(sample_data_is_clipping_detects_out_of_range_samples) {
   SampleData data(1, 4);
   data.zero();

@@ -58,7 +58,7 @@ class BasicMixer : public Mixer {
 protected:
   void clear() {
     if (buffer && frames) {
-      memset(buffer.get(), 0, frames * 2 * sizeof(float));
+      memset(buffer.get(), 0, frames * static_cast<size_t>(getOutChannels()) * sizeof(float));
     }
   }
 

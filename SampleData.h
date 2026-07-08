@@ -43,11 +43,13 @@ class SampleData final {
       is_solo_ = other.is_solo_;
       is_zero_ = other.is_zero_;
       bpm_ = other.bpm_;
-      
+
       auto s = getAlignedSize(channels_ * frames_);
-      data_ = (float *)aligned_alloc(16, s);
-      
-      memcpy(data_, other.data_, s);
+      auto new_data = (float *)aligned_alloc(16, s);
+      memcpy(new_data, other.data_, s);
+
+      free(data_);
+      data_ = new_data;
     }
     return *this;
   }
@@ -88,8 +90,9 @@ class SampleData final {
 
   void resize(int new_size) {
     auto new_data = (float *)aligned_alloc(16, getAlignedSize(channels_ * new_size));
+    auto frames_to_copy = frames_ < new_size ? frames_ : new_size;
     for (int j = 0; j < channels_; j++) {
-      memcpy(new_data + j * new_size, data_ + j * frames_, frames_ * sizeof(float));
+      memcpy(new_data + j * new_size, data_ + j * frames_, frames_to_copy * sizeof(float));
     }
     free(data_);
     data_ = new_data;
@@ -189,7 +192,8 @@ class SampleData final {
 private:
   static inline size_t getAlignedSize(int frames) { return (static_cast<size_t>(frames) * sizeof(float) + 15ull) & ~15ull; }
   
-  short channels_, bpm_ = 0;
+  short channels_;
+  float bpm_ = 0.0f;
   int frames_;
   float * data_;
   bool is_solo_ = false, is_zero_ = true;

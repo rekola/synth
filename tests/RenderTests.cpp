@@ -107,3 +107,20 @@ TEST(render_chorus_preserves_stereo_image) {
   CHECK(right > 1e-4f);
   CHECK(left < right * 0.05f);
 }
+
+TEST(render_mono_with_compressor_does_not_read_out_of_bounds) {
+  // Compressor's detection/gain-reduction algorithm is inherently stereo; on
+  // mono output it must pass audio through instead of reading channel 1 of a
+  // 1-channel buffer (a heap-buffer-overflow this fixture used to trigger
+  // under AddressSanitizer).
+  auto loaded = loadFixture("compressor_mono.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(ChannelConfiguration::MONO, 44100);
+  auto result = renderSongOffline(loaded.song, config);
+
+  CHECK(result.channels == 1);
+  CHECK(result.numberOfFrames() > 0);
+  CHECK(!hasNonFiniteSample(result));
+  CHECK(rms(result, 0) > 1e-4f); // audio still passes through unmodified
+}
