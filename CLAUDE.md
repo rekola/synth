@@ -20,9 +20,14 @@ libsndfile1-dev libasound2-dev` plus CMake and a C++17 compiler.
 ## Run
 
 ```sh
-./build/musiceditor songs/demo3.xml   # open a song
-./build/musiceditor                   # start with a new empty song
+./build/musiceditor songs/demo3.xml                    # open a song
+./build/musiceditor                                    # start with a new empty song
+./build/musiceditor --render out.wav songs/demo3.xml   # headless render to WAV
 ```
+
+`--render` needs no terminal or audio device: it renders the song offline
+(plus the effect/release tail until silence, capped at 10 s) and exits — use
+it to verify audio changes and to regression-test songs.
 
 Needs a real terminal (notcurses full-screen UI) and an ALSA output device.
 Options: `--samplerate N`, `--mono | --stereo | --surround`, `--demo [n]`.
