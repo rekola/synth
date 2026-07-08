@@ -9,6 +9,7 @@
 #include "ChannelConfiguration.h"
 
 #include <memory>
+#include <string>
 
 class Song;
 
@@ -18,6 +19,8 @@ class Controller {
 
   const Song & getSong() const { return *current_song; }
   Song & getSong() { return *current_song; }
+
+  const std::string & getSongFilename() const { return current_song_filename; }
 
   void createNewSong();
   bool openSong(const std::string & filename);
@@ -55,6 +58,7 @@ class Controller {
   ChannelConfiguration channel_config;
 
   std::shared_ptr<Song> current_song;
+  std::string current_song_filename = "song.xml";
   std::shared_ptr<SampleData> current_sample;
   InstrumentProvider instrument_provider;
   EventQueue ui_event_queue, playback_event_queue;

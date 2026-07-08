@@ -554,9 +554,10 @@ Controller::loadDemo2() {
 #endif
 #endif
   
-  song->addPattern(pattern);  
-    
-  current_song = song;  
+  song->addPattern(pattern);
+
+  current_song = song;
+  current_song_filename = "song.xml";
 }
 
 void
@@ -567,27 +568,29 @@ Controller::createNewSong() {
   auto & pattern = song->addPattern(64);
   auto & section = song->addSection();
   section.addPattern(pattern.getInternalId());
-  
+
   current_song = song;
+  current_song_filename = "song.xml";
 }
 
 bool
-Controller::openSong(const string & filename) {  
+Controller::openSong(const string & filename) {
   auto song = make_shared<Song>();
   if (!song->open(filename, instrument_provider)) {
     return false;
   }
 
   current_song = song;
+  current_song_filename = filename;
   return true;
 }
 
 bool
-Controller::sendCommand(std::string_view cmd) {  
+Controller::sendCommand(std::string_view cmd) {
   if (cmd == "new-song") {
     createNewSong();
   } else if (cmd == "save-song") {
-    current_song->save("tmp.xml");
+    current_song->save(current_song_filename);
   } else if (cmd == "add-filter") {
 
   } else if (cmd == "transpose-down") {
