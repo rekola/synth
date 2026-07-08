@@ -34,5 +34,8 @@ build
 # binaries
 musiceditor
 
+# local soundfonts / HRTF data
+data
+
 # profiling
 gmon.out
