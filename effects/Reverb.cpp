@@ -43,17 +43,17 @@ protected:
       float * out[2] = { left_out, right_out };
     
       if (input.numberOfChannels() == 2) {
-	float * in[2] = { input.getChannelData(0), input.getChannelData(0) };
-      
+	float * in[2] = { input.getChannelData(0), input.getChannelData(1) };
+
 	mverb_.process(in, out, input.size());
-      
+
 	auto left_buffer = input.getChannelData(0), right_buffer = input.getChannelData(1);
 	for (int i = 0; i < input.size(); i++) {
 	  left_buffer[i] = left_out[i];
 	  right_buffer[i] = right_out[i];
 	}
       } else {
-	float * in[2] = { input.getChannelData(0), input.getChannelData(1) };
+	float * in[2] = { input.getChannelData(0), input.getChannelData(0) };
 
 	mverb_.process(in, out, input.size());
 

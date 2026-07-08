@@ -19,13 +19,13 @@ public:
     
     auto num_channels = data.numberOfChannels();
     auto left_buffer = data.getChannelData(0);
-    auto right_buffer = data.getChannelData(1);
-    
+
     if (num_channels == 2) {
+      auto right_buffer = data.getChannelData(1);
       float pan = sin(getAzimuth() / 180.0f * M_PI) / 2;
       if (pan < -0.5) pan = -0.5;
       else if (pan > 0.5) pan = 0.5;
-      float left_gain = sqrtf(0.5f - pan) * gain, right_gain = sin(0.5f + pan) * gain;
+      float left_gain = sqrtf(0.5f - pan) * gain, right_gain = sqrtf(0.5f + pan) * gain;
       
       for (int k = 0; k < frames; k++) {
 	left_buffer[k] = left_gain * create_noise();
