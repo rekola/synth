@@ -29,15 +29,14 @@ Options: `--samplerate N`, `--mono | --stereo | --surround`, `--demo [n]`.
 **Space** toggles playback, Ctrl-Q quits, Ctrl-N creates a new song.
 `docs/commands.txt` lists the pattern effect commands (slides, vibrato, …).
 
-Instruments are resolved from SoundFonts loaded from `data/` relative to the
-working directory (see `Controller`'s constructor: `data/FluidR3_GM.sf2`).
-`data/` is gitignored; symlink or copy a GM SoundFont there, e.g.:
-
-```sh
-mkdir -p data && ln -s /usr/share/sounds/sf2/default-GM.sf2 data/FluidR3_GM.sf2
-```
-
-Without it, `genericInstrument` songs play silence.
+Instruments are resolved from a General MIDI SoundFont, discovered
+automatically (`findDefaultSoundFont()` in `Controller.cpp`): a project-local
+`data/FluidR3_GM.sf2` override first, then well-known GM fonts by name in
+`~/.local/share/{soundfonts,sounds/sf2}`, `/usr/share/soundfonts` and
+`/usr/share/sounds/sf2` (where Ubuntu's alternatives-managed `default-GM.sf2`
+lives), then the largest `.sf2` in those directories. On Ubuntu,
+`fluid-soundfont-gm` provides the preferred FluidR3_GM.sf2. Without any
+SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
 
 ## Layout
 

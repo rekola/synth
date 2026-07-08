@@ -7,12 +7,73 @@
 
 #include <cassert>
 #include <unordered_map>
+#include <filesystem>
+#include <cstdlib>
+
+#include <fmt/core.h>
 
 using namespace std;
 
+// Find a General MIDI SoundFont. Priority: the project-local data/ override,
+// then well-known GM fonts by name (user dirs before system dirs;
+// default-GM.sf2 is the Ubuntu alternatives-managed default), and finally the
+// largest .sf2 found anywhere in the searched directories.
+static string
+findDefaultSoundFont() {
+  namespace fs = std::filesystem;
+  error_code ec;
+
+  if (fs::is_regular_file("data/FluidR3_GM.sf2", ec)) return "data/FluidR3_GM.sf2";
+
+  vector<fs::path> dirs;
+  if (auto home = getenv("HOME")) {
+    dirs.push_back(fs::path(home) / ".local/share/soundfonts");
+    dirs.push_back(fs::path(home) / ".local/share/sounds/sf2");
+  }
+  dirs.push_back("/usr/share/soundfonts");
+  dirs.push_back("/usr/share/sounds/sf2");
+
+  const char * preferred[] = {
+    "FluidR3_GM.sf2",
+    "default-GM.sf2",
+    "MuseScore_General.sf2",
+    "GeneralUser GS.sf2",
+    "TimGM6mb.sf2",
+  };
+  for (auto name : preferred) {
+    for (auto & dir : dirs) {
+      auto p = dir / name;
+      if (fs::is_regular_file(p, ec)) return p.string();
+    }
+  }
+
+  fs::path best;
+  uintmax_t best_size = 0;
+  for (auto & dir : dirs) {
+    for (auto & entry : fs::directory_iterator(dir, ec)) {
+      if (entry.path().extension() != ".sf2") continue;
+      auto size = fs::file_size(entry.path(), ec);
+      if (!ec && size > best_size) {
+	best_size = size;
+	best = entry.path();
+      }
+    }
+  }
+  return best.string();
+}
+
 Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_channel_config) {
-  instrument_provider.loadSoundFont("data/FluidR3_GM.sf2");
-  instrument_provider.loadSoundFont("data/Essential Keys-sforzando-v9.6.sf2", false);
+  auto soundfont = findDefaultSoundFont();
+  if (!soundfont.empty()) {
+    fmt::print(stderr, "Using SoundFont {}\n", soundfont);
+    instrument_provider.loadSoundFont(soundfont);
+  } else {
+    fmt::print(stderr, "No GM SoundFont found; only built-in instruments available\n");
+  }
+  error_code ec;
+  if (std::filesystem::is_regular_file("data/Essential Keys-sforzando-v9.6.sf2", ec)) {
+    instrument_provider.loadSoundFont("data/Essential Keys-sforzando-v9.6.sf2", false);
+  }
 }
 
 void
