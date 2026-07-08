@@ -42,7 +42,7 @@ public:
     }
   }
   
-  bool isPlaying() const override { return !envelope_state_.isDone(); }
+  bool isActive() const override { return !envelope_state_.isDone(); }
 
   void stopNote() override {
     // let children play

@@ -6,6 +6,7 @@
 #include <cassert>
 #include <mutex>
 #include <deque>
+#include <stdexcept>
 #include <unistd.h>
 #include <sys/socket.h>
 

@@ -11,11 +11,12 @@ NoteMultiplier::playNote(const ChannelConfiguration & channel_config, float inpu
   float half_detune_ratio = powf(2, detune_ / 1200 / 2);
     
   auto group = createState(channel_config);
+  int voice_id = 0;
   for (auto & child : getChildren()) {
     if (unisons_ == 1) {
       // root
       auto voice = child->playNote(channel_config, input_azimuth, frequency, input_detune, velocity, start_phase + getRandF());
-      if (voice.get()) group->addChild(move(voice));
+      if (voice.get()) group->addChild(voice_id++, move(voice));
     } else if (unisons_ >= 2) {
       float azimuth = input_azimuth - spread_ / 2;
       float azimuth_step = spread_ / (unisons_ - 1);
@@ -26,7 +27,7 @@ NoteMultiplier::playNote(const ChannelConfiguration & channel_config, float inpu
       // unisons_
       for (int i = 0; i < unisons_; i++, azimuth += azimuth_step, detune *= detune_step) {
 	auto voice = child->playNote(channel_config, azimuth, frequency, detune, velocity, start_phase + getRandF());
-	if (voice.get()) group->addChild(move(voice));
+	if (voice.get()) group->addChild(voice_id++, move(voice));
       }
     }
 
@@ -36,7 +37,7 @@ NoteMultiplier::playNote(const ChannelConfiguration & channel_config, float inpu
       float v = velocity * powf(0.5f, i + 1);
       
       auto voice = child->playNote(channel_config, input_azimuth, frequency, detune, v, start_phase + getRandF());
-      if (voice.get()) group->addChild(move(voice));
+      if (voice.get()) group->addChild(voice_id++, move(voice));
     }
 
     // fifths
@@ -45,7 +46,7 @@ NoteMultiplier::playNote(const ChannelConfiguration & channel_config, float inpu
       float v = velocity * powf(0.5f, i + 1);
       
       auto voice = child->playNote(channel_config, input_azimuth, frequency, detune, v, start_phase + getRandF());
-      if (voice.get()) group->addChild(move(voice));
+      if (voice.get()) group->addChild(voice_id++, move(voice));
     }
 
     // octaves
@@ -54,7 +55,7 @@ NoteMultiplier::playNote(const ChannelConfiguration & channel_config, float inpu
       float v = velocity * powf(0.5f, i + 1);
       
       auto voice = child->playNote(channel_config, input_azimuth, frequency, detune, v, start_phase + getRandF());
-      if (voice.get()) group->addChild(move(voice));
+      if (voice.get()) group->addChild(voice_id++, move(voice));
     }
   }
   return group;

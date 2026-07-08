@@ -34,7 +34,7 @@ FileInstrument::openFile() {
   vector<float> buffer;
   int k, readcount;
   while ((readcount = (int) sf_readf_float (infile, buf, frames)) > 0) {
-    for (k = 0 ; k < readcount; k++) {
+    for (k = 0 ; k < readcount * channels; k++) {
       buffer.push_back(buf[k]);
     }
   }
@@ -42,11 +42,15 @@ FileInstrument::openFile() {
   free(buf);
   sf_close(infile);
 
-  samples_ = make_shared<SampleData>(channels, buffer.size());
-  auto out_buffer = samples_->data();
-  for (int i = 0; i < samples_->size(); i++) {
-    out_buffer[i] = buffer[i];
+  int total_frames = (int)buffer.size() / channels;
+  samples_ = make_shared<SampleData>(channels, total_frames);
+  for (int c = 0; c < channels; c++) {
+    auto out_buffer = samples_->getChannelData(c);
+    for (int i = 0; i < total_frames; i++) {
+      out_buffer[i] = buffer[i * channels + c];
+    }
   }
+  samples_->setNonZero();
 
   return true;
 }
@@ -61,10 +65,9 @@ public:
 
     SampleData output(getChannelConfiguration(), frames);
     auto outChannels = output.numberOfChannels();
-    auto buffer = output.data();
 
     auto inChannels = samples_->numberOfChannels();
-    
+
     for (int k = 0; k < frames; k++) {
       // float i = getFphase() * WAVESIZE / getOutSampleRate();
       int i = getSourceSamplePosition();
@@ -72,26 +75,27 @@ public:
 
       if (i >= samples_->size()) {
 	for (auto l = 0; l < outChannels; l++) {
-	  buffer[outChannels * k + l] = 0.0f;
+	  output.getChannelData(l)[k] = 0.0f;
 	}
-      } else if (outChannels == inChannels) {	
+      } else if (outChannels == inChannels) {
 	for (auto l = 0; l < outChannels; l++) {
-	  buffer[outChannels * k + l] = samples_->data()[i * inChannels + l] * gain;
+	  output.getChannelData(l)[k] = samples_->getChannelData(l)[i] * gain;
 	}
       } else if (inChannels == 1) {
 	for (auto l = 0; l < outChannels; l++) {
-	  buffer[outChannels * k + l] = samples_->data()[i] * gain;
+	  output.getChannelData(l)[k] = samples_->getChannelData(0)[i] * gain;
 	}
       } else {
 	assert(0);
       }
     }
-        
+
+    output.setNonZero();
     return output;
   }
 
   void stopNote() override { sourceSamplePosition_ = samples_->size(); }
-  bool isPlaying() const override { return sourceSamplePosition_ < samples_->size(); }
+  bool isActive() const override { return sourceSamplePosition_ < samples_->size(); }
   void killNote() override { stopNote(); }
 
 private:

@@ -6,8 +6,8 @@
 
 class OscilatorVoice : public InstrumentVoice {
 public:
-  OscilatorVoice(ChannelConfiguration config, float azimuth, float detune, float start_phase, WaveformType type, float level)
-    : InstrumentVoice(config, azimuth, detune, start_phase), type_(type), level_(level) {
+  OscilatorVoice(ChannelConfiguration config, float azimuth, float detune, float start_phase, WaveformType type, float level, float pulse_width)
+    : InstrumentVoice(config, azimuth, detune, start_phase), type_(type), level_(level), pulse_width_(pulse_width) {
   }
 
   SampleData render(int frames) override {    
@@ -27,7 +27,7 @@ public:
       else if (pan > 0.5) pan = 0.5;
       float left_gain = sqrtf(0.5f - pan) * gain, right_gain = sin(0.5f + pan) * gain;
       
-      if (!getChildren().empty() && type_ != WaveformType::NOISE) {
+      if (!getChildren().empty()) {
 	// render children
 	auto modulator = InstrumentVoice::render(frames);
 	auto modulator_data = modulator.getChannelData(0);
@@ -67,9 +67,6 @@ public:
 	    pos += rate;
 	  }
 	  break;
-	case WaveformType::NOISE:
-	  // noise cannot be modulated
-	  break;
 	}
       } else {
 	switch (type_) {
@@ -105,18 +102,10 @@ public:
 	    pos += rate;
 	  }
 	  break;
-	case WaveformType::NOISE:
-	  for (int k = 0; k < frames; k++) {
-	    auto a = create_noise();
-	    left_buffer[k] = left_gain * a;
-	    right_buffer[k] = right_gain * a;
-	    pos += rate;
-	  }
-	  break;
 	}
       }
     } else {
-      if (!getChildren().empty() && type_ != WaveformType::NOISE) {
+      if (!getChildren().empty()) {
 	auto modulator = InstrumentVoice::render(frames);
 	auto modulator_data = modulator.getChannelData(0);
 	
@@ -145,9 +134,6 @@ public:
 	    pos += rate;
 	  }
 	  break;
-	case WaveformType::NOISE:
-	  // noise cannot be modulated
-	  break;
 	}
       } else {
 	switch (type_) {
@@ -175,18 +161,13 @@ public:
 	    pos += rate;
 	  }
 	  break;
-	case WaveformType::NOISE:
-	  for (int k = 0; k < frames; k++) {
-	    left_buffer[k] = create_noise() * gain;
-	    pos += rate;
-	  }
-	  break;
 	}
       }
     }
     
     stepForward(frames);
 
+    data.setNonZero();
     return data;
   }
   
@@ -208,17 +189,15 @@ private:
     return i < 0.5f ? 1.0f - 4.0f * i : 4.0f * i - 3;
   }
   
-  static inline float create_square(double i0) {
+  inline float create_square(double i0) const {
     float i = i0 - (long long)(i0);
-    return i < 0.5f ? -1.0f : 1.0f;
+    return i < pulse_width_ ? -1.0f : 1.0f;
   }
   
-  static inline float create_noise() {
-    return getRandF() * 2.0f - 1.0f;
-  }
 
   WaveformType type_;
   float level_;
+  float pulse_width_;
 };
 
 

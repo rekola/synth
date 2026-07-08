@@ -24,7 +24,6 @@ add_executable(musiceditor main.cpp
 	InstrumentList.cpp
 	SoundFont.cpp
 	Song.cpp
-	HRFT.cpp
 	SongObject.cpp
 	InstrumentTrack.cpp
 	HierarchyView.cpp
@@ -48,4 +47,4 @@ add_executable(musiceditor main.cpp
 	LFO.cpp
 )
 
-target_link_libraries(musiceditor m asound sndfile notcurses++ notcurses notcurses-core fmt fftw3 spatialaudio pthread)
+target_link_libraries(musiceditor m asound sndfile notcurses++ notcurses notcurses-core fmt fftw3 pthread)

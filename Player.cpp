@@ -10,7 +10,6 @@
 #include "RecordEvent.h"
 #include "PlaybackControlEvent.h"
 
-#include "HRFT.h"
 #include "BasicMixer.h"
 #include "InstrumentTrackState.h"
 #include "FFT.h"
@@ -200,7 +199,9 @@ Player::createPlaybackEvent(const Song & song, const SongState & state) {
 std::unique_ptr<Mixer>
 Player::createMixer(short out_channels, int outSampleRate, MixerType type) {
   switch (type) {
-  case MixerType::HRFT: return make_unique<HRFT>(out_channels, outSampleRate);
+  // HRFT predates the current Mixer interface and its SOFA data files are
+  // missing; fall back to BasicMixer until it is ported.
+  case MixerType::HRFT: return make_unique<BasicMixer>(out_channels, outSampleRate);
   case MixerType::BASIC: return make_unique<BasicMixer>(out_channels, outSampleRate);
   default:
     assert(0);
