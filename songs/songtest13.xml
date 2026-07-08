@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song key="C" temperament="31edo" tempo="100" volume="1.0" randomization="0.0099999998">
+  <instruments>
+    <genericInstrument name="Piano" />
+    <genericInstrument name="Electric Piano 1" />
+  </instruments>
+  
+  <tracks>
+    <reverb id="100" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle">
+      <track id="0" instrument="0" />
+      <track id="1" instrument="1" />
+    </reverb>   
+  </tracks>
+  
+  <patterns>
+    <pattern rows="64">
+      <note row="0" track="0" column="0" velocity="40">C-4 G-4 C-5</note>      
+      <note row="2" track="0" column="2" velocity="40">E-5</note>
+      <note row="4" track="0" column="2" velocity="40">G-5</note>
+      <note row="6" track="0" column="2" velocity="40">E-5</note>
+      <note row="8" track="0" column="2" velocity="40">A#5</note>
+      <note row="10" track="0" column="2" velocity="40">E-5</note>
+      <note row="12" track="0" column="2" velocity="40">G-5</note>
+      <note row="14" track="0" column="2" velocity="40">E-5</note>
+    </pattern>
+  </patterns>
+</song>

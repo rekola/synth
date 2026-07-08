@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="31edo" tempo="120" volume="1.0" randomization="0.0099999998">
+  <instruments>
+    <envelope attack="0.5" release="2" name="Pads">
+      <resonantFilter cut="2200" res="0.5">
+	<multiply unisons="4" detune="5" spread="90">
+	  <oscilator type="square" level="0.25"/>
+	</multiply>
+      </resonantFilter>
+    </envelope>
+
+    <envelope name="bass3" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">	
+      <resonantFilter cutmin="1100" cutmax="11000" res="0.1" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">
+	<oscilator type="square" />
+	<multiply unisons="8" detune="10">
+	  <oscilator type="triangle" harmonic="2" />
+	</multiply>
+      </resonantFilter>
+    </envelope>
+
+    <envelope name="riser" attack="3" hold="0" sustain="0" decay="0" release="0">
+      <resonantFilter cutmin="220" cutmax="20000" res="2" attack="3">
+	<noise />
+      </resonantFilter>
+    </envelope>
+
+    <genericInstrument name="Piano" /> 
+    <genericInstrument name="Chateau Grand" />
+
+  </instruments>
+  <tracks>
+    <reverb preset="halves">
+      <track id="0" instrument="0" />
+      <track id="bass" instrument="1" />
+      <track id="riser" instrument="2"/>
+      <track id="chords" instrument="3" volume="1" />
+    </reverb>
+  </tracks>
+  
+  <patterns>
+    <pattern rows="64">
+      <note row="0" track="chords" velocity="127">C-3 C-4 E-4 G-4 C-5</note>
+      <note row="4" track="chords">OFF OFF OFF OFF OFF OFF</note>
+
+      <note row="6" track="bass" velocity="20">G-2</note>
+      <note row="8" track="bass" velocity="20">A#2</note>
+      <note row="11" track="bass" velocity="20">C-3</note>
+      <note row="14" track="bass" velocity="20">C-3</note>
+      <note row="16" track="chords" velocity="127">C-3 C-4 E-4 G-4 C-5</note>
+      <note row="20" track="chords">OFF OFF OFF OFF OFF OFF</note>
+
+      <note row="24" track="bass" velocity="20">G-3</note>
+      <note row="25" track="bass" velocity="20">F-3</note>
+      <note row="26" track="bass" velocity="20">C-3</note>
+      <note row="28" track="bass" velocity="20">D#3</note>
+      <note row="31" track="bass" velocity="20">C-3</note>
+    </pattern>
+</patterns>
+</song>

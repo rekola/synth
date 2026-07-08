@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="31edo" tempo="100" volume="0.75" randomization="0.0099999998">
+  <instruments>
+    <group name="Melody blocks">
+      <envelope attack="0.01" decay="0.5" sustain="0" release="0.5">
+	<oscilator level="0.25" subharmonic="2">
+	  <oscilator level="0.5" harmonic="18" subharmonic="1" />
+	</oscilator>
+      </envelope>
+
+      <envelope attack="0.01" decay="1" sustain="0" release="0.8" keynumToDecay="50">
+	<oscilator />
+      </envelope>
+    </group>
+  </instruments>
+  
+  <tracks>
+    <reverb preset="dark" lock="true" predelay="8">
+      <track id="0" instrument="0" />
+    </reverb>
+  </tracks>
+  
+  <patterns>   
+    <pattern rows="64">
+      <note track="0" row="0" velocity="40">C-4</note>
+      <note track="0" row="4" velocity="40">Cx4</note>
+      <note track="0" row="8" velocity="40">D#4</note>
+      <note track="0" row="12" velocity="40">F-4</note>
+      <note track="0" row="16" velocity="40">D#4</note>
+      <note track="0" row="20" velocity="40">Cx4</note>
+      <note track="0" row="24" velocity="40">C-4</note>
+    </pattern>
+  </patterns>
+</song>

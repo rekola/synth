@@ -1,26 +1,23 @@
-# Prerequisites
-*.d
+# Emacs stuff
+*~
+\#*\#
+.\#*
 
-# Compiled Object files
+# C++
+*.o
+*.d
 *.slo
 *.lo
-*.o
 *.obj
-
-# Precompiled Headers
 *.gch
 *.pch
 
-# Compiled Dynamic libraries
+# Libraries
 *.so
 *.dylib
 *.dll
-
-# Fortran module files
 *.mod
 *.smod
-
-# Compiled Static libraries
 *.lai
 *.la
 *.a
@@ -30,3 +27,12 @@
 *.exe
 *.out
 *.app
+
+# build
+build
+
+# binaries
+musiceditor
+
+# profiling
+gmon.out

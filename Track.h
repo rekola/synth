@@ -1,0 +1,108 @@
+#ifndef _TRACK_H_
+#define _TRACK_H_
+
+#include "StatefulSongObject.h"
+#include "TrackType.h"
+
+#include <string_view>
+#include <vector>
+#include <memory>
+
+class Track : public StatefulSongObject {
+ public:
+  Track(TrackType type) : type_(type) { }
+
+  std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override {
+    return std::make_unique<TrackState>(config);
+  }
+
+  std::unique_ptr<TrackState> createStateTree(const ChannelConfiguration & config) const {
+    auto state = createState(config);
+    for (auto & child : getChildren()) {
+      state->addChild(child->getInternalId(), child->createStateTree(config));
+    }
+    return state;
+  }
+
+  TrackState & getState(TrackState & parent_state) {
+    auto state = parent_state.getChildByInternalId(getInternalId());
+    if (!state) {
+      auto new_state = createStateTree(parent_state.getChannelConfiguration());
+      state = new_state.get();
+      parent_state.addChild(getInternalId(), std::move(new_state));
+    }
+    return *state;
+  }
+
+  virtual const char * getElementName() const = 0;
+
+  virtual std::unique_ptr<TrackState> playNote(const ChannelConfiguration & config, float azimuth, float frequency, float detune, float velocity, float start_phase) const {
+    auto group = createState(config);
+    for (auto & child : getChildren()) {
+      auto voice = child->playNote(config, azimuth, frequency, detune, velocity, start_phase);
+      if (voice.get()) group->addChild(child->getInternalId(), std::move(voice));
+    }
+    return group;
+  }
+
+  TrackType getType() const { return type_; }
+
+  const Track & getChild(int i) const { return *(children_[i]); }
+  Track & getChild(int i) { return *(children_[i]); }
+  
+  Track & addChild(std::unique_ptr<Track> track) { children_.push_back(std::move(track)); return *(children_.back()); }
+
+  std::vector<std::unique_ptr<Track> > & getChildren() { return children_; }
+  const std::vector<std::unique_ptr<Track> > & getChildren() const { return children_; }
+
+  int getDepth() const {
+    int max_depth = 0;
+    for (auto & child : getChildren()) {
+      auto d = child->getDepth();
+      if (d > max_depth) max_depth = d;
+    }
+    return 1 + max_depth;
+  }
+
+  const Track * getChildByInternalId(int id) const {
+    if (getInternalId() == id) return this;
+    for (auto & child : getChildren()) {
+      auto r = child->getChildByInternalId(id);
+      if (r) return r;
+    }
+    return nullptr;
+  }
+
+  Track * getChildByInternalId(int id) {
+    if (getInternalId() == id) return this;
+    for (auto & child : getChildren()) {
+      auto r = child->getChildByInternalId(id);
+      if (r) return r;
+    }
+    return nullptr;
+  }
+
+  const Track * getChildById(std::string_view id) const {
+    if (getId() == id) return this;
+    for (auto & child : getChildren()) {
+      auto r = child->getChildById(id);
+      if (r) return r;
+    }
+    return nullptr;
+  }
+
+  Track * getChildById(std::string_view id) {
+    if (getId() == id) return this;
+    for (auto & child : getChildren()) {
+      auto r = child->getChildById(id);
+      if (r) return r;
+    }
+    return nullptr;
+  }
+  
+ private:
+  TrackType type_;
+  std::vector<std::unique_ptr<Track> > children_;
+};
+
+#endif

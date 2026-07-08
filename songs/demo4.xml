@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song key="C" temperament="31edo" tempo="220" volume="1" randomization="0.0099999998">
+  <instruments>
+    <genericInstrument name="Rhodes Piano" />
+  </instruments>
+  <tracks>
+    <track id="1" azimuth="30" distance="0" elevation="50" volume="1" instrument="0"/>
+  </tracks>
+  <patterns>
+    <pattern rows="24">
+      <note track="1" row="0" velocity="63" value="C-4"/>
+      <note track="1" row="0" column="1" velocity="63" value="E♭4"/>
+      <note track="1" row="0" column="2" velocity="63" value="G-4"/>
+      <note track="1" row="2" velocity="63" value="C-4"/>
+      <note track="1" row="3" velocity="63" value="G-4"/>
+      <note track="1" row="6" velocity="63" value="C-4"/>
+      <note track="1" row="8" velocity="63" value="E♭4"/>
+      <note track="1" row="12" velocity="63" value="F-4"/>
+      <note track="1" row="14" velocity="63" value="C𝄪4"/>
+      <note track="1" row="17" velocity="63" value="C-4"/>
+    </pattern>
+    <pattern rows="24">
+      <note track="1" row="0" velocity="63" value="C-4"/>
+      <note track="1" row="0" column="1" velocity="63" value="D♯4"/>
+      <note track="1" row="0" column="2" velocity="63" value="F-4"/>
+      <note track="1" row="2" velocity="63" value="C-4"/>
+      <note track="1" row="3" velocity="63" value="G-4"/>
+      <note track="1" row="6" velocity="63" value="C-4"/>
+      <note track="1" row="8" velocity="63" value="D♯4"/>
+      <note track="1" row="12" velocity="63" value="F-4"/>
+      <note track="1" row="14" velocity="63" value="G-4"/>
+      <note track="1" row="17" velocity="63" value="C-4"/>
+    </pattern>
+  </patterns>
+</song>

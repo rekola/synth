@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="31edo" tempo="300" volume="1.0" randomization="0.0099999998">
+  <instruments>
+    <genericInstrument name="Electric Bass (finger)" />
+    <genericInstrument name="Piano" />
+  </instruments>
+  
+  <tracks>
+    <reverb id="100" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle">
+      <track id="0" instrument="0" />
+    </reverb>
+  </tracks>
+  
+  <patterns>
+    <pattern rows="64">
+      <note row="0" track="0" velocity="40" value="F-3"/>
+      <note row="2" track="0" velocity="40" value="Eb3"/>
+      <note row="4" track="0" velocity="40" value="F-3"/>
+      <note row="6" track="0" velocity="40" value="Eb3"/>
+      <note row="10" track="0" velocity="40" value="C-3"/>
+      <note row="12" track="0" column="1" velocity="40" value="C-4"/>
+      <note row="14" track="0" column="1" velocity="40" value="Db4"/>
+    </pattern>
+  </patterns>
+</song>

@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="31edo" tempo="140" volume="1.0" randomization="0.0099999998">
+  <instruments>
+    <envelope attack="0.01" hold="0" decay="1.17" sustain="0" release="0.231" name="Bell">
+      <oscilator type="sine"/>
+    </envelope>
+    
+    <genericInstrument name="Percussion" />
+
+    <envelope name="bass3" attack="0.0011" hold="0" decay="4.00" sustain="0" release="0.231">	
+      <resonantFilter cutmin="1100" cutmax="11000" res="0.1" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">
+	<oscilator type="square" />
+	<multiply unisons="8" detune="10">
+	  <oscilator type="triangle" harmonic="2" />
+	</multiply>
+      </resonantFilter>
+    </envelope>
+
+    <resonantFilter cut="20000" res="4" name="piano1" volume="5">
+      <genericInstrument name="Piano" />
+    </resonantFilter>
+    
+    <resonantFilter cut="20000" res="4" name="piano2">
+      <genericInstrument name="Chateau Grand" />
+    </resonantFilter>
+  </instruments>
+  
+  <tracks>
+    <reverb preset="subtle">
+      <track id="bell" instrument="0"/>
+      <track id="bass" instrument="2"/>
+      <track id="piano" instrument="4"/>
+      <percussionTrack id="perc" instrument="1" />
+    </reverb>
+  </tracks>
+  
+  <patterns>
+    <pattern rows="32">
+      <note track="perc" row="0" velocity="40" delay="60">CH BD</note>
+      <note track="perc" row="2" velocity="40">OFF BD</note>
+      <note track="perc" row="4" velocity="40" delay="60">CH</note>
+      <note track="perc" row="6" velocity="40">CH</note>
+      <note track="perc" row="8" velocity="40" delay="60">CH SD CL</note>
+      <note track="perc" row="10" velocity="40">CH</note>
+      <note track="perc" row="12" velocity="40" delay="60">CH</note>
+      <note track="perc" row="14" velocity="40">BD</note>
+      <note track="perc" row="16" velocity="40" delay="60">CH</note>
+      <note track="perc" row="18" velocity="40">CH BD</note>
+      <note track="perc" row="20" velocity="40" delay="60">CH BD</note>
+      <note track="perc" row="24" velocity="40">CH SD</note>      
+      <note track="perc" row="28" velocity="40" delay="60">CH BD</note>
+      <note track="perc" row="30" velocity="40">CH</note>
+    </pattern>
+    
+    <pattern rows="32">
+      <note track="perc" row="0" velocity="40">BD CH</note>
+      <note track="perc" row="2" velocity="40">BD</note>
+      <note track="perc" row="4" velocity="40">CH</note>
+      <note track="perc" row="6" velocity="40">CH</note>
+      <note track="perc" row="8" velocity="40">SD CH</note>
+      <note track="perc" row="10" velocity="40">CH</note>
+      <note track="perc" row="12" velocity="40">CH</note>
+      <note track="perc" row="14" velocity="40">BD</note>
+      <note track="perc" row="16" velocity="40">CH</note>
+      <note track="perc" row="18" velocity="40">CH BD</note>
+      <note track="perc" row="20" velocity="40">CH BD</note>
+      <note track="perc" row="24" velocity="40">SD CH</note>      
+      <note track="perc" row="28" velocity="40">BD CH</note>
+      <note track="perc" row="30" velocity="40">CH</note>
+    </pattern>
+
+  </patterns>
+</song>

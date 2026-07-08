@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="31edo" tempo="150" volume="1.0" randomization="0.0099999998">
+  <instruments>
+    <envelope attack="0.1" hold="0.519" decay="1.35" sustain="0.0" release="0.015" >
+      <biquadFilter name="biquad test" type="notch" fc="2000" Q="0.707" >
+	<oscilator type="saw"/>
+      </biquadFilter>
+    </envelope>
+    
+    <resonantFilter name="sub test" cut="9000" res="0.9">
+      <multiply unisons="8" detune="10">
+	<oscilator type="triangle" />
+      </multiply>
+    </resonantFilter>
+
+    <distortion name="bass1" param="0.9" drive="1.5" type="hardclip">
+      <envelope attack="0.02" hold="0.519" decay="1.35" sustain="0.0" release="0.015" >
+	<oscilator type="sine" level="2.0">
+	  <oscilator type="sine" harmonic="2" subharmonic="3"/>
+	</oscilator>
+      </envelope>
+    </distortion>
+
+    <distortion name="bass2" param="1.0" type="softclip" drive="15.0">
+      <envelope attack="0.02" hold="0.519" decay="1.35" sustain="0.0" release="0.015">	
+	<resonantFilter cut="2200" res="0.4">
+	  <multiply unisons="8" detune="10">
+	    <oscilator type="saw" />
+	  </multiply>
+	</resonantFilter>
+      </envelope>
+    </distortion>
+
+    <envelope name="bass3" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">	
+      <resonantFilter cutmin="1100" cutmax="11000" res="0.1" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">
+	<oscilator type="square" />
+	<multiply unisons="8" detune="10">
+	  <oscilator type="triangle" harmonic="2" />
+	</multiply>
+      </resonantFilter>
+    </envelope>
+
+    <genericInstrument name="Cello" />
+    
+    <genericInstrument name="Cello">
+      <oscilator type="sine" harmonic="2" subharmonic="3"/>
+    </genericInstrument>
+
+    <oscilator name="oscilator/cello" type="sine">
+      <genericInstrument name="Cello" harmonic="2" subharmonic="3"/>
+    </oscilator>
+
+    <genericInstrument name="Cello">
+      <genericInstrument name="Acoustic Guitar (nylon)" harmonic="2" subharmonic="3" />
+    </genericInstrument>
+
+    <group name="group test">
+      <genericInstrument name="Acoustic Guitar (nylon)" />
+      <genericInstrument name="Piano" />
+    </group>
+
+    <distortion name="distortion test" param="0.25">
+      <genericInstrument name="Rhodes Piano" />
+    </distortion>
+    
+    <resonantFilter cut="2200" res="0.1">
+      <oscilator name="test1" type="saw" />
+    </resonantFilter>
+    <resonantFilter cut="2200" res="0.1">
+      <oscilator name="test2" type="square" />
+    </resonantFilter>
+    
+  </instruments>
+  <tracks>
+    <track id="0" instrument="0" />
+    <track id="1" instrument="1" />
+  </tracks>
+  
+  <patterns>
+    <pattern rows="128">
+      <note row="0" track="0" velocity="40">C-4</note>
+      <note row="2" track="0" velocity="40">D#4</note>
+      <note row="4" track="0" velocity="40">G-4</note>
+      <note row="6" track="0" velocity="40">A-4</note>
+    </pattern>
+  </patterns>
+</song>

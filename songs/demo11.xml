@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="31edo" tempo="100" volume="1.0" randomization="0.0099999998">
+  <instruments>
+    <genericInstrument name="Piano" />
+    <genericInstrument name="Violin" />
+  </instruments>
+  
+  <tracks>
+    <reverb volume="0.5" preset="halves">
+      <track id="0" instrument="0"/>
+      <track id="1" instrument="0"/>
+      <track id="2" instrument="0"/>
+      <resonantFilter cut="5500" res="3.0" volume="0.5">
+	<distortion type="hardclip" param="0.01">
+	  <track id="3" instrument="1" azimuth="30" distance="0" elevation="50" />
+	</distortion>
+      </resonantFilter>
+    </reverb>
+  </tracks>
+  
+  <patterns>
+    <pattern rows="32">
+      <note track="0" row="0" velocity="63" value="C-4"/>
+      
+      <note track="0" row="2" velocity="63" value="D♯4"/>
+      <note track="0" row="4" velocity="63" value="F-4"/>
+      <note track="0" row="6" velocity="63" value="C-5"/>
+      
+      <note track="0" row="8" velocity="63" value="F-4"/>
+      <note track="0" row="10" velocity="63" value="A#4"/>
+      <note track="0" row="12" velocity="63" value="C-5"/>
+      <note track="0" row="14" velocity="63" value="F-5"/>
+      
+      <note track="0" row="16" velocity="63" value="D#4"/>
+      <note track="0" row="18" velocity="63" value="F-4"/>
+      <note track="0" row="20" velocity="63" value="A#4"/>
+      <note track="0" row="22" velocity="63" value="D#5"/>
+
+      <note track="0" row="24" velocity="63" value="C-4"/>
+      <note track="0" row="26" velocity="63" value="D♯4"/>
+      <note track="0" row="28" velocity="63" value="F-4"/>
+      <note track="0" row="30" velocity="63" value="C-5"/>
+    </pattern>
+    <pattern rows="32">
+      <note track="0" row="0" velocity="63" value="C-4"/>
+      <note track="1" row="2" velocity="63" value="D♯4"/>
+      <note track="2" row="4" velocity="63" value="F-4"/>
+      <note track="0" row="6" velocity="63" value="C-5"/>
+      
+      <note track="0" row="8" velocity="63" value="F-4"/>
+      <note track="1" row="10" velocity="63" value="A#4"/>
+      <note track="2" row="12" velocity="63" value="C-5"/>
+      <note track="0" row="14" velocity="63" value="F-5"/>
+      
+      <note track="0" row="16" velocity="63" value="D#4"/>
+      <note track="1" row="18" velocity="63" value="F-4"/>
+      <note track="2" row="20" velocity="63" value="A#4"/>
+      <note track="0" row="22" velocity="63" value="D#5"/>
+
+      <note track="0" row="24" velocity="63" value="C-4"/>
+      <note track="1" row="26" velocity="63" value="D♯4"/>
+      <note track="2" row="28" velocity="63" value="F-4"/>
+      <note track="0" row="30" velocity="63" value="C-5"/>
+    </pattern>
+  </patterns>
+</song>

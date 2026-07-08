@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="31edo" tempo="160" randomization="0.0099999998">
+  <instruments>
+    <amplifier gain="-20">
+      <envelope attack="0.05" decay="2.0" sustain="0" release="0.5" name="epiano">
+	<distortion type="softclip" drive="128">
+	  <resonantFilter cut="5000" res="1">
+	    <multiply unisons="16" detune="5" spread="80">
+	      <oscilator type="triangle" level="0.25" />
+	    </multiply>
+	  </resonantFilter>
+	</distortion>
+      </envelope>
+    </amplifier>
+
+    <amplifier name="Rhodes" gain="-20">
+      <distortion type="softclip" drive="64">
+	<genericInstrument name="Rhodes Piano" />
+      </distortion>
+    </amplifier>
+    
+    <genericInstrument name="Percussion" />
+
+    <genericInstrument name="Chateau Grand" />
+
+    <amplifier gain="20">
+      <envelope attack="1" release="2" name="padtest2">
+	<resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
+	  <multiply unisons="16" detune="10">
+	    <oscilator type="triangle" level="0.25" />
+	  </multiply>
+	</resonantFilter>
+      </envelope>
+    </amplifier>
+  </instruments>
+  
+  <tracks>
+    <reverb preset="subtle">
+      <compressor threshold="-24" ratio="20" knee="15" postgain="-3">
+	<track id="melody" instrument="1" />
+	<amplifier gain="+20">
+	  <percussionTrack id="perc" instrument="2" />
+	</amplifier>
+	<track id="piano" instrument="4" />
+      </compressor>
+    </reverb>
+  </tracks>
+  
+  <patterns>
+    <pattern rows="64">
+      <note row="0" track="melody" velocity="20">C-4 E-4 G-4</note> <note row="0" track="perc" velocity="40">BD SC</note>
+      <note row="4" track="melody" velocity="20">A-3</note>
+      <note row="8" track="melody" velocity="20">C-4</note>
+      <note row="12" track="melody" velocity="20">D-4</note>
+      <note row="16" track="melody" velocity="20">E-4</note>
+      <note row="20" track="melody" velocity="20">F-4</note>
+      <note row="24" track="melody" velocity="20">G-4</note>
+      <note row="28" track="melody" velocity="20">A-4</note>
+
+      <note row="32" track="melody" velocity="20">C-4 E-4 G-4</note>
+      <note row="36" track="melody" velocity="20">A-3</note>
+      <note row="40" track="melody" velocity="20">C-4</note>
+      <note row="44" track="melody" velocity="20">D-4</note>
+
+      <note row="52" track="melody" velocity="20">A-4</note>
+      <note row="56" track="melody" velocity="20">G-4</note> <note row="56" track="perc" velocity="40">SD</note>
+      <note row="60" track="perc" velocity="40">BD</note>
+    </pattern>
+    
+    <pattern rows="64">
+      <note row="0" track="melody" velocity="20">Bb3 D-4 F-4</note> <note row="0" track="perc" velocity="40">BD SC</note>
+
+      <note row="4" track="melody" velocity="20">A-3</note>
+      <note row="8" track="melody" velocity="20">Bb3</note>
+      <note row="12" track="melody" velocity="20">C-4</note>
+      <note row="16" track="melody" velocity="20">D-4</note>
+      <note row="20" track="melody" velocity="20">E-4</note>
+      <note row="24" track="melody" velocity="20">F-4</note>
+      <note row="28" track="melody" velocity="20">G-4</note>
+
+      <note row="32" track="melody" velocity="20">Bb3 D-4 F-4</note>
+      <note row="36" track="melody" velocity="20">A-3</note>
+      <note row="40" track="melody" velocity="20">Bb3</note>
+      <note row="44" track="melody" velocity="20">C-4</note>
+      <note row="48" track="melody" velocity="20">D-4</note>
+      <note row="52" track="melody" velocity="20">E-4</note>
+      <note row="56" track="melody" velocity="20">F-4</note>
+      <note row="60" track="melody" velocity="20">G-4</note>
+    </pattern>
+
+    <pattern rows="128">
+      <note row="0" track="melody" velocity="20">C-4 E-4 G-4</note> <note row="0" track="perc" velocity="40">BD SC</note>
+      <note row="4" track="melody" velocity="20">A-3</note>
+      <note row="8" track="melody" velocity="20">C-4</note>
+      <note row="12" track="melody" velocity="20">D-4</note>
+      <note row="16" track="melody" velocity="20">E-4</note>
+      <note row="20" track="melody" velocity="20">F-4</note>
+      <note row="24" track="melody" velocity="20">G-4</note>
+      <note row="28" track="melody" velocity="20">A-4</note>
+
+      <note row="32" track="melody" velocity="20">Bb3 D-4 F-4</note>
+      <note row="36" track="melody" velocity="20">A-3</note>
+      <note row="40" track="melody" velocity="20">Bb3</note>
+      <note row="44" track="melody" velocity="20">C-4</note>
+      <note row="48" track="melody" velocity="20">D-4</note>
+      <note row="52" track="melody" velocity="20">E-4</note>
+      <note row="56" track="melody" velocity="20">F-4</note>
+      <note row="60" track="melody" velocity="20">G-4</note>
+
+      <note row="64" track="melody" velocity="20">A-3 C-4 E-4</note>
+      <note row="68" track="melody" velocity="20">G-3</note>
+      <note row="72" track="melody" velocity="20">A-3</note>
+      <note row="76" track="melody" velocity="20">Bb3</note>
+      <note row="80" track="melody" velocity="20">C-4</note>
+      <note row="84" track="melody" velocity="20">D-4</note>
+      <note row="88" track="melody" velocity="20">E-4</note>
+      <note row="92" track="melody" velocity="20">F-4</note>      
+    </pattern>
+  </patterns>
+</song>

@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="31edo" tempo="120" volume="1.0" randomization="0.0099999998">
+  <instruments>
+    <genericInstrument name="Percussion" />
+
+    <envelope attack="0.1" release="2" name="padtest2">
+      <resonantFilter cut="20000" res="0">
+	<multiply unisons="4" detune="5">
+	  <oscilator type="saw" level="0.25" />
+	</multiply>
+      </resonantFilter>
+    </envelope>
+
+    <genericInstrument name="Chateau Grand" />   
+
+    <envelope name="riser" attack="3" hold="0" sustain="0" decay="0" release="0">
+      <resonantFilter cutmin="220" cutmax="20000" res="2" attack="3">
+	<noise/>
+      </resonantFilter>
+    </envelope>
+
+  </instruments>
+  
+  <tracks>
+    <reverb preset="subtle">
+      <compressor threshold="-24" ratio="12" knee="12" postgain="-3">
+	<amplifier gain="30">
+	  <distortion type="softclip" drive="16">
+	    <percussionTrack id="perc" instrument="0" />
+	  </distortion>
+	</amplifier>
+	
+	<amplifier gain="-10">
+	  <track id="pad" instrument="1" />
+	</amplifier>
+      </compressor>
+
+      <amplifier gain="10">
+	<resonantFilter cut="10000" res="2">
+	  <percussionTrack id="perc2" instrument="0" />
+	</resonantFilter>
+      </amplifier>
+
+      <percussionTrack id="perc3" instrument="0" />
+
+      <track id="chords" instrument="2" />
+
+      <track id="riser" instrument="3" />
+    </reverb>
+  </tracks>
+  
+  <patterns>
+    <pattern rows="64">
+      <note row="0" track="perc">BD</note> <note row="0" track="chords">F-4 A-4 C-5</note> <note row="0" track="pad">F-4</note> <note row="0" track="riser" velocity="50">OFF</note>
+      <note row="2" track="perc3">CH</note>
+      <note row="4" track="perc">BD</note> <note row="4" track="perc2">SD</note>
+      <note row="6" track="perc3">CH</note>
+      <note row="8" track="perc">BD</note>
+      <note row="10" track="perc3">CH</note>
+      <note row="12" track="perc">BD</note> <note row="12" track="perc2">SD</note>
+      <note row="14" track="perc3">CH</note>
+      <note row="16" track="perc">BD</note> <note row="16" track="chords">C-5 E-5 G-5</note> <note row="16" track="pad">C-5</note>
+      <note row="18" track="perc3">CH</note>
+      <note row="20" track="perc">BD</note> <note row="20" track="perc2">SD</note>
+      <note row="22" track="perc3">CH</note>
+      <note row="24" track="perc">BD</note>
+      <note row="26" track="perc3">CH</note>
+      <note row="28" track="perc">BD</note> <note row="28" track="perc2">SD</note>
+      <note row="30" track="perc3">CH</note> <note row="30" track="perc2">SD</note>
+      <note row="32" track="perc">BD</note> <note row="32" track="chords">E-4 C-5 A-5</note> <note row="32" track="pad">E-4</note> 
+      <note row="34" track="perc3">CH</note>
+      <note row="36" track="perc">BD</note> <note row="36" track="perc2">SD</note>
+      <note row="38" track="perc3">CH</note>
+      <note row="40" track="perc">BD</note>
+      <note row="42" track="perc3">CH</note>
+      <note row="44" track="perc">BD</note> <note row="44" track="perc2">SD</note>
+      <note row="46" track="perc3">CH</note>
+      <note row="48" track="perc">BD</note> <note row="48" track="chords">D-4 F-4 A-4</note> <note row="48" track="pad">D-4</note> <note row="48" track="riser" velocity="50">A-1</note>
+      <note row="50" track="perc3">CH</note>
+      <note row="52" track="perc">BD</note> <note row="52" track="perc2">SD</note>
+      <note row="54" track="perc3">CH</note>
+      <note row="56" track="perc">BD</note>
+      <note row="58" track="perc3">CH</note>
+      <note row="60" track="perc">BD</note> <note row="60" track="perc2">SD</note>
+      <note row="62" track="perc3">CH</note> <note row="62" track="perc2">SD</note>
+    </pattern>
+
+    <pattern rows="64">
+      <note row="0" track="perc">BD</note> <note row="0" track="chords">F-4 A-4 C-5</note> <note row="0" track="pad">F-4</note> <note row="0" track="riser" velocity="50">OFF</note>
+      <note row="2" track="perc3">CH</note>
+      <note row="4" track="perc">BD</note> <note row="4" track="perc2">SD</note>
+      <note row="6" track="perc3">CH</note>
+      <note row="8" track="perc">BD</note>
+      <note row="10" track="perc3">CH</note>
+      <note row="12" track="perc">BD</note> <note row="12" track="perc2">SD</note>
+      <note row="14" track="perc3">CH</note>
+      <note row="16" track="perc">BD</note> <note row="16" track="chords">C-5 E-5 G-5</note> <note row="16" track="pad">C-5</note>
+      <note row="18" track="perc3">CH</note>
+      <note row="20" track="perc">BD</note> <note row="20" track="perc2">SD</note>
+      <note row="22" track="perc3">CH</note>
+      <note row="24" track="perc">BD</note>
+      <note row="26" track="perc3">CH</note>
+      <note row="28" track="perc">BD</note> <note row="28" track="perc2">SD</note>
+      <note row="30" track="perc3">CH</note> <note row="30" track="perc2">SD</note>
+      <note row="32" track="perc">BD</note> <note row="32" track="chords">E-4 C-5 A-5</note> <note row="32" track="pad">E-4</note> 
+      <note row="34" track="perc3">CH</note>
+      <note row="36" track="perc">BD</note> <note row="36" track="perc2">SD</note>
+      <note row="38" track="perc3">CH</note>
+      <note row="40" track="perc">BD</note>
+      <note row="42" track="perc3">CH</note>
+      <note row="44" track="perc">BD</note> <note row="44" track="perc2">SD</note>
+      <note row="46" track="perc3">CH</note>
+      <note row="48" track="perc">BD</note> <note row="48" track="chords">D-4 F-4 A-4</note> <note row="48" track="pad">D-4</note> <note row="48" track="riser" velocity="50">A-1</note>
+      <note row="50" track="perc3">CH</note>
+      <note row="52" track="perc">BD</note> <note row="52" track="perc2">SD</note>
+      <note row="54" track="perc3">CH</note>
+      <note row="56" track="perc">BD</note>
+      <note row="58" track="perc3">CH</note>
+      <note row="60" track="perc">BD</note> <note row="60" track="perc2">SD</note>
+      <note row="62" track="perc3">CH</note> <note row="62" track="perc2">SD</note>
+    </pattern>
+
+    <pattern rows="64">
+      <note row="0" track="perc">BD</note> <note row="0" track="chords">G-4 A#4 C-5</note> <note row="0" track="pad">G-4</note> <note row="0" track="riser" velocity="50">OFF</note>
+      <note row="2" track="perc3">CH</note>
+      <note row="4" track="perc">BD</note> <note row="4" track="perc2">SD</note>
+      <note row="6" track="perc3">CH</note>
+      <note row="8" track="perc">BD</note>
+      <note row="10" track="perc3">CH</note>
+      <note row="12" track="perc">BD</note> <note row="12" track="perc2">SD</note>
+      <note row="14" track="perc3">CH</note>
+      <note row="16" track="perc">BD</note> <note row="16" track="chords">D-4 F-4 A-4</note> <note row="16" track="pad">D-4</note>
+      <note row="18" track="perc3">CH</note>
+      <note row="20" track="perc">BD</note> <note row="20" track="perc2">SD</note>
+      <note row="22" track="perc3">CH</note>
+      <note row="24" track="perc">BD</note>
+      <note row="26" track="perc3">CH</note>
+      <note row="28" track="perc">BD</note> <note row="28" track="perc2">SD</note>
+      <note row="30" track="perc3">CH</note> <note row="30" track="perc2">SD</note>
+      <note row="32" track="perc">BD</note> <note row="32" track="chords">C-4 E-4 G-4</note> <note row="32" track="pad">C-4</note> 
+      <note row="34" track="perc3">CH</note>
+      <note row="36" track="perc">BD</note> <note row="36" track="perc2">SD</note>
+      <note row="38" track="perc3">CH</note>
+      <note row="40" track="perc">BD</note>
+      <note row="42" track="perc3">CH</note>
+      <note row="44" track="perc">BD</note> <note row="44" track="perc2">SD</note>
+      <note row="46" track="perc3">CH</note>
+      <note row="48" track="perc">BD</note> <note row="48" track="chords">D-4 F-4 A-4</note> <note row="48" track="pad">D-4</note> <note row="48" track="riser" velocity="50">A-1</note>
+      <note row="50" track="perc3">CH</note>
+      <note row="52" track="perc">BD</note> <note row="52" track="perc2">SD</note>
+      <note row="54" track="perc3">CH</note>
+      <note row="56" track="perc">BD</note>
+      <note row="58" track="perc3">CH</note>
+      <note row="60" track="perc">BD</note> <note row="60" track="perc2">SD</note>
+      <note row="62" track="perc3">CH</note> <note row="62" track="perc2">SD</note>
+    </pattern>
+
+    <pattern rows="64">
+      <note row="0" track="pad">OFF</note> <note row="0" track="riser" velocity="50">OFF</note>
+    </pattern>
+  </patterns>    
+</song>

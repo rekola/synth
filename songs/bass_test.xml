@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="31edo" tempo="150" volume="1.0" randomization="0.0099999998">
+  <instruments>
+    <distortion name="bass2" param="1.0" type="softclip" drive="15.0">
+      <envelope attack="0.02" hold="0.519" decay="1.35" sustain="0.0" release="0.5">	
+	<resonantFilter cut="2200" res="0.4">
+	  <multiply unisons="8" detune="10">
+	    <oscilator type="saw" />
+	  </multiply>
+	</resonantFilter>
+      </envelope>
+    </distortion>
+
+    <envelope name="bass3" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">	
+      <resonantFilter cutmin="1100" cutmax="11000" res="0.1" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">
+	<oscilator type="square" />
+	<multiply unisons="8" detune="10">
+	  <oscilator type="triangle" harmonic="2" />
+	</multiply>
+      </resonantFilter>
+    </envelope>
+
+    <envelope name="riser" attack="3" hold="0" sustain="0" decay="0" release="0">
+      <resonantFilter cutmin="220" cutmax="20000" res="2" attack="3">
+	<noise />
+      </resonantFilter>
+    </envelope>
+  </instruments>
+  <tracks>
+    <reverb preset="halves">
+      <track id="0" instrument="0" />
+      <track id="1" instrument="1" />
+      <track id="2" instrument="2" />
+    </reverb>
+  </tracks>
+  
+  <patterns>
+    <pattern rows="128">
+      <note row="0" track="0" velocity="40">C-1</note>
+      <note row="6" track="0" velocity="40">F-1</note>
+      <note row="9" track="0" velocity="40">Db1</note>
+      <note row="16" track="0" velocity="40">OFF</note>
+
+      <note row="24" track="0" velocity="40">C-1</note>
+      <note row="30" track="0" velocity="40">F-1</note>
+      <note row="33" track="0" velocity="40">Db1</note>
+      <note row="40" track="0" velocity="40">OFF</note>
+</pattern>
+  </patterns>
+</song>

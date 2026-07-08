@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song key="C" temperament="31edo" tempo="150" volume="1.0" randomization="0.0099999998">
+  <instruments>
+    <genericInstrument name="Piano" />
+
+    <envelope attack="1" release="2" name="padtest2">
+      <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
+	<multiply unisons="16" detune="10">
+	  <oscilator type="saw" level="0.25" />
+	</multiply>
+      </resonantFilter>
+    </envelope>
+
+    <envelope attack="1" release="2" name="simple">
+      <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
+	<multiply unisons="32" detune="10" spread="180">
+	  <oscilator type="saw" level="0.25" />
+	</multiply>
+      </resonantFilter>
+    </envelope>
+
+    <envelope attack="0.5" release="2" name="simple a">
+      <resonantFilter cutmin="550" cutmax="20000" res="0.9">
+	<multiply unisons="32" detune="10" spread="180">
+	  <oscilator type="saw" level="0.25" />
+	</multiply>
+      </resonantFilter>
+    </envelope>
+
+    <multiply unisons="32" detune="10" spread="180" name="Piano group">
+      <genericInstrument name="Piano" />
+    </multiply>
+
+    <genericInstrument name="Piano" />
+  </instruments>
+  
+  <tracks>
+    <reverb preset="stadium">
+      <track id="0" instrument="1" />
+      <track id="1" instrument="1" />
+      <track id="2" instrument="2"/>
+      <track id="3" instrument="3"/>
+      <track id="4" instrument="4"/>
+    </reverb>
+  </tracks>
+  
+  <patterns>
+    <pattern rows="64">     
+      <note row="16" track="0" velocity="40">C-3</note>
+      <note row="16" track="1" velocity="40">C-4 D#4 F-4</note>
+      <note row="16" track="2" velocity="40">F-5</note>
+
+      <note row="32" track="0" velocity="40">Eb3</note>
+      <note row="32" track="1" velocity="40">Eb4 G-4 Bb4</note>
+
+      <note row="48" track="1" velocity="40">C-4</note>
+      <note row="48" track="2" velocity="40">F-4</note>
+    </pattern>
+  </patterns>
+</song>

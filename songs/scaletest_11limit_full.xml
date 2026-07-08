@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="31edo" tempo="200" volume="0.75" randomization="0.0099999998">
+  <instruments>
+    <genericInstrument name="Piano" />
+
+    <envelope attack="0.01" decay="1.0" sustain="0.0" release="3.0" name="padtest2">
+      <resonantFilter cut="1100" res="0.9">
+	<multiply unisons="16" detune="10">
+	  <oscilator type="saw" level="0.25" />
+	</multiply>
+      </resonantFilter>
+    </envelope>
+
+    <envelope attack="0.01" decay="1.0" sustain="0.0" release="0.0" name="padtest2">
+      <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
+	<multiply unisons="16" detune="10">
+	  <oscilator type="saw" level="0.25" />
+	</multiply>
+      </resonantFilter>
+    </envelope>
+</instruments>
+  
+  <tracks>
+    <reverb id="100" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle">
+      <track id="0" instrument="0" />
+    </reverb>
+  </tracks>
+  
+  <patterns>
+    <pattern rows="32">
+      <annotation row="0">C minor + Bb</annotation>
+      <note row="0" track="0" column="0" velocity="40">C-4 E♭4 G-4 Bb4</note>      
+
+      <annotation row="4">C major + Bb</annotation>
+      <note row="4" track="0" column="0" velocity="40">C-4 E-4 G-4 Bb4</note>      
+
+      <annotation row="8">C minor + Ax</annotation>
+      <note row="8" track="0" column="0" velocity="40">C-4 E♭4 G-4 Ax4</note>      
+
+      <annotation row="12">C major + Ax</annotation>
+      <note row="12" track="0" column="0" velocity="40">C-4 E-4 G-4 Ax4</note>
+
+      <annotation row="16">C minor + B</annotation>
+      <note row="16" track="0" column="0" velocity="40">C-4 E♭4 G-4 B-4</note>
+
+      <annotation row="20">C major + B</annotation>
+      <note row="20" track="0" column="0" velocity="40">C-4 E-4 G-4 B-4</note>      
+</pattern>
+  </patterns>
+</song>

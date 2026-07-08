@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song key="C" temperament="31edo" tempo="100" volume="1.0" randomization="0.0099999998">
+  <instruments>
+    <genericInstrument name="Piano" />
+  </instruments>
+  
+  <tracks>
+    <reverb id="100" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle">
+      <track id="0" instrument="0" />
+    </reverb>
+  </tracks>
+  
+  <patterns>
+     <pattern rows="64">
+       <note row="0" track="0" column="0" velocity="40">C-3 G-3 C-4</note>
+       <note row="2" track="0" column="2" velocity="40" value="Eb4"/>
+       <note row="4" track="0" column="2" velocity="40" value="G-4"/>
+       <note row="6" track="0" column="2" velocity="40" value="Eb4"/>
+       <note row="8" track="0" column="2" velocity="40" value="C-4"/>
+       <note row="10" track="0" column="2" velocity="40" value="Eb4"/>
+       <note row="12" track="0" column="2" velocity="40" value="G-4"/>
+       <note row="14" track="0" column="2" velocity="40" value="Eb4"/>
+
+       <note row="16" track="0" column="0" velocity="40">Db3 Ab3 Db4</note>
+       <note row="18" track="0" column="2" velocity="40" value="F-4"/>
+       <note row="20" track="0" column="2" velocity="40" value="Ab4"/>
+       <note row="22" track="0" column="2" velocity="40" value="F-4"/>
+       <note row="24" track="0" column="2" velocity="40" value="Db4"/>
+       <note row="26" track="0" column="2" velocity="40" value="F-4"/>
+       <note row="28" track="0" column="2" velocity="40" value="Ab4"/>
+       <note row="30" track="0" column="2" velocity="40" value="F-4"/>
+
+       <note row="32" track="0" column="0" velocity="40">F-3 C-4 F-4</note>
+       <note row="34" track="0" column="2" velocity="40" value="Ab4"/>
+       <note row="36" track="0" column="2" velocity="40" value="C-5"/>
+       <note row="38" track="0" column="2" velocity="40" value="Ab4"/>
+       <note row="40" track="0" column="2" velocity="40" value="F-4"/>
+       <note row="42" track="0" column="2" velocity="40" value="Ab4"/>
+       <note row="44" track="0" column="2" velocity="40" value="C-5"/>
+       <note row="46" track="0" column="2" velocity="40" value="Ab4"/>
+
+       <annotation row="48">B𝄫3 quartal major</annotation>
+       <note row="48" track="0" column="0" velocity="40">B𝄫3 E𝄫4 B𝄫4</note> 
+       <note row="50" track="0" column="2" velocity="40">C-5</note>
+       <note row="52" track="0" column="2" velocity="40">E𝄫5</note>
+       <note row="54" track="0" column="2" velocity="40">C-5</note>
+       <note row="56" track="0" column="2" velocity="40">B𝄫4</note>
+       <note row="58" track="0" column="2" velocity="40">C-5</note>
+       <note row="60" track="0" column="2" velocity="40">E𝄫5</note>
+       <note row="62" track="0" column="2" velocity="40">C-5</note>
+     </pattern>
+
+     <pattern rows="64">
+       <note row="0" track="0" column="0" velocity="40">C-3 G-3 C-4</note>
+       <note row="2" track="0" column="2" velocity="40" value="Eb4"/>
+       <note row="4" track="0" column="2" velocity="40" value="G-4"/>
+       <note row="6" track="0" column="2" velocity="40" value="Eb4"/>
+       <note row="8" track="0" column="2" velocity="40" value="C-4"/>
+       <note row="10" track="0" column="2" velocity="40" value="Eb4"/>
+       <note row="12" track="0" column="2" velocity="40" value="G-4"/>
+       <note row="14" track="0" column="2" velocity="40" value="Eb4"/>
+
+       <note row="16" track="0" column="0" velocity="40">Db3 Ab3 Db4</note>
+       <note row="18" track="0" column="2" velocity="40" value="F-4"/>
+       <note row="20" track="0" column="2" velocity="40" value="Ab4"/>
+       <note row="22" track="0" column="2" velocity="40" value="F-4"/>
+       <note row="24" track="0" column="2" velocity="40" value="Db4"/>
+       <note row="26" track="0" column="2" velocity="40" value="F-4"/>
+       <note row="28" track="0" column="2" velocity="40" value="Ab4"/>
+       <note row="30" track="0" column="2" velocity="40" value="F-4"/>
+
+       <note row="32" track="0" column="0" velocity="40">F-3 C-4 F-4</note>
+       <note row="34" track="0" column="2" velocity="40" value="Ab4"/>
+       <note row="36" track="0" column="2" velocity="40" value="C-5"/>
+       <note row="38" track="0" column="2" velocity="40" value="Ab4"/>
+       <note row="40" track="0" column="2" velocity="40" value="F-4"/>
+       <note row="42" track="0" column="2" velocity="40" value="Ab4"/>
+       <note row="44" track="0" column="2" velocity="40" value="C-5"/>
+       <note row="46" track="0" column="2" velocity="40" value="Ab4"/>
+      
+       <note row="48" track="0" column="0" velocity="40">B𝄫3 E𝄫4 B𝄫4</note>
+       <note row="50" track="0" column="2" velocity="40">C-5</note>
+       <note row="52" track="0" column="2" velocity="40">E𝄫5</note>
+       <note row="54" track="0" column="2" velocity="40">C-5</note>
+       <note row="56" track="0" column="2" velocity="40">B𝄫4</note>
+       <note row="58" track="0" column="2" velocity="40">C-5</note>
+       <note row="60" track="0" column="2" velocity="40">E𝄫5</note>
+       <note row="62" track="0" column="2" velocity="40">C-5</note>
+     </pattern>
+
+     <pattern rows="64">
+       <note row="0" track="0" column="0" velocity="40">Ab3 Eb3 Ab4</note>
+       <note row="2" track="0" column="2" velocity="40">C-5</note>
+       <note row="4" track="0" column="2" velocity="40">Eb5</note>
+       <note row="6" track="0" column="2" velocity="40">C-5</note>
+       <note row="8" track="0" column="2" velocity="40">Ab4</note>
+       <note row="10" track="0" column="2" velocity="40">C-5</note>
+       <note row="12" track="0" column="2" velocity="40">Eb5</note>
+       <note row="14" track="0" column="2" velocity="40">C-5</note>
+
+       <note row="16" track="0" column="0" velocity="40">B𝄫3 E𝄫4 B𝄫4</note>
+       <note row="18" track="0" column="2" velocity="40">C-5</note>
+       <note row="20" track="0" column="2" velocity="40">E𝄫5</note>
+       <note row="22" track="0" column="2" velocity="40">C-5</note>
+       <note row="24" track="0" column="2" velocity="40">B𝄫4</note>
+       <note row="26" track="0" column="2" velocity="40">C-5</note>
+       <note row="28" track="0" column="2" velocity="40">E𝄫5</note>
+       <note row="30" track="0" column="2" velocity="40">C-5</note>
+       
+       <note row="32" track="0" column="0" velocity="40">Ab3 Eb3 Ab4</note>
+       <note row="34" track="0" column="2" velocity="40">C-5</note>
+       <note row="36" track="0" column="2" velocity="40">Eb5</note>
+       <note row="38" track="0" column="2" velocity="40">C-5</note>
+       <note row="40" track="0" column="2" velocity="40">Ab4</note>
+       <note row="42" track="0" column="2" velocity="40">C-5</note>
+       <note row="44" track="0" column="2" velocity="40">Eb5</note>
+       <note row="46" track="0" column="2" velocity="40">C-5</note>
+
+       <note row="48" track="0" column="0" velocity="40">B𝄫3 E𝄫4 B𝄫4</note>
+       <note row="50" track="0" column="2" velocity="40">C-5</note>
+       <note row="52" track="0" column="2" velocity="40">E𝄫5</note>
+       <note row="54" track="0" column="2" velocity="40">C-5</note>
+       <note row="56" track="0" column="2" velocity="40">B𝄫4</note>
+       <note row="58" track="0" column="2" velocity="40">C-5</note>
+       <note row="60" track="0" column="2" velocity="40">E𝄫5</note>
+       <note row="62" track="0" column="2" velocity="40">C-5</note>
+     </pattern>
+
+     <pattern rows="64">
+       <note row="0" track="0" column="0" velocity="40">Ab3 Eb3 Ab4</note>
+       <note row="2" track="0" column="2" velocity="40">C-5</note>
+       <note row="4" track="0" column="2" velocity="40">Eb5</note>
+       <note row="6" track="0" column="2" velocity="40">C-5</note>
+       <note row="8" track="0" column="2" velocity="40">Ab4</note>
+       <note row="10" track="0" column="2" velocity="40">C-5</note>
+       <note row="12" track="0" column="2" velocity="40">Eb5</note>
+       <note row="14" track="0" column="2" velocity="40">C-5</note>
+
+       <note row="16" track="0" column="0" velocity="40">B𝄫3 E𝄫4 B𝄫4</note>
+       <note row="18" track="0" column="2" velocity="40">C-5</note>
+       <note row="20" track="0" column="2" velocity="40">E𝄫5</note>
+       <note row="22" track="0" column="2" velocity="40">C-5</note>
+       <note row="24" track="0" column="2" velocity="40">B𝄫4</note>
+       <note row="26" track="0" column="2" velocity="40">C-5</note>
+       <note row="28" track="0" column="2" velocity="40">E𝄫5</note>
+       <note row="30" track="0" column="2" velocity="40">C-5</note>
+       
+       <note row="32" track="0" column="0" velocity="40">Ab3 Eb3 Ab4</note>
+       <note row="34" track="0" column="2" velocity="40">C-5</note>
+       <note row="36" track="0" column="2" velocity="40">Eb5</note>
+       <note row="38" track="0" column="2" velocity="40">C-5</note>
+       <note row="40" track="0" column="2" velocity="40">Ab4</note>
+       <note row="42" track="0" column="2" velocity="40">C-5</note>
+       <note row="44" track="0" column="2" velocity="40">Eb5</note>
+       <note row="46" track="0" column="2" velocity="40">C-5</note>
+
+       <note row="48" track="0" column="0" velocity="40">B𝄫3 E𝄫4 B𝄫4</note>
+       <note row="50" track="0" column="2" velocity="40">C-5</note>
+       <note row="52" track="0" column="2" velocity="40">E𝄫5</note>
+       <note row="54" track="0" column="2" velocity="40">C-5</note>
+       <note row="56" track="0" column="2" velocity="40">B𝄫4</note>
+       <note row="58" track="0" column="2" velocity="40">C-5</note>
+       <note row="60" track="0" column="2" velocity="40">E𝄫5</note>
+       <note row="62" track="0" column="2" velocity="40">C-5</note>
+     </pattern>
+   </patterns>
+</song>
