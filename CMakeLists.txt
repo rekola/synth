@@ -53,6 +53,7 @@ add_library(synth_engine STATIC
 	Arpeggiator.cpp
 	LFO.cpp
 	OfflineRenderer.cpp
+	PatternBlockOps.cpp
 )
 target_include_directories(synth_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(synth_engine PUBLIC m sndfile fmt fftw3 pthread)

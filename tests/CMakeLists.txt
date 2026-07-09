@@ -5,6 +5,7 @@ add_executable(synth_tests
 	TunerTests.cpp
 	RenderTests.cpp
 	ControllerTests.cpp
+	PatternBlockOpsTests.cpp
 )
 
 target_link_libraries(synth_tests synth_engine)

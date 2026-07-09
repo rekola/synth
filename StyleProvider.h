@@ -15,6 +15,9 @@ class StyleProvider {
   UIColor window_accent_bg_color = "#292929";
 
   UIColor command_column_color = "#c67610";
+
+  UIColor selection_fg_color = "#e0e8ff";
+  UIColor selection_bg_color = "#35507a";
 };
 
 #endif

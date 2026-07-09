@@ -9,8 +9,10 @@
 #include "SampleTrack.h"
 #include "MidiEvent.h"
 #include "PlaybackControlEvent.h"
+#include "LogEvent.h"
 
 #include <string>
+#include <algorithm>
 #include <fmt/core.h>
 
 #include <iostream>
@@ -92,6 +94,11 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   auto score_pattern = info.getPatternIndex();
   auto score_playing_row = info.getRowIndex();
   auto & song = getController().getSong();
+
+  if (selection_active_ && selection_start_pattern_ != score_pattern) {
+    selection_active_ = false;
+    getController().getUIEventQueue().push(make_unique<LogEvent>("Selection cleared: crossed pattern boundary"));
+  }
   
   auto track_info = getTrackInformation(song);
 
@@ -130,11 +137,19 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
     }
   }
 
+  bool selection_changed = selection_active_ != current_selection_active_ ||
+      (selection_active_ && (selection_start_pattern_ != current_selection_start_pattern_ ||
+			     selection_start_row_ != current_selection_start_row_ ||
+			     selection_start_track_ != current_selection_start_track_ ||
+			     score_playing_row != current_score_playing_row ||
+			     new_cursor.track != current_cursor.track));
+
   if (score_pattern != current_score_pattern ||
       song.getVersion() != current_song_version ||
       score_total_columns != current_score_total_columns ||
       new_scroll_row != current_scroll_row ||
-      new_scroll_track != current_scroll_track
+      new_scroll_track != current_scroll_track ||
+      selection_changed
       ) {
     render_all = true;
   }
@@ -184,6 +199,11 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   current_score_total_columns = score_total_columns;
   current_song_version = song.getVersion();
   row_edited = false;
+
+  current_selection_active_ = selection_active_;
+  current_selection_start_pattern_ = selection_start_pattern_;
+  current_selection_start_row_ = selection_start_row_;
+  current_selection_start_track_ = selection_start_track_;
   
   return need_redraw;
 }
@@ -298,7 +318,43 @@ PatternEditor::offerInput(const InputEvent & input) {
     }
   } else if (input.hasCtrl() && !input.hasMeta()) {
     if (input.getId() == ' ') {
-      // setStatus("marking");
+      selection_start_pattern_ = info.getPatternIndex();
+      selection_start_row_ = info.getRowIndex();
+      selection_start_track_ = current_cursor.track;
+      selection_active_ = true;
+      getController().getUIEventQueue().push(make_unique<LogEvent>("Mark set"));
+      return true;
+    } else if (input.getId() == 'w') {
+      if (selection_active_ && selection_start_pattern_ == info.getPatternIndex()) {
+	auto & pattern = song.getPattern(info.getPatternIndex());
+	auto row_lo = min(selection_start_row_, info.getRowIndex());
+	auto row_hi = max(selection_start_row_, info.getRowIndex());
+	auto track_lo = min(selection_start_track_, current_cursor.track);
+	auto track_hi = max(selection_start_track_, current_cursor.track);
+	clipboard_ = copyPatternBlock(pattern, row_lo, row_hi, track_ids, track_lo, track_hi);
+	clearPatternBlock(pattern, row_lo, row_hi, track_ids, track_lo, track_hi);
+	song.incVersion();
+	selection_active_ = false;
+	// move point to the start of the killed region, matching Emacs
+	// kill-region, so an immediate yank restores it exactly in place
+	event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, row_lo - info.getRowIndex()));
+	new_cursor.track = track_lo;
+	new_cursor.col = new_cursor.subcol = 0;
+	getController().getUIEventQueue().push(make_unique<LogEvent>("Region killed"));
+      } else {
+	getController().getUIEventQueue().push(make_unique<LogEvent>("No selection"));
+      }
+      return true;
+    } else if (input.getId() == 'y') {
+      if (!clipboard_.empty()) {
+	auto & pattern = song.getPattern(info.getPatternIndex());
+	pastePatternBlock(pattern, clipboard_, info.getRowIndex(), track_ids, current_cursor.track);
+	song.incVersion();
+	getController().getUIEventQueue().push(make_unique<LogEvent>("Yanked"));
+      } else {
+	getController().getUIEventQueue().push(make_unique<LogEvent>("Clipboard empty"));
+      }
+      return true;
     } else if (input.getId() == 'r') {
       int track_id;
       auto sample = getController().startRecording();
@@ -328,7 +384,10 @@ PatternEditor::offerInput(const InputEvent & input) {
     } else if (input.getId() == 't') {
       song.addTrack(make_unique<InstrumentTrack>(0));
     } else if (input.getId() == 'g') {
-      // create group
+      if (selection_active_) {
+	selection_active_ = false;
+	getController().getUIEventQueue().push(make_unique<LogEvent>("Mark deactivated"));
+      }
       return true;
     } else if (input.getId() == 'd') {
       // duplicate track
@@ -376,6 +435,20 @@ PatternEditor::offerInput(const InputEvent & input) {
       return true;
     } else if (input.getId() == NCKEY_RIGHT) {
       // move selected track to right
+      return true;
+    } else if (input.getId() == 'w') {
+      if (selection_active_ && selection_start_pattern_ == info.getPatternIndex()) {
+	auto & pattern = song.getPattern(info.getPatternIndex());
+	auto row_lo = min(selection_start_row_, info.getRowIndex());
+	auto row_hi = max(selection_start_row_, info.getRowIndex());
+	auto track_lo = min(selection_start_track_, current_cursor.track);
+	auto track_hi = max(selection_start_track_, current_cursor.track);
+	clipboard_ = copyPatternBlock(pattern, row_lo, row_hi, track_ids, track_lo, track_hi);
+	selection_active_ = false;
+	getController().getUIEventQueue().push(make_unique<LogEvent>("Region copied"));
+      } else {
+	getController().getUIEventQueue().push(make_unique<LogEvent>("No selection"));
+      }
       return true;
     }
   } else if (!input.hasMeta()) {
@@ -709,7 +782,16 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       bg = bg.blend(0.75f, black);
       fg = fg.blend(0.75f, black);
     }
-            
+
+    bool in_selection = selection_active_ &&
+      selection_start_pattern_ == pattern_idx &&
+      i >= min(selection_start_track_, current_cursor.track) && i <= max(selection_start_track_, current_cursor.track) &&
+      pattern_row >= min(selection_start_row_, info.getRowIndex()) && pattern_row <= max(selection_start_row_, info.getRowIndex());
+    if (in_selection) {
+      fg = styles.selection_fg_color;
+      bg = styles.selection_bg_color;
+    }
+
     if (i == -1) {
       setFgColor(fg);
       setBgColor(bg);
@@ -737,8 +819,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	}
 	bool column_highlighted = highlight && current_cursor.isHighlighted(i, k);
 	if (column_highlighted) {
-	  cell_fg = UIColor("#000000");
-	  cell_bg = UIColor("#a0ffa0");
+	  cell_fg = styles.highlight_fg_color;
+	  cell_bg = styles.highlight_bg_color;
 	  setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 	} else {

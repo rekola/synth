@@ -55,6 +55,13 @@ Options: `--samplerate N`, `--mono | --stereo | --surround`, `--demo [n]`.
 **Space** toggles playback, Ctrl-Q quits, Ctrl-N creates a new song.
 `docs/commands.txt` lists the pattern effect commands (slides, vibrato, …).
 
+Pattern editor selection uses Emacs keybindings: **C-SPC** sets the mark
+(selection start), **C-w** kills (cuts) the marked block, **M-w** copies it,
+**C-y** yanks (pastes) the clipboard at the cursor, **C-g** cancels the
+selection. The selection is a rectangular row×track block — moving the
+cursor normally while marked extends it; it always carries every column
+(note, velocity, delay, effect command) for each selected cell.
+
 Instruments are resolved from a General MIDI SoundFont, discovered
 automatically (`findDefaultSoundFont()` in `Controller.cpp`): a project-local
 `data/FluidR3_GM.sf2` override first, then well-known GM fonts by name in
