@@ -55,12 +55,24 @@ Options: `--samplerate N`, `--mono | --stereo | --surround`, `--demo [n]`.
 **Space** toggles playback, Ctrl-Q quits, Ctrl-N creates a new song.
 `docs/commands.txt` lists the pattern effect commands (slides, vibrato, …).
 
-Pattern editor selection uses Emacs keybindings: **C-SPC** sets the mark
-(selection start), **C-w** kills (cuts) the marked block, **M-w** copies it,
-**C-y** yanks (pastes) the clipboard at the cursor, **C-g** cancels the
-selection. The selection is a rectangular row×track block — moving the
-cursor normally while marked extends it; it always carries every column
-(note, velocity, delay, effect command) for each selected cell.
+Pattern editor selection uses Emacs keybindings: **C-SPC** (or **C-b**, see
+below) sets the mark (selection start), **C-w** kills (cuts) the marked
+block, **M-w** copies it, **C-y** yanks (pastes) the clipboard at the
+cursor, **C-g** cancels the selection. The selection is a rectangular
+row×track block — moving the cursor normally while marked extends it; it
+always carries every column (note, velocity, delay, effect command) for
+each selected cell.
+
+`C-SPC` doesn't register on every terminal: its legacy encoding is a
+literal NUL byte, which notcurses's input decoder silently drops instead of
+turning into a keystroke (confirmed with the `notcurses-input` diagnostic
+tool) — it only works via the modern Kitty keyboard protocol (kitty, foot,
+wezterm, ghostty, …). GNOME Terminal (Ubuntu's default) doesn't support
+that protocol, so `C-SPC` does nothing there. `C-@` doesn't help either —
+it's byte-for-byte identical to `C-SPC` (both mask down to NUL), not a
+distinct keystroke. Use **C-b** ("begin selection", already envisioned for
+this in `todo.txt`) instead — an ordinary control byte that works on any
+terminal.
 
 Instruments are resolved from a General MIDI SoundFont, discovered
 automatically (`findDefaultSoundFont()` in `Controller.cpp`): a project-local

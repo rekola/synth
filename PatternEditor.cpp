@@ -317,7 +317,13 @@ PatternEditor::offerInput(const InputEvent & input) {
       return true;
     }
   } else if (input.hasCtrl() && !input.hasMeta()) {
-    if (input.getId() == ' ') {
+    if (input.getId() == ' ' || input.getId() == 'b') {
+      // 'b' ("begin selection", see todo.txt) is an alias for C-SPC: on many
+      // terminals (e.g. GNOME Terminal / VTE) Ctrl-Space's legacy encoding
+      // is a literal NUL byte, which notcurses's input decoder drops
+      // entirely rather than turning into a keystroke - it only reaches the
+      // app via the modern Kitty keyboard protocol. C-b always works since
+      // it's an ordinary, unambiguous control byte.
       selection_start_pattern_ = info.getPatternIndex();
       selection_start_row_ = info.getRowIndex();
       selection_start_track_ = current_cursor.track;
