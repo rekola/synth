@@ -82,9 +82,13 @@ UI::offerInput(const InputEvent & input) {
   bool handled = false;
   
   if (input.getId() == NCKEY_RESIZE) {
+    // notcurses_refresh() is what makes notcurses acknowledge the terminal's
+    // new dimensions (they're otherwise stale until this is called); it
+    // must run before anything queries plane sizes or lays out against them.
+    refresh();
     getPlane().refresh();
     layout();
-    refresh();
+    renderComponents(true);
   } else if (input.hasCtrl() && input.getId() == 'l') {
     refresh();
   } else if (input.hasCtrl() && input.getId() == 'q') {
