@@ -285,8 +285,16 @@ public:
       // resizes for the chart's whole lifetime, give the plot a dedicated,
       // disposable child plane instead of handing away our own.
       auto [rows, cols] = getDim();
+      auto [y, x] = getPosition();
       plot_plane_ = getPlane().createChild();
+      // createChild()'s underlying Plane ctor has no parent-plane argument -
+      // it places the new plane at (0,0) in the standard plane's coordinate
+      // space, not relative to our own (already correctly positioned)
+      // plane. Reposition it explicitly to match, or it always ends up at
+      // whatever raw (0,0) createChild() hardcodes regardless of where this
+      // chart actually is on screen.
       plot_plane_->resize(rows, cols);
+      plot_plane_->move(y, x);
 
       auto & tplane = dynamic_cast<TerminalPlane&>(*plot_plane_);
       tplane.setOwning(false);
