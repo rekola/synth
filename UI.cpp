@@ -141,24 +141,35 @@ UI::setStatus(std::string s) {
 
 void
 UI::handlePlaybackEvent(PlaybackEvent & ev) {
-  getController().setPlaybackInfo(ev.getInfo());
+  getController().setPlaybackInfo(ev.getInfo()); // cheap; always keep song position current
 
-  if (!ev.getFFT().empty()) {
-    chart_->displayFFT(ev.getFFT());
-  }
+  // If a newer PlaybackEvent is already queued behind this one, this one's
+  // visual result is about to be immediately overwritten - skip the
+  // comparatively expensive chart/meter update work for it. Doesn't change
+  // what eventually gets rendered (the last event in a batch always won
+  // anyway, via plain overwrite); it only avoids redoing that work once per
+  // superseded event during a catch-up burst, so the app catches up faster
+  // instead of falling further behind.
+  bool superseded = getController().getUIEventQueue().hasEvents();
+  if (!superseded) {
+    if (!ev.getFFT().empty()) {
+      chart_->displayFFT(ev.getFFT());
+    }
 
-  if (ev.getLoudness().size() == 2) {
+    if (ev.getLoudness().size() == 2) {
 #if 0
-    auto left = 20*log10(ev.getLoudness()[0] / 20);
-    auto right = 20*log10(ev.getLoudness()[1] / 20);
+      auto left = 20*log10(ev.getLoudness()[0] / 20);
+      auto right = 20*log10(ev.getLoudness()[1] / 20);
 #else
-    auto left = ev.getLoudness()[0];
-    auto right = ev.getLoudness()[1];
+      auto left = ev.getLoudness()[0];
+      auto right = ev.getLoudness()[1];
 #endif
-    volume_meter_->setSample(0, left);
-    volume_meter_->setSample(1, right);
+      volume_meter_->setSample(0, left);
+      volume_meter_->setSample(1, right);
+    }
+    volume_meter_->commit(); // chart_'s own commit() already runs inside displayFFT()
   }
-    
+
   ev.redraw();
 }
 

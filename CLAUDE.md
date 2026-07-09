@@ -74,6 +74,23 @@ distinct keystroke. Use **C-b** ("begin selection", already envisioned for
 this in `todo.txt`) instead — an ordinary control byte that works on any
 terminal.
 
+The FFT spectrum/volume-meter charts (`Chart`/`TerminalChart`/
+`TerminalPixelChart`, `Chart.h`/`TerminalUI.cpp`) render via real pixel
+graphics (sixel/Kitty graphics/iTerm2, whichever the terminal negotiates)
+when `notcurses_check_pixel_support()` reports support, falling back to
+`ncplot`'s braille dots otherwise — chosen once at startup via a small
+factory in `TerminalUI::initialize()`. `TerminalChart`'s underlying `ncplot`
+widget takes ownership of (and destroys) whatever `ncplane` it's given, so
+on resize it's given a fresh disposable child plane rather than reusing the
+chart's own; giving it the chart's own plane instead would destroy the
+chart's screen real estate the next time the plot gets torn down (confirmed
+via a standalone reproduction — resizing a plane after destroying its
+`ncdplot` segfaults). Both a stale-geometry-on-resize bug and the pixel
+renderer's chunked-frame verification were confirmed with a pty+notcurses
+test harness (drive real notcurses through a pty, answer its capability
+queries, feed keystrokes as raw bytes or Kitty CSI-u sequences) rather than
+by inspection alone.
+
 Instruments are resolved from a General MIDI SoundFont, discovered
 automatically (`findDefaultSoundFont()` in `Controller.cpp`): a project-local
 `data/FluidR3_GM.sf2` override first, then well-known GM fonts by name in

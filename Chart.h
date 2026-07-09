@@ -34,9 +34,19 @@ class Chart : public UIElement {
 	setSample(i, bins[i]);
       }
     }
+
+    commit();
   }
 
   virtual void setSample(int i, double v) = 0;
+
+  // Called once after a full update (displayFFT()'s setSample() loop, or
+  // directly by callers driving setSample() themselves, e.g. a volume
+  // meter). No-op for renderers that draw immediately per-sample (ncplot);
+  // renderers that batch a full-buffer redraw (pixel/sixel) override this
+  // to do the actual expensive build-and-blit work exactly once per update
+  // instead of once per sample.
+  virtual void commit() { }
 
   ChartType getType() const { return type_; }
 

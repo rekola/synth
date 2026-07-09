@@ -48,6 +48,7 @@ class UIElement : public EventHandler {
   }
   UIElement & resize(int rows, int cols) {
     if (plane_) plane_->resize(rows, cols);
+    onResize();
     return *this;
   }
   UIElement & erase() {
@@ -96,6 +97,14 @@ class UIElement : public EventHandler {
 protected:
   void setPlane(std::unique_ptr<UIPlane> plane) { plane_ = std::move(plane); }
   UIPlane & getPlane() { return *plane_; }
+
+  // Called after every resize() (including the initial construction-time
+  // resize/move calls in UI::layout()), so subclasses that cache geometry-
+  // dependent state (e.g. a notcurses plot/visual object) can invalidate it.
+  // `resize()` is not virtual (it's called through Chart*/UIElement*-typed
+  // handles in UI.cpp), so this hook exists specifically to still reach
+  // subclass-specific behavior on resize.
+  virtual void onResize() { }
   
 private:
   std::unique_ptr<UIPlane> plane_;

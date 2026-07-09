@@ -23,6 +23,7 @@
 #include <ncpp/Reader.hh>
 #include <ncpp/Menu.hh>
 #include <ncpp/Selector.hh>
+#include <ncpp/Visual.hh>
 
 #include <poll.h>
 
@@ -277,9 +278,19 @@ public:
 
   void setSample(int i, double v) override {
     if (!plot_) {
-      auto & tplane = dynamic_cast<TerminalPlane&>(getPlane());
+      // ncdplot_create()/ncdplot_destroy() take ownership of the ncplane
+      // passed in and destroy it together with the plot (confirmed
+      // empirically: resizing the plane after destroying the plot
+      // segfaults). Since this chart's own plane (getPlane()) must survive
+      // resizes for the chart's whole lifetime, give the plot a dedicated,
+      // disposable child plane instead of handing away our own.
+      auto [rows, cols] = getDim();
+      plot_plane_ = getPlane().createChild();
+      plot_plane_->resize(rows, cols);
+
+      auto & tplane = dynamic_cast<TerminalPlane&>(*plot_plane_);
       tplane.setOwning(false);
-      
+
       ncplot_options opts;
       memset(&opts, 0, sizeof(opts));
       opts.flags = 0
@@ -289,20 +300,90 @@ public:
 	;
       opts.gridtype = getType() == DOTS ? NCBLIT_BRAILLE : NCBLIT_2x2;
       // opts.gridtype = NCBLIT_8x1;
-      
+
       opts.minchannels = NCCHANNELS_INITIALIZER(0x80, 0x80, 0xff, 0x20, 0x10, 0x20);
       ncchannels_set_bg_alpha(&opts.minchannels, NCALPHA_BLEND);
       opts.maxchannels = NCCHANNELS_INITIALIZER(0x80, 0xff, 0x80, 0x20, 0x10, 0x20);
       ncchannels_set_bg_alpha(&opts.maxchannels, NCALPHA_BLEND);
-      
+
       plot_ = std::make_shared<PlotD>(tplane.getPlane(), &opts);
     }
 
     plot_->set_sample(i, v);
   }
-  
+
+protected:
+  void onResize() override {
+    plot_.reset();       // destroys the ncdplot, which destroys plot_plane_'s ncplane too
+    plot_plane_.reset();  // drop our now-hollow wrapper (owner=false, so no double-free)
+    // next setSample() lazily rebuilds both against the new dimensions
+  }
+
 private:
   std::shared_ptr<PlotD> plot_;
+  std::unique_ptr<UIPlane> plot_plane_;
+};
+
+// Renders via notcurses's ncvisual/pixel-graphics subsystem (sixel/kitty-
+// graphics/iTerm2, whichever the terminal supports) instead of ncplot's
+// braille/block glyphs, for much higher effective resolution. Buffers
+// samples cheaply per setSample() call and does the actual RGBA-build-and-
+// blit work once per commit(), directly onto this chart's own plane (no
+// widget/plane-ownership landmine like TerminalChart's ncplot - ncvisual
+// blitting draws onto an existing plane, it doesn't adopt/destroy it).
+class TerminalPixelChart : public Chart {
+public:
+  TerminalPixelChart(UIPlane & parent, ChartType type, double min_y = 0.0, double max_y = 0.0) : Chart(parent, type, min_y, max_y) { }
+
+  void setSample(int i, double v) override {
+    if (i >= static_cast<int>(samples_.size())) samples_.resize(i + 1);
+    samples_[i] = v;
+  }
+
+  void commit() override {
+    if (samples_.empty()) return;
+
+    auto & tplane = dynamic_cast<TerminalPlane&>(getPlane());
+    auto native_plane = tplane.getPlane().to_ncplane();
+
+    unsigned pxy = 0, pxx = 0;
+    ncplane_pixel_geom(native_plane, &pxy, &pxx, nullptr, nullptr, nullptr, nullptr);
+    if (pxy == 0 || pxx == 0) return;
+
+    vector<uint32_t> buffer(static_cast<size_t>(pxy) * pxx, 0); // 0 alpha = transparent
+
+    auto range = max_y_ - min_y_;
+    auto num_samples = samples_.size();
+    for (unsigned x = 0; x < pxx; x++) {
+      auto sample_idx = min(static_cast<size_t>(x) * num_samples / pxx, num_samples - 1);
+      auto v = samples_[sample_idx];
+      auto frac = range > 0 ? (v - min_y_) / range : 0.0;
+      if (frac < 0) frac = 0;
+      else if (frac > 1) frac = 1;
+      auto bar_height = static_cast<unsigned>(frac * pxy);
+
+      for (unsigned y = 0; y < bar_height; y++) {
+	// dim blue-ish at the bottom (quiet) to green at the top (loud),
+	// matching TerminalChart's existing min/max channel colors.
+	double t = pxy > 1 ? static_cast<double>(y) / (pxy - 1) : 0.0;
+	uint8_t r = static_cast<uint8_t>(0x80);
+	uint8_t g = static_cast<uint8_t>(0x80 * (1 - t) + 0xff * t);
+	uint8_t b = static_cast<uint8_t>(0xff * (1 - t) + 0x80 * t);
+	unsigned py = pxy - 1 - y; // bars grow upward from the bottom
+	buffer[py * pxx + x] = (0xffu << 24) | (static_cast<uint32_t>(b) << 16) | (static_cast<uint32_t>(g) << 8) | r;
+      }
+    }
+
+    ncpp::Visual visual(buffer.data(), static_cast<int>(pxy), static_cast<int>(pxx * 4), static_cast<int>(pxx));
+    ncvisual_options vopts{};
+    vopts.n = native_plane;
+    vopts.scaling = NCSCALE_NONE;
+    vopts.blitter = NCBLIT_PIXEL;
+    visual.blit(&vopts);
+  }
+
+private:
+  std::vector<double> samples_;
 };
   
 void
@@ -315,9 +396,14 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   fill();
 
   menu_ = make_shared<TerminalMenu>();
-  
-  chart_ = make_shared<TerminalChart>(getPlane(), Chart::DOTS);
-  volume_meter_ = make_shared<TerminalChart>(getPlane(), Chart::DOTS, -100, 0);
+
+  bool use_pixel = notcurses_check_pixel_support(*nc) != NCPIXEL_NONE;
+  auto make_chart = [&](Chart::ChartType type, double min_y, double max_y) -> shared_ptr<Chart> {
+    if (use_pixel) return make_shared<TerminalPixelChart>(getPlane(), type, min_y, max_y);
+    else return make_shared<TerminalChart>(getPlane(), type, min_y, max_y);
+  };
+  chart_ = make_chart(Chart::DOTS, 0.0, 0.0);
+  volume_meter_ = make_chart(Chart::DOTS, -100, 0);
 
   UI::initialize();
   
