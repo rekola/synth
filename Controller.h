@@ -8,6 +8,7 @@
 #include "PlaybackInfo.h"
 #include "ChannelConfiguration.h"
 
+#include <functional>
 #include <memory>
 #include <string>
 
@@ -27,6 +28,12 @@ class Controller {
   
   void loadDemo2();
   bool sendCommand(std::string_view s);
+
+  // Lets the UI layer (which Controller, part of the headless-testable
+  // synth_engine lib, must not depend on) supply a fallback for command
+  // names sendCommand() doesn't recognize itself - e.g. per-widget Emacs
+  // commands like "set-mark" that live in a UIElement's CommandRegistry.
+  void setCommandFallback(std::function<bool(std::string_view)> fn) { command_fallback_ = std::move(fn); }
 
   std::shared_ptr<SampleData> startRecording() {
     current_sample = std::make_shared<SampleData>(1, 0);
@@ -64,6 +71,7 @@ class Controller {
   EventQueue ui_event_queue, playback_event_queue;
   PlaybackInfo playback_info;
   int recording_track_id = 0;
+  std::function<bool(std::string_view)> command_fallback_;
 
   static inline SampleData empty_sample;
 };

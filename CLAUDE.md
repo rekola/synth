@@ -52,7 +52,9 @@ leak was confirmed this way).
 
 Needs a real terminal (notcurses full-screen UI) and an ALSA output device.
 Options: `--samplerate N`, `--mono | --stereo | --surround`, `--demo [n]`.
-**Space** toggles playback, Ctrl-Q quits, Ctrl-N creates a new song.
+**Space** toggles playback, Ctrl-Q quits, Ctrl-N creates a new song,
+**Ctrl-K** opens the M-x command minibuffer (reliable on any terminal; see
+below for why it exists alongside Esc-x/Alt-x).
 `docs/commands.txt` lists the pattern effect commands (slides, vibrato, …).
 
 Pattern editor selection uses Emacs keybindings: **C-SPC** (or **C-b**, see
@@ -73,6 +75,44 @@ it's byte-for-byte identical to `C-SPC` (both mask down to NUL), not a
 distinct keystroke. Use **C-b** ("begin selection", already envisioned for
 this in `todo.txt`) instead — an ordinary control byte that works on any
 terminal.
+
+Keybinding dispatch is centralized, Emacs-style (v1, partial): `KeyChord.h`/
+`Keymap.h`/`CommandRegistry.h` provide a chord→command-name→callable lookup,
+and `UIElement::dispatchCommand()` runs it. Widgets populate their own
+`keymap_`/`commands_` in their constructor (see `PatternEditor`'s 5 selection
+commands and `UI`'s `quit`/`new-song`/`toggle-playing`) and call
+`dispatchCommand(input)` early in their `offerInput()` override; anything
+not bound falls through to the widget's existing manual `offerInput` logic
+unchanged. `StatusLine`'s M-x minibuffer still calls
+`Controller::sendCommand()`, which now falls back (via
+`Controller::setCommandFallback()`, wired once in `UI::initialize()`) to
+`UI::executeCommand()` — checks the active element's registry, then UI's own
+— for any name it doesn't recognize itself, so M-x can invoke both
+Controller-level commands (`save-song`, `add-filter`) and the per-widget ones
+(`set-mark`, `kill-region`, `transpose-region-up`/`-down`, …) through the
+same path. Not yet migrated: `StatusLine`, `HierarchyView`/`InstrumentList`
+(dead code anyway), and Ctrl-L (deliberately left manual — it needs to keep
+falling through to `StatusLine` so an unrelated keypress after `ESC` still
+cancels a half-typed M-x sequence). `StatusLine`'s M-x detection accepts
+three ways in: the two-step `ESC` then `x` sequence, a single Alt/Meta-
+modified `x` event (some terminals merge them), and **Ctrl-K**, a plain
+control byte that works everywhere — needed because on GNOME Terminal
+(VTE) neither of the other two ever fires at all (confirmed: ESC is
+silently dropped rather than played back as a literal keystroke as
+notcurses's own docs describe; see `todo.txt`'s known-bugs section). This
+is the same fix pattern as Ctrl-B for Ctrl-SPC above. `UIPlane::showReader()`
+now takes an optional prompt string and draws it *before* creating the
+reader's (opaque) child plane, offsetting the reader past it — the prompt
+used to be drawn via a separate `setMessage()` call *after* `showReader()`,
+which silently no-oped since `setMessage()` defers to `pending_message`
+whenever `readerActive()` is already true, so the "M-x " prompt was never
+actually visible even when the minibuffer genuinely opened and worked.
+
+`transpose-region-up`/`transpose-region-down` (Ctrl+Shift+Up/Down) transpose
+the marked selection when one is active (same mark/point mechanism as the
+Emacs selection commands above), or the whole current pattern when it
+isn't — a mark just narrows the scope, it doesn't gate the feature, and it's
+left active afterward so repeated presses keep working on the same block.
 
 The FFT spectrum/volume-meter charts (`Chart`/`TerminalChart`/
 `TerminalPixelChart`, `Chart.h`/`TerminalUI.cpp`) render via real pixel
@@ -113,7 +153,9 @@ SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
   and `libspatialaudio-dev` are missing. `Player` falls back to `BasicMixer`
   for `mixer="hrft"` songs.
 - `songs/` — example/test songs (XML, hand-editable).
-- `docs/` — note-number tables for various EDOs, key bindings, MIDI notes.
+- `docs/` — note-number tables for various EDOs, key bindings, MIDI notes;
+  `known_bugs.md` tracks open, not-yet-fixed bugs (as opposed to `todo.txt`'s
+  long-lived feature/idea backlog).
 - `tools/` — helper scripts (e.g. `minimal_edo.pl`).
 - `todo.txt` — long-lived idea backlog, not a list of in-progress work.
 - `tinyxml2.{cpp,h}` and `effects/MVerb.h` are vendored third-party code; do

@@ -29,6 +29,7 @@ private:
   SongState state_;
   Controller * controller_;
   bool terminate_ = false;
+  bool song_changed_ = false;
   FFT fft_;
 };
 

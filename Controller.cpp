@@ -563,7 +563,7 @@ Controller::loadDemo2() {
 void
 Controller::createNewSong() {
   auto song = make_shared<Song>();
-  
+
   song->addTrack(make_unique<InstrumentTrack>(0));
   auto & pattern = song->addPattern(64);
   auto & section = song->addSection();
@@ -571,6 +571,10 @@ Controller::createNewSong() {
 
   current_song = song;
   current_song_filename = "song.xml";
+  // The Player/audio thread holds a Song& into whatever current_song used to
+  // point to; it must be told to re-fetch before it dereferences the object
+  // we just released ownership of (see Player::play()'s SONG_CHANGED handling).
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SONG_CHANGED));
 }
 
 bool
@@ -582,27 +586,18 @@ Controller::openSong(const string & filename) {
 
   current_song = song;
   current_song_filename = filename;
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SONG_CHANGED));
   return true;
 }
 
 bool
 Controller::sendCommand(std::string_view cmd) {
-  if (cmd == "new-song") {
-    createNewSong();
-  } else if (cmd == "save-song") {
+  if (cmd == "save-song") {
     current_song->save(current_song_filename);
   } else if (cmd == "add-filter") {
 
-  } else if (cmd == "transpose-down") {
-    auto & info = getPlaybackInfo();
-    auto & pattern = current_song->getPattern(info.getPatternIndex());
-    pattern.transposeDown();
-    current_song->incVersion();
-  } else if (cmd == "transpose-up") {
-    auto & info = getPlaybackInfo();
-    auto & pattern = current_song->getPattern(info.getPatternIndex());
-    pattern.transposeUp();
-    current_song->incVersion();    
+  } else if (command_fallback_) {
+    return command_fallback_(cmd);
   } else {
     return false;
   }

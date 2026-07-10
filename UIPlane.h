@@ -26,7 +26,7 @@ class UIPlane {
   virtual std::unique_ptr<UIPlane> createChild() = 0;
   virtual void drawBorder() = 0;
   virtual bool offerInput(const InputEvent & input) = 0;
-  virtual void showReader() = 0;
+  virtual void showReader(const std::string & prompt = "") = 0;
   virtual std::string closeReader() = 0;
   virtual bool readerActive() const = 0;
   virtual void showPicker() = 0;

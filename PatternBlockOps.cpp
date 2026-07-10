@@ -37,6 +37,23 @@ clearPatternBlock(Pattern & pattern, int row_lo, int row_hi,
 }
 
 void
+transposePatternBlock(Pattern & pattern, int row_lo, int row_hi,
+		      const vector<int> & track_ids, int track_lo, int track_hi, bool up) {
+  for (int row = row_lo; row <= row_hi; row++) {
+    for (int t = track_lo; t <= track_hi; t++) {
+      auto track_id = track_ids[t];
+      auto notes = pattern.getNotes(row, track_id);
+      if (notes.empty()) continue; // don't materialize a real entry in the sparse notes_ map
+      for (auto & note : notes) {
+	if (up) note.transposeUp();
+	else note.transposeDown();
+      }
+      pattern.setNotes(row, track_id, notes);
+    }
+  }
+}
+
+void
 pastePatternBlock(Pattern & pattern, const PatternBlock & block,
 		  int target_row, const vector<int> & track_ids, int target_track) {
   for (size_t row_offset = 0; row_offset < block.size(); row_offset++) {

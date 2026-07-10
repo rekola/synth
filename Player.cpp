@@ -98,8 +98,12 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     {
       auto track_state = dynamic_cast<InstrumentTrackState*>(state_.getChildByInternalId(ev.getParameter1()));
       if (track_state) track_state->stopVoices(ev.getParameter2());
-    }      
-    break;            
+    }
+    break;
+
+  case PlaybackControlEvent::SONG_CHANGED:
+    song_changed_ = true;
+    break;
   }
 }
 
@@ -133,10 +137,10 @@ Player::play(AudioAPI & audio) {
 
   audio.startRecording();
 
-  auto & song = controller_->getSong();
-  state_.initialize(song);
-  auto mixer = createMixer(audio.numberOfChannels(), audio.getFrequency(), song.getMixerType());
-  
+  auto * song = &controller_->getSong();
+  state_.initialize(*song);
+  auto mixer = createMixer(audio.numberOfChannels(), audio.getFrequency(), song->getMixerType());
+
   while ( !terminate_ ) {
     if (poll(descriptors.get(), num_descriptors, 1000) > 0) {
       for (size_t i = 0; i < num_descriptors; i++) {
@@ -146,17 +150,29 @@ Player::play(AudioAPI & audio) {
 	    auto event = event_queue.pop();
 	    handleEvent(*event);
 	    while ( event_queue.hasEvents() ) {
-	      auto event = event_queue.pop();	      
+	      auto event = event_queue.pop();
 	      handleEvent(*event);
 	    }
-	    auto ev = createPlaybackEvent(song, state_);
+	    if (song_changed_) {
+	      // current_song was reassigned on the UI thread (new-song/open-
+	      // song); this event's pop() (guarded by the same mutex as the
+	      // UI thread's push()) is what makes that reassignment safe to
+	      // observe here - re-fetching without it would be a data race.
+	      song = &controller_->getSong();
+	      state_.clear();
+	      state_.resetPosition(); // old song's row count means nothing against the new song's patterns
+	      state_.initialize(*song);
+	      mixer = createMixer(audio.numberOfChannels(), audio.getFrequency(), song->getMixerType());
+	      song_changed_ = false;
+	    }
+	    auto ev = createPlaybackEvent(*song, state_);
 	    controller_->getUIEventQueue().push(move(ev));
 	  } else if (i - 1 < num_playback_desc) {
-	    state_.render(audio.getFrameCount(), song, *mixer);
+	    state_.render(audio.getFrameCount(), *song, *mixer);
 	    auto master = mixer->encode();
 	    audio.play(master, logger);
-	    
-	    auto ev = createPlaybackEvent(song, state_);
+
+	    auto ev = createPlaybackEvent(*song, state_);
 	    ev->setLoudness(master.calculateLoudness());
 	    if (fft_.addData(master)) {
 	      fft_.reset();

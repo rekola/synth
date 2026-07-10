@@ -63,3 +63,31 @@ TEST(controller_new_song_resets_save_path_to_default) {
   controller.createNewSong();
   CHECK(controller.getSongFilename() != fixture);
 }
+
+TEST(controller_send_command_prefers_literal_commands_over_fallback) {
+  // The M-x path (StatusLine -> Controller::sendCommand) must keep working
+  // for Controller's own literal commands even when a UI-supplied fallback
+  // is installed (e.g. UI::executeCommand, wired for per-widget commands
+  // like "set-mark") - the fallback should only be consulted for names
+  // Controller doesn't recognize itself.
+  ChannelConfiguration config(ChannelConfiguration::STEREO, 44100);
+  Controller controller(config);
+
+  int fallback_calls = 0;
+  std::string last_fallback_name;
+  controller.setCommandFallback([&](std::string_view name) {
+    fallback_calls++;
+    last_fallback_name = std::string(name);
+    return name == "set-mark"; // simulates a widget recognizing this one
+  });
+
+  CHECK(controller.sendCommand("add-filter")); // literal Controller command
+  CHECK(fallback_calls == 0); // must not have consulted the fallback
+
+  CHECK(controller.sendCommand("set-mark")); // not a literal command
+  CHECK(fallback_calls == 1);
+  CHECK(last_fallback_name == "set-mark");
+
+  CHECK(!controller.sendCommand("totally-bogus-command"));
+  CHECK(fallback_calls == 2);
+}

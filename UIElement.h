@@ -5,17 +5,22 @@
 #include "UIPlane.h"
 
 #include "UIColor.h"
+#include "KeyChord.h"
+#include "Keymap.h"
+#include "CommandRegistry.h"
 
 #include <cstddef>
 #include <memory>
+#include <string_view>
+#include <cassert>
 
 class UIElement : public EventHandler {
  public:
   explicit UIElement() { }
   explicit UIElement(UIPlane & parent) {
-    setPlane(parent.createChild());    
+    setPlane(parent.createChild());
   }
-  virtual ~UIElement() { }  
+  virtual ~UIElement() { }
 
   virtual bool offerInput(const InputEvent & input) {
     if (plane_) {
@@ -24,6 +29,13 @@ class UIElement : public EventHandler {
       return false;
     }
   }
+
+  // Emacs-style named-command dispatch: subclasses populate keymap_/
+  // commands_ (typically in their constructor) and call dispatchCommand()
+  // from their own offerInput() wherever a migrated binding should take
+  // effect. executeCommand() is the public entry point used to invoke a
+  // command directly by name (e.g. from an M-x-style minibuffer).
+  bool executeCommand(std::string_view name) { return commands_.execute(std::string(name)); }
 
   UIElement & putstr(int y, int x, const std::string & s) {
     if (plane_) plane_->putstr(y, x, s);
@@ -105,7 +117,20 @@ protected:
   // handles in UI.cpp), so this hook exists specifically to still reach
   // subclass-specific behavior on resize.
   virtual void onResize() { }
-  
+
+  bool dispatchCommand(const InputEvent & input) {
+    if (auto name = keymap_.lookup(KeyChord::pack(input))) return commands_.execute(*name);
+    return false;
+  }
+
+  // Call after populating keymap_/commands_ in a subclass constructor to
+  // catch a typo'd command name immediately instead of as a silently dead
+  // keybinding.
+  void assertCommandBindingsValid() const { assert(keymap_.allBoundIn(commands_)); }
+
+  Keymap keymap_;
+  CommandRegistry commands_;
+
 private:
   std::unique_ptr<UIPlane> plane_;
 };

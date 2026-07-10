@@ -9,6 +9,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 
 class UIMenu;
 class Chart;
@@ -41,6 +42,12 @@ class UI : public UIElement {
   void setStatus(std::string s);
   
   bool offerInput(const InputEvent & input) override;
+
+  // Checks the active element's registry before UI's own (mirrors Emacs
+  // consulting the local keymap before the global one) - this is how
+  // StatusLine's M-x path (routed via Controller::sendCommand's fallback,
+  // see Controller.h) reaches per-widget commands like "set-mark".
+  bool executeCommand(std::string_view name);
 
   void handlePlaybackEvent(PlaybackEvent & ev) override;
   void handleLogEvent(LogEvent & ev) override;

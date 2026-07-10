@@ -123,10 +123,19 @@ public:
     nccell_release(plane->to_ncplane(), &ll); nccell_release(plane->to_ncplane(), &lr); nccell_release(plane->to_ncplane(), &vl);
   }
   
-  void showReader() override {
+  void showReader(const std::string & prompt = "") override {
     if (!readerActive()) {
       setOwning(false);
-            
+
+      // The reader plane below is opaque and covers its own bounds, so any
+      // prompt text must be drawn onto *this* (the still-visible underlying
+      // plane) first, and the reader plane offset past it - otherwise the
+      // prompt is drawn then immediately hidden under the reader, and the
+      // whole M-x minibuffer silently looks like it never opened even
+      // though it's actually active and correctly accepting input.
+      if (!prompt.empty()) putstr(0, 0, prompt);
+      auto prompt_width = static_cast<unsigned int>(prompt.size());
+
       ncreader_options reader_opts;
       reader_opts.tchannels = NCCHANNELS_INITIALIZER(0xff, 0xff, 0xff, 0x00, 0x00, 0x00);
       ncchannels_set_fg_alpha(&reader_opts.tchannels, NCALPHA_HIGHCONTRAST);
@@ -135,13 +144,15 @@ public:
       reader_opts.flags = NCREADER_OPTION_CURSOR | NCREADER_OPTION_HORSCROLL;
 
       auto [rows, cols] = getDim();
+      auto reader_cols = static_cast<unsigned int>(cols) > prompt_width ?
+	static_cast<unsigned int>(cols) - prompt_width : 1u;
 
       ncplane_options opts = {
 	// 0, 4, nullptr, nullptr);
 	.y = 0,
-	.x = 0,
+	.x = static_cast<int>(prompt_width),
 	.rows = static_cast<unsigned int>(rows),
-	.cols = static_cast<unsigned int>(cols),
+	.cols = reader_cols,
 	.userptr = nullptr,
 	.name = nullptr,
 	.resizecb = nullptr,
@@ -149,8 +160,8 @@ public:
 	.margin_b = 0,
 	.margin_r = 0
       };
-      
-      auto reader_plane = ncplane_create(getPlane().to_ncplane(), &opts); 
+
+      auto reader_plane = ncplane_create(getPlane().to_ncplane(), &opts);
       ncplane_set_fg_rgb8(reader_plane, 0x80, 0xc0, 0x80);
       ncplane_set_bg_rgb8(reader_plane, 0x00, 0x40, 0x00);
       ncplane_set_base(reader_plane, "", 0, 0);

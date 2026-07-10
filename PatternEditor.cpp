@@ -10,6 +10,7 @@
 #include "MidiEvent.h"
 #include "PlaybackControlEvent.h"
 #include "LogEvent.h"
+#include "KeyChord.h"
 
 #include <string>
 #include <algorithm>
@@ -19,10 +20,6 @@
 
 using namespace std;
 using namespace fmt;
-
-PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
-  // getPlane().setScrolling(true);  
-}
 
 static void get_root_track_ids(const Track & track, vector<int> & track_ids) {
   if (track.getType() == TrackType::INSTRUMENT_CONTROL ||
@@ -40,6 +37,147 @@ static void get_root_track_ids(const Song & song, vector<int> & track_ids) {
   for (auto & child : song.getTracks()) {
     get_root_track_ids(*child, track_ids);
   }
+}
+
+PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
+  // getPlane().setScrolling(true);
+
+  // Emacs-style commands, dispatched centrally via UIElement::dispatchCommand
+  // (see offerInput() below). Each lambda re-fetches song/info/track_ids
+  // itself, exactly like the code that used to run inline here did on every
+  // call - none of this is cached across calls, so there's no staleness risk
+  // from moving it into a constructor-time closure.
+
+  commands_.define("set-mark", [this]() {
+    auto & info = getController().getPlaybackInfo();
+    selection_start_pattern_ = info.getPatternIndex();
+    selection_start_row_ = info.getRowIndex();
+    selection_start_track_ = current_cursor.track;
+    selection_active_ = true;
+    getController().getUIEventQueue().push(make_unique<LogEvent>("Mark set"));
+  });
+
+  commands_.define("kill-region", [this]() {
+    auto & song = getController().getSong();
+    auto & info = getController().getPlaybackInfo();
+    vector<int> track_ids;
+    get_root_track_ids(song, track_ids);
+    auto & event_queue = getController().getPlaybackEventQueue();
+
+    if (selection_active_ && selection_start_pattern_ == info.getPatternIndex()) {
+      auto & pattern = song.getPattern(info.getPatternIndex());
+      auto row_lo = min(selection_start_row_, info.getRowIndex());
+      auto row_hi = max(selection_start_row_, info.getRowIndex());
+      auto track_lo = min(selection_start_track_, current_cursor.track);
+      auto track_hi = max(selection_start_track_, current_cursor.track);
+      clipboard_ = copyPatternBlock(pattern, row_lo, row_hi, track_ids, track_lo, track_hi);
+      clearPatternBlock(pattern, row_lo, row_hi, track_ids, track_lo, track_hi);
+      song.incVersion();
+      selection_active_ = false;
+      // move point to the start of the killed region, matching Emacs
+      // kill-region, so an immediate yank restores it exactly in place
+      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, row_lo - info.getRowIndex()));
+      new_cursor.track = track_lo;
+      new_cursor.col = new_cursor.subcol = 0;
+      getController().getUIEventQueue().push(make_unique<LogEvent>("Region killed"));
+    } else {
+      getController().getUIEventQueue().push(make_unique<LogEvent>("No selection"));
+    }
+  });
+
+  commands_.define("kill-ring-save", [this]() {
+    auto & song = getController().getSong();
+    auto & info = getController().getPlaybackInfo();
+    vector<int> track_ids;
+    get_root_track_ids(song, track_ids);
+
+    if (selection_active_ && selection_start_pattern_ == info.getPatternIndex()) {
+      auto & pattern = song.getPattern(info.getPatternIndex());
+      auto row_lo = min(selection_start_row_, info.getRowIndex());
+      auto row_hi = max(selection_start_row_, info.getRowIndex());
+      auto track_lo = min(selection_start_track_, current_cursor.track);
+      auto track_hi = max(selection_start_track_, current_cursor.track);
+      clipboard_ = copyPatternBlock(pattern, row_lo, row_hi, track_ids, track_lo, track_hi);
+      selection_active_ = false;
+      getController().getUIEventQueue().push(make_unique<LogEvent>("Region copied"));
+    } else {
+      getController().getUIEventQueue().push(make_unique<LogEvent>("No selection"));
+    }
+  });
+
+  commands_.define("yank", [this]() {
+    if (!clipboard_.empty()) {
+      auto & song = getController().getSong();
+      auto & info = getController().getPlaybackInfo();
+      vector<int> track_ids;
+      get_root_track_ids(song, track_ids);
+      auto & pattern = song.getPattern(info.getPatternIndex());
+      pastePatternBlock(pattern, clipboard_, info.getRowIndex(), track_ids, current_cursor.track);
+      song.incVersion();
+      getController().getUIEventQueue().push(make_unique<LogEvent>("Yanked"));
+    } else {
+      getController().getUIEventQueue().push(make_unique<LogEvent>("Clipboard empty"));
+    }
+  });
+
+  commands_.define("keyboard-quit", [this]() {
+    if (selection_active_) {
+      selection_active_ = false;
+      getController().getUIEventQueue().push(make_unique<LogEvent>("Mark deactivated"));
+    }
+  });
+
+  // Unlike kill-region/kill-ring-save, transpose isn't destructive: a
+  // missing or foreign-pattern mark falls back to whole-pattern transpose
+  // (today's long-standing behavior) instead of a "No selection" no-op,
+  // and the mark is left active so repeated presses keep transposing the
+  // same block.
+  commands_.define("transpose-region-up", [this]() {
+    auto & song = getController().getSong();
+    auto & info = getController().getPlaybackInfo();
+    auto & pattern = song.getPattern(info.getPatternIndex());
+    if (selection_active_ && selection_start_pattern_ == info.getPatternIndex()) {
+      vector<int> track_ids;
+      get_root_track_ids(song, track_ids);
+      auto row_lo = min(selection_start_row_, info.getRowIndex());
+      auto row_hi = max(selection_start_row_, info.getRowIndex());
+      auto track_lo = min(selection_start_track_, current_cursor.track);
+      auto track_hi = max(selection_start_track_, current_cursor.track);
+      transposePatternBlock(pattern, row_lo, row_hi, track_ids, track_lo, track_hi, true);
+    } else {
+      pattern.transposeUp();
+    }
+    song.incVersion();
+  });
+
+  commands_.define("transpose-region-down", [this]() {
+    auto & song = getController().getSong();
+    auto & info = getController().getPlaybackInfo();
+    auto & pattern = song.getPattern(info.getPatternIndex());
+    if (selection_active_ && selection_start_pattern_ == info.getPatternIndex()) {
+      vector<int> track_ids;
+      get_root_track_ids(song, track_ids);
+      auto row_lo = min(selection_start_row_, info.getRowIndex());
+      auto row_hi = max(selection_start_row_, info.getRowIndex());
+      auto track_lo = min(selection_start_track_, current_cursor.track);
+      auto track_hi = max(selection_start_track_, current_cursor.track);
+      transposePatternBlock(pattern, row_lo, row_hi, track_ids, track_lo, track_hi, false);
+    } else {
+      pattern.transposeDown();
+    }
+    song.incVersion();
+  });
+
+  keymap_.bind(KeyChord::pack(' ', true, false, false, false), "set-mark");  // Ctrl-Space
+  keymap_.bind(KeyChord::pack('b', true, false, false, false), "set-mark");  // Ctrl-B (see todo.txt; works on any terminal)
+  keymap_.bind(KeyChord::pack('w', true, false, false, false), "kill-region");
+  keymap_.bind(KeyChord::pack('w', false, true, false, false), "kill-ring-save");  // Alt-W
+  keymap_.bind(KeyChord::pack('y', true, false, false, false), "yank");
+  keymap_.bind(KeyChord::pack('g', true, false, false, false), "keyboard-quit");
+  keymap_.bind(KeyChord::pack(NCKEY_UP, true, false, true, false), "transpose-region-up");    // Ctrl+Shift+Up
+  keymap_.bind(KeyChord::pack(NCKEY_DOWN, true, false, true, false), "transpose-region-down"); // Ctrl+Shift+Down
+
+  assertCommandBindingsValid();
 }
 
 static void fill_track_info(const Track & track, std::unordered_map<int, VisibleTrackInfo> & track_info) {
@@ -282,6 +420,8 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
 
 bool
 PatternEditor::offerInput(const InputEvent & input) {
+  if (dispatchCommand(input)) return true;
+
   auto & song = getController().getSong();
   auto & info = getController().getPlaybackInfo();
 
@@ -304,64 +444,12 @@ PatternEditor::offerInput(const InputEvent & input) {
   if (input.getId() == NCKEY_BUTTON1) {
     
   } else if (input.hasCtrl() && input.hasShift() && !input.hasMeta()) {
-    if (input.getId() == NCKEY_UP) {
-      auto & pattern = song.getPattern(info.getPatternIndex());
-      pattern.transposeUp();
-      song.incVersion();
-    } else if (input.getId() == NCKEY_DOWN) {
-      auto & pattern = song.getPattern(info.getPatternIndex());
-      pattern.transposeDown();
-      song.incVersion();
-    } else if (input.getId() == 't') {
+    if (input.getId() == 't') {
       // delete track
       return true;
     }
   } else if (input.hasCtrl() && !input.hasMeta()) {
-    if (input.getId() == ' ' || input.getId() == 'b') {
-      // 'b' ("begin selection", see todo.txt) is an alias for C-SPC: on many
-      // terminals (e.g. GNOME Terminal / VTE) Ctrl-Space's legacy encoding
-      // is a literal NUL byte, which notcurses's input decoder drops
-      // entirely rather than turning into a keystroke - it only reaches the
-      // app via the modern Kitty keyboard protocol. C-b always works since
-      // it's an ordinary, unambiguous control byte.
-      selection_start_pattern_ = info.getPatternIndex();
-      selection_start_row_ = info.getRowIndex();
-      selection_start_track_ = current_cursor.track;
-      selection_active_ = true;
-      getController().getUIEventQueue().push(make_unique<LogEvent>("Mark set"));
-      return true;
-    } else if (input.getId() == 'w') {
-      if (selection_active_ && selection_start_pattern_ == info.getPatternIndex()) {
-	auto & pattern = song.getPattern(info.getPatternIndex());
-	auto row_lo = min(selection_start_row_, info.getRowIndex());
-	auto row_hi = max(selection_start_row_, info.getRowIndex());
-	auto track_lo = min(selection_start_track_, current_cursor.track);
-	auto track_hi = max(selection_start_track_, current_cursor.track);
-	clipboard_ = copyPatternBlock(pattern, row_lo, row_hi, track_ids, track_lo, track_hi);
-	clearPatternBlock(pattern, row_lo, row_hi, track_ids, track_lo, track_hi);
-	song.incVersion();
-	selection_active_ = false;
-	// move point to the start of the killed region, matching Emacs
-	// kill-region, so an immediate yank restores it exactly in place
-	event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, row_lo - info.getRowIndex()));
-	new_cursor.track = track_lo;
-	new_cursor.col = new_cursor.subcol = 0;
-	getController().getUIEventQueue().push(make_unique<LogEvent>("Region killed"));
-      } else {
-	getController().getUIEventQueue().push(make_unique<LogEvent>("No selection"));
-      }
-      return true;
-    } else if (input.getId() == 'y') {
-      if (!clipboard_.empty()) {
-	auto & pattern = song.getPattern(info.getPatternIndex());
-	pastePatternBlock(pattern, clipboard_, info.getRowIndex(), track_ids, current_cursor.track);
-	song.incVersion();
-	getController().getUIEventQueue().push(make_unique<LogEvent>("Yanked"));
-      } else {
-	getController().getUIEventQueue().push(make_unique<LogEvent>("Clipboard empty"));
-      }
-      return true;
-    } else if (input.getId() == 'r') {
+    if (input.getId() == 'r') {
       int track_id;
       auto sample = getController().startRecording();
       if (current_track && current_track->getType() == TrackType::SAMPLE) {
@@ -389,12 +477,6 @@ PatternEditor::offerInput(const InputEvent & input) {
       return true;
     } else if (input.getId() == 't') {
       song.addTrack(make_unique<InstrumentTrack>(0));
-    } else if (input.getId() == 'g') {
-      if (selection_active_) {
-	selection_active_ = false;
-	getController().getUIEventQueue().push(make_unique<LogEvent>("Mark deactivated"));
-      }
-      return true;
     } else if (input.getId() == 'd') {
       // duplicate track
       return true;
@@ -441,20 +523,6 @@ PatternEditor::offerInput(const InputEvent & input) {
       return true;
     } else if (input.getId() == NCKEY_RIGHT) {
       // move selected track to right
-      return true;
-    } else if (input.getId() == 'w') {
-      if (selection_active_ && selection_start_pattern_ == info.getPatternIndex()) {
-	auto & pattern = song.getPattern(info.getPatternIndex());
-	auto row_lo = min(selection_start_row_, info.getRowIndex());
-	auto row_hi = max(selection_start_row_, info.getRowIndex());
-	auto track_lo = min(selection_start_track_, current_cursor.track);
-	auto track_hi = max(selection_start_track_, current_cursor.track);
-	clipboard_ = copyPatternBlock(pattern, row_lo, row_hi, track_ids, track_lo, track_hi);
-	selection_active_ = false;
-	getController().getUIEventQueue().push(make_unique<LogEvent>("Region copied"));
-      } else {
-	getController().getUIEventQueue().push(make_unique<LogEvent>("No selection"));
-      }
       return true;
     }
   } else if (!input.hasMeta()) {

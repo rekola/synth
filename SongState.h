@@ -88,6 +88,12 @@ class SongState : public TrackState {
   bool isPlaying() const { return is_playing_; }
   void setIsPlaying(bool b) { is_playing_ = b; }
 
+  // The playback position is a raw row count accumulated across however
+  // long the previous song played; it means nothing against a different
+  // song's (likely much shorter) pattern list, so it must be reset whenever
+  // the underlying Song is swapped out from under this state.
+  void resetPosition() { sample_pos_ = 0; absolute_pos_ = 0; }
+
   int getAbsolutePosition() const { return absolute_pos_; }
   int getSamplePos() const { return sample_pos_; }
     

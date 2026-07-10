@@ -30,4 +30,8 @@ void clearPatternBlock(Pattern & pattern, int row_lo, int row_hi,
 void pastePatternBlock(Pattern & pattern, const PatternBlock & block,
 		       int target_row, const std::vector<int> & track_ids, int target_track);
 
+// Transposes (up if `up`, else down) every note in the same range.
+void transposePatternBlock(Pattern & pattern, int row_lo, int row_hi,
+			   const std::vector<int> & track_ids, int track_lo, int track_hi, bool up);
+
 #endif

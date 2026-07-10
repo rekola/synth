@@ -13,6 +13,8 @@
 #include "LogEvent.h"
 #include "RecordEvent.h"
 #include "PlaybackControlEvent.h"
+#include "Controller.h"
+#include "KeyChord.h"
 
 #include <fmt/core.h>
 #include <thread>
@@ -30,8 +32,38 @@ UI::initialize() {
 #if 0
   windows_.push_back(make_shared<HierarchyView>(getPlane()));
 #endif
-  
+
   active_element_ = pattern_editor_;
+
+  commands_.define("quit", [this]() { close_ui_ = true; });
+  commands_.define("new-song", [this]() {
+    setStatus("New song");
+    getController().createNewSong();
+  });
+  commands_.define("toggle-playing", [this]() {
+    bool playing = getController().togglePlaying();
+    setStatus(playing ? "Playing" : "Stopped");
+  });
+
+  keymap_.bind(KeyChord::pack('q', true, false, false, false), "quit");
+  keymap_.bind(KeyChord::pack('n', true, false, false, false), "new-song");
+  keymap_.bind(KeyChord::pack(' ', false, false, false, false), "toggle-playing");
+
+  assertCommandBindingsValid();
+
+  // Lets StatusLine's M-x path (Controller::sendCommand, which only reaches
+  // Controller/Song-level state) also invoke commands owned by UI or by
+  // whichever widget is currently active, without Controller depending on
+  // any UI type - see Controller.h's command_fallback_.
+  getController().setCommandFallback([this](std::string_view name) { return executeCommand(name); });
+}
+
+bool
+UI::executeCommand(std::string_view name) {
+  if (auto el = active_element_.lock()) {
+    if (el->executeCommand(name)) return true;
+  }
+  return UIElement::executeCommand(name);
 }
 
 void
@@ -80,7 +112,9 @@ UI::tryActivate(int y, int x, std::shared_ptr<UIElement> element) {
 bool
 UI::offerInput(const InputEvent & input) {
   bool handled = false;
-  
+
+  if (dispatchCommand(input)) return true;
+
   if (input.getId() == NCKEY_RESIZE) {
     // notcurses_refresh() is what makes notcurses acknowledge the terminal's
     // new dimensions (they're otherwise stale until this is called); it
@@ -90,18 +124,10 @@ UI::offerInput(const InputEvent & input) {
     layout();
     renderComponents(true);
   } else if (input.hasCtrl() && input.getId() == 'l') {
+    // Deliberately not a dispatched command: this needs to fall through to
+    // status_line_ below so its meta_pressed (M-x) state machine still gets
+    // reset by an unrelated keypress, same as before this refactor.
     refresh();
-  } else if (input.hasCtrl() && input.getId() == 'q') {
-    close_ui_ = true;
-  } else if (input.hasCtrl() && input.getId() == 'n') {
-    setStatus("New song");
-    getController().createNewSong();
-    
-    handled = true;
-  } else if (!input.hasCtrl() && input.getId() == ' ') {
-    bool playing = getController().togglePlaying();
-    setStatus(playing ? "Playing" : "Stopped");
-    handled = true;
   } else if (input.getId() == NCKEY_BUTTON1) {
     active_element_.reset();
     
