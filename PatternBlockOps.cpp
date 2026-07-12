@@ -72,3 +72,67 @@ pastePatternBlock(Pattern & pattern, const PatternBlock & block,
     }
   }
 }
+
+PatternBlock
+copyPatternBlockNotes(const Pattern & pattern, int row_lo, int row_hi,
+		      int track_id, int note_lo, int note_hi, bool include_command) {
+  PatternBlock block;
+
+  for (int row = row_lo; row <= row_hi; row++) {
+    auto & full_notes = pattern.getNotes(row, track_id);
+    PatternBlockCell cell;
+    cell.note_offset = note_lo;
+    auto size = static_cast<int>(full_notes.size());
+    if (note_lo < size) {
+      auto hi = min(note_hi + 1, size);
+      cell.notes = vector<Note>(full_notes.begin() + note_lo, full_notes.begin() + hi);
+    }
+    if (include_command) cell.command = pattern.getCommand(row, track_id);
+    block.push_back({move(cell)});
+  }
+
+  return block;
+}
+
+void
+clearPatternBlockNotes(Pattern & pattern, int row_lo, int row_hi,
+		       int track_id, int note_lo, int note_hi, bool include_command) {
+  for (int row = row_lo; row <= row_hi; row++) {
+    for (int i = note_lo; i <= note_hi; i++) {
+      pattern.deleteNote(row, track_id, i);
+    }
+    if (include_command) pattern.setCommand(row, track_id, Command());
+  }
+}
+
+void
+transposePatternBlockNotes(Pattern & pattern, int row_lo, int row_hi,
+			   int track_id, int note_lo, int note_hi, bool up) {
+  for (int row = row_lo; row <= row_hi; row++) {
+    auto notes = pattern.getNotes(row, track_id);
+    if (notes.empty()) continue;
+    auto hi = min(note_hi, static_cast<int>(notes.size()) - 1);
+    for (int i = note_lo; i <= hi; i++) {
+      if (up) notes[i].transposeUp();
+      else notes[i].transposeDown();
+    }
+    pattern.setNotes(row, track_id, notes);
+  }
+}
+
+void
+pastePatternBlockNotes(Pattern & pattern, const PatternBlock & block,
+		       int target_row, int track_id, int target_note_offset, bool include_command) {
+  for (size_t row_offset = 0; row_offset < block.size(); row_offset++) {
+    int row = target_row + static_cast<int>(row_offset);
+    if (row < 0 || row >= pattern.getNumRows()) continue;
+
+    auto & row_cells = block[row_offset];
+    if (row_cells.empty()) continue;
+    auto & cell = row_cells[0];
+    for (size_t i = 0; i < cell.notes.size(); i++) {
+      pattern.setNote(row, track_id, target_note_offset + static_cast<int>(i), cell.notes[i]);
+    }
+    if (include_command) pattern.setCommand(row, track_id, cell.command);
+  }
+}

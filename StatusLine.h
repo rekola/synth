@@ -8,6 +8,8 @@ class StatusLine : public UIElement {
  public:
   StatusLine(UIPlane & parent) : UIElement(parent) { }
 
+  bool isReaderActive() { return getPlane().readerActive(); }
+
   void setMessage(std::string s) {
     if (getPlane().readerActive()) {
       pending_message = std::move(s);

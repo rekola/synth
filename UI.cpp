@@ -113,7 +113,7 @@ bool
 UI::offerInput(const InputEvent & input) {
   bool handled = false;
 
-  if (dispatchCommand(input)) return true;
+  if (!status_line_->isReaderActive() && dispatchCommand(input)) return true;
 
   if (input.getId() == NCKEY_RESIZE) {
     // notcurses_refresh() is what makes notcurses acknowledge the terminal's

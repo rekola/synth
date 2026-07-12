@@ -18,3 +18,9 @@ A Microtonal Synth: tracker style music production system with microtonal notes.
   1. Everything can be done using keyboard without mouse
 4. Exact
   1. Just tuning
+
+# Roadmap / missing functionality:
+1. Undo/redo
+2. Effect-command interpretation during playback (slide, glide, vibrato, fade in/out, tremolo — currently editable and stored but not audible)
+3. Kill-ring rotation (yank-pop / M-y)
+4. Exchange-point-and-mark (C-x C-x)

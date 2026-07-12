@@ -5,6 +5,15 @@ intonation). Terminal UI (notcurses), ALSA audio output, songs stored as XML.
 Formerly developed as the `syna/` subdirectory of the private `personal` repo;
 full history was preserved when it was extracted into this repository.
 
+Conceived as an amalgam of Emacs (keybinding philosophy — mark/point
+selection, kill/yank, M-x) and Renoise (tracker workflow and pattern-editor
+concepts), with microtonal features added. When a UI decision doesn't
+already have a clear precedent in this codebase, check how Emacs and/or
+Renoise handle the equivalent situation before inventing something new —
+and if this software's behavior differs from Renoise's in some area, that
+should be a deliberate choice (e.g. filling a gap Renoise's own users have
+long requested), not an accident.
+
 ## Build
 
 ```sh
@@ -61,9 +70,60 @@ Pattern editor selection uses Emacs keybindings: **C-SPC** (or **C-b**, see
 below) sets the mark (selection start), **C-w** kills (cuts) the marked
 block, **M-w** copies it, **C-y** yanks (pastes) the clipboard at the
 cursor, **C-g** cancels the selection. The selection is a rectangular
-row×track block — moving the cursor normally while marked extends it; it
-always carries every column (note, velocity, delay, effect command) for
-each selected cell.
+row×track block; within a single track it's further scoped to note
+columns (voices) — see below.
+
+There's always a region to act on, even with no mark set: it degenerates
+to just the single note the cursor is currently on
+(`PatternEditor::getEffectiveSelectionBounds`) — `kill-region`/`kill-ring-save`
+never say "No selection" anymore, they just act on that one note. Marking
+and moving the cursor (rows, or sideways through note columns within one
+track) extends the region from there the usual way.
+
+Because the effective region always exists, it's also always shown —
+`PatternEditor::renderRow` no longer has a separate "current column"
+highlight; that color (`styles.highlight_fg_color`/`highlight_bg_color`,
+bright green) was folded into the region highlight instead, so the
+degenerate (unmarked) case visually looks exactly like the old
+single-cell cursor highlight, and a real/widened mark shows the same
+color across its whole extent. The per-character underline for
+EFFECT/VELOCITY/DELAY columns (indicating which hex digit `C-+`/`C--`-style
+subcol editing is about to touch) is untouched, still driven by the exact
+cursor cell regardless of the region's extent. Velocity/delay's own bright
+colors (tuned for contrast against the normal dark background) switch to
+the region's dark foreground when inside it, matching the note column,
+since bright-on-bright would otherwise be unreadable. When the cursor is
+on the effect column, the region always widens to every note column of
+that track/row regardless of any mark — an effect command applies to the
+whole row, so there's no such thing as a partial effect-column selection.
+
+`getEffectiveSelectionBounds()` must be computed *after* `render()` commits
+`current_cursor` from `new_cursor`, not before — it reads `current_cursor`,
+so computing it too early shows the region lagging one frame behind actual
+cursor movement (most visible when crossing a track boundary). Similarly,
+`kill-region`'s column-scoped path doesn't blindly reset the cursor to
+column 0 (only a whole-track kill does that) — but killing a track's only
+remaining note in its *last* voice slot shrinks `num_subtracks_` (derived
+from the widest row left in the pattern), which can silently reinterpret a
+stale column index as a different column (e.g. the effect column) rather
+than simply going out of bounds — `getNoteNumber()`-based clamping (not a
+raw index bounds check) catches this and falls back to the last surviving
+voice.
+
+Killing/copying/yanking while the cursor is on the effect column
+(`SelectionBounds::includes_command`, set by `getEffectiveSelectionBounds`)
+also captures/clears/restores the row's effect `Command`, matching the
+region's visual widening described above — otherwise the row would *look*
+fully selected while `kill-region` silently left the `Vxx`/`Uxx`/etc. text
+untouched. `transpose-region-up`/`-down` deliberately never touch `Command`
+even in this case (`Command.h` has no numeric/transposable semantics).
+`copyPatternBlockNotes`/`clearPatternBlockNotes`/`pastePatternBlockNotes`
+(`PatternBlockOps.h`) take an `include_command` parameter for this; the
+effect column's own character validation stays permissive (any letter, not
+just hex `a-f`) since `docs/commands.txt`'s mnemonic commands (`U`/`D`/`G`/
+`V`/`I`/`O`/`T`/`M`) use letters outside the hex range — only the
+velocity/delay nibble-entry path was tightened to strict `0-9a-f`,
+matching Renoise's own hex-entry convention.
 
 `C-SPC` doesn't register on every terminal: its legacy encoding is a
 literal NUL byte, which notcurses's input decoder silently drops instead of
@@ -99,7 +159,7 @@ modified `x` event (some terminals merge them), and **Ctrl-K**, a plain
 control byte that works everywhere — needed because on GNOME Terminal
 (VTE) neither of the other two ever fires at all (confirmed: ESC is
 silently dropped rather than played back as a literal keystroke as
-notcurses's own docs describe; see `todo.txt`'s known-bugs section). This
+notcurses's own docs describe; see `docs/known_bugs.md`). This
 is the same fix pattern as Ctrl-B for Ctrl-SPC above. `UIPlane::showReader()`
 now takes an optional prompt string and draws it *before* creating the
 reader's (opaque) child plane, offsetting the reader past it — the prompt
@@ -109,10 +169,21 @@ whenever `readerActive()` is already true, so the "M-x " prompt was never
 actually visible even when the minibuffer genuinely opened and worked.
 
 `transpose-region-up`/`transpose-region-down` (Ctrl+Shift+Up/Down) transpose
-the marked selection when one is active (same mark/point mechanism as the
-Emacs selection commands above), or the whole current pattern when it
-isn't — a mark just narrows the scope, it doesn't gate the feature, and it's
-left active afterward so repeated presses keep working on the same block.
+the effective region (same "always something to act on, even unmarked"
+rule as above — see `getEffectiveSelectionBounds`) and never clear the
+mark, so repeated presses keep working on the same block. To transpose a
+whole track or pattern, select it first — there's no separate "no mark"
+whole-pattern fallback anymore.
+
+A track with multiple simultaneous note columns (chords/polyphony —
+`VisibleTrackInfo::num_subtracks_`, derived from however many notes
+actually appear in any visible row, not a fixed cap) can have its
+selection scoped to just some of those note columns: a fresh mark starts
+on the single note column the cursor is on; moving sideways widens/narrows
+across the track's note columns. To select the whole track, widen across
+all of them. `PatternBlockOps::{copy,clear,transpose,paste}PatternBlockNotes`
+are the single-track, note-range-scoped siblings of the whole-track
+functions used for this.
 
 The FFT spectrum/volume-meter charts (`Chart`/`TerminalChart`/
 `TerminalPixelChart`, `Chart.h`/`TerminalUI.cpp`) render via real pixel

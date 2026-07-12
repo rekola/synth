@@ -49,40 +49,76 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   // from moving it into a constructor-time closure.
 
   commands_.define("set-mark", [this]() {
+    auto & song = getController().getSong();
     auto & info = getController().getPlaybackInfo();
+    vector<int> track_ids;
+    get_root_track_ids(song, track_ids);
     selection_start_pattern_ = info.getPatternIndex();
     selection_start_row_ = info.getRowIndex();
     selection_start_track_ = current_cursor.track;
+    // A fresh mark starts scoped to just the note column it's set on;
+    // moving sideways afterward widens/narrows to the touched range (see
+    // kill-region etc.) - to select the whole track, widen across all of
+    // its note columns.
+    auto track_info = getTrackInfoFor(song, track_ids[current_cursor.track]);
+    selection_start_note_ = clamp(track_info.getNoteNumber(current_cursor.col), 0, max(track_info.num_subtracks_ - 1, 0));
     selection_active_ = true;
     getController().getUIEventQueue().push(make_unique<LogEvent>("Mark set"));
   });
 
+  // Both commands below always have a region to act on, even with no mark
+  // active: it degenerates to the single note the cursor is currently on
+  // (see getEffectiveSelectionBounds) - there's no "No selection" case.
   commands_.define("kill-region", [this]() {
     auto & song = getController().getSong();
     auto & info = getController().getPlaybackInfo();
     vector<int> track_ids;
     get_root_track_ids(song, track_ids);
     auto & event_queue = getController().getPlaybackEventQueue();
+    auto & pattern = song.getPattern(info.getPatternIndex());
 
-    if (selection_active_ && selection_start_pattern_ == info.getPatternIndex()) {
-      auto & pattern = song.getPattern(info.getPatternIndex());
-      auto row_lo = min(selection_start_row_, info.getRowIndex());
-      auto row_hi = max(selection_start_row_, info.getRowIndex());
-      auto track_lo = min(selection_start_track_, current_cursor.track);
-      auto track_hi = max(selection_start_track_, current_cursor.track);
-      clipboard_ = copyPatternBlock(pattern, row_lo, row_hi, track_ids, track_lo, track_hi);
-      clearPatternBlock(pattern, row_lo, row_hi, track_ids, track_lo, track_hi);
-      song.incVersion();
-      selection_active_ = false;
-      // move point to the start of the killed region, matching Emacs
-      // kill-region, so an immediate yank restores it exactly in place
-      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, row_lo - info.getRowIndex()));
-      new_cursor.track = track_lo;
-      new_cursor.col = new_cursor.subcol = 0;
-      getController().getUIEventQueue().push(make_unique<LogEvent>("Region killed"));
+    auto b = getEffectiveSelectionBounds(song, track_ids);
+    clipboard_column_scoped_ = b.column_scoped;
+    clipboard_includes_command_ = b.includes_command;
+    if (b.column_scoped) {
+      auto track_id = track_ids[b.track_lo];
+      clipboard_ = copyPatternBlockNotes(pattern, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, b.includes_command);
+      clearPatternBlockNotes(pattern, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, b.includes_command);
     } else {
-      getController().getUIEventQueue().push(make_unique<LogEvent>("No selection"));
+      clipboard_ = copyPatternBlock(pattern, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
+      clearPatternBlock(pattern, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
     }
+    song.incVersion();
+    selection_active_ = false;
+    // move point to the start of the killed region, matching Emacs
+    // kill-region, so an immediate yank restores it exactly in place
+    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, b.row_lo - info.getRowIndex()));
+    new_cursor.track = b.track_lo;
+    if (!b.column_scoped) {
+      // Only reset to the first column for a whole-track kill; a
+      // column-scoped kill (e.g. just note column 2) should leave the
+      // cursor on the column it was already on, not jump back to 0.
+      new_cursor.col = new_cursor.subcol = 0;
+    } else {
+      // Killing the track's last remaining voice can shrink its note-column
+      // count (num_subtracks_ is derived from the widest row left in the
+      // pattern). A raw index-bounds check isn't enough here: the old
+      // index can still be "in range" of the narrower layout while meaning
+      // something entirely different now (getNoteNumber() mechanically
+      // extrapolates past the end the same way it does for the effect
+      // column, so a stale index can silently resolve to the effect
+      // column instead of clamping) - check via note number instead, and
+      // snap to the corresponding sub-column of the last remaining voice.
+      auto new_track_info = getTrackInfoFor(song, track_ids[b.track_lo]);
+      auto new_max_note = max(new_track_info.num_subtracks_ - 1, 0);
+      if (new_track_info.getNoteNumber(new_cursor.col) > new_max_note) {
+        auto n = (new_track_info.has_note_column_ ? 1 : 0) + new_track_info.num_velocity_columns_ +
+          (new_track_info.has_delay_column_ ? 1 : 0);
+        new_cursor.col = new_max_note * n;
+        new_cursor.subcol = 0;
+      }
+    }
+    getController().getUIEventQueue().push(make_unique<LogEvent>("Region killed"));
   });
 
   commands_.define("kill-ring-save", [this]() {
@@ -90,19 +126,19 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     auto & info = getController().getPlaybackInfo();
     vector<int> track_ids;
     get_root_track_ids(song, track_ids);
+    auto & pattern = song.getPattern(info.getPatternIndex());
 
-    if (selection_active_ && selection_start_pattern_ == info.getPatternIndex()) {
-      auto & pattern = song.getPattern(info.getPatternIndex());
-      auto row_lo = min(selection_start_row_, info.getRowIndex());
-      auto row_hi = max(selection_start_row_, info.getRowIndex());
-      auto track_lo = min(selection_start_track_, current_cursor.track);
-      auto track_hi = max(selection_start_track_, current_cursor.track);
-      clipboard_ = copyPatternBlock(pattern, row_lo, row_hi, track_ids, track_lo, track_hi);
-      selection_active_ = false;
-      getController().getUIEventQueue().push(make_unique<LogEvent>("Region copied"));
+    auto b = getEffectiveSelectionBounds(song, track_ids);
+    clipboard_column_scoped_ = b.column_scoped;
+    clipboard_includes_command_ = b.includes_command;
+    if (b.column_scoped) {
+      auto track_id = track_ids[b.track_lo];
+      clipboard_ = copyPatternBlockNotes(pattern, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, b.includes_command);
     } else {
-      getController().getUIEventQueue().push(make_unique<LogEvent>("No selection"));
+      clipboard_ = copyPatternBlock(pattern, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
     }
+    selection_active_ = false;
+    getController().getUIEventQueue().push(make_unique<LogEvent>("Region copied"));
   });
 
   commands_.define("yank", [this]() {
@@ -112,7 +148,14 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
       vector<int> track_ids;
       get_root_track_ids(song, track_ids);
       auto & pattern = song.getPattern(info.getPatternIndex());
-      pastePatternBlock(pattern, clipboard_, info.getRowIndex(), track_ids, current_cursor.track);
+      if (clipboard_column_scoped_) {
+        auto track_id = track_ids[current_cursor.track];
+        auto track_info = getTrackInfoFor(song, track_id);
+        auto target_note = clamp(track_info.getNoteNumber(current_cursor.col), 0, max(track_info.num_subtracks_ - 1, 0));
+        pastePatternBlockNotes(pattern, clipboard_, info.getRowIndex(), track_id, target_note, clipboard_includes_command_);
+      } else {
+        pastePatternBlock(pattern, clipboard_, info.getRowIndex(), track_ids, current_cursor.track);
+      }
       song.incVersion();
       getController().getUIEventQueue().push(make_unique<LogEvent>("Yanked"));
     } else {
@@ -127,25 +170,24 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     }
   });
 
-  // Unlike kill-region/kill-ring-save, transpose isn't destructive: a
-  // missing or foreign-pattern mark falls back to whole-pattern transpose
-  // (today's long-standing behavior) instead of a "No selection" no-op,
-  // and the mark is left active so repeated presses keep transposing the
-  // same block.
+  // Unlike kill-region/kill-ring-save, transpose isn't destructive, so it
+  // never clears the mark - repeated presses keep transposing the same
+  // region. With no mark active, the region degenerates to the single
+  // note under the cursor (see getEffectiveSelectionBounds) - to transpose
+  // the whole pattern, select all of it first.
   commands_.define("transpose-region-up", [this]() {
     auto & song = getController().getSong();
     auto & info = getController().getPlaybackInfo();
     auto & pattern = song.getPattern(info.getPatternIndex());
-    if (selection_active_ && selection_start_pattern_ == info.getPatternIndex()) {
-      vector<int> track_ids;
-      get_root_track_ids(song, track_ids);
-      auto row_lo = min(selection_start_row_, info.getRowIndex());
-      auto row_hi = max(selection_start_row_, info.getRowIndex());
-      auto track_lo = min(selection_start_track_, current_cursor.track);
-      auto track_hi = max(selection_start_track_, current_cursor.track);
-      transposePatternBlock(pattern, row_lo, row_hi, track_ids, track_lo, track_hi, true);
+    vector<int> track_ids;
+    get_root_track_ids(song, track_ids);
+
+    auto b = getEffectiveSelectionBounds(song, track_ids);
+    if (b.column_scoped) {
+      auto track_id = track_ids[b.track_lo];
+      transposePatternBlockNotes(pattern, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, true);
     } else {
-      pattern.transposeUp();
+      transposePatternBlock(pattern, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, true);
     }
     song.incVersion();
   });
@@ -154,16 +196,15 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     auto & song = getController().getSong();
     auto & info = getController().getPlaybackInfo();
     auto & pattern = song.getPattern(info.getPatternIndex());
-    if (selection_active_ && selection_start_pattern_ == info.getPatternIndex()) {
-      vector<int> track_ids;
-      get_root_track_ids(song, track_ids);
-      auto row_lo = min(selection_start_row_, info.getRowIndex());
-      auto row_hi = max(selection_start_row_, info.getRowIndex());
-      auto track_lo = min(selection_start_track_, current_cursor.track);
-      auto track_hi = max(selection_start_track_, current_cursor.track);
-      transposePatternBlock(pattern, row_lo, row_hi, track_ids, track_lo, track_hi, false);
+    vector<int> track_ids;
+    get_root_track_ids(song, track_ids);
+
+    auto b = getEffectiveSelectionBounds(song, track_ids);
+    if (b.column_scoped) {
+      auto track_id = track_ids[b.track_lo];
+      transposePatternBlockNotes(pattern, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, false);
     } else {
-      pattern.transposeDown();
+      transposePatternBlock(pattern, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, false);
     }
     song.incVersion();
   });
@@ -221,8 +262,53 @@ PatternEditor::getTrackInformation(const Song & song) const {
   for (auto & track : song.getTracks()) {
     fill_track_info(*track, track_info);
   }
-  
+
   return track_info;
+}
+
+VisibleTrackInfo
+PatternEditor::getTrackInfoFor(const Song & song, int track_id) const {
+  auto all_track_info = getTrackInformation(song);
+  auto it = all_track_info.find(track_id);
+  return it != all_track_info.end() ? it->second : VisibleTrackInfo();
+}
+
+PatternEditor::SelectionBounds
+PatternEditor::getEffectiveSelectionBounds(const Song & song, const vector<int> & track_ids) const {
+  auto & info = getController().getPlaybackInfo();
+  bool has_mark = selection_active_ && selection_start_pattern_ == info.getPatternIndex();
+
+  SelectionBounds b;
+  auto start_row = has_mark ? selection_start_row_ : info.getRowIndex();
+  auto start_track = has_mark ? selection_start_track_ : current_cursor.track;
+  b.row_lo = min(start_row, info.getRowIndex());
+  b.row_hi = max(start_row, info.getRowIndex());
+  b.track_lo = min(start_track, current_cursor.track);
+  b.track_hi = max(start_track, current_cursor.track);
+  b.column_scoped = b.track_lo == b.track_hi;
+
+  if (b.column_scoped) {
+    auto track_info = getTrackInfoFor(song, track_ids[b.track_lo]);
+    auto max_note = max(track_info.num_subtracks_ - 1, 0);
+    if (track_info.isEffectColumn(current_cursor.col)) {
+      // The effect command applies to every note column in the row, not
+      // just one - there's no such thing as a partial effect-column
+      // region, so widen to all of them regardless of any mark, and mark
+      // the row's Command as part of the region too.
+      b.note_lo = 0;
+      b.note_hi = max_note;
+      b.includes_command = true;
+    } else {
+      auto point_note = clamp(track_info.getNoteNumber(current_cursor.col), 0, max_note);
+      auto start_note = has_mark ? clamp(selection_start_note_, 0, max_note) : point_note;
+      b.note_lo = min(start_note, point_note);
+      b.note_hi = max(start_note, point_note);
+    }
+  } else {
+    b.note_lo = b.note_hi = 0;
+  }
+
+  return b;
 }
 
 bool
@@ -245,7 +331,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   
   vector<int> track_ids;
   get_root_track_ids(song, track_ids);
-			      
+
   auto score_total_columns = 0;
   for (auto wd : track_info) score_total_columns += wd.second.getColumnCount();
 
@@ -279,8 +365,10 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
       (selection_active_ && (selection_start_pattern_ != current_selection_start_pattern_ ||
 			     selection_start_row_ != current_selection_start_row_ ||
 			     selection_start_track_ != current_selection_start_track_ ||
+			     selection_start_note_ != current_selection_start_note_ ||
 			     score_playing_row != current_score_playing_row ||
-			     new_cursor.track != current_cursor.track));
+			     new_cursor.track != current_cursor.track ||
+			     new_cursor.col != current_cursor.col));
 
   if (score_pattern != current_score_pattern ||
       song.getVersion() != current_song_version ||
@@ -297,7 +385,13 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   current_cursor.track = new_cursor.track;
   current_cursor.col = new_cursor.col;
   current_cursor.subcol = new_cursor.subcol;
-  
+
+  // Always something to highlight - degenerates to just the note under the
+  // cursor when no mark is set (see getEffectiveSelectionBounds). Computed
+  // after current_cursor is updated above, so it reflects where the cursor
+  // just moved *to* this frame, not where it was before.
+  auto sel_bounds = getEffectiveSelectionBounds(song, track_ids);
+
   bool need_redraw = false;
   if (render_all) {
     current_scroll_row = new_scroll_row;
@@ -310,16 +404,16 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
     
     renderHeading(styles, track_ids, track_info);
     for (auto row = 0; row < rows - heading_height; row++) {
-      renderRow(styles, heading_height, track_ids, track_info, row, (row + current_scroll_row) == score_playing_row);
+      renderRow(styles, heading_height, track_ids, track_info, row, (row + current_scroll_row) == score_playing_row, sel_bounds);
     }
     need_redraw = true;
   } else if (current_score_playing_row != score_playing_row) {
     renderHeading(styles, track_ids, track_info);
-    renderRow(styles, heading_height, track_ids, track_info, current_score_playing_row - current_scroll_row, false);
-    renderRow(styles, heading_height, track_ids, track_info, score_playing_row - current_scroll_row, true);
+    renderRow(styles, heading_height, track_ids, track_info, current_score_playing_row - current_scroll_row, false, sel_bounds);
+    renderRow(styles, heading_height, track_ids, track_info, score_playing_row - current_scroll_row, true, sel_bounds);
     need_redraw = true;
   } else if (cursor_changed || row_edited) {
-    renderRow(styles, heading_height, track_ids, track_info, score_playing_row - current_scroll_row, true);
+    renderRow(styles, heading_height, track_ids, track_info, score_playing_row - current_scroll_row, true, sel_bounds);
     need_redraw = true;
   }
 
@@ -342,6 +436,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   current_selection_start_pattern_ = selection_start_pattern_;
   current_selection_start_row_ = selection_start_row_;
   current_selection_start_track_ = selection_start_track_;
+  current_selection_start_note_ = selection_start_note_;
   
   return need_redraw;
 }
@@ -463,8 +558,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       }
       getController().setRecordingTrackId(track_id);
       song.incVersion();
-    } else if (0 && (input.getId() == 'e')) {
-      getController().stopRecording();
+      return true;
     } else if (input.getId() == 'a') {
       new_cursor.track = new_cursor.col = new_cursor.subcol = 0;
       return true;
@@ -477,13 +571,16 @@ PatternEditor::offerInput(const InputEvent & input) {
       return true;
     } else if (input.getId() == 't') {
       song.addTrack(make_unique<InstrumentTrack>(0));
+      return true;
     } else if (input.getId() == 'd') {
       // duplicate track
       return true;
     } else if (input.getId() == '+') {
       edit_step_size++;
+      return true;
     } else if (input.getId() == '-') {
       if (edit_step_size > 0) edit_step_size--;
+      return true;
     } else if (input.getId() == NCKEY_LEFT || input.getId() == NCKEY_RIGHT) {
       auto track = song.getTrackByInternalId(track_ids[current_cursor.track]);
       if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL)) {
@@ -514,6 +611,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	instrument_track.setSolo(!instrument_track.isSolo());
 	song.incVersion();
       }
+      return true;
     } else {
       return false;
     }
@@ -528,8 +626,10 @@ PatternEditor::offerInput(const InputEvent & input) {
   } else if (!input.hasMeta()) {
     if (input.getId() == '[') {
       if (current_keyboard_octave > 0) current_keyboard_octave--;
+      return true;
     } else if (input.getId() == ']') {
       if (current_keyboard_octave < 9) current_keyboard_octave++;
+      return true;
     } else if (input.getId() == NCKEY_LEFT) {
       if (new_cursor.col > 0) {
 	new_cursor.col--;
@@ -583,17 +683,20 @@ PatternEditor::offerInput(const InputEvent & input) {
 	instrument_track.setMuted(!instrument_track.isMuted());
 	song.incVersion();
       }
+      return true;
     } else if (input.getId() == '\t') {
       if (track_info.isEffectColumn(new_cursor.col)) { // effect
 	new_cursor.subcol = (new_cursor.subcol + 1) % 4;
       } else if (!track_info.isNoteColumn(new_cursor.col)) {
 	new_cursor.subcol = (new_cursor.subcol + 1) % 2;
       }
+      return true;
     } else if (input.getId() == NCKEY_INS) {
       auto & pattern = song.getPattern(info.getPatternIndex());
       int track_id = track_ids[new_cursor.track];
       pattern.insertRow(info.getRowIndex(), track_id);
       song.incVersion();
+      return true;
     } else {
       auto & pattern = song.getPattern(info.getPatternIndex());
       int track_id = track_ids[new_cursor.track];
@@ -601,12 +704,12 @@ PatternEditor::offerInput(const InputEvent & input) {
       auto column_type = track_info.getColumnType(new_cursor.col);
     
       if (column_type == ColumnType::EFFECT) {
-	if (is_hex || input.getId() == '-') {	
+	if (is_hex || input.getId() == '-') {
 	  auto command = pattern.getCommand(info.getRowIndex(), track_id);
 	  command.updateData(new_cursor.subcol, toupper(input.getId()));
 	  pattern.setCommand(info.getRowIndex(), track_id, command);
 	  row_edited = true;
-	
+
 	  if (new_cursor.subcol + 1 < 4) {
 	    new_cursor.subcol++;
 	  } else if (new_cursor.track + 1 < num_tracks) {
@@ -614,10 +717,11 @@ PatternEditor::offerInput(const InputEvent & input) {
 	    new_cursor.col = 0;
 	    new_cursor.subcol = 0;
 	  }
+	  return true;
 	}
-	return true;
       } else if (column_type == ColumnType::VELOCITY || column_type == ColumnType::DELAY) {
-	if (is_hex) {
+	bool is_hex_digit = (input.getId() >= 'a' && input.getId() <= 'f') || (input.getId() >= '0' && input.getId() <= '9');
+	if (is_hex_digit) {
 	  int input_value = input.getId() >= '0' && input.getId() <= '9' ? input.getId() - '0' : input.getId() - 'a' + 10;
 	  auto & notes = pattern.getNotes(info.getRowIndex(), track_id);
 	  auto note_column = track_info.getNoteNumber(new_cursor.col);
@@ -628,14 +732,19 @@ PatternEditor::offerInput(const InputEvent & input) {
 	  else current_value = (current_value & 0xf0) | input_value;
 	  if (column_type == ColumnType::VELOCITY) note.setVelocity(current_value);
 	  else note.setDelay(current_value);
-	  pattern.setNote(info.getRowIndex(), track_id, note_column, note);	
+	  pattern.setNote(info.getRowIndex(), track_id, note_column, note);
 	  row_edited = true;
 	  if (new_cursor.subcol == 0) {
 	    new_cursor.subcol++;
-	  } else {
+	  } else if (new_cursor.col + 1 < track_info.getColumnCount()) {
 	    new_cursor.col++;
 	    new_cursor.subcol = 0;
+	  } else if (new_cursor.track + 1 < num_tracks) {
+	    new_cursor.track++;
+	    new_cursor.col = 0;
+	    new_cursor.subcol = 0;
 	  }
+	  return true;
 	}
       } else {
 	bool is_off = input.getId() == 'a';
@@ -673,8 +782,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	
 	  if (!info.isPlaying()) {
 	    int n = 0;
-	    if (input.getId() == NCKEY_BACKSPACE) n = -1;
-	    else if (input.getId() != NCKEY_DEL) n = 1;
+	    if (input.getId() != NCKEY_DEL && input.getId() != NCKEY_BACKSPACE) n = 1;
 	    if (n) {
 	      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, n * edit_step_size));
 	    }
@@ -813,7 +921,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 }
 
 void
-PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & all_track_info, int display_row, bool highlight) {
+PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & all_track_info, int display_row, bool highlight, const SelectionBounds & sel_bounds) {
   auto [rows, cols] = getDim();
 
   if (display_row >= rows - heading_height) {
@@ -857,13 +965,20 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       fg = fg.blend(0.75f, black);
     }
 
-    bool in_selection = selection_active_ &&
-      selection_start_pattern_ == pattern_idx &&
-      i >= min(selection_start_track_, current_cursor.track) && i <= max(selection_start_track_, current_cursor.track) &&
-      pattern_row >= min(selection_start_row_, info.getRowIndex()) && pattern_row <= max(selection_start_row_, info.getRowIndex());
+    // There's always an effective region to highlight, even with no mark
+    // set - it degenerates to just the note under the cursor (see
+    // getEffectiveSelectionBounds, computed once per render() call).
+    bool row_track_in_selection = pattern_idx == info.getPatternIndex() &&
+      i >= sel_bounds.track_lo && i <= sel_bounds.track_hi &&
+      pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
+    // A single-track region is scoped to specific note columns (see
+    // set-mark/kill-region) - highlight per-column inside the loop below
+    // instead of the whole track uniformly.
+    bool column_scoped_selection = row_track_in_selection && sel_bounds.column_scoped;
+    bool in_selection = row_track_in_selection && !column_scoped_selection;
     if (in_selection) {
-      fg = styles.selection_fg_color;
-      bg = styles.selection_bg_color;
+      fg = styles.highlight_fg_color;
+      bg = styles.highlight_bg_color;
     }
 
     if (i == -1) {
@@ -886,43 +1001,48 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       auto it = all_track_info.find(track_id);
       if (it != all_track_info.end()) track_info = it->second;
       auto track = song.getTrackByInternalId(track_id);
-	
+
       for (auto k = 0; k < track_info.getColumnCount(); k++) {
 	if (k != 0) {
 	  putstr(display_row, current_pos++, " ");
 	}
+	// column_highlighted used to be its own distinct "here's the cursor"
+	// color layer; now the effective region always covers the cursor's
+	// position too, so it's folded into column_selected below - kept
+	// only to (a) still indicate the effect column specifically, since
+	// it isn't part of any note column and so is otherwise excluded from
+	// the note-range check, and (b) drive the active-character underline
+	// for numeric columns further down, unchanged.
 	bool column_highlighted = highlight && current_cursor.isHighlighted(i, k);
-	if (column_highlighted) {
-	  cell_fg = styles.highlight_fg_color;
-	  cell_bg = styles.highlight_bg_color;
-	  setFgColor(cell_fg);
-	  setBgColor(cell_bg);
-	} else {
-	  setFgColor(styles.window_border_color);
-	  setBgColor(bg);
-	}
+	// Per-column override of the track-level fg/bg for a single-track
+	// (column-scoped) region.
+	bool column_selected = column_scoped_selection &&
+	  ((!track_info.isEffectColumn(k) &&
+	    track_info.getNoteNumber(k) >= sel_bounds.note_lo && track_info.getNoteNumber(k) <= sel_bounds.note_hi) ||
+	   (track_info.isEffectColumn(k) && column_highlighted));
+	UIColor cur_fg = column_selected ? styles.highlight_fg_color : fg;
+	UIColor cur_bg = column_selected ? styles.highlight_bg_color : bg;
+
+	setFgColor(styles.window_border_color);
+	setBgColor(cur_bg);
 	auto column_type = track_info.getColumnType(k);
 	if (track && track->getType() == TrackType::SAMPLE) {
-	  if (!column_highlighted) {
-	    cell_fg = fg;
-	    cell_bg = bg;
-	    setFgColor(cell_fg);
-	    setBgColor(cell_bg);
-	  }
-	  
+	  cell_fg = cur_fg;
+	  cell_bg = cur_bg;
+	  setFgColor(cell_fg);
+	  setBgColor(cell_bg);
+
 	  if (k < notes.size() && notes[k].isDefined()) {
 	    auto & note = notes[k];
 	    putstr(display_row, current_pos, "xxxxxx");
 	  } else {
-	    putstr(display_row, current_pos, "      ");	    
+	    putstr(display_row, current_pos, "      ");
 	  }
 	} else if (column_type == ColumnType::EFFECT) {
-	  if (!column_highlighted && command.isDefined()) {
-	    cell_fg = styles.command_column_color;
-	    cell_bg = bg;
-	    setFgColor(cell_fg);
-	    setBgColor(cell_bg);
-	  }
+	  cell_fg = command.isDefined() ? styles.command_column_color : cur_fg;
+	  cell_bg = cur_bg;
+	  setFgColor(cell_fg);
+	  setBgColor(cell_bg);
 	  auto s = to_string(command);
 	  putstr(display_row, current_pos, s);
 	  if (column_highlighted) {
@@ -935,17 +1055,15 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  auto l = track_info.getNoteNumber(k);
 	  auto note = l < notes.size() ? notes[l] : Note();
 
-	  if (!column_highlighted) {
-	    cell_fg = fg;
-	    cell_bg = bg;
-	    if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
-	    setFgColor(cell_fg);
-	    setBgColor(cell_bg);
-	  }
+	  cell_fg = cur_fg;
+	  cell_bg = cur_bg;
+	  if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
+	  setFgColor(cell_fg);
+	  setBgColor(cell_bg);
 	  auto tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
 	  putstr(display_row, current_pos, note.toString(tuning));
 	  current_pos += 3;
-	} else if (column_type == ColumnType::VELOCITY || column_type == ColumnType::DELAY) {	  	      
+	} else if (column_type == ColumnType::VELOCITY || column_type == ColumnType::DELAY) {
 	  auto l = track_info.getNoteNumber(k);
 	  auto note = l < notes.size() ? notes[l] : Note();
 	  string s;
@@ -959,13 +1077,15 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	    s = "--";
 	  }
 
-	  if (!column_highlighted) {
-	    cell_fg = column_type == ColumnType::VELOCITY ? UIColor("#bfa426") : UIColor("#42c1ea");
-	    cell_bg = bg;
-	    if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
-	    setFgColor(cell_fg);
-	    setBgColor(cell_bg);
-	  }
+	  // The bright velocity/delay colors are tuned for contrast against the
+	  // normal dark row background; inside the (bright) effective-region
+	  // highlight they'd be nearly unreadable, so use the region's own
+	  // (dark) foreground there instead - same idea as the note column.
+	  cell_fg = column_selected ? cur_fg : (column_type == ColumnType::VELOCITY ? UIColor("#bfa426") : UIColor("#42c1ea"));
+	  cell_bg = cur_bg;
+	  if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
+	  setFgColor(cell_fg);
+	  setBgColor(cell_bg);
 
 	  putstr(display_row, current_pos, s);
 	  if (column_highlighted) {
