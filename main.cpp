@@ -1,4 +1,5 @@
 #include "AlsaAudio.h"
+#include "LaunchpadIO.h"
 #include "TerminalUI.h"
 #include "Controller.h"
 #include "StderrLogger.h"
@@ -118,6 +119,9 @@ int main(int argc, char *argv[]) {
   AlsaAudio audio(channel_config.getAudioOutSampleRate(), channel_config.numberOfChannels());
   audio.initialize(logger);
 
+  LaunchpadIO launchpad_io;
+  launchpad_io.initialize(logger);
+
 #if 0
   if (!setlocale(LC_ALL, "")) {
     fmt::print(stderr, "Couldn't set locale\n");
@@ -133,7 +137,7 @@ int main(int argc, char *argv[]) {
   
   TerminalUI ui(nc);
   ui.initialize(controller);
-  ui.start(audio);
+  ui.start(audio, launchpad_io);
 
   return 0;
 }

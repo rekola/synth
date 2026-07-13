@@ -5,6 +5,8 @@
 #include "UIMenu.h"
 #include "Chart.h"
 #include "AudioAPI.h"
+#include "LaunchpadIO.h"
+#include "LaunchpadPadEvent.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -467,7 +469,7 @@ TerminalUI::readInput() {
 }
 
 void
-TerminalUI::startUI(AudioAPI & audio) {
+TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
   int out_pipe[2];
 
   if (pipe(out_pipe) != 0) { // make a pipe
@@ -477,7 +479,11 @@ TerminalUI::startUI(AudioAPI & audio) {
   close(out_pipe[1]);
 
   size_t num_midi_capture_desc = audio.getMidiCaptureDescriptors().size();
-  size_t num_descriptors = 3 + num_midi_capture_desc;
+  auto launchpad_descriptors = launchpad_io.getPollDescriptors();
+  size_t num_launchpad_desc = launchpad_descriptors.size();
+  size_t midi_base = 3;
+  size_t launchpad_base = midi_base + num_midi_capture_desc;
+  size_t num_descriptors = launchpad_base + num_launchpad_desc;
   auto descriptors = std::make_unique<pollfd[]>(num_descriptors);
 
 #if 1
@@ -494,7 +500,11 @@ TerminalUI::startUI(AudioAPI & audio) {
   descriptors[2].events = POLLIN;
 
   for (size_t i = 0; i < num_midi_capture_desc; i++) {
-    descriptors[3 + i] = audio.getMidiCaptureDescriptors()[i];
+    descriptors[midi_base + i] = audio.getMidiCaptureDescriptors()[i];
+  }
+
+  for (size_t i = 0; i < num_launchpad_desc; i++) {
+    descriptors[launchpad_base + i] = launchpad_descriptors[i];
   }
 
   // setStatus("Starting... nd = " + to_string(num_descriptors));
@@ -536,13 +546,20 @@ TerminalUI::startUI(AudioAPI & audio) {
 		break;
 	      }
 	    }
-	  } else {
+	  } else if (i < launchpad_base) {
 	    auto evs = audio.recordMIDI();
 	    // setStatus("got midi events: " + to_string(evs.size()));
 
 	    for (auto & ev : evs) {
 	      handleEvent(ev);
 	      if (ev.needRedraw()) render = true;
+	    }
+	  } else {
+	    auto evs = launchpad_io.pollEvents();
+
+	    for (auto & ev : evs) {
+	      handleEvent(*ev);
+	      if (ev->needRedraw()) render = true;
 	    }
 	  }
 	}

@@ -6,6 +6,8 @@ add_executable(synth_tests
 	RenderTests.cpp
 	ControllerTests.cpp
 	PatternBlockOpsTests.cpp
+	LaunchpadLayoutTests.cpp
+	LaunchpadProtocolTests.cpp
 )
 
 target_link_libraries(synth_tests synth_engine)

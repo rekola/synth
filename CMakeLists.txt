@@ -54,6 +54,8 @@ add_library(synth_engine STATIC
 	LFO.cpp
 	OfflineRenderer.cpp
 	PatternBlockOps.cpp
+	LaunchpadLayout.cpp
+	LaunchpadProtocol.cpp
 )
 target_include_directories(synth_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(synth_engine PUBLIC m sndfile fmt fftw3 pthread)
@@ -62,6 +64,7 @@ target_link_libraries(synth_engine PUBLIC m sndfile fmt fftw3 pthread)
 add_executable(musiceditor main.cpp
 	UI.cpp
 	AlsaAudio.cpp
+	LaunchpadIO.cpp
 	TerminalUI.cpp
 	HierarchyView.cpp
 	PatternEditor.cpp

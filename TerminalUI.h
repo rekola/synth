@@ -19,7 +19,7 @@ class TerminalUI : public UI {
   void render() override;
 
 protected:
-  void startUI(AudioAPI & audio) override;
+  void startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) override;
   bool readInput();
 
 private:

@@ -8,6 +8,10 @@
 #include "InstrumentTrack.h"
 #include "SampleTrack.h"
 #include "MidiEvent.h"
+#include "LaunchpadPadEvent.h"
+#include "LaunchpadLayout.h"
+#include "LaunchpadProtocol.h"
+#include "LaunchpadIO.h"
 #include "PlaybackControlEvent.h"
 #include "LogEvent.h"
 #include "KeyChord.h"
@@ -332,6 +336,28 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   vector<int> track_ids;
   get_root_track_ids(song, track_ids);
 
+  if (launchpad_io_) {
+    bool connected = launchpad_io_->hasReadyDevice();
+    auto launchpad_tuning = current_launchpad_tuning_;
+    auto launchpad_key = current_launchpad_key_;
+
+    if (connected && !track_ids.empty()) {
+      auto track = song.getTrackByInternalId(track_ids[new_cursor.track]);
+      launchpad_tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
+      launchpad_key = song.getKey();
+    }
+
+    bool became_connected = connected && !current_launchpad_connected_;
+    bool state_changed = connected && (launchpad_tuning != current_launchpad_tuning_ || launchpad_key != current_launchpad_key_);
+    if (became_connected || state_changed) {
+      refreshLaunchpadLeds(launchpad_tuning, launchpad_key);
+    }
+
+    current_launchpad_connected_ = connected;
+    current_launchpad_tuning_ = launchpad_tuning;
+    current_launchpad_key_ = launchpad_key;
+  }
+
   auto score_total_columns = 0;
   for (auto wd : track_info) score_total_columns += wd.second.getColumnCount();
 
@@ -414,6 +440,12 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
     need_redraw = true;
   } else if (cursor_changed || row_edited) {
     renderRow(styles, heading_height, track_ids, track_info, score_playing_row - current_scroll_row, true, sel_bounds);
+    if (launchpad_extra_redraw_row_ >= 0 && launchpad_extra_redraw_row_ != score_playing_row) {
+      auto extra_screen_row = launchpad_extra_redraw_row_ - current_scroll_row;
+      if (extra_screen_row >= 0 && extra_screen_row < rows - heading_height) {
+	renderRow(styles, heading_height, track_ids, track_info, extra_screen_row, false, sel_bounds);
+      }
+    }
     need_redraw = true;
   }
 
@@ -431,6 +463,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   current_score_total_columns = score_total_columns;
   current_song_version = song.getVersion();
   row_edited = false;
+  launchpad_extra_redraw_row_ = -1;
 
   current_selection_active_ = selection_active_;
   current_selection_start_pattern_ = selection_start_pattern_;
@@ -511,6 +544,193 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
     // setStatus(playing ? "Playing" : "Stopped");
   }
 #endif
+}
+
+void
+PatternEditor::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
+  auto & song = getController().getSong();
+  auto & info = getController().getPlaybackInfo();
+
+  vector<int> track_ids;
+  get_root_track_ids(song, track_ids);
+  if (track_ids.empty()) return;
+
+  int track_id = track_ids[new_cursor.track];
+  auto track = song.getTrackByInternalId(track_id);
+  auto tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
+
+  auto edo_steps = LaunchpadLayout::edoSteps(tuning);
+  if (edo_steps <= 0) return; // no pitched isomorphic layout for this track (e.g. percussion) - out of scope, see plan
+
+  auto & pattern = song.getPattern(info.getPatternIndex());
+  auto current_delay = info.getCurrentDelay();
+  auto & event_queue = getController().getPlaybackEventQueue();
+
+  auto basis = LaunchpadLayout::computeBasis(edo_steps);
+  auto tonic = song.getKey() >= 0 ? song.getKey() : 0;
+  // Deliberately not "(current_keyboard_octave - 4) * edo_steps" (which
+  // anchors pad (0,0) at the raw tonic, an inaudibly low register for most
+  // instruments): the computer-keyboard tables (InputEvent.h) each bake in
+  // their own several-octaves-up baseline for their lowest key (TET12's
+  // 'z' is base+48, i.e. exactly 4 octaves; TET31/TET53 use 5 octaves) -
+  // multiplying by the octave directly, instead of recentering around 4,
+  // reproduces that same baseline; +1 further octave on top of that per
+  // user feedback (the "current_keyboard_octave*N" register alone was
+  // still too low to be comfortably useful on the Launchpad specifically).
+  auto base_note = tonic + (current_keyboard_octave + 1) * edo_steps;
+  auto note_value = LaunchpadLayout::noteForPad(basis, ev.getX(), ev.getY(), base_note);
+
+  auto key = make_tuple(ev.getDeviceIndex(), ev.getX(), ev.getY());
+
+  if (ev.getKind() == LaunchpadPadEvent::PRESS) {
+    auto row = info.getRowIndex();
+
+    // Free-slot search (mirrors Pattern::pushNote), deliberately not
+    // "map size" the way active_midi_notes assigns columns - that has a
+    // latent collision bug on non-LIFO release order, which is the common
+    // case for a chordally-played grid controller (see the plan's design
+    // decision 3).
+    auto & notes = pattern.getNotes(row, track_id);
+    int note_column = static_cast<int>(notes.size());
+    for (int i = 0; i < static_cast<int>(notes.size()); i++) {
+      if (!notes[i].isDefined()) {
+	note_column = i;
+	break;
+      }
+    }
+    active_launchpad_notes_[key] = ActiveLaunchpadNote{note_column, row, track_id};
+
+    auto velocity = LaunchpadProtocol::getModelInfo(ev.getModel()).velocity_sensitive ?
+      static_cast<short>(ev.getVelocity()) : static_cast<short>(0x28); // same default as keyboard entry
+
+    Note note(note_value, velocity, current_delay);
+    pattern.setNote(row, track_id, note_column, note);
+    row_edited = true;
+    launchpad_extra_redraw_row_ = row; // defensive - see the member's doc comment
+
+    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, track_id, note_column, note_value, velocity));
+
+    // Deliberately NOT auto-advancing here (unlike single-note keyboard
+    // entry): a chord is multiple near-simultaneous presses that must all
+    // land on the *same* row - advancing per-press would spread a chord
+    // across rows the moment any two presses straddle the (asynchronous)
+    // MOVE_POSITION round-trip. Advance is deferred to RELEASE, once every
+    // currently-held pad has been let go (see below) - matching how
+    // Renoise's own "chord mode" treats simultaneously-pressed MIDI notes
+    // as one gesture, not N independent steps.
+  } else if (ev.getKind() == LaunchpadPadEvent::RELEASE) {
+    auto it = active_launchpad_notes_.find(key);
+    if (it == active_launchpad_notes_.end()) return;
+    auto held = it->second;
+    active_launchpad_notes_.erase(it);
+
+    // Always silence the live-audition voice.
+    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, held.track_id, held.note_column));
+
+    if (info.isPlaying()) {
+      // Live performance recording: write an explicit OFF at the row the
+      // transport has since reached, mirroring handleMidiEvent's NOTE_OFF -
+      // UNLESS that's still the same row the note itself is on. Per
+      // Renoise's own pattern model (a single line can't hold both a note
+      // and its own note-off), a release fast enough to land before the
+      // row has advanced must not be recorded as an off, or it would
+      // instantly erase the note it belongs to.
+      auto release_row = info.getRowIndex();
+      if (release_row != held.row) {
+	pattern.setNote(release_row, held.track_id, held.note_column, Note(0, 0, current_delay));
+	row_edited = true;
+      }
+    } else if (active_launchpad_notes_.empty()) {
+      // Step entry: advance once the whole chord gesture has been
+      // released (not per pad - see the PRESS branch), so the next tap/
+      // chord lands on a fresh row instead of piling onto this one.
+      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, edit_step_size));
+    }
+  } else if (ev.getKind() == LaunchpadPadEvent::AFTERTOUCH) {
+    // Mini MK3 never emits this (no pressure sensing); defensive check
+    // anyway in case a future model reports itself incorrectly.
+    if (!LaunchpadProtocol::getModelInfo(ev.getModel()).poly_aftertouch) return;
+
+    auto it = active_launchpad_notes_.find(key);
+    if (it == active_launchpad_notes_.end()) return; // no held note to modulate
+    auto & held = it->second;
+
+    // Live modulation always happens, regardless of the write-throttle
+    // below - mirrors handleMidiEvent's NOTE_PRESSURE handling exactly.
+    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, held.track_id, held.note_column, note_value, ev.getVelocity()));
+
+    // Rate-limit the persisted pattern write: Pattern::setNote already
+    // overwrites in place (so "one aftertouch object per column per row" is
+    // free), this threshold purely avoids redundant work/redraw churn for
+    // a dense pressure stream, not a correctness requirement.
+    const int aftertouch_threshold = 4;
+    auto delta = ev.getVelocity() - held.last_aftertouch_value;
+    if (delta < 0) delta = -delta;
+    if (delta < aftertouch_threshold) return;
+    held.last_aftertouch_value = ev.getVelocity();
+
+    // While playing, modulate the currently-sounding row (transport has
+    // moved on, matching handleMidiEvent); while stopped, modulate the
+    // row the note actually landed on (step entry already advanced past
+    // it - see the RELEASE branch above for why using the live row would
+    // be wrong here too).
+    auto target_row = info.isPlaying() ? info.getRowIndex() : held.row;
+    auto note = pattern.getNote(target_row, held.track_id, held.note_column);
+    if (!note.isDefined()) note.setDelay(current_delay);
+    note.setVelocity(static_cast<short>(ev.getVelocity()));
+    pattern.setNote(target_row, held.track_id, held.note_column, note);
+    row_edited = true;
+    launchpad_extra_redraw_row_ = target_row;
+  }
+}
+
+void
+PatternEditor::refreshLaunchpadLeds(Tuning tuning, int key) {
+  auto edo_steps = LaunchpadLayout::edoSteps(tuning);
+  vector<LaunchpadProtocol::PadColor> colors;
+
+  if (edo_steps <= 0) {
+    // No pitched isomorphic layout for this track (e.g. percussion) - blank
+    // the grid rather than showing a stale/misleading layout.
+    for (int y = 0; y < 8; y++) {
+      for (int x = 0; x < 8; x++) {
+	colors.push_back({LaunchpadProtocol::padToNoteNumber(x, y), 0, 0, 0});
+      }
+    }
+    launchpad_io_->sendLeds(colors);
+    return;
+  }
+
+  auto basis = LaunchpadLayout::computeBasis(edo_steps);
+  auto tonic = key >= 0 ? key : 0;
+  // Matches handleLaunchpadPadEvent's base_note (see its comment) - purely
+  // for consistency, since classifyPad's result is invariant to a uniform
+  // octave shift of base_note anyway.
+  auto base_note = tonic + (current_keyboard_octave + 1) * edo_steps;
+
+  for (int y = 0; y < 8; y++) {
+    for (int x = 0; x < 8; x++) {
+      uint8_t r, g, b;
+      if (basis.degenerate) {
+	r = g = b = 40; // degraded/fallback visual mode - no meaningful scale structure
+      } else {
+	switch (LaunchpadLayout::classifyPad(basis, edo_steps, x, y, base_note)) {
+	case LaunchpadLayout::PadCategory::TONIC:
+	  r = g = b = 127; // bright white
+	  break;
+	case LaunchpadLayout::PadCategory::IN_SCALE:
+	  r = 0; g = 80; b = 127; // moderate cyan/blue
+	  break;
+	default:
+	  r = 30; g = 20; b = 0; // dim amber - chromatic, de-emphasized
+	  break;
+	}
+      }
+      colors.push_back({LaunchpadProtocol::padToNoteNumber(x, y), r, g, b});
+    }
+  }
+
+  launchpad_io_->sendLeds(colors);
 }
 
 bool

@@ -19,6 +19,7 @@ class PatternEditor;
 class HierarchyView;
 class UIElement;
 class AudioAPI;
+class LaunchpadIO;
 class UI;
 
 class StatusLogger : public Logger {
@@ -38,9 +39,9 @@ class UI : public UIElement {
   virtual void refresh() = 0;
   virtual void render() = 0;
 
-  void start(AudioAPI & audio); 
+  void start(AudioAPI & audio, LaunchpadIO & launchpad_io);
   void setStatus(std::string s);
-  
+
   bool offerInput(const InputEvent & input) override;
 
   // Checks the active element's registry before UI's own (mirrors Emacs
@@ -53,9 +54,10 @@ class UI : public UIElement {
   void handleLogEvent(LogEvent & ev) override;
   void handleRecordEvent(RecordEvent & ev) override;
   void handleMidiEvent(MidiEvent & ev) override;
+  void handleLaunchpadPadEvent(LaunchpadPadEvent & ev) override;
 
 protected:
-  virtual void startUI(AudioAPI & audio) = 0;
+  virtual void startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) = 0;
 
   void initialize();
   void layout();

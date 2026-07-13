@@ -221,19 +221,26 @@ UI::handleMidiEvent(MidiEvent & ev) {
   pattern_editor_->handleMidiEvent(ev);
 }
 
+void
+UI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
+  pattern_editor_->handleLaunchpadPadEvent(ev);
+}
+
 void audio_thread_func(Controller * controller, AudioAPI * audio) {
   Player player(controller->getChannelConfiguration(), controller);
   player.play(*audio);
 }
 
 void
-UI::start(AudioAPI & audio) {
+UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io) {
+  pattern_editor_->setLaunchpadIO(&launchpad_io);
+
   std::thread audio_thread(audio_thread_func, &(getController()), &audio);
 
-  startUI(audio);
+  startUI(audio, launchpad_io);
 
   getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::TERMINATE));
-  
+
   audio_thread.join();
 }
 
