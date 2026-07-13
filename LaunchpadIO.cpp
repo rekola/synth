@@ -1,5 +1,6 @@
 #include "LaunchpadIO.h"
 #include "LaunchpadPadEvent.h"
+#include "LaunchpadButtonEvent.h"
 #include "Logger.h"
 
 using namespace std;
@@ -190,9 +191,9 @@ LaunchpadIO::getPollDescriptors() const {
   return result;
 }
 
-vector<unique_ptr<LaunchpadPadEvent>>
+vector<unique_ptr<Event>>
 LaunchpadIO::pollEvents() {
-  vector<unique_ptr<LaunchpadPadEvent>> result;
+  vector<unique_ptr<Event>> result;
   if (!seq_handle) return result;
 
   do {
@@ -214,6 +215,17 @@ LaunchpadIO::pollEvents() {
       auto & session = sessions[session_index];
       if (ev->source.client != session.client || ev->source.port != session.port) continue;
       session.state = SessionState::READY;
+
+      if (ev->type == SND_SEQ_EVENT_CONTROLLER) {
+	// Extra buttons outside the 8x8 grid send Control Change. 127=press,
+	// 0=release is a reasonable inference from Novation's documented
+	// button behavior but hasn't been confirmed against real hardware.
+	auto cc_number = ev->data.control.param;
+	auto value = ev->data.control.value;
+	auto kind = value == 0 ? LaunchpadButtonEvent::RELEASE : LaunchpadButtonEvent::PRESS;
+	result.push_back(make_unique<LaunchpadButtonEvent>(static_cast<int>(session_index), cc_number, kind, session.model));
+	break;
+      }
 
       LaunchpadPadEvent::Kind kind;
       int note, velocity;
@@ -267,6 +279,20 @@ void
 LaunchpadIO::sendLeds(const vector<LaunchpadProtocol::PadColor> & colors) {
   for (auto & session : sessions) {
     if (session.state != SessionState::READY) continue;
-    sendSysEx(LaunchpadProtocol::buildRgbLedSysEx(session.model, colors), session.client, session.port);
+
+    if (session.model == LaunchpadProtocol::Model::PRO_MK3) {
+      sendSysEx(LaunchpadProtocol::buildRgbLedSysEx(session.model, colors), session.client, session.port);
+      continue;
+    }
+
+    // X/Mini MK3 lack Pro MK3's extra buttons entirely and cap out at 81
+    // colourspecs (64 grid + the 17 CC numbers shared by all three models) -
+    // drop anything Pro-MK3-exclusive rather than risk sending an
+    // oversized/malformed message.
+    vector<LaunchpadProtocol::PadColor> filtered;
+    for (auto & color : colors) {
+      if (!LaunchpadProtocol::isProMk3OnlyLedIndex(color.led_index)) filtered.push_back(color);
+    }
+    sendSysEx(LaunchpadProtocol::buildRgbLedSysEx(session.model, filtered), session.client, session.port);
   }
 }

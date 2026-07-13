@@ -55,6 +55,7 @@ class UI : public UIElement {
   void handleRecordEvent(RecordEvent & ev) override;
   void handleMidiEvent(MidiEvent & ev) override;
   void handleLaunchpadPadEvent(LaunchpadPadEvent & ev) override;
+  void handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) override;
 
 protected:
   virtual void startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) = 0;

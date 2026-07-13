@@ -15,6 +15,8 @@
 #include "PlaybackControlEvent.h"
 #include "Controller.h"
 #include "KeyChord.h"
+#include "LaunchpadButtonEvent.h"
+#include "LaunchpadProtocol.h"
 
 #include <fmt/core.h>
 #include <thread>
@@ -224,6 +226,23 @@ UI::handleMidiEvent(MidiEvent & ev) {
 void
 UI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
   pattern_editor_->handleLaunchpadPadEvent(ev);
+}
+
+void
+UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
+  if (ev.getKind() != LaunchpadButtonEvent::PRESS) return;
+
+  auto name = LaunchpadProtocol::commandForButton(ev.getCCNumber());
+  if (!name) return;
+
+  // Deliberately bypassing active_element_/Controller::sendCommand's focus
+  // routing here, to match how pad input already reaches PatternEditor
+  // unconditionally (see handleLaunchpadPadEvent above) - most of the
+  // commands a Launchpad button can reach (set-mark, toggle-mute, etc.)
+  // are defined on PatternEditor's registry, and would otherwise silently
+  // no-op whenever some other window happens to have focus.
+  if (pattern_editor_->executeCommand(*name)) return;
+  executeCommand(*name);
 }
 
 void audio_thread_func(Controller * controller, AudioAPI * audio) {

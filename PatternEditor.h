@@ -109,12 +109,15 @@ protected:
   bool clipboard_column_scoped_ = false;
   bool clipboard_includes_command_ = false;
 
-  void refreshLaunchpadLeds(Tuning tuning, int key);
+  void refreshLaunchpadLeds(Tuning tuning, int key, bool playing, bool muted, bool solo);
 
   LaunchpadIO * launchpad_io_ = nullptr;
   bool current_launchpad_connected_ = false;
   Tuning current_launchpad_tuning_ = Tuning::TET12;
   int current_launchpad_key_ = -1;
+  bool current_launchpad_playing_ = false;
+  bool current_launchpad_muted_ = false;
+  bool current_launchpad_solo_ = false;
 };
 
 #endif

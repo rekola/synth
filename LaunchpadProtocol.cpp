@@ -130,4 +130,30 @@ decodeIncomingBytes(Model /*model*/, const vector<uint8_t> & bytes) {
   return events;
 }
 
+bool
+isProMk3OnlyLedIndex(int led_index) {
+  switch (led_index) {
+  case 10: case 20: case 30: case 40: case 50: case 60: case 70: case 80: case 90:
+    return true; // left column
+  default:
+    if (led_index >= 101 && led_index <= 108) return true; // "track select" row
+    if (led_index >= 1 && led_index <= 8) return true;     // "track control" row
+    return false;
+  }
+}
+
+optional<string>
+commandForButton(int cc_number) {
+  switch (cc_number) {
+  case 91: return string("octave-up");    // top row 1, printed with an up-arrow icon
+  case 92: return string("octave-down");  // top row 2, printed with a down-arrow icon
+  case 93: return string("prev-track");   // top row 3
+  case 94: return string("next-track");   // top row 4
+  case 98: return string("toggle-playing"); // top row 8, printed with a record-circle icon
+  case 30: return string("toggle-mute");  // Pro MK3 left column, position 6
+  case 20: return string("toggle-solo");  // Pro MK3 left column, position 7
+  default: return nullopt; // CC95-97, 99, the whole right column, and all other left-column/bottom-row buttons: reserved for now
+  }
+}
+
 }

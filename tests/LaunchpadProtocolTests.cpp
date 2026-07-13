@@ -133,3 +133,42 @@ TEST(decode_incoming_bytes_skips_embedded_sysex_and_ignores_non_grid_notes) {
   CHECK(events.size() == 1);
   CHECK(events[0].x == 7 && events[0].y == 7 && events[0].kind == EventKind::PRESS && events[0].velocity == 127);
 }
+
+TEST(command_for_button_returns_the_assigned_command_names) {
+  CHECK(commandForButton(91) == string("octave-up"));
+  CHECK(commandForButton(92) == string("octave-down"));
+  CHECK(commandForButton(93) == string("prev-track"));
+  CHECK(commandForButton(94) == string("next-track"));
+  CHECK(commandForButton(98) == string("toggle-playing"));
+  CHECK(commandForButton(30) == string("toggle-mute"));
+  CHECK(commandForButton(20) == string("toggle-solo"));
+}
+
+TEST(command_for_button_returns_nullopt_for_reserved_and_out_of_range_ccs) {
+  CHECK(commandForButton(95) == nullopt);
+  CHECK(commandForButton(96) == nullopt);
+  CHECK(commandForButton(97) == nullopt);
+  CHECK(commandForButton(99) == nullopt);
+  CHECK(commandForButton(19) == nullopt); // right column - reserved
+  CHECK(commandForButton(89) == nullopt); // right column - reserved
+  CHECK(commandForButton(10) == nullopt); // Pro MK3 left column - unassigned position
+  CHECK(commandForButton(101) == nullopt); // Pro MK3 bottom row - not assigned this pass
+  CHECK(commandForButton(0) == nullopt);
+  CHECK(commandForButton(-1) == nullopt);
+}
+
+TEST(is_pro_mk3_only_led_index_identifies_the_25_exclusive_buttons) {
+  // Left column
+  for (int cc : {10, 20, 30, 40, 50, 60, 70, 80, 90}) CHECK(isProMk3OnlyLedIndex(cc));
+  // Track select row
+  for (int cc = 101; cc <= 108; cc++) CHECK(isProMk3OnlyLedIndex(cc));
+  // Track control row
+  for (int cc = 1; cc <= 8; cc++) CHECK(isProMk3OnlyLedIndex(cc));
+
+  // Shared across all 3 models: grid notes, top row, right column, corner
+  for (int x = 0; x < 8; x++) {
+    for (int y = 0; y < 8; y++) CHECK(!isProMk3OnlyLedIndex(padToNoteNumber(x, y)));
+  }
+  for (int cc = 91; cc <= 99; cc++) CHECK(!isProMk3OnlyLedIndex(cc));
+  for (int cc = 19; cc <= 89; cc += 10) CHECK(!isProMk3OnlyLedIndex(cc));
+}

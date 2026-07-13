@@ -12,7 +12,7 @@
 namespace LaunchpadLayout {
 
   // Steps per octave for a given tuning, or 0 if the tuning has no fixed
-  // pitch structure (PERCUSSION, LIGHTING) - callers should treat 0 as "no
+  // pitch structure (PERCUSSION) - callers should treat 0 as "no
   // isomorphic layout available for this tuning".
   int edoSteps(Tuning tuning);
 
@@ -39,13 +39,36 @@ namespace LaunchpadLayout {
   // split to any EDO with a non-degenerate basis. Empty if basis.degenerate.
   std::vector<int> diatonicScaleDegrees(const Basis & basis, int edo_steps);
 
-  enum class PadCategory { TONIC, IN_SCALE, CHROMATIC };
+  // Fokker organ / Archiphone style landmark classes, generalized to any
+  // EDO: TONIC and the other 6 DIATONIC degrees are the fixed scale
+  // skeleton; SHARP/FLAT are a full chromatic step (distance 2) above/
+  // below their nearest diatonic degree; DIESIS is a quarter-tone-ish
+  // in-between note (distance 1, or >2 in very fine EDOs); ACCIDENTAL is
+  // a genuine tie - equidistant from two degrees (e.g. every 12edo black
+  // key), ambiguously sharp-or-flat.
+  enum class PadCategory { TONIC, DIATONIC, SHARP, FLAT, DIESIS, ACCIDENTAL };
 
-  // Classifies a pad for LED-coloring purposes. Callers should check
-  // basis.degenerate themselves first and use a dedicated fallback color
-  // instead of calling this (there's no meaningful scale/tonic distinction
-  // once the layout has fallen back to a straight chromatic run).
+  // Classifies a pad for LED-coloring purposes, by the signed distance
+  // from its pitch class to the nearest diatonicScaleDegrees() member.
+  // Callers should check basis.degenerate themselves first and use a
+  // dedicated fallback color instead of calling this (there's no
+  // meaningful scale/tonic distinction once the layout has fallen back to
+  // a straight chromatic run).
   PadCategory classifyPad(const Basis & basis, int edo_steps, int x, int y, int base_note);
+
+  // Fixed General MIDI percussion layout (GM values 27-82, the range this
+  // engine actually supports - see Note.h's percussion_names table),
+  // family-grouped for playability: core kit at the bottom (row 0),
+  // ascending through toms/cymbals/hand-percussion/latin/electronic-FX.
+  // Returns -1 for the 8 unused pads (row 7, y=7).
+  int percussionNoteForPad(int x, int y);
+
+  enum class PercussionFamily { CORE, HI_HAT, TOMS, CYMBALS, HAND_PERC, LATIN, WHISTLE, ELECTRONIC, UNUSED };
+
+  // Classifies a percussion pad for LED-coloring purposes - a separate
+  // concern from percussionNoteForPad's placement (hi-hats get their own
+  // color regardless of which row they physically sit in).
+  PercussionFamily percussionFamilyForPad(int x, int y);
 
 }
 

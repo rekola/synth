@@ -10,7 +10,7 @@
 #include <vector>
 
 class Logger;
-class LaunchpadPadEvent;
+class Event;
 
 // ALSA-facing Launchpad I/O: the only part of Launchpad support that
 // touches real hardware (everything else - layout math, SysEx encode/decode
@@ -37,9 +37,13 @@ class LaunchpadIO {
 
   std::vector<pollfd> getPollDescriptors() const;
 
-  // Drains and decodes all currently-pending events. Must only be called
-  // after poll() has reported one of getPollDescriptors()'s fds ready.
-  std::vector<std::unique_ptr<LaunchpadPadEvent>> pollEvents();
+  // Drains and decodes all currently-pending events (LaunchpadPadEvent for
+  // grid presses/aftertouch, LaunchpadButtonEvent for the extra CC-numbered
+  // buttons) into a common Event vector - the consumer (TerminalUI) only
+  // ever needs Event& to dispatch, via EventHandler::handleEvent. Must only
+  // be called after poll() has reported one of getPollDescriptors()'s fds
+  // ready.
+  std::vector<std::unique_ptr<Event>> pollEvents();
 
   // True if at least one connected device is ready.
   bool hasReadyDevice() const;

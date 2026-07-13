@@ -80,6 +80,24 @@ namespace LaunchpadProtocol {
   // misparsed as channel-voice data.
   std::vector<RawEvent> decodeIncomingBytes(Model model, const std::vector<uint8_t> & bytes);
 
+  // Static, hardcoded CC-number -> command-name assignment for the extra
+  // buttons outside the 8x8 grid (see the Launchpad follow-up plan). CC
+  // numbers are identical across all three models for the shared top-row/
+  // right-column/corner set; Pro MK3-only CC numbers (left column, the two
+  // rows below the grid) simply aren't in this table except for the two
+  // assigned Mute/Solo slots - X/Mini MK3 physically can't send those CCs,
+  // so they're unreachable there rather than needing per-model gating.
+  // Returns nullopt for unassigned/reserved CC numbers.
+  std::optional<std::string> commandForButton(int cc_number);
+
+  // True for CC numbers that only exist on Pro MK3 (its left column and the
+  // two rows below the grid) - X/Mini MK3 have no physical button there.
+  // LED-sending code should filter these out for non-Pro-MK3 sessions:
+  // X/Mini MK3's documented "up to 81 colourspecs" limit is exactly
+  // 64 grid pads + the 17 CC numbers shared by all three models, and
+  // including Pro-MK3-only indices would exceed it.
+  bool isProMk3OnlyLedIndex(int led_index);
+
 }
 
 #endif

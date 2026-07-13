@@ -10,6 +10,7 @@ class RecordEvent;
 class InputEvent;
 class MidiEvent;
 class LaunchpadPadEvent;
+class LaunchpadButtonEvent;
 
 class EventHandler {
  public:
@@ -25,6 +26,7 @@ class EventHandler {
   virtual void handleInputEvent(InputEvent & ev) { }
   virtual void handleMidiEvent(MidiEvent & ev) { }
   virtual void handleLaunchpadPadEvent(LaunchpadPadEvent & ev) { }
+  virtual void handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) { }
 };
 
 #endif
