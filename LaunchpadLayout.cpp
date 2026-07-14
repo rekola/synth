@@ -130,4 +130,21 @@ percussionFamilyForPad(int x, int y) {
   }
 }
 
+int
+clampOctave(int octave, int delta) {
+  auto result = octave + delta;
+  if (result < 0) return 0;
+  if (result > 9) return 9;
+  return result;
+}
+
+int
+advanceTrackIndex(int current_or_unassigned, int delta, int num_tracks) {
+  if (num_tracks <= 0) return 0;
+  auto result = current_or_unassigned + delta;
+  if (result < 0) return 0;
+  if (result > num_tracks - 1) return num_tracks - 1;
+  return result;
+}
+
 }

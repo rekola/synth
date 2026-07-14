@@ -70,6 +70,18 @@ namespace LaunchpadLayout {
   // color regardless of which row they physically sit in).
   PercussionFamily percussionFamilyForPad(int x, int y);
 
+  // Clamps a per-device Launchpad octave shift by delta (+1/-1) to [0, 9] -
+  // pure arithmetic shared by LaunchpadManager's octave-up/octave-down.
+  int clampOctave(int octave, int delta);
+
+  // Advances a per-device track assignment by delta (+1/-1), clamped to
+  // [0, num_tracks). current_or_unassigned == -1 means "not yet assigned
+  // to a specific track" (the device has been following some external
+  // fallback track so far) - the first advance seeds from that fallback
+  // (the caller folds the fallback into current_or_unassigned before
+  // calling) rather than starting from 0. Clamps, does not wrap.
+  int advanceTrackIndex(int current_or_unassigned, int delta, int num_tracks);
+
 }
 
 #endif

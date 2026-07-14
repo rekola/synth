@@ -1,5 +1,6 @@
 #include "AlsaAudio.h"
 #include "LaunchpadIO.h"
+#include "LaunchpadManager.h"
 #include "TerminalUI.h"
 #include "Controller.h"
 #include "StderrLogger.h"
@@ -121,6 +122,7 @@ int main(int argc, char *argv[]) {
 
   LaunchpadIO launchpad_io;
   launchpad_io.initialize(logger);
+  LaunchpadManager launchpad_manager;
 
 #if 0
   if (!setlocale(LC_ALL, "")) {
@@ -137,7 +139,7 @@ int main(int argc, char *argv[]) {
   
   TerminalUI ui(nc);
   ui.initialize(controller);
-  ui.start(audio, launchpad_io);
+  ui.start(audio, launchpad_io, launchpad_manager);
 
   return 0;
 }

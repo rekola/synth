@@ -241,3 +241,26 @@ TEST(percussion_family_for_pad_matches_the_documented_grouping) {
   // Unused: row 7 (all)
   for (int x = 0; x < 8; x++) CHECK(percussionFamilyForPad(x, 7) == PercussionFamily::UNUSED);
 }
+
+TEST(clamp_octave_shifts_within_bounds_and_clamps_at_the_edges) {
+  CHECK(clampOctave(4, 1) == 5);
+  CHECK(clampOctave(4, -1) == 3);
+  CHECK(clampOctave(0, -1) == 0);  // already at the floor
+  CHECK(clampOctave(9, 1) == 9);   // already at the ceiling
+  CHECK(clampOctave(9, -1) == 8);
+}
+
+TEST(advance_track_index_steps_within_bounds_and_clamps_at_the_edges) {
+  CHECK(advanceTrackIndex(2, 1, 5) == 3);
+  CHECK(advanceTrackIndex(2, -1, 5) == 1);
+  CHECK(advanceTrackIndex(4, 1, 5) == 4);  // already at the last track (index 4 of 5)
+  CHECK(advanceTrackIndex(0, -1, 5) == 0); // already at the first track
+  CHECK(advanceTrackIndex(0, 0, 0) == 0);  // defensive: no tracks at all
+}
+
+TEST(advance_track_index_seeds_from_the_fallback_when_unassigned) {
+  // -1 means "not yet assigned" - the caller folds the fallback track in
+  // before calling, so this is really just "seed from N, then step".
+  CHECK(advanceTrackIndex(/*fallback=*/2, 1, 5) == 3);
+  CHECK(advanceTrackIndex(/*fallback=*/2, -1, 5) == 1);
+}

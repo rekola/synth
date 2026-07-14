@@ -2,21 +2,18 @@
 #define _PATTERNEDITOR_H_
 
 #include "UIElement.h"
-#include "Tuning.h"
 #include "Cursor.h"
 #include "PatternBlockOps.h"
 
 #include <vector>
 #include <unordered_map>
-#include <map>
-#include <tuple>
 
 class Synth;
 class InputEvent;
 class StyleProvider;
 class Song;
 class VisibleTrackInfo;
-class LaunchpadIO;
+class LaunchpadManager;
 
 class PatternEditor : public UIElement {
  public:
@@ -28,8 +25,17 @@ class PatternEditor : public UIElement {
   void handleLaunchpadPadEvent(LaunchpadPadEvent & ev) override;
 
   // Set once at startup (see UI::start) so render() can push LED updates
-  // when the song's tuning/key changes or a device newly connects.
-  void setLaunchpadIO(LaunchpadIO * io) { launchpad_io_ = io; }
+  // and handleLaunchpadPadEvent can resolve notes via the layout/per-device
+  // state LaunchpadManager owns.
+  void setLaunchpadManager(LaunchpadManager * manager) { launchpad_manager_ = manager; }
+
+  // Handles the six Launchpad-extra-button commands that need to know
+  // *which* device pressed the button (octave/track are per-device state -
+  // see LaunchpadManager). Returns false for any other command name, so
+  // UI::handleLaunchpadButtonEvent can fall back to the generic
+  // name-based executeCommand (e.g. "toggle-playing", which has no
+  // per-device meaning).
+  bool handleLaunchpadDeviceCommand(std::string_view name, int device_id);
 
 protected:
   // Resolved row/track/note-column bounds for a selection-consuming command
@@ -67,26 +73,7 @@ protected:
   bool row_edited = false;
   int current_song_version = 0;
 
-  // Pattern row index a Launchpad aftertouch/press write landed on when it
-  // isn't the current playback row (e.g. step entry already auto-advanced
-  // the cursor off of it) - render()'s incremental redraw only repaints
-  // the current playback row otherwise, so an off-cursor write would
-  // silently never become visible without this. -1 = none pending.
-  int launchpad_extra_redraw_row_ = -1;
-
   std::unordered_map<int, int> active_midi_notes;
-
-  struct ActiveLaunchpadNote {
-    int note_column;
-    int row, track_id; // where the note was actually written (see handleLaunchpadPadEvent)
-    int last_aftertouch_value = -1; // -1 = no aftertouch written yet for this note
-  };
-
-  // Keyed by (device_index, pad_x, pad_y); unlike active_midi_notes this
-  // uses a free-slot search for column assignment (see
-  // handleLaunchpadPadEvent), not "map size", to avoid a latent
-  // column-collision bug on non-LIFO pad release order.
-  std::map<std::tuple<int, int, int>, ActiveLaunchpadNote> active_launchpad_notes_;
 
   // Emacs-style mark/point selection: the mark is recorded here at C-SPC
   // time, the point is always "wherever the cursor/row currently is" (see
@@ -109,15 +96,7 @@ protected:
   bool clipboard_column_scoped_ = false;
   bool clipboard_includes_command_ = false;
 
-  void refreshLaunchpadLeds(Tuning tuning, int key, bool playing, bool muted, bool solo);
-
-  LaunchpadIO * launchpad_io_ = nullptr;
-  bool current_launchpad_connected_ = false;
-  Tuning current_launchpad_tuning_ = Tuning::TET12;
-  int current_launchpad_key_ = -1;
-  bool current_launchpad_playing_ = false;
-  bool current_launchpad_muted_ = false;
-  bool current_launchpad_solo_ = false;
+  LaunchpadManager * launchpad_manager_ = nullptr;
 };
 
 #endif

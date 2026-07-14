@@ -17,6 +17,7 @@
 #include "KeyChord.h"
 #include "LaunchpadButtonEvent.h"
 #include "LaunchpadProtocol.h"
+#include "LaunchpadManager.h"
 
 #include <fmt/core.h>
 #include <thread>
@@ -235,13 +236,15 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   auto name = LaunchpadProtocol::commandForButton(ev.getCCNumber());
   if (!name) return;
 
-  // Deliberately bypassing active_element_/Controller::sendCommand's focus
-  // routing here, to match how pad input already reaches PatternEditor
-  // unconditionally (see handleLaunchpadPadEvent above) - most of the
-  // commands a Launchpad button can reach (set-mark, toggle-mute, etc.)
-  // are defined on PatternEditor's registry, and would otherwise silently
-  // no-op whenever some other window happens to have focus.
-  if (pattern_editor_->executeCommand(*name)) return;
+  // Per-device commands (which track/octave a given Launchpad follows) go
+  // through PatternEditor's device-aware entry point first, since those
+  // need to know *which* physical device pressed the button - see
+  // LaunchpadManager. Deliberately bypassing active_element_/
+  // Controller::sendCommand's focus routing either way, to match how pad
+  // input already reaches PatternEditor unconditionally (see
+  // handleLaunchpadPadEvent above) - these commands would otherwise
+  // silently no-op whenever some other window happens to have focus.
+  if (pattern_editor_->handleLaunchpadDeviceCommand(*name, ev.getDeviceIndex())) return;
   executeCommand(*name);
 }
 
@@ -251,8 +254,9 @@ void audio_thread_func(Controller * controller, AudioAPI * audio) {
 }
 
 void
-UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io) {
-  pattern_editor_->setLaunchpadIO(&launchpad_io);
+UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launchpad_manager) {
+  launchpad_manager.setLaunchpadIO(&launchpad_io);
+  pattern_editor_->setLaunchpadManager(&launchpad_manager);
 
   std::thread audio_thread(audio_thread_func, &(getController()), &audio);
 

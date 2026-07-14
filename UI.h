@@ -20,6 +20,7 @@ class HierarchyView;
 class UIElement;
 class AudioAPI;
 class LaunchpadIO;
+class LaunchpadManager;
 class UI;
 
 class StatusLogger : public Logger {
@@ -39,7 +40,7 @@ class UI : public UIElement {
   virtual void refresh() = 0;
   virtual void render() = 0;
 
-  void start(AudioAPI & audio, LaunchpadIO & launchpad_io);
+  void start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launchpad_manager);
   void setStatus(std::string s);
 
   bool offerInput(const InputEvent & input) override;

@@ -45,12 +45,16 @@ class LaunchpadIO {
   // ready.
   std::vector<std::unique_ptr<Event>> pollEvents();
 
-  // True if at least one connected device is ready.
-  bool hasReadyDevice() const;
+  // Stable ids (see Session::session_id below) of every currently-ready
+  // connected device - what a caller wanting per-device state (assigned
+  // track, octave, ...) should iterate.
+  std::vector<int> readySessionIds() const;
 
-  // Sends LED colors to every ready connected device (each addressed with
-  // its own model's SysEx header). Silently does nothing if none are ready.
-  void sendLeds(const std::vector<LaunchpadProtocol::PadColor> & colors);
+  // Sends LED colors to one specific ready device (addressed with its own
+  // model's SysEx header, filtering out CC numbers that model doesn't
+  // have). Silently does nothing if session_id doesn't name a ready
+  // session.
+  void sendLeds(int session_id, const std::vector<LaunchpadProtocol::PadColor> & colors);
 
  private:
   enum class SessionState { DETECTED, READY };
@@ -59,6 +63,12 @@ class LaunchpadIO {
     LaunchpadProtocol::Model model;
     int client, port;
     SessionState state;
+    // Stable identity for this connection, assigned once at connect time -
+    // unlike the session's position in the `sessions` vector, this never
+    // changes when an earlier session disconnects (see handlePortExit's
+    // erase). LaunchpadPadEvent/LaunchpadButtonEvent's device_index is this
+    // id, so per-device state keyed on it survives hotplug churn.
+    int session_id;
   };
 
   void scanForDevices(Logger & logger);
@@ -74,6 +84,7 @@ class LaunchpadIO {
   int our_port = -1;
   Logger * logger_ = nullptr;
   std::vector<Session> sessions;
+  int next_session_id_ = 0;
 };
 
 #endif

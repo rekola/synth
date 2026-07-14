@@ -150,7 +150,7 @@ LaunchpadIO::connectToDevice(Logger & logger, int client, int port, LaunchpadPro
     return;
   }
 
-  sessions.push_back({model, client, port, SessionState::DETECTED});
+  sessions.push_back({model, client, port, SessionState::DETECTED, next_session_id_++});
 
   sendSysEx(LaunchpadProtocol::buildProgrammerModeEnter(model), client, port);
   // No blocking wait for any reply - see the plan's design decision on the
@@ -223,7 +223,7 @@ LaunchpadIO::pollEvents() {
 	auto cc_number = ev->data.control.param;
 	auto value = ev->data.control.value;
 	auto kind = value == 0 ? LaunchpadButtonEvent::RELEASE : LaunchpadButtonEvent::PRESS;
-	result.push_back(make_unique<LaunchpadButtonEvent>(static_cast<int>(session_index), cc_number, kind, session.model));
+	result.push_back(make_unique<LaunchpadButtonEvent>(session.session_id, cc_number, kind, session.model));
 	break;
       }
 
@@ -255,7 +255,7 @@ LaunchpadIO::pollEvents() {
       if (matched) {
 	auto pad = LaunchpadProtocol::noteNumberToPad(note);
 	if (pad) {
-	  result.push_back(make_unique<LaunchpadPadEvent>(static_cast<int>(session_index), pad->first, pad->second, kind, velocity, session.model));
+	  result.push_back(make_unique<LaunchpadPadEvent>(session.session_id, pad->first, pad->second, kind, velocity, session.model));
 	}
       }
       break;
@@ -267,22 +267,23 @@ LaunchpadIO::pollEvents() {
   return result;
 }
 
-bool
-LaunchpadIO::hasReadyDevice() const {
+vector<int>
+LaunchpadIO::readySessionIds() const {
+  vector<int> result;
   for (auto & session : sessions) {
-    if (session.state == SessionState::READY) return true;
+    if (session.state == SessionState::READY) result.push_back(session.session_id);
   }
-  return false;
+  return result;
 }
 
 void
-LaunchpadIO::sendLeds(const vector<LaunchpadProtocol::PadColor> & colors) {
+LaunchpadIO::sendLeds(int session_id, const vector<LaunchpadProtocol::PadColor> & colors) {
   for (auto & session : sessions) {
-    if (session.state != SessionState::READY) continue;
+    if (session.state != SessionState::READY || session.session_id != session_id) continue;
 
     if (session.model == LaunchpadProtocol::Model::PRO_MK3) {
       sendSysEx(LaunchpadProtocol::buildRgbLedSysEx(session.model, colors), session.client, session.port);
-      continue;
+      return;
     }
 
     // X/Mini MK3 lack Pro MK3's extra buttons entirely and cap out at 81
@@ -294,5 +295,6 @@ LaunchpadIO::sendLeds(const vector<LaunchpadProtocol::PadColor> & colors) {
       if (!LaunchpadProtocol::isProMk3OnlyLedIndex(color.led_index)) filtered.push_back(color);
     }
     sendSysEx(LaunchpadProtocol::buildRgbLedSysEx(session.model, filtered), session.client, session.port);
+    return;
   }
 }

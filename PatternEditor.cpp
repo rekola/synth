@@ -5,13 +5,13 @@
 #include "Controller.h"
 #include "StyleProvider.h"
 #include "Tuner.h"
+#include "Tuning.h"
 #include "InstrumentTrack.h"
 #include "SampleTrack.h"
 #include "MidiEvent.h"
 #include "LaunchpadPadEvent.h"
-#include "LaunchpadLayout.h"
 #include "LaunchpadProtocol.h"
-#include "LaunchpadIO.h"
+#include "LaunchpadManager.h"
 #include "PlaybackControlEvent.h"
 #include "LogEvent.h"
 #include "KeyChord.h"
@@ -213,64 +213,6 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     song.incVersion();
   });
 
-  // The following six commands exist so Launchpad extra-button presses can
-  // invoke them by name (see the Launchpad follow-up plan); each wraps an
-  // existing keybinding's inline logic verbatim, just invocable without a
-  // keypress. None of them need a keybinding of their own to be valid
-  // commands - see assertCommandBindingsValid()'s direction (every bound
-  // key must name a real command, not the reverse).
-  commands_.define("next-track", [this]() {
-    auto & song = getController().getSong();
-    vector<int> track_ids;
-    get_root_track_ids(song, track_ids);
-    auto num_tracks = static_cast<int>(track_ids.size());
-    if (new_cursor.track + 1 < num_tracks) {
-      new_cursor.track++;
-      new_cursor.col = new_cursor.subcol = 0;
-    }
-  });
-
-  commands_.define("prev-track", [this]() {
-    if (new_cursor.track > 0) {
-      new_cursor.track--;
-      new_cursor.col = new_cursor.subcol = 0;
-    }
-  });
-
-  commands_.define("octave-up", [this]() {
-    if (current_keyboard_octave < 9) current_keyboard_octave++;
-  });
-
-  commands_.define("octave-down", [this]() {
-    if (current_keyboard_octave > 0) current_keyboard_octave--;
-  });
-
-  commands_.define("toggle-mute", [this]() {
-    auto & song = getController().getSong();
-    vector<int> track_ids;
-    get_root_track_ids(song, track_ids);
-    if (track_ids.empty()) return;
-    auto track = song.getTrackByInternalId(track_ids[current_cursor.track]);
-    if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL)) {
-      auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
-      instrument_track.setMuted(!instrument_track.isMuted());
-      song.incVersion();
-    }
-  });
-
-  commands_.define("toggle-solo", [this]() {
-    auto & song = getController().getSong();
-    vector<int> track_ids;
-    get_root_track_ids(song, track_ids);
-    if (track_ids.empty()) return;
-    auto track = song.getTrackByInternalId(track_ids[current_cursor.track]);
-    if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL)) {
-      auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
-      instrument_track.setSolo(!instrument_track.isSolo());
-      song.incVersion();
-    }
-  });
-
   keymap_.bind(KeyChord::pack(' ', true, false, false, false), "set-mark");  // Ctrl-Space
   keymap_.bind(KeyChord::pack('b', true, false, false, false), "set-mark");  // Ctrl-B (see todo.txt; works on any terminal)
   keymap_.bind(KeyChord::pack('w', true, false, false, false), "kill-region");
@@ -394,42 +336,9 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   vector<int> track_ids;
   get_root_track_ids(song, track_ids);
 
-  if (launchpad_io_) {
-    bool connected = launchpad_io_->hasReadyDevice();
-    auto launchpad_tuning = current_launchpad_tuning_;
-    auto launchpad_key = current_launchpad_key_;
-    auto launchpad_playing = current_launchpad_playing_;
-    auto launchpad_muted = current_launchpad_muted_;
-    auto launchpad_solo = current_launchpad_solo_;
-
-    if (connected && !track_ids.empty()) {
-      auto track = song.getTrackByInternalId(track_ids[new_cursor.track]);
-      launchpad_tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
-      launchpad_key = song.getKey();
-      launchpad_playing = getController().getPlaybackInfo().isPlaying();
-      if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL)) {
-	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
-	launchpad_muted = instrument_track.isMuted();
-	launchpad_solo = instrument_track.isSolo();
-      } else {
-	launchpad_muted = false;
-	launchpad_solo = false;
-      }
-    }
-
-    bool became_connected = connected && !current_launchpad_connected_;
-    bool state_changed = connected && (launchpad_tuning != current_launchpad_tuning_ || launchpad_key != current_launchpad_key_ ||
-      launchpad_playing != current_launchpad_playing_ || launchpad_muted != current_launchpad_muted_ || launchpad_solo != current_launchpad_solo_);
-    if (became_connected || state_changed) {
-      refreshLaunchpadLeds(launchpad_tuning, launchpad_key, launchpad_playing, launchpad_muted, launchpad_solo);
-    }
-
-    current_launchpad_connected_ = connected;
-    current_launchpad_tuning_ = launchpad_tuning;
-    current_launchpad_key_ = launchpad_key;
-    current_launchpad_playing_ = launchpad_playing;
-    current_launchpad_muted_ = launchpad_muted;
-    current_launchpad_solo_ = launchpad_solo;
+  if (launchpad_manager_) {
+    launchpad_manager_->refresh(song, track_ids, getController().getPlaybackInfo().isPlaying(),
+      track_ids.empty() ? -1 : new_cursor.track);
   }
 
   auto score_total_columns = 0;
@@ -514,8 +423,9 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
     need_redraw = true;
   } else if (cursor_changed || row_edited) {
     renderRow(styles, heading_height, track_ids, track_info, score_playing_row - current_scroll_row, true, sel_bounds);
-    if (launchpad_extra_redraw_row_ >= 0 && launchpad_extra_redraw_row_ != score_playing_row) {
-      auto extra_screen_row = launchpad_extra_redraw_row_ - current_scroll_row;
+    auto extra_redraw_row = launchpad_manager_ ? launchpad_manager_->extraRedrawRow() : -1;
+    if (extra_redraw_row >= 0 && extra_redraw_row != score_playing_row) {
+      auto extra_screen_row = extra_redraw_row - current_scroll_row;
       if (extra_screen_row >= 0 && extra_screen_row < rows - heading_height) {
 	renderRow(styles, heading_height, track_ids, track_info, extra_screen_row, false, sel_bounds);
       }
@@ -537,7 +447,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   current_score_total_columns = score_total_columns;
   current_song_version = song.getVersion();
   row_edited = false;
-  launchpad_extra_redraw_row_ = -1;
+  if (launchpad_manager_) launchpad_manager_->clearExtraRedrawRow();
 
   current_selection_active_ = selection_active_;
   current_selection_start_pattern_ = selection_start_pattern_;
@@ -622,6 +532,8 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
 
 void
 PatternEditor::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
+  if (!launchpad_manager_) return;
+
   auto & song = getController().getSong();
   auto & info = getController().getPlaybackInfo();
 
@@ -629,38 +541,17 @@ PatternEditor::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
   get_root_track_ids(song, track_ids);
   if (track_ids.empty()) return;
 
-  int track_id = track_ids[new_cursor.track];
-  auto track = song.getTrackByInternalId(track_id);
-  auto tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
+  auto device_id = ev.getDeviceIndex();
+  auto track_index = launchpad_manager_->assignedTrackIndex(device_id, new_cursor.track);
+  if (track_index < 0 || track_index >= static_cast<int>(track_ids.size())) track_index = new_cursor.track;
+  int track_id = track_ids[track_index];
+
+  auto note_value = launchpad_manager_->resolveNote(song, device_id, track_id, ev.getX(), ev.getY());
+  if (note_value < 0) return; // unused percussion pad (row 7), or an unpitched/degenerate tuning
 
   auto & pattern = song.getPattern(info.getPatternIndex());
   auto current_delay = info.getCurrentDelay();
   auto & event_queue = getController().getPlaybackEventQueue();
-
-  int note_value;
-  if (tuning == Tuning::PERCUSSION) {
-    note_value = LaunchpadLayout::percussionNoteForPad(ev.getX(), ev.getY());
-    if (note_value < 0) return; // unused pad (row 7)
-  } else {
-    auto edo_steps = LaunchpadLayout::edoSteps(tuning);
-    if (edo_steps <= 0) return; // defensive - every non-percussion Tuning is currently pitched
-
-    auto basis = LaunchpadLayout::computeBasis(edo_steps);
-    auto tonic = song.getKey() >= 0 ? song.getKey() : 0;
-    // Deliberately not "(current_keyboard_octave - 4) * edo_steps" (which
-    // anchors pad (0,0) at the raw tonic, an inaudibly low register for most
-    // instruments): the computer-keyboard tables (InputEvent.h) each bake in
-    // their own several-octaves-up baseline for their lowest key (TET12's
-    // 'z' is base+48, i.e. exactly 4 octaves; TET31/TET53 use 5 octaves) -
-    // multiplying by the octave directly, instead of recentering around 4,
-    // reproduces that same baseline; +1 further octave on top of that per
-    // user feedback (the "current_keyboard_octave*N" register alone was
-    // still too low to be comfortably useful on the Launchpad specifically).
-    auto base_note = tonic + (current_keyboard_octave + 1) * edo_steps;
-    note_value = LaunchpadLayout::noteForPad(basis, ev.getX(), ev.getY(), base_note);
-  }
-
-  auto key = make_tuple(ev.getDeviceIndex(), ev.getX(), ev.getY());
 
   if (ev.getKind() == LaunchpadPadEvent::PRESS) {
     auto row = info.getRowIndex();
@@ -678,7 +569,7 @@ PatternEditor::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
 	break;
       }
     }
-    active_launchpad_notes_[key] = ActiveLaunchpadNote{note_column, row, track_id};
+    launchpad_manager_->recordActiveNote(device_id, ev.getX(), ev.getY(), {note_column, row, track_id});
 
     auto velocity = LaunchpadProtocol::getModelInfo(ev.getModel()).velocity_sensitive ?
       static_cast<short>(ev.getVelocity()) : static_cast<short>(0x28); // same default as keyboard entry
@@ -686,7 +577,7 @@ PatternEditor::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
     Note note(note_value, velocity, current_delay);
     pattern.setNote(row, track_id, note_column, note);
     row_edited = true;
-    launchpad_extra_redraw_row_ = row; // defensive - see the member's doc comment
+    launchpad_manager_->setExtraRedrawRow(row); // defensive - see the member's doc comment
 
     event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, track_id, note_column, note_value, velocity));
 
@@ -699,10 +590,10 @@ PatternEditor::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
     // Renoise's own "chord mode" treats simultaneously-pressed MIDI notes
     // as one gesture, not N independent steps.
   } else if (ev.getKind() == LaunchpadPadEvent::RELEASE) {
-    auto it = active_launchpad_notes_.find(key);
-    if (it == active_launchpad_notes_.end()) return;
-    auto held = it->second;
-    active_launchpad_notes_.erase(it);
+    auto held_ptr = launchpad_manager_->findActiveNote(device_id, ev.getX(), ev.getY());
+    if (!held_ptr) return;
+    auto held = *held_ptr;
+    launchpad_manager_->clearActiveNote(device_id, ev.getX(), ev.getY());
 
     // Always silence the live-audition voice.
     event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, held.track_id, held.note_column));
@@ -720,10 +611,13 @@ PatternEditor::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
 	pattern.setNote(release_row, held.track_id, held.note_column, Note(0, 0, current_delay));
 	row_edited = true;
       }
-    } else if (active_launchpad_notes_.empty()) {
+    } else if (!launchpad_manager_->hasAnyActiveNotes(device_id)) {
       // Step entry: advance once the whole chord gesture has been
-      // released (not per pad - see the PRESS branch), so the next tap/
-      // chord lands on a fresh row instead of piling onto this one.
+      // released on *this* device (not per pad - see the PRESS branch;
+      // and scoped to this device, not every connected Launchpad, so one
+      // device's chord release doesn't prematurely advance while another
+      // device is still mid-chord), so the next tap/chord lands on a
+      // fresh row instead of piling onto this one.
       event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, edit_step_size));
     }
   } else if (ev.getKind() == LaunchpadPadEvent::AFTERTOUCH) {
@@ -731,9 +625,9 @@ PatternEditor::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
     // anyway in case a future model reports itself incorrectly.
     if (!LaunchpadProtocol::getModelInfo(ev.getModel()).poly_aftertouch) return;
 
-    auto it = active_launchpad_notes_.find(key);
-    if (it == active_launchpad_notes_.end()) return; // no held note to modulate
-    auto & held = it->second;
+    auto held_ptr = launchpad_manager_->findActiveNote(device_id, ev.getX(), ev.getY());
+    if (!held_ptr) return; // no held note to modulate
+    auto & held = *held_ptr;
 
     // Live modulation always happens, regardless of the write-throttle
     // below - mirrors handleMidiEvent's NOTE_PRESSURE handling exactly.
@@ -760,107 +654,57 @@ PatternEditor::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
     note.setVelocity(static_cast<short>(ev.getVelocity()));
     pattern.setNote(target_row, held.track_id, held.note_column, note);
     row_edited = true;
-    launchpad_extra_redraw_row_ = target_row;
+    launchpad_manager_->setExtraRedrawRow(target_row);
   }
 }
 
-namespace {
-  struct Rgb { uint8_t r, g, b; };
-  // Fokker organ / Archiphone style landmark colors (see LaunchpadLayout::
-  // PadCategory) - brightness carries the hierarchy: 127 for the diatonic
-  // anchors, 70 in the blue channel for diesis (31-EDO's characteristic
-  // in-between notes), 70 in red/amber/magenta for the dimmer, more
-  // "ordinary" chromatic/accidental classes.
-  constexpr Rgb FOKKER_TONIC      = {0,   127, 0};   // bright green - strongest landmark
-  constexpr Rgb FOKKER_DIATONIC   = {127, 127, 127}; // bright white - other scale degrees
-  constexpr Rgb FOKKER_SHARP      = {70,  0,   0};   // dim red
-  constexpr Rgb FOKKER_FLAT       = {70,  35,  0};   // dim amber/orange
-  constexpr Rgb FOKKER_DIESIS     = {0,   70,  127}; // medium blue
-  constexpr Rgb FOKKER_ACCIDENTAL = {70,  0,   70};  // dim magenta - ambiguous tie (e.g. 12edo black keys)
-}
+bool
+PatternEditor::handleLaunchpadDeviceCommand(std::string_view name, int device_id) {
+  if (!launchpad_manager_) return false;
 
-void
-PatternEditor::refreshLaunchpadLeds(Tuning tuning, int key, bool playing, bool muted, bool solo) {
-  vector<LaunchpadProtocol::PadColor> colors;
+  auto & song = getController().getSong();
+  vector<int> track_ids;
+  get_root_track_ids(song, track_ids);
 
-  if (tuning == Tuning::PERCUSSION) {
-    for (int y = 0; y < 8; y++) {
-      for (int x = 0; x < 8; x++) {
-	uint8_t r, g, b;
-	switch (LaunchpadLayout::percussionFamilyForPad(x, y)) {
-	case LaunchpadLayout::PercussionFamily::CORE:       r = 127; g = 0;   b = 0;   break;
-	case LaunchpadLayout::PercussionFamily::HI_HAT:     r = 127; g = 127; b = 0;   break;
-	case LaunchpadLayout::PercussionFamily::TOMS:       r = 127; g = 50;  b = 0;   break;
-	case LaunchpadLayout::PercussionFamily::CYMBALS:    r = 100; g = 100; b = 127; break;
-	case LaunchpadLayout::PercussionFamily::HAND_PERC:  r = 0;   g = 127; b = 0;   break;
-	case LaunchpadLayout::PercussionFamily::LATIN:      r = 80;  g = 0;   b = 127; break;
-	case LaunchpadLayout::PercussionFamily::WHISTLE:    r = 127; g = 0;   b = 80;  break;
-	case LaunchpadLayout::PercussionFamily::ELECTRONIC: r = 40;  g = 40;  b = 40;  break;
-	default:                                             r = 0;   g = 0;   b = 0;   break; // UNUSED (row 7)
-	}
-	colors.push_back({LaunchpadProtocol::padToNoteNumber(x, y), r, g, b});
-      }
-    }
-  } else {
-    auto edo_steps = LaunchpadLayout::edoSteps(tuning);
-    if (edo_steps <= 0) {
-      // Defensive - every non-percussion Tuning is currently pitched; blank
-      // the grid rather than showing a stale/misleading layout if this
-      // ever changes.
-      for (int y = 0; y < 8; y++) {
-	for (int x = 0; x < 8; x++) {
-	  colors.push_back({LaunchpadProtocol::padToNoteNumber(x, y), 0, 0, 0});
-	}
-      }
-    } else {
-      auto basis = LaunchpadLayout::computeBasis(edo_steps);
-      auto tonic = key >= 0 ? key : 0;
-      // Matches handleLaunchpadPadEvent's base_note (see its comment) -
-      // purely for consistency, since classifyPad's result is invariant to
-      // a uniform octave shift of base_note anyway.
-      auto base_note = tonic + (current_keyboard_octave + 1) * edo_steps;
-
-      for (int y = 0; y < 8; y++) {
-	for (int x = 0; x < 8; x++) {
-	  uint8_t r, g, b;
-	  if (basis.degenerate) {
-	    r = g = b = 40; // degraded/fallback visual mode - no meaningful scale structure
-	  } else {
-	    Rgb color;
-	    switch (LaunchpadLayout::classifyPad(basis, edo_steps, x, y, base_note)) {
-	    case LaunchpadLayout::PadCategory::TONIC:      color = FOKKER_TONIC;      break;
-	    case LaunchpadLayout::PadCategory::DIATONIC:   color = FOKKER_DIATONIC;   break;
-	    case LaunchpadLayout::PadCategory::SHARP:      color = FOKKER_SHARP;      break;
-	    case LaunchpadLayout::PadCategory::FLAT:       color = FOKKER_FLAT;       break;
-	    case LaunchpadLayout::PadCategory::DIESIS:     color = FOKKER_DIESIS;     break;
-	    case LaunchpadLayout::PadCategory::ACCIDENTAL: color = FOKKER_ACCIDENTAL; break;
-	    }
-	    r = color.r; g = color.g; b = color.b;
-	  }
-	  colors.push_back({LaunchpadProtocol::padToNoteNumber(x, y), r, g, b});
-	}
-      }
-    }
+  if (name == "next-track" || name == "prev-track") {
+    if (track_ids.empty()) return true;
+    auto delta = name == "next-track" ? 1 : -1;
+    auto num_tracks = static_cast<int>(track_ids.size());
+    launchpad_manager_->advanceTrack(device_id, delta, new_cursor.track, num_tracks);
+    // Also move the shared on-screen cursor, so the button's effect stays
+    // visible - see the plan's rationale (byte-for-byte identical to the
+    // old single-device behavior; with a second device, each still keeps
+    // using its own last-assigned track even after the shared cursor has
+    // since moved elsewhere).
+    new_cursor.track = launchpad_manager_->assignedTrackIndex(device_id, new_cursor.track);
+    new_cursor.col = new_cursor.subcol = 0;
+    return true;
   }
 
-  // Extra-button LEDs (see the Launchpad follow-up plan's button table).
-  // CC numbers unreachable on X/Mini MK3 (30, 20 - Pro MK3's left column)
-  // are harmless to include here: those models simply don't have the
-  // physical button, so the colourspec entry has nothing to light.
-  colors.push_back({91, 30, 30, 30}); // octave-up, dim white (static)
-  colors.push_back({92, 30, 30, 30}); // octave-down, dim white (static)
-  colors.push_back({93, 0, 0, 60});   // prev-track, dim blue (static)
-  colors.push_back({94, 0, 0, 60});   // next-track, dim blue (static)
-  colors.push_back({95, 0, 0, 0});    // reserved
-  colors.push_back({96, 0, 0, 0});    // reserved
-  colors.push_back({97, 0, 0, 0});    // reserved
-  colors.push_back({98, playing ? uint8_t(0) : uint8_t(20), playing ? uint8_t(127) : uint8_t(20), playing ? uint8_t(0) : uint8_t(20)}); // toggle-playing/record
-  colors.push_back({99, 0, 0, 0});    // reserved - may be hardware-fixed (Clear/Delete)
-  for (int cc = 19; cc <= 89; cc += 10) colors.push_back({cc, 0, 0, 0}); // right column, all reserved
-  colors.push_back({30, muted ? uint8_t(127) : uint8_t(20), 0, 0}); // toggle-mute (Pro MK3 left column pos. 6)
-  colors.push_back({20, solo ? uint8_t(127) : uint8_t(20), solo ? uint8_t(127) : uint8_t(20), 0}); // toggle-solo (Pro MK3 left column pos. 7)
+  if (name == "octave-up") {
+    launchpad_manager_->octaveUp(device_id);
+    return true;
+  }
+  if (name == "octave-down") {
+    launchpad_manager_->octaveDown(device_id);
+    return true;
+  }
 
-  launchpad_io_->sendLeds(colors);
+  if (name == "toggle-mute" || name == "toggle-solo") {
+    if (track_ids.empty()) return true;
+    auto track_index = launchpad_manager_->assignedTrackIndex(device_id, current_cursor.track);
+    if (track_index < 0 || track_index >= static_cast<int>(track_ids.size())) track_index = current_cursor.track;
+    auto track = song.getTrackByInternalId(track_ids[track_index]);
+    if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL)) {
+      auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
+      if (name == "toggle-mute") instrument_track.setMuted(!instrument_track.isMuted());
+      else instrument_track.setSolo(!instrument_track.isSolo());
+      song.incVersion();
+    }
+    return true;
+  }
+
+  return false;
 }
 
 bool

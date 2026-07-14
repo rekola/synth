@@ -65,6 +65,7 @@ add_executable(musiceditor main.cpp
 	UI.cpp
 	AlsaAudio.cpp
 	LaunchpadIO.cpp
+	LaunchpadManager.cpp
 	TerminalUI.cpp
 	HierarchyView.cpp
 	PatternEditor.cpp
