@@ -35,6 +35,16 @@ build-*
 # binaries
 musiceditor
 
+# tools/e2e's compiled ALSA-simulator binaries (only the .c sources are checked in)
+tools/e2e/fake_launchpad
+tools/e2e/fake_launchpad_chord
+tools/e2e/fake_launchpad_perc
+tools/e2e/fake_launchpad_button
+tools/e2e/fake_launchpad_hotplug
+tools/e2e/fake_launchpad_device
+tools/e2e/*.log
+tools/e2e/__pycache__
+
 # local soundfonts / HRTF data
 data
 
