@@ -84,8 +84,6 @@ int main(int argc, char *argv[]) {
       channel_config.setType(ChannelConfiguration::MONO);
     } else if (strcmp(argv[i], "--stereo") == 0) {
       channel_config.setType(ChannelConfiguration::STEREO);
-    } else if (strcmp(argv[i], "--surround") == 0) {
-      channel_config.setType(ChannelConfiguration::SURROUND_5_1);
     } else if (argv[i][0] == '-') {
       fmt::print(stderr, "invalid parameter\n");
       exit(1);

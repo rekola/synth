@@ -3,7 +3,7 @@
 
 class ChannelConfiguration {
  public:
-  enum ConfigurationType { MONO = 1, STEREO, SURROUND_5_1 };
+  enum ConfigurationType { MONO = 1, STEREO };
 
   ChannelConfiguration() : type_(MONO), audioOutSampleRate_(44100), dmxOutSampleRate_(0) { }
   ChannelConfiguration(ConfigurationType type, int audioOutSampleRate) : type_(type), audioOutSampleRate_(audioOutSampleRate), dmxOutSampleRate_(0) { }
