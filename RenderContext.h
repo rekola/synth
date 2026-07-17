@@ -12,8 +12,8 @@ class RenderContext {
  public:
   RenderContext(ChannelConfiguration config) : channel_config_(config) { }
 
-  void addPendingEvent(int track_id, int frame, short id, float frequency, float velocity) {
-    pending_events_[track_id][frame].push_back(TrackEvent(id, frequency, velocity));
+  void addPendingEvent(int track_id, int frame, short id, float frequency, float velocity, int note_value = -1) {
+    pending_events_[track_id][frame].push_back(TrackEvent(id, frequency, velocity, note_value));
   }
   
   std::map<int, std::vector<TrackEvent> > & getPendingEvents(int track_id) {

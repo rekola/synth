@@ -337,7 +337,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   get_root_track_ids(song, track_ids);
 
   if (launchpad_manager_) {
-    launchpad_manager_->refresh(song, track_ids, getController().getPlaybackInfo().isPlaying(),
+    launchpad_manager_->refresh(song, track_ids, info,
       track_ids.empty() ? -1 : new_cursor.track);
   }
 
@@ -478,15 +478,14 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
   int note_value = 0;
   if (song.getTuning() == Tuning::TET12) note_value = ev.getNote();
   else {
-    Tuner tuner;
-    float best_diff = 1000000.0f, f = tuner.getFrequency(Tuning::TET12, song.getKey(), ev.getNote());
+    float best_diff = 1000000.0f, f = Tuner::getFrequency(Tuning::TET12, ev.getNote());
     for (int i = 0; i < 255; i++) {
-      float diff = fabsf(f - tuner.getFrequency(song.getTuning(), song.getKey(), i));
+      float diff = fabsf(f - Tuner::getFrequency(song.getTuning(), i));
       if (diff < best_diff) {
 	note_value = i;
 	best_diff = diff;
       }
-    }   
+    }
   }
 
   auto current_delay = info.getCurrentDelay();

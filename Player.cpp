@@ -54,16 +54,14 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	  if (track_state) {
 	    auto [ pattern_idx, row_idx ] = state_.getRelativePosition(song);
 	    auto & pattern = song.getPattern(pattern_idx);
-	    
-	    Tuner tuner;
-	    
+
 	    if (ev.getType() == PlaybackControlEvent::PLAY_NOTE) {
 	      auto tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
 	      Note note(midi_note, midi_velocity);
-	      auto frequency = tuner.getFrequency(tuning, song.getKey(), note);
-	      
+	      auto frequency = Tuner::getFrequency(tuning, note);
+
 	      track_state->stopVoices(column);
-	      auto voice = instrument.playNote(state_.getChannelConfiguration(), instrument_track.getAzimuth(), frequency, 1.0f, note.getVelocityAsFloat(), 0.0f);
+	      auto voice = instrument.playNote(state_.getChannelConfiguration(), instrument_track.getAzimuth(), frequency, 1.0f, note.getVelocityAsFloat(), 0.0f, note.getValue());
 	      track_state->addVoice(column, move(voice));
 	    } else {
 	      track_state->applyAftertouch(column, midi_velocity / 127.0f);
@@ -208,7 +206,11 @@ Player::createPlaybackEvent(const Song & song, const SongState & state) {
   std::unordered_map<int, TrackInfo> effect_info;
   state.getAllTrackInfo(effect_info);
   info.setTrackInfo(move(effect_info));
-  
+
+  std::unordered_map<int, std::vector<ActiveVoiceInfo> > active_voices;
+  state.getAllActiveVoices(active_voices);
+  info.setActiveVoices(move(active_voices));
+
   return make_unique<PlaybackEvent>(info);
 }
 

@@ -80,10 +80,12 @@ print("\n--- fake_launchpad log ---")
 print(fake_output)
 
 # The LED SysEx sent after the cursor lands on the percussion track should
-# show the percussion family colors (e.g. bright red 7f 00 00 for the core
-# kit at LED index 11 = pad (0,0), NOT the pitched tonic-white 7f 7f 7f).
+# show the percussion family colors (e.g. bright red 7f 00 00, blended 50%
+# towards black to 3f 00 00 since nothing is sounding on that pad yet - see
+# LaunchpadManager::padColor - for the core kit at LED index 11 = pad
+# (0,0)), NOT the pitched tonic-green 00 7f 00.
 check("A percussion-colored LED SysEx (red core-kit pad 11) was sent after landing on the percussion track",
-      "0b 7f 00 00" in fake_output, fake_output)
+      "0b 3f 00 00" in fake_output, fake_output)
 
 n_fail = sum(1 for _, ok in results if not ok)
 print(f"\n{len(results)-n_fail}/{len(results)} checks passed")

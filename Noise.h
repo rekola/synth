@@ -19,7 +19,7 @@ class Noise : public Instrument {
     output.set("level", level_);
   }
 
-  std::unique_ptr<TrackState> playNote(const ChannelConfiguration & config, float azimuth, float frequency, float detune, float velocity, float start_phase) const override;
+  std::unique_ptr<TrackState> playNote(const ChannelConfiguration & config, float azimuth, float frequency, float detune, float velocity, float start_phase, int note_value) const override;
 
 private:
   float level_ = 1.0f;

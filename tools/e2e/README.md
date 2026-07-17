@@ -77,7 +77,14 @@ you're changing.
 - **`verify_fokker_colors.py`** - loads `songs/song.xml` (31-EDO) and
   asserts the literal RGB SysEx bytes sent for a handful of hand-verified
   tonic/diatonic/sharp/flat/diesis pads match the `FOKKER_*` color
-  constants in `LaunchpadManager.cpp`.
+  constants in `LaunchpadManager.cpp`, scaled down to
+  `LAUNCHPAD_IDLE_BRIGHTNESS` since nothing is playing at that snapshot.
+- **`launchpad_brightness_test.xml` / `verify_launchpad_note_brightness.py`** -
+  a dedicated fixture (one sustained 31-EDO oscilator note, no
+  envelope/decay) proves the grid is idle-dimmed with nothing playing and
+  brightens once the note actually starts sounding via normal pattern
+  playback (not just a live pad press) - covers the active-voice LED
+  brightness overlay end to end.
 
 ## Known environmental quirks (not bugs in the app)
 

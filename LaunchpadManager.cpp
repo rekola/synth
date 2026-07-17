@@ -3,6 +3,7 @@
 #include "LaunchpadIO.h"
 #include "LaunchpadLayout.h"
 #include "LaunchpadProtocol.h"
+#include "PlaybackInfo.h"
 #include "Song.h"
 #include "InstrumentTrack.h"
 
@@ -18,11 +19,75 @@ namespace {
   // in-between notes), 70 in red/amber/magenta for the dimmer, more
   // "ordinary" chromatic/accidental classes.
   constexpr Rgb FOKKER_TONIC      = {0,   127, 0};   // bright green - strongest landmark
-  constexpr Rgb FOKKER_DIATONIC   = {127, 127, 127}; // bright white - other scale degrees
+  constexpr Rgb FOKKER_DIATONIC   = {127, 127, 0};   // bright yellow - other scale degrees
   constexpr Rgb FOKKER_SHARP      = {70,  0,   0};   // dim red
   constexpr Rgb FOKKER_FLAT       = {70,  35,  0};   // dim amber/orange
   constexpr Rgb FOKKER_DIESIS     = {0,   70,  127}; // medium blue
   constexpr Rgb FOKKER_ACCIDENTAL = {70,  0,   70};  // dim magenta - ambiguous tie (e.g. 12edo black keys)
+
+  struct Hsl { float h, s, l; }; // h in [0,360), s/l in [0,1]
+
+  Hsl rgbToHsl(Rgb c) {
+    float r = c.r / 127.0f, g = c.g / 127.0f, b = c.b / 127.0f;
+    float maxc = max({r, g, b}), minc = min({r, g, b});
+    float l = (maxc + minc) / 2.0f;
+    if (maxc == minc) return {0.0f, 0.0f, l}; // achromatic (includes black)
+
+    float d = maxc - minc;
+    float s = l > 0.5f ? d / (2.0f - maxc - minc) : d / (maxc + minc);
+    float h;
+    if (maxc == r) h = (g - b) / d + (g < b ? 6.0f : 0.0f);
+    else if (maxc == g) h = (b - r) / d + 2.0f;
+    else h = (r - g) / d + 4.0f;
+    return {h * 60.0f, s, l};
+  }
+
+  float hueToChannel(float p, float q, float t) {
+    if (t < 0.0f) t += 1.0f;
+    if (t > 1.0f) t -= 1.0f;
+    if (t < 1.0f / 6.0f) return p + (q - p) * 6.0f * t;
+    if (t < 1.0f / 2.0f) return q;
+    if (t < 2.0f / 3.0f) return p + (q - p) * (2.0f / 3.0f - t) * 6.0f;
+    return p;
+  }
+
+  Rgb hslToRgb(Hsl hsl) {
+    float h = hsl.h / 360.0f, s = hsl.s, l = hsl.l;
+    float r, g, b;
+    if (s == 0.0f) {
+      r = g = b = l; // achromatic (includes black - s stays 0 through rgbToHsl)
+    } else {
+      float q = l < 0.5f ? l * (1.0f + s) : l + s - l * s;
+      float p = 2.0f * l - q;
+      r = hueToChannel(p, q, h + 1.0f / 3.0f);
+      g = hueToChannel(p, q, h);
+      b = hueToChannel(p, q, h - 1.0f / 3.0f);
+    }
+    auto to_byte = [](float v) { return uint8_t(clamp(v, 0.0f, 1.0f) * 127.0f); };
+    return {to_byte(r), to_byte(g), to_byte(b)};
+  }
+
+  // Idle luminosity vs. the luminosity of a pad whose voice is at full
+  // loudness - hue/saturation come from the base Fokker/percussion color
+  // and are otherwise untouched, only lightness ramps between the two as
+  // that voice's loudness (its own gain, decaying with any envelope it
+  // has) moves from 0 to 1.
+  constexpr float LAUNCHPAD_IDLE_LUMINOSITY = 0.35f;
+  constexpr float LAUNCHPAD_ACTIVE_LUMINOSITY = 1.0f;
+
+  Rgb padColor(Rgb base, const unordered_map<int, float> & active_note_loudness, int note_value) {
+    if (base.r == 0 && base.g == 0 && base.b == 0) return base; // stays off (e.g. unused/reserved pads)
+
+    float loudness = 0.0f;
+    if (note_value >= 0) {
+      auto it = active_note_loudness.find(note_value);
+      if (it != active_note_loudness.end()) loudness = clamp(it->second, 0.0f, 1.0f);
+    }
+
+    auto hsl = rgbToHsl(base);
+    hsl.l = LAUNCHPAD_IDLE_LUMINOSITY + (LAUNCHPAD_ACTIVE_LUMINOSITY - LAUNCHPAD_IDLE_LUMINOSITY) * loudness;
+    return hslToRgb(hsl);
+  }
 }
 
 LaunchpadManager::DeviceState &
@@ -123,7 +188,7 @@ LaunchpadManager::resolveNote(const Song & song, int device_id, int track_id, in
 }
 
 void
-LaunchpadManager::refreshLeds(int device_id, const DeviceState & state) {
+LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   vector<LaunchpadProtocol::PadColor> colors;
 
   if (state.tuning == Tuning::PERCUSSION) {
@@ -141,7 +206,9 @@ LaunchpadManager::refreshLeds(int device_id, const DeviceState & state) {
         case LaunchpadLayout::PercussionFamily::ELECTRONIC: r = 40;  g = 40;  b = 40;  break;
         default:                                             r = 0;   g = 0;   b = 0;   break; // UNUSED (row 7)
         }
-        colors.push_back({LaunchpadProtocol::padToNoteNumber(x, y), r, g, b});
+        auto note = LaunchpadLayout::percussionNoteForPad(x, y);
+        auto color = padColor({r, g, b}, state.active_note_loudness, note);
+        colors.push_back({LaunchpadProtocol::padToNoteNumber(x, y), color.r, color.g, color.b});
       }
     }
   } else {
@@ -165,11 +232,10 @@ LaunchpadManager::refreshLeds(int device_id, const DeviceState & state) {
 
       for (int y = 0; y < 8; y++) {
         for (int x = 0; x < 8; x++) {
-          uint8_t r, g, b;
+          Rgb color;
           if (basis.degenerate) {
-            r = g = b = 40; // degraded/fallback visual mode - no meaningful scale structure
+            color = {40, 40, 40}; // degraded/fallback visual mode - no meaningful scale structure
           } else {
-            Rgb color;
             switch (LaunchpadLayout::classifyPad(basis, edo_steps, x, y, base_note)) {
             case LaunchpadLayout::PadCategory::TONIC:      color = FOKKER_TONIC;      break;
             case LaunchpadLayout::PadCategory::DIATONIC:   color = FOKKER_DIATONIC;   break;
@@ -178,9 +244,10 @@ LaunchpadManager::refreshLeds(int device_id, const DeviceState & state) {
             case LaunchpadLayout::PadCategory::DIESIS:     color = FOKKER_DIESIS;     break;
             case LaunchpadLayout::PadCategory::ACCIDENTAL: color = FOKKER_ACCIDENTAL; break;
             }
-            r = color.r; g = color.g; b = color.b;
           }
-          colors.push_back({LaunchpadProtocol::padToNoteNumber(x, y), r, g, b});
+          auto note = LaunchpadLayout::noteForPad(basis, x, y, base_note);
+          color = padColor(color, state.active_note_loudness, note);
+          colors.push_back({LaunchpadProtocol::padToNoteNumber(x, y), color.r, color.g, color.b});
         }
       }
     }
@@ -203,12 +270,24 @@ LaunchpadManager::refreshLeds(int device_id, const DeviceState & state) {
   colors.push_back({30, state.muted ? uint8_t(127) : uint8_t(20), 0, 0}); // toggle-mute (Pro MK3 left column pos. 6)
   colors.push_back({20, state.solo ? uint8_t(127) : uint8_t(20), state.solo ? uint8_t(127) : uint8_t(20), 0}); // toggle-solo (Pro MK3 left column pos. 7)
 
+  // Only actually send when the computed colors changed since the last
+  // send - continuous brightness fades mean refreshLeds() is now called
+  // every frame while a note decays, not just on discrete state changes.
+  bool colors_changed = colors.size() != state.last_sent_colors.size() ||
+    !equal(colors.begin(), colors.end(), state.last_sent_colors.begin(),
+      [](const LaunchpadProtocol::PadColor & a, const LaunchpadProtocol::PadColor & b) {
+        return a.led_index == b.led_index && a.r == b.r && a.g == b.g && a.b == b.b;
+      });
+  if (!colors_changed) return;
+
   launchpad_io_->sendLeds(device_id, colors);
+  state.last_sent_colors = move(colors);
 }
 
 void
-LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, bool playing, int fallback_track_index) {
+LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, const PlaybackInfo & playback_info, int fallback_track_index) {
   if (!launchpad_io_) return;
+  bool playing = playback_info.isPlaying();
   auto ready_ids = launchpad_io_->readySessionIds();
 
   // Prune cached state for devices no longer connected - session ids are
@@ -231,8 +310,10 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, bool
     Tuning tuning = Tuning::TET12;
     int key_val = -1;
     bool muted = false, solo = false;
+    unordered_map<int, float> active_note_loudness;
     if (track_index >= 0 && track_index < num_tracks) {
-      auto track = song.getTrackByInternalId(track_ids[track_index]);
+      auto track_id = track_ids[track_index];
+      auto track = song.getTrackByInternalId(track_id);
       tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
       key_val = song.getKey();
       if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL)) {
@@ -240,11 +321,14 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, bool
         muted = instrument_track.isMuted();
         solo = instrument_track.isSolo();
       }
+      // Max-of when multiple columns happen to sound the same note_value
+      // (e.g. unison), so the pad shows the loudest of them.
+      for (auto & voice : playback_info.getActiveVoices(track_id)) {
+        if (voice.note_value < 0) continue;
+        auto & loudness = active_note_loudness[voice.note_value];
+        loudness = max(loudness, voice.loudness);
+      }
     }
-
-    bool became_connected = !state.connected;
-    bool state_changed = tuning != state.tuning || key_val != state.key ||
-      playing != state.playing || muted != state.muted || solo != state.solo;
 
     state.connected = true;
     state.tuning = tuning;
@@ -252,7 +336,8 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, bool
     state.playing = playing;
     state.muted = muted;
     state.solo = solo;
+    state.active_note_loudness = move(active_note_loudness);
 
-    if (became_connected || state_changed) refreshLeds(device_id, state);
+    refreshLeds(device_id, state);
   }
 }

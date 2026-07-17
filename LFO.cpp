@@ -5,9 +5,9 @@
 using namespace std;
 
 std::unique_ptr<TrackState>
-LFO::playNote(const ChannelConfiguration & config, float azimuth, float frequency, float detune, float velocity, float start_phase) const {  
+LFO::playNote(const ChannelConfiguration & config, float azimuth, float frequency, float detune, float velocity, float start_phase, int note_value) const {
   auto voice = std::make_unique<OscilatorVoice>(config, azimuth, detune, start_phase, WaveformType::SINE, level_, 0.5f);
-  voice->playNote(frequency_, velocity);  
+  voice->playNote(frequency_, velocity, note_value);
   return voice;
 }
 

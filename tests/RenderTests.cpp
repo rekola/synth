@@ -5,6 +5,7 @@
 #include "../OfflineRenderer.h"
 #include "../ChannelConfiguration.h"
 
+#include <algorithm>
 #include <cmath>
 #include <string>
 
@@ -106,6 +107,38 @@ TEST(render_chorus_preserves_stereo_image) {
   auto left = rms(result, 0), right = rms(result, 1);
   CHECK(right > 1e-4f);
   CHECK(left < right * 0.05f);
+}
+
+TEST(render_envelope_decays_after_hold_and_decay_time) {
+  // center_note.xml wraps its oscilator in <envelope attack=.01 hold=.3
+  // decay=.3 sustain=0 release=.05> - with sustain 0 the note fully decays
+  // to silence around t=.61s even with no note-off in the pattern. This
+  // exercises EnvelopeFilterState's decay (getOwnLoudnessFactor) end to end
+  // via actual audio output, guarding the note_value/playNote signature
+  // plumbing threaded through every instrument type.
+  auto loaded = loadFixture("center_note.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(ChannelConfiguration::STEREO, 44100);
+  auto result = renderSongOffline(loaded.song, config);
+  CHECK(!hasNonFiniteSample(result));
+
+  auto sample_rate = 44100;
+  auto frames = result.numberOfFrames();
+  auto windowRms = [&](float start_s, float end_s) {
+    size_t start = std::min<size_t>(size_t(start_s * sample_rate), frames);
+    size_t end = std::min<size_t>(size_t(end_s * sample_rate), frames);
+    if (end <= start) return 0.0f;
+    double sum = 0.0;
+    for (size_t i = start; i < end; i++) sum += std::pow(result.interleaved[i * result.channels], 2);
+    return static_cast<float>(std::sqrt(sum / (end - start)));
+  };
+
+  auto early = windowRms(0.05f, 0.15f); // after attack, during hold at full level
+  auto late = windowRms(1.0f, 1.1f);    // long after decay reached sustain=0
+
+  CHECK(early > 1e-3f);
+  CHECK(late < early * 0.01f);
 }
 
 TEST(render_mono_with_compressor_does_not_read_out_of_bounds) {

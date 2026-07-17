@@ -27,11 +27,7 @@ class SongState : public TrackState {
 	  auto [ pattern_idx, row_idx ] = getRelativePosition(song);
 	  auto & pattern = song.getPattern(pattern_idx);
 	  auto & notes = pattern.getNotes(row_idx);
-	  
-	  if (song.getKey() >= 0) {
-	    getTuner().tune(song.getTuning(), song.getKey(), notes);
-	  }
-	  
+
 	  for (auto & [ track_id, notes ] : notes) {
 	    auto track = song.getTrackByInternalId(track_id);
 	    auto tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
@@ -43,12 +39,13 @@ class SongState : public TrackState {
 		if (note.isAftertouch()) {
 		  velocity = note.getVelocityAsFloat();
 		} else if (!note.isOff()) {
-		  frequency = getTuner().getFrequency(tuning, song.getKey(), note);
+		  frequency = Tuner::getFrequency(tuning, note);
 		  velocity = note.getVelocityAsFloat() * (1 + song.getRandomizationFactor() * getRandF());
 		}
 		float delay = note.getDelayAsFloat() + song.getRandomizationFactor() * getRandF();
 		auto delay_samples = int(delay * getChannelConfiguration().getSampleInterval(tempo_));
-		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), frequency, velocity);
+		int note_value = (note.isAftertouch() || note.isOff()) ? -1 : note.getValue();
+		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), frequency, velocity, note_value);
 	      }
 	    }
 	  }
@@ -136,14 +133,12 @@ class SongState : public TrackState {
     }
   }
   
-  Tuner & getTuner() { return tuner_; }
   int getTempo() const { return tempo_; }
-  
+
 private:
   int tempo_ = 0;
   bool is_playing_ = false;
   int sample_pos_ = 0, absolute_pos_ = 0;
-  Tuner tuner_;
   RenderContext render_context_;
 };
   

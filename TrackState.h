@@ -2,9 +2,11 @@
 #define _TRACKSTATE_H_
 
 #include "TrackInfo.h"
+#include "ActiveVoiceInfo.h"
 #include "SampleData.h"
 #include "ChannelConfiguration.h"
 
+#include <algorithm>
 #include <vector>
 #include <memory>
 #include <unordered_map>
@@ -55,9 +57,9 @@ class TrackState {
 
   virtual void clear() { children_.clear(); }
 
-  virtual void playNote(float frequency, float velocity) {
+  virtual void playNote(float frequency, float velocity, int note_value) {
     for (auto & [ id, child ] : getChildren()) {
-      child->playNote(frequency, velocity);
+      child->playNote(frequency, velocity, note_value);
     }
   }
 
@@ -143,7 +145,56 @@ class TrackState {
       child->getAllTrackInfo(info);
     }
   }
-  
+
+  // Per-track lists of currently-sounding (note_value, loudness) pairs, for
+  // LED/UI feedback (e.g. LaunchpadManager). Default recurses into children;
+  // InstrumentTrackState overrides to report its own voices_.
+  virtual void getAllActiveVoices(std::unordered_map<int, std::vector<ActiveVoiceInfo> > & voices) const {
+    for (auto & [ id, child ] : getChildren()) {
+      child->getAllActiveVoices(voices);
+    }
+  }
+
+  // Per-note-chain gain, composed down whatever wrapper chain a given
+  // instrument happens to build - see getOwnLoudnessFactor(). Own factor
+  // multiplies the loudest child, not the product of every child: for a
+  // linear wrapper chain (e.g. EnvelopeFilterState wrapping one
+  // OscilatorVoice) that's identical to a straight product, but
+  // SoundFontInstrument groups multiple simultaneously-triggered sample
+  // regions (velocity layers, stereo splits, ...) as siblings under a
+  // plain TrackState - multiplying those together would compound each
+  // region's own decay into an implausibly small number instead of
+  // reflecting the note as a whole.
+  float getLoudness() const {
+    float max_child = 0.0f;
+    bool has_children = false;
+    for (auto & [ id, child ] : getChildren()) {
+      has_children = true;
+      max_child = std::max(max_child, child->getLoudness());
+    }
+    float own = getOwnLoudnessFactor();
+    return has_children ? own * max_child : own;
+  }
+
+  // This node's own contribution to getLoudness() (1.0 = no opinion/pass
+  // through). Overridden by InstrumentVoice (velocity-derived gain),
+  // EnvelopeFilterState (envelope level), SoundFontVoice (velocity gain *
+  // amp envelope level).
+  virtual float getOwnLoudnessFactor() const { return 1.0f; }
+
+  // The pattern note value (see Note::getValue()) this voice chain is
+  // currently playing, or -1 if none is known. Searches children so a
+  // wrapper node (e.g. an effect) transparently reports whatever its
+  // instrument-voice descendant received via playNote().
+  virtual int getNoteValue() const {
+    for (auto & [ id, child ] : getChildren()) {
+      int v = child->getNoteValue();
+      if (v >= 0) return v;
+    }
+    return -1;
+  }
+
+
   const std::unordered_map<int, std::unique_ptr<TrackState> > & getChildren() const { return children_; }
   std::unordered_map<int, std::unique_ptr<TrackState> > & getChildren() { return children_; }
 

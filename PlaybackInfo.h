@@ -2,6 +2,7 @@
 #define _PLAYBACKINFO_H_
 
 #include "TrackInfo.h"
+#include "ActiveVoiceInfo.h"
 
 #include <vector>
 #include <unordered_map>
@@ -39,7 +40,13 @@ class PlaybackInfo {
     return it != effect_info_.end() ? it->second : empty_effect_info_;
   }
   void setTrackInfo(std::unordered_map<int, TrackInfo> info) { effect_info_ = std::move(info); }
-    
+
+  const std::vector<ActiveVoiceInfo> & getActiveVoices(int track_id) const {
+    auto it = active_voices_.find(track_id);
+    return it != active_voices_.end() ? it->second : empty_active_voices_;
+  }
+  void setActiveVoices(std::unordered_map<int, std::vector<ActiveVoiceInfo> > voices) { active_voices_ = std::move(voices); }
+
 private:
   bool is_playing_ = true;
   int outSampleRate_ = 0;
@@ -48,8 +55,10 @@ private:
   int voice_count_ = 0, allocated_voice_count_ = 0;
 
   std::unordered_map<int, TrackInfo> effect_info_;
+  std::unordered_map<int, std::vector<ActiveVoiceInfo> > active_voices_;
 
   static inline TrackInfo empty_effect_info_;
+  static inline std::vector<ActiveVoiceInfo> empty_active_voices_;
 };
 
 #endif

@@ -48,8 +48,8 @@ private:
 };
 
 std::unique_ptr<TrackState>
-Noise::playNote(const ChannelConfiguration & config, float azimuth, float frequency, float detune, float velocity, float start_phase) const {  
+Noise::playNote(const ChannelConfiguration & config, float azimuth, float frequency, float detune, float velocity, float start_phase, int note_value) const {
   auto voice = std::make_unique<NoiseVoice>(config, azimuth, level_);
-  voice->playNote(frequency, velocity);
+  voice->playNote(frequency, velocity, note_value);
   return voice;
 }

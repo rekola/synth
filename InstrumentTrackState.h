@@ -41,15 +41,15 @@ public:
 		  if (it != voices_.end()) {
 		    for (auto & voice : it->second) {
 		      if (voice->isActive()) {
-			voice->playNote(ev.getFrequency(), ev.getVelocity());
+			voice->playNote(ev.getFrequency(), ev.getVelocity(), ev.getNoteValue());
 			portamento_done = true;
 		      }
 		    }
-		  }		    
+		  }
 		}
 		if (!portamento_done) {
 		  stopVoices(ev.getId());
-		  auto voice = instrument->playNote(getChannelConfiguration(), azimuth_, ev.getFrequency(), 1.0f, ev.getVelocity(), -getRandF());
+		  auto voice = instrument->playNote(getChannelConfiguration(), azimuth_, ev.getFrequency(), 1.0f, ev.getVelocity(), -getRandF(), ev.getNoteValue());
 		  addVoice(ev.getId(), move(voice));
 		}
 	      }
@@ -141,7 +141,18 @@ public:
     }
     return n;
   }
-  
+
+  void getAllActiveVoices(std::unordered_map<int, std::vector<ActiveVoiceInfo> > & out) const override {
+    std::vector<ActiveVoiceInfo> own;
+    for (auto & [ column, voices ] : voices_) {
+      for (auto & voice : voices) {
+	if (voice->isActive()) own.push_back({ voice->getNoteValue(), voice->getLoudness() });
+      }
+    }
+    if (!own.empty()) out[track_id_] = std::move(own);
+    TrackState::getAllActiveVoices(out);
+  }
+
 protected:
   static inline bool is_not_playing(const std::unique_ptr<TrackState> & voice) { return !voice->isActive(); }
 

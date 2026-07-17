@@ -651,11 +651,14 @@ public:
     }
   }
   
-  void playNote(float frequency, float velocity) override {
+  void playNote(float frequency, float velocity, int note_value) override {
     assert(frequency > 0);
     if (!voiceRegion_) return;
 
-    bool first_play = apparentPlayingKey_ == 0.0;    
+    note_value_ = note_value;
+    velocity_ = velocity;
+
+    bool first_play = apparentPlayingKey_ == 0.0;
     
     apparentPlayingKey_ = log2(frequency * getDetune() / 440) * 12 + 69;
 
@@ -678,6 +681,10 @@ public:
 
   bool isActive() const override {
     return voiceRegion_ && sourceSamplePosition_ < voiceRegion_->end && !ampenv_.isDone();
+  }
+
+  float getOwnLoudnessFactor() const override {
+    return InstrumentVoice::getOwnLoudnessFactor() * ampenv_.getLevel();
   }
 
   SampleData render(int numSamples) override;
@@ -929,7 +936,7 @@ public:
 
   const char * getElementName() const override { return "soundFontInstrument"; }
 
-  std::unique_ptr<TrackState> playNote(const ChannelConfiguration & channel_config, float azimuth, float frequency, float detune, float velocity, float start_phase) const override {    
+  std::unique_ptr<TrackState> playNote(const ChannelConfiguration & channel_config, float azimuth, float frequency, float detune, float velocity, float start_phase, int note_value) const override {
     assert(frequency > 0);
 
     detune *= getHarmonic();
@@ -957,15 +964,15 @@ public:
 	}
 	
 	auto voice = make_unique<SoundFontVoice>(channel_config, azimuth, detune, start_phase, sf_, preset_, region_idx);
-	voice->playNote(frequency, velocity);
+	voice->playNote(frequency, velocity, note_value);
 
 	if (!getChildren().empty()) {
 	  // create modulators for voice
 	  // auto child_config = channel_config;
 	  // child_config.setType(ChannelConfiguration::MONO);
-	  
+
 	  for (auto & child : getChildren()) {
-	    auto modulator = child->playNote(channel_config, 0.0f, frequency, detune, velocity, start_phase);
+	    auto modulator = child->playNote(channel_config, 0.0f, frequency, detune, velocity, start_phase, note_value);
 	    if (modulator.get()) voice->addChild(child->getInternalId(), move(modulator));
 	  }
 	}

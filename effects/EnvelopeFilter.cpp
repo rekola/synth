@@ -44,6 +44,8 @@ public:
   
   bool isActive() const override { return !envelope_state_.isDone(); }
 
+  float getOwnLoudnessFactor() const override { return envelope_state_.getLevel(); }
+
   void stopNote() override {
     // let children play
     envelope_state_.nextSegment(EnvelopeState::SUSTAIN);

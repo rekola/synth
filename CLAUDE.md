@@ -1,7 +1,7 @@
 # synth — microtonal tracker / synthesizer
 
-Tracker-style music production system with microtonal notes (31-TET and just
-intonation). Terminal UI (notcurses), ALSA audio output, songs stored as XML.
+Tracker-style music production system with microtonal notes (12/19/31/53-TET).
+Terminal UI (notcurses), ALSA audio output, songs stored as XML.
 Formerly developed as the `syna/` subdirectory of the private `personal` repo;
 full history was preserved when it was extracted into this repository.
 
