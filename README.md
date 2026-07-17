@@ -1,23 +1,23 @@
 # synth
 
-A Microtonal Synth: tracker style music production system with microtonal notes.
+A Microtonal Synth: Tracker style music production system with microtonality.
 
-# Properties:
+# Features
 
-1. Microtonal (31-TET)
-2. Just tuning
+- Microtonal (31-TET)
+- Launchpad support
 
 # Principles:
-1. User can start creating music instantly
-  1. No low latency requirements
-  2. Basic instruments are immediately available
+
+## User can start creating music instantly
+
+- No low latency requirements
+- Basic instruments are immediately available
     1. If there is no SoundFont, basic instruments (such as piano) are provided by the built in FM synthesis
-2. No limitations
-  1. Easy to use microtonality
-3. Keyboard driven
-  1. Everything can be done using keyboard without mouse
-4. Exact
-  1. Just tuning
+      
+## Keyboard driven
+
+Everything can be done using keyboard without mouse
 
 # Launchpad support
 
