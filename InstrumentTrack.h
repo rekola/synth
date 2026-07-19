@@ -2,6 +2,7 @@
 #define _INSTRUMENTTRACK_H_
 
 #include "Track.h"
+#include "SphericalPosition.h"
 
 class InstrumentTrack : public Track {
  public:
@@ -25,6 +26,8 @@ class InstrumentTrack : public Track {
   float getElevation() const { return elevation_; }
   float getAzimuth() const { return azimuth_; }
   float getDistance() const { return distance_; }
+
+  SphericalPosition getPosition() const { return { azimuth_, elevation_, distance_ }; }
 
   void setColor(std::string color) { color_ = std::move(color); }
   const std::string & getColor() const { return color_; }

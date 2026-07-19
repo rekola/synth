@@ -23,7 +23,38 @@ public:
     mverb_.setSampleRate(channel_config.getAudioOutSampleRate());
   }
 
+  // Gathers children in real stereo/mono (reduceForEffect), never raw
+  // ambisonic - MVerb needs genuine 2-channel input to do real stereo-width
+  // processing. Re-encodes back up to this node's own true format
+  // afterward if that's actually ambisonic (encodeStereoAsPoints is a
+  // no-op cost-wise otherwise, since reduced == true format and this
+  // branch is skipped). See the "Effects" section of the spatial audio
+  // plan for why this can't just rely on TrackState's generic children
+  // gathering the way every other (transparent) effect does.
+  SampleData render(int frames) override {
+    auto reduced_config = reduceForEffect(getChannelConfiguration());
+    auto data = renderChildren(frames, reduced_config);
+    applyEffect(data);
+    return reencodeIfNeeded(std::move(data));
+  }
+
+  SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override {
+    auto reduced_config = reduceForEffect(getChannelConfiguration());
+    auto data = renderChildren(frames, instruments, context, reduced_config);
+    applyEffect(data);
+    return reencodeIfNeeded(std::move(data));
+  }
+
 protected:
+  SampleData reencodeIfNeeded(SampleData data) {
+    if (getChannelConfiguration().getType() != ChannelConfiguration::AMBISONIC) return data;
+    SampleData out(getChannelConfiguration(), data.numberOfFrames());
+    out.zero();
+    encodeStereoAsPoints(data, out);
+    if (!data.isZero()) out.setNonZero();
+    return out;
+  }
+
   void applyEffect(SampleData & input) override {
     if (bpm_lock_) {
       mverb_.setParameter(MVerb<float>::PREDELAY, predelay_ * getChannelConfiguration().getRowDuration(input.getBpm()));

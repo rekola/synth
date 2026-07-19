@@ -2,6 +2,7 @@
 
 #include "SampleData.h"
 #include "InstrumentVoice.h"
+#include "AmbisonicEncoding.h"
 
 #include <sndfile.h>
 #include <cstring>
@@ -57,8 +58,8 @@ FileInstrument::openFile() {
 
 class FileInstrumentVoice : public InstrumentVoice {
 public:
-  FileInstrumentVoice(const ChannelConfiguration & channel_config, float azimuth, float detune, float start_phase, std::shared_ptr<SampleData> samples)
-    : InstrumentVoice(channel_config, azimuth, detune, start_phase), samples_(samples) { }
+  FileInstrumentVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, float start_phase, std::shared_ptr<SampleData> samples)
+    : InstrumentVoice(channel_config, position, detune, start_phase), samples_(samples) { }
 
   SampleData render(int frames) override {
     auto gain = decibelsToGain(getGainDB());
@@ -103,8 +104,8 @@ private:
 };
 
 std::unique_ptr<TrackState>
-FileInstrument::playNote(const ChannelConfiguration & channel_config, float azimuth, float frequency, float detune, float velocity, float start_phase, int note_value) const {
-  auto voice = std::make_unique<FileInstrumentVoice>(channel_config, azimuth, detune, start_phase, samples_);
+FileInstrument::playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value) const {
+  auto voice = std::make_unique<FileInstrumentVoice>(reduceForPositionalGroup(channel_config), position, detune, start_phase, samples_);
   voice->playNote(frequency, velocity, note_value);
   return voice;
 }

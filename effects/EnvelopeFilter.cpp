@@ -14,29 +14,25 @@ public:
   }
 
   void applyEffect(SampleData & input_data) override {
-    auto left_buffer = input_data.getChannelData(0), right_buffer = input_data.getChannelData(1);
-    
+    // A gain multiply is channel-count-agnostic by construction - applies
+    // identically to however many channels are actually present (including
+    // ambisonic ones), not just the first two.
     auto numSamples = input_data.size();
     auto numChannels = input_data.numberOfChannels();
 
+    size_t offset = 0;
     while (numSamples) {
       auto blockSamples = numSamples > constants::RENDER_EFFECTSAMPLEBLOCK ? constants::RENDER_EFFECTSAMPLEBLOCK : numSamples;
       auto gain = envelope_state_.getLevel();
-      
-      if (numChannels == 1) {
-	for (auto i = 0; i < blockSamples; i++) {
-	  left_buffer[i] *= gain;
+
+      for (int c = 0; c < numChannels; c++) {
+	auto buffer = input_data.getChannelData(c) + offset;
+	for (decltype(blockSamples) i = 0; i < blockSamples; i++) {
+	  buffer[i] *= gain;
 	}
-	left_buffer += blockSamples * numChannels;
-      } else {
-	for (auto i = 0; i < blockSamples; i++) {
-	  left_buffer[i] *= gain;
-	  right_buffer[i] *= gain;
-	}
-	left_buffer += blockSamples;
-	right_buffer += blockSamples;
       }
-      
+
+      offset += blockSamples;
       numSamples -= blockSamples;
       envelope_state_.process(blockSamples);
     }

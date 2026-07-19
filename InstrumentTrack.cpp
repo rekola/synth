@@ -8,7 +8,7 @@ using namespace std;
 std::unique_ptr<TrackState>
 InstrumentTrack::createState(const ChannelConfiguration & config) const {
   assert(getInstrumentId() >= 0);
-  return std::make_unique<InstrumentTrackState>(config, isSolo(), isMuted(), getInternalId(), getInstrumentId(), getAzimuth(), portamento_);
+  return std::make_unique<InstrumentTrackState>(config, isSolo(), isMuted(), getInternalId(), getInstrumentId(), getPosition(), portamento_);
 }
 
 void

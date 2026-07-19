@@ -2,15 +2,15 @@
 
 #include "Song.h"
 #include "SongState.h"
-#include "BasicMixer.h"
+#include "MixerFactory.h"
 
 #include <cmath>
 
 OfflineRenderResult
-renderSongOffline(const Song & song, const ChannelConfiguration & channel_config,
+renderSongOffline(const Song & song, const ChannelConfiguration & channel_config, MixerType mixer_type,
 		  int block_frames, int max_tail_seconds, float silence_threshold) {
   OfflineRenderResult result;
-  result.channels = channel_config.numberOfChannels();
+  result.channels = channel_config.getDeviceChannels();
   result.sampleRate = channel_config.getAudioOutSampleRate();
 
   int total_rows = 0;
@@ -21,7 +21,7 @@ renderSongOffline(const Song & song, const ChannelConfiguration & channel_config
   state.initialize(song);
   state.setIsPlaying(true);
 
-  BasicMixer mixer(static_cast<short>(result.channels), result.sampleRate);
+  auto mixer = createMixer(channel_config, mixer_type);
 
   int tail_frames = 0;
 
@@ -30,8 +30,8 @@ renderSongOffline(const Song & song, const ChannelConfiguration & channel_config
       state.setIsPlaying(false); // song ended; keep rendering the tail
     }
 
-    state.render(block_frames, song, mixer);
-    auto master = mixer.encode();
+    state.render(block_frames, song, *mixer);
+    auto master = mixer->encode();
 
     auto base = result.interleaved.size();
     result.interleaved.resize(base + static_cast<size_t>(block_frames) * result.channels);

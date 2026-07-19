@@ -18,7 +18,7 @@ using namespace std;
 // Render the loaded song offline and write it as a WAV file.
 static bool renderSongToWav(Controller & controller, const ChannelConfiguration & channel_config, const string & path) {
   auto & song = controller.getSong();
-  auto result = renderSongOffline(song, channel_config);
+  auto result = renderSongOffline(song, channel_config, controller.getMixerType());
 
   if (result.interleaved.empty()) {
     fmt::print(stderr, "Song has no patterns to render\n");
@@ -80,10 +80,20 @@ int main(int argc, char *argv[]) {
       }
     } else if (strcmp(argv[i], "--relative") == 0) {
       relative = true;
-    } else if (strcmp(argv[i], "--mono") == 0) {
-      channel_config.setType(ChannelConfiguration::MONO);
     } else if (strcmp(argv[i], "--stereo") == 0) {
       channel_config.setType(ChannelConfiguration::STEREO);
+    } else if (strcmp(argv[i], "--ambisonic") == 0) {
+      int order = 1;
+      if (i + 1 < argc && argv[i + 1][0] != '-') {
+	i++;
+	order = atoi(argv[i]);
+      }
+      if (order < 1) {
+	fmt::print(stderr, "invalid ambisonic order\n");
+	exit(1);
+      }
+      channel_config.setType(ChannelConfiguration::AMBISONIC);
+      channel_config.setAmbisonicOrder(order);
     } else if (argv[i][0] == '-') {
       fmt::print(stderr, "invalid parameter\n");
       exit(1);
@@ -115,7 +125,7 @@ int main(int argc, char *argv[]) {
 
   StderrLogger logger;
   
-  AlsaAudio audio(channel_config.getAudioOutSampleRate(), channel_config.numberOfChannels());
+  AlsaAudio audio(channel_config.getAudioOutSampleRate(), channel_config.getDeviceChannels());
   audio.initialize(logger);
 
   LaunchpadIO launchpad_io;

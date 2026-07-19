@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A single positioned OscilatorVoice wrapped directly in an
+     EnvelopeFilter (no NoteMultiplier), for ambisonic rendering: confirms
+     TrackState::render(int frames)'s mismatch-encode logic correctly
+     handles a transparent effect sitting directly above a single reduced
+     (MONO) leaf voice - the voice's position must still come through in
+     the master decode. -->
+<song temperament="12edo" tempo="120" volume="1.0" randomization="0">
+  <instruments>
+    <envelope attack="0.01" hold="0.2" decay="0.1" sustain="0.0" release="0.02">
+      <oscilator type="sine"/>
+    </envelope>
+  </instruments>
+  <tracks>
+    <track id="0" instrument="0" azimuth="90" elevation="0" distance="1"/>
+  </tracks>
+  <patterns>
+    <pattern rows="8">
+      <note row="0" track="0" velocity="80" value="C-4"/>
+    </pattern>
+  </patterns>
+</song>

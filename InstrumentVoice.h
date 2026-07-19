@@ -2,16 +2,17 @@
 #define _INSTRUMENTVOICE_H_
 
 #include "TrackState.h"
+#include "SphericalPosition.h"
 
 class InstrumentVoice : public TrackState {
  public:
-  InstrumentVoice(const ChannelConfiguration & channel_config, float azimuth, float detune, float start_phase)
+  InstrumentVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, float start_phase)
     : TrackState(channel_config),
       sourceSamplePosition_(start_phase * getChannelConfiguration().getAudioOutSampleRate()),
-      azimuth_(azimuth),
+      position_(position),
       detune_(detune)
   {
-    
+
   }
 
   void killNote() override {
@@ -36,6 +37,8 @@ class InstrumentVoice : public TrackState {
 
   int getNoteValue() const override { return note_value_; }
 
+  SphericalPosition getPosition() const override { return position_; }
+
   // Raw performance velocity (0..1), deliberately NOT decibelsToGain(getGainDB())
   // - getGainDB() can carry extra per-instrument mixing gain (e.g.
   // SoundFontVoice bakes its SF2 region's attenuation into it), which would
@@ -53,7 +56,7 @@ protected:
   }
 
   float getFrequency() const { return freq_; }
-  float getAzimuth() const { return azimuth_; }
+  float getAzimuth() const { return position_.azimuth; }
   float getDetune() const { return detune_; }
 
   void setGainDB(float db) { noteGainDB_ = db; }
@@ -66,7 +69,7 @@ protected:
 private:
   float freq_ = 0.0f;
   float noteGainDB_ = 0.0f;
-  float azimuth_;
+  SphericalPosition position_;
   float detune_;
 };
 

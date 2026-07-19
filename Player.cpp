@@ -10,7 +10,7 @@
 #include "RecordEvent.h"
 #include "PlaybackControlEvent.h"
 
-#include "BasicMixer.h"
+#include "MixerFactory.h"
 #include "InstrumentTrackState.h"
 #include "FFT.h"
 
@@ -61,7 +61,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	      auto frequency = Tuner::getFrequency(tuning, note);
 
 	      track_state->stopVoices(column);
-	      auto voice = instrument.playNote(state_.getChannelConfiguration(), instrument_track.getAzimuth(), frequency, 1.0f, note.getVelocityAsFloat(), 0.0f, note.getValue());
+	      auto voice = instrument.playNote(state_.getChannelConfiguration(), instrument_track.getPosition(), frequency, 1.0f, note.getVelocityAsFloat(), 0.0f, note.getValue());
 	      track_state->addVoice(column, move(voice));
 	    } else {
 	      track_state->applyAftertouch(column, midi_velocity / 127.0f);
@@ -102,6 +102,10 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
   case PlaybackControlEvent::SONG_CHANGED:
     song_changed_ = true;
     break;
+
+  case PlaybackControlEvent::MIXER_CHANGED:
+    mixer_changed_ = true;
+    break;
   }
 }
 
@@ -137,7 +141,7 @@ Player::play(AudioAPI & audio) {
 
   auto * song = &controller_->getSong();
   state_.initialize(*song);
-  auto mixer = createMixer(audio.numberOfChannels(), audio.getFrequency(), song->getMixerType());
+  auto mixer = createMixer(controller_->getChannelConfiguration(), controller_->getMixerType());
 
   while ( !terminate_ ) {
     if (poll(descriptors.get(), num_descriptors, 1000) > 0) {
@@ -160,8 +164,12 @@ Player::play(AudioAPI & audio) {
 	      state_.clear();
 	      state_.resetPosition(); // old song's row count means nothing against the new song's patterns
 	      state_.initialize(*song);
-	      mixer = createMixer(audio.numberOfChannels(), audio.getFrequency(), song->getMixerType());
+	      mixer = createMixer(controller_->getChannelConfiguration(), controller_->getMixerType());
 	      song_changed_ = false;
+	    }
+	    if (mixer_changed_) {
+	      mixer = createMixer(controller_->getChannelConfiguration(), controller_->getMixerType());
+	      mixer_changed_ = false;
 	    }
 	    auto ev = createPlaybackEvent(*song, state_);
 	    controller_->getUIEventQueue().push(move(ev));
@@ -212,17 +220,4 @@ Player::createPlaybackEvent(const Song & song, const SongState & state) {
   info.setActiveVoices(move(active_voices));
 
   return make_unique<PlaybackEvent>(info);
-}
-
-std::unique_ptr<Mixer>
-Player::createMixer(short out_channels, int outSampleRate, MixerType type) {
-  switch (type) {
-  // HRFT predates the current Mixer interface and its SOFA data files are
-  // missing; fall back to BasicMixer until it is ported.
-  case MixerType::HRFT: return make_unique<BasicMixer>(out_channels, outSampleRate);
-  case MixerType::BASIC: return make_unique<BasicMixer>(out_channels, outSampleRate);
-  default:
-    assert(0);
-    return unique_ptr<Mixer>(nullptr);
-  }
 }

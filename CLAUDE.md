@@ -25,6 +25,9 @@ Produces `build/musiceditor`.
 
 Dependencies (Ubuntu): `libnotcurses-dev libfftw3-dev libfmt-dev
 libsndfile1-dev libasound2-dev` plus CMake and a C++17 compiler.
+`libmysofa-dev` is optional (binaural ambisonic decoding, `SYNTH_ENABLE_BINAURAL`,
+auto-detected) — without it, `--ambisonic` still works via the cardioid
+stereo decoder fallback.
 
 ## Run
 
@@ -60,7 +63,15 @@ project; useful for chasing memory bugs (e.g. `SampleData`'s copy-assignment
 leak was confirmed this way).
 
 Needs a real terminal (notcurses full-screen UI) and an ALSA output device.
-Options: `--samplerate N`, `--mono | --stereo | --surround`, `--demo [n]`.
+Options: `--samplerate N`, `--stereo | --ambisonic [order]`, `--demo [n]`.
+`--ambisonic` renders through a first-order-ambisonic (FOA) bus (ACN/SN3D,
+AmbiX convention) instead of the plain stereo pan path, decoded to binaural
+(HRIR-convolved, via libmysofa, when `SYNTH_ENABLE_BINAURAL` is on and a
+SOFA file resolves) or a cheap cardioid stereo matrix otherwise — see
+`AmbisonicEncoding.h`/`AmbisonicDecoders.h`. There is no `--mono`: it was
+never a useful device-output mode; `ChannelConfiguration::MONO` survives
+only as an internal value voices/leaf instruments reduce to before
+constructing themselves (`reduceForPositionalGroup`), regardless of mode.
 **Space** toggles playback, Ctrl-Q quits, Ctrl-N creates a new song,
 **Ctrl-K** opens the M-x command minibuffer (reliable on any terminal; see
 below for why it exists alongside Esc-x/Alt-x).
@@ -219,10 +230,17 @@ SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
   (notcurses UI), `Tuner`/`Tuning` (microtonal pitch math),
   `OscilatorVoice`/`GenericInstrument`/`SoundFont` (synthesis).
 - `effects/` — audio effects (reverb, chorus, delay, compressor, …).
-- `HRFT.{cpp,h}` — ambisonic binaural mixer; currently **excluded from the
-  build**: it predates the current `Mixer` interface and its SOFA data files
-  and `libspatialaudio-dev` are missing. `Player` falls back to `BasicMixer`
-  for `mixer="hrft"` songs.
+- `AmbisonicEncoding.h` — FOA encode/decode math (SN3D gains, per-voice
+  gain-interpolated encoder, stereo decode/re-encode helpers) shared by
+  every ambisonic-aware node. `AmbisonicDecoders.h` — the master-bus
+  `Mixer` subclasses (`AmbisonicStereoMixer`, always available;
+  `AmbisonicBinauralMixer`, libmysofa-gated). `MixerFactory.{h,cpp}` picks
+  between `BasicMixer`/these two, given the process-wide `ChannelConfiguration`
+  and `Controller`-level `MixerType` setting — used by both `Player` and
+  `OfflineRenderer`/`--render` so they exercise identical mixer-selection
+  logic. (A prior, incompatible ambisonic attempt, `HRFT.{cpp,h}`, predated
+  the current `Mixer`/`SampleData` interfaces and was never in the build;
+  deleted rather than revived.)
 - `songs/` — example/test songs (XML, hand-editable).
 - `docs/` — note-number tables for various EDOs, key bindings, MIDI notes;
   `known_bugs.md` tracks open, not-yet-fixed bugs (as opposed to `todo.txt`'s

@@ -5,6 +5,8 @@
 #include "ActiveVoiceInfo.h"
 #include "SampleData.h"
 #include "ChannelConfiguration.h"
+#include "SphericalPosition.h"
+#include "AmbisonicEncoding.h"
 
 #include <algorithm>
 #include <vector>
@@ -21,21 +23,65 @@ class TrackState {
   
   // For rendering voices
   virtual SampleData render(int frames) {
-    SampleData data(getChannelConfiguration(), frames);
-    data.zero();
-
-    for (auto & [ id, child ] : getChildren()) {
-      if (child->isActive()) {
-	data.mix(child->render(frames));
-      }
-    }
-   
-    return data;    
+    return renderChildren(frames, getChannelConfiguration());
   }
 
   // For rendering tracks
   virtual SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) {
-    SampleData sd(getChannelConfiguration(), frames);
+    return renderChildren(frames, instruments, context, getChannelConfiguration());
+  }
+
+protected:
+  // Gathers children into an accumulator of `accumulator_config`'s shape
+  // rather than always this node's own getChannelConfiguration() - used
+  // directly (not through the render() override above) by ReverbState/
+  // CompressorState/DistortionState, which need to gather their children in
+  // a narrower, guaranteed-real format (reduceForEffect) than their own
+  // true (possibly ambisonic) format; every other node just gets this via
+  // the public render() wrapper above, unchanged from today. Since
+  // `accumulator_config` is never AMBISONIC for those two callers
+  // (reduceForEffect's whole point), the mismatch-encode branch below
+  // naturally never triggers for them either - their children are
+  // constructed via getChildChannelConfiguration() with that exact same
+  // reduced format (Effect.h/Reverb.h/etc.), so channel counts always
+  // match and every child is just plain-mixed, same as pre-ambisonic code.
+  SampleData renderChildren(int frames, const ChannelConfiguration & accumulator_config) {
+    SampleData data(accumulator_config, frames);
+    data.zero();
+
+    bool is_ambisonic = accumulator_config.getType() == ChannelConfiguration::AMBISONIC;
+    for (auto & [ id, child ] : getChildren()) {
+      if (child->isActive()) {
+	auto s = child->render(frames);
+	// A child narrower than this node's own (ambisonic) format bottomed
+	// out at MONO without anything re-encoding it back up (see
+	// reduceForPositionalGroup, AmbisonicEncoding.h) - FOA-encode it
+	// here using its own position rather than blindly mixing, which is
+	// what lets NoteMultiplier/SoundFontInstrument's differently-
+	// positioned sub-voices (and a single voice under a transparent
+	// per-voice effect) spatialize correctly with no ambisonic-specific
+	// code of their own. If channel counts already match, the child
+	// already produced genuine ambisonic-shaped output (e.g. a nested
+	// composite that went through this same logic one level down) -
+	// mix it directly, same as always.
+	if (is_ambisonic && s.numberOfChannels() < data.numberOfChannels()) {
+	  if (!s.isZero()) {
+	    positional_mixer_.encode(child.get(), s, child->getPosition(), data);
+	    data.setNonZero();
+	  }
+	} else {
+	  data.mix(s);
+	}
+      } else {
+	positional_mixer_.remove(child.get());
+      }
+    }
+
+    return data;
+  }
+
+  SampleData renderChildren(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context, const ChannelConfiguration & accumulator_config) {
+    SampleData sd(accumulator_config, frames);
     sd.zero();
 
     bool child_has_solo = false, active = false;
@@ -51,9 +97,11 @@ class TrackState {
 	active = true;
       }
     }
-    
+
     return sd;
   }
+
+public:
 
   virtual void clear() { children_.clear(); }
 
@@ -194,6 +242,21 @@ class TrackState {
     return -1;
   }
 
+  // This voice chain's position in space, for external ambisonic encoding
+  // (see AmbisonicEncoding.h). Same "search children, return the first
+  // found" idiom as getNoteValue() - a wrapper node (composite instrument,
+  // per-voice effect) transparently reports whatever its InstrumentVoice
+  // descendant was constructed with. Overridden by InstrumentVoice (returns
+  // its stored position_) and further by SoundFontVoice (folds in the
+  // region's own pan).
+  virtual SphericalPosition getPosition() const {
+    for (auto & [ id, child ] : getChildren()) {
+      auto p = child->getPosition();
+      if (p.distance > 0.0f) return p;
+    }
+    return SphericalPosition{};
+  }
+
 
   const std::unordered_map<int, std::unique_ptr<TrackState> > & getChildren() const { return children_; }
   std::unordered_map<int, std::unique_ptr<TrackState> > & getChildren() { return children_; }
@@ -219,6 +282,7 @@ private:
   std::unordered_map<int, std::unique_ptr<TrackState> > children_;
   float aftertouch_ = 1.0f;
   TrackInfo track_info_;
+  PositionalMixer positional_mixer_;
 };
 
 #endif

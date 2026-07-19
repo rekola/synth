@@ -3,6 +3,7 @@
 
 #include "StatefulSongObject.h"
 #include "TrackType.h"
+#include "SphericalPosition.h"
 
 #include <string_view>
 #include <vector>
@@ -16,10 +17,20 @@ class Track : public StatefulSongObject {
     return std::make_unique<TrackState>(config);
   }
 
+  // What format this node's children should be constructed with, given the
+  // format this node itself was asked to produce. Default: passthrough -
+  // matches every node's actual behavior except the few effects (Reverb,
+  // Compressor, Distortion) whose DSP genuinely needs real stereo width or
+  // is nonlinear; those override this to reduceForEffect(config). Consulted
+  // by both createStateTree() and the default playNote() body below, since
+  // an effect can be reached either way.
+  virtual ChannelConfiguration getChildChannelConfiguration(const ChannelConfiguration & config) const { return config; }
+
   std::unique_ptr<TrackState> createStateTree(const ChannelConfiguration & config) const {
     auto state = createState(config);
+    auto child_config = getChildChannelConfiguration(config);
     for (auto & child : getChildren()) {
-      state->addChild(child->getInternalId(), child->createStateTree(config));
+      state->addChild(child->getInternalId(), child->createStateTree(child_config));
     }
     return state;
   }
@@ -36,10 +47,11 @@ class Track : public StatefulSongObject {
 
   virtual const char * getElementName() const = 0;
 
-  virtual std::unique_ptr<TrackState> playNote(const ChannelConfiguration & config, float azimuth, float frequency, float detune, float velocity, float start_phase, int note_value) const {
+  virtual std::unique_ptr<TrackState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value) const {
     auto group = createState(config);
+    auto child_config = getChildChannelConfiguration(config);
     for (auto & child : getChildren()) {
-      auto voice = child->playNote(config, azimuth, frequency, detune, velocity, start_phase, note_value);
+      auto voice = child->playNote(child_config, position, frequency, detune, velocity, start_phase, note_value);
       if (voice.get()) group->addChild(child->getInternalId(), std::move(voice));
     }
     return group;

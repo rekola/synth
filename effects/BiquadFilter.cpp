@@ -9,6 +9,7 @@
 #include "../constants.h"
 
 #include <cassert>
+#include <vector>
 
 using namespace std;
 
@@ -16,37 +17,37 @@ class BiquadFilterState : public EffectState {
 public:
   BiquadFilterState(const ChannelConfiguration & channel_config, FilterType type, float fc, float Q, float peakGainDB, const Envelope & envelope, bool use_aftertouch)
     : EffectState(channel_config),
-      left_state_(type, fc, Q, peakGainDB),
-      right_state_(type, fc, Q, peakGainDB),
       envelope_state_(channel_config.getAudioOutSampleRate(), envelope, 0, 0, true),
       use_aftertouch_(use_aftertouch)
-  { }
-  
+  {
+    for (int c = 0; c < channel_config.numberOfChannels(); c++) {
+      filters_.emplace_back(type, fc, Q, peakGainDB);
+    }
+  }
+
   void applyEffect(SampleData & input_data) override {
     if (!input_data.isZero() || isEffectActive()) {
       input_data.setNonZero();
       setEffectActive(true);
-      
+
       auto numSamples = input_data.size();
       auto numChannels = input_data.numberOfChannels();
-      auto left_buffer = input_data.getChannelData(0), right_buffer = input_data.getChannelData(1);
       auto aftertouch_value = use_aftertouch_ ? getAftertouch() : 1.0f;
-      
+
+      size_t offset = 0;
       while (numSamples) {
-	size_t blockSamples = numSamples > constants::RENDER_EFFECTSAMPLEBLOCK ? constants::RENDER_EFFECTSAMPLEBLOCK : numSamples;
-	// float current_cut = cut_min_ + envelope_state_.getLevel() * aftertouch_value * (cut_max_ - cut_min_);
-	
-	if (numChannels == 1) {
-	  left_state_.apply(blockSamples, left_buffer);
-	} else {
-	  left_state_.apply(blockSamples, left_buffer);
-	  right_state_.apply(blockSamples, right_buffer);
+	int blockSamples = numSamples > constants::RENDER_EFFECTSAMPLEBLOCK ? constants::RENDER_EFFECTSAMPLEBLOCK : numSamples;
+
+	// Same filter, applied identically & independently per channel -
+	// including ambisonic ones (see AmbisonicEncoding.h): for a static
+	// source position this is exactly equivalent to filtering the
+	// pre-encode mono signal once, so direction is preserved exactly.
+	for (int c = 0; c < numChannels; c++) {
+	  filters_[static_cast<size_t>(c)].apply(static_cast<size_t>(blockSamples), input_data.getChannelData(c) + offset);
 	}
-	
-	left_buffer += blockSamples;
-	right_buffer += blockSamples;
+
+	offset += static_cast<size_t>(blockSamples);
 	numSamples -= blockSamples;
-	
 	envelope_state_.process(blockSamples);
       }
     }
@@ -56,7 +57,7 @@ public:
 
 private:
   bool use_aftertouch_;
-  Biquad<double> left_state_, right_state_;
+  std::vector<Biquad<double>> filters_;
   EnvelopeState envelope_state_;
 };
 

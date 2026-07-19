@@ -30,6 +30,7 @@
 #include "InstrumentVoice.h"
 #include "SampleData.h"
 #include "PanLaw.h"
+#include "AmbisonicEncoding.h"
 
 #include "constants.h"
 
@@ -613,8 +614,8 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
 
 class SoundFontVoice : public InstrumentVoice {
 public:
-  SoundFontVoice(const ChannelConfiguration & channel_config, float azimuth, float detune, float start_phase, std::shared_ptr<SoundFontFile> sf, size_t preset, size_t region_idx)
-    : InstrumentVoice(channel_config, azimuth, detune, start_phase), sf_(sf)
+  SoundFontVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, float start_phase, std::shared_ptr<SoundFontFile> sf, size_t preset, size_t region_idx)
+    : InstrumentVoice(channel_config, position, detune, start_phase), sf_(sf)
   {
     auto f = sf_.get();
     if (preset < f->presets_.size()) {
@@ -687,6 +688,32 @@ public:
     return InstrumentVoice::getOwnLoudnessFactor() * ampenv_.getLevel();
   }
 
+  // Folds the SF2 region's own pan into an azimuth offset, approximating
+  // the exact combination the STEREO pan branch below computes via
+  // azimuthToPan(...) + (voiceRegion_->pan - 0.5f): find the azimuth delta
+  // whose sine matches the desired pan offset (asin is the inverse of the
+  // sin() inside azimuthToPan) and add it to the voice's own azimuth. This
+  // is what preserves an SF2 instrument's authored stereo image (velocity
+  // layers/stereo-split regions panned differently) once positioning
+  // happens externally instead of via this voice's own STEREO branch.
+  SphericalPosition getPosition() const override {
+    auto position = InstrumentVoice::getPosition();
+    if (voiceRegion_) {
+      float pan_offset = voiceRegion_->pan - 0.5f;
+      if (pan_offset < -0.5f) pan_offset = -0.5f;
+      else if (pan_offset > 0.5f) pan_offset = 0.5f;
+      // A region with real (non-centered) pan needs actual directionality
+      // to manifest at all - the zero-vector/diffuse default (point 6 in
+      // the plan) is for tracks that never set a position, not for a
+      // stereo-split region whose whole point is to sound off-center.
+      if (pan_offset != 0.0f) {
+	position.azimuth += asinf(pan_offset * 2.0f) * 180.0f / static_cast<float>(M_PI);
+	if (position.distance <= 0.0f) position.distance = 1.0f;
+      }
+    }
+    return position;
+  }
+
   SampleData render(int numSamples) override;
   
   void killNote() override {
@@ -751,7 +778,8 @@ SoundFontVoice::render(int numSamples) {
   outputData.setNonZero();
 
   auto num_channels = outputData.numberOfChannels();
-  auto left_output = outputData.getChannelData(0), right_output = outputData.getChannelData(1);
+  auto left_output = outputData.getChannelData(0);
+  auto right_output = num_channels == 2 ? outputData.getChannelData(1) : nullptr;
 
   auto input = f->fontSamples_;
   
@@ -936,7 +964,7 @@ public:
 
   const char * getElementName() const override { return "soundFontInstrument"; }
 
-  std::unique_ptr<TrackState> playNote(const ChannelConfiguration & channel_config, float azimuth, float frequency, float detune, float velocity, float start_phase, int note_value) const override {
+  std::unique_ptr<TrackState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value) const override {
     assert(frequency > 0);
 
     detune *= getHarmonic();
@@ -950,33 +978,34 @@ public:
       auto midiKey = int(round(log2(frequency / 440) * 12 + 69));
       auto midiVelocity = (short)(velocity * 127);
       if (midiVelocity > 127) midiVelocity = 127;
-      
+
       // Play all matching regions.
-      
+
       auto & regions = f->presets_[preset_].regions;
-      
+
       for (size_t region_idx = 0; region_idx < regions.size(); region_idx++) {
 	auto & region = regions[region_idx];
 	if (midiKey < region.lokey || midiKey > region.hikey || midiVelocity < region.lovel || midiVelocity > region.hivel) continue;
-	
+
 	if (region.group) {
 	  // FIXME: here we should end all voices with the same instrument and group
 	}
-	
-	auto voice = make_unique<SoundFontVoice>(channel_config, azimuth, detune, start_phase, sf_, preset_, region_idx);
+
+	// A leaf voice never sees AMBISONIC directly (see AmbisonicEncoding.h)
+	// - each region's own position (folded in via SoundFontVoice::getPosition())
+	// gets FOA-encoded externally, by whichever ancestor notices this
+	// voice/group's channel count doesn't match its own.
+	auto voice = make_unique<SoundFontVoice>(reduceForPositionalGroup(channel_config), position, detune, start_phase, sf_, preset_, region_idx);
 	voice->playNote(frequency, velocity, note_value);
 
 	if (!getChildren().empty()) {
 	  // create modulators for voice
-	  // auto child_config = channel_config;
-	  // child_config.setType(ChannelConfiguration::MONO);
-
 	  for (auto & child : getChildren()) {
-	    auto modulator = child->playNote(channel_config, 0.0f, frequency, detune, velocity, start_phase, note_value);
+	    auto modulator = child->playNote(channel_config, SphericalPosition{}, frequency, detune, velocity, start_phase, note_value);
 	    if (modulator.get()) voice->addChild(child->getInternalId(), move(modulator));
 	  }
 	}
-	
+
 	voices.emplace_back(getInternalId(), move(voice));
       }
     }
@@ -984,6 +1013,13 @@ public:
     if (voices.size() == 1) {
       return move(voices[0].second);
     } else {
+      // Unreduced channel_config: this group's own true output format is
+      // whatever it was asked for (matching what its caller expects back).
+      // Each region-voice inside is already MONO/STEREO (above); the
+      // plain TrackState's generic render(int frames) FOA-encodes each one
+      // individually using its own (region-pan-adjusted) position as soon
+      // as it notices the channel-count mismatch - no group-state override
+      // needed here, same reasoning as NoteMultiplier.
       auto group = make_unique<TrackState>(channel_config);
       for (auto & [ id, voice ] : voices) group->addChild(id, move(voice));
       return group;

@@ -60,8 +60,17 @@ class SongState : public TrackState {
 	  i += remaining;
 	  movePosition(1);
 	} else {
-	  i += frames;
-	  moveForwardSamples(frames);
+	  // The next row boundary doesn't fall within this block - advance by
+	  // however many samples are actually left in it (frames - i), not by
+	  // a full `frames` again. Reusing `frames` here double-counted the
+	  // `i` samples already consumed earlier in this same loop (e.g. by a
+	  // previous row transition partway through the block), advancing
+	  // sample_pos_ too far and drifting note timing later in the song -
+	  // by design a row's sample-length is essentially never an exact
+	  // multiple of the block size, so this fires on nearly every block
+	  // that contains (or follows) a row transition.
+	  moveForwardSamples(frames - i);
+	  break;
 	}
       }
     }

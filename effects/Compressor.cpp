@@ -38,6 +38,7 @@
 
 #include <cmath>
 #include <cstddef>
+#include <vector>
 
 // maximum number of samples in the delay buffer
 #define SF_COMPRESSOR_MAXDELAY   1024
@@ -221,20 +222,22 @@ public:
   }
 
   void applyEffect(SampleData & input) override {
-    // The detection/gain-reduction algorithm below is inherently stereo
-    // (joint left/right envelope, per-channel delay line indexed the same
-    // way); pass non-stereo input through unchanged rather than reading
-    // past the end of a mono buffer.
-    if (input.numberOfChannels() != 2) {
-      setTrackInfo(TrackInfo(false, input.isClipping()));
-      return;
+    // The gain-reduction algorithm computes a single scalar `gain` per
+    // sample and applies it uniformly to every channel below - that part
+    // is exactly as channel-count-agnostic as EnvelopeFilter/Amplifier, so
+    // it generalizes to N (including ambisonic) channels directly, with no
+    // narrowing needed. Only the *detection* step reads specific channels;
+    // generalized here to the peak across all of them (a superset of the
+    // original stereo-joint peak(|L|,|R|) detector, not a different
+    // algorithm) so a compressed signal keeps the same relative channel
+    // ratios - i.e. the same apparent direction/width in ambisonic mode -
+    // rather than only two of its channels reacting to loudness.
+    int num_channels = input.numberOfChannels();
+    std::vector<float *> delaybuf(num_channels), in(num_channels);
+    for (int c = 0; c < num_channels; c++) {
+      delaybuf[c] = delaybuf_.getChannelData(c);
+      in[c] = input.getChannelData(c);
     }
-
-    auto left_delaybuf = delaybuf_.getChannelData(0);
-    auto right_delaybuf = delaybuf_.getChannelData(1);
-
-    auto left_input = input.getChannelData(0);
-    auto right_input = input.getChannelData(1);
 
     constexpr float ang90 = (float)M_PI * 0.5f;
     constexpr float ang90inv = 2.0f / (float)M_PI;
@@ -286,13 +289,13 @@ public:
 	     delayreadpos_ = (delayreadpos_ + 1) % delaybufsize_,
 	     delaywritepos_ = (delaywritepos_ + 1) % delaybufsize_) {
 
-	auto inputL = left_input[samplepos] * linearpregain_;
-	auto inputR = right_input[samplepos] * linearpregain_;
-	left_delaybuf[delaywritepos_] = inputL;
-	right_delaybuf[delaywritepos_] = inputR;
+	float inputmax = 0.0f;
+	for (int c = 0; c < num_channels; c++) {
+	  auto v = in[c][samplepos] * linearpregain_;
+	  delaybuf[c][delaywritepos_] = v;
+	  inputmax = maxf(inputmax, absf(v));
+	}
 
-	auto inputmax = maxf(absf(inputL), absf(inputR));
-	
 	float attenuation;
 	if (inputmax < 0.0001f) {
 	  attenuation = 1.0f;
@@ -342,8 +345,9 @@ public:
 	}
 
 	// apply the gain
-	left_input[samplepos] = left_delaybuf[delayreadpos_] * gain;
-	right_input[samplepos] = right_delaybuf[delayreadpos_] * gain;
+	for (int c = 0; c < num_channels; c++) {
+	  in[c][samplepos] = delaybuf[c][delayreadpos_] * gain;
+	}
       }
     }
 

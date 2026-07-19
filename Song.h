@@ -5,7 +5,6 @@
 #include "Track.h"
 #include "Section.h"
 #include "Pattern.h"
-#include "MixerType.h"
 
 #include <memory>
 #include <vector>
@@ -18,13 +17,10 @@ class Song : public StatefulSongObject {
   Song(Tuning tuning = Tuning::TET12, short key = -1, float randomization_factor = 0.01f) : tuning_(tuning), key_note_number_(key), randomization_factor_(randomization_factor) { }
 
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override;
-  
+
   Tuning getTuning() const { return tuning_; }
   void setTuning(Tuning tuning) { tuning_ = tuning; }
 
-  MixerType getMixerType() const { return mixer_type_; }
-  void setMixerType(MixerType mixer_type) { mixer_type_ = mixer_type; }
-  
   short getKey() const { return key_note_number_; }
   void setKey(int key) { key_note_number_ = key; }
   
@@ -136,7 +132,6 @@ class Song : public StatefulSongObject {
 
 private:
   Tuning tuning_ = Tuning::TET12;
-  MixerType mixer_type_ = MixerType::BASIC;
   short key_note_number_ = 0;
   float randomization_factor_ = 0.0f;
   int bpm_ = 90;

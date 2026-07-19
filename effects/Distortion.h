@@ -2,6 +2,7 @@
 #define _DISTORTION_H_
 
 #include "Effect.h"
+#include "../AmbisonicEncoding.h"
 
 enum class DistortionType { HARD_CLIP = 1, SOFT_CLIP, BITCRUSH, TANH };
 
@@ -23,6 +24,13 @@ class Distortion : public Effect {
   const char * getElementName() const override { return "distortion"; }
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;
+
+  // Each of these waveshapers is a nonlinear, per-channel-independent
+  // function - unlike a uniform gain multiply, that does NOT commute with
+  // linear FOA encoding (distorting each ambisonic channel independently
+  // and decoding gives a different, wrong result vs. distorting the
+  // pre-encode mono signal and encoding). Needs real stereo/mono input.
+  ChannelConfiguration getChildChannelConfiguration(const ChannelConfiguration & config) const override { return reduceForEffect(config); }
 
  private:
   DistortionType type_ { DistortionType::HARD_CLIP };

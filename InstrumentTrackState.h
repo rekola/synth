@@ -1,16 +1,18 @@
 #ifndef _INSTRUMENTTRACKSTATE_H_
 #define _INSTRUMENTTRACKSTATE_H_
 
+#include "TrackState.h"
 #include "TrackEvent.h"
 #include "SampleData.h"
 #include "RenderContext.h"
+#include "SphericalPosition.h"
 
 #include <algorithm>
 
 class InstrumentTrackState : public TrackState {
 public:
-  explicit InstrumentTrackState(const ChannelConfiguration & channel_config, bool solo, bool muted, int track_id, int instrument_id, float azimuth, float portamento)
-    : TrackState(channel_config), solo_(solo), muted_(muted), track_id_(track_id), instrument_id_(instrument_id), azimuth_(azimuth), portamento_(portamento) { }
+  explicit InstrumentTrackState(const ChannelConfiguration & channel_config, bool solo, bool muted, int track_id, int instrument_id, const SphericalPosition & position, float portamento)
+    : TrackState(channel_config), solo_(solo), muted_(muted), track_id_(track_id), instrument_id_(instrument_id), position_(position), portamento_(portamento) { }
   
   SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override {
     clearFinishedVoices();
@@ -49,7 +51,7 @@ public:
 		}
 		if (!portamento_done) {
 		  stopVoices(ev.getId());
-		  auto voice = instrument->playNote(getChannelConfiguration(), azimuth_, ev.getFrequency(), 1.0f, ev.getVelocity(), -getRandF(), ev.getNoteValue());
+		  auto voice = instrument->playNote(getChannelConfiguration(), position_, ev.getFrequency(), 1.0f, ev.getVelocity(), -getRandF(), ev.getNoteValue());
 		  addVoice(ev.getId(), move(voice));
 		}
 	      }
@@ -74,20 +76,35 @@ public:
     data.zero();
 
     bool is_active = false;
-    
+    bool is_ambisonic = getChannelConfiguration().getType() == ChannelConfiguration::AMBISONIC;
+
     for (auto & [ column, voices ] : voices_) {
       for (auto & voice : voices) {
 	if (voice->isActive()) {
 	  auto s = voice->render(frames);
-	  if (!isMuted()) data.mix(s);
+	  if (!isMuted()) {
+	    // Same mismatch-encode rule as TrackState::render(int frames)'s
+	    // generic default (see AmbisonicEncoding.h) - voices_ is a
+	    // separate storage structure from the generic children_ map, so
+	    // this loop needs its own copy of the logic rather than reusing
+	    // the base class's.
+	    if (is_ambisonic && s.numberOfChannels() < data.numberOfChannels()) {
+	      if (!s.isZero()) {
+		positional_mixer_.encode(voice.get(), s, voice->getPosition(), data);
+		data.setNonZero();
+	      }
+	    } else {
+	      data.mix(s);
+	    }
+	  }
 	  is_active = true;
 	}
       }
     }
-    
+
     setTrackInfo(TrackInfo( is_active, data.isClipping() ));
-    
-    return data;    
+
+    return data;
   }
 
   void addVoice(int column, std::unique_ptr<TrackState> voice) {
@@ -158,7 +175,10 @@ protected:
 
   void clearFinishedVoices() {
     for (auto & [ id, voices ] : voices_) {
-      voices.erase(std::remove_if(voices.begin(), voices.end(), is_not_playing), voices.end());      
+      for (auto & voice : voices) {
+	if (is_not_playing(voice)) positional_mixer_.remove(voice.get());
+      }
+      voices.erase(std::remove_if(voices.begin(), voices.end(), is_not_playing), voices.end());
     }
   }
 
@@ -171,10 +191,11 @@ protected:
 private:
   bool solo_, muted_;
   int track_id_, instrument_id_;
-  float azimuth_;
+  SphericalPosition position_;
   float portamento_;
 
   std::unordered_map<int, std::vector<std::unique_ptr<TrackState> > > voices_;
+  PositionalMixer positional_mixer_;
 };
 
 #endif

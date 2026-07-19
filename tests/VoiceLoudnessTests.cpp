@@ -3,10 +3,11 @@
 #include "../OscilatorVoice.h"
 #include "../TrackEvent.h"
 #include "../RenderContext.h"
+#include "../SphericalPosition.h"
 
 TEST(oscilator_voice_reports_note_value_and_velocity_loudness) {
   ChannelConfiguration config(ChannelConfiguration::MONO, 44100);
-  OscilatorVoice voice(config, 0.0f, 1.0f, 0.0f, WaveformType::SINE, 1.0f, 0.5f);
+  OscilatorVoice voice(config, SphericalPosition{}, 1.0f, 0.0f, WaveformType::SINE, 1.0f, 0.5f);
 
   CHECK(!voice.isActive());
   CHECK(voice.getNoteValue() == -1);

@@ -365,10 +365,6 @@ Song::loadParameters(const ParameterSource & input) {
 
   setTempo(input.getInt("tempo", 90));
   setRandomizationFactor(input.getFloat("randomization", 0.01f));
-
-  auto mixer_text = input.getText("mixer");
-  if (mixer_text == "basic") setMixerType(MixerType::BASIC);
-  else if (mixer_text == "hrft") setMixerType(MixerType::HRFT);
 }
 
 void
@@ -379,5 +375,4 @@ Song::storeParameters(ParameterSource & output) const {
   output.set("temperament", to_string(getTuning()));
   output.set("tempo", getTempo());
   output.set("randomization", getRandomizationFactor());
-  output.set("mixer", to_string(getMixerType())); 
 }

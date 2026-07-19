@@ -2,6 +2,7 @@
 #define _REVERB_H_
 
 #include "Effect.h"
+#include "../AmbisonicEncoding.h"
 
 enum class ReverbPreset { NONE = 0, SUBTLE, STADIUM, CUPBOARD, DARK, HALVES };
 
@@ -26,6 +27,11 @@ class Reverb : public Effect {
   const char * getElementName() const override { return "reverb"; }
   void loadParameters(const ParameterSource & element) override;
   void storeParameters(ParameterSource & element) const override;
+
+  // Real stereo-width MVerb processing needs genuine 2-channel input, not
+  // raw ambisonic channels - see AmbisonicEncoding.h and the "Effects"
+  // section of the spatial audio plan.
+  ChannelConfiguration getChildChannelConfiguration(const ChannelConfiguration & config) const override { return reduceForEffect(config); }
 
 private:
   ReverbPreset preset_ { ReverbPreset::NONE };

@@ -5,11 +5,12 @@ using namespace std;
 #include "InstrumentVoice.h"
 #include "WaveformType.h"
 #include "PanLaw.h"
+#include "AmbisonicEncoding.h"
 
 class NoiseVoice : public InstrumentVoice {
 public:
-  NoiseVoice(ChannelConfiguration config, float azimuth, float level)
-    : InstrumentVoice(config, azimuth, 1.0f, 0.0f), level_(level) {
+  NoiseVoice(ChannelConfiguration config, const SphericalPosition & position, float level)
+    : InstrumentVoice(config, position, 1.0f, 0.0f), level_(level) {
   }
 
   SampleData render(int frames) override {    
@@ -48,8 +49,8 @@ private:
 };
 
 std::unique_ptr<TrackState>
-Noise::playNote(const ChannelConfiguration & config, float azimuth, float frequency, float detune, float velocity, float start_phase, int note_value) const {
-  auto voice = std::make_unique<NoiseVoice>(config, azimuth, level_);
+Noise::playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value) const {
+  auto voice = std::make_unique<NoiseVoice>(reduceForPositionalGroup(config), position, level_);
   voice->playNote(frequency, velocity, note_value);
   return voice;
 }

@@ -9,6 +9,7 @@ add_executable(synth_tests
 	LaunchpadLayoutTests.cpp
 	LaunchpadProtocolTests.cpp
 	VoiceLoudnessTests.cpp
+	AmbisonicEncodingTests.cpp
 )
 
 target_link_libraries(synth_tests synth_engine)

@@ -4,11 +4,12 @@
 #include "InstrumentVoice.h"
 #include "WaveformType.h"
 #include "PanLaw.h"
+#include "SphericalPosition.h"
 
 class OscilatorVoice : public InstrumentVoice {
 public:
-  OscilatorVoice(ChannelConfiguration config, float azimuth, float detune, float start_phase, WaveformType type, float level, float pulse_width)
-    : InstrumentVoice(config, azimuth, detune, start_phase), type_(type), level_(level), pulse_width_(pulse_width) {
+  OscilatorVoice(ChannelConfiguration config, const SphericalPosition & position, float detune, float start_phase, WaveformType type, float level, float pulse_width)
+    : InstrumentVoice(config, position, detune, start_phase), type_(type), level_(level), pulse_width_(pulse_width) {
   }
 
   SampleData render(int frames) override {    

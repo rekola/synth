@@ -6,6 +6,19 @@ project(musiceditor VERSION 0.1)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+# Default to an optimized build when the generator supports build types (a
+# plain `cmake -B build` with no CMAKE_BUILD_TYPE otherwise applies no -O
+# flag at all - effectively -O0 - which is a real trap for an audio engine:
+# it's not just slower, some paths (e.g. AmbisonicBinauralMixer's per-
+# sample HRIR convolution) go from comfortably realtime to unusable
+# without it). Multi-config generators (Ninja Multi-Config, Visual Studio)
+# ignore CMAKE_BUILD_TYPE and already default their own per-config
+# optimization, so this is skipped for those.
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
+  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+endif()
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -Wall -Wsuggest-override -Werror=return-local-addr -Werror=multichar -Werror=enum-compare -Werror=return-type -Werror=conversion-null -Werror=parentheses -Werror=switch -Werror=address -Werror=trigraphs -Werror=pointer-arith -Werror=cast-qual -Werror=non-virtual-dtor -ffast-math -fno-math-errno -Werror=write-strings -Werror=return-local-addr -Wuninitialized -Wno-suggest-override -Wsign-conversion -Wsign-promo")
 
 # -Wconversion
@@ -56,9 +69,33 @@ add_library(synth_engine STATIC
 	PatternBlockOps.cpp
 	LaunchpadLayout.cpp
 	LaunchpadProtocol.cpp
+	MixerFactory.cpp
 )
 target_include_directories(synth_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(synth_engine PUBLIC m sndfile fmt fftw3 pthread)
+
+# Optional binaural ambisonic decoder: only libmysofa (HRIR loading) is an
+# external dependency - the FOA encode/decode math itself
+# (AmbisonicEncoding.h) has no dependency of its own. AmbisonicStereoMixer
+# (the cardioid stereo decoder) always compiles, no matter this setting.
+find_library(MYSOFA_LIBRARY mysofa)
+find_path(MYSOFA_INCLUDE_DIR mysofa.h)
+if(MYSOFA_LIBRARY AND MYSOFA_INCLUDE_DIR)
+  set(SYNTH_ENABLE_BINAURAL_DEFAULT ON)
+else()
+  set(SYNTH_ENABLE_BINAURAL_DEFAULT OFF)
+endif()
+option(SYNTH_ENABLE_BINAURAL "Build the libmysofa-based binaural ambisonic decoder" ${SYNTH_ENABLE_BINAURAL_DEFAULT})
+
+if(SYNTH_ENABLE_BINAURAL)
+  if(NOT (MYSOFA_LIBRARY AND MYSOFA_INCLUDE_DIR))
+    message(FATAL_ERROR "SYNTH_ENABLE_BINAURAL requested but libmysofa was not found (install libmysofa-dev)")
+  endif()
+  target_sources(synth_engine PRIVATE AmbisonicBinauralMixer.cpp)
+  target_compile_definitions(synth_engine PUBLIC SYNTH_HAVE_LIBMYSOFA)
+  target_include_directories(synth_engine PRIVATE ${MYSOFA_INCLUDE_DIR})
+  target_link_libraries(synth_engine PUBLIC ${MYSOFA_LIBRARY})
+endif()
 
 # add the executable
 add_executable(musiceditor main.cpp

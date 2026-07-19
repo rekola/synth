@@ -25,3 +25,15 @@ TEST(channel_configuration_equality) {
   CHECK(a == b);
   CHECK(!(a == c));
 }
+
+TEST(channel_configuration_ambisonic_channel_count_and_device_channels) {
+  ChannelConfiguration foa(ChannelConfiguration::AMBISONIC, 44100); // order defaults to 1
+  CHECK(foa.numberOfChannels() == 4);
+  CHECK(foa.getDeviceChannels() == 2); // always decoded to stereo for output
+
+  ChannelConfiguration second_order(ChannelConfiguration::AMBISONIC, 44100, 2);
+  CHECK(second_order.numberOfChannels() == 9); // (order+1)^2
+
+  ChannelConfiguration stereo(ChannelConfiguration::STEREO, 44100);
+  CHECK(stereo.getDeviceChannels() == stereo.numberOfChannels());
+}

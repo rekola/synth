@@ -7,6 +7,7 @@
 #include "EventQueue.h"
 #include "PlaybackInfo.h"
 #include "ChannelConfiguration.h"
+#include "MixerType.h"
 
 #include <functional>
 #include <memory>
@@ -57,12 +58,20 @@ class Controller {
 
   ChannelConfiguration getChannelConfiguration() const { return channel_config; }
 
+  // Process-wide decoder choice, independent of any particular song (any
+  // song can be rendered through any decoder - see MixerType.h). Only
+  // meaningful when getChannelConfiguration().getType() == AMBISONIC;
+  // BASIC is used unconditionally otherwise, regardless of this setting.
+  MixerType getMixerType() const { return mixer_type_; }
+  void setMixerType(MixerType mixer_type) { mixer_type_ = mixer_type; }
+
   bool togglePlaying();
 
   const InstrumentProvider & getInstrumentProvider() const { return instrument_provider; }
-  
+
  private:
   ChannelConfiguration channel_config;
+  MixerType mixer_type_ = MixerType::BASIC;
 
   std::shared_ptr<Song> current_song;
   std::string current_song_filename = "song.xml";

@@ -7,6 +7,7 @@
 #include "../constants.h"
 
 #include <cassert>
+#include <vector>
 
 using namespace std;
 
@@ -18,15 +19,16 @@ public:
       cut_max_(filter.get_cut_max()),
       res_(filter.get_res()),
       envelope_state_(channel_config.getAudioOutSampleRate(), envelope, 0, 0, true),
-      use_aftertouch_(use_aftertouch)
-  { }  
-  
+      use_aftertouch_(use_aftertouch),
+      filters_(static_cast<size_t>(channel_config.numberOfChannels()))
+  { }
+
   void applyEffect(SampleData & input_data) override {
     auto numSamples = input_data.size();
     auto numChannels = input_data.numberOfChannels();
-    auto left_buffer = input_data.getChannelData(0), right_buffer = input_data.getChannelData(1);
     auto aftertouch_value = use_aftertouch_ ? getAftertouch() : 1.0f;
-    
+
+    size_t offset = 0;
     while (numSamples) {
       size_t blockSamples = numSamples > constants::RENDER_EFFECTSAMPLEBLOCK ? constants::RENDER_EFFECTSAMPLEBLOCK : numSamples;
       float current_cut = (cut_min_ + envelope_state_.getLevel() * aftertouch_value * (cut_max_ - cut_min_)) / (getChannelConfiguration().getAudioOutSampleRate() * 0.5f);
@@ -34,19 +36,19 @@ public:
       if (!input_data.isZero() || is_active_) {
 	input_data.setNonZero();
 	is_active_ = true;
-	
-	if (numChannels == 1) {
-	  left_state_.apply(blockSamples, left_buffer, current_cut, res_);
-	} else {
-	  left_state_.apply(blockSamples, left_buffer, current_cut, res_);
-	  right_state_.apply(blockSamples, right_buffer, current_cut, res_);
+
+	// Same filter, applied identically & independently per channel -
+	// including ambisonic ones (see AmbisonicEncoding.h): for a static
+	// source position this is exactly equivalent to filtering the
+	// pre-encode mono signal once, so direction is preserved exactly.
+	for (int c = 0; c < numChannels; c++) {
+	  filters_[static_cast<size_t>(c)].apply(blockSamples, input_data.getChannelData(c) + offset, current_cut, res_);
 	}
       }
-      
-      left_buffer += blockSamples;
-      right_buffer += blockSamples;
-      numSamples -= blockSamples;
-      envelope_state_.process(blockSamples);      
+
+      offset += blockSamples;
+      numSamples -= static_cast<int>(blockSamples);
+      envelope_state_.process(static_cast<int>(blockSamples));
     }
 
     setTrackInfo(TrackInfo( is_active_, input_data.isClipping()));
@@ -56,7 +58,7 @@ private:
   float cut_min_, cut_max_, res_;
   bool use_aftertouch_;
 
-  MoogVCF<float> left_state_, right_state_;
+  std::vector<MoogVCF<float>> filters_;
 
   EnvelopeState envelope_state_;
 
