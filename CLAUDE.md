@@ -64,13 +64,20 @@ leak was confirmed this way).
 
 Needs a real terminal (notcurses full-screen UI) and an ALSA output device.
 Options: `--samplerate N`, `--stereo | --ambisonic [order]`, `--demo [n]`.
-`--ambisonic` renders through a first-order-ambisonic (FOA) bus (ACN/SN3D,
-AmbiX convention) instead of the plain stereo pan path, decoded to binaural
-(HRIR-convolved, via libmysofa, when `SYNTH_ENABLE_BINAURAL` is on and a
-SOFA file resolves) or a cheap cardioid stereo matrix otherwise — see
-`AmbisonicEncoding.h`/`AmbisonicDecoders.h`. There is no `--mono`: it was
-never a useful device-output mode; `ChannelConfiguration::MONO` survives
-only as an internal value voices/leaf instruments reduce to before
+`--ambisonic [order]` renders through an ambisonic bus (ACN/SN3D, AmbiX
+convention) instead of the plain stereo pan path, up to 2nd order (`order`
+1 or 2 — a hard ceiling, not a stepping stone to 3rd; `kAmbisonicOrder` in
+`AmbisonicEncoding.h`), decoded to binaural (HRIR-convolved, via libmysofa,
+when `SYNTH_ENABLE_BINAURAL` is on and a SOFA file resolves) or a cheap
+cardioid stereo matrix otherwise — see `AmbisonicEncoding.h`/
+`AmbisonicDecoders.h`. The binaural decoder's virtual speaker layout
+depends on order: 1st order (4 channels, W/Y/Z/X only) keeps an 8-speaker
+cube — a 12-speaker icosahedron wouldn't add anything decoding from just 4
+basis functions; 2nd order (9 channels) moves to a 12-speaker icosahedron,
+which is what actually exploits the 5 additional degree-2 basis functions
+for finer spatial resolution (`AmbisonicBinauralMixer.cpp`). There is no
+`--mono`: it was never a useful device-output mode; `ChannelConfiguration::MONO`
+survives only as an internal value voices/leaf instruments reduce to before
 constructing themselves (`reduceForPositionalGroup`), regardless of mode.
 **Space** toggles playback, Ctrl-Q quits, Ctrl-N creates a new song,
 **Ctrl-K** opens the M-x command minibuffer (reliable on any terminal; see
@@ -230,7 +237,8 @@ SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
   (notcurses UI), `Tuner`/`Tuning` (microtonal pitch math),
   `OscilatorVoice`/`GenericInstrument`/`SoundFont` (synthesis).
 - `effects/` — audio effects (reverb, chorus, delay, compressor, …).
-- `AmbisonicEncoding.h` — FOA encode/decode math (SN3D gains, per-voice
+- `AmbisonicEncoding.h` — ambisonic encode/decode math (SN3D gains up to
+  2nd order via `AmbisonicGains`/`computeAmbisonicGains`, per-voice
   gain-interpolated encoder, stereo decode/re-encode helpers) shared by
   every ambisonic-aware node. `AmbisonicDecoders.h` — the master-bus
   `Mixer` subclasses (`AmbisonicStereoMixer`, always available;

@@ -20,13 +20,19 @@ class AmbisonicStereoMixer : public Mixer {
     buffer_.zero();
   }
 
+  // mixNamed() rather than mix() - `input` (a track's rendered output) may
+  // carry SendA/SendB trailing its regular ambisonic channels (see
+  // Mixer.h); buffer_ never marks them present (constructed via the plain
+  // raw-count constructor) so they're silently ignored here.
   void accumulate(const SampleData & input) override {
     if (buffer_.numberOfFrames() != input.numberOfFrames()) {
       buffer_ = SampleData(static_cast<short>(ambisonic_channels_), input.numberOfFrames());
       buffer_.zero();
     }
-    buffer_.mix(input);
+    buffer_.mixNamed(input);
   }
+
+  const SampleData & getRawBus() const override { return buffer_; }
 
   SampleData encode() override {
     SampleData out(static_cast<short>(getOutChannels()), buffer_.numberOfFrames());

@@ -5,6 +5,7 @@
 #include "Controller.h"
 #include "StderrLogger.h"
 #include "OfflineRenderer.h"
+#include "AmbisonicEncoding.h"
 
 #include <cstring>
 #include <signal.h>
@@ -88,8 +89,8 @@ int main(int argc, char *argv[]) {
 	i++;
 	order = atoi(argv[i]);
       }
-      if (order < 1) {
-	fmt::print(stderr, "invalid ambisonic order\n");
+      if (order < 1 || order > kAmbisonicOrder) {
+	fmt::print(stderr, "invalid ambisonic order (must be 1-{})\n", kAmbisonicOrder);
 	exit(1);
       }
       channel_config.setType(ChannelConfiguration::AMBISONIC);

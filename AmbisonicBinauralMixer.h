@@ -9,11 +9,12 @@
 struct MYSOFA_EASY;
 
 // Binaural ambisonic decoder (only compiled when SYNTH_HAVE_LIBMYSOFA is
-// defined - see CMakeLists.txt): decodes the FOA bus to a fixed 8-speaker
-// virtual cube, convolves each speaker/ear pair with an HRIR loaded via
-// libmysofa (resampled to the engine's sample rate, per-ear onset delay
-// preserved), sums to stereo. Falls back to AmbisonicStereoMixer
-// (MixerFactory.cpp) if isReady() is false - no SOFA file resolved.
+// defined - see CMakeLists.txt): decodes the ambisonic bus (up to 2nd
+// order) to a fixed 12-speaker virtual icosahedron, convolves each
+// speaker/ear pair with an HRIR loaded via libmysofa (resampled to the
+// engine's sample rate, per-ear onset delay preserved), sums to stereo.
+// Falls back to AmbisonicStereoMixer (MixerFactory.cpp) if isReady() is
+// false - no SOFA file resolved.
 class AmbisonicBinauralMixer : public Mixer {
  public:
   AmbisonicBinauralMixer(int ambisonic_channels, int outSampleRate);
@@ -25,9 +26,11 @@ class AmbisonicBinauralMixer : public Mixer {
   void accumulate(const SampleData & input) override;
   SampleData encode() override;
 
+  const SampleData & getRawBus() const override { return buffer_; }
+
  private:
   struct SpeakerFilter {
-    FoaGains decode_gains;
+    AmbisonicGains decode_gains;
     std::vector<float> left_ir, right_ir;
     int left_delay = 0, right_delay = 0;
   };
@@ -51,8 +54,20 @@ class AmbisonicBinauralMixer : public Mixer {
   // allocates+zero-initializes).
   std::vector<float> left_acc_, right_acc_, speaker_signal_;
 
-  // Headroom against summing 8 speakers' worth of HRIR energy.
-  static constexpr float kMasterGainTrim = 0.35f;
+  // Headroom against summing 12 speakers' worth of HRIR energy. Halved
+  // (was 0.35) alongside the kAmbisonicReferenceGain fix (AmbisonicEncoding.h,
+  // 1/sqrt(2) -> 1.0): the W (ACN0) term of every speaker's decode dot
+  // product is (encode gain) * (decode gain), both now kAmbisonicReferenceGain
+  // instead of kAmbisonicReferenceGain_old - a factor-of-(1/sqrt(2))^-2 = 2x
+  // increase in that one term specifically. Worst case is a fully diffuse/
+  // unpositioned voice (computeAmbisonicGains' distance<=0 branch, common -
+  // most tracks never set a position - returns W-only, every other channel
+  // exactly 0), where the per-speaker signal is *entirely* that W term, so
+  // it doubles outright; halving this constant keeps the same peak headroom
+  // for that case that existed before the fix. This is an analytically
+  // derived bound, not a re-tuned-by-ear value - listen and adjust if it
+  // now sounds too quiet for typical (non-diffuse) content.
+  static constexpr float kMasterGainTrim = 0.175f;
 };
 
 #endif

@@ -1,8 +1,5 @@
 https://github.com/nothings/stb/blob/master/stb_hexwave.h
 
-Change FTT:
-- https://github.com/hayguen/pocketfft
-
 Add format filter: https://github.com/PaulBatchelor/GROWL
 
 Add univox univibe: https://www.musicdsp.org/en/latest/Effects/277-univox-univibe-emulator.html
