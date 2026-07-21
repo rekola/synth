@@ -10,6 +10,7 @@ add_executable(synth_tests
 	LaunchpadProtocolTests.cpp
 	VoiceLoudnessTests.cpp
 	AmbisonicEncodingTests.cpp
+	ChorusEngineTests.cpp
 )
 
 target_link_libraries(synth_tests synth_engine)

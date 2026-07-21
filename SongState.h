@@ -6,12 +6,13 @@
 #include "Tuner.h"
 #include "RenderContext.h"
 #include "Mixer.h"
+#include "SendBusProcessor.h"
 
 #include <memory>
 
 class SongState : public TrackState {
  public:
-  explicit SongState(ChannelConfiguration channel_config) : TrackState(channel_config), render_context_(channel_config) { }
+  explicit SongState(ChannelConfiguration channel_config) : TrackState(channel_config), render_context_(channel_config), send_bus_(channel_config.getAudioOutSampleRate()) { }
 
   void initialize(const Song & song) {
     tempo_ = song.getTempo();
@@ -76,12 +77,53 @@ class SongState : public TrackState {
     }
     
     if (!song.getInstruments().empty()) {
+      if (send_a_sum_.numberOfFrames() != frames) send_a_sum_ = SampleData(1, frames);
+      if (send_b_sum_.numberOfFrames() != frames) send_b_sum_ = SampleData(1, frames);
+      send_a_sum_.zero();
+      send_b_sum_.zero();
+
       for (auto & track : song.getTracks()) {
 	auto data = track->getState(*this).render(frames, song.getInstruments(), render_context_);
 	mixer.accumulate(data);
+
+	if (auto * a = data.getChannel(Channel::SendA)) {
+	  auto dst = send_a_sum_.getChannelData(0);
+	  for (int i = 0; i < frames; i++) dst[i] += a[i];
+	  send_a_sum_.setNonZero();
+	}
+	if (auto * b = data.getChannel(Channel::SendB)) {
+	  auto dst = send_b_sum_.getChannelData(0);
+	  for (int i = 0; i < frames; i++) dst[i] += b[i];
+	  send_b_sum_.setNonZero();
+	}
+      }
+
+      // Always processed, even when both sums are silent, so the shared
+      // reverb tail/chorus modulation stay continuous across blocks (see
+      // SendBusProcessor.h). The wet result never carries SendA/SendB
+      // itself (built via the plain ChannelConfiguration/raw-count
+      // constructors below), so it flows through the same mixNamed() path
+      // every other track's output already does.
+      auto wet = send_bus_.process(send_a_sum_, send_b_sum_, frames);
+      auto bus_config = getChannelConfiguration();
+      if (bus_config.getType() == ChannelConfiguration::AMBISONIC) {
+	SampleData encoded(bus_config, frames);
+	encoded.zero();
+	encodeStereoAsPoints(wet, encoded);
+	encoded.setNonZero();
+	mixer.accumulate(encoded);
+      } else if (bus_config.getType() == ChannelConfiguration::STEREO) {
+	mixer.accumulate(wet);
+      } else {
+	SampleData mono(1, frames);
+	auto dst = mono.getChannelData(0);
+	auto l = wet.getChannelData(0), r = wet.getChannelData(1);
+	for (int i = 0; i < frames; i++) dst[i] = 0.5f * (l[i] + r[i]);
+	mono.setNonZero();
+	mixer.accumulate(mono);
       }
     }
-    
+
     render_context_.updateFrameOffset(-frames);
   }
 
@@ -144,11 +186,19 @@ class SongState : public TrackState {
   
   int getTempo() const { return tempo_; }
 
+  // Raw, pre-send-bus-processing per-block sums (mono) - used by the UI's
+  // raw-channel volume meter to show SendA/SendB levels before they're
+  // folded into the shared reverb/chorus wet signal.
+  const SampleData & getSendASum() const { return send_a_sum_; }
+  const SampleData & getSendBSum() const { return send_b_sum_; }
+
 private:
   int tempo_ = 0;
   bool is_playing_ = false;
   int sample_pos_ = 0, absolute_pos_ = 0;
   RenderContext render_context_;
+  SendBusProcessor send_bus_;
+  SampleData send_a_sum_, send_b_sum_;
 };
   
 #endif

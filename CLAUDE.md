@@ -241,6 +241,76 @@ SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
   logic. (A prior, incompatible ambisonic attempt, `HRFT.{cpp,h}`, predated
   the current `Mixer`/`SampleData` interfaces and was never in the build;
   deleted rather than revived.)
+- `SampleData.h`'s `Channel` enum (`Mono`/`Left`/`Right`/`W`/`Y`/`Z`/`X`/
+  `Acn4`..`Acn8`/`SendA`/`SendB`) names a buffer's raw channel indices by
+  *presence*, not by an explicit table: a channel's raw index is however
+  many other present channels come earlier in the enum's declaration
+  order (`SampleData::hasChannel`/`getChannel`). `ChannelConfiguration`
+  itself stays completely ignorant of `SendA`/`SendB` — they're layered
+  onto any configuration by whoever constructs a `SampleData` (the plain
+  `ChannelConfiguration`-based constructor never marks them; the
+  vector-of-`Channel` constructor does, e.g. a leaf voice building
+  `{Mono, SendA}`). `regularChannelsFor(config)` returns the "regular"
+  (non-send) channel list a `ChannelConfiguration` implies, for building
+  that vector. `SampleData::mixNamed()` is `mix()`'s sends-tolerant
+  sibling — same exact-match/mono-broadcast rules, but a send present on
+  only one side is silently ignored (rather than asserting) instead of
+  requiring both sides to match exactly.
+- `SendA`/`SendB` are user-configurable per-`InstrumentTrack` amounts
+  (`sendA`/`sendB` XML attributes, `InstrumentTrack::getSendA()`/
+  `getSendB()`), threaded down through `Track::playNote(...)`'s shared
+  signature to every leaf voice (`InstrumentVoice::getSendA()`/`getSendB()`)
+  — any instrument type can send, not just SoundFont. A `SoundFontVoice`
+  additionally combines the track's knob with its own SF2 region's
+  `reverbEffectsSend`/`chorusEffectsSend` generator data (parsed in
+  `SoundFont.cpp`'s `tsf_region`/`genMetas` table, generators 15/16 —
+  additive-then-clamped via `SoundFontVoice::totalSendA()`/`totalSendB()`,
+  mirroring SF2's own generator-merge convention). `TrackState::renderChildren`/
+  `InstrumentTrackState::render` decide an accumulator's exact shape by
+  rendering every active child/voice *first*, then checking the real
+  results' `hasChannel(SendA/SendB)` — not a separate non-rendering
+  prediction, since the rendered output already answers the question.
+  `InstrumentTrackState::render(frames, instruments, context)`'s chunked
+  loop (new voices can trigger mid-block) defers the shape decision the
+  same way: it collects each chunk's `(offset, SampleData)` first, then
+  builds the final accumulator from their union and places each chunk via
+  `SampleData::assignNamed()` (assign()'s sends-tolerant sibling, mirroring
+  mixNamed()) — so a voice that starts mid-block with a send not seen
+  earlier in the same block is captured immediately, not just next block.
+  `PositionalMixer::encode` handles a leaf voice's optional trailing
+  `SendA`/`SendB` by straight-summing them (no spatial gain-encoding,
+  since a send isn't a positional signal), asserting the voice's channel
+  count is exactly `1 + sendCount()`. Sends do reach each `Mixer`
+  subclass's own accumulator (via `mixNamed()`, so a track's send-carrying
+  output never trips an exact-channel-count assert) but every `Mixer`'s
+  `encode()` deliberately never reads them — unprocessed sends there would
+  just sound bad without real reverb/chorus DSP consuming them first.
+- That DSP is `SongState`'s `SendBusProcessor` (`SendBusProcessor.h`/`.cpp`),
+  not anything inside the `Mixer` hierarchy: `SongState::render()` sums
+  `SendA`/`SendB` off every top-level track's own rendered output (each
+  already correctly summed within its own subtree) into two persistent
+  mono accumulators, always runs them through `SendBusProcessor::process()`
+  (even when both are silent, so the reverb tail/chorus modulation state
+  stay continuous across blocks - the same reasoning as
+  `AmbisonicBinauralMixer`'s overlap-add tail), encodes the resulting
+  stereo wet signal into the bus's own shape (`encodeStereoAsPoints` for
+  ambisonic, direct for stereo, downmixed for mono), and hands it to the
+  mixer via one more `mixer.accumulate()` call - no changes needed to
+  `Mixer`, `OfflineRenderer.cpp`, or `Player.cpp`. `SendBusProcessor` owns
+  one shared `MVerb<float>` (fed by `SendA`, fixed reasonable parameters,
+  `MIX` fixed to 1.0 - fully wet, since dry/wet balance is already
+  controlled upstream by each track's own `sendA` amount) and one shared
+  `effects/ChorusEngine.h`/`.cpp` instance (fed by `SendB`, `decorrelate =
+  true`, `mix = 1.0`). `ChorusEngine` is a multi-voice, LFO-modulated,
+  linearly-interpolated delay-line chorus that never mixes across
+  channels (each channel's wet signal comes only from that channel's own
+  delayed content) - the same engine also replaced the per-track `Chorus`
+  effect's old hand-rolled single-voice implementation (`effects/Chorus.h`/
+  `.cpp`, XML attributes `voices`/`rate`/`delay`/`depth`/`mix`), with
+  `decorrelate = false` there so a channel with no signal (e.g. the silent
+  side of a hard-panned source) stays silent - width is never invented
+  where the input didn't have any, only synthesized from an initially-
+  identical duplicated-mono signal (the shared bus's case).
 - `songs/` — example/test songs (XML, hand-editable).
 - `docs/` — note-number tables for various EDOs, key bindings, MIDI notes;
   `known_bugs.md` tracks open, not-yet-fixed bugs (as opposed to `todo.txt`'s

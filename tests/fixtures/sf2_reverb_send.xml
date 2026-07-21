@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="12edo" tempo="120" volume="1.0" randomization="0">
+  <instruments>
+    <genericInstrument name="Glockenspiel"/>
+  </instruments>
+  <tracks>
+    <track id="0" instrument="0"/>
+  </tracks>
+  <patterns>
+    <pattern rows="16">
+      <note row="0" track="0" velocity="100" value="C-4"/>
+      <note row="4" track="0">OFF</note>
+    </pattern>
+  </patterns>
+</song>
