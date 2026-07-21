@@ -58,22 +58,30 @@ FileInstrument::openFile() {
 
 class FileInstrumentVoice : public InstrumentVoice {
 public:
-  FileInstrumentVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, float start_phase, std::shared_ptr<SampleData> samples)
-    : InstrumentVoice(channel_config, position, detune, start_phase), samples_(samples) { }
+  FileInstrumentVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, float start_phase, std::shared_ptr<SampleData> samples, float send_a = 0.0f, float send_b = 0.0f)
+    : InstrumentVoice(channel_config, position, detune, start_phase, send_a, send_b), samples_(samples) { }
 
   SampleData render(int frames) override {
-    auto gain = decibelsToGain(getGainDB());
+    // base_gain (undistanced) feeds the sends - see InstrumentVoice::getDistanceGain().
+    auto base_gain = decibelsToGain(getGainDB());
+    auto gain = base_gain * getDistanceGain();
 
-    SampleData output(getChannelConfiguration(), frames);
-    auto outChannels = output.numberOfChannels();
+    auto channels = regularChannelsFor(getChannelConfiguration());
+    if (getSendA() > 0.0f) channels.push_back(Channel::SendA);
+    if (getSendB() > 0.0f) channels.push_back(Channel::SendB);
 
+    SampleData output(channels, frames);
+    auto outChannels = getChannelConfiguration().numberOfChannels();
     auto inChannels = samples_->numberOfChannels();
+    auto send_a = output.getChannel(Channel::SendA);
+    auto send_b = output.getChannel(Channel::SendB);
 
     for (int k = 0; k < frames; k++) {
       // float i = getFphase() * WAVESIZE / getOutSampleRate();
       int i = getSourceSamplePosition();
       stepForward(1);
 
+      float raw0 = 0.0f;
       if (i >= samples_->size()) {
 	for (auto l = 0; l < outChannels; l++) {
 	  output.getChannelData(l)[k] = 0.0f;
@@ -82,13 +90,18 @@ public:
 	for (auto l = 0; l < outChannels; l++) {
 	  output.getChannelData(l)[k] = samples_->getChannelData(l)[i] * gain;
 	}
+	raw0 = samples_->getChannelData(0)[i];
       } else if (inChannels == 1) {
 	for (auto l = 0; l < outChannels; l++) {
 	  output.getChannelData(l)[k] = samples_->getChannelData(0)[i] * gain;
 	}
+	raw0 = samples_->getChannelData(0)[i];
       } else {
 	assert(0);
       }
+
+      if (send_a) send_a[k] = raw0 * base_gain * getSendA();
+      if (send_b) send_b[k] = raw0 * base_gain * getSendB();
     }
 
     output.setNonZero();
@@ -104,8 +117,8 @@ private:
 };
 
 std::unique_ptr<TrackState>
-FileInstrument::playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value) const {
-  auto voice = std::make_unique<FileInstrumentVoice>(reduceForPositionalGroup(channel_config), position, detune, start_phase, samples_);
+FileInstrument::playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, float send_a, float send_b) const {
+  auto voice = std::make_unique<FileInstrumentVoice>(reduceForPositionalGroup(channel_config), position, detune, start_phase, samples_, send_a, send_b);
   voice->playNote(frequency, velocity, note_value);
   return voice;
 }

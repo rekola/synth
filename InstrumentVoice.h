@@ -4,13 +4,21 @@
 #include "TrackState.h"
 #include "SphericalPosition.h"
 
+// distance <= 0 means "no position ever set" (SphericalPosition's default),
+// not "at the listener" - treated as no attenuation, same convention
+// computeAmbisonicGains's own distance<=0 fallback uses (AmbisonicEncoding.h).
+inline float distanceGain(float distance) {
+  return distance <= 0.0f ? 1.0f : 1.0f / distance;
+}
+
 class InstrumentVoice : public TrackState {
  public:
-  InstrumentVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, float start_phase)
+  InstrumentVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, float start_phase, float send_a = 0.0f, float send_b = 0.0f)
     : TrackState(channel_config),
       sourceSamplePosition_(start_phase * getChannelConfiguration().getAudioOutSampleRate()),
       position_(position),
-      detune_(detune)
+      detune_(detune),
+      send_a_(send_a), send_b_(send_b)
   {
 
   }
@@ -62,6 +70,17 @@ protected:
   void setGainDB(float db) { noteGainDB_ = db; }
   float getGainDB() const { return noteGainDB_; }
 
+  float getSendA() const { return send_a_; }
+  float getSendB() const { return send_b_; }
+
+  // Dry-signal distance attenuation only (1/distance) - the room's shared
+  // reverb/chorus bus (SendA/SendB) deliberately does NOT scale by this: an
+  // instrument's contribution to the room's reverb doesn't diminish just
+  // because the listener is farther from that one source. Applied uniformly
+  // regardless of bus type (previously this was ambisonic-only, baked into
+  // computeAmbisonicGains/PositionalMixer::encode - see AmbisonicEncoding.h).
+  float getDistanceGain() const { return distanceGain(position_.distance); }
+
   double sourceSamplePosition_;
   int note_value_ = -1;
   float velocity_ = 0.0f;
@@ -71,6 +90,7 @@ private:
   float noteGainDB_ = 0.0f;
   SphericalPosition position_;
   float detune_;
+  float send_a_, send_b_;
 };
 
 #endif

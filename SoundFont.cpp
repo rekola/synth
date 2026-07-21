@@ -57,6 +57,7 @@ public:
   int freqModLFO, modLfoToPitch;
   float delayVibLFO;
   int freqVibLFO, vibLfoToPitch;
+  float reverbEffectsSend, chorusEffectsSend;
 
   void clear(bool for_relative) {
     loop_mode = 0;
@@ -71,6 +72,8 @@ public:
     pitch_keytrack = 0;
     attenuation = 0;
     pan = 0;
+    reverbEffectsSend = 0;
+    chorusEffectsSend = 0;
 
     ampenv.delay_ = ampenv.attack_ = ampenv.hold_ = ampenv.decay_ = ampenv.release_ = 0;
     modenv.delay_ = modenv.attack_ = modenv.hold_ = modenv.decay_ = modenv.release_ = 0;
@@ -245,8 +248,8 @@ static void tsf_region_operator(struct tsf_region* region, uint16_t genOper, uni
 		{ GEN_UINT_ADD15                   , _TSFREGIONOFFSET(unsigned int, end                  ) }, //12 EndAddrsCoarseOffset
 		{ GEN_INT   | GEN_INT_LIMIT960     , _TSFREGIONOFFSET(         int, modLfoToVolume       ) }, //13 ModLfoToVolume
 		{ 0                                , (0                                                  ) }, //   Unused
-		{ 0                                , (0                                                  ) }, //15 ChorusEffectsSend (unsupported)
-		{ 0                                , (0                                                  ) }, //16 ReverbEffectsSend (unsupported)
+		{ GEN_FLOAT | GEN_FLOAT_MAX1000    , _TSFREGIONOFFSET(       float, chorusEffectsSend    ) }, //15 ChorusEffectsSend
+		{ GEN_FLOAT | GEN_FLOAT_MAX1000    , _TSFREGIONOFFSET(       float, reverbEffectsSend    ) }, //16 ReverbEffectsSend
 		{ GEN_FLOAT | GEN_FLOAT_LIMITPAN   , _TSFREGIONOFFSET(       float, pan                  ) }, //17 Pan
 		{ 0                                , (0                                                  ) }, //   Unused
 		{ 0                                , (0                                                  ) }, //   Unused
@@ -614,8 +617,8 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
 
 class SoundFontVoice : public InstrumentVoice {
 public:
-  SoundFontVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, float start_phase, std::shared_ptr<SoundFontFile> sf, size_t preset, size_t region_idx)
-    : InstrumentVoice(channel_config, position, detune, start_phase), sf_(sf)
+  SoundFontVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, float start_phase, std::shared_ptr<SoundFontFile> sf, size_t preset, size_t region_idx, float send_a = 0.0f, float send_b = 0.0f)
+    : InstrumentVoice(channel_config, position, detune, start_phase, send_a, send_b), sf_(sf)
   {
     auto f = sf_.get();
     if (preset < f->presets_.size()) {
@@ -687,6 +690,15 @@ public:
   float getOwnLoudnessFactor() const override {
     return InstrumentVoice::getOwnLoudnessFactor() * ampenv_.getLevel();
   }
+
+  // Combines the track's own user-configured send knob (InstrumentVoice)
+  // with this region's SF2 reverbEffectsSend/chorusEffectsSend generator
+  // data (parsed in tenths of a percent, 0-1000) - additive-then-clamped,
+  // mirroring SF2's own existing generator-merge convention (region +
+  // preset offsets, summed then clamped) rather than inventing a new
+  // combination rule.
+  float totalSendA() const { return std::min(1.0f, getSendA() + (voiceRegion_ ? voiceRegion_->reverbEffectsSend / 1000.0f : 0.0f)); }
+  float totalSendB() const { return std::min(1.0f, getSendB() + (voiceRegion_ ? voiceRegion_->chorusEffectsSend / 1000.0f : 0.0f)); }
 
   // Folds the SF2 region's own pan into an azimuth offset, approximating
   // the exact combination the STEREO pan branch below computes via
@@ -767,19 +779,27 @@ private:
 SampleData
 SoundFontVoice::render(int numSamples) {
   auto f = sf_.get();
-  
-  SampleData outputData(getChannelConfiguration(), numSamples);
+
+  float total_send_a = totalSendA(), total_send_b = totalSendB();
+
+  auto channels = regularChannelsFor(getChannelConfiguration());
+  if (total_send_a > 0.0f) channels.push_back(Channel::SendA);
+  if (total_send_b > 0.0f) channels.push_back(Channel::SendB);
+
+  SampleData outputData(channels, numSamples);
   outputData.zero(); // outputData must be zeroed because we don't fill if after stopping playing
-  
+
   if (!isActive()) {
     return outputData;
   }
 
   outputData.setNonZero();
 
-  auto num_channels = outputData.numberOfChannels();
+  auto num_channels = getChannelConfiguration().numberOfChannels();
   auto left_output = outputData.getChannelData(0);
   auto right_output = num_channels == 2 ? outputData.getChannelData(1) : nullptr;
+  auto send_a_output = outputData.getChannel(Channel::SendA);
+  auto send_b_output = outputData.getChannel(Channel::SendB);
 
   auto input = f->fontSamples_;
   
@@ -841,8 +861,10 @@ SoundFontVoice::render(int numSamples) {
       noteGain = decibelsToGain(getGainDB() + (modlfo_.getLevel() * tmpModLfoToVolume));
     }
 
+    // gainMono (undistanced) feeds the sends - see InstrumentVoice::getDistanceGain().
     auto gainMono = noteGain * ampenv_.getLevel();
-    
+    auto dryGainMono = gainMono * getDistanceGain();
+
     // Update EG.
     ampenv_.process(blockSamples);
     if (updateModEnv) modenv_.process(blockSamples);
@@ -862,12 +884,14 @@ SoundFontVoice::render(int numSamples) {
       if (lowpass_.active_) val = lowpass_.process(val);
 
       if (num_channels == 1) {
-	*left_output++ = val * gainMono;
+	*left_output++ = val * dryGainMono;
       } else if (num_channels == 2) {
-	*left_output++ = val * gainMono * panFactorLeft;
-	*right_output++ = val * gainMono * panFactorRight;
+	*left_output++ = val * dryGainMono * panFactorLeft;
+	*right_output++ = val * dryGainMono * panFactorRight;
       }
-	
+      if (send_a_output) *send_a_output++ = val * gainMono * total_send_a;
+      if (send_b_output) *send_b_output++ = val * gainMono * total_send_b;
+
       // Next sample.
       sourceSamplePosition_ += pitchRatio;
       if (sourceSamplePosition_ >= loopEndDbl && isLooping) sourceSamplePosition_ -= (loopEnd_ - loopStart_ + 1.0);
@@ -964,7 +988,7 @@ public:
 
   const char * getElementName() const override { return "soundFontInstrument"; }
 
-  std::unique_ptr<TrackState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value) const override {
+  std::unique_ptr<TrackState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, float send_a, float send_b) const override {
     assert(frequency > 0);
 
     detune *= getHarmonic();
@@ -995,18 +1019,23 @@ public:
 	// - each region's own position (folded in via SoundFontVoice::getPosition())
 	// gets FOA-encoded externally, by whichever ancestor notices this
 	// voice/group's channel count doesn't match its own.
-	auto voice = make_unique<SoundFontVoice>(reduceForPositionalGroup(channel_config), position, detune, start_phase, sf_, preset_, region_idx);
+	auto voice = make_unique<SoundFontVoice>(reduceForPositionalGroup(channel_config), position, detune, start_phase, sf_, preset_, region_idx, send_a, send_b);
 	voice->playNote(frequency, velocity, note_value);
 
 	if (!getChildren().empty()) {
 	  // create modulators for voice
 	  for (auto & child : getChildren()) {
-	    auto modulator = child->playNote(channel_config, SphericalPosition{}, frequency, detune, velocity, start_phase, note_value);
+	    auto modulator = child->playNote(channel_config, SphericalPosition{}, frequency, detune, velocity, start_phase, note_value, 0.0f, 0.0f);
 	    if (modulator.get()) voice->addChild(child->getInternalId(), move(modulator));
 	  }
 	}
 
-	voices.emplace_back(getInternalId(), move(voice));
+	// Keyed by region_idx, not getInternalId() (constant across every
+	// region this loop matches) - addChild()'s children_[id] = ... would
+	// otherwise overwrite (and destroy) each earlier region's voice as
+	// soon as a second region matched, silently dropping all but the
+	// last one instead of layering them.
+	voices.emplace_back(static_cast<int>(region_idx), move(voice));
       }
     }
 
