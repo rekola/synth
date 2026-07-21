@@ -61,7 +61,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	      auto frequency = Tuner::getFrequency(tuning, note);
 
 	      track_state->stopVoices(column);
-	      auto voice = instrument.playNote(state_.getChannelConfiguration(), instrument_track.getPosition(), frequency, 1.0f, note.getVelocityAsFloat(), 0.0f, note.getValue());
+	      auto voice = instrument.playNote(state_.getChannelConfiguration(), instrument_track.getPosition(), frequency, 1.0f, note.getVelocityAsFloat(), 0.0f, note.getValue(), instrument_track.getSendA(), instrument_track.getSendB());
 	      track_state->addVoice(column, move(voice));
 	    } else {
 	      track_state->applyAftertouch(column, midi_velocity / 127.0f);
@@ -179,7 +179,46 @@ Player::play(AudioAPI & audio) {
 	    audio.play(master, logger);
 
 	    auto ev = createPlaybackEvent(*song, state_);
-	    ev->setLoudness(master.calculateLoudness());
+
+	    // Raw, pre-mixdown per-channel loudness for the UI's volume meter -
+	    // the ambisonic bus (whatever regular channel count is active),
+	    // then always SendA/SendB last (see SongState::render()'s
+	    // send_a_sum_/send_b_sum_).
+	    auto channel_loudness = mixer->getRawBus().calculateLoudness();
+
+	    // Meter legend, sized to fit the braille meter's actual column
+	    // budget (2 samples/character-cell, so N values -> ceil(N/2)
+	    // columns of text): mono+sends (3 values, 2 cols) = "M" (mono) +
+	    // "S" (sends) = "MS"; stereo+sends (4 values, 2 cols) = "S"
+	    // (stereo) + "S" (sends) = "SS" - no room to spell "L"/"R"
+	    // individually, so both regular channels are abbreviated to the
+	    // single letter "S" for "Stereo"; order-1 ambisonic+sends (6
+	    // values, 3 cols), no room for individual channel names either =
+	    // "A4" (ambisonic, 4 channels) + "S" (sends) = "A4S"; order-2 (11
+	    // values, 6 cols), enough room for a real range = "A1-9" + " " +
+	    // "S" (sends) = "A1-9 S".
+	    switch (channel_loudness.size()) {
+	    case 1: ev->setMeterLabel("MS"); break;
+	    case 2: ev->setMeterLabel("SS"); break;
+	    case 4: ev->setMeterLabel("A4S"); break;
+	    case 9: ev->setMeterLabel("A1-9 S"); break;
+	    default: ev->setMeterLabel(""); break;
+	    }
+
+	    // Pad to an even count before appending SendA/SendB - the braille
+	    // meter packs 2 samples per character cell, so the sends only land
+	    // together in the *same* cell (rather than the last regular
+	    // channel pairing with SendA, leaving SendB alone) when they start
+	    // at an even index. Order-2 ambisonic (9, odd) needs this; stereo
+	    // (2) and order-1 ambisonic (4) are already even.
+	    if (channel_loudness.size() % 2 == 1) channel_loudness.push_back(0.0f);
+
+	    auto send_a = state_.getSendASum().calculateLoudness();
+	    auto send_b = state_.getSendBSum().calculateLoudness();
+	    channel_loudness.insert(channel_loudness.end(), send_a.begin(), send_a.end());
+	    channel_loudness.insert(channel_loudness.end(), send_b.begin(), send_b.end());
+	    ev->setChannelLoudness(std::move(channel_loudness));
+
 	    if (fft_.addData(master)) {
 	      fft_.reset();
 	      ev->setFFT(fft_.calculateFFT());

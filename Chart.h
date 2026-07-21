@@ -3,6 +3,9 @@
 
 #include "UIElement.h"
 
+#include <string>
+#include <utility>
+
 class SampleData;
 
 class Chart : public UIElement {
@@ -48,11 +51,20 @@ class Chart : public UIElement {
   // instead of once per sample.
   virtual void commit() { }
 
+  // A single legend string (e.g. "A0-A8 S") shown on this chart's own
+  // bottom row, not per-sample-aligned - callers with few columns to work
+  // with (e.g. a narrow multi-bar meter) can't fit one aligned label per
+  // bar anyway. Both renderers reserve exactly one row of their own height
+  // for it once set, rather than the label being overdrawn by/over the
+  // sample graphics - see TerminalChart::setSample()/TerminalPixelChart::commit().
+  void setFooterLabel(std::string label) { footer_label_ = std::move(label); }
+
   ChartType getType() const { return type_; }
 
 protected:
   double min_y_, max_y_;
-  
+  std::string footer_label_;
+
 private:
   ChartType type_;
 };

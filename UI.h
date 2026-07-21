@@ -69,6 +69,13 @@ protected:
   
   std::shared_ptr<UIMenu> menu_;
   std::shared_ptr<Chart> chart_, volume_meter_;
+  // volume_meter_'s fixed domain size: 6 columns x 2 samples/braille-cell =
+  // 12 - one more than order-2 ambisonic (9) + SendA/SendB (2) = 11 actual
+  // values, rounded up to a whole number of columns. Always filled in full
+  // every update (see handlePlaybackEvent()) regardless of the current
+  // config's real channel count, matching displayFFT()'s own always-fill-
+  // the-whole-domain contract for the same Chart widget class.
+  static constexpr size_t kMaxMeterChannels = 12;
   std::shared_ptr<StatusLine> status_line_;
     
   bool close_ui_ = false;

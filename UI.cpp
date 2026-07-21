@@ -74,8 +74,8 @@ UI::layout() {
   auto [ rows, cols ] = getDim();
   setStatus("Layout (rows = " + to_string(rows) + ", cols = " + to_string(cols) + ")");
 
-  chart_->resize(4, cols).move(1, 0);
-  volume_meter_->resize(rows - 3, 1).move(1, cols - 1);
+  chart_->resize(4, cols - 6).move(1, 0);
+  volume_meter_->resize(4, 6).move(1, cols - 6);
   pattern_editor_->resize(rows - 7, cols).move(5, 0);
   info_line_->resize(1, cols).move(rows - 2, 0);
   status_line_->resize(1, cols - 1).move(rows - 1, 0);
@@ -185,18 +185,33 @@ UI::handlePlaybackEvent(PlaybackEvent & ev) {
       chart_->displayFFT(ev.getFFT());
     }
 
-    if (ev.getLoudness().size() == 2) {
-#if 0
-      auto left = 20*log10(ev.getLoudness()[0] / 20);
-      auto right = 20*log10(ev.getLoudness()[1] / 20);
-#else
-      auto left = ev.getLoudness()[0];
-      auto right = ev.getLoudness()[1];
-#endif
-      volume_meter_->setSample(0, left);
-      volume_meter_->setSample(1, right);
+    // Raw, pre-mixdown per-channel levels (ambisonic bus, then always
+    // SendA/SendB last - see Player.cpp/SongState::render()) rather than
+    // the final decoded L/R output. Always fills the full fixed-size
+    // domain (kMaxMeterChannels - the order-2-ambisonic+2-sends max),
+    // padding with silence past the current config's real channel count -
+    // matching displayFFT()'s own always-fill-the-whole-domain pattern
+    // above (every index, every call). Feeding a varying, sometimes-
+    // shorter range confused the underlying plot's own domain/alignment
+    // (bars for a smaller config visibly started mid-width instead of at
+    // column 0, out of step with the legend) - a fixed domain avoids that.
+    //
+    // Only for events that actually carry loudness data - Player.cpp also
+    // pushes info-only PlaybackEvents (song-position sync, no rendering
+    // happened) with empty getChannelLoudness()/getMeterLabel(). If one of
+    // those reached the meter first, its empty label would get "locked in"
+    // by TerminalChart's lazy plot creation (which decides whether to
+    // reserve a row for the label the first time setSample() is EVER
+    // called) before any real label ever had a chance to - permanently
+    // losing the reserved row for the whole session.
+    auto & levels = ev.getChannelLoudness();
+    if (!levels.empty()) {
+      volume_meter_->setFooterLabel(ev.getMeterLabel());
+      for (size_t i = 0; i < kMaxMeterChannels; i++) {
+        volume_meter_->setSample(static_cast<int>(i), i < levels.size() ? levels[i] : 0.0);
+      }
+      volume_meter_->commit(); // chart_'s own commit() already runs inside displayFFT()
     }
-    volume_meter_->commit(); // chart_'s own commit() already runs inside displayFFT()
   }
 
   ev.redraw();

@@ -306,7 +306,12 @@ public:
       // plane. Reposition it explicitly to match, or it always ends up at
       // whatever raw (0,0) createChild() hardcodes regardless of where this
       // chart actually is on screen.
-      plot_plane_->resize(rows, cols);
+      // When a footer label is set, the plot only gets rows-1 - it's a
+      // child plane, so leaving the last row of our own (outer) plane_
+      // uncovered is what lets that row's putstr() in commit() actually
+      // show through, rather than being hidden behind the plot child.
+      int plot_rows = footer_label_.empty() ? rows : rows - 1;
+      plot_plane_->resize(plot_rows > 0 ? plot_rows : rows, cols);
       plot_plane_->move(y, x);
 
       auto & tplane = dynamic_cast<TerminalPlane&>(*plot_plane_);
@@ -331,6 +336,13 @@ public:
     }
 
     plot_->set_sample(i, v);
+  }
+
+  void commit() override {
+    if (!footer_label_.empty()) {
+      auto [rows, cols] = getDim();
+      putstr(rows - 1, 0, footer_label_);
+    }
   }
 
 protected:
@@ -367,9 +379,16 @@ public:
     auto & tplane = dynamic_cast<TerminalPlane&>(getPlane());
     auto native_plane = tplane.getPlane().to_ncplane();
 
-    unsigned pxy = 0, pxx = 0;
-    ncplane_pixel_geom(native_plane, &pxy, &pxx, nullptr, nullptr, nullptr, nullptr);
+    unsigned pxy = 0, pxx = 0, celldimy = 0;
+    ncplane_pixel_geom(native_plane, &pxy, &pxx, &celldimy, nullptr, nullptr, nullptr);
     if (pxy == 0 || pxx == 0) return;
+
+    // Reserve exactly one character row's worth of pixels at the bottom for
+    // the footer label (see Chart::setFooterLabel), so the bar image itself
+    // never gets drawn under/behind the text - pxy is always an exact
+    // multiple of celldimy per ncplane_pixel_geom's own contract, so this
+    // shrinks the image by exactly one whole cell row, not a partial one.
+    if (!footer_label_.empty() && celldimy > 0 && pxy > celldimy) pxy -= celldimy;
 
     vector<uint32_t> buffer(static_cast<size_t>(pxy) * pxx, 0); // 0 alpha = transparent
 
@@ -401,6 +420,11 @@ public:
     vopts.scaling = NCSCALE_NONE;
     vopts.blitter = NCBLIT_PIXEL;
     visual.blit(&vopts);
+
+    if (!footer_label_.empty()) {
+      auto [rows, cols] = getDim();
+      putstr(rows - 1, 0, footer_label_);
+    }
   }
 
 private:
