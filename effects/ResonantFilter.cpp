@@ -25,7 +25,14 @@ public:
 
   void applyEffect(SampleData & input_data) override {
     auto numSamples = input_data.size();
-    auto numChannels = input_data.numberOfChannels();
+    // Regular channels only - filters_ is sized once, at construction, from
+    // the plain ChannelConfiguration (which stays unaware of SendA/SendB by
+    // design, see SampleData.h). input_data.numberOfChannels() can be wider
+    // whenever a send is present, so indexing filters_ with the raw count
+    // would run past the end of that fixed-size vector - the send channels
+    // are deliberately left untouched here rather than filtered, since they
+    // need to reach the shared reverb/chorus bus unmodified.
+    auto numChannels = input_data.numberOfChannels() - input_data.sendCount();
     auto aftertouch_value = use_aftertouch_ ? getAftertouch() : 1.0f;
 
     size_t offset = 0;

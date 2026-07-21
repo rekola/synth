@@ -37,8 +37,16 @@ protected:
       setEffectActive(true);
       
       auto numSamples = input.size();
-      auto numChannels = input.numberOfChannels();
-    
+      // Regular channels only - filters_/delay_buffer_ are sized once, at
+      // construction, from the plain ChannelConfiguration (which stays
+      // unaware of SendA/SendB by design, see SampleData.h). input's live
+      // numberOfChannels() can be wider whenever a send is present, so
+      // indexing filters_/delay_buffer_ with the raw count would run past
+      // the end of those fixed-size buffers - the send channels are
+      // deliberately left untouched here rather than delayed, since they
+      // need to reach the shared reverb/chorus bus unmodified.
+      auto numChannels = input.numberOfChannels() - input.sendCount();
+
       for (int j = 0; j < numChannels; j++) {
 	auto input_buffer = input.getChannelData(j);
 	auto delay_buffer = delay_buffer_.getChannelData(j);
