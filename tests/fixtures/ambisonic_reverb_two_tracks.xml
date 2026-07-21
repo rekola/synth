@@ -3,11 +3,14 @@
      ambisonic rendering: confirms the reduce-to-real-stereo-then-
      re-encode path (ReverbState::render, Reverb.h/.cpp) actually
      produces a genuine, correctly-processed stereo-width reverb tail
-     rather than a degraded fallback. -->
+     rather than a degraded fallback. Broadband pink noise, not a sine
+     wave/single tone: a real reverb's response varies across the
+     spectrum, so a broadband source exercises MVerb's actual behavior far
+     more representatively than two discrete frequencies would. -->
 <song temperament="12edo" tempo="120" volume="1.0" randomization="0">
   <instruments>
-    <envelope attack="0.01" hold="0.1" decay="0.05" sustain="0.0" release="0.02">
-      <oscilator type="sine"/>
+    <envelope attack="0.02" hold="0.9" decay="0.08" sustain="0.0" release="0.02">
+      <noise color="pink"/>
     </envelope>
   </instruments>
   <tracks>
@@ -17,7 +20,7 @@
     </reverb>
   </tracks>
   <patterns>
-    <pattern rows="8">
+    <pattern rows="16">
       <note row="0" track="0" velocity="80" value="C-4"/>
       <note row="0" track="1" velocity="80" value="G-4"/>
     </pattern>

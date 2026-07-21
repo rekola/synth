@@ -3,14 +3,20 @@
      azimuth stepped every 45 degrees around the full horizon (not just the
      4 cardinal compass points, which are too coarse to catch e.g. a sign-
      convention bug), plus straight up/down and a far-distance comparison.
-     Each track fires its note on its own, well-separated row (4 rows apart
-     at tempo 120 = 0.5s, envelope rings ~0.065s) so RenderTests can window
-     each position's contribution independently in the final decoded
-     output. -->
+     Each track fires its note on its own, well-separated row (12 rows
+     apart at tempo 120 = 1.5s, envelope rings ~1.0s) so RenderTests can
+     window each position's contribution independently in the final
+     decoded output. Broadband pink noise, not a sine wave: this fixture
+     includes straight up/down (elevation +-90), and a single-frequency
+     tone can't convey height at all - real elevation perception (via the
+     binaural SOFA-convolved decoder) depends on frequency-dependent pinna
+     spectral cues that only a broadband signal exercises, and a full
+     second of steady noise gives those cues enough duration to actually
+     develop and be measured reliably (a short blip doesn't). -->
 <song temperament="12edo" tempo="120" volume="1.0" randomization="0">
   <instruments>
-    <envelope attack="0.005" hold="0.03" decay="0.02" sustain="0.0" release="0.01">
-      <oscilator type="sine"/>
+    <envelope attack="0.02" hold="0.9" decay="0.08" sustain="0.0" release="0.02">
+      <noise color="pink"/>
     </envelope>
   </instruments>
   <tracks>
@@ -27,18 +33,18 @@
     <track id="10" instrument="0" azimuth="0" elevation="0" distance="2"/>
   </tracks>
   <patterns>
-    <pattern rows="48">
+    <pattern rows="132">
       <note row="0" track="0" velocity="80" value="C-4"/>
-      <note row="4" track="1" velocity="80" value="C-4"/>
-      <note row="8" track="2" velocity="80" value="C-4"/>
-      <note row="12" track="3" velocity="80" value="C-4"/>
-      <note row="16" track="4" velocity="80" value="C-4"/>
-      <note row="20" track="5" velocity="80" value="C-4"/>
-      <note row="24" track="6" velocity="80" value="C-4"/>
-      <note row="28" track="7" velocity="80" value="C-4"/>
-      <note row="32" track="8" velocity="80" value="C-4"/>
-      <note row="36" track="9" velocity="80" value="C-4"/>
-      <note row="40" track="10" velocity="80" value="C-4"/>
+      <note row="12" track="1" velocity="80" value="C-4"/>
+      <note row="24" track="2" velocity="80" value="C-4"/>
+      <note row="36" track="3" velocity="80" value="C-4"/>
+      <note row="48" track="4" velocity="80" value="C-4"/>
+      <note row="60" track="5" velocity="80" value="C-4"/>
+      <note row="72" track="6" velocity="80" value="C-4"/>
+      <note row="84" track="7" velocity="80" value="C-4"/>
+      <note row="96" track="8" velocity="80" value="C-4"/>
+      <note row="108" track="9" velocity="80" value="C-4"/>
+      <note row="120" track="10" velocity="80" value="C-4"/>
     </pattern>
   </patterns>
 </song>

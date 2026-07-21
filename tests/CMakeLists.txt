@@ -11,6 +11,7 @@ add_executable(synth_tests
 	VoiceLoudnessTests.cpp
 	AmbisonicEncodingTests.cpp
 	ChorusEngineTests.cpp
+	NoiseGeneratorTests.cpp
 )
 
 target_link_libraries(synth_tests synth_engine)
