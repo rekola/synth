@@ -43,12 +43,23 @@ class InstrumentTrack : public Track {
   bool isMuted() const { return muted_; }
   void setMuted(bool m) { muted_ = m; }
 
+  // User-configured send amounts (0.0-1.0), independent of instrument type
+  // - any instrument (not just SoundFont) sends this much of its dry signal
+  // to bus A/B (SendA/SendB - see SampleData.h's Channel enum). A
+  // SoundFont-backed instrument additionally layers its own region's SF2
+  // reverb/chorus send data on top (see SoundFontVoice).
+  float getSendA() const { return send_a_; }
+  float getSendB() const { return send_b_; }
+  void setSendA(float s) { send_a_ = s; }
+  void setSendB(float s) { send_b_ = s; }
+
 private:
   int instrument_id_ = 0;
   bool solo_ = false, muted_ = false;
   float elevation_ = 0, azimuth_ = 0, distance_ = 0;
   std::string color_;
   float portamento_ = -1.0f;
+  float send_a_ = 0.0f, send_b_ = 0.0f;
 
   bool show_note_column_ = true;
   bool show_velocity_column_ = true;

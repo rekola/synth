@@ -64,12 +64,15 @@ class InstrumentProvider {
       addInstrument(sf->createInstrument(95, "Pad 8 (sweep)"));
 
       addInstrument(sf->createInstrument(160, "Percussion"));
-    } else {
-      auto instruments = sf->createAll();
-      for (auto & instrument : instruments) {
-	if (!instrument->getName().empty()) {
-	  addInstrument(move(instrument));
-	}
+    }
+
+    // Register every preset under its own native name too (e.g.
+    // "Glockenspiel") - so any GM patch is available from a song even
+    // without a friendly alias above, without overwriting any alias
+    // already registered.
+    for (auto & instrument : sf->createAll()) {
+      if (!instrument->getName().empty() && !instruments_by_name.count(instrument->getName())) {
+	addInstrument(move(instrument));
       }
     }
   }

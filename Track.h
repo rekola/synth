@@ -47,11 +47,11 @@ class Track : public StatefulSongObject {
 
   virtual const char * getElementName() const = 0;
 
-  virtual std::unique_ptr<TrackState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value) const {
+  virtual std::unique_ptr<TrackState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, float send_a, float send_b) const {
     auto group = createState(config);
     auto child_config = getChildChannelConfiguration(config);
     for (auto & child : getChildren()) {
-      auto voice = child->playNote(child_config, position, frequency, detune, velocity, start_phase, note_value);
+      auto voice = child->playNote(child_config, position, frequency, detune, velocity, start_phase, note_value, send_a, send_b);
       if (voice.get()) group->addChild(child->getInternalId(), std::move(voice));
     }
     return group;

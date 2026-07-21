@@ -46,34 +46,59 @@ protected:
   // reduced format (Effect.h/Reverb.h/etc.), so channel counts always
   // match and every child is just plain-mixed, same as pre-ambisonic code.
   SampleData renderChildren(int frames, const ChannelConfiguration & accumulator_config) {
-    SampleData data(accumulator_config, frames);
-    data.zero();
-
     bool is_ambisonic = accumulator_config.getType() == ChannelConfiguration::AMBISONIC;
+
+    // Render every active child first, then decide the accumulator's shape
+    // from what actually came back (hasChannel(SendA/SendB)) rather than
+    // predicting it up front - simpler than a separate non-rendering
+    // "would this produce a send" query, since the real answer is sitting
+    // right there in each child's own rendered output.
+    std::vector<std::pair<TrackState *, SampleData> > rendered;
     for (auto & [ id, child ] : getChildren()) {
       if (child->isActive()) {
-	auto s = child->render(frames);
-	// A child narrower than this node's own (ambisonic) format bottomed
-	// out at MONO without anything re-encoding it back up (see
-	// reduceForPositionalGroup, AmbisonicEncoding.h) - FOA-encode it
-	// here using its own position rather than blindly mixing, which is
-	// what lets NoteMultiplier/SoundFontInstrument's differently-
-	// positioned sub-voices (and a single voice under a transparent
-	// per-voice effect) spatialize correctly with no ambisonic-specific
-	// code of their own. If channel counts already match, the child
-	// already produced genuine ambisonic-shaped output (e.g. a nested
-	// composite that went through this same logic one level down) -
-	// mix it directly, same as always.
-	if (is_ambisonic && s.numberOfChannels() < data.numberOfChannels()) {
-	  if (!s.isZero()) {
-	    positional_mixer_.encode(child.get(), s, child->getPosition(), data);
-	    data.setNonZero();
-	  }
-	} else {
-	  data.mix(s);
-	}
+	rendered.emplace_back(child.get(), child->render(frames));
       } else {
 	positional_mixer_.remove(child.get());
+      }
+    }
+
+    bool has_send_a = false, has_send_b = false;
+    for (auto & [ child, s ] : rendered) {
+      has_send_a = has_send_a || s.hasChannel(Channel::SendA);
+      has_send_b = has_send_b || s.hasChannel(Channel::SendB);
+    }
+    auto channels = regularChannelsFor(accumulator_config);
+    if (has_send_a) channels.push_back(Channel::SendA);
+    if (has_send_b) channels.push_back(Channel::SendB);
+
+    SampleData data(channels, frames);
+    data.zero();
+
+    int regular = data.numberOfChannels() - data.sendCount();
+    for (auto & [ child, s ] : rendered) {
+      int s_regular = s.numberOfChannels() - s.sendCount();
+      // A child narrower (in its regular channels) than this node's own
+      // (ambisonic) format bottomed out at MONO without anything
+      // re-encoding it back up (see reduceForPositionalGroup,
+      // AmbisonicEncoding.h) - FOA-encode it here using its own position
+      // rather than blindly mixing, which is what lets NoteMultiplier/
+      // SoundFontInstrument's differently-positioned sub-voices (and a
+      // single voice under a transparent per-voice effect) spatialize
+      // correctly with no ambisonic-specific code of their own.
+      // PositionalMixer::encode also straight-sums any SendA/SendB the
+      // child carries (not positional, so not gain-encoded). If regular
+      // channel counts already match, the child already produced genuine
+      // ambisonic-shaped output (e.g. a nested composite that went
+      // through this same logic one level down) - mixNamed it directly,
+      // same as always, tolerating the child having 0/1/2 sends present
+      // while this accumulator may have a different (superset) subset.
+      if (is_ambisonic && s_regular < regular) {
+	if (!s.isZero()) {
+	  positional_mixer_.encode(child, s, child->getPosition(), data);
+	  data.setNonZero();
+	}
+      } else {
+	data.mixNamed(s);
       }
     }
 
@@ -81,20 +106,32 @@ protected:
   }
 
   SampleData renderChildren(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context, const ChannelConfiguration & accumulator_config) {
-    SampleData sd(accumulator_config, frames);
+    std::vector<SampleData> rendered;
+    for (auto & [ id, child ] : getChildren()) {
+      rendered.push_back(child->render(frames, instruments, context));
+    }
+
+    bool has_send_a = false, has_send_b = false;
+    for (auto & s : rendered) {
+      has_send_a = has_send_a || s.hasChannel(Channel::SendA);
+      has_send_b = has_send_b || s.hasChannel(Channel::SendB);
+    }
+    auto channels = regularChannelsFor(accumulator_config);
+    if (has_send_a) channels.push_back(Channel::SendA);
+    if (has_send_b) channels.push_back(Channel::SendB);
+
+    SampleData sd(channels, frames);
     sd.zero();
 
-    bool child_has_solo = false, active = false;
-    for (auto & [ id, child ] : getChildren()) {
-      auto s = child->render(frames, instruments, context);
+    bool child_has_solo = false;
+    for (auto & s : rendered) {
       if (s.isSolo() && !child_has_solo) {
 	child_has_solo = true;
 	sd.zero();
 	sd.setSolo(true);
       }
       if (s.isSolo() || !child_has_solo) {
-	sd.mix(s);
-	active = true;
+	sd.mixNamed(s);
       }
     }
 
@@ -256,7 +293,6 @@ public:
     }
     return SphericalPosition{};
   }
-
 
   const std::unordered_map<int, std::unique_ptr<TrackState> > & getChildren() const { return children_; }
   std::unordered_map<int, std::unique_ptr<TrackState> > & getChildren() { return children_; }

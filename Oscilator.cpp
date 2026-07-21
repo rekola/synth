@@ -6,19 +6,20 @@
 using namespace std;
 
 std::unique_ptr<TrackState>
-Oscilator::playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value) const {
+Oscilator::playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, float send_a, float send_b) const {
   detune *= getHarmonic();
   detune /= getSubharmonic();
 
   // A leaf voice never sees AMBISONIC directly (see AmbisonicEncoding.h) -
   // whoever ends up wrapping this voice re-encodes it externally using
   // getPosition().
-  auto voice = std::make_unique<OscilatorVoice>(reduceForPositionalGroup(config), position, detune, start_phase, type_, level_, pulse_width_);
+  auto voice = std::make_unique<OscilatorVoice>(reduceForPositionalGroup(config), position, detune, start_phase, type_, level_, pulse_width_, send_a, send_b);
   voice->playNote(frequency, velocity, note_value);
 
-  // don't pass velocity or position to children
+  // don't pass velocity, position, or sends to children - a modulator
+  // doesn't produce audible output of its own that should reach a bus.
   for (auto & child : getChildren()) {
-    auto modulator = child->playNote(config, SphericalPosition{}, frequency, detune, 1.0, start_phase, note_value);
+    auto modulator = child->playNote(config, SphericalPosition{}, frequency, detune, 1.0, start_phase, note_value, 0.0f, 0.0f);
     if (modulator) voice->addChild(child->getInternalId(), move(modulator));
   }
 

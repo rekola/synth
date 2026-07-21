@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="100" volume="0.75" randomization="0">
   <instruments>
-    <genericInstrument name="Chateau Grand" />   
+    <genericInstrument name="Piano" />   
     
     <envelope attack="0.5" release="2" name="Pads">
       <resonantFilter cut="2200" res="0.5">

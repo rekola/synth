@@ -6,11 +6,11 @@
 using namespace std;
 
 std::unique_ptr<TrackState>
-LFO::playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value) const {
+LFO::playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, float send_a, float send_b) const {
   // LFO constructs its own OscilatorVoice directly (it's not itself a
   // modulator, an FM carrier's LFO target is) - same leaf-reduction rule as
   // Oscilator/Noise/FileInstrument/SoundFontInstrument (AmbisonicEncoding.h).
-  auto voice = std::make_unique<OscilatorVoice>(reduceForPositionalGroup(config), position, detune, start_phase, WaveformType::SINE, level_, 0.5f);
+  auto voice = std::make_unique<OscilatorVoice>(reduceForPositionalGroup(config), position, detune, start_phase, WaveformType::SINE, level_, 0.5f, send_a, send_b);
   voice->playNote(frequency_, velocity, note_value);
   return voice;
 }

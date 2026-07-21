@@ -6,13 +6,11 @@
     <genericInstrument name="Percussion" />
   </instruments>
   <tracks>
-    <reverb preset="stadium">
-      <track id="0" instrument="0" azimuth="30"/>
-      <track id="1" instrument="0"/>
-      <track id="2" instrument="0" azimuth="-30"/>
-      <track id="3" instrument="1"/>
-      <percussionTrack id="4" instrument="2" azimuth="15"/>
-    </reverb>
+    <track id="0" instrument="0" sendA="0.1" distance="1" azimuth="-60" />
+    <track id="1" instrument="0" sendA="0.1" distance="1" azimuth="-30" />
+    <track id="2" instrument="0" sendA="0.1" distance="1" azimuth="0" />
+    <track id="3" instrument="1" sendA="0.1" distance="1" azimuth="30" />
+    <percussionTrack id="4" instrument="2" distance="1" azimuth="60" />
   </tracks>
   <patterns>
     <pattern rows="4">

@@ -7,7 +7,7 @@ using namespace std;
 static inline float getRandF() { return (float)rand() / RAND_MAX; }
 
 std::unique_ptr<TrackState>
-HarmonicSeries::playNote(const ChannelConfiguration & channel_config, const SphericalPosition & input_position, float frequency, float input_detune, float input_velocity, float start_phase, int note_value) const {
+HarmonicSeries::playNote(const ChannelConfiguration & channel_config, const SphericalPosition & input_position, float frequency, float input_detune, float input_velocity, float start_phase, int note_value, float send_a, float send_b) const {
   float half_detune_ratio = powf(2, detune_ / 1200 / 2);
   int child_id = -1;
 
@@ -36,7 +36,7 @@ HarmonicSeries::playNote(const ChannelConfiguration & channel_config, const Sphe
       } else {
 	detune = i + from_ - 1;
       }
-      auto voice = child->playNote(channel_config, position, frequency, detune, velocity, start_phase - getRandF(), note_value);
+      auto voice = child->playNote(channel_config, position, frequency, detune, velocity, start_phase - getRandF(), note_value, send_a, send_b);
       if (voice.get()) group->addChild(child_id--, move(voice));
     }
   }
