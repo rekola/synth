@@ -160,3 +160,108 @@ TEST(sample_data_repeated_copy_assign_does_not_leak) {
   }
   CHECK(dest.numberOfChannels() == 2);
 }
+
+TEST(sample_data_raw_count_constructor_marks_no_named_channels) {
+  SampleData data(2, 4);
+  CHECK(!data.hasChannel(Channel::Left));
+  CHECK(!data.hasChannel(Channel::Right));
+  CHECK(!data.hasChannel(Channel::Mono));
+  CHECK(data.getChannel(Channel::Left) == nullptr);
+}
+
+TEST(sample_data_channel_configuration_constructor_marks_regular_presence) {
+  SampleData mono(ChannelConfiguration(ChannelConfiguration::MONO, 44100), 4);
+  CHECK(mono.hasChannel(Channel::Mono));
+  CHECK(mono.getChannel(Channel::Mono) == mono.getChannelData(0));
+
+  SampleData stereo(ChannelConfiguration(ChannelConfiguration::STEREO, 44100), 4);
+  CHECK(stereo.hasChannel(Channel::Left));
+  CHECK(stereo.hasChannel(Channel::Right));
+  CHECK(stereo.getChannel(Channel::Left) == stereo.getChannelData(0));
+  CHECK(stereo.getChannel(Channel::Right) == stereo.getChannelData(1));
+
+  SampleData order1(ChannelConfiguration(ChannelConfiguration::AMBISONIC, 44100, 1), 4);
+  CHECK(order1.numberOfChannels() == 4);
+  CHECK(order1.hasChannel(Channel::W));
+  CHECK(order1.hasChannel(Channel::X));
+  CHECK(!order1.hasChannel(Channel::Acn4));
+
+  SampleData order2(ChannelConfiguration(ChannelConfiguration::AMBISONIC, 44100, 2), 4);
+  CHECK(order2.numberOfChannels() == 9);
+  CHECK(order2.hasChannel(Channel::W));
+  CHECK(order2.hasChannel(Channel::Acn4));
+  CHECK(order2.hasChannel(Channel::Acn8));
+  CHECK(order2.getChannel(Channel::Acn8) == order2.getChannelData(8));
+}
+
+TEST(sample_data_vector_constructor_derives_presence_indices_from_order) {
+  // SendA's raw index accounts for whichever regular channel(s) precede it
+  // in canonical order - here just Mono, so SendA lands at index 1.
+  SampleData data({ Channel::Mono, Channel::SendA }, 4);
+  CHECK(data.numberOfChannels() == 2);
+  CHECK(data.hasChannel(Channel::Mono));
+  CHECK(data.hasChannel(Channel::SendA));
+  CHECK(!data.hasChannel(Channel::SendB));
+  CHECK(data.getChannel(Channel::Mono) == data.getChannelData(0));
+  CHECK(data.getChannel(Channel::SendA) == data.getChannelData(1));
+  CHECK(data.sendCount() == 1);
+}
+
+TEST(sample_data_regular_channels_for_matches_configuration_constructor) {
+  ChannelConfiguration order2(ChannelConfiguration::AMBISONIC, 44100, 2);
+  auto channels = regularChannelsFor(order2);
+  channels.push_back(Channel::SendB);
+  SampleData built(channels, 4);
+
+  SampleData reference(order2, 4);
+  CHECK(built.numberOfChannels() == reference.numberOfChannels() + 1);
+  CHECK(built.hasChannel(Channel::Acn4) == reference.hasChannel(Channel::Acn4));
+  CHECK(built.getChannel(Channel::Acn8) == built.getChannelData(8));
+  CHECK(built.getChannel(Channel::SendB) == built.getChannelData(9));
+}
+
+TEST(sample_data_mix_named_sums_regular_channels_and_shared_sends) {
+  SampleData acc({ Channel::Left, Channel::Right, Channel::SendA }, 4);
+  acc.zero();
+  for (int i = 0; i < 4; i++) {
+    acc.getChannelData(0)[i] = 0.1f;
+    acc.getChannelData(1)[i] = 0.2f;
+    acc.getChannel(Channel::SendA)[i] = 0.3f;
+  }
+  acc.setNonZero();
+
+  // `other` lacks SendA but has SendB (which acc never marks present) -
+  // both should be silently ignored where only one side has them.
+  SampleData other({ Channel::Left, Channel::Right, Channel::SendB }, 4);
+  other.zero();
+  for (int i = 0; i < 4; i++) {
+    other.getChannelData(0)[i] = 1.0f;
+    other.getChannelData(1)[i] = 2.0f;
+    other.getChannel(Channel::SendB)[i] = 5.0f;
+  }
+  other.setNonZero();
+
+  acc.mixNamed(other);
+
+  CHECK_NEAR(acc.getChannelData(0)[0], 1.1f, 1e-6f);
+  CHECK_NEAR(acc.getChannelData(1)[0], 2.2f, 1e-6f);
+  CHECK_NEAR(acc.getChannel(Channel::SendA)[0], 0.3f, 1e-6f); // other had none - untouched
+  CHECK(!acc.hasChannel(Channel::SendB)); // acc never claimed it - other's SendB is dropped
+}
+
+TEST(sample_data_mix_named_broadcasts_mono_into_stereo_like_mix) {
+  SampleData acc(2, 4);
+  acc.zero();
+  SampleData mono({ Channel::Mono, Channel::SendA }, 4);
+  mono.zero();
+  for (int i = 0; i < 4; i++) {
+    mono.getChannelData(0)[i] = 1.0f;
+    mono.getChannel(Channel::SendA)[i] = 9.0f;
+  }
+  mono.setNonZero();
+
+  acc.mixNamed(mono);
+
+  CHECK_NEAR(acc.getChannelData(0)[0], 1.0f, 1e-6f);
+  CHECK_NEAR(acc.getChannelData(1)[0], 1.0f, 1e-6f);
+}
