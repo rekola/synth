@@ -6,17 +6,18 @@
 #include "Tuner.h"
 #include "RenderContext.h"
 #include "Mixer.h"
-#include "SendBusProcessor.h"
+#include "bus/SendBusProcessor.h"
 
 #include <memory>
 
 class SongState : public TrackState {
  public:
-  explicit SongState(ChannelConfiguration channel_config) : TrackState(channel_config), render_context_(channel_config), send_bus_(channel_config.getAudioOutSampleRate()) { }
+  explicit SongState(ChannelConfiguration channel_config) : TrackState(channel_config), render_context_(channel_config), send_bus_(channel_config) { }
 
   void initialize(const Song & song) {
     tempo_ = song.getTempo();
     render_context_.setBpm(tempo_);
+    send_bus_.setReverbParameters(song.getReverbSize(), song.getReverbDecay(), song.getReverbDamping(), song.getReverbPreDelay(), song.getReverbWet());
   }
   
   void render(int frames, const Song & song, Mixer & mixer) {
@@ -98,29 +99,22 @@ class SongState : public TrackState {
 	}
       }
 
-      // Always processed, even when both sums are silent, so the shared
-      // reverb tail/chorus modulation stay continuous across blocks (see
-      // SendBusProcessor.h). The wet result never carries SendA/SendB
-      // itself (built via the plain ChannelConfiguration/raw-count
-      // constructors below), so it flows through the same mixNamed() path
-      // every other track's output already does.
-      auto wet = send_bus_.process(send_a_sum_, send_b_sum_, frames);
-      auto bus_config = getChannelConfiguration();
-      if (bus_config.getType() == ChannelConfiguration::AMBISONIC) {
-	SampleData encoded(bus_config, frames);
-	encoded.zero();
-	encodeStereoAsPoints(wet, encoded);
-	encoded.setNonZero();
-	mixer.accumulate(encoded);
-      } else if (bus_config.getType() == ChannelConfiguration::STEREO) {
-	mixer.accumulate(wet);
-      } else {
-	SampleData mono(1, frames);
-	auto dst = mono.getChannelData(0);
-	auto l = wet.getChannelData(0), r = wet.getChannelData(1);
-	for (int i = 0; i < frames; i++) dst[i] = 0.5f * (l[i] + r[i]);
-	mono.setNonZero();
-	mixer.accumulate(mono);
+      // The send bus's own output is always ambisonic-shaped (see
+      // SendBusProcessor) and the top-level mixer is guaranteed to be one
+      // too now (BasicMixer is retired) - so this is a plain, unconditional
+      // accumulate, no decode step. The isAmbisonic() guard isn't really a
+      // conceptual "is this truly ambisonic" question - it exists solely so
+      // the one synthetic top-level MONO config a Compressor regression
+      // test constructs directly (bypassing MixerFactory) skips the send
+      // bus entirely, rather than handing a genuine 1-channel
+      // ambisonic_channels_ buffer to encodeStereoAsPoints(), which asserts
+      // out.numberOfChannels() >= 2 on shape alone.
+      if (getChannelConfiguration().isAmbisonic()) {
+	// Always processed, even when both sums are silent, so the shared
+	// reverb tail/chorus modulation stay continuous across blocks (see
+	// SendBusProcessor.h).
+	send_bus_.process(send_a_sum_, send_b_sum_, frames);
+	mixer.accumulate(send_bus_.getBusAmbisonic());
       }
     }
 

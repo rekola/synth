@@ -149,10 +149,12 @@ TEST(ambisonic_voice_encoder_interpolates_across_block_boundary) {
 
 TEST(ambisonic_voice_encoder_ignores_trailing_send_channels) {
   // A 3-channel accumulator (1 regular Mono + SendA + SendB) should only
-  // ever be written to by encodeBlock on channel 0 - PositionalMixer::encode
-  // handles SendA/SendB itself, separately (see below).
+  // ever be written to by encodeBlock on channel 0 - callers (see
+  // InstrumentVoice::encodePosition()) handle SendA/SendB separately,
+  // deriving them directly from the dry signal rather than spatially
+  // encoding them.
   AmbisonicVoiceEncoder encoder;
-  SampleData out({ Channel::Mono, Channel::SendA, Channel::SendB }, 4);
+  SampleData out({ Channel::W, Channel::SendA, Channel::SendB }, 4);
   out.zero();
   AmbisonicGains target{ 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
   std::vector<float> mono(4, 1.0f);
@@ -160,30 +162,6 @@ TEST(ambisonic_voice_encoder_ignores_trailing_send_channels) {
   CHECK_NEAR(out.getChannelData(0)[0], 1.0f, 0.0001f);
   CHECK_NEAR(out.getChannel(Channel::SendA)[0], 0.0f, 0.0001f);
   CHECK_NEAR(out.getChannel(Channel::SendB)[0], 0.0f, 0.0001f);
-}
-
-TEST(positional_mixer_encode_sums_sends_without_spatial_gain) {
-  PositionalMixer mixer;
-  SampleData accumulator({ Channel::W, Channel::Y, Channel::Z, Channel::X, Channel::SendA, Channel::SendB }, 4);
-  accumulator.zero();
-
-  SampleData voice({ Channel::Mono, Channel::SendA, Channel::SendB }, 4);
-  voice.zero();
-  for (int i = 0; i < 4; i++) {
-    voice.getChannelData(0)[i] = 1.0f;
-    voice.getChannel(Channel::SendA)[i] = 0.5f;
-    voice.getChannel(Channel::SendB)[i] = 0.25f;
-  }
-  voice.setNonZero();
-
-  mixer.encode(&voice, voice, SphericalPosition{ 0.0f, 0.0f, 1.0f }, accumulator);
-
-  // The mono signal was spatially encoded (front: W and X nonzero).
-  CHECK(accumulator.getChannelData(0)[0] != 0.0f);
-  CHECK(accumulator.getChannelData(3)[0] != 0.0f);
-  // Sends are straight-summed, not spatially encoded.
-  CHECK_NEAR(accumulator.getChannel(Channel::SendA)[0], 0.5f, 0.0001f);
-  CHECK_NEAR(accumulator.getChannel(Channel::SendB)[0], 0.25f, 0.0001f);
 }
 
 TEST(stereo_decode_reencode_preserves_left_right_direction) {
@@ -231,26 +209,15 @@ TEST(stereo_decode_reencode_preserves_left_right_direction) {
   CHECK_NEAR(decoded_center.getChannelData(0)[0], decoded_center.getChannelData(1)[0], 0.0001f);
 }
 
-TEST(reduce_for_effect_narrows_ambisonic_to_stereo_only) {
-  ChannelConfiguration ambisonic(ChannelConfiguration::AMBISONIC, 44100);
+TEST(reduce_for_effect_narrows_ambisonic_to_mono_only) {
+  ChannelConfiguration ambisonic(44100, 1);
   auto reduced = reduceForEffect(ambisonic);
-  CHECK(reduced.getType() == ChannelConfiguration::STEREO);
+  CHECK(reduced.isMono());
 
-  ChannelConfiguration stereo(ChannelConfiguration::STEREO, 44100);
-  CHECK(reduceForEffect(stereo).getType() == ChannelConfiguration::STEREO);
-
-  ChannelConfiguration mono(ChannelConfiguration::MONO, 44100);
-  CHECK(reduceForEffect(mono).getType() == ChannelConfiguration::MONO);
+  ChannelConfiguration mono(44100);
+  CHECK(reduceForEffect(mono).isMono());
 }
 
-TEST(reduce_for_positional_group_narrows_ambisonic_to_mono_only) {
-  ChannelConfiguration ambisonic(ChannelConfiguration::AMBISONIC, 44100);
-  auto reduced = reduceForPositionalGroup(ambisonic);
-  CHECK(reduced.getType() == ChannelConfiguration::MONO);
-
-  ChannelConfiguration stereo(ChannelConfiguration::STEREO, 44100);
-  CHECK(reduceForPositionalGroup(stereo).getType() == ChannelConfiguration::STEREO);
-}
 
 // Regression guard for the W-channel bug found via the binaural "no
 // directionality" investigation (see docs/known_bugs.md history):

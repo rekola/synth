@@ -94,7 +94,7 @@ public:
     // muted, so envelopes/LFOs keep advancing - only mixing is skipped),
     // then decide this track's own accumulator shape from what actually
     // came back rather than a separate non-rendering prediction.
-    std::vector<std::pair<TrackState *, SampleData> > rendered;
+    std::vector<SampleData> rendered;
     bool is_active = false;
 
     for (auto & [ column, voices ] : voices_) {
@@ -102,13 +102,13 @@ public:
 	if (voice->isActive()) {
 	  auto s = voice->render(frames);
 	  is_active = true;
-	  if (!isMuted()) rendered.emplace_back(voice.get(), std::move(s));
+	  if (!isMuted()) rendered.push_back(std::move(s));
 	}
       }
     }
 
     bool has_send_a = false, has_send_b = false;
-    for (auto & [ voice, s ] : rendered) {
+    for (auto & s : rendered) {
       has_send_a = has_send_a || s.hasChannel(Channel::SendA);
       has_send_b = has_send_b || s.hasChannel(Channel::SendB);
     }
@@ -119,25 +119,12 @@ public:
     SampleData data(channels, frames, isSolo());
     data.zero();
 
-    bool is_ambisonic = getChannelConfiguration().getType() == ChannelConfiguration::AMBISONIC;
-    int regular = data.numberOfChannels() - data.sendCount();
-
-    for (auto & [ voice, s ] : rendered) {
-      // Same mismatch-encode rule as TrackState::render(int frames)'s
-      // generic default (see AmbisonicEncoding.h) - voices_ is a separate
-      // storage structure from the generic children_ map, so this loop
-      // needs its own copy of the logic rather than reusing the base
-      // class's.
-      int s_regular = s.numberOfChannels() - s.sendCount();
-      if (is_ambisonic && s_regular < regular) {
-	if (!s.isZero()) {
-	  positional_mixer_.encode(voice, s, voice->getPosition(), data);
-	  data.setNonZero();
-	}
-      } else {
-	data.mixNamed(s);
-      }
-    }
+    // Every voice now spatially encodes itself directly, using its own
+    // position, to its own real (never reduced) ChannelConfiguration - see
+    // InstrumentVoice::encodePosition() - so a voice's rendered output
+    // always already matches this accumulator's shape exactly; no
+    // per-voice dispatch is needed, just a plain mix.
+    for (auto & s : rendered) data.mixNamed(s);
 
     setTrackInfo(TrackInfo( is_active, data.isClipping() ));
 
@@ -212,9 +199,6 @@ protected:
 
   void clearFinishedVoices() {
     for (auto & [ id, voices ] : voices_) {
-      for (auto & voice : voices) {
-	if (is_not_playing(voice)) positional_mixer_.remove(voice.get());
-      }
       voices.erase(std::remove_if(voices.begin(), voices.end(), is_not_playing), voices.end());
     }
   }
@@ -233,7 +217,6 @@ private:
   float send_a_, send_b_;
 
   std::unordered_map<int, std::vector<std::unique_ptr<TrackState> > > voices_;
-  PositionalMixer positional_mixer_;
 };
 
 #endif

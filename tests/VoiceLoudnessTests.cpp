@@ -6,7 +6,7 @@
 #include "../SphericalPosition.h"
 
 TEST(oscilator_voice_reports_note_value_and_velocity_loudness) {
-  ChannelConfiguration config(ChannelConfiguration::MONO, 44100);
+  ChannelConfiguration config(44100);
   OscilatorVoice voice(config, SphericalPosition{}, 1.0f, 0.0f, WaveformType::SINE, 1.0f, 0.5f);
 
   CHECK(!voice.isActive());
@@ -37,7 +37,7 @@ TEST(track_event_and_render_context_carry_note_value) {
   CHECK(off.isOff());
   CHECK(off.getNoteValue() == -1);
 
-  RenderContext context(ChannelConfiguration(ChannelConfiguration::MONO, 44100));
+  RenderContext context(ChannelConfiguration(44100));
   context.addPendingEvent(/*track_id*/ 1, /*frame*/ 0, /*id*/ 0, 440.0f, 0.8f, 60);
   auto & events = context.getPendingEvents(1);
   CHECK(events.size() == 1);

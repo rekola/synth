@@ -23,12 +23,17 @@ public:
     mverb_.setSampleRate(channel_config.getAudioOutSampleRate());
   }
 
-  // Gathers children in real stereo/mono (reduceForEffect), never raw
-  // ambisonic - MVerb needs genuine 2-channel input to do real stereo-width
-  // processing. Re-encodes back up to this node's own true format
-  // afterward if that's actually ambisonic (encodeStereoAsPoints is a
-  // no-op cost-wise otherwise, since reduced == true format and this
-  // branch is skipped). See the "Effects" section of the spatial audio
+  // Gathers children reduced to MONO (reduceForEffect), never raw
+  // ambisonic - a nonlinear effect like this one gets dedicated, isolated
+  // DSP state either way; MVerb falls back to duplicating the single
+  // channel into its own stereo processing (see applyEffect()'s `else`
+  // branch below) rather than getting real stereo width from panned
+  // children, which is no longer preserved under this effect. Re-encodes
+  // back up to this node's own true format afterward if that's actually
+  // ambisonic (encodeMonoAsPoint is a no-op cost-wise otherwise, since
+  // reduced == true format and this branch is skipped) - the re-encoded
+  // signal is necessarily non-directional (W only), matching the mono
+  // input it came from. See the "Effects" section of the spatial audio
   // plan for why this can't just rely on TrackState's generic children
   // gathering the way every other (transparent) effect does.
   SampleData render(int frames) override {
@@ -47,10 +52,10 @@ public:
 
 protected:
   SampleData reencodeIfNeeded(SampleData data) {
-    if (getChannelConfiguration().getType() != ChannelConfiguration::AMBISONIC) return data;
+    if (getChannelConfiguration().isMono()) return data;
     SampleData out(getChannelConfiguration(), data.numberOfFrames());
     out.zero();
-    encodeStereoAsPoints(data, out);
+    encodeMonoAsPoint(data, out);
     if (!data.isZero()) out.setNonZero();
     return out;
   }

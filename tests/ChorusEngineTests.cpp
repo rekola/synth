@@ -1,6 +1,6 @@
 #include "TestFramework.h"
 
-#include "../effects/ChorusEngine.h"
+#include "../dsp/ChorusEngine.h"
 
 #include <cmath>
 
@@ -85,8 +85,10 @@ TEST(chorus_engine_decorrelate_true_creates_stereo_width) {
 
 TEST(chorus_engine_never_cross_mixes_channels) {
   // A silent channel must stay silent regardless of a loud sibling channel
-  // - the per-track effect's stereo-image-preservation guarantee depends
-  // on this (see render_chorus_preserves_stereo_image in RenderTests.cpp).
+  // - relied on by ChorusBusEffect (bus/ChorusBusEffect.h), which only
+  // ever duplicates a single mono source into two identical channels and
+  // depends on decorrelate's own state, not cross-channel leakage, being
+  // the sole source of any difference between them.
   ChorusEngine engine(2, 44100, 3, 0.5f, 15.0f, 4.0f, false);
   engine.setMix(1.0f);
 
@@ -110,7 +112,7 @@ TEST(chorus_engine_ignores_send_channels) {
   engine.setMix(1.0f);
 
   int frames = 64;
-  SampleData data({ Channel::Left, Channel::Right, Channel::SendA }, frames);
+  SampleData data({ Channel::W, Channel::Y, Channel::SendA }, frames);
   data.zero();
   for (int i = 0; i < frames; i++) {
     data.getChannelData(0)[i] = 1.0f;

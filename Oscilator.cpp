@@ -1,7 +1,6 @@
 #include "Oscilator.h"
 
 #include "OscilatorVoice.h"
-#include "AmbisonicEncoding.h"
 
 using namespace std;
 
@@ -10,10 +9,10 @@ Oscilator::playNote(const ChannelConfiguration & config, const SphericalPosition
   detune *= getHarmonic();
   detune /= getSubharmonic();
 
-  // A leaf voice never sees AMBISONIC directly (see AmbisonicEncoding.h) -
-  // whoever ends up wrapping this voice re-encodes it externally using
-  // getPosition().
-  auto voice = std::make_unique<OscilatorVoice>(reduceForPositionalGroup(config), position, detune, start_phase, type_, level_, pulse_width_, send_a, send_b);
+  // The voice encodes its own ambisonic output directly from its own
+  // position (see InstrumentVoice::encodePosition()) - no external reduce/
+  // re-encode step needed.
+  auto voice = std::make_unique<OscilatorVoice>(config, position, detune, start_phase, type_, level_, pulse_width_, send_a, send_b);
   voice->playNote(frequency, velocity, note_value);
 
   // don't pass velocity, position, or sends to children - a modulator

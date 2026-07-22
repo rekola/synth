@@ -132,7 +132,7 @@ TEST(render_center_note_produces_symmetric_stereo_output) {
   auto loaded = loadFixture("center_note.xml");
   CHECK(loaded.ok);
 
-  ChannelConfiguration config(ChannelConfiguration::STEREO, 44100);
+  ChannelConfiguration config(44100, 1);
   auto result = renderSongOffline(loaded.song, config);
 
   CHECK(result.numberOfFrames() > 0);
@@ -147,7 +147,7 @@ TEST(render_hard_pan_isolates_channels) {
   auto loaded = loadFixture("hard_pan.xml");
   CHECK(loaded.ok);
 
-  ChannelConfiguration config(ChannelConfiguration::STEREO, 44100);
+  ChannelConfiguration config(44100, 1);
   auto result = renderSongOffline(loaded.song, config);
 
   CHECK(result.numberOfFrames() > 0);
@@ -165,7 +165,7 @@ TEST(render_reverb_reaches_both_channels_from_panned_source) {
   auto loaded = loadFixture("reverb_pan.xml");
   CHECK(loaded.ok);
 
-  ChannelConfiguration config(ChannelConfiguration::STEREO, 44100);
+  ChannelConfiguration config(44100, 1);
   auto result = renderSongOffline(loaded.song, config);
   CHECK(!hasNonFiniteSample(result));
 
@@ -179,19 +179,26 @@ TEST(render_reverb_reaches_both_channels_from_panned_source) {
   CHECK(left_energy > 0.0);
 }
 
-TEST(render_chorus_preserves_stereo_image) {
+TEST(render_chorus_centers_its_input) {
+  // Per-track nonlinear effects (Reverb/Chorus/Distortion) now reduce
+  // their children to MONO (see AmbisonicEncoding.h's reduceForEffect) -
+  // real stereo panning no longer survives underneath them, a deliberate
+  // trade-off (see the plan this was built from). So a hard-right source
+  // wrapped in a <chorus> effect now re-encodes as non-directional (W
+  // only - see encodeMonoAsPoint), landing equally on both channels
+  // rather than staying isolated to the right - this replaces the old
+  // render_chorus_preserves_stereo_image, whose premise (position survives
+  // through the chorus) is no longer true by design.
   auto loaded = loadFixture("chorus_pan.xml");
   CHECK(loaded.ok);
 
-  ChannelConfiguration config(ChannelConfiguration::STEREO, 44100);
+  ChannelConfiguration config(44100, 1);
   auto result = renderSongOffline(loaded.song, config);
   CHECK(!hasNonFiniteSample(result));
 
-  // source is hard right; chorus must not smear energy into the left
-  // channel (it did before it supported more than one channel).
   auto left = rms(result, 0), right = rms(result, 1);
   CHECK(right > 1e-4f);
-  CHECK(left < right * 0.05f);
+  CHECK_NEAR(left, right, right * 0.05f);
 }
 
 TEST(render_envelope_decays_after_hold_and_decay_time) {
@@ -204,7 +211,7 @@ TEST(render_envelope_decays_after_hold_and_decay_time) {
   auto loaded = loadFixture("center_note.xml");
   CHECK(loaded.ok);
 
-  ChannelConfiguration config(ChannelConfiguration::STEREO, 44100);
+  ChannelConfiguration config(44100, 1);
   auto result = renderSongOffline(loaded.song, config);
   CHECK(!hasNonFiniteSample(result));
 
@@ -237,10 +244,16 @@ TEST(render_mono_with_compressor_does_not_read_out_of_bounds) {
   auto loaded = loadFixture("compressor_mono.xml");
   CHECK(loaded.ok);
 
-  ChannelConfiguration config(ChannelConfiguration::MONO, 44100);
+  ChannelConfiguration config(44100);
   auto result = renderSongOffline(loaded.song, config);
 
-  CHECK(result.channels == 1);
+  // Every mixer now decodes to a 2-channel stereo device signal - a MONO
+  // (0th-order-ambisonic) bus broadcasts equally to both channels rather
+  // than being a genuine 1-channel device output (see
+  // ChannelConfiguration::getDeviceChannels()). The compressor's own
+  // channel-generic loop still ran over a genuine 1-channel accumulator
+  // internally; only the final device shape changed.
+  CHECK(result.channels == 2);
   CHECK(result.numberOfFrames() > 0);
   CHECK(!hasNonFiniteSample(result));
   CHECK(rms(result, 0) > 1e-4f);
@@ -250,7 +263,7 @@ TEST(render_ambisonic_directions_produce_distinguishable_output) {
   auto loaded = loadFixture("ambisonic_directions.xml");
   CHECK(loaded.ok);
 
-  ChannelConfiguration config(ChannelConfiguration::AMBISONIC, 44100);
+  ChannelConfiguration config(44100, 1);
   auto result = renderSongOffline(loaded.song, config, MixerType::AMBISONIC_STEREO);
 
   CHECK(result.channels == 2); // always decoded to stereo, regardless of the 4-channel bus
@@ -326,7 +339,7 @@ TEST(render_ambisonic_reverb_two_tracks_has_real_stereo_tail) {
   auto loaded = loadFixture("ambisonic_reverb_two_tracks.xml");
   CHECK(loaded.ok);
 
-  ChannelConfiguration config(ChannelConfiguration::AMBISONIC, 44100);
+  ChannelConfiguration config(44100, 1);
   auto result = renderSongOffline(loaded.song, config, MixerType::AMBISONIC_STEREO);
   CHECK(!hasNonFiniteSample(result));
 
@@ -348,15 +361,16 @@ TEST(render_ambisonic_reverb_two_tracks_has_real_stereo_tail) {
 
 TEST(render_ambisonic_envelopefilter_over_plain_voice_keeps_position) {
   // A transparent effect (EnvelopeFilter) directly wrapping one positioned
-  // leaf voice (no NoteMultiplier): confirms TrackState::render(int
-  // frames)'s mismatch-encode logic handles this case (own config
-  // AMBISONIC, child bottomed out at MONO) without crashing or losing the
-  // voice's position - the wrapped voice is genuinely MONO by the time
-  // EnvelopeFilter's applyEffect() sees it, not raw 4-channel or stereo.
+  // leaf voice (no NoteMultiplier): confirms the voice's own
+  // InstrumentVoice::encodePosition() correctly spatially encodes itself
+  // to the real (ambisonic) accumulator shape without crashing or losing
+  // its position, and that EnvelopeFilter's channel-agnostic gain multiply
+  // (applyEffect()) applies identically across however many channels that
+  // now genuinely is (not a fixed MONO/stereo channel count).
   auto loaded = loadFixture("ambisonic_envelopefilter_plain.xml");
   CHECK(loaded.ok);
 
-  ChannelConfiguration config(ChannelConfiguration::AMBISONIC, 44100);
+  ChannelConfiguration config(44100, 1);
   auto result = renderSongOffline(loaded.song, config, MixerType::AMBISONIC_STEREO);
   CHECK(!hasNonFiniteSample(result));
 
@@ -375,7 +389,7 @@ TEST(render_ambisonic_order2_smoke_test) {
   auto loaded = loadFixture("ambisonic_directions.xml");
   CHECK(loaded.ok);
 
-  ChannelConfiguration config(ChannelConfiguration::AMBISONIC, 44100, 2);
+  ChannelConfiguration config(44100, 2);
 
   auto stereo_result = renderSongOffline(loaded.song, config, MixerType::AMBISONIC_STEREO);
   CHECK(stereo_result.channels == 2);
@@ -400,7 +414,7 @@ TEST(render_track_send_a_reaches_track_state_output) {
   auto loaded = loadFixture("send_a_oscilator.xml");
   CHECK(loaded.ok);
 
-  ChannelConfiguration config(ChannelConfiguration::STEREO, 44100);
+  ChannelConfiguration config(44100);
   SongState state(config);
   state.initialize(loaded.song);
   state.setIsPlaying(true);
@@ -423,6 +437,44 @@ TEST(render_track_send_a_reaches_track_state_output) {
   CHECK(saw_send_a);
 }
 
+TEST(render_send_a_reaches_ambisonic_bus_beyond_w_y_at_both_orders) {
+  // The FDN reverb (bus/FDNReverb.h, SendBusProcessor) spreads its 8 taps
+  // across the full sphere (cube-vertex directions), not the old shared
+  // reverb's 2-point (az +-90, W/Y-only) encode - real energy should
+  // reach ACN channels beyond W/Y at either supported ambisonic order,
+  // confirmed here directly on the pre-decode bus via RecordingMixer (see
+  // render_track_send_a_reaches_track_state_output above), since the
+  // public renderSongOffline()/OfflineRenderResult path only ever exposes
+  // the final, already-decoded 2-channel device output. SongState::render()
+  // accumulates the send bus last (after every per-track accumulate()), so
+  // accumulated.back() after each render() call is exactly that entry.
+  auto loaded = loadFixture("send_a_oscilator.xml");
+  CHECK(loaded.ok);
+
+  for (int order : { 1, 2 }) {
+    ChannelConfiguration config(44100, order);
+    SongState state(config);
+    state.initialize(loaded.song);
+    state.setIsPlaying(true);
+
+    RecordingMixer mixer(static_cast<short>(config.numberOfChannels()), config.getAudioOutSampleRate());
+
+    double energy_beyond_wy = 0.0;
+    for (int block = 0; block < 60; block++) {
+      state.render(256, loaded.song, mixer);
+      CHECK(!mixer.accumulated.empty());
+      auto & bus = mixer.accumulated.back();
+      CHECK(bus.numberOfChannels() == config.numberOfChannels());
+      for (int c = 2; c < bus.numberOfChannels(); c++) {
+	auto data = bus.getChannelData(c);
+	for (int i = 0; i < bus.numberOfFrames(); i++) energy_beyond_wy += static_cast<double>(data[i]) * data[i];
+      }
+    }
+
+    CHECK(energy_beyond_wy > 0.0);
+  }
+}
+
 TEST(render_send_a_produces_audible_reverb_tail) {
   // send_a_oscilator.xml is identical to center_note.xml except for
   // sendA="0.5" on its one track - any output difference between them is
@@ -436,7 +488,7 @@ TEST(render_send_a_produces_audible_reverb_tail) {
   CHECK(with_send.ok);
   CHECK(without_send.ok);
 
-  ChannelConfiguration config(ChannelConfiguration::STEREO, 44100);
+  ChannelConfiguration config(44100, 1);
   auto result_with = renderSongOffline(with_send.song, config);
   auto result_without = renderSongOffline(without_send.song, config);
   CHECK(!hasNonFiniteSample(result_with));
@@ -471,7 +523,7 @@ TEST(render_sf2_reverb_send_produces_audible_tail) {
   auto loaded = loadFixtureWithSoundFont("sf2_reverb_send.xml", sf2_path);
   CHECK(loaded.ok);
 
-  ChannelConfiguration config(ChannelConfiguration::STEREO, 44100);
+  ChannelConfiguration config(44100, 1);
   auto result = renderSongOffline(loaded.song, config);
   CHECK(!hasNonFiniteSample(result));
 
@@ -492,7 +544,7 @@ TEST(render_stereo_dry_signal_attenuates_with_distance) {
   auto loaded = loadFixture("stereo_distance.xml");
   CHECK(loaded.ok);
 
-  ChannelConfiguration config(ChannelConfiguration::STEREO, 44100);
+  ChannelConfiguration config(44100, 1);
   auto result = renderSongOffline(loaded.song, config);
   CHECK(!hasNonFiniteSample(result));
 
@@ -516,7 +568,7 @@ TEST(render_send_a_is_distance_invariant) {
   CHECK(near.ok);
   CHECK(far.ok);
 
-  ChannelConfiguration config(ChannelConfiguration::STEREO, 44100);
+  ChannelConfiguration config(44100);
 
   auto peakSendA = [&](Song & song) {
     SongState state(config);
@@ -553,7 +605,7 @@ TEST(render_ambisonic_envelopefilter_over_notemultiplier_spread_survives) {
   auto spread = loadFixture("ambisonic_envelopefilter_notemultiplier.xml");
   CHECK(spread.ok);
 
-  ChannelConfiguration config(ChannelConfiguration::AMBISONIC, 44100);
+  ChannelConfiguration config(44100, 1);
   auto result = renderSongOffline(spread.song, config, MixerType::AMBISONIC_STEREO);
   CHECK(!hasNonFiniteSample(result));
 

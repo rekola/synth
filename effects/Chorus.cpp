@@ -1,6 +1,6 @@
 #include "Chorus.h"
 
-#include "ChorusEngine.h"
+#include "../dsp/ChorusEngine.h"
 #include "EffectState.h"
 
 using namespace std;
@@ -14,11 +14,12 @@ public:
     engine_.setMix(mix);
   }
 
-  // Gathers children in real stereo/mono (reduceForEffect), never raw
-  // ambisonic - same pattern as ReverbState (effects/Reverb.cpp), and for
-  // the same reason: the engine's per-channel state is sized once, at
-  // construction, from the reduced channel count, so it needs genuine
-  // 2-channel (or mono) input, not raw ambisonic channels.
+  // Gathers children reduced to MONO (reduceForEffect), never raw
+  // ambisonic - same pattern as ReverbState (effects/Reverb.cpp): the
+  // engine's per-channel state is sized once, at construction, from the
+  // reduced (now always 1) channel count, so its decorrelate=true option
+  // is what gives a mono-in source its stereo width, not panning surviving
+  // from children.
   SampleData render(int frames) override {
     auto reduced_config = reduceForEffect(getChannelConfiguration());
     auto data = renderChildren(frames, reduced_config);
@@ -35,10 +36,10 @@ public:
 
 protected:
   SampleData reencodeIfNeeded(SampleData data) {
-    if (getChannelConfiguration().getType() != ChannelConfiguration::AMBISONIC) return data;
+    if (getChannelConfiguration().isMono()) return data;
     SampleData out(getChannelConfiguration(), data.numberOfFrames());
     out.zero();
-    encodeStereoAsPoints(data, out);
+    encodeMonoAsPoint(data, out);
     if (!data.isZero()) out.setNonZero();
     return out;
   }

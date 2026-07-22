@@ -21,8 +21,11 @@
 // correct at order 2 - if only W/Y/Z/X were named, SendA would be placed at
 // index 4 (colliding with Acn4-8's real data at indices 4-8) instead of the
 // correct index 9.
+// No separate Mono channel: MONO is 0th-order ambisonics (a single
+// omnidirectional/W component - see ChannelConfiguration), so a mono buffer
+// just marks W present and leaves Y/Z/X absent, rather than duplicating the
+// same "one omnidirectional channel" concept under two different names.
 enum class Channel : int8_t {
-  Mono, Left, Right,
   W, Y, Z, X,
   Acn4, Acn5, Acn6, Acn7, Acn8,
   SendA, SendB,
@@ -37,21 +40,10 @@ enum class Channel : int8_t {
 // and append to it before constructing via the vector-of-Channel
 // constructor.
 inline std::vector<Channel> regularChannelsFor(const ChannelConfiguration & config) {
-  switch (config.getType()) {
-  case ChannelConfiguration::MONO:
-    return { Channel::Mono };
-  case ChannelConfiguration::STEREO:
-    return { Channel::Left, Channel::Right };
-  case ChannelConfiguration::AMBISONIC: {
-    std::vector<Channel> v { Channel::W, Channel::Y, Channel::Z, Channel::X };
-    if (config.getAmbisonicOrder() >= 2) {
-      v.insert(v.end(), { Channel::Acn4, Channel::Acn5, Channel::Acn6, Channel::Acn7, Channel::Acn8 });
-    }
-    return v;
-  }
-  default:
-    return {};
-  }
+  std::vector<Channel> v { Channel::W };
+  if (config.getAmbisonicOrder() >= 1) v.insert(v.end(), { Channel::Y, Channel::Z, Channel::X });
+  if (config.getAmbisonicOrder() >= 2) v.insert(v.end(), { Channel::Acn4, Channel::Acn5, Channel::Acn6, Channel::Acn7, Channel::Acn8 });
+  return v;
 }
 
 class SampleData final {
@@ -71,7 +63,7 @@ class SampleData final {
   }
   // Regular channel(s) plus whichever sends the caller decided are present
   // (see regularChannelsFor(config) above for building the list), or a
-  // fixed compile-time set at a leaf voice (e.g. { Channel::Mono,
+  // fixed compile-time set at a leaf voice (e.g. { Channel::W,
   // Channel::SendA }). channels_ is derived from the list's size.
   explicit SampleData(const std::vector<Channel> & channels, int frames, bool is_solo = false) noexcept
     : channels_(static_cast<short>(channels.size())), frames_(frames), is_solo_(is_solo) {

@@ -12,6 +12,7 @@ add_executable(synth_tests
 	AmbisonicEncodingTests.cpp
 	ChorusEngineTests.cpp
 	NoiseGeneratorTests.cpp
+	FDNReverbTests.cpp
 )
 
 target_link_libraries(synth_tests synth_engine)

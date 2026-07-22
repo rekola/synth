@@ -2,10 +2,10 @@
 
 #include "SampleData.h"
 #include "InstrumentVoice.h"
-#include "AmbisonicEncoding.h"
 
 #include <sndfile.h>
 #include <cstring>
+#include <vector>
 
 using namespace std;
 
@@ -62,38 +62,56 @@ public:
     : InstrumentVoice(channel_config, position, detune, start_phase, send_a, send_b), samples_(samples) { }
 
   SampleData render(int frames) override {
-    // base_gain (undistanced) feeds the sends - see InstrumentVoice::getDistanceGain().
     auto base_gain = decibelsToGain(getGainDB());
     auto gain = base_gain * getDistanceGain();
+    auto inChannels = samples_->numberOfChannels();
 
+    // Common case: a mono sample file, positioned like every other leaf
+    // voice - encode it via this voice's own position (InstrumentVoice::
+    // encodePosition()), rather than broadcasting the same raw value into
+    // every output channel (which used to be harmless back when the
+    // output was forced to MONO, but would be spatially wrong now that
+    // the destination is a genuine ambisonic width - W/Y/Z/X need
+    // different relative gains, not identical values).
+    if (inChannels == 1) {
+      if (static_cast<int>(dry_.size()) != frames) dry_.resize(static_cast<size_t>(frames));
+      for (int k = 0; k < frames; k++) {
+	int i = getSourceSamplePosition();
+	stepForward(1);
+	dry_[static_cast<size_t>(k)] = i >= samples_->size() ? 0.0f : samples_->getChannelData(0)[i] * gain;
+      }
+      return encodePosition(dry_.data(), frames);
+    }
+
+    // A pre-baked multi-channel file already matching this voice's exact
+    // ambisonic channel count (e.g. a pre-encoded B-format recording) -
+    // there's no single mono source to spatially spread, so this copies
+    // it directly instead of going through encodePosition() at all; the
+    // file's own channels already ARE the spatial content. A file with
+    // some other channel count (e.g. a plain 2-channel stereo sample) has
+    // never been supported here (pre-existing, out of scope) and still
+    // hits the assert below.
+    auto outChannels = getChannelConfiguration().numberOfChannels();
     auto channels = regularChannelsFor(getChannelConfiguration());
     if (getSendA() > 0.0f) channels.push_back(Channel::SendA);
     if (getSendB() > 0.0f) channels.push_back(Channel::SendB);
 
     SampleData output(channels, frames);
-    auto outChannels = getChannelConfiguration().numberOfChannels();
-    auto inChannels = samples_->numberOfChannels();
     auto send_a = output.getChannel(Channel::SendA);
     auto send_b = output.getChannel(Channel::SendB);
 
     for (int k = 0; k < frames; k++) {
-      // float i = getFphase() * WAVESIZE / getOutSampleRate();
       int i = getSourceSamplePosition();
       stepForward(1);
 
       float raw0 = 0.0f;
       if (i >= samples_->size()) {
-	for (auto l = 0; l < outChannels; l++) {
+	for (int l = 0; l < outChannels; l++) {
 	  output.getChannelData(l)[k] = 0.0f;
 	}
       } else if (outChannels == inChannels) {
-	for (auto l = 0; l < outChannels; l++) {
+	for (int l = 0; l < outChannels; l++) {
 	  output.getChannelData(l)[k] = samples_->getChannelData(l)[i] * gain;
-	}
-	raw0 = samples_->getChannelData(0)[i];
-      } else if (inChannels == 1) {
-	for (auto l = 0; l < outChannels; l++) {
-	  output.getChannelData(l)[k] = samples_->getChannelData(0)[i] * gain;
 	}
 	raw0 = samples_->getChannelData(0)[i];
       } else {
@@ -114,11 +132,12 @@ public:
 
 private:
   std::shared_ptr<SampleData> samples_;
+  std::vector<float> dry_;
 };
 
 std::unique_ptr<TrackState>
 FileInstrument::playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, float send_a, float send_b) const {
-  auto voice = std::make_unique<FileInstrumentVoice>(reduceForPositionalGroup(channel_config), position, detune, start_phase, samples_, send_a, send_b);
+  auto voice = std::make_unique<FileInstrumentVoice>(channel_config, position, detune, start_phase, samples_, send_a, send_b);
   voice->playNote(frequency, velocity, note_value);
   return voice;
 }

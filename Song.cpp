@@ -365,6 +365,12 @@ Song::loadParameters(const ParameterSource & input) {
 
   setTempo(input.getInt("tempo", 90));
   setRandomizationFactor(input.getFloat("randomization", 0.01f));
+
+  setReverbSize(input.getFloat("reverbSize", 1.0f));
+  setReverbDecay(input.getFloat("reverbDecay", 1.8f));
+  setReverbDamping(input.getFloat("reverbDamping", 0.1f));
+  setReverbPreDelay(input.getFloat("reverbPreDelay", 0.02f));
+  setReverbWet(input.getFloat("reverbWet", 0.2512f));
 }
 
 void
@@ -375,4 +381,10 @@ Song::storeParameters(ParameterSource & output) const {
   output.set("temperament", to_string(getTuning()));
   output.set("tempo", getTempo());
   output.set("randomization", getRandomizationFactor());
+
+  output.set("reverbSize", getReverbSize());
+  output.set("reverbDecay", getReverbDecay());
+  output.set("reverbDamping", getReverbDamping());
+  output.set("reverbPreDelay", getReverbPreDelay());
+  output.set("reverbWet", getReverbWet());
 }

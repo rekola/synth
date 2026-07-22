@@ -34,7 +34,7 @@ TEST(controller_save_song_writes_to_the_opened_path) {
   fs::copy_file(fs::path(TESTS_FIXTURES_DIR) / "center_note.xml", scratch_path,
 		fs::copy_options::overwrite_existing);
 
-  ChannelConfiguration config(ChannelConfiguration::STEREO, 44100);
+  ChannelConfiguration config(44100, 1);
   Controller controller(config);
 
   CHECK(controller.openSong(scratch_path.string()));
@@ -53,7 +53,7 @@ TEST(controller_save_song_writes_to_the_opened_path) {
 }
 
 TEST(controller_new_song_resets_save_path_to_default) {
-  ChannelConfiguration config(ChannelConfiguration::STEREO, 44100);
+  ChannelConfiguration config(44100, 1);
   Controller controller(config);
 
   auto fixture = std::string(TESTS_FIXTURES_DIR) + "/center_note.xml";
@@ -70,7 +70,7 @@ TEST(controller_send_command_prefers_literal_commands_over_fallback) {
   // is installed (e.g. UI::executeCommand, wired for per-widget commands
   // like "set-mark") - the fallback should only be consulted for names
   // Controller doesn't recognize itself.
-  ChannelConfiguration config(ChannelConfiguration::STEREO, 44100);
+  ChannelConfiguration config(44100, 1);
   Controller controller(config);
 
   int fallback_calls = 0;

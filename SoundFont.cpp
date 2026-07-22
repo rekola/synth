@@ -146,6 +146,7 @@ static inline float tsf_cents2Hertz(float cents) { return 8.176f * powf(2.0f, ce
 #include <cstring>
 #include <cmath>
 #include <cstdio>
+#include <vector>
 
 static int tsf_stream_stdio_read(FILE* f, void* ptr, unsigned int size) { return (int)fread(ptr, 1, size, f); }
 static int tsf_stream_stdio_skip(FILE* f, unsigned int count) { return !fseek(f, count, SEEK_CUR); }
@@ -615,10 +616,88 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
   }
 }
 
+// The region's own pan/send-generator data (voiceRegion_) is only known
+// once we've looked up preset/region_idx - which happens inside the
+// constructor body, after the InstrumentVoice base has already been
+// constructed. But that data is fixed for the voice's whole lifetime (an
+// SF2 region never changes once a voice is created), so rather than
+// re-deriving the combined position/sends on every getPosition()/getSendA()/
+// getSendB() call via a virtual override, look the region up once more
+// (cheap - just two array-bounds checks) directly in the constructor's own
+// initializer list and bake the already-combined values straight into the
+// base class's stored position_/send_a_/send_b_, exactly like every other
+// leaf voice does.
+static const tsf_region *
+regionFor(const SoundFontFile * f, size_t preset, size_t region_idx) {
+  if (preset >= f->presets_.size()) return nullptr;
+  auto & regions = f->presets_[preset].regions;
+  if (region_idx >= regions.size()) return nullptr;
+  return &regions[region_idx];
+}
+
+// Folds the SF2 region's own pan into an azimuth offset: find the azimuth
+// delta whose sine matches the desired pan offset (asin is the inverse of
+// the sin() inside PanLaw.h's azimuthToPan(), the same convention) and add
+// it to the voice's own azimuth. This is the only way an SF2 instrument's
+// authored stereo image (velocity layers/stereo-split regions panned
+// differently) reaches the mix, since this voice only ever renders a
+// single dry signal of its own - encodePosition() (InstrumentVoice.h)
+// spatially encodes it using exactly this (already-adjusted) position.
+// Deliberately does NOT force a real distance when the track itself never
+// set one: computeAmbisonicGains() treats distance <= 0 as "no position at
+// all" (W-only, diffuse) regardless of azimuth, so an untouched track with
+// no configured position stays diffuse - the region's pan simply has no
+// audible effect there, rather than inventing a distance to make it
+// "work" for a track that never asked to be spatially positioned.
+//
+// The region's pan describes this specific instrument's own stereo width
+// (e.g. a piano recorded with separately-panned left/right mic zones) -
+// like any real spatially-extended source, that width should narrow with
+// distance rather than staying constant forever, or a piano heard from
+// 100 units away would sound just as wide as one right next to the
+// listener. Reuses the exact same 1/distance law as
+// InstrumentVoice::getDistanceGain() (not a new falloff curve), capped at
+// 1.0 so it only ever narrows the authored width, never exaggerates it
+// for a track placed closer than distance 1 - full width at distance <= 1
+// ("near"), and by distance 100 only 1% of it survives (far enough to
+// read as a single point source).
+static SphericalPosition
+adjustPositionForPan(const SphericalPosition & position, const tsf_region * region) {
+  if (!region) return position;
+  float pan_offset = region->pan - 0.5f;
+  if (pan_offset < -0.5f) pan_offset = -0.5f;
+  else if (pan_offset > 0.5f) pan_offset = 0.5f;
+  auto adjusted = position;
+  if (pan_offset != 0.0f) {
+    float width_scale = std::min(1.0f, distanceGain(position.distance));
+    adjusted.azimuth += asinf(pan_offset * 2.0f) * 180.0f / static_cast<float>(M_PI) * width_scale;
+  }
+  return adjusted;
+}
+
+// Combines the track's own user-configured send knob with this region's
+// SF2 reverbEffectsSend/chorusEffectsSend generator data (parsed in tenths
+// of a percent, 0-1000) - additive-then-clamped, mirroring SF2's own
+// existing generator-merge convention (region + preset offsets, summed
+// then clamped) rather than inventing a new combination rule.
+static float
+adjustSendA(float send_a, const tsf_region * region) {
+  return std::min(1.0f, send_a + (region ? region->reverbEffectsSend / 1000.0f : 0.0f));
+}
+static float
+adjustSendB(float send_b, const tsf_region * region) {
+  return std::min(1.0f, send_b + (region ? region->chorusEffectsSend / 1000.0f : 0.0f));
+}
+
 class SoundFontVoice : public InstrumentVoice {
 public:
   SoundFontVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, float start_phase, std::shared_ptr<SoundFontFile> sf, size_t preset, size_t region_idx, float send_a = 0.0f, float send_b = 0.0f)
-    : InstrumentVoice(channel_config, position, detune, start_phase, send_a, send_b), sf_(sf)
+    : InstrumentVoice(channel_config,
+                       adjustPositionForPan(position, regionFor(sf.get(), preset, region_idx)),
+                       detune, start_phase,
+                       adjustSendA(send_a, regionFor(sf.get(), preset, region_idx)),
+                       adjustSendB(send_b, regionFor(sf.get(), preset, region_idx))),
+      sf_(sf)
   {
     auto f = sf_.get();
     if (preset < f->presets_.size()) {
@@ -691,41 +770,6 @@ public:
     return InstrumentVoice::getOwnLoudnessFactor() * ampenv_.getLevel();
   }
 
-  // Combines the track's own user-configured send knob (InstrumentVoice)
-  // with this region's SF2 reverbEffectsSend/chorusEffectsSend generator
-  // data (parsed in tenths of a percent, 0-1000) - additive-then-clamped,
-  // mirroring SF2's own existing generator-merge convention (region +
-  // preset offsets, summed then clamped) rather than inventing a new
-  // combination rule.
-  float totalSendA() const { return std::min(1.0f, getSendA() + (voiceRegion_ ? voiceRegion_->reverbEffectsSend / 1000.0f : 0.0f)); }
-  float totalSendB() const { return std::min(1.0f, getSendB() + (voiceRegion_ ? voiceRegion_->chorusEffectsSend / 1000.0f : 0.0f)); }
-
-  // Folds the SF2 region's own pan into an azimuth offset, approximating
-  // the exact combination the STEREO pan branch below computes via
-  // azimuthToPan(...) + (voiceRegion_->pan - 0.5f): find the azimuth delta
-  // whose sine matches the desired pan offset (asin is the inverse of the
-  // sin() inside azimuthToPan) and add it to the voice's own azimuth. This
-  // is what preserves an SF2 instrument's authored stereo image (velocity
-  // layers/stereo-split regions panned differently) once positioning
-  // happens externally instead of via this voice's own STEREO branch.
-  SphericalPosition getPosition() const override {
-    auto position = InstrumentVoice::getPosition();
-    if (voiceRegion_) {
-      float pan_offset = voiceRegion_->pan - 0.5f;
-      if (pan_offset < -0.5f) pan_offset = -0.5f;
-      else if (pan_offset > 0.5f) pan_offset = 0.5f;
-      // A region with real (non-centered) pan needs actual directionality
-      // to manifest at all - the zero-vector/diffuse default (point 6 in
-      // the plan) is for tracks that never set a position, not for a
-      // stereo-split region whose whole point is to sound off-center.
-      if (pan_offset != 0.0f) {
-	position.azimuth += asinf(pan_offset * 2.0f) * 180.0f / static_cast<float>(M_PI);
-	if (position.distance <= 0.0f) position.distance = 1.0f;
-      }
-    }
-    return position;
-  }
-
   SampleData render(int numSamples) override;
   
   void killNote() override {
@@ -774,33 +818,21 @@ protected:
 private:
   shared_ptr<SoundFontFile> sf_;
   EnvelopeState ampenv_, modenv_;
+  vector<float> dry_;
 };
 
 SampleData
 SoundFontVoice::render(int numSamples) {
   auto f = sf_.get();
 
-  float total_send_a = totalSendA(), total_send_b = totalSendB();
-
-  auto channels = regularChannelsFor(getChannelConfiguration());
-  if (total_send_a > 0.0f) channels.push_back(Channel::SendA);
-  if (total_send_b > 0.0f) channels.push_back(Channel::SendB);
-
-  SampleData outputData(channels, numSamples);
-  outputData.zero(); // outputData must be zeroed because we don't fill if after stopping playing
+  int totalSamples = numSamples;
+  dry_.assign(static_cast<size_t>(totalSamples), 0.0f); // zeroed: we don't fill past stopping playing
 
   if (!isActive()) {
-    return outputData;
+    return encodePosition(dry_.data(), totalSamples);
   }
 
-  outputData.setNonZero();
-
-  auto num_channels = getChannelConfiguration().numberOfChannels();
-  auto left_output = outputData.getChannelData(0);
-  auto right_output = num_channels == 2 ? outputData.getChannelData(1) : nullptr;
-  auto send_a_output = outputData.getChannel(Channel::SendA);
-  auto send_b_output = outputData.getChannel(Channel::SendB);
-
+  int writeIndex = 0;
   auto input = f->fontSamples_;
   
   bool updateModEnv = (voiceRegion_->modEnvToPitch || voiceRegion_->modEnvToFilterFc);
@@ -838,10 +870,6 @@ SoundFontVoice::render(int numSamples) {
     noteGain = decibelsToGain(getGainDB());
   }
 
-  float pan = azimuthToPan(getAzimuth()) + (voiceRegion_->pan - 0.5f);
-  auto gains = panToStereoGains(pan);
-  float panFactorLeft = gains.left, panFactorRight = gains.right;
-
   while (numSamples) {
     int blockSamples = (numSamples > constants::RENDER_EFFECTSAMPLEBLOCK ? constants::RENDER_EFFECTSAMPLEBLOCK : numSamples);
     numSamples -= blockSamples;
@@ -861,9 +889,7 @@ SoundFontVoice::render(int numSamples) {
       noteGain = decibelsToGain(getGainDB() + (modlfo_.getLevel() * tmpModLfoToVolume));
     }
 
-    // gainMono (undistanced) feeds the sends - see InstrumentVoice::getDistanceGain().
-    auto gainMono = noteGain * ampenv_.getLevel();
-    auto dryGainMono = gainMono * getDistanceGain();
+    auto dryGainMono = noteGain * ampenv_.getLevel() * getDistanceGain();
 
     // Update EG.
     ampenv_.process(blockSamples);
@@ -883,14 +909,7 @@ SoundFontVoice::render(int numSamples) {
       // Low-pass filter.
       if (lowpass_.active_) val = lowpass_.process(val);
 
-      if (num_channels == 1) {
-	*left_output++ = val * dryGainMono;
-      } else if (num_channels == 2) {
-	*left_output++ = val * dryGainMono * panFactorLeft;
-	*right_output++ = val * dryGainMono * panFactorRight;
-      }
-      if (send_a_output) *send_a_output++ = val * gainMono * total_send_a;
-      if (send_b_output) *send_b_output++ = val * gainMono * total_send_b;
+      dry_[static_cast<size_t>(writeIndex++)] = val * dryGainMono;
 
       // Next sample.
       sourceSamplePosition_ += pitchRatio;
@@ -902,7 +921,7 @@ SoundFontVoice::render(int numSamples) {
     }
   }
 
-  return outputData;
+  return encodePosition(dry_.data(), totalSamples);
 }
 
 void tsf_load(SoundFontFile* res, struct tsf_stream* stream) {  
@@ -1015,11 +1034,9 @@ public:
 	  // FIXME: here we should end all voices with the same instrument and group
 	}
 
-	// A leaf voice never sees AMBISONIC directly (see AmbisonicEncoding.h)
-	// - each region's own position (folded in via SoundFontVoice::getPosition())
-	// gets FOA-encoded externally, by whichever ancestor notices this
-	// voice/group's channel count doesn't match its own.
-	auto voice = make_unique<SoundFontVoice>(reduceForPositionalGroup(channel_config), position, detune, start_phase, sf_, preset_, region_idx, send_a, send_b);
+	// Each region's own position (folded in via SoundFontVoice::getPosition())
+	// gets encoded directly by the voice itself (InstrumentVoice::encodePosition()).
+	auto voice = make_unique<SoundFontVoice>(channel_config, position, detune, start_phase, sf_, preset_, region_idx, send_a, send_b);
 	voice->playNote(frequency, velocity, note_value);
 
 	if (!getChildren().empty()) {

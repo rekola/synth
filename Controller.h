@@ -60,8 +60,9 @@ class Controller {
 
   // Process-wide decoder choice, independent of any particular song (any
   // song can be rendered through any decoder - see MixerType.h). Only
-  // meaningful when getChannelConfiguration().getType() == AMBISONIC;
-  // BASIC is used unconditionally otherwise, regardless of this setting.
+  // meaningful when getChannelConfiguration().getType() == AMBISONIC - a
+  // MONO config never attempts binaural decoding regardless of this
+  // setting (see MixerFactory.cpp).
   MixerType getMixerType() const { return mixer_type_; }
   void setMixerType(MixerType mixer_type) { mixer_type_ = mixer_type; }
 
@@ -71,7 +72,7 @@ class Controller {
 
  private:
   ChannelConfiguration channel_config;
-  MixerType mixer_type_ = MixerType::BASIC;
+  MixerType mixer_type_ = MixerType::AMBISONIC_STEREO;
 
   std::shared_ptr<Song> current_song;
   std::string current_song_filename = "song.xml";

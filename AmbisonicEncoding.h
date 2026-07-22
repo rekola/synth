@@ -9,7 +9,6 @@
 #include <array>
 #include <cmath>
 #include <cassert>
-#include <unordered_map>
 
 // Ambisonic encode/decode helpers, AmbiX convention: ACN channel ordering,
 // SN3D normalization. Support is capped at 2nd order (9 channels) - a hard
@@ -22,6 +21,25 @@ constexpr int kAmbisonicOrder = 2;
 constexpr int kAmbisonicChannelCount = 9; // exactly order 2, not a
                                            // variable-order formula
 constexpr int ambisonicChannelCount(int order) { return (order + 1) * (order + 1); }
+
+// The 8 cube-vertex directions: 4 azimuths x 2 elevations, +-35.264
+// degrees (atan(1/sqrt(2)), the true cube-vertex angle) - shared by
+// AmbisonicBinauralMixer's order-1 8-speaker decode layout and the shared
+// send bus's spatial reverb (SendBusProcessor/FDNReverb), which spreads
+// its 8 decorrelated taps over these same directions. A single shared
+// source of truth rather than two independently-declared copies of the
+// same floating-point constants, which could otherwise silently drift
+// apart. Azimuth here is in this engine's convention (positive = right,
+// see PanLaw.h) - the same convention computeAmbisonicGains() below uses,
+// so these values can be passed into it directly.
+constexpr float kCubeVertexElevation = 35.264389682754654f; // atan(1/sqrt(2))
+struct AmbisonicDirection { float azimuth, elevation; };
+inline std::array<AmbisonicDirection, 8> cubeVertexDirections() {
+  return {{
+    { 45.0f, kCubeVertexElevation }, { 135.0f, kCubeVertexElevation }, { -135.0f, kCubeVertexElevation }, { -45.0f, kCubeVertexElevation },
+    { 45.0f, -kCubeVertexElevation }, { 135.0f, -kCubeVertexElevation }, { -135.0f, -kCubeVertexElevation }, { -45.0f, -kCubeVertexElevation },
+  }};
+}
 
 // SN3D reference gain for the W (ACN0) channel: a plane wave arriving from
 // the encoded direction has unity gain here, per the "N_0^0 = 1" SN3D
@@ -131,7 +149,7 @@ class AmbisonicVoiceEncoder {
 // and 1 of an ambisonic buffer regardless of order (see Channel's
 // declaration order), so plain positional indexing is correct here too.
 inline void decodeToStereo(const SampleData & in, SampleData & out) {
-  assert(in.numberOfChannels() >= 2);
+  assert(in.numberOfChannels() >= 1);
   assert(out.numberOfChannels() == 2);
   // Derived, not hardcoded, from the shared kAmbisonicReferenceGain - stays
   // correct automatically if that constant is ever revisited again.
@@ -139,14 +157,18 @@ inline void decodeToStereo(const SampleData & in, SampleData & out) {
 
   int n = in.numberOfFrames();
   auto w = in.getChannelData(0);
-  auto y = in.getChannelData(1);
+  // A genuine 1-channel (MONO, 0th-order-ambisonic) bus has no Y - treat it
+  // as 0, which makes left == right below: an equal broadcast of the
+  // non-directional W signal, not a crash or an arbitrary channel read.
+  auto y = in.numberOfChannels() >= 2 ? in.getChannelData(1) : nullptr;
   auto left = out.getChannelData(0);
   auto right = out.getChannelData(1);
 
   for (int i = 0; i < n; i++) {
     float wy = kAmbisonicReferenceGain * w[i];
-    left[i] = kBoresightNormalization * (wy - y[i]);
-    right[i] = kBoresightNormalization * (wy + y[i]);
+    float yv = y ? y[i] : 0.0f;
+    left[i] = kBoresightNormalization * (wy - yv);
+    right[i] = kBoresightNormalization * (wy + yv);
   }
 }
 
@@ -177,69 +199,39 @@ inline void encodeStereoAsPoints(const SampleData & stereo, SampleData & out) {
   }
 }
 
-// AMBISONIC -> STEREO, otherwise unchanged. Used by effects whose DSP
-// genuinely needs real stereo width or is nonlinear (Reverb, Compressor,
-// Distortion) to request that format from their children, both at
-// tree-construction time (Track::getChildChannelConfiguration) and at
-// render time (their State classes' render()).
+// The MONO counterpart of encodeStereoAsPoints(), for effects whose
+// children reduce to MONO now (see reduceForEffect) rather than real
+// stereo - a mono signal has no direction to encode, so it's folded into
+// W only, at unity (kAmbisonicReferenceGain) - the same "no position set"
+// omnidirectional convention computeAmbisonicGains() uses for distance <=
+// 0. Added, not overwritten - callers zero `out` first if that's not
+// wanted.
+inline void encodeMonoAsPoint(const SampleData & mono, SampleData & out) {
+  assert(mono.numberOfChannels() == 1);
+  assert(out.numberOfChannels() >= 1);
+
+  int n = mono.numberOfFrames();
+  auto m = mono.getChannelData(0);
+  auto out_w = out.getChannelData(0);
+
+  for (int i = 0; i < n; i++) out_w[i] += kAmbisonicReferenceGain * m[i];
+}
+
+// AMBISONIC -> MONO, otherwise unchanged. Used by effects that are
+// nonlinear or genuinely need dedicated internal DSP state (Reverb,
+// Compressor, Distortion) to request that format from their children, both
+// at tree-construction time (Track::getChildChannelConfiguration) and at
+// render time (their State classes' render()). There is no real-stereo
+// reduction target anymore (ChannelConfiguration::STEREO was removed) - a
+// nonlinear effect's children collapse to MONO like everything else, so
+// panning doesn't survive underneath one of these three effects; each
+// already handles a 1-channel input gracefully (confirmed by reading
+// ReverbState/DistortionState/Compressor's own channel loops).
 inline ChannelConfiguration reduceForEffect(const ChannelConfiguration & config) {
-  if (config.getType() == ChannelConfiguration::AMBISONIC) {
-    return ChannelConfiguration(ChannelConfiguration::STEREO, config.getAudioOutSampleRate());
+  if (config.isAmbisonic()) {
+    return ChannelConfiguration(config.getAudioOutSampleRate());
   }
   return config;
 }
-
-// AMBISONIC -> MONO, otherwise unchanged. Used only by the leaf instrument
-// classes (Oscilator, Noise, SoundFontInstrument, FileInstrument) right
-// before constructing their own voice - a voice only ever needs a mono dry
-// signal to be encoded externally, never real stereo width, so this is a
-// separate rule from reduceForEffect even though the shape is identical.
-inline ChannelConfiguration reduceForPositionalGroup(const ChannelConfiguration & config) {
-  if (config.getType() == ChannelConfiguration::AMBISONIC) {
-    return ChannelConfiguration(ChannelConfiguration::MONO, config.getAudioOutSampleRate());
-  }
-  return config;
-}
-
-// Shared per-child encode-and-sum helper: holds one AmbisonicVoiceEncoder's
-// gain-interpolation state per active child, keyed by whatever stable id the
-// caller already has on hand (TrackState's integer child ids; a raw
-// TrackState* is just as fine a key for InstrumentTrackState's per-column
-// voice vectors, which have no integer id of their own - the pointer is
-// stable for exactly the voice's lifetime, same as the state it's keying).
-// Used by TrackState::render(int frames)'s generic default and by
-// InstrumentTrackState's analogous voices_-based loop. `rendered`'s leading
-// channel is always the mono positional dry signal - under an AMBISONIC
-// ambient format, the only way a child ends up narrower than its parent is
-// via reduceForPositionalGroup (always MONO) at a leaf voice - reduceForEffect
-// narrows to STEREO, but effects that use it always re-encode back to
-// their own true (ambisonic) format before returning, so a raw STEREO
-// result is never seen by a generic parent. 0, 1, or 2 further trailing
-// channels may follow the mono signal - SendA and/or SendB, whichever this
-// voice actually produced (see SampleData's Channel enum) - which bypass
-// spatial gain-encoding entirely and are straight-summed into `accumulator`,
-// since a send is not a positional signal.
-class PositionalMixer {
- public:
-  void encode(const void * id, const SampleData & rendered, const SphericalPosition & position, SampleData & accumulator) {
-    assert(rendered.numberOfChannels() == 1 + rendered.sendCount());
-
-    auto & encoder = encoders_[id];
-    encoder.encodeBlock(accumulator, rendered.getChannelData(0), rendered.numberOfFrames(), computeAmbisonicGains(position));
-
-    for (auto ch : { Channel::SendA, Channel::SendB }) {
-      if (rendered.hasChannel(ch) && accumulator.hasChannel(ch)) {
-        auto src = rendered.getChannel(ch);
-        auto dst = accumulator.getChannel(ch);
-        for (int i = 0; i < rendered.numberOfFrames(); i++) dst[i] += src[i];
-      }
-    }
-  }
-
-  void remove(const void * id) { encoders_.erase(id); }
-
- private:
-  std::unordered_map<const void *, AmbisonicVoiceEncoder> encoders_;
-};
 
 #endif

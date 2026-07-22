@@ -57,7 +57,9 @@ add_library(synth_engine STATIC
 	effects/Downmix.cpp
 	effects/Reverb.cpp
 	effects/Chorus.cpp
-	effects/ChorusEngine.cpp
+	dsp/ChorusEngine.cpp
+	bus/FDNReverb.cpp
+	bus/SendBusProcessor.cpp
 	effects/Amplifier.cpp
 	effects/EnvelopeFilter.cpp
 	effects/Compressor.cpp
@@ -71,7 +73,6 @@ add_library(synth_engine STATIC
 	LaunchpadLayout.cpp
 	LaunchpadProtocol.cpp
 	MixerFactory.cpp
-	SendBusProcessor.cpp
 )
 target_include_directories(synth_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(synth_engine PUBLIC m sndfile fmt fftw3 pthread)

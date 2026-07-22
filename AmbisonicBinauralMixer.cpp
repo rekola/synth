@@ -72,9 +72,10 @@ string findDefaultSofaFile() {
 // convention (positive = left, measured from the +x/front axis) via a
 // sign flip below, in the loop that builds each SpeakerFilter.
 
-// Cube vertices: 4 azimuths x 2 elevations. +-35.264 degrees
-// (atan(1/sqrt(2))) is the true cube-vertex angle.
-constexpr float kCubeElevation = 35.264389682754654f;
+// Cube vertices (order 1): the same 8 directions the shared send bus's
+// spatial reverb spreads its taps over - see AmbisonicEncoding.h's
+// cubeVertexDirections(), the single shared source of truth for these
+// constants.
 
 // Icosahedron vertices: 2 poles + two 5-vertex rings at the true
 // icosahedron-vertex elevation (atan(0.5), the angle between a
@@ -82,14 +83,10 @@ constexpr float kCubeElevation = 35.264389682754654f;
 // from each other.
 constexpr float kIcosahedronElevation = 26.56505117707799f; // atan(0.5), degrees
 
-struct SpeakerDirection { float azimuth, elevation; };
-
-std::vector<SpeakerDirection> speakerDirectionsFor(int ambisonic_channels) {
+std::vector<AmbisonicDirection> speakerDirectionsFor(int ambisonic_channels) {
   if (ambisonic_channels <= 4) {
-    return {
-      { 45.0f, kCubeElevation }, { 135.0f, kCubeElevation }, { -135.0f, kCubeElevation }, { -45.0f, kCubeElevation },
-      { 45.0f, -kCubeElevation }, { 135.0f, -kCubeElevation }, { -135.0f, -kCubeElevation }, { -45.0f, -kCubeElevation },
-    };
+    auto cube = cubeVertexDirections();
+    return std::vector<AmbisonicDirection>(cube.begin(), cube.end());
   }
   return {
     { 0.0f, 90.0f }, { 0.0f, -90.0f },

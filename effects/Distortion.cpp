@@ -9,10 +9,11 @@ public:
   DistortionState(const ChannelConfiguration & channel_config, DistortionType type, float param, float drymix, float drive)
     : EffectState(channel_config), type_(type), param_(param), drymix_(drymix), drive_(drive) { }
 
-  // Gathers children in real stereo/mono (reduceForEffect), never raw
-  // ambisonic - see Distortion.h and the "Effects" section of the spatial
-  // audio plan for why this nonlinear effect can't rely on TrackState's
-  // generic children-gathering the way a transparent effect does.
+  // Gathers children reduced to MONO (reduceForEffect), never raw
+  // ambisonic - panning doesn't survive under this nonlinear effect; see
+  // Distortion.h and the "Effects" section of the spatial audio plan for
+  // why this can't rely on TrackState's generic children-gathering the
+  // way a transparent effect does.
   SampleData render(int frames) override {
     auto reduced_config = reduceForEffect(getChannelConfiguration());
     auto data = renderChildren(frames, reduced_config);
@@ -29,10 +30,10 @@ public:
 
 protected:
   SampleData reencodeIfNeeded(SampleData data) {
-    if (getChannelConfiguration().getType() != ChannelConfiguration::AMBISONIC) return data;
+    if (getChannelConfiguration().isMono()) return data;
     SampleData out(getChannelConfiguration(), data.numberOfFrames());
     out.zero();
-    encodeStereoAsPoints(data, out);
+    encodeMonoAsPoint(data, out);
     if (!data.isZero()) out.setNonZero();
     return out;
   }

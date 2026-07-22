@@ -47,7 +47,8 @@ static bool renderSongToWav(Controller & controller, const ChannelConfiguration 
 int main(int argc, char *argv[]) {
   int load_demo = 0;
   bool relative = false;
-  ChannelConfiguration channel_config(ChannelConfiguration::STEREO, 44100);
+  ChannelConfiguration channel_config(44100, 1);
+  bool force_cardioid = false; // --stereo: skip binaural HRTF decode even if available
   vector<string> input;
   string render_path;
 
@@ -82,7 +83,7 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(argv[i], "--relative") == 0) {
       relative = true;
     } else if (strcmp(argv[i], "--stereo") == 0) {
-      channel_config.setType(ChannelConfiguration::STEREO);
+      force_cardioid = true;
     } else if (strcmp(argv[i], "--ambisonic") == 0) {
       int order = 1;
       if (i + 1 < argc && argv[i + 1][0] != '-') {
@@ -93,7 +94,6 @@ int main(int argc, char *argv[]) {
 	fmt::print(stderr, "invalid ambisonic order (must be 1-{})\n", kAmbisonicOrder);
 	exit(1);
       }
-      channel_config.setType(ChannelConfiguration::AMBISONIC);
       channel_config.setAmbisonicOrder(order);
     } else if (argv[i][0] == '-') {
       fmt::print(stderr, "invalid parameter\n");
@@ -104,6 +104,7 @@ int main(int argc, char *argv[]) {
   }
       
   auto controller = make_shared<Controller>(channel_config);
+  if (force_cardioid) controller->setMixerType(MixerType::AMBISONIC_STEREO);
 
   if (!input.empty()) {
     if (!controller->openSong(input.front())) {

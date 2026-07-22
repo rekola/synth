@@ -46,24 +46,20 @@ protected:
   // reduced format (Effect.h/Reverb.h/etc.), so channel counts always
   // match and every child is just plain-mixed, same as pre-ambisonic code.
   SampleData renderChildren(int frames, const ChannelConfiguration & accumulator_config) {
-    bool is_ambisonic = accumulator_config.getType() == ChannelConfiguration::AMBISONIC;
-
     // Render every active child first, then decide the accumulator's shape
     // from what actually came back (hasChannel(SendA/SendB)) rather than
     // predicting it up front - simpler than a separate non-rendering
     // "would this produce a send" query, since the real answer is sitting
     // right there in each child's own rendered output.
-    std::vector<std::pair<TrackState *, SampleData> > rendered;
+    std::vector<SampleData> rendered;
     for (auto & [ id, child ] : getChildren()) {
       if (child->isActive()) {
-	rendered.emplace_back(child.get(), child->render(frames));
-      } else {
-	positional_mixer_.remove(child.get());
+	rendered.push_back(child->render(frames));
       }
     }
 
     bool has_send_a = false, has_send_b = false;
-    for (auto & [ child, s ] : rendered) {
+    for (auto & s : rendered) {
       has_send_a = has_send_a || s.hasChannel(Channel::SendA);
       has_send_b = has_send_b || s.hasChannel(Channel::SendB);
     }
@@ -74,33 +70,12 @@ protected:
     SampleData data(channels, frames);
     data.zero();
 
-    int regular = data.numberOfChannels() - data.sendCount();
-    for (auto & [ child, s ] : rendered) {
-      int s_regular = s.numberOfChannels() - s.sendCount();
-      // A child narrower (in its regular channels) than this node's own
-      // (ambisonic) format bottomed out at MONO without anything
-      // re-encoding it back up (see reduceForPositionalGroup,
-      // AmbisonicEncoding.h) - FOA-encode it here using its own position
-      // rather than blindly mixing, which is what lets NoteMultiplier/
-      // SoundFontInstrument's differently-positioned sub-voices (and a
-      // single voice under a transparent per-voice effect) spatialize
-      // correctly with no ambisonic-specific code of their own.
-      // PositionalMixer::encode also straight-sums any SendA/SendB the
-      // child carries (not positional, so not gain-encoded). If regular
-      // channel counts already match, the child already produced genuine
-      // ambisonic-shaped output (e.g. a nested composite that went
-      // through this same logic one level down) - mixNamed it directly,
-      // same as always, tolerating the child having 0/1/2 sends present
-      // while this accumulator may have a different (superset) subset.
-      if (is_ambisonic && s_regular < regular) {
-	if (!s.isZero()) {
-	  positional_mixer_.encode(child, s, child->getPosition(), data);
-	  data.setNonZero();
-	}
-      } else {
-	data.mixNamed(s);
-      }
-    }
+    // Every child now spatially encodes itself directly, using its own
+    // position, to its own real (never reduced) ChannelConfiguration - see
+    // InstrumentVoice::encodePosition() - so a child's rendered output
+    // always already matches this accumulator's shape exactly; no
+    // per-child dispatch is needed, just a plain mix.
+    for (auto & s : rendered) data.mixNamed(s);
 
     return data;
   }
@@ -279,21 +254,6 @@ public:
     return -1;
   }
 
-  // This voice chain's position in space, for external ambisonic encoding
-  // (see AmbisonicEncoding.h). Same "search children, return the first
-  // found" idiom as getNoteValue() - a wrapper node (composite instrument,
-  // per-voice effect) transparently reports whatever its InstrumentVoice
-  // descendant was constructed with. Overridden by InstrumentVoice (returns
-  // its stored position_) and further by SoundFontVoice (folds in the
-  // region's own pan).
-  virtual SphericalPosition getPosition() const {
-    for (auto & [ id, child ] : getChildren()) {
-      auto p = child->getPosition();
-      if (p.distance > 0.0f) return p;
-    }
-    return SphericalPosition{};
-  }
-
   const std::unordered_map<int, std::unique_ptr<TrackState> > & getChildren() const { return children_; }
   std::unordered_map<int, std::unique_ptr<TrackState> > & getChildren() { return children_; }
 
@@ -318,7 +278,6 @@ private:
   std::unordered_map<int, std::unique_ptr<TrackState> > children_;
   float aftertouch_ = 1.0f;
   TrackInfo track_info_;
-  PositionalMixer positional_mixer_;
 };
 
 #endif

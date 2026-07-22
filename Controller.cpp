@@ -75,17 +75,17 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     instrument_provider.loadSoundFont("data/Essential Keys-sforzando-v9.6.sf2", false);
   }
 
-  if (channel_config.getType() == ChannelConfiguration::AMBISONIC) {
-    // MixerFactory falls back to AMBISONIC_STEREO at actual mixer-
-    // construction time if no SOFA file resolves (or libmysofa isn't
-    // compiled in), so defaulting to AMBISONIC_BINAURAL here is safe even
-    // when that fallback will immediately kick in.
+  // MixerFactory falls back to AMBISONIC_STEREO at actual mixer-
+  // construction time if no SOFA file resolves (or libmysofa isn't
+  // compiled in), so defaulting to AMBISONIC_BINAURAL here is safe even
+  // when that fallback will immediately kick in - and harmless for a MONO
+  // config too, since MixerFactory never attempts binaural for MONO
+  // regardless of this setting.
 #ifdef SYNTH_HAVE_LIBMYSOFA
-    mixer_type_ = MixerType::AMBISONIC_BINAURAL;
+  mixer_type_ = MixerType::AMBISONIC_BINAURAL;
 #else
-    mixer_type_ = MixerType::AMBISONIC_STEREO;
+  mixer_type_ = MixerType::AMBISONIC_STEREO;
 #endif
-  }
 }
 
 void
@@ -610,13 +610,12 @@ Controller::sendCommand(std::string_view cmd) {
 
   } else if (cmd == "toggle-mixer-type") {
     // "Bypass HRTF entirely" toggle: AMBISONIC_STEREO <-> AMBISONIC_BINAURAL.
-    // A no-op outside ambisonic mode - BasicMixer is used unconditionally
-    // there regardless of this setting (see MixerType.h).
-    if (channel_config.getType() == ChannelConfiguration::AMBISONIC) {
-      mixer_type_ = (mixer_type_ == MixerType::AMBISONIC_BINAURAL) ? MixerType::AMBISONIC_STEREO : MixerType::AMBISONIC_BINAURAL;
-      fmt::print(stderr, "Mixer type set to {}\n", to_string(mixer_type_));
-      getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MIXER_CHANGED));
-    }
+    // A no-op for a MONO config - MixerFactory never attempts binaural
+    // decoding there regardless of this setting (see MixerFactory.cpp) -
+    // but harmless to still flip, so no type check is needed here either.
+    mixer_type_ = (mixer_type_ == MixerType::AMBISONIC_BINAURAL) ? MixerType::AMBISONIC_STEREO : MixerType::AMBISONIC_BINAURAL;
+    fmt::print(stderr, "Mixer type set to {}\n", to_string(mixer_type_));
+    getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MIXER_CHANGED));
   } else if (command_fallback_) {
     return command_fallback_(cmd);
   } else {

@@ -29,7 +29,22 @@ class Song : public StatefulSongObject {
   
   short getTempo() const { return bpm_; }
   void setTempo(short bpm) { bpm_ = bpm; }
-  
+
+  // Shared spatial reverb (SendA, see SendBusProcessor/FDNReverb) - static
+  // song-level settings, like every other effect parameter in this
+  // codebase (no automation mechanism exists for continuously varying an
+  // effect parameter from pattern data today).
+  float getReverbSize() const { return reverb_size_; }
+  void setReverbSize(float f) { reverb_size_ = f; }
+  float getReverbDecay() const { return reverb_decay_; }
+  void setReverbDecay(float f) { reverb_decay_ = f; }
+  float getReverbDamping() const { return reverb_damping_; }
+  void setReverbDamping(float f) { reverb_damping_ = f; }
+  float getReverbPreDelay() const { return reverb_predelay_; }
+  void setReverbPreDelay(float f) { reverb_predelay_ = f; }
+  float getReverbWet() const { return reverb_wet_; }
+  void setReverbWet(float f) { reverb_wet_ = f; }
+
   void incVersion() { version_++; }
   int getVersion() const { return version_; }
 
@@ -135,6 +150,11 @@ private:
   short key_note_number_ = 0;
   float randomization_factor_ = 0.0f;
   int bpm_ = 90;
+  float reverb_size_ = 1.0f;
+  float reverb_decay_ = 1.8f;
+  float reverb_damping_ = 0.1f;
+  float reverb_predelay_ = 0.02f;
+  float reverb_wet_ = 0.2512f;
   int version_ = 1;
 
   std::vector<std::unique_ptr<Track> > instruments_;
