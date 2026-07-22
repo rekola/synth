@@ -63,22 +63,41 @@ project; useful for chasing memory bugs (e.g. `SampleData`'s copy-assignment
 leak was confirmed this way).
 
 Needs a real terminal (notcurses full-screen UI) and an ALSA output device.
-Options: `--samplerate N`, `--stereo | --ambisonic [order]`, `--demo [n]`.
-`--ambisonic [order]` renders through an ambisonic bus (ACN/SN3D, AmbiX
-convention) instead of the plain stereo pan path, up to 2nd order (`order`
-1 or 2 — a hard ceiling, not a stepping stone to 3rd; `kAmbisonicOrder` in
-`AmbisonicEncoding.h`), decoded to binaural (HRIR-convolved, via libmysofa,
-when `SYNTH_ENABLE_BINAURAL` is on and a SOFA file resolves) or a cheap
-cardioid stereo matrix otherwise — see `AmbisonicEncoding.h`/
-`AmbisonicDecoders.h`. The binaural decoder's virtual speaker layout
-depends on order: 1st order (4 channels, W/Y/Z/X only) keeps an 8-speaker
-cube — a 12-speaker icosahedron wouldn't add anything decoding from just 4
-basis functions; 2nd order (9 channels) moves to a 12-speaker icosahedron,
-which is what actually exploits the 5 additional degree-2 basis functions
-for finer spatial resolution (`AmbisonicBinauralMixer.cpp`). There is no
-`--mono`: it was never a useful device-output mode; `ChannelConfiguration::MONO`
-survives only as an internal value voices/leaf instruments reduce to before
-constructing themselves (`reduceForPositionalGroup`), regardless of mode.
+Options: `--samplerate N`, `--stereo`, `--ambisonic [order]`, `--demo [n]`.
+Every song is always rendered through an ambisonic bus (ACN/SN3D, AmbiX
+convention) — there is no plain-stereo-pan mode at all any more, and
+`ChannelConfiguration::STEREO` doesn't exist as a type (see
+`ChannelConfiguration.h`); `--ambisonic [order]` just sets the order, up to
+2nd (`order` 1 or 2 — a hard ceiling, not a stepping stone to 3rd;
+`kAmbisonicOrder` in `AmbisonicEncoding.h`), decoded to binaural
+(HRIR-convolved, via libmysofa, when `SYNTH_ENABLE_BINAURAL` is on and a
+SOFA file resolves) or a cheap cardioid stereo matrix otherwise — see
+`AmbisonicEncoding.h`/`AmbisonicDecoders.h`. `--stereo` no longer selects a
+different channel-configuration type — it forces the cardioid decoder
+(`MixerType::AMBISONIC_STEREO`) even when binaural would otherwise be
+available, the same toggle `toggle-mixer-type` flips at runtime; the
+ambisonic order itself is unaffected (still 1 unless `--ambisonic 2` is
+also given). The binaural decoder's virtual speaker layout depends on
+order: 1st order (4 channels, W/Y/Z/X only) keeps an 8-speaker cube — a
+12-speaker icosahedron wouldn't add anything decoding from just 4 basis
+functions; 2nd order (9 channels) moves to a 12-speaker icosahedron, which
+is what actually exploits the 5 additional degree-2 basis functions for
+finer spatial resolution (`AmbisonicBinauralMixer.cpp`). There is no
+`--mono` flag either: it was never a useful device-output mode;
+`ChannelConfiguration::MONO` (conceptually 0th-order ambisonics — a single
+omnidirectional/W channel, `numberOfChannels() == 1`) survives only as an
+internal value voices/leaf instruments and nonlinear per-track effects
+(Reverb/Chorus/Distortion) reduce to before constructing themselves
+(`reduceForPositionalGroup`/`reduceForEffect`), plus one synthetic
+top-level test exercising a channel-generic effect loop directly
+(`render_mono_with_compressor_does_not_read_out_of_bounds`) — every mixer,
+`MONO` included, still ultimately decodes to a 2-channel stereo device
+signal (`ChannelConfiguration::getDeviceChannels()` is unconditionally 2;
+`decodeToStereo()` broadcasts a MONO/W-only bus equally to both channels
+rather than asserting on it). `BasicMixer` (the old plain-stereo-pan/
+raw-N-channel mixer) was retired entirely along with `STEREO`; every mixer
+`MixerFactory` builds now is `AmbisonicStereoMixer` or
+`AmbisonicBinauralMixer`.
 **Space** toggles playback, Ctrl-Q quits, Ctrl-N creates a new song,
 **Ctrl-K** opens the M-x command minibuffer (reliable on any terminal; see
 below for why it exists alongside Esc-x/Alt-x).
@@ -236,29 +255,49 @@ SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
   `AlsaAudio` (output), `TerminalUI`/`PatternEditor`/`HierarchyView`
   (notcurses UI), `Tuner`/`Tuning` (microtonal pitch math),
   `OscilatorVoice`/`GenericInstrument`/`SoundFont` (synthesis).
-- `effects/` — audio effects (reverb, chorus, delay, compressor, …).
+- `effects/` — per-track audio effects (reverb, chorus, delay, compressor,
+  distortion, …) — each constructed fresh per track/note and torn down with
+  it, unlike the shared send bus (`bus/`, below). `effects/Reverb.{h,cpp}`'s
+  `MVerb`-based reverb (`<reverb preset="...">`) is a completely separate
+  code path from the shared bus's spatial FDN reverb (`bus/FDNReverb.h`) —
+  don't confuse the two.
 - `AmbisonicEncoding.h` — ambisonic encode/decode math (SN3D gains up to
   2nd order via `AmbisonicGains`/`computeAmbisonicGains`, per-voice
   gain-interpolated encoder, stereo decode/re-encode helpers) shared by
-  every ambisonic-aware node. `AmbisonicDecoders.h` — the master-bus
-  `Mixer` subclasses (`AmbisonicStereoMixer`, always available;
-  `AmbisonicBinauralMixer`, libmysofa-gated). `MixerFactory.{h,cpp}` picks
-  between `BasicMixer`/these two, given the process-wide `ChannelConfiguration`
-  and `Controller`-level `MixerType` setting — used by both `Player` and
-  `OfflineRenderer`/`--render` so they exercise identical mixer-selection
-  logic. (A prior, incompatible ambisonic attempt, `HRFT.{cpp,h}`, predated
-  the current `Mixer`/`SampleData` interfaces and was never in the build;
-  deleted rather than revived.)
-- `SampleData.h`'s `Channel` enum (`Mono`/`Left`/`Right`/`W`/`Y`/`Z`/`X`/
-  `Acn4`..`Acn8`/`SendA`/`SendB`) names a buffer's raw channel indices by
-  *presence*, not by an explicit table: a channel's raw index is however
-  many other present channels come earlier in the enum's declaration
-  order (`SampleData::hasChannel`/`getChannel`). `ChannelConfiguration`
-  itself stays completely ignorant of `SendA`/`SendB` — they're layered
-  onto any configuration by whoever constructs a `SampleData` (the plain
+  every ambisonic-aware node. `cubeVertexDirections()` gives the 8
+  cube-vertex directions (az ±45°/±135°, el ±35.264°) both
+  `AmbisonicBinauralMixer`'s order-1 speaker layout and the shared send
+  bus's spatial reverb taps encode into — a single shared source of truth,
+  not two independently-declared copies of the same constants.
+  `AmbisonicDecoders.h` — the master-bus `Mixer` subclasses
+  (`AmbisonicStereoMixer`, always available; `AmbisonicBinauralMixer`,
+  libmysofa-gated). `MixerFactory.{h,cpp}` picks between these two, given
+  the process-wide `ChannelConfiguration` and `Controller`-level
+  `MixerType` setting — used by both `Player` and `OfflineRenderer`/
+  `--render` so they exercise identical mixer-selection logic. There is no
+  third, plain-stereo-pan mixer any more (`BasicMixer` was retired along
+  with `ChannelConfiguration::STEREO` — see the Run section above): every
+  song is always rendered through an ambisonic bus, `MONO` (0th-order
+  ambisonic, W-only) included, which `AmbisonicStereoMixer`'s
+  `decodeToStereo()` broadcasts equally to both output channels rather
+  than needing its own separate mixer type. (A prior, incompatible
+  ambisonic attempt, `HRFT.{cpp,h}`, predated the current `Mixer`/
+  `SampleData` interfaces and was never in the build; deleted rather than
+  revived.)
+- `SampleData.h`'s `Channel` enum (`W`/`Y`/`Z`/`X`/`Acn4`..`Acn8`/`SendA`/
+  `SendB`) names a buffer's raw channel indices by *presence*, not by an
+  explicit table: a channel's raw index is however many other present
+  channels come earlier in the enum's declaration order
+  (`SampleData::hasChannel`/`getChannel`). There is no separate `Mono`
+  value — `ChannelConfiguration::MONO` is 0th-order ambisonics (a single
+  omnidirectional component), so a mono buffer just marks `W` present and
+  leaves `Y`/`Z`/`X` absent, rather than naming the same "one
+  omnidirectional channel" concept twice. `ChannelConfiguration` itself
+  stays completely ignorant of `SendA`/`SendB` — they're layered onto any
+  configuration by whoever constructs a `SampleData` (the plain
   `ChannelConfiguration`-based constructor never marks them; the
   vector-of-`Channel` constructor does, e.g. a leaf voice building
-  `{Mono, SendA}`). `regularChannelsFor(config)` returns the "regular"
+  `{W, SendA}`). `regularChannelsFor(config)` returns the "regular"
   (non-send) channel list a `ChannelConfiguration` implies, for building
   that vector. `SampleData::mixNamed()` is `mix()`'s sends-tolerant
   sibling — same exact-match/mono-broadcast rules, but a send present on
@@ -293,32 +332,71 @@ SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
   output never trips an exact-channel-count assert) but every `Mixer`'s
   `encode()` deliberately never reads them — unprocessed sends there would
   just sound bad without real reverb/chorus DSP consuming them first.
-- That DSP is `SongState`'s `SendBusProcessor` (`SendBusProcessor.h`/`.cpp`),
-  not anything inside the `Mixer` hierarchy: `SongState::render()` sums
-  `SendA`/`SendB` off every top-level track's own rendered output (each
-  already correctly summed within its own subtree) into two persistent
-  mono accumulators, always runs them through `SendBusProcessor::process()`
-  (even when both are silent, so the reverb tail/chorus modulation state
-  stay continuous across blocks - the same reasoning as
-  `AmbisonicBinauralMixer`'s overlap-add tail), encodes the resulting
-  stereo wet signal into the bus's own shape (`encodeStereoAsPoints` for
-  ambisonic, direct for stereo, downmixed for mono), and hands it to the
-  mixer via one more `mixer.accumulate()` call - no changes needed to
-  `Mixer`, `OfflineRenderer.cpp`, or `Player.cpp`. `SendBusProcessor` owns
-  one shared `MVerb<float>` (fed by `SendA`, fixed reasonable parameters,
-  `MIX` fixed to 1.0 - fully wet, since dry/wet balance is already
-  controlled upstream by each track's own `sendA` amount) and one shared
-  `effects/ChorusEngine.h`/`.cpp` instance (fed by `SendB`, `decorrelate =
-  true`, `mix = 1.0`). `ChorusEngine` is a multi-voice, LFO-modulated,
-  linearly-interpolated delay-line chorus that never mixes across
-  channels (each channel's wet signal comes only from that channel's own
-  delayed content) - the same engine also replaced the per-track `Chorus`
-  effect's old hand-rolled single-voice implementation (`effects/Chorus.h`/
-  `.cpp`, XML attributes `voices`/`rate`/`delay`/`depth`/`mix`), with
-  `decorrelate = false` there so a channel with no signal (e.g. the silent
-  side of a hard-panned source) stays silent - width is never invented
-  where the input didn't have any, only synthesized from an initially-
-  identical duplicated-mono signal (the shared bus's case).
+- That DSP lives in `bus/` (the shared send bus's own subsystem, depending
+  on `dsp/` — reusable, dependency-free DSP building blocks, never the
+  reverse) — `SongState`'s `SendBusProcessor` (`bus/SendBusProcessor.h`/
+  `.cpp`) is not anything inside the `Mixer` hierarchy: `SongState::render()`
+  sums `SendA`/`SendB` off every top-level track's own rendered output
+  (each already correctly summed within its own subtree) into two
+  persistent mono accumulators, and — only when its own `ChannelConfiguration`
+  is `AMBISONIC` (skipped for the one synthetic top-level `MONO` config a
+  Compressor regression test constructs directly, which has no sensible
+  ambisonic tap-encode target) — always runs them through
+  `SendBusProcessor::process()` (even when both are silent, so the reverb
+  tail/chorus modulation state stay continuous across blocks - the same
+  reasoning as `AmbisonicBinauralMixer`'s overlap-add tail), then
+  accumulates the result directly into the mixer with a single
+  `mixer.accumulate()` call — no decode step happens in `SongState` itself,
+  since the top-level mixer is always ambisonic-shaped too.
+  `SendBusProcessor`'s own output (`getBusAmbisonic()`) is *always*
+  ambisonic-shaped (`config.numberOfChannels()` — 4 or 9), never a stereo
+  signal: `bus/FDNReverb.h`'s 8-line feedback delay network (fed by
+  `SendA`) replaced the shared bus's old single `MVerb<float>` instance —
+  each of its 8 decorrelated tap outputs is encoded straight into the
+  ambisonic bus at a fixed cube-vertex direction
+  (`cubeVertexDirections()`), spreading the reverb tail over the whole
+  sphere rather than the old 2-point (az ±90°) encode, and sitting
+  *before* whatever decoder (binaural/stereo/future) renders the bus so
+  none of it is decoder-specific. `bus/ChorusBusEffect.h` (fed by `SendB`)
+  is a thin adapter duplicating the mono `SendB` sum into 2 channels for a
+  wrapped `dsp::ChorusEngine` (`decorrelate = true`, `mix = 1.0`), then
+  folding its stereo output into the same ambisonic accumulator via
+  `encodeStereoAsPoints()` (fixed az ±90° points, unchanged from before).
+  Both `FDNReverb` and `ChorusBusEffect` derive from `bus/BusEffect.h` (a
+  small shared base standardizing construction and the "always process
+  every block, even silent input" contract), driven identically through
+  `process(monoInput, frames)` — not yet configurable (SendA is always
+  the reverb, SendB always the chorus), but this uniform shape is what
+  would make that reassignment a small change later, not a rewrite.
+  `dsp::ChorusEngine` (`dsp/ChorusEngine.h`/`.cpp`) is a multi-voice,
+  LFO-modulated, linearly-interpolated delay-line chorus that never mixes
+  across channels (each channel's wet signal comes only from that
+  channel's own delayed content) - the same engine also replaced the
+  per-track `Chorus` effect's old hand-rolled single-voice implementation
+  (`effects/Chorus.h`/`.cpp`, XML attributes `voices`/`rate`/`delay`/
+  `depth`/`mix`), with `decorrelate = false` there so a channel with no
+  signal (e.g. the silent side of a hard-panned source) stays silent -
+  width is never invented where the input didn't have any, only
+  synthesized from an initially-identical duplicated-mono signal (the
+  shared bus's case). The reverb's 5 parameters (`size`/`decay`/`damping`/
+  `preDelay`/`wet`) are song-level settings (`Song::getReverbSize()` etc.,
+  `<song reverbSize="..." .../>` XML attributes, medium-hall defaults),
+  pushed into `SendBusProcessor` once at song load
+  (`SongState::initialize()`) — like every other effect parameter in this
+  codebase, they're static, not automatable (no mechanism for that exists
+  here at all — the tracker's per-row mnemonic command column is inert at
+  playback time).
+- Nonlinear/dedicated-DSP per-track effects (`effects/Reverb.cpp`/
+  `Chorus.cpp`/`Distortion.cpp`) reduce their children to `MONO` before
+  rendering them (`reduceForEffect`, `AmbisonicEncoding.h`) rather than
+  raw ambisonic — real stereo panning doesn't survive underneath one of
+  these three (a deliberate trade-off, not a bug), and re-encoding their
+  processed mono output back up into an ambisonic parent afterward
+  (`reencodeIfNeeded()`) uses `encodeMonoAsPoint()` (folds into `W` only,
+  unity gain — a mono signal has no direction to encode), not
+  `encodeStereoAsPoints()` (which needs genuine 2-channel input and is
+  reserved for things that actually have it, like `ChorusBusEffect`'s
+  output above).
 - `songs/` — example/test songs (XML, hand-editable).
 - `docs/` — note-number tables for various EDOs, key bindings, MIDI notes;
   `known_bugs.md` tracks open, not-yet-fixed bugs (as opposed to `todo.txt`'s
