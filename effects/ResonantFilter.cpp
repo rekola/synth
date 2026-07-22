@@ -2,7 +2,7 @@
 
 #include "EffectState.h"
 
-#include "MoogVCF.h"
+#include "../dsp/MoogVCF.h"
 #include "../EnvelopeState.h"
 #include "../constants.h"
 

@@ -5,8 +5,8 @@ using namespace std;
 #include "InstrumentVoice.h"
 #include "WaveformType.h"
 #include "NoiseColor.h"
-#include "NoiseGenerator.h"
-#include "PinkNoiseFilter.h"
+#include "dsp/NoiseGenerator.h"
+#include "dsp/PinkNoiseFilter.h"
 
 #include <vector>
 

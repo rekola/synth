@@ -1,7 +1,7 @@
 #include "TestFramework.h"
 
 #include "../bus/FDNReverb.h"
-#include "../NoiseGenerator.h"
+#include "../dsp/NoiseGenerator.h"
 
 #include <algorithm>
 #include <cmath>

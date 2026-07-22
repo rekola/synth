@@ -4,7 +4,7 @@
 #include "EventHandler.h"
 #include "SongState.h"
 #include "MixerType.h"
-#include "FFT.h"
+#include "dsp/FFT.h"
 
 #include <memory>
 

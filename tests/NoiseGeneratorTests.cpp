@@ -1,7 +1,7 @@
 #include "TestFramework.h"
 
-#include "../NoiseGenerator.h"
-#include "../PinkNoiseFilter.h"
+#include "../dsp/NoiseGenerator.h"
+#include "../dsp/PinkNoiseFilter.h"
 
 TEST(noise_generator_is_deterministic_per_seed) {
   NoiseGenerator a(12345), b(12345);

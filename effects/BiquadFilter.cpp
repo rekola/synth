@@ -2,7 +2,7 @@
 
 #include "EffectState.h"
 
-#include "../Biquad.h"
+#include "../dsp/Biquad.h"
 #include "../TrackState.h"
 #include "../EnvelopeState.h"
 

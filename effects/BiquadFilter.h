@@ -3,7 +3,7 @@
 
 #include "Effect.h"
 #include "../Envelope.h"
-#include "../FilterType.h"
+#include "../dsp/FilterType.h"
 
 class BiquadFilter : public Effect {
  public:
