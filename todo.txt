@@ -211,7 +211,6 @@ fix
  - FileInstrument
  - Chorus (toimii vain yhdellä kanavalla)
  - Compressor (single channel only, wtf)
- - Delay (toimii vain yhdellä kanavalla)
 
 add modulation mode to oscilator (to every track)
  - frequency modulation
@@ -778,11 +777,6 @@ Add soundfont instruments by index to get the correct midi names
 
 Misc:
  - Copy drum patterns and everything from Microtonal christmas video
-
-Delay:
-  - Lookup Delay parameters from some existing Delay effect
-  - Refactor Delay to work like Chorus
-  - Delay is sample rate dependant => convert delay to milliseconds
 
 Chorus:
   - Use LFO (how?)

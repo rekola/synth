@@ -17,9 +17,7 @@
   
   <tracks>
     <reverb volume="1.0" preset="subtle">
-      <delay delay="2" feedback="0.25" mix="0.25">
-	<track id="0" instrument="0" />
-      </delay>
+      <track id="0" instrument="0" />
     </reverb>
   </tracks>
   

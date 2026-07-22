@@ -107,7 +107,7 @@ TEST(chorus_engine_ignores_send_channels) {
   // The engine's per-channel state is sized once, at construction, from
   // the regular channel count - it must never touch SendA/SendB even if
   // they're present on the SampleData it's given (the same class of bug
-  // fixed in ResonantFilter/BiquadFilter/Delay).
+  // fixed in ResonantFilter/BiquadFilter).
   ChorusEngine engine(2, 44100);
   engine.setMix(1.0f);
 

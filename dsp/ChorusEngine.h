@@ -31,9 +31,9 @@ class ChorusEngine {
   // In place. Only ever touches this SampleData's regular (non-send)
   // channels - SendA/SendB, if present, are left untouched (see
   // SampleData::sendCount()), same reasoning as the fix applied to
-  // ResonantFilter/BiquadFilter/Delay: this engine's per-channel state is
-  // sized once, at construction, from the reduced (always real) channel
-  // count, which never includes sends.
+  // ResonantFilter/BiquadFilter: this engine's per-channel state is sized
+  // once, at construction, from the reduced (always real) channel count,
+  // which never includes sends.
   void process(SampleData & data);
 
  private:
