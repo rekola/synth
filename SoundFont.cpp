@@ -23,13 +23,14 @@
 
 #include "SoundFont.h"
 
-#include "Biquad.h"
+#include "dsp/Biquad.h"
 #include "FourCC.h"
 #include "EnvelopeState.h"
 #include "LFOState.h"
 #include "InstrumentVoice.h"
 #include "SampleData.h"
-#include "PanLaw.h"
+#include "dsp/PanLaw.h"
+#include "dsp/ChorusEngine.h"
 #include "AmbisonicEncoding.h"
 
 #include "constants.h"
@@ -147,6 +148,8 @@ static inline float tsf_cents2Hertz(float cents) { return 8.176f * powf(2.0f, ce
 #include <cmath>
 #include <cstdio>
 #include <vector>
+#include <array>
+#include <memory>
 
 static int tsf_stream_stdio_read(FILE* f, void* ptr, unsigned int size) { return (int)fread(ptr, 1, size, f); }
 static int tsf_stream_stdio_skip(FILE* f, unsigned int count) { return !fseek(f, count, SEEK_CUR); }
@@ -675,18 +678,30 @@ adjustPositionForPan(const SphericalPosition & position, const tsf_region * regi
   return adjusted;
 }
 
-// Combines the track's own user-configured send knob with this region's
-// SF2 reverbEffectsSend/chorusEffectsSend generator data (parsed in tenths
-// of a percent, 0-1000) - additive-then-clamped, mirroring SF2's own
-// existing generator-merge convention (region + preset offsets, summed
-// then clamped) rather than inventing a new combination rule.
+// Combines the track's own user-configured SendA knob with this region's
+// SF2 reverbEffectsSend generator data (parsed in tenths of a percent,
+// 0-1000) - additive-then-clamped, mirroring SF2's own existing
+// generator-merge convention (region + preset offsets, summed then
+// clamped) rather than inventing a new combination rule. SendA still
+// means exactly what it always has (the shared reverb bus), so this
+// combination is unaffected by anything below.
 static float
 adjustSendA(float send_a, const tsf_region * region) {
   return std::min(1.0f, send_a + (region ? region->reverbEffectsSend / 1000.0f : 0.0f));
 }
+
+// Deliberately NOT combined with the track's own SendB knob (unlike
+// adjustSendA above): SendB is now the shared multi-tap delay bus (see
+// bus/MultiTapDelay.h), not chorus - a region's chorusEffectsSend hint has
+// nothing to do with "how much of this voice should reach the delay bus",
+// so folding it into send_b would silently and unintentionally louden a
+// SoundFont voice's delay send whenever its patch happens to want chorus.
+// Instead this drives only the voice's own per-voice chorus (see
+// SoundFontVoice::chorus_engine_) - completely separate signal paths that
+// happen to share the same SF2 generator as their trigger.
 static float
-adjustSendB(float send_b, const tsf_region * region) {
-  return std::min(1.0f, send_b + (region ? region->chorusEffectsSend / 1000.0f : 0.0f));
+chorusSendFor(const tsf_region * region) {
+  return region ? region->chorusEffectsSend / 1000.0f : 0.0f;
 }
 
 class SoundFontVoice : public InstrumentVoice {
@@ -696,7 +711,7 @@ public:
                        adjustPositionForPan(position, regionFor(sf.get(), preset, region_idx)),
                        detune, start_phase,
                        adjustSendA(send_a, regionFor(sf.get(), preset, region_idx)),
-                       adjustSendB(send_b, regionFor(sf.get(), preset, region_idx))),
+                       send_b),
       sf_(sf)
   {
     auto f = sf_.get();
@@ -731,6 +746,19 @@ public:
 	  lowpass_.set(lowpassFc, pow(10.0, (lowpassFilterQDB / 20.0)));
 	}
       }
+    }
+
+    // Per-voice chorus (see chorus_engine_'s own comment below) -
+    // allocated only when this region actually has a nonzero
+    // chorusEffectsSend, so a voice with none pays nothing extra. Same
+    // voices/rate/delay/depth as the per-track <chorus> effect's own
+    // defaults (effects/Chorus.cpp) - no reason for this to sound like a
+    // different chorus character. Deliberately keyed off chorusSendFor(),
+    // not getSendB() - see chorusSendFor()'s own comment.
+    chorus_send_ = chorusSendFor(voiceRegion_);
+    if (chorus_send_ > 0.0f) {
+      chorus_engine_ = make_unique<ChorusEngine>(2, getChannelConfiguration().getAudioOutSampleRate(), /*voices=*/3, /*rateHz=*/0.5f, /*centerDelayMs=*/15.0f, /*depthMs=*/4.0f, /*decorrelate=*/true);
+      chorus_engine_->setMix(1.0f); // fully wet - chorus_send_ controls how much of it reaches the mix, applied at encode time
     }
   }
   
@@ -819,6 +847,75 @@ private:
   shared_ptr<SoundFontFile> sf_;
   EnvelopeState ampenv_, modenv_;
   vector<float> dry_;
+
+  // Per-voice chorus realization of this region's chorusEffectsSend
+  // generator (chorusSendFor() above) - SendB no longer hosts a bus-wide
+  // chorus (see bus/MultiTapDelay.h, which replaced it), so an SF2 patch
+  // that wants chorus character always gets its own instance instead,
+  // completely independent of the track's own SendB knob (getSendB()) -
+  // see chorusSendFor()'s own comment for why these two must never be
+  // combined. Only allocated when chorus_send_ > 0 (see the constructor).
+  // Fed dry_ duplicated into 2 identical channels, same as the old
+  // ChorusBusEffect's approach - decorrelate=true diverges them into
+  // stereo width purely from LFO phase offset, since a mono voice has no
+  // pre-existing width of its own to preserve. The resulting 2 channels
+  // are then each encoded as their own point source, offset a small
+  // ~15-degree azimuth to either side of this voice's own (already
+  // pan-adjusted) direction, narrowed by distance exactly like
+  // adjustPositionForPan()'s own width scaling (a chorus voice 100 units
+  // away should read as an unspread point source, same as its pan-derived
+  // width does) - reusing the voice's own already distance-attenuated
+  // dry_ as input, so no separate distance-attenuation handling is needed
+  // here, only the width narrowing.
+  unique_ptr<ChorusEngine> chorus_engine_;
+  float chorus_send_ = 0.0f;
+  array<AmbisonicVoiceEncoder, 2> chorus_tap_encoders_;
+  SampleData chorus_scratch_;
+
+  // encodePosition() plus, when chorus_engine_ exists, this voice's own
+  // per-voice chorus taps added on top (see chorus_engine_'s comment
+  // above) - the single path both render() return points go through, so
+  // an inactive voice's all-silent dry_ still gets a consistently-shaped
+  // SampleData (chorus of silence is silence, just extra unused work) and
+  // an active voice's real dry_ gets both encoded together.
+  SampleData
+  encodeWithChorus(int totalSamples) {
+    auto data = encodePosition(dry_.data(), totalSamples);
+    if (!chorus_engine_) return data;
+
+    if (chorus_scratch_.numberOfFrames() != totalSamples) chorus_scratch_ = SampleData(2, totalSamples);
+    auto c0 = chorus_scratch_.getChannelData(0), c1 = chorus_scratch_.getChannelData(1);
+    for (int i = 0; i < totalSamples; i++) c0[i] = c1[i] = dry_[static_cast<size_t>(i)];
+    chorus_engine_->process(chorus_scratch_);
+    auto wetL = chorus_scratch_.getChannelData(0), wetR = chorus_scratch_.getChannelData(1);
+
+    auto pos = getPosition();
+    float width_scale = std::min(1.0f, distanceGain(pos.distance));
+    float offset = 15.0f * width_scale;
+    auto leftGains = computeAmbisonicGains(SphericalPosition{ pos.azimuth - offset, pos.elevation, pos.distance });
+    auto rightGains = computeAmbisonicGains(SphericalPosition{ pos.azimuth + offset, pos.elevation, pos.distance });
+    for (auto & g : leftGains) g *= chorus_send_;
+    for (auto & g : rightGains) g *= chorus_send_;
+    chorus_tap_encoders_[0].encodeBlock(data, wetL, totalSamples, leftGains);
+    chorus_tap_encoders_[1].encodeBlock(data, wetR, totalSamples, rightGains);
+
+    // The track's own SendA/SendB knobs also carry a bit of this voice's
+    // chorused character to the shared reverb/delay busses, not just its
+    // plain dry signal, when active - same distance-undoing
+    // k = getSendA()/getSendB() / getDistanceGain() convention
+    // InstrumentVoice::encodePosition() itself uses for the dry-to-send
+    // path.
+    if (auto * send_a = data.getChannel(Channel::SendA)) {
+      float k = getSendA() / getDistanceGain();
+      for (int i = 0; i < totalSamples; i++) send_a[i] += 0.5f * (wetL[i] + wetR[i]) * k;
+    }
+    if (auto * send_b = data.getChannel(Channel::SendB)) {
+      float k = getSendB() / getDistanceGain();
+      for (int i = 0; i < totalSamples; i++) send_b[i] += 0.5f * (wetL[i] + wetR[i]) * k;
+    }
+
+    return data;
+  }
 };
 
 SampleData
@@ -829,7 +926,7 @@ SoundFontVoice::render(int numSamples) {
   dry_.assign(static_cast<size_t>(totalSamples), 0.0f); // zeroed: we don't fill past stopping playing
 
   if (!isActive()) {
-    return encodePosition(dry_.data(), totalSamples);
+    return encodeWithChorus(totalSamples);
   }
 
   int writeIndex = 0;
@@ -921,7 +1018,7 @@ SoundFontVoice::render(int numSamples) {
     }
   }
 
-  return encodePosition(dry_.data(), totalSamples);
+  return encodeWithChorus(totalSamples);
 }
 
 void tsf_load(SoundFontFile* res, struct tsf_stream* stream) {  
@@ -999,7 +1096,7 @@ void tsf_load(SoundFontFile* res, struct tsf_stream* stream) {
 void
 SoundFont::openFile() {
   sf_ = make_shared<SoundFontFile>(filename_);
-}  
+}
 
 class SoundFontInstrument : public Instrument {
 public:
