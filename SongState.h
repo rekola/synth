@@ -18,6 +18,7 @@ class SongState : public TrackState {
     tempo_ = song.getTempo();
     render_context_.setBpm(tempo_);
     send_bus_.setReverbParameters(song.getReverbSize(), song.getReverbDecay(), song.getReverbDamping(), song.getReverbPreDelay(), song.getReverbWet());
+    send_bus_.setDelayParameters(song.getDelayBaseRows(), song.getDelayFeedback(), song.getDelayDamping(), song.getDelayPattern(), song.getDelayPatternSpeed(), song.getDelayWet(), getChannelConfiguration().getRowDuration(tempo_));
   }
   
   void render(int frames, const Song & song, Mixer & mixer) {

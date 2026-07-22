@@ -13,6 +13,7 @@ add_executable(synth_tests
 	ChorusEngineTests.cpp
 	NoiseGeneratorTests.cpp
 	FDNReverbTests.cpp
+	MultiTapDelayTests.cpp
 )
 
 target_link_libraries(synth_tests synth_engine)

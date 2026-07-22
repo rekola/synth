@@ -85,10 +85,10 @@ TEST(chorus_engine_decorrelate_true_creates_stereo_width) {
 
 TEST(chorus_engine_never_cross_mixes_channels) {
   // A silent channel must stay silent regardless of a loud sibling channel
-  // - relied on by ChorusBusEffect (bus/ChorusBusEffect.h), which only
-  // ever duplicates a single mono source into two identical channels and
-  // depends on decorrelate's own state, not cross-channel leakage, being
-  // the sole source of any difference between them.
+  // - relied on by the per-track <chorus> effect (effects/Chorus.cpp),
+  // which uses decorrelate=false specifically so a hard-panned source's
+  // silent side stays silent rather than picking up width invented from
+  // nothing.
   ChorusEngine engine(2, 44100, 3, 0.5f, 15.0f, 4.0f, false);
   engine.setMix(1.0f);
 

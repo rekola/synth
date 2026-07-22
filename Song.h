@@ -5,6 +5,7 @@
 #include "Track.h"
 #include "Section.h"
 #include "Pattern.h"
+#include "bus/DelayPattern.h"
 
 #include <memory>
 #include <vector>
@@ -44,6 +45,25 @@ class Song : public StatefulSongObject {
   void setReverbPreDelay(float f) { reverb_predelay_ = f; }
   float getReverbWet() const { return reverb_wet_; }
   void setReverbWet(float f) { reverb_wet_ = f; }
+
+  // Shared multi-tap delay (SendB, see SendBusProcessor/MultiTapDelay) -
+  // same static, song-level-only shape as the reverb parameters above.
+  // delayBaseRows: base tap interval in pattern rows (the fixed 4-tap
+  // table's shortest tap; the other 3 are 2x/4x/8x this). delayPattern:
+  // how the feedback tap's direction/gain evolves pass to pass - see
+  // DelayPattern/MultiTapDelay.h.
+  float getDelayBaseRows() const { return delay_base_rows_; }
+  void setDelayBaseRows(float f) { delay_base_rows_ = f; }
+  float getDelayFeedback() const { return delay_feedback_; }
+  void setDelayFeedback(float f) { delay_feedback_ = f; }
+  float getDelayDamping() const { return delay_damping_; }
+  void setDelayDamping(float f) { delay_damping_ = f; }
+  float getDelayWet() const { return delay_wet_; }
+  void setDelayWet(float f) { delay_wet_ = f; }
+  DelayPattern getDelayPattern() const { return delay_pattern_; }
+  void setDelayPattern(DelayPattern p) { delay_pattern_ = p; }
+  float getDelayPatternSpeed() const { return delay_pattern_speed_; }
+  void setDelayPatternSpeed(float f) { delay_pattern_speed_ = f; }
 
   void incVersion() { version_++; }
   int getVersion() const { return version_; }
@@ -155,6 +175,12 @@ private:
   float reverb_damping_ = 0.1f;
   float reverb_predelay_ = 0.02f;
   float reverb_wet_ = 0.2512f;
+  float delay_base_rows_ = 0.1875f; // 3/16
+  float delay_feedback_ = 0.5f;
+  float delay_damping_ = 0.3f;
+  float delay_wet_ = 0.354f; // -9dB
+  DelayPattern delay_pattern_ = DelayPattern::Static;
+  float delay_pattern_speed_ = 18.0f;
   int version_ = 1;
 
   std::vector<std::unique_ptr<Track> > instruments_;

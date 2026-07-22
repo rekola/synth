@@ -17,7 +17,6 @@
 #include "effects/Reverb.h"
 #include "effects/ResonantFilter.h"
 #include "effects/BiquadFilter.h"
-#include "effects/Delay.h"
 #include "effects/Chorus.h"
 #include "effects/Tremolo.h"
 #include "effects/Downmix.h"
@@ -61,6 +60,20 @@ private:
   XMLElement * element_;
 };
 
+// Accepts either a plain decimal ("0.1875") or a fraction ("3/16") - both
+// spellings of the same unit (delayBaseRows is a row-count/fraction of a
+// row, always - there's no separate ms mode), the fraction form purely for
+// hand-edited XML readability. Always written back as a plain decimal (see
+// Song::storeParameters()).
+static float parse_fraction(string_view text, float default_value) {
+  if (text.empty()) return default_value;
+  auto slash = text.find('/');
+  if (slash == string_view::npos) return strtof(string(text).c_str(), nullptr);
+  float numerator = strtof(string(text.substr(0, slash)).c_str(), nullptr);
+  float denominator = strtof(string(text.substr(slash + 1)).c_str(), nullptr);
+  return denominator != 0.0f ? numerator / denominator : default_value;
+}
+
 static Tuning parse_tuning(string_view tuning_text, Tuning default_tuning = Tuning::TET12) {
   if (tuning_text == "12edo") return Tuning::TET12;
   else if (tuning_text == "31edo") return Tuning::TET31;
@@ -80,7 +93,6 @@ static unique_ptr<Track> createTrack(string_view name) {
   else if (name == "distortion") return make_unique<Distortion>();
   else if (name == "resonantFilter") return make_unique<ResonantFilter>();
   else if (name == "biquadFilter") return make_unique<BiquadFilter>();
-  else if (name == "delay") return make_unique<Delay>();
   else if (name == "chorus") return make_unique<Chorus>();
   else if (name == "tremolo") return make_unique<Tremolo>();
   else if (name == "downmix") return make_unique<Downmix>();
@@ -371,6 +383,13 @@ Song::loadParameters(const ParameterSource & input) {
   setReverbDamping(input.getFloat("reverbDamping", 0.1f));
   setReverbPreDelay(input.getFloat("reverbPreDelay", 0.02f));
   setReverbWet(input.getFloat("reverbWet", 0.2512f));
+
+  setDelayBaseRows(parse_fraction(input.getText("delayBaseRows"), 0.1875f));
+  setDelayFeedback(input.getFloat("delayFeedback", 0.5f));
+  setDelayDamping(input.getFloat("delayDamping", 0.3f));
+  setDelayWet(input.getFloat("delayWet", 0.354f));
+  setDelayPattern(parseDelayPattern(input.getText("delayPattern")));
+  setDelayPatternSpeed(input.getFloat("delayPatternSpeed", 18.0f));
 }
 
 void
@@ -387,4 +406,11 @@ Song::storeParameters(ParameterSource & output) const {
   output.set("reverbDamping", getReverbDamping());
   output.set("reverbPreDelay", getReverbPreDelay());
   output.set("reverbWet", getReverbWet());
+
+  output.set("delayBaseRows", getDelayBaseRows());
+  output.set("delayFeedback", getDelayFeedback());
+  output.set("delayDamping", getDelayDamping());
+  output.set("delayWet", getDelayWet());
+  output.set("delayPattern", to_string(getDelayPattern()));
+  output.set("delayPatternSpeed", getDelayPatternSpeed());
 }

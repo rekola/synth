@@ -51,7 +51,6 @@ add_library(synth_engine STATIC
 	tinyxml2.cpp
 	effects/ResonantFilter.cpp
 	effects/BiquadFilter.cpp
-	effects/Delay.cpp
 	effects/Distortion.cpp
 	effects/Tremolo.cpp
 	effects/Downmix.cpp
@@ -59,6 +58,7 @@ add_library(synth_engine STATIC
 	effects/Chorus.cpp
 	dsp/ChorusEngine.cpp
 	bus/FDNReverb.cpp
+	bus/MultiTapDelay.cpp
 	bus/SendBusProcessor.cpp
 	effects/Amplifier.cpp
 	effects/EnvelopeFilter.cpp

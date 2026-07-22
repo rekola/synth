@@ -475,6 +475,71 @@ TEST(render_send_a_reaches_ambisonic_bus_beyond_w_y_at_both_orders) {
   }
 }
 
+TEST(render_track_send_b_reaches_track_state_output) {
+  // SendB's sibling of render_track_send_a_reaches_track_state_output -
+  // confirms the multi-tap delay's mono input actually gets fed real
+  // energy through the same InstrumentVoice -> InstrumentTrackState ->
+  // SongState propagation path, using send_b_oscilator.xml (identical to
+  // send_a_oscilator.xml except sendB="0.5" instead of sendA).
+  auto loaded = loadFixture("send_b_oscilator.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(44100);
+  SongState state(config);
+  state.initialize(loaded.song);
+  state.setIsPlaying(true);
+
+  RecordingMixer mixer(static_cast<short>(config.numberOfChannels()), config.getAudioOutSampleRate());
+
+  bool saw_send_b = false;
+  for (int block = 0; block < 20 && !saw_send_b; block++) {
+    state.render(256, loaded.song, mixer);
+    for (auto & data : mixer.accumulated) {
+      if (data.hasChannel(Channel::SendB)) {
+	auto send = data.getChannel(Channel::SendB);
+	for (int i = 0; i < data.numberOfFrames(); i++) {
+	  if (send[i] != 0.0f) { saw_send_b = true; break; }
+	}
+      }
+    }
+  }
+
+  CHECK(saw_send_b);
+}
+
+TEST(render_send_b_reaches_ambisonic_bus_beyond_w_y_at_both_orders) {
+  // The multi-tap delay (bus/MultiTapDelay.h, SendBusProcessor) encodes
+  // its 4 taps at fixed (mostly) azimuths off-center - real energy should
+  // reach ACN channels beyond W/Y at either supported ambisonic order,
+  // confirmed directly on the pre-decode bus via RecordingMixer, same
+  // technique as render_send_a_reaches_ambisonic_bus_beyond_w_y_at_both_orders.
+  auto loaded = loadFixture("send_b_oscilator.xml");
+  CHECK(loaded.ok);
+
+  for (int order : { 1, 2 }) {
+    ChannelConfiguration config(44100, order);
+    SongState state(config);
+    state.initialize(loaded.song);
+    state.setIsPlaying(true);
+
+    RecordingMixer mixer(static_cast<short>(config.numberOfChannels()), config.getAudioOutSampleRate());
+
+    double energy_beyond_wy = 0.0;
+    for (int block = 0; block < 60; block++) {
+      state.render(256, loaded.song, mixer);
+      CHECK(!mixer.accumulated.empty());
+      auto & bus = mixer.accumulated.back();
+      CHECK(bus.numberOfChannels() == config.numberOfChannels());
+      for (int c = 2; c < bus.numberOfChannels(); c++) {
+	auto data = bus.getChannelData(c);
+	for (int i = 0; i < bus.numberOfFrames(); i++) energy_beyond_wy += static_cast<double>(data[i]) * data[i];
+      }
+    }
+
+    CHECK(energy_beyond_wy > 0.0);
+  }
+}
+
 TEST(render_send_a_produces_audible_reverb_tail) {
   // send_a_oscilator.xml is identical to center_note.xml except for
   // sendA="0.5" on its one track - any output difference between them is
@@ -498,6 +563,38 @@ TEST(render_send_a_produces_audible_reverb_tail) {
   // hold=.3 decay=.3 sustain=0 release=.05> - fully silent by ~0.66s (see
   // render_envelope_decays_after_hold_and_decay_time) - a window well past
   // that isolates the reverb tail from the dry note itself.
+  auto tailRms = [&](const OfflineRenderResult & result) {
+    return windowedRms(result, 0, 0.7f, 1.0f) + windowedRms(result, 1, 0.7f, 1.0f);
+  };
+
+  auto with_tail = tailRms(result_with);
+  auto without_tail = tailRms(result_without);
+
+  CHECK(with_tail > 1e-4f);
+  CHECK(with_tail > without_tail * 10.0f);
+}
+
+TEST(render_send_b_produces_audible_delay_echo) {
+  // send_b_oscilator.xml is identical to center_note.xml except for
+  // sendB="0.5" on its one track - any output difference between them is
+  // attributable entirely to SendBusProcessor's shared multi-tap delay.
+  // Same methodology as render_send_a_produces_audible_reverb_tail.
+  auto with_send = loadFixture("send_b_oscilator.xml");
+  auto without_send = loadFixture("center_note.xml");
+  CHECK(with_send.ok);
+  CHECK(without_send.ok);
+
+  ChannelConfiguration config(44100, 1);
+  auto result_with = renderSongOffline(with_send.song, config);
+  auto result_without = renderSongOffline(without_send.song, config);
+  CHECK(!hasNonFiniteSample(result_with));
+  CHECK(!hasNonFiniteSample(result_without));
+
+  // Both fixtures wrap their oscilator in the same <envelope attack=.01
+  // hold=.3 decay=.3 sustain=0 release=.05> - fully silent by ~0.66s (see
+  // render_envelope_decays_after_hold_and_decay_time) - a window well past
+  // that isolates the delay's decaying echo repeats (default feedback 0.5,
+  // ~187ms per repeat at this fixture's 120bpm tempo) from the dry note.
   auto tailRms = [&](const OfflineRenderResult & result) {
     return windowedRms(result, 0, 0.7f, 1.0f) + windowedRms(result, 1, 0.7f, 1.0f);
   };
