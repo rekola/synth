@@ -57,6 +57,8 @@ add_library(synth_engine STATIC
 	effects/Reverb.cpp
 	effects/Chorus.cpp
 	dsp/ChorusEngine.cpp
+	bus/BusEffect.cpp
+	bus/BusEffectRegistry.cpp
 	bus/FDNReverb.cpp
 	bus/MultiTapDelay.cpp
 	bus/SendBusProcessor.cpp

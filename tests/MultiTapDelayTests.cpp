@@ -45,7 +45,8 @@ TEST(multi_tap_delay_resolves_taps_at_1_2_4_8x_base_interval) {
   // baseRows=1, rowDuration=1/100th of a second -> tap 0 (1x) lands at
   // ~441 samples, tap 3 (8x) at ~3528 samples.
   float rowDuration = 0.01f;
-  delay.setParameters(1.0f, 0.5f, 0.3f, DelayPattern::Static, 18.0f, rowDuration);
+  delay.setParameters(1.0f, 0.5f, 0.3f, DelayPattern::Static, 18.0f);
+  delay.setRowDuration(rowDuration);
 
   auto taps = renderImpulse(delay, sampleRate);
   int onset[MultiTapDelay::kNumTaps];
@@ -70,7 +71,8 @@ TEST(multi_tap_delay_clamps_resolved_time_at_kMaxDelaySeconds) {
   // already exceeds kMaxDelaySeconds once multiplied by the 8x tap's
   // ratio - every tap's onset should clamp at the same ceiling rather
   // than growing unbounded (no minimum-tempo floor exists elsewhere).
-  delay.setParameters(1.0f, 0.0f, 0.3f, DelayPattern::Static, 18.0f, 10.0f);
+  delay.setParameters(1.0f, 0.0f, 0.3f, DelayPattern::Static, 18.0f);
+  delay.setRowDuration(10.0f);
 
   // Render comfortably past kMaxDelaySeconds so a correctly-clamped onset
   // (right at the ceiling) still falls within the rendered window.
@@ -89,7 +91,8 @@ TEST(multi_tap_delay_static_pattern_never_moves_feedback_tap) {
   // Small, exact 100-sample feedback-tap length: baseRows=1, ratio 8,
   // rowDuration chosen so 1*8*rowDuration*sampleRate == 100.
   float rowDuration = 100.0f / 8.0f / static_cast<float>(sampleRate);
-  delay.setParameters(1.0f, 0.9f, 0.0f, DelayPattern::Static, 18.0f, rowDuration);
+  delay.setParameters(1.0f, 0.9f, 0.0f, DelayPattern::Static, 18.0f);
+  delay.setRowDuration(rowDuration);
 
   auto before = delay.getTapDirection(MultiTapDelay::kNumTaps - 1);
   vector<float> silence(300, 0.0f);
@@ -105,7 +108,8 @@ TEST(multi_tap_delay_pingpong_flips_azimuth_sign_each_pass) {
   int sampleRate = 44100;
   MultiTapDelay delay(sampleRate);
   float rowDuration = 100.0f / 8.0f / static_cast<float>(sampleRate);
-  delay.setParameters(1.0f, 0.9f, 0.0f, DelayPattern::PingPong, 18.0f, rowDuration);
+  delay.setParameters(1.0f, 0.9f, 0.0f, DelayPattern::PingPong, 18.0f);
+  delay.setRowDuration(rowDuration);
 
   float initial = delay.getTapDirection(MultiTapDelay::kNumTaps - 1).azimuth;
 
@@ -122,7 +126,8 @@ TEST(multi_tap_delay_orbit_rotates_azimuth_by_pattern_speed_per_pass) {
   MultiTapDelay delay(sampleRate);
   float rowDuration = 100.0f / 8.0f / static_cast<float>(sampleRate);
   float speed = 18.0f;
-  delay.setParameters(1.0f, 0.9f, 0.0f, DelayPattern::Orbit, speed, rowDuration);
+  delay.setParameters(1.0f, 0.9f, 0.0f, DelayPattern::Orbit, speed);
+  delay.setRowDuration(rowDuration);
 
   float initial = delay.getTapDirection(MultiTapDelay::kNumTaps - 1).azimuth;
 
@@ -139,7 +144,8 @@ TEST(multi_tap_delay_recede_compounds_gain_and_elevation_per_pass) {
   MultiTapDelay delay(sampleRate);
   float rowDuration = 100.0f / 8.0f / static_cast<float>(sampleRate);
   float speed = 18.0f;
-  delay.setParameters(1.0f, 0.9f, 0.0f, DelayPattern::Recede, speed, rowDuration);
+  delay.setParameters(1.0f, 0.9f, 0.0f, DelayPattern::Recede, speed);
+  delay.setRowDuration(rowDuration);
 
   float expectedGainStep = 1.0f - speed / 100.0f;
   float expectedElevStep = -speed / 4.0f;
@@ -160,7 +166,8 @@ TEST(multi_tap_delay_recede_elevation_clamps_at_90_degrees) {
   float rowDuration = 100.0f / 8.0f / static_cast<float>(sampleRate);
   // A large pattern speed drives a single pass's elevation step (-speed/4)
   // well past -90 on its own - must clamp, not wrap or go unbounded.
-  delay.setParameters(1.0f, 0.9f, 0.0f, DelayPattern::Recede, 1000.0f, rowDuration);
+  delay.setParameters(1.0f, 0.9f, 0.0f, DelayPattern::Recede, 1000.0f);
+  delay.setRowDuration(rowDuration);
 
   vector<float> silence(100, 0.0f);
   delay.process(silence.data(), 100); // 1 pass
@@ -186,7 +193,8 @@ TEST(multi_tap_delay_stable_across_parameter_extremes) {
 
   for (auto & c : cases) {
     MultiTapDelay delay(sampleRate);
-    delay.setParameters(c.baseRows, c.feedback, c.damping, c.pattern, c.patternSpeed, 60.0f / 4.0f / 120.0f);
+    delay.setParameters(c.baseRows, c.feedback, c.damping, c.pattern, c.patternSpeed);
+    delay.setRowDuration(60.0f / 4.0f / 120.0f);
     auto taps = renderImpulse(delay, frames);
 
     vector<double> window_energy(static_cast<size_t>(frames / window), 0.0);

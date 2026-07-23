@@ -4,9 +4,10 @@
 #include <string>
 
 // High-level direction-pattern mode for MultiTapDelay's feedback tap (see
-// MultiTapDelay.h) - a Song-level parameter (Song::getDelayPattern()), so
-// this tiny standalone header (no dependency on Song.h or MultiTapDelay.h)
-// can be included by both without a layering cycle.
+// MultiTapDelay.h) - a per-slot parameter (MultiTapDelay::getPattern()/
+// loadParameters()/storeParameters()), so this tiny standalone header (no
+// dependency on MultiTapDelay.h itself) can be included wherever a
+// pattern value needs to be named without pulling in the whole class.
 enum class DelayPattern { Static = 0, PingPong, Orbit, Recede };
 
 static inline const std::string to_string(DelayPattern pattern) {

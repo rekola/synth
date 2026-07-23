@@ -44,13 +44,24 @@ class MultiTapDelay : public BusEffect {
   // damped feedback-tap readout each pass (clamped well below 1 for
   // stability); damping: 0 (bright) - 1 (dark), same `1 - damping`
   // one-pole convention FDNReverb uses; pattern/patternSpeed: see the
-  // class comment above and advancePass() in the .cpp. rowDurationSeconds:
-  // the song's current tempo resolved to seconds-per-row (getRowDuration()),
-  // computed by the caller (this class has no notion of tempo itself).
-  // Never reallocates - buffers are sized once, at construction, to
-  // kMaxDelaySeconds - so this is safe to call at any time, including
-  // mid-playback.
-  void setParameters(float baseRows, float feedbackGain, float damping, DelayPattern pattern, float patternSpeed, float rowDurationSeconds);
+  // class comment above and advancePass() in the .cpp. Row duration
+  // itself is *not* one of this call's parameters - unlike baseRows/
+  // feedbackGain/damping/pattern/patternSpeed, it isn't a stored,
+  // per-slot deviating value (loadParameters()/storeParameters() below
+  // never touch it); it comes from the song's own tempo and is set
+  // independently via setRowDuration() below, so a tempo change and a
+  // parameter change can each be applied without needing the other's
+  // current value on hand. Never reallocates - buffers are sized once, at
+  // construction, to kMaxDelaySeconds - so this is safe to call at any
+  // time, including mid-playback.
+  void setParameters(float baseRows, float feedbackGain, float damping, DelayPattern pattern, float patternSpeed);
+
+  // The song's current tempo resolved to seconds-per-row
+  // (ChannelConfiguration::getRowDuration()) - see setParameters()'s
+  // comment above for why this is separate. Recomputes tap lengths from
+  // whatever baseRows setParameters() last set; never reallocates, same
+  // as setParameters().
+  void setRowDuration(float rowDurationSeconds) override;
 
   // Processes `frames` samples of mono input (the send-B sum) into the 4
   // tap outputs, retrievable via getTap()/getTapDirection() until the next
@@ -58,8 +69,9 @@ class MultiTapDelay : public BusEffect {
   // damping/pattern state stays continuous across blocks.
   void process(const float * input, int frames) override;
 
-  const float * getTap(int i) const { return taps_[static_cast<size_t>(i)].data(); }
-  SphericalPosition getTapDirection(int i) const {
+  int getNumTaps() const override { return kNumTaps; }
+  const float * getTap(int i) const override { return taps_[static_cast<size_t>(i)].data(); }
+  SphericalPosition getTapDirection(int i) const override {
     return SphericalPosition{ azimuth_[static_cast<size_t>(i)], elevation_[static_cast<size_t>(i)], 1.0f };
   }
 
@@ -68,14 +80,44 @@ class MultiTapDelay : public BusEffect {
   // mainly so tests can verify the per-pass compounding directly.
   float getFeedbackGainMultiplier() const { return feedbackGainMul_; }
 
+  // Read back the (clamped) values setParameters() last stored - used
+  // only for deviation-only project-file saving (storeParameters() below),
+  // not by any DSP code here (which works from the already-derived
+  // dampingCoef_ instead of raw damping).
+  float getBaseRows() const { return baseRows_; }
+  float getFeedbackGain() const { return feedbackGain_; }
+  float getDamping() const { return rawDamping_; }
+  DelayPattern getPattern() const { return pattern_; }
+  float getPatternSpeed() const { return patternSpeed_; }
+
+  // <delay> element's own attributes: baseRows/feedback/damping/pattern/
+  // patternSpeed, deviation-only against this constructor's own tuned
+  // defaults (see MultiTapDelay.cpp) - wet/chainSend are handled
+  // generically by BusEffect::loadParameters()/storeParameters(), called
+  // first.
+  void loadParameters(const ParameterSource & input) override;
+  void storeParameters(ParameterSource & output) const override;
+
  private:
   void advancePass();
+
+  // Combines baseRows_ (set by setParameters()) and rowDurationSeconds_
+  // (set by setRowDuration()) into length_[] - called from both, so
+  // either can be updated independently without needing the other's
+  // current value passed back in.
+  void recomputeTapLengths();
 
   std::vector<float> buffer_;
   int writePos_ = 0;
 
+  // Cached inputs to recomputeTapLengths() - see setParameters()'s and
+  // setRowDuration()'s own comments for why these are tracked
+  // independently rather than combined into one call.
+  float baseRows_ = 0.1875f;
+  float rowDurationSeconds_ = 60.0f / 4.0f / 90.0f; // matches Song's own default 90bpm tempo
+
   // This tap's fixed relative gain (baked into taps_'s output directly) and
-  // resolved read length in samples, per tap - see setParameters().
+  // resolved read length in samples, per tap - see recomputeTapLengths().
   static constexpr float kTapGain[kNumTaps] = { 1.00f, 0.75f, 0.55f, 0.40f };
   int length_[kNumTaps] = { 1, 1, 1, 1 };
 
@@ -89,6 +131,7 @@ class MultiTapDelay : public BusEffect {
   float feedbackGain_ = 0.0f;
   float dampingCoef_ = 1.0f;
   float dampingState_ = 0.0f;
+  float rawDamping_ = 0.0f; // cached purely for getDamping() - DSP uses dampingCoef_
 
   DelayPattern pattern_ = DelayPattern::Static;
   float patternSpeed_ = 0.0f;

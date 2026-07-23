@@ -24,6 +24,9 @@
 #include "effects/EnvelopeFilter.h"
 #include "effects/Compressor.h"
 
+#include "bus/BusEffectRegistry.h"
+#include "MemoryParameterSource.h"
+
 #include "tinyxml2.h"
 
 #include "constants.h"
@@ -59,20 +62,6 @@ public:
 private:
   XMLElement * element_;
 };
-
-// Accepts either a plain decimal ("0.1875") or a fraction ("3/16") - both
-// spellings of the same unit (delayBaseRows is a row-count/fraction of a
-// row, always - there's no separate ms mode), the fraction form purely for
-// hand-edited XML readability. Always written back as a plain decimal (see
-// Song::storeParameters()).
-static float parse_fraction(string_view text, float default_value) {
-  if (text.empty()) return default_value;
-  auto slash = text.find('/');
-  if (slash == string_view::npos) return strtof(string(text).c_str(), nullptr);
-  float numerator = strtof(string(text.substr(0, slash)).c_str(), nullptr);
-  float denominator = strtof(string(text.substr(slash + 1)).c_str(), nullptr);
-  return denominator != 0.0f ? numerator / denominator : default_value;
-}
 
 static Tuning parse_tuning(string_view tuning_text, Tuning default_tuning = Tuning::TET12) {
   if (tuning_text == "12edo") return Tuning::TET12;
@@ -144,8 +133,93 @@ static void storeChildTrack(const Track & track, XMLDocument & doc, XMLElement *
   for (auto & child : track.getChildren()) {
     storeChildTrack(*child, doc, track_element);
   }
-  
-  target_element->InsertEndChild(track_element);  
+
+  target_element->InsertEndChild(track_element);
+}
+
+// Sample rate used to construct Song's own bus-slot BusEffect instances
+// (Song::bus_slot_a_/bus_slot_b_) - these exist purely to own/(de)serialize
+// their own parameters (see Song.h's own doc comment on getBusSlot()) and
+// are never process()'d, so the exact value doesn't matter for correctness;
+// SongState::initialize() constructs the real, correctly-sample-rated
+// instances the audio thread actually uses.
+static constexpr int kPlaceholderBusSampleRate = 44100;
+
+// <bus> child elements are resolved to a slot by document order alone (no
+// disambiguating attribute - see Song.h's own doc comment and the
+// project-file plan): the first child is slot 0 (A), the second is slot 1
+// (B). An unrecognized element name falls back to that slot's own default
+// type (A -> reverb, B -> delay), never to None - an unrecognized name is
+// a corrupted/future-version reference, which should degrade to "play
+// something sensible," not go silent.
+static void parseBusSlot(Song & song, int slot, XMLElement & element) {
+  auto * descriptor = findBusEffectDescriptor(element.Name());
+  if (!descriptor) {
+    // TODO: route through this codebase's non-fatal load-warning channel
+    // (see Controller.cpp) once one exists for Song::open() itself.
+    descriptor = &findBusEffectDescriptor(slot == 0 ? BusEffectKind::Reverb : BusEffectKind::Delay);
+  }
+  song.setBusSlotKind(slot, descriptor->kind);
+  song.getBusSlot(slot).loadParameters(XMLParameterSource(&element));
+}
+
+// True when `slot` is still exactly the compiled-in default for its
+// position (`default_kind`, with every parameter also still at that
+// type's own default) - checked generically, via storeParameters()'s own
+// deviation-only logic, rather than needing per-type knowledge here of
+// what "default" means for every possible parameter.
+static bool busSlotIsDefault(const Song & song, int slot, BusEffectKind default_kind) {
+  if (song.getBusSlotKind(slot) != default_kind) return false;
+  MemoryParameterSource params;
+  song.getBusSlot(slot).storeParameters(params);
+  return params.isEmpty();
+}
+
+static void storeBusSlotChild(const Song & song, int slot, XMLDocument & doc, XMLElement * bus) {
+  auto & descriptor = findBusEffectDescriptor(song.getBusSlotKind(slot));
+  auto element = doc.NewElement(descriptor.xmlName);
+  XMLParameterSource params(element);
+  song.getBusSlot(slot).storeParameters(params);
+  bus->InsertEndChild(element);
+}
+
+// Writes <bus> only when the resolved 2-slot configuration actually
+// deviates from the compiled-in default (A = reverb, B = delay, both at
+// their own defaults) - the "default config stores nothing" rule, applied
+// once to the whole bus rather than per slot, since <bus>'s presence is a
+// full override of the default bus, not a per-slot merge with it (see
+// Song.h's own doc comment). When something does need writing: slot 0 is
+// always present (as <none/> if genuinely empty, otherwise as its own
+// element, even bare if only slot 1 actually deviates - an unavoidable
+// placeholder under "presence overrides, doesn't merge" - a 1-child <bus>
+// always means "slot 0 only, slot 1 is empty" so there's no way to omit a
+// non-empty slot 0); slot 1 is omitted only when it's genuinely empty
+// (trailing-omission means empty on load, so relying on it here is always
+// safe) - written explicitly, even bare, whenever it isn't, including
+// when it's still the default delay (which must not be confused with the
+// 1-child shorthand for "empty").
+static void storeBusConfig(const Song & song, XMLDocument & doc, XMLElement * root) {
+  bool a_default = busSlotIsDefault(song, 0, BusEffectKind::Reverb);
+  bool b_default = busSlotIsDefault(song, 1, BusEffectKind::Delay);
+  if (a_default && b_default) return;
+
+  auto bus = doc.NewElement("bus");
+  root->InsertEndChild(bus);
+
+  bool a_none = song.getBusSlotKind(0) == BusEffectKind::None;
+  bool b_none = song.getBusSlotKind(1) == BusEffectKind::None;
+  if (a_none && b_none) return; // <bus/> - both slots empty
+
+  storeBusSlotChild(song, 0, doc, bus);
+  if (!b_none) storeBusSlotChild(song, 1, doc, bus);
+}
+
+void
+Song::setBusSlotKind(int slot, BusEffectKind kind) {
+  auto & descriptor = findBusEffectDescriptor(kind);
+  auto effect = descriptor.factory(kPlaceholderBusSampleRate);
+  if (slot == 0) { bus_slot_a_ = std::move(effect); bus_slot_a_kind_ = kind; }
+  else { bus_slot_b_ = std::move(effect); bus_slot_b_kind_ = kind; }
 }
 
 std::unique_ptr<TrackState>
@@ -165,8 +239,24 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 
   auto song = doc.FirstChildElement("song");
   if (song) {
-    loadParameters(XMLParameterSource(song));
-    
+    loadParameters(XMLParameterSource(song)); // resets both bus slots to their compiled defaults
+
+    // <bus>'s presence fully overrides the default bus (A = reverb,
+    // B = delay) rather than merging with it - if absent, both slots
+    // stay exactly as loadParameters() just reset them to. Children are
+    // resolved to a slot by document order alone (see parseBusSlot()) -
+    // a trailing missing child leaves that slot at None (empty), which
+    // parseBusSlot() never sees since it's simply never called for it.
+    auto bus = song->FirstChildElement("bus");
+    if (bus) {
+      setBusSlotKind(0, BusEffectKind::None);
+      setBusSlotKind(1, BusEffectKind::None);
+      int slot = 0;
+      for (auto it = bus->FirstChildElement(); it && slot < 2; it = it->NextSiblingElement(), slot++) {
+        parseBusSlot(*this, slot, *it);
+      }
+    }
+
     auto instruments = song->FirstChildElement("instruments");
     if (instruments) {
       for (auto it = instruments->FirstChildElement(); it; it = it->NextSiblingElement() ) {
@@ -277,6 +367,8 @@ Song::save(const std::string & filename) const {
   storeParameters(song_parameters);
   doc.InsertEndChild(root);
 
+  storeBusConfig(*this, doc, root);
+
   auto instruments = doc.NewElement("instruments");
   root->InsertEndChild(instruments);
 
@@ -368,7 +460,7 @@ Song::save(const std::string & filename) const {
 void
 Song::loadParameters(const ParameterSource & input) {
   StatefulSongObject::loadParameters(input);
-    
+
   auto song_tuning = parse_tuning(input.getText("temperament"), Tuning::TET12);
   setTuning(song_tuning);
 
@@ -378,18 +470,14 @@ Song::loadParameters(const ParameterSource & input) {
   setTempo(input.getInt("tempo", 90));
   setRandomizationFactor(input.getFloat("randomization", 0.01f));
 
-  setReverbSize(input.getFloat("reverbSize", 1.0f));
-  setReverbDecay(input.getFloat("reverbDecay", 1.8f));
-  setReverbDamping(input.getFloat("reverbDamping", 0.1f));
-  setReverbPreDelay(input.getFloat("reverbPreDelay", 0.02f));
-  setReverbWet(input.getFloat("reverbWet", 0.2512f));
-
-  setDelayBaseRows(parse_fraction(input.getText("delayBaseRows"), 0.1875f));
-  setDelayFeedback(input.getFloat("delayFeedback", 0.5f));
-  setDelayDamping(input.getFloat("delayDamping", 0.3f));
-  setDelayWet(input.getFloat("delayWet", 0.354f));
-  setDelayPattern(parseDelayPattern(input.getText("delayPattern")));
-  setDelayPatternSpeed(input.getFloat("delayPatternSpeed", 18.0f));
+  // The bus (reverb/delay/...) is not a <song> attribute - it's the
+  // <bus> child element, parsed separately in Song::open() (mirroring
+  // how <tracks>/<instruments>/<patterns> are handled there too, not
+  // here). resetBusToDefaults() puts both slots back at their compiled
+  // defaults first, so a Song object reused for a second open() call
+  // doesn't retain a stale bus configuration from whatever it loaded
+  // previously.
+  resetBusToDefaults();
 }
 
 void
@@ -400,19 +488,6 @@ Song::storeParameters(ParameterSource & output) const {
   output.set("temperament", to_string(getTuning()));
   output.set("tempo", getTempo());
   output.set("randomization", getRandomizationFactor());
-
-  output.set("reverbSize", getReverbSize());
-  output.set("reverbDecay", getReverbDecay());
-  output.set("reverbDamping", getReverbDamping());
-  output.set("reverbPreDelay", getReverbPreDelay());
-  output.set("reverbWet", getReverbWet());
-
-  output.set("delayBaseRows", getDelayBaseRows());
-  output.set("delayFeedback", getDelayFeedback());
-  output.set("delayDamping", getDelayDamping());
-  output.set("delayWet", getDelayWet());
-  output.set("delayPattern", to_string(getDelayPattern()));
-  output.set("delayPatternSpeed", getDelayPatternSpeed());
 }
 
 static void

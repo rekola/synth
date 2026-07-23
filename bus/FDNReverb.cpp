@@ -1,4 +1,5 @@
 #include "FDNReverb.h"
+#include "../ParameterSource.h"
 
 #include <cassert>
 #include <cmath>
@@ -6,6 +7,17 @@
 using namespace std;
 
 namespace {
+
+// Medium-hall defaults - shared by the constructor (so a standalone
+// FDNReverb already sounds sensible before any loadParameters() call) and
+// storeParameters()'s deviation-only comparison below, so the two can
+// never drift apart into two different notions of "default".
+constexpr float kDefaultSize = 1.0f;
+constexpr float kDefaultDecay = 1.8f;
+constexpr float kDefaultDamping = 0.1f;
+constexpr float kDefaultPreDelay = 0.02f;
+constexpr float kDefaultWet = 0.2512f; // -12dB
+
 // Base delay lengths at size=1.0, in milliseconds - chosen as prime
 // values spread across the target ~20-90ms range so no two lines share a
 // small common factor, which is what actually avoids audible periodicity/
@@ -45,7 +57,14 @@ constexpr float kDenormalGuard = 1e-20f;
 constexpr float kSizeChangeFadeMs = 10.0f;
 }
 
-FDNReverb::FDNReverb(int sampleRate) : BusEffect(sampleRate) {
+// kDefaultWet is passed to BusEffect's constructor (not applied via a
+// post-construction setWetLevel() call) so it also becomes the value
+// BusEffect::storeParameters() compares against - a single source of
+// truth for "reverb's own tuned wet default" shared by construction and
+// deviation-only saving alike. chainSendLevel is left at BusEffect's own
+// base default (kDefaultChainSendLevel) - inert here anyway, since slot A
+// is always the chain's terminal.
+FDNReverb::FDNReverb(int sampleRate) : BusEffect(sampleRate, kDefaultWet) {
   predelayBuffer_.assign(static_cast<size_t>(kMaxPreDelaySeconds * static_cast<float>(sampleRate)) + 1, 0.0f);
 
   for (size_t i = 0; i < diffusers_.size(); i++) {
@@ -63,7 +82,14 @@ FDNReverb::FDNReverb(int sampleRate) : BusEffect(sampleRate) {
   // high frequencies decay roughly twice as fast as the broadband tail
   // (see the derivation in the damping parameter's own doc comment in
   // FDNReverb.h).
-  setParameters(1.0f, 1.8f, 0.1f, 0.02f);
+  setParameters(kDefaultSize, kDefaultDecay, kDefaultDamping, kDefaultPreDelay);
+}
+
+SphericalPosition
+FDNReverb::getTapDirection(int i) const {
+  static const auto directions = cubeVertexDirections();
+  auto & d = directions[static_cast<size_t>(i)];
+  return SphericalPosition{ d.azimuth, d.elevation, 1.0f };
 }
 
 void
@@ -75,6 +101,10 @@ FDNReverb::setParameters(float size, float decayRT60Seconds, float damping, floa
   if (damping > 1.0f) damping = 1.0f;
   if (preDelaySeconds < 0.0f) preDelaySeconds = 0.0f;
   if (preDelaySeconds > kMaxPreDelaySeconds) preDelaySeconds = kMaxPreDelaySeconds;
+
+  rawDecay_ = decayRT60Seconds;
+  rawDamping_ = damping;
+  rawPreDelay_ = preDelaySeconds;
 
   if (fabsf(size - currentSize_) > 0.0001f) {
     fadeTotal_ = fadeRemaining_ = static_cast<int>(kSizeChangeFadeMs * 0.001f * static_cast<float>(getSampleRate())) + 1;
@@ -204,4 +234,25 @@ FDNReverb::process(const float * input, int frames) {
       if (line.writePos >= bufLen) line.writePos = 0;
     }
   }
+}
+
+void
+FDNReverb::loadParameters(const ParameterSource & input) {
+  BusEffect::loadParameters(input); // wet/chainSend, generically
+
+  setParameters(
+    input.getFloat("size", kDefaultSize),
+    input.getFloat("decay", kDefaultDecay),
+    input.getFloat("damping", kDefaultDamping),
+    input.getFloat("preDelay", kDefaultPreDelay));
+}
+
+void
+FDNReverb::storeParameters(ParameterSource & output) const {
+  BusEffect::storeParameters(output); // wet/chainSend, generically
+
+  output.set("size", getSize(), kDefaultSize);
+  output.set("decay", getDecay(), kDefaultDecay);
+  output.set("damping", getDamping(), kDefaultDamping);
+  output.set("preDelay", getPreDelay(), kDefaultPreDelay);
 }

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="12edo" tempo="120" volume="1.0" randomization="0">
+  <bus>
+    <reverb decay="3.0"/>
+    <delay feedback="0.0" chainSend="1.0"/>
+  </bus>
+  <instruments>
+    <envelope attack="0.01" hold="0.3" decay="0.3" sustain="0.0" release="0.05">
+      <oscilator type="saw"/>
+    </envelope>
+  </instruments>
+  <tracks>
+    <track id="0" instrument="0" sendB="0.5"/>
+  </tracks>
+  <patterns>
+    <pattern rows="8">
+      <note row="0" track="0" velocity="80" value="C-4"/>
+    </pattern>
+  </patterns>
+</song>

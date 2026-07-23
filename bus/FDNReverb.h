@@ -48,6 +48,22 @@ class FDNReverb : public BusEffect {
   // preDelaySeconds: 0-0.2 (200ms).
   void setParameters(float size, float decayRT60Seconds, float damping, float preDelaySeconds);
 
+  // Read back the (clamped) values setParameters() last stored - used
+  // only for deviation-only project-file saving (storeParameters() below),
+  // not by any DSP code here (which works from the already-derived
+  // per-line feedbackGain/dampingCoef_/predelayLength_ instead).
+  float getSize() const { return currentSize_; }
+  float getDecay() const { return rawDecay_; }
+  float getDamping() const { return rawDamping_; }
+  float getPreDelay() const { return rawPreDelay_; }
+
+  // <reverb> element's own attributes: size/decay/damping/preDelay,
+  // deviation-only against this constructor's own tuned defaults (see
+  // FDNReverb.cpp) - wet/chainSend are handled generically by
+  // BusEffect::loadParameters()/storeParameters(), called first.
+  void loadParameters(const ParameterSource & input) override;
+  void storeParameters(ParameterSource & output) const override;
+
   static constexpr int kNumLines = 8;
 
   // Processes `frames` samples of mono input (the send-A sum) into the 8
@@ -58,7 +74,17 @@ class FDNReverb : public BusEffect {
   // input happens to be silent.
   void process(const float * input, int frames) override;
 
-  const float * getTap(int i) const { return taps_[static_cast<size_t>(i)].data(); }
+  int getNumTaps() const override { return kNumLines; }
+  const float * getTap(int i) const override { return taps_[static_cast<size_t>(i)].data(); }
+
+  // The 8 taps' directions never move (unlike MultiTapDelay's feedback
+  // tap) - fixed at the same cube-vertex directions
+  // (AmbisonicEncoding.h's cubeVertexDirections()) the shared bus used to
+  // hardcode for "whichever effect is in slot A" before the registry
+  // (bus/BusEffectRegistry.h) made slot occupancy generic; owning them
+  // here instead means any slot, not just A, gets the same spread if
+  // reverb ever occupies B.
+  SphericalPosition getTapDirection(int i) const override;
 
  private:
   // Pre-delay: single delay line, buffer sized once to the max pre-delay
@@ -104,6 +130,14 @@ class FDNReverb : public BusEffect {
   int fadeRemaining_ = 0;
   int fadeTotal_ = 0;
   float currentSize_ = -1.0f; // forces the first setParameters() call to "change" size and size the lines
+
+  // Raw (clamped) inputs to setParameters(), cached purely so getDecay()/
+  // getDamping()/getPreDelay() above can read them back - the DSP itself
+  // only ever consumes the derived per-line/coefficient/sample-length
+  // values computed from these, never these fields directly.
+  float rawDecay_ = 0.0f;
+  float rawDamping_ = 0.0f;
+  float rawPreDelay_ = 0.0f;
 };
 
 #endif

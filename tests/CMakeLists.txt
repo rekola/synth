@@ -14,6 +14,7 @@ add_executable(synth_tests
 	NoiseGeneratorTests.cpp
 	FDNReverbTests.cpp
 	MultiTapDelayTests.cpp
+	BusEffectRegistryTests.cpp
 )
 
 target_link_libraries(synth_tests synth_engine)

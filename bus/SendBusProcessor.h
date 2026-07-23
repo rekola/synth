@@ -4,17 +4,22 @@
 #include "../SampleData.h"
 #include "../ChannelConfiguration.h"
 #include "../AmbisonicEncoding.h"
-#include "FDNReverb.h"
-#include "MultiTapDelay.h"
+#include "BusEffect.h"
 
 #include <array>
+#include <memory>
+#include <vector>
 
 // Owned by SongState (one per playback session, persisting across every
-// block - see SongState.h): the shared spatial reverb (fed by the
-// cross-track SendA sum) and multi-tap delay (fed by the cross-track SendB
-// sum) that Mixer.h's own comment anticipates ("Phase 2 adds the reverb/
-// chorus that will, tapping tracks directly rather than through the
-// mixer").
+// block - see SongState.h): a generic 2-slot effect chain, fed by the
+// cross-track SendA (slot A's input) and SendB (slot B's input) sums.
+// Which concrete BusEffect occupies each slot is resolved once, at song
+// load, from the project file (or the compiled-in default: A = reverb,
+// B = delay) via bus/BusEffectRegistry.h - see setSlotEffect() and
+// SongState::initialize(). Slot occupancy never changes for the lifetime
+// of a loaded song (no runtime reconfiguration, no teardown/crossfade
+// machinery - see the load-time-only slot-configuration plan this
+// implements).
 //
 // This class's own output is *always* ambisonic-shaped (config.
 // numberOfChannels() - 4 at order 1, 9 at order 2 for every real top-level
@@ -24,66 +29,67 @@
 // be ambisonic-shaped too - this class itself has no notion of "stereo
 // bus" at all.
 //
-// The reverb (FDNReverb) produces 8 decorrelated mono tap outputs, each
-// encoded here into the bus at a fixed cube-vertex direction (see
-// AmbisonicEncoding.h's cubeVertexDirections()) - the reverb return is
-// therefore inherently spatial, spread over the whole sphere, and sits
-// *before* whatever decoder (binaural/stereo/future) renders the bus, so
-// none of this class is decoder-specific. The delay (MultiTapDelay)
-// produces 4 mono tap outputs at fixed-or-evolving directions (see
-// MultiTapDelay.h) - each encoded here the same way, via its own
-// AmbisonicVoiceEncoder so a pattern-mode direction change interpolates
-// smoothly across a block instead of clicking (the reverb's fixed
-// directions never need this).
+// Slot B is processed first each block, then its pre-encode tap sum
+// (BusEffect::getChainSendSum()), scaled by its own chain-send ratio
+// (BusEffect::getChainSendLevel()), is added into slot A's input before
+// slot A processes - a same-block (not one-block-delayed) chain send.
+// Slot A is always the chain's terminal: its own chain-send ratio exists
+// (every BusEffect has one, uniformly) but is never read by anything,
+// since nothing sits after it. Every slot's taps are then encoded into
+// the ambisonic bus uniformly via each effect's own getTapDirection()/
+// getWetLevel()/getTapEncoder() - there is no special-cased "slot A's
+// directions are fixed, computed once" fast path any more (see
+// FDNReverb::getTapDirection(), which now owns what this class used to
+// hardcode for whichever effect happened to be in slot A).
 class SendBusProcessor {
  public:
   explicit SendBusProcessor(const ChannelConfiguration & config);
 
-  // Song-level parameters (see Song.h's reverb*/delay* getters) - static,
-  // set once when a song loads (SongState::initialize()), not continuously
-  // automatable (no mechanism for that exists in this codebase today for
-  // any effect parameter). Safe to call at any time regardless, including
-  // mid-playback - see FDNReverb::setParameters()/MultiTapDelay::setParameters().
-  void setReverbParameters(float size, float decayRT60Seconds, float damping, float preDelaySeconds, float wetLevel);
-  void setDelayParameters(float baseRows, float feedbackGain, float damping, DelayPattern pattern, float patternSpeed, float wetLevel, float rowDurationSeconds);
+  static constexpr int kSlotA = 0;
+  static constexpr int kSlotB = 1;
+
+  // Installs a fully-constructed effect into a slot, taking ownership -
+  // called once per slot at song load (SongState::initialize()) and never
+  // again for the lifetime of a loaded song. The caller (SongState) is
+  // responsible for having already called the new effect's
+  // loadParameters()/setRowDuration() as needed before installing it here;
+  // this method just takes ownership and nothing else.
+  void setSlotEffect(int slot, std::unique_ptr<BusEffect> effect);
+
+  BusEffect & getSlotEffect(int slot) { return *slots_[static_cast<size_t>(slot)]; }
+  const BusEffect & getSlotEffect(int slot) const { return *slots_[static_cast<size_t>(slot)]; }
 
   // send_a_mono/send_b_mono: single-channel (mono) cross-track sums for
-  // this block. Always processes, even when both are silent, so the
-  // reverb tail and delay feedback/pattern state stay continuous across
-  // blocks (same reasoning as AmbisonicBinauralMixer's overlap-add tail).
+  // this block, feeding slot A/B's input respectively (before any chain
+  // send - see the class comment above). Always processes, even when both
+  // are silent, so every slot's internal tail/feedback/pattern state
+  // stays continuous across blocks (same reasoning as
+  // AmbisonicBinauralMixer's overlap-add tail).
   void process(const SampleData & send_a_mono, const SampleData & send_b_mono, int frames);
 
   const SampleData & getBusAmbisonic() const { return bus_ambisonic_; }
 
  private:
-  FDNReverb reverb_;
-  MultiTapDelay delay_;
+  // Both default-constructed to NullBusEffect (BusEffectRegistry.h) in
+  // this class's own constructor, so process() is always safe to call
+  // even before SongState::initialize() ever calls setSlotEffect() (e.g.
+  // a test constructing this class directly) - never a raw nullptr.
+  std::array<std::unique_ptr<BusEffect>, 2> slots_;
 
-  float wet_level_ = 0.2512f; // reverb return level (-12dB default) - see setReverbParameters()
-  float delay_wet_ = 0.354f;  // delay return level (-9dB default) - see setDelayParameters()
+  // Scratch buffers reused across process() calls - resize() only grows
+  // the underlying allocation the first time a given (or larger) block
+  // size is seen, so this doesn't allocate on the audio thread once
+  // warmed up.
+  std::vector<float> chain_scratch_;     // slot B's getChainSendSum() output
+  std::vector<float> combined_a_input_;  // send_a_mono + chain_scratch_ * chain level
 
   // config.numberOfChannels() - 4 or 9 for every real top-level AMBISONIC
   // config. The only other value ever seen here is 1, for the synthetic
-  // top-level MONO config one regression test constructs directly
-  // (bypassing MixerFactory) - SongState only ever calls process()/
-  // getBusAmbisonic() when its own config is AMBISONIC, so that case never
-  // actually reaches this class's process() method in practice. Fixed for
-  // this instance's lifetime.
+  // top-level MONO config one regression test constructs directly -
+  // SongState only ever calls process()/getBusAmbisonic() when its own
+  // config is AMBISONIC, so that case never actually reaches this class's
+  // process() method in practice. Fixed for this instance's lifetime.
   int ambisonic_channels_;
-
-  // The 8 cube-vertex directions' encode gains, computed once at
-  // construction via the same computeAmbisonicGains() voices use - fixed
-  // for this instance's lifetime, so no per-block gain-interpolation
-  // machinery (AmbisonicVoiceEncoder) is needed, unlike the delay's
-  // feedback tap (which can move).
-  std::array<AmbisonicGains, FDNReverb::kNumLines> tap_gains_;
-
-  // One AmbisonicVoiceEncoder per delay tap - all 4 get the same
-  // smoothly-interpolated-across-a-block treatment for simplicity, even
-  // though only the feedback tap (index MultiTapDelay::kNumTaps - 1) ever
-  // actually changes direction; for the other 3, interpolation is a no-op
-  // after the first block since their target never changes.
-  std::array<AmbisonicVoiceEncoder, MultiTapDelay::kNumTaps> delay_tap_encoders_;
 
   SampleData bus_ambisonic_;    // always ambisonic_channels_ channels
 };

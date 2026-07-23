@@ -7,6 +7,8 @@
 #include "RenderContext.h"
 #include "Mixer.h"
 #include "bus/SendBusProcessor.h"
+#include "bus/BusEffectRegistry.h"
+#include "MemoryParameterSource.h"
 
 #include <memory>
 
@@ -14,11 +16,39 @@ class SongState : public TrackState {
  public:
   explicit SongState(ChannelConfiguration channel_config) : TrackState(channel_config), render_context_(channel_config), send_bus_(channel_config) { }
 
+  // Load-time-only slot instantiation (see the bus-slot project-file
+  // plan): for each of Song's two slots (Song.h's getBusSlot()/
+  // getBusSlotKind(), placeholder-sample-rate instances that exist only
+  // to own their own parameters), construct a *fresh*, correctly-
+  // sample-rated BusEffect via the registry and round-trip the Song
+  // slot's parameters into it through a MemoryParameterSource -
+  // deviation-only storeParameters() writes only what differs from that
+  // type's own construction defaults, and loadParameters() falls back to
+  // the (identical, since both were built from the same registry factory)
+  // construction default for anything not written, so the round-trip is
+  // exact without needing per-type dispatch here. Installed into
+  // send_bus_ once via setSlotEffect() - never reconfigured again for the
+  // lifetime of this SongState (no runtime slot swapping - out of scope
+  // per the plan).
   void initialize(const Song & song) {
     tempo_ = song.getTempo();
     render_context_.setBpm(tempo_);
-    send_bus_.setReverbParameters(song.getReverbSize(), song.getReverbDecay(), song.getReverbDamping(), song.getReverbPreDelay(), song.getReverbWet());
-    send_bus_.setDelayParameters(song.getDelayBaseRows(), song.getDelayFeedback(), song.getDelayDamping(), song.getDelayPattern(), song.getDelayPatternSpeed(), song.getDelayWet(), getChannelConfiguration().getRowDuration(tempo_));
+
+    int real_sample_rate = getChannelConfiguration().getAudioOutSampleRate();
+    float row_duration = getChannelConfiguration().getRowDuration(tempo_);
+
+    for (int slot = 0; slot < 2; slot++) {
+      auto & descriptor = findBusEffectDescriptor(song.getBusSlotKind(slot));
+      auto effect = descriptor.factory(real_sample_rate);
+
+      MemoryParameterSource params;
+      song.getBusSlot(slot).storeParameters(params);
+      effect->loadParameters(params);
+
+      effect->setRowDuration(row_duration); // no-op except for MultiTapDelay
+
+      send_bus_.setSlotEffect(slot, std::move(effect));
+    }
   }
   
   void render(int frames, const Song & song, Mixer & mixer) {

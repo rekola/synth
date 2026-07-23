@@ -5,7 +5,7 @@
 #include "Track.h"
 #include "Section.h"
 #include "Pattern.h"
-#include "bus/DelayPattern.h"
+#include "bus/BusEffectRegistry.h"
 
 #include <memory>
 #include <vector>
@@ -15,7 +15,10 @@ class Mixer;
 
 class Song : public StatefulSongObject {
  public:
-  Song(Tuning tuning = Tuning::TET12, short key = -1, float randomization_factor = 0.01f) : tuning_(tuning), key_note_number_(key), randomization_factor_(randomization_factor) { }
+  Song(Tuning tuning = Tuning::TET12, short key = -1, float randomization_factor = 0.01f)
+    : tuning_(tuning), key_note_number_(key), randomization_factor_(randomization_factor) {
+    resetBusToDefaults();
+  }
 
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override;
 
@@ -31,39 +34,38 @@ class Song : public StatefulSongObject {
   short getTempo() const { return bpm_; }
   void setTempo(short bpm) { bpm_ = bpm; }
 
-  // Shared spatial reverb (SendA, see SendBusProcessor/FDNReverb) - static
-  // song-level settings, like every other effect parameter in this
-  // codebase (no automation mechanism exists for continuously varying an
-  // effect parameter from pattern data today).
-  float getReverbSize() const { return reverb_size_; }
-  void setReverbSize(float f) { reverb_size_ = f; }
-  float getReverbDecay() const { return reverb_decay_; }
-  void setReverbDecay(float f) { reverb_decay_ = f; }
-  float getReverbDamping() const { return reverb_damping_; }
-  void setReverbDamping(float f) { reverb_damping_ = f; }
-  float getReverbPreDelay() const { return reverb_predelay_; }
-  void setReverbPreDelay(float f) { reverb_predelay_ = f; }
-  float getReverbWet() const { return reverb_wet_; }
-  void setReverbWet(float f) { reverb_wet_ = f; }
+  // The shared 2-slot send bus (bus/SendBusProcessor.h) - slot 0 = A,
+  // slot 1 = B, matching SendBusProcessor::kSlotA/kSlotB. Each slot's
+  // BusEffect instance here is real (never null - even an empty slot
+  // holds a NullBusEffect, bus/BusEffectRegistry.h) but exists purely to
+  // own/(de)serialize its own parameters via BusEffect::loadParameters()/
+  // storeParameters() - constructed at an arbitrary placeholder sample
+  // rate (Song::open() has no access to the real device sample rate) and
+  // never process()'d. SongState::initialize() constructs the *real*,
+  // correctly-sample-rated instances the audio thread actually uses,
+  // round-tripping a slot's parameters through a MemoryParameterSource
+  // into them - a Song-held BusEffect and a SongState-held BusEffect for
+  // the same slot are two different objects, never a shared/aliased one.
+  // Defaults to slot 0 = reverb, slot 1 = delay (resetBusToDefaults(),
+  // called from the constructor and from loadParameters() before parsing
+  // any <bus> element) - the compiled-in default bus, per the
+  // project-file plan's "no <bus> element at all -> compiled defaults"
+  // rule.
+  BusEffect & getBusSlot(int slot) { return slot == 0 ? *bus_slot_a_ : *bus_slot_b_; }
+  const BusEffect & getBusSlot(int slot) const { return slot == 0 ? *bus_slot_a_ : *bus_slot_b_; }
+  BusEffectKind getBusSlotKind(int slot) const { return slot == 0 ? bus_slot_a_kind_ : bus_slot_b_kind_; }
 
-  // Shared multi-tap delay (SendB, see SendBusProcessor/MultiTapDelay) -
-  // same static, song-level-only shape as the reverb parameters above.
-  // delayBaseRows: base tap interval in pattern rows (the fixed 4-tap
-  // table's shortest tap; the other 3 are 2x/4x/8x this). delayPattern:
-  // how the feedback tap's direction/gain evolves pass to pass - see
-  // DelayPattern/MultiTapDelay.h.
-  float getDelayBaseRows() const { return delay_base_rows_; }
-  void setDelayBaseRows(float f) { delay_base_rows_ = f; }
-  float getDelayFeedback() const { return delay_feedback_; }
-  void setDelayFeedback(float f) { delay_feedback_ = f; }
-  float getDelayDamping() const { return delay_damping_; }
-  void setDelayDamping(float f) { delay_damping_ = f; }
-  float getDelayWet() const { return delay_wet_; }
-  void setDelayWet(float f) { delay_wet_ = f; }
-  DelayPattern getDelayPattern() const { return delay_pattern_; }
-  void setDelayPattern(DelayPattern p) { delay_pattern_ = p; }
-  float getDelayPatternSpeed() const { return delay_pattern_speed_; }
-  void setDelayPatternSpeed(float f) { delay_pattern_speed_ = f; }
+  // Replaces a slot's occupant entirely - constructs a fresh, default-
+  // valued instance of `kind` via the registry (at this Song's own
+  // placeholder sample rate). Used by the <bus> loading path in Song.cpp;
+  // also available for a future editing UI (out of scope for now - see
+  // the load-time-only slot-configuration plan).
+  void setBusSlotKind(int slot, BusEffectKind kind);
+
+  void resetBusToDefaults() {
+    setBusSlotKind(0, BusEffectKind::Reverb);
+    setBusSlotKind(1, BusEffectKind::Delay);
+  }
 
   void incVersion() { version_++; }
   int getVersion() const { return version_; }
@@ -179,17 +181,11 @@ private:
   short key_note_number_ = 0;
   float randomization_factor_ = 0.0f;
   int bpm_ = 90;
-  float reverb_size_ = 1.0f;
-  float reverb_decay_ = 1.8f;
-  float reverb_damping_ = 0.1f;
-  float reverb_predelay_ = 0.02f;
-  float reverb_wet_ = 0.2512f;
-  float delay_base_rows_ = 0.1875f; // 3/16
-  float delay_feedback_ = 0.5f;
-  float delay_damping_ = 0.5f;
-  float delay_wet_ = 0.354f; // -9dB
-  DelayPattern delay_pattern_ = DelayPattern::Static;
-  float delay_pattern_speed_ = 18.0f;
+
+  std::unique_ptr<BusEffect> bus_slot_a_, bus_slot_b_;
+  BusEffectKind bus_slot_a_kind_ = BusEffectKind::Reverb;
+  BusEffectKind bus_slot_b_kind_ = BusEffectKind::Delay;
+
   int version_ = 1;
 
   std::vector<std::unique_ptr<Track> > instruments_;
