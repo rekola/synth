@@ -16,6 +16,7 @@
 #include "Controller.h"
 #include "KeyChord.h"
 #include "LaunchpadButtonEvent.h"
+#include "LaunchpadPadEvent.h"
 #include "LaunchpadProtocol.h"
 #include "LaunchpadManager.h"
 
@@ -241,26 +242,69 @@ UI::handleMidiEvent(MidiEvent & ev) {
 
 void
 UI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
+  // DRAW mode (a plain coloring toy - see LaunchpadManager::
+  // advanceDrawColor) touches no Song/Track/Pattern data at all, unlike
+  // every other pad-event use (note entry, Send A/B/Pan) - handled
+  // entirely here, before PatternEditor (which owns actual pattern
+  // editing) ever sees the event.
+  if (launchpad_manager_ && launchpad_manager_->gridMode(ev.getDeviceIndex()) == LaunchpadManager::GridMode::DRAW) {
+    if (ev.getKind() == LaunchpadPadEvent::PRESS) {
+      launchpad_manager_->advanceDrawColor(ev.getDeviceIndex(), ev.getX(), ev.getY());
+    }
+    return;
+  }
   pattern_editor_->handleLaunchpadPadEvent(ev);
 }
 
 void
 UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   if (ev.getKind() != LaunchpadButtonEvent::PRESS) return;
+  if (!launchpad_manager_) return;
+
+  auto device_id = ev.getDeviceIndex();
+
+  // Send A/B: a direct hardware-state toggle (this device's own transient
+  // grid-display mode), never a command - intercepted here, by raw CC
+  // number, before any command-name resolution happens at all. See
+  // LaunchpadManager::handleRawButton's own comment.
+  if (launchpad_manager_->handleRawButton(ev.getCCNumber(), device_id)) return;
 
   auto name = LaunchpadProtocol::commandForButton(ev.getCCNumber());
   if (!name) return;
 
-  // Per-device commands (which track/octave a given Launchpad follows) go
-  // through PatternEditor's device-aware entry point first, since those
-  // need to know *which* physical device pressed the button - see
-  // LaunchpadManager. Deliberately bypassing active_element_/
-  // Controller::sendCommand's focus routing either way, to match how pad
-  // input already reaches PatternEditor unconditionally (see
-  // handleLaunchpadPadEvent above) - these commands would otherwise
-  // silently no-op whenever some other window happens to have focus.
-  if (pattern_editor_->handleLaunchpadDeviceCommand(*name, ev.getDeviceIndex())) return;
-  executeCommand(*name);
+  // Emacs prefix-argument style: resolve which track_id this specific
+  // physical device currently targets and stash it as a one-shot
+  // transient on Controller before dispatching - "toggle-mute" (and any
+  // future command that cares) reads-and-clears it, falling back to the
+  // shared cursor's own track otherwise (see PatternEditor's constructor,
+  // Controller::consumePendingCommandTrack). Harmless to set
+  // unconditionally, even for commands that never consume it (octave-up,
+  // next-track, ...) - it's a one-shot value, overwritten or cleared by
+  // the very next dispatch either way, so it can never leak into a later,
+  // unrelated command.
+  auto track_ids = getController().getSong().getRootTrackIds();
+  getController().setPendingCommandTrack(launchpad_manager_->resolveTrackId(device_id, track_ids, pattern_editor_->getCursorTrackIndex()));
+
+  // Pure per-device commands (octave/track-follow - no Song/Track access,
+  // no keyboard/M-x equivalent) go through LaunchpadManager's own entry
+  // point first; everything else (Song/Track-mutating commands like
+  // "toggle-mute", or anything else registered anywhere) falls through to
+  // the exact same executeCommand() a keybinding or M-x invocation uses.
+  // Deliberately bypassing active_element_/Controller::sendCommand's focus
+  // routing either way, to match how pad input already reaches
+  // PatternEditor unconditionally (see handleLaunchpadPadEvent above) -
+  // these would otherwise silently no-op whenever some other window
+  // happens to have focus.
+  bool handled = launchpad_manager_->handleCommand(*name, device_id, pattern_editor_->getCursorTrackIndex(), static_cast<int>(track_ids.size()));
+  if (!handled) handled = executeCommand(*name);
+
+  getController().setPendingCommandTrack(-1);
+
+  // Keep the shared on-screen cursor following whichever track this
+  // device is now assigned to, so a Launchpad button's effect (whether
+  // navigation, or a mute/solo/send toggle on some other track) stays
+  // visible - PatternEditor doesn't need to know why its cursor moved.
+  if (handled) pattern_editor_->setCursorTrack(launchpad_manager_->assignedTrackIndex(device_id, pattern_editor_->getCursorTrackIndex()));
 }
 
 void audio_thread_func(Controller * controller, AudioAPI * audio) {
@@ -272,6 +316,7 @@ void
 UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launchpad_manager) {
   launchpad_manager.setLaunchpadIO(&launchpad_io);
   pattern_editor_->setLaunchpadManager(&launchpad_manager);
+  launchpad_manager_ = &launchpad_manager;
 
   std::thread audio_thread(audio_thread_func, &(getController()), &audio);
 

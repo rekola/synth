@@ -165,6 +165,15 @@ class Song : public StatefulSongObject {
     return max_depth;
   }
 
+  // Flattens the track tree into the leaf tracks (INSTRUMENT_CONTROL/
+  // PERCUSSION_CONTROL/SAMPLE) that are actually addressable as "a track" -
+  // Group/effect-chain wrapper tracks are skipped over, not listed
+  // themselves. The single canonical definition of "the addressable track
+  // list and its order" - every caller that needs to resolve a track by
+  // position (PatternEditor's columns, a Launchpad device's assigned
+  // track) uses this same one, so they can never quietly diverge.
+  std::vector<int> getRootTrackIds() const;
+
 private:
   Tuning tuning_ = Tuning::TET12;
   short key_note_number_ = 0;
@@ -177,7 +186,7 @@ private:
   float reverb_wet_ = 0.2512f;
   float delay_base_rows_ = 0.1875f; // 3/16
   float delay_feedback_ = 0.5f;
-  float delay_damping_ = 0.3f;
+  float delay_damping_ = 0.5f;
   float delay_wet_ = 0.354f; // -9dB
   DelayPattern delay_pattern_ = DelayPattern::Static;
   float delay_pattern_speed_ = 18.0f;

@@ -145,14 +145,29 @@ isProMk3OnlyLedIndex(int led_index) {
 optional<string>
 commandForButton(int cc_number) {
   switch (cc_number) {
-  case 91: return string("octave-up");    // top row 1, printed with an up-arrow icon
-  case 92: return string("octave-down");  // top row 2, printed with a down-arrow icon
+  // 91/92 are printed with up/down-arrow icons - mirror PatternEditor's own
+  // plain Up/Down key behavior (move the selected row, only while stopped)
+  // rather than octave shifting, which used to live here. Octave shifting
+  // itself (LaunchpadManager::octaveUp/octaveDown/octave(), still used by
+  // resolveNote) is currently unreachable from any button - deliberately
+  // deferred, not removed.
+  case 91: return string("move-row-up");   // top row 1
+  case 92: return string("move-row-down"); // top row 2
   case 93: return string("prev-track");   // top row 3
   case 94: return string("next-track");   // top row 4
   case 98: return string("toggle-playing"); // top row 8, printed with a record-circle icon
   case 30: return string("toggle-mute");  // Pro MK3 left column, position 6
   case 20: return string("toggle-solo");  // Pro MK3 left column, position 7
-  default: return nullopt; // CC95-97, 99, the whole right column, and all other left-column/bottom-row buttons: reserved for now
+  // 39/29 are inferred (not yet hardware-confirmed), continuing the same
+  // right-column Ableton "Track" control row order as Send A/Pan/Send B/
+  // Volume (89/79/69/59 - all confirmed against a real Launchpad X, see
+  // LaunchpadManager::handleRawButton): Stop Clip(49, unused)/Mute(39)/
+  // Solo(29)/Record Arm(19, unused). These are real commands (mutate Song/
+  // Track data), unlike Send/Pan mode, which is why they're named here
+  // rather than intercepted as a raw-CC toggle.
+  case 39: return string("toggle-mute");
+  case 29: return string("toggle-solo");
+  default: return nullopt; // CC95-97, 99, most of the right column, and all other left-column/bottom-row buttons: reserved for now
   }
 }
 

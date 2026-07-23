@@ -68,6 +68,44 @@ class Controller {
 
   bool togglePlaying();
 
+  // Single, shared home for "mutate this track's mute/solo/send and keep
+  // the already-running playback state in sync" - neither the terminal's
+  // `\` key handler nor any Launchpad control (the two ways a user can
+  // trigger these today) duplicate this logic; both just resolve which
+  // track_id to act on (whichever way is natural for that input source -
+  // the shared on-screen cursor, or a Launchpad device's own assigned
+  // track) and call these. Returns false (Send setters: no-op) if track_id
+  // doesn't name an existing InstrumentTrack/PercussionTrack. Each also
+  // pushes the matching PlaybackControlEvent so the change actually reaches
+  // the running SongState, not just the Track model - see
+  // InstrumentTrackState's public setMuted/setSolo/setSendA/setSendB.
+  bool toggleTrackMuted(int track_id);
+  bool toggleTrackSolo(int track_id);
+  void setTrackSendA(int track_id, float value);
+  void setTrackSendB(int track_id, float value);
+  void setTrackAzimuth(int track_id, float value);
+
+  // Emacs prefix-argument style: transient, one-shot context a caller (the
+  // Launchpad command-dispatch path, UI::handleLaunchpadButtonEvent) sets
+  // right before invoking a named command by string (executeCommand()),
+  // for whichever registered command actually wants it (currently
+  // "toggle-mute"/"toggle-solo", resolving which track a specific
+  // Launchpad device is following - see PatternEditor's constructor) - the
+  // caller doesn't need to know which commands care, and a command that
+  // doesn't consume it simply leaves it to be overwritten/cleared by the
+  // next dispatch. consumePendingCommandTrack() reads and clears in one
+  // step, exactly like reading Emacs's current-prefix-arg resets it - so a
+  // stale value can never leak into a later, unrelated command (e.g. one
+  // invoked from a keybinding or M-x, which never sets this at all and
+  // always gets the caller-supplied fallback instead).
+  void setPendingCommandTrack(int track_id) { pending_command_track_ = track_id; }
+  int consumePendingCommandTrack(int fallback) {
+    if (pending_command_track_ < 0) return fallback;
+    int track_id = pending_command_track_;
+    pending_command_track_ = -1;
+    return track_id;
+  }
+
   const InstrumentProvider & getInstrumentProvider() const { return instrument_provider; }
 
  private:
@@ -82,6 +120,7 @@ class Controller {
   PlaybackInfo playback_info;
   int recording_track_id = 0;
   std::function<bool(std::string_view)> command_fallback_;
+  int pending_command_track_ = -1;
 
   static inline SampleData empty_sample;
 };

@@ -414,3 +414,25 @@ Song::storeParameters(ParameterSource & output) const {
   output.set("delayPattern", to_string(getDelayPattern()));
   output.set("delayPatternSpeed", getDelayPatternSpeed());
 }
+
+static void
+collectRootTrackIds(const Track & track, vector<int> & track_ids) {
+  if (track.getType() == TrackType::INSTRUMENT_CONTROL ||
+      track.getType() == TrackType::PERCUSSION_CONTROL ||
+      track.getType() == TrackType::SAMPLE) {
+    track_ids.push_back(track.getInternalId());
+  } else {
+    for (auto & child : track.getChildren()) {
+      collectRootTrackIds(*child, track_ids);
+    }
+  }
+}
+
+vector<int>
+Song::getRootTrackIds() const {
+  vector<int> track_ids;
+  for (auto & child : getTracks()) {
+    collectRootTrackIds(*child, track_ids);
+  }
+  return track_ids;
+}

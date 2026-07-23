@@ -26,16 +26,19 @@ class PatternEditor : public UIElement {
 
   // Set once at startup (see UI::start) so render() can push LED updates
   // and handleLaunchpadPadEvent can resolve notes via the layout/per-device
-  // state LaunchpadManager owns.
+  // state LaunchpadManager owns. Button *commands* are not handled here at
+  // all - see UI::handleLaunchpadButtonEvent and LaunchpadManager::
+  // handleCommand: PatternEditor only ever touches Launchpad concepts for
+  // actual pattern editing (resolving/recording notes from pad presses).
   void setLaunchpadManager(LaunchpadManager * manager) { launchpad_manager_ = manager; }
 
-  // Handles the six Launchpad-extra-button commands that need to know
-  // *which* device pressed the button (octave/track are per-device state -
-  // see LaunchpadManager). Returns false for any other command name, so
-  // UI::handleLaunchpadButtonEvent can fall back to the generic
-  // name-based executeCommand (e.g. "toggle-playing", which has no
-  // per-device meaning).
-  bool handleLaunchpadDeviceCommand(std::string_view name, int device_id);
+  // Plain, source-agnostic cursor accessors - PatternEditor has no idea
+  // these happen to be used to keep a Launchpad device's own track
+  // selection in sync with what's on screen (see UI::
+  // handleLaunchpadButtonEvent); it just exposes "the current track" the
+  // same way it always has, and lets it be moved.
+  int getCursorTrackIndex() const { return current_cursor.track; }
+  void setCursorTrack(int track_index) { new_cursor.track = track_index; new_cursor.col = new_cursor.subcol = 0; }
 
 protected:
   // Resolved row/track/note-column bounds for a selection-consuming command

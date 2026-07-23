@@ -25,23 +25,10 @@
 using namespace std;
 using namespace fmt;
 
-static void get_root_track_ids(const Track & track, vector<int> & track_ids) {
-  if (track.getType() == TrackType::INSTRUMENT_CONTROL ||
-      track.getType() == TrackType::PERCUSSION_CONTROL ||
-      track.getType() == TrackType::SAMPLE) {
-    track_ids.push_back(track.getInternalId());
-  } else {
-    for (auto & child : track.getChildren()) {
-      get_root_track_ids(*child, track_ids);
-    }
-  }
-}
-
-static void get_root_track_ids(const Song & song, vector<int> & track_ids) {
-  for (auto & child : song.getTracks()) {
-    get_root_track_ids(*child, track_ids);
-  }
-}
+// Track flattening moved to Song::getRootTrackIds() - shared with the
+// Launchpad command-dispatch path (UI::handleLaunchpadButtonEvent), which
+// needs the exact same addressable-track list/order to resolve a device's
+// assigned track to a track_id, without PatternEditor being involved.
 
 PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   // getPlane().setScrolling(true);
@@ -55,8 +42,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   commands_.define("set-mark", [this]() {
     auto & song = getController().getSong();
     auto & info = getController().getPlaybackInfo();
-    vector<int> track_ids;
-    get_root_track_ids(song, track_ids);
+    auto track_ids = song.getRootTrackIds();
     selection_start_pattern_ = info.getPatternIndex();
     selection_start_row_ = info.getRowIndex();
     selection_start_track_ = current_cursor.track;
@@ -76,8 +62,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   commands_.define("kill-region", [this]() {
     auto & song = getController().getSong();
     auto & info = getController().getPlaybackInfo();
-    vector<int> track_ids;
-    get_root_track_ids(song, track_ids);
+    auto track_ids = song.getRootTrackIds();
     auto & event_queue = getController().getPlaybackEventQueue();
     auto & pattern = song.getPattern(info.getPatternIndex());
 
@@ -128,8 +113,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   commands_.define("kill-ring-save", [this]() {
     auto & song = getController().getSong();
     auto & info = getController().getPlaybackInfo();
-    vector<int> track_ids;
-    get_root_track_ids(song, track_ids);
+    auto track_ids = song.getRootTrackIds();
     auto & pattern = song.getPattern(info.getPatternIndex());
 
     auto b = getEffectiveSelectionBounds(song, track_ids);
@@ -149,8 +133,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     if (!clipboard_.empty()) {
       auto & song = getController().getSong();
       auto & info = getController().getPlaybackInfo();
-      vector<int> track_ids;
-      get_root_track_ids(song, track_ids);
+      auto track_ids = song.getRootTrackIds();
       auto & pattern = song.getPattern(info.getPatternIndex());
       if (clipboard_column_scoped_) {
         auto track_id = track_ids[current_cursor.track];
@@ -183,8 +166,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     auto & song = getController().getSong();
     auto & info = getController().getPlaybackInfo();
     auto & pattern = song.getPattern(info.getPatternIndex());
-    vector<int> track_ids;
-    get_root_track_ids(song, track_ids);
+    auto track_ids = song.getRootTrackIds();
 
     auto b = getEffectiveSelectionBounds(song, track_ids);
     if (b.column_scoped) {
@@ -200,8 +182,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     auto & song = getController().getSong();
     auto & info = getController().getPlaybackInfo();
     auto & pattern = song.getPattern(info.getPatternIndex());
-    vector<int> track_ids;
-    get_root_track_ids(song, track_ids);
+    auto track_ids = song.getRootTrackIds();
 
     auto b = getEffectiveSelectionBounds(song, track_ids);
     if (b.column_scoped) {
@@ -213,6 +194,61 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     song.incVersion();
   });
 
+  // Row navigation while stopped (playback owns the row while playing -
+  // see the isPlaying() guard) - same MOVE_POSITION event the mouse
+  // scroll-wheel and Page Up/Down already push. Named as a command (not
+  // left inline the way it used to be) so a Launchpad's up/down-arrow
+  // buttons can trigger the exact same code, not a re-implementation of
+  // it - see LaunchpadProtocol's CC91/92 mapping and LaunchpadManager::
+  // handleCommand.
+  commands_.define("move-row-up", [this]() {
+    auto & info = getController().getPlaybackInfo();
+    if (info.isPlaying()) return;
+    getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, -1));
+    new_cursor.subcol = 0;
+  });
+
+  commands_.define("move-row-down", [this]() {
+    auto & info = getController().getPlaybackInfo();
+    if (info.isPlaying()) return;
+    getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, 1));
+    new_cursor.subcol = 0;
+  });
+
+  // Named once here (PatternEditor is where "the current track" - the
+  // shared cursor - already lives), reached identically whether from the
+  // keybinding below, an M-x invocation, or a Launchpad button press (via
+  // UI::handleLaunchpadButtonEvent's generic executeCommand() fallback,
+  // once LaunchpadManager::handleCommand has declined the name). The
+  // actual mutation (+ keeping the running SongState in sync) lives in
+  // Controller, shared by any caller - consumePendingCommandTrack reads
+  // (and clears) the Emacs-prefix-argument-style transient a Launchpad
+  // dispatch stashes ahead of time (see Controller.h), falling back to the
+  // shared cursor's own track when nothing set it.
+  commands_.define("toggle-mute", [this]() {
+    auto & song = getController().getSong();
+    auto track_ids = song.getRootTrackIds();
+    if (track_ids.empty()) return;
+    auto track_id = getController().consumePendingCommandTrack(track_ids[current_cursor.track]);
+    getController().toggleTrackMuted(track_id);
+  });
+
+  commands_.define("toggle-solo", [this]() {
+    auto & song = getController().getSong();
+    auto track_ids = song.getRootTrackIds();
+    if (track_ids.empty()) return;
+    auto track_id = getController().consumePendingCommandTrack(track_ids[current_cursor.track]);
+    getController().toggleTrackSolo(track_id);
+  });
+
+  // "send-a-mode"/"send-b-mode" are NOT defined here (or anywhere in
+  // commands_) - they mutate nothing outside a single Launchpad device's
+  // own transient UI state (which grid mode it's showing), never Song/
+  // Track data, and have no keyboard/M-x equivalent that would make sense
+  // ("open the Send A fader" - for which device?). LaunchpadManager::
+  // handleCommand handles them directly, synchronously, with the
+  // device_id it's already given - see UI::handleLaunchpadButtonEvent.
+
   keymap_.bind(KeyChord::pack(' ', true, false, false, false), "set-mark");  // Ctrl-Space
   keymap_.bind(KeyChord::pack('b', true, false, false, false), "set-mark");  // Ctrl-B (see todo.txt; works on any terminal)
   keymap_.bind(KeyChord::pack('w', true, false, false, false), "kill-region");
@@ -221,6 +257,10 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   keymap_.bind(KeyChord::pack('g', true, false, false, false), "keyboard-quit");
   keymap_.bind(KeyChord::pack(NCKEY_UP, true, false, true, false), "transpose-region-up");    // Ctrl+Shift+Up
   keymap_.bind(KeyChord::pack(NCKEY_DOWN, true, false, true, false), "transpose-region-down"); // Ctrl+Shift+Down
+  keymap_.bind(KeyChord::pack('\\', true, false, false, false), "toggle-solo");  // Ctrl-\ (was Ctrl-only inline handling)
+  keymap_.bind(KeyChord::pack('\\', false, false, false, false), "toggle-mute"); // \
+  keymap_.bind(KeyChord::pack(NCKEY_UP, false, false, false, false), "move-row-up");     // plain Up (was inline handling)
+  keymap_.bind(KeyChord::pack(NCKEY_DOWN, false, false, false, false), "move-row-down"); // plain Down
 
   assertCommandBindingsValid();
 }
@@ -333,8 +373,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   auto [rows, cols] = getDim();
   auto heading_height = song.getTrackDepth() + 1;
   
-  vector<int> track_ids;
-  get_root_track_ids(song, track_ids);
+  auto track_ids = song.getRootTrackIds();
 
   if (launchpad_manager_) {
     launchpad_manager_->refresh(song, track_ids, info,
@@ -467,8 +506,7 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
 
   bool was_playing = !active_midi_notes.empty();
 
-  vector<int> track_ids;
-  get_root_track_ids(song, track_ids);
+  auto track_ids = song.getRootTrackIds();
 
   auto & pattern = song.getPattern(info.getPatternIndex());
   int track_id = track_ids[new_cursor.track];
@@ -536,11 +574,35 @@ PatternEditor::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
   auto & song = getController().getSong();
   auto & info = getController().getPlaybackInfo();
 
-  vector<int> track_ids;
-  get_root_track_ids(song, track_ids);
+  auto track_ids = song.getRootTrackIds();
   if (track_ids.empty()) return;
 
   auto device_id = ev.getDeviceIndex();
+
+  // Send A/Send B/Pan mode: the whole grid means something else entirely
+  // while active (see LaunchpadManager::GridMode) - column x is
+  // track_ids[x] (the first 8 root tracks, not this device's assigned
+  // track), row y sets that track's send level or azimuth. Only a PRESS
+  // does anything; RELEASE/AFTERTOUCH are swallowed too, never falling
+  // through to note-entry below.
+  auto grid_mode = launchpad_manager_->gridMode(device_id);
+  if (grid_mode != LaunchpadManager::GridMode::NOTES) {
+    if (ev.getKind() == LaunchpadPadEvent::PRESS && ev.getX() < static_cast<int>(track_ids.size())) {
+      auto track = song.getTrackByInternalId(track_ids[static_cast<size_t>(ev.getX())]);
+      if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL)) {
+        auto track_id = track->getInternalId();
+        if (grid_mode == LaunchpadManager::GridMode::SEND_A) {
+          getController().setTrackSendA(track_id, static_cast<float>(ev.getY()) / 7.0f);
+        } else if (grid_mode == LaunchpadManager::GridMode::SEND_B) {
+          getController().setTrackSendB(track_id, static_cast<float>(ev.getY()) / 7.0f);
+        } else { // PAN
+          getController().setTrackAzimuth(track_id, LaunchpadManager::rowToAzimuth(ev.getY()));
+        }
+      }
+    }
+    return;
+  }
+
   auto track_index = launchpad_manager_->assignedTrackIndex(device_id, new_cursor.track);
   if (track_index < 0 || track_index >= static_cast<int>(track_ids.size())) track_index = new_cursor.track;
   int track_id = track_ids[track_index];
@@ -658,55 +720,6 @@ PatternEditor::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
 }
 
 bool
-PatternEditor::handleLaunchpadDeviceCommand(std::string_view name, int device_id) {
-  if (!launchpad_manager_) return false;
-
-  auto & song = getController().getSong();
-  vector<int> track_ids;
-  get_root_track_ids(song, track_ids);
-
-  if (name == "next-track" || name == "prev-track") {
-    if (track_ids.empty()) return true;
-    auto delta = name == "next-track" ? 1 : -1;
-    auto num_tracks = static_cast<int>(track_ids.size());
-    launchpad_manager_->advanceTrack(device_id, delta, new_cursor.track, num_tracks);
-    // Also move the shared on-screen cursor, so the button's effect stays
-    // visible - see the plan's rationale (byte-for-byte identical to the
-    // old single-device behavior; with a second device, each still keeps
-    // using its own last-assigned track even after the shared cursor has
-    // since moved elsewhere).
-    new_cursor.track = launchpad_manager_->assignedTrackIndex(device_id, new_cursor.track);
-    new_cursor.col = new_cursor.subcol = 0;
-    return true;
-  }
-
-  if (name == "octave-up") {
-    launchpad_manager_->octaveUp(device_id);
-    return true;
-  }
-  if (name == "octave-down") {
-    launchpad_manager_->octaveDown(device_id);
-    return true;
-  }
-
-  if (name == "toggle-mute" || name == "toggle-solo") {
-    if (track_ids.empty()) return true;
-    auto track_index = launchpad_manager_->assignedTrackIndex(device_id, current_cursor.track);
-    if (track_index < 0 || track_index >= static_cast<int>(track_ids.size())) track_index = current_cursor.track;
-    auto track = song.getTrackByInternalId(track_ids[track_index]);
-    if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL)) {
-      auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
-      if (name == "toggle-mute") instrument_track.setMuted(!instrument_track.isMuted());
-      else instrument_track.setSolo(!instrument_track.isSolo());
-      song.incVersion();
-    }
-    return true;
-  }
-
-  return false;
-}
-
-bool
 PatternEditor::offerInput(const InputEvent & input) {
   if (dispatchCommand(input)) return true;
 
@@ -715,8 +728,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 
   auto all_track_info = getTrackInformation(song);
 
-  vector<int> track_ids;
-  get_root_track_ids(song, track_ids);
+  auto track_ids = song.getRootTrackIds();
   auto num_tracks = static_cast<int>(track_ids.size());
   
   auto current_track = song.getTrackByInternalId(track_ids[current_cursor.track]);
@@ -797,14 +809,6 @@ PatternEditor::offerInput(const InputEvent & input) {
       return true;
     } else if (input.getId() == 'i') {
       // create new instrument
-    } else if (input.getId() == '\\') {
-      auto track = song.getTrackByInternalId(track_ids[current_cursor.track]);
-      if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL)) {
-	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
-	instrument_track.setSolo(!instrument_track.isSolo());
-	song.incVersion();
-      }
-      return true;
     } else {
       return false;
     }
@@ -845,13 +849,13 @@ PatternEditor::offerInput(const InputEvent & input) {
 	new_cursor.subcol = 0;
       }
       return true;
-    } else if (input.getId() == NCKEY_UP || input.getId() == NCKEY_BUTTON4) {
+    } else if (input.getId() == NCKEY_BUTTON4) { // scroll wheel up - plain Up is now "move-row-up" (see the keymap)
       if (!info.isPlaying()) {
 	event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, -1));
 	new_cursor.subcol = 0;
       }
       return true;
-    } else if (input.getId() == NCKEY_DOWN || input.getId() == NCKEY_BUTTON5) {
+    } else if (input.getId() == NCKEY_BUTTON5) { // scroll wheel down - plain Down is now "move-row-down"
       if (!info.isPlaying()) {
 	event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, 1));
 	new_cursor.subcol = 0;
@@ -867,14 +871,6 @@ PatternEditor::offerInput(const InputEvent & input) {
       if (!info.isPlaying()) {
 	event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, 16));
 	new_cursor.subcol = 0;
-      }
-      return true;
-    } else if (input.getId() == '\\') {
-      auto track = song.getTrackByInternalId(track_ids[current_cursor.track]);
-      if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL)) {
-	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
-	instrument_track.setMuted(!instrument_track.isMuted());
-	song.incVersion();
       }
       return true;
     } else if (input.getId() == '\t') {

@@ -135,13 +135,15 @@ TEST(decode_incoming_bytes_skips_embedded_sysex_and_ignores_non_grid_notes) {
 }
 
 TEST(command_for_button_returns_the_assigned_command_names) {
-  CHECK(commandForButton(91) == string("octave-up"));
-  CHECK(commandForButton(92) == string("octave-down"));
+  CHECK(commandForButton(91) == string("move-row-up"));
+  CHECK(commandForButton(92) == string("move-row-down"));
   CHECK(commandForButton(93) == string("prev-track"));
   CHECK(commandForButton(94) == string("next-track"));
   CHECK(commandForButton(98) == string("toggle-playing"));
-  CHECK(commandForButton(30) == string("toggle-mute"));
-  CHECK(commandForButton(20) == string("toggle-solo"));
+  CHECK(commandForButton(30) == string("toggle-mute"));  // Pro MK3 left column
+  CHECK(commandForButton(20) == string("toggle-solo"));  // Pro MK3 left column
+  CHECK(commandForButton(39) == string("toggle-mute"));  // right column - inferred Launchpad X alias, see LaunchpadProtocol.cpp
+  CHECK(commandForButton(29) == string("toggle-solo"));  // right column - inferred Launchpad X alias, see LaunchpadProtocol.cpp
 }
 
 TEST(command_for_button_returns_nullopt_for_reserved_and_out_of_range_ccs) {
@@ -149,8 +151,17 @@ TEST(command_for_button_returns_nullopt_for_reserved_and_out_of_range_ccs) {
   CHECK(commandForButton(96) == nullopt);
   CHECK(commandForButton(97) == nullopt);
   CHECK(commandForButton(99) == nullopt);
-  CHECK(commandForButton(19) == nullopt); // right column - reserved
-  CHECK(commandForButton(89) == nullopt); // right column - reserved
+  CHECK(commandForButton(19) == nullopt); // right column - reserved (Record Arm)
+  CHECK(commandForButton(49) == nullopt); // right column - reserved (Stop Clip)
+  // 59/69/79/89 (Send B/Send A/Pan/Volume mode buttons) are deliberately
+  // absent here too - they're intercepted by raw CC number in
+  // LaunchpadManager::handleRawButton, before commandForButton is ever
+  // consulted (see UI::handleLaunchpadButtonEvent), since pressing one only
+  // flips a device's own transient UI state, never a "command".
+  CHECK(commandForButton(59) == nullopt);
+  CHECK(commandForButton(69) == nullopt);
+  CHECK(commandForButton(79) == nullopt);
+  CHECK(commandForButton(89) == nullopt);
   CHECK(commandForButton(10) == nullopt); // Pro MK3 left column - unassigned position
   CHECK(commandForButton(101) == nullopt); // Pro MK3 bottom row - not assigned this pass
   CHECK(commandForButton(0) == nullopt);

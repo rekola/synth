@@ -632,3 +632,59 @@ Controller::togglePlaying() {
   setPlaybackInfo(info);
   return info.isPlaying();
 }
+
+static InstrumentTrack *
+asInstrumentTrack(Track * track) {
+  if (!track || (track->getType() != TrackType::INSTRUMENT_CONTROL && track->getType() != TrackType::PERCUSSION_CONTROL)) return nullptr;
+  return &dynamic_cast<InstrumentTrack&>(*track);
+}
+
+bool
+Controller::toggleTrackMuted(int track_id) {
+  auto instrument_track = asInstrumentTrack(current_song->getTrackByInternalId(track_id));
+  if (!instrument_track) return false;
+  instrument_track->setMuted(!instrument_track->isMuted());
+  current_song->incVersion();
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_MUTED, track_id, instrument_track->isMuted() ? 1 : 0));
+  return instrument_track->isMuted();
+}
+
+bool
+Controller::toggleTrackSolo(int track_id) {
+  auto instrument_track = asInstrumentTrack(current_song->getTrackByInternalId(track_id));
+  if (!instrument_track) return false;
+  instrument_track->setSolo(!instrument_track->isSolo());
+  current_song->incVersion();
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SOLO, track_id, instrument_track->isSolo() ? 1 : 0));
+  return instrument_track->isSolo();
+}
+
+void
+Controller::setTrackSendA(int track_id, float value) {
+  auto instrument_track = asInstrumentTrack(current_song->getTrackByInternalId(track_id));
+  if (!instrument_track) return;
+  instrument_track->setSendA(value);
+  current_song->incVersion();
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_A, track_id, static_cast<int>(value * 1000.0f + 0.5f)));
+}
+
+void
+Controller::setTrackSendB(int track_id, float value) {
+  auto instrument_track = asInstrumentTrack(current_song->getTrackByInternalId(track_id));
+  if (!instrument_track) return;
+  instrument_track->setSendB(value);
+  current_song->incVersion();
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_B, track_id, static_cast<int>(value * 1000.0f + 0.5f)));
+}
+
+void
+Controller::setTrackAzimuth(int track_id, float value) {
+  auto instrument_track = asInstrumentTrack(current_song->getTrackByInternalId(track_id));
+  if (!instrument_track) return;
+  instrument_track->setAzimuth(value);
+  current_song->incVersion();
+  // Tenths-of-a-degree precision (-1800..1800) - the same "float via a
+  // fixed-point int parameter" convention setTrackSendA/B use, just a
+  // different scale/unit since this is degrees, not a 0-1 fraction.
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_AZIMUTH, track_id, static_cast<int>(value * 10.0f + (value >= 0.0f ? 0.5f : -0.5f))));
+}

@@ -88,6 +88,12 @@ private:
   std::shared_ptr<PatternEditor> pattern_editor_;
   std::weak_ptr<UIElement> active_element_;
 
+  // Set once at startup (see start()) - the Launchpad command-dispatch
+  // path (handleLaunchpadButtonEvent) needs this directly (device-state
+  // toggles, per-device command resolution); PatternEditor's own copy is
+  // separate and only used for actual pattern editing (note entry).
+  LaunchpadManager * launchpad_manager_ = nullptr;
+
   std::vector<std::shared_ptr<UIElement>> windows_;
 };
 

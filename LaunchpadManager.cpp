@@ -25,6 +25,49 @@ namespace {
   constexpr Rgb FOKKER_DIESIS     = {0,   70,  127}; // medium blue
   constexpr Rgb FOKKER_ACCIDENTAL = {70,  0,   70};  // dim magenta - ambiguous tie (e.g. 12edo black keys)
 
+  // DRAW mode's coloring-toy palette - a plain rainbow plus white, cycling
+  // back to off. Order/values are not meaningful the way the Fokker colors
+  // above are (no music-theory landmark to preserve), just distinct and
+  // bright enough to be satisfying to press through.
+  constexpr Rgb DRAW_PALETTE[] = {
+    {0,   0,   0},   // off
+    {127, 0,   0},   // red
+    {127, 60,  0},   // orange
+    {127, 127, 0},   // yellow
+    {0,   127, 0},   // green
+    {0,   127, 127}, // cyan
+    {0,   0,   127}, // blue
+    {90,  0,   127}, // purple
+    {127, 127, 127}, // white
+  };
+  constexpr int DRAW_PALETTE_SIZE = sizeof(DRAW_PALETTE) / sizeof(DRAW_PALETTE[0]);
+
+  // LaunchpadLayout::noteForPad/classifyPad treat pad (0,0) as the tonic
+  // (base_note) - a pure, logical coordinate system with no notion of a
+  // "physical middle." Anchoring that logical origin at the bottom-left
+  // *physical* pad (the original behavior - passing x,y straight through)
+  // pushes the diatonic scale out along the grid's edges and leaves DIESIS
+  // (31/53-EDO's dense, quarter-tone-ish in-between notes - there are far
+  // more of them than diatonic degrees) dominating the middle, since the
+  // middle ends up farthest from the one tonic-anchored corner.
+  //
+  // (1,3), chosen with 31-EDO as the priority target (the tuning actually
+  // in use), is the result of exhaustively scoring every candidate origin's
+  // (diatonic - diesis) count in the middle 4x4 pads, with a second pass
+  // fixing x so the two visible tonic pads' span is horizontally centered
+  // on the grid: the octave-equivalent step in this T/S coordinate system
+  // is (Δx,Δy) = (5,2), landing a second tonic 5 columns to the right of
+  // the first - x=1 (span [1,6], centered on the grid's own midpoint 3.5)
+  // beats x=2's off-center span [2,7] for that reason, even though x=2
+  // alone scores marginally higher on the raw diatonic-vs-diesis count
+  // (+3 vs +2) - centering the tonic pair visually won out over that small
+  // difference. Also clearly beats the corner anchor (original behavior,
+  // x=y=0) for every other supported EDO too (12-EDO already has no DIESIS
+  // at all; 53-EDO's sheer note density - 53 pitches/octave into 64 pads -
+  // keeps some diesis in the middle regardless of anchor, but noticeably
+  // less than the corner anchor left there).
+  constexpr int GRID_ORIGIN_X = 1, GRID_ORIGIN_Y = 3;
+
   struct Hsl { float h, s, l; }; // h in [0,360), s/l in [0,1]
 
   Hsl rgbToHsl(Rgb c) {
@@ -88,6 +131,26 @@ namespace {
     hsl.l = LAUNCHPAD_IDLE_LUMINOSITY + (LAUNCHPAD_ACTIVE_LUMINOSITY - LAUNCHPAD_IDLE_LUMINOSITY) * loudness;
     return hslToRgb(hsl);
   }
+
+  // Pan mode maps a track's azimuth to one of 8 compass points spaced 45
+  // degrees apart around the *full* circle (not clamped to a stereo-like
+  // +-90 range) - this is a full 3D ambisonic engine, not a stereo panner,
+  // so "behind" positions are just as reachable as "in front" ones. Row 4
+  // (dead center of the 8) lands exactly on 0 degrees (front) for a
+  // memorable, symmetric mapping.
+  constexpr float PAN_ROW_DEGREES = 45.0f;
+}
+
+int
+LaunchpadManager::azimuthToRow(float azimuth) {
+  float normalized = fmodf(azimuth + 180.0f, 360.0f);
+  if (normalized < 0.0f) normalized += 360.0f;
+  return static_cast<int>(lround(normalized / PAN_ROW_DEGREES)) % 8;
+}
+
+float
+LaunchpadManager::rowToAzimuth(int row) {
+  return static_cast<float>(row) * PAN_ROW_DEGREES - 180.0f;
 }
 
 LaunchpadManager::DeviceState &
@@ -161,6 +224,84 @@ LaunchpadManager::advanceTrack(int device_id, int delta, int fallback_track_inde
 }
 
 int
+LaunchpadManager::resolveTrackId(int device_id, const vector<int> & track_ids, int fallback_track_index) const {
+  if (track_ids.empty()) return -1;
+  auto track_index = assignedTrackIndex(device_id, fallback_track_index);
+  if (track_index < 0 || track_index >= static_cast<int>(track_ids.size())) track_index = fallback_track_index;
+  if (track_index < 0 || track_index >= static_cast<int>(track_ids.size())) return -1;
+  return track_ids[track_index];
+}
+
+LaunchpadManager::GridMode
+LaunchpadManager::gridMode(int device_id) const {
+  auto * state = findDeviceState(device_id);
+  return state ? state->grid_mode : GridMode::NOTES;
+}
+
+void
+LaunchpadManager::toggleGridMode(int device_id, GridMode mode) {
+  auto & state = deviceState(device_id);
+  state.grid_mode = (state.grid_mode == mode) ? GridMode::NOTES : mode;
+}
+
+bool
+LaunchpadManager::handleRawButton(int cc_number, int device_id) {
+  // 69/79/89 confirmed against a real Launchpad X: Send A/Pan/Volume, 10
+  // apart in that order (row 5/6/7 of the right column, CC = 19 + 10*row) -
+  // not the arbitrary contiguous-slot guess this originally shipped with.
+  // 59 (row 4, one further down the same sequence) is unconfirmed but a
+  // strong inference: it matches Ableton Live's own standard Launchpad
+  // "Track" control row order (Volume, Pan, Send A, Send B, Stop, Mute,
+  // Solo, Record Arm - Volume/Pan/SendA already lined up exactly with that
+  // order at 89/79/69). 89/Volume still has no grid mode (dropped pending
+  // further investigation).
+  if (cc_number == 69) {
+    toggleGridMode(device_id, GridMode::SEND_A);
+    return true;
+  }
+  if (cc_number == 79) {
+    toggleGridMode(device_id, GridMode::PAN);
+    return true;
+  }
+  if (cc_number == 59) {
+    toggleGridMode(device_id, GridMode::SEND_B);
+    return true;
+  }
+  if (cc_number == 97) {
+    toggleGridMode(device_id, GridMode::DRAW);
+    return true;
+  }
+  return false;
+}
+
+void
+LaunchpadManager::advanceDrawColor(int device_id, int x, int y) {
+  if (x < 0 || x > 7 || y < 0 || y > 7) return;
+  auto & state = deviceState(device_id);
+  if (state.grid_mode != GridMode::DRAW) return;
+  auto & idx = state.draw_color_index[static_cast<size_t>(y * 8 + x)];
+  idx = (idx + 1) % DRAW_PALETTE_SIZE;
+}
+
+bool
+LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_track_index, int num_tracks) {
+  if (name == "octave-up") {
+    octaveUp(device_id);
+    return true;
+  }
+  if (name == "octave-down") {
+    octaveDown(device_id);
+    return true;
+  }
+  if (name == "next-track" || name == "prev-track") {
+    if (num_tracks <= 0) return true;
+    advanceTrack(device_id, name == "next-track" ? 1 : -1, fallback_track_index, num_tracks);
+    return true;
+  }
+  return false;
+}
+
+int
 LaunchpadManager::resolveNote(const Song & song, int device_id, int track_id, int x, int y) const {
   auto track = song.getTrackByInternalId(track_id);
   auto tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
@@ -184,14 +325,56 @@ LaunchpadManager::resolveNote(const Song & song, int device_id, int track_id, in
   // user feedback (the "octave*N" register alone was still too low to be
   // comfortably useful on the Launchpad specifically).
   auto base_note = tonic + (octave(device_id) + 1) * edo_steps;
-  return LaunchpadLayout::noteForPad(basis, x, y, base_note);
+  return LaunchpadLayout::noteForPad(basis, x - GRID_ORIGIN_X, y - GRID_ORIGIN_Y, base_note);
 }
 
 void
 LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   vector<LaunchpadProtocol::PadColor> colors;
 
-  if (state.tuning == Tuning::PERCUSSION) {
+  if (state.grid_mode == GridMode::DRAW) {
+    // A plain coloring toy - each pad shows its own stored palette index,
+    // completely independent of Song/Track data and of every other pad
+    // (see advanceDrawColor).
+    for (int y = 0; y < 8; y++) {
+      for (int x = 0; x < 8; x++) {
+        auto & c = DRAW_PALETTE[static_cast<size_t>(state.draw_color_index[static_cast<size_t>(y * 8 + x)])];
+        colors.push_back({LaunchpadProtocol::padToNoteNumber(x, y), c.r, c.g, c.b});
+      }
+    }
+  } else if (state.grid_mode != GridMode::NOTES) {
+    // Send/Pan mode: the whole grid means something else entirely - each
+    // column is one of the first 8 root tracks. Send A/B fill bottom-up as
+    // a bargraph of that track's current send level (0-7 -> 0.0-1.0) - a
+    // magnitude. Pan lights only the one row matching that track's current
+    // azimuth (see azimuthToRow) - a direction, not a magnitude, so a fill
+    // wouldn't make sense; "only one button highlighted" per column. No
+    // active/inactive feedback needed on the mode buttons themselves (see
+    // refreshLeds' extra-button section below) - this repaint *is* the
+    // confirmation the mode actually changed.
+    bool is_pan = state.grid_mode == GridMode::PAN;
+    auto & values = state.grid_mode == GridMode::SEND_A ? state.track_send_a
+                  : state.grid_mode == GridMode::SEND_B ? state.track_send_b
+                  : state.track_azimuth;
+    Rgb base = state.grid_mode == GridMode::SEND_A ? Rgb{0, 127, 127}
+             : state.grid_mode == GridMode::SEND_B ? Rgb{127, 0, 127}
+             : Rgb{127, 64, 0};
+    for (int x = 0; x < 8; x++) {
+      // A column past the real track count has no value to show at all -
+      // values[x] is just a stale/default 0.0f there, not "this track's
+      // level is 0" - go fully dark rather than painting whatever that
+      // default happens to map to (row 0 for Send A/B, dead-center for
+      // Pan).
+      bool has_track = x < state.grid_track_count;
+      int lit_row = is_pan ? azimuthToRow(values[static_cast<size_t>(x)])
+                            : static_cast<int>(lround(values[static_cast<size_t>(x)] * 7.0f));
+      for (int y = 0; y < 8; y++) {
+        bool lit = has_track && (is_pan ? (y == lit_row) : (y <= lit_row));
+        Rgb color = lit ? base : Rgb{0, 0, 0};
+        colors.push_back({LaunchpadProtocol::padToNoteNumber(x, y), color.r, color.g, color.b});
+      }
+    }
+  } else if (state.tuning == Tuning::PERCUSSION) {
     for (int y = 0; y < 8; y++) {
       for (int x = 0; x < 8; x++) {
         uint8_t r, g, b;
@@ -236,7 +419,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
           if (basis.degenerate) {
             color = {40, 40, 40}; // degraded/fallback visual mode - no meaningful scale structure
           } else {
-            switch (LaunchpadLayout::classifyPad(basis, edo_steps, x, y, base_note)) {
+            switch (LaunchpadLayout::classifyPad(basis, edo_steps, x - GRID_ORIGIN_X, y - GRID_ORIGIN_Y, base_note)) {
             case LaunchpadLayout::PadCategory::TONIC:      color = FOKKER_TONIC;      break;
             case LaunchpadLayout::PadCategory::DIATONIC:   color = FOKKER_DIATONIC;   break;
             case LaunchpadLayout::PadCategory::SHARP:      color = FOKKER_SHARP;      break;
@@ -245,7 +428,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
             case LaunchpadLayout::PadCategory::ACCIDENTAL: color = FOKKER_ACCIDENTAL; break;
             }
           }
-          auto note = LaunchpadLayout::noteForPad(basis, x, y, base_note);
+          auto note = LaunchpadLayout::noteForPad(basis, x - GRID_ORIGIN_X, y - GRID_ORIGIN_Y, base_note);
           color = padColor(color, state.active_note_loudness, note);
           colors.push_back({LaunchpadProtocol::padToNoteNumber(x, y), color.r, color.g, color.b});
         }
@@ -257,16 +440,31 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // CC numbers unreachable on X/Mini MK3 (30, 20 - Pro MK3's left column)
   // are harmless to include here: those models simply don't have the
   // physical button, so the colourspec entry has nothing to light.
-  colors.push_back({91, 30, 30, 30}); // octave-up, dim white (static)
-  colors.push_back({92, 30, 30, 30}); // octave-down, dim white (static)
+  colors.push_back({91, 30, 30, 30}); // move-row-up, dim white (static)
+  colors.push_back({92, 30, 30, 30}); // move-row-down, dim white (static)
   colors.push_back({93, 0, 0, 60});   // prev-track, dim blue (static)
   colors.push_back({94, 0, 0, 60});   // next-track, dim blue (static)
-  colors.push_back({95, 0, 0, 0});    // reserved
-  colors.push_back({96, 0, 0, 0});    // reserved
-  colors.push_back({97, 0, 0, 0});    // reserved
+  colors.push_back({95, 0, 0, 0});    // reserved (Session, inferred)
+  colors.push_back({96, 0, 0, 0});    // reserved (Note, inferred)
+  colors.push_back({97, 60, 60, 60}); // Custom physical button (inferred) -> draw-mode, dim white (static)
   colors.push_back({98, state.playing ? uint8_t(0) : uint8_t(20), state.playing ? uint8_t(127) : uint8_t(20), state.playing ? uint8_t(0) : uint8_t(20)}); // toggle-playing/record
   colors.push_back({99, 0, 0, 0});    // reserved - may be hardware-fixed (Clear/Delete)
-  for (int cc = 19; cc <= 89; cc += 10) colors.push_back({cc, 0, 0, 0}); // right column, all reserved
+  // Right column: 89/79/69/59 are the Volume(unused)/Pan/Send A/Send B mode
+  // buttons - static colors (matching each mode's own grid base color,
+  // dimmed), no active/inactive state needed (see the grid-mode painting
+  // above, whose own repaint is the confirmation a press registered). 39/29
+  // are Mute/Solo (real commands, not a mode toggle - see
+  // LaunchpadProtocol::commandForButton) and do need active-state colors,
+  // matching the Pro-MK3-left-column entries' own convention exactly. 19/49
+  // (Record Arm/Stop Clip) stay reserved.
+  colors.push_back({19, 0, 0, 0});    // reserved
+  colors.push_back({29, state.solo ? uint8_t(127) : uint8_t(20), state.solo ? uint8_t(127) : uint8_t(20), 0}); // toggle-solo
+  colors.push_back({39, state.muted ? uint8_t(127) : uint8_t(20), 0, 0}); // toggle-mute
+  colors.push_back({49, 0, 0, 0});    // reserved
+  colors.push_back({59, 40, 0, 40});  // Send B physical button -> send-b-mode, dim magenta (static)
+  colors.push_back({69, 0, 40, 40});  // Send A physical button -> send-a-mode, dim cyan (static)
+  colors.push_back({79, 40, 20, 0});  // Pan physical button -> pan-mode, dim orange (static)
+  colors.push_back({89, 0, 0, 0});    // Volume physical button - no grid mode yet, reserved
   colors.push_back({30, state.muted ? uint8_t(127) : uint8_t(20), 0, 0}); // toggle-mute (Pro MK3 left column pos. 6)
   colors.push_back({20, state.solo ? uint8_t(127) : uint8_t(20), state.solo ? uint8_t(127) : uint8_t(20), 0}); // toggle-solo (Pro MK3 left column pos. 7)
 
@@ -300,6 +498,21 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   }
 
   auto num_tracks = static_cast<int>(track_ids.size());
+
+  // The Send A/Send B/Pan grid modes always address the first 8 root
+  // tracks (not whichever track a device happens to be assigned to) - the
+  // same values apply to every connected device, computed once here
+  // rather than per-device inside the loop below.
+  array<float, 8> track_send_a{}, track_send_b{}, track_azimuth{};
+  for (int i = 0; i < 8 && i < num_tracks; i++) {
+    auto track = song.getTrackByInternalId(track_ids[static_cast<size_t>(i)]);
+    if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL)) {
+      auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
+      track_send_a[static_cast<size_t>(i)] = instrument_track.getSendA();
+      track_send_b[static_cast<size_t>(i)] = instrument_track.getSendB();
+      track_azimuth[static_cast<size_t>(i)] = instrument_track.getAzimuth();
+    }
+  }
 
   for (auto device_id : ready_ids) {
     auto & state = deviceState(device_id);
@@ -337,6 +550,10 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     state.muted = muted;
     state.solo = solo;
     state.active_note_loudness = move(active_note_loudness);
+    state.track_send_a = track_send_a;
+    state.track_send_b = track_send_b;
+    state.track_azimuth = track_azimuth;
+    state.grid_track_count = min(8, num_tracks);
 
     refreshLeds(device_id, state);
   }

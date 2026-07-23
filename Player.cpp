@@ -99,6 +99,41 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     }
     break;
 
+  case PlaybackControlEvent::SET_TRACK_MUTED:
+    {
+      auto track_state = dynamic_cast<InstrumentTrackState*>(state_.getChildByInternalId(ev.getParameter1()));
+      if (track_state) track_state->setMuted(ev.getParameter2() != 0);
+    }
+    break;
+
+  case PlaybackControlEvent::SET_TRACK_SOLO:
+    {
+      auto track_state = dynamic_cast<InstrumentTrackState*>(state_.getChildByInternalId(ev.getParameter1()));
+      if (track_state) track_state->setSolo(ev.getParameter2() != 0);
+    }
+    break;
+
+  case PlaybackControlEvent::SET_TRACK_SEND_A:
+    {
+      auto track_state = dynamic_cast<InstrumentTrackState*>(state_.getChildByInternalId(ev.getParameter1()));
+      if (track_state) track_state->setSendA(ev.getParameter2() / 1000.0f);
+    }
+    break;
+
+  case PlaybackControlEvent::SET_TRACK_SEND_B:
+    {
+      auto track_state = dynamic_cast<InstrumentTrackState*>(state_.getChildByInternalId(ev.getParameter1()));
+      if (track_state) track_state->setSendB(ev.getParameter2() / 1000.0f);
+    }
+    break;
+
+  case PlaybackControlEvent::SET_TRACK_AZIMUTH:
+    {
+      auto track_state = dynamic_cast<InstrumentTrackState*>(state_.getChildByInternalId(ev.getParameter1()));
+      if (track_state) track_state->setAzimuth(ev.getParameter2() / 10.0f);
+    }
+    break;
+
   case PlaybackControlEvent::SONG_CHANGED:
     song_changed_ = true;
     break;

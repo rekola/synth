@@ -194,6 +194,32 @@ public:
     TrackState::getAllActiveVoices(out);
   }
 
+  // Live control changes, pushed from the UI thread via PlaybackControlEvent
+  // (SET_TRACK_MUTED/SOLO/SEND_A/SEND_B - see Player::handleEvent) and
+  // applied directly to this already-running state, unlike the constructor
+  // argument above which only seeds the initial value at song load. Renamed
+  // from setMuted/setSolo's old protected-only visibility (this class had no
+  // way to receive a live update before) - stopVoices() above sets the
+  // precedent for a public real-time control entry point.
+  bool isMuted() const { return muted_; }
+  void setMuted(bool m) { muted_ = m; }
+
+  bool isSolo() const { return solo_; }
+  void setSolo(bool s) { solo_ = s; }
+
+  // Only notes triggered after the change pick up the new value (playNote()
+  // above reads send_a_/send_b_ directly) - already-sounding voices keep
+  // whatever was baked into them at their own construction, the same
+  // "static once baked" behavior as every other effect parameter in this
+  // codebase (e.g. the shared reverb/delay bus parameters).
+  void setSendA(float s) { send_a_ = s; }
+  void setSendB(float s) { send_b_ = s; }
+
+  // Same "only future notes pick it up" caveat as SendA/SendB above -
+  // already-playing voices keep whatever position they were constructed
+  // with (InstrumentVoice's own encodePosition() bakes it in once too).
+  void setAzimuth(float a) { position_.azimuth = a; }
+
 protected:
   static inline bool is_not_playing(const std::unique_ptr<TrackState> & voice) { return !voice->isActive(); }
 
@@ -202,12 +228,6 @@ protected:
       voices.erase(std::remove_if(voices.begin(), voices.end(), is_not_playing), voices.end());
     }
   }
-
-  bool isMuted() const { return muted_; }
-  void setMuted(bool m) { muted_ = m; }
-
-  bool isSolo() const { return solo_; }
-  void setSolo(bool s) { solo_ = s; }
 
 private:
   bool solo_, muted_;
