@@ -4,7 +4,32 @@
 #include "BusEffect.h"
 
 #include <array>
+#include <string>
 #include <vector>
+
+// Named parameter sets showcasing this effect (see FDNReverb.cpp's
+// presetValues() for the exact numbers and loadParameters() for how a
+// preset interacts with individually-specified attributes) - same shape
+// as effects/Reverb.h's ReverbPreset and bus/GranularCloud.h's
+// GranularPreset. DEFAULT is itself a named, described preset (see
+// presetValues()) - the one a bare `<reverb/>`, or an explicit
+// preset="default", resolves to - not just an unnamed fallback;
+// to_string() still maps it to "" so a default-preset instance round-trips
+// quietly, with no explicit preset="..." attribute written, matching every
+// other implicit-default attribute this class writes.
+enum class FDNReverbPreset { DEFAULT = 0, ROOM, HALL, CATHEDRAL, PLATE, AMBIENT };
+
+static inline const std::string to_string(FDNReverbPreset preset) {
+  switch (preset) {
+  case FDNReverbPreset::DEFAULT: return "";
+  case FDNReverbPreset::ROOM: return "room";
+  case FDNReverbPreset::HALL: return "hall";
+  case FDNReverbPreset::CATHEDRAL: return "cathedral";
+  case FDNReverbPreset::PLATE: return "plate";
+  case FDNReverbPreset::AMBIENT: return "ambient";
+  }
+  return "";
+}
 
 // Feedback delay network (FDN) reverb: 8 mutually-decorrelated delay
 // lines coupled by a lossless Householder feedback matrix, each with its
@@ -56,10 +81,12 @@ class FDNReverb : public BusEffect {
   float getDecay() const { return rawDecay_; }
   float getDamping() const { return rawDamping_; }
   float getPreDelay() const { return rawPreDelay_; }
+  FDNReverbPreset getPreset() const { return preset_; }
 
-  // <reverb> element's own attributes: size/decay/damping/preDelay,
-  // deviation-only against this constructor's own tuned defaults (see
-  // FDNReverb.cpp) - wet/chainSend are handled generically by
+  // <reverb> element's own attributes: "preset" plus size/decay/damping/
+  // preDelay, each deviation-only against whatever the resolved preset (or,
+  // absent one, this constructor's own tuned defaults - see FDNReverb.cpp's
+  // presetValues()) implies - wet/chainSend are handled generically by
   // BusEffect::loadParameters()/storeParameters(), called first.
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;
@@ -138,6 +165,8 @@ class FDNReverb : public BusEffect {
   float rawDecay_ = 0.0f;
   float rawDamping_ = 0.0f;
   float rawPreDelay_ = 0.0f;
+
+  FDNReverbPreset preset_ { FDNReverbPreset::DEFAULT };
 };
 
 #endif

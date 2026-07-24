@@ -28,12 +28,13 @@ class NullBusEffect : public BusEffect {
 // "chosen by name, not reflection" idiom Song.cpp's createTrack() already
 // uses for per-track effects/instruments (extensible by code, not by
 // users). `None` is the empty-slot occupant above; the rest are the real
-// bus effects (just Reverb/Delay so far - Granular is a later addition).
-enum class BusEffectKind { None, Reverb, Delay };
+// bus effects: Reverb (FDNReverb), Delay (MultiTapDelay), Granular
+// (GranularCloud).
+enum class BusEffectKind { None, Reverb, Delay, Granular };
 
 struct BusEffectDescriptor {
   BusEffectKind kind;
-  const char * xmlName;              // "none" / "reverb" / "delay"
+  const char * xmlName;              // "none" / "reverb" / "delay" / "granular"
   std::unique_ptr<BusEffect> (*factory)(int sampleRate);
   // No load/save function pointers here - each concrete BusEffect
   // subclass implements its own loadParameters()/storeParameters()
@@ -44,7 +45,7 @@ struct BusEffectDescriptor {
   // is entirely its own business.
 };
 
-const std::array<BusEffectDescriptor, 3> & busEffectRegistry();
+const std::array<BusEffectDescriptor, 4> & busEffectRegistry();
 
 // Looks up a registry entry by its XML element name; returns nullptr if
 // not found - an unrecognized element name, which callers (Song.cpp) fall

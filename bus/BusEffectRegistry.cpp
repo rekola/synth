@@ -1,6 +1,7 @@
 #include "BusEffectRegistry.h"
 #include "FDNReverb.h"
 #include "MultiTapDelay.h"
+#include "GranularCloud.h"
 
 #include <cassert>
 
@@ -10,14 +11,16 @@ namespace {
 unique_ptr<BusEffect> makeNone(int sampleRate) { return make_unique<NullBusEffect>(sampleRate); }
 unique_ptr<BusEffect> makeReverb(int sampleRate) { return make_unique<FDNReverb>(sampleRate); }
 unique_ptr<BusEffect> makeDelay(int sampleRate) { return make_unique<MultiTapDelay>(sampleRate); }
+unique_ptr<BusEffect> makeGranular(int sampleRate) { return make_unique<GranularCloud>(sampleRate); }
 }
 
-const std::array<BusEffectDescriptor, 3> &
+const std::array<BusEffectDescriptor, 4> &
 busEffectRegistry() {
-  static const std::array<BusEffectDescriptor, 3> registry{{
-    { BusEffectKind::None,   "none",   &makeNone },
-    { BusEffectKind::Reverb, "reverb", &makeReverb },
-    { BusEffectKind::Delay,  "delay",  &makeDelay },
+  static const std::array<BusEffectDescriptor, 4> registry{{
+    { BusEffectKind::None,     "none",     &makeNone },
+    { BusEffectKind::Reverb,   "reverb",   &makeReverb },
+    { BusEffectKind::Delay,    "delay",    &makeDelay },
+    { BusEffectKind::Granular, "granular", &makeGranular },
   }};
   return registry;
 }

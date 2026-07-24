@@ -57,10 +57,12 @@ add_library(synth_engine STATIC
 	effects/Reverb.cpp
 	effects/Chorus.cpp
 	dsp/ChorusEngine.cpp
+	dsp/GranularEngine.cpp
 	bus/BusEffect.cpp
 	bus/BusEffectRegistry.cpp
 	bus/FDNReverb.cpp
 	bus/MultiTapDelay.cpp
+	bus/GranularCloud.cpp
 	bus/SendBusProcessor.cpp
 	effects/Amplifier.cpp
 	effects/EnvelopeFilter.cpp

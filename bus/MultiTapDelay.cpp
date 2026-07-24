@@ -41,6 +41,40 @@ float parse_fraction(const string & text, float default_value) {
   float denominator = strtof(text.substr(slash + 1).c_str(), nullptr);
   return denominator != 0.0f ? numerator / denominator : default_value;
 }
+
+// baseRows/feedback/damping/pattern/patternSpeed/wet for each named preset
+// (see MultiTapDelayPreset in MultiTapDelay.h) - used both by
+// loadParameters() (as the fallback default for any attribute not
+// explicitly present) and storeParameters() (as the deviation-only
+// comparison baseline), so a song that just writes `preset="dub"` with no
+// further overrides round-trips as exactly that, nothing more. What each
+// preset is going for is documented for the user in docs/bus_effects.md,
+// not repeated here.
+struct PresetValues {
+  float baseRows, feedback, damping, patternSpeed, wet;
+  DelayPattern pattern;
+};
+
+PresetValues presetValues(MultiTapDelayPreset preset) {
+  switch (preset) {
+  case MultiTapDelayPreset::DEFAULT:
+    return { kDefaultBaseRows, kDefaultFeedback, kDefaultDamping, kDefaultPatternSpeed, kDefaultWet, kDefaultPattern };
+  case MultiTapDelayPreset::SLAPBACK:
+    return { 1.0f / 16.0f, 0.15f, 0.1f, 0.0f, 0.3f, DelayPattern::Static };
+  case MultiTapDelayPreset::PINGPONG:
+    return { 0.25f, 0.55f, 0.2f, 0.0f, 0.35f, DelayPattern::PingPong };
+  case MultiTapDelayPreset::ORBIT:
+    return { kDefaultBaseRows, 0.6f, 0.25f, 30.0f, 0.4f, DelayPattern::Orbit };
+  case MultiTapDelayPreset::RECEDE:
+    return { kDefaultBaseRows, 0.7f, 0.4f, 15.0f, 0.4f, DelayPattern::Recede };
+  case MultiTapDelayPreset::DUB:
+    return { 0.375f, 0.75f, 0.5f, 0.0f, 0.4f, DelayPattern::Static };
+  }
+  // Unreachable given the switch above is exhaustive over every defined
+  // MultiTapDelayPreset value - see GranularCloud.cpp's presetValues() for
+  // the same shape and reasoning.
+  return { kDefaultBaseRows, kDefaultFeedback, kDefaultDamping, kDefaultPatternSpeed, kDefaultWet, kDefaultPattern };
+}
 }
 
 // kDefaultWet is passed to BusEffect's constructor (not applied via a
@@ -183,21 +217,51 @@ void
 MultiTapDelay::loadParameters(const ParameterSource & input) {
   BusEffect::loadParameters(input); // wet/chainSend, generically
 
+  auto preset_text = input.getText("preset");
+  if (preset_text == "slapback") preset_ = MultiTapDelayPreset::SLAPBACK;
+  else if (preset_text == "pingpong") preset_ = MultiTapDelayPreset::PINGPONG;
+  else if (preset_text == "orbit") preset_ = MultiTapDelayPreset::ORBIT;
+  else if (preset_text == "recede") preset_ = MultiTapDelayPreset::RECEDE;
+  else if (preset_text == "dub") preset_ = MultiTapDelayPreset::DUB;
+  // Absent (a bare <delay/>) and the explicit synonym "default" both
+  // resolve here - see MultiTapDelayPreset::DEFAULT's own doc comment in
+  // MultiTapDelay.h for why writing it back out is still silent either way.
+  else preset_ = MultiTapDelayPreset::DEFAULT;
+
+  PresetValues d = presetValues(preset_);
+
   setParameters(
-    parse_fraction(input.getText("baseRows"), kDefaultBaseRows),
-    input.getFloat("feedback", kDefaultFeedback),
-    input.getFloat("damping", kDefaultDamping),
-    parseDelayPattern(input.getText("pattern")), // defaults to kDefaultPattern (Static) on empty/unrecognized text
-    input.getFloat("patternSpeed", kDefaultPatternSpeed));
+    parse_fraction(input.getText("baseRows"), d.baseRows),
+    input.getFloat("feedback", d.feedback),
+    input.getFloat("damping", d.damping),
+    parseDelayPattern(input.has("pattern") ? input.getText("pattern") : to_string(d.pattern)),
+    input.getFloat("patternSpeed", d.patternSpeed));
+
+  // A preset also implies its own tuned wet level - BusEffect::loadParameters()
+  // above already applied "wet", but using this class's flat kDefaultWet as
+  // its fallback, which only coincides with d.wet for MultiTapDelayPreset::
+  // DEFAULT itself. Redo it here (harmless, exactly a no-op, for DEFAULT) so
+  // an explicit wet="..." attribute still wins, but an absent one falls back
+  // to the resolved preset's own wet rather than the generic default - same
+  // reasoning as GranularCloud::loadParameters().
+  setWetLevel(input.getFloat("wet", d.wet));
 }
 
 void
 MultiTapDelay::storeParameters(ParameterSource & output) const {
   BusEffect::storeParameters(output); // wet/chainSend, generically
 
-  output.set("baseRows", getBaseRows(), kDefaultBaseRows);
-  output.set("feedback", getFeedbackGain(), kDefaultFeedback);
-  output.set("damping", getDamping(), kDefaultDamping);
-  output.set("pattern", to_string(getPattern()), to_string(kDefaultPattern));
-  output.set("patternSpeed", getPatternSpeed(), kDefaultPatternSpeed);
+  // Deviation-only, unlike effects/Reverb.cpp's own unconditional
+  // output.set("preset", to_string(preset_)) (which writes preset="" even
+  // for ReverbPreset::NONE) - MultiTapDelayPreset::DEFAULT's to_string() is
+  // "" specifically so this stays quiet for it, matching every other
+  // implicit-default attribute this class writes below.
+  if (preset_ != MultiTapDelayPreset::DEFAULT) output.set("preset", to_string(preset_));
+
+  PresetValues d = presetValues(preset_);
+  output.set("baseRows", getBaseRows(), d.baseRows);
+  output.set("feedback", getFeedbackGain(), d.feedback);
+  output.set("damping", getDamping(), d.damping);
+  output.set("pattern", to_string(getPattern()), to_string(d.pattern));
+  output.set("patternSpeed", getPatternSpeed(), d.patternSpeed);
 }

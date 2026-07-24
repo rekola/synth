@@ -6,7 +6,36 @@
 #include "../SphericalPosition.h"
 
 #include <array>
+#include <string>
 #include <vector>
+
+// Named parameter sets showcasing this effect (see MultiTapDelay.cpp's
+// presetValues() for the exact numbers and loadParameters() for how a
+// preset interacts with individually-specified attributes) - same shape
+// as effects/Reverb.h's ReverbPreset, bus/GranularCloud.h's
+// GranularPreset, and bus/FDNReverb.h's FDNReverbPreset. DEFAULT is
+// itself a named, described preset (see presetValues()) - the one a bare
+// `<delay/>`, or an explicit preset="default", resolves to - not just an
+// unnamed fallback; to_string() still maps it to "" so a default-preset
+// instance round-trips quietly, with no explicit preset="..." attribute
+// written, matching every other implicit-default attribute this class
+// writes. Several of these are named after (and tuned to showcase) one of
+// the DelayPattern modes above, with companion feedback/damping/
+// patternSpeed values chosen to suit that mode - not just that mode left
+// at this class's own flat defaults.
+enum class MultiTapDelayPreset { DEFAULT = 0, SLAPBACK, PINGPONG, ORBIT, RECEDE, DUB };
+
+static inline const std::string to_string(MultiTapDelayPreset preset) {
+  switch (preset) {
+  case MultiTapDelayPreset::DEFAULT: return "";
+  case MultiTapDelayPreset::SLAPBACK: return "slapback";
+  case MultiTapDelayPreset::PINGPONG: return "pingpong";
+  case MultiTapDelayPreset::ORBIT: return "orbit";
+  case MultiTapDelayPreset::RECEDE: return "recede";
+  case MultiTapDelayPreset::DUB: return "dub";
+  }
+  return "";
+}
 
 // Multi-tap delay: a single shared delay line fed by the mono SendB sum,
 // read back at 4 fixed offsets (1x/2x/4x/8x a base row-fraction interval),
@@ -89,12 +118,14 @@ class MultiTapDelay : public BusEffect {
   float getDamping() const { return rawDamping_; }
   DelayPattern getPattern() const { return pattern_; }
   float getPatternSpeed() const { return patternSpeed_; }
+  MultiTapDelayPreset getPreset() const { return preset_; }
 
-  // <delay> element's own attributes: baseRows/feedback/damping/pattern/
-  // patternSpeed, deviation-only against this constructor's own tuned
-  // defaults (see MultiTapDelay.cpp) - wet/chainSend are handled
-  // generically by BusEffect::loadParameters()/storeParameters(), called
-  // first.
+  // <delay> element's own attributes: "preset" plus baseRows/feedback/
+  // damping/pattern/patternSpeed, each deviation-only against whatever the
+  // resolved preset (or, absent one, this constructor's own tuned defaults
+  // - see MultiTapDelay.cpp's presetValues()) implies - wet/chainSend are
+  // handled generically by BusEffect::loadParameters()/storeParameters(),
+  // called first.
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;
 
@@ -135,6 +166,8 @@ class MultiTapDelay : public BusEffect {
 
   DelayPattern pattern_ = DelayPattern::Static;
   float patternSpeed_ = 0.0f;
+
+  MultiTapDelayPreset preset_ { MultiTapDelayPreset::DEFAULT };
 
   // Detects "one full lap of the feedback tap's delay" without a timer -
   // advances by `frames` each process() call, firing advancePass() (and

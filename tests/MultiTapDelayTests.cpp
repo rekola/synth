@@ -1,6 +1,7 @@
 #include "TestFramework.h"
 
 #include "../bus/MultiTapDelay.h"
+#include "../MemoryParameterSource.h"
 
 #include <algorithm>
 #include <cmath>
@@ -212,4 +213,115 @@ TEST(multi_tap_delay_stable_across_parameter_extremes) {
     CHECK(peak > 0.0);
     CHECK(final_window < peak * 0.5); // decaying, not sustaining/growing
   }
+}
+
+TEST(multi_tap_delay_default_preset_matches_compiled_defaults) {
+  MultiTapDelay delay(44100);
+  CHECK(delay.getPreset() == MultiTapDelayPreset::DEFAULT);
+}
+
+TEST(multi_tap_delay_unrecognized_preset_text_falls_back_to_default) {
+  MultiTapDelay delay(44100);
+  MemoryParameterSource input;
+  input.set("preset", string("not-a-real-preset"));
+  delay.loadParameters(input);
+  CHECK(delay.getPreset() == MultiTapDelayPreset::DEFAULT);
+}
+
+TEST(multi_tap_delay_named_preset_changes_parameters_from_default) {
+  MultiTapDelay defaultDelay(44100);
+
+  MultiTapDelay delay(44100);
+  MemoryParameterSource input;
+  input.set("preset", string("dub"));
+  delay.loadParameters(input);
+
+  CHECK(delay.getPreset() == MultiTapDelayPreset::DUB);
+  // Dub is tuned to be clearly, deliberately different from the default
+  // preset on (at least) feedback and damping - a loose sanity check that
+  // the preset actually took effect, not an exact numeric pin (see
+  // bus/MultiTapDelay.cpp's presetValues() for the authoritative numbers).
+  CHECK(delay.getFeedbackGain() != defaultDelay.getFeedbackGain());
+  CHECK(delay.getDamping() != defaultDelay.getDamping());
+}
+
+TEST(multi_tap_delay_preset_also_resolves_its_named_pattern) {
+  MultiTapDelay delay(44100);
+  MemoryParameterSource input;
+  input.set("preset", string("pingpong"));
+  delay.loadParameters(input);
+
+  CHECK(delay.getPreset() == MultiTapDelayPreset::PINGPONG);
+  CHECK(delay.getPattern() == DelayPattern::PingPong);
+}
+
+TEST(multi_tap_delay_explicit_attribute_overrides_preset) {
+  MultiTapDelay delay(44100);
+  MemoryParameterSource input;
+  input.set("preset", string("orbit"));
+  input.set("patternSpeed", 90.0f);
+  delay.loadParameters(input);
+
+  CHECK(delay.getPreset() == MultiTapDelayPreset::ORBIT);
+  CHECK_NEAR(delay.getPatternSpeed(), 90.0f, 0.001f);
+}
+
+TEST(multi_tap_delay_explicit_pattern_attribute_overrides_preset_pattern) {
+  // A preset implies its own pattern (see presetValues()'s DelayPattern
+  // field) the same way it implies baseRows/feedback/damping/patternSpeed
+  // - an explicit pattern="..." attribute must still override it, exactly
+  // like every other individually-specified attribute does.
+  MultiTapDelay delay(44100);
+  MemoryParameterSource input;
+  input.set("preset", string("pingpong"));
+  input.set("pattern", string("orbit"));
+  delay.loadParameters(input);
+
+  CHECK(delay.getPreset() == MultiTapDelayPreset::PINGPONG);
+  CHECK(delay.getPattern() == DelayPattern::Orbit);
+}
+
+TEST(multi_tap_delay_preset_alone_round_trips_without_explicit_numeric_attributes) {
+  MultiTapDelay delay(44100);
+  MemoryParameterSource input;
+  input.set("preset", string("slapback"));
+  delay.loadParameters(input);
+
+  MemoryParameterSource output;
+  delay.storeParameters(output);
+
+  CHECK(output.getText("preset", "") == "slapback");
+  CHECK(!output.has("baseRows"));
+  CHECK(!output.has("feedback"));
+  CHECK(!output.has("damping"));
+  CHECK(!output.has("pattern"));
+  CHECK(!output.has("patternSpeed"));
+}
+
+TEST(multi_tap_delay_default_preset_round_trips_silently) {
+  MultiTapDelay delay(44100);
+
+  MemoryParameterSource output;
+  delay.storeParameters(output);
+
+  CHECK(!output.has("preset"));
+  CHECK(output.isEmpty());
+}
+
+TEST(multi_tap_delay_preset_plus_override_round_trips_both) {
+  MultiTapDelay delay(44100);
+  MemoryParameterSource input;
+  input.set("preset", string("recede"));
+  input.set("feedback", 0.42f);
+  delay.loadParameters(input);
+
+  MemoryParameterSource output;
+  delay.storeParameters(output);
+
+  CHECK(output.getText("preset", "") == "recede");
+  CHECK_NEAR(output.getFloat("feedback", -1.0f), 0.42f, 0.001f);
+  CHECK(!output.has("baseRows"));
+  CHECK(!output.has("damping"));
+  CHECK(!output.has("pattern"));
+  CHECK(!output.has("patternSpeed"));
 }

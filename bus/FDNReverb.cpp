@@ -55,6 +55,38 @@ constexpr float kDenormalGuard = 1e-20f;
 
 // How long a `size` change's tap-output fade takes - see FDNReverb.h.
 constexpr float kSizeChangeFadeMs = 10.0f;
+
+// size/decay/damping/preDelay/wet for each named preset (see
+// FDNReverbPreset in FDNReverb.h) - used both by loadParameters() (as the
+// fallback default for any attribute not explicitly present) and
+// storeParameters() (as the deviation-only comparison baseline), so a song
+// that just writes `preset="hall"` with no further overrides round-trips
+// as exactly that, nothing more. What each preset is going for is
+// documented for the user in docs/bus_effects.md, not repeated here.
+struct PresetValues {
+  float size, decay, damping, preDelay, wet;
+};
+
+PresetValues presetValues(FDNReverbPreset preset) {
+  switch (preset) {
+  case FDNReverbPreset::DEFAULT:
+    return { kDefaultSize, kDefaultDecay, kDefaultDamping, kDefaultPreDelay, kDefaultWet };
+  case FDNReverbPreset::ROOM:
+    return { 0.3f, 0.6f, 0.35f, 0.005f, 0.18f };
+  case FDNReverbPreset::HALL:
+    return { 2.0f, 3.2f, 0.15f, 0.03f, 0.3f };
+  case FDNReverbPreset::CATHEDRAL:
+    return { 3.0f, 6.5f, 0.4f, 0.06f, 0.38f };
+  case FDNReverbPreset::PLATE:
+    return { 0.4f, 1.4f, 0.02f, 0.0f, 0.28f };
+  case FDNReverbPreset::AMBIENT:
+    return { 2.2f, 9.0f, 0.65f, 0.09f, 0.42f };
+  }
+  // Unreachable given the switch above is exhaustive over every defined
+  // FDNReverbPreset value - see GranularCloud.cpp's presetValues() for the
+  // same shape and reasoning.
+  return { kDefaultSize, kDefaultDecay, kDefaultDamping, kDefaultPreDelay, kDefaultWet };
+}
 }
 
 // kDefaultWet is passed to BusEffect's constructor (not applied via a
@@ -240,19 +272,49 @@ void
 FDNReverb::loadParameters(const ParameterSource & input) {
   BusEffect::loadParameters(input); // wet/chainSend, generically
 
+  auto preset_text = input.getText("preset");
+  if (preset_text == "room") preset_ = FDNReverbPreset::ROOM;
+  else if (preset_text == "hall") preset_ = FDNReverbPreset::HALL;
+  else if (preset_text == "cathedral") preset_ = FDNReverbPreset::CATHEDRAL;
+  else if (preset_text == "plate") preset_ = FDNReverbPreset::PLATE;
+  else if (preset_text == "ambient") preset_ = FDNReverbPreset::AMBIENT;
+  // Absent (a bare <reverb/>) and the explicit synonym "default" both
+  // resolve here - see FDNReverbPreset::DEFAULT's own doc comment in
+  // FDNReverb.h for why writing it back out is still silent either way.
+  else preset_ = FDNReverbPreset::DEFAULT;
+
+  PresetValues d = presetValues(preset_);
+
   setParameters(
-    input.getFloat("size", kDefaultSize),
-    input.getFloat("decay", kDefaultDecay),
-    input.getFloat("damping", kDefaultDamping),
-    input.getFloat("preDelay", kDefaultPreDelay));
+    input.getFloat("size", d.size),
+    input.getFloat("decay", d.decay),
+    input.getFloat("damping", d.damping),
+    input.getFloat("preDelay", d.preDelay));
+
+  // A preset also implies its own tuned wet level - BusEffect::loadParameters()
+  // above already applied "wet", but using this class's flat kDefaultWet as
+  // its fallback, which only coincides with d.wet for FDNReverbPreset::
+  // DEFAULT itself. Redo it here (harmless, exactly a no-op, for DEFAULT) so
+  // an explicit wet="..." attribute still wins, but an absent one falls back
+  // to the resolved preset's own wet rather than the generic default - same
+  // reasoning as GranularCloud::loadParameters().
+  setWetLevel(input.getFloat("wet", d.wet));
 }
 
 void
 FDNReverb::storeParameters(ParameterSource & output) const {
   BusEffect::storeParameters(output); // wet/chainSend, generically
 
-  output.set("size", getSize(), kDefaultSize);
-  output.set("decay", getDecay(), kDefaultDecay);
-  output.set("damping", getDamping(), kDefaultDamping);
-  output.set("preDelay", getPreDelay(), kDefaultPreDelay);
+  // Deviation-only, unlike effects/Reverb.cpp's own unconditional
+  // output.set("preset", to_string(preset_)) (which writes preset="" even
+  // for ReverbPreset::NONE) - FDNReverbPreset::DEFAULT's to_string() is ""
+  // specifically so this stays quiet for it, matching every other
+  // implicit-default attribute this class writes below.
+  if (preset_ != FDNReverbPreset::DEFAULT) output.set("preset", to_string(preset_));
+
+  PresetValues d = presetValues(preset_);
+  output.set("size", getSize(), d.size);
+  output.set("decay", getDecay(), d.decay);
+  output.set("damping", getDamping(), d.damping);
+  output.set("preDelay", getPreDelay(), d.preDelay);
 }

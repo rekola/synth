@@ -2,6 +2,7 @@
 
 #include "../bus/FDNReverb.h"
 #include "../dsp/NoiseGenerator.h"
+#include "../MemoryParameterSource.h"
 
 #include <algorithm>
 #include <cmath>
@@ -271,4 +272,87 @@ TEST(fdn_reverb_size_change_mid_stream_has_no_large_sample_jump) {
     for (int i = 0; i < 200; i++) ramping_peak = std::max(ramping_peak, std::fabs(tap[i]));
   }
   CHECK(ramping_peak > 0.0f);
+}
+
+TEST(fdn_reverb_default_preset_matches_compiled_defaults) {
+  FDNReverb reverb(44100);
+  CHECK(reverb.getPreset() == FDNReverbPreset::DEFAULT);
+}
+
+TEST(fdn_reverb_unrecognized_preset_text_falls_back_to_default) {
+  FDNReverb reverb(44100);
+  MemoryParameterSource input;
+  input.set("preset", std::string("not-a-real-preset"));
+  reverb.loadParameters(input);
+  CHECK(reverb.getPreset() == FDNReverbPreset::DEFAULT);
+}
+
+TEST(fdn_reverb_named_preset_changes_parameters_from_default) {
+  FDNReverb defaultReverb(44100);
+
+  FDNReverb reverb(44100);
+  MemoryParameterSource input;
+  input.set("preset", std::string("cathedral"));
+  reverb.loadParameters(input);
+
+  CHECK(reverb.getPreset() == FDNReverbPreset::CATHEDRAL);
+  // Cathedral is tuned to be clearly, deliberately different from the
+  // default preset on (at least) size and decay - a loose sanity check
+  // that the preset actually took effect, not an exact numeric pin (see
+  // bus/FDNReverb.cpp's presetValues() for the authoritative numbers).
+  CHECK(reverb.getSize() != defaultReverb.getSize());
+  CHECK(reverb.getDecay() != defaultReverb.getDecay());
+}
+
+TEST(fdn_reverb_explicit_attribute_overrides_preset) {
+  FDNReverb reverb(44100);
+  MemoryParameterSource input;
+  input.set("preset", std::string("hall"));
+  input.set("decay", 4.5f);
+  reverb.loadParameters(input);
+
+  CHECK(reverb.getPreset() == FDNReverbPreset::HALL);
+  CHECK_NEAR(reverb.getDecay(), 4.5f, 0.001f);
+}
+
+TEST(fdn_reverb_preset_alone_round_trips_without_explicit_numeric_attributes) {
+  FDNReverb reverb(44100);
+  MemoryParameterSource input;
+  input.set("preset", std::string("plate"));
+  reverb.loadParameters(input);
+
+  MemoryParameterSource output;
+  reverb.storeParameters(output);
+
+  CHECK(output.getText("preset", "") == "plate");
+  CHECK(!output.has("size"));
+  CHECK(!output.has("decay"));
+  CHECK(!output.has("damping"));
+  CHECK(!output.has("preDelay"));
+}
+
+TEST(fdn_reverb_default_preset_round_trips_silently) {
+  FDNReverb reverb(44100);
+
+  MemoryParameterSource output;
+  reverb.storeParameters(output);
+
+  CHECK(!output.has("preset"));
+  CHECK(output.isEmpty());
+}
+
+TEST(fdn_reverb_preset_plus_override_round_trips_both) {
+  FDNReverb reverb(44100);
+  MemoryParameterSource input;
+  input.set("preset", std::string("room"));
+  input.set("decay", 1.1f);
+  reverb.loadParameters(input);
+
+  MemoryParameterSource output;
+  reverb.storeParameters(output);
+
+  CHECK(output.getText("preset", "") == "room");
+  CHECK_NEAR(output.getFloat("decay", -1.0f), 1.1f, 0.001f);
+  CHECK(!output.has("size"));
+  CHECK(!output.has("damping"));
 }
