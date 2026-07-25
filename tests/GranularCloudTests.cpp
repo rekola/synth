@@ -209,14 +209,18 @@ TEST(granular_cloud_preset_plus_override_round_trips_both) {
   GranularCloud cloud(sampleRate);
   MemoryParameterSource input;
   input.set("preset", string("wash"));
-  input.set("density", 3.0f);
+  // 20/sec at wash's own 180ms grain size is overlap 3.6, comfortably
+  // above the engine's overlap floor (2.5) - clear of that floor is
+  // deliberate here, so this test stays about the deviation-only
+  // round-trip mechanism, not about interacting with a second one.
+  input.set("density", 20.0f);
   cloud.loadParameters(input);
 
   MemoryParameterSource output;
   cloud.storeParameters(output);
 
   CHECK(output.getText("preset", "") == "wash");
-  CHECK_NEAR(output.getFloat("density", -1.0f), 3.0f, 0.001f);
+  CHECK_NEAR(output.getFloat("density", -1.0f), 20.0f, 0.001f);
   CHECK(!output.has("grainSize"));
   CHECK(!output.has("scanJitter"));
 }

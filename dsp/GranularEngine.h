@@ -44,11 +44,11 @@ class GranularEngine {
   // source of truth to compare against, rather than a second copy of the
   // same numbers that could silently drift.
   static constexpr float kDefaultGrainSizeMs = 60.0f;
-  static constexpr float kDefaultDensity = 15.0f;
+  static constexpr float kDefaultDensity = 45.0f;
   static constexpr float kDefaultScanPosition = 0.0f;
-  static constexpr float kDefaultScanJitter = 0.15f;
-  static constexpr float kDefaultPitchScatter = 15.0f;
-  static constexpr float kDefaultAmplitudeJitter = 0.2f;
+  static constexpr float kDefaultScanJitter = 0.2f;
+  static constexpr float kDefaultPitchScatter = 40.0f;
+  static constexpr float kDefaultAmplitudeJitter = 0.25f;
 
   // grainSizeMs: 10-200ms, a grain's duration. densityPerSec: average
   // grain trigger rate (grains/sec, overlapping - not a ceiling on

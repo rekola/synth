@@ -53,8 +53,23 @@ constexpr float kMaxPitchScatter = 2400.0f;
 // regime for the *default* scatter settings; a caller that wants denser
 // clouds than that without the result reading as an echo needs to raise
 // pitchScatter/scanJitter too, so simultaneous grains stop closely
-// resembling each other, not just raise density on its own.
+// resembling each other, not just raise density on its own. Paired with
+// kMinOverlapFactor below (a lower guardrail) - together the two keep
+// overlap in the band that reads as "cloud," gating below one end,
+// echo-like reconstruction above the other.
 constexpr float kMaxDensity = 100.0f;
+
+// Lower guardrail on density relative to grainSizeMs - see setParameters()'s
+// own comment for the enforcement, this is the number itself. 2.5, not 1.0
+// (the literal "grains don't even touch" gating threshold) - measured
+// against real presets (the diagnosis that led here), overlap between 1
+// and ~2.5 still produces an audible periodic amplitude ripple from the
+// Tukey window's own shape at the trigger rate, not a smooth texture; 2.5
+// is where enough grains are overlapping at once that the ripple
+// averages out into texture rather than a pulse. This is a measured
+// threshold, not a solved-for constant-overlap-add hop - see kTukeyAlpha's
+// own comment for why an exact COLA hop isn't the target here at all.
+constexpr float kMinOverlapFactor = 2.5f;
 
 }
 
@@ -88,6 +103,37 @@ GranularEngine::setParameters(float grainSizeMs, float densityPerSec,
   if (grainSizeMs > kMaxGrainSizeMs) grainSizeMs = kMaxGrainSizeMs;
   if (densityPerSec < 0.0f) densityPerSec = 0.0f;
   if (densityPerSec > kMaxDensity) densityPerSec = kMaxDensity;
+
+  // Overlap floor: density * grainSize (the average number of
+  // simultaneously overlapping grains) must never fall below
+  // kMinOverlapFactor, or grains gate/stutter instead of forming a
+  // texture (see kMinOverlapFactor's own comment - this was a real,
+  // diagnosed bug, not a theoretical concern: a previous default sat at
+  // overlap 0.9, meaning consecutive grains didn't even touch). Raises
+  // densityPerSec - never shrinks grainSizeMs - to close the gap:
+  // grainSizeMs is the parameter most tied to a preset's actual character
+  // (its "voice" - compare wash's 180ms to glitch's 25ms), so preserving
+  // it and triggering more often instead keeps the intended grain color
+  // while still guaranteeing no gating. densityPerSec_/getDensity() end
+  // up reporting this floored value, not whatever was originally
+  // requested, so a caller (and storeParameters()'s deviation-only
+  // round-trip) always sees the density genuinely in effect.
+  //
+  // Not achievable above kMaxDensity's own ceiling for any grainSizeMs
+  // below 25ms (kMinOverlapFactor*1000/kMaxDensity) - no current preset
+  // uses a grain that short, but if one ever does, this still pins
+  // density at kMaxDensity (the best available overlap under the
+  // ceiling) rather than leaving the request unfloored. Overlap in that
+  // corner falls short of kMinOverlapFactor but is unconditionally still
+  // >= 1 (kMaxDensity * kMinGrainSizeMs/1000 = 100*10/1000 = 1.0 exactly,
+  // the worst case at the engine's own extremes) - grains still never
+  // gate, even there.
+  if (densityPerSec > 0.0f) {
+    float minDensityForOverlap = kMinOverlapFactor / (grainSizeMs * 0.001f);
+    if (densityPerSec < minDensityForOverlap) densityPerSec = minDensityForOverlap;
+    if (densityPerSec > kMaxDensity) densityPerSec = kMaxDensity;
+  }
+
   if (scanPositionSeconds < 0.0f) scanPositionSeconds = 0.0f;
   if (scanJitterSeconds < 0.0f) scanJitterSeconds = 0.0f;
   if (pitchScatterCents < 0.0f) pitchScatterCents = 0.0f;

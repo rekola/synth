@@ -81,15 +81,55 @@ TEST(granular_engine_grain_count_matches_density) {
   float density = 20.0f;
   int seconds = 4;
   // No scatter needed for a trigger-count check - defaults are fine.
+  // 20/sec at 60ms grains requests overlap 1.2, below kMinOverlapFactor
+  // (2.5) - setParameters() floors density upward to meet it (see its own
+  // comment in dsp/GranularEngine.cpp), so the expected count is derived
+  // from getDensity() (the floored, actually-in-effect value), not the
+  // raw density requested above - this test is about the scheduler
+  // matching whatever density is genuinely active, not about re-deriving
+  // the floor's own arithmetic.
   engine.setParameters(60.0f, density, 0.0f, 0.05f, 10.0f, 0.1f);
 
   feedNoise(engine, sampleRate * seconds);
 
-  float expected = density * static_cast<float>(seconds);
+  float expected = engine.getDensity() * static_cast<float>(seconds);
   float actual = static_cast<float>(engine.getGrainsTriggeredForTest());
   // The scheduler is a fixed-step phase accumulator (dsp/GranularEngine.cpp),
   // so this should be within a single grain interval of the target count.
   CHECK_NEAR(actual, expected, 2.0f);
+}
+
+TEST(granular_engine_density_is_floored_to_avoid_sub_overlap_gating) {
+  // Regression test for the overlap floor: a caller requesting a
+  // density/grainSize combination whose overlap (density * grainSize)
+  // would fall below kMinOverlapFactor must have density raised - never
+  // grainSize shrunk - to meet it, so grains can never gate/stutter
+  // regardless of what a future preset, or hand-edited XML, asks for
+  // (this is the exact class of bug a real diagnosis found: a preset
+  // sitting at overlap 0.9, meaning consecutive grains didn't even
+  // touch).
+  GranularEngine engine(44100);
+  // 20/sec at 60ms grains requests overlap 1.2 - well under the 2.5 floor.
+  engine.setParameters(60.0f, 20.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+
+  float overlap = engine.getDensity() * (engine.getGrainSizeMs() * 0.001f);
+  CHECK(overlap >= 2.5f - 0.001f);
+  // The floor never shrinks grain size, only raises density.
+  CHECK_NEAR(engine.getGrainSizeMs(), 60.0f, 0.001f);
+  CHECK(engine.getDensity() > 20.0f);
+}
+
+TEST(granular_engine_zero_density_stays_off_despite_overlap_floor) {
+  // The overlap floor must not apply to density=0 (the explicit "no
+  // scheduling at all" sentinel - see process()'s own
+  // `if (densityPerSec_ > 0.0f)` guard) - otherwise disabling the grain
+  // scheduler entirely would become impossible.
+  GranularEngine engine(44100);
+  engine.setParameters(60.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+  CHECK_NEAR(engine.getDensity(), 0.0f, 0.0001f);
+
+  feedNoise(engine, 44100);
+  CHECK(engine.getGrainsTriggeredForTest() == 0);
 }
 
 TEST(granular_engine_never_exceeds_max_simultaneous_grains) {

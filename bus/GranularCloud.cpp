@@ -71,16 +71,23 @@ PresetValues presetValues(GranularPreset preset) {
               GranularEngine::kDefaultPitchScatter, kDefaultDirectionScatter,
               kDefaultCenterAzimuth, kDefaultCenterElevation,
               GranularEngine::kDefaultAmplitudeJitter, kDefaultWet };
+  // Every non-default preset's grainSize/density pair is chosen so
+  // density*grainSize (overlap) sits at or above dsp/GranularEngine.cpp's
+  // own kMinOverlapFactor (2.5) - GranularEngine::setParameters() enforces
+  // this as a hard floor regardless, but these were derived to already
+  // satisfy it, not to lean on the floor to rescue an under-tuned pair.
+  // See docs/bus_effects.md's granular section for the per-parameter
+  // reasoning behind every number below.
   case GranularPreset::SHIMMER:
-    return { 20.0f, 35.0f, 0.0f, 0.05f, 40.0f, 25.0f, 0.0f, 20.0f, 0.1f, 0.25f };
+    return { 25.0f, 100.0f, 0.0f, 0.03f, 60.0f, 15.0f, 0.0f, 20.0f, 0.15f, 0.3f };
   case GranularPreset::CLOUD:
-    return { 80.0f, 25.0f, 0.0f, 0.3f, 20.0f, 150.0f, 0.0f, 0.0f, 0.2f, 0.4f };
+    return { 70.0f, 50.0f, 0.1f, 0.4f, 35.0f, 160.0f, 0.0f, 0.0f, 0.2f, 0.4f };
   case GranularPreset::GLITCH:
-    return { 15.0f, 60.0f, 0.0f, 0.02f, 800.0f, 20.0f, 0.0f, 0.0f, 0.5f, 0.5f };
+    return { 25.0f, 100.0f, 0.0f, 0.005f, 1000.0f, 10.0f, 0.0f, 0.0f, 0.6f, 0.45f };
   case GranularPreset::WASH:
-    return { 180.0f, 8.0f, 0.5f, 1.5f, 10.0f, 100.0f, 0.0f, 0.0f, 0.15f, 0.45f };
+    return { 180.0f, 15.0f, 0.5f, 1.2f, 10.0f, 130.0f, 0.0f, 0.0f, 0.15f, 0.45f };
   case GranularPreset::SCATTER:
-    return { 50.0f, 12.0f, 0.2f, 0.8f, 200.0f, 80.0f, 0.0f, 0.0f, 0.3f, 0.35f };
+    return { 50.0f, 55.0f, 0.2f, 0.8f, 250.0f, 80.0f, 0.0f, 0.0f, 0.3f, 0.35f };
   }
   // Unreachable given the switch above is exhaustive over every defined
   // GranularPreset value - only reachable via an out-of-range enum value,

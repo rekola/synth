@@ -188,6 +188,45 @@ Presets:
   to be clearly audible as pitch-shifted echoes rather than pure texture -
   more "melodic debris" than `cloud`'s smoother wash.
 
+### Why these numbers
+
+`density × grainSize` is a preset's **overlap factor** - the average
+number of grains sounding at once. Below 1, grains don't even touch each
+other: there's a real silence gap between them, an audible gate/stutter
+at the trigger rate, not a texture at all. Between 1 and about 2.5, grains
+do overlap but not densely enough to hide the grain window's own shape,
+so the total level still ripples up and down at the trigger rate instead
+of staying smooth. Every preset below sits at 2.5 or above for exactly
+this reason - it's a measured threshold (from a real diagnosed case: a
+default that used to sit at overlap 0.9), not a stylistic choice, and
+`density` is floored upward automatically if a combination would
+otherwise fall short (grain size is never shrunk to compensate, since
+that's the parameter most tied to a preset's actual character).
+
+| Preset | grainSize | density | overlap | pitchScatter | Why |
+|---|---|---|---|---|---|
+| default | 60ms | 45/s | 2.7 | ±40¢ | Grain-like but not extreme in either direction; overlap comfortably above the floor without being dense; pitch scatter audible as gentle chorus-like detuning (unlike an earlier ±15¢, which was below the threshold of perception). |
+| shimmer | 25ms | 100/s | 2.5 | ±60¢ | Shortest grain the density ceiling (100/s) allows while still clearing the overlap floor - "brisk clip" and brightness both want short+dense; scatter audible as sparkle without dominating. |
+| cloud | 70ms | 50/s | 3.5 | ±35¢ | Deliberately the densest preset - the one explicitly named for continuous envelopment; scatter stays gentle so the cloud reads as related to the source, not aggressively shifted. |
+| glitch | 25ms | 100/s | 2.5 | ±1000¢ | Same grain/density profile as shimmer (still respects the overlap floor - see below) - the "stuttery, digital" character comes entirely from a near-repeat scan window, dramatic pitch jumps, and uneven amplitude, not from gating. |
+| wash | 180ms | 15/s | 2.7 | ±10¢ | Genuinely low trigger rate (15/s), but each grain is long enough to bridge the gaps and keep overlap smooth; pitch scatter deliberately minimal - the one preset where staying tonal means the *absence* of audible pitch movement is the goal. |
+| scatter | 50ms | 55/s | 2.75 | ±250¢ | Grains long enough to read as recognizable fragments, not buzz; pitch scatter clearly audible as genuine pitch-shifted echoes (not mere detuning), short of glitch's chaos. |
+
+**glitch** deliberately does *not* reach for "stuttery" via low overlap
+(deliberate gating) - that would just reintroduce the gating bug the
+overlap floor exists to prevent. Instead it uses the same tight
+grain/density combination as `shimmer` and gets its digital-glitch
+character from the *other* parameters: `scanJitter` is only 5ms (grains
+draw from an almost-identical recent instant), `pitchScatter` is ±1000
+cents (dramatic, unmistakable jumps, not detuning), and `amplitudeJitter`
+is 0.6 (strongly uneven). One real interaction worth knowing: at ±1000
+cents, roughly half of all grains play back faster than real time, which
+requires them to start reading further back than the configured 5ms
+window to avoid catching up to live audio mid-grain (see `dsp/
+GranularEngine.cpp`'s own catch-up-floor logic) - so the *effective* scan
+window for those grains is closer to ~20ms than 5ms. This is expected,
+safe behavior, not a bug.
+
 ## Room coloring and chain send
 
 Both `<delay>` and `<granular>` leave `chainSend` at its shared default
