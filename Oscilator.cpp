@@ -5,20 +5,22 @@
 using namespace std;
 
 std::unique_ptr<TrackState>
-Oscilator::playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, float send_a, float send_b) const {
+Oscilator::playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const {
   detune *= getHarmonic();
   detune /= getSubharmonic();
 
   // The voice encodes its own ambisonic output directly from its own
   // position (see InstrumentVoice::encodePosition()) - no external reduce/
   // re-encode step needed.
-  auto voice = std::make_unique<OscilatorVoice>(config, position, detune, start_phase, type_, level_, pulse_width_, send_a, send_b);
+  auto voice = std::make_unique<OscilatorVoice>(config, position, detune, start_phase, type_, level_, pulse_width_, sends);
   voice->playNote(frequency, velocity, note_value);
 
   // don't pass velocity, position, or sends to children - a modulator
-  // doesn't produce audible output of its own that should reach a bus.
+  // doesn't produce audible output of its own that should reach a bus (see
+  // SendLevels.h's own doc comment for why SendLevels{} - not sends - is
+  // the correct value here, not just an inert placeholder).
   for (auto & child : getChildren()) {
-    auto modulator = child->playNote(config, SphericalPosition{}, frequency, detune, 1.0, start_phase, note_value, 0.0f, 0.0f);
+    auto modulator = child->playNote(config, SphericalPosition{}, frequency, detune, 1.0, start_phase, note_value, SendLevels{});
     if (modulator) voice->addChild(child->getInternalId(), move(modulator));
   }
 

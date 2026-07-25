@@ -678,6 +678,15 @@ Controller::setTrackSendB(int track_id, float value) {
 }
 
 void
+Controller::setTrackSendMain(int track_id, float value) {
+  auto instrument_track = asInstrumentTrack(current_song->getTrackByInternalId(track_id));
+  if (!instrument_track) return;
+  instrument_track->setSendMain(value);
+  current_song->incVersion();
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_MAIN, track_id, static_cast<int>(value * 1000.0f + 0.5f)));
+}
+
+void
 Controller::setTrackAzimuth(int track_id, float value) {
   auto instrument_track = asInstrumentTrack(current_song->getTrackByInternalId(track_id));
   if (!instrument_track) return;

@@ -31,13 +31,15 @@ class NoiseStream {
 
 class NoiseVoice : public InstrumentVoice {
 public:
-  NoiseVoice(ChannelConfiguration config, const SphericalPosition & position, float level, NoiseColor color, float send_a = 0.0f, float send_b = 0.0f)
-    : InstrumentVoice(config, position, 1.0f, 0.0f, send_a, send_b), level_(level), color_(color),
+  NoiseVoice(ChannelConfiguration config, const SphericalPosition & position, float level, NoiseColor color, const SendLevels & sends = {})
+    : InstrumentVoice(config, position, 1.0f, 0.0f, sends), level_(level), color_(color),
       noise_(seedFromRand()) {
   }
 
   SampleData render(int frames) override {
-    float gain = decibelsToGain(getGainDB()) * level_ * getDistanceGain();
+    // No getDistanceGain() here - encodePosition() applies distance
+    // attenuation itself now (see its own doc comment in InstrumentVoice.h).
+    float gain = decibelsToGain(getGainDB()) * level_;
 
     if (static_cast<int>(dry_.size()) != frames) dry_.resize(static_cast<size_t>(frames));
     for (int k = 0; k < frames; k++) dry_[static_cast<size_t>(k)] = noise_.next(color_) * gain;
@@ -60,8 +62,8 @@ private:
 };
 
 std::unique_ptr<TrackState>
-Noise::playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, float send_a, float send_b) const {
-  auto voice = std::make_unique<NoiseVoice>(config, position, level_, color_, send_a, send_b);
+Noise::playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const {
+  auto voice = std::make_unique<NoiseVoice>(config, position, level_, color_, sends);
   voice->playNote(frequency, velocity, note_value);
   return voice;
 }

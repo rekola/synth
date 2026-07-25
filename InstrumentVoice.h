@@ -4,6 +4,7 @@
 #include "TrackState.h"
 #include "SphericalPosition.h"
 #include "AmbisonicEncoding.h"
+#include "SendLevels.h"
 
 // distance <= 0 means "no position ever set" (SphericalPosition's default),
 // not "at the listener" - treated as no attenuation, same convention
@@ -14,12 +15,12 @@ inline float distanceGain(float distance) {
 
 class InstrumentVoice : public TrackState {
  public:
-  InstrumentVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, float start_phase, float send_a = 0.0f, float send_b = 0.0f)
+  InstrumentVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, float start_phase, const SendLevels & sends = {})
     : TrackState(channel_config),
       sourceSamplePosition_(start_phase * getChannelConfiguration().getAudioOutSampleRate()),
       position_(position),
       detune_(detune),
-      send_a_(send_a), send_b_(send_b)
+      sends_(sends)
   {
 
   }
@@ -71,8 +72,7 @@ protected:
   void setGainDB(float db) { noteGainDB_ = db; }
   float getGainDB() const { return noteGainDB_; }
 
-  float getSendA() const { return send_a_; }
-  float getSendB() const { return send_b_; }
+  const SendLevels & getSends() const { return sends_; }
 
   // Dry-signal distance attenuation only (1/distance) - the room's shared
   // reverb/chorus bus (SendA/SendB) deliberately does NOT scale by this: an
@@ -88,7 +88,7 @@ protected:
   // now-removed reduceForPositionalGroup) and spatially encodes `dry` into
   // those regular channels via this voice's own position (getPosition() -
   // a subclass like SoundFontVoice bakes any adjustment of its own, e.g.
-  // its SF2 region's pan, straight into position_/send_a_/send_b_ once at
+  // its SF2 region's pan, straight into position_/sends_ once at
   // construction time, since none of that ever changes after - see
   // SoundFont.cpp - rather than recomputing it on every call via a virtual
   // override), smoothly gain-interpolated block to block by encoder_ - one
@@ -96,30 +96,40 @@ protected:
   // PositionalMixer's per-id map (this voice already IS the stable, per-note
   // object that map used to key by pointer, so owning the state directly
   // here needs no separate cleanup/remove() step - it just dies with the
-  // voice). Also derives and writes SendA/SendB directly from `dry`,
-  // bypassing spatial encoding as always: dry[k] already equals
-  // raw[k] * <note gain> * getDistanceGain(), and a send equals
-  // raw[k] * <note gain> * getSendA()/getSendB() (sends deliberately don't
-  // attenuate with distance), so send[k] = dry[k] * (getSendA()/
-  // getDistanceGain()) - exact algebra, not an approximation, so no
-  // separate raw-sample scratch buffer is needed just for sends.
+  // voice).
+  //
+  // `dry` is expected to carry <note gain> only - NOT distance attenuation
+  // (unlike this function's own former contract): distance attenuation is
+  // applied here instead, folded into the same per-channel gains array as
+  // getSends().main, both computed once per block rather than per sample -
+  // callers used to bake getDistanceGain() into every sample of `dry`
+  // themselves and this function then divided it back out again for
+  // SendA/SendB (which deliberately don't attenuate with distance), a
+  // bake-then-unbake round trip through every single sample for no actual
+  // effect on the sends and an extra multiply-per-sample on the dry side;
+  // computing send[k] = dry[k] * getSends().a/b directly, with no division,
+  // is both simpler and cheaper now that `dry` was never distance-attenuated
+  // to begin with. Gain-interpolated block to block by encoder_ same as
+  // before, so a moving source or a distance/Send Main change still
+  // smooths, not clicks.
   SampleData encodePosition(const float * dry, int frames) {
+    auto & sends = getSends();
     auto channels = regularChannelsFor(getChannelConfiguration());
-    if (getSendA() > 0.0f) channels.push_back(Channel::SendA);
-    if (getSendB() > 0.0f) channels.push_back(Channel::SendB);
+    if (sends.a > 0.0f) channels.push_back(Channel::SendA);
+    if (sends.b > 0.0f) channels.push_back(Channel::SendB);
 
     SampleData data(channels, frames);
     data.zero();
-    encoder_.encodeBlock(data, dry, frames, computeAmbisonicGains(getPosition()));
+    auto gains = computeAmbisonicGains(getPosition());
+    float main_gain = sends.main * getDistanceGain();
+    for (auto & g : gains) g *= main_gain;
+    encoder_.encodeBlock(data, dry, frames, gains);
 
-    float distance_gain = getDistanceGain();
     if (auto * send_a = data.getChannel(Channel::SendA)) {
-      float k = getSendA() / distance_gain;
-      for (int i = 0; i < frames; i++) send_a[i] = dry[i] * k;
+      for (int i = 0; i < frames; i++) send_a[i] = dry[i] * sends.a;
     }
     if (auto * send_b = data.getChannel(Channel::SendB)) {
-      float k = getSendB() / distance_gain;
-      for (int i = 0; i < frames; i++) send_b[i] = dry[i] * k;
+      for (int i = 0; i < frames; i++) send_b[i] = dry[i] * sends.b;
     }
 
     data.setNonZero();
@@ -135,7 +145,7 @@ private:
   float noteGainDB_ = 0.0f;
   SphericalPosition position_;
   float detune_;
-  float send_a_, send_b_;
+  SendLevels sends_;
   AmbisonicVoiceEncoder encoder_;
 };
 

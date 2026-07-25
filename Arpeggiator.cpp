@@ -5,7 +5,7 @@
 using namespace std;
 
 std::unique_ptr<TrackState>
-Arpeggiator::playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, float send_a, float send_b) const {
+Arpeggiator::playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const {
   auto group = createState(channel_config);
   for (auto & child : getChildren()) {
     

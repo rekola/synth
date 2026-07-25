@@ -28,6 +28,7 @@
 #include "EnvelopeState.h"
 #include "LFOState.h"
 #include "InstrumentVoice.h"
+#include "SendLevels.h"
 #include "SampleData.h"
 #include "dsp/PanLaw.h"
 #include "dsp/ChorusEngine.h"
@@ -706,12 +707,11 @@ chorusSendFor(const tsf_region * region) {
 
 class SoundFontVoice : public InstrumentVoice {
 public:
-  SoundFontVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, float start_phase, std::shared_ptr<SoundFontFile> sf, size_t preset, size_t region_idx, float send_a = 0.0f, float send_b = 0.0f)
+  SoundFontVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, float start_phase, std::shared_ptr<SoundFontFile> sf, size_t preset, size_t region_idx, const SendLevels & sends = {})
     : InstrumentVoice(channel_config,
                        adjustPositionForPan(position, regionFor(sf.get(), preset, region_idx)),
                        detune, start_phase,
-                       adjustSendA(send_a, regionFor(sf.get(), preset, region_idx)),
-                       send_b),
+                       SendLevels{ sends.main, adjustSendA(sends.a, regionFor(sf.get(), preset, region_idx)), sends.b }),
       sf_(sf)
   {
     auto f = sf_.get();
@@ -894,24 +894,30 @@ private:
     float offset = 15.0f * width_scale;
     auto leftGains = computeAmbisonicGains(SphericalPosition{ pos.azimuth - offset, pos.elevation, pos.distance });
     auto rightGains = computeAmbisonicGains(SphericalPosition{ pos.azimuth + offset, pos.elevation, pos.distance });
-    for (auto & g : leftGains) g *= chorus_send_;
-    for (auto & g : rightGains) g *= chorus_send_;
+    // wetL/wetR come from dry_, which (like encodePosition()'s own `dry`
+    // parameter) no longer carries distance attenuation - chorus_send_'s
+    // own gain-scaling is where that has to be folded back in now, the
+    // same "apply distance where the gains actually get used, not baked
+    // into the sample buffer upstream" convention encodePosition() itself
+    // uses for its main channels.
+    float distance_gain = getDistanceGain();
+    for (auto & g : leftGains) g *= chorus_send_ * distance_gain;
+    for (auto & g : rightGains) g *= chorus_send_ * distance_gain;
     chorus_tap_encoders_[0].encodeBlock(data, wetL, totalSamples, leftGains);
     chorus_tap_encoders_[1].encodeBlock(data, wetR, totalSamples, rightGains);
 
     // The track's own SendA/SendB knobs also carry a bit of this voice's
     // chorused character to the shared reverb/delay busses, not just its
-    // plain dry signal, when active - same distance-undoing
-    // k = getSendA()/getSendB() / getDistanceGain() convention
-    // InstrumentVoice::encodePosition() itself uses for the dry-to-send
-    // path.
+    // plain dry signal, when active - no distance-undoing division needed
+    // here (unlike a former version of this code): wetL/wetR were never
+    // distance-attenuated to begin with, so sends can use getSends().a/b
+    // directly, the same simplification encodePosition() itself now uses.
+    auto & sends = getSends();
     if (auto * send_a = data.getChannel(Channel::SendA)) {
-      float k = getSendA() / getDistanceGain();
-      for (int i = 0; i < totalSamples; i++) send_a[i] += 0.5f * (wetL[i] + wetR[i]) * k;
+      for (int i = 0; i < totalSamples; i++) send_a[i] += 0.5f * (wetL[i] + wetR[i]) * sends.a;
     }
     if (auto * send_b = data.getChannel(Channel::SendB)) {
-      float k = getSendB() / getDistanceGain();
-      for (int i = 0; i < totalSamples; i++) send_b[i] += 0.5f * (wetL[i] + wetR[i]) * k;
+      for (int i = 0; i < totalSamples; i++) send_b[i] += 0.5f * (wetL[i] + wetR[i]) * sends.b;
     }
 
     return data;
@@ -986,7 +992,10 @@ SoundFontVoice::render(int numSamples) {
       noteGain = decibelsToGain(getGainDB() + (modlfo_.getLevel() * tmpModLfoToVolume));
     }
 
-    auto dryGainMono = noteGain * ampenv_.getLevel() * getDistanceGain();
+    // No getDistanceGain() here - encodePosition()/encodeWithChorus() apply
+    // distance attenuation themselves now (see InstrumentVoice.h's own doc
+    // comment on encodePosition()).
+    auto dryGainMono = noteGain * ampenv_.getLevel();
 
     // Update EG.
     ampenv_.process(blockSamples);
@@ -1104,7 +1113,7 @@ public:
 
   const char * getElementName() const override { return "soundFontInstrument"; }
 
-  std::unique_ptr<TrackState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, float send_a, float send_b) const override {
+  std::unique_ptr<TrackState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const override {
     assert(frequency > 0);
 
     detune *= getHarmonic();
@@ -1133,13 +1142,14 @@ public:
 
 	// Each region's own position (folded in via SoundFontVoice::getPosition())
 	// gets encoded directly by the voice itself (InstrumentVoice::encodePosition()).
-	auto voice = make_unique<SoundFontVoice>(channel_config, position, detune, start_phase, sf_, preset_, region_idx, send_a, send_b);
+	auto voice = make_unique<SoundFontVoice>(channel_config, position, detune, start_phase, sf_, preset_, region_idx, sends);
 	voice->playNote(frequency, velocity, note_value);
 
 	if (!getChildren().empty()) {
-	  // create modulators for voice
+	  // create modulators for voice - see SendLevels.h's own doc comment
+	  // for why SendLevels{} (not sends) is correct here.
 	  for (auto & child : getChildren()) {
-	    auto modulator = child->playNote(channel_config, SphericalPosition{}, frequency, detune, velocity, start_phase, note_value, 0.0f, 0.0f);
+	    auto modulator = child->playNote(channel_config, SphericalPosition{}, frequency, detune, velocity, start_phase, note_value, SendLevels{});
 	    if (modulator.get()) voice->addChild(child->getInternalId(), move(modulator));
 	  }
 	}

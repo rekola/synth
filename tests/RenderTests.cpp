@@ -692,6 +692,39 @@ TEST(render_send_a_is_distance_invariant) {
   CHECK_NEAR(near_peak, far_peak, near_peak * 0.05f);
 }
 
+TEST(render_send_main_zero_silences_main_channels_but_not_sends) {
+  // sendMain="0.0" alongside sendA="0.5" on the same track (SendLevels.h,
+  // InstrumentVoice::encodePosition()): the track's own regular/main
+  // channel (W) should render silent while its SendA contribution keeps
+  // sounding at its own unrelated, unaffected level - the whole point of
+  // this control (auditioning a bus effect in isolation).
+  auto loaded = loadFixture("send_main_zero.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(44100);
+  SongState state(config);
+  state.initialize(loaded.song);
+  state.setIsPlaying(true);
+
+  RecordingMixer mixer(static_cast<short>(config.numberOfChannels()), config.getAudioOutSampleRate());
+
+  float main_peak = 0.0f, send_a_peak = 0.0f;
+  for (int block = 0; block < 20; block++) {
+    state.render(256, loaded.song, mixer);
+    for (auto & data : mixer.accumulated) {
+      if (auto * w = data.getChannel(Channel::W)) {
+        for (int i = 0; i < data.numberOfFrames(); i++) main_peak = std::max(main_peak, std::fabs(w[i]));
+      }
+      if (auto * send = data.getChannel(Channel::SendA)) {
+        for (int i = 0; i < data.numberOfFrames(); i++) send_a_peak = std::max(send_a_peak, std::fabs(send[i]));
+      }
+    }
+  }
+
+  CHECK(send_a_peak > 1e-4f);
+  CHECK_NEAR(main_peak, 0.0f, 1e-6f);
+}
+
 TEST(render_ambisonic_envelopefilter_over_notemultiplier_spread_survives) {
   // EnvelopeFilter wrapping a spread NoteMultiplier chord - the scenario
   // that drove this feature's final design (see the plan's Context/Key

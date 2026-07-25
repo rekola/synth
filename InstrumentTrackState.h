@@ -6,13 +6,14 @@
 #include "SampleData.h"
 #include "RenderContext.h"
 #include "SphericalPosition.h"
+#include "SendLevels.h"
 
 #include <algorithm>
 
 class InstrumentTrackState : public TrackState {
 public:
-  explicit InstrumentTrackState(const ChannelConfiguration & channel_config, bool solo, bool muted, int track_id, int instrument_id, const SphericalPosition & position, float portamento, float send_a, float send_b)
-    : TrackState(channel_config), solo_(solo), muted_(muted), track_id_(track_id), instrument_id_(instrument_id), position_(position), portamento_(portamento), send_a_(send_a), send_b_(send_b) { }
+  explicit InstrumentTrackState(const ChannelConfiguration & channel_config, bool solo, bool muted, int track_id, int instrument_id, const SphericalPosition & position, float portamento, const SendLevels & sends)
+    : TrackState(channel_config), solo_(solo), muted_(muted), track_id_(track_id), instrument_id_(instrument_id), position_(position), portamento_(portamento), sends_(sends) { }
 
   SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override {
     clearFinishedVoices();
@@ -55,7 +56,7 @@ public:
 		}
 		if (!portamento_done) {
 		  stopVoices(ev.getId());
-		  auto voice = instrument->playNote(getChannelConfiguration(), position_, ev.getFrequency(), 1.0f, ev.getVelocity(), -getRandF(), ev.getNoteValue(), send_a_, send_b_);
+		  auto voice = instrument->playNote(getChannelConfiguration(), position_, ev.getFrequency(), 1.0f, ev.getVelocity(), -getRandF(), ev.getNoteValue(), sends_);
 		  addVoice(ev.getId(), move(voice));
 		}
 	      }
@@ -195,7 +196,7 @@ public:
   }
 
   // Live control changes, pushed from the UI thread via PlaybackControlEvent
-  // (SET_TRACK_MUTED/SOLO/SEND_A/SEND_B - see Player::handleEvent) and
+  // (SET_TRACK_MUTED/SOLO/SEND_A/SEND_B/SEND_MAIN - see Player::handleEvent) and
   // applied directly to this already-running state, unlike the constructor
   // argument above which only seeds the initial value at song load. Renamed
   // from setMuted/setSolo's old protected-only visibility (this class had no
@@ -208,12 +209,13 @@ public:
   void setSolo(bool s) { solo_ = s; }
 
   // Only notes triggered after the change pick up the new value (playNote()
-  // above reads send_a_/send_b_ directly) - already-sounding voices keep
-  // whatever was baked into them at their own construction, the same
-  // "static once baked" behavior as every other effect parameter in this
-  // codebase (e.g. the shared reverb/delay bus parameters).
-  void setSendA(float s) { send_a_ = s; }
-  void setSendB(float s) { send_b_ = s; }
+  // above reads sends_ directly) - already-sounding voices keep whatever
+  // was baked into them at their own construction, the same "static once
+  // baked" behavior as every other effect parameter in this codebase (e.g.
+  // the shared reverb/delay bus parameters). See SendLevels.h.
+  void setSendA(float s) { sends_.a = s; }
+  void setSendB(float s) { sends_.b = s; }
+  void setSendMain(float s) { sends_.main = s; }
 
   // Same "only future notes pick it up" caveat as SendA/SendB above -
   // already-playing voices keep whatever position they were constructed
@@ -234,7 +236,7 @@ private:
   int track_id_, instrument_id_;
   SphericalPosition position_;
   float portamento_;
-  float send_a_, send_b_;
+  SendLevels sends_;
 
   std::unordered_map<int, std::vector<std::unique_ptr<TrackState> > > voices_;
 };

@@ -78,11 +78,13 @@ class Controller {
   // doesn't name an existing InstrumentTrack/PercussionTrack. Each also
   // pushes the matching PlaybackControlEvent so the change actually reaches
   // the running SongState, not just the Track model - see
-  // InstrumentTrackState's public setMuted/setSolo/setSendA/setSendB.
+  // InstrumentTrackState's public setMuted/setSolo/setSendA/setSendB/
+  // setSendMain.
   bool toggleTrackMuted(int track_id);
   bool toggleTrackSolo(int track_id);
   void setTrackSendA(int track_id, float value);
   void setTrackSendB(int track_id, float value);
+  void setTrackSendMain(int track_id, float value);
   void setTrackAzimuth(int track_id, float value);
 
   // Emacs prefix-argument style: transient, one-shot context a caller (the

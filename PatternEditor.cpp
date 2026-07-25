@@ -579,8 +579,8 @@ PatternEditor::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
 
   auto device_id = ev.getDeviceIndex();
 
-  // Send A/Send B/Pan mode: the whole grid means something else entirely
-  // while active (see LaunchpadManager::GridMode) - column x is
+  // Send A/Send B/Send Main/Pan mode: the whole grid means something else
+  // entirely while active (see LaunchpadManager::GridMode) - column x is
   // track_ids[x] (the first 8 root tracks, not this device's assigned
   // track), row y sets that track's send level or azimuth. Only a PRESS
   // does anything; RELEASE/AFTERTOUCH are swallowed too, never falling
@@ -595,6 +595,8 @@ PatternEditor::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
           getController().setTrackSendA(track_id, static_cast<float>(ev.getY()) / 7.0f);
         } else if (grid_mode == LaunchpadManager::GridMode::SEND_B) {
           getController().setTrackSendB(track_id, static_cast<float>(ev.getY()) / 7.0f);
+        } else if (grid_mode == LaunchpadManager::GridMode::SEND_MAIN) {
+          getController().setTrackSendMain(track_id, static_cast<float>(ev.getY()) / 7.0f);
         } else { // PAN
           getController().setTrackAzimuth(track_id, LaunchpadManager::rowToAzimuth(ev.getY()));
         }

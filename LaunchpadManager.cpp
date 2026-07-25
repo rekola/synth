@@ -253,14 +253,20 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id) {
   // strong inference: it matches Ableton Live's own standard Launchpad
   // "Track" control row order (Volume, Pan, Send A, Send B, Stop, Mute,
   // Solo, Record Arm - Volume/Pan/SendA already lined up exactly with that
-  // order at 89/79/69). 89/Volume still has no grid mode (dropped pending
-  // further investigation).
-  if (cc_number == 69) {
-    toggleGridMode(device_id, GridMode::SEND_A);
+  // order at 89/79/69). 89/Volume is repurposed as the Send Main fader
+  // mode - the same bargraph shape as Send A/Send B, just controlling how
+  // much of each track's own voices reach the main mix (InstrumentTrack::
+  // getSendMain()) rather than the shared send bus.
+  if (cc_number == 89) {
+    toggleGridMode(device_id, GridMode::SEND_MAIN);
     return true;
   }
   if (cc_number == 79) {
     toggleGridMode(device_id, GridMode::PAN);
+    return true;
+  }
+  if (cc_number == 69) {
+    toggleGridMode(device_id, GridMode::SEND_A);
     return true;
   }
   if (cc_number == 59) {
@@ -344,20 +350,24 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
     }
   } else if (state.grid_mode != GridMode::NOTES) {
     // Send/Pan mode: the whole grid means something else entirely - each
-    // column is one of the first 8 root tracks. Send A/B fill bottom-up as
-    // a bargraph of that track's current send level (0-7 -> 0.0-1.0) - a
-    // magnitude. Pan lights only the one row matching that track's current
-    // azimuth (see azimuthToRow) - a direction, not a magnitude, so a fill
-    // wouldn't make sense; "only one button highlighted" per column. No
-    // active/inactive feedback needed on the mode buttons themselves (see
-    // refreshLeds' extra-button section below) - this repaint *is* the
-    // confirmation the mode actually changed.
+    // column is one of the first 8 root tracks. Send A/B/Main fill
+    // bottom-up as a bargraph of that track's current send level (0-7 ->
+    // 0.0-1.0) - a magnitude (Send Main's own zero-config value, 1.0, so
+    // shows fully filled until turned down). Pan lights only the one row
+    // matching that track's current azimuth (see azimuthToRow) - a
+    // direction, not a magnitude, so a fill wouldn't make sense; "only one
+    // button highlighted" per column. No active/inactive feedback needed
+    // on the mode buttons themselves (see refreshLeds' extra-button
+    // section below) - this repaint *is* the confirmation the mode
+    // actually changed.
     bool is_pan = state.grid_mode == GridMode::PAN;
     auto & values = state.grid_mode == GridMode::SEND_A ? state.track_send_a
                   : state.grid_mode == GridMode::SEND_B ? state.track_send_b
+                  : state.grid_mode == GridMode::SEND_MAIN ? state.track_send_main
                   : state.track_azimuth;
     Rgb base = state.grid_mode == GridMode::SEND_A ? Rgb{0, 127, 127}
              : state.grid_mode == GridMode::SEND_B ? Rgb{127, 0, 127}
+             : state.grid_mode == GridMode::SEND_MAIN ? Rgb{127, 127, 0}
              : Rgb{127, 64, 0};
     for (int x = 0; x < 8; x++) {
       // A column past the real track count has no value to show at all -
@@ -449,14 +459,15 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   colors.push_back({97, 60, 60, 60}); // Custom physical button (inferred) -> draw-mode, dim white (static)
   colors.push_back({98, state.playing ? uint8_t(0) : uint8_t(20), state.playing ? uint8_t(127) : uint8_t(20), state.playing ? uint8_t(0) : uint8_t(20)}); // toggle-playing/record
   colors.push_back({99, 0, 0, 0});    // reserved - may be hardware-fixed (Clear/Delete)
-  // Right column: 89/79/69/59 are the Volume(unused)/Pan/Send A/Send B mode
-  // buttons - static colors (matching each mode's own grid base color,
-  // dimmed), no active/inactive state needed (see the grid-mode painting
-  // above, whose own repaint is the confirmation a press registered). 39/29
-  // are Mute/Solo (real commands, not a mode toggle - see
-  // LaunchpadProtocol::commandForButton) and do need active-state colors,
-  // matching the Pro-MK3-left-column entries' own convention exactly. 19/49
-  // (Record Arm/Stop Clip) stay reserved.
+  // Right column: 89/79/69/59 are the Volume/Pan/Send A/Send B mode
+  // buttons (Volume repurposed as Send Main - see handleRawButton()) -
+  // static colors (matching each mode's own grid base color, dimmed), no
+  // active/inactive state needed (see the grid-mode painting above, whose
+  // own repaint is the confirmation a press registered). 39/29 are Mute/
+  // Solo (real commands, not a mode toggle - see LaunchpadProtocol::
+  // commandForButton) and do need active-state colors, matching the
+  // Pro-MK3-left-column entries' own convention exactly. 19/49 (Record
+  // Arm/Stop Clip) stay reserved.
   colors.push_back({19, 0, 0, 0});    // reserved
   colors.push_back({29, state.solo ? uint8_t(127) : uint8_t(20), state.solo ? uint8_t(127) : uint8_t(20), 0}); // toggle-solo
   colors.push_back({39, state.muted ? uint8_t(127) : uint8_t(20), 0, 0}); // toggle-mute
@@ -464,7 +475,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   colors.push_back({59, 40, 0, 40});  // Send B physical button -> send-b-mode, dim magenta (static)
   colors.push_back({69, 0, 40, 40});  // Send A physical button -> send-a-mode, dim cyan (static)
   colors.push_back({79, 40, 20, 0});  // Pan physical button -> pan-mode, dim orange (static)
-  colors.push_back({89, 0, 0, 0});    // Volume physical button - no grid mode yet, reserved
+  colors.push_back({89, 40, 40, 0});  // Volume physical button -> send-main-mode, dim yellow (static)
   colors.push_back({30, state.muted ? uint8_t(127) : uint8_t(20), 0, 0}); // toggle-mute (Pro MK3 left column pos. 6)
   colors.push_back({20, state.solo ? uint8_t(127) : uint8_t(20), state.solo ? uint8_t(127) : uint8_t(20), 0}); // toggle-solo (Pro MK3 left column pos. 7)
 
@@ -499,17 +510,18 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
 
   auto num_tracks = static_cast<int>(track_ids.size());
 
-  // The Send A/Send B/Pan grid modes always address the first 8 root
-  // tracks (not whichever track a device happens to be assigned to) - the
-  // same values apply to every connected device, computed once here
+  // The Send A/Send B/Send Main/Pan grid modes always address the first 8
+  // root tracks (not whichever track a device happens to be assigned to) -
+  // the same values apply to every connected device, computed once here
   // rather than per-device inside the loop below.
-  array<float, 8> track_send_a{}, track_send_b{}, track_azimuth{};
+  array<float, 8> track_send_main{}, track_send_a{}, track_send_b{}, track_azimuth{};
   for (int i = 0; i < 8 && i < num_tracks; i++) {
     auto track = song.getTrackByInternalId(track_ids[static_cast<size_t>(i)]);
     if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL)) {
       auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
-      track_send_a[static_cast<size_t>(i)] = instrument_track.getSendA();
-      track_send_b[static_cast<size_t>(i)] = instrument_track.getSendB();
+      track_send_main[static_cast<size_t>(i)] = instrument_track.getSends().main;
+      track_send_a[static_cast<size_t>(i)] = instrument_track.getSends().a;
+      track_send_b[static_cast<size_t>(i)] = instrument_track.getSends().b;
       track_azimuth[static_cast<size_t>(i)] = instrument_track.getAzimuth();
     }
   }
@@ -550,6 +562,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     state.muted = muted;
     state.solo = solo;
     state.active_note_loudness = move(active_note_loudness);
+    state.track_send_main = track_send_main;
     state.track_send_a = track_send_a;
     state.track_send_b = track_send_b;
     state.track_azimuth = track_azimuth;

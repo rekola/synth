@@ -74,17 +74,20 @@ class LaunchpadManager {
   int resolveTrackId(int device_id, const std::vector<int> & track_ids, int fallback_track_index) const;
 
   // Which of the 8x8 grid's meanings a device is currently showing - normal
-  // note entry, a per-track SendA/SendB fader, a per-track Pan (azimuth)
-  // control, or DRAW (a plain coloring toy - see advanceDrawColor - no
-  // Song/Track meaning at all): for SEND_A/SEND_B the row pressed within a
-  // column sets that (first-8-root-track) column's send level (a bargraph,
-  // filled bottom-up); for PAN it sets that column's azimuth to one of 8
-  // compass points around the full circle (only the one matching row
-  // lights up - a direction, not a magnitude, so a fill doesn't make
-  // sense). Mutually exclusive - toggling one mode off (pressing its own
-  // button again) or switching directly to another always returns/moves to
-  // exactly one state.
-  enum class GridMode { NOTES, SEND_A, SEND_B, PAN, DRAW };
+  // note entry, a per-track SendA/SendB/SendMain fader, a per-track Pan
+  // (azimuth) control, or DRAW (a plain coloring toy - see advanceDrawColor
+  // - no Song/Track meaning at all): for SEND_A/SEND_B/SEND_MAIN the row
+  // pressed within a column sets that (first-8-root-track) column's send
+  // level (a bargraph, filled bottom-up); for PAN it sets that column's
+  // azimuth to one of 8 compass points around the full circle (only the
+  // one matching row lights up - a direction, not a magnitude, so a fill
+  // doesn't make sense). Mutually exclusive - toggling one mode off
+  // (pressing its own button again) or switching directly to another
+  // always returns/moves to exactly one state.
+  // Ordered to match the physical buttons' own row order (Volume/Pan/Send
+  // A/Send B, CC 89/79/69/59 - see handleRawButton()'s own comment), not
+  // declaration-arbitrary.
+  enum class GridMode { NOTES, SEND_MAIN, PAN, SEND_A, SEND_B, DRAW };
   GridMode gridMode(int device_id) const;
   void toggleGridMode(int device_id, GridMode mode);
 
@@ -103,12 +106,13 @@ class LaunchpadManager {
   static int azimuthToRow(float azimuth);
   static float rowToAzimuth(int row);
 
-  // The Send A/Pan/Send B/Custom buttons (raw CC 69/79/59/97 - 69/79
-  // confirmed against a real Launchpad X, 59 inferred from Ableton's
-  // standard Launchpad "Track" control row order, 97 inferred from the
-  // top row's own Up/Down/Left/Right/Session/Note/Custom/Capture layout
-  // - 91/92/93/94 already confirmed as Up/Down/Left/Right; Volume/CC89 has
-  // no grid mode) are intercepted here, by raw CC number, *before* any
+  // The Send A/Pan/Send B/Volume/Custom buttons (raw CC 69/79/59/89/97 -
+  // 69/79/89 confirmed against a real Launchpad X, 59 inferred from
+  // Ableton's standard Launchpad "Track" control row order, 97 inferred
+  // from the top row's own Up/Down/Left/Right/Session/Note/Custom/Capture
+  // layout - 91/92/93/94 already confirmed as Up/Down/Left/Right; Volume/
+  // CC89 is repurposed as the Send Main fader mode, the same shape as
+  // Send A/Send B) are intercepted here, by raw CC number, *before* any
   // command-name resolution happens at all (see UI::
   // handleLaunchpadButtonEvent) - pressing one only ever flips this one
   // device's own transient grid-display state, never Song/Track data, so
@@ -161,12 +165,12 @@ class LaunchpadManager {
     std::unordered_map<int, float> active_note_loudness;
 
     GridMode grid_mode = GridMode::NOTES;
-    // First 8 root tracks' current SendA/SendB/azimuth - refreshed every
-    // frame (refresh()), same as muted/solo above, so the fader/pan
+    // First 8 root tracks' current SendMain/SendA/SendB/azimuth - refreshed
+    // every frame (refresh()), same as muted/solo above, so the fader/pan
     // display always reflects the live value even before any pad press
     // (e.g. right after opening a mode). Only meaningful/painted when
     // grid_mode selects the matching one.
-    std::array<float, 8> track_send_a {}, track_send_b {}, track_azimuth {};
+    std::array<float, 8> track_send_main {}, track_send_a {}, track_send_b {}, track_azimuth {};
     // How many of the 8 columns actually have a track behind them (0-8) -
     // a column past this has no real value to show (its array slot is
     // just a stale/default 0.0f, not "this track's level is 0"), so

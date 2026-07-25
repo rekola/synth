@@ -58,12 +58,11 @@ FileInstrument::openFile() {
 
 class FileInstrumentVoice : public InstrumentVoice {
 public:
-  FileInstrumentVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, float start_phase, std::shared_ptr<SampleData> samples, float send_a = 0.0f, float send_b = 0.0f)
-    : InstrumentVoice(channel_config, position, detune, start_phase, send_a, send_b), samples_(samples) { }
+  FileInstrumentVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, float start_phase, std::shared_ptr<SampleData> samples, const SendLevels & sends = {})
+    : InstrumentVoice(channel_config, position, detune, start_phase, sends), samples_(samples) { }
 
   SampleData render(int frames) override {
     auto base_gain = decibelsToGain(getGainDB());
-    auto gain = base_gain * getDistanceGain();
     auto inChannels = samples_->numberOfChannels();
 
     // Common case: a mono sample file, positioned like every other leaf
@@ -72,13 +71,16 @@ public:
     // every output channel (which used to be harmless back when the
     // output was forced to MONO, but would be spatially wrong now that
     // the destination is a genuine ambisonic width - W/Y/Z/X need
-    // different relative gains, not identical values).
+    // different relative gains, not identical values). No getDistanceGain()
+    // baked into dry_ here - encodePosition() applies distance attenuation
+    // (and Send Main) itself now, see its own doc comment in
+    // InstrumentVoice.h.
     if (inChannels == 1) {
       if (static_cast<int>(dry_.size()) != frames) dry_.resize(static_cast<size_t>(frames));
       for (int k = 0; k < frames; k++) {
 	int i = getSourceSamplePosition();
 	stepForward(1);
-	dry_[static_cast<size_t>(k)] = i >= samples_->size() ? 0.0f : samples_->getChannelData(0)[i] * gain;
+	dry_[static_cast<size_t>(k)] = i >= samples_->size() ? 0.0f : samples_->getChannelData(0)[i] * base_gain;
       }
       return encodePosition(dry_.data(), frames);
     }
@@ -90,11 +92,15 @@ public:
     // file's own channels already ARE the spatial content. A file with
     // some other channel count (e.g. a plain 2-channel stereo sample) has
     // never been supported here (pre-existing, out of scope) and still
-    // hits the assert below.
+    // hits the assert below. This path bypasses encodePosition() entirely,
+    // so - unlike the mono path above - it still applies distance
+    // attenuation directly here; sends (below) still deliberately don't.
+    auto & sends = getSends();
+    auto gain = base_gain * getDistanceGain();
     auto outChannels = getChannelConfiguration().numberOfChannels();
     auto channels = regularChannelsFor(getChannelConfiguration());
-    if (getSendA() > 0.0f) channels.push_back(Channel::SendA);
-    if (getSendB() > 0.0f) channels.push_back(Channel::SendB);
+    if (sends.a > 0.0f) channels.push_back(Channel::SendA);
+    if (sends.b > 0.0f) channels.push_back(Channel::SendB);
 
     SampleData output(channels, frames);
     auto send_a = output.getChannel(Channel::SendA);
@@ -111,15 +117,15 @@ public:
 	}
       } else if (outChannels == inChannels) {
 	for (int l = 0; l < outChannels; l++) {
-	  output.getChannelData(l)[k] = samples_->getChannelData(l)[i] * gain;
+	  output.getChannelData(l)[k] = samples_->getChannelData(l)[i] * gain * sends.main;
 	}
 	raw0 = samples_->getChannelData(0)[i];
       } else {
 	assert(0);
       }
 
-      if (send_a) send_a[k] = raw0 * base_gain * getSendA();
-      if (send_b) send_b[k] = raw0 * base_gain * getSendB();
+      if (send_a) send_a[k] = raw0 * base_gain * sends.a;
+      if (send_b) send_b[k] = raw0 * base_gain * sends.b;
     }
 
     output.setNonZero();
@@ -136,8 +142,8 @@ private:
 };
 
 std::unique_ptr<TrackState>
-FileInstrument::playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, float send_a, float send_b) const {
-  auto voice = std::make_unique<FileInstrumentVoice>(channel_config, position, detune, start_phase, samples_, send_a, send_b);
+FileInstrument::playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const {
+  auto voice = std::make_unique<FileInstrumentVoice>(channel_config, position, detune, start_phase, samples_, sends);
   voice->playNote(frequency, velocity, note_value);
   return voice;
 }

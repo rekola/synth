@@ -61,7 +61,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	      auto frequency = Tuner::getFrequency(tuning, note);
 
 	      track_state->stopVoices(column);
-	      auto voice = instrument.playNote(state_.getChannelConfiguration(), instrument_track.getPosition(), frequency, 1.0f, note.getVelocityAsFloat(), 0.0f, note.getValue(), instrument_track.getSendA(), instrument_track.getSendB());
+	      auto voice = instrument.playNote(state_.getChannelConfiguration(), instrument_track.getPosition(), frequency, 1.0f, note.getVelocityAsFloat(), 0.0f, note.getValue(), instrument_track.getSends());
 	      track_state->addVoice(column, move(voice));
 	    } else {
 	      track_state->applyAftertouch(column, midi_velocity / 127.0f);
@@ -124,6 +124,13 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     {
       auto track_state = dynamic_cast<InstrumentTrackState*>(state_.getChildByInternalId(ev.getParameter1()));
       if (track_state) track_state->setSendB(ev.getParameter2() / 1000.0f);
+    }
+    break;
+
+  case PlaybackControlEvent::SET_TRACK_SEND_MAIN:
+    {
+      auto track_state = dynamic_cast<InstrumentTrackState*>(state_.getChildByInternalId(ev.getParameter1()));
+      if (track_state) track_state->setSendMain(ev.getParameter2() / 1000.0f);
     }
     break;
 

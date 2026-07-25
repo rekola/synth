@@ -9,12 +9,14 @@
 
 class OscilatorVoice : public InstrumentVoice {
 public:
-  OscilatorVoice(ChannelConfiguration config, const SphericalPosition & position, float detune, float start_phase, WaveformType type, float level, float pulse_width, float send_a = 0.0f, float send_b = 0.0f)
-    : InstrumentVoice(config, position, detune, start_phase, send_a, send_b), type_(type), level_(level), pulse_width_(pulse_width) {
+  OscilatorVoice(ChannelConfiguration config, const SphericalPosition & position, float detune, float start_phase, WaveformType type, float level, float pulse_width, const SendLevels & sends = {})
+    : InstrumentVoice(config, position, detune, start_phase, sends), type_(type), level_(level), pulse_width_(pulse_width) {
   }
 
   SampleData render(int frames) override {
-    float gain = decibelsToGain(getGainDB()) * level_ * getDistanceGain();
+    // No getDistanceGain() here - encodePosition() applies distance
+    // attenuation itself now (see its own doc comment in InstrumentVoice.h).
+    float gain = decibelsToGain(getGainDB()) * level_;
 
     double pos = getSourceSamplePosition() / getChannelConfiguration().getAudioOutSampleRate();
     double rate = (double)getFrequency() / getChannelConfiguration().getAudioOutSampleRate();
