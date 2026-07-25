@@ -243,13 +243,17 @@ UI::handleMidiEvent(MidiEvent & ev) {
 void
 UI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
   // DRAW mode (a plain coloring toy - see LaunchpadManager::
-  // advanceDrawColor) touches no Song/Track/Pattern data at all, unlike
-  // every other pad-event use (note entry, Send A/B/Pan) - handled
-  // entirely here, before PatternEditor (which owns actual pattern
-  // editing) ever sees the event.
+  // pressDrawPad/releaseDrawPad) touches no Song/Track/Pattern data at
+  // all, unlike every other pad-event use (note entry, Send A/B/Pan) -
+  // handled entirely here, before PatternEditor (which owns actual
+  // pattern editing) ever sees the event.
   if (launchpad_manager_ && launchpad_manager_->gridMode(ev.getDeviceIndex()) == LaunchpadManager::GridMode::DRAW) {
     if (ev.getKind() == LaunchpadPadEvent::PRESS) {
-      launchpad_manager_->advanceDrawColor(ev.getDeviceIndex(), ev.getX(), ev.getY());
+      launchpad_manager_->pressDrawPad(ev.getDeviceIndex(), ev.getX(), ev.getY(), ev.getVelocity());
+    } else if (ev.getKind() == LaunchpadPadEvent::AFTERTOUCH) {
+      launchpad_manager_->updateDrawIntensity(ev.getDeviceIndex(), ev.getX(), ev.getY(), ev.getVelocity());
+    } else if (ev.getKind() == LaunchpadPadEvent::RELEASE) {
+      launchpad_manager_->releaseDrawPad(ev.getDeviceIndex(), ev.getX(), ev.getY());
     }
     return;
   }
@@ -258,10 +262,22 @@ UI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
 
 void
 UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
-  if (ev.getKind() != LaunchpadButtonEvent::PRESS) return;
   if (!launchpad_manager_) return;
 
   auto device_id = ev.getDeviceIndex();
+
+  // CC97 (DRAW mode toggle) needs both press and release - a long hold,
+  // released while DRAW mode is already active, clears the canvas instead
+  // of toggling the mode (see LaunchpadManager::handleDrawToggleButton) -
+  // so it's routed here before the press-only filter below, which every
+  // other raw-CC button (and every other release) still goes through
+  // unchanged.
+  if (ev.getCCNumber() == 97) {
+    launchpad_manager_->handleDrawToggleButton(device_id, ev.getKind() == LaunchpadButtonEvent::PRESS);
+    return;
+  }
+
+  if (ev.getKind() != LaunchpadButtonEvent::PRESS) return;
 
   // Send A/B: a direct hardware-state toggle (this device's own transient
   // grid-display mode), never a command - intercepted here, by raw CC

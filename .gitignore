@@ -42,6 +42,7 @@ tools/e2e/fake_launchpad_perc
 tools/e2e/fake_launchpad_button
 tools/e2e/fake_launchpad_hotplug
 tools/e2e/fake_launchpad_device
+tools/e2e/fake_launchpad_draw_clear
 tools/e2e/*.log
 tools/e2e/__pycache__
 

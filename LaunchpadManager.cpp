@@ -8,10 +8,25 @@
 #include "InstrumentTrack.h"
 
 #include <algorithm>
+#include <chrono>
 
 using namespace std;
 
 namespace {
+  // How long CC97 (DRAW mode toggle) must be held before release means
+  // "clear the canvas" instead of "toggle the mode" - see
+  // handleDrawToggleButton(). Long enough that a normal deliberate tap
+  // (entering/exiting DRAW mode) never accidentally clears instead.
+  constexpr auto kDrawClearHoldThreshold = std::chrono::milliseconds(600);
+
+  // How long a DRAW-mode grid pad must be held before release means "just
+  // adjust brightness" instead of "cycle to the next hue" - see
+  // releaseDrawPad(). Same value as kDrawClearHoldThreshold above (both are
+  // "long press" thresholds for a DRAW-mode gesture) but named/declared
+  // separately since they're conceptually independent controls that could
+  // reasonably be tuned apart later.
+  constexpr auto kDrawPadLongPressThreshold = std::chrono::milliseconds(600);
+
   struct Rgb { uint8_t r, g, b; };
   // Fokker organ / Archiphone style landmark colors (see LaunchpadLayout::
   // PadCategory) - brightness carries the hierarchy: 127 for the diatonic
@@ -25,10 +40,13 @@ namespace {
   constexpr Rgb FOKKER_DIESIS     = {0,   70,  127}; // medium blue
   constexpr Rgb FOKKER_ACCIDENTAL = {70,  0,   70};  // dim magenta - ambiguous tie (e.g. 12edo black keys)
 
-  // DRAW mode's coloring-toy palette - a plain rainbow plus white, cycling
-  // back to off. Order/values are not meaningful the way the Fokker colors
-  // above are (no music-theory landmark to preserve), just distinct and
-  // bright enough to be satisfying to press through.
+  // DRAW mode's coloring-toy palette - a plain rainbow, cycling back to
+  // off. Order/values are not meaningful the way the Fokker colors above
+  // are (no music-theory landmark to preserve), just distinct and bright
+  // enough to be satisfying to press through. No white entry here - white
+  // is no longer a selectable hue, it's what a hue turns into at maximum
+  // press/aftertouch intensity (see colorForDrawPad() below), so it isn't
+  // also a separate, independently-cyclable palette slot.
   constexpr Rgb DRAW_PALETTE[] = {
     {0,   0,   0},   // off
     {127, 0,   0},   // red
@@ -38,9 +56,46 @@ namespace {
     {0,   127, 127}, // cyan
     {0,   0,   127}, // blue
     {90,  0,   127}, // purple
-    {127, 127, 127}, // white
   };
   constexpr int DRAW_PALETTE_SIZE = sizeof(DRAW_PALETTE) / sizeof(DRAW_PALETTE[0]);
+
+  // DRAW mode's brightness ramp for a single pad: black (intensity 0) up
+  // to the pad's selected hue at full saturation (intensity
+  // kWhiteBlendStart), then a second segment blending that hue further up
+  // to pure white as intensity keeps climbing toward the true numeric
+  // ceiling (127 - the largest value a MIDI press velocity or aftertouch
+  // pressure can ever report) - a "hot"-style colormap, not a flat
+  // brightness scale, so hitting the actual maximum reads as a
+  // qualitatively distinct "maxed out" white, not just "the brightest
+  // version of whatever hue is selected". kWhiteBlendStart=100 leaves a
+  // deliberately wide top zone (100-127) for the white blend to be
+  // visible as its own distinct region, not a single-value cliff.
+  constexpr int kWhiteBlendStart = 100;
+
+  Rgb colorForDrawPad(const Rgb & hue, int intensity) {
+    // "Off" (the black palette entry) has no hue to modulate - without this,
+    // a pad that was pressed hard before being cycled/cleared back to off
+    // would still blend toward white at the top of the intensity range
+    // (intensity > kWhiteBlendStart doesn't care what hue.r/g/b are), so it
+    // would visibly fail to go fully dark.
+    if (hue.r == 0 && hue.g == 0 && hue.b == 0) return {0, 0, 0};
+    if (intensity <= 0) return {0, 0, 0};
+    if (intensity >= 127) return {127, 127, 127};
+    if (intensity <= kWhiteBlendStart) {
+      float t = static_cast<float>(intensity) / static_cast<float>(kWhiteBlendStart);
+      return {
+        static_cast<uint8_t>(static_cast<float>(hue.r) * t),
+        static_cast<uint8_t>(static_cast<float>(hue.g) * t),
+        static_cast<uint8_t>(static_cast<float>(hue.b) * t),
+      };
+    }
+    float t = static_cast<float>(intensity - kWhiteBlendStart) / static_cast<float>(127 - kWhiteBlendStart);
+    return {
+      static_cast<uint8_t>(static_cast<float>(hue.r) + static_cast<float>(127 - hue.r) * t),
+      static_cast<uint8_t>(static_cast<float>(hue.g) + static_cast<float>(127 - hue.g) * t),
+      static_cast<uint8_t>(static_cast<float>(hue.b) + static_cast<float>(127 - hue.b) * t),
+    };
+  }
 
   // LaunchpadLayout::noteForPad/classifyPad treat pad (0,0) as the tonic
   // (base_note) - a pure, logical coordinate system with no notion of a
@@ -256,7 +311,18 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id) {
   // order at 89/79/69). 89/Volume is repurposed as the Send Main fader
   // mode - the same bargraph shape as Send A/Send B, just controlling how
   // much of each track's own voices reach the main mix (InstrumentTrack::
-  // getSendMain()) rather than the shared send bus.
+  // getSendMain()) rather than the shared send bus. 97 (DRAW mode toggle)
+  // is handled separately, in handleDrawToggleButton() - unlike these four,
+  // it needs to see both press and release to distinguish a quick tap from
+  // a long hold, so UI::handleLaunchpadButtonEvent routes it there directly
+  // rather than through this press-only entry point. The Programmer-mode
+  // protocol also maps a CC (99) to the grid position one past the 91-98
+  // top row, but on real Launchpad X hardware that top-right corner isn't
+  // an actual pressable button (confirmed against a real unit - it lacks
+  // the tactile structure every other cell has; the CC mapping there is
+  // presumably just kept for symmetry with the Launchpad Pro, which does
+  // have a real corner button) - so it's deliberately left unhandled here,
+  // not wired to anything.
   if (cc_number == 89) {
     toggleGridMode(device_id, GridMode::SEND_MAIN);
     return true;
@@ -273,20 +339,87 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id) {
     toggleGridMode(device_id, GridMode::SEND_B);
     return true;
   }
-  if (cc_number == 97) {
-    toggleGridMode(device_id, GridMode::DRAW);
-    return true;
-  }
   return false;
 }
 
+bool
+LaunchpadManager::handleDrawToggleButton(int device_id, bool is_press) {
+  auto & state = deviceState(device_id);
+  if (is_press) {
+    state.draw_toggle_pressed = true;
+    state.draw_toggle_press_time = std::chrono::steady_clock::now();
+    return true;
+  }
+  if (!state.draw_toggle_pressed) return true; // stray/duplicate release
+  state.draw_toggle_pressed = false;
+  auto held = std::chrono::steady_clock::now() - state.draw_toggle_press_time;
+  if (held >= kDrawClearHoldThreshold && state.grid_mode == GridMode::DRAW) {
+    // Long hold, released while already in DRAW mode: blank the canvas
+    // (DRAW_PALETTE[0] is "off" - see its own definition above) rather than
+    // toggling the mode, so the canvas can be cleared without losing DRAW
+    // mode itself. A long hold while NOT already in DRAW mode has nothing
+    // to clear, so it falls through to the normal toggle below instead
+    // (entering DRAW mode, same as a quick tap would).
+    state.draw_color_index.fill(0);
+  } else {
+    toggleGridMode(device_id, GridMode::DRAW);
+  }
+  return true;
+}
+
 void
-LaunchpadManager::advanceDrawColor(int device_id, int x, int y) {
+LaunchpadManager::pressDrawPad(int device_id, int x, int y, int velocity) {
   if (x < 0 || x > 7 || y < 0 || y > 7) return;
   auto & state = deviceState(device_id);
   if (state.grid_mode != GridMode::DRAW) return;
-  auto & idx = state.draw_color_index[static_cast<size_t>(y * 8 + x)];
-  idx = (idx + 1) % DRAW_PALETTE_SIZE;
+  size_t i = static_cast<size_t>(y * 8 + x);
+  if (state.draw_pad_held[i]) {
+    // A press arriving while this pad is already marked held is a hold
+    // continuation, not a fresh touch-down - some Launchpad units resend
+    // Note On instead of real Polyphonic Key Pressure while a pad stays
+    // down. Route it through the same raise-only rule as real aftertouch,
+    // and leave the original press's start time alone so releaseDrawPad()
+    // still measures the whole hold, not just the time since this resend.
+    updateDrawIntensity(device_id, x, y, velocity);
+    return;
+  }
+  state.draw_pad_held[i] = true;
+  state.draw_pad_press_time[i] = std::chrono::steady_clock::now();
+  state.draw_intensity[i] = velocity;
+  // Hue is deliberately untouched here - see releaseDrawPad(), which makes
+  // that decision once it knows how long the pad was held.
+}
+
+void
+LaunchpadManager::updateDrawIntensity(int device_id, int x, int y, int velocity) {
+  if (x < 0 || x > 7 || y < 0 || y > 7) return;
+  auto & state = deviceState(device_id);
+  if (state.grid_mode != GridMode::DRAW) return;
+  auto & intensity = state.draw_intensity[static_cast<size_t>(y * 8 + x)];
+  if (velocity > intensity) intensity = velocity;
+}
+
+void
+LaunchpadManager::releaseDrawPad(int device_id, int x, int y) {
+  if (x < 0 || x > 7 || y < 0 || y > 7) return;
+  auto & state = deviceState(device_id);
+  size_t i = static_cast<size_t>(y * 8 + x);
+  if (!state.draw_pad_held[i]) return; // stray/duplicate release
+  state.draw_pad_held[i] = false;
+  if (state.grid_mode != GridMode::DRAW) return;
+  auto held = std::chrono::steady_clock::now() - state.draw_pad_press_time[i];
+  if (state.draw_color_index[i] == 0) {
+    // Off -> on: lands on the default hue either way, short click or long
+    // press - there's nothing lit yet to just brighten, so unlike the
+    // already-lit case below there's no short/long branch here.
+    state.draw_color_index[i] = 1;
+  } else if (held < kDrawPadLongPressThreshold) {
+    // Already lit, released quickly: cycle to the next palette hue.
+    state.draw_color_index[i] = (state.draw_color_index[i] + 1) % DRAW_PALETTE_SIZE;
+  }
+  // Already lit, held past the threshold: hue is left exactly as it was -
+  // the hold was for adjusting brightness (already live via pressDrawPad/
+  // updateDrawIntensity above), not choosing a new color.
 }
 
 bool
@@ -339,12 +472,15 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   vector<LaunchpadProtocol::PadColor> colors;
 
   if (state.grid_mode == GridMode::DRAW) {
-    // A plain coloring toy - each pad shows its own stored palette index,
-    // completely independent of Song/Track data and of every other pad
-    // (see advanceDrawColor).
+    // A plain coloring toy - each pad shows its own stored palette hue,
+    // brightness-modulated by its own press/aftertouch intensity (see
+    // colorForDrawPad()) - completely independent of Song/Track data and of
+    // every other pad (see advanceDrawColor/updateDrawIntensity).
     for (int y = 0; y < 8; y++) {
       for (int x = 0; x < 8; x++) {
-        auto & c = DRAW_PALETTE[static_cast<size_t>(state.draw_color_index[static_cast<size_t>(y * 8 + x)])];
+        size_t i = static_cast<size_t>(y * 8 + x);
+        auto & hue = DRAW_PALETTE[static_cast<size_t>(state.draw_color_index[i])];
+        auto c = colorForDrawPad(hue, state.draw_intensity[i]);
         colors.push_back({LaunchpadProtocol::padToNoteNumber(x, y), c.r, c.g, c.b});
       }
     }
@@ -458,7 +594,11 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   colors.push_back({96, 0, 0, 0});    // reserved (Note, inferred)
   colors.push_back({97, 60, 60, 60}); // Custom physical button (inferred) -> draw-mode, dim white (static)
   colors.push_back({98, state.playing ? uint8_t(0) : uint8_t(20), state.playing ? uint8_t(127) : uint8_t(20), state.playing ? uint8_t(0) : uint8_t(20)}); // toggle-playing/record
-  colors.push_back({99, 0, 0, 0});    // reserved - may be hardware-fixed (Clear/Delete)
+  // 99 (top-right corner, the grid position the Programmer-mode protocol
+  // maps one past the 91-98 top row) isn't actually a pressable button on
+  // real Launchpad X hardware - see handleRawButton()'s own comment - so
+  // it's left off/reserved rather than wired to reflect any state.
+  colors.push_back({99, 0, 0, 0});
   // Right column: 89/79/69/59 are the Volume/Pan/Send A/Send B mode
   // buttons (Volume repurposed as Send Main - see handleRawButton()) -
   // static colors (matching each mode's own grid base color, dimmed), no

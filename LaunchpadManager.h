@@ -5,6 +5,7 @@
 #include "LaunchpadProtocol.h"
 
 #include <array>
+#include <chrono>
 #include <map>
 #include <string_view>
 #include <unordered_map>
@@ -91,12 +92,36 @@ class LaunchpadManager {
   GridMode gridMode(int device_id) const;
   void toggleGridMode(int device_id, GridMode mode);
 
-  // DRAW mode only: advances pad (x,y)'s own color to the next one in a
-  // fixed palette (wrapping back to off), independent of every other pad -
-  // a plain coloring toy, not tied to any Song/Track data, for whoever
-  // just wants to press buttons and watch them light up. No-op for an
-  // out-of-range (x,y) or a device not currently in DRAW mode.
-  void advanceDrawColor(int device_id, int x, int y);
+  // DRAW mode only: registers a touch-down on pad (x,y) - starts (or, for a
+  // hold-continuation resend, extends) its held-duration tracking and
+  // rebases its brightness intensity to this press's own velocity. Does
+  // NOT touch the pad's hue - that decision is deferred to releaseDrawPad(),
+  // which needs to know how long the pad was held before it can decide
+  // what the release should do. No-op for an out-of-range (x,y) or a
+  // device not currently in DRAW mode.
+  void pressDrawPad(int device_id, int x, int y, int velocity);
+
+  // DRAW mode only: raises pad (x,y)'s brightness intensity to `velocity`
+  // if that's higher than what's already stored, never lowers it - so
+  // holding a pad and pressing harder mid-hold (aftertouch) brightens it
+  // further, but easing off afterward doesn't dim it back down; the pad
+  // keeps showing the loudest hit it ever received since it was last
+  // pressed. No-op for an out-of-range (x,y) or a device not currently in
+  // DRAW mode.
+  void updateDrawIntensity(int device_id, int x, int y, int velocity);
+
+  // DRAW mode only: the release half of pressDrawPad() - this is where the
+  // hue decision actually happens, based on how long the pad was held and
+  // whether it was already lit: pad was off -> lit with the default hue
+  // (palette index 1) either way, short or long, since there's nothing yet
+  // to just brighten; pad was already lit and released quickly -> cycles
+  // to the next palette hue; pad was already lit and held past the
+  // long-press threshold -> hue is left exactly as it was, since a long
+  // hold means the user was only adjusting brightness (already live via
+  // pressDrawPad/updateDrawIntensity), not choosing a new color. No-op for
+  // an out-of-range (x,y) or a pad with no press currently in flight
+  // (stray/duplicate release).
+  void releaseDrawPad(int device_id, int x, int y);
 
   // The Pan row<->azimuth mapping (8 compass points, 45 degrees apart,
   // around the full circle - row 4 is dead-center/0 degrees front) - a
@@ -121,6 +146,19 @@ class LaunchpadManager {
   // Returns false for any other CC, so the caller proceeds to the normal
   // command pipeline.
   bool handleRawButton(int cc_number, int device_id);
+
+  // CC97 (DRAW mode toggle) on its own, separate entry point: unlike every
+  // button handleRawButton() covers, it needs both press and release to
+  // tell a quick tap from a long hold. Released quickly, it toggles DRAW
+  // mode on/off, same as before; held past a threshold and released while
+  // DRAW mode is already active, it blanks the canvas instead (see
+  // advanceDrawColor's own comment on the palette) - the button took over
+  // this "clear canvas" gesture after CC99 (the grid position the
+  // Programmer-mode protocol maps one past the top row) turned out not to
+  // be an actual pressable button on real Launchpad X hardware, just a
+  // CC-addressable LED kept for symmetry with the Launchpad Pro. Always
+  // returns true (handled) for both press and release.
+  bool handleDrawToggleButton(int device_id, bool is_press);
 
   // Handles this device's own pure per-device commands - octave and
   // track-follow navigation - entirely from LaunchpadManager's own state,
@@ -180,9 +218,33 @@ class LaunchpadManager {
     int grid_track_count = 0;
 
     // DRAW mode: each of the 64 pads' own index into the color palette
-    // (see advanceDrawColor/refreshLeds), independent of Song/Track state
+    // (see releaseDrawPad/refreshLeds), independent of Song/Track state
     // entirely and of each other - x + y*8.
     std::array<int, 64> draw_color_index {};
+    // DRAW mode: each pad's own current brightness intensity (0-127),
+    // driven by the largest press velocity/aftertouch pressure seen since
+    // that pad was last pressed - see pressDrawPad()/updateDrawIntensity()/
+    // colorForDrawPad(). Rebased (not maxed) on a fresh press, since a
+    // press starts a fresh intensity history, not a continuation of the
+    // previous press's.
+    std::array<int, 64> draw_intensity {};
+    // DRAW mode: whether each pad currently has an unreleased press "in
+    // flight" - see pressDrawPad()/releaseDrawPad(). Some Launchpad units
+    // resend Note On instead of real Polyphonic Key Pressure while a pad is
+    // held; without this, each resend would look like a brand new press and
+    // restart the held-duration measurement releaseDrawPad() relies on to
+    // tell a short click from a long press.
+    std::array<bool, 64> draw_pad_held {};
+    // DRAW mode: when each currently-held pad's press started (only
+    // meaningful while draw_pad_held is true for that pad) - releaseDrawPad()
+    // measures against this to decide short click (cycle the hue) vs. long
+    // press (leave the hue alone, brightness-only).
+    std::array<std::chrono::steady_clock::time_point, 64> draw_pad_press_time {};
+    // CC97 (DRAW mode toggle) press/release tracking - see
+    // handleDrawToggleButton() for why a tap and a long hold need to be
+    // told apart.
+    bool draw_toggle_pressed = false;
+    std::chrono::steady_clock::time_point draw_toggle_press_time;
 
     // LED diff cache: refreshLeds() only calls sendLeds() when the newly
     // computed colors differ from what was last actually sent, so
