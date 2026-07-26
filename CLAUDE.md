@@ -23,8 +23,10 @@ cmake --build build -j
 
 Produces `build/musiceditor`.
 
-Dependencies (Ubuntu): `libnotcurses-dev libfftw3-dev libfmt-dev
-libsndfile1-dev libasound2-dev` plus CMake and a C++17 compiler.
+Dependencies (Ubuntu): `libnotcurses-dev libfmt-dev libsndfile1-dev
+libasound2-dev` plus CMake and a C++17 compiler. FFT support (the live
+spectrum analyzer, MagLS binaural precomputation) is via vendored PocketFFT
+(`third_party/pocketfft/`) — no separate FFT library package needed.
 `libmysofa-dev` is optional (binaural ambisonic decoding, `SYNTH_ENABLE_BINAURAL`,
 auto-detected) — without it, `--ambisonic` still works via the cardioid
 stereo decoder fallback.
@@ -63,27 +65,66 @@ project; useful for chasing memory bugs (e.g. `SampleData`'s copy-assignment
 leak was confirmed this way).
 
 Needs a real terminal (notcurses full-screen UI) and an ALSA output device.
-Options: `--samplerate N`, `--stereo`, `--ambisonic [order]`, `--demo [n]`.
-Every song is always rendered through an ambisonic bus (ACN/SN3D, AmbiX
-convention) — there is no plain-stereo-pan mode at all any more, and
-`ChannelConfiguration::STEREO` doesn't exist as a type (see
-`ChannelConfiguration.h`); `--ambisonic [order]` just sets the order, up to
-2nd (`order` 1 or 2 — a hard ceiling, not a stepping stone to 3rd;
-`kAmbisonicOrder` in `AmbisonicEncoding.h`), decoded to binaural
+Options: `--samplerate N`, `--stereo`, `--ambisonic [order]`,
+`--legacy-binaural`, `--demo [n]`. Every song is always rendered through an
+ambisonic bus (ACN/SN3D, AmbiX convention) — there is no plain-stereo-pan
+mode at all any more, and `ChannelConfiguration::STEREO` doesn't exist as a
+type (see `ChannelConfiguration.h`); `--ambisonic [order]` just sets the
+order, up to 3rd (`order` 1-3 — a hard ceiling, not a stepping stone to
+4th; `kAmbisonicOrder` in `AmbisonicEncoding.h`) — omitting `--ambisonic`
+entirely, or giving it with no explicit number, both default to the
+highest supported order (3), not 1. The bus is decoded to binaural
 (HRIR-convolved, via libmysofa, when `SYNTH_ENABLE_BINAURAL` is on and a
 SOFA file resolves) or a cheap cardioid stereo matrix otherwise — see
 `AmbisonicEncoding.h`/`AmbisonicDecoders.h`. `--stereo` no longer selects a
 different channel-configuration type — it forces the cardioid decoder
 (`MixerType::AMBISONIC_STEREO`) even when binaural would otherwise be
 available, the same toggle `toggle-mixer-type` flips at runtime; the
-ambisonic order itself is unaffected (still 1 unless `--ambisonic 2` is
-also given). The binaural decoder's virtual speaker layout depends on
-order: 1st order (4 channels, W/Y/Z/X only) keeps an 8-speaker cube — a
-12-speaker icosahedron wouldn't add anything decoding from just 4 basis
-functions; 2nd order (9 channels) moves to a 12-speaker icosahedron, which
-is what actually exploits the 5 additional degree-2 basis functions for
-finer spatial resolution (`AmbisonicBinauralMixer.cpp`). There is no
-`--mono` flag either: it was never a useful device-output mode;
+ambisonic order itself is unaffected by `--stereo`.
+
+Binaural decoding has two implementations, chosen by
+`Controller::getUseLegacyBinaural()` (`MixerFactory.cpp`): by default,
+`AmbisonicMagLSDecoder` (`AmbisonicMagLSDecoder.h`/`.cpp`) — a
+magnitude-least-squares decoder that precomputes one fixed HRIR-equivalent
+filter pair per ambisonic channel (2·(order+1)² of them — 32 at order 3),
+solved once at load time against the *entire* measured HRTF grid (not a
+small speaker subset): phase-accurate least-squares below a 1.5kHz
+transition frequency (preserving ITD), magnitude-only above it with phase
+propagated from the previous frequency bin's own reconstructed response
+(avoiding comb-filtering from raw phase discontinuities), plus a
+diffuse-field covariance constraint so direction-averaged energy matches
+the true measured set. `--legacy-binaural` instead selects the older
+`AmbisonicBinauralMixer` — a "virtual loudspeaker" decoder: decode the bus
+to a small set of directions (`speakerDirectionsFor()`, order-dependent —
+1st order/4 channels keeps an 8-speaker cube, a 12-speaker icosahedron
+wouldn't add anything decoding from just 4 basis functions; 2nd order/9
+channels moves to a 12-speaker icosahedron, exploiting the 5 additional
+degree-2 basis functions; 3rd order/16 channels moves to a 26-point
+Lebedev grid), max-rE-weighted (`maxReGainsPerDegree()`/
+`maxReReferenceCosine()`/`acnDegree()`, `AmbisonicEncoding.h`), each
+speaker convolved against a measured HRIR pair and summed to stereo. Both
+share `SofaFileResolver.h`'s `findDefaultSofaFile()` for locating the SOFA
+file (project-local `data/` override first, then
+`~/.local/share/sofa/default.sofa`, matching `findDefaultSoundFont()`'s own
+resolution-order precedent below) and both fall back to the cardioid
+decoder if none resolves. max-rE weighting is exclusive to the legacy
+rig — MagLS has no notion of discrete speaker feeds to weight, its
+diffuse-field constraint plays the equivalent low-order-truncation-error
+role instead. The legacy rig's `gain_trim_` (per-instance output-level
+scalar) is derived from the loaded HRIR set's own measured filter energy
+(L2 norm, not RMS — convolution output power scales with total filter
+energy, not amplitude alone) times a single calibrated constant
+(`kGainTrimTarget`, `AmbisonicBinauralMixer.cpp`) — deliberately
+data-derived so swapping in a louder/quieter SOFA file (e.g. the
+KU100-based `HRIR_L2702.sofa` vs. an older MIT KEMAR set) can't silently
+reintroduce clipping the way a purely geometric constant once did.
+`dsp/RealFFT.h` (real-signal r2c-forward/c2r-inverse, PocketFFT-backed —
+see the FFT backend note below) is what MagLS's precomputation uses for
+its per-channel frequency-domain solve, via a plain `RealFFT<float>`
+instance — the same class `dsp/SpectrumAnalyzer.h` builds on for
+`Player.cpp`'s live spectrum analyzer (which layers ring-buffer
+accumulation and dB conversion on top; MagLS uses `RealFFT` directly).
+There is no `--mono` flag either: it was never a useful device-output mode;
 `ChannelConfiguration::MONO` (conceptually 0th-order ambisonics — a single
 omnidirectional/W channel, `numberOfChannels() == 1`) survives only as an
 internal value voices/leaf instruments and nonlinear per-track effects
@@ -262,47 +303,52 @@ SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
   code path from the shared bus's spatial FDN reverb (`bus/FDNReverb.h`) —
   don't confuse the two.
 - `AmbisonicEncoding.h` — ambisonic encode/decode math (SN3D gains up to
-  2nd order via `AmbisonicGains`/`computeAmbisonicGains`, per-voice
-  gain-interpolated encoder, stereo decode/re-encode helpers) shared by
-  every ambisonic-aware node. `cubeVertexDirections()` gives the 8
-  cube-vertex directions (az ±45°/±135°, el ±35.264°) both
-  `AmbisonicBinauralMixer`'s order-1 speaker layout and the shared send
-  bus's spatial reverb taps encode into — a single shared source of truth,
-  not two independently-declared copies of the same constants.
+  3rd order via `AmbisonicGains`/`computeAmbisonicGains`, per-voice
+  gain-interpolated encoder, stereo decode/re-encode helpers, plus the
+  max-rE helpers `maxReGainsPerDegree()`/`maxReReferenceCosine()`/
+  `acnDegree()` used only by the legacy binaural rig — see the Run section
+  above) shared by every ambisonic-aware node. `cubeVertexDirections()`
+  gives the 8 cube-vertex directions (az ±45°/±135°, el ±35.264°) both the
+  legacy rig's order-1 speaker layout and the shared send bus's spatial
+  reverb taps encode into — a single shared source of truth, not two
+  independently-declared copies of the same constants.
   `AmbisonicDecoders.h` — the master-bus `Mixer` subclasses
-  (`AmbisonicStereoMixer`, always available; `AmbisonicBinauralMixer`,
-  libmysofa-gated). `MixerFactory.{h,cpp}` picks between these two, given
-  the process-wide `ChannelConfiguration` and `Controller`-level
-  `MixerType` setting — used by both `Player` and `OfflineRenderer`/
-  `--render` so they exercise identical mixer-selection logic. There is no
-  third, plain-stereo-pan mixer any more (`BasicMixer` was retired along
-  with `ChannelConfiguration::STEREO` — see the Run section above): every
-  song is always rendered through an ambisonic bus, `MONO` (0th-order
-  ambisonic, W-only) included, which `AmbisonicStereoMixer`'s
-  `decodeToStereo()` broadcasts equally to both output channels rather
-  than needing its own separate mixer type. (A prior, incompatible
-  ambisonic attempt, `HRFT.{cpp,h}`, predated the current `Mixer`/
-  `SampleData` interfaces and was never in the build; deleted rather than
-  revived.)
-- `SampleData.h`'s `Channel` enum (`W`/`Y`/`Z`/`X`/`Acn4`..`Acn8`/`SendA`/
-  `SendB`) names a buffer's raw channel indices by *presence*, not by an
-  explicit table: a channel's raw index is however many other present
-  channels come earlier in the enum's declaration order
-  (`SampleData::hasChannel`/`getChannel`). There is no separate `Mono`
-  value — `ChannelConfiguration::MONO` is 0th-order ambisonics (a single
-  omnidirectional component), so a mono buffer just marks `W` present and
-  leaves `Y`/`Z`/`X` absent, rather than naming the same "one
-  omnidirectional channel" concept twice. `ChannelConfiguration` itself
-  stays completely ignorant of `SendA`/`SendB` — they're layered onto any
-  configuration by whoever constructs a `SampleData` (the plain
-  `ChannelConfiguration`-based constructor never marks them; the
-  vector-of-`Channel` constructor does, e.g. a leaf voice building
-  `{W, SendA}`). `regularChannelsFor(config)` returns the "regular"
-  (non-send) channel list a `ChannelConfiguration` implies, for building
-  that vector. `SampleData::mixNamed()` is `mix()`'s sends-tolerant
-  sibling — same exact-match/mono-broadcast rules, but a send present on
-  only one side is silently ignored (rather than asserting) instead of
-  requiring both sides to match exactly.
+  (`AmbisonicStereoMixer`, always available; `AmbisonicBinauralMixer`, the
+  legacy virtual-speaker-rig decoder, libmysofa-gated).
+  `AmbisonicMagLSDecoder.{h,cpp}` (also libmysofa-gated) is the default
+  binaural decoder — see the Run section above for how the two differ and
+  how `MixerFactory.{h,cpp}` picks between all three, given the
+  process-wide `ChannelConfiguration`, `Controller`-level `MixerType`
+  setting, and `Controller::getUseLegacyBinaural()` — used by both
+  `Player` and `OfflineRenderer`/`--render` so they exercise identical
+  mixer-selection logic. There is no third, plain-stereo-pan mixer any
+  more (`BasicMixer` was retired along with `ChannelConfiguration::STEREO`
+  — see the Run section above): every song is always rendered through an
+  ambisonic bus, `MONO` (0th-order ambisonic, W-only) included, which
+  `AmbisonicStereoMixer`'s `decodeToStereo()` broadcasts equally to both
+  output channels rather than needing its own separate mixer type. (A
+  prior, incompatible ambisonic attempt, `HRFT.{cpp,h}`, predated the
+  current `Mixer`/`SampleData` interfaces and was never in the build;
+  deleted rather than revived.)
+- `SampleData.h`'s `Channel` enum has exactly two values, `SendA`/`SendB`
+  — every regular (ambisonic) channel is addressed by its own plain raw
+  index instead (0 = W, 1 = Y, ... in ACN order, up to 16 at order 3), not
+  one enum value per channel (an earlier version of this file did that, up
+  through `Acn8` at order 2 — adding `Acn9`..`Acn15` too, purely to keep a
+  naming pattern going that a raw index already said just as clearly,
+  wasn't worth it). There is no separate `Mono` value — `ChannelConfiguration::MONO`
+  is 0th-order ambisonics (a single omnidirectional component), so a mono
+  buffer is just 1 regular channel (raw index 0), rather than naming the
+  same "one omnidirectional channel" concept twice. `SendA`/`SendB` aren't
+  part of that fixed 0..N-1 run at all (a buffer may carry either, both, or
+  neither, independent of its regular channel count) — they always land
+  immediately after the regular channels, `SendA` before `SendB`
+  (`SampleData::indexOf()`), and `hasChannel()`/`getChannel()` test/fetch
+  them by presence. `SampleData::mixNamed()`/`assignNamed()` are
+  `mix()`/`assign()`'s sends-tolerant siblings — same exact-match/mono-
+  broadcast rules for the regular channels, but a send present on only one
+  side is silently ignored (rather than asserting) instead of requiring
+  both sides to match exactly.
 - `SendA`/`SendB` are user-configurable per-`InstrumentTrack` amounts
   (`sendA`/`sendB` XML attributes, `InstrumentTrack::getSendA()`/
   `getSendB()`), threaded down through `Track::playNote(...)`'s shared
@@ -349,7 +395,7 @@ SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
   `mixer.accumulate()` call — no decode step happens in `SongState` itself,
   since the top-level mixer is always ambisonic-shaped too.
   `SendBusProcessor`'s own output (`getBusAmbisonic()`) is *always*
-  ambisonic-shaped (`config.numberOfChannels()` — 4 or 9), never a stereo
+  ambisonic-shaped (`config.numberOfChannels()` — 4, 9, or 16), never a stereo
   signal: `bus/FDNReverb.h`'s 8-line feedback delay network (fed by
   `SendA`) replaced the shared bus's old single `MVerb<float>` instance —
   each of its 8 decorrelated tap outputs is encoded straight into the
@@ -403,8 +449,35 @@ SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
   long-lived feature/idea backlog).
 - `tools/` — helper scripts (e.g. `minimal_edo.pl`).
 - `todo.txt` — long-lived idea backlog, not a list of in-progress work.
-- `tinyxml2.{cpp,h}` and `effects/MVerb.h` are vendored third-party code; do
-  not reformat or refactor them.
+- `third_party/` holds vendored third-party code, one subdirectory per
+  library, each with its own upstream `LICENSE`/provenance note -
+  `third_party/tinyxml2/tinyxml2.{cpp,h}` (zlib licence) and
+  `third_party/pocketfft/pocketfft_hdronly.h` (BSD-3-Clause, the FFT
+  backend behind `dsp/RealFFT.h` - see `plans/magical-wondering-engelbart.md`)
+  so far. `effects/MVerb.h` (GPL, `<reverb preset="...">`'s DSP core) stays
+  where it is, outside `third_party/`, since it's slated for removal rather
+  than being a long-term vendored dependency. Do not reformat or refactor
+  any vendored file.
+- `dsp/RealFFT.h` — the engine's one FFT wrapper (real-signal r2c-forward/
+  c2r-inverse, fixed size at construction, no per-call allocation),
+  templated on float/double though only `RealFFT<float>` is actually
+  instantiated anywhere. Backed by PocketFFT (`third_party/pocketfft/`),
+  defining both `POCKETFFT_CACHE_SIZE` (a small nonzero LRU cache of
+  PocketFFT's own internal per-length plan objects — its plain `r2c()`/
+  `c2r()` free functions have no plan object a caller can hold onto the
+  way FFTW's `fftw_plan` did, and without a cache every call fully
+  replans from scratch) and `POCKETFFT_NO_MULTITHREADING` (deterministic,
+  single-threaded execution) before including the header — see the
+  class's own doc comment and `plans/magical-wondering-engelbart.md` for
+  why. `dsp/SpectrumAnalyzer.h` (`Player.cpp`'s live spectrum chart) wraps
+  a `RealFFT<float>` with ring-buffer accumulation and dB conversion;
+  `AmbisonicMagLSDecoder`'s precomputation uses `RealFFT<float>` directly.
+- `THIRD_PARTY_LICENSES.md` is the canonical, consolidated list of
+  vendored/linked third-party licence obligations; `--licenses` prints it
+  at runtime (content embedded into a generated header at build time from
+  `ThirdPartyLicenses.h.in` — see `CMakeLists.txt` — not read from disk,
+  so it works regardless of the binary's working directory). Update the
+  `.md` file, not the generated header, when a dependency changes.
 
 ## Conventions
 

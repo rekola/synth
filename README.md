@@ -45,6 +45,15 @@ way to distinguish.
 The classification is purely a function of the EDO and key (see
 `LaunchpadLayout::classifyPad`), so it applies unchanged to 12/19/31/53-EDO.
 
+# Third-party code
+
+This project is MIT-licensed (`LICENSE`). It vendors a small amount of
+third-party source under `third_party/` (currently `tinyxml2`, zlib
+license, and PocketFFT, BSD-3-Clause - the FFT backend behind
+`dsp/RealFFT.h`, replacing FFTW/GPL) and dynamically links against several
+permissively/LGPL-licensed system libraries. See `THIRD_PARTY_LICENSES.md`
+for the full picture, or run `musiceditor --licenses` to print it.
+
 # Roadmap / missing functionality:
 1. Undo/redo
 2. Effect-command interpretation during playback (slide, glide, vibrato, fade in/out, tremolo — currently editable and stored but not audible)
