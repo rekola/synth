@@ -12,7 +12,7 @@
 
 #include "MixerFactory.h"
 #include "InstrumentTrackState.h"
-#include "dsp/FFT.h"
+#include "dsp/SpectrumAnalyzer.h"
 
 using namespace std;
 

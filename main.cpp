@@ -6,6 +6,7 @@
 #include "StderrLogger.h"
 #include "OfflineRenderer.h"
 #include "AmbisonicEncoding.h"
+#include "generated/ThirdPartyLicenses.h"
 
 #include <cstring>
 #include <signal.h>
@@ -50,6 +51,7 @@ int main(int argc, char *argv[]) {
   ChannelConfiguration channel_config(44100, kAmbisonicOrder); // default to the highest supported order
   bool force_cardioid = false; // --stereo: skip binaural HRTF decode even if available
   bool force_legacy_binaural = false; // --legacy-binaural: use the old virtual-speaker-rig decoder instead of MagLS
+  bool show_licenses = false; // --licenses: print third-party license text and exit
   vector<string> input;
   string render_path;
 
@@ -87,6 +89,8 @@ int main(int argc, char *argv[]) {
       force_cardioid = true;
     } else if (strcmp(argv[i], "--legacy-binaural") == 0) {
       force_legacy_binaural = true;
+    } else if (strcmp(argv[i], "--licenses") == 0) {
+      show_licenses = true;
     } else if (strcmp(argv[i], "--ambisonic") == 0) {
       int order = kAmbisonicOrder; // bare --ambisonic (no explicit number) means the highest supported order
       if (i + 1 < argc && argv[i + 1][0] != '-') {
@@ -105,7 +109,12 @@ int main(int argc, char *argv[]) {
       input.push_back(argv[i]);
     }
   }
-      
+
+  if (show_licenses) {
+    fmt::print("{}\n", kThirdPartyLicensesText);
+    return 0;
+  }
+
   auto controller = make_shared<Controller>(channel_config);
   if (force_cardioid) controller->setMixerType(MixerType::AMBISONIC_STEREO);
   if (force_legacy_binaural) controller->setUseLegacyBinaural(true);

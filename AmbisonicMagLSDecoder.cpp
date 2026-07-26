@@ -1,6 +1,6 @@
 #include "AmbisonicMagLSDecoder.h"
 #include "SofaFileResolver.h"
-#include "dsp/ComplexFFT.h"
+#include "dsp/RealFFT.h"
 
 #include <mysofa.h>
 
@@ -148,8 +148,8 @@ AmbisonicMagLSDecoder::AmbisonicMagLSDecoder(int ambisonic_channels, int outSamp
   // below - derived from what's actually in the dataset, not a hardcoded
   // assumption about filter length.
   int fft_size = nextPowerOfTwo(2 * (filterlength + max_delay));
-  ComplexFFT fft(fft_size);
-  int num_bins = fft.binCount();
+  RealFFT<float> fft(static_cast<size_t>(fft_size));
+  int num_bins = static_cast<int>(fft.binCount());
 
   // (c) Build the real SH matrix Y (m x k) on the same grid - reuses the
   // shared, order-agnostic, deliberately-unweighted computeAmbisonicGains()

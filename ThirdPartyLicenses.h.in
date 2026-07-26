@@ -1,0 +1,12 @@
+#ifndef _THIRDPARTYLICENSES_H_
+#define _THIRDPARTYLICENSES_H_
+
+// Generated at build time from THIRD_PARTY_LICENSES.md (CMakeLists.txt) -
+// do not edit this generated file directly; edit THIRD_PARTY_LICENSES.md
+// and rebuild instead. Printed by the --licenses CLI flag (main.cpp) so
+// the license text actually reaches whoever runs the built binary, not
+// just whoever reads the repository.
+inline constexpr const char * kThirdPartyLicensesText =
+R"TPLICDELIM(@SYNTH_THIRD_PARTY_LICENSES_CONTENT@)TPLICDELIM";
+
+#endif

@@ -10,7 +10,7 @@
 #ifdef SYNTH_HAVE_LIBMYSOFA
 
 #include "../AmbisonicMagLSDecoder.h"
-#include "../dsp/ComplexFFT.h"
+#include "../dsp/RealFFT.h"
 
 #include <chrono>
 #include <cmath>
@@ -70,7 +70,7 @@ int peakLag(const std::vector<float> & a, const std::vector<float> & b, int max_
 // works too - the auditory system relies on phase-derived ITD only at
 // these same low frequencies.
 std::vector<float> lowpass(const std::vector<float> & signal, int sample_rate, float cutoff_hz) {
-  ComplexFFT fft(static_cast<int>(signal.size()));
+  RealFFT<float> fft(signal.size());
   auto spectrum = fft.forward(signal);
   for (size_t bin = 0; bin < spectrum.size(); bin++) {
     float freq = static_cast<float>(bin) * static_cast<float>(sample_rate) / static_cast<float>(signal.size());
@@ -165,7 +165,7 @@ TEST(ambisonic_magls_decoder_left_right_symmetry) {
   auto [left_a, right_a] = decodeDirection(dec, 30.0f, 0.0f);
   auto [left_b, right_b] = decodeDirection(dec, -30.0f, 0.0f);
 
-  ComplexFFT fft(static_cast<int>(left_a.size()));
+  RealFFT<float> fft(left_a.size());
   auto spec_left_a = fft.forward(left_a), spec_right_a = fft.forward(right_a);
   auto spec_left_b = fft.forward(left_b), spec_right_b = fft.forward(right_b);
 
@@ -198,7 +198,7 @@ TEST(ambisonic_magls_decoder_front_back_are_spectrally_distinguishable) {
   auto [front_l, front_r] = decodeDirection(dec, 0.0f, 0.0f);
   auto [back_l, back_r] = decodeDirection(dec, 180.0f, 0.0f);
 
-  ComplexFFT fft(static_cast<int>(front_l.size()));
+  RealFFT<float> fft(front_l.size());
   auto spec_front = fft.forward(front_l);
   auto spec_back = fft.forward(back_l);
 
@@ -223,7 +223,7 @@ TEST(ambisonic_magls_decoder_diffuse_field_gain_is_unity) {
 
   int n = dec.numberOfChannels();
   size_t len = dec.leftFilter(0).size();
-  ComplexFFT fft(static_cast<int>(len));
+  RealFFT<float> fft(len);
 
   std::vector<std::vector<std::complex<float>>> spec_left(static_cast<size_t>(n)), spec_right(static_cast<size_t>(n));
   for (int c = 0; c < n; c++) {

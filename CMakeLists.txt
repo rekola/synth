@@ -79,7 +79,7 @@ add_library(synth_engine STATIC
 	MixerFactory.cpp
 )
 target_include_directories(synth_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(synth_engine PUBLIC m sndfile fmt fftw3 pthread)
+target_link_libraries(synth_engine PUBLIC m sndfile fmt pthread)
 
 # Optional binaural ambisonic decoder: only libmysofa (HRIR loading) is an
 # external dependency - the FOA encode/decode math itself
@@ -104,6 +104,18 @@ if(SYNTH_ENABLE_BINAURAL)
   target_link_libraries(synth_engine PUBLIC ${MYSOFA_LIBRARY})
 endif()
 
+# Embeds THIRD_PARTY_LICENSES.md into a generated header at build time (not
+# read from disk at runtime, so `--licenses` works regardless of the
+# binary's working directory/install location - see main.cpp) - the .md
+# file stays the single source of truth; this just duplicates its content
+# into a form main.cpp can print.
+file(READ ${CMAKE_CURRENT_SOURCE_DIR}/THIRD_PARTY_LICENSES.md SYNTH_THIRD_PARTY_LICENSES_CONTENT)
+configure_file(
+	${CMAKE_CURRENT_SOURCE_DIR}/ThirdPartyLicenses.h.in
+	${CMAKE_CURRENT_BINARY_DIR}/generated/ThirdPartyLicenses.h
+	@ONLY
+)
+
 # add the executable
 add_executable(musiceditor main.cpp
 	UI.cpp
@@ -114,6 +126,7 @@ add_executable(musiceditor main.cpp
 	HierarchyView.cpp
 	PatternEditor.cpp
 )
+target_include_directories(musiceditor PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 target_link_libraries(musiceditor synth_engine asound notcurses++ notcurses notcurses-core)
 
