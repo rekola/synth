@@ -69,13 +69,15 @@ protected:
   
   std::shared_ptr<UIMenu> menu_;
   std::shared_ptr<Chart> chart_, volume_meter_;
-  // volume_meter_'s fixed domain size: 6 columns x 2 samples/braille-cell =
-  // 12 - one more than order-2 ambisonic (9) + SendA/SendB (2) = 11 actual
-  // values, rounded up to a whole number of columns. Always filled in full
-  // every update (see handlePlaybackEvent()) regardless of the current
-  // config's real channel count, matching displayFFT()'s own always-fill-
-  // the-whole-domain contract for the same Chart widget class.
-  static constexpr size_t kMaxMeterChannels = 12;
+  // volume_meter_'s fixed domain size: 9 columns x 2 samples/braille-cell =
+  // 18 - exactly order-3 ambisonic (16) + SendA/SendB (2), the largest
+  // config this engine supports (AmbisonicEncoding.h's kAmbisonicOrder) -
+  // so every channel is always on-screen at every order, never truncated.
+  // Always filled in full every update (see handlePlaybackEvent())
+  // regardless of the current config's real channel count, matching
+  // displayFFT()'s own always-fill-the-whole-domain contract for the same
+  // Chart widget class.
+  static constexpr size_t kMaxMeterChannels = 18;
   std::shared_ptr<StatusLine> status_line_;
     
   bool close_ui_ = false;

@@ -228,22 +228,29 @@ Player::play(AudioAPI & audio) {
 	    // send_a_sum_/send_b_sum_).
 	    auto channel_loudness = mixer->getRawBus().calculateLoudness();
 
-	    // Meter legend, sized to fit the braille meter's actual column
-	    // budget (2 samples/character-cell, so N values -> ceil(N/2)
-	    // columns of text): mono+sends (3 values, 2 cols) = "M" (mono) +
-	    // "S" (sends) = "MS"; stereo+sends (4 values, 2 cols) = "S"
-	    // (stereo) + "S" (sends) = "SS" - no room to spell "L"/"R"
-	    // individually, so both regular channels are abbreviated to the
-	    // single letter "S" for "Stereo"; order-1 ambisonic+sends (6
-	    // values, 3 cols), no room for individual channel names either =
-	    // "A4" (ambisonic, 4 channels) + "S" (sends) = "A4S"; order-2 (11
-	    // values, 6 cols), enough room for a real range = "A1-9" + " " +
-	    // "S" (sends) = "A1-9 S".
+	    // Meter legend - each *character* lines up with one meter *column*
+	    // (2 samples/braille-column), so the label reads as an actual
+	    // legend for the bars beneath it rather than just a compact tag:
+	    // the "S" for SendA/SendB is always placed at the exact column
+	    // index where the sends themselves start (padded with spaces to
+	    // get there), never just appended to the end of the text. There is
+	    // no plain-stereo config any more (ChannelConfiguration::STEREO was
+	    // removed - every config is MONO or AMBISONIC), so there's no "2
+	    // regular channels" case to label here.
+	    //
+	    // mono+sends (1 regular -> padded to 2 -> 1 col, then sends -> col
+	    // 1): "M" (mono) + "S" (sends, col 1) = "MS". Order-1 ambisonic (4
+	    // regular -> 2 cols, then sends -> col 2): "A4" (ambisonic, 4
+	    // channels) + "S" (col 2) = "A4S". Order-2 (9 regular, odd -> padded
+	    // to 10 -> 5 cols, then sends -> col 5): "A1-9" + " " (col 4) + "S"
+	    // (col 5) = "A1-9 S". Order-3 (16 regular, even -> 8 cols, then
+	    // sends -> col 8): "A1-16" + 3 spaces (cols 5-7) + "S" (col 8) =
+	    // "A1-16   S".
 	    switch (channel_loudness.size()) {
 	    case 1: ev->setMeterLabel("MS"); break;
-	    case 2: ev->setMeterLabel("SS"); break;
 	    case 4: ev->setMeterLabel("A4S"); break;
 	    case 9: ev->setMeterLabel("A1-9 S"); break;
+	    case 16: ev->setMeterLabel("A1-16   S"); break;
 	    default: ev->setMeterLabel(""); break;
 	    }
 
