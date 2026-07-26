@@ -20,17 +20,17 @@
     </envelope>
   </instruments>
   <tracks>
-    <track id="0" instrument="0" azimuth="0" elevation="0" distance="1"/>
-    <track id="1" instrument="0" azimuth="45" elevation="0" distance="1"/>
-    <track id="2" instrument="0" azimuth="90" elevation="0" distance="1"/>
-    <track id="3" instrument="0" azimuth="135" elevation="0" distance="1"/>
-    <track id="4" instrument="0" azimuth="180" elevation="0" distance="1"/>
-    <track id="5" instrument="0" azimuth="-135" elevation="0" distance="1"/>
-    <track id="6" instrument="0" azimuth="-90" elevation="0" distance="1"/>
-    <track id="7" instrument="0" azimuth="-45" elevation="0" distance="1"/>
-    <track id="8" instrument="0" azimuth="0" elevation="90" distance="1"/>
-    <track id="9" instrument="0" azimuth="0" elevation="-90" distance="1"/>
-    <track id="10" instrument="0" azimuth="0" elevation="0" distance="2"/>
+    <track id="0" name="az0" instrument="0" azimuth="0" elevation="0" distance="1"/>
+    <track id="1" name="az45" instrument="0" azimuth="45" elevation="0" distance="1"/>
+    <track id="2" name="az90" instrument="0" azimuth="90" elevation="0" distance="1"/>
+    <track id="3" name="az135"  instrument="0" azimuth="135" elevation="0" distance="1"/>
+    <track id="4" name="az180" instrument="0" azimuth="180" elevation="0" distance="1"/>
+    <track id="5" name="az-135" instrument="0" azimuth="-135" elevation="0" distance="1"/>
+    <track id="6" name="az-90" instrument="0" azimuth="-90" elevation="0" distance="1"/>
+    <track id="7" name="az-45" instrument="0" azimuth="-45" elevation="0" distance="1"/>
+    <track id="8" name="az0el90" instrument="0" azimuth="0" elevation="90" distance="1"/>
+    <track id="9" name="az0el-90" instrument="0" azimuth="0" elevation="-90" distance="1"/>
+    <track id="10" name="az0dist2" instrument="0" azimuth="0" elevation="0" distance="2"/>
   </tracks>
   <patterns>
     <pattern rows="132">
