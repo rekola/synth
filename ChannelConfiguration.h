@@ -5,8 +5,9 @@ class ChannelConfiguration {
  public:
   // ambisonic_order 0 = mono (no directional content - a single
   // omnidirectional/W channel, conceptually 0th-order ambisonics), 1 =
-  // first-order/FOA (4 channels), 2 = second-order (9 channels) - see
-  // AmbisonicEncoding.h's kAmbisonicOrder hard ceiling.
+  // first-order/FOA (4 channels), 2 = second-order (9 channels), 3 =
+  // third-order (16 channels) - see AmbisonicEncoding.h's kAmbisonicOrder
+  // hard ceiling.
   explicit ChannelConfiguration(int audioOutSampleRate = 44100, int ambisonic_order = 0)
     : audioOutSampleRate_(audioOutSampleRate), ambisonic_order_(ambisonic_order) { }
 

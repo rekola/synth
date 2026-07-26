@@ -61,16 +61,20 @@ string findDefaultSofaFile() {
   return best.string();
 }
 
-// Two speaker layouts, chosen by ambisonic order (see speakerDirectionsFor):
-// order 1 (4 channels, W/Y/Z/X only) keeps the original 8-speaker cube - a
-// 12-speaker icosahedron wouldn't buy anything decoding from just 4 basis
-// functions, and an evenly-spaced cube is already a good fit for FOA
-// content. Order 2 (9 channels) moves to a 12-speaker icosahedron, which is
-// what actually exploits the 5 additional degree-2 basis functions for
-// finer spatial resolution. Azimuth here is in this engine's convention
-// (positive = right, see PanLaw.h) - converted to libmysofa/SOFA's
-// convention (positive = left, measured from the +x/front axis) via a
-// sign flip below, in the loop that builds each SpeakerFilter.
+// Three speaker layouts, chosen by ambisonic order (see
+// speakerDirectionsFor): order 1 (4 channels, W/Y/Z/X only) keeps the
+// original 8-speaker cube - a 12-speaker icosahedron wouldn't buy anything
+// decoding from just 4 basis functions, and an evenly-spaced cube is
+// already a good fit for FOA content. Order 2 (9 channels) moves to a
+// 12-speaker icosahedron, which is what actually exploits the 5 additional
+// degree-2 basis functions for finer spatial resolution. Order 3 (16
+// channels) moves to a 26-point Lebedev grid - the icosahedron is only a
+// spherical 5-design, sufficient for order 2's t>=5 requirement but not
+// order 3's t>=2*3+1=7 (see AmbisonicEncoding.h's lebedev26Directions()).
+// Azimuth here is in this engine's convention (positive = right, see
+// PanLaw.h) - converted to libmysofa/SOFA's convention (positive = left,
+// measured from the +x/front axis) via a sign flip below, in the loop that
+// builds each SpeakerFilter.
 
 // Cube vertices (order 1): the same 8 directions the shared send bus's
 // spatial reverb spreads its taps over - see AmbisonicEncoding.h's
@@ -88,17 +92,21 @@ std::vector<AmbisonicDirection> speakerDirectionsFor(int ambisonic_channels) {
     auto cube = cubeVertexDirections();
     return std::vector<AmbisonicDirection>(cube.begin(), cube.end());
   }
-  return {
-    { 0.0f, 90.0f }, { 0.0f, -90.0f },
-    { 0.0f, kIcosahedronElevation }, { 72.0f, kIcosahedronElevation }, { 144.0f, kIcosahedronElevation }, { 216.0f, kIcosahedronElevation }, { 288.0f, kIcosahedronElevation },
-    { 36.0f, -kIcosahedronElevation }, { 108.0f, -kIcosahedronElevation }, { 180.0f, -kIcosahedronElevation }, { 252.0f, -kIcosahedronElevation }, { 324.0f, -kIcosahedronElevation },
-  };
+  if (ambisonic_channels <= 9) {
+    return {
+      { 0.0f, 90.0f }, { 0.0f, -90.0f },
+      { 0.0f, kIcosahedronElevation }, { 72.0f, kIcosahedronElevation }, { 144.0f, kIcosahedronElevation }, { 216.0f, kIcosahedronElevation }, { 288.0f, kIcosahedronElevation },
+      { 36.0f, -kIcosahedronElevation }, { 108.0f, -kIcosahedronElevation }, { 180.0f, -kIcosahedronElevation }, { 252.0f, -kIcosahedronElevation }, { 324.0f, -kIcosahedronElevation },
+    };
+  }
+  return lebedev26Directions();
 }
 
 } // namespace
 
 AmbisonicBinauralMixer::AmbisonicBinauralMixer(int ambisonic_channels, int outSampleRate)
-  : Mixer(2, outSampleRate), ambisonic_channels_(ambisonic_channels), buffer_(static_cast<short>(ambisonic_channels), 0) {
+  : Mixer(2, outSampleRate), ambisonic_channels_(ambisonic_channels), buffer_(static_cast<short>(ambisonic_channels), 0),
+    gain_trim_(0.175f) { // order-2/12-speaker/unweighted reference value - overwritten below once actually ready
   auto sofa_path = findDefaultSofaFile();
   if (sofa_path.empty()) return;
 
@@ -111,10 +119,39 @@ AmbisonicBinauralMixer::AmbisonicBinauralMixer(int ambisonic_channels, int outSa
 
   fmt::print(stderr, "Using SOFA file {} for binaural decoding\n", sofa_path);
 
+  // max-rE decode weighting (see AmbisonicEncoding.h's maxReGainsPerDegree)
+  // - computed once here (order-derived from ambisonic_channels_ via
+  // acnDegree of the highest channel index, since ambisonic_channels_ is
+  // always exactly (order+1)^2), not per speaker or per sample: every
+  // speaker's row gets the same per-degree weight k*g_l, only their
+  // per-direction encode gains differ. k is the separate energy-
+  // renormalization scalar (mean-square gain across channels preserved
+  // relative to the unweighted decode) - see AmbisonicEncoding.h's own
+  // comment on maxReGainsPerDegree for why it's not folded into g_l itself.
+  int order = acnDegree(ambisonic_channels_ - 1);
+  vector<float> max_re_gains(static_cast<size_t>(order) + 1);
+  maxReGainsPerDegree(order, max_re_gains.data());
+  float renorm_numerator = 0.0f, renorm_denominator = 0.0f;
+  for (int l = 0; l <= order; l++) {
+    float count = 2.0f * static_cast<float>(l) + 1.0f;
+    renorm_numerator += count;
+    renorm_denominator += count * max_re_gains[static_cast<size_t>(l)] * max_re_gains[static_cast<size_t>(l)];
+  }
+  float renorm_k = sqrtf(renorm_numerator / renorm_denominator);
+
+  auto speaker_directions = speakerDirectionsFor(ambisonic_channels_);
+  // gain_trim_ re-derived for this instance's own speaker count and k*g0 -
+  // see the member's own doc comment (AmbisonicBinauralMixer.h) for the
+  // full derivation and worked examples per order.
+  gain_trim_ = 0.175f * 12.0f / (static_cast<float>(speaker_directions.size()) * renorm_k * max_re_gains[0]);
+
   int max_ir_and_delay = 0;
-  for (auto & dir : speakerDirectionsFor(ambisonic_channels_)) {
+  for (auto & dir : speaker_directions) {
     SpeakerFilter filter;
     filter.decode_gains = computeAmbisonicGains(SphericalPosition{ dir.azimuth, dir.elevation, 1.0f });
+    for (int c = 0; c < ambisonic_channels_; c++) {
+      filter.decode_gains[static_cast<size_t>(c)] *= renorm_k * max_re_gains[static_cast<size_t>(acnDegree(c))];
+    }
 
     constexpr float kDeg2Rad = static_cast<float>(M_PI) / 180.0f;
     float sofa_azimuth = -dir.azimuth * kDeg2Rad; // this engine: +az = right; SOFA: +az = left
@@ -188,8 +225,14 @@ AmbisonicBinauralMixer::encode() {
 
   // buffer_ is constructed via the raw-count constructor, so it never
   // marks any channel present - it always holds exactly ambisonic_channels_
-  // regular channels (never any sends), gathered once per call.
-  int regular = buffer_.numberOfChannels();
+  // regular channels (never any sends), gathered once per call. Clamped to
+  // kAmbisonicChannelCount (mirroring AmbisonicVoiceEncoder::encodeBlock's
+  // own n = std::min(...) above) rather than trusting regular outright -
+  // today this can never actually exceed the array (ChannelConfiguration
+  // caps order at kAmbisonicOrder), but that's an invariant enforced far
+  // away from this fixed-size stack array, not something this function can
+  // see for itself.
+  int regular = std::min(static_cast<int>(buffer_.numberOfChannels()), kAmbisonicChannelCount);
   float * channels[kAmbisonicChannelCount] = {};
   for (int c = 0; c < regular; c++) channels[c] = buffer_.getChannelData(c);
 
@@ -217,8 +260,8 @@ AmbisonicBinauralMixer::encode() {
   SampleData out(getOutChannels(), frames);
   auto out_left = out.getChannelData(0), out_right = out.getChannelData(1);
   for (int i = 0; i < frames; i++) {
-    float l = left_acc_[static_cast<size_t>(i)] * kMasterGainTrim;
-    float r = right_acc_[static_cast<size_t>(i)] * kMasterGainTrim;
+    float l = left_acc_[static_cast<size_t>(i)] * gain_trim_;
+    float r = right_acc_[static_cast<size_t>(i)] * gain_trim_;
     if (l > 1.0f) l = 1.0f; else if (l < -1.0f) l = -1.0f;
     if (r > 1.0f) r = 1.0f; else if (r < -1.0f) r = -1.0f;
     out_left[i] = l;

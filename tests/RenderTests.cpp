@@ -404,6 +404,30 @@ TEST(render_ambisonic_order2_smoke_test) {
   CHECK(rms(binaural_result, 0) > 1e-4f || rms(binaural_result, 1) > 1e-4f);
 }
 
+TEST(render_ambisonic_order3_smoke_test) {
+  // Same shape as render_ambisonic_order2_smoke_test above, at order 3 (16
+  // channels, the 26-point Lebedev binaural rig) - confirms the full
+  // channel-count bump (AmbisonicEncoding.h, SampleData.h) and the new
+  // speaker rig (AmbisonicBinauralMixer.cpp) render without crashing and
+  // produce finite, non-silent output end to end.
+  auto loaded = loadFixture("ambisonic_directions.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(44100, 3);
+
+  auto stereo_result = renderSongOffline(loaded.song, config, MixerType::AMBISONIC_STEREO);
+  CHECK(stereo_result.channels == 2);
+  CHECK(stereo_result.numberOfFrames() > 0);
+  CHECK(!hasNonFiniteSample(stereo_result));
+  CHECK(rms(stereo_result, 0) > 1e-4f || rms(stereo_result, 1) > 1e-4f);
+
+  auto binaural_result = renderSongOffline(loaded.song, config, MixerType::AMBISONIC_BINAURAL);
+  CHECK(binaural_result.channels == 2);
+  CHECK(binaural_result.numberOfFrames() > 0);
+  CHECK(!hasNonFiniteSample(binaural_result));
+  CHECK(rms(binaural_result, 0) > 1e-4f || rms(binaural_result, 1) > 1e-4f);
+}
+
 TEST(render_track_send_a_reaches_track_state_output) {
   // Fully deterministic (no SoundFont involved): a plain oscillator
   // instrument with sendA=0.5 configured on its <track> - confirms the
@@ -712,7 +736,8 @@ TEST(render_send_main_zero_silences_main_channels_but_not_sends) {
   for (int block = 0; block < 20; block++) {
     state.render(256, loaded.song, mixer);
     for (auto & data : mixer.accumulated) {
-      if (auto * w = data.getChannel(Channel::W)) {
+      if (data.numberOfChannels() > data.sendCount()) { // has at least one regular (W) channel
+        auto * w = data.getChannelData(0);
         for (int i = 0; i < data.numberOfFrames(); i++) main_peak = std::max(main_peak, std::fabs(w[i]));
       }
       if (auto * send = data.getChannel(Channel::SendA)) {
