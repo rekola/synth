@@ -48,7 +48,7 @@ add_library(synth_engine STATIC
 	Song.cpp
 	SongObject.cpp
 	InstrumentTrack.cpp
-	tinyxml2.cpp
+	third_party/tinyxml2/tinyxml2.cpp
 	effects/ResonantFilter.cpp
 	effects/BiquadFilter.cpp
 	effects/Distortion.cpp

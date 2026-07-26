@@ -27,7 +27,7 @@
 #include "bus/BusEffectRegistry.h"
 #include "MemoryParameterSource.h"
 
-#include "tinyxml2.h"
+#include "third_party/tinyxml2/tinyxml2.h"
 
 #include "constants.h"
 
