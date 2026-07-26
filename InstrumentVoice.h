@@ -114,11 +114,7 @@ protected:
   // smooths, not clicks.
   SampleData encodePosition(const float * dry, int frames) {
     auto & sends = getSends();
-    auto channels = regularChannelsFor(getChannelConfiguration());
-    if (sends.a > 0.0f) channels.push_back(Channel::SendA);
-    if (sends.b > 0.0f) channels.push_back(Channel::SendB);
-
-    SampleData data(channels, frames);
+    SampleData data(getChannelConfiguration().numberOfChannels(), sends.a > 0.0f, sends.b > 0.0f, frames);
     data.zero();
     auto gains = computeAmbisonicGains(getPosition());
     float main_gain = sends.main * getDistanceGain();

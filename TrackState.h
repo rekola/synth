@@ -63,11 +63,7 @@ protected:
       has_send_a = has_send_a || s.hasChannel(Channel::SendA);
       has_send_b = has_send_b || s.hasChannel(Channel::SendB);
     }
-    auto channels = regularChannelsFor(accumulator_config);
-    if (has_send_a) channels.push_back(Channel::SendA);
-    if (has_send_b) channels.push_back(Channel::SendB);
-
-    SampleData data(channels, frames);
+    SampleData data(accumulator_config.numberOfChannels(), has_send_a, has_send_b, frames);
     data.zero();
 
     // Every child now spatially encodes itself directly, using its own
@@ -91,11 +87,7 @@ protected:
       has_send_a = has_send_a || s.hasChannel(Channel::SendA);
       has_send_b = has_send_b || s.hasChannel(Channel::SendB);
     }
-    auto channels = regularChannelsFor(accumulator_config);
-    if (has_send_a) channels.push_back(Channel::SendA);
-    if (has_send_b) channels.push_back(Channel::SendB);
-
-    SampleData sd(channels, frames);
+    SampleData sd(accumulator_config.numberOfChannels(), has_send_a, has_send_b, frames);
     sd.zero();
 
     bool child_has_solo = false;

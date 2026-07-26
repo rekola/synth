@@ -163,58 +163,53 @@ TEST(sample_data_repeated_copy_assign_does_not_leak) {
 
 TEST(sample_data_raw_count_constructor_marks_no_named_channels) {
   SampleData data(2, 4);
-  CHECK(!data.hasChannel(Channel::W));
-  CHECK(!data.hasChannel(Channel::Y));
-  CHECK(data.getChannel(Channel::W) == nullptr);
+  CHECK(!data.hasChannel(Channel::SendA));
+  CHECK(!data.hasChannel(Channel::SendB));
+  CHECK(data.getChannel(Channel::SendA) == nullptr);
 }
 
-TEST(sample_data_channel_configuration_constructor_marks_regular_presence) {
+// The ChannelConfiguration constructor only ever produces regular
+// (ambisonic) channels - accessed by plain raw index (0=W, 1=Y, ... - see
+// AmbisonicEncoding.h's ACN ordering), not a per-channel name - so all this
+// checks is the channel *count* at each order, plus that no send is ever
+// marked present.
+TEST(sample_data_channel_configuration_constructor_has_no_named_sends) {
   SampleData mono(ChannelConfiguration(44100), 4);
-  CHECK(mono.hasChannel(Channel::W));
-  CHECK(mono.getChannel(Channel::W) == mono.getChannelData(0));
+  CHECK(mono.numberOfChannels() == 1);
+  CHECK(!mono.hasChannel(Channel::SendA));
 
   SampleData order1(ChannelConfiguration(44100, 1), 4);
   CHECK(order1.numberOfChannels() == 4);
-  CHECK(order1.hasChannel(Channel::W));
-  CHECK(order1.hasChannel(Channel::X));
-  CHECK(!order1.hasChannel(Channel::Acn4));
 
   SampleData order2(ChannelConfiguration(44100, 2), 4);
   CHECK(order2.numberOfChannels() == 9);
-  CHECK(order2.hasChannel(Channel::W));
-  CHECK(order2.hasChannel(Channel::Acn4));
-  CHECK(order2.hasChannel(Channel::Acn8));
-  CHECK(order2.getChannel(Channel::Acn8) == order2.getChannelData(8));
+
+  SampleData order3(ChannelConfiguration(44100, 3), 4);
+  CHECK(order3.numberOfChannels() == 16);
 }
 
-TEST(sample_data_vector_constructor_derives_presence_indices_from_order) {
-  // SendA's raw index accounts for whichever regular channel(s) precede it
-  // in canonical order - here just Mono, so SendA lands at index 1.
-  SampleData data({ Channel::W, Channel::SendA }, 4);
+TEST(sample_data_regular_plus_send_constructor_derives_send_indices) {
+  // SendA's raw index accounts for however many regular channels precede
+  // it - here just 1 (W only), so SendA lands at index 1.
+  SampleData data(1, true, false, 4);
   CHECK(data.numberOfChannels() == 2);
-  CHECK(data.hasChannel(Channel::W));
   CHECK(data.hasChannel(Channel::SendA));
   CHECK(!data.hasChannel(Channel::SendB));
-  CHECK(data.getChannel(Channel::W) == data.getChannelData(0));
   CHECK(data.getChannel(Channel::SendA) == data.getChannelData(1));
   CHECK(data.sendCount() == 1);
 }
 
-TEST(sample_data_regular_channels_for_matches_configuration_constructor) {
+TEST(sample_data_regular_plus_send_constructor_matches_configuration_constructor) {
   ChannelConfiguration order2(44100, 2);
-  auto channels = regularChannelsFor(order2);
-  channels.push_back(Channel::SendB);
-  SampleData built(channels, 4);
+  SampleData built(order2.numberOfChannels(), false, true, 4); // regular + SendB only
 
   SampleData reference(order2, 4);
   CHECK(built.numberOfChannels() == reference.numberOfChannels() + 1);
-  CHECK(built.hasChannel(Channel::Acn4) == reference.hasChannel(Channel::Acn4));
-  CHECK(built.getChannel(Channel::Acn8) == built.getChannelData(8));
   CHECK(built.getChannel(Channel::SendB) == built.getChannelData(9));
 }
 
 TEST(sample_data_mix_named_sums_regular_channels_and_shared_sends) {
-  SampleData acc({ Channel::W, Channel::Y, Channel::SendA }, 4);
+  SampleData acc(2, true, false, 4); // W, Y regular + SendA
   acc.zero();
   for (int i = 0; i < 4; i++) {
     acc.getChannelData(0)[i] = 0.1f;
@@ -225,7 +220,7 @@ TEST(sample_data_mix_named_sums_regular_channels_and_shared_sends) {
 
   // `other` lacks SendA but has SendB (which acc never marks present) -
   // both should be silently ignored where only one side has them.
-  SampleData other({ Channel::W, Channel::Y, Channel::SendB }, 4);
+  SampleData other(2, false, true, 4); // W, Y regular + SendB
   other.zero();
   for (int i = 0; i < 4; i++) {
     other.getChannelData(0)[i] = 1.0f;
@@ -245,7 +240,7 @@ TEST(sample_data_mix_named_sums_regular_channels_and_shared_sends) {
 TEST(sample_data_mix_named_broadcasts_mono_into_stereo_like_mix) {
   SampleData acc(2, 4);
   acc.zero();
-  SampleData mono({ Channel::W, Channel::SendA }, 4);
+  SampleData mono(1, true, false, 4); // W regular + SendA
   mono.zero();
   for (int i = 0; i < 4; i++) {
     mono.getChannelData(0)[i] = 1.0f;

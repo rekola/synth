@@ -3,7 +3,6 @@
 
 #include "ChannelConfiguration.h"
 
-#include <bitset>
 #include <cstring>
 #include <cmath>
 #include <cassert>
@@ -11,40 +10,19 @@
 #include <utility>
 #include <vector>
 
-// Named channels a SampleData buffer's raw indices may correspond to. A
-// channel's raw index is never stored explicitly - it's derived by counting
-// how many *other present* channels come earlier in this declaration order
-// (see SampleData::indexOf), so e.g. Mono is always raw channel 0 whenever
-// present, and SendA's index depends entirely on however many regular
-// channels precede it. Acn4-8 (ambisonic degree 2) are named individually,
-// not left anonymous, purely so that counting-based index derivation stays
-// correct at order 2 - if only W/Y/Z/X were named, SendA would be placed at
-// index 4 (colliding with Acn4-8's real data at indices 4-8) instead of the
-// correct index 9.
-// No separate Mono channel: MONO is 0th-order ambisonics (a single
-// omnidirectional/W component - see ChannelConfiguration), so a mono buffer
-// just marks W present and leaves Y/Z/X absent, rather than duplicating the
-// same "one omnidirectional channel" concept under two different names.
-enum class Channel : int8_t {
-  W, Y, Z, X,
-  Acn4, Acn5, Acn6, Acn7, Acn8,
-  SendA, SendB,
-  Count
-};
-
-// The regular (non-send) channel set implied by a ChannelConfiguration -
-// exactly what the ChannelConfiguration-based SampleData constructor marks
-// present. Exposed so callers building an accumulator that also needs
-// SendA/SendB (whose presence isn't something ChannelConfiguration knows or
-// cares about - see SampleData's own constructors) can start from this list
-// and append to it before constructing via the vector-of-Channel
-// constructor.
-inline std::vector<Channel> regularChannelsFor(const ChannelConfiguration & config) {
-  std::vector<Channel> v { Channel::W };
-  if (config.getAmbisonicOrder() >= 1) v.insert(v.end(), { Channel::Y, Channel::Z, Channel::X });
-  if (config.getAmbisonicOrder() >= 2) v.insert(v.end(), { Channel::Acn4, Channel::Acn5, Channel::Acn6, Channel::Acn7, Channel::Acn8 });
-  return v;
-}
+// The only two channel identities a SampleData buffer ever needs a *name*
+// for. Every regular (ambisonic) channel is addressed by its plain raw
+// index instead (0 = W, 1 = Y, ... - see AmbisonicEncoding.h's ACN
+// ordering) rather than one enum value per channel: with up to 16 of them
+// at order 3, naming each individually (as an earlier version of this file
+// did, up through Acn8 at order 2) added nothing a raw index doesn't
+// already say just as clearly, and would have meant adding Acn9-15 here
+// too purely to keep a pattern going. SendA/SendB are different - they're
+// not part of that fixed, densely-packed 0..N-1 run at all (a buffer may
+// carry either, both, or neither, independent of its regular channel
+// count), so they still get real names and a raw index derived from
+// however many regular channels precede them (see indexOf()).
+enum class Channel : int8_t { SendA, SendB };
 
 class SampleData final {
  public:
@@ -54,30 +32,35 @@ class SampleData final {
     : channels_(channels), frames_(frames), is_solo_(is_solo) {
     data_ = (float *)aligned_alloc(16, getAlignedSize(channels_ * frames_));
   }
+  // Regular (ambisonic) channels only, no sends - config.numberOfChannels()
+  // is already the raw channel count (0 = W, 1 = Y, ... in ACN order), so
+  // there's nothing left to mark present the way the old per-channel enum
+  // needed.
   explicit SampleData(ChannelConfiguration config, int frames, bool is_solo = false) noexcept
     : channels_(config.numberOfChannels()),
     frames_(frames),
     is_solo_(is_solo) {
     data_ = (float *)aligned_alloc(16, getAlignedSize(channels_ * frames_));
-    for (auto ch : regularChannelsFor(config)) present_.set(static_cast<size_t>(ch));
   }
-  // Regular channel(s) plus whichever sends the caller decided are present
-  // (see regularChannelsFor(config) above for building the list), or a
-  // fixed compile-time set at a leaf voice (e.g. { Channel::W,
-  // Channel::SendA }). channels_ is derived from the list's size.
-  explicit SampleData(const std::vector<Channel> & channels, int frames, bool is_solo = false) noexcept
-    : channels_(static_cast<short>(channels.size())), frames_(frames), is_solo_(is_solo) {
+  // `regular_channels` ambisonic channels (raw indices 0..regular_channels-1,
+  // in ACN order) plus SendA and/or SendB if the caller asks for them -
+  // e.g. a leaf voice building { config.numberOfChannels() regular channels,
+  // SendA present if this track sends to bus A, ditto SendB }. Sends always
+  // land immediately after the regular channels, SendA before SendB (see
+  // indexOf()).
+  explicit SampleData(int regular_channels, bool send_a, bool send_b, int frames, bool is_solo = false) noexcept
+    : channels_(static_cast<short>(regular_channels + (send_a ? 1 : 0) + (send_b ? 1 : 0))),
+    frames_(frames), is_solo_(is_solo), has_send_a_(send_a), has_send_b_(send_b) {
     data_ = (float *)aligned_alloc(16, getAlignedSize(channels_ * frames_));
-    for (auto ch : channels) present_.set(static_cast<size_t>(ch));
   }
   SampleData(const SampleData & other) noexcept
-    : channels_(other.channels_), frames_(other.frames_), is_solo_(other.is_solo_), is_zero_(other.is_zero_), bpm_(other.bpm_), present_(other.present_) {
+    : channels_(other.channels_), frames_(other.frames_), is_solo_(other.is_solo_), is_zero_(other.is_zero_), bpm_(other.bpm_), has_send_a_(other.has_send_a_), has_send_b_(other.has_send_b_) {
     auto s = getAlignedSize(channels_ * frames_);
     data_ = (float *)aligned_alloc(16, s);
     memcpy(data_, other.data_, s);
   }
   SampleData(SampleData && other) noexcept
-    : channels_(other.channels_), frames_(other.frames_), data_(std::exchange(other.data_, nullptr)), is_solo_(other.is_solo_), is_zero_(other.is_zero_), bpm_(other.bpm_), present_(other.present_) {
+    : channels_(other.channels_), frames_(other.frames_), data_(std::exchange(other.data_, nullptr)), is_solo_(other.is_solo_), is_zero_(other.is_zero_), bpm_(other.bpm_), has_send_a_(other.has_send_a_), has_send_b_(other.has_send_b_) {
   }
   ~SampleData() {
     free(data_);
@@ -89,7 +72,8 @@ class SampleData final {
       is_solo_ = other.is_solo_;
       is_zero_ = other.is_zero_;
       bpm_ = other.bpm_;
-      present_ = other.present_;
+      has_send_a_ = other.has_send_a_;
+      has_send_b_ = other.has_send_b_;
 
       auto s = getAlignedSize(channels_ * frames_);
       auto new_data = (float *)aligned_alloc(16, s);
@@ -109,7 +93,8 @@ class SampleData final {
       is_solo_ = other.is_solo_;
       is_zero_ = other.is_zero_;
       bpm_ = other.bpm_;
-      present_ = other.present_;
+      has_send_a_ = other.has_send_a_;
+      has_send_b_ = other.has_send_b_;
 
       data_ = std::exchange(other.data_, nullptr);
     }
@@ -119,7 +104,7 @@ class SampleData final {
   float * getChannelData(int channel) { return data_ + channel * numberOfFrames(); }
   const float * getChannelData(int channel) const { return data_ + channel * numberOfFrames(); }
 
-  bool hasChannel(Channel ch) const { return present_.test(static_cast<size_t>(ch)); }
+  bool hasChannel(Channel ch) const { return ch == Channel::SendA ? has_send_a_ : has_send_b_; }
 
   float * getChannel(Channel ch) { return hasChannel(ch) ? getChannelData(indexOf(ch)) : nullptr; }
   const float * getChannel(Channel ch) const { return hasChannel(ch) ? getChannelData(indexOf(ch)) : nullptr; }
@@ -328,14 +313,13 @@ class SampleData final {
 private:
   static inline size_t getAlignedSize(int frames) { return (static_cast<size_t>(frames) * sizeof(float) + 15ull) & ~15ull; }
 
-  // A channel's raw index is however many *other present* channels come
-  // earlier in Channel's declaration order - not stored, always derived,
-  // so it stays correct regardless of which subset of channels is present.
+  // SendA/SendB always land immediately after the regular (ambisonic)
+  // channels, SendA before SendB - so SendA's raw index is just however
+  // many regular channels there are, and SendB's is one past that if
+  // SendA is also present.
   int indexOf(Channel ch) const {
-    int idx = 0;
-    for (int i = 0; i < static_cast<int>(ch); i++) {
-      if (present_.test(static_cast<size_t>(i))) idx++;
-    }
+    int idx = channels_ - sendCount();
+    if (ch == Channel::SendB && has_send_a_) idx++;
     return idx;
   }
 
@@ -344,7 +328,7 @@ private:
   int frames_;
   float * data_;
   bool is_solo_ = false, is_zero_ = true;
-  std::bitset<static_cast<size_t>(Channel::Count)> present_;
+  bool has_send_a_ = false, has_send_b_ = false;
 
   // ChannelData
 };

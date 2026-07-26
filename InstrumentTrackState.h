@@ -76,11 +76,7 @@ public:
       has_send_a = has_send_a || s.hasChannel(Channel::SendA);
       has_send_b = has_send_b || s.hasChannel(Channel::SendB);
     }
-    auto channels = regularChannelsFor(getChannelConfiguration());
-    if (has_send_a) channels.push_back(Channel::SendA);
-    if (has_send_b) channels.push_back(Channel::SendB);
-
-    SampleData data(channels, frames, isSolo());
+    SampleData data(getChannelConfiguration().numberOfChannels(), has_send_a, has_send_b, frames, isSolo());
     data.setBpm(context.getBpm());
     data.zero();
     for (auto & [ pos, s ] : chunks) data.assignNamed(s, pos);
@@ -113,11 +109,7 @@ public:
       has_send_a = has_send_a || s.hasChannel(Channel::SendA);
       has_send_b = has_send_b || s.hasChannel(Channel::SendB);
     }
-    auto channels = regularChannelsFor(getChannelConfiguration());
-    if (has_send_a) channels.push_back(Channel::SendA);
-    if (has_send_b) channels.push_back(Channel::SendB);
-
-    SampleData data(channels, frames, isSolo());
+    SampleData data(getChannelConfiguration().numberOfChannels(), has_send_a, has_send_b, frames, isSolo());
     data.zero();
 
     // Every voice now spatially encodes itself directly, using its own

@@ -112,7 +112,7 @@ TEST(chorus_engine_ignores_send_channels) {
   engine.setMix(1.0f);
 
   int frames = 64;
-  SampleData data({ Channel::W, Channel::Y, Channel::SendA }, frames);
+  SampleData data(2, true, false, frames); // W, Y regular + SendA
   data.zero();
   for (int i = 0; i < frames; i++) {
     data.getChannelData(0)[i] = 1.0f;

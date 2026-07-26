@@ -98,11 +98,7 @@ public:
     auto & sends = getSends();
     auto gain = base_gain * getDistanceGain();
     auto outChannels = getChannelConfiguration().numberOfChannels();
-    auto channels = regularChannelsFor(getChannelConfiguration());
-    if (sends.a > 0.0f) channels.push_back(Channel::SendA);
-    if (sends.b > 0.0f) channels.push_back(Channel::SendB);
-
-    SampleData output(channels, frames);
+    SampleData output(outChannels, sends.a > 0.0f, sends.b > 0.0f, frames);
     auto send_a = output.getChannel(Channel::SendA);
     auto send_b = output.getChannel(Channel::SendB);
 
