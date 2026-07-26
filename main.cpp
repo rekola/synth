@@ -19,7 +19,7 @@ using namespace std;
 // Render the loaded song offline and write it as a WAV file.
 static bool renderSongToWav(Controller & controller, const ChannelConfiguration & channel_config, const string & path) {
   auto & song = controller.getSong();
-  auto result = renderSongOffline(song, channel_config, controller.getMixerType());
+  auto result = renderSongOffline(song, channel_config, controller.getMixerType(), 1024, 10, 1e-5f, controller.getUseLegacyBinaural());
 
   if (result.interleaved.empty()) {
     fmt::print(stderr, "Song has no patterns to render\n");
@@ -47,8 +47,9 @@ static bool renderSongToWav(Controller & controller, const ChannelConfiguration 
 int main(int argc, char *argv[]) {
   int load_demo = 0;
   bool relative = false;
-  ChannelConfiguration channel_config(44100, 1);
+  ChannelConfiguration channel_config(44100, kAmbisonicOrder); // default to the highest supported order
   bool force_cardioid = false; // --stereo: skip binaural HRTF decode even if available
+  bool force_legacy_binaural = false; // --legacy-binaural: use the old virtual-speaker-rig decoder instead of MagLS
   vector<string> input;
   string render_path;
 
@@ -84,8 +85,10 @@ int main(int argc, char *argv[]) {
       relative = true;
     } else if (strcmp(argv[i], "--stereo") == 0) {
       force_cardioid = true;
+    } else if (strcmp(argv[i], "--legacy-binaural") == 0) {
+      force_legacy_binaural = true;
     } else if (strcmp(argv[i], "--ambisonic") == 0) {
-      int order = 1;
+      int order = kAmbisonicOrder; // bare --ambisonic (no explicit number) means the highest supported order
       if (i + 1 < argc && argv[i + 1][0] != '-') {
 	i++;
 	order = atoi(argv[i]);
@@ -105,6 +108,7 @@ int main(int argc, char *argv[]) {
       
   auto controller = make_shared<Controller>(channel_config);
   if (force_cardioid) controller->setMixerType(MixerType::AMBISONIC_STEREO);
+  if (force_legacy_binaural) controller->setUseLegacyBinaural(true);
 
   if (!input.empty()) {
     if (!controller->openSong(input.front())) {

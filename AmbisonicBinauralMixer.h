@@ -58,39 +58,44 @@ class AmbisonicBinauralMixer : public Mixer {
   std::vector<float> left_acc_, right_acc_, speaker_signal_;
 
   // Headroom against summing this instance's own speaker count worth of
-  // HRIR energy - NOT a single constant shared across every order, since
-  // both things it depends on (how many speakers get summed, and the
-  // max-rE weight applied to the W/ACN0 term - see maxReGainsPerDegree)
-  // differ by order: order 1 sums only 8 (cube) speakers, order 2 sums 12
-  // (icosahedron), order 3 sums 26 (Lebedev grid - see
-  // speakerDirectionsFor()); a single trim calibrated for order 3's worst
-  // case would leave order 1/2 needlessly quiet (order 2 alone would come
-  // out ~2.3x quieter than its own correct calibration), which is exactly
-  // the kind of non-algebraic, order-dependent loudness drift the rest of
-  // this max-rE work is trying to avoid. So this is computed once per
-  // instance, in the constructor, from this instance's own actual speaker
-  // count and k*g0.
+  // HRIR energy - computed once per instance, in the constructor, entirely
+  // from things measured or derived at load time, not a single constant
+  // shared across every order/dataset. Three things determine the worst
+  // case (a fully diffuse/unpositioned voice - computeAmbisonicGains'
+  // distance<=0 branch, common, since most tracks never set a position -
+  // where the per-speaker signal is *entirely* the W term):
+  //   - speaker count: 8 (cube, order 1), 12 (icosahedron, order 2), 26
+  //     (Lebedev grid, order 3 - see speakerDirectionsFor()). A trim
+  //     calibrated for order 3's speaker count would leave order 1/2
+  //     needlessly quiet if applied uniformly.
+  //   - k*g0: max-rE's renormalized weight on the W/ACN0 term (see
+  //     maxReGainsPerDegree) - also order-dependent.
+  //   - dataset_filter_energy: the actual measured L2-norm ("energy") of a
+  //     typical filter in whichever HRTF dataset is loaded - sqrt(mean over
+  //     every (speaker,ear) filter of the sum of its own squared taps),
+  //     accumulated in the constructor while every speaker's left_ir/
+  //     right_ir are fetched. Deliberately NOT plain RMS-per-tap: a
+  //     filter's contribution to convolution output power scales with its
+  //     total energy (RMS * sqrt(filter length)), not RMS alone, so two
+  //     datasets can differ heavily in loudness contribution even at
+  //     similar per-tap RMS if their filter lengths differ (confirmed: a
+  //     real KU100 compilation's filters measure both louder per-tap AND
+  //     much shorter than an earlier-installed set - normalizing by RMS
+  //     alone got the correction direction right but undercorrected badly).
+  //     Different datasets can't share a fixed constant here, on pain of
+  //     clipping or being needlessly quiet depending on which way a future
+  //     dataset swap goes (confirmed - clipping is what happened before
+  //     this term existed at all).
   //
-  // History/derivation method (unchanged from before max-rE existed):
-  // originally 0.35, halved to 0.175 alongside the kAmbisonicReferenceGain
-  // fix (AmbisonicEncoding.h, 1/sqrt(2) -> 1.0) - worst case is a fully
-  // diffuse/unpositioned voice (computeAmbisonicGains' distance<=0 branch,
-  // common - most tracks never set a position - returns W-only, every
-  // other channel exactly 0), where the per-speaker signal is *entirely*
-  // that W term. 0.175, calibrated for order 2's 12 speakers with an
-  // *unweighted* decode (W-degree gain exactly 1.0 per speaker), is this
-  // class's one fixed reference point; every other case scales from it:
-  // gain_trim_ = 0.175 * (12 speakers * 1.0) / (this instance's speaker
-  // count * this instance's k*g0) - see the constructor for the actual
-  // computation, which reuses the same order/k it already derives for the
-  // decode-matrix weighting itself. Worked examples: order 1 (8 speakers,
-  // k*g0~1.414214) -> ~0.185616 (louder than the 0.175 reference - fewer
-  // speakers than the reference case, even with weighting); order 2 (12
-  // speakers, k*g0~1.581139) -> ~0.110680; order 3 (26 speakers,
-  // k*g0~1.668184) -> ~0.048417. As before, this is an analytically
-  // derived bound, not a re-tuned-by-ear value - listen and adjust the
-  // 0.175 reference constant (not per-order figures individually) if
-  // levels still seem off.
+  // gain_trim_ = kGainTrimTarget / (speaker_count * k*g0 *
+  // dataset_filter_energy) (AmbisonicBinauralMixer.cpp - see the
+  // constructor for the actual computation). kGainTrimTarget is the one
+  // remaining tunable, empirically calibrated (not derived - "how loud the
+  // worst case should be" is a product choice) so real program material
+  // renders at a consistent, non-clipping peak/RMS across all three orders
+  // regardless of which dataset is loaded. Listen and adjust that one
+  // constant (AmbisonicBinauralMixer.cpp) if levels still seem off on a
+  // future dataset swap.
   float gain_trim_;
 };
 

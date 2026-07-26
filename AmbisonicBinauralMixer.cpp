@@ -1,4 +1,5 @@
 #include "AmbisonicBinauralMixer.h"
+#include "SofaFileResolver.h"
 
 #include <mysofa.h>
 
@@ -13,53 +14,6 @@
 using namespace std;
 
 namespace {
-
-// Mirrors findDefaultSoundFont() in Controller.cpp: project-local override
-// first, then well-known directories - including /usr/share/libmysofa,
-// where Ubuntu's libmysofa1 package itself ships real SOFA files
-// (default.sofa, MIT_KEMAR_normal_pinna.sofa - confirmed present on this
-// system), so binaural decoding works out of the box on Ubuntu without
-// needing to source a SOFA file separately.
-string findDefaultSofaFile() {
-  namespace fs = std::filesystem;
-  error_code ec;
-
-  for (auto & entry : fs::directory_iterator("data", ec)) {
-    if (entry.path().extension() == ".sofa") return entry.path().string();
-  }
-
-  vector<fs::path> dirs;
-  if (auto home = getenv("HOME")) {
-    dirs.push_back(fs::path(home) / ".local/share/sofa");
-  }
-  dirs.push_back("/usr/share/libmysofa");
-  dirs.push_back("/usr/share/sofa");
-
-  const char * preferred[] = {
-    "default.sofa",
-    "MIT_KEMAR_normal_pinna.sofa",
-  };
-  for (auto name : preferred) {
-    for (auto & dir : dirs) {
-      auto p = dir / name;
-      if (fs::is_regular_file(p, ec)) return p.string();
-    }
-  }
-
-  fs::path best;
-  uintmax_t best_size = 0;
-  for (auto & dir : dirs) {
-    for (auto & entry : fs::directory_iterator(dir, ec)) {
-      if (entry.path().extension() != ".sofa") continue;
-      auto size = fs::file_size(entry.path(), ec);
-      if (!ec && size > best_size) {
-	best_size = size;
-	best = entry.path();
-      }
-    }
-  }
-  return best.string();
-}
 
 // Three speaker layouts, chosen by ambisonic order (see
 // speakerDirectionsFor): order 1 (4 channels, W/Y/Z/X only) keeps the
@@ -102,11 +56,30 @@ std::vector<AmbisonicDirection> speakerDirectionsFor(int ambisonic_channels) {
   return lebedev26Directions();
 }
 
+// gain_trim_'s single tunable: target output level for the worst-case
+// (diffuse/unpositioned, W-only) source, decoded through this instance's
+// own speaker count, max-rE weighting, and the actual measured filter
+// energy of whichever HRTF dataset is loaded - see gain_trim_'s own
+// derivation (AmbisonicBinauralMixer.h) for the full formula and exactly
+// what "filter energy" means (deliberately not plain RMS - see that
+// comment for why). "How loud the worst case should be" is a product
+// choice, not something purely derivable from the HRIR data itself, so
+// this is empirically calibrated rather than derived: chosen so real
+// program material renders at the same peak/RMS ballpark (no clipping,
+// comparable loudness across all three orders) this class already
+// produced before per-dataset filter-energy normalization existed at all -
+// confirmed by rendering the same fixture song at each order and comparing
+// peak/RMS/clip-count, not just picked by inspection. Listen and adjust
+// this one constant if levels still seem off on a future dataset swap -
+// there is deliberately only one tunable here, not a pair of
+// independently-arbitrary constants multiplied together.
+constexpr float kGainTrimTarget = 0.5f;
+
 } // namespace
 
 AmbisonicBinauralMixer::AmbisonicBinauralMixer(int ambisonic_channels, int outSampleRate)
   : Mixer(2, outSampleRate), ambisonic_channels_(ambisonic_channels), buffer_(static_cast<short>(ambisonic_channels), 0),
-    gain_trim_(0.175f) { // order-2/12-speaker/unweighted reference value - overwritten below once actually ready
+    gain_trim_(kGainTrimTarget) { // placeholder - overwritten below once actually ready, see its own doc comment
   auto sofa_path = findDefaultSofaFile();
   if (sofa_path.empty()) return;
 
@@ -140,12 +113,10 @@ AmbisonicBinauralMixer::AmbisonicBinauralMixer(int ambisonic_channels, int outSa
   float renorm_k = sqrtf(renorm_numerator / renorm_denominator);
 
   auto speaker_directions = speakerDirectionsFor(ambisonic_channels_);
-  // gain_trim_ re-derived for this instance's own speaker count and k*g0 -
-  // see the member's own doc comment (AmbisonicBinauralMixer.h) for the
-  // full derivation and worked examples per order.
-  gain_trim_ = 0.175f * 12.0f / (static_cast<float>(speaker_directions.size()) * renorm_k * max_re_gains[0]);
 
   int max_ir_and_delay = 0;
+  double ir_sum_sq = 0.0;
+  size_t ir_filter_count = 0; // one per (speaker, ear), NOT per sample - see gain_trim_'s derivation below
   for (auto & dir : speaker_directions) {
     SpeakerFilter filter;
     filter.decode_gains = computeAmbisonicGains(SphericalPosition{ dir.azimuth, dir.elevation, 1.0f });
@@ -172,11 +143,39 @@ AmbisonicBinauralMixer::AmbisonicBinauralMixer(int ambisonic_channels, int outSa
     int candidate = filterlength + std::max(filter.left_delay, filter.right_delay);
     if (candidate > max_ir_and_delay) max_ir_and_delay = candidate;
 
+    // Accumulated for gain_trim_'s dataset-loudness correction below - see
+    // that computation's own comment for why this can't be decided from
+    // speaker count/max-rE weight alone.
+    for (float v : filter.left_ir) ir_sum_sq += static_cast<double>(v) * v;
+    for (float v : filter.right_ir) ir_sum_sq += static_cast<double>(v) * v;
+    ir_filter_count += 2; // left_ir + right_ir
+
     speakers_.push_back(std::move(filter));
   }
 
   left_tail_.assign(static_cast<size_t>(max_ir_and_delay), 0.0f);
   right_tail_.assign(static_cast<size_t>(max_ir_and_delay), 0.0f);
+
+  // gain_trim_ - see the member's own doc comment (AmbisonicBinauralMixer.h)
+  // for the full derivation and worked examples per order. dataset_filter_energy
+  // is measured fresh from whatever's actually loaded (accumulated above
+  // while fetching every speaker's HRIR): the L2 norm ("energy") of a
+  // typical filter, sqrt(mean over every (speaker,ear) filter of the sum
+  // of its own squared taps) - NOT a plain per-tap RMS. This distinction
+  // matters because convolution's output power scales with a filter's
+  // total energy (RMS * sqrt(filter length)), not its RMS alone; datasets
+  // can differ in both dimensions independently (confirmed: the KU100
+  // compilation now in use has both a higher per-tap RMS AND a much
+  // shorter filter length than the previously-installed set - normalizing
+  // by RMS alone got the direction right but the magnitude badly wrong,
+  // undercorrecting for the length difference). This is what makes
+  // gain_trim_ correct regardless of which SOFA file loads, unlike the old
+  // formula (speaker count and max-rE weight only), which had no
+  // dependence on the HRIR data at all and clipped once a genuinely
+  // louder/differently-shaped dataset was loaded.
+  float dataset_filter_energy = ir_filter_count > 0 ? sqrtf(static_cast<float>(ir_sum_sq / static_cast<double>(ir_filter_count))) : kGainTrimTarget;
+  gain_trim_ = kGainTrimTarget / (static_cast<float>(speaker_directions.size()) * renorm_k * max_re_gains[0] * dataset_filter_energy);
+
   ready_ = true;
 }
 

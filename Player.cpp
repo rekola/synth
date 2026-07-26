@@ -183,7 +183,7 @@ Player::play(AudioAPI & audio) {
 
   auto * song = &controller_->getSong();
   state_.initialize(*song);
-  auto mixer = createMixer(controller_->getChannelConfiguration(), controller_->getMixerType());
+  auto mixer = createMixer(controller_->getChannelConfiguration(), controller_->getMixerType(), controller_->getUseLegacyBinaural());
 
   while ( !terminate_ ) {
     if (poll(descriptors.get(), num_descriptors, 1000) > 0) {
@@ -206,11 +206,11 @@ Player::play(AudioAPI & audio) {
 	      state_.clear();
 	      state_.resetPosition(); // old song's row count means nothing against the new song's patterns
 	      state_.initialize(*song);
-	      mixer = createMixer(controller_->getChannelConfiguration(), controller_->getMixerType());
+	      mixer = createMixer(controller_->getChannelConfiguration(), controller_->getMixerType(), controller_->getUseLegacyBinaural());
 	      song_changed_ = false;
 	    }
 	    if (mixer_changed_) {
-	      mixer = createMixer(controller_->getChannelConfiguration(), controller_->getMixerType());
+	      mixer = createMixer(controller_->getChannelConfiguration(), controller_->getMixerType(), controller_->getUseLegacyBinaural());
 	      mixer_changed_ = false;
 	    }
 	    auto ev = createPlaybackEvent(*song, state_);

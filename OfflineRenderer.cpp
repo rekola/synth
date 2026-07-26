@@ -8,7 +8,7 @@
 
 OfflineRenderResult
 renderSongOffline(const Song & song, const ChannelConfiguration & channel_config, MixerType mixer_type,
-		  int block_frames, int max_tail_seconds, float silence_threshold) {
+		  int block_frames, int max_tail_seconds, float silence_threshold, bool use_legacy_binaural) {
   OfflineRenderResult result;
   result.channels = channel_config.getDeviceChannels();
   result.sampleRate = channel_config.getAudioOutSampleRate();
@@ -21,7 +21,7 @@ renderSongOffline(const Song & song, const ChannelConfiguration & channel_config
   state.initialize(song);
   state.setIsPlaying(true);
 
-  auto mixer = createMixer(channel_config, mixer_type);
+  auto mixer = createMixer(channel_config, mixer_type, use_legacy_binaural);
 
   int tail_frames = 0;
 

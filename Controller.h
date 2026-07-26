@@ -66,6 +66,16 @@ class Controller {
   MixerType getMixerType() const { return mixer_type_; }
   void setMixerType(MixerType mixer_type) { mixer_type_ = mixer_type; }
 
+  // AMBISONIC_BINAURAL has two underlying implementations - MagLS
+  // (AmbisonicMagLSDecoder, the default) and the older virtual-speaker
+  // rig (AmbisonicBinauralMixer) - without a third MixerType value for it
+  // (see MixerType.h's own comment on why): this is a separate, orthogonal
+  // toggle, same shape as --stereo's own force_cardioid, reachable via
+  // --legacy-binaural (main.cpp). Ignored entirely unless mixer_type_ is
+  // actually AMBISONIC_BINAURAL (see MixerFactory.cpp).
+  bool getUseLegacyBinaural() const { return use_legacy_binaural_; }
+  void setUseLegacyBinaural(bool use_legacy) { use_legacy_binaural_ = use_legacy; }
+
   bool togglePlaying();
 
   // Single, shared home for "mutate this track's mute/solo/send and keep
@@ -113,6 +123,7 @@ class Controller {
  private:
   ChannelConfiguration channel_config;
   MixerType mixer_type_ = MixerType::AMBISONIC_STEREO;
+  bool use_legacy_binaural_ = false;
 
   std::shared_ptr<Song> current_song;
   std::string current_song_filename = "song.xml";

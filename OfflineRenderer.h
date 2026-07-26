@@ -25,10 +25,12 @@ struct OfflineRenderResult {
 // test suite so they exercise identical playback logic. `mixer_type` is
 // only consulted when `channel_config` is AMBISONIC (see MixerType.h) - a
 // MONO config never attempts binaural decoding regardless of this
-// parameter (see MixerFactory.cpp).
+// parameter (see MixerFactory.cpp). `use_legacy_binaural` is passed
+// straight through to createMixer() - see its own doc comment.
 OfflineRenderResult renderSongOffline(const Song & song, const ChannelConfiguration & channel_config,
 				      MixerType mixer_type = MixerType::AMBISONIC_STEREO,
 				      int block_frames = 1024, int max_tail_seconds = 10,
-				      float silence_threshold = 1e-5f);
+				      float silence_threshold = 1e-5f,
+				      bool use_legacy_binaural = false);
 
 #endif

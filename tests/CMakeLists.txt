@@ -10,6 +10,7 @@ add_executable(synth_tests
 	LaunchpadProtocolTests.cpp
 	VoiceLoudnessTests.cpp
 	AmbisonicEncodingTests.cpp
+	AmbisonicMagLSDecoderTests.cpp
 	ChorusEngineTests.cpp
 	NoiseGeneratorTests.cpp
 	FDNReverbTests.cpp
