@@ -19,6 +19,7 @@ gcc -o fake_launchpad_perc fake_launchpad_perc.c -lasound
 gcc -o fake_launchpad_button fake_launchpad_button.c -lasound
 gcc -o fake_launchpad_hotplug fake_launchpad_hotplug.c -lasound
 gcc -o fake_launchpad_device fake_launchpad_device.c -lasound
+gcc -o fake_launchpad_sendmode fake_launchpad_sendmode.c -lasound
 ```
 
 (the compiled binaries are gitignored - only the `.c` sources are
@@ -74,6 +75,12 @@ you're changing.
     state and fully disconnects; a second connects afterward and must
     start clean with no crash - covers `LaunchpadManager::refresh`'s
     erase-while-iterating device-pruning loop.
+- **`fake_launchpad_sendmode.c` / `verify_launchpad_sendmode.py`** - toggles
+  into Send A grid mode (CC69) and presses a grid pad; confirms the LED
+  bargraph both starts at the track's existing Send A level and reflects
+  the new one after the press - the non-NOTES branch of
+  `PatternEditor::handleLaunchpadPadEvent` (Send A/B/Main/Pan) had no
+  coverage before this script.
 - **`verify_fokker_colors.py`** - loads `songs/song.xml` (31-EDO) and
   asserts the literal RGB SysEx bytes sent for a handful of hand-verified
   tonic/diatonic/sharp/flat/diesis pads match the `FOKKER_*` color

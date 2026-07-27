@@ -26,10 +26,16 @@ class PlaybackInfo {
   int getPatternIndex() const { return pattern_idx_; }
   int getRowIndex() const { return row_idx_; }
   int getSamplePos() const { return sample_pos_; }
-  int getCurrentDelay() const { return 256 * sample_pos_ / sample_interval_; }
-      
+  // sample_interval_/outSampleRate_ are both 0 in a default-constructed
+  // PlaybackInfo - Controller::playback_info starts out that way and only
+  // gets overwritten once the Player thread's first PlaybackEvent reaches
+  // the UI (see Controller::setPlaybackInfo()), so a pad/key press that
+  // lands before that first event (e.g. right at startup) can still reach
+  // here with a zero divisor - guard both rather than dividing by it.
+  int getCurrentDelay() const { return sample_interval_ > 0 ? 256 * sample_pos_ / sample_interval_ : 0; }
+
   float getTime() const {
-    return (float)(absolute_pos_ * sample_interval_ + sample_pos_) / outSampleRate_;
+    return outSampleRate_ > 0 ? (float)(absolute_pos_ * sample_interval_ + sample_pos_) / outSampleRate_ : 0.0f;
   }
 
   int getVoiceCount() const { return voice_count_; }
