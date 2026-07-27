@@ -24,7 +24,7 @@
       </resonantFilter>
     </envelope>
 
-    <genericInstrument name="Chateau Grand" />   
+    <genericInstrument name="Piano" />   
 
     <envelope name="riser" attack="3" hold="0" sustain="0" decay="0" release="0">
       <resonantFilter cutmin="220" cutmax="20000" res="2" attack="3">

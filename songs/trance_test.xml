@@ -1,18 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="53edo" tempo="120" volume="1.0" randomization="0.0099999998">
+<song temperament="31edo" tempo="120" volume="1.0" randomization="0.0099999998">
   <instruments>
-    <envelope attack="0.01" hold="0" decay="1.17" sustain="0" release="0.231" name="Bell">
-      <oscilator type="sine"/>
-    </envelope>
+    <amplifier name="Bell" gain="-10">
+      <envelope attack="0.01" hold="0" decay="1.17" sustain="0" release="0.231">
+	<oscilator type="sine"/>
+      </envelope>
+    </amplifier>
 
-    <envelope name="bass3" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">	
-      <resonantFilter cutmin="1100" cutmax="11000" res="0.1" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">
-	<oscilator type="square" />
-	<multiply unisons="8" detune="10">
-	  <oscilator type="triangle" harmonic="2" />
-	</multiply>
-      </resonantFilter>
-    </envelope>
+    <amplifier name="bass3" gain="-10">
+      <envelope attack="0.01" hold="0" decay="1.17" sustain="0" release="0.231">	
+	<resonantFilter cutmin="1100" cutmax="11000" res="0.1" attack="0.01" hold="0" decay="1.17" sustain="0" release="0.231">
+	  <oscilator type="square" />
+	  <multiply unisons="8" detune="10">
+	    <oscilator type="triangle" harmonic="2" />
+	  </multiply>
+	</resonantFilter>
+      </envelope>
+    </amplifier>
 
     <envelope name="riser" attack="3" hold="0" sustain="0" decay="0" release="0">
       <resonantFilter cutmin="220" cutmax="20000" res="2" attack="3">
@@ -21,9 +25,7 @@
     </envelope>
 
     <resonantFilter cut="2200" res="2" name="Chords1">
-      <downmix>
-	<genericInstrument name="Acoustic Guitar (steel)" />
-      </downmix>
+      <genericInstrument name="Acoustic Guitar (steel)" />
     </resonantFilter>
 
     <resonantFilter cut="9000" res="2" name="Chords2">
@@ -44,13 +46,11 @@
 
   </instruments>
   <tracks>
-    <reverb preset="halves">
-      <track id="bell" instrument="0" />
-      <track id="bass" instrument="1" />
-      <track id="melody" instrument="1" />
-      <track id="riser" instrument="2"/>
-      <track id="chords" instrument="3" volume="4" />
-    </reverb>
+    <track id="bell" instrument="0" sendA="0.1" azimuth="-80" distance="1"/>
+    <track id="bass" instrument="1" sendA="0.1" azimuth="-45" distance="1"/>
+    <track id="melody" instrument="1" sendA="0.1" sendB="0.5" azimuth="45" distance="1" />
+    <track id="riser" instrument="2" sendA="0.1" />
+    <track id="chords" instrument="3" sendA="0.1" azimuth="80" distance="1"/>
   </tracks>
   
   <patterns>

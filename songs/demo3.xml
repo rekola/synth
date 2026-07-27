@@ -1,16 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="110" volume="1" randomization="0.0099999998">
+<song temperament="31edo" tempo="110" randomization="0.0099999998">
   <instruments>
     <genericInstrument name="Pizzicato Strings" />
     <genericInstrument name="Electric Bass (finger)" />
     <genericInstrument name="Percussion" />
   </instruments>
   <tracks>
-    <track id="0" instrument="0" sendA="0.1" distance="1" azimuth="-60" />
-    <track id="1" instrument="0" sendA="0.1" distance="1" azimuth="-30" />
-    <track id="2" instrument="0" sendA="0.1" distance="1" azimuth="0" />
-    <track id="3" instrument="1" sendA="0.1" distance="1" azimuth="30" />
-    <percussionTrack id="4" instrument="2" distance="1" azimuth="60" />
+    <track id="0" instrument="0" sendA="0.3" distance="5" azimuth="-60" />
+    <track id="1" instrument="0" sendA="0.3" distance="5" azimuth="-30" />
+    <track id="2" instrument="0" sendA="0.3" distance="5" azimuth="30" />
+    <track id="3" instrument="1" sendA="0.3" sendB="0.5" distance="10" elevation="10" azimuth="30" />
+    <percussionTrack id="4" instrument="2" sendA="0.3" sendB="0.1" distance="5" elevation="-10" azimuth="60" />
+    <track id="5" />
+    <track id="6" />
+    <track id="7" />
   </tracks>
   <patterns>
     <pattern rows="4">

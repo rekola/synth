@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="100" volume="0.75" randomization="0.0099999998">
+<song temperament="31edo" tempo="100" volume="0.75">
   <instruments>
     <reverb preset="subtle" name="Quartal Piano">
       <envelope attack="0.01" decay="0.5" sustain="0" release="0.8">
@@ -46,9 +46,7 @@
   
   <tracks>
     <reverb id="100" volume="1.0" preset="subtle">
-      <delay delay="1" fd="0.5" mix="0.5">
-	<track id="0" instrument="0" />
-      </delay>
+      <track id="0" instrument="0" sendB="0.5" />
       <track id="1" instrument="1" />
       <track id="2" instrument="2" />
       <track id="3" instrument="3" />

@@ -2,18 +2,14 @@
 <song temperament="31edo" tempo="100" volume="0.75" randomization="0.0099999998">
   <instruments>
     <resonantFilter cut="2200" res="2" name="Chords">
-      <downmix>
-	<genericInstrument name="Acoustic Guitar (steel)" />
-      </downmix>
+      <genericInstrument name="Acoustic Guitar (steel)" />
     </resonantFilter>
     
     <genericInstrument name="Piano" />    
   </instruments>
   
   <tracks>
-    <reverb id="100" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle">
-      <track id="0" instrument="0" />
-    </reverb>
+    <track id="0" instrument="0" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle" />
   </tracks>
   
   <patterns>

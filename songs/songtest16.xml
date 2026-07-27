@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="31edo" tempo="120" volume="1.0" randomization="0.0099999998">
+  <instruments>
+    <amplifier name="bass3" gain="-10">
+      <envelope attack="0.01" hold="0" decay="1.17" sustain="0" release="0.231">	
+	<resonantFilter cutmin="1100" cutmax="11000" res="0.1" attack="0.01" hold="0" decay="1.17" sustain="0" release="0.231">
+	  <oscilator type="square" />
+	  <multiply unisons="8" detune="10">
+	    <oscilator type="triangle" harmonic="2" />
+	  </multiply>
+	</resonantFilter>
+      </envelope>
+    </amplifier>
+  </instruments>
+  <tracks>
+    <track id="bass" instrument="0" sendA="0.1" azimuth="-45" distance="1"/>
+  </tracks>
+  
+  <patterns>
+    <pattern rows="64">
+      <note row="0" track="bass" velocity="40">D#2</note>
+      <note row="4" track="bass" velocity="40">F-2</note>
+      <note row="6" track="bass" velocity="40">C-2</note>
+      <note row="10" track="bass" velocity="40">D#2</note>
+      <note row="14" track="bass" velocity="40">D#2</note>
+      <note row="18" track="bass" velocity="40">F-2</note>
+      <note row="22" track="bass" velocity="40">C-2</note>
+      <note row="24" track="bass" velocity="40">D#2</note>
+      <note row="28" track="bass" velocity="40">C-2</note>
+    </pattern>
+</patterns>
+</song>

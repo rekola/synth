@@ -21,7 +21,7 @@
     </resonantFilter>
     
     <resonantFilter cut="20000" res="4" name="piano2">
-      <genericInstrument name="Chateau Grand" />
+      <genericInstrument name="Piano" />
     </resonantFilter>
   </instruments>
   
