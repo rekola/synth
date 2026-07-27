@@ -575,7 +575,6 @@ PatternEditor::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
   auto & info = getController().getPlaybackInfo();
 
   auto track_ids = song.getRootTrackIds();
-  if (track_ids.empty()) return;
 
   auto device_id = ev.getDeviceIndex();
 
@@ -587,7 +586,16 @@ PatternEditor::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
   // through to note-entry below.
   auto grid_mode = launchpad_manager_->gridMode(device_id);
   if (grid_mode != LaunchpadManager::GridMode::NOTES) {
-    if (ev.getKind() == LaunchpadPadEvent::PRESS && ev.getX() < static_cast<int>(track_ids.size())) {
+    if (ev.getKind() == LaunchpadPadEvent::PRESS && ev.getX() < 8) {
+      // The first 8 columns must always be usable, even in a song that
+      // doesn't have that many tracks yet - a Launchpad's physical layout
+      // doesn't know or care how many tracks currently exist, so auto-create
+      // plain InstrumentTracks (the same default 't' key/add-track uses) up
+      // to the pressed column rather than silently doing nothing.
+      while (static_cast<int>(track_ids.size()) <= ev.getX()) {
+        song.addTrack(make_unique<InstrumentTrack>(0));
+        track_ids = song.getRootTrackIds();
+      }
       auto track = song.getTrackByInternalId(track_ids[static_cast<size_t>(ev.getX())]);
       if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL)) {
         auto track_id = track->getInternalId();
@@ -605,9 +613,19 @@ PatternEditor::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
     return;
   }
 
+  // Mirrors the Send/Pan-mode auto-create above: a device's assigned track
+  // (or the cursor-track fallback) may point past however many tracks
+  // currently exist - a brand-new/emptied song, or a device that was
+  // assigned to a track index since deleted - so grow the song up to that
+  // index rather than silently clamping back to the cursor track (which,
+  // for an empty song, wouldn't exist either).
   auto track_index = launchpad_manager_->assignedTrackIndex(device_id, new_cursor.track);
-  if (track_index < 0 || track_index >= static_cast<int>(track_ids.size())) track_index = new_cursor.track;
-  int track_id = track_ids[track_index];
+  if (track_index < 0) track_index = new_cursor.track;
+  while (static_cast<int>(track_ids.size()) <= track_index) {
+    song.addTrack(make_unique<InstrumentTrack>(0));
+    track_ids = song.getRootTrackIds();
+  }
+  int track_id = track_ids[static_cast<size_t>(track_index)];
 
   auto note_value = launchpad_manager_->resolveNote(song, device_id, track_id, ev.getX(), ev.getY());
   if (note_value < 0) return; // unused percussion pad (row 7), or an unpitched/degenerate tuning

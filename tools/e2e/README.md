@@ -20,6 +20,7 @@ gcc -o fake_launchpad_button fake_launchpad_button.c -lasound
 gcc -o fake_launchpad_hotplug fake_launchpad_hotplug.c -lasound
 gcc -o fake_launchpad_device fake_launchpad_device.c -lasound
 gcc -o fake_launchpad_sendmode fake_launchpad_sendmode.c -lasound
+gcc -o fake_launchpad_sendmode_autocreate fake_launchpad_sendmode_autocreate.c -lasound
 ```
 
 (the compiled binaries are gitignored - only the `.c` sources are
@@ -81,6 +82,17 @@ you're changing.
   the new one after the press - the non-NOTES branch of
   `PatternEditor::handleLaunchpadPadEvent` (Send A/B/Main/Pan) had no
   coverage before this script.
+- **`fake_launchpad_sendmode_autocreate.c` / `verify_launchpad_sendmode_autocreate.py`** -
+  loads `songs/songtest1.xml` (2 tracks), toggles Send A mode, and presses
+  column 5 (no track there yet); confirms
+  `PatternEditor::handleLaunchpadPadEvent` auto-creates tracks up to that
+  column instead of silently doing nothing - both this script's own
+  Send/Pan-mode branch and the symmetric NOTES-mode branch (a device's
+  assigned/fallback track index growing the song the same way) were added
+  together, though only the Send/Pan-mode one has e2e coverage here (the
+  NOTES-mode trigger - a song with zero tracks - hits an unrelated
+  pre-existing crash elsewhere in the editor before Launchpad code even
+  runs; see `docs/known_bugs.md`).
 - **`verify_fokker_colors.py`** - loads `songs/song.xml` (31-EDO) and
   asserts the literal RGB SysEx bytes sent for a handful of hand-verified
   tonic/diatonic/sharp/flat/diesis pads match the `FOKKER_*` color

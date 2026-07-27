@@ -75,3 +75,26 @@ Found 2026-07-11, not yet fixed.
   would need normalizing each channel to a common reference level before
   the curve and undoing it after, or accepting the mismatch as a known
   character quirk of this effect.
+
+- **A song with zero root tracks would crash on the very next render tick**,
+  independent of the Launchpad or any other single feature.
+  `PatternEditor::render()` does `track_ids[new_cursor.track]` (and several
+  sibling call sites - `getTrackInfoFor(song, track_ids[current_cursor.track])`,
+  `offerInput()`'s `song.getTrackByInternalId(track_ids[current_cursor.track])`,
+  etc.) with no bounds check anywhere, on the assumption that at least one
+  root track always exists. Found as a side effect of adding
+  `PatternEditor::handleLaunchpadPadEvent`'s auto-create-missing-tracks
+  behavior (both its Send/Pan-mode and NOTES-mode branches now grow the
+  song up to whatever track index is needed, including from zero) - that
+  fix makes the *Launchpad* input path safe against a track-less song, but
+  the rest of the editor was never exercised against one, since nothing in
+  the app can currently produce one in practice (`Ctrl-N`/new-song always
+  creates exactly one track, and the pattern editor's own "duplicate/delete
+  track" keybinding is an unimplemented stub - see the `'d'` case in
+  `PatternEditor::offerInput()`). Not fixed - no current code path reaches
+  it, so it's a latent landmine rather than something a user can trigger
+  today, but it should be addressed (either bounds-check every
+  `track_ids[...]` site, or make it structurally impossible to reach zero
+  tracks - e.g. refuse to delete the last remaining track, once track
+  deletion is actually implemented) before either the Launchpad auto-create
+  path's zero-track branch or a real delete-track feature ships.
