@@ -75,11 +75,11 @@ protected:
   const SendLevels & getSends() const { return sends_; }
 
   // Dry-signal distance attenuation only (1/distance) - the room's shared
-  // reverb/chorus bus (SendA/SendB) deliberately does NOT scale by this: an
+  // reverb/chorus bus (AuxA/AuxB) deliberately does NOT scale by this: an
   // instrument's contribution to the room's reverb doesn't diminish just
   // because the listener is farther from that one source. Applied uniformly
   // regardless of bus type (previously this was ambisonic-only, baked into
-  // computeAmbisonicGains/PositionalMixer::encode - see AmbisonicEncoding.h).
+  // computeAmbisonicGains/encodePosition() below - see AmbisonicEncoding.h).
   float getDistanceGain() const { return distanceGain(position_.distance); }
 
   // Builds this voice's own regular-channel accumulator for its real
@@ -104,7 +104,7 @@ protected:
   // getSends().main, both computed once per block rather than per sample -
   // callers used to bake getDistanceGain() into every sample of `dry`
   // themselves and this function then divided it back out again for
-  // SendA/SendB (which deliberately don't attenuate with distance), a
+  // AuxA/AuxB (which deliberately don't attenuate with distance), a
   // bake-then-unbake round trip through every single sample for no actual
   // effect on the sends and an extra multiply-per-sample on the dry side;
   // computing send[k] = dry[k] * getSends().a/b directly, with no division,
@@ -114,21 +114,24 @@ protected:
   // smooths, not clicks.
   SampleData encodePosition(const float * dry, int frames) {
     auto & sends = getSends();
-    SampleData data(getChannelConfiguration().numberOfChannels(), sends.a > 0.0f, sends.b > 0.0f, frames);
+    bool has_main = sends.main > 0.0f;
+    SampleData data(has_main ? getChannelConfiguration().numberOfChannels() : 0, sends.a > 0.0f, sends.b > 0.0f, frames);
     data.zero();
-    auto gains = computeAmbisonicGains(getPosition());
-    float main_gain = sends.main * getDistanceGain();
-    for (auto & g : gains) g *= main_gain;
-    encoder_.encodeBlock(data, dry, frames, gains);
 
-    if (auto * send_a = data.getChannel(Channel::SendA)) {
-      for (int i = 0; i < frames; i++) send_a[i] = dry[i] * sends.a;
-    }
-    if (auto * send_b = data.getChannel(Channel::SendB)) {
-      for (int i = 0; i < frames; i++) send_b[i] = dry[i] * sends.b;
+    if (has_main) {
+      auto gains = computeAmbisonicGains(getPosition());
+      float main_gain = sends.main * getDistanceGain();
+      for (auto & g : gains) g *= main_gain;
+      encoder_.encodeBlock(data, dry, frames, gains);
     }
 
-    data.setNonZero();
+    if (auto * aux_a = data.getChannel(Channel::AuxA)) {
+      for (int i = 0; i < frames; i++) aux_a[i] = dry[i] * sends.a;
+    }
+    if (auto * aux_b = data.getChannel(Channel::AuxB)) {
+      for (int i = 0; i < frames; i++) aux_b[i] = dry[i] * sends.b;
+    }
+
     return data;
   }
 

@@ -43,6 +43,17 @@ public:
     }
   }
 
+  // Silence-only overload: advances the filter's internal state (z1_/z2_)
+  // as if blockSamples zero samples had been processed, with no buffer
+  // needed - for a channel that's absent this block but whose IIR history
+  // should keep evolving/decaying rather than freezing and resuming later
+  // as if no time had passed.
+  inline void apply(size_t blockSamples) {
+    for (size_t i = 0; i < blockSamples; i++) {
+      process(0.0f);
+    }
+  }
+
   inline float process(float in) {
     T out = in * a0_ + z1_;
     z1_ = in * a1_ + z2_ - b1_ * out;

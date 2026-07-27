@@ -141,7 +141,13 @@ public:
     } else if (delaybufsize_ > SF_COMPRESSOR_MAXDELAY) {
       delaybufsize_ = SF_COMPRESSOR_MAXDELAY;
     }
-    delaybuf_ = SampleData(getChannelConfiguration(), delaybufsize_);
+    // +2 headroom for AuxA/AuxB - applyEffect() applies the compressor's
+    // gain to them too (see its own doc comment), so the delay line needs
+    // to carry them alongside the regular channels; raw channel count is
+    // all this internal scratch buffer needs, no Aux bookkeeping of its
+    // own (plain getChannelData() access only, never hasChannel()/
+    // getChannel()).
+    delaybuf_ = SampleData(static_cast<short>(getChannelConfiguration().numberOfChannels() + 2), delaybufsize_);
     delaybuf_.zero();
     
     // useful values
@@ -223,135 +229,138 @@ public:
 
   void applyEffect(SampleData & input) override {
     // The gain-reduction algorithm computes a single scalar `gain` per
-    // sample and applies it uniformly to every channel below - that part
-    // is exactly as channel-count-agnostic as EnvelopeFilter/Amplifier, so
-    // it generalizes to N (including ambisonic) channels directly, with no
-    // narrowing needed. Only the *detection* step reads specific channels;
-    // generalized here to the peak across all of them (a superset of the
-    // original stereo-joint peak(|L|,|R|) detector, not a different
-    // algorithm) so a compressed signal keeps the same relative channel
-    // ratios - i.e. the same apparent direction/width in ambisonic mode -
-    // rather than only two of its channels reacting to loudness.
+    // sample and applies it uniformly to every channel below, Main and
+    // Aux alike - a compressed instrument should send its already-
+    // compressed dynamics to the reverb/delay bus too, the same reasoning
+    // as EnvelopeFilter/Amplifier (unlike a tone-shaping effect, where the
+    // send stays untouched). Only the *detection* step (computing
+    // `inputmax`/`gain` itself) reads Main channels only - AuxA/AuxB
+    // shouldn't be able to influence how hard the compressor squeezes.
     int num_channels = input.numberOfChannels();
-    std::vector<float *> delaybuf(num_channels), in(num_channels);
-    for (int c = 0; c < num_channels; c++) {
-      delaybuf[c] = delaybuf_.getChannelData(c);
-      in[c] = input.getChannelData(c);
-    }
-
-    constexpr float ang90 = (float)M_PI * 0.5f;
-    constexpr float ang90inv = 2.0f / (float)M_PI;
-
-    int samplesperchunk = SF_COMPRESSOR_SPU;
-    int chunks = input.numberOfFrames() / samplesperchunk;
-    int samplepos = 0;
+    int main_channels = input.regularChannelCount();
     bool compressor_active = false;
-    auto rms = input.calculateLoudness();
-    auto rms_db = 20*log10(rms[0] / 20);
-    
-    for (int ch = 0; ch < chunks; ch++) {
-      detectoravg_ = fixf(detectoravg_, 1.0f);
+    if (num_channels > 0) {
+	    std::vector<float *> delaybuf(num_channels), in(num_channels);
+	    for (int c = 0; c < num_channels; c++) {
+	      delaybuf[c] = delaybuf_.getChannelData(c);
+	      in[c] = input.getChannelData(c);
+	    }
 
-      float desiredgain = detectoravg_;
-      float scaleddesiredgain = asinf(desiredgain) * ang90inv;
-      float compdiffdb = lin2db(compgain_ / scaleddesiredgain);
+	    constexpr float ang90 = (float)M_PI * 0.5f;
+	    constexpr float ang90inv = 2.0f / (float)M_PI;
 
-      // calculate envelope rate based on whether we're attacking or releasing
-      float enveloperate;
-      if (compdiffdb < 0.0f) { // compgain_ < scaleddesiredgain, so we're releasing
-	compressor_active = true;
+	    int samplesperchunk = SF_COMPRESSOR_SPU;
+	    int chunks = input.numberOfFrames() / samplesperchunk;
+	    int samplepos = 0;
+
+	    for (int ch = 0; ch < chunks; ch++) {
+	      detectoravg_ = fixf(detectoravg_, 1.0f);
+
+	      float desiredgain = detectoravg_;
+	      float scaleddesiredgain = asinf(desiredgain) * ang90inv;
+	      float compdiffdb = lin2db(compgain_ / scaleddesiredgain);
+
+	      // calculate envelope rate based on whether we're attacking or releasing
+	      float enveloperate;
+	      if (compdiffdb < 0.0f) { // compgain_ < scaleddesiredgain, so we're releasing
+		compressor_active = true;
 	
-	compdiffdb = fixf(compdiffdb, -1.0f);
-	maxcompdiffdb_ = -1; // reset for a future attack mode
-	// apply the adaptive release curve
-	// scale compdiffdb between 0-3
-	float x = (clampf(compdiffdb, -12.0f, 0.0f) + 12.0f) * 0.25f;
-	float releasesamples = adaptivereleasecurve(x, a_, b_, c_, d_);
-	enveloperate = db2lin(SF_COMPRESSOR_SPACINGDB / releasesamples);
-      } else { // compresorgain > scaleddesiredgain, so we're attacking
-	compdiffdb = fixf(compdiffdb, 1.0f);
-	if (maxcompdiffdb_ == -1 || maxcompdiffdb_ < compdiffdb) {
-	  maxcompdiffdb_ = compdiffdb;
-	}
-	float attenuate = maxcompdiffdb_;
-	if (attenuate < 0.5f) {
-	  attenuate = 0.5f;
-	}
-	enveloperate = 1.0f - powf(0.25f / attenuate, attacksamplesinv_);
-      }
+		compdiffdb = fixf(compdiffdb, -1.0f);
+		maxcompdiffdb_ = -1; // reset for a future attack mode
+		// apply the adaptive release curve
+		// scale compdiffdb between 0-3
+		float x = (clampf(compdiffdb, -12.0f, 0.0f) + 12.0f) * 0.25f;
+		float releasesamples = adaptivereleasecurve(x, a_, b_, c_, d_);
+		enveloperate = db2lin(SF_COMPRESSOR_SPACINGDB / releasesamples);
+	      } else { // compresorgain > scaleddesiredgain, so we're attacking
+		compdiffdb = fixf(compdiffdb, 1.0f);
+		if (maxcompdiffdb_ == -1 || maxcompdiffdb_ < compdiffdb) {
+		  maxcompdiffdb_ = compdiffdb;
+		}
+		float attenuate = maxcompdiffdb_;
+		if (attenuate < 0.5f) {
+		  attenuate = 0.5f;
+		}
+		enveloperate = 1.0f - powf(0.25f / attenuate, attacksamplesinv_);
+	      }
 
-      if ((ch + 1) * samplesperchunk > input.numberOfFrames()) {
-	samplesperchunk = input.numberOfFrames() * ch;
-      }
+	      if ((ch + 1) * samplesperchunk > input.numberOfFrames()) {
+		samplesperchunk = input.numberOfFrames() * ch;
+	      }
 
-      // process the chunk
-      for (int chi = 0; chi < samplesperchunk; chi++, samplepos++,
-	     delayreadpos_ = (delayreadpos_ + 1) % delaybufsize_,
-	     delaywritepos_ = (delaywritepos_ + 1) % delaybufsize_) {
+	      // process the chunk
+	      for (int chi = 0; chi < samplesperchunk; chi++, samplepos++,
+		     delayreadpos_ = (delayreadpos_ + 1) % delaybufsize_,
+		     delaywritepos_ = (delaywritepos_ + 1) % delaybufsize_) {
 
-	float inputmax = 0.0f;
-	for (int c = 0; c < num_channels; c++) {
-	  auto v = in[c][samplepos] * linearpregain_;
-	  delaybuf[c][delaywritepos_] = v;
-	  inputmax = maxf(inputmax, absf(v));
-	}
+		float inputmax = 0.0f;
+		for (int c = 0; c < num_channels; c++) {
+		  auto v = in[c][samplepos] * linearpregain_;
+		  delaybuf[c][delaywritepos_] = v;
+		  if (c < main_channels) inputmax = maxf(inputmax, absf(v));
+		}
 
-	float attenuation;
-	if (inputmax < 0.0001f) {
-	  attenuation = 1.0f;
-	} else{
-	  float inputcomp = compcurve(inputmax, k_, slope_, linearthreshold_,
-				      linearthresholdknee_, threshold_, knee_, kneedboffset_);
-	  attenuation = inputcomp / inputmax;	  
-	}
+		float attenuation;
+		if (inputmax < 0.0001f) {
+		  attenuation = 1.0f;
+		} else{
+		  float inputcomp = compcurve(inputmax, k_, slope_, linearthreshold_,
+					      linearthresholdknee_, threshold_, knee_, kneedboffset_);
+		  attenuation = inputcomp / inputmax;	  
+		}
 
-	float rate;
-	if (attenuation > detectoravg_) { // if releasing
-	  float attenuationdb = -lin2db(attenuation);
-	  if (attenuationdb < 2.0f) {
-	    attenuationdb = 2.0f;
-	  }
-	  float dbpersample = attenuationdb * satreleasesamplesinv_;
-	  rate = db2lin(dbpersample) - 1.0f;
-	} else {
-	  rate = 1.0f;
-	}
+		float rate;
+		if (attenuation > detectoravg_) { // if releasing
+		  float attenuationdb = -lin2db(attenuation);
+		  if (attenuationdb < 2.0f) {
+		    attenuationdb = 2.0f;
+		  }
+		  float dbpersample = attenuationdb * satreleasesamplesinv_;
+		  rate = db2lin(dbpersample) - 1.0f;
+		} else {
+		  rate = 1.0f;
+		}
 	
-	detectoravg_ += (attenuation - detectoravg_) * rate;
-	if (detectoravg_ > 1.0f) {
-	  detectoravg_ = 1.0f;
-	}
-	detectoravg_ = fixf(detectoravg_, 1.0f);
+		detectoravg_ += (attenuation - detectoravg_) * rate;
+		if (detectoravg_ > 1.0f) {
+		  detectoravg_ = 1.0f;
+		}
+		detectoravg_ = fixf(detectoravg_, 1.0f);
 	
-	if (enveloperate < 1) { // attack, reduce gain
-	  compgain_ += (scaleddesiredgain - compgain_) * enveloperate;
-	} else { // release, increase gain
-	  compgain_ *= enveloperate;
-	  if (compgain_ > 1.0f) {
-	    compgain_ = 1.0f;
-	  }
-	}
+		if (enveloperate < 1) { // attack, reduce gain
+		  compgain_ += (scaleddesiredgain - compgain_) * enveloperate;
+		} else { // release, increase gain
+		  compgain_ *= enveloperate;
+		  if (compgain_ > 1.0f) {
+		    compgain_ = 1.0f;
+		  }
+		}
 
-	// the final gain value!
-	float premixgain = sinf(ang90 * compgain_);
-	float gain = dry_ + wet_ * mastergain_ * premixgain;
+		// the final gain value!
+		float premixgain = sinf(ang90 * compgain_);
+		float gain = dry_ + wet_ * mastergain_ * premixgain;
 	
-	// calculate metering (not used in core algo, but used to output a meter if desired)
-	float premixgaindb = lin2db(premixgain);
-	if (premixgaindb < metergain_) {
-	  metergain_ = premixgaindb; // spike immediately
-	} else {
-	  metergain_ += (premixgaindb - metergain_) * meterrelease_; // fall slowly
-	}
+		// calculate metering (not used in core algo, but used to output a meter if desired)
+		float premixgaindb = lin2db(premixgain);
+		if (premixgaindb < metergain_) {
+		  metergain_ = premixgaindb; // spike immediately
+		} else {
+		  metergain_ += (premixgaindb - metergain_) * meterrelease_; // fall slowly
+		}
 
-	// apply the gain
-	for (int c = 0; c < num_channels; c++) {
-	  in[c][samplepos] = delaybuf[c][delayreadpos_] * gain;
-	}
-      }
+		// apply the gain
+		for (int c = 0; c < num_channels; c++) {
+		  in[c][samplepos] = delaybuf[c][delayreadpos_] * gain;
+		}
+	      }
+	    }
     }
 
-    setEffectActive(!input.isZero());
+    // "Active" tracks whether there was anything to apply gain to at all
+    // (Main, Aux, or both) - not Main specifically, since an Aux-only
+    // input (Send Main = 0) still genuinely gets processed above, even
+    // though detection itself (compressor_active, below) stays Main-only.
+    setEffectActive(num_channels > 0);
     setTrackInfo(TrackInfo( compressor_active, input.isClipping(), metergain_ ));
   }
   

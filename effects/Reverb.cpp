@@ -25,10 +25,10 @@ public:
 
   // Gathers children reduced to MONO (reduceForEffect), never raw
   // ambisonic - a nonlinear effect like this one gets dedicated, isolated
-  // DSP state either way; MVerb falls back to duplicating the single
-  // channel into its own stereo processing (see applyEffect()'s `else`
-  // branch below) rather than getting real stereo width from panned
-  // children, which is no longer preserved under this effect. Re-encodes
+  // DSP state either way; MVerb always duplicates the single reduced
+  // channel into its own stereo processing (see applyEffect() below)
+  // rather than getting real stereo width from panned children, which is
+  // no longer preserved under this effect. Re-encodes
   // back up to this node's own true format afterward if that's actually
   // ambisonic (encodeMonoAsPoint is a no-op cost-wise otherwise, since
   // reduced == true format and this branch is skipped) - the re-encoded
@@ -51,12 +51,17 @@ public:
   }
 
 protected:
+  // Aux channels (if data has any - see SampleData.h) are deliberately
+  // dropped here, not carried through like the other effects now do:
+  // AuxA/AuxB already *are* the shared reverb/delay bus's own input, so
+  // running this per-track reverb on top of them too would be reverbing
+  // the reverb send itself, not a meaningful operation.
   SampleData reencodeIfNeeded(SampleData data) {
     if (getChannelConfiguration().isMono()) return data;
-    SampleData out(getChannelConfiguration(), data.numberOfFrames());
+    bool has_main = data.hasChannel(Channel::Main);
+    SampleData out(has_main ? getChannelConfiguration().numberOfChannels() : 0, false, false, data.numberOfFrames());
     out.zero();
-    encodeMonoAsPoint(data, out);
-    if (!data.isZero()) out.setNonZero();
+    if (has_main) encodeMonoAsPoint(data, out);
     return out;
   }
 
@@ -65,38 +70,38 @@ protected:
       mverb_.setParameter(MVerb<float>::PREDELAY, predelay_ * getChannelConfiguration().getRowDuration(input.getBpm()));
     }
 
-    if (!input.isZero() || isEffectActive()) {
-      input.setNonZero();
+    // Presence guard: input.getChannelData(0) below is only safe once
+    // Main actually exists (a voice with Send Main = 0 allocates none -
+    // see SampleData.h). Deliberately not also fixing the `isEffectActive()`
+    // latch below (never reset to false, so this keeps "running" forever
+    // after the first real input) - out of scope, Reverb (built on
+    // GPL-licensed MVerb) is slated for removal separately regardless.
+    if (input.hasChannel(Channel::Main)) {
       setEffectActive(true);
-      
+
       auto left_out_ptr = unique_ptr<float[]>(new float[input.size()]);
       auto right_out_ptr = unique_ptr<float[]>(new float[input.size()]);
       auto left_out = left_out_ptr.get(), right_out = right_out_ptr.get();
-    
+
       memset(left_out, 0, input.size() * sizeof(float));
       memset(right_out, 0, input.size() * sizeof(float));
 
       float * out[2] = { left_out, right_out };
-    
-      if (input.numberOfChannels() == 2) {
-	float * in[2] = { input.getChannelData(0), input.getChannelData(1) };
 
-	mverb_.process(in, out, input.size());
+      // Always duplicate the single reduced (see reduceForEffect) Main
+      // channel into MVerb's stereo input and write back only to it -
+      // the old input.numberOfChannels()==2 branch that treated a raw
+      // 2-channel input as genuine stereo Main is removed: reduceForEffect
+      // always leaves exactly 1 Main channel, so that branch only ever
+      // actually triggered on a 1 Main + 1 Aux buffer, misreading Aux as a
+      // second Main channel.
+      float * in[2] = { input.getChannelData(0), input.getChannelData(0) };
 
-	auto left_buffer = input.getChannelData(0), right_buffer = input.getChannelData(1);
-	for (int i = 0; i < input.size(); i++) {
-	  left_buffer[i] = left_out[i];
-	  right_buffer[i] = right_out[i];
-	}
-      } else {
-	float * in[2] = { input.getChannelData(0), input.getChannelData(0) };
+      mverb_.process(in, out, input.size());
 
-	mverb_.process(in, out, input.size());
-
-	auto left_buffer = input.getChannelData(0);
-	for (int i = 0; i < input.size(); i++) {
-	  left_buffer[i] = left_out[i];
-	}
+      auto left_buffer = input.getChannelData(0);
+      for (int i = 0; i < input.size(); i++) {
+	left_buffer[i] = left_out[i];
       }
     }
 

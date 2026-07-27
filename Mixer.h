@@ -9,21 +9,24 @@ class Mixer {
   virtual ~Mixer() { }
   
   virtual void reset() = 0;
-  // `data` may carry SendA/SendB (see SampleData.h's Channel enum) - a
+  // `data` may carry AuxA/AuxB (see SampleData.h's Channel enum) - a
   // track's rendered output can have them correctly summed within its own
   // hierarchy (see TrackState::renderChildren/InstrumentTrackState::render).
-  // The mixer itself never stores or acts on them: implementations accumulate via
-  // SampleData::mixNamed(), which only ever touches channels the mixer's
-  // own accumulator has itself marked present (never SendA/SendB), so any
-  // sends on `data` are silently ignored here - nothing consumes them yet;
-  // Phase 2 adds the reverb/chorus that will, tapping tracks directly
-  // rather than through the mixer.
+  // The mixer itself never stores or acts on them: implementations
+  // accumulate via SampleData::mixNamed(), which only ever touches
+  // channels the mixer's own accumulator has itself marked present (never
+  // AuxA/AuxB), so any aux channels on `data` are silently ignored here -
+  // not because nothing consumes them, but because SongState::render()
+  // extracts and sums them separately (getChannel(Channel::AuxA/AuxB),
+  // right after this accumulate() call) to feed the shared reverb/chorus
+  // bus (bus/SendBusProcessor.h) directly, bypassing the mixer entirely.
   virtual void accumulate(const SampleData & data) = 0;
   virtual SampleData encode() = 0;
 
-  // The raw, pre-decode accumulator - regular (non-send) channels only, for
-  // whatever ChannelConfiguration this mixer was built for (1/2/4/9). Used
-  // by the UI's raw-channel volume meter to show levels before mixdown.
+  // The raw, pre-decode accumulator - regular (Main) channels only, for
+  // whatever ChannelConfiguration this mixer was built for (1 for MONO,
+  // 4/9/16 for AMBISONIC orders 1-3). Used by the UI's raw-channel volume
+  // meter to show levels before mixdown.
   virtual const SampleData & getRawBus() const = 0;
 
   short getOutChannels() const { return out_channels_; }

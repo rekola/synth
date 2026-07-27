@@ -406,7 +406,6 @@ AmbisonicMagLSDecoder::encode() {
     out_left[i] = l;
     out_right[i] = r;
   }
-  out.setNonZero();
 
   for (size_t i = 0; i < tail_len; i++) {
     left_tail_[i] = left_acc_[static_cast<size_t>(frames) + i];

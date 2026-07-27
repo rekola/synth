@@ -53,7 +53,6 @@ add_library(synth_engine STATIC
 	effects/BiquadFilter.cpp
 	effects/Distortion.cpp
 	effects/Tremolo.cpp
-	effects/Downmix.cpp
 	effects/Reverb.cpp
 	effects/Chorus.cpp
 	dsp/ChorusEngine.cpp

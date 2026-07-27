@@ -330,119 +330,165 @@ SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
   prior, incompatible ambisonic attempt, `HRFT.{cpp,h}`, predated the
   current `Mixer`/`SampleData` interfaces and was never in the build;
   deleted rather than revived.)
-- `SampleData.h`'s `Channel` enum has exactly two values, `SendA`/`SendB`
-  — every regular (ambisonic) channel is addressed by its own plain raw
-  index instead (0 = W, 1 = Y, ... in ACN order, up to 16 at order 3), not
-  one enum value per channel (an earlier version of this file did that, up
-  through `Acn8` at order 2 — adding `Acn9`..`Acn15` too, purely to keep a
-  naming pattern going that a raw index already said just as clearly,
-  wasn't worth it). There is no separate `Mono` value — `ChannelConfiguration::MONO`
-  is 0th-order ambisonics (a single omnidirectional component), so a mono
-  buffer is just 1 regular channel (raw index 0), rather than naming the
-  same "one omnidirectional channel" concept twice. `SendA`/`SendB` aren't
-  part of that fixed 0..N-1 run at all (a buffer may carry either, both, or
-  neither, independent of its regular channel count) — they always land
-  immediately after the regular channels, `SendA` before `SendB`
-  (`SampleData::indexOf()`), and `hasChannel()`/`getChannel()` test/fetch
-  them by presence. `SampleData::mixNamed()`/`assignNamed()` are
-  `mix()`/`assign()`'s sends-tolerant siblings — same exact-match/mono-
-  broadcast rules for the regular channels, but a send present on only one
-  side is silently ignored (rather than asserting) instead of requiring
-  both sides to match exactly.
-- `SendA`/`SendB` are user-configurable per-`InstrumentTrack` amounts
-  (`sendA`/`sendB` XML attributes, `InstrumentTrack::getSendA()`/
-  `getSendB()`), threaded down through `Track::playNote(...)`'s shared
-  signature to every leaf voice (`InstrumentVoice::getSendA()`/`getSendB()`)
-  — any instrument type can send, not just SoundFont. A `SoundFontVoice`
-  additionally combines the track's knob with its own SF2 region's
-  `reverbEffectsSend`/`chorusEffectsSend` generator data (parsed in
-  `SoundFont.cpp`'s `tsf_region`/`genMetas` table, generators 15/16 —
-  additive-then-clamped via `SoundFontVoice::totalSendA()`/`totalSendB()`,
-  mirroring SF2's own generator-merge convention). `TrackState::renderChildren`/
-  `InstrumentTrackState::render` decide an accumulator's exact shape by
-  rendering every active child/voice *first*, then checking the real
-  results' `hasChannel(SendA/SendB)` — not a separate non-rendering
-  prediction, since the rendered output already answers the question.
-  `InstrumentTrackState::render(frames, instruments, context)`'s chunked
-  loop (new voices can trigger mid-block) defers the shape decision the
-  same way: it collects each chunk's `(offset, SampleData)` first, then
-  builds the final accumulator from their union and places each chunk via
-  `SampleData::assignNamed()` (assign()'s sends-tolerant sibling, mirroring
-  mixNamed()) — so a voice that starts mid-block with a send not seen
-  earlier in the same block is captured immediately, not just next block.
-  `PositionalMixer::encode` handles a leaf voice's optional trailing
-  `SendA`/`SendB` by straight-summing them (no spatial gain-encoding,
-  since a send isn't a positional signal), asserting the voice's channel
-  count is exactly `1 + sendCount()`. Sends do reach each `Mixer`
-  subclass's own accumulator (via `mixNamed()`, so a track's send-carrying
-  output never trips an exact-channel-count assert) but every `Mixer`'s
-  `encode()` deliberately never reads them — unprocessed sends there would
-  just sound bad without real reverb/chorus DSP consuming them first.
+- `SampleData.h`'s `Channel` enum has three values, `Main`/`AuxA`/`AuxB`.
+  `Main` covers every regular (ambisonic) channel as a group — addressed
+  individually by plain raw index (0 = W, 1 = Y, ... in ACN order, up to
+  16 at order 3), not one enum value per channel — and
+  `hasChannel(Channel::Main)` is *derived*, not stored:
+  `regularChannelCount() > 0` (`channels_ - auxCount()`), so it's always
+  in sync with whatever channel count `channels_` was fixed to at
+  construction and can never drift out of sync via a later `zero()`/
+  `clear()`/`mix()`/`assign()` call — none of those mutate any presence
+  flag any more (the old `is_zero_`/`isZero()`/`setNonZero()` machinery, a
+  whole-buffer *content* flag conflated with this *structural* one, is
+  gone). `AuxA`/`AuxB` aren't part of the fixed 0..N-1 regular-channel run
+  at all (a buffer may carry either, both, or neither, independent of its
+  regular channel count) — they always land immediately after the regular
+  channels, `AuxA` before `AuxB` (`SampleData::indexOf()`), backed by
+  their own stored `has_aux_a_`/`has_aux_b_` bools (unlike `Main`, knowing
+  "one aux channel is present" doesn't say *which* one, so these can't be
+  derived from a count alone). A voice/accumulator with nothing routed to
+  Main this block (e.g. a voice whose Send Main level is 0) simply has
+  zero regular channels — it isn't allocated and then zeroed, the same way
+  `AuxA`/`AuxB` already only ever get allocated when something actually
+  sends to them. `getChannel(Channel::Main)` returns a pointer to channel
+  0 when present, else `nullptr`, the same contract shape `AuxA`/`AuxB`
+  already have. `isClipping()`/`calculateLoudness()` never gate on
+  `hasChannel(Channel::Main)` — a buffer can legitimately have zero Main
+  channels and real, clippable `AuxA`/`AuxB` content (a 100%-wet,
+  Main-bypassing voice), so both always scan whatever real channels are
+  actually present. `SampleData::mixNamed()`/`assignNamed()` are
+  `mix()`/`assign()`'s aux-tolerant siblings — same exact-match/mono-
+  broadcast rules for the regular channels (plus an explicit no-op case
+  when the other side has zero regular channels, e.g. a Main-less child
+  voice mixing into an accumulator some sibling voice gave real Main
+  channels to), but an aux channel present on only one side is silently
+  ignored (rather than asserting) instead of requiring both sides to
+  match exactly.
+- `SendA`/`SendB` (kept as "Send", distinct from the `AuxA`/`AuxB` buffer
+  channels above — a track *sends* A and B; what arrives on the shared bus
+  is carried in the `AuxA`/`AuxB` channels) are user-configurable
+  per-`InstrumentTrack` amounts (`sendA`/`sendB` XML attributes,
+  `InstrumentTrack::getSendA()`/`getSendB()`), threaded down through
+  `Track::playNote(...)`'s shared signature to every leaf voice
+  (`InstrumentVoice::getSendA()`/`getSendB()`) — any instrument type can
+  send, not just SoundFont. A `SoundFontVoice` additionally combines the
+  track's knob with its own SF2 region's `reverbEffectsSend`/
+  `chorusEffectsSend` generator data (parsed in `SoundFont.cpp`'s
+  `tsf_region`/`genMetas` table, generators 15/16 — additive-then-clamped
+  via `SoundFont.cpp`'s `adjustSendA()`/`chorusSendFor()`, mirroring SF2's
+  own generator-merge convention). A voice with Send Main = 0 skips Main
+  entirely — `InstrumentVoice::encodePosition()` checks `sends.main > 0.0f`
+  before doing any ambisonic gain-encode work, the same presence check
+  `sends.a > 0.0f`/`sends.b > 0.0f` already used for `AuxA`/`AuxB`.
+  `TrackState::renderChildren`/`InstrumentTrackState::render` decide an
+  accumulator's exact shape by rendering every active child/voice *first*,
+  then checking the real results' `hasChannel(Main/AuxA/AuxB)` — not a
+  separate non-rendering prediction, since the rendered output already
+  answers the question. `InstrumentTrackState::render(frames, instruments, context)`'s
+  chunked loop (new voices can trigger mid-block) defers the shape
+  decision the same way: it collects each chunk's `(offset, SampleData)`
+  first, then builds the final accumulator from their union and places
+  each chunk via `SampleData::assignNamed()` — so a voice that starts
+  mid-block with an aux channel not seen earlier in the same block is
+  captured immediately, not just next block. Aux channels do reach each
+  `Mixer` subclass's own accumulator (via `mixNamed()`, so a track's
+  aux-carrying output never trips an exact-channel-count assert) but every
+  `Mixer`'s `encode()` deliberately never reads them — unprocessed aux
+  content there would just sound bad without real bus DSP consuming it
+  first.
 - That DSP lives in `bus/` (the shared send bus's own subsystem, depending
   on `dsp/` — reusable, dependency-free DSP building blocks, never the
   reverse) — `SongState`'s `SendBusProcessor` (`bus/SendBusProcessor.h`/
   `.cpp`) is not anything inside the `Mixer` hierarchy: `SongState::render()`
-  sums `SendA`/`SendB` off every top-level track's own rendered output
-  (each already correctly summed within its own subtree) into two
-  persistent mono accumulators, and — only when its own `ChannelConfiguration`
-  is `AMBISONIC` (skipped for the one synthetic top-level `MONO` config a
+  sums `AuxA`/`AuxB` off every top-level track's own rendered output (each
+  already correctly summed within its own subtree) into two persistent
+  mono accumulators, and — only when its own `ChannelConfiguration` is
+  `AMBISONIC` (skipped for the one synthetic top-level `MONO` config a
   Compressor regression test constructs directly, which has no sensible
   ambisonic tap-encode target) — always runs them through
-  `SendBusProcessor::process()` (even when both are silent, so the reverb
-  tail/chorus modulation state stay continuous across blocks - the same
-  reasoning as `AmbisonicBinauralMixer`'s overlap-add tail), then
-  accumulates the result directly into the mixer with a single
-  `mixer.accumulate()` call — no decode step happens in `SongState` itself,
-  since the top-level mixer is always ambisonic-shaped too.
-  `SendBusProcessor`'s own output (`getBusAmbisonic()`) is *always*
-  ambisonic-shaped (`config.numberOfChannels()` — 4, 9, or 16), never a stereo
-  signal: `bus/FDNReverb.h`'s 8-line feedback delay network (fed by
-  `SendA`) replaced the shared bus's old single `MVerb<float>` instance —
-  each of its 8 decorrelated tap outputs is encoded straight into the
-  ambisonic bus at a fixed cube-vertex direction
-  (`cubeVertexDirections()`), spreading the reverb tail over the whole
-  sphere rather than the old 2-point (az ±90°) encode, and sitting
-  *before* whatever decoder (binaural/stereo/future) renders the bus so
-  none of it is decoder-specific. `bus/ChorusBusEffect.h` (fed by `SendB`)
-  is a thin adapter duplicating the mono `SendB` sum into 2 channels for a
-  wrapped `dsp::ChorusEngine` (`decorrelate = true`, `mix = 1.0`), then
-  folding its stereo output into the same ambisonic accumulator via
-  `encodeStereoAsPoints()` (fixed az ±90° points, unchanged from before).
-  Both `FDNReverb` and `ChorusBusEffect` derive from `bus/BusEffect.h` (a
-  small shared base standardizing construction and the "always process
-  every block, even silent input" contract), driven identically through
-  `process(monoInput, frames)` — not yet configurable (SendA is always
-  the reverb, SendB always the chorus), but this uniform shape is what
-  would make that reassignment a small change later, not a rewrite.
-  `dsp::ChorusEngine` (`dsp/ChorusEngine.h`/`.cpp`) is a multi-voice,
-  LFO-modulated, linearly-interpolated delay-line chorus that never mixes
-  across channels (each channel's wet signal comes only from that
-  channel's own delayed content) - the same engine also replaced the
-  per-track `Chorus` effect's old hand-rolled single-voice implementation
-  (`effects/Chorus.h`/`.cpp`, XML attributes `voices`/`rate`/`delay`/
-  `depth`/`mix`), with `decorrelate = false` there so a channel with no
-  signal (e.g. the silent side of a hard-panned source) stays silent -
-  width is never invented where the input didn't have any, only
-  synthesized from an initially-identical duplicated-mono signal (the
-  shared bus's case). The reverb's 5 parameters (`size`/`decay`/`damping`/
-  `preDelay`/`wet`) are song-level settings (`Song::getReverbSize()` etc.,
-  `<song reverbSize="..." .../>` XML attributes, medium-hall defaults),
-  pushed into `SendBusProcessor` once at song load
-  (`SongState::initialize()`) — like every other effect parameter in this
-  codebase, they're static, not automatable (no mechanism for that exists
-  here at all — the tracker's per-row mnemonic command column is inert at
-  playback time).
+  `SendBusProcessor::process()` (even when both are silent, so every
+  slot's internal tail/feedback/modulation state stays continuous across
+  blocks — the same reasoning as `AmbisonicBinauralMixer`'s overlap-add
+  tail), then accumulates the result directly into the mixer with a
+  single `mixer.accumulate()` call — no decode step happens in
+  `SongState` itself, since the top-level mixer is always ambisonic-shaped
+  too. `SendBusProcessor`'s own output (`getBusAmbisonic()`) is *always*
+  ambisonic-shaped (`config.numberOfChannels()` — 4 at order 1, 9 at
+  order 2), never a plain stereo signal.
+  `SendBusProcessor` is a generic 2-slot effect chain (`kSlotA`/`kSlotB`),
+  not a hardcoded reverb+chorus pair — which concrete `BusEffect`
+  (`bus/BusEffect.h`) occupies each slot is resolved once, at song load,
+  from the project file (or the compiled-in default, from
+  `bus/BusEffectRegistry.{h,cpp}`: slot A = `FDNReverb`, slot B =
+  `MultiTapDelay`), and never changes for that song's lifetime.
+  `BusEffectRegistry` also offers `GranularCloud` (a granular-cloud send
+  effect) and `NullBusEffect` (both slots default to this before
+  `SongState::initialize()` installs the real ones, so `process()` is
+  always safe to call even pre-load); any of the three real effects can
+  occupy either slot. Every `BusEffect` shares the same shape:
+  `process(monoInput, frames)` always runs, even on silent input, so
+  internal state stays continuous; `getNumTaps()`/`getTap()`/
+  `getTapDirection()` expose its output as N independent spatial taps
+  (`FDNReverb`: 8 feedback-delay lines at the cube-vertex directions from
+  `AmbisonicEncoding.h`'s `cubeVertexDirections()`; `MultiTapDelay`: 4
+  taps at its own fixed azimuths; `GranularCloud`: one tap per
+  simultaneously-sounding grain), each encoded into the shared ambisonic
+  bus via its own `AmbisonicVoiceEncoder` (`getTapEncoder()`) at
+  `getWetLevel()`'s gain. Slot B is processed first each block; its
+  pre-encode tap sum (`getChainSendSum()`), scaled by its own
+  `getChainSendLevel()`, is added into slot A's input before slot A
+  processes — a same-block chain send (default: some of slot B's delay
+  output picks up slot A's reverb too). Slot A's own chain-send ratio
+  exists (every `BusEffect` has one uniformly) but is never read, since
+  nothing sits after slot A. `dsp::ChorusEngine` (`dsp/ChorusEngine.h`/
+  `.cpp`, a multi-voice, LFO-modulated, linearly-interpolated delay-line
+  chorus) is no longer used anywhere in `bus/` — it now only backs the
+  per-track `Chorus` effect (`effects/Chorus.h`/`.cpp`, XML attributes
+  `voices`/`rate`/`delay`/`depth`/`mix`), with `decorrelate = false` there
+  so a channel with no signal (e.g. the silent side of a hard-panned
+  source) stays silent, and separately processes Main and `AuxA`/`AuxB`
+  through their own independent, always-present delay-line/LFO state
+  (never raw-index-shared, since Main's channel count can be 0 or full
+  but never partial) — width is never invented where the input didn't
+  have any.
 - Nonlinear/dedicated-DSP per-track effects (`effects/Reverb.cpp`/
   `Chorus.cpp`/`Distortion.cpp`) reduce their children to `MONO` before
   rendering them (`reduceForEffect`, `AmbisonicEncoding.h`) rather than
   raw ambisonic — real stereo panning doesn't survive underneath one of
   these three (a deliberate trade-off, not a bug), and re-encoding their
-  processed mono output back up into an ambisonic parent afterward
-  (`reencodeIfNeeded()`) uses `encodeMonoAsPoint()` (folds into `W` only,
-  unity gain — a mono signal has no direction to encode), not
-  `encodeStereoAsPoints()` (which needs genuine 2-channel input and is
-  reserved for things that actually have it, like `ChorusBusEffect`'s
-  output above).
+  processed output back up into an ambisonic parent afterward
+  (`reencodeIfNeeded()`) uses `encodeMonoAsPoint()` for the Main channel
+  (folds into `W` only, unity gain — a mono signal has no direction to
+  encode) while carrying `AuxA`/`AuxB` straight through unencoded
+  (Distortion/Chorus; Reverb deliberately drops them instead, see below),
+  never `encodeStereoAsPoints()` (that needs genuine 2-channel input and
+  is reserved for things that actually have it, like `FDNReverb`/
+  `MultiTapDelay`'s multi-tap spatial encode above). Per-track effects
+  otherwise touch Main and `AuxA`/`AuxB` alike — Amplifier/EnvelopeFilter/
+  Compressor/Tremolo/BiquadFilter/Distortion/Chorus all shape whatever
+  channels are actually present, since the shared reverb/delay bus should
+  hear the same envelope/gain/tone-shaping the dry signal does, not a
+  bypassed copy of the pre-effect signal — except Compressor's
+  *detection* (the loudness measurement driving its gain), which uses
+  Main only, and `Reverb`, which still excludes `AuxA`/`AuxB` entirely
+  (re-reverbing content that's already destined for the shared reverb bus
+  itself doesn't make sense; `Reverb`/MVerb is GPL-licensed and slated for
+  removal separately, so it only got a presence guard here, not a full
+  rework). Persistent per-channel filter/delay state (`Biquad<T>`,
+  `dsp::MoogVCF<T>`, `dsp::ChorusEngine::ChannelState`) gives `AuxA`/`AuxB`
+  their own dedicated, always-present slots rather than reindexing by raw
+  position (Main's channel count toggles between 0 and full, never
+  partial) — and once a channel has genuinely carried real data at least
+  once, its state keeps being advanced through silence rather than frozen
+  (`Biquad::apply(blockSamples)`/`MoogVCF::apply(blockSamples, ...)`/
+  `ChorusEngine::processSilence()`, all no-buffer overloads), so it
+  decays/resumes correctly instead of picking up later as if no time had
+  passed. `docs/known_bugs.md` notes one known-not-fixed inconsistency
+  from this: `Distortion.cpp` can distort Main and `AuxA`/`AuxB`
+  differently under clipping, since they carry differently-scaled copies
+  of the same dry signal and a nonlinear curve responds differently to
+  different amplitudes.
 - `songs/` — example/test songs (XML, hand-editable).
 - `docs/` — note-number tables for various EDOs, key bindings, MIDI notes;
   `known_bugs.md` tracks open, not-yet-fixed bugs (as opposed to `todo.txt`'s

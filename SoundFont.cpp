@@ -900,11 +900,16 @@ private:
     // same "apply distance where the gains actually get used, not baked
     // into the sample buffer upstream" convention encodePosition() itself
     // uses for its main channels.
-    float distance_gain = getDistanceGain();
-    for (auto & g : leftGains) g *= chorus_send_ * distance_gain;
-    for (auto & g : rightGains) g *= chorus_send_ * distance_gain;
-    chorus_tap_encoders_[0].encodeBlock(data, wetL, totalSamples, leftGains);
-    chorus_tap_encoders_[1].encodeBlock(data, wetR, totalSamples, rightGains);
+    // Only meaningful if data actually has Main channels to encode into -
+    // encodePosition() above already skips allocating them entirely when
+    // this voice's Send Main level is 0 (see its own doc comment).
+    if (data.hasChannel(Channel::Main)) {
+      float distance_gain = getDistanceGain();
+      for (auto & g : leftGains) g *= chorus_send_ * distance_gain;
+      for (auto & g : rightGains) g *= chorus_send_ * distance_gain;
+      chorus_tap_encoders_[0].encodeBlock(data, wetL, totalSamples, leftGains);
+      chorus_tap_encoders_[1].encodeBlock(data, wetR, totalSamples, rightGains);
+    }
 
     // The track's own SendA/SendB knobs also carry a bit of this voice's
     // chorused character to the shared reverb/delay busses, not just its
@@ -913,11 +918,11 @@ private:
     // distance-attenuated to begin with, so sends can use getSends().a/b
     // directly, the same simplification encodePosition() itself now uses.
     auto & sends = getSends();
-    if (auto * send_a = data.getChannel(Channel::SendA)) {
-      for (int i = 0; i < totalSamples; i++) send_a[i] += 0.5f * (wetL[i] + wetR[i]) * sends.a;
+    if (auto * aux_a = data.getChannel(Channel::AuxA)) {
+      for (int i = 0; i < totalSamples; i++) aux_a[i] += 0.5f * (wetL[i] + wetR[i]) * sends.a;
     }
-    if (auto * send_b = data.getChannel(Channel::SendB)) {
-      for (int i = 0; i < totalSamples; i++) send_b[i] += 0.5f * (wetL[i] + wetR[i]) * sends.b;
+    if (auto * aux_b = data.getChannel(Channel::AuxB)) {
+      for (int i = 0; i < totalSamples; i++) aux_b[i] += 0.5f * (wetL[i] + wetR[i]) * sends.b;
     }
 
     return data;

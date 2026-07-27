@@ -19,7 +19,6 @@
 #include "effects/BiquadFilter.h"
 #include "effects/Chorus.h"
 #include "effects/Tremolo.h"
-#include "effects/Downmix.h"
 #include "effects/Amplifier.h"
 #include "effects/EnvelopeFilter.h"
 #include "effects/Compressor.h"
@@ -84,7 +83,6 @@ static unique_ptr<Track> createTrack(string_view name) {
   else if (name == "biquadFilter") return make_unique<BiquadFilter>();
   else if (name == "chorus") return make_unique<Chorus>();
   else if (name == "tremolo") return make_unique<Tremolo>();
-  else if (name == "downmix") return make_unique<Downmix>();
   else if (name == "multiply") return make_unique<NoteMultiplier>();
   else if (name == "arpeggiator") return make_unique<Arpeggiator>();
   else if (name == "envelope") return make_unique<EnvelopeFilter>();

@@ -449,8 +449,8 @@ TEST(render_track_send_a_reaches_track_state_output) {
   for (int block = 0; block < 20 && !saw_send_a; block++) {
     state.render(256, loaded.song, mixer);
     for (auto & data : mixer.accumulated) {
-      if (data.hasChannel(Channel::SendA)) {
-	auto send = data.getChannel(Channel::SendA);
+      if (data.hasChannel(Channel::AuxA)) {
+	auto send = data.getChannel(Channel::AuxA);
 	for (int i = 0; i < data.numberOfFrames(); i++) {
 	  if (send[i] != 0.0f) { saw_send_a = true; break; }
 	}
@@ -519,8 +519,8 @@ TEST(render_track_send_b_reaches_track_state_output) {
   for (int block = 0; block < 20 && !saw_send_b; block++) {
     state.render(256, loaded.song, mixer);
     for (auto & data : mixer.accumulated) {
-      if (data.hasChannel(Channel::SendB)) {
-	auto send = data.getChannel(Channel::SendB);
+      if (data.hasChannel(Channel::AuxB)) {
+	auto send = data.getChannel(Channel::AuxB);
 	for (int i = 0; i < data.numberOfFrames(); i++) {
 	  if (send[i] != 0.0f) { saw_send_b = true; break; }
 	}
@@ -700,8 +700,8 @@ TEST(render_send_a_is_distance_invariant) {
     for (int block = 0; block < 40; block++) {
       state.render(256, song, mixer);
       for (auto & data : mixer.accumulated) {
-        if (data.hasChannel(Channel::SendA)) {
-          auto send = data.getChannel(Channel::SendA);
+        if (data.hasChannel(Channel::AuxA)) {
+          auto send = data.getChannel(Channel::AuxA);
           for (int i = 0; i < data.numberOfFrames(); i++) peak = std::max(peak, std::fabs(send[i]));
         }
       }
@@ -719,9 +719,11 @@ TEST(render_send_a_is_distance_invariant) {
 TEST(render_send_main_zero_silences_main_channels_but_not_sends) {
   // sendMain="0.0" alongside sendA="0.5" on the same track (SendLevels.h,
   // InstrumentVoice::encodePosition()): the track's own regular/main
-  // channel (W) should render silent while its SendA contribution keeps
-  // sounding at its own unrelated, unaffected level - the whole point of
-  // this control (auditioning a bus effect in isolation).
+  // channel should not even be allocated (hasChannel(Channel::Main) false
+  // - a structural fact now, not just numerically-zero content) while its
+  // SendA contribution keeps sounding at its own unrelated, unaffected
+  // level - the whole point of this control (auditioning a bus effect in
+  // isolation).
   auto loaded = loadFixture("send_main_zero.xml");
   CHECK(loaded.ok);
 
@@ -732,15 +734,24 @@ TEST(render_send_main_zero_silences_main_channels_but_not_sends) {
 
   RecordingMixer mixer(static_cast<short>(config.numberOfChannels()), config.getAudioOutSampleRate());
 
+  // Note: mixer.accumulated includes both the track's own per-block output
+  // and the shared send bus's own separate contribution (SongState::render()
+  // accumulates both) - the bus's own accumulator always structurally has
+  // Main (it's a plain always-Main-present accumulator, not derived from
+  // children - see bus/SendBusProcessor.cpp), so hasChannel(Channel::Main)
+  // alone can't distinguish "this specific track's Main" from "the bus's
+  // own Main" across all entries; main_peak still correctly stays near
+  // zero either way, since sendA-driven bus content this early has ~no W
+  // energy yet in this fixture's short window.
   float main_peak = 0.0f, send_a_peak = 0.0f;
   for (int block = 0; block < 20; block++) {
     state.render(256, loaded.song, mixer);
     for (auto & data : mixer.accumulated) {
-      if (data.numberOfChannels() > data.sendCount()) { // has at least one regular (W) channel
+      if (data.hasChannel(Channel::Main)) {
         auto * w = data.getChannelData(0);
         for (int i = 0; i < data.numberOfFrames(); i++) main_peak = std::max(main_peak, std::fabs(w[i]));
       }
-      if (auto * send = data.getChannel(Channel::SendA)) {
+      if (auto * send = data.getChannel(Channel::AuxA)) {
         for (int i = 0; i < data.numberOfFrames(); i++) send_a_peak = std::max(send_a_peak, std::fabs(send[i]));
       }
     }

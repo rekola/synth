@@ -456,21 +456,21 @@ TEST(ambisonic_voice_encoder_interpolates_across_block_boundary) {
   for (int i = 1; i < 8; i++) CHECK(w[i] <= w[i - 1] + 0.0001f);
 }
 
-TEST(ambisonic_voice_encoder_ignores_trailing_send_channels) {
-  // A 3-channel accumulator (1 regular Mono + SendA + SendB) should only
+TEST(ambisonic_voice_encoder_ignores_trailing_aux_channels) {
+  // A 3-channel accumulator (1 regular Mono + AuxA + AuxB) should only
   // ever be written to by encodeBlock on channel 0 - callers (see
-  // InstrumentVoice::encodePosition()) handle SendA/SendB separately,
+  // InstrumentVoice::encodePosition()) handle AuxA/AuxB separately,
   // deriving them directly from the dry signal rather than spatially
   // encoding them.
   AmbisonicVoiceEncoder encoder;
-  SampleData out(1, true, true, 4); // 1 regular (Mono/W) + SendA + SendB
+  SampleData out(1, true, true, 4); // 1 regular (Mono/W) + AuxA + AuxB
   out.zero();
   AmbisonicGains target{ 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
   std::vector<float> mono(4, 1.0f);
   encoder.encodeBlock(out, mono.data(), 4, target);
   CHECK_NEAR(out.getChannelData(0)[0], 1.0f, 0.0001f);
-  CHECK_NEAR(out.getChannel(Channel::SendA)[0], 0.0f, 0.0001f);
-  CHECK_NEAR(out.getChannel(Channel::SendB)[0], 0.0f, 0.0001f);
+  CHECK_NEAR(out.getChannel(Channel::AuxA)[0], 0.0f, 0.0001f);
+  CHECK_NEAR(out.getChannel(Channel::AuxB)[0], 0.0f, 0.0001f);
 }
 
 // Buffer-safety regression test for the order-3 channel-count bump: a

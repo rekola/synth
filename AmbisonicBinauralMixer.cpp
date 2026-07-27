@@ -195,7 +195,7 @@ AmbisonicBinauralMixer::accumulate(const SampleData & input) {
     buffer_.zero();
   }
   // mixNamed() rather than mix() - `input` (a track's rendered output) may
-  // carry SendA/SendB trailing its regular ambisonic channels (see
+  // carry AuxA/AuxB trailing its regular ambisonic channels (see
   // Mixer.h); buffer_ never marks them present (raw-count constructor) so
   // they're silently ignored here.
   buffer_.mixNamed(input);
@@ -266,7 +266,6 @@ AmbisonicBinauralMixer::encode() {
     out_left[i] = l;
     out_right[i] = r;
   }
-  out.setNonZero();
 
   for (size_t i = 0; i < tail_len; i++) {
     left_tail_[i] = left_acc_[static_cast<size_t>(frames) + i];

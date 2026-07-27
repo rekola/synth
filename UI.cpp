@@ -187,9 +187,9 @@ UI::handlePlaybackEvent(PlaybackEvent & ev) {
     }
 
     // Raw, pre-mixdown per-channel levels (ambisonic bus, then always
-    // SendA/SendB last - see Player.cpp/SongState::render()) rather than
+    // AuxA/AuxB last - see Player.cpp/SongState::render()) rather than
     // the final decoded L/R output. Always fills the full fixed-size
-    // domain (kMaxMeterChannels - the order-3-ambisonic+2-sends max),
+    // domain (kMaxMeterChannels - the order-3-ambisonic+2-aux max),
     // padding with silence past the current config's real channel count -
     // matching displayFFT()'s own always-fill-the-whole-domain pattern
     // above (every index, every call). Feeding a varying, sometimes-

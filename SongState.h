@@ -109,24 +109,22 @@ class SongState : public TrackState {
     }
     
     if (!song.getInstruments().empty()) {
-      if (send_a_sum_.numberOfFrames() != frames) send_a_sum_ = SampleData(1, frames);
-      if (send_b_sum_.numberOfFrames() != frames) send_b_sum_ = SampleData(1, frames);
-      send_a_sum_.zero();
-      send_b_sum_.zero();
+      if (aux_a_sum_.numberOfFrames() != frames) aux_a_sum_ = SampleData(1, frames);
+      if (aux_b_sum_.numberOfFrames() != frames) aux_b_sum_ = SampleData(1, frames);
+      aux_a_sum_.zero();
+      aux_b_sum_.zero();
 
       for (auto & track : song.getTracks()) {
 	auto data = track->getState(*this).render(frames, song.getInstruments(), render_context_);
 	mixer.accumulate(data);
 
-	if (auto * a = data.getChannel(Channel::SendA)) {
-	  auto dst = send_a_sum_.getChannelData(0);
+	if (auto * a = data.getChannel(Channel::AuxA)) {
+	  auto dst = aux_a_sum_.getChannelData(0);
 	  for (int i = 0; i < frames; i++) dst[i] += a[i];
-	  send_a_sum_.setNonZero();
 	}
-	if (auto * b = data.getChannel(Channel::SendB)) {
-	  auto dst = send_b_sum_.getChannelData(0);
+	if (auto * b = data.getChannel(Channel::AuxB)) {
+	  auto dst = aux_b_sum_.getChannelData(0);
 	  for (int i = 0; i < frames; i++) dst[i] += b[i];
-	  send_b_sum_.setNonZero();
 	}
       }
 
@@ -144,7 +142,7 @@ class SongState : public TrackState {
 	// Always processed, even when both sums are silent, so the shared
 	// reverb tail/chorus modulation stay continuous across blocks (see
 	// SendBusProcessor.h).
-	send_bus_.process(send_a_sum_, send_b_sum_, frames);
+	send_bus_.process(aux_a_sum_, aux_b_sum_, frames);
 	mixer.accumulate(send_bus_.getBusAmbisonic());
       }
     }
@@ -212,10 +210,10 @@ class SongState : public TrackState {
   int getTempo() const { return tempo_; }
 
   // Raw, pre-send-bus-processing per-block sums (mono) - used by the UI's
-  // raw-channel volume meter to show SendA/SendB levels before they're
+  // raw-channel volume meter to show AuxA/AuxB levels before they're
   // folded into the shared reverb/chorus wet signal.
-  const SampleData & getSendASum() const { return send_a_sum_; }
-  const SampleData & getSendBSum() const { return send_b_sum_; }
+  const SampleData & getAuxASum() const { return aux_a_sum_; }
+  const SampleData & getAuxBSum() const { return aux_b_sum_; }
 
 private:
   int tempo_ = 0;
@@ -223,7 +221,7 @@ private:
   int sample_pos_ = 0, absolute_pos_ = 0;
   RenderContext render_context_;
   SendBusProcessor send_bus_;
-  SampleData send_a_sum_, send_b_sum_;
+  SampleData aux_a_sum_, aux_b_sum_;
 };
   
 #endif

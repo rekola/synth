@@ -21,7 +21,7 @@ class AmbisonicStereoMixer : public Mixer {
   }
 
   // mixNamed() rather than mix() - `input` (a track's rendered output) may
-  // carry SendA/SendB trailing its regular ambisonic channels (see
+  // carry AuxA/AuxB trailing its regular ambisonic channels (see
   // Mixer.h); buffer_ never marks them present (constructed via the plain
   // raw-count constructor) so they're silently ignored here.
   void accumulate(const SampleData & input) override {
@@ -45,7 +45,6 @@ class AmbisonicStereoMixer : public Mixer {
 	else if (data[i] < -1.0f) data[i] = -1.0f;
       }
     }
-    out.setNonZero();
     return out;
   }
 

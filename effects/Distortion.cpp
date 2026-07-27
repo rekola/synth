@@ -29,20 +29,39 @@ public:
   }
 
 protected:
+  // Aux channels are carried straight through, not spatially re-encoded
+  // (encodeMonoAsPoint() is a Main-only, directional concept - Aux is a
+  // shared-bus scalar) - they've already been distorted below, same as
+  // Main, and need to survive the re-encode to actually reach the bus.
   SampleData reencodeIfNeeded(SampleData data) {
     if (getChannelConfiguration().isMono()) return data;
-    SampleData out(getChannelConfiguration(), data.numberOfFrames());
+    bool has_main = data.hasChannel(Channel::Main);
+    SampleData out(has_main ? getChannelConfiguration().numberOfChannels() : 0,
+		    data.hasChannel(Channel::AuxA), data.hasChannel(Channel::AuxB), data.numberOfFrames());
     out.zero();
-    encodeMonoAsPoint(data, out);
-    if (!data.isZero()) out.setNonZero();
+    if (has_main) encodeMonoAsPoint(data, out);
+    for (auto ch : { Channel::AuxA, Channel::AuxB }) {
+      if (auto * src = data.getChannel(ch)) {
+	auto dst = out.getChannel(ch);
+	for (int i = 0; i < data.numberOfFrames(); i++) dst[i] = src[i];
+      }
+    }
     return out;
   }
 
+  // Distorts every channel - Main and AuxA/AuxB alike, the same reasoning
+  // as Amplifier/EnvelopeFilter/Compressor/Tremolo (the reverb/delay bus
+  // shouldn't hear a bypassed-clean signal from a distorted source). NOTE:
+  // this doesn't actually guarantee matching character between channels -
+  // see docs/known_bugs.md - Main and Aux carry differently-scaled copies
+  // of the same dry signal, and a nonlinear curve responds differently to
+  // different amplitudes, so one can clip while the other stays clean.
   void applyEffect(SampleData & input) override {
-    if (!input.isZero()) {
+    int numChannels = input.numberOfChannels();
+    if (numChannels > 0) {
       switch (type_) {
       case DistortionType::HARD_CLIP:
-	for (int i = 0; i < input.numberOfChannels(); i++) {
+	for (int i = 0; i < numChannels; i++) {
 	  auto buffer = input.getChannelData(i);
 	  for (int j = 0; j < input.size(); j++) {
 	    auto x = buffer[j];
@@ -53,9 +72,9 @@ protected:
 	  }
 	}
 	break;
-	
+
       case DistortionType::SOFT_CLIP:
-	for (int i = 0; i < input.numberOfChannels(); i++) {
+	for (int i = 0; i < numChannels; i++) {
 	  auto buffer = input.getChannelData(i);
 	  for (int j = 0; j < input.size(); j++) {
 	    auto x = buffer[j];
@@ -68,13 +87,13 @@ protected:
 	  }
 	}
 	break;
-	
+
       case DistortionType::TANH:
 	{
 	  float timbre = 1.0f;
 	  float depth = 1.0f;
 	  float timbreInverse = (1 - (timbre * 0.099)) * 10;
-	  for (int i = 0; i < input.numberOfChannels(); i++) {
+	  for (int i = 0; i < numChannels; i++) {
 	    auto buffer = input.getChannelData(i);
 	    for (int j = 0; j < input.size(); j++) {
 	      auto x = buffer[j];
@@ -89,13 +108,13 @@ protected:
 	  }
 	}
 	break;
-	
+
       case DistortionType::BITCRUSH:
 	break;
       }
     }
 
-    setEffectActive(!input.isZero());
+    setEffectActive(numChannels > 0);
     setTrackInfo(TrackInfo( isEffectActive(), input.isClipping()));
   }
 

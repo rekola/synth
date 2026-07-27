@@ -12,7 +12,7 @@
 
 // Owned by SongState (one per playback session, persisting across every
 // block - see SongState.h): a generic 2-slot effect chain, fed by the
-// cross-track SendA (slot A's input) and SendB (slot B's input) sums.
+// cross-track AuxA (slot A's input) and AuxB (slot B's input) sums.
 // Which concrete BusEffect occupies each slot is resolved once, at song
 // load, from the project file (or the compiled-in default: A = reverb,
 // B = delay) via bus/BusEffectRegistry.h - see setSlotEffect() and
@@ -59,13 +59,13 @@ class SendBusProcessor {
   BusEffect & getSlotEffect(int slot) { return *slots_[static_cast<size_t>(slot)]; }
   const BusEffect & getSlotEffect(int slot) const { return *slots_[static_cast<size_t>(slot)]; }
 
-  // send_a_mono/send_b_mono: single-channel (mono) cross-track sums for
+  // aux_a_mono/aux_b_mono: single-channel (mono) cross-track sums for
   // this block, feeding slot A/B's input respectively (before any chain
   // send - see the class comment above). Always processes, even when both
   // are silent, so every slot's internal tail/feedback/pattern state
   // stays continuous across blocks (same reasoning as
   // AmbisonicBinauralMixer's overlap-add tail).
-  void process(const SampleData & send_a_mono, const SampleData & send_b_mono, int frames);
+  void process(const SampleData & aux_a_mono, const SampleData & aux_b_mono, int frames);
 
   const SampleData & getBusAmbisonic() const { return bus_ambisonic_; }
 
@@ -81,7 +81,7 @@ class SendBusProcessor {
   // size is seen, so this doesn't allocate on the audio thread once
   // warmed up.
   std::vector<float> chain_scratch_;     // slot B's getChainSendSum() output
-  std::vector<float> combined_a_input_;  // send_a_mono + chain_scratch_ * chain level
+  std::vector<float> combined_a_input_;  // aux_a_mono + chain_scratch_ * chain level
 
   // config.numberOfChannels() - 4 or 9 for every real top-level AMBISONIC
   // config. The only other value ever seen here is 1, for the synthetic

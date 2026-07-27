@@ -70,7 +70,7 @@ protected:
   std::shared_ptr<UIMenu> menu_;
   std::shared_ptr<Chart> chart_, volume_meter_;
   // volume_meter_'s fixed domain size: 9 columns x 2 samples/braille-cell =
-  // 18 - exactly order-3 ambisonic (16) + SendA/SendB (2), the largest
+  // 18 - exactly order-3 ambisonic (16) + AuxA/AuxB (2), the largest
   // config this engine supports (AmbisonicEncoding.h's kAmbisonicOrder) -
   // so every channel is always on-screen at every order, never truncated.
   // Always filled in full every update (see handlePlaybackEvent())

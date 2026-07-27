@@ -47,10 +47,14 @@ protected:
   // match and every child is just plain-mixed, same as pre-ambisonic code.
   SampleData renderChildren(int frames, const ChannelConfiguration & accumulator_config) {
     // Render every active child first, then decide the accumulator's shape
-    // from what actually came back (hasChannel(SendA/SendB)) rather than
-    // predicting it up front - simpler than a separate non-rendering
-    // "would this produce a send" query, since the real answer is sitting
-    // right there in each child's own rendered output.
+    // from what actually came back (hasChannel(Main/AuxA/AuxB)) rather
+    // than predicting it up front - simpler than a separate non-rendering
+    // "would this produce a channel" query, since the real answer is
+    // sitting right there in each child's own rendered output. Main is
+    // derived the same way AuxA/AuxB already are: absent only if *no*
+    // child has it (e.g. every child's Send Main level is 0 this block),
+    // matching how a leaf voice itself decides whether to allocate Main
+    // at all - see InstrumentVoice::encodePosition().
     std::vector<SampleData> rendered;
     for (auto & [ id, child ] : getChildren()) {
       if (child->isActive()) {
@@ -58,12 +62,13 @@ protected:
       }
     }
 
-    bool has_send_a = false, has_send_b = false;
+    bool has_main = false, has_aux_a = false, has_aux_b = false;
     for (auto & s : rendered) {
-      has_send_a = has_send_a || s.hasChannel(Channel::SendA);
-      has_send_b = has_send_b || s.hasChannel(Channel::SendB);
+      has_main = has_main || s.hasChannel(Channel::Main);
+      has_aux_a = has_aux_a || s.hasChannel(Channel::AuxA);
+      has_aux_b = has_aux_b || s.hasChannel(Channel::AuxB);
     }
-    SampleData data(accumulator_config.numberOfChannels(), has_send_a, has_send_b, frames);
+    SampleData data(has_main ? accumulator_config.numberOfChannels() : 0, has_aux_a, has_aux_b, frames);
     data.zero();
 
     // Every child now spatially encodes itself directly, using its own
@@ -82,12 +87,13 @@ protected:
       rendered.push_back(child->render(frames, instruments, context));
     }
 
-    bool has_send_a = false, has_send_b = false;
+    bool has_main = false, has_aux_a = false, has_aux_b = false;
     for (auto & s : rendered) {
-      has_send_a = has_send_a || s.hasChannel(Channel::SendA);
-      has_send_b = has_send_b || s.hasChannel(Channel::SendB);
+      has_main = has_main || s.hasChannel(Channel::Main);
+      has_aux_a = has_aux_a || s.hasChannel(Channel::AuxA);
+      has_aux_b = has_aux_b || s.hasChannel(Channel::AuxB);
     }
-    SampleData sd(accumulator_config.numberOfChannels(), has_send_a, has_send_b, frames);
+    SampleData sd(has_main ? accumulator_config.numberOfChannels() : 0, has_aux_a, has_aux_b, frames);
     sd.zero();
 
     bool child_has_solo = false;

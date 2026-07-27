@@ -9,25 +9,31 @@ public:
   TremoloState(const ChannelConfiguration & channel_config, float frequency, float amplitude, bool use_aftertouch)
     : EffectState(channel_config), frequency_(frequency), amplitude_(amplitude), use_aftertouch_(use_aftertouch) { }
 
+  // Modulates every channel - Main and AuxA/AuxB alike: the reverb/delay
+  // bus should hear the same amplitude wobble the dry signal does, the
+  // same reasoning as Amplifier/EnvelopeFilter/Compressor.
   void applyEffect(SampleData & input) override {
-    if (!input.isZero()) {
-      auto numChannels = input.numberOfChannels();
+    auto numChannels = input.numberOfChannels();
+    if (numChannels > 0) {
       auto numSamples = input.size();
       auto step = 2 * M_PI * frequency_ / getChannelConfiguration().getAudioOutSampleRate();
       auto aftertouch_value = use_aftertouch_ ? getAftertouch() : 1.0f;
-    
+
       for (int j = 0; j < numChannels; j++) {
 	auto buffer = input.getChannelData(j);
 	auto phi = phi_;
-	for (int i = 0; i < numSamples; i++, phi += step) { 
-	  buffer[i] *= 1 + aftertouch_value * amplitude_ * sin(phi);	
+	for (int i = 0; i < numSamples; i++, phi += step) {
+	  buffer[i] *= 1 + aftertouch_value * amplitude_ * sin(phi);
 	}
       }
 
-      phi_ += numSamples * step;  
+      phi_ += numSamples * step;
     }
 
-    setTrackInfo(TrackInfo( !input.isZero(), input.isClipping()));
+    // "Active" tracks whether there was anything to modulate at all (Main,
+    // Aux, or both) - not Main specifically, since an Aux-only input
+    // (Send Main = 0) is still genuinely being processed above.
+    setTrackInfo(TrackInfo( numChannels > 0, input.isClipping()));
   }
 
 private:

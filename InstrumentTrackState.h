@@ -71,12 +71,13 @@ public:
       }
     }
 
-    bool has_send_a = false, has_send_b = false;
+    bool has_main = false, has_aux_a = false, has_aux_b = false;
     for (auto & [ pos, s ] : chunks) {
-      has_send_a = has_send_a || s.hasChannel(Channel::SendA);
-      has_send_b = has_send_b || s.hasChannel(Channel::SendB);
+      has_main = has_main || s.hasChannel(Channel::Main);
+      has_aux_a = has_aux_a || s.hasChannel(Channel::AuxA);
+      has_aux_b = has_aux_b || s.hasChannel(Channel::AuxB);
     }
-    SampleData data(getChannelConfiguration().numberOfChannels(), has_send_a, has_send_b, frames, isSolo());
+    SampleData data(has_main ? getChannelConfiguration().numberOfChannels() : 0, has_aux_a, has_aux_b, frames, isSolo());
     data.setBpm(context.getBpm());
     data.zero();
     for (auto & [ pos, s ] : chunks) data.assignNamed(s, pos);
@@ -104,12 +105,13 @@ public:
       }
     }
 
-    bool has_send_a = false, has_send_b = false;
+    bool has_main = false, has_aux_a = false, has_aux_b = false;
     for (auto & s : rendered) {
-      has_send_a = has_send_a || s.hasChannel(Channel::SendA);
-      has_send_b = has_send_b || s.hasChannel(Channel::SendB);
+      has_main = has_main || s.hasChannel(Channel::Main);
+      has_aux_a = has_aux_a || s.hasChannel(Channel::AuxA);
+      has_aux_b = has_aux_b || s.hasChannel(Channel::AuxB);
     }
-    SampleData data(getChannelConfiguration().numberOfChannels(), has_send_a, has_send_b, frames, isSolo());
+    SampleData data(has_main ? getChannelConfiguration().numberOfChannels() : 0, has_aux_a, has_aux_b, frames, isSolo());
     data.zero();
 
     // Every voice now spatially encodes itself directly, using its own

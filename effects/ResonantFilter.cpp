@@ -6,6 +6,7 @@
 #include "../EnvelopeState.h"
 #include "../constants.h"
 
+#include <array>
 #include <cassert>
 #include <vector>
 
@@ -23,33 +24,55 @@ public:
       filters_(static_cast<size_t>(channel_config.numberOfChannels()))
   { }
 
+  // Filters every channel - Main and AuxA/AuxB alike: the reverb/delay bus
+  // should hear the same tonal shaping the dry signal does, the same
+  // reasoning as Amplifier/EnvelopeFilter/Compressor/Tremolo/Distortion/
+  // BiquadFilter. AuxA/AuxB get their own persistent filter state
+  // (aux_filters_), kept separate from filters_ (Main-only, indexed
+  // 0..regularChannelCount()-1) - see BiquadFilter.cpp's own comment on
+  // this for why (Main's regular-channel count can itself be 0 some
+  // blocks, which would otherwise shift what a raw index means block to
+  // block).
   void applyEffect(SampleData & input_data) override {
     auto numSamples = input_data.size();
-    // Regular channels only - filters_ is sized once, at construction, from
-    // the plain ChannelConfiguration (which stays unaware of SendA/SendB by
-    // design, see SampleData.h). input_data.numberOfChannels() can be wider
-    // whenever a send is present, so indexing filters_ with the raw count
-    // would run past the end of that fixed-size vector - the send channels
-    // are deliberately left untouched here rather than filtered, since they
-    // need to reach the shared reverb/chorus bus unmodified.
-    auto numChannels = input_data.numberOfChannels() - input_data.sendCount();
+    int mainChannels = input_data.regularChannelCount();
     auto aftertouch_value = use_aftertouch_ ? getAftertouch() : 1.0f;
+
+    bool has_content = input_data.numberOfChannels() > 0;
+    setEffectActive(has_content);
 
     size_t offset = 0;
     while (numSamples) {
       size_t blockSamples = numSamples > constants::RENDER_EFFECTSAMPLEBLOCK ? constants::RENDER_EFFECTSAMPLEBLOCK : numSamples;
       float current_cut = (cut_min_ + envelope_state_.getLevel() * aftertouch_value * (cut_max_ - cut_min_)) / (getChannelConfiguration().getAudioOutSampleRate() * 0.5f);
 
-      if (!input_data.isZero() || is_active_) {
-	input_data.setNonZero();
-	is_active_ = true;
-
+      if (has_content) {
 	// Same filter, applied identically & independently per channel -
 	// including ambisonic ones (see AmbisonicEncoding.h): for a static
 	// source position this is exactly equivalent to filtering the
 	// pre-encode mono signal once, so direction is preserved exactly.
-	for (int c = 0; c < numChannels; c++) {
-	  filters_[static_cast<size_t>(c)].apply(blockSamples, input_data.getChannelData(c) + offset, current_cut, res_);
+	// Whichever of Main/AuxA/AuxB happens to be absent this specific
+	// block still gets its own filter's state advanced through silence
+	// (MoogVCF::apply(blockSamples, fc, res), no buffer) rather than
+	// skipped outright - but only once that channel has actually had
+	// real data at least once (main_ever_present_/aux_ever_present_),
+	// same reasoning as BiquadFilter.cpp.
+	if (mainChannels > 0) main_ever_present_ = true;
+	for (int c = 0; c < static_cast<int>(filters_.size()); c++) {
+	  if (c < mainChannels) {
+	    filters_[static_cast<size_t>(c)].apply(blockSamples, input_data.getChannelData(c) + offset, current_cut, res_);
+	  } else if (main_ever_present_) {
+	    filters_[static_cast<size_t>(c)].apply(blockSamples, current_cut, res_);
+	  }
+	}
+	for (int a = 0; a < 2; a++) {
+	  auto * buf = input_data.getChannel(a == 0 ? Channel::AuxA : Channel::AuxB);
+	  if (buf) {
+	    aux_ever_present_[static_cast<size_t>(a)] = true;
+	    aux_filters_[static_cast<size_t>(a)].apply(blockSamples, buf + offset, current_cut, res_);
+	  } else if (aux_ever_present_[static_cast<size_t>(a)]) {
+	    aux_filters_[static_cast<size_t>(a)].apply(blockSamples, current_cut, res_);
+	  }
 	}
       }
 
@@ -58,7 +81,7 @@ public:
       envelope_state_.process(static_cast<int>(blockSamples));
     }
 
-    setTrackInfo(TrackInfo( is_active_, input_data.isClipping()));
+    setTrackInfo(TrackInfo( isEffectActive(), input_data.isClipping()));
   }
 
 private:
@@ -66,10 +89,11 @@ private:
   bool use_aftertouch_;
 
   std::vector<MoogVCF<float>> filters_;
+  std::array<MoogVCF<float>, 2> aux_filters_;
+  bool main_ever_present_ = false;
+  std::array<bool, 2> aux_ever_present_ { false, false };
 
   EnvelopeState envelope_state_;
-
-  bool is_active_ = false;
 };
 
 std::unique_ptr<TrackState>

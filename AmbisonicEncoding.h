@@ -215,15 +215,15 @@ inline int acnDegree(int channelIndex) {
 
 // Per-voice encoding state: linearly interpolates gains across a block (so a
 // moving/newly-triggered source doesn't zipper) and writes/accumulates into
-// `out`'s regular (non-send) ACN channels. `mono` must have exactly
-// `frames` samples; `out`'s regular channel count (numberOfChannels() minus
-// however many of SendA/SendB are present - see SampleData::sendCount()) is
+// `out`'s regular (non-aux) ACN channels. `mono` must have exactly
+// `frames` samples; `out`'s regular channel count (SampleData::regularChannelCount(),
+// i.e. numberOfChannels() minus however many of AuxA/AuxB are present) is
 // generally >= 2; channels beyond however many `out` actually has, e.g. a
 // 2-channel accumulator lacking Z/X, are simply skipped rather than
 // asserting, so this also works as a degenerate 2-channel W/Y-only encode
 // if ever needed. Regular channels always occupy `out`'s first N raw
-// indices, whether or not sends follow them (see SampleData's presence
-// ordering), so plain positional indexing here is correct.
+// indices, whether or not aux channels follow them (see SampleData's
+// presence ordering), so plain positional indexing here is correct.
 class AmbisonicVoiceEncoder {
  public:
   void encodeBlock(SampleData & out, const float * mono, int frames, const AmbisonicGains & target) {
@@ -232,7 +232,7 @@ class AmbisonicVoiceEncoder {
       seeded_ = true;
     }
 
-    int regular = out.numberOfChannels() - out.sendCount();
+    int regular = out.regularChannelCount();
     int n = std::min(regular, static_cast<int>(target.size()));
 
     float * channels[kAmbisonicChannelCount] = {};

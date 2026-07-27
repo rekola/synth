@@ -12,17 +12,24 @@ public:
   }
 
 protected:
+  // Scales every channel - Main and AuxA/AuxB alike: if the source is too
+  // loud or too quiet, its contribution to the reverb/delay bus should
+  // scale the same way, not stay at the original level. "Active" tracks
+  // whether there's anything to scale at all (Main, Aux, or both) - not
+  // Main specifically, since an Aux-only input (Send Main = 0) is still
+  // genuinely being processed here.
   void applyEffect(SampleData & input) override {
-    if (!input.isZero()) {
+    bool has_content = input.numberOfChannels() > 0;
+    if (has_content) {
       auto data = input.getChannelData(0);
       auto g = decibelsToGain(gain_);
-      
+
       for (int i = 0; i < input.numberOfFrames() * input.numberOfChannels(); i++) {
 	data[i] *= g;
       }
     }
-    
-    setEffectActive(!input.isZero());
+
+    setEffectActive(has_content);
     setTrackInfo(TrackInfo( isEffectActive(), input.isClipping() ));
   }
 

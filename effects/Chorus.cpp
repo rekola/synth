@@ -35,15 +35,30 @@ public:
   }
 
 protected:
+  // Aux channels are carried straight through, not spatially re-encoded
+  // (encodeMonoAsPoint() is a Main-only, directional concept - Aux is a
+  // shared-bus scalar) - they've already been chorused below, same as
+  // Main, and need to survive the re-encode to actually reach the bus.
   SampleData reencodeIfNeeded(SampleData data) {
     if (getChannelConfiguration().isMono()) return data;
-    SampleData out(getChannelConfiguration(), data.numberOfFrames());
+    bool has_main = data.hasChannel(Channel::Main);
+    SampleData out(has_main ? getChannelConfiguration().numberOfChannels() : 0,
+		    data.hasChannel(Channel::AuxA), data.hasChannel(Channel::AuxB), data.numberOfFrames());
     out.zero();
-    encodeMonoAsPoint(data, out);
-    if (!data.isZero()) out.setNonZero();
+    if (has_main) encodeMonoAsPoint(data, out);
+    for (auto ch : { Channel::AuxA, Channel::AuxB }) {
+      if (auto * src = data.getChannel(ch)) {
+	auto dst = out.getChannel(ch);
+	for (int i = 0; i < data.numberOfFrames(); i++) dst[i] = src[i];
+      }
+    }
     return out;
   }
 
+  // engine_.process() runs unconditionally (Main and AuxA/AuxB alike, the
+  // same reasoning as Amplifier/EnvelopeFilter/Compressor/Tremolo/
+  // Distortion/BiquadFilter) - ChorusEngine itself already handles the
+  // "some channels present, some not, some never seen" bookkeeping.
   void applyEffect(SampleData & input_data) override {
     engine_.process(input_data);
     setTrackInfo(TrackInfo( true, input_data.isClipping() ));

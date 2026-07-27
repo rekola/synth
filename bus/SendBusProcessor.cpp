@@ -17,7 +17,7 @@ SendBusProcessor::setSlotEffect(int slot, std::unique_ptr<BusEffect> effect) {
 }
 
 void
-SendBusProcessor::process(const SampleData & send_a_mono, const SampleData & send_b_mono, int frames) {
+SendBusProcessor::process(const SampleData & aux_a_mono, const SampleData & aux_b_mono, int frames) {
   auto & slot_a = *slots_[kSlotA];
   auto & slot_b = *slots_[kSlotB];
 
@@ -25,14 +25,14 @@ SendBusProcessor::process(const SampleData & send_a_mono, const SampleData & sen
   // block (a deliberate zero-added-latency choice, not the alternative of
   // chaining the previous block's tail forward - see the plan this
   // implements).
-  slot_b.process(send_b_mono.getChannelData(0), frames);
+  slot_b.process(aux_b_mono.getChannelData(0), frames);
 
   if (static_cast<int>(chain_scratch_.size()) != frames) chain_scratch_.resize(static_cast<size_t>(frames));
   if (static_cast<int>(combined_a_input_.size()) != frames) combined_a_input_.resize(static_cast<size_t>(frames));
 
   slot_b.getChainSendSum(chain_scratch_.data(), frames);
   float chain_level = slot_b.getChainSendLevel();
-  auto a_in = send_a_mono.getChannelData(0);
+  auto a_in = aux_a_mono.getChannelData(0);
   for (int i = 0; i < frames; i++) {
     combined_a_input_[static_cast<size_t>(i)] = a_in[i] + chain_scratch_[static_cast<size_t>(i)] * chain_level;
   }
@@ -50,10 +50,8 @@ SendBusProcessor::process(const SampleData & send_a_mono, const SampleData & sen
   // class's own header comment for why the old "slot A's directions are
   // fixed, computed once at construction" fast path was deliberately
   // dropped).
-  bool any_taps = false;
   for (auto * slot : { &slot_a, &slot_b }) {
     int n = slot->getNumTaps();
-    if (n > 0) any_taps = true;
     float wet = slot->getWetLevel();
     for (int t = 0; t < n; t++) {
       auto gains = computeAmbisonicGains(slot->getTapDirection(t));
@@ -61,13 +59,4 @@ SendBusProcessor::process(const SampleData & send_a_mono, const SampleData & sen
       slot->getTapEncoder(t).encodeBlock(bus_ambisonic_, slot->getTap(t), frames, gains);
     }
   }
-
-  // Only claim non-zero output when at least one slot could ever actually
-  // produce any (0 taps, i.e. both slots empty/None, genuinely can't) -
-  // matches the prior unconditional setNonZero() exactly for every real
-  // effect (reverb/delay are always "kind of active", even decaying tails
-  // from silence, the same approximation this class always made), while
-  // correctly reporting silence for the empty-bus case that couldn't
-  // happen before slots could be None.
-  if (any_taps) bus_ambisonic_.setNonZero();
 }

@@ -53,3 +53,25 @@ Found 2026-07-11, not yet fixed.
   addresses redundant *rendering* work for superseded events, not input
   responsiveness specifically). Worth a closer look if users report the
   UI feeling unresponsive during dense playback.
+
+- **`effects/Distortion.cpp` likely distorts Main and AuxA/AuxB
+  inconsistently whenever clipping is involved.** It applies its curve
+  (`HARD_CLIP`/`SOFT_CLIP`/`TANH`) independently to each channel, and now
+  intentionally processes Aux channels too (not just Main - amplitude/
+  dynamics effects were changed to affect the send bus the same way the
+  dry signal does), but Main and Aux carry *differently scaled* copies of
+  the same underlying dry signal (Main is gain-encoded per direction/
+  distance; Aux is `dry * sends.a`/`dry * sends.b`, whatever the track's
+  own Send A/B knobs are). Distortion curves here are nonlinear and
+  amplitude-dependent (that's the whole point of a clipper), so feeding
+  differently-scaled copies of the same waveform through the same curve
+  does not produce a uniformly-scaled version of the same distortion
+  character - a channel loud enough to actually clip sounds audibly
+  different (harmonically) from one that stays under threshold, even
+  though both started from the same dry signal. In practice: if Send A/B
+  is set low relative to the dry level, Main may clip hard while Aux stays
+  clean (or vice versa with a hot send and quiet dry mix), rather than the
+  reverb/delay bus hearing "the same distortion, just quieter." Not fixed -
+  would need normalizing each channel to a common reference level before
+  the curve and undoing it after, or accepting the mismatch as a known
+  character quirk of this effect.

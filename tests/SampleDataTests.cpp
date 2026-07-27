@@ -4,25 +4,38 @@
 
 #include <cmath>
 
-TEST(sample_data_starts_zero) {
-  SampleData data(2, 16);
-  CHECK(data.isZero());
+TEST(sample_data_with_zero_regular_channels_has_no_main) {
+  // The only way to get a SampleData with Main absent - the raw/
+  // ChannelConfiguration constructors always imply Main present (see
+  // SampleData.h's own doc comments) - is the 4-arg constructor with
+  // regular_channels = 0, e.g. a voice whose Send Main level is 0.
+  SampleData data(0, false, false, 16);
+  CHECK(!data.hasChannel(Channel::Main));
   CHECK(!data.isClipping());
-  CHECK(data.numberOfChannels() == 2);
+  CHECK(data.numberOfChannels() == 0);
   CHECK(data.numberOfFrames() == 16);
 }
 
-TEST(sample_data_zero_fills_silence_and_marks_zero) {
+TEST(sample_data_channel_presence_is_never_mutated_by_zero_or_clear) {
+  // Main's presence is derived purely from the channel counts fixed at
+  // construction (see SampleData.h's Channel enum doc comment) - zero()/
+  // clear() reset sample values/frame count, never channel presence.
   SampleData data(2, 8);
-  data.setNonZero();
+  CHECK(data.hasChannel(Channel::Main));
+  data.zero();
+  CHECK(data.hasChannel(Channel::Main));
+  data.clear();
+  CHECK(data.hasChannel(Channel::Main)); // channels_ untouched by clear()
+}
+
+TEST(sample_data_zero_fills_silence) {
+  SampleData data(2, 8);
   for (int c = 0; c < 2; c++) {
     auto buf = data.getChannelData(c);
     for (int i = 0; i < 8; i++) buf[i] = 1.0f;
   }
-  CHECK(!data.isZero());
 
   data.zero();
-  CHECK(data.isZero());
   for (int c = 0; c < 2; c++) {
     auto buf = data.getChannelData(c);
     for (int i = 0; i < 8; i++) CHECK(buf[i] == 0.0f);
@@ -42,8 +55,6 @@ TEST(sample_data_mix_sums_matching_channel_counts) {
       bb[i] = 0.5f;
     }
   }
-  a.setNonZero();
-  b.setNonZero();
   a.mix(b);
 
   for (int c = 0; c < 2; c++) {
@@ -52,17 +63,42 @@ TEST(sample_data_mix_sums_matching_channel_counts) {
   }
 }
 
-TEST(sample_data_mix_of_silent_other_is_noop) {
+TEST(sample_data_mix_of_zeroed_other_is_noop) {
+  // Unlike the old is_zero_-flag days, mix() no longer skips a real,
+  // properly-shaped operand just because its content happens to be all
+  // zero (there's no cheap "definitely silent" flag left to check) - this
+  // now tests that adding real zeros is a mathematical no-op, not a skip
+  // optimization.
   SampleData a(2, 4);
   a.zero();
   for (int c = 0; c < 2; c++) {
     auto buf = a.getChannelData(c);
     for (int i = 0; i < 4; i++) buf[i] = 0.3f;
   }
-  a.setNonZero();
 
-  SampleData silent(2, 4); // default-constructed, stays isZero()
-  a.mix(silent);
+  SampleData zeroed(2, 4);
+  zeroed.zero();
+  a.mix(zeroed);
+
+  for (int c = 0; c < 2; c++) {
+    auto buf = a.getChannelData(c);
+    for (int i = 0; i < 4; i++) CHECK_NEAR(buf[i], 0.3f, 1e-6f);
+  }
+}
+
+TEST(sample_data_mix_of_empty_other_is_noop) {
+  // A genuinely empty (default-constructed, 0 channels/0 frames) operand
+  // is the one case mix() still explicitly guards against (other.empty()),
+  // regardless of content.
+  SampleData a(2, 4);
+  a.zero();
+  for (int c = 0; c < 2; c++) {
+    auto buf = a.getChannelData(c);
+    for (int i = 0; i < 4; i++) buf[i] = 0.3f;
+  }
+
+  SampleData empty;
+  a.mix(empty);
 
   for (int c = 0; c < 2; c++) {
     auto buf = a.getChannelData(c);
@@ -77,7 +113,6 @@ TEST(sample_data_assign_copies_at_position) {
   src.zero();
   auto sbuf = src.getChannelData(0);
   for (int i = 0; i < 4; i++) sbuf[i] = static_cast<float>(i + 1);
-  src.setNonZero();
 
   dest.assign(src, 2);
 
@@ -127,7 +162,23 @@ TEST(sample_data_is_clipping_detects_out_of_range_samples) {
 
   auto buf = data.getChannelData(0);
   buf[2] = 1.5f;
-  data.setNonZero();
+  CHECK(data.isClipping());
+}
+
+// isClipping()/calculateLoudness() must not gate on Main presence at all -
+// a buffer can have zero Main channels and real, clippable Aux content (a
+// fully aux-only voice, e.g. Send Main = 0).
+TEST(sample_data_is_clipping_and_loudness_work_with_main_absent) {
+  SampleData data(0, true, false, 4); // AuxA only, no Main at all
+  auto aux = data.getChannel(Channel::AuxA);
+  for (int i = 0; i < 4; i++) aux[i] = 0.2f;
+  CHECK(!data.isClipping());
+
+  auto loudness = data.calculateLoudness();
+  CHECK(loudness.size() == 1);
+  CHECK(loudness[0] > 0.0f);
+
+  aux[0] = 2.0f;
   CHECK(data.isClipping());
 }
 
@@ -136,7 +187,6 @@ TEST(sample_data_copy_is_independent_of_original) {
   original.zero();
   auto obuf = original.getChannelData(0);
   for (int i = 0; i < 4; i++) obuf[i] = 1.0f;
-  original.setNonZero();
 
   SampleData copy(original);
   auto cbuf = copy.getChannelData(0);
@@ -161,22 +211,24 @@ TEST(sample_data_repeated_copy_assign_does_not_leak) {
   CHECK(dest.numberOfChannels() == 2);
 }
 
-TEST(sample_data_raw_count_constructor_marks_no_named_channels) {
+TEST(sample_data_raw_count_constructor_marks_no_named_aux) {
   SampleData data(2, 4);
-  CHECK(!data.hasChannel(Channel::SendA));
-  CHECK(!data.hasChannel(Channel::SendB));
-  CHECK(data.getChannel(Channel::SendA) == nullptr);
+  CHECK(data.hasChannel(Channel::Main));
+  CHECK(!data.hasChannel(Channel::AuxA));
+  CHECK(!data.hasChannel(Channel::AuxB));
+  CHECK(data.getChannel(Channel::AuxA) == nullptr);
 }
 
 // The ChannelConfiguration constructor only ever produces regular
 // (ambisonic) channels - accessed by plain raw index (0=W, 1=Y, ... - see
 // AmbisonicEncoding.h's ACN ordering), not a per-channel name - so all this
-// checks is the channel *count* at each order, plus that no send is ever
-// marked present.
-TEST(sample_data_channel_configuration_constructor_has_no_named_sends) {
+// checks is the channel *count* at each order, plus that no aux channel is
+// ever marked present.
+TEST(sample_data_channel_configuration_constructor_has_no_named_aux) {
   SampleData mono(ChannelConfiguration(44100), 4);
   CHECK(mono.numberOfChannels() == 1);
-  CHECK(!mono.hasChannel(Channel::SendA));
+  CHECK(mono.hasChannel(Channel::Main));
+  CHECK(!mono.hasChannel(Channel::AuxA));
 
   SampleData order1(ChannelConfiguration(44100, 1), 4);
   CHECK(order1.numberOfChannels() == 4);
@@ -188,68 +240,90 @@ TEST(sample_data_channel_configuration_constructor_has_no_named_sends) {
   CHECK(order3.numberOfChannels() == 16);
 }
 
-TEST(sample_data_regular_plus_send_constructor_derives_send_indices) {
-  // SendA's raw index accounts for however many regular channels precede
-  // it - here just 1 (W only), so SendA lands at index 1.
+TEST(sample_data_regular_plus_aux_constructor_derives_aux_indices) {
+  // AuxA's raw index accounts for however many regular channels precede
+  // it - here just 1 (W only), so AuxA lands at index 1.
   SampleData data(1, true, false, 4);
   CHECK(data.numberOfChannels() == 2);
-  CHECK(data.hasChannel(Channel::SendA));
-  CHECK(!data.hasChannel(Channel::SendB));
-  CHECK(data.getChannel(Channel::SendA) == data.getChannelData(1));
-  CHECK(data.sendCount() == 1);
+  CHECK(data.hasChannel(Channel::AuxA));
+  CHECK(!data.hasChannel(Channel::AuxB));
+  CHECK(data.getChannel(Channel::AuxA) == data.getChannelData(1));
+  CHECK(data.auxCount() == 1);
 }
 
-TEST(sample_data_regular_plus_send_constructor_matches_configuration_constructor) {
+TEST(sample_data_regular_plus_aux_constructor_matches_configuration_constructor) {
   ChannelConfiguration order2(44100, 2);
-  SampleData built(order2.numberOfChannels(), false, true, 4); // regular + SendB only
+  SampleData built(order2.numberOfChannels(), false, true, 4); // regular + AuxB only
 
   SampleData reference(order2, 4);
   CHECK(built.numberOfChannels() == reference.numberOfChannels() + 1);
-  CHECK(built.getChannel(Channel::SendB) == built.getChannelData(9));
+  CHECK(built.getChannel(Channel::AuxB) == built.getChannelData(9));
 }
 
-TEST(sample_data_mix_named_sums_regular_channels_and_shared_sends) {
-  SampleData acc(2, true, false, 4); // W, Y regular + SendA
+TEST(sample_data_mix_named_sums_regular_channels_and_shared_aux) {
+  SampleData acc(2, true, false, 4); // W, Y regular + AuxA
   acc.zero();
   for (int i = 0; i < 4; i++) {
     acc.getChannelData(0)[i] = 0.1f;
     acc.getChannelData(1)[i] = 0.2f;
-    acc.getChannel(Channel::SendA)[i] = 0.3f;
+    acc.getChannel(Channel::AuxA)[i] = 0.3f;
   }
-  acc.setNonZero();
 
-  // `other` lacks SendA but has SendB (which acc never marks present) -
+  // `other` lacks AuxA but has AuxB (which acc never marks present) -
   // both should be silently ignored where only one side has them.
-  SampleData other(2, false, true, 4); // W, Y regular + SendB
+  SampleData other(2, false, true, 4); // W, Y regular + AuxB
   other.zero();
   for (int i = 0; i < 4; i++) {
     other.getChannelData(0)[i] = 1.0f;
     other.getChannelData(1)[i] = 2.0f;
-    other.getChannel(Channel::SendB)[i] = 5.0f;
+    other.getChannel(Channel::AuxB)[i] = 5.0f;
   }
-  other.setNonZero();
 
   acc.mixNamed(other);
 
   CHECK_NEAR(acc.getChannelData(0)[0], 1.1f, 1e-6f);
   CHECK_NEAR(acc.getChannelData(1)[0], 2.2f, 1e-6f);
-  CHECK_NEAR(acc.getChannel(Channel::SendA)[0], 0.3f, 1e-6f); // other had none - untouched
-  CHECK(!acc.hasChannel(Channel::SendB)); // acc never claimed it - other's SendB is dropped
+  CHECK_NEAR(acc.getChannel(Channel::AuxA)[0], 0.3f, 1e-6f); // other had none - untouched
+  CHECK(!acc.hasChannel(Channel::AuxB)); // acc never claimed it - other's AuxB is dropped
 }
 
 TEST(sample_data_mix_named_broadcasts_mono_into_stereo_like_mix) {
   SampleData acc(2, 4);
   acc.zero();
-  SampleData mono(1, true, false, 4); // W regular + SendA
+  SampleData mono(1, true, false, 4); // W regular + AuxA
   mono.zero();
   for (int i = 0; i < 4; i++) {
     mono.getChannelData(0)[i] = 1.0f;
-    mono.getChannel(Channel::SendA)[i] = 9.0f;
+    mono.getChannel(Channel::AuxA)[i] = 9.0f;
   }
-  mono.setNonZero();
 
   acc.mixNamed(mono);
 
   CHECK_NEAR(acc.getChannelData(0)[0], 1.0f, 1e-6f);
   CHECK_NEAR(acc.getChannelData(1)[0], 1.0f, 1e-6f);
+}
+
+// mixNamed()'s other_regular == 0 case: a child with no Main channels at
+// all (e.g. Send Main = 0) mixing into an accumulator that does have Main
+// (because some other child does) - used to hit assert(0) before this was
+// added as an explicit case; must be a clean no-op for the regular part,
+// while Aux still sums normally.
+TEST(sample_data_mix_named_handles_other_with_zero_regular_channels) {
+  SampleData acc(2, true, false, 4); // W, Y regular + AuxA
+  acc.zero();
+  for (int i = 0; i < 4; i++) {
+    acc.getChannelData(0)[i] = 0.5f;
+    acc.getChannelData(1)[i] = 0.6f;
+    acc.getChannel(Channel::AuxA)[i] = 0.1f;
+  }
+
+  SampleData other(0, true, false, 4); // no Main at all, AuxA only
+  other.zero();
+  for (int i = 0; i < 4; i++) other.getChannel(Channel::AuxA)[i] = 0.4f;
+
+  acc.mixNamed(other);
+
+  CHECK_NEAR(acc.getChannelData(0)[0], 0.5f, 1e-6f); // untouched - other had no Main
+  CHECK_NEAR(acc.getChannelData(1)[0], 0.6f, 1e-6f);
+  CHECK_NEAR(acc.getChannel(Channel::AuxA)[0], 0.5f, 1e-6f); // 0.1 + 0.4
 }

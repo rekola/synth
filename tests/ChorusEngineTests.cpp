@@ -3,6 +3,7 @@
 #include "../dsp/ChorusEngine.h"
 
 #include <cmath>
+#include <vector>
 
 TEST(chorus_engine_modulation_actually_changes_output) {
   // Compares a real (depth > 0) engine against an otherwise-identical
@@ -103,25 +104,51 @@ TEST(chorus_engine_never_cross_mixes_channels) {
   }
 }
 
-TEST(chorus_engine_ignores_send_channels) {
-  // The engine's per-channel state is sized once, at construction, from
-  // the regular channel count - it must never touch SendA/SendB even if
-  // they're present on the SampleData it's given (the same class of bug
-  // fixed in ResonantFilter/BiquadFilter).
-  ChorusEngine engine(2, 44100);
+TEST(chorus_engine_processes_aux_channels_too) {
+  // Aux channels get the same chorus treatment Main does now (the reverb/
+  // delay bus should hear the same modulated character the dry signal
+  // does) - each with its own persistent, separately-tracked delay-line/
+  // LFO state (see ChorusEngine.h's own doc comment on why that state
+  // can't just be raw-index-shared with Main's).
+  ChorusEngine engine(1, 44100, 3, 2.0f, 15.0f, 4.0f, false);
   engine.setMix(1.0f);
 
-  int frames = 64;
-  SampleData data(2, true, false, frames); // W, Y regular + SendA
-  data.zero();
+  int frames = 2000;
+  SampleData data(0, true, false, frames); // no Main at all, AuxA only
+  auto aux = data.getChannel(Channel::AuxA);
+  std::vector<float> original(static_cast<size_t>(frames));
   for (int i = 0; i < frames; i++) {
-    data.getChannelData(0)[i] = 1.0f;
-    data.getChannelData(1)[i] = 1.0f;
-    data.getChannel(Channel::SendA)[i] = 5.0f;
+    aux[i] = sinf(static_cast<float>(i) * 0.05f);
+    original[static_cast<size_t>(i)] = aux[i];
   }
+
   engine.process(data);
 
+  double diff_energy = 0.0;
+  auto processed = data.getChannel(Channel::AuxA);
   for (int i = 0; i < frames; i++) {
-    CHECK_NEAR(data.getChannel(Channel::SendA)[i], 5.0f, 1e-6f);
+    auto d = processed[i] - original[static_cast<size_t>(i)];
+    diff_energy += d * d;
+  }
+  CHECK(diff_energy > 1e-3);
+}
+
+TEST(chorus_engine_main_and_aux_never_cross_mix) {
+  // Same "never invent width/content from a sibling channel" guarantee
+  // chorus_engine_never_cross_mixes_channels checks between two Main
+  // channels, but between Main and Aux's independent state instead.
+  ChorusEngine engine(1, 44100, 3, 0.5f, 15.0f, 4.0f, false);
+  engine.setMix(1.0f);
+
+  int frames = 512;
+  SampleData data(1, true, false, frames); // Main (W) + AuxA
+  data.zero();
+  for (int i = 0; i < frames; i++) data.getChannelData(0)[i] = sinf(static_cast<float>(i) * 0.1f);
+  // AuxA left at 0 (silent) by zero() above.
+  engine.process(data);
+
+  auto aux = data.getChannel(Channel::AuxA);
+  for (int i = 0; i < frames; i++) {
+    CHECK_NEAR(aux[i], 0.0f, 1e-6f);
   }
 }
