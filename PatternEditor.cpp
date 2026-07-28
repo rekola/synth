@@ -1126,6 +1126,17 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
       
       current_pos += actual_width;
     }
+
+    // Extend the leaf-track heading row's orange background the rest of
+    // the way to the right edge, past the last visible track - otherwise
+    // it stops wherever the tracks happen to end, leaving the remainder
+    // of the row at the plain window_bg_color fill above instead of
+    // reading as one continuous divider bar under the scopes.
+    if (level == 0 && current_pos < cols) {
+      setFgColor(0x00, 0x00, 0x00);
+      setBgColor(0xf0, 0x80, 0x10);
+      putstr(heading_height - 2 - level, current_pos, string(static_cast<size_t>(cols - current_pos), ' '));
+    }
   }
 }
 

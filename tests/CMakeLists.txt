@@ -18,6 +18,8 @@ add_executable(synth_tests
 	BusEffectRegistryTests.cpp
 	GranularEngineTests.cpp
 	GranularCloudTests.cpp
+	VisualizationThreadTests.cpp
+	DiracAnalyzerTests.cpp
 )
 
 target_link_libraries(synth_tests synth_engine)

@@ -4,7 +4,6 @@
 #include "EventHandler.h"
 #include "SongState.h"
 #include "MixerType.h"
-#include "dsp/SpectrumAnalyzer.h"
 
 #include <memory>
 
@@ -28,7 +27,6 @@ private:
   bool terminate_ = false;
   bool song_changed_ = false;
   bool mixer_changed_ = false;
-  SpectrumAnalyzer fft_;
 };
 
 #endif

@@ -26,16 +26,12 @@ public:
   void setMeterLabel(std::string label) { meter_label_ = std::move(label); }
   const std::string & getMeterLabel() const { return meter_label_; }
 
-  void setFFT(std::vector<float> data) { fft_data_ = std::move(data); }
-  const std::vector<float> & getFFT() const { return fft_data_; }
-
   void setInfo(PlaybackInfo info) { info_ = std::move(info); }
   const PlaybackInfo & getInfo() const { return info_; }
 
 private:
   std::vector<float> channel_loudness_;
   std::string meter_label_;
-  std::vector<float> fft_data_;
   PlaybackInfo info_;
 };
 

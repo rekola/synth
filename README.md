@@ -59,3 +59,4 @@ for the full picture, or run `musiceditor --licenses` to print it.
 2. Effect-command interpretation during playback (slide, glide, vibrato, fade in/out, tremolo — currently editable and stored but not audible)
 3. Kill-ring rotation (yank-pop / M-y)
 4. Exchange-point-and-mark (C-x C-x)
+5. DirAC heatmap marker overlay for every active spatial object, not just track positions — track azimuth/elevation markers, plus Granular Cloud grains and other shared-bus-effect taps (FDNReverb, MultiTapDelay)

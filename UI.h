@@ -13,6 +13,7 @@
 
 class UIMenu;
 class Chart;
+class HeatmapChart;
 class InfoLine;
 class StatusLine;
 class PatternEditor;
@@ -57,6 +58,7 @@ class UI : public UIElement {
   void handleMidiEvent(MidiEvent & ev) override;
   void handleLaunchpadPadEvent(LaunchpadPadEvent & ev) override;
   void handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) override;
+  void handleVisualizationResultEvent(VisualizationResultEvent & ev) override;
 
 protected:
   virtual void startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) = 0;
@@ -69,6 +71,7 @@ protected:
   
   std::shared_ptr<UIMenu> menu_;
   std::shared_ptr<Chart> chart_, volume_meter_;
+  std::shared_ptr<HeatmapChart> heatmap_;
   // volume_meter_'s fixed domain size: 9 columns x 2 samples/braille-cell =
   // 18 - exactly order-3 ambisonic (16) + AuxA/AuxB (2), the largest
   // config this engine supports (AmbisonicEncoding.h's kAmbisonicOrder) -
@@ -82,6 +85,11 @@ protected:
     
   bool close_ui_ = false;
   StyleProvider styles_;
+
+  // Auto-scaling brightness reference for the DirAC heatmap - see
+  // handleVisualizationResultEvent()'s own comment on why this needs to
+  // persist across events rather than being derived fresh each time.
+  float dirac_running_max_ = 0.0f;
 
 private:  
   StatusLogger logger_;

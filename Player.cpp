@@ -9,10 +9,10 @@
 #include "PlaybackEvent.h"
 #include "RecordEvent.h"
 #include "PlaybackControlEvent.h"
+#include "AudioBlockEvent.h"
 
 #include "MixerFactory.h"
 #include "InstrumentTrackState.h"
-#include "dsp/SpectrumAnalyzer.h"
 
 using namespace std;
 
@@ -153,10 +153,6 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 
 void
 Player::play(AudioAPI & audio) {
-  int fft_size = 0;
-  for (; fft_size + audio.getFrameCount() <= audio.getFrequency() / 10; fft_size += audio.getFrameCount()) { }
-  fft_.setSize(fft_size);
-    
   EventLogger logger(&(controller_->getUIEventQueue()));
   
   auto & event_queue = controller_->getPlaybackEventQueue();
@@ -271,12 +267,27 @@ Player::play(AudioAPI & audio) {
 	    channel_loudness.insert(channel_loudness.end(), aux_b.begin(), aux_b.end());
 	    ev->setChannelLoudness(std::move(channel_loudness));
 
-	    if (fft_.addData(master)) {
-	      fft_.reset();
-	      ev->setFFT(fft_.calculateFFT());
-	    }
-	    	    
 	    controller_->getUIEventQueue().push(move(ev));
+
+	    // Hand master and the raw bus's first up to 4 channels (W/Y/Z/X,
+	    // ACN order) off to VisualizationThread - its own dedicated
+	    // thread, decoupled from both this real-time audio thread and the
+	    // UI thread (see VisualizationThread.h) - for spectrum-FFT and
+	    // DirAC directional analysis respectively; neither belongs on
+	    // this thread. master is moved, not copied (it's already this
+	    // block's own independently-owned SampleData, straight from
+	    // mixer->encode() above); the raw-bus channels genuinely are
+	    // copied, since mixer->getRawBus() is a reference into the
+	    // mixer's own persistent buffer, overwritten next block.
+	    auto & raw_bus = mixer->getRawBus();
+	    int dirac_channels = raw_bus.numberOfChannels() < 4 ? raw_bus.numberOfChannels() : 4;
+	    SampleData dirac_bus(static_cast<short>(dirac_channels), raw_bus.numberOfFrames());
+	    for (int c = 0; c < dirac_channels; c++) {
+	      auto src = raw_bus.getChannelData(c);
+	      auto dst = dirac_bus.getChannelData(c);
+	      for (int i = 0; i < raw_bus.numberOfFrames(); i++) dst[i] = src[i];
+	    }
+	    controller_->getVisualizationQueue().push(make_unique<AudioBlockEvent>(move(master), move(dirac_bus)));
 	  } else if (i - 1 - num_playback_desc < num_capture_desc) {
 	    auto data = audio.record(logger);
 	    controller_->getUIEventQueue().push(make_unique<RecordEvent>(data));

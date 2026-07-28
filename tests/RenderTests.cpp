@@ -6,6 +6,7 @@
 #include "../ChannelConfiguration.h"
 #include "../SongState.h"
 #include "../Mixer.h"
+#include "../dsp/DiracAnalyzer.h"
 
 #include <algorithm>
 #include <cmath>
@@ -496,6 +497,109 @@ TEST(render_send_a_reaches_ambisonic_bus_beyond_w_y_at_both_orders) {
     }
 
     CHECK(energy_beyond_wy > 0.0);
+  }
+}
+
+TEST(render_dirac_heatmap_peak_matches_encoded_azimuth_sweep) {
+  // Reuses ambisonic_directions.xml (see
+  // render_ambisonic_directions_produce_distinguishable_output above for
+  // the same fixture, row-to-seconds convention, and firing schedule) -
+  // broadband pink noise, ideal for DiracAnalyzer since it excites every
+  // band rather than just one. Feeds the real pre-decode ambisonic bus
+  // into DiracAnalyzer directly at the DSP level - this test doesn't need
+  // VisualizationThread/events at all, same as every other RenderTests.cpp
+  // test that doesn't need the real audio-device/UI plumbing.
+  //
+  // RecordingMixer::accumulated.back() alone is NOT that bus - it's only
+  // SongState::render()'s *last* accumulate() call, the shared send bus's
+  // own AuxA/AuxB-derived contribution (SongState.h), which is silent
+  // here since this fixture's tracks configure no sends at all. A real
+  // Mixer sums every accumulate() call (one per top-level track, plus the
+  // send bus) into one buffer internally; mixNamed() (SampleData.h) is
+  // the same aux-tolerant summing operation, reused below to replicate
+  // that summing by hand over every entry in `accumulated`.
+  auto loaded = loadFixture("ambisonic_directions.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(44100, 1); // order 1 = exactly 4 channels (W/Y/Z/X), matching DiracAnalyzer's input shape with no truncation needed
+  SongState state(config);
+  state.initialize(loaded.song);
+  state.setIsPlaying(true);
+
+  RecordingMixer mixer(static_cast<short>(config.numberOfChannels()), config.getAudioOutSampleRate());
+  DiracAnalyzer analyzer(config.getAudioOutSampleRate());
+
+  // Track 10 (distance=2) is a distance-invariance check, not part of the
+  // azimuth sweep (same azimuth/elevation as track 0) - excluded here.
+  // Each check point is 0.6s after that track's note-on: well into its
+  // envelope's hold phase (attack 0.02s, hold to 0.92s - see the
+  // fixture's own comment on why pink noise needs real duration to
+  // develop spectral cues) and comfortably past DiracAnalyzer's own
+  // ~100ms-time-constant smoothing convergence window
+  // (dsp/DiracAnalyzerTests.cpp's own tests use the same ~465ms/40-hop
+  // convergence estimate), while staying well before the next track's
+  // onset 1.5s later (avoiding contamination).
+  struct Expected { float time_s, azimuth, elevation; };
+  std::vector<Expected> expected = {
+    { 0 * 0.125f + 0.6f,     0.0f,   0.0f },
+    { 12 * 0.125f + 0.6f,   45.0f,   0.0f },
+    { 24 * 0.125f + 0.6f,   90.0f,   0.0f },
+    { 36 * 0.125f + 0.6f,  135.0f,   0.0f },
+    { 48 * 0.125f + 0.6f,  180.0f,   0.0f },
+    { 60 * 0.125f + 0.6f, -135.0f,   0.0f },
+    { 72 * 0.125f + 0.6f,  -90.0f,   0.0f },
+    { 84 * 0.125f + 0.6f,  -45.0f,   0.0f },
+    { 96 * 0.125f + 0.6f,    0.0f,  90.0f },
+    { 108 * 0.125f + 0.6f,   0.0f, -90.0f },
+  };
+
+  size_t next_check = 0;
+  int frames_rendered = 0;
+  int sample_rate = config.getAudioOutSampleRate();
+
+  while (next_check < expected.size()) {
+    state.render(256, loaded.song, mixer);
+    CHECK(!mixer.accumulated.empty());
+
+    SampleData bus(static_cast<short>(config.numberOfChannels()), 256);
+    bus.zero(); // the raw-count constructor leaves the buffer uninitialized (aligned_alloc, not calloc) - mixNamed() below accumulates with +=
+    for (auto & data : mixer.accumulated) bus.mixNamed(data);
+
+    analyzer.process(bus);
+    frames_rendered += 256;
+
+    while (next_check < expected.size() && frames_rendered >= static_cast<int>(expected[next_check].time_s * static_cast<float>(sample_rate))) {
+      auto & exp = expected[next_check];
+
+      // Peak grid cell -> its bin-center azimuth/elevation, the inverse of
+      // DiracAnalyzer.cpp's own az_pos/el_pos splat-target formulas.
+      auto & grid = analyzer.getGrid();
+      int peak_cell = 0;
+      float peak_value = grid[0];
+      for (int c = 1; c < DiracAnalyzer::kGridSize; c++) {
+        if (grid[static_cast<size_t>(c)] > peak_value) { peak_value = grid[static_cast<size_t>(c)]; peak_cell = c; }
+      }
+      int az_bin = peak_cell % DiracAnalyzer::kAzimuthBins;
+      int el_bin = peak_cell / DiracAnalyzer::kAzimuthBins;
+      float peak_azimuth = (static_cast<float>(az_bin) + 0.5f) * 360.0f / static_cast<float>(DiracAnalyzer::kAzimuthBins) - 180.0f;
+      float peak_elevation = (static_cast<float>(el_bin) + 0.5f) * 10.0f - 90.0f;
+
+      CHECK(peak_value > 0.0f);
+
+      // Azimuth is physically undefined exactly at the poles (every
+      // azimuth value describes the same point once elevation is +-90) -
+      // the straight-up/straight-down tracks only assert elevation, not
+      // the fixture's otherwise-arbitrary azimuth="0" on those two.
+      if (std::fabs(exp.elevation) < 89.0f) {
+        // Azimuth wraps - compare via the shortest angular distance, not
+        // raw subtraction (e.g. 179 vs -179 are 2 degrees apart, not 358).
+        float az_diff = fmodf(peak_azimuth - exp.azimuth + 540.0f, 360.0f) - 180.0f;
+        CHECK(std::fabs(az_diff) < 20.0f);
+      }
+      CHECK_NEAR(peak_elevation, exp.elevation, 20.0f);
+
+      next_check++;
+    }
   }
 }
 

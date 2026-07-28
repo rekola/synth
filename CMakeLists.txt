@@ -67,6 +67,8 @@ add_library(synth_engine STATIC
 	effects/EnvelopeFilter.cpp
 	effects/Compressor.cpp
 	Player.cpp
+	VisualizationThread.cpp
+	dsp/DiracAnalyzer.cpp
 	NoteMultiplier.cpp
 	HarmonicSeries.cpp
 	Arpeggiator.cpp

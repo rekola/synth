@@ -11,6 +11,8 @@ class InputEvent;
 class MidiEvent;
 class LaunchpadPadEvent;
 class LaunchpadButtonEvent;
+class AudioBlockEvent;
+class VisualizationResultEvent;
 
 class EventHandler {
  public:
@@ -27,6 +29,8 @@ class EventHandler {
   virtual void handleMidiEvent(MidiEvent & ev) { }
   virtual void handleLaunchpadPadEvent(LaunchpadPadEvent & ev) { }
   virtual void handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) { }
+  virtual void handleAudioBlockEvent(AudioBlockEvent & ev) { }
+  virtual void handleVisualizationResultEvent(VisualizationResultEvent & ev) { }
 };
 
 #endif

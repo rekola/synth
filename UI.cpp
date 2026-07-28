@@ -2,6 +2,7 @@
 
 #include "UIMenu.h"
 #include "Chart.h"
+#include "HeatmapChart.h"
 #include "InfoLine.h"
 #include "StatusLine.h"
 #include "PatternEditor.h"
@@ -13,6 +14,9 @@
 #include "LogEvent.h"
 #include "RecordEvent.h"
 #include "PlaybackControlEvent.h"
+#include "AudioBlockEvent.h"
+#include "VisualizationResultEvent.h"
+#include "VisualizationThread.h"
 #include "Controller.h"
 #include "KeyChord.h"
 #include "LaunchpadButtonEvent.h"
@@ -22,6 +26,8 @@
 
 #include <fmt/core.h>
 #include <thread>
+#include <array>
+#include <cmath>
 
 using namespace std;
 using namespace fmt;
@@ -75,9 +81,24 @@ UI::layout() {
   auto [ rows, cols ] = getDim();
   setStatus("Layout (rows = " + to_string(rows) + ", cols = " + to_string(cols) + ")");
 
-  chart_->resize(4, cols - 9).move(1, 0);
-  volume_meter_->resize(4, 9).move(1, cols - 9);
-  pattern_editor_->resize(rows - 7, cols).move(5, 0);
+  constexpr int kHeatmapWidth = 31; // 20 * 1.5, rounded up to the nearest odd width
+  constexpr int kScopeRow = 1, kScopeHeight = 5;
+  int chart_width = cols - 9 - kHeatmapWidth - 2; // -2 for the single-column dividers on either side of the heatmap
+  int divider1_x = chart_width, divider2_x = divider1_x + 1 + kHeatmapWidth;
+  chart_->resize(kScopeHeight, chart_width).move(kScopeRow, 0);
+  heatmap_->resize(kScopeHeight, kHeatmapWidth).move(kScopeRow, divider1_x + 1);
+  volume_meter_->resize(kScopeHeight, 9).move(kScopeRow, divider2_x + 1);
+
+  // Single-column dividers between the three scopes - drawn once here
+  // rather than per-frame, since these columns fall outside every scope's
+  // own resized rectangle, so nothing else ever repaints over them.
+  setFgColor(styles_.window_border_color);
+  setBgColor(styles_.window_bg_color);
+  for (int row = 0; row < kScopeHeight; row++) {
+    putstr(kScopeRow + row, divider1_x, "│");
+    putstr(kScopeRow + row, divider2_x, "│");
+  }
+  pattern_editor_->resize(rows - 8, cols).move(6, 0);
   info_line_->resize(1, cols).move(rows - 2, 0);
   status_line_->resize(1, cols - 1).move(rows - 1, 0);
 
@@ -182,18 +203,17 @@ UI::handlePlaybackEvent(PlaybackEvent & ev) {
   // instead of falling further behind.
   bool superseded = getController().getUIEventQueue().hasEvents();
   if (!superseded) {
-    if (!ev.getFFT().empty()) {
-      chart_->displayFFT(ev.getFFT());
-    }
-
     // Raw, pre-mixdown per-channel levels (ambisonic bus, then always
     // AuxA/AuxB last - see Player.cpp/SongState::render()) rather than
     // the final decoded L/R output. Always fills the full fixed-size
     // domain (kMaxMeterChannels - the order-3-ambisonic+2-aux max),
     // padding with silence past the current config's real channel count -
-    // matching displayFFT()'s own always-fill-the-whole-domain pattern
-    // above (every index, every call). Feeding a varying, sometimes-
-    // shorter range confused the underlying plot's own domain/alignment
+    // matching displayFFT()'s own always-fill-the-whole-domain contract
+    // (handleVisualizationResultEvent(), below - FFT results arrive via a
+    // separate event/handler from VisualizationThread, its own dedicated
+    // analysis thread; see VisualizationThread.h) (every index, every
+    // call). Feeding a varying, sometimes-shorter range confused the
+    // underlying plot's own domain/alignment
     // (bars for a smaller config visibly started mid-width instead of at
     // column 0, out of step with the legend) - a fixed domain avoids that.
     //
@@ -212,6 +232,60 @@ UI::handlePlaybackEvent(PlaybackEvent & ev) {
         volume_meter_->setSample(static_cast<int>(i), i < levels.size() ? levels[i] : 0.0);
       }
       volume_meter_->commit(); // chart_'s own commit() already runs inside displayFFT()
+    }
+  }
+
+  ev.redraw();
+}
+
+void
+UI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
+  // Same superseded-skip reasoning as handlePlaybackEvent() above - both
+  // share ui_event_queue, so a still-queued event behind this one means
+  // this one's visual result is about to be overwritten anyway.
+  bool superseded = getController().getUIEventQueue().hasEvents();
+  if (!superseded) {
+    if (!ev.getFFT().empty()) {
+      chart_->displayFFT(ev.getFFT());
+    }
+
+    if (ev.hasDiracGrid()) {
+      // plans/dirac-heatmap-scope.md SS6: displayed[cell] = the grid's own
+      // directional energy plus the per-band diffuse haze, spread
+      // uniformly across every cell (one shared scalar summed from all 8
+      // bands, not a separate per-band-per-cell splat).
+      auto & grid = ev.getDiracGrid();
+      auto & diffuse_energy = ev.getDiracDiffuseEnergy();
+      float diffuse_sum = 0.0f;
+      for (auto e : diffuse_energy) diffuse_sum += e;
+      float local_diffuse = diffuse_sum / static_cast<float>(DiracAnalyzer::kGridSize);
+
+      std::array<float, DiracAnalyzer::kGridSize> displayed;
+      float frame_max = 0.0f;
+      for (size_t i = 0; i < DiracAnalyzer::kGridSize; i++) {
+        displayed[i] = grid[i] + local_diffuse;
+        if (displayed[i] > frame_max) frame_max = displayed[i];
+      }
+
+      // Auto-scaling brightness reference, tracked across events rather
+      // than derived fresh each time: jumps up immediately on a new peak
+      // (so a loud transient doesn't clip the display), decays slowly
+      // otherwise (~2s time constant at this event's ~28.7Hz delivery
+      // rate - plans/dirac-heatmap-scope.md SS1) so a quiet passage
+      // doesn't suddenly wash the whole grid out to full brightness the
+      // instant a loud part ends.
+      if (frame_max > dirac_running_max_) dirac_running_max_ = frame_max;
+      else dirac_running_max_ += (frame_max - dirac_running_max_) * 0.0173f;
+
+      std::vector<float> brightness(DiracAnalyzer::kGridSize), saturation(DiracAnalyzer::kGridSize);
+      float log_max = dirac_running_max_ > 0.0f ? log1pf(dirac_running_max_) : 0.0f;
+      for (size_t i = 0; i < DiracAnalyzer::kGridSize; i++) {
+        brightness[i] = log_max > 0.0f ? log1pf(displayed[i]) / log_max : 0.0f;
+        if (brightness[i] > 1.0f) brightness[i] = 1.0f;
+        saturation[i] = displayed[i] > 1e-12f ? grid[i] / displayed[i] : 0.0f;
+      }
+      heatmap_->setGrid(brightness, saturation);
+      heatmap_->commit();
     }
   }
 
@@ -328,6 +402,12 @@ void audio_thread_func(Controller * controller, AudioAPI * audio) {
   player.play(*audio);
 }
 
+void visualization_thread_func(Controller * controller, int sample_rate, int frame_count) {
+  VisualizationThread visualization_thread(controller);
+  visualization_thread.configure(sample_rate, frame_count);
+  visualization_thread.run();
+}
+
 void
 UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launchpad_manager) {
   launchpad_manager.setLaunchpadIO(&launchpad_io);
@@ -335,12 +415,15 @@ UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launc
   launchpad_manager_ = &launchpad_manager;
 
   std::thread audio_thread(audio_thread_func, &(getController()), &audio);
+  std::thread visualization_thread(visualization_thread_func, &(getController()), audio.getFrequency(), audio.getFrameCount());
 
   startUI(audio, launchpad_io);
 
   getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::TERMINATE));
+  getController().getVisualizationQueue().push(make_unique<AudioBlockEvent>(SampleData(), SampleData()));
 
   audio_thread.join();
+  visualization_thread.join();
 }
 
 void

@@ -53,6 +53,11 @@ class Controller {
   EventQueue & getUIEventQueue() { return ui_event_queue; }
   EventQueue & getPlaybackEventQueue() { return playback_event_queue; }
 
+  // Audio thread -> VisualizationThread only (see VisualizationThread.h) -
+  // carries raw AudioBlockEvents, never anything UI-facing; results come
+  // back the other way via ui_event_queue (VisualizationResultEvent).
+  EventQueue & getVisualizationQueue() { return visualization_queue; }
+
   void setPlaybackInfo(const PlaybackInfo & info) { playback_info = info; }
   const PlaybackInfo & getPlaybackInfo() const { return playback_info; }
 
@@ -129,7 +134,7 @@ class Controller {
   std::string current_song_filename = "song.xml";
   std::shared_ptr<SampleData> current_sample;
   InstrumentProvider instrument_provider;
-  EventQueue ui_event_queue, playback_event_queue;
+  EventQueue ui_event_queue, playback_event_queue, visualization_queue;
   PlaybackInfo playback_info;
   int recording_track_id = 0;
   std::function<bool(std::string_view)> command_fallback_;
