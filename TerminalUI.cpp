@@ -1047,6 +1047,16 @@ bool
 TerminalUI::readInput() {
   ncinput ni;
   while (nc->get(false, &ni) > 0) {
+    // Legacy terminals only ever report NCTYPE_UNKNOWN (no press/release
+    // distinction); the Kitty keyboard protocol (kitty, foot, wezterm,
+    // ghostty, ...) reports real NCTYPE_PRESS/NCTYPE_REPEAT/NCTYPE_RELEASE
+    // events for the same physical keystroke. Without this check, every
+    // keystroke on a Kitty-protocol terminal fired its action twice - once
+    // on press, once again on release (a real, confirmed bug) - since
+    // nothing here ever distinguished them. NCTYPE_REPEAT (a held key's
+    // auto-repeat) is still treated as actionable, same as a fresh press.
+    if (ni.evtype == NCTYPE_RELEASE) continue;
+
     bool alt = ni.modifiers & NCKEY_MOD_ALT;
     bool shift = ni.modifiers & NCKEY_MOD_SHIFT;
     bool ctrl = ni.modifiers & NCKEY_MOD_CTRL;
