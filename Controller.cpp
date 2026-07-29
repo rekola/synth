@@ -697,3 +697,19 @@ Controller::setTrackAzimuth(int track_id, float value) {
   // different scale/unit since this is degrees, not a 0-1 fraction.
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_AZIMUTH, track_id, static_cast<int>(value * 10.0f + (value >= 0.0f ? 0.5f : -0.5f))));
 }
+
+void
+Controller::addNoteColumn(int track_id) {
+  auto instrument_track = asInstrumentTrack(current_song->getTrackByInternalId(track_id));
+  if (!instrument_track) return;
+  instrument_track->setMinNoteColumns(instrument_track->getMinNoteColumns() + 1);
+  current_song->incVersion();
+}
+
+void
+Controller::removeNoteColumn(int track_id) {
+  auto instrument_track = asInstrumentTrack(current_song->getTrackByInternalId(track_id));
+  if (!instrument_track) return;
+  instrument_track->setMinNoteColumns(instrument_track->getMinNoteColumns() - 1);
+  current_song->incVersion();
+}

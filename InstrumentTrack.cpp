@@ -26,6 +26,7 @@ InstrumentTrack::loadParameters(const ParameterSource & input) {
   sends_.a = input.getFloat("sendA", 0.0f);
   sends_.b = input.getFloat("sendB", 0.0f);
   sends_.main = input.getFloat("sendMain", 1.0f);
+  setMinNoteColumns(input.getInt("noteColumns", 1));
 }
 
 void
@@ -43,4 +44,5 @@ InstrumentTrack::storeParameters(ParameterSource & output) const {
   if (sends_.a > 0.0f) output.set("sendA", sends_.a);
   if (sends_.b > 0.0f) output.set("sendB", sends_.b);
   output.set("sendMain", sends_.main, 1.0f);
+  if (min_note_columns_ != 1) output.set("noteColumns", min_note_columns_);
 }

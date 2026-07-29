@@ -102,6 +102,17 @@ class Controller {
   void setTrackSendMain(int track_id, float value);
   void setTrackAzimuth(int track_id, float value);
 
+  // Note columns (chord/polyphony width, VisibleTrackInfo::num_subtracks_)
+  // are otherwise purely derived from actual note data (see Pattern::
+  // getTrackInformation()) - these two adjust InstrumentTrack's own
+  // minNoteColumns floor that derivation also takes the max against, a
+  // Renoise-style manual override so an empty column can be added ahead of
+  // typing into it. No PlaybackControlEvent (unlike the setters above):
+  // this only affects display/editing, never audio - the running SongState
+  // never reads it.
+  void addNoteColumn(int track_id);
+  void removeNoteColumn(int track_id);
+
   // Emacs prefix-argument style: transient, one-shot context a caller (the
   // Launchpad command-dispatch path, UI::handleLaunchpadButtonEvent) sets
   // right before invoking a named command by string (executeCommand()),

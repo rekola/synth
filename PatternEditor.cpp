@@ -241,6 +241,25 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     getController().toggleTrackSolo(track_id);
   });
 
+  // Renoise-style manual note-column add/remove (see Controller::
+  // addNoteColumn/removeNoteColumn and InstrumentTrack::getMinNoteColumns) -
+  // todo.txt's own long-standing "add shortcut for add note column" idea.
+  commands_.define("add-note-column", [this]() {
+    auto & song = getController().getSong();
+    auto track_ids = song.getRootTrackIds();
+    if (track_ids.empty()) return;
+    auto track_id = getController().consumePendingCommandTrack(track_ids[current_cursor.track]);
+    getController().addNoteColumn(track_id);
+  });
+
+  commands_.define("remove-note-column", [this]() {
+    auto & song = getController().getSong();
+    auto track_ids = song.getRootTrackIds();
+    if (track_ids.empty()) return;
+    auto track_id = getController().consumePendingCommandTrack(track_ids[current_cursor.track]);
+    getController().removeNoteColumn(track_id);
+  });
+
   // "send-a-mode"/"send-b-mode" are NOT defined here (or anywhere in
   // commands_) - they mutate nothing outside a single Launchpad device's
   // own transient UI state (which grid mode it's showing), never Song/
@@ -258,9 +277,11 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   keymap_.bind(KeyChord::pack(NCKEY_UP, true, false, true, false), "transpose-region-up");    // Ctrl+Shift+Up
   keymap_.bind(KeyChord::pack(NCKEY_DOWN, true, false, true, false), "transpose-region-down"); // Ctrl+Shift+Down
   keymap_.bind(KeyChord::pack('\\', true, false, false, false), "toggle-solo");  // Ctrl-\ (was Ctrl-only inline handling)
-  keymap_.bind(KeyChord::pack('\\', false, false, false, false), "toggle-mute"); // \
+  keymap_.bind(KeyChord::pack('\\', false, false, false, false), "toggle-mute"); // backslash key
   keymap_.bind(KeyChord::pack(NCKEY_UP, false, false, false, false), "move-row-up");     // plain Up (was inline handling)
   keymap_.bind(KeyChord::pack(NCKEY_DOWN, false, false, false, false), "move-row-down"); // plain Down
+  keymap_.bind(KeyChord::pack(NCKEY_RIGHT, true, false, true, false), "add-note-column");   // Ctrl+Shift+Right
+  keymap_.bind(KeyChord::pack(NCKEY_LEFT, true, false, true, false), "remove-note-column"); // Ctrl+Shift+Left
 
   assertCommandBindingsValid();
 }
@@ -274,6 +295,11 @@ static void fill_track_info(const Track & track, std::unordered_map<int, Visible
     info.num_velocity_columns_ = instrument_track.showVelocityColumn() ? 1 : 0;
     info.has_delay_column_ = instrument_track.showDelayColumn();
     info.has_effect_column_ = instrument_track.showEffectsColumn();
+    // Renoise-style manually-added note columns (see Controller::addNoteColumn) -
+    // a floor updateNumSubtracks's usual max-of-actual-note-data below is
+    // still taken against, so a column with real note data in it can never
+    // be hidden by this, only extended past it.
+    info.updateNumSubtracks(instrument_track.getMinNoteColumns());
   } else {
     for (auto & child : track.getChildren()) {
       fill_track_info(*child, track_info);
@@ -289,16 +315,16 @@ static void get_track_parents(Track & track, Track * parent, std::unordered_map<
 }
 
 std::unordered_map<int, VisibleTrackInfo>
-PatternEditor::getTrackInformation(const Song & song) const {
+PatternEditor::getTrackInformation(const Song & song, int scroll_row) const {
   auto [rows, cols] = getDim();
   auto heading_height = song.getTrackDepth() + 1;
   auto & info = getController().getPlaybackInfo();
 
   std::unordered_map<int, VisibleTrackInfo> track_info;
   for (auto row = 0; row < rows - heading_height; ) {
-    auto [ pattern_idx, pattern_row ] = song.normalizePosition(info.getPatternIndex(), row + current_scroll_row);
+    auto [ pattern_idx, pattern_row ] = song.normalizePosition(info.getPatternIndex(), row + scroll_row);
     if (pattern_idx >= song.getPatterns().size()) break;
-    
+
     auto & pattern = song.getPattern(pattern_idx);
     pattern.getTrackInformation(track_info);
     row += pattern.getNumRows() - pattern_row;
@@ -312,7 +338,7 @@ PatternEditor::getTrackInformation(const Song & song) const {
 
 VisibleTrackInfo
 PatternEditor::getTrackInfoFor(const Song & song, int track_id) const {
-  auto all_track_info = getTrackInformation(song);
+  auto all_track_info = getTrackInformation(song, current_scroll_row);
   auto it = all_track_info.find(track_id);
   return it != all_track_info.end() ? it->second : VisibleTrackInfo();
 }
@@ -367,12 +393,28 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
     selection_active_ = false;
     getController().getUIEventQueue().push(make_unique<LogEvent>("Selection cleared: crossed pattern boundary"));
   }
-  
-  auto track_info = getTrackInformation(song);
 
   auto [rows, cols] = getDim();
   auto heading_height = song.getTrackDepth() + 1;
-  
+
+  // Computed before getTrackInformation() below, not after (as this used
+  // to be ordered) - a real, confirmed bug: getTrackInformation() only
+  // scans whatever's within the *current* scroll window (deliberately -
+  // see its own doc comment), so if this frame is the one where playback
+  // crosses a pattern boundary and the scroll window needs to jump to
+  // follow it, computing track_info against the stale pre-jump window
+  // could miss a note just written into the row that's about to scroll
+  // into view (e.g. a Launchpad chord landing exactly on that transition),
+  // silently failing to grow that track's note-column width this frame.
+  auto new_scroll_row = current_scroll_row;
+  if (score_playing_row < new_scroll_row) {
+    new_scroll_row = score_playing_row;
+  } else if (score_playing_row >= new_scroll_row + rows - heading_height) {
+    new_scroll_row = score_playing_row - (rows - heading_height) + 1;
+  }
+
+  auto track_info = getTrackInformation(song, new_scroll_row);
+
   auto track_ids = song.getRootTrackIds();
 
   if (launchpad_manager_) {
@@ -382,13 +424,6 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
 
   auto score_total_columns = 0;
   for (auto wd : track_info) score_total_columns += wd.second.getColumnCount();
-
-  auto new_scroll_row = current_scroll_row;
-  if (score_playing_row < new_scroll_row) {
-    new_scroll_row = score_playing_row;
-  } else if (score_playing_row >= new_scroll_row + rows - heading_height) {
-    new_scroll_row = score_playing_row - (rows - heading_height) + 1;
-  }
 
   auto new_scroll_track = current_scroll_track;
   if (new_cursor.track < new_scroll_track) {
@@ -746,7 +781,7 @@ PatternEditor::offerInput(const InputEvent & input) {
   auto & song = getController().getSong();
   auto & info = getController().getPlaybackInfo();
 
-  auto all_track_info = getTrackInformation(song);
+  auto all_track_info = getTrackInformation(song, current_scroll_row);
 
   auto track_ids = song.getRootTrackIds();
   auto num_tracks = static_cast<int>(track_ids.size());

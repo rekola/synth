@@ -38,6 +38,15 @@ class InstrumentTrack : public Track {
   bool showEffectsColumn() const { return show_effects_column_; }
   bool showDelayColumn() const { return show_delay_column_; }
 
+  // A floor VisibleTrackInfo::num_subtracks_ (chord/polyphony note-column
+  // width, derived elsewhere from actual note data - see Pattern::
+  // getTrackInformation()) is taken the max against, so a Renoise-style
+  // "add note column" command can make an empty column appear ahead of
+  // typing into it. Never below 1 - that's what showNoteColumn()=false is
+  // for (a different concept: hiding note columns entirely).
+  int getMinNoteColumns() const { return min_note_columns_; }
+  void setMinNoteColumns(int n) { min_note_columns_ = n < 1 ? 1 : n; }
+
   bool isSolo() const { return solo_; }
   void setSolo(bool s) { solo_ = s; }
 
@@ -62,6 +71,8 @@ private:
   bool show_velocity_column_ = true;
   bool show_delay_column_ = true;
   bool show_effects_column_ = true;
+
+  int min_note_columns_ = 1;
 };
 
 #endif

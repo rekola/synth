@@ -155,14 +155,23 @@ UI::offerInput(const InputEvent & input) {
     refresh();
   } else if (input.getId() == NCKEY_BUTTON1) {
     active_element_.reset();
-    
-    tryActivate(input.getY(), input.getX(), status_line_) ||
-      tryActivate(input.getY(), input.getX(), pattern_editor_) ||
-      false;
+
+    bool activated = tryActivate(input.getY(), input.getX(), status_line_) ||
+      tryActivate(input.getY(), input.getX(), pattern_editor_);
 
     for (auto & window : windows_) {
-      tryActivate(input.getY(), input.getX(), window);
+      activated = tryActivate(input.getY(), input.getX(), window) || activated;
     }
+
+    // Fall back to the pattern editor - the default/main workspace - if the
+    // click landed somewhere no widget claims (e.g. the FFT/heatmap/loudness
+    // scope strip, or the dividers between them). Without this, active_element_
+    // was left permanently empty (a real, confirmed bug): every subsequent
+    // keyboard command routed through it (UI::offerInput()'s active_element_
+    // fallback below, and Launchpad button commands via UI::executeCommand())
+    // silently no-op'd - including plain Up/Down arrow - until the user
+    // happened to click directly back on the pattern editor.
+    if (!activated) active_element_ = pattern_editor_;
   }
 
   if (!handled) {
@@ -174,7 +183,7 @@ UI::offerInput(const InputEvent & input) {
   }
 
   if (!handled) {
-    if (auto el = active_element_.lock()) { 
+    if (auto el = active_element_.lock()) {
       handled |= el->offerInput(input);
     }
   }

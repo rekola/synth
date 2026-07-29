@@ -58,7 +58,11 @@ protected:
   };
   SelectionBounds getEffectiveSelectionBounds(const Song & song, const std::vector<int> & track_ids) const;
 
-  std::unordered_map<int, VisibleTrackInfo> getTrackInformation(const Song & song) const;
+  // scroll_row is a separate parameter (not always current_scroll_row, the
+  // member) because render() below needs to call this with the *new*
+  // scroll position it just computed for this same frame, before that
+  // becomes current_scroll_row - see render()'s own comment on why.
+  std::unordered_map<int, VisibleTrackInfo> getTrackInformation(const Song & song, int scroll_row) const;
   VisibleTrackInfo getTrackInfoFor(const Song & song, int track_id) const;
   void renderHeading(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info);
   void renderRow(const StyleProvider & styles, int heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, int row, bool highlight, const SelectionBounds & sel_bounds);

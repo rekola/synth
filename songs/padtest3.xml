@@ -35,11 +35,9 @@
   </instruments>
   
   <tracks>
-    <reverb preset="stadium">
-      <track id="melody" instrument="0" />
-      <track id="chords" instrument="0" />
-      <track id="pad" instrument="1" />
-    </reverb>
+    <track id="melody" instrument="0" sendA="0.3" sendB="0.1" azimuth="-30" distance="1" elevation="0" />
+    <track id="chords" instrument="0" sendA="0.3" sendB="0.1" azimuth="30" distance="1" elevation="0" />
+    <track id="pad" instrument="1" sendA="0.3" sendB="0.1" azimuth="60" distance="1" elevation="0" />
   </tracks>
   
   <patterns>
