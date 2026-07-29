@@ -294,10 +294,26 @@ UI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
       if (frame_max > dirac_running_max_) dirac_running_max_ = frame_max;
       else dirac_running_max_ += (frame_max - dirac_running_max_) * 0.0173f;
 
+      // log1p applied to the *ratio* to dirac_running_max_ (not to the raw
+      // absolute displayed[i]/dirac_running_max_ values themselves) - taking
+      // log1p of an un-normalized absolute magnitude made the compression
+      // severity (and so the perceived fade time of a decaying cell) scale
+      // with how loud the audio was: log1pf(displayed)/log1pf(max) only
+      // approaches 0 once displayed drops below O(1) in absolute terms, so a
+      // louder passage (larger running_max, in arbitrary energy units) left
+      // a decayed cell sitting at a substantial fraction of full brightness
+      // long after its energy had genuinely fallen away - e.g. at 1% of
+      // peak it could still read ~35% bright. Normalizing to a ratio first
+      // ties the curve to *relative* loudness instead, so "decayed to 1% of
+      // peak" always maps to roughly the same low brightness regardless of
+      // the absolute scale - kRatioCompression trades off shadow detail
+      // against how quickly a decaying cell now visibly reads as "gone".
+      constexpr float kRatioCompression = 16.0f;
+      float log_max = log1pf(kRatioCompression);
       std::vector<float> brightness(DiracAnalyzer::kGridSize), saturation(DiracAnalyzer::kGridSize);
-      float log_max = dirac_running_max_ > 0.0f ? log1pf(dirac_running_max_) : 0.0f;
       for (size_t i = 0; i < DiracAnalyzer::kGridSize; i++) {
-        brightness[i] = log_max > 0.0f ? log1pf(displayed[i]) / log_max : 0.0f;
+        float ratio = dirac_running_max_ > 0.0f ? displayed[i] / dirac_running_max_ : 0.0f;
+        brightness[i] = log1pf(kRatioCompression * ratio) / log_max;
         if (brightness[i] > 1.0f) brightness[i] = 1.0f;
         saturation[i] = displayed[i] > 1e-12f ? grid[i] / displayed[i] : 0.0f;
       }
