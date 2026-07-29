@@ -3,9 +3,12 @@
 #include "LaunchpadIO.h"
 #include "LaunchpadLayout.h"
 #include "LaunchpadProtocol.h"
+#include "LaunchpadPadEvent.h"
 #include "PlaybackInfo.h"
+#include "PlaybackControlEvent.h"
 #include "Song.h"
 #include "InstrumentTrack.h"
+#include "Controller.h"
 
 #include <algorithm>
 #include <chrono>
@@ -465,6 +468,174 @@ LaunchpadManager::resolveNote(const Song & song, int device_id, int track_id, in
   // comfortably useful on the Launchpad specifically).
   auto base_note = tonic + (octave(device_id) + 1) * edo_steps;
   return LaunchpadLayout::noteForPad(basis, x - GRID_ORIGIN_X, y - GRID_ORIGIN_Y, base_note);
+}
+
+void
+LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller, int fallback_track_index, int edit_step_size) {
+  auto & song = controller.getSong();
+  auto & info = controller.getPlaybackInfo();
+
+  auto track_ids = song.getRootTrackIds();
+
+  auto device_id = ev.getDeviceIndex();
+
+  // Send A/Send B/Send Main/Pan mode: the whole grid means something else
+  // entirely while active (see LaunchpadManager::GridMode) - column x is
+  // track_ids[x] (the first 8 root tracks, not this device's assigned
+  // track), row y sets that track's send level or azimuth. Only a PRESS
+  // does anything; RELEASE/AFTERTOUCH are swallowed too, never falling
+  // through to note-entry below.
+  auto grid_mode = gridMode(device_id);
+  if (grid_mode != GridMode::NOTES) {
+    if (ev.getKind() == LaunchpadPadEvent::PRESS && ev.getX() < 8) {
+      // The first 8 columns must always be usable, even in a song that
+      // doesn't have that many tracks yet - a Launchpad's physical layout
+      // doesn't know or care how many tracks currently exist, so auto-create
+      // plain InstrumentTracks (the same default 't' key/add-track uses) up
+      // to the pressed column rather than silently doing nothing.
+      while (static_cast<int>(track_ids.size()) <= ev.getX()) {
+        song.addTrack(make_unique<InstrumentTrack>(0));
+        track_ids = song.getRootTrackIds();
+      }
+      auto track = song.getTrackByInternalId(track_ids[static_cast<size_t>(ev.getX())]);
+      if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL)) {
+        auto track_id = track->getInternalId();
+        if (grid_mode == GridMode::SEND_A) {
+          controller.setTrackSendA(track_id, static_cast<float>(ev.getY()) / 7.0f);
+        } else if (grid_mode == GridMode::SEND_B) {
+          controller.setTrackSendB(track_id, static_cast<float>(ev.getY()) / 7.0f);
+        } else if (grid_mode == GridMode::SEND_MAIN) {
+          controller.setTrackSendMain(track_id, static_cast<float>(ev.getY()) / 7.0f);
+        } else { // PAN
+          controller.setTrackAzimuth(track_id, rowToAzimuth(ev.getY()));
+        }
+      }
+    }
+    return;
+  }
+
+  // Mirrors the Send/Pan-mode auto-create above: a device's assigned track
+  // (or the fallback) may point past however many tracks currently exist -
+  // a brand-new/emptied song, or a device that was assigned to a track
+  // index since deleted - so grow the song up to that index rather than
+  // silently clamping back to the fallback track (which, for an empty
+  // song, wouldn't exist either).
+  auto track_index = assignedTrackIndex(device_id, fallback_track_index);
+  if (track_index < 0) track_index = fallback_track_index;
+  while (static_cast<int>(track_ids.size()) <= track_index) {
+    song.addTrack(make_unique<InstrumentTrack>(0));
+    track_ids = song.getRootTrackIds();
+  }
+  int track_id = track_ids[static_cast<size_t>(track_index)];
+
+  auto note_value = resolveNote(song, device_id, track_id, ev.getX(), ev.getY());
+  if (note_value < 0) return; // unused percussion pad (row 7), or an unpitched/degenerate tuning
+
+  auto & pattern = song.getPattern(info.getPatternIndex());
+  auto current_delay = info.getCurrentDelay();
+  auto & event_queue = controller.getPlaybackEventQueue();
+
+  if (ev.getKind() == LaunchpadPadEvent::PRESS) {
+    auto row = info.getRowIndex();
+
+    // Free-slot search (mirrors Pattern::pushNote), deliberately not
+    // "map size" the way active_midi_notes assigns columns - that has a
+    // latent collision bug on non-LIFO release order, which is the common
+    // case for a chordally-played grid controller (see the plan's design
+    // decision 3).
+    auto & notes = pattern.getNotes(row, track_id);
+    int note_column = static_cast<int>(notes.size());
+    for (int i = 0; i < static_cast<int>(notes.size()); i++) {
+      if (!notes[i].isDefined()) {
+	note_column = i;
+	break;
+      }
+    }
+    recordActiveNote(device_id, ev.getX(), ev.getY(), {note_column, row, track_id});
+
+    auto velocity = LaunchpadProtocol::getModelInfo(ev.getModel()).velocity_sensitive ?
+      static_cast<short>(ev.getVelocity()) : static_cast<short>(0x28); // same default as keyboard entry
+
+    Note note(note_value, velocity, current_delay);
+    pattern.setNote(row, track_id, note_column, note);
+    song.incVersion();
+
+    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, track_id, note_column, note_value, velocity));
+
+    // Deliberately NOT auto-advancing here (unlike single-note keyboard
+    // entry): a chord is multiple near-simultaneous presses that must all
+    // land on the *same* row - advancing per-press would spread a chord
+    // across rows the moment any two presses straddle the (asynchronous)
+    // MOVE_POSITION round-trip. Advance is deferred to RELEASE, once every
+    // currently-held pad has been let go (see below) - matching how
+    // Renoise's own "chord mode" treats simultaneously-pressed MIDI notes
+    // as one gesture, not N independent steps.
+  } else if (ev.getKind() == LaunchpadPadEvent::RELEASE) {
+    auto held_ptr = findActiveNote(device_id, ev.getX(), ev.getY());
+    if (!held_ptr) return;
+    auto held = *held_ptr;
+    clearActiveNote(device_id, ev.getX(), ev.getY());
+
+    // Always silence the live-audition voice.
+    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, held.track_id, held.note_column));
+
+    if (info.isPlaying()) {
+      // Live performance recording: write an explicit OFF at the row the
+      // transport has since reached, mirroring handleMidiEvent's NOTE_OFF -
+      // UNLESS that's still the same row the note itself is on. Per
+      // Renoise's own pattern model (a single line can't hold both a note
+      // and its own note-off), a release fast enough to land before the
+      // row has advanced must not be recorded as an off, or it would
+      // instantly erase the note it belongs to.
+      auto release_row = info.getRowIndex();
+      if (release_row != held.row) {
+	pattern.setNote(release_row, held.track_id, held.note_column, Note(0, 0, current_delay));
+	song.incVersion();
+      }
+    } else if (!hasAnyActiveNotes(device_id)) {
+      // Step entry: advance once the whole chord gesture has been
+      // released on *this* device (not per pad - see the PRESS branch;
+      // and scoped to this device, not every connected Launchpad, so one
+      // device's chord release doesn't prematurely advance while another
+      // device is still mid-chord), so the next tap/chord lands on a
+      // fresh row instead of piling onto this one.
+      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, edit_step_size));
+    }
+  } else if (ev.getKind() == LaunchpadPadEvent::AFTERTOUCH) {
+    // Mini MK3 never emits this (no pressure sensing); defensive check
+    // anyway in case a future model reports itself incorrectly.
+    if (!LaunchpadProtocol::getModelInfo(ev.getModel()).poly_aftertouch) return;
+
+    auto held_ptr = findActiveNote(device_id, ev.getX(), ev.getY());
+    if (!held_ptr) return; // no held note to modulate
+    auto & held = *held_ptr;
+
+    // Live modulation always happens, regardless of the write-throttle
+    // below - mirrors handleMidiEvent's NOTE_PRESSURE handling exactly.
+    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, held.track_id, held.note_column, note_value, ev.getVelocity()));
+
+    // Rate-limit the persisted pattern write: Pattern::setNote already
+    // overwrites in place (so "one aftertouch object per column per row" is
+    // free), this threshold purely avoids redundant work/redraw churn for
+    // a dense pressure stream, not a correctness requirement.
+    const int aftertouch_threshold = 4;
+    auto delta = ev.getVelocity() - held.last_aftertouch_value;
+    if (delta < 0) delta = -delta;
+    if (delta < aftertouch_threshold) return;
+    held.last_aftertouch_value = ev.getVelocity();
+
+    // While playing, modulate the currently-sounding row (transport has
+    // moved on, matching handleMidiEvent); while stopped, modulate the
+    // row the note actually landed on (step entry already advanced past
+    // it - see the RELEASE branch above for why using the live row would
+    // be wrong here too).
+    auto target_row = info.isPlaying() ? info.getRowIndex() : held.row;
+    auto note = pattern.getNote(target_row, held.track_id, held.note_column);
+    if (!note.isDefined()) note.setDelay(current_delay);
+    note.setVelocity(static_cast<short>(ev.getVelocity()));
+    pattern.setNote(target_row, held.track_id, held.note_column, note);
+    song.incVersion();
+  }
 }
 
 void

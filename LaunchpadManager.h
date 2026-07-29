@@ -15,17 +15,22 @@
 class LaunchpadIO;
 class Song;
 class PlaybackInfo;
+class Controller;
+class LaunchpadPadEvent;
 
 // Owns everything about how connected Launchpads relate to the song being
 // edited: per-device track assignment and octave, the isomorphic/
 // percussion layout math needed to map a pad to a note and to an LED
-// color (via LaunchpadLayout), and the active-note/redraw-row bookkeeping
-// for chord-safe note entry. PatternEditor still performs the actual
-// pattern edit (Song/Cursor/Pattern access stays its job) - this class
-// owns Launchpad *layout*, keyed per physical device, not pattern
-// editing. Musiceditor-only (depends on LaunchpadIO), like LaunchpadIO
-// itself - the pure math it delegates to (LaunchpadLayout) stays in
-// synth_engine and is unit-tested there.
+// color (via LaunchpadLayout), the active-note/redraw-row bookkeeping for
+// chord-safe note entry, and (handlePadEvent()) the actual pattern edit
+// itself. Deliberately self-sufficient - it only needs a Controller
+// reference (never a PatternEditor/UI), so Launchpad note entry keeps
+// working the same way whether or not any particular UI (or any UI at
+// all - a headless setup) happens to exist; a caller with its own cursor/
+// edit-step-size UI state (see UI::handleLaunchpadPadEvent) just passes
+// those in as plain values. Musiceditor-only (depends on LaunchpadIO),
+// like LaunchpadIO itself - the pure math it delegates to
+// (LaunchpadLayout) stays in synth_engine and is unit-tested there.
 class LaunchpadManager {
  public:
   void setLaunchpadIO(LaunchpadIO * io) { launchpad_io_ = io; }
@@ -40,14 +45,6 @@ class LaunchpadManager {
   void recordActiveNote(int device_id, int x, int y, ActiveNote note);
   void clearActiveNote(int device_id, int x, int y);
   bool hasAnyActiveNotes(int device_id) const;
-
-  // Pattern row a Launchpad aftertouch/press write landed on when it isn't
-  // the current playback row - see PatternEditor::render()'s incremental
-  // redraw. A single shared value (not per-device): it names a row in the
-  // shared pattern grid, not a per-device concept.
-  int extraRedrawRow() const { return extra_redraw_row_; }
-  void setExtraRedrawRow(int row) { extra_redraw_row_ = row; }
-  void clearExtraRedrawRow() { extra_redraw_row_ = -1; }
 
   int octave(int device_id) const;
   void octaveUp(int device_id);
@@ -125,9 +122,9 @@ class LaunchpadManager {
 
   // The Pan row<->azimuth mapping (8 compass points, 45 degrees apart,
   // around the full circle - row 4 is dead-center/0 degrees front) - a
-  // static, stateless pair so both the LED bargraph (refreshLeds) and a
-  // pad-press handler (PatternEditor::handleLaunchpadPadEvent) use the
-  // exact same convention rather than two independently-declared copies.
+  // static, stateless pair so both the LED bargraph (refreshLeds) and the
+  // pad-press handler (handlePadEvent) use the exact same convention
+  // rather than two independently-declared copies.
   static int azimuthToRow(float azimuth);
   static float rowToAzimuth(int row);
 
@@ -175,6 +172,20 @@ class LaunchpadManager {
   // -1 for an inactive percussion pad (row 7) or a degenerate/unpitched
   // tuning - callers should treat that as "ignore this press".
   int resolveNote(const Song & song, int device_id, int track_id, int x, int y) const;
+
+  // The actual pattern-editing entry point for Launchpad pad (note) input -
+  // handles both grid-mode-as-fader (Send A/B/Main/Pan, mutating tracks via
+  // Controller's existing setters) and normal NOTES-mode chord-safe note
+  // entry (auto-creating tracks as needed, writing into the pattern,
+  // pushing PLAY_NOTE/STOP_NOTE/NOTE_PRESSURE/MOVE_POSITION playback
+  // events). Only needs Controller (Song/PlaybackInfo/event queue) - no UI
+  // of any kind - which is what lets Launchpad note entry work whether or
+  // not a PatternEditor (or any UI at all) exists. fallback_track_index
+  // and edit_step_size are supplied by the caller rather than read from
+  // any UI cursor state (see UI::handleLaunchpadPadEvent, which passes
+  // PatternEditor's own getCursorTrackIndex()/getEditStepSize() when a UI
+  // happens to be present).
+  void handlePadEvent(LaunchpadPadEvent & ev, Controller & controller, int fallback_track_index, int edit_step_size);
 
   // Called once per render() frame: recomputes each ready device's LED
   // colors (base Fokker/percussion palette plus a brightness overlay for
@@ -259,7 +270,6 @@ class LaunchpadManager {
 
   LaunchpadIO * launchpad_io_ = nullptr;
   std::map<int, DeviceState> devices_;
-  int extra_redraw_row_ = -1;
 };
 
 #endif

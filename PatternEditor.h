@@ -13,7 +13,6 @@ class InputEvent;
 class StyleProvider;
 class Song;
 class VisibleTrackInfo;
-class LaunchpadManager;
 
 class PatternEditor : public UIElement {
  public:
@@ -22,23 +21,16 @@ class PatternEditor : public UIElement {
   bool render(const StyleProvider & styles, bool refresh = false);
   bool offerInput(const InputEvent & input) override;
   void handleMidiEvent(MidiEvent & ev) override;
-  void handleLaunchpadPadEvent(LaunchpadPadEvent & ev) override;
 
-  // Set once at startup (see UI::start) so render() can push LED updates
-  // and handleLaunchpadPadEvent can resolve notes via the layout/per-device
-  // state LaunchpadManager owns. Button *commands* are not handled here at
-  // all - see UI::handleLaunchpadButtonEvent and LaunchpadManager::
-  // handleCommand: PatternEditor only ever touches Launchpad concepts for
-  // actual pattern editing (resolving/recording notes from pad presses).
-  void setLaunchpadManager(LaunchpadManager * manager) { launchpad_manager_ = manager; }
-
-  // Plain, source-agnostic cursor accessors - PatternEditor has no idea
-  // these happen to be used to keep a Launchpad device's own track
-  // selection in sync with what's on screen (see UI::
-  // handleLaunchpadButtonEvent); it just exposes "the current track" the
-  // same way it always has, and lets it be moved.
+  // Plain, source-agnostic cursor/step accessors - PatternEditor has no
+  // idea these happen to be used to feed a Launchpad device's own track
+  // selection and step-entry advance (see UI::handleLaunchpadButtonEvent
+  // and UI::handleLaunchpadPadEvent); it just exposes its own current
+  // cursor/step state the same way it always has, and lets the track be
+  // moved.
   int getCursorTrackIndex() const { return current_cursor.track; }
   void setCursorTrack(int track_index) { new_cursor.track = track_index; new_cursor.col = new_cursor.subcol = 0; }
+  int getEditStepSize() const { return edit_step_size; }
 
 protected:
   // Resolved row/track/note-column bounds for a selection-consuming command
@@ -102,8 +94,6 @@ protected:
   PatternBlock clipboard_;
   bool clipboard_column_scoped_ = false;
   bool clipboard_includes_command_ = false;
-
-  LaunchpadManager * launchpad_manager_ = nullptr;
 };
 
 #endif

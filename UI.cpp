@@ -117,6 +117,14 @@ UI::renderComponents(bool refresh) {
   }
 #endif
   render |= info_line_->render(styles_, refresh);
+
+  if (launchpad_manager_) {
+    auto & song = getController().getSong();
+    auto track_ids = song.getRootTrackIds();
+    launchpad_manager_->refresh(song, track_ids, getController().getPlaybackInfo(),
+      track_ids.empty() ? -1 : pattern_editor_->getCursorTrackIndex());
+  }
+
   return render;
 }
 
@@ -340,7 +348,9 @@ UI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
     }
     return;
   }
-  pattern_editor_->handleLaunchpadPadEvent(ev);
+  if (!launchpad_manager_) return;
+  launchpad_manager_->handlePadEvent(ev, getController(),
+    pattern_editor_->getCursorTrackIndex(), pattern_editor_->getEditStepSize());
 }
 
 void
@@ -420,7 +430,6 @@ void visualization_thread_func(Controller * controller, int sample_rate, int fra
 void
 UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launchpad_manager) {
   launchpad_manager.setLaunchpadIO(&launchpad_io);
-  pattern_editor_->setLaunchpadManager(&launchpad_manager);
   launchpad_manager_ = &launchpad_manager;
 
   std::thread audio_thread(audio_thread_func, &(getController()), &audio);
