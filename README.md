@@ -25,25 +25,40 @@ A connected Novation Launchpad (Mini MK3 / X / Pro MK3) becomes an
 isomorphic note-entry grid, its layout generalizing the 12edo Wicki-Hayden
 keyboard to any EDO via a best-fifth generator (`LaunchpadLayout.h`).
 
-LED coloring follows the notational convention of Adriaan Fokker's 31-EDO
-organ (built 1950 for Teylers Museum, Haarlem) and the later Archiphone:
-each pad is colored by how it relates to the song's diatonic scale, not
-just whether it's "in" or "out" of it - 31-EDO in particular splits its
-chromatic notes into two musically distinct kinds (a full chromatic step
-vs. a quarter-tone-ish shading) that a simple black/white keyboard has no
-way to distinguish.
+LED coloring originally followed the notational convention of Adriaan
+Fokker's 31-EDO organ (built 1950 for Teylers Museum, Haarlem) and the
+later Archiphone: each pad was colored by its *distance from the song's
+diatonic scale* (tonic / diatonic degree / sharp / flat / diesis /
+accidental), generalizing the idea that 31-EDO's chromatic notes split
+into two musically distinct kinds (a full chromatic step vs. a
+quarter-tone-ish shading) that a simple black/white keyboard can't
+distinguish.
 
-- **Tonic** - bright green
-- **Diatonic degree** (the other 6 scale notes) - bright white
-- **Sharp** (a full chromatic step above a scale degree) - dim red
-- **Flat** (a full chromatic step below a scale degree) - dim amber
-- **Diesis** (a quarter-tone-ish note between scale degrees - 31-EDO's
-  characteristic microtonal color) - medium blue
-- **Accidental** (ambiguously sharp-or-flat, e.g. a 12edo black key) -
-  dim magenta
+That scheme was replaced with a different organizing principle: coloring
+by *consonance* rather than by scale-degree distance. Standard microtonal
+note names (sharps, flats, double-flats, ...) are built from a fixed,
+12-tone-shaped chain of fifths, which stops matching musical intuition
+well once an EDO is fine enough that the interesting structure is no
+longer "how many fifths from the tonic" but "how consonant is this
+interval, period." The new scheme instead recursively factors the octave
+the way classical interval theory does - `2/1 = 4/3 * 3/2` (the octave's
+simplest factor pair is the fourth and fifth), then `3/2 = 6/5 * 5/4` (the
+fifth's own simplest factor pair is the minor and major third), and so on
+- reusing that same factoring operation, approximated proportionally, at
+every deeper level. This reaches every pitch class (no leftover
+"everything else" bucket) within 4-6 levels for all four supported EDOs.
+
+Color encodes the resulting tree two ways: hue drifts away from a shared
+starting point by a shrinking amount at each level (so a pitch stays
+hue-close to its harmonic neighborhood, however deep the recursion goes),
+and saturation fades with depth (so more distant/complex notes read as
+more muted) - both channels survive the idle-brightness remap that only
+lightness gets overridden by; tonic keeps a fixed, deliberately dissimilar
+hue (yellow) so it always pops out.
 
 The classification is purely a function of the EDO and key (see
-`LaunchpadLayout::classifyPad`), so it applies unchanged to 12/19/31/53-EDO.
+`LaunchpadLayout::computeConsonanceLevels`), so it applies unchanged to
+12/19/31/53-EDO.
 
 # Third-party code
 

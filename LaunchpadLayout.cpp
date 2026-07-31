@@ -6,6 +6,51 @@ using namespace std;
 
 namespace LaunchpadLayout {
 
+namespace {
+  // Starting points for the hue tree - tunable, not load-bearing for pitch
+  // classification (only the LED-coloring result). TONIC and FOURTH/FIFTH
+  // are fixed, prominent pop-out hues (yellow-leaning-red, amber-leaning-
+  // red) - confirmed against real Launchpad X hardware that green LEDs
+  // read as much brighter/more prominent than blue or purple ones
+  // regardless of the saturation value sent, so both of this pair are
+  // kept away from green. The RECURSIVE-tier hue drift is confined to a
+  // separate blue/violet/magenta band (see kRecursiveBaseHue below) that
+  // never reaches anywhere near green - LaunchpadManager's
+  // consonanceColor() additionally caps how deep this drift is allowed to
+  // visibly differentiate (depth 5+ all render as one flat, deliberately
+  // unprominent color - see its own comment) since even within blue/
+  // violet, closely-spaced hues were hard to tell apart on real hardware.
+  // FOURTH and FIFTH get their own close-but-distinct hues (a small split
+  // around the same amber center, same spirit as kDepth3HueOffset below -
+  // user feedback, after first trying one shared hue: "different colors,
+  // however close").
+  constexpr float kTonicHue = 50.0f; // yellow, nudged toward red
+  constexpr float kFourthFifthCenterHue = 18.0f; // amber, nudged further toward red
+  constexpr float kFourthFifthHueOffset = 6.0f;
+  constexpr float kFourthHue = kFourthFifthCenterHue - kFourthFifthHueOffset;
+  constexpr float kFifthHue = kFourthFifthCenterHue + kFourthFifthHueOffset;
+  // Center of the RECURSIVE-tier hue drift - blue/violet, as far from the
+  // amber/yellow prominent hues as this drift's range ever reaches (see
+  // kDepth3HueOffset/kDepth4HueOffset below).
+  constexpr float kRecursiveBaseHue = 270.0f;
+  // Depths 3 and 4 are the only two RECURSIVE depths that reach the
+  // device as distinct hues (consonanceColor() flattens depth 5+ to one
+  // flat gray) - fixed, deliberately asymmetric offsets rather than a
+  // geometric decay (which was tuned for smoothly-shrinking steps across
+  // many depths). Two rounds of hardware feedback tuned these in opposite
+  // directions: major/minor at the *same* depth (e.g. E vs. Eb, both
+  // depth 3) should read as close/related, so kDepth3HueOffset is small;
+  // depth 3 vs. depth 4 within the *same* family (e.g. A vs. B, both
+  // major) should read as clearly different depths, so kDepth4HueOffset
+  // is much larger than kDepth3HueOffset, not just a smaller geometric
+  // step beyond it. kRecursiveBaseHue +/- kDepth4HueOffset is [195,345],
+  // still comfortably inside blue/violet/magenta - clear of both green
+  // (~90-160, confirmed too prominent on this hardware regardless of
+  // saturation) and the warm tonic/fourth/fifth hues (~0-70).
+  constexpr float kDepth3HueOffset = 15.0f;
+  constexpr float kDepth4HueOffset = 75.0f;
+}
+
 int edoSteps(Tuning tuning) {
   switch (tuning) {
   case Tuning::TET12: return 12;
@@ -23,6 +68,8 @@ computeBasis(int edo_steps) {
   basis.fifth = static_cast<int>(lround(edo_steps * log2(3.0 / 2.0)));
   basis.whole_tone = 2 * basis.fifth - edo_steps;
   basis.semitone = 3 * edo_steps - 5 * basis.fifth;
+  basis.major_third = static_cast<int>(lround(edo_steps * log2(5.0 / 4.0)));
+  basis.minor_third = static_cast<int>(lround(edo_steps * log2(6.0 / 5.0)));
   basis.degenerate = basis.whole_tone <= 0 || basis.semitone <= 0 || basis.whole_tone == basis.semitone;
   return basis;
 }
@@ -33,53 +80,109 @@ noteForPad(const Basis & basis, int x, int y, int base_note) {
   return base_note + x * basis.whole_tone + y * basis.semitone;
 }
 
-vector<int>
-diatonicScaleDegrees(const Basis & basis, int edo_steps) {
-  if (basis.degenerate || edo_steps <= 0) return {};
+vector<PadClassification>
+computeConsonanceLevels(const Basis & basis, int edo_steps) {
+  vector<PadClassification> result(static_cast<size_t>(edo_steps));
+  vector<bool> covered(static_cast<size_t>(edo_steps), false);
 
-  // The major/diatonic scale is the chain of fifths from one below the
-  // tonic through five above it (F-C-G-D-A-E-B for 12edo, tonic=C) - NOT
-  // six fifths stacked upward from the tonic, which gives Lydian instead
-  // (F#-C-G-D-A-E-B has F# in place of F).
-  vector<int> degrees;
-  for (int k = -1; k <= 5; k++) {
-    auto value = k * basis.fifth;
-    degrees.push_back(((value % edo_steps) + edo_steps) % edo_steps);
+  // First assignment for a pitch class wins - see the tie-breaking note in
+  // this function's header doc comment (a coarse EDO can reach the same
+  // pitch class via more than one span at the same depth).
+  auto mark = [&](int pitch, PadTier tier, float hue, int depth) {
+    auto p = ((pitch % edo_steps) + edo_steps) % edo_steps;
+    if (covered[static_cast<size_t>(p)]) return;
+    covered[static_cast<size_t>(p)] = true;
+    result[static_cast<size_t>(p)] = {tier, hue, depth};
+  };
+
+  mark(0, PadTier::TONIC, kTonicHue, 1);
+
+  // Level 2: the octave factors via the fifth, the simplest non-trivial
+  // consonance - 2/1 = 4/3 * 3/2.
+  auto P5 = basis.fifth;
+  auto P4 = edo_steps - P5;
+  mark(P4, PadTier::FOURTH, kFourthHue, 2);
+  mark(P5, PadTier::FIFTH, kFifthHue, 2);
+
+  // Level 3: every level-2 span factors the way the fifth itself does -
+  // 3/2 = 6/5 * 5/4 - rescaled to the span's own length (exact for a
+  // fifth-length span, since major_third+minor_third == fifth for every
+  // EDO this engine supports; an approximation of "this span's own
+  // simplest factor pair" for a fourth-length one). This is also where a
+  // landmark's family (major/minor) is decided - level 4+ below just
+  // inherits it. Fifth-descended spans are split before fourth-descended
+  // ones so ties resolve consistently. The hue drift starts from
+  // kRecursiveBaseHue, deliberately decoupled from FOURTH/FIFTH's own
+  // (unrelated, fixed) amber hue - see this file's own top-of-namespace
+  // comment.
+  struct Span { int a, b; float hue; bool is_major; };
+  vector<Span> spans;
+  {
+    for (auto [a, b] : {pair{0, P5}, pair{P5, edo_steps}, pair{0, P4}, pair{P4, edo_steps}}) {
+      auto length = b - a;
+      auto larger = static_cast<int>(lround(length * static_cast<double>(basis.major_third) / basis.fifth));
+      auto smaller = length - larger;
+      if (larger <= 0 || smaller <= 0) continue; // degenerate for this span's size
+
+      auto major_landmark = a + larger;
+      auto minor_landmark = a + smaller;
+      auto major_hue = kRecursiveBaseHue + kDepth3HueOffset;
+      auto minor_hue = kRecursiveBaseHue - kDepth3HueOffset;
+
+      mark(major_landmark, PadTier::RECURSIVE, major_hue, 3);
+      mark(minor_landmark, PadTier::RECURSIVE, minor_hue, 3);
+
+      spans.push_back({a, major_landmark, major_hue, true});
+      spans.push_back({major_landmark, b, major_hue, true});
+      spans.push_back({a, minor_landmark, minor_hue, false});
+      spans.push_back({minor_landmark, b, minor_hue, false});
+    }
   }
 
-  return degrees;
+  // Level 4+: unlike level 3 (which needs the fifth's own major/minor
+  // ratio to have a musical basis at all), there's no further hand-named
+  // next-generation ratio to rescale - so each span is just bisected by
+  // step count, producing one new landmark that inherits its parent
+  // span's family (major/minor) rather than a fresh decision. Confirmed
+  // against a worked example (31-EDO, key of C): D and C-double-sharp
+  // both land at depth 4 this way (from bisecting the C-E and C-Eb spans
+  // respectively) - the earlier version of this function (using the same
+  // rescaled-fifth-ratio formula at every depth, not just level 3) put
+  // them at different depths (4 vs 5) purely from an arithmetic
+  // coincidence (bisecting a length-8 span under that formula collapses
+  // to a single repeated position), which read as an arbitrary
+  // inconsistency between two landmarks a listener would expect to be
+  // peers.
+  for (int depth = 4; !spans.empty(); depth++) {
+    // Only depth 4 itself is ever actually displayed as a distinct hue
+    // (see consonanceColor()) - depth 5+ reuses kDepth4HueOffset too since
+    // its hue value is never read, only its position/depth/family.
+    auto offset = kDepth4HueOffset;
+    vector<Span> next_spans;
+    for (auto & span : spans) {
+      auto length = span.b - span.a;
+      if (length <= 1) continue; // nothing left to split
+
+      auto mid = span.a + static_cast<int>(lround(length / 2.0));
+      if (mid == span.a || mid == span.b) continue; // degenerate for this span's size
+
+      auto hue = kRecursiveBaseHue + (span.is_major ? offset : -offset);
+      mark(mid, PadTier::RECURSIVE, hue, depth);
+
+      next_spans.push_back({span.a, mid, hue, span.is_major});
+      next_spans.push_back({mid, span.b, hue, span.is_major});
+    }
+    spans = move(next_spans);
+  }
+
+  return result;
 }
 
-PadCategory
-classifyPad(const Basis & basis, int edo_steps, int x, int y, int base_note) {
+PadClassification
+classifyPad(const vector<PadClassification> & levels, const Basis & basis, int edo_steps, int x, int y, int base_note) {
   auto note = noteForPad(basis, x, y, base_note);
   auto pitch_class = ((note - base_note) % edo_steps + edo_steps) % edo_steps;
-  if (pitch_class == 0) return PadCategory::TONIC;
-
-  auto degrees = diatonicScaleDegrees(basis, edo_steps);
-
-  // Nearest diatonic degree in each direction: dist_from_below is how far
-  // pitch_class sits above its closest lower neighbor (a "raised" note),
-  // dist_from_above is how far it sits below its closest upper neighbor
-  // (a "lowered" note).
-  int dist_from_below = edo_steps;
-  int dist_from_above = edo_steps;
-  for (auto degree : degrees) {
-    auto up = ((pitch_class - degree) % edo_steps + edo_steps) % edo_steps;
-    if (up == 0) return PadCategory::DIATONIC; // pitch_class IS a (non-tonic) degree
-    if (up < dist_from_below) dist_from_below = up;
-
-    auto down = ((degree - pitch_class) % edo_steps + edo_steps) % edo_steps;
-    if (down < dist_from_above) dist_from_above = down;
-  }
-
-  if (dist_from_below < dist_from_above) {
-    return dist_from_below == 2 ? PadCategory::SHARP : PadCategory::DIESIS;
-  }
-  if (dist_from_above < dist_from_below) {
-    return dist_from_above == 2 ? PadCategory::FLAT : PadCategory::DIESIS;
-  }
-  return PadCategory::ACCIDENTAL; // equidistant tie, e.g. a 12edo black key
+  return levels[static_cast<size_t>(pitch_class)];
 }
 
 // Row 0 (bottom) = core kit, ascending through toms/cymbals/hand-perc/

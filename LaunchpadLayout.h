@@ -20,11 +20,20 @@ namespace LaunchpadLayout {
     int fifth = 0;        // F: best approximation of a 3/2 fifth in N steps
     int whole_tone = 0;    // T: 2F - N
     int semitone = 0;      // S: 3N - 5F
+    int major_third = 0;   // M3: best approximation of a 5/4 major third
+    int minor_third = 0;   // m3: best approximation of a 6/5 minor third -
+                            // M3+m3 == fifth exactly for every EDO this
+                            // engine supports (12/19/31/53), which is what
+                            // lets computeConsonanceLevels() reuse the
+                            // M3:fifth proportion as a single, self-similar
+                            // splitting rule at every recursion depth (see
+                            // its own doc comment).
     bool degenerate = true; // true if T<=0 || S<=0 || T==S - callers should
                              // use the chromatic fallback instead of x*T + y*S
   };
 
-  // Computes the (T, S) basis for an N-step EDO.
+  // Computes the (T, S) basis for an N-step EDO, plus the major/minor third
+  // sizes used by computeConsonanceLevels().
   Basis computeBasis(int edo_steps);
 
   // Maps a pad at grid position (x, y), 0-indexed from the bottom-left, to a
@@ -33,28 +42,51 @@ namespace LaunchpadLayout {
   // x*T + y*S when basis.degenerate is true.
   int noteForPad(const Basis & basis, int x, int y, int base_note);
 
-  // The major/diatonic scale's pitch classes (mod edo_steps): the chain of
-  // fifths from one below the tonic through five above it (F-C-G-D-A-E-B
-  // for 12edo), octave-reduced - generalizes the 12edo white/black-key
-  // split to any EDO with a non-degenerate basis. Empty if basis.degenerate.
-  std::vector<int> diatonicScaleDegrees(const Basis & basis, int edo_steps);
+  // Which of the fixed top-level colors a pad gets (TONIC/FOURTH/FIFTH),
+  // or RECURSIVE for everything found by the consonance-splitting
+  // recursion below depth 2 - see computeConsonanceLevels().
+  enum class PadTier { TONIC, FOURTH, FIFTH, RECURSIVE };
 
-  // Fokker organ / Archiphone style landmark classes, generalized to any
-  // EDO: TONIC and the other 6 DIATONIC degrees are the fixed scale
-  // skeleton; SHARP/FLAT are a full chromatic step (distance 2) above/
-  // below their nearest diatonic degree; DIESIS is a quarter-tone-ish
-  // in-between note (distance 1, or >2 in very fine EDOs); ACCIDENTAL is
-  // a genuine tie - equidistant from two degrees (e.g. every 12edo black
-  // key), ambiguously sharp-or-flat.
-  enum class PadCategory { TONIC, DIATONIC, SHARP, FLAT, DIESIS, ACCIDENTAL };
+  // A pad's position in the consonance hierarchy: which tier it belongs
+  // to, its hue (degrees, meaningful for every tier - TONIC/FOURTH/FIFTH
+  // get fixed hues, RECURSIVE pads get the hue computed by the splitting
+  // recursion), and its depth (1=TONIC, 2=FOURTH/FIFTH, 3+=RECURSIVE - how
+  // many consonance-splits deep this pitch class was first reached).
+  struct PadClassification {
+    PadTier tier = PadTier::RECURSIVE;
+    float hue = 0.0f;
+    int depth = 0;
+  };
 
-  // Classifies a pad for LED-coloring purposes, by the signed distance
-  // from its pitch class to the nearest diatonicScaleDegrees() member.
-  // Callers should check basis.degenerate themselves first and use a
-  // dedicated fallback color instead of calling this (there's no
-  // meaningful scale/tonic distinction once the layout has fallen back to
-  // a straight chromatic run).
-  PadCategory classifyPad(const Basis & basis, int edo_steps, int x, int y, int base_note);
+  // Computes every pitch class's consonance classification for an N-step
+  // EDO, by recursively splitting the octave the way classical interval
+  // theory does: 2/1 = 4/3 * 3/2 (the octave's simplest factor pair is the
+  // fourth and fifth), 3/2 = 6/5 * 5/4 (the fifth's simplest factor pair is
+  // the minor and major third) - the same operation, just parametrized by
+  // successive generators (fifths, then thirds) from the classical
+  // consonance sequence. Past thirds there's no further hand-named "next"
+  // generator, so every span from depth 3 down reuses the fifth-splits-
+  // into-thirds proportion (major_third:fifth), rescaled to that span's
+  // own length, as a practical stand-in for "this span's own simplest
+  // factor pair" - confirmed to reduce back to the exact major/minor third
+  // sizes for any span the length of a fifth, and to reach 100% pitch-class
+  // coverage (no leftover/uncategorized notes) for every EDO this engine
+  // supports. Each split also assigns a hue, offset from its parent span's
+  // hue by a shrinking amount at each depth, so a pitch class's hue stays
+  // close to its harmonic neighborhood instead of jumping around.
+  // Indexed by pitch class (size edo_steps). Callers should check
+  // basis.degenerate themselves first and use a dedicated fallback color
+  // instead (there's no meaningful consonance structure once the layout
+  // has fallen back to a straight chromatic run).
+  std::vector<PadClassification> computeConsonanceLevels(const Basis & basis, int edo_steps);
+
+  // Looks up a pad's consonance classification: resolves its pitch class
+  // via noteForPad() the same way the layout itself does, then indexes
+  // into a table already computed by computeConsonanceLevels() (computing
+  // that table is the expensive part - this lookup is not, so callers
+  // refreshing every pad on a grid should call computeConsonanceLevels()
+  // once and reuse it here, not recompute it per pad).
+  PadClassification classifyPad(const std::vector<PadClassification> & levels, const Basis & basis, int edo_steps, int x, int y, int base_note);
 
   // Fixed General MIDI percussion layout (GM values 27-82, the range this
   // engine actually supports - see Note.h's percussion_names table),

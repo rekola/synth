@@ -31,21 +31,11 @@ namespace {
   constexpr auto kDrawPadLongPressThreshold = std::chrono::milliseconds(600);
 
   struct Rgb { uint8_t r, g, b; };
-  // Fokker organ / Archiphone style landmark colors (see LaunchpadLayout::
-  // PadCategory) - brightness carries the hierarchy: 127 for the diatonic
-  // anchors, 70 in the blue channel for diesis (31-EDO's characteristic
-  // in-between notes), 70 in red/amber/magenta for the dimmer, more
-  // "ordinary" chromatic/accidental classes.
-  constexpr Rgb FOKKER_TONIC      = {0,   127, 0};   // bright green - strongest landmark
-  constexpr Rgb FOKKER_DIATONIC   = {127, 127, 0};   // bright yellow - other scale degrees
-  constexpr Rgb FOKKER_SHARP      = {70,  0,   0};   // dim red
-  constexpr Rgb FOKKER_FLAT       = {70,  35,  0};   // dim amber/orange
-  constexpr Rgb FOKKER_DIESIS     = {0,   70,  127}; // medium blue
-  constexpr Rgb FOKKER_ACCIDENTAL = {70,  0,   70};  // dim magenta - ambiguous tie (e.g. 12edo black keys)
 
   // DRAW mode's coloring-toy palette - a plain rainbow, cycling back to
-  // off. Order/values are not meaningful the way the Fokker colors above
-  // are (no music-theory landmark to preserve), just distinct and bright
+  // off. Order/values are not meaningful the way the consonance-hierarchy
+  // colors elsewhere in this file are (no music-theory landmark to
+  // preserve here), just distinct and bright
   // enough to be satisfying to press through. No white entry here - white
   // is no longer a selectable hue, it's what a hue turns into at maximum
   // press/aftertouch intensity (see colorForDrawPad() below), so it isn't
@@ -169,10 +159,10 @@ namespace {
   }
 
   // Idle luminosity vs. the luminosity of a pad whose voice is at full
-  // loudness - hue/saturation come from the base Fokker/percussion color
-  // and are otherwise untouched, only lightness ramps between the two as
-  // that voice's loudness (its own gain, decaying with any envelope it
-  // has) moves from 0 to 1.
+  // loudness - hue/saturation come from the base consonance/percussion
+  // color and are otherwise untouched, only lightness ramps between the
+  // two as that voice's loudness (its own gain, decaying with any
+  // envelope it has) moves from 0 to 1.
   constexpr float LAUNCHPAD_IDLE_LUMINOSITY = 0.35f;
   constexpr float LAUNCHPAD_ACTIVE_LUMINOSITY = 1.0f;
 
@@ -188,6 +178,48 @@ namespace {
     auto hsl = rgbToHsl(base);
     hsl.l = LAUNCHPAD_IDLE_LUMINOSITY + (LAUNCHPAD_ACTIVE_LUMINOSITY - LAUNCHPAD_IDLE_LUMINOSITY) * loudness;
     return hslToRgb(hsl);
+  }
+
+  // Since padColor() above unconditionally overrides lightness (it's the
+  // channel that carries loudness instead), hue and saturation are the
+  // only two channels a consonance-tier color actually gets to keep once
+  // rendered - so this builds an Hsl directly from a PadClassification
+  // rather than going through an intermediate Rgb constant the way the
+  // old fixed per-category palette did. Lightness here is a placeholder
+  // (any well-formed value works, since padColor() replaces it).
+  constexpr float kConsonanceTonicSaturation = 1.0f;
+  // FOURTH and FIFTH deliberately share one saturation too (see
+  // LaunchpadLayout's kFourthFifthHue comment) - user feedback: "could
+  // share the same color for now", slightly desaturated per later
+  // feedback (a touch less vivid than tonic, still clearly prominent).
+  constexpr float kConsonanceFourthFifthSaturation = 0.8f;
+  // Only depths 3-4 (RECURSIVE tier) get their own distinguishable hue -
+  // depth 3 ("somewhat prominent still") at higher saturation, depth 4
+  // clearly more muted (also given a much wider hue separation from depth
+  // 3 than the drift's own step size would otherwise give - see
+  // LaunchpadLayout's kDepth3HueOffset/kDepth4HueOffset comment - closely
+  // spaced hues within the same family were hard to tell apart on real
+  // hardware, e.g. user feedback that A and B, both major-family in the
+  // key of C 31-EDO, looked nearly identical). Depth 5+ is capped to one
+  // flat, deliberately unprominent gray (achromatic - saturation 0, hue
+  // irrelevant) rather than continuing to differentiate ever-closer hues.
+  constexpr float kConsonanceDepth3Saturation = 0.85f;
+  constexpr float kConsonanceDepth4Saturation = 0.5f;
+  constexpr int kConsonanceMaxDistinguishableDepth = 4;
+
+  Rgb consonanceColor(const LaunchpadLayout::PadClassification & classification) {
+    if (classification.tier == LaunchpadLayout::PadTier::TONIC) {
+      return hslToRgb({classification.hue, kConsonanceTonicSaturation, 0.5f});
+    }
+    if (classification.tier == LaunchpadLayout::PadTier::FOURTH || classification.tier == LaunchpadLayout::PadTier::FIFTH) {
+      return hslToRgb({classification.hue, kConsonanceFourthFifthSaturation, 0.5f});
+    }
+    // RECURSIVE.
+    if (classification.depth > kConsonanceMaxDistinguishableDepth) {
+      return hslToRgb({0.0f, 0.0f, 0.5f}); // flat gray catch-all, depth 5+
+    }
+    auto saturation = classification.depth <= 3 ? kConsonanceDepth3Saturation : kConsonanceDepth4Saturation;
+    return hslToRgb({classification.hue, saturation, 0.5f});
   }
 
   // Pan mode maps a track's azimuth to one of 8 compass points spaced 45
@@ -730,20 +762,21 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
       // octave shift of base_note anyway.
       auto base_note = tonic + (state.octave + 1) * edo_steps;
 
+      // Computed once per refresh, not once per pad - computeConsonanceLevels
+      // does the actual recursive work (see its own doc comment), classifyPad
+      // below is just a table lookup. Skipped entirely (left default-
+      // constructed/unused) when degenerate, since classifyPad's own
+      // contract requires callers to check that first.
+      auto levels = basis.degenerate ? vector<LaunchpadLayout::PadClassification>() : LaunchpadLayout::computeConsonanceLevels(basis, edo_steps);
+
       for (int y = 0; y < 8; y++) {
         for (int x = 0; x < 8; x++) {
           Rgb color;
           if (basis.degenerate) {
             color = {40, 40, 40}; // degraded/fallback visual mode - no meaningful scale structure
           } else {
-            switch (LaunchpadLayout::classifyPad(basis, edo_steps, x - GRID_ORIGIN_X, y - GRID_ORIGIN_Y, base_note)) {
-            case LaunchpadLayout::PadCategory::TONIC:      color = FOKKER_TONIC;      break;
-            case LaunchpadLayout::PadCategory::DIATONIC:   color = FOKKER_DIATONIC;   break;
-            case LaunchpadLayout::PadCategory::SHARP:      color = FOKKER_SHARP;      break;
-            case LaunchpadLayout::PadCategory::FLAT:       color = FOKKER_FLAT;       break;
-            case LaunchpadLayout::PadCategory::DIESIS:     color = FOKKER_DIESIS;     break;
-            case LaunchpadLayout::PadCategory::ACCIDENTAL: color = FOKKER_ACCIDENTAL; break;
-            }
+            auto classification = LaunchpadLayout::classifyPad(levels, basis, edo_steps, x - GRID_ORIGIN_X, y - GRID_ORIGIN_Y, base_note);
+            color = consonanceColor(classification);
           }
           auto note = LaunchpadLayout::noteForPad(basis, x - GRID_ORIGIN_X, y - GRID_ORIGIN_Y, base_note);
           color = padColor(color, state.active_note_loudness, note);
