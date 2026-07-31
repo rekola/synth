@@ -40,8 +40,17 @@
   
 class InputEvent : public Event {
  public:
-  InputEvent(int id, int y, int x, bool alt, bool shift, bool ctrl, bool meta)
-    : id_(id), y_(y), x_(x), alt_(alt), shift_(shift), ctrl_(ctrl), meta_(meta) { }
+  // Legacy terminals (no Kitty keyboard protocol) only ever report
+  // NCTYPE_UNKNOWN - every such keystroke becomes PRESS here, exactly
+  // today's behavior, since those terminals have no way to distinguish a
+  // fresh press from a held key's auto-repeat or its eventual release.
+  // Kitty-protocol terminals (kitty, foot, wezterm, ghostty, ...) report
+  // real press/repeat/release for the same physical key - see
+  // TerminalUI::readInput().
+  enum class Kind { PRESS, REPEAT, RELEASE };
+
+  InputEvent(int id, int y, int x, bool alt, bool shift, bool ctrl, bool meta, Kind kind = Kind::PRESS)
+    : id_(id), y_(y), x_(x), alt_(alt), shift_(shift), ctrl_(ctrl), meta_(meta), kind_(kind) { }
 
   void dispatch(EventHandler & evh) override { evh.handleInputEvent(*this); }
 
@@ -52,6 +61,7 @@ class InputEvent : public Event {
   bool hasShift() const { return shift_; }
   bool hasCtrl() const { return ctrl_; }
   bool hasMeta() const { return meta_; }
+  Kind getKind() const { return kind_; }
   
   int toMidiNote(int octave, Tuning tuning) const {
     if (tuning == Tuning::PERCUSSION) {
@@ -203,6 +213,7 @@ class InputEvent : public Event {
  private:
   int id_, y_, x_;
   bool alt_, shift_, ctrl_, meta_;
+  Kind kind_;
 };
 
 #endif

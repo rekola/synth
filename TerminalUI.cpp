@@ -1050,12 +1050,16 @@ TerminalUI::readInput() {
     // Legacy terminals only ever report NCTYPE_UNKNOWN (no press/release
     // distinction); the Kitty keyboard protocol (kitty, foot, wezterm,
     // ghostty, ...) reports real NCTYPE_PRESS/NCTYPE_REPEAT/NCTYPE_RELEASE
-    // events for the same physical keystroke. Without this check, every
-    // keystroke on a Kitty-protocol terminal fired its action twice - once
-    // on press, once again on release (a real, confirmed bug) - since
-    // nothing here ever distinguished them. NCTYPE_REPEAT (a held key's
-    // auto-repeat) is still treated as actionable, same as a fresh press.
-    if (ni.evtype == NCTYPE_RELEASE) continue;
+    // events for the same physical keystroke. RELEASE now reaches
+    // offerInput() (it didn't used to - see InputEvent::Kind's own doc
+    // comment): UIElement::dispatchCommand() ignores it outright so no
+    // keymap-bound command double-fires the way plain presses used to
+    // (the bug this code used to guard against by dropping RELEASE
+    // entirely), but PatternEditor's own raw note-entry code needs to see
+    // it, to send a note-off when a held note key is physically released.
+    auto kind = ni.evtype == NCTYPE_RELEASE ? InputEvent::Kind::RELEASE
+              : ni.evtype == NCTYPE_REPEAT ? InputEvent::Kind::REPEAT
+              : InputEvent::Kind::PRESS;
 
     bool alt = ni.modifiers & NCKEY_MOD_ALT;
     bool shift = ni.modifiers & NCKEY_MOD_SHIFT;
@@ -1072,7 +1076,7 @@ TerminalUI::readInput() {
       id = '\\';
     }
     
-    InputEvent input(id, ni.y, ni.x, alt, shift, ctrl, meta);
+    InputEvent input(id, ni.y, ni.x, alt, shift, ctrl, meta, kind);
     offerInput(input);
   }
 

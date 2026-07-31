@@ -74,6 +74,16 @@ protected:
 
   std::unordered_map<int, int> active_midi_notes;
 
+  // Which pattern column/row/track a currently-held computer-keyboard note
+  // key landed on (keyed by InputEvent::getId(), the physical key - a key
+  // can't be pressed twice without an intervening release, so this is a
+  // safe key, the same reasoning active_midi_notes above already relies
+  // on for MIDI note numbers). Populated on a fresh note-on press, erased
+  // and used to target the right STOP_NOTE on that same key's eventual
+  // Kitty-protocol release - see offerInput()'s raw note-entry code.
+  struct ActiveKeyboardNote { int note_column, row, track_id; };
+  std::unordered_map<int, ActiveKeyboardNote> active_keyboard_notes_;
+
   // Emacs-style mark/point selection: the mark is recorded here at C-SPC
   // time, the point is always "wherever the cursor/row currently is" (see
   // getController().getPlaybackInfo() and current_cursor.track), so normal

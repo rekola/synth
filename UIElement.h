@@ -119,6 +119,14 @@ protected:
   virtual void onResize() { }
 
   bool dispatchCommand(const InputEvent & input) {
+    // RELEASE now reaches offerInput() (see InputEvent::Kind's own doc
+    // comment) - no keymap-bound command is meant to fire on key-up, so
+    // ignore it here rather than have every widget's keymap guard against
+    // it individually. REPEAT is untouched (still actionable, same as
+    // before) - e.g. holding a transpose/kill-region binding should keep
+    // repeating, unlike PatternEditor's own raw note-entry keys below,
+    // which suppress repeat themselves.
+    if (input.getKind() == InputEvent::Kind::RELEASE) return false;
     if (auto name = keymap_.lookup(KeyChord::pack(input))) return commands_.execute(*name);
     return false;
   }

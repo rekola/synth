@@ -592,12 +592,54 @@ PatternEditor::offerInput(const InputEvent & input) {
 
   auto & song = getController().getSong();
   auto & info = getController().getPlaybackInfo();
+  auto & event_queue = getController().getPlaybackEventQueue();
+
+  // Kitty-protocol RELEASE events now reach offerInput() (previously
+  // dropped in TerminalUI::readInput() - see InputEvent::Kind's own doc
+  // comment). Only the raw computer-keyboard note-entry code below cares
+  // about a key actually going up (to stop a held note, mirroring real
+  // MIDI/Launchpad note-off) - it's fully self-contained, since
+  // active_keyboard_notes_ is keyed by the physical key alone, with no
+  // dependency on modifier state or which on-screen column/track the
+  // cursor happens to be over right now. Every *other* manual key handler
+  // below (cursor movement, Ctrl+Left/Right instrument change, hex-digit
+  // entry for effect/velocity/delay columns, ...) assumes a single-fire
+  // press and has no Kind-awareness of its own - without this guard, a
+  // held note key's RELEASE naturally falls into the same branch its
+  // PRESS did if the release happened during a different one (e.g. a
+  // held note key was actually just an arrow key, whose PRESS-branch has
+  // no note to release), causing it to fire the same action a second
+  // time. Handling every RELEASE right here, before any of that code
+  // even runs, means a release either matches a held note (fully handled)
+  // or is inert - it never reaches the rest of this function either way.
+  if (input.getKind() == InputEvent::Kind::RELEASE) {
+    auto it = active_keyboard_notes_.find(input.getId());
+    if (it == active_keyboard_notes_.end()) return false;
+    auto held = it->second;
+    active_keyboard_notes_.erase(it);
+
+    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, held.track_id, held.note_column));
+
+    // Mirrors LaunchpadManager's own RELEASE handling: while playing,
+    // write an explicit off at the row the transport has since reached
+    // - unless that's still the note's own row, which would erase the
+    // note it belongs to instead of ending it.
+    if (info.isPlaying()) {
+      auto & pattern = song.getPattern(info.getPatternIndex());
+      auto release_row = info.getRowIndex();
+      if (release_row != held.row) {
+	pattern.setNote(release_row, held.track_id, held.note_column, Note(0, 0, info.getCurrentDelay()));
+	song.incVersion();
+      }
+    }
+    return true;
+  }
 
   auto all_track_info = getTrackInformation(song, current_scroll_row);
 
   auto track_ids = song.getRootTrackIds();
   auto num_tracks = static_cast<int>(track_ids.size());
-  
+
   auto current_track = song.getTrackByInternalId(track_ids[current_cursor.track]);
 
   VisibleTrackInfo track_info;
@@ -605,8 +647,6 @@ PatternEditor::offerInput(const InputEvent & input) {
     auto it0 = all_track_info.find(current_track->getInternalId());
     if (it0 != all_track_info.end()) track_info = it0->second;
   }
- 
-  auto & event_queue = getController().getPlaybackEventQueue();
 
   if (input.getId() == NCKEY_BUTTON1) {
     
@@ -807,35 +847,45 @@ PatternEditor::offerInput(const InputEvent & input) {
 	bool is_delete = input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE;
 	auto note_column = track_info.getNoteNumber(new_cursor.col);
 	auto current_delay = info.getCurrentDelay();
-	
+
+	// A held note key's terminal-generated auto-repeat must not retrigger
+	// a fresh note-on (holding a key should sustain one note, not restart
+	// its envelope over and over) - RELEASE itself is handled once, up
+	// front in this function (see offerInput()'s own top-of-function
+	// comment), so only REPEAT needs handling here.
+	bool is_repeat = input.getKind() == InputEvent::Kind::REPEAT;
+
 	int midi_note = -1;
 	if (!is_off) {
 	  auto track = song.getTrackByInternalId(track_id);
 	  auto tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
 	  midi_note = input.toMidiNote(current_keyboard_octave, tuning);
 	}
-      
+
+	if (is_repeat && midi_note >= 0) return true; // already sounding - nothing to redo
+
 	if (is_delete || midi_note >= 0 || is_off) {
 	  if (is_delete) {
 	    pattern.deleteNote(info.getRowIndex(), track_id, note_column);
 	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, track_id, note_column));
 	  } else if (is_off) {
-	    pattern.setNote(info.getRowIndex(), track_id, note_column, Note(0, 0, current_delay)); 
+	    pattern.setNote(info.getRowIndex(), track_id, note_column, Note(0, 0, current_delay));
 	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, track_id, note_column));
 	  } else {
 	    Note note(midi_note, 0x28, current_delay);
-	    
+
 	    if (input.hasShift()) {
 	      note_column = pattern.pushNote(info.getRowIndex(), track_id, note);
 	    } else {
-	      pattern.setNote(info.getRowIndex(), track_id, note_column, note); 
+	      pattern.setNote(info.getRowIndex(), track_id, note_column, note);
 	    }
-	  
+
 	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, track_id, note_column, note.getValue(), note.getVelocity()));
+	    active_keyboard_notes_[input.getId()] = { note_column, info.getRowIndex(), track_id };
 	  }
 
 	  row_edited = true;
-	
+
 	  if (!info.isPlaying()) {
 	    int n = 0;
 	    if (input.getId() != NCKEY_DEL && input.getId() != NCKEY_BACKSPACE) n = 1;
@@ -843,7 +893,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, n * edit_step_size));
 	    }
 	  }
-      
+
 	  return true;
 	}
       }
