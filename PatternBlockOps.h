@@ -4,6 +4,7 @@
 #include "Note.h"
 #include "Command.h"
 
+#include <functional>
 #include <vector>
 
 class Pattern;
@@ -31,9 +32,15 @@ void clearPatternBlock(Pattern & pattern, int row_lo, int row_hi,
 void pastePatternBlock(Pattern & pattern, const PatternBlock & block,
 		       int target_row, const std::vector<int> & track_ids, int target_track);
 
-// Transposes (up if `up`, else down) every note in the same range.
+// Transposes (up if `up`, else down) every note in the same range, except
+// any track `is_percussion` reports true for. A percussion track's
+// Note::getValue() selects which drum sound plays (a MIDI key), not a
+// pitch - transposing it would silently swap to a different, unrelated
+// drum instead of "transposing" anything, so those tracks are skipped
+// entirely within the range rather than shifting their notes.
 void transposePatternBlock(Pattern & pattern, int row_lo, int row_hi,
-			   const std::vector<int> & track_ids, int track_lo, int track_hi, bool up);
+			   const std::vector<int> & track_ids, int track_lo, int track_hi, bool up,
+			   const std::function<bool(int track_id)> & is_percussion);
 
 // Single-track, note-column-scoped siblings of the above: operate on just
 // notes [note_lo, note_hi] of one track, leaving other note columns
@@ -46,8 +53,11 @@ PatternBlock copyPatternBlockNotes(const Pattern & pattern, int row_lo, int row_
 				   int track_id, int note_lo, int note_hi, bool include_command = false);
 void clearPatternBlockNotes(Pattern & pattern, int row_lo, int row_hi,
 			    int track_id, int note_lo, int note_hi, bool include_command = false);
+// `is_percussion`: same reasoning as transposePatternBlock() above, but a
+// plain bool here (not a predicate) since this operates on exactly one
+// already-known track_id, not a range.
 void transposePatternBlockNotes(Pattern & pattern, int row_lo, int row_hi,
-				int track_id, int note_lo, int note_hi, bool up);
+				int track_id, int note_lo, int note_hi, bool up, bool is_percussion);
 // Merges `block` into `pattern` starting at (target_row, track_id, target_note_offset),
 // leaving note columns outside that range untouched (unlike pastePatternBlock,
 // which replaces a cell's whole note vector).

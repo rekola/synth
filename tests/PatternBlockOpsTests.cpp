@@ -52,6 +52,26 @@ TEST(pattern_block_clear_empties_the_range) {
   CHECK(p.getNotes(5, track_ids[0])[0].getValue() == 67);
 }
 
+TEST(pattern_block_transpose_skips_percussion_tracks_within_a_mixed_range) {
+  // A percussion track's Note::getValue() selects a drum sound (MIDI key),
+  // not a pitch - transposing it would silently swap to a different,
+  // unrelated drum, so it must be left untouched even when it sits inside
+  // an otherwise-transposed multi-track range.
+  Pattern p(16);
+  vector<int> track_ids = {10, 20, 30};
+
+  p.setNote(2, track_ids[0], 0, Note(60, 100));
+  p.setNote(2, track_ids[1], 0, Note(64, 100)); // percussion - must not move
+  p.setNote(2, track_ids[2], 0, Note(67, 100));
+
+  transposePatternBlock(p, 2, 2, track_ids, 0, 2, /*up=*/true,
+			[&](int track_id) { return track_id == track_ids[1]; });
+
+  CHECK(p.getNotes(2, track_ids[0])[0].getValue() == 61); // transposed up
+  CHECK(p.getNotes(2, track_ids[1])[0].getValue() == 64); // untouched (percussion)
+  CHECK(p.getNotes(2, track_ids[2])[0].getValue() == 68); // transposed up
+}
+
 TEST(pattern_block_paste_writes_at_an_offset) {
   Pattern p(16);
   vector<int> track_ids = {10, 20, 30};
@@ -190,12 +210,26 @@ TEST(pattern_block_notes_transpose_only_touches_the_requested_column_range) {
   p.setNote(2, track_id, 1, Note(63, 100));
   p.setNote(2, track_id, 2, Note(67, 100));
 
-  transposePatternBlockNotes(p, 2, 2, track_id, 1, 2, true);
+  transposePatternBlockNotes(p, 2, 2, track_id, 1, 2, true, /*is_percussion=*/false);
 
   auto & notes = p.getNotes(2, track_id);
   CHECK(notes[0].getValue() == 60); // untouched
   CHECK(notes[1].getValue() == 64); // transposed up
   CHECK(notes[2].getValue() == 68); // transposed up
+}
+
+TEST(pattern_block_notes_transpose_is_a_no_op_for_a_percussion_track) {
+  Pattern p(16);
+  int track_id = 10;
+
+  p.setNote(2, track_id, 0, Note(60, 100));
+  p.setNote(2, track_id, 1, Note(63, 100));
+
+  transposePatternBlockNotes(p, 2, 2, track_id, 0, 1, /*up=*/true, /*is_percussion=*/true);
+
+  auto & notes = p.getNotes(2, track_id);
+  CHECK(notes[0].getValue() == 60); // untouched - would be 61 if transposed
+  CHECK(notes[1].getValue() == 63); // untouched - would be 64 if transposed
 }
 
 TEST(pattern_block_notes_copy_and_clear_include_command_when_requested) {

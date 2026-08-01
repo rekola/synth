@@ -152,26 +152,6 @@ class Pattern : public SongObject {
 
   const std::unordered_map<unsigned short, std::string> & getAnnotations() const { return annotations_; }
 
-  void transposeUp() {
-    for (auto & d0 : notes_) {
-      for (auto & d1 : d0.second) {
-	for (auto & note : d1.second) {
-	  note.transposeUp();
-	}
-      }
-    }    
-  }
-
-  void transposeDown() {
-    for (auto & d0 : notes_) {
-      for (auto & d1 : d0.second) {
-	for (auto & note : d1.second) {
-	  note.transposeDown();
-	}
-      }
-    }    
-  }
-
   void loadParameters(const ParameterSource & input) override {
     SongObject::loadParameters(input);
     num_rows_ = input.getInt("rows");	

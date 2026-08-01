@@ -38,10 +38,12 @@ clearPatternBlock(Pattern & pattern, int row_lo, int row_hi,
 
 void
 transposePatternBlock(Pattern & pattern, int row_lo, int row_hi,
-		      const vector<int> & track_ids, int track_lo, int track_hi, bool up) {
+		      const vector<int> & track_ids, int track_lo, int track_hi, bool up,
+		      const std::function<bool(int track_id)> & is_percussion) {
   for (int row = row_lo; row <= row_hi; row++) {
     for (int t = track_lo; t <= track_hi; t++) {
       auto track_id = track_ids[t];
+      if (is_percussion(track_id)) continue;
       auto notes = pattern.getNotes(row, track_id);
       if (notes.empty()) continue; // don't materialize a real entry in the sparse notes_ map
       for (auto & note : notes) {
@@ -107,7 +109,8 @@ clearPatternBlockNotes(Pattern & pattern, int row_lo, int row_hi,
 
 void
 transposePatternBlockNotes(Pattern & pattern, int row_lo, int row_hi,
-			   int track_id, int note_lo, int note_hi, bool up) {
+			   int track_id, int note_lo, int note_hi, bool up, bool is_percussion) {
+  if (is_percussion) return;
   for (int row = row_lo; row <= row_hi; row++) {
     auto notes = pattern.getNotes(row, track_id);
     if (notes.empty()) continue;

@@ -164,12 +164,21 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     auto & pattern = song.getPattern(info.getPatternIndex());
     auto track_ids = song.getRootTrackIds();
 
+    // A percussion track's Note::getValue() selects which drum sound
+    // plays (a MIDI key), not a pitch - transposing it would silently
+    // swap to a different, unrelated drum instead of "transposing"
+    // anything, so it's excluded rather than shifted.
+    auto is_percussion = [&song](int track_id) {
+      auto * track = song.getTrackByInternalId(track_id);
+      return track && track->getType() == TrackType::PERCUSSION_CONTROL;
+    };
+
     auto b = getEffectiveSelectionBounds(song, track_ids);
     if (b.column_scoped) {
       auto track_id = track_ids[b.track_lo];
-      transposePatternBlockNotes(pattern, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, true);
+      transposePatternBlockNotes(pattern, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, true, is_percussion(track_id));
     } else {
-      transposePatternBlock(pattern, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, true);
+      transposePatternBlock(pattern, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, true, is_percussion);
     }
     song.incVersion();
   });
@@ -180,12 +189,18 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     auto & pattern = song.getPattern(info.getPatternIndex());
     auto track_ids = song.getRootTrackIds();
 
+    // See transpose-region-up's own comment.
+    auto is_percussion = [&song](int track_id) {
+      auto * track = song.getTrackByInternalId(track_id);
+      return track && track->getType() == TrackType::PERCUSSION_CONTROL;
+    };
+
     auto b = getEffectiveSelectionBounds(song, track_ids);
     if (b.column_scoped) {
       auto track_id = track_ids[b.track_lo];
-      transposePatternBlockNotes(pattern, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, false);
+      transposePatternBlockNotes(pattern, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, false, is_percussion(track_id));
     } else {
-      transposePatternBlock(pattern, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, false);
+      transposePatternBlock(pattern, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, false, is_percussion);
     }
     song.incVersion();
   });
