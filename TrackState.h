@@ -133,6 +133,26 @@ public:
     }
   }
 
+  // Reclaim a voice quickly without a hard cut - used by
+  // InstrumentTrackState::retriggerVoices()/chokeExclusiveClasses() (see
+  // their own comments) when a prior voice is either masked by a new
+  // attack (same note identity) or must yield to SF2 exclusive-class
+  // choking, neither of which should be audible as anything other than
+  // the voice simply not being there any more. Default recurses into
+  // children exactly like stopNote()/killNote() above, so a multi-region
+  // SF2 group correctly cascades a fast release into every region child.
+  // InstrumentVoice overrides this with a plain stopNote() (already
+  // effectively instant for every non-SF2 leaf type - see its own
+  // override of stopNote()); SoundFontVoice overrides it again with a
+  // real short (~10ms) release through the existing envelope machinery,
+  // reusing the same mechanism a normal release already uses, just
+  // compressed - never an abrupt amplitude jump.
+  virtual void fastRelease() {
+    for (auto & [ id, child ] : getChildren()) {
+      child->fastRelease();
+    }
+  }
+
   virtual bool isActive() const {
     for (auto & [ id, child ] : getChildren()) {
       if (child->isActive()) return true;
@@ -276,6 +296,26 @@ public:
       if (v >= 0) return v;
     }
     return -1;
+  }
+
+  // Every distinct non-zero SF2 exclusive class (region.group, gen 57)
+  // this voice chain's regions belong to - used by InstrumentTrackState::
+  // chokeExclusiveClasses() to decide whether a new voice must choke an
+  // existing one, regardless of note identity/pitch (two hi-hat regions
+  // choke each other despite being different MIDI keys). Default unions
+  // every child's own set, empty if none - correctly empty for every
+  // non-SF2 instrument (nothing to override there) and correctly
+  // aggregates across a multi-region SF2 group's children, which could in
+  // principle carry different class values per region even though real
+  // GM patches always give every region of one drum sound the same class.
+  // Only SoundFontVoice overrides this (with its own single region's
+  // class, if non-zero - 0 is the SF2 spec's "no class" sentinel).
+  virtual std::vector<int> getExclusiveClasses() const {
+    std::vector<int> classes;
+    for (auto & [ id, child ] : getChildren()) {
+      for (auto c : child->getExclusiveClasses()) classes.push_back(c);
+    }
+    return classes;
   }
 
   const std::unordered_map<int, std::unique_ptr<TrackState> > & getChildren() const { return children_; }

@@ -8,7 +8,7 @@ using namespace std;
 std::unique_ptr<TrackState>
 InstrumentTrack::createState(const ChannelConfiguration & config) const {
   assert(getInstrumentId() >= 0);
-  return std::make_unique<InstrumentTrackState>(config, isSolo(), isMuted(), getInternalId(), getInstrumentId(), getPosition(), portamento_, sends_);
+  return std::make_unique<InstrumentTrackState>(config, isSolo(), isMuted(), getInternalId(), getInstrumentId(), getPosition(), sends_);
 }
 
 void
@@ -22,7 +22,6 @@ InstrumentTrack::loadParameters(const ParameterSource & input) {
   setDistance(input.getFloat("distance"));
   setElevation(input.getFloat("elevation"));
   setColor(input.getText("color"));
-  portamento_ = input.getFloat("portamento", -1.0f);
   sends_.a = input.getFloat("sendA", 0.0f);
   sends_.b = input.getFloat("sendB", 0.0f);
   sends_.main = input.getFloat("sendMain", 1.0f);
@@ -40,7 +39,6 @@ InstrumentTrack::storeParameters(ParameterSource & output) const {
   output.set("distance", getDistance());
   output.set("elevation", getElevation());
   output.set("color", getColor());
-  if (portamento_ >= 0.0f) output.set("portamento", portamento_);
   if (sends_.a > 0.0f) output.set("sendA", sends_.a);
   if (sends_.b > 0.0f) output.set("sendB", sends_.b);
   output.set("sendMain", sends_.main, 1.0f);

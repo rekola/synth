@@ -64,7 +64,6 @@ private:
   bool solo_ = false, muted_ = false;
   float elevation_ = 0, azimuth_ = 0, distance_ = 0;
   std::string color_;
-  float portamento_ = -1.0f;
   SendLevels sends_;
 
   bool show_note_column_ = true;

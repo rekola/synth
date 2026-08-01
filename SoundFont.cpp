@@ -929,12 +929,49 @@ public:
     TrackState::killNote();
   }
 
-  void stopNoteQuick() {
-    ampenv_.parameters.release_ = 0.0f;
-    ampenv_.nextSegment(EnvelopeState::SUSTAIN);
-    
-    modenv_.parameters.release_ = 0.0f;
-    modenv_.nextSegment(EnvelopeState::SUSTAIN);
+  // Reclaims this voice quickly without a hard cut - see TrackState::
+  // fastRelease()'s own comment for when this is used (identity-based
+  // retrigger cutoff, SF2 exclusive-class choking). Forcing release_ to 0
+  // makes EnvelopeState::nextSegment(SUSTAIN) fall back to
+  // TSF_FASTRELEASETIME (10ms) regardless of this region's own authored
+  // release time - same envelope machinery a normal release already uses,
+  // just compressed, never an abrupt amplitude jump. Same isDone() guard
+  // as stopNote() above and for the same reason: this can be called on a
+  // voice that's already DONE (e.g. already fast-released by one
+  // mechanism, then matched by the other - see InstrumentTrackState::
+  // chokeExclusiveClasses()'s own comment on why that's fine), and an
+  // unconditional nextSegment(SUSTAIN) would resurrect it.
+  void fastRelease() override {
+    if (!ampenv_.isDone()) {
+      ampenv_.parameters.release_ = 0.0f;
+      ampenv_.nextSegment(EnvelopeState::SUSTAIN);
+    }
+    if (!modenv_.isDone()) {
+      modenv_.parameters.release_ = 0.0f;
+      modenv_.nextSegment(EnvelopeState::SUSTAIN);
+    }
+
+    if (voiceRegion_->loop_mode == TSF_LOOPMODE_SUSTAIN) {
+      // Continue playing, but stop looping - same as stopNote() above.
+      loopEnd_ = loopStart_;
+    }
+
+    // See killNote()'s comment above for why TrackState::killNote(), not
+    // stopNote()/fastRelease(): a modulator child's envelope only ever
+    // advances via process(), never called on children, so it must be
+    // jumped straight to DONE rather than put into a RELEASE it can never
+    // finish on its own.
+    TrackState::killNote();
+  }
+
+  // Every distinct non-zero SF2 exclusive class (region.group) this
+  // voice's own region belongs to - see TrackState::getExclusiveClasses()'s
+  // own comment. A single SoundFontVoice always has exactly one region
+  // (voiceRegion_), so this is at most one value; 0 means "no class",
+  // same convention SoundFontInstrument::playNote() already uses.
+  std::vector<int> getExclusiveClasses() const override {
+    if (voiceRegion_ && voiceRegion_->group != 0) return { static_cast<int>(voiceRegion_->group) };
+    return {};
   }
 
   void calcPitchRatio(float pitchShift) {
@@ -1295,9 +1332,13 @@ public:
 	auto & region = regions[region_idx];
 	if (midiKey < region.lokey || midiKey > region.hikey || midiVelocity < region.lovel || midiVelocity > region.hivel) continue;
 
-	if (region.group) {
-	  // FIXME: here we should end all voices with the same instrument and group
-	}
+	// Exclusive-class choking (region.group, gen 57) can't happen here -
+	// this factory method has no visibility into any other track voice,
+	// so it can't reach across separate note-on events (open hi-hat,
+	// then later a closed hi-hat). See InstrumentTrackState::
+	// chokeExclusiveClasses(), which enforces it at the one layer that
+	// actually can: TrackState::getExclusiveClasses() exposes this
+	// region's own class to that caller.
 
 	// Each region's own position (folded in via SoundFontVoice::getPosition())
 	// gets encoded directly by the voice itself (InstrumentVoice::encodePosition()).

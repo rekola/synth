@@ -12,8 +12,8 @@
 
 class InstrumentTrackState : public TrackState {
 public:
-  explicit InstrumentTrackState(const ChannelConfiguration & channel_config, bool solo, bool muted, int track_id, int instrument_id, const SphericalPosition & position, float portamento, const SendLevels & sends)
-    : TrackState(channel_config), solo_(solo), muted_(muted), track_id_(track_id), instrument_id_(instrument_id), position_(position), portamento_(portamento), sends_(sends) { }
+  explicit InstrumentTrackState(const ChannelConfiguration & channel_config, bool solo, bool muted, int track_id, int instrument_id, const SphericalPosition & position, const SendLevels & sends)
+    : TrackState(channel_config), solo_(solo), muted_(muted), track_id_(track_id), instrument_id_(instrument_id), position_(position), sends_(sends) { }
 
   SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override {
     clearFinishedVoices();
@@ -42,23 +42,10 @@ public:
 	      } else if (ev.isOff()) {
 		stopVoices(ev.getId());
 	      } else {
-		bool portamento_done = false;
-		if (portamento_ >= 0.0f) {
-		  auto it = voices_.find(ev.getId());
-		  if (it != voices_.end()) {
-		    for (auto & voice : it->second) {
-		      if (voice->isActive()) {
-			voice->playNote(ev.getFrequency(), ev.getVelocity(), ev.getNoteValue());
-			portamento_done = true;
-		      }
-		    }
-		  }
-		}
-		if (!portamento_done) {
-		  stopVoices(ev.getId());
-		  auto voice = instrument->playNote(getChannelConfiguration(), position_, ev.getFrequency(), 1.0f, ev.getVelocity(), -getRandF(), ev.getNoteValue(), sends_);
-		  addVoice(ev.getId(), move(voice));
-		}
+		retriggerVoices(ev.getId(), ev.getNoteValue());
+		auto voice = instrument->playNote(getChannelConfiguration(), position_, ev.getFrequency(), 1.0f, ev.getVelocity(), -getRandF(), ev.getNoteValue(), sends_);
+		chokeExclusiveClasses(*voice);
+		addVoice(ev.getId(), move(voice));
 	      }
 	    }
 	    it = pending_events.erase(it);
@@ -186,6 +173,85 @@ public:
     broadcastChannelPressure();
   }
 
+  // Identity-based retrigger cutoff: a new note-on whose identity (31-EDO
+  // step for pitched tracks, MIDI note number for percussion - already
+  // resolved into `note_value` by the caller; see TrackEvent::getNoteValue()/
+  // PlaybackControlEvent's midi_note parameter) exactly matches a
+  // still-sounding voice anywhere in this track gets that prior voice
+  // fast-released (TrackState::fastRelease() - a short ~10ms release via
+  // the existing envelope machinery, never a hard cut) rather than left to
+  // ring out its full authored SF2 release tail, which is what let
+  // long-release GM patches pile up voices under rapid retriggering. It's
+  // masked by the new attack either way, so this is inaudible - the only
+  // effect is reclaiming the voice. Exact integer equality only: a 31-EDO
+  // chord's notes have different values and never self-match.
+  //
+  // A column whose *current* occupant has a different identity still gets
+  // the old natural-release behavior (voice->stopNote(), unchanged) - a
+  // chord note being replaced by a different note should ring out under
+  // the new one, not cut off.
+  //
+  // Scans every column, not just `column`: nothing prevents the same
+  // identity appearing in a different note-column of the same track (a
+  // doubled unison chord note, or two near-simultaneous presses landing in
+  // different chord slots), so a same-identity match can legitimately be
+  // more than one voice - every match is handled, not just the first.
+  void retriggerVoices(int column, int note_value) {
+    for (auto & [ col, voices ] : voices_) {
+      for (auto & voice : voices) {
+        if (!voice->isActive()) continue;
+        if (voice->getNoteValue() == note_value) {
+          voice->fastRelease();
+        } else if (col == column) {
+          voice->stopNote();
+        }
+      }
+    }
+
+    // Same reasoning as stopVoices() above - a note being replaced
+    // shouldn't leave its stale pressure inflating the track-wide max.
+    column_pressure_.erase(column);
+    broadcastChannelPressure();
+  }
+
+  // Distinct from retriggerVoices() above: matches on the new voice's own
+  // SF2 exclusive class (region.group, gen 57 ExclusiveClass), not note
+  // identity - two hi-hat regions choke each other precisely because
+  // they're *different* MIDI keys sharing the *same* class, which
+  // identity-based matching would never catch. TrackState::
+  // getExclusiveClasses() is empty for every non-SF2 instrument, so this
+  // is a no-op there. Scoped to this whole track (every column, not just
+  // the new note's own), since exclusive-class values are only meaningful
+  // within one preset/instrument, and a track holds exactly one
+  // instrument. Called after the new voice is constructed (needs its own
+  // regions' class set) and before it's added to voices_, so it can never
+  // choke its own sibling regions.
+  //
+  // A voice can legitimately already have been given a normal stopNote()
+  // by retriggerVoices() above (different identity) and then also get
+  // fastRelease()'d here (shared class) - that's correct precedence, not
+  // double-cutting: exclusive-class choke is the stricter rule and should
+  // win over "let it ring" whenever both apply, exactly like a closed
+  // hi-hat choking an open one despite their different pitches. Both
+  // fastRelease() and stopNote() are safe to call more than once on the
+  // same voice (see SoundFontVoice::fastRelease()'s isDone() guard), so
+  // this needs no bookkeeping shared with retriggerVoices().
+  void chokeExclusiveClasses(const TrackState & new_voice) {
+    auto classes = new_voice.getExclusiveClasses();
+    if (classes.empty()) return;
+
+    for (auto & [ col, voices ] : voices_) {
+      for (auto & voice : voices) {
+        if (!voice->isActive()) continue;
+        auto voice_classes = voice->getExclusiveClasses();
+        bool shares_class = std::any_of(classes.begin(), classes.end(), [&](int c) {
+          return std::find(voice_classes.begin(), voice_classes.end(), c) != voice_classes.end();
+        });
+        if (shares_class) voice->fastRelease();
+      }
+    }
+  }
+
   void clear() override {
     TrackState::clear();
     voices_.clear();
@@ -282,7 +348,6 @@ private:
   bool solo_, muted_;
   int track_id_, instrument_id_;
   SphericalPosition position_;
-  float portamento_;
   SendLevels sends_;
 
   std::unordered_map<int, std::vector<std::unique_ptr<TrackState> > > voices_;

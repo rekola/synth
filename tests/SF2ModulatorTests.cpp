@@ -16,6 +16,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 using namespace SF2Mod;
@@ -228,6 +229,24 @@ namespace {
   // covers everything these fixtures need (InitialFilterFc/VibLfoToPitch),
   // never a range generator.
   struct GenSpec { uint16_t oper; int16_t amount; };
+
+  // GenKeyRange (gen 43)'s amount is a packed { lo, hi } byte pair, not a
+  // plain shortAmount (see SoundFont.cpp's tsf_hydra_genamount union and
+  // its GEN_KEYRANGE case) - this packs a GenSpec{43, ...} amount the same
+  // way, so exclusive-class tests can give two regions non-overlapping
+  // key ranges (e.g. two different GM percussion keys) within one preset.
+  int16_t packKeyRange(uint8_t lo, uint8_t hi) {
+    return static_cast<int16_t>(static_cast<uint16_t>(lo) | (static_cast<uint16_t>(hi) << 8));
+  }
+
+  // MIDI-key-number -> frequency, the same 12-TET formula Tuner::
+  // getFrequency(Tuning::PERCUSSION, ...) uses - lets exclusive-class
+  // tests select a specific region by key the same way a real percussion
+  // note-on would, via SoundFontInstrument::playNote()'s own
+  // frequency->midiKey round trip.
+  float frequencyForMidiKey(int key) {
+    return 440.0f * std::pow(2.0f, static_cast<float>(key - 69) / 12.0f);
+  }
 
   // One instrument-zone modulator, in the same raw packed-field shape
   // SF2Mod::Connection itself uses.
@@ -576,7 +595,7 @@ TEST(sf2_instrument_track_state_reclaims_looping_multi_region_voice) {
   instruments.push_back(sf.createInstrument(0));
 
   InstrumentTrackState state(config, /*solo=*/false, /*muted=*/false, /*track_id=*/0, /*instrument_id=*/0,
-                              SphericalPosition{}, /*portamento=*/-1.0f, SendLevels{});
+                              SphericalPosition{}, SendLevels{});
   RenderContext context(config);
   context.setBpm(120.0f);
 
@@ -718,4 +737,319 @@ TEST(sf2_looping_multi_region_group_becomes_inactive_after_stop_note) {
   }
 
   CHECK(became_inactive);
+}
+
+// ---------------------------------------------------------------------
+// Identity-based retrigger cutoff (InstrumentTrackState::retriggerVoices())
+// and SF2 exclusive-class choking (InstrumentTrackState::
+// chokeExclusiveClasses(), TrackState::getExclusiveClasses()) - see
+// plans/sf2-retrigger-cutoff.md. All use a single long (1.0s ReleaseVolEnv,
+// GenSpec{38, 0}) authored release, so "did it finish within a handful of
+// ~4096-sample blocks" cleanly distinguishes a fast release (~10ms,
+// TSF_FASTRELEASETIME) from the voice's own normal release (would still be
+// active after the same render time).
+// ---------------------------------------------------------------------
+
+TEST(retrigger_voices_fast_releases_same_identity_voice) {
+  std::vector<PresetSpec> presets = {
+    { "LongRelease", 0, { GenSpec{ 38, 0 } }, {} },
+  };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "retrigger_same_identity_fixture.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100);
+  auto instrument = sf.createInstrument(0);
+
+  InstrumentTrackState state(config, /*solo=*/false, /*muted=*/false, /*track_id=*/0, /*instrument_id=*/0, SphericalPosition{}, SendLevels{});
+
+  state.addVoice(0, instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{}));
+  CHECK(state.isActive());
+
+  // Same identity (60) retriggered in the same column - the prior voice
+  // must be fast-released, not left on its full 1.0s authored release.
+  // Deliberately not adding a replacement voice, so isActive() reflects
+  // only the old voice's own fate.
+  state.retriggerVoices(0, 60);
+
+  bool became_inactive = false;
+  for (int i = 0; i < 8 && !became_inactive; i++) {
+    state.render(4096);
+    if (!state.isActive()) became_inactive = true;
+  }
+  CHECK(became_inactive);
+}
+
+TEST(retrigger_voices_does_not_fast_release_a_different_identity) {
+  std::vector<PresetSpec> presets = {
+    { "LongRelease", 0, { GenSpec{ 38, 0 } }, {} },
+  };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "retrigger_different_identity_fixture.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100);
+  auto instrument = sf.createInstrument(0);
+
+  InstrumentTrackState state(config, /*solo=*/false, /*muted=*/false, /*track_id=*/0, /*instrument_id=*/0, SphericalPosition{}, SendLevels{});
+
+  state.addVoice(0, instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{}));
+
+  // Different identity (61) replacing the same column's note - normal
+  // stopNote() (natural release/ring-out), never a fast release.
+  state.retriggerVoices(0, 61);
+
+  // Render well past the fast-release window (~10ms) but far short of the
+  // voice's full 1.0s authored release - it must still be genuinely
+  // active (naturally releasing), not already finished.
+  for (int i = 0; i < 4; i++) state.render(4096); // ~371ms
+  CHECK(state.isActive());
+}
+
+TEST(retrigger_voices_fast_releases_same_identity_in_a_different_column) {
+  std::vector<PresetSpec> presets = {
+    { "LongRelease", 0, { GenSpec{ 38, 0 } }, {} },
+  };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "retrigger_cross_column_fixture.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100);
+  auto instrument = sf.createInstrument(0);
+
+  InstrumentTrackState state(config, /*solo=*/false, /*muted=*/false, /*track_id=*/0, /*instrument_id=*/0, SphericalPosition{}, SendLevels{});
+
+  state.addVoice(0, instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{}));
+
+  // Same identity (60), but a note-on for a *different* column (1) - the
+  // track-wide scan must still catch and fast-release column 0's voice,
+  // since matching is scoped to the whole track, not just the column
+  // being written to.
+  state.retriggerVoices(1, 60);
+
+  bool became_inactive = false;
+  for (int i = 0; i < 8 && !became_inactive; i++) {
+    state.render(4096);
+    if (!state.isActive()) became_inactive = true;
+  }
+  CHECK(became_inactive);
+}
+
+TEST(retrigger_voices_does_not_cut_a_31edo_cluster) {
+  std::vector<PresetSpec> presets = {
+    { "LongRelease", 0, { GenSpec{ 38, 0 } }, {} },
+  };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "retrigger_cluster_fixture.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100);
+  auto instrument = sf.createInstrument(0);
+
+  InstrumentTrackState state(config, /*solo=*/false, /*muted=*/false, /*track_id=*/0, /*instrument_id=*/0, SphericalPosition{}, SendLevels{});
+
+  // A chord: two adjacent-but-distinct 31-EDO step values (60, 61)
+  // entered into two columns, neither previously occupied - exact-integer
+  // equality means neither retriggerVoices() call finds a match, so
+  // neither note ever gets a release call at all (this is a cluster, not
+  // a retrigger).
+  state.retriggerVoices(0, 60);
+  state.addVoice(0, instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{}));
+  state.retriggerVoices(1, 61);
+  state.addVoice(1, instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 61, SendLevels{}));
+
+  for (int i = 0; i < 4; i++) state.render(4096);
+
+  std::unordered_map<int, std::vector<ActiveVoiceInfo> > active;
+  state.getAllActiveVoices(active);
+  auto & voices = active[0];
+  CHECK(voices.size() == 2);
+  bool has60 = false, has61 = false;
+  for (auto & v : voices) {
+    if (v.note_value == 60) has60 = true;
+    if (v.note_value == 61) has61 = true;
+  }
+  CHECK(has60);
+  CHECK(has61);
+}
+
+TEST(choke_exclusive_classes_chokes_a_different_note_value_sharing_class) {
+  // Two regions within one preset, non-overlapping key ranges (a real GM
+  // percussion kit's open/closed hi-hat shape: different MIDI keys,
+  // same exclusiveClass), both long-release so "already inactive" can
+  // only mean "fast-released", never "finished naturally".
+  std::vector<PresetSpec> presets = {
+    { "HiHats", 0, {}, {}, /*region_count=*/2,
+      /*region_gens=*/{
+        { GenSpec{ 43, packKeyRange(42, 42) }, GenSpec{ 57, 5 }, GenSpec{ 38, 0 } }, // closed hihat, key 42, class 5
+        { GenSpec{ 43, packKeyRange(46, 46) }, GenSpec{ 57, 5 }, GenSpec{ 38, 0 } }, // open hihat, key 46, class 5
+      } },
+  };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "choke_different_note_fixture.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100);
+  auto instrument = sf.createInstrument(0);
+
+  InstrumentTrackState state(config, /*solo=*/false, /*muted=*/false, /*track_id=*/0, /*instrument_id=*/0, SphericalPosition{}, SendLevels{});
+
+  state.addVoice(0, instrument->playNote(config, SphericalPosition{}, frequencyForMidiKey(42), 1.0f, 0.8f, 0.0f, 42, SendLevels{}));
+  CHECK(state.isActive());
+
+  // Key 46 (a different note identity - retriggerVoices() alone would
+  // never touch key 42's voice) shares exclusiveClass 5 with key 42, so
+  // chokeExclusiveClasses() must fast-release it. Deliberately not adding
+  // the new voice, so isActive() reflects only the old voice's fate.
+  auto voice46 = instrument->playNote(config, SphericalPosition{}, frequencyForMidiKey(46), 1.0f, 0.8f, 0.0f, 46, SendLevels{});
+  state.retriggerVoices(1, 46);
+  state.chokeExclusiveClasses(*voice46);
+
+  bool became_inactive = false;
+  for (int i = 0; i < 8 && !became_inactive; i++) {
+    state.render(4096);
+    if (!state.isActive()) became_inactive = true;
+  }
+  CHECK(became_inactive);
+}
+
+TEST(choke_exclusive_classes_does_not_touch_voices_without_a_shared_class) {
+  std::vector<PresetSpec> presets = {
+    { "HiHatsAndKick", 0, {}, {}, /*region_count=*/3,
+      /*region_gens=*/{
+        { GenSpec{ 43, packKeyRange(42, 42) }, GenSpec{ 57, 5 }, GenSpec{ 38, 0 } }, // closed hihat, key 42, class 5
+        { GenSpec{ 43, packKeyRange(46, 46) }, GenSpec{ 57, 5 }, GenSpec{ 38, 0 } }, // open hihat, key 46, class 5
+        { GenSpec{ 43, packKeyRange(36, 36) }, GenSpec{ 38, 0 } },                   // kick, key 36, no class
+      } },
+  };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "choke_unrelated_class_fixture.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100);
+  auto instrument = sf.createInstrument(0);
+
+  InstrumentTrackState state(config, /*solo=*/false, /*muted=*/false, /*track_id=*/0, /*instrument_id=*/0, SphericalPosition{}, SendLevels{});
+
+  state.addVoice(0, instrument->playNote(config, SphericalPosition{}, frequencyForMidiKey(42), 1.0f, 0.8f, 0.0f, 42, SendLevels{})); // class 5
+  state.addVoice(1, instrument->playNote(config, SphericalPosition{}, frequencyForMidiKey(36), 1.0f, 0.8f, 0.0f, 36, SendLevels{})); // no class
+
+  auto voice46 = instrument->playNote(config, SphericalPosition{}, frequencyForMidiKey(46), 1.0f, 0.8f, 0.0f, 46, SendLevels{}); // class 5
+  state.retriggerVoices(2, 46);
+  state.chokeExclusiveClasses(*voice46);
+  state.addVoice(2, move(voice46));
+
+  // Past the fast-release window, short of the 1.0s natural release.
+  for (int i = 0; i < 4; i++) state.render(4096);
+
+  std::unordered_map<int, std::vector<ActiveVoiceInfo> > active;
+  state.getAllActiveVoices(active);
+  auto & voices = active[0];
+  bool has42 = false, has36 = false, has46 = false;
+  for (auto & v : voices) {
+    if (v.note_value == 42) has42 = true;
+    if (v.note_value == 36) has36 = true;
+    if (v.note_value == 46) has46 = true;
+  }
+  CHECK(!has42); // choked - shared class 5 with the new key-46 note
+  CHECK(has36);  // untouched - no exclusive class at all
+  CHECK(has46);  // the new voice itself
+}
+
+TEST(exclusive_class_choke_overrides_normal_release_when_composed_with_retrigger) {
+  // Cross-cutting composition case: a voice that both differs in note
+  // identity from the incoming note *and* shares an exclusive class with
+  // it. retriggerVoices() alone (different identity, same column) would
+  // only give it a normal ~1.0s stopNote(); chokeExclusiveClasses() must
+  // still win with a fast release - exclusive-class choke is the
+  // stricter rule and takes precedence over "let it ring", exactly like
+  // a closed hi-hat choking an open one despite the different pitches.
+  std::vector<PresetSpec> presets = {
+    { "HiHats", 0, {}, {}, /*region_count=*/2,
+      /*region_gens=*/{
+        { GenSpec{ 43, packKeyRange(42, 42) }, GenSpec{ 57, 5 }, GenSpec{ 38, 0 } },
+        { GenSpec{ 43, packKeyRange(46, 46) }, GenSpec{ 57, 5 }, GenSpec{ 38, 0 } },
+      } },
+  };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "choke_composition_fixture.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100);
+  auto instrument = sf.createInstrument(0);
+
+  InstrumentTrackState state(config, /*solo=*/false, /*muted=*/false, /*track_id=*/0, /*instrument_id=*/0, SphericalPosition{}, SendLevels{});
+
+  state.addVoice(0, instrument->playNote(config, SphericalPosition{}, frequencyForMidiKey(42), 1.0f, 0.8f, 0.0f, 42, SendLevels{}));
+
+  // Same column (0) as the key-42 voice, different identity (46 != 42) -
+  // exercises retriggerVoices()'s normal-stopNote() branch - AND shares
+  // exclusiveClass 5, so chokeExclusiveClasses() must override it.
+  auto voice46 = instrument->playNote(config, SphericalPosition{}, frequencyForMidiKey(46), 1.0f, 0.8f, 0.0f, 46, SendLevels{});
+  state.retriggerVoices(0, 46);
+  state.chokeExclusiveClasses(*voice46);
+
+  // If only the normal ~1.0s stopNote() had applied (choke not composing
+  // correctly), this would still be active at ~371ms - the test is only
+  // meaningful because that window is comfortably short of 1.0s.
+  bool became_inactive = false;
+  for (int i = 0; i < 8 && !became_inactive; i++) {
+    state.render(4096);
+    if (!state.isActive()) became_inactive = true;
+  }
+  CHECK(became_inactive);
+}
+
+TEST(fast_release_cascades_through_every_region_of_a_multi_region_group) {
+  std::vector<PresetSpec> presets = {
+    { "StereoPad", 0, { GenSpec{ 38, 0 } }, {}, /*region_count=*/2 },
+  };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "fast_release_group_fixture.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100);
+  auto instrument = sf.createInstrument(0);
+
+  auto voice = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{});
+  CHECK(voice->isActive());
+  CHECK(voice->getChildren().size() == 2);
+
+  voice->fastRelease();
+
+  // If fastRelease() didn't cascade into both region children (only the
+  // default TrackState recursion does that - a leaf-only implementation
+  // would leave an un-recursed sibling stuck sustaining forever), this
+  // would never become inactive within any number of iterations. 1.0s
+  // authored release vs. this loop's ~743ms budget also means a
+  // genuinely fast release is what's being verified, not just "some"
+  // release eventually happening.
+  bool became_inactive = false;
+  for (int i = 0; i < 8 && !became_inactive; i++) {
+    voice->render(4096);
+    if (!voice->isActive()) became_inactive = true;
+  }
+  CHECK(became_inactive);
+}
+
+TEST(get_exclusive_classes_reports_the_regions_own_class_or_none) {
+  std::vector<PresetSpec> presets = {
+    { "NoClass", 0, {}, {} },                        // 0: exclusiveClass left at spec default (0 = none)
+    { "WithClass", 0, { GenSpec{ 57, 7 } }, {} },     // 1: exclusiveClass = 7
+  };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "get_exclusive_classes_fixture.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100);
+
+  auto noClassInstrument = sf.createInstrument(0);
+  auto voice0 = noClassInstrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{});
+  CHECK(voice0->getExclusiveClasses().empty());
+
+  auto withClassInstrument = sf.createInstrument(1);
+  auto voice1 = withClassInstrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{});
+  auto classes1 = voice1->getExclusiveClasses();
+  CHECK(classes1.size() == 1);
+  CHECK(classes1[0] == 7);
 }

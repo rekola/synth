@@ -60,8 +60,9 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	      Note note(midi_note, midi_velocity);
 	      auto frequency = Tuner::getFrequency(tuning, note);
 
-	      track_state->stopVoices(column);
+	      track_state->retriggerVoices(column, note.getValue());
 	      auto voice = instrument.playNote(state_.getChannelConfiguration(), instrument_track.getPosition(), frequency, 1.0f, note.getVelocityAsFloat(), 0.0f, note.getValue(), instrument_track.getSends());
+	      track_state->chokeExclusiveClasses(*voice);
 	      track_state->addVoice(column, move(voice));
 	    } else {
 	      track_state->applyAftertouch(column, midi_velocity / 127.0f);

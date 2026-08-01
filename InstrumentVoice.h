@@ -31,6 +31,12 @@ class InstrumentVoice : public TrackState {
   }
   
   void stopNote() override { killNote(); }
+
+  // Every non-SF2 leaf already cuts instantly on stopNote() (via
+  // killNote() above) - no separate release phase to shorten, so
+  // fastRelease() just aliases it. SoundFontVoice overrides this with a
+  // real short release instead (see TrackState::fastRelease()'s comment).
+  void fastRelease() override { stopNote(); }
     
   void playNote(float frequency, float velocity, int note_value) override {
     TrackState::playNote(frequency, velocity, note_value);
