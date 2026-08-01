@@ -22,18 +22,19 @@ class InfoLine : public UIElement {
 
     auto new_version = song.getVersion();
     auto new_position = info.getAbsolutePosition();
-    
-    if (refresh || new_version != current_version_ || new_position != current_position_) {
+    auto num_voices = info.getVoiceCount();
+    auto num_allocated_voices = info.getAllocatedVoiceCount();
+
+    if (refresh || new_version != current_version_ || new_position != current_position_ ||
+	num_voices != current_num_voices_ || num_allocated_voices != current_num_allocated_voices_) {
       auto seconds = (int)info.getTime();
       auto minutes = seconds / 60;
       seconds %= 60;
-      
+
       auto [ rows, cols ] = getDim();
-      
+
       auto pattern_idx = info.getPatternIndex();
-      auto num_voices = info.getVoiceCount();
-      auto num_allocated_voices = info.getAllocatedVoiceCount();
-      
+
       auto s = fmt::format(" {:02x} {:02d}:{:02d} pattern:{} voices:{}/{}", info.getAbsolutePosition(), minutes, seconds, pattern_idx, num_voices, num_allocated_voices);
       if (info.isPlaying()) s += " PLAYING";
       while (s.size() < cols) s += ' ';
@@ -54,6 +55,8 @@ class InfoLine : public UIElement {
 
       current_version_ = new_version;
       current_position_ = new_position;
+      current_num_voices_ = num_voices;
+      current_num_allocated_voices_ = num_allocated_voices;
 
       return true;
     } else {
@@ -63,6 +66,13 @@ class InfoLine : public UIElement {
 
 private:
   int current_position_ = 0, current_version_ = 0;
+  // Voice counts are their own dirty-check inputs (not just a byproduct
+  // of a version/position change) - without this, a voice finishing its
+  // release tail while the transport is stopped and nothing else is
+  // being edited never bumps song version or playhead position, so the
+  // printed count would otherwise freeze at whatever it was and never
+  // tick down as voices actually finish.
+  int current_num_voices_ = 0, current_num_allocated_voices_ = 0;
 };
 
 #endif

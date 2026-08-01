@@ -801,22 +801,55 @@ public:
   SampleData render(int numSamples) override;
   
   void killNote() override {
-    // do not stop children
-    
     ampenv_.nextSegment(EnvelopeState::DONE);
     modenv_.nextSegment(EnvelopeState::DONE);
+
+    // A modulator child attached by GenericInstrument::playNote() (a
+    // song-configured FM modulator - see e.g. songs/subtractive_test.xml's
+    // <genericInstrument name="Cello"><oscilator .../></genericInstrument>)
+    // is stored directly in this voice's own children_ (TrackState::
+    // addChild()). Without recursing here, that child never learns the
+    // note stopped: its own envelope never reaches DONE, so it reports
+    // itself active forever - getVoiceCount() (TrackState::getVoiceCount(),
+    // not overridden here, so it does recurse into children) keeps
+    // counting a "voice" that's already been silently orphaned once this
+    // SoundFontVoice's own isActive() (which does NOT consult children)
+    // goes false and clearFinishedVoices() reaps the whole subtree anyway.
+    TrackState::killNote();
   }
 
   void stopNote() override {
-    // do not stop children
-    
-    ampenv_.nextSegment(EnvelopeState::SUSTAIN);
-    modenv_.nextSegment(EnvelopeState::SUSTAIN);
+    // EnvelopeState::nextSegment(SUSTAIN) unconditionally forces segment
+    // to RELEASE, regardless of the envelope's actual current segment -
+    // calling it on an envelope that already reached DONE resurrects it
+    // (isDone() starts reporting false again). stopNote() can legitimately
+    // be called more than once on the same voice: InstrumentTrackState::
+    // stopVoices() calls it both on a real note-off and again whenever a
+    // later note-on retriggers a column still holding this voice, gated
+    // only by the *group's* isActive() (TrackState::isActive() ORs over
+    // children) - in a multi-region group (stereo/velocity-layered GM
+    // patches, the common case) a sibling region can still be genuinely
+    // active while this one already finished, so that guard alone doesn't
+    // stop a second stopNote() from reaching an already-done region here.
+    // Guarding per-envelope, not just at the call site, is what actually
+    // prevents the revival.
+    if (!ampenv_.isDone()) ampenv_.nextSegment(EnvelopeState::SUSTAIN);
+    if (!modenv_.isDone()) modenv_.nextSegment(EnvelopeState::SUSTAIN);
 
     if (voiceRegion_->loop_mode == TSF_LOOPMODE_SUSTAIN) {
       // Continue playing, but stop looping.
       loopEnd_ = loopStart_;
     }
+
+    // See killNote()'s comment above. Deliberately TrackState::killNote(),
+    // not stopNote(): a modulator child's own envelope only ever advances
+    // via process(), called exclusively from within SoundFontVoice::
+    // render() on *its own* ampenv_/modenv_ - render() never recurses into
+    // children_ (a modulator's rendered audio isn't consumed by anything
+    // today), so a child put into RELEASE via stopNote() would sit there
+    // forever, never reaching DONE. Jumping straight to DONE is the only
+    // way this child ever reports itself inactive at all.
+    TrackState::killNote();
   }
 
   void stopNoteQuick() {
