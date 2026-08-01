@@ -36,7 +36,7 @@ class PatternEditor : public UIElement {
   int getEditStepSize() const { return edit_step_size; }
 
   // Called whenever the UI thread learns of a new playhead position (see
-  // UI::handlePlaybackEvent, right after Controller::setPlaybackInfo() -
+  // UI::handlePlaybackEvent, right after Controller::receivePlaybackSnapshot() -
   // mirrors LaunchpadManager::onRowAdvanced() exactly, see its own
   // comment for the full reasoning) - while a realtime auto-play-while-
   // held recording session is active (see auto_started_playback_),

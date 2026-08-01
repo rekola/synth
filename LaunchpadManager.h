@@ -189,7 +189,7 @@ class LaunchpadManager {
   void handlePadEvent(LaunchpadPadEvent & ev, Controller & controller, int fallback_track_index, int edit_step_size);
 
   // Called whenever the UI thread learns of a new playhead position (see
-  // UI::handlePlaybackEvent, right after Controller::setPlaybackInfo() -
+  // UI::handlePlaybackEvent, right after Controller::receivePlaybackSnapshot() -
   // that ordering matters, see this method's own definition) - while a
   // realtime auto-play-while-held recording session is active (see
   // auto_started_playback_), sweeps every row the playhead just passed

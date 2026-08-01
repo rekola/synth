@@ -779,7 +779,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
 	// with Capture off (real playback, engaged by the PRESS branch's
 	// auto-play push, is the norm whenever Capture is on) - a stopped,
 	// pure-audition release must not touch the cursor either.
-	event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, edit_step_size));
+	controller.moveEditPosition(edit_step_size);
       }
     }
 
@@ -809,7 +809,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
 	// rows past the OFF instead of one; "+1 from the exact row this
 	// snapshot (info) saw" doesn't have that problem. See SongState::
 	// setPosition()'s own comment for the full reasoning.
-	event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_POSITION, info.getAbsolutePosition() + 1));
+	controller.setEditPosition(info.getAbsolutePosition() + 1);
       }
       // Unconditional, regardless of the isPlaying() check above: if the
       // user manually stopped the transport themselves mid-hold,

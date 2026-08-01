@@ -318,6 +318,7 @@ Player::createPlaybackEvent(const Song & song, const SongState & state) {
   info.setPatternIdx(pattern_idx);
   info.setRowIdx(row_idx);
   info.setAbsolutePos(state.getAbsolutePosition());
+  info.setPositionEditSeq(state.getPositionEditSeq());
   info.setVoiceCount(state.getVoiceCount());
   info.setAllocatedVoiceCount(state.getAllocatedVoiceCount());
 

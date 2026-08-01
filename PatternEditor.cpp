@@ -60,7 +60,6 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     auto & song = getController().getSong();
     auto & info = getController().getPlaybackInfo();
     auto track_ids = song.getRootTrackIds();
-    auto & event_queue = getController().getPlaybackEventQueue();
     auto & pattern = song.getPattern(info.getPatternIndex());
 
     auto b = getEffectiveSelectionBounds(song, track_ids);
@@ -78,7 +77,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     selection_active_ = false;
     // move point to the start of the killed region, matching Emacs
     // kill-region, so an immediate yank restores it exactly in place
-    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, b.row_lo - info.getRowIndex()));
+    getController().moveEditPosition(b.row_lo - info.getRowIndex());
     new_cursor.track = b.track_lo;
     if (!b.column_scoped) {
       // Only reset to the first column for a whole-track kill; a
@@ -201,14 +200,14 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   commands_.define("move-row-up", [this]() {
     auto & info = getController().getPlaybackInfo();
     if (info.isPlaying()) return;
-    getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, -1));
+    getController().moveEditPosition(-1);
     new_cursor.subcol = 0;
   });
 
   commands_.define("move-row-down", [this]() {
     auto & info = getController().getPlaybackInfo();
     if (info.isPlaying()) return;
-    getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, 1));
+    getController().moveEditPosition(1);
     new_cursor.subcol = 0;
   });
 
@@ -696,7 +695,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	// SET_POSITION, not relative MOVE_POSITION(1) - see SongState::
 	// setPosition()'s own comment for why a relative move occasionally
 	// overshot by an extra row.
-	event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_POSITION, info.getAbsolutePosition() + 1));
+	getController().setEditPosition(info.getAbsolutePosition() + 1);
       }
       // Unconditional, regardless of the isPlaying() check above - see
       // LaunchpadManager's identical fix for why (a manual mid-hold stop
@@ -831,25 +830,25 @@ PatternEditor::offerInput(const InputEvent & input) {
       return true;
     } else if (input.getId() == NCKEY_BUTTON4) { // scroll wheel up - plain Up is now "move-row-up" (see the keymap)
       if (!info.isPlaying()) {
-	event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, -1));
+	getController().moveEditPosition(-1);
 	new_cursor.subcol = 0;
       }
       return true;
     } else if (input.getId() == NCKEY_BUTTON5) { // scroll wheel down - plain Down is now "move-row-down"
       if (!info.isPlaying()) {
-	event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, 1));
+	getController().moveEditPosition(1);
 	new_cursor.subcol = 0;
       }
       return true;
     } else if (input.getId() == NCKEY_PGUP) {
       if (!info.isPlaying()) {
-	event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, -16));
+	getController().moveEditPosition(-16);
 	new_cursor.subcol = 0;
       }
-      return true;    
+      return true;
     } else if (input.getId() == NCKEY_PGDOWN) { // scrollwheel down
       if (!info.isPlaying()) {
-	event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, 16));
+	getController().moveEditPosition(16);
 	new_cursor.subcol = 0;
       }
       return true;
@@ -1014,9 +1013,15 @@ PatternEditor::offerInput(const InputEvent & input) {
 
 	  if (!info.isPlaying()) {
 	    int n = 0;
-	    if (input.getId() != NCKEY_DEL && input.getId() != NCKEY_BACKSPACE) n = 1;
+	    // Backspace mirrors a text editor's own backspace: delete (already
+	    // done above) and step backward, undoing the forward step a note
+	    // entry would have made - unlike Delete, which deletes in place and
+	    // leaves the cursor where it was (Renoise draws the same
+	    // distinction between the two keys).
+	    if (input.getId() == NCKEY_BACKSPACE) n = -1;
+	    else if (input.getId() != NCKEY_DEL) n = 1;
 	    if (n) {
-	      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, n * edit_step_size));
+	      getController().moveEditPosition(n * edit_step_size);
 	    }
 	  }
 

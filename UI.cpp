@@ -209,9 +209,13 @@ UI::setStatus(std::string s) {
 
 void
 UI::handlePlaybackEvent(PlaybackEvent & ev) {
-  getController().setPlaybackInfo(ev.getInfo()); // cheap; always keep song position current
+  // Reconciled, not a plain setPlaybackInfo() - see Controller::
+  // receivePlaybackSnapshot()'s own comment: this snapshot's own
+  // edit-position fields can be stale relative to a more recent local
+  // moveEditPosition()/setEditPosition() prediction.
+  getController().receivePlaybackSnapshot(ev.getInfo());
 
-  // Must run right after setPlaybackInfo() above, before any other event
+  // Must run right after receivePlaybackSnapshot() above, before any other event
   // (a pad press, a keystroke) that might read the just-updated row and
   // write a note there - a no-op outside an active realtime-recording
   // session, and cheap even then (only rows the playhead actually just

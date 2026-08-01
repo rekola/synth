@@ -5,6 +5,7 @@
 #include "InstrumentTrack.h"
 #include "PlaybackControlEvent.h"
 
+#include <algorithm>
 #include <cassert>
 #include <unordered_map>
 #include <filesystem>
@@ -631,6 +632,52 @@ Controller::togglePlaying() {
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(info.isPlaying() ? PlaybackControlEvent::PLAY : PlaybackControlEvent::STOP));
   setPlaybackInfo(info);
   return info.isPlaying();
+}
+
+void
+Controller::moveEditPosition(int delta_rows) {
+  auto info = getPlaybackInfo();
+  auto new_absolute = std::max(0, info.getAbsolutePosition() + delta_rows);
+  auto [ pattern_idx, row_idx ] = getSong().normalizePosition(0, new_absolute);
+  info.setAbsolutePos(new_absolute);
+  info.setPatternIdx(pattern_idx);
+  info.setRowIdx(row_idx);
+  info.setPositionEditSeq(++local_position_edit_seq_);
+  setPlaybackInfo(info);
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, delta_rows));
+}
+
+void
+Controller::setEditPosition(int absolute_row) {
+  auto info = getPlaybackInfo();
+  auto new_absolute = std::max(0, absolute_row);
+  auto [ pattern_idx, row_idx ] = getSong().normalizePosition(0, new_absolute);
+  info.setAbsolutePos(new_absolute);
+  info.setPatternIdx(pattern_idx);
+  info.setRowIdx(row_idx);
+  info.setPositionEditSeq(++local_position_edit_seq_);
+  setPlaybackInfo(info);
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_POSITION, absolute_row));
+}
+
+void
+Controller::receivePlaybackSnapshot(const PlaybackInfo & info) {
+  if (info.getPositionEditSeq() < local_position_edit_seq_) {
+    // Stale: the audio thread took this snapshot before draining our most
+    // recent moveEditPosition()/setEditPosition() control event. Keep
+    // every other field from the real snapshot (voice counts, is_playing,
+    // meters, ...) but preserve the local, already-correct edit-position
+    // fields rather than regressing them - see this method's own doc
+    // comment on Controller.h.
+    auto merged = info;
+    merged.setAbsolutePos(playback_info.getAbsolutePosition());
+    merged.setPatternIdx(playback_info.getPatternIndex());
+    merged.setRowIdx(playback_info.getRowIndex());
+    merged.setPositionEditSeq(playback_info.getPositionEditSeq());
+    setPlaybackInfo(merged);
+  } else {
+    setPlaybackInfo(info);
+  }
 }
 
 static InstrumentTrack *
