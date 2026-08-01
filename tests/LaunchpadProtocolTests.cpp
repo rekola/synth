@@ -139,7 +139,6 @@ TEST(command_for_button_returns_the_assigned_command_names) {
   CHECK(commandForButton(92) == string("move-row-down"));
   CHECK(commandForButton(93) == string("prev-track"));
   CHECK(commandForButton(94) == string("next-track"));
-  CHECK(commandForButton(98) == string("toggle-playing"));
   CHECK(commandForButton(30) == string("toggle-mute"));  // Pro MK3 left column
   CHECK(commandForButton(20) == string("toggle-solo"));  // Pro MK3 left column
   CHECK(commandForButton(39) == string("toggle-mute"));  // right column - inferred Launchpad X alias, see LaunchpadProtocol.cpp
@@ -162,6 +161,10 @@ TEST(command_for_button_returns_nullopt_for_reserved_and_out_of_range_ccs) {
   CHECK(commandForButton(69) == nullopt);
   CHECK(commandForButton(79) == nullopt);
   CHECK(commandForButton(89) == nullopt);
+  // 98 (Capture MIDI, top row 8) is likewise intercepted by raw CC number
+  // in LaunchpadManager::handleRawButton (a per-device record-arm toggle,
+  // not a Song/Track-mutating command) - see its own comment.
+  CHECK(commandForButton(98) == nullopt);
   CHECK(commandForButton(10) == nullopt); // Pro MK3 left column - unassigned position
   CHECK(commandForButton(101) == nullopt); // Pro MK3 bottom row - not assigned this pass
   CHECK(commandForButton(0) == nullopt);

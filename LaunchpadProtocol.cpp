@@ -155,7 +155,11 @@ commandForButton(int cc_number) {
   case 92: return string("move-row-down"); // top row 2
   case 93: return string("prev-track");   // top row 3
   case 94: return string("next-track");   // top row 4
-  case 98: return string("toggle-playing"); // top row 8, printed with a record-circle icon
+  // 98 (top row 8, printed with a record-circle icon) used to be
+  // toggle-playing here; it's now the Capture MIDI record-arm toggle,
+  // intercepted directly in LaunchpadManager::handleRawButton() before
+  // this table is ever consulted - see its own comment. toggle-playing
+  // stays reachable via Space (UI.cpp's keymap).
   case 30: return string("toggle-mute");  // Pro MK3 left column, position 6
   case 20: return string("toggle-solo");  // Pro MK3 left column, position 7
   // 39/29 are inferred (not yet hardware-confirmed), continuing the same

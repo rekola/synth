@@ -40,16 +40,23 @@
   
 class InputEvent : public Event {
  public:
-  // Legacy terminals (no Kitty keyboard protocol) only ever report
-  // NCTYPE_UNKNOWN - every such keystroke becomes PRESS here, exactly
-  // today's behavior, since those terminals have no way to distinguish a
-  // fresh press from a held key's auto-repeat or its eventual release.
   // Kitty-protocol terminals (kitty, foot, wezterm, ghostty, ...) report
-  // real press/repeat/release for the same physical key - see
-  // TerminalUI::readInput().
-  enum class Kind { PRESS, REPEAT, RELEASE };
+  // real press/repeat/release for each physical key - see
+  // TerminalUI::readInput(). A terminal with no such support (notcurses
+  // reports NCTYPE_UNKNOWN for literally every keystroke there, its own
+  // signal that the terminal never negotiated the protocol at all - no
+  // capability query needed) can't distinguish a fresh press from a held
+  // key's auto-repeat or its eventual release, so UNKNOWN is kept
+  // distinct from PRESS rather than folded into it: code that tracks
+  // "this key is currently held" (note-entry's active_keyboard_notes_,
+  // the realtime-auto-play-while-held feature) must treat UNKNOWN as "no
+  // hold information available" and fall back to the old one-shot-per-
+  // keystroke behavior, not silently mistake it for a real, eventually-
+  // released press - see PatternEditor::offerInput()'s own note-entry
+  // code for exactly where that fallback happens.
+  enum class Kind { UNKNOWN, PRESS, REPEAT, RELEASE };
 
-  InputEvent(int id, int y, int x, bool alt, bool shift, bool ctrl, bool meta, Kind kind = Kind::PRESS)
+  InputEvent(int id, int y, int x, bool alt, bool shift, bool ctrl, bool meta, Kind kind = Kind::UNKNOWN)
     : id_(id), y_(y), x_(x), alt_(alt), shift_(shift), ctrl_(ctrl), meta_(meta), kind_(kind) { }
 
   void dispatch(EventHandler & evh) override { evh.handleInputEvent(*this); }

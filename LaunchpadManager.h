@@ -7,6 +7,7 @@
 #include <array>
 #include <chrono>
 #include <map>
+#include <set>
 #include <string_view>
 #include <unordered_map>
 #include <utility>
@@ -187,10 +188,21 @@ class LaunchpadManager {
   // happens to be present).
   void handlePadEvent(LaunchpadPadEvent & ev, Controller & controller, int fallback_track_index, int edit_step_size);
 
+  // Called whenever the UI thread learns of a new playhead position (see
+  // UI::handlePlaybackEvent, right after Controller::setPlaybackInfo() -
+  // that ordering matters, see this method's own definition) - while a
+  // realtime auto-play-while-held recording session is active (see
+  // auto_started_playback_), sweeps every row the playhead just passed
+  // through and clears each currently-recorded track's notes there, so a
+  // live take replaces whatever was previously on that stretch instead
+  // of merging with it. A no-op outside such a session.
+  void onRowAdvanced(Controller & controller);
+
   // Called once per render() frame: recomputes each ready device's LED
-  // colors (base Fokker/percussion palette plus a brightness overlay for
-  // whatever notes are currently sounding on its assigned track, from
-  // playback_info) and pushes an LED refresh only when the resulting
+  // colors (base consonance-hierarchy/percussion palette plus a
+  // brightness overlay for whatever notes are currently sounding on its
+  // assigned track, from playback_info) and pushes an LED refresh only
+  // when the resulting
   // colors actually changed - the multi-device generalization of the old
   // single-device diff block. track_ids is whatever root-track-id list
   // the caller already computed (avoids this class needing to know how
@@ -208,10 +220,21 @@ class LaunchpadManager {
     bool connected = false;
     Tuning tuning = Tuning::TET12;
     int key = -1;
-    bool playing = false, muted = false, solo = false;
+    bool muted = false, solo = false;
     // note_value -> loudness (0..1) for the assigned track's currently
     // sounding notes, used to brighten pads above LAUNCHPAD_IDLE_BRIGHTNESS.
     std::unordered_map<int, float> active_note_loudness;
+
+    // Record-arm toggle for this device (CC98, the physical "Capture
+    // MIDI" button - see handleRawButton()) - defaults off: a freshly
+    // connected Launchpad is just an instrument until the player
+    // deliberately arms it, not a silent trap that overwrites pattern
+    // data the moment you start experimenting. Gates pattern mutation
+    // only (Note writes, song version bumps, the not-playing step-
+    // advance MOVE_POSITION) - live PLAY_NOTE/STOP_NOTE/NOTE_PRESSURE
+    // audition events fire regardless, so this device is always audible
+    // whether or not it's recording.
+    bool capture_enabled = false;
 
     GridMode grid_mode = GridMode::NOTES;
     // First 8 root tracks' current SendMain/SendA/SendB/azimuth - refreshed
@@ -268,8 +291,60 @@ class LaunchpadManager {
   const DeviceState * findDeviceState(int device_id) const;
   void refreshLeds(int device_id, DeviceState & state);
 
+  // True iff some connected device both has capture_enabled and
+  // currently has at least one held note - the realtime auto-play
+  // trigger (see handlePadEvent()'s PRESS/RELEASE handling) recomputes
+  // this fresh on every press/release rather than caching it per-note,
+  // so toggling Capture mid-hold takes effect on the very next event
+  // without needing to track "was this specific note captured."
+  bool anyCaptureArmedNoteHeld() const;
+
+  // True iff some currently-held note (on any device, not just the one
+  // about to claim a column) already occupies (track_id, note_column) -
+  // needed alongside the pattern's own defined-note check in
+  // handlePadEvent()'s PRESS free-slot search: with Capture off, a held
+  // note is never written to the pattern at all, so the pattern-only
+  // check can't see it and would hand out the same "free" column to
+  // every simultaneously-held note, each PLAY_NOTE then stealing the
+  // previous one's voice via Player.cpp's stopVoices(column) - killing
+  // polyphony entirely. Scans every device, not just the caller's own,
+  // since two different Launchpads could be assigned to the same track.
+  bool isColumnLiveHeld(int track_id, int note_column) const;
+
+  // Clears (row, track_id)'s notes exactly once per recording session -
+  // idempotent (checked against auto_record_cleared_rows_) so it's safe
+  // to call defensively from every write site during an active session
+  // (a fresh press, a release's explicit off-write, an aftertouch write,
+  // and onRowAdvanced()'s own sweep) without worrying about which one
+  // gets there first or double-clearing.
+  void ensureRowCleared(Song & song, int pattern_idx, int row, int track_id);
+
   LaunchpadIO * launchpad_io_ = nullptr;
   std::map<int, DeviceState> devices_;
+
+  // Whether this code (not the user manually pressing Space) was the one
+  // that pushed PLAY for the realtime-advance-while-held feature - only
+  // set when a capture-armed device's held-note count goes 0->1 while
+  // the transport wasn't already running; only consulted (and cleared)
+  // when it goes back to 0, so a manually-started session is never
+  // stopped just because a Launchpad note happened to be released. One
+  // instance-wide flag, not per-device - there is only one shared
+  // playhead/transport (see the plan's "separate playheads" caveat).
+  bool auto_started_playback_ = false;
+
+  // Which (row, track_id) pairs have already been cleared this recording
+  // session (see ensureRowCleared) - reset whenever a fresh session
+  // starts (auto_started_playback_ false -> true). last_cleared_row_/
+  // last_cleared_pattern_idx_ track how far onRowAdvanced()'s sweep has
+  // already reached, so it only clears newly-passed rows, not the whole
+  // pattern on every call - reset the same way, and also resynced
+  // (rather than trying to backfill a range) if the pattern index itself
+  // changes or the row goes backwards (a loop/pattern-sequence
+  // wraparound), since a range spanning that boundary has no single
+  // well-defined meaning here.
+  std::set<std::pair<int, int>> auto_record_cleared_rows_;
+  int last_cleared_row_ = -1;
+  int last_cleared_pattern_idx_ = -1;
 };
 
 #endif

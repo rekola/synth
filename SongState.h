@@ -56,7 +56,23 @@ class SongState : public TrackState {
   
     if (isPlaying()) {
       for (int i = 0; i < frames; i++) {
-	if (getSamplePos() == 0) {
+	// recording_muted_: a live-hold recording session (Launchpad/
+	// keyboard auto-play-while-held - see LaunchpadManager::
+	// onRowAdvanced()/PatternEditor::onRowAdvanced() and their own
+	// SET_RECORDING_MUTE push) still needs the transport genuinely
+	// advancing rows in real time underneath (that's what makes the
+	// whole-row-clear feature's timing correct), but must not let the
+	// song's own already-recorded pattern content spawn new voices
+	// while doing so - otherwise old, not-yet-cleared notes at rows
+	// the playhead sweeps through get audibly triggered before the
+	// UI thread's own (necessarily reactive, and thus slightly
+	// delayed) clear catches up. Skipping just this scheduling step
+	// leaves the position-advance logic below completely untouched,
+	// and doesn't touch the entirely separate PLAY_NOTE/STOP_NOTE/
+	// NOTE_PRESSURE path the live performance itself is heard
+	// through - so recording mute is inaudible for anything the
+	// player is actually doing, only for the song's own old content.
+	if (getSamplePos() == 0 && !recording_muted_) {
 	  auto [ pattern_idx, row_idx ] = getRelativePosition(song);
 	  auto & pattern = song.getPattern(pattern_idx);
 	  auto & notes = pattern.getNotes(row_idx);
@@ -159,6 +175,12 @@ class SongState : public TrackState {
   bool isPlaying() const { return is_playing_; }
   void setIsPlaying(bool b) { is_playing_ = b; }
 
+  // See render()'s own comment on recording_muted_'s use - set/cleared by
+  // PlaybackControlEvent::SET_RECORDING_MUTE, pushed by LaunchpadManager/
+  // PatternEditor alongside their own auto-play-while-held engage/
+  // disengage (Controller::togglePlaying()) calls.
+  void setRecordingMuted(bool b) { recording_muted_ = b; }
+
   // The playback position is a raw row count accumulated across however
   // long the previous song played; it means nothing against a different
   // song's (likely much shorter) pattern list, so it must be reset whenever
@@ -206,6 +228,24 @@ class SongState : public TrackState {
       absolute_pos_ = 0;
     }
   }
+
+  // Absolute counterpart to movePosition() above - jumps to an exact row
+  // (PlaybackInfo::getAbsolutePosition()'s own units) regardless of
+  // whatever absolute_pos_ has drifted to by the time this actually
+  // processes. Needed anywhere a UI-thread snapshot decides "land one row
+  // past what I just saw": that snapshot is already stale by some
+  // unknown amount by the time this event reaches the audio thread (this
+  // one keeps rendering in real time the whole time such an event is in
+  // flight), so a *relative* movePosition(1) issued from the UI thread
+  // moves relative to whatever position has since drifted to, not
+  // relative to the row the UI thread actually saw - occasionally
+  // landing a row or more further than intended. An absolute target
+  // sidesteps that entirely. See LaunchpadManager/PatternEditor's own
+  // auto-stop-after-recording code for the concrete case this fixed.
+  void setPosition(int absolute_row) {
+    sample_pos_ = 0;
+    absolute_pos_ = absolute_row < 0 ? 0 : absolute_row;
+  }
   
   int getTempo() const { return tempo_; }
 
@@ -218,6 +258,7 @@ class SongState : public TrackState {
 private:
   int tempo_ = 0;
   bool is_playing_ = false;
+  bool recording_muted_ = false;
   int sample_pos_ = 0, absolute_pos_ = 0;
   RenderContext render_context_;
   SendBusProcessor send_bus_;

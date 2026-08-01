@@ -87,7 +87,11 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
   case PlaybackControlEvent::MOVE_POSITION:
     state_.movePosition(ev.getParameter1());
     break;
-    
+
+  case PlaybackControlEvent::SET_POSITION:
+    state_.setPosition(ev.getParameter1());
+    break;
+
   case PlaybackControlEvent::CLEAR_VOICES:
     state_.removeChild(ev.getParameter1());
     break;
@@ -97,6 +101,10 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       auto track_state = dynamic_cast<InstrumentTrackState*>(state_.getChildByInternalId(ev.getParameter1()));
       if (track_state) track_state->stopVoices(ev.getParameter2());
     }
+    break;
+
+  case PlaybackControlEvent::SET_RECORDING_MUTE:
+    state_.setRecordingMuted(ev.getParameter1() != 0);
     break;
 
   case PlaybackControlEvent::SET_TRACK_MUTED:

@@ -374,7 +374,85 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id) {
     toggleGridMode(device_id, GridMode::SEND_B);
     return true;
   }
+  // 98 (top row 8, printed with a record-circle icon) is the real
+  // Launchpad X's own dedicated "Capture MIDI" button - a per-device
+  // record-arm toggle, not a Song/Track-mutating command, so it's a
+  // direct hardware-state flip here rather than a named command (same
+  // shape as the grid-mode toggles above). Used to be wired to
+  // toggle-playing via the named-command pipeline - see
+  // LaunchpadProtocol::commandForButton's own comment; toggle-playing
+  // stays reachable via Space.
+  if (cc_number == 98) {
+    auto & state = deviceState(device_id);
+    state.capture_enabled = !state.capture_enabled;
+    return true;
+  }
   return false;
+}
+
+bool
+LaunchpadManager::anyCaptureArmedNoteHeld() const {
+  for (auto & [ device_id, state ] : devices_) {
+    if (state.capture_enabled && !state.active_notes.empty()) return true;
+  }
+  return false;
+}
+
+bool
+LaunchpadManager::isColumnLiveHeld(int track_id, int note_column) const {
+  for (auto & [ device_id, state ] : devices_) {
+    for (auto & [ pos, note ] : state.active_notes) {
+      if (note.track_id == track_id && note.note_column == note_column) return true;
+    }
+  }
+  return false;
+}
+
+void
+LaunchpadManager::ensureRowCleared(Song & song, int pattern_idx, int row, int track_id) {
+  if (!auto_record_cleared_rows_.insert({row, track_id}).second) return; // already cleared this session
+  auto & pattern = song.getPattern(pattern_idx);
+  pattern.setNotes(row, track_id, {});
+  song.incVersion();
+}
+
+void
+LaunchpadManager::onRowAdvanced(Controller & controller) {
+  if (!auto_started_playback_) return;
+
+  auto & info = controller.getPlaybackInfo();
+  auto new_row = info.getRowIndex();
+  auto pattern_idx = info.getPatternIndex();
+
+  if (pattern_idx != last_cleared_pattern_idx_ || new_row < last_cleared_row_) {
+    // Pattern changed, or the row went backwards (a loop/pattern-sequence
+    // wraparound) - resync to just this row rather than trying to
+    // backfill a range spanning the boundary, which has no single
+    // well-defined meaning here.
+    last_cleared_row_ = new_row - 1;
+    last_cleared_pattern_idx_ = pattern_idx;
+  }
+  if (new_row <= last_cleared_row_) return; // nothing new to sweep
+
+  // Every track currently receiving live input, across every device -
+  // not just the caller's own, since two different Launchpads could be
+  // assigned to different tracks and both mid-hold at once.
+  vector<int> track_ids;
+  for (auto & [ device_id, state ] : devices_) {
+    for (auto & [ pos, note ] : state.active_notes) {
+      if (find(track_ids.begin(), track_ids.end(), note.track_id) == track_ids.end()) {
+	track_ids.push_back(note.track_id);
+      }
+    }
+  }
+
+  auto & song = controller.getSong();
+  for (int row = last_cleared_row_ + 1; row <= new_row; row++) {
+    for (auto track_id : track_ids) {
+      ensureRowCleared(song, pattern_idx, row, track_id);
+    }
+  }
+  last_cleared_row_ = new_row;
 }
 
 bool
@@ -488,7 +566,15 @@ LaunchpadManager::resolveNote(const Song & song, int device_id, int track_id, in
   if (edo_steps <= 0) return -1; // defensive - every non-percussion Tuning is currently pitched
 
   auto basis = LaunchpadLayout::computeBasis(edo_steps);
-  auto tonic = song.getKey() >= 0 ? song.getKey() : 0;
+  auto key = song.getKey();
+  // song.getKey() is a full note number with its own baked-in octave
+  // (Note::stringToKey() defaults to octave 4 whenever the key text omits
+  // one, e.g. "C" -> 60) - only its pitch class matters here, since the
+  // octave register below is what actually picks the octave. Adding the
+  // raw absolute value double-counted the octave (song key "C4" plus the
+  // default register 4 landed at base_note ~120, i.e. C9, not the
+  // intended ~C4/C5).
+  auto tonic = key >= 0 ? ((key % edo_steps) + edo_steps) % edo_steps : 0;
   // Deliberately not "(octave - 4) * edo_steps" (which anchors pad (0,0) at
   // the raw tonic, an inaudibly low register for most instruments): the
   // computer-keyboard tables (InputEvent.h) each bake in their own
@@ -569,28 +655,80 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
 
   if (ev.getKind() == LaunchpadPadEvent::PRESS) {
     auto row = info.getRowIndex();
+    auto & state = deviceState(device_id);
+
+    // Whether this press is about to become the first captured (Capture-
+    // armed) held note anywhere - computed before recordActiveNote()
+    // below adds this one, so it doesn't see itself. Drives the realtime
+    // auto-play-while-held feature (see the RELEASE branch's matching
+    // check) - only engages while Capture is actually armed on this
+    // device, since the whole point is getting accurately-timed
+    // recorded data; a pure-audition press has nothing to time-stamp.
+    bool was_first_captured_note = state.capture_enabled && !anyCaptureArmedNoteHeld();
+
+    // Engage realtime auto-play-while-held *before* the free-slot search
+    // and this press's own write below, so - when this is the session-
+    // starting press - ensureRowCleared() (just below) sees the fresh
+    // auto_started_playback_ state in time to matter for both.
+    if (was_first_captured_note && !info.isPlaying()) {
+      // togglePlaying() (rather than a raw PLAY push) also synchronously
+      // updates Controller's own PlaybackInfo - info (bound by reference
+      // above) reflects isPlaying()==true immediately, not just once the
+      // Player thread eventually processes the event and reports back.
+      controller.togglePlaying();
+      // Mutes only the song's own pattern-driven scheduling (SongState::
+      // render()'s own comment has the full reasoning) - never the live
+      // PLAY_NOTE/STOP_NOTE/NOTE_PRESSURE path this press's own sound
+      // comes through, so the player's own performance is unaffected.
+      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_RECORDING_MUTE, 1));
+      auto_started_playback_ = true;
+      auto_record_cleared_rows_.clear();
+      last_cleared_row_ = -1;
+      last_cleared_pattern_idx_ = -1;
+    }
+
+    // Whole-row replace semantics for a live take: idempotent (see its
+    // own comment), so calling it defensively is safe - only actually
+    // does anything the first time (row, track_id) is touched this
+    // session. Cleared *before* the free-slot search just below, not
+    // after - otherwise a column still holding an old, about-to-be-
+    // erased note reads as "taken" and gets skipped past, when the old
+    // note is actually gone (or about to be, from this same call) and
+    // the new one should be free to land in the very first column.
+    if (state.capture_enabled && auto_started_playback_) ensureRowCleared(song, info.getPatternIndex(), row, track_id);
 
     // Free-slot search (mirrors Pattern::pushNote), deliberately not
     // "map size" the way active_midi_notes assigns columns - that has a
     // latent collision bug on non-LIFO release order, which is the common
     // case for a chordally-played grid controller (see the plan's design
-    // decision 3).
+    // decision 3). Computed unconditionally (even with Capture off,
+    // nothing gets written to it) - simpler than a second code path, and
+    // it's still needed to key the live-audition voice below. A column is
+    // "taken" if the pattern already has a real note there *or* some
+    // other currently-held press already claimed it live
+    // (isColumnLiveHeld) - the latter is essential with Capture off: a
+    // held note is never written to the pattern at all then, so the
+    // pattern-only check alone would hand out the very same "free"
+    // column to every simultaneously-held note, each PLAY_NOTE silently
+    // stealing the previous one's voice (Player.cpp's
+    // stopVoices(column)) and killing polyphony entirely.
     auto & notes = pattern.getNotes(row, track_id);
-    int note_column = static_cast<int>(notes.size());
-    for (int i = 0; i < static_cast<int>(notes.size()); i++) {
-      if (!notes[i].isDefined()) {
-	note_column = i;
-	break;
-      }
+    int note_column = 0;
+    while ((note_column < static_cast<int>(notes.size()) && notes[note_column].isDefined()) ||
+	   isColumnLiveHeld(track_id, note_column)) {
+      note_column++;
     }
-    recordActiveNote(device_id, ev.getX(), ev.getY(), {note_column, row, track_id});
 
     auto velocity = LaunchpadProtocol::getModelInfo(ev.getModel()).velocity_sensitive ?
       static_cast<short>(ev.getVelocity()) : static_cast<short>(0x28); // same default as keyboard entry
 
-    Note note(note_value, velocity, current_delay);
-    pattern.setNote(row, track_id, note_column, note);
-    song.incVersion();
+    recordActiveNote(device_id, ev.getX(), ev.getY(), {note_column, row, track_id});
+
+    if (state.capture_enabled) {
+      Note note(note_value, velocity, current_delay);
+      pattern.setNote(row, track_id, note_column, note);
+      song.incVersion();
+    }
 
     event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, track_id, note_column, note_value, velocity));
 
@@ -601,37 +739,86 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // MOVE_POSITION round-trip. Advance is deferred to RELEASE, once every
     // currently-held pad has been let go (see below) - matching how
     // Renoise's own "chord mode" treats simultaneously-pressed MIDI notes
-    // as one gesture, not N independent steps.
+    // as one gesture, not N independent steps. (With Capture armed and
+    // the transport now running via the auto-play push above, rows in
+    // fact advance continuously in real time for the whole hold, same as
+    // real playback - this per-press deferral only still matters for the
+    // Capture-off/pure-audition case, which never engages auto-play.)
   } else if (ev.getKind() == LaunchpadPadEvent::RELEASE) {
     auto held_ptr = findActiveNote(device_id, ev.getX(), ev.getY());
     if (!held_ptr) return;
     auto held = *held_ptr;
     clearActiveNote(device_id, ev.getX(), ev.getY());
+    auto & state = deviceState(device_id);
 
     // Always silence the live-audition voice.
     event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, held.track_id, held.note_column));
 
-    if (info.isPlaying()) {
-      // Live performance recording: write an explicit OFF at the row the
-      // transport has since reached, mirroring handleMidiEvent's NOTE_OFF -
-      // UNLESS that's still the same row the note itself is on. Per
-      // Renoise's own pattern model (a single line can't hold both a note
-      // and its own note-off), a release fast enough to land before the
-      // row has advanced must not be recorded as an off, or it would
-      // instantly erase the note it belongs to.
-      auto release_row = info.getRowIndex();
-      if (release_row != held.row) {
-	pattern.setNote(release_row, held.track_id, held.note_column, Note(0, 0, current_delay));
-	song.incVersion();
+    if (state.capture_enabled) {
+      if (info.isPlaying()) {
+	// Live performance recording: write an explicit OFF at the row the
+	// transport has since reached, mirroring handleMidiEvent's NOTE_OFF -
+	// UNLESS that's still the same row the note itself is on. Per
+	// Renoise's own pattern model (a single line can't hold both a note
+	// and its own note-off), a release fast enough to land before the
+	// row has advanced must not be recorded as an off, or it would
+	// instantly erase the note it belongs to.
+	auto release_row = info.getRowIndex();
+	if (release_row != held.row) {
+	  if (auto_started_playback_) ensureRowCleared(song, info.getPatternIndex(), release_row, held.track_id);
+	  pattern.setNote(release_row, held.track_id, held.note_column, Note(0, 0, current_delay));
+	  song.incVersion();
+	}
+      } else if (!hasAnyActiveNotes(device_id)) {
+	// Step entry: advance once the whole chord gesture has been
+	// released on *this* device (not per pad - see the PRESS branch;
+	// and scoped to this device, not every connected Launchpad, so one
+	// device's chord release doesn't prematurely advance while another
+	// device is still mid-chord), so the next tap/chord lands on a
+	// fresh row instead of piling onto this one. Only reachable at all
+	// with Capture off (real playback, engaged by the PRESS branch's
+	// auto-play push, is the norm whenever Capture is on) - a stopped,
+	// pure-audition release must not touch the cursor either.
+	event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, edit_step_size));
       }
-    } else if (!hasAnyActiveNotes(device_id)) {
-      // Step entry: advance once the whole chord gesture has been
-      // released on *this* device (not per pad - see the PRESS branch;
-      // and scoped to this device, not every connected Launchpad, so one
-      // device's chord release doesn't prematurely advance while another
-      // device is still mid-chord), so the next tap/chord lands on a
-      // fresh row instead of piling onto this one.
-      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, edit_step_size));
+    }
+
+    // Realtime auto-play-while-held: stop exactly when the last
+    // Capture-armed held note anywhere releases, but only if this code
+    // (not the user manually pressing Space) was the one that started
+    // it - see auto_started_playback_'s own comment. The session is
+    // considered over either way once this fires (flag cleared
+    // regardless) - but only actually call togglePlaying() (which flips
+    // whatever the *current* state is) if it's still genuinely playing;
+    // otherwise the user must have manually stopped it themselves in the
+    // meantime, and toggling again here would incorrectly restart it.
+    if (auto_started_playback_ && !anyCaptureArmedNoteHeld()) {
+      if (info.isPlaying()) {
+	controller.togglePlaying();
+	// Land past the just-written final OFF, not directly on it, so the
+	// cursor is ready for whatever comes next - the same "advance once
+	// you're done" step-entry already gives an ordinary note, just
+	// triggered once here for the whole take instead of after every
+	// row. Only when *we* actually stopped it here - if the user had
+	// already manually stopped the transport before this release, the
+	// cursor is wherever they left it and shouldn't be moved out from
+	// under them. An *absolute* SET_POSITION, not a relative
+	// MOVE_POSITION(1) - the audio thread keeps advancing in real time
+	// for however long this event takes to actually reach it, so "+1
+	// from wherever it's drifted to by then" occasionally landed two
+	// rows past the OFF instead of one; "+1 from the exact row this
+	// snapshot (info) saw" doesn't have that problem. See SongState::
+	// setPosition()'s own comment for the full reasoning.
+	event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_POSITION, info.getAbsolutePosition() + 1));
+      }
+      // Unconditional, regardless of the isPlaying() check above: if the
+      // user manually stopped the transport themselves mid-hold,
+      // recording_muted_ would otherwise stay stuck true (nothing else
+      // ever clears it), silently muting their next ordinary, manually-
+      // started playback.
+      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_RECORDING_MUTE, 0));
+      auto_started_playback_ = false;
+      auto_record_cleared_rows_.clear(); // not required for correctness (the next session's own start resets this too) - just don't hold onto a finished session's bookkeeping longer than needed
     }
   } else if (ev.getKind() == LaunchpadPadEvent::AFTERTOUCH) {
     // Mini MK3 never emits this (no pressure sensing); defensive check
@@ -642,9 +829,12 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     if (!held_ptr) return; // no held note to modulate
     auto & held = *held_ptr;
 
-    // Live modulation always happens, regardless of the write-throttle
-    // below - mirrors handleMidiEvent's NOTE_PRESSURE handling exactly.
+    // Live modulation always happens, regardless of Capture/write-
+    // throttle below - mirrors handleMidiEvent's NOTE_PRESSURE handling
+    // exactly.
     event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, held.track_id, held.note_column, note_value, ev.getVelocity()));
+
+    if (!deviceState(device_id).capture_enabled) return;
 
     // Rate-limit the persisted pattern write: Pattern::setNote already
     // overwrites in place (so "one aftertouch object per column per row" is
@@ -656,12 +846,17 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     if (delta < aftertouch_threshold) return;
     held.last_aftertouch_value = ev.getVelocity();
 
-    // While playing, modulate the currently-sounding row (transport has
-    // moved on, matching handleMidiEvent); while stopped, modulate the
-    // row the note actually landed on (step entry already advanced past
-    // it - see the RELEASE branch above for why using the live row would
-    // be wrong here too).
+    // While playing (the norm whenever Capture is on - see the PRESS
+    // branch's auto-play push), modulate the currently-sounding row
+    // (transport has moved on, matching handleMidiEvent); while stopped
+    // (only reachable with Capture on if the auto-play push hasn't been
+    // processed by the Player thread yet), modulate the row the note
+    // actually landed on.
     auto target_row = info.isPlaying() ? info.getRowIndex() : held.row;
+    // Clear before reading, not just before writing - otherwise the
+    // isDefined() check below could pick up stale pre-existing data from
+    // before this row was cleared for the live take.
+    if (auto_started_playback_) ensureRowCleared(song, info.getPatternIndex(), target_row, held.track_id);
     auto note = pattern.getNote(target_row, held.track_id, held.note_column);
     if (!note.isDefined()) note.setDelay(current_delay);
     note.setVelocity(static_cast<short>(ev.getVelocity()));
@@ -756,10 +951,10 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
       }
     } else {
       auto basis = LaunchpadLayout::computeBasis(edo_steps);
-      auto tonic = state.key >= 0 ? state.key : 0;
-      // Matches resolveNote's base_note (see its comment) - purely for
-      // consistency, since classifyPad's result is invariant to a uniform
-      // octave shift of base_note anyway.
+      // Reduced to a pitch class, matching resolveNote's tonic (see its
+      // comment) - purely for consistency, since classifyPad's result is
+      // invariant to a uniform octave shift of base_note anyway.
+      auto tonic = state.key >= 0 ? ((state.key % edo_steps) + edo_steps) % edo_steps : 0;
       auto base_note = tonic + (state.octave + 1) * edo_steps;
 
       // Computed once per refresh, not once per pad - computeConsonanceLevels
@@ -797,7 +992,11 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   colors.push_back({95, 0, 0, 0});    // reserved (Session, inferred)
   colors.push_back({96, 0, 0, 0});    // reserved (Note, inferred)
   colors.push_back({97, 60, 60, 60}); // Custom physical button (inferred) -> draw-mode, dim white (static)
-  colors.push_back({98, state.playing ? uint8_t(0) : uint8_t(20), state.playing ? uint8_t(127) : uint8_t(20), state.playing ? uint8_t(0) : uint8_t(20)}); // toggle-playing/record
+  // Reuses the red Mute's own LED used to show (see 39/30 below, which
+  // moved to blue to make room) - Capture is now the record-armed
+  // indicator, not a play/stop indicator (toggle-playing itself is still
+  // reachable via Space, just no longer shown here).
+  colors.push_back({98, state.capture_enabled ? uint8_t(127) : uint8_t(20), 0, 0}); // capture-armed toggle
   // 99 (top-right corner, the grid position the Programmer-mode protocol
   // maps one past the 91-98 top row) isn't actually a pressable button on
   // real Launchpad X hardware - see handleRawButton()'s own comment - so
@@ -814,13 +1013,13 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // Arm/Stop Clip) stay reserved.
   colors.push_back({19, 0, 0, 0});    // reserved
   colors.push_back({29, state.solo ? uint8_t(127) : uint8_t(20), state.solo ? uint8_t(127) : uint8_t(20), 0}); // toggle-solo
-  colors.push_back({39, state.muted ? uint8_t(127) : uint8_t(20), 0, 0}); // toggle-mute
+  colors.push_back({39, 0, 0, state.muted ? uint8_t(127) : uint8_t(20)}); // toggle-mute (blue - red moved to Capture, CC98)
   colors.push_back({49, 0, 0, 0});    // reserved
   colors.push_back({59, 40, 0, 40});  // Send B physical button -> send-b-mode, dim magenta (static)
   colors.push_back({69, 0, 40, 40});  // Send A physical button -> send-a-mode, dim cyan (static)
   colors.push_back({79, 40, 20, 0});  // Pan physical button -> pan-mode, dim orange (static)
   colors.push_back({89, 40, 40, 0});  // Volume physical button -> send-main-mode, dim yellow (static)
-  colors.push_back({30, state.muted ? uint8_t(127) : uint8_t(20), 0, 0}); // toggle-mute (Pro MK3 left column pos. 6)
+  colors.push_back({30, 0, 0, state.muted ? uint8_t(127) : uint8_t(20)}); // toggle-mute (Pro MK3 left column pos. 6; blue - see CC39)
   colors.push_back({20, state.solo ? uint8_t(127) : uint8_t(20), state.solo ? uint8_t(127) : uint8_t(20), 0}); // toggle-solo (Pro MK3 left column pos. 7)
 
   // Only actually send when the computed colors changed since the last
@@ -840,7 +1039,6 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
 void
 LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, const PlaybackInfo & playback_info, int fallback_track_index) {
   if (!launchpad_io_) return;
-  bool playing = playback_info.isPlaying();
   auto ready_ids = launchpad_io_->readySessionIds();
 
   // Prune cached state for devices no longer connected - session ids are
@@ -902,7 +1100,6 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     state.connected = true;
     state.tuning = tuning;
     state.key = key_val;
-    state.playing = playing;
     state.muted = muted;
     state.solo = solo;
     state.active_note_loudness = move(active_note_loudness);

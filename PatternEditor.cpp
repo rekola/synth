@@ -586,6 +586,53 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
 #endif
 }
 
+void
+PatternEditor::ensureRowCleared(Song & song, int pattern_idx, int row, int track_id) {
+  if (!auto_record_cleared_rows_.insert({row, track_id}).second) return; // already cleared this session
+  auto & pattern = song.getPattern(pattern_idx);
+  pattern.setNotes(row, track_id, {});
+  song.incVersion();
+}
+
+void
+PatternEditor::onRowAdvanced(Controller & controller) {
+  if (!auto_started_playback_) return;
+
+  auto & info = controller.getPlaybackInfo();
+  auto new_row = info.getRowIndex();
+  auto pattern_idx = info.getPatternIndex();
+
+  if (pattern_idx != last_cleared_pattern_idx_ || new_row < last_cleared_row_) {
+    // Pattern changed, or the row went backwards (a loop/pattern-sequence
+    // wraparound) - resync to just this row rather than trying to
+    // backfill a range spanning the boundary, which has no single
+    // well-defined meaning here.
+    last_cleared_row_ = new_row - 1;
+    last_cleared_pattern_idx_ = pattern_idx;
+  }
+  if (new_row <= last_cleared_row_) return; // nothing new to sweep
+
+  // Every track currently receiving live input - almost always just one
+  // (the cursor's own track at press time), but each active note stores
+  // its own track_id, the same union-of-tracks approach
+  // LaunchpadManager::onRowAdvanced() uses, so this stays correct even
+  // in the edge case of the cursor moving to a different track mid-hold.
+  vector<int> track_ids;
+  for (auto & [ id, note ] : active_keyboard_notes_) {
+    if (find(track_ids.begin(), track_ids.end(), note.track_id) == track_ids.end()) {
+      track_ids.push_back(note.track_id);
+    }
+  }
+
+  auto & song = controller.getSong();
+  for (int row = last_cleared_row_ + 1; row <= new_row; row++) {
+    for (auto track_id : track_ids) {
+      ensureRowCleared(song, pattern_idx, row, track_id);
+    }
+  }
+  last_cleared_row_ = new_row;
+}
+
 bool
 PatternEditor::offerInput(const InputEvent & input) {
   if (dispatchCommand(input)) return true;
@@ -628,9 +675,35 @@ PatternEditor::offerInput(const InputEvent & input) {
       auto & pattern = song.getPattern(info.getPatternIndex());
       auto release_row = info.getRowIndex();
       if (release_row != held.row) {
+	if (auto_started_playback_) ensureRowCleared(song, info.getPatternIndex(), release_row, held.track_id);
 	pattern.setNote(release_row, held.track_id, held.note_column, Note(0, 0, info.getCurrentDelay()));
 	song.incVersion();
       }
+    }
+
+    // Realtime auto-play-while-held (mirrors LaunchpadManager's own -
+    // see its RELEASE branch for the identical reasoning): stop exactly
+    // when the last held note key releases, but only if this code
+    // started the transport itself, and only if it's still genuinely
+    // playing - otherwise the user must have manually stopped it in the
+    // meantime, and toggling again here would incorrectly restart it.
+    if (auto_started_playback_ && active_keyboard_notes_.empty()) {
+      if (info.isPlaying()) {
+	getController().togglePlaying();
+	// Land past the just-written final OFF, not directly on it - see
+	// LaunchpadManager's own identical fix for the full reasoning. Only
+	// when *we* actually stopped it here, same care as above. Absolute
+	// SET_POSITION, not relative MOVE_POSITION(1) - see SongState::
+	// setPosition()'s own comment for why a relative move occasionally
+	// overshot by an extra row.
+	event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_POSITION, info.getAbsolutePosition() + 1));
+      }
+      // Unconditional, regardless of the isPlaying() check above - see
+      // LaunchpadManager's identical fix for why (a manual mid-hold stop
+      // must not leave recording_muted_ stuck true).
+      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_RECORDING_MUTE, 0));
+      auto_started_playback_ = false;
+      auto_record_cleared_rows_.clear(); // not required for correctness (the next session's own start resets this too) - just don't hold onto a finished session's bookkeeping longer than needed
     }
     return true;
   }
@@ -874,14 +947,67 @@ PatternEditor::offerInput(const InputEvent & input) {
 	  } else {
 	    Note note(midi_note, 0x28, current_delay);
 
+	    // A terminal that never negotiated the Kitty keyboard protocol
+	    // reports every keystroke as InputEvent::Kind::UNKNOWN (see its
+	    // own doc comment) - there is no way to ever learn such a key was
+	    // released, so none of the hold-tracking machinery below
+	    // (auto-play-while-held, whole-row replace, the live-column
+	    // collision check, active_keyboard_notes_ itself) can safely run:
+	    // an entry added for an UNKNOWN key would never be removed,
+	    // permanently occupying "a note is held" state and (among other
+	    // things) engaging auto-play exactly once, on the very first
+	    // note, then never letting go - which is the bug this guard
+	    // fixes. Falls back to the simple, immediate, one-shot-per-
+	    // keystroke behavior this codebase always had before Kitty
+	    // support existed.
+	    bool has_hold_info = input.getKind() != InputEvent::Kind::UNKNOWN;
+
+	    // Realtime auto-play-while-held (mirrors LaunchpadManager's own -
+	    // see its PRESS branch for the identical reasoning): the first
+	    // held note key, while stopped, engages real transport playback
+	    // for the duration of the hold, so rows advance at the song's
+	    // actual tempo instead of everything landing on one static row.
+	    // Engaged *before* this key's own write below, so - when this is
+	    // the session-starting key - the very first row gets cleared
+	    // ahead of this note landing on it, not after.
+	    bool was_first_held_note = has_hold_info && active_keyboard_notes_.empty();
+	    if (was_first_held_note && !info.isPlaying()) {
+	      getController().togglePlaying();
+	      // Mutes only the song's own pattern-driven scheduling
+	      // (SongState::render()'s own comment has the full reasoning) -
+	      // never the live PLAY_NOTE/STOP_NOTE/NOTE_PRESSURE path this
+	      // key's own sound comes through.
+	      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_RECORDING_MUTE, 1));
+	      auto_started_playback_ = true;
+	      auto_record_cleared_rows_.clear();
+	      last_cleared_row_ = -1;
+	      last_cleared_pattern_idx_ = -1;
+	    }
+
 	    if (input.hasShift()) {
+	      if (auto_started_playback_) ensureRowCleared(song, info.getPatternIndex(), info.getRowIndex(), track_id);
 	      note_column = pattern.pushNote(info.getRowIndex(), track_id, note);
 	    } else {
+	      // A lone key still lands exactly on the cursor's own column,
+	      // unchanged - only steps off it when another currently-held key
+	      // already claims that column (a genuine chord), so it sounds
+	      // alongside the others instead of stealing the voice already
+	      // there. See isKeyColumnLiveHeld()'s own comment. Meaningless
+	      // (and always false, since active_keyboard_notes_ never gets an
+	      // entry) without hold info anyway - simultaneous polyphony
+	      // isn't distinguishable from quick sequential taps on a
+	      // terminal with no hold tracking at all.
+	      while (isKeyColumnLiveHeld(track_id, note_column)) note_column++;
+	      // Whole-row replace semantics for a live take: idempotent (see
+	      // ensureRowCleared's own comment), safe to call defensively -
+	      // only actually does anything the first time (row, track_id) is
+	      // touched this session.
+	      if (auto_started_playback_) ensureRowCleared(song, info.getPatternIndex(), info.getRowIndex(), track_id);
 	      pattern.setNote(info.getRowIndex(), track_id, note_column, note);
 	    }
 
 	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, track_id, note_column, note.getValue(), note.getVelocity()));
-	    active_keyboard_notes_[input.getId()] = { note_column, info.getRowIndex(), track_id };
+	    if (has_hold_info) active_keyboard_notes_[input.getId()] = { note_column, info.getRowIndex(), track_id };
 	  }
 
 	  row_edited = true;

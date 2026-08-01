@@ -211,6 +211,18 @@ void
 UI::handlePlaybackEvent(PlaybackEvent & ev) {
   getController().setPlaybackInfo(ev.getInfo()); // cheap; always keep song position current
 
+  // Must run right after setPlaybackInfo() above, before any other event
+  // (a pad press, a keystroke) that might read the just-updated row and
+  // write a note there - a no-op outside an active realtime-recording
+  // session, and cheap even then (only rows the playhead actually just
+  // passed get touched). This ordering is what makes the whole-row-clear
+  // feature race-free: by the time any note write can possibly see the
+  // new row, the clear for it (if any) has already happened, all within
+  // this same synchronous call - see LaunchpadManager::onRowAdvanced()'s
+  // own comment for the full reasoning.
+  if (launchpad_manager_) launchpad_manager_->onRowAdvanced(getController());
+  if (pattern_editor_) pattern_editor_->onRowAdvanced(getController());
+
   // If a newer PlaybackEvent is already queued behind this one, this one's
   // visual result is about to be immediately overwritten - skip the
   // comparatively expensive chart/meter update work for it. Doesn't change

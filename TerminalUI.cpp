@@ -1048,18 +1048,26 @@ TerminalUI::readInput() {
   ncinput ni;
   while (nc->get(false, &ni) > 0) {
     // Legacy terminals only ever report NCTYPE_UNKNOWN (no press/release
-    // distinction); the Kitty keyboard protocol (kitty, foot, wezterm,
-    // ghostty, ...) reports real NCTYPE_PRESS/NCTYPE_REPEAT/NCTYPE_RELEASE
-    // events for the same physical keystroke. RELEASE now reaches
-    // offerInput() (it didn't used to - see InputEvent::Kind's own doc
-    // comment): UIElement::dispatchCommand() ignores it outright so no
-    // keymap-bound command double-fires the way plain presses used to
-    // (the bug this code used to guard against by dropping RELEASE
-    // entirely), but PatternEditor's own raw note-entry code needs to see
-    // it, to send a note-off when a held note key is physically released.
+    // distinction - notcurses's own signal that this terminal never
+    // negotiated the Kitty keyboard protocol at all, no separate
+    // capability query needed); the Kitty keyboard protocol (kitty, foot,
+    // wezterm, ghostty, ...) reports real NCTYPE_PRESS/NCTYPE_REPEAT/
+    // NCTYPE_RELEASE events for the same physical keystroke. Mapped to
+    // its own distinct InputEvent::Kind::UNKNOWN (not silently folded
+    // into PRESS) - see that enum's own doc comment for why: code that
+    // tracks "is this key still held" cannot infer anything of the kind
+    // from an UNKNOWN-kind terminal, since it has no way to ever learn
+    // that the key was released. RELEASE now reaches offerInput() (it
+    // didn't used to - see InputEvent::Kind's own doc comment):
+    // UIElement::dispatchCommand() ignores it outright so no keymap-bound
+    // command double-fires the way plain presses used to (the bug this
+    // code used to guard against by dropping RELEASE entirely), but
+    // PatternEditor's own raw note-entry code needs to see it, to send a
+    // note-off when a held note key is physically released.
     auto kind = ni.evtype == NCTYPE_RELEASE ? InputEvent::Kind::RELEASE
               : ni.evtype == NCTYPE_REPEAT ? InputEvent::Kind::REPEAT
-              : InputEvent::Kind::PRESS;
+              : ni.evtype == NCTYPE_PRESS ? InputEvent::Kind::PRESS
+              : InputEvent::Kind::UNKNOWN;
 
     bool alt = ni.modifiers & NCKEY_MOD_ALT;
     bool shift = ni.modifiers & NCKEY_MOD_SHIFT;

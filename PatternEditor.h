@@ -7,12 +7,15 @@
 
 #include <vector>
 #include <unordered_map>
+#include <set>
+#include <utility>
 
 class Synth;
 class InputEvent;
 class StyleProvider;
 class Song;
 class VisibleTrackInfo;
+class Controller;
 
 class PatternEditor : public UIElement {
  public:
@@ -31,6 +34,17 @@ class PatternEditor : public UIElement {
   int getCursorTrackIndex() const { return current_cursor.track; }
   void setCursorTrack(int track_index) { new_cursor.track = track_index; new_cursor.col = new_cursor.subcol = 0; }
   int getEditStepSize() const { return edit_step_size; }
+
+  // Called whenever the UI thread learns of a new playhead position (see
+  // UI::handlePlaybackEvent, right after Controller::setPlaybackInfo() -
+  // mirrors LaunchpadManager::onRowAdvanced() exactly, see its own
+  // comment for the full reasoning) - while a realtime auto-play-while-
+  // held recording session is active (see auto_started_playback_),
+  // sweeps every row the playhead just passed through and clears each
+  // currently-recorded track's notes there, so a live take replaces
+  // whatever was previously on that stretch instead of merging with it.
+  // A no-op outside such a session.
+  void onRowAdvanced(Controller & controller);
 
 protected:
   // Resolved row/track/note-column bounds for a selection-consuming command
@@ -83,6 +97,42 @@ protected:
   // Kitty-protocol release - see offerInput()'s raw note-entry code.
   struct ActiveKeyboardNote { int note_column, row, track_id; };
   std::unordered_map<int, ActiveKeyboardNote> active_keyboard_notes_;
+
+  // True iff some other currently-held key already occupies (track_id,
+  // note_column) - mirrors LaunchpadManager::isColumnLiveHeld (see its
+  // own comment). Without this, every non-Shift keystroke lands on the
+  // exact same fixed cursor column (new_cursor.col never moves between
+  // keystrokes), so a genuine chord - multiple keys held down together,
+  // the same physical gesture Launchpad's simultaneous pad presses
+  // already support - would have each key's PLAY_NOTE steal the
+  // previous one's voice via Player.cpp's stopVoices(column), instead of
+  // sounding together.
+  bool isKeyColumnLiveHeld(int track_id, int note_column) const {
+    for (auto & [ id, note ] : active_keyboard_notes_) {
+      if (note.track_id == track_id && note.note_column == note_column) return true;
+    }
+    return false;
+  }
+
+  // Whether this code (not the user manually pressing Space) was the one
+  // that started the transport for the realtime-advance-while-held
+  // feature - mirrors LaunchpadManager::auto_started_playback_ exactly
+  // (see its own comment for the reasoning); only consulted/cleared when
+  // active_keyboard_notes_ goes back to empty, so a manually-started
+  // session is never stopped just because a held note key was released.
+  bool auto_started_playback_ = false;
+
+  // Whole-row-replace bookkeeping for a realtime-recording session -
+  // mirrors LaunchpadManager's own auto_record_cleared_rows_/
+  // last_cleared_row_/last_cleared_pattern_idx_ exactly (see its comment
+  // for the full reasoning): ensureRowCleared() is idempotent per (row,
+  // track_id) so it's safe to call from every write site during an
+  // active session, and onRowAdvanced() sweeps whatever rows the
+  // playhead just passed through.
+  void ensureRowCleared(Song & song, int pattern_idx, int row, int track_id);
+  std::set<std::pair<int, int>> auto_record_cleared_rows_;
+  int last_cleared_row_ = -1;
+  int last_cleared_pattern_idx_ = -1;
 
   // Emacs-style mark/point selection: the mark is recorded here at C-SPC
   // time, the point is always "wherever the cursor/row currently is" (see
