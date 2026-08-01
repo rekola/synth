@@ -152,6 +152,28 @@ TEST(merge_modulators_handles_empty_base_or_overrides) {
   CHECK(fromEmptyOverrides[0].amount == 10);
 }
 
+#ifdef SYNTH_ENABLE_SF2_PRESSURE_HEURISTICS
+TEST(merge_modulators_heuristic_default_injection_shape) {
+  // Models how SoundFont.cpp's tsf_load_presets() injects the GM-family
+  // heuristic default: mergeModulators(existing, { heuristic }) only when
+  // isChannelPressureSourced() found nothing already in `existing` (that
+  // well-formedness check itself is caller-side logic, private to
+  // SoundFont.cpp - covered by the end-to-end fixture test, not here).
+  // This test only confirms mergeModulators' own behavior in that shape:
+  // a heuristic default merged onto an empty/unrelated base is added
+  // as-is, unmodified. Doesn't itself reference any ifdef'd symbol (pure
+  // mergeModulators() behavior with heuristic-shaped test data), but
+  // guarded anyway so every heuristic-themed test lives and dies
+  // together with the feature it exercises.
+  Connection heuristicDefault{ static_cast<uint16_t>(GeneralController::ChannelPressure), 6,
+                                static_cast<uint16_t>(GeneralController::NoController), 0, 10 };
+  std::vector<Connection> unrelatedExisting{ Connection{ 0, 17, 0, 0, 500 } }; // some other, unrelated identity
+  auto result = mergeModulators(unrelatedExisting, { heuristicDefault });
+  CHECK(result.size() == 2);
+  CHECK(result[1].amount == 10);
+}
+#endif // SYNTH_ENABLE_SF2_PRESSURE_HEURISTICS
+
 TEST(is_channel_pressure_sourced_requires_exact_source_and_no_secondary_scaling) {
   auto channelPressure = static_cast<uint16_t>(GeneralController::ChannelPressure);
   auto polyPressure = static_cast<uint16_t>(GeneralController::PolyPressure);
@@ -191,10 +213,12 @@ TEST(evaluate_channel_pressure_modulator_applies_absolute_value_transform) {
 // binary fixture - tests/fixtures/ is otherwise 100% text/XML), covering
 // real, file-authored channel-pressure modulators (parsing/merging in
 // SoundFont.cpp's tsf_load_presets(), evaluation in SoundFontVoice::
-// render()) and SF2 voice lifecycle. Exercises the real public
-// SoundFont/Instrument/TrackState API, not any internal seam - the
-// private tsf_hydra_*/tsf_region types have no test-only exposure, by
-// design.
+// render()), SF2 voice lifecycle, and (only when
+// SYNTH_ENABLE_SF2_PRESSURE_HEURISTICS is defined) the GM-family
+// heuristic default table's injection/gate logic. Exercises the real
+// public SoundFont/Instrument/TrackState API, not any internal seam -
+// the private tsf_hydra_*/tsf_region types have no test-only exposure,
+// by design.
 // ---------------------------------------------------------------------
 
 namespace {
@@ -428,6 +452,60 @@ namespace {
 
 }
 
+#ifdef SYNTH_ENABLE_SF2_PRESSURE_HEURISTICS
+TEST(sf2_channel_pressure_heuristic_end_to_end) {
+  std::vector<PresetSpec> presets = {
+    { "Piano",       0,  {},                                       {} },                                        // 0: disabled family
+    { "DrawbarOrgan", 16, {},                                      {} },                                        // 1: vibrato, gate-exempt (16-20)
+    { "AccordionA",  21, {},                                       {} },                                        // 2: vibrato family, vibLfoToPitch=0 - gate fails
+    { "AccordionB",  21, { GenSpec{ 6, 50 } },                      {} },                                        // 3: vibLfoToPitch=50 (VibLfoToPitch) - gate passes
+    { "PadA",        89, { GenSpec{ 8, 8000 } },                    {} },                                        // 4: InitialFilterFc=8000 - gate passes
+    { "PadB",        89, {},                                       {} },                                        // 5: InitialFilterFc left at spec default (13500) - gate fails
+    { "PadC",        89, { GenSpec{ 8, 8000 } },
+      { ModSpec{ static_cast<uint16_t>(GeneralController::ChannelPressure), 8, static_cast<uint16_t>(GeneralController::NoController), 0, 0 } } }, // 6: file already manages channel pressure (explicit amount-0 override) - heuristic must not add its own
+  };
+
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "sf2_channel_pressure_fixture.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100);
+
+  auto renderAtPressure = [&](size_t preset_index, float pressure) {
+    auto instrument = sf.createInstrument(preset_index);
+    auto voice = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{});
+    voice->applyChannelPressure(pressure);
+    return voice->render(8192);
+  };
+
+  auto checkUnaffected = [&](size_t preset_index, const char * label) {
+    auto low = renderAtPressure(preset_index, 0.0f);
+    auto high = renderAtPressure(preset_index, 1.0f);
+    auto diff = mainChannelDifference(low, high);
+    CHECK(diff >= 0.0f);
+    CHECK(diff < 1e-4f);
+    (void)label;
+  };
+
+  auto checkAffected = [&](size_t preset_index, const char * label) {
+    auto low = renderAtPressure(preset_index, 0.0f);
+    auto high = renderAtPressure(preset_index, 1.0f);
+    auto diff = mainChannelDifference(low, high);
+    CHECK(diff >= 0.0f);
+    CHECK(diff > 1e-3f);
+    (void)label;
+  };
+
+  checkUnaffected(0, "Piano: disabled family, must not change");
+  checkAffected(1, "DrawbarOrgan: gate-exempt vibrato, must change");
+  checkUnaffected(2, "Accordion with vibLfoToPitch=0: gated, must not change");
+  checkAffected(3, "Accordion with vibLfoToPitch!=0: gate passes, must change");
+  checkAffected(4, "Pad with real filter: gate passes, must change");
+  checkUnaffected(5, "Pad at spec-default filter: gated, must not change");
+  checkUnaffected(6, "Pad with explicit amount-0 override: heuristic must not add its own");
+}
+#endif // SYNTH_ENABLE_SF2_PRESSURE_HEURISTICS
+
 TEST(sf2_channel_pressure_reaches_every_region_in_a_multi_region_group) {
   // Real GM patches commonly ship more than one matching region per note
   // (stereo L/R sample pairs, velocity layers) - SoundFontInstrument::
@@ -438,9 +516,11 @@ TEST(sf2_channel_pressure_reaches_every_region_in_a_multi_region_group) {
   // ever reach those children - a regression test for exactly that,
   // using a 2-region Pad preset (both regions covering the full key/vel
   // range, so both always match) with its own explicitly authored
-  // channel-pressure -> filter-cutoff modulator (not relying on any
-  // GM-family default heuristic - there isn't one; only a file's own
-  // real modulators are ever honored).
+  // channel-pressure -> filter-cutoff modulator (not relying on the
+  // GM-family default heuristic, which is off by default - see
+  // SYNTH_ENABLE_SF2_PRESSURE_HEURISTICS - and, even when enabled, only
+  // a file's own real modulators should be needed for this particular
+  // regression to hold).
   std::vector<PresetSpec> presets = {
     { "StereoPad", 89, { GenSpec{ 8, 8000 } },
       { ModSpec{ static_cast<uint16_t>(GeneralController::ChannelPressure), 8, static_cast<uint16_t>(GeneralController::NoController), 0, 2400 } },

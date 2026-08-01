@@ -482,6 +482,127 @@ public:
   float * fontSamples_ = nullptr;
 };
 
+// Experimental, out-of-spec GM-family channel-pressure heuristic defaults -
+// see CMakeLists.txt's own comment on SYNTH_ENABLE_SF2_PRESSURE_HEURISTICS
+// for why this is opt-in (off by default). Guarded with a plain #ifdef,
+// not a runtime flag, so the whole thing - table, injection logic, and
+// its own tests in tests/SF2ModulatorTests.cpp - can be deleted outright
+// later with no dangling references anywhere, not just switched off.
+#ifdef SYNTH_ENABLE_SF2_PRESSURE_HEURISTICS
+
+namespace {
+
+  enum class GmPressureDefault : uint8_t { Disabled, Vibrato, FilterCutoff };
+
+  // GM program (0-127) -> heuristic channel-pressure default. Assignment
+  // follows physical playing mechanism (a bow/breath/bellows can add real
+  // performer vibrato, or brighten under pressure the way blowing harder
+  // does; a struck/plucked/keyboard instrument can't), not GM's own
+  // family groupings verbatim - GM's "Organ" (16-23) and "Ethnic"
+  // (104-111) ranges each straddle more than one physical instrument
+  // type, so those two ranges split mid-family below.
+  const GmPressureDefault kGmPressureDefault[128] = {
+    // 0-7 Piano
+    GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled,
+    GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled,
+    // 8-15 Chromatic Percussion
+    GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled,
+    GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled,
+    // 16-20 Organ, genuine keyboard/pipe (Drawbar/Percussive/Rock/Church/Reed Organ) - gate-exempt, see isKeyboardPipeOrgan below
+    GmPressureDefault::Vibrato, GmPressureDefault::Vibrato, GmPressureDefault::Vibrato, GmPressureDefault::Vibrato, GmPressureDefault::Vibrato,
+    // 21-23 Organ per GM but physically reed (Accordion/Harmonica/Bandoneon) - gate applies, same as strings/voice
+    GmPressureDefault::Vibrato, GmPressureDefault::Vibrato, GmPressureDefault::Vibrato,
+    // 24-31 Guitar
+    GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled,
+    GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled,
+    // 32-39 Bass
+    GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled,
+    GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled,
+    // 40-44 Strings, bowed (Violin/Viola/Cello/Contrabass/Tremolo Strings)
+    GmPressureDefault::Vibrato, GmPressureDefault::Vibrato, GmPressureDefault::Vibrato, GmPressureDefault::Vibrato, GmPressureDefault::Vibrato,
+    // 45-47 Strings, not bowed (Pizzicato Strings/Orchestral Harp/Timpani)
+    GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled,
+    // 48-55 Ensemble/Voice
+    GmPressureDefault::Vibrato, GmPressureDefault::Vibrato, GmPressureDefault::Vibrato, GmPressureDefault::Vibrato,
+    GmPressureDefault::Vibrato, GmPressureDefault::Vibrato, GmPressureDefault::Vibrato, GmPressureDefault::Vibrato,
+    // 56-63 Brass
+    GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff,
+    GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff,
+    // 64-71 Reed
+    GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff,
+    GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff,
+    // 72-79 Pipe
+    GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff,
+    GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff,
+    // 80-87 Synth Lead
+    GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff,
+    GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff,
+    // 88-95 Synth Pad
+    GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff,
+    GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff, GmPressureDefault::FilterCutoff,
+    // 96-103 Synth Effects
+    GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled,
+    GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled,
+    // 104-108 Ethnic, plucked/struck (Sitar/Banjo/Shamisen/Koto/Kalimba)
+    GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled,
+    // 109-111 Ethnic, breath/bowed (Bag pipe/Fiddle/Shanai)
+    GmPressureDefault::Vibrato, GmPressureDefault::Vibrato, GmPressureDefault::Vibrato,
+    // 112-119 Percussive
+    GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled,
+    GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled,
+    // 120-127 Sound Effects
+    GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled,
+    GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled, GmPressureDefault::Disabled,
+  };
+
+  constexpr int16_t kHeuristicVibratoAmount = 10; // cents - matches TimGM6mb.sf2's own authored channel-pressure-vibrato amount
+  constexpr int16_t kHeuristicFilterCutoffAmount = 2400; // cents (~2 octaves at full pressure) - no real authored file to calibrate against, a tunable starting point
+  constexpr int kFilterCutoffGateThreshold = 13000; // cents - spec default is 13500 ("wide open"); only brighten a filter the patch already configured
+
+  // True for GM 16-20 (Drawbar/Percussive/Rock/Church/Reed Organ) - genuine
+  // keyboard/pipe organs have no embouchure/bow/breath at all, so unlike
+  // every other vibrato-eligible family there's no baked-in-sample-vibrato
+  // risk to gate against (see the design doc this heuristic was planned
+  // from). GM 21-23 (Accordion/Harmonica/Bandoneon) share GM's "Organ"
+  // grouping but are physically breath/bellows-driven reed instruments,
+  // so they keep the gate like strings/voice do.
+  bool isKeyboardPipeOrgan(uint16_t gmProgram) { return gmProgram >= 16 && gmProgram <= 20; }
+
+  // Decides whether `zoneRegion` (a bank-0/GM preset's fully generator-
+  // merged region for GM program `gmProgram`) should get a heuristic
+  // channel-pressure modulator injected - the file itself must not already
+  // manage channel pressure (checked by the caller via
+  // SF2Mod::isChannelPressureSourced before calling this), and, other than
+  // the keyboard/pipe-organ exemption above, the destination generator
+  // must already deviate from its SF2 spec default (i.e. the patch already
+  // opted into that modulation mechanism via its own static generators).
+  bool heuristicChannelPressureModulator(uint16_t gmProgram, const tsf_region & zoneRegion, SF2Mod::Connection * outConnection) {
+    if (gmProgram >= 128) return false;
+    GmPressureDefault def = kGmPressureDefault[gmProgram];
+    if (def == GmPressureDefault::Disabled) return false;
+
+    outConnection->src = static_cast<uint16_t>(SF2Mod::GeneralController::ChannelPressure);
+    outConnection->amtSrc = static_cast<uint16_t>(SF2Mod::GeneralController::NoController);
+    outConnection->trans = 0;
+
+    if (def == GmPressureDefault::Vibrato) {
+      if (!isKeyboardPipeOrgan(gmProgram) && zoneRegion.vibLfoToPitch == 0) return false;
+      outConnection->dest = 6; // VibLfoToPitch
+      outConnection->amount = kHeuristicVibratoAmount;
+      return true;
+    }
+
+    // FilterCutoff
+    if (zoneRegion.initialFilterFc >= kFilterCutoffGateThreshold) return false;
+    outConnection->dest = 8; // InitialFilterFc
+    outConnection->amount = kHeuristicFilterCutoffAmount;
+    return true;
+  }
+
+}
+
+#endif // SYNTH_ENABLE_SF2_PRESSURE_HEURISTICS
+
 static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsigned int fontSampleCount) {
   enum { GenInstrument = 41, GenKeyRange = 43, GenVelRange = 44, GenSampleID = 53 };
   // Read each preset.
@@ -630,6 +751,26 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
 		zoneRegion.sample_rate = pshdr->sampleRate;
 		if (zoneRegion.end && zoneRegion.end < fontSampleCount) zoneRegion.end++;
 		else zoneRegion.end = fontSampleCount;
+
+#ifdef SYNTH_ENABLE_SF2_PRESSURE_HEURISTICS
+		// GM-family heuristic default (see heuristicChannelPressureModulator
+		// above): only for melodic GM presets whose own modulators don't
+		// already manage channel pressure at all - a file that authors even
+		// one channel-pressure connection (to any destination) is trusted
+		// exactly as written, never supplemented.
+		if (pphdr->bank == 0) {
+		  bool alreadyManaged = false;
+		  for (const auto & c : zoneRegion.modulators) {
+		    if (SF2Mod::isChannelPressureSourced(c)) { alreadyManaged = true; break; }
+		  }
+		  if (!alreadyManaged) {
+		    SF2Mod::Connection heuristic;
+		    if (heuristicChannelPressureModulator(pphdr->preset, zoneRegion, &heuristic)) {
+		      zoneRegion.modulators = mergeModulators(zoneRegion.modulators, { heuristic });
+		    }
+		  }
+		}
+#endif // SYNTH_ENABLE_SF2_PRESSURE_HEURISTICS
 
 		preset->regions[region_index] = zoneRegion;
 		region_index++;

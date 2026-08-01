@@ -83,6 +83,21 @@ add_library(synth_engine STATIC
 target_include_directories(synth_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(synth_engine PUBLIC m sndfile fmt pthread)
 
+# Experimental, out-of-spec GM-family channel-pressure heuristic defaults
+# (SoundFont.cpp - injects a vibrato/filter-cutoff modulator for presets
+# that never authored their own channel-pressure connection). Off by
+# default: doesn't feel good to play without a pressure-floor fix that
+# hasn't landed yet (see plans/launchpad-pressure-floor.md), and isn't
+# part of the SF2 spec - real, file-authored channel-pressure modulators
+# (SF2Modulator.cpp) always work regardless of this setting. PUBLIC so
+# the same macro is visible to tests/SF2ModulatorTests.cpp too (linked
+# against synth_engine), which has its own heuristic-specific tests
+# guarded the same way.
+option(SYNTH_ENABLE_SF2_PRESSURE_HEURISTICS "Enable the experimental GM-family channel-pressure heuristic defaults" OFF)
+if(SYNTH_ENABLE_SF2_PRESSURE_HEURISTICS)
+  target_compile_definitions(synth_engine PUBLIC SYNTH_ENABLE_SF2_PRESSURE_HEURISTICS)
+endif()
+
 # Optional binaural ambisonic decoder: only libmysofa (HRIR loading) is an
 # external dependency - the FOA encode/decode math itself
 # (AmbisonicEncoding.h) has no dependency of its own. AmbisonicStereoMixer
