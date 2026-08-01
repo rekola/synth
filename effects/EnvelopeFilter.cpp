@@ -35,6 +35,25 @@ public:
       offset += blockSamples;
       numSamples -= blockSamples;
       envelope_state_.process(blockSamples);
+
+      // Silence-kill threshold - see SoundFontVoice::render()'s identical
+      // check (SoundFont.cpp) for the full reasoning. isReleasing() gates
+      // this to the release stage only: a held note's gain can
+      // legitimately be this quiet during ATTACK or a deliberately quiet
+      // SUSTAIN and must never be killed early regardless. Unlike SF2
+      // there's no separate static gain term to combine and no modenv_ to
+      // keep in sync - `gain` (fetched above, before this block's decay)
+      // is already the entire multiplicative factor being applied.
+      // Jumping straight to DONE reuses the same reaping path isActive()
+      // already relies on - and since isActive() (below) depends only on
+      // this envelope, ignoring children entirely, freeing it here also
+      // frees whatever child chain it wraps (e.g. a unison stack), which
+      // otherwise keeps rendering at full cost for the whole release -
+      // "let children play" (stopNote(), below) means nothing else ever
+      // stops them early.
+      if (envelope_state_.isReleasing() && gainToDecibels(gain) < constants::SILENCE_KILL_FLOOR_DB) {
+	envelope_state_.nextSegment(EnvelopeState::RELEASE);
+      }
     }
   }
   

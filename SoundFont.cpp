@@ -1193,6 +1193,25 @@ SoundFontVoice::render(int numSamples) {
     // comment on encodePosition()).
     auto dryGainMono = noteGain * ampenv_.getLevel();
 
+    // Silence-kill threshold: a long-tailed release (common for GM pad/
+    // string patches) can sit well below audibility for most of its
+    // authored duration, still consuming full render cost every block.
+    // isReleasing() gates this to the release stage only - a held note
+    // can legitimately be this quiet during ATTACK or a deliberately
+    // quiet SUSTAIN and must never be killed early regardless. Jumping
+    // straight to DONE (same transition a naturally-completed release
+    // already makes) reuses the exact path isActive()/
+    // clearFinishedVoices() already rely on - no separate reaping logic.
+    if (ampenv_.isReleasing() && gainToDecibels(dryGainMono) < constants::SILENCE_KILL_FLOOR_DB) {
+      ampenv_.nextSegment(EnvelopeState::RELEASE);
+      // Keep both envelopes consistent, matching killNote()'s existing
+      // precedent - isDone()-guarded for the same reason stopNote() guards
+      // it: nextSegment() unconditionally forces a transition regardless
+      // of current state, which would resurrect modenv_ if it had somehow
+      // already reached DONE independently of ampenv_.
+      if (!modenv_.isDone()) modenv_.nextSegment(EnvelopeState::RELEASE);
+    }
+
     // Update EG.
     ampenv_.process(blockSamples);
     if (updateModEnv) modenv_.process(blockSamples);

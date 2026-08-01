@@ -161,6 +161,13 @@ class EnvelopeState : public State {
   }
 
   bool isDone() const { return segment == DONE; }
+  // Used by the silence-kill threshold (SoundFontVoice::render(),
+  // EnvelopeFilterState::applyEffect()) to gate an early-DONE kill to
+  // only the release stage - a held note's gain can legitimately be very
+  // low during ATTACK (ramping up from 0) or a deliberately quiet
+  // SUSTAIN, and must never be killed while still held regardless of how
+  // quiet it currently is.
+  bool isReleasing() const { return segment == RELEASE; }
   float getLevel() const { return level; }
 
   Envelope parameters;

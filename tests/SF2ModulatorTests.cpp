@@ -1053,3 +1053,89 @@ TEST(get_exclusive_classes_reports_the_regions_own_class_or_none) {
   CHECK(classes1.size() == 1);
   CHECK(classes1[0] == 7);
 }
+
+// ---------------------------------------------------------------------
+// Silence-kill threshold (SoundFontVoice::render()) - see
+// plans/silence-kill-threshold.md. Uses GenSpec{37, centibels} (SustainVolEnv,
+// converted via decibelsToGain(-centibels/10) - see SoundFont.cpp's
+// tsf_region_envtosecs()) to put a region's sustain level on a specific
+// side of the default -60dB floor, and GenSpec{38, 0} (ReleaseVolEnv = 0
+// timecents = 1.0s, the same convention as the retrigger-cutoff tests
+// above) for a release long enough that "already inactive" can only mean
+// "freed early by the threshold", never "finished naturally".
+// ---------------------------------------------------------------------
+
+TEST(sf2_voice_stays_active_while_held_even_below_the_silence_floor) {
+  std::vector<PresetSpec> presets = {
+    // SustainVolEnv=800 centibels -> decibelsToGain(-80) ~= -80dB, well
+    // below the default -60dB floor.
+    { "QuietSustain", 0, { GenSpec{ 37, 800 }, GenSpec{ 38, 0 } }, {} },
+  };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "silence_floor_held_fixture.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100);
+  auto instrument = sf.createInstrument(0);
+
+  auto voice = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{});
+  CHECK(voice->isActive());
+
+  // Held (never stopNote()'d) - must never be killed regardless of how
+  // quiet its sustain level is; the threshold only ever applies in
+  // RELEASE.
+  for (int i = 0; i < 8; i++) {
+    voice->render(4096);
+    CHECK(voice->isActive());
+  }
+}
+
+TEST(sf2_voice_releasing_below_the_silence_floor_is_freed_early) {
+  std::vector<PresetSpec> presets = {
+    { "QuietSustain", 0, { GenSpec{ 37, 800 }, GenSpec{ 38, 0 } }, {} },
+  };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "silence_floor_release_fixture.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100);
+  auto instrument = sf.createInstrument(0);
+
+  auto voice = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{});
+  voice->stopNote();
+
+  // Already below the floor at the moment release starts - must be freed
+  // within a handful of blocks, nowhere close to the full 1.0s authored
+  // release (stopNote() alone doesn't jump the level - only starts the
+  // release timer - so without the threshold this would keep "releasing"
+  // inaudibly for the full second).
+  bool became_inactive = false;
+  for (int i = 0; i < 8 && !became_inactive; i++) {
+    voice->render(4096); // 8*4096 ~= 743ms, comfortably short of 1.0s
+    if (!voice->isActive()) became_inactive = true;
+  }
+  CHECK(became_inactive);
+}
+
+TEST(sf2_voice_releasing_above_the_silence_floor_is_not_freed_early) {
+  std::vector<PresetSpec> presets = {
+    // SustainVolEnv=0 -> full level (0dB, decibelsToGain(0) == 1.0), well
+    // above the floor.
+    { "FullSustain", 0, { GenSpec{ 37, 0 }, GenSpec{ 38, 0 } }, {} },
+  };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "silence_floor_control_fixture.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100);
+  auto instrument = sf.createInstrument(0);
+
+  auto voice = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{});
+  voice->stopNote();
+
+  // Shortly after stopNote(), on a 1.0s release starting at full level,
+  // still far too early to have crossed -60dB - must still be genuinely
+  // active (naturally releasing), not already finished.
+  voice->render(4096); // ~93ms
+  CHECK(voice->isActive());
+}
