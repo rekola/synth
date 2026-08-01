@@ -103,6 +103,13 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     }
     break;
 
+  case PlaybackControlEvent::CHANNEL_PRESSURE:
+    {
+      auto track_state = dynamic_cast<InstrumentTrackState*>(state_.getChildByInternalId(ev.getParameter1()));
+      if (track_state) track_state->applyRealChannelPressure(ev.getParameter2() / 127.0f);
+    }
+    break;
+
   case PlaybackControlEvent::SET_RECORDING_MUTE:
     state_.setRecordingMuted(ev.getParameter1() != 0);
     break;

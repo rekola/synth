@@ -6,7 +6,7 @@
 
 class MidiEvent : public Event {
  public:
-  enum Type { NOTE_ON, NOTE_OFF, NOTE_PRESSURE };
+  enum Type { NOTE_ON, NOTE_OFF, NOTE_PRESSURE, CHANNEL_PRESSURE };
   
   MidiEvent(Type _type, short _note, short _velocity) : type(_type), note(_note), velocity(_velocity) { }
 

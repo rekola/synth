@@ -4,6 +4,7 @@
 #include "LaunchpadLayout.h"
 #include "LaunchpadProtocol.h"
 #include "LaunchpadPadEvent.h"
+#include "LaunchpadChannelPressureEvent.h"
 #include "PlaybackInfo.h"
 #include "PlaybackControlEvent.h"
 #include "Song.h"
@@ -862,6 +863,30 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     note.setVelocity(static_cast<short>(ev.getVelocity()));
     pattern.setNote(target_row, held.track_id, held.note_column, note);
     song.incVersion();
+  }
+}
+
+void
+LaunchpadManager::handleChannelPressureEvent(LaunchpadChannelPressureEvent & ev, Controller & controller) {
+  auto device_id = ev.getDeviceIndex();
+  auto * state = findDeviceState(device_id);
+  if (!state || state->active_notes.empty()) return;
+
+  auto & event_queue = controller.getPlaybackEventQueue();
+
+  // Dedup by track_id - a chord's notes are typically all on this one
+  // device's currently assigned track, but nothing stops different pads
+  // from landing on different tracks if the device was reassigned
+  // mid-chord, so cover every track this device actually has a held note
+  // on rather than assuming just one.
+  vector<int> track_ids;
+  for (auto & [ pos, note ] : state->active_notes) {
+    if (find(track_ids.begin(), track_ids.end(), note.track_id) == track_ids.end()) {
+      track_ids.push_back(note.track_id);
+    }
+  }
+  for (auto track_id : track_ids) {
+    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CHANNEL_PRESSURE, track_id, ev.getVelocity()));
   }
 }
 

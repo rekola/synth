@@ -8,6 +8,7 @@ add_executable(synth_tests
 	PatternBlockOpsTests.cpp
 	LaunchpadLayoutTests.cpp
 	LaunchpadProtocolTests.cpp
+	SF2ModulatorTests.cpp
 	VoiceLoudnessTests.cpp
 	AmbisonicEncodingTests.cpp
 	AmbisonicMagLSDecoderTests.cpp

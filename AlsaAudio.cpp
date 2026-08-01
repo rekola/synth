@@ -286,6 +286,10 @@ AlsaAudio::recordMIDI() {
       r.push_back(MidiEvent(MidiEvent::NOTE_PRESSURE, ev->data.note.note, ev->data.note.velocity));
       break;
     case SND_SEQ_EVENT_CHANPRESS:
+      // Channel-wide value, same union member as PITCHBEND/CONTROLLER below
+      // (no specific note involved, unlike KEYPRESS's per-note aftertouch
+      // above) - note field is unused.
+      r.push_back(MidiEvent(MidiEvent::CHANNEL_PRESSURE, 0, ev->data.control.value));
       break;
     case SND_SEQ_EVENT_PITCHBEND:
 #if 0

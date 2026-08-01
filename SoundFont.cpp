@@ -33,6 +33,7 @@
 #include "dsp/PanLaw.h"
 #include "dsp/ChorusEngine.h"
 #include "AmbisonicEncoding.h"
+#include "SF2Modulator.h"
 
 #include "constants.h"
 
@@ -60,8 +61,10 @@ public:
   float delayVibLFO;
   int freqVibLFO, vibLfoToPitch;
   float reverbEffectsSend, chorusEffectsSend;
+  std::vector<SF2Mod::Connection> modulators;
 
   void clear(bool for_relative) {
+    modulators.clear();
     loop_mode = 0;
     sample_rate = 0;
     lokey = lovel = 0;
@@ -201,6 +204,28 @@ static bool tsf_riffchunk_read(struct tsf_riffchunk* parent, struct tsf_riffchun
   if (!stream->read(stream->data, &chunk->id, sizeof(FourCC)) || chunk->id.data()[0] <= ' ' || chunk->id.data()[0] >= 'z') return false;
   chunk->size -= sizeof(FourCC);
   return true;
+}
+
+// Reads modulator records [begin, end) out of a pmod/imod hydra array into
+// SF2Mod's own file-format-agnostic Connection shape - the modulator
+// equivalent of the pgen/igen generator-walking loops in tsf_load_presets()
+// below, just flattened into a vector up front instead of being consumed
+// generator-by-generator.
+template<typename ModArray>
+static std::vector<SF2Mod::Connection> tsf_read_mods(ModArray* mods, uint16_t begin, uint16_t end) {
+  std::vector<SF2Mod::Connection> result;
+  if (end <= begin) return result;
+  result.reserve(static_cast<size_t>(end - begin));
+  for (uint16_t i = begin; i != end; i++) {
+    SF2Mod::Connection c;
+    c.src = mods[i].modSrcOper;
+    c.dest = mods[i].modDestOper;
+    c.amount = mods[i].modAmount;
+    c.amtSrc = mods[i].modAmtSrcOper;
+    c.trans = mods[i].modTransOper;
+    result.push_back(c);
+  }
+  return result;
 }
 
 static void tsf_region_operator(struct tsf_region* region, uint16_t genOper, union tsf_hydra_genamount* amount, struct tsf_region* merge_region) {
@@ -534,7 +559,14 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
       struct tsf_hydra_ibag *pibag, *pibagEnd;
       struct tsf_hydra_igen *pigen, *pigenEnd;
       struct tsf_region presetRegion = globalRegion;
-      
+      // This preset zone's own modulators override any matching (same
+      // src/dest/amtSrc/trans identity) modulator inherited from the
+      // preset's global zone (globalRegion.modulators, SF2.01 7.4) -
+      // presetRegion.modulators currently holds exactly that inherited set
+      // (copied above), so it's the base and this zone's own reads are the
+      // override.
+      presetRegion.modulators = mergeModulators(presetRegion.modulators, tsf_read_mods(hydra->pmods, ppbag->modNdx, ppbag[1].modNdx));
+
       int hadGenInstrument = 0;
       
       // Generators.
@@ -550,6 +582,10 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
 	  for (pibag = hydra->ibags + pinst->instBagNdx, pibagEnd = hydra->ibags + pinst[1].instBagNdx; pibag != pibagEnd; pibag++) {
 	    // Generators.
 	    struct tsf_region zoneRegion = instRegion;
+	    // Same override-over-inherited-global-zone shape as presetRegion's
+	    // modulators above, one level down (SF2.01 7.4's instrument-level
+	    // global zone).
+	    zoneRegion.modulators = mergeModulators(zoneRegion.modulators, tsf_read_mods(hydra->imods, pibag->instModNdx, pibag[1].instModNdx));
 	    int hadSampleID = 0;
 	    for (pigen = hydra->igens + pibag->instGenNdx, pigenEnd = hydra->igens + pibag[1].instGenNdx; pigen != pigenEnd; pigen++) {
 	      if (pigen->genOper == GenSampleID) {
@@ -565,7 +601,15 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
 		
 		// sum regions
 		tsf_region_operator(&zoneRegion, 0, nullptr, &presetRegion);
-		
+
+		// SF2.01 9.5.1: an "identical" preset-level modulator (same
+		// src/dest/amtSrc/trans identity) replaces the instrument-level
+		// one entirely, rather than combining like generators do -
+		// zoneRegion.modulators is the instrument-level base,
+		// presetRegion.modulators (already merged against the preset's
+		// own global zone above) is the override.
+		zoneRegion.modulators = mergeModulators(zoneRegion.modulators, presetRegion.modulators);
+
 		// EG times need to be converted from timecents to seconds.
 		tsf_region_envtosecs(&zoneRegion.ampenv, true);
 		tsf_region_envtosecs(&zoneRegion.modenv, false);
@@ -586,7 +630,7 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
 		zoneRegion.sample_rate = pshdr->sampleRate;
 		if (zoneRegion.end && zoneRegion.end < fontSampleCount) zoneRegion.end++;
 		else zoneRegion.end = fontSampleCount;
-		
+
 		preset->regions[region_index] = zoneRegion;
 		region_index++;
 		hadSampleID = 1;
@@ -599,19 +643,13 @@ static void tsf_load_presets(SoundFontFile* res, struct tsf_hydra *hydra, unsign
 	    if (pibag == hydra->ibags + pinst->instBagNdx && !hadSampleID) {
 	      instRegion = zoneRegion;
 	    }
-		      
-	    // Modulators (TODO)
-	    //if (ibag->instModNdx < ibag[1].instModNdx) addUnsupportedOpcode("any modulator");
 	  }
 	  hadGenInstrument = 1;
 	} else {
 	  tsf_region_operator(&presetRegion, ppgen->genOper, &ppgen->genAmount, nullptr);
 	}
       }
-      
-      // Modulators (TODO)
-      // if (pbag->modNdx < pbag[1].modNdx) addUnsupportedOpcode("any modulator");
-      
+
       // Handle preset's global zone.
       if (ppbag == hydra->pbags + pphdr->presetBagNdx && !hadGenInstrument) {
 	globalRegion = presetRegion;
@@ -705,6 +743,19 @@ chorusSendFor(const tsf_region * region) {
   return region ? region->chorusEffectsSend / 1000.0f : 0.0f;
 }
 
+// Which generator categories a channel-pressure modulator connection can
+// usefully drive - the only two SoundFontVoice::render() actually
+// recomputes every block (see dynamicLowpass/dynamicPitchRatio there). A
+// modulator targeting anything else parses correctly (SF2Mod::Connection
+// doesn't restrict dest at all) but is a documented no-op here, the same
+// scope limitation the original poly-pressure plan already accepted.
+static bool destInFilterCutoffSet(uint16_t dest) {
+  return dest == 8 || dest == 10 || dest == 11; // InitialFilterFc, ModLfoToFilterFc, ModEnvToFilterFc
+}
+static bool destInPitchSet(uint16_t dest) {
+  return dest == 5 || dest == 6 || dest == 7 || dest == 51 || dest == 52; // ModLfoToPitch, VibLfoToPitch, ModEnvToPitch, CoarseTune, FineTune
+}
+
 class SoundFontVoice : public InstrumentVoice {
 public:
   SoundFontVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, float start_phase, std::shared_ptr<SoundFontFile> sf, size_t preset, size_t region_idx, const SendLevels & sends = {})
@@ -721,7 +772,17 @@ public:
       if (region_idx < regions.size()) {
 	auto & region = regions[region_idx];
 	voiceRegion_ = &region;
-	
+
+	// Precompute once (rather than rescanning every block in render())
+	// whether this region has any channel-pressure-sourced modulator
+	// targeting a category render() actually evaluates - see
+	// destInFilterCutoffSet/destInPitchSet above.
+	for (auto & c : voiceRegion_->modulators) {
+	  if (!SF2Mod::isChannelPressureSourced(c)) continue;
+	  if (destInFilterCutoffSet(c.dest)) hasChannelPressureCutoffMod_ = true;
+	  if (destInPitchSet(c.dest)) hasChannelPressurePitchMod_ = true;
+	}
+
 	// Offset/end (add to the start phase)
 	// sourceSamplePosition_ += voiceRegion_->offset;
 	sourceSamplePosition_ = voiceRegion_->offset;
@@ -798,6 +859,21 @@ public:
     return InstrumentVoice::getOwnLoudnessFactor() * ampenv_.getLevel();
   }
 
+  // Track-broadcast channel pressure (see InstrumentTrackState::
+  // broadcastChannelPressure()/applyRealChannelPressure()) - already
+  // normalized to [0,1], same convention as applyAftertouch's own
+  // argument. Only has any audible effect when hasChannelPressureCutoffMod_/
+  // hasChannelPressurePitchMod_ was set at construction (see render()).
+  // Still cascades to this voice's own children (FM modulators, see
+  // SoundFontInstrument::playNote()) via the base class, matching
+  // applyAftertouch's existing precedent, even though nothing among
+  // today's modulator types reads it.
+  void applyChannelPressure(float pressure) override {
+    sf2_channel_pressure_ = pressure;
+    TrackState::applyChannelPressure(pressure);
+  }
+  float getChannelPressure() const override { return sf2_channel_pressure_; }
+
   SampleData render(int numSamples) override;
   
   void killNote() override {
@@ -815,6 +891,7 @@ public:
     // counting a "voice" that's already been silently orphaned once this
     // SoundFontVoice's own isActive() (which does NOT consult children)
     // goes false and clearFinishedVoices() reaps the whole subtree anyway.
+    // Same recursion precedent as applyChannelPressure() below.
     TrackState::killNote();
   }
 
@@ -873,6 +950,8 @@ protected:
   struct tsf_region * voiceRegion_ = nullptr;
   double pitchInputTimecents_ = 0, pitchOutputFactor_ = 0;
   unsigned int loopStart_ = 0, loopEnd_ = 0;
+  bool hasChannelPressureCutoffMod_ = false, hasChannelPressurePitchMod_ = false;
+  float sf2_channel_pressure_ = 0.0f;
   Biquad<double> lowpass_ { FilterType::lowpass };
   LFOState modlfo_, viblfo_;
   
@@ -976,16 +1055,24 @@ SoundFontVoice::render(int numSamples) {
   int writeIndex = 0;
   auto input = f->fontSamples_;
   
-  bool updateModEnv = (voiceRegion_->modEnvToPitch || voiceRegion_->modEnvToFilterFc);
-  bool updateModLFO = (modlfo_.getDelta() && (voiceRegion_->modLfoToPitch || voiceRegion_->modLfoToFilterFc || voiceRegion_->modLfoToVolume));
-  bool updateVibLFO = (viblfo_.getDelta() && (voiceRegion_->vibLfoToPitch));
+  // hasChannelPressureCutoffMod_/hasChannelPressurePitchMod_ can make an
+  // LFO/env relevant even when every *static* generator that would
+  // normally imply it is zero - a file can author a channel-pressure ->
+  // VibLfoToPitch connection while leaving the static vibLfoToPitch
+  // generator itself at 0, relying entirely on the modulator. Without
+  // this, that LFO/env would never advance past its initial (silent)
+  // level and the channel-pressure modulator below would multiply by a
+  // permanently frozen value instead of a real oscillation/envelope.
+  bool updateModEnv = (voiceRegion_->modEnvToPitch || voiceRegion_->modEnvToFilterFc || hasChannelPressureCutoffMod_ || hasChannelPressurePitchMod_);
+  bool updateModLFO = (modlfo_.getDelta() && (voiceRegion_->modLfoToPitch || voiceRegion_->modLfoToFilterFc || voiceRegion_->modLfoToVolume || hasChannelPressureCutoffMod_ || hasChannelPressurePitchMod_));
+  bool updateVibLFO = (viblfo_.getDelta() && (voiceRegion_->vibLfoToPitch || hasChannelPressurePitchMod_));
   bool isLooping    = (loopStart_ < loopEnd_);
   double sampleEndDbl = (double)voiceRegion_->end;
   double loopEndDbl = (double)loopEnd_ + 1.0;
   bool dynamicGain = (voiceRegion_->modLfoToVolume != 0);
   float sampleRate = getChannelConfiguration().getAudioOutSampleRate();
-  bool dynamicLowpass = (voiceRegion_->modLfoToFilterFc || voiceRegion_->modEnvToFilterFc);
-  bool dynamicPitchRatio = (voiceRegion_->modLfoToPitch || voiceRegion_->modEnvToPitch || voiceRegion_->vibLfoToPitch);
+  bool dynamicLowpass = (voiceRegion_->modLfoToFilterFc || voiceRegion_->modEnvToFilterFc || hasChannelPressureCutoffMod_);
+  bool dynamicPitchRatio = (voiceRegion_->modLfoToPitch || voiceRegion_->modEnvToPitch || voiceRegion_->vibLfoToPitch || hasChannelPressurePitchMod_);
   
   auto tmpInitialFilterFc = 0, tmpModLfoToFilterFc = 0, tmpModEnvToFilterFc = 0;
   if (dynamicLowpass) {
@@ -1015,15 +1102,49 @@ SoundFontVoice::render(int numSamples) {
     int blockSamples = (numSamples > constants::RENDER_EFFECTSAMPLEBLOCK ? constants::RENDER_EFFECTSAMPLEBLOCK : numSamples);
     numSamples -= blockSamples;
 
+    // Channel-pressure modulator contributions, added to the same "depth"
+    // variables the static generators already feed into below - a
+    // destination that scales an LFO/env (ModLfoToFilterFc/
+    // ModEnvToFilterFc/ModLfoToPitch/VibLfoToPitch/ModEnvToPitch) adds to
+    // that depth (still scaled by the LFO/env's own current level in the
+    // formulas below), while one that sets a base value directly
+    // (InitialFilterFc/CoarseTune/FineTune) adds straight into the base.
+    // Only scanned when this region actually has a relevant modulator
+    // (hasChannelPressureCutoffMod_/hasChannelPressurePitchMod_, set once
+    // at construction) - a region with none pays nothing extra here.
+    float cpInitialFilterFc = 0.0f, cpModLfoToFilterFc = 0.0f, cpModEnvToFilterFc = 0.0f;
+    float cpModLfoToPitch = 0.0f, cpVibLfoToPitch = 0.0f, cpModEnvToPitch = 0.0f, cpPitchTimecents = 0.0f;
+    if (hasChannelPressureCutoffMod_ || hasChannelPressurePitchMod_) {
+      for (auto & c : voiceRegion_->modulators) {
+	if (!SF2Mod::isChannelPressureSourced(c)) continue;
+	float contribution = SF2Mod::evaluateChannelPressureModulator(c, sf2_channel_pressure_);
+	switch (c.dest) {
+	case 5:  cpModLfoToPitch += contribution; break;
+	case 6:  cpVibLfoToPitch += contribution; break;
+	case 7:  cpModEnvToPitch += contribution; break;
+	case 8:  cpInitialFilterFc += contribution; break;
+	case 10: cpModLfoToFilterFc += contribution; break;
+	case 11: cpModEnvToFilterFc += contribution; break;
+	case 51: cpPitchTimecents += contribution * 100.0f; break; // CoarseTune: semitones -> cents
+	case 52: cpPitchTimecents += contribution; break; // FineTune: already cents
+	}
+      }
+    }
+
     if (dynamicLowpass) {
-      float fres = tmpInitialFilterFc + modlfo_.getLevel() * tmpModLfoToFilterFc + modenv_.getLevel() * tmpModEnvToFilterFc;
+      float fres = (tmpInitialFilterFc + cpInitialFilterFc)
+                 + modlfo_.getLevel() * (tmpModLfoToFilterFc + cpModLfoToFilterFc)
+                 + modenv_.getLevel() * (tmpModEnvToFilterFc + cpModEnvToFilterFc);
       float lowpassFc = (fres <= 13500 ? tsf_cents2Hertz(fres) / sampleRate : 1.0f);
       lowpass_.active_ = (lowpassFc < 0.499f);
       if (lowpass_.active_) lowpass_.setFc(lowpassFc);
     }
 
     if (dynamicPitchRatio) {
-      pitchRatio = tsf_timecents2Secsd(pitchInputTimecents_ + (modlfo_.getLevel() * tmpModLfoToPitch + viblfo_.getLevel() * tmpVibLfoToPitch + modenv_.getLevel() * tmpModEnvToPitch)) * pitchOutputFactor_;
+      pitchRatio = tsf_timecents2Secsd(pitchInputTimecents_ + cpPitchTimecents
+        + (modlfo_.getLevel() * (tmpModLfoToPitch + cpModLfoToPitch)
+           + viblfo_.getLevel() * (tmpVibLfoToPitch + cpVibLfoToPitch)
+           + modenv_.getLevel() * (tmpModEnvToPitch + cpModEnvToPitch))) * pitchOutputFactor_;
     }
 
     if (dynamicGain) {

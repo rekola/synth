@@ -45,6 +45,7 @@ add_library(synth_engine STATIC
 	Controller.cpp
 	InstrumentList.cpp
 	SoundFont.cpp
+	SF2Modulator.cpp
 	Song.cpp
 	SongObject.cpp
 	InstrumentTrack.cpp

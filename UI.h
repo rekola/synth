@@ -58,6 +58,7 @@ class UI : public UIElement {
   void handleMidiEvent(MidiEvent & ev) override;
   void handleLaunchpadPadEvent(LaunchpadPadEvent & ev) override;
   void handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) override;
+  void handleLaunchpadChannelPressureEvent(LaunchpadChannelPressureEvent & ev) override;
   void handleVisualizationResultEvent(VisualizationResultEvent & ev) override;
 
 protected:

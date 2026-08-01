@@ -1,6 +1,7 @@
 #include "LaunchpadIO.h"
 #include "LaunchpadPadEvent.h"
 #include "LaunchpadButtonEvent.h"
+#include "LaunchpadChannelPressureEvent.h"
 #include "Logger.h"
 
 using namespace std;
@@ -224,6 +225,15 @@ LaunchpadIO::pollEvents() {
 	auto value = ev->data.control.value;
 	auto kind = value == 0 ? LaunchpadButtonEvent::RELEASE : LaunchpadButtonEvent::PRESS;
 	result.push_back(make_unique<LaunchpadButtonEvent>(session.session_id, cc_number, kind, session.model));
+	break;
+      }
+
+      if (ev->type == SND_SEQ_EVENT_CHANPRESS) {
+	// Device-wide aftertouch - the alternative mode to per-pad KEYPRESS
+	// (LaunchpadPadEvent::AFTERTOUCH) below, mutually exclusive with it
+	// on real hardware (a device is configured to send one or the
+	// other, never both for the same gesture).
+	result.push_back(make_unique<LaunchpadChannelPressureEvent>(session.session_id, ev->data.control.value, session.model));
 	break;
       }
 

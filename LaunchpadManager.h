@@ -18,6 +18,7 @@ class Song;
 class PlaybackInfo;
 class Controller;
 class LaunchpadPadEvent;
+class LaunchpadChannelPressureEvent;
 
 // Owns everything about how connected Launchpads relate to the song being
 // edited: per-device track assignment and octave, the isomorphic/
@@ -187,6 +188,16 @@ class LaunchpadManager {
   // PatternEditor's own getCursorTrackIndex()/getEditStepSize() when a UI
   // happens to be present).
   void handlePadEvent(LaunchpadPadEvent & ev, Controller & controller, int fallback_track_index, int edit_step_size);
+
+  // Device-wide aftertouch (the alternative to handlePadEvent's per-pad
+  // AFTERTOUCH case - see LaunchpadChannelPressureEvent) - there's no
+  // pad, so no single note_column/track to target the way per-pad
+  // aftertouch has; instead this applies to every track this device
+  // currently has a held note on (its active_notes bookkeeping), the same
+  // "one shared pressure value, not per-note" semantics
+  // InstrumentTrackState::broadcastChannelPressure() already gives poly
+  // pressure once aggregated up to channel level.
+  void handleChannelPressureEvent(LaunchpadChannelPressureEvent & ev, Controller & controller);
 
   // Called whenever the UI thread learns of a new playhead position (see
   // UI::handlePlaybackEvent, right after Controller::receivePlaybackSnapshot() -

@@ -529,6 +529,17 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
   auto & pattern = song.getPattern(info.getPatternIndex());
   int track_id = track_ids[new_cursor.track];
 
+  // Channel-wide, not tied to any specific note - unlike every other case
+  // below, ev.getNote() is unused (always 0, see AlsaAudio.cpp), so this
+  // must be handled before the active_midi_notes lookup that follows, or
+  // it would be misread as "note 0" and corrupt that per-note bookkeeping.
+  // No pattern write either: there's no single note whose velocity this
+  // could sensibly become.
+  if (ev.getType() == MidiEvent::CHANNEL_PRESSURE) {
+    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CHANNEL_PRESSURE, track_id, ev.getVelocity()));
+    return;
+  }
+
   bool is_off = ev.getType() == MidiEvent::NOTE_OFF || (ev.getType() == MidiEvent::NOTE_ON && ev.getVelocity() == 0);
 
   int note_value = 0;

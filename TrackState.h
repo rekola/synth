@@ -167,6 +167,32 @@ public:
 
   float getAftertouch() const { return aftertouch_; }
 
+  // Per-track-derived channel pressure (see InstrumentTrackState::
+  // broadcastChannelPressure()) - separate from applyAftertouch/
+  // getAftertouch above (which default to 1.0f and are read as a gain
+  // multiplier by Tremolo/BiquadFilter/ResonantFilter). Recurses into
+  // children exactly like applyAftertouch above does - required here
+  // because a single played note is not always one leaf voice:
+  // SoundFontInstrument::playNote() returns a plain (non-overriding)
+  // TrackState group wrapping several SoundFontVoice children whenever
+  // more than one region matches (stereo L/R sample pairs, velocity
+  // layers - the common case for real GM patches), and
+  // InstrumentTrackState only ever calls this on the top-level voice
+  // stored in voices_, never reaching into a group's children itself.
+  // Without this recursion the call silently no-ops on the group and
+  // every SoundFontVoice inside it never learns of the pressure change.
+  // Only SoundFontVoice overrides this (to drive SF2 channel-pressure
+  // modulators) - every other leaf voice type simply inherits this
+  // default and ignores channel pressure, the same "opt-in, no effect on
+  // types that don't care" shape aftertouch's own 3 opt-in consumers
+  // already have.
+  virtual void applyChannelPressure(float pressure) {
+    for (auto & [ id, child ] : getChildren()) {
+      child->applyChannelPressure(pressure);
+    }
+  }
+  virtual float getChannelPressure() const { return 0.0f; }
+
   const ChannelConfiguration & getChannelConfiguration() const { return channel_config_; }
 
   void addChild(int internal_id, std::unique_ptr<TrackState> child) { children_[internal_id] = std::move(child); }

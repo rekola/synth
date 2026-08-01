@@ -135,6 +135,42 @@ public:
     if (it != voices_.end()) {
       for (auto & voice : it->second) if (voice->isActive()) voice->applyAftertouch(aftertouch);
     }
+
+    // A Track here plays the role a MIDI channel plays on a real
+    // multitimbral synth - so this column's own poly pressure also feeds
+    // the track-wide channel-pressure value (broadcastChannelPressure()),
+    // derived as the max across every currently-held column so a held
+    // chord gets one shared vibrato/filter depth rather than uneven
+    // per-note wobble.
+    column_pressure_[column] = aftertouch;
+    broadcastChannelPressure();
+  }
+
+  // Recomputes the max of every currently-held column's poly pressure and
+  // pushes it to every active voice in every column (not just the column
+  // that changed) - see applyAftertouch() above. Also called from
+  // stopVoices() below, since releasing the hardest-pressed column can
+  // lower the max for the notes still held.
+  void broadcastChannelPressure() {
+    float max_pressure = 0.0f;
+    for (auto & [ column, pressure ] : column_pressure_) {
+      max_pressure = std::max(max_pressure, pressure);
+    }
+    pushChannelPressureToVoices(max_pressure);
+  }
+
+  // Real MIDI/hardware channel pressure (as opposed to the per-note poly
+  // pressure aggregated into a channel-pressure-equivalent by
+  // broadcastChannelPressure() above) - applied directly, with no column
+  // bookkeeping, since the source already reports a single track-wide
+  // value rather than something that needs a per-column max. Deliberately
+  // does not touch column_pressure_, so it can't be stale-overwritten by
+  // a later broadcastChannelPressure() call from an unrelated poly-pressure
+  // column update - the two input kinds are mutually exclusive on real
+  // hardware (see LaunchpadChannelPressureEvent), so this simple
+  // last-write-wins is never actually contended in practice.
+  void applyRealChannelPressure(float pressure) {
+    pushChannelPressureToVoices(pressure);
   }
 
   void stopVoices(int column) {
@@ -142,6 +178,12 @@ public:
     if (it != voices_.end()) {
       for (auto & voice : it->second) if (voice->isActive()) voice->stopNote();
     }
+
+    // Without this, a hard-pressed note's stale pressure would keep
+    // inflating the max (broadcastChannelPressure()) after it releases and
+    // a new, softer note starts.
+    column_pressure_.erase(column);
+    broadcastChannelPressure();
   }
 
   void clear() override {
@@ -225,6 +267,17 @@ protected:
     }
   }
 
+  // Shared by broadcastChannelPressure() (poly-pressure-derived) and
+  // applyRealChannelPressure() (real MIDI channel pressure) above - both
+  // ultimately just push one value to every currently active voice.
+  void pushChannelPressureToVoices(float pressure) {
+    for (auto & [ column, voices ] : voices_) {
+      for (auto & voice : voices) {
+	if (voice->isActive()) voice->applyChannelPressure(pressure);
+      }
+    }
+  }
+
 private:
   bool solo_, muted_;
   int track_id_, instrument_id_;
@@ -233,6 +286,7 @@ private:
   SendLevels sends_;
 
   std::unordered_map<int, std::vector<std::unique_ptr<TrackState> > > voices_;
+  std::unordered_map<int, float> column_pressure_;
 };
 
 #endif

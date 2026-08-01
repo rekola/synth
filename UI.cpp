@@ -21,6 +21,7 @@
 #include "KeyChord.h"
 #include "LaunchpadButtonEvent.h"
 #include "LaunchpadPadEvent.h"
+#include "LaunchpadChannelPressureEvent.h"
 #include "LaunchpadProtocol.h"
 #include "LaunchpadManager.h"
 
@@ -383,6 +384,12 @@ UI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
   if (!launchpad_manager_) return;
   launchpad_manager_->handlePadEvent(ev, getController(),
     pattern_editor_->getCursorTrackIndex(), pattern_editor_->getEditStepSize());
+}
+
+void
+UI::handleLaunchpadChannelPressureEvent(LaunchpadChannelPressureEvent & ev) {
+  if (!launchpad_manager_) return;
+  launchpad_manager_->handleChannelPressureEvent(ev, getController());
 }
 
 void
