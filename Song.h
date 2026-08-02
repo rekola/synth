@@ -6,6 +6,7 @@
 #include "Section.h"
 #include "Pattern.h"
 #include "bus/BusEffectRegistry.h"
+#include "constants.h"
 
 #include <memory>
 #include <vector>
@@ -33,6 +34,26 @@ class Song : public StatefulSongObject {
   
   short getTempo() const { return bpm_; }
   void setTempo(short bpm) { bpm_ = bpm; }
+
+  // Floor-reflection parameters (see InstrumentVoice.h) - fixed for the
+  // whole song, not live-editable (no live control path exists for any
+  // of these). getEarHeight() is clamped to [0.1, 50] meters at load time
+  // (setEarHeight() below) - the lower bound guards against a degenerate
+  // zero-height listener, the upper is an engineering ceiling (a taller
+  // listener turns the reflection into an increasingly obvious slapback/
+  // canyon echo rather than a fusion cue - a legitimate, if unusual,
+  // effect, not something to forbid outright).
+  float getEarHeight() const { return ear_height_; }
+  void setEarHeight(float h) { ear_height_ = h < 0.1f ? 0.1f : (h > 50.0f ? 50.0f : h); }
+
+  bool getFloorReflectionEnabled() const { return floor_reflection_enabled_; }
+  void setFloorReflectionEnabled(bool e) { floor_reflection_enabled_ = e; }
+
+  float getFloorReflectionStrength() const { return floor_reflection_strength_; }
+  void setFloorReflectionStrength(float s) { floor_reflection_strength_ = s; }
+
+  float getGroundAbsorption() const { return ground_absorption_; }
+  void setGroundAbsorption(float a) { ground_absorption_ = a; }
 
   // The shared 2-slot send bus (bus/SendBusProcessor.h) - slot 0 = A,
   // slot 1 = B, matching SendBusProcessor::kSlotA/kSlotB. Each slot's
@@ -181,6 +202,10 @@ private:
   short key_note_number_ = 0;
   float randomization_factor_ = 0.0f;
   int bpm_ = 90;
+  float ear_height_ = constants::DEFAULT_EAR_HEIGHT;
+  bool floor_reflection_enabled_ = constants::DEFAULT_FLOOR_REFLECTION_ENABLED;
+  float floor_reflection_strength_ = constants::DEFAULT_FLOOR_REFLECTION_STRENGTH;
+  float ground_absorption_ = constants::DEFAULT_GROUND_ABSORPTION;
 
   std::unique_ptr<BusEffect> bus_slot_a_, bus_slot_b_;
   BusEffectKind bus_slot_a_kind_ = BusEffectKind::Reverb;

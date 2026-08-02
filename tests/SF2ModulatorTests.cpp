@@ -296,6 +296,12 @@ namespace {
     // envelopes (e.g. different release times), unlike plain `gens` which
     // applies identically to every region.
     std::vector<std::vector<GenSpec>> region_gens;
+    // GM bank number - defaults to 0, appended last so every existing
+    // positional PresetSpec{...} initializer above is unaffected. 128 is
+    // the GM percussion-bank convention (SoundFontInstrument::
+    // getDefaultExtent()/applyPercussionOffset()), needed to exercise the
+    // percussion-offset mechanism from a fixture.
+    uint16_t bank = 0;
   };
 
   // Builds a minimal single-sample, N-preset (each with exactly one
@@ -344,10 +350,10 @@ namespace {
     for (size_t i = 0; i < presets.size(); i++) {
       const auto & p = presets[i];
 
-      // phdr: one zone (this preset's own instrument), bank 0.
+      // phdr: one zone (this preset's own instrument).
       appendName20(phdr_bytes, p.name);
       appendU16(phdr_bytes, p.program);
-      appendU16(phdr_bytes, 0); // bank
+      appendU16(phdr_bytes, p.bank);
       appendU16(phdr_bytes, pbag_index);
       appendU32(phdr_bytes, 0); appendU32(phdr_bytes, 0); appendU32(phdr_bytes, 0); // library/genre/morphology
 
@@ -1218,4 +1224,287 @@ TEST(sf2_voice_releasing_above_the_silence_floor_is_not_freed_early) {
   // active (naturally releasing), not already finished.
   voice->render(4096); // ~93ms
   CHECK(voice->isActive());
+}
+
+// Percussion key-offset mechanism (SoundFont.cpp's applyPercussionOffset(),
+// bank 128 only) - isolated from the floor reflection (Phase 3) by
+// disabling it explicitly, so these tests are only sensitive to the
+// offset mechanism itself. All render through ChannelConfiguration order
+// 1 (FOA) and read the Y (ACN1) channel's sign/magnitude directly -
+// computeAmbisonicGains's Y gain is sinf(azimuth)*cos(elevation), so a
+// positive resolved azimuth reads as a positive Y channel and vice versa,
+// without needing a full stereo decode or reaching into voice internals.
+namespace {
+float channelPeak(TrackState & voice, int channel, int frames) {
+  auto data = voice.render(frames);
+  auto * c = data.getChannelData(channel);
+  float peak = 0.0f;
+  for (int i = 0; i < frames; i++) if (std::fabs(c[i]) > std::fabs(peak)) peak = c[i];
+  return peak;
+}
+float yChannelPeak(TrackState & voice, int frames) { return channelPeak(voice, 1, frames); }
+// Y/W at the sample where W (the reference channel - kAmbisonicReferenceGain,
+// always 1 for any real direction, regardless of azimuth) peaks - this
+// ratio is exactly sin(azimuth)*cos(elevation), independent of the dry
+// signal's own amplitude/phase at that instant. Needed to compare *two
+// different MIDI keys* (different pitch -> different dry-signal phase
+// within the same short window, so a raw peak-to-peak comparison isn't
+// meaningful even when the resolved *position* is identical).
+float yToWRatioAtWPeak(TrackState & voice, int frames) {
+  auto data = voice.render(frames);
+  auto * w = data.getChannelData(0);
+  auto * y = data.getChannelData(1);
+  int best = 0;
+  for (int i = 1; i < frames; i++) if (std::fabs(w[i]) > std::fabs(w[best])) best = i;
+  return w[best] != 0.0f ? y[best] / w[best] : 0.0f;
+}
+// Z (ACN2, elevation-driven) - unaffected by anything that only ever
+// touches azimuth (the region's own native SF2 pan, adjustPositionForPan()
+// in this same file), so a jitter/elevation comparison via this channel
+// stays valid regardless of that unrelated code path's own behavior.
+float zChannelPeak(TrackState & voice, int frames) { return channelPeak(voice, 2, frames); }
+}
+
+// These tests all compare *two* renders of the same key/region (extent on
+// vs. off, or one key vs. another) rather than asserting an absolute
+// resolved azimuth sign - SoundFontVoice's ctor also folds the region's
+// own native SF2 pan into azimuth (adjustPositionForPan(), unrelated to
+// applyPercussionOffset()), and every region in these minimal fixtures
+// shares the same (unset -> default) pan value. Comparing two renders of
+// the *same* region cancels that shared contribution out either way,
+// isolating exactly what applyPercussionOffset() itself adds - the tests
+// remain valid regardless of what that unrelated pan path does.
+TEST(sf2_percussion_offset_hihat_reads_positive_azimuth_at_player_distance) {
+  std::vector<PresetSpec> presets = { { "Kit", 0, {}, {}, 1, {}, 128 } };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "percussion_offset_hihat_player.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100, 1);
+  config.setFloorReflectionEnabled(false);
+  auto instrument = sf.createInstrument(0);
+
+  // Key 42 = Closed Hi-Hat, tabulated at u=0.55 (positive - "player"
+  // side). Distance 0.5 (<= 1 -> player perspective).
+  SphericalPosition position_offset{ 0.0f, 0.0f, 0.5f, 1.2f };
+  SphericalPosition position_base{ 0.0f, 0.0f, 0.5f, 0.0f }; // extent 0 - offset mechanism inert
+
+  auto voice_offset = instrument->playNote(config, position_offset, frequencyForMidiKey(42), 1.0f, 0.8f, 0.0f, 42, SendLevels{});
+  auto voice_base = instrument->playNote(config, position_base, frequencyForMidiKey(42), 1.0f, 0.8f, 0.0f, 42, SendLevels{});
+  float delta = yChannelPeak(*voice_offset, 64) - yChannelPeak(*voice_base, 64);
+  CHECK(delta > 0.01f);
+}
+
+TEST(sf2_percussion_offset_mirrors_at_audience_distance) {
+  std::vector<PresetSpec> presets = { { "Kit", 0, {}, {}, 1, {}, 128 } };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "percussion_offset_hihat_audience.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100, 1);
+  config.setFloorReflectionEnabled(false);
+  auto instrument = sf.createInstrument(0);
+
+  // Same key as above, distance 1.5 (> 1 -> audience perspective) - the
+  // offset's own contribution to the Y channel must flip sign relative
+  // to the player-distance case above.
+  SphericalPosition position_offset{ 0.0f, 0.0f, 1.5f, 1.2f };
+  SphericalPosition position_base{ 0.0f, 0.0f, 1.5f, 0.0f };
+
+  auto voice_offset = instrument->playNote(config, position_offset, frequencyForMidiKey(42), 1.0f, 0.8f, 0.0f, 42, SendLevels{});
+  auto voice_base = instrument->playNote(config, position_base, frequencyForMidiKey(42), 1.0f, 0.8f, 0.0f, 42, SendLevels{});
+  float delta = yChannelPeak(*voice_offset, 64) - yChannelPeak(*voice_base, 64);
+  CHECK(delta < -0.01f);
+}
+
+TEST(sf2_percussion_offset_zero_extent_collapses_to_point_source) {
+  std::vector<PresetSpec> presets = { { "Kit", 0, {}, {}, 1, {}, 128 } };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "percussion_offset_zero_extent.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100, 1);
+  config.setFloorReflectionEnabled(false);
+  auto instrument = sf.createInstrument(0);
+
+  // extent 0 - regardless of the table entry, there is nothing to offset
+  // within, so two very differently-tabulated keys (42 and 49, table
+  // entries u=0.55 and u=-0.7) must resolve to the *same* Y channel -
+  // any difference would mean the table is still being consulted
+  // despite extent being 0. Both keys match the same single region in
+  // this fixture, so nothing else differs between them.
+  SphericalPosition position{ 0.0f, 0.0f, 0.5f, 0.0f };
+  auto voice_42 = instrument->playNote(config, position, frequencyForMidiKey(42), 1.0f, 0.8f, 0.0f, 42, SendLevels{});
+  auto voice_49 = instrument->playNote(config, position, frequencyForMidiKey(49), 1.0f, 0.8f, 0.0f, 49, SendLevels{});
+  CHECK_NEAR(yChannelPeak(*voice_42, 64), yChannelPeak(*voice_49, 64), 0.0001f);
+}
+
+TEST(sf2_percussion_offset_never_applies_to_a_non_percussion_bank) {
+  // Program 40 (Violin) - bank 0, deliberately outside both the
+  // percussion bank (128) and the pitched-arc family (piano 0-7, harp
+  // 46), so this fixture exercises neither of the new mechanisms.
+  std::vector<PresetSpec> presets = { { "Violin", 40, {}, {} } };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "percussion_offset_non_percussion.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100, 1);
+  config.setFloorReflectionEnabled(false);
+  auto instrument = sf.createInstrument(0);
+
+  // Same two keys/extent as above, but bank 0/program 40 - not a GM
+  // percussion kit and not in the pitched-arc family - so neither
+  // mechanism ever applies regardless of key; the resolved position is
+  // identical for both. Compared via yToWRatioAtWPeak() (not a raw peak)
+  // because this fixture's instrument isn't percussion/arc-eligible, so
+  // it still goes through the region's own native SF2 pan
+  // (adjustPositionForPan(), skip_native_pan stays false here) -
+  // producing a nonzero resolved azimuth, unlike the zero-extent case
+  // above (which skips native pan entirely and lands on an *exact* zero
+  // azimuth, making a raw peak comparison safe there but not here) - a
+  // raw peak comparison across two different pitches would otherwise be
+  // confounded by their differing dry-signal phase within the window.
+  SphericalPosition position{ 0.0f, 0.0f, 0.5f, 1.2f };
+  auto voice_42 = instrument->playNote(config, position, frequencyForMidiKey(42), 1.0f, 0.8f, 0.0f, 42, SendLevels{});
+  auto voice_49 = instrument->playNote(config, position, frequencyForMidiKey(49), 1.0f, 0.8f, 0.0f, 49, SendLevels{});
+  CHECK_NEAR(yToWRatioAtWPeak(*voice_42, 64), yToWRatioAtWPeak(*voice_49, 64), 0.0001f);
+}
+
+TEST(sf2_percussion_offset_jitter_is_deterministic_and_varies_per_hit) {
+  std::vector<PresetSpec> presets = { { "Kit", 0, {}, {}, 1, {}, 128 } };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "percussion_offset_jitter.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100, 1);
+  config.setFloorReflectionEnabled(false);
+  SphericalPosition position{ 0.0f, 0.0f, 0.5f, 1.2f };
+
+  // Two freshly-constructed instruments (each with its own jitter
+  // counter starting at 0) hitting the same key once each must produce
+  // bit-identical jitter - a full re-render from scratch reproduces
+  // exactly, since nothing else seeds this counter. Compared via the Z
+  // (elevation) channel - see zChannelPeak()'s own comment above.
+  auto instrument_a = sf.createInstrument(0);
+  auto voice_a = instrument_a->playNote(config, position, frequencyForMidiKey(49), 1.0f, 0.8f, 0.0f, 49, SendLevels{});
+  float peak_a = zChannelPeak(*voice_a, 64);
+
+  auto instrument_b = sf.createInstrument(0);
+  auto voice_b = instrument_b->playNote(config, position, frequencyForMidiKey(49), 1.0f, 0.8f, 0.0f, 49, SendLevels{});
+  float peak_b = zChannelPeak(*voice_b, 64);
+
+  CHECK_NEAR(peak_a, peak_b, 0.0001f);
+
+  // A second hit of the same key on instrument_a (jitter counter now
+  // advanced) must not land on the exact same offset as the first -
+  // repeated hits aren't pinned to an identical point.
+  auto voice_a2 = instrument_a->playNote(config, position, frequencyForMidiKey(49), 1.0f, 0.8f, 0.0f, 49, SendLevels{});
+  float peak_a2 = zChannelPeak(*voice_a2, 64);
+  CHECK(std::fabs(peak_a2 - peak_a) > 0.0001f);
+}
+
+// Pitched arc (SoundFontInstrument::applyPitchedArcOffset(), the piano
+// family/harp only - isPitchedArcFamily()). Program 0 (Acoustic Grand
+// Piano) with an explicit 60-84 key range so the arc's own endpoints and
+// midpoint land on round key numbers - key 60 is u=-1 (lowest mapped
+// key), key 84 is u=+1 (highest), key 72 is the exact midpoint (u=0).
+TEST(sf2_pitched_arc_opposite_ends_shift_opposite_directions) {
+  std::vector<PresetSpec> presets = {
+    { "Piano", 0, { GenSpec{ 43, packKeyRange(60, 84) } }, {} },
+  };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "pitched_arc_ends.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100, 1);
+  config.setFloorReflectionEnabled(false);
+  auto instrument = sf.createInstrument(0);
+
+  // Player perspective (distance <= 1) - a real extent to arc across.
+  SphericalPosition position{ 0.0f, 0.0f, 0.5f, 1.5f };
+  auto voice_low = instrument->playNote(config, position, frequencyForMidiKey(60), 1.0f, 0.8f, 0.0f, 60, SendLevels{});
+  auto voice_high = instrument->playNote(config, position, frequencyForMidiKey(84), 1.0f, 0.8f, 0.0f, 84, SendLevels{});
+
+  float ratio_low = yToWRatioAtWPeak(*voice_low, 64);
+  float ratio_high = yToWRatioAtWPeak(*voice_high, 64);
+  // Opposite signs (one end of the arc reads left, the other right) and
+  // roughly the same magnitude (u = -1 and +1 are symmetric).
+  CHECK(ratio_low * ratio_high < 0.0f);
+  CHECK_NEAR(std::fabs(ratio_low), std::fabs(ratio_high), 0.05f);
+}
+
+TEST(sf2_pitched_arc_midpoint_key_is_centered) {
+  std::vector<PresetSpec> presets = {
+    { "Piano", 0, { GenSpec{ 43, packKeyRange(60, 84) } }, {} },
+  };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "pitched_arc_midpoint.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100, 1);
+  config.setFloorReflectionEnabled(false);
+  auto instrument = sf.createInstrument(0);
+
+  // Key 72 is the exact midpoint of 60-84 -> u = 0 -> azimuth stays
+  // exactly at the input (0), reading as an exact zero Y channel (not
+  // just "near" it - u = 0 makes the offset an exact no-op, same
+  // "multiplying by an exact zero gain" reasoning as the zero-extent
+  // percussion test above).
+  SphericalPosition position{ 0.0f, 0.0f, 0.5f, 1.5f };
+  auto voice_mid = instrument->playNote(config, position, frequencyForMidiKey(72), 1.0f, 0.8f, 0.0f, 72, SendLevels{});
+  CHECK_NEAR(yChannelPeak(*voice_mid, 64), 0.0f, 0.0001f);
+}
+
+TEST(sf2_pitched_arc_mirrors_at_audience_distance) {
+  std::vector<PresetSpec> presets = {
+    { "Piano", 0, { GenSpec{ 43, packKeyRange(60, 84) } }, {} },
+  };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "pitched_arc_mirror.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100, 1);
+  config.setFloorReflectionEnabled(false);
+  auto instrument = sf.createInstrument(0);
+
+  // Same highest key (84, u = +1) at player (<= 1) vs audience (> 1)
+  // distance - the arc's own direction must flip, same mirror
+  // convention as the percussion table.
+  SphericalPosition position_player{ 0.0f, 0.0f, 0.5f, 1.5f };
+  SphericalPosition position_audience{ 0.0f, 0.0f, 1.5f, 1.5f };
+  auto voice_player = instrument->playNote(config, position_player, frequencyForMidiKey(84), 1.0f, 0.8f, 0.0f, 84, SendLevels{});
+  auto voice_audience = instrument->playNote(config, position_audience, frequencyForMidiKey(84), 1.0f, 0.8f, 0.0f, 84, SendLevels{});
+
+  float ratio_player = yToWRatioAtWPeak(*voice_player, 64);
+  float ratio_audience = yToWRatioAtWPeak(*voice_audience, 64);
+  CHECK(ratio_player * ratio_audience < 0.0f);
+}
+
+// Newly-added arc-family instruments (glockenspiel/vibraphone/marimba/
+// xylophone/tubular bells/timpani, GM programs 9/11/12/13/14/47) - one
+// representative (Marimba, program 12) confirming both halves of the
+// extension: getDefaultExtent() returns its new tabulated span, and the
+// arc actually resolves opposite-key azimuths in opposite directions
+// (same check as the pre-existing piano test above).
+TEST(sf2_pitched_arc_covers_newly_added_mallet_family) {
+  std::vector<PresetSpec> presets = {
+    { "Marimba", 12, { GenSpec{ 43, packKeyRange(60, 84) } }, {} },
+  };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "pitched_arc_marimba.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100, 1);
+  config.setFloorReflectionEnabled(false);
+  auto instrument = sf.createInstrument(0);
+
+  CHECK_NEAR(instrument->getDefaultExtent(), 1.2f, 0.0001f);
+
+  SphericalPosition position{ 0.0f, 0.0f, 0.5f, 1.2f };
+  auto voice_low = instrument->playNote(config, position, frequencyForMidiKey(60), 1.0f, 0.8f, 0.0f, 60, SendLevels{});
+  auto voice_high = instrument->playNote(config, position, frequencyForMidiKey(84), 1.0f, 0.8f, 0.0f, 84, SendLevels{});
+
+  float ratio_low = yToWRatioAtWPeak(*voice_low, 64);
+  float ratio_high = yToWRatioAtWPeak(*voice_high, 64);
+  CHECK(ratio_low * ratio_high < 0.0f);
 }

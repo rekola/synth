@@ -1,6 +1,8 @@
 #include "NoteMultiplier.h"
+#include "AmbisonicEncoding.h"
 
 #include <cassert>
+#include <cmath>
 
 using namespace std;
 
@@ -28,19 +30,28 @@ NoteMultiplier::playNote(const ChannelConfiguration & channel_config, const Sphe
       auto voice = child->playNote(channel_config, input_position, frequency, input_detune, velocity, start_phase + getRandF(), note_value, sends);
       if (voice.get()) group->addChild(voice_id++, move(voice));
     } else if (unisons_ >= 2) {
-      float azimuth_offset = -spread_ / 2;
-      float azimuth_step = spread_ / (unisons_ - 1);
+      // spread_ is a dimensionless multiplier on the resolved instrument's
+      // own extent (not a raw angle) - the actual angular half-width
+      // narrows with distance and widens with extent, same as every other
+      // source-attached spread in this codebase (percussion-key offsets,
+      // the pitched arc). atan2 rather than atan handles distance <= 0
+      // (an untouched/diffuse track - computeAmbisonicGains() ignores
+      // azimuth entirely there anyway, so the exact saturated angle atan2
+      // picks doesn't matter) without dividing by zero.
+      float half_width_deg = atan2f(spread_ * input_position.extent, input_position.distance) * 180.0f / static_cast<float>(M_PI);
+      float azimuth_offset = -half_width_deg;
+      float azimuth_step = 2.0f * half_width_deg / (unisons_ - 1);
 
       float detune = input_detune / half_detune_ratio;
       float detune_step = powf(half_detune_ratio * half_detune_ratio, 1.0f / (unisons_ - 1));
 
-      // unisons_ - spread across azimuth (as before) and, weighted ~3:1
-      // azimuth:elevation, across elevation too, so a wide unison chord
+      // unisons_ - spread across azimuth (as before) and, weighted by the
+      // shared shape ratio, across elevation too, so a wide unison chord
       // doesn't collapse onto one flat horizontal line in ambisonic mode.
       for (int i = 0; i < unisons_; i++, azimuth_offset += azimuth_step, detune *= detune_step) {
 	SphericalPosition position = input_position;
 	position.azimuth += azimuth_offset;
-	position.elevation += azimuth_offset / 3.0f;
+	position.elevation += azimuth_offset / kExtentShapeRatio;
 	auto voice = child->playNote(channel_config, position, frequency, detune, velocity, start_phase + getRandF(), note_value, sends);
 	if (voice.get()) group->addChild(voice_id++, move(voice));
       }

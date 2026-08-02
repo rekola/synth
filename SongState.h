@@ -34,6 +34,17 @@ class SongState : public TrackState {
     tempo_ = song.getTempo();
     render_context_.setBpm(tempo_);
 
+    // Floor-reflection parameters (ChannelConfiguration.h) - pushed into
+    // this already-constructed instance's own stored copy the same way
+    // main.cpp's setAudioOutSampleRate()/setAmbisonicOrder() calls
+    // finalize a fresh one, since every playNote() call already threads
+    // a ChannelConfiguration all the way down to voice construction.
+    auto & mutable_config = getMutableChannelConfiguration();
+    mutable_config.setEarHeight(song.getEarHeight());
+    mutable_config.setFloorReflectionEnabled(song.getFloorReflectionEnabled());
+    mutable_config.setFloorReflectionStrength(song.getFloorReflectionStrength());
+    mutable_config.setGroundAbsorption(song.getGroundAbsorption());
+
     int real_sample_rate = getChannelConfiguration().getAudioOutSampleRate();
     float row_duration = getChannelConfiguration().getRowDuration(tempo_);
 

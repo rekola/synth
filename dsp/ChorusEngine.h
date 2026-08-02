@@ -2,6 +2,7 @@
 #define _CHORUSENGINE_H_
 
 #include "../SampleData.h"
+#include "FractionalDelayLine.h"
 
 #include <array>
 #include <vector>
@@ -47,9 +48,8 @@ class ChorusEngine {
 
  private:
   struct ChannelState {
-    std::vector<float> buffer; // circular delay line
+    FractionalDelayLine delay_line;
     std::vector<float> phase;  // one LFO phase per voice
-    int write_pos = 0;
   };
 
   static void initChannel(ChannelState & ch, int bufLen, int voices, float channel_offset);

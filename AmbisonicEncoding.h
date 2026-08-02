@@ -27,6 +27,16 @@ constexpr int kAmbisonicOrder = 3;
 constexpr int ambisonicChannelCount(int order) { return (order + 1) * (order + 1); }
 constexpr int kAmbisonicChannelCount = ambisonicChannelCount(kAmbisonicOrder); // 16 at order 3
 
+// The horizontal:vertical ratio every source-attached spread (percussion
+// key offsets, NoteMultiplier's unison scatter, ...) divides its vertical
+// component by, so a horizontal offset of `extent` metres corresponds to
+// a vertical offset of only `extent / kExtentShapeRatio` metres - human
+// hearing resolves azimuth well and elevation poorly under generic HRTFs,
+// so spreads should stay mostly horizontal. Promoted from NoteMultiplier's
+// own pre-existing, previously-unnamed `/3.0f` (see NoteMultiplier.cpp) to
+// one shared constant so every consumer agrees.
+constexpr float kExtentShapeRatio = 3.0f;
+
 // The 8 cube-vertex directions: 4 azimuths x 2 elevations, +-35.264
 // degrees (atan(1/sqrt(2)), the true cube-vertex angle) - shared by
 // AmbisonicBinauralMixer's order-1 8-speaker decode layout and the shared

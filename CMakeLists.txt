@@ -71,7 +71,6 @@ add_library(synth_engine STATIC
 	VisualizationThread.cpp
 	dsp/DiracAnalyzer.cpp
 	NoteMultiplier.cpp
-	HarmonicSeries.cpp
 	Arpeggiator.cpp
 	LFO.cpp
 	OfflineRenderer.cpp

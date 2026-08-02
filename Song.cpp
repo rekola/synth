@@ -7,7 +7,6 @@
 #include "Group.h"
 #include "NoteMultiplier.h"
 #include "Arpeggiator.h"
-#include "HarmonicSeries.h"
 #include "Oscilator.h"
 #include "Noise.h"
 #include "LFO.h"
@@ -86,7 +85,6 @@ static unique_ptr<Track> createTrack(string_view name) {
   else if (name == "multiply") return make_unique<NoteMultiplier>();
   else if (name == "arpeggiator") return make_unique<Arpeggiator>();
   else if (name == "envelope") return make_unique<EnvelopeFilter>();
-  else if (name == "harmonicSeries") return make_unique<HarmonicSeries>();
   else if (name == "amplifier") return make_unique<Amplifier>();
   else if (name == "compressor") return make_unique<Compressor>();
   
@@ -468,6 +466,11 @@ Song::loadParameters(const ParameterSource & input) {
   setTempo(input.getInt("tempo", 90));
   setRandomizationFactor(input.getFloat("randomization", 0.01f));
 
+  setEarHeight(input.getFloat("earHeight", constants::DEFAULT_EAR_HEIGHT));
+  setFloorReflectionEnabled(input.getBool("floorReflection", constants::DEFAULT_FLOOR_REFLECTION_ENABLED));
+  setFloorReflectionStrength(input.getFloat("floorReflectionStrength", constants::DEFAULT_FLOOR_REFLECTION_STRENGTH));
+  setGroundAbsorption(input.getFloat("groundAbsorption", constants::DEFAULT_GROUND_ABSORPTION));
+
   // The bus (reverb/delay/...) is not a <song> attribute - it's the
   // <bus> child element, parsed separately in Song::open() (mirroring
   // how <tracks>/<instruments>/<patterns> are handled there too, not
@@ -486,6 +489,11 @@ Song::storeParameters(ParameterSource & output) const {
   output.set("temperament", to_string(getTuning()));
   output.set("tempo", getTempo());
   output.set("randomization", getRandomizationFactor());
+
+  output.set("earHeight", getEarHeight(), constants::DEFAULT_EAR_HEIGHT);
+  if (getFloorReflectionEnabled() != constants::DEFAULT_FLOOR_REFLECTION_ENABLED) output.set("floorReflection", getFloorReflectionEnabled());
+  output.set("floorReflectionStrength", getFloorReflectionStrength(), constants::DEFAULT_FLOOR_REFLECTION_STRENGTH);
+  output.set("groundAbsorption", getGroundAbsorption(), constants::DEFAULT_GROUND_ABSORPTION);
 }
 
 static void

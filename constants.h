@@ -18,6 +18,19 @@ namespace constants {
   // voices can make -40dB genuinely inaudible even though it might be
   // marginally perceptible from a single isolated voice.
   constexpr float SILENCE_KILL_FLOOR_DB { -60.0f };
+
+  // Floor-reflection defaults (see InstrumentVoice.h/Song.h) - named once
+  // here rather than repeated as literals in ChannelConfiguration.h's
+  // field initializers, Song.h's field initializers, and Song::
+  // loadParameters()'s getFloat()/getBool() fallback arguments, which
+  // must all agree (a song with no explicit attribute falls back to
+  // Song's own field default; a ChannelConfiguration built without ever
+  // loading a Song - tests, offline tools - falls back to its own field
+  // default; both need to be the same number).
+  constexpr float DEFAULT_EAR_HEIGHT { 1.7f };
+  constexpr bool DEFAULT_FLOOR_REFLECTION_ENABLED { true };
+  constexpr float DEFAULT_FLOOR_REFLECTION_STRENGTH { 0.4f };
+  constexpr float DEFAULT_GROUND_ABSORPTION { 0.3f };
 };
 
 #endif

@@ -30,6 +30,14 @@ class GenericInstrument : public Instrument {
 
   const char * getElementName() const override { return "genericInstrument"; }
 
+  // Pure delegation, same shape as playNote()'s own forward above - this
+  // node has no opinion of its own about extent, whatever it resolves to
+  // (an SF2 preset, the built-in Oscilator, ...) does. concrete_instrument_
+  // can be null before prepare() has run once.
+  float getDefaultExtent() const override {
+    return concrete_instrument_ ? concrete_instrument_->getDefaultExtent() : 0.0f;
+  }
+
   void prepare(const InstrumentProvider & provider) override {
     concrete_instrument_ = provider.getInstrumentByName(getName());
   }

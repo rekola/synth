@@ -61,7 +61,16 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	      auto frequency = Tuner::getFrequency(tuning, note);
 
 	      track_state->retriggerVoices(column, note.getValue());
-	      auto voice = instrument.playNote(state_.getChannelConfiguration(), instrument_track.getPosition(), frequency, 1.0f, note.getVelocityAsFloat(), 0.0f, note.getValue(), instrument_track.getSends());
+	      // Same extent-default resolution as InstrumentTrackState::
+	      // render()'s own pattern-playback note-on path - position_.extent
+	      // < 0 means "not authored on this track" (InstrumentTrack::
+	      // getExtent()), resolved to the assigned instrument's own family
+	      // default here too, so a live-triggered note (this path) and a
+	      // pattern-triggered one resolve identically instead of a live
+	      // note silently falling back to a point source.
+	      auto resolved_position = instrument_track.getPosition();
+	      if (resolved_position.extent < 0.0f) resolved_position.extent = instrument.getDefaultExtent();
+	      auto voice = instrument.playNote(state_.getChannelConfiguration(), resolved_position, frequency, 1.0f, note.getVelocityAsFloat(), 0.0f, note.getValue(), instrument_track.getSends());
 	      track_state->chokeExclusiveClasses(*voice);
 	      track_state->addVoice(column, move(voice));
 	    } else {

@@ -27,6 +27,21 @@ class Track : public StatefulSongObject {
   // an effect can be reached either way.
   virtual ChannelConfiguration getChildChannelConfiguration(const ChannelConfiguration & config) const { return config; }
 
+  // The default physical half-width (meters) a track resolves to when its
+  // own InstrumentTrack::extent_ wasn't explicitly authored - see
+  // SphericalPosition::extent's own doc comment. Default: delegate to the
+  // first child, same "passthrough unless a leaf overrides it" shape as
+  // getChildChannelConfiguration() above - covers every wrapper Track
+  // (NoteMultiplier, EnvelopeFilter, ResonantFilter, ...) for free, so a
+  // real leaf instrument only needs to override this when it actually has
+  // a nonzero default (SoundFontInstrument; GenericInstrument forwards to
+  // whatever it resolves to). A true leaf with no children (Oscilator,
+  // Noise, LFO, FileInstrument) falls through to 0 - a point source,
+  // unless the artist sets an explicit extent on the track.
+  virtual float getDefaultExtent() const {
+    return getChildren().empty() ? 0.0f : getChildren()[0]->getDefaultExtent();
+  }
+
   std::unique_ptr<TrackState> createStateTree(const ChannelConfiguration & config) const {
     auto state = createState(config);
     auto child_config = getChildChannelConfiguration(config);

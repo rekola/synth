@@ -5,6 +5,14 @@
 #include "SphericalPosition.h"
 #include "AmbisonicEncoding.h"
 #include "SendLevels.h"
+#include "dsp/FractionalDelayLine.h"
+#include "dsp/Biquad.h"
+#include "dsp/FilterType.h"
+#include "FloorReflection.h"
+
+#include <algorithm>
+#include <cmath>
+#include <vector>
 
 // distance <= 0 means "no position ever set" (SphericalPosition's default),
 // not "at the listener" - treated as no attenuation, same convention
@@ -20,9 +28,10 @@ class InstrumentVoice : public TrackState {
       sourceSamplePosition_(start_phase * getChannelConfiguration().getAudioOutSampleRate()),
       position_(position),
       detune_(detune),
-      sends_(sends)
+      sends_(sends),
+      floor_absorption_filter_(FilterType::lowpass)
   {
-
+    if (channel_config.getFloorReflectionEnabled()) initFloorReflection(channel_config);
   }
 
   void killNote() override {
@@ -129,6 +138,28 @@ protected:
       float main_gain = sends.main * getDistanceGain();
       for (auto & g : gains) g *= main_gain;
       encoder_.encodeBlock(data, dry, frames, gains);
+
+      // Geometry-derived floor reflection - a second, independently
+      // directed and delayed copy of the same dry signal, encoded
+      // through its own AmbisonicVoiceEncoder instance. Deliberately
+      // shares main_gain (Send Main and 1/distance both apply to the
+      // reflection too - it's a phenomenon of the dry/Main path only,
+      // see getSends()'s own doc comment on why sends never touch this),
+      // scaled further by floor_gain_ratio_ (the reflection's own
+      // strength relative to the direct path). Never touches AuxA/AuxB
+      // below - the reflection is not a send.
+      if (floor_reflection_active_) {
+        if (static_cast<int>(floor_scratch_.size()) != frames) floor_scratch_.resize(static_cast<size_t>(frames));
+        for (int i = 0; i < frames; i++) {
+          floor_delay_line_.write(dry[i]);
+          floor_scratch_[static_cast<size_t>(i)] = floor_absorption_filter_.process(floor_delay_line_.read(floor_delay_samples_));
+        }
+
+        auto floor_gains = computeAmbisonicGains(floor_position_);
+        float floor_main_gain = main_gain * floor_gain_ratio_;
+        for (auto & g : floor_gains) g *= floor_main_gain;
+        floor_encoder_.encodeBlock(data, floor_scratch_.data(), frames, floor_gains);
+      }
     }
 
     if (auto * aux_a = data.getChannel(Channel::AuxA)) {
@@ -146,12 +177,58 @@ protected:
   float velocity_ = 0.0f;
 
 private:
+  // Every value the floor reflection needs - delay, gain, and the
+  // reflected direction - follows directly from the song's ear height
+  // and this voice's own position_, both fixed for this voice's whole
+  // lifetime (position_ never changes after construction, see this
+  // class's own comments above) - so it's all computed once, here, never
+  // recomputed or smoothed per block, via the pure (and independently
+  // testable) geometry in FloorReflection.h. distance <= 0 (no position
+  // ever set) leaves floor_reflection_active_ false, same "nothing to
+  // attach a direction to" reasoning computeAmbisonicGains() itself
+  // already uses.
+  void initFloorReflection(const ChannelConfiguration & channel_config) {
+    if (position_.distance <= 0.0f) return;
+
+    float sample_rate = static_cast<float>(channel_config.getAudioOutSampleRate());
+    float earHeight = channel_config.getEarHeight();
+
+    auto geom = computeFloorReflectionGeometry(earHeight, position_.distance, position_.elevation,
+                                                channel_config.getFloorReflectionStrength(), sample_rate);
+    floor_delay_samples_ = geom.delaySamples;
+    floor_gain_ratio_ = geom.gainRatio;
+    floor_position_ = position_;
+    floor_position_.elevation = geom.elevationDegrees;
+
+    // groundAbsorption in [0,1] mapped to a lowpass cutoff - fully open
+    // (20kHz, effectively inaudible filtering) at 0, tightening toward
+    // ~1kHz as absorption approaches 1. A first-pass shape, not derived
+    // from measured material data.
+    float absorption = channel_config.getGroundAbsorption();
+    float cutoff_hz = 20000.0f * (1.0f - absorption) * (1.0f - absorption);
+    float fc_normalized = std::min(cutoff_hz / sample_rate, 0.499f);
+    floor_absorption_filter_.set(fc_normalized, 0.707f); // Q ~ Butterworth-flat - gentle rolloff, no resonant peak
+
+    floor_delay_line_.resize(floorReflectionMaxDelaySamples(earHeight, sample_rate));
+
+    floor_reflection_active_ = true;
+  }
+
   float freq_ = 0.0f;
   float noteGainDB_ = 0.0f;
   SphericalPosition position_;
   float detune_;
   SendLevels sends_;
   AmbisonicVoiceEncoder encoder_;
+
+  bool floor_reflection_active_ = false;
+  float floor_delay_samples_ = 0.0f;
+  float floor_gain_ratio_ = 0.0f;
+  SphericalPosition floor_position_;
+  FractionalDelayLine floor_delay_line_;
+  Biquad<float> floor_absorption_filter_;
+  AmbisonicVoiceEncoder floor_encoder_;
+  std::vector<float> floor_scratch_;
 };
 
 #endif

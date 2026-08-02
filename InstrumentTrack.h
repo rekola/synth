@@ -23,12 +23,18 @@ class InstrumentTrack : public Track {
   void setElevation(float e) { elevation_ = e; }
   void setAzimuth(float a) { azimuth_ = a; }
   void setDistance(float d) { distance_ = d; }
-  
+  void setExtent(float e) { extent_ = e; }
+
   float getElevation() const { return elevation_; }
   float getAzimuth() const { return azimuth_; }
   float getDistance() const { return distance_; }
 
-  SphericalPosition getPosition() const { return { azimuth_, elevation_, distance_ }; }
+  // -1 (the default) means "not authored - resolve to the assigned
+  // instrument's own family default instead" (Track::getDefaultExtent());
+  // any value >= 0 is an explicit override. See SphericalPosition::extent.
+  float getExtent() const { return extent_; }
+
+  SphericalPosition getPosition() const { return { azimuth_, elevation_, distance_, extent_ }; }
 
   void setColor(std::string color) { color_ = std::move(color); }
   const std::string & getColor() const { return color_; }
@@ -63,6 +69,7 @@ private:
   int instrument_id_ = 0;
   bool solo_ = false, muted_ = false;
   float elevation_ = 0, azimuth_ = 0, distance_ = 0;
+  float extent_ = -1.0f;
   std::string color_;
   SendLevels sends_;
 

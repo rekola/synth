@@ -14,6 +14,7 @@ add_executable(synth_tests
 	AmbisonicEncodingTests.cpp
 	AmbisonicMagLSDecoderTests.cpp
 	ChorusEngineTests.cpp
+	FloorReflectionTests.cpp
 	NoiseGeneratorTests.cpp
 	FDNReverbTests.cpp
 	MultiTapDelayTests.cpp

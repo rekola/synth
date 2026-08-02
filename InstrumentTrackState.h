@@ -43,7 +43,14 @@ public:
 		stopVoices(ev.getId());
 	      } else {
 		retriggerVoices(ev.getId(), ev.getNoteValue());
-		auto voice = instrument->playNote(getChannelConfiguration(), position_, ev.getFrequency(), 1.0f, ev.getVelocity(), -getRandF(), ev.getNoteValue(), sends_);
+		// position_.extent < 0 means "not authored on this track" (see
+		// InstrumentTrack::getExtent()) - resolve it to the assigned
+		// instrument's own family default (Track::getDefaultExtent(),
+		// 0 for anything without one) once, here, before the position
+		// ever reaches playNote()/NoteMultiplier/SoundFontInstrument.
+		auto resolved_position = position_;
+		if (resolved_position.extent < 0.0f) resolved_position.extent = instrument->getDefaultExtent();
+		auto voice = instrument->playNote(getChannelConfiguration(), resolved_position, ev.getFrequency(), 1.0f, ev.getVelocity(), -getRandF(), ev.getNoteValue(), sends_);
 		chokeExclusiveClasses(*voice);
 		addVoice(ev.getId(), move(voice));
 	      }

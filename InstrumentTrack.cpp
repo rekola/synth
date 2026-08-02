@@ -21,6 +21,7 @@ InstrumentTrack::loadParameters(const ParameterSource & input) {
   setAzimuth(input.getFloat("azimuth"));
   setDistance(input.getFloat("distance"));
   setElevation(input.getFloat("elevation"));
+  setExtent(input.getFloat("extent", -1.0f));
   setColor(input.getText("color"));
   sends_.a = input.getFloat("sendA", 0.0f);
   sends_.b = input.getFloat("sendB", 0.0f);
@@ -38,6 +39,7 @@ InstrumentTrack::storeParameters(ParameterSource & output) const {
   output.set("azimuth", getAzimuth());
   output.set("distance", getDistance());
   output.set("elevation", getElevation());
+  output.set("extent", getExtent(), -1.0f);
   output.set("color", getColor());
   if (sends_.a > 0.0f) output.set("sendA", sends_.a);
   if (sends_.b > 0.0f) output.set("sendB", sends_.b);

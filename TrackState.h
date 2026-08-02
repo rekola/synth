@@ -215,6 +215,14 @@ public:
 
   const ChannelConfiguration & getChannelConfiguration() const { return channel_config_; }
 
+  // Mutable access - only SongState::initialize() uses this, to push the
+  // just-loaded Song's floor-reflection parameters (ChannelConfiguration.h)
+  // into this already-constructed instance's stored copy, the same way
+  // main.cpp's setAudioOutSampleRate()/setAmbisonicOrder() calls already
+  // finalize one after construction. Every other TrackState is built
+  // fresh per song load and never needs this.
+  ChannelConfiguration & getMutableChannelConfiguration() { return channel_config_; }
+
   void addChild(int internal_id, std::unique_ptr<TrackState> child) { children_[internal_id] = std::move(child); }
 
   TrackState * getChildByInternalId(int id) {
