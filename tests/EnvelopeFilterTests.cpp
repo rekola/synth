@@ -75,3 +75,26 @@ TEST(envelope_filter_state_releasing_above_the_floor_is_not_freed_early) {
   state->render(4096); // ~93ms - far too early in a 5s release to cross -60dB
   CHECK(state->isActive());
 }
+
+// Regression test for the missing fastRelease() override - without it,
+// fastRelease() fell through to TrackState's generic default (recurse into
+// children, no envelope involvement at all), so a full 1.0s authored
+// release would never even start: this voice would stay reported "active"
+// (envelope still sitting in SUSTAIN) for the entire budget below, in
+// addition to hard-cutting whatever child it wrapped with no ramp. See
+// EnvelopeFilterState::fastRelease()'s own comment.
+TEST(envelope_filter_state_fast_release_finishes_much_sooner_than_the_authored_release) {
+  ChannelConfiguration config(44100);
+  // Full sustain, a 1.0s authored release - fastRelease() must reclaim
+  // this via the short (~10ms TSF_FASTRELEASETIME) compressed release, not
+  // the full authored one.
+  auto state = makeEnvelopeFilterState(config, /*sustain=*/1.0f, /*release=*/1.0f);
+  state->fastRelease();
+
+  bool became_inactive = false;
+  for (int i = 0; i < 8 && !became_inactive; i++) {
+    state->render(4096); // 8*4096 ~= 743ms, comfortably short of the 1.0s authored release
+    if (!state->isActive()) became_inactive = true;
+  }
+  CHECK(became_inactive);
+}

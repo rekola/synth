@@ -234,6 +234,47 @@ TEST(render_envelope_decays_after_hold_and_decay_time) {
   CHECK(late < early * 0.01f);
 }
 
+// Regression test for two compounding click bugs found together: (1)
+// EnvelopeFilterState had no fastRelease() override, so
+// InstrumentTrackState::retriggerVoices()'s identity-based fast-release
+// path fell through to TrackState's generic default - recursing straight
+// into the wrapped OscilatorVoice and killing it instantly (freq_ = 0, no
+// ramp) instead of "let children play, fade the wrapping envelope" like
+// stopNote() already does. (2) Even with that fixed, EnvelopeFilterState::
+// applyEffect() (and SoundFontVoice::render()'s identical pattern) applied
+// the envelope's gain as one flat value per RENDER_EFFECTSAMPLEBLOCK (64
+// samples), which is coarse enough relative to the ~10ms/441-sample fast
+// release's exponential decay (~26% level drop per block) to produce an
+// audible staircase - confirmed by tracing a discontinuity to an exact
+// block boundary. envelope_oscilator_rapid_retrigger.xml retriggers the
+// same identity every pattern row at tempo=900 (~16.7ms apart, well inside
+// the fast-release window), exercising both fixes together; without them
+// this produces sample-to-sample jumps around 0.4-0.6 (out of a [-1,1]
+// range) at retrigger/fast-release boundaries.
+TEST(render_envelope_oscilator_rapid_retrigger_has_no_click) {
+  auto loaded = loadFixture("envelope_oscilator_rapid_retrigger.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(44100, 1);
+  auto result = renderSongOffline(loaded.song, config);
+  CHECK(!hasNonFiniteSample(result));
+  CHECK(result.numberOfFrames() > 1);
+
+  auto frames = result.numberOfFrames();
+  float max_delta = 0.0f;
+  for (size_t i = 1; i < frames; i++) {
+    float delta = std::fabs(result.interleaved[i * result.channels] - result.interleaved[(i - 1) * result.channels]);
+    max_delta = std::max(max_delta, delta);
+  }
+
+  // A smooth sine at C-4 (~262Hz) through this envelope never needs a
+  // sample-to-sample jump anywhere near this large - genuine audio content
+  // (including two overlapping voices during the fast-release/attack
+  // crossfade) stays under ~0.05 in practice; the pre-fix bugs produced
+  // jumps of 0.4-0.6.
+  CHECK(max_delta < 0.1f);
+}
+
 TEST(render_mono_with_compressor_does_not_read_out_of_bounds) {
   // Compressor's detection/gain-reduction loop now iterates over however
   // many channels are actually present (generalized so it also works

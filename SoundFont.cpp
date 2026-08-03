@@ -1367,22 +1367,37 @@ SoundFontVoice::render(int numSamples) {
     // Update EG.
     ampenv_.process(blockSamples);
     if (updateModEnv) modenv_.process(blockSamples);
-    
+
     // Update LFOs.
     if (updateModLFO) modlfo_.process(blockSamples);
     if (updateVibLFO) viblfo_.process(blockSamples);
-   
+
+    // Interpolate the block's gain sample-by-sample (dryGainMono at the
+    // block's start ramping to noteGain * ampenv_'s now-updated level)
+    // rather than holding dryGainMono flat across the whole block - see
+    // EnvelopeFilterState::applyEffect()'s identical fix and its own doc
+    // comment for why: RENDER_EFFECTSAMPLEBLOCK (64 samples) is coarse
+    // relative to a fast-released envelope's ~10ms/441-sample exponential
+    // decay (~26% level drop per block), so a flat per-block gain is an
+    // audible staircase there, not just an inaudible quantization step.
+    // Only the ampenv_-driven part is swept - noteGain itself (constant
+    // here unless dynamicGain, which already only updates once per block
+    // like before) is unaffected.
+    float dryGainEnd = noteGain * ampenv_.getLevel();
+    float dryGainStep = blockSamples > 0 ? (dryGainEnd - dryGainMono) / static_cast<float>(blockSamples) : 0.0f;
+
     while (blockSamples-- && sourceSamplePosition_ < sampleEndDbl) {
       unsigned int pos = (unsigned int)sourceSamplePosition_, nextPos = (pos >= loopEnd_ && isLooping ? loopStart_ : pos + 1);
-      
+
       // Simple linear interpolation.
       float alpha = (float)(sourceSamplePosition_ - pos);
       float val = (input[pos] * (1.0f - alpha) + input[nextPos] * alpha);
-      
+
       // Low-pass filter.
       if (lowpass_.active_) val = lowpass_.process(val);
 
       dry_[static_cast<size_t>(writeIndex++)] = val * dryGainMono;
+      dryGainMono += dryGainStep;
 
       // Next sample.
       sourceSamplePosition_ += pitchRatio;
