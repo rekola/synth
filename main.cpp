@@ -48,7 +48,13 @@ static bool renderSongToWav(Controller & controller, const ChannelConfiguration 
 int main(int argc, char *argv[]) {
   int load_demo = 0;
   bool relative = false;
-  ChannelConfiguration channel_config(44100, kAmbisonicOrder); // default to the highest supported order
+  // 48000, not 44100: the "default" ALSA device is commonly PipeWire's
+  // ALSA-compat plugin, whose own graph runs at a fixed native rate
+  // (48000 on a stock PipeWire install - see pipewire.conf's
+  // default.clock.rate) - requesting 44100 forces an extra resample stage
+  // in that plugin, adding latency (and a little quality loss) for no
+  // benefit. --samplerate still overrides this.
+  ChannelConfiguration channel_config(48000, kAmbisonicOrder); // default to the highest supported order
   bool force_cardioid = false; // --stereo: skip binaural HRTF decode even if available
   bool force_legacy_binaural = false; // --legacy-binaural: use the old virtual-speaker-rig decoder instead of MagLS
   bool show_licenses = false; // --licenses: print third-party license text and exit
@@ -115,6 +121,37 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
+  if (!render_path.empty()) {
+    // Offline render never touches a real audio device (see the --render
+    // section of CLAUDE.md), so there's nothing to negotiate - channel_config
+    // stays exactly as requested.
+    if (input.empty()) {
+      fmt::print(stderr, "--render requires a song file\n");
+      exit(1);
+    }
+    auto controller = make_shared<Controller>(channel_config);
+    if (force_cardioid) controller->setMixerType(MixerType::AMBISONIC_STEREO);
+    if (force_legacy_binaural) controller->setUseLegacyBinaural(true);
+    if (!controller->openSong(input.front())) {
+      fmt::print(stderr, "Could not find file {}\n", input.front());
+      exit(1);
+    }
+    return renderSongToWav(*controller, channel_config, render_path) ? 0 : 1;
+  }
+
+  StderrLogger logger;
+
+  // Initialize the real audio device *before* constructing Controller/
+  // Player: AlsaAudio::initialize() can negotiate a different sample rate
+  // than requested (see AlsaAudio.cpp), and every sample-rate-dependent
+  // computation downstream (tempo/row duration, oscillator/SF2 pitch, ...)
+  // needs to be built against whatever the device actually agreed to -
+  // Controller copies channel_config at construction time, so this has to
+  // happen first, not be patched up after the fact.
+  AlsaAudio audio(channel_config.getAudioOutSampleRate(), channel_config.getDeviceChannels());
+  audio.initialize(logger);
+  channel_config.setAudioOutSampleRate(audio.getFrequency());
+
   auto controller = make_shared<Controller>(channel_config);
   if (force_cardioid) controller->setMixerType(MixerType::AMBISONIC_STEREO);
   if (force_legacy_binaural) controller->setUseLegacyBinaural(true);
@@ -129,19 +166,6 @@ int main(int argc, char *argv[]) {
   } else {
     controller->createNewSong();
   }
-
-  if (!render_path.empty()) {
-    if (input.empty()) {
-      fmt::print(stderr, "--render requires a song file\n");
-      exit(1);
-    }
-    return renderSongToWav(*controller, channel_config, render_path) ? 0 : 1;
-  }
-
-  StderrLogger logger;
-  
-  AlsaAudio audio(channel_config.getAudioOutSampleRate(), channel_config.getDeviceChannels());
-  audio.initialize(logger);
 
   LaunchpadIO launchpad_io;
   launchpad_io.initialize(logger);

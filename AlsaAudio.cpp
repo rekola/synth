@@ -6,9 +6,6 @@
 #include <cstdio>
 #include <fmt/core.h>
 
-#define ALSA_PCM_NEW_HW_PARAMS_API
-#define PCM_DEVICE "default"
-
 using namespace std;
 
 AlsaAudio::~AlsaAudio() {
@@ -21,7 +18,7 @@ AlsaAudio::~AlsaAudio() {
   }
 }
 
-static size_t initialize_alsa_dev(Logger & logger, snd_pcm_t * handle, int rate, short channels, bool capture) {
+static size_t initialize_alsa_dev(Logger & logger, snd_pcm_t * handle, int rate, short channels, unsigned int * out_negotiated_rate) {
   int r;
   
   // Allocate parameters object and fill it with default values
@@ -70,28 +67,65 @@ static size_t initialize_alsa_dev(Logger & logger, snd_pcm_t * handle, int rate,
     return 0;
   }
 
-  int wanted_period = 1024; // 4096;
-  if (!capture || 1) {
-    if ((r = snd_pcm_hw_params_set_period_size(handle, hw_params, min_period_size > wanted_period ? min_period_size : wanted_period, 0)) < 0) {
-      logger.log(string("ERROR: Failed to set period size: ") + snd_strerror(r));
-      return 0;
-    }
+  // 256 frames (~5.3ms at 48kHz, ~10.7ms buffered across the 2 periods
+  // set above) rather than the old 1024 (~21ms/~43ms buffered) - that
+  // buffering is the dominant term in live-note (Launchpad/keyboard)
+  // input-to-sound latency, since a freshly-triggered voice only starts
+  // rendering on the next period boundary and then still has to drain
+  // through this many frames of queued-but-unplayed audio. Verified
+  // XRUN-free against this project's "default" PCM (PipeWire's ALSA
+  // compat layer) down to 32 frames with a trivial sine generator: the
+  // real floor here is this process's own per-block render cost (no
+  // realtime thread priority is requested anywhere - see main.cpp), not
+  // the device/driver, so 256 leaves comfortable headroom rather than
+  // chasing the lowest number that merely didn't glitch in that test.
+  int wanted_period = 256;
+  if ((r = snd_pcm_hw_params_set_period_size(handle, hw_params, min_period_size > wanted_period ? min_period_size : wanted_period, 0)) < 0) {
+    logger.log(string("ERROR: Failed to set period size: ") + snd_strerror(r));
+    return 0;
   }
-    
+
   // Write parameters
   if ((r = snd_pcm_hw_params(handle, hw_params)) < 0) {
     logger.log(string("ERROR: Can't set hardware parameters: ") + snd_strerror(r));
     return 0;
   }
 
-#if 1
+  // set_rate_near above negotiates rather than requiring an exact match -
+  // it can silently settle on something other than what was asked for.
+  // Handed back to the caller (main.cpp, before it constructs Controller/
+  // Player) so the render pipeline's own ChannelConfiguration - tempo/row
+  // duration, oscillator/SF2 pitch, everything keyed off the sample rate
+  // - is built from what the device actually agreed to, not just what
+  // was requested.
+  if (out_negotiated_rate) {
+    unsigned int negotiated_rate = 0;
+    if ((r = snd_pcm_hw_params_get_rate(hw_params, &negotiated_rate, 0)) < 0) {
+      logger.log(string("WARNING: Can't read back negotiated rate: ") + snd_strerror(r));
+    } else {
+      *out_negotiated_rate = negotiated_rate;
+      if (static_cast<int>(negotiated_rate) != rate) {
+	logger.log("Requested " + to_string(rate) + "Hz but device negotiated " +
+		   to_string(negotiated_rate) + "Hz - using the negotiated rate.");
+      }
+    }
+  }
+
+  // avail_min: the free-space threshold (in frames) at which poll()
+  // reports this PCM's fd as writable - Player::play()'s poll loop wakes
+  // up and renders/writes the next block exactly when this much space has
+  // opened in the ring buffer, so it needs to track wanted_period (one
+  // block) to actually deliver the latency the period-size choice above
+  // is for, not whatever ALSA's own default happened to be.
   snd_pcm_sw_params_t * sw_params;
   snd_pcm_sw_params_alloca(&sw_params);
   snd_pcm_sw_params_current(handle, sw_params);
   snd_pcm_sw_params_set_avail_min(handle, sw_params, wanted_period);
-#endif
-  // snd_pcm_hw_params_get_period_time(params, &tmp, NULL);
-  
+  if ((r = snd_pcm_sw_params(handle, sw_params)) < 0) {
+    logger.log(string("ERROR: Failed to set software parameters: ") + snd_strerror(r));
+    return 0;
+  }
+
   snd_pcm_uframes_t frames;
   snd_pcm_hw_params_get_period_size(hw_params, &frames, 0);
   
@@ -109,8 +143,16 @@ AlsaAudio::initialize(Logger & logger) {
     return;
   }
 
-  output_frames = initialize_alsa_dev(logger, pcm_handle, getFrequency(), numberOfChannels(), false);
+  unsigned int negotiated_rate = 0;
+  output_frames = initialize_alsa_dev(logger, pcm_handle, getFrequency(), numberOfChannels(), &negotiated_rate);
   if (!output_frames) return;
+
+  // Adopt whatever the device actually negotiated (see
+  // initialize_alsa_dev's comment) so every caller downstream of this
+  // point - main.cpp builds its ChannelConfiguration from this, before
+  // Controller/Player exist - sees the rate audio will really play back
+  // at, not just what was requested.
+  if (negotiated_rate) setFrequency(static_cast<int>(negotiated_rate));
 
   // Capture (used for sampling/recording) is optional: a machine without a
   // capture device (or without permission to open one) should still be able
@@ -119,32 +161,17 @@ AlsaAudio::initialize(Logger & logger) {
     logger.log(string("WARNING: Can't open PCM device for capture, recording disabled: ") + snd_strerror(r));
     capture_handle = nullptr;
   } else {
-    input_frames = initialize_alsa_dev(logger, capture_handle, getFrequency(), 1, true);
+    // Capture always follows the now-finalized playback rate rather than
+    // negotiating (and potentially adopting) a rate of its own - a second
+    // adjustment here could silently pull the whole song's sample rate
+    // away from what output_frames/negotiated_rate above already settled.
+    input_frames = initialize_alsa_dev(logger, capture_handle, getFrequency(), 1, nullptr);
     if (!input_frames) {
       logger.log("WARNING: Can't configure capture device, recording disabled");
       snd_pcm_close(capture_handle);
       capture_handle = nullptr;
     }
   }
-
-#if 0
-  unsigned int rate;
-  if ((r = snd_pcm_hw_params_get_rate(hw_params, &rate, 0)) < 0) {
-    logger.log(string("ERROR: Failed to get rate: ") + snd_strerror(r));
-    return;
-  }
-
-  if (rate != getFrequency()) {
-    logger.log("Changing frequency to " + to_string(rate));
-    setFrequency(rate);
-  }
-
-  unsigned int channels;
-  if ((r = snd_pcm_hw_params_get_channels(hw_params, &channels)) < 0) {
-    logger.log(string("ERROR: Failed to get channels: ") + snd_strerror(r));
-    return;
-  }
-#endif
 
   if (snd_seq_open(&seq_handle, "default", SND_SEQ_OPEN_DUPLEX, 0) < 0) {
     logger.log("Error opening ALSA sequencer");
@@ -255,8 +282,6 @@ AlsaAudio::startRecording() {
   if (!recording_started) {
     int r;
     if ((r = snd_pcm_start(capture_handle)) < 0) {
-      // logger.log(string("ERROR. Failed to start recording: ") + snd_strerror(r));
-      // return SampleData();
       exit(1);
     }
     recording_started = true;
@@ -282,7 +307,6 @@ AlsaAudio::recordMIDI() {
     case SND_SEQ_EVENT_RESULT:
       break;
     case SND_SEQ_EVENT_KEYPRESS:
-      // cerr << "aftertouch: note " << ev->data.note.note << ", vel = " << ev->data.note.velocity << endl;
       r.push_back(MidiEvent(MidiEvent::NOTE_PRESSURE, ev->data.note.note, ev->data.note.velocity));
       break;
     case SND_SEQ_EVENT_CHANPRESS:
@@ -292,16 +316,8 @@ AlsaAudio::recordMIDI() {
       r.push_back(MidiEvent(MidiEvent::CHANNEL_PRESSURE, 0, ev->data.control.value));
       break;
     case SND_SEQ_EVENT_PITCHBEND:
-#if 0
-      pitch = (double)ev->data.control.value / 8192.0;
-#endif
       break;
     case SND_SEQ_EVENT_CONTROLLER:
-#if 0
-      if (ev->data.control.param == 1) {
-	modulation = (double)ev->data.control.value / 10.0;
-      }
-#endif
       break;
     case SND_SEQ_EVENT_NOTEON:
       r.push_back(MidiEvent(MidiEvent::NOTE_ON, ev->data.note.note, ev->data.note.velocity));
