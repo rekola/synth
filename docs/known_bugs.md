@@ -98,3 +98,20 @@ Found 2026-07-11, not yet fixed.
   tracks - e.g. refuse to delete the last remaining track, once track
   deletion is actually implemented) before either the Launchpad auto-create
   path's zero-track branch or a real delete-track feature ships.
+
+- **`tools/e2e/verify_launchpad_e2e.py`'s pad-press-writes-a-note checks fail
+  in at least one sandboxed test environment**, independent of any code
+  change: confirmed by running the identical script against an unmodified
+  `git stash`-clean checkout, where it fails the exact same 3 of 7 checks
+  (note-entry, off-sentinel, aftertouch-in-place) while still passing the
+  Programmer-Mode/Device-Inquiry SysEx checks - so the fake device
+  connects and musiceditor talks to it, but a press's *effect on the
+  pattern* doesn't show up within the script's wait window in this
+  environment. Not investigated further (e.g. whether it's ALSA sequencer
+  event delivery timing, scheduler fairness between the fake-device
+  process and the audio thread, or something else sandbox-specific) -
+  flagging so a future real hardware/less-restricted-environment run isn't
+  mistaken for a regression if this same subset fails there too, and so a
+  new e2e script that also depends on "press changes something, verify
+  it" (e.g. `verify_launchpad_stepseq.py`) doesn't get blamed for a
+  failure that reproduces on main.

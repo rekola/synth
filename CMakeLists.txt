@@ -77,6 +77,8 @@ add_library(synth_engine STATIC
 	PatternBlockOps.cpp
 	LaunchpadLayout.cpp
 	LaunchpadProtocol.cpp
+	DrumRankTable.cpp
+	DrumMachineTrack.cpp
 	MixerFactory.cpp
 )
 target_include_directories(synth_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

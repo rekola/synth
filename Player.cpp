@@ -43,7 +43,8 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       
       auto track = song.getTrackByInternalId(track_id);
       if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL ||
-		    track->getType() == TrackType::PERCUSSION_CONTROL
+		    track->getType() == TrackType::PERCUSSION_CONTROL ||
+		    track->getType() == TrackType::DRUM_MACHINE
 		    )) {
 	auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
 	

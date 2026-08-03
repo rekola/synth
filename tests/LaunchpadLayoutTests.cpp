@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <set>
+#include <vector>
 
 using namespace std;
 using namespace LaunchpadLayout;
@@ -106,9 +107,8 @@ TEST(compute_consonance_levels_tonic_fourth_fifth_for_12edo) {
 }
 
 TEST(compute_consonance_levels_fourth_and_fifth_hues_are_close_but_distinct) {
-  // "They haven't diverged all that much" - both level-2 landmarks use
-  // hues close to one shared center, but (per later hardware feedback)
-  // distinct rather than identical.
+  // Both level-2 landmarks use hues close to one shared center, but
+  // (confirmed against real hardware) distinct rather than identical.
   for (int edo_steps : {12, 19, 31, 53}) {
     auto basis = computeBasis(edo_steps);
     auto levels = computeConsonanceLevels(basis, edo_steps);
@@ -120,9 +120,9 @@ TEST(compute_consonance_levels_fourth_and_fifth_hues_are_close_but_distinct) {
 }
 
 TEST(compute_consonance_levels_31edo_depth3_landmarks_match_worked_example) {
-  // Confirmed interactively against the user's own worked example (in
-  // 31-EDO: major-family {D#,E,A,A#}, minor-family {Ebb,Eb,Ab,Bbb}) - see
-  // the plan this was implemented from. Position+depth is the
+  // Confirmed against a worked example (in 31-EDO: major-family
+  // {D#,E,A,A#}, minor-family {Ebb,Eb,Ab,Bbb}) - see the plan this was
+  // implemented from. Position+depth is the
   // load-bearing, exactly-reproducible invariant; exact hue is a tunable
   // display constant, checked separately (not here) as a property instead.
   auto basis = computeBasis(31);
@@ -208,8 +208,21 @@ TEST(percussion_note_for_pad_is_a_perfect_bijection_onto_gm_values_27_to_82) {
   for (int v = 27; v <= 82; v++) CHECK(seen.find(v) != seen.end());
 }
 
-TEST(percussion_note_for_pad_row_7_is_entirely_unused) {
-  for (int x = 0; x < 8; x++) CHECK(percussionNoteForPad(x, 7) == -1);
+TEST(percussion_note_for_pad_unused_pads_are_scattered_gaps_not_one_row) {
+  // The 8 unused pads sit as small gaps between families (a spacer
+  // column between the kit and hand-percussion halves), not confined to
+  // a single row the way the earlier row-linear table's row 7 was.
+  static const int expected_unused[][2] = {
+    {2, 1}, {3, 1}, {7, 1}, {3, 2}, {7, 2}, {3, 4}, {7, 4}, {3, 6},
+  };
+  set<pair<int,int>> unused;
+  for (auto & p : expected_unused) unused.insert({p[0], p[1]});
+  for (int y = 0; y < 8; y++) {
+    for (int x = 0; x < 8; x++) {
+      bool should_be_unused = unused.count({x, y}) > 0;
+      CHECK((percussionNoteForPad(x, y) == -1) == should_be_unused);
+    }
+  }
 }
 
 TEST(percussion_note_for_pad_rejects_out_of_range_coordinates) {
@@ -220,34 +233,70 @@ TEST(percussion_note_for_pad_rejects_out_of_range_coordinates) {
 }
 
 TEST(percussion_family_for_pad_matches_the_documented_grouping) {
-  // Core kit: row 0, x=0..5 (35,36,37,38,39,40)
-  for (int x = 0; x <= 5; x++) CHECK(percussionFamilyForPad(x, 0) == PercussionFamily::CORE);
-  // Hi-hats span two different rows (42,44 on row 0; 46 on row 1) but must
-  // share the same family regardless of placement.
-  CHECK(percussionFamilyForPad(6, 0) == PercussionFamily::HI_HAT); // 42 Closed Hi-hat
-  CHECK(percussionFamilyForPad(7, 0) == PercussionFamily::HI_HAT); // 44 Pedal Hi-hat
-  CHECK(percussionFamilyForPad(0, 1) == PercussionFamily::HI_HAT); // 46 Open Hi-hat
-  // Toms: row 1, x=1..6 (41,43,45,47,48,50)
-  for (int x = 1; x <= 6; x++) CHECK(percussionFamilyForPad(x, 1) == PercussionFamily::TOMS);
-  // Cymbals: row 1 x=7 (49 Crash 1) and row 2 x=0..5
-  CHECK(percussionFamilyForPad(7, 1) == PercussionFamily::CYMBALS);
-  for (int x = 0; x <= 5; x++) CHECK(percussionFamilyForPad(x, 2) == PercussionFamily::CYMBALS);
-  // Hand percussion: row 2 x=6,7 (tambourine, cowbell) + row 3 x=0..5
-  CHECK(percussionFamilyForPad(6, 2) == PercussionFamily::HAND_PERC);
-  CHECK(percussionFamilyForPad(7, 2) == PercussionFamily::HAND_PERC);
-  for (int x = 0; x <= 5; x++) CHECK(percussionFamilyForPad(x, 3) == PercussionFamily::HAND_PERC);
-  // Latin: row 3 x=6,7 (bongos) + row 4 (all) + row 5 x=0..5
-  CHECK(percussionFamilyForPad(6, 3) == PercussionFamily::LATIN);
-  CHECK(percussionFamilyForPad(7, 3) == PercussionFamily::LATIN);
-  for (int x = 0; x < 8; x++) CHECK(percussionFamilyForPad(x, 4) == PercussionFamily::LATIN);
-  for (int x = 0; x <= 5; x++) CHECK(percussionFamilyForPad(x, 5) == PercussionFamily::LATIN);
-  // Whistles: row 5 x=6,7
-  CHECK(percussionFamilyForPad(6, 5) == PercussionFamily::WHISTLE);
-  CHECK(percussionFamilyForPad(7, 5) == PercussionFamily::WHISTLE);
-  // Electronic/FX: row 6 (all)
-  for (int x = 0; x < 8; x++) CHECK(percussionFamilyForPad(x, 6) == PercussionFamily::ELECTRONIC);
-  // Unused: row 7 (all)
-  for (int x = 0; x < 8; x++) CHECK(percussionFamilyForPad(x, 7) == PercussionFamily::UNUSED);
+  // Bass & snare (core kit): row 0 x=0..3, row 1 x=0..1 (35,36,37,38,40,39)
+  for (int x = 0; x <= 3; x++) CHECK(percussionFamilyForPad(x, 0) == PercussionFamily::CORE);
+  for (int x = 0; x <= 1; x++) CHECK(percussionFamilyForPad(x, 1) == PercussionFamily::CORE);
+  // Hi-hats: row 2 x=0..2 (42,44,46)
+  for (int x = 0; x <= 2; x++) CHECK(percussionFamilyForPad(x, 2) == PercussionFamily::HI_HAT);
+  // Toms: rows 3-4, x=0..2 (41,43,45,47,48,50)
+  for (int y = 3; y <= 4; y++)
+    for (int x = 0; x <= 2; x++) CHECK(percussionFamilyForPad(x, y) == PercussionFamily::TOMS);
+  // Cymbals: row 5 x=0..3, row 6 x=0..2 (49,57,55,52,51,59,53)
+  for (int x = 0; x <= 3; x++) CHECK(percussionFamilyForPad(x, 5) == PercussionFamily::CYMBALS);
+  for (int x = 0; x <= 2; x++) CHECK(percussionFamilyForPad(x, 6) == PercussionFamily::CYMBALS);
+  // Kit accessories: row 7 x=0..1 (54 Tambourine, 58 Vibraslap)
+  CHECK(percussionFamilyForPad(0, 7) == PercussionFamily::KIT_ACCESSORIES);
+  CHECK(percussionFamilyForPad(1, 7) == PercussionFamily::KIT_ACCESSORIES);
+  // Latin hand drums: row 0 x=4..7, row 1 x=4..6 (61,60,66,65,64,62,63)
+  for (int x = 4; x <= 7; x++) CHECK(percussionFamilyForPad(x, 0) == PercussionFamily::LATIN_DRUMS);
+  for (int x = 4; x <= 6; x++) CHECK(percussionFamilyForPad(x, 1) == PercussionFamily::LATIN_DRUMS);
+  // Latin metals: row 2 x=4..6 (68,67,56 - cowbell sits with the agogos)
+  for (int x = 4; x <= 6; x++) CHECK(percussionFamilyForPad(x, 2) == PercussionFamily::LATIN_METAL);
+  // Shakers & scrapers: row 3 x=3..7 (82 Shaker, 69,70,73,74)
+  for (int x = 3; x <= 7; x++) CHECK(percussionFamilyForPad(x, 3) == PercussionFamily::SHAKERS);
+  // Woods: row 4 x=4..6 (75,76,77)
+  for (int x = 4; x <= 6; x++) CHECK(percussionFamilyForPad(x, 4) == PercussionFamily::WOODS);
+  // Cuica, whistles, triangle: row 5 x=4..7, row 6 x=4..5 (78,79,71,72,80,81)
+  for (int x = 4; x <= 7; x++) CHECK(percussionFamilyForPad(x, 5) == PercussionFamily::CUICA_WHISTLE);
+  for (int x = 4; x <= 5; x++) CHECK(percussionFamilyForPad(x, 6) == PercussionFamily::CUICA_WHISTLE);
+  // Electronic kit hits + metronome: row 6 x=6..7, row 7 x=2..7 (33,34,27-32)
+  CHECK(percussionFamilyForPad(6, 6) == PercussionFamily::ELECTRONIC);
+  CHECK(percussionFamilyForPad(7, 6) == PercussionFamily::ELECTRONIC);
+  for (int x = 2; x <= 7; x++) CHECK(percussionFamilyForPad(x, 7) == PercussionFamily::ELECTRONIC);
+  // Unused gaps
+  for (auto [x, y] : {pair{2,1}, pair{3,1}, pair{7,1}, pair{3,2}, pair{7,2}, pair{3,4}, pair{7,4}, pair{3,6}})
+    CHECK(percussionFamilyForPad(x, y) == PercussionFamily::UNUSED);
+}
+
+TEST(percussion_family_for_pad_every_family_is_a_single_connected_region) {
+  // The defect being fixed is a family split across a row boundary (not
+  // reachable as one block) - confirm every family (other than UNUSED,
+  // which is deliberately scattered) forms exactly one 4-connected
+  // region rather than two or more disconnected islands.
+  for (auto family : { PercussionFamily::CORE, PercussionFamily::HI_HAT, PercussionFamily::TOMS,
+                        PercussionFamily::CYMBALS, PercussionFamily::KIT_ACCESSORIES,
+                        PercussionFamily::LATIN_DRUMS, PercussionFamily::LATIN_METAL,
+                        PercussionFamily::SHAKERS, PercussionFamily::WOODS,
+                        PercussionFamily::CUICA_WHISTLE, PercussionFamily::ELECTRONIC }) {
+    vector<pair<int,int>> cells;
+    for (int y = 0; y < 8; y++)
+      for (int x = 0; x < 8; x++)
+        if (percussionFamilyForPad(x, y) == family) cells.push_back({x, y});
+    CHECK(!cells.empty());
+
+    set<pair<int,int>> remaining(cells.begin(), cells.end());
+    vector<pair<int,int>> stack = { cells.front() };
+    remaining.erase(cells.front());
+    while (!stack.empty()) {
+      auto [x, y] = stack.back();
+      stack.pop_back();
+      for (auto [dx, dy] : {pair{1,0}, pair{-1,0}, pair{0,1}, pair{0,-1}}) {
+        auto neighbor = pair{x + dx, y + dy};
+        if (remaining.erase(neighbor) > 0) stack.push_back(neighbor);
+      }
+    }
+    CHECK(remaining.empty()); // every cell was reached from the first one
+  }
 }
 
 TEST(clamp_octave_shifts_within_bounds_and_clamps_at_the_edges) {

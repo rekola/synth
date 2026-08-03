@@ -4,6 +4,7 @@
 
 #include "InstrumentTrack.h"
 #include "PercussionTrack.h"
+#include "DrumMachineTrack.h"
 #include "Group.h"
 #include "NoteMultiplier.h"
 #include "Arpeggiator.h"
@@ -73,6 +74,7 @@ static Tuning parse_tuning(string_view tuning_text, Tuning default_tuning = Tuni
 static unique_ptr<Track> createTrack(string_view name) {  
   if (name == "track") return make_unique<InstrumentTrack>();
   if (name == "percussionTrack") return make_unique<PercussionTrack>();
+  if (name == "drumMachineTrack") return make_unique<DrumMachineTrack>();
   else if (name == "group") return make_unique<Group>();
 
   // effects
@@ -100,10 +102,77 @@ static unique_ptr<Track> createTrack(string_view name) {
   }
 }
 
+// A <drumMachine> element carries a DrumMachineTrack's own step-sequencer
+// data (lanes + steps), never Pattern row data (see DrumMachineTrack.h's
+// own comment) - it is a data blob nested under a <drumMachineTrack>
+// element, not a nested Track, so it's parsed/written here directly
+// rather than through parseChildTrack()/storeChildTrack()'s generic
+// per-child-track recursion (which would otherwise try to createTrack()
+// it and fail). Mirrors the hand-written <bus>/<patterns> shape elsewhere
+// in this file rather than reusing that generic recursion, for the same
+// reason those aren't generic either: the child data isn't itself a Track.
+static void loadDrumMachineData(DrumMachineTrack & track, XMLElement * drum_machine_element) {
+  // No <drumMachine> element at all (a hand-edited/older file that never
+  // mentions a sequence) means the file never said anything about lanes
+  // one way or the other - give it the same default rock kit the
+  // interactive "add-drum-machine-track" command would (seedDefaultKit()'s
+  // own comment), rather than leaving a silent, lane-less track behind. A
+  // real, however sparse, <drumMachine> element means the file IS being
+  // explicit about its lanes (down to genuinely zero, if that's what it
+  // says), so it's left alone here.
+  if (!drum_machine_element) {
+    track.seedDefaultKit();
+    return;
+  }
+
+  auto id = drum_machine_element->Attribute("id");
+  track.setSequenceId(id ? id : "");
+  auto loop_length = drum_machine_element->Attribute("loop_length");
+  track.setLoopLength(loop_length ? atoi(loop_length) : 8);
+
+  for (auto it = drum_machine_element->FirstChildElement("lane"); it; it = it->NextSiblingElement("lane")) {
+    auto note_text = it->Attribute("note");
+    if (!note_text) continue;
+    int note = atoi(note_text);
+    track.addLane(note);
+
+    uint8_t steps = 0;
+    auto steps_text = it->Attribute("steps");
+    if (steps_text) {
+      for (int i = 0; steps_text[i] != 0 && i < 8; i++) {
+        if (steps_text[i] == '1') steps = static_cast<uint8_t>(steps | (1u << i));
+      }
+    }
+    track.setSteps(note, steps);
+  }
+}
+
+static void storeDrumMachineData(const DrumMachineTrack & track, XMLDocument & doc, XMLElement * track_element) {
+  auto drum_machine_element = doc.NewElement("drumMachine");
+  if (!track.getSequenceId().empty()) drum_machine_element->SetAttribute("id", track.getSequenceId().c_str());
+  drum_machine_element->SetAttribute("loop_length", track.getLoopLength());
+
+  for (auto note : track.getLaneNotes()) {
+    auto lane_element = doc.NewElement("lane");
+    lane_element->SetAttribute("note", note);
+
+    auto steps = track.getSteps(note);
+    string steps_text(static_cast<size_t>(track.getLoopLength()), '0');
+    for (int i = 0; i < track.getLoopLength(); i++) {
+      if ((steps & (1u << i)) != 0) steps_text[static_cast<size_t>(i)] = '1';
+    }
+    lane_element->SetAttribute("steps", steps_text.c_str());
+
+    drum_machine_element->InsertEndChild(lane_element);
+  }
+
+  track_element->InsertEndChild(drum_machine_element);
+}
+
 static std::unique_ptr<Track> parseChildTrack(XMLElement & element, const InstrumentProvider & provider) {
   auto track = createTrack(element.Name());
   if (!track) return std::unique_ptr<Track>(nullptr);
-  
+
   track->loadParameters(XMLParameterSource(&element));
 
   auto instrument = dynamic_cast<Instrument *>(track.get());
@@ -111,7 +180,13 @@ static std::unique_ptr<Track> parseChildTrack(XMLElement & element, const Instru
     instrument->prepare(provider);
   }
 
+  auto drum_machine_track = dynamic_cast<DrumMachineTrack *>(track.get());
+  if (drum_machine_track) {
+    loadDrumMachineData(*drum_machine_track, element.FirstChildElement("drumMachine"));
+  }
+
   for (auto it = element.FirstChildElement(); it ; it = it->NextSiblingElement() ) {
+    if (string_view(it->Name()) == "drumMachine") continue; // data, not a nested track - handled above
     auto child = parseChildTrack(*it, provider);
     if (!child) return std::unique_ptr<Track>(nullptr);
     track->addChild(std::move(child));
@@ -128,6 +203,11 @@ static void storeChildTrack(const Track & track, XMLDocument & doc, XMLElement *
 
   for (auto & child : track.getChildren()) {
     storeChildTrack(*child, doc, track_element);
+  }
+
+  auto drum_machine_track = dynamic_cast<const DrumMachineTrack *>(&track);
+  if (drum_machine_track) {
+    storeDrumMachineData(*drum_machine_track, doc, track_element);
   }
 
   target_element->InsertEndChild(track_element);
@@ -398,7 +478,14 @@ Song::save(const std::string & filename) const {
 
 	auto track = getTrackByInternalId(track_id);
 	assert(track);
-	
+	// A DrumMachineTrack's sequence lives on the track itself (see
+	// DrumMachineTrack.h) - it must never end up referenced from Pattern
+	// row data, since that data is silently ignored on load (parseChildTrack
+	// never routes <note> elements to it, only Song::open()'s own
+	// <patterns> handling does, keyed by whatever track_id happens to be
+	// stored) and would otherwise be lost without any error.
+	assert(!track || track->getType() != TrackType::DRUM_MACHINE);
+
 	if (track) {
 	  auto track_tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : getTuning();
 	  
@@ -500,7 +587,8 @@ static void
 collectRootTrackIds(const Track & track, vector<int> & track_ids) {
   if (track.getType() == TrackType::INSTRUMENT_CONTROL ||
       track.getType() == TrackType::PERCUSSION_CONTROL ||
-      track.getType() == TrackType::SAMPLE) {
+      track.getType() == TrackType::SAMPLE ||
+      track.getType() == TrackType::DRUM_MACHINE) {
     track_ids.push_back(track.getInternalId());
   } else {
     for (auto & child : track.getChildren()) {

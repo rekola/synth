@@ -8,6 +8,7 @@
 #include "Tuning.h"
 #include "InstrumentTrack.h"
 #include "SampleTrack.h"
+#include "DrumMachineTrack.h"
 #include "MidiEvent.h"
 #include "PlaybackControlEvent.h"
 #include "LogEvent.h"
@@ -271,6 +272,20 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     getController().removeNoteColumn(track_id);
   });
 
+  // Create-fresh only (see plans/drum-machine.md) - no "convert an
+  // existing track" path exists, since TrackType is fixed at construction
+  // for every track and a drum machine's sequence lives outside Pattern
+  // data anyway (existing notes would just be orphaned). seedDefaultKit()
+  // is the single place the default rock kit's note list lives - shared
+  // with Song.cpp's own loadDrumMachineData() for a hand-authored
+  // <drumMachineTrack> with no <drumMachine> child at all.
+  commands_.define("add-drum-machine-track", [this]() {
+    auto & song = getController().getSong();
+    auto & track = dynamic_cast<DrumMachineTrack &>(song.addTrack(make_unique<DrumMachineTrack>()));
+    track.seedDefaultKit();
+    song.incVersion();
+  });
+
   // "send-a-mode"/"send-b-mode" are NOT defined here (or anywhere in
   // commands_) - they mutate nothing outside a single Launchpad device's
   // own transient UI state (which grid mode it's showing), never Song/
@@ -293,6 +308,13 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   keymap_.bind(KeyChord::pack(NCKEY_DOWN, false, false, false, false), "move-row-down"); // plain Down
   keymap_.bind(KeyChord::pack(NCKEY_RIGHT, true, false, true, false), "add-note-column");   // Ctrl+Shift+Right
   keymap_.bind(KeyChord::pack(NCKEY_LEFT, true, false, true, false), "remove-note-column"); // Ctrl+Shift+Left
+  // Ctrl+Shift+D ("Drum") - otherwise only reachable via M-x, which meant
+  // there was no way to discover this command exists at all. Plain Ctrl-D
+  // is already the (stub, not-yet-implemented) "duplicate track" raw
+  // handler below, and Ctrl+Shift+T is already the (also-stub) "delete
+  // track" one, so this picks a still-free Ctrl+Shift combo rather than
+  // colliding with either.
+  keymap_.bind(KeyChord::pack('d', true, false, true, false), "add-drum-machine-track"); // Ctrl+Shift+D
 
   assertCommandBindingsValid();
 }
@@ -311,6 +333,19 @@ static void fill_track_info(const Track & track, std::unordered_map<int, Visible
     // still taken against, so a column with real note data in it can never
     // be hidden by this, only extended past it.
     info.updateNumSubtracks(instrument_track.getMinNoteColumns());
+  } else if (track.getType() == TrackType::DRUM_MACHINE) {
+    // Single placeholder column (SampleTrack precedent - see renderRow's
+    // own SAMPLE/DRUM_MACHINE branch), so an explicit, default-constructed
+    // 1-column VisibleTrackInfo entry is keyed here rather than left
+    // absent. Confirmed by direct reproduction (not just code reading)
+    // that leaving no entry at all for a track_id present in track_ids
+    // - reachable when a DrumMachineTrack is the only/last track, unlike
+    // SAMPLE which has always so far been used alongside other tracks -
+    // hangs the interactive TUI: some downstream per-track-id width/bounds
+    // computation assumes every id in track_ids has *some* entry once
+    // this function has visited the whole tree, not just tracks that
+    // happen to match a case above.
+    track_info[track.getInternalId()];
   } else {
     for (auto & child : track.getChildren()) {
       fill_track_info(*child, track_info);
@@ -793,7 +828,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       return true;
     } else if (input.getId() == NCKEY_LEFT || input.getId() == NCKEY_RIGHT) {
       auto track = song.getTrackByInternalId(track_ids[current_cursor.track]);
-      if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL)) {
+      if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL || track->getType() == TrackType::DRUM_MACHINE)) {
 	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
 	bool changed = false;
 	if (input.getId() == NCKEY_LEFT && instrument_track.getInstrumentId() > 0) {
@@ -941,6 +976,18 @@ PatternEditor::offerInput(const InputEvent & input) {
 	  return true;
 	}
       } else {
+	// SAMPLE/DRUM_MACHINE tracks render this column as a placeholder
+	// block (see renderRow's own branch), never real note data - without
+	// this exclusion, typing here would still silently write into
+	// Pattern via pattern.setNote()/pushNote() below, just with nothing
+	// on screen to show it happened. A DrumMachineTrack's sequence lives
+	// on the track itself (DrumMachineTrack.h), never in Pattern rows,
+	// so this guard is required for correctness there, not just tidiness.
+	auto entry_track = song.getTrackByInternalId(track_id);
+	if (entry_track && (entry_track->getType() == TrackType::SAMPLE || entry_track->getType() == TrackType::DRUM_MACHINE)) {
+	  return true;
+	}
+
 	bool is_off = input.getId() == 'a';
 	bool is_delete = input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE;
 	auto note_column = track_info.getNoteNumber(new_cursor.col);
@@ -1126,6 +1173,8 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  string instrument_name;
 	  if (track->getType() == TrackType::SAMPLE) {
 	    instrument_name = "Sample";
+	  } else if (track->getType() == TrackType::DRUM_MACHINE) {
+	    instrument_name = "Drum Machine";
 	  } else if (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL) {
 	    auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
 	    if (instrument_track.getInstrumentId() >= 0 && instrument_track.getInstrumentId() < instruments.size()) {
@@ -1300,18 +1349,27 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	setFgColor(styles.window_border_color);
 	setBgColor(cur_bg);
 	auto column_type = track_info.getColumnType(k);
-	if (track && track->getType() == TrackType::SAMPLE) {
+	if (track && (track->getType() == TrackType::SAMPLE || track->getType() == TrackType::DRUM_MACHINE)) {
 	  cell_fg = cur_fg;
 	  cell_bg = cur_bg;
 	  setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 
-	  if (k < notes.size() && notes[k].isDefined()) {
-	    auto & note = notes[k];
-	    putstr(display_row, current_pos, "xxxxxx");
-	  } else {
-	    putstr(display_row, current_pos, "      ");
-	  }
+	  // Placeholder width matches track_info.getTrackWidth() exactly,
+	  // not a hardcoded literal - renderHeading() already laid this
+	  // column out assuming that same width, so a mismatched literal
+	  // here left the heading, this content, and the region-selection
+	  // highlight (which colors exactly however many characters this
+	  // putstr writes) all disagreeing about how wide the column
+	  // actually is. One character short of the full width, same as
+	  // every other column type below (NOTE/VELOCITY/DELAY/EFFECT) -
+	  // the last column of a track always leaves its own final
+	  // character for the shared trailing "│" this k-loop draws once
+	  // it's done (further down), rather than drawing it itself.
+	  auto width = std::max(track_info.getTrackWidth() - 1, 1);
+	  bool defined = k < notes.size() && notes[k].isDefined();
+	  putstr(display_row, current_pos, std::string(static_cast<size_t>(width), defined ? 'x' : ' '));
+	  current_pos += width;
 	} else if (column_type == ColumnType::EFFECT) {
 	  cell_fg = command.isDefined() ? styles.command_column_color : cur_fg;
 	  cell_bg = cur_bg;

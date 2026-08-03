@@ -24,6 +24,7 @@
 #include "LaunchpadChannelPressureEvent.h"
 #include "LaunchpadProtocol.h"
 #include "LaunchpadManager.h"
+#include "DrumMachineTrack.h"
 
 #include <fmt/core.h>
 #include <thread>
@@ -123,7 +124,7 @@ UI::renderComponents(bool refresh) {
     auto & song = getController().getSong();
     auto track_ids = song.getRootTrackIds();
     launchpad_manager_->refresh(song, track_ids, getController().getPlaybackInfo(),
-      track_ids.empty() ? -1 : pattern_editor_->getCursorTrackIndex());
+      track_ids.empty() ? -1 : pattern_editor_->getCursorTrackIndex(), getController());
   }
 
   return render;
@@ -398,14 +399,21 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
 
   auto device_id = ev.getDeviceIndex();
 
-  // CC97 (DRAW mode toggle) needs both press and release - a long hold,
-  // released while DRAW mode is already active, clears the canvas instead
-  // of toggling the mode (see LaunchpadManager::handleDrawToggleButton) -
-  // so it's routed here before the press-only filter below, which every
-  // other raw-CC button (and every other release) still goes through
-  // unchanged.
-  if (ev.getCCNumber() == 97) {
-    launchpad_manager_->handleDrawToggleButton(device_id, ev.getKind() == LaunchpadButtonEvent::PRESS);
+  // CC49 ("Stop Clip") needs both press and release - either for DRAW's
+  // own long-hold-clears-canvas gesture (when the assigned track isn't a
+  // DrumMachineTrack), or (once plans/drum-machine.md's Phase 7 lands)
+  // the drum machine's own Clear double-press confirm when it is - see
+  // LaunchpadManager::handleStopClipButton()'s own comment for how its
+  // meaning is chosen. Routed here before the press-only filter below,
+  // which every other raw-CC button (and every other release) still goes
+  // through unchanged.
+  if (ev.getCCNumber() == 49) {
+    auto track_ids = getController().getSong().getRootTrackIds();
+    auto track_id = launchpad_manager_->resolveTrackId(device_id, track_ids, pattern_editor_->getCursorTrackIndex());
+    auto track = getController().getSong().getTrackByInternalId(track_id);
+    bool is_drum_machine = track && track->getType() == TrackType::DRUM_MACHINE;
+    auto * drum_track = is_drum_machine ? &static_cast<DrumMachineTrack &>(*track) : nullptr;
+    launchpad_manager_->handleStopClipButton(device_id, ev.getKind() == LaunchpadButtonEvent::PRESS, drum_track, getController());
     return;
   }
 

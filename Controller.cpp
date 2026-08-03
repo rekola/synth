@@ -682,7 +682,7 @@ Controller::receivePlaybackSnapshot(const PlaybackInfo & info) {
 
 static InstrumentTrack *
 asInstrumentTrack(Track * track) {
-  if (!track || (track->getType() != TrackType::INSTRUMENT_CONTROL && track->getType() != TrackType::PERCUSSION_CONTROL)) return nullptr;
+  if (!track || (track->getType() != TrackType::INSTRUMENT_CONTROL && track->getType() != TrackType::PERCUSSION_CONTROL && track->getType() != TrackType::DRUM_MACHINE)) return nullptr;
   return &dynamic_cast<InstrumentTrack&>(*track);
 }
 

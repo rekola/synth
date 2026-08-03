@@ -21,9 +21,9 @@ namespace {
   // unprominent color - see its own comment) since even within blue/
   // violet, closely-spaced hues were hard to tell apart on real hardware.
   // FOURTH and FIFTH get their own close-but-distinct hues (a small split
-  // around the same amber center, same spirit as kDepth3HueOffset below -
-  // user feedback, after first trying one shared hue: "different colors,
-  // however close").
+  // around the same amber center, same spirit as kDepth3HueOffset below) -
+  // a single shared hue made the two tiers indistinguishable at a glance,
+  // so each gets its own, even though they're close.
   constexpr float kTonicHue = 50.0f; // yellow, nudged toward red
   constexpr float kFourthFifthCenterHue = 18.0f; // amber, nudged further toward red
   constexpr float kFourthFifthHueOffset = 6.0f;
@@ -37,7 +37,7 @@ namespace {
   // device as distinct hues (consonanceColor() flattens depth 5+ to one
   // flat gray) - fixed, deliberately asymmetric offsets rather than a
   // geometric decay (which was tuned for smoothly-shrinking steps across
-  // many depths). Two rounds of hardware feedback tuned these in opposite
+  // many depths). Real-hardware testing tuned these in opposite
   // directions: major/minor at the *same* depth (e.g. E vs. Eb, both
   // depth 3) should read as close/related, so kDepth3HueOffset is small;
   // depth 3 vs. depth 4 within the *same* family (e.g. A vs. B, both
@@ -185,18 +185,32 @@ classifyPad(const vector<PadClassification> & levels, const Basis & basis, int e
   return levels[static_cast<size_t>(pitch_class)];
 }
 
-// Row 0 (bottom) = core kit, ascending through toms/cymbals/hand-perc/
-// latin/electronic-FX; row 7 (top) is unused. A perfect bijection onto
-// Note.h's percussion_names[] range (GM values 27-82, 56 sounds).
+// Rows numbered bottom (y=0) to top (y=7), matching Programmer-mode
+// addressing. Kit on the left half (x=0..3), hand/latin percussion on
+// the right (x=4..7). Every named family (see percussionFamilyForPad)
+// occupies a contiguous rectangle and never wraps across a row boundary
+// - the defect the earlier row-linear table had. Kick/snare sit in the
+// bottom-left corner (easiest reach) in the order they're actually
+// played; toms ascend left-to-right then bottom-to-top so a fill is a
+// diagonal sweep; bongos/timbales share row 0 as low-to-high pairs.
+// Cowbell (56) sits with the agogos rather than the kit, since in
+// practice it's played as part of a latin cluster far more often than as
+// a kit accessory. A perfect bijection onto Note.h's percussion_names[]
+// range (GM values 27-82, 56 sounds) - unlike the standard 47-note GM
+// percussion range (35-81) this covers, it also places the 8 Roland-GS
+// electronic-kit hits (27-34) and Shaker (82) that this engine has
+// always supported, so switching to this family-clustered layout doesn't
+// drop any previously-playable sound. 8 pads remain unassigned, as
+// small gaps between families rather than confined to one row.
 static const int PERCUSSION_TABLE[8][8] = {
-  { 35, 36, 37, 38, 39, 40, 42, 44 },
-  { 46, 41, 43, 45, 47, 48, 50, 49 },
-  { 51, 52, 53, 55, 57, 59, 54, 56 },
-  { 58, 69, 70, 80, 81, 82, 60, 61 },
-  { 62, 63, 64, 65, 66, 67, 68, 73 },
-  { 74, 75, 76, 77, 78, 79, 71, 72 },
-  { 27, 28, 29, 30, 31, 32, 33, 34 },
-  { -1, -1, -1, -1, -1, -1, -1, -1 },
+  { 35, 36, 37, 38, 61, 60, 66, 65 },
+  { 40, 39, -1, -1, 64, 62, 63, -1 },
+  { 42, 44, 46, -1, 68, 67, 56, -1 },
+  { 41, 43, 45, 82, 69, 70, 73, 74 },
+  { 47, 48, 50, -1, 75, 76, 77, -1 },
+  { 49, 57, 55, 52, 78, 79, 71, 72 },
+  { 51, 59, 53, -1, 80, 81, 33, 34 },
+  { 54, 58, 27, 28, 29, 30, 31, 32 },
 };
 
 int
@@ -219,13 +233,18 @@ percussionFamilyForPad(int x, int y) {
     return PercussionFamily::TOMS;
   case 49: case 51: case 52: case 53: case 55: case 57: case 59:
     return PercussionFamily::CYMBALS;
-  case 54: case 56: case 58: case 69: case 70: case 80: case 81: case 82:
-    return PercussionFamily::HAND_PERC;
-  case 60: case 61: case 62: case 63: case 64: case 65: case 66: case 67: case 68:
-  case 73: case 74: case 75: case 76: case 77: case 78: case 79:
-    return PercussionFamily::LATIN;
-  case 71: case 72:
-    return PercussionFamily::WHISTLE;
+  case 54: case 58:
+    return PercussionFamily::KIT_ACCESSORIES;
+  case 60: case 61: case 62: case 63: case 64: case 65: case 66:
+    return PercussionFamily::LATIN_DRUMS;
+  case 56: case 67: case 68:
+    return PercussionFamily::LATIN_METAL;
+  case 69: case 70: case 73: case 74: case 82:
+    return PercussionFamily::SHAKERS;
+  case 75: case 76: case 77:
+    return PercussionFamily::WOODS;
+  case 71: case 72: case 78: case 79: case 80: case 81:
+    return PercussionFamily::CUICA_WHISTLE;
   case 27: case 28: case 29: case 30: case 31: case 32: case 33: case 34:
     return PercussionFamily::ELECTRONIC;
   default:

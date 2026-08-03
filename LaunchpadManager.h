@@ -3,6 +3,7 @@
 
 #include "Tuning.h"
 #include "LaunchpadProtocol.h"
+#include "LaunchpadTiming.h"
 
 #include <array>
 #include <chrono>
@@ -19,6 +20,7 @@ class PlaybackInfo;
 class Controller;
 class LaunchpadPadEvent;
 class LaunchpadChannelPressureEvent;
+class DrumMachineTrack;
 
 // Owns everything about how connected Launchpads relate to the song being
 // edited: per-device track assignment and octave, the isomorphic/
@@ -130,20 +132,30 @@ class LaunchpadManager {
   static int azimuthToRow(float azimuth);
   static float rowToAzimuth(int row);
 
-  // The Send A/Pan/Send B/Volume/Custom buttons (raw CC 69/79/59/89/97 -
-  // 69/79/89 confirmed against a real Launchpad X, 59 inferred from
-  // Ableton's standard Launchpad "Track" control row order, 97 inferred
-  // from the top row's own Up/Down/Left/Right/Session/Note/Custom/Capture
-  // layout - 91/92/93/94 already confirmed as Up/Down/Left/Right; Volume/
-  // CC89 is repurposed as the Send Main fader mode, the same shape as
-  // Send A/Send B) are intercepted here, by raw CC number, *before* any
-  // command-name resolution happens at all (see UI::
+  // The Send A/Pan/Send B/Volume/Custom/Record-Arm buttons (raw CC
+  // 69/79/59/89/97/19 - 69/79/89 confirmed against a real Launchpad X, 59
+  // inferred from Ableton's standard Launchpad "Track" control row order,
+  // 97 inferred from the top row's own Up/Down/Left/Right/Session/Note/
+  // Custom/Capture layout, 19 inferred by continuing that same right-
+  // column row order one further (Volume/Pan/SendA/SendB/Stop
+  // Clip/Mute/Solo/Record Arm - see LaunchpadProtocol::commandForButton's
+  // own comment for Mute/Solo at 39/29) - 91/92/93/94 already confirmed as
+  // Up/Down/Left/Right; Volume/CC89 is repurposed as the Send Main fader
+  // mode, the same shape as Send A/Send B) are intercepted here, by raw CC
+  // number, *before* any command-name resolution happens at all (see UI::
   // handleLaunchpadButtonEvent) - pressing one only ever flips this one
   // device's own transient grid-display state, never Song/Track data, so
   // it isn't a "command" (which implies "reachable identically from a
   // keybinding or M-x") at all, just a direct hardware-state toggle.
   // Returns false for any other CC, so the caller proceeds to the normal
-  // command pipeline.
+  // command pipeline. CC98 ("Capture MIDI") no longer does anything here -
+  // the record-arm toggle moved to CC19 ("Record Arm") - see
+  // DeviceState::capture_enabled's own comment. CC97 ("Custom") is the
+  // drum-picker latch (plans/drum-machine.md, Phase 6) - unconditional,
+  // the same way Send/Pan/etc. above are: picking is only ever meaningful
+  // once a DrumMachineTrack is actually assigned, but the toggle itself
+  // is plain per-device UI state regardless of what's currently assigned,
+  // matching every other raw-CC toggle here.
   bool handleRawButton(int cc_number, int device_id);
 
   // CC97 (DRAW mode toggle) on its own, separate entry point: unlike every
@@ -156,8 +168,38 @@ class LaunchpadManager {
   // Programmer-mode protocol maps one past the top row) turned out not to
   // be an actual pressable button on real Launchpad X hardware, just a
   // CC-addressable LED kept for symmetry with the Launchpad Pro. Always
-  // returns true (handled) for both press and release.
+  // returns true (handled) for both press and release. No longer reached
+  // directly from CC97 (see handleStopClipButton() - Custom now owns the
+  // drum picker unconditionally, so DRAW moved to Stop Clip) but kept
+  // under its original name since the toggle-vs-long-hold-clears logic
+  // itself is unchanged.
   bool handleDrawToggleButton(int device_id, bool is_press);
+
+  // CC49 ("Stop Clip" physical button)'s dispatcher (plans/drum-machine.md,
+  // Phase 6/7): its meaning depends on what this device is currently
+  // assigned to. When `assigned_drum_track` is non-null, it's the drum
+  // machine's own Clear gesture, double-press to confirm: a first press
+  // arms a short confirm window (kClearConfirmWindow - see refreshLeds()'s
+  // own blinking-indicator comment), a second press within that window
+  // clears every one of that track's lanes' step data back to all-rest
+  // (the lane list itself is untouched - only the picker removes lanes),
+  // and letting the window lapse (or an already-stale arm) just re-arms
+  // rather than clearing - there's deliberately no separate "pressing any
+  // other button cancels the arm" mechanism (that would mean threading a
+  // cancel call through every other input path in this class for an edge
+  // case the timeout already covers in practice: by the time a player
+  // returns to Stop Clip after doing something else, the window has
+  // essentially always lapsed). Clear writes unconditionally regardless
+  // of Record Arm, matching the step grid/picker's own "arm gates
+  // performance capture, not editing" rule. When `assigned_drum_track` is
+  // null, this is DRAW mode's toggle instead (moved here from Custom,
+  // which the drum picker now owns unconditionally - see
+  // handleRawButton()'s own comment), forwarded to handleDrawToggleButton()
+  // unchanged, long-hold-clears-canvas gesture included. Needs both press
+  // and release for that same reason handleDrawToggleButton() does (the
+  // Clear gesture itself only acts on press - release is a no-op there).
+  // Always returns true (handled) for both press and release.
+  bool handleStopClipButton(int device_id, bool is_press, DrumMachineTrack * assigned_drum_track, Controller & controller);
 
   // Handles this device's own pure per-device commands - octave and
   // track-follow navigation - entirely from LaunchpadManager's own state,
@@ -219,7 +261,11 @@ class LaunchpadManager {
   // the caller already computed (avoids this class needing to know how
   // to walk the track tree itself); fallback_track_index is used for any
   // device that hasn't been explicitly assigned a track of its own.
-  void refresh(const Song & song, const std::vector<int> & track_ids, const PlaybackInfo & playback_info, int fallback_track_index);
+  // `controller` is only needed for the free-running drum-machine
+  // audition clock below (to reach the playback event queue) - every
+  // other per-device computation here still only touches `song`/
+  // `playback_info` directly, unchanged from before that clock existed.
+  void refresh(const Song & song, const std::vector<int> & track_ids, const PlaybackInfo & playback_info, int fallback_track_index, Controller & controller);
 
  private:
   struct DeviceState {
@@ -236,18 +282,74 @@ class LaunchpadManager {
     // sounding notes, used to brighten pads above LAUNCHPAD_IDLE_BRIGHTNESS.
     std::unordered_map<int, float> active_note_loudness;
 
-    // Record-arm toggle for this device (CC98, the physical "Capture
-    // MIDI" button - see handleRawButton()) - defaults off: a freshly
-    // connected Launchpad is just an instrument until the player
-    // deliberately arms it, not a silent trap that overwrites pattern
-    // data the moment you start experimenting. Gates pattern mutation
-    // only (Note writes, song version bumps, the not-playing step-
-    // advance MOVE_POSITION) - live PLAY_NOTE/STOP_NOTE/NOTE_PRESSURE
-    // audition events fire regardless, so this device is always audible
-    // whether or not it's recording.
+    // Record-arm state, mirrored here from LaunchpadManager's single
+    // song-wide capture_enabled_ (see that member's own comment) every
+    // refresh() call - reading it per-device like this keeps every other
+    // use site (handlePadEvent, anyCaptureArmedNoteHeld(), refreshLeds())
+    // unchanged even though there's really only one flag for the whole
+    // session, not one per Launchpad. Defaults off: a freshly connected
+    // Launchpad is just an instrument until the player deliberately arms
+    // recording, not a silent trap that overwrites pattern data the
+    // moment you start experimenting. Gates pattern mutation only (Note
+    // writes, song version bumps, the not-playing step-advance
+    // MOVE_POSITION) - live PLAY_NOTE/STOP_NOTE/NOTE_PRESSURE audition
+    // events fire regardless, so every device is always audible whether
+    // or not recording is armed. Originally CC98 ("Capture MIDI"), moved
+    // to CC19 ("Record Arm") - plans/drum-machine.md's own rationale:
+    // "armed" names the distinction exactly, and Record Arm sits away
+    // from the top-row arrow cluster used for track selection, unlike
+    // Capture MIDI - a mis-hit there used to silently arm writes with no
+    // undo. Also gates whether "free playing" (ordinary note entry) is
+    // captured, per the drum-machine step grid's own rule that the step
+    // grid and drum picker write in *both* arm states - only free playing
+    // is gated.
     bool capture_enabled = false;
 
     GridMode grid_mode = GridMode::NOTES;
+
+    // Step-grid surface (plans/drum-machine.md, Phase 5): not a GridMode
+    // value of its own - it displays automatically whenever this device's
+    // assigned track is a DrumMachineTrack, the same way the percussion
+    // layout below already displays automatically from track type rather
+    // than a mode toggle, and (like percussion) only within grid_mode==
+    // NOTES, so Send/Pan/Draw stay fully usable on a device currently
+    // assigned to a drum machine. Recomputed fresh every refresh() call
+    // (same cadence as tuning/muted/solo above), never read back from a
+    // stale copy by handlePadEvent() - a press always re-resolves the
+    // assigned DrumMachineTrack directly for up-to-the-moment lane/step
+    // data, this cache exists purely for refreshLeds()'s drawing.
+    bool assigned_track_is_drum_machine = false;
+    std::vector<int> drum_lane_notes; // bottom-to-top, already DrumRankTable-ordered
+    std::array<uint8_t, 8> drum_lane_steps {}; // parallel to drum_lane_notes
+    int drum_loop_length = 8;
+    // Pattern-relative row % loop length while playing, or the free-
+    // running audition clock's own step % loop length while stopped (see
+    // LaunchpadManager::audition_clock_step_) - or -1 when there's no
+    // playhead to show at all (stopped, but the audition clock isn't
+    // currently running because Record Arm is on - see refresh()'s own
+    // gating check).
+    int drum_playhead_step = -1;
+
+    // Stop-Clip Clear double-press confirm state (plans/drum-machine.md,
+    // Phase 7) - see handleStopClipButton()'s own comment for the full
+    // arm/confirm/timeout rule; ConfirmTimer itself (LaunchpadTiming.h) is
+    // the pure, unit-tested arm/confirm/timeout logic. Purely per-device
+    // (unlike Record Arm): each Launchpad's own Stop Clip press arms only
+    // that device's confirm window, since Clear is a deliberate,
+    // immediate action taken on the spot, not a mode setting that needs
+    // to stay consistent across every connected device the way
+    // recording-armed does.
+    ConfirmTimer clear_confirm;
+
+    // Drum picker latch (plans/drum-machine.md, Phase 6) - CC97
+    // ("Custom")'s own toggle, unconditional (see handleRawButton()'s own
+    // comment). Only actually shown/acted on while
+    // assigned_track_is_drum_machine is also true - left as whatever it
+    // was if the device's assigned track later stops being a drum
+    // machine, so switching back re-shows the picker rather than losing
+    // the latch state.
+    bool picker_active = false;
+
     // First 8 root tracks' current SendMain/SendA/SendB/azimuth - refreshed
     // every frame (refresh()), same as muted/solo above, so the fader/pan
     // display always reflects the live value even before any pad press
@@ -301,6 +403,34 @@ class LaunchpadManager {
   DeviceState & deviceState(int device_id);
   const DeviceState * findDeviceState(int device_id) const;
   void refreshLeds(int device_id, DeviceState & state);
+
+  // The step-grid's own pad-press handling (plans/drum-machine.md, Phase
+  // 5) - a DrumMachineTrack's grid means something else entirely from
+  // ordinary NOTES-mode chord entry, the same way Send/Pan mode already
+  // does (see handlePadEvent()'s own dispatch): x = step, y = lane (row 0
+  // = bottom = the lowest-ranked lane). A press toggles that lane/step's
+  // bit - unconditionally, regardless of capture_enabled, since "the arm
+  // flag gates performance capture, not editing" (the step grid writes in
+  // both modes) - and always auditions via PLAY_NOTE/STOP_NOTE at a fixed
+  // velocity (constants::DEFAULT_VELOCITY - pad pressure/aftertouch are
+  // both ignored here, matching the brief's "no per-step velocity"
+  // decision). The GM note number doubles as the PLAY_NOTE/STOP_NOTE
+  // column, the same convention SongState::render()'s own step-driven
+  // emission already uses (see DrumMachineTrack.h), so editing a step and
+  // hearing it sequenced later choke/retrigger consistently.
+  void handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & controller, DrumMachineTrack & track, int track_id);
+
+  // The drum picker's own pad-press handling (plans/drum-machine.md,
+  // Phase 6): reuses the free-drumming layout's own note lookup
+  // (LaunchpadLayout::percussionNoteForPad) rather than a second copy.
+  // PRESS on an already-assigned note removes that lane (silently
+  // deleting its step data - no confirmation, no undo, per the brief's
+  // own accepted risk); PRESS on an unassigned note adds a fresh
+  // all-rest lane. addLane()/removeLane() apply the lane-list and
+  // step-data mutation as a single call, so the two can never be
+  // observed disagreeing. RELEASE/AFTERTOUCH are no-ops - picking is a
+  // plain tap, not a held gesture.
+  void handleDrumPickerPadEvent(LaunchpadPadEvent & ev, Controller & controller, DrumMachineTrack & track);
 
   // True iff some connected device both has capture_enabled and
   // currently has at least one held note - the realtime auto-play
@@ -356,6 +486,51 @@ class LaunchpadManager {
   std::set<std::pair<int, int>> auto_record_cleared_rows_;
   int last_cleared_row_ = -1;
   int last_cleared_pattern_idx_ = -1;
+
+  // Phase 7's free-running drum-machine audition clock (plans/drum-
+  // machine.md): a second, independent clock from SongState's own
+  // position - deliberately never touches sample_pos_/absolute_pos_ and
+  // never pushes MOVE_POSITION/SET_POSITION, exactly the same "don't
+  // unify the two clocks" invariant the plan calls out. Lives here (UI
+  // thread, wall-clock-timed via refresh()'s own call cadence - Player.cpp
+  // pushes a fresh playback-position UI event every single audio-callback
+  // block regardless of play state, which is what wakes UI::renderComponents()
+  // /refresh() up that often) rather than inside SongState::render() on the
+  // audio thread, so it can reuse the exact same PLAY_NOTE-event-queue
+  // audition path handleStepGridPadEvent/handleDrumPickerPadEvent already
+  // use for their own one-shot presses, instead of a second, parallel
+  // triggering mechanism. One shared step counter for the whole song (not
+  // per-device, not per-track) - each DrumMachineTrack still wraps at its
+  // own loop length via getHitNotesForRow()'s own modulo, so tracks with
+  // different loop lengths phase-align at step 0 and diverge after,
+  // exactly like two pattern-driven DrumMachineTracks already would while
+  // playing normally.
+  // StepClock itself (LaunchpadTiming.h) is the pure, unit-tested
+  // step-advance logic; this is only the wall-clock timestamp of the
+  // last refresh() call, needed to turn "now" into a dt to feed it.
+  StepClock audition_clock_;
+  std::chrono::steady_clock::time_point audition_clock_last_refresh_;
+
+  // Fires every DrumMachineTrack's getHitNotesForRow(step) as a PLAY_NOTE
+  // audition event - the free-running clock's own per-step action,
+  // factored out of refresh() since it's called from two places there
+  // (the moment the clock (re)starts, and once per row boundary crossed
+  // while it's already running).
+  void triggerAuditionStep(const Song & song, const std::vector<int> & track_ids, Controller & controller, int step);
+
+  // Record Arm (CC19) is one shared, song-wide flag, not a per-device
+  // setting (deliberate change from the original per-device design, made
+  // while implementing Phase 7's free-running drum-machine audition loop:
+  // arming should be a single global state, since "am I recording" isn't
+  // a question that should have a different answer on two Launchpads
+  // plugged into the same session). handleRawButton()'s CC19
+  // branch flips this; refresh() copies it into every connected device's
+  // own DeviceState::capture_enabled every frame (see that field's own
+  // comment) so the entire rest of this file - handlePadEvent's
+  // capture-gated writes, anyCaptureArmedNoteHeld(), refreshLeds()'s CC19
+  // LED - keeps reading the per-device mirror unchanged, and every
+  // connected Launchpad's Record Arm LED shows the same lit/unlit state.
+  bool capture_enabled_ = false;
 };
 
 #endif

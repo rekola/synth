@@ -89,13 +89,16 @@ namespace LaunchpadLayout {
   PadClassification classifyPad(const std::vector<PadClassification> & levels, const Basis & basis, int edo_steps, int x, int y, int base_note);
 
   // Fixed General MIDI percussion layout (GM values 27-82, the range this
-  // engine actually supports - see Note.h's percussion_names table),
-  // family-grouped for playability: core kit at the bottom (row 0),
-  // ascending through toms/cymbals/hand-percussion/latin/electronic-FX.
-  // Returns -1 for the 8 unused pads (row 7, y=7).
+  // engine actually supports - see Note.h's percussion_names table).
+  // Every named family occupies a contiguous rectangle and never wraps
+  // across a row boundary (kit on the left half - x=0..3, hand/latin
+  // percussion on the right - x=4..7), unlike the earlier row-linear
+  // table this replaced. Returns -1 for the 8 pads that remain
+  // unassigned (scattered as small gaps between families, not confined
+  // to one row - see PERCUSSION_TABLE's own comment).
   int percussionNoteForPad(int x, int y);
 
-  enum class PercussionFamily { CORE, HI_HAT, TOMS, CYMBALS, HAND_PERC, LATIN, WHISTLE, ELECTRONIC, UNUSED };
+  enum class PercussionFamily { CORE, HI_HAT, TOMS, CYMBALS, KIT_ACCESSORIES, LATIN_DRUMS, LATIN_METAL, SHAKERS, WOODS, CUICA_WHISTLE, ELECTRONIC, UNUSED };
 
   // Classifies a percussion pad for LED-coloring purposes - a separate
   // concern from percussionNoteForPad's placement (hi-hats get their own

@@ -9,6 +9,8 @@
 #include "bus/SendBusProcessor.h"
 #include "bus/BusEffectRegistry.h"
 #include "MemoryParameterSource.h"
+#include "DrumMachineTrack.h"
+#include "constants.h"
 
 #include <memory>
 
@@ -112,6 +114,31 @@ class SongState : public TrackState {
 	  auto & commands = pattern.getCommands(row_idx);
 	  for (auto & [ track_id, command ] : commands) {
 	    // render_context_.addPendingEvent(col, i, command);
+	  }
+
+	  // A DrumMachineTrack never has Pattern rows of its own (see
+	  // DrumMachineTrack.h) - its notes are computed here directly from
+	  // its own step data instead of read from `notes` above, in
+	  // addition to (never instead of) the pattern lookup, so there's no
+	  // double-triggering risk. getHitNotesForRow() is a pure function of
+	  // (row_idx, this track's own loop length + steps), so this survives
+	  // an arbitrary seek exactly like the pattern lookup above already
+	  // does. The GM note number itself doubles as the pending-event
+	  // "column" key (retriggerVoices()/chokeExclusiveClasses() only need
+	  // it to be stable and unique per lane within this one track, and
+	  // note-keying is this whole class's own convention - see
+	  // DrumMachineTrack.h) and as note_value, matching how a percussion
+	  // Pattern note's own getValue() already is its raw GM note number.
+	  for (auto track_id : song.getRootTrackIds()) {
+	    auto track = song.getTrackByInternalId(track_id);
+	    if (!track || track->getType() != TrackType::DRUM_MACHINE) continue;
+	    auto & drum_track = static_cast<const DrumMachineTrack &>(*track);
+
+	    for (int note : drum_track.getHitNotesForRow(row_idx)) {
+	      float frequency = Tuner::getFrequency(Tuning::PERCUSSION, note);
+	      float velocity = constants::DEFAULT_VELOCITY / 127.0f;
+	      render_context_.addPendingEvent(track_id, i, note, frequency, velocity, note);
+	    }
 	  }
 	}
 	
