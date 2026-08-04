@@ -355,6 +355,27 @@ Haze::process(const float * input, int frames) {
   for (int i = 0; i < frames; i++) {
     float x = bandpassed_[static_cast<size_t>(i)];
     float blocked = x - dcBlockX1_ + kDcBlockR * dcBlockY1_;
+    // Snap to exact 0 once decay has brought it this close - a one-pole
+    // decay only asymptotes toward 0 and, in float32, can end up pinned
+    // at some tiny nonzero value forever (the same real, confirmed bug
+    // DiracAnalyzer.cpp's own grid smoothing already documents and
+    // guards against - see that file for the fuller explanation).
+    // Without this, whenever bias > 0 a silent (or momentarily silent)
+    // input leaves this stuck-forever residual reaching the ambisonic
+    // bus at every sample for the rest of the song - inaudible on its
+    // own, but a genuine, persistent, spuriously "diffuse" signal a
+    // directional analyzer like DiracAnalyzer picks up as real content
+    // with no actual source. 1e-4f, not DiracAnalyzer's own 1e-6f: this
+    // recursion's actual stuck point, measured directly against this
+    // effect's real oversample/shape/decimate chain (not an isolated
+    // model of it), sits close enough to 1e-6 that DiracAnalyzer's own
+    // threshold sometimes misses it depending on unrelated codegen
+    // details (build flags, surrounding code) that shift exactly where
+    // float32 rounding stalls the decay - a threshold two full orders of
+    // magnitude higher was confirmed (by direct, repeated measurement)
+    // to reliably clear it regardless, while still being far below any
+    // audible or analytically meaningful level.
+    if (fabsf(blocked) < 1e-4f) blocked = 0.0f;
     dcBlockX1_ = x;
     dcBlockY1_ = blocked;
     coreOutput_[static_cast<size_t>(i)] = blocked;

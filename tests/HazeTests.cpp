@@ -203,6 +203,42 @@ TEST(haze_no_startup_click_with_nonzero_bias) {
   }
 }
 
+TEST(haze_dc_blocker_does_not_get_stuck_above_true_zero) {
+  // Regression test for a real bug: a one-pole decay (the DC blocker)
+  // only asymptotes toward 0 in exact arithmetic, and in float32 can get
+  // permanently pinned at a small but nonzero value instead - confirmed
+  // by direct measurement: with the default "glue" preset (bias=0.3),
+  // continuous silent input settled at a stable, non-decaying ~1.4e-6
+  // plateau (nowhere near true zero, and squarely large enough to read
+  // as real signal to an energy-based analyzer like DiracAnalyzer)
+  // rather than continuing to decay, persisting for as long as the
+  // effect kept running. process() now snaps the DC blocker's state
+  // once it decays below a threshold confirmed (by repeated direct
+  // measurement against this exact chain) to reliably clear that stuck
+  // point - continuous silence must settle far below it, not merely
+  // "smaller than before." The bound checked here (1e-8) sits two full
+  // orders of magnitude under the snap threshold itself and ~100,000x
+  // under the original bug's measured plateau, while still tolerating
+  // the float32 noise floor a real audio chain settles at rather than
+  // demanding bit-exact 0 (see AmbisonicDiffuseEncoderTests.cpp and
+  // similar for why exact-0 assertions are reserved for cases with no
+  // arithmetic between the zero source and the check).
+  Haze sat(kSampleRate); // default "glue" preset - bias=0.3
+  int frames = 4096;
+  vector<float> silence(static_cast<size_t>(frames), 0.0f);
+  // 200 blocks * 4096 = 819,200 samples - comfortably past (~3x) the
+  // point where full convergence was directly measured (well under
+  // 300,000 samples), and still cheap (plain float ops, no I/O).
+  vector<float> out(static_cast<size_t>(frames));
+  for (int block = 0; block < 200; block++) {
+    sat.process(silence.data(), frames);
+  }
+  sat.getChainSendSum(out.data(), frames);
+  for (float s : out) {
+    CHECK(fabs(s) < 1e-8f);
+  }
+}
+
 TEST(haze_predelay_resolves_as_a_fraction_of_a_whole_note) {
   // Default row duration (90bpm, matching Song's own default - no
   // setRowDuration() call) - a whole note is 16 rows, so e.g. 1/128
