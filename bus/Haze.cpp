@@ -254,6 +254,32 @@ Haze::setParameters(float driveDb, SaturatorShape shape, float bias, float hpfHz
 
   predelayDivision_ = predelay;
   recomputePredelaySamples();
+
+  // Warm up the whole downstream chain (oversampler/decimator FIR
+  // history, DC blocker) against silence before any real audio reaches
+  // it. Whenever bias > 0, literal silence still resolves to a real,
+  // nonzero steady-state DC term inside the shaper (see applyShape()'s
+  // own comment) - every piece of state between the shaper and the
+  // output (the halfband chain's own zero-initial history, the DC
+  // blocker) starts cold and has to settle into that new steady state,
+  // and letting that settling happen against real audio produces a
+  // genuine, audible broadband transient right at the start of playback
+  // (confirmed by direct measurement: silence in, ~0.2 amplitude two
+  // samples later, with the default "glue" preset - an analytically
+  // pre-seeded DC-blocker state alone isn't enough, since the halfband
+  // chain's own settling reaches the blocker gradually, not as an
+  // already-converged constant). kWarmUpFrames comfortably exceeds both
+  // the halfband chain's own settle time and the longest possible
+  // pre-delay, so the pre-delay line's ring buffer has fully cycled past
+  // whatever transient this writes into it too. Harmless to repeat on
+  // every setParameters() call (including a live preset switch, not just
+  // construction) - this class already snaps every other coefficient
+  // instantly with no smoothing, so a settle-again moment here is no new
+  // kind of artifact, and avoiding it would need tracking "is this really
+  // the first call" state for no real benefit.
+  constexpr int kWarmUpFrames = 4096;
+  std::vector<float> silence(static_cast<size_t>(kWarmUpFrames), 0.0f);
+  process(silence.data(), kWarmUpFrames);
 }
 
 void

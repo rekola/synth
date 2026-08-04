@@ -167,22 +167,39 @@ TEST(haze_all_shapes_produce_finite_bounded_output) {
 }
 
 TEST(haze_silence_in_is_silence_out) {
-  // bias=0 specifically: a nonzero bias deliberately injects DC into the
-  // shaper (that's how it raises even-order content - see applyShape()'s
-  // own comment) even when the actual input is silent, which process()'s
-  // DC blocker only removes gradually (its pole is close to 1, a
-  // multi-thousand-sample settle) - a real, expected consequence of that
-  // design, not something a short silence-in/silence-out check should
-  // trip over. At bias=0 there's no DC to inject in the first place, so
-  // silence really does stay silence, exactly, sample for sample (every
-  // stage - biquads, oversampler, DC blocker - starts with zero state and
-  // 0 * anything is still 0).
+  // bias=0 specifically: with no DC injected into the shaper at all,
+  // every stage (biquads, oversampler, DC blocker) starts and stays at
+  // exactly zero for exactly-zero input, so this is the one case that
+  // can assert an exact (not just small) zero.
   Haze sat(kSampleRate);
   sat.setParameters(9.0f, SaturatorShape::Tanh, 0.0f, 200.0f, 5000.0f, 0.0f, 0.0f, HazePreDelayDivision::OneOver128, 1.0f);
   vector<float> silence(4096, 0.0f);
   auto out = run(sat, silence);
   for (float s : out) {
     CHECK_NEAR(s, 0.0f, 1e-6f);
+  }
+}
+
+TEST(haze_no_startup_click_with_nonzero_bias) {
+  // A nonzero bias deliberately injects DC into the shaper (that's how it
+  // raises even-order content - see applyShape()'s own comment), so
+  // literal silence still resolves to a real, nonzero steady-state DC
+  // term inside the shaper. Regression test for a real bug: setParameters()
+  // used to leave every downstream stage (the oversampler/decimator's own
+  // FIR history, the DC blocker) at cold zero state, so the first block
+  // of real (even silent) audio after construction/a preset change forced
+  // all of that state to settle from scratch - audible as a sharp,
+  // unprompted click (measured: silence in, ~0.2 amplitude within two
+  // samples, with the default "glue" preset) rather than the small,
+  // gradual DC-blocker residual settling itself would produce on its own.
+  // setParameters() now warms the whole chain up against silence before
+  // any real audio reaches it, so this must stay small and bounded from
+  // sample 0 - not just eventually converge.
+  Haze sat(kSampleRate); // default "glue" preset - bias=0.3
+  vector<float> silence(64, 0.0f);
+  auto out = run(sat, silence);
+  for (float s : out) {
+    CHECK(fabs(s) < 0.01f);
   }
 }
 
