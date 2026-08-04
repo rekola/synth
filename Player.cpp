@@ -57,7 +57,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	    auto & pattern = song.getPattern(pattern_idx);
 
 	    if (ev.getType() == PlaybackControlEvent::PLAY_NOTE) {
-	      auto tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
+	      auto tuning = (track->getType() == TrackType::PERCUSSION_CONTROL || track->getType() == TrackType::DRUM_MACHINE) ? Tuning::PERCUSSION : song.getTuning();
 	      Note note(midi_note, midi_velocity);
 	      auto frequency = Tuner::getFrequency(tuning, note);
 
