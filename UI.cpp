@@ -229,57 +229,38 @@ UI::handlePlaybackEvent(PlaybackEvent & ev) {
   if (launchpad_manager_) launchpad_manager_->onRowAdvanced(getController());
   if (pattern_editor_) pattern_editor_->onRowAdvanced(getController());
 
-  // If a newer PlaybackEvent is already queued behind this one, this one's
-  // visual result is about to be immediately overwritten - skip the
-  // comparatively expensive chart/meter update work for it. Doesn't change
-  // what eventually gets rendered (the last event in a batch always won
-  // anyway, via plain overwrite); it only avoids redoing that work once per
-  // superseded event during a catch-up burst, so the app catches up faster
-  // instead of falling further behind.
-  bool superseded = getController().getUIEventQueue().hasEvents();
-  if (!superseded) {
-    // Raw, pre-mixdown per-channel levels (ambisonic bus, then always
-    // AuxA/AuxB last - see Player.cpp/SongState::render()) rather than
-    // the final decoded L/R output. Always fills the full fixed-size
-    // domain (kMaxMeterChannels - the order-3-ambisonic+2-aux max),
-    // padding with silence past the current config's real channel count -
-    // matching displayFFT()'s own always-fill-the-whole-domain contract
-    // (handleVisualizationResultEvent(), below - FFT results arrive via a
-    // separate event/handler from VisualizationThread, its own dedicated
-    // analysis thread; see VisualizationThread.h) (every index, every
-    // call). Feeding a varying, sometimes-shorter range confused the
-    // underlying plot's own domain/alignment
-    // (bars for a smaller config visibly started mid-width instead of at
-    // column 0, out of step with the legend) - a fixed domain avoids that.
-    //
-    // Only for events that actually carry loudness data - Player.cpp also
-    // pushes info-only PlaybackEvents (song-position sync, no rendering
-    // happened) with empty getChannelLoudness()/getMeterLabel(). If one of
-    // those reached the meter first, its empty label would get "locked in"
-    // by TerminalChart's lazy plot creation (which decides whether to
-    // reserve a row for the label the first time setSample() is EVER
-    // called) before any real label ever had a chance to - permanently
-    // losing the reserved row for the whole session.
-    auto & levels = ev.getChannelLoudness();
-    if (!levels.empty()) {
-      volume_meter_->setFooterLabel(ev.getMeterLabel());
-      for (size_t i = 0; i < kMaxMeterChannels; i++) {
-        volume_meter_->setSample(static_cast<int>(i), i < levels.size() ? levels[i] : 0.0);
-      }
-      volume_meter_->commit(); // chart_'s own commit() already runs inside displayFFT()
-    }
-  }
-
   ev.redraw();
 }
 
 void
 UI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
-  // Same superseded-skip reasoning as handlePlaybackEvent() above - both
-  // share ui_event_queue, so a still-queued event behind this one means
-  // this one's visual result is about to be overwritten anyway.
+  // If a newer event is already queued behind this one, this one's visual
+  // result is about to be immediately overwritten - skip the
+  // comparatively expensive chart/meter update work for it. Doesn't
+  // change what eventually gets rendered (the last event in a batch
+  // always wins anyway, via plain overwrite); it only avoids redoing that
+  // work once per superseded event during a catch-up burst, so the app
+  // catches up faster instead of falling further behind.
   bool superseded = getController().getUIEventQueue().hasEvents();
   if (!superseded) {
+    // Raw, pre-mixdown per-channel levels (ambisonic bus, then always
+    // AuxA/AuxB last - see VisualizationThread.cpp) rather than the final
+    // decoded L/R output. Always fills the full fixed-size domain
+    // (kMaxMeterChannels - the order-3-ambisonic+2-aux max), padding with
+    // silence past the current config's real channel count - matching
+    // displayFFT()'s own always-fill-the-whole-domain contract below
+    // (every index, every call). Feeding a varying, sometimes-shorter
+    // range confused the underlying plot's own domain/alignment (bars
+    // for a smaller config visibly started mid-width instead of at
+    // column 0, out of step with the legend) - a fixed domain avoids
+    // that.
+    auto & levels = ev.getChannelLoudness();
+    volume_meter_->setFooterLabel(ev.getMeterLabel());
+    for (size_t i = 0; i < kMaxMeterChannels; i++) {
+      volume_meter_->setSample(static_cast<int>(i), i < levels.size() ? levels[i] : 0.0);
+    }
+    volume_meter_->commit();
+
     if (!ev.getFFT().empty()) {
       chart_->displayFFT(ev.getFFT());
     }
@@ -485,7 +466,7 @@ UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launc
   startUI(audio, launchpad_io);
 
   getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::TERMINATE));
-  getController().getVisualizationQueue().push(make_unique<AudioBlockEvent>(SampleData(), SampleData()));
+  getController().getVisualizationQueue().push(make_unique<AudioBlockEvent>(SampleData(), SampleData(), SampleData(), SampleData()));
 
   audio_thread.join();
   visualization_thread.join();

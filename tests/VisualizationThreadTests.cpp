@@ -31,7 +31,7 @@ TEST(visualization_thread_audio_block_event_produces_fft_result) {
   // safe, deliberate no-op for DiracAnalyzer::process() (0 frames, nothing
   // to accumulate), same as the terminate sentinel's empty master below
   // just for a different field.
-  AudioBlockEvent ev(std::move(master), SampleData());
+  AudioBlockEvent ev(std::move(master), SampleData(), SampleData(), SampleData());
   thread.handleAudioBlockEvent(ev);
 
   // EventQueue::hasEvents() only reflects bytes already read off the
@@ -63,13 +63,94 @@ TEST(visualization_thread_dirac_grid_delivered_after_throttle_threshold) {
     raw_bus.getChannelData(0)[i] = sinf(static_cast<float>(i) * 0.05f);
   }
 
-  AudioBlockEvent ev(std::move(master), std::move(raw_bus));
+  AudioBlockEvent ev(std::move(master), std::move(raw_bus), SampleData(), SampleData());
   thread.handleAudioBlockEvent(ev);
 
   auto result_event = controller.getUIEventQueue().pop();
   auto * result = dynamic_cast<VisualizationResultEvent *>(result_event.get());
   CHECK(result != nullptr);
   if (result) CHECK(result->hasDiracGrid());
+}
+
+TEST(visualization_thread_computes_channel_loudness_and_meter_label) {
+  Controller controller{ChannelConfiguration()};
+  VisualizationThread thread(&controller);
+  // A tiny block (well under both the FFT window and DiracAnalyzer's own
+  // 1024-sample accumulation threshold) isolates the loudness path from
+  // the FFT/DirAC ones - this event carries no FFT/DirAC payload at all.
+  thread.configure(3000, 256);
+
+  int frames = 4;
+  SampleData master(2, frames);
+  master.zero();
+
+  SampleData raw_bus(4, frames); // order-1 ambisonic - 4 regular channels (already even)
+  for (int c = 0; c < 4; c++) {
+    auto data = raw_bus.getChannelData(c);
+    for (int i = 0; i < frames; i++) data[i] = static_cast<float>(c + 1) * 0.5f; // distinct constant per channel
+  }
+  SampleData aux_a(1, frames);
+  for (int i = 0; i < frames; i++) aux_a.getChannelData(0)[i] = 0.25f;
+  SampleData aux_b(1, frames);
+  for (int i = 0; i < frames; i++) aux_b.getChannelData(0)[i] = 0.75f;
+
+  AudioBlockEvent ev(std::move(master), std::move(raw_bus), std::move(aux_a), std::move(aux_b));
+  thread.handleAudioBlockEvent(ev);
+
+  auto result_event = controller.getUIEventQueue().pop();
+  auto * result = dynamic_cast<VisualizationResultEvent *>(result_event.get());
+  CHECK(result != nullptr);
+  if (!result) return;
+
+  // SampleData::calculateLoudness() is sqrt(sum of squares), not divided
+  // by frame count - a constant channel of value c over `frames` samples
+  // gives c*sqrt(frames).
+  auto & levels = result->getChannelLoudness();
+  CHECK(levels.size() == 6); // 4 regular (no padding needed) + auxA + auxB
+  for (int c = 0; c < 4; c++) {
+    float expected = static_cast<float>(c + 1) * 0.5f * sqrtf(static_cast<float>(frames));
+    CHECK_NEAR(levels[static_cast<size_t>(c)], expected, 0.001f);
+  }
+  CHECK_NEAR(levels[4], 0.25f * sqrtf(static_cast<float>(frames)), 0.001f);
+  CHECK_NEAR(levels[5], 0.75f * sqrtf(static_cast<float>(frames)), 0.001f);
+
+  CHECK(result->getMeterLabel() == "M4A");
+}
+
+TEST(visualization_thread_channel_loudness_pads_odd_regular_count_before_aux) {
+  Controller controller{ChannelConfiguration()};
+  VisualizationThread thread(&controller);
+  thread.configure(3000, 256);
+
+  int frames = 2;
+  SampleData master(2, frames);
+  master.zero();
+
+  SampleData raw_bus(9, frames); // order-2 ambisonic - 9 regular channels (odd)
+  for (int c = 0; c < 9; c++) {
+    auto data = raw_bus.getChannelData(c);
+    for (int i = 0; i < frames; i++) data[i] = 1.0f;
+  }
+  SampleData aux_a(1, frames);
+  aux_a.zero();
+  SampleData aux_b(1, frames);
+  aux_b.zero();
+
+  AudioBlockEvent ev(std::move(master), std::move(raw_bus), std::move(aux_a), std::move(aux_b));
+  thread.handleAudioBlockEvent(ev);
+
+  auto result_event = controller.getUIEventQueue().pop();
+  auto * result = dynamic_cast<VisualizationResultEvent *>(result_event.get());
+  CHECK(result != nullptr);
+  if (!result) return;
+
+  // 9 regular channels, padded to 10 with a trailing silent slot (the
+  // braille meter packs 2 samples/column, so AuxA/AuxB must start at an
+  // even index), then auxA and auxB.
+  auto & levels = result->getChannelLoudness();
+  CHECK(levels.size() == 12);
+  CHECK_NEAR(levels[9], 0.0f, 0.0001f); // the padding slot
+  CHECK(result->getMeterLabel() == "M1-9 A");
 }
 
 TEST(visualization_thread_terminate_sentinel_produces_no_result) {
@@ -80,7 +161,7 @@ TEST(visualization_thread_terminate_sentinel_produces_no_result) {
   VisualizationThread thread(&controller);
   thread.configure(3000, 256);
 
-  AudioBlockEvent terminate_ev{SampleData(), SampleData()};
+  AudioBlockEvent terminate_ev{SampleData(), SampleData(), SampleData(), SampleData()};
   thread.handleAudioBlockEvent(terminate_ev);
 
   CHECK(!controller.getUIEventQueue().hasEvents());

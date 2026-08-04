@@ -243,77 +243,33 @@ Player::play(AudioAPI & audio) {
 	    audio.play(master, logger);
 
 	    auto ev = createPlaybackEvent(*song, state_);
-
-	    // Raw, pre-mixdown per-channel loudness for the UI's volume meter -
-	    // the ambisonic bus (whatever regular channel count is active),
-	    // then always AuxA/AuxB last (see SongState::render()'s
-	    // aux_a_sum_/aux_b_sum_).
-	    auto channel_loudness = mixer->getRawBus().calculateLoudness();
-
-	    // Meter legend - each *character* lines up with one meter *column*
-	    // (2 samples/braille-column), so the label reads as an actual
-	    // legend for the bars beneath it rather than just a compact tag:
-	    // the "A" for AuxA/AuxB is always placed at the exact column
-	    // index where the aux channels themselves start (padded with
-	    // spaces to get there), never just appended to the end of the
-	    // text. There is no plain-stereo config any more
-	    // (ChannelConfiguration::STEREO was removed - every config is MONO
-	    // or AMBISONIC), so there's no "2 regular channels" case to label
-	    // here.
-	    //
-	    // "M" always marks where the Main (regular/ambisonic) channels
-	    // start, "A" where AuxA/AuxB start - never "A" for both meanings
-	    // in the same label. mono+aux (1 regular -> padded to 2 -> 1 col,
-	    // then aux -> col 1): "M" (mono) + "A" (aux, col 1) = "MA".
-	    // Order-1 ambisonic (4 regular -> 2 cols, then aux -> col 2): "M4"
-	    // (Main, 4 channels) + "A" (col 2) = "M4A". Order-2 (9 regular,
-	    // odd -> padded to 10 -> 5 cols, then aux -> col 5): "M1-9" + " "
-	    // (col 4) + "A" (col 5) = "M1-9 A". Order-3 (16 regular, even ->
-	    // 8 cols, then aux -> col 8): "M1-16" + 3 spaces (cols 5-7) + "A"
-	    // (col 8) = "M1-16   A".
-	    switch (channel_loudness.size()) {
-	    case 1: ev->setMeterLabel("MA"); break;
-	    case 4: ev->setMeterLabel("M4A"); break;
-	    case 9: ev->setMeterLabel("M1-9 A"); break;
-	    case 16: ev->setMeterLabel("M1-16   A"); break;
-	    default: ev->setMeterLabel(""); break;
-	    }
-
-	    // Pad to an even count before appending AuxA/AuxB - the braille
-	    // meter packs 2 samples per character cell, so the aux channels
-	    // only land together in the *same* cell (rather than the last
-	    // regular channel pairing with AuxA, leaving AuxB alone) when they
-	    // start at an even index. Order-2 ambisonic (9, odd) needs this;
-	    // stereo (2) and order-1 ambisonic (4) are already even.
-	    if (channel_loudness.size() % 2 == 1) channel_loudness.push_back(0.0f);
-
-	    auto aux_a = state_.getAuxASum().calculateLoudness();
-	    auto aux_b = state_.getAuxBSum().calculateLoudness();
-	    channel_loudness.insert(channel_loudness.end(), aux_a.begin(), aux_a.end());
-	    channel_loudness.insert(channel_loudness.end(), aux_b.begin(), aux_b.end());
-	    ev->setChannelLoudness(std::move(channel_loudness));
-
 	    controller_->getUIEventQueue().push(move(ev));
 
-	    // Hand master and the raw bus's first up to 4 channels (W/Y/Z/X,
-	    // ACN order) off to VisualizationThread - its own dedicated
-	    // thread, decoupled from both this real-time audio thread and the
-	    // UI thread (see VisualizationThread.h) - for spectrum-FFT and
-	    // DirAC directional analysis respectively; neither belongs on
-	    // this thread. master is moved, not copied (it's already this
-	    // block's own independently-owned SampleData, straight from
-	    // mixer->encode() above); the raw-bus channels genuinely are
-	    // copied, since mixer->getRawBus() is a reference into the
-	    // mixer's own persistent buffer, overwritten next block.
+	    // Hand master, the full raw ambisonic bus, and the two aux sums
+	    // off to VisualizationThread - its own dedicated thread, decoupled
+	    // from both this real-time audio thread and the UI thread (see
+	    // VisualizationThread.h) - for spectrum-FFT, DirAC directional
+	    // analysis, and the raw-channel volume meter's loudness scan
+	    // respectively (see AudioBlockEvent.h and
+	    // VisualizationThread::handleAudioBlockEvent()); none of that
+	    // DSP-shaped work belongs on this real-time thread. master is
+	    // moved, not copied (it's already this block's own
+	    // independently-owned SampleData, straight from mixer->encode()
+	    // above); the raw bus and aux sums genuinely are copied, since
+	    // mixer->getRawBus()/state_.getAuxASum()/getAuxBSum() are
+	    // references into persistent buffers, overwritten next block. The
+	    // raw bus is copied in full (not capped to DirAC's own 4-channel
+	    // need - DiracAnalyzer.cpp already caps itself internally) since
+	    // the volume meter needs every channel.
 	    auto & raw_bus = mixer->getRawBus();
-	    int dirac_channels = raw_bus.numberOfChannels() < 4 ? raw_bus.numberOfChannels() : 4;
-	    SampleData dirac_bus(static_cast<short>(dirac_channels), raw_bus.numberOfFrames());
-	    for (int c = 0; c < dirac_channels; c++) {
+	    SampleData raw_bus_copy(raw_bus.numberOfChannels(), raw_bus.numberOfFrames());
+	    for (int c = 0; c < raw_bus.numberOfChannels(); c++) {
 	      auto src = raw_bus.getChannelData(c);
-	      auto dst = dirac_bus.getChannelData(c);
+	      auto dst = raw_bus_copy.getChannelData(c);
 	      for (int i = 0; i < raw_bus.numberOfFrames(); i++) dst[i] = src[i];
 	    }
-	    controller_->getVisualizationQueue().push(make_unique<AudioBlockEvent>(move(master), move(dirac_bus)));
+	    controller_->getVisualizationQueue().push(make_unique<AudioBlockEvent>(
+	      move(master), move(raw_bus_copy), state_.getAuxASum(), state_.getAuxBSum()));
 	  } else if (i - 1 - num_playback_desc < num_capture_desc) {
 	    auto data = audio.record(logger);
 	    controller_->getUIEventQueue().push(make_unique<RecordEvent>(data));
