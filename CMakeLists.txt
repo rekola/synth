@@ -64,6 +64,8 @@ add_library(synth_engine STATIC
 	bus/MultiTapDelay.cpp
 	bus/GranularCloud.cpp
 	bus/SendBusProcessor.cpp
+	bus/Haze.cpp
+	AmbisonicDiffuseEncoder.cpp
 	effects/Amplifier.cpp
 	effects/EnvelopeFilter.cpp
 	effects/Compressor.cpp

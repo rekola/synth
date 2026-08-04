@@ -775,6 +775,41 @@ TEST(render_send_b_produces_audible_delay_echo) {
   CHECK(with_tail > without_tail * 10.0f);
 }
 
+TEST(render_haze_produces_audible_diffuse_bed) {
+  // haze_oscilator.xml is identical to center_note.xml except for
+  // sendB="0.5" on its one track and a <haze preset="crunch"/> occupying
+  // slot B instead of the default delay - end-to-end coverage for
+  // plans/drum-bus-saturator.md's whole feature (drive/shape/bias/
+  // bandpass/oversample/tilt/auto-gain/pre-delay/diffuse-encode), not a
+  // re-check of any one stage's own already-covered math (see
+  // HazeTests.cpp/AmbisonicDiffuseEncoderTests.cpp/HalfbandFilterTests.cpp
+  // for that). Same methodology as render_send_b_produces_audible_delay_echo.
+  auto with_send = loadFixture("haze_oscilator.xml");
+  auto without_send = loadFixture("center_note.xml");
+  CHECK(with_send.ok);
+  CHECK(without_send.ok);
+
+  ChannelConfiguration config(44100, 3); // 3rd order - exercises all 16 channels
+  auto result_with = renderSongOffline(with_send.song, config);
+  auto result_without = renderSongOffline(without_send.song, config);
+  CHECK(!hasNonFiniteSample(result_with));
+  CHECK(!hasNonFiniteSample(result_without));
+
+  // Same envelope as every other fixture here - fully silent by ~0.66s -
+  // a window well past that isolates Haze's diffuse return (delayed by
+  // `crunch`'s 1/128 predelay, ~16ms at this fixture's 120bpm tempo) from
+  // the dry note.
+  auto tailRms = [&](const OfflineRenderResult & result) {
+    return windowedRms(result, 0, 0.7f, 1.0f) + windowedRms(result, 1, 0.7f, 1.0f);
+  };
+
+  auto with_tail = tailRms(result_with);
+  auto without_tail = tailRms(result_without);
+
+  CHECK(with_tail > 1e-4f);
+  CHECK(with_tail > without_tail * 10.0f);
+}
+
 TEST(render_sf2_reverb_send_produces_audible_tail) {
   // Real SF2 send data, not a user-configured sendA - skips gracefully if
   // no system GM soundfont is present. "Glockenspiel" (a bell-like patch

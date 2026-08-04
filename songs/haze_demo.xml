@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="12edo" tempo="120" volume="1.0" randomization="0">
+  <bus>
+    <none/>
+    <haze preset="crunch" sendB="0.7"/>
+  </bus>
+  <instruments>
+    <envelope attack="0.001" hold="0" decay="0.12" sustain="0" release="0.02" name="Kick">
+      <oscilator type="sine"/>
+    </envelope>
+    <envelope attack="0.001" hold="0" decay="0.09" sustain="0" release="0.02" name="Snare">
+      <oscilator type="square"/>
+    </envelope>
+    <envelope attack="0.001" hold="0" decay="0.03" sustain="0" release="0.01" name="Hat">
+      <oscilator type="triangle" harmonic="3"/>
+    </envelope>
+  </instruments>
+  <tracks>
+    <track id="kick" instrument="0" sendB="0.7"/>
+    <track id="snare" instrument="1" sendB="0.7"/>
+    <track id="hat" instrument="2" sendB="0.5"/>
+  </tracks>
+  <patterns>
+    <pattern rows="16">
+      <note row="0" track="kick" velocity="120">C-3</note>
+      <note row="4" track="snare" velocity="100">C-3</note>
+      <note row="8" track="kick" velocity="120">C-3</note>
+      <note row="10" track="kick" velocity="90">C-3</note>
+      <note row="12" track="snare" velocity="100">C-3</note>
+      <note row="0" track="hat" velocity="70">C-5</note>
+      <note row="2" track="hat" velocity="60">C-5</note>
+      <note row="4" track="hat" velocity="70">C-5</note>
+      <note row="6" track="hat" velocity="60">C-5</note>
+      <note row="8" track="hat" velocity="70">C-5</note>
+      <note row="10" track="hat" velocity="60">C-5</note>
+      <note row="12" track="hat" velocity="70">C-5</note>
+      <note row="14" track="hat" velocity="60">C-5</note>
+    </pattern>
+  </patterns>
+</song>

@@ -2,6 +2,7 @@
 #define _PARAMETERSOURCE_H_
 
 #include <cmath>
+#include <cstdlib>
 #include <string>
 #include <memory>
 #include <unordered_map>
@@ -61,5 +62,22 @@ class ParameterSource {
 private:
   std::shared_ptr<std::unordered_map<std::string, int>> id_mapping_;
 };
+
+// Accepts either a plain decimal ("0.1875") or a fraction ("3/16") - both
+// spellings of the same unit, the fraction form purely for hand-edited
+// XML readability - a row-fraction/division attribute is always written
+// back as a plain decimal (see the caller's own storeParameters()).
+// Shared by bus/MultiTapDelay.cpp's baseRows and bus/Haze.h's predelay
+// division, rather than each keeping its own copy - the two attributes
+// mean different things (a continuous row-fraction vs. a snapped-to-one-
+// of-three division) but parse the same textual shape.
+inline float parseFraction(const std::string & text, float default_value) {
+  if (text.empty()) return default_value;
+  auto slash = text.find('/');
+  if (slash == std::string::npos) return strtof(text.c_str(), nullptr);
+  float numerator = strtof(text.substr(0, slash).c_str(), nullptr);
+  float denominator = strtof(text.substr(slash + 1).c_str(), nullptr);
+  return denominator != 0.0f ? numerator / denominator : default_value;
+}
 
 #endif

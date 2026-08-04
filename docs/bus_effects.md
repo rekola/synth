@@ -227,6 +227,106 @@ GranularEngine.cpp`'s own catch-up-floor logic) - so the *effective* scan
 window for those grains is closer to ~20ms than 5ms. This is expected,
 safe behavior, not a bug.
 
+## `<haze>` - ambisonic bus saturator
+
+Distorts whatever reaches this slot (typically a drum kit's sendB sum)
+and returns it as a fully diffuse, tempo-delayed bed rather than a
+localized source - the return has no direction at all, only presence,
+which is why it's built to layer under an already-panned dry mix instead
+of competing with it for space. Distortion itself only ever happens on
+the mono signal, before it's spread across the 16 spherical-harmonic
+channels - see `AmbisonicDiffuseEncoder.h`'s own doc comment for why a
+per-channel nonlinearity can't produce this (it would make a source's
+apparent direction wander with its own harmonics).
+
+| Attribute | Range | Meaning |
+|---|---|---|
+| `drive` | 0-36dB | Pre-shaper gain. |
+| `shape` | `tanh`/`asym`/`softclip`/`fold` | Waveshaper curve - see below. |
+| `bias` | 0.0-1.0 | DC offset into the shaper - raises even-order (warmer) harmonic content. |
+| `hpf` | 20-1000Hz | Pre-distortion high-pass - keeps the shaper from ever seeing content below this. |
+| `lpf` | 1000-16000Hz | Pre-distortion low-pass - same, for content above. |
+| `tilt` | ±12dB | Post-shaper spectral tilt, pivoting at 1kHz (positive = brighter). |
+| `trim` | ±12dB | Output-level offset, applied after the automatic gain compensation below - always defaults to 0dB regardless of preset. |
+| `predelay` | `1/256`/`1/128`/`1/64` | Tempo-synced offset before the diffuse encode - a note-division fraction of a whole note (not a row), clamped to roughly 4-40ms so extreme tempos degrade gracefully. |
+| `diffusion` | 0.0-1.0 | 0 = centered (W-only), 1 = fully isotropic - see below. |
+
+Unlike every other attribute here, `drive` never changes the return's
+loudness by itself: an automatic gain stage (calibrated once per
+`shape`/`drive`/`bias` combination, not a live level follower) keeps
+output level roughly constant as `drive` rises, so raising it changes
+character - more harmonic content - without also changing how loud the
+return is. `trim` is the one attribute meant for correcting whatever
+small level difference remains by ear.
+
+**Live control**: how much signal reaches this slot in the first place is
+the per-track `sendB` fader (Launchpad Send B), already generic to every
+bus effect - nothing here adds a second, saturator-specific live control.
+Every attribute above is preset/song-file only, the same as every other
+bus effect's own knobs (`<reverb>`'s `size`/`decay`/..., `<delay>`'s
+`baseRows`/`feedback`/...).
+
+**Waveshapes**: `tanh` is a smooth, symmetric curve - clean saturation,
+mostly odd-order harmonics unless `bias` is raised. `asym` shapes the
+positive and negative halves of the signal differently, generating
+stronger even-order content than `tanh` at the same `bias`. `softclip` is
+a harder cubic curve - more aggressive, more high-order content as
+`drive` rises. `fold` reflects the signal back on itself instead of
+clipping it, so it's not monotonic in level - the loudest, most obviously
+"broken" option, and the only one that runs extra internal oversampling
+to keep its denser harmonic series from aliasing.
+
+**`diffusion`** doesn't crossfade a direct copy of the signal against a
+decorrelated one - that would comb at in-between settings, since it'd be
+summing two versions of the same signal differing only in phase. Every
+channel, including W, is always routed through its own decorrelator; at
+`diffusion=0` only W's decorrelated output actually contributes anything
+(a centered, non-directional return), and raising `diffusion` fades the
+higher spherical-harmonic orders in - degree 3 first, then 2, then 1 -
+so the field expands outward smoothly rather than snapping between "a
+point" and "everywhere."
+
+**`predelay`** exists so the dry attack always establishes the source's
+position first: precedence means a listener localizes toward whichever
+copy of a sound arrives *first*, so a few milliseconds of offset keeps
+the diffuse return from smearing the kit's imaging even at high send
+levels, decouples the wet fundamental's phase from the dry signal's (so
+it doesn't shift audibly as `drive` changes), and gives percussive
+material a pure-dry attack with the saturation arriving just behind it as
+body.
+
+Presets:
+
+- **glue** (default, no `preset` needed) - gentle `tanh` at low drive, a
+  touch of `bias` for warmth, narrow-ish band so kick fundamentals and
+  cymbal top never reach the shaper, full diffusion. Meant to be felt more
+  than heard - thickens a kit without visibly changing it.
+- **body** - `asym` on the low band alone, `diffusion=0` (deliberately
+  centered - bass has poor directional resolution anyway, so spreading it
+  would just smear). Adds low-frequency harmonics an octave above the
+  kick fundamental, which read as weight on speakers that lose the
+  fundamental itself. The preset most likely to eat headroom - use
+  sparingly.
+- **crunch** - `softclip` at higher drive, a wider band so snare crack and
+  hat transients reach the shaper too, mostly-full diffusion. The loud,
+  obvious one - soft clipping at this drive acts as a fast limiter on
+  transients, so it leans on `predelay` keeping the dry attack intact.
+- **slap** - `asym`, narrow band, `predelay=1/64` (the top of the fusion
+  window) - the wet layer sits between saturation and a short, dark echo,
+  giving hits a trailing shadow rather than simple body. Benefits the most
+  from tempo sync, since the shadow lands on a subdivision instead of
+  arbitrarily.
+- **hash** - `fold` at high drive on a narrow midrange band, shortest
+  `predelay` (fusion, not separation, is the point here). Everything
+  sounds broken by design; at low `sendB` it reads as ring-modulated grit
+  on the kit, at high `sendB` the kit stops sounding like drums.
+- **air** - gentle `tanh`, high band only, no `bias`. The inverse of
+  `body`: adds sheen to cymbals and shakers without ever touching the
+  kit's low end. Short `predelay` is safe here since there's no low
+  content to comb against, and full diffusion matters most in this
+  preset - high-frequency envelopment is where the ear is most sensitive
+  to it.
+
 ## Room coloring and chain send
 
 Both `<delay>` and `<granular>` leave `chainSend` at its shared default
@@ -234,4 +334,7 @@ Both `<delay>` and `<granular>` leave `chainSend` at its shared default
 default - echoes (or grains) happening in the same simulated room as
 everything else, not routed around it. Raise `chainSend` for more of that
 coloring, or set it to `0.0` for a slot B effect that should stay
-completely dry of slot A.
+completely dry of slot A. `<haze>` also uses the shared default, but what
+it sends is the saturated signal from *before* `predelay` and the diffuse
+encode - the same undelayed tap point its own `wet` return is built from,
+not the spread/delayed version that reaches the main mix.

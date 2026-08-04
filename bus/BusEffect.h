@@ -113,6 +113,24 @@ class BusEffect : public SongObject {
   // attributes) - see SongState::initialize()'s load-time wiring.
   virtual void setRowDuration(float rowDurationSeconds) { }
 
+  // Second, parallel output path for effects whose output isn't a set of
+  // point-source taps - see plans/drum-bus-saturator.md. The tap
+  // path above (getNumTaps()/getTap()/getTapDirection(), consumed by
+  // SendBusProcessor via computeAmbisonicGains()) can only ever produce
+  // one mono signal broadcast into every channel at fixed relative gains
+  // for a single direction - coherent by construction, since
+  // computeAmbisonicGains() always gives channel 0 (W) the same gain
+  // regardless of direction. An effect that needs genuinely different,
+  // decorrelated content per channel (AmbisonicDiffuseEncoder) can't be
+  // expressed that way at all, so it writes directly into busAmbisonic's
+  // regular channels here instead, ADDED (not overwritten - SendBusProcessor
+  // zeroes its accumulator once before either slot runs), applying this
+  // instance's own getWetLevel() itself, since the generic tap loop (which
+  // applies wet uniformly) never runs for these channels. Default no-op:
+  // every existing BusEffect (FDNReverb/MultiTapDelay/GranularCloud/
+  // NullBusEffect) is a pure tap producer and needs nothing here.
+  virtual void encodeDirect(SampleData & busAmbisonic, int frames) { }
+
  protected:
   int getSampleRate() const { return sampleRate_; }
 

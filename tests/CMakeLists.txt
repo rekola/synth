@@ -26,6 +26,10 @@ add_executable(synth_tests
 	GranularCloudTests.cpp
 	VisualizationThreadTests.cpp
 	DiracAnalyzerTests.cpp
+	HalfbandFilterTests.cpp
+	AmbisonicDiffuseEncoderTests.cpp
+	SendBusProcessorTests.cpp
+	HazeTests.cpp
 )
 
 target_link_libraries(synth_tests synth_engine)

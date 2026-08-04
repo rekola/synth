@@ -26,22 +26,6 @@ constexpr DelayPattern kDefaultPattern = DelayPattern::Static;
 constexpr float kDefaultPatternSpeed = 18.0f;
 constexpr float kDefaultWet = 0.354f; // -9dB
 
-// Accepts either a plain decimal ("0.1875") or a fraction ("3/16") - both
-// spellings of the same unit (baseRows is a row-count/fraction of a row,
-// always - there's no separate ms mode), the fraction form purely for
-// hand-edited XML readability. Always written back as a plain decimal
-// (see storeParameters()). Same convenience Song.cpp's own (file-local)
-// parse_fraction() offered for the legacy flat delayBaseRows attribute
-// this type's own <delay> element attribute replaces.
-float parse_fraction(const string & text, float default_value) {
-  if (text.empty()) return default_value;
-  auto slash = text.find('/');
-  if (slash == string::npos) return strtof(text.c_str(), nullptr);
-  float numerator = strtof(text.substr(0, slash).c_str(), nullptr);
-  float denominator = strtof(text.substr(slash + 1).c_str(), nullptr);
-  return denominator != 0.0f ? numerator / denominator : default_value;
-}
-
 // baseRows/feedback/damping/pattern/patternSpeed/wet for each named preset
 // (see MultiTapDelayPreset in MultiTapDelay.h) - used both by
 // loadParameters() (as the fallback default for any attribute not
@@ -231,7 +215,7 @@ MultiTapDelay::loadParameters(const ParameterSource & input) {
   PresetValues d = presetValues(preset_);
 
   setParameters(
-    parse_fraction(input.getText("baseRows"), d.baseRows),
+    parseFraction(input.getText("baseRows"), d.baseRows),
     input.getFloat("feedback", d.feedback),
     input.getFloat("damping", d.damping),
     parseDelayPattern(input.has("pattern") ? input.getText("pattern") : to_string(d.pattern)),

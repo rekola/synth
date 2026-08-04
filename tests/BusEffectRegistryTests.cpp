@@ -59,6 +59,12 @@ TEST(bus_effect_registry_resolves_known_names_and_rejects_unknown) {
   CHECK(findBusEffectDescriptor(BusEffectKind::None).kind == BusEffectKind::None);
 }
 
+TEST(bus_effect_registry_resolves_haze) {
+  auto * haze = findBusEffectDescriptor("haze");
+  CHECK(haze && haze->kind == BusEffectKind::Haze);
+  CHECK(findBusEffectDescriptor(BusEffectKind::Haze).kind == BusEffectKind::Haze);
+}
+
 TEST(song_default_bus_has_reverb_in_a_and_delay_in_b) {
   Song song;
   CHECK(song.getBusSlotKind(0) == BusEffectKind::Reverb);

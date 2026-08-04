@@ -29,8 +29,8 @@ class NullBusEffect : public BusEffect {
 // uses for per-track effects/instruments (extensible by code, not by
 // users). `None` is the empty-slot occupant above; the rest are the real
 // bus effects: Reverb (FDNReverb), Delay (MultiTapDelay), Granular
-// (GranularCloud).
-enum class BusEffectKind { None, Reverb, Delay, Granular };
+// (GranularCloud), Haze (bus/Haze.h - the ambisonic bus saturator).
+enum class BusEffectKind { None, Reverb, Delay, Granular, Haze };
 
 struct BusEffectDescriptor {
   BusEffectKind kind;
@@ -45,7 +45,7 @@ struct BusEffectDescriptor {
   // is entirely its own business.
 };
 
-const std::array<BusEffectDescriptor, 4> & busEffectRegistry();
+const std::array<BusEffectDescriptor, 5> & busEffectRegistry();
 
 // Looks up a registry entry by its XML element name; returns nullptr if
 // not found - an unrecognized element name, which callers (Song.cpp) fall
