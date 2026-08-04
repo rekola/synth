@@ -16,8 +16,8 @@ class Mixer;
 
 class Song : public StatefulSongObject {
  public:
-  Song(Tuning tuning = Tuning::TET12, short key = -1, float randomization_factor = 0.01f)
-    : tuning_(tuning), key_note_number_(key), randomization_factor_(randomization_factor) {
+  Song(Tuning tuning = Tuning::TET12, short key = -1)
+    : tuning_(tuning), key_note_number_(key) {
     resetBusToDefaults();
   }
 
@@ -28,10 +28,7 @@ class Song : public StatefulSongObject {
 
   short getKey() const { return key_note_number_; }
   void setKey(int key) { key_note_number_ = key; }
-  
-  float getRandomizationFactor() const { return randomization_factor_; }
-  void setRandomizationFactor(float f) { randomization_factor_ = f; }
-  
+    
   short getTempo() const { return bpm_; }
   void setTempo(short bpm) { bpm_ = bpm; }
 
@@ -200,7 +197,6 @@ class Song : public StatefulSongObject {
 private:
   Tuning tuning_ = Tuning::TET12;
   short key_note_number_ = 0;
-  float randomization_factor_ = 0.0f;
   int bpm_ = 90;
   float ear_height_ = constants::DEFAULT_EAR_HEIGHT;
   bool floor_reflection_enabled_ = constants::DEFAULT_FLOOR_REFLECTION_ENABLED;

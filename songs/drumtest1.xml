@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="100" volume="1.0" randomization="0.0099999998">
+<song temperament="31edo" tempo="100" volume="1.0">
   <instruments>
     <envelope attack="0.01" hold="0" decay="1.17" sustain="0" release="0.231" name="Bell">
       <oscilator type="sine"/>
@@ -26,12 +26,10 @@
   </instruments>
   
   <tracks>
-    <reverb preset="halves">
-      <track id="bell" instrument="0"/>
-      <track id="bass" instrument="2"/>
-      <track id="piano" instrument="4"/>
-      <percussionTrack id="perc" instrument="1" />
-    </reverb>
+    <track id="bell" instrument="0" distance="1" azimuth="-30" />
+    <track id="bass" instrument="2" distance="1" azimuth="30" />
+    <track id="piano" instrument="4" distance="1" azimuth="60" />
+    <percussionTrack id="perc" instrument="1" distance="1" azimuth="90" />
   </tracks>
   
   <patterns>

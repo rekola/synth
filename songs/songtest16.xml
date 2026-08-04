@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="120" volume="1.0" randomization="0.0099999998">
+<song temperament="31edo" tempo="120" volume="1.0">
   <instruments>
     <amplifier name="bass3" gain="-10">
       <envelope attack="0.01" hold="0" decay="1.17" sustain="0" release="0.231">	

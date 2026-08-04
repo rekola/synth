@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="100" volume="1" randomization="0.0099999998" mixer="basic">
+<song temperament="31edo" tempo="100" volume="1">
     <instruments>
-      <genericInstrument name="Piano" volume="1"/>
+      <genericInstrument name="Piano" />
     </instruments>
     <tracks>
-        <track id="0" volume="1" preset="subtle"/>
+        <track id="0" />
     </tracks>
     <patterns>
         <pattern rows="512">

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="120" volume="1.0" randomization="0.0099999998">
+<song temperament="31edo" tempo="120" volume="1.0">
   <instruments>
     <genericInstrument name="Percussion" />
 
@@ -22,31 +22,29 @@
   </instruments>
   
   <tracks>
-    <reverb preset="subtle">
-      <compressor threshold="-24" ratio="12" knee="12" postgain="-3">
-	<amplifier gain="30">
-	  <distortion type="softclip" drive="16">
-	    <percussionTrack id="perc" instrument="0" />
-	  </distortion>
-	</amplifier>
-	
-	<amplifier gain="-10">
-	  <track id="pad" instrument="1" />
-	</amplifier>
-      </compressor>
-
-      <amplifier gain="10">
-	<resonantFilter cut="10000" res="2">
-	  <percussionTrack id="perc2" instrument="0" />
-	</resonantFilter>
+    <compressor threshold="-24" ratio="12" knee="12" postgain="-3">
+      <amplifier gain="30">
+	<distortion type="softclip" drive="16">
+	  <percussionTrack id="perc" instrument="0" />
+	</distortion>
       </amplifier>
-
-      <percussionTrack id="perc3" instrument="0" />
-
-      <track id="chords" instrument="2" />
-
-      <track id="riser" instrument="3" />
-    </reverb>
+	
+      <amplifier gain="-10" azimuth="60">
+	<track id="pad" instrument="1" />
+      </amplifier>
+    </compressor>
+    
+    <amplifier gain="10" distance="1" azimuth="0">
+      <resonantFilter cut="10000" res="2">
+	<percussionTrack id="perc2" instrument="0" />
+      </resonantFilter>
+    </amplifier>
+    
+    <percussionTrack id="perc3" instrument="0" azimuth="+45" distance="1" />
+    
+    <track id="chords" instrument="2" azimuth="-45" distance="1" />
+    
+    <track id="riser" instrument="3" />
   </tracks>
   
   <patterns>

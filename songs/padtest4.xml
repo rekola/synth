@@ -1,13 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song key="C" temperament="31edo" tempo="160" volume="1.0" randomization="0.0099999998">
+<song key="C" temperament="31edo" tempo="160" volume="1.0">
   <instruments>
     <genericInstrument name="Piano" />
 
     <envelope attack="1" release="2" name="padtest0">
       <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
-	<harmonicSeries undertone="0">
-	  <oscilator type="sine" level="0.5"/>
-	</harmonicSeries>
+	<oscilator type="sine" level="0.5"/>
       </resonantFilter>
     </envelope>
 

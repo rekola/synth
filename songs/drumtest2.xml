@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="140" volume="1.0" randomization="0.0099999998">
+<song temperament="31edo" tempo="140" volume="1.0">
   <instruments>
     <envelope attack="0.01" hold="0" decay="1.17" sustain="0" release="0.231" name="Bell">
       <oscilator type="sine"/>

@@ -8,7 +8,7 @@
      voices with real detune (a realistic pad-style spread), saw wave
      (sweetened by the multiplier's own detuning/spread, unlike the plain
      single-voice fixtures where a harsher wave would just sound harsh). -->
-<song temperament="12edo" tempo="120" volume="1.0" randomization="0">
+<song temperament="12edo" tempo="120" volume="1.0">
   <instruments>
     <envelope attack="0.01" hold="0.2" decay="0.1" sustain="0.0" release="0.02">
       <multiply unisons="4" spread="0.5774" detune="20">

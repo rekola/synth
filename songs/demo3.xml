@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="110" randomization="0.0099999998">
+<song temperament="31edo" tempo="110">
   <instruments>
     <genericInstrument name="Pizzicato Strings" />
     <genericInstrument name="Electric Bass (finger)" />

@@ -7,7 +7,7 @@
      wave/single tone: a real reverb's response varies across the
      spectrum, so a broadband source exercises MVerb's actual behavior far
      more representatively than two discrete frequencies would. -->
-<song temperament="12edo" tempo="120" volume="1.0" randomization="0">
+<song temperament="12edo" tempo="120" volume="1.0">
   <instruments>
     <envelope attack="0.02" hold="0.9" decay="0.08" sustain="0.0" release="0.02">
       <noise color="pink"/>

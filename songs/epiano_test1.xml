@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="53edo" tempo="160" randomization="0.0099999998">
+<song temperament="53edo" tempo="160">
   <instruments>
     <amplifier gain="-20">
       <envelope attack="0.05" decay="2.0" sustain="0" release="0.5" name="epiano">

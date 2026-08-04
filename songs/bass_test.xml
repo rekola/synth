@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="150" volume="1.0" randomization="0.0099999998">
+<song temperament="31edo" tempo="150" volume="1.0">
   <instruments>
     <distortion name="bass2" param="1.0" type="softclip" drive="15.0">
       <envelope attack="0.02" hold="0.519" decay="1.35" sustain="0.0" release="0.5">	

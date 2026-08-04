@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song key="C" temperament="31edo" tempo="150" volume="1.0" randomization="0.0099999998">
+<song key="C" temperament="31edo" tempo="150" volume="1.0">
   <instruments>
     <genericInstrument name="Piano" />
 
@@ -13,7 +13,7 @@
 
     <envelope attack="1" release="2" name="simple">
       <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
-	<multiply unisons="32" detune="10" spread="180">
+	<multiply unisons="32" detune="10" spread="7">
 	  <oscilator type="saw" level="0.25" />
 	</multiply>
       </resonantFilter>
@@ -21,13 +21,13 @@
 
     <envelope attack="0.5" release="2" name="simple a">
       <resonantFilter cutmin="550" cutmax="20000" res="0.9">
-	<multiply unisons="32" detune="10" spread="180">
+	<multiply unisons="32" detune="10" spread="7">
 	  <oscilator type="saw" level="0.25" />
 	</multiply>
       </resonantFilter>
     </envelope>
 
-    <multiply unisons="32" detune="10" spread="180" name="Piano group">
+    <multiply unisons="32" detune="10" spread="7" name="Piano group">
       <genericInstrument name="Piano" />
     </multiply>
 
@@ -37,8 +37,8 @@
   <tracks>
     <track id="0" instrument="1" sendA="0.2" azimuth="-60" distance="1" />
     <track id="1" instrument="1" sendA="0.2" azimuth="-30" distance="1" />
-    <track id="2" instrument="2" sendA="0.2" azimuth="0" distance="1" />
-    <track id="3" instrument="3" sendA="0.2" azimuth="30" distance="1" />
+    <track id="2" instrument="2" sendA="0.2" azimuth="0" distance="1" extent="1.5" />
+    <track id="3" instrument="3" sendA="0.2" azimuth="30" distance="1" extent="1.5" />
     <track id="4" instrument="4" sendA="0.2" azimuth="60" distance="1" />
   </tracks>
   

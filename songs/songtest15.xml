@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="100" volume="0.75" randomization="0">
+<song temperament="31edo" tempo="100" volume="0.75">
   <instruments>
     <genericInstrument name="Piano" />   
     
     <envelope attack="0.5" release="2" name="Pads">
       <resonantFilter cut="2200" res="0.5">
-	<multiply unisons="4" detune="5" spread="90">
+	<multiply unisons="4" detune="5" spread="0.67">
 	  <oscilator type="square" level="0.25"/>
 	</multiply>
       </resonantFilter>
@@ -18,7 +18,7 @@
   
   <tracks>
     <track id="chords" instrument="0" volume="4.0" sendA="0.35" sendB="0.5" distance="1" azimuth="-60" />
-    <track id="pad" instrument="1" sendA="0.35" distance="1" azimuth="-30" elevation="45"/>
+    <track id="pad" instrument="1" sendA="0.35" distance="1" azimuth="-30" elevation="45" extent="1.5"/>
     <track id="harp" instrument="2" sendA="0.35" distance="1" azimuth="30"/>
     <percussionTrack id="perc" instrument="3" sendA="0.35" distance="1" azimuth="60" elevation="-45" />
   </tracks>

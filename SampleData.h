@@ -343,8 +343,6 @@ private:
   bool is_solo_ = false;
   float bpm_ = 0.0f;
   bool has_aux_a_ = false, has_aux_b_ = false;
-
-  // ChannelData
 };
 
 #endif

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="100" volume="0.75" randomization="0">
+<song temperament="31edo" tempo="100" volume="0.75" earHeight="1.7" floorReflectionStrength="1.0" groundAbsorption="0">
   <bus>
     <reverb preset="default"/>
     <granular preset="cloud" />
@@ -13,7 +13,7 @@
     
     <envelope attack="0.5" release="2" name="Pads">
       <resonantFilter cut="2200" res="0.5">
-	<multiply unisons="4" detune="5" spread="90">
+	<multiply unisons="4" detune="5" spread="1">
 	  <oscilator type="square" level="0.25"/>
 	</multiply>
       </resonantFilter>
@@ -29,10 +29,10 @@
   </instruments>
   
   <tracks>
-    <track id="guitar" instrument="0" sendA="0.1" sendB="0.1" volume="4.0" azimuth="-45" distance="1.5"/>
-    <track id="pad" instrument="1" sendA="0.1" sendB="0.6" azimuth="0" distance="1.5"/>
-    <track id="harp" instrument="2" sendA="0.1" sendB="0.6" azimuth="45" distance="1.5" elevation="20" />
-    <percussionTrack id="perc" sendA="0.1" sendB="0.0" instrument="5" azimuth="90" distance="1.5" />
+    <track id="guitar" instrument="0" sendA="0.1" sendB="0.1" volume="4.0" azimuth="-45" distance="2"/>
+    <track id="pad" instrument="1" sendA="0.1" sendB="0.6" azimuth="0" distance="5" extent="1.5"/>
+    <track id="harp" instrument="2" sendA="0.1" sendB="0.6" azimuth="0" distance="0.9" />
+    <percussionTrack id="perc" sendA="0.1" sendB="0.0" instrument="5" azimuth="0" distance="0.9" />
   </tracks>
 
   <sections>

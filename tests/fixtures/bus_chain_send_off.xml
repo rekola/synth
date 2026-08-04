@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="12edo" tempo="120" volume="1.0" randomization="0">
+<song temperament="12edo" tempo="120" volume="1.0">
   <bus>
     <reverb decay="3.0"/>
     <delay feedback="0.0" chainSend="0.0"/>

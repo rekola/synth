@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="120" volume="1.0" randomization="0.0099999998">
+<song temperament="31edo" tempo="120" volume="1.0">
   <instruments>
     <envelope attack="0.5" release="2" name="Pads">
       <resonantFilter cut="2200" res="0.5">

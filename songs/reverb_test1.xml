@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="100" volume="0.75" randomization="0.0099999998">
+<song temperament="31edo" tempo="100" volume="0.75">
   <instruments>
     <group name="Melody blocks">
       <envelope attack="0.01" decay="0.5" sustain="0" release="0.5">

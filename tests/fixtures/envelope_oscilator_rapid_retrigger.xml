@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="12edo" tempo="900" volume="1.0" randomization="0">
+<song temperament="12edo" tempo="900" volume="1.0">
   <instruments>
     <envelope attack="0.01" hold="0" decay="1" sustain="0.6" release="0.5">
       <oscilator type="sine"/>

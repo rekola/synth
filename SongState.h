@@ -102,10 +102,9 @@ class SongState : public TrackState {
 		  velocity = note.getVelocityAsFloat();
 		} else if (!note.isOff()) {
 		  frequency = Tuner::getFrequency(tuning, note);
-		  velocity = note.getVelocityAsFloat() * (1 + song.getRandomizationFactor() * getRandF());
+		  velocity = note.getVelocityAsFloat();
 		}
-		float delay = note.getDelayAsFloat() + song.getRandomizationFactor() * getRandF();
-		auto delay_samples = int(delay * getChannelConfiguration().getSampleInterval(tempo_));
+		auto delay_samples = int(note.getDelayAsFloat() * getChannelConfiguration().getSampleInterval(tempo_));
 		int note_value = (note.isAftertouch() || note.isOff()) ? -1 : note.getValue();
 		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), frequency, velocity, note_value);
 	      }

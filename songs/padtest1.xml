@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="100" volume="1.0" randomization="0.0099999998">
+<song temperament="31edo" tempo="100" volume="1.0">
   <instruments>
     <genericInstrument name="Piano" />
 
@@ -13,7 +13,7 @@
 
     <envelope attack="1" release="2" name="simple">
       <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
-	<multiply unisons="32" detune="10" spread="180">
+	<multiply unisons="32" detune="10" spread="7">
 	  <oscilator type="saw" level="0.25" />
 	</multiply>
       </resonantFilter>
@@ -21,7 +21,7 @@
 
     <envelope attack="0.1" decay="0.5" sustain="0.9" release="0.5" name="fast">
       <resonantFilter cut="11000" res="0.5">
-	<multiply unisons="32" detune="10" spread="180">
+	<multiply unisons="32" detune="10" spread="7">
 	  <oscilator type="triangle" level="0.25" />
 	</multiply>
       </resonantFilter>
@@ -69,8 +69,8 @@
   <tracks>
     <track id="0" instrument="0" sendA="0.35" distance="1" azimuth="-90" />
     <track id="1" instrument="1" sendA="0.35" distance="1" azimuth="-45" />
-    <track id="2" instrument="2" sendA="0.35" distance="1" azimuth="45" />
-    <track id="3" instrument="3" sendA="0.35" distance="1" azimuth="90"  />
+    <track id="2" instrument="2" sendA="0.35" distance="1" azimuth="45" extent="1.5" />
+    <track id="3" instrument="3" sendA="0.35" distance="1" azimuth="90" extent="1.5" />
   </tracks>
   
   <patterns>
