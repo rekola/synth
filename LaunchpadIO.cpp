@@ -83,10 +83,23 @@ LaunchpadIO::scanForDevices(Logger & logger) {
 
       // A device may expose more than one ALSA port on the same client
       // (e.g. a separate DAW interface); prefer whichever port isn't the
-      // DAW one. This name-based heuristic needs confirming against real
-      // hardware (see the plan's hardware-validation step) - the vendor
-      // docs don't specify exact ALSA-exposed port name strings.
-      bool is_daw_port = port_name.find("DAW") != string::npos || client_name.find("DAW") != string::npos;
+      // DAW one. Confirmed against real hardware: on a Launchpad X the
+      // port names are short enough to survive intact ("...LPX DAW In" /
+      // "...LPX MIDI In"), but the kernel's snd-usb-audio driver truncates
+      // USB-MIDI jack names to 31 characters, and a Launchpad Mini MK3's
+      // longer names get cut mid-word right there - "...LPMiniMK3 DAW..."
+      // becomes "...LPMiniMK3 DA" and "...LPMiniMK3 MIDI..." becomes
+      // "...LPMiniMK3 MI" (verified via `aconnect -l`). A plain find("DAW")
+      // never matches that truncated form, so the DAW port went
+      // undetected and was silently kept as "best" instead of the real
+      // input port - pad presses never arrived even though LED SysEx
+      // (apparently accepted on either port) looked fine. Recognize the
+      // truncated form too, alongside the untruncated one.
+      auto looksLikeDawPort = [](const string & name) {
+        return name.find("DAW") != string::npos ||
+          (name.size() >= 2 && name.compare(name.size() - 2, 2, "DA") == 0);
+      };
+      bool is_daw_port = looksLikeDawPort(port_name) || looksLikeDawPort(client_name);
       int port = snd_seq_port_info_get_port(port_info);
 
       if (!best || (best->is_daw_port && !is_daw_port)) {
