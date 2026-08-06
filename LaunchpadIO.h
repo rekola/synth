@@ -50,6 +50,13 @@ class LaunchpadIO {
   // track, octave, ...) should iterate.
   std::vector<int> readySessionIds() const;
 
+  // The model of one currently-ready session (a readySessionIds() member) -
+  // nullopt if session_id doesn't name a ready session. Lets a caller
+  // (LaunchpadManager, to pick a sensible per-model default like an
+  // initial octave register) key off which physical device this is
+  // without needing to wait for a pad press event to learn its model.
+  std::optional<LaunchpadProtocol::Model> modelForSession(int session_id) const;
+
   // Sends LED colors to one specific ready device (addressed with its own
   // model's SysEx header, filtering out CC numbers that model doesn't
   // have). Silently does nothing if session_id doesn't name a ready

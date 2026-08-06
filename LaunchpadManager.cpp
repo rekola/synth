@@ -286,6 +286,27 @@ namespace {
   // (dead center of the 8) lands exactly on 0 degrees (front) for a
   // memorable, symmetric mapping.
   constexpr float PAN_ROW_DEGREES = 45.0f;
+
+  // Automatic per-model octave starting point, applied once (in refresh())
+  // the first time a device is seen - not a wire-protocol fact (unlike
+  // LaunchpadProtocol::ModelInfo's fields), just a UX default: with two
+  // Launchpads connected side by side, the physically smaller one starts
+  // higher, so they don't collide in the same register the way two
+  // identical default octaves would. Ordered by each model's actual
+  // physical footprint (Mini MK3 the most compact, Pro MK3 the largest,
+  // with its extra left column and control rows) - a device that later
+  // gets its own octave-up/octave-down press (see LaunchpadProtocol::
+  // commandForButton's own comment on that being currently unreachable)
+  // moves independently from this starting point, same as any other
+  // manually-adjusted device.
+  int defaultOctaveOffsetForModel(LaunchpadProtocol::Model model) {
+    switch (model) {
+    case LaunchpadProtocol::Model::MINI_MK3: return 1;
+    case LaunchpadProtocol::Model::X:        return 0;
+    case LaunchpadProtocol::Model::PRO_MK3:  return -1;
+    }
+    return 0;
+  }
 }
 
 int
@@ -1435,7 +1456,20 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   }
 
   for (auto device_id : ready_ids) {
+    // A device not already in devices_ is being seen for the first time
+    // this session (freshly connected, or reconnected after having been
+    // pruned above on an earlier disconnect) - deviceState() below is
+    // about to default-construct its DeviceState, octave included, so
+    // this is the one moment to apply defaultOctaveOffsetForModel()'s
+    // per-model starting point instead of leaving every device at the
+    // same default register.
+    bool is_new_device = devices_.find(device_id) == devices_.end();
     auto & state = deviceState(device_id);
+    if (is_new_device) {
+      if (auto model = launchpad_io_->modelForSession(device_id)) {
+        state.octave = LaunchpadLayout::clampOctave(state.octave, defaultOctaveOffsetForModel(*model));
+      }
+    }
 
     auto track_index = assignedTrackIndex(device_id, fallback_track_index);
     if (track_index < 0 || track_index >= num_tracks) track_index = fallback_track_index;

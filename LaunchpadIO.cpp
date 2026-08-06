@@ -299,6 +299,14 @@ LaunchpadIO::readySessionIds() const {
   return result;
 }
 
+optional<LaunchpadProtocol::Model>
+LaunchpadIO::modelForSession(int session_id) const {
+  for (auto & session : sessions) {
+    if (session.state == SessionState::READY && session.session_id == session_id) return session.model;
+  }
+  return nullopt;
+}
+
 void
 LaunchpadIO::sendLeds(int session_id, const vector<LaunchpadProtocol::PadColor> & colors) {
   for (auto & session : sessions) {
