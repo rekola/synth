@@ -11,6 +11,7 @@ add_executable(synth_tests
 	LaunchpadTimingTests.cpp
 	DrumRankTableTests.cpp
 	DrumMachineTrackTests.cpp
+	PercussionTrackTests.cpp
 	SF2ModulatorTests.cpp
 	EnvelopeFilterTests.cpp
 	VoiceLoudnessTests.cpp
