@@ -3,6 +3,7 @@
 
 #include "UIElement.h"
 #include "Cursor.h"
+#include "GridPosition.h"
 #include "PatternBlockOps.h"
 
 #include <vector>
@@ -64,10 +65,10 @@ protected:
   };
   SelectionBounds getEffectiveSelectionBounds(const Song & song, const std::vector<int> & track_ids) const;
 
-  // scroll_row is a separate parameter (not always current_scroll_row, the
-  // member) because render() below needs to call this with the *new*
-  // scroll position it just computed for this same frame, before that
-  // becomes current_scroll_row - see render()'s own comment on why.
+  // scroll_row is a separate parameter (not always current_scroll_.row)
+  // because render() below needs to call this with the *new* scroll
+  // position it just computed for this same frame, before that becomes
+  // current_scroll_ - see render()'s own comment on why.
   std::unordered_map<int, VisibleTrackInfo> getTrackInformation(const Song & song, int scroll_row) const;
   VisibleTrackInfo getTrackInfoFor(const Song & song, int track_id) const;
   void renderHeading(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info);
@@ -78,7 +79,15 @@ protected:
   int current_score_playing_row = 0;
   int current_score_pattern = 0;  
   int current_score_total_columns = 0;
-  int current_scroll_row = 0, current_scroll_track = 0, current_scroll_col = 0;
+  // .row/.track is where the grid is scrolled to; .col is only meaningful
+  // when .track's own width alone exceeds the screen (see GridPosition.h,
+  // PatternScroll.h) - scrolling whole tracks can't keep the cursor's own
+  // always-on highlight (its note/velocity/delay group, not just its own
+  // column - see VisibleTrackInfo::getNoteColumnRange) in view by itself
+  // then, so .col picks which of .track's own columns is the first one
+  // actually drawn. Meaningless for any other track, which always renders
+  // from its own column 0.
+  GridPosition current_scroll_;
   int current_tempo = 0;
   int current_keyboard_octave = 4;
   

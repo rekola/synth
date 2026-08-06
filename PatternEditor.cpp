@@ -13,6 +13,7 @@
 #include "PlaybackControlEvent.h"
 #include "LogEvent.h"
 #include "KeyChord.h"
+#include "PatternScroll.h"
 
 #include <string>
 #include <algorithm>
@@ -333,18 +334,18 @@ static void fill_track_info(const Track & track, std::unordered_map<int, Visible
     // still taken against, so a column with real note data in it can never
     // be hidden by this, only extended past it.
     info.updateNumSubtracks(instrument_track.getMinNoteColumns());
-  } else if (track.getType() == TrackType::DRUM_MACHINE) {
-    // Single placeholder column (SampleTrack precedent - see renderRow's
-    // own SAMPLE/DRUM_MACHINE branch), so an explicit, default-constructed
-    // 1-column VisibleTrackInfo entry is keyed here rather than left
-    // absent. Confirmed by direct reproduction (not just code reading)
-    // that leaving no entry at all for a track_id present in track_ids
-    // - reachable when a DrumMachineTrack is the only/last track, unlike
-    // SAMPLE which has always so far been used alongside other tracks -
-    // hangs the interactive TUI: some downstream per-track-id width/bounds
-    // computation assumes every id in track_ids has *some* entry once
-    // this function has visited the whole tree, not just tracks that
-    // happen to match a case above.
+  } else if (track.getType() == TrackType::DRUM_MACHINE || track.getType() == TrackType::SAMPLE) {
+    // Single placeholder column (see renderRow's own SAMPLE/DRUM_MACHINE
+    // branch), so an explicit, default-constructed 1-column VisibleTrackInfo
+    // entry is keyed here rather than left absent - a track_id present in
+    // track_ids (getRootTrackIds() includes both types) with no entry here
+    // at all makes every downstream per-track-id width/bounds computation
+    // (scroll included - see PatternScroll.cpp) silently treat it as zero
+    // width instead of its real ~4-character placeholder width, which can
+    // undercount how much screen space an earlier SAMPLE/DRUM_MACHINE track
+    // actually consumes and let a later track's cursor column be computed
+    // as fitting on screen when it doesn't, by however many characters got
+    // undercounted.
     track_info[track.getInternalId()];
   } else {
     for (auto & child : track.getChildren()) {
@@ -384,7 +385,7 @@ PatternEditor::getTrackInformation(const Song & song, int scroll_row) const {
 
 VisibleTrackInfo
 PatternEditor::getTrackInfoFor(const Song & song, int track_id) const {
-  auto all_track_info = getTrackInformation(song, current_scroll_row);
+  auto all_track_info = getTrackInformation(song, current_scroll_.row);
   auto it = all_track_info.find(track_id);
   return it != all_track_info.end() ? it->second : VisibleTrackInfo();
 }
@@ -452,38 +453,21 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   // could miss a note just written into the row that's about to scroll
   // into view (e.g. a Launchpad chord landing exactly on that transition),
   // silently failing to grow that track's note-column width this frame.
-  auto new_scroll_row = current_scroll_row;
-  if (score_playing_row < new_scroll_row) {
-    new_scroll_row = score_playing_row;
-  } else if (score_playing_row >= new_scroll_row + rows - heading_height) {
-    new_scroll_row = score_playing_row - (rows - heading_height) + 1;
+  auto new_row = current_scroll_.row;
+  if (score_playing_row < new_row) {
+    new_row = score_playing_row;
+  } else if (score_playing_row >= new_row + rows - heading_height) {
+    new_row = score_playing_row - (rows - heading_height) + 1;
   }
 
-  auto track_info = getTrackInformation(song, new_scroll_row);
+  auto track_info = getTrackInformation(song, new_row);
 
   auto track_ids = song.getRootTrackIds();
 
   auto score_total_columns = 0;
   for (auto wd : track_info) score_total_columns += wd.second.getColumnCount();
 
-  auto new_scroll_track = current_scroll_track;
-  if (new_cursor.track < new_scroll_track) {
-    new_scroll_track = new_cursor.track;
-  } else {
-    while ( 1 ) {
-      auto pos = 6;
-      for (auto i = new_scroll_track; i < track_ids.size() && i <= new_cursor.track; i++) {
-	auto id = track_ids[i];
-	auto it = track_info.find(id);
-	pos += (it != track_info.end() ? it->second.getTrackWidth() : 0);
-      }
-      if (pos >= cols) {
-	new_scroll_track++;
-      } else {
-	break;
-      }
-    }
-  }
+  auto new_scroll = computeScrollPosition(current_scroll_, new_row, new_cursor.track, new_cursor.col, track_ids, track_info, cols);
 
   bool selection_changed = selection_active_ != current_selection_active_ ||
       (selection_active_ && (selection_start_pattern_ != current_selection_start_pattern_ ||
@@ -497,8 +481,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   if (score_pattern != current_score_pattern ||
       song.getVersion() != current_song_version ||
       score_total_columns != current_score_total_columns ||
-      new_scroll_row != current_scroll_row ||
-      new_scroll_track != current_scroll_track ||
+      new_scroll != current_scroll_ ||
       selection_changed
       ) {
     render_all = true;
@@ -518,26 +501,25 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
 
   bool need_redraw = false;
   if (render_all) {
-    current_scroll_row = new_scroll_row;
-    current_scroll_track = new_scroll_track;
-    
+    current_scroll_ = new_scroll;
+
     erase();
     setFgColor(styles.window_border_color);
     setBgColor(styles.window_bg_color);
     fill();
-    
+
     renderHeading(styles, track_ids, track_info);
     for (auto row = 0; row < rows - heading_height; row++) {
-      renderRow(styles, heading_height, track_ids, track_info, row, (row + current_scroll_row) == score_playing_row, sel_bounds);
+      renderRow(styles, heading_height, track_ids, track_info, row, (row + current_scroll_.row) == score_playing_row, sel_bounds);
     }
     need_redraw = true;
   } else if (current_score_playing_row != score_playing_row) {
     renderHeading(styles, track_ids, track_info);
-    renderRow(styles, heading_height, track_ids, track_info, current_score_playing_row - current_scroll_row, false, sel_bounds);
-    renderRow(styles, heading_height, track_ids, track_info, score_playing_row - current_scroll_row, true, sel_bounds);
+    renderRow(styles, heading_height, track_ids, track_info, current_score_playing_row - current_scroll_.row, false, sel_bounds);
+    renderRow(styles, heading_height, track_ids, track_info, score_playing_row - current_scroll_.row, true, sel_bounds);
     need_redraw = true;
   } else if (cursor_changed || row_edited) {
-    renderRow(styles, heading_height, track_ids, track_info, score_playing_row - current_scroll_row, true, sel_bounds);
+    renderRow(styles, heading_height, track_ids, track_info, score_playing_row - current_scroll_.row, true, sel_bounds);
     need_redraw = true;
   }
 
@@ -768,7 +750,7 @@ PatternEditor::offerInput(const InputEvent & input) {
     return true;
   }
 
-  auto all_track_info = getTrackInformation(song, current_scroll_row);
+  auto all_track_info = getTrackInformation(song, current_scroll_.row);
 
   auto track_ids = song.getRootTrackIds();
   auto num_tracks = static_cast<int>(track_ids.size());
@@ -1145,6 +1127,13 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
       }
       auto it = all_track_info.find(track_id);
       auto w = it != all_track_info.end() ? it->second.getTrackWidth() : 0;
+      // current_scroll_.col skips this many of the leftmost visible
+      // track's own leading columns (see render()'s own comment) - shrink
+      // its contribution here so the heading stays aligned with what
+      // renderRow() actually draws for it.
+      if (i == current_scroll_.track && current_scroll_.col > 0 && it != all_track_info.end()) {
+	for (auto k = 0; k < current_scroll_.col; k++) w -= it->second.getColumnWidth(k);
+      }
 
       if (!tracks.empty() && tracks.back() == track) {
 	track_widths.back() += w;
@@ -1156,7 +1145,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
     
     auto current_pos = 5;
     for (auto i = 0; i < static_cast<int>(tracks.size()); i++) {
-      if (i < current_scroll_track) continue;
+      if (i < current_scroll_.track) continue;
       if (current_pos >= cols) break;
       
       auto track = tracks[i];
@@ -1253,7 +1242,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     
   auto & song = getController().getSong();
   auto & info = getController().getPlaybackInfo();
-  auto [ pattern_idx, pattern_row ] = song.normalizePosition(info.getPatternIndex(), display_row + current_scroll_row);  
+  auto [ pattern_idx, pattern_row ] = song.normalizePosition(info.getPatternIndex(), display_row + current_scroll_.row);
   bool is_neighboring_pattern = info.getPatternIndex() != pattern_idx;
   auto & pattern = song.getPattern(pattern_idx);
 
@@ -1266,7 +1255,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     
   auto current_pos = 0;
   for (int i = -1; i < static_cast<int>(track_ids.size()); i++) {
-    if (i >= 0 && i < current_scroll_track) continue;
+    if (i >= 0 && i < current_scroll_.track) continue;
     if (current_pos >= cols) break;
     
     UIColor fg, bg, cell_fg, cell_bg;
@@ -1325,8 +1314,13 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       if (it != all_track_info.end()) track_info = it->second;
       auto track = song.getTrackByInternalId(track_id);
 
-      for (auto k = 0; k < track_info.getColumnCount(); k++) {
-	if (k != 0) {
+      // current_scroll_.col skips this many of this track's own leading
+      // columns - only meaningful for the leftmost visible track (see
+      // render()'s own comment); every other track always starts at its
+      // own column 0.
+      auto first_col = i == current_scroll_.track ? current_scroll_.col : 0;
+      for (auto k = first_col; k < track_info.getColumnCount(); k++) {
+	if (k != first_col) {
 	  putstr(display_row, current_pos++, " ");
 	}
 	// column_highlighted used to be its own distinct "here's the cursor"

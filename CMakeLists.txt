@@ -77,6 +77,7 @@ add_library(synth_engine STATIC
 	LFO.cpp
 	OfflineRenderer.cpp
 	PatternBlockOps.cpp
+	PatternScroll.cpp
 	LaunchpadLayout.cpp
 	LaunchpadProtocol.cpp
 	DrumRankTable.cpp
