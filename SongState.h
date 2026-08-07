@@ -167,7 +167,25 @@ class SongState : public TrackState {
       aux_a_sum_.zero();
       aux_b_sum_.zero();
 
-      for (auto & track : song.getTracks()) {
+      // Snapshotting the raw Track* pointers under Song::getTracksMutex()
+      // rather than holding it for this whole loop - see that mutex's own
+      // comment on why one is needed at all - keeps the lock held only as
+      // long as a quick pointer copy takes, not for however long actually
+      // rendering every track takes; a track added by the UI thread after
+      // the snapshot is taken just isn't heard until next block, same as
+      // a track added between two blocks outright. Safe against a track
+      // added *during* iteration below reusing/reallocating one of these
+      // pointers out from under it too, since track deletion doesn't
+      // exist yet - every Track this snapshot points to lives at a fixed
+      // address for the rest of the process once addTrack() returns.
+      std::vector<Track *> track_snapshot;
+      {
+	std::lock_guard<std::mutex> guard(song.getTracksMutex());
+	track_snapshot.reserve(song.getTracks().size());
+	for (auto & track : song.getTracks()) track_snapshot.push_back(track.get());
+      }
+
+      for (auto * track : track_snapshot) {
 	auto data = track->getState(*this).render(frames, song.getInstruments(), render_context_);
 	mixer.accumulate(data);
 

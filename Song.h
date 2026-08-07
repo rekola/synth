@@ -9,6 +9,7 @@
 #include "constants.h"
 
 #include <memory>
+#include <mutex>
 #include <vector>
 
 class InstrumentProvider;
@@ -135,7 +136,12 @@ class Song : public StatefulSongObject {
   std::vector<std::unique_ptr<Track> > & getTracks() { return tracks_; }
   const std::vector<std::unique_ptr<Track> > & getTracks() const { return tracks_; }
 
+  // See tracks_mutex_'s own comment - SongState::render() locks this to
+  // take a quick snapshot of the current tracks before rendering them.
+  std::mutex & getTracksMutex() const { return *tracks_mutex_; }
+
   Track & addTrack(std::unique_ptr<Track> track) {
+    std::lock_guard<std::mutex> guard(*tracks_mutex_);
     tracks_.push_back(std::move(track));
     incVersion();
     return *(tracks_.back());
@@ -211,6 +217,27 @@ private:
 
   std::vector<std::unique_ptr<Track> > instruments_;
   std::vector<std::unique_ptr<Track> > tracks_;
+
+  // Guards tracks_'s structural shape (addTrack() below is its only
+  // mutator today) - SongState::render() runs on the audio thread and
+  // reads tracks_ concurrently with the UI thread calling addTrack()
+  // (PatternEditor/LaunchpadManager's various "add track" commands can
+  // fire at any time, including while playing), and a push_back can
+  // reallocate the vector's backing storage - a render() call
+  // mid-iteration when that happens would hold a dangling iterator into
+  // freed memory. Every other getTracks()-reading call site is
+  // UI-thread-only, hence never concurrent with addTrack() (also always
+  // UI-thread) and needs no lock of its own - see SongState::render()'s
+  // own comment for the one call site that does. mutable so a const
+  // Song& (SongState::render()'s own parameter type) can still lock it.
+  // Heap-allocated (rather than a plain std::mutex member) solely so Song
+  // itself stays move-constructible - std::mutex has neither a copy nor a
+  // move constructor, which would otherwise implicitly delete Song's own
+  // (tests/RenderTests.cpp's loadFixture() and similar move a freshly-
+  // loaded Song out of a local variable); production code never moves a
+  // Song (Controller always holds one behind a shared_ptr), so a moved-
+  // from Song's now-null pointer is never dereferenced in practice.
+  mutable std::unique_ptr<std::mutex> tracks_mutex_ = std::make_unique<std::mutex>();
   std::vector<Section> sections_;
   std::vector<Pattern> patterns_;
   
