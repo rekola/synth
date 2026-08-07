@@ -11,6 +11,7 @@
 
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 
 class Song;
@@ -21,6 +22,25 @@ class Controller {
 
   const Song & getSong() const { return *current_song; }
   Song & getSong() { return *current_song; }
+
+  // Player::play() (the audio thread) needs this instead of getSong()
+  // above: createNewSong()/openSong() reassign current_song on the UI
+  // thread, and getSong() only ever hands out a reference into whatever
+  // Song current_song happened to point to at the moment of the call -
+  // a plain `Song &` from *before* a reassignment is a dangling reference
+  // the instant the old Song's refcount (current_song was its only owner)
+  // drops to 0, which a UI-thread reassignment can do synchronously,
+  // regardless of when the audio thread later notices the swap via
+  // SONG_CHANGED. Returning an actual shared_ptr copy - under the same
+  // mutex createNewSong()/openSong()/loadDemo2() take to reassign
+  // current_song, see song_mutex_'s own comment - keeps the *old* Song
+  // object alive for as long as the audio thread's own copy of the
+  // pointer is still in use, however long after the UI thread has moved
+  // on to a new one.
+  std::shared_ptr<Song> getSongPtr() const {
+    std::lock_guard<std::mutex> guard(song_mutex_);
+    return current_song;
+  }
 
   const std::string & getSongFilename() const { return current_song_filename; }
 
@@ -187,6 +207,14 @@ class Controller {
   bool use_legacy_binaural_ = false;
 
   std::shared_ptr<Song> current_song;
+  // Guards current_song's own reassignment (createNewSong()/openSong()/
+  // loadDemo2()) against Player::play()'s getSongPtr() call on the audio
+  // thread - see that method's own comment for the use-after-free this
+  // prevents. mutable so a const Controller& can still lock it in
+  // getSongPtr(). Every other current_song access (getSong() and its many
+  // UI-thread callers) needs no lock of its own: they're never concurrent
+  // with a reassignment, which is also always on the UI thread.
+  mutable std::mutex song_mutex_;
   std::string current_song_filename = "song.xml";
   std::shared_ptr<SampleData> current_sample;
   InstrumentProvider instrument_provider;

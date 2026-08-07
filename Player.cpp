@@ -30,7 +30,14 @@ private:
 
 void
 Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
-  auto & song = controller_->getSong();
+  // getSongPtr(), not getSong() - this runs on the audio thread, so a
+  // plain reference into whatever current_song happens to point to right
+  // now isn't safe against a concurrent UI-thread createNewSong()/
+  // openSong() reassigning it - see getSongPtr()'s own comment. Kept
+  // alive for this whole call via song_ptr; song itself stays a plain
+  // reference so every existing song.foo() call below is unchanged.
+  auto song_ptr = controller_->getSongPtr();
+  auto & song = *song_ptr;
 
   switch (ev.getType()) {
   case PlaybackControlEvent::PLAY_NOTE:
@@ -203,7 +210,12 @@ Player::play(AudioAPI & audio) {
 
   audio.startRecording();
 
-  auto * song = &controller_->getSong();
+  // getSongPtr() (not getSong()/a raw pointer) - see that method's own
+  // comment: it keeps whatever Song this shared_ptr copy points to alive
+  // for as long as this thread holds it, regardless of a UI-thread
+  // createNewSong()/openSong() reassigning Controller's own current_song
+  // out from under it in the meantime.
+  auto song = controller_->getSongPtr();
   state_.initialize(*song);
   auto mixer = createMixer(controller_->getChannelConfiguration(), controller_->getMixerType(), controller_->getUseLegacyBinaural());
 
@@ -220,11 +232,13 @@ Player::play(AudioAPI & audio) {
 	      handleEvent(*event);
 	    }
 	    if (song_changed_) {
-	      // current_song was reassigned on the UI thread (new-song/open-
-	      // song); this event's pop() (guarded by the same mutex as the
-	      // UI thread's push()) is what makes that reassignment safe to
-	      // observe here - re-fetching without it would be a data race.
-	      song = &controller_->getSong();
+	      // Drops this thread's own shared_ptr copy of the old Song (see
+	      // getSongPtr()'s own comment) only now, in favor of a fresh
+	      // copy of whatever current_song the UI thread's
+	      // createNewSong()/openSong() already reassigned - the old
+	      // Song stays alive up to exactly this point, however long
+	      // after the UI thread itself moved on.
+	      song = controller_->getSongPtr();
 	      state_.clear();
 	      state_.resetPosition(); // old song's row count means nothing against the new song's patterns
 	      state_.initialize(*song);

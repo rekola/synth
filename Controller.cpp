@@ -569,7 +569,10 @@ Controller::loadDemo2() {
   
   song->addPattern(pattern);
 
-  current_song = song;
+  {
+    std::lock_guard<std::mutex> guard(song_mutex_);
+    current_song = song;
+  }
   current_song_filename = "song.xml";
 }
 
@@ -582,11 +585,16 @@ Controller::createNewSong() {
   auto & section = song->addSection();
   section.addPattern(pattern.getInternalId());
 
-  current_song = song;
+  {
+    std::lock_guard<std::mutex> guard(song_mutex_);
+    current_song = song;
+  }
   current_song_filename = "song.xml";
-  // The Player/audio thread holds a Song& into whatever current_song used to
-  // point to; it must be told to re-fetch before it dereferences the object
-  // we just released ownership of (see Player::play()'s SONG_CHANGED handling).
+  // The Player/audio thread holds a getSongPtr() copy of whatever
+  // current_song used to point to (see that method's own comment on why
+  // a plain reference/raw pointer isn't safe here); it must be told to
+  // re-fetch before it drops that copy in favor of the one we just
+  // reassigned above (see Player::play()'s SONG_CHANGED handling).
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SONG_CHANGED));
 }
 
@@ -597,7 +605,10 @@ Controller::openSong(const string & filename) {
     return false;
   }
 
-  current_song = song;
+  {
+    std::lock_guard<std::mutex> guard(song_mutex_);
+    current_song = song;
+  }
   current_song_filename = filename;
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SONG_CHANGED));
   return true;
