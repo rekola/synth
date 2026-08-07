@@ -1348,20 +1348,24 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	if (k != first_col) {
 	  putstr(display_row, current_pos++, " ");
 	}
-	// column_highlighted used to be its own distinct "here's the cursor"
-	// color layer; now the effective region always covers the cursor's
-	// position too, so it's folded into column_selected below - kept
-	// only to (a) still indicate the effect column specifically, since
-	// it isn't part of any note column and so is otherwise excluded from
-	// the note-range check, and (b) drive the active-character underline
-	// for numeric columns further down, unchanged.
+	// Only drives the active-character underline for numeric columns
+	// further down now (which numbers columns are highlighted right at
+	// the cursor's own row, unlike column_selected below) - a single-row,
+	// exact-cursor-position flag, not a region membership one.
 	bool column_highlighted = highlight && current_cursor.isHighlighted(i, k);
 	// Per-column override of the track-level fg/bg for a single-track
-	// (column-scoped) region.
+	// (column-scoped) region. The effect column isn't part of the
+	// note-range check (it's not a note column at all), so it's covered
+	// by sel_bounds.includes_command instead - set across the *whole*
+	// selected row range whenever the cursor is on the effect column
+	// (see getEffectiveSelectionBounds()), not just column_highlighted's
+	// single row: using column_highlighted here left every row but the
+	// cursor's own unhighlighted after widening a multi-row note-column
+	// selection to include the effect column.
 	bool column_selected = column_scoped_selection &&
 	  ((!track_info.isEffectColumn(k) &&
 	    track_info.getNoteNumber(k) >= sel_bounds.note_lo && track_info.getNoteNumber(k) <= sel_bounds.note_hi) ||
-	   (track_info.isEffectColumn(k) && column_highlighted));
+	   (track_info.isEffectColumn(k) && sel_bounds.includes_command));
 	UIColor cur_fg = column_selected ? styles.highlight_fg_color : fg;
 	UIColor cur_bg = column_selected ? styles.highlight_bg_color : bg;
 
