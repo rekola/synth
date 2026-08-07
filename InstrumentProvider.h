@@ -54,6 +54,8 @@ class InstrumentProvider {
       addInstrument(sf->createInstrument(62, "Synth Brass 1"));
       addInstrument(sf->createInstrument(63, "Synth Brass 2"));
 
+      addInstrument(sf->createInstrument(87, "Lead 8")); // bass and lead or solo lead or sometimes mistakenly called "brass and lead"
+	
       addInstrument(sf->createInstrument(88, "Pad 1 (new age)"));
       addInstrument(sf->createInstrument(89, "Pad 2 (warm)"));
       addInstrument(sf->createInstrument(90, "Pad 3 (polysynth)"));
