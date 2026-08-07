@@ -768,6 +768,8 @@ PatternEditor::offerInput(const InputEvent & input) {
 
   auto current_track = song.getTrackByInternalId(track_ids[current_cursor.track]);
 
+  auto input_hex_value = digit(input.getId(), 16);
+
   VisibleTrackInfo track_info;
   if (current_track) {
     auto it0 = all_track_info.find(current_track->getInternalId());
@@ -947,11 +949,12 @@ PatternEditor::offerInput(const InputEvent & input) {
     } else {
       auto & pattern = song.getPattern(info.getPatternIndex());
       int track_id = track_ids[new_cursor.track];
-      bool is_hex = (input.getId() >= 'a' && input.getId() <= 'z') || (input.getId() >= '0' && input.getId() <= '9');
       auto column_type = track_info.getColumnType(new_cursor.col);
     
       if (column_type == ColumnType::EFFECT) {
-	if (is_hex || input.getId() == '-') {
+	// In effect command, the first two characters can be anything
+	// the rest; dash or hex value
+	if (input_hex_value != -1 || input.getId() == '-' || (new_cursor.subcol < 2)) {
 	  auto command = pattern.getCommand(info.getRowIndex(), track_id);
 	  command.updateData(new_cursor.subcol, toupper(input.getId()));
 	  pattern.setCommand(info.getRowIndex(), track_id, command);
@@ -967,16 +970,14 @@ PatternEditor::offerInput(const InputEvent & input) {
 	  return true;
 	}
       } else if (column_type == ColumnType::VELOCITY || column_type == ColumnType::DELAY) {
-	bool is_hex_digit = (input.getId() >= 'a' && input.getId() <= 'f') || (input.getId() >= '0' && input.getId() <= '9');
-	if (is_hex_digit) {
-	  int input_value = input.getId() >= '0' && input.getId() <= '9' ? input.getId() - '0' : input.getId() - 'a' + 10;
+	if (input_hex_value != -1) {
 	  auto & notes = pattern.getNotes(info.getRowIndex(), track_id);
 	  auto note_column = track_info.getNoteNumber(new_cursor.col);
 	  Note note;
 	  if (note_column < notes.size()) note = notes[note_column];
 	  int current_value = column_type == ColumnType::VELOCITY ? note.getVelocity() : note.getDelay();
-	  if (new_cursor.subcol == 0) current_value = (input_value << 4) | (current_value & 0x0f);
-	  else current_value = (current_value & 0xf0) | input_value;
+	  if (new_cursor.subcol == 0) current_value = (input_hex_value << 4) | (current_value & 0x0f);
+	  else current_value = (current_value & 0xf0) | input_hex_value;
 	  if (column_type == ColumnType::VELOCITY) note.setVelocity(current_value);
 	  else note.setDelay(current_value);
 	  pattern.setNote(info.getRowIndex(), track_id, note_column, note);
