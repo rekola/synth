@@ -9,6 +9,7 @@ add_executable(synth_tests
 	PatternScrollTests.cpp
 	PatternBreakTests.cpp
 	AzimuthSlideTests.cpp
+	SendLiveUpdateTests.cpp
 	SongTests.cpp
 	LaunchpadLayoutTests.cpp
 	LaunchpadProtocolTests.cpp

@@ -82,6 +82,22 @@ class InstrumentVoice : public TrackState {
     if (floor_reflection_active_) floor_position_.azimuth += delta;
   }
 
+  // Send Main/A/B live update (TrackState::adjustSendMain()/adjustSendA()/
+  // adjustSendB(), pushed from InstrumentTrackState::setSendMain()/
+  // setSendA()/setSendB() - the Launchpad/UI Send knobs). Like
+  // adjustAzimuth() above, encodePosition() reads getSends() fresh every
+  // render() call rather than caching it, and its Main-gain array is
+  // already gain-interpolated block to block by encoder_, so mutating
+  // sends_ here is all that's needed for the change to take effect
+  // smoothly from the next block on - no separate ramping of its own.
+  // AuxA/AuxB's own allocation (has_aux_a/has_aux_b in encodePosition())
+  // already tolerates a voice's channel shape changing block to block for
+  // other reasons, so a Send A/B crossing zero mid-note needs no special
+  // handling here either.
+  void adjustSendMain(float s) override { sends_.main = s; }
+  void adjustSendA(float s) override { sends_.a = s; }
+  void adjustSendB(float s) override { sends_.b = s; }
+
   // Raw performance velocity (0..1), deliberately NOT decibelsToGain(getGainDB())
   // - getGainDB() can carry extra per-instrument mixing gain (e.g.
   // SoundFontVoice bakes its SF2 region's attenuation into it), which would
@@ -122,9 +138,12 @@ protected:
   // those regular channels via this voice's own position (getPosition() -
   // a subclass like SoundFontVoice bakes any adjustment of its own, e.g.
   // its SF2 region's pan, straight into position_/sends_ once at
-  // construction time, since none of that ever changes after - see
-  // SoundFont.cpp - rather than recomputing it on every call via a virtual
-  // override), smoothly gain-interpolated block to block by encoder_ - one
+  // construction time, since that particular adjustment itself never needs
+  // recomputing later (position_.azimuth/sends_ can still be moved live
+  // afterward by adjustAzimuth()/adjustSendMain()/adjustSendA()/
+  // adjustSendB() below - see SoundFont.cpp - rather than the subclass
+  // recomputing its own adjustment on every call via a virtual override),
+  // smoothly gain-interpolated block to block by encoder_ - one
   // persistent instance per voice, replacing the old external
   // PositionalMixer's per-id map (this voice already IS the stable, per-note
   // object that map used to key by pointer, so owning the state directly

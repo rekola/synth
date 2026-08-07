@@ -228,6 +228,29 @@ public:
     }
   }
 
+  // Send Main/A/B (InstrumentTrackState::setSendMain()/setSendA()/
+  // setSendB(), the Launchpad/UI Send knobs) pushed to every already-
+  // sounding voice, not just future notes - unlike adjustAzimuth() above,
+  // these carry an absolute value rather than a delta (there's no
+  // tick-scheduled slide command for sends). Default recursion and the
+  // "only InstrumentVoice overrides this" shape are otherwise identical to
+  // adjustAzimuth() above, for the same reason.
+  virtual void adjustSendMain(float s) {
+    for (auto & [ id, child ] : getChildren()) {
+      child->adjustSendMain(s);
+    }
+  }
+  virtual void adjustSendA(float s) {
+    for (auto & [ id, child ] : getChildren()) {
+      child->adjustSendA(s);
+    }
+  }
+  virtual void adjustSendB(float s) {
+    for (auto & [ id, child ] : getChildren()) {
+      child->adjustSendB(s);
+    }
+  }
+
   const ChannelConfiguration & getChannelConfiguration() const { return channel_config_; }
 
   // Mutable access - only SongState::initialize() uses this, to push the

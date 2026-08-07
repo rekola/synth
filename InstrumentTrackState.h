@@ -333,18 +333,44 @@ public:
   bool isSolo() const { return solo_; }
   void setSolo(bool s) { solo_ = s; }
 
-  // Only notes triggered after the change pick up the new value (playNote()
-  // above reads sends_ directly) - already-sounding voices keep whatever
-  // was baked into them at their own construction, the same "static once
-  // baked" behavior as every other effect parameter in this codebase (e.g.
-  // the shared reverb/delay bus parameters). See SendLevels.h.
-  void setSendA(float s) { sends_.a = s; }
-  void setSendB(float s) { sends_.b = s; }
-  void setSendMain(float s) { sends_.main = s; }
+  // Send Main/A/B all push into every already-active voice too, not just
+  // future notes (unlike setAzimuth() below - see adjustAzimuth() there
+  // for the general reasoning: sends_ isn't read fresh from anywhere but
+  // this voice's own construction otherwise). Reuses the same TrackState::
+  // adjust*() virtual-recursion mechanism adjustAzimuth() does (so a
+  // multi-region SoundFontInstrument group's real leaf voices are all
+  // reached too), just carrying an absolute value instead of a per-tick
+  // delta - there's no tick-scheduled slide command for sends the way
+  // there is for azimuth, these are live knobs (Launchpad/UI Send rows),
+  // not a pattern effect. See TrackState::adjustSendMain()/adjustSendA()/
+  // adjustSendB().
+  void setSendMain(float s) {
+    sends_.main = s;
+    for (auto & [ column, voices ] : voices_) {
+      for (auto & voice : voices) if (voice->isActive()) voice->adjustSendMain(s);
+    }
+  }
+  void setSendA(float s) {
+    sends_.a = s;
+    for (auto & [ column, voices ] : voices_) {
+      for (auto & voice : voices) if (voice->isActive()) voice->adjustSendA(s);
+    }
+  }
+  void setSendB(float s) {
+    sends_.b = s;
+    for (auto & [ column, voices ] : voices_) {
+      for (auto & voice : voices) if (voice->isActive()) voice->adjustSendB(s);
+    }
+  }
 
-  // Same "only future notes pick it up" caveat as SendA/SendB above -
-  // already-playing voices keep whatever position they were constructed
-  // with (InstrumentVoice's own encodePosition() bakes it in once too).
+  // The live-knob path (Launchpad/UI Pan row, via Controller::
+  // setTrackAzimuth()) - unlike Send Main/A/B just above, this one is
+  // deliberately still "only future notes pick it up": already-playing
+  // voices keep whatever position they were constructed with
+  // (InstrumentVoice's own encodePosition() bakes it in once too). A live
+  // voice-reaching azimuth push does exist (adjustAzimuth() below), but
+  // it's driven only by the 2Lxx/2Rxx tick-scheduled slide command, not by
+  // this knob.
   void setAzimuth(float a) { position_.azimuth = a; }
   float getAzimuth() const { return position_.azimuth; }
 

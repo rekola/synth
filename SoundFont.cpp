@@ -865,14 +865,18 @@ adjustPositionForPan(const SphericalPosition & position, const tsf_region * regi
 // generator-merge convention (region + preset offsets, summed then
 // clamped) rather than inventing a new combination rule. SendA still
 // means exactly what it always has (the shared reverb bus), so this
-// combination is unaffected by anything below.
+// combination is unaffected by anything below. Named for the region side
+// of the merge specifically (not just "adjustSendA") so it can't be
+// confused with - or shadow via unqualified lookup in this constructor's
+// own initializer list - TrackState::adjustSendA()/InstrumentVoice::
+// adjustSendA(), the unrelated live-voice Send A push (TrackState.h).
 static float
-adjustSendA(float send_a, const tsf_region * region) {
+combineRegionSendA(float send_a, const tsf_region * region) {
   return std::min(1.0f, send_a + (region ? region->reverbEffectsSend / 1000.0f : 0.0f));
 }
 
 // Deliberately NOT combined with the track's own SendB knob (unlike
-// adjustSendA above): SendB is now the shared multi-tap delay bus (see
+// combineRegionSendA above): SendB is now the shared multi-tap delay bus (see
 // bus/MultiTapDelay.h), not chorus - a region's chorusEffectsSend hint has
 // nothing to do with "how much of this voice should reach the delay bus",
 // so folding it into send_b would silently and unintentionally louden a
@@ -914,7 +918,7 @@ public:
     : InstrumentVoice(channel_config,
                        skip_native_pan ? position : adjustPositionForPan(position, regionFor(sf.get(), preset, region_idx)),
                        detune, start_phase,
-                       SendLevels{ sends.main, adjustSendA(sends.a, regionFor(sf.get(), preset, region_idx)), sends.b }),
+                       SendLevels{ sends.main, combineRegionSendA(sends.a, regionFor(sf.get(), preset, region_idx)), sends.b }),
       sf_(sf)
   {
     auto f = sf_.get();
