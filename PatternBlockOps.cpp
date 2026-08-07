@@ -80,14 +80,24 @@ copyPatternBlockNotes(const Pattern & pattern, int row_lo, int row_hi,
 		      int track_id, int note_lo, int note_hi, bool include_command) {
   PatternBlock block;
 
+  auto width = note_hi - note_lo + 1;
+
   for (int row = row_lo; row <= row_hi; row++) {
     auto & full_notes = pattern.getNotes(row, track_id);
     PatternBlockCell cell;
     cell.note_offset = note_lo;
+    // Always the full requested width, not just however many notes this
+    // particular row actually had defined - pastePatternBlockNotes() only
+    // writes as many positions as cell.notes has, so a short vector here
+    // (a row sparser than the widest row in the range) left the
+    // destination's own stale content in place at the gap instead of
+    // overwriting it with the blank the source row actually had there.
+    // Note()'s default constructor is exactly that "undefined" value.
+    cell.notes.resize(static_cast<size_t>(width));
     auto size = static_cast<int>(full_notes.size());
-    if (note_lo < size) {
-      auto hi = min(note_hi + 1, size);
-      cell.notes = vector<Note>(full_notes.begin() + note_lo, full_notes.begin() + hi);
+    for (int i = 0; i < width; i++) {
+      auto src_index = note_lo + i;
+      if (src_index < size) cell.notes[static_cast<size_t>(i)] = full_notes[static_cast<size_t>(src_index)];
     }
     if (include_command) cell.command = pattern.getCommand(row, track_id);
     block.push_back({move(cell)});

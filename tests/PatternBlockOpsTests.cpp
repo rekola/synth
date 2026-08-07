@@ -298,3 +298,33 @@ TEST(pattern_block_notes_paste_merges_into_target_range_without_clobbering_other
   CHECK(merged[1].getValue() == 63); // overwritten by the paste
   CHECK(merged[2].getValue() == 67); // overwritten by the paste
 }
+
+TEST(pattern_block_notes_paste_overwrites_gaps_left_by_a_sparser_source_row) {
+  Pattern p(16);
+  int track_id = 10;
+
+  // Source: row 2 only has a note in column 0 - columns 1 and 2 are
+  // undefined gaps within the copied range.
+  p.setNote(2, track_id, 0, Note(60, 100));
+  p.setNote(2, track_id, 1, Note(63, 100));
+  p.setNote(2, track_id, 2, Note(67, 100));
+  p.deleteNote(2, track_id, 2);
+  p.deleteNote(2, track_id, 1);
+  CHECK(p.getNotes(2, track_id).size() == 1); // columns 1,2 are gaps, not just undefined-in-place
+
+  auto block = copyPatternBlockNotes(p, 2, 2, track_id, 0, 2);
+
+  // Destination already has real notes in all 3 columns - the gaps in the
+  // copied source must overwrite them with "undefined", not leave them.
+  p.setNote(9, track_id, 0, Note(48, 100));
+  p.setNote(9, track_id, 1, Note(52, 100));
+  p.setNote(9, track_id, 2, Note(55, 100));
+
+  pastePatternBlockNotes(p, block, 9, track_id, 0);
+
+  auto & notes = p.getNotes(9, track_id);
+  CHECK(notes.size() >= 1);
+  CHECK(notes[0].getValue() == 60); // overwritten by the paste
+  CHECK((notes.size() < 2 || !notes[1].isDefined())); // gap overwrote the stale note
+  CHECK((notes.size() < 3 || !notes[2].isDefined())); // gap overwrote the stale note
+}
