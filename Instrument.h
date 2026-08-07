@@ -21,8 +21,8 @@ public:
   void storeParameters(ParameterSource & output) const {
     Track::storeParameters(output);
     
-    output.set("harmonic", harmonic_);
-    output.set("subharmonic", subharmonic_);
+    if (harmonic_ != 1) output.set("harmonic", harmonic_);
+    if (subharmonic_ != 1) output.set("subharmonic", subharmonic_);
   }
 
   int getHarmonic() const { return harmonic_; }
