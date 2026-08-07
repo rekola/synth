@@ -13,7 +13,7 @@
      spectral cues that only a broadband signal exercises, and a full
      second of steady noise gives those cues enough duration to actually
      develop and be measured reliably (a short blip doesn't). -->
-<song temperament="12edo" tempo="120" volume="1.0">
+<song temperament="12edo" tempo="120" patternRows="132" volume="1.0">
   <instruments>
     <envelope attack="0.02" hold="0.9" decay="0.08" sustain="0.0" release="0.02">
       <noise color="pink"/>
@@ -33,7 +33,7 @@
     <track id="10" name="az0dist2" instrument="0" azimuth="0" elevation="0" distance="2"/>
   </tracks>
   <patterns>
-    <pattern rows="132">
+    <pattern>
       <note row="0" track="0" velocity="80" value="C-4"/>
       <note row="12" track="1" velocity="80" value="C-4"/>
       <note row="24" track="2" velocity="80" value="C-4"/>

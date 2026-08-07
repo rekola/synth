@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="12edo" tempo="120" volume="1.0">
+<song temperament="12edo" tempo="120" patternRows="12" volume="1.0">
   <instruments>
     <envelope attack="0.01" hold="0.3" decay="0.3" sustain="0.0" release="0.05">
       <oscilator type="saw"/>
@@ -10,7 +10,7 @@
     <track id="1" instrument="0" distance="2"/>
   </tracks>
   <patterns>
-    <pattern rows="12">
+    <pattern>
       <note row="0" track="0" velocity="80" value="C-4"/>
       <note row="8" track="1" velocity="80" value="C-4"/>
     </pattern>

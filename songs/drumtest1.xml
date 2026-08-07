@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="100" volume="1.0">
+<song temperament="31edo" tempo="100" patternRows="16" volume="1.0">
   <instruments>
     <envelope attack="0.01" hold="0" decay="1.17" sustain="0" release="0.231" name="Bell">
       <oscilator type="sine"/>
@@ -33,7 +33,7 @@
   </tracks>
   
   <patterns>
-    <pattern rows="16">
+    <pattern>
       <note row="0" track="bell" velocity="4">C-5</note>
       <note row="2" track="bell" velocity="4">C-5</note>
       <note row="4" track="bell" velocity="4">C-5</note>
@@ -63,7 +63,7 @@
       <note track="perc" row="14" velocity="40">SH</note>      
     </pattern>
 
-    <pattern rows="16">
+    <pattern>
       <note row="0" track="bell" velocity="4">C-5</note>
       <note row="2" track="bell" velocity="4">C-5</note>
       <note row="4" track="bell" velocity="4">C-5</note>
@@ -92,7 +92,7 @@
       <note track="perc" row="14" velocity="40">SH</note>      
     </pattern>
 
-    <pattern rows="16">
+    <pattern>
       <note row="0" track="bell" velocity="4">C-5</note>
       <note row="2" track="bell" velocity="4">C-5</note>
       <note row="4" track="bell" velocity="4">C-5</note>
@@ -119,7 +119,7 @@
       <note track="perc" row="14" velocity="40">SH</note>      
     </pattern>
 
-    <pattern rows="16">
+    <pattern>
       <note row="0" track="bell" velocity="4">C-5</note>
       <note row="2" track="bell" velocity="4">C-5</note>
       <note row="4" track="bell" velocity="4">C-5</note>
@@ -150,7 +150,7 @@
       <note track="perc" row="14" velocity="40">SH</note>      
     </pattern>
 
-    <pattern rows="16">
+    <pattern>
       <note track="piano" row="0" velocity="80">C-4 E-4 G-4</note>
       <note track="bass" row="0" velocity="30">C-2</note>
     </pattern>

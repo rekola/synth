@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="150" volume="1.0">
+<song temperament="31edo" tempo="150" patternRows="128" volume="1.0">
   <instruments>
     <distortion name="bass2" param="1.0" type="softclip" drive="15.0">
       <envelope attack="0.02" hold="0.519" decay="1.35" sustain="0.0" release="0.5">	
@@ -35,7 +35,7 @@
   </tracks>
   
   <patterns>
-    <pattern rows="128">
+    <pattern>
       <note row="0" track="0" velocity="40">C-1</note>
       <note row="6" track="0" velocity="40">F-1</note>
       <note row="9" track="0" velocity="40">Db1</note>

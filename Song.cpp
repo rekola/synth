@@ -493,7 +493,7 @@ Song::save(const std::string & filename) const {
     XMLParameterSource pattern_parameters(pattern_element);
     pattern.storeParameters(pattern_parameters);
 
-    for (size_t row = 0; row < pattern.getNumRows(); row++) {
+    for (int row = 0; row < getPatternLength(); row++) {
       auto & notes = pattern.getNotes(row);
 
       for (auto & [ track_id, nv ] : notes) {
@@ -582,6 +582,7 @@ Song::loadParameters(const ParameterSource & input) {
   if (!key_text.empty()) setKey(Note::stringToKey(song_tuning, key_text));
 
   setTempo(input.getInt("tempo", 90));
+  setPatternLength(input.getInt("patternRows", 64));
 
   setEarHeight(input.getFloat("earHeight", constants::DEFAULT_EAR_HEIGHT));
   setFloorReflectionEnabled(input.getBool("floorReflection", constants::DEFAULT_FLOOR_REFLECTION_ENABLED));
@@ -605,6 +606,7 @@ Song::storeParameters(ParameterSource & output) const {
   if (getKey() >= 0) output.set("key", Note::keyToString(getTuning(), getKey()));
   output.set("temperament", to_string(getTuning()));
   output.set("tempo", getTempo());
+  output.set("patternRows", getPatternLength(), 64);
 
   output.set("earHeight", getEarHeight(), constants::DEFAULT_EAR_HEIGHT);
   if (getFloorReflectionEnabled() != constants::DEFAULT_FLOOR_REFLECTION_ENABLED) output.set("floorReflection", getFloorReflectionEnabled());

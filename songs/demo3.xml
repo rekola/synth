@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="110">
+<song temperament="31edo" tempo="110" patternRows="64">
   <instruments>
     <genericInstrument name="Pizzicato Strings" />
     <genericInstrument name="Electric Bass (finger)" />
@@ -16,10 +16,16 @@
     <track id="7" />
   </tracks>
   <patterns>
-    <pattern rows="4">
+    <pattern>
       <note row="0" track="3" velocity="80" value="G-2"/>
+      <!-- Intro pattern: only rows 0-3 are used - the ZB00 break at row 3
+           jumps straight to the next pattern's row 0 rather than playing
+           out this pattern's remaining (unused) rows, reproducing what
+           used to be a dedicated 4-row-long pattern before every pattern
+           in a song shared one length. -->
+      <command row="3" track="3" data="ZB00"/>
     </pattern>
-    <pattern rows="64">
+    <pattern>
       <note row="0" track="4" velocity="64" value="B2"/>
       <note row="0" track="3" velocity="64" value="C-3"/>
       <note row="0" track="0" velocity="64" value="C-4"/>

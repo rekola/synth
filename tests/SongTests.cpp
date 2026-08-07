@@ -40,7 +40,7 @@ TEST(note_round_trips_for_a_track_with_an_explicit_textual_id) {
   Song song;
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   track.setId("chords");
-  song.addPattern(8);
+  song.addPattern();
   song.getPattern(0).setNote(0, track.getInternalId(), 0, Note(60, 40));
   song.save(scratch_path);
 
@@ -72,7 +72,7 @@ TEST(note_round_trips_for_a_track_with_no_explicit_id) {
   Song song;
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   CHECK(!track.getId().empty()); // addTrack() must have assigned one
-  song.addPattern(8);
+  song.addPattern();
   song.getPattern(0).setNote(0, track.getInternalId(), 0, Note(60, 40));
   song.save(scratch_path);
 
@@ -97,7 +97,7 @@ TEST(command_round_trips_for_a_track_with_an_explicit_textual_id) {
   Song song;
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   track.setId("bass");
-  song.addPattern(8);
+  song.addPattern();
   song.getPattern(0).setCommand(0, track.getInternalId(), Command("V400"));
   song.save(scratch_path);
 
@@ -115,6 +115,30 @@ TEST(command_round_trips_for_a_track_with_an_explicit_textual_id) {
     CHECK(command.isDefined());
     CHECK(to_string(command) == "V400");
   }
+
+  fs::remove(scratch_path);
+}
+
+// Pattern length lives on Song, not per-Pattern (every pattern in a song
+// shares it) - <song patternRows="N"> round-trips through save/reload,
+// and a fresh Song defaults to 64 (matching Controller::createNewSong()).
+TEST(pattern_length_round_trips_through_save_and_load) {
+  namespace fs = std::filesystem;
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_pattern_length_scratch.xml").string();
+
+  Song song;
+  CHECK(song.getPatternLength() == 64);
+  song.setPatternLength(32);
+  song.addPattern();
+  song.save(scratch_path);
+
+  auto saved = readFile(scratch_path);
+  CHECK(saved.find("patternRows=\"32\"") != string::npos);
+
+  InstrumentProvider provider;
+  Song reloaded;
+  CHECK(reloaded.open(scratch_path, provider));
+  CHECK(reloaded.getPatternLength() == 32);
 
   fs::remove(scratch_path);
 }

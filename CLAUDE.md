@@ -66,7 +66,7 @@ leak was confirmed this way).
 
 Needs a real terminal (notcurses full-screen UI) and an ALSA output device.
 Options: `--samplerate N`, `--stereo`, `--ambisonic [order]`,
-`--legacy-binaural`, `--demo [n]`. Every song is always rendered through an
+`--legacy-binaural`. Every song is always rendered through an
 ambisonic bus (ACN/SN3D, AmbiX convention) — there is no plain-stereo-pan
 mode at all any more, and `ChannelConfiguration::STEREO` doesn't exist as a
 type (see `ChannelConfiguration.h`); `--ambisonic [order]` just sets the
@@ -142,7 +142,10 @@ raw-N-channel mixer) was retired entirely along with `STEREO`; every mixer
 **Space** toggles playback, Ctrl-Q quits, Ctrl-N creates a new song,
 **Ctrl-K** opens the M-x command minibuffer (reliable on any terminal; see
 below for why it exists alongside Esc-x/Alt-x).
-`docs/commands.txt` lists the pattern effect commands (slides, vibrato, …).
+`docs/commands.md` lists the pattern effect commands (slides, vibrato, …),
+split into **Implemented** (only `ZBxx`, pattern break, so far - see
+`SongState.h`'s command-handling loop) and **Planned** (accepted/stored
+but currently no-ops at playback time).
 
 Pattern editor selection uses Emacs keybindings: **C-SPC** (or **C-b**, see
 below) sets the mark (selection start), **C-w** kills (cuts) the marked
@@ -192,16 +195,19 @@ Killing/copying/yanking while the cursor is on the effect column
 (`SelectionBounds::includes_command`, set by `getEffectiveSelectionBounds`)
 also captures/clears/restores the row's effect `Command`, matching the
 region's visual widening described above — otherwise the row would *look*
-fully selected while `kill-region` silently left the `Vxx`/`Uxx`/etc. text
-untouched. `transpose-region-up`/`-down` deliberately never touch `Command`
-even in this case (`Command.h` has no numeric/transposable semantics).
-`copyPatternBlockNotes`/`clearPatternBlockNotes`/`pastePatternBlockNotes`
-(`PatternBlockOps.h`) take an `include_command` parameter for this; the
-effect column's own character validation stays permissive (any letter, not
-just hex `a-f`) since `docs/commands.txt`'s mnemonic commands (`U`/`D`/`G`/
-`V`/`I`/`O`/`T`/`M`) use letters outside the hex range — only the
-velocity/delay nibble-entry path was tightened to strict `0-9a-f`,
-matching Renoise's own hex-entry convention.
+fully selected while `kill-region` silently left the `1Vxx`/`0Uxx`/etc.
+text untouched. `transpose-region-up`/`-down` deliberately never touch
+`Command` even in this case (`Command.h` has no numeric/transposable
+semantics). `copyPatternBlockNotes`/`clearPatternBlockNotes`/
+`pastePatternBlockNotes` (`PatternBlockOps.h`) take an `include_command`
+parameter for this; the effect column's own character validation stays
+permissive (any letter, not just hex `a-f`) since `docs/commands.md`'s
+two-character mnemonics (`0U`/`0D`/`0G`/`1V`/`1I`/`1O`/`1T`/`ZB`) use
+letters outside the hex range in their first two characters — only the
+velocity/delay nibble-entry path was tightened to strict `0-9a-f`; a
+mnemonic's own trailing hex-digit argument (e.g. `ZBxx`'s destination row)
+stays permissive too, parsing a non-hex character as digit 0 rather than
+rejecting it (`Command::getBreakDestinationRow()`).
 
 `C-SPC` doesn't register on every terminal: its legacy encoding is a
 literal NUL byte, which notcurses's input decoder silently drops instead of

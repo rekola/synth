@@ -113,6 +113,10 @@ class SongState : public TrackState {
 	  auto & commands = pattern.getCommands(row_idx);
 	  for (auto & [ track_id, command ] : commands) {
 	    // render_context_.addPendingEvent(col, i, command);
+	    if (command.isPatternBreak()) {
+	      pending_break_ = true;
+	      pending_break_row_ = command.getBreakDestinationRow();
+	    }
 	  }
 
 	  // A DrumMachineTrack never has Pattern rows of its own (see
@@ -144,7 +148,12 @@ class SongState : public TrackState {
 	auto remaining = samplesUntilNextRow();
 	if (i + remaining <= frames) {
 	  i += remaining;
-	  movePosition(1);
+	  if (pending_break_) {
+	    pending_break_ = false;
+	    jumpToPatternBreak(song, pending_break_row_);
+	  } else {
+	    movePosition(1);
+	  }
 	} else {
 	  // The next row boundary doesn't fall within this block - advance by
 	  // however many samples are actually left in it (frames - i), not by
@@ -258,16 +267,7 @@ class SongState : public TrackState {
   }
 
   std::pair<int, int> getRelativePosition(const Song & song) const {
-    std::pair<int, int> rv(0, absolute_pos_);
-    for (auto & pattern : song.getPatterns()) {
-      if (rv.second >= pattern.getNumRows()) {
-	rv.second -= pattern.getNumRows();
-	rv.first++;
-      } else {
-	break;
-      }
-    }
-    return rv;
+    return song.normalizePosition(0, absolute_pos_);
   }
 
   int samplesUntilNextRow() const {
@@ -304,6 +304,21 @@ class SongState : public TrackState {
     position_edit_seq_++;
   }
 
+  // ZBxx (Command::isPatternBreak()) landing spot: row `dest_row` of the
+  // pattern *after* whichever one `absolute_pos_` currently falls in -
+  // used in place of movePosition(1) at the one place a row ever
+  // completes (render()'s own row-boundary check above), so the rest of
+  // the current pattern is simply never reached. Landing past the last
+  // pattern behaves exactly like normal end-of-song run-off - nothing
+  // special-cased.
+  void jumpToPatternBreak(const Song & song, int dest_row) {
+    auto len = song.getPatternLength();
+    if (len <= 0) { movePosition(1); return; }
+    auto pattern_idx = absolute_pos_ / len;
+    auto row = dest_row < 0 ? 0 : (dest_row >= len ? len - 1 : dest_row);
+    setPosition((pattern_idx + 1) * len + row);
+  }
+
   // Bumped by every movePosition()/setPosition() call - lets a PlaybackInfo
   // snapshot (see Player::createPlaybackEvent()) declare how many
   // position-editing control events it reflects. Controller::
@@ -334,6 +349,8 @@ private:
   bool recording_muted_ = false;
   int sample_pos_ = 0, absolute_pos_ = 0;
   int position_edit_seq_ = 0;
+  bool pending_break_ = false; // ZBxx seen on the row currently completing
+  int pending_break_row_ = 0;
   RenderContext render_context_;
   SendBusProcessor send_bus_;
   SampleData aux_a_sum_, aux_b_sum_;

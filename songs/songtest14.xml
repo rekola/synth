@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="100" volume="0.75" earHeight="1.7" floorReflectionStrength="1.0" groundAbsorption="0">
+<song temperament="31edo" tempo="100" patternRows="32" volume="0.75" earHeight="1.7" floorReflectionStrength="1.0" groundAbsorption="0">
   <bus>
     <reverb preset="default"/>
     <granular preset="cloud" />
@@ -42,7 +42,7 @@
   </sections>
   
   <patterns>
-    <pattern rows="32">
+    <pattern>
       <note row="0" track="harp" velocity="30">C-4</note> <note row="0" track="pad">OFF</note>
       <note row="4" track="harp" velocity="30">A𝄰4</note> <note row="4" track="perc" velocity="20">RC2</note>
       <note row="8" track="harp" velocity="30">C-4</note>
@@ -54,7 +54,7 @@
       <note row="28" track="harp" velocity="30">F-4</note> <note row="28" track="perc" velocity="20">SC</note>
     </pattern>
 
-    <pattern rows="28">
+    <pattern>
       <note row="0" track="harp" velocity="30">C-4</note>
       <note row="2" track="harp" velocity="30">D#4</note>
       <note row="4" track="harp" velocity="30">A𝄰4</note>
@@ -68,7 +68,7 @@
       						           <note row="26" track="perc" velocity="20">CH</note>
     </pattern>
 
-    <pattern rows="32">
+    <pattern>
       <note row="0" track="harp" velocity="30">C-4</note> <note row="0" track="perc" velocity="20">T1</note>
       <note row="4" track="harp" velocity="30">A𝄰4</note> <note row="4" track="pad" velocity="5">C-4</note> <note row="4" track="perc" velocity="20">CH</note> <note row="4" track="guitar" velocity="10">A𝄰4 C-5 D#5</note>
       <note row="8" track="harp" velocity="30">C-4</note>
@@ -83,7 +83,7 @@
 
     </pattern>
 
-    <pattern rows="32">
+    <pattern>
       <note row="0" track="harp" velocity="30">C-4</note>
       <note row="2" track="harp" velocity="30">D#4</note>
       <note row="4" track="harp" velocity="30">A𝄰4</note> <note row="4" track="pad" velocity="5">C-4</note> <note row="4" track="perc" velocity="20">CH</note> <note row="4" track="guitar" velocity="10">A𝄰4 C-5 D#5</note>
@@ -98,7 +98,7 @@
       <note row="28" track="perc" velocity="20">RC1</note>
     </pattern>
 
-    <pattern rows="32">
+    <pattern>
       <note row="0" track="harp" velocity="30">C-4</note> <note row="0" track="perc" velocity="20">T1</note>
       <note row="4" track="harp" velocity="30">A𝄰4</note> <note row="4" track="pad" velocity="5">C-4</note> <note row="4" track="perc" velocity="20">CH</note> <note row="4" track="guitar" velocity="10">A𝄰4 C-5 D#5</note>
       <note row="8" track="harp" velocity="30">C-4</note> <note row="8" track="perc" velocity="20">T1</note>
@@ -112,7 +112,7 @@
 
     </pattern>
 
-    <pattern rows="32">
+    <pattern>
       <note row="0" track="harp" velocity="30">C-4</note> <note row="0" track="perc" velocity="20">T1</note>
       <note row="2" track="harp" velocity="30">D#4</note>
       <note row="4" track="harp" velocity="30">A𝄰4</note> <note row="4" track="pad" velocity="5">C-4</note> <note row="4" track="perc" velocity="20">CH</note> <note row="4" track="guitar" velocity="10">A𝄰4 C-5 D#5</note>
@@ -127,7 +127,7 @@
       <note row="28" track="perc" velocity="20">RC1</note>
     </pattern>
 
-    <pattern rows="1">
+    <pattern>
       <note row="0" track="pad">OFF</note>
     </pattern>
 </patterns>

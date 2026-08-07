@@ -32,7 +32,7 @@ class Controller {
   // drops to 0, which a UI-thread reassignment can do synchronously,
   // regardless of when the audio thread later notices the swap via
   // SONG_CHANGED. Returning an actual shared_ptr copy - under the same
-  // mutex createNewSong()/openSong()/loadDemo2() take to reassign
+  // mutex createNewSong()/openSong() take to reassign
   // current_song, see song_mutex_'s own comment - keeps the *old* Song
   // object alive for as long as the audio thread's own copy of the
   // pointer is still in use, however long after the UI thread has moved
@@ -46,8 +46,7 @@ class Controller {
 
   void createNewSong();
   bool openSong(const std::string & filename);
-  
-  void loadDemo2();
+
   bool sendCommand(std::string_view s);
 
   // Lets the UI layer (which Controller, part of the headless-testable
@@ -207,8 +206,8 @@ class Controller {
   bool use_legacy_binaural_ = false;
 
   std::shared_ptr<Song> current_song;
-  // Guards current_song's own reassignment (createNewSong()/openSong()/
-  // loadDemo2()) against Player::play()'s getSongPtr() call on the audio
+  // Guards current_song's own reassignment (createNewSong()/openSong())
+  // against Player::play()'s getSongPtr() call on the audio
   // thread - see that method's own comment for the use-after-free this
   // prevents. mutable so a const Controller& can still lock it in
   // getSongPtr(). Every other current_song access (getSong() and its many

@@ -1,8 +1,0 @@
--M	deprecated
--Uxx	slide pitch up
--Dxx	slide pitch down
--Gxx	glide to note
--Vxx	Vibrato
--Ixx	Fade In
--Oxx	Fade Out
--Txy	Tremolo

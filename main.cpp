@@ -46,7 +46,6 @@ static bool renderSongToWav(Controller & controller, const ChannelConfiguration 
 }
 
 int main(int argc, char *argv[]) {
-  int load_demo = 0;
   bool relative = false;
   // 48000, not 44100: the "default" ALSA device is commonly PipeWire's
   // ALSA-compat plugin, whose own graph runs at a fixed native rate
@@ -62,14 +61,7 @@ int main(int argc, char *argv[]) {
   string render_path;
 
   for (int i = 1; i < argc; i++) {
-    if (strcmp(argv[i], "--demo") == 0) {
-      if (i + 1 < argc && argv[i + 1][0] != '-') {
-	i++;
-	load_demo = atoi(argv[i]);
-      } else {
-	load_demo = 1;
-      }
-    } else if (strcmp(argv[i], "--samplerate") == 0) {
+    if (strcmp(argv[i], "--samplerate") == 0) {
       int samplerate = 0;
       if (i + 1 < argc && argv[i + 1][0] != '-') {
 	i++;
@@ -161,8 +153,6 @@ int main(int argc, char *argv[]) {
       fmt::print(stderr, "Could not find file {}\n", input.front());
       exit(1);
     }
-  } else if (load_demo == 2) {
-    controller->loadDemo2();
   } else {
     controller->createNewSong();
   }

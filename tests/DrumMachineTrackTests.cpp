@@ -224,7 +224,8 @@ TEST(drum_machine_track_round_trips_through_save_and_load) {
   track.setSteps(42, 0b10101010);
   // 49 stays all-rest (0), exercising the all-zero-steps case on save/load.
 
-  song.addPattern(Pattern(8));
+  song.setPatternLength(8);
+  song.addPattern();
   song.save(scratch_path);
 
   auto provider = makeProvider();
@@ -457,8 +458,9 @@ TEST(drum_machine_track_loop_truncates_at_the_end_of_a_short_pattern) {
 }
 
 TEST(drum_machine_track_loop_phase_resets_at_each_pattern_boundary) {
-  // Pattern 1 is 5 rows, pattern 2 is 8 - the lane hits only at step 0. If
-  // phase correctly resets to pattern-relative row 0 at the boundary,
+  // Every pattern is 5 rows (patternRows="5" - all patterns in a song
+  // share one length now), loop_length=8 - the lane hits only at step 0.
+  // If phase correctly resets to pattern-relative row 0 at each boundary,
   // pattern 2's own first row hits again immediately (absolute row 5); if
   // it wrongly continued counting from the absolute row instead, the next
   // hit wouldn't land until absolute row 8.

@@ -103,11 +103,21 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     break;
     
   case PlaybackControlEvent::MOVE_POSITION:
-    state_.movePosition(ev.getParameter1());
+    // Mirrors Controller::moveEditPosition()'s own clampRowToCurrentPattern()
+    // call on the UI-thread side - both derive the same clamped result
+    // independently from the same (unclamped) delta_rows rather than one
+    // side trusting a value computed by the other across the thread
+    // boundary. Only ever reaches here while stopped (see
+    // PatternEditor's "Row navigation while stopped" comment); real
+    // playback's row-by-row advance goes through SongState::render()'s
+    // own movePosition()/jumpToPatternBreak() calls, never this event.
+    state_.setPosition(song.clampRowToCurrentPattern(state_.getAbsolutePosition(), state_.getAbsolutePosition() + ev.getParameter1()));
     break;
 
   case PlaybackControlEvent::SET_POSITION:
-    state_.setPosition(ev.getParameter1());
+    // See MOVE_POSITION just above - same reasoning, mirroring Controller::
+    // setEditPosition().
+    state_.setPosition(song.clampRowToCurrentPattern(state_.getAbsolutePosition(), ev.getParameter1()));
     break;
 
   case PlaybackControlEvent::CLEAR_VOICES:

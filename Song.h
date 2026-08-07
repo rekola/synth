@@ -8,6 +8,7 @@
 #include "bus/BusEffectRegistry.h"
 #include "constants.h"
 
+#include <algorithm>
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -32,6 +33,12 @@ class Song : public StatefulSongObject {
     
   short getTempo() const { return bpm_; }
   void setTempo(short bpm) { bpm_ = bpm; }
+
+  // Every pattern in the song shares this one row count (<song
+  // patternRows="N">) - there is no per-Pattern length any more. Changing
+  // it reshapes every pattern in the song at once, hence incVersion().
+  int getPatternLength() const { return pattern_length_; }
+  void setPatternLength(int rows) { pattern_length_ = rows; incVersion(); }
 
   // Floor-reflection parameters (see InstrumentVoice.h) - fixed for the
   // whole song, not live-editable (no live control path exists for any
@@ -94,15 +101,30 @@ class Song : public StatefulSongObject {
   const Pattern & getPattern(int i) const { return i >= 0 && i < static_cast<int>(patterns_.size()) ? patterns_[i] : empty_pattern_; }
   Pattern & getPattern(int i) { return i >= 0 && i < static_cast<int>(patterns_.size()) ? patterns_[i] : empty_pattern_; }
 
+  // Clamps `target` so it can't leave the pattern `current` falls in -
+  // used by the UI-thread edit cursor (Controller::moveEditPosition()/
+  // setEditPosition(), only ever called while stopped) and the audio
+  // thread's own handling of the MOVE_POSITION/SET_POSITION events those
+  // push (Player::handlePlaybackControlEvent()), so both sides derive the
+  // identical clamped result independently instead of one trusting a
+  // value computed by the other across the thread boundary - the same
+  // "self-clamp on both sides" pattern SongState::movePosition()/
+  // setPosition() already use for the plain "never go negative" clamp.
+  // Real playback's own row-by-row advance (SongState::render()) never
+  // goes through this - only stopped-transport cursor navigation does,
+  // which is what keeps a selection from silently spanning two patterns.
+  int clampRowToCurrentPattern(int current, int target) const {
+    auto len = getPatternLength();
+    if (len <= 0) return std::max(0, target);
+    auto pattern_start = (std::max(0, current) / len) * len;
+    return std::clamp(target, pattern_start, pattern_start + len - 1);
+  }
+
   std::pair<int, int> normalizePosition(int pattern_idx, int row_idx) const {
-    while (pattern_idx < static_cast<int>(patterns_.size())) {
-      auto & pattern = patterns_[pattern_idx];
-      if (row_idx < pattern.getNumRows()) {
-	break;
-      } else {
-	pattern_idx++;
-	row_idx -= pattern.getNumRows();
-      }
+    auto len = getPatternLength();
+    if (len > 0 && row_idx >= len) {
+      pattern_idx += row_idx / len;
+      row_idx %= len;
     }
     return std::pair(pattern_idx, row_idx);
   }
@@ -121,8 +143,8 @@ class Song : public StatefulSongObject {
     return patterns_.back();
   }
 
-  Pattern & addPattern(int rows) { return addPattern(Pattern(rows)); }
-    
+  Pattern & addPattern() { return addPattern(Pattern()); }
+
   const std::vector<std::unique_ptr<Track> > & getInstruments() const { return instruments_; }
   const Track & getInstrument(int i) const { return *(instruments_[i]); }
   void addInstrument(std::unique_ptr<Track> i) {
@@ -205,6 +227,7 @@ private:
   Tuning tuning_ = Tuning::TET12;
   short key_note_number_ = 0;
   int bpm_ = 90;
+  int pattern_length_ = 64;
   float ear_height_ = constants::DEFAULT_EAR_HEIGHT;
   bool floor_reflection_enabled_ = constants::DEFAULT_FLOOR_REFLECTION_ENABLED;
   float floor_reflection_strength_ = constants::DEFAULT_FLOOR_REFLECTION_STRENGTH;

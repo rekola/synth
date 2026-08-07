@@ -56,11 +56,11 @@ transposePatternBlock(Pattern & pattern, int row_lo, int row_hi,
 }
 
 void
-pastePatternBlock(Pattern & pattern, const PatternBlock & block,
+pastePatternBlock(Pattern & pattern, const PatternBlock & block, int num_rows,
 		  int target_row, const vector<int> & track_ids, int target_track) {
   for (size_t row_offset = 0; row_offset < block.size(); row_offset++) {
     int row = target_row + static_cast<int>(row_offset);
-    if (row < 0 || row >= pattern.getNumRows()) continue;
+    if (row < 0 || row >= num_rows) continue;
 
     auto & row_cells = block[row_offset];
     for (size_t track_offset = 0; track_offset < row_cells.size(); track_offset++) {
@@ -134,11 +134,11 @@ transposePatternBlockNotes(Pattern & pattern, int row_lo, int row_hi,
 }
 
 void
-pastePatternBlockNotes(Pattern & pattern, const PatternBlock & block,
+pastePatternBlockNotes(Pattern & pattern, const PatternBlock & block, int num_rows,
 		       int target_row, int track_id, int target_note_offset, bool include_command) {
   for (size_t row_offset = 0; row_offset < block.size(); row_offset++) {
     int row = target_row + static_cast<int>(row_offset);
-    if (row < 0 || row >= pattern.getNumRows()) continue;
+    if (row < 0 || row >= num_rows) continue;
 
     auto & row_cells = block[row_offset];
     if (row_cells.empty()) continue;

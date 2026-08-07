@@ -28,8 +28,9 @@ void clearPatternBlock(Pattern & pattern, int row_lo, int row_hi,
 		       const std::vector<int> & track_ids, int track_lo, int track_hi);
 
 // Writes `block` into `pattern` starting at (target_row, track_ids[target_track]),
-// clipping any cells whose target row or track falls outside pattern/track_ids bounds.
-void pastePatternBlock(Pattern & pattern, const PatternBlock & block,
+// clipping any cells whose target row or track falls outside [0, num_rows)/
+// track_ids bounds.
+void pastePatternBlock(Pattern & pattern, const PatternBlock & block, int num_rows,
 		       int target_row, const std::vector<int> & track_ids, int target_track);
 
 // Transposes (up if `up`, else down) every note in the same range, except
@@ -61,7 +62,7 @@ void transposePatternBlockNotes(Pattern & pattern, int row_lo, int row_hi,
 // Merges `block` into `pattern` starting at (target_row, track_id, target_note_offset),
 // leaving note columns outside that range untouched (unlike pastePatternBlock,
 // which replaces a cell's whole note vector).
-void pastePatternBlockNotes(Pattern & pattern, const PatternBlock & block,
+void pastePatternBlockNotes(Pattern & pattern, const PatternBlock & block, int num_rows,
 			    int target_row, int track_id, int target_note_offset, bool include_command = false);
 
 #endif

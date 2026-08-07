@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="120" volume="1.0">
+<song temperament="31edo" tempo="120" patternRows="64" volume="1.0">
   <instruments>
     <amplifier name="bass3" gain="-10">
       <envelope attack="0.01" hold="0" decay="1.17" sustain="0" release="0.231">	
@@ -17,7 +17,7 @@
   </tracks>
   
   <patterns>
-    <pattern rows="64">
+    <pattern>
       <note row="0" track="bass" velocity="40">D#2</note>
       <note row="4" track="bass" velocity="40">F-2</note>
       <note row="6" track="bass" velocity="40">C-2</note>

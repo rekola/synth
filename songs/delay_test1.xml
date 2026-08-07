@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="100" volume="0.75">
+<song temperament="31edo" tempo="100" patternRows="64" volume="0.75">
   <instruments>
     <group name="Melody blocks">
       <envelope attack="0.01" decay="0.5" sustain="0" release="0.5">
@@ -22,7 +22,7 @@
   </tracks>
   
   <patterns>   
-    <pattern rows="64">
+    <pattern>
       <note track="0" row="0" velocity="40">C-4</note>
       <note track="0" row="4" velocity="40">Cx4</note>
       <note track="0" row="8" velocity="40">D#4</note>

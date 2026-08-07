@@ -1,6 +1,8 @@
 #ifndef _UICOLOR_H_
 #define _UICOLOR_H_
 
+#include "digit.h"
+
 #include <string_view>
 
 class UIColor {
@@ -30,33 +32,29 @@ class UIColor {
   }
 
  private:
+  // digit() returns -1 for a non-hex character rather than rejecting the
+  // whole value; every hexDigit() call below coerces that to 0, same as
+  // this function's own behavior always was.
+  static inline int hexDigit(char c) {
+    auto d = digit(c, 16);
+    return d < 0 ? 0 : d;
+  }
+
   void setValue(std::string_view s) {
     if (!s.empty() && s[0] == '#') s.remove_prefix(1);
     if (s.size() >= 6) {
-      red = color_get_xdigit(s[0]) * 16 + color_get_xdigit(s[1]);
-      green = color_get_xdigit(s[2]) * 16 + color_get_xdigit(s[3]);
-      blue = color_get_xdigit(s[4]) * 16 + color_get_xdigit(s[5]);
+      red = hexDigit(s[0]) * 16 + hexDigit(s[1]);
+      green = hexDigit(s[2]) * 16 + hexDigit(s[3]);
+      blue = hexDigit(s[4]) * 16 + hexDigit(s[5]);
     } else if (s.size() >= 3) {
-      auto r = color_get_xdigit(s[0]);
-      auto g = color_get_xdigit(s[1]);
-      auto b = color_get_xdigit(s[2]);
+      auto r = hexDigit(s[0]);
+      auto g = hexDigit(s[1]);
+      auto b = hexDigit(s[2]);
       red = (r * 16 + r) / 255.0f;
       green = (g * 16 + g) / 255.0f;
       blue = (b * 16 + b) / 255.0f;
     } else {
       red = green = blue = 0;
-    }
-  }
-
-  static inline int color_get_xdigit(char c) {
-    if (c >= '0' && c <= '9') {
-      return c - '0';
-    } else if (c >= 'A' && c <= 'F') {
-      return c - 'A' + 10;
-    } else if (c >= 'a' && c <= 'f') {
-      return c - 'a' + 10;
-    } else {
-      return 0;
     }
   }
 

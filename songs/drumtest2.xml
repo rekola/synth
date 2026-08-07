@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="140" volume="1.0">
+<song temperament="31edo" tempo="140" patternRows="32" volume="1.0">
   <instruments>
     <envelope attack="0.01" hold="0" decay="1.17" sustain="0" release="0.231" name="Bell">
       <oscilator type="sine"/>
@@ -35,7 +35,7 @@
   </tracks>
   
   <patterns>
-    <pattern rows="32">
+    <pattern>
       <note track="perc" row="0" velocity="40" delay="60">CH BD</note>
       <note track="perc" row="2" velocity="40">OFF BD</note>
       <note track="perc" row="4" velocity="40" delay="60">CH</note>
@@ -52,7 +52,7 @@
       <note track="perc" row="30" velocity="40">CH</note>
     </pattern>
     
-    <pattern rows="32">
+    <pattern>
       <note track="perc" row="0" velocity="40">BD CH</note>
       <note track="perc" row="2" velocity="40">BD</note>
       <note track="perc" row="4" velocity="40">CH</note>

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song key="C" temperament="31edo" tempo="100" volume="0.75">
+<song key="C" temperament="31edo" tempo="100" patternRows="48" volume="0.75">
   <instruments>
     <genericInstrument name="Piano" />
 
@@ -25,7 +25,7 @@
   </tracks>
   
   <patterns>
-    <pattern rows="24">
+    <pattern>
       <annotation row="0">Major</annotation>
       <note row="0" track="0" velocity="40">C-4</note>
       <note row="2" track="0" velocity="40">Db4</note>
@@ -41,7 +41,7 @@
       <note row="22" track="0" velocity="40">C-5</note>
     </pattern>
 
-    <pattern rows="48">
+    <pattern>
       <annotation row="0">Major</annotation>
       <note row="0" track="0" velocity="40">C-4 E-4 G-4</note>
       <note row="4" track="0" velocity="40">Db4 F-4 Ab4</note>

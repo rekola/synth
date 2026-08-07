@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="12edo" tempo="120" volume="1.0">
+<song temperament="12edo" tempo="120" patternRows="8" volume="1.0">
   <bus>
     <reverb/>
     <haze preset="crunch"/>
@@ -13,7 +13,7 @@
     <track id="0" instrument="0" sendB="0.5"/>
   </tracks>
   <patterns>
-    <pattern rows="8">
+    <pattern>
       <note row="0" track="0" velocity="80" value="C-4"/>
     </pattern>
   </patterns>

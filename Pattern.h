@@ -12,11 +12,6 @@
 
 class Pattern : public SongObject {
  public:
-  Pattern() : num_rows_(0) { }
-  explicit Pattern(int num_rows) : num_rows_(num_rows) { }
-
-  int getNumRows() const { return num_rows_; }
-
   void setNotes(int row, int track_id, const std::vector<Note> & n) {
     notes_[row][track_id] = n;
   }
@@ -66,8 +61,8 @@ class Pattern : public SongObject {
     }
   }
 
-  void insertRow(int row, int track_id) {
-    for (int i = getNumRows() - 1; i > row; i--) {
+  void insertRow(int row, int track_id, int num_rows) {
+    for (int i = num_rows - 1; i > row; i--) {
       setNotes(i, track_id, getNotes(i - 1, track_id));
     }
     clearNotes(row, track_id);
@@ -152,19 +147,7 @@ class Pattern : public SongObject {
 
   const std::unordered_map<unsigned short, std::string> & getAnnotations() const { return annotations_; }
 
-  void loadParameters(const ParameterSource & input) override {
-    SongObject::loadParameters(input);
-    num_rows_ = input.getInt("rows");	
-  }
-  
-  void storeParameters(ParameterSource & output) const override {
-    SongObject::storeParameters(output);
-    output.set("rows", getNumRows());    
-  }
-
 private:
-  int num_rows_;
-
   // sparse note matrix: row, track, note_column
   std::unordered_map<unsigned short, std::unordered_map<int, std::vector<Note> > > notes_;
   std::unordered_map<unsigned short, std::unordered_map<int, Command> > commands_;

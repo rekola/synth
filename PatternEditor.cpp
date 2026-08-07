@@ -137,9 +137,9 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
         auto track_id = track_ids[current_cursor.track];
         auto track_info = getTrackInfoFor(song, track_id);
         auto target_note = clamp(track_info.getNoteNumber(current_cursor.col), 0, max(track_info.num_subtracks_ - 1, 0));
-        pastePatternBlockNotes(pattern, clipboard_, info.getRowIndex(), track_id, target_note, clipboard_includes_command_);
+        pastePatternBlockNotes(pattern, clipboard_, song.getPatternLength(), info.getRowIndex(), track_id, target_note, clipboard_includes_command_);
       } else {
-        pastePatternBlock(pattern, clipboard_, info.getRowIndex(), track_ids, current_cursor.track);
+        pastePatternBlock(pattern, clipboard_, song.getPatternLength(), info.getRowIndex(), track_ids, current_cursor.track);
       }
       song.incVersion();
       getController().getUIEventQueue().push(make_unique<LogEvent>("Yanked"));
@@ -374,7 +374,7 @@ PatternEditor::getTrackInformation(const Song & song, int scroll_row) const {
 
     auto & pattern = song.getPattern(pattern_idx);
     pattern.getTrackInformation(track_info);
-    row += pattern.getNumRows() - pattern_row;
+    row += song.getPatternLength() - pattern_row;
   }
   for (auto & track : song.getTracks()) {
     fill_track_info(*track, track_info);
@@ -436,7 +436,18 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   auto score_playing_row = info.getRowIndex();
   auto & song = getController().getSong();
 
-  if (selection_active_ && selection_start_pattern_ != score_pattern) {
+  // Playback's own playhead (unlike the stopped-transport edit cursor -
+  // see Controller::moveEditPosition()'s own clampRowToCurrentPattern()
+  // call) crosses pattern boundaries freely, and must keep doing so
+  // regardless of any selection - ending the selection the instant
+  // playback starts (rather than waiting for the boundary-cross check
+  // below to eventually notice) keeps that unambiguous: an open selection
+  // never has a chance to look like it's constraining where the playhead
+  // goes.
+  if (selection_active_ && info.isPlaying()) {
+    selection_active_ = false;
+    getController().getUIEventQueue().push(make_unique<LogEvent>("Selection cleared: playback started"));
+  } else if (selection_active_ && selection_start_pattern_ != score_pattern) {
     selection_active_ = false;
     getController().getUIEventQueue().push(make_unique<LogEvent>("Selection cleared: crossed pattern boundary"));
   }
@@ -930,7 +941,7 @@ PatternEditor::offerInput(const InputEvent & input) {
     } else if (input.getId() == NCKEY_INS) {
       auto & pattern = song.getPattern(info.getPatternIndex());
       int track_id = track_ids[new_cursor.track];
-      pattern.insertRow(info.getRowIndex(), track_id);
+      pattern.insertRow(info.getRowIndex(), track_id, song.getPatternLength());
       song.incVersion();
       return true;
     } else {

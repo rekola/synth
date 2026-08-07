@@ -18,7 +18,8 @@ TEST(percussion_track_round_trips_through_save_and_load) {
 
   Song song;
   song.addTrack(make_unique<PercussionTrack>());
-  song.addPattern(Pattern(8));
+  song.setPatternLength(8);
+  song.addPattern();
   song.save(scratch_path);
 
   InstrumentProvider provider;

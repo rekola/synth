@@ -6,7 +6,7 @@
      voice's position must still come through in the master decode.
      Broadband pink noise, not a sine wave, for consistency with the other
      position/direction fixtures (see ambisonic_directions.xml). -->
-<song temperament="12edo" tempo="120" volume="1.0">
+<song temperament="12edo" tempo="120" patternRows="16" volume="1.0">
   <instruments>
     <envelope attack="0.02" hold="0.9" decay="0.08" sustain="0.0" release="0.02">
       <noise color="pink"/>
@@ -16,7 +16,7 @@
     <track id="0" instrument="0" azimuth="90" elevation="0" distance="1"/>
   </tracks>
   <patterns>
-    <pattern rows="16">
+    <pattern>
       <note row="0" track="0" velocity="80" value="C-4"/>
     </pattern>
   </patterns>

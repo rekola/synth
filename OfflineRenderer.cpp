@@ -13,8 +13,7 @@ renderSongOffline(const Song & song, const ChannelConfiguration & channel_config
   result.channels = channel_config.getDeviceChannels();
   result.sampleRate = channel_config.getAudioOutSampleRate();
 
-  int total_rows = 0;
-  for (auto & pattern : song.getPatterns()) total_rows += pattern.getNumRows();
+  int total_rows = static_cast<int>(song.getPatterns().size()) * song.getPatternLength();
   if (!total_rows) return result;
 
   SongState state(channel_config);

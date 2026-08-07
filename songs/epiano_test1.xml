@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="53edo" tempo="160">
+<song temperament="53edo" tempo="160" patternRows="128">
   <instruments>
     <amplifier gain="-20">
       <envelope attack="0.05" decay="2.0" sustain="0" release="0.5" name="epiano">
@@ -47,7 +47,7 @@
   </tracks>
   
   <patterns>
-    <pattern rows="64">
+    <pattern>
       <note row="0" track="melody" velocity="20">C-4 E-4 G-4</note> <note row="0" track="perc" velocity="40">BD SC</note>
       <note row="4" track="melody" velocity="20">A-3</note>
       <note row="8" track="melody" velocity="20">C-4</note>
@@ -67,7 +67,7 @@
       <note row="60" track="perc" velocity="40">BD</note>
     </pattern>
     
-    <pattern rows="64">
+    <pattern>
       <note row="0" track="melody" velocity="20">A𝄰3 C-4 D#4</note> <note row="0" track="perc" velocity="40">BD SC</note>
 
       <note row="4" track="melody" velocity="20">A-3</note>
@@ -88,7 +88,7 @@
       <note row="60" track="melody" velocity="20">A-4</note>
     </pattern>
 
-    <pattern rows="128">
+    <pattern>
       <note row="0" track="melody" velocity="20">C-4 E-4 G-4</note> <note row="0" track="perc" velocity="40">BD SC</note>
       <note row="4" track="melody" velocity="20">A-3</note>
       <note row="8" track="melody" velocity="20">C-4</note>
