@@ -8,6 +8,7 @@ add_executable(synth_tests
 	PatternBlockOpsTests.cpp
 	PatternScrollTests.cpp
 	PatternBreakTests.cpp
+	AzimuthSlideTests.cpp
 	SongTests.cpp
 	LaunchpadLayoutTests.cpp
 	LaunchpadProtocolTests.cpp

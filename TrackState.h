@@ -213,6 +213,21 @@ public:
   }
   virtual float getChannelPressure() const { return 0.0f; }
 
+  // 2Lxx/2Rxx azimuth slide (Command::isAzimuthSlide(), consumed by
+  // InstrumentTrackState::render()'s chunked loop) - nudges this voice
+  // chain's own spatial position live, mid-note. Default recurses into
+  // children for the same reason applyChannelPressure() above does: a
+  // multi-region SoundFontInstrument group is a plain, non-overriding
+  // TrackState wrapping several real leaf voices (see that method's own
+  // comment), so the recursion is what actually reaches them. Only
+  // InstrumentVoice overrides this (every leaf voice type derives from
+  // it - see InstrumentVoice.h).
+  virtual void adjustAzimuth(float delta) {
+    for (auto & [ id, child ] : getChildren()) {
+      child->adjustAzimuth(delta);
+    }
+  }
+
   const ChannelConfiguration & getChannelConfiguration() const { return channel_config_; }
 
   // Mutable access - only SongState::initialize() uses this, to push the

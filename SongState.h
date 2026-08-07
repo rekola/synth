@@ -12,6 +12,7 @@
 #include "DrumMachineTrack.h"
 #include "constants.h"
 
+#include <algorithm>
 #include <memory>
 
 class SongState : public TrackState {
@@ -116,6 +117,8 @@ class SongState : public TrackState {
 	    if (command.isPatternBreak()) {
 	      pending_break_ = true;
 	      pending_break_row_ = command.getBreakDestinationRow();
+	    } else if (command.isAzimuthSlide()) {
+	      scheduleAzimuthSlide(track_id, i, command.getAzimuthSlidePerTick());
 	    }
 	  }
 
@@ -317,6 +320,27 @@ class SongState : public TrackState {
     auto pattern_idx = absolute_pos_ / len;
     auto row = dest_row < 0 ? 0 : (dest_row >= len ? len - 1 : dest_row);
     setPosition((pattern_idx + 1) * len + row);
+  }
+
+  // 2Lxx/2Rxx (Command::isAzimuthSlide()) - spreads constants::TICKS_PER_ROW
+  // evenly-spaced nudges of `delta_per_tick` degrees across the row
+  // currently starting at block-relative sample offset `row_start` (the
+  // same block-relative numbering render()'s own note scheduling just
+  // above already uses for its i+delay_samples offsets), each consumed by
+  // InstrumentTrackState::render()'s chunked loop via RenderContext's
+  // pending-azimuth-tick timeline. A tick landing beyond this block's own
+  // remaining frames is simply carried forward by updateFrameOffset()
+  // below, same as a note event scheduled near a block boundary already
+  // is - so a command near the end of a block still applies all its
+  // ticks, just spread across this call and the next.
+  void scheduleAzimuthSlide(int track_id, int row_start, float delta_per_tick) {
+    int row_samples = getChannelConfiguration().getSampleInterval(tempo_);
+    int tick_interval = std::max(1, row_samples / constants::TICKS_PER_ROW);
+    for (int tick = 1; tick <= constants::TICKS_PER_ROW; tick++) {
+      int offset = tick * tick_interval;
+      if (offset >= row_samples) break;
+      render_context_.addPendingAzimuthTick(track_id, row_start + offset, delta_per_tick);
+    }
   }
 
   // Bumped by every movePosition()/setPosition() call - lets a PlaybackInfo

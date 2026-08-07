@@ -13,6 +13,8 @@ everything else is accepted and stored but currently a no-op (see
 | Command | Description |
 |---|---|
 | `ZBxx` | Pattern break - jump straight to row `xx` of the next pattern instead of playing out the rest of this one. |
+| `2Lxx` | Slide azimuth left - decrease the track's azimuth by `xx` degrees per tick (12 ticks/row) for the duration of this row, moving both the track's own position and every currently-sounding voice. |
+| `2Rxx` | Slide azimuth right - same as `2Lxx` but increasing azimuth (this engine's convention: positive azimuth = right). |
 
 ## Planned
 

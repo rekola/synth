@@ -31,6 +31,14 @@ namespace constants {
   constexpr bool DEFAULT_FLOOR_REFLECTION_ENABLED { true };
   constexpr float DEFAULT_FLOOR_REFLECTION_STRENGTH { 0.4f };
   constexpr float DEFAULT_GROUND_ABSORPTION { 0.3f };
+
+  // Per-row subdivision for tick-based pattern effect commands (currently
+  // just 2Lxx/2Rxx azimuth slide - see SongState::scheduleAzimuthSlide()) -
+  // the row's own duration is split into this many evenly-spaced steps,
+  // each firing one incremental change. Not a "speed" setting a song can
+  // adjust - fixed, the same way the row itself is the only other unit of
+  // pattern timing in this engine.
+  constexpr int TICKS_PER_ROW { 12 };
 };
 
 #endif

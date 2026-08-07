@@ -64,6 +64,24 @@ class InstrumentVoice : public TrackState {
 
   SphericalPosition getPosition() const { return position_; }
 
+  // 2Lxx/2Rxx azimuth slide (TrackState::adjustAzimuth()'s override for
+  // every real leaf voice type) - unlike everything else about position_,
+  // this *does* change after construction, live, mid-note (see
+  // InstrumentTrackState::adjustAzimuth() for why: the whole point of a
+  // slide command is to audibly move whatever is currently sounding).
+  // encodePosition() already recomputes computeAmbisonicGains(getPosition())
+  // fresh every render() call rather than caching it, and encoder_ smooths
+  // the resulting gain change across the block the same way it already
+  // smooths a distance/Send-Main change, so this needs no extra
+  // interpolation of its own. The floor reflection's own azimuth mirrors
+  // the direct path's (see initFloorReflection() - only elevation
+  // differs), so it's kept in sync here too rather than left pointing at
+  // wherever the voice started.
+  void adjustAzimuth(float delta) override {
+    position_.azimuth += delta;
+    if (floor_reflection_active_) floor_position_.azimuth += delta;
+  }
+
   // Raw performance velocity (0..1), deliberately NOT decibelsToGain(getGainDB())
   // - getGainDB() can carry extra per-instrument mixing gain (e.g.
   // SoundFontVoice bakes its SF2 region's attenuation into it), which would
@@ -178,12 +196,14 @@ protected:
 
 private:
   // Every value the floor reflection needs - delay, gain, and the
-  // reflected direction - follows directly from the song's ear height
-  // and this voice's own position_, both fixed for this voice's whole
-  // lifetime (position_ never changes after construction, see this
-  // class's own comments above) - so it's all computed once, here, never
-  // recomputed or smoothed per block, via the pure (and independently
-  // testable) geometry in FloorReflection.h. distance <= 0 (no position
+  // reflected elevation - follows directly from the song's ear height and
+  // this voice's own position_'s distance/elevation, both fixed for this
+  // voice's whole lifetime (only azimuth ever changes post-construction -
+  // see adjustAzimuth() above, which updates floor_position_.azimuth
+  // itself rather than re-deriving it here) - so delay/gain/elevation are
+  // all computed once, here, never recomputed or smoothed per block, via
+  // the pure (and independently testable) geometry in FloorReflection.h.
+  // distance <= 0 (no position
   // ever set) leaves floor_reflection_active_ false, same "nothing to
   // attach a direction to" reasoning computeAmbisonicGains() itself
   // already uses.

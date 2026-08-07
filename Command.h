@@ -47,8 +47,28 @@ class Command {
     return (hi < 0 ? 0 : hi) * 16 + (lo < 0 ? 0 : lo);
   }
 
+  // 2Lxx/2Rxx - slide azimuth left/right: nudge the track's azimuth (and,
+  // unlike a plain track-azimuth change, every currently-sounding voice's
+  // own position too - see InstrumentTrackState::adjustAzimuth()) by `xx`
+  // degrees per tick, for as long as this row lasts
+  // (constants::TICKS_PER_ROW ticks/row - see SongState::
+  // scheduleAzimuthSlide()). "2" groups azimuth commands the same way "0"
+  // groups pitch and "1" groups volume-ish commands in docs/commands.md;
+  // L/R match this engine's own azimuth sign convention (positive =
+  // right, see SphericalPosition.h).
+  bool isAzimuthSlide() const { return values_[0] == '2' && (values_[1] == 'L' || values_[1] == 'R'); }
+
+  // Signed degrees-per-tick for isAzimuthSlide() (values_[2..3], same
+  // permissive 2-hex-digit parsing as getBreakDestinationRow() above) -
+  // negative for 2Lxx (left), positive for 2Rxx (right).
+  float getAzimuthSlidePerTick() const {
+    auto hi = digit(values_[2], 16), lo = digit(values_[3], 16);
+    float magnitude = static_cast<float>((hi < 0 ? 0 : hi) * 16 + (lo < 0 ? 0 : lo));
+    return values_[1] == 'L' ? -magnitude : magnitude;
+  }
+
   const char * data() const { return &(values_[0]); }
-  
+
  private:
   char values_[4];
 };

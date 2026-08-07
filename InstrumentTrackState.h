@@ -28,13 +28,19 @@ public:
     if (instrument_id_ >= 0 && instrument_id_ < instruments.size()) {
       auto & instrument = instruments[instrument_id_];
       auto & pending_events = context.getPendingEvents(track_id_);
+      auto & pending_azimuth = context.getPendingAzimuthTicks(track_id_);
 
       for (int i = 0; i < frames; ) {
 	int render_size = frames - i;
+	// Note events and azimuth-slide ticks are two independent timelines
+	// (see RenderContext.h) that can land on different frames within
+	// the same block, so each only asserts that `i` never overshoots
+	// its own next entry - not that every stop lands exactly on this
+	// source's entry, which the other source's own boundary can now
+	// force too.
 	if (!pending_events.empty()) {
 	  auto it = pending_events.begin();
 	  assert(i <= it->first);
-	  assert(i == 0 || i == it->first);
 	  if (i == it->first) {
 	    for (auto & ev : it->second) {
 	      if (ev.isAftertouch()) {
@@ -58,6 +64,16 @@ public:
 	    it = pending_events.erase(it);
 	  }
 	  if (it != pending_events.end() && it->first - i < render_size) render_size = it->first - i;
+	}
+
+	if (!pending_azimuth.empty()) {
+	  auto it = pending_azimuth.begin();
+	  assert(i <= it->first);
+	  if (i == it->first) {
+	    adjustAzimuth(it->second);
+	    it = pending_azimuth.erase(it);
+	  }
+	  if (it != pending_azimuth.end() && it->first - i < render_size) render_size = it->first - i;
 	}
 
 	chunks.emplace_back(i, render(render_size));
@@ -330,6 +346,22 @@ public:
   // already-playing voices keep whatever position they were constructed
   // with (InstrumentVoice's own encodePosition() bakes it in once too).
   void setAzimuth(float a) { position_.azimuth = a; }
+  float getAzimuth() const { return position_.azimuth; }
+
+  // 2Lxx/2Rxx azimuth slide (Command::isAzimuthSlide(), scheduled per-tick
+  // by SongState::scheduleAzimuthSlide(), consumed above in this class's
+  // own chunked render() loop) - deliberately the opposite of setAzimuth()
+  // above: it reaches every already-active voice too, not just future
+  // notes, since the whole point of a slide command is to audibly move
+  // whatever is currently sounding. TrackState::adjustAzimuth()'s default
+  // recursion (overridden by InstrumentVoice - see its own comment) makes
+  // this correct even for a multi-region SoundFontInstrument group.
+  void adjustAzimuth(float delta) override {
+    position_.azimuth += delta;
+    for (auto & [ column, voices ] : voices_) {
+      for (auto & voice : voices) if (voice->isActive()) voice->adjustAzimuth(delta);
+    }
+  }
 
 protected:
   static inline bool is_not_playing(const std::unique_ptr<TrackState> & voice) { return !voice->isActive(); }
