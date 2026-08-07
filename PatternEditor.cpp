@@ -808,17 +808,25 @@ PatternEditor::offerInput(const InputEvent & input) {
     } else if (input.getId() == '-') {
       if (edit_step_size > 0) edit_step_size--;
       return true;
-    } else if (input.getId() == NCKEY_LEFT || input.getId() == NCKEY_RIGHT) {
+    } else if (input.getId() == NCKEY_KP_DIVIDE || input.getId() == NCKEY_KP_MULTIPLY) {
+      // Instrument selection - moved here from Ctrl+Left/Right (now "move
+      // cursor to the neighboring track", see below) to free that chord
+      // up. Numpad Divide/Multiply rather than a modifier combo on
+      // ordinary keys since every other candidate (Ctrl+Up/Down,
+      // Alt+PageUp/PageDown, ...) either collided with something else or
+      // risked terminal/WM interception - see TerminalUI::readInput()'s
+      // own comment for why these two specifically need their own
+      // escape-sequence recognizer to even arrive as a single key event.
       auto track = song.getTrackByInternalId(track_ids[current_cursor.track]);
       if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL || track->getType() == TrackType::DRUM_MACHINE)) {
 	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
 	bool changed = false;
-	if (input.getId() == NCKEY_LEFT && instrument_track.getInstrumentId() > 0) {
+	if (input.getId() == NCKEY_KP_DIVIDE && instrument_track.getInstrumentId() > 0) {
 	  instrument_track.setInstrumentId(instrument_track.getInstrumentId() - 1);
 	  changed = true;
 	} else {
 	  auto & instruments = song.getInstruments();
-	  if (input.getId() == NCKEY_RIGHT && instrument_track.getInstrumentId() + 1 < instruments.size()) {
+	  if (input.getId() == NCKEY_KP_MULTIPLY && instrument_track.getInstrumentId() + 1 < instruments.size()) {
 	    instrument_track.setInstrumentId(instrument_track.getInstrumentId() + 1);
 	    changed = true;
 	  }
@@ -827,6 +835,23 @@ PatternEditor::offerInput(const InputEvent & input) {
 	  song.incVersion();
 	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, instrument_track.getInternalId()));
 	}
+      }
+      return true;
+    } else if (input.getId() == NCKEY_LEFT || input.getId() == NCKEY_RIGHT) {
+      // Emacs-style word motion, one level up from plain Left/Right's
+      // note-column navigation (see the !input.hasMeta() branch below):
+      // jumps straight to the neighboring track rather than stepping
+      // through its columns, landing on its first column the same way
+      // crossing a track boundary during plain-Right navigation already
+      // does.
+      if (input.getId() == NCKEY_LEFT && new_cursor.track > 0) {
+	new_cursor.track--;
+	new_cursor.col = 0;
+	new_cursor.subcol = 0;
+      } else if (input.getId() == NCKEY_RIGHT && new_cursor.track + 1 < num_tracks) {
+	new_cursor.track++;
+	new_cursor.col = 0;
+	new_cursor.subcol = 0;
       }
       return true;
     } else if (input.getId() == 'i') {

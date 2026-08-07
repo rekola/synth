@@ -1046,6 +1046,43 @@ TerminalUI::refresh() {
 bool
 TerminalUI::readInput() {
   ncinput ni;
+
+  // Applies the same id/modifier massaging this loop has always done, then
+  // constructs and dispatches one InputEvent - factored out so a byte the
+  // KP-escape-sequence recognizer below ends up replaying (see
+  // kp_escape_depth_'s own comment) goes through identical processing to
+  // one that was never buffered at all.
+  auto dispatchRawKey = [this](int raw_id, int y, int x, unsigned modifiers, InputEvent::Kind kind) {
+    bool alt = modifiers & NCKEY_MOD_ALT;
+    bool shift = modifiers & NCKEY_MOD_SHIFT;
+    bool ctrl = modifiers & NCKEY_MOD_CTRL;
+    bool meta = modifiers & NCKEY_MOD_META;
+
+    int id = raw_id;
+    if (id >= 'A' && id <= 'Z') {
+      id = tolower(id);
+      if (!ctrl) shift = true; // fix bug in notcurses
+    } else if (id == 28) {
+      ctrl = true;
+      alt = meta = shift = false;
+      id = '\\';
+    }
+
+    InputEvent input(id, y, x, alt, shift, ctrl, meta, kind);
+    offerInput(input);
+  };
+
+  // Replays every byte the KP-escape recognizer had buffered so far, in
+  // order, then resets it - used whenever a partial match turns out not
+  // to be the sequence after all.
+  auto flushPendingKpEscape = [this, &dispatchRawKey]() {
+    for (int i = 0; i < kp_escape_depth_; i++) {
+      auto & p = kp_escape_pending_[i];
+      dispatchRawKey(p.id, p.y, p.x, p.modifiers, p.kind);
+    }
+    kp_escape_depth_ = 0;
+  };
+
   while (nc->get(false, &ni) > 0) {
     // Legacy terminals only ever report NCTYPE_UNKNOWN (no press/release
     // distinction - notcurses's own signal that this terminal never
@@ -1069,23 +1106,49 @@ TerminalUI::readInput() {
               : ni.evtype == NCTYPE_PRESS ? InputEvent::Kind::PRESS
               : InputEvent::Kind::UNKNOWN;
 
-    bool alt = ni.modifiers & NCKEY_MOD_ALT;
-    bool shift = ni.modifiers & NCKEY_MOD_SHIFT;
-    bool ctrl = ni.modifiers & NCKEY_MOD_CTRL;
-    bool meta = ni.modifiers & NCKEY_MOD_META;
-    
-    int id = ni.id;
-    if (id >= 'A' && id <= 'Z') {
-      id = tolower(id);
-      if (!ctrl) shift = true; // fix bug in notcurses
-    } else if (id == 28) {
-      ctrl = true;
-      alt = meta = shift = false;
-      id = '\\';
+    // Legacy xterm/VT220 "SS3 + modifier digit" encoding some terminals
+    // still send for a Ctrl-modified numeric-keypad Divide/Multiply
+    // keystroke instead of the Kitty keyboard protocol (confirmed via
+    // notcurses-input against a real terminal: notcurses's own
+    // escape-sequence lexer doesn't recognize this pattern as a single
+    // key, so all 4 bytes - ESC, 'O', '5', then 'o' or 'j' - arrive as
+    // their own separate, unmodified raw events). Recognized here and
+    // turned into one synthetic Ctrl-modified InputEvent
+    // (NCKEY_KP_DIVIDE/NCKEY_KP_MULTIPLY) instead of leaking "O5o"/"O5j"
+    // through as if it had been typed into the pattern grid. A byte that
+    // breaks a partial match falls through to normal dispatch below (via
+    // flushPendingKpEscape() replaying whatever was buffered first), so a
+    // real standalone Escape or Esc-then-x for M-x still work exactly as
+    // before.
+    if (kp_escape_depth_ == 0 && ni.id == NCKEY_ESC) {
+      kp_escape_pending_[0] = { static_cast<int>(ni.id), ni.y, ni.x, ni.modifiers, kind };
+      kp_escape_depth_ = 1;
+      continue;
+    } else if (kp_escape_depth_ == 1) {
+      if (ni.id == 'O') {
+	kp_escape_pending_[1] = { static_cast<int>(ni.id), ni.y, ni.x, ni.modifiers, kind };
+	kp_escape_depth_ = 2;
+	continue;
+      }
+      flushPendingKpEscape();
+    } else if (kp_escape_depth_ == 2) {
+      if (ni.id == '5') {
+	kp_escape_pending_[2] = { static_cast<int>(ni.id), ni.y, ni.x, ni.modifiers, kind };
+	kp_escape_depth_ = 3;
+	continue;
+      }
+      flushPendingKpEscape();
+    } else if (kp_escape_depth_ == 3) {
+      if (ni.id == 'o' || ni.id == 'j') {
+	kp_escape_depth_ = 0;
+	InputEvent input(ni.id == 'o' ? NCKEY_KP_DIVIDE : NCKEY_KP_MULTIPLY, ni.y, ni.x, false, false, true, false, kind);
+	offerInput(input);
+	continue;
+      }
+      flushPendingKpEscape();
     }
-    
-    InputEvent input(id, ni.y, ni.x, alt, shift, ctrl, meta, kind);
-    offerInput(input);
+
+    dispatchRawKey(static_cast<int>(ni.id), ni.y, ni.x, ni.modifiers, kind);
   }
 
   return true;

@@ -37,7 +37,21 @@
 #define NCKEY_BUTTON5  preterunicode(205) // scrollwheel down
 
 #endif
-  
+
+// Synthetic, non-notcurses key ids: no real Ctrl-modified numeric-keypad
+// Divide/Multiply key exists in notcurses's own enum, nor does notcurses
+// recognize the legacy VT220/xterm "SS3 + modifier digit" encoding some
+// terminals still send for them (ESC 'O' '5' 'o'/'j') as a single key
+// event at all - see TerminalUI::readInput()'s own escape-sequence
+// recognizer, which synthesizes InputEvents carrying these ids instead of
+// leaking the 4 raw bytes through as if they'd been typed. Defined
+// unconditionally (unlike the block above) since they have no notcurses
+// equivalent to fall back to either way, and picked well above any index
+// notcurses's own nckeys.h uses (currently tops out at 500), so they can
+// never collide with a real key.
+#define NCKEY_KP_DIVIDE   preterunicode(900)
+#define NCKEY_KP_MULTIPLY preterunicode(901)
+
 class InputEvent : public Event {
  public:
   // Kitty-protocol terminals (kitty, foot, wezterm, ghostty, ...) report
