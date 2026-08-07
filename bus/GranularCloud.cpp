@@ -209,10 +209,8 @@ void
 GranularCloud::storeParameters(ParameterSource & output) const {
   BusEffect::storeParameters(output); // wet/chainSend, generically
 
-  // Deviation-only, unlike effects/Reverb.cpp's own unconditional
-  // output.set("preset", to_string(preset_)) (which writes preset=""
-  // even for ReverbPreset::NONE) - GranularPreset::DEFAULT's to_string()
-  // is "" specifically so this stays quiet for it, matching every other
+  // Deviation-only - GranularPreset::DEFAULT's to_string() is ""
+  // specifically so this stays quiet for it, matching every other
   // implicit-default attribute this class writes below.
   if (preset_ != GranularPreset::DEFAULT) output.set("preset", to_string(preset_));
 

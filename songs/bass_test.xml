@@ -27,11 +27,9 @@
     </envelope>
   </instruments>
   <tracks>
-    <reverb preset="halves">
-      <track id="0" instrument="0" />
-      <track id="1" instrument="1" />
-      <track id="2" instrument="2" />
-    </reverb>
+    <track id="0" instrument="0" />
+    <track id="1" instrument="1" />
+    <track id="2" instrument="2" />
   </tracks>
   
   <patterns>

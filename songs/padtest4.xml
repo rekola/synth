@@ -61,12 +61,10 @@
   </instruments>
   
   <tracks>
-    <reverb preset="stadium">
-      <track id="melody" instrument="0" />
-      <track id="melody2" instrument="0" />
-      <track id="chords" instrument="0" />
-      <track id="pad" instrument="1" />
-    </reverb>
+    <track id="melody" instrument="0" />
+    <track id="melody2" instrument="0" />
+    <track id="chords" instrument="0" />
+    <track id="pad" instrument="1" />
   </tracks>
   
   <patterns>

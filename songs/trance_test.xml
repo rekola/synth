@@ -32,17 +32,17 @@
       <genericInstrument name="Chateau Grand" />
     </resonantFilter>
 
-    <reverb preset="subtle" name="Quartal Piano">
+    <group name="Quartal Piano">
       <envelope attack="0.01" decay="0.5" sustain="0" release="0.8">
 	<oscilator level="0.25" subharmonic="2">
 	  <oscilator level="0.5" harmonic="18" subharmonic="1"/>
 	</oscilator>
       </envelope>
-      
+
       <envelope attack="0.01" decay="1" sustain="0" release="0.8" keynumToDecay="50">
 	<oscilator/>
       </envelope>
-    </reverb>
+    </group>
 
   </instruments>
   <tracks>

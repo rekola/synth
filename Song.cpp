@@ -14,7 +14,6 @@
 #include "GenericInstrument.h"
 
 #include "effects/Distortion.h"
-#include "effects/Reverb.h"
 #include "effects/ResonantFilter.h"
 #include "effects/BiquadFilter.h"
 #include "effects/Chorus.h"
@@ -101,7 +100,6 @@ static unique_ptr<Track> createTrack(string_view name) {
   else if (name == "group") return make_unique<Group>();
 
   // effects
-  else if (name == "reverb") return make_unique<Reverb>();
   else if (name == "distortion") return make_unique<Distortion>();
   else if (name == "resonantFilter") return make_unique<ResonantFilter>();
   else if (name == "biquadFilter") return make_unique<BiquadFilter>();

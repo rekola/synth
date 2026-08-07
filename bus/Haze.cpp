@@ -456,10 +456,9 @@ void
 Haze::storeParameters(ParameterSource & output) const {
   BusEffect::storeParameters(output); // wet/chainSend, generically
 
-  // Deviation-only, unlike effects/Reverb.cpp's own unconditional
-  // output.set("preset", ...) - HazePreset::DEFAULT's to_string() is ""
-  // specifically so this stays quiet for it, matching every other
-  // implicit-default attribute this class writes below.
+  // Deviation-only - HazePreset::DEFAULT's to_string() is "" specifically
+  // so this stays quiet for it, matching every other implicit-default
+  // attribute this class writes below.
   if (preset_ != HazePreset::DEFAULT) output.set("preset", to_string(preset_));
 
   auto d = presetValues(preset_);

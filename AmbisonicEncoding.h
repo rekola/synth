@@ -343,15 +343,15 @@ inline void encodeMonoAsPoint(const SampleData & mono, SampleData & out) {
 }
 
 // AMBISONIC -> MONO, otherwise unchanged. Used by effects that are
-// nonlinear or genuinely need dedicated internal DSP state (Reverb,
-// Compressor, Distortion) to request that format from their children, both
-// at tree-construction time (Track::getChildChannelConfiguration) and at
+// nonlinear or genuinely need dedicated internal DSP state (Chorus,
+// Distortion) to request that format from their children, both at
+// tree-construction time (Track::getChildChannelConfiguration) and at
 // render time (their State classes' render()). There is no real-stereo
 // reduction target anymore (ChannelConfiguration::STEREO was removed) - a
 // nonlinear effect's children collapse to MONO like everything else, so
-// panning doesn't survive underneath one of these three effects; each
+// panning doesn't survive underneath one of these two effects; each
 // already handles a 1-channel input gracefully (confirmed by reading
-// ReverbState/DistortionState/Compressor's own channel loops).
+// ChorusState/DistortionState's own channel loops).
 inline ChannelConfiguration reduceForEffect(const ChannelConfiguration & config) {
   if (config.isAmbisonic()) {
     return ChannelConfiguration(config.getAudioOutSampleRate());

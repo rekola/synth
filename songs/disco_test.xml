@@ -29,12 +29,10 @@
 
   </instruments>
   <tracks>
-    <reverb preset="halves">
-      <track id="0" instrument="0" />
-      <track id="bass" instrument="1" />
-      <track id="riser" instrument="2"/>
-      <track id="chords" instrument="3" volume="1" />
-    </reverb>
+    <track id="0" instrument="0" />
+    <track id="bass" instrument="1" />
+    <track id="riser" instrument="2"/>
+    <track id="chords" instrument="3" volume="1" />
   </tracks>
   
   <patterns>

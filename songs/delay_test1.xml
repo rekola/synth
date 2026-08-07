@@ -16,9 +16,7 @@
   </instruments>
   
   <tracks>
-    <reverb volume="1.0" preset="subtle">
-      <track id="0" instrument="0" />
-    </reverb>
+    <track id="0" instrument="0" />
   </tracks>
   
   <patterns>   

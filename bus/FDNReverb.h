@@ -10,8 +10,8 @@
 // Named parameter sets showcasing this effect (see FDNReverb.cpp's
 // presetValues() for the exact numbers and loadParameters() for how a
 // preset interacts with individually-specified attributes) - same shape
-// as effects/Reverb.h's ReverbPreset and bus/GranularCloud.h's
-// GranularPreset. DEFAULT is itself a named, described preset (see
+// as bus/GranularCloud.h's GranularPreset and bus/MultiTapDelay.h's
+// MultiTapDelayPreset. DEFAULT is itself a named, described preset (see
 // presetValues()) - the one a bare `<reverb/>`, or an explicit
 // preset="default", resolves to - not just an unnamed fallback;
 // to_string() still maps it to "" so a default-preset instance round-trips

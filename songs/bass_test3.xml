@@ -34,10 +34,8 @@
   </instruments>
   
   <tracks>
-    <reverb preset="halves">
-      <track id="0" instrument="0" />
-      <track id="lead" instrument="1" />
-    </reverb>
+    <track id="0" instrument="0" />
+    <track id="lead" instrument="1" />
     <amplifier gain="0">
       <track id="chords" instrument="2" />
     </amplifier>

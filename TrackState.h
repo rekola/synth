@@ -34,17 +34,17 @@ class TrackState {
 protected:
   // Gathers children into an accumulator of `accumulator_config`'s shape
   // rather than always this node's own getChannelConfiguration() - used
-  // directly (not through the render() override above) by ReverbState/
-  // CompressorState/DistortionState, which need to gather their children in
-  // a narrower, guaranteed-real format (reduceForEffect) than their own
-  // true (possibly ambisonic) format; every other node just gets this via
-  // the public render() wrapper above, unchanged from today. Since
-  // `accumulator_config` is never AMBISONIC for those two callers
-  // (reduceForEffect's whole point), the mismatch-encode branch below
-  // naturally never triggers for them either - their children are
-  // constructed via getChildChannelConfiguration() with that exact same
-  // reduced format (Effect.h/Reverb.h/etc.), so channel counts always
-  // match and every child is just plain-mixed, same as pre-ambisonic code.
+  // directly (not through the render() override above) by ChorusState/
+  // DistortionState, which need to gather their children in a narrower,
+  // guaranteed-real format (reduceForEffect) than their own true (possibly
+  // ambisonic) format; every other node just gets this via the public
+  // render() wrapper above, unchanged from today. Since `accumulator_config`
+  // is never AMBISONIC for those two callers (reduceForEffect's whole
+  // point), the mismatch-encode branch below naturally never triggers for
+  // them either - their children are constructed via
+  // getChildChannelConfiguration() with that exact same reduced format
+  // (Effect.h/Chorus.h/Distortion.h), so channel counts always match and
+  // every child is just plain-mixed, same as pre-ambisonic code.
   SampleData renderChildren(int frames, const ChannelConfiguration & accumulator_config) {
     // Render every active child first, then decide the accumulator's shape
     // from what actually came back (hasChannel(Main/AuxA/AuxB)) rather

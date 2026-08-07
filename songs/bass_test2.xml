@@ -25,15 +25,13 @@
     </envelope>
   </instruments>
   <tracks>
-    <reverb preset="subtle">
-      <amplifier gain="-10">
+    <amplifier gain="-10">
 	<track id="bass" instrument="0" />
-      </amplifier>
-      <amplifier gain="+10">
+    </amplifier>
+    <amplifier gain="+10">
 	<percussionTrack id="perc" instrument="1" />
-      </amplifier>
-      <track id="2" instrument="2" />
-    </reverb>
+    </amplifier>
+    <track id="2" instrument="2" />
   </tracks>
   
   <patterns>

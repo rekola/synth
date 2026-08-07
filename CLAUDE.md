@@ -128,7 +128,7 @@ There is no `--mono` flag either: it was never a useful device-output mode;
 `ChannelConfiguration::MONO` (conceptually 0th-order ambisonics — a single
 omnidirectional/W channel, `numberOfChannels() == 1`) survives only as an
 internal value voices/leaf instruments and nonlinear per-track effects
-(Reverb/Chorus/Distortion) reduce to before constructing themselves
+(Chorus/Distortion) reduce to before constructing themselves
 (`reduceForPositionalGroup`/`reduceForEffect`), plus one synthetic
 top-level test exercising a channel-generic effect loop directly
 (`render_mono_with_compressor_does_not_read_out_of_bounds`) — every mixer,
@@ -302,12 +302,13 @@ SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
   `AlsaAudio` (output), `TerminalUI`/`PatternEditor`/`HierarchyView`
   (notcurses UI), `Tuner`/`Tuning` (microtonal pitch math),
   `OscilatorVoice`/`GenericInstrument`/`SoundFont` (synthesis).
-- `effects/` — per-track audio effects (reverb, chorus, delay, compressor,
-  distortion, …) — each constructed fresh per track/note and torn down with
-  it, unlike the shared send bus (`bus/`, below). `effects/Reverb.{h,cpp}`'s
-  `MVerb`-based reverb (`<reverb preset="...">`) is a completely separate
-  code path from the shared bus's spatial FDN reverb (`bus/FDNReverb.h`) —
-  don't confuse the two.
+- `effects/` — per-track audio effects (chorus, compressor, distortion, …)
+  — each constructed fresh per track/note and torn down with it, unlike
+  the shared send bus (`bus/`, below). There is no per-track reverb any
+  more (`effects/Reverb.{h,cpp}`'s GPL-licensed `MVerb`-based
+  `<reverb preset="...">` was removed) — the shared bus's spatial FDN
+  reverb (`bus/FDNReverb.h`) is the only reverb left, and `<reverb>` now
+  only ever means that one, as a `<bus>` child.
 - `AmbisonicEncoding.h` — ambisonic encode/decode math (SN3D gains up to
   3rd order via `AmbisonicGains`/`computeAmbisonicGains`, per-voice
   gain-interpolated encoder, stereo decode/re-encode helpers, plus the
@@ -458,30 +459,25 @@ SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
   (never raw-index-shared, since Main's channel count can be 0 or full
   but never partial) — width is never invented where the input didn't
   have any.
-- Nonlinear/dedicated-DSP per-track effects (`effects/Reverb.cpp`/
-  `Chorus.cpp`/`Distortion.cpp`) reduce their children to `MONO` before
-  rendering them (`reduceForEffect`, `AmbisonicEncoding.h`) rather than
-  raw ambisonic — real stereo panning doesn't survive underneath one of
-  these three (a deliberate trade-off, not a bug), and re-encoding their
-  processed output back up into an ambisonic parent afterward
-  (`reencodeIfNeeded()`) uses `encodeMonoAsPoint()` for the Main channel
-  (folds into `W` only, unity gain — a mono signal has no direction to
-  encode) while carrying `AuxA`/`AuxB` straight through unencoded
-  (Distortion/Chorus; Reverb deliberately drops them instead, see below),
-  never `encodeStereoAsPoints()` (that needs genuine 2-channel input and
-  is reserved for things that actually have it, like `FDNReverb`/
-  `MultiTapDelay`'s multi-tap spatial encode above). Per-track effects
-  otherwise touch Main and `AuxA`/`AuxB` alike — Amplifier/EnvelopeFilter/
-  Compressor/Tremolo/BiquadFilter/Distortion/Chorus all shape whatever
-  channels are actually present, since the shared reverb/delay bus should
-  hear the same envelope/gain/tone-shaping the dry signal does, not a
-  bypassed copy of the pre-effect signal — except Compressor's
-  *detection* (the loudness measurement driving its gain), which uses
-  Main only, and `Reverb`, which still excludes `AuxA`/`AuxB` entirely
-  (re-reverbing content that's already destined for the shared reverb bus
-  itself doesn't make sense; `Reverb`/MVerb is GPL-licensed and slated for
-  removal separately, so it only got a presence guard here, not a full
-  rework). Persistent per-channel filter/delay state (`Biquad<T>`,
+- Nonlinear/dedicated-DSP per-track effects (`effects/Chorus.cpp`/
+  `Distortion.cpp`) reduce their children to `MONO` before rendering them
+  (`reduceForEffect`, `AmbisonicEncoding.h`) rather than raw ambisonic —
+  real stereo panning doesn't survive underneath either of these (a
+  deliberate trade-off, not a bug), and re-encoding their processed output
+  back up into an ambisonic parent afterward (`reencodeIfNeeded()`) uses
+  `encodeMonoAsPoint()` for the Main channel (folds into `W` only, unity
+  gain — a mono signal has no direction to encode) while carrying
+  `AuxA`/`AuxB` straight through unencoded, never `encodeStereoAsPoints()`
+  (that needs genuine 2-channel input and is reserved for things that
+  actually have it, like `FDNReverb`/`MultiTapDelay`'s multi-tap spatial
+  encode above). Per-track effects otherwise touch Main and `AuxA`/`AuxB`
+  alike — Amplifier/EnvelopeFilter/Compressor/Tremolo/BiquadFilter/
+  Distortion/Chorus all shape whatever channels are actually present,
+  since the shared reverb/delay bus should hear the same envelope/gain/
+  tone-shaping the dry signal does, not a bypassed copy of the pre-effect
+  signal — except Compressor's *detection* (the loudness measurement
+  driving its gain), which uses Main only. Persistent per-channel
+  filter/delay state (`Biquad<T>`,
   `dsp::MoogVCF<T>`, `dsp::ChorusEngine::ChannelState`) gives `AuxA`/`AuxB`
   their own dedicated, always-present slots rather than reindexing by raw
   position (Main's channel count toggles between 0 and full, never
@@ -506,10 +502,7 @@ SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
   `third_party/tinyxml2/tinyxml2.{cpp,h}` (zlib licence) and
   `third_party/pocketfft/pocketfft_hdronly.h` (BSD-3-Clause, the FFT
   backend behind `dsp/RealFFT.h` - see `plans/magical-wondering-engelbart.md`)
-  so far. `effects/MVerb.h` (GPL, `<reverb preset="...">`'s DSP core) stays
-  where it is, outside `third_party/`, since it's slated for removal rather
-  than being a long-term vendored dependency. Do not reformat or refactor
-  any vendored file.
+  so far. Do not reformat or refactor any vendored file.
 - `dsp/RealFFT.h` — the engine's one FFT wrapper (real-signal r2c-forward/
   c2r-inverse, fixed size at construction, no per-call allocation),
   templated on float/double though only `RealFFT<float>` is actually

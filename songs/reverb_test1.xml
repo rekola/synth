@@ -15,9 +15,7 @@
   </instruments>
   
   <tracks>
-    <reverb preset="dark" lock="true" predelay="8">
-      <track id="0" instrument="0" />
-    </reverb>
+    <track id="0" instrument="0" />
   </tracks>
   
   <patterns>   

@@ -15,8 +15,8 @@ public:
   }
 
   // Gathers children reduced to MONO (reduceForEffect), never raw
-  // ambisonic - same pattern as ReverbState (effects/Reverb.cpp): the
-  // engine's per-channel state is sized once, at construction, from the
+  // ambisonic - same pattern as DistortionState (effects/Distortion.cpp):
+  // the engine's per-channel state is sized once, at construction, from the
   // reduced (now always 1) channel count, so its decorrelate=true option
   // is what gives a mono-in source its stereo width, not panning surviving
   // from children.

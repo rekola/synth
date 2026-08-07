@@ -35,15 +35,13 @@
   </instruments>
   
   <tracks>
-    <reverb preset="subtle">
-      <compressor threshold="-24" ratio="20" knee="15" postgain="-3">
+    <compressor threshold="-24" ratio="20" knee="15" postgain="-3">
 	<track id="melody" instrument="1" />
 	<amplifier gain="+20">
 	  <percussionTrack id="perc" instrument="2" />
 	</amplifier>
 	<track id="piano" instrument="4" />
-      </compressor>
-    </reverb>
+    </compressor>
   </tracks>
   
   <patterns>

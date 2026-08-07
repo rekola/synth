@@ -202,9 +202,8 @@ TEST(granular_cloud_default_preset_round_trips_silently) {
 
 TEST(granular_cloud_preset_plus_override_round_trips_both) {
   // A preset with one deliberately-overridden attribute on top must save
-  // both the preset name and just that one deviating attribute - an
-  // improvement on effects/Reverb.h's ReverbPreset, whose storeParameters()
-  // doesn't persist manual overrides layered on a preset at all.
+  // both the preset name and just that one deviating attribute, not
+  // silently drop the override.
   int sampleRate = 44100;
   GranularCloud cloud(sampleRate);
   MemoryParameterSource input;

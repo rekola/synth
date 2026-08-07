@@ -32,7 +32,7 @@
 // for its own type-specific parameters (FDNReverb::setParameters(), etc.),
 // calling BusEffect::loadParameters()/storeParameters() first, the same
 // chaining convention every other SongObject subclass already uses
-// (effects/Reverb.cpp calls Effect::loadParameters() first, etc.) - the
+// (effects/Distortion.cpp calls Effect::loadParameters() first, etc.) - the
 // registry's (BusEffectRegistry.h) only job is picking *which* concrete
 // type to construct from an XML element name.
 class BusEffect : public SongObject {

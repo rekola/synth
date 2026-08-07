@@ -162,26 +162,8 @@ TEST(render_hard_pan_isolates_channels) {
   CHECK_NEAR(left, right, left * 0.05f);
 }
 
-TEST(render_reverb_reaches_both_channels_from_panned_source) {
-  auto loaded = loadFixture("reverb_pan.xml");
-  CHECK(loaded.ok);
-
-  ChannelConfiguration config(44100, 1);
-  auto result = renderSongOffline(loaded.song, config);
-  CHECK(!hasNonFiniteSample(result));
-
-  // the source is hard right (azimuth 90); the reverb tail after the note's
-  // short release must still be audible on the left channel.
-  auto frames = result.numberOfFrames();
-  auto tail_start = frames > 44100 ? frames - 44100 : 0; // last second
-  double left_energy = 0.0;
-  for (size_t i = tail_start; i < frames; i++) left_energy += std::pow(result.interleaved[i * result.channels + 0], 2);
-
-  CHECK(left_energy > 0.0);
-}
-
 TEST(render_chorus_centers_its_input) {
-  // Per-track nonlinear effects (Reverb/Chorus/Distortion) now reduce
+  // Per-track nonlinear effects (Chorus/Distortion) now reduce
   // their children to MONO (see AmbisonicEncoding.h's reduceForEffect) -
   // real stereo panning no longer survives underneath them, a deliberate
   // trade-off (see the plan this was built from). So a hard-right source
@@ -375,30 +357,6 @@ TEST(render_ambisonic_directions_produce_distinguishable_output) {
   // distance-1 track (row 0).
   CHECK(far_l > 1e-4f);
   CHECK(far_l < front_l * 0.6f);
-}
-
-TEST(render_ambisonic_reverb_two_tracks_has_real_stereo_tail) {
-  auto loaded = loadFixture("ambisonic_reverb_two_tracks.xml");
-  CHECK(loaded.ok);
-
-  ChannelConfiguration config(44100, 1);
-  auto result = renderSongOffline(loaded.song, config, MixerType::AMBISONIC_STEREO);
-  CHECK(!hasNonFiniteSample(result));
-
-  // The two dry sources are hard left/right; the reverb tail after the
-  // short release must still be audible on both channels - proving
-  // ReverbState's narrow-to-real-stereo-then-reencode path actually ran
-  // (a degraded fallback would only ever put energy on one channel).
-  auto frames = result.numberOfFrames();
-  auto tail_start = frames > 44100 / 2 ? frames - 44100 / 2 : 0;
-  double left_energy = 0.0, right_energy = 0.0;
-  for (size_t i = tail_start; i < frames; i++) {
-    left_energy += std::pow(result.interleaved[i * result.channels + 0], 2);
-    right_energy += std::pow(result.interleaved[i * result.channels + 1], 2);
-  }
-
-  CHECK(left_energy > 0.0);
-  CHECK(right_energy > 0.0);
 }
 
 TEST(render_ambisonic_envelopefilter_over_plain_voice_keeps_position) {

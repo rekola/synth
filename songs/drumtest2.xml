@@ -26,12 +26,10 @@
   </instruments>
   
   <tracks>
-    <reverb preset="subtle">
-      <track id="bell" instrument="0"/>
-      <track id="bass" instrument="2"/>
-      <track id="piano" instrument="4"/>
-      <percussionTrack id="perc" instrument="1" />
-    </reverb>
+    <track id="bell" instrument="0"/>
+    <track id="bass" instrument="2"/>
+    <track id="piano" instrument="4"/>
+    <percussionTrack id="perc" instrument="1" />
   </tracks>
   
   <patterns>

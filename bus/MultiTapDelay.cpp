@@ -235,10 +235,8 @@ void
 MultiTapDelay::storeParameters(ParameterSource & output) const {
   BusEffect::storeParameters(output); // wet/chainSend, generically
 
-  // Deviation-only, unlike effects/Reverb.cpp's own unconditional
-  // output.set("preset", to_string(preset_)) (which writes preset="" even
-  // for ReverbPreset::NONE) - MultiTapDelayPreset::DEFAULT's to_string() is
-  // "" specifically so this stays quiet for it, matching every other
+  // Deviation-only - MultiTapDelayPreset::DEFAULT's to_string() is ""
+  // specifically so this stays quiet for it, matching every other
   // implicit-default attribute this class writes below.
   if (preset_ != MultiTapDelayPreset::DEFAULT) output.set("preset", to_string(preset_));
 

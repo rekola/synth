@@ -14,7 +14,7 @@ class Chorus : public Effect {
   void storeParameters(ParameterSource & output) const override;
 
   // Real stereo-width chorus processing needs genuine 2-channel input, not
-  // raw ambisonic channels - same reasoning as Reverb (see
+  // raw ambisonic channels - same reasoning as Distortion (see
   // AmbisonicEncoding.h).
   ChannelConfiguration getChildChannelConfiguration(const ChannelConfiguration & config) const override { return reduceForEffect(config); }
 

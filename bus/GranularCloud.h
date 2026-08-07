@@ -10,13 +10,13 @@
 // Named parameter sets showcasing the effect (see bus/GranularCloud.cpp's
 // presetValues() for the exact numbers and this class's own loadParameters()
 // for how a preset interacts with individually-specified attributes) -
-// same shape as effects/Reverb.h's ReverbPreset. DEFAULT is itself a named,
-// described preset (see presetValues()) - the one a bare `<granular/>`, or
-// an explicit `preset="default"`, resolves to - not just an unnamed
-// fallback; to_string() still maps it to "" the same way ReverbPreset::NONE
-// does, so a default-preset instance round-trips quietly, with no explicit
-// preset="..." attribute written, matching every other implicit-default
-// attribute in this codebase.
+// same shape as bus/FDNReverb.h's FDNReverbPreset. DEFAULT is itself a
+// named, described preset (see presetValues()) - the one a bare
+// `<granular/>`, or an explicit `preset="default"`, resolves to - not just
+// an unnamed fallback; to_string() still maps it to "" the same way
+// FDNReverbPreset::DEFAULT does, so a default-preset instance round-trips
+// quietly, with no explicit preset="..." attribute written, matching every
+// other implicit-default attribute in this codebase.
 enum class GranularPreset { DEFAULT = 0, SHIMMER, CLOUD, GLITCH, WASH, SCATTER };
 
 static inline const std::string to_string(GranularPreset preset) {

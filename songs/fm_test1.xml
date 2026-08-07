@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="100" patternRows="64" volume="0.75">
   <instruments>
-    <reverb preset="subtle" name="Quartal Piano">
+    <group name="Quartal Piano">
       <envelope attack="0.01" decay="0.5" sustain="0" release="0.8">
 	<oscilator level="0.25" subharmonic="2">
 	  <oscilator level="0.5" harmonic="18" subharmonic="1" />
@@ -14,7 +14,7 @@
       <envelope attack="0.01" decay="1" sustain="0" release="0.8" keynumToDecay="50">
 	<oscilator/>
       </envelope>
-    </reverb>
+    </group>
 
     <envelope name="Harpsichord" attack="0.01" decay="0.8" sustain="0" release="0.1">
       <oscilator harmonic="4">
@@ -45,12 +45,10 @@
   </instruments>
   
   <tracks>
-    <reverb id="100" volume="1.0" preset="subtle">
-      <track id="0" instrument="0" sendB="0.5" />
-      <track id="1" instrument="1" />
-      <track id="2" instrument="2" />
-      <track id="3" instrument="3" />
-    </reverb>
+    <track id="0" instrument="0" sendB="0.5" />
+    <track id="1" instrument="1" />
+    <track id="2" instrument="2" />
+    <track id="3" instrument="3" />
   </tracks>
   
   <patterns>   

@@ -12,8 +12,8 @@
 // Named parameter sets showcasing this effect (see MultiTapDelay.cpp's
 // presetValues() for the exact numbers and loadParameters() for how a
 // preset interacts with individually-specified attributes) - same shape
-// as effects/Reverb.h's ReverbPreset, bus/GranularCloud.h's
-// GranularPreset, and bus/FDNReverb.h's FDNReverbPreset. DEFAULT is
+// as bus/GranularCloud.h's GranularPreset and bus/FDNReverb.h's
+// FDNReverbPreset. DEFAULT is
 // itself a named, described preset (see presetValues()) - the one a bare
 // `<delay/>`, or an explicit preset="default", resolves to - not just an
 // unnamed fallback; to_string() still maps it to "" so a default-preset
