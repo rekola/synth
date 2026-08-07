@@ -62,6 +62,29 @@ private:
   XMLElement * element_;
 };
 
+// A <note>/<command> element's own "track" attribute prefers a track's
+// textual id (SongObject::getId(), e.g. "chords") over its raw internal
+// id, matching how every other track reference in the file (e.g. a
+// <track id="..."> element itself) already reads - falls back to the
+// internal id, stringified, only for a track with no textual id of its
+// own. resolveTrackReference() below is this function's own inverse.
+static string trackReferenceText(const Song & song, int track_id) {
+  auto track = song.getTrackByInternalId(track_id);
+  if (track && !track->getId().empty()) return track->getId();
+  return to_string(track_id);
+}
+
+// The inverse of trackReferenceText() above: a track attribute may be
+// either a track's own textual id or its raw internal id written as a
+// decimal string (a track with no textual id of its own) - tried in that
+// order, so a numeric-looking textual id (however unlikely) still wins
+// over misreading it as an internal id. nullptr if neither resolves.
+static Track * resolveTrackReference(Song & song, const char * text) {
+  auto track = song.getTrackById(text);
+  if (track) return track;
+  return song.getTrackByInternalId(atoi(text));
+}
+
 static Tuning parse_tuning(string_view tuning_text, Tuning default_tuning = Tuning::TET12) {
   if (tuning_text == "12edo") return Tuning::TET12;
   else if (tuning_text == "31edo") return Tuning::TET31;
@@ -375,7 +398,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	    int velocity = velocity_text ? atoi(velocity_text) : constants::DEFAULT_VELOCITY;
 	    int delay = delay_text ? atoi(delay_text) : 0;
 
-	    auto track = getTrackById(track_text);
+	    auto track = resolveTrackReference(*this, track_text);
 	    if (track) {
 	      auto track_id = track->getInternalId();
 	      auto tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : getTuning();
@@ -401,12 +424,12 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	  auto row_text = it2->Attribute("row");
 	  auto data_text = it2->Attribute("data");
 
-	  int track = track_text ? atoi(track_text) : 0;
+	  auto track = track_text ? resolveTrackReference(*this, track_text) : nullptr;
 	  int row = row_text ? atoi(row_text) : 0;
 
-	  if (data_text) {
+	  if (data_text && track) {
 	    Command command(data_text);
-	    pattern.setCommand(row, track, command);
+	    pattern.setCommand(row, track->getInternalId(), command);
 	  }
 	}	
       }
@@ -488,13 +511,20 @@ Song::save(const std::string & filename) const {
 
 	if (track) {
 	  auto track_tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : getTuning();
-	  
+	  // Prefers track's own textual id (see trackReferenceText's own
+	  // comment) over track_id's raw numeric value, so a track with an
+	  // authored id keeps being referenced by it after a save/reload
+	  // round trip rather than silently downgrading to a number - see
+	  // resolveTrackReference(), the load-side counterpart this exists
+	  // to stay resolvable against.
+	  auto track_ref = !track->getId().empty() ? track->getId() : to_string(track_id);
+
 	  for (size_t col = 0; col < nv.size(); col++) {
 	    auto & note = nv[col];
 	    auto note_text = note.toString(track_tuning);
 	    auto note_element = doc.NewElement("note");
 	    note_element->SetAttribute("row", row);
-	    note_element->SetAttribute("track", track_id);
+	    note_element->SetAttribute("track", track_ref.c_str());
 	    if (col > 0) note_element->SetAttribute("column", col);
 	    if (note.getVelocity() != constants::DEFAULT_VELOCITY) note_element->SetAttribute("velocity", note.getVelocity());
 	    if (note.getDelay() > 0) note_element->SetAttribute("delay", note.getDelay());
@@ -503,14 +533,15 @@ Song::save(const std::string & filename) const {
 	  }
 	}
       }
-	
+
       auto & commands = pattern.getCommands(row);
       for (auto & [ track_id, command ] : commands) {
 	auto data = to_string(command);
-	  
+	auto track_ref = trackReferenceText(*this, track_id);
+
 	auto command_element = doc.NewElement("command");
 	command_element->SetAttribute("row", row);
-	command_element->SetAttribute("track", track_id);
+	command_element->SetAttribute("track", track_ref.c_str());
 	command_element->SetAttribute("data", data.c_str());
 	pattern_element->InsertEndChild(command_element);
       }

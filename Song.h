@@ -141,6 +141,7 @@ class Song : public StatefulSongObject {
   std::mutex & getTracksMutex() const { return *tracks_mutex_; }
 
   Track & addTrack(std::unique_ptr<Track> track) {
+    if (track->getId().empty()) track->setId(generateUniqueTrackId());
     std::lock_guard<std::mutex> guard(*tracks_mutex_);
     tracks_.push_back(std::move(track));
     incVersion();
@@ -217,6 +218,27 @@ private:
 
   std::vector<std::unique_ptr<Track> > instruments_;
   std::vector<std::unique_ptr<Track> > tracks_;
+
+  // A track's own textual id (SongObject::getId()) is the only thing a
+  // <note>/<command> element can reference it by that survives a
+  // save/reload round trip - its raw internal id is just a runtime
+  // counter, reassigned fresh every time a Track object is constructed,
+  // so a note left referencing one is unresolvable the moment the file is
+  // reopened (see Song.cpp's trackReferenceText()/resolveTrackReference()).
+  // addTrack() below (the single place every track, new or loaded, enters
+  // tracks_) gives an id-less track this instead of leaving it to fall
+  // back to that same ugly, unstably-large raw internal id in the pattern
+  // editor's own track heading. Tried in increasing order starting from 1
+  // rather than deriving straight from the track's own internal id, so
+  // these actually read as a small, per-song sequence instead of
+  // inheriting whatever arbitrary process-wide count SongObject's shared
+  // id counter happens to be at.
+  std::string generateUniqueTrackId() const {
+    for (int n = 1; ; n++) {
+      auto candidate = "track" + std::to_string(n);
+      if (!getTrackById(candidate)) return candidate;
+    }
+  }
 
   // Guards tracks_'s structural shape (addTrack() below is its only
   // mutator today) - SongState::render() runs on the audio thread and

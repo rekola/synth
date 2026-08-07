@@ -7,6 +7,7 @@ add_executable(synth_tests
 	ControllerTests.cpp
 	PatternBlockOpsTests.cpp
 	PatternScrollTests.cpp
+	SongTests.cpp
 	LaunchpadLayoutTests.cpp
 	LaunchpadProtocolTests.cpp
 	LaunchpadTimingTests.cpp
