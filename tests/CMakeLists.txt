@@ -8,6 +8,7 @@ add_executable(synth_tests
 	PatternBlockOpsTests.cpp
 	PatternScrollTests.cpp
 	PatternBreakTests.cpp
+	CommandTests.cpp
 	AzimuthSlideTests.cpp
 	SendLiveUpdateTests.cpp
 	SongTests.cpp

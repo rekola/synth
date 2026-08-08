@@ -28,6 +28,21 @@ class Command {
 
   void updateData(size_t i, char c) { if (i < 4) values_[i] = c; }
 
+  // The character set accepted for a command's first two (mnemonic)
+  // characters (see PatternEditor::offerInput()'s ColumnType::EFFECT
+  // branch) - ASCII letters, digits, or '/'. docs/commands.md's own
+  // two-character mnemonics (ZB, 0U, 0D, 0G, 1V, 1I, 1O, 1T, 2L, 2R) use
+  // letters outside the hex a-f range, so this can't be narrowed to hex
+  // like the trailing argument nibbles are. Explicit range checks rather
+  // than <cctype>'s isalnum() - same reasoning digit.h's own digit()
+  // gives: a notcurses special-key code (arrows, F-keys, Insert, PageUp,
+  // ...) is an int far outside the representable range isalnum()
+  // requires, so passing it through would be undefined behavior, not
+  // just "correctly rejected".
+  static bool isMnemonicChar(int32_t id) {
+    return (id >= 'a' && id <= 'z') || (id >= 'A' && id <= 'Z') || (id >= '0' && id <= '9') || id == '/';
+  }
+
   bool isDefined() const { return values_[0] != '-' || values_[1] != '-' || values_[2] != '-' || values_[3] != '-'; }
 
   // ZBxx ("Z" being the group every native/global command not tied to a

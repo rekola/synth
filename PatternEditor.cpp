@@ -952,9 +952,39 @@ PatternEditor::offerInput(const InputEvent & input) {
       auto column_type = track_info.getColumnType(new_cursor.col);
     
       if (column_type == ColumnType::EFFECT) {
-	// In effect command, the first two characters can be anything
-	// the rest; dash or hex value
-	if (input_hex_value != -1 || input.getId() == '-' || (new_cursor.subcol < 2)) {
+	// Delete/Backspace clear the whole 4-character command, regardless
+	// of which of its subcol characters the cursor happens to be on -
+	// Command has no meaningful "delete just this one character" (a
+	// mnemonic's two letters and its argument are only ever valid
+	// together, see Command.h) - same reasoning kill-region's own
+	// include_command path already uses. Without this explicit check,
+	// these two keys used to fall into the permissive "first two
+	// characters can be anything" branch below whenever the cursor was
+	// on subcol 0/1, silently writing NCKEY_DEL/NCKEY_BACKSPACE's own
+	// (non-ASCII, notcurses-internal) key code into the command as if
+	// it were a typed character, instead of being ignored (subcol 2/3)
+	// or actually deleting.
+	if (input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE) {
+	  pattern.setCommand(info.getRowIndex(), track_id, Command());
+	  row_edited = true;
+	  // Same row-level Backspace-steps-back/Delete-stays-put distinction
+	  // the note column's own is_delete handling makes below.
+	  if (!info.isPlaying() && input.getId() == NCKEY_BACKSPACE) {
+	    getController().moveEditPosition(-edit_step_size);
+	  }
+	  return true;
+	}
+
+	// In effect command, the first two characters can be any letter,
+	// digit, or '/' (Command::isMnemonicChar() - see its own comment);
+	// the rest is a dash or hex value. Without the isMnemonicChar()
+	// guard (a plain `true` here, as it effectively was before), every
+	// unbound non-printable key (arrows/F-keys/Insert/PageUp/... not
+	// already intercepted by an earlier else-if branch above, or
+	// Ctrl/Alt chords with no keymap entry) is a notcurses key code far
+	// outside any printable range, and would otherwise get silently
+	// written into the command as if it were a typed character.
+	if (input_hex_value != -1 || input.getId() == '-' || (new_cursor.subcol < 2 && Command::isMnemonicChar(input.getId()))) {
 	  auto command = pattern.getCommand(info.getRowIndex(), track_id);
 	  command.updateData(new_cursor.subcol, toupper(input.getId()));
 	  pattern.setCommand(info.getRowIndex(), track_id, command);
