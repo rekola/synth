@@ -1193,6 +1193,20 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
   if (pipe(out_pipe) != 0) { // make a pipe
     exit(1);
   }
+
+  // stderr always gets redirected into the pipe below (so it can be shown
+  // on the status line) - but if the caller already redirected it
+  // themselves (2> some.log, or piped into another process), that
+  // destination is the one place a person can actually go read a full,
+  // unbounded, post-mortem log after the fact; the status line only ever
+  // shows the latest single line, and only while the UI is still up. Save
+  // a duplicate of it here, before it's overwritten, so every future write
+  // to fd 2 can still reach it too (see the out_pipe-draining branch
+  // below) - a real terminal (isatty true, ordinary interactive use, no
+  // redirection) has no such separate destination to preserve, so this
+  // stays -1 and nothing is duplicated.
+  int real_stderr_fd = isatty(STDERR_FILENO) ? -1 : dup(STDERR_FILENO);
+
   dup2(out_pipe[1], STDERR_FILENO); // redirect stderr to the pipe
   close(out_pipe[1]);
 
@@ -1254,6 +1268,21 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
 	  } else if (i == 2) {
 	    char buffer[4096];
 	    int r = read(out_pipe[0], buffer, 4096);
+	    if (real_stderr_fd >= 0 && r > 0) {
+	      // Raw bytes, not the line-split/status-line text below - this
+	      // is a faithful mirror of what stderr would have received
+	      // without the redirect above, not a reformatted copy. Loops to
+	      // cover a partial write (a real possibility for a pipe/socket
+	      // destination); best-effort otherwise - a write() failure here
+	      // (e.g. the destination process on the other end of a pipe
+	      // already exited) must never take the whole UI down with it.
+	      int written = 0;
+	      while (written < r) {
+		auto n = write(real_stderr_fd, buffer + written, static_cast<size_t>(r - written));
+		if (n <= 0) break;
+		written += static_cast<int>(n);
+	      }
+	    }
 	    waiting_stderr += string(buffer, r);
 	    while ( 1 ) {
 	      auto pos = waiting_stderr.find('\n');
