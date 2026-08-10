@@ -77,7 +77,7 @@ pastePatternBlock(Pattern & pattern, const PatternBlock & block, int num_rows,
 
 PatternBlock
 copyPatternBlockNotes(const Pattern & pattern, int row_lo, int row_hi,
-		      int track_id, int note_lo, int note_hi, bool include_command) {
+		      int track_id, int note_lo, int note_hi) {
   PatternBlock block;
 
   auto width = note_hi - note_lo + 1;
@@ -99,7 +99,6 @@ copyPatternBlockNotes(const Pattern & pattern, int row_lo, int row_hi,
       auto src_index = note_lo + i;
       if (src_index < size) cell.notes[static_cast<size_t>(i)] = full_notes[static_cast<size_t>(src_index)];
     }
-    if (include_command) cell.command = pattern.getCommand(row, track_id);
     block.push_back({move(cell)});
   }
 
@@ -108,12 +107,11 @@ copyPatternBlockNotes(const Pattern & pattern, int row_lo, int row_hi,
 
 void
 clearPatternBlockNotes(Pattern & pattern, int row_lo, int row_hi,
-		       int track_id, int note_lo, int note_hi, bool include_command) {
+		       int track_id, int note_lo, int note_hi) {
   for (int row = row_lo; row <= row_hi; row++) {
     for (int i = note_lo; i <= note_hi; i++) {
       pattern.deleteNote(row, track_id, i);
     }
-    if (include_command) pattern.setCommand(row, track_id, Command());
   }
 }
 
@@ -135,7 +133,7 @@ transposePatternBlockNotes(Pattern & pattern, int row_lo, int row_hi,
 
 void
 pastePatternBlockNotes(Pattern & pattern, const PatternBlock & block, int num_rows,
-		       int target_row, int track_id, int target_note_offset, bool include_command) {
+		       int target_row, int track_id, int target_note_offset) {
   for (size_t row_offset = 0; row_offset < block.size(); row_offset++) {
     int row = target_row + static_cast<int>(row_offset);
     if (row < 0 || row >= num_rows) continue;
@@ -146,6 +144,27 @@ pastePatternBlockNotes(Pattern & pattern, const PatternBlock & block, int num_ro
     for (size_t i = 0; i < cell.notes.size(); i++) {
       pattern.setNote(row, track_id, target_note_offset + static_cast<int>(i), cell.notes[i]);
     }
-    if (include_command) pattern.setCommand(row, track_id, cell.command);
+  }
+}
+
+vector<Command>
+copyPatternBlockCommand(const Pattern & pattern, int row_lo, int row_hi, int track_id) {
+  vector<Command> block;
+  for (int row = row_lo; row <= row_hi; row++) block.push_back(pattern.getCommand(row, track_id));
+  return block;
+}
+
+void
+clearPatternBlockCommand(Pattern & pattern, int row_lo, int row_hi, int track_id) {
+  for (int row = row_lo; row <= row_hi; row++) pattern.setCommand(row, track_id, Command());
+}
+
+void
+pastePatternBlockCommand(Pattern & pattern, const vector<Command> & block, int num_rows,
+			 int target_row, int track_id) {
+  for (size_t row_offset = 0; row_offset < block.size(); row_offset++) {
+    int row = target_row + static_cast<int>(row_offset);
+    if (row < 0 || row >= num_rows) continue;
+    pattern.setCommand(row, track_id, block[row_offset]);
   }
 }

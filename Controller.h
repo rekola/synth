@@ -147,6 +147,18 @@ class Controller {
   void moveEditPosition(int delta_rows);
   void setEditPosition(int absolute_row);
 
+  // Whether a pattern-editor selection (mark) is currently open -
+  // PatternEditor mirrors its own selection_active_ here on every change
+  // (set-mark, kill-region/kill-ring-save's own clear, keyboard-quit, the
+  // auto-clear on playback start/pattern crossing in its render()).
+  // moveEditPosition()/setEditPosition() only clamp row navigation to the
+  // current pattern (Song::clampRowToCurrentPattern() - keeps a mark from
+  // ending up stranded in a different pattern than the cursor) while this
+  // is true; with no selection open there's nothing to strand, so
+  // navigation crosses pattern boundaries freely, the same way playback's
+  // own row-by-row advance (SongState::movePosition()) already does.
+  void setPatternSelectionActive(bool active) { pattern_selection_active_ = active; }
+
   // Single, shared home for "mutate this track's mute/solo/send and keep
   // the already-running playback state in sync" - neither the terminal's
   // `\` key handler nor any Launchpad control (the two ways a user can
@@ -228,6 +240,7 @@ class Controller {
   int recording_track_id = 0;
   std::function<bool(std::string_view)> command_fallback_;
   int pending_command_track_ = -1;
+  bool pattern_selection_active_ = false;
 
   static inline SampleData empty_sample;
 };

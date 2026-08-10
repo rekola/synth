@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <memory>
 #include <cmath>
+#include <algorithm>
 #include <fmt/core.h>
 
 #include <sys/time.h>
@@ -127,7 +128,13 @@ public:
     nccell_release(plane->to_ncplane(), &ll); nccell_release(plane->to_ncplane(), &lr); nccell_release(plane->to_ncplane(), &vl);
   }
   
-  void showReader(const std::string & prompt = "") override {
+  // y/x/rows/cols let a caller that isn't a one-line plane (PatternEditor's
+  // annotation editing, which needs the reader positioned at the cursor's
+  // own screen row, not row 0) place and size the reader plane explicitly.
+  // x == -1/rows == -1/cols == -1 (the defaults) reproduce exactly what
+  // this used to hardcode - StatusLine's existing calls are untouched.
+  void showReader(const std::string & prompt = "", int y = 0, int x = -1, int rows = -1, int cols = -1,
+		   const std::string & initial_text = "") override {
     if (!readerActive()) {
       setOwning(false);
 
@@ -137,7 +144,7 @@ public:
       // prompt is drawn then immediately hidden under the reader, and the
       // whole M-x minibuffer silently looks like it never opened even
       // though it's actually active and correctly accepting input.
-      if (!prompt.empty()) putstr(0, 0, prompt);
+      if (!prompt.empty()) putstr(y, 0, prompt);
       auto prompt_width = static_cast<unsigned int>(prompt.size());
 
       ncreader_options reader_opts;
@@ -147,15 +154,21 @@ public:
       reader_opts.tattrword = 0; // attributes used for input
       reader_opts.flags = NCREADER_OPTION_CURSOR | NCREADER_OPTION_HORSCROLL;
 
-      auto [rows, cols] = getDim();
-      auto reader_cols = static_cast<unsigned int>(cols) > prompt_width ?
-	static_cast<unsigned int>(cols) - prompt_width : 1u;
+      auto [plane_rows, plane_cols] = getDim();
+      auto reader_x = x == -1 ? static_cast<int>(prompt_width) : x;
+      auto reader_rows = rows == -1 ? static_cast<unsigned int>(plane_rows) : static_cast<unsigned int>(rows);
+      unsigned int reader_cols;
+      if (cols == -1) {
+	reader_cols = static_cast<unsigned int>(plane_cols) > prompt_width ?
+	  static_cast<unsigned int>(plane_cols) - prompt_width : 1u;
+      } else {
+	reader_cols = cols > 0 ? static_cast<unsigned int>(cols) : 1u;
+      }
 
       ncplane_options opts = {
-	// 0, 4, nullptr, nullptr);
-	.y = 0,
-	.x = static_cast<int>(prompt_width),
-	.rows = static_cast<unsigned int>(rows),
+	.y = y,
+	.x = reader_x,
+	.rows = reader_rows,
 	.cols = reader_cols,
 	.userptr = nullptr,
 	.name = nullptr,
@@ -170,6 +183,25 @@ public:
       ncplane_set_bg_rgb8(reader_plane, 0x00, 0x40, 0x00);
       ncplane_set_base(reader_plane, "", 0, 0);
       reader = ncreader_create(reader_plane, &reader_opts);
+
+      // ncreader has no "set full contents" call - only single-EGC writes -
+      // so seed it by feeding initial_text's own UTF-8 codepoints one at a
+      // time. Splitting on codepoint boundaries rather than full Unicode
+      // grapheme clusters (combining marks/ZWJ sequences would each become
+      // a separate write instead of one grouped EGC) is an acceptable
+      // first-pass approximation for plain annotation text - see
+      // PatternEditor's own annotation-editing entry points.
+      size_t i = 0;
+      while (i < initial_text.size()) {
+	unsigned char c = static_cast<unsigned char>(initial_text[i]);
+	size_t len = 1;
+	if ((c & 0xE0) == 0xC0) len = 2;
+	else if ((c & 0xF0) == 0xE0) len = 3;
+	else if ((c & 0xF8) == 0xF0) len = 4;
+	len = std::min(len, initial_text.size() - i);
+	ncreader_write_egc(reader, initial_text.substr(i, len).c_str());
+	i += len;
+      }
     }
   }
 

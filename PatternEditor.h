@@ -2,9 +2,10 @@
 #define _PATTERNEDITOR_H_
 
 #include "UIElement.h"
-#include "Cursor.h"
 #include "GridPosition.h"
 #include "PatternBlockOps.h"
+#include "ClipboardEntry.h"
+#include "SelectionBounds.h"
 
 #include <vector>
 #include <unordered_map>
@@ -25,6 +26,15 @@ class PatternEditor : public UIElement {
   bool render(const StyleProvider & styles, bool refresh = false);
   bool offerInput(const InputEvent & input) override;
   void handleMidiEvent(MidiEvent & ev) override;
+
+  // Mirrors StatusLine::isReaderActive() exactly, same reason it exists:
+  // UI::offerInput() must not let a *global* keybinding (Space/toggle-
+  // playing, Ctrl-Q/quit, ...) reach its own dispatchCommand() while this
+  // class's own annotation-editing reader (startAnnotationEdit()) is open,
+  // the same way it already skips that for StatusLine's M-x reader -
+  // otherwise every one of those keys leaks past PatternEditor::offerInput()'s
+  // own reader-active forwarding before it ever gets a chance to run.
+  bool isReaderActive() { return getPlane().readerActive(); }
 
   // Plain, source-agnostic cursor/step accessors - PatternEditor has no
   // idea these happen to be used to feed a Launchpad device's own track
@@ -48,22 +58,16 @@ class PatternEditor : public UIElement {
   void onRowAdvanced(Controller & controller);
 
 protected:
-  // Resolved row/track/note-column bounds for a selection-consuming command
-  // (kill-region, transpose-region-*, ...). When no mark is active (or the
-  // mark is on a different pattern), this degenerates to the single note
-  // the cursor is currently on - there's always a region to act on, never
-  // "nothing selected".
-  struct SelectionBounds {
-    int row_lo, row_hi, track_lo, track_hi;
-    bool column_scoped; // track_lo == track_hi; note_lo/note_hi are meaningful
-    int note_lo, note_hi;
-    // true when column_scoped and the note range was widened because the
-    // cursor is on the effect column (the effect applies to every note
-    // column in the row) - selection-consuming commands that also want to
-    // capture/clear/restore the row's Command check this.
-    bool includes_command = false;
-  };
+  // See SelectionBounds.h.
   SelectionBounds getEffectiveSelectionBounds(const Song & song, const std::vector<int> & track_ids) const;
+
+  // The single place selection_active_ is ever written - also mirrors the
+  // new value to Controller::setPatternSelectionActive() so
+  // moveEditPosition()/setEditPosition() know whether row navigation
+  // needs to stay clamped to the current pattern (see that method's own
+  // comment). A raw `selection_active_ = ...` assignment anywhere else
+  // would silently desync the two.
+  void setSelectionActive(bool active);
 
   // scroll_row is a separate parameter (not always current_scroll_.row)
   // because render() below needs to call this with the *new* scroll
@@ -74,8 +78,28 @@ protected:
   void renderHeading(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info);
   void renderRow(const StyleProvider & styles, int heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, int row, bool highlight, const SelectionBounds & sel_bounds);
 
-  Cursor current_cursor, new_cursor;
-  
+  // Opens the annotation editor for the cursor's current row - called
+  // once offerInput() sees Enter pressed while the cursor is parked on
+  // the annotation slot (Right arrow past the last track's last column).
+  // Positions the reader at annotation_screen_row_/annotation_screen_col_,
+  // cached by renderRow() itself (whenever it draws the cursor's own row)
+  // rather than recomputed here, so the two can never disagree about
+  // where the annotation actually sits on screen. A no-op if a reader is
+  // already active (shouldn't happen - showReader() itself already
+  // guards this too - just defensive).
+  void startAnnotationEdit();
+
+  // Whether the cursor is parked on the current row's annotation "slot"
+  // (GridPosition::scope == SelectionScope::ANNOTATION - reached by Right
+  // arrow past the last track's last column) lives on current_cursor/
+  // new_cursor themselves, not a separate flag here - see GridPosition.h's
+  // own comment on why that's the field to check instead of a one-off
+  // bool, and getEffectiveSelectionBounds()/isHighlighted() for the two
+  // places it actually matters. Reaching the slot must not start editing
+  // on its own; only Enter (see offerInput()) does that
+  // (startAnnotationEdit()).
+  GridPosition current_cursor, new_cursor;
+
   int current_score_playing_row = 0;
   int current_score_pattern = 0;  
   int current_score_total_columns = 0;
@@ -147,22 +171,49 @@ protected:
   // time, the point is always "wherever the cursor/row currently is" (see
   // getController().getPlaybackInfo() and current_cursor.track), so normal
   // cursor movement extends the selection without any extra bookkeeping.
-  // selection_start_note_ narrows this the same way within a single track:
-  // a fresh mark starts scoped to just the note column it was set on;
-  // moving sideways widens/narrows to the touched note-column range.
+  // selection_start_col_ narrows this the same way within a single track:
+  // the raw column index (not just a voice-slot number) the mark was set
+  // on, so getEffectiveSelectionBounds() can tell whether the span ends up
+  // touching the effect column at all, not just which note number it
+  // started on. selection_start_scope_ mirrors current_cursor.scope at
+  // mark time the same way (see GridPosition.h) - the only value that
+  // ever actually differs from the default is ANNOTATION, and comparing
+  // it against current_cursor.scope is what lets
+  // getEffectiveSelectionBounds() tell "the mark and point are on
+  // opposite sides of the grid/annotation boundary" apart from "both are
+  // on the same side" - see its own comment on SelectionScope::EVERYTHING.
   bool selection_active_ = false;
   int selection_start_pattern_ = 0, selection_start_row_ = 0, selection_start_track_ = 0;
-  int selection_start_note_ = 0;
+  int selection_start_col_ = 0;
+  SelectionScope selection_start_scope_ = SelectionScope::NOTE_COLUMN;
 
-  // shadow copies of the above, used only to decide when render() needs a
-  // full repaint (see render()'s render_all computation).
-  bool current_selection_active_ = false;
-  int current_selection_start_pattern_ = 0, current_selection_start_row_ = 0, current_selection_start_track_ = 0;
-  int current_selection_start_note_ = 0;
+  // Last frame's effective selection (see getEffectiveSelectionBounds()) -
+  // compared against this frame's via SelectionBounds::operator== to
+  // decide when render() needs a full repaint (render_all), standing in
+  // for a hand-rolled diff of every piece of state that feeds into it
+  // (the mark fields above, the playhead row, the cursor's own position).
+  SelectionBounds current_sel_bounds_;
 
-  PatternBlock clipboard_;
-  bool clipboard_column_scoped_ = false;
-  bool clipboard_includes_command_ = false;
+  // See ClipboardEntry.h - a future kill-ring is just
+  // std::vector<ClipboardEntry> plus a rotation index in place of this
+  // single entry, not a restructuring of how one entry stores itself.
+  ClipboardEntry clipboard_;
+
+  // The on-screen (row, col) renderRow()'s own (display-only) annotation
+  // code draws at for the cursor/playhead's current row - cached there
+  // (set whenever its `highlight` parameter is true, which is exactly
+  // when it's rendering that row, in every call site - see render()) for
+  // startAnnotationEdit() to read rather than re-deriving the same
+  // current_pos accumulation independently. -1 until the first render.
+  int annotation_screen_row_ = -1, annotation_screen_col_ = -1;
+
+  // Which row/pattern an open annotation-editing reader belongs to (-1
+  // when none is open) - set by startAnnotationEdit(), read by
+  // offerInput()'s reader-active branch on Enter, so the commit always
+  // writes into the row editing actually started on, not "whatever row
+  // the cursor happens to be on by the time Enter is pressed" (mirrors
+  // selection_start_pattern_'s own staleness guard).
+  int annotation_edit_row_ = -1, annotation_edit_pattern_ = -1;
 };
 
 #endif

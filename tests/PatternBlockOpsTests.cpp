@@ -232,7 +232,11 @@ TEST(pattern_block_notes_transpose_is_a_no_op_for_a_percussion_track) {
   CHECK(notes[1].getValue() == 63); // untouched - would be 64 if transposed
 }
 
-TEST(pattern_block_notes_copy_and_clear_include_command_when_requested) {
+// Note-column-scoped copy/clear/paste never touch the row's Command - a
+// selection spanning both a note column and the effect column escalates to
+// a whole-track operation instead (see PatternEditor::getEffectiveSelectionBounds()),
+// so this family has no include-the-command variant any more.
+TEST(pattern_block_notes_copy_and_clear_never_touch_the_command) {
   Pattern p;
   int track_id = 10;
 
@@ -240,32 +244,60 @@ TEST(pattern_block_notes_copy_and_clear_include_command_when_requested) {
   p.setNote(2, track_id, 1, Note(63, 100));
   p.setCommand(2, track_id, Command("U050"));
 
-  auto block = copyPatternBlockNotes(p, 2, 2, track_id, 0, 1, true);
-  CHECK(block[0][0].command.isDefined());
+  auto block = copyPatternBlockNotes(p, 2, 2, track_id, 0, 1);
+  CHECK(!block[0][0].command.isDefined());
 
-  clearPatternBlockNotes(p, 2, 2, track_id, 0, 1, true);
-  CHECK(!p.getCommand(2, track_id).isDefined());
+  clearPatternBlockNotes(p, 2, 2, track_id, 0, 1);
+  CHECK(p.getCommand(2, track_id).isDefined()); // untouched
 }
 
-TEST(pattern_block_notes_paste_restores_command_when_requested) {
+TEST(pattern_block_notes_paste_never_touches_the_command) {
+  Pattern p;
+  int track_id = 10;
+
+  p.setNote(2, track_id, 0, Note(60, 100));
+  auto block = copyPatternBlockNotes(p, 2, 2, track_id, 0, 0);
+
+  p.setCommand(9, track_id, Command("D0A0"));
+  pastePatternBlockNotes(p, block, 16, 9, track_id, 0);
+  CHECK(p.getNotes(9, track_id)[0].getValue() == 60);
+  CHECK(p.getCommand(9, track_id).isDefined()); // untouched, still the original
+}
+
+// SelectionScope::COMMAND's own family (PatternEditor::getEffectiveSelectionBounds()
+// resolves a selection confined to just the effect column to this scope) -
+// independent of any note data on the same row.
+TEST(pattern_block_command_copy_and_clear_round_trip_independent_of_notes) {
   Pattern p;
   int track_id = 10;
 
   p.setNote(2, track_id, 0, Note(60, 100));
   p.setCommand(2, track_id, Command("U050"));
 
-  auto block = copyPatternBlockNotes(p, 2, 2, track_id, 0, 0, true);
-  clearPatternBlockNotes(p, 2, 2, track_id, 0, 0, true);
+  auto block = copyPatternBlockCommand(p, 2, 2, track_id);
+  CHECK(block.size() == 1);
+  CHECK(block[0].isDefined());
+
+  clearPatternBlockCommand(p, 2, 2, track_id);
   CHECK(!p.getCommand(2, track_id).isDefined());
+  CHECK(p.getNotes(2, track_id)[0].getValue() == 60); // untouched
+}
 
-  pastePatternBlockNotes(p, block, 16, 9, track_id, 0, true);
-  CHECK(p.getNotes(9, track_id)[0].getValue() == 60);
+TEST(pattern_block_command_paste_never_touches_note_data) {
+  Pattern p;
+  int track_id = 10;
+
+  p.setCommand(2, track_id, Command("U050"));
+  auto block = copyPatternBlockCommand(p, 2, 2, track_id);
+
+  p.setNote(9, track_id, 0, Note(67, 100));
+  pastePatternBlockCommand(p, block, 16, 9, track_id);
   CHECK(p.getCommand(9, track_id).isDefined());
+  CHECK(p.getNotes(9, track_id)[0].getValue() == 67); // untouched
 
-  // without include_command, paste must not touch the target row's command
-  p.setCommand(10, track_id, Command("D0A0"));
-  pastePatternBlockNotes(p, block, 16, 10, track_id, 0, false);
-  CHECK(p.getCommand(10, track_id).isDefined()); // untouched, still the original
+  // clips at the pattern-length boundary the same way pastePatternBlock does
+  pastePatternBlockCommand(p, block, 16, 15, track_id);
+  CHECK(p.getCommand(15, track_id).isDefined());
 }
 
 TEST(pattern_block_notes_paste_merges_into_target_range_without_clobbering_others) {

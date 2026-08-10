@@ -103,21 +103,28 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     break;
     
   case PlaybackControlEvent::MOVE_POSITION:
-    // Mirrors Controller::moveEditPosition()'s own clampRowToCurrentPattern()
-    // call on the UI-thread side - both derive the same clamped result
-    // independently from the same (unclamped) delta_rows rather than one
-    // side trusting a value computed by the other across the thread
-    // boundary. Only ever reaches here while stopped (see
+    // Mirrors Controller::moveEditPosition()'s own decision on the
+    // UI-thread side - both derive the same result independently from the
+    // same (unclamped) delta_rows rather than one side trusting a value
+    // computed by the other across the thread boundary. parameter2 carries
+    // whether a pattern-editor selection was open there (clamp to the
+    // current pattern, via clampRowToCurrentPattern()) or not (cross
+    // pattern boundaries freely - setPosition() already floors at 0, and
+    // there's no upper bound either way, same as real playback's own
+    // run-off-the-end). Only ever reaches here while stopped (see
     // PatternEditor's "Row navigation while stopped" comment); real
     // playback's row-by-row advance goes through SongState::render()'s
     // own movePosition()/jumpToPatternBreak() calls, never this event.
-    state_.setPosition(song.clampRowToCurrentPattern(state_.getAbsolutePosition(), state_.getAbsolutePosition() + ev.getParameter1()));
+    state_.setPosition(ev.getParameter2() ?
+      song.clampRowToCurrentPattern(state_.getAbsolutePosition(), state_.getAbsolutePosition() + ev.getParameter1()) :
+      state_.getAbsolutePosition() + ev.getParameter1());
     break;
 
   case PlaybackControlEvent::SET_POSITION:
     // See MOVE_POSITION just above - same reasoning, mirroring Controller::
     // setEditPosition().
-    state_.setPosition(song.clampRowToCurrentPattern(state_.getAbsolutePosition(), ev.getParameter1()));
+    state_.setPosition(ev.getParameter2() ?
+      song.clampRowToCurrentPattern(state_.getAbsolutePosition(), ev.getParameter1()) : ev.getParameter1());
     break;
 
   case PlaybackControlEvent::CLEAR_VOICES:

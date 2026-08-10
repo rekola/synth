@@ -26,7 +26,16 @@ class UIPlane {
   virtual std::unique_ptr<UIPlane> createChild() = 0;
   virtual void drawBorder() = 0;
   virtual bool offerInput(const InputEvent & input) = 0;
-  virtual void showReader(const std::string & prompt = "") = 0;
+  // y/x/rows/cols position and size the reader plane explicitly, for a
+  // caller (PatternEditor's annotation editing) that isn't a one-line
+  // plane like StatusLine - x == -1 (default) means "right after the
+  // prompt" and rows/cols == -1 means "the rest of the plane", both
+  // matching the historical no-args behavior every existing call site
+  // still relies on. initial_text seeds the reader's own content (e.g.
+  // editing an existing annotation starts from what it already says, not
+  // blank) rather than requiring a second call after this one.
+  virtual void showReader(const std::string & prompt = "", int y = 0, int x = -1, int rows = -1, int cols = -1,
+			   const std::string & initial_text = "") = 0;
   virtual std::string closeReader() = 0;
   virtual bool readerActive() const = 0;
   virtual void showPicker() = 0;
