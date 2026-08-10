@@ -47,7 +47,7 @@ UI::initialize() {
 
   active_element_ = pattern_editor_;
 
-  commands_.define("quit", [this]() { close_ui_ = true; });
+  commands_.define("save-buffers-kill-terminal", [this]() { close_ui_ = true; });
   commands_.define("new-song", [this]() {
     setStatus("New song");
     getController().createNewSong();
@@ -61,12 +61,15 @@ UI::initialize() {
     setStatus("Saved " + getController().getSongFilename());
   });
 
-  // Quit/save use Emacs's own C-x C-c/C-x C-s bindings (save-buffers-kill-
-  // terminal/save-buffer) rather than one-off single-key shortcuts - see
-  // Keymap::bindPrefixed()/UIElement::dispatchCommand() for the two-key
-  // prefix-sequence machinery this needs.
+  // Quit/save use Emacs's own C-x C-c/C-x C-s bindings and command names
+  // (save-buffers-kill-terminal/save-buffer, the latter shortened to
+  // save-song here to match this codebase's own pre-existing M-x command
+  // of that name - see Controller::sendCommand()) rather than one-off
+  // single-key shortcuts or made-up names - see Keymap::bindPrefixed()/
+  // UIElement::dispatchCommand() for the two-key prefix-sequence machinery
+  // this needs.
   auto ctrl_x = KeyChord::pack('x', true, false, false, false);
-  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('c', true, false, false, false), "quit");
+  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('c', true, false, false, false), "save-buffers-kill-terminal");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('s', true, false, false, false), "save-song");
   keymap_.bind(KeyChord::pack('n', true, false, false, false), "new-song");
   keymap_.bind(KeyChord::pack(' ', false, false, false, false), "toggle-playing");

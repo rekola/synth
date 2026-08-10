@@ -173,61 +173,81 @@ class SongState : public TrackState {
       }
     }
     
-    if (!song.getInstruments().empty()) {
-      if (aux_a_sum_.numberOfFrames() != frames) aux_a_sum_ = AudioBuffer(1, frames);
-      if (aux_b_sum_.numberOfFrames() != frames) aux_b_sum_ = AudioBuffer(1, frames);
-      aux_a_sum_.zero();
-      aux_b_sum_.zero();
+    // Unconditional, regardless of whether the song currently has any
+    // instruments loaded (not guarded behind !song.getInstruments().empty() -
+    // that guard used to skip this whole block, including every
+    // mixer.accumulate() call below, whenever a song had zero instruments,
+    // e.g. a freshly created song. Each track's own render() already
+    // produces a correctly frame-sized (just channel-empty) buffer when it
+    // has no valid instrument (InstrumentTrackState::render()), and
+    // mixer.accumulate() already tolerates zero-channel input just fine
+    // (AudioBuffer::mixNamed()) - so skipping the call entirely, rather
+    // than just naturally accumulating nothing, was the actual bug: it left
+    // the mixer's own internal accumulator buffer stuck at its pristine,
+    // zero-frame construction-time state for the rest of the process,
+    // since nothing else ever gives it a real frame count otherwise. Every
+    // subsequent mixer.encode() call then produced a genuinely empty
+    // (0-frame) master output every single block - indistinguishable from
+    // AudioBlockEvent.h's own "empty buffer" terminate-sentinel convention,
+    // so VisualizationThread mistook the very first-ever rendered block for
+    // its own shutdown signal and stopped consuming its queue for the rest
+    // of the process, which eventually deadlocked UI::start()'s own
+    // shutdown push once its queue filled up - a real, reproducible
+    // freeze-on-quit for any song with no instruments loaded (confirmed via
+    // direct instrumentation, not guessed at).
+    if (aux_a_sum_.numberOfFrames() != frames) aux_a_sum_ = AudioBuffer(1, frames);
+    if (aux_b_sum_.numberOfFrames() != frames) aux_b_sum_ = AudioBuffer(1, frames);
+    aux_a_sum_.zero();
+    aux_b_sum_.zero();
 
-      // Snapshotting the raw Track* pointers under Song::getTracksMutex()
-      // rather than holding it for this whole loop - see that mutex's own
-      // comment on why one is needed at all - keeps the lock held only as
-      // long as a quick pointer copy takes, not for however long actually
-      // rendering every track takes; a track added by the UI thread after
-      // the snapshot is taken just isn't heard until next block, same as
-      // a track added between two blocks outright. Safe against a track
-      // added *during* iteration below reusing/reallocating one of these
-      // pointers out from under it too, since track deletion doesn't
-      // exist yet - every Track this snapshot points to lives at a fixed
-      // address for the rest of the process once addTrack() returns.
-      std::vector<Track *> track_snapshot;
-      {
-	std::lock_guard<std::mutex> guard(song.getTracksMutex());
-	track_snapshot.reserve(song.getTracks().size());
-	for (auto & track : song.getTracks()) track_snapshot.push_back(track.get());
+    // Snapshotting the raw Track* pointers under Song::getTracksMutex()
+    // rather than holding it for this whole loop - see that mutex's own
+    // comment on why one is needed at all - keeps the lock held only as
+    // long as a quick pointer copy takes, not for however long actually
+    // rendering every track takes; a track added by the UI thread after
+    // the snapshot is taken just isn't heard until next block, same as
+    // a track added between two blocks outright. Safe against a track
+    // added *during* iteration below reusing/reallocating one of these
+    // pointers out from under it too, since track deletion doesn't
+    // exist yet - every Track this snapshot points to lives at a fixed
+    // address for the rest of the process once addTrack() returns.
+    std::vector<Track *> track_snapshot;
+    {
+      std::lock_guard<std::mutex> guard(song.getTracksMutex());
+      track_snapshot.reserve(song.getTracks().size());
+      for (auto & track : song.getTracks()) track_snapshot.push_back(track.get());
+    }
+
+    for (auto * track : track_snapshot) {
+      auto data = track->getState(*this).render(frames, song.getInstruments(), render_context_);
+      mixer.accumulate(data);
+
+      if (auto * a = data.getChannel(Channel::AuxA)) {
+	auto dst = aux_a_sum_.getChannelData(0);
+	for (int i = 0; i < frames; i++) dst[i] += a[i];
       }
-
-      for (auto * track : track_snapshot) {
-	auto data = track->getState(*this).render(frames, song.getInstruments(), render_context_);
-	mixer.accumulate(data);
-
-	if (auto * a = data.getChannel(Channel::AuxA)) {
-	  auto dst = aux_a_sum_.getChannelData(0);
-	  for (int i = 0; i < frames; i++) dst[i] += a[i];
-	}
-	if (auto * b = data.getChannel(Channel::AuxB)) {
-	  auto dst = aux_b_sum_.getChannelData(0);
-	  for (int i = 0; i < frames; i++) dst[i] += b[i];
-	}
+      if (auto * b = data.getChannel(Channel::AuxB)) {
+	auto dst = aux_b_sum_.getChannelData(0);
+	for (int i = 0; i < frames; i++) dst[i] += b[i];
       }
+    }
 
-      // The send bus's own output is always ambisonic-shaped (see
-      // SendBusProcessor) and the top-level mixer is guaranteed to be one
-      // too now (BasicMixer is retired) - so this is a plain, unconditional
-      // accumulate, no decode step. The isAmbisonic() guard isn't really a
-      // conceptual "is this truly ambisonic" question - it exists solely so
-      // the one synthetic top-level MONO config a Compressor regression
-      // test constructs directly (bypassing MixerFactory) skips the send
-      // bus entirely, rather than handing a genuine 1-channel
-      // ambisonic_channels_ buffer to encodeStereoAsPoints(), which asserts
-      // out.numberOfChannels() >= 2 on shape alone.
-      if (getChannelConfiguration().isAmbisonic()) {
-	// Always processed, even when both sums are silent, so the shared
-	// reverb tail/chorus modulation stay continuous across blocks (see
-	// SendBusProcessor.h).
-	send_bus_.process(aux_a_sum_, aux_b_sum_, frames);
-	mixer.accumulate(send_bus_.getBusAmbisonic());
-      }
+    // The send bus's own output is always ambisonic-shaped (see
+    // SendBusProcessor) and the top-level mixer is guaranteed to be one
+    // too now (BasicMixer is retired) - so this is a plain, unconditional
+    // accumulate, no decode step. The isAmbisonic() guard isn't really a
+    // conceptual "is this truly ambisonic" question - it exists solely so
+    // the one synthetic top-level MONO config a Compressor regression
+    // test constructs directly (bypassing MixerFactory) skips the send
+    // bus entirely, rather than handing a genuine 1-channel
+    // ambisonic_channels_ buffer to encodeStereoAsPoints(), which asserts
+    // out.numberOfChannels() >= 2 on shape alone.
+    if (getChannelConfiguration().isAmbisonic()) {
+      // Always processed, even when both sums are silent, so the shared
+      // reverb tail/chorus modulation stay continuous across blocks (see
+      // SendBusProcessor.h).
+      send_bus_.process(aux_a_sum_, aux_b_sum_, frames);
+      mixer.accumulate(send_bus_.getBusAmbisonic());
     }
 
     render_context_.updateFrameOffset(-frames);
