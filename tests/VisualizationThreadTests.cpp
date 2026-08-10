@@ -20,7 +20,7 @@ TEST(visualization_thread_audio_block_event_produces_fft_result) {
   int sample_rate = 3000, frame_count = 256;
   thread.configure(sample_rate, frame_count);
 
-  SampleData master(2, frame_count);
+  AudioBuffer master(2, frame_count);
   for (int i = 0; i < frame_count; i++) {
     float v = sinf(static_cast<float>(i) * 0.2f);
     master.getChannelData(0)[i] = v;
@@ -31,7 +31,7 @@ TEST(visualization_thread_audio_block_event_produces_fft_result) {
   // safe, deliberate no-op for DiracAnalyzer::process() (0 frames, nothing
   // to accumulate), same as the terminate sentinel's empty master below
   // just for a different field.
-  AudioBlockEvent ev(std::move(master), SampleData(), SampleData(), SampleData());
+  AudioBlockEvent ev(std::move(master), AudioBuffer(), AudioBuffer(), AudioBuffer());
   thread.handleAudioBlockEvent(ev);
 
   // EventQueue::hasEvents() only reflects bytes already read off the
@@ -57,13 +57,13 @@ TEST(visualization_thread_dirac_grid_delivered_after_throttle_threshold) {
   // (SS1) - so a single handleAudioBlockEvent() call is enough to trigger
   // delivery.
   int dirac_frames = DiracAnalyzer::kFFTSize + 2 * DiracAnalyzer::kHopSize;
-  SampleData master(2, 10); // small and unrelated to the FFT path (see configure() above)
-  SampleData raw_bus(1, dirac_frames); // W-only is enough to exercise the throttle itself
+  AudioBuffer master(2, 10); // small and unrelated to the FFT path (see configure() above)
+  AudioBuffer raw_bus(1, dirac_frames); // W-only is enough to exercise the throttle itself
   for (int i = 0; i < dirac_frames; i++) {
     raw_bus.getChannelData(0)[i] = sinf(static_cast<float>(i) * 0.05f);
   }
 
-  AudioBlockEvent ev(std::move(master), std::move(raw_bus), SampleData(), SampleData());
+  AudioBlockEvent ev(std::move(master), std::move(raw_bus), AudioBuffer(), AudioBuffer());
   thread.handleAudioBlockEvent(ev);
 
   auto result_event = controller.getUIEventQueue().pop();
@@ -81,17 +81,17 @@ TEST(visualization_thread_computes_channel_loudness_and_meter_label) {
   thread.configure(3000, 256);
 
   int frames = 4;
-  SampleData master(2, frames);
+  AudioBuffer master(2, frames);
   master.zero();
 
-  SampleData raw_bus(4, frames); // order-1 ambisonic - 4 regular channels (already even)
+  AudioBuffer raw_bus(4, frames); // order-1 ambisonic - 4 regular channels (already even)
   for (int c = 0; c < 4; c++) {
     auto data = raw_bus.getChannelData(c);
     for (int i = 0; i < frames; i++) data[i] = static_cast<float>(c + 1) * 0.5f; // distinct constant per channel
   }
-  SampleData aux_a(1, frames);
+  AudioBuffer aux_a(1, frames);
   for (int i = 0; i < frames; i++) aux_a.getChannelData(0)[i] = 0.25f;
-  SampleData aux_b(1, frames);
+  AudioBuffer aux_b(1, frames);
   for (int i = 0; i < frames; i++) aux_b.getChannelData(0)[i] = 0.75f;
 
   AudioBlockEvent ev(std::move(master), std::move(raw_bus), std::move(aux_a), std::move(aux_b));
@@ -102,7 +102,7 @@ TEST(visualization_thread_computes_channel_loudness_and_meter_label) {
   CHECK(result != nullptr);
   if (!result) return;
 
-  // SampleData::calculateLoudness() is sqrt(sum of squares), not divided
+  // AudioBuffer::calculateLoudness() is sqrt(sum of squares), not divided
   // by frame count - a constant channel of value c over `frames` samples
   // gives c*sqrt(frames).
   auto & levels = result->getChannelLoudness();
@@ -123,17 +123,17 @@ TEST(visualization_thread_channel_loudness_pads_odd_regular_count_before_aux) {
   thread.configure(3000, 256);
 
   int frames = 2;
-  SampleData master(2, frames);
+  AudioBuffer master(2, frames);
   master.zero();
 
-  SampleData raw_bus(9, frames); // order-2 ambisonic - 9 regular channels (odd)
+  AudioBuffer raw_bus(9, frames); // order-2 ambisonic - 9 regular channels (odd)
   for (int c = 0; c < 9; c++) {
     auto data = raw_bus.getChannelData(c);
     for (int i = 0; i < frames; i++) data[i] = 1.0f;
   }
-  SampleData aux_a(1, frames);
+  AudioBuffer aux_a(1, frames);
   aux_a.zero();
-  SampleData aux_b(1, frames);
+  AudioBuffer aux_b(1, frames);
   aux_b.zero();
 
   AudioBlockEvent ev(std::move(master), std::move(raw_bus), std::move(aux_a), std::move(aux_b));
@@ -154,14 +154,14 @@ TEST(visualization_thread_channel_loudness_pads_odd_regular_count_before_aux) {
 }
 
 TEST(visualization_thread_terminate_sentinel_produces_no_result) {
-  // An empty SampleData (the sentinel AudioBlockEvent::run() watches for,
+  // An empty AudioBuffer (the sentinel AudioBlockEvent::run() watches for,
   // see AudioBlockEvent.h) must not be treated as real audio data - no
   // VisualizationResultEvent should come out of it.
   Controller controller{ChannelConfiguration()};
   VisualizationThread thread(&controller);
   thread.configure(3000, 256);
 
-  AudioBlockEvent terminate_ev{SampleData(), SampleData(), SampleData(), SampleData()};
+  AudioBlockEvent terminate_ev{AudioBuffer(), AudioBuffer(), AudioBuffer(), AudioBuffer()};
   thread.handleAudioBlockEvent(terminate_ev);
 
   CHECK(!controller.getUIEventQueue().hasEvents());

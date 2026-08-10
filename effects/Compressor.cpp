@@ -147,7 +147,7 @@ public:
     // all this internal scratch buffer needs, no Aux bookkeeping of its
     // own (plain getChannelData() access only, never hasChannel()/
     // getChannel()).
-    delaybuf_ = SampleData(static_cast<short>(getChannelConfiguration().numberOfChannels() + 2), delaybufsize_);
+    delaybuf_ = AudioBuffer(static_cast<short>(getChannelConfiguration().numberOfChannels() + 2), delaybufsize_);
     delaybuf_.zero();
     
     // useful values
@@ -227,7 +227,7 @@ public:
     delayreadpos_         = delaybufsize_ > 1 ? 1 : 0;
   }
 
-  void applyEffect(SampleData & input) override {
+  void applyEffect(AudioBuffer & input) override {
     // The gain-reduction algorithm computes a single scalar `gain` per
     // sample and applies it uniformly to every channel below, Main and
     // Aux alike - a compressed instrument should send its already-
@@ -396,7 +396,7 @@ private:
   int delaybufsize_;
   int delaywritepos_;
   int delayreadpos_;
-  SampleData delaybuf_; // predelay buffer
+  AudioBuffer delaybuf_; // predelay buffer
 };
 
 std::unique_ptr<TrackState>

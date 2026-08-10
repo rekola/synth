@@ -3,7 +3,7 @@
 
 #include "TrackInfo.h"
 #include "ActiveVoiceInfo.h"
-#include "SampleData.h"
+#include "AudioBuffer.h"
 #include "ChannelConfiguration.h"
 #include "SphericalPosition.h"
 #include "AmbisonicEncoding.h"
@@ -22,12 +22,12 @@ class TrackState {
   virtual ~TrackState() { }
   
   // For rendering voices
-  virtual SampleData render(int frames) {
+  virtual AudioBuffer render(int frames) {
     return renderChildren(frames, getChannelConfiguration());
   }
 
   // For rendering tracks
-  virtual SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) {
+  virtual AudioBuffer render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) {
     return renderChildren(frames, instruments, context, getChannelConfiguration());
   }
 
@@ -45,7 +45,7 @@ protected:
   // getChildChannelConfiguration() with that exact same reduced format
   // (Effect.h/Chorus.h/Distortion.h), so channel counts always match and
   // every child is just plain-mixed, same as pre-ambisonic code.
-  SampleData renderChildren(int frames, const ChannelConfiguration & accumulator_config) {
+  AudioBuffer renderChildren(int frames, const ChannelConfiguration & accumulator_config) {
     // Render every active child first, then decide the accumulator's shape
     // from what actually came back (hasChannel(Main/AuxA/AuxB)) rather
     // than predicting it up front - simpler than a separate non-rendering
@@ -55,7 +55,7 @@ protected:
     // child has it (e.g. every child's Send Main level is 0 this block),
     // matching how a leaf voice itself decides whether to allocate Main
     // at all - see InstrumentVoice::encodePosition().
-    std::vector<SampleData> rendered;
+    std::vector<AudioBuffer> rendered;
     for (auto & [ id, child ] : getChildren()) {
       if (child->isActive()) {
 	rendered.push_back(child->render(frames));
@@ -68,7 +68,7 @@ protected:
       has_aux_a = has_aux_a || s.hasChannel(Channel::AuxA);
       has_aux_b = has_aux_b || s.hasChannel(Channel::AuxB);
     }
-    SampleData data(has_main ? accumulator_config.numberOfChannels() : 0, has_aux_a, has_aux_b, frames);
+    AudioBuffer data(has_main ? accumulator_config.numberOfChannels() : 0, has_aux_a, has_aux_b, frames);
     data.zero();
 
     // Every child now spatially encodes itself directly, using its own
@@ -81,8 +81,8 @@ protected:
     return data;
   }
 
-  SampleData renderChildren(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context, const ChannelConfiguration & accumulator_config) {
-    std::vector<SampleData> rendered;
+  AudioBuffer renderChildren(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context, const ChannelConfiguration & accumulator_config) {
+    std::vector<AudioBuffer> rendered;
     for (auto & [ id, child ] : getChildren()) {
       rendered.push_back(child->render(frames, instruments, context));
     }
@@ -93,7 +93,7 @@ protected:
       has_aux_a = has_aux_a || s.hasChannel(Channel::AuxA);
       has_aux_b = has_aux_b || s.hasChannel(Channel::AuxB);
     }
-    SampleData sd(has_main ? accumulator_config.numberOfChannels() : 0, has_aux_a, has_aux_b, frames);
+    AudioBuffer sd(has_main ? accumulator_config.numberOfChannels() : 0, has_aux_a, has_aux_b, frames);
     sd.zero();
 
     bool child_has_solo = false;

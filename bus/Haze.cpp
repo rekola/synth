@@ -418,7 +418,7 @@ Haze::getPredelayedMono(float * out, int frames) const {
 }
 
 void
-Haze::encodeDirect(SampleData & busAmbisonic, int frames) {
+Haze::encodeDirect(AudioBuffer & busAmbisonic, int frames) {
   if (static_cast<int>(predelayed_.size()) != frames) return; // process() hasn't run yet for this frame count
   diffuseEncoder_.encode(busAmbisonic, predelayed_.data(), frames, diffusion_, getWetLevel());
 }

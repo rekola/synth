@@ -2,7 +2,7 @@
 #define _SPECTRUMANALYZER_H_
 
 #include "RealFFT.h"
-#include "../SampleData.h"
+#include "../AudioBuffer.h"
 
 #include <cmath>
 #include <memory>
@@ -28,7 +28,7 @@ class SpectrumAnalyzer {
     fft_ = std::make_unique<RealFFT<float>>(static_cast<size_t>(size_));
   }
 
-  bool addData(const SampleData & data) {
+  bool addData(const AudioBuffer & data) {
     if (current_pos_ == size_) {
       for (int i = data.size(); i < size_; i++) {
         signal_[static_cast<size_t>(i - data.size())] = signal_[static_cast<size_t>(i)];

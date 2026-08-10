@@ -29,7 +29,7 @@
 #include "LFOState.h"
 #include "InstrumentVoice.h"
 #include "SendLevels.h"
-#include "SampleData.h"
+#include "AudioBuffer.h"
 #include "dsp/PanLaw.h"
 #include "dsp/ChorusEngine.h"
 #include "AmbisonicEncoding.h"
@@ -1030,7 +1030,7 @@ public:
   }
   float getChannelPressure() const override { return sf2_channel_pressure_; }
 
-  SampleData render(int numSamples) override;
+  AudioBuffer render(int numSamples) override;
   
   void killNote() override {
     ampenv_.nextSegment(EnvelopeState::DONE);
@@ -1175,20 +1175,20 @@ private:
   unique_ptr<ChorusEngine> chorus_engine_;
   float chorus_send_ = 0.0f;
   array<AmbisonicVoiceEncoder, 2> chorus_tap_encoders_;
-  SampleData chorus_scratch_;
+  AudioBuffer chorus_scratch_;
 
   // encodePosition() plus, when chorus_engine_ exists, this voice's own
   // per-voice chorus taps added on top (see chorus_engine_'s comment
   // above) - the single path both render() return points go through, so
   // an inactive voice's all-silent dry_ still gets a consistently-shaped
-  // SampleData (chorus of silence is silence, just extra unused work) and
+  // AudioBuffer (chorus of silence is silence, just extra unused work) and
   // an active voice's real dry_ gets both encoded together.
-  SampleData
+  AudioBuffer
   encodeWithChorus(int totalSamples) {
     auto data = encodePosition(dry_.data(), totalSamples);
     if (!chorus_engine_) return data;
 
-    if (chorus_scratch_.numberOfFrames() != totalSamples) chorus_scratch_ = SampleData(2, totalSamples);
+    if (chorus_scratch_.numberOfFrames() != totalSamples) chorus_scratch_ = AudioBuffer(2, totalSamples);
     auto c0 = chorus_scratch_.getChannelData(0), c1 = chorus_scratch_.getChannelData(1);
     for (int i = 0; i < totalSamples; i++) c0[i] = c1[i] = dry_[static_cast<size_t>(i)];
     chorus_engine_->process(chorus_scratch_);
@@ -1234,7 +1234,7 @@ private:
   }
 };
 
-SampleData
+AudioBuffer
 SoundFontVoice::render(int numSamples) {
   auto f = sf_.get();
 

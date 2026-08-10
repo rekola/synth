@@ -156,7 +156,7 @@ class Haze : public BusEffect {
   // busAmbisonic's regular channels at getWetLevel() - see BusEffect.h's
   // own doc comment on encodeDirect() for why this effect uses this path
   // instead of the ordinary point-source tap loop.
-  void encodeDirect(SampleData & busAmbisonic, int frames) override;
+  void encodeDirect(AudioBuffer & busAmbisonic, int frames) override;
 
   // <haze> element's own attributes: "preset" plus drive/shape/bias/hpf/
   // lpf/tilt/trim/predelay/diffusion, each deviation-only against

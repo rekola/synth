@@ -13,7 +13,7 @@ public:
     : InstrumentVoice(config, position, detune, start_phase, sends), type_(type), level_(level), pulse_width_(pulse_width) {
   }
 
-  SampleData render(int frames) override {
+  AudioBuffer render(int frames) override {
     // No getDistanceGain() here - encodePosition() applies distance
     // attenuation itself now (see its own doc comment in InstrumentVoice.h).
     float gain = decibelsToGain(getGainDB()) * level_;
@@ -21,7 +21,7 @@ public:
     double pos = getSourceSamplePosition() / getChannelConfiguration().getAudioOutSampleRate();
     double rate = (double)getFrequency() / getChannelConfiguration().getAudioOutSampleRate();
 
-    SampleData modulator;
+    AudioBuffer modulator;
     const float * modulator_data = nullptr;
     if (!getChildren().empty()) {
       modulator = InstrumentVoice::render(frames);

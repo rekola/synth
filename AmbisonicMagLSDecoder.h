@@ -34,10 +34,10 @@ class AmbisonicMagLSDecoder : public Mixer {
   bool isReady() const { return ready_; }
 
   void reset() override;
-  void accumulate(const SampleData & input) override;
-  SampleData encode() override;
+  void accumulate(const AudioBuffer & input) override;
+  AudioBuffer encode() override;
 
-  const SampleData & getRawBus() const override { return buffer_; }
+  const AudioBuffer & getRawBus() const override { return buffer_; }
 
   // Read-only access to the solved per-channel filter pairs, for the
   // Phase 1 validation suite (ITD/magnitude/symmetry/diffuse-gain checks)
@@ -56,7 +56,7 @@ class AmbisonicMagLSDecoder : public Mixer {
   bool ready_ = false;
   std::vector<ChannelFilter> channel_filters_; // size ambisonic_channels_, one pair per ACN channel
 
-  SampleData buffer_;
+  AudioBuffer buffer_;
 
   // Overlap-add tail carried between encode() calls, sized once at
   // construction from the solved filter length - same pattern as

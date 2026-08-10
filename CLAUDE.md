@@ -61,7 +61,7 @@ from `tests/fixtures/` through the same `renderSongOffline()` used by
 isolation, no NaN/Inf) — this is how stereo/pan regressions get caught.
 
 Build with `-DSYNTH_ENABLE_SANITIZERS=ON` to enable ASan+UBSan for the whole
-project; useful for chasing memory bugs (e.g. `SampleData`'s copy-assignment
+project; useful for chasing memory bugs (e.g. `AudioBuffer`'s copy-assignment
 leak was confirmed this way).
 
 Needs a real terminal (notcurses full-screen UI) and an ALSA output device.
@@ -335,9 +335,9 @@ SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
   `AmbisonicStereoMixer`'s `decodeToStereo()` broadcasts equally to both
   output channels rather than needing its own separate mixer type. (A
   prior, incompatible ambisonic attempt, `HRFT.{cpp,h}`, predated the
-  current `Mixer`/`SampleData` interfaces and was never in the build;
+  current `Mixer`/`AudioBuffer` interfaces and was never in the build;
   deleted rather than revived.)
-- `SampleData.h`'s `Channel` enum has three values, `Main`/`AuxA`/`AuxB`.
+- `AudioBuffer.h`'s `Channel` enum has three values, `Main`/`AuxA`/`AuxB`.
   `Main` covers every regular (ambisonic) channel as a group — addressed
   individually by plain raw index (0 = W, 1 = Y, ... in ACN order, up to
   16 at order 3), not one enum value per channel — and
@@ -351,7 +351,7 @@ SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
   gone). `AuxA`/`AuxB` aren't part of the fixed 0..N-1 regular-channel run
   at all (a buffer may carry either, both, or neither, independent of its
   regular channel count) — they always land immediately after the regular
-  channels, `AuxA` before `AuxB` (`SampleData::indexOf()`), backed by
+  channels, `AuxA` before `AuxB` (`AudioBuffer::indexOf()`), backed by
   their own stored `has_aux_a_`/`has_aux_b_` bools (unlike `Main`, knowing
   "one aux channel is present" doesn't say *which* one, so these can't be
   derived from a count alone). A voice/accumulator with nothing routed to
@@ -364,7 +364,7 @@ SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
   `hasChannel(Channel::Main)` — a buffer can legitimately have zero Main
   channels and real, clippable `AuxA`/`AuxB` content (a 100%-wet,
   Main-bypassing voice), so both always scan whatever real channels are
-  actually present. `SampleData::mixNamed()`/`assignNamed()` are
+  actually present. `AudioBuffer::mixNamed()`/`assignNamed()` are
   `mix()`/`assign()`'s aux-tolerant siblings — same exact-match/mono-
   broadcast rules for the regular channels (plus an explicit no-op case
   when the other side has zero regular channels, e.g. a Main-less child
@@ -394,9 +394,9 @@ SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
   separate non-rendering prediction, since the rendered output already
   answers the question. `InstrumentTrackState::render(frames, instruments, context)`'s
   chunked loop (new voices can trigger mid-block) defers the shape
-  decision the same way: it collects each chunk's `(offset, SampleData)`
+  decision the same way: it collects each chunk's `(offset, AudioBuffer)`
   first, then builds the final accumulator from their union and places
-  each chunk via `SampleData::assignNamed()` — so a voice that starts
+  each chunk via `AudioBuffer::assignNamed()` — so a voice that starts
   mid-block with an aux channel not seen earlier in the same block is
   captured immediately, not just next block. Aux channels do reach each
   `Mixer` subclass's own accumulator (via `mixNamed()`, so a track's

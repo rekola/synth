@@ -24,18 +24,18 @@ class AmbisonicStereoMixer : public Mixer {
   // carry AuxA/AuxB trailing its regular ambisonic channels (see
   // Mixer.h); buffer_ never marks them present (constructed via the plain
   // raw-count constructor) so they're silently ignored here.
-  void accumulate(const SampleData & input) override {
+  void accumulate(const AudioBuffer & input) override {
     if (buffer_.numberOfFrames() != input.numberOfFrames()) {
-      buffer_ = SampleData(static_cast<short>(ambisonic_channels_), input.numberOfFrames());
+      buffer_ = AudioBuffer(static_cast<short>(ambisonic_channels_), input.numberOfFrames());
       buffer_.zero();
     }
     buffer_.mixNamed(input);
   }
 
-  const SampleData & getRawBus() const override { return buffer_; }
+  const AudioBuffer & getRawBus() const override { return buffer_; }
 
-  SampleData encode() override {
-    SampleData out(static_cast<short>(getOutChannels()), buffer_.numberOfFrames());
+  AudioBuffer encode() override {
+    AudioBuffer out(static_cast<short>(getOutChannels()), buffer_.numberOfFrames());
     decodeToStereo(buffer_, out);
 
     for (int c = 0; c < out.numberOfChannels(); c++) {
@@ -50,7 +50,7 @@ class AmbisonicStereoMixer : public Mixer {
 
  private:
   int ambisonic_channels_;
-  SampleData buffer_;
+  AudioBuffer buffer_;
 };
 
 #endif

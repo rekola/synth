@@ -16,7 +16,7 @@ TEST(chorus_engine_modulation_actually_changes_output) {
   // within that many frames.
   int frames = 2000;
   auto make_input = [&]() {
-    SampleData data(1, frames);
+    AudioBuffer data(1, frames);
     for (int i = 0; i < frames; i++) data.getChannelData(0)[i] = sinf(static_cast<float>(i) * 0.05f);
     return data;
   };
@@ -47,7 +47,7 @@ TEST(chorus_engine_decorrelate_false_keeps_duplicated_mono_identical) {
   engine.setMix(1.0f);
 
   int frames = 512;
-  SampleData data(2, frames);
+  AudioBuffer data(2, frames);
   for (int i = 0; i < frames; i++) {
     float v = sinf(static_cast<float>(i) * 0.1f);
     data.getChannelData(0)[i] = v;
@@ -68,7 +68,7 @@ TEST(chorus_engine_decorrelate_true_creates_stereo_width) {
   engine.setMix(1.0f);
 
   int frames = 512;
-  SampleData data(2, frames);
+  AudioBuffer data(2, frames);
   for (int i = 0; i < frames; i++) {
     float v = sinf(static_cast<float>(i) * 0.1f);
     data.getChannelData(0)[i] = v;
@@ -94,7 +94,7 @@ TEST(chorus_engine_never_cross_mixes_channels) {
   engine.setMix(1.0f);
 
   int frames = 512;
-  SampleData data(2, frames);
+  AudioBuffer data(2, frames);
   data.zero();
   for (int i = 0; i < frames; i++) data.getChannelData(0)[i] = sinf(static_cast<float>(i) * 0.1f);
   engine.process(data);
@@ -114,7 +114,7 @@ TEST(chorus_engine_processes_aux_channels_too) {
   engine.setMix(1.0f);
 
   int frames = 2000;
-  SampleData data(0, true, false, frames); // no Main at all, AuxA only
+  AudioBuffer data(0, true, false, frames); // no Main at all, AuxA only
   auto aux = data.getChannel(Channel::AuxA);
   std::vector<float> original(static_cast<size_t>(frames));
   for (int i = 0; i < frames; i++) {
@@ -141,7 +141,7 @@ TEST(chorus_engine_main_and_aux_never_cross_mix) {
   engine.setMix(1.0f);
 
   int frames = 512;
-  SampleData data(1, true, false, frames); // Main (W) + AuxA
+  AudioBuffer data(1, true, false, frames); // Main (W) + AuxA
   data.zero();
   for (int i = 0; i < frames; i++) data.getChannelData(0)[i] = sinf(static_cast<float>(i) * 0.1f);
   // AuxA left at 0 (silent) by zero() above.

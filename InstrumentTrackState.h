@@ -3,7 +3,7 @@
 
 #include "TrackState.h"
 #include "TrackEvent.h"
-#include "SampleData.h"
+#include "AudioBuffer.h"
 #include "RenderContext.h"
 #include "SphericalPosition.h"
 #include "SendLevels.h"
@@ -15,7 +15,7 @@ public:
   explicit InstrumentTrackState(const ChannelConfiguration & channel_config, bool solo, bool muted, int track_id, int instrument_id, const SphericalPosition & position, const SendLevels & sends)
     : TrackState(channel_config), solo_(solo), muted_(muted), track_id_(track_id), instrument_id_(instrument_id), position_(position), sends_(sends) { }
 
-  SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override {
+  AudioBuffer render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override {
     clearFinishedVoices();
 
     // Render each chunk (processing note-on/off events as they come due)
@@ -23,7 +23,7 @@ public:
     // mid-block can carry a send no earlier chunk this block had. Collect
     // the chunks and decide the accumulator's real shape only once every
     // chunk is known, from what actually came back.
-    std::vector<std::pair<int, SampleData> > chunks;
+    std::vector<std::pair<int, AudioBuffer> > chunks;
 
     if (instrument_id_ >= 0 && instrument_id_ < instruments.size()) {
       auto & instrument = instruments[instrument_id_];
@@ -87,7 +87,7 @@ public:
       has_aux_a = has_aux_a || s.hasChannel(Channel::AuxA);
       has_aux_b = has_aux_b || s.hasChannel(Channel::AuxB);
     }
-    SampleData data(has_main ? getChannelConfiguration().numberOfChannels() : 0, has_aux_a, has_aux_b, frames, isSolo());
+    AudioBuffer data(has_main ? getChannelConfiguration().numberOfChannels() : 0, has_aux_a, has_aux_b, frames, isSolo());
     data.setBpm(context.getBpm());
     data.zero();
     for (auto & [ pos, s ] : chunks) data.assignNamed(s, pos);
@@ -97,12 +97,12 @@ public:
     return data;
   }
 
-  SampleData render(int frames) override {
+  AudioBuffer render(int frames) override {
     // Render every active voice first (still calling render() even when
     // muted, so envelopes/LFOs keep advancing - only mixing is skipped),
     // then decide this track's own accumulator shape from what actually
     // came back rather than a separate non-rendering prediction.
-    std::vector<SampleData> rendered;
+    std::vector<AudioBuffer> rendered;
     bool is_active = false;
 
     for (auto & [ column, voices ] : voices_) {
@@ -121,7 +121,7 @@ public:
       has_aux_a = has_aux_a || s.hasChannel(Channel::AuxA);
       has_aux_b = has_aux_b || s.hasChannel(Channel::AuxB);
     }
-    SampleData data(has_main ? getChannelConfiguration().numberOfChannels() : 0, has_aux_a, has_aux_b, frames, isSolo());
+    AudioBuffer data(has_main ? getChannelConfiguration().numberOfChannels() : 0, has_aux_a, has_aux_b, frames, isSolo());
     data.zero();
 
     // Every voice now spatially encodes itself directly, using its own

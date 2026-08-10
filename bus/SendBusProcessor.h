@@ -1,7 +1,7 @@
 #ifndef _SENDBUSPROCESSOR_H_
 #define _SENDBUSPROCESSOR_H_
 
-#include "../SampleData.h"
+#include "../AudioBuffer.h"
 #include "../ChannelConfiguration.h"
 #include "../AmbisonicEncoding.h"
 #include "BusEffect.h"
@@ -65,9 +65,9 @@ class SendBusProcessor {
   // are silent, so every slot's internal tail/feedback/pattern state
   // stays continuous across blocks (same reasoning as
   // AmbisonicBinauralMixer's overlap-add tail).
-  void process(const SampleData & aux_a_mono, const SampleData & aux_b_mono, int frames);
+  void process(const AudioBuffer & aux_a_mono, const AudioBuffer & aux_b_mono, int frames);
 
-  const SampleData & getBusAmbisonic() const { return bus_ambisonic_; }
+  const AudioBuffer & getBusAmbisonic() const { return bus_ambisonic_; }
 
  private:
   // Both default-constructed to NullBusEffect (BusEffectRegistry.h) in
@@ -91,7 +91,7 @@ class SendBusProcessor {
   // process() method in practice. Fixed for this instance's lifetime.
   int ambisonic_channels_;
 
-  SampleData bus_ambisonic_;    // always ambisonic_channels_ channels
+  AudioBuffer bus_ambisonic_;    // always ambisonic_channels_ channels
 };
 
 #endif

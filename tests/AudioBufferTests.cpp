@@ -1,15 +1,15 @@
 #include "TestFramework.h"
 
-#include "../SampleData.h"
+#include "../AudioBuffer.h"
 
 #include <cmath>
 
 TEST(sample_data_with_zero_regular_channels_has_no_main) {
-  // The only way to get a SampleData with Main absent - the raw/
+  // The only way to get an AudioBuffer with Main absent - the raw/
   // ChannelConfiguration constructors always imply Main present (see
-  // SampleData.h's own doc comments) - is the 4-arg constructor with
+  // AudioBuffer.h's own doc comments) - is the 4-arg constructor with
   // regular_channels = 0, e.g. a voice whose Send Main level is 0.
-  SampleData data(0, false, false, 16);
+  AudioBuffer data(0, false, false, 16);
   CHECK(!data.hasChannel(Channel::Main));
   CHECK(!data.isClipping());
   CHECK(data.numberOfChannels() == 0);
@@ -18,9 +18,9 @@ TEST(sample_data_with_zero_regular_channels_has_no_main) {
 
 TEST(sample_data_channel_presence_is_never_mutated_by_zero_or_clear) {
   // Main's presence is derived purely from the channel counts fixed at
-  // construction (see SampleData.h's Channel enum doc comment) - zero()/
+  // construction (see AudioBuffer.h's Channel enum doc comment) - zero()/
   // clear() reset sample values/frame count, never channel presence.
-  SampleData data(2, 8);
+  AudioBuffer data(2, 8);
   CHECK(data.hasChannel(Channel::Main));
   data.zero();
   CHECK(data.hasChannel(Channel::Main));
@@ -29,7 +29,7 @@ TEST(sample_data_channel_presence_is_never_mutated_by_zero_or_clear) {
 }
 
 TEST(sample_data_zero_fills_silence) {
-  SampleData data(2, 8);
+  AudioBuffer data(2, 8);
   for (int c = 0; c < 2; c++) {
     auto buf = data.getChannelData(c);
     for (int i = 0; i < 8; i++) buf[i] = 1.0f;
@@ -43,9 +43,9 @@ TEST(sample_data_zero_fills_silence) {
 }
 
 TEST(sample_data_mix_sums_matching_channel_counts) {
-  SampleData a(2, 4);
+  AudioBuffer a(2, 4);
   a.zero();
-  SampleData b(2, 4);
+  AudioBuffer b(2, 4);
   b.zero();
   for (int c = 0; c < 2; c++) {
     auto ba = a.getChannelData(c);
@@ -69,14 +69,14 @@ TEST(sample_data_mix_of_zeroed_other_is_noop) {
   // zero (there's no cheap "definitely silent" flag left to check) - this
   // now tests that adding real zeros is a mathematical no-op, not a skip
   // optimization.
-  SampleData a(2, 4);
+  AudioBuffer a(2, 4);
   a.zero();
   for (int c = 0; c < 2; c++) {
     auto buf = a.getChannelData(c);
     for (int i = 0; i < 4; i++) buf[i] = 0.3f;
   }
 
-  SampleData zeroed(2, 4);
+  AudioBuffer zeroed(2, 4);
   zeroed.zero();
   a.mix(zeroed);
 
@@ -90,14 +90,14 @@ TEST(sample_data_mix_of_empty_other_is_noop) {
   // A genuinely empty (default-constructed, 0 channels/0 frames) operand
   // is the one case mix() still explicitly guards against (other.empty()),
   // regardless of content.
-  SampleData a(2, 4);
+  AudioBuffer a(2, 4);
   a.zero();
   for (int c = 0; c < 2; c++) {
     auto buf = a.getChannelData(c);
     for (int i = 0; i < 4; i++) buf[i] = 0.3f;
   }
 
-  SampleData empty;
+  AudioBuffer empty;
   a.mix(empty);
 
   for (int c = 0; c < 2; c++) {
@@ -107,9 +107,9 @@ TEST(sample_data_mix_of_empty_other_is_noop) {
 }
 
 TEST(sample_data_assign_copies_at_position) {
-  SampleData dest(1, 8);
+  AudioBuffer dest(1, 8);
   dest.zero();
-  SampleData src(1, 4);
+  AudioBuffer src(1, 4);
   src.zero();
   auto sbuf = src.getChannelData(0);
   for (int i = 0; i < 4; i++) sbuf[i] = static_cast<float>(i + 1);
@@ -122,7 +122,7 @@ TEST(sample_data_assign_copies_at_position) {
 }
 
 TEST(sample_data_resize_grow_preserves_existing_samples) {
-  SampleData data(2, 4);
+  AudioBuffer data(2, 4);
   data.zero();
   for (int c = 0; c < 2; c++) {
     auto buf = data.getChannelData(c);
@@ -140,7 +140,7 @@ TEST(sample_data_resize_grow_preserves_existing_samples) {
 TEST(sample_data_resize_shrink_preserves_remaining_samples) {
   // resize() previously always copied the *old* frame count into the new
   // buffer, so shrinking wrote past the end of the smaller allocation.
-  SampleData data(2, 8);
+  AudioBuffer data(2, 8);
   data.zero();
   for (int c = 0; c < 2; c++) {
     auto buf = data.getChannelData(c);
@@ -156,7 +156,7 @@ TEST(sample_data_resize_shrink_preserves_remaining_samples) {
 }
 
 TEST(sample_data_is_clipping_detects_out_of_range_samples) {
-  SampleData data(1, 4);
+  AudioBuffer data(1, 4);
   data.zero();
   CHECK(!data.isClipping());
 
@@ -169,7 +169,7 @@ TEST(sample_data_is_clipping_detects_out_of_range_samples) {
 // a buffer can have zero Main channels and real, clippable Aux content (a
 // fully aux-only voice, e.g. Send Main = 0).
 TEST(sample_data_is_clipping_and_loudness_work_with_main_absent) {
-  SampleData data(0, true, false, 4); // AuxA only, no Main at all
+  AudioBuffer data(0, true, false, 4); // AuxA only, no Main at all
   auto aux = data.getChannel(Channel::AuxA);
   for (int i = 0; i < 4; i++) aux[i] = 0.2f;
   CHECK(!data.isClipping());
@@ -183,12 +183,12 @@ TEST(sample_data_is_clipping_and_loudness_work_with_main_absent) {
 }
 
 TEST(sample_data_copy_is_independent_of_original) {
-  SampleData original(1, 4);
+  AudioBuffer original(1, 4);
   original.zero();
   auto obuf = original.getChannelData(0);
   for (int i = 0; i < 4; i++) obuf[i] = 1.0f;
 
-  SampleData copy(original);
+  AudioBuffer copy(original);
   auto cbuf = copy.getChannelData(0);
   for (int i = 0; i < 4; i++) cbuf[i] = 0.0f;
 
@@ -197,14 +197,14 @@ TEST(sample_data_copy_is_independent_of_original) {
 }
 
 TEST(sample_data_repeated_copy_assign_does_not_leak) {
-  // operator=(const SampleData&) must free its previous buffer before
+  // operator=(const AudioBuffer&) must free its previous buffer before
   // allocating a new one; run under -DSYNTH_ENABLE_SANITIZERS=ON to have
   // LeakSanitizer catch a regression (it fails the whole process, not just
   // this CHECK).
-  SampleData dest(2, 4);
+  AudioBuffer dest(2, 4);
   dest.zero();
   for (int iter = 0; iter < 50; iter++) {
-    SampleData src(2, 4);
+    AudioBuffer src(2, 4);
     src.zero();
     dest = src;
   }
@@ -212,7 +212,7 @@ TEST(sample_data_repeated_copy_assign_does_not_leak) {
 }
 
 TEST(sample_data_raw_count_constructor_marks_no_named_aux) {
-  SampleData data(2, 4);
+  AudioBuffer data(2, 4);
   CHECK(data.hasChannel(Channel::Main));
   CHECK(!data.hasChannel(Channel::AuxA));
   CHECK(!data.hasChannel(Channel::AuxB));
@@ -225,25 +225,25 @@ TEST(sample_data_raw_count_constructor_marks_no_named_aux) {
 // checks is the channel *count* at each order, plus that no aux channel is
 // ever marked present.
 TEST(sample_data_channel_configuration_constructor_has_no_named_aux) {
-  SampleData mono(ChannelConfiguration(44100), 4);
+  AudioBuffer mono(ChannelConfiguration(44100), 4);
   CHECK(mono.numberOfChannels() == 1);
   CHECK(mono.hasChannel(Channel::Main));
   CHECK(!mono.hasChannel(Channel::AuxA));
 
-  SampleData order1(ChannelConfiguration(44100, 1), 4);
+  AudioBuffer order1(ChannelConfiguration(44100, 1), 4);
   CHECK(order1.numberOfChannels() == 4);
 
-  SampleData order2(ChannelConfiguration(44100, 2), 4);
+  AudioBuffer order2(ChannelConfiguration(44100, 2), 4);
   CHECK(order2.numberOfChannels() == 9);
 
-  SampleData order3(ChannelConfiguration(44100, 3), 4);
+  AudioBuffer order3(ChannelConfiguration(44100, 3), 4);
   CHECK(order3.numberOfChannels() == 16);
 }
 
 TEST(sample_data_regular_plus_aux_constructor_derives_aux_indices) {
   // AuxA's raw index accounts for however many regular channels precede
   // it - here just 1 (W only), so AuxA lands at index 1.
-  SampleData data(1, true, false, 4);
+  AudioBuffer data(1, true, false, 4);
   CHECK(data.numberOfChannels() == 2);
   CHECK(data.hasChannel(Channel::AuxA));
   CHECK(!data.hasChannel(Channel::AuxB));
@@ -253,15 +253,15 @@ TEST(sample_data_regular_plus_aux_constructor_derives_aux_indices) {
 
 TEST(sample_data_regular_plus_aux_constructor_matches_configuration_constructor) {
   ChannelConfiguration order2(44100, 2);
-  SampleData built(order2.numberOfChannels(), false, true, 4); // regular + AuxB only
+  AudioBuffer built(order2.numberOfChannels(), false, true, 4); // regular + AuxB only
 
-  SampleData reference(order2, 4);
+  AudioBuffer reference(order2, 4);
   CHECK(built.numberOfChannels() == reference.numberOfChannels() + 1);
   CHECK(built.getChannel(Channel::AuxB) == built.getChannelData(9));
 }
 
 TEST(sample_data_mix_named_sums_regular_channels_and_shared_aux) {
-  SampleData acc(2, true, false, 4); // W, Y regular + AuxA
+  AudioBuffer acc(2, true, false, 4); // W, Y regular + AuxA
   acc.zero();
   for (int i = 0; i < 4; i++) {
     acc.getChannelData(0)[i] = 0.1f;
@@ -271,7 +271,7 @@ TEST(sample_data_mix_named_sums_regular_channels_and_shared_aux) {
 
   // `other` lacks AuxA but has AuxB (which acc never marks present) -
   // both should be silently ignored where only one side has them.
-  SampleData other(2, false, true, 4); // W, Y regular + AuxB
+  AudioBuffer other(2, false, true, 4); // W, Y regular + AuxB
   other.zero();
   for (int i = 0; i < 4; i++) {
     other.getChannelData(0)[i] = 1.0f;
@@ -288,9 +288,9 @@ TEST(sample_data_mix_named_sums_regular_channels_and_shared_aux) {
 }
 
 TEST(sample_data_mix_named_broadcasts_mono_into_stereo_like_mix) {
-  SampleData acc(2, 4);
+  AudioBuffer acc(2, 4);
   acc.zero();
-  SampleData mono(1, true, false, 4); // W regular + AuxA
+  AudioBuffer mono(1, true, false, 4); // W regular + AuxA
   mono.zero();
   for (int i = 0; i < 4; i++) {
     mono.getChannelData(0)[i] = 1.0f;
@@ -309,7 +309,7 @@ TEST(sample_data_mix_named_broadcasts_mono_into_stereo_like_mix) {
 // added as an explicit case; must be a clean no-op for the regular part,
 // while Aux still sums normally.
 TEST(sample_data_mix_named_handles_other_with_zero_regular_channels) {
-  SampleData acc(2, true, false, 4); // W, Y regular + AuxA
+  AudioBuffer acc(2, true, false, 4); // W, Y regular + AuxA
   acc.zero();
   for (int i = 0; i < 4; i++) {
     acc.getChannelData(0)[i] = 0.5f;
@@ -317,7 +317,7 @@ TEST(sample_data_mix_named_handles_other_with_zero_regular_channels) {
     acc.getChannel(Channel::AuxA)[i] = 0.1f;
   }
 
-  SampleData other(0, true, false, 4); // no Main at all, AuxA only
+  AudioBuffer other(0, true, false, 4); // no Main at all, AuxA only
   other.zero();
   for (int i = 0; i < 4; i++) other.getChannel(Channel::AuxA)[i] = 0.4f;
 

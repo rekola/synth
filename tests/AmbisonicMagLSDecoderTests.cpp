@@ -22,7 +22,7 @@ namespace {
 // Encodes `az`/`el` via the shared computeAmbisonicGains() and decodes
 // through decoder's own solved filters - i.e. exactly what a real source
 // at that direction would produce, without going through a live
-// SampleData/accumulate()/encode() round trip.
+// AudioBuffer/accumulate()/encode() round trip.
 std::pair<std::vector<float>, std::vector<float>> decodeDirection(const AmbisonicMagLSDecoder & dec, float az, float el) {
   auto gains = computeAmbisonicGains(SphericalPosition{ az, el, 1.0f });
   int n = dec.numberOfChannels();

@@ -129,7 +129,7 @@ class BusEffect : public SongObject {
   // applies wet uniformly) never runs for these channels. Default no-op:
   // every existing BusEffect (FDNReverb/MultiTapDelay/GranularCloud/
   // NullBusEffect) is a pure tap producer and needs nothing here.
-  virtual void encodeDirect(SampleData & busAmbisonic, int frames) { }
+  virtual void encodeDirect(AudioBuffer & busAmbisonic, int frames) { }
 
  protected:
   int getSampleRate() const { return sampleRate_; }

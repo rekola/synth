@@ -20,7 +20,7 @@ protected:
 
 private:
   std::string filename_;
-  std::shared_ptr<SampleData> samples_;
+  std::shared_ptr<AudioBuffer> samples_;
 };
 
 #endif

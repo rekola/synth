@@ -36,7 +36,7 @@ public:
       noise_(seedFromRand()) {
   }
 
-  SampleData render(int frames) override {
+  AudioBuffer render(int frames) override {
     // No getDistanceGain() here - encodePosition() applies distance
     // attenuation itself now (see its own doc comment in InstrumentVoice.h).
     float gain = decibelsToGain(getGainDB()) * level_;

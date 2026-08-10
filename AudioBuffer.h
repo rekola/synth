@@ -1,5 +1,5 @@
-#ifndef _SAMPLEDATA_H_
-#define _SAMPLEDATA_H_
+#ifndef _AUDIOBUFFER_H_
+#define _AUDIOBUFFER_H_
 
 #include "ChannelConfiguration.h"
 
@@ -11,7 +11,7 @@
 #include <vector>
 
 // Channel presence, queried uniformly via hasChannel() - all three values
-// are decided once, when a SampleData is constructed, and never change
+// are decided once, when an AudioBuffer is constructed, and never change
 // afterward (not even by zero()/clear() - those reset sample values, not
 // the buffer's shape). Main covers the whole regular/ambisonic channel
 // block (0..regularChannelCount()-1, in ACN order - see
@@ -29,11 +29,27 @@
 // channels precede them (see indexOf()).
 enum class Channel : int8_t { Main, AuxA, AuxB };
 
-class SampleData final {
+// Mutated in place constantly and deliberately throughout the render path
+// (zero()/mix()/mixNamed()/assign()/assignNamed()/resize()/append(), called
+// on the same instance once per audio block for every voice/track/mixer
+// stage) - that in-place-accumulator pattern is the reason this class
+// exists, not an oversight to be designed away. A genuinely immutable value
+// type (every mutator returning a new instance instead of writing in place)
+// was considered and rejected: it would mean a fresh heap allocation every
+// block for every voice/track/effect stage, a real audio-thread cost with
+// no bug or leak behind it to justify paying it. The actually-enforceable
+// discipline is at the reference level: every function that only reads a
+// buffer takes `const AudioBuffer &` (see every Mixer/SongState/
+// AudioBlockEvent accessor, AlsaAudio::play, dsp/SpectrumAnalyzer::addData,
+// ...) - a non-const `AudioBuffer &` parameter always means genuine,
+// intentional in-place accumulation or processing (effects/*.cpp's
+// applyEffect(), bus/BusEffect.h's encodeDirect(), dsp/ChorusEngine::
+// process()), never an oversight.
+class AudioBuffer final {
  public:
-  SampleData() noexcept
+  AudioBuffer() noexcept
     : channels_(0), frames_(0), data_(0) { }
-  explicit SampleData(short channels, int frames, bool is_solo = false) noexcept
+  explicit AudioBuffer(short channels, int frames, bool is_solo = false) noexcept
     : channels_(channels), frames_(frames), is_solo_(is_solo) {
     data_ = (float *)aligned_alloc(16, getAlignedSize(channels_ * frames_));
   }
@@ -41,7 +57,7 @@ class SampleData final {
   // is already the raw channel count (0 = W, 1 = Y, ... in ACN order), so
   // there's nothing left to mark present the way the old per-channel enum
   // needed.
-  explicit SampleData(ChannelConfiguration config, int frames, bool is_solo = false) noexcept
+  explicit AudioBuffer(ChannelConfiguration config, int frames, bool is_solo = false) noexcept
     : channels_(config.numberOfChannels()),
     frames_(frames),
     is_solo_(is_solo) {
@@ -54,24 +70,24 @@ class SampleData final {
   // Send Main level is > 0 else 0, AuxA present if this track sends to bus
   // A, ditto AuxB }. Aux channels always land immediately after the
   // regular channels, AuxA before AuxB (see indexOf()).
-  explicit SampleData(int regular_channels, bool aux_a, bool aux_b, int frames, bool is_solo = false) noexcept
+  explicit AudioBuffer(int regular_channels, bool aux_a, bool aux_b, int frames, bool is_solo = false) noexcept
     : channels_(static_cast<short>(regular_channels + (aux_a ? 1 : 0) + (aux_b ? 1 : 0))),
     frames_(frames), is_solo_(is_solo), has_aux_a_(aux_a), has_aux_b_(aux_b) {
     data_ = (float *)aligned_alloc(16, getAlignedSize(channels_ * frames_));
   }
-  SampleData(const SampleData & other) noexcept
+  AudioBuffer(const AudioBuffer & other) noexcept
     : channels_(other.channels_), frames_(other.frames_), is_solo_(other.is_solo_), bpm_(other.bpm_), has_aux_a_(other.has_aux_a_), has_aux_b_(other.has_aux_b_) {
     auto s = getAlignedSize(channels_ * frames_);
     data_ = (float *)aligned_alloc(16, s);
     memcpy(data_, other.data_, s);
   }
-  SampleData(SampleData && other) noexcept
+  AudioBuffer(AudioBuffer && other) noexcept
     : channels_(other.channels_), frames_(other.frames_), data_(std::exchange(other.data_, nullptr)), is_solo_(other.is_solo_), bpm_(other.bpm_), has_aux_a_(other.has_aux_a_), has_aux_b_(other.has_aux_b_) {
   }
-  ~SampleData() {
+  ~AudioBuffer() {
     free(data_);
   }
-  SampleData & operator=(const SampleData & other) noexcept {
+  AudioBuffer & operator=(const AudioBuffer & other) noexcept {
     if (&other != this) {
       channels_ = other.channels_;
       frames_ = other.frames_;
@@ -89,7 +105,7 @@ class SampleData final {
     }
     return *this;
   }
-  SampleData & operator=(SampleData && other) noexcept {
+  AudioBuffer & operator=(AudioBuffer && other) noexcept {
     if (&other != this) {
       free(data_);
 
@@ -156,13 +172,13 @@ class SampleData final {
     frames_ = new_size;
   }
 
-  void append(const SampleData & other) {
+  void append(const AudioBuffer & other) {
     int old_frames = numberOfFrames();
     resize(old_frames + other.numberOfFrames());
     assign(other, old_frames);
   }
 
-  void assign(const SampleData & other, int position) {
+  void assign(const AudioBuffer & other, int position) {
     if (other.empty() || position >= numberOfFrames()) return;
     assert(channels_ == other.channels_);
     assert(position >= 0);
@@ -190,7 +206,7 @@ class SampleData final {
   // only if *both* sides have it; a side missing it is simply left alone
   // (already zeroed by the caller, e.g. before assembling chunks that
   // don't all carry the same aux channels - see InstrumentTrackState::render).
-  void assignNamed(const SampleData & other, int position) {
+  void assignNamed(const AudioBuffer & other, int position) {
     if (other.empty() || position >= numberOfFrames()) return;
     assert(position >= 0);
 
@@ -216,7 +232,7 @@ class SampleData final {
     }
   }
 
-  void mix(const SampleData & other) {
+  void mix(const AudioBuffer & other) {
     if (other.empty()) return;
     if (!bpm_) bpm_ = other.bpm_;
 
@@ -252,7 +268,7 @@ class SampleData final {
   // see Mixer.h) simply contributes nothing there - silently ignored
   // rather than asserting, unlike a genuine regular-channel mismatch
   // (still an assert(0), same as mix()).
-  void mixNamed(const SampleData & other) {
+  void mixNamed(const AudioBuffer & other) {
     if (other.empty()) return;
     if (!bpm_) bpm_ = other.bpm_;
 

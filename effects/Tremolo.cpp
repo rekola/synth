@@ -12,7 +12,7 @@ public:
   // Modulates every channel - Main and AuxA/AuxB alike: the reverb/delay
   // bus should hear the same amplitude wobble the dry signal does, the
   // same reasoning as Amplifier/EnvelopeFilter/Compressor.
-  void applyEffect(SampleData & input) override {
+  void applyEffect(AudioBuffer & input) override {
     auto numChannels = input.numberOfChannels();
     if (numChannels > 0) {
       auto numSamples = input.size();

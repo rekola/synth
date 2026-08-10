@@ -13,7 +13,7 @@ public:
 
   }
 
-  void applyEffect(SampleData & input_data) override {
+  void applyEffect(AudioBuffer & input_data) override {
     // A gain multiply is channel-count-agnostic by construction - applies
     // identically to however many channels are actually present (including
     // ambisonic ones), not just the first two.

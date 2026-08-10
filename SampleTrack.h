@@ -5,14 +5,14 @@
 
 class SampleTrack : public Track {
 public:
-  SampleTrack(const std::shared_ptr<SampleData> & _sample) : Track(TrackType::SAMPLE), sample(_sample) { }
+  SampleTrack(const std::shared_ptr<AudioBuffer> & _sample) : Track(TrackType::SAMPLE), sample(_sample) { }
 
   const char * getElementName() const override { return "sampleTrack"; }
 
-  void setSample(std::shared_ptr<SampleData> _sample) { sample = _sample; }
+  void setSample(std::shared_ptr<AudioBuffer> _sample) { sample = _sample; }
 
 private:
-  std::shared_ptr<SampleData> sample;
+  std::shared_ptr<AudioBuffer> sample;
 
 };
 

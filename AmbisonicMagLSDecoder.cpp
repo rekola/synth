@@ -357,15 +357,15 @@ AmbisonicMagLSDecoder::reset() {
 }
 
 void
-AmbisonicMagLSDecoder::accumulate(const SampleData & input) {
+AmbisonicMagLSDecoder::accumulate(const AudioBuffer & input) {
   if (buffer_.numberOfFrames() != input.numberOfFrames()) {
-    buffer_ = SampleData(static_cast<short>(ambisonic_channels_), input.numberOfFrames());
+    buffer_ = AudioBuffer(static_cast<short>(ambisonic_channels_), input.numberOfFrames());
     buffer_.zero();
   }
   buffer_.mixNamed(input);
 }
 
-SampleData
+AudioBuffer
 AmbisonicMagLSDecoder::encode() {
   int frames = buffer_.numberOfFrames();
   size_t tail_len = left_tail_.size();
@@ -396,7 +396,7 @@ AmbisonicMagLSDecoder::encode() {
     }
   }
 
-  SampleData out(getOutChannels(), frames);
+  AudioBuffer out(getOutChannels(), frames);
   auto out_left = out.getChannelData(0), out_right = out.getChannelData(1);
   for (int i = 0; i < frames; i++) {
     float l = left_acc_[static_cast<size_t>(i)];

@@ -26,10 +26,10 @@ class AmbisonicBinauralMixer : public Mixer {
   bool isReady() const { return ready_; }
 
   void reset() override;
-  void accumulate(const SampleData & input) override;
-  SampleData encode() override;
+  void accumulate(const AudioBuffer & input) override;
+  AudioBuffer encode() override;
 
-  const SampleData & getRawBus() const override { return buffer_; }
+  const AudioBuffer & getRawBus() const override { return buffer_; }
 
  private:
   struct SpeakerFilter {
@@ -43,7 +43,7 @@ class AmbisonicBinauralMixer : public Mixer {
   MYSOFA_EASY * easy_ = nullptr;
   std::vector<SpeakerFilter> speakers_;
 
-  SampleData buffer_;
+  AudioBuffer buffer_;
 
   // Overlap-add tail carried between encode() calls, so the convolution is
   // seamless across block boundaries. Sized once at construction from the

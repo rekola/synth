@@ -1,7 +1,7 @@
 #ifndef _CHORUSENGINE_H_
 #define _CHORUSENGINE_H_
 
-#include "../SampleData.h"
+#include "../AudioBuffer.h"
 #include "FractionalDelayLine.h"
 
 #include <array>
@@ -33,7 +33,7 @@ class ChorusEngine {
   // In place. `channels_` (sized at construction) holds Main/regular
   // channel state, processed up to min(data.regularChannelCount(),
   // channels_.size()) - same reasoning as BiquadFilter/ResonantFilter.
-  // AuxA/AuxB (see SampleData.h) get their own always-present, dedicated
+  // AuxA/AuxB (see AudioBuffer.h) get their own always-present, dedicated
   // state (aux_channels_) instead of being folded into channels_ by
   // widening it: a caller like the shared send bus's ChorusBusEffect
   // passes exactly 2 real Main channels with no Aux concept at all, so
@@ -44,7 +44,7 @@ class ChorusEngine {
   // silence rather than frozen, so it resumes correctly instead of as if
   // no time had passed - never touched at all until real data actually
   // arrives once.
-  void process(SampleData & data);
+  void process(AudioBuffer & data);
 
  private:
   struct ChannelState {

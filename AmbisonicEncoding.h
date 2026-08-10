@@ -3,7 +3,7 @@
 
 #include "ChannelConfiguration.h"
 #include "SphericalPosition.h"
-#include "SampleData.h"
+#include "AudioBuffer.h"
 
 #include <algorithm>
 #include <array>
@@ -16,7 +16,7 @@
 // ceiling, not a stepping stone to 4th order (raising it again later needs
 // a new degree-4 SH block in computeAmbisonicGains, a new virtual-speaker
 // rig satisfying t>=2*4+1=9, and another pass over every place this file's
-// own history has already had to touch twice: SampleData's Channel enum,
+// own history has already had to touch twice: AudioBuffer's Channel enum,
 // AmbisonicBinauralMixer's speaker-layout dispatch and kMasterGainTrim
 // headroom derivation). ACN order is W, Y, Z, X, then the degree-2 terms
 // ACN4-8, then the degree-3 terms ACN9-15 (channel indices 0-15) - NOT the
@@ -226,17 +226,17 @@ inline int acnDegree(int channelIndex) {
 // Per-voice encoding state: linearly interpolates gains across a block (so a
 // moving/newly-triggered source doesn't zipper) and writes/accumulates into
 // `out`'s regular (non-aux) ACN channels. `mono` must have exactly
-// `frames` samples; `out`'s regular channel count (SampleData::regularChannelCount(),
+// `frames` samples; `out`'s regular channel count (AudioBuffer::regularChannelCount(),
 // i.e. numberOfChannels() minus however many of AuxA/AuxB are present) is
 // generally >= 2; channels beyond however many `out` actually has, e.g. a
 // 2-channel accumulator lacking Z/X, are simply skipped rather than
 // asserting, so this also works as a degenerate 2-channel W/Y-only encode
 // if ever needed. Regular channels always occupy `out`'s first N raw
-// indices, whether or not aux channels follow them (see SampleData's
+// indices, whether or not aux channels follow them (see AudioBuffer's
 // presence ordering), so plain positional indexing here is correct.
 class AmbisonicVoiceEncoder {
  public:
-  void encodeBlock(SampleData & out, const float * mono, int frames, const AmbisonicGains & target) {
+  void encodeBlock(AudioBuffer & out, const float * mono, int frames, const AmbisonicGains & target) {
     if (!seeded_) {
       prev_ = target;
       seeded_ = true;
@@ -273,7 +273,7 @@ class AmbisonicVoiceEncoder {
 // at distance 1) decodes back to unity gain. W/Y are always raw channels 0
 // and 1 of an ambisonic buffer regardless of order (see Channel's
 // declaration order), so plain positional indexing is correct here too.
-inline void decodeToStereo(const SampleData & in, SampleData & out) {
+inline void decodeToStereo(const AudioBuffer & in, AudioBuffer & out) {
   assert(in.numberOfChannels() >= 1);
   assert(out.numberOfChannels() == 2);
   // Derived, not hardcoded, from the shared kAmbisonicReferenceGain - stays
@@ -304,7 +304,7 @@ inline void decodeToStereo(const SampleData & in, SampleData & out) {
 // an effect's own true format is AMBISONIC but it had to process its
 // (reduced) children in real stereo. At az = -90/+90, computeAmbisonicGains's
 // higher-order terms are all exactly zero, so only W/Y are ever written.
-inline void encodeStereoAsPoints(const SampleData & stereo, SampleData & out) {
+inline void encodeStereoAsPoints(const AudioBuffer & stereo, AudioBuffer & out) {
   assert(stereo.numberOfChannels() == 2);
   assert(out.numberOfChannels() >= 2);
 
@@ -331,7 +331,7 @@ inline void encodeStereoAsPoints(const SampleData & stereo, SampleData & out) {
 // omnidirectional convention computeAmbisonicGains() uses for distance <=
 // 0. Added, not overwritten - callers zero `out` first if that's not
 // wanted.
-inline void encodeMonoAsPoint(const SampleData & mono, SampleData & out) {
+inline void encodeMonoAsPoint(const AudioBuffer & mono, AudioBuffer & out) {
   assert(mono.numberOfChannels() == 1);
   assert(out.numberOfChannels() >= 1);
 

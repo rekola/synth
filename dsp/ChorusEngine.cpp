@@ -76,7 +76,7 @@ ChorusEngine::processSilence(ChannelState & ch, int frames, float dphi) {
 }
 
 void
-ChorusEngine::process(SampleData & data) {
+ChorusEngine::process(AudioBuffer & data) {
   int mainChannels = data.regularChannelCount();
   int frames = data.numberOfFrames();
 

@@ -53,7 +53,7 @@ DiracAnalyzer::DiracAnalyzer(int sample_rate) : sample_rate_(sample_rate) {
 }
 
 void
-DiracAnalyzer::process(const SampleData & block) {
+DiracAnalyzer::process(const AudioBuffer & block) {
   int n = block.numberOfFrames();
   int regular = block.regularChannelCount();
   if (regular > 4) regular = 4;

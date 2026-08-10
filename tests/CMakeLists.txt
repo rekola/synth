@@ -1,6 +1,6 @@
 add_executable(synth_tests
 	test_main.cpp
-	SampleDataTests.cpp
+	AudioBufferTests.cpp
 	ChannelConfigurationTests.cpp
 	TunerTests.cpp
 	RenderTests.cpp

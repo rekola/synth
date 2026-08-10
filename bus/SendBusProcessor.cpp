@@ -17,7 +17,7 @@ SendBusProcessor::setSlotEffect(int slot, std::unique_ptr<BusEffect> effect) {
 }
 
 void
-SendBusProcessor::process(const SampleData & aux_a_mono, const SampleData & aux_b_mono, int frames) {
+SendBusProcessor::process(const AudioBuffer & aux_a_mono, const AudioBuffer & aux_b_mono, int frames) {
   auto & slot_a = *slots_[kSlotA];
   auto & slot_b = *slots_[kSlotB];
 
@@ -40,7 +40,7 @@ SendBusProcessor::process(const SampleData & aux_a_mono, const SampleData & aux_
   slot_a.process(combined_a_input_.data(), frames);
 
   if (bus_ambisonic_.numberOfFrames() != frames || bus_ambisonic_.numberOfChannels() != ambisonic_channels_) {
-    bus_ambisonic_ = SampleData(static_cast<short>(ambisonic_channels_), frames);
+    bus_ambisonic_ = AudioBuffer(static_cast<short>(ambisonic_channels_), frames);
   }
   bus_ambisonic_.zero();
 

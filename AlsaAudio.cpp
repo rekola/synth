@@ -1,7 +1,7 @@
 #include "AlsaAudio.h"
 
 #include "Logger.h"
-#include "SampleData.h"
+#include "AudioBuffer.h"
 
 #include <cstdio>
 #include <fmt/core.h>
@@ -232,7 +232,7 @@ AlsaAudio::getMidiPollDescriptors(snd_seq_t * handle) {
 }
 
 void
-AlsaAudio::play(const SampleData & data, Logger & logger) {
+AlsaAudio::play(const AudioBuffer & data, Logger & logger) {
   auto numChannels = data.numberOfChannels();
   auto tmp_data = unique_ptr<float[]>(new float[data.size() * numChannels]);
   auto tmp_ptr = tmp_data.get();
@@ -253,14 +253,14 @@ AlsaAudio::play(const SampleData & data, Logger & logger) {
   }
 }
 
-SampleData
+AudioBuffer
 AlsaAudio::record(Logger & logger) {
-  if (!capture_handle) return SampleData();
+  if (!capture_handle) return AudioBuffer();
 
   startRecording();
 
   auto frames = snd_pcm_avail_update(capture_handle);
-  SampleData data(1, frames);
+  AudioBuffer data(1, frames);
 
   if (frames) {
     int r;

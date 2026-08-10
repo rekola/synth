@@ -2,7 +2,7 @@
 
 #include "../AmbisonicDiffuseEncoder.h"
 #include "../AmbisonicEncoding.h"
-#include "../SampleData.h"
+#include "../AudioBuffer.h"
 #include "../dsp/NoiseGenerator.h"
 
 #include <cmath>
@@ -36,8 +36,8 @@ double correlation(const float * a, const float * b, int frames) {
   return num / sqrt(ea * eb);
 }
 
-SampleData makeAmbisonicAccumulator(int channels, int frames) {
-  SampleData out(static_cast<short>(channels), frames);
+AudioBuffer makeAmbisonicAccumulator(int channels, int frames) {
+  AudioBuffer out(static_cast<short>(channels), frames);
   out.zero();
   return out;
 }

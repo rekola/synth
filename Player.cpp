@@ -278,7 +278,7 @@ Player::play(AudioAPI & audio) {
 	    // VisualizationThread::handleAudioBlockEvent()); none of that
 	    // DSP-shaped work belongs on this real-time thread. master is
 	    // moved, not copied (it's already this block's own
-	    // independently-owned SampleData, straight from mixer->encode()
+	    // independently-owned AudioBuffer, straight from mixer->encode()
 	    // above); the raw bus and aux sums genuinely are copied, since
 	    // mixer->getRawBus()/state_.getAuxASum()/getAuxBSum() are
 	    // references into persistent buffers, overwritten next block. The
@@ -286,7 +286,7 @@ Player::play(AudioAPI & audio) {
 	    // need - DiracAnalyzer.cpp already caps itself internally) since
 	    // the volume meter needs every channel.
 	    auto & raw_bus = mixer->getRawBus();
-	    SampleData raw_bus_copy(raw_bus.numberOfChannels(), raw_bus.numberOfFrames());
+	    AudioBuffer raw_bus_copy(raw_bus.numberOfChannels(), raw_bus.numberOfFrames());
 	    for (int c = 0; c < raw_bus.numberOfChannels(); c++) {
 	      auto src = raw_bus.getChannelData(c);
 	      auto dst = raw_bus_copy.getChannelData(c);

@@ -174,8 +174,8 @@ class SongState : public TrackState {
     }
     
     if (!song.getInstruments().empty()) {
-      if (aux_a_sum_.numberOfFrames() != frames) aux_a_sum_ = SampleData(1, frames);
-      if (aux_b_sum_.numberOfFrames() != frames) aux_b_sum_ = SampleData(1, frames);
+      if (aux_a_sum_.numberOfFrames() != frames) aux_a_sum_ = AudioBuffer(1, frames);
+      if (aux_b_sum_.numberOfFrames() != frames) aux_b_sum_ = AudioBuffer(1, frames);
       aux_a_sum_.zero();
       aux_b_sum_.zero();
 
@@ -364,8 +364,8 @@ class SongState : public TrackState {
   // Raw, pre-send-bus-processing per-block sums (mono) - used by the UI's
   // raw-channel volume meter to show AuxA/AuxB levels before they're
   // folded into the shared reverb/chorus wet signal.
-  const SampleData & getAuxASum() const { return aux_a_sum_; }
-  const SampleData & getAuxBSum() const { return aux_b_sum_; }
+  const AudioBuffer & getAuxASum() const { return aux_a_sum_; }
+  const AudioBuffer & getAuxBSum() const { return aux_b_sum_; }
 
 private:
   int tempo_ = 0;
@@ -377,7 +377,7 @@ private:
   int pending_break_row_ = 0;
   RenderContext render_context_;
   SendBusProcessor send_bus_;
-  SampleData aux_a_sum_, aux_b_sum_;
+  AudioBuffer aux_a_sum_, aux_b_sum_;
 };
   
 #endif

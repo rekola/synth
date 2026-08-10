@@ -2,7 +2,7 @@
 #define _AMBISONICDIFFUSEENCODER_H_
 
 #include "AmbisonicEncoding.h"
-#include "SampleData.h"
+#include "AudioBuffer.h"
 
 #include <array>
 #include <cstdint>
@@ -59,7 +59,7 @@ class AmbisonicDiffuseEncoder {
   // Writes only as many of the 16 channels as out.regularChannelCount()
   // actually has (order 1 = 4, order 2 = 9, order 3 = 16) - same
   // graceful-degradation rule as AmbisonicVoiceEncoder::encodeBlock().
-  void encode(SampleData & out, const float * mono, int frames, float diffusion, float gain);
+  void encode(AudioBuffer & out, const float * mono, int frames, float diffusion, float gain);
 
  private:
   // Standard Schroeder allpass - same buffer/pos/gain shape and process

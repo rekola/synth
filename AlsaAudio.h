@@ -12,8 +12,8 @@ class AlsaAudio : public AudioAPI {
 
   void initialize(Logger & logger);
 
-  void play(const SampleData & data, Logger & logger) override;
-  SampleData record(Logger & logger) override;
+  void play(const AudioBuffer & data, Logger & logger) override;
+  AudioBuffer record(Logger & logger) override;
   size_t getFrameCount() const override { return output_frames; }
   void startRecording() override;
   void stopRecording() override;  

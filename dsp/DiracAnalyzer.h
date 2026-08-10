@@ -2,7 +2,7 @@
 #define _DIRACANALYZER_H_
 
 #include "RealFFT.h"
-#include "../SampleData.h"
+#include "../AudioBuffer.h"
 
 #include <array>
 #include <vector>
@@ -61,7 +61,7 @@ class DiracAnalyzer {
   // nullptr-tolerant convention decodeToStereo() uses for a MONO
   // (W-only) bus. May trigger zero, one, or several internal analysis
   // frames depending on how much new data this call contributes.
-  void process(const SampleData & block);
+  void process(const AudioBuffer & block);
 
   // Monotonically increments once per internal analysis frame (i.e. once
   // per kHopSize new samples consumed, ~86Hz) - callers that only want a

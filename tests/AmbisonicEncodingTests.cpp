@@ -412,7 +412,7 @@ TEST(max_re_renormalization_preserves_mean_square_energy_order3) {
 
 TEST(ambisonic_voice_encoder_seeds_first_block_at_target_no_fade_in) {
   AmbisonicVoiceEncoder encoder;
-  SampleData out(kAmbisonicChannelCount, 8);
+  AudioBuffer out(kAmbisonicChannelCount, 8);
   out.zero();
 
   AmbisonicGains target{ 0.5f, 0.25f, 0.0f, 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
@@ -431,7 +431,7 @@ TEST(ambisonic_voice_encoder_interpolates_across_block_boundary) {
   std::vector<float> mono(8, 1.0f);
 
   AmbisonicGains first{ 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
-  SampleData out1(kAmbisonicChannelCount, 8);
+  AudioBuffer out1(kAmbisonicChannelCount, 8);
   out1.zero();
   encoder.encodeBlock(out1, mono.data(), 8, first);
   // Constant target throughout the first block.
@@ -439,7 +439,7 @@ TEST(ambisonic_voice_encoder_interpolates_across_block_boundary) {
   CHECK_NEAR(out1.getChannelData(0)[7], 1.0f, 0.0001f);
 
   AmbisonicGains second{ 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
-  SampleData out2(kAmbisonicChannelCount, 8);
+  AudioBuffer out2(kAmbisonicChannelCount, 8);
   out2.zero();
   encoder.encodeBlock(out2, mono.data(), 8, second);
 
@@ -463,7 +463,7 @@ TEST(ambisonic_voice_encoder_ignores_trailing_aux_channels) {
   // deriving them directly from the dry signal rather than spatially
   // encoding them.
   AmbisonicVoiceEncoder encoder;
-  SampleData out(1, true, true, 4); // 1 regular (Mono/W) + AuxA + AuxB
+  AudioBuffer out(1, true, true, 4); // 1 regular (Mono/W) + AuxA + AuxB
   out.zero();
   AmbisonicGains target{ 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
   std::vector<float> mono(4, 1.0f);
@@ -482,7 +482,7 @@ TEST(ambisonic_voice_encoder_ignores_trailing_aux_channels) {
 // equivalent clamp on its own fixed decode-time array.
 TEST(ambisonic_voice_encoder_handles_full_order3_channel_count) {
   AmbisonicVoiceEncoder encoder;
-  SampleData out(kAmbisonicChannelCount, 8);
+  AudioBuffer out(kAmbisonicChannelCount, 8);
   out.zero();
   auto target = computeAmbisonicGains(SphericalPosition{ 30.0f, 15.0f, 1.0f });
   std::vector<float> mono(8, 1.0f);
@@ -493,9 +493,9 @@ TEST(ambisonic_voice_encoder_handles_full_order3_channel_count) {
 }
 
 TEST(stereo_decode_reencode_preserves_left_right_direction) {
-  SampleData ambisonic_left(4, 4);
+  AudioBuffer ambisonic_left(4, 4);
   ambisonic_left.zero();
-  SampleData stereo_left(2, 4);
+  AudioBuffer stereo_left(2, 4);
   stereo_left.zero();
   for (int i = 0; i < 4; i++) {
     stereo_left.getChannelData(0)[i] = 1.0f; // hard left
@@ -503,13 +503,13 @@ TEST(stereo_decode_reencode_preserves_left_right_direction) {
   }
   encodeStereoAsPoints(stereo_left, ambisonic_left);
 
-  SampleData decoded_left(2, 4);
+  AudioBuffer decoded_left(2, 4);
   decodeToStereo(ambisonic_left, decoded_left);
   CHECK(decoded_left.getChannelData(0)[0] > decoded_left.getChannelData(1)[0]);
 
-  SampleData ambisonic_right(4, 4);
+  AudioBuffer ambisonic_right(4, 4);
   ambisonic_right.zero();
-  SampleData stereo_right(2, 4);
+  AudioBuffer stereo_right(2, 4);
   stereo_right.zero();
   for (int i = 0; i < 4; i++) {
     stereo_right.getChannelData(0)[i] = 0.0f;
@@ -517,14 +517,14 @@ TEST(stereo_decode_reencode_preserves_left_right_direction) {
   }
   encodeStereoAsPoints(stereo_right, ambisonic_right);
 
-  SampleData decoded_right(2, 4);
+  AudioBuffer decoded_right(2, 4);
   decodeToStereo(ambisonic_right, decoded_right);
   CHECK(decoded_right.getChannelData(1)[0] > decoded_right.getChannelData(0)[0]);
 
   // A centered (equal L/R) signal decodes back symmetrically.
-  SampleData ambisonic_center(4, 4);
+  AudioBuffer ambisonic_center(4, 4);
   ambisonic_center.zero();
-  SampleData stereo_center(2, 4);
+  AudioBuffer stereo_center(2, 4);
   stereo_center.zero();
   for (int i = 0; i < 4; i++) {
     stereo_center.getChannelData(0)[i] = 1.0f;
@@ -532,7 +532,7 @@ TEST(stereo_decode_reencode_preserves_left_right_direction) {
   }
   encodeStereoAsPoints(stereo_center, ambisonic_center);
 
-  SampleData decoded_center(2, 4);
+  AudioBuffer decoded_center(2, 4);
   decodeToStereo(ambisonic_center, decoded_center);
   CHECK_NEAR(decoded_center.getChannelData(0)[0], decoded_center.getChannelData(1)[0], 0.0001f);
 }

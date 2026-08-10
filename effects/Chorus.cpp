@@ -20,14 +20,14 @@ public:
   // reduced (now always 1) channel count, so its decorrelate=true option
   // is what gives a mono-in source its stereo width, not panning surviving
   // from children.
-  SampleData render(int frames) override {
+  AudioBuffer render(int frames) override {
     auto reduced_config = reduceForEffect(getChannelConfiguration());
     auto data = renderChildren(frames, reduced_config);
     applyEffect(data);
     return reencodeIfNeeded(std::move(data));
   }
 
-  SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override {
+  AudioBuffer render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override {
     auto reduced_config = reduceForEffect(getChannelConfiguration());
     auto data = renderChildren(frames, instruments, context, reduced_config);
     applyEffect(data);
@@ -39,10 +39,10 @@ protected:
   // (encodeMonoAsPoint() is a Main-only, directional concept - Aux is a
   // shared-bus scalar) - they've already been chorused below, same as
   // Main, and need to survive the re-encode to actually reach the bus.
-  SampleData reencodeIfNeeded(SampleData data) {
+  AudioBuffer reencodeIfNeeded(AudioBuffer data) {
     if (getChannelConfiguration().isMono()) return data;
     bool has_main = data.hasChannel(Channel::Main);
-    SampleData out(has_main ? getChannelConfiguration().numberOfChannels() : 0,
+    AudioBuffer out(has_main ? getChannelConfiguration().numberOfChannels() : 0,
 		    data.hasChannel(Channel::AuxA), data.hasChannel(Channel::AuxB), data.numberOfFrames());
     out.zero();
     if (has_main) encodeMonoAsPoint(data, out);
@@ -59,7 +59,7 @@ protected:
   // same reasoning as Amplifier/EnvelopeFilter/Compressor/Tremolo/
   // Distortion/BiquadFilter) - ChorusEngine itself already handles the
   // "some channels present, some not, some never seen" bookkeeping.
-  void applyEffect(SampleData & input_data) override {
+  void applyEffect(AudioBuffer & input_data) override {
     engine_.process(input_data);
     setTrackInfo(TrackInfo( true, input_data.isClipping() ));
   }

@@ -38,7 +38,7 @@ public:
   // decoded output's fixed channel count. Computed here (not on the
   // real-time audio thread that produces the samples it's derived from
   // - see Player.cpp/VisualizationThread.cpp) since it's a real
-  // DSP-shaped scan (SampleData::calculateLoudness()), the same reasoning
+  // DSP-shaped scan (AudioBuffer::calculateLoudness()), the same reasoning
   // that already keeps the FFT/DirAC work off that thread.
   void setChannelLoudness(std::vector<float> loudness) { channel_loudness_ = std::move(loudness); }
   const std::vector<float> & getChannelLoudness() const { return channel_loudness_; }

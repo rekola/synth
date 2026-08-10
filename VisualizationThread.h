@@ -44,7 +44,7 @@ class VisualizationThread : public EventHandler {
 
   // Poll loop over Controller::getVisualizationQueue(), mirroring
   // Player::play()'s own poll()+drain shape. Returns once an AudioBlockEvent
-  // carrying an empty SampleData (the terminate sentinel - see
+  // carrying an empty AudioBuffer (the terminate sentinel - see
   // AudioBlockEvent.h) is received.
   void run();
 

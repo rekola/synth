@@ -18,7 +18,7 @@ protected:
   // whether there's anything to scale at all (Main, Aux, or both) - not
   // Main specifically, since an Aux-only input (Send Main = 0) is still
   // genuinely being processed here.
-  void applyEffect(SampleData & input) override {
+  void applyEffect(AudioBuffer & input) override {
     bool has_content = input.numberOfChannels() > 0;
     if (has_content) {
       auto data = input.getChannelData(0);

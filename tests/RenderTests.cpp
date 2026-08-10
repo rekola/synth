@@ -106,9 +106,9 @@ bool hasNonFiniteSample(const OfflineRenderResult & result) {
   return false;
 }
 
-// Records whatever SampleData each accumulate() call receives, so a test
+// Records whatever AudioBuffer each accumulate() call receives, so a test
 // can inspect a track's real rendered output (including any SendA/SendB
-// presence/energy - see SampleData.h's Channel enum) - the public
+// presence/energy - see AudioBuffer.h's Channel enum) - the public
 // renderSongOffline()/OfflineRenderResult path only ever exposes the
 // final, already-decoded device-channel output, which never carries sends
 // (the mixer itself drops them - see Mixer.h).
@@ -117,14 +117,14 @@ class RecordingMixer : public Mixer {
   RecordingMixer(short out_channels, int outSampleRate) : Mixer(out_channels, outSampleRate) { }
 
   void reset() override { accumulated.clear(); }
-  void accumulate(const SampleData & data) override { accumulated.push_back(data); }
-  SampleData encode() override { return SampleData(getOutChannels(), 0); }
-  const SampleData & getRawBus() const override { return empty_; }
+  void accumulate(const AudioBuffer & data) override { accumulated.push_back(data); }
+  AudioBuffer encode() override { return AudioBuffer(getOutChannels(), 0); }
+  const AudioBuffer & getRawBus() const override { return empty_; }
 
-  std::vector<SampleData> accumulated;
+  std::vector<AudioBuffer> accumulated;
 
  private:
-  SampleData empty_;
+  AudioBuffer empty_;
 };
 
 } // namespace
@@ -407,7 +407,7 @@ TEST(render_ambisonic_order2_smoke_test) {
 TEST(render_ambisonic_order3_smoke_test) {
   // Same shape as render_ambisonic_order2_smoke_test above, at order 3 (16
   // channels, the 26-point Lebedev binaural rig) - confirms the full
-  // channel-count bump (AmbisonicEncoding.h, SampleData.h) and the new
+  // channel-count bump (AmbisonicEncoding.h, AudioBuffer.h) and the new
   // speaker rig (AmbisonicBinauralMixer.cpp) render without crashing and
   // produce finite, non-silent output end to end.
   auto loaded = loadFixture("ambisonic_directions.xml");
@@ -433,7 +433,7 @@ TEST(render_track_send_a_reaches_track_state_output) {
   // instrument with sendA=0.5 configured on its <track> - confirms the
   // whole propagation path (InstrumentVoice -> InstrumentTrackState ->
   // SongState) actually carries real SendA energy, using a RecordingMixer
-  // to inspect the per-track SampleData the real Mixer would otherwise
+  // to inspect the per-track AudioBuffer the real Mixer would otherwise
   // silently drop (see Mixer.h).
   auto loaded = loadFixture("send_a_oscilator.xml");
   CHECK(loaded.ok);
@@ -514,7 +514,7 @@ TEST(render_dirac_heatmap_peak_matches_encoded_azimuth_sweep) {
   // own AuxA/AuxB-derived contribution (SongState.h), which is silent
   // here since this fixture's tracks configure no sends at all. A real
   // Mixer sums every accumulate() call (one per top-level track, plus the
-  // send bus) into one buffer internally; mixNamed() (SampleData.h) is
+  // send bus) into one buffer internally; mixNamed() (AudioBuffer.h) is
   // the same aux-tolerant summing operation, reused below to replicate
   // that summing by hand over every entry in `accumulated`.
   auto loaded = loadFixture("ambisonic_directions.xml");
@@ -560,7 +560,7 @@ TEST(render_dirac_heatmap_peak_matches_encoded_azimuth_sweep) {
     state.render(256, loaded.song, mixer);
     CHECK(!mixer.accumulated.empty());
 
-    SampleData bus(static_cast<short>(config.numberOfChannels()), 256);
+    AudioBuffer bus(static_cast<short>(config.numberOfChannels()), 256);
     bus.zero(); // the raw-count constructor leaves the buffer uninitialized (aligned_alloc, not calloc) - mixNamed() below accumulates with +=
     for (auto & data : mixer.accumulated) bus.mixNamed(data);
 

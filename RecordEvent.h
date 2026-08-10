@@ -3,18 +3,18 @@
 
 #include "Event.h"
 #include "EventHandler.h"
-#include "SampleData.h"
+#include "AudioBuffer.h"
 
 class RecordEvent : public Event {
 public:
-  RecordEvent(SampleData data) : data_(std::move(data)) { }
+  RecordEvent(AudioBuffer data) : data_(std::move(data)) { }
 
   void dispatch(EventHandler & evh) override { evh.handleRecordEvent(*this); }
   
-  const SampleData & getData() const { return data_; }
+  const AudioBuffer & getData() const { return data_; }
   
 private:
-  SampleData data_;
+  AudioBuffer data_;
 };
 
 #endif

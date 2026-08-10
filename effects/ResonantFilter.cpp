@@ -33,7 +33,7 @@ public:
   // this for why (Main's regular-channel count can itself be 0 some
   // blocks, which would otherwise shift what a raw index means block to
   // block).
-  void applyEffect(SampleData & input_data) override {
+  void applyEffect(AudioBuffer & input_data) override {
     auto numSamples = input_data.size();
     int mainChannels = input_data.regularChannelCount();
     auto aftertouch_value = use_aftertouch_ ? getAftertouch() : 1.0f;

@@ -12,7 +12,7 @@
 #include "../MixerType.h"
 #include "../Mixer.h"
 #include "../ChannelConfiguration.h"
-#include "../SampleData.h"
+#include "../AudioBuffer.h"
 
 #include <algorithm>
 #include <cmath>

@@ -2,7 +2,7 @@
 #ifndef _CONTROLLER_H_
 #define _CONTROLLER_H_
 
-#include "SampleData.h"
+#include "AudioBuffer.h"
 #include "InstrumentProvider.h"
 #include "EventQueue.h"
 #include "PlaybackInfo.h"
@@ -55,8 +55,8 @@ class Controller {
   // commands like "set-mark" that live in a UIElement's CommandRegistry.
   void setCommandFallback(std::function<bool(std::string_view)> fn) { command_fallback_ = std::move(fn); }
 
-  std::shared_ptr<SampleData> startRecording() {
-    current_sample = std::make_shared<SampleData>(1, 0);
+  std::shared_ptr<AudioBuffer> startRecording() {
+    current_sample = std::make_shared<AudioBuffer>(1, 0);
     return current_sample;
   }
 
@@ -64,8 +64,8 @@ class Controller {
   bool isRecording() const { return current_sample.get() != nullptr; }
   int getRecordingTrackId() const { return recording_track_id; }
   void setRecordingTrackId(int track_id) { recording_track_id = track_id; }
-  const SampleData & getCurrentSample() const { return current_sample ? *current_sample : empty_sample; }
-  void addToSample(const SampleData & other) {
+  const AudioBuffer & getCurrentSample() const { return current_sample ? *current_sample : empty_sample; }
+  void addToSample(const AudioBuffer & other) {
     if (current_sample) current_sample->append(other);
   }
 
@@ -215,7 +215,7 @@ class Controller {
   // with a reassignment, which is also always on the UI thread.
   mutable std::mutex song_mutex_;
   std::string current_song_filename = "song.xml";
-  std::shared_ptr<SampleData> current_sample;
+  std::shared_ptr<AudioBuffer> current_sample;
   InstrumentProvider instrument_provider;
   EventQueue ui_event_queue, playback_event_queue, visualization_queue;
   PlaybackInfo playback_info;
@@ -229,7 +229,7 @@ class Controller {
   std::function<bool(std::string_view)> command_fallback_;
   int pending_command_track_ = -1;
 
-  static inline SampleData empty_sample;
+  static inline AudioBuffer empty_sample;
 };
 
 #endif

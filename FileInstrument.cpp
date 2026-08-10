@@ -1,6 +1,6 @@
 #include "FileInstrument.h"
 
-#include "SampleData.h"
+#include "AudioBuffer.h"
 #include "InstrumentVoice.h"
 
 #include <sndfile.h>
@@ -44,7 +44,7 @@ FileInstrument::openFile() {
   sf_close(infile);
 
   int total_frames = (int)buffer.size() / channels;
-  samples_ = make_shared<SampleData>(channels, total_frames);
+  samples_ = make_shared<AudioBuffer>(channels, total_frames);
   for (int c = 0; c < channels; c++) {
     auto out_buffer = samples_->getChannelData(c);
     for (int i = 0; i < total_frames; i++) {
@@ -56,10 +56,10 @@ FileInstrument::openFile() {
 
 class FileInstrumentVoice : public InstrumentVoice {
 public:
-  FileInstrumentVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, float start_phase, std::shared_ptr<SampleData> samples, const SendLevels & sends = {})
+  FileInstrumentVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, float start_phase, std::shared_ptr<AudioBuffer> samples, const SendLevels & sends = {})
     : InstrumentVoice(channel_config, position, detune, start_phase, sends), samples_(samples) { }
 
-  SampleData render(int frames) override {
+  AudioBuffer render(int frames) override {
     auto base_gain = decibelsToGain(getGainDB());
 
     // Sample files are always treated as mono, positioned like every other
@@ -88,7 +88,7 @@ public:
   void killNote() override { stopNote(); }
 
 private:
-  std::shared_ptr<SampleData> samples_;
+  std::shared_ptr<AudioBuffer> samples_;
   std::vector<float> dry_;
 };
 

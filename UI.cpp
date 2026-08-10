@@ -466,7 +466,7 @@ UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launc
   startUI(audio, launchpad_io);
 
   getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::TERMINATE));
-  getController().getVisualizationQueue().push(make_unique<AudioBlockEvent>(SampleData(), SampleData(), SampleData(), SampleData()));
+  getController().getVisualizationQueue().push(make_unique<AudioBlockEvent>(AudioBuffer(), AudioBuffer(), AudioBuffer(), AudioBuffer()));
 
   audio_thread.join();
   visualization_thread.join();

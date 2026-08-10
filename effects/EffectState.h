@@ -8,7 +8,7 @@ class EffectState : public TrackState {
   explicit EffectState(const ChannelConfiguration & channel_config) : TrackState(channel_config) { }
 
   // For rendering voices
-  SampleData render(int frames) override {
+  AudioBuffer render(int frames) override {
     auto data = TrackState::render(frames);
 
     applyEffect(data);
@@ -21,7 +21,7 @@ class EffectState : public TrackState {
   }
 
   // For rendering tracks
-  virtual SampleData render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) {
+  virtual AudioBuffer render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) {
     auto data = TrackState::render(frames, instruments, context);
     applyEffect(data);
 #if 0    
@@ -36,7 +36,7 @@ class EffectState : public TrackState {
   }
   
  protected:
-  virtual void applyEffect(SampleData & input) = 0;
+  virtual void applyEffect(AudioBuffer & input) = 0;
   void setEffectActive(bool is_effect_active) { is_effect_active_ = is_effect_active; }
   bool isEffectActive() const { return is_effect_active_; }
   

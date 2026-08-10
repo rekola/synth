@@ -75,7 +75,7 @@ AmbisonicDiffuseEncoder::AmbisonicDiffuseEncoder(int sampleRate, uint32_t instan
 }
 
 void
-AmbisonicDiffuseEncoder::encode(SampleData & out, const float * mono, int frames, float diffusion, float gain) {
+AmbisonicDiffuseEncoder::encode(AudioBuffer & out, const float * mono, int frames, float diffusion, float gain) {
   int regular = out.regularChannelCount();
   int n = min(regular, kAmbisonicChannelCount);
   if (n <= 0) return;

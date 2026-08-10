@@ -9,7 +9,7 @@
 #include "../InstrumentTrackState.h"
 #include "../RenderContext.h"
 #include "../Track.h"
-#include "../SampleData.h"
+#include "../AudioBuffer.h"
 
 #include <cmath>
 #include <cstdint>
@@ -447,7 +447,7 @@ namespace {
 
   // Sum of |low - high| over the Main channel - 0 (up to float noise) when
   // channel pressure had no effect, clearly nonzero when it did.
-  float mainChannelDifference(const SampleData & low, const SampleData & high) {
+  float mainChannelDifference(const AudioBuffer & low, const AudioBuffer & high) {
     auto n = low.numberOfFrames();
     if (n != high.numberOfFrames() || !low.hasChannel(Channel::Main) || !high.hasChannel(Channel::Main)) return -1.0f;
     auto a = low.getChannelData(0), b = high.getChannelData(0);

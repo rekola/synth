@@ -189,9 +189,9 @@ AmbisonicBinauralMixer::reset() {
 }
 
 void
-AmbisonicBinauralMixer::accumulate(const SampleData & input) {
+AmbisonicBinauralMixer::accumulate(const AudioBuffer & input) {
   if (buffer_.numberOfFrames() != input.numberOfFrames()) {
-    buffer_ = SampleData(static_cast<short>(ambisonic_channels_), input.numberOfFrames());
+    buffer_ = AudioBuffer(static_cast<short>(ambisonic_channels_), input.numberOfFrames());
     buffer_.zero();
   }
   // mixNamed() rather than mix() - `input` (a track's rendered output) may
@@ -201,7 +201,7 @@ AmbisonicBinauralMixer::accumulate(const SampleData & input) {
   buffer_.mixNamed(input);
 }
 
-SampleData
+AudioBuffer
 AmbisonicBinauralMixer::encode() {
   int frames = buffer_.numberOfFrames();
   size_t tail_len = left_tail_.size();
@@ -256,7 +256,7 @@ AmbisonicBinauralMixer::encode() {
     }
   }
 
-  SampleData out(getOutChannels(), frames);
+  AudioBuffer out(getOutChannels(), frames);
   auto out_left = out.getChannelData(0), out_right = out.getChannelData(1);
   for (int i = 0; i < frames; i++) {
     float l = left_acc_[static_cast<size_t>(i)] * gain_trim_;

@@ -25,7 +25,7 @@ TEST(dirac_single_source_is_low_diffuseness_at_correct_direction) {
   float az = 30.0f, el = 20.0f;
   auto gains = computeAmbisonicGains(SphericalPosition{az, el, 1.0f});
 
-  SampleData data(4, kFrames);
+  AudioBuffer data(4, kFrames);
   auto w = data.getChannelData(0), y = data.getChannelData(1), z = data.getChannelData(2), x = data.getChannelData(3);
   for (int i = 0; i < kFrames; i++) {
     float s = sinf(2.0f * static_cast<float>(M_PI) * kTestFrequency * static_cast<float>(i) / static_cast<float>(kSampleRate));
@@ -51,7 +51,7 @@ TEST(dirac_single_source_is_low_diffuseness_at_correct_direction) {
 TEST(dirac_decorrelated_eight_directions_is_near_full_diffuseness) {
   auto directions = cubeVertexDirections();
 
-  SampleData data(4, kFrames);
+  AudioBuffer data(4, kFrames);
   data.zero(); // the raw-count constructor leaves the buffer uninitialized (aligned_alloc, not calloc) - the loop below accumulates with += across 8 sources, so it must start from real silence, not heap garbage.
   auto w = data.getChannelData(0), y = data.getChannelData(1), z = data.getChannelData(2), x = data.getChannelData(3);
 
@@ -91,7 +91,7 @@ TEST(dirac_w_only_is_also_near_full_diffuseness) {
   // diffuse content (the test above) - a real, documented ambiguity
   // (plans/dirac-heatmap-scope.md SS4), not a bug, checked in here as an
   // expected result rather than a surprise.
-  SampleData data(1, kFrames); // regularChannelCount()==1: only W present
+  AudioBuffer data(1, kFrames); // regularChannelCount()==1: only W present
   auto w = data.getChannelData(0);
   for (int i = 0; i < kFrames; i++) {
     w[i] = sinf(2.0f * static_cast<float>(M_PI) * kTestFrequency * static_cast<float>(i) / static_cast<float>(kSampleRate));

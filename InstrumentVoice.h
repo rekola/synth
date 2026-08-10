@@ -164,10 +164,10 @@ protected:
   // to begin with. Gain-interpolated block to block by encoder_ same as
   // before, so a moving source or a distance/Send Main change still
   // smooths, not clicks.
-  SampleData encodePosition(const float * dry, int frames) {
+  AudioBuffer encodePosition(const float * dry, int frames) {
     auto & sends = getSends();
     bool has_main = sends.main > 0.0f;
-    SampleData data(has_main ? getChannelConfiguration().numberOfChannels() : 0, sends.a > 0.0f, sends.b > 0.0f, frames);
+    AudioBuffer data(has_main ? getChannelConfiguration().numberOfChannels() : 0, sends.a > 0.0f, sends.b > 0.0f, frames);
     data.zero();
 
     if (has_main) {

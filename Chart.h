@@ -6,7 +6,7 @@
 #include <string>
 #include <utility>
 
-class SampleData;
+class AudioBuffer;
 
 class Chart : public UIElement {
  public:

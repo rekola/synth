@@ -28,7 +28,7 @@ public:
     // filters_ (Main-only, indexed 0..regularChannelCount()-1) rather than
     // just widening filters_ by 2 slots and indexing by raw channel
     // position - Main's regular-channel count can itself be 0 some blocks
-    // (Send Main = 0 - see SampleData.h), which would shift what a given
+    // (Send Main = 0 - see AudioBuffer.h), which would shift what a given
     // raw index *means* block to block and corrupt a filter's continuous
     // IIR history with another channel's. AuxA/AuxB's own slot here always
     // means the same thing regardless of Main's presence that block.
@@ -39,7 +39,7 @@ public:
   // Filters every channel - Main and AuxA/AuxB alike: the reverb/delay bus
   // should hear the same tonal shaping the dry signal does, the same
   // reasoning as Amplifier/EnvelopeFilter/Compressor/Tremolo/Distortion.
-  void applyEffect(SampleData & input_data) override {
+  void applyEffect(AudioBuffer & input_data) override {
     bool has_content = input_data.numberOfChannels() > 0;
     if (has_content) {
       setEffectActive(true);

@@ -4,7 +4,7 @@
 #include "../bus/BusEffectRegistry.h"
 #include "../bus/Haze.h"
 #include "../ChannelConfiguration.h"
-#include "../SampleData.h"
+#include "../AudioBuffer.h"
 #include "../dsp/NoiseGenerator.h"
 #include "../dsp/PinkNoiseFilter.h"
 
@@ -24,7 +24,7 @@ class FakeDirectEffect : public BusEffect {
   const float * getTap(int) const override { return nullptr; }
   SphericalPosition getTapDirection(int) const override { return SphericalPosition{}; }
 
-  void encodeDirect(SampleData & busAmbisonic, int frames) override {
+  void encodeDirect(AudioBuffer & busAmbisonic, int frames) override {
     int n = busAmbisonic.regularChannelCount();
     for (int c = 0; c < n; c++) {
       auto dst = busAmbisonic.getChannelData(c);
@@ -35,8 +35,8 @@ class FakeDirectEffect : public BusEffect {
   static constexpr float kMarker = 0.25f;
 };
 
-SampleData silentMono(int frames) {
-  SampleData d(1, frames);
+AudioBuffer silentMono(int frames) {
+  AudioBuffer d(1, frames);
   d.zero();
   return d;
 }
@@ -122,11 +122,11 @@ TEST(send_bus_processor_haze_in_slot_b_reaches_every_ambisonic_channel) {
   // at 44.1kHz) plus filter/oversampler settle.
   int totalFrames = 8192;
 
-  SampleData lastOut;
+  AudioBuffer lastOut;
   for (int offset = 0; offset < totalFrames; offset += block) {
-    SampleData auxA(1, block);
+    AudioBuffer auxA(1, block);
     auxA.zero();
-    SampleData auxB(1, block);
+    AudioBuffer auxB(1, block);
     auto auxBData = auxB.getChannelData(0);
     for (int i = 0; i < block; i++) auxBData[i] = 0.5f * pink.process(noise.next());
 

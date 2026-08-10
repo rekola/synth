@@ -5,7 +5,7 @@
 #include "StyleProvider.h"
 #include "Event.h"
 #include "Logger.h"
-#include "SampleData.h"
+#include "AudioBuffer.h"
 
 #include <memory>
 #include <string>
