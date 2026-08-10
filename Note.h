@@ -49,9 +49,7 @@ class Note {
 	return "OFF";
       } else {
 	auto key_name = keyToString(tuning, getValue());
-	if (tuning == Tuning::PERCUSSION) {
-	  key_name += ' ';
-	} else {
+	if (tuning != Tuning::PERCUSSION) {
 	  if (key_name.size() == 1) key_name += '-';
 	  if (tuning == Tuning::TET53) {
 	    key_name += std::to_string((getValue() / 53) - 1);
@@ -85,7 +83,67 @@ class Note {
 					       "G♭", "G", "G♯", "A♭", "A", "A♯", "B♭", "B", "C♭" };
     static const char * note_names_12edo[] = { "C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B" };
 
-    static const char * percussion_names[] = { "HighQ", "Slap", "Stratch Push", "Stratch Pull", "Sticks", "Square Click", "Metr.Click", "Metr.Bell", "BD", "eBD", "Side Stick", "SD", "CL", "eSnare", "Low Floor Tom", "CH", "High Floor Tom", "HF", "T4", "OH", "T3", "T2", "CC1", "T1", "RC1", "Chinese Cymbal", "Ride Bell", "TA", "SC", "CB", "CC2", "Vibra Slap", "RC2", "B1", "B2", "Mute High Conga", "Open High Conga", "Low Conga", "High Timbale", "Low Timbale", "High Agogô", "Low Agogô", "Cabasa", "Maracas", "Short Whistle", "Long Whistle", "Short Guiro", "Long Guiro", "Claves", "WB1", "WB2", "Mute Cuica", "Open Cuica", "Mute Triangle", "Open Triangle", "SH" };
+    // One short (1-3 letter) drum-notation-style abbreviation per GM
+    // percussion key (27-82) - see SoundFont.cpp's PAN table, which shares
+    // this exact indexing convention.
+    static const char * percussion_names[] = {
+      "HQ",   // 27 High Q
+      "SLP",  // 28 Slap
+      "SPU",  // 29 Scratch Push
+      "SPD",  // 30 Scratch Pull
+      "STK",  // 31 Sticks
+      "SQC",  // 32 Square Click
+      "MCK",  // 33 Metronome Click
+      "MBL",  // 34 Metronome Bell
+      "BD2",  // 35 Acoustic Bass Drum
+      "BD",   // 36 Bass Drum 1
+      "RS",   // 37 Side Stick
+      "SD",   // 38 Acoustic Snare
+      "CP",   // 39 Hand Clap
+      "SD2",  // 40 Electric Snare
+      "TFL",  // 41 Low Floor Tom
+      "CH",   // 42 Closed Hi-Hat
+      "TFH",  // 43 High Floor Tom
+      "PH",   // 44 Pedal Hi-Hat
+      "LT",   // 45 Low Tom
+      "OH",   // 46 Open Hi-Hat
+      "MT",   // 47 Low-Mid Tom
+      "MT2",  // 48 Hi-Mid Tom
+      "CR",   // 49 Crash Cymbal 1
+      "HT",   // 50 High Tom
+      "RD",   // 51 Ride Cymbal 1
+      "CHN",  // 52 Chinese Cymbal
+      "RB",   // 53 Ride Bell
+      "TMB",  // 54 Tambourine
+      "SPL",  // 55 Splash Cymbal
+      "CB",   // 56 Cowbell
+      "CR2",  // 57 Crash Cymbal 2
+      "VS",   // 58 Vibraslap
+      "RD2",  // 59 Ride Cymbal 2
+      "BOH",  // 60 High Bongo
+      "BOL",  // 61 Low Bongo
+      "CGM",  // 62 Mute High Conga
+      "CGH",  // 63 Open High Conga
+      "CGL",  // 64 Low Conga
+      "TIH",  // 65 High Timbale
+      "TIL",  // 66 Low Timbale
+      "AGH",  // 67 High Agogô
+      "AGL",  // 68 Low Agogô
+      "CAB",  // 69 Cabasa
+      "MA",   // 70 Maracas
+      "WHS",  // 71 Short Whistle
+      "WHL",  // 72 Long Whistle
+      "GRS",  // 73 Short Guiro
+      "GRL",  // 74 Long Guiro
+      "CL",   // 75 Claves
+      "WBH",  // 76 High Woodblock
+      "WBL",  // 77 Low Woodblock
+      "CUM",  // 78 Mute Cuica
+      "CUO",  // 79 Open Cuica
+      "TRM",  // 80 Mute Triangle
+      "TRO",  // 81 Open Triangle
+      "SH",   // 82 Shaker
+    };
 
     if (tuning == Tuning::PERCUSSION) {
       if (value >= 27 && value <= 82) return percussion_names[value - 27];
@@ -105,29 +163,61 @@ class Note {
     if (input_value == "off" || input_value == "OFF") {
       return 0;
     } else if (tuning == Tuning::PERCUSSION) {
-      if (input_value == "BD") return 35; // Acoustic Base Drum
-      else if (input_value == "SD") return 38; // Acoustic Snare (or SN)
-      else if (input_value == "CL") return 39; // Hand Clap
-      else if (input_value == "F2") return 41; // Low Floor Tom
+      if (input_value == "HQ") return 27; // High Q
+      else if (input_value == "SLP") return 28; // Slap
+      else if (input_value == "SPU") return 29; // Scratch Push
+      else if (input_value == "SPD") return 30; // Scratch Pull
+      else if (input_value == "STK") return 31; // Sticks
+      else if (input_value == "SQC") return 32; // Square Click
+      else if (input_value == "MCK") return 33; // Metronome Click
+      else if (input_value == "MBL") return 34; // Metronome Bell
+      else if (input_value == "BD2") return 35; // Acoustic Bass Drum
+      else if (input_value == "BD") return 36; // Bass Drum 1
+      else if (input_value == "RS") return 37; // Side Stick
+      else if (input_value == "SD") return 38; // Acoustic Snare
+      else if (input_value == "CP") return 39; // Hand Clap
+      else if (input_value == "SD2") return 40; // Electric Snare
+      else if (input_value == "TFL") return 41; // Low Floor Tom
       else if (input_value == "CH") return 42; // Closed Hi-hat
-      else if (input_value == "F1") return 43; // High Floor Tom
-      else if (input_value == "HF") return 44; // Pedal Hi-hat
-      else if (input_value == "T4") return 45; // Low Tom
+      else if (input_value == "TFH") return 43; // High Floor Tom
+      else if (input_value == "PH") return 44; // Pedal Hi-hat
+      else if (input_value == "LT") return 45; // Low Tom
       else if (input_value == "OH") return 46; // Open Hi-hat
-      else if (input_value == "T3") return 47; // Low-Mid Tom
-      else if (input_value == "T2") return 48; // Hi-Mid Tom
-      else if (input_value == "CC1") return 49; // Crash Cymbal 1
-      else if (input_value == "T1") return 50; // High Tom
-      else if (input_value == "RC1") return 51; // Ride Cymbal 1
-      else if (input_value == "TA") return 54; // Tambourine
-      else if (input_value == "SC") return 55; // Splash Cymbal
+      else if (input_value == "MT") return 47; // Low-Mid Tom
+      else if (input_value == "MT2") return 48; // Hi-Mid Tom
+      else if (input_value == "CR") return 49; // Crash Cymbal 1
+      else if (input_value == "HT") return 50; // High Tom
+      else if (input_value == "RD") return 51; // Ride Cymbal 1
+      else if (input_value == "CHN") return 52; // Chinese Cymbal
+      else if (input_value == "RB") return 53; // Ride Bell
+      else if (input_value == "TMB") return 54; // Tambourine
+      else if (input_value == "SPL") return 55; // Splash Cymbal
       else if (input_value == "CB") return 56; // Cowbell
-      else if (input_value == "CC2") return 57; // Crash Cymbal 2
-      else if (input_value == "RC2") return 59; // Ride Cymbal 2
-      else if (input_value == "B1") return 60; // High Bongo
-      else if (input_value == "B2") return 61; // Low Bongo
-      else if (input_value == "WB1") return 76; // High Woodblock
-      else if (input_value == "WB2") return 77; // Low Woodblock
+      else if (input_value == "CR2") return 57; // Crash Cymbal 2
+      else if (input_value == "VS") return 58; // Vibraslap
+      else if (input_value == "RD2") return 59; // Ride Cymbal 2
+      else if (input_value == "BOH") return 60; // High Bongo
+      else if (input_value == "BOL") return 61; // Low Bongo
+      else if (input_value == "CGM") return 62; // Mute High Conga
+      else if (input_value == "CGH") return 63; // Open High Conga
+      else if (input_value == "CGL") return 64; // Low Conga
+      else if (input_value == "TIH") return 65; // High Timbale
+      else if (input_value == "TIL") return 66; // Low Timbale
+      else if (input_value == "AGH") return 67; // High Agogô
+      else if (input_value == "AGL") return 68; // Low Agogô
+      else if (input_value == "CAB") return 69; // Cabasa
+      else if (input_value == "MA") return 70; // Maracas
+      else if (input_value == "WHS") return 71; // Short Whistle
+      else if (input_value == "WHL") return 72; // Long Whistle
+      else if (input_value == "GRS") return 73; // Short Guiro
+      else if (input_value == "GRL") return 74; // Long Guiro
+      else if (input_value == "CL") return 75; // Claves
+      else if (input_value == "WBH") return 76; // High Woodblock
+      else if (input_value == "WBL") return 77; // Low Woodblock
+      else if (input_value == "CUM") return 78; // Mute Cuica
+      else if (input_value == "CUO") return 79; // Open Cuica
+      else if (input_value == "TRM") return 80; // Mute Triangle
+      else if (input_value == "TRO") return 81; // Open Triangle
       else if (input_value == "SH") return 82; // Shaker
       else return 0;
     } else {     

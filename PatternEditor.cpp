@@ -1682,7 +1682,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 	  auto tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
-	  putstr(display_row, current_pos, note.toString(tuning));
+	  auto s = note.toString(tuning);
+	  while (s.size() < 3) s += ' ';
+	  putstr(display_row, current_pos, s);
 	  current_pos += 3;
 	} else if (column_type == ColumnType::VELOCITY || column_type == ColumnType::DELAY) {
 	  auto l = track_info.getNoteNumber(k);
