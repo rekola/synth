@@ -161,33 +161,46 @@ void
 Controller::moveEditPosition(int delta_rows) {
   auto info = getPlaybackInfo();
   // Row navigation only ever runs while stopped (see PatternEditor's own
-  // "Row navigation while stopped" comment) - clampRowToCurrentPattern()
-  // keeps it from spilling into the next/previous pattern, so a mark set
-  // for a selection can never end up stranded in a different pattern than
-  // the cursor. Player::handlePlaybackControlEvent() applies the identical
-  // clamp on the audio-thread side to the MOVE_POSITION event this pushes
-  // below, rather than trusting the (unclamped) delta_rows sent over it.
-  auto new_absolute = getSong().clampRowToCurrentPattern(info.getAbsolutePosition(), info.getAbsolutePosition() + delta_rows);
+  // "Row navigation while stopped" comment). clampRowToCurrentPattern()
+  // only applies while pattern_selection_active_ - see its own comment -
+  // so a mark set for a selection can never end up stranded in a
+  // different pattern than the cursor, but plain navigation with no
+  // selection open crosses pattern boundaries freely. Floor at 0
+  // otherwise (matching SongState::movePosition()'s own floor) - there's
+  // no upper bound either way, same as real playback's own row-by-row
+  // advance: running off the end of the last pattern is normal, not
+  // special-cased. Player::handlePlaybackControlEvent() applies the
+  // identical decision on the audio-thread side to the MOVE_POSITION
+  // event this pushes below, rather than trusting a value computed by
+  // the UI thread across the thread boundary - parameter2 carries
+  // whether to clamp, so both sides make the same choice.
+  auto new_absolute = pattern_selection_active_ ?
+    getSong().clampRowToCurrentPattern(info.getAbsolutePosition(), info.getAbsolutePosition() + delta_rows) :
+    max(0, info.getAbsolutePosition() + delta_rows);
   auto [ pattern_idx, row_idx ] = getSong().normalizePosition(0, new_absolute);
   info.setAbsolutePos(new_absolute);
   info.setPatternIdx(pattern_idx);
   info.setRowIdx(row_idx);
   info.setPositionEditSeq(++local_position_edit_seq_);
   setPlaybackInfo(info);
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, delta_rows));
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, delta_rows, pattern_selection_active_ ? 1 : 0));
 }
 
 void
 Controller::setEditPosition(int absolute_row) {
   auto info = getPlaybackInfo();
-  auto new_absolute = getSong().clampRowToCurrentPattern(info.getAbsolutePosition(), absolute_row);
+  // See moveEditPosition()'s own comment - same clamp-only-with-an-open-
+  // selection rule, same parameter2-carries-the-decision handshake with
+  // the audio thread.
+  auto new_absolute = pattern_selection_active_ ?
+    getSong().clampRowToCurrentPattern(info.getAbsolutePosition(), absolute_row) : max(0, absolute_row);
   auto [ pattern_idx, row_idx ] = getSong().normalizePosition(0, new_absolute);
   info.setAbsolutePos(new_absolute);
   info.setPatternIdx(pattern_idx);
   info.setRowIdx(row_idx);
   info.setPositionEditSeq(++local_position_edit_seq_);
   setPlaybackInfo(info);
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_POSITION, absolute_row));
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_POSITION, absolute_row, pattern_selection_active_ ? 1 : 0));
 }
 
 void

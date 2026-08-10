@@ -44,16 +44,15 @@ void transposePatternBlock(Pattern & pattern, int row_lo, int row_hi,
 			   const std::function<bool(int track_id)> & is_percussion);
 
 // Single-track, note-column-scoped siblings of the above: operate on just
-// notes [note_lo, note_hi] of one track, leaving other note columns
-// untouched. `include_command` additionally captures/clears/restores the
-// track's effect Command for the row range - used when the cursor is on
-// the effect column, where the note range has been widened to the whole
-// track but the effect command (which applies to every note column) needs
-// to travel with the operation too.
+// notes [note_lo, note_hi] of one track, leaving other note columns and the
+// track's effect Command untouched (PatternEditor's SelectionScope::
+// NOTE_COLUMN - mixing a note-column selection with the effect column
+// escalates to a whole-track operation instead, so there's no
+// include-the-command variant of this family any more).
 PatternBlock copyPatternBlockNotes(const Pattern & pattern, int row_lo, int row_hi,
-				   int track_id, int note_lo, int note_hi, bool include_command = false);
+				   int track_id, int note_lo, int note_hi);
 void clearPatternBlockNotes(Pattern & pattern, int row_lo, int row_hi,
-			    int track_id, int note_lo, int note_hi, bool include_command = false);
+			    int track_id, int note_lo, int note_hi);
 // `is_percussion`: same reasoning as transposePatternBlock() above, but a
 // plain bool here (not a predicate) since this operates on exactly one
 // already-known track_id, not a range.
@@ -63,6 +62,16 @@ void transposePatternBlockNotes(Pattern & pattern, int row_lo, int row_hi,
 // leaving note columns outside that range untouched (unlike pastePatternBlock,
 // which replaces a cell's whole note vector).
 void pastePatternBlockNotes(Pattern & pattern, const PatternBlock & block, int num_rows,
-			    int target_row, int track_id, int target_note_offset, bool include_command = false);
+			    int target_row, int track_id, int target_note_offset);
+
+// Single-track, effect-Command-only siblings, for PatternEditor's
+// SelectionScope::COMMAND (the cursor confined to just the effect column -
+// no note data is read or written by any of these). Note::isDefined() etc.
+// has no equivalent here since Command has no "empty" special case beyond
+// its own default-constructed all-dashes value.
+std::vector<Command> copyPatternBlockCommand(const Pattern & pattern, int row_lo, int row_hi, int track_id);
+void clearPatternBlockCommand(Pattern & pattern, int row_lo, int row_hi, int track_id);
+void pastePatternBlockCommand(Pattern & pattern, const std::vector<Command> & block, int num_rows,
+			      int target_row, int track_id);
 
 #endif

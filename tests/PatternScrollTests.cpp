@@ -190,6 +190,49 @@ TEST(delay_column_stays_visible_when_cursor_is_on_the_sibling_note_column) {
   }
 }
 
+// Minimality, not just eventual correctness: computeScrollPosition()'s own
+// doc comment describes moving the window by no more than necessary to
+// keep the cursor on screen, but the tests above only ever check the
+// *result* is fully visible - none of them would catch the window jumping
+// further than required along the way. This walks the cursor one column
+// at a time (the same granularity Left/Right ever moves it) across every
+// column of a mix of ordinary and oversized tracks, feeding each step's
+// own resulting scroll back in as the next step's current_scroll (matching
+// how PatternEditor::render() persists current_scroll_ frame to frame),
+// and fails the moment a step moves the window while the cursor's own
+// highlighted group was already fully visible in the *previous* window -
+// i.e. moving would have been unnecessary.
+TEST(scroll_never_moves_while_the_cursor_is_already_visible) {
+  vector<int> track_ids = { 10, 20, 30 };
+  unordered_map<int, VisibleTrackInfo> track_info = {
+    { 10, makeTrackInfo(2, true, 1, false, true) },   // modest: 2 subtracks, note+velocity+effect
+    { 20, makeTrackInfo(20, true, 0, false, false) }, // oversized: 20 note columns alone
+    { 30, makeTrackInfo(1, true, 1, true, true) },    // modest: note+velocity+delay+effect
+  };
+
+  // Every (track, col) position in left-to-right order, walked forward then
+  // back - mirrors a user holding Right to the far end and then holding
+  // Left all the way back, one column at a time.
+  vector<pair<int, int>> path;
+  for (int t = 0; t < static_cast<int>(track_ids.size()); t++) {
+    auto & info = track_info.at(track_ids[static_cast<size_t>(t)]);
+    for (int k = 0; k < info.getColumnCount(); k++) path.push_back({t, k});
+  }
+  path.insert(path.end(), path.rbegin(), path.rend());
+
+  for (int cols : { 20, 40, 60, 80, 100, 120 }) {
+    GridPosition current_scroll;
+    int violations = 0;
+    for (auto & [t, k] : path) {
+      bool was_already_visible = cursorHighlightFullyVisible(current_scroll, t, k, track_ids, track_info, cols);
+      auto new_scroll = computeScrollPosition(current_scroll, 0, t, k, track_ids, track_info, cols);
+      if (was_already_visible && new_scroll != current_scroll) violations++;
+      current_scroll = new_scroll;
+    }
+    CHECK(violations == 0);
+  }
+}
+
 // A SampleTrack/DrumMachineTrack ahead of the cursor's own track used to
 // get no VisibleTrackInfo entry at all (PatternEditor.cpp's
 // fill_track_info() never matched TrackType::SAMPLE), which

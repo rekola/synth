@@ -161,7 +161,11 @@ bool
 UI::offerInput(const InputEvent & input) {
   bool handled = false;
 
-  if (!status_line_->isReaderActive() && dispatchCommand(input)) return true;
+  // Neither reader (StatusLine's M-x minibuffer, PatternEditor's own
+  // annotation editor - see PatternEditor::isReaderActive()'s own comment)
+  // may let a global keybinding (Space/toggle-playing, Ctrl-Q/quit, ...)
+  // steal a keystroke meant for it.
+  if (!status_line_->isReaderActive() && !pattern_editor_->isReaderActive() && dispatchCommand(input)) return true;
 
   if (input.getId() == NCKEY_RESIZE) {
     // notcurses_refresh() is what makes notcurses acknowledge the terminal's
