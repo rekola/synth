@@ -13,6 +13,7 @@
 #include <memory>
 #include <string_view>
 #include <cassert>
+#include <optional>
 
 class UIElement : public EventHandler {
  public:
@@ -127,7 +128,27 @@ protected:
     // repeating, unlike PatternEditor's own raw note-entry keys below,
     // which suppress repeat themselves.
     if (input.getKind() == InputEvent::Kind::RELEASE) return false;
-    if (auto name = keymap_.lookup(KeyChord::pack(input))) return commands_.execute(*name);
+    auto chord = KeyChord::pack(input);
+
+    // Two-key Emacs-style prefix sequences (C-x C-s, C-x C-c, ...) - a
+    // pending prefix always consumes the very next keystroke one way or
+    // another, matching Emacs's own "C-x <undefined-key>" behavior of
+    // aborting the sequence rather than letting the second key fall
+    // through to whatever it would otherwise have done (e.g. self-insert
+    // in a text field) - a half-typed prefix should never silently do
+    // something else instead.
+    if (pending_prefix_) {
+      auto prefix = *pending_prefix_;
+      pending_prefix_.reset();
+      if (auto name = keymap_.lookupPrefixed(prefix, chord)) return commands_.execute(*name);
+      return true;
+    }
+    if (keymap_.isPrefix(chord)) {
+      pending_prefix_ = chord;
+      return true;
+    }
+
+    if (auto name = keymap_.lookup(chord)) return commands_.execute(*name);
     return false;
   }
 
@@ -138,6 +159,12 @@ protected:
 
   Keymap keymap_;
   CommandRegistry commands_;
+
+  // Set by dispatchCommand() when the previous keystroke was a bound
+  // prefix chord (e.g. C-x) - unset (no pending sequence) the rest of the
+  // time. Per-instance, not shared - each widget that adopts prefix
+  // bindings tracks its own in-progress sequence independently.
+  std::optional<uint64_t> pending_prefix_;
 
 private:
   std::unique_ptr<UIPlane> plane_;

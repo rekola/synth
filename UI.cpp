@@ -56,8 +56,18 @@ UI::initialize() {
     bool playing = getController().togglePlaying();
     setStatus(playing ? "Playing" : "Stopped");
   });
+  commands_.define("save-song", [this]() {
+    getController().sendCommand("save-song");
+    setStatus("Saved " + getController().getSongFilename());
+  });
 
-  keymap_.bind(KeyChord::pack('q', true, false, false, false), "quit");
+  // Quit/save use Emacs's own C-x C-c/C-x C-s bindings (save-buffers-kill-
+  // terminal/save-buffer) rather than one-off single-key shortcuts - see
+  // Keymap::bindPrefixed()/UIElement::dispatchCommand() for the two-key
+  // prefix-sequence machinery this needs.
+  auto ctrl_x = KeyChord::pack('x', true, false, false, false);
+  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('c', true, false, false, false), "quit");
+  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('s', true, false, false, false), "save-song");
   keymap_.bind(KeyChord::pack('n', true, false, false, false), "new-song");
   keymap_.bind(KeyChord::pack(' ', false, false, false, false), "toggle-playing");
 

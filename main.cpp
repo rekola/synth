@@ -10,6 +10,8 @@
 
 #include <cstring>
 #include <signal.h>
+#include <termios.h>
+#include <unistd.h>
 
 #include <sndfile.h>
 #include <ncpp/NotCurses.hh>
@@ -173,6 +175,23 @@ int main(int argc, char *argv[]) {
   auto nc = make_shared<ncpp::NotCurses>();
   nc->mouse_enable(NCMICE_ALL_EVENTS);
   nc->linesigs_disable();
+
+  // notcurses's own raw-mode setup leaves IXON (software flow control) on -
+  // confirmed via direct termios inspection, not just inferred - so Ctrl-S/
+  // Ctrl-Q (needed for the C-x C-s save binding, UI.cpp) get intercepted by
+  // the kernel tty driver as XOFF/XON (pausing/resuming terminal output)
+  // instead of ever reaching notcurses's input decoder as keystrokes, the
+  // same class of "a control character doesn't reach the app" problem
+  // linesigs_disable() above already solves for Ctrl-C/Ctrl-Z. Must run
+  // after NotCurses's own constructor, which does its own termios setup -
+  // doing this first would just get overwritten.
+  if (isatty(STDIN_FILENO)) {
+    struct termios t;
+    if (tcgetattr(STDIN_FILENO, &t) == 0) {
+      t.c_iflag &= ~(tcflag_t)(IXON | IXOFF);
+      tcsetattr(STDIN_FILENO, TCSANOW, &t);
+    }
+  }
   
   TerminalUI ui(nc);
   ui.initialize(controller);
