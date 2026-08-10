@@ -15,51 +15,63 @@
     <track id="6" />
     <track id="7" />
   </tracks>
-  <patterns>
-    <pattern>
-      <note row="0" track="3" velocity="80" value="G-2"/>
-      <!-- Intro pattern: only rows 0-3 are used - the ZB00 break at row 3
-           jumps straight to the next pattern's row 0 rather than playing
-           out this pattern's remaining (unused) rows, reproducing what
-           used to be a dedicated 4-row-long pattern before every pattern
-           in a song shared one length. -->
-      <command row="3" track="3" data="ZB00"/>
-    </pattern>
-    <pattern>
-      <note row="0" track="4" velocity="64" value="B2"/>
-      <note row="0" track="3" velocity="64" value="C-3"/>
-      <note row="0" track="0" velocity="64" value="C-4"/>
-      <note row="0" track="0" column="1" velocity="64" value="E♭4"/>
-      <note row="0" track="0" column="2" velocity="64" value="G-4"/>
-      <note row="4" track="1" velocity="64" value="C-4"/>
-      <note row="6" track="3" velocity="64" value="C-4"/>
-      <note row="6" track="2" velocity="64" value="D-4"/>
-      <note row="8" track="4" velocity="64" value="B2"/>
-      <note row="12" track="3" velocity="64" value="E♭3"/>
-      <note row="12" track="2" velocity="64" value="E♭4"/>
-      <note row="16" track="4" velocity="64" value="B2"/>
-      <note row="16" track="3" velocity="64" value="D-3"/>
-      <note row="16" track="0" velocity="64" value="D-4"/>
-      <note row="16" track="0" column="1" velocity="64" value="F-4"/>
-      <note row="16" track="0" column="2" velocity="64" value="A♭4"/>
-      <note row="20" track="1" velocity="64" value="D-4"/>
-      <note row="22" track="2" velocity="64" value="F-4"/>
-      <note row="24" track="4" velocity="64" value="B2"/>
-      <note row="26" track="2" velocity="64" value="E♭4"/>
-      <note row="28" track="3" velocity="64" value="D-3"/>
-      <note row="28" track="1" velocity="64" value="D-4"/>
-      <note row="30" track="0" velocity="64" value="C-4"/>
-      <note row="32" track="4" velocity="64" value="B2"/>
-      <note row="32" track="3" velocity="64" value="E♭3"/>
-      <note row="32" track="0" velocity="64" value="C-4"/>
-      <note row="32" track="0" column="1" velocity="64" value="E♭4"/>
-      <note row="32" track="0" column="2" velocity="64" value="G-4"/>
-      <note row="36" track="0" velocity="64" value="E♭4"/>
-      <note row="38" track="1" velocity="64" value="G-4"/>
-      <note row="40" track="4" velocity="64" value="B2"/>
-      <note row="44" track="2" velocity="64" value="A♭4"/>
-      <note row="48" track="4" velocity="64" value="B2"/>
-      <note row="48" track="1" velocity="64" value="G-4"/>
-    </pattern>
-  </patterns>
+  <scenes>
+    <scene>
+      <pattern track="3">
+        <note row="0" velocity="80" value="G-2" />
+        <!-- Intro pattern: only rows 0-3 are used - the ZB00 break at row 3
+             jumps straight to the next pattern's row 0 rather than playing
+             out this pattern's remaining (unused) rows, reproducing what
+             used to be a dedicated 4-row-long pattern before every pattern
+             in a song shared one length. -->
+        <command row="3" data="ZB00" />
+      </pattern>
+    </scene>
+    <scene>
+      <pattern track="4">
+        <note row="0" velocity="64" value="B2" />
+        <note row="8" velocity="64" value="B2" />
+        <note row="16" velocity="64" value="B2" />
+        <note row="24" velocity="64" value="B2" />
+        <note row="32" velocity="64" value="B2" />
+        <note row="40" velocity="64" value="B2" />
+        <note row="48" velocity="64" value="B2" />
+      </pattern>
+      <pattern track="3">
+        <note row="0" velocity="64" value="C-3" />
+        <note row="6" velocity="64" value="C-4" />
+        <note row="12" velocity="64" value="E♭3" />
+        <note row="16" velocity="64" value="D-3" />
+        <note row="28" velocity="64" value="D-3" />
+        <note row="32" velocity="64" value="E♭3" />
+      </pattern>
+      <pattern track="0">
+        <note row="0" velocity="64" value="C-4" />
+        <note row="0" column="1" velocity="64" value="E♭4" />
+        <note row="0" column="2" velocity="64" value="G-4" />
+        <note row="16" velocity="64" value="D-4" />
+        <note row="16" column="1" velocity="64" value="F-4" />
+        <note row="16" column="2" velocity="64" value="A♭4" />
+        <note row="30" velocity="64" value="C-4" />
+        <note row="32" velocity="64" value="C-4" />
+        <note row="32" column="1" velocity="64" value="E♭4" />
+        <note row="32" column="2" velocity="64" value="G-4" />
+        <note row="36" velocity="64" value="E♭4" />
+      </pattern>
+      <pattern track="1">
+        <note row="4" velocity="64" value="C-4" />
+        <note row="20" velocity="64" value="D-4" />
+        <note row="28" velocity="64" value="D-4" />
+        <note row="38" velocity="64" value="G-4" />
+        <note row="48" velocity="64" value="G-4" />
+      </pattern>
+      <pattern track="2">
+        <note row="6" velocity="64" value="D-4" />
+        <note row="12" velocity="64" value="E♭4" />
+        <note row="22" velocity="64" value="F-4" />
+        <note row="26" velocity="64" value="E♭4" />
+        <note row="44" velocity="64" value="A♭4" />
+      </pattern>
+    </scene>
+  </scenes>
 </song>

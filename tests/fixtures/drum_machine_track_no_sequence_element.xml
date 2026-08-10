@@ -8,7 +8,7 @@
   <tracks>
     <drumMachineTrack id="0" instrument="0"/>
   </tracks>
-  <patterns>
-    <pattern/>
-  </patterns>
+  <scenes>
+    <scene />
+  </scenes>
 </song>

@@ -35,23 +35,25 @@
     <track id="chords" instrument="3" volume="1" />
   </tracks>
   
-  <patterns>
-    <pattern>
-      <note row="0" track="chords" velocity="127">C-3 C-4 E-4 G-4 C-5</note>
-      <note row="4" track="chords">OFF OFF OFF OFF OFF OFF</note>
-
-      <note row="6" track="bass" velocity="20">G-2</note>
-      <note row="8" track="bass" velocity="20">A#2</note>
-      <note row="11" track="bass" velocity="20">C-3</note>
-      <note row="14" track="bass" velocity="20">C-3</note>
-      <note row="16" track="chords" velocity="127">C-3 C-4 E-4 G-4 C-5</note>
-      <note row="20" track="chords">OFF OFF OFF OFF OFF OFF</note>
-
-      <note row="24" track="bass" velocity="20">G-3</note>
-      <note row="25" track="bass" velocity="20">F-3</note>
-      <note row="26" track="bass" velocity="20">C-3</note>
-      <note row="28" track="bass" velocity="20">D#3</note>
-      <note row="31" track="bass" velocity="20">C-3</note>
-    </pattern>
-</patterns>
+  <scenes>
+    <scene>
+      <pattern track="chords">
+        <note row="0" velocity="127">C-3 C-4 E-4 G-4 C-5</note>
+        <note row="4">OFF OFF OFF OFF OFF OFF</note>
+        <note row="16" velocity="127">C-3 C-4 E-4 G-4 C-5</note>
+        <note row="20">OFF OFF OFF OFF OFF OFF</note>
+      </pattern>
+      <pattern track="bass">
+        <note row="6" velocity="20">G-2</note>
+        <note row="8" velocity="20">A#2</note>
+        <note row="11" velocity="20">C-3</note>
+        <note row="14" velocity="20">C-3</note>
+        <note row="24" velocity="20">G-3</note>
+        <note row="25" velocity="20">F-3</note>
+        <note row="26" velocity="20">C-3</note>
+        <note row="28" velocity="20">D#3</note>
+        <note row="31" velocity="20">C-3</note>
+      </pattern>
+    </scene>
+  </scenes>
 </song>

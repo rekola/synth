@@ -1,11 +1,11 @@
 #include "PatternBlockOps.h"
 
-#include "Pattern.h"
+#include "Scene.h"
 
 using namespace std;
 
 PatternBlock
-copyPatternBlock(const Pattern & pattern, int row_lo, int row_hi,
+copyPatternBlock(const Scene & scene, int row_lo, int row_hi,
 		 const vector<int> & track_ids, int track_lo, int track_hi) {
   PatternBlock block;
 
@@ -14,8 +14,8 @@ copyPatternBlock(const Pattern & pattern, int row_lo, int row_hi,
     for (int t = track_lo; t <= track_hi; t++) {
       auto track_id = track_ids[t];
       PatternBlockCell cell;
-      cell.notes = pattern.getNotes(row, track_id);
-      cell.command = pattern.getCommand(row, track_id);
+      cell.notes = scene.getNotes(row, track_id);
+      cell.command = scene.getCommand(row, track_id);
       row_cells.push_back(move(cell));
     }
     block.push_back(move(row_cells));
@@ -25,38 +25,38 @@ copyPatternBlock(const Pattern & pattern, int row_lo, int row_hi,
 }
 
 void
-clearPatternBlock(Pattern & pattern, int row_lo, int row_hi,
+clearPatternBlock(Scene & scene, int row_lo, int row_hi,
 		  const vector<int> & track_ids, int track_lo, int track_hi) {
   for (int row = row_lo; row <= row_hi; row++) {
     for (int t = track_lo; t <= track_hi; t++) {
       auto track_id = track_ids[t];
-      pattern.clearNotes(row, track_id);
-      pattern.setCommand(row, track_id, Command());
+      scene.clearNotes(row, track_id);
+      scene.setCommand(row, track_id, Command());
     }
   }
 }
 
 void
-transposePatternBlock(Pattern & pattern, int row_lo, int row_hi,
+transposePatternBlock(Scene & scene, int row_lo, int row_hi,
 		      const vector<int> & track_ids, int track_lo, int track_hi, bool up,
 		      const std::function<bool(int track_id)> & is_percussion) {
   for (int row = row_lo; row <= row_hi; row++) {
     for (int t = track_lo; t <= track_hi; t++) {
       auto track_id = track_ids[t];
       if (is_percussion(track_id)) continue;
-      auto notes = pattern.getNotes(row, track_id);
+      auto notes = scene.getNotes(row, track_id);
       if (notes.empty()) continue; // don't materialize a real entry in the sparse notes_ map
       for (auto & note : notes) {
 	if (up) note.transposeUp();
 	else note.transposeDown();
       }
-      pattern.setNotes(row, track_id, notes);
+      scene.setNotes(row, track_id, notes);
     }
   }
 }
 
 void
-pastePatternBlock(Pattern & pattern, const PatternBlock & block, int num_rows,
+pastePatternBlock(Scene & scene, const PatternBlock & block, int num_rows,
 		  int target_row, const vector<int> & track_ids, int target_track) {
   for (size_t row_offset = 0; row_offset < block.size(); row_offset++) {
     int row = target_row + static_cast<int>(row_offset);
@@ -69,21 +69,21 @@ pastePatternBlock(Pattern & pattern, const PatternBlock & block, int num_rows,
 
       auto track_id = track_ids[t];
       auto & cell = row_cells[track_offset];
-      pattern.setNotes(row, track_id, cell.notes);
-      pattern.setCommand(row, track_id, cell.command);
+      scene.setNotes(row, track_id, cell.notes);
+      scene.setCommand(row, track_id, cell.command);
     }
   }
 }
 
 PatternBlock
-copyPatternBlockNotes(const Pattern & pattern, int row_lo, int row_hi,
+copyPatternBlockNotes(const Scene & scene, int row_lo, int row_hi,
 		      int track_id, int note_lo, int note_hi) {
   PatternBlock block;
 
   auto width = note_hi - note_lo + 1;
 
   for (int row = row_lo; row <= row_hi; row++) {
-    auto & full_notes = pattern.getNotes(row, track_id);
+    auto & full_notes = scene.getNotes(row, track_id);
     PatternBlockCell cell;
     cell.note_offset = note_lo;
     // Always the full requested width, not just however many notes this
@@ -106,33 +106,33 @@ copyPatternBlockNotes(const Pattern & pattern, int row_lo, int row_hi,
 }
 
 void
-clearPatternBlockNotes(Pattern & pattern, int row_lo, int row_hi,
+clearPatternBlockNotes(Scene & scene, int row_lo, int row_hi,
 		       int track_id, int note_lo, int note_hi) {
   for (int row = row_lo; row <= row_hi; row++) {
     for (int i = note_lo; i <= note_hi; i++) {
-      pattern.deleteNote(row, track_id, i);
+      scene.deleteNote(row, track_id, i);
     }
   }
 }
 
 void
-transposePatternBlockNotes(Pattern & pattern, int row_lo, int row_hi,
+transposePatternBlockNotes(Scene & scene, int row_lo, int row_hi,
 			   int track_id, int note_lo, int note_hi, bool up, bool is_percussion) {
   if (is_percussion) return;
   for (int row = row_lo; row <= row_hi; row++) {
-    auto notes = pattern.getNotes(row, track_id);
+    auto notes = scene.getNotes(row, track_id);
     if (notes.empty()) continue;
     auto hi = min(note_hi, static_cast<int>(notes.size()) - 1);
     for (int i = note_lo; i <= hi; i++) {
       if (up) notes[i].transposeUp();
       else notes[i].transposeDown();
     }
-    pattern.setNotes(row, track_id, notes);
+    scene.setNotes(row, track_id, notes);
   }
 }
 
 void
-pastePatternBlockNotes(Pattern & pattern, const PatternBlock & block, int num_rows,
+pastePatternBlockNotes(Scene & scene, const PatternBlock & block, int num_rows,
 		       int target_row, int track_id, int target_note_offset) {
   for (size_t row_offset = 0; row_offset < block.size(); row_offset++) {
     int row = target_row + static_cast<int>(row_offset);
@@ -142,29 +142,29 @@ pastePatternBlockNotes(Pattern & pattern, const PatternBlock & block, int num_ro
     if (row_cells.empty()) continue;
     auto & cell = row_cells[0];
     for (size_t i = 0; i < cell.notes.size(); i++) {
-      pattern.setNote(row, track_id, target_note_offset + static_cast<int>(i), cell.notes[i]);
+      scene.setNote(row, track_id, target_note_offset + static_cast<int>(i), cell.notes[i]);
     }
   }
 }
 
 vector<Command>
-copyPatternBlockCommand(const Pattern & pattern, int row_lo, int row_hi, int track_id) {
+copyPatternBlockCommand(const Scene & scene, int row_lo, int row_hi, int track_id) {
   vector<Command> block;
-  for (int row = row_lo; row <= row_hi; row++) block.push_back(pattern.getCommand(row, track_id));
+  for (int row = row_lo; row <= row_hi; row++) block.push_back(scene.getCommand(row, track_id));
   return block;
 }
 
 void
-clearPatternBlockCommand(Pattern & pattern, int row_lo, int row_hi, int track_id) {
-  for (int row = row_lo; row <= row_hi; row++) pattern.setCommand(row, track_id, Command());
+clearPatternBlockCommand(Scene & scene, int row_lo, int row_hi, int track_id) {
+  for (int row = row_lo; row <= row_hi; row++) scene.setCommand(row, track_id, Command());
 }
 
 void
-pastePatternBlockCommand(Pattern & pattern, const vector<Command> & block, int num_rows,
+pastePatternBlockCommand(Scene & scene, const vector<Command> & block, int num_rows,
 			 int target_row, int track_id) {
   for (size_t row_offset = 0; row_offset < block.size(); row_offset++) {
     int row = target_row + static_cast<int>(row_offset);
     if (row < 0 || row >= num_rows) continue;
-    pattern.setCommand(row, track_id, block[row_offset]);
+    scene.setCommand(row, track_id, block[row_offset]);
   }
 }

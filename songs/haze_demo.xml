@@ -20,21 +20,27 @@
     <track id="snare" instrument="1" sendB="0.7"/>
     <track id="hat" instrument="2" sendB="0.5"/>
   </tracks>
-  <patterns>
-    <pattern>
-      <note row="0" track="kick" velocity="120">C-3</note>
-      <note row="4" track="snare" velocity="100">C-3</note>
-      <note row="8" track="kick" velocity="120">C-3</note>
-      <note row="10" track="kick" velocity="90">C-3</note>
-      <note row="12" track="snare" velocity="100">C-3</note>
-      <note row="0" track="hat" velocity="70">C-5</note>
-      <note row="2" track="hat" velocity="60">C-5</note>
-      <note row="4" track="hat" velocity="70">C-5</note>
-      <note row="6" track="hat" velocity="60">C-5</note>
-      <note row="8" track="hat" velocity="70">C-5</note>
-      <note row="10" track="hat" velocity="60">C-5</note>
-      <note row="12" track="hat" velocity="70">C-5</note>
-      <note row="14" track="hat" velocity="60">C-5</note>
-    </pattern>
-  </patterns>
+  <scenes>
+    <scene>
+      <pattern track="kick">
+        <note row="0" velocity="120">C-3</note>
+        <note row="8" velocity="120">C-3</note>
+        <note row="10" velocity="90">C-3</note>
+      </pattern>
+      <pattern track="snare">
+        <note row="4" velocity="100">C-3</note>
+        <note row="12" velocity="100">C-3</note>
+      </pattern>
+      <pattern track="hat">
+        <note row="0" velocity="70">C-5</note>
+        <note row="2" velocity="60">C-5</note>
+        <note row="4" velocity="70">C-5</note>
+        <note row="6" velocity="60">C-5</note>
+        <note row="8" velocity="70">C-5</note>
+        <note row="10" velocity="60">C-5</note>
+        <note row="12" velocity="70">C-5</note>
+        <note row="14" velocity="60">C-5</note>
+      </pattern>
+    </scene>
+  </scenes>
 </song>

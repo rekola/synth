@@ -67,22 +67,27 @@
     <track id="pad" instrument="1" />
   </tracks>
   
-  <patterns>
-    <pattern>
-      <note row="0" track="melody" velocity="40">C-4</note> <note row="0" track="melody2" velocity="40">F-4 A-4</note>
-      <note row="8" track="melody" velocity="40">G-4</note> <note row="8" track="melody2" velocity="40">C-4</note>
-      <note row="16" track="melody" velocity="40">A#4</note> <note row="16" track="melody2" velocity="40">OFF</note>
-      <note row="24" track="melody" velocity="40">A-4</note>
-      <note row="26" track="melody" velocity="40">G-4</note>
-      <note row="28" track="melody" velocity="40">F-4</note>
-
-      <note row="32" track="melody" velocity="40">A#4</note>
-      <note row="40" track="melody" velocity="40">A-4</note>
-      <note row="42" track="melody" velocity="40">G-4</note>
-      <note row="44" track="melody" velocity="40">F-4</note>
-
-      <note row="48" track="melody" velocity="40">A-4</note>
-      <note row="56" track="melody" velocity="40">G-4</note>
-    </pattern>
-  </patterns>
+  <scenes>
+    <scene>
+      <pattern track="melody">
+        <note row="0" velocity="40">C-4</note>
+        <note row="8" velocity="40">G-4</note>
+        <note row="16" velocity="40">A#4</note>
+        <note row="24" velocity="40">A-4</note>
+        <note row="26" velocity="40">G-4</note>
+        <note row="28" velocity="40">F-4</note>
+        <note row="32" velocity="40">A#4</note>
+        <note row="40" velocity="40">A-4</note>
+        <note row="42" velocity="40">G-4</note>
+        <note row="44" velocity="40">F-4</note>
+        <note row="48" velocity="40">A-4</note>
+        <note row="56" velocity="40">G-4</note>
+      </pattern>
+      <pattern track="melody2">
+        <note row="0" velocity="40">F-4 A-4</note>
+        <note row="8" velocity="40">C-4</note>
+        <note row="16" velocity="40">OFF</note>
+      </pattern>
+    </scene>
+  </scenes>
 </song>

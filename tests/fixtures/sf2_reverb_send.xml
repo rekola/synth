@@ -6,10 +6,12 @@
   <tracks>
     <track id="0" instrument="0"/>
   </tracks>
-  <patterns>
-    <pattern>
-      <note row="0" track="0" velocity="100" value="C-4"/>
-      <note row="4" track="0">OFF</note>
-    </pattern>
-  </patterns>
+  <scenes>
+    <scene>
+      <pattern track="0">
+        <note row="0" velocity="100" value="C-4" />
+        <note row="4">OFF</note>
+      </pattern>
+    </scene>
+  </scenes>
 </song>

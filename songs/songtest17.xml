@@ -16,47 +16,51 @@
         <track id="bass" instrument="0" azimuth="-45" distance="1" elevation="0" color="" sendA="0.1"/>
     </tracks>
     <sections/>
-    <patterns>
-        <pattern>
-            <note row="5" track="bass" velocity="23" delay="98">E-4</note>
-            <note row="6" track="bass" velocity="0" delay="80">OFF</note>
-            <note row="9" track="bass" velocity="48" delay="121">A-4</note>
-            <note row="10" track="bass" velocity="0" delay="102">OFF</note>
-            <note row="13" track="bass" velocity="69" delay="143">E-4</note>
-            <note row="14" track="bass" velocity="0" delay="77">OFF</note>
-            <note row="15" track="bass" velocity="45" delay="154">A-4</note>
-            <note row="16" track="bass" velocity="0" delay="183">OFF</note>
-            <note row="21" track="bass" velocity="61" delay="92">E-4</note>
-            <note row="22" track="bass" velocity="0" delay="74">OFF</note>
-            <note row="23" track="bass" velocity="82" delay="103">A-4</note>
-            <note row="24" track="bass" velocity="0" delay="37">OFF</note>
-            <note row="27" track="bass" velocity="61" delay="77">E-4</note>
-            <note row="28" track="bass" velocity="0" delay="59">OFF</note>
-            <note row="29" track="bass" velocity="65" delay="88">A-4</note>
-            <note row="30" track="bass" velocity="0" delay="70">OFF</note>
-            <note row="33" track="bass" velocity="35" delay="63">E-4</note>
-            <note row="34" track="bass" velocity="0" delay="45">OFF</note>
-            <note row="37" track="bass" velocity="78" delay="133">F-4</note>
-            <note row="38" track="bass" velocity="0" delay="19">OFF</note>
-            <note row="41" track="bass" velocity="70" delay="202">A-4</note>
-            <note row="42" track="bass" velocity="0" delay="41">OFF</note>
-            <note row="45" track="bass" velocity="80" delay="224">F-4</note>
-            <note row="46" track="bass" velocity="0" delay="111">OFF</note>
-            <note row="47" track="bass" velocity="83" delay="235">A-4</note>
-            <note row="48" track="bass" velocity="0" delay="122">OFF</note>
-            <note row="48" track="bass" column="1" velocity="1" delay="122">A-4</note>
-            <note row="53" track="bass" velocity="88" delay="126">F-4</note>
-            <note row="54" track="bass" velocity="0" delay="60">OFF</note>
-            <note row="56" track="bass" velocity="69" delay="24">A-4</note>
-            <note row="58" track="bass" velocity="23" delay="177">B-4</note>
-            <note row="59" track="bass" velocity="0" delay="16">OFF</note>
-            <note row="61" track="bass" velocity="17" delay="28">C-5</note>
-            <note row="63" track="bass" velocity="25" delay="181">B-4</note>
+    <scenes>
+      <scene>
+        <pattern track="bass">
+          <note row="5" velocity="23" delay="98">E-4</note>
+          <note row="6" velocity="0" delay="80">OFF</note>
+          <note row="9" velocity="48" delay="121">A-4</note>
+          <note row="10" velocity="0" delay="102">OFF</note>
+          <note row="13" velocity="69" delay="143">E-4</note>
+          <note row="14" velocity="0" delay="77">OFF</note>
+          <note row="15" velocity="45" delay="154">A-4</note>
+          <note row="16" velocity="0" delay="183">OFF</note>
+          <note row="21" velocity="61" delay="92">E-4</note>
+          <note row="22" velocity="0" delay="74">OFF</note>
+          <note row="23" velocity="82" delay="103">A-4</note>
+          <note row="24" velocity="0" delay="37">OFF</note>
+          <note row="27" velocity="61" delay="77">E-4</note>
+          <note row="28" velocity="0" delay="59">OFF</note>
+          <note row="29" velocity="65" delay="88">A-4</note>
+          <note row="30" velocity="0" delay="70">OFF</note>
+          <note row="33" velocity="35" delay="63">E-4</note>
+          <note row="34" velocity="0" delay="45">OFF</note>
+          <note row="37" velocity="78" delay="133">F-4</note>
+          <note row="38" velocity="0" delay="19">OFF</note>
+          <note row="41" velocity="70" delay="202">A-4</note>
+          <note row="42" velocity="0" delay="41">OFF</note>
+          <note row="45" velocity="80" delay="224">F-4</note>
+          <note row="46" velocity="0" delay="111">OFF</note>
+          <note row="47" velocity="83" delay="235">A-4</note>
+          <note row="48" velocity="0" delay="122">OFF</note>
+          <note row="48" column="1" velocity="1" delay="122">A-4</note>
+          <note row="53" velocity="88" delay="126">F-4</note>
+          <note row="54" velocity="0" delay="60">OFF</note>
+          <note row="56" velocity="69" delay="24">A-4</note>
+          <note row="58" velocity="23" delay="177">B-4</note>
+          <note row="59" velocity="0" delay="16">OFF</note>
+          <note row="61" velocity="17" delay="28">C-5</note>
+          <note row="63" velocity="25" delay="181">B-4</note>
         </pattern>
-	<pattern>
-	  <note row="0" track="bass">C-5</note>
-	  <note row="8" track="bass">B♭4</note>
-	  <note row="16" track="bass">B𝄫4</note>
-	</pattern>
-    </patterns>
+      </scene>
+      <scene>
+        <pattern track="bass">
+          <note row="0">C-5</note>
+          <note row="8">B♭4</note>
+          <note row="16">B𝄫4</note>
+        </pattern>
+      </scene>
+    </scenes>
 </song>

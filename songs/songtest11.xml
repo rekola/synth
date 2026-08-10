@@ -31,70 +31,80 @@
     
   </sections>
   
-  <patterns>   
-    <pattern>
-      <note row="0" track="pad" velocity="20">C-2 C-3 OFF</note>
-      <note row="16" track="pad" velocity="20">G-3 C-4</note>
-      <note row="32" track="pad" velocity="20">F-3 C-4 Ab4</note>
-
-      <note row="0" track="perc" velocity="20">CH</note>
-      <note row="4" track="perc" velocity="20">CH</note>
-      <note row="8" track="perc" velocity="20">CH</note>
-    </pattern>
-
-    <pattern>
-      <note row="0" track="pad" velocity="20">C-3 Eb4 OFF</note>
-      <note row="16" track="pad" velocity="20">G-3 Ebb3</note>
-      <note row="32" track="pad" velocity="20">G-3 C-4</note>
-
-      <note row="28" track="harp" velocity="40">Ab4</note>
-      <note row="30" track="harp" velocity="40">G-4</note>
-      <note row="32" track="harp" velocity="40">C-4</note>
-    </pattern>
-
-    <pattern>
-      <note row="0" track="guitar" velocity="20">C-4 G-4</note> <note row="0" track="pad" velocity="20">C-3 Eb3 G-3</note>
-      <note row="4" track="guitar" velocity="20">E𝄫4</note>
-      <note row="8" track="guitar" velocity="20">E♭4</note>
-      <note row="12" track="guitar" velocity="20">G-3</note>
-
-      <note row="16" track="guitar" velocity="20">G-4 C-5</note> <note row="16" track="pad" velocity="20">G-3 C-4 OFF</note> 
-      <note row="20" track="guitar" velocity="20">G-4 B𝄫4</note>
-      <note row="24" track="guitar" velocity="20">Ab4</note>
-      <note row="28" track="guitar" velocity="20">G-4</note>
-
-      <note row="32" track="guitar" velocity="20">F-4 C-5</note> <note row="32" track="pad" velocity="20">F-3 C-4 Ab4</note>
-      <note row="36" track="guitar" velocity="20">Eb4</note>     
-      <note row="40" track="guitar" velocity="20">E𝄫4</note>     
-      <note row="44" track="guitar" velocity="20">C-4</note>     
-
-      <note row="48" track="guitar" velocity="20">F-4 C-5</note> 
-      <note row="52" track="guitar" velocity="20">Eb4</note>     
-      <note row="56" track="guitar" velocity="20">E𝄫4</note>     
-      <note row="60" track="guitar" velocity="20">C-4</note>     
-
-    </pattern>
-
-    <pattern>
-      <note row="0" track="guitar" velocity="20">C-4 G-4</note> <note row="0" track="pad" velocity="20">C-3 Eb3 G-3</note>
-      <note row="4" track="guitar" velocity="20">E𝄫4</note>
-      <note row="8" track="guitar" velocity="20">E♭4</note>
-      <note row="12" track="guitar" velocity="20">G-3</note>
-
-      <note row="16" track="guitar" velocity="20">G-4 C-5</note> <note row="16" track="pad" velocity="20">G-3 C-4 OFF</note> 
-      <note row="20" track="guitar" velocity="20">G-4 B𝄫4</note>
-      <note row="24" track="guitar" velocity="20">Ab4</note>
-      <note row="28" track="guitar" velocity="20">G-4</note>
-
-      <note row="32" track="guitar" velocity="20">F-4 C-5</note> <note row="32" track="pad" velocity="20">F-3 Ab4 C-4</note>
-      <note row="36" track="guitar" velocity="20">Eb4</note>     
-      <note row="40" track="guitar" velocity="20">E𝄫4</note>     
-      <note row="44" track="guitar" velocity="20">C-4</note>     
-
-      <note row="48" track="guitar" velocity="20">F-4 C-5</note> 
-      <note row="52" track="guitar" velocity="20">Eb4</note>     
-      <note row="56" track="guitar" velocity="20">E𝄫4</note>     
-      <note row="60" track="guitar" velocity="20">C-4</note>
-    </pattern>
-</patterns>
+  <scenes>
+    <scene>
+      <pattern track="pad">
+        <note row="0" velocity="20">C-2 C-3 OFF</note>
+        <note row="16" velocity="20">G-3 C-4</note>
+        <note row="32" velocity="20">F-3 C-4 Ab4</note>
+      </pattern>
+      <pattern track="perc">
+        <note row="0" velocity="20">CH</note>
+        <note row="4" velocity="20">CH</note>
+        <note row="8" velocity="20">CH</note>
+      </pattern>
+    </scene>
+    <scene>
+      <pattern track="pad">
+        <note row="0" velocity="20">C-3 Eb4 OFF</note>
+        <note row="16" velocity="20">G-3 Ebb3</note>
+        <note row="32" velocity="20">G-3 C-4</note>
+      </pattern>
+      <pattern track="harp">
+        <note row="28" velocity="40">Ab4</note>
+        <note row="30" velocity="40">G-4</note>
+        <note row="32" velocity="40">C-4</note>
+      </pattern>
+    </scene>
+    <scene>
+      <pattern track="guitar">
+        <note row="0" velocity="20">C-4 G-4</note>
+        <note row="4" velocity="20">E𝄫4</note>
+        <note row="8" velocity="20">E♭4</note>
+        <note row="12" velocity="20">G-3</note>
+        <note row="16" velocity="20">G-4 C-5</note>
+        <note row="20" velocity="20">G-4 B𝄫4</note>
+        <note row="24" velocity="20">Ab4</note>
+        <note row="28" velocity="20">G-4</note>
+        <note row="32" velocity="20">F-4 C-5</note>
+        <note row="36" velocity="20">Eb4</note>
+        <note row="40" velocity="20">E𝄫4</note>
+        <note row="44" velocity="20">C-4</note>
+        <note row="48" velocity="20">F-4 C-5</note>
+        <note row="52" velocity="20">Eb4</note>
+        <note row="56" velocity="20">E𝄫4</note>
+        <note row="60" velocity="20">C-4</note>
+      </pattern>
+      <pattern track="pad">
+        <note row="0" velocity="20">C-3 Eb3 G-3</note>
+        <note row="16" velocity="20">G-3 C-4 OFF</note>
+        <note row="32" velocity="20">F-3 C-4 Ab4</note>
+      </pattern>
+    </scene>
+    <scene>
+      <pattern track="guitar">
+        <note row="0" velocity="20">C-4 G-4</note>
+        <note row="4" velocity="20">E𝄫4</note>
+        <note row="8" velocity="20">E♭4</note>
+        <note row="12" velocity="20">G-3</note>
+        <note row="16" velocity="20">G-4 C-5</note>
+        <note row="20" velocity="20">G-4 B𝄫4</note>
+        <note row="24" velocity="20">Ab4</note>
+        <note row="28" velocity="20">G-4</note>
+        <note row="32" velocity="20">F-4 C-5</note>
+        <note row="36" velocity="20">Eb4</note>
+        <note row="40" velocity="20">E𝄫4</note>
+        <note row="44" velocity="20">C-4</note>
+        <note row="48" velocity="20">F-4 C-5</note>
+        <note row="52" velocity="20">Eb4</note>
+        <note row="56" velocity="20">E𝄫4</note>
+        <note row="60" velocity="20">C-4</note>
+      </pattern>
+      <pattern track="pad">
+        <note row="0" velocity="20">C-3 Eb3 G-3</note>
+        <note row="16" velocity="20">G-3 C-4 OFF</note>
+        <note row="32" velocity="20">F-3 Ab4 C-4</note>
+      </pattern>
+    </scene>
+  </scenes>
 </song>

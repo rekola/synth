@@ -42,17 +42,21 @@
     <track id="4" instrument="4" sendA="0.2" azimuth="60" distance="1" />
   </tracks>
   
-  <patterns>
-    <pattern>     
-      <note row="16" track="0" velocity="40">C-3</note>
-      <note row="16" track="1" velocity="40">C-4 D#4 F-4</note>
-      <note row="16" track="2" velocity="40">F-5</note>
-
-      <note row="32" track="0" velocity="40">Eb3</note>
-      <note row="32" track="1" velocity="40">Eb4 G-4 Bb4</note>
-
-      <note row="48" track="1" velocity="40">C-4</note>
-      <note row="48" track="2" velocity="40">F-4</note>
-    </pattern>
-  </patterns>
+  <scenes>
+    <scene>
+      <pattern track="0">
+        <note row="16" velocity="40">C-3</note>
+        <note row="32" velocity="40">Eb3</note>
+      </pattern>
+      <pattern track="1">
+        <note row="16" velocity="40">C-4 D#4 F-4</note>
+        <note row="32" velocity="40">Eb4 G-4 Bb4</note>
+        <note row="48" velocity="40">C-4</note>
+      </pattern>
+      <pattern track="2">
+        <note row="16" velocity="40">F-5</note>
+        <note row="48" velocity="40">F-4</note>
+      </pattern>
+    </scene>
+  </scenes>
 </song>

@@ -88,10 +88,14 @@ class SongState : public TrackState {
 	// player is actually doing, only for the song's own old content.
 	if (getSamplePos() == 0 && !recording_muted_) {
 	  auto [ pattern_idx, row_idx ] = getRelativePosition(song);
-	  auto & pattern = song.getPattern(pattern_idx);
-	  auto & notes = pattern.getNotes(row_idx);
+	  auto & scene = song.getScene(pattern_idx);
 
-	  for (auto & [ track_id, notes ] : notes) {
+	  // Every track that has anything at all in this scene, each its own
+	  // Pattern now (see Scene.h's own comment) - was one shared
+	  // row->track_id->notes/commands lookup on the old flat class this
+	  // scene used to be.
+	  for (auto & [ track_id, track_pattern ] : scene.getPatternsByTrack()) {
+	    auto & notes = track_pattern.getNotes(row_idx);
 	    auto track = song.getTrackByInternalId(track_id);
 	    auto tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
 
@@ -110,15 +114,16 @@ class SongState : public TrackState {
 		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), frequency, velocity, note_value);
 	      }
 	    }
-	  }
-	  auto & commands = pattern.getCommands(row_idx);
-	  for (auto & [ track_id, command ] : commands) {
-	    // render_context_.addPendingEvent(col, i, command);
-	    if (command.isPatternBreak()) {
-	      pending_break_ = true;
-	      pending_break_row_ = command.getBreakDestinationRow();
-	    } else if (command.isAzimuthSlide()) {
-	      scheduleAzimuthSlide(track_id, i, command.getAzimuthSlidePerTick());
+
+	    auto & command = track_pattern.getCommand(row_idx);
+	    if (command.isDefined()) {
+	      // render_context_.addPendingEvent(col, i, command);
+	      if (command.isPatternBreak()) {
+		pending_break_ = true;
+		pending_break_row_ = command.getBreakDestinationRow();
+	      } else if (command.isAzimuthSlide()) {
+		scheduleAzimuthSlide(track_id, i, command.getAzimuthSlidePerTick());
+	      }
 	    }
 	  }
 

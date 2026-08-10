@@ -225,7 +225,7 @@ TEST(drum_machine_track_round_trips_through_save_and_load) {
   // 49 stays all-rest (0), exercising the all-zero-steps case on save/load.
 
   song.setPatternLength(8);
-  song.addPattern();
+  song.addScene();
   song.save(scratch_path);
 
   auto provider = makeProvider();

@@ -18,15 +18,17 @@
     <track id="0" instrument="0" />
   </tracks>
   
-  <patterns>   
-    <pattern>
-      <note track="0" row="0" velocity="40">C-4</note>
-      <note track="0" row="4" velocity="40">Cx4</note>
-      <note track="0" row="8" velocity="40">D#4</note>
-      <note track="0" row="12" velocity="40">F-4</note>
-      <note track="0" row="16" velocity="40">D#4</note>
-      <note track="0" row="20" velocity="40">Cx4</note>
-      <note track="0" row="24" velocity="40">C-4</note>
-    </pattern>
-  </patterns>
+  <scenes>
+    <scene>
+      <pattern track="0">
+        <note row="0" velocity="40">C-4</note>
+        <note row="4" velocity="40">Cx4</note>
+        <note row="8" velocity="40">D#4</note>
+        <note row="12" velocity="40">F-4</note>
+        <note row="16" velocity="40">D#4</note>
+        <note row="20" velocity="40">Cx4</note>
+        <note row="24" velocity="40">C-4</note>
+      </pattern>
+    </scene>
+  </scenes>
 </song>

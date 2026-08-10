@@ -18,32 +18,35 @@
     <track id="1" instrument="0" sendA="0.35" distance="1" azimuth="80"/>
   </tracks>
   
-  <patterns>
-    <pattern>
-      <note row="0" track="0" velocity="40">C-4</note>
-      <note row="2" track="0" velocity="40">C-4</note>
-      <note row="4" track="0" velocity="40">Db4</note>
-      <note row="6" track="0" velocity="40">D-4</note>
-      <note row="6" track="1" velocity="30">D-3 A-3 F-3</note>
-
-      <note row="10" track="0" velocity="40" value="G-4"/>
-      <note row="12" track="0" velocity="40" value="A-4"/>
-      <note row="14" track="0" velocity="40" value="A#4"/>
-      <note row="14" track="1" velocity="30">A#3 C-4 D#4</note>
-
-      <note row="16" track="0" velocity="40" value="Db4"/>
-      <note row="18" track="0" velocity="40" value="Db4"/>
-      <note row="20" track="0" velocity="40" value="D-4"/>
-      <note row="22" track="0" velocity="40" value="D#4"/>
-      <note row="22" track="1" velocity="30">D#3 F-3 A#3</note>
-    </pattern>
-
-    <pattern>
-      <note row="0" track="0" velocity="40" value="F#4"/>
-      <note row="2" track="0" velocity="40" value="F-4"/>
-      <note row="4" track="0" velocity="40" value="F#4"/>
-      <note row="6" track="0" velocity="40" value="D-4"/>
-      <note row="8" track="0" velocity="40" value="Db4"/>
-    </pattern>
-  </patterns>
+  <scenes>
+    <scene>
+      <pattern track="0">
+        <note row="0" velocity="40">C-4</note>
+        <note row="2" velocity="40">C-4</note>
+        <note row="4" velocity="40">Db4</note>
+        <note row="6" velocity="40">D-4</note>
+        <note row="10" velocity="40" value="G-4" />
+        <note row="12" velocity="40" value="A-4" />
+        <note row="14" velocity="40" value="A#4" />
+        <note row="16" velocity="40" value="Db4" />
+        <note row="18" velocity="40" value="Db4" />
+        <note row="20" velocity="40" value="D-4" />
+        <note row="22" velocity="40" value="D#4" />
+      </pattern>
+      <pattern track="1">
+        <note row="6" velocity="30">D-3 A-3 F-3</note>
+        <note row="14" velocity="30">A#3 C-4 D#4</note>
+        <note row="22" velocity="30">D#3 F-3 A#3</note>
+      </pattern>
+    </scene>
+    <scene>
+      <pattern track="0">
+        <note row="0" velocity="40" value="F#4" />
+        <note row="2" velocity="40" value="F-4" />
+        <note row="4" velocity="40" value="F#4" />
+        <note row="6" velocity="40" value="D-4" />
+        <note row="8" velocity="40" value="Db4" />
+      </pattern>
+    </scene>
+  </scenes>
 </song>

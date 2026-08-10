@@ -129,7 +129,7 @@ static unique_ptr<Track> createTrack(string_view name) {
 // element, not a nested Track, so it's parsed/written here directly
 // rather than through parseChildTrack()/storeChildTrack()'s generic
 // per-child-track recursion (which would otherwise try to createTrack()
-// it and fail). Mirrors the hand-written <bus>/<patterns> shape elsewhere
+// it and fail). Mirrors the hand-written <bus>/<scenes> shape elsewhere
 // in this file rather than reusing that generic recursion, for the same
 // reason those aren't generic either: the child data isn't itself a Track.
 static void loadDrumMachineData(DrumMachineTrack & track, XMLElement * drum_machine_element) {
@@ -374,73 +374,66 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
       }
     }
     
-    auto patterns = song->FirstChildElement("patterns");
-    if (patterns) {
-      for (auto it = patterns->FirstChildElement("pattern"); it ; it = it->NextSiblingElement("pattern") ) {
-	auto & pattern = addPattern(Pattern());
-	pattern.loadParameters(XMLParameterSource(it));
-	
-	for (auto it2 = it->FirstChildElement("note"); it2 ; it2 = it2->NextSiblingElement("note")) {
-	  auto track_text = it2->Attribute("track");
-	  auto row_text = it2->Attribute("row");
-	  auto column_text = it2->Attribute("column");
-	  auto velocity_text = it2->Attribute("velocity");
-	  auto delay_text = it2->Attribute("delay");
-
-	  auto value_text = it2->GetText();
-	  if (!value_text) value_text = it2->Attribute("value");	  
-	  
-	  if (track_text && value_text) {
-	    int row = row_text ? atoi(row_text) : 0;
-	    int start_column = column_text ? atoi(column_text) : 0;
-	    int velocity = velocity_text ? atoi(velocity_text) : constants::DEFAULT_VELOCITY;
-	    int delay = delay_text ? atoi(delay_text) : 0;
-
-	    auto track = resolveTrackReference(*this, track_text);
-	    if (track) {
-	      auto track_id = track->getInternalId();
-	      auto tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : getTuning();
-	      auto notes = Note::createFromString(value_text, velocity, delay, tuning);
-	      for (int i = 0; i < static_cast<int>(notes.size()); i++) {
-		pattern.setNote(row, track_id, start_column + i, notes[i]);
-	      }	      
-	    }
-	  }
-	}
+    auto scenes = song->FirstChildElement("scenes");
+    if (scenes) {
+      for (auto it = scenes->FirstChildElement("scene"); it ; it = it->NextSiblingElement("scene") ) {
+	auto & scene = addScene(Scene());
+	scene.loadParameters(XMLParameterSource(it));
 
 	for (auto it2 = it->FirstChildElement("annotation"); it2; it2 = it2->NextSiblingElement("annotation")) {
 	  auto row_text = it2->Attribute("row");
 	  if (row_text) {
 	    int row = atoi(row_text);
 	    auto s = it2->GetText();
-	    pattern.setAnnotation(row, s ? s : "");
+	    scene.setAnnotation(row, s ? s : "");
 	  }
 	}
 
-	for (auto it2 = it->FirstChildElement("command"); it2; it2 = it2->NextSiblingElement("command")) {
-	  auto track_text = it2->Attribute("track");
-	  auto row_text = it2->Attribute("row");
-	  auto data_text = it2->Attribute("data");
-
-	  auto track = track_text ? resolveTrackReference(*this, track_text) : nullptr;
-	  int row = row_text ? atoi(row_text) : 0;
-
-	  if (data_text && track) {
-	    Command command(data_text);
-	    pattern.setCommand(row, track->getInternalId(), command);
-	  }
-	}	
-      }
-    }
-
-    auto sections = song->FirstChildElement("sections");
-    if (sections) {
-      for (auto it = patterns->FirstChildElement("section"); it ; it = it->NextSiblingElement("section") ) {
-	auto & section = addSection(Section());
-	section.loadParameters(XMLParameterSource(it));
-
+	// One <pattern track="..."> per track that has anything at this
+	// scene - <note>/<command> no longer carry their own "track"
+	// attribute (see the class's own header comment): which track
+	// they belong to is resolved once per <pattern>, not once per
+	// child element.
 	for (auto it2 = it->FirstChildElement("pattern"); it2 ; it2 = it2->NextSiblingElement("pattern")) {
-	  
+	  auto track_text = it2->Attribute("track");
+	  auto track = track_text ? resolveTrackReference(*this, track_text) : nullptr;
+	  if (!track) continue;
+
+	  auto track_id = track->getInternalId();
+	  auto tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : getTuning();
+
+	  for (auto it3 = it2->FirstChildElement("note"); it3 ; it3 = it3->NextSiblingElement("note")) {
+	    auto row_text = it3->Attribute("row");
+	    auto column_text = it3->Attribute("column");
+	    auto velocity_text = it3->Attribute("velocity");
+	    auto delay_text = it3->Attribute("delay");
+
+	    auto value_text = it3->GetText();
+	    if (!value_text) value_text = it3->Attribute("value");
+
+	    if (value_text) {
+	      int row = row_text ? atoi(row_text) : 0;
+	      int start_column = column_text ? atoi(column_text) : 0;
+	      int velocity = velocity_text ? atoi(velocity_text) : constants::DEFAULT_VELOCITY;
+	      int delay = delay_text ? atoi(delay_text) : 0;
+
+	      auto notes = Note::createFromString(value_text, velocity, delay, tuning);
+	      for (int i = 0; i < static_cast<int>(notes.size()); i++) {
+		scene.setNote(row, track_id, start_column + i, notes[i]);
+	      }
+	    }
+	  }
+
+	  for (auto it3 = it2->FirstChildElement("command"); it3; it3 = it3->NextSiblingElement("command")) {
+	    auto row_text = it3->Attribute("row");
+	    auto data_text = it3->Attribute("data");
+
+	    if (data_text) {
+	      int row = row_text ? atoi(row_text) : 0;
+	      Command command(data_text);
+	      scene.setCommand(row, track_id, command);
+	    }
+	  }
 	}
       }
     }
@@ -472,88 +465,76 @@ Song::save(const std::string & filename) const {
   auto tracks = doc.NewElement("tracks");
   root->InsertEndChild(tracks);
 
-  auto sections = doc.NewElement("sections");
-  root->InsertEndChild(sections);
+  auto scenes = doc.NewElement("scenes");
+  root->InsertEndChild(scenes);
 
-  for (auto & section : getSections()) {
-    auto section_element = doc.NewElement("section");
-    XMLParameterSource section_parameters(section_element);
-    section.storeParameters(section_parameters);
-
-    sections->InsertEndChild(section_element);
-  }
-  
-  auto patterns = doc.NewElement("patterns");
-  root->InsertEndChild(patterns);
-
-  for (auto & pattern : getPatterns()) {     
-    auto pattern_element = doc.NewElement("pattern");
-    XMLParameterSource pattern_parameters(pattern_element);
-    pattern.storeParameters(pattern_parameters);
+  for (auto & scene : getScenes()) {
+    auto scene_element = doc.NewElement("scene");
+    XMLParameterSource scene_parameters(scene_element);
+    scene.storeParameters(scene_parameters);
 
     for (int row = 0; row < getPatternLength(); row++) {
-      auto & notes = pattern.getNotes(row);
-
-      for (auto & [ track_id, nv ] : notes) {
-	// TODO: check if velocity and delay are same, and store notes in single element
-
-	auto track = getTrackByInternalId(track_id);
-	assert(track);
-	// A DrumMachineTrack's sequence lives on the track itself (see
-	// DrumMachineTrack.h) - it must never end up referenced from Pattern
-	// row data, since that data is silently ignored on load (parseChildTrack
-	// never routes <note> elements to it, only Song::open()'s own
-	// <patterns> handling does, keyed by whatever track_id happens to be
-	// stored) and would otherwise be lost without any error.
-	assert(!track || track->getType() != TrackType::DRUM_MACHINE);
-
-	if (track) {
-	  auto track_tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : getTuning();
-	  // Prefers track's own textual id (see trackReferenceText's own
-	  // comment) over track_id's raw numeric value, so a track with an
-	  // authored id keeps being referenced by it after a save/reload
-	  // round trip rather than silently downgrading to a number - see
-	  // resolveTrackReference(), the load-side counterpart this exists
-	  // to stay resolvable against.
-	  auto track_ref = !track->getId().empty() ? track->getId() : to_string(track_id);
-
-	  for (size_t col = 0; col < nv.size(); col++) {
-	    auto & note = nv[col];
-	    auto note_text = note.toString(track_tuning);
-	    auto note_element = doc.NewElement("note");
-	    note_element->SetAttribute("row", row);
-	    note_element->SetAttribute("track", track_ref.c_str());
-	    if (col > 0) note_element->SetAttribute("column", col);
-	    if (note.getVelocity() != constants::DEFAULT_VELOCITY) note_element->SetAttribute("velocity", note.getVelocity());
-	    if (note.getDelay() > 0) note_element->SetAttribute("delay", note.getDelay());
-	    note_element->SetText(note_text.c_str());
-	    pattern_element->InsertEndChild(note_element);
-	  }
-	}
-      }
-
-      auto & commands = pattern.getCommands(row);
-      for (auto & [ track_id, command ] : commands) {
-	auto data = to_string(command);
-	auto track_ref = trackReferenceText(*this, track_id);
-
-	auto command_element = doc.NewElement("command");
-	command_element->SetAttribute("row", row);
-	command_element->SetAttribute("track", track_ref.c_str());
-	command_element->SetAttribute("data", data.c_str());
-	pattern_element->InsertEndChild(command_element);
-      }
-
-      auto & annotation = pattern.getAnnotation(row);
+      auto & annotation = scene.getAnnotation(row);
       if (!annotation.empty()) {
 	auto annotation_element = doc.NewElement("annotation");
 	annotation_element->SetAttribute("row", row);
 	annotation_element->SetText(annotation.c_str());
-	pattern_element->InsertEndChild(annotation_element);      
+	scene_element->InsertEndChild(annotation_element);
       }
     }
-    
-    patterns->InsertEndChild(pattern_element);
+
+    // One <pattern track="..."> per track that has anything in this scene -
+    // "track" moves here from every <note>/<command> (see this class's own
+    // header comment), so it's resolved once per track instead of once per
+    // element.
+    for (auto & [ track_id, pattern ] : scene.getPatternsByTrack()) {
+      auto track = getTrackByInternalId(track_id);
+      assert(track);
+      // A DrumMachineTrack's sequence lives on the track itself (see
+      // DrumMachineTrack.h) - it must never end up referenced from Pattern
+      // row data, since that data is silently ignored on load (parseChildTrack
+      // never routes <note> elements to it, only Song::open()'s own
+      // <scenes> handling does, keyed by whatever track_id happens to be
+      // stored) and would otherwise be lost without any error.
+      assert(!track || track->getType() != TrackType::DRUM_MACHINE);
+      if (!track) continue;
+
+      auto track_tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : getTuning();
+      auto track_ref = trackReferenceText(*this, track_id);
+
+      auto pattern_element = doc.NewElement("pattern");
+      pattern_element->SetAttribute("track", track_ref.c_str());
+
+      for (int row = 0; row < getPatternLength(); row++) {
+	auto & nv = pattern.getNotes(row);
+
+	// TODO: check if velocity and delay are same, and store notes in single element
+	for (size_t col = 0; col < nv.size(); col++) {
+	  auto & note = nv[col];
+	  auto note_text = note.toString(track_tuning);
+	  auto note_element = doc.NewElement("note");
+	  note_element->SetAttribute("row", row);
+	  if (col > 0) note_element->SetAttribute("column", col);
+	  if (note.getVelocity() != constants::DEFAULT_VELOCITY) note_element->SetAttribute("velocity", note.getVelocity());
+	  if (note.getDelay() > 0) note_element->SetAttribute("delay", note.getDelay());
+	  note_element->SetText(note_text.c_str());
+	  pattern_element->InsertEndChild(note_element);
+	}
+      }
+
+      for (auto & [ row, command ] : pattern.getCommands() ) {
+	auto data = to_string(command);
+
+	auto command_element = doc.NewElement("command");
+	command_element->SetAttribute("row", row);
+	command_element->SetAttribute("data", data.c_str());
+	pattern_element->InsertEndChild(command_element);
+      }
+
+      scene_element->InsertEndChild(pattern_element);
+    }
+
+    scenes->InsertEndChild(scene_element);
   }
 
   for (auto & track : getTracks()) {
@@ -589,7 +570,7 @@ Song::loadParameters(const ParameterSource & input) {
 
   // The bus (reverb/delay/...) is not a <song> attribute - it's the
   // <bus> child element, parsed separately in Song::open() (mirroring
-  // how <tracks>/<instruments>/<patterns> are handled there too, not
+  // how <tracks>/<instruments>/<scenes> are handled there too, not
   // here). resetBusToDefaults() puts both slots back at their compiled
   // defaults first, so a Song object reused for a second open() call
   // doesn't retain a stale bus configuration from whatever it loaded

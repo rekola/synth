@@ -31,8 +31,7 @@
     </drumMachineTrack>
     <percussionTrack id="perc" sendA="0.1" sendB="0.0" instrument="4" azimuth="0" distance="0.9" />
   </tracks>
-  <patterns>
-    <pattern>
-    </pattern>
-  </patterns>
+  <scenes>
+    <scene />
+  </scenes>
 </song>

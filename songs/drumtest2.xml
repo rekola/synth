@@ -32,40 +32,42 @@
     <percussionTrack id="perc" instrument="1" />
   </tracks>
   
-  <patterns>
-    <pattern>
-      <note track="perc" row="0" velocity="40" delay="60">CH BD</note>
-      <note track="perc" row="2" velocity="40">OFF BD</note>
-      <note track="perc" row="4" velocity="40" delay="60">CH</note>
-      <note track="perc" row="6" velocity="40">CH</note>
-      <note track="perc" row="8" velocity="40" delay="60">CH SD CL</note>
-      <note track="perc" row="10" velocity="40">CH</note>
-      <note track="perc" row="12" velocity="40" delay="60">CH</note>
-      <note track="perc" row="14" velocity="40">BD</note>
-      <note track="perc" row="16" velocity="40" delay="60">CH</note>
-      <note track="perc" row="18" velocity="40">CH BD</note>
-      <note track="perc" row="20" velocity="40" delay="60">CH BD</note>
-      <note track="perc" row="24" velocity="40">CH SD</note>      
-      <note track="perc" row="28" velocity="40" delay="60">CH BD</note>
-      <note track="perc" row="30" velocity="40">CH</note>
-    </pattern>
-    
-    <pattern>
-      <note track="perc" row="0" velocity="40">BD CH</note>
-      <note track="perc" row="2" velocity="40">BD</note>
-      <note track="perc" row="4" velocity="40">CH</note>
-      <note track="perc" row="6" velocity="40">CH</note>
-      <note track="perc" row="8" velocity="40">SD CH</note>
-      <note track="perc" row="10" velocity="40">CH</note>
-      <note track="perc" row="12" velocity="40">CH</note>
-      <note track="perc" row="14" velocity="40">BD</note>
-      <note track="perc" row="16" velocity="40">CH</note>
-      <note track="perc" row="18" velocity="40">CH BD</note>
-      <note track="perc" row="20" velocity="40">CH BD</note>
-      <note track="perc" row="24" velocity="40">SD CH</note>      
-      <note track="perc" row="28" velocity="40">BD CH</note>
-      <note track="perc" row="30" velocity="40">CH</note>
-    </pattern>
-
-  </patterns>
+  <scenes>
+    <scene>
+      <pattern track="perc">
+        <note row="0" velocity="40" delay="60">CH BD</note>
+        <note row="2" velocity="40">OFF BD</note>
+        <note row="4" velocity="40" delay="60">CH</note>
+        <note row="6" velocity="40">CH</note>
+        <note row="8" velocity="40" delay="60">CH SD CL</note>
+        <note row="10" velocity="40">CH</note>
+        <note row="12" velocity="40" delay="60">CH</note>
+        <note row="14" velocity="40">BD</note>
+        <note row="16" velocity="40" delay="60">CH</note>
+        <note row="18" velocity="40">CH BD</note>
+        <note row="20" velocity="40" delay="60">CH BD</note>
+        <note row="24" velocity="40">CH SD</note>
+        <note row="28" velocity="40" delay="60">CH BD</note>
+        <note row="30" velocity="40">CH</note>
+      </pattern>
+    </scene>
+    <scene>
+      <pattern track="perc">
+        <note row="0" velocity="40">BD CH</note>
+        <note row="2" velocity="40">BD</note>
+        <note row="4" velocity="40">CH</note>
+        <note row="6" velocity="40">CH</note>
+        <note row="8" velocity="40">SD CH</note>
+        <note row="10" velocity="40">CH</note>
+        <note row="12" velocity="40">CH</note>
+        <note row="14" velocity="40">BD</note>
+        <note row="16" velocity="40">CH</note>
+        <note row="18" velocity="40">CH BD</note>
+        <note row="20" velocity="40">CH BD</note>
+        <note row="24" velocity="40">SD CH</note>
+        <note row="28" velocity="40">BD CH</note>
+        <note row="30" velocity="40">CH</note>
+      </pattern>
+    </scene>
+  </scenes>
 </song>

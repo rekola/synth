@@ -16,24 +16,26 @@
         <track id="bass" instrument="0" azimuth="-45" distance="1" elevation="0" color="" sendA="0.1" noteColumns="2"/>
     </tracks>
     <sections/>
-    <patterns>
-        <pattern>
-            <note row="28" track="bass" velocity="40">C-4</note>
-            <note row="30" track="bass" velocity="0">···</note>
-            <note row="30" track="bass" column="1" velocity="40">E𝄫4</note>
-            <note row="32" track="bass" velocity="40">E♭4</note>
-            <note row="34" track="bass" velocity="0">···</note>
-            <note row="34" track="bass" column="1" velocity="40">G-4</note>
-            <note row="40" track="bass" velocity="40">E𝄫4</note>
-            <note row="42" track="bass" velocity="0">···</note>
-            <note row="42" track="bass" column="1" velocity="40">F-4</note>
-            <note row="44" track="bass" velocity="40">B𝄫4</note>
-            <note row="46" track="bass" velocity="0">···</note>
-            <note row="46" track="bass" column="1" velocity="40">C-5</note>
-            <note row="52" track="bass" velocity="40">C𝄪4</note>
-            <note row="54" track="bass" velocity="0">···</note>
-            <note row="54" track="bass" column="1" velocity="40">E♭4</note>
-            <note row="56" track="bass" velocity="40">E𝄫4</note>
+    <scenes>
+      <scene>
+        <pattern track="bass">
+          <note row="28" velocity="40">C-4</note>
+          <note row="30" velocity="0">···</note>
+          <note row="30" column="1" velocity="40">E𝄫4</note>
+          <note row="32" velocity="40">E♭4</note>
+          <note row="34" velocity="0">···</note>
+          <note row="34" column="1" velocity="40">G-4</note>
+          <note row="40" velocity="40">E𝄫4</note>
+          <note row="42" velocity="0">···</note>
+          <note row="42" column="1" velocity="40">F-4</note>
+          <note row="44" velocity="40">B𝄫4</note>
+          <note row="46" velocity="0">···</note>
+          <note row="46" column="1" velocity="40">C-5</note>
+          <note row="52" velocity="40">C𝄪4</note>
+          <note row="54" velocity="0">···</note>
+          <note row="54" column="1" velocity="40">E♭4</note>
+          <note row="56" velocity="40">E𝄫4</note>
         </pattern>
-    </patterns>
+      </scene>
+    </scenes>
 </song>

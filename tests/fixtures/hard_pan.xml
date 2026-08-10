@@ -9,10 +9,14 @@
     <track id="0" instrument="0" azimuth="-90"/>
     <track id="1" instrument="0" azimuth="90"/>
   </tracks>
-  <patterns>
-    <pattern>
-      <note row="0" track="0" velocity="80" value="C-4"/>
-      <note row="0" track="1" velocity="80" value="C-4"/>
-    </pattern>
-  </patterns>
+  <scenes>
+    <scene>
+      <pattern track="0">
+        <note row="0" velocity="80" value="C-4" />
+      </pattern>
+      <pattern track="1">
+        <note row="0" velocity="80" value="C-4" />
+      </pattern>
+    </scene>
+  </scenes>
 </song>

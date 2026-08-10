@@ -8,9 +8,11 @@
   <tracks>
     <track id="0" instrument="0" sendB="0.5"/>
   </tracks>
-  <patterns>
-    <pattern>
-      <note row="0" track="0" velocity="80" value="C-4"/>
-    </pattern>
-  </patterns>
+  <scenes>
+    <scene>
+      <pattern track="0">
+        <note row="0" velocity="80" value="C-4" />
+      </pattern>
+    </scene>
+  </scenes>
 </song>

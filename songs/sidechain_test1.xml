@@ -47,114 +47,212 @@
     <track id="riser" instrument="3" />
   </tracks>
   
-  <patterns>
-    <pattern>
-      <note row="0" track="perc">BD</note> <note row="0" track="chords">F-4 A-4 C-5</note> <note row="0" track="pad">F-4</note> <note row="0" track="riser" velocity="50">OFF</note>
-      <note row="2" track="perc3">CH</note>
-      <note row="4" track="perc">BD</note> <note row="4" track="perc2">SD</note>
-      <note row="6" track="perc3">CH</note>
-      <note row="8" track="perc">BD</note>
-      <note row="10" track="perc3">CH</note>
-      <note row="12" track="perc">BD</note> <note row="12" track="perc2">SD</note>
-      <note row="14" track="perc3">CH</note>
-      <note row="16" track="perc">BD</note> <note row="16" track="chords">C-5 E-5 G-5</note> <note row="16" track="pad">C-5</note>
-      <note row="18" track="perc3">CH</note>
-      <note row="20" track="perc">BD</note> <note row="20" track="perc2">SD</note>
-      <note row="22" track="perc3">CH</note>
-      <note row="24" track="perc">BD</note>
-      <note row="26" track="perc3">CH</note>
-      <note row="28" track="perc">BD</note> <note row="28" track="perc2">SD</note>
-      <note row="30" track="perc3">CH</note> <note row="30" track="perc2">SD</note>
-      <note row="32" track="perc">BD</note> <note row="32" track="chords">E-4 C-5 A-5</note> <note row="32" track="pad">E-4</note> 
-      <note row="34" track="perc3">CH</note>
-      <note row="36" track="perc">BD</note> <note row="36" track="perc2">SD</note>
-      <note row="38" track="perc3">CH</note>
-      <note row="40" track="perc">BD</note>
-      <note row="42" track="perc3">CH</note>
-      <note row="44" track="perc">BD</note> <note row="44" track="perc2">SD</note>
-      <note row="46" track="perc3">CH</note>
-      <note row="48" track="perc">BD</note> <note row="48" track="chords">D-4 F-4 A-4</note> <note row="48" track="pad">D-4</note> <note row="48" track="riser" velocity="50">A-1</note>
-      <note row="50" track="perc3">CH</note>
-      <note row="52" track="perc">BD</note> <note row="52" track="perc2">SD</note>
-      <note row="54" track="perc3">CH</note>
-      <note row="56" track="perc">BD</note>
-      <note row="58" track="perc3">CH</note>
-      <note row="60" track="perc">BD</note> <note row="60" track="perc2">SD</note>
-      <note row="62" track="perc3">CH</note> <note row="62" track="perc2">SD</note>
-    </pattern>
-
-    <pattern>
-      <note row="0" track="perc">BD</note> <note row="0" track="chords">F-4 A-4 C-5</note> <note row="0" track="pad">F-4</note> <note row="0" track="riser" velocity="50">OFF</note>
-      <note row="2" track="perc3">CH</note>
-      <note row="4" track="perc">BD</note> <note row="4" track="perc2">SD</note>
-      <note row="6" track="perc3">CH</note>
-      <note row="8" track="perc">BD</note>
-      <note row="10" track="perc3">CH</note>
-      <note row="12" track="perc">BD</note> <note row="12" track="perc2">SD</note>
-      <note row="14" track="perc3">CH</note>
-      <note row="16" track="perc">BD</note> <note row="16" track="chords">C-5 E-5 G-5</note> <note row="16" track="pad">C-5</note>
-      <note row="18" track="perc3">CH</note>
-      <note row="20" track="perc">BD</note> <note row="20" track="perc2">SD</note>
-      <note row="22" track="perc3">CH</note>
-      <note row="24" track="perc">BD</note>
-      <note row="26" track="perc3">CH</note>
-      <note row="28" track="perc">BD</note> <note row="28" track="perc2">SD</note>
-      <note row="30" track="perc3">CH</note> <note row="30" track="perc2">SD</note>
-      <note row="32" track="perc">BD</note> <note row="32" track="chords">E-4 C-5 A-5</note> <note row="32" track="pad">E-4</note> 
-      <note row="34" track="perc3">CH</note>
-      <note row="36" track="perc">BD</note> <note row="36" track="perc2">SD</note>
-      <note row="38" track="perc3">CH</note>
-      <note row="40" track="perc">BD</note>
-      <note row="42" track="perc3">CH</note>
-      <note row="44" track="perc">BD</note> <note row="44" track="perc2">SD</note>
-      <note row="46" track="perc3">CH</note>
-      <note row="48" track="perc">BD</note> <note row="48" track="chords">D-4 F-4 A-4</note> <note row="48" track="pad">D-4</note> <note row="48" track="riser" velocity="50">A-1</note>
-      <note row="50" track="perc3">CH</note>
-      <note row="52" track="perc">BD</note> <note row="52" track="perc2">SD</note>
-      <note row="54" track="perc3">CH</note>
-      <note row="56" track="perc">BD</note>
-      <note row="58" track="perc3">CH</note>
-      <note row="60" track="perc">BD</note> <note row="60" track="perc2">SD</note>
-      <note row="62" track="perc3">CH</note> <note row="62" track="perc2">SD</note>
-    </pattern>
-
-    <pattern>
-      <note row="0" track="perc">BD</note> <note row="0" track="chords">G-4 A#4 C-5</note> <note row="0" track="pad">G-4</note> <note row="0" track="riser" velocity="50">OFF</note>
-      <note row="2" track="perc3">CH</note>
-      <note row="4" track="perc">BD</note> <note row="4" track="perc2">SD</note>
-      <note row="6" track="perc3">CH</note>
-      <note row="8" track="perc">BD</note>
-      <note row="10" track="perc3">CH</note>
-      <note row="12" track="perc">BD</note> <note row="12" track="perc2">SD</note>
-      <note row="14" track="perc3">CH</note>
-      <note row="16" track="perc">BD</note> <note row="16" track="chords">D-4 F-4 A-4</note> <note row="16" track="pad">D-4</note>
-      <note row="18" track="perc3">CH</note>
-      <note row="20" track="perc">BD</note> <note row="20" track="perc2">SD</note>
-      <note row="22" track="perc3">CH</note>
-      <note row="24" track="perc">BD</note>
-      <note row="26" track="perc3">CH</note>
-      <note row="28" track="perc">BD</note> <note row="28" track="perc2">SD</note>
-      <note row="30" track="perc3">CH</note> <note row="30" track="perc2">SD</note>
-      <note row="32" track="perc">BD</note> <note row="32" track="chords">C-4 E-4 G-4</note> <note row="32" track="pad">C-4</note> 
-      <note row="34" track="perc3">CH</note>
-      <note row="36" track="perc">BD</note> <note row="36" track="perc2">SD</note>
-      <note row="38" track="perc3">CH</note>
-      <note row="40" track="perc">BD</note>
-      <note row="42" track="perc3">CH</note>
-      <note row="44" track="perc">BD</note> <note row="44" track="perc2">SD</note>
-      <note row="46" track="perc3">CH</note>
-      <note row="48" track="perc">BD</note> <note row="48" track="chords">D-4 F-4 A-4</note> <note row="48" track="pad">D-4</note> <note row="48" track="riser" velocity="50">A-1</note>
-      <note row="50" track="perc3">CH</note>
-      <note row="52" track="perc">BD</note> <note row="52" track="perc2">SD</note>
-      <note row="54" track="perc3">CH</note>
-      <note row="56" track="perc">BD</note>
-      <note row="58" track="perc3">CH</note>
-      <note row="60" track="perc">BD</note> <note row="60" track="perc2">SD</note>
-      <note row="62" track="perc3">CH</note> <note row="62" track="perc2">SD</note>
-    </pattern>
-
-    <pattern>
-      <note row="0" track="pad">OFF</note> <note row="0" track="riser" velocity="50">OFF</note>
-    </pattern>
-  </patterns>    
+  <scenes>
+    <scene>
+      <pattern track="perc">
+        <note row="0">BD</note>
+        <note row="4">BD</note>
+        <note row="8">BD</note>
+        <note row="12">BD</note>
+        <note row="16">BD</note>
+        <note row="20">BD</note>
+        <note row="24">BD</note>
+        <note row="28">BD</note>
+        <note row="32">BD</note>
+        <note row="36">BD</note>
+        <note row="40">BD</note>
+        <note row="44">BD</note>
+        <note row="48">BD</note>
+        <note row="52">BD</note>
+        <note row="56">BD</note>
+        <note row="60">BD</note>
+      </pattern>
+      <pattern track="chords">
+        <note row="0">F-4 A-4 C-5</note>
+        <note row="16">C-5 E-5 G-5</note>
+        <note row="32">E-4 C-5 A-5</note>
+        <note row="48">D-4 F-4 A-4</note>
+      </pattern>
+      <pattern track="pad">
+        <note row="0">F-4</note>
+        <note row="16">C-5</note>
+        <note row="32">E-4</note>
+        <note row="48">D-4</note>
+      </pattern>
+      <pattern track="riser">
+        <note row="0" velocity="50">OFF</note>
+        <note row="48" velocity="50">A-1</note>
+      </pattern>
+      <pattern track="perc3">
+        <note row="2">CH</note>
+        <note row="6">CH</note>
+        <note row="10">CH</note>
+        <note row="14">CH</note>
+        <note row="18">CH</note>
+        <note row="22">CH</note>
+        <note row="26">CH</note>
+        <note row="30">CH</note>
+        <note row="34">CH</note>
+        <note row="38">CH</note>
+        <note row="42">CH</note>
+        <note row="46">CH</note>
+        <note row="50">CH</note>
+        <note row="54">CH</note>
+        <note row="58">CH</note>
+        <note row="62">CH</note>
+      </pattern>
+      <pattern track="perc2">
+        <note row="4">SD</note>
+        <note row="12">SD</note>
+        <note row="20">SD</note>
+        <note row="28">SD</note>
+        <note row="30">SD</note>
+        <note row="36">SD</note>
+        <note row="44">SD</note>
+        <note row="52">SD</note>
+        <note row="60">SD</note>
+        <note row="62">SD</note>
+      </pattern>
+    </scene>
+    <scene>
+      <pattern track="perc">
+        <note row="0">BD</note>
+        <note row="4">BD</note>
+        <note row="8">BD</note>
+        <note row="12">BD</note>
+        <note row="16">BD</note>
+        <note row="20">BD</note>
+        <note row="24">BD</note>
+        <note row="28">BD</note>
+        <note row="32">BD</note>
+        <note row="36">BD</note>
+        <note row="40">BD</note>
+        <note row="44">BD</note>
+        <note row="48">BD</note>
+        <note row="52">BD</note>
+        <note row="56">BD</note>
+        <note row="60">BD</note>
+      </pattern>
+      <pattern track="chords">
+        <note row="0">F-4 A-4 C-5</note>
+        <note row="16">C-5 E-5 G-5</note>
+        <note row="32">E-4 C-5 A-5</note>
+        <note row="48">D-4 F-4 A-4</note>
+      </pattern>
+      <pattern track="pad">
+        <note row="0">F-4</note>
+        <note row="16">C-5</note>
+        <note row="32">E-4</note>
+        <note row="48">D-4</note>
+      </pattern>
+      <pattern track="riser">
+        <note row="0" velocity="50">OFF</note>
+        <note row="48" velocity="50">A-1</note>
+      </pattern>
+      <pattern track="perc3">
+        <note row="2">CH</note>
+        <note row="6">CH</note>
+        <note row="10">CH</note>
+        <note row="14">CH</note>
+        <note row="18">CH</note>
+        <note row="22">CH</note>
+        <note row="26">CH</note>
+        <note row="30">CH</note>
+        <note row="34">CH</note>
+        <note row="38">CH</note>
+        <note row="42">CH</note>
+        <note row="46">CH</note>
+        <note row="50">CH</note>
+        <note row="54">CH</note>
+        <note row="58">CH</note>
+        <note row="62">CH</note>
+      </pattern>
+      <pattern track="perc2">
+        <note row="4">SD</note>
+        <note row="12">SD</note>
+        <note row="20">SD</note>
+        <note row="28">SD</note>
+        <note row="30">SD</note>
+        <note row="36">SD</note>
+        <note row="44">SD</note>
+        <note row="52">SD</note>
+        <note row="60">SD</note>
+        <note row="62">SD</note>
+      </pattern>
+    </scene>
+    <scene>
+      <pattern track="perc">
+        <note row="0">BD</note>
+        <note row="4">BD</note>
+        <note row="8">BD</note>
+        <note row="12">BD</note>
+        <note row="16">BD</note>
+        <note row="20">BD</note>
+        <note row="24">BD</note>
+        <note row="28">BD</note>
+        <note row="32">BD</note>
+        <note row="36">BD</note>
+        <note row="40">BD</note>
+        <note row="44">BD</note>
+        <note row="48">BD</note>
+        <note row="52">BD</note>
+        <note row="56">BD</note>
+        <note row="60">BD</note>
+      </pattern>
+      <pattern track="chords">
+        <note row="0">G-4 A#4 C-5</note>
+        <note row="16">D-4 F-4 A-4</note>
+        <note row="32">C-4 E-4 G-4</note>
+        <note row="48">D-4 F-4 A-4</note>
+      </pattern>
+      <pattern track="pad">
+        <note row="0">G-4</note>
+        <note row="16">D-4</note>
+        <note row="32">C-4</note>
+        <note row="48">D-4</note>
+      </pattern>
+      <pattern track="riser">
+        <note row="0" velocity="50">OFF</note>
+        <note row="48" velocity="50">A-1</note>
+      </pattern>
+      <pattern track="perc3">
+        <note row="2">CH</note>
+        <note row="6">CH</note>
+        <note row="10">CH</note>
+        <note row="14">CH</note>
+        <note row="18">CH</note>
+        <note row="22">CH</note>
+        <note row="26">CH</note>
+        <note row="30">CH</note>
+        <note row="34">CH</note>
+        <note row="38">CH</note>
+        <note row="42">CH</note>
+        <note row="46">CH</note>
+        <note row="50">CH</note>
+        <note row="54">CH</note>
+        <note row="58">CH</note>
+        <note row="62">CH</note>
+      </pattern>
+      <pattern track="perc2">
+        <note row="4">SD</note>
+        <note row="12">SD</note>
+        <note row="20">SD</note>
+        <note row="28">SD</note>
+        <note row="30">SD</note>
+        <note row="36">SD</note>
+        <note row="44">SD</note>
+        <note row="52">SD</note>
+        <note row="60">SD</note>
+        <note row="62">SD</note>
+      </pattern>
+    </scene>
+    <scene>
+      <pattern track="pad">
+        <note row="0">OFF</note>
+      </pattern>
+      <pattern track="riser">
+        <note row="0" velocity="50">OFF</note>
+      </pattern>
+    </scene>
+  </scenes>
 </song>

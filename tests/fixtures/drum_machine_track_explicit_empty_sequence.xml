@@ -10,7 +10,7 @@
       <drumMachine id="seq1" loop_length="8"/>
     </drumMachineTrack>
   </tracks>
-  <patterns>
-    <pattern/>
-  </patterns>
+  <scenes>
+    <scene />
+  </scenes>
 </song>

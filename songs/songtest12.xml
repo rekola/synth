@@ -20,41 +20,26 @@
     <track id="2" instrument="2" sendA="0.35" />
   </tracks>
   
-  <patterns>
-    <pattern>
-      <note row="0" track="0" velocity="20">C-4 G-4</note>
-      
-      <note row="4" track="0" velocity="20">E𝄫4</note>
-
-      <note row="8" track="0" velocity="20">E♭4</note>
-
-      <note row="12" track="0" velocity="20">G-4</note>
-
-      <note row="16" track="0" velocity="20">E𝄫4 B𝄫4</note>
-      
-      <note row="20" track="0" velocity="20">E♭4</note>
-      
-      <note row="24" track="0" velocity="20">F-4</note>
-
-      <note row="28" track="0" velocity="20">G-4</note>
-
-      <note row="32" track="0" velocity="20">C-4 G-4</note>
-      
-      <note row="36" track="0" velocity="20">E𝄫4</note>
-
-      <note row="40" track="0" velocity="20">E♭4</note>
-
-      <note row="44" track="0" velocity="20">G-4</note>
-
-      <note row="48" track="0" velocity="20">E𝄫4 B𝄫4</note>
-      
-      <note row="52" track="0" velocity="20">E♭4</note>
-      
-      <note row="56" track="0" velocity="20">F-4</note>
-
-      <note row="60" track="0" velocity="20">G-4</note>
-
-    </pattern>
-
-  </patterns>
+  <scenes>
+    <scene>
+      <pattern track="0">
+        <note row="0" velocity="20">C-4 G-4</note>
+        <note row="4" velocity="20">E𝄫4</note>
+        <note row="8" velocity="20">E♭4</note>
+        <note row="12" velocity="20">G-4</note>
+        <note row="16" velocity="20">E𝄫4 B𝄫4</note>
+        <note row="20" velocity="20">E♭4</note>
+        <note row="24" velocity="20">F-4</note>
+        <note row="28" velocity="20">G-4</note>
+        <note row="32" velocity="20">C-4 G-4</note>
+        <note row="36" velocity="20">E𝄫4</note>
+        <note row="40" velocity="20">E♭4</note>
+        <note row="44" velocity="20">G-4</note>
+        <note row="48" velocity="20">E𝄫4 B𝄫4</note>
+        <note row="52" velocity="20">E♭4</note>
+        <note row="56" velocity="20">F-4</note>
+        <note row="60" velocity="20">G-4</note>
+      </pattern>
+    </scene>
+  </scenes>
 </song>

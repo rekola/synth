@@ -93,9 +93,7 @@ Controller::createNewSong() {
   auto song = make_shared<Song>();
 
   song->addTrack(make_unique<InstrumentTrack>(0));
-  auto & pattern = song->addPattern();
-  auto & section = song->addSection();
-  section.addPattern(pattern.getInternalId());
+  song->addScene();
 
   {
     std::lock_guard<std::mutex> guard(song_mutex_);

@@ -348,8 +348,8 @@ UI::handleRecordEvent(RecordEvent & ev) {
     getController().addToSample(ev.getData());
     auto & song = getController().getSong();
     auto & info = getController().getPlaybackInfo();
-    auto & pattern = song.getPattern(info.getPatternIndex());
-    pattern.setNote(info.getRowIndex(), getController().getRecordingTrackId(), 0, Note(1));    
+    auto & scene = song.getScene(info.getPatternIndex());
+    scene.setNote(info.getRowIndex(), getController().getRecordingTrackId(), 0, Note(1));
   }
 }
 

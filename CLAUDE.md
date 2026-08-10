@@ -298,10 +298,14 @@ SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
 ## Layout
 
 - Root `*.cpp/*.h` — engine and UI. Key classes: `Controller` (application
-  logic), `Song`/`Pattern`/`Track` (song model), `Player` (sequencer),
-  `AlsaAudio` (output), `TerminalUI`/`PatternEditor`/`HierarchyView`
-  (notcurses UI), `Tuner`/`Tuning` (microtonal pitch math),
-  `OscilatorVoice`/`GenericInstrument`/`SoundFont` (synthesis).
+  logic), `Song`/`Scene`/`Pattern`/`Track` (song model — `Song` holds a flat,
+  sequentially-played `vector<Scene>`; each `Scene` is one point in the song,
+  holding one `Pattern` — a track's own note/command content, no `track_id`
+  in it anywhere — per track that has anything there, plus that scene's own
+  row-keyed annotations), `Player` (sequencer), `AlsaAudio` (output),
+  `TerminalUI`/`PatternEditor`/`HierarchyView` (notcurses UI), `Tuner`/
+  `Tuning` (microtonal pitch math), `OscilatorVoice`/`GenericInstrument`/
+  `SoundFont` (synthesis).
 - `effects/` — per-track audio effects (chorus, compressor, distortion, …)
   — each constructed fresh per track/note and torn down with it, unlike
   the shared send bus (`bus/`, below). There is no per-track reverb any

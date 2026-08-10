@@ -29,37 +29,37 @@
     <section>1</section>  
   </sections>
   
-  <patterns>
-    <pattern>
-      <note row="0" track="chords" velocity="20">E-4</note>
-      <note row="2" track="chords" velocity="20">A-4</note>
-      <note row="4" track="chords" velocity="20">C-5</note>
-      <note row="6" track="chords" velocity="20">E-5</note>
-      
-      <note row="12" track="chords" velocity="20">C-4</note>
-
-      <note row="16" track="chords" velocity="20">D#4</note>
-      <note row="18" track="chords" velocity="20">A#4</note>
-      <note row="20" track="chords" velocity="20">C-5</note>
-      <note row="22" track="chords" velocity="20">D#5</note>
-      
-      <note row="28" track="chords" velocity="20">F-4</note>
-    </pattern>
-
-    <pattern>
-      <note row="0" track="chords" velocity="20">E-4</note>  <note row="0" track="pad" velocity="20">C-4</note>
-      <note row="2" track="chords" velocity="20">A-4</note>
-      <note row="4" track="chords" velocity="20">C-5</note>
-      <note row="6" track="chords" velocity="20">E-5</note>
-      
-      <note row="12" track="chords" velocity="20">C-4</note>
-
-      <note row="16" track="chords" velocity="20">D#4</note>
-      <note row="18" track="chords" velocity="20">A#4</note>
-      <note row="20" track="chords" velocity="20">C-5</note>
-      <note row="22" track="chords" velocity="20">D#5</note>
-      
-      <note row="28" track="chords" velocity="20">F-4</note>
-    </pattern>
-</patterns>
+  <scenes>
+    <scene>
+      <pattern track="chords">
+        <note row="0" velocity="20">E-4</note>
+        <note row="2" velocity="20">A-4</note>
+        <note row="4" velocity="20">C-5</note>
+        <note row="6" velocity="20">E-5</note>
+        <note row="12" velocity="20">C-4</note>
+        <note row="16" velocity="20">D#4</note>
+        <note row="18" velocity="20">A#4</note>
+        <note row="20" velocity="20">C-5</note>
+        <note row="22" velocity="20">D#5</note>
+        <note row="28" velocity="20">F-4</note>
+      </pattern>
+    </scene>
+    <scene>
+      <pattern track="chords">
+        <note row="0" velocity="20">E-4</note>
+        <note row="2" velocity="20">A-4</note>
+        <note row="4" velocity="20">C-5</note>
+        <note row="6" velocity="20">E-5</note>
+        <note row="12" velocity="20">C-4</note>
+        <note row="16" velocity="20">D#4</note>
+        <note row="18" velocity="20">A#4</note>
+        <note row="20" velocity="20">C-5</note>
+        <note row="22" velocity="20">D#5</note>
+        <note row="28" velocity="20">F-4</note>
+      </pattern>
+      <pattern track="pad">
+        <note row="0" velocity="20">C-4</note>
+      </pattern>
+    </scene>
+  </scenes>
 </song>

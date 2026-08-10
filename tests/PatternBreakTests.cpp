@@ -20,16 +20,16 @@ TEST(pattern_break_jumps_straight_to_the_destination_row_of_the_next_pattern) {
   song.setPatternLength(4);
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
 
-  auto & pattern0 = song.addPattern();
-  pattern0.setNote(0, track.getInternalId(), 0, Note(60, 100));
-  pattern0.setCommand(0, track.getInternalId(), Command("ZB02"));
+  auto & scene0 = song.addScene();
+  scene0.setNote(0, track.getInternalId(), 0, Note(60, 100));
+  scene0.setCommand(0, track.getInternalId(), Command("ZB02"));
   // Rows 1-3 are deliberately non-empty too, to prove the break really
   // skips them rather than happening to land past them by coincidence.
-  pattern0.setNote(1, track.getInternalId(), 0, Note(61, 100));
+  scene0.setNote(1, track.getInternalId(), 0, Note(61, 100));
 
-  auto & pattern1 = song.addPattern();
-  pattern1.setNote(0, track.getInternalId(), 0, Note(62, 100)); // must never be reached
-  pattern1.setNote(2, track.getInternalId(), 0, Note(64, 100)); // the break's destination row
+  auto & scene1 = song.addScene();
+  scene1.setNote(0, track.getInternalId(), 0, Note(62, 100)); // must never be reached
+  scene1.setNote(2, track.getInternalId(), 0, Note(64, 100)); // the break's destination row
 
   ChannelConfiguration config(44100, 1);
   auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
@@ -55,9 +55,9 @@ TEST(pattern_break_past_the_last_pattern_does_not_crash) {
   song.setPatternLength(4);
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
 
-  auto & pattern0 = song.addPattern();
-  pattern0.setNote(0, track.getInternalId(), 0, Note(60, 100));
-  pattern0.setCommand(0, track.getInternalId(), Command("ZB00"));
+  auto & scene0 = song.addScene();
+  scene0.setNote(0, track.getInternalId(), 0, Note(60, 100));
+  scene0.setCommand(0, track.getInternalId(), Command("ZB00"));
 
   ChannelConfiguration config(44100, 1);
   auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);

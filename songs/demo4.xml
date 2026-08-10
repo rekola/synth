@@ -6,30 +6,34 @@
   <tracks>
     <track id="1" azimuth="30" distance="0" elevation="50" volume="1" instrument="0"/>
   </tracks>
-  <patterns>
-    <pattern>
-      <note track="1" row="0" velocity="63" value="C-4"/>
-      <note track="1" row="0" column="1" velocity="63" value="E♭4"/>
-      <note track="1" row="0" column="2" velocity="63" value="G-4"/>
-      <note track="1" row="2" velocity="63" value="C-4"/>
-      <note track="1" row="3" velocity="63" value="G-4"/>
-      <note track="1" row="6" velocity="63" value="C-4"/>
-      <note track="1" row="8" velocity="63" value="E♭4"/>
-      <note track="1" row="12" velocity="63" value="F-4"/>
-      <note track="1" row="14" velocity="63" value="C𝄪4"/>
-      <note track="1" row="17" velocity="63" value="C-4"/>
-    </pattern>
-    <pattern>
-      <note track="1" row="0" velocity="63" value="C-4"/>
-      <note track="1" row="0" column="1" velocity="63" value="D♯4"/>
-      <note track="1" row="0" column="2" velocity="63" value="F-4"/>
-      <note track="1" row="2" velocity="63" value="C-4"/>
-      <note track="1" row="3" velocity="63" value="G-4"/>
-      <note track="1" row="6" velocity="63" value="C-4"/>
-      <note track="1" row="8" velocity="63" value="D♯4"/>
-      <note track="1" row="12" velocity="63" value="F-4"/>
-      <note track="1" row="14" velocity="63" value="G-4"/>
-      <note track="1" row="17" velocity="63" value="C-4"/>
-    </pattern>
-  </patterns>
+  <scenes>
+    <scene>
+      <pattern track="1">
+        <note row="0" velocity="63" value="C-4" />
+        <note row="0" column="1" velocity="63" value="E♭4" />
+        <note row="0" column="2" velocity="63" value="G-4" />
+        <note row="2" velocity="63" value="C-4" />
+        <note row="3" velocity="63" value="G-4" />
+        <note row="6" velocity="63" value="C-4" />
+        <note row="8" velocity="63" value="E♭4" />
+        <note row="12" velocity="63" value="F-4" />
+        <note row="14" velocity="63" value="C𝄪4" />
+        <note row="17" velocity="63" value="C-4" />
+      </pattern>
+    </scene>
+    <scene>
+      <pattern track="1">
+        <note row="0" velocity="63" value="C-4" />
+        <note row="0" column="1" velocity="63" value="D♯4" />
+        <note row="0" column="2" velocity="63" value="F-4" />
+        <note row="2" velocity="63" value="C-4" />
+        <note row="3" velocity="63" value="G-4" />
+        <note row="6" velocity="63" value="C-4" />
+        <note row="8" velocity="63" value="D♯4" />
+        <note row="12" velocity="63" value="F-4" />
+        <note row="14" velocity="63" value="G-4" />
+        <note row="17" velocity="63" value="C-4" />
+      </pattern>
+    </scene>
+  </scenes>
 </song>

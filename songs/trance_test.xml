@@ -53,109 +53,136 @@
     <track id="chords" instrument="3" sendA="0.1" azimuth="80" distance="1"/>
   </tracks>
   
-  <patterns>
-    <pattern>
-      <note row="0" track="bell" velocity="40">C-5</note>
-      <note row="2" track="bell" velocity="40">C-5</note>
-      <note row="4" track="bell" velocity="40">C-5</note>
-      <note row="5" track="bell" velocity="40">C-5</note>
-      <note row="7" track="bell" velocity="40">C-5</note>
-      <note row="9" track="bell" velocity="40">C-5</note>
-      <note row="11" track="bell" velocity="40">C-5</note>
-      <note row="12" track="bell" velocity="40">C-5</note>
-      <note row="14" track="bell" velocity="40">C-5</note>
-
-      <note row="16" track="bell" velocity="40">C-5</note>
-      <note row="18" track="bell" velocity="40">C-5</note>
-      <note row="20" track="bell" velocity="40">C-5</note>
-      <note row="21" track="bell" velocity="40">C-5</note>
-      <note row="23" track="bell" velocity="40">C-5</note>
-      <note row="25" track="bell" velocity="40">C-5</note>
-      <note row="27" track="bell" velocity="40">C-5</note>
-      <note row="28" track="bell" velocity="40">C-5</note>
-      <note row="30" track="bell" velocity="40">C-5</note>
-
-      <note row="32" track="bell" velocity="40">C-5</note>
-      <note row="34" track="bell" velocity="40">C-5</note>
-      <note row="36" track="bell" velocity="40">C-5</note>
-      <note row="37" track="bell" velocity="40">C-5</note>
-      <note row="39" track="bell" velocity="40">C-5</note>
-      <note row="41" track="bell" velocity="40">C-5</note>
-      <note row="43" track="bell" velocity="40">C-5</note>
-      <note row="44" track="bell" velocity="40">C-5</note>
-      <note row="46" track="bell" velocity="40">C-5</note>
-
-      <note row="48" track="bell" velocity="40">C-5</note>
-      <note row="50" track="bell" velocity="40">C-5</note>
-      <note row="52" track="bell" velocity="40">C-5</note>
-      <note row="53" track="bell" velocity="40">C-5</note>
-      <note row="55" track="bell" velocity="40">C-5</note>
-      <note row="57" track="bell" velocity="40">C-5</note>
-      <note row="59" track="bell" velocity="40">C-5</note>
-      <note row="60" track="bell" velocity="40">C-5</note>
-      <note row="62" track="bell" velocity="40">C-5</note>
-
-      <note row="0" track="chords" velocity="40">C-4 E-4 G-4 C-5</note>
-      <note row="14" track="chords" velocity="40">D#4 C-5 A𝄰5</note>
-      <note row="32" track="chords" velocity="40">Bb3 D-4 F-4 C-5</note>
-      <note row="46" track="chords" velocity="40">F-4 A-4 C-5 F-5</note> <note row="46" track="riser" velocity="50">A-1</note>
-    </pattern>
-    <pattern>
-      <note row="0" track="melody" velocity="40">C-4</note> <note row="0" track="chords" velocity="40">C-4 E-4 G-4</note> <note row="0" track="riser">OFF</note>
-      <note row="4" track="melody" velocity="40">C-4</note>
-      <note row="8" track="melody" velocity="40">C-4</note>
-      <note row="10" track="melody" velocity="40">Bb3</note>
-      <note row="12" track="melody" velocity="40">C-4</note>
-      <note row="14" track="melody" velocity="40">D#4</note> <note row="14" track="chords" velocity="40">D#4 A𝄰4 C-5</note>
-      <note row="18" track="melody" velocity="40">D#4</note>
-      <note row="22" track="melody" velocity="40">D#4</note>
-      <note row="24" track="melody" velocity="40">D#4</note>
-      <note row="26" track="melody" velocity="40">F-4</note>
-      <note row="28" track="melody" velocity="40">G-4</note>
-      <note row="30" track="melody" velocity="40">F-4</note>
-      <note row="32" track="melody" velocity="40">Bb3</note> <note row="32" track="chords" velocity="40">Bb3 D-4 F-4 C-5</note>
-      <note row="36" track="melody" velocity="40">Bb3</note>
-      <note row="40" track="melody" velocity="40">Bb3</note>
-      <note row="42" track="melody" velocity="40">F-3</note>
-      <note row="44" track="melody" velocity="40">Bb3</note>
-      <note row="46" track="melody" velocity="40">F-4</note> <note row="46" track="chords" velocity="40">F-4 A-4 C-5</note> <note row="46" track="riser" velocity="50">A-1</note>
-      <note row="50" track="melody" velocity="40">F-4</note>
-      <note row="54" track="melody" velocity="40">F-4</note>
-      <note row="56" track="melody" velocity="40">F-4</note>
-      <note row="58" track="melody" velocity="40">G-4</note>
-      <note row="60" track="melody" velocity="40">F-4</note>
-      <note row="62" track="melody" velocity="40">D#4</note>
-    </pattern>
-
-    <pattern>
-      <note row="0" track="melody" velocity="40">C-4</note> <note row="0" track="chords" velocity="40">C-4 E-4 G-4</note> <note row="0" track="riser">OFF</note>
-      <note row="4" track="melody" velocity="40">C-4</note>
-      <note row="8" track="melody" velocity="40">C-4</note>
-      <note row="10" track="melody" velocity="40">Bb3</note>
-      <note row="12" track="melody" velocity="40">C-4</note>
-      <note row="14" track="melody" velocity="40">D#4</note> <note row="14" track="chords" velocity="40">D#4 A𝄰4 C-5</note>
-      <note row="18" track="melody" velocity="40">D#4</note>
-      <note row="22" track="melody" velocity="40">D#4</note>
-      <note row="24" track="melody" velocity="40">D#4</note>
-      <note row="26" track="melody" velocity="40">F-4</note>
-      <note row="28" track="melody" velocity="40">G-4</note>
-      <note row="30" track="melody" velocity="40">F-4</note>
-      <note row="32" track="melody" velocity="40">Bb3</note> <note row="32" track="chords" velocity="40">Bb3 D-4 F-4 C-5</note>
-      <note row="36" track="melody" velocity="40">Bb3</note>
-      <note row="40" track="melody" velocity="40">Bb3</note>
-      <note row="42" track="melody" velocity="40">F-3</note>
-      <note row="44" track="melody" velocity="40">Bb3</note>
-      <note row="46" track="melody" velocity="40">F-4</note> <note row="46" track="chords" velocity="40">F-4 A-4 C-5</note> <note row="46" track="riser" velocity="50">A-1</note>
-      <note row="50" track="melody" velocity="40">F-4</note>
-      <note row="54" track="melody" velocity="40">F-4</note>
-      <note row="56" track="melody" velocity="40">F-4</note>
-      <note row="58" track="melody" velocity="40">G-4</note>
-      <note row="60" track="melody" velocity="40">F-4</note>
-      <note row="62" track="melody" velocity="40">D#4</note>
-    </pattern>
-
-    <pattern>
-      <note track="riser">OFF</note>
-    </pattern>
-</patterns>
+  <scenes>
+    <scene>
+      <pattern track="bell">
+        <note row="0" velocity="40">C-5</note>
+        <note row="2" velocity="40">C-5</note>
+        <note row="4" velocity="40">C-5</note>
+        <note row="5" velocity="40">C-5</note>
+        <note row="7" velocity="40">C-5</note>
+        <note row="9" velocity="40">C-5</note>
+        <note row="11" velocity="40">C-5</note>
+        <note row="12" velocity="40">C-5</note>
+        <note row="14" velocity="40">C-5</note>
+        <note row="16" velocity="40">C-5</note>
+        <note row="18" velocity="40">C-5</note>
+        <note row="20" velocity="40">C-5</note>
+        <note row="21" velocity="40">C-5</note>
+        <note row="23" velocity="40">C-5</note>
+        <note row="25" velocity="40">C-5</note>
+        <note row="27" velocity="40">C-5</note>
+        <note row="28" velocity="40">C-5</note>
+        <note row="30" velocity="40">C-5</note>
+        <note row="32" velocity="40">C-5</note>
+        <note row="34" velocity="40">C-5</note>
+        <note row="36" velocity="40">C-5</note>
+        <note row="37" velocity="40">C-5</note>
+        <note row="39" velocity="40">C-5</note>
+        <note row="41" velocity="40">C-5</note>
+        <note row="43" velocity="40">C-5</note>
+        <note row="44" velocity="40">C-5</note>
+        <note row="46" velocity="40">C-5</note>
+        <note row="48" velocity="40">C-5</note>
+        <note row="50" velocity="40">C-5</note>
+        <note row="52" velocity="40">C-5</note>
+        <note row="53" velocity="40">C-5</note>
+        <note row="55" velocity="40">C-5</note>
+        <note row="57" velocity="40">C-5</note>
+        <note row="59" velocity="40">C-5</note>
+        <note row="60" velocity="40">C-5</note>
+        <note row="62" velocity="40">C-5</note>
+      </pattern>
+      <pattern track="chords">
+        <note row="0" velocity="40">C-4 E-4 G-4 C-5</note>
+        <note row="14" velocity="40">D#4 C-5 A𝄰5</note>
+        <note row="32" velocity="40">Bb3 D-4 F-4 C-5</note>
+        <note row="46" velocity="40">F-4 A-4 C-5 F-5</note>
+      </pattern>
+      <pattern track="riser">
+        <note row="46" velocity="50">A-1</note>
+      </pattern>
+    </scene>
+    <scene>
+      <pattern track="melody">
+        <note row="0" velocity="40">C-4</note>
+        <note row="4" velocity="40">C-4</note>
+        <note row="8" velocity="40">C-4</note>
+        <note row="10" velocity="40">Bb3</note>
+        <note row="12" velocity="40">C-4</note>
+        <note row="14" velocity="40">D#4</note>
+        <note row="18" velocity="40">D#4</note>
+        <note row="22" velocity="40">D#4</note>
+        <note row="24" velocity="40">D#4</note>
+        <note row="26" velocity="40">F-4</note>
+        <note row="28" velocity="40">G-4</note>
+        <note row="30" velocity="40">F-4</note>
+        <note row="32" velocity="40">Bb3</note>
+        <note row="36" velocity="40">Bb3</note>
+        <note row="40" velocity="40">Bb3</note>
+        <note row="42" velocity="40">F-3</note>
+        <note row="44" velocity="40">Bb3</note>
+        <note row="46" velocity="40">F-4</note>
+        <note row="50" velocity="40">F-4</note>
+        <note row="54" velocity="40">F-4</note>
+        <note row="56" velocity="40">F-4</note>
+        <note row="58" velocity="40">G-4</note>
+        <note row="60" velocity="40">F-4</note>
+        <note row="62" velocity="40">D#4</note>
+      </pattern>
+      <pattern track="chords">
+        <note row="0" velocity="40">C-4 E-4 G-4</note>
+        <note row="14" velocity="40">D#4 A𝄰4 C-5</note>
+        <note row="32" velocity="40">Bb3 D-4 F-4 C-5</note>
+        <note row="46" velocity="40">F-4 A-4 C-5</note>
+      </pattern>
+      <pattern track="riser">
+        <note row="0">OFF</note>
+        <note row="46" velocity="50">A-1</note>
+      </pattern>
+    </scene>
+    <scene>
+      <pattern track="melody">
+        <note row="0" velocity="40">C-4</note>
+        <note row="4" velocity="40">C-4</note>
+        <note row="8" velocity="40">C-4</note>
+        <note row="10" velocity="40">Bb3</note>
+        <note row="12" velocity="40">C-4</note>
+        <note row="14" velocity="40">D#4</note>
+        <note row="18" velocity="40">D#4</note>
+        <note row="22" velocity="40">D#4</note>
+        <note row="24" velocity="40">D#4</note>
+        <note row="26" velocity="40">F-4</note>
+        <note row="28" velocity="40">G-4</note>
+        <note row="30" velocity="40">F-4</note>
+        <note row="32" velocity="40">Bb3</note>
+        <note row="36" velocity="40">Bb3</note>
+        <note row="40" velocity="40">Bb3</note>
+        <note row="42" velocity="40">F-3</note>
+        <note row="44" velocity="40">Bb3</note>
+        <note row="46" velocity="40">F-4</note>
+        <note row="50" velocity="40">F-4</note>
+        <note row="54" velocity="40">F-4</note>
+        <note row="56" velocity="40">F-4</note>
+        <note row="58" velocity="40">G-4</note>
+        <note row="60" velocity="40">F-4</note>
+        <note row="62" velocity="40">D#4</note>
+      </pattern>
+      <pattern track="chords">
+        <note row="0" velocity="40">C-4 E-4 G-4</note>
+        <note row="14" velocity="40">D#4 A𝄰4 C-5</note>
+        <note row="32" velocity="40">Bb3 D-4 F-4 C-5</note>
+        <note row="46" velocity="40">F-4 A-4 C-5</note>
+      </pattern>
+      <pattern track="riser">
+        <note row="0">OFF</note>
+        <note row="46" velocity="50">A-1</note>
+      </pattern>
+    </scene>
+    <scene>
+      <pattern track="riser">
+        <note>OFF</note>
+      </pattern>
+    </scene>
+  </scenes>
 </song>

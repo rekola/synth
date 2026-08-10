@@ -7,7 +7,7 @@
 #include <functional>
 #include <vector>
 
-class Pattern;
+class Scene;
 
 struct PatternBlockCell {
   std::vector<Note> notes;
@@ -20,17 +20,17 @@ using PatternBlock = std::vector<std::vector<PatternBlockCell> >;
 
 // Captures notes and effect command for each (row, track) in the inclusive
 // range [row_lo, row_hi] x track_ids[track_lo..track_hi].
-PatternBlock copyPatternBlock(const Pattern & pattern, int row_lo, int row_hi,
+PatternBlock copyPatternBlock(const Scene & scene, int row_lo, int row_hi,
 			     const std::vector<int> & track_ids, int track_lo, int track_hi);
 
 // Clears notes and effect command for the same range.
-void clearPatternBlock(Pattern & pattern, int row_lo, int row_hi,
+void clearPatternBlock(Scene & scene, int row_lo, int row_hi,
 		       const std::vector<int> & track_ids, int track_lo, int track_hi);
 
-// Writes `block` into `pattern` starting at (target_row, track_ids[target_track]),
+// Writes `block` into `scene` starting at (target_row, track_ids[target_track]),
 // clipping any cells whose target row or track falls outside [0, num_rows)/
 // track_ids bounds.
-void pastePatternBlock(Pattern & pattern, const PatternBlock & block, int num_rows,
+void pastePatternBlock(Scene & scene, const PatternBlock & block, int num_rows,
 		       int target_row, const std::vector<int> & track_ids, int target_track);
 
 // Transposes (up if `up`, else down) every note in the same range, except
@@ -39,7 +39,7 @@ void pastePatternBlock(Pattern & pattern, const PatternBlock & block, int num_ro
 // pitch - transposing it would silently swap to a different, unrelated
 // drum instead of "transposing" anything, so those tracks are skipped
 // entirely within the range rather than shifting their notes.
-void transposePatternBlock(Pattern & pattern, int row_lo, int row_hi,
+void transposePatternBlock(Scene & scene, int row_lo, int row_hi,
 			   const std::vector<int> & track_ids, int track_lo, int track_hi, bool up,
 			   const std::function<bool(int track_id)> & is_percussion);
 
@@ -49,19 +49,19 @@ void transposePatternBlock(Pattern & pattern, int row_lo, int row_hi,
 // NOTE_COLUMN - mixing a note-column selection with the effect column
 // escalates to a whole-track operation instead, so there's no
 // include-the-command variant of this family any more).
-PatternBlock copyPatternBlockNotes(const Pattern & pattern, int row_lo, int row_hi,
+PatternBlock copyPatternBlockNotes(const Scene & scene, int row_lo, int row_hi,
 				   int track_id, int note_lo, int note_hi);
-void clearPatternBlockNotes(Pattern & pattern, int row_lo, int row_hi,
+void clearPatternBlockNotes(Scene & scene, int row_lo, int row_hi,
 			    int track_id, int note_lo, int note_hi);
 // `is_percussion`: same reasoning as transposePatternBlock() above, but a
 // plain bool here (not a predicate) since this operates on exactly one
 // already-known track_id, not a range.
-void transposePatternBlockNotes(Pattern & pattern, int row_lo, int row_hi,
+void transposePatternBlockNotes(Scene & scene, int row_lo, int row_hi,
 				int track_id, int note_lo, int note_hi, bool up, bool is_percussion);
-// Merges `block` into `pattern` starting at (target_row, track_id, target_note_offset),
+// Merges `block` into `scene` starting at (target_row, track_id, target_note_offset),
 // leaving note columns outside that range untouched (unlike pastePatternBlock,
 // which replaces a cell's whole note vector).
-void pastePatternBlockNotes(Pattern & pattern, const PatternBlock & block, int num_rows,
+void pastePatternBlockNotes(Scene & scene, const PatternBlock & block, int num_rows,
 			    int target_row, int track_id, int target_note_offset);
 
 // Single-track, effect-Command-only siblings, for PatternEditor's
@@ -69,9 +69,9 @@ void pastePatternBlockNotes(Pattern & pattern, const PatternBlock & block, int n
 // no note data is read or written by any of these). Note::isDefined() etc.
 // has no equivalent here since Command has no "empty" special case beyond
 // its own default-constructed all-dashes value.
-std::vector<Command> copyPatternBlockCommand(const Pattern & pattern, int row_lo, int row_hi, int track_id);
-void clearPatternBlockCommand(Pattern & pattern, int row_lo, int row_hi, int track_id);
-void pastePatternBlockCommand(Pattern & pattern, const std::vector<Command> & block, int num_rows,
+std::vector<Command> copyPatternBlockCommand(const Scene & scene, int row_lo, int row_hi, int track_id);
+void clearPatternBlockCommand(Scene & scene, int row_lo, int row_hi, int track_id);
+void pastePatternBlockCommand(Scene & scene, const std::vector<Command> & block, int num_rows,
 			      int target_row, int track_id);
 
 #endif

@@ -76,12 +76,14 @@
     <track id="1" instrument="1" />
   </tracks>
   
-  <patterns>
-    <pattern>
-      <note row="0" track="0" velocity="40">C-4</note>
-      <note row="2" track="0" velocity="40">D#4</note>
-      <note row="4" track="0" velocity="40">G-4</note>
-      <note row="6" track="0" velocity="40">A-4</note>
-    </pattern>
-  </patterns>
+  <scenes>
+    <scene>
+      <pattern track="0">
+        <note row="0" velocity="40">C-4</note>
+        <note row="2" velocity="40">D#4</note>
+        <note row="4" velocity="40">G-4</note>
+        <note row="6" velocity="40">A-4</note>
+      </pattern>
+    </scene>
+  </scenes>
 </song>

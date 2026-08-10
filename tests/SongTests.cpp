@@ -40,8 +40,8 @@ TEST(note_round_trips_for_a_track_with_an_explicit_textual_id) {
   Song song;
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   track.setId("chords");
-  song.addPattern();
-  song.getPattern(0).setNote(0, track.getInternalId(), 0, Note(60, 40));
+  song.addScene();
+  song.getScene(0).setNote(0, track.getInternalId(), 0, Note(60, 40));
   song.save(scratch_path);
 
   // The saved file must actually reference the track by its own textual
@@ -57,7 +57,7 @@ TEST(note_round_trips_for_a_track_with_an_explicit_textual_id) {
   auto reloaded_track = reloaded.getTrackById("chords");
   CHECK(reloaded_track != nullptr);
   if (reloaded_track) {
-    auto & notes = reloaded.getPattern(0).getNotes(0, reloaded_track->getInternalId());
+    auto & notes = reloaded.getScene(0).getNotes(0, reloaded_track->getInternalId());
     CHECK(notes.size() == 1);
     if (notes.size() == 1) CHECK(notes[0].getValue() == 60);
   }
@@ -72,8 +72,8 @@ TEST(note_round_trips_for_a_track_with_no_explicit_id) {
   Song song;
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   CHECK(!track.getId().empty()); // addTrack() must have assigned one
-  song.addPattern();
-  song.getPattern(0).setNote(0, track.getInternalId(), 0, Note(60, 40));
+  song.addScene();
+  song.getScene(0).setNote(0, track.getInternalId(), 0, Note(60, 40));
   song.save(scratch_path);
 
   InstrumentProvider provider;
@@ -83,7 +83,7 @@ TEST(note_round_trips_for_a_track_with_no_explicit_id) {
   CHECK(reloaded.getTracks().size() == 1);
   auto & reloaded_track = *reloaded.getTracks()[0];
   CHECK(reloaded_track.getId() == track.getId());
-  auto & notes = reloaded.getPattern(0).getNotes(0, reloaded_track.getInternalId());
+  auto & notes = reloaded.getScene(0).getNotes(0, reloaded_track.getInternalId());
   CHECK(notes.size() == 1);
   if (notes.size() == 1) CHECK(notes[0].getValue() == 60);
 
@@ -97,8 +97,8 @@ TEST(command_round_trips_for_a_track_with_an_explicit_textual_id) {
   Song song;
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   track.setId("bass");
-  song.addPattern();
-  song.getPattern(0).setCommand(0, track.getInternalId(), Command("V400"));
+  song.addScene();
+  song.getScene(0).setCommand(0, track.getInternalId(), Command("V400"));
   song.save(scratch_path);
 
   auto saved = readFile(scratch_path);
@@ -111,7 +111,7 @@ TEST(command_round_trips_for_a_track_with_an_explicit_textual_id) {
   auto reloaded_track = reloaded.getTrackById("bass");
   CHECK(reloaded_track != nullptr);
   if (reloaded_track) {
-    auto & command = reloaded.getPattern(0).getCommand(0, reloaded_track->getInternalId());
+    auto & command = reloaded.getScene(0).getCommand(0, reloaded_track->getInternalId());
     CHECK(command.isDefined());
     CHECK(to_string(command) == "V400");
   }
@@ -129,7 +129,7 @@ TEST(pattern_length_round_trips_through_save_and_load) {
   Song song;
   CHECK(song.getPatternLength() == 64);
   song.setPatternLength(32);
-  song.addPattern();
+  song.addScene();
   song.save(scratch_path);
 
   auto saved = readFile(scratch_path);

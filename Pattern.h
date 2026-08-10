@@ -6,158 +6,110 @@
 #include "Command.h"
 #include "VisibleTrackInfo.h"
 
-#include <string>
 #include <vector>
 #include <unordered_map>
 
+// One track's own note/command content for one Scene (Scene.h) - what used
+// to be one track's slice of the old, all-tracks-at-once class also named
+// Pattern, now a standalone object in its own right rather than
+// interleaved with every other track's content in one shared
+// row->track_id->notes map. No track_id anywhere in here: which track this
+// belongs to is Scene's own concern (Scene::patterns_by_track_id_'s key),
+// not this class's - and nothing here is reused across more than one Scene
+// yet (a future step - not yet built - could let the same Pattern be
+// referenced from several Scenes, e.g. a drum pattern reused across every
+// verse), so there's no id-based lookup need yet either, just plain
+// per-row storage.
 class Pattern : public SongObject {
  public:
-  void setNotes(int row, int track_id, const std::vector<Note> & n) {
-    notes_[row][track_id] = n;
-  }
-  
-  void setNote(int row, int track_id, int note_column, Note note) {
-    auto & columns = notes_[row][track_id];
-    while (note_column >= columns.size()) columns.push_back(Note());
-    columns[note_column] = note;
+  void setNotes(int row, const std::vector<Note> & n) {
+    notes_[static_cast<unsigned short>(row)] = n;
   }
 
-  void setNoteSwapped(int track_id, size_t row, int note_column, Note note) {
-    setNote(row, track_id, note_column, note);
+  void setNote(int row, int note_column, Note note) {
+    auto & columns = notes_[static_cast<unsigned short>(row)];
+    while (note_column >= static_cast<int>(columns.size())) columns.push_back(Note());
+    columns[static_cast<size_t>(note_column)] = note;
   }
 
-  int pushNote(int row, int track_id, Note note) {
-    auto & columns = notes_[row][track_id];
+  int pushNote(int row, Note note) {
+    auto & columns = notes_[static_cast<unsigned short>(row)];
     for (int i = 0; i < static_cast<int>(columns.size()); i++) {
-      if (!columns[i].isDefined()) {
-	columns[i] = note;
+      if (!columns[static_cast<size_t>(i)].isDefined()) {
+	columns[static_cast<size_t>(i)] = note;
 	return i;
       }
     }
     auto index = columns.size();
     columns.push_back(note);
-    return index;
+    return static_cast<int>(index);
   }
 
-  void clearNotes(int row, int track_id) {
-    auto it = notes_.find(row);
-    if (it != notes_.end()) {
-      it->second.erase(track_id);
-    }
+  void clearNotes(int row) {
+    notes_.erase(static_cast<unsigned short>(row));
   }
-  
-  void deleteNote(int row, int track_id, int column) {
-    auto it = notes_.find(row);
+
+  void deleteNote(int row, int column) {
+    auto it = notes_.find(static_cast<unsigned short>(row));
     if (it != notes_.end()) {
-      auto it2 = it->second.find(track_id);
-      if (it2 != it->second.end()) {
-	auto & nv = it2->second;
-	if (column < static_cast<int>(nv.size())) {
-	  nv[column].clear();
-	  while (!nv.empty() && !nv.back().isDefined()) nv.pop_back();
-	  if (nv.empty()) it->second.erase(it2);
-	}
+      auto & nv = it->second;
+      if (column < static_cast<int>(nv.size())) {
+	nv[static_cast<size_t>(column)].clear();
+	while (!nv.empty() && !nv.back().isDefined()) nv.pop_back();
+	if (nv.empty()) notes_.erase(it);
       }
     }
   }
 
-  void insertRow(int row, int track_id, int num_rows) {
+  void insertRow(int row, int num_rows) {
     for (int i = num_rows - 1; i > row; i--) {
-      setNotes(i, track_id, getNotes(i - 1, track_id));
+      setNotes(i, getNotes(i - 1));
     }
-    clearNotes(row, track_id);
+    clearNotes(row);
   }
 
-  const Note & getNote(int row, int track_id, int note_column) const {
-    auto it = notes_.find(row);
-    if (it != notes_.end()) {
-      auto it2 = it->second.find(track_id);
-      if (it2 != it->second.end()) {
-	auto & columns = it2->second;
-	if (note_column < columns.size()) return columns[note_column];	
-      }
-    }
+  const Note & getNote(int row, int note_column) const {
+    auto it = notes_.find(static_cast<unsigned short>(row));
+    if (it != notes_.end() && note_column < static_cast<int>(it->second.size())) return it->second[static_cast<size_t>(note_column)];
     return empty_note;
   }
 
-  const std::vector<Note> & getNotes(int row, int track_id) const {
-    auto it = notes_.find(row);
-    if (it != notes_.end()) {
-      auto it2 = it->second.find(track_id);
-      if (it2 != it->second.end()) {
-	return it2->second;
-      }
-    }
-    return empty_notes;
+  const std::vector<Note> & getNotes(int row) const {
+    auto it = notes_.find(static_cast<unsigned short>(row));
+    return it != notes_.end() ? it->second : empty_notes;
   }
 
-  const std::unordered_map<int, std::vector<Note> > & getNotes(int row) const {
-    auto it = notes_.find(row);
-    if (it != notes_.end()) {
-      return it->second;
-    } else {
-      return empty_notes2;
-    }
+  void setCommand(int row, Command command) {
+    commands_[static_cast<unsigned short>(row)] = command;
   }
 
-  void setCommand(int row, int track_id, Command command) {
-    commands_[row][track_id] = command;
+  const Command & getCommand(int row) const {
+    auto it = commands_.find(static_cast<unsigned short>(row));
+    return it != commands_.end() ? it->second : empty_command;
   }
 
-  const Command & getCommand(int row, int track_id) const {
-    auto it = commands_.find(row);
-    if (it != commands_.end()) {
-      auto it2 = it->second.find(track_id);
-      if (it2 != it->second.end()) {
-	return it2->second;
-      }
-    }
-    return empty_command;
-  }
+  // The raw map, letting a caller list every row that has a command
+  // without checking each row individually. Song.cpp's XML writer uses
+  // this to decide which rows to write a <command> element for.
+  const std::unordered_map<unsigned short, Command> & getCommands() const { return commands_; }
 
-  const std::unordered_map<int, Command> & getCommands(int row) const {
-    auto it = commands_.find(row);
-    if (it != commands_.end()) {
-      return it->second;
-    } else {
-      return empty_commands;
+  // Scans every row this Pattern actually has content on, tracking the
+  // widest note-column count seen - Scene::getTrackInformation() calls
+  // this once per track rather than reconstructing the old flat
+  // row->track_id->notes map just to re-derive the same thing.
+  void updateSubtrackInfo(VisibleTrackInfo & info) const {
+    for (auto & [ row, notes ] : notes_) {
+      info.updateNumSubtracks(static_cast<int>(notes.size()));
     }
   }
-
-  void getTrackInformation(std::unordered_map<int, VisibleTrackInfo> & track_info) const {
-    for (auto & d0 : notes_) {
-      for (auto & d1 : d0.second) {
-	auto track_id = d1.first;
-	auto num_notes = d1.second.size();
-	auto & info = track_info[track_id];
-	info.updateNumSubtracks(num_notes);
-      }
-    }
-  }
-
-  void setAnnotation(int row, std::string a) {
-    annotations_[row] = std::move(a);
-  }
-  
-  const std::string & getAnnotation(int row) const {
-    auto it = annotations_.find(row);
-    if (it != annotations_.end()) return it->second;
-    else return empty_string;
-  }
-
-  const std::unordered_map<unsigned short, std::string> & getAnnotations() const { return annotations_; }
 
 private:
-  // sparse note matrix: row, track, note_column
-  std::unordered_map<unsigned short, std::unordered_map<int, std::vector<Note> > > notes_;
-  std::unordered_map<unsigned short, std::unordered_map<int, Command> > commands_;
-  std::unordered_map<unsigned short, std::string> annotations_;
+  // sparse note matrix: row -> note_column
+  std::unordered_map<unsigned short, std::vector<Note> > notes_;
+  std::unordered_map<unsigned short, Command> commands_;
 
   static inline Note empty_note;
   static inline std::vector<Note> empty_notes;
-  static inline std::unordered_map<int, std::vector<Note> > empty_notes2;
-  static inline std::string empty_string;
-  static inline std::unordered_map<int, Command> empty_commands;
   static inline Command empty_command;
 };
 

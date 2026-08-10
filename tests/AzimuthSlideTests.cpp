@@ -79,9 +79,9 @@ TEST(azimuth_slide_moves_the_track_over_the_row) {
   song.addInstrument(make_unique<Oscilator>(WaveformType::SINE)); // instrument_id 0
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
 
-  auto & pattern0 = song.addPattern();
-  pattern0.setNote(0, track.getInternalId(), 0, Note(60, 100));
-  pattern0.setCommand(0, track.getInternalId(), Command("2R05")); // +5 deg/tick, right
+  auto & scene0 = song.addScene();
+  scene0.setNote(0, track.getInternalId(), 0, Note(60, 100));
+  scene0.setCommand(0, track.getInternalId(), Command("2R05")); // +5 deg/tick, right
 
   ChannelConfiguration config(44100, 1);
   auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);

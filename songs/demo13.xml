@@ -8,30 +8,27 @@
     <track id="0" instrument="0" sendA="0.35" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle" />
   </tracks>
   
-  <patterns>
-    <pattern>
-      <note row="0" track="0" velocity="127" value="C-4"/>
-      <note row="0" column="1" track="0" velocity="127" value="Eb4"/>
-      <note row="0" column="2" track="0" velocity="127" value="G-4"/>
-      
-      <note row="8" track="0" velocity="127" value="Bb4"/>
-      <note row="8" column="1" track="0" velocity="127" value="D-4"/>
-      <note row="8" column="2" track="0" velocity="127" value="F-4"/>
-
-      <note row="16" track="0" velocity="127" value="Eb4"/>
-      <note row="16" column="1" track="0" velocity="127" value="G-4"/>
-      <note row="16" column="2" track="0" velocity="127" value="Bb4"/>
-
-      <note row="24" track="0" velocity="127" value="G-4"/>
-      <note row="24" column="1" track="0" velocity="127" value="Bb4"/>
-      <note row="24" column="2" track="0" velocity="127" value="D-5"/>
-
-<!--
-      <note row="24" track="0" velocity="127" value="A#4"/>
-      <note row="24" column="1" track="0" velocity="127" value="C-4"/>
-      <note row="24" column="2" track="0" velocity="127" value="D#4"/>
--->
-
-</pattern>
-  </patterns>
+  <scenes>
+    <scene>
+      <pattern track="0">
+        <note row="0" velocity="127" value="C-4" />
+        <note row="0" column="1" velocity="127" value="Eb4" />
+        <note row="0" column="2" velocity="127" value="G-4" />
+        <note row="8" velocity="127" value="Bb4" />
+        <note row="8" column="1" velocity="127" value="D-4" />
+        <note row="8" column="2" velocity="127" value="F-4" />
+        <note row="16" velocity="127" value="Eb4" />
+        <note row="16" column="1" velocity="127" value="G-4" />
+        <note row="16" column="2" velocity="127" value="Bb4" />
+        <note row="24" velocity="127" value="G-4" />
+        <note row="24" column="1" velocity="127" value="Bb4" />
+        <note row="24" column="2" velocity="127" value="D-5" />
+        <!--
+        <note row="24" track="0" velocity="127" value="A#4"/>
+        <note row="24" column="1" track="0" velocity="127" value="C-4"/>
+        <note row="24" column="2" track="0" velocity="127" value="D#4"/>
+  -->
+      </pattern>
+    </scene>
+  </scenes>
 </song>

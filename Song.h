@@ -3,8 +3,7 @@
 
 #include "StatefulSongObject.h"
 #include "Track.h"
-#include "Section.h"
-#include "Pattern.h"
+#include "Scene.h"
 #include "bus/BusEffectRegistry.h"
 #include "constants.h"
 
@@ -96,10 +95,9 @@ class Song : public StatefulSongObject {
   void incVersion() { version_++; }
   int getVersion() const { return version_; }
 
-  const std::vector<Section> & getSections() const { return sections_; }
-  const std::vector<Pattern> & getPatterns() const { return patterns_; }
-  const Pattern & getPattern(int i) const { return i >= 0 && i < static_cast<int>(patterns_.size()) ? patterns_[i] : empty_pattern_; }
-  Pattern & getPattern(int i) { return i >= 0 && i < static_cast<int>(patterns_.size()) ? patterns_[i] : empty_pattern_; }
+  const std::vector<Scene> & getScenes() const { return scenes_; }
+  const Scene & getScene(int i) const { return i >= 0 && i < static_cast<int>(scenes_.size()) ? scenes_[i] : empty_scene_; }
+  Scene & getScene(int i) { return i >= 0 && i < static_cast<int>(scenes_.size()) ? scenes_[i] : empty_scene_; }
 
   // Clamps `target` so it can't leave the pattern `current` falls in -
   // used by the UI-thread edit cursor (Controller::moveEditPosition()/
@@ -129,21 +127,13 @@ class Song : public StatefulSongObject {
     return std::pair(pattern_idx, row_idx);
   }
   
-  Section & addSection(Section section) {
+  Scene & addScene(Scene scene) {
     incVersion();
-    sections_.push_back(std::move(section));
-    return sections_.back();
+    scenes_.push_back(std::move(scene));
+    return scenes_.back();
   }
 
-  Section & addSection() { return addSection(Section()); }
-
-  Pattern & addPattern(Pattern pattern) {
-    incVersion();
-    patterns_.push_back(std::move(pattern));
-    return patterns_.back();
-  }
-
-  Pattern & addPattern() { return addPattern(Pattern()); }
+  Scene & addScene() { return addScene(Scene()); }
 
   const std::vector<std::unique_ptr<Track> > & getInstruments() const { return instruments_; }
   const Track & getInstrument(int i) const { return *(instruments_[i]); }
@@ -283,10 +273,9 @@ private:
   // Song (Controller always holds one behind a shared_ptr), so a moved-
   // from Song's now-null pointer is never dereferenced in practice.
   mutable std::unique_ptr<std::mutex> tracks_mutex_ = std::make_unique<std::mutex>();
-  std::vector<Section> sections_;
-  std::vector<Pattern> patterns_;
-  
-  static inline Pattern empty_pattern_;
+  std::vector<Scene> scenes_;
+
+  static inline Scene empty_scene_;
 };
 
 #endif

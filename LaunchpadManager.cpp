@@ -504,8 +504,8 @@ LaunchpadManager::isColumnLiveHeld(int track_id, int note_column) const {
 void
 LaunchpadManager::ensureRowCleared(Song & song, int pattern_idx, int row, int track_id) {
   if (!auto_record_cleared_rows_.insert({row, track_id}).second) return; // already cleared this session
-  auto & pattern = song.getPattern(pattern_idx);
-  pattern.setNotes(row, track_id, {});
+  auto & scene = song.getScene(pattern_idx);
+  scene.setNotes(row, track_id, {});
   song.incVersion();
 }
 
@@ -774,7 +774,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
   auto note_value = resolveNote(song, device_id, track_id, ev.getX(), ev.getY());
   if (note_value < 0) return; // unused percussion pad (row 7), or an unpitched/degenerate tuning
 
-  auto & pattern = song.getPattern(info.getPatternIndex());
+  auto & scene = song.getScene(info.getPatternIndex());
   auto current_delay = info.getCurrentDelay();
   auto & event_queue = controller.getPlaybackEventQueue();
 
@@ -822,7 +822,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // the new one should be free to land in the very first column.
     if (state.capture_enabled && auto_started_playback_) ensureRowCleared(song, info.getPatternIndex(), row, track_id);
 
-    // Free-slot search (mirrors Pattern::pushNote), deliberately not
+    // Free-slot search (mirrors Scene::pushNote), deliberately not
     // "map size" the way active_midi_notes assigns columns - that has a
     // latent collision bug on non-LIFO release order, which is the common
     // case for a chordally-played grid controller (see the plan's design
@@ -837,7 +837,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // column to every simultaneously-held note, each PLAY_NOTE silently
     // stealing the previous one's voice (Player.cpp's
     // stopVoices(column)) and killing polyphony entirely.
-    auto & notes = pattern.getNotes(row, track_id);
+    auto & notes = scene.getNotes(row, track_id);
     int note_column = 0;
     while ((note_column < static_cast<int>(notes.size()) && notes[note_column].isDefined()) ||
 	   isColumnLiveHeld(track_id, note_column)) {
@@ -851,7 +851,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
 
     if (state.capture_enabled) {
       Note note(note_value, velocity, current_delay);
-      pattern.setNote(row, track_id, note_column, note);
+      scene.setNote(row, track_id, note_column, note);
       song.incVersion();
     }
 
@@ -891,7 +891,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
 	auto release_row = info.getRowIndex();
 	if (release_row != held.row) {
 	  if (auto_started_playback_) ensureRowCleared(song, info.getPatternIndex(), release_row, held.track_id);
-	  pattern.setNote(release_row, held.track_id, held.note_column, Note(0, 0, current_delay));
+	  scene.setNote(release_row, held.track_id, held.note_column, Note(0, 0, current_delay));
 	  song.incVersion();
 	}
       } else if (!hasAnyActiveNotes(device_id)) {
@@ -982,10 +982,10 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // isDefined() check below could pick up stale pre-existing data from
     // before this row was cleared for the live take.
     if (auto_started_playback_) ensureRowCleared(song, info.getPatternIndex(), target_row, held.track_id);
-    auto note = pattern.getNote(target_row, held.track_id, held.note_column);
+    auto note = scene.getNote(target_row, held.track_id, held.note_column);
     if (!note.isDefined()) note.setDelay(current_delay);
     note.setVelocity(static_cast<short>(ev.getVelocity()));
-    pattern.setNote(target_row, held.track_id, held.note_column, note);
+    scene.setNote(target_row, held.track_id, held.note_column, note);
     song.incVersion();
   }
 }

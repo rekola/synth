@@ -15,7 +15,7 @@
       </drumMachine>
     </drumMachineTrack>
   </tracks>
-  <patterns>
-    <pattern/>
-  </patterns>
+  <scenes>
+    <scene />
+  </scenes>
 </song>

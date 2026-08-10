@@ -28,225 +28,243 @@
         </drumMachineTrack>
     </tracks>
     <sections/>
-    <patterns>
-        <pattern>
-            <note row="0" track="236" velocity="33">CH </note>
-            <note row="0" track="235" velocity="40">C-4</note>
-            <note row="0" track="235" column="1" velocity="40">E♭4</note>
-            <note row="0" track="235" column="2" velocity="40">G-4</note>
-            <note row="0" track="235" column="3" velocity="40">C-3</note>
-            <note row="0" track="235" column="4" velocity="40">C-2</note>
-            <annotation row="0">Major</annotation>
-            <note row="4" track="236" velocity="25">CH </note>
-            <note row="4" track="235" velocity="40">C-4</note>
-            <note row="4" track="235" column="1" velocity="0">···</note>
-            <note row="4" track="235" column="2" velocity="40">G-4</note>
-            <note row="8" track="236" velocity="22">CH </note>
-            <note row="8" track="235" velocity="0">···</note>
-            <note row="8" track="235" column="1" velocity="40">E♭4</note>
-            <note row="12" track="236" velocity="22">OH </note>
-            <note row="12" track="235" velocity="0">···</note>
-            <note row="12" track="235" column="1" velocity="0">···</note>
-            <note row="12" track="235" column="2" velocity="40">G-4</note>
+    <scenes>
+      <scene>
+        <annotation row="0">Major</annotation>
+        <pattern track="236">
+          <note row="0" velocity="33">CH </note>
+          <note row="4" velocity="25">CH </note>
+          <note row="8" velocity="22">CH </note>
+          <note row="12" velocity="22">OH </note>
         </pattern>
-        <pattern>
-            <note row="0" track="236" velocity="7">CH </note>
-            <note row="0" track="235" velocity="40">G-4</note>
-            <note row="0" track="235" column="1" velocity="40">B𝄫4</note>
-            <note row="0" track="235" column="2" velocity="40">C-5</note>
-            <note row="0" track="235" column="3" velocity="40">E𝄫3</note>
-            <note row="0" track="235" column="4" velocity="40">G-2</note>
-            <note row="0" track="235" column="5" velocity="40">G-1</note>
-            <annotation row="0">C quartal major</annotation>
-            <note row="4" track="236" velocity="17">CH </note>
-            <note row="4" track="235" velocity="40">G-4</note>
-            <annotation row="4">D# quartal</annotation>
-            <note row="8" track="236" velocity="19">CH </note>
-            <note row="8" track="235" velocity="40">E𝄫4</note>
-            <note row="8" track="235" column="1" velocity="0">···</note>
-            <note row="8" track="235" column="2" velocity="40">C-4</note>
-            <annotation row="8">C/E</annotation>
-            <note row="11" track="235" velocity="0">···</note>
-            <note row="11" track="235" column="1" velocity="0">···</note>
-            <note row="11" track="235" column="2" velocity="0" delay="160">···</note>
-            <note row="12" track="236" velocity="45">OH </note>
-            <note row="12" track="235" velocity="40">F-4</note>
-            <note row="12" track="235" column="1" velocity="0">···</note>
-            <note row="12" track="235" column="2" velocity="40">E𝄫4</note>
-            <annotation row="12">F major</annotation>
-            <note row="16" track="236" velocity="18">CH </note>
-            <note row="16" track="235" velocity="40">A♭3</note>
-            <note row="16" track="235" column="1" velocity="0">···</note>
-            <note row="16" track="235" column="2" velocity="40">C-4</note>
-            <note row="16" track="235" column="3" velocity="0">···</note>
-            <note row="16" track="235" column="4" velocity="40">A♭2</note>
-            <annotation row="16">G quartal major</annotation>
-            <note row="20" track="236" velocity="18">CH </note>
-            <note row="20" track="235" velocity="40">A♭3</note>
-            <note row="20" track="235" column="1" velocity="0">···</note>
-            <note row="20" track="235" column="2" velocity="40">C-4</note>
-            <annotation row="20">A major</annotation>
-            <note row="24" track="236" velocity="25">CH </note>
-            <note row="24" track="235" velocity="40">A♭3</note>
-            <note row="24" track="235" column="1" velocity="0">···</note>
-            <note row="24" track="235" column="2" velocity="40">E♭3</note>
-            <annotation row="24">A# quartal minor</annotation>
-            <note row="28" track="236" velocity="15">CH </note>
-            <note row="28" track="235" velocity="40">F-3</note>
-            <note row="28" track="235" column="1" velocity="0">···</note>
-            <note row="28" track="235" column="2" velocity="40">E𝄫3</note>
-            <note row="28" track="235" column="3" velocity="0">···</note>
-            <note row="28" track="235" column="4" velocity="40">C-4</note>
-            <annotation row="28">C major</annotation>
+        <pattern track="235">
+          <note row="0" velocity="40">C-4</note>
+          <note row="0" column="1" velocity="40">E♭4</note>
+          <note row="0" column="2" velocity="40">G-4</note>
+          <note row="0" column="3" velocity="40">C-3</note>
+          <note row="0" column="4" velocity="40">C-2</note>
+          <note row="4" velocity="40">C-4</note>
+          <note row="4" column="1" velocity="0">···</note>
+          <note row="4" column="2" velocity="40">G-4</note>
+          <note row="8" velocity="0">···</note>
+          <note row="8" column="1" velocity="40">E♭4</note>
+          <note row="12" velocity="0">···</note>
+          <note row="12" column="1" velocity="0">···</note>
+          <note row="12" column="2" velocity="40">G-4</note>
         </pattern>
-        <pattern>
-            <note row="0" track="235" velocity="40">A♭3</note>
-            <annotation row="0">C major harmonic seventh</annotation>
-            <note row="4" track="235" velocity="40">D♯4</note>
-            <note row="4" track="235" column="1" velocity="40">A♯4</note>
-            <annotation row="4">D#</annotation>
-            <note row="8" track="235" velocity="40">E-4</note>
-            <note row="8" track="235" column="1" velocity="40">A-4</note>
-            <annotation row="8">E</annotation>
-            <note row="12" track="235" velocity="40">F-4</note>
-            <note row="12" track="235" column="1" velocity="40">A-4</note>
-            <note row="12" track="235" column="2" velocity="40">C-5</note>
-            <note row="12" track="235" column="3" velocity="40">E-5</note>
-            <annotation row="12">F major seventh</annotation>
-            <note row="16" track="235" velocity="40">G-4</note>
-            <note row="16" track="235" column="1" velocity="40">A♯4</note>
-            <note row="16" track="235" column="2" velocity="40">C-5</note>
-            <annotation row="16">G quartal major</annotation>
-            <note row="20" track="235" velocity="40">A-4</note>
-            <note row="20" track="235" column="1" velocity="40">C-5</note>
-            <note row="20" track="235" column="2" velocity="40">E-5</note>
-            <note row="20" track="235" column="3" velocity="40">G-5</note>
-            <annotation row="20">A major</annotation>
-            <note row="24" track="235" velocity="40">A♯4</note>
-            <note row="24" track="235" column="1" velocity="40">C-5</note>
-            <note row="24" track="235" column="2" velocity="40">D♯5</note>
-            <annotation row="24">A# quartal minor</annotation>
-            <note row="28" track="235" velocity="40">C-5</note>
-            <note row="28" track="235" column="1" velocity="40">E-5</note>
-            <note row="28" track="235" column="2" velocity="40">G-5</note>
-            <annotation row="28">C major</annotation>
+      </scene>
+      <scene>
+        <annotation row="0">C quartal major</annotation>
+        <annotation row="4">D# quartal</annotation>
+        <annotation row="8">C/E</annotation>
+        <annotation row="12">F major</annotation>
+        <annotation row="16">G quartal major</annotation>
+        <annotation row="20">A major</annotation>
+        <annotation row="24">A# quartal minor</annotation>
+        <annotation row="28">C major</annotation>
+        <pattern track="236">
+          <note row="0" velocity="7">CH </note>
+          <note row="4" velocity="17">CH </note>
+          <note row="8" velocity="19">CH </note>
+          <note row="12" velocity="45">OH </note>
+          <note row="16" velocity="18">CH </note>
+          <note row="20" velocity="18">CH </note>
+          <note row="24" velocity="25">CH </note>
+          <note row="28" velocity="15">CH </note>
         </pattern>
-        <pattern>
-            <note row="0" track="235" velocity="40">C-4</note>
-            <annotation row="0">Minor</annotation>
-            <note row="2" track="235" velocity="40">E𝄫4</note>
-            <note row="4" track="235" velocity="40">E♭4</note>
-            <note row="6" track="235" velocity="40">F-4</note>
-            <note row="8" track="235" velocity="40">G-4</note>
-            <note row="10" track="235" velocity="40">A♭4</note>
-            <note row="12" track="235" velocity="40">B𝄫4</note>
-            <note row="14" track="235" velocity="40">C-5</note>
+        <pattern track="235">
+          <note row="0" velocity="40">G-4</note>
+          <note row="0" column="1" velocity="40">B𝄫4</note>
+          <note row="0" column="2" velocity="40">C-5</note>
+          <note row="0" column="3" velocity="40">E𝄫3</note>
+          <note row="0" column="4" velocity="40">G-2</note>
+          <note row="0" column="5" velocity="40">G-1</note>
+          <note row="4" velocity="40">G-4</note>
+          <note row="8" velocity="40">E𝄫4</note>
+          <note row="8" column="1" velocity="0">···</note>
+          <note row="8" column="2" velocity="40">C-4</note>
+          <note row="11" velocity="0">···</note>
+          <note row="11" column="1" velocity="0">···</note>
+          <note row="11" column="2" velocity="0" delay="160">···</note>
+          <note row="12" velocity="40">F-4</note>
+          <note row="12" column="1" velocity="0">···</note>
+          <note row="12" column="2" velocity="40">E𝄫4</note>
+          <note row="16" velocity="40">A♭3</note>
+          <note row="16" column="1" velocity="0">···</note>
+          <note row="16" column="2" velocity="40">C-4</note>
+          <note row="16" column="3" velocity="0">···</note>
+          <note row="16" column="4" velocity="40">A♭2</note>
+          <note row="20" velocity="40">A♭3</note>
+          <note row="20" column="1" velocity="0">···</note>
+          <note row="20" column="2" velocity="40">C-4</note>
+          <note row="24" velocity="40">A♭3</note>
+          <note row="24" column="1" velocity="0">···</note>
+          <note row="24" column="2" velocity="40">E♭3</note>
+          <note row="28" velocity="40">F-3</note>
+          <note row="28" column="1" velocity="0">···</note>
+          <note row="28" column="2" velocity="40">E𝄫3</note>
+          <note row="28" column="3" velocity="0">···</note>
+          <note row="28" column="4" velocity="40">C-4</note>
         </pattern>
-        <pattern>
-            <note row="0" track="235" velocity="40">C-4</note>
-            <note row="0" track="235" column="1" velocity="40">E♭4</note>
-            <note row="0" track="235" column="2" velocity="40">G-4</note>
-            <note row="0" track="235" column="3" velocity="40">C-5</note>
-            <annotation row="0">C minor</annotation>
-            <note row="4" track="235" velocity="40">E𝄫4</note>
-            <note row="4" track="235" column="1" velocity="40">F-4</note>
-            <note row="4" track="235" column="2" velocity="40">C-5</note>
-            <note row="4" track="235" column="3" velocity="40">E𝄫5</note>
-            <annotation row="4">E𝄫</annotation>
-            <note row="8" track="235" velocity="40">E♭4</note>
-            <note row="8" track="235" column="1" velocity="40">B𝄫4</note>
-            <note row="8" track="235" column="2" velocity="40">C-5</note>
-            <note row="8" track="235" column="3" velocity="40">E♭5</note>
-            <annotation row="8">E♭</annotation>
-            <note row="12" track="235" velocity="40">F-4</note>
-            <note row="12" track="235" column="1" velocity="40">A♭4</note>
-            <note row="12" track="235" column="2" velocity="40">C-5</note>
-            <note row="12" track="235" column="3" velocity="40">F-5</note>
-            <annotation row="12">F minor</annotation>
-            <annotation row="16">G quartal minor</annotation>
-            <annotation row="20">A♭ major</annotation>
-            <note row="24" track="235" velocity="40">B𝄫4</note>
-            <note row="24" track="235" column="1" velocity="40">C-5</note>
-            <note row="24" track="235" column="2" velocity="40">E𝄫5</note>
-            <note row="24" track="235" column="3" velocity="40">B𝄫5</note>
-            <annotation row="24">B𝄫 quartal major</annotation>
-            <note row="28" track="235" velocity="40">C-5</note>
-            <note row="28" track="235" column="1" velocity="40">E♭5</note>
-            <note row="28" track="235" column="2" velocity="40">G-5</note>
-            <note row="28" track="235" column="3" velocity="40">C-5</note>
-            <annotation row="28">C minor</annotation>
+      </scene>
+      <scene>
+        <annotation row="0">C major harmonic seventh</annotation>
+        <annotation row="4">D#</annotation>
+        <annotation row="8">E</annotation>
+        <annotation row="12">F major seventh</annotation>
+        <annotation row="16">G quartal major</annotation>
+        <annotation row="20">A major</annotation>
+        <annotation row="24">A# quartal minor</annotation>
+        <annotation row="28">C major</annotation>
+        <pattern track="235">
+          <note row="0" velocity="40">A♭3</note>
+          <note row="4" velocity="40">D♯4</note>
+          <note row="4" column="1" velocity="40">A♯4</note>
+          <note row="8" velocity="40">E-4</note>
+          <note row="8" column="1" velocity="40">A-4</note>
+          <note row="12" velocity="40">F-4</note>
+          <note row="12" column="1" velocity="40">A-4</note>
+          <note row="12" column="2" velocity="40">C-5</note>
+          <note row="12" column="3" velocity="40">E-5</note>
+          <note row="16" velocity="40">G-4</note>
+          <note row="16" column="1" velocity="40">A♯4</note>
+          <note row="16" column="2" velocity="40">C-5</note>
+          <note row="20" velocity="40">A-4</note>
+          <note row="20" column="1" velocity="40">C-5</note>
+          <note row="20" column="2" velocity="40">E-5</note>
+          <note row="20" column="3" velocity="40">G-5</note>
+          <note row="24" velocity="40">A♯4</note>
+          <note row="24" column="1" velocity="40">C-5</note>
+          <note row="24" column="2" velocity="40">D♯5</note>
+          <note row="28" velocity="40">C-5</note>
+          <note row="28" column="1" velocity="40">E-5</note>
+          <note row="28" column="2" velocity="40">G-5</note>
         </pattern>
-        <pattern>
-            <note row="0" track="235" velocity="40">C-4</note>
-            <note row="0" track="235" column="1" velocity="40">E♭4</note>
-            <note row="0" track="235" column="2" velocity="40">G-4</note>
-            <annotation row="0">C minor</annotation>
-            <note row="4" track="235" velocity="40">C-4</note>
-            <note row="4" track="235" column="1" velocity="40">E-4</note>
-            <note row="4" track="235" column="2" velocity="40">G-4</note>
-            <annotation row="4">C major</annotation>
-            <note row="8" track="235" velocity="40">C-4</note>
-            <note row="8" track="235" column="1" velocity="40">E♭4</note>
-            <note row="8" track="235" column="2" velocity="40">G-4</note>
-            <note row="8" track="235" column="3" velocity="40">A♭4</note>
-            <annotation row="8">C minor 6th</annotation>
-            <note row="12" track="235" velocity="40">C-4</note>
-            <note row="12" track="235" column="1" velocity="40">E-4</note>
-            <note row="12" track="235" column="2" velocity="40">G-4</note>
-            <note row="12" track="235" column="3" velocity="40">A-4</note>
-            <annotation row="12">C major 6th</annotation>
-            <note row="16" track="235" velocity="40">C-4</note>
-            <note row="16" track="235" column="1" velocity="40">E♭4</note>
-            <note row="16" track="235" column="2" velocity="40">G-4</note>
-            <note row="16" track="235" column="3" velocity="40">B𝄫4</note>
-            <annotation row="16">C minor 7th</annotation>
-            <note row="20" track="235" velocity="40">C-4</note>
-            <note row="20" track="235" column="1" velocity="40">E-4</note>
-            <note row="20" track="235" column="2" velocity="40">G-4</note>
-            <note row="20" track="235" column="3" velocity="40">A♯4</note>
-            <annotation row="20">C major 7th</annotation>
-            <note row="24" track="235" velocity="40">G-4</note>
-            <note row="24" track="235" column="1" velocity="40">A♯4</note>
-            <note row="24" track="235" column="2" velocity="40">C-5</note>
-            <annotation row="24">G quartal major</annotation>
-            <note row="28" track="235" velocity="40">G-4</note>
-            <note row="28" track="235" column="1" velocity="40">A♯4</note>
-            <note row="28" track="235" column="2" velocity="40">C-5</note>
-            <note row="28" track="235" column="3" velocity="40">D♯5</note>
-            <annotation row="28">G quartal major something</annotation>
-            <note row="32" track="235" velocity="40">G-4</note>
-            <note row="32" track="235" column="1" velocity="40">A♯4</note>
-            <note row="32" track="235" column="2" velocity="40">C-5</note>
-            <note row="32" track="235" column="3" velocity="40">D♯5</note>
-            <note row="32" track="235" column="4" velocity="40">F-5</note>
-            <annotation row="32">G quartal major something something</annotation>
-            <note row="36" track="235" velocity="40">G-4</note>
-            <note row="36" track="235" column="1" velocity="40">B𝄫4</note>
-            <note row="36" track="235" column="2" velocity="40">C-5</note>
-            <annotation row="36">G quartal minor</annotation>
-            <note row="40" track="235" velocity="40">G-4</note>
-            <note row="40" track="235" column="1" velocity="40">B𝄫4</note>
-            <note row="40" track="235" column="2" velocity="40">C-5</note>
-            <note row="40" track="235" column="3" velocity="40">E𝄫5</note>
-            <annotation row="40">G quartal minor</annotation>
-            <note row="44" track="235" velocity="40">G-4</note>
-            <note row="44" track="235" column="1" velocity="40">B𝄫4</note>
-            <note row="44" track="235" column="2" velocity="40">C-5</note>
-            <note row="44" track="235" column="3" velocity="40">E𝄫5</note>
-            <note row="44" track="235" column="4" velocity="40">F-5</note>
-            <annotation row="44">G quartal minor</annotation>
+      </scene>
+      <scene>
+        <annotation row="0">Minor</annotation>
+        <pattern track="235">
+          <note row="0" velocity="40">C-4</note>
+          <note row="2" velocity="40">E𝄫4</note>
+          <note row="4" velocity="40">E♭4</note>
+          <note row="6" velocity="40">F-4</note>
+          <note row="8" velocity="40">G-4</note>
+          <note row="10" velocity="40">A♭4</note>
+          <note row="12" velocity="40">B𝄫4</note>
+          <note row="14" velocity="40">C-5</note>
         </pattern>
-        <pattern>
-            <note row="0" track="235" velocity="40">C-4</note>
-            <note row="0" track="235" column="1" velocity="40">D♯4</note>
-            <note row="0" track="235" column="2" velocity="40">G-4</note>
-            <note row="0" track="235" column="3" velocity="40">A♯5</note>
-            <annotation row="0">C major harmonic seventh</annotation>
-            <note row="4" track="235" velocity="40">C-4</note>
-            <note row="4" track="235" column="1" velocity="40">E-4</note>
-            <note row="4" track="235" column="2" velocity="40">G-4</note>
-            <note row="4" track="235" column="3" velocity="40">A♯5</note>
-            <annotation row="4">C major harmonic seventh</annotation>
+      </scene>
+      <scene>
+        <annotation row="0">C minor</annotation>
+        <annotation row="4">E𝄫</annotation>
+        <annotation row="8">E♭</annotation>
+        <annotation row="12">F minor</annotation>
+        <annotation row="16">G quartal minor</annotation>
+        <annotation row="20">A♭ major</annotation>
+        <annotation row="24">B𝄫 quartal major</annotation>
+        <annotation row="28">C minor</annotation>
+        <pattern track="235">
+          <note row="0" velocity="40">C-4</note>
+          <note row="0" column="1" velocity="40">E♭4</note>
+          <note row="0" column="2" velocity="40">G-4</note>
+          <note row="0" column="3" velocity="40">C-5</note>
+          <note row="4" velocity="40">E𝄫4</note>
+          <note row="4" column="1" velocity="40">F-4</note>
+          <note row="4" column="2" velocity="40">C-5</note>
+          <note row="4" column="3" velocity="40">E𝄫5</note>
+          <note row="8" velocity="40">E♭4</note>
+          <note row="8" column="1" velocity="40">B𝄫4</note>
+          <note row="8" column="2" velocity="40">C-5</note>
+          <note row="8" column="3" velocity="40">E♭5</note>
+          <note row="12" velocity="40">F-4</note>
+          <note row="12" column="1" velocity="40">A♭4</note>
+          <note row="12" column="2" velocity="40">C-5</note>
+          <note row="12" column="3" velocity="40">F-5</note>
+          <note row="24" velocity="40">B𝄫4</note>
+          <note row="24" column="1" velocity="40">C-5</note>
+          <note row="24" column="2" velocity="40">E𝄫5</note>
+          <note row="24" column="3" velocity="40">B𝄫5</note>
+          <note row="28" velocity="40">C-5</note>
+          <note row="28" column="1" velocity="40">E♭5</note>
+          <note row="28" column="2" velocity="40">G-5</note>
+          <note row="28" column="3" velocity="40">C-5</note>
         </pattern>
-    </patterns>
+      </scene>
+      <scene>
+        <annotation row="0">C minor</annotation>
+        <annotation row="4">C major</annotation>
+        <annotation row="8">C minor 6th</annotation>
+        <annotation row="12">C major 6th</annotation>
+        <annotation row="16">C minor 7th</annotation>
+        <annotation row="20">C major 7th</annotation>
+        <annotation row="24">G quartal major</annotation>
+        <annotation row="28">G quartal major something</annotation>
+        <annotation row="32">G quartal major something something</annotation>
+        <annotation row="36">G quartal minor</annotation>
+        <annotation row="40">G quartal minor</annotation>
+        <annotation row="44">G quartal minor</annotation>
+        <pattern track="235">
+          <note row="0" velocity="40">C-4</note>
+          <note row="0" column="1" velocity="40">E♭4</note>
+          <note row="0" column="2" velocity="40">G-4</note>
+          <note row="4" velocity="40">C-4</note>
+          <note row="4" column="1" velocity="40">E-4</note>
+          <note row="4" column="2" velocity="40">G-4</note>
+          <note row="8" velocity="40">C-4</note>
+          <note row="8" column="1" velocity="40">E♭4</note>
+          <note row="8" column="2" velocity="40">G-4</note>
+          <note row="8" column="3" velocity="40">A♭4</note>
+          <note row="12" velocity="40">C-4</note>
+          <note row="12" column="1" velocity="40">E-4</note>
+          <note row="12" column="2" velocity="40">G-4</note>
+          <note row="12" column="3" velocity="40">A-4</note>
+          <note row="16" velocity="40">C-4</note>
+          <note row="16" column="1" velocity="40">E♭4</note>
+          <note row="16" column="2" velocity="40">G-4</note>
+          <note row="16" column="3" velocity="40">B𝄫4</note>
+          <note row="20" velocity="40">C-4</note>
+          <note row="20" column="1" velocity="40">E-4</note>
+          <note row="20" column="2" velocity="40">G-4</note>
+          <note row="20" column="3" velocity="40">A♯4</note>
+          <note row="24" velocity="40">G-4</note>
+          <note row="24" column="1" velocity="40">A♯4</note>
+          <note row="24" column="2" velocity="40">C-5</note>
+          <note row="28" velocity="40">G-4</note>
+          <note row="28" column="1" velocity="40">A♯4</note>
+          <note row="28" column="2" velocity="40">C-5</note>
+          <note row="28" column="3" velocity="40">D♯5</note>
+          <note row="32" velocity="40">G-4</note>
+          <note row="32" column="1" velocity="40">A♯4</note>
+          <note row="32" column="2" velocity="40">C-5</note>
+          <note row="32" column="3" velocity="40">D♯5</note>
+          <note row="32" column="4" velocity="40">F-5</note>
+          <note row="36" velocity="40">G-4</note>
+          <note row="36" column="1" velocity="40">B𝄫4</note>
+          <note row="36" column="2" velocity="40">C-5</note>
+          <note row="40" velocity="40">G-4</note>
+          <note row="40" column="1" velocity="40">B𝄫4</note>
+          <note row="40" column="2" velocity="40">C-5</note>
+          <note row="40" column="3" velocity="40">E𝄫5</note>
+          <note row="44" velocity="40">G-4</note>
+          <note row="44" column="1" velocity="40">B𝄫4</note>
+          <note row="44" column="2" velocity="40">C-5</note>
+          <note row="44" column="3" velocity="40">E𝄫5</note>
+          <note row="44" column="4" velocity="40">F-5</note>
+        </pattern>
+      </scene>
+      <scene>
+        <annotation row="0">C major harmonic seventh</annotation>
+        <annotation row="4">C major harmonic seventh</annotation>
+        <pattern track="235">
+          <note row="0" velocity="40">C-4</note>
+          <note row="0" column="1" velocity="40">D♯4</note>
+          <note row="0" column="2" velocity="40">G-4</note>
+          <note row="0" column="3" velocity="40">A♯5</note>
+          <note row="4" velocity="40">C-4</note>
+          <note row="4" column="1" velocity="40">E-4</note>
+          <note row="4" column="2" velocity="40">G-4</note>
+          <note row="4" column="3" velocity="40">A♯5</note>
+        </pattern>
+      </scene>
+    </scenes>
 </song>

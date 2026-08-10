@@ -34,41 +34,50 @@
     <track id="2" instrument="2" />
   </tracks>
   
-  <patterns>
-    <pattern>
-      <note row="0" track="bass" velocity="40">A#2</note> <note row="0" track="perc">BD</note>
-      <note row="2" track="bass" velocity="40" delay="10">C-3</note>
-
-      <note row="6" track="bass" velocity="40">A#2</note>
-      <note row="8" track="bass" velocity="40">A#2</note> <note row="8" track="perc">BD</note>
-      <note row="10" track="bass" velocity="40" delay="10">C-3</note>
-
-      <note row="14" track="bass" velocity="40">A#2</note>
-      <note row="16" track="bass" velocity="40">A#2</note> <note row="16" track="perc">BD</note>
-      <note row="18" track="bass" velocity="40" delay="10">C-3</note>
-
-      <note row="22" track="bass" velocity="40">A#2</note>
-      <note row="24" track="bass" velocity="40">A#2</note> <note row="24" track="perc">BD</note>
-      <note row="26" track="bass" velocity="40" delay="10">C-3</note>
-      <note row="30" track="bass" velocity="40">A#2</note>
-    </pattern>
-
-    <pattern>
-      <note row="0" track="bass" velocity="40">D#3</note> <note row="0" track="perc">BD</note>
-      <note row="2" track="bass" velocity="40" delay="10">F-3</note>
-
-      <note row="6" track="bass" velocity="40">D#3</note>
-      <note row="8" track="bass" velocity="40">D#3</note> <note row="8" track="perc">BD</note>
-      <note row="10" track="bass" velocity="40" delay="10">F-3</note>
-
-      <note row="14" track="bass" velocity="40">D#3</note>
-      <note row="16" track="bass" velocity="40">D#3</note> <note row="16" track="perc">BD</note>
-      <note row="18" track="bass" velocity="40" delay="10">F-3</note>
-
-      <note row="22" track="bass" velocity="40">D#3</note>
-      <note row="24" track="bass" velocity="40">D#3</note> <note row="24" track="perc">BD</note>
-      <note row="26" track="bass" velocity="40" delay="10">F-3</note>
-      <note row="30" track="bass" velocity="40">D#3</note>
-    </pattern>
-</patterns>
+  <scenes>
+    <scene>
+      <pattern track="bass">
+        <note row="0" velocity="40">A#2</note>
+        <note row="2" velocity="40" delay="10">C-3</note>
+        <note row="6" velocity="40">A#2</note>
+        <note row="8" velocity="40">A#2</note>
+        <note row="10" velocity="40" delay="10">C-3</note>
+        <note row="14" velocity="40">A#2</note>
+        <note row="16" velocity="40">A#2</note>
+        <note row="18" velocity="40" delay="10">C-3</note>
+        <note row="22" velocity="40">A#2</note>
+        <note row="24" velocity="40">A#2</note>
+        <note row="26" velocity="40" delay="10">C-3</note>
+        <note row="30" velocity="40">A#2</note>
+      </pattern>
+      <pattern track="perc">
+        <note row="0">BD</note>
+        <note row="8">BD</note>
+        <note row="16">BD</note>
+        <note row="24">BD</note>
+      </pattern>
+    </scene>
+    <scene>
+      <pattern track="bass">
+        <note row="0" velocity="40">D#3</note>
+        <note row="2" velocity="40" delay="10">F-3</note>
+        <note row="6" velocity="40">D#3</note>
+        <note row="8" velocity="40">D#3</note>
+        <note row="10" velocity="40" delay="10">F-3</note>
+        <note row="14" velocity="40">D#3</note>
+        <note row="16" velocity="40">D#3</note>
+        <note row="18" velocity="40" delay="10">F-3</note>
+        <note row="22" velocity="40">D#3</note>
+        <note row="24" velocity="40">D#3</note>
+        <note row="26" velocity="40" delay="10">F-3</note>
+        <note row="30" velocity="40">D#3</note>
+      </pattern>
+      <pattern track="perc">
+        <note row="0">BD</note>
+        <note row="8">BD</note>
+        <note row="16">BD</note>
+        <note row="24">BD</note>
+      </pattern>
+    </scene>
+  </scenes>
 </song>

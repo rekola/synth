@@ -16,17 +16,19 @@
     <track id="bass" instrument="0" sendA="0.1" azimuth="-45" distance="1"/>
   </tracks>
   
-  <patterns>
-    <pattern>
-      <note row="0" track="bass" velocity="40">D#2</note>
-      <note row="4" track="bass" velocity="40">F-2</note>
-      <note row="6" track="bass" velocity="40">C-2</note>
-      <note row="10" track="bass" velocity="40">D#2</note>
-      <note row="14" track="bass" velocity="40">D#2</note>
-      <note row="18" track="bass" velocity="40">F-2</note>
-      <note row="22" track="bass" velocity="40">C-2</note>
-      <note row="24" track="bass" velocity="40">D#2</note>
-      <note row="28" track="bass" velocity="40">C-2</note>
-    </pattern>
-</patterns>
+  <scenes>
+    <scene>
+      <pattern track="bass">
+        <note row="0" velocity="40">D#2</note>
+        <note row="4" velocity="40">F-2</note>
+        <note row="6" velocity="40">C-2</note>
+        <note row="10" velocity="40">D#2</note>
+        <note row="14" velocity="40">D#2</note>
+        <note row="18" velocity="40">F-2</note>
+        <note row="22" velocity="40">C-2</note>
+        <note row="24" velocity="40">D#2</note>
+        <note row="28" velocity="40">C-2</note>
+      </pattern>
+    </scene>
+  </scenes>
 </song>

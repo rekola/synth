@@ -13,18 +13,21 @@
     </compressor>
   </tracks>
   
-  <patterns>
-    <pattern>
-      <note row="0" track="0" velocity="127" value="BD"/>
-      <note row="0" track="1" velocity="127" value="C-4"/>
-      
-      <note row="4" track="0" velocity="127" value="BD"/>
-      <note row="8" track="0" velocity="127" value="BD"/>
-      <note row="12" track="0" velocity="127" value="BD"/>
-      <note row="16" track="0" velocity="127" value="BD"/>
-      <note row="20" track="0" velocity="127" value="BD"/>
-      <note row="24" track="0" velocity="127" value="BD"/>
-      <note row="28" track="0" velocity="127" value="BD"/>      
-    </pattern>
-  </patterns>
+  <scenes>
+    <scene>
+      <pattern track="0">
+        <note row="0" velocity="127" value="BD" />
+        <note row="4" velocity="127" value="BD" />
+        <note row="8" velocity="127" value="BD" />
+        <note row="12" velocity="127" value="BD" />
+        <note row="16" velocity="127" value="BD" />
+        <note row="20" velocity="127" value="BD" />
+        <note row="24" velocity="127" value="BD" />
+        <note row="28" velocity="127" value="BD" />
+      </pattern>
+      <pattern track="1">
+        <note row="0" velocity="127" value="C-4" />
+      </pattern>
+    </scene>
+  </scenes>
 </song>

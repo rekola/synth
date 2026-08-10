@@ -8,24 +8,26 @@
   <tracks>
     <track id="0" instrument="0"/>
   </tracks>
-  <patterns>
-    <pattern>
-      <note row="0" track="0" velocity="100" value="C-4"/>
-      <note row="1" track="0" velocity="100" value="C-4"/>
-      <note row="2" track="0" velocity="100" value="C-4"/>
-      <note row="3" track="0" velocity="100" value="C-4"/>
-      <note row="4" track="0" velocity="100" value="C-4"/>
-      <note row="5" track="0" velocity="100" value="C-4"/>
-      <note row="6" track="0" velocity="100" value="C-4"/>
-      <note row="7" track="0" velocity="100" value="C-4"/>
-      <note row="8" track="0" velocity="100" value="C-4"/>
-      <note row="9" track="0" velocity="100" value="C-4"/>
-      <note row="10" track="0" velocity="100" value="C-4"/>
-      <note row="11" track="0" velocity="100" value="C-4"/>
-      <note row="12" track="0" velocity="100" value="C-4"/>
-      <note row="13" track="0" velocity="100" value="C-4"/>
-      <note row="14" track="0" velocity="100" value="C-4"/>
-      <note row="15" track="0" velocity="100" value="C-4"/>
-    </pattern>
-  </patterns>
+  <scenes>
+    <scene>
+      <pattern track="0">
+        <note row="0" velocity="100" value="C-4" />
+        <note row="1" velocity="100" value="C-4" />
+        <note row="2" velocity="100" value="C-4" />
+        <note row="3" velocity="100" value="C-4" />
+        <note row="4" velocity="100" value="C-4" />
+        <note row="5" velocity="100" value="C-4" />
+        <note row="6" velocity="100" value="C-4" />
+        <note row="7" velocity="100" value="C-4" />
+        <note row="8" velocity="100" value="C-4" />
+        <note row="9" velocity="100" value="C-4" />
+        <note row="10" velocity="100" value="C-4" />
+        <note row="11" velocity="100" value="C-4" />
+        <note row="12" velocity="100" value="C-4" />
+        <note row="13" velocity="100" value="C-4" />
+        <note row="14" velocity="100" value="C-4" />
+        <note row="15" velocity="100" value="C-4" />
+      </pattern>
+    </scene>
+  </scenes>
 </song>

@@ -90,8 +90,8 @@ TEST(track_state_set_send_a_reaches_an_already_active_voice) {
   // Send A defaults to 0 on the track/model - setSendA() below is the live
   // knob path, independent of whatever a note's own pattern data carries.
 
-  auto & pattern0 = song.addPattern();
-  pattern0.setNote(0, track.getInternalId(), 0, Note(60, 100));
+  auto & scene0 = song.addScene();
+  scene0.setNote(0, track.getInternalId(), 0, Note(60, 100));
 
   ChannelConfiguration config(44100, 1);
   auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);

@@ -32,19 +32,41 @@
     <track id="9" name="az0el-90" instrument="0" azimuth="0" elevation="-90" distance="1"/>
     <track id="10" name="az0dist2" instrument="0" azimuth="0" elevation="0" distance="2"/>
   </tracks>
-  <patterns>
-    <pattern>
-      <note row="0" track="0" velocity="80" value="C-4"/>
-      <note row="12" track="1" velocity="80" value="C-4"/>
-      <note row="24" track="2" velocity="80" value="C-4"/>
-      <note row="36" track="3" velocity="80" value="C-4"/>
-      <note row="48" track="4" velocity="80" value="C-4"/>
-      <note row="60" track="5" velocity="80" value="C-4"/>
-      <note row="72" track="6" velocity="80" value="C-4"/>
-      <note row="84" track="7" velocity="80" value="C-4"/>
-      <note row="96" track="8" velocity="80" value="C-4"/>
-      <note row="108" track="9" velocity="80" value="C-4"/>
-      <note row="120" track="10" velocity="80" value="C-4"/>
-    </pattern>
-  </patterns>
+  <scenes>
+    <scene>
+      <pattern track="0">
+        <note row="0" velocity="80" value="C-4" />
+      </pattern>
+      <pattern track="1">
+        <note row="12" velocity="80" value="C-4" />
+      </pattern>
+      <pattern track="2">
+        <note row="24" velocity="80" value="C-4" />
+      </pattern>
+      <pattern track="3">
+        <note row="36" velocity="80" value="C-4" />
+      </pattern>
+      <pattern track="4">
+        <note row="48" velocity="80" value="C-4" />
+      </pattern>
+      <pattern track="5">
+        <note row="60" velocity="80" value="C-4" />
+      </pattern>
+      <pattern track="6">
+        <note row="72" velocity="80" value="C-4" />
+      </pattern>
+      <pattern track="7">
+        <note row="84" velocity="80" value="C-4" />
+      </pattern>
+      <pattern track="8">
+        <note row="96" velocity="80" value="C-4" />
+      </pattern>
+      <pattern track="9">
+        <note row="108" velocity="80" value="C-4" />
+      </pattern>
+      <pattern track="10">
+        <note row="120" velocity="80" value="C-4" />
+      </pattern>
+    </scene>
+  </scenes>
 </song>

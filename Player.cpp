@@ -61,7 +61,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 
 	  if (track_state) {
 	    auto [ pattern_idx, row_idx ] = state_.getRelativePosition(song);
-	    auto & pattern = song.getPattern(pattern_idx);
+	    auto & scene = song.getScene(pattern_idx);
 
 	    if (ev.getType() == PlaybackControlEvent::PLAY_NOTE) {
 	      auto tuning = (track->getType() == TrackType::PERCUSSION_CONTROL || track->getType() == TrackType::DRUM_MACHINE) ? Tuning::PERCUSSION : song.getTuning();

@@ -8,57 +8,48 @@
     <track id="0" instrument="0" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle"/>
   </tracks>
   
-  <patterns>
-    <pattern>
-      <note row="0" track="0" velocity="40" value="C-4"/>
-      <note row="2" track="0" velocity="40" value="Db4"/>
-      <note row="4" track="0" velocity="40" value="E𝄫4"/>
-      <note row="6" track="0" velocity="40" value="Eb4"/>
-      <note row="8" track="0" velocity="40" value="F-4"/>
-      <note row="10" track="0" velocity="40" value="G-4"/>
-      <note row="12" track="0" velocity="40" value="Ab4"/>
-      <note row="14" track="0" velocity="40" value="B𝄫4"/>
-      <note row="16" track="0" velocity="40" value="Bb4"/>
-      <note row="18" track="0" velocity="40" value="C-5"/>
-    </pattern>
-
-    <pattern>
+  <scenes>
+    <scene>
+      <pattern track="0">
+        <note row="0" velocity="40" value="C-4" />
+        <note row="2" velocity="40" value="Db4" />
+        <note row="4" velocity="40" value="E𝄫4" />
+        <note row="6" velocity="40" value="Eb4" />
+        <note row="8" velocity="40" value="F-4" />
+        <note row="10" velocity="40" value="G-4" />
+        <note row="12" velocity="40" value="Ab4" />
+        <note row="14" velocity="40" value="B𝄫4" />
+        <note row="16" velocity="40" value="Bb4" />
+        <note row="18" velocity="40" value="C-5" />
+      </pattern>
+    </scene>
+    <scene>
       <annotation row="0">C minor</annotation>
-      <note row="0" track="0" velocity="40">C-4 Eb4 G-4</note>
-      
       <annotation row="4">Db major</annotation>
-      <note row="4" track="0" velocity="40">Db4 F-4 Ab4</note>
-
       <annotation row="8">D minor</annotation>
-      <note row="8" track="0" velocity="40">D-4 F-4 A-4</note>
-
       <annotation row="12">Eb major</annotation>
-      <note row="12" track="0" velocity="40">Eb4 G-4 Bb4</note>
-
       <annotation row="16">E minor</annotation>
-      <note row="16" track="0" velocity="40">E-4 G-4 B-4</note>
-
       <annotation row="20">F minor</annotation>
-      <note row="20" track="0" velocity="40">F-4 Ab4 C-5</note>
-
       <annotation row="24">G</annotation>
-      <note row="24" track="0" velocity="40">G-4 B-4 D-5</note>
-      
       <annotation row="28">Ab major</annotation>
-      <note row="28" track="0" velocity="40">Ab4 C-5 Eb5</note>
-
       <annotation row="32">A minor</annotation>
-      <note row="32" track="0" velocity="40">A-4 C-5 E-5</note>
-
       <annotation row="36">Bb minor</annotation>
-      <note row="36" track="0" velocity="40">Bb4 Db5 F-5</note>
-
       <annotation row="40">B quartal minor</annotation>
-      <note row="40" track="0" velocity="40">B-4 Db5 E-5</note>
-
       <annotation row="44">C minor</annotation>
-      <note row="44" track="0" velocity="40">C-5 Eb5 G-5</note>
-    </pattern>
-
-  </patterns>
+      <pattern track="0">
+        <note row="0" velocity="40">C-4 Eb4 G-4</note>
+        <note row="4" velocity="40">Db4 F-4 Ab4</note>
+        <note row="8" velocity="40">D-4 F-4 A-4</note>
+        <note row="12" velocity="40">Eb4 G-4 Bb4</note>
+        <note row="16" velocity="40">E-4 G-4 B-4</note>
+        <note row="20" velocity="40">F-4 Ab4 C-5</note>
+        <note row="24" velocity="40">G-4 B-4 D-5</note>
+        <note row="28" velocity="40">Ab4 C-5 Eb5</note>
+        <note row="32" velocity="40">A-4 C-5 E-5</note>
+        <note row="36" velocity="40">Bb4 Db5 F-5</note>
+        <note row="40" velocity="40">B-4 Db5 E-5</note>
+        <note row="44" velocity="40">C-5 Eb5 G-5</note>
+      </pattern>
+    </scene>
+  </scenes>
 </song>

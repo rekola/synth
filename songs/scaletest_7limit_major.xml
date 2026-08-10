@@ -8,73 +8,65 @@
     <track id="0" instrument="0" azimuth="30" distance="0" elevation="50"/>
   </tracks>
   
-  <patterns>
-    <pattern>
-      <note row="0" track="0" velocity="40" value="C-4"/>
-      <note row="2" track="0" velocity="40" value="Db4"/>
-      <note row="4" track="0" velocity="40" value="D-4"/>
-      <note row="6" track="0" velocity="40" value="D#4"/>
-      <note row="8" track="0" velocity="40" value="E-4"/>
-      <note row="10" track="0" velocity="40" value="F-4"/>
-      <note row="12" track="0" velocity="40" value="G-4"/>
-      <note row="14" track="0" velocity="40" value="A-4"/>
-      <note row="16" track="0" velocity="40" value="A#4"/>
-      <note row="18" track="0" velocity="40" value="B-4"/>
-      <note row="20" track="0" velocity="40" value="C-5"/>      
-    </pattern>
-
-    <pattern>
+  <scenes>
+    <scene>
+      <pattern track="0">
+        <note row="0" velocity="40" value="C-4" />
+        <note row="2" velocity="40" value="Db4" />
+        <note row="4" velocity="40" value="D-4" />
+        <note row="6" velocity="40" value="D#4" />
+        <note row="8" velocity="40" value="E-4" />
+        <note row="10" velocity="40" value="F-4" />
+        <note row="12" velocity="40" value="G-4" />
+        <note row="14" velocity="40" value="A-4" />
+        <note row="16" velocity="40" value="A#4" />
+        <note row="18" velocity="40" value="B-4" />
+        <note row="20" velocity="40" value="C-5" />
+      </pattern>
+    </scene>
+    <scene>
       <annotation row="0">C quartal major</annotation>
-      <note row="0" track="0" column="0" velocity="40" value="C-4"/>
-      <note row="0" track="0" column="1" velocity="40" value="D#4"/>
-      <note row="0" track="0" column="2" velocity="40" value="F-4"/>
-      
       <annotation row="4">Db quartal minor aug</annotation>
-      <note row="4" track="0" column="0" velocity="40" value="Db4"/>
-      <note row="4" track="0" column="1" velocity="40" value="E-4"/>
-      <note row="4" track="0" column="2" velocity="40" value="G-4"/>
-
       <annotation row="8">D minor</annotation>
-      <note row="8" track="0" column="0" velocity="40" value="D-4"/>
-      <note row="8" track="0" column="1" velocity="40" value="F-4"/>
-      <note row="8" track="0" column="2" velocity="40" value="A-4"/>
-
       <annotation row="12">D# ?</annotation>
-      <note row="12" track="0" column="0" velocity="40" value="D#4"/>
-      <note row="12" track="0" column="1" velocity="40" value="G-4"/>
-      <note row="12" track="0" column="2" velocity="40" value="A#4"/>
-
       <annotation row="16">E minor</annotation>
-      <note row="16" track="0" column="0" velocity="40" value="E-4"/>
-      <note row="16" track="0" column="1" velocity="40" value="G-4"/>
-      <note row="16" track="0" column="2" velocity="40" value="B-4"/>
-
       <annotation row="20">F major</annotation>
-      <note row="20" track="0" column="0" velocity="40" value="F-4"/>
-      <note row="20" track="0" column="1" velocity="40" value="A-4"/>
-      <note row="20" track="0" column="2" velocity="40" value="C-5"/>
-
       <annotation row="24">G major</annotation>
-      <note row="24" track="0" column="0" velocity="40" value="G-4"/>
-      <note row="24" track="0" column="1" velocity="40" value="B-4"/>
-      <note row="24" track="0" column="2" velocity="40" value="D-5"/>
-      
       <annotation row="28">A minor</annotation>
-      <note row="28" track="0" column="0" velocity="40" value="A-4"/>
-      <note row="28" track="0" column="1" velocity="40" value="C-5"/>
-      <note row="28" track="0" column="2" velocity="40" value="E-5"/>
-
       <annotation row="32">A#4 quartal minor</annotation>
-      <note row="32" track="0" column="0" velocity="40" value="A#4"/>
-      <note row="32" track="0" column="1" velocity="40" value="C-5"/>
-      <note row="32" track="0" column="2" velocity="40" value="D#5"/>      
-
       <annotation row="36">B quartal minor</annotation>
-      <note row="36" track="0" column="0" velocity="40" value="B-4"/>
-      <note row="36" track="0" column="1" velocity="40" value="Db5"/>
-      <note row="36" track="0" column="2" velocity="40" value="E-5"/>      
-
-    </pattern>
-
-  </patterns>
+      <pattern track="0">
+        <note row="0" column="0" velocity="40" value="C-4" />
+        <note row="0" column="1" velocity="40" value="D#4" />
+        <note row="0" column="2" velocity="40" value="F-4" />
+        <note row="4" column="0" velocity="40" value="Db4" />
+        <note row="4" column="1" velocity="40" value="E-4" />
+        <note row="4" column="2" velocity="40" value="G-4" />
+        <note row="8" column="0" velocity="40" value="D-4" />
+        <note row="8" column="1" velocity="40" value="F-4" />
+        <note row="8" column="2" velocity="40" value="A-4" />
+        <note row="12" column="0" velocity="40" value="D#4" />
+        <note row="12" column="1" velocity="40" value="G-4" />
+        <note row="12" column="2" velocity="40" value="A#4" />
+        <note row="16" column="0" velocity="40" value="E-4" />
+        <note row="16" column="1" velocity="40" value="G-4" />
+        <note row="16" column="2" velocity="40" value="B-4" />
+        <note row="20" column="0" velocity="40" value="F-4" />
+        <note row="20" column="1" velocity="40" value="A-4" />
+        <note row="20" column="2" velocity="40" value="C-5" />
+        <note row="24" column="0" velocity="40" value="G-4" />
+        <note row="24" column="1" velocity="40" value="B-4" />
+        <note row="24" column="2" velocity="40" value="D-5" />
+        <note row="28" column="0" velocity="40" value="A-4" />
+        <note row="28" column="1" velocity="40" value="C-5" />
+        <note row="28" column="2" velocity="40" value="E-5" />
+        <note row="32" column="0" velocity="40" value="A#4" />
+        <note row="32" column="1" velocity="40" value="C-5" />
+        <note row="32" column="2" velocity="40" value="D#5" />
+        <note row="36" column="0" velocity="40" value="B-4" />
+        <note row="36" column="1" velocity="40" value="Db5" />
+        <note row="36" column="2" velocity="40" value="E-5" />
+      </pattern>
+    </scene>
+  </scenes>
 </song>

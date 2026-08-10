@@ -10,53 +10,48 @@
     <track id="1" instrument="1" azimuth="-30" distance="1" elevation="50" sendA="0.35" />
   </tracks>
   
-  <patterns>
-    <pattern>
-      <note row="0" track="0" velocity="40">C-4 C-3 F-3</note>
-      <note row="0" track="1" velocity="40">C-4</note>
-
-      <note row="2" track="0" velocity="40">D#4</note>
-      <note row="4" track="0" velocity="40">F-4</note>
-      <note row="6" track="0" velocity="40">D#4</note>
-      <note row="8" track="0" velocity="40">C-4</note>
-      <note row="10" track="0" velocity="40">D#4</note>
-      <note row="12" track="0" velocity="40">F-4</note>
-      <note row="14" track="0" velocity="40">D#4</note>
-
-      <note row="16" track="0" velocity="40">Cx4 Gx3 Cx3</note>
-      <note row="16" track="1" velocity="40">Cx4</note>
-
-      <note row="18" track="0" velocity="40">Eb4</note>
-      <note row="20" track="0" velocity="40">Gx4</note>
-      <note row="22" track="0" velocity="40">Eb4</note>
-      <note row="24" track="0" velocity="40">Cx4</note>
-      <note row="26" track="0" velocity="40">Eb4</note>
-      <note row="28" track="0" velocity="40">Gx4</note>
-      <note row="30" track="0" velocity="40">Eb4</note>
-
-      <note row="32" track="0" velocity="40">E-4 B-3 E-3</note>
-      <note row="32" track="1" velocity="40">E-4</note>
-
-      <note row="34" track="0" velocity="40">G-4</note>
-      <note row="36" track="0" velocity="40">B-4</note>
-      <note row="38" track="0" velocity="40">G-4</note>
-      <note row="40" track="0" velocity="40">E-4</note>
-      <note row="42" track="0" velocity="40">G-4</note>
-      <note row="44" track="0" velocity="40">B-4</note>
-      <note row="46" track="0" velocity="40">G-4</note>
-
-      <note row="48" track="0" velocity="40">Db4 Ab3 Db3</note>
-      <note row="48" track="1" velocity="40">Db4</note>
-
-      <note row="50" track="0" velocity="40">F-4</note>
-      <note row="52" track="0" velocity="40">Ab4</note>
-      <note row="54" track="0" velocity="40">F-4</note>
-      <note row="56" track="0" velocity="40">Db4</note>
-      <note row="58" track="0" velocity="40">F-4</note>
-      <note row="60" track="0" velocity="40">Ab4</note>
-      <note row="62" track="0" velocity="40">F-4</note>
-
-</pattern>
-
-  </patterns>
+  <scenes>
+    <scene>
+      <pattern track="0">
+        <note row="0" velocity="40">C-4 C-3 F-3</note>
+        <note row="2" velocity="40">D#4</note>
+        <note row="4" velocity="40">F-4</note>
+        <note row="6" velocity="40">D#4</note>
+        <note row="8" velocity="40">C-4</note>
+        <note row="10" velocity="40">D#4</note>
+        <note row="12" velocity="40">F-4</note>
+        <note row="14" velocity="40">D#4</note>
+        <note row="16" velocity="40">Cx4 Gx3 Cx3</note>
+        <note row="18" velocity="40">Eb4</note>
+        <note row="20" velocity="40">Gx4</note>
+        <note row="22" velocity="40">Eb4</note>
+        <note row="24" velocity="40">Cx4</note>
+        <note row="26" velocity="40">Eb4</note>
+        <note row="28" velocity="40">Gx4</note>
+        <note row="30" velocity="40">Eb4</note>
+        <note row="32" velocity="40">E-4 B-3 E-3</note>
+        <note row="34" velocity="40">G-4</note>
+        <note row="36" velocity="40">B-4</note>
+        <note row="38" velocity="40">G-4</note>
+        <note row="40" velocity="40">E-4</note>
+        <note row="42" velocity="40">G-4</note>
+        <note row="44" velocity="40">B-4</note>
+        <note row="46" velocity="40">G-4</note>
+        <note row="48" velocity="40">Db4 Ab3 Db3</note>
+        <note row="50" velocity="40">F-4</note>
+        <note row="52" velocity="40">Ab4</note>
+        <note row="54" velocity="40">F-4</note>
+        <note row="56" velocity="40">Db4</note>
+        <note row="58" velocity="40">F-4</note>
+        <note row="60" velocity="40">Ab4</note>
+        <note row="62" velocity="40">F-4</note>
+      </pattern>
+      <pattern track="1">
+        <note row="0" velocity="40">C-4</note>
+        <note row="16" velocity="40">Cx4</note>
+        <note row="32" velocity="40">E-4</note>
+        <note row="48" velocity="40">Db4</note>
+      </pattern>
+    </scene>
+  </scenes>
 </song>

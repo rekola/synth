@@ -51,12 +51,14 @@
     <track id="3" instrument="3" />
   </tracks>
   
-  <patterns>   
-    <pattern>
-      <note track="0" row="0" velocity="40">C-4 D#4 F-4</note>
-      <note track="0" row="4" velocity="40">C-4 E-4 G-4</note>
-      <note track="0" row="8" velocity="40">A#3 C-4 D#4</note>
-      <note track="0" row="12" velocity="40">E-3 C-4 A-4</note>
-    </pattern>
-  </patterns>
+  <scenes>
+    <scene>
+      <pattern track="0">
+        <note row="0" velocity="40">C-4 D#4 F-4</note>
+        <note row="4" velocity="40">C-4 E-4 G-4</note>
+        <note row="8" velocity="40">A#3 C-4 D#4</note>
+        <note row="12" velocity="40">E-3 C-4 A-4</note>
+      </pattern>
+    </scene>
+  </scenes>
 </song>
