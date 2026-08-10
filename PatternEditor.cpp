@@ -1604,7 +1604,12 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  putstr(display_row, current_pos, std::string(static_cast<size_t>(width), defined ? 'x' : ' '));
 	  current_pos += width;
 	} else if (column_type == ColumnType::EFFECT) {
-	  cell_fg = command.isDefined() ? styles.command_column_color : cur_fg;
+	  // Falls back to cur_fg (the region's own dark foreground) when
+	  // column_selected, same reasoning as velocity/delay's own cur_fg
+	  // fallback below - command_column_color is tuned for contrast
+	  // against the normal dark row background, not the bright
+	  // effective-region highlight.
+	  cell_fg = command.isDefined() && !column_selected ? styles.command_column_color : cur_fg;
 	  cell_bg = cur_bg;
 	  setFgColor(cell_fg);
 	  setBgColor(cell_bg);
