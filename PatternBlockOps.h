@@ -5,6 +5,7 @@
 #include "Command.h"
 
 #include <functional>
+#include <string>
 #include <vector>
 
 class Scene;
@@ -73,5 +74,14 @@ std::vector<Command> copyPatternBlockCommand(const Scene & scene, int row_lo, in
 void clearPatternBlockCommand(Scene & scene, int row_lo, int row_hi, int track_id);
 void pastePatternBlockCommand(Scene & scene, const std::vector<Command> & block, int num_rows,
 			      int target_row, int track_id);
+
+// Row-only siblings of the above, for PatternEditor's SelectionScope::
+// ANNOTATION - a Scene's annotations are keyed by row alone (see Scene.h's
+// own comment on why they live there rather than on Pattern), so unlike
+// every other family here there's no track_id/note range involved at all.
+std::vector<std::string> copyPatternBlockAnnotations(const Scene & scene, int row_lo, int row_hi);
+void clearPatternBlockAnnotations(Scene & scene, int row_lo, int row_hi);
+void pastePatternBlockAnnotations(Scene & scene, const std::vector<std::string> & block, int num_rows,
+				  int target_row);
 
 #endif

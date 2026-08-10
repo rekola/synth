@@ -13,9 +13,16 @@
 // the annotation and the other is on a real track - there's no such thing
 // as selecting "some tracks plus the annotation," so growing between the
 // two covers the whole row instead (every track, and the annotation).
-// No kill-region/kill-ring-save/transpose-region-* command does anything
-// with ANNOTATION or EVERYTHING yet (annotations have no kill/copy/paste
-// support in this first pass).
+// kill-region/kill-ring-save/yank support ANNOTATION (one row-keyed string
+// per row - see PatternBlockOps.h's copy/clear/pastePatternBlockAnnotations)
+// and EVERYTHING (both that and a whole-row PatternBlock, TRACK's own
+// capture, acted on together - see ClipboardEntry.h's own comment).
+// transpose-region-* does nothing with either: Scene's annotation text has
+// no numeric/transposable semantics, and while EVERYTHING's PatternBlock
+// half technically has transposable notes, there's no single mark/point
+// gesture that reaches EVERYTHING without also touching the annotation, so
+// treating it like TRACK there would silently transpose notes a user
+// positioned no differently than for a no-op ANNOTATION-only selection.
 enum class SelectionScope { TRACK, NOTE_COLUMN, COMMAND, ANNOTATION, EVERYTHING };
 
 #endif

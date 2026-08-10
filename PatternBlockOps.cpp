@@ -168,3 +168,24 @@ pastePatternBlockCommand(Scene & scene, const vector<Command> & block, int num_r
     scene.setCommand(row, track_id, block[row_offset]);
   }
 }
+
+vector<string>
+copyPatternBlockAnnotations(const Scene & scene, int row_lo, int row_hi) {
+  vector<string> block;
+  for (int row = row_lo; row <= row_hi; row++) block.push_back(scene.getAnnotation(row));
+  return block;
+}
+
+void
+clearPatternBlockAnnotations(Scene & scene, int row_lo, int row_hi) {
+  for (int row = row_lo; row <= row_hi; row++) scene.setAnnotation(row, "");
+}
+
+void
+pastePatternBlockAnnotations(Scene & scene, const vector<string> & block, int num_rows, int target_row) {
+  for (size_t row_offset = 0; row_offset < block.size(); row_offset++) {
+    int row = target_row + static_cast<int>(row_offset);
+    if (row < 0 || row >= num_rows) continue;
+    scene.setAnnotation(row, block[row_offset]);
+  }
+}

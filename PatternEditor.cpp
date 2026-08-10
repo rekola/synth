@@ -64,29 +64,37 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     auto & scene = song.getScene(info.getPatternIndex());
 
     auto b = getEffectiveSelectionBounds(song, track_ids);
-    if (b.scope == SelectionScope::ANNOTATION || b.scope == SelectionScope::EVERYTHING) {
-      // No kill/copy/paste support for annotations yet (see
-      // SelectionScope.h) - leave the clipboard and the song untouched
-      // rather than guessing what a "kill" of a mix of tracks and the
-      // annotation should even do.
-      getController().getUIEventQueue().push(make_unique<LogEvent>("Annotation selection not supported yet"));
-      return;
-    }
     clipboard_.scope = b.scope;
     if (b.scope == SelectionScope::TRACK) {
       clipboard_.cells = copyPatternBlock(scene, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
       clipboard_.commands.clear();
+      clipboard_.annotations.clear();
       clearPatternBlock(scene, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
     } else if (b.scope == SelectionScope::NOTE_COLUMN) {
       auto track_id = track_ids[b.track_lo];
       clipboard_.cells = copyPatternBlockNotes(scene, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi);
       clipboard_.commands.clear();
+      clipboard_.annotations.clear();
       clearPatternBlockNotes(scene, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi);
-    } else { // COMMAND
+    } else if (b.scope == SelectionScope::COMMAND) {
       auto track_id = track_ids[b.track_lo];
       clipboard_.commands = copyPatternBlockCommand(scene, b.row_lo, b.row_hi, track_id);
       clipboard_.cells.clear();
+      clipboard_.annotations.clear();
       clearPatternBlockCommand(scene, b.row_lo, b.row_hi, track_id);
+    } else if (b.scope == SelectionScope::ANNOTATION) {
+      clipboard_.annotations = copyPatternBlockAnnotations(scene, b.row_lo, b.row_hi);
+      clipboard_.cells.clear();
+      clipboard_.commands.clear();
+      clearPatternBlockAnnotations(scene, b.row_lo, b.row_hi);
+    } else { // EVERYTHING - every track (TRACK's own PatternBlock capture)
+      // plus the annotation (ANNOTATION's own capture), both at once - see
+      // ClipboardEntry.h's own comment.
+      clipboard_.cells = copyPatternBlock(scene, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
+      clipboard_.commands.clear();
+      clipboard_.annotations = copyPatternBlockAnnotations(scene, b.row_lo, b.row_hi);
+      clearPatternBlock(scene, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
+      clearPatternBlockAnnotations(scene, b.row_lo, b.row_hi);
     }
     song.incVersion();
     setSelectionActive(false);
@@ -94,12 +102,19 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     // kill-region, so an immediate yank restores it exactly in place
     getController().moveEditPosition(b.row_lo - info.getRowIndex());
     new_cursor.track = b.track_lo;
-    if (b.scope == SelectionScope::TRACK) {
-      // Only reset to the first column for a whole-track kill; a
-      // narrower kill (one or more note columns, or just the command)
-      // should leave the cursor on the column it was already on, not
-      // jump back to 0.
+    if (b.scope == SelectionScope::TRACK || b.scope == SelectionScope::EVERYTHING) {
+      // Only reset to the first column for a whole-track (or whole-row)
+      // kill; a narrower kill (one or more note columns, or just the
+      // command) should leave the cursor on the column it was already on,
+      // not jump back to 0. EVERYTHING also needs its scope reset off
+      // ANNOTATION explicitly - point may have been sitting on the
+      // annotation slot (track/col pinned to the last track's last column
+      // regardless - see GridPosition::scope's own comment), and the kill
+      // just cleared it - landing back at (track 0, col 0) on the grid,
+      // like TRACK, reads as the more useful "start of the killed region"
+      // than staying parked on the now-empty annotation.
       new_cursor.col = new_cursor.subcol = 0;
+      new_cursor.scope = SelectionScope::NOTE_COLUMN;
     } else if (b.scope == SelectionScope::NOTE_COLUMN) {
       // Killing the track's last remaining voice can shrink its note-column
       // count (num_subtracks_ is derived from the widest row left in the
@@ -121,6 +136,10 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     }
     // SelectionScope::COMMAND: clearing a Command never changes note-column
     // layout, so the cursor (already on the effect column) needs no snap.
+    // ANNOTATION: same reasoning - clearing annotation text never touches
+    // track/note-column layout at all, and the cursor is already parked on
+    // the annotation slot (track/col pinned to the last track's last
+    // column - see GridPosition::scope's own comment).
     getController().getUIEventQueue().push(make_unique<LogEvent>("Region killed"));
   });
 
@@ -131,43 +150,62 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     auto & scene = song.getScene(info.getPatternIndex());
 
     auto b = getEffectiveSelectionBounds(song, track_ids);
-    if (b.scope == SelectionScope::ANNOTATION || b.scope == SelectionScope::EVERYTHING) {
-      // See kill-region's own comment.
-      getController().getUIEventQueue().push(make_unique<LogEvent>("Annotation selection not supported yet"));
-      return;
-    }
     clipboard_.scope = b.scope;
     if (b.scope == SelectionScope::TRACK) {
       clipboard_.cells = copyPatternBlock(scene, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
       clipboard_.commands.clear();
+      clipboard_.annotations.clear();
     } else if (b.scope == SelectionScope::NOTE_COLUMN) {
       clipboard_.cells = copyPatternBlockNotes(scene, b.row_lo, b.row_hi, track_ids[b.track_lo], b.note_lo, b.note_hi);
       clipboard_.commands.clear();
-    } else { // COMMAND
+      clipboard_.annotations.clear();
+    } else if (b.scope == SelectionScope::COMMAND) {
       clipboard_.commands = copyPatternBlockCommand(scene, b.row_lo, b.row_hi, track_ids[b.track_lo]);
       clipboard_.cells.clear();
+      clipboard_.annotations.clear();
+    } else if (b.scope == SelectionScope::ANNOTATION) {
+      clipboard_.annotations = copyPatternBlockAnnotations(scene, b.row_lo, b.row_hi);
+      clipboard_.cells.clear();
+      clipboard_.commands.clear();
+    } else { // EVERYTHING - see kill-region's own comment.
+      clipboard_.cells = copyPatternBlock(scene, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
+      clipboard_.commands.clear();
+      clipboard_.annotations = copyPatternBlockAnnotations(scene, b.row_lo, b.row_hi);
     }
     setSelectionActive(false);
     getController().getUIEventQueue().push(make_unique<LogEvent>("Region copied"));
   });
 
   commands_.define("yank", [this]() {
-    bool clipboard_empty = clipboard_.scope == SelectionScope::COMMAND ?
-      clipboard_.commands.empty() : clipboard_.cells.empty();
+    bool clipboard_empty = clipboard_.scope == SelectionScope::COMMAND ? clipboard_.commands.empty() :
+      clipboard_.scope == SelectionScope::ANNOTATION ? clipboard_.annotations.empty() :
+      clipboard_.cells.empty();
     if (!clipboard_empty) {
       auto & song = getController().getSong();
       auto & info = getController().getPlaybackInfo();
       auto track_ids = song.getRootTrackIds();
       auto & scene = song.getScene(info.getPatternIndex());
-      auto track_id = track_ids[current_cursor.track];
       if (clipboard_.scope == SelectionScope::TRACK) {
         pastePatternBlock(scene, clipboard_.cells, song.getPatternLength(), info.getRowIndex(), track_ids, current_cursor.track);
       } else if (clipboard_.scope == SelectionScope::NOTE_COLUMN) {
+        auto track_id = track_ids[current_cursor.track];
         auto track_info = getTrackInfoFor(song, track_id);
         auto target_note = clamp(track_info.getNoteNumber(current_cursor.col), 0, max(track_info.num_subtracks_ - 1, 0));
         pastePatternBlockNotes(scene, clipboard_.cells, song.getPatternLength(), info.getRowIndex(), track_id, target_note);
-      } else {
+      } else if (clipboard_.scope == SelectionScope::COMMAND) {
+        auto track_id = track_ids[current_cursor.track];
         pastePatternBlockCommand(scene, clipboard_.commands, song.getPatternLength(), info.getRowIndex(), track_id);
+      } else if (clipboard_.scope == SelectionScope::ANNOTATION) {
+        // Row-keyed only, no track involved at all.
+        pastePatternBlockAnnotations(scene, clipboard_.annotations, song.getPatternLength(), info.getRowIndex());
+      } else { // EVERYTHING - cells always cover every track (that's what
+        // "every track, and the annotation" means - see
+        // getEffectiveSelectionBounds()), so unlike TRACK's own paste this
+        // always targets track 0 rather than current_cursor.track: there's
+        // no sense in which a whole-row block gets "shifted" to start at a
+        // different track, only the row can move.
+        pastePatternBlock(scene, clipboard_.cells, song.getPatternLength(), info.getRowIndex(), track_ids, 0);
+        pastePatternBlockAnnotations(scene, clipboard_.annotations, song.getPatternLength(), info.getRowIndex());
       }
       song.incVersion();
       getController().getUIEventQueue().push(make_unique<LogEvent>("Yanked"));
@@ -210,9 +248,11 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
       auto track_id = track_ids[b.track_lo];
       transposePatternBlockNotes(scene, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, true, is_percussion(track_id));
     }
-    // SelectionScope::COMMAND: nothing to transpose - Command.h has no
-    // numeric/transposable semantics. ANNOTATION/EVERYTHING: same - no
-    // transposable content once the annotation is involved at all.
+    // SelectionScope::COMMAND/ANNOTATION: nothing to transpose - Command.h
+    // and Scene's annotation text both have no numeric/transposable
+    // semantics. EVERYTHING: deliberately left alone too, even though its
+    // PatternBlock half does have transposable notes - see
+    // SelectionScope.h's own comment on why.
     song.incVersion();
   });
 
@@ -498,8 +538,8 @@ PatternEditor::getEffectiveSelectionBounds(const Song & song, const vector<int> 
 
   if (point_on_annotation) {
     // Both ends (or the only end, with no mark) are on the annotation -
-    // nothing on the grid is selected (annotations have no kill/copy/
-    // paste support yet).
+    // nothing on the grid is selected, just a row range of annotation
+    // text (see kill-region/kill-ring-save/yank's own ANNOTATION handling).
     b.scope = SelectionScope::ANNOTATION;
     return b;
   }
@@ -1009,15 +1049,26 @@ PatternEditor::offerInput(const InputEvent & input) {
       // jumps straight to the neighboring track rather than stepping
       // through its columns, landing on its first column the same way
       // crossing a track boundary during plain-Right navigation already
-      // does.
-      if (input.getId() == NCKEY_LEFT && new_cursor.track > 0) {
-	new_cursor.track--;
-	new_cursor.col = 0;
-	new_cursor.subcol = 0;
-      } else if (input.getId() == NCKEY_RIGHT && new_cursor.track + 1 < num_tracks) {
+      // does. Mirrors plain Left/Right's own annotation-slot handling at
+      // the two ends too (see that branch's own comments): Ctrl+Right
+      // past the last track parks on the annotation slot instead of
+      // doing nothing, and Ctrl+Left backs out of it the same way plain
+      // Left does, rather than also stepping a track left in the same
+      // keypress.
+      if (input.getId() == NCKEY_LEFT) {
+	if (new_cursor.isOnAnnotation()) {
+	  new_cursor.scope = SelectionScope::NOTE_COLUMN;
+	} else if (new_cursor.track > 0) {
+	  new_cursor.track--;
+	  new_cursor.col = 0;
+	  new_cursor.subcol = 0;
+	}
+      } else if (new_cursor.track + 1 < num_tracks) {
 	new_cursor.track++;
 	new_cursor.col = 0;
 	new_cursor.subcol = 0;
+      } else if (!new_cursor.isOnAnnotation()) {
+	new_cursor.scope = SelectionScope::ANNOTATION;
       }
       return true;
     } else if (input.getId() == 'i') {
@@ -1696,26 +1747,41 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     bool row_on_annotation_cursor = highlight && current_cursor.isOnAnnotation();
     bool row_in_everything_selection = sel_bounds.scope == SelectionScope::EVERYTHING &&
       pattern_idx == info.getPatternIndex() && pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
-    bool row_selected = row_on_annotation_cursor || row_in_everything_selection;
+    // A genuine multi-row ANNOTATION-scoped selection (mark and point both
+    // on the annotation, on different rows - see kill-region/kill-ring-
+    // save/yank's own ANNOTATION handling). Guarded on row_lo != row_hi so
+    // the everyday degenerate case (no mark, or mark and point on the same
+    // row's annotation) keeps its existing single-row look below rather
+    // than picking up the full-width selected fill meant for an actual
+    // range.
+    bool row_in_annotation_selection = sel_bounds.scope == SelectionScope::ANNOTATION &&
+      sel_bounds.row_lo != sel_bounds.row_hi &&
+      pattern_idx == info.getPatternIndex() && pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
+    bool row_selected = row_on_annotation_cursor || row_in_everything_selection || row_in_annotation_selection;
+    bool row_fully_filled = row_in_everything_selection || row_in_annotation_selection;
 
     // Background for the gap after the last track. EVERYTHING means the
     // *whole row* is selected (getEffectiveSelectionBounds()'s own
     // comment), so it fills the full remaining width, same as a selected
     // track column always colors its full width regardless of content;
-    // a lone parked cursor with no wider selection only highlights the
+    // a multi-row ANNOTATION selection gets the same full-width fill,
+    // scoped to just the annotation area since nothing on the grid is
+    // selected in that scope (see getEffectiveSelectionBounds()). A lone
+    // parked cursor with no wider selection only highlights the
     // text/placeholder itself plus one character of margin either side
     // (further down, once its width is known), not the whole row - that
-    // full-row treatment is what EVERYTHING is for. Either way this is
-    // the *same* light green every other selected cell already uses, not
-    // a separate color, so it doesn't read as some other kind of state.
-    // Falls back to the playhead tint when this is just the currently-
-    // playing/edit-cursor row and nothing here is actually selected, or
-    // plain window_bg_color (already painted by the leading padding fill
-    // above) otherwise. Plain, unblended green - the same tint the rest
-    // of a highlighted row uses - since this is just the gap before the
-    // annotation's own content; the red identity only belongs on the
-    // text/placeholder span itself (plus its margin), further down.
-    if (row_in_everything_selection) {
+    // full-row treatment is what row_fully_filled is for. Either way this
+    // is the *same* light green every other selected cell already uses,
+    // not a separate color, so it doesn't read as some other kind of
+    // state. Falls back to the playhead tint when this is just the
+    // currently-playing/edit-cursor row and nothing here is actually
+    // selected, or plain window_bg_color (already painted by the leading
+    // padding fill above) otherwise. Plain, unblended green - the same
+    // tint the rest of a highlighted row uses - since this is just the
+    // gap before the annotation's own content; the red identity only
+    // belongs on the text/placeholder span itself (plus its margin),
+    // further down.
+    if (row_fully_filled) {
       setFgColor(styles.highlight_fg_color);
       setBgColor(styles.highlight_bg_color);
       putstr(display_row, current_pos, string(static_cast<size_t>(cols - current_pos), ' '));
@@ -1728,20 +1794,21 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     if (current_pos + 2 < cols) {
       bool has_text = !annotation.empty();
       // Only the cursor's own row gets the "type here" invite when
-      // there's nothing written yet - a multi-row EVERYTHING selection
-      // shouldn't make every other selected row look like it's
-      // individually about to be edited too, just selected.
+      // there's nothing written yet - a multi-row EVERYTHING or
+      // ANNOTATION selection shouldn't make every other selected row
+      // look like it's individually about to be edited too, just selected.
       if (has_text || row_on_annotation_cursor) {
 	string text = has_text ? annotation : string("(add annotation)");
 
 	// Whether to extend this span's own background one character
 	// either side of the text, rather than coloring just the text
-	// itself: everywhere except EVERYTHING, which already filled
+	// itself: everywhere except a fully-filled row (EVERYTHING, or a
+	// genuine multi-row ANNOTATION selection), which already filled
 	// across the whole remaining width above - the playhead-only case
 	// still sits inside that same whole-row fill too, but its own span
 	// (a slightly darker shade, so it reads as a distinct thing within
 	// the row) gets the same one-character margin as every other case.
-	bool want_margin = !row_in_everything_selection;
+	bool want_margin = !row_fully_filled;
 	UIColor annotation_red(0xe0, 0x30, 0x30);
 
 	if (row_selected) {
