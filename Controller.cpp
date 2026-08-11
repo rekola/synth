@@ -301,3 +301,71 @@ Controller::removeNoteColumn(int track_id) {
   instrument_track->setMinNoteColumns(instrument_track->getMinNoteColumns() - 1);
   current_song->incVersion();
 }
+
+void
+Controller::ensureRowCleared(std::set<std::pair<int, int>> & cleared_rows, int pattern_idx, int row, int track_id) {
+  if (!cleared_rows.insert({row, track_id}).second) return; // already cleared this session
+  auto & scene = current_song->getScene(pattern_idx);
+  scene.setNotes(row, track_id, {});
+  current_song->incVersion();
+}
+
+void
+Controller::sweepAutoRecordRows(std::set<std::pair<int, int>> & cleared_rows, int & last_cleared_row, int & last_cleared_pattern_idx, int pattern_idx, int new_row, const std::vector<int> & track_ids) {
+  if (pattern_idx != last_cleared_pattern_idx || new_row < last_cleared_row) {
+    last_cleared_row = new_row - 1;
+    last_cleared_pattern_idx = pattern_idx;
+  }
+  if (new_row <= last_cleared_row) return; // nothing new to sweep
+
+  for (int row = last_cleared_row + 1; row <= new_row; row++) {
+    for (auto track_id : track_ids) {
+      ensureRowCleared(cleared_rows, pattern_idx, row, track_id);
+    }
+  }
+  last_cleared_row = new_row;
+}
+
+void
+Controller::startAutoRecordSession(bool & auto_started_playback, std::set<std::pair<int, int>> & cleared_rows, int & last_cleared_row, int & last_cleared_pattern_idx) {
+  togglePlaying();
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_RECORDING_MUTE, 1));
+  auto_started_playback = true;
+  cleared_rows.clear();
+  last_cleared_row = -1;
+  last_cleared_pattern_idx = -1;
+}
+
+void
+Controller::stopAutoRecordSession(bool & auto_started_playback, std::set<std::pair<int, int>> & cleared_rows, const PlaybackInfo & info) {
+  if (info.isPlaying()) {
+    togglePlaying();
+    // Land past the just-written final OFF, not directly on it - an
+    // absolute SET_POSITION, not a relative MOVE_POSITION(1), since the
+    // audio thread keeps advancing in real time for however long this
+    // event takes to actually reach it; "+1 from wherever it's drifted to
+    // by then" occasionally overshot by an extra row. See SongState::
+    // setPosition()'s own comment for the full reasoning.
+    setEditPosition(info.getAbsolutePosition() + 1);
+  }
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_RECORDING_MUTE, 0));
+  auto_started_playback = false;
+  cleared_rows.clear(); // not required for correctness (the next session's own start resets this too) - just don't hold onto a finished session's bookkeeping longer than needed
+}
+
+void
+Controller::writeReleaseOff(std::set<std::pair<int, int>> & cleared_rows, bool auto_started_playback, int pattern_idx, int row, int track_id, int note_column, int delay) {
+  if (auto_started_playback) ensureRowCleared(cleared_rows, pattern_idx, row, track_id);
+  auto & scene = current_song->getScene(pattern_idx);
+  scene.setNote(row, track_id, note_column, Note(0, 0, delay));
+  current_song->incVersion();
+}
+
+void
+Controller::applyNotePressure(int pattern_idx, int row, int track_id, int note_column, short velocity, int delay) {
+  auto & scene = current_song->getScene(pattern_idx);
+  auto note = scene.getNote(row, track_id, note_column);
+  if (!note.isDefined()) note.setDelay(delay);
+  note.setVelocity(velocity);
+  scene.setNote(row, track_id, note_column, note);
+}

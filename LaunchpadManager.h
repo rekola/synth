@@ -452,14 +452,6 @@ class LaunchpadManager {
   // since two different Launchpads could be assigned to the same track.
   bool isColumnLiveHeld(int track_id, int note_column) const;
 
-  // Clears (row, track_id)'s notes exactly once per recording session -
-  // idempotent (checked against auto_record_cleared_rows_) so it's safe
-  // to call defensively from every write site during an active session
-  // (a fresh press, a release's explicit off-write, an aftertouch write,
-  // and onRowAdvanced()'s own sweep) without worrying about which one
-  // gets there first or double-clearing.
-  void ensureRowCleared(Song & song, int pattern_idx, int row, int track_id);
-
   LaunchpadIO * launchpad_io_ = nullptr;
   std::map<int, DeviceState> devices_;
 
@@ -474,7 +466,9 @@ class LaunchpadManager {
   bool auto_started_playback_ = false;
 
   // Which (row, track_id) pairs have already been cleared this recording
-  // session (see ensureRowCleared) - reset whenever a fresh session
+  // session (see Controller::ensureRowCleared, which owns the actual
+  // clear-once-per-session logic - this is just the per-session
+  // bookkeeping it's called with) - reset whenever a fresh session
   // starts (auto_started_playback_ false -> true). last_cleared_row_/
   // last_cleared_pattern_idx_ track how far onRowAdvanced()'s sweep has
   // already reached, so it only clears newly-passed rows, not the whole

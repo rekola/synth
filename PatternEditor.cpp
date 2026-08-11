@@ -777,22 +777,11 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
     scene.setNote(info.getRowIndex(), track_id, note_column, note);
     row_edited = true;
   } else if (ev.getType() == MidiEvent::NOTE_PRESSURE) {
-    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, track_id, note_column, note_value, ev.getVelocity()));    
+    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, track_id, note_column, note_value, ev.getVelocity()));
 
-    auto note = scene.getNote(info.getRowIndex(), track_id, note_column);
-    if (!note.isDefined()) note.setDelay(current_delay);
-    note.setVelocity(ev.getVelocity());    
-    scene.setNote(info.getRowIndex(), track_id, note_column, note);
+    getController().applyNotePressure(info.getPatternIndex(), info.getRowIndex(), track_id, note_column, ev.getVelocity(), current_delay);
     row_edited = true;
   }
-}
-
-void
-PatternEditor::ensureRowCleared(Song & song, int pattern_idx, int row, int track_id) {
-  if (!auto_record_cleared_rows_.insert({row, track_id}).second) return; // already cleared this session
-  auto & scene = song.getScene(pattern_idx);
-  scene.setNotes(row, track_id, {});
-  song.incVersion();
 }
 
 void
@@ -800,18 +789,6 @@ PatternEditor::onRowAdvanced(Controller & controller) {
   if (!auto_started_playback_) return;
 
   auto & info = controller.getPlaybackInfo();
-  auto new_row = info.getRowIndex();
-  auto pattern_idx = info.getPatternIndex();
-
-  if (pattern_idx != last_cleared_pattern_idx_ || new_row < last_cleared_row_) {
-    // Pattern changed, or the row went backwards (a loop/pattern-sequence
-    // wraparound) - resync to just this row rather than trying to
-    // backfill a range spanning the boundary, which has no single
-    // well-defined meaning here.
-    last_cleared_row_ = new_row - 1;
-    last_cleared_pattern_idx_ = pattern_idx;
-  }
-  if (new_row <= last_cleared_row_) return; // nothing new to sweep
 
   // Every track currently receiving live input - almost always just one
   // (the cursor's own track at press time), but each active note stores
@@ -825,13 +802,7 @@ PatternEditor::onRowAdvanced(Controller & controller) {
     }
   }
 
-  auto & song = controller.getSong();
-  for (int row = last_cleared_row_ + 1; row <= new_row; row++) {
-    for (auto track_id : track_ids) {
-      ensureRowCleared(song, pattern_idx, row, track_id);
-    }
-  }
-  last_cleared_row_ = new_row;
+  controller.sweepAutoRecordRows(auto_record_cleared_rows_, last_cleared_row_, last_cleared_pattern_idx_, info.getPatternIndex(), info.getRowIndex(), track_ids);
 }
 
 bool
@@ -908,38 +879,20 @@ PatternEditor::offerInput(const InputEvent & input) {
     // - unless that's still the note's own row, which would erase the
     // note it belongs to instead of ending it.
     if (info.isPlaying()) {
-      auto & scene = song.getScene(info.getPatternIndex());
       auto release_row = info.getRowIndex();
       if (release_row != held.row) {
-	if (auto_started_playback_) ensureRowCleared(song, info.getPatternIndex(), release_row, held.track_id);
-	scene.setNote(release_row, held.track_id, held.note_column, Note(0, 0, info.getCurrentDelay()));
-	song.incVersion();
+	getController().writeReleaseOff(auto_record_cleared_rows_, auto_started_playback_, info.getPatternIndex(), release_row, held.track_id, held.note_column, info.getCurrentDelay());
       }
     }
 
     // Realtime auto-play-while-held (mirrors LaunchpadManager's own -
     // see its RELEASE branch for the identical reasoning): stop exactly
     // when the last held note key releases, but only if this code
-    // started the transport itself, and only if it's still genuinely
-    // playing - otherwise the user must have manually stopped it in the
-    // meantime, and toggling again here would incorrectly restart it.
+    // started the transport itself - stopAutoRecordSession() itself
+    // handles only actually stopping if it's still genuinely playing
+    // (the user may have manually stopped it in the meantime).
     if (auto_started_playback_ && active_keyboard_notes_.empty()) {
-      if (info.isPlaying()) {
-	getController().togglePlaying();
-	// Land past the just-written final OFF, not directly on it - see
-	// LaunchpadManager's own identical fix for the full reasoning. Only
-	// when *we* actually stopped it here, same care as above. Absolute
-	// SET_POSITION, not relative MOVE_POSITION(1) - see SongState::
-	// setPosition()'s own comment for why a relative move occasionally
-	// overshot by an extra row.
-	getController().setEditPosition(info.getAbsolutePosition() + 1);
-      }
-      // Unconditional, regardless of the isPlaying() check above - see
-      // LaunchpadManager's identical fix for why (a manual mid-hold stop
-      // must not leave recording_muted_ stuck true).
-      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_RECORDING_MUTE, 0));
-      auto_started_playback_ = false;
-      auto_record_cleared_rows_.clear(); // not required for correctness (the next session's own start resets this too) - just don't hold onto a finished session's bookkeeping longer than needed
+      getController().stopAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, info);
     }
     return true;
   }
@@ -1301,20 +1254,11 @@ PatternEditor::offerInput(const InputEvent & input) {
 	    // ahead of this note landing on it, not after.
 	    bool was_first_held_note = has_hold_info && active_keyboard_notes_.empty();
 	    if (was_first_held_note && !info.isPlaying()) {
-	      getController().togglePlaying();
-	      // Mutes only the song's own pattern-driven scheduling
-	      // (SongState::renderBlock()'s own comment has the full reasoning) -
-	      // never the live PLAY_NOTE/STOP_NOTE/NOTE_PRESSURE path this
-	      // key's own sound comes through.
-	      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_RECORDING_MUTE, 1));
-	      auto_started_playback_ = true;
-	      auto_record_cleared_rows_.clear();
-	      last_cleared_row_ = -1;
-	      last_cleared_pattern_idx_ = -1;
+	      getController().startAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, last_cleared_row_, last_cleared_pattern_idx_);
 	    }
 
 	    if (input.hasShift()) {
-	      if (auto_started_playback_) ensureRowCleared(song, info.getPatternIndex(), info.getRowIndex(), track_id);
+	      if (auto_started_playback_) getController().ensureRowCleared(auto_record_cleared_rows_, info.getPatternIndex(), info.getRowIndex(), track_id);
 	      note_column = scene.pushNote(info.getRowIndex(), track_id, note);
 	    } else {
 	      // A lone key still lands exactly on the cursor's own column,
@@ -1331,7 +1275,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	      // ensureRowCleared's own comment), safe to call defensively -
 	      // only actually does anything the first time (row, track_id) is
 	      // touched this session.
-	      if (auto_started_playback_) ensureRowCleared(song, info.getPatternIndex(), info.getRowIndex(), track_id);
+	      if (auto_started_playback_) getController().ensureRowCleared(auto_record_cleared_rows_, info.getPatternIndex(), info.getRowIndex(), track_id);
 	      scene.setNote(info.getRowIndex(), track_id, note_column, note);
 	    }
 

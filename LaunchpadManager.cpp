@@ -502,30 +502,10 @@ LaunchpadManager::isColumnLiveHeld(int track_id, int note_column) const {
 }
 
 void
-LaunchpadManager::ensureRowCleared(Song & song, int pattern_idx, int row, int track_id) {
-  if (!auto_record_cleared_rows_.insert({row, track_id}).second) return; // already cleared this session
-  auto & scene = song.getScene(pattern_idx);
-  scene.setNotes(row, track_id, {});
-  song.incVersion();
-}
-
-void
 LaunchpadManager::onRowAdvanced(Controller & controller) {
   if (!auto_started_playback_) return;
 
   auto & info = controller.getPlaybackInfo();
-  auto new_row = info.getRowIndex();
-  auto pattern_idx = info.getPatternIndex();
-
-  if (pattern_idx != last_cleared_pattern_idx_ || new_row < last_cleared_row_) {
-    // Pattern changed, or the row went backwards (a loop/pattern-sequence
-    // wraparound) - resync to just this row rather than trying to
-    // backfill a range spanning the boundary, which has no single
-    // well-defined meaning here.
-    last_cleared_row_ = new_row - 1;
-    last_cleared_pattern_idx_ = pattern_idx;
-  }
-  if (new_row <= last_cleared_row_) return; // nothing new to sweep
 
   // Every track currently receiving live input, across every device -
   // not just the caller's own, since two different Launchpads could be
@@ -539,13 +519,7 @@ LaunchpadManager::onRowAdvanced(Controller & controller) {
     }
   }
 
-  auto & song = controller.getSong();
-  for (int row = last_cleared_row_ + 1; row <= new_row; row++) {
-    for (auto track_id : track_ids) {
-      ensureRowCleared(song, pattern_idx, row, track_id);
-    }
-  }
-  last_cleared_row_ = new_row;
+  controller.sweepAutoRecordRows(auto_record_cleared_rows_, last_cleared_row_, last_cleared_pattern_idx_, info.getPatternIndex(), info.getRowIndex(), track_ids);
 }
 
 bool
@@ -795,21 +769,13 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // and this press's own write below, so - when this is the session-
     // starting press - ensureRowCleared() (just below) sees the fresh
     // auto_started_playback_ state in time to matter for both.
+    // startAutoRecordSession() calls togglePlaying() (rather than pushing
+    // a raw PLAY event), which also synchronously updates Controller's own
+    // PlaybackInfo - info (bound by reference above) reflects
+    // isPlaying()==true immediately, not just once the Player thread
+    // eventually processes the event and reports back.
     if (was_first_captured_note && !info.isPlaying()) {
-      // togglePlaying() (rather than a raw PLAY push) also synchronously
-      // updates Controller's own PlaybackInfo - info (bound by reference
-      // above) reflects isPlaying()==true immediately, not just once the
-      // Player thread eventually processes the event and reports back.
-      controller.togglePlaying();
-      // Mutes only the song's own pattern-driven scheduling (SongState::
-      // render()'s own comment has the full reasoning) - never the live
-      // PLAY_NOTE/STOP_NOTE/NOTE_PRESSURE path this press's own sound
-      // comes through, so the player's own performance is unaffected.
-      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_RECORDING_MUTE, 1));
-      auto_started_playback_ = true;
-      auto_record_cleared_rows_.clear();
-      last_cleared_row_ = -1;
-      last_cleared_pattern_idx_ = -1;
+      controller.startAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, last_cleared_row_, last_cleared_pattern_idx_);
     }
 
     // Whole-row replace semantics for a live take: idempotent (see its
@@ -820,7 +786,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // erased note reads as "taken" and gets skipped past, when the old
     // note is actually gone (or about to be, from this same call) and
     // the new one should be free to land in the very first column.
-    if (state.capture_enabled && auto_started_playback_) ensureRowCleared(song, info.getPatternIndex(), row, track_id);
+    if (state.capture_enabled && auto_started_playback_) controller.ensureRowCleared(auto_record_cleared_rows_, info.getPatternIndex(), row, track_id);
 
     // Free-slot search (mirrors Scene::pushNote), deliberately not
     // "map size" the way active_midi_notes assigns columns - that has a
@@ -890,9 +856,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
 	// instantly erase the note it belongs to.
 	auto release_row = info.getRowIndex();
 	if (release_row != held.row) {
-	  if (auto_started_playback_) ensureRowCleared(song, info.getPatternIndex(), release_row, held.track_id);
-	  scene.setNote(release_row, held.track_id, held.note_column, Note(0, 0, current_delay));
-	  song.incVersion();
+	  controller.writeReleaseOff(auto_record_cleared_rows_, auto_started_playback_, info.getPatternIndex(), release_row, held.track_id, held.note_column, current_delay);
 	}
       } else if (!hasAnyActiveNotes(device_id)) {
 	// Step entry: advance once the whole chord gesture has been
@@ -911,39 +875,12 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // Realtime auto-play-while-held: stop exactly when the last
     // Capture-armed held note anywhere releases, but only if this code
     // (not the user manually pressing Space) was the one that started
-    // it - see auto_started_playback_'s own comment. The session is
-    // considered over either way once this fires (flag cleared
-    // regardless) - but only actually call togglePlaying() (which flips
-    // whatever the *current* state is) if it's still genuinely playing;
-    // otherwise the user must have manually stopped it themselves in the
-    // meantime, and toggling again here would incorrectly restart it.
+    // it - see auto_started_playback_'s own comment.
+    // stopAutoRecordSession() itself handles only actually stopping if
+    // it's still genuinely playing (the user may have manually stopped it
+    // themselves in the meantime).
     if (auto_started_playback_ && !anyCaptureArmedNoteHeld()) {
-      if (info.isPlaying()) {
-	controller.togglePlaying();
-	// Land past the just-written final OFF, not directly on it, so the
-	// cursor is ready for whatever comes next - the same "advance once
-	// you're done" step-entry already gives an ordinary note, just
-	// triggered once here for the whole take instead of after every
-	// row. Only when *we* actually stopped it here - if the user had
-	// already manually stopped the transport before this release, the
-	// cursor is wherever they left it and shouldn't be moved out from
-	// under them. An *absolute* SET_POSITION, not a relative
-	// MOVE_POSITION(1) - the audio thread keeps advancing in real time
-	// for however long this event takes to actually reach it, so "+1
-	// from wherever it's drifted to by then" occasionally landed two
-	// rows past the OFF instead of one; "+1 from the exact row this
-	// snapshot (info) saw" doesn't have that problem. See SongState::
-	// setPosition()'s own comment for the full reasoning.
-	controller.setEditPosition(info.getAbsolutePosition() + 1);
-      }
-      // Unconditional, regardless of the isPlaying() check above: if the
-      // user manually stopped the transport themselves mid-hold,
-      // recording_muted_ would otherwise stay stuck true (nothing else
-      // ever clears it), silently muting their next ordinary, manually-
-      // started playback.
-      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_RECORDING_MUTE, 0));
-      auto_started_playback_ = false;
-      auto_record_cleared_rows_.clear(); // not required for correctness (the next session's own start resets this too) - just don't hold onto a finished session's bookkeeping longer than needed
+      controller.stopAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, info);
     }
   } else if (ev.getKind() == LaunchpadPadEvent::AFTERTOUCH) {
     // Mini MK3 never emits this (no pressure sensing); defensive check
@@ -981,11 +918,8 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // Clear before reading, not just before writing - otherwise the
     // isDefined() check below could pick up stale pre-existing data from
     // before this row was cleared for the live take.
-    if (auto_started_playback_) ensureRowCleared(song, info.getPatternIndex(), target_row, held.track_id);
-    auto note = scene.getNote(target_row, held.track_id, held.note_column);
-    if (!note.isDefined()) note.setDelay(current_delay);
-    note.setVelocity(static_cast<short>(ev.getVelocity()));
-    scene.setNote(target_row, held.track_id, held.note_column, note);
+    if (auto_started_playback_) controller.ensureRowCleared(auto_record_cleared_rows_, info.getPatternIndex(), target_row, held.track_id);
+    controller.applyNotePressure(info.getPatternIndex(), target_row, held.track_id, held.note_column, static_cast<short>(ev.getVelocity()), current_delay);
     song.incVersion();
   }
 }

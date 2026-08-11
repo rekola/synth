@@ -12,7 +12,10 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <string>
+#include <utility>
+#include <vector>
 
 class Song;
 
@@ -188,6 +191,86 @@ class Controller {
   // never reads it.
   void addNoteColumn(int track_id);
   void removeNoteColumn(int track_id);
+
+  // Single, shared home for the whole-row-replace sweep a realtime
+  // recording session (auto-record-while-held, both the terminal keyboard
+  // path in PatternEditor and the Launchpad pad path in LaunchpadManager)
+  // uses to make a fresh take overwrite a row's old content rather than
+  // merging into it. Idempotent per (row, track_id) against `cleared_rows`
+  // - `insert().second` is false once a pair's already been cleared this
+  // session - so every live-input write site can call this defensively
+  // without worrying about which one gets there first or double-clearing.
+  // `cleared_rows` (and when it resets) stays owned by the caller rather
+  // than moving in here too: PatternEditor's and LaunchpadManager's
+  // recording sessions are independent and can be active at the same time
+  // (different tracks), so sharing one set here would let one session's
+  // end (which clears its own bookkeeping) reset the other's mid-session
+  // and cause a stray re-clear that wipes notes the other session already
+  // wrote this take.
+  void ensureRowCleared(std::set<std::pair<int, int>> & cleared_rows, int pattern_idx, int row, int track_id);
+
+  // Sweeps ensureRowCleared() over every row the transport has newly
+  // passed through since the last call, for every track named in
+  // `track_ids` - the onRowAdvanced() half of the realtime auto-record
+  // session, shared by PatternEditor and LaunchpadManager the same way
+  // ensureRowCleared() itself is (see its own comment for why the session
+  // bookkeeping stays owned by the caller). Resyncs to just `new_row`
+  // rather than trying to backfill a range, if the pattern changed or the
+  // row went backwards (a loop/pattern-sequence wraparound) - a range
+  // spanning that boundary has no single well-defined meaning. `track_ids`
+  // stays a caller-computed parameter rather than something this method
+  // resolves itself: PatternEditor derives it from active_keyboard_notes_,
+  // LaunchpadManager unions it across every device's own active_notes -
+  // different data structures per input source, not shareable here.
+  void sweepAutoRecordRows(std::set<std::pair<int, int>> & cleared_rows, int & last_cleared_row, int & last_cleared_pattern_idx, int pattern_idx, int new_row, const std::vector<int> & track_ids);
+
+  // Engages the realtime auto-play-while-held session (PatternEditor's
+  // keyboard entry and LaunchpadManager's pad entry both offer this):
+  // starts the transport and mutes the song's own pattern-driven
+  // scheduling (SongState::render()'s own comment has the full reasoning)
+  // so only this live take's own PLAY_NOTE/STOP_NOTE/NOTE_PRESSURE stream
+  // sounds, then resets the caller's whole-row-replace bookkeeping for the
+  // fresh session. The caller decides *when* to call this - its own "is
+  // this the first held note, and are we not already playing" check
+  // (again per-input-source state, not shareable) - so it's only ever
+  // called once per session, right before that session's first write.
+  void startAutoRecordSession(bool & auto_started_playback, std::set<std::pair<int, int>> & cleared_rows, int & last_cleared_row, int & last_cleared_pattern_idx);
+
+  // The matching end of startAutoRecordSession(): stops the transport
+  // (only if it's still genuinely playing - the user may have manually
+  // stopped it mid-hold already, and toggling again here would incorrectly
+  // restart it) and lands the cursor just past the final note-off this
+  // take wrote, then unmutes the song's own scheduling and clears the
+  // session flag/bookkeeping unconditionally either way, so a manual
+  // mid-hold stop never leaves recording muted or the flag stuck true.
+  // The caller decides when the session is over (its own "last held note
+  // just released" check) and passes its current PlaybackInfo snapshot so
+  // the landing position is computed from the same snapshot the check
+  // itself saw, not a value that may have drifted by the time this runs.
+  void stopAutoRecordSession(bool & auto_started_playback, std::set<std::pair<int, int>> & cleared_rows, const PlaybackInfo & info);
+
+  // Writes an explicit note-off at `row` for a live take's release, once
+  // the transport has moved past the note's own row - shared tail of
+  // PatternEditor::offerInput()'s and LaunchpadManager::handlePadEvent()'s
+  // RELEASE handling (mirroring handleMidiEvent()'s own NOTE_OFF write).
+  // Per Renoise's own pattern model, a single line can't hold both a note
+  // and its own note-off, so the caller only calls this once it's
+  // confirmed `row` isn't still the note's own row - writing here
+  // unconditionally would erase the note it belongs to instead of ending
+  // it. Sweeps the row clean first (like every other live write site) when
+  // this caller's own session started the transport.
+  void writeReleaseOff(std::set<std::pair<int, int>> & cleared_rows, bool auto_started_playback, int pattern_idx, int row, int track_id, int note_column, int delay);
+
+  // Applies a pressure/aftertouch update to an already-written note -
+  // shared by PatternEditor::handleMidiEvent()'s NOTE_PRESSURE handling
+  // (physical MIDI keyboard input) and LaunchpadManager::handlePadEvent()'s
+  // AFTERTOUCH handling. Leaves the caller to bump the song version or set
+  // its own row_edited flag afterward, whichever that input path already
+  // uses (the two aren't unified - see the one-row partial redraw's own
+  // reasoning elsewhere), and to resolve which row/rate-limiting rules
+  // apply before calling this - only the actual read-modify-write of the
+  // note itself is shared.
+  void applyNotePressure(int pattern_idx, int row, int track_id, int note_column, short velocity, int delay);
 
   // Emacs prefix-argument style: transient, one-shot context a caller (the
   // Launchpad command-dispatch path, UI::handleLaunchpadButtonEvent) sets

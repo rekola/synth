@@ -158,11 +158,13 @@ protected:
   // Whole-row-replace bookkeeping for a realtime-recording session -
   // mirrors LaunchpadManager's own auto_record_cleared_rows_/
   // last_cleared_row_/last_cleared_pattern_idx_ exactly (see its comment
-  // for the full reasoning): ensureRowCleared() is idempotent per (row,
-  // track_id) so it's safe to call from every write site during an
+  // for the full reasoning): the actual clear-once-per-session logic is
+  // centralized on Controller::ensureRowCleared() (this set is just the
+  // per-session bookkeeping it's called with - see that method's own
+  // comment for why it stays here rather than also moving onto
+  // Controller), so it's safe to call from every write site during an
   // active session, and onRowAdvanced() sweeps whatever rows the
   // playhead just passed through.
-  void ensureRowCleared(Song & song, int pattern_idx, int row, int track_id);
   std::set<std::pair<int, int>> auto_record_cleared_rows_;
   int last_cleared_row_ = -1;
   int last_cleared_pattern_idx_ = -1;
