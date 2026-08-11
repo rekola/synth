@@ -73,6 +73,7 @@ add_library(synth_engine STATIC
 	dsp/DiracAnalyzer.cpp
 	NoteMultiplier.cpp
 	Arpeggiator.cpp
+	ArpeggiatorState.cpp
 	LFO.cpp
 	OfflineRenderer.cpp
 	PatternBlockOps.cpp

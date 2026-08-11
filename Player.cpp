@@ -63,26 +63,27 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	    auto [ pattern_idx, row_idx ] = state_.getRelativePosition(song);
 	    auto & scene = song.getScene(pattern_idx);
 
+	    // InstrumentTrackState::noteOn()/notePressure() (PLAY_NOTE/
+	    // NOTE_PRESSURE handling, shared by Kitty-keyboard note entry and
+	    // Launchpad NOTES/step-grid presses) are virtual - a plain track
+	    // spawns/updates a voice directly, an ArpeggiatorState
+	    // (Arpeggiator.h's own track kind, reached the same way any other
+	    // InstrumentTrackState is) routes them into its stepper's held
+	    // chord instead (plans/arpeggiator.md) - so this call site never
+	    // needs to know which kind of track it's talking to.
 	    if (ev.getType() == PlaybackControlEvent::PLAY_NOTE) {
 	      auto tuning = (track->getType() == TrackType::PERCUSSION_CONTROL || track->getType() == TrackType::DRUM_MACHINE) ? Tuning::PERCUSSION : song.getTuning();
 	      Note note(midi_note, midi_velocity);
 	      auto frequency = Tuner::getFrequency(tuning, note);
 
-	      track_state->retriggerVoices(column, note.getValue());
-	      // Same extent-default resolution as InstrumentTrackState::
-	      // render()'s own pattern-playback note-on path - position_.extent
-	      // < 0 means "not authored on this track" (InstrumentTrack::
-	      // getExtent()), resolved to the assigned instrument's own family
-	      // default here too, so a live-triggered note (this path) and a
-	      // pattern-triggered one resolve identically instead of a live
-	      // note silently falling back to a point source.
-	      auto resolved_position = instrument_track.getPosition();
-	      if (resolved_position.extent < 0.0f) resolved_position.extent = instrument.getDefaultExtent();
-	      auto voice = instrument.playNote(state_.getChannelConfiguration(), resolved_position, frequency, 1.0f, note.getVelocityAsFloat(), 0.0f, note.getValue(), instrument_track.getSends());
-	      track_state->chokeExclusiveClasses(*voice);
-	      track_state->addVoice(column, move(voice));
+	      // Fixed 0.0f start_phase, unlike the pattern-driven caller's
+	      // randomized one (InstrumentTrackState's own pending-events
+	      // note-on) - a live take is one performer playing in real
+	      // time, not a repeated/stacked pattern note that needs
+	      // decorrelating against its own past triggers.
+	      track_state->noteOn(column, instrument, frequency, note.getVelocityAsFloat(), note.getValue(), 0.0f);
 	    } else {
-	      track_state->applyAftertouch(column, midi_velocity / 127.0f);
+	      track_state->notePressure(column, midi_velocity / 127.0f);
 	    }
 	  }
 	}
@@ -133,8 +134,10 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     
   case PlaybackControlEvent::STOP_NOTE:
     {
+      // noteOff() is virtual for the same reason noteOn()/notePressure()
+      // above are - see that case's own comment.
       auto track_state = dynamic_cast<InstrumentTrackState*>(state_.getChildByInternalId(ev.getParameter1()));
-      if (track_state) track_state->stopVoices(ev.getParameter2());
+      if (track_state) track_state->noteOff(ev.getParameter2());
     }
     break;
 

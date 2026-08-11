@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Phase 2 (plans/arpeggiator.md): a chord authored directly into an
+     <arpeggiatorTrack>'s pattern row, exercised via renderSongOffline() -
+     no live audition input involved, confirming InstrumentTrackState's own
+     pending-events note-on now reaches ArpeggiatorState's stepper too (see
+     render_arpeggiator_steps_through_a_pattern_authored_chord). gate ==
+     noteDuration (legato) so steps run back-to-back with no gap to work
+     around. -->
+<song temperament="12edo" tempo="240" patternRows="16" volume="1.0">
+  <instruments>
+    <oscilator type="sine"/>
+  </instruments>
+  <tracks>
+    <arpeggiatorTrack id="0" instrument="0" mode="up" octaves="0" noteDuration="2" gate="2"/>
+  </tracks>
+  <scenes>
+    <scene>
+      <pattern track="0">
+        <note row="0" velocity="80" value="C-4" />
+        <note row="0" column="1" velocity="80" value="E-4" />
+        <note row="0" column="2" velocity="80" value="G-4" />
+      </pattern>
+    </scene>
+  </scenes>
+</song>

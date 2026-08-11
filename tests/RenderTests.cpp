@@ -99,6 +99,25 @@ float windowedRmsDifference(const OfflineRenderResult & result, float start_s, f
   return static_cast<float>(std::sqrt(sum / (end - start)));
 }
 
+// A plain zero-crossing-rate pitch estimate over [start_s, end_s) - not a
+// real pitch detector, just enough to tell "this window sounds like a
+// higher/lower tone than that one" apart for a pure oscillator tone, the
+// same technique tests/ArpeggiatorStateTests.cpp's own octave-widening
+// test uses directly on an ArpeggiatorState's output.
+float windowedZeroCrossingRate(const OfflineRenderResult & result, int channel, float start_s, float end_s) {
+  auto frames = result.numberOfFrames();
+  size_t start = std::min<size_t>(static_cast<size_t>(start_s * result.sampleRate), frames);
+  size_t end = std::min<size_t>(static_cast<size_t>(end_s * result.sampleRate), frames);
+  if (end <= start + 1) return 0.0f;
+  int crossings = 0;
+  for (size_t i = start + 1; i < end; i++) {
+    auto prev = result.interleaved[(i - 1) * result.channels + channel];
+    auto cur = result.interleaved[i * result.channels + channel];
+    if ((prev < 0.0f) != (cur < 0.0f)) crossings++;
+  }
+  return static_cast<float>(crossings) / static_cast<float>(end - start);
+}
+
 bool hasNonFiniteSample(const OfflineRenderResult & result) {
   for (auto v : result.interleaved) {
     if (!std::isfinite(v)) return true;
@@ -921,4 +940,45 @@ TEST(render_ambisonic_envelopefilter_over_notemultiplier_spread_survives) {
   // spread reached both sides rather than, say, silently collapsing onto
   // one sub-voice only).
   CHECK_NEAR(left, right, std::max(left, right) * 0.3f);
+}
+
+TEST(render_arpeggiator_steps_through_a_pattern_authored_chord) {
+  // Phase 2 (plans/arpeggiator.md): InstrumentTrackState's own
+  // pending-events note-on (pattern/song-driven playback, not live
+  // audition) now calls the same virtual noteOn() Player.cpp does, so an
+  // ArpeggiatorState's override picks it up here too - the concrete
+  // end-to-end regression test that a chord authored directly into an
+  // <arpeggiatorTrack>'s pattern row actually arpeggiates during real
+  // (offline-rendered) playback, not just via direct
+  // ArpeggiatorState::noteOn() calls (tests/ArpeggiatorStateTests.cpp).
+  auto loaded = loadFixture("arpeggiator_pattern_chord.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(44100, 1);
+  auto result = renderSongOffline(loaded.song, config);
+  CHECK(!hasNonFiniteSample(result));
+
+  // tempo 240, noteDuration=gate=2 rows -> a 0.125s step, legato (no gap):
+  // step 0 (C-4, ~261.6Hz) in [0, 0.125), step 1 (E-4, ~329.6Hz) in
+  // [0.125, 0.25), step 2 (G-4, ~392.0Hz) in [0.25, 0.375) - windows below
+  // sit well inside each interval, clear of both the exact boundary (a
+  // step/gate transition is only resolved lazily, at the start of the next
+  // render(int) call - see ArpeggiatorState.h) and renderSongOffline()'s
+  // own 1024-frame (~23ms) block granularity.
+  CHECK(windowedRms(result, 0, 0.04f, 0.09f) > 1e-4f);
+  CHECK(windowedRms(result, 0, 0.165f, 0.215f) > 1e-4f);
+  CHECK(windowedRms(result, 0, 0.29f, 0.34f) > 1e-4f);
+
+  auto rate0 = windowedZeroCrossingRate(result, 0, 0.04f, 0.09f);
+  auto rate1 = windowedZeroCrossingRate(result, 0, 0.165f, 0.215f);
+  auto rate2 = windowedZeroCrossingRate(result, 0, 0.29f, 0.34f);
+
+  // Ascending steps, not one static tone - the concrete "does the
+  // stepping logic actually step" check for the pattern-driven path.
+  // Loose bounds (this is a zero-crossing estimate, not a real pitch
+  // detector) around the expected ratios (E-4/C-4 ~= 1.26, G-4/C-4 ~= 1.5).
+  CHECK(rate1 > rate0 * 1.1f);
+  CHECK(rate1 < rate0 * 1.45f);
+  CHECK(rate2 > rate0 * 1.3f);
+  CHECK(rate2 < rate0 * 1.7f);
 }

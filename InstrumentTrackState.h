@@ -7,6 +7,8 @@
 #include "RenderContext.h"
 #include "SphericalPosition.h"
 #include "SendLevels.h"
+#include "Track.h" // noteOn() below calls Track::playNote()/getDefaultExtent() - needs the
+                    // complete type, not just TrackState.h's own forward declaration.
 
 #include <algorithm>
 
@@ -44,21 +46,19 @@ public:
 	  if (i == it->first) {
 	    for (auto & ev : it->second) {
 	      if (ev.isAftertouch()) {
-		applyAftertouch(ev.getId(), ev.getVelocity());
+		notePressure(ev.getId(), ev.getVelocity());
 	      } else if (ev.isOff()) {
-		stopVoices(ev.getId());
+		noteOff(ev.getId());
 	      } else {
-		retriggerVoices(ev.getId(), ev.getNoteValue());
-		// position_.extent < 0 means "not authored on this track" (see
-		// InstrumentTrack::getExtent()) - resolve it to the assigned
-		// instrument's own family default (Track::getDefaultExtent(),
-		// 0 for anything without one) once, here, before the position
-		// ever reaches playNote()/NoteMultiplier/SoundFontInstrument.
-		auto resolved_position = position_;
-		if (resolved_position.extent < 0.0f) resolved_position.extent = instrument->getDefaultExtent();
-		auto voice = instrument->playNote(getChannelConfiguration(), resolved_position, ev.getFrequency(), 1.0f, ev.getVelocity(), -getRandF(), ev.getNoteValue(), sends_);
-		chokeExclusiveClasses(*voice);
-		addVoice(ev.getId(), move(voice));
+		// -getRandF(): pattern-driven note-on gets a randomized start
+		// phase (decorrelating repeated/unison identical oscillators
+		// so they don't comb-filter when summed) - the live-audition
+		// path (Player.cpp) deliberately passes a fixed 0.0f instead,
+		// see noteOn()'s own comment. Routed through the same virtual
+		// as that path (rather than spawning a voice inline here) so
+		// an arpeggiator-rooted track's pattern-authored notes drive
+		// its stepper too, not just live-triggered ones.
+		noteOn(ev.getId(), *instrument, ev.getFrequency(), ev.getVelocity(), ev.getNoteValue(), -getRandF());
 	      }
 	    }
 	    it = pending_events.erase(it);
@@ -139,7 +139,43 @@ public:
   void addVoice(int column, std::unique_ptr<TrackState> voice) {
     voices_[column].push_back(std::move(voice));
   }
-  
+
+  // Note-on, shared by both a track's pattern-driven note-on (render(frames,
+  // instruments, context)'s pending-events loop above) and live audition
+  // (Player::handlePlaybackControlEvent()'s PLAY_NOTE case, shared by
+  // Kitty-keyboard note entry and Launchpad NOTES/step-grid presses) -
+  // `instrument` is whatever this track's own instrument_id_ resolves to
+  // (the caller already looked it up to reach this class in the first
+  // place). `start_phase` is threaded through rather than fixed here since
+  // the two callers deliberately differ (see each call site's own
+  // comment). Virtual so a subclass whose note-on means something other
+  // than "spawn a voice directly" (ArpeggiatorState routes it into its
+  // stepper's held chord instead - see its own override) can redefine it,
+  // letting both callers treat every InstrumentTrackState the same way
+  // instead of needing their own subclass-aware dispatch.
+  virtual void noteOn(int column, const Track & instrument, float frequency, float velocity, int note_value, float start_phase) {
+    retriggerVoices(column, note_value);
+
+    // position_.extent < 0 means "not authored on this track" (see
+    // InstrumentTrack::getExtent()) - resolve it to the assigned
+    // instrument's own family default (Track::getDefaultExtent(), 0 for
+    // anything without one) once, here, before the position ever reaches
+    // playNote()/NoteMultiplier/SoundFontInstrument.
+    auto resolved_position = getPosition();
+    if (resolved_position.extent < 0.0f) resolved_position.extent = instrument.getDefaultExtent();
+
+    auto voice = instrument.playNote(getChannelConfiguration(), resolved_position, frequency, 1.0f, velocity, start_phase, note_value, getSends());
+    chokeExclusiveClasses(*voice);
+    addVoice(column, move(voice));
+  }
+
+  // Live-audition polyphonic aftertouch (Player::handlePlaybackControlEvent()'s
+  // NOTE_PRESSURE case) - the counterpart to noteOn() above. Virtual for
+  // the same reason: ArpeggiatorState's override updates the held note's
+  // velocity for future steps instead of pushing to an already-sounding
+  // voice.
+  virtual void notePressure(int column, float velocity) { applyAftertouch(column, velocity); }
+
   void applyAftertouch(int column, float aftertouch) {
     auto it = voices_.find(column);
     if (it != voices_.end()) {
@@ -195,6 +231,16 @@ public:
     column_pressure_.erase(column);
     broadcastChannelPressure();
   }
+
+  // Ends live-audition note `column` (Player::handlePlaybackControlEvent()'s
+  // STOP_NOTE case, shared by Kitty-keyboard note entry and Launchpad
+  // NOTES/step-grid presses) - virtual so a subclass whose note-off means
+  // something other than "stop this column's own voices_ entry"
+  // (ArpeggiatorState routes it to its held chord instead - see its own
+  // override) can redefine it, letting the caller treat every
+  // InstrumentTrackState the same way instead of needing its own
+  // subclass-aware dispatch.
+  virtual void noteOff(int column) { stopVoices(column); }
 
   // Identity-based retrigger cutoff: a new note-on whose identity (31-EDO
   // step for pitched tracks, MIDI note number for percussion - already
@@ -390,6 +436,15 @@ public:
   }
 
 protected:
+  // Read access to this track's own position/sends for a subclass that
+  // needs to construct its own voices directly (e.g. ArpeggiatorState
+  // triggering a step) rather than through the normal pending-events path
+  // above, which already has position_/sends_ in scope. Mirrors
+  // getChannelConfiguration()'s existing public accessor for the same
+  // otherwise-private-to-this-class piece of construction state.
+  const SphericalPosition & getPosition() const { return position_; }
+  const SendLevels & getSends() const { return sends_; }
+
   static inline bool is_not_playing(const std::unique_ptr<TrackState> & voice) { return !voice->isActive(); }
 
   void clearFinishedVoices() {

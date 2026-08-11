@@ -37,6 +37,7 @@ add_executable(synth_tests
 	AmbisonicDiffuseEncoderTests.cpp
 	SendBusProcessorTests.cpp
 	HazeTests.cpp
+	ArpeggiatorStateTests.cpp
 )
 
 target_link_libraries(synth_tests synth_engine)

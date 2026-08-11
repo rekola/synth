@@ -1,24 +1,36 @@
 #include "Arpeggiator.h"
+#include "ArpeggiatorState.h"
 
 #include <cassert>
 
 using namespace std;
 
 std::unique_ptr<TrackState>
-Arpeggiator::playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const {
-  auto group = createState(channel_config);
-  for (auto & child : getChildren()) {
-    
-  }
-  return group;
+Arpeggiator::createState(const ChannelConfiguration & config) const {
+  assert(getInstrumentId() >= 0);
+  return make_unique<ArpeggiatorState>(config, isSolo(), isMuted(), getInternalId(), getInstrumentId(), getPosition(), getSends(), *this);
 }
 
 void
 Arpeggiator::loadParameters(const ParameterSource & input) {
-  Track::loadParameters(input);
+  InstrumentTrack::loadParameters(input);
+
+  auto mode_text = input.getText("mode", "up");
+  if (mode_text == "down") mode_ = DOWN;
+  else if (mode_text == "updown") mode_ = UP_DOWN;
+  else mode_ = UP;
+
+  note_duration_ = input.getInt("noteDuration", 1);
+  octaves_ = input.getInt("octaves", 0);
+  gate_ = input.getInt("gate", 1);
 }
 
 void
 Arpeggiator::storeParameters(ParameterSource & output) const {
-  Track::storeParameters(output);
+  InstrumentTrack::storeParameters(output);
+
+  output.set("mode", mode_ == DOWN ? "down" : mode_ == UP_DOWN ? "updown" : "up");
+  output.set("noteDuration", note_duration_);
+  output.set("octaves", octaves_);
+  output.set("gate", gate_);
 }

@@ -97,6 +97,7 @@ static unique_ptr<Track> createTrack(string_view name) {
   if (name == "track") return make_unique<InstrumentTrack>();
   if (name == "percussionTrack") return make_unique<PercussionTrack>();
   if (name == "drumMachineTrack") return make_unique<DrumMachineTrack>();
+  if (name == "arpeggiatorTrack") return make_unique<Arpeggiator>();
   else if (name == "group") return make_unique<Group>();
 
   // effects
@@ -106,7 +107,6 @@ static unique_ptr<Track> createTrack(string_view name) {
   else if (name == "chorus") return make_unique<Chorus>();
   else if (name == "tremolo") return make_unique<Tremolo>();
   else if (name == "multiply") return make_unique<NoteMultiplier>();
-  else if (name == "arpeggiator") return make_unique<Arpeggiator>();
   else if (name == "envelope") return make_unique<EnvelopeFilter>();
   else if (name == "amplifier") return make_unique<Amplifier>();
   else if (name == "compressor") return make_unique<Compressor>();

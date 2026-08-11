@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Manual test bed for the audition-mode arpeggiator (plans/arpeggiator.md,
+     Phase 1) - hold a chord on track 0 via the Kitty computer keyboard or a
+     connected Launchpad (NOTES mode) while the transport is stopped and
+     confirm it arpeggiates at the song's own tempo. The pattern is
+     deliberately empty: pattern/song-driven playback isn't routed through
+     the arpeggiator stepper yet (Phase 2), so there's nothing useful to
+     author into rows here until then. -->
+<song temperament="31edo" tempo="120" patternRows="16" volume="1.0">
+  <instruments>
+    <genericInstrument name="Orchestral Harp"/>
+    <envelope name="Pads" attack="0.050000001" hold="0" decay="0" sustain="1" release="2" keynumToHold="0" keynumToDecay="0">
+      <resonantFilter cut="2200" res="0.5" aftertouch="0" attack="0" hold="0" decay="0" sustain="1" release="0" keynumToHold="0" keynumToDecay="0">
+        <multiply unisons="4" octaves="0" fifths="0" fourths="0" detune="5" spread="1">
+          <oscilator type="square" level="0.25" width="0.5"/>
+        </multiply>
+      </resonantFilter>
+    </envelope>
+  </instruments>
+  <tracks>
+    <arpeggiatorTrack id="0" instrument="0" mode="up" octaves="1" noteDuration="2" gate="1"/>
+    <track id="1" instrument="1"/>
+  </tracks>
+  <scenes>
+    <scene />
+  </scenes>
+</song>
