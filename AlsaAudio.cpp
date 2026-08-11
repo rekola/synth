@@ -5,8 +5,37 @@
 
 #include <cstdio>
 #include <fmt/core.h>
+#include <unistd.h>
 
 using namespace std;
+
+// Canonical ALSA XRUN/suspend recovery (the same shape as alsa-lib's own
+// xrun_recovery() helper in its aplay/arecord examples), shared by playback
+// and capture: -EPIPE is a plain under/overrun - snd_pcm_prepare() drops the
+// stream back to PREPARED, ready to auto-start (playback) or be restarted
+// (capture) on the next successful write/read. -ESTRPIPE means the device
+// was suspended by the system (e.g. power management) - snd_pcm_resume()
+// has to be polled until the hardware actually comes back; if it reports it
+// can't resume at all, snd_pcm_prepare() is the same fallback as the EPIPE
+// case. Returns 0 (or whatever non-negative snd_pcm_prepare() returned) on
+// successful recovery, the negative error code otherwise - callers must not
+// assume the stream is usable again without checking this.
+static int
+recoverFromPcmError(Logger & logger, snd_pcm_t * handle, int err, const char * what) {
+  if (err == -EPIPE) {
+    logger.log(string("XRUN (") + what + ").");
+    err = snd_pcm_prepare(handle);
+    if (err < 0) logger.log(string("ERROR: Can't recover from XRUN on ") + what + ": " + snd_strerror(err));
+  } else if (err == -ESTRPIPE) {
+    logger.log(string("Device suspended (") + what + ").");
+    while ((err = snd_pcm_resume(handle)) == -EAGAIN) usleep(100 * 1000);
+    if (err < 0) {
+      err = snd_pcm_prepare(handle);
+      if (err < 0) logger.log(string("ERROR: Can't recover from suspend on ") + what + ": " + snd_strerror(err));
+    }
+  }
+  return err;
+}
 
 AlsaAudio::~AlsaAudio() {
   if (pcm_handle) {
@@ -244,11 +273,19 @@ AlsaAudio::play(const AudioBuffer & data, Logger & logger) {
     }
   }
 
-  int r;
-  if ((r = snd_pcm_writei(pcm_handle, tmp_ptr, data.size())) == -EPIPE) {
-    logger.log("XRUN.");
-    snd_pcm_prepare(pcm_handle);
-  } else if (r < 0) {
+  int r = snd_pcm_writei(pcm_handle, tmp_ptr, data.size());
+  if (r < 0) {
+    r = recoverFromPcmError(logger, pcm_handle, r, "playback");
+    if (r >= 0) {
+      // Recovery alone only re-primes the stream (PREPARED, silent) - it
+      // never actually delivers this block's audio. Retry the write now
+      // that it's back so this block isn't just dropped, and so playback
+      // starts accumulating toward its start threshold again immediately
+      // rather than waiting for the next render block to come around.
+      r = snd_pcm_writei(pcm_handle, tmp_ptr, data.size());
+    }
+  }
+  if (r < 0) {
     logger.log(string("ERROR. Can't write to PCM device. ") + snd_strerror(r));
   }
 }
@@ -263,12 +300,21 @@ AlsaAudio::record(Logger & logger) {
   AudioBuffer data(1, frames);
 
   if (frames) {
-    int r;
-    if ((r = snd_pcm_readi(capture_handle, data.getChannelData(0), frames)) == -EPIPE) {
-      logger.log("XRUN.(2)");
-      snd_pcm_prepare(capture_handle);
-    } else if (r < 0) {
-      logger.log(string("ERROR. Can't read PCM device. ") + snd_strerror(r));
+    int r = snd_pcm_readi(capture_handle, data.getChannelData(0), frames);
+    if (r < 0) {
+      r = recoverFromPcmError(logger, capture_handle, r, "capture");
+      if (r >= 0) {
+        // Unlike playback, capture never auto-starts just by accumulating
+        // reads - it needs an explicit snd_pcm_start(), same as the very
+        // first call (see startRecording()). recording_started latches
+        // that to a one-shot, so without clearing it here the stream would
+        // sit at PREPARED forever after recovering from an XRUN: never
+        // running, never producing frames again.
+        recording_started = false;
+        startRecording();
+      } else {
+        logger.log(string("ERROR. Can't read PCM device. ") + snd_strerror(r));
+      }
     }
   }
 
