@@ -13,7 +13,7 @@
         <envelope name="Pads" attack="0.050000001" hold="0" decay="0" sustain="1" release="2" keynumToHold="0" keynumToDecay="0">
             <resonantFilter cut="2200" res="0.5" aftertouch="0" attack="0" hold="0" decay="0" sustain="1" release="0" keynumToHold="0" keynumToDecay="0">
                 <multiply unisons="4" octaves="0" fifths="0" fourths="0" detune="5" spread="1">
-                    <oscilator type="square" level="0.25" width="0.5"/>
+                    <oscillator type="square" level="0.25" width="0.5"/>
                 </multiply>
             </resonantFilter>
         </envelope>
@@ -107,11 +107,11 @@
           <note row="20" velocity="17">CH </note>
           <note row="24" velocity="19">CH </note>
           <note row="28" velocity="40">OH </note>
-          <note row="32" velocity="33">CC2 </note>
+          <note row="32" velocity="33">CR2 </note>
           <note row="36" velocity="15">CH </note>
           <note row="40" velocity="25">CH </note>
           <note row="44" velocity="15">CH </note>
-          <note row="48" velocity="40">SC </note>
+          <note row="48" velocity="40">SPL </note>
         </pattern>
         <pattern track="bass">
           <note row="48" velocity="40">G-1</note>
@@ -136,20 +136,20 @@
           <note row="60" velocity="40">F-1</note>
         </pattern>
         <pattern track="perc">
-          <note row="0" velocity="40">BD </note>
+          <note row="0" velocity="40">BD2 </note>
           <note row="4" velocity="40">CH </note>
           <note row="6" velocity="40">CH </note>
-          <note row="8" velocity="40">BD </note>
+          <note row="8" velocity="40">BD2 </note>
           <note row="12" velocity="22">OH </note>
           <note row="16" velocity="7">CH </note>
           <note row="20" velocity="17">CH </note>
           <note row="24" velocity="19">CH </note>
           <note row="28" velocity="40">OH </note>
-          <note row="32" velocity="33">CC2 </note>
+          <note row="32" velocity="33">CR2 </note>
           <note row="36" velocity="15">CH </note>
           <note row="40" velocity="25">CH </note>
           <note row="44" velocity="15">CH </note>
-          <note row="48" velocity="40">SC </note>
+          <note row="48" velocity="40">SPL </note>
         </pattern>
         <pattern track="chords">
           <note row="0" velocity="40">C-4</note>

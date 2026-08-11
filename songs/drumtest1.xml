@@ -2,16 +2,16 @@
 <song temperament="31edo" tempo="100" patternRows="16" volume="1.0">
   <instruments>
     <envelope attack="0.01" hold="0" decay="1.17" sustain="0" release="0.231" name="Bell">
-      <oscilator type="sine"/>
+      <oscillator type="sine"/>
     </envelope>
     
     <genericInstrument name="Percussion" />
 
     <envelope name="bass3" attack="0.0011" hold="0" decay="4.00" sustain="0" release="0.231">	
       <resonantFilter cutmin="1100" cutmax="11000" res="0.1" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">
-	<oscilator type="square" />
+	<oscillator type="square" />
 	<multiply unisons="8" detune="10">
-	  <oscilator type="triangle" harmonic="2" />
+	  <oscillator type="triangle" harmonic="2" />
 	</multiply>
       </resonantFilter>
     </envelope>
@@ -56,12 +56,12 @@
         <note row="14" velocity="30">C-2</note>
       </pattern>
       <pattern track="perc">
-        <note row="0" velocity="40">BD</note>
+        <note row="0" velocity="40">BD2</note>
         <note row="2" velocity="40">SH</note>
-        <note row="3" velocity="40">BD</note>
+        <note row="3" velocity="40">BD2</note>
         <note row="4" velocity="40">SD</note>
         <note row="6" velocity="40">SH</note>
-        <note row="7" velocity="40">BD</note>
+        <note row="7" velocity="40">BD2</note>
         <note row="10" velocity="40">BD SH</note>
         <note row="12" velocity="40">SD</note>
         <note row="14" velocity="40">SH</note>
@@ -90,12 +90,12 @@
         <note row="14" velocity="30">E-2</note>
       </pattern>
       <pattern track="perc">
-        <note row="0" velocity="40">BD</note>
+        <note row="0" velocity="40">BD2</note>
         <note row="2" velocity="40">SH</note>
-        <note row="3" velocity="40">BD</note>
+        <note row="3" velocity="40">BD2</note>
         <note row="4" velocity="40">SD</note>
         <note row="6" velocity="40">SH</note>
-        <note row="7" velocity="40">BD</note>
+        <note row="7" velocity="40">BD2</note>
         <note row="10" velocity="40">BD SH</note>
         <note row="12" velocity="40">SD</note>
         <note row="14" velocity="40">SH</note>
@@ -121,12 +121,12 @@
         <note row="8" velocity="30">D-2</note>
       </pattern>
       <pattern track="perc">
-        <note row="0" velocity="40">BD</note>
+        <note row="0" velocity="40">BD2</note>
         <note row="2" velocity="40">SH</note>
-        <note row="3" velocity="40">BD</note>
+        <note row="3" velocity="40">BD2</note>
         <note row="4" velocity="40">SD</note>
         <note row="6" velocity="40">SH</note>
-        <note row="7" velocity="40">BD</note>
+        <note row="7" velocity="40">BD2</note>
         <note row="10" velocity="40">BD SH</note>
         <note row="12" velocity="40">SD</note>
         <note row="14" velocity="40">SH</note>
@@ -154,12 +154,12 @@
         <note row="12" velocity="30">G-2</note>
       </pattern>
       <pattern track="perc">
-        <note row="0" velocity="40">BD</note>
+        <note row="0" velocity="40">BD2</note>
         <note row="2" velocity="40">SH</note>
-        <note row="3" velocity="40">BD</note>
+        <note row="3" velocity="40">BD2</note>
         <note row="4" velocity="40">SD</note>
         <note row="6" velocity="40">SH</note>
-        <note row="7" velocity="40">BD</note>
+        <note row="7" velocity="40">BD2</note>
         <note row="10" velocity="40">BD SH</note>
         <note row="12" velocity="40">SD</note>
         <note row="14" velocity="40">SH</note>

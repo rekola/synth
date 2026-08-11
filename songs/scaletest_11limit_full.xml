@@ -6,7 +6,7 @@
     <envelope attack="0.01" decay="1.0" sustain="0.0" release="3.0" name="padtest2">
       <resonantFilter cut="1100" res="0.9">
 	<multiply unisons="16" detune="10">
-	  <oscilator type="saw" level="0.25" />
+	  <oscillator type="saw" level="0.25" />
 	</multiply>
       </resonantFilter>
     </envelope>
@@ -14,7 +14,7 @@
     <envelope attack="0.01" decay="1.0" sustain="0.0" release="0.0" name="padtest2">
       <resonantFilter cutmin="1100" cutmax="17500" res="0.9" attack="3" decay="3" sustain="0.0">
 	<multiply unisons="16" detune="10">
-	  <oscilator type="saw" level="0.25" />
+	  <oscillator type="saw" level="0.25" />
 	</multiply>
       </resonantFilter>
     </envelope>

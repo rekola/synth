@@ -11,7 +11,7 @@
       </envelope>
       <envelope attack="0.0011" hold="0" decay="3" sustain="0" release="0.231">
 	<resonantFilter cut="10000" res="4">
-	  <oscilator type="square" width="0.1" />
+	  <oscillator type="square" width="0.1" />
 	</resonantFilter>
       </envelope>
     </group>
@@ -51,10 +51,10 @@
         <note row="30" velocity="40">A#2</note>
       </pattern>
       <pattern track="perc">
-        <note row="0">BD</note>
-        <note row="8">BD</note>
-        <note row="16">BD</note>
-        <note row="24">BD</note>
+        <note row="0">BD2</note>
+        <note row="8">BD2</note>
+        <note row="16">BD2</note>
+        <note row="24">BD2</note>
       </pattern>
     </scene>
     <scene>
@@ -73,10 +73,10 @@
         <note row="30" velocity="40">D#3</note>
       </pattern>
       <pattern track="perc">
-        <note row="0">BD</note>
-        <note row="8">BD</note>
-        <note row="16">BD</note>
-        <note row="24">BD</note>
+        <note row="0">BD2</note>
+        <note row="8">BD2</note>
+        <note row="16">BD2</note>
+        <note row="24">BD2</note>
       </pattern>
     </scene>
   </scenes>

@@ -6,13 +6,13 @@
   </bus>
   <instruments>
     <envelope attack="0.001" hold="0" decay="0.12" sustain="0" release="0.02" name="Kick">
-      <oscilator type="sine"/>
+      <oscillator type="sine"/>
     </envelope>
     <envelope attack="0.001" hold="0" decay="0.09" sustain="0" release="0.02" name="Snare">
-      <oscilator type="square"/>
+      <oscillator type="square"/>
     </envelope>
     <envelope attack="0.001" hold="0" decay="0.03" sustain="0" release="0.01" name="Hat">
-      <oscilator type="triangle" harmonic="3"/>
+      <oscillator type="triangle" harmonic="3"/>
     </envelope>
   </instruments>
   <tracks>

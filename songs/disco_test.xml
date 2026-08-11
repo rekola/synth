@@ -4,16 +4,16 @@
     <envelope attack="0.5" release="2" name="Pads">
       <resonantFilter cut="2200" res="0.5">
 	<multiply unisons="4" detune="5" spread="90">
-	  <oscilator type="square" level="0.25"/>
+	  <oscillator type="square" level="0.25"/>
 	</multiply>
       </resonantFilter>
     </envelope>
 
     <envelope name="bass3" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">	
       <resonantFilter cutmin="1100" cutmax="11000" res="0.1" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">
-	<oscilator type="square" />
+	<oscillator type="square" />
 	<multiply unisons="8" detune="10">
-	  <oscilator type="triangle" harmonic="2" />
+	  <oscillator type="triangle" harmonic="2" />
 	</multiply>
       </resonantFilter>
     </envelope>

@@ -9,7 +9,7 @@
       <envelope attack="0.02" hold="0.519" decay="1.35" sustain="0.0" release="0.5">	
 	<resonantFilter cut="2200" res="0.4">
 	  <multiply unisons="8" detune="10">
-	    <oscilator type="saw" />
+	    <oscillator type="saw" />
 	  </multiply>
 	</resonantFilter>
       </envelope>
@@ -17,9 +17,9 @@
 
     <envelope name="bass3" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">	
       <resonantFilter cutmin="1100" cutmax="11000" res="0.1" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">
-	<oscilator type="square" />
+	<oscillator type="square" />
 	<multiply unisons="8" detune="10">
-	  <oscilator type="triangle" harmonic="2" />
+	  <oscillator type="triangle" harmonic="2" />
 	</multiply>
       </resonantFilter>
     </envelope>

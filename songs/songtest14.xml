@@ -11,7 +11,7 @@
         <envelope name="Pads" attack="0.5" hold="0" decay="0" sustain="1" release="2" keynumToHold="0" keynumToDecay="0">
             <resonantFilter cut="2200" res="0.5" aftertouch="0" attack="0" hold="0" decay="0" sustain="1" release="0" keynumToHold="0" keynumToDecay="0">
                 <multiply unisons="4" octaves="0" fifths="0" fourths="0" detune="5" spread="1">
-                    <oscilator type="square" level="0.25" width="0.5"/>
+                    <oscillator type="square" level="0.25" width="0.5"/>
                 </multiply>
             </resonantFilter>
         </envelope>
@@ -44,8 +44,8 @@
           <note row="28" velocity="30">F-4</note>
         </pattern>
         <pattern track="perc">
-          <note row="4" velocity="20">RC2 </note>
-          <note row="28" velocity="20">SC </note>
+          <note row="4" velocity="20">RD2 </note>
+          <note row="28" velocity="20">SPL </note>
         </pattern>
       </scene>
       <scene>
@@ -68,7 +68,7 @@
       </scene>
       <scene>
         <pattern track="perc">
-          <note row="0" velocity="20">T1 </note>
+          <note row="0" velocity="20">HT </note>
           <note row="4" velocity="20">CH </note>
           <note row="10" velocity="20">CH </note>
           <note row="18" velocity="20">CH </note>
@@ -140,7 +140,7 @@
           <note row="14" velocity="20">CH </note>
           <note row="20" velocity="20">CH </note>
           <note row="24" velocity="20">CH </note>
-          <note row="28" velocity="20">RC1 </note>
+          <note row="28" velocity="20">RD </note>
         </pattern>
         <pattern track="pad">
           <note row="4" velocity="5">C-4</note>
@@ -148,14 +148,14 @@
       </scene>
       <scene>
         <pattern track="perc">
-          <note row="0" velocity="20">T1 </note>
+          <note row="0" velocity="20">HT </note>
           <note row="4" velocity="20">CH </note>
-          <note row="8" velocity="20">T1 </note>
+          <note row="8" velocity="20">HT </note>
           <note row="10" velocity="20">CH </note>
-          <note row="14" velocity="20">T1 </note>
+          <note row="14" velocity="20">HT </note>
           <note row="18" velocity="20">CH </note>
           <note row="22" velocity="20">CH </note>
-          <note row="26" velocity="20">T1 </note>
+          <note row="26" velocity="20">HT </note>
           <note row="28" velocity="20">CH </note>
         </pattern>
         <pattern track="harp">
@@ -189,15 +189,15 @@
       </scene>
       <scene>
         <pattern track="perc">
-          <note row="0" velocity="20">T1 </note>
+          <note row="0" velocity="20">HT </note>
           <note row="4" velocity="20">CH </note>
-          <note row="8" velocity="20">T1 </note>
+          <note row="8" velocity="20">HT </note>
           <note row="10" velocity="20">CH </note>
-          <note row="14" velocity="20">T1 </note>
+          <note row="14" velocity="20">HT </note>
           <note row="18" velocity="20">CH </note>
           <note row="20" velocity="20">OH </note>
           <note row="24" velocity="20">CH </note>
-          <note row="28" velocity="20">RC1 </note>
+          <note row="28" velocity="20">RD </note>
         </pattern>
         <pattern track="harp">
           <note row="0" velocity="30">C-4</note>

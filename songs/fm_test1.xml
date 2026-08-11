@@ -3,43 +3,43 @@
   <instruments>
     <group name="Quartal Piano">
       <envelope attack="0.01" decay="0.5" sustain="0" release="0.8">
-	<oscilator level="0.25" subharmonic="2">
-	  <oscilator level="0.5" harmonic="18" subharmonic="1" />
+	<oscillator level="0.25" subharmonic="2">
+	  <oscillator level="0.5" harmonic="18" subharmonic="1" />
 	  <resonantFilter cut="40">
 	    <noise level="500"/>
 	  </resonantFilter>
-	</oscilator>
+	</oscillator>
       </envelope>
 
       <envelope attack="0.01" decay="1" sustain="0" release="0.8" keynumToDecay="50">
-	<oscilator/>
+	<oscillator/>
       </envelope>
     </group>
 
     <envelope name="Harpsichord" attack="0.01" decay="0.8" sustain="0" release="0.1">
-      <oscilator harmonic="4">
-	<oscilator level="7.8" harmonic="3" subharmonic="5"/>
-      </oscilator>
+      <oscillator harmonic="4">
+	<oscillator level="7.8" harmonic="3" subharmonic="5"/>
+      </oscillator>
     </envelope>
 
     <envelope name="Bell" attack="0.01" decay="1.7" sustain="0" release="0.0" >
-      <oscilator>
-	<oscilator level="3.5" harmonic="7" subharmonic="9"/>
-      </oscilator>
+      <oscillator>
+	<oscillator level="3.5" harmonic="7" subharmonic="9"/>
+      </oscillator>
     </envelope>
 
     <envelope name="Oboe" attack="0.05" decay="0.3" sustain="0.8" release="0.2">
-      <oscilator harmonic="4">
-	<oscilator level="0.7" harmonic="1" subharmonic="3"/>
+      <oscillator harmonic="4">
+	<oscillator level="0.7" harmonic="1" subharmonic="3"/>
 	<LFO frequency="2" level="0.4"/>
-      </oscilator>
+      </oscillator>
     </envelope>
 
     <envelope name="Electric Piano" attack="0" decay="1.6" sustain="0" release="0">
       <resonantFilter cut="5500" res="2">
-	<oscilator type="saw">
+	<oscillator type="saw">
 	  <LFO frequency="3" level="0.5"/>
-	</oscilator>
+	</oscillator>
       </resonantFilter>
     </envelope>
   </instruments>

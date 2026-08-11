@@ -3,13 +3,13 @@
   <instruments>
     <group name="Melody blocks">
       <envelope attack="0.01" decay="0.5" sustain="0" release="0.5">
-	<oscilator level="0.25" subharmonic="2">
-	  <oscilator level="0.5" harmonic="18" subharmonic="1" />
-	</oscilator>
+	<oscillator level="0.25" subharmonic="2">
+	  <oscillator level="0.5" harmonic="18" subharmonic="1" />
+	</oscillator>
       </envelope>
 
       <envelope attack="0.01" decay="1" sustain="0" release="0.8" keynumToDecay="50">
-	<oscilator />
+	<oscillator />
       </envelope>
 
     </group>

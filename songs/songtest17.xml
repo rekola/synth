@@ -4,9 +4,9 @@
         <amplifier name="bass3" gain="-10">
             <envelope attack="0.0099999998" hold="0" decay="1.17" sustain="0" release="0.23100001" keynumToHold="0" keynumToDecay="0">
                 <resonantFilter cutmin="1100" cutmax="11000" res="0.1" aftertouch="0" attack="0.0099999998" hold="0" decay="1.17" sustain="0" release="0.23100001" keynumToHold="0" keynumToDecay="0">
-                    <oscilator harmonic="1" subharmonic="1" type="square" level="1" width="0.5"/>
+                    <oscillator harmonic="1" subharmonic="1" type="square" level="1" width="0.5"/>
                     <multiply unisons="8" octaves="0" fifths="0" fourths="0" detune="10" spread="0">
-                        <oscilator harmonic="2" subharmonic="1" type="triangle" level="1" width="0.5"/>
+                        <oscillator harmonic="2" subharmonic="1" type="triangle" level="1" width="0.5"/>
                     </multiply>
                 </resonantFilter>
             </envelope>

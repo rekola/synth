@@ -6,7 +6,7 @@
     <envelope attack="0.1" release="2" name="padtest2">
       <resonantFilter cut="20000" res="0">
 	<multiply unisons="4" detune="5">
-	  <oscilator type="saw" level="0.25" />
+	  <oscillator type="saw" level="0.25" />
 	</multiply>
       </resonantFilter>
     </envelope>
@@ -50,22 +50,22 @@
   <scenes>
     <scene>
       <pattern track="perc">
-        <note row="0">BD</note>
-        <note row="4">BD</note>
-        <note row="8">BD</note>
-        <note row="12">BD</note>
-        <note row="16">BD</note>
-        <note row="20">BD</note>
-        <note row="24">BD</note>
-        <note row="28">BD</note>
-        <note row="32">BD</note>
-        <note row="36">BD</note>
-        <note row="40">BD</note>
-        <note row="44">BD</note>
-        <note row="48">BD</note>
-        <note row="52">BD</note>
-        <note row="56">BD</note>
-        <note row="60">BD</note>
+        <note row="0">BD2</note>
+        <note row="4">BD2</note>
+        <note row="8">BD2</note>
+        <note row="12">BD2</note>
+        <note row="16">BD2</note>
+        <note row="20">BD2</note>
+        <note row="24">BD2</note>
+        <note row="28">BD2</note>
+        <note row="32">BD2</note>
+        <note row="36">BD2</note>
+        <note row="40">BD2</note>
+        <note row="44">BD2</note>
+        <note row="48">BD2</note>
+        <note row="52">BD2</note>
+        <note row="56">BD2</note>
+        <note row="60">BD2</note>
       </pattern>
       <pattern track="chords">
         <note row="0">F-4 A-4 C-5</note>
@@ -116,22 +116,22 @@
     </scene>
     <scene>
       <pattern track="perc">
-        <note row="0">BD</note>
-        <note row="4">BD</note>
-        <note row="8">BD</note>
-        <note row="12">BD</note>
-        <note row="16">BD</note>
-        <note row="20">BD</note>
-        <note row="24">BD</note>
-        <note row="28">BD</note>
-        <note row="32">BD</note>
-        <note row="36">BD</note>
-        <note row="40">BD</note>
-        <note row="44">BD</note>
-        <note row="48">BD</note>
-        <note row="52">BD</note>
-        <note row="56">BD</note>
-        <note row="60">BD</note>
+        <note row="0">BD2</note>
+        <note row="4">BD2</note>
+        <note row="8">BD2</note>
+        <note row="12">BD2</note>
+        <note row="16">BD2</note>
+        <note row="20">BD2</note>
+        <note row="24">BD2</note>
+        <note row="28">BD2</note>
+        <note row="32">BD2</note>
+        <note row="36">BD2</note>
+        <note row="40">BD2</note>
+        <note row="44">BD2</note>
+        <note row="48">BD2</note>
+        <note row="52">BD2</note>
+        <note row="56">BD2</note>
+        <note row="60">BD2</note>
       </pattern>
       <pattern track="chords">
         <note row="0">F-4 A-4 C-5</note>
@@ -182,22 +182,22 @@
     </scene>
     <scene>
       <pattern track="perc">
-        <note row="0">BD</note>
-        <note row="4">BD</note>
-        <note row="8">BD</note>
-        <note row="12">BD</note>
-        <note row="16">BD</note>
-        <note row="20">BD</note>
-        <note row="24">BD</note>
-        <note row="28">BD</note>
-        <note row="32">BD</note>
-        <note row="36">BD</note>
-        <note row="40">BD</note>
-        <note row="44">BD</note>
-        <note row="48">BD</note>
-        <note row="52">BD</note>
-        <note row="56">BD</note>
-        <note row="60">BD</note>
+        <note row="0">BD2</note>
+        <note row="4">BD2</note>
+        <note row="8">BD2</note>
+        <note row="12">BD2</note>
+        <note row="16">BD2</note>
+        <note row="20">BD2</note>
+        <note row="24">BD2</note>
+        <note row="28">BD2</note>
+        <note row="32">BD2</note>
+        <note row="36">BD2</note>
+        <note row="40">BD2</note>
+        <note row="44">BD2</note>
+        <note row="48">BD2</note>
+        <note row="52">BD2</note>
+        <note row="56">BD2</note>
+        <note row="60">BD2</note>
       </pattern>
       <pattern track="chords">
         <note row="0">G-4 A#4 C-5</note>
