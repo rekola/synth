@@ -228,7 +228,23 @@ Player::play(AudioAPI & audio) {
     descriptors[1 + num_playback_desc + i] = audio.getCaptureDescriptors()[i];
   }
 
-  audio.startRecording();
+  // Capture's own negotiated .events (POLLIN) - stashed so it can be
+  // restored below. The capture descriptors otherwise stay in the poll set
+  // with .events cleared to 0 (poll() then never reports on them, so they
+  // never contribute a spurious wakeup) until the user actually activates
+  // recording (Controller::isRecording(), set by PatternEditor's Ctrl+R) -
+  // recording is no longer engaged automatically just because playback
+  // started. Clearing .events rather than dropping the capture fds from
+  // the array entirely also sidesteps a busy-loop risk: an ALSA capture
+  // stream that's open but never snd_pcm_start()ed (see
+  // AlsaAudio::startRecording()) sits with a frozen hw pointer, so its
+  // avail-derived "ready" condition would otherwise stay permanently true
+  // and poll() would never actually block on it.
+  auto capture_events = std::make_unique<short[]>(num_capture_desc);
+  for (size_t i = 0; i < num_capture_desc; i++) {
+    capture_events[i] = descriptors[1 + num_playback_desc + i].events;
+    descriptors[1 + num_playback_desc + i].events = 0;
+  }
 
   // getSongPtr() (not getSong()/a raw pointer) - see that method's own
   // comment: it keeps whatever Song this shared_ptr copy points to alive
@@ -240,6 +256,11 @@ Player::play(AudioAPI & audio) {
   auto mixer = createMixer(controller_->getChannelConfiguration(), controller_->getMixerType(), controller_->getUseLegacyBinaural());
 
   while ( !terminate_ ) {
+    bool recording = controller_->isRecording();
+    for (size_t i = 0; i < num_capture_desc; i++) {
+      descriptors[1 + num_playback_desc + i].events = recording ? capture_events[i] : 0;
+    }
+
     if (poll(descriptors.get(), num_descriptors, 1000) > 0) {
       for (size_t i = 0; i < num_descriptors; i++) {
 	auto & d = descriptors[i];
@@ -305,9 +326,15 @@ Player::play(AudioAPI & audio) {
 	    controller_->getVisualizationQueue().push(make_unique<AudioBlockEvent>(
 	      move(master), move(raw_bus_copy), state_.getAuxASum(), state_.getAuxBSum()));
 	  } else if (i - 1 - num_playback_desc < num_capture_desc) {
-	    auto data = audio.record(logger);
-	    controller_->getUIEventQueue().push(make_unique<RecordEvent>(data));
-	  }	  
+	    // .events was cleared to 0 above whenever recording is inactive, so
+	    // revents can't legitimately be set here in that case - checking
+	    // `recording` again anyway keeps this branch correct on its own,
+	    // without relying on that as the only guard.
+	    if (recording) {
+	      auto data = audio.record(logger);
+	      controller_->getUIEventQueue().push(make_unique<RecordEvent>(data));
+	    }
+	  }
 	}
       }
     }
