@@ -1,48 +1,40 @@
 #include "Chorus.h"
 
 #include "../dsp/ChorusEngine.h"
-#include "EffectState.h"
+#include "EffectTrackState.h"
+#include "EffectVoiceState.h"
 
 using namespace std;
 
-class ChorusState : public EffectState {
+namespace {
+
+// Actual DSP, shared by ChorusTrackState and ChorusVoiceState - see
+// EffectTrackState.h/EffectVoiceState.h and
+// plans/trackstate-voicestate-split.md.
+class ChorusDsp {
 public:
-  ChorusState(const ChannelConfiguration & channel_config, int voices, float rate, float delay, float depth, float mix)
-    : EffectState(channel_config),
-      engine_(reduceForEffect(channel_config).numberOfChannels(), channel_config.getAudioOutSampleRate(), voices, rate, delay, depth)
+  ChorusDsp(const ChannelConfiguration & channel_config, int voices, float rate, float delay, float depth, float mix)
+    : engine_(reduceForEffect(channel_config).numberOfChannels(), channel_config.getAudioOutSampleRate(), voices, rate, delay, depth)
   {
     engine_.setMix(mix);
   }
 
-  // Gathers children reduced to MONO (reduceForEffect), never raw
-  // ambisonic - same pattern as DistortionState (effects/Distortion.cpp):
-  // the engine's per-channel state is sized once, at construction, from the
-  // reduced (now always 1) channel count, so its decorrelate=true option
-  // is what gives a mono-in source its stereo width, not panning surviving
-  // from children.
-  AudioBuffer render(int frames) override {
-    auto reduced_config = reduceForEffect(getChannelConfiguration());
-    auto data = renderChildren(frames, reduced_config);
-    applyEffect(data);
-    return reencodeIfNeeded(std::move(data));
+  // engine_.process() runs unconditionally (Main and AuxA/AuxB alike, the
+  // same reasoning as Amplifier/EnvelopeFilter/Compressor/Tremolo/
+  // Distortion/BiquadFilter) - ChorusEngine itself already handles the
+  // "some channels present, some not, some never seen" bookkeeping.
+  void applyEffect(AudioBuffer & input_data) {
+    engine_.process(input_data);
   }
 
-  AudioBuffer render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override {
-    auto reduced_config = reduceForEffect(getChannelConfiguration());
-    auto data = renderChildren(frames, instruments, context, reduced_config);
-    applyEffect(data);
-    return reencodeIfNeeded(std::move(data));
-  }
-
-protected:
   // Aux channels are carried straight through, not spatially re-encoded
   // (encodeMonoAsPoint() is a Main-only, directional concept - Aux is a
-  // shared-bus scalar) - they've already been chorused below, same as
+  // shared-bus scalar) - they've already been chorused above, same as
   // Main, and need to survive the re-encode to actually reach the bus.
-  AudioBuffer reencodeIfNeeded(AudioBuffer data) {
-    if (getChannelConfiguration().isMono()) return data;
+  AudioBuffer reencodeIfNeeded(const ChannelConfiguration & channel_config, AudioBuffer data) const {
+    if (channel_config.isMono()) return data;
     bool has_main = data.hasChannel(Channel::Main);
-    AudioBuffer out(has_main ? getChannelConfiguration().numberOfChannels() : 0,
+    AudioBuffer out(has_main ? channel_config.numberOfChannels() : 0,
 		    data.hasChannel(Channel::AuxA), data.hasChannel(Channel::AuxB), data.numberOfFrames());
     out.zero();
     if (has_main) encodeMonoAsPoint(data, out);
@@ -55,22 +47,69 @@ protected:
     return out;
   }
 
-  // engine_.process() runs unconditionally (Main and AuxA/AuxB alike, the
-  // same reasoning as Amplifier/EnvelopeFilter/Compressor/Tremolo/
-  // Distortion/BiquadFilter) - ChorusEngine itself already handles the
-  // "some channels present, some not, some never seen" bookkeeping.
-  void applyEffect(AudioBuffer & input_data) override {
-    engine_.process(input_data);
-    setTrackInfo(TrackInfo( true, input_data.isClipping() ));
-  }
-
 private:
   ChorusEngine engine_;
 };
 
+// Gathers children reduced to MONO (reduceForEffect), never raw ambisonic
+// - same pattern as Distortion (effects/Distortion.cpp): the engine's
+// per-channel state is sized once, at construction, from the reduced (now
+// always 1) channel count, so its decorrelate=true option is what gives a
+// mono-in source its stereo width, not panning surviving from children.
+
+class ChorusTrackState : public EffectTrackState {
+public:
+  ChorusTrackState(const ChannelConfiguration & channel_config, int voices, float rate, float delay, float depth, float mix)
+    : EffectTrackState(channel_config), dsp_(channel_config, voices, rate, delay, depth, mix) { }
+
+  AudioBuffer render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override {
+    auto reduced_config = reduceForEffect(getChannelConfiguration());
+    auto data = renderChildren(frames, instruments, context, reduced_config);
+    applyEffect(data);
+    return dsp_.reencodeIfNeeded(getChannelConfiguration(), std::move(data));
+  }
+
+protected:
+  void applyEffect(AudioBuffer & input_data) override {
+    dsp_.applyEffect(input_data);
+    setTrackInfo(TrackInfo( true, input_data.isClipping() ));
+  }
+
+private:
+  ChorusDsp dsp_;
+};
+
+class ChorusVoiceState : public EffectVoiceState {
+public:
+  ChorusVoiceState(const ChannelConfiguration & channel_config, int voices, float rate, float delay, float depth, float mix)
+    : EffectVoiceState(channel_config), dsp_(channel_config, voices, rate, delay, depth, mix) { }
+
+  AudioBuffer render(int frames) override {
+    auto reduced_config = reduceForEffect(getChannelConfiguration());
+    auto data = renderChildren(frames, reduced_config);
+    applyEffect(data);
+    return dsp_.reencodeIfNeeded(getChannelConfiguration(), std::move(data));
+  }
+
+protected:
+  void applyEffect(AudioBuffer & input_data) override {
+    dsp_.applyEffect(input_data);
+  }
+
+private:
+  ChorusDsp dsp_;
+};
+
+}
+
 std::unique_ptr<TrackState>
 Chorus::createState(const ChannelConfiguration & channel_config) const {
-  return make_unique<ChorusState>(channel_config, voices_, rate_, delay_, depth_, mix_);
+  return make_unique<ChorusTrackState>(channel_config, voices_, rate_, delay_, depth_, mix_);
+}
+
+std::unique_ptr<VoiceState>
+Chorus::createVoiceState(const ChannelConfiguration & channel_config) const {
+  return make_unique<ChorusVoiceState>(channel_config, voices_, rate_, delay_, depth_, mix_);
 }
 
 void

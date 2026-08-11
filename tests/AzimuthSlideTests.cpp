@@ -4,8 +4,8 @@
 #include "../InstrumentTrack.h"
 #include "../SongState.h"
 #include "../InstrumentTrackState.h"
-#include "../OscilatorVoice.h"
-#include "../Oscilator.h"
+#include "../OscillatorVoice.h"
+#include "../Oscillator.h"
 #include "../WaveformType.h"
 #include "../RenderContext.h"
 #include "../SphericalPosition.h"
@@ -31,12 +31,12 @@ TEST(azimuth_slide_command_parses_direction_and_magnitude) {
   CHECK(!unrelated.isAzimuthSlide());
 }
 
-// InstrumentVoice::adjustAzimuth() (the leaf override TrackState::
+// InstrumentVoice::adjustAzimuth() (the leaf override VoiceState::
 // adjustAzimuth()'s default child-recursion ultimately reaches) - unlike
 // every other positional field, this changes live, mid-note.
 TEST(instrument_voice_adjust_azimuth_moves_a_live_voice) {
   ChannelConfiguration config(44100);
-  OscilatorVoice voice(config, SphericalPosition{ 10.0f, 0, 0 }, 1.0f, 0.0f, WaveformType::SINE, 1.0f, 0.5f);
+  OscillatorVoice voice(config, SphericalPosition{ 10.0f, 0, 0 }, 1.0f, 0.0f, WaveformType::SINE, 1.0f, 0.5f);
   voice.playNote(440.0f, 0.6f, 42);
 
   CHECK_NEAR(voice.getPosition().azimuth, 10.0f, 0.001f);
@@ -76,7 +76,7 @@ TEST(render_context_accumulates_and_carries_azimuth_ticks) {
 // moves_a_live_voice above for that piece in isolation).
 TEST(azimuth_slide_moves_the_track_over_the_row) {
   Song song;
-  song.addInstrument(make_unique<Oscilator>(WaveformType::SINE)); // instrument_id 0
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SINE)); // instrument_id 0
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
 
   auto & scene0 = song.addScene();

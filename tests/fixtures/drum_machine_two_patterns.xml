@@ -2,7 +2,7 @@
 <song temperament="12edo" tempo="120" patternRows="5" volume="1.0">
   <instruments>
     <envelope attack="0.001" hold="0.01" decay="0.02" sustain="0.0" release="0.01">
-      <oscilator type="saw"/>
+      <oscillator type="saw"/>
     </envelope>
   </instruments>
   <tracks>

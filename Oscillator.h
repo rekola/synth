@@ -1,22 +1,23 @@
-#ifndef _LFO_H_
-#define _LFO_H_
+#ifndef _OSCILLATOR_H_
+#define _OSCILLATOR_H_
 
 #include "Instrument.h"
+#include "WaveformType.h"
 #include "SphericalPosition.h"
 #include "SendLevels.h"
 
-class LFO : public Instrument {
+class Oscillator : public Instrument {
  public:
-  LFO() { }
+  explicit Oscillator(WaveformType type) : type_(type) { }
 
-  const char * getElementName() const override { return "LFO"; }
+  const char * getElementName() const override { return "oscillator"; }
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;
   std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const override;
 
-private:
-  float frequency_ = 1.0f;
-  float level_ = 1.0f;
+ private:
+  WaveformType type_;
+  float level_ = 1.0f, pulse_width_ = 0.5f;
 };
 
 #endif

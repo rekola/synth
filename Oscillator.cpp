@@ -1,18 +1,18 @@
-#include "Oscilator.h"
+#include "Oscillator.h"
 
-#include "OscilatorVoice.h"
+#include "OscillatorVoice.h"
 
 using namespace std;
 
-std::unique_ptr<TrackState>
-Oscilator::playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const {
+std::unique_ptr<VoiceState>
+Oscillator::playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const {
   detune *= getHarmonic();
   detune /= getSubharmonic();
 
   // The voice encodes its own ambisonic output directly from its own
   // position (see InstrumentVoice::encodePosition()) - no external reduce/
   // re-encode step needed.
-  auto voice = std::make_unique<OscilatorVoice>(config, position, detune, start_phase, type_, level_, pulse_width_, sends);
+  auto voice = std::make_unique<OscillatorVoice>(config, position, detune, start_phase, type_, level_, pulse_width_, sends);
   voice->playNote(frequency, velocity, note_value);
 
   // don't pass velocity, position, or sends to children - a modulator
@@ -28,24 +28,24 @@ Oscilator::playNote(const ChannelConfiguration & config, const SphericalPosition
 }
 
 void
-Oscilator::loadParameters(const ParameterSource & input) {
+Oscillator::loadParameters(const ParameterSource & input) {
   Instrument::loadParameters(input);
-  
+
   auto type_text = input.getText("type", "sine");
   if (type_text == "sine") type_ = WaveformType::SINE;
   else if (type_text == "saw") type_ = WaveformType::SAW;
   else if (type_text == "triangle") type_ = WaveformType::TRIANGLE;
   else if (type_text == "square") type_ = WaveformType::SQUARE;
   else type_ = WaveformType::SINE;
-  
+
   level_ = input.getFloat("level", 1.0f);
   pulse_width_ = input.getFloat("width", 0.5f);
 }
 
 void
-Oscilator::storeParameters(ParameterSource & output) const {
+Oscillator::storeParameters(ParameterSource & output) const {
   Instrument::storeParameters(output);
-  
+
   output.set("type", to_string(type_));
   output.set("level", level_);
   output.set("width", pulse_width_);

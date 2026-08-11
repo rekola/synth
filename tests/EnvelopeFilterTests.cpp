@@ -4,23 +4,27 @@
 #include "../MemoryParameterSource.h"
 #include "../ChannelConfiguration.h"
 
-// EnvelopeFilterState is file-local to effects/EnvelopeFilter.cpp (no
+// EnvelopeFilterVoiceState is file-local to effects/EnvelopeFilter.cpp (no
 // header declaration) - constructed here the same way SF2ModulatorTests.cpp
-// reaches SoundFontVoice, through the public Track/TrackState API only:
-// build an EnvelopeFilter, load its envelope parameters, createState().
-// With attack=hold=decay=0 the envelope is already in SUSTAIN, at the
-// configured sustain level, the instant createState() returns - no
-// separate playNote() trigger needed (EnvelopeState's own constructor
-// already walks NONE->...->SUSTAIN based on the envelope's own timing).
+// reaches SoundFontVoice, through the public Track/VoiceState API only:
+// build an EnvelopeFilter, load its envelope parameters, createVoiceState()
+// (the voice-role factory - see plans/trackstate-voicestate-split.md; the
+// note-lifecycle behavior these tests exercise - stopNote()/fastRelease()/
+// isActive() after render() - only exists on that role, not
+// EnvelopeFilterTrackState's). With attack=hold=decay=0 the envelope is
+// already in SUSTAIN, at the configured sustain level, the instant
+// createVoiceState() returns - no separate playNote() trigger needed
+// (EnvelopeState's own constructor already walks NONE->...->SUSTAIN based
+// on the envelope's own timing).
 //
 // See plans/silence-kill-threshold.md - these mirror the SF2 side's
 // tests in tests/SF2ModulatorTests.cpp for the same threshold, applied to
-// EnvelopeFilterState's own (simpler - no separate static gain term, no
-// modenv_) envelope instead of SoundFontVoice's ampenv_.
+// EnvelopeFilterVoiceState's own (simpler - no separate static gain term,
+// no modenv_) envelope instead of SoundFontVoice's ampenv_.
 
 namespace {
 
-  std::unique_ptr<TrackState> makeEnvelopeFilterState(const ChannelConfiguration & config, float sustain, float release) {
+  std::unique_ptr<VoiceState> makeEnvelopeFilterState(const ChannelConfiguration & config, float sustain, float release) {
     EnvelopeFilter filter;
     MemoryParameterSource params;
     params.set("attack", 0.0f);
@@ -29,7 +33,7 @@ namespace {
     params.set("sustain", sustain);
     params.set("release", release);
     filter.loadParameters(params);
-    return filter.createState(config);
+    return filter.createVoiceState(config);
   }
 
 }
@@ -77,12 +81,12 @@ TEST(envelope_filter_state_releasing_above_the_floor_is_not_freed_early) {
 }
 
 // Regression test for the missing fastRelease() override - without it,
-// fastRelease() fell through to TrackState's generic default (recurse into
+// fastRelease() fell through to VoiceState's generic default (recurse into
 // children, no envelope involvement at all), so a full 1.0s authored
 // release would never even start: this voice would stay reported "active"
 // (envelope still sitting in SUSTAIN) for the entire budget below, in
 // addition to hard-cutting whatever child it wrapped with no ramp. See
-// EnvelopeFilterState::fastRelease()'s own comment.
+// EnvelopeFilterVoiceState::fastRelease()'s own comment.
 TEST(envelope_filter_state_fast_release_finishes_much_sooner_than_the_authored_release) {
   ChannelConfiguration config(44100);
   // Full sustain, a 1.0s authored release - fastRelease() must reclaim

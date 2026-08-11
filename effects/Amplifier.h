@@ -8,6 +8,7 @@ public:
   Amplifier() { }
   
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & channel_config) const override;
+  std::unique_ptr<VoiceState> createVoiceState(const ChannelConfiguration & channel_config) const override;
   const char * getElementName() const override { return "amplifier"; }
   void loadParameters(const ParameterSource & element) override;
   void storeParameters(ParameterSource & element) const override;

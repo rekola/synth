@@ -12,7 +12,7 @@
   <instruments>
     <envelope attack="0.01" hold="0.2" decay="0.1" sustain="0.0" release="0.02">
       <multiply unisons="4" spread="0.5774" detune="20">
-        <oscilator type="saw"/>
+        <oscillator type="saw"/>
       </multiply>
     </envelope>
   </instruments>

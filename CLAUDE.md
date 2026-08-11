@@ -304,7 +304,7 @@ SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
   in it anywhere — per track that has anything there, plus that scene's own
   row-keyed annotations), `Player` (sequencer), `AlsaAudio` (output),
   `TerminalUI`/`PatternEditor`/`HierarchyView` (notcurses UI), `Tuner`/
-  `Tuning` (microtonal pitch math), `OscilatorVoice`/`GenericInstrument`/
+  `Tuning` (microtonal pitch math), `OscillatorVoice`/`GenericInstrument`/
   `SoundFont` (synthesis).
 - `effects/` — per-track audio effects (chorus, compressor, distortion, …)
   — each constructed fresh per track/note and torn down with it, unlike
@@ -534,5 +534,8 @@ SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
   separated from song model objects so playback state can be reset cheaply.
 - The build enables many `-Werror=` flags plus `-Wsign-conversion`; new code
   must compile warning-clean.
-- "Oscilator" (single l) is the established spelling in this codebase; keep it
-  for consistency.
+- "Oscillator" (standard spelling, two l's) - a codebase-local convention
+  that used to spell it "Oscilator" (single l) survived until the class/
+  file/XML-element rename that fixed it; if you see the old spelling
+  anywhere (a stray comment, an unrenamed reference), it's a leftover to
+  fix, not a convention to preserve.

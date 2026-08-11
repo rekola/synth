@@ -6,7 +6,7 @@
   </bus>
   <instruments>
     <envelope attack="0.01" hold="0.3" decay="0.3" sustain="0.0" release="0.05">
-      <oscilator type="saw"/>
+      <oscillator type="saw"/>
     </envelope>
   </instruments>
   <tracks>

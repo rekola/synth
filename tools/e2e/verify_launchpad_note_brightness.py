@@ -1,5 +1,5 @@
 """Active-voice LED brightness regression test: loads a dedicated fixture
-(launchpad_brightness_test.xml - a single 31-EDO oscilator track holding one
+(launchpad_brightness_test.xml - a single 31-EDO oscillator track holding one
 sustained note at row 0, no envelope/decay) and asserts the Launchpad grid
 is at idle brightness (LAUNCHPAD_IDLE_BRIGHTNESS) before playback starts,
 and that starting playback (Space) brightens at least one grid pad above

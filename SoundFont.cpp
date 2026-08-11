@@ -868,8 +868,8 @@ adjustPositionForPan(const SphericalPosition & position, const tsf_region * regi
 // combination is unaffected by anything below. Named for the region side
 // of the merge specifically (not just "adjustSendA") so it can't be
 // confused with - or shadow via unqualified lookup in this constructor's
-// own initializer list - TrackState::adjustSendA()/InstrumentVoice::
-// adjustSendA(), the unrelated live-voice Send A push (TrackState.h).
+// own initializer list - VoiceState::adjustSendA()/InstrumentVoice::
+// adjustSendA(), the unrelated live-voice Send A push (VoiceState.h).
 static float
 combineRegionSendA(float send_a, const tsf_region * region) {
   return std::min(1.0f, send_a + (region ? region->reverbEffectsSend / 1000.0f : 0.0f));
@@ -1026,7 +1026,7 @@ public:
   // today's modulator types reads it.
   void applyChannelPressure(float pressure) override {
     sf2_channel_pressure_ = pressure;
-    TrackState::applyChannelPressure(pressure);
+    VoiceState::applyChannelPressure(pressure);
   }
   float getChannelPressure() const override { return sf2_channel_pressure_; }
 
@@ -1038,17 +1038,17 @@ public:
 
     // A modulator child attached by GenericInstrument::playNote() (a
     // song-configured FM modulator - see e.g. songs/subtractive_test.xml's
-    // <genericInstrument name="Cello"><oscilator .../></genericInstrument>)
-    // is stored directly in this voice's own children_ (TrackState::
+    // <genericInstrument name="Cello"><oscillator .../></genericInstrument>)
+    // is stored directly in this voice's own children_ (VoiceState::
     // addChild()). Without recursing here, that child never learns the
     // note stopped: its own envelope never reaches DONE, so it reports
-    // itself active forever - getVoiceCount() (TrackState::getVoiceCount(),
+    // itself active forever - getVoiceCount() (VoiceState::getVoiceCount(),
     // not overridden here, so it does recurse into children) keeps
     // counting a "voice" that's already been silently orphaned once this
     // SoundFontVoice's own isActive() (which does NOT consult children)
     // goes false and clearFinishedVoices() reaps the whole subtree anyway.
     // Same recursion precedent as applyChannelPressure() below.
-    TrackState::killNote();
+    VoiceState::killNote();
   }
 
   void stopNote() override {
@@ -1074,7 +1074,7 @@ public:
       loopEnd_ = loopStart_;
     }
 
-    // See killNote()'s comment above. Deliberately TrackState::killNote(),
+    // See killNote()'s comment above. Deliberately VoiceState::killNote(),
     // not stopNote(): a modulator child's own envelope only ever advances
     // via process(), called exclusively from within SoundFontVoice::
     // render() on *its own* ampenv_/modenv_ - render() never recurses into
@@ -1082,10 +1082,10 @@ public:
     // today), so a child put into RELEASE via stopNote() would sit there
     // forever, never reaching DONE. Jumping straight to DONE is the only
     // way this child ever reports itself inactive at all.
-    TrackState::killNote();
+    VoiceState::killNote();
   }
 
-  // Reclaims this voice quickly without a hard cut - see TrackState::
+  // Reclaims this voice quickly without a hard cut - see VoiceState::
   // fastRelease()'s own comment for when this is used (identity-based
   // retrigger cutoff, SF2 exclusive-class choking). Forcing release_ to 0
   // makes EnvelopeState::nextSegment(SUSTAIN) fall back to
@@ -1112,16 +1112,16 @@ public:
       loopEnd_ = loopStart_;
     }
 
-    // See killNote()'s comment above for why TrackState::killNote(), not
+    // See killNote()'s comment above for why VoiceState::killNote(), not
     // stopNote()/fastRelease(): a modulator child's envelope only ever
     // advances via process(), never called on children, so it must be
     // jumped straight to DONE rather than put into a RELEASE it can never
     // finish on its own.
-    TrackState::killNote();
+    VoiceState::killNote();
   }
 
   // Every distinct non-zero SF2 exclusive class (region.group) this
-  // voice's own region belongs to - see TrackState::getExclusiveClasses()'s
+  // voice's own region belongs to - see VoiceState::getExclusiveClasses()'s
   // own comment. A single SoundFontVoice always has exactly one region
   // (voiceRegion_), so this is at most one value; 0 means "no class",
   // same convention SoundFontInstrument::playNote() already uses.
@@ -1728,13 +1728,13 @@ public:
     }
   }
 
-  std::unique_ptr<TrackState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const override {
+  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const override {
     assert(frequency > 0);
 
     detune *= getHarmonic();
     detune /= getSubharmonic();
 
-    vector<pair<int, unique_ptr<TrackState> > > voices;
+    vector<pair<int, unique_ptr<VoiceState> > > voices;
 
     auto f = sf_.get();
     if (preset_ <= f->presets_.size()) {
@@ -1790,7 +1790,7 @@ public:
 	// so it can't reach across separate note-on events (open hi-hat,
 	// then later a closed hi-hat). See InstrumentTrackState::
 	// chokeExclusiveClasses(), which enforces it at the one layer that
-	// actually can: TrackState::getExclusiveClasses() exposes this
+	// actually can: VoiceState::getExclusiveClasses() exposes this
 	// region's own class to that caller.
 
 	// Each region's own position (folded in via SoundFontVoice::getPosition())
@@ -1828,11 +1828,11 @@ public:
       // Unreduced channel_config: this group's own true output format is
       // whatever it was asked for (matching what its caller expects back).
       // Each region-voice inside is already MONO/STEREO (above); the
-      // plain TrackState's generic render(int frames) FOA-encodes each one
+      // plain VoiceState's generic render(int frames) FOA-encodes each one
       // individually using its own (region-pan-adjusted) position as soon
       // as it notices the channel-count mismatch - no group-state override
       // needed here, same reasoning as NoteMultiplier.
-      auto group = make_unique<TrackState>(channel_config);
+      auto group = make_unique<VoiceState>(channel_config);
       for (auto & [ id, voice ] : voices) group->addChild(id, move(voice));
       return group;
     }

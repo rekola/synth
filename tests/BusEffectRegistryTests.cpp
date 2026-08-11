@@ -27,7 +27,7 @@ struct Loaded {
 };
 
 Loaded loadFixture(const char * name) {
-  InstrumentProvider provider; // no SoundFont: fixtures only use built-in oscilators
+  InstrumentProvider provider; // no SoundFont: fixtures only use built-in oscillators
   Song song;
   bool ok = song.open(std::string(TESTS_FIXTURES_DIR) + "/" + name, provider);
   return { ok, std::move(song) };

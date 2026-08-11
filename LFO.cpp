@@ -1,17 +1,17 @@
 #include "LFO.h"
 
-#include "OscilatorVoice.h"
+#include "OscillatorVoice.h"
 
 using namespace std;
 
-std::unique_ptr<TrackState>
+std::unique_ptr<VoiceState>
 LFO::playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const {
-  // LFO constructs its own OscilatorVoice directly (it's not itself a
+  // LFO constructs its own OscillatorVoice directly (it's not itself a
   // modulator, an FM carrier's LFO target is) - the voice encodes its own
   // ambisonic output directly (InstrumentVoice::encodePosition()); since a
   // modulator's own position is always SphericalPosition{} (see
-  // Oscilator.cpp), this just spreads unity gain into W, same as before.
-  auto voice = std::make_unique<OscilatorVoice>(config, position, detune, start_phase, WaveformType::SINE, level_, 0.5f, sends);
+  // Oscillator.cpp), this just spreads unity gain into W, same as before.
+  auto voice = std::make_unique<OscillatorVoice>(config, position, detune, start_phase, WaveformType::SINE, level_, 0.5f, sends);
   voice->playNote(frequency_, velocity, note_value);
   return voice;
 }

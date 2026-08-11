@@ -1,19 +1,29 @@
 #include "EnvelopeFilter.h"
 
-#include "EffectState.h"
+#include "EffectTrackState.h"
+#include "EffectVoiceState.h"
 #include "../EnvelopeState.h"
 #include "../constants.h"
 
 using namespace std;
 
-class EnvelopeFilterState : public EffectState {
+namespace {
+
+// Actual DSP, shared by EnvelopeFilterTrackState and
+// EnvelopeFilterVoiceState - see EffectTrackState.h/EffectVoiceState.h and
+// plans/trackstate-voicestate-split.md. The note-lifecycle forwarders
+// below (stopNote()/fastRelease()/kill()) only matter for the voice role
+// (nothing ever calls stopNote()/fastRelease()/killNote() on a
+// persistent track-tree node - see InstrumentTrackState::stopVoices()/
+// retriggerVoices()/chokeExclusiveClasses(), the only real callers) but
+// live here anyway since they're just as cheap to share as the DSP
+// itself; only EnvelopeFilterVoiceState actually calls them.
+class EnvelopeFilterDsp {
 public:
-  EnvelopeFilterState(const ChannelConfiguration & channel_config, const Envelope & envelope)
-    : EffectState(channel_config), envelope_state_(channel_config.getAudioOutSampleRate(), envelope, 0, 0, true) {
+  EnvelopeFilterDsp(const ChannelConfiguration & channel_config, const Envelope & envelope)
+    : envelope_state_(channel_config.getAudioOutSampleRate(), envelope, 0, 0, true) { }
 
-  }
-
-  void applyEffect(AudioBuffer & input_data) override {
+  void applyEffect(AudioBuffer & input_data) {
     // A gain multiply is channel-count-agnostic by construction - applies
     // identically to however many channels are actually present (including
     // ambisonic ones), not just the first two.
@@ -42,7 +52,7 @@ public:
       // unison stack), which otherwise keeps rendering at full cost for
       // the whole release - "let children play" (stopNote(), below) means
       // nothing else ever stops them early.
-      if (envelope_state_.isReleasing() && gainToDecibels(gainStart) < constants::SILENCE_KILL_FLOOR_DB) {
+      if (envelope_state_.isReleasing() && TrackState::gainToDecibels(gainStart) < constants::SILENCE_KILL_FLOOR_DB) {
 	envelope_state_.nextSegment(EnvelopeState::RELEASE);
       }
 
@@ -53,7 +63,7 @@ public:
       // ~10ms/441-sample exponential decay (~26% level drop per block) -
       // a flat per-block gain there is an audible staircase, not just an
       // inaudible quantization step (confirmed: this was the residual
-      // click surviving EnvelopeFilterState::fastRelease()'s own fix,
+      // click surviving EnvelopeFilterVoiceState::fastRelease()'s own fix,
       // traced to exact RENDER_EFFECTSAMPLEBLOCK boundaries during the
       // fast release). Slow, ordinary ADSR segments change little enough
       // per block that the linear ramp is indistinguishable from the true
@@ -75,42 +85,83 @@ public:
     }
   }
 
-  bool isActive() const override { return !envelope_state_.isDone(); }
+  bool isDone() const { return envelope_state_.isDone(); }
+  float getLevel() const { return envelope_state_.getLevel(); }
 
-  float getOwnLoudnessFactor() const override { return envelope_state_.getLevel(); }
-
-  void stopNote() override {
+  void stopNote() {
     // let children play
     envelope_state_.nextSegment(EnvelopeState::SUSTAIN);
   }
 
-  // Reclaims this voice quickly without a hard cut - see TrackState::
+  // Reclaims this voice quickly without a hard cut - see VoiceState::
   // fastRelease()'s own comment for when this is used (identity-based
-  // retrigger cutoff). Without this override, fastRelease() would fall
-  // through to TrackState's default (recurse straight into children_),
-  // bypassing envelope_state_ entirely and killing the wrapped oscillator/
-  // sample instantly (InstrumentVoice::killNote() zeroes freq_ with no
-  // ramp) - an abrupt amplitude jump, audible as a click on every
-  // same-identity retrigger. Forcing release_ to 0 makes
-  // EnvelopeState::nextSegment(SUSTAIN) fall back to TSF_FASTRELEASETIME
-  // (10ms), same mechanism SoundFontVoice::fastRelease() already uses -
-  // still "let children play", just a compressed fade instead of the
-  // authored release time, never an instant cut.
-  void fastRelease() override {
+  // retrigger cutoff). Without this, fastRelease() would fall through to
+  // VoiceState's default (recurse straight into children_), bypassing
+  // envelope_state_ entirely and killing the wrapped oscillator/sample
+  // instantly (InstrumentVoice::killNote() zeroes freq_ with no ramp) - an
+  // abrupt amplitude jump, audible as a click on every same-identity
+  // retrigger. Forcing release_ to 0 makes EnvelopeState::
+  // nextSegment(SUSTAIN) fall back to TSF_FASTRELEASETIME (10ms), same
+  // mechanism SoundFontVoice::fastRelease() already uses - still "let
+  // children play", just a compressed fade instead of the authored
+  // release time, never an instant cut.
+  void fastRelease() {
     envelope_state_.parameters.release_ = 0.0f;
     envelope_state_.nextSegment(EnvelopeState::SUSTAIN);
   }
 
-  void killNote() override {
-    TrackState::killNote(); // kill the children too
-    envelope_state_.nextSegment(EnvelopeState::DONE);
-  }
+  void kill() { envelope_state_.nextSegment(EnvelopeState::DONE); }
 
- protected:
+private:
   EnvelopeState envelope_state_;
 };
 
+class EnvelopeFilterTrackState : public EffectTrackState {
+public:
+  EnvelopeFilterTrackState(const ChannelConfiguration & channel_config, const Envelope & envelope)
+    : EffectTrackState(channel_config), dsp_(channel_config, envelope) { }
+
+  bool isActive() const override { return !dsp_.isDone(); }
+
+protected:
+  void applyEffect(AudioBuffer & input_data) override { dsp_.applyEffect(input_data); }
+
+private:
+  EnvelopeFilterDsp dsp_;
+};
+
+class EnvelopeFilterVoiceState : public EffectVoiceState {
+public:
+  EnvelopeFilterVoiceState(const ChannelConfiguration & channel_config, const Envelope & envelope)
+    : EffectVoiceState(channel_config), dsp_(channel_config, envelope) { }
+
+  bool isActive() const override { return !dsp_.isDone(); }
+
+  float getOwnLoudnessFactor() const override { return dsp_.getLevel(); }
+
+  void stopNote() override { dsp_.stopNote(); }
+  void fastRelease() override { dsp_.fastRelease(); }
+
+  void killNote() override {
+    VoiceState::killNote(); // kill the children too
+    dsp_.kill();
+  }
+
+protected:
+  void applyEffect(AudioBuffer & input_data) override { dsp_.applyEffect(input_data); }
+
+private:
+  EnvelopeFilterDsp dsp_;
+};
+
+}
+
 std::unique_ptr<TrackState>
 EnvelopeFilter::createState(const ChannelConfiguration & channel_config) const {
-  return make_unique<EnvelopeFilterState>(channel_config, envelope_);
+  return make_unique<EnvelopeFilterTrackState>(channel_config, envelope_);
+}
+
+std::unique_ptr<VoiceState>
+EnvelopeFilter::createVoiceState(const ChannelConfiguration & channel_config) const {
+  return make_unique<EnvelopeFilterVoiceState>(channel_config, envelope_);
 }

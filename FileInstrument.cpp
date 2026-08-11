@@ -92,7 +92,7 @@ private:
   std::vector<float> dry_;
 };
 
-std::unique_ptr<TrackState>
+std::unique_ptr<VoiceState>
 FileInstrument::playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const {
   auto voice = std::make_unique<FileInstrumentVoice>(channel_config, position, detune, start_phase, samples_, sends);
   voice->playNote(frequency, velocity, note_value);

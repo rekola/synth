@@ -8,21 +8,21 @@ using namespace std;
 
 static inline float getRandF() { return (float)rand() / RAND_MAX; }
 
-std::unique_ptr<TrackState>
+std::unique_ptr<VoiceState>
 NoteMultiplier::playNote(const ChannelConfiguration & channel_config, const SphericalPosition & input_position, float frequency, float input_detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const {
   float half_detune_ratio = powf(2, detune_ / 1200 / 2);
 
-  // No reduction of channel_config here, and no createState() override
+  // No reduction of channel_config here, and no createVoiceState() override
   // either - NoteMultiplier's own true output format (whatever it was
   // given) is exactly what its caller expects back. Each sub-voice below
-  // is itself a leaf instrument (typically Oscilator), which reduces
+  // is itself a leaf instrument (typically Oscillator), which reduces
   // AMBISONIC to MONO on its own before constructing its voice; the
-  // inherited plain TrackState this createState() returns already
+  // inherited plain VoiceState this createVoiceState() returns already
   // FOA-encodes each differently-positioned sub-voice individually as soon
   // as it notices their channel count is narrower than its own (see
-  // TrackState::render(int frames), AmbisonicEncoding.h) - no group-state
+  // VoiceState::render(int frames), AmbisonicEncoding.h) - no group-state
   // override needed here for that to work.
-  auto group = createState(channel_config);
+  auto group = createVoiceState(channel_config);
   int voice_id = 0;
   for (auto & child : getChildren()) {
     if (unisons_ == 1) {

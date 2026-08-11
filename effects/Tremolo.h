@@ -8,6 +8,7 @@ class Tremolo : public Effect {
   Tremolo() { }
   
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & channel_config) const override;
+  std::unique_ptr<VoiceState> createVoiceState(const ChannelConfiguration & channel_config) const override;
   const char * getElementName() const override { return "tremolo"; }
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;

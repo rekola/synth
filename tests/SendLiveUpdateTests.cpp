@@ -4,8 +4,8 @@
 #include "../InstrumentTrack.h"
 #include "../SongState.h"
 #include "../InstrumentTrackState.h"
-#include "../OscilatorVoice.h"
-#include "../Oscilator.h"
+#include "../OscillatorVoice.h"
+#include "../Oscillator.h"
 #include "../WaveformType.h"
 #include "../SphericalPosition.h"
 #include "../MixerFactory.h"
@@ -28,7 +28,7 @@ namespace {
 }
 
 // InstrumentVoice::adjustSendA()/adjustSendB()/adjustSendMain() (the leaf
-// overrides TrackState::adjustSendA()/adjustSendB()/adjustSendMain()'s
+// overrides VoiceState::adjustSendA()/adjustSendB()/adjustSendMain()'s
 // default child-recursion ultimately reaches) - like adjustAzimuth(), these
 // change live, mid-note: encodePosition() (InstrumentVoice.h) reads
 // getSends() fresh every render() call, deciding AuxA/AuxB/Main channel
@@ -36,7 +36,7 @@ namespace {
 // construction.
 TEST(instrument_voice_adjust_send_a_reaches_an_already_active_voice) {
   ChannelConfiguration config(44100);
-  OscilatorVoice voice(config, SphericalPosition{ 0, 0, 1.0f }, 1.0f, 0.0f, WaveformType::SINE, 1.0f, 0.5f);
+  OscillatorVoice voice(config, SphericalPosition{ 0, 0, 1.0f }, 1.0f, 0.0f, WaveformType::SINE, 1.0f, 0.5f);
   voice.playNote(440.0f, 0.6f, 42);
 
   auto silent = voice.render(64);
@@ -50,7 +50,7 @@ TEST(instrument_voice_adjust_send_a_reaches_an_already_active_voice) {
 
 TEST(instrument_voice_adjust_send_b_reaches_an_already_active_voice) {
   ChannelConfiguration config(44100);
-  OscilatorVoice voice(config, SphericalPosition{ 0, 0, 1.0f }, 1.0f, 0.0f, WaveformType::SINE, 1.0f, 0.5f);
+  OscillatorVoice voice(config, SphericalPosition{ 0, 0, 1.0f }, 1.0f, 0.0f, WaveformType::SINE, 1.0f, 0.5f);
   voice.playNote(440.0f, 0.6f, 42);
 
   auto silent = voice.render(64);
@@ -65,7 +65,7 @@ TEST(instrument_voice_adjust_send_b_reaches_an_already_active_voice) {
 TEST(instrument_voice_adjust_send_main_reaches_an_already_active_voice) {
   ChannelConfiguration config(44100);
   // SendLevels{} defaults to main=1.0 - starts audible on Main.
-  OscilatorVoice voice(config, SphericalPosition{ 0, 0, 1.0f }, 1.0f, 0.0f, WaveformType::SINE, 1.0f, 0.5f);
+  OscillatorVoice voice(config, SphericalPosition{ 0, 0, 1.0f }, 1.0f, 0.0f, WaveformType::SINE, 1.0f, 0.5f);
   voice.playNote(440.0f, 0.6f, 42);
 
   auto loud = voice.render(64);
@@ -85,7 +85,7 @@ TEST(instrument_voice_adjust_send_main_reaches_an_already_active_voice) {
 // still held throughout.
 TEST(track_state_set_send_a_reaches_an_already_active_voice) {
   Song song;
-  song.addInstrument(make_unique<Oscilator>(WaveformType::SINE)); // instrument_id 0
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SINE)); // instrument_id 0
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   // Send A defaults to 0 on the track/model - setSendA() below is the live
   // knob path, independent of whatever a note's own pattern data carries.

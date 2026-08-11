@@ -2,6 +2,7 @@
 #define _TRACK_H_
 
 #include "StatefulSongObject.h"
+#include "VoiceState.h"
 #include "TrackType.h"
 #include "SphericalPosition.h"
 #include "SendLevels.h"
@@ -16,6 +17,22 @@ class Track : public StatefulSongObject {
 
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override {
     return std::make_unique<TrackState>(config);
+  }
+
+  // The voice-chain counterpart to createState() above - reached only by
+  // playNote()'s own default body below, never by createStateTree(). Every
+  // leaf instrument (Oscillator/Noise/LFO/FileInstrument/
+  // SoundFontInstrument/NoteMultiplier/GenericInstrument) overrides
+  // playNote() itself directly and never reaches this; only Group and the
+  // Effect family are genuinely usable both as a persistent track (via
+  // createState()/createStateTree()) and inside an instrument definition
+  // (via this) - see plans/trackstate-voicestate-split.md. Default mirrors
+  // createState()'s own plain-passthrough default, which is exactly
+  // correct for Group (a plain fan-out wrapper in either role); each
+  // Effect subclass overrides this the same way it already overrides
+  // createState().
+  virtual std::unique_ptr<VoiceState> createVoiceState(const ChannelConfiguration & config) const {
+    return std::make_unique<VoiceState>(config);
   }
 
   // What format this node's children should be constructed with, given the
@@ -35,7 +52,7 @@ class Track : public StatefulSongObject {
   // (NoteMultiplier, EnvelopeFilter, ResonantFilter, ...) for free, so a
   // real leaf instrument only needs to override this when it actually has
   // a nonzero default (SoundFontInstrument; GenericInstrument forwards to
-  // whatever it resolves to). A true leaf with no children (Oscilator,
+  // whatever it resolves to). A true leaf with no children (Oscillator,
   // Noise, LFO, FileInstrument) falls through to 0 - a point source,
   // unless the artist sets an explicit extent on the track.
   virtual float getDefaultExtent() const {
@@ -63,8 +80,8 @@ class Track : public StatefulSongObject {
 
   virtual const char * getElementName() const = 0;
 
-  virtual std::unique_ptr<TrackState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const {
-    auto group = createState(config);
+  virtual std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const {
+    auto group = createVoiceState(config);
     auto child_config = getChildChannelConfiguration(config);
     for (auto & child : getChildren()) {
       auto voice = child->playNote(child_config, position, frequency, detune, velocity, start_phase, note_value, sends);

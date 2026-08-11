@@ -1,7 +1,7 @@
 #ifndef _INSTRUMENTVOICE_H_
 #define _INSTRUMENTVOICE_H_
 
-#include "TrackState.h"
+#include "VoiceState.h"
 #include "SphericalPosition.h"
 #include "AmbisonicEncoding.h"
 #include "SendLevels.h"
@@ -21,10 +21,10 @@ inline float distanceGain(float distance) {
   return distance <= 0.0f ? 1.0f : 1.0f / distance;
 }
 
-class InstrumentVoice : public TrackState {
+class InstrumentVoice : public VoiceState {
  public:
   InstrumentVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, float start_phase, const SendLevels & sends = {})
-    : TrackState(channel_config),
+    : VoiceState(channel_config),
       sourceSamplePosition_(start_phase * getChannelConfiguration().getAudioOutSampleRate()),
       position_(position),
       detune_(detune),
@@ -35,20 +35,20 @@ class InstrumentVoice : public TrackState {
   }
 
   void killNote() override {
-    TrackState::killNote();
+    VoiceState::killNote();
     freq_ = 0.0f;
   }
-  
+
   void stopNote() override { killNote(); }
 
   // Every non-SF2 leaf already cuts instantly on stopNote() (via
   // killNote() above) - no separate release phase to shorten, so
   // fastRelease() just aliases it. SoundFontVoice overrides this with a
-  // real short release instead (see TrackState::fastRelease()'s comment).
+  // real short release instead (see VoiceState::fastRelease()'s comment).
   void fastRelease() override { stopNote(); }
-    
+
   void playNote(float frequency, float velocity, int note_value) override {
-    TrackState::playNote(frequency, velocity, note_value);
+    VoiceState::playNote(frequency, velocity, note_value);
 
     if (freq_ == 0.0f) {
       setGainDB(-gainToDecibels(1.0f / velocity));
@@ -64,7 +64,7 @@ class InstrumentVoice : public TrackState {
 
   SphericalPosition getPosition() const { return position_; }
 
-  // 2Lxx/2Rxx azimuth slide (TrackState::adjustAzimuth()'s override for
+  // 2Lxx/2Rxx azimuth slide (VoiceState::adjustAzimuth()'s override for
   // every real leaf voice type) - unlike everything else about position_,
   // this *does* change after construction, live, mid-note (see
   // InstrumentTrackState::adjustAzimuth() for why: the whole point of a
@@ -82,7 +82,7 @@ class InstrumentVoice : public TrackState {
     if (floor_reflection_active_) floor_position_.azimuth += delta;
   }
 
-  // Send Main/A/B live update (TrackState::adjustSendMain()/adjustSendA()/
+  // Send Main/A/B live update (VoiceState::adjustSendMain()/adjustSendA()/
   // adjustSendB(), pushed from InstrumentTrackState::setSendMain()/
   // setSendA()/setSendB() - the Launchpad/UI Send knobs). Like
   // adjustAzimuth() above, encodePosition() reads getSends() fresh every

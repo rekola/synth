@@ -515,9 +515,9 @@ TEST(sf2_channel_pressure_heuristic_end_to_end) {
 TEST(sf2_channel_pressure_reaches_every_region_in_a_multi_region_group) {
   // Real GM patches commonly ship more than one matching region per note
   // (stereo L/R sample pairs, velocity layers) - SoundFontInstrument::
-  // playNote() then returns a group TrackState wrapping several
+  // playNote() then returns a group VoiceState wrapping several
   // SoundFontVoice children instead of a single voice directly.
-  // TrackState::applyChannelPressure()'s default must recurse into
+  // VoiceState::applyChannelPressure()'s default must recurse into
   // children (like applyAftertouch already does) for the pressure to
   // ever reach those children - a regression test for exactly that,
   // using a 2-region Pad preset (both regions covering the full key/vel
@@ -607,7 +607,7 @@ TEST(sf2_looping_voice_becomes_inactive_after_stop_note) {
 TEST(sf2_voice_with_modulator_child_fully_reclaims_on_stop) {
   // GenericInstrument::playNote() (GenericInstrument.h) attaches a
   // song-configured modulator child (see e.g. songs/subtractive_test.xml's
-  // <genericInstrument name="Cello"><oscilator .../></genericInstrument>)
+  // <genericInstrument name="Cello"><oscillator .../></genericInstrument>)
   // directly onto whatever TrackState the wrapped instrument's own
   // playNote() returns - for a single-region SF2 patch that's the bare
   // SoundFontVoice itself (SoundFontInstrument::playNote()'s
@@ -619,7 +619,7 @@ TEST(sf2_voice_with_modulator_child_fully_reclaims_on_stop) {
   // by SoundFontVoice::render(), which doesn't touch children_ at all -
   // nothing today reads a modulator's audio output - so process() never
   // even ran on it to advance a graceful RELEASE either way). Fixed by
-  // having both killNote() and stopNote() call TrackState::killNote() on
+  // having both killNote() and stopNote() call VoiceState::killNote() on
   // children - immediate, not a release these unrendered children could
   // never actually complete on their own.
   std::vector<PresetSpec> presets = {
@@ -658,7 +658,7 @@ TEST(sf2_voice_with_modulator_child_fully_reclaims_on_stop) {
 }
 
 TEST(sf2_instrument_track_state_reclaims_looping_multi_region_voice) {
-  // Both tests above drive SoundFontVoice/the group TrackState directly via
+  // Both tests above drive SoundFontVoice/the group VoiceState directly via
   // the bare Instrument::playNote()/stopNote() API, bypassing
   // InstrumentTrackState's own voices_/clearFinishedVoices() machinery
   // entirely - the actual production path (Player.cpp's note-on/off ->
@@ -714,11 +714,11 @@ TEST(sf2_second_stop_note_does_not_resurrect_an_already_done_sibling_region) {
   // stopVoices()'s own call site right before addVoice() in both
   // InstrumentTrackState.h and Player.cpp's PLAY_NOTE handler) - both call
   // stopNote() only when the top-level voice's own isActive() is still
-  // true. For a multi-region group (TrackState::isActive() ORs over
+  // true. For a multi-region group (VoiceState::isActive() ORs over
   // children - real GM patches with stereo/velocity-layered regions
   // commonly have per-region envelopes that finish releasing at different
   // times), that guard only proves *some* child is still active, not that
-  // *every* child is - the base TrackState::stopNote() recurses into every
+  // *every* child is - the base VoiceState::stopNote() recurses into every
   // child unconditionally regardless of each child's own state. A region
   // whose envelope already reached DONE (isActive()==false) then gets a
   // second stopNote(), which - before the fix this is a regression test
@@ -787,11 +787,11 @@ TEST(sf2_looping_multi_region_group_becomes_inactive_after_stop_note) {
   // (stereo L/R pairs, velocity layers - see PresetSpec::region_count and
   // sf2_channel_pressure_reaches_every_region_in_a_multi_region_group
   // above), which makes SoundFontInstrument::playNote() return a plain,
-  // non-overriding TrackState group wrapping several SoundFontVoice
+  // non-overriding VoiceState group wrapping several SoundFontVoice
   // children instead of a single voice directly - unlike
   // sf2_looping_voice_becomes_inactive_after_stop_note above, which only
-  // ever exercised a single bare SoundFontVoice. Group TrackState::
-  // isActive() ORs over children and stopVoices()/TrackState::stopNote()
+  // ever exercised a single bare SoundFontVoice. Group VoiceState::
+  // isActive() ORs over children and stopVoices()/VoiceState::stopNote()
   // recurses into every child, so this *should* behave identically - this
   // test is here to confirm that holds for the actual group wrapper too,
   // not just a lone voice.
@@ -828,7 +828,7 @@ TEST(sf2_looping_multi_region_group_becomes_inactive_after_stop_note) {
 // ---------------------------------------------------------------------
 // Identity-based retrigger cutoff (InstrumentTrackState::retriggerVoices())
 // and SF2 exclusive-class choking (InstrumentTrackState::
-// chokeExclusiveClasses(), TrackState::getExclusiveClasses()) - see
+// chokeExclusiveClasses(), VoiceState::getExclusiveClasses()) - see
 // plans/sf2-retrigger-cutoff.md. All use a single long (1.0s ReleaseVolEnv,
 // GenSpec{38, 0}) authored release, so "did it finish within a handful of
 // ~4096-sample blocks" cleanly distinguishes a fast release (~10ms,
@@ -1235,14 +1235,14 @@ TEST(sf2_voice_releasing_above_the_silence_floor_is_not_freed_early) {
 // positive resolved azimuth reads as a positive Y channel and vice versa,
 // without needing a full stereo decode or reaching into voice internals.
 namespace {
-float channelPeak(TrackState & voice, int channel, int frames) {
+float channelPeak(VoiceState & voice, int channel, int frames) {
   auto data = voice.render(frames);
   auto * c = data.getChannelData(channel);
   float peak = 0.0f;
   for (int i = 0; i < frames; i++) if (std::fabs(c[i]) > std::fabs(peak)) peak = c[i];
   return peak;
 }
-float yChannelPeak(TrackState & voice, int frames) { return channelPeak(voice, 1, frames); }
+float yChannelPeak(VoiceState & voice, int frames) { return channelPeak(voice, 1, frames); }
 // Y/W at the sample where W (the reference channel - kAmbisonicReferenceGain,
 // always 1 for any real direction, regardless of azimuth) peaks - this
 // ratio is exactly sin(azimuth)*cos(elevation), independent of the dry
@@ -1250,7 +1250,7 @@ float yChannelPeak(TrackState & voice, int frames) { return channelPeak(voice, 1
 // different MIDI keys* (different pitch -> different dry-signal phase
 // within the same short window, so a raw peak-to-peak comparison isn't
 // meaningful even when the resolved *position* is identical).
-float yToWRatioAtWPeak(TrackState & voice, int frames) {
+float yToWRatioAtWPeak(VoiceState & voice, int frames) {
   auto data = voice.render(frames);
   auto * w = data.getChannelData(0);
   auto * y = data.getChannelData(1);
@@ -1262,7 +1262,7 @@ float yToWRatioAtWPeak(TrackState & voice, int frames) {
 // touches azimuth (the region's own native SF2 pan, adjustPositionForPan()
 // in this same file), so a jitter/elevation comparison via this channel
 // stays valid regardless of that unrelated code path's own behavior.
-float zChannelPeak(TrackState & voice, int frames) { return channelPeak(voice, 2, frames); }
+float zChannelPeak(VoiceState & voice, int frames) { return channelPeak(voice, 2, frames); }
 }
 
 // These tests all compare *two* renders of the same key/region (extent on

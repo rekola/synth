@@ -39,7 +39,7 @@ endif()
 # dependency on the terminal UI (notcurses) or audio device (ALSA), so it can
 # be linked into the test suite and any future offline tooling.
 add_library(synth_engine STATIC
-	Oscilator.cpp
+	Oscillator.cpp
 	Noise.cpp
 	FileInstrument.cpp
 	Controller.cpp

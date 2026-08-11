@@ -1,5 +1,5 @@
-#ifndef _OSCILATORVOICE_H_
-#define _OSCILATORVOICE_H_
+#ifndef _OSCILLATORVOICE_H_
+#define _OSCILLATORVOICE_H_
 
 #include "InstrumentVoice.h"
 #include "WaveformType.h"
@@ -7,9 +7,9 @@
 
 #include <vector>
 
-class OscilatorVoice : public InstrumentVoice {
+class OscillatorVoice : public InstrumentVoice {
 public:
-  OscilatorVoice(ChannelConfiguration config, const SphericalPosition & position, float detune, float start_phase, WaveformType type, float level, float pulse_width, const SendLevels & sends = {})
+  OscillatorVoice(ChannelConfiguration config, const SphericalPosition & position, float detune, float start_phase, WaveformType type, float level, float pulse_width, const SendLevels & sends = {})
     : InstrumentVoice(config, position, detune, start_phase, sends), type_(type), level_(level), pulse_width_(pulse_width) {
   }
 

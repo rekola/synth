@@ -61,7 +61,7 @@ private:
   std::vector<float> dry_;
 };
 
-std::unique_ptr<TrackState>
+std::unique_ptr<VoiceState>
 Noise::playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const {
   auto voice = std::make_unique<NoiseVoice>(config, position, level_, color_, sends);
   voice->playNote(frequency, velocity, note_value);

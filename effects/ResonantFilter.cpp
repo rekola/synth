@@ -1,6 +1,7 @@
 #include "ResonantFilter.h"
 
-#include "EffectState.h"
+#include "EffectTrackState.h"
+#include "EffectVoiceState.h"
 
 #include "../dsp/MoogVCF.h"
 #include "../EnvelopeState.h"
@@ -12,15 +13,25 @@
 
 using namespace std;
 
-class ResonantFilterState : public EffectState {
+namespace {
+
+// Actual DSP, shared by ResonantFilterTrackState and
+// ResonantFilterVoiceState - see EffectTrackState.h/EffectVoiceState.h and
+// plans/trackstate-voicestate-split.md. `aftertouch_value` is passed in
+// already resolved by the caller rather than read here via getAftertouch()
+// - that's a VoiceState-only concept (aftertouch never reaches a
+// persistent track-tree node - see InstrumentTrackState::applyAftertouch()),
+// so ResonantFilterTrackState always passes 1.0f and
+// ResonantFilterVoiceState passes use_aftertouch_ ? getAftertouch() : 1.0f,
+// keeping this helper itself independent of which role it's plugged into.
+class ResonantFilterDsp {
 public:
-  ResonantFilterState(const ChannelConfiguration & channel_config, const ResonantFilter & filter, const Envelope & envelope, bool use_aftertouch)
-    : EffectState(channel_config),
-      cut_min_(filter.get_cut_min()),
+  ResonantFilterDsp(const ChannelConfiguration & channel_config, const ResonantFilter & filter, const Envelope & envelope)
+    : cut_min_(filter.get_cut_min()),
       cut_max_(filter.get_cut_max()),
       res_(filter.get_res()),
+      sample_rate_(static_cast<float>(channel_config.getAudioOutSampleRate())),
       envelope_state_(channel_config.getAudioOutSampleRate(), envelope, 0, 0, true),
-      use_aftertouch_(use_aftertouch),
       filters_(static_cast<size_t>(channel_config.numberOfChannels()))
   { }
 
@@ -32,19 +43,18 @@ public:
   // 0..regularChannelCount()-1) - see BiquadFilter.cpp's own comment on
   // this for why (Main's regular-channel count can itself be 0 some
   // blocks, which would otherwise shift what a raw index means block to
-  // block).
-  void applyEffect(AudioBuffer & input_data) override {
+  // block). Returns whether there was anything to filter this block, for
+  // the caller's own isEffectActive() bookkeeping.
+  bool applyEffect(AudioBuffer & input_data, float aftertouch_value) {
     auto numSamples = input_data.size();
     int mainChannels = input_data.regularChannelCount();
-    auto aftertouch_value = use_aftertouch_ ? getAftertouch() : 1.0f;
 
     bool has_content = input_data.numberOfChannels() > 0;
-    setEffectActive(has_content);
 
     size_t offset = 0;
     while (numSamples) {
       size_t blockSamples = numSamples > constants::RENDER_EFFECTSAMPLEBLOCK ? constants::RENDER_EFFECTSAMPLEBLOCK : numSamples;
-      float current_cut = (cut_min_ + envelope_state_.getLevel() * aftertouch_value * (cut_max_ - cut_min_)) / (getChannelConfiguration().getAudioOutSampleRate() * 0.5f);
+      float current_cut = (cut_min_ + envelope_state_.getLevel() * aftertouch_value * (cut_max_ - cut_min_)) / (sample_rate_ * 0.5f);
 
       if (has_content) {
 	// Same filter, applied identically & independently per channel -
@@ -81,30 +91,71 @@ public:
       envelope_state_.process(static_cast<int>(blockSamples));
     }
 
-    setTrackInfo(TrackInfo( isEffectActive(), input_data.isClipping()));
+    return has_content;
   }
 
 private:
   float cut_min_, cut_max_, res_;
-  bool use_aftertouch_;
+  float sample_rate_;
+
+  EnvelopeState envelope_state_;
 
   std::vector<MoogVCF<float>> filters_;
   std::array<MoogVCF<float>, 2> aux_filters_;
   bool main_ever_present_ = false;
   std::array<bool, 2> aux_ever_present_ { false, false };
-
-  EnvelopeState envelope_state_;
 };
+
+class ResonantFilterTrackState : public EffectTrackState {
+public:
+  ResonantFilterTrackState(const ChannelConfiguration & channel_config, const ResonantFilter & filter, const Envelope & envelope, bool use_aftertouch)
+    : EffectTrackState(channel_config), dsp_(channel_config, filter, envelope) { (void) use_aftertouch; }
+
+protected:
+  // Aftertouch never reaches a persistent track-tree node (see
+  // ResonantFilterDsp's own doc comment) - always neutral here regardless
+  // of use_aftertouch_.
+  void applyEffect(AudioBuffer & input_data) override {
+    setEffectActive(dsp_.applyEffect(input_data, 1.0f));
+    setTrackInfo(TrackInfo( isEffectActive(), input_data.isClipping() ));
+  }
+
+private:
+  ResonantFilterDsp dsp_;
+};
+
+class ResonantFilterVoiceState : public EffectVoiceState {
+public:
+  ResonantFilterVoiceState(const ChannelConfiguration & channel_config, const ResonantFilter & filter, const Envelope & envelope, bool use_aftertouch)
+    : EffectVoiceState(channel_config), dsp_(channel_config, filter, envelope), use_aftertouch_(use_aftertouch) { }
+
+protected:
+  void applyEffect(AudioBuffer & input_data) override {
+    auto aftertouch_value = use_aftertouch_ ? getAftertouch() : 1.0f;
+    setEffectActive(dsp_.applyEffect(input_data, aftertouch_value));
+  }
+
+private:
+  ResonantFilterDsp dsp_;
+  bool use_aftertouch_;
+};
+
+}
 
 std::unique_ptr<TrackState>
 ResonantFilter::createState(const ChannelConfiguration & config) const {
-  return make_unique<ResonantFilterState>(config, *this, envelope_, use_aftertouch_);
+  return make_unique<ResonantFilterTrackState>(config, *this, envelope_, use_aftertouch_);
+}
+
+std::unique_ptr<VoiceState>
+ResonantFilter::createVoiceState(const ChannelConfiguration & config) const {
+  return make_unique<ResonantFilterVoiceState>(config, *this, envelope_, use_aftertouch_);
 }
 
 void
 ResonantFilter::loadParameters(const ParameterSource & input) {
   Effect::loadParameters(input);
-  
+
   if (input.has("cut")) {
     cut_min_ = cut_max_ = input.getFloat("cut", 0.0f);
   } else {
@@ -114,7 +165,7 @@ ResonantFilter::loadParameters(const ParameterSource & input) {
 
   res_ = input.getFloat("res");
   use_aftertouch_ = input.getBool("aftertouch");
-  
+
   envelope_.loadParameters(input);
 }
 

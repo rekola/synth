@@ -1,42 +1,28 @@
 #include "Distortion.h"
 
-#include "EffectState.h"
+#include "EffectTrackState.h"
+#include "EffectVoiceState.h"
 
 using namespace std;
 
-class DistortionState : public EffectState {
+namespace {
+
+// Actual DSP, shared by DistortionTrackState and DistortionVoiceState -
+// see EffectTrackState.h/EffectVoiceState.h and
+// plans/trackstate-voicestate-split.md.
+class DistortionDsp {
 public:
-  DistortionState(const ChannelConfiguration & channel_config, DistortionType type, float param, float drymix, float drive)
-    : EffectState(channel_config), type_(type), param_(param), drymix_(drymix), drive_(drive) { }
+  DistortionDsp(DistortionType type, float param, float drymix, float drive)
+    : type_(type), param_(param), drymix_(drymix), drive_(drive) { }
 
-  // Gathers children reduced to MONO (reduceForEffect), never raw
-  // ambisonic - panning doesn't survive under this nonlinear effect; see
-  // Distortion.h and the "Effects" section of the spatial audio plan for
-  // why this can't rely on TrackState's generic children-gathering the
-  // way a transparent effect does.
-  AudioBuffer render(int frames) override {
-    auto reduced_config = reduceForEffect(getChannelConfiguration());
-    auto data = renderChildren(frames, reduced_config);
-    applyEffect(data);
-    return reencodeIfNeeded(std::move(data));
-  }
-
-  AudioBuffer render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override {
-    auto reduced_config = reduceForEffect(getChannelConfiguration());
-    auto data = renderChildren(frames, instruments, context, reduced_config);
-    applyEffect(data);
-    return reencodeIfNeeded(std::move(data));
-  }
-
-protected:
   // Aux channels are carried straight through, not spatially re-encoded
   // (encodeMonoAsPoint() is a Main-only, directional concept - Aux is a
   // shared-bus scalar) - they've already been distorted below, same as
   // Main, and need to survive the re-encode to actually reach the bus.
-  AudioBuffer reencodeIfNeeded(AudioBuffer data) {
-    if (getChannelConfiguration().isMono()) return data;
+  AudioBuffer reencodeIfNeeded(const ChannelConfiguration & channel_config, AudioBuffer data) const {
+    if (channel_config.isMono()) return data;
     bool has_main = data.hasChannel(Channel::Main);
-    AudioBuffer out(has_main ? getChannelConfiguration().numberOfChannels() : 0,
+    AudioBuffer out(has_main ? channel_config.numberOfChannels() : 0,
 		    data.hasChannel(Channel::AuxA), data.hasChannel(Channel::AuxB), data.numberOfFrames());
     out.zero();
     if (has_main) encodeMonoAsPoint(data, out);
@@ -56,7 +42,9 @@ protected:
   // see docs/known_bugs.md - Main and Aux carry differently-scaled copies
   // of the same dry signal, and a nonlinear curve responds differently to
   // different amplitudes, so one can clip while the other stays clean.
-  void applyEffect(AudioBuffer & input) override {
+  // Returns whether there was anything to distort this block, for the
+  // caller's own isEffectActive() bookkeeping.
+  bool applyEffect(AudioBuffer & input) const {
     int numChannels = input.numberOfChannels();
     if (numChannels > 0) {
       switch (type_) {
@@ -114,8 +102,7 @@ protected:
       }
     }
 
-    setEffectActive(numChannels > 0);
-    setTrackInfo(TrackInfo( isEffectActive(), input.isClipping()));
+    return numChannels > 0;
   }
 
 private:
@@ -123,22 +110,78 @@ private:
   float param_, drymix_, drive_;
 };
 
+// Gathers children reduced to MONO (reduceForEffect), never raw ambisonic
+// - panning doesn't survive under this nonlinear effect; see Distortion.h
+// and the "Effects" section of the spatial audio plan for why this can't
+// rely on TrackState's/VoiceState's generic children-gathering the way a
+// transparent effect does.
+
+class DistortionTrackState : public EffectTrackState {
+public:
+  DistortionTrackState(const ChannelConfiguration & channel_config, DistortionType type, float param, float drymix, float drive)
+    : EffectTrackState(channel_config), dsp_(type, param, drymix, drive) { }
+
+  AudioBuffer render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override {
+    auto reduced_config = reduceForEffect(getChannelConfiguration());
+    auto data = renderChildren(frames, instruments, context, reduced_config);
+    applyEffect(data);
+    return dsp_.reencodeIfNeeded(getChannelConfiguration(), std::move(data));
+  }
+
+protected:
+  void applyEffect(AudioBuffer & input) override {
+    setEffectActive(dsp_.applyEffect(input));
+    setTrackInfo(TrackInfo( isEffectActive(), input.isClipping() ));
+  }
+
+private:
+  DistortionDsp dsp_;
+};
+
+class DistortionVoiceState : public EffectVoiceState {
+public:
+  DistortionVoiceState(const ChannelConfiguration & channel_config, DistortionType type, float param, float drymix, float drive)
+    : EffectVoiceState(channel_config), dsp_(type, param, drymix, drive) { }
+
+  AudioBuffer render(int frames) override {
+    auto reduced_config = reduceForEffect(getChannelConfiguration());
+    auto data = renderChildren(frames, reduced_config);
+    applyEffect(data);
+    return dsp_.reencodeIfNeeded(getChannelConfiguration(), std::move(data));
+  }
+
+protected:
+  void applyEffect(AudioBuffer & input) override {
+    setEffectActive(dsp_.applyEffect(input));
+  }
+
+private:
+  DistortionDsp dsp_;
+};
+
+}
+
 std::unique_ptr<TrackState>
 Distortion::createState(const ChannelConfiguration & channel_config) const {
-  return make_unique<DistortionState>(channel_config, type_, param_, drymix_, drive_);
+  return make_unique<DistortionTrackState>(channel_config, type_, param_, drymix_, drive_);
+}
+
+std::unique_ptr<VoiceState>
+Distortion::createVoiceState(const ChannelConfiguration & channel_config) const {
+  return make_unique<DistortionVoiceState>(channel_config, type_, param_, drymix_, drive_);
 }
 
 void
 Distortion::loadParameters(const ParameterSource & input) {
   Effect::loadParameters(input);
-   
+
   param_ = input.getFloat("param");
   drive_ = input.getFloat("drive", 1.0f);
-  
+
   auto type_text = input.getText("type");
   if (type_text == "hardclip") type_ = DistortionType::HARD_CLIP;
   else if (type_text == "softclip") type_ = DistortionType::SOFT_CLIP;
-  else if (type_text == "bitchrush") type_ = DistortionType::BITCRUSH;  
+  else if (type_text == "bitchrush") type_ = DistortionType::BITCRUSH;
 }
 
 void

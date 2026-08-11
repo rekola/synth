@@ -12,7 +12,7 @@ class NoteMultiplier : public Track {
   const char * getElementName() const override { return "multiply"; }
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;
-  std::unique_ptr<TrackState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const override;
+  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const override;
 
 private:
   int unisons_ = 1;

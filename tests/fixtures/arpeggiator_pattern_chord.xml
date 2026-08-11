@@ -8,7 +8,7 @@
      around. -->
 <song temperament="12edo" tempo="240" patternRows="16" volume="1.0">
   <instruments>
-    <oscilator type="sine"/>
+    <oscillator type="sine"/>
   </instruments>
   <tracks>
     <arpeggiatorTrack id="0" instrument="0" mode="up" octaves="0" noteDuration="2" gate="2"/>

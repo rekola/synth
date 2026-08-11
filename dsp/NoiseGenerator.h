@@ -4,7 +4,7 @@
 #include <cstdint>
 
 // Fast, deterministic, full 32-bit-resolution PRNG (xorshift32) for
-// audio-rate noise generation - deliberately NOT TrackState::getRandF()
+// audio-rate noise generation - deliberately NOT VoiceState::getRandF()
 // (backed by libc rand()): some platforms only guarantee 15-bit RAND_MAX
 // resolution, and drawing from rand() at audio rate (potentially several
 // times per sample) would perturb the same shared sequence SongState uses

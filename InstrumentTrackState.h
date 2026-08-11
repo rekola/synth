@@ -2,6 +2,7 @@
 #define _INSTRUMENTTRACKSTATE_H_
 
 #include "TrackState.h"
+#include "VoiceState.h"
 #include "TrackEvent.h"
 #include "AudioBuffer.h"
 #include "RenderContext.h"
@@ -97,7 +98,16 @@ public:
     return data;
   }
 
-  AudioBuffer render(int frames) override {
+  // Combines this track's own currently-sounding voices_ into one buffer -
+  // no longer an override of anything on TrackState (which has no
+  // voice-shaped render() any more - voices_ is VoiceState-typed, not
+  // TrackState-typed; see plans/trackstate-voicestate-split.md), but still
+  // declared virtual in its own right: InstrumentTrackState::render(frames,
+  // instruments, context)'s own chunked loop calls this by unqualified
+  // name once per pending-events/azimuth sub-chunk, and ArpeggiatorState
+  // overrides it (see its own doc comment) to interleave its stepper's
+  // timing with that same chunking, purely via ordinary virtual dispatch.
+  virtual AudioBuffer render(int frames) {
     // Render every active voice first (still calling render() even when
     // muted, so envelopes/LFOs keep advancing - only mixing is skipped),
     // then decide this track's own accumulator shape from what actually
@@ -136,7 +146,7 @@ public:
     return data;
   }
 
-  void addVoice(int column, std::unique_ptr<TrackState> voice) {
+  void addVoice(int column, std::unique_ptr<VoiceState> voice) {
     voices_[column].push_back(std::move(voice));
   }
 
@@ -247,7 +257,7 @@ public:
   // resolved into `note_value` by the caller; see TrackEvent::getNoteValue()/
   // PlaybackControlEvent's midi_note parameter) exactly matches a
   // still-sounding voice anywhere in this track gets that prior voice
-  // fast-released (TrackState::fastRelease() - a short ~10ms release via
+  // fast-released (VoiceState::fastRelease() - a short ~10ms release via
   // the existing envelope machinery, never a hard cut) rather than left to
   // ring out its full authored SF2 release tail, which is what let
   // long-release GM patches pile up voices under rapid retriggering. It's
@@ -287,7 +297,7 @@ public:
   // SF2 exclusive class (region.group, gen 57 ExclusiveClass), not note
   // identity - two hi-hat regions choke each other precisely because
   // they're *different* MIDI keys sharing the *same* class, which
-  // identity-based matching would never catch. TrackState::
+  // identity-based matching would never catch. VoiceState::
   // getExclusiveClasses() is empty for every non-SF2 instrument, so this
   // is a no-op there. Scoped to this whole track (every column, not just
   // the new note's own), since exclusive-class values are only meaningful
@@ -305,7 +315,7 @@ public:
   // fastRelease() and stopNote() are safe to call more than once on the
   // same voice (see SoundFontVoice::fastRelease()'s isDone() guard), so
   // this needs no bookkeeping shared with retriggerVoices().
-  void chokeExclusiveClasses(const TrackState & new_voice) {
+  void chokeExclusiveClasses(const VoiceState & new_voice) {
     auto classes = new_voice.getExclusiveClasses();
     if (classes.empty()) return;
 
@@ -382,13 +392,13 @@ public:
   // Send Main/A/B all push into every already-active voice too, not just
   // future notes (unlike setAzimuth() below - see adjustAzimuth() there
   // for the general reasoning: sends_ isn't read fresh from anywhere but
-  // this voice's own construction otherwise). Reuses the same TrackState::
+  // this voice's own construction otherwise). Reuses the same VoiceState::
   // adjust*() virtual-recursion mechanism adjustAzimuth() does (so a
   // multi-region SoundFontInstrument group's real leaf voices are all
   // reached too), just carrying an absolute value instead of a per-tick
   // delta - there's no tick-scheduled slide command for sends the way
   // there is for azimuth, these are live knobs (Launchpad/UI Send rows),
-  // not a pattern effect. See TrackState::adjustSendMain()/adjustSendA()/
+  // not a pattern effect. See VoiceState::adjustSendMain()/adjustSendA()/
   // adjustSendB().
   void setSendMain(float s) {
     sends_.main = s;
@@ -425,10 +435,15 @@ public:
   // own chunked render() loop) - deliberately the opposite of setAzimuth()
   // above: it reaches every already-active voice too, not just future
   // notes, since the whole point of a slide command is to audibly move
-  // whatever is currently sounding. TrackState::adjustAzimuth()'s default
+  // whatever is currently sounding. VoiceState::adjustAzimuth()'s default
   // recursion (overridden by InstrumentVoice - see its own comment) makes
-  // this correct even for a multi-region SoundFontInstrument group.
-  void adjustAzimuth(float delta) override {
+  // this correct even for a multi-region SoundFontInstrument group. No
+  // longer an override of anything on TrackState (azimuth is a
+  // VoiceState-only concept - see plans/trackstate-voicestate-split.md);
+  // called directly (unqualified, on `this`) from this class's own
+  // chunked render() loop above, not through a base-class pointer, so it
+  // needs no virtual dispatch of its own.
+  void adjustAzimuth(float delta) {
     position_.azimuth += delta;
     for (auto & [ column, voices ] : voices_) {
       for (auto & voice : voices) if (voice->isActive()) voice->adjustAzimuth(delta);
@@ -445,7 +460,7 @@ protected:
   const SphericalPosition & getPosition() const { return position_; }
   const SendLevels & getSends() const { return sends_; }
 
-  static inline bool is_not_playing(const std::unique_ptr<TrackState> & voice) { return !voice->isActive(); }
+  static inline bool is_not_playing(const std::unique_ptr<VoiceState> & voice) { return !voice->isActive(); }
 
   void clearFinishedVoices() {
     for (auto & [ id, voices ] : voices_) {
@@ -470,7 +485,7 @@ private:
   SphericalPosition position_;
   SendLevels sends_;
 
-  std::unordered_map<int, std::vector<std::unique_ptr<TrackState> > > voices_;
+  std::unordered_map<int, std::vector<std::unique_ptr<VoiceState> > > voices_;
   std::unordered_map<int, float> column_pressure_;
 };
 

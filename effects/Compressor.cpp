@@ -34,7 +34,8 @@
 
 #include "Compressor.h"
 
-#include "EffectState.h"
+#include "EffectTrackState.h"
+#include "EffectVoiceState.h"
 
 #include <cmath>
 #include <cstddef>
@@ -110,9 +111,14 @@ static inline float fixf(float v, float def) {
 
 using namespace std;
 
-class CompressorState : public EffectState {
-public:  
-  CompressorState(const ChannelConfiguration & channel_config,
+namespace {
+
+// Actual DSP, shared by CompressorTrackState and CompressorVoiceState -
+// see EffectTrackState.h/EffectVoiceState.h and
+// plans/trackstate-voicestate-split.md.
+class CompressorDsp {
+public:
+  CompressorDsp(const ChannelConfiguration & channel_config,
 		  float pregain,
 		  float threshold,
 		  float knee,
@@ -127,13 +133,12 @@ public:
 		  float postgain,
 		  float wet
 		  )
-    : EffectState(channel_config)
   {
     // the main initialization
     // it does a bunch of pre-calculation so that the inner loop of signal processing is fast
-    
-    auto rate = getChannelConfiguration().getAudioOutSampleRate();
-    
+
+    auto rate = channel_config.getAudioOutSampleRate();
+
     // setup the predelay buffer
     delaybufsize_ = static_cast<int>(rate * predelay);
     if (delaybufsize_ < 1) {
@@ -147,7 +152,7 @@ public:
     // all this internal scratch buffer needs, no Aux bookkeeping of its
     // own (plain getChannelData() access only, never hasChannel()/
     // getChannel()).
-    delaybuf_ = AudioBuffer(static_cast<short>(getChannelConfiguration().numberOfChannels() + 2), delaybufsize_);
+    delaybuf_ = AudioBuffer(static_cast<short>(channel_config.numberOfChannels() + 2), delaybufsize_);
     delaybuf_.zero();
     
     // useful values
@@ -227,15 +232,18 @@ public:
     delayreadpos_         = delaybufsize_ > 1 ? 1 : 0;
   }
 
-  void applyEffect(AudioBuffer & input) override {
-    // The gain-reduction algorithm computes a single scalar `gain` per
-    // sample and applies it uniformly to every channel below, Main and
-    // Aux alike - a compressed instrument should send its already-
-    // compressed dynamics to the reverb/delay bus too, the same reasoning
-    // as EnvelopeFilter/Amplifier (unlike a tone-shaping effect, where the
-    // send stays untouched). Only the *detection* step (computing
-    // `inputmax`/`gain` itself) reads Main channels only - AuxA/AuxB
-    // shouldn't be able to influence how hard the compressor squeezes.
+  // The gain-reduction algorithm computes a single scalar `gain` per
+  // sample and applies it uniformly to every channel below, Main and
+  // Aux alike - a compressed instrument should send its already-
+  // compressed dynamics to the reverb/delay bus too, the same reasoning
+  // as EnvelopeFilter/Amplifier (unlike a tone-shaping effect, where the
+  // send stays untouched). Only the *detection* step (computing
+  // `inputmax`/`gain` itself) reads Main channels only - AuxA/AuxB
+  // shouldn't be able to influence how hard the compressor squeezes.
+  // Returns whether the detector found itself actually reducing gain this
+  // block (Main-only) - the caller combines this with its own
+  // numberOfChannels()>0 check for isEffectActive()/TrackInfo bookkeeping.
+  bool applyEffect(AudioBuffer & input) {
     int num_channels = input.numberOfChannels();
     int main_channels = input.regularChannelCount();
     bool compressor_active = false;
@@ -356,20 +364,20 @@ public:
 	    }
     }
 
-    // "Active" tracks whether there was anything to apply gain to at all
-    // (Main, Aux, or both) - not Main specifically, since an Aux-only
-    // input (Send Main = 0) still genuinely gets processed above, even
-    // though detection itself (compressor_active, below) stays Main-only.
-    setEffectActive(num_channels > 0);
-    setTrackInfo(TrackInfo( compressor_active, input.isClipping(), metergain_ ));
+    return compressor_active;
   }
-  
+
+  // See applyEffect()'s own doc comment - user can read the metergain
+  // state variable after processing a chunk to see how much dB the
+  // compressor would have liked to compress the sample; the meter values
+  // aren't used to shape the sound in any way, only used for output (the
+  // track-role TrackInfo) if desired.
+  float getMeterGain() const { return metergain_; }
+
 private:
-  // user can read the metergain state variable after processing a chunk to see how much dB the
-  // compressor would have liked to compress the sample; the meter values aren't used to shape the
-  // sound in any way, only used for output if desired
   float metergain_;
-  
+
+
   // everything else shouldn't really be mucked with unless you read the algorithm and feel
   // comfortable
   float meterrelease_;
@@ -399,9 +407,77 @@ private:
   AudioBuffer delaybuf_; // predelay buffer
 };
 
+// "Active" tracks whether there was anything to apply gain to at all
+// (Main, Aux, or both) - not Main specifically, since an Aux-only input
+// (Send Main = 0) still genuinely gets processed by CompressorDsp above,
+// even though its own detection step (the bool it returns) stays
+// Main-only.
+
+class CompressorTrackState : public EffectTrackState {
+public:
+  CompressorTrackState(const ChannelConfiguration & channel_config,
+		       float pregain, float threshold, float knee, float ratio, float attack, float release,
+		       float predelay, float releasezone1, float releasezone2, float releasezone3, float releasezone4,
+		       float postgain, float wet)
+    : EffectTrackState(channel_config),
+      dsp_(channel_config, pregain, threshold, knee, ratio, attack, release,
+	   predelay, releasezone1, releasezone2, releasezone3, releasezone4, postgain, wet) { }
+
+protected:
+  void applyEffect(AudioBuffer & input) override {
+    bool compressor_active = dsp_.applyEffect(input);
+    setEffectActive(input.numberOfChannels() > 0);
+    setTrackInfo(TrackInfo( compressor_active, input.isClipping(), dsp_.getMeterGain() ));
+  }
+
+private:
+  CompressorDsp dsp_;
+};
+
+class CompressorVoiceState : public EffectVoiceState {
+public:
+  CompressorVoiceState(const ChannelConfiguration & channel_config,
+		       float pregain, float threshold, float knee, float ratio, float attack, float release,
+		       float predelay, float releasezone1, float releasezone2, float releasezone3, float releasezone4,
+		       float postgain, float wet)
+    : EffectVoiceState(channel_config),
+      dsp_(channel_config, pregain, threshold, knee, ratio, attack, release,
+	   predelay, releasezone1, releasezone2, releasezone3, releasezone4, postgain, wet) { }
+
+protected:
+  void applyEffect(AudioBuffer & input) override {
+    dsp_.applyEffect(input);
+    setEffectActive(input.numberOfChannels() > 0);
+  }
+
+private:
+  CompressorDsp dsp_;
+};
+
+}
+
 std::unique_ptr<TrackState>
 Compressor::createState(const ChannelConfiguration & channel_config) const {
-  return make_unique<CompressorState>(channel_config,
+  return make_unique<CompressorTrackState>(channel_config,
+				      pregain_,
+				      threshold_,
+				      knee_,
+				      ratio_,
+				      0.003f, // attack
+				      0.250f, // release
+				      0.006f, // predelay
+				      0.090f, // releasezone1
+				      0.160f, // releasezone2
+				      0.420f, // releasezone3
+				      0.980f, // releasezone4
+				      postgain_,
+				      1.000f  // wet
+				      );
+}
+
+std::unique_ptr<VoiceState>
+Compressor::createVoiceState(const ChannelConfiguration & channel_config) const {
+  return make_unique<CompressorVoiceState>(channel_config,
 				      pregain_,
 				      threshold_,
 				      knee_,

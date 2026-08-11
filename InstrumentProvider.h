@@ -3,7 +3,7 @@
 
 #include "Instrument.h"
 #include "SoundFont.h"
-#include "Oscilator.h"
+#include "Oscillator.h"
 
 #include <string>
 #include <memory>
@@ -12,7 +12,7 @@
 class InstrumentProvider {
  public:
   InstrumentProvider() {
-    auto epiano = std::make_shared<Oscilator>(WaveformType::SAW);
+    auto epiano = std::make_shared<Oscillator>(WaveformType::SAW);
     epiano->setName("Electric Piano");
     addInstrument(epiano);
 

@@ -1,13 +1,13 @@
 #include "TestFramework.h"
 
-#include "../OscilatorVoice.h"
+#include "../OscillatorVoice.h"
 #include "../TrackEvent.h"
 #include "../RenderContext.h"
 #include "../SphericalPosition.h"
 
-TEST(oscilator_voice_reports_note_value_and_velocity_loudness) {
+TEST(oscillator_voice_reports_note_value_and_velocity_loudness) {
   ChannelConfiguration config(44100);
-  OscilatorVoice voice(config, SphericalPosition{}, 1.0f, 0.0f, WaveformType::SINE, 1.0f, 0.5f);
+  OscillatorVoice voice(config, SphericalPosition{}, 1.0f, 0.0f, WaveformType::SINE, 1.0f, 0.5f);
 
   CHECK(!voice.isActive());
   CHECK(voice.getNoteValue() == -1);
@@ -18,7 +18,7 @@ TEST(oscilator_voice_reports_note_value_and_velocity_loudness) {
   CHECK(voice.getNoteValue() == 42);
   // No EnvelopeFilter wrapper: loudness is the constant velocity-derived
   // gain baked in at note-on (see InstrumentVoice::playNote), not a
-  // decaying envelope - OscilatorVoice has none of its own.
+  // decaying envelope - OscillatorVoice has none of its own.
   CHECK_NEAR(voice.getLoudness(), 0.6f, 0.01f);
 
   voice.render(64); // holding the note shouldn't change its loudness

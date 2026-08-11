@@ -10,7 +10,7 @@ class GenericInstrument : public Instrument {
  public:
   GenericInstrument() { }
 
-  std::unique_ptr<TrackState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const override {
+  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const override {
     detune *= getHarmonic();
     detune /= getSubharmonic();
 
@@ -32,7 +32,7 @@ class GenericInstrument : public Instrument {
 
   // Pure delegation, same shape as playNote()'s own forward above - this
   // node has no opinion of its own about extent, whatever it resolves to
-  // (an SF2 preset, the built-in Oscilator, ...) does. concrete_instrument_
+  // (an SF2 preset, the built-in Oscillator, ...) does. concrete_instrument_
   // can be null before prepare() has run once.
   float getDefaultExtent() const override {
     return concrete_instrument_ ? concrete_instrument_->getDefaultExtent() : 0.0f;

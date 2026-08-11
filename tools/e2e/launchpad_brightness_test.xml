@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="120">
   <instruments>
-    <oscilator type="sine"/>
+    <oscillator type="sine"/>
   </instruments>
   <tracks>
     <track id="0" instrument="0"/>

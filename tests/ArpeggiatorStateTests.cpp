@@ -2,7 +2,7 @@
 
 #include "../ArpeggiatorState.h"
 #include "../Arpeggiator.h"
-#include "../Oscilator.h"
+#include "../Oscillator.h"
 #include "../MemoryParameterSource.h"
 #include "../ChannelConfiguration.h"
 #include "../SphericalPosition.h"
@@ -66,7 +66,7 @@ int countZeroCrossings(const float * data, int n) {
 TEST(arpeggiator_state_is_silent_until_a_chord_is_held) {
   ChannelConfiguration config(44100);
   auto arp = makeArpeggiator("up", 1, 0, 1);
-  Oscilator instrument(WaveformType::SINE);
+  Oscillator instrument(WaveformType::SINE);
   ArpeggiatorState state(config, false, false, 0, 0, SphericalPosition{}, SendLevels{}, *arp);
   state.setBpm(120.0f);
 
@@ -83,7 +83,7 @@ TEST(arpeggiator_state_is_silent_until_a_chord_is_held) {
 TEST(arpeggiator_state_steps_ascending_through_held_chord_with_gaps) {
   ChannelConfiguration config(44100);
   auto arp = makeArpeggiator("up", /*noteDuration=*/2, /*octaves=*/0, /*gate=*/1);
-  Oscilator instrument(WaveformType::SINE);
+  Oscillator instrument(WaveformType::SINE);
   ArpeggiatorState state(config, false, false, 0, 0, SphericalPosition{}, SendLevels{}, *arp);
   state.setBpm(120.0f);
 
@@ -128,7 +128,7 @@ TEST(arpeggiator_state_steps_ascending_through_held_chord_with_gaps) {
 TEST(arpeggiator_state_down_mode_starts_at_the_top_and_wraps_there) {
   ChannelConfiguration config(44100);
   auto arp = makeArpeggiator("down", /*noteDuration=*/1, /*octaves=*/0, /*gate=*/1);
-  Oscilator instrument(WaveformType::SINE);
+  Oscillator instrument(WaveformType::SINE);
   ArpeggiatorState state(config, false, false, 0, 0, SphericalPosition{}, SendLevels{}, *arp);
   state.setBpm(120.0f);
 
@@ -154,7 +154,7 @@ TEST(arpeggiator_state_down_mode_starts_at_the_top_and_wraps_there) {
 TEST(arpeggiator_state_up_down_mode_pingpongs_without_repeating_endpoints) {
   ChannelConfiguration config(44100);
   auto arp = makeArpeggiator("updown", /*noteDuration=*/1, /*octaves=*/0, /*gate=*/1);
-  Oscilator instrument(WaveformType::SINE);
+  Oscillator instrument(WaveformType::SINE);
   ArpeggiatorState state(config, false, false, 0, 0, SphericalPosition{}, SendLevels{}, *arp);
   state.setBpm(120.0f);
 
@@ -183,7 +183,7 @@ TEST(arpeggiator_state_up_down_mode_pingpongs_without_repeating_endpoints) {
 TEST(arpeggiator_state_releasing_the_chord_lets_the_current_step_finish_then_goes_silent) {
   ChannelConfiguration config(44100);
   auto arp = makeArpeggiator("up", /*noteDuration=*/2, /*octaves=*/0, /*gate=*/2); // legato: gate == duration
-  Oscilator instrument(WaveformType::SINE);
+  Oscillator instrument(WaveformType::SINE);
   ArpeggiatorState state(config, false, false, 0, 0, SphericalPosition{}, SendLevels{}, *arp);
   state.setBpm(120.0f);
 
@@ -221,7 +221,7 @@ TEST(arpeggiator_state_releasing_the_chord_lets_the_current_step_finish_then_goe
 TEST(arpeggiator_state_octaves_widen_the_pool_to_a_higher_pitch) {
   ChannelConfiguration config(44100); // ambisonic_order 0 = mono/W-only, simplest to analyze
   auto arp = makeArpeggiator("up", /*noteDuration=*/4, /*octaves=*/1, /*gate=*/4); // legato: no gap to work around
-  Oscilator instrument(WaveformType::SINE);
+  Oscillator instrument(WaveformType::SINE);
   ArpeggiatorState state(config, false, false, 0, 0, SphericalPosition{}, SendLevels{}, *arp);
   state.setBpm(120.0f);
 

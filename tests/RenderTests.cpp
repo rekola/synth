@@ -25,7 +25,7 @@ struct Loaded {
 };
 
 Loaded loadFixture(const char * name) {
-  InstrumentProvider provider; // no SoundFont: fixtures only use built-in oscilators
+  InstrumentProvider provider; // no SoundFont: fixtures only use built-in oscillators
   Song song;
   bool ok = song.open(std::string(TESTS_FIXTURES_DIR) + "/" + name, provider);
   return { ok, std::move(song) };
@@ -204,7 +204,7 @@ TEST(render_chorus_centers_its_input) {
 }
 
 TEST(render_envelope_decays_after_hold_and_decay_time) {
-  // center_note.xml wraps its oscilator in <envelope attack=.01 hold=.3
+  // center_note.xml wraps its oscillator in <envelope attack=.01 hold=.3
   // decay=.3 sustain=0 release=.05> - with sustain 0 the note fully decays
   // to silence around t=.61s even with no note-off in the pattern. This
   // exercises EnvelopeFilterState's decay (getOwnLoudnessFactor) end to end
@@ -239,7 +239,7 @@ TEST(render_envelope_decays_after_hold_and_decay_time) {
 // EnvelopeFilterState had no fastRelease() override, so
 // InstrumentTrackState::retriggerVoices()'s identity-based fast-release
 // path fell through to TrackState's generic default - recursing straight
-// into the wrapped OscilatorVoice and killing it instantly (freq_ = 0, no
+// into the wrapped OscillatorVoice and killing it instantly (freq_ = 0, no
 // ramp) instead of "let children play, fade the wrapping envelope" like
 // stopNote() already does. (2) Even with that fixed, EnvelopeFilterState::
 // applyEffect() (and SoundFontVoice::render()'s identical pattern) applied
@@ -247,13 +247,13 @@ TEST(render_envelope_decays_after_hold_and_decay_time) {
 // samples), which is coarse enough relative to the ~10ms/441-sample fast
 // release's exponential decay (~26% level drop per block) to produce an
 // audible staircase - confirmed by tracing a discontinuity to an exact
-// block boundary. envelope_oscilator_rapid_retrigger.xml retriggers the
+// block boundary. envelope_oscillator_rapid_retrigger.xml retriggers the
 // same identity every pattern row at tempo=900 (~16.7ms apart, well inside
 // the fast-release window), exercising both fixes together; without them
 // this produces sample-to-sample jumps around 0.4-0.6 (out of a [-1,1]
 // range) at retrigger/fast-release boundaries.
-TEST(render_envelope_oscilator_rapid_retrigger_has_no_click) {
-  auto loaded = loadFixture("envelope_oscilator_rapid_retrigger.xml");
+TEST(render_envelope_oscillator_rapid_retrigger_has_no_click) {
+  auto loaded = loadFixture("envelope_oscillator_rapid_retrigger.xml");
   CHECK(loaded.ok);
 
   ChannelConfiguration config(44100, 1);
@@ -454,7 +454,7 @@ TEST(render_track_send_a_reaches_track_state_output) {
   // SongState) actually carries real SendA energy, using a RecordingMixer
   // to inspect the per-track AudioBuffer the real Mixer would otherwise
   // silently drop (see Mixer.h).
-  auto loaded = loadFixture("send_a_oscilator.xml");
+  auto loaded = loadFixture("send_a_oscillator.xml");
   CHECK(loaded.ok);
 
   ChannelConfiguration config(44100);
@@ -491,7 +491,7 @@ TEST(render_send_a_reaches_ambisonic_bus_beyond_w_y_at_both_orders) {
   // the final, already-decoded 2-channel device output. SongState::render()
   // accumulates the send bus last (after every per-track accumulate()), so
   // accumulated.back() after each render() call is exactly that entry.
-  auto loaded = loadFixture("send_a_oscilator.xml");
+  auto loaded = loadFixture("send_a_oscillator.xml");
   CHECK(loaded.ok);
 
   for (int order : { 1, 2 }) {
@@ -625,9 +625,9 @@ TEST(render_track_send_b_reaches_track_state_output) {
   // SendB's sibling of render_track_send_a_reaches_track_state_output -
   // confirms the multi-tap delay's mono input actually gets fed real
   // energy through the same InstrumentVoice -> InstrumentTrackState ->
-  // SongState propagation path, using send_b_oscilator.xml (identical to
-  // send_a_oscilator.xml except sendB="0.5" instead of sendA).
-  auto loaded = loadFixture("send_b_oscilator.xml");
+  // SongState propagation path, using send_b_oscillator.xml (identical to
+  // send_a_oscillator.xml except sendB="0.5" instead of sendA).
+  auto loaded = loadFixture("send_b_oscillator.xml");
   CHECK(loaded.ok);
 
   ChannelConfiguration config(44100);
@@ -659,7 +659,7 @@ TEST(render_send_b_reaches_ambisonic_bus_beyond_w_y_at_both_orders) {
   // reach ACN channels beyond W/Y at either supported ambisonic order,
   // confirmed directly on the pre-decode bus via RecordingMixer, same
   // technique as render_send_a_reaches_ambisonic_bus_beyond_w_y_at_both_orders.
-  auto loaded = loadFixture("send_b_oscilator.xml");
+  auto loaded = loadFixture("send_b_oscillator.xml");
   CHECK(loaded.ok);
 
   for (int order : { 1, 2 }) {
@@ -687,14 +687,14 @@ TEST(render_send_b_reaches_ambisonic_bus_beyond_w_y_at_both_orders) {
 }
 
 TEST(render_send_a_produces_audible_reverb_tail) {
-  // send_a_oscilator.xml is identical to center_note.xml except for
+  // send_a_oscillator.xml is identical to center_note.xml except for
   // sendA="0.5" on its one track - any output difference between them is
   // attributable entirely to SendBusProcessor's shared reverb, which now
   // actually reaches the final mix (Phase 1 only proved the plumbing
   // reached the mixer's accumulator - see
   // render_track_send_a_reaches_track_state_output above - without ever
   // becoming audible, since Mixer::encode() deliberately drops it).
-  auto with_send = loadFixture("send_a_oscilator.xml");
+  auto with_send = loadFixture("send_a_oscillator.xml");
   auto without_send = loadFixture("center_note.xml");
   CHECK(with_send.ok);
   CHECK(without_send.ok);
@@ -705,7 +705,7 @@ TEST(render_send_a_produces_audible_reverb_tail) {
   CHECK(!hasNonFiniteSample(result_with));
   CHECK(!hasNonFiniteSample(result_without));
 
-  // Both fixtures wrap their oscilator in the same <envelope attack=.01
+  // Both fixtures wrap their oscillator in the same <envelope attack=.01
   // hold=.3 decay=.3 sustain=0 release=.05> - fully silent by ~0.66s (see
   // render_envelope_decays_after_hold_and_decay_time) - a window well past
   // that isolates the reverb tail from the dry note itself.
@@ -721,11 +721,11 @@ TEST(render_send_a_produces_audible_reverb_tail) {
 }
 
 TEST(render_send_b_produces_audible_delay_echo) {
-  // send_b_oscilator.xml is identical to center_note.xml except for
+  // send_b_oscillator.xml is identical to center_note.xml except for
   // sendB="0.5" on its one track - any output difference between them is
   // attributable entirely to SendBusProcessor's shared multi-tap delay.
   // Same methodology as render_send_a_produces_audible_reverb_tail.
-  auto with_send = loadFixture("send_b_oscilator.xml");
+  auto with_send = loadFixture("send_b_oscillator.xml");
   auto without_send = loadFixture("center_note.xml");
   CHECK(with_send.ok);
   CHECK(without_send.ok);
@@ -736,7 +736,7 @@ TEST(render_send_b_produces_audible_delay_echo) {
   CHECK(!hasNonFiniteSample(result_with));
   CHECK(!hasNonFiniteSample(result_without));
 
-  // Both fixtures wrap their oscilator in the same <envelope attack=.01
+  // Both fixtures wrap their oscillator in the same <envelope attack=.01
   // hold=.3 decay=.3 sustain=0 release=.05> - fully silent by ~0.66s (see
   // render_envelope_decays_after_hold_and_decay_time) - a window well past
   // that isolates the delay's decaying echo repeats (default feedback 0.5,
@@ -753,7 +753,7 @@ TEST(render_send_b_produces_audible_delay_echo) {
 }
 
 TEST(render_haze_produces_audible_diffuse_bed) {
-  // haze_oscilator.xml is identical to center_note.xml except for
+  // haze_oscillator.xml is identical to center_note.xml except for
   // sendB="0.5" on its one track and a <haze preset="crunch"/> occupying
   // slot B instead of the default delay - end-to-end coverage for
   // plans/drum-bus-saturator.md's whole feature (drive/shape/bias/
@@ -761,7 +761,7 @@ TEST(render_haze_produces_audible_diffuse_bed) {
   // re-check of any one stage's own already-covered math (see
   // HazeTests.cpp/AmbisonicDiffuseEncoderTests.cpp/HalfbandFilterTests.cpp
   // for that). Same methodology as render_send_b_produces_audible_delay_echo.
-  auto with_send = loadFixture("haze_oscilator.xml");
+  auto with_send = loadFixture("haze_oscillator.xml");
   auto without_send = loadFixture("center_note.xml");
   CHECK(with_send.ok);
   CHECK(without_send.ok);
