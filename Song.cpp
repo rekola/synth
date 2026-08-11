@@ -25,7 +25,7 @@
 #include "bus/BusEffectRegistry.h"
 #include "MemoryParameterSource.h"
 
-#include "third_party/tinyxml2/tinyxml2.h"
+#include <tinyxml2/tinyxml2.h>
 
 #include "constants.h"
 
@@ -526,7 +526,7 @@ Song::save(const std::string & filename) const {
 	auto data = to_string(command);
 
 	auto command_element = doc.NewElement("command");
-	command_element->SetAttribute("row", row);
+	command_element->SetAttribute("row", static_cast<int>(row));
 	command_element->SetAttribute("data", data.c_str());
 	pattern_element->InsertEndChild(command_element);
       }

@@ -90,7 +90,7 @@ TEST(azimuth_slide_moves_the_track_over_the_row) {
   state.setIsPlaying(true);
 
   int row_samples = config.getSampleInterval(song.getTempo());
-  state.render(row_samples, song, *mixer);
+  state.renderBlock(row_samples, song, *mixer);
 
   auto * track_state = dynamic_cast<InstrumentTrackState *>(state.getChildByInternalId(track.getInternalId()));
   CHECK(track_state != nullptr);

@@ -61,12 +61,12 @@ class ArpeggiatorState : public InstrumentTrackState {
   // Normally kept current automatically, once per block, by the
   // render(frames, instruments, context) override below (from the song's
   // own tempo, via RenderContext::getBpm()) - exposed as its own setter
-  // too so a test can drive render(int frames) directly without needing
-  // the full instruments/RenderContext plumbing.
+  // too so a test can drive renderVoices(int frames) directly without
+  // needing the full instruments/RenderContext plumbing.
   void setBpm(float bpm) { bpm_ = bpm; }
 
   AudioBuffer render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override;
-  AudioBuffer render(int frames) override;
+  AudioBuffer renderVoices(int frames) override;
 
   // True whenever the chord is non-empty (keeps getting rendered so
   // stepping continues through a mid-gate gap with no child currently

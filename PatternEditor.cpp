@@ -723,8 +723,6 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
   auto & song = getController().getSong();
   auto & info = getController().getPlaybackInfo();
 
-  bool was_playing = !active_midi_notes.empty();
-
   auto track_ids = song.getRootTrackIds();
 
   auto & scene = song.getScene(info.getPatternIndex());
@@ -787,14 +785,6 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
     scene.setNote(info.getRowIndex(), track_id, note_column, note);
     row_edited = true;
   }
-
-#if 0
-  if ((!was_playing && !active_midi_notes.empty() && !info.is_playing) ||
-      (was_playing && active_midi_notes.empty() && info.is_playing)) {
-    bool playing = getController().togglePlaying();
-    // setStatus(playing ? "Playing" : "Stopped");
-  }
-#endif
 }
 
 void
@@ -1313,7 +1303,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	    if (was_first_held_note && !info.isPlaying()) {
 	      getController().togglePlaying();
 	      // Mutes only the song's own pattern-driven scheduling
-	      // (SongState::render()'s own comment has the full reasoning) -
+	      // (SongState::renderBlock()'s own comment has the full reasoning) -
 	      // never the live PLAY_NOTE/STOP_NOTE/NOTE_PRESSURE path this
 	      // key's own sound comes through.
 	      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_RECORDING_MUTE, 1));
@@ -1378,7 +1368,6 @@ void
 PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & all_track_info) {
   auto & song = getController().getSong();
   auto & info = getController().getPlaybackInfo();
-  auto & scene = song.getScene(info.getPatternIndex());
 
   auto [rows, cols] = getDim();
 

@@ -25,7 +25,7 @@ VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
 
   // Raw, pre-mixdown per-channel loudness for the UI's volume meter - the
   // ambisonic bus (whatever regular channel count is active), then
-  // always AuxA/AuxB last (see SongState::render()'s aux_a_sum_/
+  // always AuxA/AuxB last (see SongState::renderBlock()'s aux_a_sum_/
   // aux_b_sum_, and AudioBlockEvent.h for why they arrive as separate
   // fields from raw_bus).
   auto channel_loudness = ev.getRawBus().calculateLoudness();

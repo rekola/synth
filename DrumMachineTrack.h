@@ -90,7 +90,7 @@ public:
   // identical results whether called in playback order or after an
   // arbitrary seek (see plans/drum-machine.md's seek-correctness
   // invariant). Pattern-boundary truncation/reset is the caller's for
-  // free: SongState::render() only ever calls this with a `pattern_row`
+  // free: SongState::renderBlock() only ever calls this with a `pattern_row`
   // already made pattern-relative by Song::getRelativePosition(), which
   // is always < that pattern's own row count and always restarts at 0
   // for the next pattern - this function needs no boundary awareness of

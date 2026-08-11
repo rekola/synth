@@ -29,7 +29,7 @@ renderSongOffline(const Song & song, const ChannelConfiguration & channel_config
       state.setIsPlaying(false); // song ended; keep rendering the tail
     }
 
-    state.render(block_frames, song, *mixer);
+    state.renderBlock(block_frames, song, *mixer);
     auto master = mixer->encode();
 
     auto base = result.interleaved.size();

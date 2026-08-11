@@ -860,7 +860,7 @@ TEST(retrigger_voices_fast_releases_same_identity_voice) {
 
   bool became_inactive = false;
   for (int i = 0; i < 8 && !became_inactive; i++) {
-    state.render(4096);
+    state.renderVoices(4096);
     if (!state.isActive()) became_inactive = true;
   }
   CHECK(became_inactive);
@@ -888,7 +888,7 @@ TEST(retrigger_voices_does_not_fast_release_a_different_identity) {
   // Render well past the fast-release window (~10ms) but far short of the
   // voice's full 1.0s authored release - it must still be genuinely
   // active (naturally releasing), not already finished.
-  for (int i = 0; i < 4; i++) state.render(4096); // ~371ms
+  for (int i = 0; i < 4; i++) state.renderVoices(4096); // ~371ms
   CHECK(state.isActive());
 }
 
@@ -915,7 +915,7 @@ TEST(retrigger_voices_fast_releases_same_identity_in_a_different_column) {
 
   bool became_inactive = false;
   for (int i = 0; i < 8 && !became_inactive; i++) {
-    state.render(4096);
+    state.renderVoices(4096);
     if (!state.isActive()) became_inactive = true;
   }
   CHECK(became_inactive);
@@ -944,7 +944,7 @@ TEST(retrigger_voices_does_not_cut_a_31edo_cluster) {
   state.retriggerVoices(1, 61);
   state.addVoice(1, instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 61, SendLevels{}));
 
-  for (int i = 0; i < 4; i++) state.render(4096);
+  for (int i = 0; i < 4; i++) state.renderVoices(4096);
 
   std::unordered_map<int, std::vector<ActiveVoiceInfo> > active;
   state.getAllActiveVoices(active);
@@ -993,7 +993,7 @@ TEST(choke_exclusive_classes_chokes_a_different_note_value_sharing_class) {
 
   bool became_inactive = false;
   for (int i = 0; i < 8 && !became_inactive; i++) {
-    state.render(4096);
+    state.renderVoices(4096);
     if (!state.isActive()) became_inactive = true;
   }
   CHECK(became_inactive);
@@ -1026,7 +1026,7 @@ TEST(choke_exclusive_classes_does_not_touch_voices_without_a_shared_class) {
   state.addVoice(2, move(voice46));
 
   // Past the fast-release window, short of the 1.0s natural release.
-  for (int i = 0; i < 4; i++) state.render(4096);
+  for (int i = 0; i < 4; i++) state.renderVoices(4096);
 
   std::unordered_map<int, std::vector<ActiveVoiceInfo> > active;
   state.getAllActiveVoices(active);
@@ -1080,7 +1080,7 @@ TEST(exclusive_class_choke_overrides_normal_release_when_composed_with_retrigger
   // meaningful because that window is comfortably short of 1.0s.
   bool became_inactive = false;
   for (int i = 0; i < 8 && !became_inactive; i++) {
-    state.render(4096);
+    state.renderVoices(4096);
     if (!state.isActive()) became_inactive = true;
   }
   CHECK(became_inactive);

@@ -9,13 +9,10 @@
 
 class Command {
  public:
-  Command() {
-    values_[0] = '-';
-    values_[1] = '-';
-    values_[2] = '-';
-    values_[3] = '-';
-  }
+  Command() = default;
 
+  // Malformed input (values.size() != 4) leaves values_ at its default-
+  // initialized "-", "-", "-", "-" rather than partially/uninitialized.
   Command(std::string_view values) {
     assert(values.size() == 4);
     if (values.size() >= 4) {
@@ -85,7 +82,7 @@ class Command {
   const char * data() const { return &(values_[0]); }
 
  private:
-  char values_[4];
+  char values_[4] = { '-', '-', '-', '-' };
 };
 
 static inline const std::string to_string(const Command & command) {

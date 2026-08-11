@@ -37,7 +37,7 @@ using namespace std;
 using namespace fmt;
 
 static inline ncinput to_ncinput(const InputEvent & input) {
-  ncinput ni = { .id = input.getId(), .y = input.getY(), .x = input.getX(), .utf8 = { 0, 0, 0, 0, 0 }, .alt = input.hasAlt(), .shift = input.hasShift(), .ctrl = input.hasCtrl(), .evtype = NCTYPE_UNKNOWN, .modifiers = ((input.hasAlt() ? NCKEY_MOD_ALT : 0) | (input.hasCtrl() ? NCKEY_MOD_CTRL : 0) | (input.hasShift() ? NCKEY_MOD_SHIFT : 0) | (input.hasMeta() ? NCKEY_MOD_META : 0)), .ypx = -1, .xpx = -1 };
+  ncinput ni = { .id = static_cast<uint32_t>(input.getId()), .y = input.getY(), .x = input.getX(), .utf8 = { 0, 0, 0, 0, 0 }, .alt = input.hasAlt(), .shift = input.hasShift(), .ctrl = input.hasCtrl(), .evtype = NCTYPE_UNKNOWN, .modifiers = static_cast<uint32_t>((input.hasAlt() ? NCKEY_MOD_ALT : 0) | (input.hasCtrl() ? NCKEY_MOD_CTRL : 0) | (input.hasShift() ? NCKEY_MOD_SHIFT : 0) | (input.hasMeta() ? NCKEY_MOD_META : 0)), .ypx = -1, .xpx = -1 };
   return ni;
 }
 
@@ -86,12 +86,9 @@ public:
   void erase() override { plane->erase(); }
   void putstr(int y, int x, const std::string & s) override { plane->putstr(y, x, s.c_str()); }
   unique_ptr<UIPlane> createChild() override {
-    auto plane = new Plane(1, 1, 0, 0);
-    plane->set_base("", 0, NCCHANNELS_INITIALIZER(0xc0, 0x80, 0xc0, 0x20, 0, 0x20));
-    // plane->set_scrolling(true);
-    // plane->rounded_box(NCSTYLE_NONE, NCCHANNELS_INITIALIZER(0xc0, 0x80, 0xc0, 0x20, 0, 0x20), 0, 0, 0);
-    // plane->putstr("");
-    return make_unique<TerminalPlane>(getController(), plane);
+    auto child_plane = new Plane(1, 1, 0, 0);
+    child_plane->set_base("", 0, NCCHANNELS_INITIALIZER(0xc0, 0x80, 0xc0, 0x20, 0, 0x20));
+    return make_unique<TerminalPlane>(getController(), child_plane);
   }
   
   void drawBorder() override {
@@ -1241,7 +1238,6 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
 
   // setStatus("Starting... nd = " + to_string(num_descriptors));
 
-  time_t prev_update = 0;
   renderComponents(true);
 
   string waiting_stderr;
@@ -1261,9 +1257,9 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
 	    handleEvent(*event);
 	    if (event->needRedraw()) render = true;
 	    while ( getController().getUIEventQueue().hasEvents() ) {
-	      auto event = getController().getUIEventQueue().pop();	      
-	      handleEvent(*event);
-	      if (event->needRedraw()) render = true;
+	      auto next_event = getController().getUIEventQueue().pop();
+	      handleEvent(*next_event);
+	      if (next_event->needRedraw()) render = true;
 	    }
 	  } else if (i == 2) {
 	    char buffer[4096];

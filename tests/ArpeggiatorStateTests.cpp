@@ -71,7 +71,7 @@ TEST(arpeggiator_state_is_silent_until_a_chord_is_held) {
   state.setBpm(120.0f);
 
   CHECK(!state.isActive());
-  auto buf = state.render(256);
+  auto buf = state.renderVoices(256);
   CHECK(!buf.hasChannel(Channel::Main));
   CHECK(!state.isActive());
 }
@@ -103,25 +103,25 @@ TEST(arpeggiator_state_steps_ascending_through_held_chord_with_gaps) {
   // a step/gate boundary itself (see plans/arpeggiator.md's ArpeggiatorState
   // design for why boundaries are resolved lazily, at the start of the
   // next render() call).
-  state.render(unit / 2);
+  state.renderVoices(unit / 2);
   CHECK(activeNoteValues(state, 0) == std::vector<int>{60}); // step 0's gate still open
 
-  state.render(unit); // crosses the gate close (at 1*unit) - now silent
+  state.renderVoices(unit); // crosses the gate close (at 1*unit) - now silent
   CHECK(activeNoteValues(state, 0).empty());
 
-  state.render(unit); // crosses the step advance (at 2*unit) into step 1's gate
+  state.renderVoices(unit); // crosses the step advance (at 2*unit) into step 1's gate
   CHECK(activeNoteValues(state, 0) == std::vector<int>{64});
 
-  state.render(unit); // crosses step 1's gate close (at 3*unit)
+  state.renderVoices(unit); // crosses step 1's gate close (at 3*unit)
   CHECK(activeNoteValues(state, 0).empty());
 
-  state.render(unit); // crosses the step advance (at 4*unit) into step 2's gate
+  state.renderVoices(unit); // crosses the step advance (at 4*unit) into step 2's gate
   CHECK(activeNoteValues(state, 0) == std::vector<int>{67});
 
-  state.render(unit); // crosses step 2's gate close (at 5*unit)
+  state.renderVoices(unit); // crosses step 2's gate close (at 5*unit)
   CHECK(activeNoteValues(state, 0).empty());
 
-  state.render(unit); // crosses the step advance (at 6*unit), wrapping back to step 0
+  state.renderVoices(unit); // crosses the step advance (at 6*unit), wrapping back to step 0
   CHECK(activeNoteValues(state, 0) == std::vector<int>{60});
 }
 
@@ -138,16 +138,16 @@ TEST(arpeggiator_state_down_mode_starts_at_the_top_and_wraps_there) {
   state.noteOn(1, instrument, 550.0f, 0.8f, 64, 0.0f);
   state.noteOn(2, instrument, 660.0f, 0.8f, 67, 0.0f);
 
-  state.render(unit / 2);
+  state.renderVoices(unit / 2);
   CHECK(activeNoteValues(state, 0) == std::vector<int>{67}); // starts at the top, not the bottom
 
-  state.render(unit);
+  state.renderVoices(unit);
   CHECK(activeNoteValues(state, 0) == std::vector<int>{64});
 
-  state.render(unit);
+  state.renderVoices(unit);
   CHECK(activeNoteValues(state, 0) == std::vector<int>{60});
 
-  state.render(unit);
+  state.renderVoices(unit);
   CHECK(activeNoteValues(state, 0) == std::vector<int>{67}); // wraps back to the top
 }
 
@@ -165,10 +165,10 @@ TEST(arpeggiator_state_up_down_mode_pingpongs_without_repeating_endpoints) {
   state.noteOn(2, instrument, 660.0f, 0.8f, 67, 0.0f);
 
   std::vector<int> observed;
-  state.render(unit / 2);
+  state.renderVoices(unit / 2);
   observed.push_back(activeNoteValues(state, 0).at(0));
   for (int i = 0; i < 5; i++) {
-    state.render(unit);
+    state.renderVoices(unit);
     observed.push_back(activeNoteValues(state, 0).at(0));
   }
 
@@ -192,23 +192,23 @@ TEST(arpeggiator_state_releasing_the_chord_lets_the_current_step_finish_then_goe
   state.noteOn(0, instrument, 440.0f, 0.8f, 60, 0.0f);
   state.noteOn(1, instrument, 550.0f, 0.8f, 64, 0.0f);
 
-  state.render(unit / 2);
+  state.renderVoices(unit / 2);
   CHECK(activeNoteValues(state, 0) == std::vector<int>{60});
 
   state.noteOff(0);
   state.noteOff(1); // chord now empty - no further steps get scheduled
 
-  state.render(unit); // still within step 0's legato gate window (2*unit)
+  state.renderVoices(unit); // still within step 0's legato gate window (2*unit)
   CHECK(activeNoteValues(state, 0) == std::vector<int>{60});
   CHECK(state.isActive()); // held_notes_ empty, but the release tail is real
 
-  state.render(unit); // past step 0's gate close (2*unit) - no step 1 was ever scheduled
+  state.renderVoices(unit); // past step 0's gate close (2*unit) - no step 1 was ever scheduled
   CHECK(activeNoteValues(state, 0).empty());
   CHECK(!state.isActive());
 
   // Re-holding restarts from step 0, not wherever the old cycle left off.
   state.noteOn(2, instrument, 660.0f, 0.8f, 67, 0.0f);
-  state.render(unit / 2);
+  state.renderVoices(unit / 2);
   CHECK(activeNoteValues(state, 0) == std::vector<int>{67});
 }
 
@@ -230,10 +230,10 @@ TEST(arpeggiator_state_octaves_widen_the_pool_to_a_higher_pitch) {
 
   state.noteOn(0, instrument, 440.0f, 0.8f, 60, 0.0f);
 
-  auto low = state.render(step_samples); // whole of step 0 (440Hz) - the transition is resolved
+  auto low = state.renderVoices(step_samples); // whole of step 0 (440Hz) - the transition is resolved
                                           // lazily, at the start of the *next* render() call, so
                                           // this entire chunk is clean.
-  auto high = state.render(step_samples / 2); // triggers step 1 (880Hz) right at this call's own
+  auto high = state.renderVoices(step_samples / 2); // triggers step 1 (880Hz) right at this call's own
                                                // start, so this whole chunk is clean too.
 
   CHECK(low.hasChannel(Channel::Main));

@@ -19,7 +19,12 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -Wall -Wsuggest-override -Werror=return-local-addr -Werror=multichar -Werror=enum-compare -Werror=return-type -Werror=conversion-null -Werror=parentheses -Werror=switch -Werror=address -Werror=trigraphs -Werror=pointer-arith -Werror=cast-qual -Werror=non-virtual-dtor -ffast-math -fno-math-errno -Werror=write-strings -Werror=return-local-addr -Wuninitialized -Wno-suggest-override -Wsign-conversion -Wsign-promo")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -Wall -Wsuggest-override -Werror=return-local-addr -Werror=multichar -Werror=enum-compare -Werror=return-type -Werror=conversion-null -Werror=parentheses -Werror=switch -Werror=address -Werror=trigraphs -Werror=pointer-arith -Werror=cast-qual -Werror=non-virtual-dtor -ffast-math -fno-math-errno -Werror=write-strings -Werror=return-local-addr -Wuninitialized -Wno-suggest-override -Wsign-conversion -Wsign-promo -Werror=duplicated-cond -Werror=duplicated-branches -Werror=logical-op -Werror=redundant-decls -Werror=cast-align -Wformat=2 -Werror=format -Werror=shadow -Werror=missing-declarations")
+# -Wnull-dereference deliberately not enabled: at -O2 with heavy inlining it
+# produces false positives inside ordinary std::vector/std::unordered_map
+# iteration (GCC misattributes an optimizer-derived diagnostic through the
+# inlined STL code, not an issue with our code or a vendored header) -
+# confirmed against this codebase/GCC 13 combination, not a hypothetical.
 
 # -Wconversion
 
@@ -85,6 +90,14 @@ add_library(synth_engine STATIC
 	MixerFactory.cpp
 )
 target_include_directories(synth_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+# Vendored code (third_party/) as a SYSTEM include path: headers reached
+# through it (tinyxml2.h, pocketfft_hdronly.h) are exempted from our own
+# warning flags, since we don't reformat/refactor vendored files to chase
+# them. tinyxml2.cpp is compiled directly as its own translation unit
+# rather than merely #include'd, so the SYSTEM include path doesn't cover
+# it - its warnings are separately silenced below.
+target_include_directories(synth_engine SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
+set_source_files_properties(third_party/tinyxml2/tinyxml2.cpp PROPERTIES COMPILE_OPTIONS "-w")
 target_link_libraries(synth_engine PUBLIC m sndfile fmt pthread)
 
 # Experimental, out-of-spec GM-family channel-pressure heuristic defaults

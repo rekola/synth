@@ -387,7 +387,7 @@ namespace {
 // fragile here: playNote()'s start_phase argument is randomized per note-on,
 // see InstrumentTrackState.h).
 float renderRowPeak(SongState & state, const Song & song, Mixer & mixer, int row_samples) {
-  state.render(row_samples, song, mixer);
+  state.renderBlock(row_samples, song, mixer);
   auto master = mixer.encode();
   float peak = 0.0f;
   for (int c = 0; c < mixer.getOutChannels(); c++) {
@@ -499,7 +499,7 @@ TEST(drum_machine_track_retrigger_chokes_the_previous_hit_instead_of_stacking) {
   state.initialize(song);
   state.setIsPlaying(true);
 
-  for (int row = 0; row < 8; row++) state.render(row_samples, song, *mixer); // rows 0..7
+  for (int row = 0; row < 8; row++) state.renderBlock(row_samples, song, *mixer); // rows 0..7
   // getVoiceCount() counts the whole active node tree (this track's own
   // state node plus each voice's envelope/oscillator wrapper chain), not
   // "number of notes" - so the right baseline to compare against is
@@ -508,10 +508,10 @@ TEST(drum_machine_track_retrigger_chokes_the_previous_hit_instead_of_stacking) {
   int one_voice_worth = state.getVoiceCount();
   CHECK(one_voice_worth > 0);
 
-  state.render(row_samples, song, *mixer); // row 8 - second hit, must choke voice #1
+  state.renderBlock(row_samples, song, *mixer); // row 8 - second hit, must choke voice #1
   // A little more than the ~10ms fast-release window, comfortably less
   // than one row's own 125ms.
-  state.render(static_cast<int>(0.05f * config.getAudioOutSampleRate()), song, *mixer);
+  state.renderBlock(static_cast<int>(0.05f * config.getAudioOutSampleRate()), song, *mixer);
 
   // Back to exactly one voice's worth - voice #1 was choked and cleaned
   // up, not left ringing forever alongside voice #2 (which is what an

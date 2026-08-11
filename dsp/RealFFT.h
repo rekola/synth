@@ -13,7 +13,16 @@
 #define POCKETFFT_NO_MULTITHREADING
 #endif
 
-#include "../third_party/pocketfft/pocketfft_hdronly.h"
+// The -isystem treatment of third_party/ (CMakeLists.txt) suppresses most
+// of our warning flags for vendored headers, but GCC's optimizer-derived
+// -Wnull-dereference still fires inside PocketFFT's inlined FFT kernels
+// regardless - its system-header attribution doesn't survive inlining the
+// way ordinary (non-optimizer) warnings' does. Silenced explicitly here
+// rather than by editing the vendored file.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnull-dereference"
+#include <pocketfft/pocketfft_hdronly.h>
+#pragma GCC diagnostic pop
 
 #include <complex>
 #include <type_traits>

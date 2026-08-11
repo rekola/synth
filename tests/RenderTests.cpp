@@ -466,7 +466,7 @@ TEST(render_track_send_a_reaches_track_state_output) {
 
   bool saw_send_a = false;
   for (int block = 0; block < 20 && !saw_send_a; block++) {
-    state.render(256, loaded.song, mixer);
+    state.renderBlock(256, loaded.song, mixer);
     for (auto & data : mixer.accumulated) {
       if (data.hasChannel(Channel::AuxA)) {
 	auto send = data.getChannel(Channel::AuxA);
@@ -488,7 +488,7 @@ TEST(render_send_a_reaches_ambisonic_bus_beyond_w_y_at_both_orders) {
   // confirmed here directly on the pre-decode bus via RecordingMixer (see
   // render_track_send_a_reaches_track_state_output above), since the
   // public renderSongOffline()/OfflineRenderResult path only ever exposes
-  // the final, already-decoded 2-channel device output. SongState::render()
+  // the final, already-decoded 2-channel device output. SongState::renderBlock()
   // accumulates the send bus last (after every per-track accumulate()), so
   // accumulated.back() after each render() call is exactly that entry.
   auto loaded = loadFixture("send_a_oscillator.xml");
@@ -504,7 +504,7 @@ TEST(render_send_a_reaches_ambisonic_bus_beyond_w_y_at_both_orders) {
 
     double energy_beyond_wy = 0.0;
     for (int block = 0; block < 60; block++) {
-      state.render(256, loaded.song, mixer);
+      state.renderBlock(256, loaded.song, mixer);
       CHECK(!mixer.accumulated.empty());
       auto & bus = mixer.accumulated.back();
       CHECK(bus.numberOfChannels() == config.numberOfChannels());
@@ -529,7 +529,7 @@ TEST(render_dirac_heatmap_peak_matches_encoded_azimuth_sweep) {
   // test that doesn't need the real audio-device/UI plumbing.
   //
   // RecordingMixer::accumulated.back() alone is NOT that bus - it's only
-  // SongState::render()'s *last* accumulate() call, the shared send bus's
+  // SongState::renderBlock()'s *last* accumulate() call, the shared send bus's
   // own AuxA/AuxB-derived contribution (SongState.h), which is silent
   // here since this fixture's tracks configure no sends at all. A real
   // Mixer sums every accumulate() call (one per top-level track, plus the
@@ -576,7 +576,7 @@ TEST(render_dirac_heatmap_peak_matches_encoded_azimuth_sweep) {
   int sample_rate = config.getAudioOutSampleRate();
 
   while (next_check < expected.size()) {
-    state.render(256, loaded.song, mixer);
+    state.renderBlock(256, loaded.song, mixer);
     CHECK(!mixer.accumulated.empty());
 
     AudioBuffer bus(static_cast<short>(config.numberOfChannels()), 256);
@@ -639,7 +639,7 @@ TEST(render_track_send_b_reaches_track_state_output) {
 
   bool saw_send_b = false;
   for (int block = 0; block < 20 && !saw_send_b; block++) {
-    state.render(256, loaded.song, mixer);
+    state.renderBlock(256, loaded.song, mixer);
     for (auto & data : mixer.accumulated) {
       if (data.hasChannel(Channel::AuxB)) {
 	auto send = data.getChannel(Channel::AuxB);
@@ -672,7 +672,7 @@ TEST(render_send_b_reaches_ambisonic_bus_beyond_w_y_at_both_orders) {
 
     double energy_beyond_wy = 0.0;
     for (int block = 0; block < 60; block++) {
-      state.render(256, loaded.song, mixer);
+      state.renderBlock(256, loaded.song, mixer);
       CHECK(!mixer.accumulated.empty());
       auto & bus = mixer.accumulated.back();
       CHECK(bus.numberOfChannels() == config.numberOfChannels());
@@ -855,7 +855,7 @@ TEST(render_send_a_is_distance_invariant) {
     RecordingMixer mixer(static_cast<short>(config.numberOfChannels()), config.getAudioOutSampleRate());
     float peak = 0.0f;
     for (int block = 0; block < 40; block++) {
-      state.render(256, song, mixer);
+      state.renderBlock(256, song, mixer);
       for (auto & data : mixer.accumulated) {
         if (data.hasChannel(Channel::AuxA)) {
           auto send = data.getChannel(Channel::AuxA);
@@ -892,7 +892,7 @@ TEST(render_send_main_zero_silences_main_channels_but_not_sends) {
   RecordingMixer mixer(static_cast<short>(config.numberOfChannels()), config.getAudioOutSampleRate());
 
   // Note: mixer.accumulated includes both the track's own per-block output
-  // and the shared send bus's own separate contribution (SongState::render()
+  // and the shared send bus's own separate contribution (SongState::renderBlock()
   // accumulates both) - the bus's own accumulator always structurally has
   // Main (it's a plain always-Main-present accumulator, not derived from
   // children - see bus/SendBusProcessor.cpp), so hasChannel(Channel::Main)
@@ -902,7 +902,7 @@ TEST(render_send_main_zero_silences_main_channels_but_not_sends) {
   // energy yet in this fixture's short window.
   float main_peak = 0.0f, send_a_peak = 0.0f;
   for (int block = 0; block < 20; block++) {
-    state.render(256, loaded.song, mixer);
+    state.renderBlock(256, loaded.song, mixer);
     for (auto & data : mixer.accumulated) {
       if (data.hasChannel(Channel::Main)) {
         auto * w = data.getChannelData(0);

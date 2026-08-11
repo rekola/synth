@@ -19,7 +19,7 @@ class RenderContext;
 
 // Root of the persistent, per-block-rendered track tree - one TrackState
 // per Track in song.getTracks(), built once by Track::createStateTree()
-// and walked every audio block by SongState::render(). See VoiceState.h
+// and walked every audio block by SongState::renderBlock(). See VoiceState.h
 // (the ephemeral, per-note voice-chain counterpart) and
 // plans/trackstate-voicestate-split.md for the full split rationale -
 // every method here only ever matters for a persistent track-tree node

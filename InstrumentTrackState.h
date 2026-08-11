@@ -77,7 +77,7 @@ public:
 	  if (it != pending_azimuth.end() && it->first - i < render_size) render_size = it->first - i;
 	}
 
-	chunks.emplace_back(i, render(render_size));
+	chunks.emplace_back(i, renderVoices(render_size));
 	i += render_size;
       }
     }
@@ -99,15 +99,17 @@ public:
   }
 
   // Combines this track's own currently-sounding voices_ into one buffer -
-  // no longer an override of anything on TrackState (which has no
-  // voice-shaped render() any more - voices_ is VoiceState-typed, not
-  // TrackState-typed; see plans/trackstate-voicestate-split.md), but still
-  // declared virtual in its own right: InstrumentTrackState::render(frames,
-  // instruments, context)'s own chunked loop calls this by unqualified
-  // name once per pending-events/azimuth sub-chunk, and ArpeggiatorState
-  // overrides it (see its own doc comment) to interleave its stepper's
-  // timing with that same chunking, purely via ordinary virtual dispatch.
-  virtual AudioBuffer render(int frames) {
+  // not an override of anything on TrackState (which has no voice-shaped
+  // render() any more - voices_ is VoiceState-typed, not TrackState-typed;
+  // see plans/trackstate-voicestate-split.md); named distinctly from
+  // TrackState::render's 3-arg overload (rather than overloading render()
+  // itself) so the two can't be mistaken for one hiding the other.
+  // InstrumentTrackState::render(frames, instruments, context)'s own
+  // chunked loop calls this by unqualified name once per pending-events/
+  // azimuth sub-chunk, and ArpeggiatorState overrides it (see its own doc
+  // comment) to interleave its stepper's timing with that same chunking,
+  // purely via ordinary virtual dispatch.
+  virtual AudioBuffer renderVoices(int frames) {
     // Render every active voice first (still calling render() even when
     // muted, so envelopes/LFOs keep advancing - only mixing is skipped),
     // then decide this track's own accumulator shape from what actually

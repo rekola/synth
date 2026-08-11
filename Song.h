@@ -108,7 +108,7 @@ class Song : public StatefulSongObject {
   // value computed by the other across the thread boundary - the same
   // "self-clamp on both sides" pattern SongState::movePosition()/
   // setPosition() already use for the plain "never go negative" clamp.
-  // Real playback's own row-by-row advance (SongState::render()) never
+  // Real playback's own row-by-row advance (SongState::renderBlock()) never
   // goes through this - only stopped-transport cursor navigation does,
   // which is what keeps a selection from silently spanning two patterns.
   int clampRowToCurrentPattern(int current, int target) const {
@@ -148,7 +148,7 @@ class Song : public StatefulSongObject {
   std::vector<std::unique_ptr<Track> > & getTracks() { return tracks_; }
   const std::vector<std::unique_ptr<Track> > & getTracks() const { return tracks_; }
 
-  // See tracks_mutex_'s own comment - SongState::render() locks this to
+  // See tracks_mutex_'s own comment - SongState::renderBlock() locks this to
   // take a quick snapshot of the current tracks before rendering them.
   std::mutex & getTracksMutex() const { return *tracks_mutex_; }
 
@@ -254,7 +254,7 @@ private:
   }
 
   // Guards tracks_'s structural shape (addTrack() below is its only
-  // mutator today) - SongState::render() runs on the audio thread and
+  // mutator today) - SongState::renderBlock() runs on the audio thread and
   // reads tracks_ concurrently with the UI thread calling addTrack()
   // (PatternEditor/LaunchpadManager's various "add track" commands can
   // fire at any time, including while playing), and a push_back can
@@ -262,9 +262,9 @@ private:
   // mid-iteration when that happens would hold a dangling iterator into
   // freed memory. Every other getTracks()-reading call site is
   // UI-thread-only, hence never concurrent with addTrack() (also always
-  // UI-thread) and needs no lock of its own - see SongState::render()'s
+  // UI-thread) and needs no lock of its own - see SongState::renderBlock()'s
   // own comment for the one call site that does. mutable so a const
-  // Song& (SongState::render()'s own parameter type) can still lock it.
+  // Song& (SongState::renderBlock()'s own parameter type) can still lock it.
   // Heap-allocated (rather than a plain std::mutex member) solely so Song
   // itself stays move-constructible - std::mutex has neither a copy nor a
   // move constructor, which would otherwise implicitly delete Song's own

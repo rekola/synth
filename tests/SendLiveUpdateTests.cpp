@@ -103,7 +103,7 @@ TEST(track_state_set_send_a_reaches_an_already_active_voice) {
   int quarter = row_samples / 4;
 
   // Trigger the note and render a quarter-row with Send A still at 0.
-  state.render(quarter, song, *mixer);
+  state.renderBlock(quarter, song, *mixer);
   CHECK(maxAbs(state.getAuxASum().getChannelData(0), quarter) < 1e-6f);
 
   auto * track_state = dynamic_cast<InstrumentTrackState *>(state.getChildByInternalId(track.getInternalId()));
@@ -112,6 +112,6 @@ TEST(track_state_set_send_a_reaches_an_already_active_voice) {
 
   // Render another quarter-row (still the same held note, no new note-on)
   // and confirm AuxA is now audibly non-zero.
-  state.render(quarter, song, *mixer);
+  state.renderBlock(quarter, song, *mixer);
   CHECK(maxAbs(state.getAuxASum().getChannelData(0), quarter) > 1e-4f);
 }

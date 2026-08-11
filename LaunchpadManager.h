@@ -415,7 +415,7 @@ class LaunchpadManager {
   // velocity (constants::DEFAULT_VELOCITY - pad pressure/aftertouch are
   // both ignored here, matching the brief's "no per-step velocity"
   // decision). The GM note number doubles as the PLAY_NOTE/STOP_NOTE
-  // column, the same convention SongState::render()'s own step-driven
+  // column, the same convention SongState::renderBlock()'s own step-driven
   // emission already uses (see DrumMachineTrack.h), so editing a step and
   // hearing it sequenced later choke/retrigger consistently.
   void handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & controller, DrumMachineTrack & track, int track_id);
@@ -495,7 +495,7 @@ class LaunchpadManager {
   // thread, wall-clock-timed via refresh()'s own call cadence - Player.cpp
   // pushes a fresh playback-position UI event every single audio-callback
   // block regardless of play state, which is what wakes UI::renderComponents()
-  // /refresh() up that often) rather than inside SongState::render() on the
+  // /refresh() up that often) rather than inside SongState::renderBlock() on the
   // audio thread, so it can reuse the exact same PLAY_NOTE-event-queue
   // audition path handleStepGridPadEvent/handleDrumPickerPadEvent already
   // use for their own one-shot presses, instead of a second, parallel

@@ -16,7 +16,7 @@ class Mixer {
   // accumulate via AudioBuffer::mixNamed(), which only ever touches
   // channels the mixer's own accumulator has itself marked present (never
   // AuxA/AuxB), so any aux channels on `data` are silently ignored here -
-  // not because nothing consumes them, but because SongState::render()
+  // not because nothing consumes them, but because SongState::renderBlock()
   // extracts and sums them separately (getChannel(Channel::AuxA/AuxB),
   // right after this accumulate() call) to feed the shared reverb/chorus
   // bus (bus/SendBusProcessor.h) directly, bypassing the mixer entirely.

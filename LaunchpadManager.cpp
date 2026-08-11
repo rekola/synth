@@ -1009,7 +1009,7 @@ LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & co
 
     // Auditions at a fixed velocity - pad pressure/aftertouch are both
     // ignored on this grid (no per-step velocity for the MVP). The GM
-    // note number doubles as the column, matching SongState::render()'s
+    // note number doubles as the column, matching SongState::renderBlock()'s
     // own step-driven emission (DrumMachineTrack.h) so editing and
     // sequenced playback choke/retrigger consistently. Clearing a step
     // (was_hit true) always auditions, transport running or not - there's
@@ -1066,7 +1066,7 @@ LaunchpadManager::handleDrumPickerPadEvent(LaunchpadPadEvent & ev, Controller & 
   // for real soon anyway" reason to suppress this one. No STOP_NOTE
   // either way, matching this gesture's own "plain tap, not a held
   // gesture" design (RELEASE/AFTERTOUCH stay no-ops above) - same
-  // one-shot-note-on convention triggerAuditionStep()/SongState::render()'s
+  // one-shot-note-on convention triggerAuditionStep()/SongState::renderBlock()'s
   // own pattern-driven drum-hit emission already rely on.
   if (!was_assigned) {
     auto velocity = static_cast<short>(constants::DEFAULT_VELOCITY);
@@ -1082,7 +1082,7 @@ LaunchpadManager::triggerAuditionStep(const Song & song, const vector<int> & tra
     if (!track || track->getType() != TrackType::DRUM_MACHINE) continue;
     auto & drum_track = static_cast<const DrumMachineTrack &>(*track);
 
-    // Same PLAY_NOTE-with-note-as-column convention SongState::render()'s
+    // Same PLAY_NOTE-with-note-as-column convention SongState::renderBlock()'s
     // own pattern-driven emission and the step grid's own audition press
     // already use (DrumMachineTrack.h) - no explicit STOP_NOTE, matching
     // that same precedent: a one-shot note-on per hit, relying on the
@@ -1399,7 +1399,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   // own "Extend audition (Capture off)" framing - Record Arm is a single
   // global flag, not per-device, see capture_enabled_'s own comment) -
   // while playing, the pattern-driven
-  // path in SongState::render() already triggers these same tracks from
+  // path in SongState::renderBlock() already triggers these same tracks from
   // real song position, and running both at once would double-trigger;
   // while armed, the player is presumably about to record something
   // deliberate and doesn't want an uncontrolled loop underneath it.

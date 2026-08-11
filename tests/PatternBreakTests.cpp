@@ -42,13 +42,13 @@ TEST(pattern_break_jumps_straight_to_the_destination_row_of_the_next_pattern) {
   // row 1*4 + 2 = 6), not pattern 0's row 1 (absolute 1) or pattern 1's
   // row 0 (absolute 4).
   int row_samples = config.getSampleInterval(song.getTempo());
-  state.render(row_samples, song, *mixer);
+  state.renderBlock(row_samples, song, *mixer);
 
   CHECK(state.getAbsolutePosition() == 6);
 }
 
 // A break past the last pattern behaves exactly like normal end-of-song
-// run-off (SongState::render() has no special-casing for it) - this just
+// run-off (SongState::renderBlock() has no special-casing for it) - this just
 // documents that it doesn't crash or wrap back to pattern 0.
 TEST(pattern_break_past_the_last_pattern_does_not_crash) {
   Song song;
@@ -66,7 +66,7 @@ TEST(pattern_break_past_the_last_pattern_does_not_crash) {
   state.setIsPlaying(true);
 
   int row_samples = config.getSampleInterval(song.getTempo());
-  state.render(row_samples, song, *mixer);
+  state.renderBlock(row_samples, song, *mixer);
 
   CHECK(state.getAbsolutePosition() == 4); // one pattern past the (only) one that exists
 }

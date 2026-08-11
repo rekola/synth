@@ -60,9 +60,6 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	  auto track_state = dynamic_cast<InstrumentTrackState*>(state_.getChildByInternalId(instrument_track.getInternalId()));
 
 	  if (track_state) {
-	    auto [ pattern_idx, row_idx ] = state_.getRelativePosition(song);
-	    auto & scene = song.getScene(pattern_idx);
-
 	    // InstrumentTrackState::noteOn()/notePressure() (PLAY_NOTE/
 	    // NOTE_PRESSURE handling, shared by Kitty-keyboard note entry and
 	    // Launchpad NOTES/step-grid presses) are virtual - a plain track
@@ -114,7 +111,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     // there's no upper bound either way, same as real playback's own
     // run-off-the-end). Only ever reaches here while stopped (see
     // PatternEditor's "Row navigation while stopped" comment); real
-    // playback's row-by-row advance goes through SongState::render()'s
+    // playback's row-by-row advance goes through SongState::renderBlock()'s
     // own movePosition()/jumpToPatternBreak() calls, never this event.
     state_.setPosition(ev.getParameter2() ?
       song.clampRowToCurrentPattern(state_.getAbsolutePosition(), state_.getAbsolutePosition() + ev.getParameter1()) :
@@ -269,8 +266,8 @@ Player::play(AudioAPI & audio) {
 	    auto event = event_queue.pop();
 	    handleEvent(*event);
 	    while ( event_queue.hasEvents() ) {
-	      auto event = event_queue.pop();
-	      handleEvent(*event);
+	      auto next_event = event_queue.pop();
+	      handleEvent(*next_event);
 	    }
 	    if (song_changed_) {
 	      // Drops this thread's own shared_ptr copy of the old Song (see
@@ -293,7 +290,7 @@ Player::play(AudioAPI & audio) {
 	    auto ev = createPlaybackEvent(*song, state_);
 	    controller_->getUIEventQueue().push(move(ev));
 	  } else if (i - 1 < num_playback_desc) {
-	    state_.render(audio.getFrameCount(), *song, *mixer);
+	    state_.renderBlock(audio.getFrameCount(), *song, *mixer);
 	    auto master = mixer->encode();
 	    audio.play(master, logger);
 
@@ -321,7 +318,7 @@ Player::play(AudioAPI & audio) {
 	    for (int c = 0; c < raw_bus.numberOfChannels(); c++) {
 	      auto src = raw_bus.getChannelData(c);
 	      auto dst = raw_bus_copy.getChannelData(c);
-	      for (int i = 0; i < raw_bus.numberOfFrames(); i++) dst[i] = src[i];
+	      for (int frame = 0; frame < raw_bus.numberOfFrames(); frame++) dst[frame] = src[frame];
 	    }
 	    controller_->getVisualizationQueue().push(make_unique<AudioBlockEvent>(
 	      move(master), move(raw_bus_copy), state_.getAuxASum(), state_.getAuxBSum()));

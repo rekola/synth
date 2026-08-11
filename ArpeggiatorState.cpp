@@ -150,7 +150,7 @@ ArpeggiatorState::render(int frames, const vector<unique_ptr<Track> > & instrume
   // arpeggiator.md - tempo is fixed for a song's whole lifetime today, but
   // this stays correct if that ever changes). Everything else - the
   // pending-events/pending-azimuth chunked dispatch, including its own
-  // per-chunk calls to render(int) below - is unchanged, inherited
+  // per-chunk calls to renderVoices(int) below - is unchanged, inherited
   // behavior: a pattern-authored note on this track still plays directly
   // rather than arpeggiating (Phase 2, not yet wired - see
   // plans/arpeggiator.md), but is never silently dropped, and
@@ -160,7 +160,7 @@ ArpeggiatorState::render(int frames, const vector<unique_ptr<Track> > & instrume
 }
 
 AudioBuffer
-ArpeggiatorState::render(int frames) {
+ArpeggiatorState::renderVoices(int frames) {
   // Sample-accurate, chunked the same way InstrumentTrackState::
   // render(frames, instruments, context) already chunks around pending
   // events - a step/gate boundary can land mid-block, and smearing it to
@@ -187,7 +187,7 @@ ArpeggiatorState::render(int frames) {
     // Explicitly base-qualified: mixes voices_ (this class's own step
     // voices, added via addVoice() above) exactly like a plain
     // InstrumentTrackState does, without re-entering this override.
-    chunks.emplace_back(i, InstrumentTrackState::render(render_size));
+    chunks.emplace_back(i, InstrumentTrackState::renderVoices(render_size));
     i += render_size;
 
     if (!held_notes_.empty()) samples_until_next_step_ -= render_size;

@@ -41,8 +41,6 @@ class InfoLine : public UIElement {
       
       putstr(0, 0, s);
 
-      auto & scene = song.getScene(info.getPatternIndex());
-
       // setFgColor(styles.window_border_color);
       // setBgColor(styles.window_bg_color);
 

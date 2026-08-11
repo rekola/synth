@@ -91,7 +91,6 @@ HierarchyView::renderRow(const StyleProvider & styles, int display_row, bool hig
 
 bool
 HierarchyView::offerInput(const InputEvent & input) {
-  auto & song = getController().getSong();
   auto [rows, cols] = getDim();
 
   if (input.getId() == NCKEY_UP) {

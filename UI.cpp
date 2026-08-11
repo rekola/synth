@@ -461,12 +461,12 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   if (handled) pattern_editor_->setCursorTrack(launchpad_manager_->assignedTrackIndex(device_id, pattern_editor_->getCursorTrackIndex()));
 }
 
-void audio_thread_func(Controller * controller, AudioAPI * audio) {
+static void audio_thread_func(Controller * controller, AudioAPI * audio) {
   Player player(controller->getChannelConfiguration(), controller);
   player.play(*audio);
 }
 
-void visualization_thread_func(Controller * controller, int sample_rate, int frame_count) {
+static void visualization_thread_func(Controller * controller, int sample_rate, int frame_count) {
   VisualizationThread visualization_thread(controller);
   visualization_thread.configure(sample_rate, frame_count);
   visualization_thread.run();

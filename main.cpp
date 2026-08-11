@@ -48,7 +48,6 @@ static bool renderSongToWav(Controller & controller, const ChannelConfiguration 
 }
 
 int main(int argc, char *argv[]) {
-  bool relative = false;
   // 48000, not 44100: the "default" ALSA device is commonly PipeWire's
   // ALSA-compat plugin, whose own graph runs at a fixed native rate
   // (48000 on a stock PipeWire install - see pipewire.conf's
@@ -83,8 +82,6 @@ int main(int argc, char *argv[]) {
 	fmt::print(stderr, "--render requires an output file\n");
 	exit(1);
       }
-    } else if (strcmp(argv[i], "--relative") == 0) {
-      relative = true;
     } else if (strcmp(argv[i], "--stereo") == 0) {
       force_cardioid = true;
     } else if (strcmp(argv[i], "--legacy-binaural") == 0) {
