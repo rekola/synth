@@ -2,9 +2,15 @@
 
 ## Status
 
-Stages 0, 0b, and 1 are done. Clean build now sits at **495 warnings**, down
-from the original 564: 421 `-Wsign-conversion` + 74 `-Wsign-compare`, nothing
-else. Stage 2 (`-Wsign-compare`) is next.
+Stages 0, 0b, 1, and 2 are done. Clean build now sits at **349 warnings**,
+all `-Wsign-conversion` - `-Wsign-compare` is fully at zero. Stage 3 (the
+`-Wsign-conversion` bulk) is next.
+
+(Counts along the way drifted slightly release to release as unrelated work
+landed in parallel on `main` - e.g. the baseline was re-measured at 506
+warnings, 430+76, right before stage 2 started, after the arpeggiator work
+in 1c60bcb added a couple of its own sites. Stage 2 fixed all `-Wsign-compare`
+sites as of that measurement.)
 
 ## Baseline (measured)
 
@@ -132,14 +138,23 @@ flags line in `CMakeLists.txt` so it isn't rediscovered and re-tried blind.
   - `TerminalUI.cpp` (`prev_update`) — declared, never read or reassigned;
     removed.
 
-**2. `-Wsign-compare` (74 sites, medium/mechanical)**
-Concentrated in `Note.h` (69), `InstrumentTrackState.h`, `PatternEditor.cpp`,
-`InstrumentList.cpp`, `Chart.h`, `Player.cpp`, `InfoLine.h`, `AlsaAudio.cpp`.
-Fix each comparison at its actual type mismatch (match the loop/index
-variable's declared type to the container's `size_type`, or cast the one
-side that's genuinely known non-negative) — no blanket casts, since this is
-exactly the warning class that catches real bugs like the `Player.cpp:58`
-case above.
+**2. `-Wsign-compare` — done**
+20 unique source locations (repeated across TUs for widely-included headers
+— `Note.h`'s 2 sites alone accounted for 48 of the raw 76). Fixed each at
+its actual type mismatch rather than a blanket cast; see
+[[sign-conversion-fix-style]] (personal memory) for the two-way rule that
+emerged doing this — a `size_t` loop counter when it stays clean, a cast at
+the container-size bound instead when the counter has a genuine signed-
+context use downstream (passed to an `int`-typed function parameter,
+compared against another `int`) — pick whichever needs fewer total casts,
+not a fixed rule per variable.
+
+Two sites were the real bug this warning class exists to catch, not just
+noise: `Player.cpp:59` and `PatternEditor.cpp:1387` both compared a signed
+`InstrumentTrack::getInstrumentId()` against `.size()` with no `>= 0` guard
+(unlike `InstrumentTrackState.h`'s equivalent check) — a negative id would
+have silently promoted to a huge unsigned value and passed. Both now guard
+`>= 0` explicitly, matching the pattern already used elsewhere.
 
 **3. `-Wsign-conversion` (the bulk, mechanical, do file-by-file)**
 Order by blast radius, largest first: `Track.h` → `Song.h` → `AudioBuffer.h`

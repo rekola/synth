@@ -37,7 +37,7 @@ class InfoLine : public UIElement {
 
       auto s = fmt::format(" {:02x} {:02d}:{:02d} pattern:{} voices:{}/{}", info.getAbsolutePosition(), minutes, seconds, pattern_idx, num_voices, num_allocated_voices);
       if (info.isPlaying()) s += " PLAYING";
-      while (s.size() < cols) s += ' ';
+      while (s.size() < static_cast<size_t>(cols)) s += ' ';
       
       putstr(0, 0, s);
 

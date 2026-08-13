@@ -316,7 +316,7 @@ class Note {
   static std::vector<Note> createFromString(std::string_view line, short velocity, short delay, Tuning tuning) {
     std::vector<Note> r;
 
-    auto pos0 = 0;
+    std::string_view::size_type pos0 = 0;
     while (pos0 < line.size()) {
       auto pos1 = line.find_first_of(" \t", pos0);
       if (pos1 == std::string_view::npos) pos1 = line.size();

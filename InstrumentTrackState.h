@@ -29,7 +29,7 @@ public:
     // chunk is known, from what actually came back.
     std::vector<std::pair<int, AudioBuffer> > chunks;
 
-    if (instrument_id_ >= 0 && instrument_id_ < instruments.size()) {
+    if (instrument_id_ >= 0 && instrument_id_ < static_cast<int>(instruments.size())) {
       auto & instrument = instruments[instrument_id_];
       auto & pending_events = context.getPendingEvents(track_id_);
       auto & pending_azimuth = context.getPendingAzimuthTicks(track_id_);

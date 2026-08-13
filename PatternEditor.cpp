@@ -444,7 +444,7 @@ PatternEditor::getTrackInformation(const Song & song, int scroll_row) const {
   std::unordered_map<int, VisibleTrackInfo> track_info;
   for (auto row = 0; row < rows - heading_height; ) {
     auto [ pattern_idx, pattern_row ] = song.normalizePosition(info.getPatternIndex(), row + scroll_row);
-    if (pattern_idx >= song.getScenes().size()) break;
+    if (pattern_idx >= static_cast<int>(song.getScenes().size())) break;
 
     auto & scene = song.getScene(pattern_idx);
     scene.getTrackInformation(track_info);
@@ -975,7 +975,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	  changed = true;
 	} else {
 	  auto & instruments = song.getInstruments();
-	  if (input.getId() == NCKEY_KP_MULTIPLY && instrument_track.getInstrumentId() + 1 < instruments.size()) {
+	  if (input.getId() == NCKEY_KP_MULTIPLY && instrument_track.getInstrumentId() + 1 < static_cast<int>(instruments.size())) {
 	    instrument_track.setInstrumentId(instrument_track.getInstrumentId() + 1);
 	    changed = true;
 	  }
@@ -1165,7 +1165,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	  auto & notes = scene.getNotes(info.getRowIndex(), track_id);
 	  auto note_column = track_info.getNoteNumber(new_cursor.col);
 	  Note note;
-	  if (note_column < notes.size()) note = notes[note_column];
+	  if (note_column < static_cast<int>(notes.size())) note = notes[note_column];
 	  int current_value = column_type == ColumnType::VELOCITY ? note.getVelocity() : note.getDelay();
 	  if (new_cursor.subcol == 0) current_value = (input_hex_value << 4) | (current_value & 0x0f);
 	  else current_value = (current_value & 0xf0) | input_hex_value;
@@ -1384,16 +1384,16 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    instrument_name = "Drum Machine";
 	  } else if (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL) {
 	    auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
-	    if (instrument_track.getInstrumentId() >= 0 && instrument_track.getInstrumentId() < instruments.size()) {
+	    if (instrument_track.getInstrumentId() >= 0 && instrument_track.getInstrumentId() < static_cast<int>(instruments.size())) {
 	      instrument_name = instruments[instrument_track.getInstrumentId()]->getName();
 	      is_solo = instrument_track.isSolo();
 	      is_muted = instrument_track.isMuted();
 	    }
 	  }
 	  auto name = !track->getName().empty() ? track->getName() : (!track->getId().empty() ? "Trk " + track->getId() : format("Trk {:02d}", track->getInternalId()));
-	  if (name.size() > text_width) name.erase(text_width);
+	  if (static_cast<int>(name.size()) > text_width) name.erase(static_cast<size_t>(text_width));
 	  else {
-	    while (name.size() < text_width) name += ' ';
+	    while (static_cast<int>(name.size()) < text_width) name += ' ';
 	  }
 	  putstr(heading_height - 2 - level, current_pos, name);
 	  putstr(heading_height - 2 - level, current_pos + text_width + 2, "│");
@@ -1407,15 +1407,15 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  setFgColor(0xf0, 0xf0, 0xf0);
 	  setBgColor(styles.window_bg_color);
 	  	  
-	  if (instrument_name.size() > actual_width - 1) instrument_name.erase(actual_width - 1);
+	  if (static_cast<int>(instrument_name.size()) > actual_width - 1) instrument_name.erase(static_cast<size_t>(actual_width - 1));
 	  putstr(heading_height - 2 - level + 1, current_pos, instrument_name);
 	} else {	  
 	  std::string name = track->getElementName();
 	  auto & track_info = info.getTrackInfo(track->getInternalId());
 	  
-	  if (name.size() > actual_width - 4) name.erase(actual_width - 4);
+	  if (static_cast<int>(name.size()) > actual_width - 4) name.erase(static_cast<size_t>(actual_width - 4));
 	  else {
-	    while (name.size() < actual_width - 4) name += ' ';
+	    while (static_cast<int>(name.size()) < actual_width - 4) name += ' ';
 	  }
 	  name += "│";
 
@@ -1584,7 +1584,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // character for the shared trailing "│" this k-loop draws once
 	  // it's done (further down), rather than drawing it itself.
 	  auto width = std::max(track_info.getTrackWidth() - 1, 1);
-	  bool defined = k < notes.size() && notes[k].isDefined();
+	  bool defined = k < static_cast<int>(notes.size()) && notes[k].isDefined();
 	  putstr(display_row, current_pos, std::string(static_cast<size_t>(width), defined ? 'x' : ' '));
 	  current_pos += width;
 	} else if (column_type == ColumnType::EFFECT) {
@@ -1607,7 +1607,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  current_pos += 4;
 	} else if (column_type == ColumnType::NOTE) {
 	  auto l = track_info.getNoteNumber(k);
-	  auto note = l < notes.size() ? notes[l] : Note();
+	  auto note = l < static_cast<int>(notes.size()) ? notes[l] : Note();
 
 	  cell_fg = cur_fg;
 	  cell_bg = cur_bg;
@@ -1621,7 +1621,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  current_pos += 3;
 	} else if (column_type == ColumnType::VELOCITY || column_type == ColumnType::DELAY) {
 	  auto l = track_info.getNoteNumber(k);
-	  auto note = l < notes.size() ? notes[l] : Note();
+	  auto note = l < static_cast<int>(notes.size()) ? notes[l] : Note();
 	  string s;
 	  if (note.isDefined()) {
 	    if (column_type == ColumnType::VELOCITY && note.isOff()) {

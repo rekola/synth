@@ -27,7 +27,7 @@ class Chart : public UIElement {
       std::vector<float> bins;
       for (int i = 0; i < num_bins; i++) bins.push_back(0);
 
-      for (int i = 0; i < v.size(); i++) {
+      for (size_t i = 0; i < v.size(); i++) {
 	size_t i2 = (size_t)((log2(40 + i) - start_value) / bin_size);
 	if (v[i] > bins[i2]) bins[i2] = v[i];
 	// bins[i2] += mag;

@@ -56,7 +56,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 		    )) {
 	auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
 	
-	if (instrument_track.getInstrumentId() < song.getInstruments().size()) {
+	if (instrument_track.getInstrumentId() >= 0 && instrument_track.getInstrumentId() < static_cast<int>(song.getInstruments().size())) {
 	  auto & instrument = song.getInstrument(instrument_track.getInstrumentId());
 	  auto track_state = dynamic_cast<InstrumentTrackState*>(state_.getChildByInternalId(instrument_track.getInternalId()));
 

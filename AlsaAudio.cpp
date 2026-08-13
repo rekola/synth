@@ -108,7 +108,7 @@ static size_t initialize_alsa_dev(Logger & logger, snd_pcm_t * handle, int rate,
   // realtime thread priority is requested anywhere - see main.cpp), not
   // the device/driver, so 256 leaves comfortable headroom rather than
   // chasing the lowest number that merely didn't glitch in that test.
-  int wanted_period = 256;
+  snd_pcm_uframes_t wanted_period = 256;
   if ((r = snd_pcm_hw_params_set_period_size(handle, hw_params, min_period_size > wanted_period ? min_period_size : wanted_period, 0)) < 0) {
     logger.log(string("ERROR: Failed to set period size: ") + snd_strerror(r));
     return 0;
