@@ -8,6 +8,7 @@
 #include "RenderContext.h"
 #include "SphericalPosition.h"
 #include "SendLevels.h"
+#include "NoteOrigin.h"
 #include "Track.h" // noteOn() below calls Track::playNote()/getDefaultExtent() - needs the
                     // complete type, not just TrackState.h's own forward declaration.
 
@@ -59,10 +60,21 @@ public:
 		// as that path (rather than spawning a voice inline here) so
 		// an arpeggiator-rooted track's pattern-authored notes drive
 		// its stepper too, not just live-triggered ones.
-		noteOn(ev.getId(), *instrument, ev.getFrequency(), ev.getVelocity(), ev.getNoteValue(), -getRandF());
+		noteOn(ev.getId(), *instrument, ev.getFrequency(), ev.getVelocity(), ev.getNoteValue(), -getRandF(), NoteOrigin::PATTERN);
 	      }
 	    }
 	    it = pending_events.erase(it);
+
+	    // Once per processed frame, after every note-on/off/aftertouch call
+	    // above for it - not once per column - so a subclass that needs the
+	    // *whole* row's picture (ArpeggiatorState - see its own comment) can
+	    // decide something once rather than react to a single column's own
+	    // event. Fires for a note-off-only row too (no special-casing
+	    // needed - see ArpeggiatorState::endPatternRow()'s own comment on
+	    // why that's already harmless). Never called from the live path
+	    // (Player.cpp's PLAY_NOTE case) - live note-on has no row/frame
+	    // concept to batch against.
+	    endPatternRow();
 	  }
 	  if (it != pending_events.end() && it->first - i < render_size) render_size = it->first - i;
 	}
@@ -160,12 +172,14 @@ public:
   // (the caller already looked it up to reach this class in the first
   // place). `start_phase` is threaded through rather than fixed here since
   // the two callers deliberately differ (see each call site's own
-  // comment). Virtual so a subclass whose note-on means something other
-  // than "spawn a voice directly" (ArpeggiatorState routes it into its
+  // comment). `origin` (NoteOrigin.h) tells the two callers apart for the
+  // one subclass that needs to - a plain track's own retriggerVoices()-based
+  // note-on ignores it. Virtual so a subclass whose note-on means something
+  // other than "spawn a voice directly" (ArpeggiatorState routes it into its
   // stepper's held chord instead - see its own override) can redefine it,
   // letting both callers treat every InstrumentTrackState the same way
   // instead of needing their own subclass-aware dispatch.
-  virtual void noteOn(int column, const Track & instrument, float frequency, float velocity, int note_value, float start_phase) {
+  virtual void noteOn(int column, const Track & instrument, float frequency, float velocity, int note_value, float start_phase, NoteOrigin /*origin*/) {
     retriggerVoices(column, note_value);
 
     // position_.extent < 0 means "not authored on this track" (see
@@ -180,6 +194,17 @@ public:
     chokeExclusiveClasses(*voice);
     addVoice(column, move(voice));
   }
+
+  // Called once per pattern-driven frame that supplied any note-on/off/
+  // aftertouch event to this track (render(frames, instruments, context)'s
+  // pending-events loop above, after that frame's whole batch of noteOn()/
+  // noteOff() calls has already been dispatched) - never from the live
+  // path, which has no row/frame to batch against. No-op here; a plain
+  // track's note-on is already fully decided by retriggerVoices() at the
+  // time of each individual call, with nothing left to decide once a
+  // row's whole picture is in. ArpeggiatorState overrides it - see its own
+  // comment.
+  virtual void endPatternRow() { }
 
   // Live-audition polyphonic aftertouch (Player::handlePlaybackControlEvent()'s
   // NOTE_PRESSURE case) - the counterpart to noteOn() above. Virtual for
@@ -243,6 +268,7 @@ public:
     column_pressure_.erase(column);
     broadcastChannelPressure();
   }
+
 
   // Ends live-audition note `column` (Player::handlePlaybackControlEvent()'s
   // STOP_NOTE case, shared by Kitty-keyboard note entry and Launchpad

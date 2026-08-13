@@ -273,6 +273,34 @@ class SongState : public TrackState {
   bool isPlaying() const { return is_playing_; }
   void setIsPlaying(bool b) { is_playing_ = b; }
 
+  // Snapshots getPositionEditSeq() at the moment playback stops
+  // (Player.cpp's PlaybackControlEvent::STOP, right after
+  // setIsPlaying(false)) - resyncPlayheadAfterStop() below compares
+  // against this to tell "resumed from exactly where it paused" apart from
+  // "the playhead moved while stopped" (a seek, or the pattern editor's
+  // own cursor navigation - both drive SET_POSITION/MOVE_POSITION, both
+  // bump position_edit_seq_ the same way real per-row playback advance
+  // already does - see getPositionEditSeq()'s own comment).
+  void notePlaybackStopped() { position_edit_seq_at_stop_ = position_edit_seq_; }
+
+  // Called once per stopped-to-playing transition (Player.cpp's
+  // PlaybackControlEvent::PLAY, right after setIsPlaying(true)) - see
+  // TrackState::resyncPlayhead()'s own comment for why a track's internal
+  // clock needs this at all. Only actually resyncs if the position changed
+  // while stopped: resuming from exactly the same spot the transport was
+  // paused at needs no correction - nothing about the row grid's own
+  // timeline changed, so whatever phase a track's internal clock already
+  // drifted to from having kept rendering through the stopped interval
+  // (confirmed intentional - see SongState::renderBlock()'s own comment)
+  // is fine left alone. Forcing it unconditionally on every resume made
+  // even a plain pause/resume at the same row yank a still-cycling
+  // arpeggiator back to its first step, which is only actually correct
+  // when resuming genuinely means "start this phrase over" - i.e. the
+  // playhead itself moved during the stop.
+  void resyncPlayheadAfterStop() {
+    if (position_edit_seq_ != position_edit_seq_at_stop_) resyncPlayhead();
+  }
+
   // See render()'s own comment on recording_muted_'s use - set/cleared by
   // PlaybackControlEvent::SET_RECORDING_MUTE, pushed by LaunchpadManager/
   // PatternEditor alongside their own auto-play-while-held engage/
@@ -404,6 +432,7 @@ private:
   bool recording_muted_ = false;
   int sample_pos_ = 0, absolute_pos_ = 0;
   int position_edit_seq_ = 0;
+  int position_edit_seq_at_stop_ = -1; // see notePlaybackStopped()/resyncPlayheadAfterStop()
   bool pending_break_ = false; // ZBxx seen on the row currently completing
   int pending_break_row_ = 0;
   RenderContext render_context_;

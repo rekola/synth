@@ -115,3 +115,23 @@ Found 2026-07-11, not yet fixed.
   new e2e script that also depends on "press changes something, verify
   it" (e.g. `verify_launchpad_stepseq.py`) doesn't get blamed for a
   failure that reproduces on main.
+
+- **A voice's envelope keeps progressing while playback is stopped**, so a
+  long-held note can resume out of sync with the (frozen) row/pattern
+  position once playback restarts. `SongState::renderBlock()` calls every
+  track's own `render()` unconditionally, every block, regardless of
+  `isPlaying()` - only the note-scheduling/position-advance section is
+  gated behind it - so any already-sounding voice's envelope, LFO, or
+  effect tail keeps advancing through however long the transport sits
+  stopped, the same way `ArpeggiatorState`'s own step timer used to (see
+  `plans/arpeggiator-timing-fixes.md`, which fixes that one case
+  specifically via a `resyncPlayhead()`/`resyncPlayheadAfterStop()` pair,
+  without touching this more general issue). Whether keeping every track
+  "live" through a stop is even the right behavior at all is genuinely
+  undecided, not just unfixed - it's also what a real
+  reverb/delay/decaying-note tail continuing to ring out after Stop relies
+  on, which is arguably a deliberate, valued feature, not an oversight. Not
+  fixed - see that plan's "Related, out-of-scope issue" section for the
+  two directions considered (freeze rendering entirely while stopped, vs.
+  extending the arpeggiator's own resync approach to envelopes generally)
+  and why neither was attempted as part of that work.

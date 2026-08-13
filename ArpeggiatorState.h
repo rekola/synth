@@ -29,9 +29,10 @@
 // PLAY_NOTE/STOP_NOTE/NOTE_PRESSURE handling - the live audition path
 // shared by Kitty-keyboard note entry (PatternEditor.cpp) and Launchpad
 // NOTES/step-grid presses (LaunchpadManager.cpp). Pattern/song-driven
-// note-on (the pending-events loop InstrumentTrackState::render(frames,
-// instruments, context) already has) is untouched and still spawns voices
-// directly - see plans/arpeggiator.md's Phase 2.
+// note-on (InstrumentTrackState::render(frames, instruments, context)'s own
+// pending-events loop) reaches the very same noteOn() override, driving the
+// stepper from authored pattern data too - see noteOn()'s own comment on
+// how NoteOrigin.h tells the two callers apart.
 class ArpeggiatorState : public InstrumentTrackState {
  public:
   ArpeggiatorState(const ChannelConfiguration & channel_config, bool solo, bool muted, int track_id, int instrument_id, const SphericalPosition & position, const SendLevels & sends, const Arpeggiator & arp)
@@ -49,9 +50,20 @@ class ArpeggiatorState : public InstrumentTrackState {
   // decided fresh by triggerNextStep() whenever it actually fires, however
   // much later that ends up being. Adding a note to an already-sounding
   // chord does not reset the step position; the chord going from empty to
-  // non-empty does (a fresh keypress restarts the pattern from step 0).
-  void noteOn(int column, const Track & instrument, float frequency, float velocity, int note_value, float start_phase) override;
+  // non-empty does (a fresh keypress/pattern onset restarts the pattern
+  // from step 0 - see the .cpp for how LIVE vs PATTERN `origin` shapes
+  // *when*, and whether, that restart's first step actually fires - a step
+  // already ringing is never cut short to make room for it).
+  void noteOn(int column, const Track & instrument, float frequency, float velocity, int note_value, float start_phase, NoteOrigin origin) override;
   void noteOff(int column) override;
+
+  // See InstrumentTrackState::endPatternRow()'s own comment for when this
+  // fires. Decides, once per pattern row rather than once per column,
+  // whether that row restated the *whole* held chord (resync the step
+  // clock to this row's frame, unless a step is currently ringing - see
+  // the .cpp) or only edited part of it while the rest kept sustaining
+  // from an earlier row (leave the step clock alone).
+  void endPatternRow() override;
 
   // Updates the held note's velocity for future steps only - live
   // aftertouch on an already-sounding step voice is a documented Phase 1
@@ -68,6 +80,14 @@ class ArpeggiatorState : public InstrumentTrackState {
   AudioBuffer render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override;
   AudioBuffer renderVoices(int frames) override;
 
+  // Exposed (see setBpm()'s own reasoning) so a test can build an exact
+  // sample timeline around the delay a LIVE from-empty chord onset now
+  // incurs before its first step (see noteOn()'s own comment) - the real
+  // value, from this instance's own ChannelConfiguration, rather than a
+  // magic number/formula duplicated into the test and liable to drift out
+  // of sync with the real one.
+  int getChordCollectWindowSamples() const { return chordCollectWindowSamples(); }
+
   // True whenever the chord is non-empty (keeps getting rendered so
   // stepping continues through a mid-gate gap with no child currently
   // sounding) or a released step's tail is still ringing
@@ -75,6 +95,37 @@ class ArpeggiatorState : public InstrumentTrackState {
   bool isActive() const override { return !held_notes_.empty() || InstrumentTrackState::isActive(); }
 
   void clear() override;
+
+  // See TrackState::resyncPlayhead()'s own comment - playback just
+  // (re-)started (Player.cpp's PlaybackControlEvent::PLAY), so whatever the
+  // step clock drifted to while stopped no longer means anything. Forces
+  // the same "trigger fresh on the very next render()" state noteOn()'s
+  // was_empty branch uses for PATTERN, with no chord-collect delay (that
+  // delay is about human hand-timing - see noteOn() - starting playback
+  // has no such ambiguity to wait out) - but, like every other resync
+  // point in this class, only when nothing is currently ringing (see the
+  // .cpp). held_notes_/pending_gates_ are left untouched either way: a
+  // chord still held (e.g. a live take paused mid-arpeggio) keeps sounding
+  // through the transition exactly as before.
+  //
+  // If a step *is* currently ringing, this simply does nothing (see
+  // resyncIfNothingRinging()'s own comment) rather than remembering the
+  // resync and applying it once it's safe - that "catch it up later"
+  // behavior was tried and reverted too: it caused its own real, reported
+  // drift (forcing a fresh restart at an unexpected, unrelated moment -
+  // most visibly whenever endPatternRow()'s own frequent full-chord
+  // restatements each finally got applied). Both this and the earlier
+  // row-aware step recovery attempt (also reverted - see
+  // plans/arpeggiator-timing-fixes.md) ran into the same wall: this class
+  // doesn't actually know the pattern's own note-event history, only
+  // whatever the most recent row told it, so any attempt to be clever
+  // about *which* step to resume on ends up wrong often enough to be worse
+  // than simply restarting. A correct version needs the arp to actually
+  // know that history - e.g. by having song playback pre-schedule/
+  // pre-create the stepper's events ahead of time, rather than reacting to
+  // them one row at a time - a bigger, separate piece of work, not
+  // attempted here.
+  void resyncPlayhead() override;
 
  private:
   struct HeldNote { int id; float frequency, velocity; int note_value; };
@@ -91,8 +142,10 @@ class ArpeggiatorState : public InstrumentTrackState {
   void triggerNextStep();
   void advanceIndex(int pool_size);
   void closeElapsedGates();
+  void resyncIfNothingRinging();
   int stepLengthSamples() const;
   int gateLengthSamples() const;
+  int chordCollectWindowSamples() const;
 
   const Arpeggiator & arp_;
   const Track * instrument_ = nullptr; // last note-on's resolved instrument - see noteOn()
@@ -100,6 +153,9 @@ class ArpeggiatorState : public InstrumentTrackState {
   std::vector<HeldNote> held_notes_;
   std::vector<Step> step_pool_;
   std::vector<PendingGate> pending_gates_;
+  std::vector<int> touched_columns_this_row_; // PATTERN-origin column ids updated so
+                                               // far in the pattern row currently being
+                                               // processed - see endPatternRow().
 
   int step_index_ = -1; // -1: no step triggered yet, pick the first on next render()
   int direction_ = 1; // UP_DOWN ping-pong direction

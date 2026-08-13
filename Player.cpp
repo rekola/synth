@@ -13,6 +13,7 @@
 
 #include "MixerFactory.h"
 #include "InstrumentTrackState.h"
+#include "NoteOrigin.h"
 
 using namespace std;
 
@@ -78,7 +79,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	      // note-on) - a live take is one performer playing in real
 	      // time, not a repeated/stacked pattern note that needs
 	      // decorrelating against its own past triggers.
-	      track_state->noteOn(column, instrument, frequency, note.getVelocityAsFloat(), note.getValue(), 0.0f);
+	      track_state->noteOn(column, instrument, frequency, note.getVelocityAsFloat(), note.getValue(), 0.0f, NoteOrigin::LIVE);
 	    } else {
 	      track_state->notePressure(column, midi_velocity / 127.0f);
 	    }
@@ -94,10 +95,21 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 
   case PlaybackControlEvent::PLAY:
     state_.setIsPlaying(true);
+
+    // Re-locks a track's own internal clock (e.g. ArpeggiatorState's step
+    // timer - see TrackState::resyncPlayhead()) to the transport every time
+    // playback actually (re-)starts *and* the position actually moved while
+    // stopped (SongState::resyncPlayheadAfterStop()'s own comment) - not on
+    // every SET_POSITION/MOVE_POSITION edit below, which also fires on
+    // plain cursor navigation while stopped (see that case's own comment)
+    // and would otherwise resync on every such keypress, and not on a
+    // plain pause/resume at the same row either, which needs no correction.
+    state_.resyncPlayheadAfterStop();
     break;
-    
+
   case PlaybackControlEvent::STOP:
     state_.setIsPlaying(false);
+    state_.notePlaybackStopped(); // snapshot for resyncPlayheadAfterStop() above, next PLAY
     break;
     
   case PlaybackControlEvent::MOVE_POSITION:

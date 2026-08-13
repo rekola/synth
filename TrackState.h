@@ -69,6 +69,25 @@ public:
 
   virtual void clear() { getChildren().clear(); }
 
+  // Called every time playback actually (re-)starts - Player.cpp's
+  // PlaybackControlEvent::PLAY handling, right after state_.setIsPlaying(true) -
+  // not on every SET_POSITION/MOVE_POSITION position edit (those also fire
+  // on plain cursor navigation while stopped, far too often to resync on
+  // each one - see PLAY's own comment). A plain TrackState has no notion of
+  // a position-relative internal clock, so the default just forwards to
+  // every child, the same shape isActive() above already uses.
+  // ArpeggiatorState overrides it (see its own comment) since its step
+  // timer free-runs independently of the transport (every TrackState keeps
+  // rendering regardless of isPlaying() - see SongState::renderBlock()'s
+  // own comment) and would otherwise stay wherever it drifted to over
+  // however long playback was stopped, whether or not the position was
+  // also moved during that interval.
+  virtual void resyncPlayhead() {
+    for (auto & [ id, child ] : getChildren()) {
+      child->resyncPlayhead();
+    }
+  }
+
   virtual bool isActive() const {
     for (auto & [ id, child ] : getChildren()) {
       if (child->isActive()) return true;

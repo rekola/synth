@@ -38,6 +38,7 @@ add_executable(synth_tests
 	SendBusProcessorTests.cpp
 	HazeTests.cpp
 	ArpeggiatorStateTests.cpp
+	ResyncPlayheadTests.cpp
 )
 
 target_link_libraries(synth_tests synth_engine)
