@@ -96,8 +96,8 @@ class Song : public StatefulSongObject {
   int getVersion() const { return version_; }
 
   const std::vector<Scene> & getScenes() const { return scenes_; }
-  const Scene & getScene(int i) const { return i >= 0 && i < static_cast<int>(scenes_.size()) ? scenes_[i] : empty_scene_; }
-  Scene & getScene(int i) { return i >= 0 && i < static_cast<int>(scenes_.size()) ? scenes_[i] : empty_scene_; }
+  const Scene & getScene(int i) const { return i >= 0 && i < static_cast<int>(scenes_.size()) ? scenes_[static_cast<size_t>(i)] : empty_scene_; }
+  Scene & getScene(int i) { return i >= 0 && i < static_cast<int>(scenes_.size()) ? scenes_[static_cast<size_t>(i)] : empty_scene_; }
 
   // Clamps `target` so it can't leave the pattern `current` falls in -
   // used by the UI-thread edit cursor (Controller::moveEditPosition()/
@@ -136,7 +136,7 @@ class Song : public StatefulSongObject {
   Scene & addScene() { return addScene(Scene()); }
 
   const std::vector<std::unique_ptr<Track> > & getInstruments() const { return instruments_; }
-  const Track & getInstrument(int i) const { return *(instruments_[i]); }
+  const Track & getInstrument(int i) const { return *(instruments_[static_cast<size_t>(i)]); }
   void addInstrument(std::unique_ptr<Track> i) {
     instruments_.push_back(std::move(i));
     incVersion();

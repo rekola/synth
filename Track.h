@@ -92,8 +92,8 @@ class Track : public StatefulSongObject {
 
   TrackType getType() const { return type_; }
 
-  const Track & getChild(int i) const { return *(children_[i]); }
-  Track & getChild(int i) { return *(children_[i]); }
+  const Track & getChild(int i) const { return *(children_[static_cast<size_t>(i)]); }
+  Track & getChild(int i) { return *(children_[static_cast<size_t>(i)]); }
   
   Track & addChild(std::unique_ptr<Track> track) { children_.push_back(std::move(track)); return *(children_.back()); }
 

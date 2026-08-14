@@ -165,7 +165,7 @@ class AudioBuffer final {
     auto new_data = (float *)aligned_alloc(16, getAlignedSize(channels_ * new_size));
     auto frames_to_copy = frames_ < new_size ? frames_ : new_size;
     for (int j = 0; j < channels_; j++) {
-      memcpy(new_data + j * new_size, data_ + j * frames_, frames_to_copy * sizeof(float));
+      memcpy(new_data + j * new_size, data_ + j * frames_, static_cast<size_t>(frames_to_copy) * sizeof(float));
     }
     free(data_);
     data_ = new_data;

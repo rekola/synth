@@ -2,9 +2,14 @@
 
 ## Status
 
-Stages 0, 0b, 1, and 2 are done. Clean build now sits at **349 warnings**,
-all `-Wsign-conversion` - `-Wsign-compare` is fully at zero. Stage 3 (the
-`-Wsign-conversion` bulk) is next.
+Stages 0, 0b, 1, and 2 are done. Stage 3 is in progress: `Track.h`,
+`Song.h`, and `AudioBuffer.h` (the three biggest blast-radius headers) are
+fixed. Clean build now sits at **125 warnings**, all `-Wsign-conversion`,
+down from 349 at the start of stage 3. Remaining, largest first:
+`PatternEditor.cpp` (35), `SoundFont.cpp` (21), `tests/RenderTests.cpp`
+(13), `InstrumentTrackState.h` (9), `effects/Compressor.cpp` (8),
+`AlsaAudio.cpp` (7), `UIElement.h`/`PatternBlockOps.cpp` (6 each), then a
+long tail of 1-4 each.
 
 (Counts along the way drifted slightly release to release as unrelated work
 landed in parallel on `main` - e.g. the baseline was re-measured at 506
@@ -156,14 +161,26 @@ noise: `Player.cpp:59` and `PatternEditor.cpp:1387` both compared a signed
 have silently promoted to a huge unsigned value and passed. Both now guard
 `>= 0` explicitly, matching the pattern already used elsewhere.
 
-**3. `-Wsign-conversion` (the bulk, mechanical, do file-by-file)**
+**3. `-Wsign-conversion` (the bulk, mechanical, do file-by-file) — in progress**
 Order by blast radius, largest first: `Track.h` → `Song.h` → `AudioBuffer.h`
-→ `Note.h` → `PatternEditor.cpp` → everything else (`SoundFont.cpp`,
-`AlsaAudio.cpp`, `UIElement.h`, `PatternBlockOps.cpp`, `Compressor.cpp`, …).
-One file (or tightly-related pair) per commit; rebuild and recheck the
-warning count after each so the diff stays reviewable and regressions are
-caught immediately rather than at the end of a mega-commit. Fixing the first
-few headers should shrink the count in every later file that includes them.
+→ `Note.h` (done in stage 2, incidentally) → `PatternEditor.cpp` →
+everything else (`SoundFont.cpp`, `AlsaAudio.cpp`, `UIElement.h`,
+`PatternBlockOps.cpp`, `Compressor.cpp`, …). One file (or tightly-related
+pair) per commit; rebuild and recheck the warning count after each so the
+diff stays reviewable and regressions are caught immediately rather than at
+the end of a mega-commit. Fixing the first few headers should shrink the
+count in every later file that includes them.
+
+`Track.h`/`Song.h`/`AudioBuffer.h` done: each turned out to be a single
+source location (or a small handful) repeated dozens of times across every
+TU that includes the header — e.g. `AudioBuffer.h`'s 61 raw warnings were
+all one site, `resize()`'s `memcpy` length. Two shapes covered every case
+here: `getChild(int i)`/`getScene(int i)`/`getInstrument(int i)`-style
+accessors cast at the actual container index (`children_[static_cast<size_t>(i)]`)
+since the `int` parameter is the established convention across this
+codebase's accessors and changing it would ripple into every caller; a
+bare arithmetic expression like the `memcpy` length just gets a single
+`static_cast<size_t>` on its `int` operand.
 
 **4. Lock it in**
 Once stage 3 reaches zero, flip `-Wsign-conversion` (and `-Wsign-compare`,
