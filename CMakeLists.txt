@@ -19,14 +19,17 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -Wall -Wsuggest-override -Werror=return-local-addr -Werror=multichar -Werror=enum-compare -Werror=return-type -Werror=conversion-null -Werror=parentheses -Werror=switch -Werror=address -Werror=trigraphs -Werror=pointer-arith -Werror=cast-qual -Werror=non-virtual-dtor -ffast-math -fno-math-errno -Werror=write-strings -Werror=return-local-addr -Wuninitialized -Wno-suggest-override -Wsign-conversion -Wsign-promo -Werror=duplicated-cond -Werror=duplicated-branches -Werror=logical-op -Werror=redundant-decls -Werror=cast-align -Wformat=2 -Werror=format -Werror=shadow -Werror=missing-declarations")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -Wall -Wsuggest-override -Werror=return-local-addr -Werror=multichar -Werror=enum-compare -Werror=return-type -Werror=conversion-null -Werror=parentheses -Werror=switch -Werror=address -Werror=trigraphs -Werror=pointer-arith -Werror=cast-qual -Werror=non-virtual-dtor -ffast-math -fno-math-errno -Werror=write-strings -Werror=return-local-addr -Wuninitialized -Wno-suggest-override -Werror=sign-conversion -Werror=sign-compare -Werror=sign-promo -Werror=duplicated-cond -Werror=duplicated-branches -Werror=logical-op -Werror=redundant-decls -Werror=cast-align -Wformat=2 -Werror=format -Werror=shadow -Werror=missing-declarations")
 # -Wnull-dereference deliberately not enabled: at -O2 with heavy inlining it
 # produces false positives inside ordinary std::vector/std::unordered_map
 # iteration (GCC misattributes an optimizer-derived diagnostic through the
 # inlined STL code, not an issue with our code or a vendored header) -
 # confirmed against this codebase/GCC 13 combination, not a hypothetical.
 
-# -Wconversion
+# -Wconversion (broader than -Wsign-conversion - also catches float<->int
+# narrowing) is a real candidate for a future pass now that
+# -Wsign-conversion itself is clean, but hasn't been measured against this
+# codebase yet.
 
 option(SYNTH_ENABLE_PROFILING "Build with -pg (gprof) instrumentation" OFF)
 if(SYNTH_ENABLE_PROFILING)
