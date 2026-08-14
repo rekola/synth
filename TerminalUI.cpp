@@ -399,7 +399,7 @@ public:
       plot_ = std::make_shared<PlotD>(tplane.getPlane(), &opts);
     }
 
-    plot_->set_sample(i, v);
+    plot_->set_sample(static_cast<uint64_t>(i), v);
   }
 
   void commit() override {

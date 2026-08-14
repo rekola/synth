@@ -71,7 +71,7 @@ class UIElement : public EventHandler {
   UIElement & fill() {
     if (plane_) {
       auto [rows, cols] = getDim();
-      std::string s(cols, ' ');
+      std::string s(static_cast<size_t>(cols), ' ');
       for (auto i = 0; i < rows; i++) plane_->putstr(i, 0, s);
     }
     return *this;
