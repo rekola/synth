@@ -90,6 +90,36 @@ TEST(note_round_trips_for_a_track_with_no_explicit_id) {
   fs::remove(scratch_path);
 }
 
+// Overwriting a row's only note with Note()'s undefined value is exactly
+// what pasting a blank note-column selection does
+// (PatternBlockOps::pastePatternBlockNotes) - Pattern::setNote() must drop
+// the row from its sparse map rather than leave it holding nothing but
+// that placeholder, since an undefined note's toString() text ("···")
+// isn't parseable back by Note::stringToKey() on reload.
+TEST(overwriting_a_note_with_an_undefined_value_leaves_no_stale_row_entry) {
+  namespace fs = std::filesystem;
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_undefined_note_scratch.xml").string();
+
+  Song song;
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  song.addScene();
+  auto & scene = song.getScene(0);
+  scene.setNote(6, track.getInternalId(), 0, Note(60, 40));
+  scene.setNote(6, track.getInternalId(), 0, Note());
+  CHECK(scene.getNotes(6, track.getInternalId()).empty());
+
+  song.save(scratch_path);
+
+  auto saved = readFile(scratch_path);
+  CHECK(saved.find("row=\"6\"") == string::npos);
+
+  InstrumentProvider provider;
+  Song reloaded;
+  CHECK(reloaded.open(scratch_path, provider)); // must not crash/assert on reload
+
+  fs::remove(scratch_path);
+}
+
 TEST(command_round_trips_for_a_track_with_an_explicit_textual_id) {
   namespace fs = std::filesystem;
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_command_textual_id_scratch.xml").string();

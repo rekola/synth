@@ -328,7 +328,14 @@ Song::createState(const ChannelConfiguration & config) const {
 
 bool
 Song::open(const std::string & filename, const InstrumentProvider & provider) {
-  auto oldLocale = setlocale(LC_ALL, 0);
+  // setlocale(..., nullptr) returns a pointer into glibc's own internal
+  // locale-name buffer, not a caller-owned string - it's only valid until
+  // the very next setlocale() call, so it must be copied into a std::string
+  // here rather than kept as a const char*: the setlocale(LC_ALL, "C") call
+  // right below would otherwise overwrite the very buffer this points to,
+  // so the restore at the end of this function would hand setlocale()
+  // garbage instead of the original locale name.
+  std::string oldLocale = setlocale(LC_ALL, nullptr);
   setlocale(LC_ALL, "C");
   
   XMLDocument doc;
@@ -460,14 +467,18 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
     }
   }
 
-  setlocale(LC_ALL, oldLocale);
+  setlocale(LC_ALL, oldLocale.c_str());
 
   return true;
 }
 
 void
 Song::save(const std::string & filename) const {
-  auto oldLocale = setlocale(LC_ALL, 0);
+  // Copied into a std::string, not kept as the raw const char* setlocale()
+  // returns: that pointer is only valid until the next setlocale() call, so
+  // the "C" switch below would invalidate it before the restore at the end
+  // of this function gets to use it.
+  std::string oldLocale = setlocale(LC_ALL, nullptr);
   setlocale(LC_ALL, "C");
  
   XMLDocument doc;
@@ -532,6 +543,14 @@ Song::save(const std::string & filename) const {
 	// TODO: check if velocity and delay are same, and store notes in single element
 	for (size_t col = 0; col < nv.size(); col++) {
 	  auto & note = nv[col];
+	  // An undefined note (Note::isDefined() false) carries no data worth
+	  // persisting, and its toString() text ("···") isn't a value
+	  // Note::stringToKey() can parse back on load - only ever meant for
+	  // display. A column can still hold one of these as a mid-vector gap
+	  // (e.g. a chord's lower note deleted while a higher one stays
+	  // defined - Pattern::deleteNote only trims trailing entries), so
+	  // skip it here rather than assuming the vector itself never holds one.
+	  if (!note.isDefined()) continue;
 	  auto note_text = note.toString(track_tuning);
 	  auto note_element = doc.NewElement("note");
 	  note_element->SetAttribute("row", row);
@@ -568,7 +587,7 @@ Song::save(const std::string & filename) const {
   
   doc.SaveFile(filename.c_str());
 
-  setlocale(LC_ALL, oldLocale);
+  setlocale(LC_ALL, oldLocale.c_str());
 }
   
 void

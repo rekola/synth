@@ -331,6 +331,21 @@ TEST(pattern_block_notes_paste_merges_into_target_range_without_clobbering_other
   CHECK(merged[2].getValue() == 67); // overwritten by the paste
 }
 
+TEST(pattern_block_notes_paste_of_an_empty_source_leaves_no_row_entry) {
+  Scene p;
+  int track_id = 10;
+
+  // Row 2 has nothing at all in this note-column range - the copy
+  // captures Note()'s undefined placeholder for it.
+  auto block = copyPatternBlockNotes(p, 2, 2, track_id, 0, 0);
+  CHECK(!block[0][0].notes[0].isDefined());
+
+  // Pasting that blank into an equally-empty destination row must not
+  // materialize a row entry holding nothing but the undefined placeholder.
+  pastePatternBlockNotes(p, block, 16, 6, track_id, 0);
+  CHECK(p.getNotes(6, track_id).empty());
+}
+
 TEST(pattern_block_notes_paste_overwrites_gaps_left_by_a_sparser_source_row) {
   Scene p;
   int track_id = 10;

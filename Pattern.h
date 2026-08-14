@@ -22,14 +22,27 @@
 // per-row storage.
 class Pattern : public SongObject {
  public:
+  // Trims trailing undefined notes and drops the row from the sparse map
+  // entirely once nothing defined is left in it - the same cleanup
+  // deleteNote() below already does, applied here too since a caller can
+  // just as easily hand this an all-undefined vector (e.g. pasting a
+  // blank source row over an existing one) or overwrite the one defined
+  // column a row had with Note()'s undefined value via setNote().
   void setNotes(int row, const std::vector<Note> & n) {
-    notes_[static_cast<unsigned short>(row)] = n;
+    auto key = static_cast<unsigned short>(row);
+    auto columns = n;
+    while (!columns.empty() && !columns.back().isDefined()) columns.pop_back();
+    if (columns.empty()) notes_.erase(key);
+    else notes_[key] = std::move(columns);
   }
 
   void setNote(int row, int note_column, Note note) {
-    auto & columns = notes_[static_cast<unsigned short>(row)];
+    auto key = static_cast<unsigned short>(row);
+    auto & columns = notes_[key];
     while (note_column >= static_cast<int>(columns.size())) columns.push_back(Note());
     columns[static_cast<size_t>(note_column)] = note;
+    while (!columns.empty() && !columns.back().isDefined()) columns.pop_back();
+    if (columns.empty()) notes_.erase(key);
   }
 
   int pushNote(int row, Note note) {
