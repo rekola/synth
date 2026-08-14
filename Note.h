@@ -3,6 +3,9 @@
 
 #include "Tuning.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <limits>
 #include <string>
 #include <string_view>
 #include <cassert>
@@ -18,7 +21,13 @@ class Note {
       velocity(_velocity),
       delay(_delay) { }
 
-  short getValue() const { return value; }
+  // int, not short: value is stored as int (transpose() can legitimately
+  // grow it well past SHRT_MAX for a high-EDO tuning many octaves up -
+  // see its own comment), and every caller already treats the result as
+  // int (Tuner::getFrequency(Tuning, int)/noteOn's int note_value/...) -
+  // returning short here was pure incidental narrowing on the way out,
+  // not something any caller actually needed.
+  int getValue() const { return value; }
   short getVelocity() const { return velocity; }
   float getVelocityAsFloat() const { return velocity / 127.0f; }
   short getDelay() const { return delay; }
@@ -36,11 +45,22 @@ class Note {
     delay = 0;
   }
 
-  void transposeUp() {
-    if (isDefined() && !isOff() && !isAftertouch()) value++;
-  }
-  void transposeDown() {
-    if (isDefined() && !isOff() && !isAftertouch()) value--;
+  // `delta` may be any size (positive up, negative down) - not just ±1 -
+  // so a whole-block transpose can shift by more than a semitone/step in
+  // one call rather than requiring a caller-side loop of single steps.
+  // value + delta is computed in int64_t specifically so an extreme delta
+  // can never signed-overflow the addition itself (UB) before the clamp
+  // below ever runs - INT_MAX + INT_MAX still fits comfortably in
+  // int64_t. Clamped to [0, INT_MAX]: the lower bound keeps a
+  // transpose-down from ever landing on -1 - isDefined()'s own
+  // "undefined" sentinel - which a naive value-- at 0 would otherwise
+  // silently turn this into; there's no meaningful fixed upper bound (a
+  // 53-EDO value spans well past a byte-sized range once you're a few
+  // octaves up), so this just stops at whatever `value` itself can hold.
+  void transpose(int delta) {
+    if (!isDefined() || isOff() || isAftertouch()) return;
+    auto next = static_cast<int64_t>(value) + delta;
+    value = static_cast<int>(std::clamp<int64_t>(next, 0, std::numeric_limits<int>::max()));
   }
 
   std::string toString(Tuning tuning) const {

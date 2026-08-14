@@ -12,7 +12,7 @@ copyPatternBlock(const Scene & scene, int row_lo, int row_hi,
   for (int row = row_lo; row <= row_hi; row++) {
     vector<PatternBlockCell> row_cells;
     for (int t = track_lo; t <= track_hi; t++) {
-      auto track_id = track_ids[t];
+      auto track_id = track_ids[static_cast<size_t>(t)];
       PatternBlockCell cell;
       cell.notes = scene.getNotes(row, track_id);
       cell.command = scene.getCommand(row, track_id);
@@ -29,7 +29,7 @@ clearPatternBlock(Scene & scene, int row_lo, int row_hi,
 		  const vector<int> & track_ids, int track_lo, int track_hi) {
   for (int row = row_lo; row <= row_hi; row++) {
     for (int t = track_lo; t <= track_hi; t++) {
-      auto track_id = track_ids[t];
+      auto track_id = track_ids[static_cast<size_t>(t)];
       scene.clearNotes(row, track_id);
       scene.setCommand(row, track_id, Command());
     }
@@ -42,14 +42,11 @@ transposePatternBlock(Scene & scene, int row_lo, int row_hi,
 		      const std::function<bool(int track_id)> & is_percussion) {
   for (int row = row_lo; row <= row_hi; row++) {
     for (int t = track_lo; t <= track_hi; t++) {
-      auto track_id = track_ids[t];
+      auto track_id = track_ids[static_cast<size_t>(t)];
       if (is_percussion(track_id)) continue;
       auto notes = scene.getNotes(row, track_id);
       if (notes.empty()) continue; // don't materialize a real entry in the sparse notes_ map
-      for (auto & note : notes) {
-	if (up) note.transposeUp();
-	else note.transposeDown();
-      }
+      for (auto & note : notes) note.transpose(up ? 1 : -1);
       scene.setNotes(row, track_id, notes);
     }
   }
@@ -67,7 +64,7 @@ pastePatternBlock(Scene & scene, const PatternBlock & block, int num_rows,
       int t = target_track + static_cast<int>(track_offset);
       if (t < 0 || t >= static_cast<int>(track_ids.size())) continue;
 
-      auto track_id = track_ids[t];
+      auto track_id = track_ids[static_cast<size_t>(t)];
       auto & cell = row_cells[track_offset];
       scene.setNotes(row, track_id, cell.notes);
       scene.setCommand(row, track_id, cell.command);
@@ -123,10 +120,7 @@ transposePatternBlockNotes(Scene & scene, int row_lo, int row_hi,
     auto notes = scene.getNotes(row, track_id);
     if (notes.empty()) continue;
     auto hi = min(note_hi, static_cast<int>(notes.size()) - 1);
-    for (int i = note_lo; i <= hi; i++) {
-      if (up) notes[i].transposeUp();
-      else notes[i].transposeDown();
-    }
+    for (int i = note_lo; i <= hi; i++) notes[static_cast<size_t>(i)].transpose(up ? 1 : -1);
     scene.setNotes(row, track_id, notes);
   }
 }
