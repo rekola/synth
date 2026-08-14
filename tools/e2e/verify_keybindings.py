@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Drive the compiled musiceditor binary through a pty and verify the
 centralized keybinding dispatch: Ctrl-B/Ctrl-W/Ctrl-Y/Ctrl-G in
-PatternEditor and Ctrl-Q/Ctrl-N/Space in UI. General Emacs-keybinding
+PatternEditor and C-x C-c/Ctrl-N/Space in UI. General Emacs-keybinding
 smoke test, independent of the Launchpad-specific scripts in this
 directory (which all import harness.py directly instead).
 
@@ -88,9 +88,13 @@ def main():
     d = scr.dump()
     check("Ctrl-N (new-song) shows 'New song'", "New song" in d, d)
 
-    # --- Ctrl-Q quits (graceful shutdown joins the audio thread, so allow
-    # several seconds rather than expecting a near-instant exit) ---
-    scr.send(vk.ctrl('q'))
+    # --- C-x C-c quits (Emacs's own save-buffers-kill-terminal binding -
+    # there is no separate Ctrl-Q quit shortcut; graceful shutdown joins
+    # the audio thread, so allow several seconds rather than expecting a
+    # near-instant exit) ---
+    scr.send(vk.ctrl('x'))
+    scr.pump(0.3)
+    scr.send(vk.ctrl('c'))
     wpid = 0
     end = time.time() + 10.0
     while time.time() < end:
@@ -101,7 +105,7 @@ def main():
         if wpid == pid:
             break
         time.sleep(0.2)
-    check("Ctrl-Q (quit) terminates the process", wpid == pid, scr.dump())
+    check("C-x C-c (quit) terminates the process", wpid == pid, scr.dump())
 
     try:
         os.kill(pid, 9)

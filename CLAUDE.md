@@ -139,13 +139,17 @@ rather than asserting on it). `BasicMixer` (the old plain-stereo-pan/
 raw-N-channel mixer) was retired entirely along with `STEREO`; every mixer
 `MixerFactory` builds now is `AmbisonicStereoMixer` or
 `AmbisonicBinauralMixer`.
-**Space** toggles playback, Ctrl-Q quits, Ctrl-N creates a new song,
-**Ctrl-K** opens the M-x command minibuffer (reliable on any terminal; see
-below for why it exists alongside Esc-x/Alt-x).
+**Space** toggles playback, **C-x C-c** quits (Emacs's own
+save-buffers-kill-terminal binding - there is no separate Ctrl-Q quit
+shortcut, deliberately: this codebase follows Emacs keybindings, not
+one-off shortcuts, wherever Emacs already has a convention for the
+action), Ctrl-N creates a new song, **Ctrl-K** opens the M-x command
+minibuffer (reliable on any terminal; see below for why it exists
+alongside Esc-x/Alt-x).
 `docs/commands.md` lists the pattern effect commands (slides, vibrato, …),
-split into **Implemented** (only `ZBxx`, pattern break, so far - see
-`SongState.h`'s command-handling loop) and **Planned** (accepted/stored
-but currently no-ops at playback time).
+split into **Implemented** (`ZBxx` pattern break, plus `2Lxx`/`2Rxx`
+azimuth slides - see `SongState.h`'s command-handling loop) and
+**Planned** (accepted/stored but currently no-ops at playback time).
 
 Pattern editor selection uses Emacs keybindings: **C-SPC** (or **C-b**, see
 below) sets the mark (selection start), **C-w** kills (cuts) the marked

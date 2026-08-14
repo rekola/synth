@@ -29,7 +29,7 @@ class PatternEditor : public UIElement {
 
   // Mirrors StatusLine::isReaderActive() exactly, same reason it exists:
   // UI::offerInput() must not let a *global* keybinding (Space/toggle-
-  // playing, Ctrl-Q/quit, ...) reach its own dispatchCommand() while this
+  // playing, C-x C-c/quit, ...) reach its own dispatchCommand() while this
   // class's own annotation-editing reader (startAnnotationEdit()) is open,
   // the same way it already skips that for StatusLine's M-x reader -
   // otherwise every one of those keys leaks past PatternEditor::offerInput()'s

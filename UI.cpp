@@ -163,7 +163,7 @@ UI::offerInput(const InputEvent & input) {
 
   // Neither reader (StatusLine's M-x minibuffer, PatternEditor's own
   // annotation editor - see PatternEditor::isReaderActive()'s own comment)
-  // may let a global keybinding (Space/toggle-playing, Ctrl-Q/quit, ...)
+  // may let a global keybinding (Space/toggle-playing, C-x C-c/quit, ...)
   // steal a keystroke meant for it.
   if (!status_line_->isReaderActive() && !pattern_editor_->isReaderActive() && dispatchCommand(input)) return true;
 
