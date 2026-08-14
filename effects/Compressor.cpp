@@ -248,10 +248,10 @@ public:
     int main_channels = input.regularChannelCount();
     bool compressor_active = false;
     if (num_channels > 0) {
-	    std::vector<float *> delaybuf(num_channels), in(num_channels);
+	    std::vector<float *> delaybuf(static_cast<size_t>(num_channels)), in(static_cast<size_t>(num_channels));
 	    for (int c = 0; c < num_channels; c++) {
-	      delaybuf[c] = delaybuf_.getChannelData(c);
-	      in[c] = input.getChannelData(c);
+	      delaybuf[static_cast<size_t>(c)] = delaybuf_.getChannelData(c);
+	      in[static_cast<size_t>(c)] = input.getChannelData(c);
 	    }
 
 	    constexpr float ang90 = (float)M_PI * 0.5f;
@@ -303,8 +303,8 @@ public:
 
 		float inputmax = 0.0f;
 		for (int c = 0; c < num_channels; c++) {
-		  auto v = in[c][samplepos] * linearpregain_;
-		  delaybuf[c][delaywritepos_] = v;
+		  auto v = in[static_cast<size_t>(c)][samplepos] * linearpregain_;
+		  delaybuf[static_cast<size_t>(c)][delaywritepos_] = v;
 		  if (c < main_channels) inputmax = maxf(inputmax, absf(v));
 		}
 
@@ -358,7 +358,7 @@ public:
 
 		// apply the gain
 		for (int c = 0; c < num_channels; c++) {
-		  in[c][samplepos] = delaybuf[c][delayreadpos_] * gain;
+		  in[static_cast<size_t>(c)][samplepos] = delaybuf[static_cast<size_t>(c)][delayreadpos_] * gain;
 		}
 	      }
 	    }

@@ -66,12 +66,12 @@ static size_t initialize_alsa_dev(Logger & logger, snd_pcm_t * handle, int rate,
     return 0;
   }
 
-  if ((r = snd_pcm_hw_params_set_channels(handle, hw_params, channels)) < 0) {
+  if ((r = snd_pcm_hw_params_set_channels(handle, hw_params, static_cast<unsigned int>(channels))) < 0) {
     logger.log(string("ERROR: Can't set channels number: ") + snd_strerror(r));
     return 0;
   }
 
-  unsigned int actual_rate = rate;
+  auto actual_rate = static_cast<unsigned int>(rate);
   if ((r = snd_pcm_hw_params_set_rate_near(handle, hw_params, &actual_rate, 0)) < 0) {
     logger.log(string("ERROR: Can't set rate: ") + snd_strerror(r));
     return 0;
@@ -227,7 +227,7 @@ AlsaAudio::initialize(Logger & logger) {
 
 std::vector<pollfd>
 AlsaAudio::getPollDescriptors(snd_pcm_t * handle) {
-  size_t nfds = snd_pcm_poll_descriptors_count(handle);
+  auto nfds = static_cast<size_t>(snd_pcm_poll_descriptors_count(handle));
   struct pollfd * pfds = (struct pollfd *)alloca(sizeof(struct pollfd) * (nfds + 1));
     
   if (snd_pcm_poll_descriptors(handle, pfds, nfds) < 0) {
@@ -244,7 +244,7 @@ AlsaAudio::getPollDescriptors(snd_pcm_t * handle) {
 
 std::vector<pollfd>
 AlsaAudio::getMidiPollDescriptors(snd_seq_t * handle) {
-  size_t nfds = snd_seq_poll_descriptors_count(handle, POLLIN);
+  auto nfds = static_cast<size_t>(snd_seq_poll_descriptors_count(handle, POLLIN));
 
   struct pollfd * pfds = (struct pollfd *)alloca(sizeof(struct pollfd) * (nfds + 1));
 
@@ -273,7 +273,7 @@ AlsaAudio::play(const AudioBuffer & data, Logger & logger) {
     }
   }
 
-  int r = snd_pcm_writei(pcm_handle, tmp_ptr, data.size());
+  int r = snd_pcm_writei(pcm_handle, tmp_ptr, static_cast<snd_pcm_uframes_t>(data.size()));
   if (r < 0) {
     r = recoverFromPcmError(logger, pcm_handle, r, "playback");
     if (r >= 0) {
@@ -282,7 +282,7 @@ AlsaAudio::play(const AudioBuffer & data, Logger & logger) {
       // that it's back so this block isn't just dropped, and so playback
       // starts accumulating toward its start threshold again immediately
       // rather than waiting for the next render block to come around.
-      r = snd_pcm_writei(pcm_handle, tmp_ptr, data.size());
+      r = snd_pcm_writei(pcm_handle, tmp_ptr, static_cast<snd_pcm_uframes_t>(data.size()));
     }
   }
   if (r < 0) {
@@ -300,7 +300,7 @@ AlsaAudio::record(Logger & logger) {
   AudioBuffer data(1, frames);
 
   if (frames) {
-    int r = snd_pcm_readi(capture_handle, data.getChannelData(0), frames);
+    int r = snd_pcm_readi(capture_handle, data.getChannelData(0), static_cast<snd_pcm_uframes_t>(frames));
     if (r < 0) {
       r = recoverFromPcmError(logger, capture_handle, r, "capture");
       if (r >= 0) {

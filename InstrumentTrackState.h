@@ -30,7 +30,7 @@ public:
     std::vector<std::pair<int, AudioBuffer> > chunks;
 
     if (instrument_id_ >= 0 && instrument_id_ < static_cast<int>(instruments.size())) {
-      auto & instrument = instruments[instrument_id_];
+      auto & instrument = instruments[static_cast<size_t>(instrument_id_)];
       auto & pending_events = context.getPendingEvents(track_id_);
       auto & pending_azimuth = context.getPendingAzimuthTicks(track_id_);
 
