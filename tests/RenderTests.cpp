@@ -62,7 +62,7 @@ Loaded loadFixtureWithSoundFont(const char * name, const std::string & sf2_path)
 float rms(const OfflineRenderResult & result, int channel) {
   double sum = 0.0;
   auto frames = result.numberOfFrames();
-  for (size_t i = 0; i < frames; i++) sum += static_cast<double>(std::pow(result.interleaved[i * result.channels + channel], 2));
+  for (size_t i = 0; i < frames; i++) sum += static_cast<double>(std::pow(result.interleaved[i * static_cast<size_t>(result.channels) + static_cast<size_t>(channel)], 2));
   return frames ? static_cast<float>(std::sqrt(sum / frames)) : 0.0f;
 }
 
@@ -72,7 +72,7 @@ float windowedRms(const OfflineRenderResult & result, int channel, float start_s
   size_t end = std::min<size_t>(static_cast<size_t>(end_s * result.sampleRate), frames);
   if (end <= start) return 0.0f;
   double sum = 0.0;
-  for (size_t i = start; i < end; i++) sum += std::pow(result.interleaved[i * result.channels + channel], 2);
+  for (size_t i = start; i < end; i++) sum += std::pow(result.interleaved[i * static_cast<size_t>(result.channels) + static_cast<size_t>(channel)], 2);
   return static_cast<float>(std::sqrt(sum / (end - start)));
 }
 
@@ -93,7 +93,7 @@ float windowedRmsDifference(const OfflineRenderResult & result, float start_s, f
   if (end <= start) return 0.0f;
   double sum = 0.0;
   for (size_t i = start; i < end; i++) {
-    auto diff = result.interleaved[i * result.channels + 1] - result.interleaved[i * result.channels + 0];
+    auto diff = result.interleaved[i * static_cast<size_t>(result.channels) + 1] - result.interleaved[i * static_cast<size_t>(result.channels) + 0];
     sum += std::pow(diff, 2);
   }
   return static_cast<float>(std::sqrt(sum / (end - start)));
@@ -111,8 +111,8 @@ float windowedZeroCrossingRate(const OfflineRenderResult & result, int channel, 
   if (end <= start + 1) return 0.0f;
   int crossings = 0;
   for (size_t i = start + 1; i < end; i++) {
-    auto prev = result.interleaved[(i - 1) * result.channels + channel];
-    auto cur = result.interleaved[i * result.channels + channel];
+    auto prev = result.interleaved[(i - 1) * static_cast<size_t>(result.channels) + static_cast<size_t>(channel)];
+    auto cur = result.interleaved[i * static_cast<size_t>(result.channels) + static_cast<size_t>(channel)];
     if ((prev < 0.0f) != (cur < 0.0f)) crossings++;
   }
   return static_cast<float>(crossings) / static_cast<float>(end - start);
@@ -224,7 +224,7 @@ TEST(render_envelope_decays_after_hold_and_decay_time) {
     size_t end = std::min<size_t>(size_t(end_s * sample_rate), frames);
     if (end <= start) return 0.0f;
     double sum = 0.0;
-    for (size_t i = start; i < end; i++) sum += std::pow(result.interleaved[i * result.channels], 2);
+    for (size_t i = start; i < end; i++) sum += std::pow(result.interleaved[i * static_cast<size_t>(result.channels)], 2);
     return static_cast<float>(std::sqrt(sum / (end - start)));
   };
 
@@ -264,7 +264,7 @@ TEST(render_envelope_oscillator_rapid_retrigger_has_no_click) {
   auto frames = result.numberOfFrames();
   float max_delta = 0.0f;
   for (size_t i = 1; i < frames; i++) {
-    float delta = std::fabs(result.interleaved[i * result.channels] - result.interleaved[(i - 1) * result.channels]);
+    float delta = std::fabs(result.interleaved[i * static_cast<size_t>(result.channels)] - result.interleaved[(i - 1) * static_cast<size_t>(result.channels)]);
     max_delta = std::max(max_delta, delta);
   }
 

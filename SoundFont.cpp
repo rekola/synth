@@ -337,8 +337,8 @@ static void tsf_region_operator(struct tsf_region* region, uint16_t genOper, uni
 	{
 	case GEN_FLOAT:      ((       float*)region)[offset]  = amount->shortAmount;     return;
 	case GEN_INT:        ((         int*)region)[offset]  = amount->shortAmount;     return;
-	case GEN_UINT_ADD:   ((unsigned int*)region)[offset] += amount->shortAmount;     return;
-	case GEN_UINT_ADD15: ((unsigned int*)region)[offset] += amount->shortAmount<<15; return;
+	case GEN_UINT_ADD:   ((unsigned int*)region)[offset] += static_cast<unsigned int>(amount->shortAmount);     return;
+	case GEN_UINT_ADD15: ((unsigned int*)region)[offset] += static_cast<unsigned int>(amount->shortAmount)<<15; return;
 	case GEN_KEYRANGE:   region->lokey = amount->range.lo; region->hikey = amount->range.hi; return;
 	case GEN_VELRANGE:   region->lovel = amount->range.lo; region->hivel = amount->range.hi; return;
 	case GEN_LOOPMODE:   region->loop_mode       = ((amount->wordAmount&3) == 3 ? TSF_LOOPMODE_SUSTAIN : ((amount->wordAmount&3) == 1 ? TSF_LOOPMODE_CONTINUOUS : TSF_LOOPMODE_NONE)); return;
@@ -1438,9 +1438,9 @@ void tsf_load(SoundFontFile* res, struct tsf_stream* stream) {
 	  {
 #define HandleChunk(chunkName) (chunk.id == #chunkName && (chunk.size % chunkName##SizeInFile) == 0) \
 	      {								\
-		int num = chunk.size / chunkName##SizeInFile, i;	\
+		int num = static_cast<int>(chunk.size / chunkName##SizeInFile), i;	\
 		hydra.chunkName##Num = num;				\
-		hydra.chunkName##s = (struct tsf_hydra_##chunkName*)malloc(num * sizeof(struct tsf_hydra_##chunkName)); \
+		hydra.chunkName##s = (struct tsf_hydra_##chunkName*)malloc(static_cast<size_t>(num) * sizeof(struct tsf_hydra_##chunkName)); \
 		for (i = 0; i < num; ++i) tsf_hydra_read_##chunkName(&hydra.chunkName##s[i], stream); \
 	      }
 	    enum
@@ -1475,7 +1475,7 @@ void tsf_load(SoundFontFile* res, struct tsf_stream* stream) {
   } else if (fontSamples == nullptr) {
     //if (e) *e = TSF_INVALID_NOSAMPLEDATA;
   } else {
-    size_t presetNum = hydra.phdrNum - 1;
+    size_t presetNum = static_cast<size_t>(hydra.phdrNum - 1);
     // res->presets = (struct tsf_preset*)malloc(res->presetNum * sizeof(struct tsf_preset));
     res->presets_.resize(presetNum);
     res->fontSamples_ = fontSamples;

@@ -3,11 +3,14 @@
 ## Status
 
 Stages 0, 0b, 1, and 2 are done. Stage 3 is in progress: `Track.h`,
-`Song.h`, and `AudioBuffer.h` (the three biggest blast-radius headers) are
-fixed. Clean build now sits at **125 warnings**, all `-Wsign-conversion`,
-down from 349 at the start of stage 3. Remaining, largest first:
-`PatternEditor.cpp` (35), `SoundFont.cpp` (21), `tests/RenderTests.cpp`
-(13), `InstrumentTrackState.h` (9), `effects/Compressor.cpp` (8),
+`Song.h`, `AudioBuffer.h`, `SoundFont.cpp`, `tests/RenderTests.cpp`, and
+`PatternEditor.cpp` are fixed (also, along the way, `Command::updateData()`
+gained real input validation and `Song::open()` now rejects malformed
+songs outright - a correctness fix that came out of fixing one of
+`PatternEditor.cpp`'s warnings, not itself a warning fix; see the separate
+commit `0ef6f94`). Clean build now sits at **56 warnings**, all
+`-Wsign-conversion`, down from 349 at the start of stage 3. Remaining,
+largest first: `InstrumentTrackState.h` (9), `effects/Compressor.cpp` (8),
 `AlsaAudio.cpp` (7), `UIElement.h`/`PatternBlockOps.cpp` (6 each), then a
 long tail of 1-4 each.
 

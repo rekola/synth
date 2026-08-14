@@ -1166,7 +1166,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	  auto & notes = scene.getNotes(info.getRowIndex(), track_id);
 	  auto note_column = track_info.getNoteNumber(new_cursor.col);
 	  Note note;
-	  if (note_column < static_cast<int>(notes.size())) note = notes[note_column];
+	  if (note_column < static_cast<int>(notes.size())) note = notes[static_cast<size_t>(note_column)];
 	  int current_value = column_type == ColumnType::VELOCITY ? note.getVelocity() : note.getDelay();
 	  if (new_cursor.subcol == 0) current_value = (input_hex_value << 4) | (current_value & 0x0f);
 	  else current_value = (current_value & 0xf0) | input_hex_value;
@@ -1323,7 +1323,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 
   auto heading_height = song.getTrackDepth() + 1;
 
-  string padding(cols, ' ');
+  string padding(static_cast<size_t>(cols), ' ');
   
   setBgColor(styles.window_bg_color);
   for (auto i = 0; i < heading_height; i++) {
@@ -1337,7 +1337,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
     vector<int> track_widths;
 
     for (auto i = 0; i < static_cast<int>(track_ids.size()); i++) {
-      int track_id = track_ids[i];
+      int track_id = track_ids[static_cast<size_t>(i)];
       auto track = song.getTrackByInternalId(track_id);
       for (auto k = 0; k < level && track; k++) {
 	auto it = track_parents.find(track->getInternalId());
@@ -1367,8 +1367,8 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
       if (i < current_scroll_.track) continue;
       if (current_pos >= cols) break;
       
-      auto track = tracks[i];
-      auto actual_width = track_widths[i];
+      auto track = tracks[static_cast<size_t>(i)];
+      auto actual_width = track_widths[static_cast<size_t>(i)];
 
       if (track) {
 	if (level == 0) {
@@ -1386,7 +1386,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  } else if (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL) {
 	    auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
 	    if (instrument_track.getInstrumentId() >= 0 && instrument_track.getInstrumentId() < static_cast<int>(instruments.size())) {
-	      instrument_name = instruments[instrument_track.getInstrumentId()]->getName();
+	      instrument_name = instruments[static_cast<size_t>(instrument_track.getInstrumentId())]->getName();
 	      is_solo = instrument_track.isSolo();
 	      is_muted = instrument_track.isMuted();
 	    }
@@ -1467,7 +1467,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 
   display_row += heading_height;
           
-  string padding(cols, ' ');
+  string padding(static_cast<size_t>(cols), ' ');
     
   setBgColor(styles.window_bg_color);
   putstr(display_row, 0, padding);
@@ -1531,7 +1531,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	
       current_pos += 5;
     } else {
-      auto track_id = track_ids[i];
+      auto track_id = track_ids[static_cast<size_t>(i)];
       auto & notes = scene.getNotes(pattern_row, track_id);
       auto & command = scene.getCommand(pattern_row, track_id);
       VisibleTrackInfo track_info;
@@ -1585,7 +1585,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // character for the shared trailing "│" this k-loop draws once
 	  // it's done (further down), rather than drawing it itself.
 	  auto width = std::max(track_info.getTrackWidth() - 1, 1);
-	  bool defined = k < static_cast<int>(notes.size()) && notes[k].isDefined();
+	  bool defined = k < static_cast<int>(notes.size()) && notes[static_cast<size_t>(k)].isDefined();
 	  putstr(display_row, current_pos, std::string(static_cast<size_t>(width), defined ? 'x' : ' '));
 	  current_pos += width;
 	} else if (column_type == ColumnType::EFFECT) {
@@ -1602,13 +1602,13 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  putstr(display_row, current_pos, s);
 	  if (column_highlighted) {
 	    setUnderline(true);
-	    putstr(display_row, current_pos + new_cursor.subcol, s[new_cursor.subcol]);
+	    putstr(display_row, current_pos + new_cursor.subcol, s[static_cast<size_t>(new_cursor.subcol)]);
 	    setUnderline(false);
 	  }
 	  current_pos += 4;
 	} else if (column_type == ColumnType::NOTE) {
 	  auto l = track_info.getNoteNumber(k);
-	  auto note = l < static_cast<int>(notes.size()) ? notes[l] : Note();
+	  auto note = l < static_cast<int>(notes.size()) ? notes[static_cast<size_t>(l)] : Note();
 
 	  cell_fg = cur_fg;
 	  cell_bg = cur_bg;
@@ -1622,7 +1622,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  current_pos += 3;
 	} else if (column_type == ColumnType::VELOCITY || column_type == ColumnType::DELAY) {
 	  auto l = track_info.getNoteNumber(k);
-	  auto note = l < static_cast<int>(notes.size()) ? notes[l] : Note();
+	  auto note = l < static_cast<int>(notes.size()) ? notes[static_cast<size_t>(l)] : Note();
 	  string s;
 	  if (note.isDefined()) {
 	    if (column_type == ColumnType::VELOCITY && note.isOff()) {
@@ -1647,7 +1647,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  putstr(display_row, current_pos, s);
 	  if (column_highlighted) {
 	    setUnderline(true);
-	    putstr(display_row, current_pos + new_cursor.subcol, s[new_cursor.subcol]);
+	    putstr(display_row, current_pos + new_cursor.subcol, s[static_cast<size_t>(new_cursor.subcol)]);
 	    setUnderline(false);
 	  }
 	  current_pos += 2;
