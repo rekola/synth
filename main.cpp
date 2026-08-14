@@ -123,10 +123,11 @@ int main(int argc, char *argv[]) {
     auto controller = make_shared<Controller>(channel_config);
     if (force_cardioid) controller->setMixerType(MixerType::AMBISONIC_STEREO);
     if (force_legacy_binaural) controller->setUseLegacyBinaural(true);
-    if (!controller->openSong(input.front())) {
-      fmt::print(stderr, "Could not find file {}\n", input.front());
-      exit(1);
-    }
+    // Song::open() already printed the actual reason (missing file,
+    // invalid XML, malformed command data, ...) to stderr - no separate
+    // message here, which used to unconditionally claim "not found"
+    // regardless of which of those it actually was.
+    if (!controller->openSong(input.front())) exit(1);
     return renderSongToWav(*controller, channel_config, render_path) ? 0 : 1;
   }
 
@@ -148,10 +149,9 @@ int main(int argc, char *argv[]) {
   if (force_legacy_binaural) controller->setUseLegacyBinaural(true);
 
   if (!input.empty()) {
-    if (!controller->openSong(input.front())) {
-      fmt::print(stderr, "Could not find file {}\n", input.front());
-      exit(1);
-    }
+    // Song::open() already printed the actual reason - see the --render
+    // path's own comment above.
+    if (!controller->openSong(input.front())) exit(1);
   } else {
     controller->createNewSong();
   }

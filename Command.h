@@ -11,33 +11,65 @@ class Command {
  public:
   Command() = default;
 
-  // Malformed input (values.size() != 4) leaves values_ at its default-
-  // initialized "-", "-", "-", "-" rather than partially/uninitialized.
+  // Convenience for trusted callers (tests, and any other in-code string
+  // literal) - setData() below is the fallible sibling for untrusted input
+  // (Song::open(), loading a <command> element from a possibly hand-
+  // edited/corrupted file), which needs to actually detect and react to
+  // malformed data rather than have it silently become "----". A malformed
+  // literal here asserts (a programmer typo, not runtime input); in a
+  // Release build (assert compiled out) this Command is simply left
+  // default-initialized to "----" instead, same fallback setData() itself
+  // leaves in place on failure.
   Command(std::string_view values) {
-    assert(values.size() == 4);
-    if (values.size() >= 4) {
-      values_[0] = values[0];
-      values_[1] = values[1];
-      values_[2] = values[2];
-      values_[3] = values[3];
-    }
+    bool ok = setData(values);
+    assert(ok);
+    (void)ok; // otherwise unused in a Release build, where assert() is a no-op
   }
 
-  void updateData(size_t i, char c) { if (i < 4) values_[i] = c; }
+  // Parses `values` (exactly 4 characters) into this Command, character by
+  // character through updateData() - same validation as live typed entry,
+  // so data loaded from a file is held to exactly the same rules as data
+  // typed through the UI, one authoritative definition of "valid" rather
+  // than a second copy that could drift. Returns whether every character
+  // was accepted; on failure this Command is left entirely unmodified
+  // (not partially applied), so a caller can tell "malformed" apart from
+  // "successfully parsed" and react accordingly (Song::open() rejects the
+  // whole file rather than silently loading a "----" it never contained).
+  bool setData(std::string_view values) {
+    if (values.size() != 4) return false;
+    Command parsed;
+    for (int i = 0; i < 4; i++) {
+      if (!parsed.updateData(i, values[static_cast<size_t>(i)])) return false;
+    }
+    *this = parsed;
+    return true;
+  }
 
-  // The character set accepted for a command's first two (mnemonic)
-  // characters (see PatternEditor::offerInput()'s ColumnType::EFFECT
-  // branch) - ASCII letters, digits, or '/'. docs/commands.md's own
-  // two-character mnemonics (ZB, 0U, 0D, 0G, 1V, 1I, 1O, 1T, 2L, 2R) use
-  // letters outside the hex a-f range, so this can't be narrowed to hex
-  // like the trailing argument nibbles are. Explicit range checks rather
-  // than <cctype>'s isalnum() - same reasoning digit.h's own digit()
-  // gives: a notcurses special-key code (arrows, F-keys, Insert, PageUp,
-  // ...) is an int far outside the representable range isalnum()
-  // requires, so passing it through would be undefined behavior, not
-  // just "correctly rejected".
-  static bool isMnemonicChar(int32_t id) {
-    return (id >= 'a' && id <= 'z') || (id >= 'A' && id <= 'Z') || (id >= '0' && id <= '9') || id == '/';
+  // Validates and stores a single raw InputEvent::getId() codepoint into
+  // values_[i], reporting whether it was accepted so the caller (only
+  // PatternEditor::offerInput()'s ColumnType::EFFECT branch) doesn't need
+  // to separately pre-classify input.getId() before attempting this -
+  // there's exactly one authoritative definition of "valid", here, not one
+  // in the caller and a second one duplicated/drifting inside this class.
+  // Column 0/1 (docs/commands.md's two-character mnemonic - ZB, 0U, 0D,
+  // 0G, 1V, 1I, 1O, 1T, 2L, 2R) accepts [A-Za-z0-9-]; column 2/3 (the hex
+  // argument) accepts the narrower [A-Fa-f0-9-]. Letters normalize to
+  // uppercase ASCII on storage, same as a typed command always has (a
+  // codepoint outside ASCII, e.g. a fullwidth Latin letter, is simply
+  // invalid here - unlike digit()'s own fullwidth handling, which is for
+  // *interpreting* an already-stored hex digit, not for command *entry*).
+  // Explicit range checks rather than <cctype>'s toupper()/isalnum() -
+  // same UB reasoning digit()'s own comment gives: a codepoint isn't
+  // guaranteed representable as unsigned char/EOF, which their contract
+  // requires.
+  bool updateData(int i, int32_t codepoint) {
+    if (i < 0 || i >= 4) return false;
+    if (codepoint >= 'a' && codepoint <= 'z') codepoint -= 'a' - 'A'; // normalize once, up front, rather than testing lowercase separately below
+    char hi = i < 2 ? 'Z' : 'F'; // mnemonic columns (0/1) allow the full alphabet; the hex argument ones (2/3) don't
+    bool valid = codepoint == '-' || (codepoint >= '0' && codepoint <= '9') || (codepoint >= 'A' && codepoint <= hi);
+    if (!valid) return false;
+    values_[i] = static_cast<char>(codepoint);
+    return true;
   }
 
   bool isDefined() const { return values_[0] != '-' || values_[1] != '-' || values_[2] != '-' || values_[3] != '-'; }
@@ -50,10 +82,13 @@ class Command {
   bool isPatternBreak() const { return values_[0] == 'Z' && values_[1] == 'B'; }
 
   // The 2-hex-digit row argument for ZBxx (values_[2..3], 0-255) - a
-  // non-hex character (the effect column accepts any letter, not just
-  // a-f - see docs/commands.md) parses as digit 0 rather than being
-  // rejected (digit() returns -1 for those), same permissiveness as every
-  // other effect-column entry.
+  // non-hex character parses as digit 0 rather than being rejected
+  // (digit() returns -1 for those). Live typed entry can no longer
+  // actually produce one (updateData() validates columns 2/3 to
+  // [A-Fa-f0-9-] up front), but a Command loaded via the string_view
+  // constructor - straight from a hand-edited/malformed XML file -
+  // bypasses updateData() entirely, so this stays permissive rather than
+  // asserting on data this class didn't itself validate.
   int getBreakDestinationRow() const {
     auto hi = digit(values_[2], 16), lo = digit(values_[3], 16);
     return (hi < 0 ? 0 : hi) * 16 + (lo < 0 ? 0 : lo);

@@ -71,13 +71,13 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
       clipboard_.annotations.clear();
       clearPatternBlock(scene, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
     } else if (b.scope == SelectionScope::NOTE_COLUMN) {
-      auto track_id = track_ids[b.track_lo];
+      auto track_id = track_ids[static_cast<size_t>(b.track_lo)];
       clipboard_.cells = copyPatternBlockNotes(scene, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi);
       clipboard_.commands.clear();
       clipboard_.annotations.clear();
       clearPatternBlockNotes(scene, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi);
     } else if (b.scope == SelectionScope::COMMAND) {
-      auto track_id = track_ids[b.track_lo];
+      auto track_id = track_ids[static_cast<size_t>(b.track_lo)];
       clipboard_.commands = copyPatternBlockCommand(scene, b.row_lo, b.row_hi, track_id);
       clipboard_.cells.clear();
       clipboard_.annotations.clear();
@@ -125,7 +125,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
       // column, so a stale index can silently resolve to the effect
       // column instead of clamping) - check via note number instead, and
       // snap to the corresponding sub-column of the last remaining voice.
-      auto new_track_info = getTrackInfoFor(song, track_ids[b.track_lo]);
+      auto new_track_info = getTrackInfoFor(song, track_ids[static_cast<size_t>(b.track_lo)]);
       auto new_max_note = max(new_track_info.num_subtracks_ - 1, 0);
       if (new_track_info.getNoteNumber(new_cursor.col) > new_max_note) {
         auto n = (new_track_info.has_note_column_ ? 1 : 0) + new_track_info.num_velocity_columns_ +
@@ -156,11 +156,11 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
       clipboard_.commands.clear();
       clipboard_.annotations.clear();
     } else if (b.scope == SelectionScope::NOTE_COLUMN) {
-      clipboard_.cells = copyPatternBlockNotes(scene, b.row_lo, b.row_hi, track_ids[b.track_lo], b.note_lo, b.note_hi);
+      clipboard_.cells = copyPatternBlockNotes(scene, b.row_lo, b.row_hi, track_ids[static_cast<size_t>(b.track_lo)], b.note_lo, b.note_hi);
       clipboard_.commands.clear();
       clipboard_.annotations.clear();
     } else if (b.scope == SelectionScope::COMMAND) {
-      clipboard_.commands = copyPatternBlockCommand(scene, b.row_lo, b.row_hi, track_ids[b.track_lo]);
+      clipboard_.commands = copyPatternBlockCommand(scene, b.row_lo, b.row_hi, track_ids[static_cast<size_t>(b.track_lo)]);
       clipboard_.cells.clear();
       clipboard_.annotations.clear();
     } else if (b.scope == SelectionScope::ANNOTATION) {
@@ -188,12 +188,12 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
       if (clipboard_.scope == SelectionScope::TRACK) {
         pastePatternBlock(scene, clipboard_.cells, song.getPatternLength(), info.getRowIndex(), track_ids, current_cursor.track);
       } else if (clipboard_.scope == SelectionScope::NOTE_COLUMN) {
-        auto track_id = track_ids[current_cursor.track];
+        auto track_id = track_ids[static_cast<size_t>(current_cursor.track)];
         auto track_info = getTrackInfoFor(song, track_id);
         auto target_note = clamp(track_info.getNoteNumber(current_cursor.col), 0, max(track_info.num_subtracks_ - 1, 0));
         pastePatternBlockNotes(scene, clipboard_.cells, song.getPatternLength(), info.getRowIndex(), track_id, target_note);
       } else if (clipboard_.scope == SelectionScope::COMMAND) {
-        auto track_id = track_ids[current_cursor.track];
+        auto track_id = track_ids[static_cast<size_t>(current_cursor.track)];
         pastePatternBlockCommand(scene, clipboard_.commands, song.getPatternLength(), info.getRowIndex(), track_id);
       } else if (clipboard_.scope == SelectionScope::ANNOTATION) {
         // Row-keyed only, no track involved at all.
@@ -245,7 +245,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     if (b.scope == SelectionScope::TRACK) {
       transposePatternBlock(scene, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, true, is_percussion);
     } else if (b.scope == SelectionScope::NOTE_COLUMN) {
-      auto track_id = track_ids[b.track_lo];
+      auto track_id = track_ids[static_cast<size_t>(b.track_lo)];
       transposePatternBlockNotes(scene, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, true, is_percussion(track_id));
     }
     // SelectionScope::COMMAND/ANNOTATION: nothing to transpose - Command.h
@@ -272,7 +272,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     if (b.scope == SelectionScope::TRACK) {
       transposePatternBlock(scene, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, false, is_percussion);
     } else if (b.scope == SelectionScope::NOTE_COLUMN) {
-      auto track_id = track_ids[b.track_lo];
+      auto track_id = track_ids[static_cast<size_t>(b.track_lo)];
       transposePatternBlockNotes(scene, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, false, is_percussion(track_id));
     }
     // SelectionScope::COMMAND: nothing to transpose - Command.h has no
@@ -316,7 +316,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     auto & song = getController().getSong();
     auto track_ids = song.getRootTrackIds();
     if (track_ids.empty()) return;
-    auto track_id = getController().consumePendingCommandTrack(track_ids[current_cursor.track]);
+    auto track_id = getController().consumePendingCommandTrack(track_ids[static_cast<size_t>(current_cursor.track)]);
     getController().toggleTrackMuted(track_id);
   });
 
@@ -324,7 +324,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     auto & song = getController().getSong();
     auto track_ids = song.getRootTrackIds();
     if (track_ids.empty()) return;
-    auto track_id = getController().consumePendingCommandTrack(track_ids[current_cursor.track]);
+    auto track_id = getController().consumePendingCommandTrack(track_ids[static_cast<size_t>(current_cursor.track)]);
     getController().toggleTrackSolo(track_id);
   });
 
@@ -335,7 +335,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     auto & song = getController().getSong();
     auto track_ids = song.getRootTrackIds();
     if (track_ids.empty()) return;
-    auto track_id = getController().consumePendingCommandTrack(track_ids[current_cursor.track]);
+    auto track_id = getController().consumePendingCommandTrack(track_ids[static_cast<size_t>(current_cursor.track)]);
     getController().addNoteColumn(track_id);
   });
 
@@ -343,7 +343,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     auto & song = getController().getSong();
     auto track_ids = song.getRootTrackIds();
     if (track_ids.empty()) return;
-    auto track_id = getController().consumePendingCommandTrack(track_ids[current_cursor.track]);
+    auto track_id = getController().consumePendingCommandTrack(track_ids[static_cast<size_t>(current_cursor.track)]);
     getController().removeNoteColumn(track_id);
   });
 
@@ -550,7 +550,7 @@ PatternEditor::getEffectiveSelectionBounds(const Song & song, const vector<int> 
     return b;
   }
 
-  auto track_info = getTrackInfoFor(song, track_ids[b.track_lo]);
+  auto track_info = getTrackInfoFor(song, track_ids[static_cast<size_t>(b.track_lo)]);
   auto column_count = track_info.getColumnCount();
   // selection_start_col_ is the raw column the mark was set on - clamped
   // here the same way note_lo/note_hi used to be, since the track's own
@@ -726,7 +726,7 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
   auto track_ids = song.getRootTrackIds();
 
   auto & scene = song.getScene(info.getPatternIndex());
-  int track_id = track_ids[new_cursor.track];
+  int track_id = track_ids[static_cast<size_t>(new_cursor.track)];
 
   // Channel-wide, not tied to any specific note - unlike every other case
   // below, ev.getNote() is unused (always 0, see AlsaAudio.cpp), so this
@@ -902,7 +902,7 @@ PatternEditor::offerInput(const InputEvent & input) {
   auto track_ids = song.getRootTrackIds();
   auto num_tracks = static_cast<int>(track_ids.size());
 
-  auto current_track = song.getTrackByInternalId(track_ids[current_cursor.track]);
+  auto current_track = song.getTrackByInternalId(track_ids[static_cast<size_t>(current_cursor.track)]);
 
   auto input_hex_value = digit(input.getId(), 16);
 
@@ -942,7 +942,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       new_cursor.track = num_tracks > 1 ? num_tracks - 1 : 0;
       new_cursor.subcol = 0;
 
-      auto it = all_track_info.find(track_ids[new_cursor.track]);
+      auto it = all_track_info.find(track_ids[static_cast<size_t>(new_cursor.track)]);
       new_cursor.col = it != all_track_info.end() ? it->second.getColumnCount() - 1: 0;
       return true;
     } else if (input.getId() == 't') {
@@ -966,7 +966,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       // risked terminal/WM interception - see TerminalUI::readInput()'s
       // own comment for why these two specifically need their own
       // escape-sequence recognizer to even arrive as a single key event.
-      auto track = song.getTrackByInternalId(track_ids[current_cursor.track]);
+      auto track = song.getTrackByInternalId(track_ids[static_cast<size_t>(current_cursor.track)]);
       if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL || track->getType() == TrackType::DRUM_MACHINE)) {
 	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
 	bool changed = false;
@@ -1047,7 +1047,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	new_cursor.track--;
 	new_cursor.subcol = 0;
 
-	auto it = all_track_info.find(track_ids[new_cursor.track]);
+	auto it = all_track_info.find(track_ids[static_cast<size_t>(new_cursor.track)]);
 	new_cursor.col = it != all_track_info.end() ? it->second.getColumnCount() - 1 : 0;
       }
       return true;
@@ -1103,13 +1103,13 @@ PatternEditor::offerInput(const InputEvent & input) {
       return true;
     } else if (input.getId() == NCKEY_INS) {
       auto & scene = song.getScene(info.getPatternIndex());
-      int track_id = track_ids[new_cursor.track];
+      int track_id = track_ids[static_cast<size_t>(new_cursor.track)];
       scene.insertRow(info.getRowIndex(), track_id, song.getPatternLength());
       song.incVersion();
       return true;
     } else {
       auto & scene = song.getScene(info.getPatternIndex());
-      int track_id = track_ids[new_cursor.track];
+      int track_id = track_ids[static_cast<size_t>(new_cursor.track)];
       auto column_type = track_info.getColumnType(new_cursor.col);
     
       if (column_type == ColumnType::EFFECT) {
@@ -1136,18 +1136,19 @@ PatternEditor::offerInput(const InputEvent & input) {
 	  return true;
 	}
 
-	// In effect command, the first two characters can be any letter,
-	// digit, or '/' (Command::isMnemonicChar() - see its own comment);
-	// the rest is a dash or hex value. Without the isMnemonicChar()
-	// guard (a plain `true` here, as it effectively was before), every
-	// unbound non-printable key (arrows/F-keys/Insert/PageUp/... not
-	// already intercepted by an earlier else-if branch above, or
-	// Ctrl/Alt chords with no keymap entry) is a notcurses key code far
-	// outside any printable range, and would otherwise get silently
-	// written into the command as if it were a typed character.
-	if (input_hex_value != -1 || input.getId() == '-' || (new_cursor.subcol < 2 && Command::isMnemonicChar(input.getId()))) {
-	  auto command = scene.getCommand(info.getRowIndex(), track_id);
-	  command.updateData(new_cursor.subcol, toupper(input.getId()));
+	// In effect command, column 0/1 (mnemonic) accepts [A-Za-z0-9-] and
+	// column 2/3 (hex argument) accepts [A-Fa-f0-9-] - Command::
+	// updateData() (see its own comment) validates and reports
+	// success/failure itself, so this call site doesn't need to
+	// pre-classify input.getId() at all before attempting it - without
+	// updateData()'s own validation, every unbound non-printable key
+	// (arrows/F-keys/Insert/PageUp/... not already intercepted by an
+	// earlier else-if branch above, or Ctrl/Alt chords with no keymap
+	// entry) is a notcurses key code far outside any printable range,
+	// and would otherwise get silently written into the command as if
+	// it were a typed character.
+	auto command = scene.getCommand(info.getRowIndex(), track_id);
+	if (command.updateData(new_cursor.subcol, input.getId())) {
 	  scene.setCommand(info.getRowIndex(), track_id, command);
 	  row_edited = true;
 

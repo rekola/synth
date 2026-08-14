@@ -29,6 +29,8 @@
 
 #include "constants.h"
 
+#include <fmt/core.h>
+
 using namespace std;
 using namespace tinyxml2;
 
@@ -331,6 +333,11 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
   
   XMLDocument doc;
   if (doc.LoadFile(filename.c_str()) != 0) {
+    // Covers both "file doesn't exist" and "file exists but isn't valid
+    // XML" - tinyxml2's own ErrorStr() distinguishes them (and gives a
+    // line number for the latter), which a caller-side blanket "file not
+    // found" message can't - see main.cpp's own callers of openSong().
+    fmt::print(stderr, "Could not load {}: {}\n", filename, doc.ErrorStr());
     return false;
   }
 
@@ -430,7 +437,21 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 
 	    if (data_text) {
 	      int row = row_text ? atoi(row_text) : 0;
-	      Command command(data_text);
+	      // setData(), not the Command(string_view) constructor: this is
+	      // untrusted data straight from a (possibly hand-edited/corrupted)
+	      // file, so malformed data must be actually detected here, not
+	      // just fall back to a defined-but-wrong "----" with no caller
+	      // ever finding out. A malformed <command> means the file itself
+	      // is malformed - bail the whole load out rather than silently
+	      // dropping just that one row into an otherwise-successfully-
+	      // loaded song (Controller::openSong() discards this Song
+	      // entirely on a false return, never making a partial load
+	      // visible as current_song, so returning mid-parse here is safe).
+	      Command command;
+	      if (!command.setData(data_text)) {
+		fmt::print(stderr, "Malformed command \"{}\" at row {} in {}\n", data_text, row, filename);
+		return false;
+	      }
 	      scene.setCommand(row, track_id, command);
 	    }
 	  }
