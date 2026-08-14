@@ -33,14 +33,14 @@ renderSongOffline(const Song & song, const ChannelConfiguration & channel_config
     auto master = mixer->encode();
 
     auto base = result.interleaved.size();
-    result.interleaved.resize(base + static_cast<size_t>(block_frames) * result.channels);
+    result.interleaved.resize(base + static_cast<size_t>(block_frames) * static_cast<size_t>(result.channels));
 
     float peak = 0.0f;
     for (int c = 0; c < result.channels; c++) {
       auto channel_data = master.getChannelData(c);
       for (int i = 0; i < block_frames; i++) {
 	auto v = channel_data[i];
-	result.interleaved[base + static_cast<size_t>(i) * result.channels + c] = v;
+	result.interleaved[base + static_cast<size_t>(i) * static_cast<size_t>(result.channels) + static_cast<size_t>(c)] = v;
 	auto a = fabsf(v);
 	if (a > peak) peak = a;
       }

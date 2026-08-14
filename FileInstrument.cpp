@@ -48,7 +48,7 @@ FileInstrument::openFile() {
   for (int c = 0; c < channels; c++) {
     auto out_buffer = samples_->getChannelData(c);
     for (int i = 0; i < total_frames; i++) {
-      out_buffer[i] = buffer[i * channels + c];
+      out_buffer[i] = buffer[static_cast<size_t>(i * channels + c)];
     }
   }
   return true;

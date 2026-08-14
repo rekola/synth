@@ -80,7 +80,7 @@ public:
 	}
       }
 
-      offset += blockSamples;
+      offset += static_cast<size_t>(blockSamples);
       numSamples -= blockSamples;
     }
   }

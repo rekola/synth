@@ -397,7 +397,7 @@ LaunchpadManager::resolveTrackId(int device_id, const vector<int> & track_ids, i
   auto track_index = assignedTrackIndex(device_id, fallback_track_index);
   if (track_index < 0 || track_index >= static_cast<int>(track_ids.size())) track_index = fallback_track_index;
   if (track_index < 0 || track_index >= static_cast<int>(track_ids.size())) return -1;
-  return track_ids[track_index];
+  return track_ids[static_cast<size_t>(track_index)];
 }
 
 LaunchpadManager::GridMode
@@ -805,7 +805,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // stopVoices(column)) and killing polyphony entirely.
     auto & notes = scene.getNotes(row, track_id);
     int note_column = 0;
-    while ((note_column < static_cast<int>(notes.size()) && notes[note_column].isDefined()) ||
+    while ((note_column < static_cast<int>(notes.size()) && notes[static_cast<size_t>(note_column)].isDefined()) ||
 	   isColumnLiveHeld(track_id, note_column)) {
       note_column++;
     }
@@ -1418,7 +1418,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     int drum_loop_length = 8;
     int drum_playhead_step = -1;
     if (track_index >= 0 && track_index < num_tracks) {
-      auto track_id = track_ids[track_index];
+      auto track_id = track_ids[static_cast<size_t>(track_index)];
       auto track = song.getTrackByInternalId(track_id);
       tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
       key_val = song.getKey();

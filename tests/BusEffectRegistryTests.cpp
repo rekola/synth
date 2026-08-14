@@ -39,7 +39,7 @@ float windowedRms(const OfflineRenderResult & result, int channel, float start_s
   size_t end = std::min<size_t>(static_cast<size_t>(end_s * result.sampleRate), frames);
   if (end <= start) return 0.0f;
   double sum = 0.0;
-  for (size_t i = start; i < end; i++) sum += std::pow(result.interleaved[i * result.channels + channel], 2);
+  for (size_t i = start; i < end; i++) sum += std::pow(result.interleaved[i * static_cast<size_t>(result.channels) + static_cast<size_t>(channel)], 2);
   return static_cast<float>(std::sqrt(sum / (end - start)));
 }
 

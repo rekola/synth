@@ -426,7 +426,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 
 	      auto notes = Note::createFromString(value_text, velocity, delay, tuning);
 	      for (int i = 0; i < static_cast<int>(notes.size()); i++) {
-		scene.setNote(row, track_id, start_column + i, notes[i]);
+		scene.setNote(row, track_id, start_column + i, notes[static_cast<size_t>(i)]);
 	      }
 	    }
 	  }

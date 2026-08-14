@@ -49,7 +49,7 @@ InstrumentList::renderRow(const StyleProvider & styles, int row, bool highlight)
 
   if (row >= current_scroll_pos && row < current_scroll_pos + rows - 2) {
     auto & song = getController().getSong();
-    auto & instrument = *(song.getInstruments()[row]);
+    auto & instrument = *(song.getInstruments()[static_cast<size_t>(row)]);
         
     if (highlight) {
       setFgColor(styles.highlight_fg_color);

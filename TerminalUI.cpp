@@ -445,8 +445,8 @@ public:
   TerminalPixelChart(UIPlane & parent, ChartType type, double min_y = 0.0, double max_y = 0.0) : Chart(parent, type, min_y, max_y) { }
 
   void setSample(int i, double v) override {
-    if (i >= static_cast<int>(samples_.size())) samples_.resize(i + 1);
-    samples_[i] = v;
+    if (i >= static_cast<int>(samples_.size())) samples_.resize(static_cast<size_t>(i + 1));
+    samples_[static_cast<size_t>(i)] = v;
   }
 
   void commit() override {
@@ -1279,7 +1279,7 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
 		written += static_cast<int>(n);
 	      }
 	    }
-	    waiting_stderr += string(buffer, r);
+	    waiting_stderr += string(buffer, static_cast<size_t>(r));
 	    while ( 1 ) {
 	      auto pos = waiting_stderr.find('\n');
 	      if (pos != string::npos) {

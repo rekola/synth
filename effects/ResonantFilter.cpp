@@ -53,7 +53,7 @@ public:
 
     size_t offset = 0;
     while (numSamples) {
-      size_t blockSamples = numSamples > constants::RENDER_EFFECTSAMPLEBLOCK ? constants::RENDER_EFFECTSAMPLEBLOCK : numSamples;
+      auto blockSamples = static_cast<size_t>(numSamples > constants::RENDER_EFFECTSAMPLEBLOCK ? constants::RENDER_EFFECTSAMPLEBLOCK : numSamples);
       float current_cut = (cut_min_ + envelope_state_.getLevel() * aftertouch_value * (cut_max_ - cut_min_)) / (sample_rate_ * 0.5f);
 
       if (has_content) {

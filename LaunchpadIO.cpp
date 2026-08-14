@@ -186,7 +186,16 @@ LaunchpadIO::sendSysEx(const vector<uint8_t> & bytes, int dest_client, int dest_
   snd_seq_ev_set_source(&ev, our_port);
   snd_seq_ev_set_dest(&ev, dest_client, dest_port);
   snd_seq_ev_set_direct(&ev);
+  // snd_seq_ev_set_sysex() is a macro (<alsa/seqmid.h>) that expands to a
+  // plain ~mask-style bit-clear on ev.flags (an unsigned char field) -
+  // GCC attributes -Wsign-conversion diagnostics for macro-expanded code
+  // to the expansion site (here), not the system header where the macro
+  // is actually defined, so the usual system-header suppression doesn't
+  // apply (same issue as RealFFT.h's PocketFFT wrapper - see its comment).
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsign-conversion"
   snd_seq_ev_set_sysex(&ev, static_cast<int>(bytes.size()), const_cast<uint8_t *>(bytes.data()));
+#pragma GCC diagnostic pop
 
   // Non-blocking output can transiently fail (e.g. EAGAIN) for a small
   // SysEx message; dropping it here is preferable to retrying inline and
