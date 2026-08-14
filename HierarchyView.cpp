@@ -5,6 +5,7 @@
 #include "InputEvent.h"
 #include "StyleProvider.h"
 
+#include <algorithm>
 #include <fmt/core.h>
 
 using namespace std;
@@ -77,7 +78,9 @@ HierarchyView::renderRow(const StyleProvider & styles, int display_row, bool hig
       setBgColor(styles.window_bg_color);
     }
   
-    string padding(cols - 2, ' ');
+    // std::max(0, ...) first: cols < 2 would otherwise make cols - 2
+    // negative, wrapping to a huge size_t and crashing on allocation.
+    string padding(static_cast<size_t>(std::max(0, cols - 2)), ' ');
     putstr(1 + display_row, 1, padding);   
 
     auto data_row = static_cast<size_t>(display_row + current_scroll_pos_);

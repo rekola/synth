@@ -135,3 +135,17 @@ Found 2026-07-11, not yet fixed.
   two directions considered (freeze rendering entirely while stopped, vs.
   extending the arpeggiator's own resync approach to envelopes generally)
   and why neither was attempted as part of that work.
+
+- **`PatternEditor::renderHeading()` truncates track/instrument names by
+  raw byte offset** (`std::string::erase(byte_pos)`), not by character -
+  track names, instrument names, and SF2 preset names can all contain
+  multi-byte UTF-8 (this codebase's own note names already use non-ASCII
+  glyphs like 𝄪/𝄫/♮ elsewhere - see `Note.h`), and a byte-offset cut can
+  land mid-sequence, corrupting the trailing character (and potentially
+  the rest of the string, depending on the terminal's own recovery from
+  an invalid UTF-8 byte). Not yet fixed. Cutting by codepoint alone isn't
+  actually correct either - a grapheme cluster (an accent/combining mark,
+  a ZWJ emoji sequence, ...) can span several codepoints that must stay
+  together - so the real fix needs grapheme-cluster-aware truncation,
+  planned via `utf8proc` (not yet a dependency of this project), not a
+  hand-rolled codepoint counter.
