@@ -15,9 +15,7 @@ ChorusEngine::initChannel(ChannelState & ch, int bufLen, int voices, float chann
 
 ChorusEngine::ChorusEngine(int channels, int sampleRate, int voices, float rateHz, float centerDelayMs, float depthMs, bool decorrelate)
   : sampleRate_(sampleRate), voices_(voices), rateHz_(rateHz), centerDelayMs_(centerDelayMs), depthMs_(depthMs) {
-  int delaySamples = static_cast<int>(centerDelayMs_ * 0.001f * static_cast<float>(sampleRate));
-  int depthSamples = static_cast<int>(depthMs_ * 0.001f * static_cast<float>(sampleRate)) + 1;
-  int bufLen = delaySamples + depthSamples + 8;
+  int bufLen = getMaxDelaySamples() + 8;
 
   channels_.resize(static_cast<size_t>(channels));
   for (int c = 0; c < channels; c++) {

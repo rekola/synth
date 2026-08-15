@@ -53,6 +53,47 @@ class FractionalDelayLine {
     return s0 + (s1 - s0) * frac;
   }
 
+  // 4-point, 3rd-order Lagrange interpolation - noticeably more accurate
+  // than read()'s linear interpolation for a *moving* delaySamples, which
+  // is exactly what a modulated (wow/flutter-style) read needs: linear
+  // interpolation's high-frequency aliasing becomes audible precisely
+  // because the read pointer never sits still. Needs two extra samples of
+  // history versus read()'s single interpolated pair (one sample before
+  // i0, one past i0+1) - resize() callers using this method should size
+  // their buffer for their max delay plus at least 2, not +1.
+  float readCubic(float delaySamples) const {
+    int bufLen = static_cast<int>(buffer_.size());
+    float read_pos = static_cast<float>(write_pos_ - 1) - delaySamples;
+    if (read_pos < 0.0f) read_pos += static_cast<float>(bufLen);
+
+    int i0 = static_cast<int>(read_pos);
+    float frac = read_pos - static_cast<float>(i0);
+    if (i0 >= bufLen) i0 -= bufLen;
+
+    int im1 = i0 - 1;
+    if (im1 < 0) im1 += bufLen;
+    int i1 = i0 + 1;
+    if (i1 >= bufLen) i1 -= bufLen;
+    int i2 = i0 + 2;
+    if (i2 >= bufLen) i2 -= bufLen;
+
+    float ym1 = buffer_[static_cast<size_t>(im1)];
+    float y0 = buffer_[static_cast<size_t>(i0)];
+    float y1 = buffer_[static_cast<size_t>(i1)];
+    float y2 = buffer_[static_cast<size_t>(i2)];
+
+    // Lagrange basis weights for nodes at x = -1, 0, 1, 2, evaluated at
+    // x = frac (0 <= frac < 1) - see e.g. the "4-point, 3rd-order
+    // Lagrange" entry on musicdsp.org's interpolation page for the same
+    // derivation.
+    float wm1 = -frac * (frac - 1.0f) * (frac - 2.0f) * (1.0f / 6.0f);
+    float w0 = (frac + 1.0f) * (frac - 1.0f) * (frac - 2.0f) * 0.5f;
+    float w1 = -(frac + 1.0f) * frac * (frac - 2.0f) * 0.5f;
+    float w2 = (frac + 1.0f) * frac * (frac - 1.0f) * (1.0f / 6.0f);
+
+    return wm1 * ym1 + w0 * y0 + w1 * y1 + w2 * y2;
+  }
+
  private:
   std::vector<float> buffer_;
   int write_pos_ = 0;

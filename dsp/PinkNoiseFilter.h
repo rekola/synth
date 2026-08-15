@@ -6,8 +6,10 @@
 // entry): a bank of 7 one-pole filters summed together, approximating a
 // -3dB/octave (1/f) spectrum from a white noise input. Stateful - each
 // instance must keep its own filter state across calls, which is why
-// NoiseVoice gives every independently-drawn noise stream (left/right/
-// sendA/sendB) its own instance rather than sharing one.
+// NoiseVoice's NoiseStream (Noise.cpp) owns its own instance rather than
+// sharing one across every simultaneously-active NoiseVoice - each note
+// gets its own independently-colored noise, not a shared filter state
+// that would smear multiple notes' noise together.
 class PinkNoiseFilter {
  public:
   float process(float white) {

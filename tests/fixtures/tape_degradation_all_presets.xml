@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="12edo" tempo="120" patternRows="8" volume="1.0">
+  <instruments>
+    <envelope attack="0.01" hold="0.3" decay="0.3" sustain="0.0" release="0.05">
+      <oscillator type="saw"/>
+    </envelope>
+  </instruments>
+  <tracks>
+    <tapeDegradation preset="tape" azimuth="0" distance="1"><track id="0" instrument="0"/></tapeDegradation>
+    <tapeDegradation preset="mellotron" azimuth="0" distance="1"><track id="1" instrument="0"/></tapeDegradation>
+    <tapeDegradation preset="studio" azimuth="0" distance="1"><track id="2" instrument="0"/></tapeDegradation>
+    <tapeDegradation preset="cassette" azimuth="0" distance="1"><track id="3" instrument="0"/></tapeDegradation>
+    <tapeDegradation preset="vinyl" azimuth="0" distance="1"><track id="4" instrument="0"/></tapeDegradation>
+    <tapeDegradation preset="disintegration" azimuth="0" distance="1"><track id="5" instrument="0"/></tapeDegradation>
+    <tapeDegradation preset="dictaphone" azimuth="0" distance="1"><track id="6" instrument="0"/></tapeDegradation>
+    <tapeDegradation preset="opticalFilm" azimuth="0" distance="1"><track id="7" instrument="0"/></tapeDegradation>
+  </tracks>
+  <scenes>
+    <scene>
+      <pattern track="0"><note row="0" velocity="80" value="C-4" /></pattern>
+      <pattern track="1"><note row="0" velocity="80" value="C-4" /></pattern>
+      <pattern track="2"><note row="0" velocity="80" value="C-4" /></pattern>
+      <pattern track="3"><note row="0" velocity="80" value="C-4" /></pattern>
+      <pattern track="4"><note row="0" velocity="80" value="C-4" /></pattern>
+      <pattern track="5"><note row="0" velocity="80" value="C-4" /></pattern>
+      <pattern track="6"><note row="0" velocity="80" value="C-4" /></pattern>
+      <pattern track="7"><note row="0" velocity="80" value="C-4" /></pattern>
+    </scene>
+  </scenes>
+</song>

@@ -76,6 +76,8 @@ add_library(synth_engine STATIC
 	effects/Amplifier.cpp
 	effects/EnvelopeFilter.cpp
 	effects/Compressor.cpp
+	effects/TapeDegradation.cpp
+	dsp/TapeTransport.cpp
 	Player.cpp
 	VisualizationThread.cpp
 	dsp/DiracAnalyzer.cpp

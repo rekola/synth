@@ -181,6 +181,125 @@ TEST(render_hard_pan_isolates_channels) {
   CHECK_NEAR(left, right, left * 0.05f);
 }
 
+TEST(render_tape_degradation_preserves_pan) {
+  // The inverse of render_chorus_centers_its_input below: TapeDegradation's
+  // own re-encode step uses a real, known position (its own authored
+  // azimuth, track-attached here) rather than encodeMonoAsPoint()'s
+  // omnidirectional fallback - a hard-right instance should isolate to the
+  // right channel exactly the way hard_pan.xml's plain (non-degraded)
+  // tracks do, not collapse to center the way chorus_pan.xml's does. At
+  // azimuth 90, decodeToStereo()'s cardioid matrix has an exact null on
+  // the opposite channel (see AmbisonicEncoding.h), so left should
+  // measure as genuine silence, not just "quieter."
+  auto loaded = loadFixture("tape_degradation_pan.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(44100, 1);
+  auto result = renderSongOffline(loaded.song, config);
+  CHECK(!hasNonFiniteSample(result));
+
+  auto left = rms(result, 0), right = rms(result, 1);
+  CHECK(right > 1e-4f);
+  CHECK(left < 1e-6f);
+}
+
+TEST(render_tape_degradation_no_nan_both_sides) {
+  // Smoke test: two independently-positioned instances (hard left, hard
+  // right) rendering simultaneously stay finite and both sides carry real
+  // energy - guards the wow/flutter delay-line integration and the
+  // Poisson dropout/click machinery against ever producing NaN/Inf or
+  // silently dropping a channel.
+  auto loaded = loadFixture("tape_degradation_hard_pan.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(44100, 1);
+  auto result = renderSongOffline(loaded.song, config);
+  CHECK(!hasNonFiniteSample(result));
+
+  auto left = rms(result, 0), right = rms(result, 1);
+  CHECK(left > 1e-4f);
+  CHECK(right > 1e-4f);
+}
+
+TEST(render_tape_degradation_track_attached_keeps_hissing_after_note_ends) {
+  // A track-attached instance is a persistent "machine in the room," not
+  // a per-note effect - its hiss/wow/dropout/rumble must keep sounding
+  // (and its transport state must keep advancing) straight through a
+  // stretch with no notes playing, never freezing/falling silent just
+  // because renderChildren() reports zero active children for a block
+  // (see effects/TapeDegradation.cpp's own ensureMainChannel() comment).
+  // This fixture's one note fully decays to silence by ~0.61s (same
+  // envelope shape as center_note.xml/render_envelope_decays_after_hold_and_decay_time
+  // above) and the pattern itself ends at 1s - checked well past both.
+  auto loaded = loadFixture("tape_degradation_persists_after_note.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(44100, 1);
+  auto result = renderSongOffline(loaded.song, config);
+  CHECK(!hasNonFiniteSample(result));
+
+  auto tail_rms = windowedRms(result, 0, 3.0f, 4.0f);
+  CHECK(tail_rms > 1e-4f);
+}
+
+TEST(render_tape_degradation_mellotron_voice_note_off_has_no_click) {
+  // The other half of the "voice cuts off abruptly" fix, at the sample
+  // level: note-off (row 4, t=0.5s at this fixture's 120bpm/8-row pattern)
+  // should never produce a single large sample-to-sample jump - spin-down
+  // fades hiss/pitch out over ~120ms (the Mellotron preset's own
+  // spinDownMs) and the wow/flutter delay line drains smoothly on top of
+  // that, not a hard cut. Checked as the largest per-sample delta in a
+  // window spanning well before through well after note-off, against the
+  // largest delta seen during the note's own steady sounding portion (a
+  // real oscillator waveform already has real, nonzero sample-to-sample
+  // deltas - the point isn't "zero delta", it's "nothing bigger at
+  // note-off than elsewhere").
+  auto loaded = loadFixture("tape_degradation_mellotron_voice.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(44100, 1);
+  auto result = renderSongOffline(loaded.song, config);
+  CHECK(!hasNonFiniteSample(result));
+
+  auto maxDelta = [&](float start_s, float end_s) {
+    auto frames = result.numberOfFrames();
+    size_t start = std::min<size_t>(static_cast<size_t>(start_s * result.sampleRate), frames);
+    size_t end = std::min<size_t>(static_cast<size_t>(end_s * result.sampleRate), frames);
+    float m = 0.0f;
+    for (size_t i = start + 1; i < end; i++) {
+      auto prev = result.interleaved[(i - 1) * static_cast<size_t>(result.channels)];
+      auto cur = result.interleaved[i * static_cast<size_t>(result.channels)];
+      m = std::max(m, std::fabs(cur - prev));
+    }
+    return m;
+  };
+
+  float steady_state_delta = maxDelta(0.1f, 0.4f);   // well before note-off, note fully sounding
+  float around_note_off_delta = maxDelta(0.45f, 0.7f); // spans note-off (0.5s) through the end of the tail
+
+  CHECK(steady_state_delta > 1e-5f); // sanity: the fixture actually produces real audio
+  CHECK(around_note_off_delta < steady_state_delta * 3.0f); // no outlier spike at/after note-off
+}
+
+TEST(render_tape_degradation_every_preset_stays_finite_and_audible) {
+  // All 8 presets (tape/mellotron/studio/cassette/vinyl/disintegration/
+  // dictaphone/opticalFilm) rendered simultaneously, each on its own
+  // track - guards every preset's own distinguishing machinery (locked
+  // wow, rumble, one-way health decay, the shared breathing/grain
+  // envelope follower, the attack swoop/amplitude flutter) against ever
+  // producing NaN/Inf or silently going quiet.
+  auto loaded = loadFixture("tape_degradation_all_presets.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(44100, 1);
+  auto result = renderSongOffline(loaded.song, config);
+  CHECK(!hasNonFiniteSample(result));
+
+  auto left = rms(result, 0), right = rms(result, 1);
+  CHECK(left > 1e-4f);
+  CHECK(right > 1e-4f);
+}
+
 TEST(render_chorus_centers_its_input) {
   // Per-track nonlinear effects (Chorus/Distortion) now reduce
   // their children to MONO (see AmbisonicEncoding.h's reduceForEffect) -

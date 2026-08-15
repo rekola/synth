@@ -12,8 +12,11 @@
 // spread) at a rate entirely unrelated to note events. Each instance is
 // seeded once per voice (from getRandF() - the same one-time-per-note cost
 // as the existing start-phase randomization in InstrumentTrackState.h), so
-// multiple simultaneous noise streams (e.g. NoiseVoice's independent left/
-// right/sendA/sendB draws) stay decorrelated from each other.
+// several simultaneously-active voices drawing from their own instance
+// (e.g. a chord of NoiseVoice notes, Noise.cpp - each owns exactly one
+// NoiseGenerator via its own NoiseStream, not one per channel) stay
+// decorrelated from each other rather than reading the same sequence in
+// lockstep.
 class NoiseGenerator {
  public:
   explicit NoiseGenerator(uint32_t seed) : state_(seed != 0 ? seed : 0x9e3779b9u) { }

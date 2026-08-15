@@ -1,6 +1,8 @@
 #include "Chorus.h"
 
 #include "../dsp/ChorusEngine.h"
+#include "../dsp/DelayLineTail.h"
+#include "../AudioBufferUtils.h"
 #include "EffectTrackState.h"
 #include "EffectVoiceState.h"
 
@@ -26,6 +28,10 @@ public:
   void applyEffect(AudioBuffer & input_data) {
     engine_.process(input_data);
   }
+
+  // See ChorusEngine::getMaxDelaySamples()'s own doc comment - used by
+  // ChorusVoiceState (below) to size its own DelayLineTail.
+  int getMaxDelaySamples() const { return engine_.getMaxDelaySamples(); }
 
   // Aux channels are carried straight through, not spatially re-encoded
   // (encodeMonoAsPoint() is a Main-only, directional concept - Aux is a
@@ -79,16 +85,44 @@ private:
   ChorusDsp dsp_;
 };
 
+// Voice-attached only (a track-attached ChorusTrackState is always
+// rendered regardless of activity - see TrackState::renderChildren(),
+// which never gates on isActive() the way VoiceState::renderChildren()
+// does - so it never hits the bug tail_ exists for): without this, the
+// instant the wrapped instrument's own children go inactive,
+// renderChildren() reports zero Main channels, applyEffect() has nothing
+// to write chorused output into even though ChorusEngine's own delay
+// line still has real (pre-silence) content queued up, and this voice's
+// isActive() (EffectVoiceState's default, children-only) already reads
+// false - so InstrumentTrackState::renderVoices() simply stops calling
+// render() on it at all, discarding that queued content outright. tail_
+// (DelayLineTail.h) tracks how many more samples of real chorused output
+// are still owed after the input goes silent; ensureMainChannel()
+// (AudioBufferUtils.h) gives ChorusEngine a real buffer to keep
+// writing/reading through for that long instead of skipping the block.
 class ChorusVoiceState : public EffectVoiceState {
 public:
   ChorusVoiceState(const ChannelConfiguration & channel_config, int voices, float rate, float delay, float depth, float mix)
-    : EffectVoiceState(channel_config), dsp_(channel_config, voices, rate, delay, depth, mix) { }
+    : EffectVoiceState(channel_config), dsp_(channel_config, voices, rate, delay, depth, mix), tail_(dsp_.getMaxDelaySamples()) { }
 
   AudioBuffer render(int frames) override {
     auto reduced_config = reduceForEffect(getChannelConfiguration());
-    auto data = renderChildren(frames, reduced_config);
+    auto raw = renderChildren(frames, reduced_config);
+    tail_.update(raw.hasChannel(Channel::Main), frames);
+    auto data = ensureMainChannel(std::move(raw), frames);
     applyEffect(data);
     return dsp_.reencodeIfNeeded(getChannelConfiguration(), std::move(data));
+  }
+
+  // The actual fix: stays active - and so keeps being rendered - for as
+  // long as the delay line might still have real pre-silence content
+  // queued up, not just while children are. Mirrors
+  // TapeDegradationVoiceState's identically-shaped override
+  // (effects/TapeDegradation.cpp) and EnvelopeFilterVoiceState's own
+  // "my own state, not just my children, decides isActive()" precedent
+  // (effects/EnvelopeFilter.cpp).
+  bool isActive() const override {
+    return VoiceState::isActive() || tail_.isDraining();
   }
 
 protected:
@@ -98,6 +132,7 @@ protected:
 
 private:
   ChorusDsp dsp_;
+  DelayLineTail tail_;
 };
 
 }

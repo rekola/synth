@@ -30,6 +30,20 @@ class ChorusEngine {
 
   void setMix(float mix) { mix_ = mix; }
 
+  // The furthest back (in samples) content already written into any
+  // channel's delay line could still be waiting to be read out - the LFO
+  // swings the actual read delay between centerDelayMs-depthMs and
+  // centerDelayMs+depthMs, so this is the upper end of that range. Used
+  // by a voice-attached caller (effects/Chorus.cpp's ChorusVoiceState) to
+  // know how many more (silent-input) samples it must keep calling
+  // process() for after its own input goes silent before it's safe to
+  // reclaim the voice - see dsp/DelayLineTail.h.
+  int getMaxDelaySamples() const {
+    int delaySamples = static_cast<int>(centerDelayMs_ * 0.001f * static_cast<float>(sampleRate_));
+    int depthSamples = static_cast<int>(depthMs_ * 0.001f * static_cast<float>(sampleRate_)) + 1;
+    return delaySamples + depthSamples;
+  }
+
   // In place. `channels_` (sized at construction) holds Main/regular
   // channel state, processed up to min(data.regularChannelCount(),
   // channels_.size()) - same reasoning as BiquadFilter/ResonantFilter.

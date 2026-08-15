@@ -39,6 +39,9 @@ add_executable(synth_tests
 	HazeTests.cpp
 	ArpeggiatorStateTests.cpp
 	ResyncPlayheadTests.cpp
+	FractionalDelayLineTests.cpp
+	TapeTransportTests.cpp
+	TapeVoiceLifecycleTests.cpp
 )
 
 target_link_libraries(synth_tests synth_engine)

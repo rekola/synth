@@ -21,6 +21,7 @@
 #include "effects/Amplifier.h"
 #include "effects/EnvelopeFilter.h"
 #include "effects/Compressor.h"
+#include "effects/TapeDegradation.h"
 
 #include "bus/BusEffectRegistry.h"
 #include "MemoryParameterSource.h"
@@ -112,6 +113,7 @@ static unique_ptr<Track> createTrack(string_view name) {
   else if (name == "envelope") return make_unique<EnvelopeFilter>();
   else if (name == "amplifier") return make_unique<Amplifier>();
   else if (name == "compressor") return make_unique<Compressor>();
+  else if (name == "tapeDegradation") return make_unique<TapeDegradation>();
   
   // instruments
   else if (name == "genericInstrument") return make_unique<GenericInstrument>();

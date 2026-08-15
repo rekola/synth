@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="12edo" tempo="120" patternRows="8" volume="1.0">
+  <instruments>
+    <chorus delay="15" depth="4">
+      <envelope attack="0.01" hold="0.1" decay="0.05" sustain="0.6" release="0.02">
+        <oscillator type="saw"/>
+      </envelope>
+    </chorus>
+  </instruments>
+  <tracks>
+    <track id="0" instrument="0" azimuth="0" distance="1"/>
+  </tracks>
+  <scenes>
+    <scene>
+      <pattern track="0">
+        <note row="0" velocity="80" value="C-4" />
+        <note row="2" velocity="0" value="C-4" />
+      </pattern>
+    </scene>
+  </scenes>
+</song>
