@@ -149,3 +149,13 @@ Found 2026-07-11, not yet fixed.
   together - so the real fix needs grapheme-cluster-aware truncation,
   planned via `utf8proc` (not yet a dependency of this project), not a
   hand-rolled codepoint counter.
+
+- **`<distortion type="bitcrush">` doesn't select bitcrush distortion** -
+  `Distortion::loadParameters()`'s string check has a typo,
+  `type_text == "bitchrush"`, so the intended spelling silently falls
+  through to whatever `type_` was already set to (`HARD_CLIP` by
+  default). Even authoring the exact typo'd string that *does* match
+  produces no distortion at all either: `DistortionType::BITCRUSH`'s own
+  case in `DistortionDsp::applyEffect()` is an empty `break` - a real
+  bitcrusher was never implemented, only stubbed in. Found while writing
+  `docs/effects.md`; not fixed.

@@ -78,7 +78,6 @@ public:
                       float spinUpMs, float spinUpDepthCents, float spinDownMs, float droopDepthCents)
     : sampleRate_(sampleRate), transport_(seed), params_(params),
       saturation_drive_(dbToLinear(saturationDriveDB)),
-      low_cut_(FilterType::highpass), hf_rolloff_(FilterType::lowpass), head_bump_(FilterType::peak),
       hf_rolloff_base_hz_(hfRolloffHz), mix_(mix),
       spin_up_seconds_(spinUpMs * 0.001f), spin_up_depth_cents_(spinUpDepthCents),
       spin_down_seconds_(spinDownMs * 0.001f), droop_depth_cents_(droopDepthCents),
@@ -91,19 +90,25 @@ public:
     // on/off flag is needed here, same "process unconditionally"
     // convention every other per-track effect already uses.
     float fc_low = std::min(std::max(lowCutHz, 1.0f) / static_cast<float>(sampleRate_), 0.499f);
-    low_cut_.set(fc_low, 0.707f);
-
-    float fc_hf = std::min(hfRolloffHz / static_cast<float>(sampleRate_), 0.499f);
-    hf_rolloff_.set(fc_hf, 0.707f); // Q ~ Butterworth-flat, matching InstrumentVoice.h's own floor-absorption filter convention
-
+    float fc_hf = std::min(hfRolloffHz / static_cast<float>(sampleRate_), 0.499f); // Q ~ Butterworth-flat, matching InstrumentVoice.h's own floor-absorption filter convention
     float fc_bump = std::min(headBumpHz / static_cast<float>(sampleRate_), 0.499f);
-    head_bump_.set(fc_bump, 0.9f, headBumpGainDB);
 
     center_delay_samples_ = static_cast<float>(sampleRate_) * kCenterDelaySeconds;
     int buffer_samples = wowDelayBufferSamples(sampleRate_);
-    wow_delay_line_.resize(buffer_samples);
     delay_samples_ = center_delay_samples_;
     max_delay_samples_ = static_cast<float>(buffer_samples) - 4.0f; // readCubic()'s +2 margin on each side
+
+    // Main and AuxA/AuxB all get identically-configured channel state
+    // (same delay-line buffer length, same filter coefficients) - see
+    // applyEffect()'s own comment on why this has to be one independent
+    // instance per channel sharing one modulation source, not one shared
+    // instance reused positionally.
+    for (auto * ch : { &main_, &auxA_, &auxB_ }) {
+      ch->delay_line.resize(buffer_samples);
+      ch->low_cut.set(fc_low, 0.707f);
+      ch->hf_rolloff.set(fc_hf, 0.707f);
+      ch->head_bump.set(fc_bump, 0.9f, headBumpGainDB);
+    }
 
     envelope_attack_coeff_ = envelopeCoeff(params.breathingAttackMs, static_cast<float>(sampleRate_));
     envelope_release_coeff_ = envelopeCoeff(params.breathingReleaseMs, static_cast<float>(sampleRate_));
@@ -213,9 +218,6 @@ public:
         delay_samples_ = std::max(2.0f, std::min(max_delay_samples_, delay_samples_));
       }
 
-      wow_delay_line_.write(dry);
-      float wobbled = wow_delay_line_.readCubic(delay_samples_);
-
       // Lifecycle fade: 1 during SpinUp/Running, ramping to 0 across
       // SpinDown, pinned at 0 during Stopped - scales every component the
       // tape *generates itself* (hiss/rumble/click/dropout/amplitude
@@ -231,10 +233,9 @@ public:
       // hissLevelDependent is set) + rumble (Vinyl) + click: additive, a
       // physical machine's own noise sits underneath (and, for a click,
       // briefly on top of) the program material, not multiplied into it.
-      float hiss = ts.hiss * (1.0f + params_.hissLevelDependent * envelope_norm) * lifecycle_fade;
-      float rumble = ts.rumble * lifecycle_fade;
-      float click = ts.clickImpulse * lifecycle_fade;
-      float with_noise = wobbled + hiss + rumble + click;
+      float additive = ts.hiss * (1.0f + params_.hissLevelDependent * envelope_norm) * lifecycle_fade
+                      + ts.rumble * lifecycle_fade
+                      + ts.clickImpulse * lifecycle_fade;
 
       // Dropout + pressure-pad amplitude flutter (Mellotron - inert,
       // ts.ampFlutter == 1, unless ampFlutterDepth is set): both are
@@ -243,28 +244,49 @@ public:
       // lifecycle_fade, same reasoning as the additive noise above.
       float dropout_gain = 1.0f - (1.0f - ts.dropoutGain) * lifecycle_fade;
       float amp_flutter = 1.0f - (1.0f - ts.ampFlutter) * lifecycle_fade;
-      float dipped = with_noise * dropout_gain * amp_flutter;
 
       // Dolby-style HF breathing (Cassette - inert unless breathingAmount
       // is set): the rolloff's own cutoff tracks the envelope follower
-      // above, recomputed every sample only when actually in use, so
-      // every other preset pays nothing for this.
+      // above (Main-only detection - see its own comment), recomputed on
+      // all three channels' own hf_rolloff instances every sample only
+      // when actually in use, so every other preset pays nothing for this.
       if (params_.breathingAmount != 0.0f) {
         float mod = 1.0f + params_.breathingAmount * (envelope_norm - 0.5f);
         float fc_hz = std::max(50.0f, hf_rolloff_base_hz_ * mod);
-        hf_rolloff_.setFc(std::min(fc_hz / static_cast<float>(sampleRate_), 0.499f));
+        float fc_norm = std::min(fc_hz / static_cast<float>(sampleRate_), 0.499f);
+        main_.hf_rolloff.setFc(fc_norm);
+        auxA_.hf_rolloff.setFc(fc_norm);
+        auxB_.hf_rolloff.setFc(fc_norm);
       }
 
-      // Tonal colour: low cut + HF rolloff + head bump (linear filters -
-      // no per-channel-mismatch concern to have, since this whole chain is
-      // single-channel by construction), then saturation. Health-scaled
-      // drive, same "trouble raises the saturation bite too" correlation
-      // as hiss/dropouts/wow depth already have.
-      float toned = head_bump_.process(hf_rolloff_.process(low_cut_.process(dipped)));
       float drive = saturation_drive_ * (1.0f + (1.0f - ts.health) * params_.healthSensitivity);
-      float saturated = tanhf(drive * toned);
 
-      buffer[i] = mix_ * saturated + (1.0f - mix_) * dry;
+      // Main and AuxA/AuxB (whichever are actually present this block) all
+      // go through the same wow/flutter -> noise -> dropout -> tone ->
+      // saturation chain, driven by the shared values just computed above
+      // (delay_samples_, additive, dropout_gain, amp_flutter, drive) - so
+      // a send hears the same tape machine the dry signal does, not a
+      // bypassed clean copy (the same reasoning Compressor/EnvelopeFilter/
+      // Tremolo/BiquadFilter already apply to Main and Aux alike). Each
+      // channel still gets its *own* delay-line/filter state (ChannelState)
+      // rather than one shared instance, since Main and Aux carry
+      // differently-scaled copies of the same dry signal (InstrumentVoice::
+      // encodePosition()'s own sends.a/sends.b) - only the modulation
+      // driving them is shared, not their content. Aux state is still
+      // advanced (write 0) even on a block where that channel is
+      // momentarily absent, the same "advance through silence rather than
+      // freeze" convention ChorusEngine's own aux handling already uses,
+      // so it resumes correctly rather than as if no time had passed;
+      // only Main is guaranteed present (ensureMainChannel()).
+      buffer[i] = processChannel(main_, dry, additive, dropout_gain, amp_flutter, drive);
+
+      auto * bufferA = data.getChannel(Channel::AuxA);
+      float outA = processChannel(auxA_, bufferA ? bufferA[i] : 0.0f, additive, dropout_gain, amp_flutter, drive);
+      if (bufferA) bufferA[i] = outA;
+
+      auto * bufferB = data.getChannel(Channel::AuxB);
+      float outB = processChannel(auxB_, bufferB ? bufferB[i] : 0.0f, additive, dropout_gain, amp_flutter, drive);
+      if (bufferB) bufferB[i] = outB;
     }
   }
 
@@ -273,7 +295,11 @@ public:
   // back what's already there. Same early-out Chorus/Distortion's own
   // reencodeIfNeeded() has; the substantive difference from theirs is the
   // has_main branch below, which uses a real position instead of
-  // encodeMonoAsPoint()'s omnidirectional fallback.
+  // encodeMonoAsPoint()'s omnidirectional fallback. AuxA/AuxB are carried
+  // straight through unencoded here (a shared-bus scalar has no direction
+  // to re-encode), same as Chorus/Distortion - but by this point they've
+  // already been through applyEffect()'s own degradation, same as Main,
+  // not a bypassed clean copy of what the child originally sent.
   AudioBuffer reencodeIfNeeded(const ChannelConfiguration & channel_config, const SphericalPosition & position, AudioBuffer data) {
     if (channel_config.isMono()) return data;
 
@@ -295,14 +321,42 @@ public:
   }
 
 private:
+  // One independent delay-line/filter instance per channel identity
+  // (Main, AuxA, AuxB) - see applyEffect()'s own comment on why these
+  // can't be shared even though the modulation driving them is. Default-
+  // constructed with the right FilterType per member (Biquad<float> has
+  // no default constructor) and reconfigured in the outer constructor's
+  // body once the real cutoffs/Q are known.
+  struct ChannelState {
+    FractionalDelayLine delay_line;
+    Biquad<float> low_cut { FilterType::highpass };
+    Biquad<float> hf_rolloff { FilterType::lowpass };
+    Biquad<float> head_bump { FilterType::peak };
+  };
+
+  // One sample's worth of the shared wow/flutter -> noise -> dropout ->
+  // tone -> saturation chain for a single channel's own delay line/filter
+  // state, given this sample's shared modulation values (delay_samples_,
+  // additive noise, dropout/amp-flutter gain, saturation drive - all
+  // computed once in applyEffect()'s own loop and passed in identically
+  // for Main/AuxA/AuxB). Always runs, even when the caller's own buffer
+  // for this channel is momentarily absent (dry = 0 passed in) - see
+  // applyEffect()'s own "advance through silence" comment.
+  float processChannel(ChannelState & ch, float dry, float additive, float dropout_gain, float amp_flutter, float drive) {
+    ch.delay_line.write(dry);
+    float wobbled = ch.delay_line.readCubic(delay_samples_);
+    float with_noise = wobbled + additive;
+    float dipped = with_noise * dropout_gain * amp_flutter;
+    float toned = ch.head_bump.process(ch.hf_rolloff.process(ch.low_cut.process(dipped)));
+    float saturated = tanhf(drive * toned);
+    return mix_ * saturated + (1.0f - mix_) * dry;
+  }
+
   int sampleRate_;
   TapeTransportDsp transport_;
   TapeTransportParams params_;
 
   float saturation_drive_;
-  Biquad<float> low_cut_;
-  Biquad<float> hf_rolloff_;
-  Biquad<float> head_bump_;
   float hf_rolloff_base_hz_;
   float mix_;
 
@@ -310,7 +364,7 @@ private:
   float envelope_attack_coeff_ = 1.0f;
   float envelope_release_coeff_ = 1.0f;
 
-  FractionalDelayLine wow_delay_line_;
+  ChannelState main_, auxA_, auxB_;
   float center_delay_samples_ = 0.0f;
   float delay_samples_ = 0.0f;
   float max_delay_samples_ = 0.0f;

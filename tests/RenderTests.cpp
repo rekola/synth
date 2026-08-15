@@ -281,6 +281,50 @@ TEST(render_tape_degradation_mellotron_voice_note_off_has_no_click) {
   CHECK(around_note_off_delta < steady_state_delta * 3.0f); // no outlier spike at/after note-off
 }
 
+TEST(render_tape_degradation_degrades_send_a_too_not_just_main) {
+  // TapeDegradationDsp::applyEffect() runs Main and AuxA/AuxB through the
+  // same wow/flutter/hiss/dropout/tone chain (each with its own delay-
+  // line/filter state, sharing the same modulation) - same reasoning as
+  // Compressor/EnvelopeFilter/Tremolo/BiquadFilter already applying their
+  // own shaping to Main and Aux alike, so a send hears the same tape
+  // machine the dry signal does. Checked the same way
+  // render_track_send_a_reaches_track_state_output does (a RecordingMixer,
+  // since the public renderSongOffline() path never exposes pre-bus
+  // AuxA/AuxB at all): this fixture's one note fully decays to silence by
+  // ~0.61s (same envelope as tape_degradation_persists_after_note.xml
+  // above) - AuxA should still carry real (hiss) energy well after that,
+  // proving the send isn't just a bypassed clean copy of a now-silent dry
+  // signal.
+  auto loaded = loadFixture("tape_degradation_send_a.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(44100);
+  SongState state(config);
+  state.initialize(loaded.song);
+  state.setIsPlaying(true);
+
+  RecordingMixer mixer(static_cast<short>(config.numberOfChannels()), config.getAudioOutSampleRate());
+
+  bool saw_send_a_after_decay = false;
+  int block_frames = 256;
+  float block_seconds = static_cast<float>(block_frames) / config.getAudioOutSampleRate();
+  float elapsed = 0.0f;
+  for (int block = 0; block < 200; block++) {
+    state.renderBlock(block_frames, loaded.song, mixer);
+    elapsed += block_seconds;
+    if (elapsed < 0.7f) continue; // skip the window where the note itself is still (or just barely) sounding
+    for (auto & data : mixer.accumulated) {
+      if (auto * send = data.getChannel(Channel::AuxA)) {
+        for (int i = 0; i < data.numberOfFrames(); i++) {
+          if (send[i] != 0.0f) { saw_send_a_after_decay = true; break; }
+        }
+      }
+    }
+  }
+
+  CHECK(saw_send_a_after_decay);
+}
+
 TEST(render_tape_degradation_every_preset_stays_finite_and_audible) {
   // All 8 presets (tape/mellotron/studio/cassette/vinyl/disintegration/
   // dictaphone/opticalFilm) rendered simultaneously, each on its own
