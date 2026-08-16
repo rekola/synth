@@ -42,6 +42,7 @@ add_executable(synth_tests
 	FractionalDelayLineTests.cpp
 	TapeTransportTests.cpp
 	TapeVoiceLifecycleTests.cpp
+	HashFieldTests.cpp
 )
 
 target_link_libraries(synth_tests synth_engine)
