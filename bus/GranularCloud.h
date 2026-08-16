@@ -139,13 +139,13 @@ class GranularCloud : public BusEffect {
   // bumps it to 1) is always detected as new.
   std::array<int, kMaxSimultaneousGrains> lastSeenGeneration_ {};
 
-  // Seeded once, with a fixed constant, not per-voice getRandF() (this is
-  // a shared bus effect, constructed once per song, not per note) -
-  // deterministic on purpose, so a rendered song (and this class's own
-  // tests) reproduce exactly across runs, matching dsp/NoiseGenerator.h's
-  // own "each instance seeded once" convention. Separate from the
-  // engine's own scatterRng_ (dsp/GranularEngine.h) - direction is this
-  // class's own concern, not the engine's.
+  // Seeded once, with a fixed constant, not from a per-note NoteCoordinate
+  // (this is a shared bus effect, constructed once per song, not per
+  // note) - deterministic on purpose, so a rendered song (and this
+  // class's own tests) reproduce exactly across runs, matching
+  // dsp/NoiseGenerator.h's own "each instance seeded once" convention.
+  // Separate from the engine's own scatterRng_ (dsp/GranularEngine.h) -
+  // direction is this class's own concern, not the engine's.
   NoiseGenerator directionRng_;
 
   GranularPreset preset_ { GranularPreset::DEFAULT };

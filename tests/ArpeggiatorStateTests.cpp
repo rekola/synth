@@ -100,9 +100,9 @@ TEST(arpeggiator_state_steps_ascending_through_held_chord_with_gaps) {
   // going from empty to non-empty does (see noteOn()'s own comment). All
   // three land before the first render() call, so the first step already
   // sees the full, pitch-sorted chord.
-  state.noteOn(0, instrument, 440.0f, 0.8f, 60, 0.0f, NoteOrigin::LIVE);
-  state.noteOn(1, instrument, 550.0f, 0.8f, 64, 0.0f, NoteOrigin::LIVE);
-  state.noteOn(2, instrument, 660.0f, 0.8f, 67, 0.0f, NoteOrigin::LIVE);
+  state.noteOn(0, instrument, 440.0f, 0.8f, 60, NoteOrigin::LIVE);
+  state.noteOn(1, instrument, 550.0f, 0.8f, 64, NoteOrigin::LIVE);
+  state.noteOn(2, instrument, 660.0f, 0.8f, 67, NoteOrigin::LIVE);
   CHECK(state.isActive());
 
   // A fresh LIVE chord onset defers its actual first trigger by the
@@ -149,9 +149,9 @@ TEST(arpeggiator_state_down_mode_starts_at_the_top_and_wraps_there) {
 
   int unit = config.getSampleInterval(120);
 
-  state.noteOn(0, instrument, 440.0f, 0.8f, 60, 0.0f, NoteOrigin::LIVE);
-  state.noteOn(1, instrument, 550.0f, 0.8f, 64, 0.0f, NoteOrigin::LIVE);
-  state.noteOn(2, instrument, 660.0f, 0.8f, 67, 0.0f, NoteOrigin::LIVE);
+  state.noteOn(0, instrument, 440.0f, 0.8f, 60, NoteOrigin::LIVE);
+  state.noteOn(1, instrument, 550.0f, 0.8f, 64, NoteOrigin::LIVE);
+  state.noteOn(2, instrument, 660.0f, 0.8f, 67, NoteOrigin::LIVE);
 
   // See arpeggiator_state_steps_ascending_through_held_chord_with_gaps's
   // own comment - waits out the LIVE chord-collect window first.
@@ -179,9 +179,9 @@ TEST(arpeggiator_state_up_down_mode_pingpongs_without_repeating_endpoints) {
 
   int unit = config.getSampleInterval(120);
 
-  state.noteOn(0, instrument, 440.0f, 0.8f, 60, 0.0f, NoteOrigin::LIVE);
-  state.noteOn(1, instrument, 550.0f, 0.8f, 64, 0.0f, NoteOrigin::LIVE);
-  state.noteOn(2, instrument, 660.0f, 0.8f, 67, 0.0f, NoteOrigin::LIVE);
+  state.noteOn(0, instrument, 440.0f, 0.8f, 60, NoteOrigin::LIVE);
+  state.noteOn(1, instrument, 550.0f, 0.8f, 64, NoteOrigin::LIVE);
+  state.noteOn(2, instrument, 660.0f, 0.8f, 67, NoteOrigin::LIVE);
 
   // See arpeggiator_state_steps_ascending_through_held_chord_with_gaps's
   // own comment - waits out the LIVE chord-collect window first.
@@ -212,8 +212,8 @@ TEST(arpeggiator_state_releasing_the_chord_lets_the_current_step_finish_then_goe
 
   int unit = config.getSampleInterval(120);
 
-  state.noteOn(0, instrument, 440.0f, 0.8f, 60, 0.0f, NoteOrigin::LIVE);
-  state.noteOn(1, instrument, 550.0f, 0.8f, 64, 0.0f, NoteOrigin::LIVE);
+  state.noteOn(0, instrument, 440.0f, 0.8f, 60, NoteOrigin::LIVE);
+  state.noteOn(1, instrument, 550.0f, 0.8f, 64, NoteOrigin::LIVE);
 
   // See arpeggiator_state_steps_ascending_through_held_chord_with_gaps's
   // own comment - waits out the LIVE chord-collect window first.
@@ -234,7 +234,7 @@ TEST(arpeggiator_state_releasing_the_chord_lets_the_current_step_finish_then_goe
   CHECK(!state.isActive());
 
   // Re-holding restarts from step 0, not wherever the old cycle left off.
-  state.noteOn(2, instrument, 660.0f, 0.8f, 67, 0.0f, NoteOrigin::LIVE);
+  state.noteOn(2, instrument, 660.0f, 0.8f, 67, NoteOrigin::LIVE);
   state.renderVoices(state.getChordCollectWindowSamples()); // wait out the collect window again
   state.renderVoices(unit / 2);
   CHECK(activeNoteValues(state, 0) == std::vector<int>{67});
@@ -256,7 +256,7 @@ TEST(arpeggiator_state_octaves_widen_the_pool_to_a_higher_pitch) {
   int unit = config.getSampleInterval(120);
   int step_samples = 4 * unit;
 
-  state.noteOn(0, instrument, 440.0f, 0.8f, 60, 0.0f, NoteOrigin::LIVE);
+  state.noteOn(0, instrument, 440.0f, 0.8f, 60, NoteOrigin::LIVE);
 
   // See arpeggiator_state_steps_ascending_through_held_chord_with_gaps's
   // own comment - waits out the LIVE chord-collect window first, so `low`
@@ -301,11 +301,11 @@ TEST(arpeggiator_state_live_chord_collect_window_starts_on_the_lowest_note_regar
   int window = state.getChordCollectWindowSamples();
   CHECK(window > 4);
 
-  state.noteOn(2, instrument, 660.0f, 0.8f, 67, 0.0f, NoteOrigin::LIVE); // top note first
+  state.noteOn(2, instrument, 660.0f, 0.8f, 67, NoteOrigin::LIVE); // top note first
   state.renderVoices(window / 4); // still well inside the collect window
 
-  state.noteOn(0, instrument, 440.0f, 0.8f, 60, 0.0f, NoteOrigin::LIVE); // the rest follow shortly after
-  state.noteOn(1, instrument, 550.0f, 0.8f, 64, 0.0f, NoteOrigin::LIVE);
+  state.noteOn(0, instrument, 440.0f, 0.8f, 60, NoteOrigin::LIVE); // the rest follow shortly after
+  state.noteOn(1, instrument, 550.0f, 0.8f, 64, NoteOrigin::LIVE);
   CHECK(activeNoteValues(state, 0).empty()); // still silent - the deadline hasn't moved
 
   state.renderVoices(window); // comfortably past the (unmoved) deadline
@@ -325,7 +325,7 @@ TEST(arpeggiator_state_live_note_arriving_after_the_collect_window_closes_does_n
 
   int window = state.getChordCollectWindowSamples();
 
-  state.noteOn(0, instrument, 440.0f, 0.8f, 60, 0.0f, NoteOrigin::LIVE);
+  state.noteOn(0, instrument, 440.0f, 0.8f, 60, NoteOrigin::LIVE);
   // +1: rendering exactly `window` samples only counts samples_until_next_step_
   // down to precisely 0 (the trigger check itself only runs at the *top*
   // of each internal chunk - see renderVoices()'s own comment on why it's
@@ -337,7 +337,7 @@ TEST(arpeggiator_state_live_note_arriving_after_the_collect_window_closes_does_n
 
   // A second, lower note lands well after the window has already closed
   // and step 0 has already been chosen and triggered.
-  state.noteOn(1, instrument, 220.0f, 0.8f, 48, 0.0f, NoteOrigin::LIVE);
+  state.noteOn(1, instrument, 220.0f, 0.8f, 48, NoteOrigin::LIVE);
   CHECK(activeNoteValues(state, 0) == std::vector<int>{60}); // unaffected
 }
 
@@ -357,8 +357,8 @@ TEST(arpeggiator_state_pattern_chord_replace_resyncs_the_step_clock_mid_cycle) {
 
   // Two-note chord, PATTERN-origin - triggers immediately, no
   // chord-collect delay (see noteOn()'s own comment).
-  state.noteOn(0, instrument, 440.0f, 0.8f, 60, 0.0f, NoteOrigin::PATTERN);
-  state.noteOn(1, instrument, 660.0f, 0.8f, 67, 0.0f, NoteOrigin::PATTERN);
+  state.noteOn(0, instrument, 440.0f, 0.8f, 60, NoteOrigin::PATTERN);
+  state.noteOn(1, instrument, 660.0f, 0.8f, 67, NoteOrigin::PATTERN);
   state.endPatternRow();
   state.renderVoices(1);
   CHECK(activeNoteValues(state, 0) == std::vector<int>{60}); // step 0 = the lower note
@@ -370,8 +370,8 @@ TEST(arpeggiator_state_pattern_chord_replace_resyncs_the_step_clock_mid_cycle) {
 
   // A new pattern row replaces *both* columns with a new chord - a full
   // restatement of the held chord.
-  state.noteOn(0, instrument, 880.0f, 0.8f, 79, 0.0f, NoteOrigin::PATTERN);
-  state.noteOn(1, instrument, 1320.0f, 0.8f, 86, 0.0f, NoteOrigin::PATTERN);
+  state.noteOn(0, instrument, 880.0f, 0.8f, 79, NoteOrigin::PATTERN);
+  state.noteOn(1, instrument, 1320.0f, 0.8f, 86, NoteOrigin::PATTERN);
   state.endPatternRow();
 
   // Resyncs immediately, at this exact frame, instead of waiting out
@@ -402,8 +402,8 @@ TEST(arpeggiator_state_pattern_chord_replace_does_not_double_a_note_shared_with_
   int unit = config.getSampleInterval(120);
 
   // Old chord - root (60) plus a fifth above it (67).
-  state.noteOn(0, instrument, 440.0f, 0.8f, 60, 0.0f, NoteOrigin::PATTERN);
-  state.noteOn(1, instrument, 660.0f, 0.8f, 67, 0.0f, NoteOrigin::PATTERN);
+  state.noteOn(0, instrument, 440.0f, 0.8f, 60, NoteOrigin::PATTERN);
+  state.noteOn(1, instrument, 660.0f, 0.8f, 67, NoteOrigin::PATTERN);
   state.endPatternRow();
   state.renderVoices(1);
   CHECK(activeNoteValues(state, 0) == std::vector<int>{60}); // step 0 = the root
@@ -412,8 +412,8 @@ TEST(arpeggiator_state_pattern_chord_replace_does_not_double_a_note_shared_with_
 
   // A new row restates the whole chord - same root (60), a different note
   // above it (64 instead of 67).
-  state.noteOn(0, instrument, 440.0f, 0.8f, 60, 0.0f, NoteOrigin::PATTERN);
-  state.noteOn(1, instrument, 550.0f, 0.8f, 64, 0.0f, NoteOrigin::PATTERN);
+  state.noteOn(0, instrument, 440.0f, 0.8f, 60, NoteOrigin::PATTERN);
+  state.noteOn(1, instrument, 550.0f, 0.8f, 64, NoteOrigin::PATTERN);
   state.endPatternRow();
 
   // Step 0's own voice is still ringing (its legato gate hasn't closed
@@ -453,9 +453,9 @@ TEST(arpeggiator_state_pattern_partial_chord_edit_does_not_resync_the_step_clock
   int unit = config.getSampleInterval(120);
 
   // Three-note chord, all three columns touched by the same row.
-  state.noteOn(0, instrument, 440.0f, 0.8f, 60, 0.0f, NoteOrigin::PATTERN);
-  state.noteOn(1, instrument, 550.0f, 0.8f, 64, 0.0f, NoteOrigin::PATTERN);
-  state.noteOn(2, instrument, 660.0f, 0.8f, 67, 0.0f, NoteOrigin::PATTERN);
+  state.noteOn(0, instrument, 440.0f, 0.8f, 60, NoteOrigin::PATTERN);
+  state.noteOn(1, instrument, 550.0f, 0.8f, 64, NoteOrigin::PATTERN);
+  state.noteOn(2, instrument, 660.0f, 0.8f, 67, NoteOrigin::PATTERN);
   state.endPatternRow();
 
   state.renderVoices(unit / 2);
@@ -472,7 +472,7 @@ TEST(arpeggiator_state_pattern_partial_chord_edit_does_not_resync_the_step_clock
   // is otherwise unchanged) while columns 0/1 keep sustaining untouched
   // from the very first row - a partial edit, not a full chord
   // restatement.
-  state.noteOn(2, instrument, 770.0f, 0.8f, 70, 0.0f, NoteOrigin::PATTERN);
+  state.noteOn(2, instrument, 770.0f, 0.8f, 70, NoteOrigin::PATTERN);
   state.endPatternRow();
 
   // The step clock is untouched - the rest of the cycle proceeds exactly
@@ -500,8 +500,8 @@ TEST(arpeggiator_state_resync_playhead_realigns_the_step_clock_without_dropping_
 
   int unit = config.getSampleInterval(120);
 
-  state.noteOn(0, instrument, 440.0f, 0.8f, 60, 0.0f, NoteOrigin::PATTERN);
-  state.noteOn(1, instrument, 550.0f, 0.8f, 64, 0.0f, NoteOrigin::PATTERN);
+  state.noteOn(0, instrument, 440.0f, 0.8f, 60, NoteOrigin::PATTERN);
+  state.noteOn(1, instrument, 550.0f, 0.8f, 64, NoteOrigin::PATTERN);
   state.endPatternRow();
 
   state.renderVoices(unit / 2);
@@ -538,9 +538,9 @@ TEST(arpeggiator_state_resync_playhead_while_ringing_does_not_disturb_the_runnin
   int unit = config.getSampleInterval(120);
 
   // Three-note chord: A (lowest), B, C (highest).
-  state.noteOn(0, instrument, 440.0f, 0.8f, 60, 0.0f, NoteOrigin::PATTERN);
-  state.noteOn(1, instrument, 550.0f, 0.8f, 64, 0.0f, NoteOrigin::PATTERN);
-  state.noteOn(2, instrument, 660.0f, 0.8f, 67, 0.0f, NoteOrigin::PATTERN);
+  state.noteOn(0, instrument, 440.0f, 0.8f, 60, NoteOrigin::PATTERN);
+  state.noteOn(1, instrument, 550.0f, 0.8f, 64, NoteOrigin::PATTERN);
+  state.noteOn(2, instrument, 660.0f, 0.8f, 67, NoteOrigin::PATTERN);
   state.endPatternRow();
   state.renderVoices(1);
   CHECK(activeNoteValues(state, 0) == std::vector<int>{60}); // step 0 = A

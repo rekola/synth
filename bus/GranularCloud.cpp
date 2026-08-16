@@ -45,7 +45,7 @@ constexpr float kDefaultChainSend = BusEffect::kDefaultChainSendLevel;
 
 // Fixed, not derived from song state - this is a shared bus effect,
 // constructed once per song, not per voice/note, so there is no
-// per-instance getRandF() seed to draw from the way per-voice noise
+// per-instance NoteCoordinate to seed from the way per-voice noise
 // (NoiseVoice, InstrumentVoice) uses. A deterministic seed makes a
 // rendered song (and this class's own tests) reproduce exactly.
 constexpr uint32_t kDirectionScatterSeed = 0x6d2b79f5u;

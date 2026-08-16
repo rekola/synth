@@ -6,10 +6,11 @@
 using namespace std;
 
 void
-ArpeggiatorState::noteOn(int column, const Track & instrument, float frequency, float velocity, int note_value, float /*start_phase*/, NoteOrigin origin) {
+ArpeggiatorState::noteOn(int column, const Track & instrument, float frequency, float velocity, int note_value, NoteOrigin origin, const NoteCoordinate & note_coord) {
   bool was_empty = held_notes_.empty();
 
   instrument_ = &instrument;
+  note_coord_ = note_coord;
 
   auto it = find_if(held_notes_.begin(), held_notes_.end(), [&](const HeldNote & n) { return n.id == column; });
   if (it != held_notes_.end()) {
@@ -244,8 +245,16 @@ ArpeggiatorState::triggerNextStep() {
   auto resolved_position = getPosition();
   if (resolved_position.extent < 0.0f) resolved_position.extent = instrument_->getDefaultExtent();
 
-  auto voice = instrument_->playNote(getChannelConfiguration(), resolved_position, step.frequency, 1.0f, step.velocity, -getRandF(), step.note_value, getSends());
+  // next_voice_id_ doubles as this step's own instance discriminator
+  // (note_coord_.withInstance()) - it's already exactly "a fresh id per
+  // triggered step," the same identity withInstance() wants, so no
+  // separate step counter is needed. Taken before the playNote() call
+  // (rather than incremented after, as addVoice()/pending_gates_ below
+  // only strictly need) so the coordinate this step's own voice - and
+  // hence its InstrumentVoice-derived start phase - is built from can
+  // actually use it.
   int voice_id = next_voice_id_++;
+  auto voice = instrument_->playNote(getChannelConfiguration(), resolved_position, step.frequency, 1.0f, step.velocity, step.note_value, getSends(), note_coord_.withInstance(voice_id));
   addVoice(voice_id, move(voice));
   pending_gates_.push_back({ voice_id, gateLengthSamples() });
 

@@ -14,6 +14,7 @@
 #include "MixerFactory.h"
 #include "InstrumentTrackState.h"
 #include "NoteOrigin.h"
+#include "NoteCoordinate.h"
 
 using namespace std;
 
@@ -74,12 +75,16 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	      Note note(midi_note, midi_velocity);
 	      auto frequency = Tuner::getFrequency(tuning, note);
 
-	      // Fixed 0.0f start_phase, unlike the pattern-driven caller's
-	      // randomized one (InstrumentTrackState's own pending-events
-	      // note-on) - a live take is one performer playing in real
-	      // time, not a repeated/stacked pattern note that needs
-	      // decorrelating against its own past triggers.
-	      track_state->noteOn(column, instrument, frequency, note.getVelocityAsFloat(), note.getValue(), 0.0f, NoteOrigin::LIVE);
+	      // A live note has no authored (scene, row) position to build a
+	      // real NoteCoordinate from - live_note_counter_ (this Player's
+	      // own, advanced once per live note-on) stands in for
+	      // absolute_row instead, so InstrumentVoice can still derive a
+	      // decorrelated start phase for it the same way a pattern note's
+	      // real coordinate does (see Player.h's own comment on why this
+	      // counter's monotonic growth is fine here, unlike everywhere
+	      // else this migration cares about reproducibility).
+	      track_state->noteOn(column, instrument, frequency, note.getVelocityAsFloat(), note.getValue(), NoteOrigin::LIVE,
+				   NoteCoordinate(instrument_track.getInternalId(), live_note_counter_++, column));
 	    } else {
 	      track_state->notePressure(column, midi_velocity / 127.0f);
 	    }

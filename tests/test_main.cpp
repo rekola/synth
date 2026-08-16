@@ -1,7 +1,5 @@
 #include "TestFramework.h"
 
-#include <cstdlib>
-
 int g_test_failures = 0;
 int g_test_checks = 0;
 
@@ -11,15 +9,6 @@ int main() {
   for (auto & tc : testRegistry()) {
     int before = g_test_failures;
     std::printf("--- %s ---\n", tc.name.c_str());
-    // Reseed before every test - rand() (e.g. NoteMultiplier's detune/
-    // phase spread, SongState's velocity/delay randomization) is otherwise
-    // one continuous, shared sequence across the whole binary in
-    // registration order, so a test's outcome would silently depend on
-    // how many rand() calls every earlier-run test happened to make -
-    // adding or reordering an unrelated test could then flip a later
-    // test's random outcome without changing anything the later test
-    // actually verifies.
-    srand(1);
     tc.fn();
     bool ok = g_test_failures == before;
     std::printf("[%s] %s\n", ok ? "PASS" : "FAIL", tc.name.c_str());

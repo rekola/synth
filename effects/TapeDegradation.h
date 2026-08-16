@@ -5,6 +5,7 @@
 #include "../AmbisonicEncoding.h"
 #include "../SphericalPosition.h"
 #include "../SendLevels.h"
+#include "../NoteCoordinate.h"
 #include "../dsp/TapeTransport.h"
 
 // Source-attached tape/media degradation - the degradation belongs to the
@@ -48,7 +49,7 @@ class TapeDegradation : public Effect {
   // silently falling through to Track::createVoiceState()'s inert plain
   // VoiceState.
   std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune,
-                                        float velocity, float start_phase, int note_value, const SendLevels & sends) const override;
+                                        float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}) const override;
 
  private:
   SphericalPosition getPosition() const { return { azimuth_, elevation_, distance_, extent_ }; }

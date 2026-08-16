@@ -5,6 +5,7 @@
 #include "TrackState.h"
 #include "Tuner.h"
 #include "RenderContext.h"
+#include "NoteCoordinate.h"
 #include "Mixer.h"
 #include "bus/SendBusProcessor.h"
 #include "bus/BusEffectRegistry.h"
@@ -93,8 +94,17 @@ class SongState : public TrackState {
 	// through - so recording mute is inaudible for anything the
 	// player is actually doing, only for the song's own old content.
 	if (getSamplePos() == 0 && !recording_muted_) {
-	  auto [ pattern_idx, row_idx ] = getRelativePosition(song);
-	  auto & scene = song.getScene(pattern_idx);
+	  auto [ scene_idx, row_idx ] = getRelativePosition(song);
+	  auto & scene = song.getScene(scene_idx);
+
+	  // scene_idx * pattern_length + row_idx - a lossless re-encoding of
+	  // the note's authored (scene, row) position into one plain row
+	  // count (NoteCoordinate.h's own doc comment on why), since
+	  // pattern_length (Song::getPatternLength()) is one constant for
+	  // the whole song, not per-scene. Computed once per row here, not
+	  // inside NoteCoordinate itself - it has no business knowing this
+	  // invariant.
+	  int absolute_row = scene_idx * song.getPatternLength() + row_idx;
 
 	  // Every track that has anything at all in this scene, each its own
 	  // Pattern now (see Scene.h's own comment) - was one shared
@@ -117,7 +127,7 @@ class SongState : public TrackState {
 		}
 		auto delay_samples = int(note.getDelayAsFloat() * getChannelConfiguration().getSampleInterval(tempo_));
 		int note_value = (note.isAftertouch() || note.isOff()) ? -1 : note.getValue();
-		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), frequency, velocity, note_value);
+		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), frequency, velocity, note_value, NoteCoordinate(track_id, absolute_row, int(j)));
 	      }
 	    }
 
@@ -154,7 +164,7 @@ class SongState : public TrackState {
 	    for (int note : drum_track.getHitNotesForRow(row_idx)) {
 	      float frequency = Tuner::getFrequency(Tuning::PERCUSSION, note);
 	      float velocity = constants::DEFAULT_VELOCITY / 127.0f;
-	      render_context_.addPendingEvent(track_id, i, note, frequency, velocity, note);
+	      render_context_.addPendingEvent(track_id, i, note, frequency, velocity, note, NoteCoordinate(track_id, absolute_row, note));
 	    }
 	  }
 	}

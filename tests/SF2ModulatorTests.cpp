@@ -10,6 +10,7 @@
 #include "../RenderContext.h"
 #include "../Track.h"
 #include "../AudioBuffer.h"
+#include "../NoteCoordinate.h"
 
 #include <cmath>
 #include <cstdint>
@@ -479,7 +480,7 @@ TEST(sf2_channel_pressure_heuristic_end_to_end) {
 
   auto renderAtPressure = [&](size_t preset_index, float pressure) {
     auto instrument = sf.createInstrument(preset_index);
-    auto voice = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{});
+    auto voice = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 60, SendLevels{});
     voice->applyChannelPressure(pressure);
     return voice->render(8192);
   };
@@ -541,11 +542,11 @@ TEST(sf2_channel_pressure_reaches_every_region_in_a_multi_region_group) {
 
   auto instrument = sf.createInstrument(0);
 
-  auto voice_low = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{});
+  auto voice_low = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 60, SendLevels{});
   voice_low->applyChannelPressure(0.0f);
   auto low = voice_low->render(8192);
 
-  auto voice_high = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{});
+  auto voice_high = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 60, SendLevels{});
   voice_high->applyChannelPressure(1.0f);
   auto high = voice_high->render(8192);
 
@@ -577,7 +578,7 @@ TEST(sf2_looping_voice_becomes_inactive_after_stop_note) {
   ChannelConfiguration config(44100);
 
   auto instrument = sf.createInstrument(0);
-  auto voice = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{});
+  auto voice = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 60, SendLevels{});
   CHECK(voice->isActive());
 
   // Render a bit while held, to confirm the loop is actually being
@@ -636,8 +637,8 @@ TEST(sf2_voice_with_modulator_child_fully_reclaims_on_stop) {
   auto lead_instrument = sf.createInstrument(0);
   auto modulator_instrument = sf.createInstrument(1);
 
-  auto voice = lead_instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{});
-  auto modulator = modulator_instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 1.0f, 0.0f, 60, SendLevels{});
+  auto voice = lead_instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 60, SendLevels{});
+  auto modulator = modulator_instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 1.0f, 60, SendLevels{});
   voice->addChild(12345, std::move(modulator));
 
   CHECK(voice->isActive());
@@ -748,7 +749,7 @@ TEST(sf2_second_stop_note_does_not_resurrect_an_already_done_sibling_region) {
   ChannelConfiguration config(44100);
 
   auto instrument = sf.createInstrument(0);
-  auto voice = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{});
+  auto voice = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 60, SendLevels{});
   CHECK(voice->isActive());
   CHECK(voice->getChildren().size() == 2);
 
@@ -806,7 +807,7 @@ TEST(sf2_looping_multi_region_group_becomes_inactive_after_stop_note) {
   ChannelConfiguration config(44100);
 
   auto instrument = sf.createInstrument(0);
-  auto voice = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{});
+  auto voice = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 60, SendLevels{});
   CHECK(voice->isActive());
 
   for (int i = 0; i < 4; i++) {
@@ -849,7 +850,7 @@ TEST(retrigger_voices_fast_releases_same_identity_voice) {
 
   InstrumentTrackState state(config, /*solo=*/false, /*muted=*/false, /*track_id=*/0, /*instrument_id=*/0, SphericalPosition{}, SendLevels{});
 
-  state.addVoice(0, instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{}));
+  state.addVoice(0, instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 60, SendLevels{}));
   CHECK(state.isActive());
 
   // Same identity (60) retriggered in the same column - the prior voice
@@ -879,7 +880,7 @@ TEST(retrigger_voices_does_not_fast_release_a_different_identity) {
 
   InstrumentTrackState state(config, /*solo=*/false, /*muted=*/false, /*track_id=*/0, /*instrument_id=*/0, SphericalPosition{}, SendLevels{});
 
-  state.addVoice(0, instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{}));
+  state.addVoice(0, instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 60, SendLevels{}));
 
   // Different identity (61) replacing the same column's note - normal
   // stopNote() (natural release/ring-out), never a fast release.
@@ -905,7 +906,7 @@ TEST(retrigger_voices_fast_releases_same_identity_in_a_different_column) {
 
   InstrumentTrackState state(config, /*solo=*/false, /*muted=*/false, /*track_id=*/0, /*instrument_id=*/0, SphericalPosition{}, SendLevels{});
 
-  state.addVoice(0, instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{}));
+  state.addVoice(0, instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 60, SendLevels{}));
 
   // Same identity (60), but a note-on for a *different* column (1) - the
   // track-wide scan must still catch and fast-release column 0's voice,
@@ -940,9 +941,9 @@ TEST(retrigger_voices_does_not_cut_a_31edo_cluster) {
   // neither note ever gets a release call at all (this is a cluster, not
   // a retrigger).
   state.retriggerVoices(0, 60);
-  state.addVoice(0, instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{}));
+  state.addVoice(0, instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 60, SendLevels{}));
   state.retriggerVoices(1, 61);
-  state.addVoice(1, instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 61, SendLevels{}));
+  state.addVoice(1, instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 61, SendLevels{}));
 
   for (int i = 0; i < 4; i++) state.renderVoices(4096);
 
@@ -980,14 +981,14 @@ TEST(choke_exclusive_classes_chokes_a_different_note_value_sharing_class) {
 
   InstrumentTrackState state(config, /*solo=*/false, /*muted=*/false, /*track_id=*/0, /*instrument_id=*/0, SphericalPosition{}, SendLevels{});
 
-  state.addVoice(0, instrument->playNote(config, SphericalPosition{}, frequencyForMidiKey(42), 1.0f, 0.8f, 0.0f, 42, SendLevels{}));
+  state.addVoice(0, instrument->playNote(config, SphericalPosition{}, frequencyForMidiKey(42), 1.0f, 0.8f, 42, SendLevels{}));
   CHECK(state.isActive());
 
   // Key 46 (a different note identity - retriggerVoices() alone would
   // never touch key 42's voice) shares exclusiveClass 5 with key 42, so
   // chokeExclusiveClasses() must fast-release it. Deliberately not adding
   // the new voice, so isActive() reflects only the old voice's fate.
-  auto voice46 = instrument->playNote(config, SphericalPosition{}, frequencyForMidiKey(46), 1.0f, 0.8f, 0.0f, 46, SendLevels{});
+  auto voice46 = instrument->playNote(config, SphericalPosition{}, frequencyForMidiKey(46), 1.0f, 0.8f, 46, SendLevels{});
   state.retriggerVoices(1, 46);
   state.chokeExclusiveClasses(*voice46);
 
@@ -1017,10 +1018,10 @@ TEST(choke_exclusive_classes_does_not_touch_voices_without_a_shared_class) {
 
   InstrumentTrackState state(config, /*solo=*/false, /*muted=*/false, /*track_id=*/0, /*instrument_id=*/0, SphericalPosition{}, SendLevels{});
 
-  state.addVoice(0, instrument->playNote(config, SphericalPosition{}, frequencyForMidiKey(42), 1.0f, 0.8f, 0.0f, 42, SendLevels{})); // class 5
-  state.addVoice(1, instrument->playNote(config, SphericalPosition{}, frequencyForMidiKey(36), 1.0f, 0.8f, 0.0f, 36, SendLevels{})); // no class
+  state.addVoice(0, instrument->playNote(config, SphericalPosition{}, frequencyForMidiKey(42), 1.0f, 0.8f, 42, SendLevels{})); // class 5
+  state.addVoice(1, instrument->playNote(config, SphericalPosition{}, frequencyForMidiKey(36), 1.0f, 0.8f, 36, SendLevels{})); // no class
 
-  auto voice46 = instrument->playNote(config, SphericalPosition{}, frequencyForMidiKey(46), 1.0f, 0.8f, 0.0f, 46, SendLevels{}); // class 5
+  auto voice46 = instrument->playNote(config, SphericalPosition{}, frequencyForMidiKey(46), 1.0f, 0.8f, 46, SendLevels{}); // class 5
   state.retriggerVoices(2, 46);
   state.chokeExclusiveClasses(*voice46);
   state.addVoice(2, move(voice46));
@@ -1066,12 +1067,12 @@ TEST(exclusive_class_choke_overrides_normal_release_when_composed_with_retrigger
 
   InstrumentTrackState state(config, /*solo=*/false, /*muted=*/false, /*track_id=*/0, /*instrument_id=*/0, SphericalPosition{}, SendLevels{});
 
-  state.addVoice(0, instrument->playNote(config, SphericalPosition{}, frequencyForMidiKey(42), 1.0f, 0.8f, 0.0f, 42, SendLevels{}));
+  state.addVoice(0, instrument->playNote(config, SphericalPosition{}, frequencyForMidiKey(42), 1.0f, 0.8f, 42, SendLevels{}));
 
   // Same column (0) as the key-42 voice, different identity (46 != 42) -
   // exercises retriggerVoices()'s normal-stopNote() branch - AND shares
   // exclusiveClass 5, so chokeExclusiveClasses() must override it.
-  auto voice46 = instrument->playNote(config, SphericalPosition{}, frequencyForMidiKey(46), 1.0f, 0.8f, 0.0f, 46, SendLevels{});
+  auto voice46 = instrument->playNote(config, SphericalPosition{}, frequencyForMidiKey(46), 1.0f, 0.8f, 46, SendLevels{});
   state.retriggerVoices(0, 46);
   state.chokeExclusiveClasses(*voice46);
 
@@ -1097,7 +1098,7 @@ TEST(fast_release_cascades_through_every_region_of_a_multi_region_group) {
   ChannelConfiguration config(44100);
   auto instrument = sf.createInstrument(0);
 
-  auto voice = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{});
+  auto voice = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 60, SendLevels{});
   CHECK(voice->isActive());
   CHECK(voice->getChildren().size() == 2);
 
@@ -1130,11 +1131,11 @@ TEST(get_exclusive_classes_reports_the_regions_own_class_or_none) {
   ChannelConfiguration config(44100);
 
   auto noClassInstrument = sf.createInstrument(0);
-  auto voice0 = noClassInstrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{});
+  auto voice0 = noClassInstrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 60, SendLevels{});
   CHECK(voice0->getExclusiveClasses().empty());
 
   auto withClassInstrument = sf.createInstrument(1);
-  auto voice1 = withClassInstrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{});
+  auto voice1 = withClassInstrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 60, SendLevels{});
   auto classes1 = voice1->getExclusiveClasses();
   CHECK(classes1.size() == 1);
   CHECK(classes1[0] == 7);
@@ -1164,7 +1165,7 @@ TEST(sf2_voice_stays_active_while_held_even_below_the_silence_floor) {
   ChannelConfiguration config(44100);
   auto instrument = sf.createInstrument(0);
 
-  auto voice = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{});
+  auto voice = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 60, SendLevels{});
   CHECK(voice->isActive());
 
   // Held (never stopNote()'d) - must never be killed regardless of how
@@ -1187,7 +1188,7 @@ TEST(sf2_voice_releasing_below_the_silence_floor_is_freed_early) {
   ChannelConfiguration config(44100);
   auto instrument = sf.createInstrument(0);
 
-  auto voice = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{});
+  auto voice = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 60, SendLevels{});
   voice->stopNote();
 
   // Already below the floor at the moment release starts - must be freed
@@ -1216,7 +1217,7 @@ TEST(sf2_voice_releasing_above_the_silence_floor_is_not_freed_early) {
   ChannelConfiguration config(44100);
   auto instrument = sf.createInstrument(0);
 
-  auto voice = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 0.0f, 60, SendLevels{});
+  auto voice = instrument->playNote(config, SphericalPosition{}, 440.0f, 1.0f, 0.8f, 60, SendLevels{});
   voice->stopNote();
 
   // Shortly after stopNote(), on a 1.0s release starting at full level,
@@ -1289,8 +1290,8 @@ TEST(sf2_percussion_offset_hihat_reads_positive_azimuth_at_player_distance) {
   SphericalPosition position_offset{ 0.0f, 0.0f, 0.5f, 1.2f };
   SphericalPosition position_base{ 0.0f, 0.0f, 0.5f, 0.0f }; // extent 0 - offset mechanism inert
 
-  auto voice_offset = instrument->playNote(config, position_offset, frequencyForMidiKey(42), 1.0f, 0.8f, 0.0f, 42, SendLevels{});
-  auto voice_base = instrument->playNote(config, position_base, frequencyForMidiKey(42), 1.0f, 0.8f, 0.0f, 42, SendLevels{});
+  auto voice_offset = instrument->playNote(config, position_offset, frequencyForMidiKey(42), 1.0f, 0.8f, 42, SendLevels{});
+  auto voice_base = instrument->playNote(config, position_base, frequencyForMidiKey(42), 1.0f, 0.8f, 42, SendLevels{});
   float delta = yChannelPeak(*voice_offset, 64) - yChannelPeak(*voice_base, 64);
   CHECK(delta > 0.01f);
 }
@@ -1311,8 +1312,8 @@ TEST(sf2_percussion_offset_mirrors_at_audience_distance) {
   SphericalPosition position_offset{ 0.0f, 0.0f, 1.5f, 1.2f };
   SphericalPosition position_base{ 0.0f, 0.0f, 1.5f, 0.0f };
 
-  auto voice_offset = instrument->playNote(config, position_offset, frequencyForMidiKey(42), 1.0f, 0.8f, 0.0f, 42, SendLevels{});
-  auto voice_base = instrument->playNote(config, position_base, frequencyForMidiKey(42), 1.0f, 0.8f, 0.0f, 42, SendLevels{});
+  auto voice_offset = instrument->playNote(config, position_offset, frequencyForMidiKey(42), 1.0f, 0.8f, 42, SendLevels{});
+  auto voice_base = instrument->playNote(config, position_base, frequencyForMidiKey(42), 1.0f, 0.8f, 42, SendLevels{});
   float delta = yChannelPeak(*voice_offset, 64) - yChannelPeak(*voice_base, 64);
   CHECK(delta < -0.01f);
 }
@@ -1334,8 +1335,8 @@ TEST(sf2_percussion_offset_zero_extent_collapses_to_point_source) {
   // despite extent being 0. Both keys match the same single region in
   // this fixture, so nothing else differs between them.
   SphericalPosition position{ 0.0f, 0.0f, 0.5f, 0.0f };
-  auto voice_42 = instrument->playNote(config, position, frequencyForMidiKey(42), 1.0f, 0.8f, 0.0f, 42, SendLevels{});
-  auto voice_49 = instrument->playNote(config, position, frequencyForMidiKey(49), 1.0f, 0.8f, 0.0f, 49, SendLevels{});
+  auto voice_42 = instrument->playNote(config, position, frequencyForMidiKey(42), 1.0f, 0.8f, 42, SendLevels{});
+  auto voice_49 = instrument->playNote(config, position, frequencyForMidiKey(49), 1.0f, 0.8f, 49, SendLevels{});
   CHECK_NEAR(yChannelPeak(*voice_42, 64), yChannelPeak(*voice_49, 64), 0.0001f);
 }
 
@@ -1365,12 +1366,12 @@ TEST(sf2_percussion_offset_never_applies_to_a_non_percussion_bank) {
   // raw peak comparison across two different pitches would otherwise be
   // confounded by their differing dry-signal phase within the window.
   SphericalPosition position{ 0.0f, 0.0f, 0.5f, 1.2f };
-  auto voice_42 = instrument->playNote(config, position, frequencyForMidiKey(42), 1.0f, 0.8f, 0.0f, 42, SendLevels{});
-  auto voice_49 = instrument->playNote(config, position, frequencyForMidiKey(49), 1.0f, 0.8f, 0.0f, 49, SendLevels{});
+  auto voice_42 = instrument->playNote(config, position, frequencyForMidiKey(42), 1.0f, 0.8f, 42, SendLevels{});
+  auto voice_49 = instrument->playNote(config, position, frequencyForMidiKey(49), 1.0f, 0.8f, 49, SendLevels{});
   CHECK_NEAR(yToWRatioAtWPeak(*voice_42, 64), yToWRatioAtWPeak(*voice_49, 64), 0.0001f);
 }
 
-TEST(sf2_percussion_offset_jitter_is_deterministic_and_varies_per_hit) {
+TEST(sf2_percussion_offset_jitter_is_deterministic_and_varies_per_coordinate) {
   std::vector<PresetSpec> presets = { { "Kit", 0, {}, {}, 1, {}, 128 } };
   auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "percussion_offset_jitter.sf2").string();
   writeMinimalSf2(path, presets);
@@ -1380,27 +1381,33 @@ TEST(sf2_percussion_offset_jitter_is_deterministic_and_varies_per_hit) {
   config.setFloorReflectionEnabled(false);
   SphericalPosition position{ 0.0f, 0.0f, 0.5f, 1.2f };
 
-  // Two freshly-constructed instruments (each with its own jitter
-  // counter starting at 0) hitting the same key once each must produce
-  // bit-identical jitter - a full re-render from scratch reproduces
-  // exactly, since nothing else seeds this counter. Compared via the Z
-  // (elevation) channel - see zChannelPeak()'s own comment above.
+  // Two freshly-constructed instruments hitting the same key, at the same
+  // NoteCoordinate, must produce bit-identical jitter - a full re-render
+  // from scratch reproduces exactly, and so does replaying the very same
+  // authored note a second time (e.g. a pattern loop) - unlike the old
+  // per-instance jitter counter this replaced, which instead advanced once
+  // per hit regardless of position, so a second call always drew a
+  // different value even for what should have been the identical note.
+  // Compared via the Z (elevation) channel - see zChannelPeak()'s own
+  // comment above.
+  NoteCoordinate coord_row0(0, 0, 0);
   auto instrument_a = sf.createInstrument(0);
-  auto voice_a = instrument_a->playNote(config, position, frequencyForMidiKey(49), 1.0f, 0.8f, 0.0f, 49, SendLevels{});
+  auto voice_a = instrument_a->playNote(config, position, frequencyForMidiKey(49), 1.0f, 0.8f, 49, SendLevels{}, coord_row0);
   float peak_a = zChannelPeak(*voice_a, 64);
 
   auto instrument_b = sf.createInstrument(0);
-  auto voice_b = instrument_b->playNote(config, position, frequencyForMidiKey(49), 1.0f, 0.8f, 0.0f, 49, SendLevels{});
+  auto voice_b = instrument_b->playNote(config, position, frequencyForMidiKey(49), 1.0f, 0.8f, 49, SendLevels{}, coord_row0);
   float peak_b = zChannelPeak(*voice_b, 64);
 
   CHECK_NEAR(peak_a, peak_b, 0.0001f);
 
-  // A second hit of the same key on instrument_a (jitter counter now
-  // advanced) must not land on the exact same offset as the first -
-  // repeated hits aren't pinned to an identical point.
-  auto voice_a2 = instrument_a->playNote(config, position, frequencyForMidiKey(49), 1.0f, 0.8f, 0.0f, 49, SendLevels{});
-  float peak_a2 = zChannelPeak(*voice_a2, 64);
-  CHECK(std::fabs(peak_a2 - peak_a) > 0.0001f);
+  // A different coordinate (e.g. a different pattern row) must not land
+  // on the exact same offset - two genuinely distinct hits of the same
+  // key aren't pinned to an identical point.
+  NoteCoordinate coord_row1(0, 1, 0);
+  auto voice_c = instrument_a->playNote(config, position, frequencyForMidiKey(49), 1.0f, 0.8f, 49, SendLevels{}, coord_row1);
+  float peak_c = zChannelPeak(*voice_c, 64);
+  CHECK(std::fabs(peak_c - peak_a) > 0.0001f);
 }
 
 // Pitched arc (SoundFontInstrument::applyPitchedArcOffset(), the piano
@@ -1422,8 +1429,8 @@ TEST(sf2_pitched_arc_opposite_ends_shift_opposite_directions) {
 
   // Player perspective (distance <= 1) - a real extent to arc across.
   SphericalPosition position{ 0.0f, 0.0f, 0.5f, 1.5f };
-  auto voice_low = instrument->playNote(config, position, frequencyForMidiKey(60), 1.0f, 0.8f, 0.0f, 60, SendLevels{});
-  auto voice_high = instrument->playNote(config, position, frequencyForMidiKey(84), 1.0f, 0.8f, 0.0f, 84, SendLevels{});
+  auto voice_low = instrument->playNote(config, position, frequencyForMidiKey(60), 1.0f, 0.8f, 60, SendLevels{});
+  auto voice_high = instrument->playNote(config, position, frequencyForMidiKey(84), 1.0f, 0.8f, 84, SendLevels{});
 
   float ratio_low = yToWRatioAtWPeak(*voice_low, 64);
   float ratio_high = yToWRatioAtWPeak(*voice_high, 64);
@@ -1451,7 +1458,7 @@ TEST(sf2_pitched_arc_midpoint_key_is_centered) {
   // "multiplying by an exact zero gain" reasoning as the zero-extent
   // percussion test above).
   SphericalPosition position{ 0.0f, 0.0f, 0.5f, 1.5f };
-  auto voice_mid = instrument->playNote(config, position, frequencyForMidiKey(72), 1.0f, 0.8f, 0.0f, 72, SendLevels{});
+  auto voice_mid = instrument->playNote(config, position, frequencyForMidiKey(72), 1.0f, 0.8f, 72, SendLevels{});
   CHECK_NEAR(yChannelPeak(*voice_mid, 64), 0.0f, 0.0001f);
 }
 
@@ -1472,8 +1479,8 @@ TEST(sf2_pitched_arc_mirrors_at_audience_distance) {
   // convention as the percussion table.
   SphericalPosition position_player{ 0.0f, 0.0f, 0.5f, 1.5f };
   SphericalPosition position_audience{ 0.0f, 0.0f, 1.5f, 1.5f };
-  auto voice_player = instrument->playNote(config, position_player, frequencyForMidiKey(84), 1.0f, 0.8f, 0.0f, 84, SendLevels{});
-  auto voice_audience = instrument->playNote(config, position_audience, frequencyForMidiKey(84), 1.0f, 0.8f, 0.0f, 84, SendLevels{});
+  auto voice_player = instrument->playNote(config, position_player, frequencyForMidiKey(84), 1.0f, 0.8f, 84, SendLevels{});
+  auto voice_audience = instrument->playNote(config, position_audience, frequencyForMidiKey(84), 1.0f, 0.8f, 84, SendLevels{});
 
   float ratio_player = yToWRatioAtWPeak(*voice_player, 64);
   float ratio_audience = yToWRatioAtWPeak(*voice_audience, 64);
@@ -1501,8 +1508,8 @@ TEST(sf2_pitched_arc_covers_newly_added_mallet_family) {
   CHECK_NEAR(instrument->getDefaultExtent(), 1.2f, 0.0001f);
 
   SphericalPosition position{ 0.0f, 0.0f, 0.5f, 1.2f };
-  auto voice_low = instrument->playNote(config, position, frequencyForMidiKey(60), 1.0f, 0.8f, 0.0f, 60, SendLevels{});
-  auto voice_high = instrument->playNote(config, position, frequencyForMidiKey(84), 1.0f, 0.8f, 0.0f, 84, SendLevels{});
+  auto voice_low = instrument->playNote(config, position, frequencyForMidiKey(60), 1.0f, 0.8f, 60, SendLevels{});
+  auto voice_high = instrument->playNote(config, position, frequencyForMidiKey(84), 1.0f, 0.8f, 84, SendLevels{});
 
   float ratio_low = yToWRatioAtWPeak(*voice_low, 64);
   float ratio_high = yToWRatioAtWPeak(*voice_high, 64);

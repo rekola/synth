@@ -36,7 +36,7 @@ namespace {
 // construction.
 TEST(instrument_voice_adjust_send_a_reaches_an_already_active_voice) {
   ChannelConfiguration config(44100);
-  OscillatorVoice voice(config, SphericalPosition{ 0, 0, 1.0f }, 1.0f, 0.0f, WaveformType::SINE, 1.0f, 0.5f);
+  OscillatorVoice voice(config, SphericalPosition{ 0, 0, 1.0f }, 1.0f, WaveformType::SINE, 1.0f, 0.5f);
   voice.playNote(440.0f, 0.6f, 42);
 
   auto silent = voice.render(64);
@@ -50,7 +50,7 @@ TEST(instrument_voice_adjust_send_a_reaches_an_already_active_voice) {
 
 TEST(instrument_voice_adjust_send_b_reaches_an_already_active_voice) {
   ChannelConfiguration config(44100);
-  OscillatorVoice voice(config, SphericalPosition{ 0, 0, 1.0f }, 1.0f, 0.0f, WaveformType::SINE, 1.0f, 0.5f);
+  OscillatorVoice voice(config, SphericalPosition{ 0, 0, 1.0f }, 1.0f, WaveformType::SINE, 1.0f, 0.5f);
   voice.playNote(440.0f, 0.6f, 42);
 
   auto silent = voice.render(64);
@@ -65,7 +65,7 @@ TEST(instrument_voice_adjust_send_b_reaches_an_already_active_voice) {
 TEST(instrument_voice_adjust_send_main_reaches_an_already_active_voice) {
   ChannelConfiguration config(44100);
   // SendLevels{} defaults to main=1.0 - starts audible on Main.
-  OscillatorVoice voice(config, SphericalPosition{ 0, 0, 1.0f }, 1.0f, 0.0f, WaveformType::SINE, 1.0f, 0.5f);
+  OscillatorVoice voice(config, SphericalPosition{ 0, 0, 1.0f }, 1.0f, WaveformType::SINE, 1.0f, 0.5f);
   voice.playNote(440.0f, 0.6f, 42);
 
   auto loud = voice.render(64);

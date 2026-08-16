@@ -7,7 +7,7 @@
 
 TEST(oscillator_voice_reports_note_value_and_velocity_loudness) {
   ChannelConfiguration config(44100);
-  OscillatorVoice voice(config, SphericalPosition{}, 1.0f, 0.0f, WaveformType::SINE, 1.0f, 0.5f);
+  OscillatorVoice voice(config, SphericalPosition{}, 1.0f, WaveformType::SINE, 1.0f, 0.5f);
 
   CHECK(!voice.isActive());
   CHECK(voice.getNoteValue() == -1);

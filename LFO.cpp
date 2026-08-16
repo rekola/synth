@@ -5,13 +5,15 @@
 using namespace std;
 
 std::unique_ptr<VoiceState>
-LFO::playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const {
+LFO::playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
   // LFO constructs its own OscillatorVoice directly (it's not itself a
   // modulator, an FM carrier's LFO target is) - the voice encodes its own
   // ambisonic output directly (InstrumentVoice::encodePosition()); since a
   // modulator's own position is always SphericalPosition{} (see
   // Oscillator.cpp), this just spreads unity gain into W, same as before.
-  auto voice = std::make_unique<OscillatorVoice>(config, position, detune, start_phase, WaveformType::SINE, level_, 0.5f, sends);
+  // Its own start phase is derived internally from note_coord
+  // (InstrumentVoice's own constructor), not computed here.
+  auto voice = std::make_unique<OscillatorVoice>(config, position, detune, WaveformType::SINE, level_, 0.5f, sends, note_coord);
   voice->playNote(frequency_, velocity, note_value);
   return voice;
 }

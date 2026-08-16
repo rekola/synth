@@ -1,16 +1,27 @@
 #include "NoteMultiplier.h"
 #include "AmbisonicEncoding.h"
+#include "dsp/HashField.h"
 
 #include <cassert>
 #include <cmath>
 
 using namespace std;
 
-static inline float getRandF() { return (float)rand() / RAND_MAX; }
+namespace {
+// Fixed compile-time seed, not per-instance - see InstrumentVoice.h's own
+// kNotePhaseSalt for the identical reasoning: the coordinate (specifically
+// note_coord.withInstance(voice_id) below, one per generated sub-voice)
+// carries the per-voice variation, this salt just keeps NoteMultiplier's
+// own detune-jitter axis decorrelated from every other HashField-derived
+// value the same note might draw (each leaf's own start phase included -
+// see InstrumentVoice.h).
+constexpr uint64_t kDetuneSalt = 0x4E6F7465446574ull;
+}
 
 std::unique_ptr<VoiceState>
-NoteMultiplier::playNote(const ChannelConfiguration & channel_config, const SphericalPosition & input_position, float frequency, float input_detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const {
+NoteMultiplier::playNote(const ChannelConfiguration & channel_config, const SphericalPosition & input_position, float frequency, float input_detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
   float half_detune_ratio = powf(2, detune_ / 1200 / 2);
+  HashField detune_field(kDetuneSalt);
 
   // No reduction of channel_config here, and no createVoiceState() override
   // either - NoteMultiplier's own true output format (whatever it was
@@ -26,8 +37,12 @@ NoteMultiplier::playNote(const ChannelConfiguration & channel_config, const Sphe
   int voice_id = 0;
   for (auto & child : getChildren()) {
     if (unisons_ == 1) {
-      // root
-      auto voice = child->playNote(channel_config, input_position, frequency, input_detune, velocity, start_phase + getRandF(), note_value, sends);
+      // root - each child's own start phase is derived from its own
+      // coordinate (note_coord.withInstance(voice_id), decorrelating it
+      // from every other generated sub-voice) internally, by whichever
+      // leaf actually constructs a voice (InstrumentVoice's own
+      // constructor) - nothing computed or injected here any more.
+      auto voice = child->playNote(channel_config, input_position, frequency, input_detune, velocity, note_value, sends, note_coord.withInstance(voice_id));
       if (voice.get()) group->addChild(voice_id++, move(voice));
     } else if (unisons_ >= 2) {
       // spread_ is a dimensionless multiplier on the resolved instrument's
@@ -52,35 +67,35 @@ NoteMultiplier::playNote(const ChannelConfiguration & channel_config, const Sphe
 	SphericalPosition position = input_position;
 	position.azimuth += azimuth_offset;
 	position.elevation += azimuth_offset / kExtentShapeRatio;
-	auto voice = child->playNote(channel_config, position, frequency, detune, velocity, start_phase + getRandF(), note_value, sends);
+	auto voice = child->playNote(channel_config, position, frequency, detune, velocity, note_value, sends, note_coord.withInstance(voice_id));
 	if (voice.get()) group->addChild(voice_id++, move(voice));
       }
     }
 
     // fourths
     for (int i = 0; i < fourths_; i++) {
-      float detune = input_detune * powf(4.0f / 3.0f, i + 1) * (1 + getRandF() * (detune_ - 0.5f * detune_));
+      float detune = input_detune * powf(4.0f / 3.0f, i + 1) * (1 + detune_field.unit(note_coord.withInstance(voice_id).toHashCoord(), paramId("notemul_detune")) * (detune_ - 0.5f * detune_));
       float v = velocity * powf(0.5f, i + 1);
 
-      auto voice = child->playNote(channel_config, input_position, frequency, detune, v, start_phase + getRandF(), note_value, sends);
+      auto voice = child->playNote(channel_config, input_position, frequency, detune, v, note_value, sends, note_coord.withInstance(voice_id));
       if (voice.get()) group->addChild(voice_id++, move(voice));
     }
 
     // fifths
     for (int i = 0; i < fifths_; i++) {
-      float detune = input_detune * powf(3.0f / 2.0f, i + 1) * (1 + getRandF() * (detune_ - 0.5f * detune_));
+      float detune = input_detune * powf(3.0f / 2.0f, i + 1) * (1 + detune_field.unit(note_coord.withInstance(voice_id).toHashCoord(), paramId("notemul_detune")) * (detune_ - 0.5f * detune_));
       float v = velocity * powf(0.5f, i + 1);
 
-      auto voice = child->playNote(channel_config, input_position, frequency, detune, v, start_phase + getRandF(), note_value, sends);
+      auto voice = child->playNote(channel_config, input_position, frequency, detune, v, note_value, sends, note_coord.withInstance(voice_id));
       if (voice.get()) group->addChild(voice_id++, move(voice));
     }
 
     // octaves
     for (int i = 0; i < octaves_; i++) {
-      float detune = input_detune * powf(2.0f, i + 1) * (1 + getRandF() * (detune_ - 0.5f * detune_));
+      float detune = input_detune * powf(2.0f, i + 1) * (1 + detune_field.unit(note_coord.withInstance(voice_id).toHashCoord(), paramId("notemul_detune")) * (detune_ - 0.5f * detune_));
       float v = velocity * powf(0.5f, i + 1);
 
-      auto voice = child->playNote(channel_config, input_position, frequency, detune, v, start_phase + getRandF(), note_value, sends);
+      auto voice = child->playNote(channel_config, input_position, frequency, detune, v, note_value, sends, note_coord.withInstance(voice_id));
       if (voice.get()) group->addChild(voice_id++, move(voice));
     }
   }

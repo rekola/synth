@@ -4,13 +4,14 @@
 #include "InstrumentVoice.h"
 #include "WaveformType.h"
 #include "SphericalPosition.h"
+#include "NoteCoordinate.h"
 
 #include <vector>
 
 class OscillatorVoice : public InstrumentVoice {
 public:
-  OscillatorVoice(ChannelConfiguration config, const SphericalPosition & position, float detune, float start_phase, WaveformType type, float level, float pulse_width, const SendLevels & sends = {})
-    : InstrumentVoice(config, position, detune, start_phase, sends), type_(type), level_(level), pulse_width_(pulse_width) {
+  OscillatorVoice(ChannelConfiguration config, const SphericalPosition & position, float detune, WaveformType type, float level, float pulse_width, const SendLevels & sends = {}, const NoteCoordinate & note_coord = {})
+    : InstrumentVoice(config, position, detune, sends, note_coord), type_(type), level_(level), pulse_width_(pulse_width) {
   }
 
   AudioBuffer render(int frames) override {

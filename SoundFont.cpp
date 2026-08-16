@@ -29,12 +29,13 @@
 #include "LFOState.h"
 #include "InstrumentVoice.h"
 #include "SendLevels.h"
+#include "NoteCoordinate.h"
 #include "AudioBuffer.h"
 #include "dsp/PanLaw.h"
 #include "dsp/ChorusEngine.h"
 #include "AmbisonicEncoding.h"
 #include "SF2Modulator.h"
-#include "dsp/NoiseGenerator.h"
+#include "dsp/HashField.h"
 
 #include "constants.h"
 
@@ -902,6 +903,14 @@ static bool destInPitchSet(uint16_t dest) {
   return dest == 5 || dest == 6 || dest == 7 || dest == 51 || dest == 52; // ModLfoToPitch, VibLfoToPitch, ModEnvToPitch, CoarseTune, FineTune
 }
 
+// Fixed compile-time salt, not derived from any per-instance state - see
+// InstrumentVoice.h's own kNotePhaseSalt for the identical reasoning.
+// SoundFontVoice's constructor is what actually uses this (see its own
+// sourceSamplePosition_ derivation) - defined here, ahead of the class,
+// rather than alongside kPercussionJitterSalt further down, since that
+// one is used only by code that itself comes later in the file.
+constexpr uint64_t kSf2OffsetJitterSalt = 0x9B3F2C6A48D71E05ull;
+
 class SoundFontVoice : public InstrumentVoice {
 public:
   // skip_native_pan: TEMPORARY - true only for GM percussion (bank 128)
@@ -914,11 +923,12 @@ public:
   // (pitched SF2 presets, non-percussion banks) is untouched by any of
   // this and keeps using adjustPositionForPan() exactly as before -
   // defaults to false so every other call site is unaffected.
-  SoundFontVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, float start_phase, std::shared_ptr<SoundFontFile> sf, size_t preset, size_t region_idx, const SendLevels & sends = {}, bool skip_native_pan = false)
+  SoundFontVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, std::shared_ptr<SoundFontFile> sf, size_t preset, size_t region_idx, const SendLevels & sends = {}, bool skip_native_pan = false, const NoteCoordinate & note_coord = {})
     : InstrumentVoice(channel_config,
                        skip_native_pan ? position : adjustPositionForPan(position, regionFor(sf.get(), preset, region_idx)),
-                       detune, start_phase,
-                       SendLevels{ sends.main, combineRegionSendA(sends.a, regionFor(sf.get(), preset, region_idx)), sends.b }),
+                       detune,
+                       SendLevels{ sends.main, combineRegionSendA(sends.a, regionFor(sf.get(), preset, region_idx)), sends.b },
+                       note_coord),
       sf_(sf)
   {
     auto f = sf_.get();
@@ -939,11 +949,32 @@ public:
 	  if (destInPitchSet(c.dest)) hasChannelPressurePitchMod_ = true;
 	}
 
-	// Offset/end (add to the start phase)
-	// sourceSamplePosition_ += voiceRegion_->offset;
-	sourceSamplePosition_ = voiceRegion_->offset;
-
 	auto outSampleRate = getChannelConfiguration().getAudioOutSampleRate();
+
+	// Offset/end - overwrites, rather than uses directly, whatever
+	// InstrumentVoice's own constructor just derived sourceSamplePosition_
+	// as (from this voice's NoteCoordinate - see InstrumentVoice.h): the
+	// full [0, sampleRate) range that derivation draws from is sized for
+	// an oscillator's own periodic phase (only its fractional-cycle part
+	// matters there), and would be wildly excessive applied directly as a
+	// raw PCM sample-index jump - skipping up to a full second into a
+	// sampled hit (a drum, a plucked string) would clip unpredictably
+	// into its attack transient. So playback instead starts at the
+	// region's own authored offset, perturbed by only a small, bounded
+	// nudge off the same coordinate - the same "small nudge, not a
+	// repositioning" convention applyPercussionOffset()'s own jitter
+	// above already uses - clamped to the region's own valid [offset,
+	// end) range. Small as it is, this still matters: without it, several
+	// simultaneous copies of the same region - e.g. a NoteMultiplier-
+	// generated unison stack of SoundFont voices - would start in
+	// perfect lockstep and phase-lock/comb-filter when summed, exactly
+	// the failure mode per-voice phase jitter exists to avoid everywhere
+	// else in this codebase.
+	constexpr float kOffsetJitterSeconds = 0.005f;
+	float jitter_samples = HashField(kSf2OffsetJitterSalt).bipolar(note_coord.toHashCoord(), paramId("sf2_offset_jitter"), kOffsetJitterSeconds * static_cast<float>(outSampleRate));
+	double jittered = static_cast<double>(voiceRegion_->offset) + static_cast<double>(jitter_samples);
+	sourceSamplePosition_ = std::max(static_cast<double>(voiceRegion_->offset),
+					  std::min(jittered, static_cast<double>(voiceRegion_->end > 0 ? voiceRegion_->end - 1 : 0)));
 
 	// Loop.
 	bool doLoop = (voiceRegion_->loop_mode != TSF_LOOPMODE_NONE && voiceRegion_->loop_start < voiceRegion_->loop_end);
@@ -1584,15 +1615,12 @@ bool isPitchedArcFamily(const tsf_preset & preset) {
   return preset.preset <= 7 || preset.preset == 9 || (preset.preset >= 11 && preset.preset <= 14) || preset.preset == 46 || preset.preset == 47;
 }
 
-// Fixed compile-time seed, not drawn from the shared getRandF()/rand()
-// sequence - see NoteMultiplier's own phase randomization and
-// SongState's velocity/delay randomization, both of which already
-// consume that shared sequence at unpredictable, call-order-dependent
-// points, so seeding jitter from it would make jitter values depend on
-// unrelated musical randomization elsewhere in the render. Matches
+// Fixed compile-time salt, not derived from any per-instance state - the
+// note's own NoteCoordinate (applyPercussionOffset() below) carries the
+// per-hit variation instead, via HashField. Matches
 // bus/GranularCloud.cpp's own kDirectionScatterSeed precedent: a fixed
 // constant chosen so a full re-render reproduces bit-identical jitter.
-constexpr uint32_t kPercussionJitterSeed = 0x2545f491u;
+constexpr uint64_t kPercussionJitterSalt = 0x2545f491d2b79f5Bull;
 
 // Converts a normalized (u, v) offset (fractions of the instrument's own
 // extent, horizontal/vertical) into a real azimuth/elevation delta and
@@ -1626,22 +1654,28 @@ SphericalPosition applyNormalizedOffset(const SphericalPosition & position, floa
 // a small per-hit jitter, then applyNormalizedOffset() above. midiKey
 // outside the GM percussion range leaves `position` untouched (the rest
 // of the "does nothing" contract - zero extent, no position set - is
-// applyNormalizedOffset()'s own). `jitter_counter` is the calling
-// SoundFontInstrument's own mutable per-instance counter (advanced once
-// per call here) - not a per-note identity, just enough to keep repeated
-// hits of the same key from landing on an identical point, while a full
-// re-render from scratch still reproduces bit-identical results (the
-// counter always starts back at 0).
-SphericalPosition applyPercussionOffset(const SphericalPosition & position, int midiKey, uint32_t & jitter_counter) {
+// applyNormalizedOffset()'s own). Jitter is keyed on (note_coord, midiKey)
+// via HashField - the same coordinate that identifies this exact hit for
+// every other purpose (InstrumentVoice's own start phase, ...), so two
+// different hits (different pattern row, different chord column, ...)
+// draw different jitter while the very same authored hit - including a
+// second pass through it on pattern-loop replay - always draws the same
+// one. This replaces an earlier mutable per-instance hit counter that
+// instead advanced once per call regardless of position, so replaying
+// the same row via a loop drew a *different* value the second time
+// round - exactly the non-reproducible-on-replay failure this whole
+// migration exists to fix.
+SphericalPosition applyPercussionOffset(const SphericalPosition & position, int midiKey, const NoteCoordinate & note_coord) {
   if (midiKey < 27 || midiKey > 82) return position;
 
   auto & offset = kPercussionOffsets[static_cast<size_t>(midiKey - 27)];
 
-  NoiseGenerator rng(kPercussionJitterSeed ^ (static_cast<uint32_t>(midiKey) * 2654435761u) ^ (jitter_counter * 0x9e3779b9u));
-  jitter_counter++;
+  HashField field(kPercussionJitterSalt);
+  int64_t coord = note_coord.toHashCoord();
+  uint32_t midi_bits = static_cast<uint32_t>(midiKey);
   constexpr float kJitterScale = 0.05f; // per-feature multiplier on extent - a small nudge, not a repositioning
-  float u = offset.u + rng.next() * kJitterScale;
-  float v = offset.v + rng.next() * kJitterScale;
+  float u = offset.u + field.bipolar(coord, paramId("perc_jitter_u") ^ midi_bits, kJitterScale);
+  float v = offset.v + field.bipolar(coord, paramId("perc_jitter_v") ^ midi_bits, kJitterScale);
 
   return applyNormalizedOffset(position, u, v);
 }
@@ -1728,7 +1762,7 @@ public:
     }
   }
 
-  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const override {
+  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}) const override {
     assert(frequency > 0);
 
     detune *= getHarmonic();
@@ -1754,7 +1788,7 @@ public:
 
       SphericalPosition adjusted_position = position;
       if (is_percussion) {
-	adjusted_position = applyPercussionOffset(position, midiKey, jitter_counter_);
+	adjusted_position = applyPercussionOffset(position, midiKey, note_coord);
       } else if (is_arc) {
 	// The instrument's actual mapped key range - the union of every
 	// region's own lokey/hikey, not a single region's (a real preset
@@ -1801,14 +1835,14 @@ public:
 	// its ctor's doc comment) so percussion/pitched-arc instruments play
 	// from exactly their resolved position; every other instrument keeps
 	// that folding.
-	auto voice = make_unique<SoundFontVoice>(channel_config, adjusted_position, detune, start_phase, sf_, preset_, region_idx, sends, position_resolved_by_new_mechanism);
+	auto voice = make_unique<SoundFontVoice>(channel_config, adjusted_position, detune, sf_, preset_, region_idx, sends, position_resolved_by_new_mechanism, note_coord);
 	voice->playNote(frequency, velocity, note_value);
 
 	if (!getChildren().empty()) {
 	  // create modulators for voice - see SendLevels.h's own doc comment
 	  // for why SendLevels{} (not sends) is correct here.
 	  for (auto & child : getChildren()) {
-	    auto modulator = child->playNote(channel_config, SphericalPosition{}, frequency, detune, velocity, start_phase, note_value, SendLevels{});
+	    auto modulator = child->playNote(channel_config, SphericalPosition{}, frequency, detune, velocity, note_value, SendLevels{}, note_coord);
 	    if (modulator.get()) voice->addChild(child->getInternalId(), move(modulator));
 	  }
 	}
@@ -1841,13 +1875,6 @@ public:
 private:
   shared_ptr<SoundFontFile> sf_;
   size_t preset_;
-
-  // applyPercussionOffset()'s own per-hit jitter counter - advanced once
-  // per note-on (mutable since playNote() is const), never a per-note
-  // identity, just enough that repeated hits of the same key don't land
-  // on an identical point. Starts at 0 for every fresh instance, so a
-  // full re-render from scratch reproduces bit-identical jitter.
-  mutable uint32_t jitter_counter_ = 0;
 };
 
 std::unique_ptr<Instrument>

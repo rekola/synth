@@ -45,16 +45,18 @@ class ArpeggiatorState : public InstrumentTrackState {
   // same way they already do for the non-arpeggiated path. `instrument` is
   // whatever this track's own instrument_id_ resolves to (the caller
   // already looked this up to reach this class in the first place - same
-  // signature as InstrumentTrackState::noteOn()). `start_phase` is part of
-  // that shared signature but unused here - a step's own start phase is
-  // decided fresh by triggerNextStep() whenever it actually fires, however
-  // much later that ends up being. Adding a note to an already-sounding
-  // chord does not reset the step position; the chord going from empty to
-  // non-empty does (a fresh keypress/pattern onset restarts the pattern
-  // from step 0 - see the .cpp for how LIVE vs PATTERN `origin` shapes
-  // *when*, and whether, that restart's first step actually fires - a step
-  // already ringing is never cut short to make room for it).
-  void noteOn(int column, const Track & instrument, float frequency, float velocity, int note_value, float start_phase, NoteOrigin origin) override;
+  // signature as InstrumentTrackState::noteOn()). `note_coord` is captured
+  // into note_coord_ for triggerNextStep() to derive each step's own
+  // coordinate from (via withInstance(next_voice_id_) - see the .cpp) -
+  // a step's own start phase is decided fresh whenever it actually fires,
+  // however much later that ends up being, not here. Adding a note to an
+  // already-sounding chord does not reset the step position; the chord
+  // going from empty to non-empty does (a fresh keypress/pattern onset
+  // restarts the pattern from step 0 - see the .cpp for how LIVE vs
+  // PATTERN `origin` shapes *when*, and whether, that restart's first
+  // step actually fires - a step already ringing is never cut short to
+  // make room for it).
+  void noteOn(int column, const Track & instrument, float frequency, float velocity, int note_value, NoteOrigin origin, const NoteCoordinate & note_coord = {}) override;
   void noteOff(int column) override;
 
   // See InstrumentTrackState::endPatternRow()'s own comment for when this
@@ -149,6 +151,7 @@ class ArpeggiatorState : public InstrumentTrackState {
 
   const Arpeggiator & arp_;
   const Track * instrument_ = nullptr; // last note-on's resolved instrument - see noteOn()
+  NoteCoordinate note_coord_; // last note-on's own coordinate - see noteOn()/triggerNextStep()
 
   std::vector<HeldNote> held_notes_;
   std::vector<Step> step_pool_;

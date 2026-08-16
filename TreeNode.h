@@ -4,7 +4,6 @@
 #include "ChannelConfiguration.h"
 
 #include <cmath>
-#include <cstdlib>
 #include <memory>
 #include <unordered_map>
 
@@ -71,11 +70,6 @@ class TreeNode {
 
   static inline float decibelsToGain(float db) {
     return (db > -100.f ? powf(10.0f, db * 0.05f) : 0);
-  }
-
- protected:
-  static inline float getRandF() {
-    return (float)rand() / RAND_MAX;
   }
 
  private:

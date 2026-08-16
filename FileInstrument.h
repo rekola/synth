@@ -4,6 +4,7 @@
 #include "Instrument.h"
 #include "SphericalPosition.h"
 #include "SendLevels.h"
+#include "NoteCoordinate.h"
 
 #include <string>
 
@@ -13,7 +14,7 @@ class FileInstrument : public Instrument {
     openFile();
   }
 
-  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const override;
+  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}) const override;
 
 protected:
   bool openFile();

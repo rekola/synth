@@ -36,7 +36,7 @@ TEST(azimuth_slide_command_parses_direction_and_magnitude) {
 // every other positional field, this changes live, mid-note.
 TEST(instrument_voice_adjust_azimuth_moves_a_live_voice) {
   ChannelConfiguration config(44100);
-  OscillatorVoice voice(config, SphericalPosition{ 10.0f, 0, 0 }, 1.0f, 0.0f, WaveformType::SINE, 1.0f, 0.5f);
+  OscillatorVoice voice(config, SphericalPosition{ 10.0f, 0, 0 }, 1.0f, WaveformType::SINE, 1.0f, 0.5f);
   voice.playNote(440.0f, 0.6f, 42);
 
   CHECK_NEAR(voice.getPosition().azimuth, 10.0f, 0.001f);

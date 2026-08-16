@@ -155,9 +155,9 @@ class GranularEngine {
 
   std::vector<float> windowTable_;
 
-  // Seeded once, with a fixed constant, not per-voice getRandF() (this
-  // engine is constructed once per bus slot/instrument voice, not per
-  // note) - deterministic on purpose, so a rendered song (and this
+  // Seeded once, with a fixed constant, not from a per-note NoteCoordinate
+  // (this engine is constructed once per bus slot/instrument voice, not
+  // per note) - deterministic on purpose, so a rendered song (and this
   // class's own tests) reproduce exactly across runs, matching
   // NoiseGenerator's own "each instance seeded once" convention.
   NoiseGenerator scatterRng_;

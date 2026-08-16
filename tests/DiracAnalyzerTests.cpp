@@ -2,9 +2,9 @@
 
 #include "../dsp/DiracAnalyzer.h"
 #include "../AmbisonicEncoding.h"
+#include "../dsp/HashField.h"
 
 #include <cmath>
-#include <random>
 
 namespace {
 // 2 seconds at 44.1kHz is comfortably past the ~465ms (~40 hops) the
@@ -19,6 +19,16 @@ constexpr int kFrames = kSampleRate * 2;
 // mainlobe leakage stays within that one band.
 constexpr float kTestFrequency = 800.0f;
 constexpr int kTestBand = 3;
+
+// Fixed compile-time salt, test-local only - not part of the render path,
+// just this file's own synthetic decorrelated-noise input (see
+// dirac_decorrelated_eight_directions_is_near_full_diffuseness below).
+// HashField, not std::mt19937/uniform_real_distribution: the standard
+// never specifies a distribution's exact output shape, so it differs
+// between libstdc++/libc++/MSVC - this keeps the test's own input (and
+// therefore its result) bit-identical across platforms/compilers too, not
+// just the engine's.
+constexpr uint64_t kTestNoiseSalt = 0x44697261634E6F69ull; // "DiracNoi", arbitrary
 }
 
 TEST(dirac_single_source_is_low_diffuseness_at_correct_direction) {
@@ -55,17 +65,22 @@ TEST(dirac_decorrelated_eight_directions_is_near_full_diffuseness) {
   data.zero(); // the raw-count constructor leaves the buffer uninitialized (aligned_alloc, not calloc) - the loop below accumulates with += across 8 sources, so it must start from real silence, not heap garbage.
   auto w = data.getChannelData(0), y = data.getChannelData(1), z = data.getChannelData(2), x = data.getChannelData(3);
 
-  std::mt19937 rng(12345);
-  std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
+  HashField field(kTestNoiseSalt);
+  int dir_idx = 0;
   for (auto & dir : directions) {
     auto gains = computeAmbisonicGains(SphericalPosition{dir.azimuth, dir.elevation, 1.0f});
     for (int i = 0; i < kFrames; i++) {
-      float s = dist(rng); // independent white noise per source
+      // independent white noise per source - coord combines dir_idx and
+      // sample index into one value (kFrames comfortably exceeds any
+      // realistic per-direction sample count, so this can never collide
+      // across directions).
+      float s = field.bipolar(static_cast<int64_t>(dir_idx) * kFrames + i, paramId("dirac_test_noise"), 1.0f);
       w[i] += gains[0] * s;
       y[i] += gains[1] * s;
       z[i] += gains[2] * s;
       x[i] += gains[3] * s;
     }
+    dir_idx++;
   }
 
   DiracAnalyzer analyzer(kSampleRate);
@@ -75,11 +90,10 @@ TEST(dirac_decorrelated_eight_directions_is_near_full_diffuseness) {
   // near-fully diffuse. Bands 0/1 (20-150Hz, 150-300Hz) are deliberately
   // excluded here: at N=1024/44.1kHz they cover only 3 and 4 FFT bins
   // respectively, so few independent bins are being averaged per analysis
-  // frame - empirically confirmed across several RNG seeds to swing as low
-  // as ~0.76 for band 0 by pure statistical variance, not a real bias (the
-  // same few-bin unreliability plans/dirac-heatmap-scope.md SS4 already
-  // documents for band 0 specifically). Bands 2-7 (7+ bins each) stayed
-  // above 0.9 across every seed tried.
+  // frame - band 0 can swing as low as ~0.76 by pure statistical variance,
+  // not a real bias (the same few-bin unreliability plans/dirac-heatmap-
+  // scope.md SS4 already documents for band 0 specifically). Bands 2-7
+  // (7+ bins each) reliably stay above 0.9.
   for (int b = 2; b < DiracAnalyzer::kNumBands; b++) {
     CHECK(analyzer.getBandResult(b).diffuseness > 0.9f);
   }

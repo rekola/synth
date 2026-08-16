@@ -6,6 +6,7 @@
 #include "TrackType.h"
 #include "SphericalPosition.h"
 #include "SendLevels.h"
+#include "NoteCoordinate.h"
 
 #include <string_view>
 #include <vector>
@@ -80,11 +81,23 @@ class Track : public StatefulSongObject {
 
   virtual const char * getElementName() const = 0;
 
-  virtual std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const {
+  // note_coord: a stable per-note coordinate (NoteCoordinate.h), fed to
+  // HashField by any leaf/wrapper that needs a reproducible-per-note
+  // jitter value (NoteMultiplier's unison/detune spread, TapeDegradation's
+  // per-instance seed, ...) - not otherwise used by playNote() itself.
+  // Defaulted to {} here (and only here - no override repeats the
+  // default) so every existing call site that doesn't care about
+  // reproducible randomization keeps compiling unchanged; a caller that
+  // does care (InstrumentTrackState::noteOn(), ArpeggiatorState's
+  // stepper) passes a real one explicitly. Every override that recurses
+  // into children must forward whatever it received rather than letting
+  // the default reintroduce itself partway down the tree - see this
+  // default body's own forward below.
+  virtual std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}) const {
     auto group = createVoiceState(config);
     auto child_config = getChildChannelConfiguration(config);
     for (auto & child : getChildren()) {
-      auto voice = child->playNote(child_config, position, frequency, detune, velocity, start_phase, note_value, sends);
+      auto voice = child->playNote(child_config, position, frequency, detune, velocity, note_value, sends, note_coord);
       if (voice.get()) group->addChild(child->getInternalId(), std::move(voice));
     }
     return group;

@@ -5,9 +5,11 @@
 #include "SphericalPosition.h"
 #include "AmbisonicEncoding.h"
 #include "SendLevels.h"
+#include "NoteCoordinate.h"
 #include "dsp/FractionalDelayLine.h"
 #include "dsp/Biquad.h"
 #include "dsp/FilterType.h"
+#include "dsp/HashField.h"
 #include "FloorReflection.h"
 
 #include <algorithm>
@@ -21,11 +23,32 @@ inline float distanceGain(float distance) {
   return distance <= 0.0f ? 1.0f : 1.0f / distance;
 }
 
+namespace {
+// Fixed compile-time seed, not drawn from any shared sequence - matches
+// SoundFont.cpp's kPercussionJitterSeed/bus/GranularCloud.cpp's
+// kDirectionScatterSeed precedent (see their own doc comments): all the
+// per-note variation lives in the coordinate, this salt just keeps the
+// "start phase" axis decorrelated from every other HashField-derived
+// value a note might draw (NoteMultiplier's own detune jitter,
+// TapeDegradation's seed, ...).
+constexpr uint64_t kNotePhaseSalt = 0xA1D4B4C9E3129F5Bull;
+}
+
 class InstrumentVoice : public VoiceState {
  public:
-  InstrumentVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, float start_phase, const SendLevels & sends = {})
+  // Start phase (as a fraction of a second into the waveform, matching
+  // this class's own historical start_phase contract) is derived here,
+  // once, from whatever NoteCoordinate this voice was constructed with -
+  // not passed in pre-computed. Every leaf voice type goes through this
+  // one constructor, so this is the single place "which note gets which
+  // phase" is decided, regardless of which of them get one (a NoiseVoice
+  // ignores the resulting sourceSamplePosition_ entirely - it never calls
+  // stepForward()/getSourceSamplePosition() - but still goes through the
+  // same derivation for uniformity, not as a special case).
+  InstrumentVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, const SendLevels & sends = {}, const NoteCoordinate & note_coord = {})
     : VoiceState(channel_config),
-      sourceSamplePosition_(start_phase * getChannelConfiguration().getAudioOutSampleRate()),
+      sourceSamplePosition_(HashField(kNotePhaseSalt).unit(note_coord.toHashCoord(), paramId("note_phase"))
+                             * getChannelConfiguration().getAudioOutSampleRate()),
       position_(position),
       detune_(detune),
       sends_(sends),

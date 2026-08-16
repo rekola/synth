@@ -6,6 +6,7 @@
 #include "../dsp/DelayLineTail.h"
 #include "../dsp/Biquad.h"
 #include "../dsp/FilterType.h"
+#include "../dsp/HashField.h"
 #include "../AudioBufferUtils.h"
 #include "../TapeDegradationPresets.h"
 
@@ -20,6 +21,23 @@ namespace {
 // TreeNode<Derived> subclasses can reach) - same convention
 // dsp/TapeTransport.cpp's own local dbToLinear() already uses.
 inline float dbToLinear(float db) { return powf(10.0f, db * 0.05f); }
+
+// Fixed compile-time salt, not derived from any per-instance state - see
+// InstrumentVoice.h's own kNotePhaseSalt for the identical reasoning. The
+// coordinate passed to seedFromCoord() below carries the per-instance
+// variation instead: a track-attached instance's own track identity for
+// TapeDegradationTrackState (no note to key off - see
+// TapeDegradation::createState()), or the real note coordinate for
+// TapeDegradationVoiceState.
+constexpr uint64_t kTapeSeedSalt = 0x7A9E1D4C6F82B350ull;
+
+// One-time-per-instance seed draw, shared by TapeDegradationTrackState and
+// TapeDegradationVoiceState below - deterministic and reproducible given
+// the same coordinate, safe to call from the audio thread (HashField has
+// no shared state at all).
+inline uint32_t seedFromCoord(const NoteCoordinate & note_coord) {
+  return static_cast<uint32_t>(HashField(kTapeSeedSalt).unit(note_coord.toHashCoord(), paramId("tape_seed")) * 4294967295.0f);
+}
 
 // Standard exponential envelope-follower coefficient: fraction of the way
 // from the current value to the target reached in one sample, given a
@@ -381,12 +399,18 @@ private:
 
 class TapeDegradationTrackState : public EffectTrackState {
 public:
+  // note_coord: the track's own identity (TapeDegradation::createState()
+  // passes getInternalId() - see NoteCoordinate.h's own doc comment on
+  // why this is safe to use as a coordinate component within one run) -
+  // a track-attached instance has no note to key off, unlike the
+  // voice-attached one below.
   TapeDegradationTrackState(const ChannelConfiguration & channel_config, const SphericalPosition & position,
                              const TapeTransportParams & transport_params,
                              float saturationDriveDB, float lowCutHz, float hfRolloffHz, float headBumpHz, float headBumpGainDB, float mix,
-                             float spinUpMs, float spinUpDepthCents, float spinDownMs, float droopDepthCents)
+                             float spinUpMs, float spinUpDepthCents, float spinDownMs, float droopDepthCents,
+                             const NoteCoordinate & note_coord = {})
     : EffectTrackState(channel_config), position_(position),
-      dsp_(channel_config.getAudioOutSampleRate(), seedFromRand(), transport_params,
+      dsp_(channel_config.getAudioOutSampleRate(), seedFromCoord(note_coord), transport_params,
            saturationDriveDB, lowCutHz, hfRolloffHz, headBumpHz, headBumpGainDB, mix,
            spinUpMs, spinUpDepthCents, spinDownMs, droopDepthCents) { }
   // No noteOn()/noteOff() ever called here - a track-attached instance's
@@ -414,23 +438,22 @@ protected:
   void applyEffect(AudioBuffer &) override { }
 
 private:
-  // Own inherited TreeNode<TrackState>::getRandF() - see NoiseVoice's
-  // identically-shaped seedFromRand() (Noise.cpp) for the same one-time-
-  // per-instance seed-draw convention.
-  static uint32_t seedFromRand() { return static_cast<uint32_t>(getRandF() * 4294967295.0f); }
-
   SphericalPosition position_;
   TapeDegradationDsp dsp_;
 };
 
 class TapeDegradationVoiceState : public EffectVoiceState {
 public:
+  // note_coord: the real note coordinate (forwarded from
+  // TapeDegradation::playNote()) - unlike the track-attached class above,
+  // this one is constructed fresh per note-on, so it always has one.
   TapeDegradationVoiceState(const ChannelConfiguration & channel_config, const SphericalPosition & position,
                              const TapeTransportParams & transport_params,
                              float saturationDriveDB, float lowCutHz, float hfRolloffHz, float headBumpHz, float headBumpGainDB, float mix,
-                             float spinUpMs, float spinUpDepthCents, float spinDownMs, float droopDepthCents)
+                             float spinUpMs, float spinUpDepthCents, float spinDownMs, float droopDepthCents,
+                             const NoteCoordinate & note_coord = {})
     : EffectVoiceState(channel_config), position_(position),
-      dsp_(channel_config.getAudioOutSampleRate(), seedFromRand(), transport_params,
+      dsp_(channel_config.getAudioOutSampleRate(), seedFromCoord(note_coord), transport_params,
            saturationDriveDB, lowCutHz, hfRolloffHz, headBumpHz, headBumpGainDB, mix,
            spinUpMs, spinUpDepthCents, spinDownMs, droopDepthCents) {
     dsp_.noteOn(); // spin-up starts immediately - this construction *is* note-on
@@ -501,8 +524,6 @@ protected:
   void applyEffect(AudioBuffer &) override { } // see TapeDegradationTrackState's own identical comment
 
 private:
-  static uint32_t seedFromRand() { return static_cast<uint32_t>(getRandF() * 4294967295.0f); }
-
   SphericalPosition position_;
   TapeDegradationDsp dsp_;
 };
@@ -540,9 +561,14 @@ TapeDegradation::buildTransportParams() const {
 
 std::unique_ptr<TrackState>
 TapeDegradation::createState(const ChannelConfiguration & channel_config) const {
+  // getInternalId(), 0, 0 - the track's own identity, its own coordinate
+  // (see TapeDegradationTrackState's own doc comment above and
+  // NoteCoordinate.h's on why getInternalId() is a safe coordinate
+  // component within one run) - no note event to key off here.
   return make_unique<TapeDegradationTrackState>(channel_config, getPosition(), buildTransportParams(),
                                                  saturationDriveDB_, lowCutHz_, hfRolloffHz_, headBumpHz_, headBumpGainDB_, mix_,
-                                                 swoopTimeMs_, swoopStartCents_, spinDownMs_, droopDepthCents_);
+                                                 swoopTimeMs_, swoopStartCents_, spinDownMs_, droopDepthCents_,
+                                                 NoteCoordinate(getInternalId(), 0, 0));
 }
 
 std::unique_ptr<VoiceState>
@@ -557,17 +583,17 @@ TapeDegradation::createVoiceState(const ChannelConfiguration & channel_config) c
 
 std::unique_ptr<VoiceState>
 TapeDegradation::playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune,
-                           float velocity, float start_phase, int note_value, const SendLevels & sends) const {
+                           float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
   // Mirrors Track::playNote()'s own default body (Track.h) exactly,
   // except the group node it builds is a real TapeDegradationVoiceState
   // (carrying the note's real position) rather than the generic
   // createVoiceState()-built wrapper the default uses.
   auto group = make_unique<TapeDegradationVoiceState>(config, position, buildTransportParams(),
                                                         saturationDriveDB_, lowCutHz_, hfRolloffHz_, headBumpHz_, headBumpGainDB_, mix_,
-                                                        swoopTimeMs_, swoopStartCents_, spinDownMs_, droopDepthCents_);
+                                                        swoopTimeMs_, swoopStartCents_, spinDownMs_, droopDepthCents_, note_coord);
   auto child_config = getChildChannelConfiguration(config);
   for (auto & child : getChildren()) {
-    auto voice = child->playNote(child_config, position, frequency, detune, velocity, start_phase, note_value, sends);
+    auto voice = child->playNote(child_config, position, frequency, detune, velocity, note_value, sends, note_coord);
     if (voice.get()) group->addChild(child->getInternalId(), std::move(voice));
   }
   return group;

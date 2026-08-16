@@ -56,8 +56,8 @@ FileInstrument::openFile() {
 
 class FileInstrumentVoice : public InstrumentVoice {
 public:
-  FileInstrumentVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, float start_phase, std::shared_ptr<AudioBuffer> samples, const SendLevels & sends = {})
-    : InstrumentVoice(channel_config, position, detune, start_phase, sends), samples_(samples) { }
+  FileInstrumentVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, std::shared_ptr<AudioBuffer> samples, const SendLevels & sends = {}, const NoteCoordinate & note_coord = {})
+    : InstrumentVoice(channel_config, position, detune, sends, note_coord), samples_(samples) { }
 
   AudioBuffer render(int frames) override {
     auto base_gain = decibelsToGain(getGainDB());
@@ -93,8 +93,8 @@ private:
 };
 
 std::unique_ptr<VoiceState>
-FileInstrument::playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, float start_phase, int note_value, const SendLevels & sends) const {
-  auto voice = std::make_unique<FileInstrumentVoice>(channel_config, position, detune, start_phase, samples_, sends);
+FileInstrument::playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
+  auto voice = std::make_unique<FileInstrumentVoice>(channel_config, position, detune, samples_, sends, note_coord);
   voice->playNote(frequency, velocity, note_value);
   return voice;
 }
