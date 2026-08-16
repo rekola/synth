@@ -203,7 +203,14 @@ UI::offerInput(const InputEvent & input) {
 
   if (!handled) {
     handled |= menu_->offerInput(input);
-    if (handled) setStatus("menu: " + menu_->getSelected());
+    if (handled) {
+      setStatus("menu: " + menu_->getSelected());
+      // ncmenu tracks an item's display text, not any notion of a command -
+      // TerminalMenu::offerInput() maps activation (a click on an item, or
+      // Enter while one is highlighted) to a command name itself; this is
+      // where it actually gets run, the same executeCommand() path M-x uses.
+      if (auto cmd = menu_->takeActivatedCommand(); !cmd.empty()) executeCommand(cmd);
+    }
   }
   if (!handled) {
     handled |= status_line_->offerInput(input);

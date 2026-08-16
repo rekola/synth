@@ -18,6 +18,7 @@
 #include <memory>
 #include <cmath>
 #include <algorithm>
+#include <map>
 #include <fmt/core.h>
 
 #include <sys/time.h>
@@ -36,8 +37,25 @@ using namespace ncpp;
 using namespace std;
 using namespace fmt;
 
+// The inverse of readInput()'s ni.evtype -> InputEvent::Kind mapping below -
+// needed because ncmenu_offer_input() only treats a mouse click on the menu
+// bar as consumed when evtype is specifically NCTYPE_RELEASE (confirmed
+// against the real library: NCTYPE_UNKNOWN and NCTYPE_PRESS are both
+// silently ignored). Hardcoding NCTYPE_UNKNOWN here - discarding the real
+// press/release Kind InputEvent already carries - meant a mouse click could
+// never open the File menu on any terminal, mouse-protocol support
+// notwithstanding.
+static inline ncintype_e to_ncintype(InputEvent::Kind kind) {
+  switch (kind) {
+  case InputEvent::Kind::PRESS: return NCTYPE_PRESS;
+  case InputEvent::Kind::REPEAT: return NCTYPE_REPEAT;
+  case InputEvent::Kind::RELEASE: return NCTYPE_RELEASE;
+  default: return NCTYPE_UNKNOWN;
+  }
+}
+
 static inline ncinput to_ncinput(const InputEvent & input) {
-  ncinput ni = { .id = static_cast<uint32_t>(input.getId()), .y = input.getY(), .x = input.getX(), .utf8 = { 0, 0, 0, 0, 0 }, .alt = input.hasAlt(), .shift = input.hasShift(), .ctrl = input.hasCtrl(), .evtype = NCTYPE_UNKNOWN, .modifiers = static_cast<uint32_t>((input.hasAlt() ? NCKEY_MOD_ALT : 0) | (input.hasCtrl() ? NCKEY_MOD_CTRL : 0) | (input.hasShift() ? NCKEY_MOD_SHIFT : 0) | (input.hasMeta() ? NCKEY_MOD_META : 0)), .ypx = -1, .xpx = -1 };
+  ncinput ni = { .id = static_cast<uint32_t>(input.getId()), .y = input.getY(), .x = input.getX(), .utf8 = { 0, 0, 0, 0, 0 }, .alt = input.hasAlt(), .shift = input.hasShift(), .ctrl = input.hasCtrl(), .evtype = to_ncintype(input.getKind()), .modifiers = static_cast<uint32_t>((input.hasAlt() ? NCKEY_MOD_ALT : 0) | (input.hasCtrl() ? NCKEY_MOD_CTRL : 0) | (input.hasShift() ? NCKEY_MOD_SHIFT : 0) | (input.hasMeta() ? NCKEY_MOD_META : 0)), .ypx = -1, .xpx = -1 };
   return ni;
 }
 
@@ -289,7 +307,7 @@ public:
 				 // { .desc = "Open", .shortcut = { .id = 'O' } },
 				 // { .desc = "Quit", .shortcut = { .id = 'q' } }
     };
-    
+
     ncmenu_section sections[] = { { .name = "File", .itemcount = 1, .items = file_items, .shortcut = { .id = 'f', .alt = true } }
     };
     uint64_t headerchannels = NCCHANNELS_INITIALIZER(0xff, 0xff, 0xff, 0x7f, 0x34, 0x7f);
@@ -301,8 +319,39 @@ public:
     menu = make_unique<Menu>(&mopts);
   }
 
+  // Confirmed against the real library: ncmenu_offer_input() never treats a
+  // click on an item (as opposed to a section header) or an Enter keypress
+  // as "activating" that item, on its own - both are absent from its own
+  // documented list of inputs it reacts to. It also doesn't need to (there's
+  // no notion of a command to run baked into an ncmenu_item, just display
+  // text), so this app has to detect activation itself: a button-release
+  // landing on an item (ncmenu_mouse_selected(), checked before
+  // offer_input() would otherwise just silently ignore that same click -
+  // it's not "outside" the plane, which has grown to cover the dropdown, so
+  // offer_input() doesn't roll up on it either) or Enter while some item is
+  // highlighted (ncmenu_selected() non-null), then map the item's display
+  // text to a command name and roll the section back up.
   bool offerInput(const InputEvent & input) override {
     auto ni = to_ncinput(input);
+
+    if (ni.id == NCKEY_BUTTON1 && ni.evtype == NCTYPE_RELEASE) {
+      ncinput shortcut_ni;
+      if (auto clicked = menu->get_mouse_selected(&ni, &shortcut_ni)) {
+	activate(clicked);
+	return true;
+      }
+    }
+
+    // Checked before offer_input() gets a chance to ignore it (returning
+    // false, per the confirmed absence of Enter from its own list) and
+    // leak the keystroke through to the pattern editor as a note.
+    if (ni.id == NCKEY_ENTER) {
+      if (auto sel = menu->get_selected()) {
+	activate(sel);
+	return true;
+      }
+    }
+
     auto r = menu->offer_input(&ni);
     auto s = menu->get_selected();
     menu_selected = s ? s : "";
@@ -310,10 +359,25 @@ public:
   }
 
   std::string getSelected() const { return menu_selected; }
-  
+
+  std::string takeActivatedCommand() override {
+    string c = std::move(activated_command_);
+    activated_command_.clear();
+    return c;
+  }
+
+  void raiseToTop() override { menu->get_plane()->move_top(); }
+
 private:
+  void activate(const char * item_desc) {
+    static const std::map<string, string> kItemCommands = { { "New", "new-song" } };
+    if (auto it = kItemCommands.find(item_desc); it != kItemCommands.end()) activated_command_ = it->second;
+    menu->rollup();
+  }
+
   unique_ptr<Menu> menu;
   string menu_selected;
+  string activated_command_;
 };
 
 class TerminalChart : public Chart {
@@ -1059,6 +1123,12 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
 
   layout();
 
+  // Every other widget above was created after menu_, so without this the
+  // scope charts/pattern editor/status line all sit above it in z-order -
+  // see UIMenu::raiseToTop()'s own comment for why that hides an unrolled
+  // section's dropdown even though the menu still functions correctly.
+  menu_->raiseToTop();
+
   nc->render();
 }
 
@@ -1311,6 +1381,17 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
       render |= renderComponents();
 
       if (render) {
+	// Reasserted every frame, not just once at startup: the scope
+	// charts'/heatmap's own plot_plane_ (TerminalChart::setSample(),
+	// above) is created lazily on first real sample data, and destroyed/
+	// recreated again on every resize - each such plane is a fresh
+	// sibling of menu_'s (both bind directly to the real stdplane, not
+	// to their logical parent widget - see TerminalPlane::createChild()),
+	// so it lands on top of menu_ again the moment it's (re)created,
+	// silently re-hiding an unrolled section's dropdown. See
+	// UIMenu::raiseToTop()'s own comment for the base z-order issue this
+	// guards against.
+	menu_->raiseToTop();
 	nc->render();
       }
     }
