@@ -1,0 +1,42 @@
+name: Linux ARM64
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  # Real cross-architecture coverage (separate CPU family entirely, not
+  # just a different x86-64 feature level) - GitHub's own hosted arm64
+  # Linux runner. Left at CMakeLists.txt's own default -march=native
+  # rather than pinned to a fixed ARM baseline: no ARM golden-render hash
+  # is captured (tests/RenderTests.cpp's own SYNTH_MARCH-gated check skips
+  # its exact-hash assertions on anything other than "x86-64-v2" - see the
+  # Linux x86-64 workflow), so there's nothing here that needs cross-run
+  # bit-exactness the way that job does - only "does this build and pass
+  # on real ARM hardware at all."
+  build-and-test:
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            libnotcurses-dev \
+            libfmt-dev \
+            libsndfile1-dev \
+            libasound2-dev \
+            fluid-soundfont-gm
+
+      - name: Configure
+        run: cmake -B build
+
+      - name: Build
+        run: cmake --build build -j
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure

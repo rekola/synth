@@ -1,0 +1,46 @@
+name: Linux x86-64
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  # x86-64-v2 (not native): the runner CPU isn't guaranteed to be the same
+  # physical/virtual machine build to build, so a build tuned for exactly
+  # this run's own CPU (the CMakeLists.txt default, -march=native) would
+  # make tests/RenderTests.cpp's own bit-exact golden-render hash test
+  # unreliable - see CMakeLists.txt's own SYNTH_MARCH comment. x86-64-v2 is
+  # a fixed, portable baseline (SSE4.2/POPCNT-level, ubiquitous on x86-64
+  # server/desktop CPUs from roughly the last 15 years) - not about speed,
+  # about every run compiling to the identical instructions.
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # synth_engine (everything ctest exercises) is a headless static
+      # library, deliberately decoupled from the notcurses UI/ALSA-device
+      # runtime (see README/CLAUDE.md's own Build/Tests sections) - no
+      # display or audio hardware is needed to build or run the test
+      # suite, just the usual compile-time dev headers.
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            libnotcurses-dev \
+            libfmt-dev \
+            libsndfile1-dev \
+            libasound2-dev \
+            fluid-soundfont-gm
+
+      - name: Configure
+        run: cmake -B build -DSYNTH_MARCH=x86-64-v2
+
+      - name: Build
+        run: cmake --build build -j
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure

@@ -52,3 +52,14 @@ target_compile_definitions(synth_tests PRIVATE
 	SYNTH_MARCH="${SYNTH_MARCH}")
 
 add_test(NAME synth_tests COMMAND synth_tests)
+
+# Guards against a reintroduced rand()/srand()/non-portable <random>
+# distribution anywhere in the tree - see the script's own doc comment.
+# Registered as its own CTest test (not folded into synth_tests above)
+# since it's a plain source-tree scan with no need for the actual test
+# binary at all - it runs even if the C++ build itself is broken.
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+  add_test(NAME no_banned_randomness
+	   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/check_no_banned_randomness.py)
+endif()
