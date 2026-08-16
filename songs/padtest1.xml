@@ -67,10 +67,10 @@
 </instruments>
   
   <tracks>
-    <track id="0" instrument="0" sendA="0.35" distance="1" azimuth="-90" />
-    <track id="1" instrument="1" sendA="0.35" distance="1" azimuth="-45" />
-    <track id="2" instrument="2" sendA="0.35" distance="1" azimuth="45" extent="1.5" />
-    <track id="3" instrument="3" sendA="0.35" distance="1" azimuth="90" extent="1.5" />
+    <track id="0" instrument="0" sendA="-9.1186" distance="1" azimuth="-90" />
+    <track id="1" instrument="1" sendA="-9.1186" distance="1" azimuth="-45" />
+    <track id="2" instrument="2" sendA="-9.1186" distance="1" azimuth="45" extent="1.5" />
+    <track id="3" instrument="3" sendA="-9.1186" distance="1" azimuth="90" extent="1.5" />
   </tracks>
   
   <scenes>

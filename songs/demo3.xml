@@ -6,11 +6,11 @@
     <genericInstrument name="Percussion" />
   </instruments>
   <tracks>
-    <track id="0" instrument="0" sendA="0.3" distance="5" azimuth="-60" />
-    <track id="1" instrument="0" sendA="0.3" distance="5" azimuth="-30" />
-    <track id="2" instrument="0" sendA="0.3" distance="5" azimuth="30" />
-    <track id="3" instrument="1" sendA="0.3" sendB="0.5" distance="10" elevation="10" azimuth="30" />
-    <percussionTrack id="4" instrument="2" sendA="0.3" sendB="0.1" distance="5" elevation="-10" azimuth="60" />
+    <track id="0" instrument="0" sendA="-10.4576" distance="5" azimuth="-60" />
+    <track id="1" instrument="0" sendA="-10.4576" distance="5" azimuth="-30" />
+    <track id="2" instrument="0" sendA="-10.4576" distance="5" azimuth="30" />
+    <track id="3" instrument="1" sendA="-10.4576" sendB="-6.0206" distance="10" elevation="10" azimuth="30" />
+    <percussionTrack id="4" instrument="2" sendA="-10.4576" sendB="-20.0000" distance="5" elevation="-10" azimuth="60" />
     <track id="5" />
     <track id="6" />
     <track id="7" />

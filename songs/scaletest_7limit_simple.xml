@@ -12,9 +12,9 @@
         <genericInstrument name="Percussion" harmonic="1" subharmonic="1"/>
     </instruments>
     <tracks>
-        <track id="0" instrument="0" azimuth="30" distance="1" elevation="50" color="" sendA="0.14285715" sendB="1" noteColumns="7"/>
-        <track id="perc" instrument="2" azimuth="0" distance="0.89999998" elevation="0" color="" sendA="0.1" sendB="0.42857146"/>
-        <drumMachineTrack id="0" instrument="2" azimuth="0" distance="0.89999998" elevation="0" color="" sendB="0.5714286">
+        <track id="0" instrument="0" azimuth="30" distance="1" elevation="50" color="" sendA="-16.9020" sendB="0.0000" noteColumns="7"/>
+        <track id="perc" instrument="2" azimuth="0" distance="0.89999998" elevation="0" color="" sendA="-20.0000" sendB="-7.3595"/>
+        <drumMachineTrack id="0" instrument="2" azimuth="0" distance="0.89999998" elevation="0" color="" sendB="-4.8608">
             <drumMachine loop_length="8">
                 <lane note="36" steps="00000000"/>
                 <lane note="38" steps="00000000"/>

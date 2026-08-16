@@ -45,7 +45,7 @@
   </instruments>
   
   <tracks>
-    <track id="0" instrument="0" sendB="0.5" />
+    <track id="0" instrument="0" sendB="-6.0206" />
     <track id="1" instrument="1" />
     <track id="2" instrument="2" />
     <track id="3" instrument="3" />

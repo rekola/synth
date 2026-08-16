@@ -35,11 +35,11 @@
   </instruments>
   
   <tracks>
-    <track id="0" instrument="1" sendA="0.2" azimuth="-60" distance="1" />
-    <track id="1" instrument="1" sendA="0.2" azimuth="-30" distance="1" />
-    <track id="2" instrument="2" sendA="0.2" azimuth="0" distance="1" extent="1.5" />
-    <track id="3" instrument="3" sendA="0.2" azimuth="30" distance="1" extent="1.5" />
-    <track id="4" instrument="4" sendA="0.2" azimuth="60" distance="1" />
+    <track id="0" instrument="1" sendA="-13.9794" azimuth="-60" distance="1" />
+    <track id="1" instrument="1" sendA="-13.9794" azimuth="-30" distance="1" />
+    <track id="2" instrument="2" sendA="-13.9794" azimuth="0" distance="1" extent="1.5" />
+    <track id="3" instrument="3" sendA="-13.9794" azimuth="30" distance="1" extent="1.5" />
+    <track id="4" instrument="4" sendA="-13.9794" azimuth="60" distance="1" />
   </tracks>
   
   <scenes>

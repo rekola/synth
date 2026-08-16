@@ -35,9 +35,9 @@
   </instruments>
   
   <tracks>
-    <track id="melody" instrument="0" sendA="0.3" sendB="0.1" azimuth="-30" distance="1" elevation="0" />
-    <track id="chords" instrument="0" sendA="0.3" sendB="0.1" azimuth="30" distance="1" elevation="0" />
-    <track id="pad" instrument="1" sendA="0.3" sendB="0.1" azimuth="60" distance="1" elevation="0" />
+    <track id="melody" instrument="0" sendA="-10.4576" sendB="-20.0000" azimuth="-30" distance="1" elevation="0" />
+    <track id="chords" instrument="0" sendA="-10.4576" sendB="-20.0000" azimuth="30" distance="1" elevation="0" />
+    <track id="pad" instrument="1" sendA="-10.4576" sendB="-20.0000" azimuth="60" distance="1" elevation="0" />
   </tracks>
   
   <scenes>

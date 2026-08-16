@@ -6,8 +6,8 @@
   </instruments>
   
   <tracks>
-    <track id="0" instrument="0" azimuth="90" distance="1" sendA="0.0" />
-    <track id="1" instrument="1" azimuth="-90" distance="1" sendA="0.0" />
+    <track id="0" instrument="0" azimuth="90" distance="1" sendA="-100.0000" />
+    <track id="1" instrument="1" azimuth="-90" distance="1" sendA="-100.0000" />
   </tracks>
   
   <scenes>

@@ -2,7 +2,7 @@
 <song temperament="12edo" tempo="120" patternRows="16" volume="1.0">
   <bus>
     <none/>
-    <haze preset="crunch" sendB="0.7"/>
+    <haze preset="crunch" sendB="-3.0980"/>
   </bus>
   <instruments>
     <envelope attack="0.001" hold="0" decay="0.12" sustain="0" release="0.02" name="Kick">
@@ -16,9 +16,9 @@
     </envelope>
   </instruments>
   <tracks>
-    <track id="kick" instrument="0" sendB="0.7"/>
-    <track id="snare" instrument="1" sendB="0.7"/>
-    <track id="hat" instrument="2" sendB="0.5"/>
+    <track id="kick" instrument="0" sendB="-3.0980"/>
+    <track id="snare" instrument="1" sendB="-3.0980"/>
+    <track id="hat" instrument="2" sendB="-6.0206"/>
   </tracks>
   <scenes>
     <scene>

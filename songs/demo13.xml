@@ -5,7 +5,7 @@
   </instruments>
   
   <tracks>
-    <track id="0" instrument="0" sendA="0.35" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle" />
+    <track id="0" instrument="0" sendA="-9.1186" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle" />
   </tracks>
   
   <scenes>

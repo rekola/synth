@@ -17,10 +17,10 @@
   </instruments>
   
   <tracks>
-    <track id="chords" instrument="0" volume="4.0" sendA="0.35" sendB="0.5" distance="1" azimuth="-60" />
-    <track id="pad" instrument="1" sendA="0.35" distance="1" azimuth="-30" elevation="45" extent="1.5"/>
-    <track id="harp" instrument="2" sendA="0.35" distance="1" azimuth="30"/>
-    <percussionTrack id="perc" instrument="3" sendA="0.35" distance="1" azimuth="60" elevation="-45" />
+    <track id="chords" instrument="0" volume="4.0" sendA="-9.1186" sendB="-6.0206" distance="1" azimuth="-60" />
+    <track id="pad" instrument="1" sendA="-9.1186" distance="1" azimuth="-30" elevation="45" extent="1.5"/>
+    <track id="harp" instrument="2" sendA="-9.1186" distance="1" azimuth="30"/>
+    <percussionTrack id="perc" instrument="3" sendA="-9.1186" distance="1" azimuth="60" elevation="-45" />
   </tracks>
 
   <sections>

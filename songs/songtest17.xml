@@ -13,7 +13,7 @@
         </amplifier>
     </instruments>
     <tracks>
-        <track id="bass" instrument="0" azimuth="-45" distance="1" elevation="0" color="" sendA="0.1"/>
+        <track id="bass" instrument="0" azimuth="-45" distance="1" elevation="0" color="" sendA="-20.0000"/>
     </tracks>
     <sections/>
     <scenes>

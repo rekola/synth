@@ -14,8 +14,8 @@
   </instruments>
   
   <tracks>
-    <track id="0" instrument="0" sendA="0.35" distance="1" azimuth="-80" />
-    <track id="1" instrument="0" sendA="0.35" distance="1" azimuth="80"/>
+    <track id="0" instrument="0" sendA="-9.1186" distance="1" azimuth="-80" />
+    <track id="1" instrument="0" sendA="-9.1186" distance="1" azimuth="80"/>
   </tracks>
   
   <scenes>

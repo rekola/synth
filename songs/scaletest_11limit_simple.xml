@@ -21,7 +21,7 @@
 </instruments>
   
   <tracks>
-    <track id="0" instrument="0" sendA="0.45" elevation="50" azimuth="30" />
+    <track id="0" instrument="0" sendA="-6.9357" elevation="50" azimuth="30" />
   </tracks>
   
   <scenes>

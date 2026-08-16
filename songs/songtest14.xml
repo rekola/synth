@@ -21,10 +21,10 @@
         <genericInstrument name="Percussion"/>
     </instruments>
     <tracks>
-        <track id="guitar" instrument="0" azimuth="-45" distance="2" elevation="0" color="" sendA="0.1" sendB="0.1"/>
-        <track id="pad" instrument="1" azimuth="0" distance="5" elevation="0" extent="1.5" color="" sendA="0.1" sendB="0.60000002"/>
-        <track id="harp" instrument="2" azimuth="0" distance="0.89999998" elevation="0" color="" sendA="0.1" sendB="0.60000002"/>
-        <percussionTrack id="perc" instrument="5" azimuth="0" distance="0.89999998" elevation="0" color="" sendA="0.1"/>
+        <track id="guitar" instrument="0" azimuth="-45" distance="2" elevation="0" color="" sendA="-20.0000" sendB="-20.0000"/>
+        <track id="pad" instrument="1" azimuth="0" distance="5" elevation="0" extent="1.5" color="" sendA="-20.0000" sendB="-4.4370"/>
+        <track id="harp" instrument="2" azimuth="0" distance="0.89999998" elevation="0" color="" sendA="-20.0000" sendB="-4.4370"/>
+        <percussionTrack id="perc" instrument="5" azimuth="0" distance="0.89999998" elevation="0" color="" sendA="-20.0000"/>
     </tracks>
     <sections/>
     <scenes>

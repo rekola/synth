@@ -20,9 +20,9 @@
         <genericInstrument name="Electric Bass (finger)"/>
     </instruments>
     <tracks>
-        <track id="chords" instrument="1" azimuth="-30" distance="1" elevation="50" color="" sendA="0.14285715" sendB="0.2857143" noteColumns="7"/>
-        <percussionTrack id="perc" instrument="2" azimuth="-15" distance="0.89999998" elevation="0" color="" sendA="0.42857146" sendB="1" noteColumns="2"/>
-        <track id="pad" instrument="3" azimuth="15" distance="5" elevation="0" extent="20" color="" sendA="0.42857146" sendB="1" noteColumns="3"/>
+        <track id="chords" instrument="1" azimuth="-30" distance="1" elevation="50" color="" sendA="-16.9020" sendB="-10.8814" noteColumns="7"/>
+        <percussionTrack id="perc" instrument="2" azimuth="-15" distance="0.89999998" elevation="0" color="" sendA="-7.3595" sendB="0.0000" noteColumns="2"/>
+        <track id="pad" instrument="3" azimuth="15" distance="5" elevation="0" extent="20" color="" sendA="-7.3595" sendB="0.0000" noteColumns="3"/>
         <track id="bass" instrument="4" azimuth="60" distance="1" elevation="20" color="" noteColumns="2"/>
     </tracks>
     <sections/>

@@ -15,9 +15,9 @@
   </instruments>
   
   <tracks>
-    <track id="0" instrument="0" sendA="0.35" />
-    <track id="1" instrument="1" sendA="0.35" />
-    <track id="2" instrument="2" sendA="0.35" />
+    <track id="0" instrument="0" sendA="-9.1186" />
+    <track id="1" instrument="1" sendA="-9.1186" />
+    <track id="2" instrument="2" sendA="-9.1186" />
   </tracks>
   
   <scenes>
