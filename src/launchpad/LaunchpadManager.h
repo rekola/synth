@@ -132,6 +132,17 @@ class LaunchpadManager {
   static int azimuthToRow(float azimuth);
   static float rowToAzimuth(int row);
 
+  // The Send A/B/Main fader rows<->dB mapping - row 0 is a hard "off"
+  // (matching a real mixing console's fader bottoming out at true silence,
+  // not just a very quiet dB value), rows 1-7 span a floor up to 0dB/unity
+  // at row 7 in even steps. Same static, stateless pair convention as
+  // azimuthToRow/rowToAzimuth above: the pad-press handler and refreshLeds'
+  // own bargraph readback (which only ever sees the linear gain
+  // InstrumentTrack::getSends() stores) both go through these, so a press
+  // and its own LED redraw always agree.
+  static float sendRowToDb(int row);
+  static int sendLinearToRow(float linear);
+
   // The Send A/Pan/Send B/Volume/Custom/Record-Arm buttons (raw CC
   // 69/79/59/89/97/19 - 69/79/89 confirmed against a real Launchpad X, 59
   // inferred from Ableton's standard Launchpad "Track" control row order,

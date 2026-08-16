@@ -10,7 +10,7 @@
     </envelope>
   </instruments>
   <tracks>
-    <track id="0" instrument="0" sendB="0.5"/>
+    <track id="0" instrument="0" sendB="-6.0206"/>
   </tracks>
   <scenes>
     <scene>

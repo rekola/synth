@@ -287,6 +287,20 @@ namespace {
   // memorable, symmetric mapping.
   constexpr float PAN_ROW_DEGREES = 45.0f;
 
+  // Send A/B/Main fader curve: row 1 is this many dB below unity (row 7);
+  // 6dB/step is a standard, easily-perceived mixing-console increment. Row
+  // 0 is a hard off (see sendRowToDb()), not a further 6dB step, since a
+  // real fader's bottom position is true silence, not just very quiet.
+  constexpr float SEND_ROW_FLOOR_DB = -36.0f;
+
+  // Self-contained (not TreeNode::gainToDecibels(), only reachable from
+  // TreeNode<Derived> subclasses - VoiceState/TrackState, neither of which
+  // LaunchpadManager is) - the same "each file keeps its own small dB
+  // helper" convention model/InstrumentTrack.cpp's own linearToDb() and
+  // Controller.cpp's own dbToLinear() already use, including the same
+  // -100dB "off" floor.
+  float linearToDb(float linear) { return linear <= 0.00001f ? -100.0f : 20.0f * log10f(linear); }
+
   // Automatic per-model octave starting point, applied once (in refresh())
   // the first time a device is seen - not a wire-protocol fact (unlike
   // LaunchpadProtocol::ModelInfo's fields), just a UX default: with two
@@ -319,6 +333,24 @@ LaunchpadManager::azimuthToRow(float azimuth) {
 float
 LaunchpadManager::rowToAzimuth(int row) {
   return static_cast<float>(row) * PAN_ROW_DEGREES - 180.0f;
+}
+
+float
+LaunchpadManager::sendRowToDb(int row) {
+  if (row <= 0) return -100.0f;
+  return SEND_ROW_FLOOR_DB + (-SEND_ROW_FLOOR_DB) * static_cast<float>(row - 1) / 6.0f;
+}
+
+int
+LaunchpadManager::sendLinearToRow(float linear) {
+  float db = linearToDb(linear);
+  // Nearer to off than to the lowest real (row-1) step - round down to the
+  // hard-off row rather than the same half-step rounding the real steps
+  // below use, so a value that's genuinely off (or migrated from one that
+  // was) always redraws as row 0, not a barely-lit row 1.
+  if (db <= SEND_ROW_FLOOR_DB - (-SEND_ROW_FLOOR_DB) / 6.0f / 2.0f) return 0;
+  float row = 1.0f + (db - SEND_ROW_FLOOR_DB) * 6.0f / (-SEND_ROW_FLOOR_DB);
+  return std::clamp(static_cast<int>(lround(row)), 0, 7);
 }
 
 LaunchpadManager::DeviceState &
@@ -703,11 +735,11 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
       if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL || track->getType() == TrackType::DRUM_MACHINE)) {
         auto track_id = track->getInternalId();
         if (grid_mode == GridMode::SEND_A) {
-          controller.setTrackSendA(track_id, static_cast<float>(ev.getY()) / 7.0f);
+          controller.setTrackSendA(track_id, sendRowToDb(ev.getY()));
         } else if (grid_mode == GridMode::SEND_B) {
-          controller.setTrackSendB(track_id, static_cast<float>(ev.getY()) / 7.0f);
+          controller.setTrackSendB(track_id, sendRowToDb(ev.getY()));
         } else if (grid_mode == GridMode::SEND_MAIN) {
-          controller.setTrackSendMain(track_id, static_cast<float>(ev.getY()) / 7.0f);
+          controller.setTrackSendMain(track_id, sendRowToDb(ev.getY()));
         } else { // PAN
           controller.setTrackAzimuth(track_id, rowToAzimuth(ev.getY()));
         }
@@ -1072,9 +1104,10 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   } else if (state.grid_mode != GridMode::NOTES) {
     // Send/Pan mode: the whole grid means something else entirely - each
     // column is one of the first 8 root tracks. Send A/B/Main fill
-    // bottom-up as a bargraph of that track's current send level (0-7 ->
-    // 0.0-1.0) - a magnitude (Send Main's own zero-config value, 1.0, so
-    // shows fully filled until turned down). Pan lights only the one row
+    // bottom-up as a bargraph of that track's current send level
+    // (sendLinearToRow, its own dB curve's inverse) - a magnitude (Send
+    // Main's own zero-config value, 1.0/0dB, so shows fully filled until
+    // turned down). Pan lights only the one row
     // matching that track's current azimuth (see azimuthToRow) - a
     // direction, not a magnitude, so a fill wouldn't make sense; "only one
     // button highlighted" per column. No active/inactive feedback needed
@@ -1098,7 +1131,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
       // Pan).
       bool has_track = x < state.grid_track_count;
       int lit_row = is_pan ? azimuthToRow(values[static_cast<size_t>(x)])
-                            : static_cast<int>(lround(values[static_cast<size_t>(x)] * 7.0f));
+                            : sendLinearToRow(values[static_cast<size_t>(x)]);
       for (int y = 0; y < 8; y++) {
         bool lit = has_track && (is_pan ? (y == lit_row) : (y <= lit_row));
         Rgb color = lit ? base : Rgb{0, 0, 0};

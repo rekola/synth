@@ -111,7 +111,7 @@ TEST(song_default_bus_round_trips_through_save_without_writing_bus_element) {
 }
 
 TEST(render_bus_chain_send_routes_delay_into_reverb) {
-  // Both fixtures feed the same note through sendB="0.5" into a delay
+  // Both fixtures feed the same note through sendB="-6.0206" (dB, ~0.5 linear) into a delay
   // with feedback disabled (so its own taps decay away within ~0.2s) and
   // a reverb with a long (3s) decay in slot A - the only difference is
   // slot B's chainSend (1.0 vs 0.0). A late window, well past the

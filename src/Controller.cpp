@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <unordered_map>
 #include <filesystem>
 #include <cstdlib>
@@ -13,6 +14,19 @@
 #include <fmt/core.h>
 
 using namespace std;
+
+namespace {
+
+// Self-contained (not TreeNode::decibelsToGain(), only reachable from
+// TreeNode<Derived> subclasses - VoiceState/TrackState, neither of which
+// Controller is) - the same "each file keeps its own small dB helper"
+// convention model/InstrumentTrack.cpp's own dbToLinear() (and
+// effects/Compressor.cpp's db2lin(), dsp/TapeTransport.cpp's/
+// effects/TapeDegradation.cpp's own dbToLinear()) already use, including
+// the same -100dB "off" floor.
+float dbToLinear(float db) { return db > -100.0f ? powf(10.0f, db * 0.05f) : 0.0f; }
+
+}
 
 // Find a General MIDI SoundFont. Priority: the project-local data/ override,
 // then well-known GM fonts by name (user dirs before system dirs;
@@ -251,27 +265,30 @@ void
 Controller::setTrackSendA(int track_id, float value) {
   auto instrument_track = asInstrumentTrack(current_song->getTrackByInternalId(track_id));
   if (!instrument_track) return;
-  instrument_track->setSendA(value);
+  float linear = dbToLinear(value);
+  instrument_track->setSendA(linear);
   current_song->incVersion();
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_A, track_id, static_cast<int>(value * 1000.0f + 0.5f)));
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_A, track_id, static_cast<int>(linear * 1000.0f + 0.5f)));
 }
 
 void
 Controller::setTrackSendB(int track_id, float value) {
   auto instrument_track = asInstrumentTrack(current_song->getTrackByInternalId(track_id));
   if (!instrument_track) return;
-  instrument_track->setSendB(value);
+  float linear = dbToLinear(value);
+  instrument_track->setSendB(linear);
   current_song->incVersion();
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_B, track_id, static_cast<int>(value * 1000.0f + 0.5f)));
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_B, track_id, static_cast<int>(linear * 1000.0f + 0.5f)));
 }
 
 void
 Controller::setTrackSendMain(int track_id, float value) {
   auto instrument_track = asInstrumentTrack(current_song->getTrackByInternalId(track_id));
   if (!instrument_track) return;
-  instrument_track->setSendMain(value);
+  float linear = dbToLinear(value);
+  instrument_track->setSendMain(linear);
   current_song->incVersion();
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_MAIN, track_id, static_cast<int>(value * 1000.0f + 0.5f)));
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_MAIN, track_id, static_cast<int>(linear * 1000.0f + 0.5f)));
 }
 
 void

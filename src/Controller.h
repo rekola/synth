@@ -176,6 +176,12 @@ class Controller {
   // setSendMain.
   bool toggleTrackMuted(int track_id);
   bool toggleTrackSolo(int track_id);
+
+  // value is in dB (a perceptual/log scale, easier to dial a subtle send
+  // with than a linear fraction) - -100 or below is a hard "off", matching
+  // the same floor InstrumentTrack.cpp's XML load/save uses. Converted to
+  // the linear multiplier InstrumentTrack/SendLevels.h actually store right
+  // here, before either the model or the PlaybackControlEvent ever see it.
   void setTrackSendA(int track_id, float value);
   void setTrackSendB(int track_id, float value);
   void setTrackSendMain(int track_id, float value);

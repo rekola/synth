@@ -7,7 +7,7 @@
   </instruments>
   <tracks>
     <tapeDegradation preset="tape" azimuth="0" distance="1">
-      <track id="0" instrument="0" sendA="0.5"/>
+      <track id="0" instrument="0" sendA="-6.0206"/>
     </tapeDegradation>
   </tracks>
   <scenes>

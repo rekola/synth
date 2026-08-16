@@ -12,7 +12,14 @@
 // 1.0 default (full signal, i.e. today's behavior unchanged). a/b: how much
 // additionally reaches the shared send bus's two slots - InstrumentTrack::
 // getSendA()/getSendB(), 0.0 default (see bus/BusEffect.h). All three are
-// applied the same way, in the same place, by the voice itself: see
+// plain linear multipliers, read directly per sample in the audio callback
+// (InstrumentVoice.h) - a human edits them in dB (a perceptual/log scale is
+// far easier to dial a subtle send with than a linear fraction), but that
+// conversion happens only at the control-surface/file-format boundary
+// (InstrumentTrack::loadParameters()/storeParameters(),
+// Controller::setTrackSendA()/setTrackSendB()/setTrackSendMain()) - never
+// here, and never per sample. All three are applied the same way, in the
+// same place, by the voice itself: see
 // InstrumentVoice::encodePosition() for main/a/b, and SoundFontVoice's own
 // per-voice chorus taps and FileInstrumentVoice's multi-channel path for
 // the two spots that scale their own extra contribution to the regular

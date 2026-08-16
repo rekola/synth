@@ -59,7 +59,10 @@ class InstrumentTrack : public Track {
   bool isMuted() const { return muted_; }
   void setMuted(bool m) { muted_ = m; }
 
-  // See SendLevels.h.
+  // Plain linear multipliers, same as SendLevels.h's own fields (see its
+  // doc comment) - dB is only ever a control-surface/file-format unit, one
+  // layer up from here (Controller::setTrackSendA()/setTrackSendB()/
+  // setTrackSendMain(), loadParameters()/storeParameters() below).
   const SendLevels & getSends() const { return sends_; }
   void setSendA(float s) { sends_.a = s; }
   void setSendB(float s) { sends_.b = s; }

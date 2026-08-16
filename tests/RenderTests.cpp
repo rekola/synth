@@ -640,7 +640,7 @@ TEST(render_ambisonic_order3_smoke_test) {
 
 TEST(render_track_send_a_reaches_track_state_output) {
   // Fully deterministic (no SoundFont involved): a plain oscillator
-  // instrument with sendA=0.5 configured on its <track> - confirms the
+  // instrument with sendA=-6.0206 dB (~0.5 linear) configured on its <track> - confirms the
   // whole propagation path (InstrumentVoice -> InstrumentTrackState ->
   // SongState) actually carries real SendA energy, using a RecordingMixer
   // to inspect the per-track AudioBuffer the real Mixer would otherwise
@@ -817,7 +817,7 @@ TEST(render_track_send_b_reaches_track_state_output) {
   // confirms the multi-tap delay's mono input actually gets fed real
   // energy through the same InstrumentVoice -> InstrumentTrackState ->
   // SongState propagation path, using send_b_oscillator.xml (identical to
-  // send_a_oscillator.xml except sendB="0.5" instead of sendA).
+  // send_a_oscillator.xml except sendB="-6.0206" (dB, ~0.5 linear) instead of sendA).
   auto loaded = loadFixture("send_b_oscillator.xml");
   CHECK(loaded.ok);
 
@@ -879,7 +879,7 @@ TEST(render_send_b_reaches_ambisonic_bus_beyond_w_y_at_both_orders) {
 
 TEST(render_send_a_produces_audible_reverb_tail) {
   // send_a_oscillator.xml is identical to center_note.xml except for
-  // sendA="0.5" on its one track - any output difference between them is
+  // sendA="-6.0206" (dB, ~0.5 linear) on its one track - any output difference between them is
   // attributable entirely to SendBusProcessor's shared reverb, which now
   // actually reaches the final mix (Phase 1 only proved the plumbing
   // reached the mixer's accumulator - see
@@ -913,7 +913,7 @@ TEST(render_send_a_produces_audible_reverb_tail) {
 
 TEST(render_send_b_produces_audible_delay_echo) {
   // send_b_oscillator.xml is identical to center_note.xml except for
-  // sendB="0.5" on its one track - any output difference between them is
+  // sendB="-6.0206" (dB, ~0.5 linear) on its one track - any output difference between them is
   // attributable entirely to SendBusProcessor's shared multi-tap delay.
   // Same methodology as render_send_a_produces_audible_reverb_tail.
   auto with_send = loadFixture("send_b_oscillator.xml");
@@ -945,7 +945,7 @@ TEST(render_send_b_produces_audible_delay_echo) {
 
 TEST(render_haze_produces_audible_diffuse_bed) {
   // haze_oscillator.xml is identical to center_note.xml except for
-  // sendB="0.5" on its one track and a <haze preset="crunch"/> occupying
+  // sendB="-6.0206" (dB, ~0.5 linear) on its one track and a <haze preset="crunch"/> occupying
   // slot B instead of the default delay - end-to-end coverage for
   // plans/drum-bus-saturator.md's whole feature (drive/shape/bias/
   // bandpass/oversample/tilt/auto-gain/pre-delay/diffuse-encode), not a
@@ -1025,7 +1025,7 @@ TEST(render_stereo_dry_signal_attenuates_with_distance) {
 }
 
 TEST(render_send_a_is_distance_invariant) {
-  // Two otherwise-identical tracks (oscillator + envelope, sendA=0.5)
+  // Two otherwise-identical tracks (oscillator + envelope, sendA=-6.0206 dB (~0.5 linear))
   // differing only in `distance` - a send's contribution to the shared
   // reverb bus should NOT depend on how far the source is from the
   // listener (see InstrumentVoice::getDistanceGain()'s doc comment and
@@ -1065,7 +1065,7 @@ TEST(render_send_a_is_distance_invariant) {
 }
 
 TEST(render_send_main_zero_silences_main_channels_but_not_sends) {
-  // sendMain="0.0" alongside sendA="0.5" on the same track (SendLevels.h,
+  // sendMain="-100" (hard off) alongside sendA="-6.0206" (dB, ~0.5 linear) on the same track (SendLevels.h,
   // InstrumentVoice::encodePosition()): the track's own regular/main
   // channel should not even be allocated (hasChannel(Channel::Main) false
   // - a structural fact now, not just numerically-zero content) while its
