@@ -4,7 +4,7 @@
 #include "../src/dsp/RealFFT.h"
 #include "../src/dsp/NoiseGenerator.h"
 #include "../src/dsp/PinkNoiseFilter.h"
-#include "../src/MemoryParameterSource.h"
+#include "../src/state/MemoryParameterSource.h"
 
 #include <cmath>
 #include <complex>

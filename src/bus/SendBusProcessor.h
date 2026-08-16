@@ -1,9 +1,9 @@
 #ifndef _SENDBUSPROCESSOR_H_
 #define _SENDBUSPROCESSOR_H_
 
-#include "../AudioBuffer.h"
-#include "../ChannelConfiguration.h"
-#include "../AmbisonicEncoding.h"
+#include "../audio/AudioBuffer.h"
+#include "../ambisonic/ChannelConfiguration.h"
+#include "../ambisonic/AmbisonicEncoding.h"
 #include "BusEffect.h"
 
 #include <array>

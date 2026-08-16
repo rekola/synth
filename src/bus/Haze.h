@@ -3,7 +3,7 @@
 
 #include "BusEffect.h"
 #include "SaturatorShape.h"
-#include "../AmbisonicDiffuseEncoder.h"
+#include "../ambisonic/AmbisonicDiffuseEncoder.h"
 #include "../dsp/Biquad.h"
 #include "../dsp/HalfbandFilter.h"
 #include "../dsp/FilterType.h"

@@ -1,8 +1,8 @@
 #include "TestFramework.h"
 
 #include "../src/Controller.h"
-#include "../src/Song.h"
-#include "../src/ChannelConfiguration.h"
+#include "../src/model/Song.h"
+#include "../src/ambisonic/ChannelConfiguration.h"
 
 #include <filesystem>
 #include <fstream>

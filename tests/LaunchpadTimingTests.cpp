@@ -1,6 +1,6 @@
 #include "TestFramework.h"
 
-#include "../src/LaunchpadTiming.h"
+#include "../src/launchpad/LaunchpadTiming.h"
 
 #include <chrono>
 #include <vector>

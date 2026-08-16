@@ -2,7 +2,7 @@
 #define _DIRACANALYZER_H_
 
 #include "RealFFT.h"
-#include "../AudioBuffer.h"
+#include "../audio/AudioBuffer.h"
 
 #include <array>
 #include <vector>

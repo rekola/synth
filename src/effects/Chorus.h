@@ -2,7 +2,7 @@
 #define _CHORUS_H_
 
 #include "Effect.h"
-#include "../AmbisonicEncoding.h"
+#include "../ambisonic/AmbisonicEncoding.h"
 
 class Chorus : public Effect {
  public:

@@ -2,7 +2,7 @@
 #define _BIQUADFILTER_H_
 
 #include "Effect.h"
-#include "../Envelope.h"
+#include "../instruments/Envelope.h"
 #include "../dsp/FilterType.h"
 
 class BiquadFilter : public Effect {

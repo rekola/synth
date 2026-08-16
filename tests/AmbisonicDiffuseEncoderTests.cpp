@@ -1,8 +1,8 @@
 #include "TestFramework.h"
 
-#include "../src/AmbisonicDiffuseEncoder.h"
-#include "../src/AmbisonicEncoding.h"
-#include "../src/AudioBuffer.h"
+#include "../src/ambisonic/AmbisonicDiffuseEncoder.h"
+#include "../src/ambisonic/AmbisonicEncoding.h"
+#include "../src/audio/AudioBuffer.h"
 #include "../src/dsp/NoiseGenerator.h"
 
 #include <cmath>

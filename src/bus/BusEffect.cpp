@@ -1,5 +1,5 @@
 #include "BusEffect.h"
-#include "../ParameterSource.h"
+#include "../state/ParameterSource.h"
 
 void
 BusEffect::loadParameters(const ParameterSource & input) {

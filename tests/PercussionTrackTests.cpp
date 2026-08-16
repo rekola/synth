@@ -1,8 +1,8 @@
 #include "TestFramework.h"
 
-#include "../src/PercussionTrack.h"
-#include "../src/Song.h"
-#include "../src/InstrumentProvider.h"
+#include "../src/model/PercussionTrack.h"
+#include "../src/model/Song.h"
+#include "../src/instruments/InstrumentProvider.h"
 
 #include <filesystem>
 

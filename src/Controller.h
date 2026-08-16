@@ -2,12 +2,12 @@
 #ifndef _CONTROLLER_H_
 #define _CONTROLLER_H_
 
-#include "AudioBuffer.h"
-#include "InstrumentProvider.h"
-#include "EventQueue.h"
-#include "PlaybackInfo.h"
-#include "ChannelConfiguration.h"
-#include "MixerType.h"
+#include "audio/AudioBuffer.h"
+#include "instruments/InstrumentProvider.h"
+#include "playback/EventQueue.h"
+#include "state/PlaybackInfo.h"
+#include "ambisonic/ChannelConfiguration.h"
+#include "ambisonic/MixerType.h"
 
 #include <functional>
 #include <memory>

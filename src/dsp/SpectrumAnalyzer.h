@@ -2,7 +2,7 @@
 #define _SPECTRUMANALYZER_H_
 
 #include "RealFFT.h"
-#include "../AudioBuffer.h"
+#include "../audio/AudioBuffer.h"
 
 #include <cmath>
 #include <memory>

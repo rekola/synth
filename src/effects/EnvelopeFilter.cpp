@@ -2,8 +2,8 @@
 
 #include "EffectTrackState.h"
 #include "EffectVoiceState.h"
-#include "../EnvelopeState.h"
-#include "../constants.h"
+#include "../state/EnvelopeState.h"
+#include "../util/constants.h"
 
 using namespace std;
 

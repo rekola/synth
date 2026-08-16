@@ -1,7 +1,7 @@
 #ifndef _EFFECT_H_
 #define _EFFECT_H_
 
-#include "../Track.h"
+#include "../model/Track.h"
 
 class Effect : public Track {
  public:

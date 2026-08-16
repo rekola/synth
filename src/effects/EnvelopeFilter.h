@@ -2,7 +2,7 @@
 #define _ENVELOPEFILTER_H_
 
 #include "Effect.h"
-#include "../Envelope.h"
+#include "../instruments/Envelope.h"
 
 class EnvelopeFilter : public Effect {
  public:

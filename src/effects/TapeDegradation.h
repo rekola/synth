@@ -2,10 +2,10 @@
 #define _TAPEDEGRADATION_H_
 
 #include "Effect.h"
-#include "../AmbisonicEncoding.h"
-#include "../SphericalPosition.h"
-#include "../SendLevels.h"
-#include "../NoteCoordinate.h"
+#include "../ambisonic/AmbisonicEncoding.h"
+#include "../ambisonic/SphericalPosition.h"
+#include "../model/SendLevels.h"
+#include "../model/NoteCoordinate.h"
 #include "../dsp/TapeTransport.h"
 
 // Source-attached tape/media degradation - the degradation belongs to the

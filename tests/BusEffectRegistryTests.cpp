@@ -1,10 +1,10 @@
 #include "TestFramework.h"
 
 #include "../src/bus/BusEffectRegistry.h"
-#include "../src/Song.h"
-#include "../src/InstrumentProvider.h"
-#include "../src/ChannelConfiguration.h"
-#include "../src/OfflineRenderer.h"
+#include "../src/model/Song.h"
+#include "../src/instruments/InstrumentProvider.h"
+#include "../src/ambisonic/ChannelConfiguration.h"
+#include "../src/audio/OfflineRenderer.h"
 
 #include <algorithm>
 #include <cmath>

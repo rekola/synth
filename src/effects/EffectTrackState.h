@@ -1,7 +1,7 @@
 #ifndef _EFFECTTRACKSTATE_H_
 #define _EFFECTTRACKSTATE_H_
 
-#include "../TrackState.h"
+#include "../state/TrackState.h"
 
 // Track-tree half of the per-track-effect state contract - see
 // plans/trackstate-voicestate-split.md. Every concrete effect

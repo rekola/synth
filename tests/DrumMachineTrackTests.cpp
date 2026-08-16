@@ -1,14 +1,14 @@
 #include "TestFramework.h"
 
-#include "../src/DrumMachineTrack.h"
-#include "../src/Song.h"
-#include "../src/InstrumentProvider.h"
-#include "../src/OfflineRenderer.h"
-#include "../src/ChannelConfiguration.h"
-#include "../src/SongState.h"
-#include "../src/MixerFactory.h"
-#include "../src/MixerType.h"
-#include "../src/Mixer.h"
+#include "../src/model/DrumMachineTrack.h"
+#include "../src/model/Song.h"
+#include "../src/instruments/InstrumentProvider.h"
+#include "../src/audio/OfflineRenderer.h"
+#include "../src/ambisonic/ChannelConfiguration.h"
+#include "../src/state/SongState.h"
+#include "../src/ambisonic/MixerFactory.h"
+#include "../src/ambisonic/MixerType.h"
+#include "../src/ambisonic/Mixer.h"
 
 #include <filesystem>
 #include <cmath>

@@ -1,6 +1,6 @@
 #include "Haze.h"
 
-#include "../ParameterSource.h"
+#include "../state/ParameterSource.h"
 #include "../dsp/NoiseGenerator.h"
 #include "../dsp/PinkNoiseFilter.h"
 

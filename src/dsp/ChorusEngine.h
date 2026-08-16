@@ -1,7 +1,7 @@
 #ifndef _CHORUSENGINE_H_
 #define _CHORUSENGINE_H_
 
-#include "../AudioBuffer.h"
+#include "../audio/AudioBuffer.h"
 #include "FractionalDelayLine.h"
 
 #include <array>

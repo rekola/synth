@@ -4,9 +4,9 @@
 #include "EffectVoiceState.h"
 
 #include "../dsp/Biquad.h"
-#include "../EnvelopeState.h"
+#include "../state/EnvelopeState.h"
 
-#include "../constants.h"
+#include "../util/constants.h"
 
 #include <array>
 #include <cassert>

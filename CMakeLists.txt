@@ -55,16 +55,16 @@ endif()
 # dependency on the terminal UI (notcurses) or audio device (ALSA), so it can
 # be linked into the test suite and any future offline tooling.
 add_library(synth_engine STATIC
-	src/Oscillator.cpp
-	src/Noise.cpp
-	src/FileInstrument.cpp
+	src/instruments/Oscillator.cpp
+	src/instruments/Noise.cpp
+	src/instruments/FileInstrument.cpp
 	src/Controller.cpp
-	src/InstrumentList.cpp
-	src/SoundFont.cpp
-	src/SF2Modulator.cpp
-	src/Song.cpp
-	src/SongObject.cpp
-	src/InstrumentTrack.cpp
+	src/ui/InstrumentList.cpp
+	src/instruments/SoundFont.cpp
+	src/instruments/SF2Modulator.cpp
+	src/model/Song.cpp
+	src/model/SongObject.cpp
+	src/model/InstrumentTrack.cpp
 	third_party/tinyxml2/tinyxml2.cpp
 	src/effects/ResonantFilter.cpp
 	src/effects/BiquadFilter.cpp
@@ -80,27 +80,27 @@ add_library(synth_engine STATIC
 	src/bus/GranularCloud.cpp
 	src/bus/SendBusProcessor.cpp
 	src/bus/Haze.cpp
-	src/AmbisonicDiffuseEncoder.cpp
+	src/ambisonic/AmbisonicDiffuseEncoder.cpp
 	src/effects/Amplifier.cpp
 	src/effects/EnvelopeFilter.cpp
 	src/effects/Compressor.cpp
 	src/effects/TapeDegradation.cpp
 	src/dsp/TapeTransport.cpp
-	src/Player.cpp
-	src/VisualizationThread.cpp
+	src/playback/Player.cpp
+	src/playback/VisualizationThread.cpp
 	src/dsp/DiracAnalyzer.cpp
-	src/NoteMultiplier.cpp
-	src/Arpeggiator.cpp
-	src/ArpeggiatorState.cpp
-	src/LFO.cpp
-	src/OfflineRenderer.cpp
-	src/PatternBlockOps.cpp
-	src/PatternScroll.cpp
-	src/LaunchpadLayout.cpp
-	src/LaunchpadProtocol.cpp
-	src/DrumRankTable.cpp
-	src/DrumMachineTrack.cpp
-	src/MixerFactory.cpp
+	src/instruments/NoteMultiplier.cpp
+	src/instruments/Arpeggiator.cpp
+	src/state/ArpeggiatorState.cpp
+	src/instruments/LFO.cpp
+	src/audio/OfflineRenderer.cpp
+	src/ui/PatternBlockOps.cpp
+	src/ui/PatternScroll.cpp
+	src/launchpad/LaunchpadLayout.cpp
+	src/launchpad/LaunchpadProtocol.cpp
+	src/instruments/DrumRankTable.cpp
+	src/model/DrumMachineTrack.cpp
+	src/ambisonic/MixerFactory.cpp
 )
 target_include_directories(synth_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 # Vendored code (third_party/) as a SYSTEM include path: headers reached
@@ -145,7 +145,7 @@ if(SYNTH_ENABLE_BINAURAL)
   if(NOT (MYSOFA_LIBRARY AND MYSOFA_INCLUDE_DIR))
     message(FATAL_ERROR "SYNTH_ENABLE_BINAURAL requested but libmysofa was not found (install libmysofa-dev)")
   endif()
-  target_sources(synth_engine PRIVATE src/AmbisonicBinauralMixer.cpp src/AmbisonicMagLSDecoder.cpp)
+  target_sources(synth_engine PRIVATE src/ambisonic/AmbisonicBinauralMixer.cpp src/ambisonic/AmbisonicMagLSDecoder.cpp)
   target_compile_definitions(synth_engine PUBLIC SYNTH_HAVE_LIBMYSOFA)
   target_include_directories(synth_engine PRIVATE ${MYSOFA_INCLUDE_DIR})
   target_link_libraries(synth_engine PUBLIC ${MYSOFA_LIBRARY})
@@ -165,13 +165,13 @@ configure_file(
 
 # add the executable
 add_executable(musiceditor src/main.cpp
-	src/UI.cpp
-	src/AlsaAudio.cpp
-	src/LaunchpadIO.cpp
-	src/LaunchpadManager.cpp
-	src/TerminalUI.cpp
-	src/HierarchyView.cpp
-	src/PatternEditor.cpp
+	src/ui/UI.cpp
+	src/audio/AlsaAudio.cpp
+	src/launchpad/LaunchpadIO.cpp
+	src/launchpad/LaunchpadManager.cpp
+	src/ui/TerminalUI.cpp
+	src/ui/HierarchyView.cpp
+	src/ui/PatternEditor.cpp
 )
 target_include_directories(musiceditor PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 

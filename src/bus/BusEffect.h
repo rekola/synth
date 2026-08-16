@@ -1,9 +1,9 @@
 #ifndef _BUSEFFECT_H_
 #define _BUSEFFECT_H_
 
-#include "../AmbisonicEncoding.h"
-#include "../SphericalPosition.h"
-#include "../SongObject.h"
+#include "../ambisonic/AmbisonicEncoding.h"
+#include "../ambisonic/SphericalPosition.h"
+#include "../model/SongObject.h"
 
 #include <vector>
 

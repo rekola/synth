@@ -1,11 +1,11 @@
-#include "AlsaAudio.h"
-#include "LaunchpadIO.h"
-#include "LaunchpadManager.h"
-#include "TerminalUI.h"
+#include "audio/AlsaAudio.h"
+#include "launchpad/LaunchpadIO.h"
+#include "launchpad/LaunchpadManager.h"
+#include "ui/TerminalUI.h"
 #include "Controller.h"
-#include "StderrLogger.h"
-#include "OfflineRenderer.h"
-#include "AmbisonicEncoding.h"
+#include "util/StderrLogger.h"
+#include "audio/OfflineRenderer.h"
+#include "ambisonic/AmbisonicEncoding.h"
 #include "generated/ThirdPartyLicenses.h"
 
 #include <cstring>

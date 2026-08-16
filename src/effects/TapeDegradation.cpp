@@ -7,8 +7,8 @@
 #include "../dsp/Biquad.h"
 #include "../dsp/FilterType.h"
 #include "../dsp/HashField.h"
-#include "../AudioBufferUtils.h"
-#include "../TapeDegradationPresets.h"
+#include "../audio/AudioBufferUtils.h"
+#include "TapeDegradationPresets.h"
 
 #include <algorithm>
 #include <cmath>

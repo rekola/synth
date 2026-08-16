@@ -3,7 +3,7 @@
 
 #include "BusEffect.h"
 #include "DelayPattern.h"
-#include "../SphericalPosition.h"
+#include "../ambisonic/SphericalPosition.h"
 
 #include <array>
 #include <string>

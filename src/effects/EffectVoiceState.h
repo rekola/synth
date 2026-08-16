@@ -1,7 +1,7 @@
 #ifndef _EFFECTVOICESTATE_H_
 #define _EFFECTVOICESTATE_H_
 
-#include "../VoiceState.h"
+#include "../state/VoiceState.h"
 
 // Voice-chain half of the per-track-effect state contract - see
 // EffectTrackState.h (its track-tree sibling) and

@@ -3,8 +3,8 @@
 #include "../src/bus/SendBusProcessor.h"
 #include "../src/bus/BusEffectRegistry.h"
 #include "../src/bus/Haze.h"
-#include "../src/ChannelConfiguration.h"
-#include "../src/AudioBuffer.h"
+#include "../src/ambisonic/ChannelConfiguration.h"
+#include "../src/audio/AudioBuffer.h"
 #include "../src/dsp/NoiseGenerator.h"
 #include "../src/dsp/PinkNoiseFilter.h"
 

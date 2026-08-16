@@ -1,8 +1,8 @@
 #include "Controller.h"
 
-#include "Song.h"
-#include "InstrumentTrack.h"
-#include "PlaybackControlEvent.h"
+#include "model/Song.h"
+#include "model/InstrumentTrack.h"
+#include "playback/PlaybackControlEvent.h"
 
 #include <algorithm>
 #include <cassert>

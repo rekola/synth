@@ -1,8 +1,8 @@
 #include "TestFramework.h"
 
-#include "../src/VisualizationThread.h"
-#include "../src/AudioBlockEvent.h"
-#include "../src/VisualizationResultEvent.h"
+#include "../src/playback/VisualizationThread.h"
+#include "../src/playback/AudioBlockEvent.h"
+#include "../src/playback/VisualizationResultEvent.h"
 #include "../src/Controller.h"
 #include "../src/dsp/DiracAnalyzer.h"
 

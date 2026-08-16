@@ -1,15 +1,15 @@
 #include "TestFramework.h"
 
-#include "../src/Song.h"
-#include "../src/Arpeggiator.h"
-#include "../src/Oscillator.h"
-#include "../src/SongState.h"
-#include "../src/MixerFactory.h"
-#include "../src/MixerType.h"
-#include "../src/Mixer.h"
-#include "../src/ChannelConfiguration.h"
-#include "../src/ActiveVoiceInfo.h"
-#include "../src/MemoryParameterSource.h"
+#include "../src/model/Song.h"
+#include "../src/instruments/Arpeggiator.h"
+#include "../src/instruments/Oscillator.h"
+#include "../src/state/SongState.h"
+#include "../src/ambisonic/MixerFactory.h"
+#include "../src/ambisonic/MixerType.h"
+#include "../src/ambisonic/Mixer.h"
+#include "../src/ambisonic/ChannelConfiguration.h"
+#include "../src/state/ActiveVoiceInfo.h"
+#include "../src/state/MemoryParameterSource.h"
 
 #include <vector>
 #include <algorithm>

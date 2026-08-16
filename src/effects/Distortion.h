@@ -2,7 +2,7 @@
 #define _DISTORTION_H_
 
 #include "Effect.h"
-#include "../AmbisonicEncoding.h"
+#include "../ambisonic/AmbisonicEncoding.h"
 
 enum class DistortionType { HARD_CLIP = 1, SOFT_CLIP, BITCRUSH, TANH };
 

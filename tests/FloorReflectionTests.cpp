@@ -1,9 +1,9 @@
 #include "TestFramework.h"
 
-#include "../src/FloorReflection.h"
-#include "../src/ChannelConfiguration.h"
-#include "../src/Song.h"
-#include "../src/constants.h"
+#include "../src/ambisonic/FloorReflection.h"
+#include "../src/ambisonic/ChannelConfiguration.h"
+#include "../src/model/Song.h"
+#include "../src/util/constants.h"
 
 // Worked examples A/B/C/D match the ones hand-computed during planning:
 // hl (ear height) = 1.7m, c = 343 m/s, sample rate 48000Hz,

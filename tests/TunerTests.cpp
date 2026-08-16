@@ -1,7 +1,7 @@
 #include "TestFramework.h"
 
-#include "../src/Tuner.h"
-#include "../src/Note.h"
+#include "../src/instruments/Tuner.h"
+#include "../src/model/Note.h"
 
 #include <cmath>
 

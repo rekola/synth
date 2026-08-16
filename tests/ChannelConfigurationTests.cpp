@@ -1,6 +1,6 @@
 #include "TestFramework.h"
 
-#include "../src/ChannelConfiguration.h"
+#include "../src/ambisonic/ChannelConfiguration.h"
 
 TEST(channel_configuration_channel_counts) {
   ChannelConfiguration mono(44100);

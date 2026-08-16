@@ -2,7 +2,7 @@
 
 #include "../dsp/ChorusEngine.h"
 #include "../dsp/DelayLineTail.h"
-#include "../AudioBufferUtils.h"
+#include "../audio/AudioBufferUtils.h"
 #include "EffectTrackState.h"
 #include "EffectVoiceState.h"
 

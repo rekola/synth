@@ -2,7 +2,7 @@
 
 #include "../src/bus/FDNReverb.h"
 #include "../src/dsp/NoiseGenerator.h"
-#include "../src/MemoryParameterSource.h"
+#include "../src/state/MemoryParameterSource.h"
 
 #include <algorithm>
 #include <cmath>

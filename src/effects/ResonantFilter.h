@@ -2,7 +2,7 @@
 #define _RESONANTFILTER_H_
 
 #include "Effect.h"
-#include "../Envelope.h"
+#include "../instruments/Envelope.h"
 
 class ResonantFilter : public Effect {
  public:

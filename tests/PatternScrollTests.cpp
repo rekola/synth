@@ -1,7 +1,7 @@
 #include "TestFramework.h"
 
-#include "../src/PatternScroll.h"
-#include "../src/VisibleTrackInfo.h"
+#include "../src/ui/PatternScroll.h"
+#include "../src/model/VisibleTrackInfo.h"
 
 #include <optional>
 #include <vector>

@@ -1,7 +1,7 @@
 #include "TestFramework.h"
 
 #include "../src/bus/GranularCloud.h"
-#include "../src/MemoryParameterSource.h"
+#include "../src/state/MemoryParameterSource.h"
 #include "../src/dsp/NoiseGenerator.h"
 
 #include <cmath>

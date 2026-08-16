@@ -4,8 +4,8 @@
 #include "EffectVoiceState.h"
 
 #include "../dsp/MoogVCF.h"
-#include "../EnvelopeState.h"
-#include "../constants.h"
+#include "../state/EnvelopeState.h"
+#include "../util/constants.h"
 
 #include <array>
 #include <cassert>
