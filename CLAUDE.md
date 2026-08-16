@@ -23,8 +23,11 @@ cmake --build build -j
 
 Produces `build/musiceditor`.
 
-Dependencies (Ubuntu): `libnotcurses-dev libfmt-dev libsndfile1-dev
-libasound2-dev` plus CMake and a C++17 compiler. FFT support (the live
+Dependencies (Ubuntu): `libnotcurses-dev libnotcurses++-dev libfmt-dev
+libsndfile1-dev libasound2-dev` plus CMake and a C++17 compiler. The C++
+bindings (`ncpp/NotCurses.hh`, what `main.cpp`/`TerminalUI.cpp` include) ship
+in `libnotcurses++-dev`, a separate package `libnotcurses-dev` does not pull
+in as a dependency — both are required. FFT support (the live
 spectrum analyzer, MagLS binaural precomputation) is via vendored PocketFFT
 (`third_party/pocketfft/`) — no separate FFT library package needed.
 `libmysofa-dev` is optional (binaural ambisonic decoding, `SYNTH_ENABLE_BINAURAL`,
