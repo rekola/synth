@@ -55,54 +55,54 @@ endif()
 # dependency on the terminal UI (notcurses) or audio device (ALSA), so it can
 # be linked into the test suite and any future offline tooling.
 add_library(synth_engine STATIC
-	Oscillator.cpp
-	Noise.cpp
-	FileInstrument.cpp
-	Controller.cpp
-	InstrumentList.cpp
-	SoundFont.cpp
-	SF2Modulator.cpp
-	Song.cpp
-	SongObject.cpp
-	InstrumentTrack.cpp
+	src/Oscillator.cpp
+	src/Noise.cpp
+	src/FileInstrument.cpp
+	src/Controller.cpp
+	src/InstrumentList.cpp
+	src/SoundFont.cpp
+	src/SF2Modulator.cpp
+	src/Song.cpp
+	src/SongObject.cpp
+	src/InstrumentTrack.cpp
 	third_party/tinyxml2/tinyxml2.cpp
-	effects/ResonantFilter.cpp
-	effects/BiquadFilter.cpp
-	effects/Distortion.cpp
-	effects/Tremolo.cpp
-	effects/Chorus.cpp
-	dsp/ChorusEngine.cpp
-	dsp/GranularEngine.cpp
-	bus/BusEffect.cpp
-	bus/BusEffectRegistry.cpp
-	bus/FDNReverb.cpp
-	bus/MultiTapDelay.cpp
-	bus/GranularCloud.cpp
-	bus/SendBusProcessor.cpp
-	bus/Haze.cpp
-	AmbisonicDiffuseEncoder.cpp
-	effects/Amplifier.cpp
-	effects/EnvelopeFilter.cpp
-	effects/Compressor.cpp
-	effects/TapeDegradation.cpp
-	dsp/TapeTransport.cpp
-	Player.cpp
-	VisualizationThread.cpp
-	dsp/DiracAnalyzer.cpp
-	NoteMultiplier.cpp
-	Arpeggiator.cpp
-	ArpeggiatorState.cpp
-	LFO.cpp
-	OfflineRenderer.cpp
-	PatternBlockOps.cpp
-	PatternScroll.cpp
-	LaunchpadLayout.cpp
-	LaunchpadProtocol.cpp
-	DrumRankTable.cpp
-	DrumMachineTrack.cpp
-	MixerFactory.cpp
+	src/effects/ResonantFilter.cpp
+	src/effects/BiquadFilter.cpp
+	src/effects/Distortion.cpp
+	src/effects/Tremolo.cpp
+	src/effects/Chorus.cpp
+	src/dsp/ChorusEngine.cpp
+	src/dsp/GranularEngine.cpp
+	src/bus/BusEffect.cpp
+	src/bus/BusEffectRegistry.cpp
+	src/bus/FDNReverb.cpp
+	src/bus/MultiTapDelay.cpp
+	src/bus/GranularCloud.cpp
+	src/bus/SendBusProcessor.cpp
+	src/bus/Haze.cpp
+	src/AmbisonicDiffuseEncoder.cpp
+	src/effects/Amplifier.cpp
+	src/effects/EnvelopeFilter.cpp
+	src/effects/Compressor.cpp
+	src/effects/TapeDegradation.cpp
+	src/dsp/TapeTransport.cpp
+	src/Player.cpp
+	src/VisualizationThread.cpp
+	src/dsp/DiracAnalyzer.cpp
+	src/NoteMultiplier.cpp
+	src/Arpeggiator.cpp
+	src/ArpeggiatorState.cpp
+	src/LFO.cpp
+	src/OfflineRenderer.cpp
+	src/PatternBlockOps.cpp
+	src/PatternScroll.cpp
+	src/LaunchpadLayout.cpp
+	src/LaunchpadProtocol.cpp
+	src/DrumRankTable.cpp
+	src/DrumMachineTrack.cpp
+	src/MixerFactory.cpp
 )
-target_include_directories(synth_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(synth_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 # Vendored code (third_party/) as a SYSTEM include path: headers reached
 # through it (tinyxml2.h, pocketfft_hdronly.h) are exempted from our own
 # warning flags, since we don't reformat/refactor vendored files to chase
@@ -145,7 +145,7 @@ if(SYNTH_ENABLE_BINAURAL)
   if(NOT (MYSOFA_LIBRARY AND MYSOFA_INCLUDE_DIR))
     message(FATAL_ERROR "SYNTH_ENABLE_BINAURAL requested but libmysofa was not found (install libmysofa-dev)")
   endif()
-  target_sources(synth_engine PRIVATE AmbisonicBinauralMixer.cpp AmbisonicMagLSDecoder.cpp)
+  target_sources(synth_engine PRIVATE src/AmbisonicBinauralMixer.cpp src/AmbisonicMagLSDecoder.cpp)
   target_compile_definitions(synth_engine PUBLIC SYNTH_HAVE_LIBMYSOFA)
   target_include_directories(synth_engine PRIVATE ${MYSOFA_INCLUDE_DIR})
   target_link_libraries(synth_engine PUBLIC ${MYSOFA_LIBRARY})
@@ -164,14 +164,14 @@ configure_file(
 )
 
 # add the executable
-add_executable(musiceditor main.cpp
-	UI.cpp
-	AlsaAudio.cpp
-	LaunchpadIO.cpp
-	LaunchpadManager.cpp
-	TerminalUI.cpp
-	HierarchyView.cpp
-	PatternEditor.cpp
+add_executable(musiceditor src/main.cpp
+	src/UI.cpp
+	src/AlsaAudio.cpp
+	src/LaunchpadIO.cpp
+	src/LaunchpadManager.cpp
+	src/TerminalUI.cpp
+	src/HierarchyView.cpp
+	src/PatternEditor.cpp
 )
 target_include_directories(musiceditor PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 

@@ -1,14 +1,14 @@
 #include "TestFramework.h"
 
-#include "../ArpeggiatorState.h"
-#include "../Arpeggiator.h"
-#include "../Oscillator.h"
-#include "../MemoryParameterSource.h"
-#include "../ChannelConfiguration.h"
-#include "../SphericalPosition.h"
-#include "../SendLevels.h"
-#include "../ActiveVoiceInfo.h"
-#include "../NoteOrigin.h"
+#include "../src/ArpeggiatorState.h"
+#include "../src/Arpeggiator.h"
+#include "../src/Oscillator.h"
+#include "../src/MemoryParameterSource.h"
+#include "../src/ChannelConfiguration.h"
+#include "../src/SphericalPosition.h"
+#include "../src/SendLevels.h"
+#include "../src/ActiveVoiceInfo.h"
+#include "../src/NoteOrigin.h"
 
 #include <memory>
 #include <vector>

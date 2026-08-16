@@ -1,8 +1,8 @@
 #include "TestFramework.h"
 
-#include "../effects/EnvelopeFilter.h"
-#include "../MemoryParameterSource.h"
-#include "../ChannelConfiguration.h"
+#include "../src/effects/EnvelopeFilter.h"
+#include "../src/MemoryParameterSource.h"
+#include "../src/ChannelConfiguration.h"
 
 // EnvelopeFilterVoiceState is file-local to effects/EnvelopeFilter.cpp (no
 // header declaration) - constructed here the same way SF2ModulatorTests.cpp

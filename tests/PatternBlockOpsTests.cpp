@@ -1,7 +1,7 @@
 #include "TestFramework.h"
 
-#include "../PatternBlockOps.h"
-#include "../Scene.h"
+#include "../src/PatternBlockOps.h"
+#include "../src/Scene.h"
 
 #include <vector>
 

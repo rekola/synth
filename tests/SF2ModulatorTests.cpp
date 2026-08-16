@@ -1,16 +1,16 @@
 #include "TestFramework.h"
 
-#include "../SF2Modulator.h"
-#include "../SoundFont.h"
-#include "../ChannelConfiguration.h"
-#include "../SphericalPosition.h"
-#include "../SendLevels.h"
-#include "../TrackState.h"
-#include "../InstrumentTrackState.h"
-#include "../RenderContext.h"
-#include "../Track.h"
-#include "../AudioBuffer.h"
-#include "../NoteCoordinate.h"
+#include "../src/SF2Modulator.h"
+#include "../src/SoundFont.h"
+#include "../src/ChannelConfiguration.h"
+#include "../src/SphericalPosition.h"
+#include "../src/SendLevels.h"
+#include "../src/TrackState.h"
+#include "../src/InstrumentTrackState.h"
+#include "../src/RenderContext.h"
+#include "../src/Track.h"
+#include "../src/AudioBuffer.h"
+#include "../src/NoteCoordinate.h"
 
 #include <cmath>
 #include <cstdint>

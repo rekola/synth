@@ -1,9 +1,9 @@
 #include "TestFramework.h"
 
-#include "../OscillatorVoice.h"
-#include "../TrackEvent.h"
-#include "../RenderContext.h"
-#include "../SphericalPosition.h"
+#include "../src/OscillatorVoice.h"
+#include "../src/TrackEvent.h"
+#include "../src/RenderContext.h"
+#include "../src/SphericalPosition.h"
 
 TEST(oscillator_voice_reports_note_value_and_velocity_loudness) {
   ChannelConfiguration config(44100);

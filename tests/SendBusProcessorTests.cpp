@@ -1,12 +1,12 @@
 #include "TestFramework.h"
 
-#include "../bus/SendBusProcessor.h"
-#include "../bus/BusEffectRegistry.h"
-#include "../bus/Haze.h"
-#include "../ChannelConfiguration.h"
-#include "../AudioBuffer.h"
-#include "../dsp/NoiseGenerator.h"
-#include "../dsp/PinkNoiseFilter.h"
+#include "../src/bus/SendBusProcessor.h"
+#include "../src/bus/BusEffectRegistry.h"
+#include "../src/bus/Haze.h"
+#include "../src/ChannelConfiguration.h"
+#include "../src/AudioBuffer.h"
+#include "../src/dsp/NoiseGenerator.h"
+#include "../src/dsp/PinkNoiseFilter.h"
 
 using namespace std;
 

@@ -1,6 +1,6 @@
 #include "TestFramework.h"
 
-#include "../dsp/HashField.h"
+#include "../src/dsp/HashField.h"
 
 #include <algorithm>
 

@@ -1,6 +1,6 @@
 #include "TestFramework.h"
 
-#include "../dsp/TapeTransport.h"
+#include "../src/dsp/TapeTransport.h"
 
 #include <algorithm>
 #include <cmath>

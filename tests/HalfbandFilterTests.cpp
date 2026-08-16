@@ -1,7 +1,7 @@
 #include "TestFramework.h"
 
-#include "../dsp/HalfbandFilter.h"
-#include "../dsp/RealFFT.h"
+#include "../src/dsp/HalfbandFilter.h"
+#include "../src/dsp/RealFFT.h"
 
 #include <cmath>
 #include <complex>

@@ -1,6 +1,6 @@
 #include "TestFramework.h"
 
-#include "../DrumRankTable.h"
+#include "../src/DrumRankTable.h"
 
 #include <set>
 

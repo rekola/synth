@@ -1,6 +1,6 @@
 #include "TestFramework.h"
 
-#include "../dsp/FractionalDelayLine.h"
+#include "../src/dsp/FractionalDelayLine.h"
 
 #include <cmath>
 

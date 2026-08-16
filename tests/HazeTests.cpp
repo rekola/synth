@@ -1,10 +1,10 @@
 #include "TestFramework.h"
 
-#include "../bus/Haze.h"
-#include "../dsp/RealFFT.h"
-#include "../dsp/NoiseGenerator.h"
-#include "../dsp/PinkNoiseFilter.h"
-#include "../MemoryParameterSource.h"
+#include "../src/bus/Haze.h"
+#include "../src/dsp/RealFFT.h"
+#include "../src/dsp/NoiseGenerator.h"
+#include "../src/dsp/PinkNoiseFilter.h"
+#include "../src/MemoryParameterSource.h"
 
 #include <cmath>
 #include <complex>

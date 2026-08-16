@@ -1,7 +1,7 @@
 #include "TestFramework.h"
 
-#include "../dsp/GranularEngine.h"
-#include "../dsp/NoiseGenerator.h"
+#include "../src/dsp/GranularEngine.h"
+#include "../src/dsp/NoiseGenerator.h"
 
 #include <algorithm>
 #include <cmath>

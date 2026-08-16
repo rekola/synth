@@ -1,8 +1,8 @@
 #include "TestFramework.h"
 
-#include "../Command.h"
-#include "../EventHandler.h"
-#include "../InputEvent.h"
+#include "../src/Command.h"
+#include "../src/EventHandler.h"
+#include "../src/InputEvent.h"
 
 // PatternEditor::offerInput()'s ColumnType::EFFECT branch relies on
 // updateData() to validate a raw InputEvent::getId() codepoint itself

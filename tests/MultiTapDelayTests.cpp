@@ -1,7 +1,7 @@
 #include "TestFramework.h"
 
-#include "../bus/MultiTapDelay.h"
-#include "../MemoryParameterSource.h"
+#include "../src/bus/MultiTapDelay.h"
+#include "../src/MemoryParameterSource.h"
 
 #include <algorithm>
 #include <cmath>

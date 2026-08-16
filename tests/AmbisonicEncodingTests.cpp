@@ -1,7 +1,7 @@
 #include "TestFramework.h"
 
-#include "../AmbisonicEncoding.h"
-#include "../InstrumentVoice.h"
+#include "../src/AmbisonicEncoding.h"
+#include "../src/InstrumentVoice.h"
 
 namespace {
 constexpr float kSqrt3Over2 = 0.86602540378443864676f;

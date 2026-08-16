@@ -9,8 +9,8 @@
 // the actual measured HRTF set, so these tests need the real thing.
 #ifdef SYNTH_HAVE_LIBMYSOFA
 
-#include "../AmbisonicMagLSDecoder.h"
-#include "../dsp/RealFFT.h"
+#include "../src/AmbisonicMagLSDecoder.h"
+#include "../src/dsp/RealFFT.h"
 
 #include <chrono>
 #include <cmath>

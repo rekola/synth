@@ -1,8 +1,8 @@
 #include "TestFramework.h"
 
-#include "../dsp/DiracAnalyzer.h"
-#include "../AmbisonicEncoding.h"
-#include "../dsp/HashField.h"
+#include "../src/dsp/DiracAnalyzer.h"
+#include "../src/AmbisonicEncoding.h"
+#include "../src/dsp/HashField.h"
 
 #include <cmath>
 

@@ -1,6 +1,6 @@
 #include "TestFramework.h"
 
-#include "../dsp/ChorusEngine.h"
+#include "../src/dsp/ChorusEngine.h"
 
 #include <cmath>
 #include <vector>

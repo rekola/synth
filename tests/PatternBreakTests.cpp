@@ -1,12 +1,12 @@
 #include "TestFramework.h"
 
-#include "../Song.h"
-#include "../InstrumentTrack.h"
-#include "../SongState.h"
-#include "../MixerFactory.h"
-#include "../MixerType.h"
-#include "../Mixer.h"
-#include "../ChannelConfiguration.h"
+#include "../src/Song.h"
+#include "../src/InstrumentTrack.h"
+#include "../src/SongState.h"
+#include "../src/MixerFactory.h"
+#include "../src/MixerType.h"
+#include "../src/Mixer.h"
+#include "../src/ChannelConfiguration.h"
 
 using namespace std;
 

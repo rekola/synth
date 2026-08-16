@@ -1,12 +1,12 @@
 #include "TestFramework.h"
 
-#include "../Song.h"
-#include "../InstrumentProvider.h"
-#include "../OfflineRenderer.h"
-#include "../ChannelConfiguration.h"
-#include "../SongState.h"
-#include "../Mixer.h"
-#include "../dsp/DiracAnalyzer.h"
+#include "../src/Song.h"
+#include "../src/InstrumentProvider.h"
+#include "../src/OfflineRenderer.h"
+#include "../src/ChannelConfiguration.h"
+#include "../src/SongState.h"
+#include "../src/Mixer.h"
+#include "../src/dsp/DiracAnalyzer.h"
 
 #include <algorithm>
 #include <cmath>

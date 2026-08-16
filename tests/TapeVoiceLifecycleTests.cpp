@@ -1,13 +1,13 @@
 #include "TestFramework.h"
 
-#include "../Song.h"
-#include "../InstrumentProvider.h"
-#include "../SongState.h"
-#include "../MixerFactory.h"
-#include "../Mixer.h"
-#include "../ChannelConfiguration.h"
-#include "../dsp/DelayLineTail.h"
-#include "../dsp/TapeTransport.h"
+#include "../src/Song.h"
+#include "../src/InstrumentProvider.h"
+#include "../src/SongState.h"
+#include "../src/MixerFactory.h"
+#include "../src/Mixer.h"
+#include "../src/ChannelConfiguration.h"
+#include "../src/dsp/DelayLineTail.h"
+#include "../src/dsp/TapeTransport.h"
 
 #include <cmath>
 #include <string>

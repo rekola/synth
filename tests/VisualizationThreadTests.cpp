@@ -1,10 +1,10 @@
 #include "TestFramework.h"
 
-#include "../VisualizationThread.h"
-#include "../AudioBlockEvent.h"
-#include "../VisualizationResultEvent.h"
-#include "../Controller.h"
-#include "../dsp/DiracAnalyzer.h"
+#include "../src/VisualizationThread.h"
+#include "../src/AudioBlockEvent.h"
+#include "../src/VisualizationResultEvent.h"
+#include "../src/Controller.h"
+#include "../src/dsp/DiracAnalyzer.h"
 
 #include <cmath>
 

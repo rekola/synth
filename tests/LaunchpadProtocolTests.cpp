@@ -1,6 +1,6 @@
 #include "TestFramework.h"
 
-#include "../LaunchpadProtocol.h"
+#include "../src/LaunchpadProtocol.h"
 
 using namespace std;
 using namespace LaunchpadProtocol;

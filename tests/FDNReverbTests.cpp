@@ -1,8 +1,8 @@
 #include "TestFramework.h"
 
-#include "../bus/FDNReverb.h"
-#include "../dsp/NoiseGenerator.h"
-#include "../MemoryParameterSource.h"
+#include "../src/bus/FDNReverb.h"
+#include "../src/dsp/NoiseGenerator.h"
+#include "../src/MemoryParameterSource.h"
 
 #include <algorithm>
 #include <cmath>

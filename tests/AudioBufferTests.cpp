@@ -1,6 +1,6 @@
 #include "TestFramework.h"
 
-#include "../AudioBuffer.h"
+#include "../src/AudioBuffer.h"
 
 #include <cmath>
 

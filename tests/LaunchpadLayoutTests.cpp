@@ -1,6 +1,6 @@
 #include "TestFramework.h"
 
-#include "../LaunchpadLayout.h"
+#include "../src/LaunchpadLayout.h"
 
 #include <algorithm>
 #include <set>
