@@ -26,7 +26,7 @@ Everything can be done using keyboard without mouse
 
 A connected Novation Launchpad (Mini MK3 / X / Pro MK3) becomes an
 isomorphic note-entry grid, its layout generalizing the 12edo Wicki-Hayden
-keyboard to any EDO via a best-fifth generator (`LaunchpadLayout.h`).
+keyboard to any EDO via a best-fifth generator (`src/launchpad/LaunchpadLayout.h`).
 
 LED coloring originally followed the notational convention of Adriaan
 Fokker's 31-EDO organ (built 1950 for Teylers Museum, Haarlem) and the
@@ -68,7 +68,7 @@ The classification is purely a function of the EDO and key (see
 This project is MIT-licensed (`LICENSE`). It vendors a small amount of
 third-party source under `third_party/` (currently `tinyxml2`, zlib
 license, and PocketFFT, BSD-3-Clause - the FFT backend behind
-`dsp/RealFFT.h`, replacing FFTW/GPL) and dynamically links against several
+`src/dsp/RealFFT.h`, replacing FFTW/GPL) and dynamically links against several
 permissively/LGPL-licensed system libraries. See `THIRD_PARTY_LICENSES.md`
 for the full picture, or run `musiceditor --licenses` to print it.
 

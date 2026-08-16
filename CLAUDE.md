@@ -301,23 +301,48 @@ SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
 
 ## Layout
 
-- Root `*.cpp/*.h` — engine and UI. Key classes: `Controller` (application
-  logic), `Song`/`Scene`/`Pattern`/`Track` (song model — `Song` holds a flat,
-  sequentially-played `vector<Scene>`; each `Scene` is one point in the song,
-  holding one `Pattern` — a track's own note/command content, no `track_id`
-  in it anywhere — per track that has anything there, plus that scene's own
-  row-keyed annotations), `Player` (sequencer), `AlsaAudio` (output),
-  `TerminalUI`/`PatternEditor`/`HierarchyView` (notcurses UI), `Tuner`/
-  `Tuning` (microtonal pitch math), `OscillatorVoice`/`GenericInstrument`/
-  `SoundFont` (synthesis).
-- `effects/` — per-track audio effects (chorus, compressor, distortion, …)
+- `src/` — all engine and UI source, split by topic. `src/main.cpp` and
+  `src/Controller.{cpp,h}` sit directly in `src/` rather than in any of
+  the directories below (`Controller` is application logic that
+  legitimately depends on nearly every other module - song model,
+  state, playback, instruments, ambisonic mixer selection, UI wiring -
+  so it sits above the split rather than being forced into one slice of
+  it). The topic directories:
+  - `src/model/` — the persisted song data: `Song`/`Scene`/`Pattern`/
+    `Track` (`Song` holds a flat, sequentially-played `vector<Scene>`;
+    each `Scene` is one point in the song, holding one `Pattern` — a
+    track's own note/command content, no `track_id` in it anywhere —
+    per track that has anything there, plus that scene's own row-keyed
+    annotations) and their value types (`Note`, `Command`, `SendLevels`, …).
+  - `src/state/` — the parallel, cheaply-resettable playback-state
+    objects (`*State.h`) mirroring the model objects above.
+  - `src/playback/` — `Player` (sequencer) and the event vocabulary it
+    consumes/produces.
+  - `src/instruments/` — synthesis and instrument resolution:
+    `OscillatorVoice`/`GenericInstrument`/`SoundFont`, `Tuner`/`Tuning`
+    (microtonal pitch math), `LFO`, `Arpeggiator`.
+  - `src/ambisonic/` — spatial encode/decode math and the `Mixer`
+    hierarchy (see the `AmbisonicEncoding.h` bullet below).
+  - `src/audio/` — `AlsaAudio` (device output), `AudioBuffer`,
+    `OfflineRenderer`.
+  - `src/ui/` — `TerminalUI`/`PatternEditor`/`HierarchyView` (notcurses
+    UI) plus the Emacs-style keybinding dispatch (`KeyChord.h`/
+    `Keymap.h`/`CommandRegistry.h`).
+  - `src/launchpad/` — Launchpad hardware I/O and layout.
+  - `src/util/` — small, dependency-free helpers (`constants.h`,
+    `Logger.h`, …) used from everywhere.
+
+  `src/effects/`, `src/bus/`, and `src/dsp/` (below) predate this split
+  and already lived in their own directories before it; this list only
+  covers what used to be flat directly under `src/`.
+- `src/effects/` — per-track audio effects (chorus, compressor, distortion, …)
   — each constructed fresh per track/note and torn down with it, unlike
-  the shared send bus (`bus/`, below). There is no per-track reverb any
+  the shared send bus (`src/bus/`, below). There is no per-track reverb any
   more (`effects/Reverb.{h,cpp}`'s GPL-licensed `MVerb`-based
   `<reverb preset="...">` was removed) — the shared bus's spatial FDN
   reverb (`bus/FDNReverb.h`) is the only reverb left, and `<reverb>` now
   only ever means that one, as a `<bus>` child.
-- `AmbisonicEncoding.h` — ambisonic encode/decode math (SN3D gains up to
+- `src/ambisonic/AmbisonicEncoding.h` — ambisonic encode/decode math (SN3D gains up to
   3rd order via `AmbisonicGains`/`computeAmbisonicGains`, per-voice
   gain-interpolated encoder, stereo decode/re-encode helpers, plus the
   max-rE helpers `maxReGainsPerDegree()`/`maxReReferenceCosine()`/
@@ -412,8 +437,8 @@ SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
   `Mixer`'s `encode()` deliberately never reads them — unprocessed aux
   content there would just sound bad without real bus DSP consuming it
   first.
-- That DSP lives in `bus/` (the shared send bus's own subsystem, depending
-  on `dsp/` — reusable, dependency-free DSP building blocks, never the
+- That DSP lives in `src/bus/` (the shared send bus's own subsystem, depending
+  on `src/dsp/` — reusable, dependency-free DSP building blocks, never the
   reverse) — `SongState`'s `SendBusProcessor` (`bus/SendBusProcessor.h`/
   `.cpp`) is not anything inside the `Mixer` hierarchy: `SongState::render()`
   sums `AuxA`/`AuxB` off every top-level track's own rendered output (each
@@ -511,7 +536,7 @@ SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
   `third_party/pocketfft/pocketfft_hdronly.h` (BSD-3-Clause, the FFT
   backend behind `dsp/RealFFT.h` - see `plans/magical-wondering-engelbart.md`)
   so far. Do not reformat or refactor any vendored file.
-- `dsp/RealFFT.h` — the engine's one FFT wrapper (real-signal r2c-forward/
+- `src/dsp/RealFFT.h` — the engine's one FFT wrapper (real-signal r2c-forward/
   c2r-inverse, fixed size at construction, no per-call allocation),
   templated on float/double though only `RealFFT<float>` is actually
   instantiated anywhere. Backed by PocketFFT (`third_party/pocketfft/`),
