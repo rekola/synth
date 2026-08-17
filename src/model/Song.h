@@ -160,6 +160,34 @@ class Song : public StatefulSongObject {
     return *(tracks_.back());
   }
 
+  // Removes the track (root, or nested inside a <group>) whose internal id
+  // is `id`. Returns false, doing nothing, if `id` doesn't resolve to any
+  // track any more - callers should treat "already gone" the same as
+  // "successfully gone", not as an error. Does *not* guard against
+  // removing the last remaining root track - PatternEditor::render() and
+  // several sibling call sites index getRootTrackIds()[cursor.track] with
+  // no bounds check at all (docs/known_bugs.md's zero-root-tracks entry),
+  // so a caller that can reach zero root tracks this way must refuse
+  // before ever getting here, the way PatternEditor's "delete-track"
+  // command does.
+  bool removeTrack(int id) {
+    std::lock_guard<std::mutex> guard(*tracks_mutex_);
+    for (auto it = tracks_.begin(); it != tracks_.end(); ++it) {
+      if ((*it)->getInternalId() == id) {
+	tracks_.erase(it);
+	incVersion();
+	return true;
+      }
+    }
+    for (auto & track : tracks_) {
+      if (track->removeChildByInternalId(id)) {
+	incVersion();
+	return true;
+      }
+    }
+    return false;
+  }
+
   const Track * getTrackByInternalId(int id) const {
     for (auto & track : getTracks()) {
       auto r = track->getChildByInternalId(id);

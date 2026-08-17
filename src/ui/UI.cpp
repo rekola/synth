@@ -49,8 +49,25 @@ UI::initialize() {
 
   commands_.define("save-buffers-kill-terminal", [this]() { close_ui_ = true; });
   commands_.define("new-song", [this]() {
-    setStatus("New song");
-    getController().createNewSong();
+    confirmDiscardThenRun("Unsaved changes - discard and start a new song? (y/n) ", [this]() {
+      setStatus("New song");
+      getController().createNewSong();
+    });
+  });
+  // No filename argument yet (a bare "Open:" prompt, not a menu/M-x
+  // parameter) - matches "New"'s own lack of one; a richer file-picker is
+  // future work, not needed just to make the command exist and be usable.
+  commands_.define("open-song", [this]() {
+    confirmDiscardThenRun("Unsaved changes - discard and open a different song? (y/n) ", [this]() {
+      status_line_->showPrompt("Open: ", [this](const std::string & filename) {
+	if (filename.empty()) return;
+	if (getController().openSong(filename)) {
+	  setStatus("Opened " + filename);
+	} else {
+	  setStatus("Could not open " + filename);
+	}
+      });
+    });
   });
   commands_.define("toggle-playing", [this]() {
     bool playing = getController().togglePlaying();
@@ -60,17 +77,29 @@ UI::initialize() {
     getController().sendCommand("save-song");
     setStatus("Saved " + getController().getSongFilename());
   });
+  // No confirmDiscardThenRun() guard, unlike New/Open above - saving never
+  // discards anything, whatever filename it targets.
+  commands_.define("save-song-as", [this]() {
+    status_line_->showPrompt("Save as: ", [this](const std::string & filename) {
+      if (filename.empty()) return;
+      getController().saveSongAs(filename);
+      setStatus("Saved " + filename);
+    }, getController().getSongFilename());
+  });
 
-  // Quit/save use Emacs's own C-x C-c/C-x C-s bindings and command names
-  // (save-buffers-kill-terminal/save-buffer, the latter shortened to
-  // save-song here to match this codebase's own pre-existing M-x command
-  // of that name - see Controller::sendCommand()) rather than one-off
-  // single-key shortcuts or made-up names - see Keymap::bindPrefixed()/
-  // UIElement::dispatchCommand() for the two-key prefix-sequence machinery
-  // this needs.
+  // Quit/save/open/save-as use Emacs's own C-x C-c/C-x C-s/C-x C-f/C-x C-w
+  // bindings and command names (save-buffers-kill-terminal/save-buffer/
+  // find-file/write-file, the latter three shortened to save-song/
+  // open-song/save-song-as here to match this codebase's own pre-existing
+  // M-x command naming - see Controller::sendCommand()) rather than
+  // one-off single-key shortcuts or made-up names - see
+  // Keymap::bindPrefixed()/UIElement::dispatchCommand() for the two-key
+  // prefix-sequence machinery this needs.
   auto ctrl_x = KeyChord::pack('x', true, false, false, false);
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('c', true, false, false, false), "save-buffers-kill-terminal");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('s', true, false, false, false), "save-song");
+  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('f', true, false, false, false), "open-song");
+  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('w', true, false, false, false), "save-song-as");
   keymap_.bind(KeyChord::pack('n', true, false, false, false), "new-song");
   keymap_.bind(KeyChord::pack(' ', false, false, false, false), "toggle-playing");
 
@@ -83,10 +112,35 @@ UI::initialize() {
   getController().setCommandFallback([this](std::string_view name) { return executeCommand(name); });
 }
 
+void
+UI::confirmDiscardThenRun(const std::string & prompt, std::function<void()> action) {
+  if (!getController().hasUnsavedChanges()) {
+    action();
+    return;
+  }
+  status_line_->showPrompt(prompt, [action = std::move(action)](const std::string & answer) {
+    if (answer == "y" || answer == "Y" || answer == "yes" || answer == "Yes") action();
+  });
+}
+
 bool
 UI::executeCommand(std::string_view name) {
   if (auto el = active_element_.lock()) {
     if (el->executeCommand(name)) return true;
+  }
+  // The pattern editor is the default/main workspace (same precedent
+  // UI::offerInput()'s BUTTON1 handling already establishes: a click that
+  // lands nowhere else falls back to it) - a command reached through here
+  // (M-x, a menu item, a Launchpad-by-name dispatch) rather than a direct
+  // keystroke has no click position to fall back from, so it gets the same
+  // fallback here instead: whatever's actually focused gets first refusal,
+  // but a command that widget doesn't own still reaches the pattern editor
+  // rather than failing just because some other, unrelated widget happens
+  // to be active. Skipped when the pattern editor already had first
+  // refusal above (active_element_ == pattern_editor_) - trying it twice
+  // would be harmless but pointless.
+  if (auto el = active_element_.lock(); el != pattern_editor_) {
+    if (pattern_editor_->executeCommand(name)) return true;
   }
   return UIElement::executeCommand(name);
 }
@@ -204,12 +258,22 @@ UI::offerInput(const InputEvent & input) {
   if (!handled) {
     handled |= menu_->offerInput(input);
     if (handled) {
-      setStatus("menu: " + menu_->getSelected());
       // ncmenu tracks an item's display text, not any notion of a command -
       // TerminalMenu::offerInput() maps activation (a click on an item, or
       // Enter while one is highlighted) to a command name itself; this is
-      // where it actually gets run, the same executeCommand() path M-x uses.
-      if (auto cmd = menu_->takeActivatedCommand(); !cmd.empty()) executeCommand(cmd);
+      // where it actually gets run. Goes through Controller::sendCommand()
+      // - not executeCommand() directly - for the same reason M-x
+      // (StatusLine::showMx()) does: sendCommand() tries its own
+      // Controller-level chain (toggle-mixer-type, ...) first and only
+      // then falls back to executeCommand() itself (Controller::
+      // setCommandFallback(), UI::initialize()); calling executeCommand()
+      // directly would skip that chain entirely, silently no-oping any
+      // menu item mapped to a Controller-only command. Failure reported
+      // the same way M-x reports it, for the same reason (a mistyped/
+      // stale command name should never fail silently).
+      if (auto cmd = menu_->takeActivatedCommand(); !cmd.empty()) {
+	if (!getController().sendCommand(cmd)) setStatus("Invalid command");
+      }
     }
   }
   if (!handled) {

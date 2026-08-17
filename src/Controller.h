@@ -47,8 +47,28 @@ class Controller {
 
   const std::string & getSongFilename() const { return current_song_filename; }
 
+  // Song::getVersion() (incVersion(), bumped on every structural or note
+  // edit - see Song.h/PatternEditor.cpp's own call sites) against a
+  // baseline snapshotted whenever the current song was last freshly
+  // created, opened, or saved. Not a precise "dirty" bit (a mutation path
+  // that forgets to call incVersion() would go unnoticed), but reuses an
+  // existing, already-pervasive mechanism rather than adding a parallel
+  // one - good enough to gate a "discard unsaved changes?" prompt.
+  // Temporary: once the editor supports multiple open song buffers, New/
+  // Open stop discarding anything at all (they'd just open another
+  // buffer), and this whole check goes away with them - see
+  // plans/menu-bar-expansion.md.
+  bool hasUnsavedChanges() const;
+
   void createNewSong();
   bool openSong(const std::string & filename);
+  // "Save As": like sendCommand("save-song") (saves the current song, and
+  // resets hasUnsavedChanges()'s baseline the same way), but to `filename`
+  // rather than whatever filename the song was opened/created with - and,
+  // standard Save As semantics, subsequent plain saves target `filename`
+  // too from now on (current_song_filename is updated, matching what it
+  // already means for openSong()).
+  void saveSongAs(const std::string & filename);
 
   bool sendCommand(std::string_view s);
 
@@ -316,6 +336,8 @@ class Controller {
   // with a reassignment, which is also always on the UI thread.
   mutable std::mutex song_mutex_;
   std::string current_song_filename = "song.xml";
+  // hasUnsavedChanges()'s baseline - see that method's own comment.
+  int last_saved_version_ = 0;
   std::shared_ptr<AudioBuffer> current_sample;
   InstrumentProvider instrument_provider;
   EventQueue ui_event_queue, playback_event_queue, visualization_queue;

@@ -328,6 +328,27 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     getController().toggleTrackSolo(track_id);
   });
 
+  // Refuses to remove the last remaining root track: render() and several
+  // sibling call sites index track_ids[cursor.track] with no bounds check
+  // at all, on the assumption that at least one root track always exists
+  // (see docs/known_bugs.md's zero-root-tracks entry) - this command is
+  // the first thing that could actually reach that state, so it stays
+  // above the floor rather than being the one to finally trigger it.
+  // new_cursor is reset the same way the raw "jump to first track" (Ctrl-A)
+  // handler already does below - the old column/subcol no longer means
+  // anything once the track composition under it has changed.
+  commands_.define("delete-track", [this]() {
+    auto & song = getController().getSong();
+    auto track_ids = song.getRootTrackIds();
+    if (track_ids.size() <= 1) return;
+    auto track_id = getController().consumePendingCommandTrack(track_ids[static_cast<size_t>(current_cursor.track)]);
+    if (!song.removeTrack(track_id)) return;
+    if (getController().getRecordingTrackId() == track_id) getController().setRecordingTrackId(0);
+    auto remaining = static_cast<int>(song.getRootTrackIds().size());
+    new_cursor.track = std::min(new_cursor.track, remaining - 1);
+    new_cursor.col = new_cursor.subcol = 0;
+  });
+
   // Renoise-style manual note-column add/remove (see Controller::
   // addNoteColumn/removeNoteColumn and InstrumentTrack::getMinNoteColumns) -
   // todo.txt's own long-standing "add shortcut for add note column" idea.
@@ -345,6 +366,41 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     if (track_ids.empty()) return;
     auto track_id = getController().consumePendingCommandTrack(track_ids[static_cast<size_t>(current_cursor.track)]);
     getController().removeNoteColumn(track_id);
+  });
+
+  // addTrack() itself already bumps the version - no separate incVersion()
+  // needed here, unlike add-drum-machine-track below (kept exactly as the
+  // raw Ctrl-T handler this was promoted from, verbatim, always did).
+  commands_.define("add-instrument-track", [this]() {
+    auto & song = getController().getSong();
+    song.addTrack(make_unique<InstrumentTrack>(0));
+  });
+
+  // Promoted from the raw Ctrl-R handler verbatim - "start recording"
+  // really, not purely "add a track": reuses the current track if it's
+  // already a SampleTrack, otherwise creates a fresh one and moves the
+  // cursor onto it. song.incVersion() stays explicit (unlike
+  // add-instrument-track just above) since the reuse branch never calls
+  // addTrack() at all, so nothing else would bump the version for it.
+  commands_.define("add-sample-track", [this]() {
+    auto & song = getController().getSong();
+    auto track_ids = song.getRootTrackIds();
+    auto current_track = current_cursor.track < static_cast<int>(track_ids.size()) ?
+      song.getTrackByInternalId(track_ids[static_cast<size_t>(current_cursor.track)]) : nullptr;
+
+    int track_id;
+    auto sample = getController().startRecording();
+    if (current_track && current_track->getType() == TrackType::SAMPLE) {
+      auto & sample_track = dynamic_cast<SampleTrack&>(*current_track);
+      sample_track.setSample(sample);
+      track_id = sample_track.getInternalId();
+    } else {
+      new_cursor.track = track_ids.size();
+      auto & track = song.addTrack(make_unique<SampleTrack>(sample));
+      track_id = track.getInternalId();
+    }
+    getController().setRecordingTrackId(track_id);
+    song.incVersion();
   });
 
   // Create-fresh only (see plans/drum-machine.md) - no "convert an
@@ -383,13 +439,15 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   keymap_.bind(KeyChord::pack(NCKEY_DOWN, false, false, false, false), "move-row-down"); // plain Down
   keymap_.bind(KeyChord::pack(NCKEY_RIGHT, true, false, true, false), "add-note-column");   // Ctrl+Shift+Right
   keymap_.bind(KeyChord::pack(NCKEY_LEFT, true, false, true, false), "remove-note-column"); // Ctrl+Shift+Left
+  keymap_.bind(KeyChord::pack('t', true, false, false, false), "add-instrument-track"); // Ctrl-T (was inline handling)
+  keymap_.bind(KeyChord::pack('r', true, false, false, false), "add-sample-track");     // Ctrl-R (was inline handling)
   // Ctrl+Shift+D ("Drum") - otherwise only reachable via M-x, which meant
   // there was no way to discover this command exists at all. Plain Ctrl-D
   // is already the (stub, not-yet-implemented) "duplicate track" raw
-  // handler below, and Ctrl+Shift+T is already the (also-stub) "delete
-  // track" one, so this picks a still-free Ctrl+Shift combo rather than
-  // colliding with either.
+  // handler below, so this picks a still-free Ctrl+Shift combo rather than
+  // colliding with it.
   keymap_.bind(KeyChord::pack('d', true, false, true, false), "add-drum-machine-track"); // Ctrl+Shift+D
+  keymap_.bind(KeyChord::pack('t', true, false, true, false), "delete-track"); // Ctrl+Shift+T (was a stub raw handler)
 
   assertCommandBindingsValid();
 }
@@ -913,29 +971,9 @@ PatternEditor::offerInput(const InputEvent & input) {
   }
 
   if (input.getId() == NCKEY_BUTTON1) {
-    
-  } else if (input.hasCtrl() && input.hasShift() && !input.hasMeta()) {
-    if (input.getId() == 't') {
-      // delete track
-      return true;
-    }
+
   } else if (input.hasCtrl() && !input.hasMeta()) {
-    if (input.getId() == 'r') {
-      int track_id;
-      auto sample = getController().startRecording();
-      if (current_track && current_track->getType() == TrackType::SAMPLE) {
-	auto & sample_track = dynamic_cast<SampleTrack&>(*current_track);
-	sample_track.setSample(sample);
-	track_id = sample_track.getInternalId();
-      } else {
-	new_cursor.track = track_ids.size();
-	auto & track = song.addTrack(make_unique<SampleTrack>(sample));
-	track_id = track.getInternalId();
-      }
-      getController().setRecordingTrackId(track_id);
-      song.incVersion();
-      return true;
-    } else if (input.getId() == 'a') {
+    if (input.getId() == 'a') {
       new_cursor.track = new_cursor.col = new_cursor.subcol = 0;
       return true;
     } else if (input.getId() == 'e') {
@@ -944,9 +982,6 @@ PatternEditor::offerInput(const InputEvent & input) {
 
       auto it = all_track_info.find(track_ids[static_cast<size_t>(new_cursor.track)]);
       new_cursor.col = it != all_track_info.end() ? it->second.getColumnCount() - 1: 0;
-      return true;
-    } else if (input.getId() == 't') {
-      song.addTrack(make_unique<InstrumentTrack>(0));
       return true;
     } else if (input.getId() == 'd') {
       // duplicate track

@@ -18,7 +18,9 @@
 #include <memory>
 #include <cmath>
 #include <algorithm>
+#include <cstring>
 #include <map>
+#include <vector>
 #include <fmt/core.h>
 
 #include <sys/time.h>
@@ -300,22 +302,131 @@ private:
   bool owner;
 };
 
+// One declarative source for every section/item, rather than hand-written
+// ncmenu_item/ncmenu_section arrays plus a separately-maintained desc->
+// command map (the shape a single File/New item used to get away with) -
+// adding an item is one line here, not several coordinated edits.
+// `label == nullptr` is a separator (a real ncmenu primitive - NULL desc
+// renders a horizontal divider, per notcurses.h's own struct comment - not
+// an app-level hack); `binding` is the human-readable keybinding shown
+// right-aligned against the item box's widest label, e.g. "Save    C-x
+// C-s" - ncmenu_item's own .shortcut field is deliberately left zeroed for
+// every item below rather than used for this (see the display-constraints
+// note in plans/menu-bar-expansion.md: it renders as a single bare
+// character with no modifier indication, misleading for anything but a
+// plain unmodified key, which is nearly nothing real this app binds).
+// Section headers keep real single-letter Alt+<mnemonic> shortcuts - a
+// bare Alt+letter has no such ambiguity.
+struct MenuItemSpec {
+  const char * label;    // nullptr = separator
+  const char * binding;  // human-readable keybinding shown next to label; "" = none
+  const char * command;  // name passed to Controller::sendCommand() on activation
+};
+struct MenuSectionSpec {
+  const char * name;
+  char mnemonic;          // Alt+<mnemonic> opens this section
+  vector<MenuItemSpec> items;
+};
+
+static const vector<MenuSectionSpec> & menuSpec() {
+  static const vector<MenuSectionSpec> spec = {
+    { "File", 'f', {
+	{ "New", "C-n", "new-song" },
+	{ "Open...", "C-x C-f", "open-song" },
+	{ "Save", "C-x C-s", "save-song" },
+	{ "Save As...", "C-x C-w", "save-song-as" },
+	{ nullptr, nullptr, nullptr },
+	{ "Quit", "C-x C-c", "save-buffers-kill-terminal" },
+      } },
+    { "Edit", 'e', {
+	{ "Set Mark", "C-SPC", "set-mark" },
+	{ "Kill Region", "C-w", "kill-region" },
+	{ "Copy", "M-w", "kill-ring-save" },
+	{ "Yank", "C-y", "yank" },
+	{ "Cancel", "C-g", "keyboard-quit" },
+	{ nullptr, nullptr, nullptr },
+	{ "Transpose Up", "C-S-Up", "transpose-region-up" },
+	{ "Transpose Down", "C-S-Down", "transpose-region-down" },
+      } },
+    { "Track", 't', {
+	{ "Add Instrument Track", "C-t", "add-instrument-track" },
+	{ "Add Drum Machine Track", "C-S-D", "add-drum-machine-track" },
+	{ "Add Sample Track", "C-r", "add-sample-track" },
+	{ "Delete Track", "C-S-T", "delete-track" },
+	{ nullptr, nullptr, nullptr },
+	{ "Toggle Mute", "\\", "toggle-mute" },
+	{ "Toggle Solo", "C-\\", "toggle-solo" },
+	{ nullptr, nullptr, nullptr },
+	{ "Add Note Column", "C-S-Right", "add-note-column" },
+	{ "Remove Note Column", "C-S-Left", "remove-note-column" },
+      } },
+    // Pattern/song-structural and transport actions - see
+    // plans/menu-bar-expansion.md for why these two share one section
+    // (no natural distinct single-letter mnemonic for each) and why plain
+    // cursor navigation (move-row-up/-down) has no place here at all.
+    { "Song", 's', {
+	{ "Play/Stop", "SPC", "toggle-playing" },
+	{ nullptr, nullptr, nullptr },
+	{ "Toggle Binaural Mixer", "", "toggle-mixer-type" },
+      } },
+  };
+  return spec;
+}
+
 class TerminalMenu : public UIMenu {
 public:
   TerminalMenu() {
-    ncmenu_item file_items[] = { { .desc = "New", .shortcut = { .id = 'N', .ctrl = true } },
-				 // { .desc = "Open", .shortcut = { .id = 'O' } },
-				 // { .desc = "Quit", .shortcut = { .id = 'q' } }
-    };
+    // desc_storage_ backs every non-separator ncmenu_item's .desc pointer -
+    // reserved to its final size up front so no reallocation (which would
+    // move/invalidate short (SSO) strings' own buffers) can happen while
+    // still being filled below; must stay alive through ncmenu_create()'s
+    // call at the bottom of this constructor, which deep-copies the
+    // ncmenu_item/ncmenu_section arrays themselves (confirmed against the
+    // real library - see plans/menu-bar-expansion.md) but not anything
+    // *they* point to a moment later.
+    size_t total_items = 0;
+    for (auto & section : menuSpec()) total_items += section.items.size();
+    desc_storage_.reserve(total_items);
 
-    ncmenu_section sections[] = { { .name = "File", .itemcount = 1, .items = file_items, .shortcut = { .id = 'f', .alt = true } }
-    };
+    vector<vector<ncmenu_item>> item_arrays;
+    vector<ncmenu_section> sections;
+    for (auto & section : menuSpec()) {
+      size_t label_width = 0;
+      for (auto & item : section.items) {
+	if (item.label) label_width = std::max(label_width, strlen(item.label));
+      }
+
+      vector<ncmenu_item> items;
+      for (auto & item : section.items) {
+	if (!item.label) {
+	  items.push_back({ .desc = nullptr, .shortcut = {} });
+	  continue;
+	}
+	string desc = item.label;
+	if (item.binding && item.binding[0]) {
+	  desc.append(label_width + 2 - strlen(item.label), ' ');
+	  desc += item.binding;
+	}
+	desc_storage_.push_back(std::move(desc));
+	items.push_back({ .desc = desc_storage_.back().c_str(), .shortcut = {} });
+	if (item.command) item_commands_[desc_storage_.back()] = item.command;
+      }
+      item_arrays.push_back(std::move(items));
+    }
+    for (size_t i = 0; i < item_arrays.size(); i++) {
+      auto & section = menuSpec()[i];
+      sections.push_back({ .name = section.name, .itemcount = static_cast<int>(item_arrays[i].size()),
+	.items = item_arrays[i].data(),
+	.shortcut = { .id = static_cast<uint32_t>(section.mnemonic), .alt = true } });
+    }
+
     uint64_t headerchannels = NCCHANNELS_INITIALIZER(0xff, 0xff, 0xff, 0x7f, 0x34, 0x7f);
     uint64_t sectionchannels = NCCHANNELS_INITIALIZER(0xff, 0xff, 0xff, 0x00, 0x00, 0x00);
     ncchannels_set_fg_alpha(&sectionchannels, NCALPHA_HIGHCONTRAST);
     ncchannels_set_bg_alpha(&sectionchannels, NCALPHA_BLEND);
     ncchannels_set_bg_alpha(&headerchannels, NCALPHA_BLEND);
-    ncmenu_options mopts = { .sections = sections, .sectioncount = 1, .headerchannels = headerchannels, .sectionchannels = sectionchannels, .flags = 0 };
+    ncmenu_options mopts = { .sections = sections.data(), .sectioncount = static_cast<int>(sections.size()),
+      .headerchannels = headerchannels, .sectionchannels = sectionchannels, .flags = 0 };
     menu = make_unique<Menu>(&mopts);
   }
 
@@ -352,13 +463,8 @@ public:
       }
     }
 
-    auto r = menu->offer_input(&ni);
-    auto s = menu->get_selected();
-    menu_selected = s ? s : "";
-    return r;
+    return menu->offer_input(&ni);
   }
-
-  std::string getSelected() const { return menu_selected; }
 
   std::string takeActivatedCommand() override {
     string c = std::move(activated_command_);
@@ -370,13 +476,13 @@ public:
 
 private:
   void activate(const char * item_desc) {
-    static const std::map<string, string> kItemCommands = { { "New", "new-song" } };
-    if (auto it = kItemCommands.find(item_desc); it != kItemCommands.end()) activated_command_ = it->second;
+    if (auto it = item_commands_.find(item_desc); it != item_commands_.end()) activated_command_ = it->second;
     menu->rollup();
   }
 
   unique_ptr<Menu> menu;
-  string menu_selected;
+  vector<string> desc_storage_;
+  std::map<string, string> item_commands_;
   string activated_command_;
 };
 

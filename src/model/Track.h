@@ -140,6 +140,24 @@ class Track : public StatefulSongObject {
     return nullptr;
   }
 
+  // Removes the direct or indirect child track whose internal id is `id` -
+  // same self-then-children search shape as getChildByInternalId() above,
+  // but erasing rather than locating. `id` matching `this` itself is
+  // Song::removeTrack()'s own job (it owns the top-level tracks_ vector
+  // this class has no access to), not handled here.
+  bool removeChildByInternalId(int id) {
+    for (auto it = children_.begin(); it != children_.end(); ++it) {
+      if ((*it)->getInternalId() == id) {
+	children_.erase(it);
+	return true;
+      }
+    }
+    for (auto & child : children_) {
+      if (child->removeChildByInternalId(id)) return true;
+    }
+    return false;
+  }
+
   const Track * getChildById(std::string_view id) const {
     if (getId() == id) return this;
     for (auto & child : getChildren()) {

@@ -114,6 +114,10 @@ Controller::createNewSong() {
     current_song = song;
   }
   current_song_filename = "song.xml";
+  // Baseline captured *after* addTrack()/addScene() above, not a hardcoded
+  // 0 - both already bump the version themselves, so a fresh song's real
+  // starting version isn't 0 - see hasUnsavedChanges()'s own comment.
+  last_saved_version_ = song->getVersion();
   // The Player/audio thread holds a getSongPtr() copy of whatever
   // current_song used to point to (see that method's own comment on why
   // a plain reference/raw pointer isn't safe here); it must be told to
@@ -134,14 +138,28 @@ Controller::openSong(const string & filename) {
     current_song = song;
   }
   current_song_filename = filename;
+  last_saved_version_ = song->getVersion();
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SONG_CHANGED));
   return true;
+}
+
+bool
+Controller::hasUnsavedChanges() const {
+  return current_song && current_song->getVersion() != last_saved_version_;
+}
+
+void
+Controller::saveSongAs(const string & filename) {
+  current_song->save(filename);
+  current_song_filename = filename;
+  last_saved_version_ = current_song->getVersion();
 }
 
 bool
 Controller::sendCommand(std::string_view cmd) {
   if (cmd == "save-song") {
     current_song->save(current_song_filename);
+    last_saved_version_ = current_song->getVersion();
   } else if (cmd == "add-filter") {
 
   } else if (cmd == "toggle-mixer-type") {
