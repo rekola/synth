@@ -337,7 +337,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
   // right below would otherwise overwrite the very buffer this points to,
   // so the restore at the end of this function would hand setlocale()
   // garbage instead of the original locale name.
-  std::string oldLocale = setlocale(LC_ALL, nullptr);
+  auto oldLocale = std::string{ setlocale(LC_ALL, nullptr) };
   setlocale(LC_ALL, "C");
   
   XMLDocument doc;
@@ -347,6 +347,8 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
     // line number for the latter), which a caller-side blanket "file not
     // found" message can't - see main.cpp's own callers of openSong().
     fmt::print(stderr, "Could not load {}: {}\n", filename, doc.ErrorStr());
+    // Set the old locale before exiting
+    setlocale(LC_ALL, oldLocale.c_str());
     return false;
   }
 
@@ -459,6 +461,8 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	      Command command;
 	      if (!command.setData(data_text)) {
 		fmt::print(stderr, "Malformed command \"{}\" at row {} in {}\n", data_text, row, filename);
+		// Set the old locale before exiting
+		setlocale(LC_ALL, oldLocale.c_str());
 		return false;
 	      }
 	      scene.setCommand(row, track_id, command);
@@ -469,8 +473,8 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
     }
   }
 
+  // Set the old locale before exiting
   setlocale(LC_ALL, oldLocale.c_str());
-
   return true;
 }
 
@@ -480,7 +484,7 @@ Song::save(const std::string & filename) const {
   // returns: that pointer is only valid until the next setlocale() call, so
   // the "C" switch below would invalidate it before the restore at the end
   // of this function gets to use it.
-  std::string oldLocale = setlocale(LC_ALL, nullptr);
+  auto oldLocale = std::string{ setlocale(LC_ALL, nullptr) };
   setlocale(LC_ALL, "C");
  
   XMLDocument doc;
