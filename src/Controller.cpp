@@ -100,6 +100,21 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
 #else
   mixer_type_ = MixerType::AMBISONIC_STEREO;
 #endif
+
+  commands_.define("save-song", [this]() {
+    current_song->save(current_song_filename);
+    last_saved_version_ = current_song->getVersion();
+  });
+  commands_.define("add-filter", [this]() { });
+  commands_.define("toggle-mixer-type", [this]() {
+    // "Bypass HRTF entirely" toggle: AMBISONIC_STEREO <-> AMBISONIC_BINAURAL.
+    // A no-op for a MONO config - MixerFactory never attempts binaural
+    // decoding there regardless of this setting (see MixerFactory.cpp) -
+    // but harmless to still flip, so no type check is needed here either.
+    mixer_type_ = (mixer_type_ == MixerType::AMBISONIC_BINAURAL) ? MixerType::AMBISONIC_STEREO : MixerType::AMBISONIC_BINAURAL;
+    fmt::print(stderr, "Mixer type set to {}\n", to_string(mixer_type_));
+    getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MIXER_CHANGED));
+  });
 }
 
 void
@@ -157,25 +172,20 @@ Controller::saveSongAs(const string & filename) {
 
 bool
 Controller::sendCommand(std::string_view cmd) {
-  if (cmd == "save-song") {
-    current_song->save(current_song_filename);
-    last_saved_version_ = current_song->getVersion();
-  } else if (cmd == "add-filter") {
+  if (commands_.execute(std::string(cmd))) return true;
+  if (command_fallback_) return command_fallback_(cmd);
+  return false;
+}
 
-  } else if (cmd == "toggle-mixer-type") {
-    // "Bypass HRTF entirely" toggle: AMBISONIC_STEREO <-> AMBISONIC_BINAURAL.
-    // A no-op for a MONO config - MixerFactory never attempts binaural
-    // decoding there regardless of this setting (see MixerFactory.cpp) -
-    // but harmless to still flip, so no type check is needed here either.
-    mixer_type_ = (mixer_type_ == MixerType::AMBISONIC_BINAURAL) ? MixerType::AMBISONIC_STEREO : MixerType::AMBISONIC_BINAURAL;
-    fmt::print(stderr, "Mixer type set to {}\n", to_string(mixer_type_));
-    getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MIXER_CHANGED));
-  } else if (command_fallback_) {
-    return command_fallback_(cmd);
-  } else {
-    return false;
+std::set<std::string>
+Controller::commandCompletions(std::string_view prefix) const {
+  auto & own = commands_.matching(std::string(prefix));
+  std::set<std::string> result(own.begin(), own.end());
+  if (command_completer_) {
+    auto more = command_completer_(prefix);
+    result.insert(more.begin(), more.end());
   }
-  return true;
+  return result;
 }
 
 bool

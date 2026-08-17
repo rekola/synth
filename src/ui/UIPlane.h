@@ -38,6 +38,15 @@ class UIPlane {
 			   const std::string & initial_text = "") = 0;
   virtual std::string closeReader() = 0;
   virtual bool readerActive() const = 0;
+  // Non-destructive read of the reader's current contents - unlike
+  // closeReader(), doesn't end the reader session. StatusLine's M-x
+  // autocomplete needs to inspect what's been typed so far without
+  // closing the minibuffer on every Tab press.
+  virtual std::string getReaderContents() const = 0;
+  // Replaces the reader's contents with `text`, keeping it open - the
+  // autocomplete counterpart to showReader()'s own initial_text seeding
+  // above, used to fill in a completed command name.
+  virtual void setReaderContents(const std::string & text) = 0;
   virtual void showPicker() = 0;
   virtual void addItem(const std::string & id, const std::string & description) = 0;
   virtual void clearItems() = 0;

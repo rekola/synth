@@ -11,6 +11,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <set>
 
 class UIMenu;
 class Chart;
@@ -52,6 +53,14 @@ class UI : public UIElement {
   // StatusLine's M-x path (routed via Controller::sendCommand's fallback,
   // see Controller.h) reaches per-widget commands like "set-mark".
   bool executeCommand(std::string_view name);
+
+  // Read-only counterpart to executeCommand(), same active-element-then-
+  // pattern-editor-then-own chain, but collecting every match instead of
+  // stopping at the first hit - StatusLine's M-x autocomplete needs the
+  // whole candidate set, not just whichever registry answers first. A set
+  // (not a list) since more than one of those registries could define the
+  // same name.
+  std::set<std::string> commandCompletions(std::string_view prefix) const;
 
   void handlePlaybackEvent(PlaybackEvent & ev) override;
   void handleLogEvent(LogEvent & ev) override;

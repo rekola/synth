@@ -61,6 +61,28 @@ static inline ncinput to_ncinput(const InputEvent & input) {
   return ni;
 }
 
+// ncreader has no "set full contents" call - only single-EGC writes - so
+// seeding/replacing its contents means feeding `text`'s own UTF-8
+// codepoints one at a time. Splitting on codepoint boundaries rather than
+// full Unicode grapheme clusters (combining marks/ZWJ sequences would each
+// become a separate write instead of one grouped EGC) is an acceptable
+// first-pass approximation for plain annotation/command text - see
+// PatternEditor's own annotation-editing entry points and StatusLine's M-x
+// autocomplete.
+static inline void writeEgcString(ncreader * reader, const string & text) {
+  size_t i = 0;
+  while (i < text.size()) {
+    unsigned char c = static_cast<unsigned char>(text[i]);
+    size_t len = 1;
+    if ((c & 0xE0) == 0xC0) len = 2;
+    else if ((c & 0xF0) == 0xE0) len = 3;
+    else if ((c & 0xF8) == 0xF0) len = 4;
+    len = std::min(len, text.size() - i);
+    ncreader_write_egc(reader, text.substr(i, len).c_str());
+    i += len;
+  }
+}
+
 static inline long long now() {
   struct timeval tv;
   int r = gettimeofday(&tv, 0);
@@ -221,25 +243,7 @@ public:
       uint64_t base_channels = NCCHANNELS_INITIALIZER(0x80, 0xc0, 0x80, 0, 0, 0);
       ncplane_set_base(reader_plane, " ", 0, base_channels);
       reader = ncreader_create(reader_plane, &reader_opts);
-
-      // ncreader has no "set full contents" call - only single-EGC writes -
-      // so seed it by feeding initial_text's own UTF-8 codepoints one at a
-      // time. Splitting on codepoint boundaries rather than full Unicode
-      // grapheme clusters (combining marks/ZWJ sequences would each become
-      // a separate write instead of one grouped EGC) is an acceptable
-      // first-pass approximation for plain annotation text - see
-      // PatternEditor's own annotation-editing entry points.
-      size_t i = 0;
-      while (i < initial_text.size()) {
-	unsigned char c = static_cast<unsigned char>(initial_text[i]);
-	size_t len = 1;
-	if ((c & 0xE0) == 0xC0) len = 2;
-	else if ((c & 0xF0) == 0xE0) len = 3;
-	else if ((c & 0xF8) == 0xF0) len = 4;
-	len = std::min(len, initial_text.size() - i);
-	ncreader_write_egc(reader, initial_text.substr(i, len).c_str());
-	i += len;
-      }
+      writeEgcString(reader, initial_text);
     }
   }
 
@@ -249,9 +253,23 @@ public:
     char* contents;
     ncreader_destroy(reader, &contents);
     string r = contents;
-    free(contents);    
+    free(contents);
     reader = 0;
     return r;
+  }
+
+  string getReaderContents() const override {
+    if (!reader) return "";
+    char * contents = ncreader_contents(reader);
+    string r = contents ? contents : "";
+    free(contents);
+    return r;
+  }
+
+  void setReaderContents(const string & text) override {
+    if (!reader) return;
+    ncreader_clear(reader);
+    writeEgcString(reader, text);
   }
 
   void showPicker() override {

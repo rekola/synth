@@ -6,6 +6,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <set>
 #include <sstream>
 
 #ifndef TESTS_FIXTURES_DIR
@@ -90,4 +91,31 @@ TEST(controller_send_command_prefers_literal_commands_over_fallback) {
 
   CHECK(!controller.sendCommand("totally-bogus-command"));
   CHECK(fallback_calls == 2);
+}
+
+TEST(controller_command_completions_merges_literal_and_fallback_names) {
+  // The read-only sibling of the test above: commandCompletions() is what
+  // StatusLine's M-x autocomplete queries, and it must see both Controller's
+  // own literal commands and whatever a UI-supplied completer (e.g.
+  // UI::commandCompletions, wired for per-widget commands) reaches.
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+
+  controller.setCommandCompleter([](std::string_view prefix) {
+    std::set<std::string> result;
+    for (std::string_view name : { "set-mark", "save-song-as" }) {
+      if (name.substr(0, prefix.size()) == prefix) result.emplace(name);
+    }
+    return result;
+  });
+
+  auto matches = controller.commandCompletions("save-song");
+  CHECK(matches.count("save-song") == 1); // Controller's own literal command
+  CHECK(matches.count("save-song-as") == 1); // reached via the fallback completer
+  CHECK(matches.count("set-mark") == 0); // doesn't share the "save-song" prefix
+
+  auto all = controller.commandCompletions("");
+  CHECK(all.count("add-filter") == 1);
+  CHECK(all.count("toggle-mixer-type") == 1);
+  CHECK(all.count("set-mark") == 1);
 }

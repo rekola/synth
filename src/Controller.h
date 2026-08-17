@@ -8,6 +8,7 @@
 #include "state/PlaybackInfo.h"
 #include "ambisonic/ChannelConfiguration.h"
 #include "ambisonic/MixerType.h"
+#include "ui/CommandRegistry.h"
 
 #include <functional>
 #include <memory>
@@ -77,6 +78,19 @@ class Controller {
   // names sendCommand() doesn't recognize itself - e.g. per-widget Emacs
   // commands like "set-mark" that live in a UIElement's CommandRegistry.
   void setCommandFallback(std::function<bool(std::string_view)> fn) { command_fallback_ = std::move(fn); }
+
+  // Read-only counterpart to sendCommand()'s fallback chain: every known
+  // command name starting with `prefix`, from commands_ below plus
+  // whatever setCommandCompleter() reaches - the M-x minibuffer
+  // (StatusLine) uses this for autocomplete, never to execute anything. A
+  // set, not a list: Controller's own names and whatever the fallback
+  // reaches are two independent sources that could in principle name the
+  // same command, and ordered so a later phase can show the candidates
+  // sorted without a separate sort step.
+  std::set<std::string> commandCompletions(std::string_view prefix) const;
+  void setCommandCompleter(std::function<std::set<std::string>(std::string_view)> fn) {
+    command_completer_ = std::move(fn);
+  }
 
   std::shared_ptr<AudioBuffer> startRecording() {
     current_sample = std::make_shared<AudioBuffer>(1, 0);
@@ -349,7 +363,12 @@ class Controller {
   // comment.
   int local_position_edit_seq_ = 0;
   int recording_track_id = 0;
+  // Controller's own named commands ("save-song", ...) - sendCommand()
+  // tries this first, then command_fallback_; commandCompletions() reads
+  // its prefix index the same way.
+  CommandRegistry commands_;
   std::function<bool(std::string_view)> command_fallback_;
+  std::function<std::set<std::string>(std::string_view)> command_completer_;
   int pending_command_track_ = -1;
   bool pattern_selection_active_ = false;
 

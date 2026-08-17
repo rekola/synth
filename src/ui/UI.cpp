@@ -110,6 +110,10 @@ UI::initialize() {
   // whichever widget is currently active, without Controller depending on
   // any UI type - see Controller.h's command_fallback_.
   getController().setCommandFallback([this](std::string_view name) { return executeCommand(name); });
+  // Read-only sibling of the fallback above, wired the same way and for
+  // the same reason - StatusLine's M-x autocomplete needs to reach
+  // per-widget command names too, not just Controller's own.
+  getController().setCommandCompleter([this](std::string_view prefix) { return commandCompletions(prefix); });
 }
 
 void
@@ -143,6 +147,24 @@ UI::executeCommand(std::string_view name) {
     if (pattern_editor_->executeCommand(name)) return true;
   }
   return UIElement::executeCommand(name);
+}
+
+std::set<std::string>
+UI::commandCompletions(std::string_view prefix) const {
+  // A set, not a list - more than one source below can legitimately define
+  // the same command name (e.g. a widget-local override), and "every known
+  // command name" is a set to begin with; ordered so a later phase can show
+  // the candidates sorted without a separate sort step.
+  set<std::string> result;
+  auto append = [&](const vector<std::string> & names) { result.insert(names.begin(), names.end()); };
+  if (auto el = active_element_.lock()) {
+    append(el->commandNames(prefix));
+  }
+  if (auto el = active_element_.lock(); el != pattern_editor_) {
+    append(pattern_editor_->commandNames(prefix));
+  }
+  append(UIElement::commandNames(prefix));
+  return result;
 }
 
 void

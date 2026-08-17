@@ -14,6 +14,7 @@
 #include <string_view>
 #include <cassert>
 #include <optional>
+#include <vector>
 
 class UIElement : public EventHandler {
  public:
@@ -37,6 +38,13 @@ class UIElement : public EventHandler {
   // effect. executeCommand() is the public entry point used to invoke a
   // command directly by name (e.g. from an M-x-style minibuffer).
   bool executeCommand(std::string_view name) { return commands_.execute(std::string(name)); }
+
+  // Read-only counterpart to executeCommand() - every name in this
+  // element's own registry starting with `prefix` (the M-x minibuffer's
+  // autocomplete support; see UI::commandCompletions()).
+  std::vector<std::string> commandNames(std::string_view prefix) const {
+    return commands_.matching(std::string(prefix));
+  }
 
   UIElement & putstr(int y, int x, const std::string & s) {
     if (plane_) plane_->putstr(y, x, s);
