@@ -214,6 +214,48 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     }
   });
 
+  // Whole-row, every track at once (notes and effect command alike,
+  // Scene::insertRow() shifts both together) plus the row annotation - the
+  // same "kill-line acts on the whole line, mark or no mark" scope Emacs's
+  // own C-k already implies (see kill-row below), not a single-track
+  // operation. Promoted from the raw Ins-key handler, now reachable by
+  // name (M-x, a menu item, Launchpad) rather than only a keystroke
+  // notcurses happens to decode correctly on a given terminal.
+  commands_.define("insert-row", [this]() {
+    auto & song = getController().getSong();
+    auto & info = getController().getPlaybackInfo();
+    auto & scene = song.getScene(info.getPatternIndex());
+    scene.insertRow(info.getRowIndex(), song.getPatternLength());
+    song.incVersion();
+  });
+
+  // Emacs's own C-k ("kill-line"): the inverse of insert-row's shift, same
+  // whole-row scope (every track's notes and command, plus the row
+  // annotation - kill-region/kill-ring-save's own EVERYTHING capture
+  // shape, for a single row spanning every track). Unlike insert-row's own
+  // destructive shift, this is a real "kill" (cut, not just delete): the
+  // row's content is stashed in the clipboard first, so an immediate yank
+  // restores it at the cursor. Not "just clear the row" - that's already
+  // kill-region/Ctrl-W's job, region-scoped rather than whole-row-and-shift.
+  commands_.define("kill-row", [this]() {
+    auto & song = getController().getSong();
+    auto & info = getController().getPlaybackInfo();
+    auto track_ids = song.getRootTrackIds();
+    if (track_ids.empty()) return;
+    auto & scene = song.getScene(info.getPatternIndex());
+    int row = info.getRowIndex();
+    int track_hi = static_cast<int>(track_ids.size()) - 1;
+
+    clipboard_.scope = SelectionScope::EVERYTHING;
+    clipboard_.cells = copyPatternBlock(scene, row, row, track_ids, 0, track_hi);
+    clipboard_.commands.clear();
+    clipboard_.annotations = copyPatternBlockAnnotations(scene, row, row);
+
+    scene.deleteRow(row, song.getPatternLength());
+    song.incVersion();
+    getController().getUIEventQueue().push(make_unique<LogEvent>("Row killed"));
+  });
+
   commands_.define("keyboard-quit", [this]() {
     if (selection_active_) {
       setSelectionActive(false);
@@ -430,6 +472,8 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   keymap_.bind(KeyChord::pack('w', true, false, false, false), "kill-region");
   keymap_.bind(KeyChord::pack('w', false, true, false, false), "kill-ring-save");  // Alt-W
   keymap_.bind(KeyChord::pack('y', true, false, false, false), "yank");
+  keymap_.bind(KeyChord::pack('k', true, false, false, false), "kill-row"); // Ctrl-K
+  keymap_.bind(KeyChord::pack(NCKEY_INS, false, false, false, false), "insert-row"); // plain Insert (was inline handling)
   keymap_.bind(KeyChord::pack('g', true, false, false, false), "keyboard-quit");
   keymap_.bind(KeyChord::pack(NCKEY_UP, true, false, true, false), "transpose-region-up");    // Ctrl+Shift+Up
   keymap_.bind(KeyChord::pack(NCKEY_DOWN, true, false, true, false), "transpose-region-down"); // Ctrl+Shift+Down
@@ -1135,12 +1179,6 @@ PatternEditor::offerInput(const InputEvent & input) {
       } else if (!track_info.isNoteColumn(new_cursor.col)) {
 	new_cursor.subcol = (new_cursor.subcol + 1) % 2;
       }
-      return true;
-    } else if (input.getId() == NCKEY_INS) {
-      auto & scene = song.getScene(info.getPatternIndex());
-      int track_id = track_ids[static_cast<size_t>(new_cursor.track)];
-      scene.insertRow(info.getRowIndex(), track_id, song.getPatternLength());
-      song.incVersion();
       return true;
     } else {
       auto & scene = song.getScene(info.getPatternIndex());

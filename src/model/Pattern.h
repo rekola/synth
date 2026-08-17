@@ -74,11 +74,30 @@ class Pattern : public SongObject {
     }
   }
 
+  // Shifts both the notes and the effect Command together - a row's
+  // command is as much "part of that row" as its notes are, so a row
+  // shift that moved one but left the other in place would silently
+  // desync a command from the note it was meant to modify.
   void insertRow(int row, int num_rows) {
     for (int i = num_rows - 1; i > row; i--) {
       setNotes(i, getNotes(i - 1));
+      shiftCommand(i, i - 1);
     }
     clearNotes(row);
+    clearCommand(row);
+  }
+
+  // The inverse shift: removes `row` itself, pulling every row below it up
+  // by one. Nothing exists below the pattern's last row to pull up into
+  // it, so that one is cleared instead - the same "somewhere has to end up
+  // empty" trade insertRow() makes at the row it displaces from, mirrored.
+  void deleteRow(int row, int num_rows) {
+    for (int i = row; i < num_rows - 1; i++) {
+      setNotes(i, getNotes(i + 1));
+      shiftCommand(i, i + 1);
+    }
+    clearNotes(num_rows - 1);
+    clearCommand(num_rows - 1);
   }
 
   const Note & getNote(int row, int note_column) const {
@@ -94,6 +113,10 @@ class Pattern : public SongObject {
 
   void setCommand(int row, Command command) {
     commands_[static_cast<unsigned short>(row)] = command;
+  }
+
+  void clearCommand(int row) {
+    commands_.erase(static_cast<unsigned short>(row));
   }
 
   const Command & getCommand(int row) const {
@@ -117,6 +140,18 @@ class Pattern : public SongObject {
   }
 
 private:
+  // insertRow()/deleteRow()'s own command-shifting step: copies dst_row's
+  // command from src_row, or clears dst_row if src_row had none - mirrors
+  // setNotes(getNotes(...))'s own "erase rather than store an explicitly
+  // empty value" convention (commands_ is sparse the same way notes_ is;
+  // storing every shifted-in "----" explicitly would defeat that and
+  // falsely tell getCommands() every such row has a real command).
+  void shiftCommand(int dst_row, int src_row) {
+    auto & cmd = getCommand(src_row);
+    if (cmd.isDefined()) setCommand(dst_row, cmd);
+    else clearCommand(dst_row);
+  }
+
   // sparse note matrix: row -> note_column
   std::unordered_map<unsigned short, std::vector<Note> > notes_;
   std::unordered_map<unsigned short, Command> commands_;

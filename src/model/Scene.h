@@ -51,8 +51,23 @@ class Scene : public SongObject {
     if (it != patterns_by_track_id_.end()) it->second.deleteNote(row, column);
   }
 
-  void insertRow(int row, int track_id, int num_rows) {
-    patterns_by_track_id_[track_id].insertRow(row, num_rows);
+  // Whole-row, not single-track: every track's own Pattern (notes and
+  // command alike - Pattern::insertRow() shifts both together) shifts in
+  // lockstep, plus this scene's own row-keyed annotation - matching Emacs's
+  // own kill-line/C-k, which acts on the whole line regardless of any
+  // narrower selection. A row is one moment in the whole song, not a
+  // per-track thing, so "insert/delete a row" has to mean all of it moving
+  // together or the tracks would drift out of alignment with each other.
+  void insertRow(int row, int num_rows) {
+    for (auto & [ track_id, pattern ] : patterns_by_track_id_) pattern.insertRow(row, num_rows);
+    for (int i = num_rows - 1; i > row; i--) shiftAnnotation(i, i - 1);
+    annotations_.erase(static_cast<unsigned short>(row));
+  }
+
+  void deleteRow(int row, int num_rows) {
+    for (auto & [ track_id, pattern ] : patterns_by_track_id_) pattern.deleteRow(row, num_rows);
+    for (int i = row; i < num_rows - 1; i++) shiftAnnotation(i, i + 1);
+    annotations_.erase(static_cast<unsigned short>(num_rows - 1));
   }
 
   const Note & getNote(int row, int track_id, int note_column) const {
@@ -98,6 +113,16 @@ class Scene : public SongObject {
   std::unordered_map<int, Pattern> & getPatternsByTrack() { return patterns_by_track_id_; }
 
 private:
+  // insertRow()/deleteRow()'s own annotation-shifting step - same "copy if
+  // present, else erase rather than store an explicit empty string" shape
+  // as Pattern::shiftCommand(), so a row with no annotation stays absent
+  // from annotations_ rather than accumulating empty entries.
+  void shiftAnnotation(int dst_row, int src_row) {
+    auto it = annotations_.find(static_cast<unsigned short>(src_row));
+    if (it != annotations_.end()) annotations_[static_cast<unsigned short>(dst_row)] = it->second;
+    else annotations_.erase(static_cast<unsigned short>(dst_row));
+  }
+
   std::unordered_map<int, Pattern> patterns_by_track_id_;
   std::unordered_map<unsigned short, std::string> annotations_;
 

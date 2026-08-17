@@ -43,22 +43,16 @@ Reusable as-is (`commands_.define()` already exists):
 ahead of the rest of this plan - see their own notes in the Track/File
 tables below for what actually landed.
 
-Still raw keybinding only, in `PatternEditor::offerInput()`'s manual
-if/else chain, not reachable by name (M-x, Launchpad-by-name, or a menu
-item) at all today - each needs a `commands_.define()` promotion before it
-can be a menu item, mirroring exactly how `move-row-up`/`toggle-mute`/etc.
-were already promoted:
+Ctrl+T (add a fresh `InstrumentTrack`), Ctrl+R (start recording), and
+`Ins` (insert a row) have all since been promoted to named commands
+(`add-instrument-track`/`add-sample-track`/`insert-row`) - see the Track
+and Song sections below for each.
 
-- Ctrl+T -> add a fresh `InstrumentTrack` (`PatternEditor.cpp:948-950`)
-- Ctrl+R -> start recording (adds a `SampleTrack` or reuses the current
-  one, `PatternEditor.cpp:922-937`)
-- `Ins` -> insert a row (`PatternEditor.cpp:1103-1108`) - **out of scope**,
-  by request; not needed for now.
-- Ctrl+D ("duplicate track") - still a **literal no-op stub**, empty body
-  (`PatternEditor.cpp`, right after the now-real `delete-track` handling).
-  **Excluded from this plan entirely** - a menu item that visibly does
-  nothing on click is worse than no item at all. Implementing it for real
-  is separate, not-yet-scheduled work.
+Ctrl+D ("duplicate track") remains a **literal no-op stub**, empty body
+(`PatternEditor.cpp`, right after `delete-track`'s own real handling).
+**Excluded from this plan entirely** - a menu item that visibly does
+nothing on click is worse than no item at all. Implementing it for real
+is separate, not-yet-scheduled work.
 
 ### A dispatch bug this plan must fix before any Controller-level item works
 
@@ -270,12 +264,21 @@ literal no-op stub, unimplemented.
 | — | | | |
 | Toggle Binaural Mixer | *(none)* | `toggle-mixer-type` | exists (Controller-only) |
 
-**Insert Row is out of scope for now, by request** - dropped from this
-section entirely rather than left as a table row nobody's implementing;
-its raw Ctrl-only `Ins` handler (`PatternEditor.cpp`, see the survey above
-for what it actually does - a single-track note shift, not a whole-pattern
-one) stays exactly as unnamed/un-promoted as it already was. Revisit if
-this section otherwise feels too thin to justify its own top-level entry.
+**Update**: `insert-row` was promoted to a real named command after all
+(`PatternEditor.cpp`, plain `Ins`), and gained a new sibling, `kill-row`
+(Emacs's own `C-k`/kill-line, clipboard-aware unlike `insert-row`'s own
+destructive shift) - both outside this plan's original scope, triggered
+by a separate conversation about repurposing Ctrl-K once M-x itself no
+longer needed it as a fallback (notcurses 3.0.17 fixed the underlying
+Esc-x/Alt-x bug `docs/known_bugs.md` used to document). Both are
+whole-row: every track's notes and command, plus the row's annotation,
+shift together (`Scene::insertRow()`/`deleteRow()`, no `track_id`
+parameter) - matching how `C-k` itself acts on the whole line regardless
+of any narrower selection, not scoped to a single track. Still not menu
+items here, by choice, not oversight - whether this section wants them
+(and whether that finally justifies giving Song its own top-level entry
+rather than folding pattern-structural and transport actions together) is
+a separate decision from "does the command exist."
 
 Deliberately excludes `move-row-up`/`move-row-down` - those are plain
 cursor navigation (Up/Down arrow while stopped) wearing a command-name

@@ -237,8 +237,17 @@ UI::offerInput(const InputEvent & input) {
   } else if (input.getId() == NCKEY_BUTTON1) {
     active_element_.reset();
 
-    bool activated = tryActivate(input.getY(), input.getX(), status_line_) ||
-      tryActivate(input.getY(), input.getX(), pattern_editor_);
+    // status_line_ deliberately isn't a tryActivate() candidate: its own
+    // input handling (the M-x trigger, and its reader while one's open) is
+    // already reached unconditionally a few lines below, regardless of
+    // active_element_ - becoming the active element bought it nothing, and
+    // cost everything else, since its own offerInput() returns false for
+    // any keystroke that isn't M-x/reader-related, so the active_element_
+    // fallback stopped reaching pattern_editor_ at all (no widget owns
+    // plain arrow keys/note entry the way pattern_editor_ does) the moment
+    // a click landed anywhere on the status line's own row - which spans
+    // the entire bottom row, so this was very easy to trigger by accident.
+    bool activated = tryActivate(input.getY(), input.getX(), pattern_editor_);
 
     for (auto & window : windows_) {
       activated = tryActivate(input.getY(), input.getX(), window) || activated;

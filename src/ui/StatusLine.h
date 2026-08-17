@@ -57,22 +57,6 @@ class StatusLine : public UIElement {
       // that directly rather than requiring the two-step path.
       showMx();
       return true;
-    } else if (input.hasCtrl() && input.getId() == 'k') {
-      // Reliable alternative to Esc-then-x/Alt-x: on GNOME Terminal (VTE,
-      // no Kitty keyboard protocol) neither of the paths above ever fires -
-      // ESC gets silently dropped by notcurses's own escape-sequence lexer
-      // rather than played back as a literal keystroke as documented, so
-      // 'x' arrives alone, unmodified, and is treated as a note instead of
-      // opening M-x. Ctrl-K is an ordinary control byte, unambiguous on any
-      // terminal - same fix pattern as Ctrl-B for Ctrl-SPC above. Mirrors
-      // the "command palette" convention other editors use for the same
-      // Alt/Meta-key-reliability reason (e.g. VS Code's Ctrl-Shift-P).
-      // (Ctrl-P was tried first but never reaches the app at all - notcurses
-      // never returns an ncinput event for raw byte 0x10 in this environment;
-      // confirmed with a stderr trace at the earliest possible point, before
-      // any app-level logic - see todo.txt's known-bugs section.)
-      showMx();
-      return true;
     } else if (input.getId() == NCKEY_ESC) {
       meta_pressed = true;
       return true;

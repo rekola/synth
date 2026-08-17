@@ -57,7 +57,7 @@ static inline ncintype_e to_ncintype(InputEvent::Kind kind) {
 }
 
 static inline ncinput to_ncinput(const InputEvent & input) {
-  ncinput ni = { .id = static_cast<uint32_t>(input.getId()), .y = input.getY(), .x = input.getX(), .utf8 = { 0, 0, 0, 0, 0 }, .alt = input.hasAlt(), .shift = input.hasShift(), .ctrl = input.hasCtrl(), .evtype = to_ncintype(input.getKind()), .modifiers = static_cast<uint32_t>((input.hasAlt() ? NCKEY_MOD_ALT : 0) | (input.hasCtrl() ? NCKEY_MOD_CTRL : 0) | (input.hasShift() ? NCKEY_MOD_SHIFT : 0) | (input.hasMeta() ? NCKEY_MOD_META : 0)), .ypx = -1, .xpx = -1 };
+  ncinput ni = { .id = static_cast<uint32_t>(input.getId()), .y = input.getY(), .x = input.getX(), .utf8 = { 0, 0, 0, 0, 0 }, .alt = input.hasAlt(), .shift = input.hasShift(), .ctrl = input.hasCtrl(), .evtype = to_ncintype(input.getKind()), .modifiers = static_cast<uint32_t>((input.hasAlt() ? NCKEY_MOD_ALT : 0) | (input.hasCtrl() ? NCKEY_MOD_CTRL : 0) | (input.hasShift() ? NCKEY_MOD_SHIFT : 0) | (input.hasMeta() ? NCKEY_MOD_META : 0)), .ypx = -1, .xpx = -1, .eff_text = { static_cast<uint32_t>(input.getId()), 0, 0, 0 } };
   return ni;
 }
 
@@ -155,6 +155,17 @@ public:
     if (!readerActive()) {
       setOwning(false);
 
+      // Erase this plane's own stale content (e.g. a previous status
+      // message longer than the new prompt) before drawing the prompt -
+      // the reader plane created below only ever covers its own bounds and
+      // its own cells only get real content where the user has actually
+      // typed so far, so anything left over underneath/beyond that was
+      // otherwise still visible right through it (confirmed via a
+      // standalone reproduction against the real library: opening the
+      // reader over a long previous message left its stale tail visible
+      // past the cursor until enough was typed to physically overwrite
+      // it).
+      erase();
       // The reader plane below is opaque and covers its own bounds, so any
       // prompt text must be drawn onto *this* (the still-visible underlying
       // plane) first, and the reader plane offset past it - otherwise the
@@ -196,9 +207,19 @@ public:
       };
 
       auto reader_plane = ncplane_create(getPlane().to_ncplane(), &opts);
+      // Explicit black, matching StatusLine's own (never explicitly
+      // colored, so terminal-default, black on the terminal this was
+      // checked against) background - a saturated color of its own here
+      // read as a visible seam against it. Confirmed harmless to typed-
+      // text rendering with a standalone reproduction of the real
+      // ncreader_offer_input() path once eff_text (below) was fixed -
+      // an earlier attempt at this exact change had appeared to break
+      // typed text, but that was actually the eff_text bug the whole
+      // time, present regardless of this plane's own colors.
       ncplane_set_fg_rgb8(reader_plane, 0x80, 0xc0, 0x80);
-      ncplane_set_bg_rgb8(reader_plane, 0x00, 0x40, 0x00);
-      ncplane_set_base(reader_plane, "", 0, 0);
+      ncplane_set_bg_rgb8(reader_plane, 0, 0, 0);
+      uint64_t base_channels = NCCHANNELS_INITIALIZER(0x80, 0xc0, 0x80, 0, 0, 0);
+      ncplane_set_base(reader_plane, " ", 0, base_channels);
       reader = ncreader_create(reader_plane, &reader_opts);
 
       // ncreader has no "set full contents" call - only single-EGC writes -
