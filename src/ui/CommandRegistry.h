@@ -1,6 +1,7 @@
 #ifndef _COMMANDREGISTRY_H_
 #define _COMMANDREGISTRY_H_
 
+#include <algorithm>
 #include <functional>
 #include <string>
 #include <unordered_map>
@@ -34,6 +35,24 @@ class CommandRegistry {
 
   bool has(const std::string & name) const {
     return commands_.count(name) > 0;
+  }
+
+  // The inverse of define() - removes `name` from both commands_ and every
+  // prefixes_ entry it was indexed under, so it stops being executable,
+  // M-x-completable, or (via has()) reported as defined at all. A no-op if
+  // `name` was never defined. Needed for commands whose whole set can
+  // shrink at runtime (e.g. TerminalMenu's per-open-buffer
+  // "switch-to-buffer:<name>" commands, Controller::refreshBufferCommands())
+  // - define() alone can add/overwrite but never retract one.
+  void undefine(const std::string & name) {
+    if (commands_.erase(name) == 0) return;
+    for (size_t len = 0; len <= name.size(); len++) {
+      auto it = prefixes_.find(name.substr(0, len));
+      if (it == prefixes_.end()) continue;
+      auto & matches = it->second;
+      matches.erase(std::remove(matches.begin(), matches.end(), name), matches.end());
+      if (matches.empty()) prefixes_.erase(it);
+    }
   }
 
   // Every defined name starting with `prefix` - the read-only counterpart

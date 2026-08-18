@@ -151,7 +151,8 @@ TEST(command_round_trips_for_a_track_with_an_explicit_textual_id) {
 
 // Pattern length lives on Song, not per-Pattern (every pattern in a song
 // shares it) - <song patternRows="N"> round-trips through save/reload,
-// and a fresh Song defaults to 64 (matching Controller::createNewSong()).
+// and a fresh Song defaults to 64 (matching the empty song
+// Controller::switchToBuffer() creates for a not-yet-open buffer name).
 TEST(pattern_length_round_trips_through_save_and_load) {
   namespace fs = std::filesystem;
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_pattern_length_scratch.xml").string();

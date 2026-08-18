@@ -30,6 +30,7 @@
 #include <thread>
 #include <array>
 #include <cmath>
+#include <filesystem>
 
 using namespace std;
 using namespace fmt;
@@ -47,27 +48,82 @@ UI::initialize() {
 
   active_element_ = pattern_editor_;
 
-  commands_.define("save-buffers-kill-terminal", [this]() { close_ui_ = true; });
-  commands_.define("new-song", [this]() {
-    confirmDiscardThenRun("Unsaved changes - discard and start a new song? (y/n) ", [this]() {
-      setStatus("New song");
-      getController().createNewSong();
+  commands_.define("save-buffers-kill-terminal", [this]() {
+    if (getController().hasAnyUnsavedChanges()) {
+      status_line_->showPrompt("Unsaved changes in one or more buffers - discard and quit? (y/n) ", [this](const std::string & answer) {
+	if (answer == "y" || answer == "Y" || answer == "yes" || answer == "Yes") close_ui_ = true;
+      });
+    } else {
+      close_ui_ = true;
+    }
+  });
+  // Emacs's own find-file prompt/name, prefilled with the active buffer's
+  // own directory (its find-file's default-directory equivalent - there's
+  // no separate notion of "current directory" here beyond that) so typing
+  // just a bare filename opens a sibling of whatever's already open,
+  // matching find-file's own "already positioned in the right directory"
+  // convenience - a richer file-picker (completion against what's actually
+  // in that directory) is still future work. No discard-confirmation
+  // either (unlike this used to need before buffers existed - see songs_'s
+  // own comment on Controller.h): opening a file that's already an open
+  // buffer just switches to it (Controller::openSong()), and opening a
+  // new one adds a buffer rather than replacing the current one.
+  commands_.define("open-song", [this]() {
+    auto dir = std::filesystem::path(getController().getActiveBufferName()).parent_path().string();
+    if (!dir.empty()) dir += "/";
+    status_line_->showPrompt("Find file: ", [this](const std::string & filename) {
+      if (filename.empty()) return;
+      if (getController().openSong(filename)) {
+	setStatus("Opened " + filename);
+      } else {
+	setStatus("Could not open " + filename);
+      }
+    }, dir);
+  });
+  commands_.define("next-buffer", [this]() {
+    getController().cycleBuffer(true);
+    setStatus("Switched to " + getController().getActiveBufferName());
+  });
+  commands_.define("previous-buffer", [this]() {
+    getController().cycleBuffer(false);
+    setStatus("Switched to " + getController().getActiveBufferName());
+  });
+  // No completion against the open buffer names yet (unlike M-x's own
+  // command-name completion, StatusLine::completeMx()) - typed exactly,
+  // same as "Open:" above; switchToBuffer() creates a fresh blank buffer
+  // for a name that isn't already open, same as Emacs's own
+  // switch-to-buffer, so this doubles as "New" too (there's no separate
+  // new-song command any more). Prompt text and the empty-answer-means-
+  // default behavior both match Emacs's own "Switch to buffer (default
+  // ...): " convention (read-buffer-to-switch) - see
+  // Controller::getDefaultSwitchTarget()'s own comment for what "default"
+  // means without real MRU buffer tracking.
+  commands_.define("select-named-buffer", [this]() {
+    auto default_name = getController().getDefaultSwitchTarget();
+    auto prompt = default_name.empty() ? "Switch to buffer: " : ("Switch to buffer (default " + default_name + "): ");
+    status_line_->showPrompt(prompt, [this, default_name](const std::string & name) {
+      auto target = name.empty() ? default_name : name;
+      if (target.empty()) return; // nothing typed and no default to fall back to
+      getController().switchToBuffer(target);
+      setStatus("Switched to " + getController().getActiveBufferName());
     });
   });
-  // No filename argument yet (a bare "Open:" prompt, not a menu/M-x
-  // parameter) - matches "New"'s own lack of one; a richer file-picker is
-  // future work, not needed just to make the command exist and be usable.
-  commands_.define("open-song", [this]() {
-    confirmDiscardThenRun("Unsaved changes - discard and open a different song? (y/n) ", [this]() {
-      status_line_->showPrompt("Open: ", [this](const std::string & filename) {
-	if (filename.empty()) return;
-	if (getController().openSong(filename)) {
-	  setStatus("Opened " + filename);
-	} else {
-	  setStatus("Could not open " + filename);
-	}
+  commands_.define("kill-buffer", [this]() {
+    auto doKill = [this]() {
+      auto name = getController().getActiveBufferName();
+      if (getController().killActiveBuffer()) {
+	setStatus("Killed " + name);
+      } else {
+	setStatus("Can't kill the only open buffer");
+      }
+    };
+    if (getController().hasUnsavedChanges()) {
+      status_line_->showPrompt("Buffer modified - kill anyway? (y/n) ", [doKill](const std::string & answer) {
+	if (answer == "y" || answer == "Y" || answer == "yes" || answer == "Yes") doKill();
       });
-    });
+    } else {
+      doKill();
+    }
   });
   commands_.define("toggle-playing", [this]() {
     bool playing = getController().togglePlaying();
@@ -75,32 +131,39 @@ UI::initialize() {
   });
   commands_.define("save-song", [this]() {
     getController().sendCommand("save-song");
-    setStatus("Saved " + getController().getSongFilename());
+    setStatus("Saved " + getController().getActiveBufferName());
   });
-  // No confirmDiscardThenRun() guard, unlike New/Open above - saving never
-  // discards anything, whatever filename it targets.
   commands_.define("save-song-as", [this]() {
     status_line_->showPrompt("Save as: ", [this](const std::string & filename) {
       if (filename.empty()) return;
       getController().saveSongAs(filename);
       setStatus("Saved " + filename);
-    }, getController().getSongFilename());
+    }, getController().getActiveBufferName());
   });
 
   // Quit/save/open/save-as use Emacs's own C-x C-c/C-x C-s/C-x C-f/C-x C-w
   // bindings and command names (save-buffers-kill-terminal/save-buffer/
-  // find-file/write-file, the latter three shortened to save-song/
+  // find-file/write-file, the first three shortened to save-song/
   // open-song/save-song-as here to match this codebase's own pre-existing
   // M-x command naming - see Controller::sendCommand()) rather than
   // one-off single-key shortcuts or made-up names - see
   // Keymap::bindPrefixed()/UIElement::dispatchCommand() for the two-key
-  // prefix-sequence machinery this needs.
+  // prefix-sequence machinery this needs. No Ctrl-N/"New" binding any
+  // more - see select-named-buffer's own comment above for why there's no
+  // separate "New" command left to bind.
   auto ctrl_x = KeyChord::pack('x', true, false, false, false);
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('c', true, false, false, false), "save-buffers-kill-terminal");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('s', true, false, false, false), "save-song");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('f', true, false, false, false), "open-song");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('w', true, false, false, false), "save-song-as");
-  keymap_.bind(KeyChord::pack('n', true, false, false, false), "new-song");
+  // The buffer commands' own real Emacs bindings, unlike every C-x C-<letter>
+  // above, hold Ctrl for the C-x prefix only, not the second key: kill-buffer
+  // is C-x k (plain k), next-buffer/previous-buffer are C-x <right>/C-x
+  // <left>, and select-named-buffer (switch-to-buffer) is C-x b.
+  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('k', false, false, false, false), "kill-buffer");
+  keymap_.bindPrefixed(ctrl_x, KeyChord::pack(NCKEY_RIGHT, false, false, false, false), "next-buffer");
+  keymap_.bindPrefixed(ctrl_x, KeyChord::pack(NCKEY_LEFT, false, false, false, false), "previous-buffer");
+  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('b', false, false, false, false), "select-named-buffer");
   keymap_.bind(KeyChord::pack(' ', false, false, false, false), "toggle-playing");
 
   assertCommandBindingsValid();
@@ -114,16 +177,20 @@ UI::initialize() {
   // the same reason - StatusLine's M-x autocomplete needs to reach
   // per-widget command names too, not just Controller's own.
   getController().setCommandCompleter([this](std::string_view prefix) { return commandCompletions(prefix); });
-}
-
-void
-UI::confirmDiscardThenRun(const std::string & prompt, std::function<void()> action) {
-  if (!getController().hasUnsavedChanges()) {
-    action();
-    return;
-  }
-  status_line_->showPrompt(prompt, [action = std::move(action)](const std::string & answer) {
-    if (answer == "y" || answer == "Y" || answer == "yes" || answer == "Yes") action();
+  // Keeps the Buffers menu's item list/active-buffer marker in sync with
+  // every buffer change, not just the ones the commands_ lambdas above
+  // trigger directly - a Buffers-menu click straight on a buffer's own
+  // row resolves entirely inside Controller's own commands_
+  // ("switch-to-buffer:<name>", Controller::refreshBufferCommands()) and
+  // never otherwise reaches UI, so relying on each buffer command here to
+  // separately call menu_->refreshBuffers() itself missed that path
+  // entirely - one listener covers every path uniformly instead.
+  getController().setBufferChangeListener([this]() {
+    auto names = getController().getBufferNames();
+    vector<string> display_names;
+    display_names.reserve(names.size());
+    for (auto & name : names) display_names.push_back(getController().getBufferDisplayName(name));
+    menu_->refreshBuffers(names, display_names, getController().getActiveBufferName());
   });
 }
 
@@ -225,7 +292,6 @@ UI::tryActivate(int y, int x, std::shared_ptr<UIElement> element) {
   auto [rows, cols] = element->getDim();
 
   if (y >= pos_y && y < pos_y + rows && x >= pos_x && x < pos_x + cols) {
-    setStatus("active element changed");
     active_element_ = element;
     return true;
   } else {

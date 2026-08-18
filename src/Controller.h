@@ -11,6 +11,7 @@
 #include "ui/CommandRegistry.h"
 
 #include <functional>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -24,52 +25,127 @@ class Controller {
  public:
   Controller(ChannelConfiguration _channel_config);
 
-  const Song & getSong() const { return *current_song; }
-  Song & getSong() { return *current_song; }
-
-  // Player::play() (the audio thread) needs this instead of getSong()
-  // above: createNewSong()/openSong() reassign current_song on the UI
-  // thread, and getSong() only ever hands out a reference into whatever
-  // Song current_song happened to point to at the moment of the call -
-  // a plain `Song &` from *before* a reassignment is a dangling reference
-  // the instant the old Song's refcount (current_song was its only owner)
-  // drops to 0, which a UI-thread reassignment can do synchronously,
-  // regardless of when the audio thread later notices the swap via
-  // SONG_CHANGED. Returning an actual shared_ptr copy - under the same
-  // mutex createNewSong()/openSong() take to reassign
-  // current_song, see song_mutex_'s own comment - keeps the *old* Song
-  // object alive for as long as the audio thread's own copy of the
-  // pointer is still in use, however long after the UI thread has moved
-  // on to a new one.
-  std::shared_ptr<Song> getSongPtr() const {
+  // Player::play() (the audio thread) needs this: openSong()/saveSongAs()/
+  // switchToBuffer()/killActiveBuffer() all reassign active_buffer_name_
+  // (and songs_ itself) on the UI thread, and a plain `Song &` from
+  // *before* such a reassignment is a dangling reference the instant the
+  // old Song's refcount (an entry in songs_ was
+  // its only owner) drops to 0, which a UI-thread reassignment can do
+  // synchronously, regardless of when the audio thread later notices the
+  // swap via SONG_CHANGED. Returning an actual shared_ptr copy - under the
+  // same mutex every one of those methods takes, see song_mutex_'s own
+  // comment - keeps the *old* Song object alive for as long as the audio
+  // thread's own copy of the pointer is still in use, however long after
+  // the UI thread has moved on to a new one.
+  std::shared_ptr<Song> getCurrentSong() const {
     std::lock_guard<std::mutex> guard(song_mutex_);
-    return current_song;
+    auto it = songs_.find(active_buffer_name_);
+    return it == songs_.end() ? nullptr : it->second;
   }
 
-  const std::string & getSongFilename() const { return current_song_filename; }
+  // UI-thread convenience wrappers around getCurrentSong() - see that
+  // method's own comment for why the audio thread must go through the
+  // locked shared_ptr instead. Never concurrent with a reassignment
+  // (also always on the UI thread), so no dangling-reference risk here.
+  Song & getSong() { return *getCurrentSong(); }
+  const Song & getSong() const { return *getCurrentSong(); }
+
+  // Which songs_ entry is "current" - UI-thread-only, like song_mutex_'s
+  // other UI-thread-only reads, so no lock needed here either (see
+  // song_mutex_'s own comment).
+  const std::string & getActiveBufferName() const { return active_buffer_name_; }
+
+  // Every open buffer's name, in name-sorted order - the Buffers menu
+  // (TerminalMenu::refreshBuffers()) and any future buffer-listing command
+  // read this rather than songs_ directly.
+  std::vector<std::string> getBufferNames() const {
+    std::vector<std::string> names;
+    names.reserve(songs_.size());
+    for (auto & [name, song] : songs_) names.push_back(name);
+    return names;
+  }
+
+  // Emacs-style uniquify: `name`'s own basename, unless another open
+  // buffer shares it, in which case just enough of the parent directory
+  // is appended (in "<dir>" / "<dir2/dir1>" ... form, growing until
+  // unique) to tell them apart - the display text both the Buffers menu
+  // (TerminalMenu::rebuild()) and the status bar (InfoLine) show, so a
+  // buffer never looks identical to some other open one in either place.
+  // A pure function of the current songs_ key set, not anything about
+  // `name`'s own Song content - see the free uniqueDisplayName() helper
+  // on Controller.cpp for the actual algorithm.
+  std::string getBufferDisplayName(const std::string & name) const;
 
   // Song::getVersion() (incVersion(), bumped on every structural or note
   // edit - see Song.h/PatternEditor.cpp's own call sites) against a
-  // baseline snapshotted whenever the current song was last freshly
-  // created, opened, or saved. Not a precise "dirty" bit (a mutation path
-  // that forgets to call incVersion() would go unnoticed), but reuses an
-  // existing, already-pervasive mechanism rather than adding a parallel
-  // one - good enough to gate a "discard unsaved changes?" prompt.
-  // Temporary: once the editor supports multiple open song buffers, New/
-  // Open stop discarding anything at all (they'd just open another
-  // buffer), and this whole check goes away with them - see
-  // plans/menu-bar-expansion.md.
+  // baseline snapshotted whenever the *active* buffer was last freshly
+  // created, opened, saved, or switched to. Not a precise "dirty" bit (a
+  // mutation path that forgets to call incVersion() would go unnoticed),
+  // but reuses an existing, already-pervasive mechanism rather than adding
+  // a parallel one - good enough to gate kill-buffer's "discard unsaved
+  // changes?" prompt (UI.cpp). See hasAnyUnsavedChanges() below for the
+  // all-buffers counterpart save-buffers-kill-terminal needs instead.
   bool hasUnsavedChanges() const;
+  // Every open buffer checked the same way hasUnsavedChanges() checks just
+  // the active one - save-buffers-kill-terminal's own "N modified buffers -
+  // quit anyway?" gate, so quitting can never silently drop a buffer the
+  // user never even switched to (and so never saw hasUnsavedChanges()
+  // warn about).
+  bool hasAnyUnsavedChanges() const;
 
-  void createNewSong();
+  // Opens `filename` as a new buffer, or - if it's already open - just
+  // switches to that existing buffer instead of re-reading it from disk
+  // (which would silently discard any in-memory edits the open copy has
+  // that the file itself doesn't).
   bool openSong(const std::string & filename);
   // "Save As": like sendCommand("save-song") (saves the current song, and
   // resets hasUnsavedChanges()'s baseline the same way), but to `filename`
   // rather than whatever filename the song was opened/created with - and,
   // standard Save As semantics, subsequent plain saves target `filename`
-  // too from now on (current_song_filename is updated, matching what it
-  // already means for openSong()).
+  // too from now on (active_buffer_name_/songs_'s key are both renamed,
+  // matching what it already means for openSong()).
   void saveSongAs(const std::string & filename);
+
+  // Makes buffer `name` active - creating it fresh (an empty song, same
+  // starter content the old createNewSong() used to set up) first if it
+  // isn't already open, exactly like Emacs's own switch-to-buffer does
+  // for an unrecognized name. There's no separate "New" command any more
+  // (Emacs doesn't have one either) - main.cpp's own no-file-given
+  // startup path is just switchToBuffer(freshBufferName()) below, and
+  // select-named-buffer (UI.cpp) covers it interactively: typing a name
+  // nothing has open yet creates it. The shared tail of cycleBuffer()
+  // below too.
+  void switchToBuffer(const std::string & name);
+  // Switches to the buffer immediately after (forward) or before
+  // (!forward) the active one in songs_'s own (name-sorted, i.e. map
+  // iteration) order, wrapping around at either end - next-buffer/
+  // previous-buffer's shared logic. A no-op with only one buffer open.
+  void cycleBuffer(bool forward);
+  // The buffer name cycleBuffer(true) would switch to from here, without
+  // actually switching - select-named-buffer's (UI.cpp) own "default" for
+  // Emacs's own "Switch to buffer (default ...): " prompt convention.
+  // Real Emacs defaults to the most recently *other* selected buffer;
+  // without any MRU tracking here, the next one in songs_'s own order is
+  // the closest equivalent, and with only one buffer open there's no
+  // "other" to default to at all - "" then, so the prompt falls back to a
+  // plain "Switch to buffer: " with nothing to default an empty answer to.
+  std::string getDefaultSwitchTarget() const;
+  // A buffer name switchToBuffer() is guaranteed not to collide with one
+  // already open - "song.xml" the first time, "song-2.xml"/"song-3.xml"/
+  // ... after. main.cpp's own startup use only ever needs this once (there's
+  // nothing open yet to collide with), but it's still not safe to just
+  // hardcode "song.xml" there: switchToBuffer() treats an already-open
+  // name as "switch to it", so a hardcoded name would risk silently
+  // reattaching to some other buffer that happens to already be called
+  // that instead of creating a genuinely new one.
+  std::string freshBufferName() const;
+  // Closes the active buffer and switches to another open one (name-
+  // sorted first remaining) - false, refusing, if it's the only buffer
+  // open, since the editor always needs at least one song. Never checks
+  // hasUnsavedChanges() itself - same "logic here, confirmation in UI"
+  // split openSong()'s own discard-free design already follows;
+  // kill-buffer (UI.cpp) is the one that prompts first.
+  bool killActiveBuffer();
 
   bool sendCommand(std::string_view s);
 
@@ -91,6 +167,19 @@ class Controller {
   void setCommandCompleter(std::function<std::set<std::string>(std::string_view)> fn) {
     command_completer_ = std::move(fn);
   }
+
+  // Same IoC shape as the fallback/completer above: lets the UI layer
+  // learn whenever songs_/active_buffer_name_ changes (addBuffer()/
+  // renameActiveBuffer()/switchToBuffer()/killActiveBuffer(), every path
+  // that can move which buffer is active or rename one - not just the
+  // ones UI.cpp itself calls directly, but also e.g. a Buffers-menu click
+  // straight on a buffer's own row, which resolves entirely inside
+  // Controller's own commands_ via refreshBufferCommands()'s
+  // "switch-to-buffer:<name>" entries and so never otherwise reaches UI).
+  // A single listener call site here beats one refreshBuffers() call
+  // scattered at every UI-side buffer command - the exact kind of call
+  // site that's easy to add a new path without remembering.
+  void setBufferChangeListener(std::function<void()> fn) { buffer_change_listener_ = std::move(fn); }
 
   std::shared_ptr<AudioBuffer> startRecording() {
     current_sample = std::make_shared<AudioBuffer>(1, 0);
@@ -340,18 +429,58 @@ class Controller {
   MixerType mixer_type_ = MixerType::AMBISONIC_STEREO;
   bool use_legacy_binaural_ = false;
 
-  std::shared_ptr<Song> current_song;
-  // Guards current_song's own reassignment (createNewSong()/openSong())
-  // against Player::play()'s getSongPtr() call on the audio
-  // thread - see that method's own comment for the use-after-free this
-  // prevents. mutable so a const Controller& can still lock it in
-  // getSongPtr(). Every other current_song access (getSong() and its many
-  // UI-thread callers) needs no lock of its own: they're never concurrent
-  // with a reassignment, which is also always on the UI thread.
+  // Every open song, keyed by buffer name - real storage for every buffer
+  // openSong()/switchToBuffer() have added and killActiveBuffer() hasn't
+  // closed yet, not just the active one (see active_buffer_name_ below).
+  // Named songs_, not buffers_: every open buffer is a Song right now, and
+  // this map's value type is literally Song - if a future, non-Song
+  // buffer kind shows up, that's the point this stops being accurate and
+  // needs revisiting, not before.
+  std::map<std::string, std::shared_ptr<Song>> songs_;
+  // hasUnsavedChanges()'s baseline, one per songs_ entry rather than one
+  // shared scalar - each buffer's own unsaved-changes state is independent
+  // of whichever buffer happens to be active, so switching the active one
+  // must never reset or conflate them. Kept in lockstep with songs_ (same
+  // key added/removed/renamed together) by addBuffer()/renameActiveBuffer()/
+  // killActiveBuffer() below.
+  std::map<std::string, int> last_saved_versions_;
+  // Which songs_ entry is current - see getActiveBufferName()/getSong().
+  std::string active_buffer_name_;
+  // Guards songs_/active_buffer_name_'s own reassignment (addBuffer()/
+  // renameActiveBuffer()/switchToBuffer()/killActiveBuffer()) against
+  // Player::play()'s getCurrentSong() call on the audio thread - see that
+  // method's own comment for the use-after-free this prevents. mutable so
+  // a const Controller& can still lock it there. Every other songs_/
+  // active_buffer_name_ access (getSong(), getActiveBufferName(), and
+  // their many UI-thread callers) needs no lock of its own: they're never
+  // concurrent with a reassignment, which is also always on the UI thread.
   mutable std::mutex song_mutex_;
-  std::string current_song_filename = "song.xml";
-  // hasUnsavedChanges()'s baseline - see that method's own comment.
-  int last_saved_version_ = 0;
+  // Inserts (song, name) as a new songs_ entry and makes it active -
+  // openSong()'s own tail once it's read a Song from disk. Never removes
+  // any other entry (unlike the single-buffer design this replaced) -
+  // that's killActiveBuffer()'s job. `saved_version` seeds
+  // last_saved_versions_[name] - always song->getVersion() right after a
+  // fresh open, but the caller's job to compute since it must be read
+  // before this call, not after.
+  void addBuffer(std::shared_ptr<Song> song, const std::string & name, int saved_version);
+  // Renames the active buffer's own songs_/last_saved_versions_ entry to
+  // `new_name` (erase old key, insert new, same Song and active either
+  // way) - saveSongAs()'s own tail, once it's already called Song::save().
+  // `saved_version` is again the caller's job to compute (song->getVersion()
+  // right after that save() call) for the same reason addBuffer() takes it
+  // as a parameter rather than reading it itself.
+  void renameActiveBuffer(const std::string & new_name, int saved_version);
+  // Keeps one "switch-to-buffer:<name>" CommandRegistry entry per songs_
+  // key in sync with it - see refreshBufferCommands()'s own comment on
+  // Controller.cpp. Called after every songs_ structural change
+  // (addBuffer()/renameActiveBuffer()/killActiveBuffer(), and
+  // switchToBuffer()'s own create-if-missing branch).
+  void refreshBufferCommands();
+  // The buffer names refreshBufferCommands() itself registered last time,
+  // so it can tell which ones dropped out of songs_ since and need
+  // commands_.undefine()'d - songs_'s own keys alone can't say that, only
+  // what's still open now, not what used to be.
+  std::set<std::string> registered_buffer_commands_;
   std::shared_ptr<AudioBuffer> current_sample;
   InstrumentProvider instrument_provider;
   EventQueue ui_event_queue, playback_event_queue, visualization_queue;
@@ -369,6 +498,7 @@ class Controller {
   CommandRegistry commands_;
   std::function<bool(std::string_view)> command_fallback_;
   std::function<std::set<std::string>(std::string_view)> command_completer_;
+  std::function<void()> buffer_change_listener_;
   int pending_command_track_ = -1;
   bool pattern_selection_active_ = false;
 

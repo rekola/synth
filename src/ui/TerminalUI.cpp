@@ -367,10 +367,15 @@ struct MenuSectionSpec {
   vector<MenuItemSpec> items;
 };
 
-static const vector<MenuSectionSpec> & menuSpec() {
-  static const vector<MenuSectionSpec> spec = {
+// The Buffers section's own item list depends on which songs are actually
+// open, unlike every other (fixed) section above, so this now builds a
+// fresh vector on every call instead of handing back one cached forever -
+// see TerminalMenu::rebuild(), which builds `buffer_items` (its own label/
+// command strings backed by rebuild()'s local variables, not this
+// function's) and passes it straight through here.
+static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
+  vector<MenuSectionSpec> spec = {
     { "File", 'f', {
-	{ "New", "C-n", "new-song" },
 	{ "Open...", "C-x C-f", "open-song" },
 	{ "Save", "C-x C-s", "save-song" },
 	{ "Save As...", "C-x C-w", "save-song-as" },
@@ -407,66 +412,41 @@ static const vector<MenuSectionSpec> & menuSpec() {
 	{ "Play/Stop", "SPC", "toggle-playing" },
 	{ nullptr, nullptr, nullptr },
 	{ "Toggle Binaural Mixer", "", "toggle-mixer-type" },
+	{ nullptr, nullptr, nullptr },
+	{ "Set Song Key...", "", "set-song-key" },
+	{ "Set Tuning System...", "", "set-song-tuning" },
       } },
   };
+
+  // Emacs-style Buffers menu: every open buffer's name (already display-
+  // formatted - basename plus an active-buffer marker, each item's own
+  // command already a specific "switch-to-buffer:<full name>" - by
+  // rebuild() below; see its own comment for why the label can't just be
+  // the command name with a prefix stripped), then the real
+  // buffer-management commands. "New" has no separate entry here - see
+  // select-named-buffer's own comment in UI.cpp for why.
+  buffer_items.push_back({ nullptr, nullptr, nullptr });
+  buffer_items.push_back({ "Kill Buffer", "C-x k", "kill-buffer" });
+  buffer_items.push_back({ "Next Buffer", "C-x Right", "next-buffer" });
+  buffer_items.push_back({ "Previous Buffer", "C-x Left", "previous-buffer" });
+  buffer_items.push_back({ "Select Named Buffer...", "C-x b", "select-named-buffer" });
+  spec.push_back({ "Buffers", 'b', std::move(buffer_items) });
+
   return spec;
 }
 
 class TerminalMenu : public UIMenu {
 public:
-  TerminalMenu() {
-    // desc_storage_ backs every non-separator ncmenu_item's .desc pointer -
-    // reserved to its final size up front so no reallocation (which would
-    // move/invalidate short (SSO) strings' own buffers) can happen while
-    // still being filled below; must stay alive through ncmenu_create()'s
-    // call at the bottom of this constructor, which deep-copies the
-    // ncmenu_item/ncmenu_section arrays themselves (confirmed against the
-    // real library - see plans/menu-bar-expansion.md) but not anything
-    // *they* point to a moment later.
-    size_t total_items = 0;
-    for (auto & section : menuSpec()) total_items += section.items.size();
-    desc_storage_.reserve(total_items);
+  TerminalMenu(vector<string> buffer_names, vector<string> buffer_display_names, string active_buffer_name)
+    : buffer_names_(std::move(buffer_names)), buffer_display_names_(std::move(buffer_display_names)),
+      active_buffer_name_(std::move(active_buffer_name)) { rebuild(); }
 
-    vector<vector<ncmenu_item>> item_arrays;
-    vector<ncmenu_section> sections;
-    for (auto & section : menuSpec()) {
-      size_t label_width = 0;
-      for (auto & item : section.items) {
-	if (item.label) label_width = std::max(label_width, strlen(item.label));
-      }
-
-      vector<ncmenu_item> items;
-      for (auto & item : section.items) {
-	if (!item.label) {
-	  items.push_back({ .desc = nullptr, .shortcut = {} });
-	  continue;
-	}
-	string desc = item.label;
-	if (item.binding && item.binding[0]) {
-	  desc.append(label_width + 2 - strlen(item.label), ' ');
-	  desc += item.binding;
-	}
-	desc_storage_.push_back(std::move(desc));
-	items.push_back({ .desc = desc_storage_.back().c_str(), .shortcut = {} });
-	if (item.command) item_commands_[desc_storage_.back()] = item.command;
-      }
-      item_arrays.push_back(std::move(items));
-    }
-    for (size_t i = 0; i < item_arrays.size(); i++) {
-      auto & section = menuSpec()[i];
-      sections.push_back({ .name = section.name, .itemcount = static_cast<int>(item_arrays[i].size()),
-	.items = item_arrays[i].data(),
-	.shortcut = { .id = static_cast<uint32_t>(section.mnemonic), .alt = true } });
-    }
-
-    uint64_t headerchannels = NCCHANNELS_INITIALIZER(0xff, 0xff, 0xff, 0x7f, 0x34, 0x7f);
-    uint64_t sectionchannels = NCCHANNELS_INITIALIZER(0xff, 0xff, 0xff, 0x00, 0x00, 0x00);
-    ncchannels_set_fg_alpha(&sectionchannels, NCALPHA_HIGHCONTRAST);
-    ncchannels_set_bg_alpha(&sectionchannels, NCALPHA_BLEND);
-    ncchannels_set_bg_alpha(&headerchannels, NCALPHA_BLEND);
-    ncmenu_options mopts = { .sections = sections.data(), .sectioncount = static_cast<int>(sections.size()),
-      .headerchannels = headerchannels, .sectionchannels = sectionchannels, .flags = 0 };
-    menu = make_unique<Menu>(&mopts);
+  void refreshBuffers(const vector<string> & buffer_names, const vector<string> & buffer_display_names,
+		       const string & active_buffer_name) override {
+    buffer_names_ = buffer_names;
+    buffer_display_names_ = buffer_display_names;
+    active_buffer_name_ = active_buffer_name;
+    rebuild();
   }
 
   // Confirmed against the real library: ncmenu_offer_input() never treats a
@@ -519,6 +499,115 @@ private:
     menu->rollup();
   }
 
+  // (Re)builds the whole ncmenu from scratch against buffer_names_' current
+  // contents - the constructor's original one-shot job, now also
+  // refreshBuffers()'s, since ncmenu has no API to replace one section's
+  // items in an existing menu (confirmed against the real library: nothing
+  // between ncmenu_create() and ncmenu_destroy() touches item content) -
+  // recreating the whole `menu` is the only way to show a changed buffer
+  // list. The old Menu (and its ncplane) is destroyed by the reassignment
+  // below; the render loop's own per-frame raiseToTop() (TerminalUI's main
+  // loop) picks the replacement back up without this needing to call it
+  // itself.
+  void rebuild() {
+    // desc_storage_/item_commands_ back every non-separator ncmenu_item's
+    // .desc pointer and the activation lookup below respectively - reset
+    // together with menu itself so a rebuild never leaves either holding a
+    // stale entry from the previous buffer list.
+    desc_storage_.clear();
+    item_commands_.clear();
+
+    // Every buffer item's *label* is buffer_display_names_' own text
+    // (Controller::getBufferDisplayName()'s already-disambiguated output,
+    // computed by the caller - see refreshBuffers()'s own comment on
+    // UIMenu.h for why this class can't just call it itself), not the
+    // full path buffer_names_ itself carries (which stays the real songs_
+    // key everywhere else, e.g. save-song's target) - prefixed with "* "
+    // for whichever one is active_buffer_name_. Each item's own *command*
+    // is still "switch-to-buffer:" plus the *full* name
+    // (Controller::refreshBufferCommands() keeps one such command defined
+    // per open buffer), never the display text - a menu click has to
+    // reach the same specific buffer a same-display one wouldn't.
+    // display_labels/commands are this function's own local vectors, not
+    // menuSpec()'s: MenuItemSpec::label/command point directly into
+    // whatever backs them without copying, so both must outlive
+    // menuSpec()'s own return - true for locals here (alive for the rest
+    // of this function), not for ones that would go out of scope the
+    // moment menuSpec() itself returned.
+    vector<string> display_labels, commands;
+    display_labels.reserve(buffer_names_.size());
+    commands.reserve(buffer_names_.size());
+    for (size_t i = 0; i < buffer_names_.size(); i++) {
+      auto & name = buffer_names_[i];
+      auto & display_name = i < buffer_display_names_.size() ? buffer_display_names_[i] : name;
+      display_labels.push_back((name == active_buffer_name_ ? "* " : "  ") + display_name);
+      commands.push_back("switch-to-buffer:" + name);
+    }
+    vector<MenuItemSpec> buffer_items;
+    buffer_items.reserve(buffer_names_.size());
+    for (size_t i = 0; i < buffer_names_.size(); i++) {
+      buffer_items.push_back({ display_labels[i].c_str(), "", commands[i].c_str() });
+    }
+
+    auto spec = menuSpec(std::move(buffer_items));
+
+    // desc_storage_ is reserved to its final size up front so no
+    // reallocation (which would move/invalidate short (SSO) strings' own
+    // buffers) can happen while still being filled below; must stay alive
+    // through ncmenu_create()'s call at the bottom of this function, which
+    // deep-copies the ncmenu_item/ncmenu_section arrays themselves
+    // (confirmed against the real library - see
+    // plans/menu-bar-expansion.md) but not anything *they* point to a
+    // moment later.
+    size_t total_items = 0;
+    for (auto & section : spec) total_items += section.items.size();
+    desc_storage_.reserve(total_items);
+
+    vector<vector<ncmenu_item>> item_arrays;
+    vector<ncmenu_section> sections;
+    for (auto & section : spec) {
+      size_t label_width = 0;
+      for (auto & item : section.items) {
+	if (item.label) label_width = std::max(label_width, strlen(item.label));
+      }
+
+      vector<ncmenu_item> items;
+      for (auto & item : section.items) {
+	if (!item.label) {
+	  items.push_back({ .desc = nullptr, .shortcut = {} });
+	  continue;
+	}
+	string desc = item.label;
+	if (item.binding && item.binding[0]) {
+	  desc.append(label_width + 2 - strlen(item.label), ' ');
+	  desc += item.binding;
+	}
+	desc_storage_.push_back(std::move(desc));
+	items.push_back({ .desc = desc_storage_.back().c_str(), .shortcut = {} });
+	if (item.command) item_commands_[desc_storage_.back()] = item.command;
+      }
+      item_arrays.push_back(std::move(items));
+    }
+    for (size_t i = 0; i < item_arrays.size(); i++) {
+      auto & section = spec[i];
+      sections.push_back({ .name = section.name, .itemcount = static_cast<int>(item_arrays[i].size()),
+	.items = item_arrays[i].data(),
+	.shortcut = { .id = static_cast<uint32_t>(section.mnemonic), .alt = true } });
+    }
+
+    uint64_t headerchannels = NCCHANNELS_INITIALIZER(0xff, 0xff, 0xff, 0x7f, 0x34, 0x7f);
+    uint64_t sectionchannels = NCCHANNELS_INITIALIZER(0xff, 0xff, 0xff, 0x00, 0x00, 0x00);
+    ncchannels_set_fg_alpha(&sectionchannels, NCALPHA_HIGHCONTRAST);
+    ncchannels_set_bg_alpha(&sectionchannels, NCALPHA_BLEND);
+    ncchannels_set_bg_alpha(&headerchannels, NCALPHA_BLEND);
+    ncmenu_options mopts = { .sections = sections.data(), .sectioncount = static_cast<int>(sections.size()),
+      .headerchannels = headerchannels, .sectionchannels = sectionchannels, .flags = 0 };
+    menu = make_unique<Menu>(&mopts);
+  }
+
+  vector<string> buffer_names_;
+  vector<string> buffer_display_names_;
+  string active_buffer_name_;
   unique_ptr<Menu> menu;
   vector<string> desc_storage_;
   std::map<string, string> item_commands_;
@@ -1246,7 +1335,13 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   setBgColor(styles_.window_bg_color);
   fill();
 
-  menu_ = make_shared<TerminalMenu>();
+  {
+    auto buffer_names = controller->getBufferNames();
+    vector<string> buffer_display_names;
+    buffer_display_names.reserve(buffer_names.size());
+    for (auto & name : buffer_names) buffer_display_names.push_back(controller->getBufferDisplayName(name));
+    menu_ = make_shared<TerminalMenu>(buffer_names, std::move(buffer_display_names), controller->getActiveBufferName());
+  }
 
   bool use_pixel = notcurses_check_pixel_support(*nc) != NCPIXEL_NONE;
   auto make_chart = [&](Chart::ChartType type, double min_y, double max_y) -> shared_ptr<Chart> {

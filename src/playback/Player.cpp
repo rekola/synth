@@ -32,13 +32,13 @@ private:
 
 void
 Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
-  // getSongPtr(), not getSong() - this runs on the audio thread, so a
-  // plain reference into whatever current_song happens to point to right
-  // now isn't safe against a concurrent UI-thread createNewSong()/
-  // openSong() reassigning it - see getSongPtr()'s own comment. Kept
-  // alive for this whole call via song_ptr; song itself stays a plain
-  // reference so every existing song.foo() call below is unchanged.
-  auto song_ptr = controller_->getSongPtr();
+  // getCurrentSong(), not getSong() - this runs on the audio thread, so a
+  // plain reference into whatever the active buffer happens to be right
+  // now isn't safe against a concurrent UI-thread openSong()/
+  // switchToBuffer() reassigning it - see getCurrentSong()'s own comment.
+  // Kept alive for this whole call via song_ptr; song itself stays a
+  // plain reference so every existing song.foo() call below is unchanged.
+  auto song_ptr = controller_->getCurrentSong();
   auto & song = *song_ptr;
 
   switch (ev.getType()) {
@@ -260,12 +260,12 @@ Player::play(AudioAPI & audio) {
     descriptors[1 + num_playback_desc + i].events = 0;
   }
 
-  // getSongPtr() (not getSong()/a raw pointer) - see that method's own
+  // getCurrentSong() (not getSong()/a raw pointer) - see that method's own
   // comment: it keeps whatever Song this shared_ptr copy points to alive
   // for as long as this thread holds it, regardless of a UI-thread
-  // createNewSong()/openSong() reassigning Controller's own current_song
+  // openSong()/switchToBuffer() reassigning Controller's own active buffer
   // out from under it in the meantime.
-  auto song = controller_->getSongPtr();
+  auto song = controller_->getCurrentSong();
   state_.initialize(*song);
   auto mixer = createMixer(controller_->getChannelConfiguration(), controller_->getMixerType(), controller_->getUseLegacyBinaural());
 
@@ -288,12 +288,12 @@ Player::play(AudioAPI & audio) {
 	    }
 	    if (song_changed_) {
 	      // Drops this thread's own shared_ptr copy of the old Song (see
-	      // getSongPtr()'s own comment) only now, in favor of a fresh
-	      // copy of whatever current_song the UI thread's
-	      // createNewSong()/openSong() already reassigned - the old
-	      // Song stays alive up to exactly this point, however long
-	      // after the UI thread itself moved on.
-	      song = controller_->getSongPtr();
+	      // getCurrentSong()'s own comment) only now, in favor of a fresh
+	      // copy of whatever active buffer the UI thread's own openSong()/
+	      // switchToBuffer() already reassigned - the old Song stays
+	      // alive up to exactly this point, however long after the UI
+	      // thread itself moved on.
+	      song = controller_->getCurrentSong();
 	      state_.clear();
 	      state_.resetPosition(); // old song's row count means nothing against the new song's patterns
 	      state_.initialize(*song);

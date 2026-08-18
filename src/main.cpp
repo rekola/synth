@@ -153,7 +153,11 @@ int main(int argc, char *argv[]) {
     // path's own comment above.
     if (!controller->openSong(input.front())) exit(1);
   } else {
-    controller->createNewSong();
+    // No separate "new song" entry point any more (see Controller.h's own
+    // switchToBuffer() comment) - freshBufferName() picks a buffer name
+    // nothing has open yet (trivially "song.xml" this early), and
+    // switchToBuffer() creates it since it doesn't recognize the name.
+    controller->switchToBuffer(controller->freshBufferName());
   }
 
   LaunchpadIO launchpad_io;

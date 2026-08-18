@@ -19,6 +19,15 @@ class InfoLine : public UIElement {
   bool render(const StyleProvider & styles, bool refresh = false) {
     auto & info = getController().getPlaybackInfo();
     auto & song = getController().getSong();
+    auto & buffer_name = getController().getActiveBufferName();
+    // The disambiguated display text getBufferDisplayName() computes for
+    // *any* open buffer can change when some *other* buffer is added/
+    // killed/renamed - e.g. opening a second "song.xml" elsewhere means
+    // the active one now needs its own "<dir>" suffix too, even though
+    // its own name/version/position/voice counts never changed. Buffer
+    // names is its own dirty-check input for exactly this - see
+    // current_buffer_names_'s own comment below.
+    auto buffer_names = getController().getBufferNames();
 
     auto new_version = song.getVersion();
     auto new_position = info.getAbsolutePosition();
@@ -26,7 +35,8 @@ class InfoLine : public UIElement {
     auto num_allocated_voices = info.getAllocatedVoiceCount();
 
     if (refresh || new_version != current_version_ || new_position != current_position_ ||
-	num_voices != current_num_voices_ || num_allocated_voices != current_num_allocated_voices_) {
+	num_voices != current_num_voices_ || num_allocated_voices != current_num_allocated_voices_ ||
+	buffer_name != current_buffer_name_ || buffer_names != current_buffer_names_) {
       auto seconds = (int)info.getTime();
       auto minutes = seconds / 60;
       seconds %= 60;
@@ -35,10 +45,17 @@ class InfoLine : public UIElement {
 
       auto pattern_idx = info.getPatternIndex();
 
-      auto s = fmt::format(" {:02x} {:02d}:{:02d} pattern:{} voices:{}/{}", info.getAbsolutePosition(), minutes, seconds, pattern_idx, num_voices, num_allocated_voices);
+      // Controller::getBufferDisplayName()'s own text - basename-only,
+      // unless another open buffer shares it, in which case just enough
+      // of the parent directory is appended to tell them apart (Emacs-
+      // style uniquify - see that method's own comment) - the same
+      // display convention the Buffers menu uses (TerminalMenu::rebuild()),
+      // so the same buffer reads the same way in both places.
+      auto buffer_display_name = getController().getBufferDisplayName(buffer_name);
+      auto s = fmt::format(" {} {:02x} {:02d}:{:02d} pattern:{} voices:{}/{}", buffer_display_name, info.getAbsolutePosition(), minutes, seconds, pattern_idx, num_voices, num_allocated_voices);
       if (info.isPlaying()) s += " PLAYING";
       while (s.size() < static_cast<size_t>(cols)) s += ' ';
-      
+
       putstr(0, 0, s);
 
       // setFgColor(styles.window_border_color);
@@ -55,6 +72,8 @@ class InfoLine : public UIElement {
       current_position_ = new_position;
       current_num_voices_ = num_voices;
       current_num_allocated_voices_ = num_allocated_voices;
+      current_buffer_name_ = buffer_name;
+      current_buffer_names_ = std::move(buffer_names);
 
       return true;
     } else {
@@ -71,6 +90,20 @@ private:
   // printed count would otherwise freeze at whatever it was and never
   // tick down as voices actually finish.
   int current_num_voices_ = 0, current_num_allocated_voices_ = 0;
+  // Its own dirty-check input too, for the same reason: switching to a
+  // different open buffer (Controller::switchToBuffer()) doesn't
+  // necessarily change the new song's own version number to something
+  // different from whatever the old one happened to be at, so relying on
+  // new_version alone could leave the printed buffer name stale.
+  std::string current_buffer_name_;
+  // Every open buffer's name, not just the active one - the active
+  // buffer's own *displayed* text (getBufferDisplayName()) depends on
+  // whether some other open buffer collides with it, so this needs its
+  // own dirty-check input distinct from current_buffer_name_ above: an
+  // unrelated buffer opening/closing/renaming elsewhere can change it
+  // without the active buffer's own name, version, position, or voice
+  // counts changing at all.
+  std::vector<std::string> current_buffer_names_;
 };
 
 #endif

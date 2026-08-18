@@ -457,7 +457,8 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	      // dropping just that one row into an otherwise-successfully-
 	      // loaded song (Controller::openSong() discards this Song
 	      // entirely on a false return, never making a partial load
-	      // visible as current_song, so returning mid-parse here is safe).
+	      // visible as the active buffer, so returning mid-parse here is
+	      // safe).
 	      Command command;
 	      if (!command.setData(data_text)) {
 		fmt::print(stderr, "Malformed command \"{}\" at row {} in {}\n", data_text, row, filename);

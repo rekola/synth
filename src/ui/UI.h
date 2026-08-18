@@ -76,13 +76,6 @@ protected:
 
   void initialize();
   void layout();
-  // Runs `action` immediately if the current song has no unsaved changes;
-  // otherwise shows `prompt` (a StatusLine reader) and only runs it if the
-  // typed answer is "y"/"yes" - "New"/"Open"'s shared confirm-before-
-  // discarding step. Temporary: once multiple song buffers exist, neither
-  // command discards anything any more and this whole guard goes away -
-  // see plans/menu-bar-expansion.md and Controller::hasUnsavedChanges().
-  void confirmDiscardThenRun(const std::string & prompt, std::function<void()> action);
   bool renderComponents(bool refresh = false);
   bool tryActivate(int y, int x, std::shared_ptr<UIElement> element);
   Logger & getLogger() { return logger_; }

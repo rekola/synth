@@ -3,9 +3,30 @@
 
 #include "UIElement.h"
 
+#include <string>
+#include <vector>
+
 class UIMenu : public UIElement {
  public:
   UIMenu() { }
+
+  // Rebuilds the Buffers section's item list against `names` (every
+  // currently open buffer/song, in Controller::getBufferNames() order,
+  // used as each item's own "switch-to-buffer:<name>" command target),
+  // the same-order `display_names` (Controller::getBufferDisplayName()'s
+  // own already-disambiguated text for each - computed by the caller, not
+  // here: unlike UIElement's other subclasses, UIMenu is never constructed
+  // against a real UIPlane/parent, so getController() has no plane to
+  // reach one through and would crash if called from here), and
+  // `active_name` (Controller::getActiveBufferName(), so the section can
+  // mark which one is current) - called once at startup and again
+  // whenever the open-buffer set or the active buffer changes (see
+  // Controller::setBufferChangeListener()'s one wiring in UI.cpp). Named
+  // for what it does rather than "rebuild"/"refresh" alone since every
+  // other section here is fixed at compile time; only Buffers needs this
+  // at all.
+  virtual void refreshBuffers(const std::vector<std::string> & names, const std::vector<std::string> & display_names,
+			       const std::string & active_name) = 0;
 
   // The menu bar's own plane is created before the scope charts/pattern
   // editor/status line (TerminalUI::initialize()), so without this those

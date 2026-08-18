@@ -4,6 +4,7 @@
 #include "../src/model/Song.h"
 #include "../src/ambisonic/ChannelConfiguration.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <set>
@@ -39,7 +40,7 @@ TEST(controller_save_song_writes_to_the_opened_path) {
   Controller controller(config);
 
   CHECK(controller.openSong(scratch_path.string()));
-  CHECK(controller.getSongFilename() == scratch_path.string());
+  CHECK(controller.getActiveBufferName() == scratch_path.string());
 
   // mutate the song so the saved file is distinguishable from the original
   controller.getSong().setTempo(200);
@@ -53,16 +54,59 @@ TEST(controller_save_song_writes_to_the_opened_path) {
   CHECK(!fs::exists("tmp.xml")); // the old hardcoded destination must not appear
 }
 
-TEST(controller_new_song_resets_save_path_to_default) {
+TEST(controller_switch_to_fresh_buffer_leaves_previous_buffer_open) {
+  // No separate "new song" command exists any more (see Controller.h's
+  // switchToBuffer() comment) - switchToBuffer(freshBufferName()) is what
+  // replaced it, and unlike the old createNewSong() it must not discard
+  // the buffer that was active before: real multi-buffer support means
+  // both stay open.
   ChannelConfiguration config(44100, 1);
   Controller controller(config);
 
   auto fixture = std::string(TESTS_FIXTURES_DIR) + "/center_note.xml";
   CHECK(controller.openSong(fixture));
-  CHECK(controller.getSongFilename() == fixture);
+  CHECK(controller.getActiveBufferName() == fixture);
 
-  controller.createNewSong();
-  CHECK(controller.getSongFilename() != fixture);
+  controller.switchToBuffer(controller.freshBufferName());
+  CHECK(controller.getActiveBufferName() != fixture);
+
+  // The fixture is still open, just no longer active.
+  auto names = controller.getBufferNames();
+  CHECK(std::find(names.begin(), names.end(), fixture) != names.end());
+}
+
+TEST(controller_disambiguates_buffers_sharing_a_basename) {
+  // Emacs-style uniquify (Controller::getBufferDisplayName()): two open
+  // buffers named "song.xml" in different directories must not display
+  // identically in the Buffers menu/status bar - each needs just enough
+  // of its own parent directory appended to tell them apart.
+  namespace fs = std::filesystem;
+  auto dir_a = fs::path(TESTS_SCRATCH_DIR) / "uniquify_a";
+  auto dir_b = fs::path(TESTS_SCRATCH_DIR) / "uniquify_b";
+  fs::create_directories(dir_a);
+  fs::create_directories(dir_b);
+  auto path_a = (dir_a / "song.xml").string();
+  auto path_b = (dir_b / "song.xml").string();
+  auto fixture = fs::path(TESTS_FIXTURES_DIR) / "center_note.xml";
+  fs::copy_file(fixture, path_a, fs::copy_options::overwrite_existing);
+  fs::copy_file(fixture, path_b, fs::copy_options::overwrite_existing);
+
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+
+  CHECK(controller.openSong(path_a));
+  // Only one buffer open yet - no collision, no disambiguation needed.
+  CHECK(controller.getBufferDisplayName(path_a) == "song.xml");
+
+  CHECK(controller.openSong(path_b));
+  // Now both share a basename - each shows its own parent directory.
+  CHECK(controller.getBufferDisplayName(path_a) == "song.xml<uniquify_a>");
+  CHECK(controller.getBufferDisplayName(path_b) == "song.xml<uniquify_b>");
+
+  fs::remove(path_a);
+  fs::remove(path_b);
+  fs::remove(dir_a);
+  fs::remove(dir_b);
 }
 
 TEST(controller_send_command_prefers_literal_commands_over_fallback) {
