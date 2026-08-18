@@ -5,9 +5,11 @@
 #include "../playback/InputEvent.h"
 
 #include <algorithm>
+#include <filesystem>
 #include <functional>
 #include <set>
 #include <string>
+#include <vector>
 
 class StatusLine : public UIElement {
  public:
@@ -30,43 +32,95 @@ class StatusLine : public UIElement {
   // unsaved-changes confirmation and filename prompts), rather than each
   // caller reimplementing "show a reader, do something with its text on
   // Enter". Cancelled (Ctrl-G) without ever running on_submit at all - a
-  // no-op is always the right response to "never mind". `reserved_cols`
-  // leaves that many columns unused at the row's right edge instead of
-  // letting the (opaque) reader plane claim the full remaining width - M-x
-  // below uses it to leave room for the "[No match]" autocomplete
-  // indicator; every other caller leaves it at 0 (the old full-width
-  // behavior).
+  // no-op is always the right response to "never mind". The reader always
+  // claims the plane's full remaining width past the prompt - the
+  // completion-status indicator (showPromptWithCompletion()/
+  // showFilePrompt() below) doesn't need any width reserved for it, since
+  // it's drawn directly onto the reader's own plane right after the typed
+  // text rather than in a gap to its right - see showIndicator().
   void showPrompt(const std::string & prompt, std::function<void(const std::string &)> on_submit,
-		   const std::string & initial_text = "", int reserved_cols = 0) {
+		   const std::string & initial_text = "") {
     on_submit_ = std::move(on_submit);
-    int reader_cols = -1;
-    if (reserved_cols > 0) {
-      auto [rows, cols] = getDim();
-      reader_cols = std::max(1, cols - static_cast<int>(prompt.size()) - reserved_cols);
-    }
-    getPlane().showReader(prompt, 0, -1, -1, reader_cols, initial_text);
+    getPlane().showReader(prompt, 0, -1, -1, -1, initial_text);
+  }
+
+  // Like showPrompt() above, but with Tab-driven Emacs-style autocomplete
+  // against `candidates_for(text)` - every full valid answer starting with
+  // whatever's typed so far, the exact same contract
+  // Controller::commandCompletions() already uses for M-x (this is that
+  // same machinery, generalized so any flat-candidate-set completion
+  // domain can use it, not just M-x - buffer names being the other one).
+  // Enter always submits whatever's currently typed outright, matched or
+  // not: unlike M-x commands, a buffer name that doesn't exist yet is a
+  // perfectly good answer (Controller::switchToBuffer() creates a fresh
+  // buffer for it), so there's no "invalid input" to block here the way
+  // showMx() below needs to. See completeAgainstSet() for Tab's own
+  // behavior.
+  void showPromptWithCompletion(const std::string & prompt, std::function<void(const std::string &)> on_submit,
+				  std::function<std::set<std::string>(const std::string &)> candidates_for,
+				  const std::string & initial_text = "") {
+    tab_completer_ = [this, candidates_for]() { completeAgainstSet(candidates_for, false); };
+    enter_completer_ = nullptr;
+    indicator_shown_ = false;
+    showPrompt(prompt, std::move(on_submit), initial_text);
+  }
+
+  // Like showPrompt(), but with filesystem-path Tab completion
+  // (completeFilePath()) instead of a flat candidate set - unlike M-x
+  // commands or buffer names, valid filenames aren't a fixed set to check
+  // membership in, they're read from the real filesystem one path
+  // component at a time. Enter always submits the typed text outright,
+  // same reasoning as showPromptWithCompletion() above: a filename that
+  // doesn't exist yet is still worth trying (openSong() reports "could not
+  // open" itself if it's actually wrong), so there's nothing for this
+  // class to block. "Find file:" (UI.cpp's open-song command) is the one
+  // caller.
+  void showFilePrompt(const std::string & prompt, std::function<void(const std::string &)> on_submit,
+		       const std::string & initial_text = "") {
+    tab_completer_ = [this]() { completeFilePath(); };
+    enter_completer_ = nullptr;
+    indicator_shown_ = false;
+    showPrompt(prompt, std::move(on_submit), initial_text);
   }
 
   bool offerInput(const InputEvent & input) override {
     if (getPlane().readerActive()) {
-      if (mx_active_ && (input.getId() == NCKEY_TAB || input.getId() == NCKEY_ENTER)) {
-	completeMx();
+      if (tab_completer_ && input.getId() == NCKEY_TAB) {
+	// A local copy, not tab_completer_() directly - see the identical
+	// reasoning on the Enter branch below.
+	auto completer = tab_completer_;
+	completer();
 	return true;
       } else if (input.getId() == NCKEY_ENTER) {
-	auto text = closeReader();
-	auto submit = std::move(on_submit_);
-	on_submit_ = nullptr;
-	if (submit) submit(text);
+	if (enter_completer_) {
+	  // M-x only (the one strict completion domain - see showMx()):
+	  // submit if the typed text is already a real, exact command name,
+	  // otherwise extend/indicate exactly like Tab rather than running
+	  // whatever's half-typed. A local copy, not enter_completer_()
+	  // directly - its own submit path (completeAgainstSet() ->
+	  // submitReader() -> closeReader()) reassigns tab_completer_/
+	  // enter_completer_ to nullptr as part of finishing the reader
+	  // session, which would destroy the very std::function target
+	  // still executing if called through the member itself.
+	  auto completer = enter_completer_;
+	  completer();
+	} else {
+	  // No completer active, or a permissive one (buffer names, file
+	  // paths - see showPromptWithCompletion()/showFilePrompt()) where
+	  // Enter always accepts whatever's typed rather than only ever a
+	  // confirmed match.
+	  submitReader();
+	}
 	return true;
       } else if (input.hasCtrl() && input.getId() == 'g') {
 	on_submit_ = nullptr;
 	closeReader();
 	return true;
       } else {
-	// The user resumed typing - a "[No match]" indicator left over from
-	// an earlier dead-end Tab/Enter is now stale (a no-op when mx_active_
-	// is false or nothing is currently shown).
-	showNoMatch(false);
+	// The user resumed typing - an indicator left over from an earlier
+	// Tab press is now stale (a no-op when no completer is active or
+	// nothing is currently shown).
+	showIndicator("");
 	return UIElement::offerInput(input);
       }
     } else if ((input.hasAlt() || input.hasMeta()) && (input.getId() == 'x' || input.getId() == 'X')) {
@@ -91,7 +145,8 @@ class StatusLine : public UIElement {
   }
 
   std::string closeReader() {
-    mx_active_ = false;
+    tab_completer_ = nullptr;
+    enter_completer_ = nullptr;
     auto cmd = getPlane().closeReader();
     if (pending_message.empty()) {
       setMessage("");
@@ -103,46 +158,126 @@ class StatusLine : public UIElement {
   }
 
 private:
-  // M-x itself is just showPrompt()'s very first, default use - kept as
+  // M-x itself is just showPromptWithCompletion()'s very first, default use
+  // plus a stricter Enter (see enter_completer_'s own comment) - kept as
   // its own tiny wrapper so all three trigger paths above share one exact
-  // prompt string, plus the reserved width for completeMx()'s "[No match]"
-  // indicator below. Enter only ever reaches sendCommand() with a name
-  // completeMx() has already confirmed is real (see its exact-match
-  // branch), so unlike before there's no failure case left to report here.
+  // prompt string.
   void showMx() {
-    mx_active_ = true;
-    no_match_shown_ = false;
-    showPrompt("M-x ", [this](const std::string & cmd) { getController().sendCommand(cmd); },
-	       "", static_cast<int>(kNoMatchReserve));
+    auto candidates_for = [this](const std::string & prefix) { return getController().commandCompletions(prefix); };
+    tab_completer_ = [this, candidates_for]() { completeAgainstSet(candidates_for, false); };
+    enter_completer_ = [this, candidates_for]() { completeAgainstSet(candidates_for, true); };
+    indicator_shown_ = false;
+    showPrompt("M-x ", [this](const std::string & cmd) { getController().sendCommand(cmd); });
   }
 
-  // Emacs-style autocomplete, shared by Tab and Enter (see offerInput()):
-  // extend the typed text as far as every command name sharing its prefix
-  // agrees, submit outright if it already names one exactly, or flash
-  // "[No match]" if nothing shares the prefix at all. Never shows the
-  // candidate list itself (a later phase's job) - just the furthest
-  // unambiguous extension.
-  void completeMx() {
+  // Emacs-style autocomplete against a flat candidate set (M-x commands,
+  // buffer names): extend the typed text as far as every candidate sharing
+  // its prefix agrees, or flash "[No match]" if nothing shares the prefix
+  // at all. A press that actually extends the text completes silently, no
+  // indicator - "[Sole completion]" only shows up on a *second*, no-
+  // progress press once the text already exactly matches the one
+  // remaining candidate, the same way Emacs's own TAB behaves. Either way
+  // this never submits by itself; the whole point is that only Enter ever
+  // runs/opens/switches anything. `submit_on_exact` is true only for the
+  // Enter-triggered call (see offerInput()) and only for M-x, the one
+  // domain where an unrecognized name truly can't be submitted - if the
+  // typed text is already a real, complete candidate, that's the one case
+  // Enter is allowed to act immediately on rather than just extending like
+  // Tab would. Never shows the full candidate list itself (a later phase's
+  // job) - just the furthest unambiguous extension plus the two
+  // indicators above.
+  void completeAgainstSet(const std::function<std::set<std::string>(const std::string &)> & candidates_for,
+			   bool submit_on_exact) {
     auto text = getPlane().getReaderContents();
-    auto matches = getController().commandCompletions(text);
-    if (matches.count(text)) {
-      submitMx();
+    auto matches = candidates_for(text);
+    if (submit_on_exact && matches.count(text)) {
+      submitReader();
       return;
     }
     if (matches.empty()) {
-      showNoMatch(true);
+      showIndicator("[No match]");
       return;
     }
-    showNoMatch(false);
     auto completed = longestCommonPrefix(matches);
-    if (completed.size() > text.size()) getPlane().setReaderContents(completed);
-    // Otherwise every match still disagrees past what's already typed
-    // (ambiguous, e.g. "save-song" vs. "save-song-as") - leave the text
-    // exactly as the user typed it, same as Emacs's own dead end short of
-    // showing a completion list.
+    if (completed.size() > text.size()) {
+      // This press made real progress - just complete silently, the same
+      // way Emacs's own TAB does. "[Sole completion]" only shows up on a
+      // *second*, no-progress press once there's nothing left to extend -
+      // see the else branch below.
+      getPlane().setReaderContents(completed);
+      showIndicator("");
+    } else {
+      showIndicator(matches.size() == 1 ? "[Sole completion]" : "");
+    }
   }
 
-  void submitMx() {
+  // "Find file:"'s own Tab handling. Unlike completeAgainstSet()'s flat
+  // candidate set, filesystem completion is inherently hierarchical: only
+  // the last path component is completed at a time, against whatever
+  // actually exists in its containing directory - completing into a
+  // directory extends the typed text and keeps going (there's nothing to
+  // "open" about a bare directory name), the same way Emacs's own
+  // find-file behaves. Always permissive (see showFilePrompt()) - there's
+  // no submit_on_exact variant here, Enter for a file path never routes
+  // through this method at all, only Tab does.
+  void completeFilePath() {
+    namespace fs = std::filesystem;
+    auto text = getPlane().getReaderContents();
+
+    // Split into "directory to list" + "partial name to match against
+    // that directory's own entries" - a trailing slash (or empty text)
+    // means the whole thing already names a directory with no partial
+    // filename yet to narrow by.
+    std::string dir_part, partial;
+    if (text.empty() || text.back() == '/') {
+      dir_part = text;
+    } else {
+      fs::path typed(text);
+      auto parent = typed.parent_path().string();
+      dir_part = parent.empty() ? "" : parent + "/";
+      partial = typed.filename().string();
+    }
+
+    std::error_code ec;
+    std::vector<std::string> matches; // bare entry names; directories carry a trailing "/"
+    for (auto & entry : fs::directory_iterator(dir_part.empty() ? "." : dir_part, ec)) {
+      if (ec) break;
+      auto name = entry.path().filename().string();
+      if (name.compare(0, partial.size(), partial) != 0) continue;
+      // Emacs's own find-file ignores backup files (a trailing "~") in its
+      // completion candidates by default (completion-ignored-extensions) -
+      // without this, "arptest1.xml" can never register as the sole match
+      // for "arptest1" while its own "arptest1.xml~" backup sits right
+      // next to it in the same directory, sharing the same prefix.
+      if (!entry.is_directory() && !name.empty() && name.back() == '~') continue;
+      matches.push_back(entry.is_directory() ? name + "/" : name);
+    }
+
+    if (matches.empty()) {
+      showIndicator("[No match]");
+      return;
+    }
+
+    std::string common = matches.front();
+    for (auto & m : matches) {
+      size_t i = 0;
+      while (i < common.size() && i < m.size() && common[i] == m[i]) i++;
+      common.resize(i);
+    }
+    auto completed = dir_part + common;
+    if (completed.size() > text.size()) {
+      // This press made real progress - just complete silently, same as
+      // completeAgainstSet()'s own reasoning: "[Sole completion]" only
+      // shows up on a *second*, no-progress press once there's nothing
+      // left to extend.
+      getPlane().setReaderContents(completed);
+      showIndicator("");
+    } else {
+      showIndicator(matches.size() == 1 ? "[Sole completion]" : "");
+    }
+  }
+
+  void submitReader() {
     auto text = closeReader();
     auto submit = std::move(on_submit_);
     on_submit_ = nullptr;
@@ -161,34 +296,50 @@ private:
     return a.substr(0, i);
   }
 
-  // Draws/clears the "[No match]" indicator in the columns showMx()
-  // reserved for it - a no-op outside an M-x session, and (for `show ==
-  // false`) a no-op when nothing is currently displayed there, so callers
-  // can call it unconditionally on every keystroke without needing to
-  // track whether there's anything to clear.
-  void showNoMatch(bool show) {
-    if (!mx_active_ || (!show && !no_match_shown_)) return;
-    auto [rows, cols] = getDim();
-    auto x = cols - static_cast<int>(kNoMatchReserve);
-    if (x < 0) return;
-    if (show) {
-      putstr(0, x, " [No match]");
+  // Draws/clears the completion-status indicator ("[No match]"/"[Sole
+  // completion]") immediately after whatever's currently typed (Emacs
+  // shows its own equivalent messages the same way, right after point in
+  // the minibuffer, not off in a fixed spot on the row) - see
+  // UIPlane::showReaderIndicator()'s own comment for why this needs its
+  // own dedicated plane rather than being drawn onto the reader's. `text
+  // == ""` clears it - a no-op outside a completing session (no
+  // tab_completer_ set), and (when clearing) a no-op when nothing is
+  // currently displayed there, so callers can call it unconditionally on
+  // every keystroke without needing to track whether there's anything to
+  // clear. Positioned one column *past* the cursor (text.size() + 1, not
+  // text.size()), leaving the cursor's own cell alone entirely - the
+  // indicator plane is raised above the reader to be visible at all, and
+  // sitting directly on the cursor's own cell let that raised plane's own
+  // (otherwise invisible, blank) styling tint the terminal's cursor
+  // rendering itself.
+  void showIndicator(const std::string & text) {
+    if (!tab_completer_ || (text.empty() && !indicator_shown_)) return;
+    if (text.empty()) {
+      getPlane().hideReaderIndicator();
     } else {
-      putstr(0, x, std::string(kNoMatchReserve, ' '));
+      auto x = static_cast<int>(getPlane().getReaderContents().size()) + 1;
+      getPlane().showReaderIndicator(x, text);
     }
-    no_match_shown_ = show;
+    indicator_shown_ = !text.empty();
   }
 
-  // Width of " [No match]" (11), reserved at the row's right edge for the
-  // whole M-x session - see showPrompt()'s reserved_cols and showNoMatch()
-  // above.
-  static constexpr size_t kNoMatchReserve = 11;
-
   bool meta_pressed = false;
-  bool mx_active_ = false;
-  bool no_match_shown_ = false;
+  bool indicator_shown_ = false;
   std::string pending_message;
   std::function<void(const std::string &)> on_submit_;
+  // Set (via showPromptWithCompletion()/showFilePrompt()/showMx()) for the
+  // duration of a completing reader session, cleared by closeReader() -
+  // Tab always runs this instead of self-inserting a literal tab
+  // character. Never submits by itself (see completeAgainstSet()'s own
+  // comment on why "[Sole completion]" stops short of just picking it) -
+  // only enter_completer_/submitReader() ever close the reader.
+  std::function<void()> tab_completer_;
+  // Set only for the one strict completion domain (M-x, see showMx()) -
+  // left unset for permissive ones (buffer names, file paths), where
+  // Enter's plain submitReader() fallback in offerInput() already does the
+  // right thing (accept whatever's typed, matched or not) without needing
+  // a domain-specific check first.
+  std::function<void()> enter_completer_;
 };
 
 #endif

@@ -62,16 +62,17 @@ UI::initialize() {
   // no separate notion of "current directory" here beyond that) so typing
   // just a bare filename opens a sibling of whatever's already open,
   // matching find-file's own "already positioned in the right directory"
-  // convenience - a richer file-picker (completion against what's actually
-  // in that directory) is still future work. No discard-confirmation
-  // either (unlike this used to need before buffers existed - see songs_'s
-  // own comment on Controller.h): opening a file that's already an open
-  // buffer just switches to it (Controller::openSong()), and opening a
-  // new one adds a buffer rather than replacing the current one.
+  // convenience. Tab/Enter complete against the real filesystem
+  // (StatusLine::completeFilePath()), same as Emacs's own find-file. No
+  // discard-confirmation (unlike this used to need before buffers existed
+  // - see songs_'s own comment on Controller.h): opening a file that's
+  // already an open buffer just switches to it (Controller::openSong()),
+  // and opening a new one adds a buffer rather than replacing the current
+  // one.
   commands_.define("open-song", [this]() {
     auto dir = std::filesystem::path(getController().getActiveBufferName()).parent_path().string();
     if (!dir.empty()) dir += "/";
-    status_line_->showPrompt("Find file: ", [this](const std::string & filename) {
+    status_line_->showFilePrompt("Find file: ", [this](const std::string & filename) {
       if (filename.empty()) return;
       if (getController().openSong(filename)) {
 	setStatus("Opened " + filename);
@@ -88,24 +89,31 @@ UI::initialize() {
     getController().cycleBuffer(false);
     setStatus("Switched to " + getController().getActiveBufferName());
   });
-  // No completion against the open buffer names yet (unlike M-x's own
-  // command-name completion, StatusLine::completeMx()) - typed exactly,
-  // same as "Open:" above; switchToBuffer() creates a fresh blank buffer
-  // for a name that isn't already open, same as Emacs's own
-  // switch-to-buffer, so this doubles as "New" too (there's no separate
-  // new-song command any more). Prompt text and the empty-answer-means-
-  // default behavior both match Emacs's own "Switch to buffer (default
-  // ...): " convention (read-buffer-to-switch) - see
+  // Tab/Enter complete against the open buffer names (StatusLine::
+  // completeAgainstSet(), the same machinery M-x's own command-name
+  // completion uses); switchToBuffer() creates a fresh blank buffer for a
+  // name that isn't already open, same as Emacs's own switch-to-buffer, so
+  // this doubles as "New" too (there's no separate new-song command any
+  // more) - typing an unrecognized name and hitting Enter still works even
+  // though it'll never complete to anything. Prompt text and the empty-
+  // answer-means-default behavior both match Emacs's own "Switch to buffer
+  // (default ...): " convention (read-buffer-to-switch) - see
   // Controller::getDefaultSwitchTarget()'s own comment for what "default"
   // means without real MRU buffer tracking.
   commands_.define("select-named-buffer", [this]() {
     auto default_name = getController().getDefaultSwitchTarget();
     auto prompt = default_name.empty() ? "Switch to buffer: " : ("Switch to buffer (default " + default_name + "): ");
-    status_line_->showPrompt(prompt, [this, default_name](const std::string & name) {
+    status_line_->showPromptWithCompletion(prompt, [this, default_name](const std::string & name) {
       auto target = name.empty() ? default_name : name;
       if (target.empty()) return; // nothing typed and no default to fall back to
       getController().switchToBuffer(target);
       setStatus("Switched to " + getController().getActiveBufferName());
+    }, [this](const std::string & prefix) {
+      std::set<std::string> result;
+      for (auto & name : getController().getBufferNames()) {
+	if (name.compare(0, prefix.size(), prefix) == 0) result.insert(name);
+      }
+      return result;
     });
   });
   commands_.define("kill-buffer", [this]() {

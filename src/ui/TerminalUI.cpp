@@ -198,9 +198,13 @@ public:
       auto prompt_width = static_cast<unsigned int>(prompt.size());
 
       ncreader_options reader_opts;
-      reader_opts.tchannels = NCCHANNELS_INITIALIZER(0xff, 0xff, 0xff, 0x00, 0x00, 0x00);
+      // Pink (0xc0, 0x80, 0xc0), matching the reader plane's own colors
+      // below - see that comment for why. Background alpha TRANSPARENT
+      // too, for the same reason: the typed glyphs themselves shouldn't
+      // paint an opaque patch behind them either.
+      reader_opts.tchannels = NCCHANNELS_INITIALIZER(0xc0, 0x80, 0xc0, 0x00, 0x00, 0x00);
       ncchannels_set_fg_alpha(&reader_opts.tchannels, NCALPHA_HIGHCONTRAST);
-      ncchannels_set_bg_alpha(&reader_opts.tchannels, NCALPHA_BLEND);
+      ncchannels_set_bg_alpha(&reader_opts.tchannels, NCALPHA_TRANSPARENT);
       reader_opts.tattrword = 0; // attributes used for input
       reader_opts.flags = NCREADER_OPTION_CURSOR | NCREADER_OPTION_HORSCROLL;
 
@@ -229,21 +233,35 @@ public:
       };
 
       auto reader_plane = ncplane_create(getPlane().to_ncplane(), &opts);
-      // Explicit black, matching StatusLine's own (never explicitly
-      // colored, so terminal-default, black on the terminal this was
-      // checked against) background - a saturated color of its own here
-      // read as a visible seam against it. Confirmed harmless to typed-
-      // text rendering with a standalone reproduction of the real
-      // ncreader_offer_input() path once eff_text (below) was fixed -
-      // an earlier attempt at this exact change had appeared to break
-      // typed text, but that was actually the eff_text bug the whole
-      // time, present regardless of this plane's own colors.
-      ncplane_set_fg_rgb8(reader_plane, 0x80, 0xc0, 0x80);
-      ncplane_set_bg_rgb8(reader_plane, 0, 0, 0);
-      uint64_t base_channels = NCCHANNELS_INITIALIZER(0x80, 0xc0, 0x80, 0, 0, 0);
+      // Pink (0xc0, 0x80, 0xc0) - the same fg createChild() already gives
+      // every other UI plane's own base cell, so the M-x prompt/completion
+      // indicator (drawn directly on the surrounding StatusLine plane, not
+      // this one) and the typed text here read as one consistent color
+      // instead of the reader's own text standing out in an unrelated
+      // green. Background alpha TRANSPARENT rather than the previous
+      // explicit opaque black: this plane no longer paints its own
+      // background at all, letting whatever's actually behind it (the
+      // StatusLine plane's own, prompt/indicator included) show straight
+      // through instead of a guessed-at literal color that may not match
+      // this terminal's real default. Set on both the base cell (below,
+      // for the plane's own unwritten cells) and tchannels (above, for the
+      // glyphs ncreader actually echoes as typed) so neither path leaves a
+      // stray opaque patch. Not re-verified against a live terminal since
+      // the color/background change - confirm it still reads cleanly.
+      ncplane_set_fg_rgb8(reader_plane, 0xc0, 0x80, 0xc0);
+      uint64_t base_channels = NCCHANNELS_INITIALIZER(0xc0, 0x80, 0xc0, 0, 0, 0);
+      ncchannels_set_bg_alpha(&base_channels, NCALPHA_TRANSPARENT);
       ncplane_set_base(reader_plane, " ", 0, base_channels);
       reader = ncreader_create(reader_plane, &reader_opts);
       writeEgcString(reader, initial_text);
+      // showReaderIndicator()'s own `x` is a column *within the typed
+      // text* (0 at the reader's own left edge), but its indicator_plane
+      // is parented to this same plane (getPlane(), not reader_plane), so
+      // it needs reader_x added back in to land at the right *absolute*
+      // column - without this the indicator draws prompt_width columns
+      // too far left, encroaching on the prompt/already-typed text
+      // instead of sitting right after the cursor.
+      reader_text_x = reader_x;
     }
   }
 
@@ -255,6 +273,10 @@ public:
     string r = contents;
     free(contents);
     reader = 0;
+    if (indicator_plane) {
+      ncplane_destroy(indicator_plane);
+      indicator_plane = nullptr;
+    }
     return r;
   }
 
@@ -270,6 +292,58 @@ public:
     if (!reader) return;
     ncreader_clear(reader);
     writeEgcString(reader, text);
+  }
+
+  // A plane of its own, not drawn onto the reader's - see this method's
+  // own doc comment on UIPlane.h for why (writing onto the reader's own
+  // plane, even blank/erasing spaces, was confirmed to corrupt what
+  // ncreader_contents()/getReaderContents() itself reports back as
+  // typed). Created lazily on first use, positioned/erased/reshown fresh
+  // each call - moving an existing plane and re-drawing its (freshly
+  // erased) content is cheap, so there's no need to track whether this is
+  // a reposition of an already-visible indicator or a first appearance.
+  void showReaderIndicator(int x, const string & s) override {
+    if (!reader) return;
+    // `x` is a column within the *typed text* (0 at the reader's own left
+    // edge) - this plane is parented to getPlane() (the same StatusLine
+    // plane the reader itself is offset within), not to reader_plane, so
+    // it needs reader_text_x added back in to land at the right absolute
+    // column - see showReader()'s own comment on that member.
+    auto abs_x = reader_text_x + x;
+    if (!indicator_plane) {
+      ncplane_options opts = {
+	.y = 0, .x = abs_x, .rows = 1, .cols = kIndicatorPlaneCols,
+	.userptr = nullptr, .name = nullptr, .resizecb = nullptr,
+	.flags = 0, .margin_b = 0, .margin_r = 0
+      };
+      indicator_plane = ncplane_create(getPlane().to_ncplane(), &opts);
+      // White, not the reader's own pink - a deliberate contrast so the
+      // indicator (this app's own message) doesn't read as more of the
+      // user's typed input.
+      ncplane_set_fg_rgb8(indicator_plane, 0xff, 0xff, 0xff);
+      uint64_t base_channels = NCCHANNELS_INITIALIZER(0xff, 0xff, 0xff, 0, 0, 0);
+      ncchannels_set_bg_alpha(&base_channels, NCALPHA_TRANSPARENT);
+      ncplane_set_base(indicator_plane, " ", 0, base_channels);
+    }
+    ncplane_move_yx(indicator_plane, 0, abs_x);
+    ncplane_erase(indicator_plane);
+    ncplane_putstr_yx(indicator_plane, 0, 0, s.c_str());
+    ncplane_move_top(indicator_plane);
+  }
+
+  void hideReaderIndicator() override {
+    // Destroyed, not just erased: an erased-but-still-present plane keeps
+    // sitting raised above the reader (showReaderIndicator()'s own
+    // ncplane_move_top()), and even a blank cell there is still real
+    // content at that z-order - it keeps blocking whatever the reader
+    // itself draws underneath afterward (e.g. the next character actually
+    // typed there), rather than getting out of the way entirely.
+    // showReaderIndicator() already creates it lazily on demand, so
+    // there's nothing to reinitialize by destroying it here.
+    if (indicator_plane) {
+      ncplane_destroy(indicator_plane);
+      indicator_plane = nullptr;
+    }
   }
 
   void showPicker() override {
@@ -335,8 +409,19 @@ public:
   }
 
 private:
+  // Wide enough for " [Sole completion]" (18) - the longer of the two
+  // indicator strings showReaderIndicator() ever actually draws - plus a
+  // little slack.
+  static constexpr unsigned int kIndicatorPlaneCols = 20;
+
   Plane * plane;
   ncreader * reader = 0;
+  // The reader's own left edge, in this plane's (getPlane()'s) own
+  // coordinate space - showReader()'s reader_x, remembered so
+  // showReaderIndicator() can convert its own "column within the typed
+  // text" argument into an absolute column.
+  int reader_text_x = 0;
+  ncplane * indicator_plane = nullptr;
   unique_ptr<Selector> selector;
   bool owner;
 };

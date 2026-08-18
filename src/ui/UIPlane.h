@@ -47,6 +47,23 @@ class UIPlane {
   // autocomplete counterpart to showReader()'s own initial_text seeding
   // above, used to fill in a completed command name.
   virtual void setReaderContents(const std::string & text) = 0;
+  // Shows StatusLine's completion-status indicator ("[No match]"/"[Sole
+  // completion]") in a small floating plane of its own, positioned at
+  // column `x` on this plane's own row 0 (right after whatever's
+  // currently typed) and raised above the reader. A dedicated plane, not
+  // drawn directly onto the reader's own - confirmed empirically that even
+  // blank/erasing writes onto the reader's own plane corrupt what
+  // getReaderContents() itself reports back as typed (ncreader appears to
+  // derive its own contents from what the plane actually displays, not a
+  // fully independent buffer, so every such write permanently inflates
+  // the length it reports, compounding on every redraw). Repositioning an
+  // already-shown indicator (calling this again with a new `x`) is safe
+  // and expected - each call fully replaces whatever the plane last
+  // showed. Only valid while readerActive().
+  virtual void showReaderIndicator(int x, const std::string & s) = 0;
+  // Hides whatever showReaderIndicator() last drew - a no-op if nothing is
+  // currently shown. Only valid while readerActive().
+  virtual void hideReaderIndicator() = 0;
   virtual void showPicker() = 0;
   virtual void addItem(const std::string & id, const std::string & description) = 0;
   virtual void clearItems() = 0;
