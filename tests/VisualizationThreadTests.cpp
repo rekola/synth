@@ -20,18 +20,21 @@ TEST(visualization_thread_audio_block_event_produces_fft_result) {
   int sample_rate = 3000, frame_count = 256;
   thread.configure(sample_rate, frame_count);
 
-  AudioBuffer master(2, frame_count);
+  // The FFT is computed from a fresh decode of raw_bus now (the active
+  // buffer's own solo signal - see AudioBlockEvent.h/VisualizationThread.cpp),
+  // not master directly any more - master is only the empty-buffer
+  // shutdown sentinel at this point, so it just has to be non-empty; its
+  // content is irrelevant. ChannelConfiguration()'s default ambisonic
+  // order is 0 (mono, W-only), so a single-channel raw_bus is the right
+  // shape for decode_mixer_ to decode here.
+  AudioBuffer raw_bus(1, frame_count);
   for (int i = 0; i < frame_count; i++) {
-    float v = sinf(static_cast<float>(i) * 0.2f);
-    master.getChannelData(0)[i] = v;
-    master.getChannelData(1)[i] = v;
+    raw_bus.getChannelData(0)[i] = sinf(static_cast<float>(i) * 0.2f);
   }
+  AudioBuffer master(2, frame_count);
+  master.zero();
 
-  // No real DirAC content needed for this test - an empty raw bus is a
-  // safe, deliberate no-op for DiracAnalyzer::process() (0 frames, nothing
-  // to accumulate), same as the terminate sentinel's empty master below
-  // just for a different field.
-  AudioBlockEvent ev(std::move(master), AudioBuffer(), AudioBuffer(), AudioBuffer());
+  AudioBlockEvent ev(std::move(master), std::move(raw_bus), AudioBuffer(), AudioBuffer());
   thread.handleAudioBlockEvent(ev);
 
   // EventQueue::hasEvents() only reflects bytes already read off the

@@ -256,6 +256,7 @@ Controller::renameActiveBuffer(const string & new_name, int saved_version) {
   // dropping so it doesn't linger as dead weight under a name nothing
   // will ever look up again.
   dropBufferState(active_buffer_name_);
+  auto old_name = active_buffer_name_;
   {
     std::lock_guard<std::mutex> guard(song_mutex_);
     auto song = songs_.at(active_buffer_name_);
@@ -266,6 +267,12 @@ Controller::renameActiveBuffer(const string & new_name, int saved_version) {
     active_buffer_name_ = new_name;
   }
   refreshBufferCommands();
+  // Rekeys the renamed buffer's own live SongState (if any) rather than
+  // dropping and lazily recreating it under the new name - a still-
+  // sounding voice/release tail must survive a rename exactly like it
+  // survives any other buffer switch (see the per-buffer editing/
+  // playback-state plan's Part B).
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::BUFFER_RENAMED, old_name, new_name));
   if (buffer_change_listener_) buffer_change_listener_();
 }
 
@@ -328,7 +335,6 @@ Controller::openSong(const string & filename) {
 
   auto version = song->getVersion();
   addBuffer(song, filename, version);
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SONG_CHANGED));
   return true;
 }
 
@@ -377,7 +383,6 @@ Controller::switchToBuffer(const string & name) {
   }
   loadActiveBufferState(name);
   if (created) refreshBufferCommands();
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SONG_CHANGED));
   if (buffer_change_listener_) buffer_change_listener_();
 }
 
@@ -422,7 +427,11 @@ Controller::killActiveBuffer() {
   dropBufferState(killed_name);
   loadActiveBufferState(active_buffer_name_);
   refreshBufferCommands();
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SONG_CHANGED));
+  // Drops the killed buffer's own live SongState, if it had one (Player::
+  // handlePlaybackControlEvent()) - also stops it automatically if it
+  // happened to be the playing buffer, simply by no longer existing to
+  // render at all, rather than needing a separate STOP first.
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::BUFFER_KILLED, killed_name));
   if (buffer_change_listener_) buffer_change_listener_();
   return true;
 }
@@ -447,9 +456,16 @@ Controller::commandCompletions(std::string_view prefix) const {
 
 bool
 Controller::togglePlaying() {
+  // Always targets the *active* buffer - pressing Space always means "play/
+  // stop the buffer I'm looking at right now", taking over the single
+  // "playing" role from whatever else was playing if that's a different
+  // buffer (Player::handlePlaybackControlEvent()'s PLAY case demotes
+  // whatever the previous playing_buffer_name_ was to audition-only,
+  // rather than tearing it down - see the per-buffer editing/playback-
+  // state plan's Part B).
   auto info = getPlaybackInfo();
   info.setIsPlaying(!info.isPlaying());
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(info.isPlaying() ? PlaybackControlEvent::PLAY : PlaybackControlEvent::STOP));
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(info.isPlaying() ? PlaybackControlEvent::PLAY : PlaybackControlEvent::STOP, getActiveBufferName()));
   setPlaybackInfo(info);
   return info.isPlaying();
 }
@@ -480,7 +496,7 @@ Controller::moveEditPosition(int delta_rows) {
   info.setRowIdx(row_idx);
   info.setPositionEditSeq(++local_position_edit_seq_);
   setPlaybackInfo(info);
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, delta_rows, pattern_selection_active_ ? 1 : 0));
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::MOVE_POSITION, getActiveBufferName(), delta_rows, pattern_selection_active_ ? 1 : 0));
 }
 
 void
@@ -497,11 +513,22 @@ Controller::setEditPosition(int absolute_row) {
   info.setRowIdx(row_idx);
   info.setPositionEditSeq(++local_position_edit_seq_);
   setPlaybackInfo(info);
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_POSITION, absolute_row, pattern_selection_active_ ? 1 : 0));
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_POSITION, getActiveBufferName(), absolute_row, pattern_selection_active_ ? 1 : 0));
 }
 
 void
-Controller::receivePlaybackSnapshot(const PlaybackInfo & info) {
+Controller::receivePlaybackSnapshot(const string & buffer_name, const PlaybackInfo & info) {
+  if (buffer_name != active_buffer_name_) {
+    // Not the buffer currently being looked at/edited - e.g. a buffer
+    // still playing in the background while a different one is active
+    // (see the per-buffer editing/playback-state plan's Part B).
+    // moveEditPosition()/setEditPosition() never run against a buffer
+    // that isn't active, so there's no local edit-position prediction
+    // that could go stale for it - straight overwrite, same shape a plain
+    // setPlaybackInfo() call has for the active buffer below.
+    playback_infos_[buffer_name] = info;
+    return;
+  }
   if (info.getPositionEditSeq() < local_position_edit_seq_) {
     // Stale: the audio thread took this snapshot before draining our most
     // recent moveEditPosition()/setEditPosition() control event. Keep
@@ -533,7 +560,7 @@ Controller::toggleTrackMuted(int track_id) {
   if (!instrument_track) return false;
   instrument_track->setMuted(!instrument_track->isMuted());
   song->incVersion();
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_MUTED, track_id, instrument_track->isMuted() ? 1 : 0));
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_MUTED, getActiveBufferName(), track_id, instrument_track->isMuted() ? 1 : 0));
   return instrument_track->isMuted();
 }
 
@@ -544,7 +571,7 @@ Controller::toggleTrackSolo(int track_id) {
   if (!instrument_track) return false;
   instrument_track->setSolo(!instrument_track->isSolo());
   song->incVersion();
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SOLO, track_id, instrument_track->isSolo() ? 1 : 0));
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SOLO, getActiveBufferName(), track_id, instrument_track->isSolo() ? 1 : 0));
   return instrument_track->isSolo();
 }
 
@@ -556,7 +583,7 @@ Controller::setTrackSendA(int track_id, float value) {
   float linear = dbToLinear(value);
   instrument_track->setSendA(linear);
   song->incVersion();
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_A, track_id, static_cast<int>(linear * 1000.0f + 0.5f)));
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_A, getActiveBufferName(), track_id, static_cast<int>(linear * 1000.0f + 0.5f)));
 }
 
 void
@@ -567,7 +594,7 @@ Controller::setTrackSendB(int track_id, float value) {
   float linear = dbToLinear(value);
   instrument_track->setSendB(linear);
   song->incVersion();
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_B, track_id, static_cast<int>(linear * 1000.0f + 0.5f)));
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_B, getActiveBufferName(), track_id, static_cast<int>(linear * 1000.0f + 0.5f)));
 }
 
 void
@@ -578,7 +605,7 @@ Controller::setTrackSendMain(int track_id, float value) {
   float linear = dbToLinear(value);
   instrument_track->setSendMain(linear);
   song->incVersion();
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_MAIN, track_id, static_cast<int>(linear * 1000.0f + 0.5f)));
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_MAIN, getActiveBufferName(), track_id, static_cast<int>(linear * 1000.0f + 0.5f)));
 }
 
 void
@@ -591,7 +618,7 @@ Controller::setTrackAzimuth(int track_id, float value) {
   // Tenths-of-a-degree precision (-1800..1800) - the same "float via a
   // fixed-point int parameter" convention setTrackSendA/B use, just a
   // different scale/unit since this is degrees, not a 0-1 fraction.
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_AZIMUTH, track_id, static_cast<int>(value * 10.0f + (value >= 0.0f ? 0.5f : -0.5f))));
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_AZIMUTH, getActiveBufferName(), track_id, static_cast<int>(value * 10.0f + (value >= 0.0f ? 0.5f : -0.5f))));
 }
 
 void
@@ -640,7 +667,7 @@ Controller::sweepAutoRecordRows(std::set<std::pair<int, int>> & cleared_rows, in
 void
 Controller::startAutoRecordSession(bool & auto_started_playback, std::set<std::pair<int, int>> & cleared_rows, int & last_cleared_row, int & last_cleared_pattern_idx) {
   togglePlaying();
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_RECORDING_MUTE, 1));
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_RECORDING_MUTE, getActiveBufferName(), 1));
   auto_started_playback = true;
   cleared_rows.clear();
   last_cleared_row = -1;
@@ -659,7 +686,7 @@ Controller::stopAutoRecordSession(bool & auto_started_playback, std::set<std::pa
     // setPosition()'s own comment for the full reasoning.
     setEditPosition(info.getAbsolutePosition() + 1);
   }
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_RECORDING_MUTE, 0));
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_RECORDING_MUTE, getActiveBufferName(), 0));
   auto_started_playback = false;
   cleared_rows.clear(); // not required for correctness (the next session's own start resets this too) - just don't hold onto a finished session's bookkeeping longer than needed
 }

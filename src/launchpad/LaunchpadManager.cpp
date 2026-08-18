@@ -858,7 +858,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
       song.incVersion();
     }
 
-    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, track_id, note_column, note_value, velocity));
+    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), track_id, note_column, note_value, velocity));
 
     // Deliberately NOT auto-advancing here (unlike single-note keyboard
     // entry): a chord is multiple near-simultaneous presses that must all
@@ -880,7 +880,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     auto & state = deviceState(device_id);
 
     // Always silence the live-audition voice.
-    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, held.track_id, held.note_column));
+    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, controller.getActiveBufferName(), held.track_id, held.note_column));
 
     if (state.capture_enabled) {
       if (info.isPlaying()) {
@@ -931,7 +931,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // Live modulation always happens, regardless of Capture/write-
     // throttle below - mirrors handleMidiEvent's NOTE_PRESSURE handling
     // exactly.
-    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, held.track_id, held.note_column, note_value, ev.getVelocity()));
+    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, controller.getActiveBufferName(), held.track_id, held.note_column, note_value, ev.getVelocity()));
 
     if (!deviceState(device_id).capture_enabled) return;
 
@@ -994,12 +994,12 @@ LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & co
     bool suppress = !was_hit && (controller.getPlaybackInfo().isPlaying() || audition_clock_.isRunning());
     if (!suppress) {
       auto velocity = static_cast<short>(constants::DEFAULT_VELOCITY);
-      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, track_id, note, note, velocity));
+      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), track_id, note, note, velocity));
     }
   } else if (ev.getKind() == LaunchpadPadEvent::RELEASE) {
     // Always silence the live-audition voice, mirroring the NOTES-mode
     // RELEASE branch's own "always silence" comment above.
-    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, track_id, note));
+    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, controller.getActiveBufferName(), track_id, note));
   }
   // AFTERTOUCH: aftertouch is unused on this grid (plans/drum-machine.md) -
   // no-op, unlike ordinary NOTES-mode entry.
@@ -1041,7 +1041,7 @@ LaunchpadManager::handleDrumPickerPadEvent(LaunchpadPadEvent & ev, Controller & 
   // own pattern-driven drum-hit emission already rely on.
   if (!was_assigned) {
     auto velocity = static_cast<short>(constants::DEFAULT_VELOCITY);
-    controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, track.getInternalId(), note, note, velocity));
+    controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), track.getInternalId(), note, note, velocity));
   }
 }
 
@@ -1060,7 +1060,7 @@ LaunchpadManager::triggerAuditionStep(const Song & song, const vector<int> & tra
     // instrument's own envelope/choke machinery for anything past that.
     for (int note : drum_track.getHitNotesForRow(step)) {
       auto velocity = static_cast<short>(constants::DEFAULT_VELOCITY);
-      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, track_id, note, note, velocity));
+      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), track_id, note, note, velocity));
     }
   }
 }
@@ -1085,7 +1085,7 @@ LaunchpadManager::handleChannelPressureEvent(LaunchpadChannelPressureEvent & ev,
     }
   }
   for (auto track_id : track_ids) {
-    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CHANNEL_PRESSURE, track_id, ev.getVelocity()));
+    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CHANNEL_PRESSURE, controller.getActiveBufferName(), track_id, ev.getVelocity()));
   }
 }
 

@@ -2,12 +2,17 @@
 #include "../Controller.h"
 #include "AudioBlockEvent.h"
 #include "VisualizationResultEvent.h"
+#include "../ambisonic/Mixer.h"
+#include "../ambisonic/MixerFactory.h"
 
 #include <array>
 #include <poll.h>
 #include <memory>
 
 using namespace std;
+
+VisualizationThread::VisualizationThread(Controller * controller) : controller_(controller) { }
+VisualizationThread::~VisualizationThread() { }
 
 void
 VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
@@ -71,7 +76,24 @@ VisualizationThread::handleAudioBlockEvent(AudioBlockEvent & ev) {
   channel_loudness.insert(channel_loudness.end(), aux_b.begin(), aux_b.end());
   result->setChannelLoudness(std::move(channel_loudness));
 
-  if (spectrum_.addData(ev.getMaster())) {
+  // The FFT reads a fresh solo decode of the *active* buffer's own
+  // raw_bus, not ev.getMaster() (the true combined signal actually
+  // played) - see AudioBlockEvent.h's own comment on why every scope has
+  // to agree on showing one single buffer, never a cross-buffer mix.
+  // decode_mixer_ is rebuilt only when the live mixer type/legacy-binaural
+  // setting has actually changed since the last block, never
+  // unconditionally every block (see its own comment on Visualization
+  // Thread.h).
+  if (!decode_mixer_ || decode_mixer_type_ != controller_->getMixerType() || decode_mixer_legacy_binaural_ != controller_->getUseLegacyBinaural()) {
+    decode_mixer_type_ = controller_->getMixerType();
+    decode_mixer_legacy_binaural_ = controller_->getUseLegacyBinaural();
+    decode_mixer_ = createMixer(controller_->getChannelConfiguration(), decode_mixer_type_, decode_mixer_legacy_binaural_);
+  }
+  decode_mixer_->reset();
+  decode_mixer_->accumulate(ev.getRawBus());
+  auto active_master = decode_mixer_->encode();
+
+  if (spectrum_.addData(active_master)) {
     spectrum_.reset();
     result->setFFT(spectrum_.calculateFFT());
   }

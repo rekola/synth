@@ -428,7 +428,16 @@ UI::handlePlaybackEvent(PlaybackEvent & ev) {
   // receivePlaybackSnapshot()'s own comment: this snapshot's own
   // edit-position fields can be stale relative to a more recent local
   // moveEditPosition()/setEditPosition() prediction.
-  getController().receivePlaybackSnapshot(ev.getInfo());
+  getController().receivePlaybackSnapshot(ev.getBufferName(), ev.getInfo());
+
+  // Every remaining reaction below (auto-record row-sweep, redraw) is only
+  // meaningful for whichever buffer is currently being looked at/edited -
+  // Player now pushes one snapshot per live buffer every block (see the
+  // per-buffer editing/playback-state plan's Part B), and a snapshot for
+  // some other buffer (e.g. one still playing in the background while a
+  // different one is active) already landed in its own map slot above,
+  // with nothing on screen that depends on it right now.
+  if (ev.getBufferName() != getController().getActiveBufferName()) return;
 
   // Must run right after receivePlaybackSnapshot() above, before any other event
   // (a pad press, a keystroke) that might read the just-updated row and

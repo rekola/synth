@@ -72,9 +72,17 @@ class SongState : public TrackState {
   // rather than overrides the base one, which -Woverloaded-virtual flags as
   // likely-accidental; giving it its own name makes the relationship (or
   // lack of one) explicit instead.
-  void renderBlock(int frames, const Song & song, Mixer & mixer) {
-    mixer.reset();
-  
+  // reset_mixer: true (the default, and every existing single-SongState
+  // call site - tests, OfflineRenderer) resets `mixer` itself before
+  // rendering into it, matching this method's own long-standing behavior.
+  // Player.cpp's multi-buffer render loop passes false: `mixer` is shared
+  // across every live buffer's own SongState that block (see the per-buffer
+  // editing/playback-state plan's Part B), so only the caller's own single
+  // reset() before the whole loop may run, or a later buffer's render
+  // would wipe out an earlier one's.
+  void renderBlock(int frames, const Song & song, Mixer & mixer, bool reset_mixer = true) {
+    if (reset_mixer) mixer.reset();
+
     if (isPlaying()) {
       for (int i = 0; i < frames; i++) {
 	// recording_muted_: a live-hold recording session (Launchpad/

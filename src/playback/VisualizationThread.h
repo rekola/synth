@@ -4,10 +4,12 @@
 #include "EventHandler.h"
 #include "../dsp/SpectrumAnalyzer.h"
 #include "../dsp/DiracAnalyzer.h"
+#include "../ambisonic/MixerType.h"
 
 #include <memory>
 
 class Controller;
+class Mixer;
 
 // Runs real signal-analysis work (the spectrum-FFT feeding the terminal's
 // live chart, and DirAC directional analysis feeding the heatmap - see
@@ -22,7 +24,16 @@ class Controller;
 // computed.
 class VisualizationThread : public EventHandler {
  public:
-  explicit VisualizationThread(Controller * controller) : controller_(controller) { }
+  // Both out-of-line (defined in VisualizationThread.cpp, where Mixer.h's
+  // full definition is visible) - decode_mixer_ below is a
+  // unique_ptr<Mixer>, and Mixer is only forward-declared here, so even
+  // an otherwise-trivial inline constructor needs Mixer's complete type
+  // available wherever it's defined, to emit unique_ptr<Mixer>'s own
+  // destructor for the constructor's exception-unwind path (not just the
+  // class destructor itself) - including test code that only includes
+  // this header.
+  explicit VisualizationThread(Controller * controller);
+  ~VisualizationThread();
 
   // Sizes the spectrum FFT's analysis window to the largest whole multiple
   // of frame_count (the audio engine's own block size) that still fits
@@ -54,6 +65,23 @@ class VisualizationThread : public EventHandler {
   std::unique_ptr<DiracAnalyzer> dirac_; // constructed by configure() - needs sample_rate, unknown at this object's own construction time
   int dirac_last_pushed_frame_ = 0;      // SS1's every-3rd-analysis-frame render-throttle - see handleAudioBlockEvent()
   bool terminate_ = false;
+
+  // A scratch decoder, used only to turn AudioBlockEvent::getRawBus()
+  // (the active buffer's own raw ambisonic bus - see that class's own
+  // comment) into a stereo signal for the spectrum FFT, entirely on this
+  // thread rather than the real-time audio one. Lazily (re)built by
+  // handleAudioBlockEvent() whenever Controller::getMixerType()/
+  // getUseLegacyBinaural() no longer match decode_mixer_type_/
+  // decode_mixer_legacy_binaural_ below (mirrors Player.cpp's own
+  // mixer_changed_ handling, just via a live comparison each block
+  // instead of a pushed event - this thread never receives
+  // PlaybackControlEvents) - never rebuilt every block unconditionally,
+  // since the default binaural decoder's own construction (a genuine
+  // least-squares solve against the full measured HRTF grid) is real,
+  // one-time-amortized work, not something to redo 80+ times a second.
+  std::unique_ptr<Mixer> decode_mixer_;
+  MixerType decode_mixer_type_ = MixerType::AMBISONIC_STEREO;
+  bool decode_mixer_legacy_binaural_ = false;
 };
 
 #endif

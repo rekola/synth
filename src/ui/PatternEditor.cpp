@@ -846,7 +846,7 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
   // No pattern write either: there's no single note whose velocity this
   // could sensibly become.
   if (ev.getType() == MidiEvent::CHANNEL_PRESSURE) {
-    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CHANNEL_PRESSURE, track_id, ev.getVelocity()));
+    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CHANNEL_PRESSURE, getController().getActiveBufferName(), track_id, ev.getVelocity()));
     return;
   }
 
@@ -878,17 +878,17 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
   
   if (is_off) {
     active_midi_notes.erase(ev.getNote());
-    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, track_id, note_column));
+    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, note_column));
 
     scene.setNote(info.getRowIndex(), track_id, note_column, Note(0, 0, current_delay));
   } else if (ev.getType() == MidiEvent::NOTE_ON) {
-    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, track_id, note_column, note_value, ev.getVelocity()));
+    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, getController().getActiveBufferName(), track_id, note_column, note_value, ev.getVelocity()));
 
     Note note(note_value, ev.getVelocity(), current_delay);
     scene.setNote(info.getRowIndex(), track_id, note_column, note);
     row_edited = true;
   } else if (ev.getType() == MidiEvent::NOTE_PRESSURE) {
-    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, track_id, note_column, note_value, ev.getVelocity()));
+    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, getController().getActiveBufferName(), track_id, note_column, note_value, ev.getVelocity()));
 
     getController().applyNotePressure(info.getPatternIndex(), info.getRowIndex(), track_id, note_column, ev.getVelocity(), current_delay);
     row_edited = true;
@@ -1072,7 +1072,7 @@ PatternEditor::offerInput(const InputEvent & input) {
     auto held = it->second;
     active_keyboard_notes_.erase(it);
 
-    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, held.track_id, held.note_column));
+    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), held.track_id, held.note_column));
 
     // Mirrors LaunchpadManager's own RELEASE handling: while playing,
     // write an explicit off at the row the transport has since reached
@@ -1159,7 +1159,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	}
 	if (changed) {
 	  song.incVersion();
-	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, instrument_track.getInternalId()));
+	  event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::CLEAR_VOICES, getController().getActiveBufferName(), instrument_track.getInternalId()));
 	}
       }
       return true;
@@ -1394,10 +1394,10 @@ PatternEditor::offerInput(const InputEvent & input) {
 	if (is_delete || midi_note >= 0 || is_off) {
 	  if (is_delete) {
 	    scene.deleteNote(info.getRowIndex(), track_id, note_column);
-	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, track_id, note_column));
+	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, note_column));
 	  } else if (is_off) {
 	    scene.setNote(info.getRowIndex(), track_id, note_column, Note(0, 0, current_delay));
-	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, track_id, note_column));
+	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, note_column));
 	  } else {
 	    Note note(midi_note, 0x28, current_delay);
 
@@ -1451,7 +1451,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	      scene.setNote(info.getRowIndex(), track_id, note_column, note);
 	    }
 
-	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, track_id, note_column, note.getValue(), note.getVelocity()));
+	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, getController().getActiveBufferName(), track_id, note_column, note.getValue(), note.getVelocity()));
 	    if (has_hold_info) active_keyboard_notes_[input.getId()] = { note_column, info.getRowIndex(), track_id };
 	  }
 

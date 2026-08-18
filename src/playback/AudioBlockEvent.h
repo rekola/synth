@@ -8,25 +8,50 @@
 // Audio thread -> VisualizationThread: one block of audio per rendered
 // audio block, carrying the signals VisualizationThread's own analyses
 // need (see VisualizationThread.h) so none of this work runs on the
-// real-time audio thread itself:
-//  - master: the decoded stereo output, for the spectrum FFT. Moved, not
-//    copied - Mixer::encode() already returns a fresh, owned AudioBuffer
-//    per call (see Player.cpp), so there is no extra copy beyond what
-//    already happens today, just a relocation of who consumes it.
-//  - raw_bus: the full pre-decode ambisonic bus (however many regular
-//    channels are active), for both DirAC directional analysis (which
-//    only ever reads the first 4 - W/Y/Z/X, ACN order - via its own
-//    regularChannelCount() cap, DiracAnalyzer.cpp) and the raw-channel
-//    volume meter (which needs every channel). A genuine copy (not a
-//    relocation) - Mixer::getRawBus() returns a reference into the
-//    mixer's own persistent buffer, overwritten next block, so it has to
-//    be copied out before crossing threads.
-//  - aux_a/aux_b: the shared send bus's mono AuxA/AuxB sums (SongState's
-//    own aux_a_sum_/aux_b_sum_, SongState.h), for the volume meter's
-//    trailing AuxA/AuxB columns - not part of the ambisonic raw_bus at
-//    all (see AudioBuffer.h's own Channel/Aux distinction), so carried as
-//    two separate single-channel buffers. Also genuine copies, same
-//    persistent-buffer-gets-overwritten reasoning as raw_bus.
+// real-time audio thread itself.
+//
+// Every scope (the volume meter's Main/AuxA/AuxB columns, the spectrum
+// FFT, DirAC) shows one single buffer's own output - the currently
+// *active* one - never a cross-buffer mix: AuxA/AuxB in particular can't
+// be combined meaningfully across buffers (each buffer's own
+// SendBusProcessor can map them to a completely different BusEffect - see
+// BusEffectRegistry), so once that's true for the Aux columns, the Main
+// column right next to them in the same meter has to follow the same rule
+// or the two would be describing different things in one view (see the
+// per-buffer editing/playback-state plan's Part B for the fuller
+// reasoning). raw_bus/aux_a/aux_b below are therefore the *active*
+// buffer's own solo contribution, not the combined signal actually being
+// played:
+//  - raw_bus: the active buffer's own pre-decode ambisonic bus (however
+//    many regular channels are active) - Player.cpp gets this by
+//    rendering the active buffer's own SongState into the shared Mixer
+//    *first* each block (right after reset()) and snapshotting
+//    Mixer::getRawBus() at that exact moment, before any other live
+//    buffer's own output has been accumulated into it - a genuine copy of
+//    that snapshot, not a reference (the mixer's own accumulator keeps
+//    changing as the rest of the block's rendering continues). Feeds both
+//    DirAC directional analysis (which only ever reads the first 4 -
+//    W/Y/Z/X, ACN order - via its own regularChannelCount() cap,
+//    DiracAnalyzer.cpp) and the raw-channel volume meter (which needs
+//    every channel). Empty (0 regular channels, but still correctly
+//    frame-sized) when the active buffer has no live SongState at all -
+//    nothing playing/auditioned on it yet.
+//  - aux_a/aux_b: the active buffer's own SongState::getAuxASum()/
+//    getAuxBSum() (each mono), for the volume meter's trailing AuxA/AuxB
+//    columns - not part of the ambisonic raw_bus at all (see
+//    AudioBuffer.h's own Channel/Aux distinction), so carried as two
+//    separate single-channel buffers. Silent (but correctly frame-sized)
+//    under the same no-live-SongState condition as raw_bus above.
+//  - master: the *true* combined decoded stereo output (every live
+//    buffer's own contribution, accumulated before a single decode - the
+//    actual signal audio.play() sends to the device) - kept here purely
+//    as the empty-buffer shutdown sentinel below, the same buffer
+//    Player.cpp already computes for real playback and would otherwise
+//    just discard, moved rather than copied. VisualizationThread no
+//    longer spectrum-analyzes this directly (that would defeat the whole
+//    "one buffer only" rule above) - it decodes its own scratch view of
+//    raw_bus instead, for the FFT specifically, off this real-time thread
+//    (see VisualizationThread.cpp).
 //
 // An empty master AudioBuffer (default-constructed, see AudioBuffer::empty())
 // is a sentinel telling VisualizationThread::run() to stop - the same role
