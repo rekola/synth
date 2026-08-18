@@ -82,9 +82,11 @@ class Song : public StatefulSongObject {
 
   // Replaces a slot's occupant entirely - constructs a fresh, default-
   // valued instance of `kind` via the registry (at this Song's own
-  // placeholder sample rate). Used by the <bus> loading path in Song.cpp;
-  // also available for a future editing UI (out of scope for now - see
-  // the load-time-only slot-configuration plan).
+  // placeholder sample rate). Used by the <bus> loading path in Song.cpp,
+  // and by Controller::setBusEffectKind() (the "Set Bus Effect A/B..."
+  // menu items, UI.cpp) - this only ever updates this model-side instance,
+  // never an already-initialize()'d SongState's own live one (see
+  // SongState::setBusEffectKind() for that half).
   void setBusSlotKind(int slot, BusEffectKind kind);
 
   void resetBusToDefaults() {

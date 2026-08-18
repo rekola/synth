@@ -301,6 +301,10 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     }
     break;
 
+  case PlaybackControlEvent::SET_BUS_EFFECT:
+    state.setBusEffectKind(ev.getParameter1(), static_cast<BusEffectKind>(ev.getParameter2()));
+    break;
+
   default:
     break; // TERMINATE/MIXER_CHANGED/BUFFER_KILLED/BUFFER_RENAMED handled above
   }

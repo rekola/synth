@@ -8,6 +8,7 @@
 #include "state/PlaybackInfo.h"
 #include "ambisonic/ChannelConfiguration.h"
 #include "ambisonic/MixerType.h"
+#include "bus/BusEffectRegistry.h"
 #include "ui/CommandRegistry.h"
 
 #include <functional>
@@ -379,6 +380,14 @@ class Controller {
   // never reads it.
   void addNoteColumn(int track_id);
   void removeNoteColumn(int track_id);
+
+  // Sets slot 0 (A) or 1 (B) of the shared send bus (Song::setBusSlotKind())
+  // to a fresh, default-parameter instance of `kind`, and - same reasoning
+  // as toggleTrackMuted()/setTrackSendA() above - pushes the matching
+  // PlaybackControlEvent so an already-running SongState's own live
+  // SendBusProcessor slot is swapped too, not just the Track model: unlike
+  // those, this needs no InstrumentTrack resolution and always applies.
+  void setBusEffectKind(int slot, BusEffectKind kind);
 
   // Single, shared home for the whole-row-replace sweep a realtime
   // recording session (auto-record-while-held, both the terminal keyboard

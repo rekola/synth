@@ -500,6 +500,9 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
 	{ nullptr, nullptr, nullptr },
 	{ "Set Song Key...", "", "set-song-key" },
 	{ "Set Tuning System...", "", "set-song-tuning" },
+	{ nullptr, nullptr, nullptr },
+	{ "Set Bus Effect A...", "", "set-bus-effect-a" },
+	{ "Set Bus Effect B...", "", "set-bus-effect-b" },
       } },
   };
 

@@ -20,20 +20,19 @@ class SongState : public TrackState {
  public:
   explicit SongState(ChannelConfiguration channel_config) : TrackState(channel_config), render_context_(channel_config), send_bus_(channel_config) { }
 
-  // Load-time-only slot instantiation (see the bus-slot project-file
-  // plan): for each of Song's two slots (Song.h's getBusSlot()/
-  // getBusSlotKind(), placeholder-sample-rate instances that exist only
-  // to own their own parameters), construct a *fresh*, correctly-
-  // sample-rated BusEffect via the registry and round-trip the Song
-  // slot's parameters into it through a MemoryParameterSource -
+  // Load-time slot instantiation: for each of Song's two slots (Song.h's
+  // getBusSlot()/getBusSlotKind(), placeholder-sample-rate instances that
+  // exist only to own their own parameters), construct a *fresh*,
+  // correctly-sample-rated BusEffect via the registry and round-trip the
+  // Song slot's parameters into it through a MemoryParameterSource -
   // deviation-only storeParameters() writes only what differs from that
   // type's own construction defaults, and loadParameters() falls back to
   // the (identical, since both were built from the same registry factory)
   // construction default for anything not written, so the round-trip is
   // exact without needing per-type dispatch here. Installed into
-  // send_bus_ once via setSlotEffect() - never reconfigured again for the
-  // lifetime of this SongState (no runtime slot swapping - out of scope
-  // per the plan).
+  // send_bus_ via setSlotEffect() - setBusEffectKind() below is this same
+  // installation, minus the parameter round-trip, invoked again later at
+  // runtime instead of only here at load time.
   void initialize(const Song & song) {
     tempo_ = song.getTempo();
     render_context_.setBpm(tempo_);
@@ -65,7 +64,33 @@ class SongState : public TrackState {
       send_bus_.setSlotEffect(slot, std::move(effect));
     }
   }
-  
+
+  // Runtime slot reconfiguration, unlike initialize()'s "load-time-only"
+  // per-slot construction above: swaps this slot's live BusEffect for a
+  // fresh, default-parameter instance of `kind`, at this SongState's own
+  // already-resolved sample rate/row duration. No MemoryParameterSource
+  // round-trip from the Song model here (unlike initialize()'s loop) -
+  // this always starts a slot at its type's construction defaults, the
+  // same state Controller::setBusEffectKind() puts the model side into via
+  // Song::setBusSlotKind() right before pushing the PlaybackControlEvent
+  // (SET_BUS_EFFECT) that reaches this method - so there's nothing
+  // authored yet to round-trip. Only ever called from
+  // Player::handlePlaybackControlEvent(), i.e. the audio thread's own
+  // single-threaded event-draining loop, the same thread renderBlock()
+  // (and thus send_bus_.process()) itself always runs on - no lock needed.
+  void setBusEffectKind(int slot, BusEffectKind kind) {
+    auto & descriptor = findBusEffectDescriptor(kind);
+    auto effect = descriptor.factory(getChannelConfiguration().getAudioOutSampleRate());
+    effect->setRowDuration(getChannelConfiguration().getRowDuration(tempo_)); // no-op except for MultiTapDelay
+    send_bus_.setSlotEffect(slot, std::move(effect));
+  }
+
+  // Exposed purely so tests can verify setBusEffectKind() (and
+  // initialize()'s own per-slot construction) actually reached the live
+  // send_bus_ slot, the same "debug accessor added purely for tests"
+  // precedent GranularCloud's own *ForTest() accessors establish.
+  const BusEffect & getSlotEffectForTest(int slot) const { return send_bus_.getSlotEffect(slot); }
+
   // Named distinctly from TrackState::render's 3-arg overload (rather than
   // overloading render() itself), the same reasoning as InstrumentTrackState::
   // renderVoices - a different-shaped render() in a derived class hides

@@ -55,6 +55,22 @@ A few rules that are easy to get wrong:
   that's still exactly at the compiled default (reverb in A, delay in B,
   both unmodified).
 
+## Changing a slot's effect type while running
+
+The Song menu's **Set Bus Effect A...**/**Set Bus Effect B...** items (also
+reachable via M-x as `set-bus-effect-a`/`set-bus-effect-b`) prompt for one
+of `none`/`reverb`/`delay`/`granular`/`haze` (Tab-completes, prefilled with
+the slot's current type) and switch that slot over immediately, even while
+the song is playing - unlike every attribute below, which is preset/
+song-file only with no live control at all. Switching always lands on the
+new type's plain construction defaults, never whatever attributes the
+previous occupant (or a `<bus>` preset) had - there's no attribute
+carry-over between different effect types, and no crossfade either: the
+outgoing effect's own tail (a reverb still decaying, a delay still
+repeating, ...) is simply cut, not faded out. The song file itself is
+updated the same way `<bus>` above would specify, so a subsequent save
+persists the new choice.
+
 ## Attributes every bus effect shares
 
 - **`wet`** (0.0-1.0): how loudly this slot's output is mixed into the

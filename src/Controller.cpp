@@ -609,6 +609,14 @@ Controller::setTrackSendMain(int track_id, float value) {
 }
 
 void
+Controller::setBusEffectKind(int slot, BusEffectKind kind) {
+  auto song = getCurrentSong();
+  song->setBusSlotKind(slot, kind);
+  song->incVersion();
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_BUS_EFFECT, getActiveBufferName(), slot, static_cast<int>(kind)));
+}
+
+void
 Controller::setTrackAzimuth(int track_id, float value) {
   auto song = getCurrentSong();
   auto instrument_track = asInstrumentTrack(song->getTrackByInternalId(track_id));

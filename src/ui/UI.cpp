@@ -25,6 +25,7 @@
 #include "../launchpad/LaunchpadProtocol.h"
 #include "../launchpad/LaunchpadManager.h"
 #include "../model/DrumMachineTrack.h"
+#include "../bus/BusEffectRegistry.h"
 
 #include <fmt/core.h>
 #include <thread>
@@ -145,6 +146,39 @@ UI::initialize() {
       setStatus("Saved " + filename);
     }, getController().getActiveBufferName());
   });
+
+  // "Set Bus Effect A/B..." (Song menu) - picks among the fixed 5-entry
+  // bus/BusEffectRegistry.h registry (none/reverb/delay/granular/haze) via
+  // the same showPromptWithCompletion() a buffer name/M-x command already
+  // completes against; findBusEffectDescriptor() rejects anything outside
+  // the registry, reporting it rather than silently no-oping. Prefilled
+  // with the slot's current effect name, so Enter alone reaffirms it
+  // unchanged. Controller::setBusEffectKind() both updates the Song model
+  // (so it's still this slot's occupant on the next save/fresh load) and
+  // pushes the matching PlaybackControlEvent so an already-playing buffer's
+  // live SongState picks up the new effect immediately too - same
+  // "model plus event" shape as e.g. toggleTrackMuted()/setTrackSendA().
+  auto setBusEffect = [this](int slot, const char * slot_label) {
+    auto current = findBusEffectDescriptor(getController().getSong().getBusSlotKind(slot)).xmlName;
+    status_line_->showPromptWithCompletion(std::string("Bus Effect ") + slot_label + ": ",
+      [this, slot, slot_label](const std::string & typed) {
+	if (typed.empty()) return;
+	auto * descriptor = findBusEffectDescriptor(typed);
+	if (!descriptor) { setStatus("Unknown bus effect: " + typed); return; }
+	getController().setBusEffectKind(slot, descriptor->kind);
+	setStatus(std::string("Bus Effect ") + slot_label + " set to " + descriptor->xmlName);
+      },
+      [](const std::string & prefix) {
+	std::set<std::string> result;
+	for (auto & entry : busEffectRegistry()) {
+	  std::string name = entry.xmlName;
+	  if (name.compare(0, prefix.size(), prefix) == 0) result.insert(name);
+	}
+	return result;
+      }, current);
+  };
+  commands_.define("set-bus-effect-a", [setBusEffect]() { setBusEffect(0, "A"); });
+  commands_.define("set-bus-effect-b", [setBusEffect]() { setBusEffect(1, "B"); });
 
   // Quit/save/open/save-as use Emacs's own C-x C-c/C-x C-s/C-x C-f/C-x C-w
   // bindings and command names (save-buffers-kill-terminal/save-buffer/

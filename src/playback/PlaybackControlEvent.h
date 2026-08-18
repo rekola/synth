@@ -20,7 +20,7 @@ class PlaybackControlEvent : public Event {
   // to fold in for those two specific cases.
   enum Type { PLAY = 1, STOP, TERMINATE, MOVE_POSITION, CLEAR_VOICES, PLAY_NOTE, STOP_NOTE, NOTE_PRESSURE, MIXER_CHANGED,
               SET_TRACK_MUTED, SET_TRACK_SOLO, SET_TRACK_SEND_A, SET_TRACK_SEND_B, SET_TRACK_SEND_MAIN, SET_TRACK_AZIMUTH,
-              CHANNEL_PRESSURE, SET_RECORDING_MUTE, SET_POSITION, BUFFER_KILLED, BUFFER_RENAMED };
+              CHANNEL_PRESSURE, SET_RECORDING_MUTE, SET_POSITION, BUFFER_KILLED, BUFFER_RENAMED, SET_BUS_EFFECT };
 
   // buffer_name says which open buffer this event targets - required for
   // every type except the two genuinely buffer-agnostic ones (TERMINATE,

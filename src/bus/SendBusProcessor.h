@@ -16,10 +16,13 @@
 // Which concrete BusEffect occupies each slot is resolved once, at song
 // load, from the project file (or the compiled-in default: A = reverb,
 // B = delay) via bus/BusEffectRegistry.h - see setSlotEffect() and
-// SongState::initialize(). Slot occupancy never changes for the lifetime
-// of a loaded song (no runtime reconfiguration, no teardown/crossfade
-// machinery - see the load-time-only slot-configuration plan this
-// implements).
+// SongState::initialize(). A slot's occupant can also be swapped later,
+// while the song is playing (SongState::setBusEffectKind(), reached from
+// Controller::setBusEffectKind() via Player.cpp's SET_BUS_EFFECT handling
+// - the "Set Bus Effect A/B..." menu items) - setSlotEffect() itself has
+// no crossfade/teardown machinery either way, so a swap is an abrupt cut
+// to the new effect's own silent starting state, not a smooth handoff;
+// whatever tail the old occupant was still ringing out is simply dropped.
 //
 // This class's own output is *always* ambisonic-shaped (config.
 // numberOfChannels() - 4 at order 1, 9 at order 2 for every real top-level
@@ -49,11 +52,13 @@ class SendBusProcessor {
   static constexpr int kSlotB = 1;
 
   // Installs a fully-constructed effect into a slot, taking ownership -
-  // called once per slot at song load (SongState::initialize()) and never
-  // again for the lifetime of a loaded song. The caller (SongState) is
-  // responsible for having already called the new effect's
-  // loadParameters()/setRowDuration() as needed before installing it here;
-  // this method just takes ownership and nothing else.
+  // called once per slot at song load (SongState::initialize()), and again
+  // whenever that slot is later reconfigured while playing (SongState::
+  // setBusEffectKind()). The caller (SongState) is responsible for having
+  // already called the new effect's loadParameters()/setRowDuration() as
+  // needed before installing it here; this method just takes ownership and
+  // nothing else - no crossfade against whatever the outgoing effect was
+  // still doing (see the class comment above).
   void setSlotEffect(int slot, std::unique_ptr<BusEffect> effect);
 
   BusEffect & getSlotEffect(int slot) { return *slots_[static_cast<size_t>(slot)]; }
