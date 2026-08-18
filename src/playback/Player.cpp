@@ -297,7 +297,15 @@ Player::play(AudioAPI & audio) {
 	      state_.clear();
 	      state_.resetPosition(); // old song's row count means nothing against the new song's patterns
 	      state_.initialize(*song);
-	      mixer = createMixer(controller_->getChannelConfiguration(), controller_->getMixerType(), controller_->getUseLegacyBinaural());
+	      // No mixer rebuild here (unlike MIXER_CHANGED, below) - the
+	      // mixer only depends on channel_config/mixer_type/legacy-binaural
+	      // (process-wide device/decoder settings), never on which song is
+	      // active, so recreating it on every buffer switch was pure
+	      // waste - and, with the default binaural decoder in particular,
+	      // expensive enough (it re-solves MagLS against the full measured
+	      // HRTF grid at construction time - see AmbisonicMagLSDecoder's
+	      // own header comment) to blow the real-time deadline on this
+	      // thread and XRUN on every single switch.
 	      song_changed_ = false;
 	    }
 	    if (mixer_changed_) {

@@ -3,6 +3,7 @@
 #include "../src/Controller.h"
 #include "../src/model/Song.h"
 #include "../src/ambisonic/ChannelConfiguration.h"
+#include "../src/state/PlaybackInfo.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -73,6 +74,43 @@ TEST(controller_switch_to_fresh_buffer_leaves_previous_buffer_open) {
   // The fixture is still open, just no longer active.
   auto names = controller.getBufferNames();
   CHECK(std::find(names.begin(), names.end(), fixture) != names.end());
+}
+
+TEST(controller_per_buffer_state_survives_switching_away_and_back) {
+  // playback_info/recording_track_id are each a live scalar mirroring
+  // whichever buffer is active, swapped against a per-buffer map on every
+  // switchToBuffer() (see Controller.h's save/loadActiveBufferState()) -
+  // switching away must not lose one buffer's state, and switching back
+  // must restore it rather than leaving the other buffer's state behind.
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+
+  auto buffer_a = controller.freshBufferName();
+  controller.switchToBuffer(buffer_a);
+  controller.setRecordingTrackId(3);
+  PlaybackInfo info_a;
+  info_a.setRowIdx(5);
+  controller.setPlaybackInfo(info_a);
+
+  auto buffer_b = controller.freshBufferName();
+  controller.switchToBuffer(buffer_b);
+  // A brand-new buffer must start out with fresh, default state, not
+  // buffer_a's - not merely leftover live-scalar values.
+  CHECK(controller.getRecordingTrackId() == 0);
+  CHECK(controller.getPlaybackInfo().getRowIndex() == 0);
+
+  controller.setRecordingTrackId(7);
+  PlaybackInfo info_b;
+  info_b.setRowIdx(9);
+  controller.setPlaybackInfo(info_b);
+
+  controller.switchToBuffer(buffer_a);
+  CHECK(controller.getRecordingTrackId() == 3);
+  CHECK(controller.getPlaybackInfo().getRowIndex() == 5);
+
+  controller.switchToBuffer(buffer_b);
+  CHECK(controller.getRecordingTrackId() == 7);
+  CHECK(controller.getPlaybackInfo().getRowIndex() == 9);
 }
 
 TEST(controller_disambiguates_buffers_sharing_a_basename) {

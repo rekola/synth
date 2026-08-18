@@ -212,19 +212,50 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
 }
 
 void
+Controller::saveActiveBufferState() {
+  if (active_buffer_name_.empty()) return; // startup - no buffer has ever been active yet
+  playback_infos_[active_buffer_name_] = playback_info;
+  recording_track_ids_[active_buffer_name_] = recording_track_id;
+  pattern_selection_actives_[active_buffer_name_] = pattern_selection_active_;
+}
+
+void
+Controller::loadActiveBufferState(const string & name) {
+  playback_info = playback_infos_[name];
+  recording_track_id = recording_track_ids_[name];
+  pattern_selection_active_ = pattern_selection_actives_[name];
+}
+
+void
+Controller::dropBufferState(const string & name) {
+  playback_infos_.erase(name);
+  recording_track_ids_.erase(name);
+  pattern_selection_actives_.erase(name);
+}
+
+void
 Controller::addBuffer(std::shared_ptr<Song> song, const string & name, int saved_version) {
+  saveActiveBufferState();
   {
     std::lock_guard<std::mutex> guard(song_mutex_);
     last_saved_versions_[name] = saved_version;
     songs_[name] = std::move(song);
     active_buffer_name_ = name;
   }
+  loadActiveBufferState(name);
   refreshBufferCommands();
   if (buffer_change_listener_) buffer_change_listener_();
 }
 
 void
 Controller::renameActiveBuffer(const string & new_name, int saved_version) {
+  // A rename, not a switch - the active buffer itself doesn't change, so
+  // the live playback_info/recording_track_id/pattern_selection_active_
+  // scalars stay exactly as they are; only the *old* key's own map slot
+  // (if any, from a previous session under a different name) needs
+  // dropping so it doesn't linger as dead weight under a name nothing
+  // will ever look up again.
+  dropBufferState(active_buffer_name_);
   {
     std::lock_guard<std::mutex> guard(song_mutex_);
     auto song = songs_.at(active_buffer_name_);
@@ -327,6 +358,7 @@ Controller::saveSongAs(const string & filename) {
 
 void
 Controller::switchToBuffer(const string & name) {
+  saveActiveBufferState();
   bool created = false;
   {
     std::lock_guard<std::mutex> guard(song_mutex_);
@@ -343,6 +375,7 @@ Controller::switchToBuffer(const string & name) {
     }
     active_buffer_name_ = name;
   }
+  loadActiveBufferState(name);
   if (created) refreshBufferCommands();
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SONG_CHANGED));
   if (buffer_change_listener_) buffer_change_listener_();
@@ -375,13 +408,19 @@ Controller::getDefaultSwitchTarget() const {
 
 bool
 Controller::killActiveBuffer() {
+  string killed_name;
   {
     std::lock_guard<std::mutex> guard(song_mutex_);
     if (songs_.size() <= 1) return false; // always keep at least one buffer open
+    killed_name = active_buffer_name_;
     songs_.erase(active_buffer_name_);
     last_saved_versions_.erase(active_buffer_name_);
     active_buffer_name_ = songs_.begin()->first; // name-sorted first remaining buffer
   }
+  // The killed buffer's own saved state (if any) is discarded along with
+  // it, not preserved anywhere - nothing left to switch back to it for.
+  dropBufferState(killed_name);
+  loadActiveBufferState(active_buffer_name_);
   refreshBufferCommands();
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SONG_CHANGED));
   if (buffer_change_listener_) buffer_change_listener_();

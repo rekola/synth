@@ -149,9 +149,17 @@ int main(int argc, char *argv[]) {
   if (force_legacy_binaural) controller->setUseLegacyBinaural(true);
 
   if (!input.empty()) {
-    // Song::open() already printed the actual reason - see the --render
-    // path's own comment above.
-    if (!controller->openSong(input.front())) exit(1);
+    // Every positional argument opens its own buffer (openSong() switches
+    // the active buffer to whichever it just opened/found, without closing
+    // any buffer already open - see Controller::addBuffer()), so multiple
+    // files on the command line land as multiple open buffers, the last one
+    // ending up active. Mainly useful for testing multi-buffer behavior
+    // without going through the UI's own buffer-switching commands.
+    for (const auto & path : input) {
+      // Song::open() already printed the actual reason - see the --render
+      // path's own comment above.
+      if (!controller->openSong(path)) exit(1);
+    }
   } else {
     // No separate "new song" entry point any more (see Controller.h's own
     // switchToBuffer() comment) - freshBufferName() picks a buffer name

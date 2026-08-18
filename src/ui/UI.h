@@ -24,6 +24,7 @@ class UIElement;
 class AudioAPI;
 class LaunchpadIO;
 class LaunchpadManager;
+class Song;
 class UI;
 
 class StatusLogger : public Logger {
@@ -114,6 +115,10 @@ private:
   // toggles, per-device command resolution); PatternEditor's own copy is
   // separate and only used for actual pattern editing (note entry).
   LaunchpadManager * launchpad_manager_ = nullptr;
+  // Last Song the buffer-change listener saw as active (see the listener's
+  // own comment in UI.cpp) - identity, not name, since a rename fires the
+  // same listener without the active Song object actually changing.
+  const Song * launchpad_last_song_ = nullptr;
 
   std::vector<std::shared_ptr<UIElement>> windows_;
 };

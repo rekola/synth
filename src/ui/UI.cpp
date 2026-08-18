@@ -83,11 +83,9 @@ UI::initialize() {
   });
   commands_.define("next-buffer", [this]() {
     getController().cycleBuffer(true);
-    setStatus("Switched to " + getController().getActiveBufferName());
   });
   commands_.define("previous-buffer", [this]() {
     getController().cycleBuffer(false);
-    setStatus("Switched to " + getController().getActiveBufferName());
   });
   // Tab/Enter complete against the open buffer names (StatusLine::
   // completeAgainstSet(), the same machinery M-x's own command-name
@@ -107,7 +105,6 @@ UI::initialize() {
       auto target = name.empty() ? default_name : name;
       if (target.empty()) return; // nothing typed and no default to fall back to
       getController().switchToBuffer(target);
-      setStatus("Switched to " + getController().getActiveBufferName());
     }, [this](const std::string & prefix) {
       std::set<std::string> result;
       for (auto & name : getController().getBufferNames()) {
@@ -199,6 +196,29 @@ UI::initialize() {
     display_names.reserve(names.size());
     for (auto & name : names) display_names.push_back(getController().getBufferDisplayName(name));
     menu_->refreshBuffers(names, display_names, getController().getActiveBufferName());
+
+    // A Launchpad device's own track association (LaunchpadManager::
+    // DeviceState::assigned_track_id) is an index into whatever root-track
+    // list the *active* Song happens to have - meaningless, or worse,
+    // silently pointing at some other unrelated track, once the active
+    // Song object itself has changed underneath it. This listener also
+    // fires on a plain rename (renameActiveBuffer()), which changes
+    // active_buffer_name_ without the active Song changing at all, so the
+    // comparison is by Song identity, not by name. The pad LEDs/step
+    // display themselves need no equivalent poke here - renderComponents()
+    // already re-reads getSong()/getPlaybackInfo() fresh every frame, so
+    // they just show the new buffer's state on the very next frame.
+    if (launchpad_manager_) {
+      auto & song = getController().getSong();
+      if (&song != launchpad_last_song_) {
+	launchpad_manager_->resetTrackAssignments();
+	launchpad_last_song_ = &song;
+      }
+    }
+
+    // Cursor/scroll/selection/live-note/annotation-editing state - see
+    // PatternEditor::handleBufferChanged()'s own comment.
+    pattern_editor_->handleBufferChanged();
   });
 }
 

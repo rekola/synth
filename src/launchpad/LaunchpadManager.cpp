@@ -417,6 +417,11 @@ LaunchpadManager::assignedTrackIndex(int device_id, int fallback_track_index) co
 }
 
 void
+LaunchpadManager::resetTrackAssignments() {
+  for (auto & [ device_id, state ] : devices_) state.assigned_track_id = -1;
+}
+
+void
 LaunchpadManager::advanceTrack(int device_id, int delta, int fallback_track_index, int num_tracks) {
   auto & state = deviceState(device_id);
   auto current = state.assigned_track_id < 0 ? fallback_track_index : state.assigned_track_id;

@@ -10,6 +10,7 @@
 #include <vector>
 #include <unordered_map>
 #include <set>
+#include <string>
 #include <utility>
 
 class Synth;
@@ -56,6 +57,23 @@ class PatternEditor : public UIElement {
   // whatever was previously on that stretch instead of merging with it.
   // A no-op outside such a session.
   void onRowAdvanced(Controller & controller);
+
+  // Called via Controller::setBufferChangeListener()'s UI.cpp fan-out
+  // whenever the active buffer changes (switch, kill landing on a
+  // different buffer, or a fresh buffer created) - saves the outgoing
+  // buffer's own cursor/scroll/selection/live-note/annotation-editing
+  // state into buffer_states_ (private, below) and restores the incoming
+  // buffer's own saved copy (or a fresh default, for a never-before-
+  // visited buffer). Unlike Controller's own internal
+  // save/loadActiveBufferState() pair (Controller.h), which run in two
+  // separate steps immediately before and after the switch itself, this
+  // is an external listener that only learns about a switch after it
+  // already happened, so it tracks the outgoing buffer's own identity
+  // itself rather than being handed it. Also fires on a plain rename
+  // (renameActiveBuffer()), which changes getActiveBufferName() without
+  // the active Song actually changing - told apart from a real switch by
+  // Song identity, not by name (see last_active_song_, below).
+  void handleBufferChanged();
 
 protected:
   // See SelectionBounds.h.
@@ -216,6 +234,53 @@ protected:
   // the cursor happens to be on by the time Enter is pressed" (mirrors
   // selection_start_pattern_'s own staleness guard).
   int annotation_edit_row_ = -1, annotation_edit_pattern_ = -1;
+
+ private:
+  // Snapshot of every field above (current_score_playing_row/pattern/
+  // total_columns deliberately excluded - see the header comment in
+  // handleBufferChanged()'s caller-facing declaration above; they're
+  // derived from playback_info fresh every render() call, so they need no
+  // explicit save/restore of their own) - one struct rather than one
+  // std::map per field (contrast Controller.h's own per-buffer scalars)
+  // since none of these are read anywhere except through PatternEditor's
+  // own methods, so there's no existing wide set of call sites forcing
+  // the live-scalar-plus-parallel-map shape Controller needs.
+  struct EditingState {
+    GridPosition current_cursor, new_cursor, current_scroll;
+    int edit_step_size = 1, new_edit_step_size = 1;
+    int current_song_version = 0;
+    std::unordered_map<int, int> active_midi_notes;
+    std::unordered_map<int, ActiveKeyboardNote> active_keyboard_notes;
+    bool auto_started_playback = false;
+    std::set<std::pair<int, int>> auto_record_cleared_rows;
+    int last_cleared_row = -1, last_cleared_pattern_idx = -1;
+    bool selection_active = false;
+    int selection_start_pattern = 0, selection_start_row = 0, selection_start_track = 0;
+    int selection_start_col = 0;
+    SelectionScope selection_start_scope = SelectionScope::NOTE_COLUMN;
+    SelectionBounds current_sel_bounds;
+    int annotation_screen_row = -1, annotation_screen_col = -1;
+    int annotation_edit_row = -1, annotation_edit_pattern = -1;
+  };
+
+  void saveEditingState(const std::string & name);
+  void loadEditingState(const std::string & name);
+
+  // unordered_map, unlike Controller::songs_ (std::map) - nothing here
+  // ever needs buffer_states_'s own iteration order (there's no analogue
+  // of the Buffers menu reading from it), it's a pure name->snapshot
+  // lookup, so there's no reason to pay std::map's ordering cost.
+  std::unordered_map<std::string, EditingState> buffer_states_;
+  // Identity (not name) of the buffer handleBufferChanged() last saw as
+  // active - a rename (renameActiveBuffer()) fires the same listener
+  // without the active Song object actually changing, so that has to be
+  // told apart from a real switch by Song identity, the same reasoning as
+  // UI.cpp's own launchpad_last_song_. last_active_buffer_name_ tracks the
+  // *name* to save/drop buffer_states_ entries under, kept in sync with
+  // last_active_song_ but distinct from it because a rename does change
+  // the name without changing the Song.
+  const Song * last_active_song_ = nullptr;
+  std::string last_active_buffer_name_;
 };
 
 #endif

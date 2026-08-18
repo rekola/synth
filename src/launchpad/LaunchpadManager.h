@@ -278,6 +278,18 @@ class LaunchpadManager {
   // `playback_info` directly, unchanged from before that clock existed.
   void refresh(const Song & song, const std::vector<int> & track_ids, const PlaybackInfo & playback_info, int fallback_track_index, Controller & controller);
 
+  // Called whenever the active buffer changes (Controller::
+  // setBufferChangeListener()'s UI.cpp wiring): resets every connected
+  // device back to "unassigned" (falls back to whatever fallback_track_index
+  // refresh()/resolveTrackId() are passed that frame) rather than leaving
+  // assigned_track_id pointing at an index carried over from the old song.
+  // Left alone, that index would still be in-bounds whenever the new song
+  // happens to have at least as many root tracks as the old one, silently
+  // reassigning the device to a different, unrelated track instead of
+  // erroring out or visibly resetting - worse than simply going out of
+  // range, which resolveTrackId() already falls back on safely.
+  void resetTrackAssignments();
+
  private:
   struct DeviceState {
     int assigned_track_id = -1; // index into track_ids, or -1 = unassigned

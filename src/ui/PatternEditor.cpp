@@ -30,6 +30,15 @@ using namespace fmt;
 // assigned track to a track_id, without PatternEditor being involved.
 
 PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
+  // Whichever buffer is already active by construction time (main.cpp
+  // always opens/creates one before the UI itself exists) - without this,
+  // handleBufferChanged()'s first real call would have nothing to compare
+  // against and would skip saving this buffer's own accumulated state
+  // (see that method's own comment) the first time the user ever switches
+  // away from it.
+  last_active_song_ = &getController().getSong();
+  last_active_buffer_name_ = getController().getActiveBufferName();
+
   // getPlane().setScrolling(true);
 
   // Emacs-style commands, dispatched centrally via UIElement::dispatchCommand
@@ -905,6 +914,95 @@ PatternEditor::onRowAdvanced(Controller & controller) {
   }
 
   controller.sweepAutoRecordRows(auto_record_cleared_rows_, last_cleared_row_, last_cleared_pattern_idx_, info.getPatternIndex(), info.getRowIndex(), track_ids);
+}
+
+void
+PatternEditor::saveEditingState(const string & name) {
+  if (name.empty()) return; // startup - nothing has been active under this name yet
+  auto & state = buffer_states_[name];
+  state.current_cursor = current_cursor;
+  state.new_cursor = new_cursor;
+  state.current_scroll = current_scroll_;
+  state.edit_step_size = edit_step_size;
+  state.new_edit_step_size = new_edit_step_size;
+  state.current_song_version = current_song_version;
+  state.active_midi_notes = active_midi_notes;
+  state.active_keyboard_notes = active_keyboard_notes_;
+  state.auto_started_playback = auto_started_playback_;
+  state.auto_record_cleared_rows = auto_record_cleared_rows_;
+  state.last_cleared_row = last_cleared_row_;
+  state.last_cleared_pattern_idx = last_cleared_pattern_idx_;
+  state.selection_active = selection_active_;
+  state.selection_start_pattern = selection_start_pattern_;
+  state.selection_start_row = selection_start_row_;
+  state.selection_start_track = selection_start_track_;
+  state.selection_start_col = selection_start_col_;
+  state.selection_start_scope = selection_start_scope_;
+  state.current_sel_bounds = current_sel_bounds_;
+  state.annotation_screen_row = annotation_screen_row_;
+  state.annotation_screen_col = annotation_screen_col_;
+  state.annotation_edit_row = annotation_edit_row_;
+  state.annotation_edit_pattern = annotation_edit_pattern_;
+}
+
+void
+PatternEditor::loadEditingState(const string & name) {
+  auto & state = buffer_states_[name]; // default-constructs a fresh slot for a never-before-visited buffer
+  current_cursor = state.current_cursor;
+  new_cursor = state.new_cursor;
+  current_scroll_ = state.current_scroll;
+  edit_step_size = state.edit_step_size;
+  new_edit_step_size = state.new_edit_step_size;
+  current_song_version = state.current_song_version;
+  active_midi_notes = state.active_midi_notes;
+  active_keyboard_notes_ = state.active_keyboard_notes;
+  auto_started_playback_ = state.auto_started_playback;
+  auto_record_cleared_rows_ = state.auto_record_cleared_rows;
+  last_cleared_row_ = state.last_cleared_row;
+  last_cleared_pattern_idx_ = state.last_cleared_pattern_idx;
+  selection_start_pattern_ = state.selection_start_pattern;
+  selection_start_row_ = state.selection_start_row;
+  selection_start_track_ = state.selection_start_track;
+  selection_start_col_ = state.selection_start_col;
+  selection_start_scope_ = state.selection_start_scope;
+  current_sel_bounds_ = state.current_sel_bounds;
+  annotation_screen_row_ = state.annotation_screen_row;
+  annotation_screen_col_ = state.annotation_screen_col;
+  annotation_edit_row_ = state.annotation_edit_row;
+  annotation_edit_pattern_ = state.annotation_edit_pattern;
+  setSelectionActive(state.selection_active); // also mirrors into Controller::pattern_selection_active_
+}
+
+void
+PatternEditor::handleBufferChanged() {
+  // Prune any buffer_states_ entry for a name that isn't actually open any
+  // more - reached whenever a buffer gets killed, or renamed (its old key
+  // stops being open the moment Controller::renameActiveBuffer() renames
+  // songs_'s own entry, which happens before this listener ever fires).
+  // This listener isn't told *why* it fired, only that the active buffer
+  // changed, so there's no single name to drop the way Controller's own
+  // dropBufferState() calls each know exactly which one to target - a full
+  // sweep instead, cheap since buffer counts stay small in practice (the
+  // same reasoning the per-buffer editing-state plan gives elsewhere).
+  auto live_names = getController().getBufferNames();
+  std::set<std::string> live(live_names.begin(), live_names.end());
+  for (auto it = buffer_states_.begin(); it != buffer_states_.end(); ) {
+    if (live.count(it->first) == 0) it = buffer_states_.erase(it);
+    else ++it;
+  }
+
+  auto & song = getController().getSong();
+  auto & new_name = getController().getActiveBufferName();
+  if (&song == last_active_song_) {
+    // Same Song object as before - a rename, not a real switch (see this
+    // method's own header comment) - nothing to save/restore.
+    last_active_buffer_name_ = new_name;
+    return;
+  }
+  saveEditingState(last_active_buffer_name_);
+  loadEditingState(new_name);
+  last_active_song_ = &song;
+  last_active_buffer_name_ = new_name;
 }
 
 bool
