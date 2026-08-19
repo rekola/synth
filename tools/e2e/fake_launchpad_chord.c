@@ -27,7 +27,7 @@ int main() {
   if (port < 0) return 1;
   fprintf(stderr, "fake Launchpad X (chord) ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
-  sleep(4); // let musiceditor auto-connect and enter Programmer mode
+  sleep(4); // let synth auto-connect and enter Programmer mode
 
   // Pads (0,0)=note 11, (1,0)=note 12, (2,0)=note 13 - a 3-note chord,
   // pressed within a couple ms of each other (as close to simultaneous as

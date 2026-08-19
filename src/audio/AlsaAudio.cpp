@@ -206,8 +206,8 @@ AlsaAudio::initialize(Logger & logger) {
     logger.log("Error opening ALSA sequencer");
     return;
   }
-  snd_seq_set_client_name(seq_handle, "musiceditor");
-  if (snd_seq_create_simple_port(seq_handle, "musiceditor",
+  snd_seq_set_client_name(seq_handle, "synth");
+  if (snd_seq_create_simple_port(seq_handle, "synth",
 				 SND_SEQ_PORT_CAP_WRITE|SND_SEQ_PORT_CAP_SUBS_WRITE,
 				 SND_SEQ_PORT_TYPE_APPLICATION) < 0) {
     logger.log("Error creating sequencer port");

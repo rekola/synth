@@ -39,7 +39,7 @@ time.sleep(1)
 pid, fd = vk.spawn()
 scr = vk.Screen(fd)
 if not vk.wait_ready(scr):
-    print("musiceditor not ready")
+    print("synth not ready")
     fake.terminate()
     os.kill(pid, 9)
     sys.exit(1)

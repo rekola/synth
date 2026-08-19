@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drive the compiled musiceditor binary through a pty and verify the
+"""Drive the compiled synth binary through a pty and verify the
 centralized keybinding dispatch: Ctrl-B/Ctrl-W/Ctrl-Y/Ctrl-G in
 PatternEditor and C-x C-c/Ctrl-N/Space in UI. General Emacs-keybinding
 smoke test, independent of the Launchpad-specific scripts in this

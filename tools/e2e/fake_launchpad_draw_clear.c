@@ -67,7 +67,7 @@ int main() {
   if (port < 0) return 1;
   fprintf(stderr, "fake Launchpad X (draw/clear) ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
-  sleep(6); // let musiceditor auto-connect, enter Programmer mode, and settle
+  sleep(6); // let synth auto-connect, enter Programmer mode, and settle
   drain_sysex(seq);
 
   fprintf(stderr, "STEP enter-draw-mode: CC97 quick tap\n");

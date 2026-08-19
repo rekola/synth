@@ -40,7 +40,7 @@ int main() {
 
   fprintf(stderr, "fake Launchpad X ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
-  // Wait for musiceditor to start, scan, auto-connect, and (in the test
+  // Wait for synth to start, scan, auto-connect, and (in the test
   // harness) navigate the cursor onto the drum machine track.
   sleep(8);
 

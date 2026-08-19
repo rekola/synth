@@ -59,7 +59,7 @@ int main() {
   if (port < 0) return 1;
   fprintf(stderr, "fake Launchpad X (send mode) ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
-  sleep(6); // let musiceditor auto-connect, enter Programmer mode, and settle
+  sleep(6); // let synth auto-connect, enter Programmer mode, and settle
   drain(seq, "idle - NOTES mode");
 
   fprintf(stderr, "sending CC69 press+release (Send A mode toggle)\n");

@@ -46,15 +46,15 @@ def wait_until(scr, predicate, timeout=20.0, interval=0.5):
 fake_log = open(os.path.join(SCRIPT_DIR, "fake_launchpad.log"), "w")
 fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad")], stderr=fake_log, stdout=fake_log)
 
-# Give the fake device time to register its ALSA client before musiceditor's
+# Give the fake device time to register its ALSA client before synth's
 # startup-time scan runs (LaunchpadIO does no hotplug yet - it must already
-# exist when musiceditor starts).
+# exist when synth starts).
 time.sleep(1)
 
 pid, fd = vk.spawn()
 scr = vk.Screen(fd)
 if not vk.wait_ready(scr):
-    print("musiceditor not ready")
+    print("synth not ready")
     fake.terminate()
     os.kill(pid, 9)
     sys.exit(1)
@@ -132,9 +132,9 @@ with open(os.path.join(SCRIPT_DIR, "fake_launchpad.log")) as f:
 print("\n--- fake_launchpad log ---")
 print(fake_output)
 
-check("musiceditor sent a Programmer-Mode-enter SysEx to the simulated device",
+check("synth sent a Programmer-Mode-enter SysEx to the simulated device",
       "sysex" in fake_output and "0e 01" in fake_output.replace(",", " "), fake_output)
-check("musiceditor sent a Device Inquiry SysEx to the simulated device",
+check("synth sent a Device Inquiry SysEx to the simulated device",
       "7e 7f 06 01" in fake_output, fake_output)
 
 n_fail = sum(1 for _, ok in results if not ok)

@@ -22,9 +22,9 @@ LaunchpadIO::initialize(Logger & logger) {
     seq_handle = nullptr;
     return;
   }
-  snd_seq_set_client_name(seq_handle, "musiceditor-launchpad");
+  snd_seq_set_client_name(seq_handle, "synth-launchpad");
 
-  our_port = snd_seq_create_simple_port(seq_handle, "musiceditor-launchpad",
+  our_port = snd_seq_create_simple_port(seq_handle, "synth-launchpad",
     SND_SEQ_PORT_CAP_READ | SND_SEQ_PORT_CAP_WRITE | SND_SEQ_PORT_CAP_SUBS_READ | SND_SEQ_PORT_CAP_SUBS_WRITE,
     SND_SEQ_PORT_TYPE_APPLICATION);
   if (our_port < 0) {

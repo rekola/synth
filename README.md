@@ -70,13 +70,19 @@ The classification is purely a function of the EDO and key (see
 This project is MIT-licensed (`LICENSE`). It vendors a small amount of
 third-party source under `third_party/` (currently `tinyxml2`, zlib
 license, and PocketFFT, BSD-3-Clause - the FFT backend behind
-`src/dsp/RealFFT.h`, replacing FFTW/GPL) and dynamically links against several
+`src/dsp/RealFFT.h`) and dynamically links against several
 permissively/LGPL-licensed system libraries. See `THIRD_PARTY_LICENSES.md`
-for the full picture, or run `musiceditor --licenses` to print it.
+for the full picture, or run `synth --licenses` to print it.
 
 # Roadmap / missing functionality:
-1. Undo/redo
-2. Effect-command interpretation during playback (slide, glide, vibrato, fade in/out, tremolo — currently editable and stored but not audible)
-3. Kill-ring rotation (yank-pop / M-y)
-4. Exchange-point-and-mark (C-x C-x)
-5. DirAC heatmap marker overlay for every active spatial object, not just track positions — track azimuth/elevation markers, plus Granular Cloud grains and other shared-bus-effect taps (FDNReverb, MultiTapDelay)
+
+1. A proper name
+2. Undo/redo
+3. Pattern matrix
+4. DirAC heatmap marker overlay for every active spatial object, not just track positions — track azimuth/elevation markers, plus Granular Cloud grains and other shared-bus-effect taps (FDNReverb, MultiTapDelay)
+5. Limiters
+6. 5.1 or 7.2 modes in addition to binaural headphone mode
+7. Legato voicing mode
+8. Emacs features:
+ - Kill-ring rotation (yank-pop / M-y)
+ - Exchange-point-and-mark (C-x C-x)

@@ -44,14 +44,14 @@ time.sleep(1)
 pid, fd = vk.spawn()
 scr = vk.Screen(fd)
 if not vk.wait_ready(scr):
-    print("musiceditor not ready")
+    print("synth not ready")
     fake.terminate()
     os.kill(pid, 9)
     sys.exit(1)
 
 # The fake device's own script runs on fixed sleeps (connect settle + mode
 # toggle + press + a final mode-toggle back to NOTES) - just pump the pty
-# the whole time so musiceditor keeps processing/redrawing.
+# the whole time so synth keeps processing/redrawing.
 deadline = time.time() + 20.0
 while time.time() < deadline and fake.poll() is None:
     scr.pump(0.5)

@@ -15,7 +15,7 @@ int main() {
   if (port < 0) return 1;
   fprintf(stderr, "fake Launchpad X (button) ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
-  sleep(6); // let musiceditor auto-connect, enter Programmer mode, and settle
+  sleep(6); // let synth auto-connect, enter Programmer mode, and settle
 
   int pending;
   while ((pending = snd_seq_event_input_pending(seq, 1)) > 0) {

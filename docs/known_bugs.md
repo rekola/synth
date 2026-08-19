@@ -90,7 +90,7 @@ Found 2026-07-11, not yet fixed.
   `git stash`-clean checkout, where it fails the exact same 3 of 7 checks
   (note-entry, off-sentinel, aftertouch-in-place) while still passing the
   Programmer-Mode/Device-Inquiry SysEx checks - so the fake device
-  connects and musiceditor talks to it, but a press's *effect on the
+  connects and synth talks to it, but a press's *effect on the
   pattern* doesn't show up within the script's wait window in this
   environment. Not investigated further (e.g. whether it's ALSA sequencer
   event delivery timing, scheduler fairness between the fake-device

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 
 # set the project name
-project(musiceditor VERSION 0.1)
+project(synth VERSION 0.1)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -186,7 +186,7 @@ configure_file(
 )
 
 # add the executable
-add_executable(musiceditor src/main.cpp
+add_executable(synth src/main.cpp
 	src/ui/UI.cpp
 	src/audio/AlsaAudio.cpp
 	src/launchpad/LaunchpadIO.cpp
@@ -195,9 +195,9 @@ add_executable(musiceditor src/main.cpp
 	src/ui/HierarchyView.cpp
 	src/ui/PatternEditor.cpp
 )
-target_include_directories(musiceditor PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(synth PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
-target_link_libraries(musiceditor synth_engine asound notcurses++ notcurses notcurses-core)
+target_link_libraries(synth synth_engine asound notcurses++ notcurses notcurses-core)
 
 enable_testing()
 add_subdirectory(tests)

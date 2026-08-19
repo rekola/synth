@@ -1,5 +1,5 @@
 """Shared driver for the Launchpad (and general keybinding) end-to-end
-scripts in this directory: forks the compiled `musiceditor` binary under a
+scripts in this directory: forks the compiled `synth` binary under a
 pty and feeds its output through `pyte` so a script can screen-scrape the
 pattern editor exactly as a person would see it, without a real terminal.
 
@@ -8,7 +8,7 @@ interactive terminal for its capabilities on startup (cursor position,
 pixel geometry, Kitty keyboard protocol support, etc.) and will hang
 waiting for a reply that a plain pty never sends on its own - `_respond`
 answers each of those queries with a plausible canned reply as soon as it
-sees one go out, exactly as a real terminal would, so `musiceditor` starts
+sees one go out, exactly as a real terminal would, so `synth` starts
 up normally instead of stalling.
 
 Not part of the CMake/ctest build on purpose: these scripts drive real
@@ -28,7 +28,7 @@ import time
 import pyte
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-BINARY = os.path.join(REPO_ROOT, "build", "musiceditor")
+BINARY = os.path.join(REPO_ROOT, "build", "synth")
 SONG = os.path.join(REPO_ROOT, "songs", "demo3.xml")
 
 ROWS, COLS = 40, 120

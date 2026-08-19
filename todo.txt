@@ -395,14 +395,10 @@ use templates: A1.get<double>()
 Aftertouch cleaning:
   - If not playing, do lowpass filtering for the aftertouch so that the selected level doesn't get cleared when user releases
   - Add catmull-rom interpolation for aftertouch
-
-Add search to HierachyView
  
 Copy effects from Zynaddsubfx
  - https://zynaddsubfx.sourceforge.io/
  - http://yoshimi.sourceforge.net/
-
-midi recording leaves invisible notes
 
 FileInstrument
  - add modulation
@@ -415,11 +411,6 @@ FileInstrument
 
 - When recording notes, add aftertouch signals using mousewheel
 
-Add time spacing to Multiply (what?)
- - so that the notes do not start simultaneously
- - use the spread?
- - NoteMultiplier rand changes the note too much
-
 samplePosition should be long long and we could increment it by one all the time
  
 Combine TrackInfo and VisibleTrackInfo
@@ -429,12 +420,6 @@ Make song:
  G A A#
  Db D D#
   
-If same note is played multiple times, the notes should not have individual decays
- - The note is same key in the piano, so it cannot decay when it is pressed again
- - If same instrument is playing same note in the same column, kill it instantly
-
-if non existing instrument is used in a track => crash
-
 Combine event types: PlaybackControlEvent and TrackEvent
 combine State::getRelativePosition and song.normalizePosition()
 
@@ -478,26 +463,12 @@ B	15:8 = 1+7:8	B dim		B-D-F
 B	15:8 = 1+7:8	B q. minor	B-D♭-E		
 	17:9 = 1+8:9
 
-should samples be outside pattern?
- - If we record on track, the recording doesn't really honor the pattern boundaries
- - If the pattern is shortened, the samples would have to be moved to another track
- - Or if the pattern runs out, where do we put the samples?
- - If it is the last pattern, the pattern can be lengthened, otherwise switch patterns
- 
-Is there a generic way to handle grooves?
-  - some separate repeating pattern with global delays
-  - multiple sequences?
-  - nevertheless, we would like to be able to have just a single drum pattern, that also creates the groove
-
 How to do note effects correctly?
   - They are completely dissimilar to effects
   - hard to read
   - If we have a track for lowpass filter, it will need a column, and it could have a proper effect control
     + use aftertouch for filter control
   
-Try to maintain column
-  - If we are in an effect column, but scroll to a pattern with more note columns, the column changes
-
 Add blitting
   - Add blit plane, the add scopes and stuff
 
@@ -529,14 +500,6 @@ Add soundfont instruments by index to get the correct midi names
 Pass Instrument as parameter to InstrumentVoice constructor, so that it can pick necessary fields
 - OR add populate method
 
-Consider adding laziness to mixing
- - If the channels have different positions, we could delay mixing
- - Of course, in a perfect world master channel location would translate it's children (+ rotate and scale)
-
-LFO misses a step when period changes ?
-
-Add vocoder to vocode sample based on sequencer track
-  
 Other ratios in tonality cube:
  - 7:8:10 => 28:35:40
  - 6:7:8 => 21:24:28
@@ -557,12 +520,6 @@ remove automatic scaling from volume meter
    G B E   ??
    A D ?
    B ? ?   ??
-
-Effects:
- - add delay modulator => delay is used to speed or slow input signal possibly with noise as the signal
- - lowpassed noise
-   => modulate or just play
- - add tempo sync
 
 Samples:
  - Record egg shell cracking
@@ -639,10 +596,6 @@ XML:
     - use periodicity
   - try applying lowpass after distortion
 
-- Study effects / instruments in other software:
-  - Audacity
-  - LMMS has multiple interesting instruments such as vibrating string
-    
 - Renoise
   -  Add groove
     - add delay to every nth line

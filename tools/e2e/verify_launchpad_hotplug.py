@@ -1,4 +1,4 @@
-"""Hotplug regression test: musiceditor starts with no Launchpad
+"""Hotplug regression test: synth starts with no Launchpad
 connected at all (confirms it doesn't crash/misbehave with zero devices),
 then a simulated Launchpad X is "plugged in" while it's already running -
 must be noticed via the ALSA announce-port subscription (hotplug), not
@@ -43,13 +43,13 @@ def wait_until(scr, predicate, timeout=20.0, interval=0.5):
 def ctrl(c):
     return bytes([ord(c.lower()) & 0x1F])
 
-# musiceditor starts with NO Launchpad connected at all - confirms it
+# synth starts with NO Launchpad connected at all - confirms it
 # doesn't crash/misbehave with zero devices, and gives a clean baseline to
 # detect the live hotplug connection against.
 pid, fd = vk.spawn()
 scr = vk.Screen(fd)
 if not vk.wait_ready(scr):
-    print("musiceditor not ready")
+    print("synth not ready")
     os.kill(pid, 9)
     sys.exit(1)
 
@@ -60,7 +60,7 @@ if is_playing(scr):
     scr.pump(1.0)
 check("Playback stopped on the new song", not is_playing(scr))
 
-# Now "plug in" the simulated Launchpad X - musiceditor is already running
+# Now "plug in" the simulated Launchpad X - synth is already running
 # and must notice it via the ALSA announce-port subscription (hotplug),
 # not the startup-time scan (which already ran with nothing connected).
 hotplug_log = open(os.path.join(SCRIPT_DIR, "fake_launchpad_hotplug.log"), "w")
@@ -72,7 +72,7 @@ print("row before hotplug press:", repr(line_before))
 
 line_after_press, got_press = wait_until(scr, lambda l: l != line_before, timeout=15.0)
 print("row after hotplugged press:       ", repr(line_after_press))
-check("Hotplugged device's press entered a note (device was NOT connected at musiceditor startup)",
+check("Hotplugged device's press entered a note (device was NOT connected at synth startup)",
       got_press, f"before={line_before!r} after={line_after_press!r}")
 
 # Not playing (step entry): release must NOT overwrite the note with OFF -
@@ -97,7 +97,7 @@ with open(os.path.join(SCRIPT_DIR, "fake_launchpad_hotplug.log")) as f:
 print("\n--- fake_launchpad_hotplug log ---")
 print(fake_output)
 
-check("musiceditor sent Programmer-Mode-enter to the hotplugged device",
+check("synth sent Programmer-Mode-enter to the hotplugged device",
       "sysex" in fake_output and "0e 01" in fake_output.replace(",", " "), fake_output)
 
 n_fail = sum(1 for _, ok in results if not ok)

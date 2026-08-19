@@ -1,7 +1,7 @@
 // Same simulated Launchpad X as fake_launchpad.c, but starts sending
 // immediately (no initial sleep) - used to verify LIVE hotplug detection:
-// this process is started AFTER musiceditor is already running, so
-// musiceditor must notice the new ALSA client via its announce-port
+// this process is started AFTER synth is already running, so
+// synth must notice the new ALSA client via its announce-port
 // subscription rather than its startup-time scan.
 #include <alsa/asoundlib.h>
 #include <stdio.h>
@@ -38,7 +38,7 @@ int main() {
   }
   fprintf(stderr, "fake Launchpad X (hotplug) ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
-  // Give musiceditor's announce-port subscription a moment to notice us
+  // Give synth's announce-port subscription a moment to notice us
   // and complete the Programmer-Mode-enter handshake before we press.
   sleep(3);
 

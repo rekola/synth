@@ -33,7 +33,7 @@ build
 build-*
 
 # binaries
-musiceditor
+synth
 
 # tools/e2e's compiled ALSA-simulator binaries (only the .c sources are checked in)
 tools/e2e/fake_launchpad

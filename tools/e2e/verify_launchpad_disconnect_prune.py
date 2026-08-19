@@ -29,7 +29,7 @@ time.sleep(1)
 pid, fd = vk.spawn()
 scr = vk.Screen(fd)
 if not vk.wait_ready(scr):
-    print("musiceditor not ready")
+    print("synth not ready")
     proc_a.terminate()
     os.kill(pid, 9)
     sys.exit(1)
@@ -42,7 +42,7 @@ scr.pump(1.0)
 proc_a.wait(timeout=20)
 check("device A's simulator process exited cleanly", proc_a.returncode == 0, f"returncode={proc_a.returncode}")
 
-# Give musiceditor a moment to process the PORT_EXIT hotplug event.
+# Give synth a moment to process the PORT_EXIT hotplug event.
 scr.pump(2.0)
 
 # Now start device B - a fresh connection, no octave-up, arriving *after*
@@ -54,7 +54,7 @@ deadline = time.time() + 14.0
 while time.time() < deadline:
     scr.pump(1.0)
 
-check("musiceditor is still responsive after A's disconnect (no crash/hang)", vk.wait_ready(scr))
+check("synth is still responsive after A's disconnect (no crash/hang)", vk.wait_ready(scr))
 
 notes_found = []
 for y in range(scr.screen.lines):

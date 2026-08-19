@@ -42,7 +42,7 @@ fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_sendmode_autoc
 pid, fd = vk.spawn(song=SONG)
 scr = vk.Screen(fd)
 if not vk.wait_ready(scr):
-    print("musiceditor not ready")
+    print("synth not ready")
     fake.terminate()
     os.kill(pid, 9)
     sys.exit(1)

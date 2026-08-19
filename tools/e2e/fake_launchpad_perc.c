@@ -1,5 +1,5 @@
 // Minimal simulated Launchpad X: an ALSA sequencer client named to match
-// LaunchpadProtocol::modelFromDeviceName, used to verify musiceditor's
+// LaunchpadProtocol::modelFromDeviceName, used to verify synth's
 // LaunchpadIO auto-detection/connection/dispatch end-to-end without real
 // hardware. Prints any SysEx it receives (to confirm the Programmer-Mode
 // and Device-Inquiry messages went out), then sends a scripted
@@ -45,7 +45,7 @@ int main() {
 
   fprintf(stderr, "fake Launchpad X ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
-  // Wait for musiceditor to start, scan, auto-connect, and (in the test
+  // Wait for synth to start, scan, auto-connect, and (in the test
   // harness) switch to a fresh new song via Ctrl-N.
   sleep(12);
 

@@ -33,7 +33,7 @@ time.sleep(1)
 pid, fd = vk.spawn()
 scr = vk.Screen(fd)
 if not vk.wait_ready(scr):
-    print("musiceditor not ready")
+    print("synth not ready")
     fake.terminate()
     os.kill(pid, 9)
     sys.exit(1)
@@ -87,7 +87,7 @@ with open(os.path.join(SCRIPT_DIR, "fake_launchpad_button.log")) as f:
 print("\n--- fake_launchpad_button log ---")
 print(fake_output)
 
-check("musiceditor sent a Programmer-Mode-enter SysEx to the simulated device",
+check("synth sent a Programmer-Mode-enter SysEx to the simulated device",
       "0e 01" in fake_output.replace(",", " "), fake_output)
 
 # Button LED colors: CC93=0x5d, CC94=0x5e (prev/next-track) should be dim

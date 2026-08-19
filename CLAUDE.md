@@ -21,7 +21,7 @@ cmake -B build
 cmake --build build -j
 ```
 
-Produces `build/musiceditor`.
+Produces `build/synth`.
 
 Dependencies (Ubuntu): `libnotcurses-dev libnotcurses++-dev libfmt-dev
 libsndfile1-dev libasound2-dev libunistring-dev` plus CMake and a C++17
@@ -42,9 +42,9 @@ fallback.
 ## Run
 
 ```sh
-./build/musiceditor songs/demo3.xml                    # open a song
-./build/musiceditor                                    # start with a new empty song
-./build/musiceditor --render out.wav songs/demo3.xml   # headless render to WAV
+./build/synth songs/demo3.xml                    # open a song
+./build/synth                                    # start with a new empty song
+./build/synth --render out.wav songs/demo3.xml   # headless render to WAV
 ```
 
 `--render` needs no terminal or audio device: it renders the song offline

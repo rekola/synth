@@ -8,7 +8,7 @@ state) is deliberately left out of the CMake build, the same way
 used to verify that layer by hand: a small C program opens an ALSA
 sequencer client named to look like a real Launchpad and scripts a
 sequence of press/release/CC events, while a Python script spawns
-`musiceditor` in a pty (via `pyte`) and screen-scrapes the result.
+`synth` in a pty (via `pyte`) and screen-scrapes the result.
 
 ## Setup
 
@@ -24,7 +24,7 @@ gcc -o fake_launchpad_sendmode_autocreate fake_launchpad_sendmode_autocreate.c -
 ```
 
 (the compiled binaries are gitignored - only the `.c` sources are
-checked in). Requires a built `../../build/musiceditor` and Python's
+checked in). Requires a built `../../build/synth` and Python's
 `pyte` package (`pip install pyte`).
 
 ## Running a script
@@ -41,7 +41,7 @@ you're changing.
 ## What's here
 
 - **`harness.py`** - shared driver every script below imports: forks
-  `musiceditor` under a pty with a given song and answers the terminal-
+  `synth` under a pty with a given song and answers the terminal-
   capability queries notcurses probes for on startup (cursor position,
   pixel geometry, Kitty keyboard protocol, etc.) so it doesn't hang
   waiting for a reply a plain pty never sends. Not Launchpad-specific -
@@ -62,7 +62,7 @@ you're changing.
   an extra-button CC press/release; confirms decoding, command dispatch
   (cursor actually moves), and button LED feedback.
 - **`fake_launchpad_hotplug.c` / `verify_launchpad_hotplug.py`** -
-  connects *after* `musiceditor` has already started, exercising the
+  connects *after* `synth` has already started, exercising the
   ALSA announce-port hotplug path instead of the startup-time scan.
 - **`fake_launchpad_device.c`** - the general-purpose simulator:
   argv is `<client-name-suffix> <number-of-octave-up-presses>`, so two
