@@ -57,7 +57,14 @@ static inline ncintype_e to_ncintype(InputEvent::Kind kind) {
 }
 
 static inline ncinput to_ncinput(const InputEvent & input) {
-  ncinput ni = { .id = static_cast<uint32_t>(input.getId()), .y = input.getY(), .x = input.getX(), .utf8 = { 0, 0, 0, 0, 0 }, .alt = input.hasAlt(), .shift = input.hasShift(), .ctrl = input.hasCtrl(), .evtype = to_ncintype(input.getKind()), .modifiers = static_cast<uint32_t>((input.hasAlt() ? NCKEY_MOD_ALT : 0) | (input.hasCtrl() ? NCKEY_MOD_CTRL : 0) | (input.hasShift() ? NCKEY_MOD_SHIFT : 0) | (input.hasMeta() ? NCKEY_MOD_META : 0)), .ypx = -1, .xpx = -1, .eff_text = { static_cast<uint32_t>(input.getId()), 0, 0, 0 } };
+  ncinput ni = { .id = static_cast<uint32_t>(input.getId()), .y = input.getY(), .x = input.getX(), .utf8 = { 0, 0, 0, 0, 0 }, .alt = input.hasAlt(), .shift = input.hasShift(), .ctrl = input.hasCtrl(), .evtype = to_ncintype(input.getKind()), .modifiers = static_cast<uint32_t>((input.hasAlt() ? NCKEY_MOD_ALT : 0) | (input.hasCtrl() ? NCKEY_MOD_CTRL : 0) | (input.hasShift() ? NCKEY_MOD_SHIFT : 0) | (input.hasMeta() ? NCKEY_MOD_META : 0)), .ypx = -1, .xpx = -1 };
+  // eff_text was added in notcurses 3.0.10 - Ubuntu 24.04's packaged
+  // 3.0.7 (what CI builds against) predates it, so this field can't be
+  // set unconditionally; NCINPUT_MAX_EFF_TEXT_CODEPOINTS, defined right
+  // next to it, doubles as its own feature-test macro.
+#ifdef NCINPUT_MAX_EFF_TEXT_CODEPOINTS
+  ni.eff_text[0] = static_cast<uint32_t>(input.getId());
+#endif
   return ni;
 }
 
