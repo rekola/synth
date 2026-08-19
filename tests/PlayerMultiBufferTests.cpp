@@ -10,6 +10,9 @@
 #include "../src/ambisonic/Mixer.h"
 #include "../src/ambisonic/ChannelConfiguration.h"
 #include "../src/audio/AudioBuffer.h"
+#include "../src/Controller.h"
+#include "../src/playback/Player.h"
+#include "../src/playback/PlaybackControlEvent.h"
 
 #include <algorithm>
 #include <cmath>
@@ -129,4 +132,45 @@ TEST(fresh_songstate_has_no_track_state_until_getstate_or_a_render_builds_it) {
   CHECK(state.getChildByInternalId(track.getInternalId()) == nullptr);
   track.getState(state); // the fix - Player::stateFor() calls this for every track eagerly
   CHECK(state.getChildByInternalId(track.getInternalId()) != nullptr);
+}
+
+// Row navigation while stopped (SET_POSITION/MOVE_POSITION) must not give
+// a buffer its own permanent, forever-rendered live SongState just from
+// being scrolled through - see Player.h's pending_positions_ comment.
+TEST(set_position_on_a_never_sounded_buffer_creates_no_live_state) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto buffer_name = controller.getActiveBufferName();
+
+  Player player(config, &controller);
+  PlaybackControlEvent set_pos(PlaybackControlEvent::SET_POSITION, buffer_name, 40, 0);
+  player.handlePlaybackControlEvent(set_pos);
+
+  CHECK(player.getLiveStatePosition(buffer_name) == -1);
+}
+
+// A row navigated to before the buffer had any live state must still be
+// honored once something actually makes it sound, not silently dropped
+// back to row 0.
+TEST(a_pending_position_is_applied_once_the_buffer_actually_makes_sound) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto buffer_name = controller.getActiveBufferName();
+
+  auto & song = controller.getSong();
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+
+  Player player(config, &controller);
+
+  PlaybackControlEvent set_pos(PlaybackControlEvent::SET_POSITION, buffer_name, 40, 0);
+  player.handlePlaybackControlEvent(set_pos);
+  CHECK(player.getLiveStatePosition(buffer_name) == -1);
+
+  PlaybackControlEvent play_note(PlaybackControlEvent::PLAY_NOTE, buffer_name, track.getInternalId(), 0, 60, 100);
+  player.handlePlaybackControlEvent(play_note);
+
+  CHECK(player.getLiveStatePosition(buffer_name) == 40);
 }

@@ -66,6 +66,18 @@ Player::stateFor(const string & name, const Song & song) {
   }
   for (auto * track : track_snapshot) track->getState(*state);
 
+  // Row navigation while this buffer was still stateless (see the
+  // MOVE_POSITION/SET_POSITION cases in handlePlaybackControlEvent()) left
+  // its target row parked here instead of forcing a SongState into
+  // existence just to remember it - apply it now that one genuinely
+  // exists, so a buffer that's never made a sound yet still starts
+  // playback from wherever the cursor was left, not row 0.
+  auto pending_it = pending_positions_.find(name);
+  if (pending_it != pending_positions_.end()) {
+    state->setPosition(pending_it->second);
+    pending_positions_.erase(pending_it);
+  }
+
   auto & ref = *state;
   live_states_.emplace(name, std::move(state));
   return ref;
@@ -86,8 +98,11 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     // Drops this buffer's own live SongState, if it had one - also stops
     // it automatically if it happened to be the playing buffer, simply by
     // no longer existing to render at all, rather than needing a separate
-    // STOP first.
+    // STOP first. Also drops any still-pending row (see
+    // pending_positions_'s own comment) - a killed buffer has no state
+    // left to ever apply it to.
     live_states_.erase(ev.getBufferName());
+    pending_positions_.erase(ev.getBufferName());
     if (playing_buffer_name_ == ev.getBufferName()) playing_buffer_name_.clear();
     return;
 
@@ -95,14 +110,74 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     {
       // Rekeys (rather than drops and lazily recreates) so a still-live
       // SongState's voices/release tail survive the rename intact, the
-      // same as any other buffer switch.
+      // same as any other buffer switch. A still-pending row (buffer never
+      // made a sound yet) needs the same rekeying, or it'd silently apply
+      // to nothing once a state is eventually created under the new name.
       auto it = live_states_.find(ev.getBufferName());
       if (it != live_states_.end()) {
 	auto node = live_states_.extract(it);
 	node.key() = ev.getNewBufferName();
 	live_states_.insert(std::move(node));
       }
+      auto pending_it = pending_positions_.find(ev.getBufferName());
+      if (pending_it != pending_positions_.end()) {
+	auto node = pending_positions_.extract(pending_it);
+	node.key() = ev.getNewBufferName();
+	pending_positions_.insert(std::move(node));
+      }
       if (playing_buffer_name_ == ev.getBufferName()) playing_buffer_name_ = ev.getNewBufferName();
+    }
+    return;
+
+  case PlaybackControlEvent::MOVE_POSITION:
+  case PlaybackControlEvent::SET_POSITION:
+    {
+      // Deliberately never goes through stateFor() (unlike every other
+      // event type below) - row navigation while stopped (see
+      // PatternEditor's "Row navigation while stopped" comment) fires on
+      // essentially every cursor keystroke in the pattern editor, for
+      // whichever buffer is currently active, played or not. Letting that
+      // lazily construct (and thus permanently register into
+      // live_states_, rendered every block forever - see live_states_'s
+      // own comment) a live SongState for a buffer that's never actually
+      // made a sound would give every merely-scrolled-through buffer in a
+      // session its own always-on send-bus processing - real waste on the
+      // audio thread, and the opposite of the per-buffer editing/
+      // playback-state plan's own stated intent. If this buffer already
+      // has a live SongState (it's actually made sound before), update
+      // its position directly, same as always; otherwise just remember
+      // the target row in pending_positions_ - stateFor() applies it the
+      // moment some later, genuinely sound-producing event actually
+      // constructs the state.
+      auto song_ptr = controller_->getSongByName(ev.getBufferName());
+      if (!song_ptr) return;
+      auto & song = *song_ptr;
+
+      auto it = live_states_.find(ev.getBufferName());
+      int base;
+      if (it != live_states_.end()) {
+	base = it->second->getAbsolutePosition();
+      } else {
+	auto pending_it = pending_positions_.find(ev.getBufferName());
+	base = pending_it != pending_positions_.end() ? pending_it->second : 0;
+      }
+
+      // Mirrors Controller::moveEditPosition()/setEditPosition()'s own
+      // decision on the UI-thread side - both derive the same result
+      // independently from the same (unclamped) delta_rows/absolute_row
+      // rather than one side trusting a value computed by the other
+      // across the thread boundary. parameter2 carries whether a
+      // pattern-editor selection was open there (clamp to the current
+      // pattern, via clampRowToCurrentPattern()) or not (cross pattern
+      // boundaries freely - setPosition() already floors at 0, and
+      // there's no upper bound either way, same as real playback's own
+      // run-off-the-end).
+      int new_pos = ev.getType() == PlaybackControlEvent::MOVE_POSITION ?
+	(ev.getParameter2() ? song.clampRowToCurrentPattern(base, base + ev.getParameter1()) : base + ev.getParameter1()) :
+	(ev.getParameter2() ? song.clampRowToCurrentPattern(base, ev.getParameter1()) : ev.getParameter1());
+
+      if (it != live_states_.end()) it->second->setPosition(new_pos);
+      else pending_positions_[ev.getBufferName()] = new_pos;
     }
     return;
 
@@ -208,31 +283,6 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     if (playing_buffer_name_ == ev.getBufferName()) playing_buffer_name_.clear();
     state.setIsPlaying(false);
     state.notePlaybackStopped(); // snapshot for resyncPlayheadAfterStop() above, next PLAY
-    break;
-
-  case PlaybackControlEvent::MOVE_POSITION:
-    // Mirrors Controller::moveEditPosition()'s own decision on the
-    // UI-thread side - both derive the same result independently from the
-    // same (unclamped) delta_rows rather than one side trusting a value
-    // computed by the other across the thread boundary. parameter2 carries
-    // whether a pattern-editor selection was open there (clamp to the
-    // current pattern, via clampRowToCurrentPattern()) or not (cross
-    // pattern boundaries freely - setPosition() already floors at 0, and
-    // there's no upper bound either way, same as real playback's own
-    // run-off-the-end). Only ever reaches here while stopped (see
-    // PatternEditor's "Row navigation while stopped" comment); real
-    // playback's row-by-row advance goes through SongState::renderBlock()'s
-    // own movePosition()/jumpToPatternBreak() calls, never this event.
-    state.setPosition(ev.getParameter2() ?
-      song.clampRowToCurrentPattern(state.getAbsolutePosition(), state.getAbsolutePosition() + ev.getParameter1()) :
-      state.getAbsolutePosition() + ev.getParameter1());
-    break;
-
-  case PlaybackControlEvent::SET_POSITION:
-    // See MOVE_POSITION just above - same reasoning, mirroring Controller::
-    // setEditPosition().
-    state.setPosition(ev.getParameter2() ?
-      song.clampRowToCurrentPattern(state.getAbsolutePosition(), ev.getParameter1()) : ev.getParameter1());
     break;
 
   case PlaybackControlEvent::CLEAR_VOICES:
