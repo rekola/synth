@@ -3,6 +3,7 @@
 #include "../src/launchpad/LaunchpadLayout.h"
 
 #include <algorithm>
+#include <map>
 #include <set>
 #include <vector>
 
@@ -149,9 +150,11 @@ TEST(compute_consonance_levels_reaches_full_coverage_for_every_supported_edo) {
 
 TEST(compute_consonance_levels_max_depth_matches_worked_table) {
   // Confirmed numerically - depth stays bounded (4-7) across every
-  // supported EDO. Only depths 3-4 are ever shown as distinct hues
-  // (LaunchpadManager's consonanceColor() flattens 5+ to one flat gray),
-  // so this is mainly a termination/coverage regression guard.
+  // supported EDO. Only depths 3-4 get their own distinguishable hue
+  // shade (LaunchpadManager's consonanceColor() shares one saturation
+  // across depth 4+ rather than continuing to differentiate by shade -
+  // every depth still keeps a real family hue, none are flattened to
+  // gray), so this is mainly a termination/coverage regression guard.
   struct { int edo_steps, expected_max_depth; } cases[] = {
     {12, 4}, {19, 5}, {31, 6}, {53, 7},
   };
@@ -168,13 +171,101 @@ TEST(compute_consonance_levels_12edo_ties_resolve_via_fifth_priority) {
   // 12-EDO is coarse enough that pitch classes 3 and 9 are reachable via
   // both a fifth-descended and a fourth-descended span at the same depth -
   // resolved by processing order (fifth-descended spans split first), not
-  // a bug to work around. Both land at depth 3, deterministically.
+  // a bug to work around. Both land at depth 3, deterministically. This is
+  // a distinct phenomenon from the seconds-based ENHARMONIC overlay below
+  // (neither 3 nor 9 is the seconds collision, pitch class 2) - included
+  // here as a regression guard that the overlay pass's TONIC/FOURTH/FIFTH
+  // exclusion doesn't leak into unrelated RECURSIVE pitch classes.
   auto basis = computeBasis(12);
   auto levels = computeConsonanceLevels(basis, 12);
   CHECK(levels[3].tier == PadTier::RECURSIVE);
   CHECK(levels[3].depth == 3);
   CHECK(levels[9].tier == PadTier::RECURSIVE);
   CHECK(levels[9].depth == 3);
+}
+
+TEST(compute_consonance_levels_grades_enharmonic_blend_via_mediant_recursion) {
+  // Hand-verified (Python) against the mediant-splitting recursion
+  // collectMediantCollisions() implements: walk the tree down from the
+  // octave until each EDO's own resolution runs out (self-terminating -
+  // see its own comment), mirror every low-half finding across the
+  // octave, and accumulate 1/2^(depth-2) per hit at each pitch class
+  // (a pitch class is often hit more than once, most of all near unison,
+  // where every branch of the tree eventually converges), then normalize
+  // against the EDO's own highest total. That highest-scoring pitch class
+  // is always the near-unison one (pc 1, or its octave mirror) - many
+  // independent, ever-finer colliding ratio pairs outweigh a shallower
+  // pitch class hit only once or twice, which is deliberate: a note under
+  // pressure from many directions reads as more contested than one with a
+  // single, simple ambiguity. Every other pitch class must stay at 0 -
+  // that's the "no pitch class quietly inherits a stray blend" half of
+  // the regression guard.
+  struct Case { int edo_steps; vector<pair<int, float>> expected_blend; };
+  Case cases[] = {
+    {12, {{1, 1.0f}, {2, 0.32f}, {10, 0.32f}, {11, 1.0f}}},
+    {19, {{1, 1.0f}, {2, 0.4f}, {3, 0.16f}, {4, 0.32f}, {15, 0.32f}, {16, 0.16f}, {17, 0.4f}, {18, 1.0f}}},
+    {31, {{1, 1.0f}, {2, 0.5f}, {3, 0.25f}, {4, 1.0f / 6.0f}, {5, 1.0f / 6.0f},
+          {26, 1.0f / 6.0f}, {27, 1.0f / 6.0f}, {28, 0.25f}, {29, 0.5f}, {30, 1.0f}}},
+    {53, {{1, 1.0f}, {2, 0.36f}, {3, 0.32f}, {4, 0.16f}, {5, 0.16f}, {6, 0.16f}, {7, 0.16f},
+          {46, 0.16f}, {47, 0.16f}, {48, 0.16f}, {49, 0.16f}, {50, 0.32f}, {51, 0.36f}, {52, 1.0f}}},
+  };
+  for (auto & c : cases) {
+    auto basis = computeBasis(c.edo_steps);
+    auto levels = computeConsonanceLevels(basis, c.edo_steps);
+    map<int, float> expected(c.expected_blend.begin(), c.expected_blend.end());
+    for (int pc = 0; pc < c.edo_steps; pc++) {
+      auto it = expected.find(pc);
+      auto expected_blend = it == expected.end() ? 0.0f : it->second;
+      CHECK_NEAR(levels[static_cast<size_t>(pc)].enharmonic_blend, expected_blend, 1e-3f);
+    }
+  }
+}
+
+TEST(compute_consonance_levels_enharmonic_depth_marks_the_shallowest_colliding_ratio_pair) {
+  // Hand-verified (Python) alongside the enharmonic_blend table above -
+  // enharmonic_depth is the same per-pitch-class minimum this function
+  // internally tracks before normalizing it into enharmonic_blend, so
+  // every pitch class with a nonzero blend must have a nonzero depth
+  // here too, and vice versa. D (12/19-EDO's pitch class 2, 31-EDO's
+  // pitch class 5) always lands at depth 3 - a third's own immediate
+  // split, the shallowest depth that actually occurs for every EDO this
+  // engine supports except 19-EDO, where splitting the fourth itself
+  // (8/7 vs 7/6) reaches depth 2, one level shallower still.
+  struct Case { int edo_steps; vector<pair<int, int>> expected_depth; };
+  Case cases[] = {
+    {12, {{1, 3}, {2, 3}, {10, 3}, {11, 3}}},
+    {19, {{1, 4}, {2, 3}, {3, 3}, {4, 2}, {15, 2}, {16, 3}, {17, 3}, {18, 4}}},
+    {31, {{1, 4}, {2, 4}, {3, 3}, {4, 3}, {5, 3}, {26, 3}, {27, 3}, {28, 3}, {29, 4}, {30, 4}}},
+    {53, {{1, 5}, {2, 5}, {3, 4}, {4, 4}, {5, 3}, {6, 3}, {7, 3},
+          {46, 3}, {47, 3}, {48, 3}, {49, 4}, {50, 4}, {51, 5}, {52, 5}}},
+  };
+  for (auto & c : cases) {
+    auto basis = computeBasis(c.edo_steps);
+    auto levels = computeConsonanceLevels(basis, c.edo_steps);
+    map<int, int> expected(c.expected_depth.begin(), c.expected_depth.end());
+    for (int pc = 0; pc < c.edo_steps; pc++) {
+      auto it = expected.find(pc);
+      auto expected_depth = it == expected.end() ? 0 : it->second;
+      CHECK(levels[static_cast<size_t>(pc)].enharmonic_depth == expected_depth);
+      CHECK((levels[static_cast<size_t>(pc)].enharmonic_blend > 0.0f) == (expected_depth != 0));
+    }
+  }
+}
+
+TEST(compute_consonance_levels_31edo_c_double_sharp_is_enharmonic_but_less_than_the_near_unison_worst_case) {
+  // The specific worked example that prompted collectMediantCollisions()'s
+  // mediant recursion to go one level deeper than the whole-tone case:
+  // splitting the minor third (6/5) into 12/11 * 11/10 - both land on
+  // pitch class 4, the same pitch class the codebase's own depth-4 hue
+  // recursion comment already calls "C-double-sharp". It's hit only once,
+  // by a single shallow (depth-3) collision, so it reads as clearly
+  // enharmonic but well below the near-unison pitch class (1, and its
+  // mirror 30) that many independent, deeper collisions all also land on
+  // - see the mediant_recursion test above for the exact expected values.
+  auto basis = computeBasis(31);
+  auto levels = computeConsonanceLevels(basis, 31);
+  CHECK_NEAR(levels[4].enharmonic_blend, 1.0f / 6.0f, 1e-4f);
+  CHECK(levels[4].enharmonic_blend < levels[1].enharmonic_blend);
 }
 
 TEST(classify_pad_looks_up_the_precomputed_table_by_pitch_class) {

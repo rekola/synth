@@ -223,34 +223,55 @@ namespace {
   // LaunchpadLayout's kFourthFifthHue comment), slightly desaturated
   // relative to tonic (a touch less vivid, still clearly prominent).
   constexpr float kConsonanceFourthFifthSaturation = 0.8f;
-  // Only depths 3-4 (RECURSIVE tier) get their own distinguishable hue -
-  // depth 3 ("somewhat prominent still") at higher saturation, depth 4
-  // clearly more muted (also given a much wider hue separation from depth
-  // 3 than the drift's own step size would otherwise give - see
-  // LaunchpadLayout's kDepth3HueOffset/kDepth4HueOffset comment - closely
-  // spaced hues within the same family were hard to tell apart on real
-  // hardware (e.g. A and B, both major-family in the key of C 31-EDO,
-  // looked nearly identical at the drift's default step size). Depth 5+
-  // is capped to one flat, deliberately unprominent gray (achromatic -
-  // saturation 0, hue irrelevant) rather than continuing to differentiate
-  // ever-closer hues.
+  // Depth 3 (RECURSIVE tier) is "somewhat prominent still", at higher
+  // saturation; depth 4+ shares one more muted saturation rather than
+  // continuing to differentiate by shade - every pitch class still gets
+  // its own real family hue at every depth (LaunchpadLayout's hue drift
+  // never stops, see its own kDepth3HueOffset/kDepth4HueOffset comment),
+  // it's only saturation that stops distinguishing shades past depth 4.
   constexpr float kConsonanceDepth3Saturation = 0.85f;
-  constexpr float kConsonanceDepth4Saturation = 0.5f;
-  constexpr int kConsonanceMaxDistinguishableDepth = 4;
+  constexpr float kConsonanceDepth4PlusSaturation = 0.5f;
+
+  // ENHARMONIC pads (LaunchpadLayout's enharmonic_blend > 0) are
+  // achromatic (or nearly so) rather than a family hue, so they read as a
+  // single, unmistakable "not cleanly major or minor" category rather
+  // than a shade that has to compete for attention with the RECURSIVE
+  // hue drift's own blue/violet/magenta band - but split into two shades
+  // by enharmonic_depth (see LaunchpadLayout's own comment on that
+  // field), not one flat grey for every strength of collision. Depth <=
+  // kConsonanceEnharmonicShallowMaxDepth - a structurally fundamental
+  // collision, e.g. a third's own immediate split (this is "D"'s own
+  // level in every EDO that has any collision at all) - gets a
+  // deliberately muted, barely-there green instead of plain grey, so
+  // that set is still visually distinguishable from a pitch class only
+  // implicated via many/deeper ratio pileups (plain grey). Saturation is
+  // kept low specifically because green is not: real Launchpad X hardware
+  // reads green LEDs as much more prominent than blue/violet/grey ones
+  // regardless of the saturation value sent (see this file's other
+  // green-avoidance comments) - not yet confirmed how low this specific
+  // saturation needs to go to actually read as "muted" rather than a
+  // fully separate hue category in its own right.
+  constexpr float kConsonanceEnharmonicShallowHue = 120.0f; // green
+  constexpr float kConsonanceEnharmonicShallowSaturation = 0.25f;
+  constexpr int kConsonanceEnharmonicShallowMaxDepth = 3;
 
   Rgb consonanceColor(const LaunchpadLayout::PadClassification & classification) {
+    if (classification.enharmonic_blend > 0.0f) {
+      if (classification.enharmonic_depth <= kConsonanceEnharmonicShallowMaxDepth) {
+        return hslToRgb({kConsonanceEnharmonicShallowHue, kConsonanceEnharmonicShallowSaturation, 0.5f});
+      }
+      return hslToRgb({0.0f, 0.0f, 0.5f}); // grey; padColor() overrides lightness regardless
+    }
+    Hsl hsl;
     if (classification.tier == LaunchpadLayout::PadTier::TONIC) {
-      return hslToRgb({classification.hue, kConsonanceTonicSaturation, 0.5f});
+      hsl = {classification.hue, kConsonanceTonicSaturation, 0.5f};
+    } else if (classification.tier == LaunchpadLayout::PadTier::FOURTH || classification.tier == LaunchpadLayout::PadTier::FIFTH) {
+      hsl = {classification.hue, kConsonanceFourthFifthSaturation, 0.5f};
+    } else { // RECURSIVE.
+      auto saturation = classification.depth <= 3 ? kConsonanceDepth3Saturation : kConsonanceDepth4PlusSaturation;
+      hsl = {classification.hue, saturation, 0.5f};
     }
-    if (classification.tier == LaunchpadLayout::PadTier::FOURTH || classification.tier == LaunchpadLayout::PadTier::FIFTH) {
-      return hslToRgb({classification.hue, kConsonanceFourthFifthSaturation, 0.5f});
-    }
-    // RECURSIVE.
-    if (classification.depth > kConsonanceMaxDistinguishableDepth) {
-      return hslToRgb({0.0f, 0.0f, 0.5f}); // flat gray catch-all, depth 5+
-    }
-    auto saturation = classification.depth <= 3 ? kConsonanceDepth3Saturation : kConsonanceDepth4Saturation;
-    return hslToRgb({classification.hue, saturation, 0.5f});
+    return hslToRgb(hsl);
   }
 
   // The free-drumming layout's per-family base color - shared by the

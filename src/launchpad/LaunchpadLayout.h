@@ -50,12 +50,24 @@ namespace LaunchpadLayout {
   // A pad's position in the consonance hierarchy: which tier it belongs
   // to, its hue (degrees, meaningful for every tier - TONIC/FOURTH/FIFTH
   // get fixed hues, RECURSIVE pads get the hue computed by the splitting
-  // recursion), and its depth (1=TONIC, 2=FOURTH/FIFTH, 3+=RECURSIVE - how
-  // many consonance-splits deep this pitch class was first reached).
+  // recursion), its depth (1=TONIC, 2=FOURTH/FIFTH, 3+=RECURSIVE - how
+  // many consonance-splits deep this pitch class was first reached), and
+  // two enharmonic fields, both 0 unless computeConsonanceLevels()'s
+  // overlay pass found a genuine collision here (always the case for
+  // TONIC/FOURTH/FIFTH - family doesn't apply to them): enharmonic_blend,
+  // how much this pitch class should read as neither family (0 = cleanly
+  // major/minor, 1 = maximally ambiguous), and enharmonic_depth, the
+  // shallowest mediant-recursion depth any colliding ratio pair was found
+  // at (see collectMediantCollisions()) - a low value (e.g. a third's own
+  // immediate split, the shallowest that actually occurs) marks a
+  // structurally fundamental collision, distinct from a pitch class only
+  // implicated via many/deeper ratio pileups.
   struct PadClassification {
     PadTier tier = PadTier::RECURSIVE;
     float hue = 0.0f;
     int depth = 0;
+    float enharmonic_blend = 0.0f;
+    int enharmonic_depth = 0;
   };
 
   // Computes every pitch class's consonance classification for an N-step
@@ -78,6 +90,35 @@ namespace LaunchpadLayout {
   // basis.degenerate themselves first and use a dedicated fallback color
   // instead (there's no meaningful consonance structure once the layout
   // has fallen back to a straight chromatic run).
+  //
+  // After the recursion above settles every pitch class' tier/hue/depth,
+  // a final overlay pass looks for genuine enharmonic collisions and
+  // fills in enharmonic_blend - the tuning can't actually keep two
+  // distinct, independently-real JI ratios apart at that pitch class, so
+  // coloring the pad as belonging to just one family (major or minor)
+  // would be a false precision the EDO doesn't have. This isn't a fixed,
+  // hand-picked list of ratio pairs to check (a coarser EDO needs fewer,
+  // a finer one keeps finding more the deeper you look - 12-EDO's whole
+  // tone collision, 9/8 vs 10/9, generalizes one level further into
+  // 31-EDO's minor-third split, 12/11 vs 11/10, both landing on
+  // "C-double-sharp") - it's the same mediant-splitting construction the
+  // recursion above already uses once, at depth 3 (fifth = minor_third *
+  // major_third), applied again to whatever it just produced, as deep as
+  // each EDO's own step resolution can still tell two results apart (see
+  // the implementation for the exact termination rule). A pitch class
+  // often collides more than once, at various depths - every hit adds to
+  // its score (deeper/more complex ratio pairs count for less per hit,
+  // but a pitch class near unison typically collects many of them, from
+  // every branch of the mediant tree eventually shrinking there), and
+  // enharmonic_blend is that total normalized against the EDO's own
+  // single worst pitch class, so it reads as "how bad is this, relative
+  // to the worst this tuning actually has" rather than a fixed cross-EDO
+  // scale. This is also why every pitch class gets a real family color
+  // and none are ever flattened to an achromatic "too deep to tell" gray
+  // the way RECURSIVE depth used to be capped: enharmonic_blend carries
+  // that information continuously instead of a hard depth cutoff
+  // throwing it away. TONIC/FOURTH/FIFTH pitch classes are left alone
+  // (family doesn't apply to them).
   std::vector<PadClassification> computeConsonanceLevels(const Basis & basis, int edo_steps);
 
   // Looks up a pad's consonance classification: resolves its pitch class

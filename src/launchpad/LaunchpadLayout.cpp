@@ -1,5 +1,6 @@
 #include "LaunchpadLayout.h"
 
+#include <algorithm>
 #include <cmath>
 
 using namespace std;
@@ -10,16 +11,14 @@ namespace {
   // Starting points for the hue tree - tunable, not load-bearing for pitch
   // classification (only the LED-coloring result). TONIC and FOURTH/FIFTH
   // are fixed, prominent pop-out hues (yellow-leaning-red, amber-leaning-
-  // red) - confirmed against real Launchpad X hardware that green LEDs
-  // read as much brighter/more prominent than blue or purple ones
-  // regardless of the saturation value sent, so both of this pair are
-  // kept away from green. The RECURSIVE-tier hue drift is confined to a
-  // separate blue/violet/magenta band (see kRecursiveBaseHue below) that
-  // never reaches anywhere near green - LaunchpadManager's
-  // consonanceColor() additionally caps how deep this drift is allowed to
-  // visibly differentiate (depth 5+ all render as one flat, deliberately
-  // unprominent color - see its own comment) since even within blue/
-  // violet, closely-spaced hues were hard to tell apart on real hardware.
+  // red); RECURSIVE stays in a separate blue/violet band (kRecursiveBaseHue
+  // below). Both choices are confirmed against real Launchpad X hardware:
+  // green LEDs read as much brighter/more prominent than blue or purple
+  // ones regardless of the saturation value sent, so every hue here is kept
+  // clear of green (~90-160) - including *the short way around the wheel*,
+  // where a hue near 360/0 can sit close to a low hue value like
+  // kFourthHue/kFifthHue even though a naive linear reading of the two
+  // numbers looks far apart.
   // FOURTH and FIFTH get their own close-but-distinct hues (a small split
   // around the same amber center, same spirit as kDepth3HueOffset below) -
   // a single shared hue made the two tiers indistinguishable at a glance,
@@ -29,26 +28,74 @@ namespace {
   constexpr float kFourthFifthHueOffset = 6.0f;
   constexpr float kFourthHue = kFourthFifthCenterHue - kFourthFifthHueOffset;
   constexpr float kFifthHue = kFourthFifthCenterHue + kFourthFifthHueOffset;
-  // Center of the RECURSIVE-tier hue drift - blue/violet, as far from the
-  // amber/yellow prominent hues as this drift's range ever reaches (see
-  // kDepth3HueOffset/kDepth4HueOffset below).
-  constexpr float kRecursiveBaseHue = 270.0f;
-  // Depths 3 and 4 are the only two RECURSIVE depths that reach the
-  // device as distinct hues (consonanceColor() flattens depth 5+ to one
-  // flat gray) - fixed, deliberately asymmetric offsets rather than a
-  // geometric decay (which was tuned for smoothly-shrinking steps across
-  // many depths). Real-hardware testing tuned these in opposite
-  // directions: major/minor at the *same* depth (e.g. E vs. Eb, both
-  // depth 3) should read as close/related, so kDepth3HueOffset is small;
-  // depth 3 vs. depth 4 within the *same* family (e.g. A vs. B, both
-  // major) should read as clearly different depths, so kDepth4HueOffset
-  // is much larger than kDepth3HueOffset, not just a smaller geometric
-  // step beyond it. kRecursiveBaseHue +/- kDepth4HueOffset is [195,345],
-  // still comfortably inside blue/violet/magenta - clear of both green
-  // (~90-160, confirmed too prominent on this hardware regardless of
-  // saturation) and the warm tonic/fourth/fifth hues (~0-70).
-  constexpr float kDepth3HueOffset = 15.0f;
-  constexpr float kDepth4HueOffset = 75.0f;
+  // Center of the RECURSIVE-tier hue drift - nudged toward true blue (240)
+  // rather than sitting exactly between blue and magenta, so the
+  // minor-family side reads as recognizably blue rather than violet.
+  constexpr float kRecursiveBaseHue = 260.0f;
+  // Only depth 3 and depth 4+ ever reach the device as distinct hues
+  // (every depth from 4 on shares kDepth4HueOffset) - fixed, deliberately
+  // asymmetric offsets rather than a geometric decay. kDepth3HueOffset is
+  // small so major/minor at the *same* depth (e.g. E vs. Eb, both depth 3)
+  // read as close/related; kDepth4HueOffset is larger so depth 3 vs.
+  // depth 4+ within the *same* family (e.g. A# vs. G-double-sharp, both
+  // major) read as clearly different depths - but not so large that the
+  // major-family depth-4+ hue (kRecursiveBaseHue + kDepth4HueOffset)
+  // crosses into FOURTH/FIFTH's amber the short way around the wheel (310
+  // is ~62 degrees from kFourthHue, not the ~280 a naive linear reading of
+  // "310 vs ~20" suggests). kDepth3HueOffset stays well above 0, since
+  // collapsing it away would erase the major/minor distinction at depth 3
+  // altogether, not just make it subtle.
+  constexpr float kDepth3HueOffset = 8.0f;
+  constexpr float kDepth4HueOffset = 50.0f;
+
+  // One enharmonic-collision finding from collectMediantCollisions() below:
+  // pitch class `step` is reachable via two distinct, independently-real
+  // JI ratios that this EDO can't tell apart, first discovered `depth`
+  // mediant-splits in (see that function's own comment - shallower means
+  // a more fundamental, "louder" ambiguity).
+  struct MediantCollision { int step, depth; };
+
+  // Recursively walks the mediant-splitting tree of superparticular JI
+  // ratios (p:q with p-q==1) rooted at the octave (2:1) - the exact same
+  // construction computeConsonanceLevels() already uses once, to turn the
+  // fifth (3:2) into minor_third*major_third (6:5*5:4): doubling a
+  // ratio's numerator and denominator (2p:2q) and inserting their
+  // arithmetic mean (p+q) between them splits it into two more
+  // superparticular ratios, 2p:(p+q) and (p+q):2q, whose product
+  // recomposes the original. Run one level further, this reaches
+  // minor_third's own children, 12:11 and 11:10 - both independently real
+  // ("undecimal neutral second") ratios in their own right, not just an
+  // arithmetic byproduct, which is what makes it a genuine finding rather
+  // than noise when the two of them land on the same EDO step (31-EDO:
+  // "C-double-sharp", the case this function was written to catch).
+  // Every pitch class this reaches is measured from the tonic, so the
+  // recursion only ever explores the octave's lower half (ratios
+  // shrinking toward 1:1/unison as p,q grow) - the caller mirrors each
+  // finding across the octave's midpoint to cover the upper half
+  // (sixths, sevenths, ...) instead of exploring a second tree.
+  // Self-terminating and EDO-adaptive rather than a fixed depth or a
+  // fixed list of named ratio pairs to check: recursion stops once a
+  // ratio's own span is already narrower than a single EDO step, since
+  // past that point every further split is guaranteed to collide
+  // trivially - a coarser EDO simply runs out of resolution sooner than a
+  // finer one does, without needing to know in advance how deep to look.
+  // `depth` is the depth of `p:q` itself (root octave = 0); a collision
+  // found between its two children is recorded at depth+1.
+  void collectMediantCollisions(int p, int q, int depth, int edo_steps, vector<MediantCollision> & collisions) {
+    auto cents_steps = edo_steps * log2(static_cast<double>(p) / q);
+    if (cents_steps < 1.0) return; // no resolvable structure left below this
+    auto mediant = p + q;
+    auto step_of = [edo_steps](int a, int b) {
+      auto raw = static_cast<int>(lround(edo_steps * log2(static_cast<double>(a) / b)));
+      return ((raw % edo_steps) + edo_steps) % edo_steps;
+    };
+    auto child_depth = depth + 1;
+    auto lower_step = step_of(2 * p, mediant);
+    auto upper_step = step_of(mediant, 2 * q);
+    if (lower_step == upper_step) collisions.push_back({lower_step, child_depth});
+    collectMediantCollisions(2 * p, mediant, child_depth, edo_steps, collisions);
+    collectMediantCollisions(mediant, 2 * q, child_depth, edo_steps, collisions);
+  }
 }
 
 int edoSteps(Tuning tuning) {
@@ -173,6 +220,55 @@ computeConsonanceLevels(const Basis & basis, int edo_steps) {
       next_spans.push_back({mid, span.b, hue, span.is_major});
     }
     spans = move(next_spans);
+  }
+
+  // Enharmonic-collision overlay: the recursion above always picks a
+  // family for every pitch class, even where the EDO is too coarse to
+  // keep two distinct, independently-real JI ratios apart (e.g. 9/8 and
+  // 10/9 both rounding to the same step - "D" - in 12/19/31-EDO) - it
+  // just silently keeps whichever family's landmark got there first. Fill
+  // in enharmonic_blend for those pitch classes instead, so the coloring
+  // can show *how much* it isn't cleanly one family rather than silently
+  // keeping a false precision the tuning doesn't have.
+  // collectMediantCollisions() only explores the octave's lower half (see
+  // its own comment), so each finding is mirrored across the octave's
+  // midpoint to cover its upper-half counterpart too. A pitch class is
+  // often found more than once, at various depths (a coarse EDO's near-
+  // tonic region in particular - every branch of the mediant tree shrinks
+  // toward unison, so many independent, ever-finer JI ratio pairs all
+  // eventually collide there too). Every hit adds to that pitch class's
+  // score, weighted by depth: each level in costs half, mirroring how a
+  // mediant split roughly halves the remaining interval - so a handful of
+  // shallow (simple-ratio) collisions and a great many deep (complex-
+  // ratio) ones can land on comparable scores, both being real evidence
+  // the tuning is straining there. Scores are then normalized against the
+  // single highest-scoring pitch class in this EDO (always the near-
+  // unison region, where the mediant tree's many branches pile up densest
+  // - the tuning's own single worst spot), so enharmonic_blend reads as
+  // "how bad is this, relative to the worst case this EDO actually has"
+  // rather than on some fixed, cross-EDO absolute scale.
+  vector<MediantCollision> collisions;
+  collectMediantCollisions(2, 1, 0, edo_steps, collisions);
+  vector<float> score(static_cast<size_t>(edo_steps), 0.0f);
+  vector<int> min_depth(static_cast<size_t>(edo_steps), 0); // 0 = no collision found
+  auto add_score = [&](int pc, int depth) {
+    score[static_cast<size_t>(pc)] += 1.0f / exp2(static_cast<float>(depth - 2));
+    auto & slot = min_depth[static_cast<size_t>(pc)];
+    if (slot == 0 || depth < slot) slot = depth;
+  };
+  for (auto & collision : collisions) {
+    add_score(collision.step, collision.depth);
+    if (collision.step != 0) add_score(edo_steps - collision.step, collision.depth);
+  }
+  auto max_score = *max_element(score.begin(), score.end());
+  if (max_score > 0.0f) {
+    for (int pc = 0; pc < edo_steps; pc++) {
+      if (score[static_cast<size_t>(pc)] <= 0.0f) continue;
+      auto tier = result[static_cast<size_t>(pc)].tier;
+      if (tier == PadTier::TONIC || tier == PadTier::FOURTH || tier == PadTier::FIFTH) continue;
+      result[static_cast<size_t>(pc)].enharmonic_blend = score[static_cast<size_t>(pc)] / max_score;
+      result[static_cast<size_t>(pc)].enharmonic_depth = min_depth[static_cast<size_t>(pc)];
+    }
   }
 
   return result;
