@@ -121,19 +121,25 @@ Found 2026-07-11, not yet fixed.
   extending the arpeggiator's own resync approach to envelopes generally)
   and why neither was attempted as part of that work.
 
-- **`PatternEditor::renderHeading()` truncates track/instrument names by
-  raw byte offset** (`std::string::erase(byte_pos)`), not by character -
-  track names, instrument names, and SF2 preset names can all contain
-  multi-byte UTF-8 (this codebase's own note names already use non-ASCII
-  glyphs like 𝄪/𝄫/♮ elsewhere - see `Note.h`), and a byte-offset cut can
-  land mid-sequence, corrupting the trailing character (and potentially
-  the rest of the string, depending on the terminal's own recovery from
-  an invalid UTF-8 byte). Not yet fixed. Cutting by codepoint alone isn't
-  actually correct either - a grapheme cluster (an accent/combining mark,
-  a ZWJ emoji sequence, ...) can span several codepoints that must stay
-  together - so the real fix needs grapheme-cluster-aware truncation,
-  planned via `utf8proc` (not yet a dependency of this project), not a
-  hand-rolled codepoint counter.
+- **`Utf8::truncateToWidth()`/`Utf8::displayWidth()` (`src/util/Utf8.h`)
+  don't merge flag emoji or multi-emoji ZWJ sequences into a single
+  grapheme cluster**, so `PatternEditor::renderHeading()`'s track/
+  instrument-name truncation can split one of those between its own
+  codepoints rather than keeping it as one unit - narrower than the
+  byte-offset-corruption bug this module otherwise fixes (ordinary text,
+  including accented characters and non-BMP characters, is unaffected;
+  no codepoint is ever split, only a multi-codepoint cluster). Root
+  cause: libunistring's grapheme-break function is a plain pairwise
+  `uc_is_grapheme_break(a, b)` with no state beyond the two adjacent
+  codepoints, so it can't implement UAX #29's regional-indicator-pairing
+  or emoji-ZWJ-sequence-lookback rules, both of which need to look past
+  more than one pair (confirmed directly: `utf8proc`'s *stateful*
+  grapheme-break function, which does carry that extra state, merges
+  both cases correctly against the same input). Not fixed - accepted as
+  out of scope for now since track/instrument/SF2-preset names
+  realistically never contain a flag emoji or a ZWJ emoji sequence, and
+  switching to `utf8proc` would add a second, otherwise-unneeded Unicode
+  library to the dependency graph purely to cover that case.
 
 - **`<distortion type="bitcrush">` doesn't select bitcrush distortion** -
   `Distortion::loadParameters()`'s string check has a typo,

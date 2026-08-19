@@ -24,15 +24,20 @@ cmake --build build -j
 Produces `build/musiceditor`.
 
 Dependencies (Ubuntu): `libnotcurses-dev libnotcurses++-dev libfmt-dev
-libsndfile1-dev libasound2-dev` plus CMake and a C++17 compiler. The C++
-bindings (`ncpp/NotCurses.hh`, what `main.cpp`/`TerminalUI.cpp` include) ship
-in `libnotcurses++-dev`, a separate package `libnotcurses-dev` does not pull
-in as a dependency — both are required. FFT support (the live
-spectrum analyzer, MagLS binaural precomputation) is via vendored PocketFFT
-(`third_party/pocketfft/`) — no separate FFT library package needed.
-`libmysofa-dev` is optional (binaural ambisonic decoding, `SYNTH_ENABLE_BINAURAL`,
-auto-detected) — without it, `--ambisonic` still works via the cardioid
-stereo decoder fallback.
+libsndfile1-dev libasound2-dev libunistring-dev` plus CMake and a C++17
+compiler. The C++ bindings (`ncpp/NotCurses.hh`, what
+`main.cpp`/`TerminalUI.cpp` include) ship in `libnotcurses++-dev`, a
+separate package `libnotcurses-dev` does not pull in as a dependency —
+both are required. `libunistring-dev` backs `src/util/Utf8.h`'s
+grapheme-cluster-aware UTF-8 truncation/width helpers — its runtime half
+(`libunistring5`) is already pulled in transitively by `libnotcurses-dev`,
+but the headers/link package isn't, so it still needs installing
+explicitly. FFT support (the live spectrum analyzer, MagLS binaural
+precomputation) is via vendored PocketFFT (`third_party/pocketfft/`) — no
+separate FFT library package needed. `libmysofa-dev` is optional
+(binaural ambisonic decoding, `SYNTH_ENABLE_BINAURAL`, auto-detected) —
+without it, `--ambisonic` still works via the cardioid stereo decoder
+fallback.
 
 ## Run
 
@@ -333,7 +338,10 @@ SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
     `Keymap.h`/`CommandRegistry.h`).
   - `src/launchpad/` — Launchpad hardware I/O and layout.
   - `src/util/` — small, dependency-free helpers (`constants.h`,
-    `Logger.h`, …) used from everywhere.
+    `Logger.h`, …) used from everywhere. `Utf8.h`/`.cpp` is the one
+    exception to "dependency-free" (it wraps libunistring, keeping its
+    header out of `Utf8.h` itself) - still dependency-free of every other
+    synth module, which is the property call sites actually rely on.
 
   `src/effects/`, `src/bus/`, and `src/dsp/` (below) predate this split
   and already lived in their own directories before it; this list only

@@ -45,6 +45,7 @@ add_executable(synth_tests
 	TapeVoiceLifecycleTests.cpp
 	HashFieldTests.cpp
 	PlayerMultiBufferTests.cpp
+	Utf8Tests.cpp
 )
 
 target_link_libraries(synth_tests synth_engine)

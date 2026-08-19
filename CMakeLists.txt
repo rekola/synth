@@ -101,6 +101,7 @@ add_library(synth_engine STATIC
 	src/instruments/DrumRankTable.cpp
 	src/model/DrumMachineTrack.cpp
 	src/ambisonic/MixerFactory.cpp
+	src/util/Utf8.cpp
 )
 target_include_directories(synth_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 # Vendored code (third_party/) as a SYSTEM include path: headers reached
@@ -112,6 +113,27 @@ target_include_directories(synth_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_include_directories(synth_engine SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
 set_source_files_properties(third_party/tinyxml2/tinyxml2.cpp PROPERTIES COMPILE_OPTIONS "-w")
 target_link_libraries(synth_engine PUBLIC m sndfile fmt pthread)
+
+# libunistring backs src/util/Utf8.h's grapheme-cluster-aware UTF-8
+# truncation/width helpers (used by PatternEditor::renderHeading() to
+# truncate track/instrument names without corrupting a multi-byte
+# character or splitting a grapheme cluster - see docs/known_bugs.md's
+# history on this). Not optional the way libmysofa is: there's no
+# graceful fallback for "not UTF-8-aware" the way there is for binaural
+# vs. cardioid decoding, and its runtime half (libunistring5) is already
+# a hard dependency of notcurses itself (`apt-cache depends
+# libnotcurses-dev` lists it), so there's no real environment where this
+# project builds but libunistring is genuinely unavailable. No
+# pkg-config file ships with libunistring-dev on Ubuntu (confirmed), so
+# this uses the same find_library/find_path shape as libmysofa below
+# rather than find_package.
+find_library(UNISTRING_LIBRARY unistring)
+find_path(UNISTRING_INCLUDE_DIR unigbrk.h)
+if(NOT (UNISTRING_LIBRARY AND UNISTRING_INCLUDE_DIR))
+  message(FATAL_ERROR "libunistring not found (install libunistring-dev)")
+endif()
+target_include_directories(synth_engine PRIVATE ${UNISTRING_INCLUDE_DIR})
+target_link_libraries(synth_engine PUBLIC ${UNISTRING_LIBRARY})
 
 # Experimental, out-of-spec GM-family channel-pressure heuristic defaults
 # (SoundFont.cpp - injects a vibrato/filter-cutoff modulator for presets

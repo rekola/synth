@@ -14,6 +14,7 @@
 #include "../playback/LogEvent.h"
 #include "KeyChord.h"
 #include "PatternScroll.h"
+#include "../util/Utf8.h"
 
 #include <string>
 #include <algorithm>
@@ -1547,8 +1548,8 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  setBgColor(0xf0, 0x80, 0x10);
 
 	  // std::max(0, ...): a narrow enough column (actual_width < 3) would
-	  // otherwise make text_width negative, and name.erase() below would
-	  // then wrap it to a huge size_t and throw.
+	  // otherwise make text_width negative, and it's used below both as a
+	  // display-width budget and as a putstr() column offset.
 	  auto text_width = std::max(0, actual_width - 3);
 
 	  bool is_solo = false, is_muted = false;
@@ -1566,11 +1567,8 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    }
 	  }
 	  auto name = !track->getName().empty() ? track->getName() : (!track->getId().empty() ? "Trk " + track->getId() : format("Trk {:02d}", track->getInternalId()));
-	  // Byte-offset truncation, not UTF-8-aware - see docs/known_bugs.md.
-	  if (static_cast<int>(name.size()) > text_width) name.erase(static_cast<size_t>(text_width));
-	  else {
-	    while (static_cast<int>(name.size()) < text_width) name += ' ';
-	  }
+	  name = Utf8::truncateToWidth(name, text_width);
+	  name = Utf8::padToWidth(name, text_width);
 	  putstr(heading_height - 2 - level, current_pos, name);
 	  putstr(heading_height - 2 - level, current_pos + text_width + 2, "│");
 	  if (is_muted) setFgColor(0x00, 0x00, 0x00);
@@ -1584,19 +1582,15 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  setBgColor(styles.window_bg_color);
 	  	  
 	  auto instrument_name_width = std::max(0, actual_width - 1);
-	  // Same byte-offset truncation caveat as `name` above.
-	  if (static_cast<int>(instrument_name.size()) > instrument_name_width) instrument_name.erase(static_cast<size_t>(instrument_name_width));
+	  instrument_name = Utf8::truncateToWidth(instrument_name, instrument_name_width);
 	  putstr(heading_height - 2 - level + 1, current_pos, instrument_name);
 	} else {	  
 	  std::string name = track->getElementName();
 	  auto & track_info = info.getTrackInfo(track->getInternalId());
 	  auto element_name_width = std::max(0, actual_width - 4);
 
-	  // Same byte-offset truncation caveat as above.
-	  if (static_cast<int>(name.size()) > element_name_width) name.erase(static_cast<size_t>(element_name_width));
-	  else {
-	    while (static_cast<int>(name.size()) < element_name_width) name += ' ';
-	  }
+	  name = Utf8::truncateToWidth(name, element_name_width);
+	  name = Utf8::padToWidth(name, element_name_width);
 	  name += "│";
 
 	  setBgColor(0x50, 0x50, 0x60);

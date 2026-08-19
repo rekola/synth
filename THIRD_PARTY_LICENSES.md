@@ -100,3 +100,4 @@ at a summary level rather than full license text.
 | ALSA (libasound) | LGPL-2.1+ |
 | notcurses | Apache-2.0 / MIT |
 | libmysofa | BSD-3-Clause |
+| libunistring | LGPL-3+ / GPL-2+ |
