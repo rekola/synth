@@ -7,8 +7,10 @@ A Microtonal Synth: Tracker style music production system with microtonality.
 
 # Features
 
-- Microtonal (31-TET)
+- Microtonal (31-EDO)
+- Ambisonic Bus
 - Launchpad support
+- Emacs style keybindings
 
 # Principles:
 
