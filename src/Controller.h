@@ -10,7 +10,9 @@
 #include "ambisonic/MixerType.h"
 #include "bus/BusEffectRegistry.h"
 #include "ui/CommandRegistry.h"
+#include "util/constants.h"
 
+#include <algorithm>
 #include <functional>
 #include <map>
 #include <memory>
@@ -490,6 +492,23 @@ class Controller {
     return track_id;
   }
 
+  // The one global octave that drives computer-keyboard note entry
+  // (PatternEditor's toMidiNote() calls) and every connected Launchpad's
+  // own octave (relative to this, via LaunchpadManager's per-device
+  // offset - see LaunchpadLayout::clampOctave/clampOctaveOffset).
+  // Ephemeral editing-session state, like pending_command_track_ above -
+  // never serialized into the song.
+  int getGlobalOctave() const { return global_octave_; }
+  void setGlobalOctave(int octave) {
+    global_octave_ = std::clamp(octave, constants::MIN_OCTAVE, constants::MAX_OCTAVE);
+  }
+  // +/-1, same clamp as setGlobalOctave() above - deliberately not
+  // LaunchpadLayout::clampOctave() (identical arithmetic): Controller sits
+  // below src/launchpad/, which already depends on Controller, and this
+  // one-line clamp isn't worth introducing the reverse edge for.
+  void octaveUp() { setGlobalOctave(global_octave_ + 1); }
+  void octaveDown() { setGlobalOctave(global_octave_ - 1); }
+
   const InstrumentProvider & getInstrumentProvider() const { return instrument_provider; }
 
  private:
@@ -597,6 +616,9 @@ class Controller {
   // above - see receivePlaybackSnapshot()'s own comment for why.
   int local_position_edit_seq_ = 0;
   int recording_track_id = 0;
+  // See getGlobalOctave()'s own comment - deliberately global, not
+  // per-buffer, same as local_position_edit_seq_ above.
+  int global_octave_ = 4;
   // Controller's own named commands ("save-song", ...) - sendCommand()
   // tries this first, then command_fallback_; commandCompletions() reads
   // its prefix index the same way.

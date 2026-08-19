@@ -131,8 +131,7 @@ protected:
   // from its own column 0.
   GridPosition current_scroll_;
   int current_tempo = 0;
-  int current_keyboard_octave = 4;
-  
+
   int edit_step_size = 1, new_edit_step_size = 1;
   bool row_edited = false;
   int current_song_version = 0;

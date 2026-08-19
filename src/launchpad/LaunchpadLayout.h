@@ -146,9 +146,20 @@ namespace LaunchpadLayout {
   // color regardless of which row they physically sit in).
   PercussionFamily percussionFamilyForPad(int x, int y);
 
-  // Clamps a per-device Launchpad octave shift by delta (+1/-1) to [0, 9] -
-  // pure arithmetic shared by LaunchpadManager's octave-up/octave-down.
+  // Clamps an absolute octave shifted by delta (+1/-1) to
+  // [constants::MIN_OCTAVE, constants::MAX_OCTAVE] - pure arithmetic used
+  // both for Controller's own global octave (Controller::octaveUp()/
+  // octaveDown()) and, combined with a per-device offset, for
+  // LaunchpadManager::octave()'s resolved per-device octave.
   int clampOctave(int octave, int delta);
+
+  // Clamps a per-device octave *offset* (relative to whatever the global
+  // octave currently is, not an absolute octave itself) shifted by delta
+  // (+1/-1) to [-(MAX_OCTAVE-MIN_OCTAVE), MAX_OCTAVE-MIN_OCTAVE] - shared
+  // by LaunchpadManager's own octave-up/octave-down (the physical hardware
+  // buttons) and its per-model connect-time default nudge
+  // (defaultOctaveOffsetForModel()).
+  int clampOctaveOffset(int offset, int delta);
 
   // Advances a per-device track assignment by delta (+1/-1), clamped to
   // [0, num_tracks). current_or_unassigned == -1 means "not yet assigned

@@ -20,6 +20,7 @@ class InfoLine;
 class StatusLine;
 class PatternEditor;
 class HierarchyView;
+class SpinBox;
 class UIElement;
 class AudioAPI;
 class LaunchpadIO;
@@ -108,6 +109,12 @@ private:
 
   std::shared_ptr<InfoLine> info_line_;
   std::shared_ptr<PatternEditor> pattern_editor_;
+  // The global octave stepper - see SpinBox.h and Controller::
+  // getGlobalOctave(). Lives inline in the info bar's own row (see
+  // layout()), not windows_, since it's always-on and click-activatable
+  // like pattern_editor_ rather than togglable like a HierarchyView-style
+  // window.
+  std::shared_ptr<SpinBox> octave_control_;
   std::weak_ptr<UIElement> active_element_;
 
   // Set once at startup (see start()) - the Launchpad command-dispatch

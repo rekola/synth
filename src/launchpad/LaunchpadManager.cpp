@@ -415,19 +415,20 @@ LaunchpadManager::hasAnyActiveNotes(int device_id) const {
 int
 LaunchpadManager::octave(int device_id) const {
   auto * state = findDeviceState(device_id);
-  return state ? state->octave : 4;
+  auto offset = state ? state->octave_offset : 0;
+  return LaunchpadLayout::clampOctave(cached_global_octave_, offset);
 }
 
 void
 LaunchpadManager::octaveUp(int device_id) {
   auto & state = deviceState(device_id);
-  state.octave = LaunchpadLayout::clampOctave(state.octave, 1);
+  state.octave_offset = LaunchpadLayout::clampOctaveOffset(state.octave_offset, 1);
 }
 
 void
 LaunchpadManager::octaveDown(int device_id) {
   auto & state = deviceState(device_id);
-  state.octave = LaunchpadLayout::clampOctave(state.octave, -1);
+  state.octave_offset = LaunchpadLayout::clampOctaveOffset(state.octave_offset, -1);
 }
 
 int
@@ -1245,7 +1246,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
       // comment) - purely for consistency, since classifyPad's result is
       // invariant to a uniform octave shift of base_note anyway.
       auto tonic = state.key >= 0 ? ((state.key % edo_steps) + edo_steps) % edo_steps : 0;
-      auto base_note = tonic + (state.octave + 1) * edo_steps;
+      auto base_note = tonic + (octave(device_id) + 1) * edo_steps;
 
       // Computed once per refresh, not once per pad - computeConsonanceLevels
       // does the actual recursive work (see its own doc comment), classifyPad
@@ -1370,6 +1371,11 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
 void
 LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, const PlaybackInfo & playback_info, int fallback_track_index, Controller & controller) {
   if (!launchpad_io_) return;
+
+  // Mirrored once per frame, same as capture_enabled_ below - see
+  // cached_global_octave_'s own comment.
+  cached_global_octave_ = controller.getGlobalOctave();
+
   auto ready_ids = launchpad_io_->readySessionIds();
 
   // Prune cached state for devices no longer connected - session ids are
@@ -1452,15 +1458,15 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     // A device not already in devices_ is being seen for the first time
     // this session (freshly connected, or reconnected after having been
     // pruned above on an earlier disconnect) - deviceState() below is
-    // about to default-construct its DeviceState, octave included, so
-    // this is the one moment to apply defaultOctaveOffsetForModel()'s
-    // per-model starting point instead of leaving every device at the
-    // same default register.
+    // about to default-construct its DeviceState, octave_offset included
+    // (defaulting to 0, i.e. "exactly the global octave"), so this is the
+    // one moment to apply defaultOctaveOffsetForModel()'s per-model nudge
+    // instead of leaving every device at the same relative register.
     bool is_new_device = devices_.find(device_id) == devices_.end();
     auto & state = deviceState(device_id);
     if (is_new_device) {
       if (auto model = launchpad_io_->modelForSession(device_id)) {
-        state.octave = LaunchpadLayout::clampOctave(state.octave, defaultOctaveOffsetForModel(*model));
+        state.octave_offset = LaunchpadLayout::clampOctaveOffset(state.octave_offset, defaultOctaveOffsetForModel(*model));
       }
     }
 

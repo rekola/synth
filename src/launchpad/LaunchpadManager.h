@@ -50,7 +50,13 @@ class LaunchpadManager {
   void clearActiveNote(int device_id, int x, int y);
   bool hasAnyActiveNotes(int device_id) const;
 
+  // Resolved absolute octave: the global octave (Controller::
+  // getGlobalOctave(), cached once per refresh() - see
+  // cached_global_octave_) plus this device's own octave_offset, clamped
+  // to [constants::MIN_OCTAVE, constants::MAX_OCTAVE].
   int octave(int device_id) const;
+  // Adjust this device's own octave_offset by +/-1 - relative to the
+  // global octave, not an absolute octave shift.
   void octaveUp(int device_id);
   void octaveDown(int device_id);
 
@@ -293,7 +299,10 @@ class LaunchpadManager {
  private:
   struct DeviceState {
     int assigned_track_id = -1; // index into track_ids, or -1 = unassigned
-    int octave = 4;
+    // Relative to Controller::getGlobalOctave(), not an absolute octave -
+    // 0 means "follow the global octave exactly". See
+    // LaunchpadManager::octave()/cached_global_octave_.
+    int octave_offset = 0;
     std::map<std::pair<int, int>, ActiveNote> active_notes;
 
     // Inputs refreshLeds() needs to compute this device's colors.
@@ -548,6 +557,12 @@ class LaunchpadManager {
   // LED - keeps reading the per-device mirror unchanged, and every
   // connected Launchpad's Record Arm LED shows the same lit/unlit state.
   bool capture_enabled_ = false;
+
+  // Controller::getGlobalOctave(), mirrored here once per refresh() call
+  // (same pattern as capture_enabled_ above) rather than threading
+  // Controller into octave()/resolveNote()/refreshLeds(), none of which
+  // otherwise need it. See octave()'s own comment.
+  int cached_global_octave_ = 4;
 };
 
 #endif

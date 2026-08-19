@@ -1241,13 +1241,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       return true;
     }
   } else if (!input.hasMeta()) {
-    if (input.getId() == '[') {
-      if (current_keyboard_octave > 0) current_keyboard_octave--;
-      return true;
-    } else if (input.getId() == ']') {
-      if (current_keyboard_octave < 9) current_keyboard_octave++;
-      return true;
-    } else if (input.getId() == NCKEY_LEFT) {
+    if (input.getId() == NCKEY_LEFT) {
       if (new_cursor.isOnAnnotation()) {
 	// Back out of the annotation slot without touching track/col -
 	// they're already sitting on the last track's last column, exactly
@@ -1422,7 +1416,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	if (!is_off) {
 	  auto track = song.getTrackByInternalId(track_id);
 	  auto tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
-	  midi_note = input.toMidiNote(current_keyboard_octave, tuning);
+	  midi_note = input.toMidiNote(getController().getGlobalOctave(), tuning);
 	}
 
 	if (is_repeat && midi_note >= 0) return true; // already sounding - nothing to redo

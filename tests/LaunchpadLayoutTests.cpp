@@ -398,6 +398,14 @@ TEST(clamp_octave_shifts_within_bounds_and_clamps_at_the_edges) {
   CHECK(clampOctave(9, -1) == 8);
 }
 
+TEST(clamp_octave_offset_shifts_within_bounds_and_clamps_at_the_edges) {
+  CHECK(clampOctaveOffset(0, 1) == 1);
+  CHECK(clampOctaveOffset(0, -1) == -1);
+  CHECK(clampOctaveOffset(-9, -1) == -9); // already at the floor
+  CHECK(clampOctaveOffset(9, 1) == 9);    // already at the ceiling
+  CHECK(clampOctaveOffset(9, -1) == 8);
+}
+
 TEST(advance_track_index_steps_within_bounds_and_clamps_at_the_edges) {
   CHECK(advanceTrackIndex(2, 1, 5) == 3);
   CHECK(advanceTrackIndex(2, -1, 5) == 1);

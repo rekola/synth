@@ -7,6 +7,8 @@
 #include "StatusLine.h"
 #include "PatternEditor.h"
 #include "HierarchyView.h"
+#include "SpinBox.h"
+#include "UIColor.h"
 #include "../audio/AudioAPI.h"
 #include "../playback/Player.h"
 
@@ -26,10 +28,12 @@
 #include "../launchpad/LaunchpadManager.h"
 #include "../model/DrumMachineTrack.h"
 #include "../bus/BusEffectRegistry.h"
+#include "../util/constants.h"
 
 #include <fmt/core.h>
 #include <thread>
 #include <array>
+#include <algorithm>
 #include <cmath>
 #include <filesystem>
 
@@ -42,6 +46,14 @@ UI::initialize() {
   pattern_editor_ = make_shared<PatternEditor>(getPlane());
   info_line_ = make_shared<InfoLine>(getPlane());
   status_line_ = make_shared<StatusLine>(getPlane());
+  // Colors match InfoLine's own hardcoded gray-on-dark (InfoLine.h's
+  // constructor) - this widget sits inline in that same bar (see
+  // layout()), and must blend into it rather than showing up as a
+  // mismatched patch.
+  octave_control_ = make_shared<SpinBox>(getPlane(), "Octave:", constants::MIN_OCTAVE, constants::MAX_OCTAVE,
+    [this] { return getController().getGlobalOctave(); },
+    [this](int v) { getController().setGlobalOctave(v); },
+    UIColor(120, 120, 120), UIColor(30, 30, 30));
 
 #if 0
   windows_.push_back(make_shared<HierarchyView>(getPlane()));
@@ -135,6 +147,14 @@ UI::initialize() {
     bool playing = getController().togglePlaying();
     setStatus(playing ? "Playing" : "Stopped");
   });
+  // Global, not PatternEditor-owned (unlike before - see PatternEditor.cpp's
+  // own history) - both computer-keyboard note entry and every connected
+  // Launchpad's own octave read Controller::getGlobalOctave(), so these
+  // two keys should work regardless of which widget currently has focus,
+  // matching "toggle-playing"/Space just above. octave_control_'s own
+  // [-]/[+] buttons call the exact same Controller methods.
+  commands_.define("octave-up", [this]() { getController().octaveUp(); });
+  commands_.define("octave-down", [this]() { getController().octaveDown(); });
   commands_.define("save-song", [this]() {
     getController().sendCommand("save-song");
     setStatus("Saved " + getController().getActiveBufferName());
@@ -215,6 +235,8 @@ UI::initialize() {
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack(NCKEY_LEFT, false, false, false, false), "previous-buffer");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('b', false, false, false, false), "select-named-buffer");
   keymap_.bind(KeyChord::pack(' ', false, false, false, false), "toggle-playing");
+  keymap_.bind(KeyChord::pack('[', false, false, false, false), "octave-down");
+  keymap_.bind(KeyChord::pack(']', false, false, false, false), "octave-up");
 
   assertCommandBindingsValid();
 
@@ -331,6 +353,15 @@ UI::layout() {
   }
   pattern_editor_->resize(rows - 8, cols).move(6, 0);
   info_line_->resize(1, cols).move(rows - 2, 0);
+  // Inline in the info bar, right-aligned - a separate plane, created
+  // after info_line_ (UI::initialize()) so it z-orders above whatever
+  // info_line_'s own text/padding puts under it (see TerminalUI.cpp's
+  // menu_->raiseToTop() comment for this codebase's "later-created sits
+  // above" plane-stacking rule). If the info bar gets too full for this
+  // later, this is the one line to change to move it into a dedicated
+  // control bar row instead.
+  auto octave_width = octave_control_->preferredWidth();
+  octave_control_->resize(1, octave_width).move(rows - 2, std::max(0, cols - octave_width));
   status_line_->resize(1, cols - 1).move(rows - 1, 0);
 
   for (auto & window : windows_) {
@@ -348,6 +379,7 @@ UI::renderComponents(bool refresh) {
   }
 #endif
   render |= info_line_->render(styles_, refresh);
+  render |= octave_control_->render(styles_, refresh);
 
   if (launchpad_manager_) {
     auto & song = getController().getSong();
@@ -380,7 +412,7 @@ UI::offerInput(const InputEvent & input) {
   // annotation editor - see PatternEditor::isReaderActive()'s own comment)
   // may let a global keybinding (Space/toggle-playing, C-x C-c/quit, ...)
   // steal a keystroke meant for it.
-  if (!status_line_->isReaderActive() && !pattern_editor_->isReaderActive() && dispatchCommand(input)) return true;
+  if (!status_line_->isReaderActive() && !pattern_editor_->isReaderActive() && !octave_control_->isEditing() && dispatchCommand(input)) return true;
 
   if (input.getId() == NCKEY_RESIZE) {
     // notcurses_refresh() is what makes notcurses acknowledge the terminal's
@@ -396,6 +428,7 @@ UI::offerInput(const InputEvent & input) {
     // reset by an unrelated keypress, same as before this refactor.
     refresh();
   } else if (input.getId() == NCKEY_BUTTON1) {
+    auto previous_active_element = active_element_.lock();
     active_element_.reset();
 
     // status_line_ deliberately isn't a tryActivate() candidate: its own
@@ -414,6 +447,8 @@ UI::offerInput(const InputEvent & input) {
       activated = tryActivate(input.getY(), input.getX(), window) || activated;
     }
 
+    activated = tryActivate(input.getY(), input.getX(), octave_control_) || activated;
+
     // Fall back to the pattern editor - the default/main workspace - if the
     // click landed somewhere no widget claims (e.g. the FFT/heatmap/loudness
     // scope strip, or the dividers between them). Without this, active_element_
@@ -423,6 +458,16 @@ UI::offerInput(const InputEvent & input) {
     // silently no-op'd - including plain Up/Down arrow - until the user
     // happened to click directly back on the pattern editor.
     if (!activated) active_element_ = pattern_editor_;
+
+    // A click that moves focus away from the octave stepper while it's
+    // mid-edit discards the half-typed value rather than leaving it stuck
+    // showing a stale "selected" field forever - see SpinBox::
+    // cancelEditing()'s own comment. Not needed when the click lands back
+    // on octave_control_ itself (its own offerInput(), called below via
+    // active_element_, handles that click directly).
+    if (previous_active_element == octave_control_ && active_element_.lock() != octave_control_) {
+      octave_control_->cancelEditing();
+    }
   }
 
   if (!handled) {

@@ -39,6 +39,15 @@ namespace constants {
   // adjust - fixed, the same way the row itself is the only other unit of
   // pattern timing in this engine.
   constexpr int TICKS_PER_ROW { 12 };
+
+  // Bounds of the single global octave (Controller::getGlobalOctave()) that
+  // drives computer-keyboard note entry and every Launchpad's own octave
+  // (relative to it, via LaunchpadManager's per-device offset - see
+  // LaunchpadLayout::clampOctave/clampOctaveOffset). Named once here so
+  // Controller and LaunchpadLayout - otherwise unrelated to each other -
+  // can't drift onto two different bounds.
+  constexpr int MIN_OCTAVE { 0 };
+  constexpr int MAX_OCTAVE { 9 };
 };
 
 #endif

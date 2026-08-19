@@ -1,4 +1,5 @@
 #include "LaunchpadLayout.h"
+#include "../util/constants.h"
 
 #include <algorithm>
 #include <cmath>
@@ -351,8 +352,17 @@ percussionFamilyForPad(int x, int y) {
 int
 clampOctave(int octave, int delta) {
   auto result = octave + delta;
-  if (result < 0) return 0;
-  if (result > 9) return 9;
+  if (result < constants::MIN_OCTAVE) return constants::MIN_OCTAVE;
+  if (result > constants::MAX_OCTAVE) return constants::MAX_OCTAVE;
+  return result;
+}
+
+int
+clampOctaveOffset(int offset, int delta) {
+  constexpr auto kMaxAbsOffset = constants::MAX_OCTAVE - constants::MIN_OCTAVE;
+  auto result = offset + delta;
+  if (result < -kMaxAbsOffset) return -kMaxAbsOffset;
+  if (result > kMaxAbsOffset) return kMaxAbsOffset;
   return result;
 }
 
