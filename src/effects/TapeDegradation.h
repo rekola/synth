@@ -49,7 +49,7 @@ class TapeDegradation : public Effect {
   // silently falling through to Track::createVoiceState()'s inert plain
   // VoiceState.
   std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune,
-                                        float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}) const override;
+                                        float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}, bool needs_decorrelation = false) const override;
 
  private:
   SphericalPosition getPosition() const { return { azimuth_, elevation_, distance_, extent_ }; }

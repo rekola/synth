@@ -5,7 +5,7 @@
 using namespace std;
 
 std::unique_ptr<VoiceState>
-LFO::playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
+LFO::playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord, bool needs_decorrelation) const {
   // LFO constructs its own OscillatorVoice directly (it's not itself a
   // modulator, an FM carrier's LFO target is) - the voice encodes its own
   // ambisonic output directly (InstrumentVoice::encodePosition()); since a

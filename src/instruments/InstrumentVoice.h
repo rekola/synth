@@ -49,6 +49,7 @@ class InstrumentVoice : public VoiceState {
     : VoiceState(channel_config),
       sourceSamplePosition_(HashField(kNotePhaseSalt).unit(note_coord.toHashCoord(), paramId("note_phase"))
                              * getChannelConfiguration().getAudioOutSampleRate()),
+      note_hash_coord_(note_coord.toHashCoord()),
       position_(position),
       detune_(detune),
       sends_(sends),
@@ -235,6 +236,12 @@ protected:
   double sourceSamplePosition_;
   int note_value_ = -1;
   float velocity_ = 0.0f;
+
+  // note_coord.toHashCoord(), kept around after construction (unlike
+  // note_coord itself) for a subclass that needs its own HashField draw
+  // later - e.g. SoundFontVoice's start-delay decorrelation, computed in
+  // playNote() once frequency is known, not at construction time.
+  int64_t note_hash_coord_;
 
 private:
   // Every value the floor reflection needs - delay, gain, and the

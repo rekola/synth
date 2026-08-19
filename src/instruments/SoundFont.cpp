@@ -905,11 +905,11 @@ static bool destInPitchSet(uint16_t dest) {
 
 // Fixed compile-time salt, not derived from any per-instance state - see
 // InstrumentVoice.h's own kNotePhaseSalt for the identical reasoning.
-// SoundFontVoice's constructor is what actually uses this (see its own
-// sourceSamplePosition_ derivation) - defined here, ahead of the class,
-// rather than alongside kPercussionJitterSalt further down, since that
-// one is used only by code that itself comes later in the file.
-constexpr uint64_t kSf2OffsetJitterSalt = 0x9B3F2C6A48D71E05ull;
+// SoundFontVoice::playNote() is what actually uses this, to derive
+// start_delay_samples_ (see its own comment) - defined here, ahead of the
+// class, rather than alongside kPercussionJitterSalt further down, since
+// that one is used only by code that itself comes later in the file.
+constexpr uint64_t kSf2StartDelaySalt = 0x9B3F2C6A48D71E05ull;
 
 class SoundFontVoice : public InstrumentVoice {
 public:
@@ -923,13 +923,13 @@ public:
   // (pitched SF2 presets, non-percussion banks) is untouched by any of
   // this and keeps using adjustPositionForPan() exactly as before -
   // defaults to false so every other call site is unaffected.
-  SoundFontVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, std::shared_ptr<SoundFontFile> sf, size_t preset, size_t region_idx, const SendLevels & sends = {}, bool skip_native_pan = false, const NoteCoordinate & note_coord = {})
+  SoundFontVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, std::shared_ptr<SoundFontFile> sf, size_t preset, size_t region_idx, const SendLevels & sends = {}, bool skip_native_pan = false, const NoteCoordinate & note_coord = {}, bool needs_decorrelation = false)
     : InstrumentVoice(channel_config,
                        skip_native_pan ? position : adjustPositionForPan(position, regionFor(sf.get(), preset, region_idx)),
                        detune,
                        SendLevels{ sends.main, combineRegionSendA(sends.a, regionFor(sf.get(), preset, region_idx)), sends.b },
                        note_coord),
-      sf_(sf)
+      needs_decorrelation_(needs_decorrelation), sf_(sf)
   {
     auto f = sf_.get();
     if (preset < f->presets_.size()) {
@@ -951,30 +951,25 @@ public:
 
 	auto outSampleRate = getChannelConfiguration().getAudioOutSampleRate();
 
-	// Offset/end - overwrites, rather than uses directly, whatever
-	// InstrumentVoice's own constructor just derived sourceSamplePosition_
-	// as (from this voice's NoteCoordinate - see InstrumentVoice.h): the
-	// full [0, sampleRate) range that derivation draws from is sized for
-	// an oscillator's own periodic phase (only its fractional-cycle part
-	// matters there), and would be wildly excessive applied directly as a
-	// raw PCM sample-index jump - skipping up to a full second into a
-	// sampled hit (a drum, a plucked string) would clip unpredictably
-	// into its attack transient. So playback instead starts at the
-	// region's own authored offset, perturbed by only a small, bounded
-	// nudge off the same coordinate - the same "small nudge, not a
-	// repositioning" convention applyPercussionOffset()'s own jitter
-	// above already uses - clamped to the region's own valid [offset,
-	// end) range. Small as it is, this still matters: without it, several
-	// simultaneous copies of the same region - e.g. a NoteMultiplier-
-	// generated unison stack of SoundFont voices - would start in
-	// perfect lockstep and phase-lock/comb-filter when summed, exactly
-	// the failure mode per-voice phase jitter exists to avoid everywhere
-	// else in this codebase.
-	constexpr float kOffsetJitterSeconds = 0.005f;
-	float jitter_samples = HashField(kSf2OffsetJitterSalt).bipolar(note_coord.toHashCoord(), paramId("sf2_offset_jitter"), kOffsetJitterSeconds * static_cast<float>(outSampleRate));
-	double jittered = static_cast<double>(voiceRegion_->offset) + static_cast<double>(jitter_samples);
-	sourceSamplePosition_ = std::max(static_cast<double>(voiceRegion_->offset),
-					  std::min(jittered, static_cast<double>(voiceRegion_->end > 0 ? voiceRegion_->end - 1 : 0)));
+	// Exact authored offset, never perturbed - overwrites the periodic-
+	// phase value InstrumentVoice's own constructor derived from
+	// note_coord (InstrumentVoice.h), which is meaningless for a raw PCM
+	// recording: any two neighboring points in it aren't interchangeable
+	// the way two phases of a periodic wave are, and a fast-attack patch
+	// (a plucked string, a mallet hit) has no envelope ramp to mask
+	// starting mid-waveform. Unison decorrelation - the reason a jittered
+	// offset might seem tempting - is start_delay_samples_'s job instead
+	// (playNote() below), a start-time delay rather than a seek into the
+	// recording.
+	sourceSamplePosition_ = voiceRegion_->offset;
+
+	// Simultaneous copies of the same region (a NoteMultiplier unison
+	// stack) all reading it from this same offset in lockstep would
+	// phase-lock/comb-filter when summed - start_delay_samples_ holds
+	// each copy fully silent for a small, per-voice hashed delay instead,
+	// so every copy still gets the same click-safe attack, just a few ms
+	// apart (see playNote() for why the delay itself is computed there,
+	// not here).
 
 	// Loop.
 	bool doLoop = (voiceRegion_->loop_mode != TSF_LOOPMODE_NONE && voiceRegion_->loop_start < voiceRegion_->loop_end);
@@ -1032,6 +1027,25 @@ public:
       // Setup envelopes.
       ampenv_ = EnvelopeState(outSampleRate, voiceRegion_->ampenv, midiKey, midiVelocity, true);
       modenv_ = EnvelopeState(outSampleRate, voiceRegion_->modenv, midiKey, midiVelocity, false);
+
+      // Start-time decorrelation delay, only when needs_decorrelation_
+      // says another simultaneous copy exists (Track.h's doc comment) -
+      // computed here rather than the constructor since it's scaled to
+      // this note's own period (1/frequency), unknown until now. Scaling
+      // by the period, not a fixed time, keeps the resulting comb-filter
+      // notches anchored to this note's own harmonic series at every
+      // register, rather than at some fixed frequency unrelated to what's
+      // playing. Capped at half a period - kMaxStartDelaySeconds bounds a
+      // low note's long period from reading as a distinct echo, and a
+      // full period would land back on the same phase, undoing the
+      // decorrelation.
+      if (needs_decorrelation_) {
+	constexpr float kStartDelayPeriodFraction = 0.5f;
+	constexpr float kMaxStartDelaySeconds = 0.005f;
+	float delay_unit = HashField(kSf2StartDelaySalt).unit(note_hash_coord_, paramId("sf2_start_delay"));
+	float delay_seconds = std::min(delay_unit * kStartDelayPeriodFraction / frequency, kMaxStartDelaySeconds);
+	start_delay_samples_ = static_cast<int>(delay_seconds * outSampleRate);
+      }
     }
                   
     setGainDB(- voiceRegion_->attenuation - gainToDecibels(1.0f / velocity));
@@ -1174,6 +1188,16 @@ protected:
   struct tsf_region * voiceRegion_ = nullptr;
   double pitchInputTimecents_ = 0, pitchOutputFactor_ = 0;
   unsigned int loopStart_ = 0, loopEnd_ = 0;
+
+  // Leading samples this voice stays silent for - see playNote() for how
+  // it's computed, render() for how it's consumed. Permanent once it
+  // reaches 0.
+  int start_delay_samples_ = 0;
+
+  // Gates whether playNote() computes start_delay_samples_ at all - see
+  // Track.h's doc comment on the constructor parameter this comes from.
+  bool needs_decorrelation_ = false;
+
   bool hasChannelPressureCutoffMod_ = false, hasChannelPressurePitchMod_ = false;
   float sf2_channel_pressure_ = 0.0f;
   Biquad<double> lowpass_ { FilterType::lowpass };
@@ -1277,8 +1301,20 @@ SoundFontVoice::render(int numSamples) {
   }
 
   int writeIndex = 0;
+
+  // Consumed before anything below touches sourceSamplePosition_/the
+  // envelopes/the LFOs, so the note genuinely hasn't started yet rather
+  // than just being muted (dry_ is already zeroed above).
+  if (start_delay_samples_ > 0) {
+    int delay_now = std::min(start_delay_samples_, numSamples);
+    start_delay_samples_ -= delay_now;
+    writeIndex = delay_now;
+    numSamples -= delay_now;
+    if (numSamples == 0) return encodeWithChorus(totalSamples);
+  }
+
   auto input = f->fontSamples_;
-  
+
   // hasChannelPressureCutoffMod_/hasChannelPressurePitchMod_ can make an
   // LFO/env relevant even when every *static* generator that would
   // normally imply it is zero - a file can author a channel-pressure ->
@@ -1762,7 +1798,7 @@ public:
     }
   }
 
-  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}) const override {
+  std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}, bool needs_decorrelation = false) const override {
     assert(frequency > 0);
 
     detune *= getHarmonic();
@@ -1835,14 +1871,14 @@ public:
 	// its ctor's doc comment) so percussion/pitched-arc instruments play
 	// from exactly their resolved position; every other instrument keeps
 	// that folding.
-	auto voice = make_unique<SoundFontVoice>(channel_config, adjusted_position, detune, sf_, preset_, region_idx, sends, position_resolved_by_new_mechanism, note_coord);
+	auto voice = make_unique<SoundFontVoice>(channel_config, adjusted_position, detune, sf_, preset_, region_idx, sends, position_resolved_by_new_mechanism, note_coord, needs_decorrelation);
 	voice->playNote(frequency, velocity, note_value);
 
 	if (!getChildren().empty()) {
 	  // create modulators for voice - see SendLevels.h's own doc comment
 	  // for why SendLevels{} (not sends) is correct here.
 	  for (auto & child : getChildren()) {
-	    auto modulator = child->playNote(channel_config, SphericalPosition{}, frequency, detune, velocity, note_value, SendLevels{}, note_coord);
+	    auto modulator = child->playNote(channel_config, SphericalPosition{}, frequency, detune, velocity, note_value, SendLevels{}, note_coord, needs_decorrelation);
 	    if (modulator.get()) voice->addChild(child->getInternalId(), move(modulator));
 	  }
 	}

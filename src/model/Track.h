@@ -81,23 +81,20 @@ class Track : public StatefulSongObject {
 
   virtual const char * getElementName() const = 0;
 
-  // note_coord: a stable per-note coordinate (NoteCoordinate.h), fed to
-  // HashField by any leaf/wrapper that needs a reproducible-per-note
-  // jitter value (NoteMultiplier's unison/detune spread, TapeDegradation's
-  // per-instance seed, ...) - not otherwise used by playNote() itself.
-  // Defaulted to {} here (and only here - no override repeats the
-  // default) so every existing call site that doesn't care about
-  // reproducible randomization keeps compiling unchanged; a caller that
-  // does care (InstrumentTrackState::noteOn(), ArpeggiatorState's
-  // stepper) passes a real one explicitly. Every override that recurses
-  // into children must forward whatever it received rather than letting
-  // the default reintroduce itself partway down the tree - see this
-  // default body's own forward below.
-  virtual std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}) const {
+  // note_coord: per-note coordinate for reproducible HashField jitter
+  // (NoteMultiplier's unison/detune spread, TapeDegradation's per-instance
+  // seed, ...). Both defaults live only here - every override that
+  // recurses into children must forward whatever it received.
+  // needs_decorrelation: true only when NoteMultiplier is creating >1
+  // simultaneous copy of the same instrument for this note; read only by
+  // sample-playback leaves (SoundFontVoice/FileInstrumentVoice) deciding
+  // whether to delay their start - see SoundFontVoice's own
+  // start_delay_samples_ comment.
+  virtual std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}, bool needs_decorrelation = false) const {
     auto group = createVoiceState(config);
     auto child_config = getChildChannelConfiguration(config);
     for (auto & child : getChildren()) {
-      auto voice = child->playNote(child_config, position, frequency, detune, velocity, note_value, sends, note_coord);
+      auto voice = child->playNote(child_config, position, frequency, detune, velocity, note_value, sends, note_coord, needs_decorrelation);
       if (voice.get()) group->addChild(child->getInternalId(), std::move(voice));
     }
     return group;

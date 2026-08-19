@@ -5,7 +5,7 @@
 using namespace std;
 
 std::unique_ptr<VoiceState>
-Oscillator::playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord) const {
+Oscillator::playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord, bool needs_decorrelation) const {
   detune *= getHarmonic();
   detune /= getSubharmonic();
 
@@ -24,7 +24,7 @@ Oscillator::playNote(const ChannelConfiguration & config, const SphericalPositio
   // audio path, so a modulator child composing its own jitter from it
   // still wants the same coordinate this oscillator itself got.
   for (auto & child : getChildren()) {
-    auto modulator = child->playNote(config, SphericalPosition{}, frequency, detune, 1.0, note_value, SendLevels{}, note_coord);
+    auto modulator = child->playNote(config, SphericalPosition{}, frequency, detune, 1.0, note_value, SendLevels{}, note_coord, needs_decorrelation);
     if (modulator) voice->addChild(child->getInternalId(), move(modulator));
   }
 
