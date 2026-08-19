@@ -85,4 +85,3 @@ for the full picture, or run `synth --licenses` to print it.
 7. Legato voicing mode
 8. Emacs features:
  - Kill-ring rotation (yank-pop / M-y)
- - Exchange-point-and-mark (C-x C-x)

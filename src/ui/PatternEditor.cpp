@@ -64,6 +64,41 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     getController().getUIEventQueue().push(make_unique<LogEvent>("Mark set"));
   });
 
+  // Emacs's own C-x C-x: swaps mark and point, keeping the region's two
+  // endpoints exactly the same (just relabeled) and the mark active, so a
+  // second press swaps right back. Requires a real mark, unlike kill-region/
+  // transpose-region-*'s degenerate no-mark fallback (getEffectiveSelectionBounds) -
+  // there's no point exchanging point with itself. selection_start_pattern_
+  // is left untouched: render() already clears the mark the instant it and
+  // the cursor land in different patterns (see its own pattern-boundary
+  // check), so a live mark and point are always in the same pattern already.
+  // Bound from UI, not here (see UI.cpp's own "exchange-point-and-mark"
+  // definition) - the C-x prefix itself is recognized at that level.
+  commands_.define("exchange-point-and-mark", [this]() {
+    if (!selection_active_) {
+      getController().getUIEventQueue().push(make_unique<LogEvent>("No mark set"));
+      return;
+    }
+    auto & info = getController().getPlaybackInfo();
+    auto old_point_row = info.getRowIndex();
+    auto old_point_track = current_cursor.track;
+    auto old_point_col = current_cursor.col;
+    auto old_point_scope = current_cursor.scope;
+
+    getController().moveEditPosition(selection_start_row_ - old_point_row);
+    new_cursor.track = selection_start_track_;
+    new_cursor.col = selection_start_col_;
+    new_cursor.subcol = 0;
+    new_cursor.scope = selection_start_scope_;
+
+    selection_start_row_ = old_point_row;
+    selection_start_track_ = old_point_track;
+    selection_start_col_ = old_point_col;
+    selection_start_scope_ = old_point_scope;
+
+    getController().getUIEventQueue().push(make_unique<LogEvent>("Mark and point exchanged"));
+  });
+
   // Both commands below always have a region to act on, even with no mark
   // active: it degenerates to the single note the cursor is currently on
   // (see getEffectiveSelectionBounds) - there's no "No selection" case.

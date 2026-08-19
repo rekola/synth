@@ -180,6 +180,16 @@ UI::initialize() {
   commands_.define("set-bus-effect-a", [setBusEffect]() { setBusEffect(0, "A"); });
   commands_.define("set-bus-effect-b", [setBusEffect]() { setBusEffect(1, "B"); });
 
+  // C-x C-x (exchange-point-and-mark) is a PatternEditor-owned command (the
+  // mark/point state it swaps lives there, alongside set-mark/kill-region -
+  // see PatternEditor.cpp's own definition) - forwarded through
+  // executeCommand() the same way UI::executeCommand()'s own active-element
+  // fallback would, since the C-x prefix itself is only ever recognized at
+  // this level (dispatchCommand() below checks *this* registry, not
+  // PatternEditor's - unlike the M-x path, which does go through that
+  // fallback chain).
+  commands_.define("exchange-point-and-mark", [this]() { pattern_editor_->executeCommand("exchange-point-and-mark"); });
+
   // Quit/save/open/save-as use Emacs's own C-x C-c/C-x C-s/C-x C-f/C-x C-w
   // bindings and command names (save-buffers-kill-terminal/save-buffer/
   // find-file/write-file, the first three shortened to save-song/
@@ -195,6 +205,7 @@ UI::initialize() {
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('s', true, false, false, false), "save-song");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('f', true, false, false, false), "open-song");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('w', true, false, false, false), "save-song-as");
+  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('x', true, false, false, false), "exchange-point-and-mark");
   // The buffer commands' own real Emacs bindings, unlike every C-x C-<letter>
   // above, hold Ctrl for the C-x prefix only, not the second key: kill-buffer
   // is C-x k (plain k), next-buffer/previous-buffer are C-x <right>/C-x
