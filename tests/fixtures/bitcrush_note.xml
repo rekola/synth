@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="12edo" tempo="120" patternRows="8" volume="1.0">
+  <instruments>
+    <envelope attack="0.001" hold="0.5" decay="0.01" sustain="1.0" release="0.01">
+      <oscillator type="saw"/>
+    </envelope>
+  </instruments>
+  <tracks>
+    <distortion type="bitcrush" param="1">
+      <track id="0" instrument="0"/>
+    </distortion>
+  </tracks>
+  <scenes>
+    <scene>
+      <pattern track="0">
+        <note row="0" velocity="127" value="C-4" />
+      </pattern>
+    </scene>
+  </scenes>
+</song>

@@ -140,13 +140,3 @@ Found 2026-07-11, not yet fixed.
   realistically never contain a flag emoji or a ZWJ emoji sequence, and
   switching to `utf8proc` would add a second, otherwise-unneeded Unicode
   library to the dependency graph purely to cover that case.
-
-- **`<distortion type="bitcrush">` doesn't select bitcrush distortion** -
-  `Distortion::loadParameters()`'s string check has a typo,
-  `type_text == "bitchrush"`, so the intended spelling silently falls
-  through to whatever `type_` was already set to (`HARD_CLIP` by
-  default). Even authoring the exact typo'd string that *does* match
-  produces no distortion at all either: `DistortionType::BITCRUSH`'s own
-  case in `DistortionDsp::applyEffect()` is an empty `break` - a real
-  bitcrusher was never implemented, only stubbed in. Found while writing
-  `docs/effects.md`; not fixed.

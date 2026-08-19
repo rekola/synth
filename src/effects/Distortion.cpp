@@ -98,6 +98,31 @@ public:
 	break;
 
       case DistortionType::BITCRUSH:
+	{
+	  // Bit-depth reduction (quantizing each sample down to a coarse
+	  // staircase of levels) - the classic lo-fi/chiptune "crushed"
+	  // sound. param_ here is the target bit depth rather than the
+	  // clip types' threshold, clamped since <1 would divide by zero
+	  // and >24 is indistinguishable from no crushing at all at float
+	  // precision. drive_ keeps its usual pre-gain-before-the-
+	  // nonlinearity meaning, so a hot signal clips at the quantizer's
+	  // +-1 rails for extra harmonic crunch, same as HARD_CLIP/SOFT_CLIP.
+	  float bits = param_;
+	  if (bits < 1.0f) bits = 1.0f;
+	  else if (bits > 24.0f) bits = 24.0f;
+	  float levels = powf(2.0f, bits - 1.0f);
+	  for (int i = 0; i < numChannels; i++) {
+	    auto buffer = input.getChannelData(i);
+	    for (int j = 0; j < input.size(); j++) {
+	      auto x = buffer[j];
+	      auto y = drive_ * x;
+	      if (y > 1.0f) y = 1.0f;
+	      else if (y < -1.0f) y = -1.0f;
+	      y = roundf(y * levels) / levels;
+	      buffer[j] = drymix_ * x + (1.0f - drymix_) * y;
+	    }
+	  }
+	}
 	break;
       }
     }
@@ -175,13 +200,17 @@ void
 Distortion::loadParameters(const ParameterSource & input) {
   Effect::loadParameters(input);
 
-  param_ = input.getFloat("param");
-  drive_ = input.getFloat("drive", 1.0f);
-
   auto type_text = input.getText("type");
   if (type_text == "hardclip") type_ = DistortionType::HARD_CLIP;
   else if (type_text == "softclip") type_ = DistortionType::SOFT_CLIP;
-  else if (type_text == "bitchrush") type_ = DistortionType::BITCRUSH;
+  else if (type_text == "bitcrush") type_ = DistortionType::BITCRUSH;
+  else if (type_text == "tanh") type_ = DistortionType::TANH;
+
+  // BITCRUSH's own "param" is a bit depth, not a clip threshold (see
+  // DistortionDsp::applyEffect()), so it needs its own default rather
+  // than the clip types' implicit "unset means 0".
+  param_ = input.getFloat("param", type_ == DistortionType::BITCRUSH ? 8.0f : 0.0f);
+  drive_ = input.getFloat("drive", 1.0f);
 }
 
 void

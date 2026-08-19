@@ -51,7 +51,7 @@ resonant filter, both persistent for that one track.
 | Element | What it does |
 |---|---|
 | `<chorus>` | Multi-voice, LFO-modulated delay-line chorus. `voices`, `rate` (Hz), `delay`/`depth` (ms, center/modulation range), `mix`. |
-| `<distortion>` | Waveshaping distortion. `type` (`hardclip`/`softclip`/`tanh`; a fourth, `BITCRUSH`, exists internally but its own DSP case is an unimplemented no-op, and its type-string check has a typo (`"bitchrush"`) - avoid it), `drive`, `param` (clip threshold). |
+| `<distortion>` | Waveshaping distortion. `type` (`hardclip`/`softclip`/`tanh`/`bitcrush`), `drive` (pre-gain before the nonlinearity, all types), `param` - meaning depends on `type`: clip threshold for `hardclip`, bit depth (1-24, default 8) for `bitcrush`, unused for `softclip`/`tanh`. |
 | `<compressor>` | Dynamics compressor. `pregain`/`postgain` (dB), `threshold` (dB), `knee` (dB), `ratio`. |
 | `<envelope>` | ADSR amplitude envelope. `attack`/`hold`/`decay`/`release` (seconds), `sustain` (0.0-1.0 level). The building block almost every instrument definition wraps its oscillator/sample in. |
 | `<amplifier>` | Flat gain. `gain` (dB). |

@@ -389,6 +389,44 @@ TEST(render_chorus_centers_its_input) {
   CHECK_NEAR(left, right, right * 0.05f);
 }
 
+TEST(render_bitcrush_quantizes_to_expected_levels) {
+  // bitcrush_note.xml uses param="1" (1-bit depth -> DistortionDsp's
+  // levels = 2^(1-1) = 1, step = 1) with the default drive=1, so every
+  // pre-reencode sample is exactly one of {-1, 0, 1} (clamp-then-round).
+  // Track-level Distortion reduces its child to MONO and re-encodes with
+  // encodeMonoAsPoint (unity gain into W - AmbisonicEncoding.h), and
+  // decodeToStereo's boresight normalization for a Y-less (undirected)
+  // W-only bus is exactly 0.5 - see decodeToStereo()'s own derivation -
+  // so the final stereo samples land on exactly {-0.5, 0, 0.5}. This
+  // exercises both halves of the bug docs/known_bugs.md used to track:
+  // the "bitchrush" type-string typo (a still-typo'd loader would fall
+  // back to HARD_CLIP with param's non-bitcrush default of 0, clipping
+  // everything to silence - caught by the rms check below) and
+  // DistortionType::BITCRUSH's DSP case actually doing something (an
+  // empty case would leave the signal unquantized, failing the discrete-
+  // level check).
+  auto loaded = loadFixture("bitcrush_note.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(44100, 0);
+  auto result = renderSongOffline(loaded.song, config);
+  CHECK(!hasNonFiniteSample(result));
+
+  CHECK(rms(result, 0) > 0.05f);
+
+  auto frames = result.numberOfFrames();
+  size_t start = std::min<size_t>(static_cast<size_t>(0.05f * result.sampleRate), frames);
+  bool all_quantized = true;
+  for (size_t i = start; i < frames; i++) {
+    for (int ch = 0; ch < result.channels; ch++) {
+      auto v = result.interleaved[i * static_cast<size_t>(result.channels) + static_cast<size_t>(ch)];
+      auto nearest = std::round(v / 0.5f) * 0.5f;
+      if (std::fabs(v - nearest) > 1e-4f) all_quantized = false;
+    }
+  }
+  CHECK(all_quantized);
+}
+
 TEST(render_envelope_decays_after_hold_and_decay_time) {
   // center_note.xml wraps its oscillator in <envelope attack=.01 hold=.3
   // decay=.3 sustain=0 release=.05> - with sustain 0 the note fully decays
