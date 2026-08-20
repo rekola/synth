@@ -1,27 +1,263 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Manual test bed for the audition-mode arpeggiator (plans/arpeggiator.md,
-     Phase 1) - hold a chord on track 0 via the Kitty computer keyboard or a
-     connected Launchpad (NOTES mode) while the transport is stopped and
-     confirm it arpeggiates at the song's own tempo. The pattern is
-     deliberately empty: pattern/song-driven playback isn't routed through
-     the arpeggiator stepper yet (Phase 2), so there's nothing useful to
-     author into rows here until then. -->
-<song temperament="31edo" tempo="120" patternRows="16" volume="1.0">
-  <instruments>
-    <genericInstrument name="Orchestral Harp"/>
-    <envelope name="Pads" attack="0.050000001" hold="0" decay="0" sustain="1" release="2" keynumToHold="0" keynumToDecay="0">
-      <resonantFilter cut="2200" res="0.5" aftertouch="0" attack="0" hold="0" decay="0" sustain="1" release="0" keynumToHold="0" keynumToDecay="0">
-        <multiply unisons="4" octaves="0" fifths="0" fourths="0" detune="5" spread="1">
-          <oscillator type="square" level="0.25" width="0.5"/>
-        </multiply>
-      </resonantFilter>
-    </envelope>
-  </instruments>
-  <tracks>
-    <arpeggiatorTrack id="0" instrument="0" mode="up" octaves="1" noteDuration="2" gate="1"/>
-    <track id="1" instrument="1"/>
-  </tracks>
-  <scenes>
-    <scene />
-  </scenes>
+<song temperament="31edo" tempo="140" patternRows="192">
+    <bus>
+        <reverb/>
+        <haze preset="slap"/>
+    </bus>
+    <instruments>
+        <genericInstrument name="Orchestral Harp"/>
+        <envelope name="Pads" attack="0.050000001" hold="0" decay="0" sustain="1" release="2" keynumToHold="0" keynumToDecay="0">
+            <resonantFilter cut="2200" res="0.5" aftertouch="0" attack="0" hold="0" decay="0" sustain="1" release="0" keynumToHold="0" keynumToDecay="0">
+                <multiply unisons="4" octaves="0" fifths="0" fourths="0" detune="5" spread="1">
+                    <oscillator type="square" level="0.25" width="0.5"/>
+                </multiply>
+            </resonantFilter>
+        </envelope>
+        <genericInstrument name="Percussion"/>
+        <genericInstrument name="Electric Bass (finger)"/>
+    </instruments>
+    <tracks>
+        <track id="harp2" instrument="0" azimuth="-30" distance="1" elevation="0" color="" sendA="-20.0000" sendB="-13.9794"/>
+        <track id="pads" instrument="1" azimuth="-15" distance="10" elevation="0" extent="10" color="" sendA="-20.0000" sendB="-7.9588"/>
+        <track id="pads2" instrument="1" azimuth="40" distance="10" elevation="0" extent="10" color="" sendA="-20.0000" sendB="-7.9588"/>
+        <arpeggiatorTrack id="arp" instrument="0" azimuth="30" distance="1" elevation="0" color="" sendA="-20.0000" sendB="-13.9794" mode="up" noteDuration="2" octaves="1" gate="1"/>
+        <track id="harsh" instrument="1" azimuth="60" distance="1" elevation="0" extent="10" color="" sendA="-20.0000" sendB="-20.0000"/>
+        <percussionTrack id="perc" instrument="2" azimuth="0" distance="0.89999998" elevation="0" color="" sendA="-20.0000" sendB="-1.9382" sendMain="-1.9382"/>
+        <percussionTrack id="perc2" instrument="2" azimuth="0" distance="0.89999998" elevation="0" color="" sendA="-20.0000" sendB="-13.9794" sendMain="-12.0412"/>
+        <track id="bass" instrument="3" azimuth="60" distance="2" elevation="10" color="" sendA="-20.0000" sendB="-4.4370"/>
+    </tracks>
+    <scenes>
+        <scene>
+            <pattern track="arp">
+                <note row="0" velocity="30">C-4</note>
+                <note row="0" column="1" velocity="30">E-4</note>
+                <note row="0" column="2" velocity="30">G-4</note>
+                <note row="48" velocity="30">C-4</note>
+                <note row="48" column="1" velocity="30">E♭4</note>
+                <note row="48" column="2" velocity="30">G-4</note>
+                <note row="96" velocity="30">D♯4</note>
+                <note row="96" column="1" velocity="30">F-4</note>
+                <note row="96" column="2" velocity="30">A-4</note>
+                <command row="143" data="ZB00"/>
+            </pattern>
+            <pattern track="pads">
+                <note row="0" velocity="40">C-4</note>
+                <note row="48" velocity="40">E♭4</note>
+                <note row="96" velocity="40">F-4</note>
+            </pattern>
+            <pattern track="pads2">
+                <note row="96" velocity="40">C-4</note>
+            </pattern>
+            <pattern track="bass">
+                <note row="138" velocity="60">G-1</note>
+            </pattern>
+        </scene>
+        <scene>
+            <pattern track="perc2">
+                <note row="0" velocity="40">CGH</note>
+                <note row="4" velocity="40">CGH</note>
+                <note row="6" velocity="40">CGM</note>
+                <note row="10" velocity="40">CGM</note>
+                <note row="12" velocity="40">CGH</note>
+                <note row="16" velocity="40">CGH</note>
+                <note row="18" velocity="40">CGM</note>
+                <note row="22" velocity="40">CGM</note>
+                <note row="24" velocity="40">CGH</note>
+                <note row="28" velocity="40">CGH</note>
+                <note row="30" velocity="40">CGM</note>
+                <note row="34" velocity="40">CGM</note>
+                <note row="36" velocity="40">CGH</note>
+                <note row="40" velocity="40">CGH</note>
+                <note row="42" velocity="40">CGM</note>
+                <note row="46" velocity="40">CGM</note>
+                <note row="48" velocity="40">CGH</note>
+                <note row="52" velocity="40">CGH</note>
+                <note row="54" velocity="40">CGM</note>
+                <note row="58" velocity="40">CGM</note>
+                <note row="60" velocity="40">CGH</note>
+                <note row="64" velocity="40">CGH</note>
+                <note row="66" velocity="40">CGM</note>
+                <note row="70" velocity="40">CGM</note>
+                <note row="72" velocity="40">CGH</note>
+                <note row="76" velocity="40">CGH</note>
+                <note row="78" velocity="40">CGM</note>
+                <note row="82" velocity="40">CGM</note>
+                <note row="84" velocity="40">CGH</note>
+                <note row="88" velocity="40">CGH</note>
+                <note row="90" velocity="40">CGM</note>
+                <note row="94" velocity="40">CGM</note>
+                <note row="96" velocity="40">CGH</note>
+                <note row="100" velocity="40">CGH</note>
+                <note row="102" velocity="40">CGM</note>
+                <note row="106" velocity="40">CGM</note>
+                <note row="108" velocity="40">CGH</note>
+                <note row="112" velocity="40">CGH</note>
+                <note row="114" velocity="40">CGM</note>
+                <note row="118" velocity="40">CGM</note>
+                <note row="120" velocity="40">CGH</note>
+                <note row="124" velocity="40">CGH</note>
+                <note row="126" velocity="40">CGM</note>
+                <note row="130" velocity="40">CGM</note>
+                <note row="132" velocity="40">CGH</note>
+                <note row="136" velocity="40">CGH</note>
+                <note row="138" velocity="40">CGM</note>
+                <note row="142" velocity="40">CGM</note>
+                <note row="144" velocity="40">CGH</note>
+                <note row="148" velocity="40">CGH</note>
+                <note row="150" velocity="40">CGM</note>
+                <note row="154" velocity="40">CGM</note>
+                <note row="156" velocity="40">CGH</note>
+                <note row="160" velocity="40">CGH</note>
+                <note row="162" velocity="40">CGM</note>
+                <note row="166" velocity="40">CGM</note>
+                <note row="168" velocity="40">CGH</note>
+                <note row="172" velocity="40">CGH</note>
+                <note row="174" velocity="40">CGM</note>
+                <note row="178" velocity="40">CGM</note>
+            </pattern>
+            <pattern track="harp2">
+                <note row="0" velocity="20">C-6</note>
+                <note row="2" velocity="15">C-6</note>
+                <note row="4" velocity="15">C-6</note>
+                <note row="6" velocity="15">C-6</note>
+                <note row="10" velocity="15">C-6</note>
+                <note row="12" velocity="20">C-6</note>
+                <note row="16" velocity="15">C-6</note>
+                <note row="18" velocity="15">C-6</note>
+                <note row="22" velocity="20">C-6</note>
+                <note row="24" velocity="20">C-6</note>
+                <note row="28" velocity="15">C-6</note>
+                <note row="30" velocity="15">C-6</note>
+                <note row="34" velocity="15">C-6</note>
+                <note row="36" velocity="20">C-6</note>
+                <note row="40" velocity="15">C-6</note>
+                <note row="42" velocity="15">C-6</note>
+                <note row="46" velocity="20">C-6</note>
+                <note row="48" velocity="20">C-6</note>
+                <note row="52" velocity="15">C-6</note>
+                <note row="54" velocity="15">C-6</note>
+                <note row="58" velocity="15">C-6</note>
+                <note row="60" velocity="20">C-6</note>
+                <note row="64" velocity="15">C-6</note>
+                <note row="66" velocity="15">C-6</note>
+                <note row="70" velocity="20">C-6</note>
+                <note row="72" velocity="20">C-6</note>
+                <note row="76" velocity="15">C-6</note>
+                <note row="78" velocity="15">C-6</note>
+                <note row="82" velocity="15">C-6</note>
+                <note row="84" velocity="20">C-6</note>
+                <note row="88" velocity="15">C-6</note>
+                <note row="90" velocity="15">C-6</note>
+                <note row="94" velocity="20">C-6</note>
+                <note row="96" velocity="20">C-6</note>
+                <note row="100" velocity="15">C-6</note>
+                <note row="102" velocity="15">C-6</note>
+                <note row="106" velocity="15">C-6</note>
+                <note row="108" velocity="20">C-6</note>
+                <note row="112" velocity="15">C-6</note>
+                <note row="114" velocity="15">C-6</note>
+                <note row="118" velocity="20">C-6</note>
+                <note row="120" velocity="20">C-6</note>
+                <note row="124" velocity="15">C-6</note>
+                <note row="126" velocity="15">C-6</note>
+                <note row="130" velocity="15">C-6</note>
+                <note row="132" velocity="20">C-6</note>
+                <note row="136" velocity="15">C-6</note>
+                <note row="138" velocity="15">C-6</note>
+                <note row="142" velocity="20">C-6</note>
+                <note row="144" velocity="20">C-6</note>
+                <note row="148" velocity="15">C-6</note>
+                <note row="150" velocity="15">C-6</note>
+                <note row="154" velocity="15">C-6</note>
+                <note row="156" velocity="20">C-6</note>
+                <note row="160" velocity="15">C-6</note>
+                <note row="162" velocity="15">C-6</note>
+                <note row="166" velocity="20">C-6</note>
+                <note row="168" velocity="20">C-6</note>
+            </pattern>
+            <pattern track="arp">
+                <note row="0" velocity="30">C-4</note>
+                <note row="0" column="1" velocity="30">E-4</note>
+                <note row="0" column="2" velocity="30">G-4</note>
+                <note row="48" velocity="30">C-4</note>
+                <note row="48" column="1" velocity="30">E♭4</note>
+                <note row="48" column="2" velocity="30">G-4</note>
+                <note row="96" velocity="30">D♯4</note>
+                <note row="96" column="1" velocity="30">F-4</note>
+                <note row="96" column="2" velocity="30">A-4</note>
+                <note row="144" velocity="30">C-4</note>
+                <note row="144" column="1" velocity="30">E-4</note>
+                <note row="144" column="2" velocity="30">G-4</note>
+                <command row="180" data="ZB00"/>
+            </pattern>
+            <pattern track="pads2">
+                <note row="0" velocity="0">OFF</note>
+            </pattern>
+            <pattern track="pads">
+                <note row="0" velocity="40">C-5</note>
+                <note row="48" velocity="40">E♭4</note>
+                <note row="96" velocity="40">F-4</note>
+                <note row="144" velocity="40">C-4</note>
+            </pattern>
+            <pattern track="harsh">
+                <note row="12" velocity="40">A♭5</note>
+                <note row="24" velocity="40">G-5</note>
+                <note row="36" velocity="0">OFF</note>
+                <note row="48" velocity="40">E♭5</note>
+                <note row="72" velocity="0">OFF</note>
+                <note row="96" velocity="40">F-5</note>
+                <note row="108" velocity="0">OFF</note>
+                <note row="156" velocity="40">A♭5</note>
+                <note row="168" velocity="40">G-5</note>
+            </pattern>
+            <pattern track="perc">
+                <note row="0" velocity="40">BD2</note>
+                <note row="12" velocity="40">CH</note>
+                <note row="22" velocity="40">BD2</note>
+                <note row="24" velocity="40">BD2</note>
+                <note row="36" velocity="40">CH</note>
+                <note row="48" velocity="40">BD2</note>
+                <note row="60" velocity="40">CH</note>
+                <note row="70" velocity="40">BD2</note>
+                <note row="72" velocity="40">BD2</note>
+                <note row="84" velocity="40">CH</note>
+                <note row="96" velocity="40">BD2</note>
+                <note row="108" velocity="40">CH</note>
+                <note row="118" velocity="40">BD2</note>
+                <note row="120" velocity="40">BD2</note>
+                <note row="132" velocity="40">CH</note>
+                <note row="144" velocity="40">BD2</note>
+                <note row="156" velocity="40">CH</note>
+                <note row="166" velocity="40">BD2</note>
+                <note row="168" velocity="40">BD2</note>
+            </pattern>
+            <pattern track="bass">
+                <note row="0" velocity="40">C-2</note>
+                <note row="142" velocity="40">G-1</note>
+                <note row="144" velocity="40">C-2</note>
+            </pattern>
+        </scene>
+        <scene>
+            <pattern track="arp">
+                <note row="0" velocity="0">OFF</note>
+                <note row="0" column="1" velocity="0">OFF</note>
+                <note row="0" column="2" velocity="0">OFF</note>
+            </pattern>
+            <pattern track="pads2">
+                <note row="0" velocity="0">OFF</note>
+            </pattern>
+            <pattern track="pads">
+                <note row="0" velocity="0">OFF</note>
+            </pattern>
+            <pattern track="harsh">
+                <note row="0" velocity="0">OFF</note>
+            </pattern>
+            <pattern track="perc">
+                <note row="0" velocity="0">OFF</note>
+            </pattern>
+            <pattern track="bass">
+                <note row="0" velocity="0">OFF</note>
+            </pattern>
+        </scene>
+    </scenes>
 </song>
