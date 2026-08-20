@@ -247,3 +247,195 @@ TEST(instrument_id_from_and_name_round_trip_independently) {
 
   fs::remove(scratch_path);
 }
+
+// <generator> children - a recognized name round-trips keyed by its SF2
+// generator id.
+TEST(generator_override_round_trips_through_save_and_load) {
+  namespace fs = std::filesystem;
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "generator_override_scratch.xml").string();
+
+  Song song;
+  auto instrument = make_unique<GenericInstrument>();
+  instrument->setFrom("piano.acoustic.grand");
+  instrument->addGeneratorOverride(SF2Generator::InitialFilterFc, 9000.0f);
+  song.addInstrument(move(instrument));
+  song.save(scratch_path);
+
+  auto saved = readFile(scratch_path);
+  CHECK(saved.find("name=\"initialFilterFc\"") != string::npos);
+  CHECK(saved.find("value=\"9000") != string::npos);
+
+  InstrumentProvider provider;
+  Song reloaded;
+  CHECK(reloaded.open(scratch_path, provider));
+  CHECK(reloaded.getInstruments().size() == 1);
+
+  auto * reloaded_instrument = dynamic_cast<GenericInstrument *>(reloaded.getInstruments()[0].get());
+  CHECK(reloaded_instrument != nullptr);
+  if (reloaded_instrument) {
+    auto & overrides = reloaded_instrument->getGeneratorOverrides();
+    auto it = overrides.find(SF2Generator::InitialFilterFc);
+    CHECK(it != overrides.end());
+    if (it != overrides.end()) CHECK_NEAR(it->second, 9000.0f, 1e-5f);
+    CHECK(reloaded_instrument->getUnknownGeneratorOverrides().empty());
+  }
+
+  fs::remove(scratch_path);
+}
+
+// An unrecognized <generator> name is preserved, unapplied, rather than
+// rejecting the file or being silently dropped - see SF2GeneratorTable.h's
+// own doc comment for why.
+TEST(unknown_generator_name_is_preserved_unapplied_through_save_and_load) {
+  namespace fs = std::filesystem;
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "unknown_generator_scratch.xml").string();
+
+  Song song;
+  auto instrument = make_unique<GenericInstrument>();
+  instrument->setFrom("piano.acoustic.grand");
+  instrument->addUnknownGeneratorOverride("totallyMadeUp", 5.0f);
+  song.addInstrument(move(instrument));
+  song.save(scratch_path);
+
+  auto saved = readFile(scratch_path);
+  CHECK(saved.find("name=\"totallyMadeUp\"") != string::npos);
+
+  InstrumentProvider provider;
+  Song reloaded;
+  CHECK(reloaded.open(scratch_path, provider));
+
+  auto * reloaded_instrument = dynamic_cast<GenericInstrument *>(reloaded.getInstruments()[0].get());
+  CHECK(reloaded_instrument != nullptr);
+  if (reloaded_instrument) {
+    CHECK(reloaded_instrument->getGeneratorOverrides().empty());
+    auto & unknown = reloaded_instrument->getUnknownGeneratorOverrides();
+    CHECK(unknown.size() == 1);
+    if (unknown.size() == 1) {
+      CHECK(unknown[0].first == "totallyMadeUp");
+      CHECK_NEAR(unknown[0].second, 5.0f, 1e-5f);
+    }
+  }
+
+  fs::remove(scratch_path);
+}
+
+// An <instrument> with no <generator> children at all must round-trip with
+// both override containers empty - the "no override" case the whole
+// mechanism has to stay bit-identical for.
+TEST(no_generator_children_means_no_overrides_after_round_trip) {
+  namespace fs = std::filesystem;
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "no_generator_scratch.xml").string();
+
+  Song song;
+  auto instrument = make_unique<GenericInstrument>();
+  instrument->setFrom("piano.acoustic.grand");
+  song.addInstrument(move(instrument));
+  song.save(scratch_path);
+
+  auto saved = readFile(scratch_path);
+  CHECK(saved.find("<generator") == string::npos);
+
+  InstrumentProvider provider;
+  Song reloaded;
+  CHECK(reloaded.open(scratch_path, provider));
+  auto * reloaded_instrument = dynamic_cast<GenericInstrument *>(reloaded.getInstruments()[0].get());
+  CHECK(reloaded_instrument != nullptr);
+  if (reloaded_instrument) {
+    CHECK(reloaded_instrument->getGeneratorOverrides().empty());
+    CHECK(reloaded_instrument->getUnknownGeneratorOverrides().empty());
+  }
+
+  fs::remove(scratch_path);
+}
+
+TEST(volume_envelope_generator_overrides_round_trip_through_save_and_load) {
+  // All 8 volume-envelope generator names/ids in one document - exercises
+  // SF2GeneratorTable.h's lookup table end to end for every recognized
+  // name beyond initialFilterFc (covered separately above).
+  namespace fs = std::filesystem;
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "volume_envelope_override_scratch.xml").string();
+
+  const vector<pair<SF2Generator, float>> overrides = {
+    { SF2Generator::DelayVolEnv, 100.0f },
+    { SF2Generator::AttackVolEnv, 200.0f },
+    { SF2Generator::HoldVolEnv, 300.0f },
+    { SF2Generator::DecayVolEnv, 2400.0f },
+    { SF2Generator::SustainVolEnv, 960.0f },
+    { SF2Generator::ReleaseVolEnv, 1900.0f },
+    { SF2Generator::KeynumToVolEnvHold, 80.0f },
+    { SF2Generator::KeynumToVolEnvDecay, -80.0f },
+  };
+
+  Song song;
+  auto instrument = make_unique<GenericInstrument>();
+  instrument->setFrom("piano.electric.tine");
+  for (auto & [id, value] : overrides) instrument->addGeneratorOverride(id, value);
+  song.addInstrument(move(instrument));
+  song.save(scratch_path);
+
+  auto saved = readFile(scratch_path);
+  CHECK(saved.find("name=\"delayVolEnv\"") != string::npos);
+  CHECK(saved.find("name=\"attackVolEnv\"") != string::npos);
+  CHECK(saved.find("name=\"holdVolEnv\"") != string::npos);
+  CHECK(saved.find("name=\"decayVolEnv\"") != string::npos);
+  CHECK(saved.find("name=\"sustainVolEnv\"") != string::npos);
+  CHECK(saved.find("name=\"releaseVolEnv\"") != string::npos);
+  CHECK(saved.find("name=\"keynumToVolEnvHold\"") != string::npos);
+  CHECK(saved.find("name=\"keynumToVolEnvDecay\"") != string::npos);
+
+  InstrumentProvider provider;
+  Song reloaded;
+  CHECK(reloaded.open(scratch_path, provider));
+  CHECK(reloaded.getInstruments().size() == 1);
+
+  auto * reloaded_instrument = dynamic_cast<GenericInstrument *>(reloaded.getInstruments()[0].get());
+  CHECK(reloaded_instrument != nullptr);
+  if (reloaded_instrument) {
+    auto & round_tripped = reloaded_instrument->getGeneratorOverrides();
+    CHECK(round_tripped.size() == overrides.size());
+    for (auto & [id, value] : overrides) {
+      auto it = round_tripped.find(id);
+      CHECK(it != round_tripped.end());
+      if (it != round_tripped.end()) CHECK_NEAR(it->second, value, 1e-5f);
+    }
+    CHECK(reloaded_instrument->getUnknownGeneratorOverrides().empty());
+  }
+
+  fs::remove(scratch_path);
+}
+
+TEST(recognized_and_unrecognized_generator_overrides_coexist_in_one_document) {
+  namespace fs = std::filesystem;
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "mixed_generator_scratch.xml").string();
+
+  Song song;
+  auto instrument = make_unique<GenericInstrument>();
+  instrument->setFrom("piano.electric.tine");
+  instrument->addGeneratorOverride(SF2Generator::DecayVolEnv, 2400.0f);
+  instrument->addUnknownGeneratorOverride("someFutureGenerator", 42.0f); // unrecognized
+  song.addInstrument(move(instrument));
+  song.save(scratch_path);
+
+  InstrumentProvider provider;
+  Song reloaded;
+  CHECK(reloaded.open(scratch_path, provider));
+
+  auto * reloaded_instrument = dynamic_cast<GenericInstrument *>(reloaded.getInstruments()[0].get());
+  CHECK(reloaded_instrument != nullptr);
+  if (reloaded_instrument) {
+    auto & recognized = reloaded_instrument->getGeneratorOverrides();
+    CHECK(recognized.size() == 1);
+    auto it = recognized.find(SF2Generator::DecayVolEnv);
+    CHECK(it != recognized.end());
+    if (it != recognized.end()) CHECK_NEAR(it->second, 2400.0f, 1e-5f);
+
+    auto & unknown = reloaded_instrument->getUnknownGeneratorOverrides();
+    CHECK(unknown.size() == 1);
+    if (unknown.size() == 1) {
+      CHECK(unknown[0].first == "someFutureGenerator");
+      CHECK_NEAR(unknown[0].second, 42.0f, 1e-5f);
+    }
+  }
+
+  fs::remove(scratch_path);
+}

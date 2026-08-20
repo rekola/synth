@@ -174,3 +174,32 @@ Found 2026-07-11, not yet fixed.
   realistically never contain a flag emoji or a ZWJ emoji sequence, and
   switching to `utf8proc` would add a second, otherwise-unneeded Unicode
   library to the dependency graph purely to cover that case.
+
+- **The confirm-before-quit/confirm-before-switch-buffer prompt
+  (`Controller::hasUnsavedChanges()`/`hasAnyUnsavedChanges()`, added
+  2026-08-17/18) never fires for ordinary note/command entry** -
+  typing/deleting a note, editing its velocity/delay, or editing an effect
+  command directly in `PatternEditor` leaves `hasUnsavedChanges()` reporting
+  false even though the pattern genuinely changed. Root cause:
+  `hasUnsavedChanges()` compares `Song::getVersion()` against a baseline
+  saved at load/save time, entirely dependent on `Track`/`Song` mutations
+  calling `incVersion()` - but `PatternEditor::offerInput()`'s direct
+  keyboard note-entry paths (`scene.setNote()`/`deleteNote()`/`pushNote()`/
+  `setCommand()`, the velocity/delay-column edits) never call it. They set a
+  `row_edited` flag instead, which predates `hasUnsavedChanges()` by years
+  (traces back to 2022) and exists for a real, separate reason:
+  `PatternEditor::render()` treats a `song.getVersion()` change as a
+  signal to redraw the *entire* visible grid (`render_all`, gated in part on
+  `song.getVersion() != current_song_version`), while `row_edited` alone
+  only repaints the one row that changed - calling `incVersion()` on every
+  keystroke would make each keystroke pay for a full-grid redraw instead of
+  a single-row one. So the two flags were never meant to be interchangeable:
+  `row_edited` is a redraw-scope hint, `incVersion()` is a content-identity
+  counter, and `hasUnsavedChanges()` was built assuming the latter already
+  covered every mutation, which it doesn't and never has for this specific
+  path. Not fixed - the naive fix (add `incVersion()` calls at every
+  `row_edited`-only site) would silently reintroduce the exact per-keystroke
+  full-redraw cost `row_edited` exists to avoid; a real fix needs
+  `render()`'s full-redraw trigger decoupled from the same counter
+  `hasUnsavedChanges()` reads, so a version bump can be cheap to detect
+  without being expensive to redraw.

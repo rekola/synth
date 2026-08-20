@@ -3,12 +3,17 @@
 
 #include "Instrument.h"
 #include "InstrumentProvider.h"
+#include "SF2GeneratorTable.h"
 #include "../ambisonic/SphericalPosition.h"
 #include "../model/SendLevels.h"
 #include "../model/NoteCoordinate.h"
 
 #include <cctype>
+#include <string>
 #include <string_view>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 class GenericInstrument : public Instrument {
  public:
@@ -26,6 +31,23 @@ class GenericInstrument : public Instrument {
 
   const std::string & getFrom() const { return from_; }
   void setFrom(std::string from) { from_ = std::move(from); }
+
+  // <generator> children (SF2 generator overrides) - element children, not
+  // attributes, so unlike `from` above these are parsed/written by
+  // Song.cpp's parseChildTrack()/storeChildTrack() directly (the same
+  // treatment DrumMachineTrack's own <drumMachine> data blob gets), not
+  // through loadParameters()/storeParameters(). Two containers, matching
+  // SF2GeneratorTable.h's own split: a recognized generator name resolves
+  // to its id and lands in generator_overrides_, keyed by that id (the
+  // form prepare()/cloneWithOverrides() actually consume); an unrecognized
+  // one is preserved verbatim, by name, in unknown_generator_overrides_ -
+  // round-tripped losslessly on save but never applied by any backend
+  // (see SF2GeneratorTable.h's own doc comment on why unknown names aren't
+  // rejected).
+  void addGeneratorOverride(SF2Generator id, float value) { generator_overrides_[id] = value; }
+  void addUnknownGeneratorOverride(std::string name, float value) { unknown_generator_overrides_.emplace_back(std::move(name), value); }
+  const std::unordered_map<SF2Generator, float> & getGeneratorOverrides() const { return generator_overrides_; }
+  const std::vector<std::pair<std::string, float>> & getUnknownGeneratorOverrides() const { return unknown_generator_overrides_; }
 
   std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & channel_config, const SphericalPosition & position, float frequency, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}, bool needs_decorrelation = false) const override {
     detune *= getHarmonic();
@@ -66,10 +88,25 @@ class GenericInstrument : public Instrument {
   // getDefaultInstrument() happens exactly once, here, after both attempts,
   // not folded into either lookup itself (see InstrumentProvider's own note
   // on why the old getInstrumentByName() couldn't support this).
+  //
+  // generator_overrides_ is applied here too, once, rather than at
+  // playNote() time - see Instrument::cloneWithOverrides()'s own doc
+  // comment for why overrides are load-time configuration, not a per-note
+  // parameter. Skipped entirely when there are no overrides to apply, so a
+  // pool slot with no <generator> children keeps sharing the provider's
+  // one canonical instance exactly as before - no extra allocation, no
+  // extra SongObject id consumed.
   void prepare(const InstrumentProvider & provider) override {
     auto resolved = provider.tryGetByLiteralName(getFrom());
     if (!resolved) resolved = provider.resolvePath(getFrom());
-    concrete_instrument_ = resolved ? resolved : provider.getDefaultInstrument();
+    if (!resolved) resolved = provider.getDefaultInstrument();
+
+    if (!generator_overrides_.empty()) {
+      auto clone = resolved->cloneWithOverrides(generator_overrides_);
+      if (clone) resolved = std::move(clone);
+    }
+
+    concrete_instrument_ = resolved;
   }
 
   // What a UI should show for this instrument - never persisted (see
@@ -119,6 +156,8 @@ class GenericInstrument : public Instrument {
   }
 
   std::string from_;
+  std::unordered_map<SF2Generator, float> generator_overrides_;
+  std::vector<std::pair<std::string, float>> unknown_generator_overrides_;
   std::shared_ptr<Instrument> concrete_instrument_;
 };
 

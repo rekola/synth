@@ -25,6 +25,7 @@
 
 #include "../bus/BusEffectRegistry.h"
 #include "../state/MemoryParameterSource.h"
+#include "../instruments/SF2GeneratorTable.h"
 
 #include <tinyxml2/tinyxml2.h>
 
@@ -194,11 +195,56 @@ static void storeDrumMachineData(const DrumMachineTrack & track, XMLDocument & d
   track_element->InsertEndChild(drum_machine_element);
 }
 
+// <generator name="..." value="..."/> children of an <instrument> element -
+// song-authored SF2 generator overrides. Parsed *before* prepare() runs,
+// unlike <drumMachine> below, which is read after - prepare() is what
+// actually applies these
+// (GenericInstrument::prepare() -> Instrument::cloneWithOverrides()) and
+// needs the full set already populated to decide whether cloning is even
+// necessary. A recognized name resolves to its id and lands in
+// generator_overrides_ (SF2GeneratorTable.h); an unrecognized one is kept,
+// by name, in unknown_generator_overrides_ - preserved for a lossless
+// round-trip but never applied by any backend (see that table's own doc
+// comment for why an unrecognized name isn't simply rejected).
+static void loadGeneratorOverrides(GenericInstrument & instrument, XMLElement & element) {
+  for (auto it = element.FirstChildElement("generator"); it; it = it->NextSiblingElement("generator")) {
+    auto name = it->Attribute("name");
+    auto value_text = it->Attribute("value");
+    if (!name || !value_text) continue;
+    float value = strtof(value_text, nullptr);
+    auto id = sf2GeneratorIdForName(name);
+    if (id) instrument.addGeneratorOverride(*id, value);
+    else instrument.addUnknownGeneratorOverride(name, value);
+  }
+}
+
+static void storeGeneratorOverrides(const GenericInstrument & instrument, XMLDocument & doc, XMLElement * track_element) {
+  for (auto & [id, value] : instrument.getGeneratorOverrides()) {
+    auto name = sf2GeneratorNameForId(id);
+    if (!name) continue; // every id here came from a known name in the first place
+    auto generator_element = doc.NewElement("generator");
+    generator_element->SetAttribute("name", name);
+    generator_element->SetAttribute("value", value);
+    track_element->InsertEndChild(generator_element);
+  }
+  for (auto & [name, value] : instrument.getUnknownGeneratorOverrides()) {
+    auto generator_element = doc.NewElement("generator");
+    generator_element->SetAttribute("name", name.c_str());
+    generator_element->SetAttribute("value", value);
+    track_element->InsertEndChild(generator_element);
+  }
+}
+
 static std::unique_ptr<Track> parseChildTrack(XMLElement & element, const InstrumentProvider & provider) {
   auto track = createTrack(element.Name());
   if (!track) return std::unique_ptr<Track>(nullptr);
 
   track->loadParameters(XMLParameterSource(&element));
+
+  auto generic_instrument = dynamic_cast<GenericInstrument *>(track.get());
+  if (generic_instrument) {
+    loadGeneratorOverrides(*generic_instrument, element);
+  }
 
   auto instrument = dynamic_cast<Instrument *>(track.get());
   if (instrument) {
@@ -212,6 +258,7 @@ static std::unique_ptr<Track> parseChildTrack(XMLElement & element, const Instru
 
   for (auto it = element.FirstChildElement(); it ; it = it->NextSiblingElement() ) {
     if (string_view(it->Name()) == "drumMachine") continue; // data, not a nested track - handled above
+    if (string_view(it->Name()) == "generator") continue; // data, not a nested track - handled above
     auto child = parseChildTrack(*it, provider);
     if (!child) return std::unique_ptr<Track>(nullptr);
     track->addChild(std::move(child));
@@ -233,6 +280,11 @@ static void storeChildTrack(const Track & track, XMLDocument & doc, XMLElement *
   auto drum_machine_track = dynamic_cast<const DrumMachineTrack *>(&track);
   if (drum_machine_track) {
     storeDrumMachineData(*drum_machine_track, doc, track_element);
+  }
+
+  auto generic_instrument = dynamic_cast<const GenericInstrument *>(&track);
+  if (generic_instrument) {
+    storeGeneratorOverrides(*generic_instrument, doc, track_element);
   }
 
   target_element->InsertEndChild(track_element);

@@ -35,6 +35,7 @@
 #include "../dsp/ChorusEngine.h"
 #include "../ambisonic/AmbisonicEncoding.h"
 #include "SF2Modulator.h"
+#include "SF2GeneratorTable.h"
 #include "../dsp/HashField.h"
 
 #include "../util/constants.h"
@@ -150,12 +151,14 @@ static inline float tsf_cents2Hertz(float cents) { return 8.176f * powf(2.0f, ce
 //   tuning: tuning of all playing voices in semitones (default 0.0, standard (A440) tuning)
 //   (set_preset_number and set_bank_preset return 0 if preset does not exist, otherwise 1)
 
+#include <algorithm>
 #include <cstring>
 #include <cmath>
 #include <cstdio>
 #include <vector>
 #include <array>
 #include <memory>
+#include <unordered_map>
 
 static int tsf_stream_stdio_read(FILE* f, void* ptr, unsigned int size) { return (int)fread(ptr, 1, size, f); }
 static int tsf_stream_stdio_skip(FILE* f, unsigned int count) { return !fseek(f, count, SEEK_CUR); }
@@ -229,6 +232,19 @@ static std::vector<SF2Mod::Connection> tsf_read_mods(ModArray* mods, uint16_t be
   }
   return result;
 }
+
+// SF2 spec range for InitialFilterFc (generator 8), in absolute cents above
+// 8.176 Hz - used only by tsf_region_operator()'s own GEN_INT_LIMITFC case
+// below, the ordinary (non-override) preset/instrument-generator clamp that
+// covers all ~59 SF2 generators, not just the handful a song can override.
+// SoundFontVoice's own initialFilterFc override handling (effectiveInitialFilterFc(),
+// further down) reads its range from SF2GeneratorTable.h's own
+// {"initialFilterFc", 8, ...} entry instead of these two constants - two
+// independent sources of the same numbers rather than one shared constant,
+// since genMetas here predates the override feature and covers generators
+// that table doesn't. Keep the two in sync by hand if the SF2 spec range
+// ever changes (it won't).
+constexpr int kFilterFcMin = 1500, kFilterFcMax = 13500;
 
 static void tsf_region_operator(struct tsf_region* region, uint16_t genOper, union tsf_hydra_genamount* amount, struct tsf_region* merge_region) {
   enum {
@@ -381,7 +397,7 @@ static void tsf_region_operator(struct tsf_region* region, uint16_t genOper, uni
 		switch (genMetas[genOper].mode & _GEN_LIMIT_MASK)
 		  {
 		  case GEN_INT_LIMIT12K:     vmin = -12000; vmax = 12000; break;
-		  case GEN_INT_LIMITFC:      vmin =   1500; vmax = 13500; break;
+		  case GEN_INT_LIMITFC:      vmin = kFilterFcMin; vmax = kFilterFcMax; break;
 		  case GEN_INT_LIMITQ:       vmin =      0; vmax =   960; break;
 		  case GEN_INT_LIMIT960:     vmin =   -960; vmax =   960; break;
 		  case GEN_INT_LIMIT16K4500: vmin = -16000; vmax =  4500; break;
@@ -401,16 +417,26 @@ static void tsf_region_operator(struct tsf_region* region, uint16_t genOper, uni
     }
 }
 
+// Timecents->seconds, pinning very short EG segments to exactly zero
+// (timecents don't get to zero, and our EG is happier with zero values) -
+// extracted from tsf_region_envtosecs() below so
+// SoundFontVoice::effectiveAmpEnv() can apply the identical rule to a
+// single overridden field without re-running the whole function against a
+// struct that mixes already-converted and freshly-overridden values (see
+// effectiveAmpEnv()'s own comment for why that would silently double-convert
+// the untouched fields).
+static float tsf_timecents2SecsPinned(float timecents) {
+  return timecents < -11950.0f ? 0.0f : tsf_timecents2Secsf(timecents);
+}
+
 static void tsf_region_envtosecs(Envelope * p, bool sustainIsGain) {
   // EG times need to be converted from timecents to seconds.
-  // Pin very short EG segments.  Timecents don't get to zero, and our EG is
-  // happier with zero values.
-  p->delay_   = (p->delay_  < -11950.0f ? 0.0f : tsf_timecents2Secsf(p->delay_));
-  p->attack_  = (p->attack_  < -11950.0f ? 0.0f : tsf_timecents2Secsf(p->attack_));
-  p->release_ = (p->release_ < -11950.0f ? 0.0f : tsf_timecents2Secsf(p->release_));
-  p->hold_  = (p->hold_ < -11950.0f ? 0.0f : tsf_timecents2Secsf(p->hold_));
-  p->decay_ = (p->decay_ < -11950.0f ? 0.0f : tsf_timecents2Secsf(p->decay_));
-    
+  p->delay_   = tsf_timecents2SecsPinned(p->delay_);
+  p->attack_  = tsf_timecents2SecsPinned(p->attack_);
+  p->release_ = tsf_timecents2SecsPinned(p->release_);
+  p->hold_    = tsf_timecents2SecsPinned(p->hold_);
+  p->decay_   = tsf_timecents2SecsPinned(p->decay_);
+
   if (p->sustain_ < 0.0f) p->sustain_ = 0.0f;
   else if (sustainIsGain) p->sustain_ = TrackState::decibelsToGain(-p->sustain_ / 10.0f);
   else p->sustain_ = 1.0f - (p->sustain_ / 1000.0f);
@@ -923,13 +949,19 @@ public:
   // (pitched SF2 presets, non-percussion banks) is untouched by any of
   // this and keeps using adjustPositionForPan() exactly as before -
   // defaults to false so every other call site is unaffected.
-  SoundFontVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, std::shared_ptr<SoundFontFile> sf, size_t preset, size_t region_idx, const SendLevels & sends = {}, bool skip_native_pan = false, const NoteCoordinate & note_coord = {}, bool needs_decorrelation = false)
+  // generator_overrides: song-authored SF2 generator overrides (id -> value,
+  // see SF2GeneratorTable.h/GenericInstrument's own generator_overrides_) -
+  // baked into this one voice's construction, not re-consulted afterward.
+  // Defaulted empty, so this is a pure addition to the parameter list; every
+  // existing call site keeps compiling unchanged. See
+  // effectiveInitialFilterFc() for the one generator actually consulted.
+  SoundFontVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, float detune, std::shared_ptr<SoundFontFile> sf, size_t preset, size_t region_idx, const SendLevels & sends = {}, bool skip_native_pan = false, const NoteCoordinate & note_coord = {}, bool needs_decorrelation = false, std::unordered_map<SF2Generator, float> generator_overrides = {})
     : InstrumentVoice(channel_config,
                        skip_native_pan ? position : adjustPositionForPan(position, regionFor(sf.get(), preset, region_idx)),
                        detune,
                        SendLevels{ sends.main, combineRegionSendA(sends.a, regionFor(sf.get(), preset, region_idx)), sends.b },
                        note_coord),
-      needs_decorrelation_(needs_decorrelation), sf_(sf)
+      needs_decorrelation_(needs_decorrelation), sf_(sf), generator_overrides_(std::move(generator_overrides))
   {
     auto f = sf_.get();
     if (preset < f->presets_.size()) {
@@ -981,7 +1013,8 @@ public:
 	viblfo_ = LFOState(voiceRegion_->delayVibLFO, tsf_cents2Hertz(voiceRegion_->freqVibLFO), outSampleRate);	
 	
 	// Setup lowpass filter.
-	float lowpassFc = (voiceRegion_->initialFilterFc <= 13500 ? tsf_cents2Hertz((float)voiceRegion_->initialFilterFc) / outSampleRate : 1.0f);
+	int initialFilterFc = effectiveInitialFilterFc();
+	float lowpassFc = (initialFilterFc <= 13500 ? tsf_cents2Hertz((float)initialFilterFc) / outSampleRate : 1.0f);
 	
 	lowpass_.active_ = (lowpassFc < 0.499f);
 	if (lowpass_.active_) {
@@ -1025,7 +1058,7 @@ public:
       auto outSampleRate = getChannelConfiguration().getAudioOutSampleRate();
 
       // Setup envelopes.
-      ampenv_ = EnvelopeState(outSampleRate, voiceRegion_->ampenv, midiKey, midiVelocity, true);
+      ampenv_ = EnvelopeState(outSampleRate, effectiveAmpEnv(), midiKey, midiVelocity, true);
       modenv_ = EnvelopeState(outSampleRate, voiceRegion_->modenv, midiKey, midiVelocity, false);
 
       // Start-time decorrelation delay, only when needs_decorrelation_
@@ -1183,6 +1216,66 @@ public:
     pitchOutputFactor_ = voiceRegion_->sample_rate / (tsf_timecents2Secsd(voiceRegion_->pitch_keycenter * 100.0) * getChannelConfiguration().getAudioOutSampleRate());
   }
 
+  // InitialFilterFc (generator 8), song-override-aware - the one place a
+  // GeneratorOverrides-carrying voice actually diverges from
+  // voiceRegion_->initialFilterFc (the ordinary preset+instrument-generator
+  // sum, precomputed once at font-load time - see this file's own notes on
+  // why an override can't hook into that resolution pass and has to be a
+  // substitution here instead). Absolute, not additive: a song value
+  // *replaces* the sum rather than adding to it. Clamped via
+  // SF2GeneratorTable.h's own range for this id, so an out-of-range override
+  // can't produce a cutoff the format wouldn't otherwise allow.
+  int effectiveInitialFilterFc() const {
+    auto it = generator_overrides_.find(SF2Generator::InitialFilterFc);
+    if (it == generator_overrides_.end()) return voiceRegion_->initialFilterFc;
+    return static_cast<int>(clampToGeneratorRange(SF2Generator::InitialFilterFc, it->second));
+  }
+
+  // Volume-envelope generators (ids 33-40), song-override-aware -
+  // returns a private copy of voiceRegion_->ampenv with any authored
+  // overrides substituted in, for the one call site (playNote(), below)
+  // that constructs ampenv_ from it. voiceRegion_->ampenv is already
+  // load-time-converted (delay_/attack_/hold_/decay_/release_ in seconds,
+  // sustain_ as linear gain - see tsf_region_envtosecs(), called once per
+  // region at font-load time with sustainIsGain=true for the amp envelope
+  // specifically), so only the fields an override actually touches get
+  // (re-)converted here, one at a time - re-running tsf_region_envtosecs()
+  // on the whole copy would silently re-convert every *untouched* field a
+  // second time, since they're already in seconds/gain, not raw
+  // timecents/centibels, by the time this runs. keynumToHold_/keynumToDecay_
+  // are the one exception: never touched by tsf_region_envtosecs() at all
+  // (they're a per-key *scaling factor*, not a duration), so an override
+  // for either is stored raw, unconverted, exactly matching what
+  // EnvelopeState's own constructor already expects from an unoverridden
+  // region.
+  Envelope effectiveAmpEnv() const {
+    Envelope env = voiceRegion_->ampenv;
+    if (generator_overrides_.empty()) return env;
+
+    auto overrideTime = [&](SF2Generator id, float & field) {
+      auto it = generator_overrides_.find(id);
+      if (it != generator_overrides_.end()) field = tsf_timecents2SecsPinned(clampToGeneratorRange(id, it->second));
+    };
+    overrideTime(SF2Generator::DelayVolEnv, env.delay_);
+    overrideTime(SF2Generator::AttackVolEnv, env.attack_);
+    overrideTime(SF2Generator::HoldVolEnv, env.hold_);
+    overrideTime(SF2Generator::DecayVolEnv, env.decay_);
+    overrideTime(SF2Generator::ReleaseVolEnv, env.release_);
+
+    auto sustain_it = generator_overrides_.find(SF2Generator::SustainVolEnv);
+    if (sustain_it != generator_overrides_.end()) {
+      auto centibels = clampToGeneratorRange(SF2Generator::SustainVolEnv, sustain_it->second);
+      env.sustain_ = centibels < 0.0f ? 0.0f : decibelsToGain(-centibels / 10.0f);
+    }
+
+    auto hold_key_it = generator_overrides_.find(SF2Generator::KeynumToVolEnvHold);
+    if (hold_key_it != generator_overrides_.end()) env.keynumToHold_ = clampToGeneratorRange(SF2Generator::KeynumToVolEnvHold, hold_key_it->second);
+    auto decay_key_it = generator_overrides_.find(SF2Generator::KeynumToVolEnvDecay);
+    if (decay_key_it != generator_overrides_.end()) env.keynumToDecay_ = clampToGeneratorRange(SF2Generator::KeynumToVolEnvDecay, decay_key_it->second);
+
+    return env;
+  }
+
 protected:
   double apparentPlayingKey_ = 0;
   struct tsf_region * voiceRegion_ = nullptr;
@@ -1205,6 +1298,7 @@ protected:
   
 private:
   shared_ptr<SoundFontFile> sf_;
+  std::unordered_map<SF2Generator, float> generator_overrides_;
   EnvelopeState ampenv_, modenv_;
   vector<float> dry_;
 
@@ -1336,7 +1430,7 @@ SoundFontVoice::render(int numSamples) {
   
   auto tmpInitialFilterFc = 0, tmpModLfoToFilterFc = 0, tmpModEnvToFilterFc = 0;
   if (dynamicLowpass) {
-    tmpInitialFilterFc = (float)voiceRegion_->initialFilterFc;
+    tmpInitialFilterFc = (float)effectiveInitialFilterFc();
     tmpModLfoToFilterFc = (float)voiceRegion_->modLfoToFilterFc;
     tmpModEnvToFilterFc = (float)voiceRegion_->modEnvToFilterFc;
   }
@@ -1754,6 +1848,21 @@ public:
 
   const char * getElementName() const override { return "soundFontInstrument"; }
 
+  // A private copy of this instrument, sharing the same underlying font
+  // data (sf_/preset_ - cheap, just a shared_ptr copy and an index, not a
+  // duplication of any region/sample data) but carrying its own
+  // generator_overrides_, baked in once here rather than passed through
+  // playNote() - see Instrument::cloneWithOverrides()'s own doc comment
+  // for why. Every voice this clone ever creates (playNote() below) passes
+  // generator_overrides_ into SoundFontVoice, which is the only place any
+  // of them are actually read (SoundFontVoice::effectiveInitialFilterFc()).
+  std::unique_ptr<Instrument> cloneWithOverrides(const std::unordered_map<SF2Generator, float> & overrides) const override {
+    auto clone = std::make_unique<SoundFontInstrument>(sf_, preset_);
+    clone->setName(getName());
+    clone->generator_overrides_ = overrides;
+    return clone;
+  }
+
   // Family default extents (meters, half-width) by GM bank/program - bank
   // 128 is the GM percussion-bank convention (a drum kit); every other
   // entry is a GM program number (bank 0) whose instrument has a real,
@@ -1871,7 +1980,7 @@ public:
 	// its ctor's doc comment) so percussion/pitched-arc instruments play
 	// from exactly their resolved position; every other instrument keeps
 	// that folding.
-	auto voice = make_unique<SoundFontVoice>(channel_config, adjusted_position, detune, sf_, preset_, region_idx, sends, position_resolved_by_new_mechanism, note_coord, needs_decorrelation);
+	auto voice = make_unique<SoundFontVoice>(channel_config, adjusted_position, detune, sf_, preset_, region_idx, sends, position_resolved_by_new_mechanism, note_coord, needs_decorrelation, generator_overrides_);
 	voice->playNote(frequency, velocity, note_value);
 
 	if (!getChildren().empty()) {
@@ -1911,6 +2020,9 @@ public:
 private:
   shared_ptr<SoundFontFile> sf_;
   size_t preset_;
+  // Empty except on a cloneWithOverrides() copy - see that method's own
+  // comment.
+  std::unordered_map<SF2Generator, float> generator_overrides_;
 };
 
 std::unique_ptr<Instrument>

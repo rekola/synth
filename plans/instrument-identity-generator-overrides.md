@@ -617,6 +617,57 @@ never assumes the GM table is the only populator.
 
 ## Phase 2 - song-level SF2 generator overrides
 
+**Implemented and verified, with one real design change from this section as originally
+written**: overrides are *not* threaded through `playNote()`'s per-note signature at all
+(the design below, and my first implementation attempt, did exactly that) - caught before it
+landed, on the grounds that an override is load-time configuration of an instrument
+definition, baked in once, not a dynamic per-note-event parameter the way
+frequency/velocity/position genuinely are. Threading it through `playNote()` would have
+touched 9+ leaf types' signatures for something that never actually varies between one
+`playNote()` call and the next on the same pool slot.
+
+What's actually built instead: `Instrument` gains a new virtual
+`std::unique_ptr<Instrument> cloneWithOverrides(const std::unordered_map<int, float> &) const`
+(default: `nullptr`, meaning "this backend doesn't support overrides" - correct for every
+backend except `SoundFontInstrument`). `GenericInstrument::prepare()` - not `playNote()` -
+calls it, once, only when `generator_overrides_` is non-empty: `SoundFontInstrument`
+overrides it to return a private copy of itself (cheap - just a `shared_ptr<SoundFontFile>`
+copy and an index, no region/sample duplication) carrying its own `generator_overrides_`
+member, which every `SoundFontVoice` it ever constructs receives via one added constructor
+parameter and reads through a new `effectiveInitialFilterFc()` helper (used at both of the
+two `voiceRegion_->initialFilterFc` sites identified below). A pool slot with no
+`<generator>` children never calls `cloneWithOverrides()` at all, so it keeps sharing the
+provider's one canonical instance exactly as before - zero extra allocation, zero extra
+`SongObject` id consumed, for the common case. `src/model/GeneratorOverrides.h` (the
+now-abandoned `playNote()`-parameter wrapper struct) was written and then deleted once the
+design changed - never shipped.
+
+Verified before finishing the wiring, not assumed: the real `FluidR3_GM.sf2`'s
+`piano.acoustic.grand` (Yamaha Grand Piano) does carry a real, non-default `initialFilterFc`
+(a global instrument zone sets 12623 cents, ~12 kHz, inherited by all 41 velocity-layer
+zones) - so the override has something genuine to act on, not a no-op against an
+already-fully-open filter. Confirmed the mechanism actually works end-to-end with a real
+song, real font, and a real FFT: rendered `piano.acoustic.grand` with no override vs.
+`<generator name="initialFilterFc" value="9000"/>` (~1.5 kHz), band-energy comparison shows
+content below the cutoff essentially unchanged (ratio 1.10, 0-1500 Hz) while content above it
+drops to 2.5% (1500-4000 Hz), 0.1% (4000-8000 Hz), and ~0.04% (8000-16000 Hz) of the
+unoverridden render - a textbook lowpass response, not just a plausible-looking number.
+
+Tests: `tests/SongTests.cpp` gained three (recognized-name round-trip, unknown-name
+preserved-unapplied round-trip, no-`<generator>`-children-means-no-overrides round-trip) -
+XML/`Song`-level, matching that file's existing round-trip style. New
+`tests/GeneratorOverrideTests.cpp` (6 tests, against the same synthetic-`.sf2`-fixture
+pattern `InstrumentResolverTests.cpp` uses, exercising `cloneWithOverrides()` directly
+through the public `SoundFont`/`Instrument` API): clone identity, empty-overrides is a safe
+no-op, an override audibly lowers output once the cutoff drops below the fixture's own pure
+sine tone (a coarse level check, since a single tone has no harmonics for a real spectral
+comparison to look for - that's what the real-font FFT check above is for instead), clamping
+both below the 1500 minimum and above the 13500 maximum, and an unrecognized generator id
+being silently ignored. Full test suite passes; full song-corpus render (all 67) is
+bit-identical to the pre-Phase-2 baseline (unlike Phase 0->1's own comparison, this one didn't
+need the object-count-shift workaround - Phase 2 adds no `InstrumentProvider` startup
+construction at all when nothing uses `<generator>`, which nothing in the corpus does yet).
+
 ### Data model
 
 - `GenericInstrument` gains `std::unordered_map<int, float> generator_overrides_`
@@ -625,7 +676,7 @@ never assumes the GM table is the only populator.
   Stored unclamped, exactly as authored - clamping is generator- and
   backend-specific (see below), so it belongs at the point where a specific
   backend interprets a specific generator, not at parse time.
-- Name<->id table: a new small header, `src/instruments/SF2GeneratorNames.h`
+- Name<->id table: a new small header, `src/instruments/SF2GeneratorTable.h`
   (no existing table maps generator *names* to ids anywhere in the codebase -
   `genMetas` in `SoundFont.cpp` is indexed by numeric id only, with the name
   living purely in a same-line comment). One entry for Phase 2:
@@ -659,7 +710,7 @@ children/data blobs are handled by `Song.cpp`'s `parseChildTrack`/
   `loadGeneratorOverrides(GenericInstrument &, XMLElement &)`, iterating
   `element.FirstChildElement("generator")`/`NextSiblingElement("generator")`,
   reading `name`/`value` attributes, looking up the id via
-  `SF2GeneratorNames.h`'s table, and populating `generator_overrides_` or
+  `SF2GeneratorTable.h`'s table, and populating `generator_overrides_` or
   `unknown_generator_overrides_` per the above.
 - Add `"generator"` to the existing child-skip check
   (`if (string_view(it->Name()) == "drumMachine") continue;` becomes an
@@ -740,6 +791,256 @@ Falls out of the design rather than needing a separate mechanism:
 is empty, `it == overrides_.end()`, so the ternary above takes the
 `voiceRegion_->initialFilterFc` branch - byte-identical to current code.
 
+## Phase 2b - volume-envelope generator overrides
+
+**Implemented and verified.** `SF2GeneratorTable.h`'s range gap (section 1 below) was fixed as
+planned - `SF2GeneratorEntry` now carries `{name, id, min, max}`, and
+`effectiveInitialFilterFc()` reads its range from the table instead of the old local
+`kFilterFcMin`/`kFilterFcMax` constants (which stay in `SoundFont.cpp`, unchanged, for
+`tsf_region_operator`'s own unrelated full-spec clamp). `SoundFontVoice::effectiveAmpEnv()` was
+added exactly as designed in section 3, and its one call site (`playNote()`'s `ampenv_`
+construction) now uses it in place of `voiceRegion_->ampenv` directly.
+
+One change beyond the original plan, made during implementation rather than left as `int`: the
+generator id space (both here and in Phase 2's `initialFilterFc`) is now a real
+`enum class SF2Generator : int` in `SF2GeneratorTable.h`, not a bag of raw `int`s - the override
+map is `unordered_map<SF2Generator, float>`, `cloneWithOverrides()` takes
+`const unordered_map<SF2Generator, float> &`, and every call site names the generator
+(`SF2Generator::DecayVolEnv`) instead of trusting a same-line comment. `SoundFont.cpp`'s
+unrelated, full-spec `genMetas` table (used by the ordinary, non-override generator-merge path)
+deliberately stays plain-`int`-indexed - it covers all ~59 SF2 generators positionally and has no
+reason to share this type, so the codebase now has two independent conventions for the same
+underlying SF2 id space rather than one, and that's fine: they serve genuinely different call
+sites (a handful of override-eligible names looked up by name, vs. every generator indexed by
+parse-time position).
+
+Tests (`tests/GeneratorOverrideTests.cpp`, `tests/SongTests.cpp`) cover: clamping for both
+distinct ranges (`delayVolEnv`'s -12000..5000 vs. `attackVolEnv`'s -12000..8000), an audible
+`sustainVolEnv` level check, a `keynumToVolEnvDecay` sign-convention check (a low note's decay
+demonstrably outlasts a high note's under the same override, matching the numbers worked out from
+`EnvelopeState`'s own key-scaling formula), and XML round-trips for all 8 names/ids plus a
+recognized-and-unrecognized-generator-in-one-document case. Full suite passes except the
+pre-existing, unrelated `render_golden_hash_catches_randomization_regressions` failure (confirmed
+via isolation testing against a clean pre-Phase-2 tree - a compiler/`-march`-sensitive golden hash
+issue, not caused by this work).
+
+Plan for the `delayVolEnv`/`attackVolEnv`/`holdVolEnv`/`decayVolEnv`/`sustainVolEnv`/
+`releaseVolEnv`/`keynumToVolEnvHold`/`keynumToVolEnvDecay` generators (SF2 ids 33-40), run
+after Phase 2 landed. All five questions below were answered by reading the actual code
+`genMetas`/`tsf_region_envtosecs`/`EnvelopeState` implement, not inferred from the spec.
+
+### 1. Premise check: is Phase 2 actually generic over generator id?
+
+**Mostly yes, one real gap, now identified and worth fixing here.**
+
+Confirmed fully generic, zero changes needed for these 8 new ids: the `generator_overrides_`/
+`unknown_generator_overrides_` storage on `GenericInstrument`, `Song.cpp`'s
+`loadGeneratorOverrides()`/`storeGeneratorOverrides()` (both already iterate whatever's in the
+maps via `SF2GeneratorTable.h`'s name↔id lookup - no per-generator branches), `Instrument::
+cloneWithOverrides()`'s virtual signature, and `SoundFontInstrument::cloneWithOverrides()`
+(copies the whole map, generator-agnostic). None of this needed to change to add 8 more ids to
+the map - confirmed by inspection, not just by design intent.
+
+**The gap**: `SF2GeneratorTable.h`'s entries are currently just `{name, id}` - the valid range
+(1500-13500 for `initialFilterFc`) lives as two hand-written constants,
+`kFilterFcMin`/`kFilterFcMax`, in `SoundFont.cpp`, read directly by
+`SoundFontVoice::effectiveInitialFilterFc()`. That's not what "the table carries the range"
+means - the range is bolted onto the *consumer*, not the table, so a second generator's range
+has nowhere shared to live and would invite either a second hand-written constant pair (drifting
+copies of the same idea) or, worse, getting the *wrong* pair by mistake. This is a real,
+fixable defect in the Phase 2 implementation. Fix (small, mechanical, done first): extend
+`SF2GeneratorEntry` to `{name, id, min, max}`, add a `sf2GeneratorEntryForId(int)` lookup and a
+`clampToGeneratorRange(int id, float value)` convenience wrapper, and switch
+`effectiveInitialFilterFc()` from the local constants to `clampToGeneratorRange(8, ...)`. Keep
+`kFilterFcMin`/`kFilterFcMax` where they already are, for `tsf_region_operator`'s *own*,
+unrelated clamp of the ordinary (non-overridden) preset/instrument generator sum - that's a
+property of the SF2 format itself (covers all ~59 generators, not just the handful a song can
+override) and shouldn't reach into the override feature's table; add a one-line comment there
+cross-referencing `SF2GeneratorTable.h` so the two numbers can't silently drift without someone
+noticing.
+
+**Not a gap, an inherent property, confirmed by reading `EnvelopeState`/`SoundFontVoice`
+directly**: applying an override still needs new code at whatever point in `SoundFontVoice`
+actually consumes that generator's baseline value - for `initialFilterFc` that was the two
+`voiceRegion_->initialFilterFc` sites; for the volume envelope it's the single place
+`ampenv_` gets constructed (`SoundFont.cpp:1045`, inside `playNote()`). This is exactly what the
+original Phase 2 prompt meant by "clamping is generator- and backend-specific... belongs at the
+point where a specific backend interprets a specific generator" - schema/parser genericity was
+promised and holds; DSP-application genericity was never promised and isn't achievable for
+generators that drive genuinely different subsystems (a filter cutoff and eight envelope-shape
+parameters aren't the same kind of value). One new method, `SoundFontVoice::effectiveAmpEnv()`,
+covers all 8 - see section 3.
+
+### 2. Where the table lives, and what a range entry looks like
+
+Still `src/instruments/SF2GeneratorTable.h`. New shape:
+
+```cpp
+struct SF2GeneratorEntry { const char * name; int id; float min; float max; };
+
+inline constexpr SF2GeneratorEntry kSF2GeneratorTable[] = {
+  {"initialFilterFc",     8,  1500.0f, 13500.0f},
+  {"delayVolEnv",         33, -12000.0f, 5000.0f},
+  {"attackVolEnv",        34, -12000.0f, 8000.0f},
+  {"holdVolEnv",          35, -12000.0f, 5000.0f},
+  {"decayVolEnv",         36, -12000.0f, 8000.0f},
+  {"sustainVolEnv",       37, 0.0f, 1440.0f},
+  {"releaseVolEnv",       38, -12000.0f, 8000.0f},
+  {"keynumToVolEnvHold",  39, -1200.0f, 1200.0f},
+  {"keynumToVolEnvDecay", 40, -1200.0f, 1200.0f},
+};
+```
+
+Every range above is taken directly from `SoundFont.cpp`'s own `genMetas` table (the ordinary,
+non-override generator-merge clamp already in the engine - `SoundFont.cpp`'s `GEN_INT_LIMITFC`/
+`GEN_FLOAT_LIMIT12K5K`/`GEN_FLOAT_LIMIT12K8K`/`GEN_FLOAT_MAX1440`/`GEN_FLOAT_LIMIT1200` cases),
+not retyped from the spec by hand - so an override clamps to exactly the same bounds the engine
+already enforces for an ordinary (non-overridden) preset. Confirms the prompt's own note that a
+shared range would be wrong: `attackVolEnv`/`decayVolEnv`/`releaseVolEnv` (-12000..8000) differ
+from `delayVolEnv`/`holdVolEnv` (-12000..5000), and `sustainVolEnv`/`keynumTo*` aren't timecent
+ranges at all.
+
+`sf2GeneratorIdForName()`/`sf2GeneratorNameForId()` keep their existing signatures (`Song.cpp`
+needs no changes). New: `const SF2GeneratorEntry * sf2GeneratorEntryForId(int)` and
+`float clampToGeneratorRange(int id, float value)` (looks up the entry, clamps; returns `value`
+unclamped if `id` isn't in the table at all - shouldn't happen for anything reaching this code,
+but no reason to crash if it did).
+
+### 3. Where unit conversion happens - and a real double-conversion risk found while checking
+
+**Not at parse time in the sense of "stored as timecents forever," and not "never" either -
+timecents→seconds conversion already happens once, at font-load time, permanently overwriting
+the raw value.** Traced precisely:
+
+- `delay_`/`attack_`/`hold_`/`decay_`/`release_`: converted from raw timecents to **seconds**
+  by `tsf_region_envtosecs()` (`SoundFont.cpp:414-427`), called once per region at load time
+  (`SoundFont.cpp:747`, right alongside the same merge/clamp pass `initialFilterFc` goes
+  through). By the time any voice reads `voiceRegion_->ampenv.delay_`, it is already in
+  seconds - there is no "raw timecents" form left anywhere at runtime for these five fields.
+- `sustain_`: converted by the *same* call, from raw centibels-of-attenuation to **linear
+  gain**, via `decibelsToGain(-sustain_/10)` - but only because `tsf_region_envtosecs()` is
+  called with `sustainIsGain=true` for the amp envelope specifically (`SoundFont.cpp:747`;
+  the mod envelope, line 748, passes `false` and gets a different 0-1000 modulation-depth
+  formula instead - irrelevant here, `modenv` isn't overridable and isn't in the table).
+  `decibelsToGain` is `TreeNode`'s existing static helper (`10^(db/20)`, floored at -100dB),
+  already reachable unqualified from `SoundFontVoice` (`InstrumentVoice`/`VoiceState` already
+  inherit it - confirmed by existing unqualified `gainToDecibels()` calls elsewhere in the same
+  class, `SoundFont.cpp:1463`).
+- `keynumToHold_`/`keynumToDecay_`: **not** touched by `tsf_region_envtosecs()` - confirmed by
+  its absence from that function. They stay in raw timecents-per-key form in the shared region,
+  and are applied directly, per voice, inside `EnvelopeState`'s own constructor
+  (`EnvelopeState.h:47-52`), which needs the actual MIDI key number and so can only run at
+  note-on: `parameters.hold_ *= tsf_timecents2Secsf(parameters.keynumToHold_ * (60.0f -
+  midiNoteNumber))`, same shape for decay. Confirms the prompt's sign question directly, from
+  the formula rather than the spec prose: a **positive** `keynumToDecay_` with a **low** note
+  (`midiNoteNumber < 60`) makes `(60 - midiNoteNumber)` positive, so the multiplier
+  `tsf_timecents2Secsf(...)` exceeds 1 and `decay_` is *lengthened*; a high note shortens it -
+  positive means "low notes ring longer, high notes die faster," exactly the piano behavior the
+  prompt describes, and exactly backwards if the sign gets flipped by mistake.
+
+**The risk found while working out where to apply an override**: `voiceRegion_->ampenv` is the
+*already-converted* (seconds/gain) shared region - not raw timecents. Naively copying it into a
+local `Envelope`, overwriting a couple of fields with raw override values, and then re-running
+`tsf_region_envtosecs()` on the *whole* copy would silently re-convert the fields that were
+*not* overridden a second time (seconds run back through `tsf_timecents2Secsf()` as if they
+were still timecents), corrupting every un-overridden envelope segment. Not hypothetical - it's
+the natural first thing to try, and it's wrong. Fix: convert only the field actually being
+overridden, inline, at substitution time - never re-run the batch conversion on a struct that's
+a mix of already-converted and freshly-overridden values. Extract
+`tsf_timecents2SecsPinned(float)` (the `timecents < -11950 ? 0 : tsf_timecents2Secsf(timecents)`
+expression `tsf_region_envtosecs()` already repeats five times) as its own small function, used
+by both the existing load-time path and the new per-field override substitution, so the "pin
+near-zero timecents to exactly zero" rule can't drift between the two call sites.
+
+`SoundFontVoice` gains one new method, next to `effectiveInitialFilterFc()`:
+
+```cpp
+Envelope effectiveAmpEnv() const {
+  Envelope env = voiceRegion_->ampenv; // already seconds/gain/raw-keynum-factors - untouched fields stay exactly this
+  auto overrideTime = [&](int id, float & field) {
+    auto it = generator_overrides_.find(id);
+    if (it != generator_overrides_.end()) field = tsf_timecents2SecsPinned(clampToGeneratorRange(id, it->second));
+  };
+  overrideTime(33, env.delay_);
+  overrideTime(34, env.attack_);
+  overrideTime(35, env.hold_);
+  overrideTime(36, env.decay_);
+  overrideTime(38, env.release_);
+
+  auto sustain_it = generator_overrides_.find(37);
+  if (sustain_it != generator_overrides_.end()) {
+    auto centibels = clampToGeneratorRange(37, sustain_it->second);
+    env.sustain_ = centibels < 0.0f ? 0.0f : decibelsToGain(-centibels / 10.0f);
+  }
+  auto hold_it = generator_overrides_.find(39);
+  if (hold_it != generator_overrides_.end()) env.keynumToHold_ = clampToGeneratorRange(39, hold_it->second);
+  auto decay_it = generator_overrides_.find(40);
+  if (decay_it != generator_overrides_.end()) env.keynumToDecay_ = clampToGeneratorRange(40, decay_it->second);
+
+  return env;
+}
+```
+
+with the one call site changed from `ampenv_ = EnvelopeState(outSampleRate, voiceRegion_->ampenv,
+...)` to `ampenv_ = EnvelopeState(outSampleRate, effectiveAmpEnv(), ...)` (`SoundFont.cpp:1045`).
+`modenv_` (line 1046) is untouched - mod envelope generators aren't in scope. No-override case:
+every field of `env` is copied verbatim from the already-correct shared region and no override
+branch fires, so this is bit-identical to today, the same guarantee `effectiveInitialFilterFc()`
+already has.
+
+### 4. The polyphony question
+
+**Confirmed, and it's deliberate, documented, existing behavior - not something this task
+introduces or should try to fix.** `EnvelopeState::isDone()` is `segment == DONE`
+(`EnvelopeState.h:163`), and `SUSTAIN` never transitions to `DONE` on its own -
+`EnvelopeState::nextSegment()`'s `SUSTAIN` case (`EnvelopeState.h:131-143`) always advances to
+`RELEASE`, which only happens via `stopNote()` (note-off) or the silence-kill-floor shortcut.
+That shortcut (`SoundFont.cpp:1463`, `if (ampenv_.isReleasing() && gainToDecibels(...) <
+SILENCE_KILL_FLOOR_DB)`) is explicitly gated to the release stage only -
+`EnvelopeState::isReleasing()`'s own doc comment (`EnvelopeState.h:164-169`) states the
+reasoning directly: *"a held note's gain can legitimately be very low during ATTACK... or a
+deliberately quiet SUSTAIN, and must never be killed while still held regardless of how quiet
+it currently is."* So a voice with `sustainVolEnv` forced near 1440 (near-silent) decays to
+that level quickly, then sits in `SUSTAIN` - active, silent, un-freed - for as long as the note
+is held, exactly like any other patch with a deliberately quiet sustain already can. This isn't
+new or specific to overrides; a piano-shaped envelope just makes the "quiet-but-held" case the
+common one instead of the exception. Nothing to fix here - the engine has no voice-stealing
+mechanism at all yet (out of scope, per `plans/sf2-retrigger-cutoff.md`), so there's no
+reclaiming logic this could plug into even if the design intent were different. Worth a
+`docs/known_bugs.md`-adjacent note if it ever surprises someone, not a code change.
+
+### 5. Tests
+
+Same two-layer split Phase 2 used:
+
+- `tests/SongTests.cpp` (XML/round-trip level, extending the existing pattern): all 8 new
+  generator names round-trip through save/load keyed by their correct ids; an override for
+  `sustainVolEnv` together with a made-up unrecognized name in the same `<instrument>`
+  round-trips both correctly (recognized → `generator_overrides_`, unrecognized →
+  `unknown_generator_overrides_`) in one document, not just one generator at a time.
+- `tests/GeneratorOverrideTests.cpp` (synthetic-`.sf2`-fixture level, `cloneWithOverrides()`
+  directly): per-generator clamping (one test per id, below-min and above-max, matching the
+  table's own bounds - `delayVolEnv`/`holdVolEnv` clamp differently than `attackVolEnv`/
+  `decayVolEnv`/`releaseVolEnv`, so these must be asserted separately, not just one representative
+  generator); no-override-means-unchanged (empty overrides map renders bit-identical to the
+  un-cloned original, same as Phase 2's own test); and the one the prompt asks for directly - a
+  large `sustainVolEnv` (near 1440) audibly/measurably shortens a voice's *audible* lifetime
+  (render until the un-overridden voice is still clearly sounding at some fixed frame count,
+  assert the overridden one has already decayed below a small level threshold by then) -
+  distinct from and not contradicted by section 4's finding that the voice itself stays
+  *allocated*; this test is about audible decay time, not `isActive()`. Also: a
+  `keynumToVolEnvDecay` sign-convention test - render the same override at a low note and a high
+  note, assert the low note's decay is measurably longer than the high note's, catching exactly
+  the backwards-sign mistake the prompt warns is the most likely bug.
+
+### Manual verification
+
+Matches the prompt's own plan: load `piano.electric.tine` with the three-generator override
+example, compare against the unmodified patch across the keyboard, listening for roughly a
+three-second decay to silence with high notes decaying faster than low ones. Nothing here
+substitutes for that - the tests above confirm the mechanism does what the numbers say, not that
+the numbers are the right numbers for a piano.
+
 ## Phase 3 - confirm nothing earlier blocks it (not implementing)
 
 Sketch only, per the prompt.
@@ -801,7 +1102,7 @@ migration - a further song-file pass plus the `native:` prefixing - only if
 you want it folded in too (see "Native preset names, namespaced" above);
 otherwise it's not part of Phase 1's file list.
 
-**Phase 2**: new `src/instruments/SF2GeneratorNames.h`, `src/model/Song.cpp`
+**Phase 2**: new `src/instruments/SF2GeneratorTable.h`, `src/model/Song.cpp`
 (`parseChildTrack`/`storeChildTrack` additions), `src/instruments/GenericInstrument.h`
 (`generator_overrides_`/`unknown_generator_overrides_` members + accessors),
 `src/model/Track.h` + every `playNote()` override listed above (new trailing

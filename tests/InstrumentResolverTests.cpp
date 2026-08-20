@@ -18,10 +18,10 @@ using namespace sf2fixture;
 
 // Exercises InstrumentProvider::registerPath()/resolvePath() and
 // SoundFont::createInstrumentByProgram() directly - the resolver described
-// in docs/instrument-paths.md and plans/instrument-identity-generator-overrides.md's
-// Phase 1. Uses synthetic .sf2 fixtures (Sf2Fixture.h, shared with
-// SF2ModulatorTests.cpp) rather than a real installed font, so these are
-// hermetic and don't depend on what's installed on the machine running them.
+// in docs/instrument-paths.md. Uses synthetic .sf2 fixtures (Sf2Fixture.h,
+// shared with SF2ModulatorTests.cpp) rather than a real installed font, so
+// these are hermetic and don't depend on what's installed on the machine
+// running them.
 
 TEST(create_instrument_by_program_finds_the_same_patch_despite_a_bank0_gap) {
   // Font A: bank-0 programs 0,1,2 contiguous - index == program, the
