@@ -17,7 +17,7 @@
                 </multiply>
             </resonantFilter>
         </envelope>
-        <instrument from="bass.electric.finger"/>
+        <instrument from="bass.electric.pick"/>
         <instrument from="piano.electric.tine"/>
     </instruments>
     <tracks>

@@ -17,7 +17,7 @@
                 </multiply>
             </resonantFilter>
         </envelope>
-        <instrument from="bass.electric.finger"/>
+        <instrument from="bass.electric.pick"/>
     </instruments>
     <tracks>
         <track id="chords" instrument="1" azimuth="-30" distance="1" elevation="50" color="" sendA="0.14285715" sendB="0.2857143" noteColumns="7"/>

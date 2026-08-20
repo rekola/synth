@@ -14,7 +14,7 @@
             </resonantFilter>
         </envelope>
         <instrument from="Percussion"/>
-        <instrument from="bass.electric.finger"/>
+        <instrument from="bass.electric.pick"/>
     </instruments>
     <tracks>
         <track id="harp2" instrument="0" azimuth="-30" distance="1" elevation="0" color="" sendA="-20.0000" sendB="-13.9794"/>

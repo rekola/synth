@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="150" patternRows="64" volume="1.0">
   <instruments>
-    <instrument from="bass.electric.finger" />
+    <instrument from="bass.electric.pick" />
     <instrument from="piano.acoustic.grand" />
   </instruments>
   

@@ -390,6 +390,76 @@ implementation time rather than doing it unasked.
 
 ## Phase 1 - instrument identity
 
+**Implemented and verified.** `SoundFont::createInstrumentByProgram` was already in from
+Phase 0 (pulled forward for the `Percussion` fix). Added: `GmInstrumentTable.h` (the full
+128-row bank-0 `{program, path}` table plus the 21-row bare-root defaults table, both
+mechanically generated from `docs/instrument-paths.md` rather than hand-transcribed - see
+the generation script's own output, not committed separately since it's a one-off);
+`InstrumentProvider::registerPath()`/`resolvePath()`/`tryGetByLiteralName()`/
+`getDefaultInstrument()`; `loadSoundFont()`'s curated ~26-entry block replaced by a loop over
+the full 128-row table (registers every GM program this font actually has, not just the
+previously-curated subset - `piano.acoustic.grand.bright`, `keyboard.electric.clavinet`,
+every pad/lead/organ/reed/flute/brass program, etc. are all resolvable now, not just the ones
+that happened to have a hand-written alias before); `GenericInstrument::prepare()` updated to
+the two-step literal-then-path resolution order (adapted to read `getFrom()`, since Phase 0b
+landed after this plan was first written and already moved the resolution key off `getName()`).
+
+**A real bug found and fixed while verifying**: the first `resolvePath()` implementation
+stack-overflowed - confirmed via a full backtrace, not guessed - whenever it needed to
+redirect through a defaults-table entry whose *target* wasn't itself registered (concretely:
+resolving `kit` or `kit.standard`, unreachable until `<instrumentMap>`/Phase 3 lands, but also
+reachable by any request that happens to share a defaults-table root with an unregistered
+deeper path - hit immediately by `instrument_id_from_and_name_round_trip_independently`'s
+font-less `InstrumentProvider`). The fix: a matched default's target resolves via `walkUp()`
+only, not a second recursive `resolvePath()` call - confirmed no current table entry needs
+real chaining (checked programmatically: no default's target is itself a request key), and
+the recursive form's cycle risk wasn't worth keeping for a case nothing needs. Fixed and
+regression-tested (`resolve_path_returns_null_when_a_defaults_target_is_itself_unregistered`).
+
+Also: `writeMinimalSf2` and its supporting types, previously private to
+`tests/SF2ModulatorTests.cpp`, extracted to `tests/Sf2Fixture.h` so the new resolver tests
+could reuse the exact same synthetic-`.sf2`-building machinery (including a deliberate
+`(bank,program)` gap) rather than duplicating it - `SF2ModulatorTests.cpp` itself is
+unaffected beyond the extraction (same tests, same behavior, `mainChannelDifference` is all
+that's left in its own file). New `tests/InstrumentResolverTests.cpp` (10 tests): the
+dual-font gap test items 1/7 called for, `createInstrumentByProgram` absent-program handling,
+walk-up (both "finds an ancestor" and "exact match beats an ancestor"), the defaults-table
+redirect, the stack-overflow regression above, a no-match-anywhere case, last-registration-wins
+on collision, and `tryGetByLiteralName`'s no-fallback contract. Full test suite passes. Full
+song-corpus render (all 67) - see below for why this phase's render-diff isn't a bit-exact
+comparison the way Phase 0/0b's were.
+
+**Expected, not a regression**: registering ~100 more instrument objects at startup than
+Phase 0b did (128 GM programs vs. the ~26 previously curated) shifts
+`SongObject::internal_id_` for every object constructed afterward - the same
+`docs/known_bugs.md`-documented `NoteCoordinate::track_id_` coupling found during Phase 0's
+own verification. Every song's rendered audio is expected to differ from the Phase 0b
+baseline for this reason alone, unrelated to correctness; the resolver's own correctness is
+covered by the unit tests above instead of a bit-exact render comparison this time. The
+render pass here checks only that every song still renders (no crashes, no silent regression),
+not byte-for-byte identity.
+
+**A second real bug found, this time by the user listening**: `bass.electric.finger` sounded
+different (quieter) after Phase 1 in `songs/arptest1.xml`/`songtest19.xml`. Not a Phase 1
+bug - Phase 1 fixed a real, pre-existing one. `"Electric Bass (finger)"` had been bound to
+raw index/program 34 ("Electric Bass (pick)") instead of the correct 33 ("Electric Bass
+(finger)") since long before this project's instrument-identity work started (confirmed via
+`git log -p`, the same wrong binding appears every time that line has ever been touched).
+Phase 0's rename preserved it faithfully (per that phase's own "don't silently repoint a
+binding" rule) - I caught and flagged the two other alias/program mismatches that existed at
+the time (`"Electric Piano"`, `"Viola"`) but missed this one, since unlike those two it wasn't
+visible from the alias *name* alone (`"Electric Bass (finger)"` bound to 34 doesn't look wrong
+until you check the doc's actual Prog column for that path). Phase 1's table is generated
+mechanically from `docs/instrument-paths.md` rather than carried over from the old alias
+table, so it uses the correct program 33 - confirmed against the real font's own preset names
+(`FluidR3_GM.sf2` program 33 is literally `"Fingered Bass"`, 34 is `"Picked Bass"`, matching
+"sounds different, less loud" exactly - a picked attack reads louder/brighter than a fingered
+one). Checked systematically, not just this one instance: cross-referenced all 27 of Phase
+0's curated program numbers against the doc's canonical program for that same path - this was
+the *only* mismatch. Affects more songs than the two noticed: `songtest5/6/7/8.xml`,
+`demo3.xml`, `a.xml`, and the `songs/backup/` copies of `arptest1.xml`/`songtest19.xml` all
+use `bass.electric.finger` too, all now correctly bound to program 33 the same way.
+
 ### `docs/instrument-paths.md` verification (item 1)
 
 Done - see "Status," above. `tools/verify_sf2_taxonomy.py` exists, was run

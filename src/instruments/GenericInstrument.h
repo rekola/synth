@@ -57,8 +57,19 @@ class GenericInstrument : public Instrument {
     return concrete_instrument_ ? concrete_instrument_->getDefaultExtent() : 0.0f;
   }
 
+  // Two-step resolution, per docs/instrument-paths.md: an exact literal
+  // match (native names, or a not-yet-migrated literal string) first, since
+  // that's a stronger signal than a taxonomy-path walk-up would be; only
+  // once that's missed does from get resolved as a dotted path at all
+  // (registerPath()'s registry, walked up and defaulted by resolvePath()).
+  // Both are plain misses-return-nullptr lookups - the fallback to
+  // getDefaultInstrument() happens exactly once, here, after both attempts,
+  // not folded into either lookup itself (see InstrumentProvider's own note
+  // on why the old getInstrumentByName() couldn't support this).
   void prepare(const InstrumentProvider & provider) override {
-    concrete_instrument_ = provider.getInstrumentByName(getFrom());
+    auto resolved = provider.tryGetByLiteralName(getFrom());
+    if (!resolved) resolved = provider.resolvePath(getFrom());
+    concrete_instrument_ = resolved ? resolved : provider.getDefaultInstrument();
   }
 
   // What a UI should show for this instrument - never persisted (see

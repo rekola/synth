@@ -19,6 +19,7 @@ add_executable(synth_tests
 	DrumMachineTrackTests.cpp
 	PercussionTrackTests.cpp
 	SF2ModulatorTests.cpp
+	InstrumentResolverTests.cpp
 	EnvelopeFilterTests.cpp
 	VoiceLoudnessTests.cpp
 	AmbisonicEncodingTests.cpp

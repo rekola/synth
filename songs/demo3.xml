@@ -2,7 +2,7 @@
 <song temperament="31edo" tempo="110" patternRows="64">
   <instruments>
     <instrument from="string.bowed.ensemble.pizzicato" />
-    <instrument from="bass.electric.finger" />
+    <instrument from="bass.electric.pick" />
     <instrument from="Percussion" />
   </instruments>
   <tracks>
