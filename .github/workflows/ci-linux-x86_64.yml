@@ -35,6 +35,7 @@ jobs:
             libfmt-dev \
             libsndfile1-dev \
             libasound2-dev \
+            libunistring-dev \
             fluid-soundfont-gm
 
       - name: Configure
