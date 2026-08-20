@@ -3,6 +3,7 @@
 #include "../src/model/Song.h"
 #include "../src/model/InstrumentTrack.h"
 #include "../src/instruments/InstrumentProvider.h"
+#include "../src/instruments/GenericInstrument.h"
 
 #include <filesystem>
 #include <fstream>
@@ -194,4 +195,55 @@ TEST(add_track_leaves_an_explicit_id_untouched) {
   track->setId("melody");
   auto & added = song.addTrack(move(track));
   CHECK(added.getId() == "melody");
+}
+
+// id/from/name are three independent attributes on <instrument> - id is
+// Track/SongObject's own pre-existing identifier (untouched by the from/name
+// split), from is the taxonomy-path resolution target, and name is an
+// optional user-assigned label, distinct from both. Regression coverage for
+// the one case in the real song corpus where id and a genuine (would-be)
+// label question actually meet: songs/songtest11.xml's harp instrument,
+// which has an id but - like every instrument migrated from the old
+// overloaded-name format - no name, since none ever existed to preserve.
+TEST(instrument_id_from_and_name_round_trip_independently) {
+  namespace fs = std::filesystem;
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_instrument_id_from_name_scratch.xml").string();
+
+  Song song;
+  auto harp = make_unique<GenericInstrument>();
+  harp->setId("harp");
+  harp->setFrom("string.plucked.harp");
+  // name left unset - the common post-migration case: no label was ever
+  // authored, so none should be invented.
+  song.addInstrument(move(harp));
+
+  auto labeled = make_unique<GenericInstrument>();
+  labeled->setFrom("piano.electric.tine");
+  labeled->setName("Solo instrument");
+  song.addInstrument(move(labeled));
+
+  song.save(scratch_path);
+
+  InstrumentProvider provider;
+  Song reloaded;
+  CHECK(reloaded.open(scratch_path, provider));
+  CHECK(reloaded.getInstruments().size() == 2);
+
+  auto * reloaded_harp = dynamic_cast<GenericInstrument *>(reloaded.getInstruments()[0].get());
+  CHECK(reloaded_harp != nullptr);
+  if (reloaded_harp) {
+    CHECK(reloaded_harp->getId() == "harp");
+    CHECK(reloaded_harp->getFrom() == "string.plucked.harp");
+    CHECK(reloaded_harp->getName().empty());
+  }
+
+  auto * reloaded_labeled = dynamic_cast<GenericInstrument *>(reloaded.getInstruments()[1].get());
+  CHECK(reloaded_labeled != nullptr);
+  if (reloaded_labeled) {
+    CHECK(reloaded_labeled->getId().empty());
+    CHECK(reloaded_labeled->getFrom() == "piano.electric.tine");
+    CHECK(reloaded_labeled->getName() == "Solo instrument");
+  }
+
+  fs::remove(scratch_path);
 }

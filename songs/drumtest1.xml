@@ -5,7 +5,7 @@
       <oscillator type="sine"/>
     </envelope>
     
-    <genericInstrument name="Percussion" />
+    <instrument from="Percussion" />
 
     <envelope name="bass3" attack="0.0011" hold="0" decay="4.00" sustain="0" release="0.231">	
       <resonantFilter cutmin="1100" cutmax="11000" res="0.1" attack="0.0011" hold="0" decay="1.17" sustain="0" release="0.231">
@@ -17,11 +17,11 @@
     </envelope>
 
     <resonantFilter cut="20000" res="4" name="piano1" volume="5">
-      <genericInstrument name="Piano" />
+      <instrument from="piano.acoustic.grand" />
     </resonantFilter>
     
     <resonantFilter cut="20000" res="4" name="piano2">
-      <genericInstrument name="Piano" />
+      <instrument from="piano.acoustic.grand" />
     </resonantFilter>
   </instruments>
   

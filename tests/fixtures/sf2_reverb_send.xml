@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="12edo" tempo="120" patternRows="16" volume="1.0">
   <instruments>
-    <genericInstrument name="Glockenspiel"/>
+    <instrument from="native:Glockenspiel"/>
   </instruments>
   <tracks>
     <track id="0" instrument="0"/>

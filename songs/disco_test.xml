@@ -24,8 +24,8 @@
       </resonantFilter>
     </envelope>
 
-    <genericInstrument name="Piano" /> 
-    <genericInstrument name="Chateau Grand" />
+    <instrument from="piano.acoustic.grand" /> 
+    <instrument from="Chateau Grand" />
 
   </instruments>
   <tracks>

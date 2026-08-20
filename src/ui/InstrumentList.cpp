@@ -58,7 +58,7 @@ InstrumentList::renderRow(const StyleProvider & styles, int row, bool highlight)
       setFgColor(styles.window_fg_color);
       setBgColor(styles.window_bg_color);
     }
-    auto line = instrument.getName();
+    auto line = instrument.getDisplayName();
     while (int(line.size()) < cols - 2) line += ' ';
     putstr(1 + row - current_scroll_pos, 1, line);
   }

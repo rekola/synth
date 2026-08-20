@@ -25,11 +25,11 @@
     </envelope>
 
     <resonantFilter cut="2200" res="2" name="Chords1">
-      <genericInstrument name="Acoustic Guitar (steel)" />
+      <instrument from="guitar.acoustic.steel" />
     </resonantFilter>
 
     <resonantFilter cut="9000" res="2" name="Chords2">
-      <genericInstrument name="Chateau Grand" />
+      <instrument from="Chateau Grand" />
     </resonantFilter>
 
     <group name="Quartal Piano">

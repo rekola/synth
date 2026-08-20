@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="150" patternRows="64" volume="1.0">
   <instruments>
-    <genericInstrument name="Electric Bass (finger)" />
-    <genericInstrument name="Piano" />
+    <instrument from="bass.electric.finger" />
+    <instrument from="piano.acoustic.grand" />
   </instruments>
   
   <tracks>

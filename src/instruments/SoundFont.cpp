@@ -1083,7 +1083,7 @@ public:
 
     // A modulator child attached by GenericInstrument::playNote() (a
     // song-configured FM modulator - see e.g. songs/subtractive_test.xml's
-    // <genericInstrument name="Cello"><oscillator .../></genericInstrument>)
+    // <instrument name="string.bowed.cello"><oscillator .../></instrument>)
     // is stored directly in this voice's own children_ (VoiceState::
     // addChild()). Without recursing here, that child never learns the
     // note stopped: its own envelope never reaches DONE, so it reports
@@ -1918,6 +1918,13 @@ SoundFont::createInstrument(size_t preset, const char * name) {
   auto instrument = make_unique<SoundFontInstrument>(sf_, preset);
   instrument->setName(name ? name : sf_->getPresetName(preset));
   return instrument;
+}
+
+std::unique_ptr<Instrument>
+SoundFont::createInstrumentByProgram(int bank, int program, const char * name) {
+  int index = sf_->getPresetIndex(bank, program);
+  if (index < 0) return nullptr;
+  return createInstrument(static_cast<size_t>(index), name);
 }
 
 std::vector<std::unique_ptr<Instrument> >

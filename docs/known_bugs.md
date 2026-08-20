@@ -121,6 +121,40 @@ Found 2026-07-11, not yet fixed.
   extending the arpeggiator's own resync approach to envelopes generally)
   and why neither was attempted as part of that work.
 
+- **`NoteCoordinate::track_id_` is sourced from the wrong value** -
+  `SongState.h`'s note-scheduling loop builds it from `scene.getPatternsByTrack()`'s
+  keys, which are a track's `getInternalId()` (`SongObject.h`): a
+  process-lifetime `std::atomic<int>` counter shared by *every*
+  `SongObject`-derived instance ever constructed in the process (tracks,
+  patterns, instruments, everything), assigned in construction order,
+  starting fresh each run. `NoteCoordinate.h`'s own doc comment already
+  budgets `track_id_` as "1M tracks" of address space and treats it as a
+  stable per-track identity for `HashField`-derived per-voice jitter/phase
+  seeding (`InstrumentVoice.h`'s note-phase salt, SF2 percussion offset
+  jitter, unison decorrelation) - but an internal id is neither: it depends
+  on how many unrelated objects (most concretely, however many
+  `SoundFontInstrument`s `InstrumentProvider::loadSoundFont()` happens to
+  construct at startup, which varies with the loaded font/alias table)
+  got constructed *before* this track, not on anything about the song or
+  the track itself. Confirmed directly while verifying an unrelated,
+  purely-cosmetic `InstrumentProvider` alias-table rename (see
+  `plans/instrument-identity-generator-overrides.md`'s "Song rewrite
+  mechanics" section): removing 4 incidental startup object constructions
+  shifted every later track's internal id by 4, which changed the
+  rendered audio of every song using the affected jitter/decorrelation
+  paths - including songs with no SoundFont content at all
+  (`songs/songtest18.xml`, built entirely from `<oscillator>` elements).
+  What `track_id_` should actually be, per its own stated purpose (a
+  stable, human-legible per-track identity for reproducible jitter,
+  matching `column_`/`absolute_row_`'s already-song-relative scoping): the
+  track's **physical/visible order** - its index within the song's own
+  flattened track list, the same ordering already shown to the user in the
+  pattern editor - not a global, run-order-dependent counter value. Not
+  fixed - the call site (`SongState.h`'s two `NoteCoordinate(track_id, ...)`
+  constructions) would need the track's position in `Song`'s track list
+  (or `getRootTrackIds()`'s ordering) instead of the internal id it
+  currently reuses for this.
+
 - **`Utf8::truncateToWidth()`/`Utf8::displayWidth()` (`src/util/Utf8.h`)
   don't merge flag emoji or multi-emoji ZWJ sequences into a single
   grapheme cluster**, so `PatternEditor::renderHeading()`'s track/

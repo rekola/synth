@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="100" patternRows="32" volume="1.0">
   <instruments>
-    <genericInstrument name="Piano" />
-    <genericInstrument name="Violin" />
+    <instrument from="piano.acoustic.grand" />
+    <instrument from="string.bowed.violin" />
   </instruments>
   
   <tracks>

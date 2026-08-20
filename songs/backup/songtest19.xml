@@ -18,7 +18,6 @@
             </resonantFilter>
         </envelope>
         <instrument from="bass.electric.finger"/>
-        <instrument from="piano.electric.tine"/>
     </instruments>
     <tracks>
         <track id="chords" instrument="1" azimuth="-30" distance="1" elevation="50" color="" sendA="-16.9020" sendB="-10.8814" noteColumns="5"/>

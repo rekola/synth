@@ -608,7 +608,7 @@ TEST(sf2_looping_voice_becomes_inactive_after_stop_note) {
 TEST(sf2_voice_with_modulator_child_fully_reclaims_on_stop) {
   // GenericInstrument::playNote() (GenericInstrument.h) attaches a
   // song-configured modulator child (see e.g. songs/subtractive_test.xml's
-  // <genericInstrument name="Cello"><oscillator .../></genericInstrument>)
+  // <instrument name="string.bowed.cello"><oscillator .../></instrument>)
   // directly onto whatever TrackState the wrapped instrument's own
   // playNote() returns - for a single-region SF2 patch that's the bare
   // SoundFontVoice itself (SoundFontInstrument::playNote()'s

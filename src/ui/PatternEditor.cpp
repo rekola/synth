@@ -1590,7 +1590,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  } else if (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL) {
 	    auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
 	    if (instrument_track.getInstrumentId() >= 0 && instrument_track.getInstrumentId() < static_cast<int>(instruments.size())) {
-	      instrument_name = instruments[static_cast<size_t>(instrument_track.getInstrumentId())]->getName();
+	      instrument_name = instruments[static_cast<size_t>(instrument_track.getInstrumentId())]->getDisplayName();
 	      is_solo = instrument_track.isSolo();
 	      is_muted = instrument_track.isMuted();
 	    }

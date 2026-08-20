@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song key="C" temperament="31edo" tempo="200" patternRows="42" volume="0.75">
   <instruments>
-    <genericInstrument name="Piano" />
+    <instrument from="piano.acoustic.grand" />
   </instruments>
   
   <tracks>

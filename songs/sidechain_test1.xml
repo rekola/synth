@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="120" patternRows="64" volume="1.0">
   <instruments>
-    <genericInstrument name="Percussion" />
+    <instrument from="Percussion" />
 
     <envelope attack="0.1" release="2" name="padtest2">
       <resonantFilter cut="20000" res="0">
@@ -11,7 +11,7 @@
       </resonantFilter>
     </envelope>
 
-    <genericInstrument name="Piano" />   
+    <instrument from="piano.acoustic.grand" />   
 
     <envelope name="riser" attack="3" hold="0" sustain="0" decay="0" release="0">
       <resonantFilter cutmin="220" cutmax="20000" res="2" attack="3">

@@ -305,7 +305,15 @@ automatically (`findDefaultSoundFont()` in `Controller.cpp`): a project-local
 `/usr/share/sounds/sf2` (where Ubuntu's alternatives-managed `default-GM.sf2`
 lives), then the largest `.sf2` in those directories. On Ubuntu,
 `fluid-soundfont-gm` provides the preferred FluidR3_GM.sf2. Without any
-SoundFont, `genericInstrument` songs play silence. `data/` is gitignored.
+SoundFont, `instrument` songs don't go silent - `InstrumentProvider` always
+constructs one built-in fallback instrument regardless of whether a SoundFont
+loaded (currently a single generic sawtooth `Oscillator`, doing duty as a
+one-size-fits-all default for every unresolved name), and `getInstrumentByName()`
+returns it for any name with no better match. The plan is to grow this into
+real per-path fallback instruments instead of one shared default - e.g.
+resolving `piano.*` to an FM-synthesis piano rather than the plain oscillator
+- but that doesn't exist yet; today there's just the one. `data/` is
+gitignored.
 
 ## Layout
 

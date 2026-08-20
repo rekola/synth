@@ -2,10 +2,10 @@
 <song temperament="31edo" tempo="100" patternRows="64" volume="0.75">
   <instruments>
     <resonantFilter cut="2200" res="2" name="Chords">
-      <genericInstrument name="Acoustic Guitar (steel)" />
+      <instrument from="guitar.acoustic.steel" />
     </resonantFilter>
     
-    <genericInstrument name="Piano" />    
+    <instrument from="piano.acoustic.grand" />    
   </instruments>
   
   <tracks>

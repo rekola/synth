@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="150" patternRows="42" volume="1.0">
   <instruments>
-    <genericInstrument name="Piano" />
+    <instrument from="piano.acoustic.grand" />
     
-    <genericInstrument name="Electric Piano 1" />
-    <genericInstrument name="Electric Piano 2" />
-    <genericInstrument name="Electric Grand Piano" />
-    <genericInstrument name="Piano" />
-    <genericInstrument name="Synth Brass 1" />
+    <instrument from="Electric Piano 1" />
+    <instrument from="Electric Piano 2" />
+    <instrument from="piano.electric.grand" />
+    <instrument from="piano.acoustic.grand" />
+    <instrument from="brass.synth" />
   </instruments>
   
   <tracks>

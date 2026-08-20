@@ -6,7 +6,7 @@
   </bus>
   <instruments>
     <resonantFilter cut="2200" res="2" name="Chords">
-      <genericInstrument name="Acoustic Guitar (steel)" />
+      <instrument from="guitar.acoustic.steel" />
     </resonantFilter>
     
     <envelope attack="0.5" release="2" name="Pads">
@@ -17,11 +17,11 @@
       </resonantFilter>
     </envelope>
 
-    <genericInstrument name="Orchestral Harp" />
+    <instrument from="string.plucked.harp" />
     
-    <genericInstrument name="Piano" />
+    <instrument from="piano.acoustic.grand" />
 
-    <genericInstrument name="Percussion"/>
+    <instrument from="Percussion"/>
 </instruments>
   <tracks>
     <track id="guitar" instrument="0" sendA="-20.0000" sendB="-20.0000" volume="4.0" azimuth="-45" distance="2"/>

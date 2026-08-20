@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song key="C" temperament="31edo" tempo="220" patternRows="24">
   <instruments>
-    <genericInstrument name="Rhodes Piano" />
+    <instrument from="piano.electric.tine" />
   </instruments>
   <tracks>
     <track id="1" azimuth="30" distance="0" elevation="50" volume="1" instrument="0"/>

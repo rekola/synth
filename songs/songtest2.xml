@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song key="C" temperament="31edo" tempo="100" patternRows="64" volume="1.0">
   <instruments>
-    <genericInstrument name="Piano" />
-    <genericInstrument name="Electric Piano 1" />
+    <instrument from="piano.acoustic.grand" />
+    <instrument from="Electric Piano 1" />
   </instruments>
   
   <tracks>

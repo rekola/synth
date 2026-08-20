@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="31edo" tempo="60">
+    <bus>
+        <reverb/>
+        <haze preset="air"/>
+    </bus>
+    <instruments>
+        <resonantFilter name="Chords" cut="2200" res="2" aftertouch="0" attack="0" hold="0" decay="0" sustain="1" release="0" keynumToHold="0" keynumToDecay="0">
+            <instrument from="guitar.acoustic.steel" harmonic="1" subharmonic="1"/>
+        </resonantFilter>
+        <instrument from="piano.acoustic.grand"/>
+        <instrument from="Percussion" harmonic="1" subharmonic="1"/>
+        <envelope name="Pads" attack="0.050000001" hold="0" decay="0" sustain="1" release="2" keynumToHold="0" keynumToDecay="0">
+            <resonantFilter cut="2200" res="0.5" aftertouch="0" attack="0" hold="0" decay="0" sustain="1" release="0" keynumToHold="0" keynumToDecay="0">
+                <multiply unisons="4" octaves="0" fifths="0" fourths="0" detune="5" spread="1">
+                    <oscillator harmonic="1" subharmonic="1" type="square" level="0.25" width="0.5"/>
+                </multiply>
+            </resonantFilter>
+        </envelope>
+        <instrument from="bass.electric.finger"/>
+    </instruments>
+    <tracks>
+        <track id="chords" instrument="1" azimuth="-30" distance="1" elevation="50" color="" sendA="0.14285715" sendB="0.2857143" noteColumns="7"/>
+        <percussionTrack id="perc" instrument="2" azimuth="-15" distance="0.89999998" elevation="0" color="" sendA="0.42857146" sendB="1" noteColumns="2"/>
+        <track id="pad" instrument="3" azimuth="15" distance="5" elevation="0" extent="20" color="" sendA="0.42857146" sendB="1" noteColumns="3"/>
+        <track id="bass" instrument="4" azimuth="60" distance="1" elevation="20" color="" noteColumns="2"/>
+    </tracks>
+    <sections/>
+    <patterns>
+        <pattern rows="64">
+            <note row="0" track="pad" velocity="0">OFF</note>
+            <note row="0" track="pad" column="1" velocity="0">OFF</note>
+            <note row="0" track="pad" column="2" velocity="0">OFF</note>
+            <note row="0" track="chords" velocity="40">C-4</note>
+            <note row="0" track="chords" column="1" velocity="40">E♭4</note>
+            <note row="0" track="chords" column="2" velocity="40">G-4</note>
+            <note row="0" track="chords" column="3" velocity="40">C-3</note>
+            <note row="0" track="chords" column="4" velocity="40">C-2</note>
+            <annotation row="0">C Minor</annotation>
+            <note row="4" track="chords" velocity="40">C-4</note>
+            <note row="4" track="chords" column="1" velocity="0">OFF</note>
+            <note row="4" track="chords" column="2" velocity="40">G-4</note>
+            <note row="8" track="chords" velocity="40">C-4</note>
+            <note row="8" track="chords" column="1" velocity="40">E♭4</note>
+            <note row="12" track="chords" velocity="0">OFF</note>
+            <note row="12" track="chords" column="1" velocity="0">OFF</note>
+            <note row="12" track="chords" column="2" velocity="40">G-4</note>
+            <note row="12" track="perc" velocity="22">OH </note>
+            <note row="16" track="chords" velocity="40">G-4</note>
+            <note row="16" track="chords" column="1" velocity="40">E𝄫3</note>
+            <note row="16" track="chords" column="2" velocity="40">C-4</note>
+            <note row="16" track="chords" column="3" velocity="0">OFF</note>
+            <note row="16" track="chords" column="4" velocity="40">G-2</note>
+            <note row="16" track="perc" velocity="7">CH </note>
+            <note row="20" track="chords" velocity="40">G-4</note>
+            <note row="20" track="chords" column="1" velocity="40">E𝄫4</note>
+            <note row="20" track="perc" velocity="17">CH </note>
+            <note row="24" track="pad" velocity="16">E𝄫3</note>
+            <note row="24" track="pad" column="1" velocity="0">OFF</note>
+            <note row="24" track="chords" velocity="40">E𝄫4</note>
+            <note row="24" track="chords" column="1" velocity="0">OFF</note>
+            <note row="24" track="chords" column="2" velocity="40">C-4</note>
+            <note row="24" track="perc" velocity="19">CH </note>
+            <note row="28" track="pad" velocity="40">F-3</note>
+            <note row="28" track="chords" velocity="40">F-4</note>
+            <note row="28" track="chords" column="1" velocity="0">OFF</note>
+            <note row="28" track="chords" column="2" velocity="40">E𝄫4</note>
+            <note row="28" track="chords" column="3" velocity="0">OFF</note>
+            <note row="28" track="chords" column="4" velocity="40">C-4</note>
+            <note row="28" track="perc" velocity="40">OH </note>
+            <note row="32" track="pad" velocity="40">A♭2</note>
+            <note row="32" track="pad" column="1" velocity="40">A♭1</note>
+            <note row="32" track="chords" velocity="40">A♭3</note>
+            <note row="32" track="chords" column="1" velocity="0">OFF</note>
+            <note row="32" track="chords" column="2" velocity="40">C-4</note>
+            <note row="32" track="chords" column="3" velocity="0">OFF</note>
+            <note row="32" track="chords" column="4" velocity="40">A♭2</note>
+            <note row="32" track="perc" velocity="33">CR2 </note>
+            <note row="36" track="chords" velocity="40">A♭3</note>
+            <note row="36" track="chords" column="1" velocity="0">OFF</note>
+            <note row="36" track="perc" velocity="15">CH </note>
+            <note row="40" track="pad" velocity="0">OFF</note>
+            <note row="40" track="pad" column="1" velocity="40">B♭3</note>
+            <note row="40" track="chords" velocity="40">B♭4</note>
+            <note row="40" track="chords" column="1" velocity="0">OFF</note>
+            <note row="40" track="chords" column="2" velocity="40">B♭5</note>
+            <note row="40" track="chords" column="3" velocity="40">C-4</note>
+            <note row="40" track="perc" velocity="25">CH </note>
+            <note row="44" track="pad" velocity="40">A♭3</note>
+            <note row="44" track="pad" column="1" velocity="40">E𝄫2</note>
+            <note row="44" track="chords" velocity="40">A♭4</note>
+            <note row="44" track="chords" column="1" velocity="0">OFF</note>
+            <note row="44" track="chords" column="2" velocity="40">E𝄫3</note>
+            <note row="44" track="chords" column="3" velocity="0">OFF</note>
+            <note row="44" track="chords" column="4" velocity="40">C-5</note>
+            <note row="44" track="perc" velocity="15">CH </note>
+            <note row="45" track="chords" velocity="40">C-5</note>
+            <note row="46" track="chords" velocity="40">A♭4</note>
+            <note row="48" track="chords" velocity="40">G-4</note>
+            <note row="48" track="chords" column="1" velocity="0">OFF</note>
+            <note row="48" track="chords" column="2" velocity="40">C-5</note>
+            <note row="48" track="chords" column="3" velocity="40">E𝄫4</note>
+            <note row="48" track="chords" column="4" velocity="40">G-2</note>
+            <note row="48" track="bass" velocity="40">G-1</note>
+            <note row="48" track="pad" velocity="40">G-3</note>
+            <note row="48" track="pad" column="1" velocity="0">OFF</note>
+            <note row="48" track="perc" velocity="40">SPL </note>
+            <note row="52" track="bass" velocity="40">G-1</note>
+            <note row="56" track="bass" velocity="40">E𝄫1</note>
+            <note row="60" track="pad" velocity="0">OFF</note>
+            <note row="60" track="bass" velocity="40">F-1</note>
+        </pattern>
+        <pattern rows="64">
+            <note row="0" track="pad" velocity="0">OFF</note>
+            <note row="0" track="pad" column="1" velocity="0">OFF</note>
+            <note row="0" track="pad" column="2" velocity="0">OFF</note>
+            <note row="0" track="chords" velocity="40">C-4</note>
+            <note row="0" track="chords" column="1" velocity="40">E♭4</note>
+            <note row="0" track="chords" column="2" velocity="40">G-4</note>
+            <note row="0" track="chords" column="3" velocity="40">C-3</note>
+            <note row="0" track="chords" column="4" velocity="40">C-2</note>
+            <note row="0" track="perc" velocity="40">BD2</note>
+            <note row="0" track="bass" velocity="40">C-1</note>
+            <annotation row="0">C Minor</annotation>
+            <note row="4" track="chords" velocity="40">C-4</note>
+            <note row="4" track="chords" column="1" velocity="0">OFF</note>
+            <note row="4" track="chords" column="2" velocity="40">G-4</note>
+            <note row="4" track="perc" velocity="40">CH</note>
+            <note row="6" track="perc" velocity="40">CH</note>
+            <note row="6" track="bass" velocity="40">C-1</note>
+            <note row="8" track="chords" velocity="40">C-4</note>
+            <note row="8" track="chords" column="1" velocity="40">E♭4</note>
+            <note row="8" track="bass" velocity="40">E♭1</note>
+            <note row="8" track="perc" velocity="40">BD2</note>
+            <note row="12" track="chords" velocity="0">OFF</note>
+            <note row="12" track="chords" column="1" velocity="0">OFF</note>
+            <note row="12" track="chords" column="2" velocity="40">G-4</note>
+            <note row="12" track="perc" velocity="22">OH </note>
+            <note row="12" track="bass" velocity="40">G-1</note>
+            <note row="16" track="chords" velocity="40">G-4</note>
+            <note row="16" track="chords" column="1" velocity="40">E𝄫3</note>
+            <note row="16" track="chords" column="2" velocity="40">C-4</note>
+            <note row="16" track="chords" column="3" velocity="0">OFF</note>
+            <note row="16" track="perc" velocity="7">CH </note>
+            <note row="16" track="bass" velocity="40">E𝄫1</note>
+            <note row="20" track="chords" velocity="40">G-4</note>
+            <note row="20" track="chords" column="1" velocity="40">E𝄫4</note>
+            <note row="20" track="perc" velocity="17">CH </note>
+            <note row="22" track="bass" velocity="40">E𝄫1</note>
+            <note row="24" track="pad" velocity="16">E𝄫3</note>
+            <note row="24" track="pad" column="1" velocity="0">OFF</note>
+            <note row="24" track="chords" velocity="40">E𝄫4</note>
+            <note row="24" track="chords" column="1" velocity="0">OFF</note>
+            <note row="24" track="chords" column="2" velocity="40">C-4</note>
+            <note row="24" track="perc" velocity="19">CH </note>
+            <note row="24" track="bass" velocity="40">G-1</note>
+            <note row="28" track="pad" velocity="40">F-3</note>
+            <note row="28" track="chords" velocity="40">F-4</note>
+            <note row="28" track="chords" column="1" velocity="0">OFF</note>
+            <note row="28" track="chords" column="2" velocity="40">E𝄫4</note>
+            <note row="28" track="chords" column="3" velocity="0">OFF</note>
+            <note row="28" track="chords" column="4" velocity="40">C-4</note>
+            <note row="28" track="perc" velocity="40">OH </note>
+            <note row="32" track="pad" velocity="40">A♭2</note>
+            <note row="32" track="pad" column="1" velocity="40">A♭1</note>
+            <note row="32" track="chords" velocity="40">A♭3</note>
+            <note row="32" track="chords" column="1" velocity="0">OFF</note>
+            <note row="32" track="chords" column="2" velocity="40">C-4</note>
+            <note row="32" track="chords" column="3" velocity="0">OFF</note>
+            <note row="32" track="chords" column="4" velocity="40">A♭2</note>
+            <note row="32" track="perc" velocity="33">CR2 </note>
+            <note row="36" track="chords" velocity="40">A♭3</note>
+            <note row="36" track="chords" column="1" velocity="0">OFF</note>
+            <note row="36" track="perc" velocity="15">CH </note>
+            <note row="40" track="pad" velocity="0">OFF</note>
+            <note row="40" track="pad" column="1" velocity="40">B♭3</note>
+            <note row="40" track="chords" velocity="40">B♭4</note>
+            <note row="40" track="chords" column="1" velocity="0">OFF</note>
+            <note row="40" track="chords" column="2" velocity="40">B♭5</note>
+            <note row="40" track="chords" column="3" velocity="40">C-4</note>
+            <note row="40" track="perc" velocity="25">CH </note>
+            <note row="44" track="pad" velocity="40">A♭3</note>
+            <note row="44" track="pad" column="1" velocity="40">E𝄫2</note>
+            <note row="44" track="chords" velocity="40">A♭4</note>
+            <note row="44" track="chords" column="1" velocity="0">OFF</note>
+            <note row="44" track="chords" column="2" velocity="40">E𝄫3</note>
+            <note row="44" track="chords" column="3" velocity="0">OFF</note>
+            <note row="44" track="chords" column="4" velocity="40">C-5</note>
+            <note row="44" track="perc" velocity="15">CH </note>
+            <note row="45" track="chords" velocity="40">C-5</note>
+            <note row="46" track="chords" velocity="40">A♭4</note>
+            <note row="48" track="chords" velocity="40">G-4</note>
+            <note row="48" track="chords" column="1" velocity="0">OFF</note>
+            <note row="48" track="chords" column="2" velocity="40">C-5</note>
+            <note row="48" track="chords" column="3" velocity="40">E𝄫4</note>
+            <note row="48" track="chords" column="4" velocity="40">G-2</note>
+            <note row="48" track="bass" velocity="40">G-1</note>
+            <note row="48" track="pad" velocity="40">G-3</note>
+            <note row="48" track="pad" column="1" velocity="0">OFF</note>
+            <note row="48" track="perc" velocity="40">SPL </note>
+            <note row="52" track="bass" velocity="40">G-1</note>
+            <note row="56" track="bass" velocity="40">E𝄫1</note>
+            <note row="60" track="pad" velocity="0">OFF</note>
+            <note row="60" track="bass" velocity="40">F-1</note>
+        </pattern>
+        <pattern rows="64">
+            <note row="0" track="bass" velocity="40">E♭1</note>
+            <note row="4" track="bass" velocity="40">E♭1</note>
+            <note row="8" track="bass" velocity="40">F-1</note>
+            <note row="12" track="bass" velocity="40">E♭1</note>
+            <note row="16" track="bass" velocity="40">E𝄫1</note>
+        </pattern>
+    </patterns>
+</song>

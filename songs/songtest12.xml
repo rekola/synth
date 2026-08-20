@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song key="C" temperament="31edo" tempo="100" patternRows="64" volume="0.75">
   <instruments>
-    <genericInstrument name="Acoustic Guitar (steel)" />
+    <instrument from="guitar.acoustic.steel" />
 
     <envelope attack="1" release="2" name="padtest2">
       <resonantFilter cutmin="220" cutmax="11000" res="0.9" attack="3" decay="0" sustain="1.0" release="2" >
@@ -11,7 +11,7 @@
       </resonantFilter>
     </envelope>
 
-    <genericInstrument name="Orchestral Harp" />
+    <instrument from="string.plucked.harp" />
   </instruments>
   
   <tracks>

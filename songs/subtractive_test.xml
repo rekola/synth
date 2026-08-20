@@ -40,27 +40,27 @@
       </resonantFilter>
     </envelope>
 
-    <genericInstrument name="Cello" />
+    <instrument from="string.bowed.cello" />
     
-    <genericInstrument name="Cello">
+    <instrument from="string.bowed.cello">
       <oscillator type="sine" harmonic="2" subharmonic="3"/>
-    </genericInstrument>
+    </instrument>
 
     <oscillator name="oscilator/cello" type="sine">
-      <genericInstrument name="Cello" harmonic="2" subharmonic="3"/>
+      <instrument from="string.bowed.cello" harmonic="2" subharmonic="3"/>
     </oscillator>
 
-    <genericInstrument name="Cello">
-      <genericInstrument name="Acoustic Guitar (nylon)" harmonic="2" subharmonic="3" />
-    </genericInstrument>
+    <instrument from="string.bowed.cello">
+      <instrument from="guitar.acoustic.nylon" harmonic="2" subharmonic="3" />
+    </instrument>
 
     <group name="group test">
-      <genericInstrument name="Acoustic Guitar (nylon)" />
-      <genericInstrument name="Piano" />
+      <instrument from="guitar.acoustic.nylon" />
+      <instrument from="piano.acoustic.grand" />
     </group>
 
     <distortion name="distortion test" param="0.25">
-      <genericInstrument name="Rhodes Piano" />
+      <instrument from="piano.electric.tine" />
     </distortion>
     
     <resonantFilter cut="2200" res="0.1">

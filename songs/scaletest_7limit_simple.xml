@@ -6,10 +6,10 @@
     </bus>
     <instruments>
         <resonantFilter name="Chords" cut="2200" res="2" aftertouch="0" attack="0" hold="0" decay="0" sustain="1" release="0" keynumToHold="0" keynumToDecay="0">
-            <genericInstrument name="Acoustic Guitar (steel)" harmonic="1" subharmonic="1"/>
+            <instrument from="guitar.acoustic.steel" harmonic="1" subharmonic="1"/>
         </resonantFilter>
-        <genericInstrument name="Piano" harmonic="1" subharmonic="1"/>
-        <genericInstrument name="Percussion" harmonic="1" subharmonic="1"/>
+        <instrument from="piano.acoustic.grand" harmonic="1" subharmonic="1"/>
+        <instrument from="Percussion" harmonic="1" subharmonic="1"/>
     </instruments>
     <tracks>
         <track id="0" instrument="0" azimuth="30" distance="1" elevation="50" color="" sendA="-16.9020" sendB="0.0000" noteColumns="7"/>

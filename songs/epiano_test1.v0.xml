@@ -15,13 +15,13 @@
 
     <amplifier name="Rhodes" gain="-20">
       <distortion type="softclip" drive="64">
-	<genericInstrument name="Rhodes Piano" />
+	<instrument from="piano.electric.tine" />
       </distortion>
     </amplifier>
     
-    <genericInstrument name="Percussion" />
+    <instrument from="Percussion" />
 
-    <genericInstrument name="Chateau Grand" />
+    <instrument from="Chateau Grand" />
 
     <amplifier gain="20">
       <envelope attack="1" release="2" name="padtest2">

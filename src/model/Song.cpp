@@ -116,7 +116,7 @@ static unique_ptr<Track> createTrack(string_view name) {
   else if (name == "tapeDegradation") return make_unique<TapeDegradation>();
   
   // instruments
-  else if (name == "genericInstrument") return make_unique<GenericInstrument>();
+  else if (name == "instrument") return make_unique<GenericInstrument>();
   else if (name == "oscillator") return make_unique<Oscillator>(WaveformType::SAW);
   else if (name == "noise") return make_unique<Noise>();
   else if (name == "LFO") return make_unique<LFO>();

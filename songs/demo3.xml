@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="110" patternRows="64">
   <instruments>
-    <genericInstrument name="Pizzicato Strings" />
-    <genericInstrument name="Electric Bass (finger)" />
-    <genericInstrument name="Percussion" />
+    <instrument from="string.bowed.ensemble.pizzicato" />
+    <instrument from="bass.electric.finger" />
+    <instrument from="Percussion" />
   </instruments>
   <tracks>
     <track id="0" instrument="0" sendA="-10.4576" distance="5" azimuth="-60" />

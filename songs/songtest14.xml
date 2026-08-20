@@ -6,7 +6,7 @@
     </bus>
     <instruments>
         <resonantFilter name="Chords" cut="2200" res="2" aftertouch="0" attack="0" hold="0" decay="0" sustain="1" release="0" keynumToHold="0" keynumToDecay="0">
-            <genericInstrument name="Acoustic Guitar (steel)"/>
+            <instrument from="guitar.acoustic.steel"/>
         </resonantFilter>
         <envelope name="Pads" attack="0.5" hold="0" decay="0" sustain="1" release="2" keynumToHold="0" keynumToDecay="0">
             <resonantFilter cut="2200" res="0.5" aftertouch="0" attack="0" hold="0" decay="0" sustain="1" release="0" keynumToHold="0" keynumToDecay="0">
@@ -15,10 +15,10 @@
                 </multiply>
             </resonantFilter>
         </envelope>
-        <genericInstrument name="Orchestral Harp"/>
-        <genericInstrument name="Fantasia"/>
-        <genericInstrument name="Piano"/>
-        <genericInstrument name="Percussion"/>
+        <instrument from="string.plucked.harp"/>
+        <instrument from="native:Fantasia"/>
+        <instrument from="piano.acoustic.grand"/>
+        <instrument from="Percussion"/>
     </instruments>
     <tracks>
         <track id="guitar" instrument="0" azimuth="-45" distance="2" elevation="0" color="" sendA="-20.0000" sendB="-20.0000"/>

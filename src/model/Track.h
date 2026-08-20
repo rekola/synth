@@ -60,6 +60,17 @@ class Track : public StatefulSongObject {
     return getChildren().empty() ? 0.0f : getChildren()[0]->getDefaultExtent();
   }
 
+  // The string a UI should show for this node - never persisted, purely
+  // computed on demand, so overriding it can never "touch the document."
+  // Default: the node's own getName() (empty if the artist never assigned
+  // one) - correct as-is for every node that has no better source to fall
+  // back to (a custom instrument assembled directly in the signal graph,
+  // e.g. <lowpassFilter name="Bass"><oscillator .../></lowpassFilter> in
+  // the song-level instrument pool, has nothing beyond its own name to
+  // show). GenericInstrument overrides this to fall back further, to its
+  // own from/resolved-instrument data, when name is empty.
+  virtual std::string getDisplayName() const { return getName(); }
+
   std::unique_ptr<TrackState> createStateTree(const ChannelConfiguration & config) const {
     auto state = createState(config);
     auto child_config = getChildChannelConfiguration(config);
