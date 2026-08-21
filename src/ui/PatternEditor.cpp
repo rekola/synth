@@ -1615,10 +1615,16 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  auto instrument_name_width = std::max(0, actual_width - 1);
 	  instrument_name = Utf8::truncateToWidth(instrument_name, instrument_name_width);
 	  putstr(heading_height - 2 - level + 1, current_pos, instrument_name);
-	} else {	  
+	} else {
 	  std::string name = track->getElementName();
 	  auto & track_info = info.getTrackInfo(track->getInternalId());
-	  auto element_name_width = std::max(0, actual_width - 4);
+
+	  // An effect track already shows its own name (and clip color) in
+	  // its own dedicated level-0 column, so its ancestor row above a
+	  // child column doesn't need Group's "active" dot marker - skip
+	  // that 3-cell left margin for it rather than leaving it blank.
+	  bool is_effect = track->getType() == TrackType::EFFECT;
+	  auto element_name_width = std::max(0, actual_width - (is_effect ? 1 : 4));
 
 	  name = Utf8::truncateToWidth(name, element_name_width);
 	  name = Utf8::padToWidth(name, element_name_width);
@@ -1631,11 +1637,11 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  } else {
 	    setFgColor(0x10, 0xe0, 0x40);
 	  }
-	  
-	  putstr(heading_height - 2 - level, current_pos, track_info.isActive() ? " • " : "   ");
-	  
+
+	  if (!is_effect) putstr(heading_height - 2 - level, current_pos, track_info.isActive() ? " • " : "   ");
+
 	  setFgColor(0x00, 0x00, 0x00);
-	  putstr(heading_height - 2 - level, current_pos + 3, name);
+	  putstr(heading_height - 2 - level, current_pos + (is_effect ? 0 : 3), name);
 	}
       }
       
