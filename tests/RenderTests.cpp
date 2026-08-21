@@ -1257,7 +1257,7 @@ TEST(render_golden_hash_catches_randomization_regressions) {
   CHECK(tape.ok);
   auto tape_result = renderSongOffline(tape.song, config);
   CHECK(!hasNonFiniteSample(tape_result));
-  if (canonical_arch) CHECK(hashSamples(tape_result) == 0xe7e4aff13b0ea1e1ull);
+  if (canonical_arch) CHECK(hashSamples(tape_result) == 0x125cc894073b2955ull);
 
   auto arp = loadFixture("arpeggiator_pattern_chord.xml");
   CHECK(arp.ok);

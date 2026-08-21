@@ -50,10 +50,11 @@ TEST(song_structure_gives_a_wrapping_effect_its_own_ordinal_as_well_as_its_child
   auto & inner = effect.addChild(make_unique<InstrumentTrack>(0));
 
   SongStructure structure(song);
-  // Effect visited (and assigned) before recursing into its child - see
-  // SongStructure::visit()'s own EFFECT branch.
-  CHECK(structure.getOrdinalFor(effect) == 0);
-  CHECK(structure.getOrdinalFor(inner) == 1);
+  // Child visited (and assigned) before the effect itself - see
+  // SongStructure::visit()'s own EFFECT branch: the effect-command column
+  // sits to the right of what it wraps, not in front of it.
+  CHECK(structure.getOrdinalFor(inner) == 0);
+  CHECK(structure.getOrdinalFor(effect) == 1);
 }
 
 TEST(song_structure_gives_a_childless_effect_its_own_ordinal_too) {

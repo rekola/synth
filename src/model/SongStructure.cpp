@@ -57,12 +57,15 @@ SongStructure::visit(const Track & track) {
     // its own ordinal and single effect-command column, wrapped or not -
     // see the design plan's "What qualifies for an ordinal". Recurses into
     // its children too, unlike the two leaf cases above: a wrapped
-    // instrument underneath still needs its own ordinal as well.
+    // instrument underneath still needs its own ordinal as well. Children
+    // are visited (and get their columns placed) before the effect track
+    // assigns its own, so the effect-command column sits to the right of
+    // whatever it's wrapping rather than in front of it.
+    for (auto & child : track.getChildren()) visit(*child);
     VisibleTrackInfo info;
     info.has_note_column_ = false;
     info.has_effect_column_ = true;
     assign(std::move(info));
-    for (auto & child : track.getChildren()) visit(*child);
   } else {
     // GROUP and anything else unrecognized - a pure pass-through, no
     // ordinal of its own (see the design plan's own note on why this is
