@@ -1570,10 +1570,16 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  setFgColor(0x00, 0x00, 0x00);
 	  setBgColor(0xf0, 0x80, 0x10);
 
+	  // Effect tracks have no mute/solo (only InstrumentTrack and its
+	  // subclasses do) - skip the "MS" glyphs entirely for them and let
+	  // the name use the whole title bar width instead of reserving room
+	  // for glyphs that would never be drawn.
+	  bool has_mute_solo = track->getType() != TrackType::EFFECT;
+
 	  // std::max(0, ...): a narrow enough column (actual_width < 3) would
 	  // otherwise make text_width negative, and it's used below both as a
 	  // display-width budget and as a putstr() column offset.
-	  auto text_width = std::max(0, actual_width - 3);
+	  auto text_width = std::max(0, actual_width - (has_mute_solo ? 3 : 1));
 
 	  bool is_solo = false, is_muted = false;
 	  string instrument_name;
@@ -1593,14 +1599,16 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  name = Utf8::truncateToWidth(name, text_width);
 	  name = Utf8::padToWidth(name, text_width);
 	  putstr(heading_height - 2 - level, current_pos, name);
-	  putstr(heading_height - 2 - level, current_pos + text_width + 2, "│");
-	  if (is_muted) setFgColor(0x00, 0x00, 0x00);
-	  else setFgColor(0xe0, 0x70, 0x08);
-	  putstr(heading_height - 2 - level, current_pos + text_width, "M");
-	  if (is_solo) setFgColor(0x00, 0x00, 0x00);
-	  else setFgColor(0xe0, 0x70, 0x08);
-	  putstr(heading_height - 2 - level, current_pos + text_width + 1, "S");
-	  
+	  putstr(heading_height - 2 - level, current_pos + text_width + (has_mute_solo ? 2 : 0), "│");
+	  if (has_mute_solo) {
+	    if (is_muted) setFgColor(0x00, 0x00, 0x00);
+	    else setFgColor(0xe0, 0x70, 0x08);
+	    putstr(heading_height - 2 - level, current_pos + text_width, "M");
+	    if (is_solo) setFgColor(0x00, 0x00, 0x00);
+	    else setFgColor(0xe0, 0x70, 0x08);
+	    putstr(heading_height - 2 - level, current_pos + text_width + 1, "S");
+	  }
+
 	  setFgColor(0xf0, 0xf0, 0xf0);
 	  setBgColor(styles.window_bg_color);
 	  	  
