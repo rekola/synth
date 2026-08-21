@@ -1667,26 +1667,38 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  // the trailing "│".
 	  auto element_name_width = std::max(0, actual_width - 2);
 
-	  name = Utf8::truncateToWidth(name, element_name_width);
-	  name = Utf8::padToWidth(name, element_name_width);
-	  name += "│";
-
 	  setBgColor(0x50, 0x50, 0x60);
 
-	  // Always draw the dot - faint when idle, full clip/active color
-	  // otherwise - rather than only appearing (amid blank padding) once
-	  // active, so it reads as a real status indicator, not padding.
-	  if (track_info.isClipping()) {
-	    setFgColor(0xe0, 0x10, 0x40);
-	  } else if (track_info.isActive()) {
-	    setFgColor(0x10, 0xe0, 0x40);
-	  } else {
-	    setFgColor(0x30, 0x30, 0x38);
-	  }
-	  putstr(heading_height - 2 - level, current_pos, "•");
+	  // A track's own row shows up at every level from where its
+	  // subtree first starts merging up through getDepth() - 1, where
+	  // its whole subtree finally merges into one span (see the
+	  // hop-walk above) - drawing the name/dot at each of those
+	  // intermediate, still-partial levels too would show the same
+	  // label repeated on several rows. Only the last one, where the
+	  // span is actually complete, draws it; the rest stay blank.
+	  if (level == track->getDepth() - 1) {
+	    name = Utf8::truncateToWidth(name, element_name_width);
+	    name = Utf8::padToWidth(name, element_name_width);
+	    name += "│";
 
-	  setFgColor(0x00, 0x00, 0x00);
-	  putstr(heading_height - 2 - level, current_pos + 1, name);
+	    // Always draw the dot - faint when idle, full clip/active color
+	    // otherwise - rather than only appearing (amid blank padding) once
+	    // active, so it reads as a real status indicator, not padding.
+	    if (track_info.isClipping()) {
+	      setFgColor(0xe0, 0x10, 0x40);
+	    } else if (track_info.isActive()) {
+	      setFgColor(0x10, 0xe0, 0x40);
+	    } else {
+	      setFgColor(0x30, 0x30, 0x38);
+	    }
+	    putstr(heading_height - 2 - level, current_pos, "•");
+
+	    setFgColor(0x00, 0x00, 0x00);
+	    putstr(heading_height - 2 - level, current_pos + 1, name);
+	  } else {
+	    setFgColor(0x00, 0x00, 0x00);
+	    putstr(heading_height - 2 - level, current_pos, string(static_cast<size_t>(element_name_width + 1), ' ') + "│");
+	  }
 	}
       }
       
