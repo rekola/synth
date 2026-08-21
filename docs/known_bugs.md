@@ -153,7 +153,17 @@ Found 2026-07-11, not yet fixed.
   fixed - the call site (`SongState.h`'s two `NoteCoordinate(track_id, ...)`
   constructions) would need the track's position in `Song`'s track list
   (or `getRootTrackIds()`'s ordering) instead of the internal id it
-  currently reuses for this.
+  currently reuses for this. Two more sites hit the identical bug
+  directly, not just through `SongState.h`'s relay: `TapeDegradation.cpp`'s
+  own per-instance seed (`NoteCoordinate(getInternalId(), 0, 0)`) and
+  `Player.cpp`'s live-playback note dispatch
+  (`NoteCoordinate(instrument_track.getInternalId(), ...)`) - a full fix
+  needs all four sites, not just the two pattern-playback ones. Independently
+  reconfirmed via `tests/RenderTests.cpp`'s golden-hash regression test
+  flaking in CI with no fixture change; see
+  `plans/notecoordinate-stable-track-id.md` for that reproduction (a
+  repeatable burn-in: construct N unrelated `Song`s before rendering,
+  watch the hash move with N) plus two candidate fix shapes.
 
 - **`Utf8::truncateToWidth()`/`Utf8::displayWidth()` (`src/util/Utf8.h`)
   don't merge flag emoji or multi-emoji ZWJ sequences into a single

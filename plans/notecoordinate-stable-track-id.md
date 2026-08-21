@@ -71,6 +71,18 @@ loaded in two different processes (or twice in the same process, after unrelated
 identical, authored track - because the "stable" identity it built on
 (`getInternalId()`) was never actually process-independent to begin with.
 
+Already flagged, independently of this plan: `docs/known_bugs.md` (the
+`NoteCoordinate::track_id_` entry) covers the same root cause for the
+`SongState.h` pattern-playback sites, found while verifying an unrelated
+`InstrumentProvider` alias-table rename - removing 4 incidental startup object
+constructions there shifted every later track's internal id by 4, changing the
+rendered audio of every song using the affected jitter/decorrelation paths
+(including songs with no SoundFont content at all). That's the same failure mode
+as the burn-in test above, caught by hand rather than by a repeatable check. That
+entry doesn't cover the `Player.cpp`/`TapeDegradation.cpp` sites above, which hit
+the bug directly rather than through `SongState.h`'s relay - a full fix needs all
+four.
+
 ## Design
 
 The file format already has what's needed: `SongObject::id_` (the authored,
