@@ -8,7 +8,7 @@ class Chorus : public Effect {
  public:
   Chorus() { }
 
-  std::unique_ptr<TrackState> createState(const ChannelConfiguration & channel_config) const override;
+  std::unique_ptr<TrackState> createState(const ChannelConfiguration & channel_config, const SongStructure & structure) const override;
   std::unique_ptr<VoiceState> createVoiceState(const ChannelConfiguration & channel_config) const override;
   const char * getElementName() const override { return "chorus"; }
   void loadParameters(const ParameterSource & input) override;

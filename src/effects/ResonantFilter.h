@@ -8,7 +8,7 @@ class ResonantFilter : public Effect {
  public:
   ResonantFilter() { }
 
-  std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override;
+  std::unique_ptr<TrackState> createState(const ChannelConfiguration & config, const SongStructure & structure) const override;
   std::unique_ptr<VoiceState> createVoiceState(const ChannelConfiguration & config) const override;
   const char * getElementName() const override { return "resonantFilter"; }
   void loadParameters(const ParameterSource & input) override;

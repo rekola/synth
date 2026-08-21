@@ -6,7 +6,7 @@
 using namespace std;
 
 std::unique_ptr<TrackState>
-Arpeggiator::createState(const ChannelConfiguration & config) const {
+Arpeggiator::createState(const ChannelConfiguration & config, const SongStructure & structure) const {
   assert(getInstrumentId() >= 0);
   return make_unique<ArpeggiatorState>(config, isSolo(), isMuted(), getInternalId(), getInstrumentId(), getPosition(), getSends(), *this);
 }

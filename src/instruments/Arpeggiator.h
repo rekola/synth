@@ -18,7 +18,7 @@ class Arpeggiator : public InstrumentTrack {
   Arpeggiator() : InstrumentTrack(TrackType::INSTRUMENT_CONTROL) { }
 
   const char * getElementName() const override { return "arpeggiatorTrack"; }
-  std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override;
+  std::unique_ptr<TrackState> createState(const ChannelConfiguration & config, const SongStructure & structure) const override;
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;
 

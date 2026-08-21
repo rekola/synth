@@ -35,7 +35,7 @@ HierarchyView::render(const StyleProvider & styles, bool refresh) {
     data_.push_back( { 2, TrackType::INSTRUMENT, name });
   }
 
-  if (song.getVersion() != current_song_version_ || new_scroll_pos_ != current_scroll_pos_) {
+  if (song.getMajorVersion() != current_song_version_ || new_scroll_pos_ != current_scroll_pos_) {
     render_all = true;
   }
 
@@ -59,7 +59,7 @@ HierarchyView::render(const StyleProvider & styles, bool refresh) {
     need_refresh = true;
   }
 
-  current_song_version_ = song.getVersion();
+  current_song_version_ = song.getMajorVersion();
   current_cursor_row_ = new_cursor_row_;
   
   return need_refresh;

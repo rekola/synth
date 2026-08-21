@@ -14,7 +14,7 @@ InstrumentList::render(const StyleProvider & styles, bool refresh) {
   bool render_all = refresh;
   auto & song = getController().getSong();
 
-  if (song.getVersion() != current_song_version || new_scroll_pos != current_scroll_pos) {
+  if (song.getMajorVersion() != current_song_version || new_scroll_pos != current_scroll_pos) {
     render_all = true;
   }
 
@@ -37,7 +37,7 @@ InstrumentList::render(const StyleProvider & styles, bool refresh) {
     need_refresh = true;
   }
 
-  current_song_version = song.getVersion();
+  current_song_version = song.getMajorVersion();
   current_cursor_row = new_cursor_row;
   
   return need_refresh;

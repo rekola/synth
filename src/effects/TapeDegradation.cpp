@@ -560,15 +560,14 @@ TapeDegradation::buildTransportParams() const {
 }
 
 std::unique_ptr<TrackState>
-TapeDegradation::createState(const ChannelConfiguration & channel_config) const {
-  // getInternalId(), 0, 0 - the track's own identity, its own coordinate
-  // (see TapeDegradationTrackState's own doc comment above and
-  // NoteCoordinate.h's on why getInternalId() is a safe coordinate
-  // component within one run) - no note event to key off here.
+TapeDegradation::createState(const ChannelConfiguration & channel_config, const SongStructure & structure) const {
+  // structure.getOrdinalFor(*this), not getInternalId() - the track's own
+  // stable ordinal, its own coordinate (see TapeDegradationTrackState's own
+  // doc comment above) - no note event to key off here.
   return make_unique<TapeDegradationTrackState>(channel_config, getPosition(), buildTransportParams(),
                                                  saturationDriveDB_, lowCutHz_, hfRolloffHz_, headBumpHz_, headBumpGainDB_, mix_,
                                                  swoopTimeMs_, swoopStartCents_, spinDownMs_, droopDepthCents_,
-                                                 NoteCoordinate(getInternalId(), 0, 0));
+                                                 NoteCoordinate(structure.getOrdinalFor(*this), 0, 0));
 }
 
 std::unique_ptr<VoiceState>

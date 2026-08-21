@@ -65,6 +65,7 @@ add_library(synth_engine STATIC
 	src/model/Song.cpp
 	src/model/SongObject.cpp
 	src/model/InstrumentTrack.cpp
+	src/model/SongStructure.cpp
 	third_party/tinyxml2/tinyxml2.cpp
 	src/effects/ResonantFilter.cpp
 	src/effects/BiquadFilter.cpp

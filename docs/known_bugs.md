@@ -121,63 +121,6 @@ Found 2026-07-11, not yet fixed.
   extending the arpeggiator's own resync approach to envelopes generally)
   and why neither was attempted as part of that work.
 
-- **`NoteCoordinate::track_id_` is sourced from the wrong value** -
-  `SongState.h`'s note-scheduling loop builds it from `scene.getPatternsByTrack()`'s
-  keys, which are a track's `getInternalId()` (`SongObject.h`): a
-  process-lifetime `std::atomic<int>` counter shared by *every*
-  `SongObject`-derived instance ever constructed in the process (tracks,
-  patterns, instruments, everything), assigned in construction order,
-  starting fresh each run. `NoteCoordinate.h`'s own doc comment already
-  budgets `track_id_` as "1M tracks" of address space and treats it as a
-  stable per-track identity for `HashField`-derived per-voice jitter/phase
-  seeding (`InstrumentVoice.h`'s note-phase salt, SF2 percussion offset
-  jitter, unison decorrelation) - but an internal id is neither: it depends
-  on how many unrelated objects (most concretely, however many
-  `SoundFontInstrument`s `InstrumentProvider::loadSoundFont()` happens to
-  construct at startup, which varies with the loaded font/alias table)
-  got constructed *before* this track, not on anything about the song or
-  the track itself. Confirmed directly while verifying an unrelated,
-  purely-cosmetic `InstrumentProvider` alias-table rename (see
-  `plans/instrument-identity-generator-overrides.md`'s "Song rewrite
-  mechanics" section): removing 4 incidental startup object constructions
-  shifted every later track's internal id by 4, which changed the
-  rendered audio of every song using the affected jitter/decorrelation
-  paths - including songs with no SoundFont content at all
-  (`songs/songtest18.xml`, built entirely from `<oscillator>` elements).
-  What `track_id_` should actually be, per its own stated purpose (a
-  stable, human-legible per-track identity for reproducible jitter,
-  matching `column_`/`absolute_row_`'s already-song-relative scoping): the
-  track's **physical/visible order** - its index within the song's own
-  flattened track list, the same ordering already shown to the user in the
-  pattern editor - not a global, run-order-dependent counter value. Not
-  fixed - the call site (`SongState.h`'s two `NoteCoordinate(track_id, ...)`
-  constructions) would need the track's position in `Song`'s track list
-  (or `getRootTrackIds()`'s ordering) instead of the internal id it
-  currently reuses for this. Two more sites hit the identical bug
-  directly, not just through `SongState.h`'s relay: `TapeDegradation.cpp`'s
-  own per-instance seed (`NoteCoordinate(getInternalId(), 0, 0)`) and
-  `Player.cpp`'s live-playback note dispatch
-  (`NoteCoordinate(instrument_track.getInternalId(), ...)`) - a full fix
-  needs all four sites, though not all four resolve the same way (see below).
-  Independently reconfirmed via `tests/RenderTests.cpp`'s golden-hash
-  regression test flaking in CI with no fixture change; see
-  `plans/notecoordinate-stable-track-id.md` for that reproduction (a
-  repeatable burn-in: construct N unrelated `Song`s before rendering, watch
-  the hash move with N) and the settled design: a `TrackOrdinalRegistry`,
-  threaded through `createState()`/`createStateTree()` the same way
-  `needs_decorrelation` was threaded through `playNote()`, built once per
-  state-tree build by walking `song.getTracks()` and numbering every
-  ordinal-bearing track in encounter order - not just the four leaf
-  `TrackType`s `collectRootTrackIds()` checks today, but every per-track
-  `Effect` too (`TapeDegradation`/`Chorus`/`Compressor`/... - each is getting
-  its own effect-command column in the pattern editor regardless of whether
-  it wraps an instrument, so each needs the same stable identity, not a
-  narrower one invented just for this bug). `Song::getRootTrackIds()` and
-  `PatternEditor.cpp`'s `fill_track_info()` fold into the same registry as
-  their single source of truth rather than keeping their own duplicate
-  tree-walks, so the fix and the pattern-editor consolidation land together,
-  not the fix now and the UI catching up later.
-
 - **`Utf8::truncateToWidth()`/`Utf8::displayWidth()` (`src/util/Utf8.h`)
   don't merge flag emoji or multi-emoji ZWJ sequences into a single
   grapheme cluster**, so `PatternEditor::renderHeading()`'s track/
@@ -198,31 +141,3 @@ Found 2026-07-11, not yet fixed.
   switching to `utf8proc` would add a second, otherwise-unneeded Unicode
   library to the dependency graph purely to cover that case.
 
-- **The confirm-before-quit/confirm-before-switch-buffer prompt
-  (`Controller::hasUnsavedChanges()`/`hasAnyUnsavedChanges()`, added
-  2026-08-17/18) never fires for ordinary note/command entry** -
-  typing/deleting a note, editing its velocity/delay, or editing an effect
-  command directly in `PatternEditor` leaves `hasUnsavedChanges()` reporting
-  false even though the pattern genuinely changed. Root cause:
-  `hasUnsavedChanges()` compares `Song::getVersion()` against a baseline
-  saved at load/save time, entirely dependent on `Track`/`Song` mutations
-  calling `incVersion()` - but `PatternEditor::offerInput()`'s direct
-  keyboard note-entry paths (`scene.setNote()`/`deleteNote()`/`pushNote()`/
-  `setCommand()`, the velocity/delay-column edits) never call it. They set a
-  `row_edited` flag instead, which predates `hasUnsavedChanges()` by years
-  (traces back to 2022) and exists for a real, separate reason:
-  `PatternEditor::render()` treats a `song.getVersion()` change as a
-  signal to redraw the *entire* visible grid (`render_all`, gated in part on
-  `song.getVersion() != current_song_version`), while `row_edited` alone
-  only repaints the one row that changed - calling `incVersion()` on every
-  keystroke would make each keystroke pay for a full-grid redraw instead of
-  a single-row one. So the two flags were never meant to be interchangeable:
-  `row_edited` is a redraw-scope hint, `incVersion()` is a content-identity
-  counter, and `hasUnsavedChanges()` was built assuming the latter already
-  covered every mutation, which it doesn't and never has for this specific
-  path. Not fixed - the naive fix (add `incVersion()` calls at every
-  `row_edited`-only site) would silently reintroduce the exact per-keystroke
-  full-redraw cost `row_edited` exists to avoid; a real fix needs
-  `render()`'s full-redraw trigger decoupled from the same counter
-  `hasUnsavedChanges()` reads, so a version bump can be cheap to detect
-  without being expensive to redraw.

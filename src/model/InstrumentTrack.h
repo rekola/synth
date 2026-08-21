@@ -12,7 +12,7 @@ class InstrumentTrack : public Track {
   InstrumentTrack(TrackType type) : Track(type), instrument_id_(0) { }
 
   const char * getElementName() const override { return "track"; }
-  std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override;
+  std::unique_ptr<TrackState> createState(const ChannelConfiguration & config, const SongStructure & structure) const override;
   
   void loadParameters(const ParameterSource & input);
   void storeParameters(ParameterSource & output) const override;

@@ -64,7 +64,8 @@ Player::stateFor(const string & name, const Song & song) {
     track_snapshot.reserve(song.getTracks().size());
     for (auto & track : song.getTracks()) track_snapshot.push_back(track.get());
   }
-  for (auto * track : track_snapshot) track->getState(*state);
+  // Return value unused - getState() attaches the built state into *state as a side effect, which is all this loop is for.
+  for (auto * track : track_snapshot) track->getState(*state, state->getSongStructure());
 
   // Row navigation while this buffer was still stateless (see the
   // MOVE_POSITION/SET_POSITION cases in handlePlaybackControlEvent()) left
@@ -239,7 +240,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	      // counter's monotonic growth is fine here, unlike everywhere
 	      // else this migration cares about reproducibility).
 	      track_state->noteOn(column, instrument, frequency, note.getVelocityAsFloat(), note.getValue(), NoteOrigin::LIVE,
-				   NoteCoordinate(instrument_track.getInternalId(), live_note_counter_++, column));
+				   NoteCoordinate(state.getSongStructure().getOrdinalFor(instrument_track), live_note_counter_++, column));
 	    } else {
 	      track_state->notePressure(column, midi_velocity / 127.0f);
 	    }

@@ -187,7 +187,7 @@ private:
 }
 
 std::unique_ptr<TrackState>
-Distortion::createState(const ChannelConfiguration & channel_config) const {
+Distortion::createState(const ChannelConfiguration & channel_config, const SongStructure & structure) const {
   return make_unique<DistortionTrackState>(channel_config, type_, param_, drymix_, drive_);
 }
 

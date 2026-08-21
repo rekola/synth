@@ -85,7 +85,7 @@ private:
 }
 
 std::unique_ptr<TrackState>
-Tremolo::createState(const ChannelConfiguration & channel_config) const {
+Tremolo::createState(const ChannelConfiguration & channel_config, const SongStructure & structure) const {
   return make_unique<TremoloTrackState>(channel_config, frequency_, amplitude_, use_aftertouch_);
 }
 

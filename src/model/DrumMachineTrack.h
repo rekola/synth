@@ -29,7 +29,7 @@ public:
   DrumMachineTrack() : InstrumentTrack(TrackType::DRUM_MACHINE) { }
 
   const char * getElementName() const override { return "drumMachineTrack"; }
-  std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override;
+  std::unique_ptr<TrackState> createState(const ChannelConfiguration & config, const SongStructure & structure) const override;
 
   int getLoopLength() const { return loop_length_; }
   void setLoopLength(int n) { loop_length_ = n; }

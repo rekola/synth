@@ -234,7 +234,7 @@ Controller::dropBufferState(const string & name) {
 }
 
 void
-Controller::addBuffer(std::shared_ptr<Song> song, const string & name, int saved_version) {
+Controller::addBuffer(std::shared_ptr<Song> song, const string & name, Version saved_version) {
   saveActiveBufferState();
   {
     std::lock_guard<std::mutex> guard(song_mutex_);
@@ -248,7 +248,7 @@ Controller::addBuffer(std::shared_ptr<Song> song, const string & name, int saved
 }
 
 void
-Controller::renameActiveBuffer(const string & new_name, int saved_version) {
+Controller::renameActiveBuffer(const string & new_name, Version saved_version) {
   // A rename, not a switch - the active buffer itself doesn't change, so
   // the live playback_info/recording_track_id/pattern_selection_active_
   // scalars stay exactly as they are; only the *old* key's own map slot
@@ -333,8 +333,7 @@ Controller::openSong(const string & filename) {
     return false;
   }
 
-  auto version = song->getVersion();
-  addBuffer(song, filename, version);
+  addBuffer(song, filename, song->getVersion());
   return true;
 }
 

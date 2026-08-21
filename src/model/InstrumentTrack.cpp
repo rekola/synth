@@ -27,7 +27,7 @@ float linearToDb(float linear) { return linear <= 0.00001f ? -100.0f : 20.0f * l
 }
   
 std::unique_ptr<TrackState>
-InstrumentTrack::createState(const ChannelConfiguration & config) const {
+InstrumentTrack::createState(const ChannelConfiguration & config, const SongStructure & structure) const {
   assert(getInstrumentId() >= 0);
   return std::make_unique<InstrumentTrackState>(config, isSolo(), isMuted(), getInternalId(), getInstrumentId(), getPosition(), sends_);
 }

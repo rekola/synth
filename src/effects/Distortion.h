@@ -20,7 +20,7 @@ class Distortion : public Effect {
  public:
   Distortion() { }
 
-  std::unique_ptr<TrackState> createState(const ChannelConfiguration & channel_config) const override;
+  std::unique_ptr<TrackState> createState(const ChannelConfiguration & channel_config, const SongStructure & structure) const override;
   std::unique_ptr<VoiceState> createVoiceState(const ChannelConfiguration & channel_config) const override;
   const char * getElementName() const override { return "distortion"; }
   void loadParameters(const ParameterSource & input) override;

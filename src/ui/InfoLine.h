@@ -29,7 +29,7 @@ class InfoLine : public UIElement {
     // current_buffer_names_'s own comment below.
     auto buffer_names = getController().getBufferNames();
 
-    auto new_version = song.getVersion();
+    auto new_version = song.getMajorVersion();
     auto new_position = info.getAbsolutePosition();
     auto num_voices = info.getVoiceCount();
     auto num_allocated_voices = info.getAllocatedVoiceCount();

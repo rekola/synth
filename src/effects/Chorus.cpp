@@ -138,7 +138,7 @@ private:
 }
 
 std::unique_ptr<TrackState>
-Chorus::createState(const ChannelConfiguration & channel_config) const {
+Chorus::createState(const ChannelConfiguration & channel_config, const SongStructure & structure) const {
   return make_unique<ChorusTrackState>(channel_config, voices_, rate_, delay_, depth_, mix_);
 }
 

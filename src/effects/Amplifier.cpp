@@ -72,7 +72,7 @@ private:
 }
 
 std::unique_ptr<TrackState>
-Amplifier::createState(const ChannelConfiguration & channel_config) const {
+Amplifier::createState(const ChannelConfiguration & channel_config, const SongStructure & structure) const {
   return make_unique<AmplifierTrackState>(channel_config, gain_);
 }
 

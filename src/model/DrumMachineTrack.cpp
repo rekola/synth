@@ -20,7 +20,7 @@ DrumMachineTrack::seedDefaultKit() {
 }
 
 unique_ptr<TrackState>
-DrumMachineTrack::createState(const ChannelConfiguration & config) const {
+DrumMachineTrack::createState(const ChannelConfiguration & config, const SongStructure & structure) const {
   assert(getInstrumentId() >= 0);
   return make_unique<DrumMachineTrackState>(config, isSolo(), isMuted(), getInternalId(), getInstrumentId(), getPosition(), getSends());
 }

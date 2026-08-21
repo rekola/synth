@@ -8,7 +8,8 @@
 
 class NoteMultiplier : public Track {
  public:
-  NoteMultiplier() : Track(TrackType::EFFECT) { }
+  // A voice-generation-time wrapper living inside instrument definitions, alongside Oscillator/Envelope/etc.
+  NoteMultiplier() : Track(TrackType::INSTRUMENT) { }
 
   const char * getElementName() const override { return "multiply"; }
   void loadParameters(const ParameterSource & input) override;

@@ -541,37 +541,27 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   assertCommandBindingsValid();
 }
 
-static void fill_track_info(const Track & track, std::unordered_map<int, VisibleTrackInfo> & track_info) {
-  if (track.getType() == TrackType::INSTRUMENT_CONTROL ||
-      track.getType() == TrackType::PERCUSSION_CONTROL) {
-    auto & info = track_info[track.getInternalId()];
-    auto & instrument_track = dynamic_cast<const InstrumentTrack&>(track);
-    info.has_note_column_ = instrument_track.showNoteColumn();
-    info.num_velocity_columns_ = instrument_track.showVelocityColumn() ? 1 : 0;
-    info.has_delay_column_ = instrument_track.showDelayColumn();
-    info.has_effect_column_ = instrument_track.showEffectsColumn();
-    // Renoise-style manually-added note columns (see Controller::addNoteColumn) -
-    // a floor updateNumSubtracks's usual max-of-actual-note-data below is
-    // still taken against, so a column with real note data in it can never
-    // be hidden by this, only extended past it.
-    info.updateNumSubtracks(instrument_track.getMinNoteColumns());
-  } else if (track.getType() == TrackType::DRUM_MACHINE || track.getType() == TrackType::SAMPLE) {
-    // Single placeholder column (see renderRow's own SAMPLE/DRUM_MACHINE
-    // branch), so an explicit, default-constructed 1-column VisibleTrackInfo
-    // entry is keyed here rather than left absent - a track_id present in
-    // track_ids (getRootTrackIds() includes both types) with no entry here
-    // at all makes every downstream per-track-id width/bounds computation
-    // (scroll included - see PatternScroll.cpp) silently treat it as zero
-    // width instead of its real ~4-character placeholder width, which can
-    // undercount how much screen space an earlier SAMPLE/DRUM_MACHINE track
-    // actually consumes and let a later track's cursor column be computed
-    // as fitting on screen when it doesn't, by however many characters got
-    // undercounted.
-    track_info[track.getInternalId()];
-  } else {
-    for (auto & child : track.getChildren()) {
-      fill_track_info(*child, track_info);
-    }
+// Applies the SongStructure's precomputed baseline column shape
+// (TrackType/own-settings-derived - note/velocity/delay/effect column
+// presence) onto whatever scene.getTrackInformation()'s dynamic pass
+// already put in `track_info` - field-by-field, not a whole-struct
+// assignment, so a track's already-widened num_subtracks_ (real note data
+// in the currently visible rows) is only ever widened further
+// (updateNumSubtracks(), never shrunk) rather than clobbered. Every
+// qualifying track_id (structure.getOrderedTrackIds() - the same list
+// Song::getRootTrackIds() returns) gets an entry here even if it had no
+// pattern data at all in the visible range, so every downstream per-track
+// width/bounds computation (scroll included) has a real one to read
+// instead of silently treating an absent id as zero width.
+static void apply_baseline_track_info(const SongStructure & structure, std::unordered_map<int, VisibleTrackInfo> & track_info) {
+  for (auto id : structure.getOrderedTrackIds()) {
+    auto & info = track_info[id];
+    auto & baseline = structure.getBaselineInfo(id);
+    info.has_note_column_ = baseline.has_note_column_;
+    info.num_velocity_columns_ = baseline.num_velocity_columns_;
+    info.has_delay_column_ = baseline.has_delay_column_;
+    info.has_effect_column_ = baseline.has_effect_column_;
+    info.updateNumSubtracks(baseline.num_subtracks_);
   }
 }
 
@@ -597,9 +587,7 @@ PatternEditor::getTrackInformation(const Song & song, int scroll_row) const {
     scene.getTrackInformation(track_info);
     row += song.getPatternLength() - pattern_row;
   }
-  for (auto & track : song.getTracks()) {
-    fill_track_info(*track, track_info);
-  }
+  apply_baseline_track_info(SongStructure(song), track_info);
 
   return track_info;
 }
@@ -811,7 +799,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   // for what used to be a hand-rolled diff of each of those pieces
   // separately (see SelectionBounds::operator==).
   if (score_pattern != current_score_pattern ||
-      song.getVersion() != current_song_version ||
+      song.getMajorVersion() != current_song_version ||
       score_total_columns != current_score_total_columns ||
       new_scroll != current_scroll_ ||
       sel_bounds != current_sel_bounds_
@@ -855,7 +843,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   current_score_pattern = score_pattern;
   current_score_playing_row = score_playing_row;
   current_score_total_columns = score_total_columns;
-  current_song_version = song.getVersion();
+  current_song_version = song.getMajorVersion();
   row_edited = false;
 
   current_sel_bounds_ = sel_bounds;
@@ -923,11 +911,13 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
     Note note(note_value, ev.getVelocity(), current_delay);
     scene.setNote(info.getRowIndex(), track_id, note_column, note);
     row_edited = true;
+    song.incMinorVersion();
   } else if (ev.getType() == MidiEvent::NOTE_PRESSURE) {
     event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, getController().getActiveBufferName(), track_id, note_column, note_value, ev.getVelocity()));
 
     getController().applyNotePressure(info.getPatternIndex(), info.getRowIndex(), track_id, note_column, ev.getVelocity(), current_delay);
     row_edited = true;
+    song.incMinorVersion();
   }
 }
 
@@ -1329,6 +1319,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	if (input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE) {
 	  scene.setCommand(info.getRowIndex(), track_id, Command());
 	  row_edited = true;
+	  song.incMinorVersion();
 	  // Same row-level Backspace-steps-back/Delete-stays-put distinction
 	  // the note column's own is_delete handling makes below.
 	  if (!info.isPlaying() && input.getId() == NCKEY_BACKSPACE) {
@@ -1352,6 +1343,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	if (command.updateData(new_cursor.subcol, input.getId())) {
 	  scene.setCommand(info.getRowIndex(), track_id, command);
 	  row_edited = true;
+	  song.incMinorVersion();
 
 	  if (new_cursor.subcol + 1 < 4) {
 	    new_cursor.subcol++;
@@ -1375,6 +1367,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	  else note.setDelay(current_value);
 	  scene.setNote(info.getRowIndex(), track_id, note_column, note);
 	  row_edited = true;
+	  song.incMinorVersion();
 	  if (new_cursor.subcol == 0) {
 	    new_cursor.subcol++;
 	  } else if (new_cursor.col + 1 < track_info.getColumnCount()) {
@@ -1486,6 +1479,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	  }
 
 	  row_edited = true;
+	  song.incMinorVersion();
 
 	  if (!info.isPlaying()) {
 	    int n = 0;

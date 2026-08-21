@@ -4,6 +4,7 @@
 #include "StatefulSongObject.h"
 #include "Track.h"
 #include "Scene.h"
+#include "Version.h"
 #include "../bus/BusEffectRegistry.h"
 #include "../util/constants.h"
 
@@ -22,7 +23,7 @@ class Song : public StatefulSongObject {
     resetBusToDefaults();
   }
 
-  std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override;
+  std::unique_ptr<TrackState> createState(const ChannelConfiguration & config, const SongStructure & structure) const override;
 
   Tuning getTuning() const { return tuning_; }
   void setTuning(Tuning tuning) { tuning_ = tuning; }
@@ -94,8 +95,21 @@ class Song : public StatefulSongObject {
     setBusSlotKind(1, BusEffectKind::Delay);
   }
 
-  void incVersion() { version_++; }
-  int getVersion() const { return version_; }
+  void incVersion() { version_.incMajor(); }
+  // A consumer that only cares about *structural* change (SongStructure
+  // rebuilds, PatternEditor's own full-grid redraw trigger) reads this
+  // instead of getVersion(), so it doesn't pay for every keystroke.
+  int getMajorVersion() const { return version_.getMajor(); }
+
+  // Note/command/velocity/delay content edits (PatternEditor.cpp's own
+  // row_edited sites) - kept apart from incVersion() so structural-only
+  // consumers aren't disturbed by them.
+  void incMinorVersion() { version_.incMinor(); }
+  int getMinorVersion() const { return version_.getMinor(); }
+
+  // Both counters together, for a consumer that needs to know "did
+  // anything at all change" (Controller::hasUnsavedChanges()).
+  Version getVersion() const { return version_; }
 
   const std::vector<Scene> & getScenes() const { return scenes_; }
   const Scene & getScene(int i) const { return i >= 0 && i < static_cast<int>(scenes_.size()) ? scenes_[static_cast<size_t>(i)] : empty_scene_; }
@@ -257,7 +271,7 @@ private:
   BusEffectKind bus_slot_a_kind_ = BusEffectKind::Reverb;
   BusEffectKind bus_slot_b_kind_ = BusEffectKind::Delay;
 
-  int version_ = 1;
+  Version version_;
 
   std::vector<std::unique_ptr<Track> > instruments_;
   std::vector<std::unique_ptr<Track> > tracks_;

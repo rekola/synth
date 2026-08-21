@@ -457,7 +457,7 @@ private:
 }
 
 std::unique_ptr<TrackState>
-Compressor::createState(const ChannelConfiguration & channel_config) const {
+Compressor::createState(const ChannelConfiguration & channel_config, const SongStructure & structure) const {
   return make_unique<CompressorTrackState>(channel_config,
 				      pregain_,
 				      threshold_,

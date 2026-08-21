@@ -587,3 +587,7 @@ gitignored.
   file/XML-element rename that fixed it; if you see the old spelling
   anywhere (a stray comment, an unrenamed reference), it's a leftover to
   fix, not a convention to preserve.
+- Comments: keep them short (a one-liner covers most cases); don't cite
+  `plans/*.md` files from source/test comments - plans get deleted once
+  done, leaving a dangling reference, so state the reasoning directly
+  instead of pointing at a plan for it.

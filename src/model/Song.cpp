@@ -376,7 +376,7 @@ Song::setBusSlotKind(int slot, BusEffectKind kind) {
 }
 
 std::unique_ptr<TrackState>
-Song::createState(const ChannelConfiguration & config) const {
+Song::createState(const ChannelConfiguration & config, const SongStructure & structure) const {
   return make_unique<SongState>(config);
 }
 
@@ -692,25 +692,7 @@ Song::storeParameters(ParameterSource & output) const {
   output.set("groundAbsorption", getGroundAbsorption(), constants::DEFAULT_GROUND_ABSORPTION);
 }
 
-static void
-collectRootTrackIds(const Track & track, vector<int> & track_ids) {
-  if (track.getType() == TrackType::INSTRUMENT_CONTROL ||
-      track.getType() == TrackType::PERCUSSION_CONTROL ||
-      track.getType() == TrackType::SAMPLE ||
-      track.getType() == TrackType::DRUM_MACHINE) {
-    track_ids.push_back(track.getInternalId());
-  } else {
-    for (auto & child : track.getChildren()) {
-      collectRootTrackIds(*child, track_ids);
-    }
-  }
-}
-
 vector<int>
 Song::getRootTrackIds() const {
-  vector<int> track_ids;
-  for (auto & child : getTracks()) {
-    collectRootTrackIds(*child, track_ids);
-  }
-  return track_ids;
+  return SongStructure(*this).getOrderedTrackIds();
 }

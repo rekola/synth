@@ -157,7 +157,7 @@ private:
 }
 
 std::unique_ptr<TrackState>
-EnvelopeFilter::createState(const ChannelConfiguration & channel_config) const {
+EnvelopeFilter::createState(const ChannelConfiguration & channel_config, const SongStructure & structure) const {
   return make_unique<EnvelopeFilterTrackState>(channel_config, envelope_);
 }
 

@@ -3,6 +3,7 @@
 #define _CONTROLLER_H_
 
 #include "audio/AudioBuffer.h"
+#include "model/Version.h"
 #include "instruments/InstrumentProvider.h"
 #include "playback/EventQueue.h"
 #include "state/PlaybackInfo.h"
@@ -105,15 +106,16 @@ class Controller {
   // on Controller.cpp for the actual algorithm.
   std::string getBufferDisplayName(const std::string & name) const;
 
-  // Song::getVersion() (incVersion(), bumped on every structural or note
-  // edit - see Song.h/PatternEditor.cpp's own call sites) against a
-  // baseline snapshotted whenever the *active* buffer was last freshly
-  // created, opened, saved, or switched to. Not a precise "dirty" bit (a
-  // mutation path that forgets to call incVersion() would go unnoticed),
-  // but reuses an existing, already-pervasive mechanism rather than adding
-  // a parallel one - good enough to gate kill-buffer's "discard unsaved
-  // changes?" prompt (UI.cpp). See hasAnyUnsavedChanges() below for the
-  // all-buffers counterpart save-buffers-kill-terminal needs instead.
+  // Song::getVersion() (incVersion() for structural changes,
+  // incMinorVersion() for note/command content edits - see Song.h/
+  // PatternEditor.cpp's own call sites) against a baseline snapshotted
+  // whenever the *active* buffer was last freshly created, opened, saved,
+  // or switched to. Not a precise "dirty" bit (a mutation path that
+  // forgets to call either would go unnoticed), but reuses an existing,
+  // already-pervasive mechanism rather than adding a parallel one - good
+  // enough to gate kill-buffer's "discard unsaved changes?"
+  // prompt (UI.cpp). See hasAnyUnsavedChanges() below for the all-buffers
+  // counterpart save-buffers-kill-terminal needs instead.
   bool hasUnsavedChanges() const;
   // Every open buffer checked the same way hasUnsavedChanges() checks just
   // the active one - save-buffers-kill-terminal's own "N modified buffers -
@@ -530,7 +532,7 @@ class Controller {
   // must never reset or conflate them. Kept in lockstep with songs_ (same
   // key added/removed/renamed together) by addBuffer()/renameActiveBuffer()/
   // killActiveBuffer() below.
-  std::map<std::string, int> last_saved_versions_;
+  std::map<std::string, Version> last_saved_versions_;
   // Which songs_ entry is current - see getActiveBufferName()/getSong().
   std::string active_buffer_name_;
   // Guards songs_/active_buffer_name_'s own reassignment (addBuffer()/
@@ -546,17 +548,18 @@ class Controller {
   // openSong()'s own tail once it's read a Song from disk. Never removes
   // any other entry (unlike the single-buffer design this replaced) -
   // that's killActiveBuffer()'s job. `saved_version` seeds
-  // last_saved_versions_[name] - always song->getVersion() right after a
-  // fresh open, but the caller's job to compute since it must be read
+  // last_saved_versions_[name] - always song->getVersion() right after
+  // a fresh open, but the caller's job to compute since it must be read
   // before this call, not after.
-  void addBuffer(std::shared_ptr<Song> song, const std::string & name, int saved_version);
+  void addBuffer(std::shared_ptr<Song> song, const std::string & name, Version saved_version);
   // Renames the active buffer's own songs_/last_saved_versions_ entry to
   // `new_name` (erase old key, insert new, same Song and active either
   // way) - saveSongAs()'s own tail, once it's already called Song::save().
-  // `saved_version` is again the caller's job to compute (song->getVersion()
-  // right after that save() call) for the same reason addBuffer() takes it
-  // as a parameter rather than reading it itself.
-  void renameActiveBuffer(const std::string & new_name, int saved_version);
+  // `saved_version` is again the caller's job to compute
+  // (song->getVersion() right after that save() call) for the same
+  // reason addBuffer() takes it as a parameter rather than reading it
+  // itself.
+  void renameActiveBuffer(const std::string & new_name, Version saved_version);
   // Saves the *currently* active buffer's own live playback_info/
   // recording_track_id/pattern_selection_active_ into their map slots -
   // a no-op before any buffer has ever been active, at startup. Called

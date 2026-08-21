@@ -143,7 +143,7 @@ private:
 }
 
 std::unique_ptr<TrackState>
-ResonantFilter::createState(const ChannelConfiguration & config) const {
+ResonantFilter::createState(const ChannelConfiguration & config, const SongStructure & structure) const {
   return make_unique<ResonantFilterTrackState>(config, *this, envelope_, use_aftertouch_);
 }
 

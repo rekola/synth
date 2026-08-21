@@ -9,7 +9,7 @@ class BiquadFilter : public Effect {
  public:
   BiquadFilter() { }
 
-  std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override;
+  std::unique_ptr<TrackState> createState(const ChannelConfiguration & config, const SongStructure & structure) const override;
   std::unique_ptr<VoiceState> createVoiceState(const ChannelConfiguration & config) const override;
   const char * getElementName() const override { return "biquadFilter"; }
   void loadParameters(const ParameterSource & input) override;

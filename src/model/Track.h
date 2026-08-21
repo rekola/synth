@@ -16,7 +16,7 @@ class Track : public StatefulSongObject {
  public:
   Track(TrackType type) : type_(type) { }
 
-  std::unique_ptr<TrackState> createState(const ChannelConfiguration & config) const override {
+  std::unique_ptr<TrackState> createState(const ChannelConfiguration & config, const SongStructure & structure) const override {
     return std::make_unique<TrackState>(config);
   }
 
@@ -71,19 +71,19 @@ class Track : public StatefulSongObject {
   // own from/resolved-instrument data, when name is empty.
   virtual std::string getDisplayName() const { return getName(); }
 
-  std::unique_ptr<TrackState> createStateTree(const ChannelConfiguration & config) const {
-    auto state = createState(config);
+  std::unique_ptr<TrackState> createStateTree(const ChannelConfiguration & config, const SongStructure & structure) const {
+    auto state = createState(config, structure);
     auto child_config = getChildChannelConfiguration(config);
     for (auto & child : getChildren()) {
-      state->addChild(child->getInternalId(), child->createStateTree(child_config));
+      state->addChild(child->getInternalId(), child->createStateTree(child_config, structure));
     }
     return state;
   }
 
-  TrackState & getState(TrackState & parent_state) {
+  TrackState & getState(TrackState & parent_state, const SongStructure & structure) {
     auto state = parent_state.getChildByInternalId(getInternalId());
     if (!state) {
-      auto new_state = createStateTree(parent_state.getChannelConfiguration());
+      auto new_state = createStateTree(parent_state.getChannelConfiguration(), structure);
       state = new_state.get();
       parent_state.addChild(getInternalId(), std::move(new_state));
     }

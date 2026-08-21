@@ -145,7 +145,7 @@ private:
 }
 
 std::unique_ptr<TrackState>
-BiquadFilter::createState(const ChannelConfiguration & config) const {
+BiquadFilter::createState(const ChannelConfiguration & config, const SongStructure & structure) const {
   return make_unique<BiquadFilterTrackState>(config, type_, fc_ / config.getAudioOutSampleRate(), Q_, peakGainDB_, envelope_, use_aftertouch_);
 }
 

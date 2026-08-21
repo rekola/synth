@@ -130,7 +130,7 @@ TEST(fresh_songstate_has_no_track_state_until_getstate_or_a_render_builds_it) {
   state.initialize(song);
 
   CHECK(state.getChildByInternalId(track.getInternalId()) == nullptr);
-  track.getState(state); // the fix - Player::stateFor() calls this for every track eagerly
+  track.getState(state, state.getSongStructure()); // the fix - Player::stateFor() calls this for every track eagerly
   CHECK(state.getChildByInternalId(track.getInternalId()) != nullptr);
 }
 

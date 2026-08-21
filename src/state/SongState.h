@@ -11,6 +11,7 @@
 #include "../bus/BusEffectRegistry.h"
 #include "MemoryParameterSource.h"
 #include "../model/DrumMachineTrack.h"
+#include "../model/SongStructure.h"
 #include "../util/constants.h"
 
 #include <algorithm>
@@ -36,6 +37,8 @@ class SongState : public TrackState {
   void initialize(const Song & song) {
     tempo_ = song.getTempo();
     render_context_.setBpm(tempo_);
+    song_structure_ = SongStructure(song);
+    song_structure_version_ = song.getMajorVersion();
 
     // Floor-reflection parameters (ChannelConfiguration.h) - pushed into
     // this already-constructed instance's own stored copy the same way
@@ -108,6 +111,18 @@ class SongState : public TrackState {
   void renderBlock(int frames, const Song & song, Mixer & mixer, bool reset_mixer = true) {
     if (reset_mixer) mixer.reset();
 
+    // Rebuilt whenever song.getMajorVersion() has moved on since the last
+    // build, not just once in initialize() - adding/removing/reordering a
+    // track while this SongState is already playing, or between a stop
+    // and a resume, is ordinary usage, not an edge case. Keyed on
+    // getMajorVersion() specifically, not getMinorVersion() - a note/command
+    // edit alone must not trigger this.
+    if (song_structure_version_ != song.getMajorVersion()) {
+      std::lock_guard<std::mutex> guard(song.getTracksMutex());
+      song_structure_ = SongStructure(song);
+      song_structure_version_ = song.getMajorVersion();
+    }
+
     if (isPlaying()) {
       for (int i = 0; i < frames; i++) {
 	// recording_muted_: a live-hold recording session (Launchpad/
@@ -160,7 +175,7 @@ class SongState : public TrackState {
 		}
 		auto delay_samples = int(note.getDelayAsFloat() * getChannelConfiguration().getSampleInterval(tempo_));
 		int note_value = (note.isAftertouch() || note.isOff()) ? -1 : note.getValue();
-		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), frequency, velocity, note_value, NoteCoordinate(track_id, absolute_row, int(j)));
+		render_context_.addPendingEvent(track_id, i + delay_samples, int(j), frequency, velocity, note_value, NoteCoordinate(song_structure_.getOrdinalFor(track_id), absolute_row, int(j)));
 	      }
 	    }
 
@@ -197,7 +212,7 @@ class SongState : public TrackState {
 	    for (int note : drum_track.getHitNotesForRow(row_idx)) {
 	      float frequency = Tuner::getFrequency(Tuning::PERCUSSION, note);
 	      float velocity = constants::DEFAULT_VELOCITY / 127.0f;
-	      render_context_.addPendingEvent(track_id, i, note, frequency, velocity, note, NoteCoordinate(track_id, absolute_row, note));
+	      render_context_.addPendingEvent(track_id, i, note, frequency, velocity, note, NoteCoordinate(song_structure_.getOrdinalFor(track_id), absolute_row, note));
 	    }
 	  }
 	}
@@ -273,7 +288,7 @@ class SongState : public TrackState {
     }
 
     for (auto * track : track_snapshot) {
-      auto data = track->getState(*this).render(frames, song.getInstruments(), render_context_);
+      auto data = track->getState(*this, song_structure_).render(frames, song.getInstruments(), render_context_);
       mixer.accumulate(data);
 
       if (auto * a = data.getChannel(Channel::AuxA)) {
@@ -469,6 +484,14 @@ class SongState : public TrackState {
   const AudioBuffer & getAuxASum() const { return aux_a_sum_; }
   const AudioBuffer & getAuxBSum() const { return aux_b_sum_; }
 
+  // Rebuilt whenever song.getMajorVersion() has moved on since the last build
+  // (see renderBlock()) - adding/removing/reordering a track while this
+  // SongState is already playing, or between a stop and a resume, is
+  // ordinary usage, not an edge case. Player.cpp's live-note dispatch
+  // reuses this same instance rather than building its own, so a track's
+  // live and pattern-driven NoteCoordinates always agree on its ordinal.
+  const SongStructure & getSongStructure() const { return song_structure_; }
+
 private:
   int tempo_ = 0;
   bool is_playing_ = false;
@@ -481,6 +504,8 @@ private:
   RenderContext render_context_;
   SendBusProcessor send_bus_;
   AudioBuffer aux_a_sum_, aux_b_sum_;
+  SongStructure song_structure_;
+  int song_structure_version_ = -1; // never equals a real song.getMajorVersion() until initialize()/renderBlock() runs
 };
   
 #endif
