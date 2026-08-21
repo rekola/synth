@@ -158,12 +158,25 @@ Found 2026-07-11, not yet fixed.
   own per-instance seed (`NoteCoordinate(getInternalId(), 0, 0)`) and
   `Player.cpp`'s live-playback note dispatch
   (`NoteCoordinate(instrument_track.getInternalId(), ...)`) - a full fix
-  needs all four sites, not just the two pattern-playback ones. Independently
-  reconfirmed via `tests/RenderTests.cpp`'s golden-hash regression test
-  flaking in CI with no fixture change; see
+  needs all four sites, though not all four resolve the same way (see below).
+  Independently reconfirmed via `tests/RenderTests.cpp`'s golden-hash
+  regression test flaking in CI with no fixture change; see
   `plans/notecoordinate-stable-track-id.md` for that reproduction (a
-  repeatable burn-in: construct N unrelated `Song`s before rendering,
-  watch the hash move with N) plus two candidate fix shapes.
+  repeatable burn-in: construct N unrelated `Song`s before rendering, watch
+  the hash move with N) and the settled design: a `TrackOrdinalRegistry`,
+  threaded through `createState()`/`createStateTree()` the same way
+  `needs_decorrelation` was threaded through `playNote()`, built once per
+  state-tree build by walking `song.getTracks()` and numbering every
+  ordinal-bearing track in encounter order - not just the four leaf
+  `TrackType`s `collectRootTrackIds()` checks today, but every per-track
+  `Effect` too (`TapeDegradation`/`Chorus`/`Compressor`/... - each is getting
+  its own effect-command column in the pattern editor regardless of whether
+  it wraps an instrument, so each needs the same stable identity, not a
+  narrower one invented just for this bug). `Song::getRootTrackIds()` and
+  `PatternEditor.cpp`'s `fill_track_info()` fold into the same registry as
+  their single source of truth rather than keeping their own duplicate
+  tree-walks, so the fix and the pattern-editor consolidation land together,
+  not the fix now and the UI catching up later.
 
 - **`Utf8::truncateToWidth()`/`Utf8::displayWidth()` (`src/util/Utf8.h`)
   don't merge flag emoji or multi-emoji ZWJ sequences into a single
