@@ -1534,10 +1534,43 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
     for (auto i = 0; i < static_cast<int>(track_ids.size()); i++) {
       int track_id = track_ids[static_cast<size_t>(i)];
       auto track = song.getTrackByInternalId(track_id);
-      for (auto k = 0; k < level && track; k++) {
+      // A column's own leaf can itself own a subtree (an effect track
+      // wrapping others still gets its own trailing column alongside
+      // them - SongStructure::visit()'s EFFECT branch) - getDepth() - 1
+      // hops shallower than a plain leaf at the same level, since its
+      // subtree's own leaves already spend that many hops just reaching
+      // it, while this column already starts there. Walking that many
+      // fewer hops here makes it land in the very same ancestor bucket
+      // as the rest of its subtree at every level from where that
+      // subtree's deepest leaf first reaches it, so the merge below
+      // extends that row's span to cover it too instead of leaving it a
+      // separate, prematurely-promoted segment (plain leaves, whose
+      // depth is always 1, are unaffected - 0 hops shallower).
+      // Computed once, from the column's own starting leaf, rather than
+      // inline in the loop condition below - track gets reassigned to
+      // each successive parent as the loop climbs, and re-evaluating
+      // getDepth() against that already-advanced track on every
+      // iteration would silently shrink the hop budget mid-climb.
+      auto hops = level - (track->getDepth() - 1);
+      for (auto k = 0; k < hops && track; k++) {
 	auto it = track_parents.find(track->getInternalId());
-	if (it != track_parents.end()) track = it->second;
-	else track = nullptr;	
+	auto parent = it != track_parents.end() ? it->second : nullptr;
+	if (!parent) {
+	  // Climbed to this column's own root. Its whole subtree has fully
+	  // merged into one span by the level exactly matching its own
+	  // depth (getDepth() - 1 - see the comment above) - any row past
+	  // that point has nothing left to add (this root has no real
+	  // parent to advance to), so it goes blank instead of repeating
+	  // the exact same already-complete span again. At or before that
+	  // level, keep reporting the root itself, so the merge below can
+	  // still pull a shallower sibling branch together with a deeper
+	  // one once its own climb reaches the root too (a bare leaf root,
+	  // whose depth is 1, has no level at or before that point at all -
+	  // it's always past it, so it always goes blank, same as before).
+	  if (level > track->getDepth() - 1) track = nullptr;
+	  break;
+	}
+	track = parent;
       }
       auto it = all_track_info.find(track_id);
       auto w = it != all_track_info.end() ? it->second.getTrackWidth() : 0;
@@ -1556,7 +1589,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	track_widths.push_back(w);
       }
     }
-    
+
     auto current_pos = 5;
     for (auto i = 0; i < static_cast<int>(tracks.size()); i++) {
       if (i < current_scroll_.track) continue;
@@ -1567,14 +1600,21 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 
       if (track) {
 	if (level == 0) {
+	  bool is_effect = track->getType() == TrackType::EFFECT;
+
 	  setFgColor(0x00, 0x00, 0x00);
-	  setBgColor(0xf0, 0x80, 0x10);
+	  // Grey, matching the ancestor row above (renderHeading()'s
+	  // level>0 branch) rather than the usual orange leaf-track title
+	  // bar - an effect's own column is that ancestor row's tail end,
+	  // not a leaf title bar of its own.
+	  if (is_effect) setBgColor(0x50, 0x50, 0x60);
+	  else setBgColor(0xf0, 0x80, 0x10);
 
 	  // Effect tracks have no mute/solo (only InstrumentTrack and its
 	  // subclasses do) - skip the "MS" glyphs entirely for them and let
 	  // the name use the whole title bar width instead of reserving room
 	  // for glyphs that would never be drawn.
-	  bool has_mute_solo = track->getType() != TrackType::EFFECT;
+	  bool has_mute_solo = !is_effect;
 
 	  // std::max(0, ...): a narrow enough column (actual_width < 3) would
 	  // otherwise make text_width negative, and it's used below both as a
@@ -1595,7 +1635,12 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	      is_muted = instrument_track.isMuted();
 	    }
 	  }
-	  auto name = !track->getName().empty() ? track->getName() : (!track->getId().empty() ? "Trk " + track->getId() : format("Trk {:02d}", track->getInternalId()));
+	  // An effect's own column carries no label of its own - the
+	  // ancestor row above it already names it (spanning this column
+	  // too, see the merge logic further up) - so it's left blank
+	  // rather than falling back to a synthetic "Trk NN".
+	  auto name = is_effect ? string() :
+	    (!track->getName().empty() ? track->getName() : (!track->getId().empty() ? "Trk " + track->getId() : format("Trk {:02d}", track->getInternalId())));
 	  name = Utf8::truncateToWidth(name, text_width);
 	  name = Utf8::padToWidth(name, text_width);
 	  putstr(heading_height - 2 - level, current_pos, name);
@@ -1618,13 +1663,9 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	} else {
 	  std::string name = track->getElementName();
 	  auto & track_info = info.getTrackInfo(track->getInternalId());
-
-	  // An effect track already shows its own name (and clip color) in
-	  // its own dedicated level-0 column, so its ancestor row above a
-	  // child column doesn't need Group's "active" dot marker - skip
-	  // that 3-cell left margin for it rather than leaving it blank.
-	  bool is_effect = track->getType() == TrackType::EFFECT;
-	  auto element_name_width = std::max(0, actual_width - (is_effect ? 1 : 4));
+	  // 1 cell for the activity dot below (no surrounding padding) + 1 for
+	  // the trailing "│".
+	  auto element_name_width = std::max(0, actual_width - 2);
 
 	  name = Utf8::truncateToWidth(name, element_name_width);
 	  name = Utf8::padToWidth(name, element_name_width);
@@ -1632,16 +1673,20 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 
 	  setBgColor(0x50, 0x50, 0x60);
 
+	  // Always draw the dot - faint when idle, full clip/active color
+	  // otherwise - rather than only appearing (amid blank padding) once
+	  // active, so it reads as a real status indicator, not padding.
 	  if (track_info.isClipping()) {
 	    setFgColor(0xe0, 0x10, 0x40);
-	  } else {
+	  } else if (track_info.isActive()) {
 	    setFgColor(0x10, 0xe0, 0x40);
+	  } else {
+	    setFgColor(0x30, 0x30, 0x38);
 	  }
-
-	  if (!is_effect) putstr(heading_height - 2 - level, current_pos, track_info.isActive() ? " • " : "   ");
+	  putstr(heading_height - 2 - level, current_pos, "•");
 
 	  setFgColor(0x00, 0x00, 0x00);
-	  putstr(heading_height - 2 - level, current_pos + (is_effect ? 0 : 3), name);
+	  putstr(heading_height - 2 - level, current_pos + 1, name);
 	}
       }
       
