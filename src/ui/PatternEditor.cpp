@@ -415,6 +415,21 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     getController().toggleTrackSolo(track_id);
   });
 
+  // Unlike toggle-mute/toggle-solo above, applies to whatever track the
+  // cursor's column actually belongs to - track_ids here is
+  // getRootTrackIds()'s full SongStructure-ordered list, so this already
+  // reaches a nested effect track exactly as well as a top-level one, no
+  // extra resolution needed (see Controller::toggleTrackCollapsed()'s own
+  // comment on why it's generic over TrackType). Also reachable by pressing
+  // Enter while the cursor sits on a collapsed track - see offerInput().
+  commands_.define("toggle-track-collapse", [this]() {
+    auto & song = getController().getSong();
+    auto track_ids = song.getRootTrackIds();
+    if (track_ids.empty()) return;
+    auto track_id = getController().consumePendingCommandTrack(track_ids[static_cast<size_t>(current_cursor.track)]);
+    getController().toggleTrackCollapsed(track_id);
+  });
+
   // Refuses to remove the last remaining root track: render() and several
   // sibling call sites index track_ids[cursor.track] with no bounds check
   // at all, on the assumption that at least one root track always exists
@@ -524,6 +539,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   keymap_.bind(KeyChord::pack(NCKEY_DOWN, true, false, true, false), "transpose-region-down"); // Ctrl+Shift+Down
   keymap_.bind(KeyChord::pack('\\', true, false, false, false), "toggle-solo");  // Ctrl-\ (was Ctrl-only inline handling)
   keymap_.bind(KeyChord::pack('\\', false, false, false, false), "toggle-mute"); // backslash key
+  keymap_.bind(KeyChord::pack('c', true, false, true, false), "toggle-track-collapse"); // Ctrl+Shift+C ("Collapse")
   keymap_.bind(KeyChord::pack(NCKEY_UP, false, false, false, false), "move-row-up");     // plain Up (was inline handling)
   keymap_.bind(KeyChord::pack(NCKEY_DOWN, false, false, false, false), "move-row-down"); // plain Down
   keymap_.bind(KeyChord::pack(NCKEY_RIGHT, true, false, true, false), "add-note-column");   // Ctrl+Shift+Right
@@ -562,6 +578,7 @@ static void apply_baseline_track_info(const SongStructure & structure, std::unor
     info.has_delay_column_ = baseline.has_delay_column_;
     info.has_effect_column_ = baseline.has_effect_column_;
     info.collapsed_ = baseline.collapsed_;
+    info.collapsed_content_width_ = baseline.collapsed_content_width_;
     info.updateNumSubtracks(baseline.num_subtracks_);
   }
 }
@@ -1067,6 +1084,26 @@ PatternEditor::offerInput(const InputEvent & input) {
   if (new_cursor.isOnAnnotation() && input.getId() == NCKEY_ENTER) {
     startAnnotationEdit();
     return true;
+  }
+
+  // Enter also expands whatever track the cursor's column currently
+  // belongs to, if it's collapsed - the same "drill into it" affordance
+  // as the annotation slot's own Enter-to-edit just above, just for
+  // VisibleTrackInfo::collapsed_ instead. One-directional deliberately:
+  // toggle-track-collapse (Ctrl+Shift+C) is still the only way to
+  // collapse a track, so Enter never surprises the user by hiding
+  // something they just landed on.
+  if (!new_cursor.isOnAnnotation() && input.getId() == NCKEY_ENTER) {
+    auto & song = getController().getSong();
+    auto track_ids = song.getRootTrackIds();
+    if (current_cursor.track < static_cast<int>(track_ids.size())) {
+      auto track_id = track_ids[static_cast<size_t>(current_cursor.track)];
+      auto track = song.getTrackByInternalId(track_id);
+      if (track && track->isCollapsed()) {
+        getController().toggleTrackCollapsed(track_id);
+        return true;
+      }
+    }
   }
 
   if (dispatchCommand(input)) return true;
@@ -1623,13 +1660,12 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
     };
     // The color a divider's right half should show: whatever heading
     // segment starts right after index `idx` in `tracks`, or - past the
-    // last one actually drawn - whatever fill continues beyond it (the
-    // orange right-edge fill level 0 does below, or otherwise just the
-    // plain window background already pre-filled at the top of this
-    // function).
+    // last one actually drawn, where the annotation column's own
+    // heading starts - the plain window background already pre-filled
+    // at the top of this function.
     auto next_segment_color = [&](int idx) -> UIColor {
       if (idx + 1 < static_cast<int>(tracks.size())) return segment_color(tracks[static_cast<size_t>(idx + 1)]);
-      return level == 0 ? UIColor(0xf0, 0x80, 0x10) : styles.window_bg_color;
+      return styles.window_bg_color;
     };
     // A "│" divider can only carry one color, but the cell it sits in
     // belongs half to the segment ending there and half to the one
@@ -1676,94 +1712,130 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	// heading-row counterpart - columns 0-4 up here are still just the
 	// plain window background. Mark that same boundary here too, same
 	// "▌" two-color trick as every other divider in this function:
-	// black on the left (the gutter itself has no heading color of its
-	// own) and this row's first visible heading color on the right.
-	// Drawn over column 4, not column 5, so the heading content
-	// actually drawn below still starts exactly where it always has.
-	draw_edge(heading_height - 2 - level, 4, UIColor(0x00, 0x00, 0x00), segment_color(track));
+	// window_bg_color on the left (the gutter itself has no heading
+	// color of its own - plain black would read darker than the
+	// window background used everywhere else for "nothing here") and
+	// this row's first visible heading color on the right. Drawn over
+	// column 4, not column 5, so the heading content actually drawn
+	// below still starts exactly where it always has.
+	draw_edge(heading_height - 2 - level, 4, styles.window_bg_color, segment_color(track));
 	drew_left_edge = true;
       }
 
       if (track) {
 	if (level == 0) {
 	  bool is_effect = track->getType() == TrackType::EFFECT;
+	  bool is_collapsed = track->isCollapsed();
 
 	  setFgColor(0x00, 0x00, 0x00);
 	  setBgColor(segment_color(track));
 
 	  // Effect tracks have no mute/solo (only InstrumentTrack and its
-	  // subclasses do) - skip the "MS" glyphs entirely for them and let
-	  // the name use the whole title bar width instead of reserving room
-	  // for glyphs that would never be drawn.
-	  bool has_mute_solo = !is_effect;
+	  // subclasses do) - skip the "MS" glyphs entirely for them. A
+	  // collapsed track hides them too - the title bar shrinks to a
+	  // single placeholder column while collapsed (see
+	  // VisibleTrackInfo::getColumnCount()), with no room for glyphs
+	  // that would never fit either way.
+	  bool has_mute_solo = !is_effect && !is_collapsed;
+	  // Likewise, an effect's own level-0 column carries no collapse
+	  // toggle of its own - its blank name (below) already defers its
+	  // whole identity, toggle included, to its ancestor-row box (see
+	  // the level>0 branch further down).
+	  bool has_collapse_toggle = !is_effect;
 
-	  // std::max(0, ...): a narrow enough column (actual_width < 3) would
-	  // otherwise make text_width negative, and it's used below both as a
-	  // display-width budget and as a putstr() column offset.
-	  auto text_width = std::max(0, actual_width - (has_mute_solo ? 3 : 1));
+	  if (has_collapse_toggle && actual_width <= 1) {
+	    // No room for the toggle glyph itself - a collapsed track's own
+	    // title bar is 2 characters wide (see VisibleTrackInfo::
+	    // getColumnWidth()), so this is only reached via horizontal
+	    // scroll truncating an otherwise-wider column down to a sliver
+	    // at the screen edge. Nothing to draw but its own trailing
+	    // divider, same "no room" fallback as the ancestor-row branch
+	    // further down.
+	    draw_divider(heading_height - 2 - level, current_pos, track, i);
+	  } else {
+	    // std::max(0, ...): a narrow enough column (actual_width < 3) would
+	    // otherwise make text_width negative, and it's used below both as a
+	    // display-width budget and as a putstr() column offset.
+	    auto text_width = std::max(0, actual_width - (has_mute_solo ? 3 : 1) - (has_collapse_toggle ? 1 : 0));
+	    auto name_pos = current_pos + (has_collapse_toggle ? 1 : 0);
 
-	  bool is_solo = false, is_muted = false;
-	  string instrument_name;
-	  if (track->getType() == TrackType::SAMPLE) {
-	    instrument_name = "Sample";
-	  } else if (track->getType() == TrackType::DRUM_MACHINE) {
-	    instrument_name = "Drum Machine";
-	  } else if (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL) {
-	    auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
-	    if (instrument_track.getInstrumentId() >= 0 && instrument_track.getInstrumentId() < static_cast<int>(instruments.size())) {
-	      instrument_name = instruments[static_cast<size_t>(instrument_track.getInstrumentId())]->getDisplayName();
-	      is_solo = instrument_track.isSolo();
-	      is_muted = instrument_track.isMuted();
+	    bool is_solo = false, is_muted = false;
+	    string instrument_name;
+	    if (track->getType() == TrackType::SAMPLE) {
+	      instrument_name = "Sample";
+	    } else if (track->getType() == TrackType::DRUM_MACHINE) {
+	      instrument_name = "Drum Machine";
+	    } else if (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL) {
+	      auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
+	      if (instrument_track.getInstrumentId() >= 0 && instrument_track.getInstrumentId() < static_cast<int>(instruments.size())) {
+		instrument_name = instruments[static_cast<size_t>(instrument_track.getInstrumentId())]->getDisplayName();
+		is_solo = instrument_track.isSolo();
+		is_muted = instrument_track.isMuted();
+	      }
 	    }
-	  }
-	  // An effect's own column carries no label of its own - the
-	  // ancestor row above it already names it (spanning this column
-	  // too, see the merge logic further up) - so it's left blank
-	  // rather than falling back to a synthetic "Trk NN".
-	  auto name = is_effect ? string() :
-	    (!track->getName().empty() ? track->getName() : (!track->getId().empty() ? "Trk " + track->getId() : format("Trk {:02d}", track->getInternalId())));
-	  name = Utf8::truncateToWidth(name, text_width);
-	  name = Utf8::padToWidth(name, text_width);
-	  putstr(heading_height - 2 - level, current_pos, name);
-	  if (has_mute_solo) {
-	    if (is_muted) setFgColor(0x00, 0x00, 0x00);
-	    else setFgColor(0xe0, 0x70, 0x08);
-	    putstr(heading_height - 2 - level, current_pos + text_width, "M");
-	    if (is_solo) setFgColor(0x00, 0x00, 0x00);
-	    else setFgColor(0xe0, 0x70, 0x08);
-	    putstr(heading_height - 2 - level, current_pos + text_width + 1, "S");
-	  }
-	  // Drawn last - draw_divider() changes the current fg/bg colors as
-	  // a side effect, and nothing else in this branch relies on them
-	  // afterward.
-	  draw_divider(heading_height - 2 - level, current_pos + text_width + (has_mute_solo ? 2 : 0), track, i);
+	    // An effect's own column carries no label of its own - the
+	    // ancestor row above it already names it (spanning this column
+	    // too, see the merge logic further up) - so it's left blank
+	    // rather than falling back to a synthetic "Trk NN".
+	    auto name = is_effect ? string() :
+	      (!track->getName().empty() ? track->getName() : (!track->getId().empty() ? "Trk " + track->getId() : format("Trk {:02d}", track->getInternalId())));
+	    name = Utf8::truncateToWidth(name, text_width);
+	    name = Utf8::padToWidth(name, text_width);
+	    if (has_collapse_toggle) {
+	      // Dark grey - reads as a heading control, not a status
+	      // indicator (contrast the M/S glyphs' orange below, or the
+	      // ancestor row's own activity dot).
+	      setFgColor(styles.window_border_color);
+	      putstr(heading_height - 2 - level, current_pos, track->isCollapsed() ? "+" : "-");
+	      setFgColor(0x00, 0x00, 0x00);
+	    }
+	    putstr(heading_height - 2 - level, name_pos, name);
+	    if (has_mute_solo) {
+	      if (is_muted) setFgColor(0x00, 0x00, 0x00);
+	      else setFgColor(0xe0, 0x70, 0x08);
+	      putstr(heading_height - 2 - level, name_pos + text_width, "M");
+	      if (is_solo) setFgColor(0x00, 0x00, 0x00);
+	      else setFgColor(0xe0, 0x70, 0x08);
+	      putstr(heading_height - 2 - level, name_pos + text_width + 1, "S");
+	    }
+	    // Drawn last - draw_divider() changes the current fg/bg colors as
+	    // a side effect, and nothing else in this branch relies on them
+	    // afterward.
+	    draw_divider(heading_height - 2 - level, name_pos + text_width + (has_mute_solo ? 2 : 0), track, i);
 
-	  setFgColor(0xf0, 0xf0, 0xf0);
-	  setBgColor(styles.window_bg_color);
-	  	  
-	  auto instrument_name_width = std::max(0, actual_width - 1);
-	  instrument_name = Utf8::truncateToWidth(instrument_name, instrument_name_width);
-	  putstr(heading_height - 2 - level + 1, current_pos, instrument_name);
+	    setFgColor(0xf0, 0xf0, 0xf0);
+	    setBgColor(styles.window_bg_color);
+
+	    auto instrument_name_width = std::max(0, actual_width - 1);
+	    instrument_name = Utf8::truncateToWidth(instrument_name, instrument_name_width);
+	    putstr(heading_height - 2 - level + 1, current_pos, instrument_name);
+	  }
 	} else if (actual_width <= 1) {
-	  // No room for even the activity dot, let alone any name text -
-	  // this ancestor-row segment is still just one collapsed leaf
-	  // column's own "alone" width (see VisibleTrackInfo::collapsed_),
-	  // not yet merged with anything wider at this level. Nothing to
-	  // draw but its own trailing divider, at its one and only column.
+	  // No room for even the "+"/"-" collapse toggle, let alone the
+	  // activity dot or name text - a lone collapsed leaf column is 2
+	  // wide (see VisibleTrackInfo::getColumnWidth()), so this is only
+	  // reached via horizontal scroll truncating the segment down to a
+	  // sliver at the screen edge. Nothing to draw but its own trailing
+	  // divider, at its one and only column.
 	  draw_divider(heading_height - 2 - level, current_pos, track, i);
 	} else {
 	  std::string name = track->getElementName();
 	  auto & track_info = info.getTrackInfo(track->getInternalId());
-	  // 1 cell for the activity dot below (no surrounding padding) + 1 for
-	  // the trailing "│".
-	  auto element_name_width = std::max(0, actual_width - 2);
+	  // The toggle (1 cell, front) and the trailing "│" are always
+	  // reserved (the actual_width <= 1 branch above covers when even
+	  // that can't be met); whatever's left goes to the name, with the
+	  // activity dot claiming the last cell of it first - so a
+	  // narrow segment drops the dot before it drops the toggle.
+	  auto remaining = actual_width - 2;
+	  bool show_dot = remaining >= 1;
+	  auto element_name_width = std::max(0, remaining - (show_dot ? 1 : 0));
 
 	  setBgColor(segment_color(track));
 
 	  // A track's own row shows up at every level from where its
 	  // subtree first starts merging up through getDepth() - 1, where
 	  // its whole subtree finally merges into one span (see the
-	  // hop-walk above) - drawing the name/dot at each of those
+	  // hop-walk above) - drawing the toggle/name/dot at each of those
 	  // intermediate, still-partial levels too would show the same
 	  // label repeated on several rows. Only the last one, where the
 	  // span is actually complete, draws it; the rest stay blank.
@@ -1771,42 +1843,43 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    name = Utf8::truncateToWidth(name, element_name_width);
 	    name = Utf8::padToWidth(name, element_name_width);
 
-	    // Always draw the dot - faint when idle, full clip/active color
-	    // otherwise - rather than only appearing (amid blank padding) once
-	    // active, so it reads as a real status indicator, not padding.
-	    if (track_info.isClipping()) {
-	      setFgColor(0xe0, 0x10, 0x40);
-	    } else if (track_info.isActive()) {
-	      setFgColor(0x10, 0xe0, 0x40);
-	    } else {
-	      setFgColor(0x30, 0x30, 0x38);
-	    }
-	    putstr(heading_height - 2 - level, current_pos, "•");
+	    // Dark grey, same as the level-0 title bar's own toggle - reads
+	    // as a heading control, not a status indicator (contrast the
+	    // dot below, or the level-0 title bar's own M/S glyphs).
+	    setFgColor(styles.window_border_color);
+	    putstr(heading_height - 2 - level, current_pos, track->isCollapsed() ? "+" : "-");
 
 	    setFgColor(0x00, 0x00, 0x00);
 	    putstr(heading_height - 2 - level, current_pos + 1, name);
+
+	    if (show_dot) {
+	      // Always draw the dot - faint when idle, full clip/active color
+	      // otherwise - rather than only appearing (amid blank padding) once
+	      // active, so it reads as a real status indicator, not padding.
+	      // At the segment's trailing end (right before the divider),
+	      // matching where the level-0 title bar's own M/S glyphs sit,
+	      // rather than up front where the collapse toggle now is.
+	      if (track_info.isClipping()) {
+		setFgColor(0xe0, 0x10, 0x40);
+	      } else if (track_info.isActive()) {
+		setFgColor(0x10, 0xe0, 0x40);
+	      } else {
+		setFgColor(0x30, 0x30, 0x38);
+	      }
+	      putstr(heading_height - 2 - level, current_pos + 1 + element_name_width, "•");
+	    }
 	  } else {
 	    setFgColor(0x00, 0x00, 0x00);
-	    putstr(heading_height - 2 - level, current_pos, string(static_cast<size_t>(element_name_width + 1), ' '));
+	    putstr(heading_height - 2 - level, current_pos, string(static_cast<size_t>(actual_width - 1), ' '));
 	  }
 	  // Drawn last for both branches - see the level 0 branch's own
-	  // comment on why.
-	  draw_divider(heading_height - 2 - level, current_pos + element_name_width + 1, track, i);
+	  // comment on why. At the segment's own last column regardless of
+	  // how the budget above split up the rest of it.
+	  draw_divider(heading_height - 2 - level, current_pos + actual_width - 1, track, i);
 	}
       }
       
       current_pos += actual_width;
-    }
-
-    // Extend the leaf-track heading row's orange background the rest of
-    // the way to the right edge, past the last visible track - otherwise
-    // it stops wherever the tracks happen to end, leaving the remainder
-    // of the row at the plain window_bg_color fill above instead of
-    // reading as one continuous divider bar under the scopes.
-    if (level == 0 && current_pos < cols) {
-      setFgColor(0x00, 0x00, 0x00);
-      setBgColor(0xf0, 0x80, 0x10);
-      putstr(heading_height - 2 - level, current_pos, string(static_cast<size_t>(cols - current_pos), ' '));
     }
   }
 }
@@ -1929,10 +2002,15 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	auto column_type = track_info.getColumnType(k);
 	if (track_info.collapsed_) {
 	  // Every column's own content is hidden (see
-	  // VisibleTrackInfo::collapsed_) - nothing to draw here; the
-	  // track's own shared trailing "│" (drawn once this loop is done,
-	  // below) is the only thing that shows, at the 1-character width
-	  // getColumnWidth() already shrank each column to.
+	  // VisibleTrackInfo::collapsed_) - just a blank placeholder cell,
+	  // sized to line up with whatever width renderHeading() laid out
+	  // for this same track (getTrackWidth() - 1, not a hardcoded
+	  // literal - same reasoning as the SAMPLE/DRUM_MACHINE placeholder
+	  // just below), plus the track's own shared trailing "│" (drawn
+	  // once this loop is done, below).
+	  auto width = std::max(track_info.getTrackWidth() - 1, 0);
+	  putstr(display_row, current_pos, std::string(static_cast<size_t>(width), ' '));
+	  current_pos += width;
 	} else if (track && (track->getType() == TrackType::SAMPLE || track->getType() == TrackType::DRUM_MACHINE)) {
 	  cell_fg = cur_fg;
 	  cell_bg = cur_bg;

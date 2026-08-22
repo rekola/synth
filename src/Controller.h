@@ -364,6 +364,13 @@ class Controller {
   bool toggleTrackMuted(int track_id);
   bool toggleTrackSolo(int track_id);
 
+  // Unlike the pair above, applies to any Track (Track::isCollapsed() is
+  // generic, not InstrumentTrack-only) and pushes no PlaybackControlEvent -
+  // purely a pattern-grid display toggle (VisibleTrackInfo::collapsed_),
+  // never read by the running SongState. Returns the new collapsed state,
+  // or false if track_id doesn't name an existing track.
+  bool toggleTrackCollapsed(int track_id);
+
   // value is in dB (a perceptual/log scale, easier to dial a subtle send
   // with than a linear fraction) - -100 or below is a hard "off", matching
   // the same floor InstrumentTrack.cpp's XML load/save uses. Converted to

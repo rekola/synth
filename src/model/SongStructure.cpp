@@ -46,12 +46,15 @@ SongStructure::visit(const Track & track) {
     info.has_delay_column_ = instrument_track.showDelayColumn();
     info.has_effect_column_ = instrument_track.showEffectsColumn();
     info.updateNumSubtracks(instrument_track.getMinNoteColumns());
+    info.collapsed_ = instrument_track.isCollapsed();
     assign(std::move(info));
   } else if (track.getType() == TrackType::DRUM_MACHINE || track.getType() == TrackType::SAMPLE) {
     // Single placeholder column - see fill_track_info()'s own comment on
     // why an explicit, default-constructed entry is kept rather than left
     // absent.
-    assign(VisibleTrackInfo());
+    VisibleTrackInfo info;
+    info.collapsed_ = track.isCollapsed();
+    assign(std::move(info));
   } else if (track.getType() == TrackType::EFFECT) {
     // Every per-track effect (Chorus/Compressor/TapeDegradation/...) gets
     // its own ordinal and single effect-command column, wrapped or not -
@@ -65,12 +68,15 @@ SongStructure::visit(const Track & track) {
     VisibleTrackInfo info;
     info.has_note_column_ = false;
     info.has_effect_column_ = true;
-    // Collapsed by default - there's no per-track command content on
-    // any effect track yet, so showing its empty command column at full
-    // width is pure clutter (see VisibleTrackInfo::collapsed_). Not
-    // true per-track collapse (every effect track collapses, nothing
-    // else can yet) - that's still to come.
-    info.collapsed_ = true;
+    // A real per-track user toggle (see Track::isCollapsed()) - effect
+    // tracks just default to collapsed there, since there's rarely any
+    // per-track command content worth showing at full width until the
+    // artist actually starts using one.
+    info.collapsed_ = track.isCollapsed();
+    // No heading toggle of its own while collapsed (see
+    // VisibleTrackInfo::collapsed_content_width_'s own comment) - its
+    // ancestor-row box already carries one.
+    info.collapsed_content_width_ = 0;
     assign(std::move(info));
   } else {
     // GROUP and anything else unrecognized - a pure pass-through, no

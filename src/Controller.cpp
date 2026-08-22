@@ -574,6 +574,16 @@ Controller::toggleTrackSolo(int track_id) {
   return instrument_track->isSolo();
 }
 
+bool
+Controller::toggleTrackCollapsed(int track_id) {
+  auto song = getCurrentSong();
+  auto track = song->getTrackByInternalId(track_id);
+  if (!track) return false;
+  track->setCollapsed(!track->isCollapsed());
+  song->incVersion();
+  return track->isCollapsed();
+}
+
 void
 Controller::setTrackSendA(int track_id, float value) {
   auto song = getCurrentSong();

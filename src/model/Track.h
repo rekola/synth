@@ -183,9 +183,35 @@ class Track : public StatefulSongObject {
     }
     return nullptr;
   }
-  
+
+  // Whether the pattern grid shows this track's own heading row/column at
+  // full width or shrunk to a single divider (see
+  // VisibleTrackInfo::collapsed_/PatternEditor's "+"/"-" heading glyph). A
+  // real per-track user toggle (Controller::toggleTrackCollapsed()), not
+  // derived from TrackType - but effect tracks still *default* to
+  // collapsed (no useful per-track content to show until they grow any),
+  // via the default_value passed to loadParameters()'s getBool() below,
+  // so a song file predating this toggle keeps behaving exactly as it did
+  // when every effect track collapsed unconditionally.
+  bool isCollapsed() const { return collapsed_; }
+  void setCollapsed(bool collapsed) { collapsed_ = collapsed; }
+
+  void loadParameters(const ParameterSource & input) override {
+    SongObject::loadParameters(input);
+    collapsed_ = input.getBool("collapsed", type_ == TrackType::EFFECT);
+  }
+
+  void storeParameters(ParameterSource & output) const override {
+    SongObject::storeParameters(output);
+    // Only written when it differs from the type's own default (above) -
+    // an untouched song file round-trips with no new "collapsed"
+    // attribute at all.
+    if (collapsed_ != (type_ == TrackType::EFFECT)) output.set("collapsed", collapsed_);
+  }
+
  private:
   TrackType type_;
+  bool collapsed_ = false;
   std::vector<std::unique_ptr<Track> > children_;
 };
 

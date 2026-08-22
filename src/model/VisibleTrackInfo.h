@@ -15,7 +15,17 @@ class VisibleTrackInfo {
 public:
   VisibleTrackInfo() { }
 
-  int getColumnCount() const { return num_subtracks_ * ((has_note_column_ ? 1 : 0) + num_velocity_columns_ + (has_delay_column_ ? 1 : 0)) + (has_effect_column_ ? 1 : 0); }
+  // A collapsed track is always exactly 1 column, full stop - regardless
+  // of how many real note/velocity/delay/effect columns, or subtrack
+  // chords, it actually has (see getColumnWidth()'s own comment on why
+  // per-column content is hidden while collapsed). Without this, a
+  // collapsed track with N real columns still rendered as N separate
+  // 1-character-wide columns - N cells of clutter instead of the single
+  // placeholder cell collapsing is meant to shrink it down to.
+  int getColumnCount() const {
+    if (collapsed_) return 1;
+    return num_subtracks_ * ((has_note_column_ ? 1 : 0) + num_velocity_columns_ + (has_delay_column_ ? 1 : 0)) + (has_effect_column_ ? 1 : 0);
+  }
   // The track's true total on-screen footprint, *including* its own
   // trailing "|" border character (see getColumnWidth()'s own comment for
   // why summing getColumnWidth() over every column gets this exactly
@@ -41,10 +51,16 @@ public:
   // reserved characters, since no trailing border is actually drawn there.
   int getColumnWidth(int k) const {
     // A collapsed track hides every column's own content (see
-    // PatternEditor::renderRow) - only its own trailing "│" border
-    // stays, so each column is just that 1 character wide regardless
-    // of type, instead of the type's normal content width + 1.
-    if (collapsed_) return 1;
+    // PatternEditor::renderRow) - collapsed_content_width_ blank
+    // content cells plus its own trailing "│" border, instead of the
+    // type's normal content width + 1. An instrument/percussion/
+    // arpeggiator track (see SongStructure.cpp) gets 1 blank cell, so
+    // its "+"/"-" heading toggle has an actual cell of its own to sit
+    // in rather than the border being the track's *entire* on-screen
+    // footprint; an effect track has no such toggle at this level (its
+    // own ancestor-row box carries it instead - see
+    // PatternEditor::renderHeading) and stays border-only.
+    if (collapsed_) return 1 + collapsed_content_width_;
     switch (getColumnType(k)) {
     case ColumnType::NOTE: return 4;
     case ColumnType::VELOCITY: return 3;
@@ -116,10 +132,18 @@ public:
   // Hides every column's own content in the pattern grid (see
   // getColumnWidth()/PatternEditor::renderRow) while keeping its
   // trailing "│" border, so a track with nothing worth showing yet
-  // still visibly occupies its own slot. Set from SongStructure's
-  // baseline (TrackType::EFFECT, for now - see its own comment); not
-  // yet a per-track user toggle.
+  // still visibly occupies its own slot. Mirrors Track::isCollapsed()
+  // (SongStructure's baseline copies it in) - a real per-track user
+  // toggle, not derived from TrackType.
   bool collapsed_ = false;
+  // Only meaningful while collapsed_ - how many blank content cells
+  // getColumnWidth() gives the track's sole remaining column, besides
+  // its trailing "│" border (see that method's own comment). Defaults
+  // to the instrument/percussion/arpeggiator/sample/drum-machine case;
+  // SongStructure.cpp sets it to 0 for TrackType::EFFECT, whose
+  // collapsed heading toggle lives on its ancestor-row box instead of
+  // this level, so its own column needs no cell of its own to hold one.
+  int collapsed_content_width_ = 1;
 };
 
 #endif
