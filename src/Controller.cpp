@@ -546,10 +546,14 @@ Controller::receivePlaybackSnapshot(const string & buffer_name, const PlaybackIn
   }
 }
 
+// A plain dynamic_cast, not a TrackType enumeration - "is this track
+// usable as an InstrumentTrack" has exactly one answer (its actual C++
+// type), and enumerating TrackTypes here separately risked drifting out
+// of sync with it (SampleTrack becoming an InstrumentTrack - see
+// SampleTrack.h - is exactly the case that already bit this once).
 static InstrumentTrack *
 asInstrumentTrack(Track * track) {
-  if (!track || (track->getType() != TrackType::INSTRUMENT_CONTROL && track->getType() != TrackType::PERCUSSION_CONTROL && track->getType() != TrackType::DRUM_MACHINE)) return nullptr;
-  return &dynamic_cast<InstrumentTrack&>(*track);
+  return track ? dynamic_cast<InstrumentTrack *>(track) : nullptr;
 }
 
 bool

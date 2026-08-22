@@ -579,6 +579,7 @@ static void apply_baseline_track_info(const SongStructure & structure, std::unor
     info.has_effect_column_ = baseline.has_effect_column_;
     info.collapsed_ = baseline.collapsed_;
     info.collapsed_content_width_ = baseline.collapsed_content_width_;
+    info.color_ordinal_ = baseline.color_ordinal_;
     info.updateNumSubtracks(baseline.num_subtracks_);
   }
 }
@@ -1564,7 +1565,23 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
   }
   
   auto & instruments = song.getInstruments();
-  
+
+  // The cursor's own current track id (see the Selection highlight
+  // comment on segment_color below) - purely structural, computed once
+  // here rather than inside the per-level loop.
+  auto selected_id = current_cursor.track < static_cast<int>(track_ids.size()) ?
+    track_ids[static_cast<size_t>(current_cursor.track)] : -1;
+  // Each track's own color (VisibleTrackInfo::getColor(), driven by
+  // color_ordinal_) comes from SongStructure via all_track_info - not
+  // recomputed here - so this heading and any future consumer of the
+  // same SongStructure (e.g. a Pattern Matrix) necessarily agree on
+  // every track's color without sharing anything beyond that.
+  auto get_track_info = [&](Track * t) -> const VisibleTrackInfo * {
+    if (!t) return nullptr;
+    auto it = all_track_info.find(t->getInternalId());
+    return it != all_track_info.end() ? &it->second : nullptr;
+  };
+
   for (auto level = 0; level < heading_height - 1; level++) {
     vector<Track *> tracks;
     vector<int> track_widths;
@@ -1639,31 +1656,50 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
       }
     }
 
-    // The background color renderHeading() draws for `t`'s own heading
-    // segment - orange for a regular leaf-track's title bar (level 0
-    // only), a grey shaded by nesting depth for anything that owns an
-    // ancestor row (an effect's own level-0 column, or wherever it's the
-    // resolved ancestor for a level>0 row), or the plain window
-    // background for a blank ("nothing resolved here") segment. Shared
-    // by a segment's own fill and the divider drawn at its trailing
-    // edge (draw_divider below), so the two always agree exactly.
-    auto segment_color = [&](Track * t) -> UIColor {
-      if (!t) return styles.window_bg_color;
-      if (level == 0 && t->getType() != TrackType::EFFECT) return UIColor(0xf0, 0x80, 0x10);
+    // `t`'s own heading segment background, *not* accounting for
+    // selection (see segment_color() below, which wraps this) - `t`'s
+    // own color (VisibleTrackInfo::getColor(), which SongStructure has
+    // already keyed to a stable ordinal) for a color-eligible leaf-track's
+    // title bar (level 0 only), a grey shaded by nesting depth for
+    // anything else that owns an ancestor row (an effect's own level-0
+    // column, a non-color-eligible leaf, or wherever it's the resolved
+    // ancestor for a level>0 row). Also what Mute/Solo's own OFF color
+    // (below) darkens - the track's plain base color, never the
+    // brightened-when-selected one.
+    auto track_base_color = [&](Track * t) -> Color {
+      auto vis_info = get_track_info(t);
+      if (level == 0 && vis_info && vis_info->color_ordinal_ >= 0) return vis_info->getColor();
       // Each extra nesting level lightens the grey by one step, so an
       // outer wrapping effect's box reads visually "further out" than
       // what's nested inside it - clamped so a very deep chain doesn't
       // run off into full white.
       auto step = std::min(t->getDepth(), 6);
       auto v = 0x30 + step * 0x10;
-      return UIColor(v, v, std::min(v + 0x10, 255));
+      return Color(v, v, std::min(v + 0x10, 255));
+    };
+    // The background color renderHeading() actually draws for `t`'s own
+    // heading segment - track_base_color() above, brightened toward
+    // white when `t` is the cursor's own current track (selected_id
+    // above), or the plain window background when there's no track at
+    // all (a blank, "nothing resolved here" segment). Brightening here
+    // rather than in track_base_color() itself means the whole box a
+    // track owns (every row of a multi-level effect ancestor box
+    // included, not just the row its name happens to draw on) reads as
+    // selected consistently, while Mute/Solo's OFF color can still reach
+    // the plain, non-brightened base. Shared by a segment's own fill and
+    // the divider drawn at its trailing edge (draw_divider below), so
+    // the two always agree exactly.
+    auto segment_color = [&](Track * t) -> Color {
+      if (!t) return styles.window_bg_color;
+      auto base = track_base_color(t);
+      return t->getInternalId() == selected_id ? base.blend(0.35f, Color(255, 255, 255)) : base;
     };
     // The color a divider's right half should show: whatever heading
     // segment starts right after index `idx` in `tracks`, or - past the
     // last one actually drawn, where the annotation column's own
     // heading starts - the plain window background already pre-filled
     // at the top of this function.
-    auto next_segment_color = [&](int idx) -> UIColor {
+    auto next_segment_color = [&](int idx) -> Color {
       if (idx + 1 < static_cast<int>(tracks.size())) return segment_color(tracks[static_cast<size_t>(idx + 1)]);
       return styles.window_bg_color;
     };
@@ -1677,7 +1713,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
     // effect boxes sitting side by side) - then "▌" would render as one
     // seamless block with no visible seam at all, so a plain black "│"
     // takes its place instead, so there's still a border to see.
-    auto draw_edge = [&](int row, int col, const UIColor & left_color, const UIColor & right_color) {
+    auto draw_edge = [&](int row, int col, const Color & left_color, const Color & right_color) {
       bool same = left_color.getRed() == right_color.getRed() && left_color.getGreen() == right_color.getGreen() &&
 	left_color.getBlue() == right_color.getBlue();
       if (same) {
@@ -1724,24 +1760,33 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 
       if (track) {
 	if (level == 0) {
-	  bool is_effect = track->getType() == TrackType::EFFECT;
+	  // Whether `track` gets a color at all - an InstrumentTrack
+	  // (VisibleTrackInfo::color_ordinal_ >= 0, assigned by SongStructure),
+	  // which today means every leaf-track type except Effect. The single
+	  // rule this whole branch uses to decide both coloring and whether to
+	  // render Mute/Solo - Effect is the only track type with no
+	  // InstrumentTrack in its ancestry, so the two questions ("does it
+	  // get a color" and "does it have mute/solo") have always had the
+	  // same answer, and sharing one boolean keeps that from silently
+	  // drifting apart.
+	  auto vis_info = get_track_info(track);
+	  bool is_color_eligible = vis_info && vis_info->color_ordinal_ >= 0;
 	  bool is_collapsed = track->isCollapsed();
 
-	  setFgColor(0x00, 0x00, 0x00);
+	  setFgColor(0xff, 0xff, 0xff);
 	  setBgColor(segment_color(track));
 
-	  // Effect tracks have no mute/solo (only InstrumentTrack and its
-	  // subclasses do) - skip the "MS" glyphs entirely for them. A
-	  // collapsed track hides them too - the title bar shrinks to a
-	  // single placeholder column while collapsed (see
-	  // VisibleTrackInfo::getColumnCount()), with no room for glyphs
-	  // that would never fit either way.
-	  bool has_mute_solo = !is_effect && !is_collapsed;
-	  // Likewise, an effect's own level-0 column carries no collapse
+	  // A track with no color (Effect) has no mute/solo either - skip
+	  // the "MS" glyphs entirely for it. A collapsed track hides them
+	  // too - the title bar shrinks to a single placeholder column while
+	  // collapsed (see VisibleTrackInfo::getColumnCount()), with no room
+	  // for glyphs that would never fit either way.
+	  bool has_mute_solo = is_color_eligible && !is_collapsed;
+	  // Likewise, an Effect's own level-0 column carries no collapse
 	  // toggle of its own - its blank name (below) already defers its
 	  // whole identity, toggle included, to its ancestor-row box (see
 	  // the level>0 branch further down).
-	  bool has_collapse_toggle = !is_effect;
+	  bool has_collapse_toggle = is_color_eligible;
 
 	  if (has_collapse_toggle && actual_width <= 1) {
 	    // No room for the toggle glyph itself - a collapsed track's own
@@ -1759,7 +1804,11 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    auto text_width = std::max(0, actual_width - (has_mute_solo ? 3 : 1) - (has_collapse_toggle ? 1 : 0));
 	    auto name_pos = current_pos + (has_collapse_toggle ? 1 : 0);
 
-	    bool is_solo = false, is_muted = false;
+	    // The display label is still type-specific (a raw sample/step
+	    // sequencer has nothing resembling an "instrument" to resolve),
+	    // but solo/mute themselves are read uniformly from whatever
+	    // InstrumentTrack this is - real state on every color-eligible
+	    // track now, not just InstrumentControl/PercussionControl.
 	    string instrument_name;
 	    if (track->getType() == TrackType::SAMPLE) {
 	      instrument_name = "Sample";
@@ -1769,33 +1818,42 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	      auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
 	      if (instrument_track.getInstrumentId() >= 0 && instrument_track.getInstrumentId() < static_cast<int>(instruments.size())) {
 		instrument_name = instruments[static_cast<size_t>(instrument_track.getInstrumentId())]->getDisplayName();
-		is_solo = instrument_track.isSolo();
-		is_muted = instrument_track.isMuted();
 	      }
 	    }
-	    // An effect's own column carries no label of its own - the
+	    bool is_solo = false, is_muted = false;
+	    if (auto instrument_track = dynamic_cast<const InstrumentTrack *>(track)) {
+	      is_solo = instrument_track->isSolo();
+	      is_muted = instrument_track->isMuted();
+	    }
+	    // An Effect's own column carries no label of its own - the
 	    // ancestor row above it already names it (spanning this column
 	    // too, see the merge logic further up) - so it's left blank
 	    // rather than falling back to a synthetic "Trk NN".
-	    auto name = is_effect ? string() :
+	    auto name = !is_color_eligible ? string() :
 	      (!track->getName().empty() ? track->getName() : (!track->getId().empty() ? "Trk " + track->getId() : format("Trk {:02d}", track->getInternalId())));
 	    name = Utf8::truncateToWidth(name, text_width);
 	    name = Utf8::padToWidth(name, text_width);
 	    if (has_collapse_toggle) {
-	      // Dark grey - reads as a heading control, not a status
-	      // indicator (contrast the M/S glyphs' orange below, or the
-	      // ancestor row's own activity dot).
-	      setFgColor(styles.window_border_color);
+	      // Reads as a heading control, not a status indicator (contrast
+	      // the M/S glyphs below, or the ancestor row's own activity
+	      // dot).
+	      setFgColor(styles.window_fg_color);
 	      putstr(heading_height - 2 - level, current_pos, track->isCollapsed() ? "+" : "-");
-	      setFgColor(0x00, 0x00, 0x00);
+	      setFgColor(0xff, 0xff, 0xff);
 	    }
 	    putstr(heading_height - 2 - level, name_pos, name);
 	    if (has_mute_solo) {
+	      // OFF: a darkened version of the track's own plain base color
+	      // (never the brightened-when-selected one - see
+	      // track_base_color()'s own comment) rather than a fixed color,
+	      // so it reads as part of this specific track's own header. ON:
+	      // unchanged - the glyph blends into the header instead.
+	      auto off_color = track_base_color(track).blend(0.4f, Color(0, 0, 0));
 	      if (is_muted) setFgColor(0x00, 0x00, 0x00);
-	      else setFgColor(0xe0, 0x70, 0x08);
+	      else setFgColor(off_color);
 	      putstr(heading_height - 2 - level, name_pos + text_width, "M");
 	      if (is_solo) setFgColor(0x00, 0x00, 0x00);
-	      else setFgColor(0xe0, 0x70, 0x08);
+	      else setFgColor(off_color);
 	      putstr(heading_height - 2 - level, name_pos + text_width + 1, "S");
 	    }
 	    // Drawn last - draw_divider() changes the current fg/bg colors as
@@ -1843,13 +1901,13 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    name = Utf8::truncateToWidth(name, element_name_width);
 	    name = Utf8::padToWidth(name, element_name_width);
 
-	    // Dark grey, same as the level-0 title bar's own toggle - reads
-	    // as a heading control, not a status indicator (contrast the
-	    // dot below, or the level-0 title bar's own M/S glyphs).
-	    setFgColor(styles.window_border_color);
+	    // Same tone as the level-0 title bar's own toggle - reads as a
+	    // heading control, not a status indicator (contrast the dot
+	    // below, or the level-0 title bar's own M/S glyphs).
+	    setFgColor(styles.window_fg_color);
 	    putstr(heading_height - 2 - level, current_pos, track->isCollapsed() ? "+" : "-");
 
-	    setFgColor(0x00, 0x00, 0x00);
+	    setFgColor(0xff, 0xff, 0xff);
 	    putstr(heading_height - 2 - level, current_pos + 1, name);
 
 	    if (show_dot) {
@@ -1910,11 +1968,11 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     if (i >= 0 && i < current_scroll_.track) continue;
     if (current_pos >= cols) break;
     
-    UIColor fg, bg, cell_fg, cell_bg;
+    Color fg, bg, cell_fg, cell_bg;
       
     if (highlight) {
-      fg = UIColor("#80c080");
-      bg = UIColor("#80a080");
+      fg = Color("#80c080");
+      bg = Color("#80a080");
     } else if (pattern_row % 4 == 0) {
       fg = styles.window_accent_fg_color;
       bg = styles.window_accent_bg_color;
@@ -1924,7 +1982,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     }
 
     if (is_neighboring_pattern) {
-      UIColor black;
+      Color black;
       bg = bg.blend(0.75f, black);
       fg = fg.blend(0.75f, black);
     }
@@ -1994,8 +2052,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  ((sel_bounds.scope == SelectionScope::NOTE_COLUMN && !track_info.isEffectColumn(k) &&
 	    track_info.getNoteNumber(k) >= sel_bounds.note_lo && track_info.getNoteNumber(k) <= sel_bounds.note_hi) ||
 	   (sel_bounds.scope == SelectionScope::COMMAND && track_info.isEffectColumn(k)));
-	UIColor cur_fg = column_selected ? styles.highlight_fg_color : fg;
-	UIColor cur_bg = column_selected ? styles.highlight_bg_color : bg;
+	Color cur_fg = column_selected ? styles.highlight_fg_color : fg;
+	Color cur_bg = column_selected ? styles.highlight_bg_color : bg;
 
 	setFgColor(styles.window_border_color);
 	setBgColor(cur_bg);
@@ -2082,7 +2140,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // normal dark row background; inside the (bright) effective-region
 	  // highlight they'd be nearly unreadable, so use the region's own
 	  // (dark) foreground there instead - same idea as the note column.
-	  cell_fg = column_selected ? cur_fg : (column_type == ColumnType::VELOCITY ? UIColor("#bfa426") : UIColor("#42c1ea"));
+	  cell_fg = column_selected ? cur_fg : (column_type == ColumnType::VELOCITY ? Color("#bfa426") : Color("#42c1ea"));
 	  cell_bg = cur_bg;
 	  if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
 	  setFgColor(cell_fg);
@@ -2189,7 +2247,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	// (a slightly darker shade, so it reads as a distinct thing within
 	// the row) gets the same one-character margin as every other case.
 	bool want_margin = !row_fully_filled;
-	UIColor annotation_red(0xe0, 0x30, 0x30);
+	Color annotation_red(0xe0, 0x30, 0x30);
 
 	if (row_selected) {
 	  // The same reversed (dark-on-bright) highlight every other
@@ -2210,8 +2268,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // itself - unlike the plain gap fill above, which stays pure
 	  // green - so the annotation's own span still reads as red
 	  // content, not just a darker patch of the same row tint.
-	  setFgColor(UIColor(0x80, 0xc0, 0x80).blend(0.2f, annotation_red));
-	  setBgColor(UIColor(0x60, 0x78, 0x60).blend(0.2f, annotation_red));
+	  setFgColor(Color(0x80, 0xc0, 0x80).blend(0.2f, annotation_red));
+	  setBgColor(Color(0x60, 0x78, 0x60).blend(0.2f, annotation_red));
 	} else {
 	  setFgColor(0xe0, 0x30, 0x30);
 	  setBgColor(0x70, 0x20, 0x20);

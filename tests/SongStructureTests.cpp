@@ -89,3 +89,40 @@ TEST(song_structure_baseline_is_a_single_placeholder_column_for_sample_and_drum_
   auto & drum_info = structure.getBaselineInfo(drum.getInternalId());
   CHECK(drum_info.getColumnCount() == 1);
 }
+
+TEST(song_structure_gives_every_instrument_track_type_a_color_ordinal) {
+  Song song;
+  auto & instrument = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto & percussion = song.addTrack(make_unique<PercussionTrack>());
+  auto & drum = song.addTrack(make_unique<DrumMachineTrack>());
+  auto & sample = song.addTrack(make_unique<SampleTrack>(nullptr));
+  SongStructure structure(song);
+
+  CHECK(structure.getBaselineInfo(instrument.getInternalId()).color_ordinal_ == 0);
+  CHECK(structure.getBaselineInfo(percussion.getInternalId()).color_ordinal_ == 1);
+  CHECK(structure.getBaselineInfo(drum.getInternalId()).color_ordinal_ == 2);
+  CHECK(structure.getBaselineInfo(sample.getInternalId()).color_ordinal_ == 3);
+}
+
+TEST(song_structure_gives_no_color_ordinal_to_an_effect_track) {
+  Song song;
+  auto & effect = song.addTrack(make_unique<Amplifier>());
+  SongStructure structure(song);
+  CHECK(structure.getBaselineInfo(effect.getInternalId()).color_ordinal_ == -1);
+}
+
+// The whole reason color_ordinal_ is its own counter, not derived from
+// getOrdinalFor()/getOrderedTrackIds().size() - an interleaved, non-color-
+// eligible track (here an Effect) must never "use up" a color ordinal, or
+// two instrument tracks could end up with less-distinct colors purely
+// because of how many effects happen to sit between them.
+TEST(song_structure_color_ordinal_skips_interleaved_non_eligible_tracks) {
+  Song song;
+  auto & a = song.addTrack(make_unique<InstrumentTrack>(0));
+  song.addTrack(make_unique<Amplifier>());
+  auto & b = song.addTrack(make_unique<PercussionTrack>());
+  SongStructure structure(song);
+
+  CHECK(structure.getBaselineInfo(a.getInternalId()).color_ordinal_ == 0);
+  CHECK(structure.getBaselineInfo(b.getInternalId()).color_ordinal_ == 1);
+}

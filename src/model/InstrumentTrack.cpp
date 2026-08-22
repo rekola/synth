@@ -43,7 +43,6 @@ InstrumentTrack::loadParameters(const ParameterSource & input) {
   setDistance(input.getFloat("distance"));
   setElevation(input.getFloat("elevation"));
   setExtent(input.getFloat("extent", -1.0f));
-  setColor(input.getText("color"));
   sends_.a = dbToLinear(input.getFloat("sendA", -100.0f));
   sends_.b = dbToLinear(input.getFloat("sendB", -100.0f));
   sends_.main = dbToLinear(input.getFloat("sendMain", 0.0f));
@@ -61,7 +60,6 @@ InstrumentTrack::storeParameters(ParameterSource & output) const {
   output.set("distance", getDistance());
   output.set("elevation", getElevation());
   output.set("extent", getExtent(), -1.0f);
-  output.set("color", getColor());
   if (sends_.a > 0.0f) output.set("sendA", linearToDb(sends_.a));
   if (sends_.b > 0.0f) output.set("sendB", linearToDb(sends_.b));
   output.set("sendMain", linearToDb(sends_.main), 0.0f);

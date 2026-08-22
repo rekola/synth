@@ -8,7 +8,7 @@
 #include "PatternEditor.h"
 #include "HierarchyView.h"
 #include "SpinBox.h"
-#include "UIColor.h"
+#include "../model/Color.h"
 #include "../audio/AudioAPI.h"
 #include "../playback/Player.h"
 
@@ -53,7 +53,7 @@ UI::initialize() {
   octave_control_ = make_shared<SpinBox>(getPlane(), "Octave:", constants::MIN_OCTAVE, constants::MAX_OCTAVE,
     [this] { return getController().getGlobalOctave(); },
     [this](int v) { getController().setGlobalOctave(v); },
-    UIColor(120, 120, 120), UIColor(30, 30, 30));
+    Color(120, 120, 120), Color(30, 30, 30));
 
 #if 0
   windows_.push_back(make_shared<HierarchyView>(getPlane()));

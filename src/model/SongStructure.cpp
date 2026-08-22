@@ -33,6 +33,15 @@ void
 SongStructure::visit(const Track & track) {
   auto assign = [&](VisibleTrackInfo info) {
     auto id = track.getInternalId();
+    // Whether `track` gets a color at all is decided right here, once,
+    // for every branch below that calls assign() - an InstrumentTrack
+    // (which by now also covers Sample, on top of the original
+    // InstrumentControl/PercussionControl/DrumMachine/Arpeggiator - see
+    // SampleTrack.h) gets the next sequential slot; anything else
+    // (Effect, Group) stays at VisibleTrackInfo::color_ordinal_'s own
+    // default of -1. See that field's own comment for why this must be
+    // its own counter, not ordinal_by_id_/ordered_ids_.size() below.
+    if (dynamic_cast<const InstrumentTrack *>(&track)) info.color_ordinal_ = next_color_ordinal_++;
     ordinal_by_id_[id] = static_cast<int>(ordered_ids_.size());
     ordered_ids_.push_back(id);
     baseline_info_[id] = std::move(info);

@@ -4,7 +4,7 @@
 #include "../playback/EventHandler.h"
 #include "UIPlane.h"
 
-#include "UIColor.h"
+#include "../model/Color.h"
 #include "KeyChord.h"
 #include "Keymap.h"
 #include "CommandRegistry.h"
@@ -92,10 +92,10 @@ class UIElement : public EventHandler {
     if (plane_) plane_->setBgColor(r, g, b);
     return *this;
   }
-  UIElement & setFgColor(UIColor color) {
+  UIElement & setFgColor(Color color) {
     return setFgColor(color.getRed(), color.getGreen(), color.getBlue());
   }
-  UIElement & setBgColor(UIColor color) {
+  UIElement & setBgColor(Color color) {
     return setBgColor(color.getRed(), color.getGreen(), color.getBlue());
   }
   UIElement & setUnderline(bool b) {

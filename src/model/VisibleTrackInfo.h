@@ -1,6 +1,9 @@
 #ifndef _VISIBLETRACKINFO_H_
 #define _VISIBLETRACKINFO_H_
 
+#include "Color.h"
+
+#include <cmath>
 #include <utility>
 
 enum class ColumnType {
@@ -120,10 +123,29 @@ public:
     return { note * n, note * n + n - 1 };
   }
 
-  void updateNumSubtracks(int n) {  
+  void updateNumSubtracks(int n) {
     if (n > num_subtracks_) num_subtracks_ = n;
   }
-  
+
+  // Only meaningful when color_ordinal_ >= 0 - the caller decides what a
+  // negative ordinal (not color-eligible) should look like instead (see
+  // PatternEditor::renderHeading()'s grey fallback). Hue is generated
+  // from the ordinal via the golden-angle step (360 / phi^2 degrees) -
+  // the standard technique for a sequence of hues that stay visually
+  // well-spread from each other no matter how many tracks exist, rather
+  // than a fixed-size palette that starts repeating after N tracks.
+  // Saturation/lightness are fixed - darkened and desaturated enough for
+  // white text to sit on top of. All three values are a starting point,
+  // tuned by eye - the mechanism (fixed S/L, generated H) is the point,
+  // not the exact numbers.
+  Color getColor() const {
+    constexpr float kSaturation = 0.35f;
+    constexpr float kLightness = 0.42f;
+    constexpr float kGoldenAngle = 137.50776f;
+    float hue = std::fmod(static_cast<float>(color_ordinal_) * kGoldenAngle, 360.0f);
+    return Color::fromHSL(hue, kSaturation, kLightness);
+  }
+
   int num_subtracks_ = 1;
   int num_velocity_columns_ = 0;
   bool has_note_column_ = true;
@@ -144,6 +166,15 @@ public:
   // collapsed heading toggle lives on its ancestor-row box instead of
   // this level, so its own column needs no cell of its own to hold one.
   int collapsed_content_width_ = 1;
+  // Position among color-eligible tracks only (every InstrumentTrack -
+  // see SongStructure::visit(), which assigns this to any track that
+  // `dynamic_cast<const InstrumentTrack *>` succeeds on) in the order
+  // they're visited; -1 for anything else (Effect, Group). What
+  // getColor() above turns into an actual color; also doubles as "does
+  // this track get rendered as a colored track with its own Mute/Solo"
+  // (>= 0) - one shared rule for both, rather than two independently-
+  // maintained checks that could drift apart.
+  int color_ordinal_ = -1;
 };
 
 #endif

@@ -36,9 +36,6 @@ class InstrumentTrack : public Track {
 
   SphericalPosition getPosition() const { return { azimuth_, elevation_, distance_, extent_ }; }
 
-  void setColor(std::string color) { color_ = std::move(color); }
-  const std::string & getColor() const { return color_; }
-
   bool showNoteColumn() const { return show_note_column_; }
   bool showVelocityColumn() const { return show_velocity_column_; }
   bool showEffectsColumn() const { return show_effects_column_; }
@@ -73,7 +70,6 @@ private:
   bool solo_ = false, muted_ = false;
   float elevation_ = 0, azimuth_ = 0, distance_ = 0;
   float extent_ = -1.0f;
-  std::string color_;
   SendLevels sends_;
 
   bool show_note_column_ = true;

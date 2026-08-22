@@ -3,7 +3,7 @@
 
 #include "UIElement.h"
 #include "StyleProvider.h"
-#include "UIColor.h"
+#include "../model/Color.h"
 #include "../playback/InputEvent.h"
 #include "../util/digit.h"
 #include "../util/Utf8.h"
@@ -31,7 +31,7 @@ class SpinBox : public UIElement {
   // hardcoded gray-on-dark, not StyleProvider's generic window colors).
   SpinBox(UIPlane & parent, std::string label, int min_value, int max_value,
           std::function<int()> get_value, std::function<void(int)> set_value,
-          UIColor bg_color, UIColor fg_color)
+          Color bg_color, Color fg_color)
     : UIElement(parent), label_(std::move(label)), min_value_(min_value), max_value_(max_value),
       get_value_(std::move(get_value)), set_value_(std::move(set_value)),
       bg_color_(bg_color), fg_color_(fg_color) { }
@@ -162,7 +162,7 @@ class SpinBox : public UIElement {
   // buttonWidth() rather than a hardcoded 1.
   static constexpr const char * kMinusGlyph = "➖";
   static constexpr const char * kPlusGlyph = "➕";
-  static const UIColor kButtonBgColor, kButtonFgColor; // defined below the class - see their own comment
+  static const Color kButtonBgColor, kButtonFgColor; // defined below the class - see their own comment
 
   // Single-row layout: "<label><gap><minus><pad><digit><pad><plus>" - the
   // gap after the label and the padding around the digit are both real
@@ -202,7 +202,7 @@ class SpinBox : public UIElement {
   int min_value_, max_value_;
   std::function<int()> get_value_;
   std::function<void(int)> set_value_;
-  UIColor bg_color_, fg_color_;
+  Color bg_color_, fg_color_;
 
   bool editing_ = false;
   std::string edit_buffer_;
@@ -218,7 +218,7 @@ class SpinBox : public UIElement {
 // and not a constructor parameter like bg_color_/fg_color_ above: the
 // buttons' own look is fixed, independent of which bar this widget is
 // embedded in.
-inline const UIColor SpinBox::kButtonBgColor = UIColor(190, 190, 190);
-inline const UIColor SpinBox::kButtonFgColor = UIColor(20, 20, 20);
+inline const Color SpinBox::kButtonBgColor = Color(190, 190, 190);
+inline const Color SpinBox::kButtonFgColor = Color(20, 20, 20);
 
 #endif

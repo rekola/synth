@@ -60,6 +60,12 @@ class SongStructure {
   std::unordered_map<int, int> ordinal_by_id_;
   std::vector<int> ordered_ids_;
   std::unordered_map<int, VisibleTrackInfo> baseline_info_;
+  // Next value visit() hands out via VisibleTrackInfo::color_ordinal_ -
+  // counts only color-eligible (InstrumentTrack) tracks, so an
+  // interleaved Effect/Group never "uses up" a slot between two of them
+  // (see color_ordinal_'s own comment on why that matters). Construction-
+  // only state, not read once SongStructure is built.
+  int next_color_ordinal_ = 0;
 };
 
 #endif
