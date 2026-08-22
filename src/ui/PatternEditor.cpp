@@ -561,6 +561,7 @@ static void apply_baseline_track_info(const SongStructure & structure, std::unor
     info.num_velocity_columns_ = baseline.num_velocity_columns_;
     info.has_delay_column_ = baseline.has_delay_column_;
     info.has_effect_column_ = baseline.has_effect_column_;
+    info.collapsed_ = baseline.collapsed_;
     info.updateNumSubtracks(baseline.num_subtracks_);
   }
 }
@@ -1623,13 +1624,34 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
     // belongs half to the segment ending there and half to the one
     // starting right after it - "▌" (U+258C, left half block) lets the
     // foreground color paint the left half and the background color
-    // paint the right half, so the divider always shows both heading
-    // colors exactly instead of whichever one happened to draw last.
-    auto draw_divider = [&](int row, int col, Track * left, int idx) {
-      setFgColor(segment_color(left));
-      setBgColor(next_segment_color(idx));
-      putstr(row, col, "▌");
+    // paint the right half, so the divider shows both heading colors
+    // exactly instead of whichever one happened to draw last. Except
+    // when the two halves are the *same* color (e.g. two same-depth
+    // effect boxes sitting side by side) - then "▌" would render as one
+    // seamless block with no visible seam at all, so a plain black "│"
+    // takes its place instead, so there's still a border to see.
+    auto draw_edge = [&](int row, int col, const UIColor & left_color, const UIColor & right_color) {
+      bool same = left_color.getRed() == right_color.getRed() && left_color.getGreen() == right_color.getGreen() &&
+	left_color.getBlue() == right_color.getBlue();
+      if (same) {
+	setFgColor(0x00, 0x00, 0x00);
+	setBgColor(right_color);
+	putstr(row, col, "│");
+      } else {
+	setFgColor(left_color);
+	setBgColor(right_color);
+	putstr(row, col, "▌");
+      }
     };
+    auto draw_divider = [&](int row, int col, Track * left, int idx) {
+      draw_edge(row, col, segment_color(left), next_segment_color(idx));
+    };
+
+    // Whether the left-edge marker (below) has been drawn yet for this
+    // row - drawn once, at whichever segment ends up first actually
+    // visible (i == current_scroll_.track, or 0 with no scroll), not
+    // once per iteration.
+    bool drew_left_edge = false;
 
     auto current_pos = 5;
     for (auto i = 0; i < static_cast<int>(tracks.size()); i++) {
@@ -1638,6 +1660,19 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 
       auto track = tracks[static_cast<size_t>(i)];
       auto actual_width = track_widths[static_cast<size_t>(i)];
+
+      if (!drew_left_edge) {
+	// The row-number gutter (renderRow()'s own "│" at column 4) has no
+	// heading-row counterpart - columns 0-4 up here are still just the
+	// plain window background. Mark that same boundary here too, same
+	// "▌" two-color trick as every other divider in this function:
+	// black on the left (the gutter itself has no heading color of its
+	// own) and this row's first visible heading color on the right.
+	// Drawn over column 4, not column 5, so the heading content
+	// actually drawn below still starts exactly where it always has.
+	draw_edge(heading_height - 2 - level, 4, UIColor(0x00, 0x00, 0x00), segment_color(track));
+	drew_left_edge = true;
+      }
 
       if (track) {
 	if (level == 0) {
@@ -1875,7 +1910,13 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	setFgColor(styles.window_border_color);
 	setBgColor(cur_bg);
 	auto column_type = track_info.getColumnType(k);
-	if (track && (track->getType() == TrackType::SAMPLE || track->getType() == TrackType::DRUM_MACHINE)) {
+	if (track_info.collapsed_) {
+	  // Every column's own content is hidden (see
+	  // VisibleTrackInfo::collapsed_) - nothing to draw here; the
+	  // track's own shared trailing "│" (drawn once this loop is done,
+	  // below) is the only thing that shows, at the 1-character width
+	  // getColumnWidth() already shrank each column to.
+	} else if (track && (track->getType() == TrackType::SAMPLE || track->getType() == TrackType::DRUM_MACHINE)) {
 	  cell_fg = cur_fg;
 	  cell_bg = cur_bg;
 	  setFgColor(cell_fg);

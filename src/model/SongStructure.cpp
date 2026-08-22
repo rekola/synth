@@ -65,6 +65,12 @@ SongStructure::visit(const Track & track) {
     VisibleTrackInfo info;
     info.has_note_column_ = false;
     info.has_effect_column_ = true;
+    // Collapsed by default - there's no per-track command content on
+    // any effect track yet, so showing its empty command column at full
+    // width is pure clutter (see VisibleTrackInfo::collapsed_). Not
+    // true per-track collapse (every effect track collapses, nothing
+    // else can yet) - that's still to come.
+    info.collapsed_ = true;
     assign(std::move(info));
   } else {
     // GROUP and anything else unrecognized - a pure pass-through, no

@@ -40,6 +40,11 @@ public:
   // deliberately truncated terminal track) needs to give back one of those
   // reserved characters, since no trailing border is actually drawn there.
   int getColumnWidth(int k) const {
+    // A collapsed track hides every column's own content (see
+    // PatternEditor::renderRow) - only its own trailing "│" border
+    // stays, so each column is just that 1 character wide regardless
+    // of type, instead of the type's normal content width + 1.
+    if (collapsed_) return 1;
     switch (getColumnType(k)) {
     case ColumnType::NOTE: return 4;
     case ColumnType::VELOCITY: return 3;
@@ -108,6 +113,13 @@ public:
   bool has_note_column_ = true;
   bool has_delay_column_ = false;
   bool has_effect_column_ = false;
+  // Hides every column's own content in the pattern grid (see
+  // getColumnWidth()/PatternEditor::renderRow) while keeping its
+  // trailing "│" border, so a track with nothing worth showing yet
+  // still visibly occupies its own slot. Set from SongStructure's
+  // baseline (TrackType::EFFECT, for now - see its own comment); not
+  // yet a per-track user toggle.
+  bool collapsed_ = false;
 };
 
 #endif
