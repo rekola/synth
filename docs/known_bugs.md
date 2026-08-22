@@ -121,6 +121,23 @@ Found 2026-07-11, not yet fixed.
   extending the arpeggiator's own resync approach to envelopes generally)
   and why neither was attempted as part of that work.
 
+- **Rendered output isn't bit-exact across genuinely different builds**
+  (compiler version, optimization level, or CPU architecture), only across
+  repeated runs of one fixed build. `-ffast-math` (`CMakeLists.txt`)
+  permits reassociating floating-point operations, and floating-point
+  addition/multiplication isn't associative - the compiler is free to
+  group a reduction differently depending on its own vectorizer/target,
+  so identical source can round to different bits on GCC vs. Clang,
+  `-O2` vs `-O3`, or x86 vs. ARM. `SYNTH_MARCH` (pinned to `x86-64-v2` in
+  CI) only fixes *which instructions* get used, not *what order*
+  operations happen in, so `tests/RenderTests.cpp`'s golden-render hash
+  test already gates its exact-hash assertions on that one canonical
+  build rather than expecting them cross-platform. Not fixed - would need
+  dropping `-ffast-math` (and default FP contraction) for a real
+  performance cost on the per-sample DSP hot paths, or hand-controlling
+  evaluation order in every reduction that needs to be portable; out of
+  scope for now.
+
 - **`Utf8::truncateToWidth()`/`Utf8::displayWidth()` (`src/util/Utf8.h`)
   don't merge flag emoji or multi-emoji ZWJ sequences into a single
   grapheme cluster**, so `PatternEditor::renderHeading()`'s track/
