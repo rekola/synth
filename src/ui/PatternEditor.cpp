@@ -1590,11 +1590,52 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
       }
     }
 
+    // The background color renderHeading() draws for `t`'s own heading
+    // segment - orange for a regular leaf-track's title bar (level 0
+    // only), a grey shaded by nesting depth for anything that owns an
+    // ancestor row (an effect's own level-0 column, or wherever it's the
+    // resolved ancestor for a level>0 row), or the plain window
+    // background for a blank ("nothing resolved here") segment. Shared
+    // by a segment's own fill and the divider drawn at its trailing
+    // edge (draw_divider below), so the two always agree exactly.
+    auto segment_color = [&](Track * t) -> UIColor {
+      if (!t) return styles.window_bg_color;
+      if (level == 0 && t->getType() != TrackType::EFFECT) return UIColor(0xf0, 0x80, 0x10);
+      // Each extra nesting level lightens the grey by one step, so an
+      // outer wrapping effect's box reads visually "further out" than
+      // what's nested inside it - clamped so a very deep chain doesn't
+      // run off into full white.
+      auto step = std::min(t->getDepth(), 6);
+      auto v = 0x30 + step * 0x10;
+      return UIColor(v, v, std::min(v + 0x10, 255));
+    };
+    // The color a divider's right half should show: whatever heading
+    // segment starts right after index `idx` in `tracks`, or - past the
+    // last one actually drawn - whatever fill continues beyond it (the
+    // orange right-edge fill level 0 does below, or otherwise just the
+    // plain window background already pre-filled at the top of this
+    // function).
+    auto next_segment_color = [&](int idx) -> UIColor {
+      if (idx + 1 < static_cast<int>(tracks.size())) return segment_color(tracks[static_cast<size_t>(idx + 1)]);
+      return level == 0 ? UIColor(0xf0, 0x80, 0x10) : styles.window_bg_color;
+    };
+    // A "│" divider can only carry one color, but the cell it sits in
+    // belongs half to the segment ending there and half to the one
+    // starting right after it - "▌" (U+258C, left half block) lets the
+    // foreground color paint the left half and the background color
+    // paint the right half, so the divider always shows both heading
+    // colors exactly instead of whichever one happened to draw last.
+    auto draw_divider = [&](int row, int col, Track * left, int idx) {
+      setFgColor(segment_color(left));
+      setBgColor(next_segment_color(idx));
+      putstr(row, col, "▌");
+    };
+
     auto current_pos = 5;
     for (auto i = 0; i < static_cast<int>(tracks.size()); i++) {
       if (i < current_scroll_.track) continue;
       if (current_pos >= cols) break;
-      
+
       auto track = tracks[static_cast<size_t>(i)];
       auto actual_width = track_widths[static_cast<size_t>(i)];
 
@@ -1603,12 +1644,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  bool is_effect = track->getType() == TrackType::EFFECT;
 
 	  setFgColor(0x00, 0x00, 0x00);
-	  // Grey, matching the ancestor row above (renderHeading()'s
-	  // level>0 branch) rather than the usual orange leaf-track title
-	  // bar - an effect's own column is that ancestor row's tail end,
-	  // not a leaf title bar of its own.
-	  if (is_effect) setBgColor(0x50, 0x50, 0x60);
-	  else setBgColor(0xf0, 0x80, 0x10);
+	  setBgColor(segment_color(track));
 
 	  // Effect tracks have no mute/solo (only InstrumentTrack and its
 	  // subclasses do) - skip the "MS" glyphs entirely for them and let
@@ -1644,7 +1680,6 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  name = Utf8::truncateToWidth(name, text_width);
 	  name = Utf8::padToWidth(name, text_width);
 	  putstr(heading_height - 2 - level, current_pos, name);
-	  putstr(heading_height - 2 - level, current_pos + text_width + (has_mute_solo ? 2 : 0), "│");
 	  if (has_mute_solo) {
 	    if (is_muted) setFgColor(0x00, 0x00, 0x00);
 	    else setFgColor(0xe0, 0x70, 0x08);
@@ -1653,6 +1688,10 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    else setFgColor(0xe0, 0x70, 0x08);
 	    putstr(heading_height - 2 - level, current_pos + text_width + 1, "S");
 	  }
+	  // Drawn last - draw_divider() changes the current fg/bg colors as
+	  // a side effect, and nothing else in this branch relies on them
+	  // afterward.
+	  draw_divider(heading_height - 2 - level, current_pos + text_width + (has_mute_solo ? 2 : 0), track, i);
 
 	  setFgColor(0xf0, 0xf0, 0xf0);
 	  setBgColor(styles.window_bg_color);
@@ -1667,7 +1706,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  // the trailing "│".
 	  auto element_name_width = std::max(0, actual_width - 2);
 
-	  setBgColor(0x50, 0x50, 0x60);
+	  setBgColor(segment_color(track));
 
 	  // A track's own row shows up at every level from where its
 	  // subtree first starts merging up through getDepth() - 1, where
@@ -1679,7 +1718,6 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  if (level == track->getDepth() - 1) {
 	    name = Utf8::truncateToWidth(name, element_name_width);
 	    name = Utf8::padToWidth(name, element_name_width);
-	    name += "│";
 
 	    // Always draw the dot - faint when idle, full clip/active color
 	    // otherwise - rather than only appearing (amid blank padding) once
@@ -1697,8 +1735,11 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    putstr(heading_height - 2 - level, current_pos + 1, name);
 	  } else {
 	    setFgColor(0x00, 0x00, 0x00);
-	    putstr(heading_height - 2 - level, current_pos, string(static_cast<size_t>(element_name_width + 1), ' ') + "│");
+	    putstr(heading_height - 2 - level, current_pos, string(static_cast<size_t>(element_name_width + 1), ' '));
 	  }
+	  // Drawn last for both branches - see the level 0 branch's own
+	  // comment on why.
+	  draw_divider(heading_height - 2 - level, current_pos + element_name_width + 1, track, i);
 	}
       }
       
