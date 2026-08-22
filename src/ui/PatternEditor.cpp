@@ -1734,6 +1734,13 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  auto instrument_name_width = std::max(0, actual_width - 1);
 	  instrument_name = Utf8::truncateToWidth(instrument_name, instrument_name_width);
 	  putstr(heading_height - 2 - level + 1, current_pos, instrument_name);
+	} else if (actual_width <= 1) {
+	  // No room for even the activity dot, let alone any name text -
+	  // this ancestor-row segment is still just one collapsed leaf
+	  // column's own "alone" width (see VisibleTrackInfo::collapsed_),
+	  // not yet merged with anything wider at this level. Nothing to
+	  // draw but its own trailing divider, at its one and only column.
+	  draw_divider(heading_height - 2 - level, current_pos, track, i);
 	} else {
 	  std::string name = track->getElementName();
 	  auto & track_info = info.getTrackInfo(track->getInternalId());
