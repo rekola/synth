@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="200" patternRows="32" volume="1.0">
   <instruments>
-    <instrument from="Percussion" />
+    <instrument from="kit.standard" />
     <instrument from="brass.synth" />
     <instrument from="piano.acoustic.grand" />
   </instruments>

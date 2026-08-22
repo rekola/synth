@@ -83,5 +83,6 @@ for the full picture, or run `synth --licenses` to print it.
 5. Limiters
 6. 5.1 or 7.2 modes in addition to binaural headphone mode
 7. Legato voicing mode
-8. Emacs features:
+8. Custom drum kits without SoundFont: map individual percussion keys to arbitrary instruments instead of one whole SF2 kit preset.
+9. Emacs features:
  - Kill-ring rotation (yank-pop / M-y)

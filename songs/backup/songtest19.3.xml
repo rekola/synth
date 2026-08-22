@@ -9,7 +9,7 @@
             <instrument from="guitar.acoustic.steel" harmonic="1" subharmonic="1"/>
         </resonantFilter>
         <instrument from="piano.acoustic.grand"/>
-        <instrument from="Percussion" harmonic="1" subharmonic="1"/>
+        <instrument from="kit.standard" harmonic="1" subharmonic="1"/>
         <envelope name="Pads" attack="0.050000001" hold="0" decay="0" sustain="1" release="2" keynumToHold="0" keynumToDecay="0">
             <resonantFilter cut="2200" res="0.5" aftertouch="0" attack="0" hold="0" decay="0" sustain="1" release="0" keynumToHold="0" keynumToDecay="0">
                 <multiply unisons="4" octaves="0" fifths="0" fourths="0" detune="5" spread="1">

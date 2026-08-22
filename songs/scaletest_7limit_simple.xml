@@ -9,7 +9,7 @@
             <instrument from="guitar.acoustic.steel" harmonic="1" subharmonic="1"/>
         </resonantFilter>
         <instrument from="piano.acoustic.grand" harmonic="1" subharmonic="1"/>
-        <instrument from="Percussion" harmonic="1" subharmonic="1"/>
+        <instrument from="kit.standard" harmonic="1" subharmonic="1"/>
     </instruments>
     <tracks>
         <track id="0" instrument="0" azimuth="30" distance="1" elevation="50" color="" sendA="-16.9020" sendB="0.0000" noteColumns="7"/>

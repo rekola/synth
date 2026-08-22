@@ -37,20 +37,19 @@ class InstrumentProvider {
 	if (instrument) registerPath(entry.path, move(instrument));
       }
 
-      // Not a taxonomy path - kit.standard only becomes resolvable once
-      // <instrumentMap> support exists (docs/instrument-paths.md's bank-128
-      // section). This is only the (bank,program) lookup fix: the old
-      // createInstrument(160, "Percussion") read 160 as a raw index into the
-      // font's global sorted-by-(bank,program) preset array, not a bank-128
-      // program number - on a font carrying extra banks between 0 and 128
-      // (FluidR3_GM.sf2/default-GM.sf2 both do; TimGM6mb.sf2 doesn't have
-      // enough presets for index 160 to exist at all), that landed on a kit
-      // variant or nothing, never the standard kit at (128, 0).
-      // Unlike every createInstrumentByProgram() call above, this one isn't
-      // guarded by the same `if (instrument)` loop shape since it's a lone
-      // call, not iterating a table - same nullptr contract though.
-      auto percussion = sf->createInstrumentByProgram(128, 0, "Percussion");
-      if (percussion) addInstrument(move(percussion));
+      // Every GM bank-128 percussion kit, under its own kit.* taxonomy path -
+      // same loop shape as bank-0 above, just a different bank number and
+      // table. Registered as ordinary taxonomy paths, same as any pitched
+      // instrument: nothing about resolvePath()'s walk-up crosses between
+      // kit.* and the pitched tree by accident, since they never share a
+      // common dotted-prefix root. Only kit.standard (program 0, GM Level 1)
+      // is effectively guaranteed - the rest are GS/GM2-convention kits a
+      // given font may not carry, gracefully skipped by the same nullptr
+      // contract as any other under-provided bank-0 entry.
+      for (auto & entry : kGmBank128Table) {
+	auto instrument = sf->createInstrumentByProgram(128, entry.program, entry.path);
+	if (instrument) registerPath(entry.path, move(instrument));
+      }
     }
 
     // Register every preset under its own native name too (e.g.
@@ -104,12 +103,13 @@ class InstrumentProvider {
   // resolvePath() - deliberately not chaining into a second defaults pass.
   // No entry in kGmPathDefaults is itself the target of another (checked),
   // so nothing needs it today, and allowing it would reopen a real
-  // divide-by-zero-shaped hazard: resolving a target that isn't actually
-  // registered (e.g. `kit.standard`, unreachable until <instrumentMap>
-  // support exists) would shrink right back down to the same default key
-  // that produced it and redirect again, forever - confirmed by a stack
-  // overflow before this comment existed. Returns nullptr on a full miss;
-  // callers decide their own final fallback (see GenericInstrument::prepare()).
+  // divide-by-zero-shaped hazard: resolving a default's target when that
+  // target itself isn't actually registered (e.g. no font loaded at all, or
+  // a font that doesn't carry that particular preset) would shrink right
+  // back down to the same default key that produced it and redirect again,
+  // forever - confirmed by a stack overflow before this comment existed.
+  // Returns nullptr on a full miss; callers decide their own final fallback
+  // (see GenericInstrument::prepare()).
   std::shared_ptr<Instrument> resolvePath(const std::string & path) const {
     if (auto found = walkUp(path)) return found;
     for (std::string_view prefix = path; ; ) {

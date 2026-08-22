@@ -15,7 +15,7 @@
 
     <LFO frequency="400" level="1" name="lfo"/>
 
-    <instrument from="Percussion"/>
+    <instrument from="kit.standard"/>
   </instruments>
   
   <tracks>

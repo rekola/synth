@@ -13,7 +13,7 @@
                 </multiply>
             </resonantFilter>
         </envelope>
-        <instrument from="Percussion"/>
+        <instrument from="kit.standard"/>
         <instrument from="bass.electric.pick"/>
     </instruments>
     <tracks>

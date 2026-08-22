@@ -13,7 +13,7 @@
 
     <instrument from="string.plucked.harp" />
 
-    <instrument from="Percussion"/>
+    <instrument from="kit.standard"/>
   </instruments>
   
   <tracks>

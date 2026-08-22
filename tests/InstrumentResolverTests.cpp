@@ -124,10 +124,10 @@ TEST(resolve_path_redirects_a_bare_root_through_the_defaults_table) {
 
 TEST(resolve_path_returns_null_when_a_defaults_target_is_itself_unregistered) {
   // Regression test: this used to stack-overflow. "kit" redirects to
-  // "kit.standard" in the defaults table, but nothing is ever registered
-  // under "kit." until <instrumentMap> support exists (Phase 3) - resolving
-  // either "kit" or "kit.standard" directly must return nullptr cleanly,
-  // not recurse back into the same redirect forever.
+  // "kit.standard" in the defaults table, but this bare provider never had
+  // loadSoundFont() called on it, so nothing is registered under "kit." at
+  // all - resolving either "kit" or "kit.standard" directly must return
+  // nullptr cleanly, not recurse back into the same redirect forever.
   InstrumentProvider provider;
   CHECK(provider.resolvePath("kit") == nullptr);
   CHECK(provider.resolvePath("kit.standard") == nullptr);
@@ -155,4 +155,39 @@ TEST(register_path_last_registration_wins_on_collision) {
 TEST(try_get_by_literal_name_does_not_fall_back_to_the_default_instrument) {
   InstrumentProvider provider;
   CHECK(provider.tryGetByLiteralName("nothing registered under this string") == nullptr);
+}
+
+TEST(load_sound_font_registers_bank_128_kits_under_their_own_kit_paths) {
+  // A font carrying two of the nine documented kits (Standard at program 0,
+  // Jazz at program 32 - see kGmBank128Table/docs/instrument-paths.md) plus
+  // one bank-0 patch, exercising InstrumentProvider::loadSoundFont()'s
+  // bank-128 loop end to end, not just registerPath()/resolvePath() in
+  // isolation like the tests above.
+  vector<PresetSpec> presets = {
+    { "Piano", 0, {}, {}, 1, {}, 0 },
+    { "StandardKit", 0, {}, {}, 1, {}, 128 },
+    { "JazzKit", 32, {}, {}, 1, {}, 128 },
+  };
+  auto path = (filesystem::path(TESTS_SCRATCH_DIR) / "resolver_bank128.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  InstrumentProvider provider;
+  provider.loadSoundFont(path);
+
+  auto standard = provider.resolvePath("kit.standard");
+  auto jazz = provider.resolvePath("kit.jazz");
+  CHECK(standard != nullptr);
+  CHECK(jazz != nullptr);
+  CHECK(standard != jazz);
+
+  // Room (program 8) isn't in this font - createInstrumentByProgram()'s
+  // nullptr-on-miss contract means it's simply never registered, same as
+  // an absent bank-0 program. resolvePath() doesn't return null for it
+  // though: with nothing registered at "kit.room" or "kit", it falls
+  // through to the defaults-table redirect ("kit" -> "kit.standard"), the
+  // same fallback an unregistered leaf under any other defaulted root
+  // (e.g. "piano.acoustic.somethingObscure") already gets.
+  CHECK(provider.resolvePath("kit.room") == standard);
+  // Bare "kit" resolves the same way.
+  CHECK(provider.resolvePath("kit") == standard);
 }

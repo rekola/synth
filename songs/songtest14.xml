@@ -18,7 +18,7 @@
         <instrument from="string.plucked.harp"/>
         <instrument from="native:Fantasia"/>
         <instrument from="piano.acoustic.grand"/>
-        <instrument from="Percussion"/>
+        <instrument from="kit.standard"/>
     </instruments>
     <tracks>
         <track id="guitar" instrument="0" azimuth="-45" distance="2" elevation="0" color="" sendA="-20.0000" sendB="-20.0000"/>

@@ -3,7 +3,7 @@
   <instruments>
     <instrument from="string.bowed.ensemble.pizzicato" />
     <instrument from="bass.electric.pick" />
-    <instrument from="Percussion" />
+    <instrument from="kit.standard" />
   </instruments>
   <tracks>
     <track id="0" instrument="0" sendA="-10.4576" distance="5" azimuth="-60" />

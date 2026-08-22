@@ -175,9 +175,14 @@ in completely different situations.
 ## Bank 128 — percussion kits
 
 A kit is one instrument carrying a whole keymapped GM percussion set, which matches the
-existing design where the entire kit lives on one track. Kits are reached through the
-`<instrumentMap>` element, never `<instrument>`, so walk-up cannot cross between `kit.` and
-the pitched tree.
+existing design where the entire kit lives on one track. Reached through the same
+`<instrument from="...">` mechanism as every pitched instrument, registered as ordinary
+taxonomy paths - nothing about walk-up crosses between `kit.` and the pitched tree by
+accident, since no `kit.*` path shares a dotted-prefix root with a pitched one. A dedicated
+`<instrumentMap>` element (a real, separate top-level pool, distinct from `<instrument>`) is
+a possible future direction if a custom, non-SoundFont-backed kit notation (mapping
+individual percussion keys to arbitrary instruments, e.g. an `<oscillator>` per key) is ever
+built - not needed for whole-kit GM loading, which is all this section covers today.
 
 Kit entries are keyed by synth's percussion symbols (`BD`, `SD`, …), which correspond 1:1
 to note numbers 35–81. These abbreviations are synth's own vocabulary, not a General MIDI

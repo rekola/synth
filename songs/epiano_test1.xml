@@ -19,7 +19,7 @@
       </distortion>
     </amplifier>
     
-    <instrument from="Percussion" />
+    <instrument from="kit.standard" />
 
     <instrument from="Chateau Grand" />
 

@@ -1041,7 +1041,47 @@ three-second decay to silence with high notes decaying faster than low ones. Not
 substitutes for that - the tests above confirm the mechanism does what the numbers say, not that
 the numbers are the right numbers for a piano.
 
-## Phase 3 - confirm nothing earlier blocks it (not implementing)
+## Phase 3 - percussion kits
+
+**The minimal slice implemented and verified**: bank-128 GM percussion kits (`kit.standard`,
+`kit.room`, `kit.power`, `kit.electronic`, `kit.electronic.tr808`, `kit.jazz`, `kit.brush`,
+`kit.orchestra`, `kit.sfx`) are now registered as ordinary taxonomy paths, exactly like every
+bank-0 pitched instrument - a new `kGmBank128Table` in `GmInstrumentTable.h`, walked by
+`InstrumentProvider::loadSoundFont()` the same way as `kGmBank0Table`, registering each kit
+under its own path via the same `createInstrumentByProgram()`+`registerPath()` pair (missing
+kits, e.g. `kit.sfx` on most fonts, are silently skipped via the existing nullptr contract). The
+old single hardcoded `createInstrumentByProgram(128, 0, "Percussion")` call (and the literal-name
+`"Percussion"` instrument it registered) is gone - every song that referenced
+`from="Percussion"` was mechanically renamed to `from="kit.standard"` (the same taxonomy path
+that one hardcoded call always resolved to), preserving the exact same rendered kit. Verified:
+against the real `FluidR3_GM.sf2` (which provides 8 of the 9 documented kits, missing only
+`sfx` - matching the doc's own prediction), `kit.jazz` resolves and renders real, non-silent
+audio; a render-diff against `drumtest1.xml`'s pre-rename version differs at the sample level,
+but that's the already-documented `internal_id_`/`HashField`-jitter-seed shift (registering 7
+more kit instruments at startup than before shifts every subsequent jitter seed), confirmed by
+checking the new render is itself bit-exact run-to-run - not a behavioral regression.
+
+**Deliberately not built** (this was a design fork, resolved narrower than the sketch below
+originally considered): a dedicated `<instrumentMap>` element/pool, structurally distinct from
+`<instrument>`. `docs/instrument-paths.md`'s Bank 128 section used to say kits would be "reached
+through `<instrumentMap>`, never `<instrument>`" - corrected, since nothing about resolvePath()'s
+walk-up actually risks crossing between `kit.` and the pitched tree (no `kit.*` path shares a
+dotted-prefix root with a pitched one, so the separate-registry concern the original sketch
+raised doesn't materialize in practice). A real `<instrumentMap>` is still a plausible future
+step if a custom, non-SoundFont-backed kit notation is ever built (mapping individual percussion
+keys to arbitrary instruments rather than one whole SF2 kit preset) - noted in `README.md`'s
+roadmap, not designed further here since it didn't have enough pull to justify building now.
+
+**`PercussionTrack` as its own class/element** remains as-is - flagged as an ongoing wart (the
+only reason it exists is to flip note-name display to `Tuning::PERCUSSION` via `TrackType`), but
+no clean alternative was pursued here. One real option worth a dedicated look later: derive the
+percussion-tuning choice from whether a track's *resolved instrument* lives under the `kit.`
+taxonomy root, rather than from a separate track subclass/XML element - deferred rather than
+folded into this pass, since it touches every one of the ~10 `TrackType::PERCUSSION_CONTROL`
+call sites across the UI/playback/Launchpad code and deserves its own scoping pass rather than
+riding along here.
+
+### Original sketch (superseded by the narrower scope above)
 
 Sketch only, per the prompt.
 

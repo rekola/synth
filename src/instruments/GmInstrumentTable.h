@@ -1,21 +1,24 @@
 #ifndef _GMINSTRUMENTTABLE_H_
 #define _GMINSTRUMENTTABLE_H_
 
-// GM bank-0 program -> canonical taxonomy path, and the bare-root ->
-// preferred-child default redirect table, both mechanically generated from
-// docs/instrument-paths.md (the canonical source - see its own "Bank 0" and
-// "Defaults for general requests" sections). Regenerate rather than hand-edit
-// if that doc changes: the two must stay in sync, and hand-editing either
-// table independently is exactly how they'd drift.
+// GM bank-0 program -> canonical taxonomy path, GM bank-128 (percussion kit)
+// program -> canonical taxonomy path, and the bare-root -> preferred-child
+// default redirect table - all three mechanically generated from
+// docs/instrument-paths.md (the canonical source - see its own "Bank 0",
+// "Bank 128 - percussion kits", and "Defaults for general requests"
+// sections). Regenerate rather than hand-edit if that doc changes: they must
+// stay in sync, and hand-editing any of them independently is exactly how
+// they'd drift.
 //
 // Kept as plain data, not behavior - InstrumentProvider::loadSoundFont()
-// walks kGmBank0Table to call SoundFont::createInstrumentByProgram()+
-// registerPath() once per row; InstrumentProvider::resolvePath()'s
-// default-table pass walks kGmPathDefaults. Neither table is SF2-specific in
-// shape (just {int, path} and {path, path} pairs) even though only the SF2
-// loader populates the first one today - a future non-GM-mapped font would
-// register its own paths directly via registerPath(), bypassing this table
-// entirely, per docs/instrument-paths.md's own forward-compatibility notes.
+// walks kGmBank0Table/kGmBank128Table to call SoundFont::
+// createInstrumentByProgram()+registerPath() once per row; InstrumentProvider::
+// resolvePath()'s default-table pass walks kGmPathDefaults. None of the
+// tables are SF2-specific in shape (just {int, path} and {path, path} pairs)
+// even though only the SF2 loader populates the first two today - a future
+// non-GM-mapped font would register its own paths directly via
+// registerPath(), bypassing these tables entirely, per
+// docs/instrument-paths.md's own forward-compatibility notes.
 
 struct GmProgramEntry { int program; const char * path; };
 struct GmDefaultEntry { const char * request; const char * target; };
@@ -151,6 +154,25 @@ static constexpr GmProgramEntry kGmBank0Table[] = {
   {125, "sfx.helicopter"},
   {126, "sfx.applause"},
   {127, "sfx.gunshot"},
+};
+
+// Generated from docs/instrument-paths.md's "Bank 128 - percussion kits"
+// table - registered the same way kGmBank0Table is (createInstrumentByProgram()
+// + registerPath()), just at bank 128 instead of bank 0. Program 0 (Standard)
+// is GM Level 1 and effectively guaranteed; the rest are GS/GM2-convention
+// kits a given font may not carry at all - createInstrumentByProgram()'s
+// nullptr-on-miss contract skips those rows exactly like it does for a
+// missing bank-0 program.
+static constexpr GmProgramEntry kGmBank128Table[] = {
+  {0, "kit.standard"},
+  {8, "kit.room"},
+  {16, "kit.power"},
+  {24, "kit.electronic"},
+  {25, "kit.electronic.tr808"},
+  {32, "kit.jazz"},
+  {40, "kit.brush"},
+  {48, "kit.orchestra"},
+  {56, "kit.sfx"},
 };
 
 // Generated from docs/instrument-paths.md's "Defaults for general requests" table.
