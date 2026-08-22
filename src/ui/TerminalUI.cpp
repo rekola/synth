@@ -184,17 +184,33 @@ public:
     if (!readerActive()) {
       setOwning(false);
 
-      // Erase this plane's own stale content (e.g. a previous status
-      // message longer than the new prompt) before drawing the prompt -
-      // the reader plane created below only ever covers its own bounds and
-      // its own cells only get real content where the user has actually
-      // typed so far, so anything left over underneath/beyond that was
-      // otherwise still visible right through it (confirmed via a
-      // standalone reproduction against the real library: opening the
-      // reader over a long previous message left its stale tail visible
-      // past the cursor until enough was typed to physically overwrite
-      // it).
-      erase();
+      // Erase this plane's own stale content on row y, from column x
+      // onward (e.g. a previous status message longer than the new
+      // prompt) before drawing the prompt - the reader plane created
+      // below only ever covers its own bounds and its own cells only
+      // get real content where the user has actually typed so far, so
+      // anything left over underneath/beyond that was otherwise still
+      // visible right through it (confirmed via a standalone
+      // reproduction against the real library: opening the reader over
+      // a long previous message left its stale tail visible past the
+      // cursor until enough was typed to physically overwrite it).
+      // Scoped to just this one row, starting at x (0 when unset, same
+      // as reader_x's own default below) and reaching the plane's own
+      // right edge, via ncplane_erase_region() rather than erase() (the
+      // whole plane) - StatusLine passes x/y as their unset defaults,
+      // always starting from this row's very first column same as
+      // before, but PatternEditor's annotation editor
+      // (startAnnotationEdit()) reuses this same call on its own much
+      // taller plane with an explicit x placed after real pattern grid
+      // content on that row, which a whole-row-from-0 erase wiped out
+      // from under the reader right along with the actual stale content
+      // past it. xlen must be an explicit positive width, not 0 - unlike
+      // ylen, an xlen of 0 means "ignore xstart, erase the entire row's
+      // width regardless" (see ncplane_erase_region()'s own doc comment)
+      // and would put column 0 straight back in scope.
+      auto erase_cols = getDim().second;
+      auto erase_xstart = x == -1 ? 0 : x;
+      ncplane_erase_region(getPlane().to_ncplane(), y, erase_xstart, 1, std::max(erase_cols - erase_xstart, 1));
       // The reader plane below is opaque and covers its own bounds, so any
       // prompt text must be drawn onto *this* (the still-visible underlying
       // plane) first, and the reader plane offset past it - otherwise the
