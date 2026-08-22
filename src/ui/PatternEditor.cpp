@@ -1533,6 +1533,17 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
     vector<int> track_widths;
 
     for (auto i = 0; i < static_cast<int>(track_ids.size()); i++) {
+      // Tracks scrolled fully off the left edge don't exist here at
+      // all, not even merged into some group that then gets skipped by
+      // index below - the render loop's own tracks.size() only ever
+      // sees what's actually visible, so its own index space stays a
+      // straightforward 0-based count of *visible* segments regardless
+      // of how many original tracks got merged into each one (merging
+      // can make tracks[] considerably shorter than track_ids itself,
+      // so comparing an index into one against a count meant for the
+      // other - what used to happen in the render loop further down -
+      // skipped the wrong entries entirely once anything was merged).
+      if (i < current_scroll_.track) continue;
       int track_id = track_ids[static_cast<size_t>(i)];
       auto track = song.getTrackByInternalId(track_id);
       // A column's own leaf can itself own a subtree (an effect track
@@ -1648,14 +1659,13 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
     };
 
     // Whether the left-edge marker (below) has been drawn yet for this
-    // row - drawn once, at whichever segment ends up first actually
-    // visible (i == current_scroll_.track, or 0 with no scroll), not
-    // once per iteration.
+    // row - drawn once, for tracks[0] (the first actually-visible
+    // segment - see the loop building tracks[] above), not once per
+    // iteration.
     bool drew_left_edge = false;
 
     auto current_pos = 5;
     for (auto i = 0; i < static_cast<int>(tracks.size()); i++) {
-      if (i < current_scroll_.track) continue;
       if (current_pos >= cols) break;
 
       auto track = tracks[static_cast<size_t>(i)];
