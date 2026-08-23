@@ -412,8 +412,40 @@ public:
 
   bool offerInput(const InputEvent & input) override {
     if (reader) {
+      // Confirmed bug in ncreader's own do_backspace() (src/lib/reader.c),
+      // isolated in a standalone reproduction against this exact linked
+      // library (libnotcurses-core.so.3.0.17) independent of anything in
+      // this app: erasing a buffer's *last remaining* character is a
+      // silent no-op - ncreader_contents() still reports the old,
+      // unerased content afterward, not just a stale on-screen glyph.
+      // Erasing down to 2+ remaining characters works correctly; it's
+      // specifically the "only one character left" case that fails.
+      // Detected here by comparing contents before/after actually
+      // dispatching the keystroke (rather than pre-emptively guessing
+      // from length alone, which can't tell "cursor right after the one
+      // character" - where backspace should empty the buffer - apart
+      // from "cursor before it" - where backspace should already be a
+      // real no-op - since ncreader exposes no public cursor-position
+      // query): a Backspace that produces no change at all despite
+      // non-empty prior content is always this bug in practice (an
+      // honest no-op only happens with an already-empty buffer, excluded
+      // by the emptiness check below) - ncreader_clear() (already used
+      // the same way by setReaderContents() above) forces the correct
+      // empty result directly, bypassing the broken path entirely.
+      string before;
+      if (input.getId() == NCKEY_BACKSPACE) {
+	char * c = ncreader_contents(reader);
+	before = c ? c : "";
+	free(c);
+      }
       auto ni = to_ncinput(input);
       ncreader_offer_input(reader, &ni);
+      if (!before.empty()) {
+	char * c = ncreader_contents(reader);
+	string after = c ? c : "";
+	free(c);
+	if (after == before) ncreader_clear(reader);
+      }
       return true;
     } else if (selector) {
       auto ni = to_ncinput(input);
