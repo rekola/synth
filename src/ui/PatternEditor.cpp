@@ -2082,9 +2082,20 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // for this same track (getTrackWidth() - 1, not a hardcoded
 	  // literal - same reasoning as the SAMPLE/DRUM_MACHINE placeholder
 	  // just below), plus the track's own shared trailing "│" (drawn
-	  // once this loop is done, below).
+	  // once this loop is done, below). A "·" marks the cell whenever this
+	  // row has any note at all, so a collapsed track doesn't look empty
+	  // where it actually has content.
 	  auto width = std::max(track_info.getTrackWidth() - 1, 0);
 	  putstr(display_row, current_pos, std::string(static_cast<size_t>(width), ' '));
+	  bool any_note_defined = false;
+	  for (auto & n : notes) {
+	    if (n.isDefined()) { any_note_defined = true; break; }
+	  }
+	  if (width > 0 && any_note_defined) {
+	    setFgColor(cur_fg);
+	    putstr(display_row, current_pos, "·");
+	    setFgColor(styles.window_border_color);
+	  }
 	  current_pos += width;
 	} else if (track && (track->getType() == TrackType::SAMPLE || track->getType() == TrackType::DRUM_MACHINE)) {
 	  cell_fg = cur_fg;
