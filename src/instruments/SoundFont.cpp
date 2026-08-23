@@ -1343,40 +1343,39 @@ private:
     chorus_engine_->process(chorus_scratch_);
     auto wetL = chorus_scratch_.getChannelData(0), wetR = chorus_scratch_.getChannelData(1);
 
-    auto pos = getPosition();
-    float width_scale = std::min(1.0f, distanceGain(pos.distance));
-    float offset = 15.0f * width_scale;
-    auto leftGains = computeAmbisonicGains(SphericalPosition{ pos.azimuth - offset, pos.elevation, pos.distance });
-    auto rightGains = computeAmbisonicGains(SphericalPosition{ pos.azimuth + offset, pos.elevation, pos.distance });
-    // wetL/wetR come from dry_, which (like encodePosition()'s own `dry`
-    // parameter) no longer carries distance attenuation - chorus_send_'s
-    // own gain-scaling is where that has to be folded back in now, the
-    // same "apply distance where the gains actually get used, not baked
-    // into the sample buffer upstream" convention encodePosition() itself
-    // uses for its main channels.
-    // Only meaningful if data actually has Main channels to encode into -
-    // encodePosition() above already skips allocating them entirely when
-    // this voice's Send Main level is 0 (see its own doc comment).
-    if (data.hasChannel(Channel::Main)) {
-      float distance_gain = getDistanceGain();
-      for (auto & g : leftGains) g *= chorus_send_ * distance_gain;
-      for (auto & g : rightGains) g *= chorus_send_ * distance_gain;
-      chorus_tap_encoders_[0].encodeBlock(data, wetL, totalSamples, leftGains);
-      chorus_tap_encoders_[1].encodeBlock(data, wetR, totalSamples, rightGains);
-    }
-
     // The track's own SendA/SendB knobs also carry a bit of this voice's
     // chorused character to the shared reverb/delay busses, not just its
     // plain dry signal, when active - no distance-undoing division needed
-    // here (unlike a former version of this code): wetL/wetR were never
-    // distance-attenuated to begin with, so sends can use getSends().a/b
-    // directly, the same simplification encodePosition() itself now uses.
+    // here: wetL/wetR were never distance-attenuated to begin with, so
+    // sends can use getSends().a/b directly, the same simplification
+    // encodePosition() itself uses. Read here, before the in-place Main
+    // scaling below overwrites wetL/wetR with a Main-specific scale that
+    // has no business reaching these sends.
     auto & sends = getSends();
     if (auto * aux_a = data.getChannel(Channel::AuxA)) {
       for (int i = 0; i < totalSamples; i++) aux_a[i] += 0.5f * (wetL[i] + wetR[i]) * sends.a;
     }
     if (auto * aux_b = data.getChannel(Channel::AuxB)) {
       for (int i = 0; i < totalSamples; i++) aux_b[i] += 0.5f * (wetL[i] + wetR[i]) * sends.b;
+    }
+
+    // Only meaningful if data actually has Main channels to encode into -
+    // encodePosition() above already skips allocating them entirely when
+    // this voice's Send Main level is 0 (see its own doc comment). wetL/
+    // wetR come from dry_, which (like encodePosition()'s own `dry`
+    // parameter) no longer carries distance attenuation - scaled in place
+    // here (after the Aux sends above already read the unscaled version)
+    // by chorus_send_ * distance, since encoder gain times sample
+    // amplitude is commutative: scaling the samples achieves the exact
+    // same result as scaling the gains would, without
+    // encodeDecorrelatedPairAsSpreadPoint() (AmbisonicEncoding.h, shared
+    // with effects/Chorus.cpp's own dual-tap encode) needing its own
+    // notion of an extra per-caller gain.
+    if (data.hasChannel(Channel::Main)) {
+      float scale = chorus_send_ * getDistanceGain();
+      for (int i = 0; i < totalSamples; i++) { wetL[i] *= scale; wetR[i] *= scale; }
+      encodeDecorrelatedPairAsSpreadPoint(data, wetL, wetR, totalSamples, getPosition(), 15.0f,
+					   chorus_tap_encoders_[0], chorus_tap_encoders_[1]);
     }
 
     return data;

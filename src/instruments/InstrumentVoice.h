@@ -16,13 +16,6 @@
 #include <cmath>
 #include <vector>
 
-// distance <= 0 means "no position ever set" (SphericalPosition's default),
-// not "at the listener" - treated as no attenuation, same convention
-// computeAmbisonicGains's own distance<=0 fallback uses (AmbisonicEncoding.h).
-inline float distanceGain(float distance) {
-  return distance <= 0.0f ? 1.0f : 1.0f / distance;
-}
-
 namespace {
 // Fixed compile-time seed, not drawn from any shared sequence - matches
 // SoundFont.cpp's kPercussionJitterSeed/bus/GranularCloud.cpp's

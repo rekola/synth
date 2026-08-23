@@ -16,23 +16,15 @@ public:
     : type_(type), param_(param), drymix_(drymix), drive_(drive) { }
 
   // Aux channels are carried straight through, not spatially re-encoded
-  // (encodeMonoAsPoint() is a Main-only, directional concept - Aux is a
-  // shared-bus scalar) - they've already been distorted below, same as
-  // Main, and need to survive the re-encode to actually reach the bus.
-  AudioBuffer reencodeIfNeeded(const ChannelConfiguration & channel_config, AudioBuffer data) const {
+  // (a shared-bus scalar has no direction) - they've already been
+  // distorted below, same as Main, and need to survive the re-encode to
+  // actually reach the bus. Main re-encodes at a real point
+  // (encodeMonoEffectAsPoint(), AmbisonicEncoding.h) - shared with
+  // TapeDegradation, which needs exactly the same single-point treatment;
+  // see MonoEffect.h's own class comment.
+  AudioBuffer reencodeIfNeeded(const ChannelConfiguration & channel_config, const SphericalPosition & position, AudioBuffer data) {
     if (channel_config.isMono()) return data;
-    bool has_main = data.hasChannel(Channel::Main);
-    AudioBuffer out(has_main ? channel_config.numberOfChannels() : 0,
-		    data.hasChannel(Channel::AuxA), data.hasChannel(Channel::AuxB), data.numberOfFrames());
-    out.zero();
-    if (has_main) encodeMonoAsPoint(data, out);
-    for (auto ch : { Channel::AuxA, Channel::AuxB }) {
-      if (auto * src = data.getChannel(ch)) {
-	auto dst = out.getChannel(ch);
-	for (int i = 0; i < data.numberOfFrames(); i++) dst[i] = src[i];
-      }
-    }
-    return out;
+    return encodeMonoEffectAsPoint(channel_config, position, encoder_, std::move(data));
   }
 
   // Distorts every channel - Main and AuxA/AuxB alike, the same reasoning
@@ -133,24 +125,24 @@ public:
 private:
   DistortionType type_;
   float param_, drymix_, drive_;
+  AmbisonicVoiceEncoder encoder_;
 };
 
-// Gathers children reduced to MONO (reduceForEffect), never raw ambisonic
+// Gathers children reduced to MONO (MonoEffect::getChildChannelConfiguration())
 // - panning doesn't survive under this nonlinear effect; see Distortion.h
-// and the "Effects" section of the spatial audio plan for why this can't
-// rely on TrackState's/VoiceState's generic children-gathering the way a
-// transparent effect does.
+// for why this can't rely on TrackState's/VoiceState's generic
+// children-gathering the way a transparent effect does.
 
 class DistortionTrackState : public EffectTrackState {
 public:
-  DistortionTrackState(const ChannelConfiguration & channel_config, DistortionType type, float param, float drymix, float drive)
-    : EffectTrackState(channel_config), dsp_(type, param, drymix, drive) { }
+  DistortionTrackState(const ChannelConfiguration & channel_config, const SphericalPosition & position, DistortionType type, float param, float drymix, float drive)
+    : EffectTrackState(channel_config), position_(position), dsp_(type, param, drymix, drive) { }
 
   AudioBuffer render(int frames, const InstrumentPool & instruments, RenderContext & context) override {
     auto reduced_config = reduceForEffect(getChannelConfiguration());
     auto data = renderChildren(frames, instruments, context, reduced_config);
     applyEffect(data);
-    return dsp_.reencodeIfNeeded(getChannelConfiguration(), std::move(data));
+    return dsp_.reencodeIfNeeded(getChannelConfiguration(), position_, std::move(data));
   }
 
 protected:
@@ -160,19 +152,28 @@ protected:
   }
 
 private:
+  SphericalPosition position_;
   DistortionDsp dsp_;
 };
 
 class DistortionVoiceState : public EffectVoiceState {
 public:
-  DistortionVoiceState(const ChannelConfiguration & channel_config, DistortionType type, float param, float drymix, float drive)
-    : EffectVoiceState(channel_config), dsp_(type, param, drymix, drive) { }
+  DistortionVoiceState(const ChannelConfiguration & channel_config, const SphericalPosition & position, DistortionType type, float param, float drymix, float drive)
+    : EffectVoiceState(channel_config), position_(position), dsp_(type, param, drymix, drive) { }
 
   AudioBuffer render(int frames) override {
     auto reduced_config = reduceForEffect(getChannelConfiguration());
     auto data = renderChildren(frames, reduced_config);
     applyEffect(data);
-    return dsp_.reencodeIfNeeded(getChannelConfiguration(), std::move(data));
+    return dsp_.reencodeIfNeeded(getChannelConfiguration(), position_, std::move(data));
+  }
+
+  // A 2Lxx/2Rxx azimuth slide targeting the note this instance wraps
+  // should still be audible through it - mirrors
+  // TapeDegradationVoiceState::adjustAzimuth()'s identical reasoning.
+  void adjustAzimuth(float delta) override {
+    EffectVoiceState::adjustAzimuth(delta);
+    position_.azimuth += delta;
   }
 
 protected:
@@ -181,6 +182,7 @@ protected:
   }
 
 private:
+  SphericalPosition position_;
   DistortionDsp dsp_;
 };
 
@@ -188,17 +190,36 @@ private:
 
 std::unique_ptr<TrackState>
 Distortion::createState(const ChannelConfiguration & channel_config, const SongStructure & structure) const {
-  return make_unique<DistortionTrackState>(channel_config, type_, param_, drymix_, drive_);
+  return make_unique<DistortionTrackState>(channel_config, getPosition(), type_, param_, drymix_, drive_);
 }
 
 std::unique_ptr<VoiceState>
 Distortion::createVoiceState(const ChannelConfiguration & channel_config) const {
-  return make_unique<DistortionVoiceState>(channel_config, type_, param_, drymix_, drive_);
+  // No position known through this path (see Track.h's own comment on
+  // when it's actually reached) - the "no direction authored" sentinel,
+  // same convention TapeDegradation::createVoiceState() uses.
+  return make_unique<DistortionVoiceState>(channel_config, SphericalPosition{}, type_, param_, drymix_, drive_);
+}
+
+std::unique_ptr<VoiceState>
+Distortion::playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune,
+                      float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord, bool needs_decorrelation) const {
+  // Mirrors Track::playNote()'s own default body (Track.h) exactly, except
+  // the group node it builds is a real DistortionVoiceState (carrying the
+  // note's real position) rather than the generic createVoiceState()-built
+  // wrapper the default uses - same shape as TapeDegradation::playNote().
+  auto group = make_unique<DistortionVoiceState>(config, position, type_, param_, drymix_, drive_);
+  auto child_config = getChildChannelConfiguration(config);
+  for (auto & child : getChildren()) {
+    auto voice = child->playNote(child_config, position, frequency, detune, velocity, note_value, sends, note_coord, needs_decorrelation);
+    if (voice.get()) group->addChild(child->getInternalId(), std::move(voice));
+  }
+  return group;
 }
 
 void
 Distortion::loadParameters(const ParameterSource & input) {
-  Effect::loadParameters(input);
+  MonoEffect::loadParameters(input);
 
   auto type_text = input.getText("type");
   if (type_text == "hardclip") type_ = DistortionType::HARD_CLIP;
@@ -215,7 +236,7 @@ Distortion::loadParameters(const ParameterSource & input) {
 
 void
 Distortion::storeParameters(ParameterSource & output) const {
-  Effect::storeParameters(output);
+  MonoEffect::storeParameters(output);
 
   output.set("param", param_);
   output.set("drive", drive_);

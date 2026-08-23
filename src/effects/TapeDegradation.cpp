@@ -310,32 +310,19 @@ public:
 
   // Parent only wants MONO (nested under another mono-reducing effect, or
   // the track itself is a MONO config) - nothing to point-encode, hand
-  // back what's already there. Same early-out Chorus/Distortion's own
-  // reencodeIfNeeded() has; the substantive difference from theirs is the
-  // has_main branch below, which uses a real position instead of
-  // encodeMonoAsPoint()'s omnidirectional fallback. AuxA/AuxB are carried
-  // straight through unencoded here (a shared-bus scalar has no direction
-  // to re-encode), same as Chorus/Distortion - but by this point they've
-  // already been through applyEffect()'s own degradation, same as Main,
-  // not a bypassed clean copy of what the child originally sent.
+  // back what's already there. Otherwise a real point (not
+  // encodeMonoAsPoint()'s omnidirectional fallback), via
+  // encodeMonoEffectAsPoint() (AmbisonicEncoding.h) - shared with
+  // Distortion, which needs exactly the same single-point treatment
+  // (Chorus is the one MonoEffect that wants width instead, see its own
+  // reencodeIfNeeded()). AuxA/AuxB are carried straight through unencoded
+  // (a shared-bus scalar has no direction to re-encode) - but by this
+  // point they've already been through applyEffect()'s own degradation,
+  // same as Main, not a bypassed clean copy of what the child originally
+  // sent.
   AudioBuffer reencodeIfNeeded(const ChannelConfiguration & channel_config, const SphericalPosition & position, AudioBuffer data) {
     if (channel_config.isMono()) return data;
-
-    bool has_main = data.hasChannel(Channel::Main);
-    AudioBuffer out(has_main ? channel_config.numberOfChannels() : 0,
-                     data.hasChannel(Channel::AuxA), data.hasChannel(Channel::AuxB), data.numberOfFrames());
-    out.zero();
-    if (has_main) {
-      auto gains = computeAmbisonicGains(position);
-      encoder_.encodeBlock(out, data.getChannelData(0), data.numberOfFrames(), gains);
-    }
-    for (auto ch : { Channel::AuxA, Channel::AuxB }) {
-      if (auto * src = data.getChannel(ch)) {
-        auto dst = out.getChannel(ch);
-        for (int i = 0; i < data.numberOfFrames(); i++) dst[i] = src[i];
-      }
-    }
-    return out;
+    return encodeMonoEffectAsPoint(channel_config, position, encoder_, std::move(data));
   }
 
 private:
@@ -600,15 +587,10 @@ TapeDegradation::playNote(const ChannelConfiguration & config, const SphericalPo
 
 void
 TapeDegradation::loadParameters(const ParameterSource & input) {
-  Effect::loadParameters(input);
+  MonoEffect::loadParameters(input);
 
   preset_ = input.getText("preset", "tape");
   const auto & preset = getTapeDegradationPreset(preset_);
-
-  azimuth_ = input.getFloat("azimuth");
-  distance_ = input.getFloat("distance");
-  elevation_ = input.getFloat("elevation");
-  extent_ = input.getFloat("extent", -1.0f);
 
   wowRateHz_ = input.getFloat("wowRateHz", preset.wowRateHz);
   wowDepthCents_ = input.getFloat("wowDepthCents", preset.wowDepthCents);
@@ -651,15 +633,10 @@ TapeDegradation::loadParameters(const ParameterSource & input) {
 
 void
 TapeDegradation::storeParameters(ParameterSource & output) const {
-  Effect::storeParameters(output);
+  MonoEffect::storeParameters(output);
 
   output.set("preset", preset_, std::string("tape"));
   const auto & preset = getTapeDegradationPreset(preset_);
-
-  output.set("azimuth", azimuth_);
-  output.set("distance", distance_);
-  output.set("elevation", elevation_);
-  output.set("extent", extent_, -1.0f);
 
   output.set("wowRateHz", wowRateHz_, preset.wowRateHz);
   output.set("wowDepthCents", wowDepthCents_, preset.wowDepthCents);

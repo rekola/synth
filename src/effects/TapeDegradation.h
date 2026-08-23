@@ -1,9 +1,7 @@
 #ifndef _TAPEDEGRADATION_H_
 #define _TAPEDEGRADATION_H_
 
-#include "Effect.h"
-#include "../ambisonic/AmbisonicEncoding.h"
-#include "../ambisonic/SphericalPosition.h"
+#include "MonoEffect.h"
 #include "../model/SendLevels.h"
 #include "../model/NoteCoordinate.h"
 #include "../dsp/TapeTransport.h"
@@ -11,23 +9,18 @@
 // Source-attached tape/media degradation - the degradation belongs to the
 // sound source, not the playback chain, so it's modeled as a per-track or
 // per-voice effect rather than anything on the shared ambisonic bus.
-// Forces its children down to MONO (like Chorus/Distortion,
-// getChildChannelConfiguration() below) and runs a single-channel signal
-// chain (wow/flutter, dropouts/clicks, hiss, saturation, HF rolloff + head
-// bump), then re-encodes the mono result at a real, known position -
-// never encodeMonoAsPoint()'s omnidirectional fallback, so the
-// degradation stays a genuine point source rather than collapsing to
-// center the way Chorus/Distortion deliberately do. Track-attached, the
-// position is this instance's own authored
-// azimuth_/elevation_/distance_/extent_, mirroring LeafTrack's own
-// position model. Voice-attached, the position is whatever playNote() was
-// actually given, captured via this class's own playNote() override below
-// - azimuth_/elevation_/distance_/extent_ are not read in that mode at
-// all.
+// Forces its children down to MONO (MonoEffect::getChildChannelConfiguration())
+// and runs a single-channel signal chain (wow/flutter, dropouts/clicks,
+// hiss, saturation, HF rolloff + head bump), then re-encodes the mono
+// result at a real, known position - a genuine point source, via
+// encodeMonoEffectAsPoint() (AmbisonicEncoding.h). Track-attached, the
+// position is this instance's own authored MonoEffect::getPosition().
+// Voice-attached, the position is whatever playNote() was actually given,
+// captured via this class's own playNote() override below.
 //
 // Every parameter here, `preset` included, is XML-only - read once in
 // loadParameters(), never live-adjusted.
-class TapeDegradation : public Effect {
+class TapeDegradation : public MonoEffect {
  public:
   TapeDegradation() { }
 
@@ -36,8 +29,6 @@ class TapeDegradation : public Effect {
   const char * getElementName() const override { return "tapeDegradation"; }
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;
-
-  ChannelConfiguration getChildChannelConfiguration(const ChannelConfiguration & config) const override { return reduceForEffect(config); }
 
   // Overridden (not just createVoiceState()) so the note's real position
   // can be captured - createVoiceState() alone never sees it.
@@ -52,11 +43,7 @@ class TapeDegradation : public Effect {
                                         float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}, bool needs_decorrelation = false) const override;
 
  private:
-  SphericalPosition getPosition() const { return { azimuth_, elevation_, distance_, extent_ }; }
   TapeTransportParams buildTransportParams() const;
-
-  // Track-attached position only - see the class comment above.
-  float azimuth_ = 0.0f, elevation_ = 0.0f, distance_ = 0.0f, extent_ = -1.0f;
 
   std::string preset_ = "tape";
 

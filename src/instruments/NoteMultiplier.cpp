@@ -112,7 +112,7 @@ NoteMultiplier::playNote(const ChannelConfiguration & channel_config, const Sphe
 
 void
 NoteMultiplier::loadParameters(const ParameterSource & input) {
-  Track::loadParameters(input);
+  Instrument::loadParameters(input);
 
   unisons_ = input.getInt("unisons", 1);
   fourths_ = input.getInt("fourths");
@@ -124,7 +124,7 @@ NoteMultiplier::loadParameters(const ParameterSource & input) {
 
 void
 NoteMultiplier::storeParameters(ParameterSource & output) const {
-  Track::storeParameters(output);
+  Instrument::storeParameters(output);
 
   output.set("unisons", unisons_);
   output.set("octaves", octaves_);

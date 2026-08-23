@@ -1,15 +1,21 @@
 #ifndef _NOTEMULTIPLIER_H_
 #define _NOTEMULTIPLIER_H_
 
-#include "../model/Track.h"
+#include "Instrument.h"
 #include "../ambisonic/SphericalPosition.h"
 #include "../model/SendLevels.h"
 #include "../model/NoteCoordinate.h"
 
-class NoteMultiplier : public Track {
+// A voice-generation-time wrapper living inside instrument definitions,
+// alongside Oscillator/Envelope/GenericInstrument/etc. - an Instrument, not
+// a bare Track, for the same reason those are: TrackType::INSTRUMENT comes
+// for free from Instrument's own default constructor rather than needing
+// to be named again here, and it picks up prepare()/cloneWithOverrides()/
+// harmonic-subharmonic support automatically, consistent with every other
+// peer in this list, should a unison/detune-spread group ever want it.
+class NoteMultiplier : public Instrument {
  public:
-  // A voice-generation-time wrapper living inside instrument definitions, alongside Oscillator/Envelope/etc.
-  NoteMultiplier() : Track(TrackType::INSTRUMENT) { }
+  NoteMultiplier() { }
 
   const char * getElementName() const override { return "multiply"; }
   void loadParameters(const ParameterSource & input) override;

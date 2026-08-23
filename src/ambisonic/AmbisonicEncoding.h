@@ -169,6 +169,19 @@ inline AmbisonicGains computeAmbisonicGains(const SphericalPosition & position) 
   return g;
 }
 
+// distance <= 0 means "no position ever set" (SphericalPosition's default),
+// not "at the listener" - treated as no attenuation, same convention
+// computeAmbisonicGains()'s own distance<=0 fallback above uses. Shared by
+// every caller that needs a 1/distance falloff on top of
+// computeAmbisonicGains()'s purely directional gains (InstrumentVoice::
+// getDistanceGain(), SoundFont.cpp's adjustPositionForPan()/per-region
+// chorus width narrowing, MonoEffect-family dual-tap width narrowing
+// below) - one shared falloff law, not independently re-derived per
+// caller.
+inline float distanceGain(float distance) {
+  return distance <= 0.0f ? 1.0f : 1.0f / distance;
+}
+
 // max-rE ("maximum energy vector") per-degree decode weighting: concentrates
 // decoded energy toward the intended direction (less off-axis smear) at
 // some cost to raw spatial resolution - the standard trade-off used by most
@@ -340,6 +353,67 @@ inline void encodeMonoAsPoint(const AudioBuffer & mono, AudioBuffer & out) {
   auto out_w = out.getChannelData(0);
 
   for (int i = 0; i < n; i++) out_w[i] += kAmbisonicReferenceGain * m[i];
+}
+
+// Re-encodes a MonoEffect-family effect's (Distortion/TapeDegradation)
+// processed MONO output as one real ambisonic point at `position` -
+// direction only, via computeAmbisonicGains(), no distance attenuation
+// (this class of effect has no pre-existing dry-signal attenuation of its
+// own to preserve, unlike a synthesized voice - see distanceGain()'s own
+// doc comment for where that applies instead). `encoder` carries this
+// effect instance's own gain-interpolation state across blocks (one
+// instance per effect instance, never shared - see AmbisonicVoiceEncoder's
+// own class comment) so a moving/slid position doesn't zipper. Aux
+// channels are carried straight through unencoded (a shared-bus scalar has
+// no direction to re-encode), same convention encodeMonoAsPoint()'s own
+// callers already used before this existed. `data` is exactly what a
+// MONO-target caller should get back unchanged - callers check
+// channel_config.isMono() themselves and skip calling this entirely in
+// that case (TapeDegradation.cpp's reencodeIfNeeded()'s own early-out is
+// the canonical shape).
+inline AudioBuffer encodeMonoEffectAsPoint(const ChannelConfiguration & channel_config, const SphericalPosition & position, AmbisonicVoiceEncoder & encoder, AudioBuffer data) {
+  bool has_main = data.hasChannel(Channel::Main);
+  AudioBuffer out(has_main ? channel_config.numberOfChannels() : 0,
+		  data.hasChannel(Channel::AuxA), data.hasChannel(Channel::AuxB), data.numberOfFrames());
+  out.zero();
+  if (has_main) {
+    auto gains = computeAmbisonicGains(position);
+    encoder.encodeBlock(out, data.getChannelData(0), data.numberOfFrames(), gains);
+  }
+  for (auto ch : { Channel::AuxA, Channel::AuxB }) {
+    if (auto * src = data.getChannel(ch)) {
+      auto dst = out.getChannel(ch);
+      for (int i = 0; i < data.numberOfFrames(); i++) dst[i] = src[i];
+    }
+  }
+  return out;
+}
+
+// The chorus-specific sibling of encodeMonoEffectAsPoint() above: encodes
+// two already-decorrelated channels (SoundFontVoice's own per-region
+// chorus, or a MonoEffect-family Chorus effect - the one shared
+// implementation of "how a chorus's stereo width becomes ambisonic width")
+// as two point sources offset `offsetDegrees` to either side of
+// `position`'s azimuth, rather than one - a chorus's whole character is
+// its width, which a single point (encodeMonoEffectAsPoint() above) would
+// throw away. Narrowed by distance (distanceGain(), capped at 1 so it only
+// ever narrows the base offset, never exaggerates it for a source placed
+// closer than distance 1 - same convention SoundFont.cpp's
+// adjustPositionForPan() already uses for the identical reason: a widely
+// spread source heard from far away should read as a single point, not
+// stay artificially wide forever). `leftEncoder`/`rightEncoder` are two
+// independent AmbisonicVoiceEncoders (one per tap, each with its own
+// gain-interpolation state) - never the same instance for both, or one
+// tap's target gains would stomp the other's interpolation history.
+inline void encodeDecorrelatedPairAsSpreadPoint(AudioBuffer & out, const float * left, const float * right, int frames,
+						 const SphericalPosition & position, float offsetDegrees,
+						 AmbisonicVoiceEncoder & leftEncoder, AmbisonicVoiceEncoder & rightEncoder) {
+  float width_scale = std::min(1.0f, distanceGain(position.distance));
+  float offset = offsetDegrees * width_scale;
+  auto leftGains = computeAmbisonicGains(SphericalPosition{ position.azimuth - offset, position.elevation, position.distance });
+  auto rightGains = computeAmbisonicGains(SphericalPosition{ position.azimuth + offset, position.elevation, position.distance });
+  leftEncoder.encodeBlock(out, left, frames, leftGains);
+  rightEncoder.encodeBlock(out, right, frames, rightGains);
 }
 
 // AMBISONIC -> MONO, otherwise unchanged. Used by effects that are
