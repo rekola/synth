@@ -190,19 +190,33 @@ TEST(delay_column_stays_visible_when_cursor_is_on_the_sibling_note_column) {
   }
 }
 
-// Minimality, not just eventual correctness: computeScrollPosition()'s own
-// doc comment describes moving the window by no more than necessary to
-// keep the cursor on screen, but the tests above only ever check the
-// *result* is fully visible - none of them would catch the window jumping
-// further than required along the way. This walks the cursor one column
-// at a time (the same granularity Left/Right ever moves it) across every
-// column of a mix of ordinary and oversized tracks, feeding each step's
-// own resulting scroll back in as the next step's current_scroll (matching
-// how PatternEditor::render() persists current_scroll_ frame to frame),
-// and fails the moment a step moves the window while the cursor's own
-// highlighted group was already fully visible in the *previous* window -
-// i.e. moving would have been unnecessary.
-TEST(scroll_never_moves_while_the_cursor_is_already_visible) {
+// Idempotence, not just eventual correctness: whatever computeScrollPosition()
+// settles on for a given cursor position must be a *fixed point* - feeding
+// its own output back in as current_scroll for that same cursor position
+// must return the identical scroll, never keep drifting further on repeat
+// calls with nothing else having changed. That's what actually rules out
+// perpetual jitter for a stationary cursor.
+//
+// This deliberately does NOT require "never move if the cursor's own group
+// happens to already be visible", the way an earlier version of this test
+// did: computeScrollPosition() now prefers showing a track's *entire*
+// width - every note column and the effect/command column, not just the
+// cursor's own highlighted group - so a track's own heading (name,
+// Mute/Solo) stays visible whenever there's room for it (see that
+// function's own comment). That can mean scrolling further than the bare
+// minimum even when the group alone was already on screen - a deliberate
+// trade-off, not a bug this test should flag, provided the result is
+// still a genuine fixed point and the cursor's own group is still on it
+// (the one guarantee that never relaxes - see
+// cursor_highlight_always_fully_on_screen_across_track_and_col_combinations
+// above for the exhaustive version of that same check).
+//
+// Walks the cursor one column at a time (the same granularity Left/Right
+// ever moves it) across every column of a mix of ordinary and oversized
+// tracks, feeding each step's own resulting scroll back in as the next
+// step's current_scroll (matching how PatternEditor::render() persists
+// current_scroll_ frame to frame).
+TEST(scroll_settles_and_never_drifts_for_an_unmoving_cursor) {
   vector<int> track_ids = { 10, 20, 30 };
   unordered_map<int, VisibleTrackInfo> track_info = {
     { 10, makeTrackInfo(2, true, 1, false, true) },   // modest: 2 subtracks, note+velocity+effect
@@ -224,9 +238,10 @@ TEST(scroll_never_moves_while_the_cursor_is_already_visible) {
     GridPosition current_scroll;
     int violations = 0;
     for (auto & [t, k] : path) {
-      bool was_already_visible = cursorHighlightFullyVisible(current_scroll, t, k, track_ids, track_info, cols);
       auto new_scroll = computeScrollPosition(current_scroll, 0, t, k, track_ids, track_info, cols);
-      if (was_already_visible && new_scroll != current_scroll) violations++;
+      auto refixed = computeScrollPosition(new_scroll, 0, t, k, track_ids, track_info, cols);
+      if (refixed != new_scroll) violations++;
+      if (!cursorHighlightFullyVisible(new_scroll, t, k, track_ids, track_info, cols)) violations++;
       current_scroll = new_scroll;
     }
     CHECK(violations == 0);

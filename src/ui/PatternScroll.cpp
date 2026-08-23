@@ -43,6 +43,98 @@ int trackWidthRange(const VisibleTrackInfo & info, int from_col, int to_col, boo
 // annotation text, which can always run off the right edge regardless.
 constexpr int kAnnotationMinWidth = 20;
 
+struct FitResult {
+  GridPosition scroll;
+  // False when the trimming loop below ran out of room to give (reached
+  // cursor_track's own group_lo, the one boundary it will never cross)
+  // without ever getting pos down to cols - i.e. cursor_target_hi itself
+  // doesn't fit even alone, starting from the very left edge.
+  bool fits;
+};
+
+// The shared growth/trim loop computeScrollPosition() below tries twice
+// with two different targets (see its own comment) - factored out here so
+// both attempts share identical starting-point and trimming logic, only
+// ever differing in how far right cursor_track's own target column
+// (cursor_target_hi) reaches.
+FitResult fitWithTarget(const GridPosition & current_scroll, int new_row,
+			 int cursor_track, int group_lo, int cursor_target_hi,
+			 const vector<int> & track_ids,
+			 const unordered_map<int, VisibleTrackInfo> & track_info,
+			 int cols, bool is_annotation_target) {
+  GridPosition new_scroll;
+  new_scroll.row = new_row;
+
+  // Starting point. cursor_track left of the current window can't be
+  // reached by the rightward-only growth below, so it's a direct reset
+  // (matching the old track-level "snap left" case) rather than something
+  // the loop could ever walk back to on its own. Otherwise keep today's
+  // anchor/column as the starting point to grow from - including,
+  // symmetrically, snapping the column back to 0 (not just group_lo) when
+  // the cursor's own group has moved left of it: a move is already
+  // unavoidable here (the group isn't fully visible under today's column
+  // either way), so this is free to prefer showing the *whole* track (its
+  // own heading/Mute-Solo/every leading column - see renderHeading()'s
+  // own use of this same .col) rather than the bare minimum - the growth
+  // loop below re-derives whatever's actually needed regardless of
+  // whether it starts at 0 or group_lo, converging on the same fixed
+  // point either way (its own stopping condition depends only on the
+  // target range and cols, not on where it started), so this can only
+  // ever *reveal more* of the track, never less, compared to jumping
+  // straight to group_lo.
+  if (cursor_track < current_scroll.track) {
+    new_scroll.track = cursor_track;
+    new_scroll.col = 0;
+  } else {
+    new_scroll.track = current_scroll.track;
+    new_scroll.col = current_scroll.col;
+    if (new_scroll.track == cursor_track && group_lo < new_scroll.col) new_scroll.col = 0;
+  }
+
+  // Grows the window's left edge rightward - one column at a time, never
+  // a whole track at once - until the run from (new_scroll.track,
+  // new_scroll.col) through cursor_track's own target column fits.
+  // Trimming the anchor track's own front one column at a time first
+  // (rather than only ever dropping it outright, which is what a
+  // track-at-a-time-only version of this loop used to do) matters for
+  // *any* track standing between the old anchor and the cursor, not just
+  // the cursor's own - dropping a whole track when trimming a couple of
+  // its own leading columns would have been enough overshoots by however
+  // wide that track is, which is exactly the "always a maximal jump"
+  // symptom this replaced.
+  while (true) {
+    auto anchor_it = track_info.find(track_ids[static_cast<size_t>(new_scroll.track)]);
+    if (anchor_it == track_info.end()) return { new_scroll, false };
+
+    // pos is an exclusive upper bound (the position just past the last
+    // character drawn), so pos == cols is an exact fit, not an overflow.
+    int pos = 5;
+    for (int i = new_scroll.track; i <= cursor_track; i++) {
+      auto it = track_info.find(track_ids[static_cast<size_t>(i)]);
+      if (it == track_info.end()) continue;
+      auto from_col = (i == new_scroll.track) ? new_scroll.col : 0;
+      auto to_col = (i == cursor_track) ? cursor_target_hi : it->second.getColumnCount() - 1;
+      pos += trackWidthRange(it->second, from_col, to_col, i == cursor_track);
+    }
+    if (is_annotation_target) pos += kAnnotationMinWidth;
+    if (pos <= cols) return { new_scroll, true };
+
+    if (new_scroll.track == cursor_track) {
+      // No further whole track to drop - this is the cursor's own; the
+      // only room left to give is trimming further into its own front,
+      // never past the start of its own highlighted group.
+      if (new_scroll.col < group_lo) new_scroll.col++;
+      else return { new_scroll, false }; // cursor_target_hi doesn't fit even from group_lo - give up
+    } else if (new_scroll.col < anchor_it->second.getColumnCount() - 1) {
+      new_scroll.col++;
+    } else {
+      // Fully trimmed to nothing - drop it and move on to the next track.
+      new_scroll.track++;
+      new_scroll.col = 0;
+    }
+  }
+}
+
 } // namespace
 
 GridPosition
@@ -51,10 +143,9 @@ computeScrollPosition(const GridPosition & current_scroll, int new_row,
 		      const vector<int> & track_ids,
 		      const unordered_map<int, VisibleTrackInfo> & track_info,
 		      int cols) {
-  GridPosition new_scroll;
-  new_scroll.row = new_row;
-
   if (track_ids.empty() || cursor_track < 0 || cursor_track > static_cast<int>(track_ids.size())) {
+    GridPosition new_scroll;
+    new_scroll.row = new_row;
     new_scroll.track = 0;
     new_scroll.col = 0;
     return new_scroll;
@@ -87,77 +178,21 @@ computeScrollPosition(const GridPosition & current_scroll, int new_row,
   auto [group_lo, group_hi] = cursor_it != track_info.end() ?
     cursor_it->second.getNoteColumnRange(cursor_col) : pair<int, int>{cursor_col, cursor_col};
 
-  // Starting point. cursor_track left of the current window can't be
-  // reached by the rightward-only growth below, so it's a direct reset
-  // (matching the old track-level "snap left" case) rather than something
-  // the loop could ever walk back to on its own. Otherwise keep today's
-  // anchor/column as the starting point to grow from - including,
-  // symmetrically, snapping the column back to 0 (not just group_lo) when
-  // the cursor's own group has moved left of it: a move is already
-  // unavoidable here (the group isn't fully visible under today's column
-  // either way), so this is free to prefer showing the *whole* track (its
-  // own heading/Mute-Solo/every leading column - see renderHeading()'s
-  // own use of this same .col) rather than the bare minimum - the growth
-  // loop below re-derives whatever's actually needed regardless of
-  // whether it starts at 0 or group_lo, converging on the same fixed
-  // point either way (its own stopping condition depends only on the
-  // target range and cols, not on where it started), so this can only
-  // ever *reveal more* of the track, never less, compared to jumping
-  // straight to group_lo. Never triggers a move that wasn't already
-  // going to happen (see tests/PatternScrollTests.cpp's own
-  // scroll_never_moves_while_the_cursor_is_already_visible) - it only
-  // changes *where* an unavoidable move lands.
-  if (cursor_track < current_scroll.track) {
-    new_scroll.track = cursor_track;
-    new_scroll.col = 0;
-  } else {
-    new_scroll.track = current_scroll.track;
-    new_scroll.col = current_scroll.col;
-    if (new_scroll.track == cursor_track && group_lo < new_scroll.col) new_scroll.col = 0;
-  }
+  // Prefer showing the cursor's *entire* track - every note column and
+  // the effect/command column, not just cursor_col's own highlighted
+  // group - so a track's own heading (name, Mute/Solo - see
+  // renderHeading()'s use of this same scroll position) stays visible
+  // whenever there's room for it, not just whenever the cursor's
+  // immediate group happens to fit. Falls back to the narrower,
+  // group-only target - guaranteed to succeed, the one invariant this
+  // function has always promised no matter what - only when the whole
+  // track genuinely doesn't fit even after dropping/trimming everything
+  // ahead of it.
+  auto full_last_col = cursor_it != track_info.end() ? cursor_it->second.getColumnCount() - 1 : group_hi;
+  auto whole_track = fitWithTarget(current_scroll, new_row, cursor_track, group_lo, full_last_col,
+				    track_ids, track_info, cols, is_annotation_target);
+  if (whole_track.fits) return whole_track.scroll;
 
-  // Grows the window's left edge rightward - one column at a time, never
-  // a whole track at once - until the run from (new_scroll.track,
-  // new_scroll.col) through cursor_track's own highlighted group fits.
-  // Trimming the anchor track's own front one column at a time first
-  // (rather than only ever dropping it outright, which is what a
-  // track-at-a-time-only version of this loop used to do) matters for
-  // *any* track standing between the old anchor and the cursor, not just
-  // the cursor's own - dropping a whole track when trimming a couple of
-  // its own leading columns would have been enough overshoots by however
-  // wide that track is, which is exactly the "always a maximal jump"
-  // symptom this replaced.
-  while (true) {
-    auto anchor_it = track_info.find(track_ids[static_cast<size_t>(new_scroll.track)]);
-    if (anchor_it == track_info.end()) break;
-
-    // pos is an exclusive upper bound (the position just past the last
-    // character drawn), so pos == cols is an exact fit, not an overflow.
-    int pos = 5;
-    for (int i = new_scroll.track; i <= cursor_track; i++) {
-      auto it = track_info.find(track_ids[static_cast<size_t>(i)]);
-      if (it == track_info.end()) continue;
-      auto from_col = (i == new_scroll.track) ? new_scroll.col : 0;
-      auto to_col = (i == cursor_track) ? group_hi : it->second.getColumnCount() - 1;
-      pos += trackWidthRange(it->second, from_col, to_col, i == cursor_track);
-    }
-    if (is_annotation_target) pos += kAnnotationMinWidth;
-    if (pos <= cols) break;
-
-    if (new_scroll.track == cursor_track) {
-      // No further whole track to drop - this is the cursor's own; the
-      // only room left to give is trimming further into its own front,
-      // never past the start of its own highlighted group.
-      if (new_scroll.col < group_lo) new_scroll.col++;
-      else break; // the group itself is wider than cols - nothing more to give
-    } else if (new_scroll.col < anchor_it->second.getColumnCount() - 1) {
-      new_scroll.col++;
-    } else {
-      // Fully trimmed to nothing - drop it and move on to the next track.
-      new_scroll.track++;
-      new_scroll.col = 0;
-    }
-  }
-
-  return new_scroll;
+  return fitWithTarget(current_scroll, new_row, cursor_track, group_lo, group_hi,
+			track_ids, track_info, cols, is_annotation_target).scroll;
 }
