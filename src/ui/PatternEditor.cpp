@@ -706,7 +706,12 @@ PatternEditor::startTrackNameEdit() {
   auto edit_col = col + prefix_width;
   auto edit_width = std::max(width - prefix_width, 1);
 
-  getPlane().showReader("", row, edit_col, 1, edit_width, track->getName());
+  // White, not the reader's own default pink - pink reads poorly against
+  // this field's own darkened-track-color backdrop (painted below),
+  // unlike every other reader in this app (annotation editing, M-x),
+  // which all sit over the plain window background pink was chosen to
+  // read well against in the first place.
+  getPlane().showReader("", row, edit_col, 1, edit_width, track->getName(), 0xff, 0xff, 0xff);
 
   // TerminalUI::showReader()'s own ncplane_erase_region() call erases
   // from edit_col all the way to the *plane's* right edge, not just this
@@ -737,14 +742,15 @@ PatternEditor::startTrackNameEdit() {
   // so it isn't immediately overwritten by that call's own normal-
   // colored redraw - shows straight through as the field's own backdrop.
   // This track's own heading color (renderHeading()'s segment_color(),
-  // un-brightened base - see track_base_color() there), darkened the
-  // same way that function's own toggle_color() darkens it for a
-  // heading control, so the field reads as "this track, now being
-  // edited" rather than the reader's usual plain pink-on-black -
-  // restricted to just the editable span, unlike the "T<N> " prefix
-  // right before it, which stays whatever color renderHeading() just
-  // drew it in.
-  auto bg = track_info.getColor().blend(0.4f, Color(0, 0, 0));
+  // un-brightened base - see track_base_color() there), only barely
+  // darkened (unlike toggle_color()'s own much heavier 0.4 darkening for
+  // a heading control - a field the artist is actively looking at and
+  // typing into shouldn't be dimmed anywhere near as far as an idle
+  // control) so the field reads as "this track, now being edited"
+  // rather than the reader's usual plain pink-on-black - restricted to
+  // just the editable span, unlike the "T<N> " prefix right before it,
+  // which stays whatever color renderHeading() just drew it in.
+  auto bg = track_info.getColor().blend(0.05f, Color(0, 0, 0));
   setFgColor(0xff, 0xff, 0xff);
   setBgColor(bg);
   putstr(row, edit_col, string(static_cast<size_t>(edit_width), ' '));

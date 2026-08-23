@@ -33,9 +33,15 @@ class UIPlane {
   // matching the historical no-args behavior every existing call site
   // still relies on. initial_text seeds the reader's own content (e.g.
   // editing an existing annotation starts from what it already says, not
-  // blank) rather than requiring a second call after this one.
+  // blank) rather than requiring a second call after this one. text_r/g/b
+  // is the reader's own typed-glyph color - pink by default (matching
+  // every other UI plane's own base cell fg, see TerminalUI::showReader()'s
+  // own comment), overridable for a caller whose reader sits on a
+  // background pink would read poorly against (PatternEditor's track-name
+  // editor, over its own darkened per-track backdrop).
   virtual void showReader(const std::string & prompt = "", int y = 0, int x = -1, int rows = -1, int cols = -1,
-			   const std::string & initial_text = "") = 0;
+			   const std::string & initial_text = "",
+			   int text_r = 0xc0, int text_g = 0x80, int text_b = 0xc0) = 0;
   virtual std::string closeReader() = 0;
   virtual bool readerActive() const = 0;
   // Non-destructive read of the reader's current contents - unlike

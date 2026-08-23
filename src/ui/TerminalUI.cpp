@@ -180,7 +180,8 @@ public:
   // x == -1/rows == -1/cols == -1 (the defaults) reproduce exactly what
   // this used to hardcode - StatusLine's existing calls are untouched.
   void showReader(const std::string & prompt = "", int y = 0, int x = -1, int rows = -1, int cols = -1,
-		   const std::string & initial_text = "") override {
+		   const std::string & initial_text = "",
+		   int text_r = 0xc0, int text_g = 0x80, int text_b = 0xc0) override {
     if (!readerActive()) {
       setOwning(false);
 
@@ -221,11 +222,11 @@ public:
       auto prompt_width = static_cast<unsigned int>(prompt.size());
 
       ncreader_options reader_opts;
-      // Pink (0xc0, 0x80, 0xc0), matching the reader plane's own colors
-      // below - see that comment for why. Background alpha TRANSPARENT
-      // too, for the same reason: the typed glyphs themselves shouldn't
-      // paint an opaque patch behind them either.
-      reader_opts.tchannels = NCCHANNELS_INITIALIZER(0xc0, 0x80, 0xc0, 0x00, 0x00, 0x00);
+      // text_r/g/b (pink by default), matching the reader plane's own
+      // colors below - see that comment for why. Background alpha
+      // TRANSPARENT too, for the same reason: the typed glyphs themselves
+      // shouldn't paint an opaque patch behind them either.
+      reader_opts.tchannels = NCCHANNELS_INITIALIZER(static_cast<unsigned>(text_r), static_cast<unsigned>(text_g), static_cast<unsigned>(text_b), 0x00, 0x00, 0x00);
       ncchannels_set_fg_alpha(&reader_opts.tchannels, NCALPHA_HIGHCONTRAST);
       ncchannels_set_bg_alpha(&reader_opts.tchannels, NCALPHA_TRANSPARENT);
       reader_opts.tattrword = 0; // attributes used for input
@@ -256,23 +257,24 @@ public:
       };
 
       auto reader_plane = ncplane_create(getPlane().to_ncplane(), &opts);
-      // Pink (0xc0, 0x80, 0xc0) - the same fg createChild() already gives
-      // every other UI plane's own base cell, so the M-x prompt/completion
-      // indicator (drawn directly on the surrounding StatusLine plane, not
-      // this one) and the typed text here read as one consistent color
-      // instead of the reader's own text standing out in an unrelated
-      // green. Background alpha TRANSPARENT rather than the previous
-      // explicit opaque black: this plane no longer paints its own
-      // background at all, letting whatever's actually behind it (the
-      // StatusLine plane's own, prompt/indicator included) show straight
-      // through instead of a guessed-at literal color that may not match
-      // this terminal's real default. Set on both the base cell (below,
-      // for the plane's own unwritten cells) and tchannels (above, for the
-      // glyphs ncreader actually echoes as typed) so neither path leaves a
-      // stray opaque patch. Not re-verified against a live terminal since
-      // the color/background change - confirm it still reads cleanly.
-      ncplane_set_fg_rgb8(reader_plane, 0xc0, 0x80, 0xc0);
-      uint64_t base_channels = NCCHANNELS_INITIALIZER(0xc0, 0x80, 0xc0, 0, 0, 0);
+      // text_r/g/b, defaulting to the same pink createChild() already
+      // gives every other UI plane's own base cell, so by default the
+      // M-x prompt/completion indicator (drawn directly on the
+      // surrounding StatusLine plane, not this one) and the typed text
+      // here read as one consistent color instead of the reader's own
+      // text standing out in an unrelated green - a caller whose reader
+      // sits over its own non-default backdrop (PatternEditor's
+      // track-name editor) overrides it instead for whatever actually
+      // reads well there. Background alpha TRANSPARENT rather than an
+      // explicit opaque color: this plane no longer paints its own
+      // background at all, letting whatever's actually behind it show
+      // straight through instead of a guessed-at literal color that may
+      // not match. Set on both the base cell (below, for the plane's own
+      // unwritten cells) and tchannels (above, for the glyphs ncreader
+      // actually echoes as typed) so neither path leaves a stray opaque
+      // patch.
+      ncplane_set_fg_rgb8(reader_plane, static_cast<unsigned>(text_r), static_cast<unsigned>(text_g), static_cast<unsigned>(text_b));
+      uint64_t base_channels = NCCHANNELS_INITIALIZER(static_cast<unsigned>(text_r), static_cast<unsigned>(text_g), static_cast<unsigned>(text_b), 0, 0, 0);
       ncchannels_set_bg_alpha(&base_channels, NCALPHA_TRANSPARENT);
       ncplane_set_base(reader_plane, " ", 0, base_channels);
       reader = ncreader_create(reader_plane, &reader_opts);
