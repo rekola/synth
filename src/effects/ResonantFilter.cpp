@@ -157,14 +157,14 @@ ResonantFilter::loadParameters(const ParameterSource & input) {
   Effect::loadParameters(input);
 
   if (input.has("cut")) {
-    cut_min_ = cut_max_ = input.getFloat("cut", 0.0f);
+    cut_min_ = cut_max_ = input.get<float>("cut", 0.0f);
   } else {
-    cut_min_ = input.getFloat("cutmin", 0.0f);
-    cut_max_ = input.getFloat("cutmax", 0.0f);
+    cut_min_ = input.get<float>("cutmin", 0.0f);
+    cut_max_ = input.get<float>("cutmax", 0.0f);
   }
 
-  res_ = input.getFloat("res");
-  use_aftertouch_ = input.getBool("aftertouch");
+  res_ = input.get<float>("res");
+  use_aftertouch_ = input.get<bool>("aftertouch");
 
   envelope_.loadParameters(input);
 }

@@ -589,46 +589,46 @@ void
 TapeDegradation::loadParameters(const ParameterSource & input) {
   MonoEffect::loadParameters(input);
 
-  preset_ = input.getText("preset", "tape");
+  preset_ = input.get<std::string>("preset", "tape");
   const auto & preset = getTapeDegradationPreset(preset_);
 
-  wowRateHz_ = input.getFloat("wowRateHz", preset.wowRateHz);
-  wowDepthCents_ = input.getFloat("wowDepthCents", preset.wowDepthCents);
-  wowLocked_ = input.getBool("wowLocked", preset.wowLocked);
-  wowLockedRateHz_ = input.getFloat("wowLockedRateHz", preset.wowLockedRateHz);
-  flutterRateHz_ = input.getFloat("flutterRateHz", preset.flutterRateHz);
-  flutterDepthCents_ = input.getFloat("flutterDepthCents", preset.flutterDepthCents);
-  healthRateHz_ = input.getFloat("healthRateHz", preset.healthRateHz);
-  healthSensitivity_ = input.getFloat("healthSensitivity", preset.healthSensitivity);
-  hissLevelDB_ = input.getFloat("hissLevelDB", preset.hissLevelDB);
-  dropoutRateHz_ = input.getFloat("dropoutRateHz", preset.dropoutRateHz);
-  dropoutDepthDB_ = input.getFloat("dropoutDepthDB", preset.dropoutDepthDB);
-  dropoutDurationMs_ = input.getFloat("dropoutDurationMs", preset.dropoutDurationMs);
-  clickRateHz_ = input.getFloat("clickRateHz", preset.clickRateHz);
-  clickGainDB_ = input.getFloat("clickGainDB", preset.clickGainDB);
-  saturationDriveDB_ = input.getFloat("saturationDriveDB", preset.saturationDriveDB);
-  lowCutHz_ = input.getFloat("lowCutHz", preset.lowCutHz);
-  hfRolloffHz_ = input.getFloat("hfRolloffHz", preset.hfRolloffHz);
-  headBumpHz_ = input.getFloat("headBumpHz", preset.headBumpHz);
-  headBumpGainDB_ = input.getFloat("headBumpGainDB", preset.headBumpGainDB);
-  mix_ = input.getFloat("mix", preset.mix);
+  wowRateHz_ = input.get<float>("wowRateHz", preset.wowRateHz);
+  wowDepthCents_ = input.get<float>("wowDepthCents", preset.wowDepthCents);
+  wowLocked_ = input.get<bool>("wowLocked", preset.wowLocked);
+  wowLockedRateHz_ = input.get<float>("wowLockedRateHz", preset.wowLockedRateHz);
+  flutterRateHz_ = input.get<float>("flutterRateHz", preset.flutterRateHz);
+  flutterDepthCents_ = input.get<float>("flutterDepthCents", preset.flutterDepthCents);
+  healthRateHz_ = input.get<float>("healthRateHz", preset.healthRateHz);
+  healthSensitivity_ = input.get<float>("healthSensitivity", preset.healthSensitivity);
+  hissLevelDB_ = input.get<float>("hissLevelDB", preset.hissLevelDB);
+  dropoutRateHz_ = input.get<float>("dropoutRateHz", preset.dropoutRateHz);
+  dropoutDepthDB_ = input.get<float>("dropoutDepthDB", preset.dropoutDepthDB);
+  dropoutDurationMs_ = input.get<float>("dropoutDurationMs", preset.dropoutDurationMs);
+  clickRateHz_ = input.get<float>("clickRateHz", preset.clickRateHz);
+  clickGainDB_ = input.get<float>("clickGainDB", preset.clickGainDB);
+  saturationDriveDB_ = input.get<float>("saturationDriveDB", preset.saturationDriveDB);
+  lowCutHz_ = input.get<float>("lowCutHz", preset.lowCutHz);
+  hfRolloffHz_ = input.get<float>("hfRolloffHz", preset.hfRolloffHz);
+  headBumpHz_ = input.get<float>("headBumpHz", preset.headBumpHz);
+  headBumpGainDB_ = input.get<float>("headBumpGainDB", preset.headBumpGainDB);
+  mix_ = input.get<float>("mix", preset.mix);
 
-  ampFlutterDepth_ = input.getFloat("ampFlutterDepth", preset.ampFlutterDepth);
-  swoopStartCents_ = input.getFloat("swoopStartCents", preset.swoopStartCents);
-  swoopTimeMs_ = input.getFloat("swoopTimeMs", preset.swoopTimeMs);
-  spinDownMs_ = input.getFloat("spinDownMs", preset.spinDownMs);
-  droopDepthCents_ = input.getFloat("droopDepthCents", preset.droopDepthCents);
+  ampFlutterDepth_ = input.get<float>("ampFlutterDepth", preset.ampFlutterDepth);
+  swoopStartCents_ = input.get<float>("swoopStartCents", preset.swoopStartCents);
+  swoopTimeMs_ = input.get<float>("swoopTimeMs", preset.swoopTimeMs);
+  spinDownMs_ = input.get<float>("spinDownMs", preset.spinDownMs);
+  droopDepthCents_ = input.get<float>("droopDepthCents", preset.droopDepthCents);
 
-  rumbleLevelDB_ = input.getFloat("rumbleLevelDB", preset.rumbleLevelDB);
-  rumbleHz_ = input.getFloat("rumbleHz", preset.rumbleHz);
+  rumbleLevelDB_ = input.get<float>("rumbleLevelDB", preset.rumbleLevelDB);
+  rumbleHz_ = input.get<float>("rumbleHz", preset.rumbleHz);
 
-  decayMode_ = input.getBool("decayMode", preset.decayMode);
-  decayRatePerMinute_ = input.getFloat("decayRatePerMinute", preset.decayRatePerMinute);
+  decayMode_ = input.get<bool>("decayMode", preset.decayMode);
+  decayRatePerMinute_ = input.get<float>("decayRatePerMinute", preset.decayRatePerMinute);
 
-  breathingAmount_ = input.getFloat("breathingAmount", preset.breathingAmount);
-  hissLevelDependent_ = input.getFloat("hissLevelDependent", preset.hissLevelDependent);
-  breathingAttackMs_ = input.getFloat("breathingAttackMs", preset.breathingAttackMs);
-  breathingReleaseMs_ = input.getFloat("breathingReleaseMs", preset.breathingReleaseMs);
+  breathingAmount_ = input.get<float>("breathingAmount", preset.breathingAmount);
+  hissLevelDependent_ = input.get<float>("hissLevelDependent", preset.hissLevelDependent);
+  breathingAttackMs_ = input.get<float>("breathingAttackMs", preset.breathingAttackMs);
+  breathingReleaseMs_ = input.get<float>("breathingReleaseMs", preset.breathingReleaseMs);
 }
 
 void

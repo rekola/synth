@@ -39,24 +39,23 @@ using namespace tinyxml2;
 class XMLParameterSource : public ParameterSource {
 public:
   XMLParameterSource(XMLElement * element) : element_(element) { }
-  XMLParameterSource(XMLElement * element, std::shared_ptr<std::unordered_map<std::string, int>> id_mapping)
-    : ParameterSource(std::move(id_mapping)), element_(element) { }
 
   bool has(const std::string & name) const override { return element_->Attribute(name.c_str()) != 0; }
 
   void set(const std::string & name, int value) override { element_->SetAttribute(name.c_str(), value); }
   virtual void set(const std::string & name, float value) { element_->SetAttribute(name.c_str(), value); }
   virtual void set(const std::string & name, const std::string & value) { element_->SetAttribute(name.c_str(), value.c_str()); }
-  
-  int getInt(const std::string & name, int default_value = 0) const override {
+
+protected:
+  int getIntImpl(const std::string & name, int default_value) const override {
     auto value = element_->Attribute(name.c_str());
     return value ? atoi(value) : default_value;
   }
-  string getText(const std::string & name, const std::string & default_value) const override{
+  string getTextImpl(const std::string & name, const std::string & default_value) const override {
     auto value = element_->Attribute(name.c_str());
     return value ? value : default_value;
   }
-  float getFloat(const std::string & name, float default_value = 0) const override {
+  float getFloatImpl(const std::string & name, float default_value) const override {
     auto value = element_->Attribute(name.c_str());
     return value ? strtof(value, nullptr) : default_value;
   }
@@ -662,19 +661,19 @@ void
 Song::loadParameters(const ParameterSource & input) {
   StatefulSongObject::loadParameters(input);
 
-  auto song_tuning = parse_tuning(input.getText("temperament"), Tuning::TET12);
+  auto song_tuning = parse_tuning(input.get<std::string>("temperament"), Tuning::TET12);
   setTuning(song_tuning);
 
-  auto key_text = input.getText("key");
+  auto key_text = input.get<std::string>("key");
   if (!key_text.empty()) setKey(Note::stringToKey(song_tuning, key_text));
 
-  setTempo(input.getInt("tempo", 90));
-  setPatternLength(input.getInt("patternRows", 64));
+  setTempo(input.get<int>("tempo", 90));
+  setPatternLength(input.get<int>("patternRows", 64));
 
-  setEarHeight(input.getFloat("earHeight", constants::DEFAULT_EAR_HEIGHT));
-  setFloorReflectionEnabled(input.getBool("floorReflection", constants::DEFAULT_FLOOR_REFLECTION_ENABLED));
-  setFloorReflectionStrength(input.getFloat("floorReflectionStrength", constants::DEFAULT_FLOOR_REFLECTION_STRENGTH));
-  setGroundAbsorption(input.getFloat("groundAbsorption", constants::DEFAULT_GROUND_ABSORPTION));
+  setEarHeight(input.get<float>("earHeight", constants::DEFAULT_EAR_HEIGHT));
+  setFloorReflectionEnabled(input.get<bool>("floorReflection", constants::DEFAULT_FLOOR_REFLECTION_ENABLED));
+  setFloorReflectionStrength(input.get<float>("floorReflectionStrength", constants::DEFAULT_FLOOR_REFLECTION_STRENGTH));
+  setGroundAbsorption(input.get<float>("groundAbsorption", constants::DEFAULT_GROUND_ABSORPTION));
 
   // The bus (reverb/delay/...) is not a <song> attribute - it's the
   // <bus> child element, parsed separately in Song::open() (mirroring

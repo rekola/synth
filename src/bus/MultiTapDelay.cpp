@@ -201,7 +201,7 @@ void
 MultiTapDelay::loadParameters(const ParameterSource & input) {
   BusEffect::loadParameters(input); // wet/chainSend, generically
 
-  auto preset_text = input.getText("preset");
+  auto preset_text = input.get<std::string>("preset");
   if (preset_text == "slapback") preset_ = MultiTapDelayPreset::SLAPBACK;
   else if (preset_text == "pingpong") preset_ = MultiTapDelayPreset::PINGPONG;
   else if (preset_text == "orbit") preset_ = MultiTapDelayPreset::ORBIT;
@@ -215,11 +215,11 @@ MultiTapDelay::loadParameters(const ParameterSource & input) {
   PresetValues d = presetValues(preset_);
 
   setParameters(
-    parseFraction(input.getText("baseRows"), d.baseRows),
-    input.getFloat("feedback", d.feedback),
-    input.getFloat("damping", d.damping),
-    parseDelayPattern(input.has("pattern") ? input.getText("pattern") : to_string(d.pattern)),
-    input.getFloat("patternSpeed", d.patternSpeed));
+    parseFraction(input.get<std::string>("baseRows"), d.baseRows),
+    input.get<float>("feedback", d.feedback),
+    input.get<float>("damping", d.damping),
+    parseDelayPattern(input.has("pattern") ? input.get<std::string>("pattern") : to_string(d.pattern)),
+    input.get<float>("patternSpeed", d.patternSpeed));
 
   // A preset also implies its own tuned wet level - BusEffect::loadParameters()
   // above already applied "wet", but using this class's flat kDefaultWet as
@@ -228,7 +228,7 @@ MultiTapDelay::loadParameters(const ParameterSource & input) {
   // an explicit wet="..." attribute still wins, but an absent one falls back
   // to the resolved preset's own wet rather than the generic default - same
   // reasoning as GranularCloud::loadParameters().
-  setWetLevel(input.getFloat("wet", d.wet));
+  setWetLevel(input.get<float>("wet", d.wet));
 }
 
 void

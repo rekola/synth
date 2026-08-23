@@ -190,7 +190,7 @@ class Track : public StatefulSongObject {
   // real per-track user toggle (Controller::toggleTrackCollapsed()), not
   // derived from TrackType - but effect tracks still *default* to
   // collapsed (no useful per-track content to show until they grow any),
-  // via the default_value passed to loadParameters()'s getBool() below,
+  // via the default_value passed to loadParameters()'s get<bool>() below,
   // so a song file predating this toggle keeps behaving exactly as it did
   // when every effect track collapsed unconditionally.
   bool isCollapsed() const { return collapsed_; }
@@ -198,7 +198,7 @@ class Track : public StatefulSongObject {
 
   void loadParameters(const ParameterSource & input) override {
     SongObject::loadParameters(input);
-    collapsed_ = input.getBool("collapsed", type_ == TrackType::EFFECT);
+    collapsed_ = input.get<bool>("collapsed", type_ == TrackType::EFFECT);
   }
 
   void storeParameters(ParameterSource & output) const override {

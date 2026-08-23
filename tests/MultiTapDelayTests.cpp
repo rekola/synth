@@ -290,7 +290,7 @@ TEST(multi_tap_delay_preset_alone_round_trips_without_explicit_numeric_attribute
   MemoryParameterSource output;
   delay.storeParameters(output);
 
-  CHECK(output.getText("preset", "") == "slapback");
+  CHECK(output.get<std::string>("preset", "") == "slapback");
   CHECK(!output.has("baseRows"));
   CHECK(!output.has("feedback"));
   CHECK(!output.has("damping"));
@@ -318,8 +318,8 @@ TEST(multi_tap_delay_preset_plus_override_round_trips_both) {
   MemoryParameterSource output;
   delay.storeParameters(output);
 
-  CHECK(output.getText("preset", "") == "recede");
-  CHECK_NEAR(output.getFloat("feedback", -1.0f), 0.42f, 0.001f);
+  CHECK(output.get<std::string>("preset", "") == "recede");
+  CHECK_NEAR(output.get<float>("feedback", -1.0f), 0.42f, 0.001f);
   CHECK(!output.has("baseRows"));
   CHECK(!output.has("damping"));
   CHECK(!output.has("pattern"));

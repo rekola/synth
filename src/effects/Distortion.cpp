@@ -221,7 +221,7 @@ void
 Distortion::loadParameters(const ParameterSource & input) {
   MonoEffect::loadParameters(input);
 
-  auto type_text = input.getText("type");
+  auto type_text = input.get<std::string>("type");
   if (type_text == "hardclip") type_ = DistortionType::HARD_CLIP;
   else if (type_text == "softclip") type_ = DistortionType::SOFT_CLIP;
   else if (type_text == "bitcrush") type_ = DistortionType::BITCRUSH;
@@ -230,8 +230,8 @@ Distortion::loadParameters(const ParameterSource & input) {
   // BITCRUSH's own "param" is a bit depth, not a clip threshold (see
   // DistortionDsp::applyEffect()), so it needs its own default rather
   // than the clip types' implicit "unset means 0".
-  param_ = input.getFloat("param", type_ == DistortionType::BITCRUSH ? 8.0f : 0.0f);
-  drive_ = input.getFloat("drive", 1.0f);
+  param_ = input.get<float>("param", type_ == DistortionType::BITCRUSH ? 8.0f : 0.0f);
+  drive_ = input.get<float>("drive", 1.0f);
 }
 
 void

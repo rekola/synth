@@ -15,7 +15,7 @@ InstrumentPool & InstrumentPool::operator=(InstrumentPool &&) noexcept = default
 void
 InstrumentPool::loadParameters(const ParameterSource & input) {
   default_kit_ = std::make_unique<GenericInstrument>();
-  default_kit_->setFrom(input.getText("from"));
+  default_kit_->setFrom(input.get<std::string>("from"));
 }
 
 void

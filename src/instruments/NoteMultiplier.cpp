@@ -114,12 +114,12 @@ void
 NoteMultiplier::loadParameters(const ParameterSource & input) {
   Instrument::loadParameters(input);
 
-  unisons_ = input.getInt("unisons", 1);
-  fourths_ = input.getInt("fourths");
-  fifths_ = input.getInt("fifths");
-  octaves_ = input.getInt("octaves");
-  detune_ = input.getFloat("detune");
-  spread_ = input.getFloat("spread");
+  unisons_ = input.get<int>("unisons", 1);
+  fourths_ = input.get<int>("fourths");
+  fifths_ = input.get<int>("fifths");
+  octaves_ = input.get<int>("octaves");
+  detune_ = input.get<float>("detune");
+  spread_ = input.get<float>("spread");
 }
 
 void

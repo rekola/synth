@@ -15,14 +15,14 @@ void
 Arpeggiator::loadParameters(const ParameterSource & input) {
   InstrumentTrack::loadParameters(input);
 
-  auto mode_text = input.getText("mode", "up");
+  auto mode_text = input.get<std::string>("mode", "up");
   if (mode_text == "down") mode_ = DOWN;
   else if (mode_text == "updown") mode_ = UP_DOWN;
   else mode_ = UP;
 
-  note_duration_ = input.getInt("noteDuration", 1);
-  octaves_ = input.getInt("octaves", 0);
-  gate_ = input.getInt("gate", 1);
+  note_duration_ = input.get<int>("noteDuration", 1);
+  octaves_ = input.get<int>("octaves", 0);
+  gate_ = input.get<int>("gate", 1);
 }
 
 void

@@ -158,7 +158,7 @@ void
 BiquadFilter::loadParameters(const ParameterSource & input) {
   Effect::loadParameters(input);
 
-  auto type_text = input.getText("type");
+  auto type_text = input.get<std::string>("type");
   if (type_text == "lowpass") type_ = FilterType::lowpass;
   else if (type_text == "highpass") type_ = FilterType::highpass;
   else if (type_text == "bandpass") type_ = FilterType::bandpass;
@@ -168,10 +168,10 @@ BiquadFilter::loadParameters(const ParameterSource & input) {
   else if (type_text == "highshelf") type_ = FilterType::highshelf;
   else type_ = FilterType::lowpass;
 
-  fc_ = input.getFloat("fc");
-  Q_ = input.getFloat("Q");
-  peakGainDB_ = input.getFloat("peakGainDB");
-  use_aftertouch_ = input.getBool("aftertouch");
+  fc_ = input.get<float>("fc");
+  Q_ = input.get<float>("Q");
+  peakGainDB_ = input.get<float>("peakGainDB");
+  use_aftertouch_ = input.get<bool>("aftertouch");
 
   envelope_.loadParameters(input);
 }

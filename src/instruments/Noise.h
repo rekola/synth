@@ -15,8 +15,8 @@ class Noise : public Instrument {
 
   void loadParameters(const ParameterSource & input) override {
     Instrument::loadParameters(input);
-    level_ = input.getFloat("level", 1.0f);
-    auto color_text = input.getText("color", "white");
+    level_ = input.get<float>("level", 1.0f);
+    auto color_text = input.get<std::string>("color", "white");
     color_ = (color_text == "pink") ? NoiseColor::PINK : NoiseColor::WHITE;
   }
 

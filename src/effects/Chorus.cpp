@@ -232,11 +232,11 @@ void
 Chorus::loadParameters(const ParameterSource & input) {
   MonoEffect::loadParameters(input);
 
-  voices_ = input.getInt("voices", 3);
-  rate_ = input.getFloat("rate", 0.5f);
-  delay_ = input.getFloat("delay", 15.0f);
-  depth_ = input.getFloat("depth", 4.0f);
-  mix_ = input.getFloat("mix", 0.5f);
+  voices_ = input.get<int>("voices", 3);
+  rate_ = input.get<float>("rate", 0.5f);
+  delay_ = input.get<float>("delay", 15.0f);
+  depth_ = input.get<float>("depth", 4.0f);
+  mix_ = input.get<float>("mix", 0.5f);
 }
 
 void

@@ -427,7 +427,7 @@ void
 Haze::loadParameters(const ParameterSource & input) {
   BusEffect::loadParameters(input); // wet/chainSend, generically
 
-  auto preset_text = input.getText("preset");
+  auto preset_text = input.get<std::string>("preset");
   if (preset_text == "body") preset_ = HazePreset::BODY;
   else if (preset_text == "crunch") preset_ = HazePreset::CRUNCH;
   else if (preset_text == "slap") preset_ = HazePreset::SLAP;
@@ -441,15 +441,15 @@ Haze::loadParameters(const ParameterSource & input) {
   auto d = presetValues(preset_);
 
   setParameters(
-    input.getFloat("drive", d.driveDb),
-    parseSaturatorShape(input.has("shape") ? input.getText("shape") : to_string(d.shape)),
-    input.getFloat("bias", d.bias),
-    input.getFloat("hpf", d.hpfHz),
-    input.getFloat("lpf", d.lpfHz),
-    input.getFloat("tilt", d.tiltDb),
-    input.getFloat("trim", 0.0f),
-    parseHazePreDelayDivision(input.has("predelay") ? input.getText("predelay") : to_string(d.predelay)),
-    input.getFloat("diffusion", d.diffusion));
+    input.get<float>("drive", d.driveDb),
+    parseSaturatorShape(input.has("shape") ? input.get<std::string>("shape") : to_string(d.shape)),
+    input.get<float>("bias", d.bias),
+    input.get<float>("hpf", d.hpfHz),
+    input.get<float>("lpf", d.lpfHz),
+    input.get<float>("tilt", d.tiltDb),
+    input.get<float>("trim", 0.0f),
+    parseHazePreDelayDivision(input.has("predelay") ? input.get<std::string>("predelay") : to_string(d.predelay)),
+    input.get<float>("diffusion", d.diffusion));
 }
 
 void

@@ -17,13 +17,13 @@ class Envelope {
   float getRelease() const { return release_; }
 
   void loadParameters(const ParameterSource & input) {
-    attack_ = input.getFloat("attack", 0.0f);
-    hold_ = input.getFloat("hold", 0.0f);
-    decay_ = input.getFloat("decay", 0.0f);
-    sustain_ = input.getFloat("sustain", 1.0f);
-    release_ = input.getFloat("release", 0.0f);
-    keynumToHold_ = input.getFloat("keynumToHold", 0.0f);
-    keynumToDecay_ = input.getFloat("keynumToDecay", 0.0f);
+    attack_ = input.get<float>("attack", 0.0f);
+    hold_ = input.get<float>("hold", 0.0f);
+    decay_ = input.get<float>("decay", 0.0f);
+    sustain_ = input.get<float>("sustain", 1.0f);
+    release_ = input.get<float>("release", 0.0f);
+    keynumToHold_ = input.get<float>("keynumToHold", 0.0f);
+    keynumToDecay_ = input.get<float>("keynumToDecay", 0.0f);
   }
 
   void storeParameters(ParameterSource & output) const {

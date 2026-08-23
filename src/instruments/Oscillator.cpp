@@ -35,15 +35,15 @@ void
 Oscillator::loadParameters(const ParameterSource & input) {
   Instrument::loadParameters(input);
 
-  auto type_text = input.getText("type", "sine");
+  auto type_text = input.get<std::string>("type", "sine");
   if (type_text == "sine") type_ = WaveformType::SINE;
   else if (type_text == "saw") type_ = WaveformType::SAW;
   else if (type_text == "triangle") type_ = WaveformType::TRIANGLE;
   else if (type_text == "square") type_ = WaveformType::SQUARE;
   else type_ = WaveformType::SINE;
 
-  level_ = input.getFloat("level", 1.0f);
-  pulse_width_ = input.getFloat("width", 0.5f);
+  level_ = input.get<float>("level", 1.0f);
+  pulse_width_ = input.get<float>("width", 0.5f);
 }
 
 void

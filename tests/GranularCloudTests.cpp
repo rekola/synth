@@ -173,7 +173,7 @@ TEST(granular_cloud_preset_alone_round_trips_without_explicit_numeric_attributes
   MemoryParameterSource output;
   cloud.storeParameters(output);
 
-  CHECK(output.getText("preset", "") == "shimmer");
+  CHECK(output.get<std::string>("preset", "") == "shimmer");
   CHECK(!output.has("grainSize"));
   CHECK(!output.has("density"));
   CHECK(!output.has("scanPosition"));
@@ -218,8 +218,8 @@ TEST(granular_cloud_preset_plus_override_round_trips_both) {
   MemoryParameterSource output;
   cloud.storeParameters(output);
 
-  CHECK(output.getText("preset", "") == "wash");
-  CHECK_NEAR(output.getFloat("density", -1.0f), 20.0f, 0.001f);
+  CHECK(output.get<std::string>("preset", "") == "wash");
+  CHECK_NEAR(output.get<float>("density", -1.0f), 20.0f, 0.001f);
   CHECK(!output.has("grainSize"));
   CHECK(!output.has("scanJitter"));
 }

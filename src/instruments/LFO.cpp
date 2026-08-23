@@ -22,8 +22,8 @@ void
 LFO::loadParameters(const ParameterSource & input) {
   Instrument::loadParameters(input);
 
-  frequency_ = input.getFloat("frequency");
-  level_ = input.getFloat("level");
+  frequency_ = input.get<float>("frequency");
+  level_ = input.get<float>("level");
 }
 
 void

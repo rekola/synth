@@ -22,7 +22,7 @@ namespace constants {
   // Floor-reflection defaults (see InstrumentVoice.h/Song.h) - named once
   // here rather than repeated as literals in ChannelConfiguration.h's
   // field initializers, Song.h's field initializers, and Song::
-  // loadParameters()'s getFloat()/getBool() fallback arguments, which
+  // loadParameters()'s get<float>()/get<bool>() fallback arguments, which
   // must all agree (a song with no explicit attribute falls back to
   // Song's own field default; a ChannelConfiguration built without ever
   // loading a Song - tests, offline tools - falls back to its own field

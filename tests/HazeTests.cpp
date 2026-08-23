@@ -392,7 +392,7 @@ TEST(haze_preset_alone_round_trips_without_explicit_numeric_attributes) {
   MemoryParameterSource output;
   sat.storeParameters(output);
 
-  CHECK(output.getText("preset", "") == "slap");
+  CHECK(output.get<std::string>("preset", "") == "slap");
   CHECK(!output.has("drive"));
   CHECK(!output.has("shape"));
   CHECK(!output.has("bias"));
@@ -423,8 +423,8 @@ TEST(haze_preset_plus_override_round_trips_both) {
   MemoryParameterSource output;
   sat.storeParameters(output);
 
-  CHECK(output.getText("preset", "") == "air");
-  CHECK_NEAR(output.getFloat("tilt", -100.0f), 2.5f, 0.001f);
+  CHECK(output.get<std::string>("preset", "") == "air");
+  CHECK_NEAR(output.get<float>("tilt", -100.0f), 2.5f, 0.001f);
   CHECK(!output.has("drive"));
   CHECK(!output.has("shape"));
   CHECK(!output.has("bias"));

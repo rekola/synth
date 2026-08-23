@@ -272,7 +272,7 @@ void
 FDNReverb::loadParameters(const ParameterSource & input) {
   BusEffect::loadParameters(input); // wet/chainSend, generically
 
-  auto preset_text = input.getText("preset");
+  auto preset_text = input.get<std::string>("preset");
   if (preset_text == "room") preset_ = FDNReverbPreset::ROOM;
   else if (preset_text == "hall") preset_ = FDNReverbPreset::HALL;
   else if (preset_text == "cathedral") preset_ = FDNReverbPreset::CATHEDRAL;
@@ -286,10 +286,10 @@ FDNReverb::loadParameters(const ParameterSource & input) {
   PresetValues d = presetValues(preset_);
 
   setParameters(
-    input.getFloat("size", d.size),
-    input.getFloat("decay", d.decay),
-    input.getFloat("damping", d.damping),
-    input.getFloat("preDelay", d.preDelay));
+    input.get<float>("size", d.size),
+    input.get<float>("decay", d.decay),
+    input.get<float>("damping", d.damping),
+    input.get<float>("preDelay", d.preDelay));
 
   // A preset also implies its own tuned wet level - BusEffect::loadParameters()
   // above already applied "wet", but using this class's flat kDefaultWet as
@@ -298,7 +298,7 @@ FDNReverb::loadParameters(const ParameterSource & input) {
   // an explicit wet="..." attribute still wins, but an absent one falls back
   // to the resolved preset's own wet rather than the generic default - same
   // reasoning as GranularCloud::loadParameters().
-  setWetLevel(input.getFloat("wet", d.wet));
+  setWetLevel(input.get<float>("wet", d.wet));
 }
 
 void

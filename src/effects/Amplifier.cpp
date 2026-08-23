@@ -85,7 +85,7 @@ void
 Amplifier::loadParameters(const ParameterSource & input) {
   Effect::loadParameters(input);
 
-  gain_ = input.getFloat("gain", 0);
+  gain_ = input.get<float>("gain", 0);
 }
 
 void

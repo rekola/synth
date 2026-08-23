@@ -43,8 +43,8 @@ public:
   void loadParameters(const ParameterSource & input) {
     Track::loadParameters(input);
   
-    harmonic_ = input.getInt("harmonic", 1);
-    subharmonic_ = input.getInt("subharmonic", 1);  
+    harmonic_ = input.get<int>("harmonic", 1);
+    subharmonic_ = input.get<int>("subharmonic", 1);  
   }
 
   void storeParameters(ParameterSource & output) const {

@@ -25,10 +25,10 @@ class MonoEffect : public Effect {
  public:
   void loadParameters(const ParameterSource & input) override {
     Effect::loadParameters(input);
-    azimuth_ = input.getFloat("azimuth");
-    distance_ = input.getFloat("distance");
-    elevation_ = input.getFloat("elevation");
-    extent_ = input.getFloat("extent", -1.0f);
+    azimuth_ = input.get<float>("azimuth");
+    distance_ = input.get<float>("distance");
+    elevation_ = input.get<float>("elevation");
+    extent_ = input.get<float>("extent", -1.0f);
   }
 
   void storeParameters(ParameterSource & output) const override {

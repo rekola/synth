@@ -8,7 +8,7 @@
 // plays for bus effects, but default *values* here, not a type selection,
 // since every preset is the same TapeDegradation class. An explicit XML
 // attribute always overrides its preset default - see loadParameters()'s
-// own getFloat(name, preset.field) calls.
+// own get<float>(name, preset.field) calls.
 struct TapeDegradationPreset {
   float wowRateHz, wowDepthCents;
   bool wowLocked;

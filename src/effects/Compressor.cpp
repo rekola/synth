@@ -498,11 +498,11 @@ void
 Compressor::loadParameters(const ParameterSource & input) {
   Effect::loadParameters(input);
 
-  pregain_ = input.getFloat("pregain", 0.0f);
-  threshold_ = input.getFloat("threshold", -24.0f);
-  knee_ = input.getFloat("knee", 30.0f);
-  ratio_ = input.getFloat("ratio", 12.0f);
-  postgain_ = input.getFloat("postgain", 0.0f);
+  pregain_ = input.get<float>("pregain", 0.0f);
+  threshold_ = input.get<float>("threshold", -24.0f);
+  knee_ = input.get<float>("knee", 30.0f);
+  ratio_ = input.get<float>("ratio", 12.0f);
+  postgain_ = input.get<float>("postgain", 0.0f);
 }
 
 void

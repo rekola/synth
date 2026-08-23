@@ -166,7 +166,7 @@ void
 GranularCloud::loadParameters(const ParameterSource & input) {
   BusEffect::loadParameters(input); // wet/chainSend, generically
 
-  auto preset_text = input.getText("preset");
+  auto preset_text = input.get<std::string>("preset");
   if (preset_text == "shimmer") preset_ = GranularPreset::SHIMMER;
   else if (preset_text == "cloud") preset_ = GranularPreset::CLOUD;
   else if (preset_text == "glitch") preset_ = GranularPreset::GLITCH;
@@ -180,16 +180,16 @@ GranularCloud::loadParameters(const ParameterSource & input) {
   PresetValues d = presetValues(preset_);
 
   setParameters(
-    input.getFloat("grainSize", d.grainSizeMs),
-    input.getFloat("density", d.density),
-    input.getFloat("scanPosition", d.scanPosition),
-    input.getFloat("scanJitter", d.scanJitter),
-    input.getFloat("pitchScatter", d.pitchScatter),
-    input.getFloat("directionScatter", d.directionScatter),
-    input.getFloat("azimuth", d.azimuth),
-    input.getFloat("elevation", d.elevation),
-    input.getFloat("amplitudeJitter", d.amplitudeJitter));
-  setFreeze(input.getBool("freeze", false));
+    input.get<float>("grainSize", d.grainSizeMs),
+    input.get<float>("density", d.density),
+    input.get<float>("scanPosition", d.scanPosition),
+    input.get<float>("scanJitter", d.scanJitter),
+    input.get<float>("pitchScatter", d.pitchScatter),
+    input.get<float>("directionScatter", d.directionScatter),
+    input.get<float>("azimuth", d.azimuth),
+    input.get<float>("elevation", d.elevation),
+    input.get<float>("amplitudeJitter", d.amplitudeJitter));
+  setFreeze(input.get<bool>("freeze", false));
 
   // A preset also implies its own tuned wet level - BusEffect::loadParameters()
   // above already applied "wet", but using this class's flat kDefaultWet
@@ -202,7 +202,7 @@ GranularCloud::loadParameters(const ParameterSource & input) {
   // preset - BusEffect's own generic wet handling has no notion of presets
   // to diff against instead - harmless: reloading that XML reproduces the
   // identical sound either way.)
-  setWetLevel(input.getFloat("wet", d.wet));
+  setWetLevel(input.get<float>("wet", d.wet));
 }
 
 void

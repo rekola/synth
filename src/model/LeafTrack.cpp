@@ -25,16 +25,16 @@ void
 LeafTrack::loadParameters(const ParameterSource & input) {
   Track::loadParameters(input);
 
-  setSolo(input.getBool("solo"));
-  setMuted(input.getBool("mute"));
-  setAzimuth(input.getFloat("azimuth"));
-  setDistance(input.getFloat("distance"));
-  setElevation(input.getFloat("elevation"));
-  setExtent(input.getFloat("extent", -1.0f));
-  sends_.a = dbToLinear(input.getFloat("sendA", -100.0f));
-  sends_.b = dbToLinear(input.getFloat("sendB", -100.0f));
-  sends_.main = dbToLinear(input.getFloat("sendMain", 0.0f));
-  setMinNoteColumns(input.getInt("noteColumns", 1));
+  setSolo(input.get<bool>("solo"));
+  setMuted(input.get<bool>("mute"));
+  setAzimuth(input.get<float>("azimuth"));
+  setDistance(input.get<float>("distance"));
+  setElevation(input.get<float>("elevation"));
+  setExtent(input.get<float>("extent", -1.0f));
+  sends_.a = dbToLinear(input.get<float>("sendA", -100.0f));
+  sends_.b = dbToLinear(input.get<float>("sendB", -100.0f));
+  sends_.main = dbToLinear(input.get<float>("sendMain", 0.0f));
+  setMinNoteColumns(input.get<int>("noteColumns", 1));
 }
 
 void

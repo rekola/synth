@@ -324,7 +324,7 @@ TEST(fdn_reverb_preset_alone_round_trips_without_explicit_numeric_attributes) {
   MemoryParameterSource output;
   reverb.storeParameters(output);
 
-  CHECK(output.getText("preset", "") == "plate");
+  CHECK(output.get<std::string>("preset", "") == "plate");
   CHECK(!output.has("size"));
   CHECK(!output.has("decay"));
   CHECK(!output.has("damping"));
@@ -351,8 +351,8 @@ TEST(fdn_reverb_preset_plus_override_round_trips_both) {
   MemoryParameterSource output;
   reverb.storeParameters(output);
 
-  CHECK(output.getText("preset", "") == "room");
-  CHECK_NEAR(output.getFloat("decay", -1.0f), 1.1f, 0.001f);
+  CHECK(output.get<std::string>("preset", "") == "room");
+  CHECK_NEAR(output.get<float>("decay", -1.0f), 1.1f, 0.001f);
   CHECK(!output.has("size"));
   CHECK(!output.has("damping"));
 }

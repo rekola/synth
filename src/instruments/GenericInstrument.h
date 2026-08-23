@@ -21,7 +21,7 @@ class GenericInstrument : public Instrument {
 
   void loadParameters(const ParameterSource & input) {
     Instrument::loadParameters(input);
-    from_ = input.getText("from");
+    from_ = input.get<std::string>("from");
   }
 
   void storeParameters(ParameterSource & output) const {

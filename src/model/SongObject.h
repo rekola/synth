@@ -13,8 +13,8 @@ class SongObject {
   int getInternalId() const { return internal_id_; }
   
   virtual void loadParameters(const ParameterSource & input) {
-    id_ = input.getText("id");
-    setName(input.getText("name"));
+    id_ = input.get<std::string>("id");
+    setName(input.get<std::string>("name"));
   }
 
   virtual void storeParameters(ParameterSource & output) const {

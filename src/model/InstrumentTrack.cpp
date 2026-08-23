@@ -15,7 +15,7 @@ void
 InstrumentTrack::loadParameters(const ParameterSource & input) {
   LeafTrack::loadParameters(input);
 
-  setInstrumentId(input.getInt("instrument"));
+  setInstrumentId(input.get<int>("instrument"));
 }
 
 void

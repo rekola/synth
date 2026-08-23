@@ -98,9 +98,9 @@ void
 Tremolo::loadParameters(const ParameterSource & input) {
   Effect::loadParameters(input);
 
-  frequency_ = input.getFloat("frequency");
-  amplitude_ = input.getFloat("amplitude");
-  use_aftertouch_ = input.getBool("aftertouch");
+  frequency_ = input.get<float>("frequency");
+  amplitude_ = input.get<float>("amplitude");
+  use_aftertouch_ = input.get<bool>("aftertouch");
 }
 
 void

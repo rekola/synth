@@ -4,8 +4,8 @@
 void
 BusEffect::loadParameters(const ParameterSource & input) {
   SongObject::loadParameters(input);
-  setWetLevel(input.getFloat("wet", default_wet_level_));
-  setChainSendLevel(input.getFloat("chainSend", default_chain_send_level_));
+  setWetLevel(input.get<float>("wet", default_wet_level_));
+  setChainSendLevel(input.get<float>("chainSend", default_chain_send_level_));
 }
 
 void

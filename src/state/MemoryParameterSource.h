@@ -26,18 +26,21 @@ class MemoryParameterSource : public ParameterSource {
 
   bool has(const std::string & name) const override { return values_.find(name) != values_.end(); }
 
-  int getInt(const std::string & name, int default_value = 0) const override {
+ protected:
+  int getIntImpl(const std::string & name, int default_value) const override {
     auto it = values_.find(name);
     return it != values_.end() ? atoi(it->second.c_str()) : default_value;
   }
-  std::string getText(const std::string & name, const std::string & default_value) const override {
+  std::string getTextImpl(const std::string & name, const std::string & default_value) const override {
     auto it = values_.find(name);
     return it != values_.end() ? it->second : default_value;
   }
-  float getFloat(const std::string & name, float default_value = 0) const override {
+  float getFloatImpl(const std::string & name, float default_value) const override {
     auto it = values_.find(name);
     return it != values_.end() ? strtof(it->second.c_str(), nullptr) : default_value;
   }
+
+ public:
 
   // Nothing was ever set() on this instance - used to detect a fully
   // default-valued SongObject (deviation-only storeParameters() writes

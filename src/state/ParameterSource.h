@@ -4,15 +4,12 @@
 #include <cmath>
 #include <cstdlib>
 #include <string>
-#include <memory>
-#include <unordered_map>
 
 class ParameterSource {
  public:
   ParameterSource() { }
-  ParameterSource(std::shared_ptr<std::unordered_map<std::string, int>> id_mapping) : id_mapping_(std::move(id_mapping)) { }
   virtual ~ParameterSource() { }
-  
+
   virtual void set(const std::string & name, int value) = 0;
   virtual void set(const std::string & name, float value) = 0;
   virtual void set(const std::string & name, const std::string & value) = 0;
@@ -35,33 +32,38 @@ class ParameterSource {
   }
 
   virtual bool has(const std::string & name) const = 0;
-  virtual int getInt(const std::string & name, int default_value = 0) const = 0;
-  virtual std::string getText(const std::string & name, const std::string & default_value) const = 0;
-  virtual float getFloat(const std::string & name, float default_value = 0) const = 0;
-  
-  virtual bool getBool(const std::string & name, bool default_value = false) const {
-    auto s = getText(name);
-    if (s == "1" || s == "yes" || s == "true") return true;
-    else if (s == "0" || s == "no" || s == "false") return false;
-    else {
-      return default_value;
-    }
-  }
 
-  std::string getText(const std::string & name) const { return getText(name, ""); }
+  // Single typed accessor, replacing the old per-type getInt()/getFloat()/
+  // getText()/getBool() quartet - specialized below for int/float/
+  // std::string/bool, the only types anything in this codebase stores.
+  // int/float/std::string forward straight to the per-type virtuals a
+  // subclass implements (getIntImpl()/getFloatImpl()/getTextImpl()); bool
+  // has no virtual of its own, it's derived from the text form the same
+  // way getBool() always was. An unspecialized T fails to link rather than
+  // silently doing the wrong thing.
+  template <typename T> T get(const std::string & name, T default_value = T()) const;
 
-  int getInternalId(const std::string & name) {
-    auto id = getText(name);
-    if (!id.empty()) {
-      auto it = id_mapping_->find(id);
-      if (it != id_mapping_->end()) return it->second;
-    }
-    return 0;
-  }
-
-private:
-  std::shared_ptr<std::unordered_map<std::string, int>> id_mapping_;
+ protected:
+  virtual int getIntImpl(const std::string & name, int default_value) const = 0;
+  virtual float getFloatImpl(const std::string & name, float default_value) const = 0;
+  virtual std::string getTextImpl(const std::string & name, const std::string & default_value) const = 0;
 };
+
+template <> inline int ParameterSource::get<int>(const std::string & name, int default_value) const {
+  return getIntImpl(name, default_value);
+}
+template <> inline float ParameterSource::get<float>(const std::string & name, float default_value) const {
+  return getFloatImpl(name, default_value);
+}
+template <> inline std::string ParameterSource::get<std::string>(const std::string & name, std::string default_value) const {
+  return getTextImpl(name, default_value);
+}
+template <> inline bool ParameterSource::get<bool>(const std::string & name, bool default_value) const {
+  auto s = get<std::string>(name);
+  if (s == "1" || s == "yes" || s == "true") return true;
+  else if (s == "0" || s == "no" || s == "false") return false;
+  else return default_value;
+}
 
 // Accepts either a plain decimal ("0.1875") or a fraction ("3/16") - both
 // spellings of the same unit, the fraction form purely for hand-edited
