@@ -115,13 +115,6 @@ static inline long long now() {
   }
 }
 
-// See showReader()'s own comment on why this exists: an explicitly-sized
-// reader (as opposed to StatusLine's default "rest of the plane" M-x
-// minibuffer) always gets created at least this wide, regardless of the
-// caller's own on-screen slot, so ncreader_contents() never truncates
-// what it reports just because the visible field itself is narrower.
-constexpr unsigned kReaderMinCols = 200;
-
 class TerminalPlane : public UIPlane {
 public:
   TerminalPlane(std::shared_ptr<Controller> & _controller, Plane * _plane, bool _owner = true) : UIPlane(_controller), plane(_plane), owner(_owner) {
@@ -262,23 +255,25 @@ public:
 	reader_cols = static_cast<unsigned int>(plane_cols) > prompt_width ?
 	  static_cast<unsigned int>(plane_cols) - prompt_width : 1u;
       } else {
-	// Widened past the caller's own requested on-screen width (a
-	// deliberately narrow slot - PatternEditor's annotation/track-name
-	// fields, unlike StatusLine's M-x, which already gets the rest of
-	// the plane above): ncreader_contents() (src/lib/reader.c) reads
-	// back from this exact plane, not the wider offscreen buffer
-	// HORSCROLL scrolls within, so once typed text exceeds this
-	// plane's own width, whatever's scrolled out of view is gone from
-	// what ncreader_contents() can ever report - confirmed via a
-	// standalone reproduction against the real library - not merely
-	// hidden, genuinely unrecoverable at commit time. kReaderMinCols
-	// is comfortably past any realistic track name/annotation length;
-	// the visual cost is a typed value that temporarily overlaps
-	// whatever's to its right on screen once it outgrows the caller's
-	// own narrower slot, which self-resolves the moment it's
-	// committed and the field's own normal (correctly width-limited)
-	// rendering takes back over.
-	reader_cols = std::max(cols > 0 ? static_cast<unsigned int>(cols) : 1u, kReaderMinCols);
+	// NOT widened past the caller's own requested on-screen width,
+	// despite ncreader_contents() (src/lib/reader.c) reading back from
+	// this exact plane rather than the wider offscreen buffer
+	// HORSCROLL scrolls within - meaning typed text that outgrows this
+	// plane's own width is genuinely unrecoverable through that call
+	// (confirmed via a standalone reproduction against the real
+	// library) - a first attempt at widening this plane to work around
+	// that regressed much worse: every ncreader_redraw() (i.e. every
+	// keystroke, not just this call) recopies its *entire* width from
+	// the offscreen textarea, so any column beyond what's actually
+	// been typed so far gets overwritten with blank cells on every
+	// redraw - widening this plane past the caller's own narrow slot
+	// meant every keystroke re-blanked everything to its right (other
+	// tracks' own headings, Mute/Solo, ...), not just once at open
+	// time the way showReader()'s own one-time erase above did. Left
+	// at the caller's own width; the truncation above is a known,
+	// accepted limitation until a real fix (e.g. tracking typed
+	// content independently of ncreader_contents()) is worth the cost.
+	reader_cols = cols > 0 ? static_cast<unsigned int>(cols) : 1u;
       }
 
       ncplane_options opts = {
