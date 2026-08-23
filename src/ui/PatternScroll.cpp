@@ -92,15 +92,28 @@ computeScrollPosition(const GridPosition & current_scroll, int new_row,
   // (matching the old track-level "snap left" case) rather than something
   // the loop could ever walk back to on its own. Otherwise keep today's
   // anchor/column as the starting point to grow from - including,
-  // symmetrically, snapping the column back left when the cursor's own
-  // group has moved left of it (the loop below only ever grows right).
+  // symmetrically, snapping the column back to 0 (not just group_lo) when
+  // the cursor's own group has moved left of it: a move is already
+  // unavoidable here (the group isn't fully visible under today's column
+  // either way), so this is free to prefer showing the *whole* track (its
+  // own heading/Mute-Solo/every leading column - see renderHeading()'s
+  // own use of this same .col) rather than the bare minimum - the growth
+  // loop below re-derives whatever's actually needed regardless of
+  // whether it starts at 0 or group_lo, converging on the same fixed
+  // point either way (its own stopping condition depends only on the
+  // target range and cols, not on where it started), so this can only
+  // ever *reveal more* of the track, never less, compared to jumping
+  // straight to group_lo. Never triggers a move that wasn't already
+  // going to happen (see tests/PatternScrollTests.cpp's own
+  // scroll_never_moves_while_the_cursor_is_already_visible) - it only
+  // changes *where* an unavoidable move lands.
   if (cursor_track < current_scroll.track) {
     new_scroll.track = cursor_track;
     new_scroll.col = 0;
   } else {
     new_scroll.track = current_scroll.track;
     new_scroll.col = current_scroll.col;
-    if (new_scroll.track == cursor_track && group_lo < new_scroll.col) new_scroll.col = group_lo;
+    if (new_scroll.track == cursor_track && group_lo < new_scroll.col) new_scroll.col = 0;
   }
 
   // Grows the window's left edge rightward - one column at a time, never

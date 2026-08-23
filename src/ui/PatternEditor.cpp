@@ -674,17 +674,56 @@ PatternEditor::startAnnotationEdit() {
 void
 PatternEditor::startTrackNameEdit() {
   if (getPlane().readerActive()) return;
-  // No name field to edit at all under the cursor's current column (an
-  // Effect's own title bar, or no render has happened yet) - see
-  // renderHeading()'s own caching comment.
-  if (track_name_screen_col_ < 0 || track_name_screen_width_ <= 0) return;
 
   auto & song = getController().getSong();
   auto track_ids = song.getRootTrackIds();
   if (current_cursor.track >= static_cast<int>(track_ids.size())) return;
+
+  // Prefer showing the *whole* track (heading included) for the reader,
+  // even if the cursor previously scrolled rightward into some of this
+  // same track's own note columns and never moved back since -
+  // computeScrollPosition() is a pure function of the cursor's *current*
+  // position (see PatternScroll.h), so asking it again with this track's
+  // own column reset to 0 as the trial starting point yields the
+  // objectively best-fitting column for right now, independent of
+  // whatever a wider past cursor position on this same track required.
+  // Only reached when the cursor's own track is already the scroll
+  // anchor (current_scroll_.track == current_cursor.track) - if some
+  // earlier track is still the anchor instead, the cursor's own track
+  // always renders from its own column 0 regardless (every track but
+  // the anchor does), so there's nothing to correct.
+  bool scroll_corrected = false;
+  if (current_scroll_.track == current_cursor.track && current_scroll_.col > 0) {
+    auto probe = current_scroll_;
+    probe.col = 0;
+    auto scroll_track_info = getTrackInformation(song, current_scroll_.row);
+    auto corrected = computeScrollPosition(probe, current_scroll_.row, current_cursor.track, current_cursor.col,
+					    track_ids, scroll_track_info, getDim().second);
+    if (corrected != current_scroll_) {
+      current_scroll_ = corrected;
+      scroll_corrected = true;
+    }
+  }
+
   auto track_id = getController().consumePendingCommandTrack(track_ids[static_cast<size_t>(current_cursor.track)]);
   auto track = song.getTrackByInternalId(track_id);
   if (!track) return;
+
+  // The scroll correction above only takes effect on screen once
+  // renderHeading() actually runs again under it - re-run it right here
+  // rather than waiting for the next regular render() pass, so
+  // track_name_screen_col_/track_name_screen_width_ (read just below)
+  // reflect *this* position instead of whatever the last regular render()
+  // pass cached under the old, pre-correction scroll.
+  if (scroll_corrected && last_styles_) {
+    auto all_track_info = getTrackInformation(song, current_scroll_.row);
+    renderHeading(*last_styles_, track_ids, all_track_info);
+  }
+
+  // No name field to edit at all under the cursor's current column (an
+  // Effect's own title bar, or no render has happened yet) - see
+  // renderHeading()'s own caching comment.
+  if (track_name_screen_col_ < 0 || track_name_screen_width_ <= 0) return;
 
   track_name_edit_track_id_ = track_id;
 
