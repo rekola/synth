@@ -274,18 +274,24 @@ class Controller {
   // PlaybackInfo::getPositionEditSeq() vs. this Controller's own
   // local_position_edit_seq_ (bumped once per moveEditPosition()/
   // setEditPosition() call, mirroring SongState::getPositionEditSeq(),
-  // bumped once per processed control event) - everything else in `info`
-  // (voice counts, is_playing, meters, ...) is always accepted as-is
-  // regardless, same as a plain setPlaybackInfo() would.
+  // which that same buffer's live SongState also bumps on every real
+  // per-row playback advance, not just on a seek) - everything else in
+  // `info` (voice counts, is_playing, meters, ...) is always accepted
+  // as-is regardless, same as a plain setPlaybackInfo() would.
   //
-  // local_position_edit_seq_ itself deliberately stays a single global
-  // counter, not per-buffer like playback_info/getPlaybackInfo() above:
-  // moveEditPosition()/setEditPosition() (and the SongState::
-  // getPositionEditSeq() counter they're compared against) only ever touch
-  // the active buffer anyway, so there's nothing to desync between buffers
-  // by keeping it global, and doing so is simpler than a map for a value
-  // that's only ever meaningfully compared against the one buffer that's
-  // active at read time.
+  // local_position_edit_seq_ is per-buffer, same swap-on-switch shape as
+  // playback_info/getPlaybackInfo() above (see saveActiveBufferState()'s
+  // own comment) - it has to track whichever buffer's own live SongState
+  // it's being compared against, and since Part B of the per-buffer
+  // editing/playback-state plan that's one independent SongState per
+  // buffer, each with its own getPositionEditSeq() counter starting fresh
+  // at 0. A single counter shared across every buffer would drift out of
+  // sync with whichever buffer is currently active - e.g. arrow-key
+  // navigation on one buffer bumping the counter past what a different,
+  // freshly-live buffer's own SongState has reached, making every real
+  // snapshot for that buffer look permanently stale until playback
+  // advanced enough rows to catch back up (confirmed: this is what made
+  // the playhead/info line stop updating after starting playback).
   void receivePlaybackSnapshot(const std::string & buffer_name, const PlaybackInfo & info);
 
   ChannelConfiguration getChannelConfiguration() const { return channel_config; }
@@ -568,19 +574,19 @@ class Controller {
   // itself.
   void renameActiveBuffer(const std::string & new_name, Version saved_version);
   // Saves the *currently* active buffer's own live playback_info/
-  // recording_track_id/pattern_selection_active_ into their map slots -
-  // a no-op before any buffer has ever been active, at startup. Called
-  // right *before* a caller (addBuffer()/switchToBuffer()/
-  // killActiveBuffer() below) reassigns active_buffer_name_ itself under
-  // song_mutex_ - kept as its own step rather than folded into a single
-  // "set the active buffer" method so it never needs to take that lock
-  // itself (these three scalars are UI-thread-only, untouched by the
-  // audio thread, so they don't need it - but calling in from inside a
-  // caller's own already-held lock_guard would deadlock on a plain,
-  // non-recursive std::mutex).
+  // recording_track_id/pattern_selection_active_/local_position_edit_seq_
+  // into their map slots - a no-op before any buffer has ever been
+  // active, at startup. Called right *before* a caller (addBuffer()/
+  // switchToBuffer()/killActiveBuffer() below) reassigns
+  // active_buffer_name_ itself under song_mutex_ - kept as its own step
+  // rather than folded into a single "set the active buffer" method so it
+  // never needs to take that lock itself (these four scalars are
+  // UI-thread-only, untouched by the audio thread, so they don't need it
+  // - but calling in from inside a caller's own already-held lock_guard
+  // would deadlock on a plain, non-recursive std::mutex).
   void saveActiveBufferState();
   // The other half of saveActiveBufferState(): loads `name`'s own map
-  // slot into the three live scalars - each defaults freshly the first
+  // slot into the four live scalars - each defaults freshly the first
   // time any given buffer name is switched to, via plain
   // std::map::operator[] auto-inserting a default-constructed value, so
   // there's no separate "is this a first visit" case to handle. Called
@@ -588,11 +594,12 @@ class Controller {
   // `name` (so `name` here is expected to equal it).
   void loadActiveBufferState(const std::string & name);
   // Drops `name`'s own playback_info/recording_track_id/
-  // pattern_selection_active_ map slot entirely - killActiveBuffer()'s own
-  // tail (nothing worth keeping for a buffer that's gone) and
-  // renameActiveBuffer()'s (the live scalars stay authoritative through a
-  // mere rename, untouched by save/loadActiveBufferState(); the *old*
-  // key's slot would just be stale dead weight otherwise).
+  // pattern_selection_active_/local_position_edit_seq_ map slot entirely -
+  // killActiveBuffer()'s own tail (nothing worth keeping for a buffer
+  // that's gone) and renameActiveBuffer()'s (the live scalars stay
+  // authoritative through a mere rename, untouched by save/
+  // loadActiveBufferState(); the *old* key's slot would just be stale
+  // dead weight otherwise).
   void dropBufferState(const std::string & name);
   // Keeps one "switch-to-buffer:<name>" CommandRegistry entry per songs_
   // key in sync with it - see refreshBufferCommands()'s own comment on
@@ -608,26 +615,30 @@ class Controller {
   std::shared_ptr<AudioBuffer> current_sample;
   InstrumentProvider instrument_provider;
   EventQueue ui_event_queue, playback_event_queue, visualization_queue;
-  // playback_info/recording_track_id/pattern_selection_active_ below are
-  // each a live mirror of whichever buffer is currently active; these
-  // three maps (mirroring last_saved_versions_' own shape, keyed the same
-  // way) hold every *other* open buffer's own saved copy. save/
-  // loadActiveBufferState() are the one place that swap between a live
-  // scalar and its map slot.
+  // playback_info/recording_track_id/pattern_selection_active_/
+  // local_position_edit_seq_ below are each a live mirror of whichever
+  // buffer is currently active; these four maps (mirroring
+  // last_saved_versions_' own shape, keyed the same way) hold every
+  // *other* open buffer's own saved copy. save/loadActiveBufferState() are
+  // the one place that swap between a live scalar and its map slot.
   std::map<std::string, PlaybackInfo> playback_infos_;
   std::map<std::string, int> recording_track_ids_;
   std::map<std::string, bool> pattern_selection_actives_;
+  std::map<std::string, int> local_position_edit_seqs_;
   PlaybackInfo playback_info;
   // How many position-editing control events moveEditPosition()/
-  // setEditPosition() have themselves pushed - compared against each
-  // incoming snapshot's own PlaybackInfo::getPositionEditSeq() by
-  // setPlaybackInfo() to detect a stale one. See that method's own
-  // comment. Deliberately global, not per-buffer like the three maps
-  // above - see receivePlaybackSnapshot()'s own comment for why.
+  // setEditPosition() have themselves pushed against the active buffer -
+  // compared against that buffer's own incoming snapshot
+  // PlaybackInfo::getPositionEditSeq() by receivePlaybackSnapshot() to
+  // detect a stale one. See that method's own comment. Per-buffer, same
+  // swap-on-switch shape as playback_info above (it has to track whatever
+  // buffer's own live SongState::getPositionEditSeq() it's paired
+  // against, and that's one independent counter per buffer since Part B
+  // of the per-buffer editing/playback-state plan).
   int local_position_edit_seq_ = 0;
   int recording_track_id = 0;
-  // See getGlobalOctave()'s own comment - deliberately global, not
-  // per-buffer, same as local_position_edit_seq_ above.
+  // See getGlobalOctave()'s own comment - deliberately global, unlike the
+  // per-buffer state above.
   int global_octave_ = 4;
   // Controller's own named commands ("save-song", ...) - sendCommand()
   // tries this first, then command_fallback_; commandCompletions() reads

@@ -217,6 +217,7 @@ Controller::saveActiveBufferState() {
   playback_infos_[active_buffer_name_] = playback_info;
   recording_track_ids_[active_buffer_name_] = recording_track_id;
   pattern_selection_actives_[active_buffer_name_] = pattern_selection_active_;
+  local_position_edit_seqs_[active_buffer_name_] = local_position_edit_seq_;
 }
 
 void
@@ -224,6 +225,7 @@ Controller::loadActiveBufferState(const string & name) {
   playback_info = playback_infos_[name];
   recording_track_id = recording_track_ids_[name];
   pattern_selection_active_ = pattern_selection_actives_[name];
+  local_position_edit_seq_ = local_position_edit_seqs_[name];
 }
 
 void
@@ -231,6 +233,7 @@ Controller::dropBufferState(const string & name) {
   playback_infos_.erase(name);
   recording_track_ids_.erase(name);
   pattern_selection_actives_.erase(name);
+  local_position_edit_seqs_.erase(name);
 }
 
 void

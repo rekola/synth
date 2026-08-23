@@ -174,3 +174,43 @@ TEST(a_pending_position_is_applied_once_the_buffer_actually_makes_sound) {
 
   CHECK(player.getLiveStatePosition(buffer_name) == 40);
 }
+
+// Regression: Controller's own per-buffer local_position_edit_seq_ counts
+// every moveEditPosition()/setEditPosition() call, one per
+// MOVE_POSITION/SET_POSITION event pushed - however many of those land
+// while the buffer is still stateless (ordinary cursor navigation before
+// ever pressing Play) must be reflected in the freshly-built SongState's
+// own getPositionEditSeq() too, or Controller::receivePlaybackSnapshot()
+// treats every real snapshot as stale relative to its own already-higher
+// counter and the displayed playhead/info line simply stops updating
+// once playback starts (confirmed - this used to always stamp exactly 1
+// regardless of how many navigation events actually preceded it).
+TEST(pending_position_edit_seq_reflects_every_navigation_event_before_first_sound) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto buffer_name = controller.getActiveBufferName();
+
+  auto & song = controller.getSong();
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+
+  Player player(config, &controller);
+
+  // Three navigation events before the buffer has ever made a sound -
+  // mirrors three moveEditPosition()/setEditPosition() calls, each
+  // bumping Controller's own local_position_edit_seq_ by one.
+  PlaybackControlEvent set_pos_1(PlaybackControlEvent::SET_POSITION, buffer_name, 10, 0);
+  PlaybackControlEvent set_pos_2(PlaybackControlEvent::SET_POSITION, buffer_name, 20, 0);
+  PlaybackControlEvent set_pos_3(PlaybackControlEvent::SET_POSITION, buffer_name, 40, 0);
+  player.handlePlaybackControlEvent(set_pos_1);
+  player.handlePlaybackControlEvent(set_pos_2);
+  player.handlePlaybackControlEvent(set_pos_3);
+  CHECK(player.getLiveStatePosition(buffer_name) == -1);
+
+  PlaybackControlEvent play_note(PlaybackControlEvent::PLAY_NOTE, buffer_name, track.getInternalId(), 0, 60, 100);
+  player.handlePlaybackControlEvent(play_note);
+
+  CHECK(player.getLiveStatePosition(buffer_name) == 40);
+  CHECK(player.getLiveStatePositionEditSeq(buffer_name) == 3);
+}

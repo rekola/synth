@@ -113,6 +113,41 @@ TEST(controller_per_buffer_state_survives_switching_away_and_back) {
   CHECK(controller.getPlaybackInfo().getRowIndex() == 9);
 }
 
+// Regression: receivePlaybackSnapshot()'s staleness check compares a
+// snapshot's PlaybackInfo::getPositionEditSeq() against Controller's own
+// local_position_edit_seq_ - per-buffer, same swap-on-switch shape as
+// playback_info itself (see Controller.h's own comment on why). Before
+// this was per-buffer, navigating one buffer ran its shared counter ahead
+// of a different, freshly-live buffer's own (always-starts-at-0)
+// SongState counter, so every real snapshot for that other buffer looked
+// permanently stale and its displayed position never updated.
+TEST(controller_position_edit_seq_does_not_leak_across_buffers) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+
+  auto buffer_a = controller.freshBufferName();
+  controller.switchToBuffer(buffer_a);
+  // Plenty of navigation on buffer_a, driving its own edit-seq counter
+  // well past what a brand-new buffer's live SongState would ever start
+  // at (see Player::stateFor()/setPositionWithEditSeq()).
+  for (int i = 0; i < 10; i++) controller.moveEditPosition(1);
+
+  auto buffer_b = controller.freshBufferName();
+  controller.switchToBuffer(buffer_b);
+
+  // A real Player-thread snapshot for buffer_b, as if its own live
+  // SongState had just been constructed and advanced one row - must be
+  // accepted as fresh, not folded back to buffer_b's (default, row 0)
+  // local mirror.
+  PlaybackInfo snapshot;
+  snapshot.setAbsolutePos(5);
+  snapshot.setRowIdx(5);
+  snapshot.setPositionEditSeq(1);
+  controller.receivePlaybackSnapshot(buffer_b, snapshot);
+
+  CHECK(controller.getPlaybackInfo().getRowIndex() == 5);
+}
+
 TEST(controller_disambiguates_buffers_sharing_a_basename) {
   // Emacs-style uniquify (Controller::getBufferDisplayName()): two open
   // buffers named "song.xml" in different directories must not display

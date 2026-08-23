@@ -424,6 +424,21 @@ class SongState : public TrackState {
     position_edit_seq_++;
   }
 
+  // Same as setPosition() above, but stamps getPositionEditSeq() with an
+  // exact externally-tracked value instead of merely incrementing by one -
+  // used by Player::stateFor() to seed a freshly constructed SongState
+  // with however many MOVE_POSITION/SET_POSITION control events already
+  // accumulated for this buffer before it had a SongState at all (see
+  // Player.h's pending_positions_ comment). A plain setPosition() there
+  // would always stamp exactly 1 regardless of that count, leaving this
+  // counter behind wherever Controller's own per-buffer edit counter
+  // already was.
+  void setPositionWithEditSeq(int absolute_row, int edit_seq) {
+    sample_pos_ = 0;
+    absolute_pos_ = absolute_row < 0 ? 0 : absolute_row;
+    position_edit_seq_ = edit_seq;
+  }
+
   // ZBxx (Command::isPatternBreak()) landing spot: row `dest_row` of the
   // pattern *after* whichever one `absolute_pos_` currently falls in -
   // used in place of movePosition(1) at the one place a row ever

@@ -69,13 +69,17 @@ Player::stateFor(const string & name, const Song & song) {
 
   // Row navigation while this buffer was still stateless (see the
   // MOVE_POSITION/SET_POSITION cases in handlePlaybackControlEvent()) left
-  // its target row parked here instead of forcing a SongState into
-  // existence just to remember it - apply it now that one genuinely
-  // exists, so a buffer that's never made a sound yet still starts
-  // playback from wherever the cursor was left, not row 0.
+  // its target row (and how many such events contributed to it) parked
+  // here instead of forcing a SongState into existence just to remember
+  // it - apply it now that one genuinely exists, so a buffer that's never
+  // made a sound yet still starts playback from wherever the cursor was
+  // left, not row 0, with its own getPositionEditSeq() already caught up
+  // to however many edits preceded it (see pending_positions_'s own
+  // comment on Player.h - plain setPosition() would instead always stamp
+  // exactly 1 regardless of that count).
   auto pending_it = pending_positions_.find(name);
   if (pending_it != pending_positions_.end()) {
-    state->setPosition(pending_it->second);
+    state->setPositionWithEditSeq(pending_it->second.row, pending_it->second.edit_seq);
     pending_positions_.erase(pending_it);
   }
 
@@ -160,7 +164,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	base = it->second->getAbsolutePosition();
       } else {
 	auto pending_it = pending_positions_.find(ev.getBufferName());
-	base = pending_it != pending_positions_.end() ? pending_it->second : 0;
+	base = pending_it != pending_positions_.end() ? pending_it->second.row : 0;
       }
 
       // Mirrors Controller::moveEditPosition()/setEditPosition()'s own
@@ -177,8 +181,15 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	(ev.getParameter2() ? song.clampRowToCurrentPattern(base, base + ev.getParameter1()) : base + ev.getParameter1()) :
 	(ev.getParameter2() ? song.clampRowToCurrentPattern(base, ev.getParameter1()) : ev.getParameter1());
 
-      if (it != live_states_.end()) it->second->setPosition(new_pos);
-      else pending_positions_[ev.getBufferName()] = new_pos;
+      if (it != live_states_.end()) {
+	it->second->setPosition(new_pos);
+      } else {
+	// edit_seq counts this event too (see pending_positions_'s own
+	// comment on Player.h), not just the row itself.
+	auto & pending = pending_positions_[ev.getBufferName()];
+	pending.row = new_pos;
+	pending.edit_seq++;
+      }
     }
     return;
 

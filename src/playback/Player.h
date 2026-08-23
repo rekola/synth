@@ -29,6 +29,15 @@ class Player : public EventHandler {
     return it == live_states_.end() ? -1 : it->second->getAbsolutePosition();
   }
 
+  // Same shape as getLiveStatePosition() above, for that state's own
+  // getPositionEditSeq() - what Controller::receivePlaybackSnapshot()
+  // actually compares against its own per-buffer local_position_edit_seq_
+  // to detect a stale snapshot (see Controller.h's own comment).
+  int getLiveStatePositionEditSeq(const std::string & name) const {
+    auto it = live_states_.find(name);
+    return it == live_states_.end() ? -1 : it->second->getPositionEditSeq();
+  }
+
   void play(AudioAPI & audio);
   std::unique_ptr<PlaybackEvent> createPlaybackEvent(const std::string & buffer_name, const Song & song, const SongState & state);
 
@@ -54,9 +63,9 @@ private:
   // consistent across N separate flags (see the plan's own reasoning).
   std::string playing_buffer_name_;
 
-  // Absolute row targeted by a MOVE_POSITION/SET_POSITION event for a
-  // buffer that has no live_states_ entry yet - see
-  // handlePlaybackControlEvent()'s own comment on why those two event
+  // Target row (and how many MOVE_POSITION/SET_POSITION events have
+  // contributed to it) for a buffer that has no live_states_ entry yet -
+  // see handlePlaybackControlEvent()'s own comment on why those two event
   // types deliberately never call stateFor(). Row navigation while
   // stopped is not a sound-producing event, so it must not be what gives
   // a buffer its permanent, forever-rendered SongState - the per-buffer
@@ -66,8 +75,21 @@ private:
   // the real SongState the moment stateFor() actually constructs one for
   // this buffer (via some later, genuinely sound-producing event), so
   // "hit Play after moving the cursor around in a buffer that's never
-  // made a sound yet" still starts from the right row.
-  std::unordered_map<std::string, int> pending_positions_;
+  // made a sound yet" still starts from the right row. `edit_seq` counts
+  // every such event while stateless, not just the latest one - stamped
+  // onto the freshly-constructed SongState's own getPositionEditSeq()
+  // (SongState::setPositionWithEditSeq(), not the plain setPosition() a
+  // live buffer's own row navigation uses) so it starts already
+  // reflecting every edit Controller's own per-buffer edit counter
+  // (Controller::local_position_edit_seq_) already knows about, instead
+  // of always resetting to 1 regardless of how many navigation events
+  // actually preceded the buffer's first sound - confirmed as a real
+  // regression (a buffer navigated many times before ever being played
+  // showed a frozen playhead/info line once playback started, since
+  // Controller's own edit counter had already run far ahead of the
+  // freshly-built SongState's).
+  struct PendingPosition { int row; int edit_seq; };
+  std::unordered_map<std::string, PendingPosition> pending_positions_;
 
   // Get-or-creates buffer `name`'s own live SongState against `song`,
   // constructing and initializing a fresh one the first time any event
