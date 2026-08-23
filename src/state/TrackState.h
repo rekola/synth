@@ -15,6 +15,7 @@
 #include <unordered_map>
 
 class Track;
+class InstrumentPool;
 class RenderContext;
 
 // Root of the persistent, per-block-rendered track tree - one TrackState
@@ -30,12 +31,12 @@ class TrackState : public TreeNode<TrackState> {
  public:
   explicit TrackState(const ChannelConfiguration & channel_config) : TreeNode(channel_config) { }
 
-  virtual AudioBuffer render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) {
+  virtual AudioBuffer render(int frames, const InstrumentPool & instruments, RenderContext & context) {
     return renderChildren(frames, instruments, context, getChannelConfiguration());
   }
 
 protected:
-  AudioBuffer renderChildren(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context, const ChannelConfiguration & accumulator_config) {
+  AudioBuffer renderChildren(int frames, const InstrumentPool & instruments, RenderContext & context, const ChannelConfiguration & accumulator_config) {
     std::vector<AudioBuffer> rendered;
     for (auto & [ id, child ] : getChildren()) {
       rendered.push_back(child->render(frames, instruments, context));

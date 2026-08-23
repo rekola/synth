@@ -240,7 +240,7 @@ ArpeggiatorState::triggerNextStep() {
   // Same extent-default resolution as InstrumentTrackState::render()'s own
   // pattern-playback note-on path and Player.cpp's live-note path -
   // position_.extent < 0 means "not authored on this track" (see
-  // InstrumentTrack::getExtent()), resolved to the instrument's own family
+  // LeafTrack::getExtent()), resolved to the instrument's own family
   // default here too.
   auto resolved_position = getPosition();
   if (resolved_position.extent < 0.0f) resolved_position.extent = instrument_->getDefaultExtent();
@@ -300,7 +300,7 @@ ArpeggiatorState::chordCollectWindowSamples() const {
 }
 
 AudioBuffer
-ArpeggiatorState::render(int frames, const vector<unique_ptr<Track> > & instruments, RenderContext & context) {
+ArpeggiatorState::render(int frames, const InstrumentPool & instruments, RenderContext & context) {
   // Cheap and unconditional so tempo stays current even while
   // stopped/auditioning (tempo is fixed for a song's whole lifetime today,
   // but this stays correct if that ever changes). Everything else - the

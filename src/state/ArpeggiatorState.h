@@ -8,12 +8,13 @@
 
 // The persistent per-track stepper behind a live-triggered (audition-mode
 // - see plans/arpeggiator.md) note on an Arpeggiator track. Inherits
-// InstrumentTrackState (mirroring DrumMachineTrackState's own reasoning -
-// see its doc comment) rather than bare TrackState: an arpeggiated note's
-// underlying voices still want the exact same voices_/addVoice()/
-// stopVoices()/clearFinishedVoices() bookkeeping any other InstrumentTrack
-// gets, they're just triggered on the stepper's own schedule instead of
-// directly at note-on. Unlike every other note-generating Track
+// InstrumentTrackState (mirroring DrumMachineTrack.cpp's own local
+// InstrumentTrackState subclass's reasoning - see its doc comment) rather
+// than bare TrackState: an arpeggiated note's underlying voices still want
+// the exact same voices_/addVoice()/stopVoices()/clearFinishedVoices()
+// bookkeeping any other InstrumentTrackState-backed track gets, they're
+// just triggered on the stepper's own schedule instead of directly at
+// note-on. Unlike every other note-generating Track
 // (NoteMultiplier.cpp is the closest sibling among *voice* generators),
 // which spawns all its children once, synchronously, at note-on, this is
 // genuinely stateful across many render() calls: it tracks the whole held
@@ -79,7 +80,7 @@ class ArpeggiatorState : public InstrumentTrackState {
   // needing the full instruments/RenderContext plumbing.
   void setBpm(float bpm) { bpm_ = bpm; }
 
-  AudioBuffer render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override;
+  AudioBuffer render(int frames, const InstrumentPool & instruments, RenderContext & context) override;
   AudioBuffer renderVoices(int frames) override;
 
   // Exposed (see setBpm()'s own reasoning) so a test can build an exact

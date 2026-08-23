@@ -3,8 +3,8 @@
 
 #include "../model/InstrumentTrack.h"
 
-// A track kind (like PercussionTrack/DrumMachineTrack - InstrumentTrack.h),
-// not an instrument-wrapping node: an <arpeggiatorTrack> plays whatever
+// A track kind (an InstrumentTrack, like a plain <track>), not an
+// instrument-wrapping node: an <arpeggiatorTrack> plays whatever
 // instrument its own (inherited) instrument_id_ points to, exactly like a
 // plain <track>, just stepped through a held chord instead of playing it
 // directly - see ArpeggiatorState.h and plans/arpeggiator.md.

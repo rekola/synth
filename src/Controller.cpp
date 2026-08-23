@@ -1,6 +1,7 @@
 #include "Controller.h"
 
 #include "model/Song.h"
+#include "model/LeafTrack.h"
 #include "model/InstrumentTrack.h"
 #include "playback/PlaybackControlEvent.h"
 
@@ -20,7 +21,7 @@ namespace {
 // Self-contained (not TreeNode::decibelsToGain(), only reachable from
 // TreeNode<Derived> subclasses - VoiceState/TrackState, neither of which
 // Controller is) - the same "each file keeps its own small dB helper"
-// convention model/InstrumentTrack.cpp's own dbToLinear() (and
+// convention model/LeafTrack.cpp's own dbToLinear() (and
 // effects/Compressor.cpp's db2lin(), dsp/TapeTransport.cpp's/
 // effects/TapeDegradation.cpp's own dbToLinear()) already use, including
 // the same -100dB "off" floor.
@@ -550,35 +551,36 @@ Controller::receivePlaybackSnapshot(const string & buffer_name, const PlaybackIn
 }
 
 // A plain dynamic_cast, not a TrackType enumeration - "is this track
-// usable as an InstrumentTrack" has exactly one answer (its actual C++
-// type), and enumerating TrackTypes here separately risked drifting out
-// of sync with it (SampleTrack becoming an InstrumentTrack - see
+// usable as a LeafTrack" (mute/solo/send/azimuth/note-columns - see
+// LeafTrack.h) has exactly one answer (its actual C++ type), and
+// enumerating TrackTypes here separately risked drifting out of sync with
+// it (SampleTrack becoming a leaf track in its own right - see
 // SampleTrack.h - is exactly the case that already bit this once).
-static InstrumentTrack *
-asInstrumentTrack(Track * track) {
-  return track ? dynamic_cast<InstrumentTrack *>(track) : nullptr;
+static LeafTrack *
+asLeafTrack(Track * track) {
+  return track ? dynamic_cast<LeafTrack *>(track) : nullptr;
 }
 
 bool
 Controller::toggleTrackMuted(int track_id) {
   auto song = getCurrentSong();
-  auto instrument_track = asInstrumentTrack(song->getTrackByInternalId(track_id));
-  if (!instrument_track) return false;
-  instrument_track->setMuted(!instrument_track->isMuted());
+  auto leaf_track = asLeafTrack(song->getTrackByInternalId(track_id));
+  if (!leaf_track) return false;
+  leaf_track->setMuted(!leaf_track->isMuted());
   song->incVersion();
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_MUTED, getActiveBufferName(), track_id, instrument_track->isMuted() ? 1 : 0));
-  return instrument_track->isMuted();
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_MUTED, getActiveBufferName(), track_id, leaf_track->isMuted() ? 1 : 0));
+  return leaf_track->isMuted();
 }
 
 bool
 Controller::toggleTrackSolo(int track_id) {
   auto song = getCurrentSong();
-  auto instrument_track = asInstrumentTrack(song->getTrackByInternalId(track_id));
-  if (!instrument_track) return false;
-  instrument_track->setSolo(!instrument_track->isSolo());
+  auto leaf_track = asLeafTrack(song->getTrackByInternalId(track_id));
+  if (!leaf_track) return false;
+  leaf_track->setSolo(!leaf_track->isSolo());
   song->incVersion();
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SOLO, getActiveBufferName(), track_id, instrument_track->isSolo() ? 1 : 0));
-  return instrument_track->isSolo();
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SOLO, getActiveBufferName(), track_id, leaf_track->isSolo() ? 1 : 0));
+  return leaf_track->isSolo();
 }
 
 bool
@@ -594,10 +596,10 @@ Controller::toggleTrackCollapsed(int track_id) {
 void
 Controller::setTrackSendA(int track_id, float value) {
   auto song = getCurrentSong();
-  auto instrument_track = asInstrumentTrack(song->getTrackByInternalId(track_id));
-  if (!instrument_track) return;
+  auto leaf_track = asLeafTrack(song->getTrackByInternalId(track_id));
+  if (!leaf_track) return;
   float linear = dbToLinear(value);
-  instrument_track->setSendA(linear);
+  leaf_track->setSendA(linear);
   song->incVersion();
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_A, getActiveBufferName(), track_id, static_cast<int>(linear * 1000.0f + 0.5f)));
 }
@@ -605,10 +607,10 @@ Controller::setTrackSendA(int track_id, float value) {
 void
 Controller::setTrackSendB(int track_id, float value) {
   auto song = getCurrentSong();
-  auto instrument_track = asInstrumentTrack(song->getTrackByInternalId(track_id));
-  if (!instrument_track) return;
+  auto leaf_track = asLeafTrack(song->getTrackByInternalId(track_id));
+  if (!leaf_track) return;
   float linear = dbToLinear(value);
-  instrument_track->setSendB(linear);
+  leaf_track->setSendB(linear);
   song->incVersion();
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_B, getActiveBufferName(), track_id, static_cast<int>(linear * 1000.0f + 0.5f)));
 }
@@ -616,10 +618,10 @@ Controller::setTrackSendB(int track_id, float value) {
 void
 Controller::setTrackSendMain(int track_id, float value) {
   auto song = getCurrentSong();
-  auto instrument_track = asInstrumentTrack(song->getTrackByInternalId(track_id));
-  if (!instrument_track) return;
+  auto leaf_track = asLeafTrack(song->getTrackByInternalId(track_id));
+  if (!leaf_track) return;
   float linear = dbToLinear(value);
-  instrument_track->setSendMain(linear);
+  leaf_track->setSendMain(linear);
   song->incVersion();
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_MAIN, getActiveBufferName(), track_id, static_cast<int>(linear * 1000.0f + 0.5f)));
 }
@@ -635,9 +637,9 @@ Controller::setBusEffectKind(int slot, BusEffectKind kind) {
 void
 Controller::setTrackAzimuth(int track_id, float value) {
   auto song = getCurrentSong();
-  auto instrument_track = asInstrumentTrack(song->getTrackByInternalId(track_id));
-  if (!instrument_track) return;
-  instrument_track->setAzimuth(value);
+  auto leaf_track = asLeafTrack(song->getTrackByInternalId(track_id));
+  if (!leaf_track) return;
+  leaf_track->setAzimuth(value);
   song->incVersion();
   // Tenths-of-a-degree precision (-1800..1800) - the same "float via a
   // fixed-point int parameter" convention setTrackSendA/B use, just a
@@ -648,18 +650,18 @@ Controller::setTrackAzimuth(int track_id, float value) {
 void
 Controller::addNoteColumn(int track_id) {
   auto song = getCurrentSong();
-  auto instrument_track = asInstrumentTrack(song->getTrackByInternalId(track_id));
-  if (!instrument_track) return;
-  instrument_track->setMinNoteColumns(instrument_track->getMinNoteColumns() + 1);
+  auto leaf_track = asLeafTrack(song->getTrackByInternalId(track_id));
+  if (!leaf_track) return;
+  leaf_track->setMinNoteColumns(leaf_track->getMinNoteColumns() + 1);
   song->incVersion();
 }
 
 void
 Controller::removeNoteColumn(int track_id) {
   auto song = getCurrentSong();
-  auto instrument_track = asInstrumentTrack(song->getTrackByInternalId(track_id));
-  if (!instrument_track) return;
-  instrument_track->setMinNoteColumns(instrument_track->getMinNoteColumns() - 1);
+  auto leaf_track = asLeafTrack(song->getTrackByInternalId(track_id));
+  if (!leaf_track) return;
+  leaf_track->setMinNoteColumns(leaf_track->getMinNoteColumns() - 1);
   song->incVersion();
 }
 

@@ -1,11 +1,43 @@
 #include "DrumMachineTrack.h"
 
-#include "../state/DrumMachineTrackState.h"
+#include "../state/InstrumentTrackState.h"
 #include "../instruments/DrumRankTable.h"
 
 #include <algorithm>
 
 using namespace std;
+
+namespace {
+
+// Runtime counterpart of DrumMachineTrack, local to this file - nothing
+// outside createState() below ever names it (Player.cpp's live-audition
+// path and InstrumentTrackState::render() both reach it only through the
+// base InstrumentTrackState pointer/reference they already have). Inherits
+// InstrumentTrackState rather than bare TrackState because a drum
+// machine's emitted notes need exactly the same retriggerVoices()/
+// chokeExclusiveClasses()/voices_ machinery a pattern-driven InstrumentTrack
+// already gets, reused verbatim rather than reimplementing choke/retrigger.
+// Otherwise empty for now: no step-driven note emission is wired in yet -
+// this class exists so DrumMachineTrack's createState()/createStateTree()
+// state-tree machinery is already exercised before that logic lands.
+//
+// getInstrumentSource() override mirrors PercussionTrack.cpp's own local
+// InstrumentTrackState subclass (a DrumMachineTrack has no instrument_id_/
+// pool index either - see DrumMachineTrack.h - every note plays through
+// the pool's one drum kit instead) - kept as its own small override rather
+// than sharing a base with that one, since a drum machine isn't a kind of
+// percussion track, it just happens to source its sound the same way.
+class DrumMachineTrackState : public InstrumentTrackState {
+public:
+  explicit DrumMachineTrackState(const ChannelConfiguration & channel_config, bool solo, bool muted, int track_id, const SphericalPosition & position, const SendLevels & sends)
+    : InstrumentTrackState(channel_config, solo, muted, track_id, -1, position, sends) { }
+
+  const Track * getInstrumentSource(const InstrumentPool & instruments) const override {
+    return instruments.getDefaultKitInstrument();
+  }
+};
+
+}
 
 void
 DrumMachineTrack::seedDefaultKit() {
@@ -21,8 +53,7 @@ DrumMachineTrack::seedDefaultKit() {
 
 unique_ptr<TrackState>
 DrumMachineTrack::createState(const ChannelConfiguration & config, const SongStructure & structure) const {
-  assert(getInstrumentId() >= 0);
-  return make_unique<DrumMachineTrackState>(config, isSolo(), isMuted(), getInternalId(), getInstrumentId(), getPosition(), getSends());
+  return make_unique<DrumMachineTrackState>(config, isSolo(), isMuted(), getInternalId(), getPosition(), getSends());
 }
 
 bool

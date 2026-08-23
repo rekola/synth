@@ -10,8 +10,8 @@
 #include "../model/SendLevels.h"
 #include "NoteOrigin.h"
 #include "../model/NoteCoordinate.h"
-#include "../model/Track.h" // noteOn() below calls Track::playNote()/getDefaultExtent() - needs the
-                    // complete type, not just TrackState.h's own forward declaration.
+#include "../model/InstrumentPool.h" // getInstrumentSource() below indexes into it directly - needs
+                    // the complete type, not just TrackState.h's own forward declaration.
 
 #include <algorithm>
 
@@ -20,7 +20,21 @@ public:
   explicit InstrumentTrackState(const ChannelConfiguration & channel_config, bool solo, bool muted, int track_id, int instrument_id, const SphericalPosition & position, const SendLevels & sends)
     : TrackState(channel_config), solo_(solo), muted_(muted), track_id_(track_id), instrument_id_(instrument_id), position_(position), sends_(sends) { }
 
-  AudioBuffer render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override {
+  // Which Track this state's notes should play through - resolved once per
+  // render()/live note-on call (Player.cpp's PLAY_NOTE/NOTE_PRESSURE
+  // handling calls this directly too, on whatever InstrumentPool it has in
+  // scope), not once per individual note - every note in one call
+  // currently shares one instrument. Default: this track's own
+  // instrument_id_ pool index. PercussionTrackState/DrumMachineTrackState
+  // (PercussionTrack.cpp/DrumMachineTrack.cpp, local to each) override
+  // this to ignore instrument_id_ entirely and return `instruments`'s own
+  // getDefaultKitInstrument() instead - see their own class comments for
+  // why they have no pool index of their own to resolve.
+  virtual const Track * getInstrumentSource(const InstrumentPool & instruments) const {
+    return instruments.getByIndex(instrument_id_);
+  }
+
+  AudioBuffer render(int frames, const InstrumentPool & instruments, RenderContext & context) override {
     clearFinishedVoices();
 
     // Render each chunk (processing note-on/off events as they come due)
@@ -30,8 +44,8 @@ public:
     // chunk is known, from what actually came back.
     std::vector<std::pair<int, AudioBuffer> > chunks;
 
-    if (instrument_id_ >= 0 && instrument_id_ < static_cast<int>(instruments.size())) {
-      auto & instrument = instruments[static_cast<size_t>(instrument_id_)];
+    auto instrument = getInstrumentSource(instruments);
+    if (instrument) {
       auto & pending_events = context.getPendingEvents(track_id_);
       auto & pending_azimuth = context.getPendingAzimuthTicks(track_id_);
 
@@ -188,7 +202,7 @@ public:
     retriggerVoices(column, note_value);
 
     // position_.extent < 0 means "not authored on this track" (see
-    // InstrumentTrack::getExtent()) - resolve it to the assigned
+    // LeafTrack::getExtent()) - resolve it to the assigned
     // instrument's own family default (Track::getDefaultExtent(), 0 for
     // anything without one) once, here, before the position ever reaches
     // playNote()/NoteMultiplier/SoundFontInstrument.

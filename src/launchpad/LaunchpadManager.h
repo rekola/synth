@@ -144,7 +144,7 @@ class LaunchpadManager {
   // at row 7 in even steps. Same static, stateless pair convention as
   // azimuthToRow/rowToAzimuth above: the pad-press handler and refreshLeds'
   // own bargraph readback (which only ever sees the linear gain
-  // InstrumentTrack::getSends() stores) both go through these, so a press
+  // LeafTrack::getSends() stores) both go through these, so a press
   // and its own LED redraw always agree.
   static float sendRowToDb(int row);
   static int sendLinearToRow(float linear);

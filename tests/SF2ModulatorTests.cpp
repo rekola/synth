@@ -458,8 +458,8 @@ TEST(sf2_instrument_track_state_reclaims_looping_multi_region_voice) {
   SoundFont sf(path);
   ChannelConfiguration config(44100);
 
-  std::vector<std::unique_ptr<Track> > instruments;
-  instruments.push_back(sf.createInstrument(0));
+  InstrumentPool instruments;
+  instruments.addInstrument(sf.createInstrument(0));
 
   InstrumentTrackState state(config, /*solo=*/false, /*muted=*/false, /*track_id=*/0, /*instrument_id=*/0,
                               SphericalPosition{}, SendLevels{});

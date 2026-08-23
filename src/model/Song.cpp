@@ -426,13 +426,20 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 
     auto instruments = song->FirstChildElement("instruments");
     if (instruments) {
+      instrument_pool_.loadParameters(XMLParameterSource(instruments));
       for (auto it = instruments->FirstChildElement(); it; it = it->NextSiblingElement() ) {
 	auto instrument = parseChildTrack(*it, provider);
 	if (instrument) {
 	  addInstrument(move(instrument));
-	}	
+	}
       }
     }
+    // Resolves the pool's own default drum kit (see InstrumentPool::
+    // prepare()'s own comment) - unconditional, not nested inside the
+    // `if (instruments)` above, so a song with no <instruments> element at
+    // all still gets one (defaults to "kit" - the same handling
+    // loadParameters() never having run leaves default_kit_ in).
+    instrument_pool_.prepare(provider);
 
     auto tracks = song->FirstChildElement("tracks");
     if (tracks) {
@@ -551,6 +558,8 @@ Song::save(const std::string & filename) const {
   storeBusConfig(*this, doc, root);
 
   auto instruments = doc.NewElement("instruments");
+  XMLParameterSource instruments_parameters(instruments);
+  instrument_pool_.storeParameters(instruments_parameters);
   root->InsertEndChild(instruments);
 
   auto tracks = doc.NewElement("tracks");

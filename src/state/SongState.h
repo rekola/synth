@@ -288,7 +288,7 @@ class SongState : public TrackState {
     }
 
     for (auto * track : track_snapshot) {
-      auto data = track->getState(*this, song_structure_).render(frames, song.getInstruments(), render_context_);
+      auto data = track->getState(*this, song_structure_).render(frames, song.getInstrumentPool(), render_context_);
       mixer.accumulate(data);
 
       if (auto * a = data.getChannel(Channel::AuxA)) {

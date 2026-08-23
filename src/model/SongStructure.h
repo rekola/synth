@@ -28,8 +28,8 @@ class Song;
 //   query its own ordinal (structure.getOrdinalFor(*this)) without needing
 //   a back-pointer to the Song it belongs to.
 // - A baseline VisibleTrackInfo (column shape - see getBaselineInfo()),
-//   generalized to every per-track Effect, not just the four leaf
-//   InstrumentTrack-ish TrackTypes fill_track_info() used to check.
+//   generalized to every per-track Effect, not just the four LeafTrack
+//   TrackTypes fill_track_info() used to check.
 //
 // A default-constructed instance is empty (every lookup misses) - not a
 // usable stand-in for a real one; every caller must construct/supply an
@@ -61,7 +61,7 @@ class SongStructure {
   std::vector<int> ordered_ids_;
   std::unordered_map<int, VisibleTrackInfo> baseline_info_;
   // Next value visit() hands out via VisibleTrackInfo::color_ordinal_ -
-  // counts only color-eligible (InstrumentTrack) tracks, so an
+  // counts only color-eligible (LeafTrack) tracks, so an
   // interleaved Effect/Group never "uses up" a slot between two of them
   // (see color_ordinal_'s own comment on why that matters). Construction-
   // only state, not read once SongStructure is built.

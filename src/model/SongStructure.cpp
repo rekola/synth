@@ -1,6 +1,6 @@
 #include "SongStructure.h"
 #include "Track.h"
-#include "InstrumentTrack.h"
+#include "LeafTrack.h"
 #include "Song.h"
 
 SongStructure::SongStructure(const Song & song) {
@@ -34,14 +34,14 @@ SongStructure::visit(const Track & track) {
   auto assign = [&](VisibleTrackInfo info) {
     auto id = track.getInternalId();
     // Whether `track` gets a color at all is decided right here, once,
-    // for every branch below that calls assign() - an InstrumentTrack
-    // (which by now also covers Sample, on top of the original
-    // InstrumentControl/PercussionControl/DrumMachine/Arpeggiator - see
-    // SampleTrack.h) gets the next sequential slot; anything else
-    // (Effect, Group) stays at VisibleTrackInfo::color_ordinal_'s own
-    // default of -1. See that field's own comment for why this must be
-    // its own counter, not ordinal_by_id_/ordered_ids_.size() below.
-    if (dynamic_cast<const InstrumentTrack *>(&track)) info.color_ordinal_ = next_color_ordinal_++;
+    // for every branch below that calls assign() - a LeafTrack (every
+    // addressable leaf track type - InstrumentControl/PercussionControl/
+    // DrumMachine/Sample/Arpeggiator - see LeafTrack.h) gets the next
+    // sequential slot; anything else (Effect, Group) stays at
+    // VisibleTrackInfo::color_ordinal_'s own default of -1. See that
+    // field's own comment for why this must be its own counter, not
+    // ordinal_by_id_/ordered_ids_.size() below.
+    if (dynamic_cast<const LeafTrack *>(&track)) info.color_ordinal_ = next_color_ordinal_++;
     ordinal_by_id_[id] = static_cast<int>(ordered_ids_.size());
     ordered_ids_.push_back(id);
     baseline_info_[id] = std::move(info);
@@ -49,13 +49,13 @@ SongStructure::visit(const Track & track) {
 
   if (track.getType() == TrackType::INSTRUMENT_CONTROL || track.getType() == TrackType::PERCUSSION_CONTROL) {
     VisibleTrackInfo info;
-    auto & instrument_track = dynamic_cast<const InstrumentTrack &>(track);
-    info.has_note_column_ = instrument_track.showNoteColumn();
-    info.num_velocity_columns_ = instrument_track.showVelocityColumn() ? 1 : 0;
-    info.has_delay_column_ = instrument_track.showDelayColumn();
-    info.has_effect_column_ = instrument_track.showEffectsColumn();
-    info.updateNumSubtracks(instrument_track.getMinNoteColumns());
-    info.collapsed_ = instrument_track.isCollapsed();
+    auto & leaf_track = dynamic_cast<const LeafTrack &>(track);
+    info.has_note_column_ = leaf_track.showNoteColumn();
+    info.num_velocity_columns_ = leaf_track.showVelocityColumn() ? 1 : 0;
+    info.has_delay_column_ = leaf_track.showDelayColumn();
+    info.has_effect_column_ = leaf_track.showEffectsColumn();
+    info.updateNumSubtracks(leaf_track.getMinNoteColumns());
+    info.collapsed_ = leaf_track.isCollapsed();
     assign(std::move(info));
   } else if (track.getType() == TrackType::DRUM_MACHINE || track.getType() == TrackType::SAMPLE) {
     // Single placeholder column - see fill_track_info()'s own comment on

@@ -166,9 +166,9 @@ public:
   // collapsed heading toggle lives on its ancestor-row box instead of
   // this level, so its own column needs no cell of its own to hold one.
   int collapsed_content_width_ = 1;
-  // Position among color-eligible tracks only (every InstrumentTrack -
+  // Position among color-eligible tracks only (every LeafTrack -
   // see SongStructure::visit(), which assigns this to any track that
-  // `dynamic_cast<const InstrumentTrack *>` succeeds on) in the order
+  // `dynamic_cast<const LeafTrack *>` succeeds on) in the order
   // they're visited; -1 for anything else (Effect, Group). What
   // getColor() above turns into an actual color; also doubles as "does
   // this track get rendered as a colored track with its own Mute/Solo"

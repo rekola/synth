@@ -3,6 +3,8 @@
 #include "../src/model/DrumMachineTrack.h"
 #include "../src/model/Song.h"
 #include "../src/instruments/InstrumentProvider.h"
+#include "../src/instruments/SoundFont.h"
+#include "Sf2Fixture.h"
 #include "../src/audio/OfflineRenderer.h"
 #include "../src/ambisonic/ChannelConfiguration.h"
 #include "../src/state/SongState.h"
@@ -400,6 +402,54 @@ float renderRowPeak(SongState & state, const Song & song, Mixer & mixer, int row
 constexpr float kAudiblePeak = 1e-3f;
 constexpr float kSilentPeak = 1e-4f;
 
+// A DrumMachineTrack (like PercussionTrack) has no per-track instrument_id_
+// any more - every note plays through the pool's one default kit
+// (InstrumentPool::getDefaultKitInstrument(), resolved from `provider` via
+// the song's <instruments from="..."> - see Song::open()). None of these
+// fixtures set that attribute, so it defaults to path "kit" - registering
+// a fast-decaying synthetic SF2 preset directly under that literal key
+// (registerPath(), same call InstrumentProvider::resolvePath() ends up
+// walking to) makes song.open() resolve it exactly the same way a real
+// kit.* SoundFont path would, without needing an actual GM font on disk.
+// SF2, not a plain Oscillator or an <envelope> wrapper: registerPath()
+// only accepts a shared_ptr<Instrument>, and only SoundFontInstrument (via
+// SoundFont::createInstrument()) gives volume-envelope decay without
+// needing an Effect wrapper (EnvelopeFilter is a Track, not an
+// Instrument - it can only ever be a *pool entry*, addressed by the old
+// per-track instrument_id_ this phase removed, never the pool's own
+// from=-resolved default kit). Needed only by the two tests below that
+// count audible rows over time (decay matters); every other fixture in
+// this file just checks whether a note fires at all, which doesn't depend
+// on how it decays.
+void registerFastDecayKit(InstrumentProvider & provider) {
+  using namespace sf2fixture;
+  // Timecents = 1200*log2(seconds) - GeneratorOverrideTests.cpp's own
+  // DecayVolEnv=2400.0f/"4s base decay time" data point confirms the
+  // scale (2^(2400/1200) = 4). ~1ms attack, ~5ms hold, ~5ms decay to
+  // silence, comfortably inside one row (row_samples at these fixtures'
+  // 120bpm tempo) - fast enough that a hit row is loud and every row after
+  // it is back below kSilentPeak, matching the original <envelope
+  // attack="0.001" hold="0.01" decay="0.02" sustain="0.0"> fixture this
+  // replaces.
+  std::vector<PresetSpec> presets = {
+    { "FastDecayKit", 0, {
+      GenSpec{ 34, -12000 }, // AttackVolEnv ~ 1ms
+      GenSpec{ 35, -9200 },  // HoldVolEnv ~ 5ms
+      GenSpec{ 36, -9200 },  // DecayVolEnv ~ 5ms
+      GenSpec{ 37, 1000 },   // SustainVolEnv ~ -100dB, effectively silent
+      GenSpec{ 38, -9200 },  // ReleaseVolEnv ~ 5ms - never actually reached (no note-off)
+    } },
+  };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "drum_machine_fast_decay_kit_fixture.sf2").string();
+  writeMinimalSf2(path, presets);
+  // SoundFont sf(path) itself need not outlive this call - the returned
+  // Instrument holds its own shared_ptr<SoundFontFile> (SoundFontInstrument's
+  // own ctor argument, SoundFont.cpp's createInstrument()), independent of
+  // the SoundFont wrapper object's own lifetime.
+  SoundFont sf(path);
+  provider.registerPath("kit", sf.createInstrument(0));
+}
+
 } // namespace
 
 TEST(drum_machine_track_seek_directly_to_a_later_repetition_still_triggers_the_right_hits) {
@@ -440,6 +490,7 @@ TEST(drum_machine_track_loop_truncates_at_the_end_of_a_short_pattern) {
   // 12; a would-be third repetition at row 20 never happens because the
   // pattern ends at row 19. Exactly 2 audible onsets, not 3.
   InstrumentProvider provider;
+  registerFastDecayKit(provider);
   Song song;
   CHECK(song.open(std::string(TESTS_FIXTURES_DIR) + "/drum_machine_track_20rows.xml", provider));
 
@@ -465,6 +516,7 @@ TEST(drum_machine_track_loop_phase_resets_at_each_pattern_boundary) {
   // it wrongly continued counting from the absolute row instead, the next
   // hit wouldn't land until absolute row 8.
   InstrumentProvider provider;
+  registerFastDecayKit(provider);
   Song song;
   CHECK(song.open(std::string(TESTS_FIXTURES_DIR) + "/drum_machine_two_patterns.xml", provider));
 

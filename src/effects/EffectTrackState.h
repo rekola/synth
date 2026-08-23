@@ -21,7 +21,7 @@ class EffectTrackState : public TrackState {
  public:
   explicit EffectTrackState(const ChannelConfiguration & channel_config) : TrackState(channel_config) { }
 
-  AudioBuffer render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override {
+  AudioBuffer render(int frames, const InstrumentPool & instruments, RenderContext & context) override {
     auto data = TrackState::render(frames, instruments, context);
     applyEffect(data);
     return data;

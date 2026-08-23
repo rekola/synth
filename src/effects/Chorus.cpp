@@ -68,7 +68,7 @@ public:
   ChorusTrackState(const ChannelConfiguration & channel_config, int voices, float rate, float delay, float depth, float mix)
     : EffectTrackState(channel_config), dsp_(channel_config, voices, rate, delay, depth, mix) { }
 
-  AudioBuffer render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override {
+  AudioBuffer render(int frames, const InstrumentPool & instruments, RenderContext & context) override {
     auto reduced_config = reduceForEffect(getChannelConfiguration());
     auto data = renderChildren(frames, instruments, context, reduced_config);
     applyEffect(data);

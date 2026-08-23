@@ -3,6 +3,7 @@
 
 #include "StatefulSongObject.h"
 #include "Track.h"
+#include "InstrumentPool.h"
 #include "Scene.h"
 #include "Version.h"
 #include "../bus/BusEffectRegistry.h"
@@ -151,12 +152,19 @@ class Song : public StatefulSongObject {
 
   Scene & addScene() { return addScene(Scene()); }
 
-  const std::vector<std::unique_ptr<Track> > & getInstruments() const { return instruments_; }
-  const Track & getInstrument(int i) const { return *(instruments_[static_cast<size_t>(i)]); }
+  const std::vector<std::unique_ptr<Track> > & getInstruments() const { return instrument_pool_.getInstruments(); }
+  const Track & getInstrument(int i) const { return instrument_pool_.getInstrument(i); }
   void addInstrument(std::unique_ptr<Track> i) {
-    instruments_.push_back(std::move(i));
+    instrument_pool_.addInstrument(std::move(i));
     incVersion();
   }
+
+  // The pool's own resolved default drum kit (InstrumentPool::
+  // getDefaultKitInstrument()) plus the indexed list above, bundled
+  // together the way every consumer that actually renders a note (as
+  // opposed to just listing/picking one, like getInstruments() above)
+  // needs both - see InstrumentPool.h's own class comment.
+  const InstrumentPool & getInstrumentPool() const { return instrument_pool_; }
 
   bool open(const std::string & filename, const InstrumentProvider & provider);
   void save(const std::string & filename) const;
@@ -273,7 +281,7 @@ private:
 
   Version version_;
 
-  std::vector<std::unique_ptr<Track> > instruments_;
+  InstrumentPool instrument_pool_;
   std::vector<std::unique_ptr<Track> > tracks_;
 
   // A track's own textual id (SongObject::getId()) is the only thing a

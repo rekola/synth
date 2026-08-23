@@ -8,6 +8,7 @@
 #include "../state/PlaybackInfo.h"
 #include "../playback/PlaybackControlEvent.h"
 #include "../model/Song.h"
+#include "../model/LeafTrack.h"
 #include "../model/InstrumentTrack.h"
 #include "../model/DrumMachineTrack.h"
 #include "../Controller.h"
@@ -304,7 +305,7 @@ namespace {
   // Self-contained (not TreeNode::gainToDecibels(), only reachable from
   // TreeNode<Derived> subclasses - VoiceState/TrackState, neither of which
   // LaunchpadManager is) - the same "each file keeps its own small dB
-  // helper" convention model/InstrumentTrack.cpp's own linearToDb() and
+  // helper" convention model/LeafTrack.cpp's own linearToDb() and
   // Controller.cpp's own dbToLinear() already use, including the same
   // -100dB "off" floor.
   float linearToDb(float linear) { return linear <= 0.00001f ? -100.0f : 20.0f * log10f(linear); }
@@ -469,7 +470,7 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id) {
   // Solo, Record Arm - Volume/Pan/SendA already lined up exactly with that
   // order at 89/79/69). 89/Volume is repurposed as the Send Main fader
   // mode - the same bargraph shape as Send A/Send B, just controlling how
-  // much of each track's own voices reach the main mix (InstrumentTrack::
+  // much of each track's own voices reach the main mix (LeafTrack::
   // getSendMain()) rather than the shared send bus. 97 (DRAW mode toggle)
   // is handled separately, in handleDrawToggleButton() - unlike these four,
   // it needs to see both press and release to distinguish a quick tap from
@@ -1433,11 +1434,11 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   for (int i = 0; i < 8 && i < num_tracks; i++) {
     auto track = song.getTrackByInternalId(track_ids[static_cast<size_t>(i)]);
     if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL || track->getType() == TrackType::DRUM_MACHINE)) {
-      auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
-      track_send_main[static_cast<size_t>(i)] = instrument_track.getSends().main;
-      track_send_a[static_cast<size_t>(i)] = instrument_track.getSends().a;
-      track_send_b[static_cast<size_t>(i)] = instrument_track.getSends().b;
-      track_azimuth[static_cast<size_t>(i)] = instrument_track.getAzimuth();
+      auto & leaf_track = dynamic_cast<const LeafTrack&>(*track);
+      track_send_main[static_cast<size_t>(i)] = leaf_track.getSends().main;
+      track_send_a[static_cast<size_t>(i)] = leaf_track.getSends().a;
+      track_send_b[static_cast<size_t>(i)] = leaf_track.getSends().b;
+      track_azimuth[static_cast<size_t>(i)] = leaf_track.getAzimuth();
     }
   }
 
@@ -1475,9 +1476,9 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
       key_val = song.getKey();
       if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL || track->getType() == TrackType::DRUM_MACHINE)) {
-        auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
-        muted = instrument_track.isMuted();
-        solo = instrument_track.isSolo();
+        auto & leaf_track = dynamic_cast<const LeafTrack&>(*track);
+        muted = leaf_track.isMuted();
+        solo = leaf_track.isSolo();
       }
       is_drum_machine = track && track->getType() == TrackType::DRUM_MACHINE;
       if (is_drum_machine) {

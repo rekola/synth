@@ -146,7 +146,7 @@ public:
   DistortionTrackState(const ChannelConfiguration & channel_config, DistortionType type, float param, float drymix, float drive)
     : EffectTrackState(channel_config), dsp_(type, param, drymix, drive) { }
 
-  AudioBuffer render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override {
+  AudioBuffer render(int frames, const InstrumentPool & instruments, RenderContext & context) override {
     auto reduced_config = reduceForEffect(getChannelConfiguration());
     auto data = renderChildren(frames, instruments, context, reduced_config);
     applyEffect(data);

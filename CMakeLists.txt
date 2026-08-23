@@ -64,7 +64,10 @@ add_library(synth_engine STATIC
 	src/instruments/SF2Modulator.cpp
 	src/model/Song.cpp
 	src/model/SongObject.cpp
+	src/model/LeafTrack.cpp
 	src/model/InstrumentTrack.cpp
+	src/model/PercussionTrack.cpp
+	src/model/InstrumentPool.cpp
 	src/model/SongStructure.cpp
 	third_party/tinyxml2/tinyxml2.cpp
 	src/effects/ResonantFilter.cpp

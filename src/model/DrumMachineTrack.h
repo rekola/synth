@@ -1,7 +1,7 @@
 #ifndef _DRUMMACHINETRACK_H_
 #define _DRUMMACHINETRACK_H_
 
-#include "InstrumentTrack.h"
+#include "LeafTrack.h"
 
 #include <cstdint>
 #include <string>
@@ -24,9 +24,9 @@
 // removeLane() are the only way to change the lane list, so the lane list
 // and that lane's step data always change together (see their own
 // comments) - no separate commit step to get out of sync.
-class DrumMachineTrack : public InstrumentTrack {
+class DrumMachineTrack : public LeafTrack {
 public:
-  DrumMachineTrack() : InstrumentTrack(TrackType::DRUM_MACHINE) { }
+  DrumMachineTrack() : LeafTrack(TrackType::DRUM_MACHINE) { }
 
   const char * getElementName() const override { return "drumMachineTrack"; }
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & config, const SongStructure & structure) const override;

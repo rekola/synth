@@ -8,15 +8,15 @@
 // kind of send is added, as happened once already going from 1 to 2).
 //
 // main: how much of the voice's own sound reaches the regular (dry,
-// positionally-encoded) ambisonic channels - InstrumentTrack::getSendMain(),
+// positionally-encoded) ambisonic channels - LeafTrack::getSendMain(),
 // 1.0 default (full signal, i.e. today's behavior unchanged). a/b: how much
-// additionally reaches the shared send bus's two slots - InstrumentTrack::
+// additionally reaches the shared send bus's two slots - LeafTrack::
 // getSendA()/getSendB(), 0.0 default (see bus/BusEffect.h). All three are
 // plain linear multipliers, read directly per sample in the audio callback
 // (InstrumentVoice.h) - a human edits them in dB (a perceptual/log scale is
 // far easier to dial a subtle send with than a linear fraction), but that
 // conversion happens only at the control-surface/file-format boundary
-// (InstrumentTrack::loadParameters()/storeParameters(),
+// (LeafTrack::loadParameters()/storeParameters(),
 // Controller::setTrackSendA()/setTrackSendB()/setTrackSendMain()) - never
 // here, and never per sample. All three are applied the same way, in the
 // same place, by the voice itself: see

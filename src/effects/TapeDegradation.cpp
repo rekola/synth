@@ -420,7 +420,7 @@ public:
   // reclaimed. See dsp/TapeTransport.h's own doc comment on
   // TapeTransportLifecycle.
 
-  AudioBuffer render(int frames, const std::vector<std::unique_ptr<Track> > & instruments, RenderContext & context) override {
+  AudioBuffer render(int frames, const InstrumentPool & instruments, RenderContext & context) override {
     auto reduced_config = reduceForEffect(getChannelConfiguration());
     auto raw = renderChildren(frames, instruments, context, reduced_config);
     bool had_real_audio = raw.hasChannel(Channel::Main);

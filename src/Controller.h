@@ -362,7 +362,7 @@ class Controller {
   // track_id to act on (whichever way is natural for that input source -
   // the shared on-screen cursor, or a Launchpad device's own assigned
   // track) and call these. Returns false (Send setters: no-op) if track_id
-  // doesn't name an existing InstrumentTrack/PercussionTrack. Each also
+  // doesn't name an existing LeafTrack. Each also
   // pushes the matching PlaybackControlEvent so the change actually reaches
   // the running SongState, not just the Track model - see
   // InstrumentTrackState's public setMuted/setSolo/setSendA/setSendB/
@@ -371,7 +371,7 @@ class Controller {
   bool toggleTrackSolo(int track_id);
 
   // Unlike the pair above, applies to any Track (Track::isCollapsed() is
-  // generic, not InstrumentTrack-only) and pushes no PlaybackControlEvent -
+  // generic, not LeafTrack-only) and pushes no PlaybackControlEvent -
   // purely a pattern-grid display toggle (VisibleTrackInfo::collapsed_),
   // never read by the running SongState. Returns the new collapsed state,
   // or false if track_id doesn't name an existing track.
@@ -379,8 +379,8 @@ class Controller {
 
   // value is in dB (a perceptual/log scale, easier to dial a subtle send
   // with than a linear fraction) - -100 or below is a hard "off", matching
-  // the same floor InstrumentTrack.cpp's XML load/save uses. Converted to
-  // the linear multiplier InstrumentTrack/SendLevels.h actually store right
+  // the same floor LeafTrack.cpp's XML load/save uses. Converted to
+  // the linear multiplier LeafTrack/SendLevels.h actually store right
   // here, before either the model or the PlaybackControlEvent ever see it.
   void setTrackSendA(int track_id, float value);
   void setTrackSendB(int track_id, float value);
@@ -389,7 +389,7 @@ class Controller {
 
   // Note columns (chord/polyphony width, VisibleTrackInfo::num_subtracks_)
   // are otherwise purely derived from actual note data (see Pattern::
-  // getTrackInformation()) - these two adjust InstrumentTrack's own
+  // getTrackInformation()) - these two adjust LeafTrack's own
   // minNoteColumns floor that derivation also takes the max against, a
   // Renoise-style manual override so an empty column can be added ahead of
   // typing into it. No PlaybackControlEvent (unlike the setters above):
@@ -403,7 +403,7 @@ class Controller {
   // as toggleTrackMuted()/setTrackSendA() above - pushes the matching
   // PlaybackControlEvent so an already-running SongState's own live
   // SendBusProcessor slot is swapped too, not just the Track model: unlike
-  // those, this needs no InstrumentTrack resolution and always applies.
+  // those, this needs no LeafTrack resolution and always applies.
   void setBusEffectKind(int slot, BusEffectKind kind);
 
   // Single, shared home for the whole-row-replace sweep a realtime

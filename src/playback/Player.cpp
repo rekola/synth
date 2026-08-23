@@ -3,7 +3,6 @@
 #include "../Controller.h"
 #include "../util/Logger.h"
 #include "../instruments/Tuner.h"
-#include "../model/InstrumentTrack.h"
 
 #include "LogEvent.h"
 #include "PlaybackEvent.h"
@@ -222,21 +221,27 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 		    track->getType() == TrackType::PERCUSSION_CONTROL ||
 		    track->getType() == TrackType::DRUM_MACHINE
 		    )) {
-	auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
+	auto track_state = dynamic_cast<InstrumentTrackState*>(state.getChildByInternalId(track->getInternalId()));
 
-	if (instrument_track.getInstrumentId() >= 0 && instrument_track.getInstrumentId() < static_cast<int>(song.getInstruments().size())) {
-	  auto & instrument = song.getInstrument(instrument_track.getInstrumentId());
-	  auto track_state = dynamic_cast<InstrumentTrackState*>(state.getChildByInternalId(instrument_track.getInternalId()));
+	if (track_state) {
+	  // getInstrumentSource() is the same per-render()-call resolution
+	  // InstrumentTrackState::render() uses for pattern-driven notes -
+	  // an InstrumentTrack's own instrument_id_ pool index, or (for
+	  // PercussionTrackState/DrumMachineTrackState) the pool's default
+	  // kit - so a live-triggered note (Kitty-keyboard entry, Launchpad
+	  // NOTES/step-grid presses) resolves its instrument exactly the
+	  // same way a pattern note would.
+	  auto instrument = track_state->getInstrumentSource(song.getInstrumentPool());
 
-	  if (track_state) {
+	  if (instrument) {
 	    // InstrumentTrackState::noteOn()/notePressure() (PLAY_NOTE/
 	    // NOTE_PRESSURE handling, shared by Kitty-keyboard note entry and
 	    // Launchpad NOTES/step-grid presses) are virtual - a plain track
 	    // spawns/updates a voice directly, an ArpeggiatorState
 	    // (Arpeggiator.h's own track kind, reached the same way any other
 	    // InstrumentTrackState is) routes them into its stepper's held
-	    // chord instead (plans/arpeggiator.md) - so this call site never
-	    // needs to know which kind of track it's talking to.
+	    // chord instead - so this call site never needs to know which
+	    // kind of track it's talking to.
 	    if (ev.getType() == PlaybackControlEvent::PLAY_NOTE) {
 	      auto tuning = (track->getType() == TrackType::PERCUSSION_CONTROL || track->getType() == TrackType::DRUM_MACHINE) ? Tuning::PERCUSSION : song.getTuning();
 	      Note note(midi_note, midi_velocity);
@@ -250,8 +255,8 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	      // real coordinate does (see Player.h's own comment on why this
 	      // counter's monotonic growth is fine here, unlike everywhere
 	      // else this migration cares about reproducibility).
-	      track_state->noteOn(column, instrument, frequency, note.getVelocityAsFloat(), note.getValue(), NoteOrigin::LIVE,
-				   NoteCoordinate(state.getSongStructure().getOrdinalFor(instrument_track), live_note_counter_++, column));
+	      track_state->noteOn(column, *instrument, frequency, note.getVelocityAsFloat(), note.getValue(), NoteOrigin::LIVE,
+				   NoteCoordinate(state.getSongStructure().getOrdinalFor(*track), live_note_counter_++, column));
 	    } else {
 	      track_state->notePressure(column, midi_velocity / 127.0f);
 	    }

@@ -6,6 +6,7 @@
 #include "StyleProvider.h"
 #include "../instruments/Tuner.h"
 #include "../instruments/Tuning.h"
+#include "../model/LeafTrack.h"
 #include "../model/InstrumentTrack.h"
 #include "../model/SampleTrack.h"
 #include "../model/DrumMachineTrack.h"
@@ -452,7 +453,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   });
 
   // Renoise-style manual note-column add/remove (see Controller::
-  // addNoteColumn/removeNoteColumn and InstrumentTrack::getMinNoteColumns) -
+  // addNoteColumn/removeNoteColumn and LeafTrack::getMinNoteColumns) -
   // todo.txt's own long-standing "add shortcut for add note column" idea.
   commands_.define("add-note-column", [this]() {
     auto & song = getController().getSong();
@@ -1208,8 +1209,12 @@ PatternEditor::offerInput(const InputEvent & input) {
       // risked terminal/WM interception - see TerminalUI::readInput()'s
       // own comment for why these two specifically need their own
       // escape-sequence recognizer to even arrive as a single key event.
+      // INSTRUMENT_CONTROL only - PercussionTrack/DrumMachineTrack have no
+      // instrument_id_ of their own to cycle any more (they play through
+      // the song's one pool-wide drum kit instead - see
+      // InstrumentPool::getDefaultKitInstrument()).
       auto track = song.getTrackByInternalId(track_ids[static_cast<size_t>(current_cursor.track)]);
-      if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL || track->getType() == TrackType::DRUM_MACHINE)) {
+      if (track && track->getType() == TrackType::INSTRUMENT_CONTROL) {
 	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
 	bool changed = false;
 	if (input.getId() == NCKEY_KP_DIVIDE && instrument_track.getInstrumentId() > 0) {
@@ -1775,12 +1780,12 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 
       if (track) {
 	if (level == 0) {
-	  // Whether `track` gets a color at all - an InstrumentTrack
+	  // Whether `track` gets a color at all - a LeafTrack
 	  // (VisibleTrackInfo::color_ordinal_ >= 0, assigned by SongStructure),
 	  // which today means every leaf-track type except Effect. The single
 	  // rule this whole branch uses to decide both coloring and whether to
 	  // render Mute/Solo - Effect is the only track type with no
-	  // InstrumentTrack in its ancestry, so the two questions ("does it
+	  // LeafTrack in its ancestry, so the two questions ("does it
 	  // get a color" and "does it have mute/solo") have always had the
 	  // same answer, and sharing one boolean keeps that from silently
 	  // drifting apart.
@@ -1822,23 +1827,32 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    // The display label is still type-specific (a raw sample/step
 	    // sequencer has nothing resembling an "instrument" to resolve),
 	    // but solo/mute themselves are read uniformly from whatever
-	    // InstrumentTrack this is - real state on every color-eligible
+	    // LeafTrack this is - real state on every color-eligible
 	    // track now, not just InstrumentControl/PercussionControl.
 	    string instrument_name;
 	    if (track->getType() == TrackType::SAMPLE) {
 	      instrument_name = "Sample";
-	    } else if (track->getType() == TrackType::DRUM_MACHINE) {
-	      instrument_name = "Drum Machine";
-	    } else if (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL) {
+	    } else if (track->getType() == TrackType::DRUM_MACHINE || track->getType() == TrackType::PERCUSSION_CONTROL) {
+	      // Same fixed, type-level label for both - neither has a
+	      // per-track instrument to name (they play through the pool's
+	      // one default kit - see InstrumentPool.h), and PercussionTrack's
+	      // own individual keys are meant to be overridable independently
+	      // of that kit later (not built yet), so even naming the kit here
+	      // would misleadingly imply a fixed 1:1 relationship. Dimmed
+	      // (below) for the same reason - a visual cue that, unlike every
+	      // other instrument_name here, this isn't something the track
+	      // has its own setting for.
+	      instrument_name = "(percussion)";
+	    } else if (track->getType() == TrackType::INSTRUMENT_CONTROL) {
 	      auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
 	      if (instrument_track.getInstrumentId() >= 0 && instrument_track.getInstrumentId() < static_cast<int>(instruments.size())) {
 		instrument_name = instruments[static_cast<size_t>(instrument_track.getInstrumentId())]->getDisplayName();
 	      }
 	    }
 	    bool is_solo = false, is_muted = false;
-	    if (auto instrument_track = dynamic_cast<const InstrumentTrack *>(track)) {
-	      is_solo = instrument_track->isSolo();
-	      is_muted = instrument_track->isMuted();
+	    if (auto leaf_track = dynamic_cast<const LeafTrack *>(track)) {
+	      is_solo = leaf_track->isSolo();
+	      is_muted = leaf_track->isMuted();
 	    }
 	    // An Effect's own column carries no label of its own - the
 	    // ancestor row above it already names it (spanning this column
@@ -1875,7 +1889,13 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    // afterward.
 	    draw_divider(heading_height - 2 - level, name_pos + text_width + (has_mute_solo ? 2 : 0), track, i);
 
-	    setFgColor(0xf0, 0xf0, 0xf0);
+	    // Half brightness for PercussionTrack/DrumMachineTrack's fixed
+	    // "(percussion)" label - not a real per-track instrument setting
+	    // (see above), so it reads as visibly less prominent than every
+	    // other track's own actual instrument name.
+	    bool is_fixed_percussion_label = track->getType() == TrackType::DRUM_MACHINE || track->getType() == TrackType::PERCUSSION_CONTROL;
+	    if (is_fixed_percussion_label) setFgColor(0x78, 0x78, 0x78);
+	    else setFgColor(0xf0, 0xf0, 0xf0);
 	    setBgColor(styles.window_bg_color);
 
 	    auto instrument_name_width = std::max(0, actual_width - 1);

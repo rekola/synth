@@ -19,7 +19,7 @@
 // degradation stays a genuine point source rather than collapsing to
 // center the way Chorus/Distortion deliberately do. Track-attached, the
 // position is this instance's own authored
-// azimuth_/elevation_/distance_/extent_, mirroring InstrumentTrack's own
+// azimuth_/elevation_/distance_/extent_, mirroring LeafTrack's own
 // position model. Voice-attached, the position is whatever playNote() was
 // actually given, captured via this class's own playNote() override below
 // - azimuth_/elevation_/distance_/extent_ are not read in that mode at

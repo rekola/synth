@@ -174,15 +174,19 @@ in completely different situations.
 
 ## Bank 128 — percussion kits
 
-A kit is one instrument carrying a whole keymapped GM percussion set, which matches the
-existing design where the entire kit lives on one track. Reached through the same
-`<instrument from="...">` mechanism as every pitched instrument, registered as ordinary
-taxonomy paths - nothing about walk-up crosses between `kit.` and the pitched tree by
-accident, since no `kit.*` path shares a dotted-prefix root with a pitched one. A dedicated
-`<instrumentMap>` element (a real, separate top-level pool, distinct from `<instrument>`) is
-a possible future direction if a custom, non-SoundFont-backed kit notation (mapping
-individual percussion keys to arbitrary instruments, e.g. an `<oscillator>` per key) is ever
-built - not needed for whole-kit GM loading, which is all this section covers today.
+A kit is one instrument carrying a whole keymapped GM percussion set. Registered under
+ordinary taxonomy paths exactly like every pitched instrument - nothing about walk-up
+crosses between `kit.` and the pitched tree by accident, since no `kit.*` path shares a
+dotted-prefix root with a pitched one - but reached differently: there's no per-track
+`instrument_id_` pool pick for a `PercussionTrack`/`DrumMachineTrack` (unlike a plain
+`<track>`'s own `<instrument from="...">` pool entry). Instead the whole song has exactly
+one kit, authored as a `from` attribute on the `<instruments>` pool container itself
+(`<instruments from="kit.jazz">`, resolved the same way any other `from=` is -
+`InstrumentProvider::resolvePath()`) - every percussion/drum-machine track in the song
+plays through it. Omitting the attribute defaults to path `kit` (below), which resolves to
+`kit.standard`; `from="none"` opts out entirely (silence). Per-key overrides - swapping what
+plays at one percussion symbol (e.g. `BD`) without replacing the whole kit - are deliberately
+not built yet; nothing about the shape above forecloses adding one later.
 
 Kit entries are keyed by synth's percussion symbols (`BD`, `SD`, …), which correspond 1:1
 to note numbers 35–81. These abbreviations are synth's own vocabulary, not a General MIDI

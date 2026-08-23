@@ -20,7 +20,7 @@ class ParameterSource {
   // Deviation-only convenience: writes only when value differs from
   // default_value (float compared with a fixed epsilon, matching the
   // tolerance every caller of this idiom already used ad hoc - see
-  // InstrumentTrack.cpp's sendA/sendB and, before this existed, the
+  // LeafTrack.cpp's sendA/sendB and, before this existed, the
   // bus/-effect XML deviation checks it replaces). Non-virtual - built
   // once here on top of the pure virtual 2-argument set() above, so no
   // subclass needs its own copy of the epsilon or the comparison.

@@ -46,7 +46,7 @@ class Track : public StatefulSongObject {
   virtual ChannelConfiguration getChildChannelConfiguration(const ChannelConfiguration & config) const { return config; }
 
   // The default physical half-width (meters) a track resolves to when its
-  // own InstrumentTrack::extent_ wasn't explicitly authored - see
+  // own LeafTrack::extent_ wasn't explicitly authored - see
   // SphericalPosition::extent's own doc comment. Default: delegate to the
   // first child, same "passthrough unless a leaf overrides it" shape as
   // getChildChannelConfiguration() above - covers every wrapper Track
