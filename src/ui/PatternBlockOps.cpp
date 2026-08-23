@@ -121,7 +121,14 @@ transposePatternBlockNotes(Scene & scene, int row_lo, int row_hi,
     if (notes.empty()) continue;
     auto hi = min(note_hi, static_cast<int>(notes.size()) - 1);
     for (int i = note_lo; i <= hi; i++) notes[static_cast<size_t>(i)].transpose(up ? 1 : -1);
+    // setNotes()'s vector<Note> move-assign into the unordered_map, fully
+    // inlined down from here, trips a known GCC false positive
+    // (-Wfree-nonheap-object misattributing the vector's heap buffer as a
+    // non-heap pointer) - not a real dangling-pointer bug.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfree-nonheap-object"
     scene.setNotes(row, track_id, notes);
+#pragma GCC diagnostic pop
   }
 }
 
