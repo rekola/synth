@@ -72,12 +72,24 @@ class InputEvent : public Event {
   // code for exactly where that fallback happens.
   enum class Kind { UNKNOWN, PRESS, REPEAT, RELEASE };
 
-  InputEvent(int id, int y, int x, bool alt, bool shift, bool ctrl, bool meta, Kind kind = Kind::UNKNOWN)
-    : id_(id), y_(y), x_(x), alt_(alt), shift_(shift), ctrl_(ctrl), meta_(meta), kind_(kind) { }
+  // true_case_id defaults to id itself - only TerminalUI::readInput()'s
+  // own dispatchRawKey ever passes a distinct value, for a plain letter
+  // key: id is unconditionally lowercased there (case-insensitive
+  // keybinding dispatch and note-entry both need that - see that
+  // lambda's own comment), which would otherwise make it impossible for
+  // an active reader (track name/annotation/M-x text entry, none of
+  // which care about keybindings or note-entry at all) to ever receive a
+  // genuine uppercase letter. getTrueCaseId() is what a reader is fed
+  // instead - see UIPlane::offerInput()'s own use of it.
+  InputEvent(int id, int y, int x, bool alt, bool shift, bool ctrl, bool meta, Kind kind = Kind::UNKNOWN,
+	     int true_case_id = -1)
+    : id_(id), true_case_id_(true_case_id == -1 ? id : true_case_id),
+      y_(y), x_(x), alt_(alt), shift_(shift), ctrl_(ctrl), meta_(meta), kind_(kind) { }
 
   void dispatch(EventHandler & evh) override { evh.handleInputEvent(*this); }
 
   int getId() const { return id_; }
+  int getTrueCaseId() const { return true_case_id_; }
   int getY() const { return y_; }
   int getX() const { return x_; }
   bool hasAlt() const { return alt_; }
@@ -234,7 +246,7 @@ class InputEvent : public Event {
   }
 
  private:
-  int id_, y_, x_;
+  int id_, true_case_id_, y_, x_;
   bool alt_, shift_, ctrl_, meta_;
   Kind kind_;
 };

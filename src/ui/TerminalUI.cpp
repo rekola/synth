@@ -56,14 +56,29 @@ static inline ncintype_e to_ncintype(InputEvent::Kind kind) {
   }
 }
 
-static inline ncinput to_ncinput(const InputEvent & input) {
-  ncinput ni = { .id = static_cast<uint32_t>(input.getId()), .y = input.getY(), .x = input.getX(), .utf8 = { 0, 0, 0, 0, 0 }, .alt = input.hasAlt(), .shift = input.hasShift(), .ctrl = input.hasCtrl(), .evtype = to_ncintype(input.getKind()), .modifiers = static_cast<uint32_t>((input.hasAlt() ? NCKEY_MOD_ALT : 0) | (input.hasCtrl() ? NCKEY_MOD_CTRL : 0) | (input.hasShift() ? NCKEY_MOD_SHIFT : 0) | (input.hasMeta() ? NCKEY_MOD_META : 0)), .ypx = -1, .xpx = -1 };
+// use_true_case is for an active reader (track name/annotation/M-x text
+// entry) only: TerminalUI::readInput()'s dispatchRawKey unconditionally
+// lowercases a plain letter's own id (needed for case-insensitive
+// keybinding dispatch and note-entry - see InputEvent's own comment on
+// getTrueCaseId()), so a menu/selector - which do want that normalized
+// form, for consistent mnemonic matching regardless of caps lock -
+// keep passing false (the default) here. A reader cares about neither;
+// it wants whatever was actually typed. id itself barely matters for a
+// reader either way (ncreader_offer_input() only compares it against
+// Backspace/arrow-key/synthesized ids, never a letter), but eff_text is
+// what its own plain-character insertion path actually reads character
+// content from (see reader.c's own ncreader_offer_input()) - true case
+// has to reach *that* field for a reader to ever see a real uppercase
+// letter.
+static inline ncinput to_ncinput(const InputEvent & input, bool use_true_case = false) {
+  auto case_id = use_true_case ? input.getTrueCaseId() : input.getId();
+  ncinput ni = { .id = static_cast<uint32_t>(case_id), .y = input.getY(), .x = input.getX(), .utf8 = { 0, 0, 0, 0, 0 }, .alt = input.hasAlt(), .shift = input.hasShift(), .ctrl = input.hasCtrl(), .evtype = to_ncintype(input.getKind()), .modifiers = static_cast<uint32_t>((input.hasAlt() ? NCKEY_MOD_ALT : 0) | (input.hasCtrl() ? NCKEY_MOD_CTRL : 0) | (input.hasShift() ? NCKEY_MOD_SHIFT : 0) | (input.hasMeta() ? NCKEY_MOD_META : 0)), .ypx = -1, .xpx = -1 };
   // eff_text was added in notcurses 3.0.10 - Ubuntu 24.04's packaged
   // 3.0.7 (what CI builds against) predates it, so this field can't be
   // set unconditionally; NCINPUT_MAX_EFF_TEXT_CODEPOINTS, defined right
   // next to it, doubles as its own feature-test macro.
 #ifdef NCINPUT_MAX_EFF_TEXT_CODEPOINTS
-  ni.eff_text[0] = static_cast<uint32_t>(input.getId());
+  ni.eff_text[0] = static_cast<uint32_t>(case_id);
 #endif
   return ni;
 }
@@ -99,6 +114,13 @@ static inline long long now() {
     return 0;
   }
 }
+
+// See showReader()'s own comment on why this exists: an explicitly-sized
+// reader (as opposed to StatusLine's default "rest of the plane" M-x
+// minibuffer) always gets created at least this wide, regardless of the
+// caller's own on-screen slot, so ncreader_contents() never truncates
+// what it reports just because the visible field itself is narrower.
+constexpr unsigned kReaderMinCols = 200;
 
 class TerminalPlane : public UIPlane {
 public:
@@ -240,7 +262,23 @@ public:
 	reader_cols = static_cast<unsigned int>(plane_cols) > prompt_width ?
 	  static_cast<unsigned int>(plane_cols) - prompt_width : 1u;
       } else {
-	reader_cols = cols > 0 ? static_cast<unsigned int>(cols) : 1u;
+	// Widened past the caller's own requested on-screen width (a
+	// deliberately narrow slot - PatternEditor's annotation/track-name
+	// fields, unlike StatusLine's M-x, which already gets the rest of
+	// the plane above): ncreader_contents() (src/lib/reader.c) reads
+	// back from this exact plane, not the wider offscreen buffer
+	// HORSCROLL scrolls within, so once typed text exceeds this
+	// plane's own width, whatever's scrolled out of view is gone from
+	// what ncreader_contents() can ever report - confirmed via a
+	// standalone reproduction against the real library - not merely
+	// hidden, genuinely unrecoverable at commit time. kReaderMinCols
+	// is comfortably past any realistic track name/annotation length;
+	// the visual cost is a typed value that temporarily overlaps
+	// whatever's to its right on screen once it outgrows the caller's
+	// own narrower slot, which self-resolves the moment it's
+	// committed and the field's own normal (correctly width-limited)
+	// rendering takes back over.
+	reader_cols = std::max(cols > 0 ? static_cast<unsigned int>(cols) : 1u, kReaderMinCols);
       }
 
       ncplane_options opts = {
@@ -438,7 +476,7 @@ public:
 	before = c ? c : "";
 	free(c);
       }
-      auto ni = to_ncinput(input);
+      auto ni = to_ncinput(input, true); // true case - see to_ncinput()'s own comment
       ncreader_offer_input(reader, &ni);
       if (!before.empty()) {
 	char * c = ncreader_contents(reader);
@@ -1544,6 +1582,7 @@ TerminalUI::readInput() {
     bool meta = modifiers & NCKEY_MOD_META;
 
     int id = raw_id;
+    int true_case_id = raw_id; // see InputEvent's own comment on this field
     if (id >= 'A' && id <= 'Z') {
       id = tolower(id);
       if (!ctrl) shift = true; // fix bug in notcurses
@@ -1553,7 +1592,7 @@ TerminalUI::readInput() {
       id = '\\';
     }
 
-    InputEvent input(id, y, x, alt, shift, ctrl, meta, kind);
+    InputEvent input(id, y, x, alt, shift, ctrl, meta, kind, true_case_id);
     offerInput(input);
   };
 
