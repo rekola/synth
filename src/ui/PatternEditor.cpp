@@ -1856,10 +1856,22 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    }
 	    // An Effect's own column carries no label of its own - the
 	    // ancestor row above it already names it (spanning this column
-	    // too, see the merge logic further up) - so it's left blank
-	    // rather than falling back to a synthetic "Trk NN".
+	    // too, see the merge logic further up) - so it's left blank.
+	    // Every color-eligible track instead always starts with its own
+	    // "T<N>" (N = color_ordinal_, the same 0-based count that picks
+	    // its heading color - stable across horizontal scroll and
+	    // unaffected by any Effect/Group tracks interleaved between
+	    // leaves, unlike getInternalId()'s raw process-wide counter),
+	    // followed by the artist's own name if one is set. Deliberately
+	    // not the track's own textual id as a further fallback - that's
+	    // almost always an auto-generated "track3"-style cross-reference
+	    // id (generateUniqueTrackId(), Song.h), not a real name, and
+	    // showing it next to an unrelated T<N> number reads as confusing
+	    // noise more often than it reads as useful; a hand-authored,
+	    // genuinely meaningful id is the rare exception, not the case to
+	    // design this fallback around.
 	    auto name = !is_color_eligible ? string() :
-	      (!track->getName().empty() ? track->getName() : (!track->getId().empty() ? "Trk " + track->getId() : format("Trk {:02d}", track->getInternalId())));
+	      "T" + std::to_string(vis_info->color_ordinal_) + (track->getName().empty() ? string() : " " + track->getName());
 	    name = Utf8::truncateToWidth(name, text_width);
 	    name = Utf8::padToWidth(name, text_width);
 	    if (has_collapse_toggle) {
