@@ -698,30 +698,56 @@ PatternEditor::startTrackNameEdit() {
   auto width = track_name_screen_width_;
 
   // The leading "T<N> " is renderHeading()'s own structural label (N =
-  // color_ordinal_), not part of the track's own editable name - kept on
-  // screen as a fixed prefix while only the name itself opens for
-  // editing, mirroring the split renderHeading() already draws.
+  // color_ordinal_), not part of the track's own editable name - left
+  // for renderHeading() itself to draw below, in its own normal color,
+  // while only the name past it opens for editing.
   auto track_info = getTrackInfoFor(song, track_id);
-  auto prefix = "T" + std::to_string(track_info.color_ordinal_) + " ";
-  auto prefix_width = std::min(static_cast<int>(prefix.size()), width);
+  auto prefix_width = std::min(static_cast<int>(("T" + std::to_string(track_info.color_ordinal_) + " ").size()), width);
+  auto edit_col = col + prefix_width;
+  auto edit_width = std::max(width - prefix_width, 1);
 
-  // The track's own heading color (renderHeading()'s segment_color(),
-  // unselected/un-brightened base - see track_base_color() there),
-  // darkened the same way that function's own toggle_color() darkens it
-  // for a heading control - so the field reads as "this track, now being
-  // edited" rather than an unrelated black cutout, while still standing
-  // out from the normal (brighter) heading strip around it. The reader's
-  // own glyph color (TerminalUI::showReader()) is fixed pink with a
-  // transparent background regardless, matching every other reader in
-  // this app (annotation editing, M-x) - only this manually-painted
-  // backdrop is track-specific.
+  getPlane().showReader("", row, edit_col, 1, edit_width, track->getName());
+
+  // TerminalUI::showReader()'s own ncplane_erase_region() call erases
+  // from edit_col all the way to the *plane's* right edge, not just this
+  // field's own edit_width - fine for startAnnotationEdit() (nothing
+  // else sits past the annotation slot at the far right), but this field
+  // sits in the middle of the heading row: Mute/Solo glyphs, dividers,
+  // and every later track's own heading still follow it, and all of that
+  // just got wiped. A real renderHeading() pass repaints all of it (the
+  // "T<N> " prefix included, in its normal, un-darkened color) - safe to
+  // call directly here since the reader's own child plane, stacked on
+  // top of just its own [edit_col, edit_col + edit_width) footprint, is
+  // unaffected by whatever the parent plane underneath it gets redrawn
+  // to. last_styles_ is always set by now in practice (render() always
+  // runs at least once before any input reaches here) - skipped rather
+  // than crashing on the off chance it isn't; the row would just stay
+  // blank until the next real redraw, a cosmetic nuisance and not a
+  // correctness problem, the same tradeoff startAnnotationEdit() already
+  // makes for its own row/col fallback above.
+  if (last_styles_) {
+    auto all_track_info = getTrackInformation(song, current_scroll_.row);
+    renderHeading(*last_styles_, track_ids, all_track_info);
+  }
+
+  // The reader's own cells (TerminalUI::showReader()'s ncreader_options::
+  // tchannels/ncplane_set_base()) are background-alpha-transparent even
+  // where a glyph's actually been typed, so whatever color the parent
+  // plane shows underneath - painted here, after renderHeading() above
+  // so it isn't immediately overwritten by that call's own normal-
+  // colored redraw - shows straight through as the field's own backdrop.
+  // This track's own heading color (renderHeading()'s segment_color(),
+  // un-brightened base - see track_base_color() there), darkened the
+  // same way that function's own toggle_color() darkens it for a
+  // heading control, so the field reads as "this track, now being
+  // edited" rather than the reader's usual plain pink-on-black -
+  // restricted to just the editable span, unlike the "T<N> " prefix
+  // right before it, which stays whatever color renderHeading() just
+  // drew it in.
   auto bg = track_info.getColor().blend(0.4f, Color(0, 0, 0));
   setFgColor(0xff, 0xff, 0xff);
   setBgColor(bg);
-  putstr(row, col, string(static_cast<size_t>(width), ' '));
-  putstr(row, col, prefix.substr(0, static_cast<size_t>(prefix_width)));
-
-  getPlane().showReader("", row, col + prefix_width, 1, std::max(width - prefix_width, 1), track->getName());
+  putstr(row, edit_col, string(static_cast<size_t>(edit_width), ' '));
 }
 
 SelectionBounds
@@ -800,6 +826,7 @@ PatternEditor::getEffectiveSelectionBounds(const Song & song, const vector<int> 
 
 bool
 PatternEditor::render(const StyleProvider & styles, bool refresh) {
+  last_styles_ = &styles; // see its own comment - startTrackNameEdit()'s only source of one
   bool render_all = refresh;
   auto & info = getController().getPlaybackInfo();
   auto score_pattern = info.getPatternIndex();

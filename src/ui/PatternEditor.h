@@ -268,14 +268,26 @@ protected:
   // heading/row it was sitting over, even though nothing that render()'s
   // own render_all checks already watch for (song version, scroll,
   // selection bounds, ...) necessarily changed - a plain Ctrl-g cancel is
-  // the case that actually needs this: startTrackNameEdit()/
-  // startAnnotationEdit() both blank their target cells directly before
-  // ever opening the reader, and canceling never touches the model (no
-  // incVersion()), so without this the manually-blanked cells stay
-  // visible, stuck showing neither the old nor the new value, until some
+  // the case that actually needs this: both readers paint directly over
+  // their own target cells (see startTrackNameEdit()'s own comment on
+  // why showReader() alone isn't enough there), and canceling never
+  // touches the model (no incVersion()), so without this those cells
+  // stay stuck showing neither the old nor the new value until some
   // unrelated redraw trigger happens to fire. Checked and cleared by
   // render() itself.
   bool force_redraw_ = false;
+
+  // The StyleProvider render() was last called with - stashed there
+  // purely so startTrackNameEdit() can force an immediate renderHeading()
+  // pass of its own (see that method's own comment) without needing a
+  // StyleProvider of its own to pass in; commands run from a keybinding/
+  // menu item have no such thing handed to them the way render() does.
+  // Raw pointer, not a copy: UI::styles_ (what render() is actually
+  // always called with) outlives every PatternEditor call by construction,
+  // and re-pointing here each render() call is cheaper than copying
+  // StyleProvider's several Color fields every frame for a pointer that's
+  // read only in this one rare, keyboard-driven path.
+  const StyleProvider * last_styles_ = nullptr;
 
  private:
   // Snapshot of every field above (current_score_playing_row/pattern/
