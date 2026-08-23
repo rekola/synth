@@ -30,6 +30,8 @@
 
 #define NCKEY_ENTER   preterunicode(121)
 
+#define NCKEY_F02     preterunicode(22)
+
 #define NCKEY_BUTTON1  preterunicode(201)
 #define NCKEY_BUTTON2  preterunicode(202)
 #define NCKEY_BUTTON3  preterunicode(203)

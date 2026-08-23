@@ -431,6 +431,12 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     getController().toggleTrackCollapsed(track_id);
   });
 
+  // F2 (Renoise's own rename-track convention) opens the in-place editor
+  // for whatever track the cursor's column belongs to - see
+  // startTrackNameEdit()'s own comment for why it's a no-op on a track
+  // with no name field at all.
+  commands_.define("rename-track", [this]() { startTrackNameEdit(); });
+
   // Refuses to remove the last remaining root track: render() and several
   // sibling call sites index track_ids[cursor.track] with no bounds check
   // at all, on the assumption that at least one root track always exists
@@ -541,6 +547,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   keymap_.bind(KeyChord::pack('\\', true, false, false, false), "toggle-solo");  // Ctrl-\ (was Ctrl-only inline handling)
   keymap_.bind(KeyChord::pack('\\', false, false, false, false), "toggle-mute"); // backslash key
   keymap_.bind(KeyChord::pack('c', true, false, true, false), "toggle-track-collapse"); // Ctrl+Shift+C ("Collapse")
+  keymap_.bind(KeyChord::pack(NCKEY_F02, false, false, false, false), "rename-track"); // F2
   keymap_.bind(KeyChord::pack(NCKEY_UP, false, false, false, false), "move-row-up");     // plain Up (was inline handling)
   keymap_.bind(KeyChord::pack(NCKEY_DOWN, false, false, false, false), "move-row-down"); // plain Down
   keymap_.bind(KeyChord::pack(NCKEY_RIGHT, true, false, true, false), "add-note-column");   // Ctrl+Shift+Right
@@ -662,6 +669,59 @@ PatternEditor::startAnnotationEdit() {
   putstr(row, col, string(static_cast<size_t>(width), ' '));
 
   getPlane().showReader("", row, col, 1, width, scene.getAnnotation(annotation_edit_row_));
+}
+
+void
+PatternEditor::startTrackNameEdit() {
+  if (getPlane().readerActive()) return;
+  // No name field to edit at all under the cursor's current column (an
+  // Effect's own title bar, or no render has happened yet) - see
+  // renderHeading()'s own caching comment.
+  if (track_name_screen_col_ < 0 || track_name_screen_width_ <= 0) return;
+
+  auto & song = getController().getSong();
+  auto track_ids = song.getRootTrackIds();
+  if (current_cursor.track >= static_cast<int>(track_ids.size())) return;
+  auto track_id = getController().consumePendingCommandTrack(track_ids[static_cast<size_t>(current_cursor.track)]);
+  auto track = song.getTrackByInternalId(track_id);
+  if (!track) return;
+
+  track_name_edit_track_id_ = track_id;
+
+  // A color-eligible track's own title bar is always level 0 (its box
+  // never merges into a taller ancestor row - see renderHeading()'s own
+  // per-level loop), so the row is deterministic from the tree's depth
+  // alone, unlike the column/width above which depend on scroll position
+  // and neighboring columns too.
+  auto row = song.getTrackDepth() - 1;
+  auto col = track_name_screen_col_;
+  auto width = track_name_screen_width_;
+
+  // The leading "T<N> " is renderHeading()'s own structural label (N =
+  // color_ordinal_), not part of the track's own editable name - kept on
+  // screen as a fixed prefix while only the name itself opens for
+  // editing, mirroring the split renderHeading() already draws.
+  auto track_info = getTrackInfoFor(song, track_id);
+  auto prefix = "T" + std::to_string(track_info.color_ordinal_) + " ";
+  auto prefix_width = std::min(static_cast<int>(prefix.size()), width);
+
+  // The track's own heading color (renderHeading()'s segment_color(),
+  // unselected/un-brightened base - see track_base_color() there),
+  // darkened the same way that function's own toggle_color() darkens it
+  // for a heading control - so the field reads as "this track, now being
+  // edited" rather than an unrelated black cutout, while still standing
+  // out from the normal (brighter) heading strip around it. The reader's
+  // own glyph color (TerminalUI::showReader()) is fixed pink with a
+  // transparent background regardless, matching every other reader in
+  // this app (annotation editing, M-x) - only this manually-painted
+  // backdrop is track-specific.
+  auto bg = track_info.getColor().blend(0.4f, Color(0, 0, 0));
+  setFgColor(0xff, 0xff, 0xff);
+  setBgColor(bg);
+  putstr(row, col, string(static_cast<size_t>(width), ' '));
+  putstr(row, col, prefix.substr(0, static_cast<size_t>(prefix_width)));
+
+  getPlane().showReader("", row, col + prefix_width, 1, std::max(width - prefix_width, 1), track->getName());
 }
 
 SelectionBounds
@@ -822,9 +882,11 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
       song.getMajorVersion() != current_song_version ||
       score_total_columns != current_score_total_columns ||
       new_scroll != current_scroll_ ||
-      sel_bounds != current_sel_bounds_
+      sel_bounds != current_sel_bounds_ ||
+      force_redraw_
       ) {
     render_all = true;
+    force_redraw_ = false;
   }
 
   bool need_redraw = false;
@@ -989,6 +1051,9 @@ PatternEditor::saveEditingState(const string & name) {
   state.annotation_screen_col = annotation_screen_col_;
   state.annotation_edit_row = annotation_edit_row_;
   state.annotation_edit_pattern = annotation_edit_pattern_;
+  state.track_name_screen_col = track_name_screen_col_;
+  state.track_name_screen_width = track_name_screen_width_;
+  state.track_name_edit_track_id = track_name_edit_track_id_;
 }
 
 void
@@ -1016,6 +1081,9 @@ PatternEditor::loadEditingState(const string & name) {
   annotation_screen_col_ = state.annotation_screen_col;
   annotation_edit_row_ = state.annotation_edit_row;
   annotation_edit_pattern_ = state.annotation_edit_pattern;
+  track_name_screen_col_ = state.track_name_screen_col;
+  track_name_screen_width_ = state.track_name_screen_width;
+  track_name_edit_track_id_ = state.track_name_edit_track_id;
   setSelectionActive(state.selection_active); // also mirrors into Controller::pattern_selection_active_
 }
 
@@ -1055,10 +1123,10 @@ bool
 PatternEditor::offerInput(const InputEvent & input) {
   // Mirrors StatusLine::offerInput()'s own reader-active handling exactly
   // (see its comment) - while the annotation editor (startAnnotationEdit())
-  // is open, Enter commits and Ctrl-g cancels; everything else (including
-  // arrow keys, which would otherwise move the pattern cursor) goes to the
-  // reader instead of any of this class's own keybinding dispatch/manual
-  // handling below.
+  // or the track-name editor (startTrackNameEdit()) is open, Enter commits
+  // and Ctrl-g cancels; everything else (including arrow keys, which would
+  // otherwise move the pattern cursor) goes to the reader instead of any
+  // of this class's own keybinding dispatch/manual handling below.
   if (getPlane().readerActive()) {
     if (input.getId() == NCKEY_ENTER) {
       auto text = getPlane().closeReader();
@@ -1067,12 +1135,34 @@ PatternEditor::offerInput(const InputEvent & input) {
 	auto & scene = song.getScene(annotation_edit_pattern_);
 	scene.setAnnotation(annotation_edit_row_, std::move(text));
 	song.incVersion();
+      } else if (track_name_edit_track_id_ >= 0) {
+	auto & song = getController().getSong();
+	auto track = song.getTrackByInternalId(track_name_edit_track_id_);
+	if (track) {
+	  track->setName(std::move(text));
+	  song.incVersion();
+	}
       }
       annotation_edit_pattern_ = annotation_edit_row_ = -1;
+      track_name_edit_track_id_ = -1;
+      // Both branches above blanked their own target cells directly
+      // before the reader ever opened (see startAnnotationEdit()'s/
+      // startTrackNameEdit()'s own comments) - incVersion() already
+      // covers the successful-commit case by itself (it changes
+      // song.getMajorVersion(), one of render()'s own render_all
+      // triggers), but a resolved-to-nothing track (deleted mid-edit)
+      // skips that, so force it here too rather than leaving the blanked
+      // cell on screen until some unrelated redraw happens to fire.
+      force_redraw_ = true;
       return true;
     } else if (input.hasCtrl() && input.getId() == 'g') {
       getPlane().closeReader();
       annotation_edit_pattern_ = annotation_edit_row_ = -1;
+      track_name_edit_track_id_ = -1;
+      // Canceling never touches the model at all, so nothing else would
+      // ever tell render() to repaint the cell this blanked - see
+      // force_redraw_'s own comment.
+      force_redraw_ = true;
       return true;
     } else {
       return getPlane().offerInput(input);
@@ -1571,6 +1661,13 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
   
   auto & instruments = song.getInstruments();
 
+  // Reset every render pass rather than only ever being set - a track
+  // with no name field at all (or the cursor moving off a color-eligible
+  // track entirely) must not leave startTrackNameEdit() reading a stale
+  // position left over from whichever track was last selected while one
+  // was visible.
+  track_name_screen_col_ = track_name_screen_width_ = -1;
+
   // The cursor's own current track id (see the Selection highlight
   // comment on segment_color below) - purely structural, computed once
   // here rather than inside the per-level loop.
@@ -1885,6 +1982,15 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	      setFgColor(0xff, 0xff, 0xff);
 	    }
 	    putstr(heading_height - 2 - level, name_pos, name);
+	    // Cache this track's own name-field position for
+	    // startTrackNameEdit() - only when it's both the one the cursor
+	    // is actually on and one that has a name field to begin with
+	    // (is_color_eligible; see the reset just above renderHeading()'s
+	    // own selected_id computation for the "no field here" case).
+	    if (is_color_eligible && track->getInternalId() == selected_id) {
+	      track_name_screen_col_ = name_pos;
+	      track_name_screen_width_ = text_width;
+	    }
 	    if (has_mute_solo) {
 	      // OFF: faint_color() - see its own comment. ON: unchanged -
 	      // the glyph blends into the header instead.

@@ -107,6 +107,17 @@ protected:
   // guards this too - just defensive).
   void startAnnotationEdit();
 
+  // Opens the in-place track-name editor (F2 - Renoise's own rename-
+  // track convention; Emacs has no equivalent binding for "rename the
+  // widget under point") for whatever track the cursor's column
+  // currently belongs to. A no-op for a track with no name field to
+  // edit at all - an Effect's own title bar carries no name (see
+  // renderHeading()'s is_color_eligible) - or while a reader is already
+  // active. Positions the reader at track_name_screen_col_/
+  // track_name_screen_width_, cached by renderHeading() itself, same
+  // reasoning as startAnnotationEdit()'s own comment.
+  void startTrackNameEdit();
+
   // Whether the cursor is parked on the current row's annotation "slot"
   // (GridPosition::scope == SelectionScope::ANNOTATION - reached by Right
   // arrow past the last track's last column) lives on current_cursor/
@@ -234,6 +245,38 @@ protected:
   // selection_start_pattern_'s own staleness guard).
   int annotation_edit_row_ = -1, annotation_edit_pattern_ = -1;
 
+  // The on-screen col/width renderHeading()'s own level-0 branch draws
+  // the cursor's current track's name field at - row isn't cached since
+  // it's deterministic (a color-eligible track's own title bar is
+  // always level 0, i.e. row heading_height - 2 - see
+  // startTrackNameEdit()). Set whenever that track is color-eligible and
+  // has room to show a name; left at -1/-1 otherwise (including every
+  // other track type), same "always recomputed by rendering, never
+  // re-derived independently" reasoning as annotation_screen_row_/
+  // annotation_screen_col_ above.
+  int track_name_screen_col_ = -1, track_name_screen_width_ = -1;
+
+  // Internal id of the track an open track-name-editing reader belongs
+  // to (-1 when none is open) - set by startTrackNameEdit(), read by
+  // offerInput()'s reader-active branch on Enter, mirroring
+  // annotation_edit_row_/annotation_edit_pattern_'s own staleness guard
+  // just above.
+  int track_name_edit_track_id_ = -1;
+
+  // Set whenever closing a reader (startAnnotationEdit()'s or
+  // startTrackNameEdit()'s) needs the next render() to fully repaint the
+  // heading/row it was sitting over, even though nothing that render()'s
+  // own render_all checks already watch for (song version, scroll,
+  // selection bounds, ...) necessarily changed - a plain Ctrl-g cancel is
+  // the case that actually needs this: startTrackNameEdit()/
+  // startAnnotationEdit() both blank their target cells directly before
+  // ever opening the reader, and canceling never touches the model (no
+  // incVersion()), so without this the manually-blanked cells stay
+  // visible, stuck showing neither the old nor the new value, until some
+  // unrelated redraw trigger happens to fire. Checked and cleared by
+  // render() itself.
+  bool force_redraw_ = false;
+
  private:
   // Snapshot of every field above (current_score_playing_row/pattern/
   // total_columns deliberately excluded - see the header comment in
@@ -260,6 +303,8 @@ protected:
     SelectionBounds current_sel_bounds;
     int annotation_screen_row = -1, annotation_screen_col = -1;
     int annotation_edit_row = -1, annotation_edit_pattern = -1;
+    int track_name_screen_col = -1, track_name_screen_width = -1;
+    int track_name_edit_track_id = -1;
   };
 
   void saveEditingState(const std::string & name);
