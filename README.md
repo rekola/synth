@@ -14,7 +14,7 @@ A Microtonal Synth: Tracker style music production system with microtonality.
 
 # Principles:
 
-## User can start creating music instantly
+## User can start creating music instantly:
 
 - No low latency requirements
 - Basic instruments are immediately available
@@ -76,13 +76,14 @@ for the full picture, or run `synth --licenses` to print it.
 
 # Roadmap / missing functionality:
 
-1. A proper name
-2. Undo/redo
-3. Pattern matrix
-4. DirAC heatmap marker overlay for every active spatial object, not just track positions — track azimuth/elevation markers, plus Granular Cloud grains and other shared-bus-effect taps (FDNReverb, MultiTapDelay)
-5. Limiters
-6. 5.1 or 7.2 modes in addition to binaural headphone mode
-7. Legato voicing mode
-8. Custom drum kits without SoundFont: map individual percussion keys to arbitrary instruments instead of one whole SF2 kit preset.
-9. Emacs features:
- - Kill-ring rotation (yank-pop / M-y)
+* A proper name
+* Undo/redo
+* Pattern matrix
+* DirAC heatmap marker overlay for every active spatial object, not just track positions — track azimuth/elevation markers, plus Granular Cloud grains and other shared-bus-effect taps (FDNReverb, MultiTapDelay)
+* Limiters
+* 5.1 or 7.2 modes in addition to binaural headphone mode
+* Legato voicing mode
+* Custom drum kits without SoundFont: map individual percussion keys to arbitrary instruments instead of one whole SF2 kit preset.
+* Time signatures
+* Emacs features:
+    - Kill-ring rotation (yank-pop / M-y)

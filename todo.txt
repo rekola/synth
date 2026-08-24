@@ -46,21 +46,10 @@ Create notation based on arithmetic and harmonic means:
  - 4ADDA
  - But how does it work when creating chords? and we need just tuning
  
-Create commands (opcodes) as Note objects (it has a key and value)
- - REPEAT
- - PORTAMENTO UP
- - maybe a stack?
-
 try adding another note to the first down arpeggio in bass_test3.xml
 
 !!! in default mode LFOs and filters should use the played note
 !!! add slow global LFO to bass_test2 bass
-
-Should we add option for putting effect (such as reverb) results to a new channel pair
-
-Add tracks without notes for controlling stuff
- - could we also add LFO or envelope directly as a control signal as track aftertouch
- - every track could have notes or control signals
  
 Add LFO to lowpass filter
  - If we add LFO or Envelope as a child of lowpass, it can determine that they are not instruments and use them for stuff
@@ -68,8 +57,6 @@ Add LFO to lowpass filter
 
 could we add color to instruments like in Perlin? Higher resolution stuff.
  
-Don't reserve memory in SampleData until needed
-
 add noise gate to reverb, delay, ResonantFilter and BiquadFilter so that they can be automatically deactivated
  - compressor and delay can check if their delay buffers are floored
  - filters and reverb should reset their states when deactivating
@@ -77,40 +64,16 @@ add noise gate to reverb, delay, ResonantFilter and BiquadFilter so that they ca
  - gate might need an attack and release
  - extract Compressor from CompressorFilter so it can be used as a gate
 
-note delay is often the same
-
-Play with delays (or reverb):
- - https://www.audiothing.net/effects/fog-convolver/
-
 songtest14.xml => use side chain compressor on pad track
 
 https://github.com/sfzinstruments
 https://github.com/tongxunlu/Steinway-D-274
 https://github.com/open-soundfonts/
 
-InstrumentProvider must provide copies of instruments so that they can be altered
-
-tremolo should be in decibel space
-
-mute and solo doesn't work
- - they are not sent to states
- - could we update the states?
- - Command system
-   - no need to dynamic_cast when we can just send mute command to track
-   - and switch instrument
-
-when changing tempo from 170 to 160, it changes very much
-
 When adding new track, add it under the parent of the current track
  - maybe add amplifier?
 
-Add default velocity per track (pattern velocity can then be +1 or -1 for example)
-
 Jos soitinta vaihdetaan => tila tuhotaan, kukaan ei luo sitä uusiksi
-
-put Track children to unordered_map (by internal id)
- - remove getChild(n)
- - probably not
 
 if tempo changes, delay buffer must be repositioned
 
@@ -127,18 +90,10 @@ Rename cut to fc in ResonantFilter
  - However, the note after C would still be G
  - and the components of the 4th are in the overtone series
  
-add zip file for sample data
- - or could we use SQLite?
-
-Add parent for song element
- - project?
- - project can have multiple songs?
-   - how to render song to sample and use it as an instrument
-
 - could we remove level from oscillator? (probably not, but maybe rename?)
 - Envelope could take the velocity?
 
-                                        bölöbööböäööbföbäfäööäföäöäöääääääbfsbbbbConvert volume meter to decibels. Maybe.
+Convert volume meter to decibels. Maybe.
 
 Add better unit to keynum to hold and decay
 
@@ -150,43 +105,11 @@ Let track have direct instruments built in to them
 
 filter sweep is bad (must be exponential) (hz or note)
 
-store a reference to instrument list or add InstrumentList object or make InstrumentList shared
-
 could we create band filtered noise, with the filter tied to the key?
-
-remove SampleData::size()
-
-how to do roll effect
-  - add <repeat></repeat>
-
-add modulation mode to oscillator (to every track)
- - frequency modulation
- - ring modulation
- - phase modulation
- - or maybe: <ringmodulator><o/><o/><ringmodulator>
 
 I-V-iii-iisus4
  
-add genericPercussionInstrument
- - so that percussion track only shows percussion instruments)
-
-Should recorded sample be an instrument?
-
 Add LFO to bass drum
-
-<blocks>
-  <block id="rhytm">
-    <note></note>
-  </block>
-</blocks>
-
-arpeggiator:
- - could we send all the notes to arpeggiator at the same time?
-   - meaningless since we want to be able to change the arpeggiated notes
- - or play the notes on tick
- - how to do legato with arpeggiator?
- - arpeggiator could be a feature of the instrument track
- - if it is the instrument, it needs a state
    
 combine soundfont and InstrumentVoice pitch calculation (and stepping) [soundfont is not modulating]
  - might fix the soundfont start phase problem
@@ -195,36 +118,10 @@ combine soundfont and InstrumentVoice pitch calculation (and stepping) [soundfon
 add units to envelope so that it can be specified in pattern steps
 
 if sustain is zero, envelope must be stopped
-
-How to add multiple instruments to same track?
-  - by creating an instrument group
-  - two arpeggiators and pads
-  - XML could have instruments as children of the tracks
-  - do we even need separate instruments?
-  - or connect instruments to a track
-  - hard to show multiple instruments in pattern editor or switch between them
-  - could we add just add single pattern to multiple tracks?
-  
-how to affect existing state in playNote
- - arpeggiator
- - note slide / portamento
- - needs ticks?
- Add note mode
- - Glide to next node (Portamento?)
- - Release
- - Cut
- -  Add VoicingMode: MONO / POLY, LEGATO
-  
-how to do instrument lookup
- - can we add midi:40 as instrument id of track?
- - use ids for referring to instruments (or should we just use the order number?)
- - instruments are returned by order number, tracks by their id, need to be the same
- 
+     
 Create dummy ids for newly created tracks (track#1234)
 
 songtest11.xml has duplicate ids
-
-why is channel volumes unbalanced in UI?
 
 If all tracks are in same toplevel filter, hierarchyview only shows one track
 
@@ -326,24 +223,6 @@ C Eb G
   Bbb C' Ebb'
    Ax Ebb' Bbb'' / Ax C' Cx'
 
-Sections / Scenes
- - can we add multiple patterns to sections? yes.
- - add <genericPattern name="waltz"/>
- - If there are no sections, play all patterns in order
- - Add scene header 
- - multiple patterns per scene
- - patterns can span multiple scenes
-   + for example, same drum pattern can play troughout the program
-   + no?
- - mode: once, repeat
- - can we remove the track from pattern, and then we can add any pattern to any track?
- - Or can we add blocks to pattern?
- - we could have repeating background music for scene
- - what if we have partitions which play their own tracks without concern with the others
-   - and partitions can have different sections
- 
-Add UIInput.getFlags() (getFlags() == CTRL can be used to check if ctrl is pressed and nothing else)
-
 Extended chords
  - C: C-4 E-4 G-4 A#4 / C-4 Eb4 G-4 B𝄫4 (harmonic seventh / supermajor sixth)
  - D#: 
@@ -353,45 +232,12 @@ Extended chords
  - A: A-4 C-5 E-5 G-5 (minor 7th)
  - A#: A# C D# F 
 
-songtest1b.xml ei toimi (soundfont)
-
 Progression:
 
 C F A
 C Eb G
 
-add ranges:
-    auto rng = song.range(row0, col0, row1, col1);
-    auto rng = song.range(SongCellReference(row0, col0), XLCellReference(row1, col1));
-
-    // An XLCellRange object provides begin and end iterators, and can be used in
-    // range-based for-loops. The next line iterates through all the cells in the
-    // range and assigns a random number to each cell:
-    for (auto& cell : rng) cell.value() = distr(generator);
-
-    // Saving a large spreadsheet can take a while...
-    cout << "Saving spreadsheet ..." << endl;
-    doc.save();
-    doc.close();
-
-    // Reopen the spreadsheet..
-    cout << "Re-opening spreadsheet ..." << endl;
-    doc.open("./Demo05.xlsx");
-    wks = doc.workbook().worksheet("Sheet1");
-
-    // Create the range, count the cells in the range, and sum the numbers assigned
-    // to the cells in the range.
-    cout << "Reading data from spreadsheet ..." << endl;
-    rng = wks.range(XLCellReference("A1"), XLCellReference(OpenXLSX::MAX_ROWS, 8));
-    cout << "Cell count: " << std::distance(rng.begin(), rng.end()) << endl;
-    cout << "Sum of cell values: "
-         << accumulate(rng.begin(), rng.end(), 0, [](uint64_t a, XLCell& b) { return a + b.value().get<int64_t>(); });
-
-    doc.close();
-
 --
-use templates: A1.get<double>()
-
 Aftertouch cleaning:
   - If not playing, do lowpass filtering for the aftertouch so that the selected level doesn't get cleared when user releases
   - Add catmull-rom interpolation for aftertouch
@@ -413,20 +259,11 @@ FileInstrument
 
 samplePosition should be long long and we could increment it by one all the time
  
-Combine TrackInfo and VisibleTrackInfo
-
 Make song:
  C Db D
  G A A#
  Db D D#
   
-Combine event types: PlaybackControlEvent and TrackEvent
-combine State::getRelativePosition and song.normalizePosition()
-
-Add nonstandard soundfont instruments by name
-Add soundfont browser
-Look for atmospheric music sound effects
-
 Composition
  - harmony notes
  - passing note
@@ -463,28 +300,6 @@ B	15:8 = 1+7:8	B dim		B-D-F
 B	15:8 = 1+7:8	B q. minor	B-D♭-E		
 	17:9 = 1+8:9
 
-How to do note effects correctly?
-  - They are completely dissimilar to effects
-  - hard to read
-  - If we have a track for lowpass filter, it will need a column, and it could have a proper effect control
-    + use aftertouch for filter control
-  
-Add blitting
-  - Add blit plane, the add scopes and stuff
-
-Add effect control command
-
-Add time signatures
-
-Add CSS like instruments:
- - instrument-family: Electric Piano, Piano;
- - volume: 0.5;
- - sample: sample.wav;
- - detune: -3c;
- - what if we want to do the same for tracks?
-
-Handle InputEvent correctly without offerInput
-
 Make sure notes are in the correct octave (important)
  - "B3" and all of its possible variants (Bdouble flat, B♭, B, B♯, Bdouble sharp) would properly be designated as being in octave "3".
  - "C4" and all of its possible variants (Cdouble flat, C♭, C, C♯, Cdouble sharp) would properly be designated as being in octave "4".
@@ -495,19 +310,10 @@ Make sure notes are in the correct octave (important)
    - or have them pulse
    - or change the quality seamlessly   
 
-Add soundfont instruments by index to get the correct midi names
-
-Pass Instrument as parameter to InstrumentVoice constructor, so that it can pick necessary fields
-- OR add populate method
-
 Other ratios in tonality cube:
  - 7:8:10 => 28:35:40
  - 6:7:8 => 21:24:28
  - 5:6:7 => 30:35:42
-
-Decrease CPU activity for inactive song or tracks:
- - If synth is not playing and no voices are active, stop playing at some point
- - If track output is empty, don't send it to mixer
   
 remove automatic scaling from volume meter
  - print maximum values to status
@@ -527,6 +333,7 @@ Samples:
    - raindrops on roof
    - waves crashing against shore
    - probably have multiple locations
+   - there was a simulator for raindrops on roof
 
 Add table based editor for instruments and effects
  - tree based table
@@ -534,48 +341,15 @@ Add table based editor for instruments and effects
    + channel hierarchy
    + channels and their filters
 
-Instruments:
- - instrument system should have predefined slots show that if the track is set to electric piano, any electric piano is used unless user changes it
- - midi:electric_piano, midi:43
-
 Use tab key to temporarily add note column for editing
-
-XML:
- - Add separate XML element for soundfont import
-   - we can pick instruments
- - <instrumentSets>
-     <instrumentSet src="file.sf2" default />
-     <instrumentSet id="1" src="tabla.sf2"/>     
-   </instrumentSets>
-
-   <defaultInstrument id="1" class="midi:12" />
-   <defaultInstrument id="2" class="midi:percussion:100" />   
-   <fromSet set="1" class="midi:12" />
-   
- - Import soundfont: <instruments><import src="file.sf2"/></instruments>
-   or <instruments from="file.sf2"></instruments>
-   
- - SoundFont instrument needs to be loaded without preloading the sf file or loading the sf for each instrument
- - standard instrument:
-   <midiInstrument code="1" />
-   <midiInstrument name="Muted Trumpet"/>
-   <standardInstrument name="Muted Trumpet"/>
-
+      
 - SoundFont
-  - Is there any data in channels or banks?
-  - Lowpass filter is configured all over the place in SoundFont
-    - Maybe add createLowpassFilter method
   - add exceptions
-  - Add soundfont autodiscovery
-    + check where Ubuntu stores soundfonts
-    + /usr/share/soundfonts/, /usr/share/sounds/sf2/ (and /usr/local/)
   - Since render interval is pattern dependant, soundfont effect rate can change
   - SoundFont crashes if file is not found
   - move pitchRatio from SoundFontVoice data to InstrumentVoice
     - also pitch calculation
   - envelope setup uses apparent key
-  - banks? there are multiple drum sets in banks and we might want to switch them
-  - move all filters to common
   - make sure voice doesn't jump from attack to release
   - handle input messages
     => volume control
@@ -586,9 +360,6 @@ XML:
     - since lowpass is updated all the time that might be a problem
 
 - make filters and instruments arrays so that they can process multiple tracks at the same time and use SIMD
-
-- nonlinear songs
-  - song as a graph?
 
 - we want smooth distortion:
   - interesting distortion was achieved by adding input to uncleared data
@@ -601,8 +372,6 @@ XML:
     - add delay to every nth line
     - part of time signature?
   - Add Track headroom in desibels (default -6db)
-  - add track collapse(what?)
-  - ESC => edit mode
   - If recordings can be copied from track to track, shouldn't notes also have to be able to be copied while retaining the instrument
     - If recordings were to be copied to different track, we could create a new subtrack for the recording
   - Backspace: Delete all notes and Effect Commands at the current line in the track and scroll everything beneath the current line up.
@@ -623,10 +392,6 @@ XML:
       Transpose One Note Down: fn option F1
       Transpose One Octave Up: fn option F12
       Transpose One Octave Down: fn option F11
-
-- add scratching mode:
-  - should be possible to stratch any channel, but how? scratching institutes a new time
-  - subsongs
     
 - add recording
   - remove parts of recording using backspace
@@ -639,14 +404,6 @@ XML:
   - Samples should also have multiple columns
   - Effect column should be available for samples
   - Single track can have multiple sample tracks but only single instrument, so instrument cannot be used for sample selection
-
-- keep track of current song and refresh InstrumentList and ScoreDisplay if it changes
-- implement chart natively
-- add table that layouts planes automatically and draws the borders
-- starting a reader, loses plane ownership
-- move TerminalUI population to base class
-- add generic parameters and window for editing
-- add EditablePlane and use it for column headings => they can be clicked and edited
 
 - song.gettime() doesn't account for tempo changes
   - should integrate the time in moveForward and moveForwardSample
