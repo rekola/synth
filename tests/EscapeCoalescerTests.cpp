@@ -30,12 +30,21 @@ class FakeInputEventSource : public InputEventSource {
 public:
   void schedule(ncinput event) { queue_.push_back(event); }
 
-  bool next(ncinput * ni) override {
+  // `definitely_pending` disambiguates a real notcurses_get() codepoint-0
+  // return from "nothing available" (NotcursesInputEventSource's own
+  // problem to solve) - this fake's own bool+output-param contract is
+  // already unambiguous regardless of the event's id, so there's nothing
+  // for it to do with the flag; just record it for tests that care what
+  // the coalescer forwarded.
+  bool next(ncinput * ni, bool definitely_pending = false) override {
+    last_definitely_pending = definitely_pending;
     if (queue_.empty()) return false;
     *ni = queue_.front();
     queue_.pop_front();
     return true;
   }
+
+  bool last_definitely_pending = false;
 
 private:
   deque<ncinput> queue_;
@@ -47,6 +56,18 @@ struct Fixture {
   EscapeSequenceCoalescer coalescer{source, detector};
 };
 
+}
+
+TEST(definitely_pending_is_forwarded_to_the_source) {
+  Fixture f;
+  f.source.schedule(makeEvent('a'));
+  ncinput ni;
+  CHECK(f.coalescer.next(&ni)); // default false
+  CHECK(!f.source.last_definitely_pending);
+
+  f.source.schedule(makeEvent('b'));
+  CHECK(f.coalescer.next(&ni, true));
+  CHECK(f.source.last_definitely_pending);
 }
 
 TEST(escape_alone_stays_pending_indefinitely) {
@@ -254,6 +275,35 @@ TEST(notcurses_legacy_alt_merge_is_normalized_into_modifiers) {
   CHECK(ni.id == 'w');
   CHECK(ncinput_alt_p(&ni));
   CHECK(!f.coalescer.escapePending());
+}
+
+TEST(ctrl_space_legacy_nul_byte_is_normalized_to_space_plus_ctrl) {
+  // notcurses's own load_ncinput() (in.c) converts every C0 control byte
+  // 1-26 into the corresponding letter with NCKEY_MOD_CTRL set, but
+  // deliberately excludes 0 from that range check - so Ctrl-Space's
+  // legacy NUL-byte encoding arrives as a bare, unmodified codepoint 0
+  // rather than matching this codebase's own Ctrl-Space keybinding
+  // (id=' ', NCKEY_MOD_CTRL set).
+  Fixture f;
+  f.source.schedule(makeEvent(0));
+
+  ncinput ni;
+  CHECK(f.coalescer.next(&ni));
+  CHECK(ni.id == ' ');
+  CHECK(ncinput_ctrl_p(&ni));
+}
+
+TEST(codepoint_zero_with_ctrl_already_set_is_left_alone) {
+  // Guards the normalization's own !ncinput_ctrl_p() check: an event that
+  // already reports id 0 with Ctrl set (however that might arise) isn't
+  // rewritten into Space a second time.
+  Fixture f;
+  f.source.schedule(makeEvent(0, NCTYPE_UNKNOWN, NCKEY_MOD_CTRL));
+
+  ncinput ni;
+  CHECK(f.coalescer.next(&ni));
+  CHECK(ni.id == 0);
+  CHECK(ncinput_ctrl_p(&ni));
 }
 
 TEST(mouse_click_before_first_keystroke_does_not_disable_coalescing) {

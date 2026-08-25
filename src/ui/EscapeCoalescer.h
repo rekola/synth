@@ -18,6 +18,14 @@
 // timeout - see EscapeSequenceCoalescer::escapePending()'s own comment for
 // how a caller shows the waiting state without one.
 //
+// Two other notcurses legacy-encoding gaps get normalized here too, right
+// alongside the Alt one - see normalizeLegacyAlt() and
+// normalizeCtrlSpace() in EscapeCoalescer.cpp: notcurses's own ESC+letter
+// merge only ever sets the deprecated `ncinput.alt` bool, never
+// `modifiers`; and Ctrl-Space's legacy NUL-byte encoding is the one C0
+// control byte notcurses's own load_ncinput() (in.c) doesn't convert into
+// "letter plus NCKEY_MOD_CTRL" the way it does every other one.
+//
 // This header is notcurses-typed (ncinput, NCKEY_*) by necessity - the
 // whole point is to disambiguate a raw notcurses encoding - and, like
 // TerminalUI.h/.cpp's own use of ncinput, is meant to stay confined to the
@@ -44,7 +52,16 @@ public:
 
   // Returns true and fills *ni if an event was immediately available;
   // false otherwise (nothing to report right now - try again later).
-  virtual bool next(ncinput * ni) = 0;
+  // `definitely_pending`: the caller already has independent, external
+  // confirmation that at least one real event is waiting right now (e.g.
+  // notcurses's own input-ready fd just reported readiness via poll()) -
+  // see NotcursesInputEventSource's own top comment for why this matters:
+  // it's the only way to reliably tell a genuine codepoint-0 keystroke
+  // (Ctrl-Space, the literal NUL byte) apart from "nothing is available
+  // right now", which notcurses_get()'s nonblocking contract otherwise
+  // reports identically. Implementations that have no such ambiguity to
+  // resolve (every test fake in this codebase) are free to ignore it.
+  virtual bool next(ncinput * ni, bool definitely_pending = false) = 0;
 };
 
 // Determines, from the shape of the events actually arriving this
@@ -112,8 +129,9 @@ public:
   // Fetches the next logical event, applying coalescing. Returns false if
   // none is available right now - mirrors the nonblocking-poll contract
   // callers already get from nc->get(false, ...)/notcurses_get_nblock().
-  // Never blocks.
-  bool next(ncinput * ni);
+  // Never blocks. `definitely_pending` is forwarded to the underlying
+  // InputEventSource verbatim - see its own comment.
+  bool next(ncinput * ni, bool definitely_pending = false);
 
   // True from the moment a bare Escape is seen until the wait it starts
   // resolves - either folded into the next keystroke's Alt modifier, or

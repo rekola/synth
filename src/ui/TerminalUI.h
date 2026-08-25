@@ -3,7 +3,9 @@
 
 #include "UI.h"
 #include "../playback/InputEvent.h"
+#include <chrono>
 #include <memory>
+#include <optional>
 
 namespace ncpp {
   class NotCurses;
@@ -22,6 +24,13 @@ class TerminalUI : public UI {
 protected:
   void startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) override;
   bool readInput();
+
+  // How long a pending Escape (EscapeSequenceCoalescer::escapePending())
+  // must stay open before startUI()'s own loop shows the "ESC-" indicator
+  // - see that loop's own comment on why this is a delay rather than
+  // immediate, and updateEscapeIndicator()'s comment for what drives it.
+  int escapeIndicatorPollTimeoutMs() const;
+  void updateEscapeIndicator();
 
 private:
   std::shared_ptr<ncpp::NotCurses> nc;
@@ -44,6 +53,16 @@ private:
   // shouldn't need a notcurses include.
   class EscapeInputPipeline;
   std::unique_ptr<EscapeInputPipeline> escape_input_;
+
+  // When the currently-open Escape wait began (unset when none is open) -
+  // set in readInput() the moment EscapeSequenceCoalescer::escapePending()
+  // turns true, read by updateEscapeIndicator()/escapeIndicatorPollTimeoutMs()
+  // to decide when the delay has elapsed. escape_indicator_shown_ tracks
+  // whether "ESC-" has actually been printed yet for the current wait, so
+  // it's only cleared (and only if it was actually shown) once, exactly
+  // when the wait ends.
+  std::optional<std::chrono::steady_clock::time_point> escape_pending_since_;
+  bool escape_indicator_shown_ = false;
 };
 
 #endif

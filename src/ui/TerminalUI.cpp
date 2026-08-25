@@ -1514,6 +1514,16 @@ private:
   std::vector<Marker> markers_;
 };
 
+// How long a pending Escape (EscapeSequenceCoalescer::escapePending())
+// must stay open before the "ESC-" indicator actually appears
+// (updateEscapeIndicator()) - long enough that an ordinary fast Alt-chord
+// (typed close enough together to resolve within one readInput() drain
+// burst, or split across two but still well within human reaction time)
+// never flickers it, short enough that a person who actually paused after
+// Escape gets confirmation promptly rather than wondering whether the
+// keypress registered at all.
+constexpr auto kEscapeIndicatorDelay = std::chrono::milliseconds(300);
+
 // Bundles the Alt-key coalescing pipeline (see EscapeCoalescer.h)'s three
 // pieces - defined here, not in TerminalUI.h, so that header stays free
 // of notcurses types (same reasoning as kp_escape_pending_'s own comment
@@ -1532,6 +1542,35 @@ TerminalUI::TerminalUI(std::shared_ptr<ncpp::NotCurses> _nc)
 }
 
 TerminalUI::~TerminalUI() {
+}
+
+// Called once per startUI() loop iteration, whether it woke on a real fd
+// or the poll() timeout below - shows "ESC-" the moment kEscapeIndicatorDelay
+// has actually elapsed with the wait still open. Clearing it again happens
+// in readInput() instead, right when the wait ends (immediately, not on a
+// delay - there's nothing to debounce about a wait that's already over).
+void
+TerminalUI::updateEscapeIndicator() {
+  if (!escape_pending_since_ || escape_indicator_shown_) return;
+  if (std::chrono::steady_clock::now() - *escape_pending_since_ >= kEscapeIndicatorDelay) {
+    setStatus("ESC-");
+    escape_indicator_shown_ = true;
+  }
+}
+
+// startUI()'s own poll() otherwise waits up to a full second regardless of
+// what's happening - fine normally, but while a pending Escape hasn't yet
+// crossed kEscapeIndicatorDelay, that would make the indicator's own
+// appearance late and irregular (anywhere up to a second past the actual
+// delay) rather than landing right on it. Only shortens the wait while
+// there's an actual reason to wake up early; otherwise unchanged.
+int
+TerminalUI::escapeIndicatorPollTimeoutMs() const {
+  constexpr int kDefaultPollTimeoutMs = 1000;
+  if (!escape_pending_since_ || escape_indicator_shown_) return kDefaultPollTimeoutMs;
+  auto remaining = kEscapeIndicatorDelay - (std::chrono::steady_clock::now() - *escape_pending_since_);
+  auto remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(remaining).count();
+  return static_cast<int>(std::clamp<long long>(remaining_ms, 0, kDefaultPollTimeoutMs));
 }
 
 void
@@ -1631,17 +1670,35 @@ TerminalUI::readInput() {
     kp_escape_depth_ = 0;
   };
 
+  // Only the very first dequeue of a batch gets definitely_pending=true -
+  // it's the one call directly backed by poll() having just reported
+  // notcurses's own input-ready fd readable (see startUI()'s own poll()
+  // call, and NotcursesInputEventSource's top comment for why this
+  // matters: a genuine Ctrl-Space, codepoint 0, is otherwise
+  // indistinguishable from "nothing available" here). Every later
+  // dequeue in the same drain burst has no such external guarantee.
+  bool first_dequeue = true;
+
   while (true) {
-    // Mirrors Emacs's own echo-area "ESC-" while a Meta-prefix wait is
+    // Emacs shows "ESC-" in the echo area while a Meta-prefix wait is
     // open (EscapeSequenceCoalescer::escapePending()'s own comment) -
-    // there's no deadline, so this is the only feedback a person gets
-    // that the wait is still open; shown/cleared right on the transition
-    // rather than deferred, since printing it late would look identical
-    // to it never having appeared at all for however long the delay was.
+    // matched here, but not immediately: recorded on the transition, with
+    // the actual indicator shown only once escapeIndicatorPollTimeoutMs()'s
+    // delay has passed with the wait still open (updateEscapeIndicator(),
+    // called from startUI()'s own loop) - a fast Alt-chord that resolves
+    // well within that window never flickers the indicator at all.
     bool escape_was_pending = escape_input_->coalescer.escapePending();
-    if (!escape_input_->coalescer.next(&ni)) break;
+    if (!escape_input_->coalescer.next(&ni, first_dequeue)) break;
+    first_dequeue = false;
     bool escape_now_pending = escape_input_->coalescer.escapePending();
-    if (escape_now_pending != escape_was_pending) setStatus(escape_now_pending ? "ESC-" : "");
+    if (escape_now_pending && !escape_was_pending) {
+      escape_pending_since_ = std::chrono::steady_clock::now();
+      escape_indicator_shown_ = false;
+    } else if (!escape_now_pending && escape_was_pending) {
+      if (escape_indicator_shown_) setStatus("");
+      escape_pending_since_.reset();
+      escape_indicator_shown_ = false;
+    }
 
     // Legacy terminals only ever report NCTYPE_UNKNOWN (no press/release
     // distinction - notcurses's own signal that this terminal never
@@ -1774,9 +1831,11 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
   
   while ( !close_ui_ ) {
     bool render = false;
-    
+
+    updateEscapeIndicator();
+
     // setStatus("polling");
-    if (poll(descriptors.get(), num_descriptors, 1000) > 0) {
+    if (poll(descriptors.get(), num_descriptors, escapeIndicatorPollTimeoutMs()) > 0) {
       for (size_t i = 0; i < num_descriptors; i++) {
 	auto & d = descriptors[i];
 	if (d.revents) {

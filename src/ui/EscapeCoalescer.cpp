@@ -92,13 +92,34 @@ normalizeLegacyAlt(ncinput & ni) {
   if (ni.alt && !ncinput_alt_p(&ni)) ni.modifiers |= NCKEY_MOD_ALT;
 }
 
+// Legacy terminals encode Ctrl-Space as a literal NUL byte. Every *other*
+// C0 control byte (Ctrl-A through Ctrl-Z, values 1-26) gets converted by
+// notcurses's own load_ncinput() (in.c) into the corresponding letter with
+// NCKEY_MOD_CTRL set - but that function's range check is `id > 0 && id <=
+// 26`, deliberately excluding 0 (confirmed against the installed 3.0.17
+// source), so Ctrl-Space alone arrives as a bare, unmodified codepoint 0
+// instead. This codebase's own Ctrl-Space keybinding (`KeyChord::pack(' ',
+// true, ...)`, PatternEditor.cpp's set-mark) - like a Kitty-protocol
+// terminal's own native report of the same physical chord, which sends
+// the actual codepoint (32) with the modifier bit set, never 0 - expects
+// id=' ' with NCKEY_MOD_CTRL, so this fills the one gap load_ncinput()
+// itself leaves in that otherwise-uniform conversion.
+void
+normalizeCtrlSpace(ncinput & ni) {
+  if (ni.id == 0 && !ncinput_ctrl_p(&ni)) {
+    ni.id = ' ';
+    ni.modifiers |= NCKEY_MOD_CTRL;
+  }
+}
+
 }
 
 bool
-EscapeSequenceCoalescer::next(ncinput * ni) {
-  if (!source_.next(ni)) return false;
+EscapeSequenceCoalescer::next(ncinput * ni, bool definitely_pending) {
+  if (!source_.next(ni, definitely_pending)) return false;
 
   normalizeLegacyAlt(*ni);
+  normalizeCtrlSpace(*ni);
 
   // Mouse press/release always carries a real NCTYPE_PRESS/NCTYPE_RELEASE
   // (SGR mouse reporting distinguishes them unconditionally - confirmed
