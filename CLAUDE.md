@@ -228,8 +228,7 @@ tool) — it only works via the modern Kitty keyboard protocol (kitty, foot,
 wezterm, ghostty, …). GNOME Terminal (Ubuntu's default) doesn't support
 that protocol, so `C-SPC` does nothing there. `C-@` doesn't help either —
 it's byte-for-byte identical to `C-SPC` (both mask down to NUL), not a
-distinct keystroke. Use **C-b** ("begin selection", already envisioned for
-this in `todo.txt`) instead — an ordinary control byte that works on any
+distinct keystroke. Use **C-b** instead — an ordinary control byte that works on any
 terminal.
 
 Keybinding dispatch is centralized, Emacs-style (v1, partial): `KeyChord.h`/
@@ -545,10 +544,8 @@ gitignored.
   different amplitudes.
 - `songs/` — example/test songs (XML, hand-editable).
 - `docs/` — note-number tables for various EDOs, key bindings, MIDI notes;
-  `known_bugs.md` tracks open, not-yet-fixed bugs (as opposed to `todo.txt`'s
-  long-lived feature/idea backlog).
+  `known_bugs.md` tracks open, not-yet-fixed bugs
 - `tools/` — helper scripts (e.g. `minimal_edo.pl`).
-- `todo.txt` — long-lived idea backlog, not a list of in-progress work.
 - `third_party/` holds vendored third-party code, one subdirectory per
   library, each with its own upstream `LICENSE`/provenance note -
   `third_party/tinyxml2/tinyxml2.{cpp,h}` (zlib licence) and
