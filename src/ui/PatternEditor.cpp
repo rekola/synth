@@ -1887,13 +1887,6 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
       auto base = track_base_color(t);
       return (focused && t->getInternalId() == selected_id) ? base.blend(0.35f, Color(255, 255, 255)) : base;
     };
-    // `t`'s own base color, darkened - the collapse toggle's look. A
-    // heading control, not a pure status indicator like the ones
-    // faint_color() below covers, so it keeps its own, more prominent
-    // darkening, and (unlike those) stays the plain, non-brightened base
-    // (track_base_color(), not segment_color()) even when `t` is
-    // selected - the toggle reads the same regardless of selection.
-    auto toggle_color = [&](Track * t) { return track_base_color(t).blend(0.4f, Color(0, 0, 0)); };
     // A faint "transparent black" tint over whatever background is
     // actually drawn (segment_color() - selection brighten included, not
     // the flat track_base_color()) - every idle-status indicator's own
@@ -1995,6 +1988,12 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  // whole identity, toggle included, to its ancestor-row box (see
 	  // the level>0 branch further down).
 	  bool has_collapse_toggle = is_color_eligible;
+	  // Collapsed: just the arrow, no trailing space - there's no name
+	  // following it to separate from (the title bar shrinks to a
+	  // single placeholder column while collapsed, see
+	  // VisibleTrackInfo::getColumnCount()). Expanded: arrow plus a
+	  // trailing space, separating it from the name drawn right after.
+	  auto toggle_width = !has_collapse_toggle ? 0 : is_collapsed ? 1 : 2;
 
 	  if (has_collapse_toggle && actual_width <= 1) {
 	    // No room for the toggle glyph itself - a collapsed track's own
@@ -2009,8 +2008,8 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    // std::max(0, ...): a narrow enough column (actual_width < 3) would
 	    // otherwise make text_width negative, and it's used below both as a
 	    // display-width budget and as a putstr() column offset.
-	    auto text_width = std::max(0, actual_width - (has_mute_solo ? 3 : 1) - (has_collapse_toggle ? 1 : 0));
-	    auto name_pos = current_pos + (has_collapse_toggle ? 1 : 0);
+	    auto text_width = std::max(0, actual_width - (has_mute_solo ? 3 : 1) - toggle_width);
+	    auto name_pos = current_pos + toggle_width;
 
 	    // The display label is still type-specific (a raw sample/step
 	    // sequencer has nothing resembling an "instrument" to resolve),
@@ -2063,14 +2062,11 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    name = Utf8::truncateToWidth(name, text_width);
 	    name = Utf8::padToWidth(name, text_width);
 	    if (has_collapse_toggle) {
-	      // toggle_color() - the track's own darkened base color (see its
-	      // own comment) - same coloring method as Mute/Solo's OFF glyphs
-	      // just below, but its own lighter darkening: a heading control,
-	      // not a pure status indicator like those (or the ancestor row's
-	      // own activity dot), so it stays a touch more prominent.
-	      setFgColor(toggle_color(track));
-	      putstr(heading_height - 2 - level, current_pos, track->isCollapsed() ? "+" : "-");
+	      // White, matching the heading text - a heading control, not a
+	      // status indicator (contrast the faint Mute/Solo OFF glyphs
+	      // just below, or the ancestor row's own activity dot).
 	      setFgColor(0xff, 0xff, 0xff);
+	      putstr(heading_height - 2 - level, current_pos, is_collapsed ? "▸" : "◂ ");
 	    }
 	    putstr(heading_height - 2 - level, name_pos, name);
 	    // Cache this track's own name-field position for
@@ -2112,7 +2108,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    putstr(heading_height - 2 - level + 1, current_pos, instrument_name);
 	  }
 	} else if (actual_width <= 1) {
-	  // No room for even the "+"/"-" collapse toggle, let alone the
+	  // No room for even the "▸"/"◂" collapse toggle, let alone the
 	  // activity dot or name text - a lone collapsed leaf column is 2
 	  // wide (see VisibleTrackInfo::getColumnWidth()), so this is only
 	  // reached via horizontal scroll truncating the segment down to a
@@ -2122,12 +2118,12 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	} else {
 	  std::string name = track->getElementName();
 	  auto & track_info = info.getTrackInfo(track->getInternalId());
-	  // The toggle (1 cell, front) and the trailing "│" are always
+	  // The toggle (2 cells, front) and the trailing "│" are always
 	  // reserved (the actual_width <= 1 branch above covers when even
 	  // that can't be met); whatever's left goes to the name, with the
 	  // activity dot claiming the last cell of it first - so a
 	  // narrow segment drops the dot before it drops the toggle.
-	  auto remaining = actual_width - 2;
+	  auto remaining = actual_width - 3;
 	  bool show_dot = remaining >= 1;
 	  auto element_name_width = std::max(0, remaining - (show_dot ? 1 : 0));
 
@@ -2144,15 +2140,12 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    name = Utf8::truncateToWidth(name, element_name_width);
 	    name = Utf8::padToWidth(name, element_name_width);
 
-	    // Same coloring method as the level-0 title bar's own toggle
-	    // (toggle_color() - the track's own darkened base color) - reads
-	    // as a heading control, not a status indicator (contrast the dot
-	    // below, or the level-0 title bar's own M/S glyphs).
-	    setFgColor(toggle_color(track));
-	    putstr(heading_height - 2 - level, current_pos, track->isCollapsed() ? "+" : "-");
-
+	    // White, matching the heading text - a heading control, not a
+	    // status indicator (contrast the dot below, or the level-0 title
+	    // bar's own M/S glyphs).
 	    setFgColor(0xff, 0xff, 0xff);
-	    putstr(heading_height - 2 - level, current_pos + 1, name);
+	    putstr(heading_height - 2 - level, current_pos, track->isCollapsed() ? "▸ " : "◂ ");
+	    putstr(heading_height - 2 - level, current_pos + 2, name);
 
 	    if (show_dot) {
 	      // Always draw the dot - faint when idle, full clip/active color
@@ -2170,7 +2163,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 		// fixed grey.
 		setFgColor(faint_color(track));
 	      }
-	      putstr(heading_height - 2 - level, current_pos + 1 + element_name_width, "•");
+	      putstr(heading_height - 2 - level, current_pos + 2 + element_name_width, "•");
 	    }
 	  } else {
 	    setFgColor(0x00, 0x00, 0x00);

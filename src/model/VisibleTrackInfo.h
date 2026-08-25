@@ -58,7 +58,7 @@ public:
     // content cells plus its own trailing "│" border, instead of the
     // type's normal content width + 1. An instrument/percussion/
     // arpeggiator track (see SongStructure.cpp) gets 1 blank cell, so
-    // its "+"/"-" heading toggle has an actual cell of its own to sit
+    // its "▸"/"◂" heading toggle has an actual cell of its own to sit
     // in rather than the border being the track's *entire* on-screen
     // footprint; an effect track has no such toggle at this level (its
     // own ancestor-row box carries it instead - see
