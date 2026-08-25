@@ -138,12 +138,20 @@ public:
   // white text to sit on top of. All three values are a starting point,
   // tuned by eye - the mechanism (fixed S/L, generated H) is the point,
   // not the exact numbers.
+  // The hue alone - factored out of getColor() below so a caller that
+  // wants this track's identity at a different saturation/lightness (e.g.
+  // PatternMatrix's cell glyphs, rendered as foreground text rather than a
+  // background bar - see PatternMatrix.cpp) doesn't have to duplicate the
+  // golden-angle formula to get the same hue getColor() would.
+  float getHue() const {
+    constexpr float kGoldenAngle = 137.50776f;
+    return std::fmod(static_cast<float>(color_ordinal_) * kGoldenAngle, 360.0f);
+  }
+
   Color getColor() const {
     constexpr float kSaturation = 0.35f;
     constexpr float kLightness = 0.42f;
-    constexpr float kGoldenAngle = 137.50776f;
-    float hue = std::fmod(static_cast<float>(color_ordinal_) * kGoldenAngle, 360.0f);
-    return Color::fromHSL(hue, kSaturation, kLightness);
+    return Color::fromHSL(getHue(), kSaturation, kLightness);
   }
 
   int num_subtracks_ = 1;

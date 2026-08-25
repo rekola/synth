@@ -6,6 +6,7 @@
 #include "InfoLine.h"
 #include "StatusLine.h"
 #include "PatternEditor.h"
+#include "PatternMatrix.h"
 #include "HierarchyView.h"
 #include "SpinBox.h"
 #include "../model/Color.h"
@@ -41,9 +42,71 @@ using namespace std;
 using namespace fmt;
 
 void
+UI::requestOverviewFocus() {
+  // Lands on the overview's own last (rightmost) column, not wherever its
+  // cursor happened to be left last time - both entry points (PatternEditor's
+  // leftmost track, Launchpad's prev-track already at track 0) arrive
+  // "from the right". Not symmetric with exitOverview() (always the first
+  // track, regardless of which column was current here) - deliberately:
+  // exiting always returns to the same, predictable starting point.
+  auto num_tracks = static_cast<int>(pattern_matrix_->getVisibleTrackIds(getController().getSong()).size());
+  pattern_matrix_->setCursorTrackIndex(max(0, num_tracks - 1));
+  active_element_ = pattern_matrix_;
+}
+
+void
+UI::exitOverview() {
+  pattern_editor_->setCursorTrack(0);
+  active_element_ = pattern_editor_;
+}
+
+void
+UI::commitOverviewCell(int track_id, int scene_idx) {
+  // The whole commit refuses while playing - matches PatternEditor's own
+  // move-row-up/move-row-down guard (row navigation only ever runs while
+  // stopped), and avoids a commit that silently only did half of what it
+  // normally does (move the track but not the playhead) while playing.
+  if (getController().getPlaybackInfo().isPlaying()) return;
+
+  auto & song = getController().getSong();
+  // NOTE: if PatternEditor's own mark/selection happens to still be active
+  // (selection_active_, unrelated to anything PatternMatrix/Launchpad
+  // does), setEditPosition() below clamps to the pattern that selection is
+  // in rather than actually jumping to scene_idx - a real, narrow edge
+  // case, not handled here.
+  getController().setEditPosition(scene_idx * song.getPatternLength());
+
+  auto track_ids = song.getRootTrackIds();
+  auto it = find(track_ids.begin(), track_ids.end(), track_id);
+  if (it != track_ids.end()) {
+    pattern_editor_->setCursorTrack(static_cast<int>(it - track_ids.begin()));
+  }
+  active_element_ = pattern_editor_;
+}
+
+void
 UI::initialize() {
   // chart and volume are missing
   pattern_editor_ = make_shared<PatternEditor>(getPlane());
+  pattern_matrix_ = make_shared<PatternMatrix>(getPlane());
+  // Enter commits the cell under PatternMatrix's own (local, passive)
+  // cursor to shared state - see PatternMatrix.h's own comment on why this
+  // is a callback rather than PatternMatrix reaching for PatternEditor/
+  // active_element_ itself (it doesn't know either exists).
+  // launchpad_manager_ isn't set yet at this point (UI::start() assigns
+  // it later, after main.cpp's own ui.initialize()/ui.start() call order -
+  // see that method for the equivalent Launchpad wiring), so that half of
+  // commitOverviewCell()'s callers is wired there instead.
+  pattern_matrix_->setCommitCallback([this](int track_id, int scene_idx) { commitOverviewCell(track_id, scene_idx); });
+  // Plain Left with nowhere further left to go - see PatternEditor's own
+  // setOverviewRequestCallback() comment; Launchpad's prev-track hits the
+  // same edge, wired in UI::start() below for the same launchpad_manager_-
+  // isn't-set-yet reason commitOverviewCell()'s own split wiring is.
+  pattern_editor_->setOverviewRequestCallback([this]() { requestOverviewFocus(); });
+  // The reverse edge: Right past the last (rightmost) visible column -
+  // lands on PatternEditor's own first track, same landing spot Launchpad's
+  // own overview-exit already uses (see UI::start()'s equivalent wiring).
+  pattern_matrix_->setExitRightCallback([this]() { exitOverview(); });
   info_line_ = make_shared<InfoLine>(getPlane());
   status_line_ = make_shared<StatusLine>(getPlane());
   // Colors match InfoLine's own hardcoded gray-on-dark (InfoLine.h's
@@ -336,18 +399,38 @@ UI::layout() {
 
   constexpr int kHeatmapWidth = 31; // 20 * 1.5, rounded up to the nearest odd width
   constexpr int kScopeRow = 1, kScopeHeight = 5;
-  int chart_width = cols - 9 - kHeatmapWidth - 2; // -2 for the single-column dividers on either side of the heatmap
-  int divider1_x = chart_width, divider2_x = divider1_x + 1 + kHeatmapWidth;
-  chart_->resize(kScopeHeight, chart_width).move(kScopeRow, 0);
+
+  // pattern_matrix_ claims the scope row's own leftmost columns first (the
+  // literal top-left corner) - sized off the song's own track count but
+  // capped, since its own internal scrolling handles anything past that
+  // rather than this widget ever needing to be as wide as the track list
+  // is long. chart_ gives up exactly that much width (plus one divider
+  // column) to make room; heatmap_/volume_meter_ are untouched - a
+  // terminal too narrow for all four just clamps chart_ down toward 1
+  // column rather than a fuller "drop the least-used scope first"
+  // rebalance, deferred for now.
+  auto num_tracks = static_cast<int>(getController().getSong().getRootTrackIds().size());
+  // PatternMatrix spends 2 columns per track (its own cell plus a blank
+  // separator - see PatternMatrix.cpp's own kColWidth), so its width needs
+  // doubling here to actually fit the same track count this clamp implies.
+  int matrix_width = std::clamp(num_tracks, 4, 24) * 2;
+  int matrix_divider_x = matrix_width;
+  pattern_matrix_->resize(kScopeHeight, matrix_width).move(kScopeRow, 0);
+
+  int chart_width = std::max(1, cols - (matrix_width + 1) - 9 - kHeatmapWidth - 2); // -2 for the single-column dividers on either side of the heatmap
+  int chart_x = matrix_width + 1;
+  int divider1_x = chart_x + chart_width, divider2_x = divider1_x + 1 + kHeatmapWidth;
+  chart_->resize(kScopeHeight, chart_width).move(kScopeRow, chart_x);
   heatmap_->resize(kScopeHeight, kHeatmapWidth).move(kScopeRow, divider1_x + 1);
   volume_meter_->resize(kScopeHeight, 9).move(kScopeRow, divider2_x + 1);
 
-  // Single-column dividers between the three scopes - drawn once here
+  // Single-column dividers between the four scopes - drawn once here
   // rather than per-frame, since these columns fall outside every scope's
   // own resized rectangle, so nothing else ever repaints over them.
   setFgColor(styles_.window_border_color);
   setBgColor(styles_.window_bg_color);
   for (int row = 0; row < kScopeHeight; row++) {
+    putstr(kScopeRow + row, matrix_divider_x, "│");
     putstr(kScopeRow + row, divider1_x, "│");
     putstr(kScopeRow + row, divider2_x, "│");
   }
@@ -372,7 +455,9 @@ UI::layout() {
 bool
 UI::renderComponents(bool refresh) {
   bool render = false;
-  render |= pattern_editor_->render(styles_, refresh);
+  auto active = active_element_.lock();
+  render |= pattern_editor_->render(styles_, refresh, active == pattern_editor_);
+  render |= pattern_matrix_->render(styles_, refresh, active == pattern_matrix_);
 #if 0
   for (auto & window : windows_) {
     render |= window->render(styles_, refresh);
@@ -384,8 +469,19 @@ UI::renderComponents(bool refresh) {
   if (launchpad_manager_) {
     auto & song = getController().getSong();
     auto track_ids = song.getRootTrackIds();
+    // No track selected at all while pattern_matrix_ has focus - matches
+    // the -1 an empty track list already gets, rather than leaking
+    // whatever track pattern_editor_'s own cursor happens to still be
+    // sitting on while it's unfocused.
+    auto matrix_focused = active == pattern_matrix_;
+    LaunchpadManager::OverviewWindow overview;
+    overview.active = matrix_focused;
+    if (matrix_focused) {
+      overview.track_ids = pattern_matrix_->getVisibleTrackIds(song);
+      overview.num_scenes = static_cast<int>(song.getScenes().size());
+    }
     launchpad_manager_->refresh(song, track_ids, getController().getPlaybackInfo(),
-      track_ids.empty() ? -1 : pattern_editor_->getCursorTrackIndex(), getController());
+      (track_ids.empty() || matrix_focused) ? -1 : pattern_editor_->getCursorTrackIndex(), getController(), overview);
   }
 
   return render;
@@ -442,6 +538,7 @@ UI::offerInput(const InputEvent & input) {
     // a click landed anywhere on the status line's own row - which spans
     // the entire bottom row, so this was very easy to trigger by accident.
     bool activated = tryActivate(input.getY(), input.getX(), pattern_editor_);
+    activated = tryActivate(input.getY(), input.getX(), pattern_matrix_) || activated;
 
     for (auto & window : windows_) {
       activated = tryActivate(input.getY(), input.getX(), window) || activated;
@@ -675,6 +772,14 @@ UI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
     }
     return;
   }
+  // GridMode::OVERVIEW: same reasoning as DRAW above (touches no
+  // Song/Track data via handlePadEvent()'s own Controller-only path -
+  // commits through commitOverviewCell() instead, wired as
+  // LaunchpadManager's own overview_commit_callback_ in UI::start()).
+  if (launchpad_manager_ && launchpad_manager_->gridMode(ev.getDeviceIndex()) == LaunchpadManager::GridMode::OVERVIEW) {
+    launchpad_manager_->handleOverviewPadEvent(ev);
+    return;
+  }
   if (!launchpad_manager_) return;
   launchpad_manager_->handlePadEvent(ev, getController(),
     pattern_editor_->getCursorTrackIndex(), pattern_editor_->getEditStepSize());
@@ -771,6 +876,18 @@ void
 UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launchpad_manager) {
   launchpad_manager.setLaunchpadIO(&launchpad_io);
   launchpad_manager_ = &launchpad_manager;
+  // A pad press in GridMode::OVERVIEW commits through the exact same logic
+  // pattern_matrix_'s own Enter does (see UI::initialize()'s own wiring
+  // and commitOverviewCell()) - wired here rather than there since
+  // launchpad_manager_ doesn't exist yet at UI::initialize() time (see
+  // main.cpp's ui.initialize()/ui.start() call order).
+  launchpad_manager.setOverviewCommitCallback([this](int track_id, int scene_idx) { commitOverviewCell(track_id, scene_idx); });
+  // prev-track already at track 0 - see PatternEditor's own equivalent
+  // wiring in UI::initialize() and requestOverviewFocus()'s own comment.
+  launchpad_manager.setOverviewRequestCallback([this]() { requestOverviewFocus(); });
+  // next-track already in GridMode::OVERVIEW - lands on track 0, the same
+  // reasoning PatternMatrix's own exit-right wiring above explains.
+  launchpad_manager.setOverviewExitCallback([this]() { exitOverview(); });
 
   std::thread audio_thread(audio_thread_func, &(getController()), &audio);
   std::thread visualization_thread(visualization_thread_func, &(getController()), audio.getFrequency(), audio.getFrameCount());

@@ -15,6 +15,10 @@ class StyleProvider {
   Color window_accent_bg_color = "#292929";
 
   Color command_column_color = "#c67610";
+
+  // First use: PatternMatrix's not-applicable cell glyph (a DrumMachineTrack
+  // column). No prior red/error color existed here to reuse.
+  Color error_fg_color = "#dc3c3c";
 };
 
 #endif

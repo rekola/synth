@@ -2,11 +2,13 @@
 #define _LAUNCHPADMANAGER_H_
 
 #include "../instruments/Tuning.h"
+#include "../model/Color.h"
 #include "LaunchpadProtocol.h"
 #include "LaunchpadTiming.h"
 
 #include <array>
 #include <chrono>
+#include <functional>
 #include <map>
 #include <set>
 #include <string_view>
@@ -94,10 +96,69 @@ class LaunchpadManager {
   // always returns/moves to exactly one state.
   // Ordered to match the physical buttons' own row order (Volume/Pan/Send
   // A/Send B, CC 89/79/69/59 - see handleRawButton()'s own comment), not
-  // declaration-arbitrary.
-  enum class GridMode { NOTES, SEND_MAIN, PAN, SEND_A, SEND_B, DRAW };
+  // declaration-arbitrary. OVERVIEW is unlike the rest of this list: it's
+  // never reached via toggleGridMode()/a physical mode button, only forced
+  // uniformly onto every connected device by refresh() itself whenever the
+  // PatternMatrix UI has focus (see OverviewWindow/refresh()'s own
+  // comment) - the same "every Launchpad shows the same thing" choice
+  // already made for which track a device's plain NOTES grid follows.
+  enum class GridMode { NOTES, SEND_MAIN, PAN, SEND_A, SEND_B, DRAW, OVERVIEW };
   GridMode gridMode(int device_id) const;
   void toggleGridMode(int device_id, GridMode mode);
+
+  // PatternMatrix's own filtered track columns - see GridMode::OVERVIEW.
+  // `track_ids` is PatternMatrix's own filtered column list (color-
+  // eligible tracks only - PatternMatrix::getVisibleTrackIds()),
+  // deliberately not Song::getRootTrackIds(): a Launchpad in OVERVIEW mode
+  // must address the exact same columns the terminal widget does, not a
+  // separately-derived list that could disagree with it. Deliberately
+  // does NOT carry a scroll position: an earlier version mirrored
+  // PatternMatrix's own scroll_row_/scroll_col_ directly, but the two
+  // surfaces don't have the same number of visible rows (the terminal
+  // widget's own ~4 data rows vs. the pad grid's 8), so scrolling one
+  // dragged the other around to a position that didn't actually need it -
+  // Launchpad keeps its own independent overview_scroll_row_/
+  // overview_scroll_col_ instead (see refresh()'s own comment). Default-
+  // constructed (active == false) is what a caller passes to refresh()
+  // whenever PatternMatrix doesn't have focus - every device just falls
+  // back to whatever GridMode it was already in (see refresh()'s own
+  // comment).
+  struct OverviewWindow {
+    bool active = false;
+    std::vector<int> track_ids;
+    // Song::getScenes().size() - lets handleOverviewPadEvent() refuse a
+    // press that lands past the last valid row (the real Scenes plus one
+    // virtual, not-yet-instantiated one - see PatternMatrix's own
+    // ensureCursorVisible()) without needing a Song reference of its own,
+    // matching the same bound the terminal widget's own cursor is clamped
+    // to. A press beyond that already shows as a fully dark/off pad (see
+    // refresh()'s own overview_colors computation, which stops at the same
+    // bound) - this just keeps it non-actionable too, not merely dark.
+    int num_scenes = 0;
+  };
+
+  // Called (once, from wherever owns the PatternMatrix widget) with the
+  // (track_id, scene index) a pad press commits while a device is in
+  // OVERVIEW mode - mirrors PatternMatrix::setCommitCallback() exactly
+  // (same callback, ideally - see UI::initialize()), so a pad press and
+  // the terminal's own Enter key drive the identical commit logic rather
+  // than two competing implementations of it. A plain std::function, not
+  // a UI-typed dependency - keeps this class's own "only needs Controller,
+  // never any UI type" contract (see this class's header comment) intact.
+  void setOverviewCommitCallback(std::function<void(int track_id, int scene_idx)> cb) { overview_commit_callback_ = std::move(cb); }
+
+  // Called (from wherever owns the PatternMatrix widget) when "prev-track"
+  // is pressed while a device is already on the first track - mirrors
+  // PatternEditor::setOverviewRequestCallback() exactly (same callback,
+  // ideally - see UI::initialize()), the Launchpad-side edge for the same
+  // "nowhere further left to go, enter the overview instead" gesture.
+  void setOverviewRequestCallback(std::function<void()> cb) { overview_request_callback_ = std::move(cb); }
+
+  // Called when "next-track" is pressed while a device is already in
+  // GridMode::OVERVIEW - the exit edge, mirroring PatternMatrix::
+  // setExitRightCallback() exactly (same callback, ideally - see
+  // UI::initialize()).
+  void setOverviewExitCallback(std::function<void()> cb) { overview_exit_callback_ = std::move(cb); }
 
   // DRAW mode only: registers a touch-down on pad (x,y) - starts (or, for a
   // hold-continuation resend, extends) its held-duration tracking and
@@ -248,6 +309,20 @@ class LaunchpadManager {
   // happens to be present).
   void handlePadEvent(LaunchpadPadEvent & ev, Controller & controller, int fallback_track_index, int edit_step_size);
 
+  // GridMode::OVERVIEW's own pad-press handling - mirrors DRAW mode's own
+  // separate entry point (pressDrawPad()) rather than living inside
+  // handlePadEvent() above: UI::handleLaunchpadPadEvent() already checks
+  // gridMode() before ever calling handlePadEvent() (to route DRAW mode
+  // to pressDrawPad() instead, since it touches no Song/Track data at
+  // all), so OVERVIEW - which touches no Controller either, only the
+  // cached overview_ window and overview_commit_callback_ - fits the same
+  // shape rather than adding a third meaning to handlePadEvent()'s own
+  // `grid_mode != GridMode::NOTES` branch. Only a PRESS does anything
+  // (matching every other grid-mode's own press-only convention); x/y map
+  // to overview_'s track/scene window exactly like refresh()'s own
+  // overview_colors computation does (see its comment for the y-flip).
+  void handleOverviewPadEvent(const LaunchpadPadEvent & ev);
+
   // Device-wide aftertouch (the alternative to handlePadEvent's per-pad
   // AFTERTOUCH case - see LaunchpadChannelPressureEvent) - there's no
   // pad, so no single note_column/track to target the way per-pad
@@ -282,7 +357,7 @@ class LaunchpadManager {
   // audition clock below (to reach the playback event queue) - every
   // other per-device computation here still only touches `song`/
   // `playback_info` directly, unchanged from before that clock existed.
-  void refresh(const Song & song, const std::vector<int> & track_ids, const PlaybackInfo & playback_info, int fallback_track_index, Controller & controller);
+  void refresh(const Song & song, const std::vector<int> & track_ids, const PlaybackInfo & playback_info, int fallback_track_index, Controller & controller, const OverviewWindow & overview);
 
   // Called whenever the active buffer changes (Controller::
   // setBufferChangeListener()'s UI.cpp wiring): resets every connected
@@ -395,6 +470,16 @@ class LaunchpadManager {
     // default value happens to map to (row 0 for Send A/B, dead-center for
     // Pan - both misleadingly "lit").
     int grid_track_count = 0;
+
+    // GridMode::OVERVIEW: each of the 64 pads' own final LED color
+    // (x + y*8, y flipped from PatternMatrix's own top-down scene order -
+    // see refresh()'s own comment), already fully resolved (identity hue,
+    // playhead-row brightening, off where nothing's there) - refreshLeds()
+    // just reads this directly, same "computed once in refresh(), copied
+    // into every device identically" shape as track_send_main/etc. above.
+    // Plain black (Color's own default) wherever OVERVIEW isn't active at
+    // all, so this never needs a separate "is this valid" flag.
+    std::array<Color, 64> overview_colors;
 
     // DRAW mode: each of the 64 pads' own index into the color palette
     // (see releaseDrawPad/refreshLeds), independent of Song/Track state
@@ -563,6 +648,26 @@ class LaunchpadManager {
   // Controller into octave()/resolveNote()/refreshLeds(), none of which
   // otherwise need it. See octave()'s own comment.
   int cached_global_octave_ = 4;
+
+  // refresh()'s own OverviewWindow parameter, mirrored here (same
+  // capture_enabled_/cached_global_octave_ pattern) so handlePadEvent() -
+  // called asynchronously between refresh() calls, on a real pad press -
+  // can resolve which (track_id, scene index) a press in GridMode::OVERVIEW
+  // landed on without needing its own copy threaded through.
+  OverviewWindow overview_;
+  // Launchpad's own scroll position within the overview grid - deliberately
+  // independent of PatternMatrix's own scroll_row_/scroll_col_ (see
+  // OverviewWindow's own comment on why); reset to 0 whenever OVERVIEW
+  // mode isn't active (refresh()'s own doing), so each fresh entry starts
+  // from the top-left rather than wherever a previous session left off.
+  // Column scroll has no button of its own yet (CC93/94 are the
+  // enter/exit overview gesture instead - see handleCommand()) so it stays
+  // fixed at 0 for now; row scroll moves via "move-row-up"/"move-row-down"
+  // (CC91/92) while a device is in OVERVIEW mode.
+  int overview_scroll_row_ = 0, overview_scroll_col_ = 0;
+  std::function<void(int track_id, int scene_idx)> overview_commit_callback_;
+  std::function<void()> overview_request_callback_;
+  std::function<void()> overview_exit_callback_;
 };
 
 #endif

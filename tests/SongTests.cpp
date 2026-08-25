@@ -439,3 +439,49 @@ TEST(recognized_and_unrecognized_generator_overrides_coexist_in_one_document) {
 
   fs::remove(scratch_path);
 }
+
+// getScene() falls back to a shared, process-wide sentinel Scene for an
+// out-of-range index (deliberately, for read-only callers - see its own
+// comment) - getOrCreateScene() is the write-intent counterpart that
+// actually grows the song instead, so a write aimed past the last real
+// Scene lands in real, persisted content rather than silently aliasing
+// into that sentinel (the exact bug PatternEditor's own note/annotation
+// entry and PatternMatrix's yank hit before each was moved onto this).
+TEST(get_or_create_scene_grows_the_song_up_to_the_requested_index) {
+  Song song;
+  CHECK(song.getScenes().size() == 0);
+
+  auto & scene = song.getOrCreateScene(2);
+  CHECK(song.getScenes().size() == 3);
+  scene.setNote(0, 0, 0, Note(60, 100));
+
+  // The same index now resolves to the exact Scene just written into, not
+  // a second, distinct instance.
+  CHECK(song.getScene(2).getNote(0, 0, 0).getValue() == 60);
+}
+
+TEST(get_or_create_scene_does_not_regrow_an_already_large_enough_song) {
+  Song song;
+  song.getOrCreateScene(4);
+  CHECK(song.getScenes().size() == 5);
+
+  // Asking for an earlier index must not truncate/replace what's already
+  // there.
+  auto & scene = song.getOrCreateScene(1);
+  scene.setNote(0, 0, 0, Note(67, 100));
+  CHECK(song.getScenes().size() == 5);
+  CHECK(song.getScene(1).getNote(0, 0, 0).getValue() == 67);
+}
+
+TEST(get_or_create_scene_is_a_real_distinct_scene_not_the_shared_sentinel) {
+  Song song_a, song_b;
+  auto & scene_a = song_a.getOrCreateScene(0);
+  scene_a.setNote(0, 0, 0, Note(60, 100));
+
+  // A second, unrelated Song's own out-of-range write must never alias
+  // into the same object song_a's write just landed in - the exact
+  // failure mode of the old getScene()-for-writing bug (a single shared
+  // static empty_scene_ instance, process-wide, not per-Song).
+  auto & scene_b = song_b.getOrCreateScene(0);
+  CHECK(scene_b.getNote(0, 0, 0).getValue() != 60);
+}

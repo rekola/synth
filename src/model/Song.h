@@ -116,6 +116,24 @@ class Song : public StatefulSongObject {
   const Scene & getScene(int i) const { return i >= 0 && i < static_cast<int>(scenes_.size()) ? scenes_[static_cast<size_t>(i)] : empty_scene_; }
   Scene & getScene(int i) { return i >= 0 && i < static_cast<int>(scenes_.size()) ? scenes_[static_cast<size_t>(i)] : empty_scene_; }
 
+  // getScene()'s own write-intent counterpart: grows scenes_ (via addScene(),
+  // repeated as needed) up to and including index i, so the caller always
+  // gets back a real, distinct Scene rather than getScene()'s shared,
+  // process-wide empty_scene_ sentinel for an out-of-range index - writing
+  // into that sentinel would silently alias every other out-of-range
+  // position in the whole process together, not persist as real song
+  // content at all. Reserved for call sites about to *write* (note entry,
+  // annotation edit, paste, insert-row, ...) - getScene() stays the one to
+  // use for anything read-only (rendering, copy), which must never grow
+  // the song just from being looked at. i < 0 is defensive-only (no caller
+  // should ever pass one) and falls back to the same sentinel getScene()
+  // would.
+  Scene & getOrCreateScene(int i) {
+    if (i < 0) return empty_scene_;
+    while (static_cast<int>(scenes_.size()) <= i) addScene();
+    return scenes_[static_cast<size_t>(i)];
+  }
+
   // Clamps `target` so it can't leave the pattern `current` falls in -
   // used by the UI-thread edit cursor (Controller::moveEditPosition()/
   // setEditPosition(), only ever called while stopped) and the audio

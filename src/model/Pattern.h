@@ -139,6 +139,28 @@ class Pattern : public SongObject {
     }
   }
 
+  // No notes and no commands anywhere - both maps are already kept
+  // pruned back to empty as content is cleared (setNotes()/setNote()/
+  // deleteNote() drop a row entirely once nothing defined is left in it,
+  // clearCommand() erases rather than storing an undefined value), so
+  // this is a real "has this ever had content that's still here" check,
+  // not just "was this row touched."
+  bool isEmpty() const { return notes_.empty() && commands_.empty(); }
+
+  // True iff at least one note here is a genuine, sound-producing note-on
+  // (Note::isDefined() && !isOff() && !isAftertouch(), which already
+  // covers percussion note-ons correctly too). A Pattern can be non-empty
+  // (isEmpty() above) purely from note-offs, aftertouch, or Command data -
+  // this tells that case apart from one that actually produces sound.
+  bool hasSoundingNote() const {
+    for (auto & [ row, columns ] : notes_) {
+      for (auto & n : columns) {
+        if (n.isDefined() && !n.isOff() && !n.isAftertouch()) return true;
+      }
+    }
+    return false;
+  }
+
 private:
   // insertRow()/deleteRow()'s own command-shifting step: copies dst_row's
   // command from src_row, or clears dst_row if src_row had none - mirrors

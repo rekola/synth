@@ -230,7 +230,9 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
       auto & song = getController().getSong();
       auto & info = getController().getPlaybackInfo();
       auto track_ids = song.getRootTrackIds();
-      auto & scene = song.getScene(info.getPatternIndex());
+      // yank writes - see Song::getOrCreateScene()'s own comment on why
+      // that's the one to use here, not plain getScene().
+      auto & scene = song.getOrCreateScene(info.getPatternIndex());
       if (clipboard_.scope == SelectionScope::TRACK) {
         pastePatternBlock(scene, clipboard_.cells, song.getPatternLength(), info.getRowIndex(), track_ids, current_cursor.track);
       } else if (clipboard_.scope == SelectionScope::NOTE_COLUMN) {
@@ -270,7 +272,8 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   commands_.define("insert-row", [this]() {
     auto & song = getController().getSong();
     auto & info = getController().getPlaybackInfo();
-    auto & scene = song.getScene(info.getPatternIndex());
+    // insert-row writes - see Song::getOrCreateScene()'s own comment.
+    auto & scene = song.getOrCreateScene(info.getPatternIndex());
     scene.insertRow(info.getRowIndex(), song.getPatternLength());
     song.incVersion();
   });
@@ -717,7 +720,7 @@ PatternEditor::startTrackNameEdit() {
   // pass cached under the old, pre-correction scroll.
   if (scroll_corrected && last_styles_) {
     auto all_track_info = getTrackInformation(song, current_scroll_.row);
-    renderHeading(*last_styles_, track_ids, all_track_info);
+    renderHeading(*last_styles_, track_ids, all_track_info, current_focused_);
   }
 
   // No name field to edit at all under the cursor's current column (an
@@ -771,7 +774,7 @@ PatternEditor::startTrackNameEdit() {
   // makes for its own row/col fallback above.
   if (last_styles_) {
     auto all_track_info = getTrackInformation(song, current_scroll_.row);
-    renderHeading(*last_styles_, track_ids, all_track_info);
+    renderHeading(*last_styles_, track_ids, all_track_info, current_focused_);
   }
 
   // The reader's own cells (TerminalUI::showReader()'s ncreader_options::
@@ -870,7 +873,7 @@ PatternEditor::getEffectiveSelectionBounds(const Song & song, const vector<int> 
 }
 
 bool
-PatternEditor::render(const StyleProvider & styles, bool refresh) {
+PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) {
   last_styles_ = &styles; // see its own comment - startTrackNameEdit()'s only source of one
   bool render_all = refresh;
   auto & info = getController().getPlaybackInfo();
@@ -955,6 +958,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
       score_total_columns != current_score_total_columns ||
       new_scroll != current_scroll_ ||
       sel_bounds != current_sel_bounds_ ||
+      focused != current_focused_ ||
       force_redraw_
       ) {
     render_all = true;
@@ -970,18 +974,18 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
     setBgColor(styles.window_bg_color);
     fill();
 
-    renderHeading(styles, track_ids, track_info);
+    renderHeading(styles, track_ids, track_info, focused);
     for (auto row = 0; row < rows - heading_height; row++) {
-      renderRow(styles, heading_height, track_ids, track_info, row, (row + current_scroll_.row) == score_playing_row, sel_bounds);
+      renderRow(styles, heading_height, track_ids, track_info, row, (row + current_scroll_.row) == score_playing_row, sel_bounds, focused);
     }
     need_redraw = true;
   } else if (current_score_playing_row != score_playing_row) {
-    renderHeading(styles, track_ids, track_info);
-    renderRow(styles, heading_height, track_ids, track_info, current_score_playing_row - current_scroll_.row, false, sel_bounds);
-    renderRow(styles, heading_height, track_ids, track_info, score_playing_row - current_scroll_.row, true, sel_bounds);
+    renderHeading(styles, track_ids, track_info, focused);
+    renderRow(styles, heading_height, track_ids, track_info, current_score_playing_row - current_scroll_.row, false, sel_bounds, focused);
+    renderRow(styles, heading_height, track_ids, track_info, score_playing_row - current_scroll_.row, true, sel_bounds, focused);
     need_redraw = true;
   } else if (cursor_changed || row_edited) {
-    renderRow(styles, heading_height, track_ids, track_info, score_playing_row - current_scroll_.row, true, sel_bounds);
+    renderRow(styles, heading_height, track_ids, track_info, score_playing_row - current_scroll_.row, true, sel_bounds, focused);
     need_redraw = true;
   }
 
@@ -1001,6 +1005,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh) {
   row_edited = false;
 
   current_sel_bounds_ = sel_bounds;
+  current_focused_ = focused;
   
   return need_redraw;
 }
@@ -1014,7 +1019,8 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
 
   auto track_ids = song.getRootTrackIds();
 
-  auto & scene = song.getScene(info.getPatternIndex());
+  // MIDI note entry writes - see Song::getOrCreateScene()'s own comment.
+  auto & scene = song.getOrCreateScene(info.getPatternIndex());
   int track_id = track_ids[static_cast<size_t>(new_cursor.track)];
 
   // Channel-wide, not tied to any specific note - unlike every other case
@@ -1204,7 +1210,9 @@ PatternEditor::offerInput(const InputEvent & input) {
       auto text = getPlane().closeReader();
       if (annotation_edit_pattern_ >= 0) {
 	auto & song = getController().getSong();
-	auto & scene = song.getScene(annotation_edit_pattern_);
+	// Commits the annotation - writes - see Song::getOrCreateScene()'s
+	// own comment.
+	auto & scene = song.getOrCreateScene(annotation_edit_pattern_);
 	scene.setAnnotation(annotation_edit_row_, std::move(text));
 	song.incVersion();
       } else if (track_name_edit_track_id_ >= 0) {
@@ -1452,6 +1460,12 @@ PatternEditor::offerInput(const InputEvent & input) {
 
 	auto it = all_track_info.find(track_ids[static_cast<size_t>(new_cursor.track)]);
 	new_cursor.col = it != all_track_info.end() ? it->second.getColumnCount() - 1 : 0;
+      } else if (overview_request_callback_) {
+	// Already at the very first track's first column - nowhere further
+	// left to go in the pattern grid itself, so this is the overview's
+	// own entry point instead of a no-op (see this method's own header
+	// comment).
+	overview_request_callback_();
       }
       return true;
     } else if (input.getId() == NCKEY_RIGHT) {
@@ -1505,7 +1519,9 @@ PatternEditor::offerInput(const InputEvent & input) {
       }
       return true;
     } else {
-      auto & scene = song.getScene(info.getPatternIndex());
+      // Raw note/command/velocity/delay entry writes - see
+      // Song::getOrCreateScene()'s own comment.
+      auto & scene = song.getOrCreateScene(info.getPatternIndex());
       int track_id = track_ids[static_cast<size_t>(new_cursor.track)];
       auto column_type = track_info.getColumnType(new_cursor.col);
     
@@ -1711,7 +1727,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 }
 
 void
-PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & all_track_info) {
+PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & all_track_info, bool focused) {
   auto & song = getController().getSong();
   auto & info = getController().getPlaybackInfo();
 
@@ -1854,9 +1870,12 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
     // The background color renderHeading() actually draws for `t`'s own
     // heading segment - track_base_color() above, brightened toward
     // white when `t` is the cursor's own current track (selected_id
-    // above), or the plain window background when there's no track at
-    // all (a blank, "nothing resolved here" segment). Brightening here
-    // rather than in track_base_color() itself means the whole box a
+    // above) *and* this widget is actually focused (same gating renderRow()'s
+    // own region highlight uses, and for the same reason - distracting,
+    // and ambiguous about which window a kill-ring-save/yank would target,
+    // while unfocused), or the plain window background when there's no
+    // track at all (a blank, "nothing resolved here" segment). Brightening
+    // here rather than in track_base_color() itself means the whole box a
     // track owns (every row of a multi-level effect ancestor box
     // included, not just the row its name happens to draw on) reads as
     // selected consistently, while Mute/Solo's OFF color can still reach
@@ -1866,7 +1885,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
     auto segment_color = [&](Track * t) -> Color {
       if (!t) return styles.window_bg_color;
       auto base = track_base_color(t);
-      return t->getInternalId() == selected_id ? base.blend(0.35f, Color(255, 255, 255)) : base;
+      return (focused && t->getInternalId() == selected_id) ? base.blend(0.35f, Color(255, 255, 255)) : base;
     };
     // `t`'s own base color, darkened - the collapse toggle's look. A
     // heading control, not a pure status indicator like the ones
@@ -2170,7 +2189,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 }
 
 void
-PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & all_track_info, int display_row, bool highlight, const SelectionBounds & sel_bounds) {
+PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & all_track_info, int display_row, bool highlight, const SelectionBounds & sel_bounds, bool focused) {
   auto [rows, cols] = getDim();
 
   if (display_row >= rows - heading_height) {
@@ -2230,7 +2249,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     // what EVERYTHING means.
     bool column_scoped_selection = row_track_in_selection &&
       sel_bounds.scope != SelectionScope::TRACK && sel_bounds.scope != SelectionScope::EVERYTHING;
-    bool in_selection = row_track_in_selection && !column_scoped_selection;
+    bool in_selection = focused && row_track_in_selection && !column_scoped_selection;
     if (in_selection) {
       fg = styles.highlight_fg_color;
       bg = styles.highlight_bg_color;
@@ -2275,7 +2294,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	// COMMAND-scoped region (see getEffectiveSelectionBounds()) - set
 	// across the *whole* selected row range, not just column_highlighted's
 	// single row.
-	bool column_selected = column_scoped_selection &&
+	bool column_selected = focused && column_scoped_selection &&
 	  ((sel_bounds.scope == SelectionScope::NOTE_COLUMN && !track_info.isEffectColumn(k) &&
 	    track_info.getNoteNumber(k) >= sel_bounds.note_lo && track_info.getNoteNumber(k) <= sel_bounds.note_hi) ||
 	   (sel_bounds.scope == SelectionScope::COMMAND && track_info.isEffectColumn(k)));
@@ -2420,8 +2439,13 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     // annotation, the other on a real track, escalated to cover the
     // whole row) - either way the annotation area itself needs to read as
     // selected too, not just the tracks.
-    bool row_on_annotation_cursor = highlight && current_cursor.isOnAnnotation();
-    bool row_in_everything_selection = sel_bounds.scope == SelectionScope::EVERYTHING &&
+    // All three ANDed with `focused` (not just `highlight`, which is the
+    // playhead-row flag, untouched by focus - see this method's own new
+    // `focused` parameter): these three feed row_selected/row_fully_filled
+    // just below, the annotation area's own share of the cursor/selection
+    // highlight the per-column loop above already gates the same way.
+    bool row_on_annotation_cursor = focused && highlight && current_cursor.isOnAnnotation();
+    bool row_in_everything_selection = focused && sel_bounds.scope == SelectionScope::EVERYTHING &&
       pattern_idx == info.getPatternIndex() && pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
     // A genuine multi-row ANNOTATION-scoped selection (mark and point both
     // on the annotation, on different rows - see kill-region/kill-ring-
@@ -2430,7 +2454,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     // row's annotation) keeps its existing single-row look below rather
     // than picking up the full-width selected fill meant for an actual
     // range.
-    bool row_in_annotation_selection = sel_bounds.scope == SelectionScope::ANNOTATION &&
+    bool row_in_annotation_selection = focused && sel_bounds.scope == SelectionScope::ANNOTATION &&
       sel_bounds.row_lo != sel_bounds.row_hi &&
       pattern_idx == info.getPatternIndex() && pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
     bool row_selected = row_on_annotation_cursor || row_in_everything_selection || row_in_annotation_selection;

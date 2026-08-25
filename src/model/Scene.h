@@ -112,6 +112,14 @@ class Scene : public SongObject {
   const std::unordered_map<int, Pattern> & getPatternsByTrack() const { return patterns_by_track_id_; }
   std::unordered_map<int, Pattern> & getPatternsByTrack() { return patterns_by_track_id_; }
 
+  // Replaces track_id's whole Pattern in one shot (a deep copy - Pattern
+  // is a plain value) - PatternMatrix's single-cell yank uses this rather
+  // than the row+track_id-keyed wrappers above, which only ever touch one
+  // row at a time.
+  void setPatternForTrack(int track_id, Pattern pattern) {
+    patterns_by_track_id_[track_id] = std::move(pattern);
+  }
+
 private:
   // insertRow()/deleteRow()'s own annotation-shifting step - same "copy if
   // present, else erase rather than store an explicit empty string" shape

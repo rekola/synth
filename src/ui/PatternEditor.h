@@ -7,6 +7,7 @@
 #include "ClipboardEntry.h"
 #include "SelectionBounds.h"
 
+#include <functional>
 #include <vector>
 #include <unordered_map>
 #include <set>
@@ -24,7 +25,14 @@ class PatternEditor : public UIElement {
  public:
   PatternEditor(UIPlane & parent);
 
-  bool render(const StyleProvider & styles, bool refresh = false);
+  // `focused` (whether this widget is UI::active_element_ - it has no way
+  // to know that itself) gates the cursor/selection region highlight only
+  // (renderRow()'s own use of styles.highlight_fg_color/highlight_bg_color) -
+  // distracting otherwise, and ambiguous about which window a kill-ring-
+  // save/yank would actually target while PatternMatrix has focus instead.
+  // The playhead-row tint is untouched - that's transport state, not input
+  // focus, and stays visible either way.
+  bool render(const StyleProvider & styles, bool refresh, bool focused);
   bool offerInput(const InputEvent & input) override;
   void handleMidiEvent(MidiEvent & ev) override;
 
@@ -46,6 +54,17 @@ class PatternEditor : public UIElement {
   int getCursorTrackIndex() const { return current_cursor.track; }
   void setCursorTrack(int track_index) { new_cursor.track = track_index; new_cursor.col = new_cursor.subcol = 0; }
   int getEditStepSize() const { return edit_step_size; }
+
+  // Called (from UI::initialize()) when plain Left is pressed with the
+  // cursor already at the very first track's first column - PatternMatrix's
+  // own leftward "there's nothing further this way, switch to the
+  // overview instead" edge, mirrored here rather than PatternEditor
+  // reaching for active_element_/pattern_matrix_ itself (same separation
+  // commit_callback_ establishes on the PatternMatrix side - see its own
+  // header comment). LaunchpadManager's own "prev-track" command hits the
+  // identical edge (see its setOverviewRequestCallback()) and is wired to
+  // the same UI-level handler, not a second implementation of it.
+  void setOverviewRequestCallback(std::function<void()> cb) { overview_request_callback_ = std::move(cb); }
 
   // Called whenever the UI thread learns of a new playhead position (see
   // UI::handlePlaybackEvent, right after Controller::receivePlaybackSnapshot() -
@@ -93,8 +112,8 @@ protected:
   // current_scroll_ - see render()'s own comment on why.
   std::unordered_map<int, VisibleTrackInfo> getTrackInformation(const Song & song, int scroll_row) const;
   VisibleTrackInfo getTrackInfoFor(const Song & song, int track_id) const;
-  void renderHeading(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info);
-  void renderRow(const StyleProvider & styles, int heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, int row, bool highlight, const SelectionBounds & sel_bounds);
+  void renderHeading(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, bool focused);
+  void renderRow(const StyleProvider & styles, int heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, int row, bool highlight, const SelectionBounds & sel_bounds, bool focused);
 
   // Opens the annotation editor for the cursor's current row - called
   // once offerInput() sees Enter pressed while the cursor is parked on
@@ -146,6 +165,14 @@ protected:
   int edit_step_size = 1, new_edit_step_size = 1;
   bool row_edited = false;
   int current_song_version = 0;
+
+  // What render() last drew the cursor/selection highlight with - not
+  // buffer-local state (unlike everything in EditingState below), just a
+  // dirty-check cache, so it lives here rather than there: a focus change
+  // needs to force a redraw the same way a cursor move already does, or
+  // the highlight would stay stuck on/off-screen until some unrelated
+  // change happened to repaint this row.
+  bool current_focused_ = true;
 
   std::unordered_map<int, int> active_midi_notes;
 
@@ -228,6 +255,8 @@ protected:
   // std::vector<ClipboardEntry> plus a rotation index in place of this
   // single entry, not a restructuring of how one entry stores itself.
   ClipboardEntry clipboard_;
+
+  std::function<void()> overview_request_callback_;
 
   // The on-screen (row, col) renderRow()'s own (display-only) annotation
   // code draws at for the cursor/playhead's current row - cached there

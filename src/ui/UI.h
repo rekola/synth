@@ -19,6 +19,7 @@ class HeatmapChart;
 class InfoLine;
 class StatusLine;
 class PatternEditor;
+class PatternMatrix;
 class HierarchyView;
 class SpinBox;
 class UIElement;
@@ -79,6 +80,28 @@ protected:
   void initialize();
   void layout();
   bool renderComponents(bool refresh = false);
+  // Shared by pattern_matrix_'s own Enter commit and a Launchpad pad press
+  // in GridMode::OVERVIEW (see UI::initialize()/UI::start() for how each
+  // is wired to this) - one implementation of "commit this (track, scene)
+  // cell", not two competing ones. See PatternMatrix.h's own comment on
+  // why PatternMatrix itself never calls this directly.
+  void commitOverviewCell(int track_id, int scene_idx);
+  // Shared by PatternEditor's own leftward "nowhere further to go" edge
+  // and Launchpad's equivalent "prev-track already at track 0" one (see
+  // PatternEditor::setOverviewRequestCallback()/LaunchpadManager::
+  // setOverviewRequestCallback(), wired to this in UI::initialize()/
+  // UI::start()) - moves focus to pattern_matrix_, which (via
+  // renderComponents()'s own active_element_ check) is what actually puts
+  // every connected Launchpad into GridMode::OVERVIEW too.
+  void requestOverviewFocus();
+  // The reverse edge: leaves the overview, focusing pattern_editor_ on its
+  // first track - both entry points (Launchpad's "next-track" already in
+  // GridMode::OVERVIEW, PatternMatrix's own rightward exit past its last
+  // column - see LaunchpadManager::setOverviewExitCallback()/
+  // PatternMatrix::setExitRightCallback(), wired in UI::initialize()/
+  // UI::start()) land here, so there's only one exit destination to reason
+  // about, not two competing ones.
+  void exitOverview();
   bool tryActivate(int y, int x, std::shared_ptr<UIElement> element);
   Logger & getLogger() { return logger_; }
   
@@ -109,6 +132,10 @@ private:
 
   std::shared_ptr<InfoLine> info_line_;
   std::shared_ptr<PatternEditor> pattern_editor_;
+  // Always visible in the scope row's leftmost columns (see UI::layout())
+  // - not one of windows_'s click-to-reveal popups, and not togglable;
+  // shares that row's real estate with chart_/heatmap_/volume_meter_.
+  std::shared_ptr<PatternMatrix> pattern_matrix_;
   // The global octave stepper - see SpinBox.h and Controller::
   // getGlobalOctave(). Lives inline in the info bar's own row (see
   // layout()), not windows_, since it's always-on and click-activatable

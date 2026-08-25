@@ -102,6 +102,10 @@ class UIElement : public EventHandler {
     if (plane_) plane_->setUnderline(b);
     return *this;
   }
+  UIElement & setBold(bool b) {
+    if (plane_) plane_->setBold(b);
+    return *this;
+  }
 
   std::pair<int, int> getPosition() const {
     if (plane_) return plane_->getPosition();

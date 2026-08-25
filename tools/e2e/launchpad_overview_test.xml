@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Purpose-built for verify_launchpad_overview.py: exactly one track (so
+     x=0's column is unambiguous) and 8 scenes (indices 0-7), with the last
+     one (7) populated - fake_launchpad.c's fixed press on pad (0,0) maps to
+     scene index 7 (y=0 is the *bottom* row of the 8-row grid, so the
+     one-past-the-visible-window formula lands on the last scene here - see
+     LaunchpadManager::handleOverviewPadEvent's own y-flip comment), which
+     this song needs to actually exist rather than landing on the virtual
+     one-past-the-end row a shorter song would leave there instead. -->
+<song temperament="12edo" tempo="120" patternRows="16">
+  <instruments>
+    <instrument from="string.bowed.ensemble.pizzicato" />
+  </instruments>
+  <tracks>
+    <track id="0" instrument="0" />
+  </tracks>
+  <scenes>
+    <scene>
+      <pattern track="0">
+        <note row="0" velocity="80" value="C-4" />
+      </pattern>
+    </scene>
+    <scene />
+    <scene />
+    <scene />
+    <scene />
+    <scene />
+    <scene />
+    <scene>
+      <pattern track="0">
+        <note row="0" velocity="80" value="E-4" />
+      </pattern>
+    </scene>
+  </scenes>
+</song>

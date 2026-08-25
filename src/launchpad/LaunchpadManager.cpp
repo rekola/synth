@@ -11,6 +11,7 @@
 #include "../model/LeafTrack.h"
 #include "../model/InstrumentTrack.h"
 #include "../model/DrumMachineTrack.h"
+#include "../model/SongStructure.h"
 #include "../Controller.h"
 #include "../util/constants.h"
 #include "../model/Color.h"
@@ -676,8 +677,44 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
     octaveDown(device_id);
     return true;
   }
+  if (name == "move-row-up" || name == "move-row-down") {
+    // Only meaningful in OVERVIEW mode - scrolls this class's own
+    // overview_scroll_row_ (deliberately independent of PatternMatrix's
+    // own scroll position - see OverviewWindow's own comment), clamped to
+    // the same "one virtual row past the last real Scene" bound the
+    // terminal cursor uses. Outside OVERVIEW, "move-row-up"/"move-row-down"
+    // isn't this class's command at all (PatternEditor's own row
+    // navigation owns it, reached via UI::executeCommand()'s fallback, not
+    // through here) - declining lets that happen normally.
+    if (gridMode(device_id) != GridMode::OVERVIEW) return false;
+    auto max_scroll = std::max(0, overview_.num_scenes + 1 - 8);
+    overview_scroll_row_ = std::clamp(overview_scroll_row_ + (name == "move-row-down" ? 1 : -1), 0, max_scroll);
+    return true;
+  }
   if (name == "next-track" || name == "prev-track") {
+    // Already in the overview - "which track is assigned" has no meaning
+    // right now (every device is uniformly in GridMode::OVERVIEW - see
+    // refresh()'s own comment), so this isn't the ordinary prev/next-track
+    // gesture at all: prev-track is a no-op (nowhere further left than the
+    // overview itself), next-track is the overview's own exit, symmetric
+    // with PatternMatrix's own rightward exit (see setOverviewExitCallback()).
+    if (gridMode(device_id) == GridMode::OVERVIEW) {
+      if (name == "next-track" && overview_exit_callback_) overview_exit_callback_();
+      return true;
+    }
     if (num_tracks <= 0) return true;
+    if (name == "prev-track") {
+      auto & state = deviceState(device_id);
+      auto current = state.assigned_track_id < 0 ? fallback_track_index : state.assigned_track_id;
+      // Already at the first track - nowhere further left to go (see
+      // LaunchpadLayout::advanceTrackIndex's own clamp-at-0, not wrap),
+      // so this is the overview's own entry point instead of a no-op -
+      // see setOverviewRequestCallback()'s own comment.
+      if (current <= 0 && overview_request_callback_) {
+        overview_request_callback_();
+        return true;
+      }
+    }
     advanceTrack(device_id, name == "next-track" ? 1 : -1, fallback_track_index, num_tracks);
     return true;
   }
@@ -795,7 +832,13 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
   auto note_value = resolveNote(song, device_id, track_id, ev.getX(), ev.getY());
   if (note_value < 0) return; // unused percussion pad (row 7), or an unpitched/degenerate tuning
 
-  auto & scene = song.getScene(info.getPatternIndex());
+  // Pad-press note entry writes - see Song::getOrCreateScene()'s own
+  // comment (Song.h) on why that's the one to use here, not plain
+  // getScene(): the edit position can legitimately be past the last real
+  // Scene (PatternEditor's own row navigation already tolerates that), and
+  // getScene() would silently write into a shared, process-wide sentinel
+  // instead of real song content in that case.
+  auto & scene = song.getOrCreateScene(info.getPatternIndex());
   auto current_delay = info.getCurrentDelay();
   auto & event_queue = controller.getPlaybackEventQueue();
 
@@ -972,6 +1015,24 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
 }
 
 void
+LaunchpadManager::handleOverviewPadEvent(const LaunchpadPadEvent & ev) {
+  if (ev.getKind() != LaunchpadPadEvent::PRESS) return;
+  if (!overview_commit_callback_) return;
+
+  auto track_index = overview_scroll_col_ + ev.getX();
+  if (track_index < 0 || track_index >= static_cast<int>(overview_.track_ids.size())) return;
+  // Same y-flip as refresh()'s own overview_colors computation - y=0 is
+  // the bottom-left pad, so y=7 is the earliest visible scene.
+  auto scene_idx = overview_scroll_row_ + (7 - ev.getY());
+  // One virtual row past the last real Scene is a valid target (see
+  // OverviewWindow::num_scenes's own comment); anything past that already
+  // shows fully dark - this keeps it non-actionable too.
+  if (scene_idx < 0 || scene_idx > overview_.num_scenes) return;
+
+  overview_commit_callback_(overview_.track_ids[static_cast<size_t>(track_index)], scene_idx);
+}
+
+void
 LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & controller, DrumMachineTrack & track, int track_id) {
   auto & lane_notes = track.getLaneNotes();
   auto x = ev.getX(), y = ev.getY();
@@ -1103,7 +1164,21 @@ void
 LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   vector<LaunchpadProtocol::PadColor> colors;
 
-  if (state.grid_mode == GridMode::DRAW) {
+  if (state.grid_mode == GridMode::OVERVIEW) {
+    // Fully resolved already (identity hue, playhead-row brightening, off
+    // where nothing's there) - see refresh()'s own overview_colors
+    // computation and DeviceState::overview_colors's own comment. Checked
+    // first, ahead of every other branch below: OVERVIEW is a hard
+    // override forced on by refresh() itself, not a per-device toggle a
+    // user could combine with Send/Pan/Draw/drum-machine display.
+    for (int y = 0; y < 8; y++) {
+      for (int x = 0; x < 8; x++) {
+        auto & c = state.overview_colors[static_cast<size_t>(y * 8 + x)];
+        colors.push_back({LaunchpadProtocol::padToNoteNumber(x, y),
+          static_cast<uint8_t>(c.getRed() / 2), static_cast<uint8_t>(c.getGreen() / 2), static_cast<uint8_t>(c.getBlue() / 2)});
+      }
+    }
+  } else if (state.grid_mode == GridMode::DRAW) {
     // A plain coloring toy - each pad shows its own stored palette hue,
     // brightness-modulated by its own press/aftertouch intensity (see
     // colorForDrawPad()) - completely independent of Song/Track data and of
@@ -1357,12 +1432,14 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
 }
 
 void
-LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, const PlaybackInfo & playback_info, int fallback_track_index, Controller & controller) {
+LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, const PlaybackInfo & playback_info, int fallback_track_index, Controller & controller, const OverviewWindow & overview) {
   if (!launchpad_io_) return;
 
   // Mirrored once per frame, same as capture_enabled_ below - see
   // cached_global_octave_'s own comment.
   cached_global_octave_ = controller.getGlobalOctave();
+  // Cached for handlePadEvent() - see overview_'s own comment.
+  overview_ = overview;
 
   auto ready_ids = launchpad_io_->readySessionIds();
 
@@ -1442,6 +1519,66 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     }
   }
 
+  // GridMode::OVERVIEW's own shared LED grid - same "computed once here,
+  // identical for every connected device" reasoning as track_send_main/
+  // etc. above, and same reason this stays a plain Color array rather than
+  // a DeviceState-nested computation: refreshLeds() only ever reads
+  // DeviceState, never Song/PlaybackInfo directly (see its own branches).
+  // x = column within overview_scroll_col_'s window, indexed into
+  // overview.track_ids - PatternMatrix's own filtered column list, not
+  // track_ids above (this class's usual root-track-id parameter, which
+  // includes non-color-eligible tracks OVERVIEW never shows a column for).
+  // y is flipped from PatternMatrix's own top-down scene order: y=0 is the
+  // bottom-left pad (see LaunchpadProtocol::padToNoteNumber()'s own doc
+  // comment), so y=7 (top) is the earliest visible scene and y=0 (bottom)
+  // the latest, keeping "reading order" top-to-bottom like the terminal
+  // grid rather than literally mirroring its row indices. overview_scroll_row_/
+  // overview_scroll_col_ (not overview.scroll_row/scroll_col - that struct
+  // doesn't carry a scroll position at all, see its own comment) are this
+  // class's own, independent of whatever PatternMatrix's own scroll
+  // position currently is.
+  array<Color, 64> overview_colors;
+  if (!overview.active) {
+    overview_scroll_row_ = overview_scroll_col_ = 0;
+  } else {
+    SongStructure structure(song);
+    auto playing_scene = playback_info.getPatternIndex();
+    auto num_scenes = static_cast<int>(song.getScenes().size());
+    const Color white(255, 255, 255);
+    for (int x = 0; x < 8; x++) {
+      auto track_index = overview_scroll_col_ + x;
+      if (track_index >= static_cast<int>(overview.track_ids.size())) continue;
+      auto overview_track_id = overview.track_ids[static_cast<size_t>(track_index)];
+      auto overview_track = song.getTrackByInternalId(overview_track_id);
+      auto is_drum_machine = overview_track && overview_track->getType() == TrackType::DRUM_MACHINE;
+      if (is_drum_machine) continue; // not part of this MVP - stays off, same as the terminal grid's own ✕ collapsing to off on hardware
+      // Same hue/near-fully-saturated identity PatternMatrix's own terminal
+      // glyphs use, but at its own, dimmer lightness: a directly-emitted
+      // LED pixel at a given lightness reads brighter than the same value
+      // does as terminal glyph text, so the two surfaces are tuned
+      // independently here rather than sharing one constant.
+      auto identity = Color::fromHSL(structure.getBaselineInfo(overview_track_id).getHue(), 0.8f, 0.3f);
+      for (int y = 0; y < 8; y++) {
+        auto scene_idx = overview_scroll_row_ + (7 - y);
+        if (scene_idx >= num_scenes) continue;
+        auto & overview_scene = song.getScene(scene_idx);
+        auto & overview_patterns = overview_scene.getPatternsByTrack();
+        auto pit = overview_patterns.find(overview_track_id);
+        bool populated = pit != overview_patterns.end() && !pit->second.isEmpty();
+        bool is_playing_row = scene_idx == playing_scene;
+        if (populated) {
+          overview_colors[static_cast<size_t>(y * 8 + x)] = is_playing_row ? identity.blend(0.5f, white) : identity;
+        } else if (is_playing_row) {
+          // The playhead row's otherwise-off cells still get a low, dim
+          // wash (no track hue - nothing populated there to represent),
+          // same "the whole row reads as one continuous brightened line"
+          // reasoning as the terminal grid's own playhead-row treatment.
+          overview_colors[static_cast<size_t>(y * 8 + x)] = Color(0, 0, 0).blend(0.15f, white);
+        }
+      }
+    }
+  }
+
   for (auto device_id : ready_ids) {
     // A device not already in devices_ is being seen for the first time
     // this session (freshly connected, or reconnected after having been
@@ -1457,6 +1594,16 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
         state.octave_offset = LaunchpadLayout::clampOctaveOffset(state.octave_offset, defaultOctaveOffsetForModel(*model));
       }
     }
+
+    // GridMode::OVERVIEW is forced uniformly onto every connected device
+    // while the PatternMatrix UI has focus, overriding whatever mode a
+    // device's own physical toggle buttons last selected (a press on one
+    // of those while this is active gets silently re-overridden the very
+    // next refresh() call, for as long as overview.active stays true) -
+    // and released back to NOTES the moment focus leaves, never restoring
+    // whatever non-NOTES mode a device happened to be in before.
+    if (overview.active) state.grid_mode = GridMode::OVERVIEW;
+    else if (state.grid_mode == GridMode::OVERVIEW) state.grid_mode = GridMode::NOTES;
 
     auto track_index = assignedTrackIndex(device_id, fallback_track_index);
     if (track_index < 0 || track_index >= num_tracks) track_index = fallback_track_index;
@@ -1514,6 +1661,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     state.muted = muted;
     state.solo = solo;
     state.active_note_loudness = move(active_note_loudness);
+    state.overview_colors = overview_colors;
     state.track_send_main = track_send_main;
     state.track_send_a = track_send_a;
     state.track_send_b = track_send_b;

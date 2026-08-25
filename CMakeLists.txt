@@ -198,6 +198,7 @@ add_executable(synth src/main.cpp
 	src/ui/TerminalUI.cpp
 	src/ui/HierarchyView.cpp
 	src/ui/PatternEditor.cpp
+	src/ui/PatternMatrix.cpp
 )
 target_include_directories(synth PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 

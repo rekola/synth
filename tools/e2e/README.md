@@ -104,6 +104,14 @@ you're changing.
   brightens once the note actually starts sounding via normal pattern
   playback (not just a live pad press) - covers the active-voice LED
   brightness overlay end to end.
+- **`launchpad_overview_test.xml` / `verify_launchpad_overview.py`** -
+  clicks the PatternMatrix widget to give it UI focus (forcing every
+  connected Launchpad into `GridMode::OVERVIEW`), then reuses plain
+  `fake_launchpad` (its fixed press on pad (0,0) needs a song shaped just
+  right - see the fixture's own comment) to confirm a pad press there
+  reaches `LaunchpadManager::handleOverviewPadEvent` and actually commits
+  (moves the playhead, doesn't enter a note) rather than silently falling
+  through to ordinary NOTES-mode note entry.
 - **`drum_machine_stepgrid_test.xml` / `fake_launchpad_stepseq.c` /
   `verify_launchpad_stepseq.py`** (plans/drum-machine.md, Phase 5) - loads
   a song whose only track is a `DrumMachineTrack`, confirms the Launchpad

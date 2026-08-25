@@ -12,7 +12,7 @@
 // arithmetic on three bytes.
 class Color {
  public:
-  explicit Color() : red(0), green(0), blue(0) { }
+  Color() : red(0), green(0), blue(0) { }
   explicit Color(int _red, int _green, int _blue) : red(_red), green(_green), blue(_blue) { }
   Color(std::string_view s) {
     setValue(std::move(s));
