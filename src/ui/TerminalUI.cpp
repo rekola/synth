@@ -9,6 +9,8 @@
 #include "../audio/AudioAPI.h"
 #include "../launchpad/LaunchpadIO.h"
 #include "../launchpad/LaunchpadPadEvent.h"
+#include "EscapeCoalescer.h"
+#include "NotcursesInputEventSource.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -1512,6 +1514,26 @@ private:
   std::vector<Marker> markers_;
 };
 
+// Bundles the Alt-key coalescing pipeline (see EscapeCoalescer.h)'s three
+// pieces - defined here, not in TerminalUI.h, so that header stays free
+// of notcurses types (same reasoning as kp_escape_pending_'s own comment
+// there).
+class TerminalUI::EscapeInputPipeline {
+public:
+  explicit EscapeInputPipeline(ncpp::NotCurses & nc) : source(nc), coalescer(source, detector) { }
+
+  KittyProtocolDetector detector;
+  NotcursesInputEventSource source;
+  EscapeSequenceCoalescer coalescer;
+};
+
+TerminalUI::TerminalUI(std::shared_ptr<ncpp::NotCurses> _nc)
+  : nc(_nc), escape_input_(make_unique<EscapeInputPipeline>(*nc)) {
+}
+
+TerminalUI::~TerminalUI() {
+}
+
 void
 TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
   auto root_plane = make_unique<TerminalPlane>(controller, nc->get_stdplane(), false);
@@ -1609,7 +1631,18 @@ TerminalUI::readInput() {
     kp_escape_depth_ = 0;
   };
 
-  while (nc->get(false, &ni) > 0) {
+  while (true) {
+    // Mirrors Emacs's own echo-area "ESC-" while a Meta-prefix wait is
+    // open (EscapeSequenceCoalescer::escapePending()'s own comment) -
+    // there's no deadline, so this is the only feedback a person gets
+    // that the wait is still open; shown/cleared right on the transition
+    // rather than deferred, since printing it late would look identical
+    // to it never having appeared at all for however long the delay was.
+    bool escape_was_pending = escape_input_->coalescer.escapePending();
+    if (!escape_input_->coalescer.next(&ni)) break;
+    bool escape_now_pending = escape_input_->coalescer.escapePending();
+    if (escape_now_pending != escape_was_pending) setStatus(escape_now_pending ? "ESC-" : "");
+
     // Legacy terminals only ever report NCTYPE_UNKNOWN (no press/release
     // distinction - notcurses's own signal that this terminal never
     // negotiated the Kitty keyboard protocol at all, no separate

@@ -519,9 +519,6 @@ UI::offerInput(const InputEvent & input) {
     layout();
     renderComponents(true);
   } else if (input.hasCtrl() && input.getId() == 'l') {
-    // Deliberately not a dispatched command: this needs to fall through to
-    // status_line_ below so its meta_pressed (M-x) state machine still gets
-    // reset by an unrelated keypress, same as before this refactor.
     refresh();
   } else if (input.getId() == NCKEY_BUTTON1) {
     auto previous_active_element = active_element_.lock();

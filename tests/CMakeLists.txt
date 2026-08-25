@@ -1,5 +1,14 @@
 add_executable(synth_tests
 	test_main.cpp
+	# Compiled directly as an extra source here (mirroring how
+	# TerminalUI.cpp itself is only ever added straight to the `synth`
+	# executable, never into synth_engine) rather than folded into
+	# synth_engine's own library composition: EscapeCoalescer.h/.cpp only
+	# needs notcurses's headers (types, macros, static inline helpers), not
+	# the linked library, so this keeps that distinction visible at the
+	# build-system level too - see EscapeCoalescer.h's own top comment.
+	../src/ui/EscapeCoalescer.cpp
+	EscapeCoalescerTests.cpp
 	AudioBufferTests.cpp
 	ChannelConfigurationTests.cpp
 	TunerTests.cpp

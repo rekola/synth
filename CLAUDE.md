@@ -151,9 +151,11 @@ raw-N-channel mixer) was retired entirely along with `STEREO`; every mixer
 save-buffers-kill-terminal binding - there is no separate Ctrl-Q quit
 shortcut, deliberately: this codebase follows Emacs keybindings, not
 one-off shortcuts, wherever Emacs already has a convention for the
-action), Ctrl-N creates a new song, **Ctrl-K** opens the M-x command
-minibuffer (reliable on any terminal; see below for why it exists
-alongside Esc-x/Alt-x).
+action), Ctrl-N creates a new song, **Alt-x** opens the M-x command
+minibuffer (see below for the mechanism that makes it work reliably on
+any terminal, ESC-then-x included). Ctrl-K is `PatternEditor`'s own
+kill-row (Emacs's own C-k, kill-line, repurposed the same way), not an
+M-x trigger.
 `docs/commands.md` lists the pattern effect commands (slides, vibrato, …),
 split into **Implemented** (`ZBxx` pattern break, plus `2Lxx`/`2Rxx`
 azimuth slides - see `SongState.h`'s command-handling loop) and
@@ -245,17 +247,17 @@ unchanged. `StatusLine`'s M-x minibuffer still calls
 — for any name it doesn't recognize itself, so M-x can invoke both
 Controller-level commands (`save-song`, `add-filter`) and the per-widget ones
 (`set-mark`, `kill-region`, `transpose-region-up`/`-down`, …) through the
-same path. Not yet migrated: `StatusLine`, `HierarchyView`/`InstrumentList`
-(dead code anyway), and Ctrl-L (deliberately left manual — it needs to keep
-falling through to `StatusLine` so an unrelated keypress after `ESC` still
-cancels a half-typed M-x sequence). `StatusLine`'s M-x detection accepts
-three ways in: the two-step `ESC` then `x` sequence, a single Alt/Meta-
-modified `x` event (some terminals merge them), and **Ctrl-K**, a plain
-control byte that works everywhere — needed because on GNOME Terminal
-(VTE) neither of the other two ever fires at all (confirmed: ESC is
-silently dropped rather than played back as a literal keystroke as
-notcurses's own docs describe; see `docs/known_bugs.md`). This
-is the same fix pattern as Ctrl-B for Ctrl-SPC above. `UIPlane::showReader()`
+same path. Not yet migrated: `StatusLine` and `HierarchyView`/
+`InstrumentList` (dead code anyway). `StatusLine`'s M-x detection is down
+to a single check now, an Alt/Meta-modified `x` event - it no longer needs
+its own two-step `ESC`-then-`x` state machine, since `TerminalUI.cpp`'s
+`EscapeSequenceCoalescer` (`EscapeCoalescer.h`) already folds a bare `ESC`
+followed, arbitrarily later, by `x` into a single Alt-modified event
+before it ever reaches `StatusLine`, the same as a terminal that sends
+physical Alt-x as one event directly; see that header's own top comment
+for why the wait has no deadline (modeled on Emacs's own indefinite
+ESC-as-Meta-prefix behavior, "ESC-" indicator included) rather than a
+short timing window. `UIPlane::showReader()`
 now takes an optional prompt string and draws it *before* creating the
 reader's (opaque) child plane, offsetting the reader past it — the prompt
 used to be drawn via a separate `setMessage()` call *after* `showReader()`,

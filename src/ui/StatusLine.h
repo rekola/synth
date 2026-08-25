@@ -124,22 +124,13 @@ class StatusLine : public UIElement {
 	return UIElement::offerInput(input);
       }
     } else if ((input.hasAlt() || input.hasMeta()) && (input.getId() == 'x' || input.getId() == 'X')) {
-      // Some terminals send the same wire bytes for physical Alt-x and for
-      // Esc-then-x, and depending on protocol negotiation notcurses can
-      // resolve that into a single alt/meta-modified 'x' event instead of
-      // the two separate events the state machine below expects - handle
-      // that directly rather than requiring the two-step path.
+      // Whether the terminal sent physical Alt-x as one event directly, or
+      // ESC then, arbitrarily later, x - TerminalUI.cpp's
+      // EscapeSequenceCoalescer (see EscapeCoalescer.h) already folds
+      // either into a single Alt-modified event before it ever reaches
+      // here, so there's exactly one path to check, not two.
       showMx();
       return true;
-    } else if (input.getId() == NCKEY_ESC) {
-      meta_pressed = true;
-      return true;
-    } else if (meta_pressed) {
-      if (input.getId() == 'x' || input.getId() == 'X') {
-    	showMx();
-	return true;
-      }
-      meta_pressed = false;
     }
     return false;
   }
@@ -323,7 +314,6 @@ private:
     indicator_shown_ = !text.empty();
   }
 
-  bool meta_pressed = false;
   bool indicator_shown_ = false;
   std::string pending_message;
   std::function<void(const std::string &)> on_submit_;

@@ -5,13 +5,7 @@ PatternEditor and C-x C-c/Ctrl-N/Space in UI. General Emacs-keybinding
 smoke test, independent of the Launchpad-specific scripts in this
 directory (which all import harness.py directly instead).
 
-Two environmental quirks are worked around rather than tested here (both
-reproduce on any commit, not caused by any particular change):
-  - ESC is not reliably delivered as a standalone NCKEY_ESC in this scripted
-    pty (traced to TerminalMenu::offerInput delegating to notcurses's own
-    ncmenu_offer_input(), which appears to intercept/consume Escape itself
-    before it reaches StatusLine's M-x meta_pressed logic or PatternEditor's
-    Alt-modified chords) - so Alt-W and the M-x path aren't exercised here.
+One environmental quirk is worked around rather than tested here:
   - Ctrl-N (new-song) leaves the freshly created song in a state where a
     following Space no longer toggles playback - so Space is tested before
     Ctrl-N below.

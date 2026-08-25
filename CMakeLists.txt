@@ -196,6 +196,8 @@ add_executable(synth src/main.cpp
 	src/launchpad/LaunchpadIO.cpp
 	src/launchpad/LaunchpadManager.cpp
 	src/ui/TerminalUI.cpp
+	src/ui/EscapeCoalescer.cpp
+	src/ui/NotcursesInputEventSource.cpp
 	src/ui/HierarchyView.cpp
 	src/ui/PatternEditor.cpp
 	src/ui/PatternMatrix.cpp

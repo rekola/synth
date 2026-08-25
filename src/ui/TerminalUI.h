@@ -11,8 +11,8 @@ namespace ncpp {
 
 class TerminalUI : public UI {
  public:
-  explicit TerminalUI(std::shared_ptr<ncpp::NotCurses> _nc) : nc(_nc) { }
-  ~TerminalUI() { }
+  explicit TerminalUI(std::shared_ptr<ncpp::NotCurses> _nc);
+  ~TerminalUI();
 
   void initialize(std::shared_ptr<Controller> & controller);
 
@@ -36,6 +36,14 @@ private:
   struct PendingRawKey { int id = 0, y = 0, x = 0; unsigned modifiers = 0; InputEvent::Kind kind = InputEvent::Kind::UNKNOWN; };
   int kp_escape_depth_ = 0; // 0 = no legacy KP-escape sequence in progress, 1-3 = that many bytes matched so far
   PendingRawKey kp_escape_pending_[3]; // ESC, 'O', '5', in order
+
+  // Alt-key coalescing (EscapeCoalescer.h) - the notcurses input source
+  // readInput() actually pulls events from. Kept behind a pointer to an
+  // incomplete type, defined only in TerminalUI.cpp, for the same reason
+  // kp_escape_pending_ above is kept plain-int typed: this header
+  // shouldn't need a notcurses include.
+  class EscapeInputPipeline;
+  std::unique_ptr<EscapeInputPipeline> escape_input_;
 };
 
 #endif
