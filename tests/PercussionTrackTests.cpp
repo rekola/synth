@@ -26,8 +26,8 @@ TEST(percussion_track_round_trips_through_save_and_load) {
   Song reloaded;
   CHECK(reloaded.open(scratch_path, provider));
 
-  CHECK(reloaded.getTracks().size() == 1);
-  auto & reloaded_track = *reloaded.getTracks()[0];
+  CHECK(reloaded.getMasterTrack().getChildren().size() == 1);
+  auto & reloaded_track = *reloaded.getMasterTrack().getChildren()[0];
   CHECK(reloaded_track.getElementName() == std::string("percussionTrack"));
   CHECK(reloaded_track.getType() == TrackType::PERCUSSION_CONTROL);
   CHECK(dynamic_cast<PercussionTrack *>(&reloaded_track) != nullptr);

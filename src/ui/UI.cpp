@@ -409,7 +409,7 @@ UI::layout() {
   // terminal too narrow for all four just clamps chart_ down toward 1
   // column rather than a fuller "drop the least-used scope first"
   // rebalance, deferred for now.
-  auto num_tracks = static_cast<int>(getController().getSong().getRootTrackIds().size());
+  auto num_tracks = static_cast<int>(getController().getSong().getPlayableTrackIds().size());
   // PatternMatrix spends 2 columns per track (its own cell plus a blank
   // separator - see PatternMatrix.cpp's own kColWidth), so its width needs
   // doubling here to actually fit the same track count this clamp implies.
@@ -468,7 +468,7 @@ UI::renderComponents(bool refresh) {
 
   if (launchpad_manager_) {
     auto & song = getController().getSong();
-    auto track_ids = song.getRootTrackIds();
+    auto track_ids = song.getPlayableTrackIds();
     // No track selected at all while pattern_matrix_ has focus - matches
     // the -1 an empty track list already gets, rather than leaking
     // whatever track pattern_editor_'s own cursor happens to still be
@@ -803,9 +803,9 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   // which every other raw-CC button (and every other release) still goes
   // through unchanged.
   if (ev.getCCNumber() == 49) {
-    auto track_ids = getController().getSong().getRootTrackIds();
+    auto track_ids = getController().getSong().getPlayableTrackIds();
     auto track_id = launchpad_manager_->resolveTrackId(device_id, track_ids, pattern_editor_->getCursorTrackIndex());
-    auto track = getController().getSong().getTrackByInternalId(track_id);
+    auto track = getController().getSong().getMasterTrack().getChildByInternalId(track_id);
     bool is_drum_machine = track && track->getType() == TrackType::DRUM_MACHINE;
     auto * drum_track = is_drum_machine ? &static_cast<DrumMachineTrack &>(*track) : nullptr;
     launchpad_manager_->handleStopClipButton(device_id, ev.getKind() == LaunchpadButtonEvent::PRESS, drum_track, getController());
@@ -833,7 +833,7 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   // next-track, ...) - it's a one-shot value, overwritten or cleared by
   // the very next dispatch either way, so it can never leak into a later,
   // unrelated command.
-  auto track_ids = getController().getSong().getRootTrackIds();
+  auto track_ids = getController().getSong().getPlayableTrackIds();
   getController().setPendingCommandTrack(launchpad_manager_->resolveTrackId(device_id, track_ids, pattern_editor_->getCursorTrackIndex()));
 
   // Pure per-device commands (octave/track-follow - no Song/Track access,

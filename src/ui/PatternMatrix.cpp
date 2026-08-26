@@ -16,12 +16,7 @@ using namespace std;
 
 vector<int>
 PatternMatrix::getVisibleTrackIds(const Song & song) const {
-  SongStructure structure(song);
-  vector<int> ids;
-  for (auto id : song.getRootTrackIds()) {
-    if (structure.getBaselineInfo(id).color_ordinal_ >= 0) ids.push_back(id);
-  }
-  return ids;
+  return song.getPlayableTrackIds();
 }
 
 PatternMatrix::PatternMatrix(UIPlane & parent) : UIElement(parent) {
@@ -58,7 +53,7 @@ PatternMatrix::PatternMatrix(UIPlane & parent) : UIElement(parent) {
     if (cursor_scene_ >= static_cast<int>(song.getScenes().size())) return false;
 
     auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
-    auto track = song.getTrackByInternalId(track_id);
+    auto track = song.getMasterTrack().getChildByInternalId(track_id);
     if (track && track->getType() == TrackType::DRUM_MACHINE) return false;
 
     auto & scene = song.getScene(cursor_scene_);
@@ -106,7 +101,7 @@ PatternMatrix::PatternMatrix(UIPlane & parent) : UIElement(parent) {
     bool same_song = song.getInternalId() == cell_clipboard_song_id_;
     int target_track_id;
     if (same_song) {
-      if (!song.getTrackByInternalId(cell_clipboard_track_id_)) return;
+      if (!song.getMasterTrack().getChildByInternalId(cell_clipboard_track_id_)) return;
       target_track_id = cell_clipboard_track_id_;
     } else {
       auto track_ids = getVisibleTrackIds(song);
@@ -118,7 +113,7 @@ PatternMatrix::PatternMatrix(UIPlane & parent) : UIElement(parent) {
     // Note::getValue() means something different under each) - the same
     // check that also covers pasting between two songs written in
     // different temperaments, since Tuning distinguishes those too.
-    auto target_track = song.getTrackByInternalId(target_track_id);
+    auto target_track = song.getMasterTrack().getChildByInternalId(target_track_id);
     if (!target_track || song.getTuningForTrack(*target_track) != cell_clipboard_tuning_) {
       getController().getUIEventQueue().push(make_unique<LogEvent>("Cannot paste: incompatible tuning"));
       return;
@@ -335,7 +330,7 @@ PatternMatrix::render(const StyleProvider & styles, bool refresh, bool focused) 
     for (auto vc = 0; vc < visible_cols && scroll_col_ + vc < num_tracks; vc++) {
       auto track_index = scroll_col_ + vc;
       auto track_id = track_ids[static_cast<size_t>(track_index)];
-      auto track = song.getTrackByInternalId(track_id);
+      auto track = song.getMasterTrack().getChildByInternalId(track_id);
       auto is_drum_machine = track && track->getType() == TrackType::DRUM_MACHINE;
       auto glyph_color = identity_color(track_id);
 

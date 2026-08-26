@@ -60,8 +60,8 @@ Player::stateFor(const string & name, const Song & song) {
   std::vector<Track *> track_snapshot;
   {
     std::lock_guard<std::mutex> guard(song.getTracksMutex());
-    track_snapshot.reserve(song.getTracks().size());
-    for (auto & track : song.getTracks()) track_snapshot.push_back(track.get());
+    track_snapshot.reserve(song.getMasterTrack().getChildren().size());
+    for (auto & track : song.getMasterTrack().getChildren()) track_snapshot.push_back(track.get());
   }
   // Return value unused - getState() attaches the built state into *state as a side effect, which is all this loop is for.
   for (auto * track : track_snapshot) track->getState(*state, state->getSongStructure());
@@ -216,7 +216,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       auto midi_note = ev.getParameter3();
       auto midi_velocity = ev.getParameter4();
 
-      auto track = song.getTrackByInternalId(track_id);
+      auto track = song.getMasterTrack().getChildByInternalId(track_id);
       if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL ||
 		    track->getType() == TrackType::PERCUSSION_CONTROL ||
 		    track->getType() == TrackType::DRUM_MACHINE

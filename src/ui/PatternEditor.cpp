@@ -252,7 +252,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
         for (size_t offset = 0; offset < clipboard_.track_tunings.size(); offset++) {
           auto dest_index = target_track_start + static_cast<int>(offset);
           if (dest_index < 0 || dest_index >= static_cast<int>(track_ids.size())) continue; // pastePatternBlock() clips this away too
-          auto * dest_track = song.getTrackByInternalId(track_ids[static_cast<size_t>(dest_index)]);
+          auto * dest_track = song.getMasterTrack().getChildByInternalId(track_ids[static_cast<size_t>(dest_index)]);
           auto dest_tuning = dest_track ? song.getTuningForTrack(*dest_track) : song.getTuning();
           if (dest_tuning != clipboard_.track_tunings[offset]) return false;
         }
@@ -365,7 +365,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     // swap to a different, unrelated drum instead of "transposing"
     // anything, so it's excluded rather than shifted.
     auto is_percussion = [&song](int track_id) {
-      auto * track = song.getTrackByInternalId(track_id);
+      auto * track = song.getMasterTrack().getChildByInternalId(track_id);
       return track && track->getType() == TrackType::PERCUSSION_CONTROL;
     };
 
@@ -392,7 +392,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
 
     // See transpose-region-up's own comment.
     auto is_percussion = [&song](int track_id) {
-      auto * track = song.getTrackByInternalId(track_id);
+      auto * track = song.getMasterTrack().getChildByInternalId(track_id);
       return track && track->getType() == TrackType::PERCUSSION_CONTROL;
     };
 
@@ -535,7 +535,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     auto & song = getController().getSong();
     auto track_ids = song.getRootTrackIds();
     auto current_track = current_cursor.track < static_cast<int>(track_ids.size()) ?
-      song.getTrackByInternalId(track_ids[static_cast<size_t>(current_cursor.track)]) : nullptr;
+      song.getMasterTrack().getChildByInternalId(track_ids[static_cast<size_t>(current_cursor.track)]) : nullptr;
 
     int track_id;
     auto sample = getController().startRecording();
@@ -642,7 +642,7 @@ static void get_track_parents(Track & track, Track * parent, std::unordered_map<
 std::unordered_map<int, VisibleTrackInfo>
 PatternEditor::getTrackInformation(const Song & song, int scroll_row) const {
   auto [rows, cols] = getDim();
-  auto heading_height = song.getTrackDepth() + 1;
+  auto heading_height = song.getMasterTrack().getDepth() + 1;
   auto & info = getController().getPlaybackInfo();
 
   std::unordered_map<int, VisibleTrackInfo> track_info;
@@ -670,7 +670,7 @@ vector<Tuning>
 PatternEditor::tuningsForTrackRange(const Song & song, const vector<int> & track_ids, int track_lo, int track_hi) const {
   vector<Tuning> tunings;
   for (int i = track_lo; i <= track_hi; i++) {
-    auto * track = song.getTrackByInternalId(track_ids[static_cast<size_t>(i)]);
+    auto * track = song.getMasterTrack().getChildByInternalId(track_ids[static_cast<size_t>(i)]);
     tunings.push_back(track ? song.getTuningForTrack(*track) : song.getTuning());
   }
   return tunings;
@@ -756,7 +756,7 @@ PatternEditor::startTrackNameEdit() {
   }
 
   auto track_id = getController().consumePendingCommandTrack(track_ids[static_cast<size_t>(current_cursor.track)]);
-  auto track = song.getTrackByInternalId(track_id);
+  auto track = song.getMasterTrack().getChildByInternalId(track_id);
   if (!track) return;
 
   // The scroll correction above only takes effect on screen once
@@ -782,7 +782,7 @@ PatternEditor::startTrackNameEdit() {
   // per-level loop), so the row is deterministic from the tree's depth
   // alone, unlike the column/width above which depend on scroll position
   // and neighboring columns too.
-  auto row = song.getTrackDepth() - 1;
+  auto row = song.getMasterTrack().getDepth() - 1;
   auto col = track_name_screen_col_;
   auto width = track_name_screen_width_;
 
@@ -945,7 +945,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   }
 
   auto [rows, cols] = getDim();
-  auto heading_height = song.getTrackDepth() + 1;
+  auto heading_height = song.getMasterTrack().getDepth() + 1;
 
   // Computed before getTrackInformation() below, not after (as this used
   // to be ordered) - a real, confirmed bug: getTrackInformation() only
@@ -1267,7 +1267,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	song.incVersion();
       } else if (track_name_edit_track_id_ >= 0) {
 	auto & song = getController().getSong();
-	auto track = song.getTrackByInternalId(track_name_edit_track_id_);
+	auto track = song.getMasterTrack().getChildByInternalId(track_name_edit_track_id_);
 	if (track) {
 	  track->setName(std::move(text));
 	  song.incVersion();
@@ -1320,7 +1320,7 @@ PatternEditor::offerInput(const InputEvent & input) {
     auto track_ids = song.getRootTrackIds();
     if (current_cursor.track < static_cast<int>(track_ids.size())) {
       auto track_id = track_ids[static_cast<size_t>(current_cursor.track)];
-      auto track = song.getTrackByInternalId(track_id);
+      auto track = song.getMasterTrack().getChildByInternalId(track_id);
       if (track && track->isCollapsed()) {
         getController().toggleTrackCollapsed(track_id);
         return true;
@@ -1388,7 +1388,7 @@ PatternEditor::offerInput(const InputEvent & input) {
   auto track_ids = song.getRootTrackIds();
   auto num_tracks = static_cast<int>(track_ids.size());
 
-  auto current_track = song.getTrackByInternalId(track_ids[static_cast<size_t>(current_cursor.track)]);
+  auto current_track = song.getMasterTrack().getChildByInternalId(track_ids[static_cast<size_t>(current_cursor.track)]);
 
   auto input_hex_value = digit(input.getId(), 16);
 
@@ -1433,7 +1433,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       // instrument_id_ of their own to cycle any more (they play through
       // the song's one pool-wide drum kit instead - see
       // InstrumentPool::getDefaultKitInstrument()).
-      auto track = song.getTrackByInternalId(track_ids[static_cast<size_t>(current_cursor.track)]);
+      auto track = song.getMasterTrack().getChildByInternalId(track_ids[static_cast<size_t>(current_cursor.track)]);
       if (track && track->getType() == TrackType::INSTRUMENT_CONTROL) {
 	auto & instrument_track = dynamic_cast<InstrumentTrack&>(*track);
 	bool changed = false;
@@ -1666,7 +1666,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	// on screen to show it happened. A DrumMachineTrack's sequence lives
 	// on the track itself (DrumMachineTrack.h), never in Pattern rows,
 	// so this guard is required for correctness there, not just tidiness.
-	auto entry_track = song.getTrackByInternalId(track_id);
+	auto entry_track = song.getMasterTrack().getChildByInternalId(track_id);
 	if (entry_track && (entry_track->getType() == TrackType::SAMPLE || entry_track->getType() == TrackType::DRUM_MACHINE)) {
 	  return true;
 	}
@@ -1685,7 +1685,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 
 	int midi_note = -1;
 	if (!is_off) {
-	  auto track = song.getTrackByInternalId(track_id);
+	  auto track = song.getMasterTrack().getChildByInternalId(track_id);
 	  auto tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
 	  midi_note = input.toMidiNote(getController().getGlobalOctave(), tuning);
 	}
@@ -1789,12 +1789,12 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 
   auto [rows, cols] = getDim();
 
+  // Rooted at the master track, not its children - so it's the parent on
+  // record for every top-level track too, not just their descendants.
   unordered_map<int, Track *> track_parents;
-  for (auto & track : song.getTracks()) {
-    get_track_parents(*track, nullptr, track_parents);
-  }
+  get_track_parents(song.getMasterTrack(), nullptr, track_parents);
 
-  auto heading_height = song.getTrackDepth() + 1;
+  auto heading_height = song.getMasterTrack().getDepth() + 1;
 
   string padding(static_cast<size_t>(cols), ' ');
   
@@ -1814,8 +1814,12 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 
   // The cursor's own current track id (see the Selection highlight
   // comment on segment_color below) - purely structural, computed once
-  // here rather than inside the per-level loop.
-  auto selected_id = current_cursor.track < static_cast<int>(track_ids.size()) ?
+  // here rather than inside the per-level loop. -1 while on the
+  // annotation slot - current_cursor.track stays pinned to the last real
+  // track's own index there (see GridPosition.h), which would otherwise
+  // keep that track looking selected even after the cursor has actually
+  // moved past it.
+  auto selected_id = (!current_cursor.isOnAnnotation() && current_cursor.track < static_cast<int>(track_ids.size())) ?
     track_ids[static_cast<size_t>(current_cursor.track)] : -1;
   // Each track's own color (VisibleTrackInfo::getColor(), driven by
   // color_ordinal_) comes from SongStructure via all_track_info - not
@@ -1845,7 +1849,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
       // skipped the wrong entries entirely once anything was merged).
       if (i < current_scroll_.track) continue;
       int track_id = track_ids[static_cast<size_t>(i)];
-      auto track = song.getTrackByInternalId(track_id);
+      auto track = song.getMasterTrack().getChildByInternalId(track_id);
       // A column's own leaf can itself own a subtree (an effect track
       // wrapping others still gets its own trailing column alongside
       // them - SongStructure::visit()'s EFFECT branch) - getDepth() - 1
@@ -1915,6 +1919,9 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
     auto track_base_color = [&](Track * t) -> Color {
       auto vis_info = get_track_info(t);
       if (level == 0 && vis_info && vis_info->color_ordinal_ >= 0) return vis_info->getColor();
+      // Fixed, not depth-shaded grey like every other ancestor box below -
+      // there's only ever one master per song.
+      if (t->getType() == TrackType::MASTER) return styles.master_track_color;
       // Each extra nesting level lightens the grey by one step, so an
       // outer wrapping effect's box reads visually "further out" than
       // what's nested inside it - clamped so a very deep chain doesn't
@@ -1941,7 +1948,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
     auto segment_color = [&](Track * t) -> Color {
       if (!t) return styles.window_bg_color;
       auto base = track_base_color(t);
-      return (focused && t->getInternalId() == selected_id) ? base.blend(0.35f, Color(255, 255, 255)) : base;
+      return (focused && t->getInternalId() == selected_id) ? base.blend(0.22f, Color(255, 255, 255)) : base;
     };
     // A faint "transparent black" tint over whatever background is
     // actually drawn (segment_color() - selection brighten included, not
@@ -2180,7 +2187,10 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	  // activity dot claiming the last cell of it first - so a
 	  // narrow segment drops the dot before it drops the toggle.
 	  auto remaining = actual_width - 3;
-	  bool show_dot = remaining >= 1;
+	  // The dot reports whether a per-track effect is currently doing
+	  // anything - only ever meaningful for an actual Effect (a Group's
+	  // own box, or the master's, has no such per-instance on/off state).
+	  bool show_dot = remaining >= 1 && track->getType() == TrackType::EFFECT;
 	  auto element_name_width = std::max(0, remaining - (show_dot ? 1 : 0));
 
 	  setBgColor(segment_color(track));
@@ -2341,7 +2351,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       VisibleTrackInfo track_info;
       auto it = all_track_info.find(track_id);
       if (it != all_track_info.end()) track_info = it->second;
-      auto track = song.getTrackByInternalId(track_id);
+      auto track = song.getMasterTrack().getChildByInternalId(track_id);
 
       // current_scroll_.col skips this many of this track's own leading
       // columns - only meaningful for the leftmost visible track (see

@@ -71,7 +71,7 @@ private:
 // internal id, stringified, only for a track with no textual id of its
 // own. resolveTrackReference() below is this function's own inverse.
 static string trackReferenceText(const Song & song, int track_id) {
-  auto track = song.getTrackByInternalId(track_id);
+  auto track = song.getMasterTrack().getChildByInternalId(track_id);
   if (track && !track->getId().empty()) return track->getId();
   return to_string(track_id);
 }
@@ -82,9 +82,9 @@ static string trackReferenceText(const Song & song, int track_id) {
 // order, so a numeric-looking textual id (however unlikely) still wins
 // over misreading it as an internal id. nullptr if neither resolves.
 static Track * resolveTrackReference(Song & song, const char * text) {
-  auto track = song.getTrackById(text);
+  auto track = song.getMasterTrack().getChildById(text);
   if (track) return track;
-  return song.getTrackByInternalId(atoi(text));
+  return song.getMasterTrack().getChildByInternalId(atoi(text));
 }
 
 static Tuning parse_tuning(string_view tuning_text, Tuning default_tuning = Tuning::TET12) {
@@ -366,6 +366,12 @@ static void storeBusConfig(const Song & song, XMLDocument & doc, XMLElement * ro
   if (!b_none) storeBusSlotChild(song, 1, doc, bus);
 }
 
+Song::Song(Tuning tuning, short key)
+  : tuning_(tuning), key_note_number_(key) {
+  resetBusToDefaults();
+  loadMasterTrackParameters(MemoryParameterSource());
+}
+
 void
 Song::setBusSlotKind(int slot, BusEffectKind kind) {
   auto & descriptor = findBusEffectDescriptor(kind);
@@ -442,6 +448,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 
     auto tracks = song->FirstChildElement("tracks");
     if (tracks) {
+      loadMasterTrackParameters(XMLParameterSource(tracks));
       for (auto it = tracks->FirstChildElement(); it ; it = it->NextSiblingElement() ) {
 	auto track = parseChildTrack(*it, provider);
 	if (track) {
@@ -569,6 +576,8 @@ Song::save(const std::string & filename) const {
   root->InsertEndChild(instruments);
 
   auto tracks = doc.NewElement("tracks");
+  XMLParameterSource tracks_parameters(tracks);
+  getMasterTrack().storeParameters(tracks_parameters);
   root->InsertEndChild(tracks);
 
   auto scenes = doc.NewElement("scenes");
@@ -594,7 +603,7 @@ Song::save(const std::string & filename) const {
     // header comment), so it's resolved once per track instead of once per
     // element.
     for (auto & [ track_id, pattern ] : scene.getPatternsByTrack()) {
-      auto track = getTrackByInternalId(track_id);
+      auto track = getMasterTrack().getChildByInternalId(track_id);
       assert(track);
       // A DrumMachineTrack's sequence lives on the track itself (see
       // DrumMachineTrack.h) - it must never end up referenced from Pattern
@@ -663,7 +672,7 @@ Song::save(const std::string & filename) const {
     scenes->InsertEndChild(scene_element);
   }
 
-  for (auto & track : getTracks()) {
+  for (auto & track : getMasterTrack().getChildren()) {
     storeChildTrack(*track, doc, tracks);
   }
 
@@ -722,4 +731,14 @@ Song::storeParameters(ParameterSource & output) const {
 vector<int>
 Song::getRootTrackIds() const {
   return SongStructure(*this).getOrderedTrackIds();
+}
+
+vector<int>
+Song::getPlayableTrackIds() const {
+  SongStructure structure(*this);
+  vector<int> ids;
+  for (auto id : getRootTrackIds()) {
+    if (structure.getBaselineInfo(id).color_ordinal_ >= 0) ids.push_back(id);
+  }
+  return ids;
 }

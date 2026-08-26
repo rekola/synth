@@ -21,7 +21,7 @@ TEST(song_structure_numbers_root_tracks_in_encounter_order) {
   CHECK(structure.getOrdinalFor(a) == 0);
   CHECK(structure.getOrdinalFor(b) == 1);
   CHECK(structure.getOrdinalFor(c) == 2);
-  vector<int> expected = { a.getInternalId(), b.getInternalId(), c.getInternalId() };
+  vector<int> expected = { a.getInternalId(), b.getInternalId(), c.getInternalId(), song.getMasterTrack().getInternalId() };
   CHECK(structure.getOrderedTrackIds() == expected);
 }
 
@@ -40,7 +40,7 @@ TEST(song_structure_recurses_into_a_group_but_gives_the_group_itself_no_ordinal)
   SongStructure structure(song);
   CHECK(structure.getOrdinalFor(group) == -1);
   CHECK(structure.getOrdinalFor(inner) == 0);
-  vector<int> expected = { inner.getInternalId() };
+  vector<int> expected = { inner.getInternalId(), song.getMasterTrack().getInternalId() };
   CHECK(structure.getOrderedTrackIds() == expected);
 }
 

@@ -723,7 +723,7 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
 
 int
 LaunchpadManager::resolveNote(const Song & song, int device_id, int track_id, int x, int y) const {
-  auto track = song.getTrackByInternalId(track_id);
+  auto track = song.getMasterTrack().getChildByInternalId(track_id);
   auto tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
 
   if (tuning == Tuning::PERCUSSION) {
@@ -761,13 +761,13 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
   auto & song = controller.getSong();
   auto & info = controller.getPlaybackInfo();
 
-  auto track_ids = song.getRootTrackIds();
+  auto track_ids = song.getPlayableTrackIds();
 
   auto device_id = ev.getDeviceIndex();
 
   // Send A/Send B/Send Main/Pan mode: the whole grid means something else
   // entirely while active (see LaunchpadManager::GridMode) - column x is
-  // track_ids[x] (the first 8 root tracks, not this device's assigned
+  // track_ids[x] (the first 8 playable tracks, not this device's assigned
   // track), row y sets that track's send level or azimuth. Only a PRESS
   // does anything; RELEASE/AFTERTOUCH are swallowed too, never falling
   // through to note-entry below.
@@ -781,9 +781,9 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
       // to the pressed column rather than silently doing nothing.
       while (static_cast<int>(track_ids.size()) <= ev.getX()) {
         song.addTrack(make_unique<InstrumentTrack>(0));
-        track_ids = song.getRootTrackIds();
+        track_ids = song.getPlayableTrackIds();
       }
-      auto track = song.getTrackByInternalId(track_ids[static_cast<size_t>(ev.getX())]);
+      auto track = song.getMasterTrack().getChildByInternalId(track_ids[static_cast<size_t>(ev.getX())]);
       if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL || track->getType() == TrackType::DRUM_MACHINE)) {
         auto track_id = track->getInternalId();
         if (grid_mode == GridMode::SEND_A) {
@@ -810,7 +810,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
   if (track_index < 0) track_index = fallback_track_index;
   while (static_cast<int>(track_ids.size()) <= track_index) {
     song.addTrack(make_unique<InstrumentTrack>(0));
-    track_ids = song.getRootTrackIds();
+    track_ids = song.getPlayableTrackIds();
   }
   int track_id = track_ids[static_cast<size_t>(track_index)];
 
@@ -818,7 +818,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
   // entirely from ordinary chord entry, the same way Send/Pan mode
   // already short-circuits above.
   {
-    auto assigned_track = song.getTrackByInternalId(track_id);
+    auto assigned_track = song.getMasterTrack().getChildByInternalId(track_id);
     if (assigned_track && assigned_track->getType() == TrackType::DRUM_MACHINE) {
       if (deviceState(device_id).picker_active) {
         handleDrumPickerPadEvent(ev, controller, static_cast<DrumMachineTrack &>(*assigned_track));
@@ -1127,7 +1127,7 @@ void
 LaunchpadManager::triggerAuditionStep(const Song & song, const vector<int> & track_ids, Controller & controller, int step) {
   auto & event_queue = controller.getPlaybackEventQueue();
   for (auto track_id : track_ids) {
-    auto track = song.getTrackByInternalId(track_id);
+    auto track = song.getMasterTrack().getChildByInternalId(track_id);
     if (!track || track->getType() != TrackType::DRUM_MACHINE) continue;
     auto & drum_track = static_cast<const DrumMachineTrack &>(*track);
 
@@ -1516,7 +1516,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   // rather than per-device inside the loop below.
   array<float, 8> track_send_main{}, track_send_a{}, track_send_b{}, track_azimuth{};
   for (int i = 0; i < 8 && i < num_tracks; i++) {
-    auto track = song.getTrackByInternalId(track_ids[static_cast<size_t>(i)]);
+    auto track = song.getMasterTrack().getChildByInternalId(track_ids[static_cast<size_t>(i)]);
     if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL || track->getType() == TrackType::DRUM_MACHINE)) {
       auto & leaf_track = dynamic_cast<const LeafTrack&>(*track);
       track_send_main[static_cast<size_t>(i)] = leaf_track.getSends().main;
@@ -1556,7 +1556,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       auto track_index = overview_scroll_col_ + x;
       if (track_index >= static_cast<int>(overview.track_ids.size())) continue;
       auto overview_track_id = overview.track_ids[static_cast<size_t>(track_index)];
-      auto overview_track = song.getTrackByInternalId(overview_track_id);
+      auto overview_track = song.getMasterTrack().getChildByInternalId(overview_track_id);
       auto is_drum_machine = overview_track && overview_track->getType() == TrackType::DRUM_MACHINE;
       if (is_drum_machine) continue; // not part of this MVP - stays off, same as the terminal grid's own ✕ collapsing to off on hardware
       // Same hue/near-fully-saturated identity PatternMatrix's own terminal
@@ -1626,7 +1626,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     int drum_playhead_step = -1;
     if (track_index >= 0 && track_index < num_tracks) {
       auto track_id = track_ids[static_cast<size_t>(track_index)];
-      auto track = song.getTrackByInternalId(track_id);
+      auto track = song.getMasterTrack().getChildByInternalId(track_id);
       tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
       key_val = song.getKey();
       if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL || track->getType() == TrackType::DRUM_MACHINE)) {

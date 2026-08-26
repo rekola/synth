@@ -165,7 +165,7 @@ class SongState : public TrackState {
 	    // length (or none, tracking the song's own live).
 	    auto effective_row = track_pattern.getEffectiveRow(row_idx, song.getPatternLength());
 	    auto & notes = track_pattern.getNotes(effective_row);
-	    auto track = song.getTrackByInternalId(track_id);
+	    auto track = song.getMasterTrack().getChildByInternalId(track_id);
 	    auto tuning = track ? song.getTuningForTrack(*track) : song.getTuning();
 
 	    for (size_t j = 0; j < notes.size(); j++) {
@@ -210,7 +210,7 @@ class SongState : public TrackState {
 	  // DrumMachineTrack.h) and as note_value, matching how a percussion
 	  // Pattern note's own getValue() already is its raw GM note number.
 	  for (auto track_id : song.getRootTrackIds()) {
-	    auto track = song.getTrackByInternalId(track_id);
+	    auto track = song.getMasterTrack().getChildByInternalId(track_id);
 	    if (!track || track->getType() != TrackType::DRUM_MACHINE) continue;
 	    auto & drum_track = static_cast<const DrumMachineTrack &>(*track);
 
@@ -288,8 +288,8 @@ class SongState : public TrackState {
     std::vector<Track *> track_snapshot;
     {
       std::lock_guard<std::mutex> guard(song.getTracksMutex());
-      track_snapshot.reserve(song.getTracks().size());
-      for (auto & track : song.getTracks()) track_snapshot.push_back(track.get());
+      track_snapshot.reserve(song.getMasterTrack().getChildren().size());
+      for (auto & track : song.getMasterTrack().getChildren()) track_snapshot.push_back(track.get());
     }
 
     for (auto * track : track_snapshot) {

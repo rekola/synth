@@ -57,7 +57,7 @@ TEST(note_round_trips_for_a_track_with_an_explicit_textual_id) {
   Song reloaded;
   CHECK(reloaded.open(scratch_path, provider));
 
-  auto reloaded_track = reloaded.getTrackById("chords");
+  auto reloaded_track = reloaded.getMasterTrack().getChildById("chords");
   CHECK(reloaded_track != nullptr);
   if (reloaded_track) {
     auto & notes = reloaded.getScene(0).getNotes(0, reloaded_track->getInternalId());
@@ -83,8 +83,8 @@ TEST(note_round_trips_for_a_track_with_no_explicit_id) {
   Song reloaded;
   CHECK(reloaded.open(scratch_path, provider));
 
-  CHECK(reloaded.getTracks().size() == 1);
-  auto & reloaded_track = *reloaded.getTracks()[0];
+  CHECK(reloaded.getMasterTrack().getChildren().size() == 1);
+  auto & reloaded_track = *reloaded.getMasterTrack().getChildren()[0];
   CHECK(reloaded_track.getId() == track.getId());
   auto & notes = reloaded.getScene(0).getNotes(0, reloaded_track.getInternalId());
   CHECK(notes.size() == 1);
@@ -141,7 +141,7 @@ TEST(command_round_trips_for_a_track_with_an_explicit_textual_id) {
   Song reloaded;
   CHECK(reloaded.open(scratch_path, provider));
 
-  auto reloaded_track = reloaded.getTrackById("bass");
+  auto reloaded_track = reloaded.getMasterTrack().getChildById("bass");
   CHECK(reloaded_track != nullptr);
   if (reloaded_track) {
     auto & command = reloaded.getScene(0).getCommand(0, reloaded_track->getInternalId());
@@ -508,4 +508,120 @@ TEST(get_tuning_for_track_is_the_songs_own_tuning_otherwise) {
   Song song(Tuning::TET31);
   auto & track = song.addTrack(make_unique<InstrumentTrack>());
   CHECK(song.getTuningForTrack(track) == Tuning::TET31);
+}
+
+// A fresh Song always has a master track (Song::master_track_ is default-
+// constructed, never null) - not something that needs to be added, and not
+// one of its own children, so it never shows up among getRootTrackIds()'s
+// real, artist-authored tracks by way of getMasterTrack().getChildren().
+TEST(a_fresh_song_has_a_master_track) {
+  Song song;
+  CHECK(song.getMasterTrack().getType() == TrackType::MASTER);
+  CHECK(song.getMasterTrack().getChildren().empty());
+  CHECK(song.getMasterTrack().getId() == "master");
+  // Matches Track::defaultCollapsed()'s own EFFECT/MASTER default - there's
+  // no per-track content worth showing at full width until the artist
+  // actually uses the one effect-command column.
+  CHECK(song.getMasterTrack().isCollapsed());
+}
+
+// The master is never itself parsed from a discrete XML element (see
+// MasterTrack.h), so its own attributes - just "collapsed" today - have to
+// round-trip through <tracks>'s own attributes instead, or an explicit
+// setCollapsed(false) would silently revert to the type default on reload.
+TEST(master_tracks_collapsed_state_round_trips_via_the_tracks_element) {
+  namespace fs = std::filesystem;
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_master_collapsed_scratch.xml").string();
+
+  Song song;
+  song.getMasterTrack().setCollapsed(false);
+  song.save(scratch_path);
+
+  auto saved = readFile(scratch_path);
+  CHECK(saved.find("collapsed=\"0\"") != string::npos || saved.find("collapsed=\"false\"") != string::npos);
+
+  InstrumentProvider provider;
+  Song reloaded;
+  CHECK(reloaded.open(scratch_path, provider));
+  CHECK(!reloaded.getMasterTrack().isCollapsed());
+
+  fs::remove(scratch_path);
+}
+
+// removeTrack()'s own comment: removeChildByInternalId() only ever erases
+// from a children_ vector, and the master is never anyone's child, so this
+// can structurally never remove it - no separate guard needed.
+TEST(remove_track_on_the_masters_own_id_is_a_no_op) {
+  Song song;
+  auto master_id = song.getMasterTrack().getInternalId();
+  CHECK(!song.removeTrack(master_id));
+  CHECK(song.getMasterTrack().getType() == TrackType::MASTER);
+}
+
+// getPlayableTrackIds() is what a Launchpad pad addresses (not
+// getRootTrackIds(), which a note has no way to land on for the master's
+// own trailing column - see Song.h's own comment on both).
+TEST(playable_track_ids_excludes_the_master_but_root_track_ids_includes_it) {
+  Song song;
+  auto & a = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto master_id = song.getMasterTrack().getInternalId();
+
+  auto root_ids = song.getRootTrackIds();
+  CHECK(root_ids.size() == 2);
+  CHECK(root_ids.back() == master_id);
+
+  auto playable_ids = song.getPlayableTrackIds();
+  CHECK(playable_ids == vector<int>{ a.getInternalId() });
+}
+
+// The master is never itself parsed from a discrete XML element (see
+// MasterTrack.h's own comment) - a saved song has no <master> element at
+// all, and reloading rebuilds exactly one master with its real children
+// underneath, the same as a freshly constructed Song would.
+TEST(master_track_is_not_a_discrete_xml_element_and_survives_reload) {
+  namespace fs = std::filesystem;
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_master_track_scratch.xml").string();
+
+  Song song;
+  song.addTrack(make_unique<InstrumentTrack>(0));
+  song.addTrack(make_unique<PercussionTrack>());
+  song.save(scratch_path);
+
+  auto saved = readFile(scratch_path);
+  CHECK(saved.find("<master") == string::npos);
+
+  InstrumentProvider provider;
+  Song reloaded;
+  CHECK(reloaded.open(scratch_path, provider));
+
+  CHECK(reloaded.getMasterTrack().getType() == TrackType::MASTER);
+  CHECK(reloaded.getMasterTrack().getChildren().size() == 2);
+
+  fs::remove(scratch_path);
+}
+
+// Master's own effect-command Pattern is addressed by its reserved "master"
+// id, same as any other track's textual id (trackReferenceText()/
+// resolveTrackReference(), Song.cpp) - a <pattern track="master"> entry
+// must resolve back to the same object after a reload.
+TEST(master_tracks_own_command_round_trips_by_its_reserved_id) {
+  namespace fs = std::filesystem;
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_master_command_scratch.xml").string();
+
+  Song song;
+  song.addScene();
+  song.getScene(0).setCommand(0, song.getMasterTrack().getInternalId(), Command("V400"));
+  song.save(scratch_path);
+
+  auto saved = readFile(scratch_path);
+  CHECK(saved.find("track=\"master\"") != string::npos);
+
+  InstrumentProvider provider;
+  Song reloaded;
+  CHECK(reloaded.open(scratch_path, provider));
+
+  auto & command = reloaded.getScene(0).getCommand(0, reloaded.getMasterTrack().getInternalId());
+  CHECK(command.isDefined());
+
+  fs::remove(scratch_path);
 }

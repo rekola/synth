@@ -4,7 +4,7 @@
 #include "Song.h"
 
 SongStructure::SongStructure(const Song & song) {
-  for (auto & track : song.getTracks()) visit(*track);
+  visit(song.getMasterTrack());
 }
 
 int
@@ -85,6 +85,24 @@ SongStructure::visit(const Track & track) {
     // No heading toggle of its own while collapsed (see
     // VisibleTrackInfo::collapsed_content_width_'s own comment) - its
     // ancestor-row box already carries one.
+    info.collapsed_content_width_ = 0;
+    assign(std::move(info));
+  } else if (track.getType() == TrackType::MASTER) {
+    // The tree parent of every top-level track (Song::getMasterTrack()) -
+    // same shape and order as the EFFECT branch just above (children
+    // visited, and given their own columns, before this one assigns its
+    // own), so its single effect-command column ends up rightmost, not
+    // one more sibling among the tracks it sums. Not a LeafTrack, so
+    // assign()'s own color_ordinal_ check leaves it uncolored - which is
+    // also what keeps it out of PatternMatrix (its own
+    // color_ordinal_ >= 0 filter) and out of the pattern editor's
+    // colored/Mute-Solo heading path, with no further changes needed
+    // anywhere else.
+    for (auto & child : track.getChildren()) visit(*child);
+    VisibleTrackInfo info;
+    info.has_note_column_ = false;
+    info.has_effect_column_ = true;
+    info.collapsed_ = track.isCollapsed();
     info.collapsed_content_width_ = 0;
     assign(std::move(info));
   } else {

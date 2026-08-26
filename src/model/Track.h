@@ -198,7 +198,7 @@ class Track : public StatefulSongObject {
 
   void loadParameters(const ParameterSource & input) override {
     SongObject::loadParameters(input);
-    collapsed_ = input.get<bool>("collapsed", type_ == TrackType::EFFECT);
+    collapsed_ = input.get<bool>("collapsed", defaultCollapsed());
   }
 
   void storeParameters(ParameterSource & output) const override {
@@ -206,10 +206,16 @@ class Track : public StatefulSongObject {
     // Only written when it differs from the type's own default (above) -
     // an untouched song file round-trips with no new "collapsed"
     // attribute at all.
-    if (collapsed_ != (type_ == TrackType::EFFECT)) output.set("collapsed", collapsed_);
+    if (collapsed_ != defaultCollapsed()) output.set("collapsed", collapsed_);
   }
 
  private:
+  // Effect and Master tracks default to collapsed - neither has any
+  // per-track content worth showing at full width until the artist
+  // actually starts using its one effect-command column (see
+  // Track::isCollapsed()'s own comment).
+  bool defaultCollapsed() const { return type_ == TrackType::EFFECT || type_ == TrackType::MASTER; }
+
   TrackType type_;
   bool collapsed_ = false;
   std::vector<std::unique_ptr<Track> > children_;

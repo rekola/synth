@@ -75,9 +75,9 @@ TEST(removing_and_re_adding_a_lane_starts_it_all_rest_again) {
 }
 
 TEST(add_then_remove_a_different_lane_leaves_every_survivor_byte_identical) {
-  // Phase 6's own risk: the picker adds/removes lanes one at a time in
-  // response to individual pad presses, in whatever order the user
-  // happens to press them - not just "add a batch, then remove one" like
+  // The lane picker adds/removes lanes one at a time in response to
+  // individual pad presses, in whatever order the user happens to press
+  // them - not just "add a batch, then remove one" like
   // remove_lane_deletes_only_that_lanes_step_data above. Interleave
   // several add/remove calls and check survivors after every single step,
   // not just at the end.
@@ -234,8 +234,8 @@ TEST(drum_machine_track_round_trips_through_save_and_load) {
   Song reloaded;
   CHECK(reloaded.open(scratch_path, provider));
 
-  CHECK(reloaded.getTracks().size() == 1);
-  auto & reloaded_track = dynamic_cast<DrumMachineTrack &>(*reloaded.getTracks()[0]);
+  CHECK(reloaded.getMasterTrack().getChildren().size() == 1);
+  auto & reloaded_track = dynamic_cast<DrumMachineTrack &>(*reloaded.getMasterTrack().getChildren()[0]);
 
   CHECK(reloaded_track.getElementName() == std::string("drumMachineTrack"));
   CHECK(reloaded_track.getSequenceId() == "my_sequence");
@@ -260,8 +260,8 @@ TEST(drum_machine_track_lane_order_on_load_is_derived_not_stored) {
   Song song;
   CHECK(song.open(std::string(TESTS_FIXTURES_DIR) + "/drum_machine_track.xml", provider));
 
-  CHECK(song.getTracks().size() == 1);
-  auto & track = dynamic_cast<DrumMachineTrack &>(*song.getTracks()[0]);
+  CHECK(song.getMasterTrack().getChildren().size() == 1);
+  auto & track = dynamic_cast<DrumMachineTrack &>(*song.getMasterTrack().getChildren()[0]);
 
   vector<int> expected_order = { 36, 38, 42, 49 };
   CHECK(track.getLaneNotes() == expected_order);
@@ -283,8 +283,8 @@ TEST(drum_machine_track_with_no_sequence_element_at_all_loads_the_default_kit) {
   Song song;
   CHECK(song.open(std::string(TESTS_FIXTURES_DIR) + "/drum_machine_track_no_sequence_element.xml", provider));
 
-  CHECK(song.getTracks().size() == 1);
-  auto & track = dynamic_cast<DrumMachineTrack &>(*song.getTracks()[0]);
+  CHECK(song.getMasterTrack().getChildren().size() == 1);
+  auto & track = dynamic_cast<DrumMachineTrack &>(*song.getMasterTrack().getChildren()[0]);
 
   vector<int> expected = { 36, 38, 45, 47, 50, 42, 46, 49 };
   CHECK(track.getLaneNotes() == expected);
@@ -300,8 +300,8 @@ TEST(drum_machine_track_with_an_explicit_but_empty_sequence_element_stays_empty)
   Song song;
   CHECK(song.open(std::string(TESTS_FIXTURES_DIR) + "/drum_machine_track_explicit_empty_sequence.xml", provider));
 
-  CHECK(song.getTracks().size() == 1);
-  auto & track = dynamic_cast<DrumMachineTrack &>(*song.getTracks()[0]);
+  CHECK(song.getMasterTrack().getChildren().size() == 1);
+  auto & track = dynamic_cast<DrumMachineTrack &>(*song.getMasterTrack().getChildren()[0]);
   CHECK(track.getLaneNotes().empty());
 }
 
@@ -314,11 +314,12 @@ TEST(drum_machine_track_appears_in_get_root_track_ids) {
   Song song;
   auto & track = song.addTrack(make_unique<DrumMachineTrack>());
   auto ids = song.getRootTrackIds();
-  CHECK(ids.size() == 1);
+  CHECK(ids.size() == 2);
   CHECK(ids[0] == track.getInternalId());
+  CHECK(ids[1] == song.getMasterTrack().getInternalId());
 }
 
-// --- Phase 4: getHitNotesForRow() itself - pure, no audio engine needed ---
+// --- getHitNotesForRow() itself - pure, no audio engine needed ---
 
 TEST(get_hit_notes_for_row_returns_the_lit_lanes_at_each_step) {
   DrumMachineTrack track;
@@ -379,7 +380,7 @@ TEST(get_hit_notes_for_row_is_empty_when_loop_length_is_non_positive) {
   CHECK(track.getHitNotesForRow(0).empty());
 }
 
-// --- Phase 4: SongState wiring - real audio, via a fixture ---
+// --- SongState wiring - real audio, via a fixture ---
 
 namespace {
 
@@ -572,7 +573,7 @@ TEST(drum_machine_track_retrigger_chokes_the_previous_hit_instead_of_stacking) {
 }
 
 TEST(drum_machine_track_removed_down_to_zero_lanes_renders_silence_without_crashing) {
-  // Phase 6's picker can remove lanes from a live track (e.g. every pad
+  // The lane picker can remove lanes from a live track (e.g. every pad
   // pressed off, one at a time) all the way down to none. SongState's
   // per-row loop (SongState.h) calls getHitNotesForRow() on whatever
   // DrumMachineTrack it finds via getRootTrackIds() every row regardless
@@ -581,7 +582,7 @@ TEST(drum_machine_track_removed_down_to_zero_lanes_renders_silence_without_crash
   Song song;
   CHECK(song.open(std::string(TESTS_FIXTURES_DIR) + "/drum_machine_track_32rows.xml", provider));
 
-  Track * raw_track = song.getTrackById("0");
+  Track * raw_track = song.getMasterTrack().getChildById("0");
   CHECK(raw_track != nullptr);
   auto & track = static_cast<DrumMachineTrack &>(*raw_track);
   for (int note : { 36, 38, 42, 49 }) track.removeLane(note);

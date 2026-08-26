@@ -3,6 +3,7 @@
 
 #include "StatefulSongObject.h"
 #include "Track.h"
+#include "MasterTrack.h"
 #include "InstrumentPool.h"
 #include "Scene.h"
 #include "Version.h"
@@ -19,10 +20,7 @@ class Mixer;
 
 class Song : public StatefulSongObject {
  public:
-  Song(Tuning tuning = Tuning::TET12, short key = -1)
-    : tuning_(tuning), key_note_number_(key) {
-    resetBusToDefaults();
-  }
+  Song(Tuning tuning = Tuning::TET12, short key = -1);
 
   std::unique_ptr<TrackState> createState(const ChannelConfiguration & config, const SongStructure & structure) const override;
 
@@ -201,8 +199,10 @@ class Song : public StatefulSongObject {
   bool open(const std::string & filename, const InstrumentProvider & provider);
   void save(const std::string & filename) const;
 
-  std::vector<std::unique_ptr<Track> > & getTracks() { return tracks_; }
-  const std::vector<std::unique_ptr<Track> > & getTracks() const { return tracks_; }
+  // The tree parent of every top-level track - see this class's own
+  // header comment. Never null.
+  Track & getMasterTrack() { return *master_track_; }
+  const Track & getMasterTrack() const { return *master_track_; }
 
   // See tracks_mutex_'s own comment - SongState::renderBlock() locks this to
   // take a quick snapshot of the current tracks before rendering them.
@@ -211,15 +211,19 @@ class Song : public StatefulSongObject {
   Track & addTrack(std::unique_ptr<Track> track) {
     if (track->getId().empty()) track->setId(generateUniqueTrackId());
     std::lock_guard<std::mutex> guard(*tracks_mutex_);
-    tracks_.push_back(std::move(track));
+    auto & ref = master_track_->addChild(std::move(track));
     incVersion();
-    return *(tracks_.back());
+    return ref;
   }
 
   // Removes the track (root, or nested inside a <group>) whose internal id
   // is `id`. Returns false, doing nothing, if `id` doesn't resolve to any
   // track any more - callers should treat "already gone" the same as
-  // "successfully gone", not as an error. Does *not* guard against
+  // "successfully gone", not as an error. Delegates to master_track_'s own
+  // removeChildByInternalId(), which only ever erases from a children_
+  // vector - the master itself is never anyone's child, so `id` naming the
+  // master can structurally never remove it; no separate guard needed.
+  // Does *not* guard against
   // removing the last remaining root track - PatternEditor::render() and
   // several sibling call sites index getRootTrackIds()[cursor.track] with
   // no bounds check at all (docs/known_bugs.md's zero-root-tracks entry),
@@ -228,74 +232,37 @@ class Song : public StatefulSongObject {
   // command does.
   bool removeTrack(int id) {
     std::lock_guard<std::mutex> guard(*tracks_mutex_);
-    for (auto it = tracks_.begin(); it != tracks_.end(); ++it) {
-      if ((*it)->getInternalId() == id) {
-	tracks_.erase(it);
-	incVersion();
-	return true;
-      }
-    }
-    for (auto & track : tracks_) {
-      if (track->removeChildByInternalId(id)) {
-	incVersion();
-	return true;
-      }
+    if (master_track_->removeChildByInternalId(id)) {
+      incVersion();
+      return true;
     }
     return false;
-  }
-
-  const Track * getTrackByInternalId(int id) const {
-    for (auto & track : getTracks()) {
-      auto r = track->getChildByInternalId(id);
-      if (r) return r;
-    }
-    return nullptr;
-  }
-
-  Track * getTrackByInternalId(int id) {
-    for (auto & track : getTracks()) {
-      auto r = track->getChildByInternalId(id);
-      if (r) return r;
-    }
-    return nullptr;
-  }
-
-  const Track * getTrackById(std::string_view id) const {
-    for (auto & track : getTracks()) {
-      auto r = track->getChildById(id);
-      if (r) return r;
-    }
-    return nullptr;
-  }
-
-  Track * getTrackById(std::string_view id) {
-    for (auto & track : getTracks()) {
-      auto r = track->getChildById(id);
-      if (r) return r;
-    }
-    return nullptr;
   }
 
   void loadParameters(const ParameterSource & input) override;
   void storeParameters(ParameterSource & output) const override;
 
-  int getTrackDepth() const {
-    int max_depth = 0;
-    for (auto & track : getTracks()) {
-      auto d = track->getDepth();
-      if (d > max_depth) max_depth = d;
-    }
-    return max_depth;
-  }
-
-  // Flattens the track tree into the leaf tracks (INSTRUMENT_CONTROL/
-  // PERCUSSION_CONTROL/SAMPLE) that are actually addressable as "a track" -
-  // Group/effect-chain wrapper tracks are skipped over, not listed
-  // themselves. The single canonical definition of "the addressable track
-  // list and its order" - every caller that needs to resolve a track by
-  // position (PatternEditor's columns, a Launchpad device's assigned
-  // track) uses this same one, so they can never quietly diverge.
+  // Every id SongStructure hands a column to, in column order - a leaf
+  // track (INSTRUMENT_CONTROL/PERCUSSION_CONTROL/DRUM_MACHINE/SAMPLE), a
+  // per-track Effect wrapper, and the master track's own trailing column,
+  // but never a plain Group (a pure pass-through with no column of its
+  // own - see SongStructure::visit()). What PatternEditor's own columns
+  // are built from - a caller that instead wants only the tracks a note
+  // can actually land on (a Launchpad pad, an instrument picker) needs
+  // getPlayableTrackIds() below, not this.
   std::vector<int> getRootTrackIds() const;
+
+  // getRootTrackIds() filtered down to color-eligible tracks (every
+  // LeafTrack - SongStructure::visit()'s own dynamic_cast check) - real
+  // instruments/percussion/drum-machine/sample tracks a note can actually
+  // land on, excluding both the master track and any per-track Effect
+  // wrapper column. A Launchpad pad landing on the master's own column
+  // (or an Effect's) has no note to trigger, so every position-addressed
+  // Launchpad call site (a device's assigned track, the auto-grow-to-
+  // pressed-column loops) uses this, not getRootTrackIds() - mirrors
+  // PatternMatrix::getVisibleTrackIds()'s own identical filter, which
+  // exists for the same reason.
+  std::vector<int> getPlayableTrackIds() const;
 
 private:
   Tuning tuning_ = Tuning::TET12;
@@ -314,7 +281,12 @@ private:
   Version version_;
 
   InstrumentPool instrument_pool_;
-  std::vector<std::unique_ptr<Track> > tracks_;
+  // The tree parent of every top-level track - see getMasterTrack()'s own
+  // comment. Never null; a track can no longer *not* have a parent, which
+  // is what makes "exactly one master, can't be removed" true by
+  // construction rather than by a guard check (see removeTrack()'s own
+  // comment).
+  std::unique_ptr<Track> master_track_ = std::make_unique<MasterTrack>();
 
   // A track's own textual id (SongObject::getId()) is the only thing a
   // <note>/<command> element can reference it by that survives a
@@ -322,29 +294,42 @@ private:
   // counter, reassigned fresh every time a Track object is constructed,
   // so a note left referencing one is unresolvable the moment the file is
   // reopened (see Song.cpp's trackReferenceText()/resolveTrackReference()).
-  // addTrack() below (the single place every track, new or loaded, enters
-  // tracks_) gives an id-less track this instead of leaving it to fall
-  // back to that same ugly, unstably-large raw internal id in the pattern
-  // editor's own track heading. Tried in increasing order starting from 1
-  // rather than deriving straight from the track's own internal id, so
-  // these actually read as a small, per-song sequence instead of
-  // inheriting whatever arbitrary process-wide count SongObject's shared
-  // id counter happens to be at.
+  // addTrack() above (the single place every track, new or loaded, enters
+  // master_track_'s own children) gives an id-less track this instead of
+  // leaving it to fall back to that same ugly, unstably-large raw internal
+  // id in the pattern editor's own track heading. Tried in increasing
+  // order starting from 1 rather than deriving straight from the track's
+  // own internal id, so these actually read as a small, per-song sequence
+  // instead of inheriting whatever arbitrary process-wide count
+  // SongObject's shared id counter happens to be at. Never collides with
+  // master_track_'s own reserved "master" id (constructor, above).
   std::string generateUniqueTrackId() const {
     for (int n = 1; ; n++) {
       auto candidate = "track" + std::to_string(n);
-      if (!getTrackById(candidate)) return candidate;
+      if (!master_track_->getChildById(candidate)) return candidate;
     }
   }
 
-  // Guards tracks_'s structural shape (addTrack() below is its only
-  // mutator today) - SongState::renderBlock() runs on the audio thread and
-  // reads tracks_ concurrently with the UI thread calling addTrack()
-  // (PatternEditor/LaunchpadManager's various "add track" commands can
-  // fire at any time, including while playing), and a push_back can
-  // reallocate the vector's backing storage - a render() call
-  // mid-iteration when that happens would hold a dangling iterator into
-  // freed memory. Every other getTracks()-reading call site is
+  // The master's own parameters (currently just "collapsed") come from
+  // the <tracks> element itself - see MasterTrack.h's own comment on why
+  // it's never a discrete element of its own. loadParameters() resets the
+  // id along with everything else (SongObject::loadParameters()), so this
+  // re-asserts the reserved one every time - called both from the
+  // constructor (an empty source, for a track never loaded from a file at
+  // all) and from open() (the real <tracks> element).
+  void loadMasterTrackParameters(const ParameterSource & input) {
+    master_track_->loadParameters(input);
+    master_track_->setId("master");
+  }
+
+  // Guards master_track_'s own children (addTrack()/removeTrack() above
+  // are its only mutators) - SongState::renderBlock() runs on the audio
+  // thread and reads them concurrently with the UI thread calling
+  // addTrack() (PatternEditor/LaunchpadManager's various "add track"
+  // commands can fire at any time, including while playing), and a
+  // push_back can reallocate the vector's backing storage - a render()
+  // call mid-iteration when that happens would hold a dangling iterator
+  // into freed memory. Every other read of master_track_'s children is
   // UI-thread-only, hence never concurrent with addTrack() (also always
   // UI-thread) and needs no lock of its own - see SongState::renderBlock()'s
   // own comment for the one call site that does. mutable so a const

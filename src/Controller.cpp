@@ -564,7 +564,7 @@ asLeafTrack(Track * track) {
 bool
 Controller::toggleTrackMuted(int track_id) {
   auto song = getCurrentSong();
-  auto leaf_track = asLeafTrack(song->getTrackByInternalId(track_id));
+  auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
   if (!leaf_track) return false;
   leaf_track->setMuted(!leaf_track->isMuted());
   song->incVersion();
@@ -575,7 +575,7 @@ Controller::toggleTrackMuted(int track_id) {
 bool
 Controller::toggleTrackSolo(int track_id) {
   auto song = getCurrentSong();
-  auto leaf_track = asLeafTrack(song->getTrackByInternalId(track_id));
+  auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
   if (!leaf_track) return false;
   leaf_track->setSolo(!leaf_track->isSolo());
   song->incVersion();
@@ -586,7 +586,7 @@ Controller::toggleTrackSolo(int track_id) {
 bool
 Controller::toggleTrackCollapsed(int track_id) {
   auto song = getCurrentSong();
-  auto track = song->getTrackByInternalId(track_id);
+  auto track = song->getMasterTrack().getChildByInternalId(track_id);
   if (!track) return false;
   track->setCollapsed(!track->isCollapsed());
   song->incVersion();
@@ -596,7 +596,7 @@ Controller::toggleTrackCollapsed(int track_id) {
 void
 Controller::setTrackSendA(int track_id, float value) {
   auto song = getCurrentSong();
-  auto leaf_track = asLeafTrack(song->getTrackByInternalId(track_id));
+  auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
   if (!leaf_track) return;
   float linear = dbToLinear(value);
   leaf_track->setSendA(linear);
@@ -607,7 +607,7 @@ Controller::setTrackSendA(int track_id, float value) {
 void
 Controller::setTrackSendB(int track_id, float value) {
   auto song = getCurrentSong();
-  auto leaf_track = asLeafTrack(song->getTrackByInternalId(track_id));
+  auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
   if (!leaf_track) return;
   float linear = dbToLinear(value);
   leaf_track->setSendB(linear);
@@ -618,7 +618,7 @@ Controller::setTrackSendB(int track_id, float value) {
 void
 Controller::setTrackSendMain(int track_id, float value) {
   auto song = getCurrentSong();
-  auto leaf_track = asLeafTrack(song->getTrackByInternalId(track_id));
+  auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
   if (!leaf_track) return;
   float linear = dbToLinear(value);
   leaf_track->setSendMain(linear);
@@ -637,7 +637,7 @@ Controller::setBusEffectKind(int slot, BusEffectKind kind) {
 void
 Controller::setTrackAzimuth(int track_id, float value) {
   auto song = getCurrentSong();
-  auto leaf_track = asLeafTrack(song->getTrackByInternalId(track_id));
+  auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
   if (!leaf_track) return;
   leaf_track->setAzimuth(value);
   song->incVersion();
@@ -650,7 +650,7 @@ Controller::setTrackAzimuth(int track_id, float value) {
 void
 Controller::addNoteColumn(int track_id) {
   auto song = getCurrentSong();
-  auto leaf_track = asLeafTrack(song->getTrackByInternalId(track_id));
+  auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
   if (!leaf_track) return;
   leaf_track->setMinNoteColumns(leaf_track->getMinNoteColumns() + 1);
   song->incVersion();
@@ -659,7 +659,7 @@ Controller::addNoteColumn(int track_id) {
 void
 Controller::removeNoteColumn(int track_id) {
   auto song = getCurrentSong();
-  auto leaf_track = asLeafTrack(song->getTrackByInternalId(track_id));
+  auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
   if (!leaf_track) return;
   leaf_track->setMinNoteColumns(leaf_track->getMinNoteColumns() - 1);
   song->incVersion();

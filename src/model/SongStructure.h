@@ -11,7 +11,7 @@ class Song;
 
 // The single source of truth for which of a Song's tracks are addressable
 // (pattern-editor columns, Launchpad columns, NoteCoordinate identity) and
-// in what order - built once by walking song.getTracks(), replacing what
+// in what order - built once by walking song.getMasterTrack().getChildren(), replacing what
 // used to be three separate, near-duplicate walks (Song.cpp's own
 // collectRootTrackIds(), PatternEditor.cpp's fill_track_info(), and an
 // earlier draft of this class that only assigned ordinals). Two things per
