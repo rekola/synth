@@ -5,6 +5,8 @@
 #include "../src/audio/OfflineRenderer.h"
 #include "../src/ambisonic/ChannelConfiguration.h"
 #include "../src/state/SongState.h"
+#include "../src/state/InstrumentTrackState.h"
+#include "../src/state/NoteOrigin.h"
 #include "../src/ambisonic/Mixer.h"
 #include "../src/dsp/DiracAnalyzer.h"
 
@@ -202,6 +204,105 @@ TEST(render_hard_pan_isolates_channels) {
   CHECK(left > 1e-4f);
   CHECK(right > 1e-4f);
   CHECK_NEAR(left, right, left * 0.05f);
+}
+
+// Solo enforcement across independent top-level tracks depends on
+// SongState::renderBlock() actually summing them through the master
+// track's own TrackState::render() (renderChildren()'s solo-aware mix,
+// same mechanism a Group/wrapping Effect's own children already use) -
+// bypassing that (accumulating each top-level track into the mixer
+// directly, unconditionally) would silently ignore solo entirely for
+// tracks that aren't siblings under some shared non-root parent.
+TEST(render_solo_on_one_top_level_track_silences_another) {
+  // Comparing against a reference render where track 1 never existed at
+  // all, rather than asserting the "silenced" side's own RMS is near
+  // zero - decodeToStereo's cheap cardioid matrix doesn't null out a hard
+  // -panned source's quiet side, it phase-inverts it at similar magnitude
+  // (see windowedRmsDifference()'s own comment above), so a plain
+  // near-zero check on one channel is not a valid way to tell "silenced"
+  // from "just panned" apart.
+  auto soloed = loadFixture("solo_silences_other_tracks.xml");
+  auto alone = loadFixture("solo_reference_track0_alone.xml");
+  CHECK(soloed.ok);
+  CHECK(alone.ok);
+
+  ChannelConfiguration config(44100, 1);
+  auto result_soloed = renderSongOffline(soloed.song, config);
+  auto result_alone = renderSongOffline(alone.song, config);
+
+  CHECK(result_soloed.numberOfFrames() > 0);
+  CHECK(!hasNonFiniteSample(result_soloed));
+
+  auto left_soloed = rms(result_soloed, 0), right_soloed = rms(result_soloed, 1);
+  auto left_alone = rms(result_alone, 0), right_alone = rms(result_alone, 1);
+
+  CHECK(left_soloed > 1e-4f);
+  CHECK_NEAR(left_soloed, left_alone, left_alone * 0.05f);
+  CHECK_NEAR(right_soloed, right_alone, std::max(right_alone * 0.05f, 1e-4f));
+}
+
+// Reproduction for a reported regression, live-audition flavor: type a
+// note into a PercussionTrack's column (PatternEditor auditions it
+// immediately, same as InstrumentTrackState::noteOn() below), then type
+// OFF on the same column while still stopped (PatternEditor's own is_off
+// branch, same as noteOff() below) - the live voice should stop, exactly
+// like the already-passing instrument-track equivalent
+// (live_note_off_reclaims_the_voice, PlayerMultiBufferTests.cpp) - this
+// is the same mechanism through a real PercussionTrackState instead of a
+// plain InstrumentTrackState, never exercised directly until now.
+TEST(render_percussion_live_note_off_reclaims_the_voice) {
+  auto loaded = loadFixture("percussion_note_off.xml");
+  CHECK(loaded.ok);
+  auto & song = loaded.song;
+
+  auto & percussion_track = *song.getMasterTrack().getChildren()[0];
+
+  ChannelConfiguration config(44100, 1);
+  SongState state(config);
+  state.initialize(song);
+  // Deliberately not setIsPlaying(true) - this is edit-time audition
+  // while stopped, not pattern-driven playback (that's the other test
+  // just below, which already passes).
+
+  auto & track_state = dynamic_cast<InstrumentTrackState &>(percussion_track.getState(state, state.getSongStructure()));
+  auto instrument = track_state.getInstrumentSource(song.getInstrumentPool());
+  CHECK(instrument != nullptr);
+  if (!instrument) return;
+
+  RecordingMixer mixer(static_cast<short>(config.numberOfChannels()), config.getAudioOutSampleRate());
+  track_state.noteOn(0, *instrument, 220.0f, 0.8f, 60, NoteOrigin::LIVE);
+  state.renderBlock(256, song, mixer);
+  CHECK(state.getVoiceCount() > 0);
+
+  track_state.noteOff(0);
+  for (int block = 0; block < 200; block++) state.renderBlock(256, song, mixer);
+
+  CHECK(state.getVoiceCount() == 0);
+}
+
+// Reproduction for a reported regression: percussion note-off stopped
+// working. Row 4's OFF must actually reach the voice, not just get
+// scheduled and dropped.
+TEST(render_percussion_note_off_reclaims_the_voice) {
+  auto loaded = loadFixture("percussion_note_off.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(44100, 1);
+  SongState state(config);
+  state.initialize(loaded.song);
+  state.setIsPlaying(true);
+  RecordingMixer mixer(static_cast<short>(config.numberOfChannels()), config.getAudioOutSampleRate());
+
+  int row_samples = config.getSampleInterval(loaded.song.getTempo());
+  state.renderBlock(row_samples, loaded.song, mixer); // row 0: note on
+  CHECK(state.getVoiceCount() > 0);
+
+  for (int row = 1; row <= 4; row++) state.renderBlock(row_samples, loaded.song, mixer); // rows 1-4 (4 = OFF)
+
+  // A little past the note-off row, to allow any release tail to finish.
+  for (int row = 0; row < 8; row++) state.renderBlock(row_samples, loaded.song, mixer);
+
+  CHECK(state.getVoiceCount() == 0);
 }
 
 TEST(render_tape_degradation_preserves_pan) {

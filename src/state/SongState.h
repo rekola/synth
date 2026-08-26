@@ -292,18 +292,33 @@ class SongState : public TrackState {
       for (auto & track : song.getMasterTrack().getChildren()) track_snapshot.push_back(track.get());
     }
 
-    for (auto * track : track_snapshot) {
-      auto data = track->getState(*this, song_structure_).render(frames, song.getInstrumentPool(), render_context_);
-      mixer.accumulate(data);
+    // SongState is itself a TrackState, and every top-level track is
+    // registered as *its own* TreeNode child (getState() below - cheap
+    // once cached, so doing this every block, not just once, is what
+    // picks up a track added mid-playback) - so the inherited
+    // renderChildren() sums them the same solo-aware way any other
+    // multi-child node (a Group, an Effect with several children) already
+    // sums its own, with no separate master-track state object needed to
+    // own that relationship. This is the "mixes all the ambisonic
+    // channels from the child tracks" master was built for; the master
+    // model track itself stays a purely structural fact (XML, the pattern
+    // editor's column, addressability for its own effect-command Pattern)
+    // with no mirrored state-tree node of its own to keep in sync. As a
+    // side effect this also fixes solo never having been enforced
+    // *across* top-level tracks - the old per-track loop here just
+    // accumulated every one of them into `mixer` unconditionally,
+    // bypassing renderChildren()'s solo handling entirely.
+    for (auto * track : track_snapshot) track->getState(*this, song_structure_);
+    auto data = renderChildren(frames, song.getInstrumentPool(), render_context_, getChannelConfiguration());
+    mixer.accumulate(data);
 
-      if (auto * a = data.getChannel(Channel::AuxA)) {
-	auto dst = aux_a_sum_.getChannelData(0);
-	for (int i = 0; i < frames; i++) dst[i] += a[i];
-      }
-      if (auto * b = data.getChannel(Channel::AuxB)) {
-	auto dst = aux_b_sum_.getChannelData(0);
-	for (int i = 0; i < frames; i++) dst[i] += b[i];
-      }
+    if (auto * a = data.getChannel(Channel::AuxA)) {
+      auto dst = aux_a_sum_.getChannelData(0);
+      for (int i = 0; i < frames; i++) dst[i] += a[i];
+    }
+    if (auto * b = data.getChannel(Channel::AuxB)) {
+      auto dst = aux_b_sum_.getChannelData(0);
+      for (int i = 0; i < frames; i++) dst[i] += b[i];
     }
 
     // The send bus's own output is always ambisonic-shaped (see

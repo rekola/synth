@@ -2,6 +2,7 @@
 
 #include "../src/model/Song.h"
 #include "../src/model/InstrumentTrack.h"
+#include "../src/effects/Amplifier.h"
 #include "../src/state/SongState.h"
 #include "../src/ambisonic/MixerFactory.h"
 #include "../src/ambisonic/MixerType.h"
@@ -41,6 +42,60 @@ TEST(pattern_break_jumps_straight_to_the_destination_row_of_the_next_pattern) {
   // then the transport advances - straight to pattern 1's row 2 (absolute
   // row 1*4 + 2 = 6), not pattern 0's row 1 (absolute 1) or pattern 1's
   // row 0 (absolute 4).
+  int row_samples = config.getSampleInterval(song.getTempo());
+  state.renderBlock(row_samples, song, *mixer);
+
+  CHECK(state.getAbsolutePosition() == 6);
+}
+
+// SongState::renderBlock()'s command scheduling loop reads Command from
+// whatever track_id a scene's Pattern is keyed by, with no dependency on
+// that track's type or position in the tree - a ZBxx entered on the
+// master's own effect column (or any per-track Effect's) works exactly
+// the same as one entered on an instrument track's.
+TEST(pattern_break_on_the_master_tracks_own_column_works_too) {
+  Song song;
+  song.setPatternLength(4);
+  auto master_id = song.getMasterTrack().getInternalId();
+
+  auto & scene0 = song.addScene();
+  scene0.setCommand(0, master_id, Command("ZB02"));
+
+  song.addScene();
+
+  ChannelConfiguration config(44100, 1);
+  auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+  SongState state(config);
+  state.initialize(song);
+  state.setIsPlaying(true);
+
+  int row_samples = config.getSampleInterval(song.getTempo());
+  state.renderBlock(row_samples, song, *mixer);
+
+  CHECK(state.getAbsolutePosition() == 6);
+}
+
+// Same as the master-track case above, but for a per-track Effect's own
+// trailing column - wrapped_instrument_track's own Command is never even
+// read (the effect's own is), it's only there to give the effect
+// something to wrap.
+TEST(pattern_break_on_a_wrapping_effects_own_column_works_too) {
+  Song song;
+  song.setPatternLength(4);
+  auto & effect = song.addTrack(make_unique<Amplifier>());
+  effect.addChild(make_unique<InstrumentTrack>(0));
+
+  auto & scene0 = song.addScene();
+  scene0.setCommand(0, effect.getInternalId(), Command("ZB02"));
+
+  song.addScene();
+
+  ChannelConfiguration config(44100, 1);
+  auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+  SongState state(config);
+  state.initialize(song);
+  state.setIsPlaying(true);
+
   int row_samples = config.getSampleInterval(song.getTempo());
   state.renderBlock(row_samples, song, *mixer);
 

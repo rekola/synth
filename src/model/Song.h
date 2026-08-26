@@ -1,7 +1,7 @@
 #ifndef _SONG_H_
 #define _SONG_H_
 
-#include "StatefulSongObject.h"
+#include "SongObject.h"
 #include "Track.h"
 #include "MasterTrack.h"
 #include "InstrumentPool.h"
@@ -18,11 +18,9 @@
 class InstrumentProvider;
 class Mixer;
 
-class Song : public StatefulSongObject {
+class Song : public SongObject {
  public:
   Song(Tuning tuning = Tuning::TET12, short key = -1);
-
-  std::unique_ptr<TrackState> createState(const ChannelConfiguration & config, const SongStructure & structure) const override;
 
   Tuning getTuning() const { return tuning_; }
   void setTuning(Tuning tuning) { tuning_ = tuning; }

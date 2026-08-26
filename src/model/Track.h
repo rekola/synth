@@ -80,7 +80,10 @@ class Track : public StatefulSongObject {
     return state;
   }
 
-  TrackState & getState(TrackState & parent_state, const SongStructure & structure) {
+  // const: never actually mutates *this - both getInternalId() and
+  // createStateTree() are themselves const, this only ever writes into
+  // the passed-in parent_state.
+  TrackState & getState(TrackState & parent_state, const SongStructure & structure) const {
     auto state = parent_state.getChildByInternalId(getInternalId());
     if (!state) {
       auto new_state = createStateTree(parent_state.getChannelConfiguration(), structure);

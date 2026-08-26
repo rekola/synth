@@ -38,6 +38,17 @@ class Player : public EventHandler {
     return it == live_states_.end() ? -1 : it->second->getPositionEditSeq();
   }
 
+  // Test-only, same "not used by play() itself" caveat as the two above -
+  // lets a test drive a buffer's own live SongState through further
+  // renderBlock() calls directly (voice release/reclaim needs real render
+  // blocks to progress, not just the note-on/off event that starts it),
+  // something neither getLiveStatePosition() nor getLiveStatePositionEditSeq()
+  // exposes a way to do. nullptr when `name` has no live SongState yet.
+  SongState * getLiveStateForTest(const std::string & name) {
+    auto it = live_states_.find(name);
+    return it == live_states_.end() ? nullptr : it->second.get();
+  }
+
   void play(AudioAPI & audio);
   std::unique_ptr<PlaybackEvent> createPlaybackEvent(const std::string & buffer_name, const Song & song, const SongState & state);
 

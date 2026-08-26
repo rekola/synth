@@ -175,6 +175,42 @@ TEST(a_pending_position_is_applied_once_the_buffer_actually_makes_sound) {
   CHECK(player.getLiveStatePosition(buffer_name) == 40);
 }
 
+// Reproduction for a reported regression: percussion note-off stopped
+// working. Exercises the real live-input path (Player::handlePlaybackControlEvent()'s
+// PLAY_NOTE/STOP_NOTE, through stateFor()'s own eager tree-build), not the
+// pattern-driven scheduling loop a different, model-level test already
+// covers - this is where a track-state-tree nesting bug would actually show.
+TEST(live_note_off_reclaims_the_voice) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto buffer_name = controller.getActiveBufferName();
+
+  auto & song = controller.getSong();
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+
+  Player player(config, &controller);
+
+  PlaybackControlEvent play_note(PlaybackControlEvent::PLAY_NOTE, buffer_name, track.getInternalId(), 0, 60, 100);
+  player.handlePlaybackControlEvent(play_note);
+
+  auto * state = player.getLiveStateForTest(buffer_name);
+  CHECK(state != nullptr);
+  if (!state) return;
+  CHECK(state->getVoiceCount() > 0);
+
+  PlaybackControlEvent stop_note(PlaybackControlEvent::STOP_NOTE, buffer_name, track.getInternalId(), 0, 0, 0);
+  player.handlePlaybackControlEvent(stop_note);
+
+  // Voice release/reclaim needs real render blocks to progress past the
+  // note-off, same as the model-level lifecycle tests elsewhere.
+  auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+  for (int block = 0; block < 200; block++) state->renderBlock(256, song, *mixer);
+
+  CHECK(state->getVoiceCount() == 0);
+}
+
 // Regression: Controller's own per-buffer local_position_edit_seq_ counts
 // every moveEditPosition()/setEditPosition() call, one per
 // MOVE_POSITION/SET_POSITION event pushed - however many of those land

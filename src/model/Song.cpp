@@ -380,11 +380,6 @@ Song::setBusSlotKind(int slot, BusEffectKind kind) {
   else { bus_slot_b_ = std::move(effect); bus_slot_b_kind_ = kind; }
 }
 
-std::unique_ptr<TrackState>
-Song::createState(const ChannelConfiguration & config, const SongStructure & structure) const {
-  return make_unique<SongState>(config);
-}
-
 bool
 Song::open(const std::string & filename, const InstrumentProvider & provider) {
   // setlocale(..., nullptr) returns a pointer into glibc's own internal
@@ -687,7 +682,7 @@ Song::save(const std::string & filename) const {
   
 void
 Song::loadParameters(const ParameterSource & input) {
-  StatefulSongObject::loadParameters(input);
+  SongObject::loadParameters(input);
 
   auto song_tuning = parse_tuning(input.get<std::string>("temperament"), Tuning::TET12);
   setTuning(song_tuning);
@@ -715,7 +710,7 @@ Song::loadParameters(const ParameterSource & input) {
 
 void
 Song::storeParameters(ParameterSource & output) const {
-  StatefulSongObject::storeParameters(output);
+  SongObject::storeParameters(output);
 
   if (getKey() >= 0) output.set("key", Note::keyToString(getTuning(), getKey()));
   output.set("temperament", to_string(getTuning()));
