@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Companion fixture for verify_cross_tuning_paste.py's cross-song case:
+     a second, independent song with a single pitched track at index 0,
+     so pasting a percussion cell copied from cross_tuning_paste_test.xml
+     (a different song/buffer) onto this song's own track 0 must be
+     refused - "same track_id" isn't even a coherent question once the
+     active song itself has changed. -->
+<song temperament="12edo" tempo="120" patternRows="8">
+  <instruments>
+    <instrument from="string.bowed.ensemble.pizzicato" />
+  </instruments>
+  <tracks>
+    <track id="0" instrument="0" />
+  </tracks>
+  <scenes>
+    <scene />
+  </scenes>
+</song>

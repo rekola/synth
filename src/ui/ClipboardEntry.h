@@ -4,6 +4,7 @@
 #include "PatternBlockOps.h"
 #include "SelectionScope.h"
 #include "../model/Command.h"
+#include "../instruments/Tuning.h"
 
 #include <string>
 #include <vector>
@@ -31,6 +32,18 @@ struct ClipboardEntry {
   PatternBlock cells;
   std::vector<Command> commands;
   std::vector<std::string> annotations;
+
+  // One entry per track actually captured in `cells`, parallel to its own
+  // track-offset dimension - NOTE_COLUMN/COMMAND populate exactly one
+  // (that single track_id), TRACK/EVERYTHING populate one per track in
+  // [track_lo, track_hi], ANNOTATION populates none (it isn't
+  // track-scoped at all - see Scene.h's own comment on why). yank()
+  // checks each offset it's about to write against the destination
+  // track's own tuning here (Song::getTuningForTrack()) before writing
+  // anything - a Note::getValue() means a different kind of value under
+  // a different tuning, so a mismatch anywhere in the range refuses the
+  // whole paste rather than silently reinterpreting it.
+  std::vector<Tuning> track_tunings;
 };
 
 #endif

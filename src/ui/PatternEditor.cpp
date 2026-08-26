@@ -115,23 +115,27 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
       clipboard_.cells = copyPatternBlock(scene, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
       clipboard_.commands.clear();
       clipboard_.annotations.clear();
+      clipboard_.track_tunings = tuningsForTrackRange(song, track_ids, b.track_lo, b.track_hi);
       clearPatternBlock(scene, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
     } else if (b.scope == SelectionScope::NOTE_COLUMN) {
       auto track_id = track_ids[static_cast<size_t>(b.track_lo)];
       clipboard_.cells = copyPatternBlockNotes(scene, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi);
       clipboard_.commands.clear();
       clipboard_.annotations.clear();
+      clipboard_.track_tunings = tuningsForTrackRange(song, track_ids, b.track_lo, b.track_lo);
       clearPatternBlockNotes(scene, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi);
     } else if (b.scope == SelectionScope::COMMAND) {
       auto track_id = track_ids[static_cast<size_t>(b.track_lo)];
       clipboard_.commands = copyPatternBlockCommand(scene, b.row_lo, b.row_hi, track_id);
       clipboard_.cells.clear();
       clipboard_.annotations.clear();
+      clipboard_.track_tunings.clear(); // Command has no tuning-dependent semantics
       clearPatternBlockCommand(scene, b.row_lo, b.row_hi, track_id);
     } else if (b.scope == SelectionScope::ANNOTATION) {
       clipboard_.annotations = copyPatternBlockAnnotations(scene, b.row_lo, b.row_hi);
       clipboard_.cells.clear();
       clipboard_.commands.clear();
+      clipboard_.track_tunings.clear(); // not track-scoped at all
       clearPatternBlockAnnotations(scene, b.row_lo, b.row_hi);
     } else { // EVERYTHING - every track (TRACK's own PatternBlock capture)
       // plus the annotation (ANNOTATION's own capture), both at once - see
@@ -139,6 +143,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
       clipboard_.cells = copyPatternBlock(scene, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
       clipboard_.commands.clear();
       clipboard_.annotations = copyPatternBlockAnnotations(scene, b.row_lo, b.row_hi);
+      clipboard_.track_tunings = tuningsForTrackRange(song, track_ids, b.track_lo, b.track_hi);
       clearPatternBlock(scene, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
       clearPatternBlockAnnotations(scene, b.row_lo, b.row_hi);
     }
@@ -201,22 +206,27 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
       clipboard_.cells = copyPatternBlock(scene, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
       clipboard_.commands.clear();
       clipboard_.annotations.clear();
+      clipboard_.track_tunings = tuningsForTrackRange(song, track_ids, b.track_lo, b.track_hi);
     } else if (b.scope == SelectionScope::NOTE_COLUMN) {
       clipboard_.cells = copyPatternBlockNotes(scene, b.row_lo, b.row_hi, track_ids[static_cast<size_t>(b.track_lo)], b.note_lo, b.note_hi);
       clipboard_.commands.clear();
       clipboard_.annotations.clear();
+      clipboard_.track_tunings = tuningsForTrackRange(song, track_ids, b.track_lo, b.track_lo);
     } else if (b.scope == SelectionScope::COMMAND) {
       clipboard_.commands = copyPatternBlockCommand(scene, b.row_lo, b.row_hi, track_ids[static_cast<size_t>(b.track_lo)]);
       clipboard_.cells.clear();
       clipboard_.annotations.clear();
+      clipboard_.track_tunings.clear();
     } else if (b.scope == SelectionScope::ANNOTATION) {
       clipboard_.annotations = copyPatternBlockAnnotations(scene, b.row_lo, b.row_hi);
       clipboard_.cells.clear();
       clipboard_.commands.clear();
+      clipboard_.track_tunings.clear();
     } else { // EVERYTHING - see kill-region's own comment.
       clipboard_.cells = copyPatternBlock(scene, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
       clipboard_.commands.clear();
       clipboard_.annotations = copyPatternBlockAnnotations(scene, b.row_lo, b.row_hi);
+      clipboard_.track_tunings = tuningsForTrackRange(song, track_ids, b.track_lo, b.track_hi);
     }
     setSelectionActive(false);
     getController().getUIEventQueue().push(make_unique<LogEvent>("Region copied"));
@@ -230,6 +240,32 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
       auto & song = getController().getSong();
       auto & info = getController().getPlaybackInfo();
       auto track_ids = song.getRootTrackIds();
+
+      // A Note::getValue() means a different kind of value under a
+      // different tuning (percussion GM key vs. a pitched scale degree) -
+      // refuse the whole paste rather than silently reinterpreting it if
+      // any track the clipboard's content would land on doesn't match the
+      // tuning it was copied from. COMMAND/ANNOTATION carry no
+      // tuning-dependent data (ClipboardEntry.h's own comment), so
+      // track_tunings is empty for those and this is vacuously true.
+      auto tuning_ok_for_range = [&](int target_track_start) {
+        for (size_t offset = 0; offset < clipboard_.track_tunings.size(); offset++) {
+          auto dest_index = target_track_start + static_cast<int>(offset);
+          if (dest_index < 0 || dest_index >= static_cast<int>(track_ids.size())) continue; // pastePatternBlock() clips this away too
+          auto * dest_track = song.getTrackByInternalId(track_ids[static_cast<size_t>(dest_index)]);
+          auto dest_tuning = dest_track ? song.getTuningForTrack(*dest_track) : song.getTuning();
+          if (dest_tuning != clipboard_.track_tunings[offset]) return false;
+        }
+        return true;
+      };
+      // EVERYTHING always targets track 0 (see its own paste branch
+      // below); every other scope targets current_cursor.track.
+      auto target_track_start = clipboard_.scope == SelectionScope::EVERYTHING ? 0 : current_cursor.track;
+      if (!tuning_ok_for_range(target_track_start)) {
+        getController().getUIEventQueue().push(make_unique<LogEvent>("Cannot paste: incompatible tuning"));
+        return;
+      }
+
       // yank writes - see Song::getOrCreateScene()'s own comment on why
       // that's the one to use here, not plain getScene().
       auto & scene = song.getOrCreateScene(info.getPatternIndex());
@@ -299,6 +335,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     clipboard_.cells = copyPatternBlock(scene, row, row, track_ids, 0, track_hi);
     clipboard_.commands.clear();
     clipboard_.annotations = copyPatternBlockAnnotations(scene, row, row);
+    clipboard_.track_tunings = tuningsForTrackRange(song, track_ids, 0, track_hi);
 
     scene.deleteRow(row, song.getPatternLength());
     song.incVersion();
@@ -627,6 +664,16 @@ PatternEditor::getTrackInfoFor(const Song & song, int track_id) const {
   auto all_track_info = getTrackInformation(song, current_scroll_.row);
   auto it = all_track_info.find(track_id);
   return it != all_track_info.end() ? it->second : VisibleTrackInfo();
+}
+
+vector<Tuning>
+PatternEditor::tuningsForTrackRange(const Song & song, const vector<int> & track_ids, int track_lo, int track_hi) const {
+  vector<Tuning> tunings;
+  for (int i = track_lo; i <= track_hi; i++) {
+    auto * track = song.getTrackByInternalId(track_ids[static_cast<size_t>(i)]);
+    tunings.push_back(track ? song.getTuningForTrack(*track) : song.getTuning());
+  }
+  return tunings;
 }
 
 void

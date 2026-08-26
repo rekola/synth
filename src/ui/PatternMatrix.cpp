@@ -66,6 +66,8 @@ PatternMatrix::PatternMatrix(UIPlane & parent) : UIElement(parent) {
     auto it = patterns.find(track_id);
     cell_clipboard_ = it != patterns.end() ? it->second : Pattern();
     cell_clipboard_track_id_ = track_id;
+    cell_clipboard_tuning_ = track ? song.getTuningForTrack(*track) : song.getTuning();
+    cell_clipboard_song_id_ = song.getInternalId();
     return true;
   };
 
@@ -91,8 +93,36 @@ PatternMatrix::PatternMatrix(UIPlane & parent) : UIElement(parent) {
     auto & song = getController().getSong();
     auto num_scenes = static_cast<int>(song.getScenes().size());
     if (cursor_scene_ > num_scenes) return; // shouldn't happen given the cursor's own clamp - defensive
-    // The originating track may have been deleted since the copy.
-    if (!song.getTrackByInternalId(cell_clipboard_track_id_)) return;
+
+    // Same song as the copy: paste back into the exact track it came
+    // from, same as always - refusing (silently, matching this class's
+    // own long-standing behavior) if that specific track was genuinely
+    // deleted meanwhile. A different song (this app supports several
+    // open at once - Controller::openSong()/switchToBuffer()): "the same
+    // track" isn't a coherent target any more (track ids are one counter
+    // shared across every open song, so cell_clipboard_track_id_ simply
+    // can't exist here even though nothing was actually deleted) - fall
+    // back to whatever cell the cursor is currently on instead.
+    bool same_song = song.getInternalId() == cell_clipboard_song_id_;
+    int target_track_id;
+    if (same_song) {
+      if (!song.getTrackByInternalId(cell_clipboard_track_id_)) return;
+      target_track_id = cell_clipboard_track_id_;
+    } else {
+      auto track_ids = getVisibleTrackIds(song);
+      if (cursor_track_index_ >= static_cast<int>(track_ids.size())) return;
+      target_track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
+    }
+
+    // A percussion cell can't land on a pitched column or vice versa (a
+    // Note::getValue() means something different under each) - the same
+    // check that also covers pasting between two songs written in
+    // different temperaments, since Tuning distinguishes those too.
+    auto target_track = song.getTrackByInternalId(target_track_id);
+    if (!target_track || song.getTuningForTrack(*target_track) != cell_clipboard_tuning_) {
+      getController().getUIEventQueue().push(make_unique<LogEvent>("Cannot paste: incompatible tuning"));
+      return;
+    }
 
     // cursor_scene_ == num_scenes is the virtual, one-past-the-end row
     // (see ensureCursorVisible()'s own comment) - this is the one place
@@ -101,7 +131,7 @@ PatternMatrix::PatternMatrix(UIPlane & parent) : UIElement(parent) {
     if (cursor_scene_ == num_scenes) song.addScene();
 
     auto & scene = song.getScene(cursor_scene_);
-    scene.setPatternForTrack(cell_clipboard_track_id_, *cell_clipboard_);
+    scene.setPatternForTrack(target_track_id, *cell_clipboard_);
     song.incVersion();
     getController().getUIEventQueue().push(make_unique<LogEvent>("Cell pasted"));
   });

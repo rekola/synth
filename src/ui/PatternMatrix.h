@@ -3,6 +3,7 @@
 
 #include "UIElement.h"
 #include "../model/Pattern.h"
+#include "../instruments/Tuning.h"
 
 #include <functional>
 #include <optional>
@@ -101,9 +102,20 @@ class PatternMatrix : public UIElement {
   // this class's own header comment above) - and the track_id it came
   // from, since yank always targets that same track regardless of where
   // the cursor has moved to since the copy (see the "kill-ring-save"
-  // command below).
+  // command below), *when pasting back into the same song the copy came
+  // from*. cell_clipboard_tuning_ (this app supports multiple songs open
+  // at once as buffers, and one track's Note values mean something
+  // different under a different tuning - see Song::getTuningForTrack())
+  // and cell_clipboard_song_id_ (Song::getInternalId() - track ids are a
+  // single counter shared across every open song, so a stale track_id
+  // from a different song can't be told apart from a genuinely deleted
+  // one by existence alone) are what let yank tell a same-song paste from
+  // a cross-song one and validate/retarget accordingly - see yank's own
+  // comment.
   std::optional<Pattern> cell_clipboard_;
   int cell_clipboard_track_id_ = -1;
+  Tuning cell_clipboard_tuning_ = Tuning::TET12;
+  int cell_clipboard_song_id_ = -1;
 
   // What render() last drew, so it can skip redrawing when nothing this
   // widget actually shows has changed - same dirty-check shape InfoLine's

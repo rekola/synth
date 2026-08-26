@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Purpose-built for verify_cross_tuning_paste.py: track 0 is a pitched
+     InstrumentTrack, track 1 a percussion-tuned PercussionTrack with one
+     populated cell (scene 0). Two scenes so there's an empty percussion
+     cell (scene 1) to paste a same-tuning copy into. -->
+<song temperament="12edo" tempo="120" patternRows="8">
+  <instruments>
+    <instrument from="string.bowed.ensemble.pizzicato" />
+  </instruments>
+  <tracks>
+    <track id="0" instrument="0" />
+    <percussionTrack id="1" />
+  </tracks>
+  <scenes>
+    <scene>
+      <pattern track="1">
+        <note row="0" velocity="80" value="BD" />
+      </pattern>
+    </scene>
+    <scene />
+  </scenes>
+</song>

@@ -476,7 +476,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	  if (!track) continue;
 
 	  auto track_id = track->getInternalId();
-	  auto tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : getTuning();
+	  auto tuning = getTuningForTrack(*track);
 
 	  for (auto it3 = it2->FirstChildElement("note"); it3 ; it3 = it3->NextSiblingElement("note")) {
 	    auto row_text = it3->Attribute("row");
@@ -598,7 +598,7 @@ Song::save(const std::string & filename) const {
       assert(!track || track->getType() != TrackType::DRUM_MACHINE);
       if (!track) continue;
 
-      auto track_tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : getTuning();
+      auto track_tuning = getTuningForTrack(*track);
       auto track_ref = trackReferenceText(*this, track_id);
 
       auto pattern_element = doc.NewElement("pattern");

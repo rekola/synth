@@ -112,6 +112,10 @@ protected:
   // current_scroll_ - see render()'s own comment on why.
   std::unordered_map<int, VisibleTrackInfo> getTrackInformation(const Song & song, int scroll_row) const;
   VisibleTrackInfo getTrackInfoFor(const Song & song, int track_id) const;
+  // One Tuning per track in [track_lo, track_hi] (track_lo == track_hi for
+  // a single-track capture) - kill-region/kill-ring-save/kill-row's own
+  // ClipboardEntry::track_tunings capture, see that struct's own comment.
+  std::vector<Tuning> tuningsForTrackRange(const Song & song, const std::vector<int> & track_ids, int track_lo, int track_hi) const;
   void renderHeading(const StyleProvider & styles, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, bool focused);
   void renderRow(const StyleProvider & styles, int heading_height, const std::vector<int> & track_ids, const std::unordered_map<int, VisibleTrackInfo> & track_info, int row, bool highlight, const SelectionBounds & sel_bounds, bool focused);
 

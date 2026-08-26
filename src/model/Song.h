@@ -29,6 +29,20 @@ class Song : public StatefulSongObject {
   Tuning getTuning() const { return tuning_; }
   void setTuning(Tuning tuning) { tuning_ = tuning; }
 
+  // What tuning a Note::getValue() on `track` actually means: a GM
+  // percussion key for a PercussionTrack or DrumMachineTrack (both
+  // resolve to raw GM note identity, not a pitch - see DrumMachineTrack.h/
+  // PercussionTrack.h), this song's own tuning otherwise. The single
+  // shared definition of this three-way check - Song.cpp's <pattern>
+  // reader/writer, PatternMatrix, and PatternEditor's own clipboard all
+  // need it (comparing two tracks' tunings is how each of those refuses a
+  // cross-tuning copy/paste, since the same raw integer means a different
+  // kind of value under a different tuning).
+  Tuning getTuningForTrack(const Track & track) const {
+    auto type = track.getType();
+    return (type == TrackType::PERCUSSION_CONTROL || type == TrackType::DRUM_MACHINE) ? Tuning::PERCUSSION : tuning_;
+  }
+
   short getKey() const { return key_note_number_; }
   void setKey(int key) { key_note_number_ = key; }
     

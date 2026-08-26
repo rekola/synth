@@ -112,6 +112,25 @@ you're changing.
   reaches `LaunchpadManager::handleOverviewPadEvent` and actually commits
   (moves the playhead, doesn't enter a note) rather than silently falling
   through to ordinary NOTES-mode note entry.
+- **`cross_tuning_paste_test.xml` (+ companion `..._song_b.xml`) /
+  `verify_cross_tuning_paste.py` / `verify_patterneditor_cross_tuning_paste.py`** -
+  a `Note::getValue()` means a different kind of value under a different
+  tuning (GM percussion key vs. a pitched scale degree), so both
+  clipboards refuse a paste across that boundary rather than silently
+  reinterpreting it. `verify_cross_tuning_paste.py` drives `PatternMatrix`
+  (arrow keys only - Enter would commit and hand focus to `PatternEditor`,
+  the very thing this script needs to avoid) through its own quirk (a
+  same-song yank always targets the track a copy came from, never the
+  cursor's column, so only opening the second song as a new buffer and
+  pasting there actually exercises the tuning refusal) and the cross-song
+  fallback that replaces it (`cell_clipboard_song_id_` - see
+  `plans/drum-machine-per-scene-patterns.md`'s Phase -1).
+  `verify_patterneditor_cross_tuning_paste.py` covers the more directly
+  reachable case: `PatternEditor`'s own clipboard always targets the
+  cursor's current column, so a same-song cross-tuning paste is the real,
+  everyday risk there (using `PatternMatrix`'s Enter-commit purely as a
+  reliable teleport to an exact track/row, not to exercise its own
+  clipboard).
 - **`drum_machine_stepgrid_test.xml` / `fake_launchpad_stepseq.c` /
   `verify_launchpad_stepseq.py`** (plans/drum-machine.md, Phase 5) - loads
   a song whose only track is a `DrumMachineTrack`, confirms the Launchpad

@@ -2,6 +2,8 @@
 
 #include "../src/model/Song.h"
 #include "../src/model/InstrumentTrack.h"
+#include "../src/model/PercussionTrack.h"
+#include "../src/model/DrumMachineTrack.h"
 #include "../src/instruments/InstrumentProvider.h"
 #include "../src/instruments/GenericInstrument.h"
 
@@ -484,4 +486,26 @@ TEST(get_or_create_scene_is_a_real_distinct_scene_not_the_shared_sentinel) {
   // static empty_scene_ instance, process-wide, not per-Song).
   auto & scene_b = song_b.getOrCreateScene(0);
   CHECK(scene_b.getNote(0, 0, 0).getValue() != 60);
+}
+
+// getTuningForTrack() is the single shared definition of "what does a
+// Note::getValue() on this track actually mean" - Song.cpp's <pattern>
+// reader/writer and PatternMatrix/PatternEditor's own clipboard
+// cross-tuning refusal all rely on it agreeing with itself.
+TEST(get_tuning_for_track_is_percussion_for_percussion_control) {
+  Song song(Tuning::TET19);
+  auto & track = song.addTrack(make_unique<PercussionTrack>());
+  CHECK(song.getTuningForTrack(track) == Tuning::PERCUSSION);
+}
+
+TEST(get_tuning_for_track_is_percussion_for_drum_machine) {
+  Song song(Tuning::TET19);
+  auto & track = song.addTrack(make_unique<DrumMachineTrack>());
+  CHECK(song.getTuningForTrack(track) == Tuning::PERCUSSION);
+}
+
+TEST(get_tuning_for_track_is_the_songs_own_tuning_otherwise) {
+  Song song(Tuning::TET31);
+  auto & track = song.addTrack(make_unique<InstrumentTrack>());
+  CHECK(song.getTuningForTrack(track) == Tuning::TET31);
 }
