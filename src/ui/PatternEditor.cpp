@@ -1867,43 +1867,64 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
       if (i < current_scroll_.track) continue;
       int track_id = track_ids[static_cast<size_t>(i)];
       auto track = song.getMasterTrack().getChildByInternalId(track_id);
+      auto own_leaf = track; // see the "still unclimbed past my own row" check below
       // A column's own leaf can itself own a subtree (an effect track
       // wrapping others still gets its own trailing column alongside
-      // them - SongStructure::visit()'s EFFECT branch) - getDepth() - 1
-      // hops shallower than a plain leaf at the same level, since its
-      // subtree's own leaves already spend that many hops just reaching
-      // it, while this column already starts there. Walking that many
-      // fewer hops here makes it land in the very same ancestor bucket
-      // as the rest of its subtree at every level from where that
-      // subtree's deepest leaf first reaches it, so the merge below
-      // extends that row's span to cover it too instead of leaving it a
-      // separate, prematurely-promoted segment (plain leaves, whose
-      // depth is always 1, are unaffected - 0 hops shallower).
-      // Computed once, from the column's own starting leaf, rather than
-      // inline in the loop condition below - track gets reassigned to
-      // each successive parent as the loop climbs, and re-evaluating
-      // getDepth() against that already-advanced track on every
-      // iteration would silently shrink the hop budget mid-climb.
-      auto hops = level - (track->getDepth() - 1);
-      for (auto k = 0; k < hops && track; k++) {
+      // them - SongStructure::visit()'s EFFECT branch), and a wrapping
+      // node's own children can themselves be unevenly deep (e.g. one
+      // child chain three levels deep, a sibling chain only two - a real
+      // shape, not hypothetical: a Compressor wrapping both a
+      // Distortion-then-instrument chain and a plain instrument, say).
+      // Climbing strictly "one hop per level" from this column's own
+      // starting depth doesn't account for that - a shallower sibling
+      // branch can reach the shared ancestor before that ancestor's own
+      // natural row (getDepth() - 1) actually arrives, showing its color
+      // one row early as an isolated, prematurely-promoted segment
+      // instead of merging with the rest of the subtree on the row they
+      // all actually complete on together. Climbing to a candidate
+      // parent only once that parent's own natural row has arrived (not
+      // just "one more hop") keeps every branch converging on the same
+      // row regardless of how unevenly deep the tree beneath a shared
+      // ancestor is.
+      while (track) {
 	auto it = track_parents.find(track->getInternalId());
 	auto parent = it != track_parents.end() ? it->second : nullptr;
 	if (!parent) {
 	  // Climbed to this column's own root. Its whole subtree has fully
 	  // merged into one span by the level exactly matching its own
-	  // depth (getDepth() - 1 - see the comment above) - any row past
-	  // that point has nothing left to add (this root has no real
-	  // parent to advance to), so it goes blank instead of repeating
-	  // the exact same already-complete span again. At or before that
-	  // level, keep reporting the root itself, so the merge below can
-	  // still pull a shallower sibling branch together with a deeper
-	  // one once its own climb reaches the root too (a bare leaf root,
-	  // whose depth is 1, has no level at or before that point at all -
-	  // it's always past it, so it always goes blank, same as before).
+	  // depth (getDepth() - 1) - any row past that point has nothing
+	  // left to add (this root has no real parent to advance to), so
+	  // it goes blank instead of repeating the exact same already-
+	  // complete span again.
 	  if (level > track->getDepth() - 1) track = nullptr;
 	  break;
 	}
+	// The parent's own row hasn't arrived yet - stay put rather than
+	// overshoot it (see this loop's own comment above).
+	if (parent->getDepth() - 1 > level) break;
 	track = parent;
+      }
+      // A genuine leaf (no children of its own - not a wrapping node's
+      // own trailing column, which is correctly still itself for its
+      // entire real span, however far above its own row that reaches)
+      // still sitting on its own starting identity, past its own row,
+      // with nothing above it having actually merged in yet (every real
+      // ancestor above it has a taller natural depth than this level).
+      // Two different reasons that can happen, two different fills: if
+      // this leaf's own direct parent (not some further-climbed
+      // ancestor - its immediate one) is the master itself, nothing real
+      // is ever going to appear in this gap - it's master's own reach
+      // the whole way up, so fill it with master's color right away
+      // rather than leaving a disconnected blank band between the
+      // leaf's own row and master's. Otherwise a real intermediate
+      // wrapper just hasn't reached its own row yet (the Compressor-
+      // with-uneven-branches case the row-arrival check above exists
+      // for) - that one genuinely has nothing to show here yet, so it
+      // stays blank.
+      if (track == own_leaf && own_leaf->getChildren().empty() && level > own_leaf->getDepth() - 1) {
+	auto pit = track_parents.find(own_leaf->getInternalId());
+	auto direct_parent = pit != track_parents.end() ? pit->second : nullptr;
+	track = (direct_parent && direct_parent->getType() == TrackType::MASTER) ? direct_parent : nullptr;
       }
       auto it = all_track_info.find(track_id);
       auto w = it != all_track_info.end() ? it->second.getTrackWidth() : 0;
