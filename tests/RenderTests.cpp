@@ -280,6 +280,102 @@ TEST(render_percussion_live_note_off_reclaims_the_voice) {
   CHECK(state.getVoiceCount() == 0);
 }
 
+// How many 256-frame blocks until voiceCount() first reaches 0, capped at
+// max_blocks (returns max_blocks if it never does within that budget).
+static int
+blocksUntilSilent(SongState & state, const Song & song, Mixer & mixer, int max_blocks) {
+  for (int block = 0; block < max_blocks; block++) {
+    state.renderBlock(256, song, mixer);
+    if (state.getVoiceCount() == 0) return block;
+  }
+  return max_blocks;
+}
+
+// render_sf2_multi_region_note_off_eventually_reclaims_every_region's own
+// earlier version only checked "does the voice eventually go silent" -
+// which passes even if note-off does *nothing* and the sample just plays
+// out its own fixed length regardless (a real possibility for a one-shot,
+// unlooped region - see stopNote()'s own comment on TSF_LOOPMODE_SUSTAIN
+// vs. no loop at all). This compares against a reference where OFF is
+// never sent at all - if note-off actually shortens the tail, silence
+// should arrive noticeably earlier with it than without.
+TEST(render_sf2_multi_region_note_off_actually_shortens_the_tail) {
+  auto sf2_path = findSystemSoundFont();
+  if (sf2_path.empty()) return;
+
+  ChannelConfiguration config(44100, 1);
+  constexpr int kMaxBlocks = 20 * 44100 / 256; // 20s budget
+
+  auto with_off = loadFixtureWithSoundFont("sf2_harp_note_off.xml", sf2_path);
+  CHECK(with_off.ok);
+  SongState state_with_off(config);
+  state_with_off.initialize(with_off.song);
+  state_with_off.setIsPlaying(true);
+  RecordingMixer mixer_with_off(static_cast<short>(config.numberOfChannels()), config.getAudioOutSampleRate());
+  int row_samples = config.getSampleInterval(with_off.song.getTempo());
+  state_with_off.renderBlock(row_samples, with_off.song, mixer_with_off); // row 0: note on
+  CHECK(state_with_off.getVoiceCount() > 1); // genuinely multi-region, not a degenerate single-region preset
+  for (int row = 1; row <= 4; row++) state_with_off.renderBlock(row_samples, with_off.song, mixer_with_off); // rows 1-4 (4 = OFF)
+  auto blocks_with_off = blocksUntilSilent(state_with_off, with_off.song, mixer_with_off, kMaxBlocks);
+
+  auto without_off = loadFixtureWithSoundFont("sf2_harp_no_note_off.xml", sf2_path);
+  CHECK(without_off.ok);
+  SongState state_without_off(config);
+  state_without_off.initialize(without_off.song);
+  state_without_off.setIsPlaying(true);
+  RecordingMixer mixer_without_off(static_cast<short>(config.numberOfChannels()), config.getAudioOutSampleRate());
+  state_without_off.renderBlock(row_samples, without_off.song, mixer_without_off); // row 0: note on, never released
+  for (int row = 1; row <= 4; row++) state_without_off.renderBlock(row_samples, without_off.song, mixer_without_off);
+  auto blocks_without_off = blocksUntilSilent(state_without_off, without_off.song, mixer_without_off, kMaxBlocks);
+
+  CHECK(blocks_with_off < blocks_without_off);
+}
+
+// Same comparison as the pattern-driven version above, but through the
+// live-audition path (InstrumentTrackState::noteOn()/noteOff() called
+// directly, exactly what Player's PLAY_NOTE/STOP_NOTE do) instead of
+// pattern-driven scheduling - the pattern-driven path already proved
+// note-off has a real effect on this same multi-region preset, so if this
+// one comes out different, the live path itself is where to keep looking.
+TEST(render_sf2_multi_region_live_note_off_actually_shortens_the_tail) {
+  auto sf2_path = findSystemSoundFont();
+  if (sf2_path.empty()) return;
+
+  ChannelConfiguration config(44100, 1);
+  constexpr int kMaxBlocks = 20 * 44100 / 256; // 20s budget
+
+  auto with_off = loadFixtureWithSoundFont("sf2_harp_no_note_off.xml", sf2_path); // no pattern content needed - noteOn/noteOff called directly
+  CHECK(with_off.ok);
+  auto & track_with_off = *with_off.song.getMasterTrack().getChildren()[0];
+  SongState state_with_off(config);
+  state_with_off.initialize(with_off.song);
+  auto & track_state_with_off = dynamic_cast<InstrumentTrackState &>(track_with_off.getState(state_with_off, state_with_off.getSongStructure()));
+  auto instrument_with_off = track_state_with_off.getInstrumentSource(with_off.song.getInstrumentPool());
+  CHECK(instrument_with_off != nullptr);
+  RecordingMixer mixer_with_off(static_cast<short>(config.numberOfChannels()), config.getAudioOutSampleRate());
+  track_state_with_off.noteOn(0, *instrument_with_off, 220.0f, 0.8f, 60, NoteOrigin::LIVE);
+  state_with_off.renderBlock(256, with_off.song, mixer_with_off);
+  CHECK(state_with_off.getVoiceCount() > 1); // genuinely multi-region
+  track_state_with_off.noteOff(0);
+  auto blocks_with_off = blocksUntilSilent(state_with_off, with_off.song, mixer_with_off, kMaxBlocks);
+
+  auto without_off = loadFixtureWithSoundFont("sf2_harp_no_note_off.xml", sf2_path);
+  CHECK(without_off.ok);
+  auto & track_without_off = *without_off.song.getMasterTrack().getChildren()[0];
+  SongState state_without_off(config);
+  state_without_off.initialize(without_off.song);
+  auto & track_state_without_off = dynamic_cast<InstrumentTrackState &>(track_without_off.getState(state_without_off, state_without_off.getSongStructure()));
+  auto instrument_without_off = track_state_without_off.getInstrumentSource(without_off.song.getInstrumentPool());
+  CHECK(instrument_without_off != nullptr);
+  RecordingMixer mixer_without_off(static_cast<short>(config.numberOfChannels()), config.getAudioOutSampleRate());
+  track_state_without_off.noteOn(0, *instrument_without_off, 220.0f, 0.8f, 60, NoteOrigin::LIVE);
+  state_without_off.renderBlock(256, without_off.song, mixer_without_off);
+  // noteOff() deliberately never called here.
+  auto blocks_without_off = blocksUntilSilent(state_without_off, without_off.song, mixer_without_off, kMaxBlocks);
+
+  CHECK(blocks_with_off < blocks_without_off);
+}
+
 // Reproduction for a reported regression: percussion note-off stopped
 // working. Row 4's OFF must actually reach the voice, not just get
 // scheduled and dropped.
