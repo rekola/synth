@@ -29,6 +29,20 @@
 // have to rebuild the same grouping this class already does.
 class Scene : public SongObject {
  public:
+  // Resolves `row` against `track_id`'s own Pattern length (Pattern.h's
+  // own getEffectiveRow() comment - a Pattern shorter than
+  // `context_length` repeats). A caller with a raw, on-screen/playback
+  // row and only a track_id (not already holding that track's own
+  // Pattern reference, e.g. PatternEditor.cpp's note-entry call sites,
+  // LaunchpadManager.cpp's own) calls this once before reading/writing
+  // through this class's own row+track_id-keyed wrappers below - a track
+  // with no Pattern here yet resolves to `row` unchanged (an absent
+  // Pattern's implicit length_ is 0, same as an explicit one).
+  int getEffectiveRow(int track_id, int row, int context_length) const {
+    auto it = patterns_by_track_id_.find(track_id);
+    return it != patterns_by_track_id_.end() ? it->second.getEffectiveRow(row, context_length) : row;
+  }
+
   void setNotes(int row, int track_id, const std::vector<Note> & n) {
     patterns_by_track_id_[track_id].setNotes(row, n);
   }

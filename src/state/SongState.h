@@ -159,9 +159,14 @@ class SongState : public TrackState {
 	  // row->track_id->notes/commands lookup on the old flat class this
 	  // scene used to be.
 	  for (auto & [ track_id, track_pattern ] : scene.getPatternsByTrack()) {
-	    auto & notes = track_pattern.getNotes(row_idx);
+	    // A Pattern shorter than the song's own pattern_length_ repeats -
+	    // see Pattern.h's own getEffectiveRow() comment. Resolved once per
+	    // track here since each track's own Pattern can have its own
+	    // length (or none, tracking the song's own live).
+	    auto effective_row = track_pattern.getEffectiveRow(row_idx, song.getPatternLength());
+	    auto & notes = track_pattern.getNotes(effective_row);
 	    auto track = song.getTrackByInternalId(track_id);
-	    auto tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
+	    auto tuning = track ? song.getTuningForTrack(*track) : song.getTuning();
 
 	    for (size_t j = 0; j < notes.size(); j++) {
 	      if (notes[j].isDefined()) {
@@ -179,7 +184,7 @@ class SongState : public TrackState {
 	      }
 	    }
 
-	    auto & command = track_pattern.getCommand(row_idx);
+	    auto & command = track_pattern.getCommand(effective_row);
 	    if (command.isDefined()) {
 	      // render_context_.addPendingEvent(col, i, command);
 	      if (command.isPatternBreak()) {

@@ -1212,6 +1212,26 @@ TEST(render_arpeggiator_steps_through_a_pattern_authored_chord) {
   CHECK(rate2 < rate0 * 1.7f);
 }
 
+TEST(render_pattern_shorter_than_song_repeats) {
+  // plans/drum-machine-per-scene-patterns.md's Phase 0: a track's own
+  // <pattern length="4"> in an 8-row song plays its 4 real rows (note on
+  // at row 0, off at row 2), then repeats them verbatim at rows 4-7 -
+  // rows this fixture never authors at all (Pattern::getEffectiveRow()'s
+  // own modulo, not literal duplicated content). tempo 240 -> a 0.0625s
+  // row, so each quarter-pattern interval is 0.125s wide.
+  auto loaded = loadFixture("pattern_shorter_than_song_repeats.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(44100, 1);
+  auto result = renderSongOffline(loaded.song, config);
+  CHECK(!hasNonFiniteSample(result));
+
+  CHECK(windowedRms(result, 0, 0.03f, 0.08f) > 1e-4f);   // rows 0-1: on (real content)
+  CHECK(windowedRms(result, 0, 0.16f, 0.21f) < 1e-4f);   // rows 2-3: off (real content)
+  CHECK(windowedRms(result, 0, 0.28f, 0.33f) > 1e-4f);   // rows 4-5: on again - the repeat itself
+  CHECK(windowedRms(result, 0, 0.41f, 0.46f) < 1e-4f);   // rows 6-7: off again
+}
+
 // Golden-render regression test - hashes raw output samples for fixtures
 // that exercise every HashField-derived randomization site (NoteMultiplier's
 // unison/detune jitter and pattern note start-phase -

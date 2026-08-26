@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- plans/drum-machine-per-scene-patterns.md's Phase 0: a Pattern shorter
+     than the song's own pattern length (patternRows) repeats - see
+     render_pattern_shorter_than_song_repeats(). This track's own <pattern>
+     declares length="4" and only authors rows 0 (note on) and 2 (note
+     off); rows 4-7 are never written at all, and must still play the
+     identical on/off content as rows 0-3 (Pattern::getEffectiveRow()'s
+     own modulo), not silence. -->
+<song temperament="12edo" tempo="240" patternRows="8" volume="1.0">
+  <instruments>
+    <oscillator type="sine"/>
+  </instruments>
+  <tracks>
+    <track id="0" instrument="0" />
+  </tracks>
+  <scenes>
+    <scene>
+      <pattern track="0" length="4">
+        <note row="0" velocity="100" value="C-4" />
+        <note row="2" value="OFF" />
+      </pattern>
+    </scene>
+  </scenes>
+</song>

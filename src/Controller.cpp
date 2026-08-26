@@ -667,10 +667,20 @@ Controller::removeNoteColumn(int track_id) {
 
 void
 Controller::ensureRowCleared(std::set<std::pair<int, int>> & cleared_rows, int pattern_idx, int row, int track_id) {
-  if (!cleared_rows.insert({row, track_id}).second) return; // already cleared this session
   auto song = getCurrentSong();
   auto & scene = song->getScene(pattern_idx);
-  scene.setNotes(row, track_id, {});
+  // A shorter-than-song-length Pattern repeats - see Pattern.h's own
+  // getEffectiveRow() comment - so the row actually cleared is this
+  // track's own effective one, not necessarily the raw playhead row.
+  // cleared_rows itself is keyed by that same effective row too, not the
+  // raw one: two different raw rows that repeat the same underlying
+  // content (e.g. rows 4 and 20 of a 16-row pattern) must dedup together
+  // - otherwise sweeping past the second one would clear (and lose) a
+  // note the first one just wrote, one loop iteration into the same
+  // live take.
+  auto effective_row = scene.getEffectiveRow(track_id, row, song->getPatternLength());
+  if (!cleared_rows.insert({effective_row, track_id}).second) return; // already cleared this session
+  scene.setNotes(effective_row, track_id, {});
   song->incVersion();
 }
 
@@ -722,7 +732,8 @@ Controller::writeReleaseOff(std::set<std::pair<int, int>> & cleared_rows, bool a
   if (auto_started_playback) ensureRowCleared(cleared_rows, pattern_idx, row, track_id);
   auto song = getCurrentSong();
   auto & scene = song->getScene(pattern_idx);
-  scene.setNote(row, track_id, note_column, Note(0, 0, delay));
+  auto effective_row = scene.getEffectiveRow(track_id, row, song->getPatternLength());
+  scene.setNote(effective_row, track_id, note_column, Note(0, 0, delay));
   song->incVersion();
 }
 

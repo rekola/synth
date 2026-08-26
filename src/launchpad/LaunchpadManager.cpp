@@ -844,6 +844,13 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
 
   if (ev.getKind() == LaunchpadPadEvent::PRESS) {
     auto row = info.getRowIndex();
+    // A shorter-than-song-length Pattern repeats (Pattern.h's own
+    // getEffectiveRow() comment) - the row actually read/written below is
+    // this track's own effective one, not necessarily the raw playhead
+    // row; `row` itself stays raw for recordActiveNote()'s own
+    // held-note bookkeeping (a same-row-or-not comparison against a
+    // later release, unaffected by any remap).
+    auto effective_row = scene.getEffectiveRow(track_id, row, song.getPatternLength());
     auto & state = deviceState(device_id);
 
     // Whether this press is about to become the first captured (Capture-
@@ -893,7 +900,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // column to every simultaneously-held note, each PLAY_NOTE silently
     // stealing the previous one's voice (Player.cpp's
     // stopVoices(column)) and killing polyphony entirely.
-    auto & notes = scene.getNotes(row, track_id);
+    auto & notes = scene.getNotes(effective_row, track_id);
     int note_column = 0;
     while ((note_column < static_cast<int>(notes.size()) && notes[static_cast<size_t>(note_column)].isDefined()) ||
 	   isColumnLiveHeld(track_id, note_column)) {
@@ -907,7 +914,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
 
     if (state.capture_enabled) {
       Note note(note_value, velocity, current_delay);
-      scene.setNote(row, track_id, note_column, note);
+      scene.setNote(effective_row, track_id, note_column, note);
       song.incVersion();
     }
 

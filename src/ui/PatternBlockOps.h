@@ -20,13 +20,19 @@ struct PatternBlockCell {
 using PatternBlock = std::vector<std::vector<PatternBlockCell> >;
 
 // Captures notes and effect command for each (row, track) in the inclusive
-// range [row_lo, row_hi] x track_ids[track_lo..track_hi].
+// range [row_lo, row_hi] x track_ids[track_lo..track_hi]. `context_length`
+// is the song's own pattern length, passed through to Scene::
+// getEffectiveRow() for each (row, track) pair - a track whose own
+// Pattern is shorter reads/clears/transposes its real, repeating row
+// (Pattern.h's own getEffectiveRow() comment), not the raw one, so a
+// range straddling its length boundary reads back what's actually
+// playing rather than blank, unreachable rows.
 PatternBlock copyPatternBlock(const Scene & scene, int row_lo, int row_hi,
-			     const std::vector<int> & track_ids, int track_lo, int track_hi);
+			     const std::vector<int> & track_ids, int track_lo, int track_hi, int context_length);
 
 // Clears notes and effect command for the same range.
 void clearPatternBlock(Scene & scene, int row_lo, int row_hi,
-		       const std::vector<int> & track_ids, int track_lo, int track_hi);
+		       const std::vector<int> & track_ids, int track_lo, int track_hi, int context_length);
 
 // Writes `block` into `scene` starting at (target_row, track_ids[target_track]),
 // clipping any cells whose target row or track falls outside [0, num_rows)/
@@ -42,7 +48,7 @@ void pastePatternBlock(Scene & scene, const PatternBlock & block, int num_rows,
 // entirely within the range rather than shifting their notes.
 void transposePatternBlock(Scene & scene, int row_lo, int row_hi,
 			   const std::vector<int> & track_ids, int track_lo, int track_hi, bool up,
-			   const std::function<bool(int track_id)> & is_percussion);
+			   const std::function<bool(int track_id)> & is_percussion, int context_length);
 
 // Single-track, note-column-scoped siblings of the above: operate on just
 // notes [note_lo, note_hi] of one track, leaving other note columns and the
@@ -51,14 +57,14 @@ void transposePatternBlock(Scene & scene, int row_lo, int row_hi,
 // escalates to a whole-track operation instead, so there's no
 // include-the-command variant of this family any more).
 PatternBlock copyPatternBlockNotes(const Scene & scene, int row_lo, int row_hi,
-				   int track_id, int note_lo, int note_hi);
+				   int track_id, int note_lo, int note_hi, int context_length);
 void clearPatternBlockNotes(Scene & scene, int row_lo, int row_hi,
-			    int track_id, int note_lo, int note_hi);
+			    int track_id, int note_lo, int note_hi, int context_length);
 // `is_percussion`: same reasoning as transposePatternBlock() above, but a
 // plain bool here (not a predicate) since this operates on exactly one
 // already-known track_id, not a range.
 void transposePatternBlockNotes(Scene & scene, int row_lo, int row_hi,
-				int track_id, int note_lo, int note_hi, bool up, bool is_percussion);
+				int track_id, int note_lo, int note_hi, bool up, bool is_percussion, int context_length);
 // Merges `block` into `scene` starting at (target_row, track_id, target_note_offset),
 // leaving note columns outside that range untouched (unlike pastePatternBlock,
 // which replaces a cell's whole note vector).
@@ -70,8 +76,8 @@ void pastePatternBlockNotes(Scene & scene, const PatternBlock & block, int num_r
 // no note data is read or written by any of these). Note::isDefined() etc.
 // has no equivalent here since Command has no "empty" special case beyond
 // its own default-constructed all-dashes value.
-std::vector<Command> copyPatternBlockCommand(const Scene & scene, int row_lo, int row_hi, int track_id);
-void clearPatternBlockCommand(Scene & scene, int row_lo, int row_hi, int track_id);
+std::vector<Command> copyPatternBlockCommand(const Scene & scene, int row_lo, int row_hi, int track_id, int context_length);
+void clearPatternBlockCommand(Scene & scene, int row_lo, int row_hi, int track_id, int context_length);
 void pastePatternBlockCommand(Scene & scene, const std::vector<Command> & block, int num_rows,
 			      int target_row, int track_id);
 

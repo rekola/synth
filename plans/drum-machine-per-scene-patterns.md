@@ -243,14 +243,59 @@ ever the pattern's own real `0..length-1` rows.
 - Whether to also draw a divider at the loop boundary, beyond plain
   dimming, is minor polish, not blocking.
 
+### Implementation notes
+
+`Pattern`'s own accessors keep their existing raw-row signatures
+unchanged, exactly as designed above - every caller resolves the
+effective row itself first. `Scene::getEffectiveRow(track_id, row,
+context_length)` is the convenience most callers actually use (they hold
+a `track_id`, not already a `Pattern &`): falls back to `row` unchanged
+for a track with no `Pattern` here yet, otherwise delegates to that
+`Pattern`'s own `getEffectiveRow()`. Wired through every real read/write
+site, not just playback:
+- `SongState.h`'s playback loop (resolved once per track per row).
+- `PatternEditor.cpp`: every note/command/velocity/delay entry site
+  (raw keyboard and MIDI), `renderRow()` (both the read *and* the dimming
+  of rows past a track's own length - `bg`/`fg` blended toward black
+  per-track, since two tracks in the same row can have different lengths,
+  unlike `is_neighboring_pattern`'s own whole-row dim).
+- `Controller.cpp`'s auto-record subsystem (`ensureRowCleared()`,
+  `writeReleaseOff()`) - shared by `PatternEditor`'s and
+  `LaunchpadManager`'s own live-take recording paths.
+  `ensureRowCleared()`'s own `cleared_rows` dedup set is keyed by the
+  *effective* row, not the raw one - two raw rows repeating the same
+  underlying content must dedup together, or sweeping past the second one
+  during a live take would clear (and lose) a note the first one just
+  wrote, one loop iteration earlier in the same take.
+- `LaunchpadManager.cpp`'s own pad-press note entry.
+- `PatternBlockOps.cpp`'s whole family (`copy`/`clear`/`transpose`/
+  `paste`, both the whole-track and note-column-scoped siblings) - each
+  gained a `context_length` parameter (the paste family already had one,
+  `num_rows`, doing double duty); `kill-region`/`kill-ring-save`/`yank`/
+  `kill-row`/`transpose-region-up`/`-down` in `PatternEditor.cpp` all pass
+  `song.getPatternLength()` through. A selection or paste range straddling
+  a shortened pattern's own length boundary reads/writes the real,
+  repeating content at each row independently - not a contiguous range in
+  the underlying storage, but each row's own effective target is
+  resolved on its own, so the block's row-offset sequencing (source row i
+  -> destination row i) still lines up correctly regardless.
+
 ### Testing
 
-- `Pattern` unit tests: `getEffectiveRow()` wraparound, write-redirect
-  correctness (writing row 20 reads back from both row 4 and row 20),
-  XML round-trip with `length` set and unset.
-- `tests/RenderTests.cpp`: a fixture with an ordinary track's pattern
-  shorter than the song's pattern length, confirming playback actually
-  repeats it.
+- `Pattern`/`Scene` unit tests (`tests/SceneTests.cpp`):
+  `getEffectiveRow()` wraparound, no-divisibility-required wraparound,
+  write-redirect correctness (writing row 20 reads back from both row 4
+  and row 20, and from another repeat further out), XML round-trip with
+  `length` set and unset, `Scene::getEffectiveRow()`'s own fallback for
+  an unknown track.
+- `tests/PatternBlockOpsTests.cpp`: copy and paste each reading/writing a
+  repeated row through a track's own shorter length.
+- `tests/RenderTests.cpp`
+  (`pattern_shorter_than_song_repeats.xml`/
+  `render_pattern_shorter_than_song_repeats`): a track's own 4-row
+  `<pattern length="4">` (note on at row 0, off at row 2) in an 8-row song
+  actually repeats at rows 4-7, confirmed via `windowedRms()` across all
+  four quarter-pattern intervals - not just "does it not crash."
 
 ## Phase 1: drum machine content becomes per-scene patterns
 
@@ -415,6 +460,37 @@ drum_machine_track.xml`, `drum_machine_track_no_sequence_element.xml`,
 `drum_machine_track_explicit_empty_sequence.xml`,
 `drum_machine_two_patterns.xml`, `drum_machine_retrigger.xml`,
 `tools/e2e/drum_machine_stepgrid_test.xml`.
+
+### `PatternEditor` integration
+
+Today a `DrumMachineTrack` column renders as a plain placeholder in
+`PatternEditor` (a fixed-width run of `x`/blank per row, `renderRow()`'s
+own `track->getType() == TrackType::SAMPLE || ... DRUM_MACHINE` branch)
+and refuses typed note entry outright (the same type check, in
+`offerInput()`'s raw-key handling) - both written back when a
+`DrumMachineTrack` had no per-scene `Pattern` content of its own to show
+or write into at all. Once this phase lands, that's no longer true - a
+`DrumMachineTrack` column should render and accept entry exactly like a
+`PERCUSSION_CONTROL` one (real note/velocity/delay/command display, real
+typed entry), not stay a placeholder:
+
+- `renderRow()`'s placeholder branch keeps only `SAMPLE` (which still has
+  no per-row `Pattern` content) - `DRUM_MACHINE` falls through to the
+  ordinary `NOTE`/`VELOCITY`/`DELAY`/`EFFECT` rendering below, same as
+  every pitched/percussion track.
+- `offerInput()`'s type-exclusion guard drops `DRUM_MACHINE` for the same
+  reason - typing now writes through normally.
+- Both of `renderRow()`'s/`offerInput()`'s own inline `track->getType() ==
+  TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning()`
+  checks (display formatting, MIDI-note resolution) become
+  `song.getTuningForTrack(*track)` calls - two more sites of the same
+  duplicated check Phase -1 already consolidated elsewhere, now including
+  `DRUM_MACHINE` for free.
+
+Whatever the step-grid/Launchpad editing conventions turn out to be
+(note-per-lane, chord support - see "A step is a `Note`" above),
+`PatternEditor` shows and accepts exactly that same content - one
+`Pattern`, one rendering path, no drum-specific special case left.
 
 ### `PatternMatrix` integration
 

@@ -22,6 +22,37 @@
 // per-row storage.
 class Pattern : public SongObject {
  public:
+  // A Pattern has a length. `length_ == 0` (the default) isn't a "looping
+  // is off" flag - it means this particular Pattern was never given a
+  // length of its own, so it takes on whatever length the caller-supplied
+  // `context_length` provides (in practice, always the song's own
+  // pattern_length_ today - the same implicit default every Pattern
+  // already has). Giving it a shorter length explicitly is the only
+  // thing that changes: reads/writes past it wrap, which is simply what
+  // "shorter than the span it's played across" already means - not a
+  // separate feature to turn on.
+  //
+  // Every row-taking accessor below takes a raw row, not this effective
+  // one - a caller resolves it once via getEffectiveRow(row,
+  // song.getPatternLength()) before reading or writing, rather than this
+  // class remapping internally. Resolved fresh at each call rather than
+  // baked in at construction time so a Pattern that was never given its
+  // own length keeps tracking the song's own pattern length live if that
+  // ever changes (Song::setPatternLength()) - snapshotting it in at
+  // creation would silently desync the moment the song's own length
+  // changed afterward. No divisibility requirement between length_ and
+  // context_length - row % length_ is well-defined either way; a 5-row
+  // pattern inside a 64-row context just plays some full repeats plus one
+  // partial one, cut off wherever the context ends, the same as stopping
+  // a real loop mid-cycle.
+  int getLength() const { return length_; }
+  void setLength(int length) { length_ = length; }
+
+  int getEffectiveRow(int row, int context_length) const {
+    auto len = length_ > 0 ? length_ : context_length;
+    return len > 0 ? row % len : row;
+  }
+
   // Trims trailing undefined notes and drops the row from the sparse map
   // entirely once nothing defined is left in it - the same cleanup
   // deleteNote() below already does, applied here too since a caller can
@@ -177,6 +208,9 @@ private:
   // sparse note matrix: row -> note_column
   std::unordered_map<unsigned short, std::vector<Note> > notes_;
   std::unordered_map<unsigned short, Command> commands_;
+
+  // 0 = not given its own length - see getEffectiveRow()'s own comment.
+  int length_ = 0;
 
   static inline Note empty_note;
   static inline std::vector<Note> empty_notes;

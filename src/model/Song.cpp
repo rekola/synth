@@ -478,6 +478,13 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	  auto track_id = track->getInternalId();
 	  auto tuning = getTuningForTrack(*track);
 
+	  // Absent/0 (unset - Pattern.h's own comment) is today's exact
+	  // behavior; only set it when the file is actually explicit about a
+	  // shorter length, so an ordinary <pattern> with no attribute at all
+	  // never creates a Pattern entry purely to carry a length of 0.
+	  auto length_text = it2->Attribute("length");
+	  if (length_text) scene.getPatternsByTrack()[track_id].setLength(atoi(length_text));
+
 	  for (auto it3 = it2->FirstChildElement("note"); it3 ; it3 = it3->NextSiblingElement("note")) {
 	    auto row_text = it3->Attribute("row");
 	    auto column_text = it3->Attribute("column");
@@ -603,7 +610,19 @@ Song::save(const std::string & filename) const {
 
       auto pattern_element = doc.NewElement("pattern");
       pattern_element->SetAttribute("track", track_ref.c_str());
+      // 0 (unset - see Pattern.h's own comment) is today's exact
+      // behavior (tracks this song's own pattern length, no repeat), so
+      // it's simply omitted rather than written as an explicit 0.
+      if (pattern.getLength() > 0) pattern_element->SetAttribute("length", pattern.getLength());
 
+      // getNotes(row)/getCommands() below read the pattern's own raw,
+      // un-duplicated rows directly (not through getEffectiveRow()) - a
+      // shortened pattern's raw storage never holds anything past its own
+      // length_ - 1 in the first place (every write redirects there via
+      // getEffectiveRow() at the call site, never past it), so this loop
+      // naturally only ever finds real content to write, whether or not
+      // getPatternLength() (this song's own, possibly much longer,
+      // pattern length) is the bound it iterates to.
       for (int row = 0; row < getPatternLength(); row++) {
 	auto & nv = pattern.getNotes(row);
 

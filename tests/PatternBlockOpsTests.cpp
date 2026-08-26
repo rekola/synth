@@ -15,7 +15,7 @@ TEST(pattern_block_copy_captures_notes_and_commands) {
   p.setNote(2, track_ids[1], 0, Note(64, 100));
   p.setCommand(2, track_ids[0], Command("U050"));
 
-  auto block = copyPatternBlock(p, 2, 3, track_ids, 0, 1);
+  auto block = copyPatternBlock(p, 2, 3, track_ids, 0, 1, 64);
 
   CHECK(block.size() == 2); // rows 2 and 3
   CHECK(block[0].size() == 2); // tracks 0 and 1
@@ -41,7 +41,7 @@ TEST(pattern_block_clear_empties_the_range) {
   p.setCommand(1, track_ids[0], Command("U050"));
   p.setNote(5, track_ids[0], 0, Note(67, 100)); // outside the cleared range
 
-  clearPatternBlock(p, 0, 2, track_ids, 0, 1);
+  clearPatternBlock(p, 0, 2, track_ids, 0, 1, 64);
 
   CHECK(p.getNotes(1, track_ids[0]).empty());
   CHECK(p.getNotes(1, track_ids[1]).empty());
@@ -65,7 +65,7 @@ TEST(pattern_block_transpose_skips_percussion_tracks_within_a_mixed_range) {
   p.setNote(2, track_ids[2], 0, Note(67, 100));
 
   transposePatternBlock(p, 2, 2, track_ids, 0, 2, /*up=*/true,
-			[&](int track_id) { return track_id == track_ids[1]; });
+			[&](int track_id) { return track_id == track_ids[1]; }, 64);
 
   CHECK(p.getNotes(2, track_ids[0])[0].getValue() == 61); // transposed up
   CHECK(p.getNotes(2, track_ids[1])[0].getValue() == 64); // untouched (percussion)
@@ -79,7 +79,7 @@ TEST(pattern_block_paste_writes_at_an_offset) {
   p.setNote(0, track_ids[0], 0, Note(60, 100));
   p.setCommand(0, track_ids[0], Command("U050"));
 
-  auto block = copyPatternBlock(p, 0, 0, track_ids, 0, 0);
+  auto block = copyPatternBlock(p, 0, 0, track_ids, 0, 0, 64);
   pastePatternBlock(p, block, 16, 5, track_ids, 1);
 
   CHECK(p.getNotes(5, track_ids[1]).size() == 1);
@@ -97,7 +97,7 @@ TEST(pattern_block_paste_clips_at_row_and_track_boundaries) {
   p.setNote(0, track_ids[0], 0, Note(60, 100));
   p.setNote(1, track_ids[0], 0, Note(61, 100));
 
-  auto block = copyPatternBlock(p, 0, 1, track_ids, 0, 0); // 2 rows, 1 track
+  auto block = copyPatternBlock(p, 0, 1, track_ids, 0, 0, 64); // 2 rows, 1 track
 
   // paste near the bottom edge: row offset 1 would land on row 4, out of range
   pastePatternBlock(p, block, 4, 3, track_ids, 0);
@@ -122,8 +122,8 @@ TEST(pattern_block_cut_then_paste_back_round_trips) {
   p.setNote(3, track_ids[1], 0, Note(64, 100));
   p.setCommand(4, track_ids[2], Command("D0A0"));
 
-  auto block = copyPatternBlock(p, 3, 4, track_ids, 0, 2);
-  clearPatternBlock(p, 3, 4, track_ids, 0, 2);
+  auto block = copyPatternBlock(p, 3, 4, track_ids, 0, 2, 64);
+  clearPatternBlock(p, 3, 4, track_ids, 0, 2, 64);
 
   CHECK(p.getNotes(3, track_ids[0]).empty());
   CHECK(!p.getCommand(4, track_ids[2]).isDefined());
@@ -146,8 +146,8 @@ TEST(pattern_block_chord_round_trips_with_every_voice_intact) {
   p.setNote(0, track_ids[0], 1, Note(63, 100));
   p.setNote(0, track_ids[0], 2, Note(67, 100));
 
-  auto block = copyPatternBlock(p, 0, 0, track_ids, 0, 0);
-  clearPatternBlock(p, 0, 0, track_ids, 0, 0);
+  auto block = copyPatternBlock(p, 0, 0, track_ids, 0, 0, 64);
+  clearPatternBlock(p, 0, 0, track_ids, 0, 0, 64);
   CHECK(p.getNotes(0, track_ids[0]).empty());
 
   pastePatternBlock(p, block, 16, 8, track_ids, 0);
@@ -171,7 +171,7 @@ TEST(pattern_block_notes_copy_captures_only_the_requested_column_range) {
   p.setNote(2, track_id, 2, Note(67, 100));
   p.setCommand(2, track_id, Command("U050"));
 
-  auto block = copyPatternBlockNotes(p, 2, 2, track_id, 1, 2);
+  auto block = copyPatternBlockNotes(p, 2, 2, track_id, 1, 2, 64);
 
   CHECK(block.size() == 1);
   CHECK(block[0].size() == 1);
@@ -192,7 +192,7 @@ TEST(pattern_block_notes_clear_only_touches_the_requested_column_range) {
   p.setNote(2, track_id, 2, Note(67, 100));
   p.setCommand(2, track_id, Command("U050"));
 
-  clearPatternBlockNotes(p, 2, 2, track_id, 1, 1);
+  clearPatternBlockNotes(p, 2, 2, track_id, 1, 1, 64);
 
   auto & notes = p.getNotes(2, track_id);
   CHECK(notes.size() == 3); // deleteNote only clears trailing entries, not middle ones
@@ -210,7 +210,7 @@ TEST(pattern_block_notes_transpose_only_touches_the_requested_column_range) {
   p.setNote(2, track_id, 1, Note(63, 100));
   p.setNote(2, track_id, 2, Note(67, 100));
 
-  transposePatternBlockNotes(p, 2, 2, track_id, 1, 2, true, /*is_percussion=*/false);
+  transposePatternBlockNotes(p, 2, 2, track_id, 1, 2, true, /*is_percussion=*/false, 64);
 
   auto & notes = p.getNotes(2, track_id);
   CHECK(notes[0].getValue() == 60); // untouched
@@ -225,7 +225,7 @@ TEST(pattern_block_notes_transpose_is_a_no_op_for_a_percussion_track) {
   p.setNote(2, track_id, 0, Note(60, 100));
   p.setNote(2, track_id, 1, Note(63, 100));
 
-  transposePatternBlockNotes(p, 2, 2, track_id, 0, 1, /*up=*/true, /*is_percussion=*/true);
+  transposePatternBlockNotes(p, 2, 2, track_id, 0, 1, /*up=*/true, /*is_percussion=*/true, 64);
 
   auto & notes = p.getNotes(2, track_id);
   CHECK(notes[0].getValue() == 60); // untouched - would be 61 if transposed
@@ -244,10 +244,10 @@ TEST(pattern_block_notes_copy_and_clear_never_touch_the_command) {
   p.setNote(2, track_id, 1, Note(63, 100));
   p.setCommand(2, track_id, Command("U050"));
 
-  auto block = copyPatternBlockNotes(p, 2, 2, track_id, 0, 1);
+  auto block = copyPatternBlockNotes(p, 2, 2, track_id, 0, 1, 64);
   CHECK(!block[0][0].command.isDefined());
 
-  clearPatternBlockNotes(p, 2, 2, track_id, 0, 1);
+  clearPatternBlockNotes(p, 2, 2, track_id, 0, 1, 64);
   CHECK(p.getCommand(2, track_id).isDefined()); // untouched
 }
 
@@ -256,7 +256,7 @@ TEST(pattern_block_notes_paste_never_touches_the_command) {
   int track_id = 10;
 
   p.setNote(2, track_id, 0, Note(60, 100));
-  auto block = copyPatternBlockNotes(p, 2, 2, track_id, 0, 0);
+  auto block = copyPatternBlockNotes(p, 2, 2, track_id, 0, 0, 64);
 
   p.setCommand(9, track_id, Command("D0A0"));
   pastePatternBlockNotes(p, block, 16, 9, track_id, 0);
@@ -274,11 +274,11 @@ TEST(pattern_block_command_copy_and_clear_round_trip_independent_of_notes) {
   p.setNote(2, track_id, 0, Note(60, 100));
   p.setCommand(2, track_id, Command("U050"));
 
-  auto block = copyPatternBlockCommand(p, 2, 2, track_id);
+  auto block = copyPatternBlockCommand(p, 2, 2, track_id, 64);
   CHECK(block.size() == 1);
   CHECK(block[0].isDefined());
 
-  clearPatternBlockCommand(p, 2, 2, track_id);
+  clearPatternBlockCommand(p, 2, 2, track_id, 64);
   CHECK(!p.getCommand(2, track_id).isDefined());
   CHECK(p.getNotes(2, track_id)[0].getValue() == 60); // untouched
 }
@@ -288,7 +288,7 @@ TEST(pattern_block_command_paste_never_touches_note_data) {
   int track_id = 10;
 
   p.setCommand(2, track_id, Command("U050"));
-  auto block = copyPatternBlockCommand(p, 2, 2, track_id);
+  auto block = copyPatternBlockCommand(p, 2, 2, track_id, 64);
 
   p.setNote(9, track_id, 0, Note(67, 100));
   pastePatternBlockCommand(p, block, 16, 9, track_id);
@@ -308,7 +308,7 @@ TEST(pattern_block_notes_paste_merges_into_target_range_without_clobbering_other
   p.setNote(2, track_id, 1, Note(63, 100));
   p.setNote(2, track_id, 2, Note(67, 100));
 
-  auto block = copyPatternBlockNotes(p, 2, 2, track_id, 1, 2); // voices 1,2: 63,67
+  auto block = copyPatternBlockNotes(p, 2, 2, track_id, 1, 2, 64); // voices 1,2: 63,67
 
   // paste that pair into a different row, at a different note-column offset (0)
   pastePatternBlockNotes(p, block, 16, 9, track_id, 0);
@@ -337,7 +337,7 @@ TEST(pattern_block_notes_paste_of_an_empty_source_leaves_no_row_entry) {
 
   // Row 2 has nothing at all in this note-column range - the copy
   // captures Note()'s undefined placeholder for it.
-  auto block = copyPatternBlockNotes(p, 2, 2, track_id, 0, 0);
+  auto block = copyPatternBlockNotes(p, 2, 2, track_id, 0, 0, 64);
   CHECK(!block[0][0].notes[0].isDefined());
 
   // Pasting that blank into an equally-empty destination row must not
@@ -359,7 +359,7 @@ TEST(pattern_block_notes_paste_overwrites_gaps_left_by_a_sparser_source_row) {
   p.deleteNote(2, track_id, 1);
   CHECK(p.getNotes(2, track_id).size() == 1); // columns 1,2 are gaps, not just undefined-in-place
 
-  auto block = copyPatternBlockNotes(p, 2, 2, track_id, 0, 2);
+  auto block = copyPatternBlockNotes(p, 2, 2, track_id, 0, 2, 64);
 
   // Destination already has real notes in all 3 columns - the gaps in the
   // copied source must overwrite them with "undefined", not leave them.
@@ -374,4 +374,36 @@ TEST(pattern_block_notes_paste_overwrites_gaps_left_by_a_sparser_source_row) {
   CHECK(notes[0].getValue() == 60); // overwritten by the paste
   CHECK((notes.size() < 2 || !notes[1].isDefined())); // gap overwrote the stale note
   CHECK((notes.size() < 3 || !notes[2].isDefined())); // gap overwrote the stale note
+}
+
+// plans/drum-machine-per-scene-patterns.md's Phase 0: a track's own
+// Pattern shorter than context_length repeats (Pattern.h's own
+// getEffectiveRow()) - copy/clear/paste all resolve through it too, not
+// just plain note entry.
+TEST(pattern_block_copy_reads_a_repeated_row_through_the_tracks_own_length) {
+  Scene p;
+  vector<int> track_ids = {10};
+  p.setNote(4, track_ids[0], 0, Note(60, 100)); // the pattern's own real row
+  p.getPatternsByTrack()[track_ids[0]].setLength(16);
+
+  // Row 20 is a repeat of row 4 (20 % 16 == 4) - never written directly,
+  // but copying it must read the real content there, not a blank row 20.
+  auto block = copyPatternBlock(p, 20, 20, track_ids, 0, 0, 64);
+  CHECK(block[0][0].notes.size() == 1);
+  CHECK(block[0][0].notes[0].getValue() == 60);
+}
+
+TEST(pattern_block_paste_writes_a_repeated_row_back_through_the_tracks_own_length) {
+  Scene dest;
+  vector<int> dest_ids = {10};
+  dest.getPatternsByTrack()[dest_ids[0]].setLength(16);
+
+  PatternBlock block(1);
+  block[0].push_back({{Note(60, 100)}, Command(), 0});
+
+  // Row 52 is also a repeat of row 4 (52 % 16 == 4) - pasting there must
+  // land on the one real row 4 has, not create unreachable data at a
+  // literal row 52 nothing ever reads back.
+  pastePatternBlock(dest, block, 64, 52, dest_ids, 0);
+  CHECK(dest.getNote(4, dest_ids[0], 0).getValue() == 60);
 }
