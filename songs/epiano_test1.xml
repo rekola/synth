@@ -18,8 +18,6 @@
 	<instrument from="piano.electric.tine" />
       </distortion>
     </amplifier>
-    
-    <instrument from="kit.standard" />
 
     <instrument from="Chateau Grand" />
 
@@ -38,9 +36,9 @@
     <compressor threshold="-24" ratio="12" knee="12" postgain="-3">
 	<track id="melody" instrument="1" />
 	<amplifier gain="+20">
-	  <percussionTrack id="perc" instrument="2" />
+	  <percussionTrack id="perc" />
 	</amplifier>
-	<track id="piano" instrument="4" />
+	<track id="piano" instrument="3" />
     </compressor>
   </tracks>
   

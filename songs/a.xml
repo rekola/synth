@@ -9,7 +9,6 @@
             <instrument from="guitar.acoustic.steel"/>
         </resonantFilter>
         <instrument from="piano.acoustic.grand"/>
-        <instrument from="kit.standard"/>
         <envelope name="Pads" attack="0.050000001" hold="0" decay="0" sustain="1" release="2" keynumToHold="0" keynumToDecay="0">
             <resonantFilter cut="2200" res="0.5" aftertouch="0" attack="0" hold="0" decay="0" sustain="1" release="0" keynumToHold="0" keynumToDecay="0">
                 <multiply unisons="4" octaves="0" fifths="0" fourths="0" detune="5" spread="1">
@@ -21,9 +20,9 @@
     </instruments>
     <tracks>
         <track id="chords" instrument="1" azimuth="-30" distance="1" elevation="50" color="" sendA="-16.9020" sendB="-10.8814" noteColumns="7"/>
-        <percussionTrack id="perc" instrument="2" azimuth="-15" distance="0.89999998" elevation="0" color="" sendA="-7.3595" sendB="0.0000" noteColumns="2"/>
-        <track id="pad" instrument="3" azimuth="15" distance="5" elevation="0" extent="20" color="" sendA="-7.3595" sendB="0.0000" noteColumns="3"/>
-        <track id="bass" instrument="4" azimuth="60" distance="1" elevation="20" color="" noteColumns="2"/>
+        <percussionTrack id="perc" azimuth="-15" distance="0.89999998" elevation="0" color="" sendA="-7.3595" sendB="0.0000" noteColumns="2"/>
+        <track id="pad" instrument="2" azimuth="15" distance="5" elevation="0" extent="20" color="" sendA="-7.3595" sendB="0.0000" noteColumns="3"/>
+        <track id="bass" instrument="3" azimuth="60" distance="1" elevation="20" color="" noteColumns="2"/>
     </tracks>
     <sections/>
     <scenes>

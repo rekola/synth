@@ -13,7 +13,6 @@
                 </multiply>
             </resonantFilter>
         </envelope>
-        <instrument from="kit.standard"/>
         <instrument from="bass.electric.pick"/>
     </instruments>
     <tracks>
@@ -22,9 +21,9 @@
         <track id="pads2" instrument="1" azimuth="40" distance="10" elevation="0" extent="10" color="" sendA="-20.0000" sendB="-7.9588"/>
         <arpeggiatorTrack id="arp" instrument="0" azimuth="30" distance="1" elevation="0" color="" sendA="-20.0000" sendB="-13.9794" mode="up" noteDuration="2" octaves="1" gate="1"/>
         <track id="harsh" instrument="1" azimuth="60" distance="1" elevation="0" extent="10" color="" sendA="-20.0000" sendB="-20.0000"/>
-        <percussionTrack id="perc" instrument="2" azimuth="0" distance="0.89999998" elevation="0" color="" sendA="-20.0000" sendB="-1.9382" sendMain="-1.9382"/>
-        <percussionTrack id="perc2" instrument="2" azimuth="0" distance="0.89999998" elevation="0" color="" sendA="-20.0000" sendB="-13.9794" sendMain="-12.0412"/>
-        <track id="bass" instrument="3" azimuth="60" distance="2" elevation="10" color="" sendA="-20.0000" sendB="-4.4370"/>
+        <percussionTrack id="perc" azimuth="0" distance="0.89999998" elevation="0" color="" sendA="-20.0000" sendB="-1.9382" sendMain="-1.9382"/>
+        <percussionTrack id="perc2" azimuth="0" distance="0.89999998" elevation="0" color="" sendA="-20.0000" sendB="-13.9794" sendMain="-12.0412"/>
+        <track id="bass" instrument="2" azimuth="60" distance="2" elevation="10" color="" sendA="-20.0000" sendB="-4.4370"/>
     </tracks>
     <scenes>
         <scene>

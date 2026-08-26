@@ -16,8 +16,6 @@
       </envelope>
     </group>
 
-    <instrument from="kit.standard"/>
-
     <envelope name="riser" attack="3" hold="0" sustain="0" decay="0" release="0">
       <resonantFilter cutmin="220" cutmax="20000" res="2" attack="3">
 	<noise />
@@ -29,9 +27,9 @@
 	<track id="bass" instrument="0" />
     </amplifier>
     <amplifier gain="+10">
-	<percussionTrack id="perc" instrument="1" />
+	<percussionTrack id="perc" />
     </amplifier>
-    <track id="2" instrument="2" />
+    <track id="2" instrument="1" />
   </tracks>
   
   <scenes>

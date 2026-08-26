@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="31edo" tempo="120" patternRows="64" volume="1.0">
   <instruments>
-    <instrument from="kit.standard" />
-
     <envelope attack="0.1" release="2" name="padtest2">
       <resonantFilter cut="20000" res="0">
 	<multiply unisons="4" detune="5">
@@ -25,26 +23,26 @@
     <compressor threshold="-24" ratio="12" knee="12" postgain="-3">
       <amplifier gain="30">
 	<distortion type="softclip" drive="16">
-	  <percussionTrack id="perc" instrument="0" />
+	  <percussionTrack id="perc" />
 	</distortion>
       </amplifier>
-	
+
       <amplifier gain="-10" azimuth="60">
-	<track id="pad" instrument="1" />
+	<track id="pad" instrument="0" />
       </amplifier>
     </compressor>
     
     <amplifier gain="10" distance="1" azimuth="0">
       <resonantFilter cut="10000" res="2">
-	<percussionTrack id="perc2" instrument="0" />
+	<percussionTrack id="perc2" />
       </resonantFilter>
     </amplifier>
-    
-    <percussionTrack id="perc3" instrument="0" azimuth="+45" distance="1" />
-    
-    <track id="chords" instrument="2" azimuth="-45" distance="1" />
-    
-    <track id="riser" instrument="3" />
+
+    <percussionTrack id="perc3" azimuth="+45" distance="1" />
+
+    <track id="chords" instrument="1" azimuth="-45" distance="1" />
+
+    <track id="riser" instrument="2" />
   </tracks>
   
   <scenes>
