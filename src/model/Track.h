@@ -118,6 +118,29 @@ class Track : public StatefulSongObject {
   
   Track & addChild(std::unique_ptr<Track> track) { children_.push_back(std::move(track)); return *(children_.back()); }
 
+  // Inserts `track` as the immediate next sibling of the child whose
+  // internal id is `after_id`, wherever that child actually lives in this
+  // subtree - not necessarily among this node's own direct children (a
+  // Group, or a per-track Effect wrapping something, nests one level
+  // deeper). `track` by reference, not by value: a failed attempt
+  // (`after_id` not found anywhere in this subtree) leaves it untouched
+  // rather than losing it mid-search, so the caller can fall back to a
+  // plain addChild() - see Song::addTrack()'s own use of this. Returns
+  // whether `after_id` was actually found (and thus whether `track` was
+  // consumed).
+  bool insertChildAfter(int after_id, std::unique_ptr<Track> & track) {
+    for (size_t i = 0; i < children_.size(); i++) {
+      if (children_[i]->getInternalId() == after_id) {
+	children_.insert(children_.begin() + static_cast<long>(i) + 1, std::move(track));
+	return true;
+      }
+    }
+    for (auto & child : children_) {
+      if (child->insertChildAfter(after_id, track)) return true;
+    }
+    return false;
+  }
+
   std::vector<std::unique_ptr<Track> > & getChildren() { return children_; }
   const std::vector<std::unique_ptr<Track> > & getChildren() const { return children_; }
 

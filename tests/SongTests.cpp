@@ -4,6 +4,8 @@
 #include "../src/model/InstrumentTrack.h"
 #include "../src/model/PercussionTrack.h"
 #include "../src/model/DrumMachineTrack.h"
+#include "../src/model/Group.h"
+#include "../src/model/SampleTrack.h"
 #include "../src/instruments/InstrumentProvider.h"
 #include "../src/instruments/GenericInstrument.h"
 
@@ -572,6 +574,72 @@ TEST(playable_track_ids_excludes_the_master_but_root_track_ids_includes_it) {
 
   auto playable_ids = song.getPlayableTrackIds();
   CHECK(playable_ids == vector<int>{ a.getInternalId() });
+}
+
+// addTrack()'s after_track_id parameter - a new track lands next to
+// whatever the artist has selected, not always at the very end.
+TEST(add_track_with_no_after_id_still_appends_at_the_end) {
+  Song song;
+  auto & a = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto & b = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto & children = song.getMasterTrack().getChildren();
+  CHECK(children.size() == 2);
+  CHECK(children[0].get() == &a);
+  CHECK(children[1].get() == &b);
+}
+
+TEST(add_track_after_a_top_level_sibling_inserts_right_after_it) {
+  Song song;
+  auto & a = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto & c = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto & b = song.addTrack(make_unique<InstrumentTrack>(0), a.getInternalId());
+
+  auto & children = song.getMasterTrack().getChildren();
+  CHECK(children.size() == 3);
+  CHECK(children[0].get() == &a);
+  CHECK(children[1].get() == &b);
+  CHECK(children[2].get() == &c);
+}
+
+// Matches "add it under the parent of the current track" - a track
+// selected inside a Group gets its new sibling inside that same Group,
+// not promoted to a top-level child of the master.
+TEST(add_track_after_a_track_nested_in_a_group_inserts_inside_that_group) {
+  Song song;
+  auto & group = song.addTrack(make_unique<Group>());
+  auto & inner = group.addChild(make_unique<InstrumentTrack>(0));
+
+  auto & sibling = song.addTrack(make_unique<InstrumentTrack>(0), inner.getInternalId());
+
+  CHECK(song.getMasterTrack().getChildren().size() == 1); // still just the group
+  CHECK(group.getChildren().size() == 2);
+  CHECK(group.getChildren()[0].get() == &inner);
+  CHECK(group.getChildren()[1].get() == &sibling);
+}
+
+// A stale/unresolvable after_track_id (here, one that was never added at
+// all) falls back to a plain append rather than silently dropping the
+// new track.
+TEST(add_track_after_an_unresolvable_id_falls_back_to_appending) {
+  Song song;
+  auto & a = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto & b = song.addTrack(make_unique<InstrumentTrack>(0), 999999);
+
+  auto & children = song.getMasterTrack().getChildren();
+  CHECK(children.size() == 2);
+  CHECK(children[0].get() == &a);
+  CHECK(children[1].get() == &b);
+}
+
+TEST(add_track_after_a_sample_track_inserts_right_after_it) {
+  Song song;
+  auto & sample = song.addTrack(make_unique<SampleTrack>(nullptr));
+  auto & sibling = song.addTrack(make_unique<InstrumentTrack>(0), sample.getInternalId());
+
+  auto & children = song.getMasterTrack().getChildren();
+  CHECK(children.size() == 2);
+  CHECK(children[0].get() == &sample);
+  CHECK(children[1].get() == &sibling);
 }
 
 // The master is never itself parsed from a discrete XML element (see

@@ -208,12 +208,22 @@ class Song : public StatefulSongObject {
   // take a quick snapshot of the current tracks before rendering them.
   std::mutex & getTracksMutex() const { return *tracks_mutex_; }
 
-  Track & addTrack(std::unique_ptr<Track> track) {
+  // after_track_id: if >= 0 and it names a track actually in the tree,
+  // the new track lands as its immediate sibling (wherever that track's
+  // own real parent is - Track::insertChildAfter()), next to whatever the
+  // artist currently has selected rather than always at the very end.
+  // -1 (the default) keeps plain "append under the master" - what a
+  // caller with no cursor to speak of wants (LaunchpadManager's auto-
+  // grow-to-pressed-column loops, this Song's own initial construction).
+  Track & addTrack(std::unique_ptr<Track> track, int after_track_id = -1) {
     if (track->getId().empty()) track->setId(generateUniqueTrackId());
     std::lock_guard<std::mutex> guard(*tracks_mutex_);
-    auto & ref = master_track_->addChild(std::move(track));
+    auto * ref = track.get();
+    if (after_track_id < 0 || !master_track_->insertChildAfter(after_track_id, track)) {
+      master_track_->addChild(std::move(track));
+    }
     incVersion();
-    return ref;
+    return *ref;
   }
 
   // Removes the track (root, or nested inside a <group>) whose internal id

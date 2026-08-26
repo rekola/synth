@@ -517,37 +517,54 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     getController().removeNoteColumn(track_id);
   });
 
+  // The id of whichever track the cursor currently sits on, or -1 (no
+  // sibling to land next to - Song::addTrack() falls back to a plain
+  // append) - shared by every "add a track" command below, so a new
+  // track always lands next to the current selection (under whatever its
+  // real parent actually is - a Group, a wrapping Effect, or the master
+  // itself - see Track::insertChildAfter()) rather than always at the
+  // very end.
+  auto current_track_id = [this]() -> int {
+    auto & song = getController().getSong();
+    auto track_ids = song.getRootTrackIds();
+    return current_cursor.track < static_cast<int>(track_ids.size()) ?
+      track_ids[static_cast<size_t>(current_cursor.track)] : -1;
+  };
+
   // addTrack() itself already bumps the version - no separate incVersion()
   // needed here, unlike add-drum-machine-track below (kept exactly as the
   // raw Ctrl-T handler this was promoted from, verbatim, always did).
-  commands_.define("add-instrument-track", [this]() {
+  commands_.define("add-instrument-track", [this, current_track_id]() {
     auto & song = getController().getSong();
-    song.addTrack(make_unique<InstrumentTrack>(0));
+    song.addTrack(make_unique<InstrumentTrack>(0), current_track_id());
   });
 
-  // Promoted from the raw Ctrl-R handler verbatim - "start recording"
-  // really, not purely "add a track": reuses the current track if it's
-  // already a SampleTrack, otherwise creates a fresh one and moves the
-  // cursor onto it. song.incVersion() stays explicit (unlike
-  // add-instrument-track just above) since the reuse branch never calls
-  // addTrack() at all, so nothing else would bump the version for it.
+  // Promoted from the raw Ctrl-R handler, minus its old "reuse the
+  // current track if it's already a SampleTrack" branch - there's no
+  // reliable signal anywhere for "still the same take" vs. "an old,
+  // already-established sample track the cursor happens to be on again"
+  // (Controller::stopRecording()/current_sample has no notion of a
+  // recording session ending), so that branch either clobbered old
+  // recordings or, once narrowed to "still the active recording target"
+  // (getRecordingTrackId(), which never resets either), was effectively
+  // always true anyway - neither actually gave "add a sibling" a way to
+  // fire. Always creates a fresh sibling now, same as every other "add a
+  // track" command, and moves the cursor onto it.
   commands_.define("add-sample-track", [this]() {
     auto & song = getController().getSong();
     auto track_ids = song.getRootTrackIds();
     auto current_track = current_cursor.track < static_cast<int>(track_ids.size()) ?
       song.getMasterTrack().getChildByInternalId(track_ids[static_cast<size_t>(current_cursor.track)]) : nullptr;
 
-    int track_id;
     auto sample = getController().startRecording();
-    if (current_track && current_track->getType() == TrackType::SAMPLE) {
-      auto & sample_track = dynamic_cast<SampleTrack&>(*current_track);
-      sample_track.setSample(sample);
-      track_id = sample_track.getInternalId();
-    } else {
-      new_cursor.track = track_ids.size();
-      auto & track = song.addTrack(make_unique<SampleTrack>(sample));
-      track_id = track.getInternalId();
-    }
+    auto & track = song.addTrack(make_unique<SampleTrack>(sample), current_track ? current_track->getInternalId() : -1);
+    auto track_id = track.getInternalId();
+    // Landed next to the current selection, not necessarily at the end -
+    // re-resolve its actual column rather than assuming it.
+    auto new_track_ids = song.getRootTrackIds();
+    auto it = find(new_track_ids.begin(), new_track_ids.end(), track_id);
+    if (it != new_track_ids.end()) new_cursor.track = static_cast<int>(it - new_track_ids.begin());
+
     getController().setRecordingTrackId(track_id);
     song.incVersion();
   });
@@ -559,9 +576,9 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   // is the single place the default rock kit's note list lives - shared
   // with Song.cpp's own loadDrumMachineData() for a hand-authored
   // <drumMachineTrack> with no <drumMachine> child at all.
-  commands_.define("add-drum-machine-track", [this]() {
+  commands_.define("add-drum-machine-track", [this, current_track_id]() {
     auto & song = getController().getSong();
-    auto & track = dynamic_cast<DrumMachineTrack &>(song.addTrack(make_unique<DrumMachineTrack>()));
+    auto & track = dynamic_cast<DrumMachineTrack &>(song.addTrack(make_unique<DrumMachineTrack>(), current_track_id()));
     track.seedDefaultKit();
     song.incVersion();
   });
