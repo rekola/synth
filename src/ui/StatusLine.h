@@ -40,9 +40,20 @@ class StatusLine : public UIElement {
   // text rather than in a gap to its right - see showIndicator().
   void showPrompt(const std::string & prompt, std::function<void(const std::string &)> on_submit,
 		   const std::string & initial_text = "") {
+    // Opening this reader takes focus away from any other reader-owning
+    // widget's own in-progress edit, same as UI::executeCommand()'s
+    // StatusLine::cancelReader() use for the opposite direction (a menu
+    // click stealing focus from M-x) - mirrors real Emacs, where entering
+    // the minibuffer aborts whatever else had keyboard focus rather than
+    // opening on top of it. Wired in UI::initialize() (this class has no
+    // reference to PatternEditor of its own); a no-op before that wiring
+    // exists or when nothing else has a reader open.
+    if (before_show_prompt_) before_show_prompt_();
     on_submit_ = std::move(on_submit);
     getPlane().showReader(prompt, 0, -1, -1, -1, initial_text);
   }
+
+  void setBeforeShowPromptCallback(std::function<void()> cb) { before_show_prompt_ = std::move(cb); }
 
   // Like showPrompt() above, but with Tab-driven Emacs-style autocomplete
   // against `candidates_for(text)` - every full valid answer starting with
@@ -113,8 +124,7 @@ class StatusLine : public UIElement {
 	}
 	return true;
       } else if (input.hasCtrl() && input.getId() == 'g') {
-	on_submit_ = nullptr;
-	closeReader();
+	cancelReader();
 	return true;
       } else {
 	// The user resumed typing - an indicator left over from an earlier
@@ -146,6 +156,18 @@ class StatusLine : public UIElement {
       pending_message.clear();
     }
     return cmd;
+  }
+
+  // Aborts whatever's being read without ever running on_submit_ - Ctrl-g's
+  // own behavior (below), also used by UI::executeCommand() so a command
+  // reached some other way (a menu click, Launchpad-by-name dispatch) while
+  // M-x is still open takes focus away from it rather than running
+  // underneath it - mirrors real Emacs, where clicking a menu item while
+  // typing in the minibuffer just aborts the minibuffer and runs the
+  // command.
+  void cancelReader() {
+    on_submit_ = nullptr;
+    closeReader();
   }
 
 private:
@@ -317,6 +339,7 @@ private:
   bool indicator_shown_ = false;
   std::string pending_message;
   std::function<void(const std::string &)> on_submit_;
+  std::function<void()> before_show_prompt_;
   // Set (via showPromptWithCompletion()/showFilePrompt()/showMx()) for the
   // duration of a completing reader session, cleared by closeReader() -
   // Tab always runs this instead of self-inserting a literal tab

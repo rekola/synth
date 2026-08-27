@@ -156,6 +156,13 @@ public:
       plane->styles_set(CellStyle::None);
     }
   }
+  void setItalic(bool b) override {
+    if (b) {
+      plane->styles_set(CellStyle::Italic);
+    } else {
+      plane->styles_set(CellStyle::None);
+    }
+  }
   void erase() override { plane->erase(); }
   void putstr(int y, int x, const std::string & s) override { plane->putstr(y, x, s.c_str()); }
   unique_ptr<UIPlane> createChild() override {

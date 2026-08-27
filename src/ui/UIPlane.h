@@ -22,6 +22,7 @@ class UIPlane {
   virtual void setBgColor(int r, int g, int b) = 0;
   virtual void setUnderline(bool b) = 0;
   virtual void setBold(bool b) = 0;
+  virtual void setItalic(bool b) = 0;
   virtual void erase() = 0;
   virtual void putstr(int y, int x, const std::string & s) = 0;
   virtual std::unique_ptr<UIPlane> createChild() = 0;

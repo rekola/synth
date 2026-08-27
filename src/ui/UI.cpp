@@ -109,6 +109,10 @@ UI::initialize() {
   pattern_matrix_->setExitRightCallback([this]() { exitOverview(); });
   info_line_ = make_shared<InfoLine>(getPlane());
   status_line_ = make_shared<StatusLine>(getPlane());
+  // See StatusLine::showPrompt()'s own comment: opening any StatusLine
+  // reader (M-x included) must take focus away from PatternEditor's own
+  // annotation/track-name editor rather than opening on top of it.
+  status_line_->setBeforeShowPromptCallback([this]() { pattern_editor_->cancelReaderEdit(); });
   // Colors match InfoLine's own hardcoded gray-on-dark (InfoLine.h's
   // constructor) - this widget sits inline in that same bar (see
   // layout()), and must blend into it rather than showing up as a
@@ -354,6 +358,16 @@ UI::initialize() {
 
 bool
 UI::executeCommand(std::string_view name) {
+  // A command reached here other than through M-x's own submission (a menu
+  // click, Launchpad-by-name dispatch) always takes focus away from
+  // whatever M-x was reading, same as StatusLine::cancelReader()'s own
+  // Ctrl-g - mirrors real Emacs, where clicking a menu item while typing
+  // in the minibuffer just aborts the minibuffer read and runs the
+  // command, rather than the command running while the minibuffer keeps
+  // consuming keystrokes underneath it. A no-op for M-x's own path: by the
+  // time a typed command reaches here, submitReader() already closed the
+  // reader before ever calling sendCommand().
+  if (status_line_->isReaderActive()) status_line_->cancelReader();
   if (auto el = active_element_.lock()) {
     if (el->executeCommand(name)) return true;
   }

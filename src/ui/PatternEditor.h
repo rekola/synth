@@ -45,6 +45,15 @@ class PatternEditor : public UIElement {
   // own reader-active forwarding before it ever gets a chance to run.
   bool isReaderActive() { return getPlane().readerActive(); }
 
+  // Aborts the annotation/track-name editor without committing anything -
+  // Ctrl-g's own behavior inside offerInput()'s reader-active branch, also
+  // used by StatusLine (wired in UI::initialize()) so opening M-x while
+  // this editor is open takes focus away from it rather than opening on
+  // top of it - mirrors UI::executeCommand()'s own StatusLine::
+  // cancelReader() use for the reverse direction (a menu click while M-x
+  // is open). A no-op if no reader is actually open.
+  void cancelReaderEdit();
+
   // Plain, source-agnostic cursor/step accessors - PatternEditor has no
   // idea these happen to be used to feed a Launchpad device's own track
   // selection and step-entry advance (see UI::handleLaunchpadButtonEvent
