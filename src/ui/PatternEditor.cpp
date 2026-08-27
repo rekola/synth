@@ -1034,7 +1034,12 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
       new_scroll != current_scroll_ ||
       sel_bounds != current_sel_bounds_ ||
       focused != current_focused_ ||
-      force_redraw_
+      force_redraw_ ||
+      // A short Pattern repeats (Pattern::getEffectiveRow()), so an edit
+      // can be visible at other screen rows too, not just the cursor's -
+      // the single-row repaint below can't know which, so fall back to a
+      // full redraw.
+      row_edited
       ) {
     render_all = true;
     force_redraw_ = false;
@@ -1719,6 +1724,19 @@ PatternEditor::offerInput(const InputEvent & input) {
 	  auto track = song.getMasterTrack().getChildByInternalId(track_id);
 	  auto tuning = track ? song.getTuningForTrack(*track) : song.getTuning();
 	  midi_note = input.toMidiNote(getController().getGlobalOctave(), tuning);
+	  // Step-sequencer compact entry: any note-producing keystroke on a
+	  // DrumMachineTrack's lane cell triggers that lane's own fixed GM
+	  // note, regardless of which physical key was pressed - matches the
+	  // Launchpad step grid's own per-cell semantics (a press means "hit
+	  // this lane", not "play whatever pitch this key happens to map
+	  // to"). The keystroke still has to resolve to *some* real note
+	  // first (midi_note >= 0) - an unmapped key stays a no-op here too.
+	  if (midi_note >= 0 && track && track->getType() == TrackType::DRUM_MACHINE) {
+	    auto & lanes = static_cast<DrumMachineTrack &>(*track).getLaneNotes();
+	    if (note_column >= 0 && note_column < static_cast<int>(lanes.size())) {
+	      midi_note = lanes[static_cast<size_t>(note_column)];
+	    }
+	  }
 	}
 
 	if (is_repeat && midi_note >= 0) return true; // already sounding - nothing to redo
@@ -2571,17 +2589,30 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	} else if (column_type == ColumnType::NOTE) {
 	  auto l = track_info.getNoteNumber(k);
 	  auto note = l < static_cast<int>(notes.size()) ? notes[static_cast<size_t>(l)] : Note();
+	  auto tuning = track ? song.getTuningForTrack(*track) : song.getTuning();
 
 	  cell_fg = cur_fg;
 	  cell_bg = cur_bg;
 	  if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
+	  // Step-sequencer compact display: a hit lane (a real, sound-
+	  // producing note - matches DrumMachineTrack::getHitNotesForRow()'s
+	  // own definition) renders exactly like an ordinary NOTE column
+	  // would for that note (an at-rest lane's own "···" included), just
+	  // against a cyan background instead of the row's own.
+	  bool is_hit = track && track->getType() == TrackType::DRUM_MACHINE &&
+	    note.isDefined() && !note.isOff() && !note.isAftertouch();
+	  if (is_hit && !column_selected) cell_bg = dim_fixed_color(styles.drum_step_hit_bg_color);
 	  setFgColor(cell_fg);
 	  setBgColor(cell_bg);
-	  auto tuning = track ? song.getTuningForTrack(*track) : song.getTuning();
 	  auto s = note.toString(tuning);
 	  while (s.size() < 3) s += ' ';
 	  putstr(display_row, current_pos, s);
 	  current_pos += 3;
+	  // The cyan background above is exactly this cell's own 3 characters,
+	  // never the trailing separator space after it - without resetting
+	  // back to cur_bg here, the next column's own leading separator draw
+	  // (still using whatever color was last set) would inherit it.
+	  if (is_hit && !column_selected) setBgColor(cur_bg);
 	} else if (column_type == ColumnType::VELOCITY || column_type == ColumnType::DELAY) {
 	  auto l = track_info.getNoteNumber(k);
 	  auto note = l < static_cast<int>(notes.size()) ? notes[static_cast<size_t>(l)] : Note();

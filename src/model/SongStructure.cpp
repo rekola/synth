@@ -1,6 +1,7 @@
 #include "SongStructure.h"
 #include "Track.h"
 #include "LeafTrack.h"
+#include "DrumMachineTrack.h"
 #include "Song.h"
 
 SongStructure::SongStructure(const Song & song) {
@@ -47,12 +48,7 @@ SongStructure::visit(const Track & track) {
     baseline_info_[id] = std::move(info);
   };
 
-  if (track.getType() == TrackType::INSTRUMENT_CONTROL || track.getType() == TrackType::PERCUSSION_CONTROL ||
-      track.getType() == TrackType::DRUM_MACHINE) {
-    // DrumMachineTrack's step content is an ordinary per-scene Pattern now
-    // (DrumMachineTrack.h's own comment), so it gets real note/velocity/
-    // delay/effect columns exactly like an InstrumentTrack/PercussionTrack -
-    // no longer the single placeholder column SAMPLE still gets below.
+  if (track.getType() == TrackType::INSTRUMENT_CONTROL || track.getType() == TrackType::PERCUSSION_CONTROL) {
     VisibleTrackInfo info;
     auto & leaf_track = dynamic_cast<const LeafTrack &>(track);
     info.has_note_column_ = leaf_track.showNoteColumn();
@@ -61,6 +57,25 @@ SongStructure::visit(const Track & track) {
     info.has_effect_column_ = leaf_track.showEffectsColumn();
     info.updateNumSubtracks(leaf_track.getMinNoteColumns());
     info.collapsed_ = leaf_track.isCollapsed();
+    assign(std::move(info));
+  } else if (track.getType() == TrackType::DRUM_MACHINE) {
+    // Step-sequencer compact layout: one narrow NOTE-only cell per lane
+    // (DrumMachineTrack::getLaneNotes() order, same as the Launchpad step
+    // grid), never velocity/delay - a fixed, known set of up to
+    // DrumMachineTrack::kMaxLanes voices needs a column per lane, not a
+    // full NOTE/VEL/DEL triplet per lane the way an open-ended chord
+    // would (PatternEditor::renderRow()'s own DRUM_MACHINE branch reads
+    // this same shape to render/edit each cell). The per-row effect/
+    // command column still stays - a DrumMachineTrack's Pattern carries
+    // per-row Command data exactly like any other track's.
+    VisibleTrackInfo info;
+    auto & drum_track = dynamic_cast<const DrumMachineTrack &>(track);
+    info.has_note_column_ = true;
+    info.num_velocity_columns_ = 0;
+    info.has_delay_column_ = false;
+    info.has_effect_column_ = drum_track.showEffectsColumn();
+    info.updateNumSubtracks(static_cast<int>(drum_track.getLaneNotes().size()));
+    info.collapsed_ = drum_track.isCollapsed();
     assign(std::move(info));
   } else if (track.getType() == TrackType::SAMPLE) {
     // Single placeholder column - see fill_track_info()'s own comment on

@@ -86,21 +86,27 @@ TEST(song_structure_baseline_is_a_single_placeholder_column_for_sample_tracks) {
   CHECK(sample_info.getColumnCount() == 1);
 }
 
-TEST(song_structure_gives_a_drum_machine_track_real_note_velocity_delay_effect_columns) {
+TEST(song_structure_gives_a_drum_machine_track_one_note_only_column_per_lane_plus_effect) {
   // DrumMachineTrack's step content is an ordinary per-scene Pattern now
   // (like InstrumentTrack/PercussionTrack), not the track-global sequence
-  // it used to be - it must get the same real column layout, not the
-  // single placeholder column SampleTrack still gets.
+  // it used to be - it must get real columns, not the single placeholder
+  // column SampleTrack still gets. But unlike a regular
+  // InstrumentTrack/PercussionTrack, its columns are the step-sequencer's
+  // own compact shape: one NOTE-only cell per lane (no velocity/delay),
+  // plus the shared per-row effect/command column.
   Song song;
-  auto & drum = song.addTrack(make_unique<DrumMachineTrack>());
+  auto & raw_drum = song.addTrack(make_unique<DrumMachineTrack>());
+  auto & drum = dynamic_cast<DrumMachineTrack &>(raw_drum);
+  for (int note : { 36, 38, 42 }) drum.addLane(note);
   SongStructure structure(song);
 
   auto & drum_info = structure.getBaselineInfo(drum.getInternalId());
   CHECK(drum_info.has_note_column_);
-  CHECK(drum_info.num_velocity_columns_ == 1);
-  CHECK(drum_info.has_delay_column_);
+  CHECK(drum_info.num_velocity_columns_ == 0);
+  CHECK(!drum_info.has_delay_column_);
   CHECK(drum_info.has_effect_column_);
-  CHECK(drum_info.getColumnCount() == 4); // note + velocity + delay + effect
+  CHECK(drum_info.num_subtracks_ == 3); // one column per lane
+  CHECK(drum_info.getColumnCount() == 4); // 3 lane columns + effect
 }
 
 TEST(song_structure_gives_every_instrument_track_type_a_color_ordinal) {
