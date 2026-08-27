@@ -174,6 +174,10 @@ protected:
   // from its own column 0.
   GridPosition current_scroll_;
   int current_tempo = 0;
+  // Last frame's PlaybackInfo::getVoiceCount() - lets the VU meter catch
+  // the one extra redraw needed right as the last voice finishes (see
+  // render()'s own use of it), not just while it's still sounding.
+  int current_voice_count_ = 0;
 
   int edit_step_size = 1, new_edit_step_size = 1;
   bool row_edited = false;

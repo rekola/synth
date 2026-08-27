@@ -123,7 +123,7 @@ public:
     data.zero();
     for (auto & [ pos, s ] : chunks) data.assignNamed(s, pos);
 
-    setTrackInfo(TrackInfo( isActive(), data.isClipping() ));
+    setTrackInfo(TrackInfo( isActive(), data.isClipping(), data.calculateMainRMS() ));
 
     return data;
   }

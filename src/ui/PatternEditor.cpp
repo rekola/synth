@@ -19,6 +19,7 @@
 
 #include <string>
 #include <algorithm>
+#include <cmath>
 #include <fmt/core.h>
 
 #include <iostream>
@@ -1061,6 +1062,16 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   } else if (cursor_changed || row_edited) {
     renderRow(styles, heading_height, track_ids, track_info, score_playing_row - current_scroll_.row, true, sel_bounds, focused);
     need_redraw = true;
+  } else if (info.getVoiceCount() > 0 || current_voice_count_ > 0) {
+    // The per-track VU meter lives in the heading row and needs to keep
+    // animating every block a voice is actually sounding - including a
+    // manually-auditioned note or its note-off release tail, with the
+    // sequencer stopped, not just while the transport is playing (the
+    // other branches above only catch that case). current_voice_count_
+    // covers the one extra redraw needed right as the last voice
+    // finishes, so the meter drops back to silent instead of freezing.
+    renderHeading(styles, track_ids, track_info, focused);
+    need_redraw = true;
   }
 
   int new_tempo = song.getTempo();
@@ -1076,6 +1087,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   current_score_playing_row = score_playing_row;
   current_score_total_columns = score_total_columns;
   current_song_version = song.getMajorVersion();
+  current_voice_count_ = info.getVoiceCount();
   row_edited = false;
 
   current_sel_bounds_ = sel_bounds;
@@ -2033,6 +2045,22 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
     auto draw_divider = [&](int row, int col, Track * left, int idx) {
       draw_edge(row, col, segment_color(left), next_segment_color(idx));
     };
+    // The per-track VU meter next to a leaf's instrument name - a single
+    // braille cell, vertical (dots filling bottom-up in the cell's
+    // *right* dot column - flush with the row's own right edge, same as
+    // a bar meter drawn against the right margin - one dot lit for the
+    // quietest non-silent reading, up through all 4 rows at full scale),
+    // the same braille-dot approach the volume/FFT scope uses
+    // (TerminalChart's DOTS fallback, see src/ui/Chart.h) rather than
+    // plain block characters. `level` is 0..4, already dB-mapped by the
+    // caller so quiet passages still show at least one dot instead of
+    // reading as empty until the loudest transients.
+    auto draw_vu_meter = [&](int row, int col, int dots, bool clipping) {
+      static const char * const kGlyphs[] = { " ", "⢀", "⢠", "⢰", "⢸" };
+      if (clipping) setFgColor(0xe0, 0x10, 0x40);
+      else setFgColor(0x10, 0xe0, 0x40);
+      putstr(row, col, kGlyphs[std::clamp(dots, 0, 4)]);
+    };
 
     // Whether the left-edge marker (below) has been drawn yet for this
     // row - drawn once, for tracks[0] (the first actually-visible
@@ -2220,8 +2248,36 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    setBgColor(styles.window_bg_color);
 
 	    auto instrument_name_width = std::max(0, actual_width - 1);
+	    // Reserve exactly 1 column at the right for the single-cell
+	    // vertical VU meter, but never shrinking the name below
+	    // kMinNameWidth - a narrow column just goes without a meter
+	    // rather than leaving no room to read the name at all. Reserved
+	    // by track type (has_meter), not by whether TrackInfo actually
+	    // has a reading yet, so the name's own width stays stable across
+	    // the moment playback starts instead of jumping once a first
+	    // meter value arrives. SAMPLE is the one leaf type with no
+	    // InstrumentTrackState behind it yet (see SampleTrack.h) -
+	    // nothing to meter there.
+	    bool has_meter = track->getType() != TrackType::SAMPLE;
+	    constexpr int kMinNameWidth = 3;
+	    int meter_width = has_meter && instrument_name_width > kMinNameWidth ? 1 : 0;
+	    instrument_name_width -= meter_width;
 	    instrument_name = Utf8::truncateToWidth(instrument_name, instrument_name_width);
 	    putstr(heading_height - 2 - level + 1, current_pos, instrument_name);
+
+	    if (meter_width > 0) {
+	      auto & track_info = info.getTrackInfo(track->getInternalId());
+	      auto meter_value = track_info.getMeterValue();
+	      // dB-mapped so quiet passages still show at least one dot -
+	      // floor at -40dB (silence, and the default/no-data-yet
+	      // meter_value of -1 maps here too), ceiling at 0dB (full
+	      // scale) - then rounded to draw_vu_meter()'s 0..4 dot levels.
+	      constexpr float kFloorDb = -40.0f;
+	      auto fraction = meter_value <= 0.0f ? 0.0f :
+		std::clamp((20.0f * log10f(meter_value) - kFloorDb) / -kFloorDb, 0.0f, 1.0f);
+	      auto meter_dots = static_cast<int>(fraction * 4.0f + 0.5f);
+	      draw_vu_meter(heading_height - 2 - level + 1, current_pos + instrument_name_width, meter_dots, track_info.isClipping());
+	    }
 	  }
 	} else if (actual_width <= 1) {
 	  // No room for even the "▸"/"◂" collapse toggle, let alone the

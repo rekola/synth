@@ -182,6 +182,25 @@ TEST(sample_data_is_clipping_and_loudness_work_with_main_absent) {
   CHECK(data.isClipping());
 }
 
+TEST(sample_data_calculate_main_rms_normalizes_by_frame_count) {
+  AudioBuffer data(1, 4);
+  auto w = data.getChannelData(0);
+  w[0] = 1.0f; w[1] = 1.0f; w[2] = 1.0f; w[3] = 1.0f;
+  // sqrt(mean of squares) of a constant 1.0 signal is 1.0, regardless of
+  // frame count - unlike calculateLoudness()'s raw sqrt(sum of squares),
+  // which would instead grow with frames_ (2.0 here).
+  CHECK_NEAR(data.calculateMainRMS(), 1.0f, 1e-6f);
+}
+
+// Main absent means nothing to meter - 0, not a crash reading past a
+// null channel pointer.
+TEST(sample_data_calculate_main_rms_is_zero_with_main_absent) {
+  AudioBuffer data(0, true, false, 4); // AuxA only, no Main at all
+  auto aux = data.getChannel(Channel::AuxA);
+  for (int i = 0; i < 4; i++) aux[i] = 0.9f;
+  CHECK(data.calculateMainRMS() == 0.0f);
+}
+
 TEST(sample_data_copy_is_independent_of_original) {
   AudioBuffer original(1, 4);
   original.zero();

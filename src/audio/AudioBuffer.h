@@ -324,6 +324,21 @@ class AudioBuffer final {
     return v;
   }
 
+  // Root-mean-square level of the Main W (0th-order/omnidirectional)
+  // channel only, normalized by frame count - unlike calculateLoudness()'s
+  // raw per-channel sqrt(sum of squares), this doesn't grow with however
+  // many frames happen to make up the block, so it's comparable across
+  // calls. Feeds the per-track VU meter (PatternEditor's own
+  // instrument-name-row bar); 0 when Main is absent (nothing to meter) or
+  // the buffer is empty.
+  float calculateMainRMS() const {
+    auto w = getChannel(Channel::Main);
+    if (!w || frames_ == 0) return 0.0f;
+    float sum_squares = 0;
+    for (int i = 0; i < frames_; i++) sum_squares += w[i] * w[i];
+    return sqrtf(sum_squares / static_cast<float>(frames_));
+  }
+
   // See calculateLoudness() above - same reasoning, always scans.
   bool isClipping() const {
     for (int i = 0; i < channels_ * frames_; i++) {
