@@ -32,6 +32,7 @@
 #include "../util/constants.h"
 
 #include <fmt/core.h>
+#include <algorithm>
 
 using namespace std;
 using namespace tinyxml2;
@@ -85,6 +86,60 @@ static Track * resolveTrackReference(Song & song, const char * text) {
   auto track = song.getMasterTrack().getChildById(text);
   if (track) return track;
   return song.getMasterTrack().getChildByInternalId(atoi(text));
+}
+
+// Parses a <pattern>'s own <note>/<command> children (and optional
+// `length` attribute) directly into `pattern` - shared by the per-scene
+// reader (Scene::patterns_by_track_id_'s own entry) and the pattern-pool
+// reader below, which parse the identical <pattern> shape into two
+// different kinds of owning container. false (with the malformed-command
+// diagnostic already printed) on a corrupt <command>, matching both
+// readers' own "bail the whole load out" contract on that.
+static bool parsePatternContent(XMLElement & pattern_element, Pattern & pattern, Tuning tuning, const string & filename) {
+  auto length_text = pattern_element.Attribute("length");
+  if (length_text) pattern.setLength(atoi(length_text));
+
+  for (auto it = pattern_element.FirstChildElement("note"); it ; it = it->NextSiblingElement("note")) {
+    auto row_text = it->Attribute("row");
+    auto column_text = it->Attribute("column");
+    auto velocity_text = it->Attribute("velocity");
+    auto delay_text = it->Attribute("delay");
+
+    auto value_text = it->GetText();
+    if (!value_text) value_text = it->Attribute("value");
+
+    if (value_text) {
+      int row = row_text ? atoi(row_text) : 0;
+      int start_column = column_text ? atoi(column_text) : 0;
+      int velocity = velocity_text ? atoi(velocity_text) : constants::DEFAULT_VELOCITY;
+      int delay = delay_text ? atoi(delay_text) : 0;
+
+      auto notes = Note::createFromString(value_text, velocity, delay, tuning);
+      for (int i = 0; i < static_cast<int>(notes.size()); i++) {
+	pattern.setNote(row, start_column + i, notes[static_cast<size_t>(i)]);
+      }
+    }
+  }
+
+  for (auto it = pattern_element.FirstChildElement("command"); it; it = it->NextSiblingElement("command")) {
+    auto row_text = it->Attribute("row");
+    auto data_text = it->Attribute("data");
+
+    if (data_text) {
+      int row = row_text ? atoi(row_text) : 0;
+      // setData(), not the Command(string_view) constructor - see the
+      // scene reader's own original comment on this: untrusted file data
+      // has to be actually detected as malformed here, not silently
+      // fall back to a defined-but-wrong "----".
+      Command command;
+      if (!command.setData(data_text)) {
+	fmt::print(stderr, "Malformed command \"{}\" at row {} in {}\n", data_text, row, filename);
+	return false;
+      }
+      pattern.setCommand(row, command);
+    }
+  }
+  return true;
 }
 
 static Tuning parse_tuning(string_view tuning_text, Tuning default_tuning = Tuning::TET12) {
@@ -229,6 +284,54 @@ static std::unique_ptr<Track> parseChildTrack(XMLElement & element, const Instru
   }
 
   return track;
+}
+
+// Writes <note>/<command> children into `pattern_element` for every row
+// `pattern` actually has content on, in ascending row order - the write
+// side of parsePatternContent() above, shared the same way by the
+// per-scene writer and the pattern-pool writer below. Reads the raw
+// row->note-columns map directly (sorted, since it's an unordered_map)
+// rather than looping some external row bound: a pooled Pattern has no
+// scene/song pattern-length context to bound one by, and a scene's own
+// inline Pattern's raw storage never holds anything past its own
+// effective length in the first place (every write already redirects
+// there via getEffectiveRow() - see Pattern.h), so this finds the exact
+// same rows a bounded loop up to the song's own pattern length would.
+static void storePatternContent(XMLDocument & doc, XMLElement * pattern_element, const Pattern & pattern, Tuning tuning) {
+  vector<unsigned short> rows;
+  for (auto & [ row, nv ] : pattern.getNotesByRow()) rows.push_back(row);
+  sort(rows.begin(), rows.end());
+  for (auto row : rows) {
+    auto & nv = pattern.getNotesByRow().at(row);
+    // TODO: check if velocity and delay are same, and store notes in single element
+    for (size_t col = 0; col < nv.size(); col++) {
+      auto & note = nv[col];
+      // An undefined note (Note::isDefined() false) carries no data worth
+      // persisting, and its toString() text ("···") isn't a value
+      // Note::stringToKey() can parse back on load - only ever meant for
+      // display. A column can still hold one of these as a mid-vector gap
+      // (e.g. a chord's lower note deleted while a higher one stays
+      // defined - Pattern::deleteNote only trims trailing entries), so
+      // skip it here rather than assuming the vector itself never holds one.
+      if (!note.isDefined()) continue;
+      auto note_text = note.toString(tuning);
+      auto note_element = doc.NewElement("note");
+      note_element->SetAttribute("row", static_cast<int>(row));
+      if (col > 0) note_element->SetAttribute("column", col);
+      if (note.getVelocity() != constants::DEFAULT_VELOCITY) note_element->SetAttribute("velocity", note.getVelocity());
+      if (note.getDelay() > 0) note_element->SetAttribute("delay", note.getDelay());
+      note_element->SetText(note_text.c_str());
+      pattern_element->InsertEndChild(note_element);
+    }
+  }
+
+  for (auto & [ row, command ] : pattern.getCommands()) {
+    auto data = to_string(command);
+    auto command_element = doc.NewElement("command");
+    command_element->SetAttribute("row", static_cast<int>(row));
+    command_element->SetAttribute("data", data.c_str());
+    pattern_element->InsertEndChild(command_element);
+  }
 }
 
 static void storeChildTrack(const Track & track, XMLDocument & doc, XMLElement * target_element) {
@@ -417,6 +520,31 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
       }
     }
     
+    // Sibling of <tracks>/<scenes> - Song's own flat, per-track pattern
+    // pool (Song.h's own getPooledPatterns() comment), read before
+    // <scenes> since it needs nothing from there. Each <pattern> is the
+    // exact same shape a scene's own inline one uses (parsePatternContent()
+    // above), just addressed by (track, vector position) instead of a
+    // scene.
+    auto pattern_pool = song->FirstChildElement("patterns");
+    if (pattern_pool) {
+      for (auto it = pattern_pool->FirstChildElement("pattern"); it ; it = it->NextSiblingElement("pattern")) {
+	auto track_text = it->Attribute("track");
+	auto track = track_text ? resolveTrackReference(*this, track_text) : nullptr;
+	if (!track) continue;
+
+	Pattern pattern;
+	auto name_text = it->Attribute("name");
+	if (name_text) pattern.setName(name_text);
+
+	if (!parsePatternContent(*it, pattern, getTuningForTrack(*track), filename)) {
+	  setlocale(LC_ALL, oldLocale.c_str());
+	  return false;
+	}
+	addPooledPattern(track->getInternalId(), std::move(pattern));
+      }
+    }
+
     auto scenes = song->FirstChildElement("scenes");
     if (scenes) {
       for (auto it = scenes->FirstChildElement("scene"); it ; it = it->NextSiblingElement("scene") ) {
@@ -443,63 +571,10 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	  if (!track) continue;
 
 	  auto track_id = track->getInternalId();
-	  auto tuning = getTuningForTrack(*track);
-
-	  // Absent/0 (unset - Pattern.h's own comment) is today's exact
-	  // behavior; only set it when the file is actually explicit about a
-	  // shorter length, so an ordinary <pattern> with no attribute at all
-	  // never creates a Pattern entry purely to carry a length of 0.
-	  auto length_text = it2->Attribute("length");
-	  if (length_text) scene.getPatternsByTrack()[track_id].setLength(atoi(length_text));
-
-	  for (auto it3 = it2->FirstChildElement("note"); it3 ; it3 = it3->NextSiblingElement("note")) {
-	    auto row_text = it3->Attribute("row");
-	    auto column_text = it3->Attribute("column");
-	    auto velocity_text = it3->Attribute("velocity");
-	    auto delay_text = it3->Attribute("delay");
-
-	    auto value_text = it3->GetText();
-	    if (!value_text) value_text = it3->Attribute("value");
-
-	    if (value_text) {
-	      int row = row_text ? atoi(row_text) : 0;
-	      int start_column = column_text ? atoi(column_text) : 0;
-	      int velocity = velocity_text ? atoi(velocity_text) : constants::DEFAULT_VELOCITY;
-	      int delay = delay_text ? atoi(delay_text) : 0;
-
-	      auto notes = Note::createFromString(value_text, velocity, delay, tuning);
-	      for (int i = 0; i < static_cast<int>(notes.size()); i++) {
-		scene.setNote(row, track_id, start_column + i, notes[static_cast<size_t>(i)]);
-	      }
-	    }
-	  }
-
-	  for (auto it3 = it2->FirstChildElement("command"); it3; it3 = it3->NextSiblingElement("command")) {
-	    auto row_text = it3->Attribute("row");
-	    auto data_text = it3->Attribute("data");
-
-	    if (data_text) {
-	      int row = row_text ? atoi(row_text) : 0;
-	      // setData(), not the Command(string_view) constructor: this is
-	      // untrusted data straight from a (possibly hand-edited/corrupted)
-	      // file, so malformed data must be actually detected here, not
-	      // just fall back to a defined-but-wrong "----" with no caller
-	      // ever finding out. A malformed <command> means the file itself
-	      // is malformed - bail the whole load out rather than silently
-	      // dropping just that one row into an otherwise-successfully-
-	      // loaded song (Controller::openSong() discards this Song
-	      // entirely on a false return, never making a partial load
-	      // visible as the active buffer, so returning mid-parse here is
-	      // safe).
-	      Command command;
-	      if (!command.setData(data_text)) {
-		fmt::print(stderr, "Malformed command \"{}\" at row {} in {}\n", data_text, row, filename);
-		// Set the old locale before exiting
-		setlocale(LC_ALL, oldLocale.c_str());
-		return false;
-	      }
-	      scene.setCommand(row, track_id, command);
-	    }
+	  auto & pattern = scene.getPatternsByTrack()[track_id];
+	  if (!parsePatternContent(*it2, pattern, getTuningForTrack(*track), filename)) {
+	    setlocale(LC_ALL, oldLocale.c_str());
+	    return false;
 	  }
 	}
       }
@@ -540,6 +615,41 @@ Song::save(const std::string & filename) const {
   getMasterTrack().storeParameters(tracks_parameters);
   root->InsertEndChild(tracks);
 
+  // Sibling of <tracks>/<scenes> - Song's own flat, per-track pattern pool
+  // (Song.h's own getPooledPatterns() comment). Omitted entirely (not
+  // written as an empty <patterns/>) when there's nothing in it, same
+  // "default/empty state stores nothing" rule storeBusConfig() already
+  // follows - most songs never use this feature at all, and a spurious
+  // empty element on every one of them would just be diff noise. Walked
+  // via getRootTrackIds() (tree order), not pattern_pool_by_track_
+  // directly, for the same deterministic-output reason storeChildTrack()
+  // walks the tree itself rather than some other, unordered collection.
+  bool has_pooled_patterns = std::any_of(pattern_pool_by_track_.begin(), pattern_pool_by_track_.end(),
+    [](auto & entry) { return !entry.second.empty(); });
+  if (has_pooled_patterns) {
+    auto pattern_pool = doc.NewElement("patterns");
+    root->InsertEndChild(pattern_pool);
+    for (auto track_id : getRootTrackIds()) {
+      auto & pool_patterns = getPooledPatterns(track_id);
+      if (pool_patterns.empty()) continue;
+
+      auto track = getMasterTrack().getChildByInternalId(track_id);
+      assert(track);
+      if (!track) continue;
+      auto track_tuning = getTuningForTrack(*track);
+      auto track_ref = trackReferenceText(*this, track_id);
+
+      for (auto & pattern : pool_patterns) {
+	auto pattern_element = doc.NewElement("pattern");
+	pattern_element->SetAttribute("track", track_ref.c_str());
+	if (!pattern.getName().empty()) pattern_element->SetAttribute("name", pattern.getName().c_str());
+	if (pattern.getLength() > 0) pattern_element->SetAttribute("length", pattern.getLength());
+	storePatternContent(doc, pattern_element, pattern, track_tuning);
+	pattern_pool->InsertEndChild(pattern_element);
+      }
+    }
+  }
+
   auto scenes = doc.NewElement("scenes");
   root->InsertEndChild(scenes);
 
@@ -576,49 +686,7 @@ Song::save(const std::string & filename) const {
       // behavior (tracks this song's own pattern length, no repeat), so
       // it's simply omitted rather than written as an explicit 0.
       if (pattern.getLength() > 0) pattern_element->SetAttribute("length", pattern.getLength());
-
-      // getNotes(row)/getCommands() below read the pattern's own raw,
-      // un-duplicated rows directly (not through getEffectiveRow()) - a
-      // shortened pattern's raw storage never holds anything past its own
-      // length_ - 1 in the first place (every write redirects there via
-      // getEffectiveRow() at the call site, never past it), so this loop
-      // naturally only ever finds real content to write, whether or not
-      // getPatternLength() (this song's own, possibly much longer,
-      // pattern length) is the bound it iterates to.
-      for (int row = 0; row < getPatternLength(); row++) {
-	auto & nv = pattern.getNotes(row);
-
-	// TODO: check if velocity and delay are same, and store notes in single element
-	for (size_t col = 0; col < nv.size(); col++) {
-	  auto & note = nv[col];
-	  // An undefined note (Note::isDefined() false) carries no data worth
-	  // persisting, and its toString() text ("···") isn't a value
-	  // Note::stringToKey() can parse back on load - only ever meant for
-	  // display. A column can still hold one of these as a mid-vector gap
-	  // (e.g. a chord's lower note deleted while a higher one stays
-	  // defined - Pattern::deleteNote only trims trailing entries), so
-	  // skip it here rather than assuming the vector itself never holds one.
-	  if (!note.isDefined()) continue;
-	  auto note_text = note.toString(track_tuning);
-	  auto note_element = doc.NewElement("note");
-	  note_element->SetAttribute("row", row);
-	  if (col > 0) note_element->SetAttribute("column", col);
-	  if (note.getVelocity() != constants::DEFAULT_VELOCITY) note_element->SetAttribute("velocity", note.getVelocity());
-	  if (note.getDelay() > 0) note_element->SetAttribute("delay", note.getDelay());
-	  note_element->SetText(note_text.c_str());
-	  pattern_element->InsertEndChild(note_element);
-	}
-      }
-
-      for (auto & [ row, command ] : pattern.getCommands() ) {
-	auto data = to_string(command);
-
-	auto command_element = doc.NewElement("command");
-	command_element->SetAttribute("row", static_cast<int>(row));
-	command_element->SetAttribute("data", data.c_str());
-	pattern_element->InsertEndChild(command_element);
-      }
-
+      storePatternContent(doc, pattern_element, pattern, track_tuning);
       scene_element->InsertEndChild(pattern_element);
     }
 

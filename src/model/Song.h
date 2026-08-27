@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <memory>
 #include <mutex>
+#include <unordered_map>
 #include <vector>
 
 class InstrumentProvider;
@@ -179,6 +180,24 @@ class Song : public SongObject {
   }
 
   Scene & addScene() { return addScene(Scene()); }
+
+  // The song's own flat, per-track pattern pool - each track's own
+  // reusable Patterns, available to trigger live or assign into a scene
+  // from the Launchpad's session/launch view, unconnected to any one
+  // scene position. Addressed by (track_id, vector index), not a separate
+  // stable id - see Pattern.h's own getName() comment for why. Grouped by
+  // track already (rather than one flat list filtered per lookup) since
+  // "this track's own pooled patterns, in order" is the only way anything
+  // ever needs to read this back (Session view's own rows).
+  const std::vector<Pattern> & getPooledPatterns(int track_id) const {
+    auto it = pattern_pool_by_track_.find(track_id);
+    return it != pattern_pool_by_track_.end() ? it->second : empty_pattern_pool_;
+  }
+
+  void addPooledPattern(int track_id, Pattern pattern) {
+    pattern_pool_by_track_[track_id].push_back(std::move(pattern));
+    incVersion();
+  }
 
   const std::vector<std::unique_ptr<Track> > & getInstruments() const { return instrument_pool_.getInstruments(); }
   const Track & getInstrument(int i) const { return instrument_pool_.getInstrument(i); }
@@ -351,8 +370,10 @@ private:
   // from Song's now-null pointer is never dereferenced in practice.
   mutable std::unique_ptr<std::mutex> tracks_mutex_ = std::make_unique<std::mutex>();
   std::vector<Scene> scenes_;
+  std::unordered_map<int, std::vector<Pattern> > pattern_pool_by_track_;
 
   static inline Scene empty_scene_;
+  static inline std::vector<Pattern> empty_pattern_pool_;
 };
 
 #endif

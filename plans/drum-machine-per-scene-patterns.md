@@ -602,29 +602,84 @@ next step after Phase 2, not because the design below is finished.
 Today's Launchpad `GridMode::OVERVIEW` mirrors the arrangement: rows are
 scenes, columns are tracks, pressing a pad commits that (track, scene)
 position (`UI::commitOverviewCell()`) - navigation, not performance. This
-phase replaces it with a session/launch view: rows become a track's own
-available *shared* patterns instead of scenes, and pressing a pad
-*triggers* that pattern to start playing live for that track immediately,
-independent of the arrangement's playhead - the same "audition, not
-commit" flavor the drum step-grid's own free-running audition clock
-already has (`audition_clock_`), generalized from one drum kit's steps to
-any track's own pattern.
+phase replaces it outright with a session/launch view: rows become a
+track's own available *shared* patterns instead of scenes.
+
+The replacement has two sub-modes, toggled the same way the drum picker's
+own latch works (a dedicated toggle button, per-device state). This isn't
+a new distinction invented for this phase - it's the same "just play" vs.
+"store into the pattern" choice Record Arm (`DeviceState::capture_enabled`)
+already makes for ordinary note entry on any track, pitched or percussion:
+with Record Arm off, a pad press sounds a note live without touching the
+song; with it on, the same press also writes that note into the pattern
+under the cursor. Session view's own toggle applies that identical choice
+one level up - to triggering a whole pooled *pattern* rather than a single
+note/chord - not something specific to drum machines:
+
+- **Audition mode**: pressing a pad *triggers* that pattern to start
+  playing live for the pressed column's track, independent of the
+  arrangement's playhead - the same "audition, not commit" flavor the
+  drum step-grid's own free-running audition clock already has
+  (`audition_clock_`), generalized from one drum kit's steps to any
+  track's own pattern (pitched or percussion, not just `DrumMachineTrack`).
+- **Not auditioning** (the default): pressing a pad *assigns* that pooled
+  pattern into the pressed column's track at whichever scene row the
+  `PatternMatrix`'s own cursor currently sits on - a copy into that
+  scene's own owned `Pattern` (`Scene::setPatternForTrack()`), not a live
+  reference back to the pool entry; editing one afterward never touches
+  the other. This is the write-side counterpart to auditioning, and the
+  closest replacement for what plain `OVERVIEW` navigation used to do
+  here - it configures the arrangement instead of just jumping to a
+  position in it.
 
 ### Data model
 
-- `Song` gains a flat, id-addressable pattern pool
-  (`plans/pattern-matrix.md`'s own "referenced pattern pool" idea) - a
-  shared `Pattern` lives once, referenced by id, not owned by any one
-  `Scene`. This coexists with, not replaces, today's model: a `Scene`'s
-  own `<pattern track="...">` content stays owned/inline exactly as it is
-  (the everyday arrangement/`PatternMatrix` case); a track can *additionally*
-  have any number of named/pooled patterns available to trigger live,
-  unconnected to any specific scene position. Exact XML shape for the
-  pool itself not yet drafted.
+`Song` gains a flat, per-track pattern pool
+(`plans/pattern-matrix.md`'s own "referenced pattern pool" idea) - a
+`PooledPattern` (a track id, an optional display name, and a `Pattern` -
+the same value type a `Scene`'s own `<pattern>` already uses) stored in a
+plain `std::vector<PooledPattern>` on `Song`, addressed at runtime by its
+vector index rather than a separate stable id - nothing outside this
+session ever needs to reference one across a save/reload, since
+promotion/authoring from within the app isn't in scope yet (see below).
+`Song::getPooledPatternIndicesForTrack(track_id)` returns one track's own
+entries in pool order - the same order Session view's own rows use. This
+coexists with, not replaces, today's model: a `Scene`'s own
+`<pattern track="...">` content stays owned/inline exactly as it is (the
+everyday arrangement/`PatternMatrix` case); a track can *additionally*
+have any number of pooled patterns available to trigger live or assign
+into a scene, unconnected to any specific scene position.
+
+XML: a new top-level `<patterns>` element, sibling of `<tracks>`/
+`<scenes>`, holding any number of `<pattern track="..." name="...">`
+elements - the exact same element name a scene's own inline
+`<pattern track="...">` already uses (unambiguous: which one a reader is
+looking at is always scoped by its parent, `<scenes><scene>` vs. this new
+top-level `<patterns>`), carrying the same `<note>`/`<command>` children
+and optional `length` attribute too, reusing the identical reader/writer
+helpers (factored out of `Song.cpp`'s scene-pattern loop) and resolving
+`track`/tuning the same way (`resolveTrackReference()`/
+`getTuningForTrack()`). `name` is a friendly, human-authored label for
+display only (Session view's own row label) - never an identifier or
+lookup key, same as `name=` already means for a track (`id=` is the key
+there; a pooled pattern has no `id=` at all - see below).
+
+```xml
+<patterns>
+  <pattern track="drums" name="fill" length="8">
+    <note row="0" velocity="100" value="BD"/>
+    <note row="4" velocity="100" value="SD"/>
+  </pattern>
+</patterns>
+```
+
 - Patterns enter the shared pool only via hand-edited XML for now - no
   in-app way yet to author one directly or to *promote* an existing
   scene's own owned `Pattern` into the pool. Revisit once there's a
-  concrete need for either.
+  concrete need for either - this is also why pool entries don't need a
+  stable, save-surviving id: nothing in the file format references one by
+  id, and the in-app "assign" gesture only ever *copies out* of the pool,
+  never back in.
 - Cross-tuning/cross-instrument safety: a pooled pattern is authored
   against one specific track's own tuning/kit, same concern
   `plans/pattern-matrix.md`'s own pattern-pool note already raised -
@@ -650,16 +705,17 @@ any track's own pattern.
   distinct from the Matrix/arrangement's "explicit everywhere" one.
 - Launches are quantized, not immediate: pressing a pad queues that
   pattern rather than starting it the instant the pad is pressed - it
-  actually starts at the next quantization boundary, matching Ableton's
-  own launch-quantization behavior. Exact boundary (the next bar? the
-  currently-playing pattern's own loop end?) still to settle.
+  actually starts at the *currently-playing* pattern's own loop end (not
+  a fixed bar boundary), matching Ableton's own launch-quantization
+  behavior. A track with nothing currently triggered has no loop end to
+  wait for, so a press there launches immediately.
 
 ### Open questions
 
-1. Exact relationship to today's `GridMode::OVERVIEW` - replaced outright
-   (losing direct arrangement-navigation-via-Launchpad entirely), or a
-   second, separate mode a device switches into alongside it?
-2. XML shape for the pool - not yet drafted.
+None currently - see "Two sub-modes" above (replaces `OVERVIEW` outright)
+and "Launchpad session/launch view" above (quantized to the
+currently-playing pattern's own loop end). The XML shape for the pool is
+drafted in "Data model" above.
 
 ## Explicitly out of scope
 
