@@ -99,7 +99,18 @@ Found 2026-07-11, not yet fixed.
   mistaken for a regression if this same subset fails there too, and so a
   new e2e script that also depends on "press changes something, verify
   it" (e.g. `verify_launchpad_stepseq.py`) doesn't get blamed for a
-  failure that reproduces on main.
+  failure that reproduces on main. `verify_launchpad_stepseq.py` in
+  particular hits an even more total version of this same flakiness in
+  this environment: the fake device sometimes receives no SysEx at all
+  (not even the initial Programmer-Mode/Device-Inquiry handshake),
+  consistent with the two test runs racing over the same reused ALSA
+  sequencer client id right after the prior run's `synth` process was
+  `SIGKILL`ed rather than shut down cleanly. A manual, unscripted repro
+  of the identical interaction (spawn synth against
+  `drum_machine_stepgrid_test.xml`, connect the same fake device,
+  navigate onto the track, press the pad) does complete the full
+  handshake and step-toggle correctly, confirming this is the harness
+  racing itself in this environment rather than a feature regression.
 
 - **A voice's envelope keeps progressing while playback is stopped**, so a
   long-held note can resume out of sync with the (frozen) row/pattern

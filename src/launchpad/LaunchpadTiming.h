@@ -6,8 +6,8 @@
 
 // A free-running step counter driven by wall-clock time deltas rather than
 // sample counts - the core of LaunchpadManager's drum-machine audition loop
-// (plans/drum-machine.md, Phase 7: every DrumMachineTrack in the song loops
-// in phase while the transport is stopped). Factored out here, with no
+// (every DrumMachineTrack in the song loops in phase while the transport is
+// stopped). Factored out here, with no
 // LaunchpadIO/DeviceState/Controller dependency, so this step-advance math
 // is unit-testable via plain ctest, independent of any Launchpad hardware -
 // same reasoning as LaunchpadLayout.h keeping the pure pad-layout math
@@ -50,9 +50,9 @@ private:
 };
 
 // A generic "press once to arm, press again within a window to confirm"
-// debounce - the core of LaunchpadManager's Stop-Clip Clear gesture
-// (plans/drum-machine.md, Phase 7: a double-press within a short window
-// clears a drum machine's step data). Not specific to Clear - just a plain
+// debounce - the core of LaunchpadManager's Stop-Clip Clear gesture (a
+// double-press within a short window clears a drum machine's step data).
+// Not specific to Clear - just a plain
 // confirm-debounce primitive, factored out for the same testability reason
 // as StepClock above.
 class ConfirmTimer {

@@ -77,17 +77,30 @@ TEST(song_structure_baseline_matches_instrument_track_own_column_settings) {
   CHECK(info.has_effect_column_);
 }
 
-TEST(song_structure_baseline_is_a_single_placeholder_column_for_sample_and_drum_machine_tracks) {
+TEST(song_structure_baseline_is_a_single_placeholder_column_for_sample_tracks) {
   Song song;
   auto & sample = song.addTrack(make_unique<SampleTrack>(nullptr));
-  auto & drum = song.addTrack(make_unique<DrumMachineTrack>());
   SongStructure structure(song);
 
   auto & sample_info = structure.getBaselineInfo(sample.getInternalId());
   CHECK(sample_info.getColumnCount() == 1);
+}
+
+TEST(song_structure_gives_a_drum_machine_track_real_note_velocity_delay_effect_columns) {
+  // DrumMachineTrack's step content is an ordinary per-scene Pattern now
+  // (like InstrumentTrack/PercussionTrack), not the track-global sequence
+  // it used to be - it must get the same real column layout, not the
+  // single placeholder column SampleTrack still gets.
+  Song song;
+  auto & drum = song.addTrack(make_unique<DrumMachineTrack>());
+  SongStructure structure(song);
 
   auto & drum_info = structure.getBaselineInfo(drum.getInternalId());
-  CHECK(drum_info.getColumnCount() == 1);
+  CHECK(drum_info.has_note_column_);
+  CHECK(drum_info.num_velocity_columns_ == 1);
+  CHECK(drum_info.has_delay_column_);
+  CHECK(drum_info.has_effect_column_);
+  CHECK(drum_info.getColumnCount() == 4); // note + velocity + delay + effect
 }
 
 TEST(song_structure_gives_every_instrument_track_type_a_color_ordinal) {

@@ -1,6 +1,6 @@
-// Minimal simulated Launchpad X for the drum-machine step-grid surface
-// (plans/drum-machine.md, Phase 5): an ALSA sequencer client named to
-// match LaunchpadProtocol::modelFromDeviceName. Prints any SysEx it
+// Minimal simulated Launchpad X for the drum-machine step-grid surface:
+// an ALSA sequencer client named to match
+// LaunchpadProtocol::modelFromDeviceName. Prints any SysEx it
 // receives (to confirm Programmer-Mode entry and the step-grid's own LED
 // refreshes), then presses and releases pad (0,0) - note 11, i.e. step 0
 // of lane 0 - once.

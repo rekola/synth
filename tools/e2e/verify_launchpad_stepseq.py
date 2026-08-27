@@ -1,5 +1,5 @@
-"""Drum-machine step-grid regression test (plans/drum-machine.md, Phase 5):
-navigating onto a DrumMachineTrack must switch the Launchpad's grid to the
+"""Drum-machine step-grid regression test: navigating onto a
+DrumMachineTrack must switch the Launchpad's grid to the
 step-grid surface automatically (no mode toggle), and a pad press there
 must toggle that lane/step immediately, reflected in the LED colors sent
 back to the device - not silently fall through to ordinary NOTES-mode

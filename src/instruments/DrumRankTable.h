@@ -3,8 +3,7 @@
 
 #include <vector>
 
-// Canonical drum-machine lane ordering (Appendix B of the drum-machine
-// plan, plans/drum-machine.md): membranes first low to high, then woods/
+// Canonical drum-machine lane ordering: membranes first low to high, then woods/
 // shakers/scrapers, then metals small to large, then effects - drum-
 // notation order, so a picked kick ends up at the bottom of the grid and
 // a picked crash near the top. Deliberately not GM note-number order,

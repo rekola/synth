@@ -796,8 +796,8 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
 
   // CC49 ("Stop Clip") needs both press and release - either for DRAW's
   // own long-hold-clears-canvas gesture (when the assigned track isn't a
-  // DrumMachineTrack), or (once plans/drum-machine.md's Phase 7 lands)
-  // the drum machine's own Clear double-press confirm when it is - see
+  // DrumMachineTrack), or the drum machine's own Clear double-press
+  // confirm when it is - see
   // LaunchpadManager::handleStopClipButton()'s own comment for how its
   // meaning is chosen. Routed here before the press-only filter below,
   // which every other raw-CC button (and every other release) still goes

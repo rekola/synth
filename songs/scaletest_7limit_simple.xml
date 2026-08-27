@@ -15,16 +15,14 @@
         <track id="0" instrument="0" azimuth="30" distance="1" elevation="50" color="" sendA="-16.9020" sendB="0.0000" noteColumns="7"/>
         <track id="perc" instrument="2" azimuth="0" distance="0.89999998" elevation="0" color="" sendA="-20.0000" sendB="-7.3595"/>
         <drumMachineTrack id="0" azimuth="0" distance="0.89999998" elevation="0" color="" sendB="-4.8608">
-            <drumMachine loop_length="8">
-                <lane note="36" steps="00000000"/>
-                <lane note="38" steps="00000000"/>
-                <lane note="45" steps="00000000"/>
-                <lane note="47" steps="00000000"/>
-                <lane note="50" steps="00000000"/>
-                <lane note="42" steps="00000000"/>
-                <lane note="46" steps="00000000"/>
-                <lane note="49" steps="00000000"/>
-            </drumMachine>
+            <lane note="BD"/>
+            <lane note="SD"/>
+            <lane note="LT"/>
+            <lane note="MT"/>
+            <lane note="HT"/>
+            <lane note="CH"/>
+            <lane note="OH"/>
+            <lane note="CR"/>
         </drumMachineTrack>
     </tracks>
     <sections/>

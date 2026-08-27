@@ -132,7 +132,7 @@ you're changing.
   reliable teleport to an exact track/row, not to exercise its own
   clipboard).
 - **`drum_machine_stepgrid_test.xml` / `fake_launchpad_stepseq.c` /
-  `verify_launchpad_stepseq.py`** (plans/drum-machine.md, Phase 5) - loads
+  `verify_launchpad_stepseq.py`** - loads
   a song whose only track is a `DrumMachineTrack`, confirms the Launchpad
   grid switches to the step-grid surface automatically (no mode toggle
   needed - the step-lit/unlit colors, not the ordinary note-grid ones)

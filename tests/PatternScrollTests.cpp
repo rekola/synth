@@ -248,21 +248,20 @@ TEST(scroll_settles_and_never_drifts_for_an_unmoving_cursor) {
   }
 }
 
-// A SampleTrack/DrumMachineTrack ahead of the cursor's own track used to
-// get no VisibleTrackInfo entry at all (PatternEditor.cpp's
-// fill_track_info() never matched TrackType::SAMPLE), which
-// computeScrollPosition() and renderRow() both silently treat as a
-// zero-width track rather than its real ~4-character placeholder width -
-// undercounting how much screen space it actually consumes and letting a
-// too-wide scroll position through, clipping a few characters off the
-// cursor's real column. Regression test for that specific composition,
-// with the placeholder entry present (as fill_track_info() now always
-// gives SAMPLE/DRUM_MACHINE) at exactly the cols value where the
-// undercount used to matter.
+// A SampleTrack ahead of the cursor's own track used to get no
+// VisibleTrackInfo entry at all (PatternEditor.cpp's fill_track_info()
+// never matched TrackType::SAMPLE), which computeScrollPosition() and
+// renderRow() both silently treat as a zero-width track rather than its
+// real ~4-character placeholder width - undercounting how much screen
+// space it actually consumes and letting a too-wide scroll position
+// through, clipping a few characters off the cursor's real column.
+// Regression test for that specific composition, with the placeholder
+// entry present (as SongStructure now always gives SAMPLE) at exactly
+// the cols value where the undercount used to matter.
 TEST(cursor_column_fully_visible_with_a_placeholder_track_ahead_of_it) {
   vector<int> track_ids = { 5, 6 };
   unordered_map<int, VisibleTrackInfo> track_info = {
-    { 5, VisibleTrackInfo() }, // SAMPLE/DRUM_MACHINE placeholder: 1 note column, real width 4
+    { 5, VisibleTrackInfo() }, // SAMPLE placeholder: 1 note column, real width 4
     { 6, makeTrackInfo(20, true, 0, false, false) }, // 20 note columns wide
   };
   auto & cursor_track_info = track_info.at(6);

@@ -7,12 +7,14 @@
   </instruments>
   <tracks>
     <drumMachineTrack id="0" instrument="0">
-      <drumMachine id="seq1" loop_length="8">
-        <lane note="36" steps="10000000"/>
-      </drumMachine>
+      <lane note="BD"/>
     </drumMachineTrack>
   </tracks>
   <scenes>
-    <scene />
+    <scene>
+      <pattern track="0" length="8">
+        <note row="0" velocity="100" value="BD"/>
+      </pattern>
+    </scene>
   </scenes>
 </song>

@@ -2,13 +2,20 @@
 <song temperament="12edo" tempo="120" patternRows="5" volume="1.0">
   <tracks>
     <drumMachineTrack id="0">
-      <drumMachine id="seq1" loop_length="8">
-        <lane note="36" steps="10000000"/>
-      </drumMachine>
+      <lane note="BD"/>
+      <lane note="SD"/>
     </drumMachineTrack>
   </tracks>
   <scenes>
-    <scene />
-    <scene />
+    <scene>
+      <pattern track="0">
+        <note row="0" velocity="100" value="BD"/>
+      </pattern>
+    </scene>
+    <scene>
+      <pattern track="0">
+        <note row="1" velocity="100" value="SD"/>
+      </pattern>
+    </scene>
   </scenes>
 </song>

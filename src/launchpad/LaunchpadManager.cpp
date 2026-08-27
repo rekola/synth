@@ -169,8 +169,8 @@ namespace {
   constexpr float LAUNCHPAD_IDLE_LUMINOSITY = 0.35f;
   constexpr float LAUNCHPAD_ACTIVE_LUMINOSITY = 1.0f;
 
-  // The drum picker's own idle/assigned lightness levels (Phase 6,
-  // plans/drum-machine.md) - deliberately its own pair, not a reuse of
+  // The drum picker's own idle/assigned lightness levels - deliberately
+  // its own pair, not a reuse of
   // LAUNCHPAD_IDLE_LUMINOSITY/LAUNCHPAD_ACTIVE_LUMINOSITY above. Those two
   // are tuned for a *sounding note's* idle->loud ramp, where 1.0 at full
   // loudness is fine; the picker instead shows a static picked/unpicked
@@ -264,8 +264,8 @@ namespace {
   }
 
   // The free-drumming layout's per-family base color - shared by the
-  // ordinary percussion note-grid rendering and the drum picker (Phase 6,
-  // plans/drum-machine.md), which reuses the exact same layout as its own
+  // ordinary percussion note-grid rendering and the drum picker, which
+  // reuses the exact same layout as its own
   // picking surface, so the two never drift into two independently-
   // maintained copies of the same palette. Hues are an initial pass, not
   // yet confirmed against real hardware (see LaunchpadLayout.cpp's own
@@ -515,8 +515,8 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id) {
     capture_enabled_ = !capture_enabled_;
     return true;
   }
-  // 97 ("Custom") is the drum-picker latch (plans/drum-machine.md, Phase
-  // 6) - unconditional, like every other toggle above, since picking is
+  // 97 ("Custom") is the drum-picker latch - unconditional, like every
+  // other toggle above, since picking is
   // only ever meaningful once a DrumMachineTrack is assigned but the
   // per-device UI state itself doesn't need to know that. DRAW mode used
   // to live here too; it moved to Stop Clip (CC49, handleStopClipButton())
@@ -602,12 +602,16 @@ LaunchpadManager::handleStopClipButton(int device_id, bool is_press, DrumMachine
 
   auto & state = deviceState(device_id);
   if (state.clear_confirm.press(std::chrono::steady_clock::now(), kClearConfirmWindow)) {
-    // Second press within the window: actually clear. Every existing
-    // lane's step data goes back to all-rest - the lane list itself
-    // (which notes have a lane at all) is untouched, matching the plan's
-    // own distinction between this gesture and the picker's lane removal.
-    for (int note : assigned_drum_track->getLaneNotes()) assigned_drum_track->setSteps(note, 0);
-    controller.getSong().incVersion();
+    // Second press within the window: actually clear. Just this track's
+    // step content in the *current* scene (its own Pattern now, not a
+    // track-global map) - the lane list itself (which notes have a lane
+    // at all) is untouched, matching the plan's own distinction between
+    // this gesture and the picker's lane removal.
+    auto & song = controller.getSong();
+    auto & info = controller.getPlaybackInfo();
+    auto & scene = song.getOrCreateScene(info.getPatternIndex());
+    scene.setPatternForTrack(assigned_drum_track->getInternalId(), Pattern());
+    song.incVersion();
   }
   return true;
 }
@@ -1043,26 +1047,41 @@ void
 LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & controller, DrumMachineTrack & track, int track_id) {
   auto & lane_notes = track.getLaneNotes();
   auto x = ev.getX(), y = ev.getY();
-  if (y < 0 || y >= static_cast<int>(lane_notes.size()) || x < 0 || x >= track.getLoopLength()) return;
+  if (y < 0 || y >= static_cast<int>(lane_notes.size()) || x < 0 || x >= 8) return;
   int note = lane_notes[static_cast<size_t>(y)];
 
   auto & event_queue = controller.getPlaybackEventQueue();
 
   if (ev.getKind() == LaunchpadPadEvent::PRESS) {
     // Writes unconditionally, regardless of capture_enabled - "the arm
-    // flag gates performance capture, not editing" (plans/drum-machine.md):
-    // the step grid writes in both arm states, only free playing is gated.
-    bool was_hit = (track.getSteps(note) & (1u << x)) != 0;
-    track.setStep(note, x, !was_hit);
-    controller.getSong().incVersion();
+    // flag gates performance capture, not editing": the step grid writes
+    // in both arm states, only free playing is gated. A step is an
+    // ordinary Note in this scene's own Pattern for this track now (see
+    // DrumMachineTrack.h's own "A step is a Note" comment) - "was_hit" is
+    // decided by value, not by a fixed column, so this stays consistent
+    // with getHitNotesForRow()'s own by-value identification even if the
+    // note isn't sitting at this lane's usual column (e.g. typed directly
+    // in PatternEditor, or pasted from elsewhere); a *new* hit still lands
+    // at this lane's own column (y), the step grid's own convention for
+    // keeping a lane's column stable across rows.
+    auto & song = controller.getSong();
+    auto & info = controller.getPlaybackInfo();
+    auto & scene = song.getOrCreateScene(info.getPatternIndex());
+    auto & row_notes = scene.getNotes(x, track_id);
+    int existing_column = -1;
+    for (size_t i = 0; i < row_notes.size(); i++) {
+      auto & n = row_notes[i];
+      if (n.isDefined() && !n.isOff() && !n.isAftertouch() && n.getValue() == note) { existing_column = static_cast<int>(i); break; }
+    }
+    bool was_hit = existing_column >= 0;
+    if (was_hit) scene.deleteNote(x, track_id, existing_column);
+    else scene.setNote(x, track_id, y, Note(note, static_cast<short>(constants::DEFAULT_VELOCITY)));
+    song.incVersion();
 
     // Auditions at a fixed velocity - pad pressure/aftertouch are both
-    // ignored on this grid (no per-step velocity for the MVP). The GM
-    // note number doubles as the column, matching SongState::renderBlock()'s
-    // own step-driven emission (DrumMachineTrack.h) so editing and
-    // sequenced playback choke/retrigger consistently. Clearing a step
-    // (was_hit true) always auditions, transport running or not - there's
-    // nothing else about to play it. Setting a step (was_hit false) only
+    // ignored on this grid - no per-step velocity here. Clearing a
+    // step (was_hit true) always auditions, transport running or not -
+    // there's nothing else about to play it. Setting a step (was_hit false) only
     // auditions here when nothing is already going to hit it for real in
     // a moment: while the song is playing or the free-running audition
     // clock is looping, this exact lane/step is about to be triggered on
@@ -1079,8 +1098,8 @@ LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & co
     // RELEASE branch's own "always silence" comment above.
     event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, controller.getActiveBufferName(), track_id, note));
   }
-  // AFTERTOUCH: aftertouch is unused on this grid (plans/drum-machine.md) -
-  // no-op, unlike ordinary NOTES-mode entry.
+  // AFTERTOUCH: aftertouch is unused on this grid - no-op, unlike
+  // ordinary NOTES-mode entry.
 }
 
 void
@@ -1090,16 +1109,16 @@ LaunchpadManager::handleDrumPickerPadEvent(LaunchpadPadEvent & ev, Controller & 
   auto note = LaunchpadLayout::percussionNoteForPad(ev.getX(), ev.getY());
   if (note < 0) return; // unused pad in the free-drumming layout
 
-  // addLane()/removeLane() apply the lane-list and step-data mutation
-  // together, so there's no way to observe the two disagreeing - see
-  // DrumMachineTrack.h's own comment. Removal is silent, no confirmation,
-  // no undo, per the brief's own accepted risk for this gesture. addLane()
-  // is itself a silent no-op once the track is already at
+  // removeLane() deletes every existing step referencing this note across
+  // every scene, not just the lane itself - see DrumMachineTrack.h's own
+  // comment. Silent, no confirmation, no undo, per the brief's own
+  // accepted risk for this gesture. addLane() is itself a silent no-op
+  // once the track is already at
   // DrumMachineTrack::kMaxLanes (the step grid has exactly 8 rows to show
   // them in) - pressing an unlit pad while full just leaves it unlit,
   // same as pressing an already-assigned pad is already a no-op.
   bool was_assigned = track.hasLane(note);
-  if (was_assigned) track.removeLane(note);
+  if (was_assigned) track.removeLane(note, controller.getSong());
   else track.addLane(note);
 
   controller.getSong().incVersion();
@@ -1126,17 +1145,21 @@ LaunchpadManager::handleDrumPickerPadEvent(LaunchpadPadEvent & ev, Controller & 
 void
 LaunchpadManager::triggerAuditionStep(const Song & song, const vector<int> & track_ids, Controller & controller, int step) {
   auto & event_queue = controller.getPlaybackEventQueue();
+  auto & info = controller.getPlaybackInfo();
+  auto & scene = song.getScene(info.getPatternIndex()); // read-only audition - never grows the song
+  auto & patterns = scene.getPatternsByTrack();
+
   for (auto track_id : track_ids) {
     auto track = song.getMasterTrack().getChildByInternalId(track_id);
     if (!track || track->getType() != TrackType::DRUM_MACHINE) continue;
     auto & drum_track = static_cast<const DrumMachineTrack &>(*track);
 
-    // Same PLAY_NOTE-with-note-as-column convention SongState::renderBlock()'s
-    // own pattern-driven emission and the step grid's own audition press
-    // already use (DrumMachineTrack.h) - no explicit STOP_NOTE, matching
-    // that same precedent: a one-shot note-on per hit, relying on the
+    auto pattern_it = patterns.find(track_id);
+    if (pattern_it == patterns.end()) continue;
+
+    // No explicit STOP_NOTE - a one-shot note-on per hit, relying on the
     // instrument's own envelope/choke machinery for anything past that.
-    for (int note : drum_track.getHitNotesForRow(step)) {
+    for (int note : drum_track.getHitNotesForRow(pattern_it->second, step, song.getPatternLength())) {
       auto velocity = static_cast<short>(constants::DEFAULT_VELOCITY);
       event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), track_id, note, note, velocity));
     }
@@ -1236,8 +1259,8 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
       }
     }
   } else if (state.assigned_track_is_drum_machine && state.picker_active) {
-    // Drum picker (plans/drum-machine.md, Phase 6): the free-drumming
-    // layout doubles as the picker surface, reusing the exact same
+    // Drum picker: the free-drumming layout doubles as the picker
+    // surface, reusing the exact same
     // note/family/color table the ordinary percussion note-grid uses
     // (percussionFamilyColor() above) rather than a second copy. A note
     // currently assigned to a lane renders at LAUNCHPAD_PICKER_ASSIGNED_LUMINOSITY,
@@ -1261,7 +1284,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
       }
     }
   } else if (state.assigned_track_is_drum_machine) {
-    // Step grid (plans/drum-machine.md, Phase 5) - not a GridMode value of
+    // Step grid - not a GridMode value of
     // its own, displays automatically whenever the assigned track is a
     // DrumMachineTrack (see this device's own assigned_track_is_drum_machine
     // comment). Rows are lanes (y=0 bottom = drum_lane_notes[0], the
@@ -1278,7 +1301,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
     for (int y = 0; y < 8; y++) {
       for (int x = 0; x < 8; x++) {
         Rgb color {0, 0, 0};
-        if (y < static_cast<int>(state.drum_lane_notes.size()) && x < state.drum_loop_length) {
+        if (y < static_cast<int>(state.drum_lane_notes.size())) {
           bool lit = (state.drum_lane_steps[static_cast<size_t>(y)] & (1u << x)) != 0;
           color = lit ? kStepLitColor : kStepUnlitColor;
           if (x == state.drum_playhead_step) {
@@ -1352,17 +1375,16 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   colors.push_back({94, 0, 0, 60});   // next-track, dim blue (static)
   colors.push_back({95, 0, 0, 0});    // reserved (Session, inferred)
   colors.push_back({96, 0, 0, 0});    // reserved (Note, inferred)
-  // Custom (CC97) is the drum-picker latch (plans/drum-machine.md, Phase
-  // 6) - lit when active, matching the active-state convention Mute/Solo
+  // Custom (CC97) is the drum-picker latch - lit when active, matching
+  // the active-state convention Mute/Solo
   // below already use, not the static/no-state convention the Send/Pan
   // mode buttons use (those repaint the whole grid as their own
   // confirmation; the picker's own grid repaint isn't as visually
   // distinct at a glance, so the button itself carries the state too).
   colors.push_back({97, state.picker_active ? uint8_t(90) : uint8_t(20), 0, state.picker_active ? uint8_t(127) : uint8_t(20)});
   // CC98 ("Capture MIDI") is reserved/unused again - the record-armed
-  // indicator moved to CC19 ("Record Arm", right column - see below) per
-  // plans/drum-machine.md's own rationale (DeviceState::capture_enabled's
-  // comment has the full reasoning).
+  // indicator moved to CC19 ("Record Arm", right column - see below;
+  // DeviceState::capture_enabled's comment has the full reasoning).
   colors.push_back({98, 0, 0, 0}); // reserved
   // 99 (top-right corner, the grid position the Programmer-mode protocol
   // maps one past the 91-98 top row) isn't actually a pressable button on
@@ -1381,19 +1403,17 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // to blue to make room) now that the toggle itself lives here instead of
   // CC98. 49 is Stop Clip - DRAW mode's toggle when the assigned track
   // isn't a DrumMachineTrack (moved here from Custom, which the picker
-  // now owns unconditionally), reserved/inert for the drum machine's own
-  // Clear gesture when it is (plans/drum-machine.md Phase 7, not
-  // implemented yet) - static dim white either way for now, matching
-  // DRAW's own prior static (no-active-state) convention; Phase 7 can
-  // give it a real confirm-armed indicator once Clear exists.
+  // now owns unconditionally), the drum machine's own Clear
+  // double-press-confirm gesture when it is - see the Stop Clip block
+  // below for its own confirm-armed indicator.
   colors.push_back({19, state.capture_enabled ? uint8_t(127) : uint8_t(20), 0, 0}); // record-arm toggle
   colors.push_back({29, state.solo ? uint8_t(127) : uint8_t(20), state.solo ? uint8_t(127) : uint8_t(20), 0}); // toggle-solo
   colors.push_back({39, 0, 0, state.muted ? uint8_t(127) : uint8_t(20)}); // toggle-mute (blue - red moved to Record Arm, CC19)
 
   // Stop Clip (CC49): DRAW mode's static dim-white toggle indicator when
   // the assigned track isn't a DrumMachineTrack (unchanged); the Clear
-  // gesture's own confirm-armed indicator when it is (plans/drum-
-  // machine.md Phase 7) - dim red when idle (distinct from DRAW's dim
+  // gesture's own confirm-armed indicator when it is - dim red when idle
+  // (distinct from DRAW's dim
   // white, so the button visibly means something different here), and
   // blinking bright/dim red while armed (kClearConfirmBlinkPeriod's own
   // half-period) rather than a real hardware "pulse" LED mode - this file
@@ -1556,9 +1576,9 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       auto track_index = overview_scroll_col_ + x;
       if (track_index >= static_cast<int>(overview.track_ids.size())) continue;
       auto overview_track_id = overview.track_ids[static_cast<size_t>(track_index)];
-      auto overview_track = song.getMasterTrack().getChildByInternalId(overview_track_id);
-      auto is_drum_machine = overview_track && overview_track->getType() == TrackType::DRUM_MACHINE;
-      if (is_drum_machine) continue; // not part of this MVP - stays off, same as the terminal grid's own ✕ collapsing to off on hardware
+      // A DrumMachineTrack column renders exactly like any other track
+      // here - it's an ordinary Pattern now, same as the terminal
+      // PatternMatrix's own equivalent glyph logic, no special-casing left.
       // Same hue/near-fully-saturated identity PatternMatrix's own terminal
       // glyphs use, but at its own, dimmer lightness: a directly-emitted
       // LED pixel at a given lightness reads brighter than the same value
@@ -1622,12 +1642,11 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     bool is_drum_machine = false;
     vector<int> drum_lane_notes;
     array<uint8_t, 8> drum_lane_steps {};
-    int drum_loop_length = 8;
     int drum_playhead_step = -1;
     if (track_index >= 0 && track_index < num_tracks) {
       auto track_id = track_ids[static_cast<size_t>(track_index)];
       auto track = song.getMasterTrack().getChildByInternalId(track_id);
-      tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
+      tuning = track ? song.getTuningForTrack(*track) : song.getTuning();
       key_val = song.getKey();
       if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL || track->getType() == TrackType::DRUM_MACHINE)) {
         auto & leaf_track = dynamic_cast<const LeafTrack&>(*track);
@@ -1638,18 +1657,30 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       if (is_drum_machine) {
         auto & drum_track = static_cast<const DrumMachineTrack &>(*track);
         drum_lane_notes = drum_track.getLaneNotes();
-        drum_loop_length = drum_track.getLoopLength();
-        for (size_t i = 0; i < drum_lane_notes.size() && i < drum_lane_steps.size(); i++) {
-          drum_lane_steps[i] = drum_track.getSteps(drum_lane_notes[i]);
+        // A lane's own hit state, this scene - by value (getHitNotesForRow(),
+        // matching handleStepGridPadEvent()'s own by-value "was_hit" check),
+        // not by assuming it's sitting at this lane's usual column.
+        auto & drum_scene = song.getScene(playback_info.getPatternIndex());
+        auto & drum_patterns = drum_scene.getPatternsByTrack();
+        auto drum_pattern_it = drum_patterns.find(track_id);
+        if (drum_pattern_it != drum_patterns.end()) {
+          for (int step = 0; step < 8; step++) {
+            for (int hit_note : drum_track.getHitNotesForRow(drum_pattern_it->second, step, song.getPatternLength())) {
+              auto lane_it = find(drum_lane_notes.begin(), drum_lane_notes.end(), hit_note);
+              if (lane_it == drum_lane_notes.end()) continue;
+              auto lane_index = static_cast<size_t>(lane_it - drum_lane_notes.begin());
+              drum_lane_steps[lane_index] = static_cast<uint8_t>(drum_lane_steps[lane_index] | (1u << step));
+            }
+          }
         }
         // While playing, the real song position; while stopped, the
-        // free-running audition clock's own shared step (Phase 7,
-        // audition_step above) - or no playhead at all if that clock
-        // isn't currently running either (Record Arm is on).
-        if (playback_info.isPlaying() && drum_loop_length > 0) {
-          drum_playhead_step = playback_info.getRowIndex() % drum_loop_length;
-        } else if (audition_step >= 0 && drum_loop_length > 0) {
-          drum_playhead_step = audition_step % drum_loop_length;
+        // free-running audition clock's own shared step - or no playhead
+        // at all if that clock isn't currently running either (Record Arm
+        // is on). The step grid is always exactly 8 columns wide.
+        if (playback_info.isPlaying()) {
+          drum_playhead_step = playback_info.getRowIndex() % 8;
+        } else if (audition_step >= 0) {
+          drum_playhead_step = audition_step % 8;
         }
       }
       // Max-of when multiple columns happen to sound the same note_value
@@ -1677,7 +1708,6 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     state.assigned_track_is_drum_machine = is_drum_machine;
     state.drum_lane_notes = move(drum_lane_notes);
     state.drum_lane_steps = drum_lane_steps;
-    state.drum_loop_length = drum_loop_length;
     state.drum_playhead_step = drum_playhead_step;
 
     refreshLeds(device_id, state);

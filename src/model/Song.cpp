@@ -127,77 +127,42 @@ static unique_ptr<Track> createTrack(string_view name) {
   }
 }
 
-// A <drumMachine> element carries a DrumMachineTrack's own step-sequencer
-// data (lanes + steps), never Pattern row data (see DrumMachineTrack.h's
-// own comment) - it is a data blob nested under a <drumMachineTrack>
-// element, not a nested Track, so it's parsed/written here directly
-// rather than through parseChildTrack()/storeChildTrack()'s generic
-// per-child-track recursion (which would otherwise try to createTrack()
-// it and fail). Mirrors the hand-written <bus>/<scenes> shape elsewhere
-// in this file rather than reusing that generic recursion, for the same
-// reason those aren't generic either: the child data isn't itself a Track.
-static void loadDrumMachineData(DrumMachineTrack & track, XMLElement * drum_machine_element) {
-  // No <drumMachine> element at all (a hand-edited/older file that never
-  // mentions a sequence) means the file never said anything about lanes
-  // one way or the other - give it the same default rock kit the
-  // interactive "add-drum-machine-track" command would (seedDefaultKit()'s
-  // own comment), rather than leaving a silent, lane-less track behind. A
-  // real, however sparse, <drumMachine> element means the file IS being
-  // explicit about its lanes (down to genuinely zero, if that's what it
-  // says), so it's left alone here.
-  if (!drum_machine_element) {
-    track.seedDefaultKit();
-    return;
-  }
-
-  auto id = drum_machine_element->Attribute("id");
-  track.setSequenceId(id ? id : "");
-  auto loop_length = drum_machine_element->Attribute("loop_length");
-  track.setLoopLength(loop_length ? atoi(loop_length) : 8);
-
-  for (auto it = drum_machine_element->FirstChildElement("lane"); it; it = it->NextSiblingElement("lane")) {
+// A <drumMachineTrack>'s own <lane> children describe its kit - which
+// drums it can play, not what triggers when (that's an ordinary per-scene
+// Pattern now, like any other track - DrumMachineTrack.h's own comment).
+// `note` is the same GM-percussion mnemonic (Note::keyToString()/
+// stringToKey(), Tuning::PERCUSSION) a <note> element's own value already
+// uses, not a raw integer.
+static void loadDrumMachineData(DrumMachineTrack & track, XMLElement & element) {
+  bool had_any_lane = false;
+  for (auto it = element.FirstChildElement("lane"); it; it = it->NextSiblingElement("lane")) {
     auto note_text = it->Attribute("note");
     if (!note_text) continue;
-    int note = atoi(note_text);
-    track.addLane(note);
-
-    uint8_t steps = 0;
-    auto steps_text = it->Attribute("steps");
-    if (steps_text) {
-      for (int i = 0; steps_text[i] != 0 && i < 8; i++) {
-        if (steps_text[i] == '1') steps = static_cast<uint8_t>(steps | (1u << i));
-      }
-    }
-    track.setSteps(note, steps);
+    track.addLane(Note::stringToKey(Tuning::PERCUSSION, note_text));
+    had_any_lane = true;
   }
+  // No <lane> child at all (a hand-edited/older file that never mentions
+  // a kit) means the file never said anything about lanes one way or the
+  // other - give it the same default rock kit the interactive
+  // "add-drum-machine-track" command would (seedDefaultKit()'s own
+  // comment), rather than leaving a silent, lane-less track behind. A
+  // file that lists at least one <lane> is being explicit about its kit
+  // (down to genuinely zero real drums, if every listed note failed to
+  // resolve), so it's left alone here.
+  if (!had_any_lane) track.seedDefaultKit();
 }
 
 static void storeDrumMachineData(const DrumMachineTrack & track, XMLDocument & doc, XMLElement * track_element) {
-  auto drum_machine_element = doc.NewElement("drumMachine");
-  if (!track.getSequenceId().empty()) drum_machine_element->SetAttribute("id", track.getSequenceId().c_str());
-  drum_machine_element->SetAttribute("loop_length", track.getLoopLength());
-
   for (auto note : track.getLaneNotes()) {
     auto lane_element = doc.NewElement("lane");
-    lane_element->SetAttribute("note", note);
-
-    auto steps = track.getSteps(note);
-    string steps_text(static_cast<size_t>(track.getLoopLength()), '0');
-    for (int i = 0; i < track.getLoopLength(); i++) {
-      if ((steps & (1u << i)) != 0) steps_text[static_cast<size_t>(i)] = '1';
-    }
-    lane_element->SetAttribute("steps", steps_text.c_str());
-
-    drum_machine_element->InsertEndChild(lane_element);
+    lane_element->SetAttribute("note", Note::keyToString(Tuning::PERCUSSION, note).c_str());
+    track_element->InsertEndChild(lane_element);
   }
-
-  track_element->InsertEndChild(drum_machine_element);
 }
 
 // <generator name="..." value="..."/> children of an <instrument> element -
-// song-authored SF2 generator overrides. Parsed *before* prepare() runs,
-// unlike <drumMachine> below, which is read after - prepare() is what
-// actually applies these
+// song-authored SF2 generator overrides. Parsed *before* prepare() runs -
+// prepare() is what actually applies these
 // (GenericInstrument::prepare() -> Instrument::cloneWithOverrides()) and
 // needs the full set already populated to decide whether cloning is even
 // necessary. A recognized name resolves to its id and lands in
@@ -252,11 +217,11 @@ static std::unique_ptr<Track> parseChildTrack(XMLElement & element, const Instru
 
   auto drum_machine_track = dynamic_cast<DrumMachineTrack *>(track.get());
   if (drum_machine_track) {
-    loadDrumMachineData(*drum_machine_track, element.FirstChildElement("drumMachine"));
+    loadDrumMachineData(*drum_machine_track, element);
   }
 
   for (auto it = element.FirstChildElement(); it ; it = it->NextSiblingElement() ) {
-    if (string_view(it->Name()) == "drumMachine") continue; // data, not a nested track - handled above
+    if (string_view(it->Name()) == "lane") continue; // data, not a nested track - handled above
     if (string_view(it->Name()) == "generator") continue; // data, not a nested track - handled above
     auto child = parseChildTrack(*it, provider);
     if (!child) return std::unique_ptr<Track>(nullptr);
@@ -600,13 +565,6 @@ Song::save(const std::string & filename) const {
     for (auto & [ track_id, pattern ] : scene.getPatternsByTrack()) {
       auto track = getMasterTrack().getChildByInternalId(track_id);
       assert(track);
-      // A DrumMachineTrack's sequence lives on the track itself (see
-      // DrumMachineTrack.h) - it must never end up referenced from Pattern
-      // row data, since that data is silently ignored on load (parseChildTrack
-      // never routes <note> elements to it, only Song::open()'s own
-      // <scenes> handling does, keyed by whatever track_id happens to be
-      // stored) and would otherwise be lost without any error.
-      assert(!track || track->getType() != TrackType::DRUM_MACHINE);
       if (!track) continue;
 
       auto track_tuning = getTuningForTrack(*track);

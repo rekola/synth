@@ -105,6 +105,26 @@ class Pattern : public SongObject {
     }
   }
 
+  // Removes every defined note across every row whose getValue() ==
+  // `value`, regardless of column - DrumMachineTrack::removeLane()'s own
+  // per-Pattern half: a removed lane's GM number no longer identifies
+  // anything, so any note referencing it (on or off - an off marker still
+  // carries the same value(), see Note::isOff()'s own comment) is purged
+  // wherever it appears, not just at one row/column. Aftertouch entries
+  // (value() == -1) are never matched - they aren't lane-specific to
+  // begin with.
+  void deleteNotesWithValue(int value) {
+    for (auto it = notes_.begin(); it != notes_.end(); ) {
+      auto & nv = it->second;
+      for (auto & n : nv) {
+	if (n.isDefined() && n.getValue() == value) n.clear();
+      }
+      while (!nv.empty() && !nv.back().isDefined()) nv.pop_back();
+      if (nv.empty()) it = notes_.erase(it);
+      else ++it;
+    }
+  }
+
   // Shifts both the notes and the effect Command together - a row's
   // command is as much "part of that row" as its notes are, so a row
   // shift that moved one but left the other in place would silently

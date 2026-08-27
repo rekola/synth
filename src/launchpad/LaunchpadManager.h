@@ -229,7 +229,7 @@ class LaunchpadManager {
   // command pipeline. CC98 ("Capture MIDI") no longer does anything here -
   // the record-arm toggle moved to CC19 ("Record Arm") - see
   // DeviceState::capture_enabled's own comment. CC97 ("Custom") is the
-  // drum-picker latch (plans/drum-machine.md, Phase 6) - unconditional,
+  // drum-picker latch - unconditional,
   // the same way Send/Pan/etc. above are: picking is only ever meaningful
   // once a DrumMachineTrack is actually assigned, but the toggle itself
   // is plain per-device UI state regardless of what's currently assigned,
@@ -253,8 +253,8 @@ class LaunchpadManager {
   // itself is unchanged.
   bool handleDrawToggleButton(int device_id, bool is_press);
 
-  // CC49 ("Stop Clip" physical button)'s dispatcher (plans/drum-machine.md,
-  // Phase 6/7): its meaning depends on what this device is currently
+  // CC49 ("Stop Clip" physical button)'s dispatcher - its meaning depends
+  // on what this device is currently
   // assigned to. When `assigned_drum_track` is non-null, it's the drum
   // machine's own Clear gesture, double-press to confirm: a first press
   // arms a short confirm window (kClearConfirmWindow - see refreshLeds()'s
@@ -402,8 +402,8 @@ class LaunchpadManager {
     // MOVE_POSITION) - live PLAY_NOTE/STOP_NOTE/NOTE_PRESSURE audition
     // events fire regardless, so every device is always audible whether
     // or not recording is armed. Originally CC98 ("Capture MIDI"), moved
-    // to CC19 ("Record Arm") - plans/drum-machine.md's own rationale:
-    // "armed" names the distinction exactly, and Record Arm sits away
+    // to CC19 ("Record Arm"): "armed" names the distinction exactly, and
+    // Record Arm sits away
     // from the top-row arrow cluster used for track selection, unlike
     // Capture MIDI - a mis-hit there used to silently arm writes with no
     // undo. Also gates whether "free playing" (ordinary note entry) is
@@ -414,8 +414,8 @@ class LaunchpadManager {
 
     GridMode grid_mode = GridMode::NOTES;
 
-    // Step-grid surface (plans/drum-machine.md, Phase 5): not a GridMode
-    // value of its own - it displays automatically whenever this device's
+    // Step-grid surface: not a GridMode value of its own - it displays
+    // automatically whenever this device's
     // assigned track is a DrumMachineTrack, the same way the percussion
     // layout below already displays automatically from track type rather
     // than a mode toggle, and (like percussion) only within grid_mode==
@@ -428,17 +428,16 @@ class LaunchpadManager {
     bool assigned_track_is_drum_machine = false;
     std::vector<int> drum_lane_notes; // bottom-to-top, already DrumRankTable-ordered
     std::array<uint8_t, 8> drum_lane_steps {}; // parallel to drum_lane_notes
-    int drum_loop_length = 8;
-    // Pattern-relative row % loop length while playing, or the free-
-    // running audition clock's own step % loop length while stopped (see
-    // LaunchpadManager::audition_clock_step_) - or -1 when there's no
-    // playhead to show at all (stopped, but the audition clock isn't
-    // currently running because Record Arm is on - see refresh()'s own
-    // gating check).
+    // Pattern-relative row % 8 while playing (the step grid is always
+    // exactly 8 columns wide), or the free-running audition clock's own
+    // step % 8 while stopped (see LaunchpadManager::audition_clock_step_) -
+    // or -1 when there's no playhead to show at all (stopped, but the
+    // audition clock isn't currently running because Record Arm is on -
+    // see refresh()'s own gating check).
     int drum_playhead_step = -1;
 
-    // Stop-Clip Clear double-press confirm state (plans/drum-machine.md,
-    // Phase 7) - see handleStopClipButton()'s own comment for the full
+    // Stop-Clip Clear double-press confirm state - see
+    // handleStopClipButton()'s own comment for the full
     // arm/confirm/timeout rule; ConfirmTimer itself (LaunchpadTiming.h) is
     // the pure, unit-tested arm/confirm/timeout logic. Purely per-device
     // (unlike Record Arm): each Launchpad's own Stop Clip press arms only
@@ -448,7 +447,7 @@ class LaunchpadManager {
     // recording-armed does.
     ConfirmTimer clear_confirm;
 
-    // Drum picker latch (plans/drum-machine.md, Phase 6) - CC97
+    // Drum picker latch - CC97
     // ("Custom")'s own toggle, unconditional (see handleRawButton()'s own
     // comment). Only actually shown/acted on while
     // assigned_track_is_drum_machine is also true - left as whatever it
@@ -521,8 +520,8 @@ class LaunchpadManager {
   const DeviceState * findDeviceState(int device_id) const;
   void refreshLeds(int device_id, DeviceState & state);
 
-  // The step-grid's own pad-press handling (plans/drum-machine.md, Phase
-  // 5) - a DrumMachineTrack's grid means something else entirely from
+  // The step-grid's own pad-press handling - a DrumMachineTrack's grid
+  // means something else entirely from
   // ordinary NOTES-mode chord entry, the same way Send/Pan mode already
   // does (see handlePadEvent()'s own dispatch): x = step, y = lane (row 0
   // = bottom = the lowest-ranked lane). A press toggles that lane/step's
@@ -537,12 +536,11 @@ class LaunchpadManager {
   // hearing it sequenced later choke/retrigger consistently.
   void handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & controller, DrumMachineTrack & track, int track_id);
 
-  // The drum picker's own pad-press handling (plans/drum-machine.md,
-  // Phase 6): reuses the free-drumming layout's own note lookup
-  // (LaunchpadLayout::percussionNoteForPad) rather than a second copy.
-  // PRESS on an already-assigned note removes that lane (silently
-  // deleting its step data - no confirmation, no undo, per the brief's
-  // own accepted risk); PRESS on an unassigned note adds a fresh
+  // The drum picker's own pad-press handling: reuses the free-drumming
+  // layout's own note lookup (LaunchpadLayout::percussionNoteForPad)
+  // rather than a second copy. PRESS on an already-assigned note removes
+  // that lane (silently deleting its step data - no confirmation, no
+  // undo, a deliberate accepted risk); PRESS on an unassigned note adds a fresh
   // all-rest lane. addLane()/removeLane() apply the lane-list and
   // step-data mutation as a single call, so the two can never be
   // observed disagreeing. RELEASE/AFTERTOUCH are no-ops - picking is a

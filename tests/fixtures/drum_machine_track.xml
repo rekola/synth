@@ -1,21 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="12edo" tempo="120" patternRows="8" volume="1.0">
-  <instruments>
-    <envelope attack="0.001" hold="0.01" decay="0.02" sustain="0.0" release="0.01">
-      <oscillator type="saw"/>
-    </envelope>
-  </instruments>
   <tracks>
-    <drumMachineTrack id="0" instrument="0">
-      <drumMachine id="seq1" loop_length="8">
-        <lane note="49" steps="00000000"/>
-        <lane note="36" steps="10001000"/>
-        <lane note="42" steps="10101010"/>
-        <lane note="38" steps="00001000"/>
-      </drumMachine>
+    <drumMachineTrack id="0">
+      <lane note="CR"/>
+      <lane note="BD"/>
+      <lane note="CH"/>
+      <lane note="SD"/>
     </drumMachineTrack>
   </tracks>
   <scenes>
-    <scene />
+    <scene>
+      <pattern track="0">
+        <note row="0" velocity="100" value="BD"/>
+        <note row="4" velocity="100" value="BD"/>
+        <note row="0" column="1" velocity="100" value="CH"/>
+        <note row="2" column="1" velocity="100" value="CH"/>
+        <note row="4" column="1" velocity="100" value="CH"/>
+        <note row="6" column="1" velocity="100" value="CH"/>
+        <note row="2" column="2" velocity="100" value="SD"/>
+        <note row="6" column="2" velocity="100" value="SD"/>
+      </pattern>
+    </scene>
   </scenes>
 </song>

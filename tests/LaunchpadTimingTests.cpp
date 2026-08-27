@@ -7,7 +7,7 @@
 
 using namespace std;
 
-// --- StepClock (plans/drum-machine.md, Phase 7's audition clock) ---
+// --- StepClock (the drum-machine audition clock) ---
 
 TEST(step_clock_is_not_running_before_start_and_advance_is_a_no_op) {
   StepClock clock;

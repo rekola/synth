@@ -20,10 +20,6 @@ class StyleProvider {
   // and a moderately lower saturation - PatternEditor's master-track
   // ancestor row (a whole title bar, not text on a dark background).
   Color master_track_color = "#533918";
-
-  // First use: PatternMatrix's not-applicable cell glyph (a DrumMachineTrack
-  // column). No prior red/error color existed here to reuse.
-  Color error_fg_color = "#dc3c3c";
 };
 
 #endif

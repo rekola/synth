@@ -47,7 +47,12 @@ SongStructure::visit(const Track & track) {
     baseline_info_[id] = std::move(info);
   };
 
-  if (track.getType() == TrackType::INSTRUMENT_CONTROL || track.getType() == TrackType::PERCUSSION_CONTROL) {
+  if (track.getType() == TrackType::INSTRUMENT_CONTROL || track.getType() == TrackType::PERCUSSION_CONTROL ||
+      track.getType() == TrackType::DRUM_MACHINE) {
+    // DrumMachineTrack's step content is an ordinary per-scene Pattern now
+    // (DrumMachineTrack.h's own comment), so it gets real note/velocity/
+    // delay/effect columns exactly like an InstrumentTrack/PercussionTrack -
+    // no longer the single placeholder column SAMPLE still gets below.
     VisibleTrackInfo info;
     auto & leaf_track = dynamic_cast<const LeafTrack &>(track);
     info.has_note_column_ = leaf_track.showNoteColumn();
@@ -57,7 +62,7 @@ SongStructure::visit(const Track & track) {
     info.updateNumSubtracks(leaf_track.getMinNoteColumns());
     info.collapsed_ = leaf_track.isCollapsed();
     assign(std::move(info));
-  } else if (track.getType() == TrackType::DRUM_MACHINE || track.getType() == TrackType::SAMPLE) {
+  } else if (track.getType() == TrackType::SAMPLE) {
     // Single placeholder column - see fill_track_info()'s own comment on
     // why an explicit, default-constructed entry is kept rather than left
     // absent.

@@ -360,13 +360,13 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     auto & scene = song.getScene(info.getPatternIndex());
     auto track_ids = song.getRootTrackIds();
 
-    // A percussion track's Note::getValue() selects which drum sound
-    // plays (a MIDI key), not a pitch - transposing it would silently
-    // swap to a different, unrelated drum instead of "transposing"
-    // anything, so it's excluded rather than shifted.
+    // A percussion or drum-machine track's Note::getValue() selects which
+    // drum sound plays (a MIDI key), not a pitch - transposing it would
+    // silently swap to a different, unrelated drum instead of
+    // "transposing" anything, so it's excluded rather than shifted.
     auto is_percussion = [&song](int track_id) {
       auto * track = song.getMasterTrack().getChildByInternalId(track_id);
-      return track && track->getType() == TrackType::PERCUSSION_CONTROL;
+      return track && song.getTuningForTrack(*track) == Tuning::PERCUSSION;
     };
 
     auto b = getEffectiveSelectionBounds(song, track_ids);
@@ -393,7 +393,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     // See transpose-region-up's own comment.
     auto is_percussion = [&song](int track_id) {
       auto * track = song.getMasterTrack().getChildByInternalId(track_id);
-      return track && track->getType() == TrackType::PERCUSSION_CONTROL;
+      return track && song.getTuningForTrack(*track) == Tuning::PERCUSSION;
     };
 
     auto b = getEffectiveSelectionBounds(song, track_ids);
@@ -569,13 +569,11 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     song.incVersion();
   });
 
-  // Create-fresh only (see plans/drum-machine.md) - no "convert an
-  // existing track" path exists, since TrackType is fixed at construction
-  // for every track and a drum machine's sequence lives outside Pattern
-  // data anyway (existing notes would just be orphaned). seedDefaultKit()
-  // is the single place the default rock kit's note list lives - shared
-  // with Song.cpp's own loadDrumMachineData() for a hand-authored
-  // <drumMachineTrack> with no <drumMachine> child at all.
+  // Create-fresh only - no "convert an existing track" path exists,
+  // since TrackType is fixed at construction for every track.
+  // seedDefaultKit() is the single place the default rock kit's note
+  // list lives - shared with Song.cpp's own loadDrumMachineData() for a
+  // hand-authored <drumMachineTrack> with no <lane> children at all.
   commands_.define("add-drum-machine-track", [this, current_track_id]() {
     auto & song = getController().getSong();
     auto & track = dynamic_cast<DrumMachineTrack &>(song.addTrack(make_unique<DrumMachineTrack>(), current_track_id()));
@@ -1676,15 +1674,13 @@ PatternEditor::offerInput(const InputEvent & input) {
 	  return true;
 	}
       } else {
-	// SAMPLE/DRUM_MACHINE tracks render this column as a placeholder
-	// block (see renderRow's own branch), never real note data - without
-	// this exclusion, typing here would still silently write into
-	// Pattern via scene.setNote()/pushNote() below, just with nothing
-	// on screen to show it happened. A DrumMachineTrack's sequence lives
-	// on the track itself (DrumMachineTrack.h), never in Pattern rows,
-	// so this guard is required for correctness there, not just tidiness.
+	// SAMPLE tracks render this column as a placeholder block (see
+	// renderRow's own branch), never real note data - without this
+	// exclusion, typing here would still silently write into Pattern via
+	// scene.setNote()/pushNote() below, just with nothing on screen to
+	// show it happened.
 	auto entry_track = song.getMasterTrack().getChildByInternalId(track_id);
-	if (entry_track && (entry_track->getType() == TrackType::SAMPLE || entry_track->getType() == TrackType::DRUM_MACHINE)) {
+	if (entry_track && entry_track->getType() == TrackType::SAMPLE) {
 	  return true;
 	}
 
@@ -1703,7 +1699,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	int midi_note = -1;
 	if (!is_off) {
 	  auto track = song.getMasterTrack().getChildByInternalId(track_id);
-	  auto tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
+	  auto tuning = track ? song.getTuningForTrack(*track) : song.getTuning();
 	  midi_note = input.toMidiNote(getController().getGlobalOctave(), tuning);
 	}
 
@@ -2377,12 +2373,29 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       auto & patterns = scene.getPatternsByTrack();
       auto pattern_it = patterns.find(track_id);
       auto pattern_length = pattern_it != patterns.end() ? pattern_it->second.getLength() : 0;
-      bool is_repeat_row = pattern_length > 0 && pattern_row >= pattern_length;
+      // The playhead's own row (highlight) keeps its plain green regardless
+      // of whether the content it's showing happens to be a repeat - the
+      // dim is about telling looped content apart from a pattern's own
+      // real rows, not something the playhead itself should ever show.
+      bool is_repeat_row = pattern_length > 0 && pattern_row >= pattern_length && !highlight;
       if (is_repeat_row) {
 	Color black;
 	bg = bg.blend(0.6f, black);
 	fg = fg.blend(0.6f, black);
       }
+      // VELOCITY/DELAY's own fixed bright colors and EFFECT's own
+      // command_column_color (below) are picked independently of fg/bg -
+      // tuned for contrast against the *undimmed* row background - so
+      // they need this applied explicitly too, or they'd stay bright
+      // while the note column and background around them dim. Mirrors
+      // is_neighboring_pattern's/is_repeat_row's own blend exactly, so a
+      // dimmed row reads consistently across every column type.
+      auto dim_fixed_color = [&](Color c) -> Color {
+	Color black;
+	if (is_neighboring_pattern) c = c.blend(0.75f, black);
+	if (is_repeat_row) c = c.blend(0.6f, black);
+	return c;
+      };
       auto effective_row = scene.getEffectiveRow(track_id, pattern_row, song.getPatternLength());
       auto & notes = scene.getNotes(effective_row, track_id);
       auto & command = scene.getCommand(effective_row, track_id);
@@ -2424,8 +2437,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // VisibleTrackInfo::collapsed_) - just a blank placeholder cell,
 	  // sized to line up with whatever width renderHeading() laid out
 	  // for this same track (getTrackWidth() - 1, not a hardcoded
-	  // literal - same reasoning as the SAMPLE/DRUM_MACHINE placeholder
-	  // just below), plus the track's own shared trailing "│" (drawn
+	  // literal - same reasoning as the SAMPLE placeholder just below),
+	  // plus the track's own shared trailing "│" (drawn
 	  // once this loop is done, below). A "·" marks the cell whenever this
 	  // row has any note at all, so a collapsed track doesn't look empty
 	  // where it actually has content.
@@ -2441,7 +2454,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	    setFgColor(styles.window_border_color);
 	  }
 	  current_pos += width;
-	} else if (track && (track->getType() == TrackType::SAMPLE || track->getType() == TrackType::DRUM_MACHINE)) {
+	} else if (track && track->getType() == TrackType::SAMPLE) {
 	  cell_fg = cur_fg;
 	  cell_bg = cur_bg;
 	  setFgColor(cell_fg);
@@ -2468,7 +2481,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // fallback below - command_column_color is tuned for contrast
 	  // against the normal dark row background, not the bright
 	  // effective-region highlight.
-	  cell_fg = command.isDefined() && !column_selected ? styles.command_column_color : cur_fg;
+	  cell_fg = command.isDefined() && !column_selected ? dim_fixed_color(styles.command_column_color) : cur_fg;
 	  cell_bg = cur_bg;
 	  setFgColor(cell_fg);
 	  setBgColor(cell_bg);
@@ -2489,7 +2502,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
 	  setFgColor(cell_fg);
 	  setBgColor(cell_bg);
-	  auto tuning = track && track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
+	  auto tuning = track ? song.getTuningForTrack(*track) : song.getTuning();
 	  auto s = note.toString(tuning);
 	  while (s.size() < 3) s += ' ';
 	  putstr(display_row, current_pos, s);
@@ -2512,7 +2525,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // normal dark row background; inside the (bright) effective-region
 	  // highlight they'd be nearly unreadable, so use the region's own
 	  // (dark) foreground there instead - same idea as the note column.
-	  cell_fg = column_selected ? cur_fg : (column_type == ColumnType::VELOCITY ? Color("#bfa426") : Color("#42c1ea"));
+	  cell_fg = column_selected ? cur_fg : dim_fixed_color(column_type == ColumnType::VELOCITY ? Color("#bfa426") : Color("#42c1ea"));
 	  cell_bg = cur_bg;
 	  if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
 	  setFgColor(cell_fg);

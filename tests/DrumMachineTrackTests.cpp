@@ -2,6 +2,7 @@
 
 #include "../src/model/DrumMachineTrack.h"
 #include "../src/model/Song.h"
+#include "../src/model/Pattern.h"
 #include "../src/instruments/InstrumentProvider.h"
 #include "../src/instruments/SoundFont.h"
 #include "Sf2Fixture.h"
@@ -35,77 +36,48 @@ TEST(add_lane_derives_order_from_the_rank_table_not_insertion_order) {
 TEST(add_lane_is_a_no_op_when_the_lane_already_exists) {
   DrumMachineTrack track;
   track.addLane(36);
-  track.setStep(36, 0, true);
-  track.addLane(36); // must not reset the existing lane's steps
+  track.addLane(36);
   CHECK(track.getLaneNotes().size() == 1);
-  CHECK(track.getSteps(36) == 0b00000001);
 }
 
-TEST(remove_lane_deletes_only_that_lanes_step_data) {
-  // The single most important property this data model has to guarantee
-  // (plans/drum-machine.md's own risk list): step data is keyed by GM
-  // note number, never by lane index, so removing/adding a lane must
-  // never disturb any *other* lane's steps.
-  DrumMachineTrack track;
+TEST(remove_lane_deletes_the_notes_referencing_it_from_every_scene) {
+  // The single most important property this data model has to guarantee:
+  // step data is keyed by GM note number, never by lane index, so
+  // removing a lane must never disturb any *other* lane's steps, and
+  // removeLane() must fan out across every scene, not just the current
+  // one.
+  Song song;
+  auto & track = dynamic_cast<DrumMachineTrack &>(song.addTrack(make_unique<DrumMachineTrack>()));
   track.addLane(36);
   track.addLane(38);
   track.addLane(42);
-  track.setStep(36, 0, true);
-  track.setStep(38, 2, true);
-  track.setStep(42, 4, true);
+  song.setPatternLength(8);
+  song.getOrCreateScene(0).setNote(0, track.getInternalId(), 0, Note(36, 100));
+  song.getOrCreateScene(0).setNote(2, track.getInternalId(), 0, Note(38, 100));
+  song.getOrCreateScene(1).setNote(4, track.getInternalId(), 0, Note(42, 100));
+  song.getOrCreateScene(1).setNote(4, track.getInternalId(), 1, Note(38, 100));
 
-  track.removeLane(38);
+  track.removeLane(38, song);
 
   CHECK(!track.hasLane(38));
-  CHECK(track.getSteps(38) == 0); // gone
-  CHECK(track.getSteps(36) == 0b00000001); // untouched
-  CHECK(track.getSteps(42) == 0b00010000); // untouched
+  CHECK(!song.getScene(0).getNote(2, track.getInternalId(), 0).isDefined());
+  CHECK(song.getScene(0).getNote(0, track.getInternalId(), 0).getValue() == 36); // untouched
+  CHECK(song.getScene(1).getNote(4, track.getInternalId(), 0).getValue() == 42); // untouched
+  CHECK(!song.getScene(1).getNote(4, track.getInternalId(), 1).isDefined()); // the other scene's own 38 is gone too
 
   vector<int> expected = { 36, 42 };
   CHECK(track.getLaneNotes() == expected);
 }
 
-TEST(removing_and_re_adding_a_lane_starts_it_all_rest_again) {
-  DrumMachineTrack track;
+TEST(removing_and_re_adding_a_lane_starts_it_with_no_notes) {
+  Song song;
+  auto & track = dynamic_cast<DrumMachineTrack &>(song.addTrack(make_unique<DrumMachineTrack>()));
   track.addLane(36);
-  track.setStep(36, 0, true);
-  track.removeLane(36);
+  song.setPatternLength(8);
+  song.getOrCreateScene(0).setNote(0, track.getInternalId(), 0, Note(36, 100));
+  track.removeLane(36, song);
   track.addLane(36);
-  CHECK(track.getSteps(36) == 0);
-}
-
-TEST(add_then_remove_a_different_lane_leaves_every_survivor_byte_identical) {
-  // The lane picker adds/removes lanes one at a time in response to
-  // individual pad presses, in whatever order the user happens to press
-  // them - not just "add a batch, then remove one" like
-  // remove_lane_deletes_only_that_lanes_step_data above. Interleave
-  // several add/remove calls and check survivors after every single step,
-  // not just at the end.
-  DrumMachineTrack track;
-  track.addLane(36);
-  track.setStep(36, 0, true);
-  track.addLane(42);
-  track.setStep(42, 2, true);
-  track.addLane(38);
-  track.setStep(38, 4, true);
-
-  track.removeLane(42); // remove the middle one first
-  CHECK(track.getSteps(36) == 0b00000001);
-  CHECK(track.getSteps(38) == 0b00010000);
-  CHECK(!track.hasLane(42));
-
-  track.addLane(49);
-  track.setStep(49, 6, true);
-  CHECK(track.getSteps(36) == 0b00000001); // still untouched
-  CHECK(track.getSteps(38) == 0b00010000); // still untouched
-
-  track.removeLane(36); // remove the first-added lane
-  CHECK(!track.hasLane(36));
-  CHECK(track.getSteps(38) == 0b00010000); // untouched
-  CHECK(track.getSteps(49) == 0b01000000); // untouched
-
-  vector<int> expected = { 38, 49 }; // rank order, not insertion/removal order
-  CHECK(track.getLaneNotes() == expected);
+  CHECK(!song.getScene(0).getNote(0, track.getInternalId(), 0).isDefined());
 }
 
 TEST(add_lane_stops_at_kMaxLanes_since_the_step_grid_has_exactly_that_many_rows) {
@@ -127,14 +99,15 @@ TEST(add_lane_stops_at_kMaxLanes_since_the_step_grid_has_exactly_that_many_rows)
   CHECK(static_cast<int>(track.getLaneNotes().size()) == DrumMachineTrack::kMaxLanes);
 
   // Freeing a slot lets exactly one more back in.
-  track.removeLane(35);
+  Song song;
+  track.removeLane(35, song);
   CHECK(static_cast<int>(track.getLaneNotes().size()) == DrumMachineTrack::kMaxLanes - 1);
   track.addLane(57);
   CHECK(track.hasLane(57));
   CHECK(static_cast<int>(track.getLaneNotes().size()) == DrumMachineTrack::kMaxLanes);
 }
 
-TEST(seed_default_kit_populates_the_rock_kit_all_rest) {
+TEST(seed_default_kit_populates_the_rock_kit) {
   DrumMachineTrack track;
   CHECK(track.getLaneNotes().empty());
 
@@ -145,172 +118,37 @@ TEST(seed_default_kit_populates_the_rock_kit_all_rest) {
   // not assumed.
   vector<int> expected = { 36, 38, 45, 47, 50, 42, 46, 49 };
   CHECK(track.getLaneNotes() == expected);
-  for (int note : expected) CHECK(track.getSteps(note) == 0); // all-rest
 
-  // A no-op-safe top-up, not a reset: existing lanes (and any step data
-  // already programmed into them) are untouched, and a lane already at
-  // kMaxLanes elsewhere in the default set is simply skipped like any
-  // other already-assigned note (addLane()'s own no-op rule).
-  track.setStep(36, 0, true);
+  // A no-op-safe top-up, not a reset: a lane already present (from
+  // wherever) stays, and a lane already at kMaxLanes elsewhere in the
+  // default set is simply skipped like any other already-assigned note
+  // (addLane()'s own no-op rule).
   track.seedDefaultKit();
-  CHECK(track.getSteps(36) == 0b00000001);
   CHECK(track.getLaneNotes() == expected);
 }
 
 TEST(removing_every_lane_leaves_the_track_with_zero_lanes_and_no_crash) {
-  DrumMachineTrack track;
+  Song song;
+  auto & track = dynamic_cast<DrumMachineTrack &>(song.addTrack(make_unique<DrumMachineTrack>()));
   track.addLane(36);
   track.addLane(38);
   track.addLane(42);
-  track.setStep(36, 0, true);
-  track.setStep(38, 0, true);
-  track.setStep(42, 0, true);
 
-  track.removeLane(38);
-  track.removeLane(36);
-  track.removeLane(42); // removing the last remaining lane
+  track.clearAllLanes(song);
 
   CHECK(track.getLaneNotes().empty());
-  CHECK(track.getHitNotesForRow(0).empty());
+  Pattern empty_pattern;
+  CHECK(track.getHitNotesForRow(empty_pattern, 0, 8).empty());
   // Re-removing an already-absent lane, and removing from an
   // already-empty track, must both stay no-ops rather than misbehaving.
-  track.removeLane(42);
-  track.removeLane(99);
-  CHECK(track.getLaneNotes().empty());
-}
-
-TEST(set_step_and_set_steps_only_affect_lanes_that_exist) {
-  DrumMachineTrack track;
-  track.setStep(36, 0, true); // no lane yet - must not create phantom step data
-  CHECK(track.getSteps(36) == 0);
-  CHECK(!track.hasLane(36));
-
-  track.addLane(36);
-  track.setStep(36, 0, true);
-  track.setStep(36, 7, true);
-  CHECK(track.getSteps(36) == 0b10000001);
-  track.setStep(36, 0, false);
-  CHECK(track.getSteps(36) == 0b10000000);
-}
-
-namespace {
-
-InstrumentProvider makeProvider() { return InstrumentProvider(); }
-
-// Mirrors the production steps-string convention exactly (leftmost
-// character = step 0, chronological reading order - see
-// Song.cpp's loadDrumMachineData/storeDrumMachineData), so test
-// expectations are written against the same source-of-truth strings the
-// fixture file uses instead of hand-transcribed binary literals (easy to
-// get backwards - see git history of this file).
-uint8_t stepsFromString(const char * s) {
-  uint8_t steps = 0;
-  for (int i = 0; s[i] != 0 && i < 8; i++) {
-    if (s[i] == '1') steps = static_cast<uint8_t>(steps | (1u << i));
-  }
-  return steps;
-}
-
-} // namespace
-
-TEST(drum_machine_track_round_trips_through_save_and_load) {
-  namespace fs = std::filesystem;
-  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "drum_machine_round_trip_scratch.xml").string();
-
-  Song song;
-  auto & track = dynamic_cast<DrumMachineTrack &>(song.addTrack(make_unique<DrumMachineTrack>()));
-  track.setSequenceId("my_sequence");
-  for (int note : { 49, 36, 42, 38 }) track.addLane(note);
-  track.setSteps(36, 0b10001000);
-  track.setSteps(38, 0b00001000);
-  track.setSteps(42, 0b10101010);
-  // 49 stays all-rest (0), exercising the all-zero-steps case on save/load.
-
-  song.setPatternLength(8);
-  song.addScene();
-  song.save(scratch_path);
-
-  auto provider = makeProvider();
-  Song reloaded;
-  CHECK(reloaded.open(scratch_path, provider));
-
-  CHECK(reloaded.getMasterTrack().getChildren().size() == 1);
-  auto & reloaded_track = dynamic_cast<DrumMachineTrack &>(*reloaded.getMasterTrack().getChildren()[0]);
-
-  CHECK(reloaded_track.getElementName() == std::string("drumMachineTrack"));
-  CHECK(reloaded_track.getSequenceId() == "my_sequence");
-  CHECK(reloaded_track.getLoopLength() == 8);
-
-  vector<int> expected_order = { 36, 38, 42, 49 };
-  CHECK(reloaded_track.getLaneNotes() == expected_order);
-  CHECK(reloaded_track.getSteps(36) == 0b10001000);
-  CHECK(reloaded_track.getSteps(38) == 0b00001000);
-  CHECK(reloaded_track.getSteps(42) == 0b10101010);
-  CHECK(reloaded_track.getSteps(49) == 0);
-
-  fs::remove(scratch_path);
-}
-
-TEST(drum_machine_track_lane_order_on_load_is_derived_not_stored) {
-  // The fixture's <lane> elements are deliberately out of rank order
-  // (49, 36, 42, 38) - loading must still produce DrumRankTable order,
-  // proving lane order is re-derived at load time rather than trusted
-  // from whatever sequence the file happens to list lanes in.
-  InstrumentProvider provider;
-  Song song;
-  CHECK(song.open(std::string(TESTS_FIXTURES_DIR) + "/drum_machine_track.xml", provider));
-
-  CHECK(song.getMasterTrack().getChildren().size() == 1);
-  auto & track = dynamic_cast<DrumMachineTrack &>(*song.getMasterTrack().getChildren()[0]);
-
-  vector<int> expected_order = { 36, 38, 42, 49 };
-  CHECK(track.getLaneNotes() == expected_order);
-  // Matches drum_machine_track.xml's own steps="..." attribute strings
-  // exactly (leftmost character = step 0 - see stepsFromString above).
-  CHECK(track.getSteps(36) == stepsFromString("10001000"));
-  CHECK(track.getSteps(38) == stepsFromString("00001000"));
-  CHECK(track.getSteps(42) == stepsFromString("10101010"));
-  CHECK(track.getSteps(49) == stepsFromString("00000000"));
-}
-
-TEST(drum_machine_track_with_no_sequence_element_at_all_loads_the_default_kit) {
-  // A hand-authored <drumMachineTrack id="0" instrument="0"/> with no
-  // <drumMachine> child at all - the file never says anything about
-  // lanes, so it should get the same default rock kit the interactive
-  // "add-drum-machine-track" command would (seedDefaultKit()), not a
-  // silent, lane-less track.
-  InstrumentProvider provider;
-  Song song;
-  CHECK(song.open(std::string(TESTS_FIXTURES_DIR) + "/drum_machine_track_no_sequence_element.xml", provider));
-
-  CHECK(song.getMasterTrack().getChildren().size() == 1);
-  auto & track = dynamic_cast<DrumMachineTrack &>(*song.getMasterTrack().getChildren()[0]);
-
-  vector<int> expected = { 36, 38, 45, 47, 50, 42, 46, 49 };
-  CHECK(track.getLaneNotes() == expected);
-  for (int note : expected) CHECK(track.getSteps(note) == 0); // all-rest
-}
-
-TEST(drum_machine_track_with_an_explicit_but_empty_sequence_element_stays_empty) {
-  // Contrast with the no-element case above: a <drumMachine> element that
-  // IS present, just with zero <lane> children, means the file is being
-  // explicit that this kit has no lanes - the default rock kit must not
-  // fill in behind it.
-  InstrumentProvider provider;
-  Song song;
-  CHECK(song.open(std::string(TESTS_FIXTURES_DIR) + "/drum_machine_track_explicit_empty_sequence.xml", provider));
-
-  CHECK(song.getMasterTrack().getChildren().size() == 1);
-  auto & track = dynamic_cast<DrumMachineTrack &>(*song.getMasterTrack().getChildren()[0]);
+  track.removeLane(42, song);
+  track.removeLane(99, song);
   CHECK(track.getLaneNotes().empty());
 }
 
 TEST(drum_machine_track_appears_in_get_root_track_ids) {
   // Song::getRootTrackIds() is the shared source of "which tracks are
-  // columns" for the tracker view, LaunchpadManager, and UI - without a
-  // DRUM_MACHINE branch here, a DrumMachineTrack would never appear as a
-  // column at all, making the tracker-view placeholder rendering
-  // (PatternEditor.cpp's SAMPLE/DRUM_MACHINE branches) unreachable.
+  // columns" for the tracker view, LaunchpadManager, and UI.
   Song song;
   auto & track = song.addTrack(make_unique<DrumMachineTrack>());
   auto ids = song.getRootTrackIds();
@@ -325,59 +163,71 @@ TEST(get_hit_notes_for_row_returns_the_lit_lanes_at_each_step) {
   DrumMachineTrack track;
   track.addLane(36);
   track.addLane(38);
-  track.setSteps(36, stepsFromString("10001000"));
-  track.setSteps(38, stepsFromString("00001000"));
 
-  CHECK(track.getHitNotesForRow(0) == (vector<int>{ 36 }));
-  CHECK(track.getHitNotesForRow(1).empty());
-  CHECK(track.getHitNotesForRow(4) == (vector<int>{ 36, 38 }));
-  CHECK(track.getHitNotesForRow(7).empty());
+  Pattern pattern;
+  pattern.setNote(0, 0, Note(36, 100));
+  pattern.setNote(4, 0, Note(36, 100));
+  pattern.setNote(4, 1, Note(38, 100));
+
+  CHECK(track.getHitNotesForRow(pattern, 0, 8) == (vector<int>{ 36 }));
+  CHECK(track.getHitNotesForRow(pattern, 1, 8).empty());
+  CHECK(track.getHitNotesForRow(pattern, 4, 8) == (vector<int>{ 36, 38 }));
+  CHECK(track.getHitNotesForRow(pattern, 7, 8).empty());
 }
 
-TEST(get_hit_notes_for_row_wraps_at_the_loop_length) {
+TEST(get_hit_notes_for_row_wraps_at_the_pattern_length) {
   DrumMachineTrack track;
   track.addLane(36);
-  track.setSteps(36, stepsFromString("10000000")); // step 0 only
 
-  CHECK(track.getHitNotesForRow(0) == track.getHitNotesForRow(8));
-  CHECK(track.getHitNotesForRow(0) == track.getHitNotesForRow(800));
-  CHECK(track.getHitNotesForRow(1).empty());
-  CHECK(!track.getHitNotesForRow(8).empty());
+  Pattern pattern;
+  pattern.setNote(0, 0, Note(36, 100)); // step 0 only
+
+  CHECK(track.getHitNotesForRow(pattern, 0, 8) == track.getHitNotesForRow(pattern, 8, 8));
+  CHECK(track.getHitNotesForRow(pattern, 0, 8) == track.getHitNotesForRow(pattern, 800, 8));
+  CHECK(track.getHitNotesForRow(pattern, 1, 8).empty());
+  CHECK(!track.getHitNotesForRow(pattern, 8, 8).empty());
 }
 
 TEST(get_hit_notes_for_row_is_a_pure_function_with_no_hidden_state) {
   // Calling with a huge/unrelated row value first must not affect a later
-  // call with a small one - this is the entire seek-correctness invariant
-  // (plans/drum-machine.md): nothing here may accumulate between calls.
+  // call with a small one - nothing here may accumulate between calls.
   DrumMachineTrack track;
   track.addLane(42);
-  track.setSteps(42, stepsFromString("00100000"));
 
-  auto before = track.getHitNotesForRow(2);
-  track.getHitNotesForRow(1000000);
-  track.getHitNotesForRow(3);
-  track.getHitNotesForRow(999);
-  auto after = track.getHitNotesForRow(2);
+  Pattern pattern;
+  pattern.setNote(2, 0, Note(42, 100));
+
+  auto before = track.getHitNotesForRow(pattern, 2, 8);
+  track.getHitNotesForRow(pattern, 1000000, 8);
+  track.getHitNotesForRow(pattern, 3, 8);
+  track.getHitNotesForRow(pattern, 999, 8);
+  auto after = track.getHitNotesForRow(pattern, 2, 8);
   CHECK(before == after);
   CHECK(!before.empty());
 }
 
-TEST(get_hit_notes_for_row_is_empty_with_no_lanes_or_no_steps_lit) {
+TEST(get_hit_notes_for_row_is_empty_with_no_lanes_or_no_matching_notes) {
   DrumMachineTrack track;
-  CHECK(track.getHitNotesForRow(0).empty());
+  Pattern pattern;
+  pattern.setNote(0, 0, Note(36, 100));
+  CHECK(track.getHitNotesForRow(pattern, 0, 8).empty()); // no lanes at all
 
-  track.addLane(36);
-  CHECK(track.getHitNotesForRow(0).empty()); // lane exists but starts all-rest
+  track.addLane(38); // a lane that isn't the note actually present
+  CHECK(track.getHitNotesForRow(pattern, 0, 8).empty());
 }
 
-TEST(get_hit_notes_for_row_is_empty_when_loop_length_is_non_positive) {
+TEST(get_hit_notes_for_row_ignores_a_note_left_over_from_a_removed_lane) {
+  // A note whose value doesn't match any current lane_notes_ (e.g. pasted
+  // in from a track with a different kit, or left behind by a since-
+  // removed lane) stays silently inert rather than firing.
   DrumMachineTrack track;
   track.addLane(36);
-  track.setSteps(36, 0xFF);
-  track.setLoopLength(0);
-  CHECK(track.getHitNotesForRow(0).empty());
-  track.setLoopLength(-1);
-  CHECK(track.getHitNotesForRow(0).empty());
+
+  Pattern pattern;
+  pattern.setNote(0, 0, Note(36, 100));
+  pattern.setNote(0, 1, Note(38, 100)); // not one of this track's lanes
+
+  CHECK(track.getHitNotesForRow(pattern, 0, 8) == (vector<int>{ 36 }));
 }
 
 // --- SongState wiring - real audio, via a fixture ---
@@ -415,23 +265,17 @@ constexpr float kSilentPeak = 1e-4f;
 // SF2, not a plain Oscillator or an <envelope> wrapper: registerPath()
 // only accepts a shared_ptr<Instrument>, and only SoundFontInstrument (via
 // SoundFont::createInstrument()) gives volume-envelope decay without
-// needing an Effect wrapper (EnvelopeFilter is a Track, not an
-// Instrument - it can only ever be a *pool entry*, addressed by the old
-// per-track instrument_id_ this phase removed, never the pool's own
-// from=-resolved default kit). Needed only by the two tests below that
-// count audible rows over time (decay matters); every other fixture in
-// this file just checks whether a note fires at all, which doesn't depend
-// on how it decays.
+// needing an Effect wrapper. Needed only by the tests below that count
+// audible rows over time (decay matters); every other fixture in this
+// file just checks whether a note fires at all, which doesn't depend on
+// how it decays.
 void registerFastDecayKit(InstrumentProvider & provider) {
   using namespace sf2fixture;
   // Timecents = 1200*log2(seconds) - GeneratorOverrideTests.cpp's own
   // DecayVolEnv=2400.0f/"4s base decay time" data point confirms the
   // scale (2^(2400/1200) = 4). ~1ms attack, ~5ms hold, ~5ms decay to
-  // silence, comfortably inside one row (row_samples at these fixtures'
-  // 120bpm tempo) - fast enough that a hit row is loud and every row after
-  // it is back below kSilentPeak, matching the original <envelope
-  // attack="0.001" hold="0.01" decay="0.02" sustain="0.0"> fixture this
-  // replaces.
+  // silence, comfortably inside one row - fast enough that a hit row is
+  // loud and every row after it is back below kSilentPeak.
   std::vector<PresetSpec> presets = {
     { "FastDecayKit", 0, {
       GenSpec{ 34, -12000 }, // AttackVolEnv ~ 1ms
@@ -454,7 +298,7 @@ void registerFastDecayKit(InstrumentProvider & provider) {
 } // namespace
 
 TEST(drum_machine_track_seek_directly_to_a_later_repetition_still_triggers_the_right_hits) {
-  // The actual risk this whole phase is about: seeking straight to a row
+  // The actual risk this whole feature is about: seeking straight to a row
   // deep into a loop - never having rendered any row before it - must
   // still compute the correct hits for that row. Two entirely independent
   // SongState instances, neither of which ever renders row 0..23, so
@@ -467,7 +311,7 @@ TEST(drum_machine_track_seek_directly_to_a_later_repetition_still_triggers_the_r
   int row_samples = config.getSampleInterval(song.getTempo());
 
   {
-    // Row 24 (24 % 8 == 0): lanes 36 and 42 both hit per the fixture's steps.
+    // Row 24 (24 % 8 == 0): BD and CH both hit per the fixture's pattern.
     auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
     SongState state(config);
     state.initialize(song);
@@ -487,9 +331,10 @@ TEST(drum_machine_track_seek_directly_to_a_later_repetition_still_triggers_the_r
 }
 
 TEST(drum_machine_track_loop_truncates_at_the_end_of_a_short_pattern) {
-  // 20 rows, one lane hit only at step 4 - repetitions land at rows 4 and
-  // 12; a would-be third repetition at row 20 never happens because the
-  // pattern ends at row 19. Exactly 2 audible onsets, not 3.
+  // Pattern length 8 inside a 20-row scene, one lane hit only at step 4 -
+  // repetitions land at rows 4 and 12; a would-be third repetition at row
+  // 20 never happens because the scene ends at row 19. Exactly 2 audible
+  // onsets, not 3.
   InstrumentProvider provider;
   registerFastDecayKit(provider);
   Song song;
@@ -509,13 +354,12 @@ TEST(drum_machine_track_loop_truncates_at_the_end_of_a_short_pattern) {
   CHECK(hits == 2);
 }
 
-TEST(drum_machine_track_loop_phase_resets_at_each_pattern_boundary) {
-  // Every pattern is 5 rows (patternRows="5" - all patterns in a song
-  // share one length now), loop_length=8 - the lane hits only at step 0.
-  // If phase correctly resets to pattern-relative row 0 at each boundary,
-  // pattern 2's own first row hits again immediately (absolute row 5); if
-  // it wrongly continued counting from the absolute row instead, the next
-  // hit wouldn't land until absolute row 8.
+TEST(drum_machine_track_switches_pattern_content_at_each_scene_boundary) {
+  // Two scenes, each 5 rows (patternRows="5"), with genuinely different
+  // content: scene 0 hits BD at row 0, scene 1 hits SD at row 1 - proving
+  // both that scene 1's own Pattern actually takes over (not a leftover
+  // copy of scene 0's) and that row indexing resets to scene-relative 0
+  // at the boundary (absolute row 5 = scene 1's own row 0).
   InstrumentProvider provider;
   registerFastDecayKit(provider);
   Song song;
@@ -529,14 +373,14 @@ TEST(drum_machine_track_loop_phase_resets_at_each_pattern_boundary) {
   state.setIsPlaying(true);
 
   int hits = 0;
-  for (int row = 0; row < 7; row++) { // pattern 1's 5 rows + pattern 2's first 2
+  for (int row = 0; row < 7; row++) { // scene 0's 5 rows + scene 1's first 2
     if (renderRowPeak(state, song, *mixer, row_samples) > kAudiblePeak) hits++;
   }
-  CHECK(hits == 2);
+  CHECK(hits == 2); // absolute row 0 (scene 0's BD) and absolute row 6 (scene 1's SD)
 }
 
 TEST(drum_machine_track_retrigger_chokes_the_previous_hit_instead_of_stacking) {
-  // Lane 36 hits at rows 0 and 8 (loop_length 8, step 0 only), with a
+  // Lane BD hits at rows 0 and 8 (pattern length 8, one step lit), with a
   // long (2s) release and nonzero sustain - a hit only note-on's, never
   // note-off's, so voice #1 would sit audibly at its sustain level
   // forever if retriggerVoices() didn't force a fast release on it when
@@ -574,10 +418,11 @@ TEST(drum_machine_track_retrigger_chokes_the_previous_hit_instead_of_stacking) {
 
 TEST(drum_machine_track_removed_down_to_zero_lanes_renders_silence_without_crashing) {
   // The lane picker can remove lanes from a live track (e.g. every pad
-  // pressed off, one at a time) all the way down to none. SongState's
-  // per-row loop (SongState.h) calls getHitNotesForRow() on whatever
-  // DrumMachineTrack it finds via getRootTrackIds() every row regardless
-  // of lane count - this must degrade to "emits nothing", not crash.
+  // pressed off, one at a time) all the way down to none. Playback stays
+  // fully generic (SongState.h's per-track loop doesn't special-case
+  // DrumMachineTrack at all) - removing every lane just deletes every
+  // note referencing it, so this must degrade to "emits nothing," not
+  // crash.
   InstrumentProvider provider;
   Song song;
   CHECK(song.open(std::string(TESTS_FIXTURES_DIR) + "/drum_machine_track_32rows.xml", provider));
@@ -585,7 +430,7 @@ TEST(drum_machine_track_removed_down_to_zero_lanes_renders_silence_without_crash
   Track * raw_track = song.getMasterTrack().getChildById("0");
   CHECK(raw_track != nullptr);
   auto & track = static_cast<DrumMachineTrack &>(*raw_track);
-  for (int note : { 36, 38, 42, 49 }) track.removeLane(note);
+  for (int note : vector<int>(track.getLaneNotes())) track.removeLane(note, song);
   CHECK(track.getLaneNotes().empty());
 
   ChannelConfiguration config(44100, 1);

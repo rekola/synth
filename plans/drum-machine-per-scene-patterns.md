@@ -537,6 +537,130 @@ implementing.
 - `tools/e2e/verify_launchpad_stepseq.py` (existing) needs a pass to
   confirm step edits land in the current scene, not track-globally.
 
+## Phase 2: step-sequencer rendering in `PatternEditor`
+
+### Context
+
+Phase 1 makes a `DrumMachineTrack` column render/accept entry exactly
+like a `PERCUSSION_CONTROL` one - real `NOTE`/`VELOCITY`/`DELAY`/`EFFECT`
+columns, one full-width triplet per voice. That's the right *data* model,
+but the wrong *display* for a track whose voices are a fixed, known set
+of up to `DrumMachineTrack::kMaxLanes` (8) lanes rather than an open-ended
+chord: 8 full `NOTE VEL DEL` triplets side by side is far wider than a
+terminal column has any business being. `DrumMachineTrack` gets its own
+compact rendering instead - a real step-sequencer view, one narrow cell
+per lane rather than one wide triplet per voice.
+
+### Rendering
+
+- One cell per lane (`lane_notes_` order, same as the Launchpad grid),
+  not one triplet - velocity and delay are not shown at all, only
+  whether that lane is hit at this row (matches the Launchpad step-grid's
+  own display, which already ignores velocity/delay - `DrumMachineTrack.h`'s
+  own history).
+- The cell's own content is the same GM-percussion mnemonic every other
+  display of this data already uses (`Note::toString(Tuning::PERCUSSION)`,
+  Phase 1's own "A step is a `Note`" section) - not a new glyph/symbol
+  convention. Same width and layout as an ordinary `NOTE` column already
+  has (3-character mnemonic, space-padded, plus the usual trailing
+  separator space `renderRow()`'s per-column loop already draws) - a hit
+  cell is literally what a `NOTE` column already renders for that note,
+  just with a cyan background instead of the plain one, so a lane at rest
+  is simply blank (no mnemonic shown at all, matching a `NOTE` column's
+  own "nothing defined here" blank).
+- The per-row effect/command column stays, same position and width as
+  today (`renderRow()`'s existing `EFFECT` column) - a `DrumMachineTrack`
+  can still carry per-row `Command` data (pattern break, azimuth slide) on
+  the exact same `Pattern` as any other track, and losing the ability to
+  see/enter it would be a real functional regression, not just cosmetic
+  narrowing.
+- `PercussionTrack` keeps its current, regular (wide) rendering -
+  step-sequencer mode is keyed off having a fixed, ordered lane list
+  (`DrumMachineTrack::getLaneNotes()`) to lay narrow columns out against;
+  `PercussionTrack` has no such list (free-form, unbounded multi-voice
+  entry), so there's no fixed column set to compact against. Revisit only
+  if `PercussionTrack` ever grows its own kit/lane concept.
+
+### Editing
+
+In scope for this phase, not deferred to a later one: typing/toggling a
+step directly in `PatternEditor` (not just via the Launchpad) - Phase 1
+already allows typed note entry into a `DrumMachineTrack` column
+structurally, so this phase wires the compact per-lane cells up to it
+rather than leaving them display-only.
+
+## Phase 3: Launchpad session/launch view - shared, triggerable patterns
+
+Speculative and genuinely unsettled - realizes two ideas
+`plans/pattern-matrix.md`'s own "Future: the full Matrix" section already
+named but deferred (a referenced pattern pool, and Ableton-style Session
+mode), now given concrete shape. Recorded here because it's the natural
+next step after Phase 2, not because the design below is finished.
+
+### Context
+
+Today's Launchpad `GridMode::OVERVIEW` mirrors the arrangement: rows are
+scenes, columns are tracks, pressing a pad commits that (track, scene)
+position (`UI::commitOverviewCell()`) - navigation, not performance. This
+phase replaces it with a session/launch view: rows become a track's own
+available *shared* patterns instead of scenes, and pressing a pad
+*triggers* that pattern to start playing live for that track immediately,
+independent of the arrangement's playhead - the same "audition, not
+commit" flavor the drum step-grid's own free-running audition clock
+already has (`audition_clock_`), generalized from one drum kit's steps to
+any track's own pattern.
+
+### Data model
+
+- `Song` gains a flat, id-addressable pattern pool
+  (`plans/pattern-matrix.md`'s own "referenced pattern pool" idea) - a
+  shared `Pattern` lives once, referenced by id, not owned by any one
+  `Scene`. This coexists with, not replaces, today's model: a `Scene`'s
+  own `<pattern track="...">` content stays owned/inline exactly as it is
+  (the everyday arrangement/`PatternMatrix` case); a track can *additionally*
+  have any number of named/pooled patterns available to trigger live,
+  unconnected to any specific scene position. Exact XML shape for the
+  pool itself not yet drafted.
+- Patterns enter the shared pool only via hand-edited XML for now - no
+  in-app way yet to author one directly or to *promote* an existing
+  scene's own owned `Pattern` into the pool. Revisit once there's a
+  concrete need for either.
+- Cross-tuning/cross-instrument safety: a pooled pattern is authored
+  against one specific track's own tuning/kit, same concern
+  `plans/pattern-matrix.md`'s own pattern-pool note already raised -
+  triggering/assigning it against an incompatible track should reuse
+  Phase -1's own cross-tuning refusal mechanism, not a second one.
+
+### Launchpad session/launch view
+
+- Rows: a track's own shared/pooled patterns. Columns: tracks, same
+  layout as today's `OVERVIEW`.
+- Pressing a pad triggers that pattern for the pressed track - starts
+  playing live, looping at that pattern's own length (Phase 0's
+  `Pattern::length_`), independent of the arrangement playhead and of any
+  other track's own currently-triggered pattern.
+- Each track needs its own runtime "currently triggered pattern" pointer -
+  pure playback-session state, never persisted in the song file (mirrors
+  Ableton's own per-track clip slot - description per the request that
+  prompted this phase, not first-hand confirmed against real Ableton
+  behavior).
+- Empty-cell semantics: per `plans/pattern-matrix.md`'s own already-recorded
+  call, triggering nothing new for a track should leave whatever it's
+  already playing alone, not fall silent - Session view's own convention,
+  distinct from the Matrix/arrangement's "explicit everywhere" one.
+- Launches are quantized, not immediate: pressing a pad queues that
+  pattern rather than starting it the instant the pad is pressed - it
+  actually starts at the next quantization boundary, matching Ableton's
+  own launch-quantization behavior. Exact boundary (the next bar? the
+  currently-playing pattern's own loop end?) still to settle.
+
+### Open questions
+
+1. Exact relationship to today's `GridMode::OVERVIEW` - replaced outright
+   (losing direct arrangement-navigation-via-Launchpad entirely), or a
+   second, separate mode a device switches into alongside it?
+2. XML shape for the pool - not yet drafted.
+
 ## Explicitly out of scope
 
 - Session-mode "empty means keep playing" semantics - the design fork

@@ -40,12 +40,11 @@ PatternMatrix::PatternMatrix(UIPlane & parent) : UIElement(parent) {
   // Shared by kill-region/kill-ring-save below: reads the cursor cell's
   // Pattern into cell_clipboard_/cell_clipboard_track_id_, or leaves the
   // clipboard untouched (returns false) if there's nothing valid to copy
-  // (out of bounds, or a DrumMachineTrack column - see this class's own
-  // not-applicable cell rendering below; deliberately NOT reaching into
-  // the track's own nested Effect children either, even though one can
-  // carry its own per-scene Command automation - see getVisibleTrackIds()'s
-  // own comment for why: a shared parent Effect has no single owning cell
-  // that data could safely fold into).
+  // (out of bounds - deliberately NOT reaching into the track's own
+  // nested Effect children either, even though one can carry its own
+  // per-scene Command automation - see getVisibleTrackIds()'s own comment
+  // for why: a shared parent Effect has no single owning cell that data
+  // could safely fold into).
   auto copy_cursor_cell = [this]() -> bool {
     auto & song = getController().getSong();
     auto track_ids = getVisibleTrackIds(song);
@@ -54,7 +53,6 @@ PatternMatrix::PatternMatrix(UIPlane & parent) : UIElement(parent) {
 
     auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
     auto track = song.getMasterTrack().getChildByInternalId(track_id);
-    if (track && track->getType() == TrackType::DRUM_MACHINE) return false;
 
     auto & scene = song.getScene(cursor_scene_);
     auto & patterns = scene.getPatternsByTrack();
@@ -330,8 +328,6 @@ PatternMatrix::render(const StyleProvider & styles, bool refresh, bool focused) 
     for (auto vc = 0; vc < visible_cols && scroll_col_ + vc < num_tracks; vc++) {
       auto track_index = scroll_col_ + vc;
       auto track_id = track_ids[static_cast<size_t>(track_index)];
-      auto track = song.getMasterTrack().getChildByInternalId(track_id);
-      auto is_drum_machine = track && track->getType() == TrackType::DRUM_MACHINE;
       auto glyph_color = identity_color(track_id);
 
       // Plain window background - no per-track tint (only the playhead
@@ -340,22 +336,17 @@ PatternMatrix::render(const StyleProvider & styles, bool refresh, bool focused) 
 
       string glyph = " ";
       Color fg = glyph_color;
-      if (is_drum_machine) {
-        // Not part of this MVP - a DrumMachineTrack's step sequence is
-        // track-global, not per-scene, so there's no per-cell content
-        // here to show at all yet.
-        glyph = "✕"; // ✕ MULTIPLICATION X
-        fg = styles.error_fg_color;
-      } else {
-        auto it = patterns.find(track_id);
-        if (it != patterns.end() && !it->second.isEmpty()) {
-          // A Pattern can be non-empty from note-offs/aftertouch/Command
-          // data alone, with no note-on anywhere in it - hasSoundingNote()
-          // tells that apart from real sound-producing content.
-          glyph = it->second.hasSoundingNote() ? "\U0001F5CF" : "\U0001F5CC"; // 🗏 PAGE : 🗌 EMPTY PAGE
-        }
-        // else: genuinely empty cell - stays blank, no glyph at all.
+      // A DrumMachineTrack column renders exactly like any other track
+      // here - its step content is an ordinary per-scene Pattern now, the
+      // same as any other track's.
+      auto it = patterns.find(track_id);
+      if (it != patterns.end() && !it->second.isEmpty()) {
+        // A Pattern can be non-empty from note-offs/aftertouch/Command
+        // data alone, with no note-on anywhere in it - hasSoundingNote()
+        // tells that apart from real sound-producing content.
+        glyph = it->second.hasSoundingNote() ? "\U0001F5CF" : "\U0001F5CC"; // 🗏 PAGE : 🗌 EMPTY PAGE
       }
+      // else: genuinely empty cell - stays blank, no glyph at all.
 
       if (is_playing_row) bg = bg.blend(0.15f, kWhite);
 
