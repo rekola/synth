@@ -376,10 +376,9 @@ TEST(pattern_block_notes_paste_overwrites_gaps_left_by_a_sparser_source_row) {
   CHECK((notes.size() < 3 || !notes[2].isDefined())); // gap overwrote the stale note
 }
 
-// plans/drum-machine-per-scene-patterns.md's Phase 0: a track's own
-// Pattern shorter than context_length repeats (Pattern.h's own
-// getEffectiveRow()) - copy/clear/paste all resolve through it too, not
-// just plain note entry.
+// A track's own Pattern shorter than context_length repeats (Pattern.h's
+// own getEffectiveRow()) - copy/clear/paste all resolve through it too,
+// not just plain note entry.
 TEST(pattern_block_copy_reads_a_repeated_row_through_the_tracks_own_length) {
   Scene p;
   vector<int> track_ids = {10};

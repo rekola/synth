@@ -1410,9 +1410,9 @@ TEST(render_arpeggiator_steps_through_a_pattern_authored_chord) {
 }
 
 TEST(render_pattern_shorter_than_song_repeats) {
-  // plans/drum-machine-per-scene-patterns.md's Phase 0: a track's own
-  // <pattern length="4"> in an 8-row song plays its 4 real rows (note on
-  // at row 0, off at row 2), then repeats them verbatim at rows 4-7 -
+  // A track's own <pattern length="4"> in an 8-row song plays its 4 real
+  // rows (note on at row 0, off at row 2), then repeats them verbatim at
+  // rows 4-7 -
   // rows this fixture never authors at all (Pattern::getEffectiveRow()'s
   // own modulo, not literal duplicated content). tempo 240 -> a 0.0625s
   // row, so each quarter-pattern interval is 0.125s wide.

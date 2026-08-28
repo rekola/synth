@@ -110,7 +110,7 @@ TEST(pattern_effective_row_needs_no_divisibility_between_length_and_context) {
   Pattern p;
   p.setLength(5);
   // 64 isn't a multiple of 5 - still well-defined, just an uneven last
-  // repeat (plans/drum-machine-per-scene-patterns.md's own Phase 0).
+  // repeat.
   CHECK(p.getEffectiveRow(60, 64) == 0);
   CHECK(p.getEffectiveRow(63, 64) == 3);
 }

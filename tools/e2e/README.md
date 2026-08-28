@@ -21,6 +21,9 @@ gcc -o fake_launchpad_hotplug fake_launchpad_hotplug.c -lasound
 gcc -o fake_launchpad_device fake_launchpad_device.c -lasound
 gcc -o fake_launchpad_sendmode fake_launchpad_sendmode.c -lasound
 gcc -o fake_launchpad_sendmode_autocreate fake_launchpad_sendmode_autocreate.c -lasound
+gcc -o fake_launchpad_draw_clear fake_launchpad_draw_clear.c -lasound
+gcc -o fake_launchpad_stepseq fake_launchpad_stepseq.c -lasound
+gcc -o fake_launchpad_session fake_launchpad_session.c -lasound
 ```
 
 (the compiled binaries are gitignored - only the `.c` sources are
@@ -104,14 +107,19 @@ you're changing.
   brightens once the note actually starts sounding via normal pattern
   playback (not just a live pad press) - covers the active-voice LED
   brightness overlay end to end.
-- **`launchpad_overview_test.xml` / `verify_launchpad_overview.py`** -
-  clicks the PatternMatrix widget to give it UI focus (forcing every
-  connected Launchpad into `GridMode::OVERVIEW`), then reuses plain
-  `fake_launchpad` (its fixed press on pad (0,0) needs a song shaped just
-  right - see the fixture's own comment) to confirm a pad press there
-  reaches `LaunchpadManager::handleOverviewPadEvent` and actually commits
-  (moves the playhead, doesn't enter a note) rather than silently falling
-  through to ordinary NOTES-mode note entry.
+- **`launchpad_session_test.xml` / `fake_launchpad_session.c` /
+  `verify_launchpad_session.py`** - `GridMode::SESSION`, the redesigned
+  session/launch view (rows are a track's own pooled patterns, columns are
+  tracks; CC95/96/97 are the only way in/out, fully decoupled from
+  terminal UI focus). `DeviceState::grid_mode` now defaults to SESSION, so
+  nothing needs pressing to *enter* it - confirmed from the CC95/CC97 LED
+  colors already present in the very first LED refresh, before any input
+  at all. Arms Record Arm (CC19), then presses pad (0,0) (x=0 the fixture's
+  only track, y=0 -> pool index 7 - see the fixture's own comment) and
+  confirms `LaunchpadManager::handleSessionPadEvent`'s assign branch
+  actually copied that pool entry's own pattern (E-4) into the current
+  scene, replacing its placeholder note (C-4) - rather than silently
+  falling through to ordinary NOTES-mode note entry.
 - **`cross_tuning_paste_test.xml` (+ companion `..._song_b.xml`) /
   `verify_cross_tuning_paste.py` / `verify_patterneditor_cross_tuning_paste.py`** -
   a `Note::getValue()` means a different kind of value under a different
@@ -123,8 +131,7 @@ you're changing.
   same-song yank always targets the track a copy came from, never the
   cursor's column, so only opening the second song as a new buffer and
   pasting there actually exercises the tuning refusal) and the cross-song
-  fallback that replaces it (`cell_clipboard_song_id_` - see
-  `plans/drum-machine-per-scene-patterns.md`'s Phase -1).
+  fallback that replaces it (`cell_clipboard_song_id_`).
   `verify_patterneditor_cross_tuning_paste.py` covers the more directly
   reachable case: `PatternEditor`'s own clipboard always targets the
   cursor's current column, so a same-song cross-tuning paste is the real,

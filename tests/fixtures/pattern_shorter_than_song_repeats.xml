@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- plans/drum-machine-per-scene-patterns.md's Phase 0: a Pattern shorter
-     than the song's own pattern length (patternRows) repeats - see
+<!-- A Pattern shorter than the song's own pattern length (patternRows)
+     repeats - see
      render_pattern_shorter_than_song_repeats(). This track's own <pattern>
      declares length="4" and only authors rows 0 (note on) and 2 (note
      off); rows 4-7 are never written at all, and must still play the

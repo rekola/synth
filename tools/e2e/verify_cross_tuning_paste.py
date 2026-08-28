@@ -1,13 +1,14 @@
-"""Regression test for the cross-tuning/cross-song clipboard fixes
-(plans/drum-machine-per-scene-patterns.md's Phase -1): a Note::getValue()
-means something different under a different tuning (GM percussion key vs.
-a pitched scale degree), so pasting a copied cell onto a track with a
-different tuning must be refused rather than silently reinterpreted -
-and, since this app supports several songs open at once as Emacs-style
-buffers, that check has to keep working once the active song itself has
-changed underneath the clipboard (PatternMatrix's own yank used to
-silently no-op after switching buffers at all - see the plan's own root
-cause).
+"""Regression test for the cross-tuning/cross-song clipboard fixes: a
+Note::getValue() means something different under a different tuning (GM
+percussion key vs. a pitched scale degree), so pasting a copied cell onto
+a track with a different tuning must be refused rather than silently
+reinterpreted - and, since this app supports several songs open at once
+as Emacs-style buffers, that check has to keep working once the active
+song itself has changed underneath the clipboard (PatternMatrix's own
+yank used to silently no-op after switching buffers at all - the root
+cause was cell_clipboard_ carrying no notion of which song it was copied
+from, so a stale clipboard entry could be pasted into a different song
+without ever being compared against it).
 
 Navigates PatternMatrix with arrow keys only, never Enter - Enter commits
 the cell under the cursor and hands focus to PatternEditor (by design),
@@ -20,10 +21,10 @@ independent song, 1 pitched track) as separate buffers:
   1. Cut the percussion cell (track 1, row 0), move the cursor onto the
      pitched track (track 0, same song) and yank - PatternMatrix always
      pastes back into the track a same-song copy came from regardless of
-     where the cursor is (plans/pattern-matrix.md's own design), so this
-     lands back on track 1, not track 0 - the tuning check can never
-     actually refuse a same-song paste here, only a cross-song one (case 3
-     below) can put the cursor on a genuinely different-tuned track.
+     where the cursor is, so this lands back on track 1, not track 0 - the
+     tuning check can never actually refuse a same-song paste here, only a
+     cross-song one (case 3 below) can put the cursor on a genuinely
+     different-tuned track.
   2. Yank the same clipboard onto a different row of the percussion track
      - must succeed, confirming the clipboard is still intact after case 1.
   3. Open the second song as a new buffer and attempt to yank the

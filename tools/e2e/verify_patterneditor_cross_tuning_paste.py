@@ -1,6 +1,5 @@
 """Regression test for PatternEditor's own clipboard cross-tuning fix
-(plans/drum-machine-per-scene-patterns.md's Phase -1, ClipboardEntry::
-track_tunings). Unlike PatternMatrix (verify_cross_tuning_paste.py),
+(ClipboardEntry::track_tunings). Unlike PatternMatrix (verify_cross_tuning_paste.py),
 PatternEditor's yank always targets wherever the cursor currently is, not
 the track a copy came from - so a same-song cross-tuning mismatch is
 directly reachable here, and is the main risk this fix addresses.
