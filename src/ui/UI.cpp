@@ -7,6 +7,7 @@
 #include "StatusLine.h"
 #include "PatternEditor.h"
 #include "PatternMatrix.h"
+#include "CoverArt.h"
 #include "HierarchyView.h"
 #include "SpinBox.h"
 #include "../model/Color.h"
@@ -107,6 +108,7 @@ UI::initialize() {
   // lands on PatternEditor's own first track, same landing spot Launchpad's
   // own overview-exit already uses (see UI::start()'s equivalent wiring).
   pattern_matrix_->setExitRightCallback([this]() { exitOverview(); });
+  cover_art_ = make_shared<CoverArt>(getPlane());
   info_line_ = make_shared<InfoLine>(getPlane());
   status_line_ = make_shared<StatusLine>(getPlane());
   // See StatusLine::showPrompt()'s own comment: opening any StatusLine
@@ -399,36 +401,44 @@ UI::layout() {
   constexpr int kHeatmapWidth = 31; // 20 * 1.5, rounded up to the nearest odd width
   constexpr int kScopeRow = 1, kScopeHeight = 5;
 
-  // pattern_matrix_ claims the scope row's own leftmost columns first (the
-  // literal top-left corner) - sized off the song's own track count but
-  // capped, since its own internal scrolling handles anything past that
-  // rather than this widget ever needing to be as wide as the track list
-  // is long. chart_ gives up exactly that much width (plus one divider
-  // column) to make room; heatmap_/volume_meter_ are untouched - a
-  // terminal too narrow for all four just clamps chart_ down toward 1
-  // column rather than a fuller "drop the least-used scope first"
+  // cover_art_ claims the scope row's own leftmost columns first (the
+  // literal top-left corner) - square-looking, sized off the row height
+  // alone (see CoverArt::widthForHeight()), not the song's track count.
+  // pattern_matrix_ sits immediately right of it, sized off the song's own
+  // track count but capped, since its own internal scrolling handles
+  // anything past that rather than this widget ever needing to be as wide
+  // as the track list is long. chart_ gives up exactly that much width
+  // (plus two divider columns) to make room; heatmap_/volume_meter_ are
+  // untouched - a terminal too narrow for all five just clamps chart_ down
+  // toward 1 column rather than a fuller "drop the least-used scope first"
   // rebalance, deferred for now.
+  int cover_art_width = CoverArt::widthForHeight(kScopeHeight);
+  int cover_art_divider_x = cover_art_width;
+  cover_art_->resize(kScopeHeight, cover_art_width).move(kScopeRow, 0);
+
   auto num_tracks = static_cast<int>(getController().getSong().getPlayableTrackIds().size());
   // PatternMatrix spends 2 columns per track (its own cell plus a blank
   // separator - see PatternMatrix.cpp's own kColWidth), so its width needs
   // doubling here to actually fit the same track count this clamp implies.
   int matrix_width = std::clamp(num_tracks, 4, 24) * 2;
-  int matrix_divider_x = matrix_width;
-  pattern_matrix_->resize(kScopeHeight, matrix_width).move(kScopeRow, 0);
+  int matrix_x = cover_art_divider_x + 1;
+  int matrix_divider_x = matrix_x + matrix_width;
+  pattern_matrix_->resize(kScopeHeight, matrix_width).move(kScopeRow, matrix_x);
 
-  int chart_width = std::max(1, cols - (matrix_width + 1) - 9 - kHeatmapWidth - 2); // -2 for the single-column dividers on either side of the heatmap
-  int chart_x = matrix_width + 1;
+  int chart_x = matrix_divider_x + 1;
+  int chart_width = std::max(1, cols - chart_x - 9 - kHeatmapWidth - 2); // -2 for the single-column dividers on either side of the heatmap
   int divider1_x = chart_x + chart_width, divider2_x = divider1_x + 1 + kHeatmapWidth;
   chart_->resize(kScopeHeight, chart_width).move(kScopeRow, chart_x);
   heatmap_->resize(kScopeHeight, kHeatmapWidth).move(kScopeRow, divider1_x + 1);
   volume_meter_->resize(kScopeHeight, 9).move(kScopeRow, divider2_x + 1);
 
-  // Single-column dividers between the four scopes - drawn once here
+  // Single-column dividers between the five scopes - drawn once here
   // rather than per-frame, since these columns fall outside every scope's
   // own resized rectangle, so nothing else ever repaints over them.
   setFgColor(styles_.window_border_color);
   setBgColor(styles_.window_bg_color);
   for (int row = 0; row < kScopeHeight; row++) {
+    putstr(kScopeRow + row, cover_art_divider_x, "│");
     putstr(kScopeRow + row, matrix_divider_x, "│");
     putstr(kScopeRow + row, divider1_x, "│");
     putstr(kScopeRow + row, divider2_x, "│");
@@ -457,6 +467,7 @@ UI::renderComponents(bool refresh) {
   auto active = active_element_.lock();
   render |= pattern_editor_->render(styles_, refresh, active == pattern_editor_);
   render |= pattern_matrix_->render(styles_, refresh, active == pattern_matrix_);
+  render |= cover_art_->render(styles_, refresh);
 #if 0
   for (auto & window : windows_) {
     render |= window->render(styles_, refresh);

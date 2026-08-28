@@ -20,6 +20,7 @@ class InfoLine;
 class StatusLine;
 class PatternEditor;
 class PatternMatrix;
+class CoverArt;
 class HierarchyView;
 class SpinBox;
 class UIElement;
@@ -136,6 +137,9 @@ private:
   // - not one of windows_'s click-to-reveal popups, and not togglable;
   // shares that row's real estate with chart_/heatmap_/volume_meter_.
   std::shared_ptr<PatternMatrix> pattern_matrix_;
+  // Square cover-art thumbnail, sharing the scope row immediately to the
+  // right of pattern_matrix_ - see CoverArt.h and UI::layout().
+  std::shared_ptr<CoverArt> cover_art_;
   // The global octave stepper - see SpinBox.h and Controller::
   // getGlobalOctave(). Lives inline in the info bar's own row (see
   // layout()), not windows_, since it's always-on and click-activatable
