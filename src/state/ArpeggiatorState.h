@@ -60,6 +60,14 @@ class ArpeggiatorState : public InstrumentTrackState {
   void noteOn(int column, const Track & instrument, float frequency, float velocity, int note_value, NoteOrigin origin, const NoteCoordinate & note_coord = {}) override;
   void noteOff(int column) override;
 
+  // The whole-chord counterpart to noteOff() above (see
+  // InstrumentTrackState::stopAllVoices()'s own comment for when this is
+  // used instead of a per-column noteOff()) - drops the entire held chord
+  // (held_notes_) so no further step ever triggers, then releases whatever
+  // step voices are already sounding through the base class's own natural
+  // stopNote() tail, exactly like a normal noteOff() would for those.
+  void stopAllVoices() override;
+
   // See InstrumentTrackState::endPatternRow()'s own comment for when this
   // fires. Decides, once per pattern row rather than once per column,
   // whether that row restated the *whole* held chord (resync the step

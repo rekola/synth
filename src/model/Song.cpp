@@ -142,7 +142,7 @@ static bool parsePatternContent(XMLElement & pattern_element, Pattern & pattern,
   return true;
 }
 
-static Tuning parse_tuning(string_view tuning_text, Tuning default_tuning = Tuning::TET12) {
+static Tuning parse_tuning(string_view tuning_text, Tuning default_tuning = Tuning::TET31) {
   if (tuning_text == "12edo") return Tuning::TET12;
   else if (tuning_text == "31edo") return Tuning::TET31;
   else if (tuning_text == "19edo") return Tuning::TET19;
@@ -710,7 +710,7 @@ void
 Song::loadParameters(const ParameterSource & input) {
   SongObject::loadParameters(input);
 
-  auto song_tuning = parse_tuning(input.get<std::string>("temperament"), Tuning::TET12);
+  auto song_tuning = parse_tuning(input.get<std::string>("temperament"), Tuning::TET31);
   setTuning(song_tuning);
 
   auto key_text = input.get<std::string>("key");

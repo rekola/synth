@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="31edo" tempo="120" patternRows="8" volume="1.0">
+  <instruments>
+    <instrument from="bass.electric.finger"/>
+  </instruments>
+  <tracks>
+    <track id="bass" instrument="0" azimuth="0" distance="1"/>
+    <drumMachineTrack id="drums" azimuth="0" distance="1">
+      <lane note="BD"/>
+      <lane note="SD"/>
+      <lane note="CH"/>
+    </drumMachineTrack>
+  </tracks>
+  <patterns>
+    <pattern track="drums" name="verse" length="8">
+      <note row="0" velocity="100" value="BD"/>
+      <note row="2" velocity="90" value="CH"/>
+      <note row="4" velocity="100" value="SD"/>
+      <note row="6" velocity="90" value="CH"/>
+    </pattern>
+    <pattern track="drums" name="fill" length="8">
+      <note row="0" velocity="100" value="SD"/>
+      <note row="1" velocity="90" value="SD"/>
+      <note row="2" velocity="100" value="SD"/>
+      <note row="3" velocity="90" value="SD"/>
+      <note row="4" velocity="110" value="BD"/>
+      <note row="5" velocity="90" value="CH"/>
+      <note row="6" velocity="90" value="CH"/>
+      <note row="7" velocity="120" value="CH"/>
+    </pattern>
+    <pattern track="bass" name="groove" length="8">
+      <note row="0" velocity="100" value="C-2"/>
+      <note row="2" velocity="90" value="C-2"/>
+      <note row="4" velocity="100" value="G-2"/>
+      <note row="6" velocity="90" value="G-2"/>
+    </pattern>
+    <pattern track="bass" name="walk" length="8">
+      <note row="0" velocity="100" value="C-2"/>
+      <note row="2" velocity="95" value="D-2"/>
+      <note row="4" velocity="100" value="E-2"/>
+      <note row="6" velocity="95" value="G-2"/>
+    </pattern>
+  </patterns>
+  <scenes>
+    <scene>
+      <pattern track="drums" length="8">
+        <note row="0" velocity="100" value="BD"/>
+        <note row="4" velocity="100" value="SD"/>
+      </pattern>
+      <pattern track="bass" length="8">
+        <note row="0" velocity="100" value="C-2"/>
+      </pattern>
+    </scene>
+    <scene>
+      <pattern track="drums" length="8">
+        <note row="0" velocity="100" value="BD"/>
+        <note row="2" velocity="90" value="CH"/>
+      </pattern>
+    </scene>
+  </scenes>
+</song>

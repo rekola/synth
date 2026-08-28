@@ -71,7 +71,7 @@ class PatternMatrix : public UIElement {
   // there's no single owning cell a shared Effect's Command data could
   // safely be folded into (see the "kill-ring-save" command's own comment).
   // Public (not just render()'s own internal use) so a Launchpad in
-  // GridMode::OVERVIEW can show exactly the same columns this widget does,
+  // GridMode::SESSION can show exactly the same columns this widget does,
   // rather than a separately-derived list that could disagree with it.
   std::vector<int> getVisibleTrackIds(const Song & song) const;
 
@@ -83,6 +83,22 @@ class PatternMatrix : public UIElement {
   // PatternEditor::setCursorTrack() exactly, same reasoning: out-of-range
   // values are harmless, ensureCursorVisible() clamps on the next render().
   void setCursorTrackIndex(int track_index) { cursor_track_index_ = track_index; }
+
+  // The scene index the cursor currently sits on - LaunchpadManager's own
+  // Session view reads this (via UI::renderComponents()'s own
+  // SessionWindow) so a pad's "assign" press knows which scene to write
+  // the picked pooled pattern into, matching the Matrix's own displayed
+  // cursor rather than a separately-tracked position.
+  int getCursorScene() const { return cursor_scene_; }
+
+  // Moves cursor_scene_ by delta (+1/-1), same clamp offerInput()'s own
+  // NCKEY_UP/NCKEY_DOWN handling uses - one position past the last real
+  // Scene is still valid (see ensureCursorVisible()'s own comment).
+  // LaunchpadManager's own Session view wires its up/down buttons to this
+  // (via UI) rather than scrolling its own pad-grid row window, since
+  // Session view's rows are a track's own pooled patterns, not scenes -
+  // there's no local "scene row" of its own to scroll.
+  void moveCursorScene(const Song & song, int delta);
 
  private:
   // Cursor position, in the same terms as the axes above: an absolute

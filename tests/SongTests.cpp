@@ -42,7 +42,11 @@ TEST(note_round_trips_for_a_track_with_an_explicit_textual_id) {
   namespace fs = std::filesystem;
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_note_textual_id_scratch.xml").string();
 
-  Song song;
+  // Tuning pinned explicitly (not the ambient default): this test is about
+  // track-reference round-tripping, not tuning - a fixed tuning keeps the
+  // expected raw note value below meaningful regardless of what the
+  // default happens to be.
+  Song song(Tuning::TET12);
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   track.setId("chords");
   song.addScene();
@@ -56,7 +60,7 @@ TEST(note_round_trips_for_a_track_with_an_explicit_textual_id) {
   CHECK(saved.find("track=\"chords\"") != string::npos);
 
   InstrumentProvider provider;
-  Song reloaded;
+  Song reloaded(Tuning::TET12);
   CHECK(reloaded.open(scratch_path, provider));
 
   auto reloaded_track = reloaded.getMasterTrack().getChildById("chords");
@@ -74,7 +78,8 @@ TEST(note_round_trips_for_a_track_with_no_explicit_id) {
   namespace fs = std::filesystem;
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_note_auto_id_scratch.xml").string();
 
-  Song song;
+  // Tuning pinned explicitly - see the previous test's own comment.
+  Song song(Tuning::TET12);
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   CHECK(!track.getId().empty()); // addTrack() must have assigned one
   song.addScene();
@@ -82,7 +87,7 @@ TEST(note_round_trips_for_a_track_with_no_explicit_id) {
   song.save(scratch_path);
 
   InstrumentProvider provider;
-  Song reloaded;
+  Song reloaded(Tuning::TET12);
   CHECK(reloaded.open(scratch_path, provider));
 
   CHECK(reloaded.getMasterTrack().getChildren().size() == 1);
@@ -754,7 +759,9 @@ TEST(pooled_pattern_round_trips_its_name_length_notes_and_command_through_save_a
   namespace fs = std::filesystem;
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_pooled_pattern_scratch.xml").string();
 
-  Song song;
+  // Tuning pinned explicitly - see note_round_trips_for_a_track_with_an_
+  // explicit_textual_id's own comment.
+  Song song(Tuning::TET12);
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   track.setId("drums");
 
@@ -773,7 +780,7 @@ TEST(pooled_pattern_round_trips_its_name_length_notes_and_command_through_save_a
   CHECK(saved.find("name=\"fill\"") != string::npos);
 
   InstrumentProvider provider;
-  Song reloaded;
+  Song reloaded(Tuning::TET12);
   CHECK(reloaded.open(scratch_path, provider));
 
   auto reloaded_track = reloaded.getMasterTrack().getChildById("drums");
@@ -831,7 +838,9 @@ TEST(pooled_patterns_are_independent_of_a_scenes_own_inline_pattern) {
   namespace fs = std::filesystem;
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_pooled_vs_scene_scratch.xml").string();
 
-  Song song;
+  // Tuning pinned explicitly - see note_round_trips_for_a_track_with_an_
+  // explicit_textual_id's own comment.
+  Song song(Tuning::TET12);
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   track.setId("drums");
   song.addScene();
@@ -844,7 +853,7 @@ TEST(pooled_patterns_are_independent_of_a_scenes_own_inline_pattern) {
   song.save(scratch_path);
 
   InstrumentProvider provider;
-  Song reloaded;
+  Song reloaded(Tuning::TET12);
   CHECK(reloaded.open(scratch_path, provider));
 
   auto reloaded_track = reloaded.getMasterTrack().getChildById("drums");

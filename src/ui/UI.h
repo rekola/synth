@@ -80,24 +80,24 @@ protected:
   void initialize();
   void layout();
   bool renderComponents(bool refresh = false);
-  // Shared by pattern_matrix_'s own Enter commit and a Launchpad pad press
-  // in GridMode::OVERVIEW (see UI::initialize()/UI::start() for how each
-  // is wired to this) - one implementation of "commit this (track, scene)
-  // cell", not two competing ones. See PatternMatrix.h's own comment on
-  // why PatternMatrix itself never calls this directly.
+  // Shared by pattern_matrix_'s own Enter commit and a Launchpad "assign"
+  // pad press in GridMode::SESSION (see UI::initialize()/UI::start() for
+  // how each is wired to this) - one implementation of "commit this
+  // (track, scene) cell", not two competing ones. See PatternMatrix.h's
+  // own comment on why PatternMatrix itself never calls this directly.
   void commitOverviewCell(int track_id, int scene_idx);
   // Shared by PatternEditor's own leftward "nowhere further to go" edge
   // and Launchpad's equivalent "prev-track already at track 0" one (see
   // PatternEditor::setOverviewRequestCallback()/LaunchpadManager::
-  // setOverviewRequestCallback(), wired to this in UI::initialize()/
+  // setSessionRequestCallback(), wired to this in UI::initialize()/
   // UI::start()) - moves focus to pattern_matrix_, which (via
   // renderComponents()'s own active_element_ check) is what actually puts
-  // every connected Launchpad into GridMode::OVERVIEW too.
+  // every connected Launchpad into GridMode::SESSION too.
   void requestOverviewFocus();
   // The reverse edge: leaves the overview, focusing pattern_editor_ on its
   // first track - both entry points (Launchpad's "next-track" already in
-  // GridMode::OVERVIEW, PatternMatrix's own rightward exit past its last
-  // column - see LaunchpadManager::setOverviewExitCallback()/
+  // GridMode::SESSION, PatternMatrix's own rightward exit past its last
+  // column - see LaunchpadManager::setSessionExitCallback()/
   // PatternMatrix::setExitRightCallback(), wired in UI::initialize()/
   // UI::start()) land here, so there's only one exit destination to reason
   // about, not two competing ones.
@@ -149,10 +149,6 @@ private:
   // toggles, per-device command resolution); PatternEditor's own copy is
   // separate and only used for actual pattern editing (note entry).
   LaunchpadManager * launchpad_manager_ = nullptr;
-  // Last Song the buffer-change listener saw as active (see the listener's
-  // own comment in UI.cpp) - identity, not name, since a rename fires the
-  // same listener without the active Song object actually changing.
-  const Song * launchpad_last_song_ = nullptr;
 
   std::vector<std::shared_ptr<UIElement>> windows_;
 };

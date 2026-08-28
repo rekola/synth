@@ -22,10 +22,10 @@
 using namespace std;
 
 namespace {
-  // How long CC97 (DRAW mode toggle) must be held before release means
-  // "clear the canvas" instead of "toggle the mode" - see
-  // handleDrawToggleButton(). Long enough that a normal deliberate tap
-  // (entering/exiting DRAW mode) never accidentally clears instead.
+  // How long CC97 (DRAW mode toggle, handleDrawToggleButton()) or CC49
+  // (Stop Clip, handleStopClipButton()) must be held before release means
+  // "clear" instead of "toggle". Long enough that a normal deliberate tap
+  // never accidentally clears instead.
   constexpr auto kDrawClearHoldThreshold = std::chrono::milliseconds(600);
 
   // How long a DRAW-mode grid pad must be held before release means "just
@@ -35,17 +35,6 @@ namespace {
   // separately since they're conceptually independent controls that could
   // reasonably be tuned apart later.
   constexpr auto kDrawPadLongPressThreshold = std::chrono::milliseconds(600);
-
-  // How long Stop Clip's Clear confirm arm stays live (plans/drum-
-  // machine.md, Phase 7) - a second press within this window after the
-  // first actually clears; past it, the arm is stale and a press just
-  // re-arms instead. Long enough to be a deliberate double-tap, short
-  // enough that an unrelated press much later never accidentally lands
-  // as a confirm.
-  constexpr auto kClearConfirmWindow = std::chrono::milliseconds(1500);
-  // How fast the Clear confirm indicator blinks while armed (refreshLeds())
-  // - half-period, so a full on/off cycle is twice this.
-  constexpr auto kClearConfirmBlinkPeriod = std::chrono::milliseconds(200);
 
   struct Rgb { uint8_t r, g, b; };
 
@@ -331,6 +320,37 @@ namespace {
     }
     return 0;
   }
+
+  // Fires one step's worth of `pattern`'s own notes (at row step %
+  // pattern.getLength()) as one-shot PLAY_NOTE audition events for
+  // `track_id` - the pooled-pattern equivalent of triggerAuditionStep()'s
+  // own per-DrumMachineTrack firing, generalized to any track/note rather
+  // than a lane hit specifically (column = the note's own position within
+  // that row, matching how a pattern-driven note is scheduled normally,
+  // not DrumMachineTrack's own by-value column convention). No explicit
+  // STOP_NOTE, same reasoning as triggerAuditionStep(): relies on the
+  // instrument's own envelope/choke machinery past that. Shared by
+  // triggerPooledPatternStep()'s own per-tick loop and
+  // handleSessionPadEvent()'s "nothing was playing yet, launch
+  // immediately" case.
+  void firePooledPatternStep(const Song & song, Controller & controller, int track_id, const Pattern & pattern, int step) {
+    auto track = song.getMasterTrack().getChildByInternalId(track_id);
+    if (!track) return;
+    auto tuning = song.getTuningForTrack(*track);
+    auto length = pattern.getLength() > 0 ? pattern.getLength() : 1;
+    auto & notes = pattern.getNotes(pattern.getEffectiveRow(step, length));
+    auto & event_queue = controller.getPlaybackEventQueue();
+    for (size_t col = 0; col < notes.size(); col++) {
+      auto & note = notes[col];
+      if (!note.isDefined() || note.isOff() || note.isAftertouch()) continue;
+      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), track_id, static_cast<int>(col), note.getValue(), note.getVelocity()));
+    }
+    // tuning is resolved (getTuningForTrack) purely so a future caller
+    // that needs it (e.g. a diagnostic) doesn't have to re-derive it -
+    // Player.cpp's own PLAY_NOTE handler already resolves tuning/frequency
+    // itself from the raw midi_note value this pushes.
+    (void)tuning;
+  }
 }
 
 int
@@ -421,29 +441,10 @@ LaunchpadManager::octaveDown(int device_id) {
 }
 
 int
-LaunchpadManager::assignedTrackIndex(int device_id, int fallback_track_index) const {
-  auto * state = findDeviceState(device_id);
-  if (!state || state->assigned_track_id < 0) return fallback_track_index;
-  return state->assigned_track_id;
-}
-
-void
-LaunchpadManager::resetTrackAssignments() {
-  for (auto & [ device_id, state ] : devices_) state.assigned_track_id = -1;
-}
-
-void
-LaunchpadManager::advanceTrack(int device_id, int delta, int fallback_track_index, int num_tracks) {
-  auto & state = deviceState(device_id);
-  auto current = state.assigned_track_id < 0 ? fallback_track_index : state.assigned_track_id;
-  state.assigned_track_id = LaunchpadLayout::advanceTrackIndex(current, delta, num_tracks);
-}
-
-int
 LaunchpadManager::resolveTrackId(int device_id, const vector<int> & track_ids, int fallback_track_index) const {
+  (void)device_id; // no more per-device track assignment - every device follows fallback_track_index
   if (track_ids.empty()) return -1;
-  auto track_index = assignedTrackIndex(device_id, fallback_track_index);
-  if (track_index < 0 || track_index >= static_cast<int>(track_ids.size())) track_index = fallback_track_index;
+  auto track_index = fallback_track_index;
   if (track_index < 0 || track_index >= static_cast<int>(track_ids.size())) return -1;
   return track_ids[static_cast<size_t>(track_index)];
 }
@@ -515,17 +516,29 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id) {
     capture_enabled_ = !capture_enabled_;
     return true;
   }
-  // 97 ("Custom") is the drum-picker latch - unconditional, like every
-  // other toggle above, since picking is
-  // only ever meaningful once a DrumMachineTrack is assigned but the
-  // per-device UI state itself doesn't need to know that. DRAW mode used
-  // to live here too; it moved to Stop Clip (CC49, handleStopClipButton())
-  // since Custom needed to be free for the picker and DRAW still needs
-  // its own dedicated button, not a fallback that disappears while a
-  // drum machine happens to be assigned.
-  if (cc_number == 97) {
-    auto & state = deviceState(device_id);
-    state.picker_active = !state.picker_active;
+  // 95 ("Session") and 96 ("Note"), inferred from the top row's own
+  // Up/Down/Left/Right/Session/Note/Custom/Capture layout, are the only
+  // way a Launchpad reaches/leaves GridMode::SESSION now - purely
+  // per-device state, like every other toggle here, not tied to whether
+  // PatternMatrix has terminal UI focus at all: one connected Launchpad
+  // can sit in Session view while another stays on ordinary note entry.
+  // Session (95) toggles the same way SEND_MAIN/PAN/SEND_A/SEND_B above
+  // do (toggleGridMode() - mutually exclusive, discards whatever mode was
+  // showing before, same as every one of those); Note (96) is
+  // deliberately a one-way "back to instrument view" instead of a toggle
+  // - there's no meaningful "Note mode" of its own to toggle into, NOTES
+  // is just where every other mode here already returns to. Custom (97,
+  // DRAW mode) is the third of this trio of exclusive mode-selection
+  // buttons, but needs both press and release (see
+  // handleDrawToggleButton()'s own comment) so it's routed there directly
+  // by UI::handleLaunchpadButtonEvent instead of through this press-only
+  // entry point.
+  if (cc_number == 95) {
+    toggleGridMode(device_id, GridMode::SESSION);
+    return true;
+  }
+  if (cc_number == 96) {
+    deviceState(device_id).grid_mode = GridMode::NOTES;
     return true;
   }
   return false;
@@ -597,21 +610,28 @@ LaunchpadManager::handleDrawToggleButton(int device_id, bool is_press) {
 
 bool
 LaunchpadManager::handleStopClipButton(int device_id, bool is_press, DrumMachineTrack * assigned_drum_track, Controller & controller) {
-  if (!assigned_drum_track) return handleDrawToggleButton(device_id, is_press);
-  if (!is_press) return true; // Clear is a plain tap, unlike DRAW's long-hold gesture - RELEASE is a no-op
-
+  if (!assigned_drum_track) return true; // nothing to configure without a drum machine assigned
   auto & state = deviceState(device_id);
-  if (state.clear_confirm.press(std::chrono::steady_clock::now(), kClearConfirmWindow)) {
-    // Second press within the window: actually clear. Just this track's
-    // step content in the *current* scene (its own Pattern now, not a
-    // track-global map) - the lane list itself (which notes have a lane
-    // at all) is untouched, matching the plan's own distinction between
-    // this gesture and the picker's lane removal.
+  if (is_press) {
+    state.stop_clip_pressed = true;
+    state.stop_clip_press_time = std::chrono::steady_clock::now();
+    return true;
+  }
+  if (!state.stop_clip_pressed) return true; // stray/duplicate release
+  state.stop_clip_pressed = false;
+  auto held = std::chrono::steady_clock::now() - state.stop_clip_press_time;
+  if (held >= kDrawClearHoldThreshold) {
+    // Long hold: clear this track's step content in the *current* scene
+    // (its own Pattern now, not a track-global map) back to all-rest - the
+    // lane list itself (which notes have a lane at all) is untouched, only
+    // the picker's own quick-tap gesture below removes lanes.
     auto & song = controller.getSong();
     auto & info = controller.getPlaybackInfo();
     auto & scene = song.getOrCreateScene(info.getPatternIndex());
     scene.setPatternForTrack(assigned_drum_track->getInternalId(), Pattern());
     song.incVersion();
+  } else {
+    state.picker_active = !state.picker_active;
   }
   return true;
 }
@@ -682,44 +702,35 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
     return true;
   }
   if (name == "move-row-up" || name == "move-row-down") {
-    // Only meaningful in OVERVIEW mode - scrolls this class's own
-    // overview_scroll_row_ (deliberately independent of PatternMatrix's
-    // own scroll position - see OverviewWindow's own comment), clamped to
-    // the same "one virtual row past the last real Scene" bound the
-    // terminal cursor uses. Outside OVERVIEW, "move-row-up"/"move-row-down"
-    // isn't this class's command at all (PatternEditor's own row
-    // navigation owns it, reached via UI::executeCommand()'s fallback, not
-    // through here) - declining lets that happen normally.
-    if (gridMode(device_id) != GridMode::OVERVIEW) return false;
-    auto max_scroll = std::max(0, overview_.num_scenes + 1 - 8);
-    overview_scroll_row_ = std::clamp(overview_scroll_row_ + (name == "move-row-down" ? 1 : -1), 0, max_scroll);
+    // Only meaningful in GridMode::SESSION - moves PatternMatrix's own
+    // scene cursor via session_move_scene_callback_ (see that member's own
+    // comment for why this doesn't scroll a local row window the way the
+    // old plain-navigation overview did: Session view's rows are a
+    // track's own pooled patterns, not scenes). Outside SESSION,
+    // "move-row-up"/"move-row-down" isn't this class's command at all
+    // (PatternEditor's own row navigation owns it, reached via
+    // UI::executeCommand()'s fallback, not through here) - declining lets
+    // that happen normally.
+    if (gridMode(device_id) != GridMode::SESSION) return false;
+    if (session_move_scene_callback_) session_move_scene_callback_(name == "move-row-down" ? 1 : -1);
     return true;
   }
   if (name == "next-track" || name == "prev-track") {
-    // Already in the overview - "which track is assigned" has no meaning
-    // right now (every device is uniformly in GridMode::OVERVIEW - see
-    // refresh()'s own comment), so this isn't the ordinary prev/next-track
-    // gesture at all: prev-track is a no-op (nowhere further left than the
-    // overview itself), next-track is the overview's own exit, symmetric
-    // with PatternMatrix's own rightward exit (see setOverviewExitCallback()).
-    if (gridMode(device_id) == GridMode::OVERVIEW) {
-      if (name == "next-track" && overview_exit_callback_) overview_exit_callback_();
-      return true;
-    }
+    // Reserved while in Session view (per-device - see handleRawButton()'s
+    // own CC95/96 comment): the cursor keys no longer switch this device
+    // back to note-entry view, and no longer enter/exit Session view
+    // either - CC95/96 are the only way there now, on whichever device
+    // that's actually pressed on, independent of every other connected
+    // Launchpad.
+    if (gridMode(device_id) == GridMode::SESSION) return true;
     if (num_tracks <= 0) return true;
-    if (name == "prev-track") {
-      auto & state = deviceState(device_id);
-      auto current = state.assigned_track_id < 0 ? fallback_track_index : state.assigned_track_id;
-      // Already at the first track - nowhere further left to go (see
-      // LaunchpadLayout::advanceTrackIndex's own clamp-at-0, not wrap),
-      // so this is the overview's own entry point instead of a no-op -
-      // see setOverviewRequestCallback()'s own comment.
-      if (current <= 0 && overview_request_callback_) {
-        overview_request_callback_();
-        return true;
-      }
+    // Moves the one shared cursor (fallback_track_index), not a
+    // per-device assignment of this device's own - see
+    // track_move_callback_'s own comment for why every connected
+    // Launchpad, not just this one, follows the result.
+    if (track_move_callback_) {
+      track_move_callback_(LaunchpadLayout::advanceTrackIndex(fallback_track_index, name == "next-track" ? 1 : -1, num_tracks));
     }
-    advanceTrack(device_id, name == "next-track" ? 1 : -1, fallback_track_index, num_tracks);
     return true;
   }
   return false;
@@ -804,14 +815,12 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     return;
   }
 
-  // Mirrors the Send/Pan-mode auto-create above: a device's assigned track
-  // (or the fallback) may point past however many tracks currently exist -
-  // a brand-new/emptied song, or a device that was assigned to a track
-  // index since deleted - so grow the song up to that index rather than
-  // silently clamping back to the fallback track (which, for an empty
-  // song, wouldn't exist either).
-  auto track_index = assignedTrackIndex(device_id, fallback_track_index);
-  if (track_index < 0) track_index = fallback_track_index;
+  // Mirrors the Send/Pan-mode auto-create above: the shared cursor
+  // (fallback_track_index - every device follows it, there's no more
+  // per-device assignment of its own) may point past however many tracks
+  // currently exist in a brand-new/emptied song, so grow the song up to
+  // that index rather than silently doing nothing.
+  auto track_index = fallback_track_index;
   while (static_cast<int>(track_ids.size()) <= track_index) {
     song.addTrack(make_unique<InstrumentTrack>(0));
     track_ids = song.getPlayableTrackIds();
@@ -1026,21 +1035,114 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
 }
 
 void
-LaunchpadManager::handleOverviewPadEvent(const LaunchpadPadEvent & ev) {
+LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller & controller) {
   if (ev.getKind() != LaunchpadPadEvent::PRESS) return;
-  if (!overview_commit_callback_) return;
 
-  auto track_index = overview_scroll_col_ + ev.getX();
-  if (track_index < 0 || track_index >= static_cast<int>(overview_.track_ids.size())) return;
-  // Same y-flip as refresh()'s own overview_colors computation - y=0 is
-  // the bottom-left pad, so y=7 is the earliest visible scene.
-  auto scene_idx = overview_scroll_row_ + (7 - ev.getY());
-  // One virtual row past the last real Scene is a valid target (see
-  // OverviewWindow::num_scenes's own comment); anything past that already
-  // shows fully dark - this keeps it non-actionable too.
-  if (scene_idx < 0 || scene_idx > overview_.num_scenes) return;
+  // No column scroll yet (see SessionWindow's own comment).
+  auto track_index = ev.getX();
+  if (track_index < 0 || track_index >= static_cast<int>(session_.track_ids.size())) return;
+  auto track_id = session_.track_ids[static_cast<size_t>(track_index)];
 
-  overview_commit_callback_(overview_.track_ids[static_cast<size_t>(track_index)], scene_idx);
+  auto & song = controller.getSong();
+  auto & pool_patterns = song.getPooledPatterns(track_id);
+  // Same y-flip as refresh()'s own session_colors computation - y=0 is
+  // the bottom-left pad, so y=7 is that track's first pooled pattern.
+  auto pool_index = 7 - ev.getY();
+  bool has_pattern_here = pool_index >= 0 && pool_index < static_cast<int>(pool_patterns.size());
+
+  if (!capture_enabled_) {
+    // Auditioning (Record Arm off) - touches no song state, only this
+    // class's own triggered_pattern_by_track_/queued_pattern_by_track_.
+    auto triggered_it = triggered_pattern_by_track_.find(track_id);
+    if (!has_pattern_here) {
+      // An unassigned row - queues a stop for whatever's currently
+      // triggered (quantized the same way a queued pattern swap is, so
+      // it never cuts off mid-phrase - see triggerPooledPatternStep()'s
+      // own -1 handling); a no-op if nothing's playing for this track to
+      // begin with.
+      if (triggered_it != triggered_pattern_by_track_.end()) queued_pattern_by_track_[track_id] = -1;
+      return;
+    }
+    if (triggered_it == triggered_pattern_by_track_.end()) {
+      // Nothing playing yet for this track - launches immediately, since
+      // there's no loop end to quantize against (see
+      // triggerPooledPatternStep()'s own comment).
+      triggered_pattern_by_track_[track_id] = pool_index;
+      if (audition_clock_.isRunning()) {
+        firePooledPatternStep(song, controller, track_id, pool_patterns[static_cast<size_t>(pool_index)], audition_clock_.currentStep());
+      }
+    } else if (triggered_it->second == pool_index) {
+      // Pressing the already-triggered pattern again un-triggers it
+      // immediately - a deliberate, unquantized cut, unlike the queued
+      // stop above (pressing an empty row instead).
+      triggered_pattern_by_track_.erase(triggered_it);
+      queued_pattern_by_track_.erase(track_id);
+    } else {
+      // Something else is already playing for this track - queue,
+      // quantized to its own loop end rather than cutting it off
+      // mid-phrase.
+      queued_pattern_by_track_[track_id] = pool_index;
+    }
+    return;
+  }
+
+  // Assigning (Record Arm on): a copy into the pressed column's track at
+  // the Matrix's own current scene - never a live reference back to the
+  // pool entry. Deliberately stays in Session view rather than switching
+  // focus away - a player assigning several patterns in a row needs to
+  // keep pressing pads, not get bounced out after the first one. Nothing
+  // to assign from an empty row.
+  if (!has_pattern_here) return;
+  auto & scene = song.getOrCreateScene(session_.cursor_scene_idx);
+  scene.setPatternForTrack(track_id, pool_patterns[static_cast<size_t>(pool_index)]);
+  song.incVersion();
+}
+
+void
+LaunchpadManager::triggerPooledPatternStep(const Song & song, Controller & controller, int step) {
+  for (auto it = triggered_pattern_by_track_.begin(); it != triggered_pattern_by_track_.end(); ) {
+    auto track_id = it->first;
+    auto & pool_patterns = song.getPooledPatterns(track_id);
+    if (it->second < 0 || it->second >= static_cast<int>(pool_patterns.size())) {
+      // The pool shrank (or the track's gone) out from under an already-
+      // triggered index - drop it rather than read out of bounds.
+      it = triggered_pattern_by_track_.erase(it);
+      continue;
+    }
+
+    // Quantized launch: a queued swap only takes effect once the
+    // currently-playing pattern's own loop crosses back to its own row 0 -
+    // never mid-phrase. -1 is a queued *stop* (pressing an unassigned row
+    // in Session view - see handleSessionPadEvent()'s own comment) rather
+    // than a swap to some other pattern - same quantization, but drops
+    // the track from triggered_pattern_by_track_ entirely instead of
+    // pointing it at a new index.
+    auto queued_it = queued_pattern_by_track_.find(track_id);
+    if (queued_it != queued_pattern_by_track_.end()) {
+      auto current_length = pool_patterns[static_cast<size_t>(it->second)].getLength();
+      if (current_length <= 0) current_length = 1;
+      if (step % current_length == 0) {
+        auto queued_index = queued_it->second;
+        queued_pattern_by_track_.erase(queued_it);
+        if (queued_index < 0) {
+          // A real stop, not a swap to another pattern - release whatever's
+          // still sounding on this track (its natural stopNote() tail, not
+          // a hard cut - see InstrumentTrackState::stopAllVoices()) rather
+          // than leaving a sustained note ringing with nothing left driving
+          // it forward.
+          controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_ALL_NOTES, controller.getActiveBufferName(), track_id));
+          it = triggered_pattern_by_track_.erase(it);
+          continue;
+        }
+        it->second = queued_index;
+      }
+    }
+
+    if (it->second >= 0 && it->second < static_cast<int>(pool_patterns.size())) {
+      firePooledPatternStep(song, controller, track_id, pool_patterns[static_cast<size_t>(it->second)], step);
+    }
+    ++it;
+  }
 }
 
 void
@@ -1194,16 +1296,17 @@ void
 LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   vector<LaunchpadProtocol::PadColor> colors;
 
-  if (state.grid_mode == GridMode::OVERVIEW) {
-    // Fully resolved already (identity hue, playhead-row brightening, off
-    // where nothing's there) - see refresh()'s own overview_colors
-    // computation and DeviceState::overview_colors's own comment. Checked
-    // first, ahead of every other branch below: OVERVIEW is a hard
-    // override forced on by refresh() itself, not a per-device toggle a
-    // user could combine with Send/Pan/Draw/drum-machine display.
+  if (state.grid_mode == GridMode::SESSION) {
+    // Fully resolved already (identity hue, triggered/queued brightening,
+    // off where a track has no pooled pattern in that row) - see
+    // refresh()'s own session_colors computation and DeviceState::
+    // session_colors's own comment. Checked first, ahead of every other
+    // branch below: SESSION is a hard override forced on by refresh()
+    // itself, not a per-device toggle a user could combine with Send/Pan/
+    // Draw/drum-machine display.
     for (int y = 0; y < 8; y++) {
       for (int x = 0; x < 8; x++) {
-        auto & c = state.overview_colors[static_cast<size_t>(y * 8 + x)];
+        auto & c = state.session_colors[static_cast<size_t>(y * 8 + x)];
         colors.push_back({LaunchpadProtocol::padToNoteNumber(x, y),
           static_cast<uint8_t>(c.getRed() / 2), static_cast<uint8_t>(c.getGreen() / 2), static_cast<uint8_t>(c.getBlue() / 2)});
       }
@@ -1365,23 +1468,26 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
     }
   }
 
-  // Extra-button LEDs (see the Launchpad follow-up plan's button table).
-  // CC numbers unreachable on X/Mini MK3 (30, 20 - Pro MK3's left column)
-  // are harmless to include here: those models simply don't have the
-  // physical button, so the colourspec entry has nothing to light.
+  // Extra-button LEDs. CC numbers unreachable on X/Mini MK3 (30, 20 -
+  // Pro MK3's left column) are harmless to include here: those models
+  // simply don't have the physical button, so the colourspec entry has
+  // nothing to light.
   colors.push_back({91, 30, 30, 30}); // move-row-up, dim white (static)
   colors.push_back({92, 30, 30, 30}); // move-row-down, dim white (static)
   colors.push_back({93, 0, 0, 60});   // prev-track, dim blue (static)
   colors.push_back({94, 0, 0, 60});   // next-track, dim blue (static)
-  colors.push_back({95, 0, 0, 0});    // reserved (Session, inferred)
-  colors.push_back({96, 0, 0, 0});    // reserved (Note, inferred)
-  // Custom (CC97) is the drum-picker latch - lit when active, matching
-  // the active-state convention Mute/Solo
-  // below already use, not the static/no-state convention the Send/Pan
-  // mode buttons use (those repaint the whole grid as their own
-  // confirmation; the picker's own grid repaint isn't as visually
-  // distinct at a glance, so the button itself carries the state too).
-  colors.push_back({97, state.picker_active ? uint8_t(90) : uint8_t(20), 0, state.picker_active ? uint8_t(127) : uint8_t(20)});
+  // Session (CC95) and Custom (CC97) are this device's own GridMode
+  // toggles (SESSION/DRAW) - each lit when active, same active-state
+  // convention Mute/Solo already use, not the static/no-state convention
+  // the Send/Pan mode buttons use (those repaint the whole grid as their
+  // own confirmation; a mode switch here isn't as visually distinct at a
+  // glance, so the button itself carries the state too). Note (CC96) has
+  // no state of its own to reflect (a one-way "back to instrument view"
+  // action, not a toggle - see handleRawButton()'s own comment), so it
+  // stays static like prev/next-track above.
+  colors.push_back({95, state.grid_mode == GridMode::SESSION ? uint8_t(90) : uint8_t(20), state.grid_mode == GridMode::SESSION ? uint8_t(127) : uint8_t(20), 0});
+  colors.push_back({96, 30, 30, 30});
+  colors.push_back({97, state.grid_mode == GridMode::DRAW ? uint8_t(90) : uint8_t(20), 0, state.grid_mode == GridMode::DRAW ? uint8_t(127) : uint8_t(20)});
   // CC98 ("Capture MIDI") is reserved/unused again - the record-armed
   // indicator moved to CC19 ("Record Arm", right column - see below;
   // DeviceState::capture_enabled's comment has the full reasoning).
@@ -1401,41 +1507,23 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // Pro-MK3-left-column entries' own convention exactly. 19 is Record Arm -
   // reuses the red Capture-MIDI LED used to show (see 39/30, which moved
   // to blue to make room) now that the toggle itself lives here instead of
-  // CC98. 49 is Stop Clip - DRAW mode's toggle when the assigned track
-  // isn't a DrumMachineTrack (moved here from Custom, which the picker
-  // now owns unconditionally), the drum machine's own Clear
-  // double-press-confirm gesture when it is - see the Stop Clip block
-  // below for its own confirm-armed indicator.
+  // CC98. 49 is Stop Clip - the drum machine's own configuration button
+  // (picker latch on a quick tap, Clear on a long hold - see
+  // handleStopClipButton()) - see its own indicator below.
   colors.push_back({19, state.capture_enabled ? uint8_t(127) : uint8_t(20), 0, 0}); // record-arm toggle
   colors.push_back({29, state.solo ? uint8_t(127) : uint8_t(20), state.solo ? uint8_t(127) : uint8_t(20), 0}); // toggle-solo
   colors.push_back({39, 0, 0, state.muted ? uint8_t(127) : uint8_t(20)}); // toggle-mute (blue - red moved to Record Arm, CC19)
 
-  // Stop Clip (CC49): DRAW mode's static dim-white toggle indicator when
-  // the assigned track isn't a DrumMachineTrack (unchanged); the Clear
-  // gesture's own confirm-armed indicator when it is - dim red when idle
-  // (distinct from DRAW's dim
-  // white, so the button visibly means something different here), and
-  // blinking bright/dim red while armed (kClearConfirmBlinkPeriod's own
-  // half-period) rather than a real hardware "pulse" LED mode - this file
-  // only ever speaks the static per-LED RGB SysEx message
-  // (LaunchpadProtocol::buildRgbLedSysEx), never Programmer Mode's
-  // separate flashing/pulsing LED message type, which hasn't been
-  // confirmed against real hardware - blinking by changing the sent color
-  // every refreshLeds() call (this already runs many times a second) gets
-  // the same visible effect without a second, unconfirmed protocol path.
-  // Also auto-expires a stale arm here (not just inside
-  // handleStopClipButton()'s own check) so the indicator honestly returns
-  // to idle once the window lapses even if no second press ever comes.
-  state.clear_confirm.expireIfStale(std::chrono::steady_clock::now(), kClearConfirmWindow);
+  // Stop Clip (CC49): reserved/dark without a drum machine assigned (see
+  // handleStopClipButton() - the button has nothing to do there); the
+  // picker latch's own active-state indicator otherwise, same convention
+  // as Session/Custom above (a long hold clears step data instead of
+  // toggling this, but that's a momentary action with nothing to show
+  // continuously).
   if (!state.assigned_track_is_drum_machine) {
-    colors.push_back({49, 60, 60, 60}); // draw-mode toggle, dim white (static)
-  } else if (!state.clear_confirm.isArmed()) {
-    colors.push_back({49, 40, 0, 0}); // Clear, idle - dim red
+    colors.push_back({49, 0, 0, 0}); // reserved - no drum machine assigned
   } else {
-    auto elapsed = std::chrono::steady_clock::now() - state.clear_confirm.armedTime();
-    auto half_cycles = elapsed / kClearConfirmBlinkPeriod;
-    bool bright_phase = (half_cycles % 2) == 0;
-    colors.push_back({49, bright_phase ? uint8_t(127) : uint8_t(30), 0, 0});
+    colors.push_back({49, state.picker_active ? uint8_t(90) : uint8_t(20), 0, state.picker_active ? uint8_t(127) : uint8_t(20)});
   }
   colors.push_back({59, 40, 0, 40});  // Send B physical button -> send-b-mode, dim magenta (static)
   colors.push_back({69, 0, 40, 40});  // Send A physical button -> send-a-mode, dim cyan (static)
@@ -1459,14 +1547,14 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
 }
 
 void
-LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, const PlaybackInfo & playback_info, int fallback_track_index, Controller & controller, const OverviewWindow & overview) {
+LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, const PlaybackInfo & playback_info, int fallback_track_index, Controller & controller, const SessionWindow & session) {
   if (!launchpad_io_) return;
 
   // Mirrored once per frame, same as capture_enabled_ below - see
   // cached_global_octave_'s own comment.
   cached_global_octave_ = controller.getGlobalOctave();
-  // Cached for handlePadEvent() - see overview_'s own comment.
-  overview_ = overview;
+  // Cached for handleSessionPadEvent() - see session_'s own comment.
+  session_ = session;
 
   auto ready_ids = launchpad_io_->readySessionIds();
 
@@ -1481,14 +1569,13 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
 
   auto num_tracks = static_cast<int>(track_ids.size());
 
-  // Phase 7's free-running drum-machine audition clock - computed once
-  // here, shared by every connected device below, not per-device.
+  // The free-running drum-machine/pooled-pattern audition clock - computed
+  // once here, shared by every connected device below, not per-device.
   // audition_clock_ itself (StepClock, LaunchpadTiming.h) is the pure,
   // unit-tested step-advance logic; everything here is just wall-clock
   // bookkeeping and plugging the real song/track data in. Active exactly
-  // while the transport is stopped and Record Arm is off (per the plan's
-  // own "Extend audition (Capture off)" framing - Record Arm is a single
-  // global flag, not per-device, see capture_enabled_'s own comment) -
+  // while the transport is stopped and Record Arm is off - Record Arm is a
+  // single global flag, not per-device, see capture_enabled_'s own comment -
   // while playing, the pattern-driven
   // path in SongState::renderBlock() already triggers these same tracks from
   // real song position, and running both at once would double-trigger;
@@ -1510,6 +1597,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       audition_clock_.start();
       audition_clock_last_refresh_ = now;
       triggerAuditionStep(song, track_ids, controller, audition_clock_.currentStep());
+      triggerPooledPatternStep(song, controller, audition_clock_.currentStep());
     } else {
       float dt = chrono::duration<float>(now - audition_clock_last_refresh_).count();
       audition_clock_last_refresh_ = now;
@@ -1523,6 +1611,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       float row_duration = tempo > 0 ? 60.0f / 4.0f / static_cast<float>(tempo) : 0.0f;
       for (int step : audition_clock_.advance(dt, row_duration)) {
         triggerAuditionStep(song, track_ids, controller, step);
+        triggerPooledPatternStep(song, controller, step);
       }
     }
     audition_step = audition_clock_.currentStep();
@@ -1546,62 +1635,50 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     }
   }
 
-  // GridMode::OVERVIEW's own shared LED grid - same "computed once here,
+  // GridMode::SESSION's own shared LED grid - same "computed once here,
   // identical for every connected device" reasoning as track_send_main/
   // etc. above, and same reason this stays a plain Color array rather than
   // a DeviceState-nested computation: refreshLeds() only ever reads
   // DeviceState, never Song/PlaybackInfo directly (see its own branches).
-  // x = column within overview_scroll_col_'s window, indexed into
-  // overview.track_ids - PatternMatrix's own filtered column list, not
+  // Computed unconditionally (not gated on anything PatternMatrix-focus-
+  // related) since which devices, if any, are actually showing Session
+  // view is now purely each one's own CC95/96 toggle - see
+  // handleRawButton()'s own comment. x = column, indexed into
+  // session.track_ids - PatternMatrix's own filtered column list, not
   // track_ids above (this class's usual root-track-id parameter, which
-  // includes non-color-eligible tracks OVERVIEW never shows a column for).
-  // y is flipped from PatternMatrix's own top-down scene order: y=0 is the
-  // bottom-left pad (see LaunchpadProtocol::padToNoteNumber()'s own doc
-  // comment), so y=7 (top) is the earliest visible scene and y=0 (bottom)
-  // the latest, keeping "reading order" top-to-bottom like the terminal
-  // grid rather than literally mirroring its row indices. overview_scroll_row_/
-  // overview_scroll_col_ (not overview.scroll_row/scroll_col - that struct
-  // doesn't carry a scroll position at all, see its own comment) are this
-  // class's own, independent of whatever PatternMatrix's own scroll
-  // position currently is.
-  array<Color, 64> overview_colors;
-  if (!overview.active) {
-    overview_scroll_row_ = overview_scroll_col_ = 0;
-  } else {
+  // includes non-color-eligible tracks Session view never shows a column
+  // for); no column scroll yet (see SessionWindow's own comment). y is
+  // flipped the same way the old plain-navigation overview's own rows
+  // were: y=0 is the bottom-left pad (see LaunchpadProtocol::
+  // padToNoteNumber()'s own doc comment), so y=7 (top) is that track's
+  // first pooled pattern and y=0 (bottom) its last visible one; no row
+  // scroll yet either, so a track with more than 8 pooled patterns only
+  // shows the first 8 for now.
+  array<Color, 64> session_colors;
+  {
     SongStructure structure(song);
-    auto playing_scene = playback_info.getPatternIndex();
-    auto num_scenes = static_cast<int>(song.getScenes().size());
     const Color white(255, 255, 255);
     for (int x = 0; x < 8; x++) {
-      auto track_index = overview_scroll_col_ + x;
-      if (track_index >= static_cast<int>(overview.track_ids.size())) continue;
-      auto overview_track_id = overview.track_ids[static_cast<size_t>(track_index)];
-      // A DrumMachineTrack column renders exactly like any other track
-      // here - it's an ordinary Pattern now, same as the terminal
-      // PatternMatrix's own equivalent glyph logic, no special-casing left.
-      // Same hue/near-fully-saturated identity PatternMatrix's own terminal
-      // glyphs use, but at its own, dimmer lightness: a directly-emitted
-      // LED pixel at a given lightness reads brighter than the same value
-      // does as terminal glyph text, so the two surfaces are tuned
-      // independently here rather than sharing one constant.
-      auto identity = Color::fromHSL(structure.getBaselineInfo(overview_track_id).getHue(), 0.8f, 0.3f);
+      if (x >= static_cast<int>(session.track_ids.size())) continue;
+      auto session_track_id = session.track_ids[static_cast<size_t>(x)];
+      // Same hue/near-fully-saturated identity PatternMatrix's own
+      // terminal glyphs use, but at its own, dimmer lightness: a directly-
+      // emitted LED pixel at a given lightness reads brighter than the
+      // same value does as terminal glyph text, so the two surfaces are
+      // tuned independently here rather than sharing one constant.
+      auto identity = Color::fromHSL(structure.getBaselineInfo(session_track_id).getHue(), 0.8f, 0.3f);
+      auto & pool_patterns = song.getPooledPatterns(session_track_id);
+      auto triggered_it = triggered_pattern_by_track_.find(session_track_id);
+      auto queued_it = queued_pattern_by_track_.find(session_track_id);
       for (int y = 0; y < 8; y++) {
-        auto scene_idx = overview_scroll_row_ + (7 - y);
-        if (scene_idx >= num_scenes) continue;
-        auto & overview_scene = song.getScene(scene_idx);
-        auto & overview_patterns = overview_scene.getPatternsByTrack();
-        auto pit = overview_patterns.find(overview_track_id);
-        bool populated = pit != overview_patterns.end() && !pit->second.isEmpty();
-        bool is_playing_row = scene_idx == playing_scene;
-        if (populated) {
-          overview_colors[static_cast<size_t>(y * 8 + x)] = is_playing_row ? identity.blend(0.5f, white) : identity;
-        } else if (is_playing_row) {
-          // The playhead row's otherwise-off cells still get a low, dim
-          // wash (no track hue - nothing populated there to represent),
-          // same "the whole row reads as one continuous brightened line"
-          // reasoning as the terminal grid's own playhead-row treatment.
-          overview_colors[static_cast<size_t>(y * 8 + x)] = Color(0, 0, 0).blend(0.15f, white);
-        }
+        auto pool_index = 7 - y;
+        if (pool_index >= static_cast<int>(pool_patterns.size())) continue;
+        bool is_triggered = triggered_it != triggered_pattern_by_track_.end() && triggered_it->second == pool_index;
+        bool is_queued = queued_it != queued_pattern_by_track_.end() && queued_it->second == pool_index;
+        Color c = identity;
+        if (is_triggered) c = identity.blend(0.5f, white); // currently playing
+        else if (is_queued) c = identity.blend(0.25f, white); // about to launch at the next loop boundary
+        session_colors[static_cast<size_t>(y * 8 + x)] = c;
       }
     }
   }
@@ -1622,18 +1699,11 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       }
     }
 
-    // GridMode::OVERVIEW is forced uniformly onto every connected device
-    // while the PatternMatrix UI has focus, overriding whatever mode a
-    // device's own physical toggle buttons last selected (a press on one
-    // of those while this is active gets silently re-overridden the very
-    // next refresh() call, for as long as overview.active stays true) -
-    // and released back to NOTES the moment focus leaves, never restoring
-    // whatever non-NOTES mode a device happened to be in before.
-    if (overview.active) state.grid_mode = GridMode::OVERVIEW;
-    else if (state.grid_mode == GridMode::OVERVIEW) state.grid_mode = GridMode::NOTES;
-
-    auto track_index = assignedTrackIndex(device_id, fallback_track_index);
-    if (track_index < 0 || track_index >= num_tracks) track_index = fallback_track_index;
+    // Every device follows the one shared cursor now - no more per-device
+    // assignment of its own (see track_move_callback_'s own comment). Out
+    // of range (e.g. -1, no track selected while PatternMatrix has focus)
+    // is handled below by simply skipping the per-track lookups.
+    auto track_index = fallback_track_index;
 
     Tuning tuning = Tuning::TET12;
     int key_val = -1;
@@ -1699,7 +1769,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     state.muted = muted;
     state.solo = solo;
     state.active_note_loudness = move(active_note_loudness);
-    state.overview_colors = overview_colors;
+    state.session_colors = session_colors;
     state.track_send_main = track_send_main;
     state.track_send_a = track_send_a;
     state.track_send_b = track_send_b;

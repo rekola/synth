@@ -19,6 +19,15 @@ PatternMatrix::getVisibleTrackIds(const Song & song) const {
   return song.getPlayableTrackIds();
 }
 
+void
+PatternMatrix::moveCursorScene(const Song & song, int delta) {
+  // Same clamp offerInput()'s own NCKEY_UP/NCKEY_DOWN handling uses - one
+  // position past the last real Scene is still a valid target (see
+  // ensureCursorVisible()'s own comment).
+  auto num_scenes = static_cast<int>(song.getScenes().size());
+  cursor_scene_ = std::clamp(cursor_scene_ + delta, 0, num_scenes);
+}
+
 PatternMatrix::PatternMatrix(UIPlane & parent) : UIElement(parent) {
   // Same command names, same chords, as PatternEditor's own kill-region/
   // kill-ring-save/yank - see this class's own header comment on why: the

@@ -76,6 +76,13 @@ ArpeggiatorState::noteOff(int column) {
 }
 
 void
+ArpeggiatorState::stopAllVoices() {
+  held_notes_.clear();
+  rebuildStepPool();
+  InstrumentTrackState::stopAllVoices();
+}
+
+void
 ArpeggiatorState::endPatternRow() {
   // True when every note currently in held_notes_ was refreshed by this
   // row's own note-on calls (touched_columns_this_row_, populated by

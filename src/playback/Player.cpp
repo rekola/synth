@@ -315,6 +315,16 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     }
     break;
 
+  case PlaybackControlEvent::STOP_ALL_NOTES:
+    {
+      // stopAllVoices()'s own whole-track natural release, for a caller
+      // (Launchpad Session view's "stop this track") with no single
+      // column to target the way STOP_NOTE above has.
+      auto track_state = dynamic_cast<InstrumentTrackState*>(state.getChildByInternalId(ev.getParameter1()));
+      if (track_state) track_state->stopAllVoices();
+    }
+    break;
+
   case PlaybackControlEvent::CHANNEL_PRESSURE:
     {
       auto track_state = dynamic_cast<InstrumentTrackState*>(state.getChildByInternalId(ev.getParameter1()));

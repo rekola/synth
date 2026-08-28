@@ -6,6 +6,8 @@ project(synth VERSION 0.1)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+include(GNUInstallDirs)
+
 # Default to an optimized build when the generator supports build types (a
 # plain `cmake -B build` with no CMAKE_BUILD_TYPE otherwise applies no -O
 # flag at all - effectively -O0 - which is a real trap for an audio engine:
@@ -189,6 +191,14 @@ configure_file(
 	@ONLY
 )
 
+# Bakes the `make install`ed location of songs/welcome.xml into the binary
+# (main.cpp's default-song resolution) - see InstallPaths.h.in's own comment.
+configure_file(
+	${CMAKE_CURRENT_SOURCE_DIR}/InstallPaths.h.in
+	${CMAKE_CURRENT_BINARY_DIR}/generated/InstallPaths.h
+	@ONLY
+)
+
 # add the executable
 add_executable(synth src/main.cpp
 	src/ui/UI.cpp
@@ -205,6 +215,9 @@ add_executable(synth src/main.cpp
 target_include_directories(synth PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 target_link_libraries(synth synth_engine asound notcurses++ notcurses notcurses-core)
+
+install(TARGETS synth RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES songs/welcome.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/synth/songs)
 
 enable_testing()
 add_subdirectory(tests)

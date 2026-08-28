@@ -171,7 +171,7 @@ commandForButton(int cc_number) {
   // rather than intercepted as a raw-CC toggle.
   case 39: return string("toggle-mute");
   case 29: return string("toggle-solo");
-  default: return nullopt; // CC95-97, 99, most of the right column, and all other left-column/bottom-row buttons: reserved for now
+  default: return nullopt; // 95-97, 99, most of the right column, and all other left-column/bottom-row buttons: either intercepted directly in LaunchpadManager::handleRawButton() (95/96 - Session/Note) or UI::handleLaunchpadButtonEvent (97/49 - Custom/Stop Clip, which need press and release), before this table is ever consulted, or reserved for now
   }
 }
 

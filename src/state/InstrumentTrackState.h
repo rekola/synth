@@ -299,6 +299,21 @@ public:
   // subclass-aware dispatch.
   virtual void noteOff(int column) { stopVoices(column); }
 
+  // stopVoices()'s own natural release (voice->stopNote(), full authored
+  // release tail - never fastRelease()'s short ~10ms envelope, that's for
+  // inaudibly reclaiming a voice under a fresh attack, not for a musical
+  // stop), just generalized to every column at once rather than one at a
+  // time - used when a track's pattern is pulled out from under it
+  // (Launchpad Session view's "stop this track") and there's no single
+  // column to target, unlike an ordinary STOP_NOTE.
+  virtual void stopAllVoices() {
+    for (auto & [ column, voices ] : voices_) {
+      for (auto & voice : voices) if (voice->isActive()) voice->stopNote();
+    }
+    column_pressure_.clear();
+    broadcastChannelPressure();
+  }
+
   // Identity-based retrigger cutoff: a new note-on whose identity (31-EDO
   // step for pitched tracks, MIDI note number for percussion - already
   // resolved into `note_value` by the caller; see TrackEvent::getNoteValue()/

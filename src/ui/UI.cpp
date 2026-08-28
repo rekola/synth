@@ -126,7 +126,11 @@ UI::initialize() {
   windows_.push_back(make_shared<HierarchyView>(getPlane()));
 #endif
 
-  active_element_ = pattern_editor_;
+  // Session/overview first, not pattern editing - matches the Launchpad's
+  // own Session view as the more approachable starting point for a fresh
+  // buffer (a bird's-eye view of tracks/scenes) rather than dropping
+  // straight into note-by-note editing.
+  active_element_ = pattern_matrix_;
 
   commands_.define("save-buffers-kill-terminal", [this]() {
     if (getController().hasAnyUnsavedChanges()) {
@@ -331,25 +335,6 @@ UI::initialize() {
     for (auto & name : names) display_names.push_back(getController().getBufferDisplayName(name));
     menu_->refreshBuffers(names, display_names, getController().getActiveBufferName());
 
-    // A Launchpad device's own track association (LaunchpadManager::
-    // DeviceState::assigned_track_id) is an index into whatever root-track
-    // list the *active* Song happens to have - meaningless, or worse,
-    // silently pointing at some other unrelated track, once the active
-    // Song object itself has changed underneath it. This listener also
-    // fires on a plain rename (renameActiveBuffer()), which changes
-    // active_buffer_name_ without the active Song changing at all, so the
-    // comparison is by Song identity, not by name. The pad LEDs/step
-    // display themselves need no equivalent poke here - renderComponents()
-    // already re-reads getSong()/getPlaybackInfo() fresh every frame, so
-    // they just show the new buffer's state on the very next frame.
-    if (launchpad_manager_) {
-      auto & song = getController().getSong();
-      if (&song != launchpad_last_song_) {
-	launchpad_manager_->resetTrackAssignments();
-	launchpad_last_song_ = &song;
-      }
-    }
-
     // Cursor/scroll/selection/live-note/annotation-editing state - see
     // PatternEditor::handleBufferChanged()'s own comment.
     pattern_editor_->handleBufferChanged();
@@ -483,19 +468,16 @@ UI::renderComponents(bool refresh) {
   if (launchpad_manager_) {
     auto & song = getController().getSong();
     auto track_ids = song.getPlayableTrackIds();
-    // No track selected at all while pattern_matrix_ has focus - matches
-    // the -1 an empty track list already gets, rather than leaking
-    // whatever track pattern_editor_'s own cursor happens to still be
-    // sitting on while it's unfocused.
-    auto matrix_focused = active == pattern_matrix_;
-    LaunchpadManager::OverviewWindow overview;
-    overview.active = matrix_focused;
-    if (matrix_focused) {
-      overview.track_ids = pattern_matrix_->getVisibleTrackIds(song);
-      overview.num_scenes = static_cast<int>(song.getScenes().size());
-    }
+    // Populated every call regardless of which UI element actually has
+    // focus - a Launchpad's own Session view (CC95/96, per-device) is
+    // independent of that now, so this always needs to be ready with
+    // wherever a press would actually land (see LaunchpadManager::
+    // SessionWindow's own comment).
+    LaunchpadManager::SessionWindow session;
+    session.track_ids = pattern_matrix_->getVisibleTrackIds(song);
+    session.cursor_scene_idx = pattern_matrix_->getCursorScene();
     launchpad_manager_->refresh(song, track_ids, getController().getPlaybackInfo(),
-      (track_ids.empty() || matrix_focused) ? -1 : pattern_editor_->getCursorTrackIndex(), getController(), overview);
+      track_ids.empty() ? -1 : pattern_editor_->getCursorTrackIndex(), getController(), session);
   }
 
   return render;
@@ -783,12 +765,12 @@ UI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
     }
     return;
   }
-  // GridMode::OVERVIEW: same reasoning as DRAW above (touches no
-  // Song/Track data via handlePadEvent()'s own Controller-only path -
-  // commits through commitOverviewCell() instead, wired as
-  // LaunchpadManager's own overview_commit_callback_ in UI::start()).
-  if (launchpad_manager_ && launchpad_manager_->gridMode(ev.getDeviceIndex()) == LaunchpadManager::GridMode::OVERVIEW) {
-    launchpad_manager_->handleOverviewPadEvent(ev);
+  // GridMode::SESSION: unlike DRAW above, this one does need Controller -
+  // an "assign" press writes into the Song directly, and either sub-mode
+  // (audition/assign - see handleSessionPadEvent()'s own comment) needs
+  // the playback event queue.
+  if (launchpad_manager_ && launchpad_manager_->gridMode(ev.getDeviceIndex()) == LaunchpadManager::GridMode::SESSION) {
+    launchpad_manager_->handleSessionPadEvent(ev, getController());
     return;
   }
   if (!launchpad_manager_) return;
@@ -808,14 +790,13 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
 
   auto device_id = ev.getDeviceIndex();
 
-  // CC49 ("Stop Clip") needs both press and release - either for DRAW's
-  // own long-hold-clears-canvas gesture (when the assigned track isn't a
-  // DrumMachineTrack), or the drum machine's own Clear double-press
-  // confirm when it is - see
-  // LaunchpadManager::handleStopClipButton()'s own comment for how its
-  // meaning is chosen. Routed here before the press-only filter below,
-  // which every other raw-CC button (and every other release) still goes
-  // through unchanged.
+  // CC49 ("Stop Clip") and CC97 ("Custom") both need press and release,
+  // not just press - CC49 for its own tap-vs-long-hold picker/Clear
+  // gesture (LaunchpadManager::handleStopClipButton()'s own comment), CC97
+  // for DRAW mode's tap-vs-long-hold toggle/blank-canvas gesture
+  // (LaunchpadManager::handleDrawToggleButton()). Routed here before the
+  // press-only filter below, which every other raw-CC button (and every
+  // other release) still goes through unchanged.
   if (ev.getCCNumber() == 49) {
     auto track_ids = getController().getSong().getPlayableTrackIds();
     auto track_id = launchpad_manager_->resolveTrackId(device_id, track_ids, pattern_editor_->getCursorTrackIndex());
@@ -823,6 +804,10 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
     bool is_drum_machine = track && track->getType() == TrackType::DRUM_MACHINE;
     auto * drum_track = is_drum_machine ? &static_cast<DrumMachineTrack &>(*track) : nullptr;
     launchpad_manager_->handleStopClipButton(device_id, ev.getKind() == LaunchpadButtonEvent::PRESS, drum_track, getController());
+    return;
+  }
+  if (ev.getCCNumber() == 97) {
+    launchpad_manager_->handleDrawToggleButton(device_id, ev.getKind() == LaunchpadButtonEvent::PRESS);
     return;
   }
 
@@ -864,12 +849,6 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   if (!handled) handled = executeCommand(*name);
 
   getController().setPendingCommandTrack(-1);
-
-  // Keep the shared on-screen cursor following whichever track this
-  // device is now assigned to, so a Launchpad button's effect (whether
-  // navigation, or a mute/solo/send toggle on some other track) stays
-  // visible - PatternEditor doesn't need to know why its cursor moved.
-  if (handled) pattern_editor_->setCursorTrack(launchpad_manager_->assignedTrackIndex(device_id, pattern_editor_->getCursorTrackIndex()));
 }
 
 static void audio_thread_func(Controller * controller, AudioAPI * audio) {
@@ -887,18 +866,15 @@ void
 UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launchpad_manager) {
   launchpad_manager.setLaunchpadIO(&launchpad_io);
   launchpad_manager_ = &launchpad_manager;
-  // A pad press in GridMode::OVERVIEW commits through the exact same logic
-  // pattern_matrix_'s own Enter does (see UI::initialize()'s own wiring
-  // and commitOverviewCell()) - wired here rather than there since
-  // launchpad_manager_ doesn't exist yet at UI::initialize() time (see
-  // main.cpp's ui.initialize()/ui.start() call order).
-  launchpad_manager.setOverviewCommitCallback([this](int track_id, int scene_idx) { commitOverviewCell(track_id, scene_idx); });
-  // prev-track already at track 0 - see PatternEditor's own equivalent
-  // wiring in UI::initialize() and requestOverviewFocus()'s own comment.
-  launchpad_manager.setOverviewRequestCallback([this]() { requestOverviewFocus(); });
-  // next-track already in GridMode::OVERVIEW - lands on track 0, the same
-  // reasoning PatternMatrix's own exit-right wiring above explains.
-  launchpad_manager.setOverviewExitCallback([this]() { exitOverview(); });
+  // "move-row-up"/"move-row-down" while in GridMode::SESSION move
+  // PatternMatrix's own scene cursor instead of scrolling a pad-grid row
+  // window - see LaunchpadManager::session_move_scene_callback_'s own
+  // comment for why.
+  launchpad_manager.setSessionMoveSceneCallback([this](int delta) { pattern_matrix_->moveCursorScene(getController().getSong(), delta); });
+  // "next-track"/"prev-track" outside GridMode::SESSION move the one
+  // shared cursor every connected Launchpad follows - see
+  // LaunchpadManager::track_move_callback_'s own comment for why.
+  launchpad_manager.setTrackMoveCallback([this](int new_track_index) { pattern_editor_->setCursorTrack(new_track_index); });
 
   std::thread audio_thread(audio_thread_func, &(getController()), &audio);
   std::thread visualization_thread(visualization_thread_func, &(getController()), audio.getFrequency(), audio.getFrameCount());

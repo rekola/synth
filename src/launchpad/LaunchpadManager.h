@@ -62,25 +62,15 @@ class LaunchpadManager {
   void octaveUp(int device_id);
   void octaveDown(int device_id);
 
-  // Returns the track *index* (into whatever track_ids vector the caller
-  // is using, not a raw internal track id) this device should act on:
-  // fallback_track_index if the device has never been explicitly
-  // assigned one of its own.
-  int assignedTrackIndex(int device_id, int fallback_track_index) const;
-
-  // Advances this device's own assigned track index by delta (+1/-1),
-  // seeding from fallback_track_index the first time (see
-  // LaunchpadLayout::advanceTrackIndex) - the moment a device "detaches"
-  // from following the shared fallback and starts tracking its own.
-  void advanceTrack(int device_id, int delta, int fallback_track_index, int num_tracks);
-
-  // Resolves which track_id this device's assigned track currently is
-  // (falling back to fallback_track_index, same convention as
-  // assignedTrackIndex/refresh) - -1 if track_ids is empty or the
-  // resolved index still somehow ends up out of range. The one place
-  // "device -> target track_id" is computed, so a caller (the Launchpad
-  // command-dispatch path) doesn't need to duplicate assignedTrackIndex's
-  // own bounds-clamping.
+  // Resolves which track_id `fallback_track_index` (the one shared cursor
+  // every connected device follows - see track_move_callback_'s own
+  // comment on why there's no more per-device assignment of its own)
+  // names - -1 if track_ids is empty or the index is out of range. The
+  // one place "device -> target track_id" is computed, so a caller (the
+  // Launchpad command-dispatch path) doesn't need to duplicate this
+  // bounds-clamping. Still takes device_id, even though it no longer uses
+  // it, so call sites don't need their own special-casing for "this is
+  // the one lookup that isn't device-specific."
   int resolveTrackId(int device_id, const std::vector<int> & track_ids, int fallback_track_index) const;
 
   // Which of the 8x8 grid's meanings a device is currently showing - normal
@@ -96,69 +86,62 @@ class LaunchpadManager {
   // always returns/moves to exactly one state.
   // Ordered to match the physical buttons' own row order (Volume/Pan/Send
   // A/Send B, CC 89/79/69/59 - see handleRawButton()'s own comment), not
-  // declaration-arbitrary. OVERVIEW is unlike the rest of this list: it's
-  // never reached via toggleGridMode()/a physical mode button, only forced
-  // uniformly onto every connected device by refresh() itself whenever the
-  // PatternMatrix UI has focus (see OverviewWindow/refresh()'s own
-  // comment) - the same "every Launchpad shows the same thing" choice
-  // already made for which track a device's plain NOTES grid follows.
-  enum class GridMode { NOTES, SEND_MAIN, PAN, SEND_A, SEND_B, DRAW, OVERVIEW };
+  // declaration-arbitrary. SESSION is reached/left the same way as every
+  // other mode in this list (toggleGridMode()/a physical button - CC95/96,
+  // see handleRawButton()'s own comment) - purely per-device state, not
+  // tied to whether PatternMatrix has terminal UI focus: one connected
+  // Launchpad can sit in Session view while another stays on NOTES.
+  enum class GridMode { NOTES, SEND_MAIN, PAN, SEND_A, SEND_B, DRAW, SESSION };
   GridMode gridMode(int device_id) const;
   void toggleGridMode(int device_id, GridMode mode);
 
-  // PatternMatrix's own filtered track columns - see GridMode::OVERVIEW.
+  // The Launchpad's own session/launch view, replacing what used to be a
+  // plain arrangement-navigation overview (rows=scenes) - rows are now a
+  // track's own available pooled patterns (Song::getPooledPatterns()),
+  // columns are tracks, same layout PatternMatrix's own terminal grid
+  // uses. Which of two things a press does is gated by Record Arm
+  // (DeviceState::capture_enabled), not a Session-specific toggle of its
+  // own (see handleSessionPadEvent()'s own comment): armed, it assigns
+  // that pattern into the pressed column's track at `cursor_scene_idx` (a
+  // copy into that scene's own owned Pattern, not a live reference back to
+  // the pool entry) - the write-side counterpart, and the closest
+  // replacement for what plain scene-navigation used to do here; disarmed,
+  // it instead triggers the pattern to start playing live for that track
+  // (quantized to whatever's currently playing there finishing its own
+  // loop - see triggerPooledPatternStep()), touching nothing in the song.
   // `track_ids` is PatternMatrix's own filtered column list (color-
   // eligible tracks only - PatternMatrix::getVisibleTrackIds()),
-  // deliberately not Song::getRootTrackIds(): a Launchpad in OVERVIEW mode
+  // deliberately not Song::getRootTrackIds(): a Launchpad in SESSION mode
   // must address the exact same columns the terminal widget does, not a
-  // separately-derived list that could disagree with it. Deliberately
-  // does NOT carry a scroll position: an earlier version mirrored
-  // PatternMatrix's own scroll_row_/scroll_col_ directly, but the two
-  // surfaces don't have the same number of visible rows (the terminal
-  // widget's own ~4 data rows vs. the pad grid's 8), so scrolling one
-  // dragged the other around to a position that didn't actually need it -
-  // Launchpad keeps its own independent overview_scroll_row_/
-  // overview_scroll_col_ instead (see refresh()'s own comment). Default-
-  // constructed (active == false) is what a caller passes to refresh()
-  // whenever PatternMatrix doesn't have focus - every device just falls
-  // back to whatever GridMode it was already in (see refresh()'s own
-  // comment).
-  struct OverviewWindow {
-    bool active = false;
+  // separately-derived list that could disagree with it. Passed to
+  // refresh() every call regardless of which device (if any) currently has
+  // grid_mode == SESSION, or whether PatternMatrix has terminal focus -
+  // it's just "where would an assign/audition press land right now,"
+  // meaningful independent of both. No scroll position of any kind yet,
+  // row or column - a track with more than 8 pooled patterns only shows
+  // the first 8 for now, and Up/Down instead move PatternMatrix's own
+  // scene cursor (see session_move_scene_callback_'s own comment), not a
+  // row window.
+  struct SessionWindow {
     std::vector<int> track_ids;
-    // Song::getScenes().size() - lets handleOverviewPadEvent() refuse a
-    // press that lands past the last valid row (the real Scenes plus one
-    // virtual, not-yet-instantiated one - see PatternMatrix's own
-    // ensureCursorVisible()) without needing a Song reference of its own,
-    // matching the same bound the terminal widget's own cursor is clamped
-    // to. A press beyond that already shows as a fully dark/off pad (see
-    // refresh()'s own overview_colors computation, which stops at the same
-    // bound) - this just keeps it non-actionable too, not merely dark.
-    int num_scenes = 0;
+    // PatternMatrix's own current cursor scene (PatternMatrix::
+    // getCursorScene()) - which scene an "assign" press writes into.
+    int cursor_scene_idx = 0;
   };
 
-  // Called (once, from wherever owns the PatternMatrix widget) with the
-  // (track_id, scene index) a pad press commits while a device is in
-  // OVERVIEW mode - mirrors PatternMatrix::setCommitCallback() exactly
-  // (same callback, ideally - see UI::initialize()), so a pad press and
-  // the terminal's own Enter key drive the identical commit logic rather
-  // than two competing implementations of it. A plain std::function, not
-  // a UI-typed dependency - keeps this class's own "only needs Controller,
-  // never any UI type" contract (see this class's header comment) intact.
-  void setOverviewCommitCallback(std::function<void(int track_id, int scene_idx)> cb) { overview_commit_callback_ = std::move(cb); }
+  // Called with +1/-1 when "move-row-up"/"move-row-down" is pressed while
+  // a device is in GridMode::SESSION - moves PatternMatrix's own scene
+  // cursor (see session_move_scene_callback_'s own comment) rather than
+  // scrolling a pad-grid row window.
+  void setSessionMoveSceneCallback(std::function<void(int delta)> cb) { session_move_scene_callback_ = std::move(cb); }
 
-  // Called (from wherever owns the PatternMatrix widget) when "prev-track"
-  // is pressed while a device is already on the first track - mirrors
-  // PatternEditor::setOverviewRequestCallback() exactly (same callback,
-  // ideally - see UI::initialize()), the Launchpad-side edge for the same
-  // "nowhere further left to go, enter the overview instead" gesture.
-  void setOverviewRequestCallback(std::function<void()> cb) { overview_request_callback_ = std::move(cb); }
-
-  // Called when "next-track" is pressed while a device is already in
-  // GridMode::OVERVIEW - the exit edge, mirroring PatternMatrix::
-  // setExitRightCallback() exactly (same callback, ideally - see
-  // UI::initialize()).
-  void setOverviewExitCallback(std::function<void()> cb) { overview_exit_callback_ = std::move(cb); }
+  // Called with the new track index when "next-track"/"prev-track" is
+  // pressed outside GridMode::SESSION (see track_move_callback_'s own
+  // comment) - moves the one shared cursor every connected Launchpad
+  // (and PatternEditor itself) follows, rather than giving the pressing
+  // device its own independent assignment. Wired to PatternEditor::
+  // setCursorTrack() in UI::start().
+  void setTrackMoveCallback(std::function<void(int new_track_index)> cb) { track_move_callback_ = std::move(cb); }
 
   // DRAW mode only: registers a touch-down on pad (x,y) - starts (or, for a
   // hold-continuation resend, extends) its held-duration tracking and
@@ -239,44 +222,34 @@ class LaunchpadManager {
   // CC97 (DRAW mode toggle) on its own, separate entry point: unlike every
   // button handleRawButton() covers, it needs both press and release to
   // tell a quick tap from a long hold. Released quickly, it toggles DRAW
-  // mode on/off, same as before; held past a threshold and released while
-  // DRAW mode is already active, it blanks the canvas instead (see
-  // advanceDrawColor's own comment on the palette) - the button took over
-  // this "clear canvas" gesture after CC99 (the grid position the
-  // Programmer-mode protocol maps one past the top row) turned out not to
-  // be an actual pressable button on real Launchpad X hardware, just a
-  // CC-addressable LED kept for symmetry with the Launchpad Pro. Always
-  // returns true (handled) for both press and release. No longer reached
-  // directly from CC97 (see handleStopClipButton() - Custom now owns the
-  // drum picker unconditionally, so DRAW moved to Stop Clip) but kept
-  // under its original name since the toggle-vs-long-hold-clears logic
-  // itself is unchanged.
+  // mode on/off (mutually exclusive with SESSION/NOTES via toggleGridMode(),
+  // the same shape as CC95's own Session toggle - Session/Note/Custom are a
+  // trio of exclusive mode-selection buttons); held past a threshold and
+  // released while DRAW mode is already active, it blanks the canvas
+  // instead (see advanceDrawColor's own comment on the palette) - the
+  // button took over this "clear canvas" gesture after CC99 (the grid
+  // position the Programmer-mode protocol maps one past the top row)
+  // turned out not to be an actual pressable button on real Launchpad X
+  // hardware, just a CC-addressable LED kept for symmetry with the
+  // Launchpad Pro. Always returns true (handled) for both press and
+  // release. Routed here directly from CC97 by UI::handleLaunchpadButtonEvent,
+  // the same way CC49 routes to handleStopClipButton() below.
   bool handleDrawToggleButton(int device_id, bool is_press);
 
-  // CC49 ("Stop Clip" physical button)'s dispatcher - its meaning depends
-  // on what this device is currently
-  // assigned to. When `assigned_drum_track` is non-null, it's the drum
-  // machine's own Clear gesture, double-press to confirm: a first press
-  // arms a short confirm window (kClearConfirmWindow - see refreshLeds()'s
-  // own blinking-indicator comment), a second press within that window
-  // clears every one of that track's lanes' step data back to all-rest
+  // CC49 ("Stop Clip" physical button)'s dispatcher - the drum machine's
+  // own configuration button, needs both press and release to tell a quick
+  // tap from a long hold (same shape as handleDrawToggleButton()'s own
+  // tap-vs-hold gesture). A no-op (still returns true) when
+  // `assigned_drum_track` is null - there's nothing to configure without a
+  // drum machine assigned. Released quickly, it toggles the drum-picker
+  // latch (DeviceState::picker_active) - which notes the free-drumming
+  // layout's pad presses add/remove as lanes. Held past
+  // kDrawClearHoldThreshold and released, it instead clears every one of
+  // that track's lanes' step data in the current scene back to all-rest
   // (the lane list itself is untouched - only the picker removes lanes),
-  // and letting the window lapse (or an already-stale arm) just re-arms
-  // rather than clearing - there's deliberately no separate "pressing any
-  // other button cancels the arm" mechanism (that would mean threading a
-  // cancel call through every other input path in this class for an edge
-  // case the timeout already covers in practice: by the time a player
-  // returns to Stop Clip after doing something else, the window has
-  // essentially always lapsed). Clear writes unconditionally regardless
+  // without toggling the picker. Clear writes unconditionally regardless
   // of Record Arm, matching the step grid/picker's own "arm gates
-  // performance capture, not editing" rule. When `assigned_drum_track` is
-  // null, this is DRAW mode's toggle instead (moved here from Custom,
-  // which the drum picker now owns unconditionally - see
-  // handleRawButton()'s own comment), forwarded to handleDrawToggleButton()
-  // unchanged, long-hold-clears-canvas gesture included. Needs both press
-  // and release for that same reason handleDrawToggleButton() does (the
-  // Clear gesture itself only acts on press - release is a no-op there).
-  // Always returns true (handled) for both press and release.
+  // performance capture, not editing" rule.
   bool handleStopClipButton(int device_id, bool is_press, DrumMachineTrack * assigned_drum_track, Controller & controller);
 
   // Handles this device's own pure per-device commands - octave and
@@ -309,19 +282,31 @@ class LaunchpadManager {
   // happens to be present).
   void handlePadEvent(LaunchpadPadEvent & ev, Controller & controller, int fallback_track_index, int edit_step_size);
 
-  // GridMode::OVERVIEW's own pad-press handling - mirrors DRAW mode's own
+  // GridMode::SESSION's own pad-press handling - mirrors DRAW mode's own
   // separate entry point (pressDrawPad()) rather than living inside
   // handlePadEvent() above: UI::handleLaunchpadPadEvent() already checks
-  // gridMode() before ever calling handlePadEvent() (to route DRAW mode
-  // to pressDrawPad() instead, since it touches no Song/Track data at
-  // all), so OVERVIEW - which touches no Controller either, only the
-  // cached overview_ window and overview_commit_callback_ - fits the same
-  // shape rather than adding a third meaning to handlePadEvent()'s own
-  // `grid_mode != GridMode::NOTES` branch. Only a PRESS does anything
-  // (matching every other grid-mode's own press-only convention); x/y map
-  // to overview_'s track/scene window exactly like refresh()'s own
-  // overview_colors computation does (see its comment for the y-flip).
-  void handleOverviewPadEvent(const LaunchpadPadEvent & ev);
+  // gridMode() before ever calling handlePadEvent(). x = column, indexing
+  // into session_.track_ids exactly like refresh()'s own session_colors
+  // computation (see its comment for the y-flip); y = which of that
+  // track's own pooled patterns (Song::getPooledPatterns()) was pressed.
+  // Only a PRESS does anything (matching every other grid-mode's own
+  // press-only convention). Needs Controller (unlike DRAW/the old plain
+  // navigation this replaces) to reach the Song and the playback event
+  // queue. Which of two things a press does is exactly Record Arm
+  // (DeviceState::capture_enabled) - the same "just play" vs. "store into
+  // the pattern" choice it already makes for ordinary note entry, one
+  // level up: off triggers/queues the pattern for live playback
+  // (triggered_pattern_by_track_/queued_pattern_by_track_, picked up by
+  // the free-running audition clock below) without touching the song at
+  // all; on instead assigns it into the pressed column's track at
+  // session_.cursor_scene_idx (a copy into that scene's own owned
+  // Pattern) and stays in Session view rather than switching focus away -
+  // a player assigning several patterns in a row needs to keep pressing
+  // pads, not get bounced out after the first one. Deliberately not a
+  // separate toggle, so switching between Session view and the ordinary
+  // NOTES grid never leaves Record Arm's own state (and its LED) out of
+  // sync with what a press here is about to do.
+  void handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller & controller);
 
   // Device-wide aftertouch (the alternative to handlePadEvent's per-pad
   // AFTERTOUCH case - see LaunchpadChannelPressureEvent) - there's no
@@ -351,29 +336,18 @@ class LaunchpadManager {
   // colors actually changed - the multi-device generalization of the old
   // single-device diff block. track_ids is whatever root-track-id list
   // the caller already computed (avoids this class needing to know how
-  // to walk the track tree itself); fallback_track_index is used for any
-  // device that hasn't been explicitly assigned a track of its own.
-  // `controller` is only needed for the free-running drum-machine
-  // audition clock below (to reach the playback event queue) - every
-  // other per-device computation here still only touches `song`/
-  // `playback_info` directly, unchanged from before that clock existed.
-  void refresh(const Song & song, const std::vector<int> & track_ids, const PlaybackInfo & playback_info, int fallback_track_index, Controller & controller, const OverviewWindow & overview);
-
-  // Called whenever the active buffer changes (Controller::
-  // setBufferChangeListener()'s UI.cpp wiring): resets every connected
-  // device back to "unassigned" (falls back to whatever fallback_track_index
-  // refresh()/resolveTrackId() are passed that frame) rather than leaving
-  // assigned_track_id pointing at an index carried over from the old song.
-  // Left alone, that index would still be in-bounds whenever the new song
-  // happens to have at least as many root tracks as the old one, silently
-  // reassigning the device to a different, unrelated track instead of
-  // erroring out or visibly resetting - worse than simply going out of
-  // range, which resolveTrackId() already falls back on safely.
-  void resetTrackAssignments();
+  // to walk the track tree itself); fallback_track_index is the one
+  // shared cursor every connected device follows - see
+  // track_move_callback_'s own comment for why there's no more per-device
+  // assignment of its own. `controller` is only needed for the
+  // free-running drum-machine audition clock below (to reach the
+  // playback event queue) - every other per-device computation here
+  // still only touches `song`/`playback_info` directly, unchanged from
+  // before that clock existed.
+  void refresh(const Song & song, const std::vector<int> & track_ids, const PlaybackInfo & playback_info, int fallback_track_index, Controller & controller, const SessionWindow & session);
 
  private:
   struct DeviceState {
-    int assigned_track_id = -1; // index into track_ids, or -1 = unassigned
     // Relative to Controller::getGlobalOctave(), not an absolute octave -
     // 0 means "follow the global octave exactly". See
     // LaunchpadManager::octave()/cached_global_octave_.
@@ -412,7 +386,11 @@ class LaunchpadManager {
     // is gated.
     bool capture_enabled = false;
 
-    GridMode grid_mode = GridMode::NOTES;
+    // Matches the terminal UI's own default focus (UI::initialize()'s
+    // active_element_) - a freshly connected Launchpad starts in the same
+    // bird's-eye Session view a fresh session opens to, not straight into
+    // note entry.
+    GridMode grid_mode = GridMode::SESSION;
 
     // Step-grid surface: not a GridMode value of its own - it displays
     // automatically whenever this device's
@@ -436,25 +414,19 @@ class LaunchpadManager {
     // see refresh()'s own gating check).
     int drum_playhead_step = -1;
 
-    // Stop-Clip Clear double-press confirm state - see
-    // handleStopClipButton()'s own comment for the full
-    // arm/confirm/timeout rule; ConfirmTimer itself (LaunchpadTiming.h) is
-    // the pure, unit-tested arm/confirm/timeout logic. Purely per-device
-    // (unlike Record Arm): each Launchpad's own Stop Clip press arms only
-    // that device's confirm window, since Clear is a deliberate,
-    // immediate action taken on the spot, not a mode setting that needs
-    // to stay consistent across every connected device the way
-    // recording-armed does.
-    ConfirmTimer clear_confirm;
-
-    // Drum picker latch - CC97
-    // ("Custom")'s own toggle, unconditional (see handleRawButton()'s own
-    // comment). Only actually shown/acted on while
+    // Drum picker latch - CC49 ("Stop Clip")'s own quick-tap toggle (see
+    // handleStopClipButton()'s own comment; a long hold clears step data
+    // instead of touching this). Only actually shown/acted on while
     // assigned_track_is_drum_machine is also true - left as whatever it
     // was if the device's assigned track later stops being a drum
     // machine, so switching back re-shows the picker rather than losing
     // the latch state.
     bool picker_active = false;
+    // CC49 (Stop Clip) press/release tracking - see handleStopClipButton()
+    // for why a tap and a long hold need to be told apart, same shape as
+    // draw_toggle_pressed/draw_toggle_press_time below for CC97.
+    bool stop_clip_pressed = false;
+    std::chrono::steady_clock::time_point stop_clip_press_time;
 
     // First 8 root tracks' current SendMain/SendA/SendB/azimuth - refreshed
     // every frame (refresh()), same as muted/solo above, so the fader/pan
@@ -470,15 +442,16 @@ class LaunchpadManager {
     // Pan - both misleadingly "lit").
     int grid_track_count = 0;
 
-    // GridMode::OVERVIEW: each of the 64 pads' own final LED color
-    // (x + y*8, y flipped from PatternMatrix's own top-down scene order -
-    // see refresh()'s own comment), already fully resolved (identity hue,
-    // playhead-row brightening, off where nothing's there) - refreshLeds()
-    // just reads this directly, same "computed once in refresh(), copied
-    // into every device identically" shape as track_send_main/etc. above.
-    // Plain black (Color's own default) wherever OVERVIEW isn't active at
-    // all, so this never needs a separate "is this valid" flag.
-    std::array<Color, 64> overview_colors;
+    // GridMode::SESSION: each of the 64 pads' own final LED color (x + y*8,
+    // y flipped from PatternMatrix's own top-down column order - see
+    // refresh()'s own comment), already fully resolved (identity hue,
+    // triggered/queued brightening, off where a track has no pooled
+    // pattern in that row) - refreshLeds() just reads this directly, same
+    // "computed once in refresh(), copied into every device identically"
+    // shape as track_send_main/etc. above. Plain black (Color's own
+    // default) wherever SESSION isn't active at all, so this never needs a
+    // separate "is this valid" flag.
+    std::array<Color, 64> session_colors;
 
     // DRAW mode: each of the 64 pads' own index into the color palette
     // (see releaseDrawPad/refreshLeds), independent of Song/Track state
@@ -596,9 +569,9 @@ class LaunchpadManager {
   int last_cleared_row_ = -1;
   int last_cleared_pattern_idx_ = -1;
 
-  // Phase 7's free-running drum-machine audition clock (plans/drum-
-  // machine.md): a second, independent clock from SongState's own
-  // position - deliberately never touches sample_pos_/absolute_pos_ and
+  // The free-running drum-machine/pooled-pattern audition clock: a second,
+  // independent clock from SongState's own position - deliberately never
+  // touches sample_pos_/absolute_pos_ and
   // never pushes MOVE_POSITION/SET_POSITION, exactly the same "don't
   // unify the two clocks" invariant the plan calls out. Lives here (UI
   // thread, wall-clock-timed via refresh()'s own call cadence - Player.cpp
@@ -627,9 +600,33 @@ class LaunchpadManager {
   // while it's already running).
   void triggerAuditionStep(const Song & song, const std::vector<int> & track_ids, Controller & controller, int step);
 
+  // track_id -> index into song.getPooledPatterns(track_id) currently
+  // auditioning in Session view - song-wide, like audition_clock_ itself,
+  // not per-device (matches "this track is now playing pattern X"
+  // regardless of which Launchpad column happens to show it, the same way
+  // triggerAuditionStep() above already fires identically for every
+  // connected device rather than per-device). A track with no entry here
+  // just isn't currently triggering anything.
+  std::unordered_map<int, int> triggered_pattern_by_track_;
+  // A Session-view press for a track that's already auditioning something
+  // queues here instead of switching immediately - either a pool index
+  // (>= 0) to promote into triggered_pattern_by_track_ once the
+  // currently-playing pattern's own loop crosses back to row 0, or -1 (a
+  // press on an unassigned row) to stop the track entirely at that same
+  // boundary instead, erasing its triggered_pattern_by_track_ entry - see
+  // triggerPooledPatternStep()'s own quantized-launch comment.
+  std::unordered_map<int, int> queued_pattern_by_track_;
+
+  // Fires one step's worth of notes for whatever's in
+  // triggered_pattern_by_track_ (promoting a queued swap first, if this
+  // step crosses that track's own loop boundary) - the pooled-pattern
+  // sibling of triggerAuditionStep() above, called from the same two
+  // places in refresh() for the same reason.
+  void triggerPooledPatternStep(const Song & song, Controller & controller, int step);
+
   // Record Arm (CC19) is one shared, song-wide flag, not a per-device
   // setting (deliberate change from the original per-device design, made
-  // while implementing Phase 7's free-running drum-machine audition loop:
+  // while implementing the free-running drum-machine audition loop:
   // arming should be a single global state, since "am I recording" isn't
   // a question that should have a different answer on two Launchpads
   // plugged into the same session). handleRawButton()'s CC19
@@ -637,8 +634,10 @@ class LaunchpadManager {
   // own DeviceState::capture_enabled every frame (see that field's own
   // comment) so the entire rest of this file - handlePadEvent's
   // capture-gated writes, anyCaptureArmedNoteHeld(), refreshLeds()'s CC19
-  // LED - keeps reading the per-device mirror unchanged, and every
-  // connected Launchpad's Record Arm LED shows the same lit/unlit state.
+  // LED, and now Session view's own audition-vs-assign split
+  // (handleSessionPadEvent()) - keeps reading the per-device mirror
+  // unchanged, and every connected Launchpad's Record Arm LED shows the
+  // same lit/unlit state.
   bool capture_enabled_ = false;
 
   // Controller::getGlobalOctave(), mirrored here once per refresh() call
@@ -647,25 +646,37 @@ class LaunchpadManager {
   // otherwise need it. See octave()'s own comment.
   int cached_global_octave_ = 4;
 
-  // refresh()'s own OverviewWindow parameter, mirrored here (same
-  // capture_enabled_/cached_global_octave_ pattern) so handlePadEvent() -
+  // refresh()'s own SessionWindow parameter, mirrored here (same
+  // capture_enabled_/cached_global_octave_ pattern) so handleSessionPadEvent() -
   // called asynchronously between refresh() calls, on a real pad press -
-  // can resolve which (track_id, scene index) a press in GridMode::OVERVIEW
-  // landed on without needing its own copy threaded through.
-  OverviewWindow overview_;
-  // Launchpad's own scroll position within the overview grid - deliberately
-  // independent of PatternMatrix's own scroll_row_/scroll_col_ (see
-  // OverviewWindow's own comment on why); reset to 0 whenever OVERVIEW
-  // mode isn't active (refresh()'s own doing), so each fresh entry starts
-  // from the top-left rather than wherever a previous session left off.
-  // Column scroll has no button of its own yet (CC93/94 are the
-  // enter/exit overview gesture instead - see handleCommand()) so it stays
-  // fixed at 0 for now; row scroll moves via "move-row-up"/"move-row-down"
-  // (CC91/92) while a device is in OVERVIEW mode.
-  int overview_scroll_row_ = 0, overview_scroll_col_ = 0;
-  std::function<void(int track_id, int scene_idx)> overview_commit_callback_;
-  std::function<void()> overview_request_callback_;
-  std::function<void()> overview_exit_callback_;
+  // can resolve which (track_id, scene index) a press landed on without
+  // needing its own copy threaded through.
+  SessionWindow session_;
+  // "move-row-up"/"move-row-down" (CC91/92) while a device is in
+  // GridMode::SESSION move PatternMatrix's own scene cursor (via
+  // PatternMatrix::moveCursorScene()) rather than scrolling a pad-grid row
+  // window - Session view's rows are a track's own pooled patterns, not
+  // scenes, so there's no local row scroll for those buttons to drive; the
+  // scene cursor is what an "assign" press actually targets (session_.
+  // cursor_scene_idx), so moving it is the meaningful thing left for
+  // up/down to do here. +1/-1 is the caller's own delta convention (see
+  // handleCommand()).
+  std::function<void(int delta)> session_move_scene_callback_;
+
+  // "next-track"/"prev-track" outside GridMode::SESSION move the one
+  // shared cursor (via this callback, wired to PatternEditor::
+  // setCursorTrack()) rather than giving the pressing device its own
+  // independent track assignment - deliberate, not an oversight: an
+  // earlier per-device design let one Launchpad detach from the shared
+  // cursor and track its own, but that meant a device used to switch
+  // tracks stayed pinned to its own choice forever after, never
+  // reflecting later navigation from the UI or another Launchpad again -
+  // reported as that device silently "going stale"/"disconnecting" from
+  // the rest. Every device (and PatternEditor itself) now always follows
+  // the identical fallback_track_index every refresh()/handlePadEvent()
+  // call already threads through, with no separate per-device state left
+  // to diverge.
+  std::function<void(int new_track_index)> track_move_callback_;
 };
 
 #endif

@@ -21,7 +21,7 @@ class Mixer;
 
 class Song : public SongObject {
  public:
-  Song(Tuning tuning = Tuning::TET12, short key = -1);
+  Song(Tuning tuning = Tuning::TET31, short key = -1);
 
   Tuning getTuning() const { return tuning_; }
   void setTuning(Tuning tuning) { tuning_ = tuning; }
@@ -292,7 +292,7 @@ class Song : public SongObject {
   std::vector<int> getPlayableTrackIds() const;
 
 private:
-  Tuning tuning_ = Tuning::TET12;
+  Tuning tuning_ = Tuning::TET31;
   short key_note_number_ = 0;
   int bpm_ = 90;
   int pattern_length_ = 64;

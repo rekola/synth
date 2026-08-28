@@ -7,8 +7,10 @@
 #include "audio/OfflineRenderer.h"
 #include "ambisonic/AmbisonicEncoding.h"
 #include "generated/ThirdPartyLicenses.h"
+#include "generated/InstallPaths.h"
 
 #include <cstring>
+#include <filesystem>
 #include <signal.h>
 #include <termios.h>
 #include <unistd.h>
@@ -161,11 +163,24 @@ int main(int argc, char *argv[]) {
       if (!controller->openSong(path)) exit(1);
     }
   } else {
-    // No separate "new song" entry point any more (see Controller.h's own
-    // switchToBuffer() comment) - freshBufferName() picks a buffer name
-    // nothing has open yet (trivially "song.xml" this early), and
-    // switchToBuffer() creates it since it doesn't recognize the name.
-    controller->switchToBuffer(controller->freshBufferName());
+    // No file given on the command line - open the bundled welcome song by
+    // default: the project-local, cwd-relative copy first (running
+    // straight out of the source tree, findDefaultSoundFont()'s own
+    // data/-override precedent in Controller.cpp), then the `make
+    // install`ed copy (kInstalledWelcomeSongPath, baked in at configure
+    // time - see InstallPaths.h.in), falling back to a fresh empty buffer
+    // if neither is there. No separate "new song" entry point otherwise
+    // (see Controller.h's own switchToBuffer() comment) - freshBufferName()
+    // picks a buffer name nothing has open yet (trivially "song.xml" this
+    // early), and switchToBuffer() creates it since it doesn't recognize
+    // the name.
+    error_code ec;
+    string welcome_song;
+    if (filesystem::is_regular_file("songs/welcome.xml", ec)) welcome_song = "songs/welcome.xml";
+    else if (filesystem::is_regular_file(kInstalledWelcomeSongPath, ec)) welcome_song = kInstalledWelcomeSongPath;
+    if (welcome_song.empty() || !controller->openSong(welcome_song)) {
+      controller->switchToBuffer(controller->freshBufferName());
+    }
   }
 
   LaunchpadIO launchpad_io;

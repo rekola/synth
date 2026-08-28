@@ -1,0 +1,11 @@
+#ifndef _INSTALLPATHS_H_
+#define _INSTALLPATHS_H_
+
+// Generated at build time from CMakeLists.txt's own CMAKE_INSTALL_PREFIX -
+// do not edit this generated file directly. Baked in at configure time
+// (not resolved relative to argv[0] or the working directory) so a
+// `make install`ed binary can still find its own data files regardless of
+// where it's run from - see main.cpp's default-song resolution.
+inline constexpr const char * kInstalledWelcomeSongPath = "@CMAKE_INSTALL_FULL_DATADIR@/synth/songs/welcome.xml";
+
+#endif
