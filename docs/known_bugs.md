@@ -112,6 +112,22 @@ Found 2026-07-11, not yet fixed.
   handshake and step-toggle correctly, confirming this is the harness
   racing itself in this environment rather than a feature regression.
 
+- **`tools/e2e/verify_launchpad_stopclip.py` hits the same class of
+  flakiness above, in a new shape**: the simulated device's SysEx LED
+  traffic goes completely silent after the *first* Session-view pad
+  press, for the rest of the run - not just a pad press's effect on the
+  pattern failing to show up (the earlier bullet's symptom), but every
+  further LED refresh for that device going missing entirely, regardless
+  of what's pressed afterward. Confirmed independent of the Stop Clip
+  redesign this script exists to cover: a minimal two-plain-pad-press
+  repro (no CC49 involved at all) reproduces the identical one-dump-then-
+  silence pattern. `synth` itself stays alive and responsive throughout
+  (its own info line keeps updating every second) - only this specific
+  device's LED SysEx stream stalls, consistent with the same "harness vs.
+  this sandboxed environment" territory the two bullets above are already
+  in, not a real regression. Not investigated further, same reasoning as
+  above.
+
 - **A voice's envelope keeps progressing while playback is stopped**, so a
   long-held note can resume out of sync with the (frozen) row/pattern
   position once playback restarts. `SongState::renderBlock()` calls every

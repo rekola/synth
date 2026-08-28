@@ -24,6 +24,8 @@ gcc -o fake_launchpad_sendmode_autocreate fake_launchpad_sendmode_autocreate.c -
 gcc -o fake_launchpad_draw_clear fake_launchpad_draw_clear.c -lasound
 gcc -o fake_launchpad_stepseq fake_launchpad_stepseq.c -lasound
 gcc -o fake_launchpad_session fake_launchpad_session.c -lasound
+gcc -o fake_launchpad_notecustom fake_launchpad_notecustom.c -lasound
+gcc -o fake_launchpad_stopclip fake_launchpad_stopclip.c -lasound
 ```
 
 (the compiled binaries are gitignored - only the `.c` sources are
@@ -120,6 +122,29 @@ you're changing.
   actually copied that pool entry's own pattern (E-4) into the current
   scene, replacing its placeholder note (C-4) - rather than silently
   falling through to ordinary NOTES-mode note entry.
+- **`fake_launchpad_notecustom.c` / `verify_launchpad_notecustom.py`** -
+  two small LED/mode-switch regressions: Note (CC96) previously had no
+  active-state LED at all (fixed, now lights up the same way Session/
+  Custom do once NOTES is actually selected), and Custom/DRAW (CC97)
+  previously only switched `GridMode` on release rather than on press
+  (fixed - `LaunchpadManager::handleDrawToggleButton()`). The script
+  presses CC96 and confirms its LED lights, then presses CC97 and
+  actively drains SysEx *before* ever sending its release, confirming
+  DRAW mode's own LED already lit up while the button was still held
+  down.
+- **`launchpad_session_test.xml` (pool index 7's own `length="8"`) /
+  `fake_launchpad_stopclip.c` / `verify_launchpad_stopclip.py`** - Stop
+  Clip (CC49)'s redesign into a held modifier (Session view shows several
+  tracks at once as columns with no visible "current" one for a plain
+  press to target, so holding CC49 and pressing any pad in a column stops
+  that column's own track instead - `LaunchpadManager::
+  handleStopClipButton()`/`handleSessionPadEvent()`). Triggers pool index
+  7 via pad (0,0), confirms its own LED brightens, then holds CC49 and
+  presses that pad again to queue a stop, confirming the LED reverts once
+  it takes effect. **Currently fails 2 of 4 checks in this sandboxed
+  environment** for a documented, pre-existing, unrelated reason (not a
+  real regression - reproduces with plain pad presses alone, no CC49
+  involved) - see `docs/known_bugs.md`.
 - **`cross_tuning_paste_test.xml` (+ companion `..._song_b.xml`) /
   `verify_cross_tuning_paste.py` / `verify_patterneditor_cross_tuning_paste.py`** -
   a `Note::getValue()` means a different kind of value under a different

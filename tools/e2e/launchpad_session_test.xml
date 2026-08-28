@@ -9,7 +9,13 @@
      on an undefined pool slot a shorter pool would leave there instead.
      The one scene starts with a distinct placeholder note (C-4) so an
      assign (Record Arm on, then the pad press) landing on this track/row
-     is unambiguous: E-4 afterward. -->
+     is unambiguous: E-4 afterward. Pool index 7's own explicit length="8"
+     matters when auditioning it live (verify_launchpad_stopclip.py) - a
+     default (0, meaning "1" once clamped - see triggerPooledPatternStep()'s
+     own current_length<=0 fallback) would re-trigger the same note on
+     every single audition-clock step instead of looping normally,
+     piling up voices and stalling the audio thread (confirmed - an XRUN
+     followed by the simulated terminal going unresponsive). -->
 <song temperament="12edo" tempo="120" patternRows="16">
   <instruments>
     <instrument from="string.bowed.ensemble.pizzicato" />
@@ -25,7 +31,7 @@
     <pattern track="0" name="p4" />
     <pattern track="0" name="p5" />
     <pattern track="0" name="p6" />
-    <pattern track="0" name="target">
+    <pattern track="0" name="target" length="8">
       <note row="0" velocity="80" value="E-4" />
     </pattern>
   </patterns>

@@ -36,11 +36,17 @@ left open. Superseded by this file - the originals are deleted.
   ordinary note entry. Launches and stops are quantized to the
   currently-playing pattern's own loop end; an unassigned pad queues a
   stop, releasing the track's voices through their natural `stopNote()`
-  tail (`InstrumentTrackState::stopAllVoices()`). CC95 (Session)/CC96
-  (Note)/CC97 (Custom, `DRAW` mode) are a trio of exclusive per-device
-  mode buttons, fully decoupled from terminal UI focus - `grid_mode`
-  defaults to `SESSION`. Stop Clip (CC49) is the drum machine's own
-  configuration button (tap = picker latch, hold = clear step data).
+  tail (`InstrumentTrackState::stopAllVoices()`); repressing the active
+  pad, or a track whose pool fills every row, queues the same quantized
+  stop instead of cutting immediately. CC95 (Session)/CC96 (Note)/CC97
+  (Custom, `DRAW` mode) are a trio of exclusive per-device mode buttons,
+  fully decoupled from terminal UI focus - `grid_mode` defaults to
+  `SESSION`. Stop Clip (CC49) is a held modifier, not a plain press:
+  Session view shows several tracks as columns with no visible "current"
+  one to target, so holding it and pressing any pad in a column stops
+  that column's own track. The drum machine's own configuration (tap =
+  picker latch, hold = clear step data) moved to CC98 (reused from
+  "Capture MIDI") to make room.
 - **Defaults**: the app now opens on `PatternMatrix` (Session/overview)
   rather than straight into note entry, 31-EDO is the default tuning, and
   `songs/welcome.xml` opens automatically with no file given.

@@ -326,6 +326,97 @@ resolving `piano.*` to an FM-synthesis piano rather than the plain oscillator
 - but that doesn't exist yet; today there's just the one. `data/` is
 gitignored.
 
+## Launchpad
+
+Optional hardware support (Novation Launchpad X/Mini MK3/Pro MK3, an ALSA
+sequencer client auto-detected by device name -
+`LaunchpadProtocol::modelFromDeviceName()`) - the terminal UI works fully
+without one connected. `LaunchpadIO` owns the raw MIDI I/O (connect/
+hotplug/SysEx); `LaunchpadManager` owns all per-device state and business
+logic (note entry, grid-mode dispatch, Session view, drum-machine step
+grid) and is Song/Controller-aware but UI-agnostic - it works the same
+whether or not a terminal UI exists at all.
+
+- **`GridMode`** (`LaunchpadManager::GridMode`) - one of `NOTES`/
+  `SEND_MAIN`/`PAN`/`SEND_A`/`SEND_B`/`DRAW`/`SESSION`, mutually
+  exclusive, purely per-device (`toggleGridMode()`), never tied to
+  terminal UI focus - one connected Launchpad can sit in Session view
+  while another stays on ordinary note entry. Defaults to `SESSION`.
+- **Extra-button layout** (raw CC, intercepted directly in
+  `LaunchpadManager::handleRawButton()`/`UI::handleLaunchpadButtonEvent()`
+  before any command-name resolution): 89/79/69/59 toggle SEND_MAIN
+  (Volume)/PAN/SEND_A/SEND_B; 95/96/97 (Session/Note/Custom) are a trio
+  of exclusive mode-select buttons (95 toggles SESSION, 96 is a one-way
+  return to NOTES, 97 toggles DRAW - see below); 19 is Record Arm
+  (`capture_enabled_`, a single song-wide flag, not per-device); 49 and
+  98 are Session-view/drum-machine-specific, see their own bullets below.
+  91/92/93/94 are move-row-up/down/prev-track/next-track (named
+  commands, via `LaunchpadProtocol::commandForButton()`); 39/29 are
+  Mute/Solo.
+- **DRAW mode** - a plain per-pad coloring toy, independent of Song/Track
+  state. CC97's own tap-vs-long-hold gesture: entering DRAW happens
+  immediately on press; a quick release while already in DRAW toggles
+  back to NOTES, a long hold instead blanks the canvas
+  (`handleDrawToggleButton()`).
+- **The drum machine** (`DrumMachineTrack`, up to `kMaxLanes` = 8 lanes,
+  `getLaneNotes()`): its step data is a real per-scene `Pattern` like any
+  other track's (a step is a `Note`), not track-global, so it's
+  copy/paste-able through `PatternMatrix` and renders as `PatternEditor`'s
+  own compact one-cell-per-lane view. On a Launchpad, it displays
+  automatically as a step grid (rows = lanes, columns = steps) whenever
+  the assigned track is a `DrumMachineTrack` and `GridMode` is `NOTES` -
+  not a mode toggle of its own. CC98 (drum machine configuration, needs
+  press and release - `handleDrumConfigButton()`): a quick tap toggles the
+  drum-picker latch (the free-drumming percussion layout doubles as a
+  lane add/remove surface while active), a long hold instead clears the
+  track's step data in the current scene back to all-rest (never the lane
+  list itself).
+- **The pattern pool** (`Song::getPooledPatterns(track_id)`/
+  `addPooledPattern()`, `std::unordered_map<int, std::vector<Pattern>>`) -
+  reusable named `Pattern`s per track, outside any one scene position, in
+  a top-level `<patterns>` XML element (same shape a scene's own inline
+  `<pattern>` already uses). Hand-edited XML only for now - no in-app way
+  to author a new pooled pattern or promote a scene's own pattern into it.
+- **Session view** (`GridMode::SESSION`, reached/left only via CC95/96,
+  decoupled from terminal UI focus): rows are a track's own pooled
+  patterns, columns are the one shared cursor track every connected
+  device follows (`fallback_track_index`, from `PatternEditor::
+  getCursorTrackIndex()` - no per-device track-follow/detachment). Record
+  Arm gates trigger-live (off) vs. assign-into-the-current-scene (on),
+  the same "just play" vs. "store into the pattern" choice ordinary note
+  entry already makes. Auditioning uses the same free-running clock
+  (`audition_clock_`) the drum step-grid's own auditioning already used,
+  generalized (`triggerPooledPatternStep()`/`firePooledPatternStep()`)
+  from one drum kit's steps to any track's own pattern. Launches and
+  stops are quantized to the currently-playing pattern's own loop end,
+  never immediate (`triggered_pattern_by_track_`/`queued_pattern_by_track_`,
+  `-1` is the queued-stop sentinel) - an unassigned pad, or repressing the
+  active pad, both queue a stop; either way the track's voices are
+  released through their natural `stopNote()` tail once the stop actually
+  takes effect (`InstrumentTrackState::stopAllVoices()`, a
+  `STOP_ALL_NOTES` playback event), not left ringing or hard-cut. Stop
+  Clip (CC49) is a held modifier, not a plain press - Session view shows
+  several tracks at once as columns with no visible "current" one to
+  target, so holding it and pressing any pad in a column stops that
+  column's own track (`handleStopClipButton()` just tracks the hold;
+  `handleSessionPadEvent()` does the actual stopping).
+- **`PatternMatrix`** (`src/ui/PatternMatrix.h`/`.cpp`) - the terminal-side
+  counterpart: an always-visible scenes×tracks grid in the scope row,
+  four-state cell glyphs (sounding/has-content/empty/not-applicable for a
+  `DrumMachineTrack`), single-cell copy/paste under the same
+  `kill-region`/`kill-ring-save`/`yank` names `PatternEditor` uses (always
+  a deep copy - no referenced/shared patterns). Track/scene selection is
+  the one shared cursor Session view also follows.
+- **Defaults**: a fresh session opens on `PatternMatrix` (Session/overview
+  focus, `UI::initialize()`'s `active_element_`) rather than straight into
+  note entry, and `GridMode` defaults to `SESSION` on every connected
+  device - see the Run section above for the matching `songs/welcome.xml`/
+  31-EDO startup defaults.
+- e2e coverage: `tools/e2e/verify_launchpad_session.py` (see that
+  directory's own `README.md`) covers Session view's basic trigger/assign
+  path - CC96/CC97's own recent fixes and the CC49 hold+column-press
+  redesign above don't have dedicated coverage yet.
+
 ## Layout
 
 - `src/` — all engine and UI source, split by topic. `src/main.cpp` and
@@ -355,7 +446,8 @@ gitignored.
   - `src/ui/` — `TerminalUI`/`PatternEditor`/`HierarchyView` (notcurses
     UI) plus the Emacs-style keybinding dispatch (`KeyChord.h`/
     `Keymap.h`/`CommandRegistry.h`).
-  - `src/launchpad/` — Launchpad hardware I/O and layout.
+  - `src/launchpad/` — Launchpad hardware I/O and layout - see the
+    Launchpad section above.
   - `src/util/` — small, dependency-free helpers (`constants.h`,
     `Logger.h`, …) used from everywhere. `Utf8.h`/`.cpp` is the one
     exception to "dependency-free" (it wraps libunistring, keeping its
