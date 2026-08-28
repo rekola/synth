@@ -85,5 +85,6 @@ for the full picture, or run `synth --licenses` to print it.
 * Legato voicing mode
 * Custom drum kits without SoundFont: map individual percussion keys to arbitrary instruments instead of one whole SF2 kit preset.
 * Time signatures
+* Binary storage for recordings and cover art
 * Emacs features:
     - Kill-ring rotation (yank-pop / M-y)

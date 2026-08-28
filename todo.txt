@@ -25,12 +25,6 @@ A#				7th
 B				15th
 				31st
 
-Put chord Cx Ex Gx somewhere
-
-Consider using F↑ for 11th harmonic (it's too wide)
-
-Could we use quartertone symbols: 𝄲𝄳
-
 First note in all tunings have different frequency. Could it be because of A440
 
 In Note when converting string to note, first convert note letter to number
@@ -57,38 +51,17 @@ Add LFO to lowpass filter
 
 could we add color to instruments like in Perlin? Higher resolution stuff.
  
-add noise gate to reverb, delay, ResonantFilter and BiquadFilter so that they can be automatically deactivated
- - compressor and delay can check if their delay buffers are floored
- - filters and reverb should reset their states when deactivating
- - gate can be user controlled
- - gate might need an attack and release
- - extract Compressor from CompressorFilter so it can be used as a gate
-
 songtest14.xml => use side chain compressor on pad track
 
 https://github.com/sfzinstruments
 https://github.com/tongxunlu/Steinway-D-274
 https://github.com/open-soundfonts/
 
-When adding new track, add it under the parent of the current track
- - maybe add amplifier?
-
 Jos soitinta vaihdetaan => tila tuhotaan, kukaan ei luo sitä uusiksi
 
-if tempo changes, delay buffer must be repositioned
-
-Add highpass mode to resonantFilter
 Create melodic drum from bass3 (in drumtest1, 0.1 * current lowpass cut)
-Don't set note delay if not playing the song
-Create LFOs centrally and use them with id
- - add global lfo for melody as in (https://soundcloud.com/artfwo/andes-demo)
-Add limits to BiquadFilter
+Add limits to BiquadFilter (what?)
 Rename cut to fc in ResonantFilter
-
-4th based chords might be based on the undertone series
- - root would be at the top
- - However, the note after C would still be G
- - and the components of the 4th are in the overtone series
  
 - could we remove level from oscillator? (probably not, but maybe rename?)
 - Envelope could take the velocity?
@@ -108,9 +81,7 @@ filter sweep is bad (must be exponential) (hz or note)
 could we create band filtered noise, with the filter tied to the key?
 
 I-V-iii-iisus4
- 
-Add LFO to bass drum
-   
+    
 combine soundfont and InstrumentVoice pitch calculation (and stepping) [soundfont is not modulating]
  - might fix the soundfont start phase problem
  - cannnot modulate before that
@@ -246,17 +217,6 @@ Copy effects from Zynaddsubfx
  - https://zynaddsubfx.sourceforge.io/
  - http://yoshimi.sourceforge.net/
 
-FileInstrument
- - add modulation
- - add azimuth
- - add vocoder
- - copy linear interpolation from SoundFont
- - add recording
-   - could be done from menu
- - add aftertouch to test scrubbing
-
-- When recording notes, add aftertouch signals using mousewheel
-
 samplePosition should be long long and we could increment it by one all the time
  
 Make song:
@@ -269,8 +229,6 @@ Composition
  - passing note
  - auxiliary note
  - anticipatory note
-
-Increasing sampling rate slows the song
 
 Add status line with dynamic tuner changes: D+1c Eb+42c (or better: D=10:9, Eb=6:5)
 
@@ -300,23 +258,13 @@ B	15:8 = 1+7:8	B dim		B-D-F
 B	15:8 = 1+7:8	B q. minor	B-D♭-E		
 	17:9 = 1+8:9
 
-Make sure notes are in the correct octave (important)
- - "B3" and all of its possible variants (Bdouble flat, B♭, B, B♯, Bdouble sharp) would properly be designated as being in octave "3".
- - "C4" and all of its possible variants (Cdouble flat, C♭, C, C♯, Cdouble sharp) would properly be designated as being in octave "4".
-
 - Breaking limitations
  - Fuzzy chords:
    - Do intervals have to be binary? Could we put in just a drop of minor third?
    - or have them pulse
    - or change the quality seamlessly   
-
-Other ratios in tonality cube:
- - 7:8:10 => 28:35:40
- - 6:7:8 => 21:24:28
- - 5:6:7 => 30:35:42
   
 remove automatic scaling from volume meter
- - print maximum values to status
 
  - 5/3 = 5:4 * 4:3
  - C F A
@@ -345,7 +293,6 @@ Use tab key to temporarily add note column for editing
       
 - SoundFont
   - add exceptions
-  - Since render interval is pattern dependant, soundfont effect rate can change
   - SoundFont crashes if file is not found
   - move pitchRatio from SoundFontVoice data to InstrumentVoice
     - also pitch calculation
@@ -355,9 +302,6 @@ Use tab key to temporarily add note column for editing
     => volume control
     => pitch?
     => remove playNote and stopNote and just have everything handle TrackEvents
-  - consider doing lowpass at the end of soundfont rendering
-    - gain might be problem since its currently applied before lowpass
-    - since lowpass is updated all the time that might be a problem
 
 - make filters and instruments arrays so that they can process multiple tracks at the same time and use SIMD
 
@@ -377,7 +321,6 @@ Use tab key to temporarily add note column for editing
   - Backspace: Delete all notes and Effect Commands at the current line in the track and scroll everything beneath the current line up.
   - Insert: Insert clean row into track and push all notes and effects in current track down.
   - Left Ctrl & 1-0: Set the Edit Step number.
-  - select by holding left shift
   - Home/End: Go to start/end line of pattern.
   - add ticks per line (default 12 - delay has 256)
   - consider using tab:
@@ -386,8 +329,6 @@ Use tab key to temporarily add note column for editing
   - keybindings:
       play from playhead position: shift space bar
       collapse / expand track: shift command k
-      begin selection: commmand b
-      end selection: command e
       Transpose One Note Up: fn option F2
       Transpose One Note Down: fn option F1
       Transpose One Octave Up: fn option F12
@@ -397,7 +338,6 @@ Use tab key to temporarily add note column for editing
   - remove parts of recording using backspace
   - also copy parts of recording to different tracks
   - recordings must therefore be global to the song
-  - Add playing of the recorded sample
   - Notes should have the sample position as value
   - recording should automatically add new notes
   - Should the sample still be an instrument?
@@ -461,13 +401,3 @@ Other:
 17/14  supraminor third
 
 ---
-
-Chords
-
-I	C	P1 M3 P5
-II	Dm	M2 P4 M6
-III	Em	M3 
-IV	F	P4 M6 P8
-V	G
-VI	Am	M6 P8 M10
-VIIo	Bdim
