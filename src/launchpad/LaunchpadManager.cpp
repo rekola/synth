@@ -22,10 +22,10 @@
 using namespace std;
 
 namespace {
-  // How long CC97 (DRAW mode toggle, handleDrawToggleButton()) or CC49
-  // (Stop Clip, handleStopClipButton()) must be held before release means
-  // "clear" instead of "toggle". Long enough that a normal deliberate tap
-  // never accidentally clears instead.
+  // How long CC97 (DRAW mode toggle, handleDrawToggleButton()) or CC98
+  // (drum config, handleDrumConfigButton()) must be held before release
+  // means "clear" instead of "toggle". Long enough that a normal
+  // deliberate tap never accidentally clears instead.
   constexpr auto kDrawClearHoldThreshold = std::chrono::milliseconds(600);
 
   // How long a DRAW-mode grid pad must be held before release means "just
@@ -467,9 +467,10 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id) {
   // apart in that order (row 5/6/7 of the right column, CC = 19 + 10*row) -
   // not the arbitrary contiguous-slot guess this originally shipped with.
   // 59 (row 4, one further down the same sequence) is unconfirmed but a
-  // strong inference: it matches Ableton Live's own standard Launchpad
-  // "Track" control row order (Volume, Pan, Send A, Send B, Stop, Mute,
-  // Solo, Record Arm - Volume/Pan/SendA already lined up exactly with that
+  // strong inference: it matches the standard Launchpad right-column
+  // "Track" control row order documented across DAW controller scripts
+  // for this hardware (Volume, Pan, Send A, Send B, Stop, Mute, Solo,
+  // Record Arm - Volume/Pan/SendA already lined up exactly with that
   // order at 89/79/69). 89/Volume is repurposed as the Send Main fader
   // mode - the same bargraph shape as Send A/Send B, just controlling how
   // much of each track's own voices reach the main mix (LeafTrack::
@@ -501,7 +502,7 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id) {
     toggleGridMode(device_id, GridMode::SEND_B);
     return true;
   }
-  // 19 (right column, continuing the Ableton "Track" control row order one
+  // 19 (right column, continuing the "Track" control row order one
   // further past Send B - see this method's own doc comment) is the real
   // Launchpad X's own dedicated "Record Arm" button - a single, song-wide
   // record-arm flag (capture_enabled_ - see its own comment for why this
@@ -589,37 +590,47 @@ LaunchpadManager::handleDrawToggleButton(int device_id, bool is_press) {
   if (is_press) {
     state.draw_toggle_pressed = true;
     state.draw_toggle_press_time = std::chrono::steady_clock::now();
+    // Whether DRAW mode was active *before* this press decides what
+    // release does below - captured now since grid_mode is about to
+    // change (or not) on this very line.
+    state.draw_toggle_was_already_active = (state.grid_mode == GridMode::DRAW);
+    // Entering DRAW mode happens immediately on press, matching CC95's
+    // own instant Session switch - only actually *leaving* it (a quick
+    // tap while already there) or clearing the canvas (a long hold,
+    // released while already there) wait for release, since neither can
+    // be told apart from the other, or from a fresh entry, until then.
+    state.grid_mode = GridMode::DRAW;
     return true;
   }
   if (!state.draw_toggle_pressed) return true; // stray/duplicate release
   state.draw_toggle_pressed = false;
+  if (!state.draw_toggle_was_already_active) return true; // this press is what entered DRAW mode - nothing further to do
   auto held = std::chrono::steady_clock::now() - state.draw_toggle_press_time;
-  if (held >= kDrawClearHoldThreshold && state.grid_mode == GridMode::DRAW) {
-    // Long hold, released while already in DRAW mode: blank the canvas
-    // (DRAW_PALETTE[0] is "off" - see its own definition above) rather than
-    // toggling the mode, so the canvas can be cleared without losing DRAW
-    // mode itself. A long hold while NOT already in DRAW mode has nothing
-    // to clear, so it falls through to the normal toggle below instead
-    // (entering DRAW mode, same as a quick tap would).
+  if (held >= kDrawClearHoldThreshold) {
+    // Long hold, released while already in DRAW mode before this press:
+    // blank the canvas (DRAW_PALETTE[0] is "off" - see its own definition
+    // above) rather than toggling out of DRAW mode.
     state.draw_color_index.fill(0);
   } else {
-    toggleGridMode(device_id, GridMode::DRAW);
+    // Quick tap while already in DRAW mode before this press: toggle back
+    // out to NOTES.
+    state.grid_mode = GridMode::NOTES;
   }
   return true;
 }
 
 bool
-LaunchpadManager::handleStopClipButton(int device_id, bool is_press, DrumMachineTrack * assigned_drum_track, Controller & controller) {
+LaunchpadManager::handleDrumConfigButton(int device_id, bool is_press, DrumMachineTrack * assigned_drum_track, Controller & controller) {
   if (!assigned_drum_track) return true; // nothing to configure without a drum machine assigned
   auto & state = deviceState(device_id);
   if (is_press) {
-    state.stop_clip_pressed = true;
-    state.stop_clip_press_time = std::chrono::steady_clock::now();
+    state.drum_config_pressed = true;
+    state.drum_config_press_time = std::chrono::steady_clock::now();
     return true;
   }
-  if (!state.stop_clip_pressed) return true; // stray/duplicate release
-  state.stop_clip_pressed = false;
-  auto held = std::chrono::steady_clock::now() - state.stop_clip_press_time;
+  if (!state.drum_config_pressed) return true; // stray/duplicate release
+  state.drum_config_pressed = false;
+  auto held = std::chrono::steady_clock::now() - state.drum_config_press_time;
   if (held >= kDrawClearHoldThreshold) {
     // Long hold: clear this track's step content in the *current* scene
     // (its own Pattern now, not a track-global map) back to all-rest - the
@@ -634,6 +645,11 @@ LaunchpadManager::handleStopClipButton(int device_id, bool is_press, DrumMachine
     state.picker_active = !state.picker_active;
   }
   return true;
+}
+
+void
+LaunchpadManager::handleStopClipButton(int device_id, bool is_press) {
+  deviceState(device_id).stop_clip_held = is_press;
 }
 
 void
@@ -938,9 +954,9 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // land on the *same* row - advancing per-press would spread a chord
     // across rows the moment any two presses straddle the (asynchronous)
     // MOVE_POSITION round-trip. Advance is deferred to RELEASE, once every
-    // currently-held pad has been let go (see below) - matching how
-    // Renoise's own "chord mode" treats simultaneously-pressed MIDI notes
-    // as one gesture, not N independent steps. (With Capture armed and
+    // currently-held pad has been let go (see below) - treating
+    // simultaneously-pressed MIDI notes as one gesture, not N independent
+    // steps. (With Capture armed and
     // the transport now running via the auto-play push above, rows in
     // fact advance continuously in real time for the whole hold, same as
     // real playback - this per-press deferral only still matters for the
@@ -959,8 +975,8 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
       if (info.isPlaying()) {
 	// Live performance recording: write an explicit OFF at the row the
 	// transport has since reached, mirroring handleMidiEvent's NOTE_OFF -
-	// UNLESS that's still the same row the note itself is on. Per
-	// Renoise's own pattern model (a single line can't hold both a note
+	// UNLESS that's still the same row the note itself is on. In this
+	// tracker's own pattern model (a single line can't hold both a note
 	// and its own note-off), a release fast enough to land before the
 	// row has advanced must not be recorded as an off, or it would
 	// instantly erase the note it belongs to.
@@ -1043,6 +1059,20 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
   if (track_index < 0 || track_index >= static_cast<int>(session_.track_ids.size())) return;
   auto track_id = session_.track_ids[static_cast<size_t>(track_index)];
 
+  if (deviceState(ev.getDeviceIndex()).stop_clip_held) {
+    // Stop Clip (CC49) held - this press means "stop this column's own
+    // track", regardless of which row was touched or whether Record Arm
+    // is on (stopping is orthogonal to the trigger-vs-assign split below)
+    // - see handleStopClipButton()'s own comment for why targeting works
+    // this way instead of a plain single press. Same quantized-to-loop-end
+    // stop every other stop path here uses; a no-op if nothing's
+    // currently triggered for this track.
+    if (triggered_pattern_by_track_.find(track_id) != triggered_pattern_by_track_.end()) {
+      queued_pattern_by_track_[track_id] = -1;
+    }
+    return;
+  }
+
   auto & song = controller.getSong();
   auto & pool_patterns = song.getPooledPatterns(track_id);
   // Same y-flip as refresh()'s own session_colors computation - y=0 is
@@ -1072,11 +1102,13 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
         firePooledPatternStep(song, controller, track_id, pool_patterns[static_cast<size_t>(pool_index)], audition_clock_.currentStep());
       }
     } else if (triggered_it->second == pool_index) {
-      // Pressing the already-triggered pattern again un-triggers it
-      // immediately - a deliberate, unquantized cut, unlike the queued
-      // stop above (pressing an empty row instead).
-      triggered_pattern_by_track_.erase(triggered_it);
-      queued_pattern_by_track_.erase(track_id);
+      // Pressing the already-triggered pattern again queues a stop - the
+      // exact same quantized-to-loop-end handling as pressing an empty row
+      // above (triggerPooledPatternStep()'s own -1 handling, including the
+      // matching stopAllVoices() release), not an immediate cut - this is
+      // also the only way to stop a track whose pool fills every row (no
+      // empty one to press).
+      queued_pattern_by_track_[track_id] = -1;
     } else {
       // Something else is already playing for this track - queue,
       // quantized to its own loop end rather than cutting it off
@@ -1476,22 +1508,32 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   colors.push_back({92, 30, 30, 30}); // move-row-down, dim white (static)
   colors.push_back({93, 0, 0, 60});   // prev-track, dim blue (static)
   colors.push_back({94, 0, 0, 60});   // next-track, dim blue (static)
-  // Session (CC95) and Custom (CC97) are this device's own GridMode
-  // toggles (SESSION/DRAW) - each lit when active, same active-state
-  // convention Mute/Solo already use, not the static/no-state convention
-  // the Send/Pan mode buttons use (those repaint the whole grid as their
-  // own confirmation; a mode switch here isn't as visually distinct at a
-  // glance, so the button itself carries the state too). Note (CC96) has
-  // no state of its own to reflect (a one-way "back to instrument view"
-  // action, not a toggle - see handleRawButton()'s own comment), so it
-  // stays static like prev/next-track above.
+  // Session (CC95)/Note (CC96)/Custom (CC97) are this device's own
+  // GridMode selectors (SESSION/NOTES/DRAW) - all three lit when active,
+  // same active-state convention Mute/Solo already use, not the static/
+  // no-state convention the Send/Pan mode buttons use (those repaint the
+  // whole grid as their own confirmation; a mode switch here isn't as
+  // visually distinct at a glance, so the button itself carries the state
+  // too). Note (CC96) reaching NOTES is still a one-way action, not a
+  // toggle (see handleRawButton()'s own comment) - but NOTES is a real,
+  // visible mode like the other two, so it gets the same lit-when-active
+  // treatment rather than staying static.
   colors.push_back({95, state.grid_mode == GridMode::SESSION ? uint8_t(90) : uint8_t(20), state.grid_mode == GridMode::SESSION ? uint8_t(127) : uint8_t(20), 0});
-  colors.push_back({96, 30, 30, 30});
+  colors.push_back({96, state.grid_mode == GridMode::NOTES ? uint8_t(90) : uint8_t(20), state.grid_mode == GridMode::NOTES ? uint8_t(90) : uint8_t(20), state.grid_mode == GridMode::NOTES ? uint8_t(90) : uint8_t(20)});
   colors.push_back({97, state.grid_mode == GridMode::DRAW ? uint8_t(90) : uint8_t(20), 0, state.grid_mode == GridMode::DRAW ? uint8_t(127) : uint8_t(20)});
-  // CC98 ("Capture MIDI") is reserved/unused again - the record-armed
-  // indicator moved to CC19 ("Record Arm", right column - see below;
-  // DeviceState::capture_enabled's comment has the full reasoning).
-  colors.push_back({98, 0, 0, 0}); // reserved
+  // CC98 (reused from "Capture MIDI" - the record-armed indicator moved to
+  // CC19 ("Record Arm"), see DeviceState::capture_enabled's own comment)
+  // is the drum machine's own configuration button - lit when the picker
+  // is active, same convention as Session/Note/Custom above (a long hold
+  // clears step data instead of toggling this, but that's a momentary
+  // action with nothing to show continuously). Dark without a drum
+  // machine assigned (see handleDrumConfigButton() - the button has
+  // nothing to do there).
+  if (!state.assigned_track_is_drum_machine) {
+    colors.push_back({98, 0, 0, 0}); // reserved - no drum machine assigned
+  } else {
+    colors.push_back({98, state.picker_active ? uint8_t(90) : uint8_t(20), 0, state.picker_active ? uint8_t(127) : uint8_t(20)});
+  }
   // 99 (top-right corner, the grid position the Programmer-mode protocol
   // maps one past the 91-98 top row) isn't actually a pressable button on
   // real Launchpad X hardware - see handleRawButton()'s own comment - so
@@ -1506,25 +1548,18 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // commandForButton) and do need active-state colors, matching the
   // Pro-MK3-left-column entries' own convention exactly. 19 is Record Arm -
   // reuses the red Capture-MIDI LED used to show (see 39/30, which moved
-  // to blue to make room) now that the toggle itself lives here instead of
-  // CC98. 49 is Stop Clip - the drum machine's own configuration button
-  // (picker latch on a quick tap, Clear on a long hold - see
-  // handleStopClipButton()) - see its own indicator below.
+  // to blue to make room) before that toggle moved here from CC98 (now
+  // reused for the drum machine's own configuration button - see above).
+  // 49 is Stop Clip - see its own indicator below.
   colors.push_back({19, state.capture_enabled ? uint8_t(127) : uint8_t(20), 0, 0}); // record-arm toggle
   colors.push_back({29, state.solo ? uint8_t(127) : uint8_t(20), state.solo ? uint8_t(127) : uint8_t(20), 0}); // toggle-solo
   colors.push_back({39, 0, 0, state.muted ? uint8_t(127) : uint8_t(20)}); // toggle-mute (blue - red moved to Record Arm, CC19)
 
-  // Stop Clip (CC49): reserved/dark without a drum machine assigned (see
-  // handleStopClipButton() - the button has nothing to do there); the
-  // picker latch's own active-state indicator otherwise, same convention
-  // as Session/Custom above (a long hold clears step data instead of
-  // toggling this, but that's a momentary action with nothing to show
-  // continuously).
-  if (!state.assigned_track_is_drum_machine) {
-    colors.push_back({49, 0, 0, 0}); // reserved - no drum machine assigned
-  } else {
-    colors.push_back({49, state.picker_active ? uint8_t(90) : uint8_t(20), 0, state.picker_active ? uint8_t(127) : uint8_t(20)});
-  }
+  // Stop Clip (CC49): lit while held down (DeviceState::stop_clip_held) -
+  // confirms the device is currently in "the next pad I touch stops that
+  // column's track" mode, same active-state convention as Session/Note/
+  // Custom/CC98 above.
+  colors.push_back({49, state.stop_clip_held ? uint8_t(127) : uint8_t(20), 0, 0});
   colors.push_back({59, 40, 0, 40});  // Send B physical button -> send-b-mode, dim magenta (static)
   colors.push_back({69, 0, 40, 40});  // Send A physical button -> send-a-mode, dim cyan (static)
   colors.push_back({79, 40, 20, 0});  // Pan physical button -> pan-mode, dim orange (static)

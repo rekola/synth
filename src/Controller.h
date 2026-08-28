@@ -391,8 +391,8 @@ class Controller {
   // are otherwise purely derived from actual note data (see Pattern::
   // getTrackInformation()) - these two adjust LeafTrack's own
   // minNoteColumns floor that derivation also takes the max against, a
-  // Renoise-style manual override so an empty column can be added ahead of
-  // typing into it. No PlaybackControlEvent (unlike the setters above):
+  // manual override so an empty column can be added ahead of typing into
+  // it. No PlaybackControlEvent (unlike the setters above):
   // this only affects display/editing, never audio - the running SongState
   // never reads it.
   void addNoteColumn(int track_id);
@@ -467,8 +467,8 @@ class Controller {
   // the transport has moved past the note's own row - shared tail of
   // PatternEditor::offerInput()'s and LaunchpadManager::handlePadEvent()'s
   // RELEASE handling (mirroring handleMidiEvent()'s own NOTE_OFF write).
-  // Per Renoise's own pattern model, a single line can't hold both a note
-  // and its own note-off, so the caller only calls this once it's
+  // In this tracker's own pattern model, a single line can't hold both a
+  // note and its own note-off, so the caller only calls this once it's
   // confirmed `row` isn't still the note's own row - writing here
   // unconditionally would erase the note it belongs to instead of ending
   // it. Sweeps the row clean first (like every other live write site) when

@@ -139,11 +139,9 @@ protected:
   // guards this too - just defensive).
   void startAnnotationEdit();
 
-  // Opens the in-place track-name editor (F2 - Renoise's own rename-
-  // track convention; Emacs has no equivalent binding for "rename the
-  // widget under point") for whatever track the cursor's column
-  // currently belongs to. A no-op for a track with no name field to
-  // edit at all - an Effect's own title bar carries no name (see
+  // Opens the in-place track-name editor for whatever track the cursor's
+  // column currently belongs to. A no-op for a track with no name field
+  // to edit at all - an Effect's own title bar carries no name (see
   // renderHeading()'s is_color_eligible) - or while a reader is already
   // active. Positions the reader at track_name_screen_col_/
   // track_name_screen_width_, cached by renderHeading() itself, same

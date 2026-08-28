@@ -195,7 +195,8 @@ class LaunchpadManager {
 
   // The Send A/Pan/Send B/Volume/Custom/Record-Arm buttons (raw CC
   // 69/79/59/89/97/19 - 69/79/89 confirmed against a real Launchpad X, 59
-  // inferred from Ableton's standard Launchpad "Track" control row order,
+  // inferred from the standard Launchpad right-column "Track" control row
+  // order documented across DAW controller scripts for this hardware,
   // 97 inferred from the top row's own Up/Down/Left/Right/Session/Note/
   // Custom/Capture layout, 19 inferred by continuing that same right-
   // column row order one further (Volume/Pan/SendA/SendB/Stop
@@ -221,36 +222,51 @@ class LaunchpadManager {
 
   // CC97 (DRAW mode toggle) on its own, separate entry point: unlike every
   // button handleRawButton() covers, it needs both press and release to
-  // tell a quick tap from a long hold. Released quickly, it toggles DRAW
-  // mode on/off (mutually exclusive with SESSION/NOTES via toggleGridMode(),
-  // the same shape as CC95's own Session toggle - Session/Note/Custom are a
-  // trio of exclusive mode-selection buttons); held past a threshold and
-  // released while DRAW mode is already active, it blanks the canvas
-  // instead (see advanceDrawColor's own comment on the palette) - the
-  // button took over this "clear canvas" gesture after CC99 (the grid
-  // position the Programmer-mode protocol maps one past the top row)
-  // turned out not to be an actual pressable button on real Launchpad X
-  // hardware, just a CC-addressable LED kept for symmetry with the
-  // Launchpad Pro. Always returns true (handled) for both press and
-  // release. Routed here directly from CC97 by UI::handleLaunchpadButtonEvent,
-  // the same way CC49 routes to handleStopClipButton() below.
+  // tell a quick tap from a long hold. Entering DRAW mode happens
+  // immediately on press, same as CC95's own instant Session switch
+  // (Session/Note/Custom are a trio of exclusive mode-selection buttons) -
+  // only *leaving* DRAW mode (a quick tap while already there) or clearing
+  // the canvas (a long hold, released while already there) need to wait
+  // for release, since neither can be told apart from the other, or from a
+  // fresh entry, until then. The "clear canvas" gesture (see
+  // advanceDrawColor's own comment on the palette) landed on this button
+  // after CC99 (the grid position the Programmer-mode protocol maps one
+  // past the top row) turned out not to be an actual pressable button on
+  // real Launchpad X hardware, just a CC-addressable LED kept for symmetry
+  // with the Launchpad Pro. Always returns true (handled) for both press
+  // and release. Routed here directly from CC97 by
+  // UI::handleLaunchpadButtonEvent, the same way CC98 routes to
+  // handleDrumConfigButton() below.
   bool handleDrawToggleButton(int device_id, bool is_press);
 
-  // CC49 ("Stop Clip" physical button)'s dispatcher - the drum machine's
-  // own configuration button, needs both press and release to tell a quick
-  // tap from a long hold (same shape as handleDrawToggleButton()'s own
-  // tap-vs-hold gesture). A no-op (still returns true) when
-  // `assigned_drum_track` is null - there's nothing to configure without a
-  // drum machine assigned. Released quickly, it toggles the drum-picker
-  // latch (DeviceState::picker_active) - which notes the free-drumming
-  // layout's pad presses add/remove as lanes. Held past
-  // kDrawClearHoldThreshold and released, it instead clears every one of
-  // that track's lanes' step data in the current scene back to all-rest
-  // (the lane list itself is untouched - only the picker removes lanes),
-  // without toggling the picker. Clear writes unconditionally regardless
-  // of Record Arm, matching the step grid/picker's own "arm gates
-  // performance capture, not editing" rule.
-  bool handleStopClipButton(int device_id, bool is_press, DrumMachineTrack * assigned_drum_track, Controller & controller);
+  // CC98 (reused from "Capture MIDI", now the drum machine's own
+  // configuration button)'s dispatcher - needs both press and release to
+  // tell a quick tap from a long hold (same shape as
+  // handleDrawToggleButton()'s own tap-vs-hold gesture). A no-op (still
+  // returns true) when `assigned_drum_track` is null - there's nothing to
+  // configure without a drum machine assigned. Released quickly, it
+  // toggles the drum-picker latch (DeviceState::picker_active) - which
+  // notes the free-drumming layout's pad presses add/remove as lanes.
+  // Held past kDrawClearHoldThreshold and released, it instead clears
+  // every one of that track's lanes' step data in the current scene back
+  // to all-rest (the lane list itself is untouched - only the picker
+  // removes lanes), without toggling the picker. Clear writes
+  // unconditionally regardless of Record Arm, matching the step grid/
+  // picker's own "arm gates performance capture, not editing" rule.
+  bool handleDrumConfigButton(int device_id, bool is_press, DrumMachineTrack * assigned_drum_track, Controller & controller);
+
+  // CC49 ("Stop Clip" physical button) - a held-modifier, not a plain
+  // press: Session view shows several tracks at once as columns, with no
+  // visible "current track" of its own to target (the shared cursor
+  // driving NOTES-mode/Mute/Solo/etc. isn't shown anywhere in the Session
+  // grid), so a single press can't sensibly mean "stop the current
+  // track". Instead, holding this and then pressing any pad in a column
+  // stops that column's own track - handleSessionPadEvent() is what
+  // actually checks DeviceState::stop_clip_held and does the stopping
+  // (the same quantized -1 sentinel an empty-row press already queues);
+  // this method just tracks the hold state, needing both press and
+  // release like CC97/CC98 above.
+  void handleStopClipButton(int device_id, bool is_press);
 
   // Handles this device's own pure per-device commands - octave and
   // track-follow navigation - entirely from LaunchpadManager's own state,
@@ -414,19 +430,26 @@ class LaunchpadManager {
     // see refresh()'s own gating check).
     int drum_playhead_step = -1;
 
-    // Drum picker latch - CC49 ("Stop Clip")'s own quick-tap toggle (see
-    // handleStopClipButton()'s own comment; a long hold clears step data
+    // CC49 (Stop Clip) held-modifier state - see handleStopClipButton()'s
+    // own comment. Set/cleared directly by press/release, unlike the
+    // tap-vs-hold-*duration* tracking below (draw_toggle_pressed/
+    // drum_config_pressed) - there's no threshold here, just "is it down
+    // right now".
+    bool stop_clip_held = false;
+
+    // Drum picker latch - CC98's own quick-tap toggle (see
+    // handleDrumConfigButton()'s own comment; a long hold clears step data
     // instead of touching this). Only actually shown/acted on while
     // assigned_track_is_drum_machine is also true - left as whatever it
     // was if the device's assigned track later stops being a drum
     // machine, so switching back re-shows the picker rather than losing
     // the latch state.
     bool picker_active = false;
-    // CC49 (Stop Clip) press/release tracking - see handleStopClipButton()
-    // for why a tap and a long hold need to be told apart, same shape as
+    // CC98 press/release tracking - see handleDrumConfigButton() for why a
+    // tap and a long hold need to be told apart, same shape as
     // draw_toggle_pressed/draw_toggle_press_time below for CC97.
-    bool stop_clip_pressed = false;
-    std::chrono::steady_clock::time_point stop_clip_press_time;
+    bool drum_config_pressed = false;
+    std::chrono::steady_clock::time_point drum_config_press_time;
 
     // First 8 root tracks' current SendMain/SendA/SendB/azimuth - refreshed
     // every frame (refresh()), same as muted/solo above, so the fader/pan
@@ -481,6 +504,13 @@ class LaunchpadManager {
     // told apart.
     bool draw_toggle_pressed = false;
     std::chrono::steady_clock::time_point draw_toggle_press_time;
+    // Whether DRAW mode was already active *before* the current
+    // draw_toggle_pressed press - captured at press time (grid_mode
+    // switches to DRAW immediately on press, see handleDrawToggleButton()),
+    // so release can tell "this press is what entered DRAW mode" (nothing
+    // further to do) apart from "already in DRAW mode, decide tap-exit vs.
+    // hold-clear".
+    bool draw_toggle_was_already_active = false;
 
     // LED diff cache: refreshLeds() only calls sendLeds() when the newly
     // computed colors differ from what was last actually sent, so

@@ -6,13 +6,16 @@ Formerly developed as the `syna/` subdirectory of the private `personal` repo;
 full history was preserved when it was extracted into this repository.
 
 Conceived as an amalgam of Emacs (keybinding philosophy — mark/point
-selection, kill/yank, M-x) and Renoise (tracker workflow and pattern-editor
-concepts), with microtonal features added. When a UI decision doesn't
-already have a clear precedent in this codebase, check how Emacs and/or
-Renoise handle the equivalent situation before inventing something new —
-and if this software's behavior differs from Renoise's in some area, that
-should be a deliberate choice (e.g. filling a gap Renoise's own users have
-long requested), not an accident.
+selection, kill/yank, M-x), classic step-sequencer trackers (pattern-editor
+concepts, tracker workflow), and live sequencers (clip launching/session-
+style performance), with microtonal features added. When a UI decision
+doesn't already have a clear precedent in this codebase, check how that
+lineage handles the equivalent situation before inventing something new -
+and if this software's behavior differs from it in some area, that should
+be a deliberate choice (e.g. filling a gap that lineage's own users have
+long requested), not an accident. Emacs is cited by name throughout this
+codebase's own keybinding comments (see Conventions below for the limits
+on that).
 
 ## Build
 
@@ -43,13 +46,20 @@ fallback.
 
 ```sh
 ./build/synth songs/demo3.xml                    # open a song
-./build/synth                                    # start with a new empty song
+./build/synth                                    # open songs/welcome.xml, or a fresh empty song if that's missing
 ./build/synth --render out.wav songs/demo3.xml   # headless render to WAV
 ```
 
 `--render` needs no terminal or audio device: it renders the song offline
 (plus the effect/release tail until silence, capped at 10 s) and exits — use
 it to verify audio changes and to regression-test songs.
+
+With no file given, `main.cpp` opens `songs/welcome.xml` by default -
+resolved cwd-relative first (running from the source tree), then from
+wherever `make install` put it (`InstallPaths.h.in`, baked in at configure
+time from `CMAKE_INSTALL_PREFIX`), falling back to a fresh empty buffer if
+neither is there. A brand new buffer defaults to Session/overview focus
+(`PatternMatrix`, not straight into note entry) and 31-EDO tuning.
 
 ## Tests
 
@@ -552,8 +562,8 @@ gitignored.
   library, each with its own upstream `LICENSE`/provenance note -
   `third_party/tinyxml2/tinyxml2.{cpp,h}` (zlib licence) and
   `third_party/pocketfft/pocketfft_hdronly.h` (BSD-3-Clause, the FFT
-  backend behind `dsp/RealFFT.h` - see `plans/magical-wondering-engelbart.md`)
-  so far. Do not reformat or refactor any vendored file.
+  backend behind `dsp/RealFFT.h`) so far. Do not reformat or refactor any
+  vendored file.
 - `src/dsp/RealFFT.h` — the engine's one FFT wrapper (real-signal r2c-forward/
   c2r-inverse, fixed size at construction, no per-call allocation),
   templated on float/double though only `RealFFT<float>` is actually
@@ -564,8 +574,8 @@ gitignored.
   way FFTW's `fftw_plan` did, and without a cache every call fully
   replans from scratch) and `POCKETFFT_NO_MULTITHREADING` (deterministic,
   single-threaded execution) before including the header — see the
-  class's own doc comment and `plans/magical-wondering-engelbart.md` for
-  why. `dsp/SpectrumAnalyzer.h` (`Player.cpp`'s live spectrum chart) wraps
+  class's own doc comment for why. `dsp/SpectrumAnalyzer.h` (`Player.cpp`'s
+  live spectrum chart) wraps
   a `RealFFT<float>` with ring-buffer accumulation and dB conversion;
   `AmbisonicMagLSDecoder`'s precomputation uses `RealFFT<float>` directly.
 - `THIRD_PARTY_LICENSES.md` is the canonical, consolidated list of
@@ -586,7 +596,15 @@ gitignored.
   file/XML-element rename that fixed it; if you see the old spelling
   anywhere (a stray comment, an unrenamed reference), it's a leftover to
   fix, not a convention to preserve.
-- Comments: keep them short (a one-liner covers most cases); don't cite
-  `plans/*.md` files from source/test comments - plans get deleted once
-  done, leaving a dangling reference, so state the reasoning directly
-  instead of pointing at a plan for it.
+- Comments: keep them short (a one-liner covers most cases). Don't point
+  at something outside the code to explain the code - state the reasoning
+  directly instead of citing: a `plans/*.md` file (they get deleted once
+  done, leaving a dangling reference), `todo.txt` (being phased out, same
+  reason), a specific third-party software product (describe the
+  convention/behavior generically instead - Emacs is the one exception,
+  cited by name throughout this codebase's own keybinding comments), or a
+  specific keybinding when the binding itself is declared elsewhere
+  (`keymap_.bind()`/`commands_.define()` - a second source of truth that
+  silently goes stale if the binding ever changes; name the command
+  instead and let the actual binding site be the only place the key
+  appears).

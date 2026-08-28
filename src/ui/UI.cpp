@@ -801,20 +801,28 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
 
   auto device_id = ev.getDeviceIndex();
 
-  // CC49 ("Stop Clip") and CC97 ("Custom") both need press and release,
-  // not just press - CC49 for its own tap-vs-long-hold picker/Clear
-  // gesture (LaunchpadManager::handleStopClipButton()'s own comment), CC97
-  // for DRAW mode's tap-vs-long-hold toggle/blank-canvas gesture
+  // CC49 ("Stop Clip"), CC98 ("Capture MIDI", reused as the drum machine's
+  // own configuration button), and CC97 ("Custom") all need press and
+  // release, not just press - CC49 for its own held-modifier state (see
+  // LaunchpadManager::handleStopClipButton()'s own comment for why a
+  // plain press can't target a track in Session view), CC98 for its own
+  // tap-vs-long-hold picker/Clear gesture
+  // (LaunchpadManager::handleDrumConfigButton()'s own comment), CC97 for
+  // DRAW mode's tap-vs-long-hold toggle/blank-canvas gesture
   // (LaunchpadManager::handleDrawToggleButton()). Routed here before the
   // press-only filter below, which every other raw-CC button (and every
   // other release) still goes through unchanged.
   if (ev.getCCNumber() == 49) {
+    launchpad_manager_->handleStopClipButton(device_id, ev.getKind() == LaunchpadButtonEvent::PRESS);
+    return;
+  }
+  if (ev.getCCNumber() == 98) {
     auto track_ids = getController().getSong().getPlayableTrackIds();
     auto track_id = launchpad_manager_->resolveTrackId(device_id, track_ids, pattern_editor_->getCursorTrackIndex());
     auto track = getController().getSong().getMasterTrack().getChildByInternalId(track_id);
     bool is_drum_machine = track && track->getType() == TrackType::DRUM_MACHINE;
     auto * drum_track = is_drum_machine ? &static_cast<DrumMachineTrack &>(*track) : nullptr;
-    launchpad_manager_->handleStopClipButton(device_id, ev.getKind() == LaunchpadButtonEvent::PRESS, drum_track, getController());
+    launchpad_manager_->handleDrumConfigButton(device_id, ev.getKind() == LaunchpadButtonEvent::PRESS, drum_track, getController());
     return;
   }
   if (ev.getCCNumber() == 97) {

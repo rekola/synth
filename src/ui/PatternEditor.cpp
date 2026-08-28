@@ -472,10 +472,9 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     getController().toggleTrackCollapsed(track_id);
   });
 
-  // F2 (Renoise's own rename-track convention) opens the in-place editor
-  // for whatever track the cursor's column belongs to - see
-  // startTrackNameEdit()'s own comment for why it's a no-op on a track
-  // with no name field at all.
+  // Opens the in-place editor for whatever track the cursor's column
+  // belongs to - see startTrackNameEdit()'s own comment for why it's a
+  // no-op on a track with no name field at all.
   commands_.define("rename-track", [this]() { startTrackNameEdit(); });
 
   // Refuses to remove the last remaining root track: render() and several
@@ -499,9 +498,8 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     new_cursor.col = new_cursor.subcol = 0;
   });
 
-  // Renoise-style manual note-column add/remove (see Controller::
-  // addNoteColumn/removeNoteColumn and LeafTrack::getMinNoteColumns) -
-  // todo.txt's own long-standing "add shortcut for add note column" idea.
+  // Manual note-column add/remove (see Controller::addNoteColumn/
+  // removeNoteColumn and LeafTrack::getMinNoteColumns).
   commands_.define("add-note-column", [this]() {
     auto & song = getController().getSong();
     auto track_ids = song.getRootTrackIds();
@@ -591,7 +589,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   // device_id it's already given - see UI::handleLaunchpadButtonEvent.
 
   keymap_.bind(KeyChord::pack(' ', true, false, false, false), "set-mark");  // Ctrl-Space
-  keymap_.bind(KeyChord::pack('b', true, false, false, false), "set-mark");  // Ctrl-B (see todo.txt; works on any terminal)
+  keymap_.bind(KeyChord::pack('b', true, false, false, false), "set-mark");  // Ctrl-B (works on any terminal)
   keymap_.bind(KeyChord::pack('w', true, false, false, false), "kill-region");
   keymap_.bind(KeyChord::pack('w', false, true, false, false), "kill-ring-save");  // Alt-W
   keymap_.bind(KeyChord::pack('y', true, false, false, false), "yank");
@@ -1813,8 +1811,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	    // Backspace mirrors a text editor's own backspace: delete (already
 	    // done above) and step backward, undoing the forward step a note
 	    // entry would have made - unlike Delete, which deletes in place and
-	    // leaves the cursor where it was (Renoise draws the same
-	    // distinction between the two keys).
+	    // leaves the cursor where it was.
 	    if (input.getId() == NCKEY_BACKSPACE) n = -1;
 	    else if (input.getId() != NCKEY_DEL) n = 1;
 	    if (n) {

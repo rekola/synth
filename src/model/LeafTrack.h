@@ -44,9 +44,9 @@ class LeafTrack : public Track {
 
   // A floor VisibleTrackInfo::num_subtracks_ (chord/polyphony note-column
   // width, derived elsewhere from actual note data - see Pattern::
-  // getTrackInformation()) is taken the max against, so a Renoise-style
-  // "add note column" command can make an empty column appear ahead of
-  // typing into it. Never below 1 - that's what showNoteColumn()=false is
+  // getTrackInformation()) is taken the max against, so an "add note
+  // column" command can make an empty column appear ahead of typing into
+  // it. Never below 1 - that's what showNoteColumn()=false is
   // for (a different concept: hiding note columns entirely).
   int getMinNoteColumns() const { return min_note_columns_; }
   void setMinNoteColumns(int n) { min_note_columns_ = n < 1 ? 1 : n; }

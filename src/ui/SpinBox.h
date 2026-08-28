@@ -16,9 +16,9 @@
 
 // A small, reusable inline numeric stepper: an optional label, a heavy
 // minus-sign button, a directly-editable value field, and a heavy plus-
-// sign button, all mouse-clickable - the Renoise-toolbar-style spinner
-// CLAUDE.md's own precedent-check calls for, sized to disappear into a
-// single line (e.g. InfoLine) rather than needing its own bordered box.
+// sign button, all mouse-clickable - a compact toolbar-style spinner,
+// sized to disappear into a single line (e.g. InfoLine) rather than
+// needing its own bordered box.
 // Owns none of the value itself (only get_value/set_value callbacks), so
 // the same class backs Controller::getGlobalOctave()/setGlobalOctave()
 // today and can back any other bounded integer later without change.
