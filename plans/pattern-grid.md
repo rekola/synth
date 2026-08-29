@@ -33,24 +33,34 @@ left open. Superseded by this file - the originals are deleted.
 - **The Launchpad session/launch view** (`GridMode::SESSION`): rows are a
   track's own pooled patterns, columns are the shared track cursor.
   Record Arm gates trigger-live vs. assign-into-the-current-scene, same as
-  ordinary note entry. Launches and stops are quantized to the
-  currently-playing pattern's own loop end; an unassigned pad queues a
-  stop, releasing the track's voices through their natural `stopNote()`
-  tail (`InstrumentTrackState::stopAllVoices()`); repressing the active
-  pad, or a track whose pool fills every row, queues the same quantized
-  stop instead of cutting immediately. CC95 (Session)/CC96 (Note)/CC97
-  (Custom, `DRAW` mode) are a trio of exclusive per-device mode buttons,
-  fully decoupled from terminal UI focus - `grid_mode` defaults to
-  `SESSION`. Stop Clip (CC49) is a held modifier, not a plain press:
-  Session view shows several tracks as columns with no visible "current"
-  one to target, so holding it and pressing any pad in a column stops
-  that column's own track. The drum machine's own configuration (tap =
-  picker latch, hold = clear step data) moved to CC98 (reused from
-  "Capture MIDI") to make room.
+  ordinary note entry. Every launch/swap/stop, on any track, is quantized
+  to one shared grid (`Song::getRowsPerBar()`, default 16 rows/bar - also
+  drives a stronger bar-boundary highlight in `PatternEditor`, on top of
+  its existing every-4-rows beat one) measured from a shared origin set
+  the moment the first pattern anywhere launches into an otherwise silent
+  session - so a track joining while another is already playing locks to
+  it instead of drifting out of phase, and repressing the active pad (or
+  a track whose pool fills every row) queues a stop the same way an
+  unassigned-pad press does, releasing the track's voices through their
+  natural `stopNote()` tail (`InstrumentTrackState::stopAllVoices()`).
+  `Pattern::isLooping()` (default true) makes a pooled pattern a one-shot
+  when false - `triggerPooledPatternStep()` stops it after one pass
+  instead of wrapping. CC95 (Session)/CC96 (Note)/CC97 (Custom, `DRAW`
+  mode) are a trio of exclusive per-device mode buttons, fully decoupled
+  from terminal UI focus - `grid_mode` defaults to `SESSION`. Stop Clip
+  (CC49) is a held modifier, not a plain press: Session view shows
+  several tracks as columns with no visible "current" one to target, so
+  holding it and pressing any pad in a column stops that column's own
+  track. The drum machine's own configuration (tap = picker latch, hold =
+  clear step data) moved to CC98 (reused from "Capture MIDI") to make
+  room.
 - **Defaults**: the app now opens on `PatternMatrix` (Session/overview)
   rather than straight into note entry, 31-EDO is the default tuning, and
   `songs/welcome.xml` opens automatically with no file given.
-- e2e coverage: `tools/e2e/verify_launchpad_session.py`.
+- e2e coverage: `tools/e2e/verify_launchpad_session.py`,
+  `verify_launchpad_notecustom.py`, `verify_launchpad_stopclip.py` (the
+  last hits a documented, pre-existing environmental issue in sandboxed
+  test runs - see `docs/known_bugs.md`).
 
 ## What's missing
 
@@ -83,8 +93,6 @@ From `drum-machine-per-scene-patterns.md`:
   kit resolution).
 - Phase continuity across a scene boundary - a repeating triggered
   pattern always restarts at row 0 the moment a new scene starts.
-- Per-pattern end mode - `Pattern::length_` always loops; no "play once,
-  then go silent" alternative.
-- A UI hook for setting/changing a pattern's own length from
-  `PatternEditor` - `Pattern::setLength()` exists (tests, XML round-trip)
-  but nothing interactive reaches it yet.
+- A UI hook for setting/changing a pattern's own length or loop toggle
+  from `PatternEditor` - `Pattern::setLength()`/`setLooping()` both exist
+  (tests, XML round-trip) but nothing interactive reaches either yet.

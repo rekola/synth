@@ -14,6 +14,13 @@ class StyleProvider {
   Color window_accent_fg_color = "#ffffff";
   Color window_accent_bg_color = "#292929";
 
+  // A bar boundary (Song::getRowsPerBar()) - a stronger accent
+  // than window_accent_*_color's own plain beat one, since a bar-start
+  // row is always also a beat-start row and should read as "more
+  // important" than an ordinary one.
+  Color window_bar_accent_fg_color = "#ffffff";
+  Color window_bar_accent_bg_color = "#3d3d3d";
+
   Color command_column_color = "#c67610";
 
   // A hit lane's cell background in DrumMachineTrack's compact

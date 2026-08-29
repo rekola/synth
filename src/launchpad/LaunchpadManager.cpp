@@ -1064,11 +1064,15 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
     // track", regardless of which row was touched or whether Record Arm
     // is on (stopping is orthogonal to the trigger-vs-assign split below)
     // - see handleStopClipButton()'s own comment for why targeting works
-    // this way instead of a plain single press. Same quantized-to-loop-end
-    // stop every other stop path here uses; a no-op if nothing's
-    // currently triggered for this track.
+    // this way instead of a plain single press. Same quantized stop every
+    // other stop path here uses if something's actually triggered; a
+    // not-yet-started pending join is simply cancelled outright instead
+    // (same "nothing playing yet to release" reasoning as the empty-row
+    // case below); a total no-op if the track isn't doing anything at all.
     if (triggered_pattern_by_track_.find(track_id) != triggered_pattern_by_track_.end()) {
       queued_pattern_by_track_[track_id] = -1;
+    } else {
+      queued_pattern_by_track_.erase(track_id);
     }
     return;
   }
@@ -1085,34 +1089,55 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
     // class's own triggered_pattern_by_track_/queued_pattern_by_track_.
     auto triggered_it = triggered_pattern_by_track_.find(track_id);
     if (!has_pattern_here) {
-      // An unassigned row - queues a stop for whatever's currently
-      // triggered (quantized the same way a queued pattern swap is, so
-      // it never cuts off mid-phrase - see triggerPooledPatternStep()'s
-      // own -1 handling); a no-op if nothing's playing for this track to
-      // begin with.
+      // An unassigned row cancels/stops whatever this track is doing: a
+      // not-yet-started pending join is simply erased outright (nothing
+      // is playing yet to release), while something already triggered
+      // gets a queued stop instead - quantized the same as everything
+      // else here (see triggerPooledPatternStep()'s own comment for
+      // exactly when it takes effect). A no-op if the track isn't doing
+      // anything at all.
       if (triggered_it != triggered_pattern_by_track_.end()) queued_pattern_by_track_[track_id] = -1;
+      else queued_pattern_by_track_.erase(track_id);
       return;
     }
-    if (triggered_it == triggered_pattern_by_track_.end()) {
-      // Nothing playing yet for this track - launches immediately, since
-      // there's no loop end to quantize against (see
-      // triggerPooledPatternStep()'s own comment).
-      triggered_pattern_by_track_[track_id] = pool_index;
-      if (audition_clock_.isRunning()) {
-        firePooledPatternStep(song, controller, track_id, pool_patterns[static_cast<size_t>(pool_index)], audition_clock_.currentStep());
-      }
-    } else if (triggered_it->second == pool_index) {
+    if (triggered_it != triggered_pattern_by_track_.end() && triggered_it->second.pool_index == pool_index) {
       // Pressing the already-triggered pattern again queues a stop - the
-      // exact same quantized-to-loop-end handling as pressing an empty row
-      // above (triggerPooledPatternStep()'s own -1 handling, including the
-      // matching stopAllVoices() release), not an immediate cut - this is
-      // also the only way to stop a track whose pool fills every row (no
-      // empty one to press).
+      // exact same quantized handling as pressing an empty row above, not
+      // an immediate cut - this is also the only way to stop a track
+      // whose pool fills every row (no empty one to press).
       queued_pattern_by_track_[track_id] = -1;
+      return;
+    }
+    // Either nothing is triggered on this track yet, or something else
+    // is (a swap) - both are the same "pending join" case now, with one
+    // exception: the very first pattern to play anywhere in an otherwise
+    // silent session launches immediately rather than queuing, since
+    // there's nothing yet to quantize against - and that exact moment
+    // becomes the shared origin (session_origin_step_) every later
+    // launch/swap/stop, on any track, is measured against (see
+    // triggerPooledPatternStep()'s own comment). Once anything anywhere
+    // is active, every further join/swap queues instead, uniformly,
+    // regardless of whether this specific track already had something
+    // playing.
+    if (triggered_pattern_by_track_.empty() && queued_pattern_by_track_.empty()) {
+      // launch_step pins the clock's current step as this instance's own
+      // zero point, so it always starts at its own row 0 (relative step
+      // 0) rather than wherever the shared clock's own phase happens to
+      // be right now. While the clock isn't currently running (e.g. the
+      // transport is playing even though Record Arm is off), currentStep()
+      // can be a stale leftover from a previous run rather than 0 -
+      // stop() never resets it, only start() does (see StepClock's own
+      // contract) - so pin 0 directly instead, anticipating the step
+      // start() itself will actually (re)fire from whenever this track's
+      // pattern next ticks.
+      auto launch_step = audition_clock_.isRunning() ? audition_clock_.currentStep() : 0;
+      triggered_pattern_by_track_[track_id] = {pool_index, launch_step};
+      session_origin_step_ = launch_step;
+      session_origin_set_ = true;
+      if (audition_clock_.isRunning()) {
+        firePooledPatternStep(song, controller, track_id, pool_patterns[static_cast<size_t>(pool_index)], 0);
+      }
     } else {
-      // Something else is already playing for this track - queue,
-      // quantized to its own loop end rather than cutting it off
-      // mid-phrase.
       queued_pattern_by_track_[track_id] = pool_index;
     }
     return;
@@ -1132,28 +1157,47 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
 
 void
 LaunchpadManager::triggerPooledPatternStep(const Song & song, Controller & controller, int step) {
-  for (auto it = triggered_pattern_by_track_.begin(); it != triggered_pattern_by_track_.end(); ) {
-    auto track_id = it->first;
+  // Every track with either something already triggered or something
+  // pending needs evaluating this step - a pending join queued for a
+  // track with nothing playing yet (queued_pattern_by_track_ only, no
+  // triggered_pattern_by_track_ entry - see handleSessionPadEvent()'s own
+  // comment) is exactly as live as a pending swap/stop for one that's
+  // already triggered, so this walks their union rather than just
+  // triggered_pattern_by_track_ alone. Collected into a plain snapshot
+  // first since the loop body below mutates both maps.
+  vector<int> track_ids;
+  for (auto & [ track_id, unused ] : triggered_pattern_by_track_) track_ids.push_back(track_id);
+  for (auto & [ track_id, unused ] : queued_pattern_by_track_) {
+    if (find(track_ids.begin(), track_ids.end(), track_id) == track_ids.end()) track_ids.push_back(track_id);
+  }
+
+  auto rows_per_bar = song.getRowsPerBar();
+  if (rows_per_bar <= 0) rows_per_bar = 1;
+
+  for (auto track_id : track_ids) {
     auto & pool_patterns = song.getPooledPatterns(track_id);
-    if (it->second < 0 || it->second >= static_cast<int>(pool_patterns.size())) {
+    auto triggered_it = triggered_pattern_by_track_.find(track_id);
+    if (triggered_it != triggered_pattern_by_track_.end() &&
+        (triggered_it->second.pool_index < 0 || triggered_it->second.pool_index >= static_cast<int>(pool_patterns.size()))) {
       // The pool shrank (or the track's gone) out from under an already-
-      // triggered index - drop it rather than read out of bounds.
-      it = triggered_pattern_by_track_.erase(it);
-      continue;
+      // triggered index - drop it rather than read out of bounds; still
+      // fall through below to check for a pending queued action.
+      triggered_pattern_by_track_.erase(triggered_it);
+      triggered_it = triggered_pattern_by_track_.end();
     }
 
-    // Quantized launch: a queued swap only takes effect once the
-    // currently-playing pattern's own loop crosses back to its own row 0 -
-    // never mid-phrase. -1 is a queued *stop* (pressing an unassigned row
-    // in Session view - see handleSessionPadEvent()'s own comment) rather
-    // than a swap to some other pattern - same quantization, but drops
-    // the track from triggered_pattern_by_track_ entirely instead of
-    // pointing it at a new index.
+    // Quantized launch/swap/stop: a queued action only takes effect once
+    // the shared-grid boundary arrives - (step - session_origin_step_) %
+    // rows_per_bar == 0 - the same boundary every track shares, never the
+    // currently-playing pattern's own length (that only decides where
+    // *it* loops, not when a pending change is allowed to interrupt it)
+    // and never immediate. A fresh join for a not-yet-triggered track
+    // waits for the exact same boundary, uniformly with a swap/stop - see
+    // handleSessionPadEvent()'s own comment for why both are queued
+    // identically.
     auto queued_it = queued_pattern_by_track_.find(track_id);
-    if (queued_it != queued_pattern_by_track_.end()) {
-      auto current_length = pool_patterns[static_cast<size_t>(it->second)].getLength();
-      if (current_length <= 0) current_length = 1;
-      if (step % current_length == 0) {
+    if (queued_it != queued_pattern_by_track_.end() && session_origin_set_) {
+      if ((step - session_origin_step_) % rows_per_bar == 0) {
         auto queued_index = queued_it->second;
         queued_pattern_by_track_.erase(queued_it);
         if (queued_index < 0) {
@@ -1161,20 +1205,46 @@ LaunchpadManager::triggerPooledPatternStep(const Song & song, Controller & contr
           // still sounding on this track (its natural stopNote() tail, not
           // a hard cut - see InstrumentTrackState::stopAllVoices()) rather
           // than leaving a sustained note ringing with nothing left driving
-          // it forward.
-          controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_ALL_NOTES, controller.getActiveBufferName(), track_id));
-          it = triggered_pattern_by_track_.erase(it);
-          continue;
+          // it forward. Guarded on triggered_it still being valid purely
+          // defensively (a queued stop is only ever set for an
+          // already-triggered track, but the pool-shrink check above could
+          // have just erased it out from under this exact step).
+          if (triggered_it != triggered_pattern_by_track_.end()) {
+            controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_ALL_NOTES, controller.getActiveBufferName(), track_id));
+            triggered_pattern_by_track_.erase(triggered_it);
+          }
+          triggered_it = triggered_pattern_by_track_.end();
+        } else {
+          // A fresh join or a swap - either way this instance starts
+          // playing right now, at its own row 0 (launch_step = step).
+          triggered_it = triggered_pattern_by_track_.insert_or_assign(track_id, TriggeredPattern{queued_index, step}).first;
         }
-        it->second = queued_index;
       }
     }
 
-    if (it->second >= 0 && it->second < static_cast<int>(pool_patterns.size())) {
-      firePooledPatternStep(song, controller, track_id, pool_patterns[static_cast<size_t>(it->second)], step);
+    if (triggered_it == triggered_pattern_by_track_.end()) continue;
+    auto pool_index = triggered_it->second.pool_index;
+    if (pool_index < 0 || pool_index >= static_cast<int>(pool_patterns.size())) continue;
+    auto & pattern = pool_patterns[static_cast<size_t>(pool_index)];
+    auto relative_step = step - triggered_it->second.launch_step;
+    auto length = pattern.getLength() > 0 ? pattern.getLength() : 1;
+    if (!pattern.isLooping() && relative_step >= length) {
+      // A one-shot pattern has played through its own length once -
+      // release its voices and stop, rather than wrapping back to row 0
+      // (matching a real DAW's own non-looping clip - see
+      // Pattern::isLooping()'s own comment).
+      controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_ALL_NOTES, controller.getActiveBufferName(), track_id));
+      triggered_pattern_by_track_.erase(track_id);
+      continue;
     }
-    ++it;
+    firePooledPatternStep(song, controller, track_id, pattern, relative_step);
   }
+
+  // Once nothing anywhere is triggered or pending, "beat 1" no longer
+  // means anything - clear it so the next launch from silence is free to
+  // redefine it fresh rather than snapping to a stale reference (see
+  // session_origin_step_'s own comment).
+  if (triggered_pattern_by_track_.empty() && queued_pattern_by_track_.empty()) session_origin_set_ = false;
 }
 
 void
@@ -1708,7 +1778,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       for (int y = 0; y < 8; y++) {
         auto pool_index = 7 - y;
         if (pool_index >= static_cast<int>(pool_patterns.size())) continue;
-        bool is_triggered = triggered_it != triggered_pattern_by_track_.end() && triggered_it->second == pool_index;
+        bool is_triggered = triggered_it != triggered_pattern_by_track_.end() && triggered_it->second.pool_index == pool_index;
         bool is_queued = queued_it != queued_pattern_by_track_.end() && queued_it->second == pool_index;
         Color c = identity;
         if (is_triggered) c = identity.blend(0.5f, white); // currently playing

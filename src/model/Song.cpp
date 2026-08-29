@@ -96,8 +96,7 @@ static Track * resolveTrackReference(Song & song, const char * text) {
 // diagnostic already printed) on a corrupt <command>, matching both
 // readers' own "bail the whole load out" contract on that.
 static bool parsePatternContent(XMLElement & pattern_element, Pattern & pattern, Tuning tuning, const string & filename) {
-  auto length_text = pattern_element.Attribute("length");
-  if (length_text) pattern.setLength(atoi(length_text));
+  pattern.loadParameters(XMLParameterSource(&pattern_element));
 
   for (auto it = pattern_element.FirstChildElement("note"); it ; it = it->NextSiblingElement("note")) {
     auto row_text = it->Attribute("row");
@@ -298,6 +297,9 @@ static std::unique_ptr<Track> parseChildTrack(XMLElement & element, const Instru
 // there via getEffectiveRow() - see Pattern.h), so this finds the exact
 // same rows a bounded loop up to the song's own pattern length would.
 static void storePatternContent(XMLDocument & doc, XMLElement * pattern_element, const Pattern & pattern, Tuning tuning) {
+  XMLParameterSource pattern_parameters(pattern_element);
+  pattern.storeParameters(pattern_parameters);
+
   vector<unsigned short> rows;
   for (auto & [ row, nv ] : pattern.getNotesByRow()) rows.push_back(row);
   sort(rows.begin(), rows.end());
@@ -643,7 +645,6 @@ Song::save(const std::string & filename) const {
 	auto pattern_element = doc.NewElement("pattern");
 	pattern_element->SetAttribute("track", track_ref.c_str());
 	if (!pattern.getName().empty()) pattern_element->SetAttribute("name", pattern.getName().c_str());
-	if (pattern.getLength() > 0) pattern_element->SetAttribute("length", pattern.getLength());
 	storePatternContent(doc, pattern_element, pattern, track_tuning);
 	pattern_pool->InsertEndChild(pattern_element);
       }
@@ -682,10 +683,6 @@ Song::save(const std::string & filename) const {
 
       auto pattern_element = doc.NewElement("pattern");
       pattern_element->SetAttribute("track", track_ref.c_str());
-      // 0 (unset - see Pattern.h's own comment) is today's exact
-      // behavior (tracks this song's own pattern length, no repeat), so
-      // it's simply omitted rather than written as an explicit 0.
-      if (pattern.getLength() > 0) pattern_element->SetAttribute("length", pattern.getLength());
       storePatternContent(doc, pattern_element, pattern, track_tuning);
       scene_element->InsertEndChild(pattern_element);
     }
@@ -718,6 +715,7 @@ Song::loadParameters(const ParameterSource & input) {
 
   setTempo(input.get<int>("tempo", 90));
   setPatternLength(input.get<int>("patternRows", 64));
+  setRowsPerBar(input.get<int>("rowsPerBar", 16));
 
   setEarHeight(input.get<float>("earHeight", constants::DEFAULT_EAR_HEIGHT));
   setFloorReflectionEnabled(input.get<bool>("floorReflection", constants::DEFAULT_FLOOR_REFLECTION_ENABLED));
@@ -742,6 +740,7 @@ Song::storeParameters(ParameterSource & output) const {
   output.set("temperament", to_string(getTuning()));
   output.set("tempo", getTempo());
   output.set("patternRows", getPatternLength(), 64);
+  output.set("rowsPerBar", getRowsPerBar(), 16);
 
   output.set("earHeight", getEarHeight(), constants::DEFAULT_EAR_HEIGHT);
   if (getFloorReflectionEnabled() != constants::DEFAULT_FLOOR_REFLECTION_ENABLED) output.set("floorReflection", getFloorReflectionEnabled());

@@ -31,6 +31,14 @@ class ParameterSource {
     if (value != default_value) set(name, value);
   }
 
+  // No dedicated virtual of its own, same reasoning as get<bool>() below:
+  // built on top of the string overload, so no subclass needs its own
+  // bool-specific implementation.
+  void set(const std::string & name, bool value) { set(name, std::string(value ? "true" : "false")); }
+  void set(const std::string & name, bool value, bool default_value) {
+    if (value != default_value) set(name, value);
+  }
+
   virtual bool has(const std::string & name) const = 0;
 
   // Single typed accessor, replacing the old per-type getInt()/getFloat()/

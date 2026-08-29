@@ -630,28 +630,60 @@ class LaunchpadManager {
   // while it's already running).
   void triggerAuditionStep(const Song & song, const std::vector<int> & track_ids, Controller & controller, int step);
 
-  // track_id -> index into song.getPooledPatterns(track_id) currently
-  // auditioning in Session view - song-wide, like audition_clock_ itself,
-  // not per-device (matches "this track is now playing pattern X"
-  // regardless of which Launchpad column happens to show it, the same way
-  // triggerAuditionStep() above already fires identically for every
-  // connected device rather than per-device). A track with no entry here
-  // just isn't currently triggering anything.
-  std::unordered_map<int, int> triggered_pattern_by_track_;
-  // A Session-view press for a track that's already auditioning something
-  // queues here instead of switching immediately - either a pool index
-  // (>= 0) to promote into triggered_pattern_by_track_ once the
-  // currently-playing pattern's own loop crosses back to row 0, or -1 (a
-  // press on an unassigned row) to stop the track entirely at that same
-  // boundary instead, erasing its triggered_pattern_by_track_ entry - see
-  // triggerPooledPatternStep()'s own quantized-launch comment.
+  // track_id -> the pool index (into song.getPooledPatterns(track_id)) and
+  // launch step of whatever's currently auditioning in Session view -
+  // song-wide, like audition_clock_ itself, not per-device (matches "this
+  // track is now playing pattern X" regardless of which Launchpad column
+  // happens to show it, the same way triggerAuditionStep() above already
+  // fires identically for every connected device rather than per-device).
+  // A track with no entry here just isn't currently triggering anything.
+  // launch_step is audition_clock_'s own absolute step at the moment this
+  // specific instance actually started (a fresh launch, or a swap taking
+  // effect - see triggerPooledPatternStep()'s own comment for exactly
+  // when that is) - firePooledPatternStep() is always called with
+  // (step - launch_step), never the clock's own raw step, so every
+  // instance always starts counting from its own row 0 the moment it
+  // begins, independent of session_origin_step_/rowsPerBar below (which
+  // only ever decide *when* that moment is, never *which row* it starts
+  // on).
+  struct TriggeredPattern { int pool_index; int launch_step; };
+  std::unordered_map<int, TriggeredPattern> triggered_pattern_by_track_;
+  // A Session-view press queues here instead of taking effect immediately
+  // - either a pool index (>= 0, a fresh join or a swap) or -1 (a press on
+  // an unassigned row, or repressing the already-triggered pad - a plain
+  // stop). Unlike triggered_pattern_by_track_, a track can have an entry
+  // here with no corresponding triggered_pattern_by_track_ entry at all -
+  // a fresh launch queued because something else in the session is
+  // already playing (see handleSessionPadEvent()'s own comment) is
+  // exactly as pending as a swap/stop queued for an already-triggered
+  // track; triggerPooledPatternStep() below treats both the same way. See
+  // its own comment for exactly when a queued entry actually takes
+  // effect.
   std::unordered_map<int, int> queued_pattern_by_track_;
+  // The Session-view-wide shared quantization reference ("beat 1") every
+  // queued join/swap/stop above (and the launch_step of the pattern that
+  // fires the moment one of them takes effect) is measured against: a
+  // pending action takes effect once
+  // `(step - session_origin_step_) % song.getRowsPerBar() == 0`, tying
+  // every track's own launches into a fixed rhythmic relationship instead
+  // of each starting fresh wherever it happened to be pressed. Set the
+  // moment the *first* pattern anywhere launches while the whole session
+  // (triggered_pattern_by_track_ and queued_pattern_by_track_ both empty)
+  // is silent - nothing to sync to yet, so that launch defines the grid;
+  // cleared again (session_origin_set_ = false) the moment both maps go
+  // back to empty, so the next launch from silence is free to redefine
+  // "beat 1" instead of snapping to a stale point nothing's actually in
+  // sync with anymore.
+  bool session_origin_set_ = false;
+  int session_origin_step_ = 0;
 
   // Fires one step's worth of notes for whatever's in
-  // triggered_pattern_by_track_ (promoting a queued swap first, if this
-  // step crosses that track's own loop boundary) - the pooled-pattern
-  // sibling of triggerAuditionStep() above, called from the same two
-  // places in refresh() for the same reason.
+  // triggered_pattern_by_track_, after first resolving (for every track
+  // with a pending queued_pattern_by_track_ entry) whether this step is
+  // the shared next quantization boundary and, if so, applying it - see
+  // this method's own definition for the exact rule. The pooled-
+  // pattern sibling of triggerAuditionStep() above, called from the same
+  // two places in refresh() for the same reason.
   void triggerPooledPatternStep(const Song & song, Controller & controller, int step);
 
   // Record Arm (CC19) is one shared, song-wide flag, not a per-device

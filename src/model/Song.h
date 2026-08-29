@@ -52,6 +52,17 @@ class Song : public SongObject {
   int getPatternLength() const { return pattern_length_; }
   void setPatternLength(int rows) { pattern_length_ = rows; incVersion(); }
 
+  // The shared quantization grid (<song rowsPerBar="N">) both the
+  // Launchpad Session view (LaunchpadManager::triggerPooledPatternStep())
+  // and PatternEditor's own bar-boundary highlight measure against -
+  // independent of getPatternLength() above (a scene can span many bars;
+  // this is how many rows make just one of them). Default 16 matches this
+  // codebase's own fixed "a row is a 16th note" convention
+  // (ChannelConfiguration::getRowDuration()), so the default is an
+  // ordinary 4/4 bar without inventing a second tempo-adjacent constant.
+  int getRowsPerBar() const { return rows_per_bar_; }
+  void setRowsPerBar(int rows) { rows_per_bar_ = rows > 0 ? rows : 1; }
+
   // Floor-reflection parameters (see InstrumentVoice.h) - fixed for the
   // whole song, not live-editable (no live control path exists for any
   // of these). getEarHeight() is clamped to [0.1, 50] meters at load time
@@ -296,6 +307,7 @@ private:
   short key_note_number_ = 0;
   int bpm_ = 90;
   int pattern_length_ = 64;
+  int rows_per_bar_ = 16;
   float ear_height_ = constants::DEFAULT_EAR_HEIGHT;
   bool floor_reflection_enabled_ = constants::DEFAULT_FLOOR_REFLECTION_ENABLED;
   float floor_reflection_strength_ = constants::DEFAULT_FLOOR_REFLECTION_STRENGTH;

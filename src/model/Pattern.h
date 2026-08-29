@@ -58,6 +58,41 @@ class Pattern : public SongObject {
     return len > 0 ? row % len : row;
   }
 
+  // Session view's own clip-launch loop toggle (Song::getPooledPatterns())
+  // - true (the default) repeats indefinitely once triggered, matching
+  // getEffectiveRow()'s own unconditional modulo above and every other
+  // playback path's behavior. false makes it a one-shot: LaunchpadManager::
+  // triggerPooledPatternStep() releases the track's voices and stops
+  // triggering it, rather than wrapping back to row 0, once it's played
+  // through its own length once. Scoped to Session-view triggering only -
+  // getEffectiveRow() itself is unaffected, so a scene's own inline
+  // Pattern (ordinary transport-driven playback, which is bounded by the
+  // scene/song's own row range regardless) has no use for this and never
+  // sets it.
+  bool isLooping() const { return loop_; }
+  void setLooping(bool loop) { loop_ = loop; }
+
+  // Overrides SongObject::loadParameters()/storeParameters() but
+  // deliberately doesn't call the base version, which handles id_/name_:
+  // this class already manages name_ itself (getName()/setName() above),
+  // set directly by the caller rather than through this path (a scene's
+  // own inline Pattern never has one; a pooled Pattern's own name is
+  // read/written once at the call site, not per-attribute here), and
+  // Pattern has no use for a SongObject-style id_ at all. Reads/writes
+  // just length_/loop_ (<pattern length="..." loop="...">). Called from
+  // Song.cpp's shared reader/writer helpers (parsePatternContent()/
+  // storePatternContent()), used by both the per-scene and pattern-pool
+  // paths.
+  void loadParameters(const ParameterSource & input) override {
+    setLength(input.get<int>("length", 0));
+    setLooping(input.get<bool>("loop", true));
+  }
+
+  void storeParameters(ParameterSource & output) const override {
+    output.set("length", getLength(), 0);
+    output.set("loop", isLooping(), true);
+  }
+
   // Trims trailing undefined notes and drops the row from the sparse map
   // entirely once nothing defined is left in it - the same cleanup
   // deleteNote() below already does, applied here too since a caller can
@@ -244,6 +279,7 @@ private:
 
   // 0 = not given its own length - see getEffectiveRow()'s own comment.
   int length_ = 0;
+  bool loop_ = true;
 
   std::string name_;
 

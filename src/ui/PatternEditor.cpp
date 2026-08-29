@@ -2386,22 +2386,29 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   auto & scene = song.getScene(pattern_idx);
 
   display_row += heading_height;
-          
+
   string padding(static_cast<size_t>(cols), ' ');
-    
+
   setBgColor(styles.window_bg_color);
   putstr(display_row, 0, padding);
-    
+
+  // Bar boundary (a stronger accent than the plain beat one below) - one
+  // shared grid for the whole row, not per-column.
+  auto row_rows_per_bar = song.getRowsPerBar();
+
   auto current_pos = 0;
   for (int i = -1; i < static_cast<int>(track_ids.size()); i++) {
     if (i >= 0 && i < current_scroll_.track) continue;
     if (current_pos >= cols) break;
-    
+
     Color fg, bg, cell_fg, cell_bg;
-      
+
     if (highlight) {
       fg = Color("#80c080");
       bg = Color("#80a080");
+    } else if (row_rows_per_bar > 0 && pattern_row % row_rows_per_bar == 0) {
+      fg = styles.window_bar_accent_fg_color;
+      bg = styles.window_bar_accent_bg_color;
     } else if (pattern_row % 4 == 0) {
       fg = styles.window_accent_fg_color;
       bg = styles.window_accent_bg_color;
