@@ -21,7 +21,6 @@ class StatusLine;
 class PatternEditor;
 class PatternMatrix;
 class CoverArt;
-class HierarchyView;
 class SpinBox;
 class UIElement;
 class AudioAPI;
@@ -133,18 +132,15 @@ private:
 
   std::shared_ptr<InfoLine> info_line_;
   std::shared_ptr<PatternEditor> pattern_editor_;
-  // Always visible in the scope row's leftmost columns (see UI::layout())
-  // - not one of windows_'s click-to-reveal popups, and not togglable;
-  // shares that row's real estate with chart_/heatmap_/volume_meter_.
+  // Always visible in the scope row's leftmost columns (see UI::layout()),
+  // sharing that row's real estate with chart_/heatmap_/volume_meter_.
   std::shared_ptr<PatternMatrix> pattern_matrix_;
   // Square cover-art thumbnail, sharing the scope row immediately to the
   // right of pattern_matrix_ - see CoverArt.h and UI::layout().
   std::shared_ptr<CoverArt> cover_art_;
   // The global octave stepper - see SpinBox.h and Controller::
   // getGlobalOctave(). Lives inline in the info bar's own row (see
-  // layout()), not windows_, since it's always-on and click-activatable
-  // like pattern_editor_ rather than togglable like a HierarchyView-style
-  // window.
+  // layout()), always-on and click-activatable like pattern_editor_.
   std::shared_ptr<SpinBox> octave_control_;
   std::weak_ptr<UIElement> active_element_;
 
@@ -153,8 +149,6 @@ private:
   // toggles, per-device command resolution); PatternEditor's own copy is
   // separate and only used for actual pattern editing (note entry).
   LaunchpadManager * launchpad_manager_ = nullptr;
-
-  std::vector<std::shared_ptr<UIElement>> windows_;
 };
 
 #endif

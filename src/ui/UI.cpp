@@ -8,7 +8,6 @@
 #include "PatternEditor.h"
 #include "PatternMatrix.h"
 #include "CoverArt.h"
-#include "HierarchyView.h"
 #include "SpinBox.h"
 #include "../model/Color.h"
 #include "../audio/AudioAPI.h"
@@ -123,10 +122,6 @@ UI::initialize() {
     [this] { return getController().getGlobalOctave(); },
     [this](int v) { getController().setGlobalOctave(v); },
     Color(120, 120, 120), Color(30, 30, 30));
-
-#if 0
-  windows_.push_back(make_shared<HierarchyView>(getPlane()));
-#endif
 
   // Session/overview first, not pattern editing - matches the Launchpad's
   // own Session view as the more approachable starting point for a fresh
@@ -283,6 +278,15 @@ UI::initialize() {
   // fallback chain).
   commands_.define("exchange-point-and-mark", [this]() { pattern_editor_->executeCommand("exchange-point-and-mark"); });
 
+  // other-window (C-x o): cycles focus to the next window. Only two
+  // focusable panes exist - pattern_editor_ and pattern_matrix_ - so this
+  // is a plain toggle between the two rather than a real cycle.
+  commands_.define("other-window", [this]() {
+    active_element_ = (active_element_.lock() == pattern_matrix_)
+      ? std::shared_ptr<UIElement>(pattern_editor_)
+      : std::shared_ptr<UIElement>(pattern_matrix_);
+  });
+
   // Quit/save/open/save-as use Emacs's own C-x C-c/C-x C-s/C-x C-f/C-x C-w
   // bindings and command names (save-buffers-kill-terminal/save-buffer/
   // find-file/write-file, the first three shortened to save-song/
@@ -307,6 +311,7 @@ UI::initialize() {
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack(NCKEY_RIGHT, false, false, false, false), "next-buffer");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack(NCKEY_LEFT, false, false, false, false), "previous-buffer");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('b', false, false, false, false), "select-named-buffer");
+  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('o', false, false, false, false), "other-window");
   keymap_.bind(KeyChord::pack(' ', false, false, false, false), "toggle-playing");
   keymap_.bind(KeyChord::pack('[', false, false, false, false), "octave-down");
   keymap_.bind(KeyChord::pack(']', false, false, false, false), "octave-up");
@@ -455,10 +460,6 @@ UI::layout() {
   auto octave_width = octave_control_->preferredWidth();
   octave_control_->resize(1, octave_width).move(rows - 2, std::max(0, cols - octave_width));
   status_line_->resize(1, cols - 1).move(rows - 1, 0);
-
-  for (auto & window : windows_) {
-    window->resize(rows - 7, cols).move(5, 0);
-  }
 }
 
 bool
@@ -468,11 +469,6 @@ UI::renderComponents(bool refresh) {
   render |= pattern_editor_->render(styles_, refresh, active == pattern_editor_);
   render |= pattern_matrix_->render(styles_, refresh, active == pattern_matrix_);
   render |= cover_art_->render(styles_, refresh);
-#if 0
-  for (auto & window : windows_) {
-    render |= window->render(styles_, refresh);
-  }
-#endif
   render |= info_line_->render(styles_, refresh);
   render |= octave_control_->render(styles_, refresh);
 
@@ -543,11 +539,6 @@ UI::offerInput(const InputEvent & input) {
     // the entire bottom row, so this was very easy to trigger by accident.
     bool activated = tryActivate(input.getY(), input.getX(), pattern_editor_);
     activated = tryActivate(input.getY(), input.getX(), pattern_matrix_) || activated;
-
-    for (auto & window : windows_) {
-      activated = tryActivate(input.getY(), input.getX(), window) || activated;
-    }
-
     activated = tryActivate(input.getY(), input.getX(), octave_control_) || activated;
 
     // Fall back to the pattern editor - the default/main workspace - if the
