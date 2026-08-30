@@ -22,15 +22,18 @@ which today has no notion of a clip as a distinct, shareable object at
 all.
 
 Phases A through D, in this order because the data model has to exist
-before there's anything to draw; Phase E is additional/later, sequenced
-after A but not blocking B/C/D:
+before there's anything to draw; Phase E is a freestanding per-track clip
+management surface, sequenced late deliberately (see its own section);
+Phase F is additional/later too, sequenced after A but not blocking
+B/C/D:
 
 - **Phase A** - shared/referenced clips (data model).
 - **Phase B** - variable-length, titled scenes (data model).
 - **Phase C** - the arrangement grid itself (view), including removing
   today's `PatternMatrix`.
 - **Phase D** - visual unification with the drum machine's own rendering.
-- **Phase E** - nested Effect automation captured into clips too, not
+- **Phase E** - a per-track clip viewer (rename/delete/loop-toggle).
+- **Phase F** - nested Effect automation captured into clips too, not
   just a leaf track's own notes.
 
 ## Current state (already implemented, unaffected by any phase below unless noted)
@@ -45,27 +48,36 @@ after A but not blocking B/C/D:
   rendering, but keeps its own compact, no-velocity/no-delay shape either
   way - see Phase D below.
 - **The Launchpad session/launch view** (`GridMode::SESSION`): rows are a
-  track's own pooled patterns, columns are the shared track cursor.
-  Record Arm gates trigger-live vs. assign-into-the-current-scene, same as
-  ordinary note entry - this assign path *is* arrangement recording, per
-  the Context above. Every launch/swap/stop, on any track, is quantized to
+  track's own clips, columns are the shared track cursor. Record Arm
+  gates trigger-live vs. assign-into-the-current-scene, same as ordinary
+  note entry - this assign path *is* arrangement recording, per the
+  Context above. Every launch/swap/stop, on any track, is quantized to
   one shared grid (`Song::getRowsPerBar()`, default 16 rows/bar - also
   drives a stronger bar-boundary highlight in `PatternEditor`, on top of
   its existing every-4-rows beat one) measured from a shared origin set
   the moment the first pattern anywhere launches into an otherwise silent
-  session. `Pattern::isLooping()` (default true) makes a pooled pattern a
-  one-shot when false. CC95 (Session)/CC96 (Note)/CC97 (Custom, `DRAW`
-  mode) are a trio of exclusive per-device mode buttons. Stop Clip (CC49)
-  is a held modifier: holding it and pressing any pad in a column stops
-  that column's own track. The drum machine's own configuration (tap =
-  picker latch, hold = clear step data) is on CC98.
-- **A shared pattern pool** (`Song::getPooledPatterns(track_id)`/
-  `addPooledPattern()`, `std::unordered_map<int, std::vector<Pattern>>`,
-  a new top-level `<patterns>` XML element) - reusable named `Pattern`s
-  per track, outside any one scene position. **Superseded by Phase A**,
-  which replaces this with a real clip object (stable identity, usage
-  tracking) rather than a plain positional vector - see Phase A below.
-  Until Phase A lands, this is the pool Session view addresses.
+  session. `Clip::isLooping()` (default true) makes a clip a one-shot
+  when false. CC95 (Session)/CC96 (Note)/CC97 (Custom, `DRAW` mode) are a
+  trio of exclusive per-device mode buttons. Stop Clip (CC49) is a held
+  modifier: holding it and pressing any pad in a column stops that
+  column's own track. The drum machine's own configuration (tap = picker
+  latch, hold = clear step data) is on CC98.
+- **A real `Clip` object** (`src/model/Clip.h`, `Song::getClips(track_id)`/
+  `addClip()`, `std::unordered_map<int, std::vector<Clip>>`) - reusable
+  named clips per track, outside any one scene position, replacing what
+  used to be a plain pattern pool (`Song::getPooledPatterns()`/
+  `addPooledPattern()`, a flat `vector<Pattern>`). A `Clip` owns its own
+  name/loop/length directly, rather than delegating to its leaf
+  `Pattern` - which only ever carries note/command content, plus its own
+  unrelated `length_` for the scene-inline/drum-machine tiling case (see
+  `Pattern.h`). XML: a `<clips>` element groups `<trackClips
+  track="...">` per track, each holding `<clip name="..." loop="..."
+  length="...">` entries wrapping a `<pattern>` for note/command content.
+  This is the data-model half of Phase A - already landed. What's still
+  outstanding (the rest of Phase A, below): the background/instance layer
+  model, `copy-to-clip`/`insert-clip`, bar alignment, and stable
+  identity/usage tracking - a clip is still addressed by (track_id,
+  vector position) only, same as the old pool.
 - **Defaults**: the app opens on `PatternMatrix` (Session/overview) rather
   than straight into note entry, 31-EDO is the default tuning, and
   `songs/welcome.xml` opens automatically with no file given.
@@ -210,11 +222,6 @@ chord TBD (not yet reserved/implemented).
   `insert-clip`'s own instance can land anywhere the cursor is (a
   different track/scene/bar than the original selection) - it isn't
   "duplicate in place."
-- `PatternEditor`'s own row rendering shows a clip instance's hexadecimal
-  clip id right next to its content, not just the coarser Arrangement
-  grid (Phase C) - needed from the moment clips exist at all, so it's
-  visually obvious at the note level that a row belongs to a clip (and
-  which one) while editing, before Phase C's own grid even exists.
 - **`copy-to-clip` always operates at whole-track scope**
   (`SelectionScope::TRACK`) - every note column plus the effect column,
   for whatever row range is marked - regardless of what's actually
@@ -224,17 +231,10 @@ chord TBD (not yet reserved/implemented).
   analogous case (a cursor on the effect column already widens the
   region to the whole row). A clip is a whole-track thing, never a
   sub-track (one note column) or multi-track selection.
-- **Storage is forward-shaped for Phase E**: a clip's own content is
+- **Storage is forward-shaped for Phase F**: a clip's own content is
   keyed `track_id -> Pattern`, not a single bare `Pattern`, even though
   Phase A only ever populates the leaf track's own one entry - see Phase
-  E below for why.
-- **A required loop toggle** - `Pattern::isLooping()` already exists
-  (built earlier this session, for Session view) but nothing interactive
-  reaches it yet, and that's no longer optional polish: with continuous-
-  vs-one-shot now central to how a placed instance behaves (see "The
-  layer model" above), some command needs to flip it, from
-  `PatternEditor`, on a clip. Candidate keybinding TBD, same as
-  `copy-to-clip`/`insert-clip` above.
+  F below for why.
 
 ### Bar alignment
 
@@ -370,7 +370,56 @@ onto both would lose real information. Exact scope of what *does*
 converge (color language? border/fill convention?) is undecided - revisit
 once Phase C's own clip rendering actually exists to converge toward.
 
-## Phase E: nested Effect automation in clips
+- Also where `PatternEditor`'s own row rendering starts showing a clip
+  instance's hexadecimal id right next to its content, not just the
+  coarser Arrangement grid (Phase C) - deliberately not part of Phase A
+  despite clips existing from that point on, so it converges on whatever
+  single-hex-digit convention Phase C's own clip blocks settle on
+  (already specified there: a clip's ordinal position in its track's own
+  clip list) rather than inventing a separate one first and having to
+  reconcile the two later.
+
+## Phase E: clip viewer
+
+A dedicated per-track clip list, showing every clip in a track's own
+`Song::getClips(track_id)` (name, loop flag, length) with commands to
+rename one, delete one outright, and toggle its loop flag - not
+`PatternEditor` and not the Arrangement grid (Phase C):
+
+- **Not `PatternEditor`.** A clip's own name/loop/length are properties
+  of the clip object itself, not of any one row of its content - there's
+  no natural row/cell in the note grid to anchor an edit command to (this
+  was the original plan for the loop toggle specifically; reconsidered
+  mid-Phase-A once it was clear it doesn't actually belong there).
+- **Not the Arrangement grid either** (Phase C) - a clip block there
+  shows a *placement*, not the underlying clip list itself, and this
+  phase needs to exist independently of whether an instance of a given
+  clip has even been placed anywhere yet.
+- **The loop toggle is no longer optional polish**, same reasoning as
+  when it was (briefly, mid-session) slated for Phase A instead: with
+  continuous-vs-one-shot central to how a placed instance behaves ("The
+  layer model" in Phase A above), some surface has to be able to flip
+  `Clip::isLooping()` - it's just this phase's own surface doing it, not
+  `PatternEditor`'s. Already useful before Phase A's own
+  instance-placement work lands, too - Session view's live
+  clip-triggering already reads it today.
+- **Delete has no precedent to follow** - there's no existing way to
+  remove a clip at all today, short of hand-editing it out of the XML.
+  What happens to an already-placed instance of a deleted clip is an
+  open question, deferred along with the rest of this phase.
+- **Deliberately sequenced here (just before Phase F), not right after
+  Phase A** despite the loop toggle's own urgency above - what this
+  phase's own widget should actually look like isn't clear yet, and
+  working through Phases B-D first will surface real usage patterns (how
+  many clips a track realistically accumulates, how they get browsed/
+  picked today via Session view) worth having before designing a
+  dedicated surface for them, rather than guessing now.
+- **Open:** exact widget shape - a new `UIElement` sibling of
+  `PatternMatrix`/`InstrumentList`, or reusing `HierarchyView`'s
+  currently-dead tree-list machinery (`UI.cpp`'s own `#if 0`-wrapped
+  construction) - undecided.
+
+## Phase F: nested Effect automation in clips
 
 A clip's full/eventual form is one `Pattern` per relevant `track_id`, not
 just the leaf track's own - the leaf track itself, plus any number of
@@ -392,7 +441,7 @@ never as an independent thing.
 Genuinely hard enough to need its own phase, sequenced after Phase A
 rather than inside it - Phase A's own clip storage is already shaped
 `track_id -> Pattern` in anticipation (see its own "Storage is
-forward-shaped for Phase E" note), so this phase only has to add
+forward-shaped for Phase F" note), so this phase only has to add
 population/capture logic, not migrate the underlying representation.
 
 - **Open:** if two leaf tracks share an ancestor Effect track and their
@@ -423,10 +472,11 @@ Carried over from `pattern-grid.md`, not clearly belonging to any phase
 above - revisit and prune once the phases above are further along; some
 of these may turn out unwanted. (Editing note content from the
 arrangement grid, and copying nested Effect automation, were also on this
-list - both now settled, in Phase C and Phase E respectively, not
-repeated here. The clip loop toggle was too - promoted into Phase A's own
-"Authoring" section instead, since it's no longer optional polish now
-that continuous-vs-one-shot is central to how an instance behaves.)
+list - both now settled, in Phase C and Phase F respectively, not
+repeated here. The clip loop toggle was too - briefly promoted into
+Phase A's own "Authoring" section mid-session, then moved again once it
+was clear it isn't `PatternEditor` work at all: it now lives in Phase E's
+own clip viewer instead.)
 
 - Numeric blend-factor tuning for LED/terminal "currently playing"
   highlights on real hardware/a real terminal - the schemes themselves
