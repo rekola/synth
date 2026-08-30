@@ -188,6 +188,42 @@ TEST(render_center_note_produces_symmetric_stereo_output) {
   CHECK_NEAR(left, right, left * 0.05f); // centered azimuth: equal-power pan is symmetric
 }
 
+// The arrangement layer's own instance events actually drive real
+// (transport) playback, not just PatternEditor's Ctrl-K/Session view's
+// live triggering - SongState::renderBlock()'s note scheduler.
+
+// An active instance masks whatever the background has underneath it,
+// even when the instance's own content there is empty/rest - the clip
+// placed here has no notes at all, so if the background's own note at
+// the same row still sounded, the instance wouldn't really be masking
+// anything.
+TEST(render_active_instance_suppresses_the_background_underneath) {
+  auto loaded = loadFixture("arrangement_instance_suppresses_background.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(44100, 1);
+  auto result = renderSongOffline(loaded.song, config);
+
+  CHECK(result.numberOfFrames() > 0);
+  CHECK(!hasNonFiniteSample(result));
+  CHECK(rms(result, 0) < 1e-4f);
+}
+
+// The other half of the same guarantee: an active instance's own content
+// actually gets scheduled and heard, not just the suppression above -
+// this fixture's background has no note at all, only the clip does.
+TEST(render_active_instance_plays_its_own_content) {
+  auto loaded = loadFixture("arrangement_instance_plays_its_own_content.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(44100, 1);
+  auto result = renderSongOffline(loaded.song, config);
+
+  CHECK(result.numberOfFrames() > 0);
+  CHECK(!hasNonFiniteSample(result));
+  CHECK(rms(result, 0) > 1e-4f);
+}
+
 TEST(render_hard_pan_isolates_channels) {
   auto loaded = loadFixture("hard_pan.xml");
   CHECK(loaded.ok);

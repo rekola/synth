@@ -541,14 +541,14 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	if (!track) continue;
 
 	for (auto it = track_it->FirstChildElement("clip"); it ; it = it->NextSiblingElement("clip")) {
-	  Pattern pattern;
+	  Clip clip(track->getInternalId());
 	  auto pattern_element = it->FirstChildElement("pattern");
-	  if (pattern_element && !parsePatternContent(*pattern_element, pattern, getTuningForTrack(*track), filename)) {
+	  if (pattern_element && !parsePatternContent(*pattern_element, clip.getLeafPattern(), getTuningForTrack(*track), filename)) {
 	    setlocale(LC_ALL, oldLocale.c_str());
 	    return false;
 	  }
-	  auto & clip = addClip(track->getInternalId(), std::move(pattern));
 	  clip.loadParameters(XMLParameterSource(it));
+	  addClip(std::move(clip));
 	}
       }
     }
@@ -583,6 +583,26 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	  if (!parsePatternContent(*it2, pattern, getTuningForTrack(*track), filename)) {
 	    setlocale(LC_ALL, oldLocale.c_str());
 	    return false;
+	  }
+	}
+
+	// One <arrangement track="..."> per track that has any instance
+	// events, each holding that track's own <instance row="...">
+	// children - see the writer's own comment (Song::save()) for the
+	// shape.
+	for (auto it2 = it->FirstChildElement("arrangement"); it2 ; it2 = it2->NextSiblingElement("arrangement")) {
+	  auto track_text = it2->Attribute("track");
+	  auto track = track_text ? resolveTrackReference(*this, track_text) : nullptr;
+	  if (!track) continue;
+	  auto track_id = track->getInternalId();
+
+	  for (auto it3 = it2->FirstChildElement("instance"); it3 ; it3 = it3->NextSiblingElement("instance")) {
+	    auto row_text = it3->Attribute("row");
+	    if (!row_text) continue;
+	    auto value_text = it3->GetText();
+	    if (!value_text) continue;
+	    auto clip_index = string_view(value_text) == "OFF" ? Scene::kStopInstance : atoi(value_text);
+	    scene.setInstance(track_id, atoi(row_text), clip_index);
 	  }
 	}
       }
@@ -700,6 +720,31 @@ Song::save(const std::string & filename) const {
       pattern_element->SetAttribute("track", track_ref.c_str());
       storePatternContent(doc, pattern_element, pattern, track_tuning);
       scene_element->InsertEndChild(pattern_element);
+    }
+
+    // One <arrangement track="..."> per track that has any instance
+    // events in this scene, grouping them the same way <clips>'s own
+    // <trackClips> groups a track's own clips - avoids repeating "track"
+    // on every single <instance>. The value (a clip's own ordinal
+    // position in that track's clip list, or "OFF" for an explicit stop)
+    // is the element's own text content, matching <note>/<command>, not
+    // an attribute.
+    for (auto & [ track_id, track_instances ] : scene.getInstancesByTrack()) {
+      if (track_instances.empty()) continue;
+      auto track = getMasterTrack().getChildByInternalId(track_id);
+      assert(track);
+      if (!track) continue;
+
+      auto arrangement_element = doc.NewElement("arrangement");
+      arrangement_element->SetAttribute("track", trackReferenceText(*this, track_id).c_str());
+      for (auto & [ row, clip_index ] : track_instances) {
+	auto instance_element = doc.NewElement("instance");
+	instance_element->SetAttribute("row", static_cast<int>(row));
+	if (clip_index == Scene::kStopInstance) instance_element->SetText("OFF");
+	else instance_element->SetText(clip_index);
+	arrangement_element->InsertEndChild(instance_element);
+      }
+      scene_element->InsertEndChild(arrangement_element);
     }
 
     scenes->InsertEndChild(scene_element);

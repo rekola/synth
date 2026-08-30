@@ -148,6 +148,16 @@ protected:
   // reasoning as startAnnotationEdit()'s own comment.
   void startTrackNameEdit();
 
+  // `copy-to-clip` - saves the current selection as a new, unnamed clip.
+  // Always whole-track scope (SelectionScope::TRACK), on the cursor's own
+  // current track, for whatever row range is marked (or just the
+  // cursor's own row if nothing is). No placement - the direct keyboard
+  // equivalent of hand-editing a new <clip> into the XML. Naming happens
+  // later, from the (not yet built) clip viewer, not here. A no-op if the
+  // cursor's track index is somehow out of range (shouldn't happen with
+  // any real track list, just defensive).
+  void copyToClip();
+
   // Whether the cursor is parked on the current row's annotation "slot"
   // (GridPosition::scope == SelectionScope::ANNOTATION - reached by Right
   // arrow past the last track's last column) lives on current_cursor/

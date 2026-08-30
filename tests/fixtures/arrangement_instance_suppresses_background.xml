@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="12edo" tempo="120" patternRows="8" volume="1.0">
+  <instruments>
+    <envelope attack="0.01" hold="0.3" decay="0.3" sustain="0.0" release="0.05">
+      <oscillator type="saw"/>
+    </envelope>
+  </instruments>
+  <tracks>
+    <track id="0" instrument="0"/>
+  </tracks>
+  <clips>
+    <trackClips track="0">
+      <clip loop="1">
+        <pattern></pattern>
+      </clip>
+    </trackClips>
+  </clips>
+  <scenes>
+    <scene>
+      <pattern track="0">
+        <note row="0" velocity="80" value="C-4" />
+      </pattern>
+      <arrangement track="0">
+        <instance row="0">0</instance>
+      </arrangement>
+    </scene>
+  </scenes>
+</song>

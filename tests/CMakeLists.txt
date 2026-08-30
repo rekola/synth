@@ -15,6 +15,7 @@ add_executable(synth_tests
 	RenderTests.cpp
 	ControllerTests.cpp
 	PatternBlockOpsTests.cpp
+	ArrangementOpsTests.cpp
 	SceneTests.cpp
 	PatternScrollTests.cpp
 	PatternBreakTests.cpp

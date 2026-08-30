@@ -100,13 +100,16 @@ A track's arrangement is two layers, not one:
   deliberately still how an arrangement gets finished: small, one-off
   content that isn't worth reusing just gets typed straight into the
   background, same as always.
-- **Clip instances**, layered on top. An instance is a placement (which
-  clip, which track, which scene, which bar it starts at) - like a
-  Photoshop layer, it fully *hides* whatever the background has
-  underneath its own span, for that span's entire length, including any
-  row within the clip that's empty/rest - an empty row inside a clip
-  instance still hides the background there; it doesn't let it show
-  through.
+- **Clip instances**, layered on top. An instance is a *start* event -
+  which clip, which track, which scene, which bar it starts at - the
+  tracker idiom (a held note starts with a note-on, not a pre-declared
+  length) rather than a Photoshop-layer-style span with both ends known
+  up front. **Resolved, and this is why a start-only event is the right
+  shape**: a clip launched live (Session view, Record Arm on) has to be
+  written into the scene the instant it's triggered, with no way to know
+  yet how long it'll actually keep playing - that only becomes known
+  later, whenever it's actually stopped or swapped. A model requiring an
+  end row at write time couldn't represent that moment at all.
 
 Every instance of the same clip is **live-linked**: editing the clip's
 content through any one instance updates every instance immediately -
@@ -124,72 +127,119 @@ renderBlock()`'s note scheduler has to actually know about instance
 placements, not just read `Scene::patterns_by_track_id_` the way it does
 today.
 
-That's simplified down to a cheap check rather than real layer
-compositing/priority logic, though: **placing an instance destructively
-clears the background's own content for that exact span** (reusing
-`Pattern`'s existing per-row clearing, the same mechanism `kill-region`
-already uses), right when the instance is placed - not just visually
-masked while the old content secretly lingers underneath. So by playback
-time there's no ambiguity to resolve: the background is only ever
-genuinely present where nothing covers it, and only ever genuinely empty
-where something does. The scheduler's own job becomes "does an instance
-cover this row - if so read the clip, otherwise read the background,"
-never a real multi-layer stack.
+**Termination is a tracker idiom too - a clip stops the same two ways a
+held note does:** a later start event on the same track (swapping
+straight to a different clip, or the same one again, the same way a new
+note-on cuts off whatever was still ringing) or an explicit stop, the
+note-off equivalent:
 
-**Instances can't overlap.** A track plays exactly one thing at a time -
-never split across note columns with, say, column 1 playing clip 0 while
-column 2 plays clip 1. Placing a new instance clears away whatever
-portion of an already-placed instance it overlaps, the same way it
-clears plain background content - but (same as editing never touches the
-background it once cleared) this never modifies the *clip* being
-overlapped, only that one placement's own visible extent on this track.
-
-**Instance boundaries always stop, unconditionally.** An instance must
-never leave a voice playing past its own end - proposed rule: the moment
-an instance's own span ends, the scheduler fires the exact same natural
-release already built for Session-view stops (`InstrumentTrackState::
-stopAllVoices()`/`STOP_ALL_NOTES` - the instrument's own authored release
-tail, not a hard cut), regardless of what follows (silence, background
-content, or another instance starting immediately). This needs no special
-case for "does something else start right away" - the ending instance's
-own voice just fades out on its natural tail while whatever comes next
-starts fresh on top, the same as any other stop already does. Also
-redundant-safe against a clip whose own content already ends with an
-explicit note-off (stopping an already-stopped voice is already a no-op
-elsewhere in this codebase), so firing it unconditionally at every
-instance boundary costs nothing extra.
-
-**Continuous vs. one-shot instances - no resizing, ever; the tracker
-idiom instead.** Placing *either* kind of instance follows one single
-rule: it clears every track from the insertion point onward (through the
-current scene's own end - never past it, per Phase C's "never crosses a
-scene boundary"). What differs is only how far the content that follows
-lets each kind actually play, mirroring how a held note already works in
-a tracker - it keeps sounding until an explicit off or a new note
-interrupts it, never a resizable block:
-
-- A **one-shot** clip's instance needs nothing extra to bound it - it
-  already has an intrinsic stopping point (its own native, whole-bar
-  length), and the unconditional instance-boundary stop above already
-  covers what happens when it's reached.
+- A **one-shot** clip's instance needs no explicit stop - it has an
+  intrinsic stopping point of its own (its own native, whole-bar length,
+  `row % clip_length` naturally running out rather than continuing to
+  wrap), and resolving "what's active at row R" just has to know to stop
+  treating that start event as active once R is far enough past it - no
+  separate stored end, no explicit stop event needed for the common
+  case.
 - A **continuous** (looping) clip's instance has no intrinsic stopping
   point at all - it just keeps reading `row % clip_length` (the exact
   same repeat mechanism `Pattern::getEffectiveRow()` already has)
   indefinitely, exactly like a held note, until something *extrinsic*
-  bounds it: writing a note or an explicit off directly into the track at
-  a later row, placing a new clip instance later on the same track
-  (either one already covered by "instances can't overlap" above - the
-  later content simply clears whatever continuous instance was still
-  running through that point), or an explicit terminate-to-this-row
-  gesture with no replacement content (candidate binding: Backspace/
-  Delete, TBD) for ending it without starting anything new there.
+  stops it: a later start event (above), or an explicit stop.
+- **Resolved: a stop isn't a separate kind of object at all** - a start
+  event and a stop are the same thing, an *instance* event, where a stop
+  is simply an instance event referencing no clip ("instantiate
+  nothing").
+- **Resolved (for now): reached from `PatternEditor` via Ctrl-K,
+  repurposed** - at the cursor's row, on a track currently playing a
+  clip instance, kills it (places the explicit-stop instance event
+  there) instead of its ordinary `kill-row` meaning; matches Emacs's own
+  kill-line closely enough in spirit (removing what's "there" at the
+  cursor) to reuse rather than reaching for a fresh binding, the same way
+  this codebase already repurposes other Emacs bindings where the fit is
+  close (C-b for set-mark, in place of the C-SPC most terminals can't
+  deliver). `insert-clip` places the other kind of instance event, one
+  referencing a real clip.
+- **Resolved: storage lives on `Scene`, not `Pattern`** - a new
+  structure, sibling to `patterns_by_track_id_` and the annotations map
+  (same reasoning `Scene.h` already gives for annotations: this doesn't
+  belong to any one track's own `Pattern` either), row-keyed per track:
+  `track_id -> (row -> clip reference or none)`.
+- **Resolved: XML shape** - `<instance>`, a noun like every other
+  element here, not a verb, grouped per track like `<clips>`'s own
+  `<trackClips>` (avoids repeating `track="..."` on every single
+  `<instance>`): `<arrangement track="..."><instance
+  row="...">1</instance><instance row="...">OFF</instance></arrangement>`
+  - the value (the clip's own ordinal position in that track's clip
+  list, the exact same index Session view's own rows already address, or
+  `OFF` for a stop) is the element's own text content, matching
+  `<note>`/`<command>`, not an attribute. `<arrangement>` names what the
+  grouping actually is (this track's own slice of the arrangement)
+  rather than just restating its shape (`trackInstances` was the first
+  draft, dropped for exactly that reason). Sibling to `<pattern>`/
+  `<annotation>` inside `<scene>`.
+- **Resolved: placing a real-clip instance clears away any other
+  instance event already placed on that same track at a later row within
+  its own reach** (removed outright, not left as unreachable data that
+  could resurface if something else later changes) - *how far forward*
+  depends on which kind of clip:
+  - A **looping** instance clears through the scene's own end - it
+    genuinely has no natural bound of its own, so there's no shorter
+    boundary to respect.
+  - A **one-shot** instance clears only through its own native length
+    (`row + clip_length`), never further - it has a real, known
+    duration, so clearing beyond it would destroy later placements the
+    one-shot was never going to touch in the first place.
+  - **An explicit stop clears nothing at all** - unlike a real clip, it
+    adds no new sounding content, so there's nothing of its own to
+    protect going forward; whatever's already there from the stop's own
+    row onward was already left in a consistent state by whatever was
+    placed before it (a looping instance's own placement already cleared
+    all the way to the scene's end; a one-shot's own placement already
+    cleared exactly through its own native length) - the invariant holds
+    by induction, so a stop only ever needs to write itself.
+  This is unrelated to (and doesn't replace) playback's own row-by-row
+  resolution, still needed regardless: scan backward on the track for
+  the most recent instance event; a real-clip event still active there
+  (by the one-shot/continuous rules above) plays that clip, anything
+  else (a stop event, or no event at all) falls through to the
+  background. Clearing keeps the *arrangement's own* data honest (no two
+  instance events ever claim the same row); resolution is what a
+  scheduler actually queries at playback time.
+- **Open again: whether/how placing an instance touches the background's
+  own note/command data at all.** Earlier drafts of this section assumed
+  it should be destructively cleared, matching `kill-region`'s own
+  per-row clearing - reconsidered, since the arrangement (instance
+  events, on `Scene`) and the background (`Pattern`, on `Scene` too, but
+  a fully separate structure - see above) are now completely independent
+  data, and reaching from one into the other to mutate it on every
+  placement sits awkwardly against that separation. Playback resolution
+  already never plays the background wherever an instance is active
+  (it falls through to the background only when there's no active
+  instance at all), so correctness doesn't actually require touching the
+  background's own stored data - but whether leaving it untouched (and
+  therefore silently present underneath, invisible only because
+  resolution skips it) is the right call, or whether some clearing still
+  belongs here for the same data-hygiene reasons instance-vs-instance
+  clearing does, isn't settled.
 - There is deliberately no independent "instance length" to drag-resize
-  in either case - an earlier draft of this plan proposed letting a
-  looping clip's instance be stretched to an explicitly chosen length,
-  Photoshop-layer style; that idea is dropped in favor of the above,
-  which needs no separate length field on a placement at all and matches
-  this codebase's own tracker lineage (Emacs/step-sequencer, not a DAW's
-  own block-resize-handle idiom) more directly.
+  - an earlier draft of this plan proposed letting a looping clip's
+  instance be stretched to an explicitly chosen length, Photoshop-layer
+  style; dropped in favor of the tracker idiom above, which matches this
+  codebase's own lineage (Emacs/step-sequencer, not a DAW's own
+  block-resize-handle idiom) more directly and is also just what a live
+  launch actually needs.
+
+**Instance boundaries still stop unconditionally** once termination
+(whichever of the two ways above) actually happens - proposed rule
+carried over unchanged from an earlier draft of this section: the
+scheduler fires the exact same natural release already built for
+Session-view stops (`InstrumentTrackState::stopAllVoices()`/
+`STOP_ALL_NOTES` - the instrument's own authored release tail, not a
+hard cut) at whatever row termination lands on, regardless of what
+follows (silence, background content, or another instance starting
+immediately) - redundant-safe against a clip whose own content already
+ends with an explicit note-off, so firing it unconditionally costs
+nothing extra.
 
 ### Authoring: `copy-to-clip` / `insert-clip`
 
@@ -203,7 +253,8 @@ for a concrete feel of the two-step shape being mirrored here. Candidate
 keybindings: analogous to Emacs's own `C-x r s`/`C-x r i` chords, exact
 chord TBD (not yet reserved/implemented).
 
-- **`copy-to-clip`** - saves the current selection as a new named clip.
+- **`copy-to-clip`** - saves the current selection as a new, unnamed
+  clip (naming happens later, from Phase E's own clip viewer, not here).
   No placement at all - the direct keyboard equivalent of today's only
   authoring path (hand-editing the `<patterns>` XML), for building up a
   clip library without necessarily placing an instance yet.

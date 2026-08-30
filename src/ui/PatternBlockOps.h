@@ -9,6 +9,7 @@
 #include <vector>
 
 class Scene;
+class Clip;
 
 struct PatternBlockCell {
   std::vector<Note> notes;
@@ -81,10 +82,28 @@ void clearPatternBlockCommand(Scene & scene, int row_lo, int row_hi, int track_i
 void pastePatternBlockCommand(Scene & scene, const std::vector<Command> & block, int num_rows,
 			      int target_row, int track_id);
 
-// Row-only siblings of the above, for PatternEditor's SelectionScope::
-// ANNOTATION - a Scene's annotations are keyed by row alone (see Scene.h's
-// own comment on why they live there rather than on Pattern), so unlike
-// every other family here there's no track_id/note range involved at all.
+// Extracts a track's own content from [row_lo, row_hi] into a new,
+// standalone Clip - for `copy-to-clip`. Returns a whole Clip, not just a
+// Pattern, even though only its leaf entry (getLeafPattern()) is
+// populated here: a clip's full/eventual form is one Pattern per
+// relevant track_id, not just the leaf track's own (nested Effect
+// automation, still unbuilt) - shaping the extraction this way now means
+// adding those other entries later is purely additive, not a second
+// return-type change. row_lo's own bar becomes the new Clip's row 0, so
+// a selection that doesn't start on a bar boundary comes back
+// front-padded (rest before the first real note) rather than shifting
+// every note's phase-within-a-bar once the clip gets placed somewhere
+// else later. The new Clip's own length (Clip::getLength(), not its leaf
+// Pattern's - see Clip.h) is rounded up to the next whole bar past
+// row_hi the same implicit way (back-padded) - a bar-aligned length is
+// what lets a later placement land cleanly on the grid.
+Clip extractClip(const Scene & scene, int track_id, int row_lo, int row_hi, int rows_per_bar, int context_length);
+
+// Row-only siblings of the copy/clear/paste families above, for
+// PatternEditor's SelectionScope::ANNOTATION - a Scene's annotations are
+// keyed by row alone (see Scene.h's own comment on why they live there
+// rather than on Pattern), so unlike every other family here there's no
+// track_id/note range involved at all.
 std::vector<std::string> copyPatternBlockAnnotations(const Scene & scene, int row_lo, int row_hi);
 void clearPatternBlockAnnotations(Scene & scene, int row_lo, int row_hi);
 void pastePatternBlockAnnotations(Scene & scene, const std::vector<std::string> & block, int num_rows,

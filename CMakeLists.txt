@@ -101,6 +101,7 @@ add_library(synth_engine STATIC
 	src/instruments/LFO.cpp
 	src/audio/OfflineRenderer.cpp
 	src/ui/PatternBlockOps.cpp
+	src/model/ArrangementOps.cpp
 	src/ui/PatternScroll.cpp
 	src/launchpad/LaunchpadLayout.cpp
 	src/launchpad/LaunchpadProtocol.cpp

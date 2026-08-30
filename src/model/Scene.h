@@ -5,6 +5,7 @@
 #include "Pattern.h"
 #include "VisibleTrackInfo.h"
 
+#include <map>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -67,11 +68,13 @@ class Scene : public SongObject {
 
   // Whole-row, not single-track: every track's own Pattern (notes and
   // command alike - Pattern::insertRow() shifts both together) shifts in
-  // lockstep, plus this scene's own row-keyed annotation - matching Emacs's
-  // own kill-line/C-k, which acts on the whole line regardless of any
-  // narrower selection. A row is one moment in the whole song, not a
-  // per-track thing, so "insert/delete a row" has to mean all of it moving
-  // together or the tracks would drift out of alignment with each other.
+  // lockstep, plus this scene's own row-keyed annotation. A row is one
+  // moment in the whole song, not a per-track thing, so shifting it here
+  // has to mean all of it moving together or the tracks would drift out
+  // of alignment with each other - unlike insertRowForTrack() below,
+  // which deliberately shifts just one track's own content and leaves
+  // every other track's own alignment with the song's own row numbers
+  // exactly as it was.
   void insertRow(int row, int num_rows) {
     for (auto & [ track_id, pattern ] : patterns_by_track_id_) pattern.insertRow(row, num_rows);
     for (int i = num_rows - 1; i > row; i--) shiftAnnotation(i, i - 1);
@@ -82,6 +85,14 @@ class Scene : public SongObject {
     for (auto & [ track_id, pattern ] : patterns_by_track_id_) pattern.deleteRow(row, num_rows);
     for (int i = row; i < num_rows - 1; i++) shiftAnnotation(i, i + 1);
     annotations_.erase(static_cast<unsigned short>(num_rows - 1));
+  }
+
+  // Single-track counterpart of insertRow() above - shifts just this one
+  // track's own Pattern (notes and command together, Pattern::
+  // insertRow()'s own contract), leaving every other track and the row's
+  // own annotation (not this one track's own content) untouched.
+  void insertRowForTrack(int track_id, int row, int num_rows) {
+    patterns_by_track_id_[track_id].insertRow(row, num_rows);
   }
 
   const Note & getNote(int row, int track_id, int note_column) const {
@@ -134,6 +145,54 @@ class Scene : public SongObject {
     patterns_by_track_id_[track_id] = std::move(pattern);
   }
 
+  // The arrangement layer - instance events, one per (track, row) where
+  // something was actually placed. An instance event is a tracker-idiom
+  // *start* event, not a span: either a real clip (clip_index is that
+  // clip's own ordinal position in track_id's own clip list, >= 0) or an
+  // explicit stop (kStopInstance) - "instantiate nothing," not a
+  // separate kind of object. Lives here, not on Pattern, for the same
+  // reason annotations do (Scene's own class comment) - this doesn't
+  // belong to any one track's own Pattern either. kNoInstance (never
+  // actually stored - only ever a getInstance() return value) means no
+  // event was placed at that exact row at all.
+  static constexpr int kStopInstance = -1;
+  static constexpr int kNoInstance = -2;
+
+  void setInstance(int track_id, int row, int clip_index) {
+    instances_by_track_id_[track_id][static_cast<unsigned short>(row)] = clip_index;
+  }
+
+  void clearInstance(int track_id, int row) {
+    auto it = instances_by_track_id_.find(track_id);
+    if (it != instances_by_track_id_.end()) it->second.erase(static_cast<unsigned short>(row));
+  }
+
+  int getInstance(int track_id, int row) const {
+    auto it = instances_by_track_id_.find(track_id);
+    if (it == instances_by_track_id_.end()) return kNoInstance;
+    auto it2 = it->second.find(static_cast<unsigned short>(row));
+    return it2 != it->second.end() ? it2->second : kNoInstance;
+  }
+
+  // Raw per-track access, same reasoning as getPatternsByTrack()/
+  // getAnnotations() above - placement's own clearing logic and
+  // playback's own row resolution both need "every instance event on
+  // this one track, in row order" at once, not a single (row, track)
+  // cell at a time. Ordered (std::map, not this class's usual
+  // unordered_map) because both of those actually are range queries -
+  // "the most recent event at or before row R" (resolution), "every
+  // event at or after row R" (clearing) - not just point lookups by
+  // exact row the way notes/commands/annotations above always are.
+  const std::map<unsigned short, int> & getInstancesForTrack(int track_id) const {
+    auto it = instances_by_track_id_.find(track_id);
+    return it != instances_by_track_id_.end() ? it->second : empty_instances_;
+  }
+
+  // Every track that has any instance events at all, for Song.cpp's own
+  // XML writer to walk - same shape/reasoning as getPatternsByTrack()
+  // above.
+  const std::unordered_map<int, std::map<unsigned short, int> > & getInstancesByTrack() const { return instances_by_track_id_; }
+
 private:
   // insertRow()/deleteRow()'s own annotation-shifting step - same "copy if
   // present, else erase rather than store an explicit empty string" shape
@@ -147,11 +206,13 @@ private:
 
   std::unordered_map<int, Pattern> patterns_by_track_id_;
   std::unordered_map<unsigned short, std::string> annotations_;
+  std::unordered_map<int, std::map<unsigned short, int> > instances_by_track_id_;
 
   static inline Note empty_note;
   static inline std::vector<Note> empty_notes;
   static inline Command empty_command;
   static inline std::string empty_string;
+  static inline std::map<unsigned short, int> empty_instances_;
 };
 
 #endif

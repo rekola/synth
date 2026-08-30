@@ -2,6 +2,7 @@
 #define _SONGSTATE_H_
 
 #include "../model/Song.h"
+#include "../model/ArrangementOps.h"
 #include "TrackState.h"
 #include "../instruments/Tuner.h"
 #include "RenderContext.h"
@@ -15,6 +16,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <unordered_set>
 
 class SongState : public TrackState {
  public:
@@ -153,17 +155,49 @@ class SongState : public TrackState {
 	  // invariant.
 	  int absolute_row = scene_idx * song.getPatternLength() + row_idx;
 
-	  // Every track that has anything at all in this scene, each its own
-	  // Pattern now (see Scene.h's own comment) - was one shared
-	  // row->track_id->notes/commands lookup on the old flat class this
-	  // scene used to be.
-	  for (auto & [ track_id, track_pattern ] : scene.getPatternsByTrack()) {
-	    // A Pattern shorter than the song's own pattern_length_ repeats -
-	    // see Pattern.h's own getEffectiveRow() comment. Resolved once per
-	    // track here since each track's own Pattern can have its own
-	    // length (or none, tracking the song's own live).
-	    auto effective_row = track_pattern.getEffectiveRow(row_idx, song.getPatternLength());
-	    auto & notes = track_pattern.getNotes(effective_row);
+	  // Every track that has either background content or an arrangement
+	  // instance in this scene, each its own Pattern now (see Scene.h's
+	  // own comment) - was one shared row->track_id->notes/commands
+	  // lookup on the old flat class this scene used to be. The
+	  // arrangement layer can cover a track with no background Pattern
+	  // of its own at all, so this is the union of both, not just
+	  // getPatternsByTrack()'s own keys.
+	  std::unordered_set<int> scheduled_track_ids;
+	  for (auto & [ track_id, track_pattern ] : scene.getPatternsByTrack()) scheduled_track_ids.insert(track_id);
+	  for (auto & [ track_id, track_instances ] : scene.getInstancesByTrack()) {
+	    if (!track_instances.empty()) scheduled_track_ids.insert(track_id);
+	  }
+
+	  for (auto track_id : scheduled_track_ids) {
+	    // What's actually active here: a real clip's own leaf Pattern,
+	    // read at the row relative to when that instance started
+	    // (wrapped by the clip's own length, not this track's
+	    // background Pattern's own - Clip.h's own comment on why those
+	    // are different fields now), if the arrangement layer covers
+	    // this row; this track's own background Pattern otherwise
+	    // (ArrangementOps.h's own resolveInstanceAt()). An explicit
+	    // stop resolves to neither - silence, nothing plays here.
+	    const Pattern * active_pattern = nullptr;
+	    int effective_row = row_idx;
+
+	    auto active = resolveInstanceAt(song, scene, track_id, row_idx);
+	    if (active.clip_index >= 0) {
+	      auto & clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
+	      active_pattern = &clip.getLeafPattern();
+	      auto length = clip.getLength() > 0 ? clip.getLength() : 1;
+	      effective_row = active_pattern->getEffectiveRow(row_idx - active.start_row, length);
+	    } else if (active.clip_index == Scene::kNoInstance) {
+	      auto it = scene.getPatternsByTrack().find(track_id);
+	      if (it != scene.getPatternsByTrack().end()) {
+		active_pattern = &it->second;
+		// A Pattern shorter than the song's own pattern_length_
+		// repeats - see Pattern.h's own getEffectiveRow() comment.
+		effective_row = active_pattern->getEffectiveRow(row_idx, song.getPatternLength());
+	      }
+	    }
+	    if (!active_pattern) continue;
+
+	    auto & notes = active_pattern->getNotes(effective_row);
 	    auto track = song.getMasterTrack().getChildByInternalId(track_id);
 	    auto tuning = track ? song.getTuningForTrack(*track) : song.getTuning();
 
@@ -183,7 +217,7 @@ class SongState : public TrackState {
 	      }
 	    }
 
-	    auto & command = track_pattern.getCommand(effective_row);
+	    auto & command = active_pattern->getCommand(effective_row);
 	    if (command.isDefined()) {
 	      // render_context_.addPendingEvent(col, i, command);
 	      if (command.isPatternBreak()) {

@@ -209,10 +209,15 @@ class Song : public SongObject {
     return it != clips_by_track_.end() ? it->second : empty_clips_;
   }
 
-  Clip & addClip(int track_id, Pattern pattern) {
-    auto & clips = clips_by_track_[track_id];
-    clips.emplace_back(track_id);
-    clips.back().getLeafPattern() = std::move(pattern);
+  // Takes an already-built Clip (its own getLeafTrackId() says which
+  // track's list it joins) rather than a bare Pattern - a clip's full/
+  // eventual form is one Pattern per relevant track_id, not just the
+  // leaf track's own (nested Effect automation, still unbuilt), so the
+  // caller is the one place that needs to know how many Patterns went
+  // into it, not this method.
+  Clip & addClip(Clip clip) {
+    auto & clips = clips_by_track_[clip.getLeafTrackId()];
+    clips.push_back(std::move(clip));
     incVersion();
     return clips.back();
   }

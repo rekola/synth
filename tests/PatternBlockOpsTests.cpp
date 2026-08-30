@@ -2,6 +2,7 @@
 
 #include "../src/ui/PatternBlockOps.h"
 #include "../src/model/Scene.h"
+#include "../src/model/Clip.h"
 
 #include <vector>
 
@@ -405,4 +406,58 @@ TEST(pattern_block_paste_writes_a_repeated_row_back_through_the_tracks_own_lengt
   // literal row 52 nothing ever reads back.
   pastePatternBlock(dest, block, 64, 52, dest_ids, 0);
   CHECK(dest.getNote(4, dest_ids[0], 0).getValue() == 60);
+}
+
+TEST(extract_clip_bar_aligned_selection_needs_no_padding) {
+  Scene p;
+  int track_id = 10;
+  p.setNote(4, track_id, 0, Note(60, 100));
+  p.setNote(6, track_id, 0, Note(64, 90));
+  p.setCommand(5, track_id, Command("U050"));
+
+  // rows 4-7 is exactly one 4-row bar, and row 4 is already its start.
+  auto clip = extractClip(p, track_id, 4, 7, 4, 64);
+
+  CHECK(clip.getLength() == 4);
+  CHECK(clip.getLeafPattern().getNote(0, 0).getValue() == 60);
+  CHECK(clip.getLeafPattern().getNote(2, 0).getValue() == 64);
+  CHECK(clip.getLeafPattern().getCommand(1).isDefined());
+}
+
+TEST(extract_clip_front_pads_a_non_bar_aligned_selection) {
+  Scene p;
+  int track_id = 10;
+  // Row 6 is 2 rows into the bar starting at row 4 (rows_per_bar 4).
+  p.setNote(6, track_id, 0, Note(60, 100));
+  p.setNote(9, track_id, 0, Note(64, 90));
+
+  auto clip = extractClip(p, track_id, 6, 9, 4, 64);
+
+  // Row 6 lands at clip row 2 (6 - 4), row 9 at clip row 5.
+  CHECK(clip.getLeafPattern().getNote(2, 0).getValue() == 60);
+  CHECK(clip.getLeafPattern().getNote(5, 0).getValue() == 64);
+  // The front-padding itself: rows 0-1 stay undefined rest.
+  CHECK(!clip.getLeafPattern().getNote(0, 0).isDefined());
+  CHECK(!clip.getLeafPattern().getNote(1, 0).isDefined());
+}
+
+TEST(extract_clip_length_rounds_up_to_the_next_whole_bar) {
+  Scene p;
+  int track_id = 10;
+  // Selection spans rows 4-10 (7 rows past bar_start 4) - rounds up to 8.
+  auto clip = extractClip(p, track_id, 4, 10, 4, 64);
+  CHECK(clip.getLength() == 8);
+}
+
+TEST(extract_clip_reads_a_repeated_row_through_the_tracks_own_length) {
+  Scene p;
+  int track_id = 10;
+  p.setNote(4, track_id, 0, Note(60, 100)); // the track's own real row
+  p.getPatternsByTrack()[track_id].setLength(16);
+
+  // Row 20 is a repeat of row 4 (20 % 16 == 4) - extraction must read the
+  // real content there, not a blank row 20 (Pattern.h's own
+  // getEffectiveRow() comment).
+  auto clip = extractClip(p, track_id, 20, 20, 4, 64);
+  CHECK(clip.getLeafPattern().getNote(0, 0).getValue() == 60);
 }

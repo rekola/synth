@@ -178,3 +178,71 @@ TEST(scene_effective_row_uses_that_tracks_own_pattern_length) {
   scene.getPatternsByTrack()[1].setLength(16);
   CHECK(scene.getEffectiveRow(1, 20, 64) == 4);
 }
+
+TEST(scene_insert_row_for_track_shifts_only_that_tracks_own_content) {
+  Scene scene;
+  scene.setNote(0, 1, 0, Note(60, 100)); // track 1
+  scene.setNote(0, 2, 0, Note(64, 100)); // track 2
+  scene.setAnnotation(0, "hello");
+
+  scene.insertRowForTrack(1, 0, 8); // insert a blank row at row 0, track 1 only
+
+  // Track 1's own note shifted down to row 1.
+  CHECK(scene.getNotes(0, 1).empty());
+  CHECK(scene.getNote(1, 1, 0).getValue() == 60);
+
+  // Track 2 and the row's own annotation are both untouched.
+  CHECK(scene.getNote(0, 2, 0).getValue() == 64);
+  CHECK(scene.getAnnotation(0) == "hello");
+}
+
+// The arrangement layer's own instance events - independent of any
+// track's own Pattern (notes/commands), same as annotations already are.
+TEST(scene_instance_events_default_to_absent) {
+  Scene scene;
+  CHECK(scene.getInstance(1, 0) == Scene::kNoInstance);
+  CHECK(scene.getInstancesForTrack(1).empty());
+}
+
+TEST(scene_instance_events_round_trip_a_real_clip_and_a_stop) {
+  Scene scene;
+  scene.setInstance(1, 0, 2); // clip index 2, starting at row 0
+  scene.setInstance(1, 16, Scene::kStopInstance); // stop at row 16
+
+  CHECK(scene.getInstance(1, 0) == 2);
+  CHECK(scene.getInstance(1, 16) == Scene::kStopInstance);
+  CHECK(scene.getInstance(1, 8) == Scene::kNoInstance); // nothing placed there
+
+  auto & track_instances = scene.getInstancesForTrack(1);
+  CHECK(track_instances.size() == 2);
+
+  // A different track's own instance list is entirely independent.
+  CHECK(scene.getInstancesForTrack(2).empty());
+}
+
+TEST(scene_instance_events_can_be_cleared) {
+  Scene scene;
+  scene.setInstance(1, 0, 2);
+  scene.clearInstance(1, 0);
+  CHECK(scene.getInstance(1, 0) == Scene::kNoInstance);
+  CHECK(scene.getInstancesForTrack(1).empty());
+}
+
+// getInstancesForTrack() is ordered (std::map), not this class's usual
+// unordered_map, precisely so a caller can walk it in row order - insert
+// out of order here and confirm it comes back sorted.
+TEST(scene_instance_events_for_a_track_are_kept_in_row_order) {
+  Scene scene;
+  scene.setInstance(1, 32, 0);
+  scene.setInstance(1, 0, 1);
+  scene.setInstance(1, 16, Scene::kStopInstance);
+
+  std::vector<unsigned short> rows;
+  for (auto & [ row, clip_index ] : scene.getInstancesForTrack(1)) rows.push_back(row);
+  CHECK(rows.size() == 3);
+  if (rows.size() == 3) {
+    CHECK(rows[0] == 0);
+    CHECK(rows[1] == 16);
+    CHECK(rows[2] == 32);
+  }
+}

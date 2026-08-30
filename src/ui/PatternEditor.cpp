@@ -15,6 +15,7 @@
 #include "../playback/LogEvent.h"
 #include "KeyChord.h"
 #include "PatternScroll.h"
+#include "../model/ArrangementOps.h"
 #include "../util/Utf8.h"
 
 #include <string>
@@ -233,6 +234,13 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     getController().getUIEventQueue().push(make_unique<LogEvent>("Region copied"));
   });
 
+  // Named after Emacs's own register commands (copy-to-register/
+  // insert-register) rather than the kill-ring/yank family above - a
+  // clip is persistent, repeatedly-retrievable stored content, unlike
+  // the kill ring's single transient slot. No keybinding yet (M-x only)
+  // - candidate chord still TBD.
+  commands_.define("copy-to-clip", [this]() { copyToClip(); });
+
   commands_.define("yank", [this]() {
     bool clipboard_empty = clipboard_.scope == SelectionScope::COMMAND ? clipboard_.commands.empty() :
       clipboard_.scope == SelectionScope::ANNOTATION ? clipboard_.annotations.empty() :
@@ -299,46 +307,62 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     }
   });
 
-  // Whole-row, every track at once (notes and effect command alike,
-  // Scene::insertRow() shifts both together) plus the row annotation - the
-  // same "kill-line acts on the whole line, mark or no mark" scope Emacs's
-  // own C-k already implies (see kill-row below), not a single-track
-  // operation. Promoted from the raw Ins-key handler, now reachable by
-  // name (M-x, a menu item, Launchpad) rather than only a keystroke
-  // notcurses happens to decode correctly on a given terminal.
+  // Scoped to the cursor's own current track only, same as kill-row
+  // below: shifts just that one track's own content down by one row
+  // (Scene::insertRowForTrack()), leaving every other track and the
+  // row's own annotation (not this one track's own content) untouched.
+  // Promoted from the raw key handler, now reachable by name (M-x, a
+  // menu item, Launchpad) rather than only a keystroke notcurses happens
+  // to decode correctly on a given terminal.
   commands_.define("insert-row", [this]() {
     auto & song = getController().getSong();
     auto & info = getController().getPlaybackInfo();
+    auto track_ids = song.getRootTrackIds();
+    if (current_cursor.track < 0 || current_cursor.track >= static_cast<int>(track_ids.size())) return;
+    auto cursor_track_id = track_ids[static_cast<size_t>(current_cursor.track)];
     // insert-row writes - see Song::getOrCreateScene()'s own comment.
     auto & scene = song.getOrCreateScene(info.getPatternIndex());
-    scene.insertRow(info.getRowIndex(), song.getPatternLength());
+    scene.insertRowForTrack(cursor_track_id, info.getRowIndex(), song.getPatternLength());
     song.incVersion();
   });
 
-  // Emacs's own C-k ("kill-line"): the inverse of insert-row's shift, same
-  // whole-row scope (every track's notes and command, plus the row
-  // annotation - kill-region/kill-ring-save's own EVERYTHING capture
-  // shape, for a single row spanning every track). Unlike insert-row's own
-  // destructive shift, this is a real "kill" (cut, not just delete): the
-  // row's content is stashed in the clipboard first, so an immediate yank
-  // restores it at the cursor. Not "just clear the row" - that's already
-  // kill-region/Ctrl-W's job, region-scoped rather than whole-row-and-shift.
+  // Emacs's own C-k ("kill-line"): scoped to the cursor's own current
+  // track only, matching how kill-line itself only ever touches one
+  // line in one buffer, never every open buffer's corresponding line -
+  // never every track, and never a row-shift (insert-row's own job, the
+  // one place that touches every track at once, is unrelated to this).
+  // On a track currently playing a clip instance at the cursor's row,
+  // kills the clip instead (places an explicit stop there -
+  // ArrangementOps.h's own resolveInstanceAt()/placeStopInstance()).
+  // Otherwise, kills (cuts) that one track's own row content in place -
+  // every note column plus the effect command, same whole-track shape
+  // kill-region already uses when the cursor sits on the effect column -
+  // stashed in the clipboard first, so an immediate yank restores it.
+  // Never touches the row's own annotation (not this one track's own
+  // content) or any other track's row.
   commands_.define("kill-row", [this]() {
     auto & song = getController().getSong();
     auto & info = getController().getPlaybackInfo();
     auto track_ids = song.getRootTrackIds();
-    if (track_ids.empty()) return;
+    if (current_cursor.track < 0 || current_cursor.track >= static_cast<int>(track_ids.size())) return;
+    auto cursor_track_id = track_ids[static_cast<size_t>(current_cursor.track)];
     auto & scene = song.getScene(info.getPatternIndex());
     int row = info.getRowIndex();
-    int track_hi = static_cast<int>(track_ids.size()) - 1;
 
-    clipboard_.scope = SelectionScope::EVERYTHING;
-    clipboard_.cells = copyPatternBlock(scene, row, row, track_ids, 0, track_hi, song.getPatternLength());
+    if (resolveInstanceAt(song, scene, cursor_track_id, row).clip_index != Scene::kNoInstance) {
+      placeStopInstance(scene, cursor_track_id, row);
+      song.incVersion();
+      getController().getUIEventQueue().push(make_unique<LogEvent>("Clip stopped"));
+      return;
+    }
+
+    clipboard_.scope = SelectionScope::TRACK;
+    clipboard_.cells = copyPatternBlock(scene, row, row, track_ids, current_cursor.track, current_cursor.track, song.getPatternLength());
     clipboard_.commands.clear();
-    clipboard_.annotations = copyPatternBlockAnnotations(scene, row, row);
-    clipboard_.track_tunings = tuningsForTrackRange(song, track_ids, 0, track_hi);
+    clipboard_.annotations.clear();
+    clipboard_.track_tunings = tuningsForTrackRange(song, track_ids, current_cursor.track, current_cursor.track);
 
-    scene.deleteRow(row, song.getPatternLength());
+    clearPatternBlock(scene, row, row, track_ids, current_cursor.track, current_cursor.track, song.getPatternLength());
     song.incVersion();
     getController().getUIEventQueue().push(make_unique<LogEvent>("Row killed"));
   });
@@ -869,6 +893,29 @@ PatternEditor::startTrackNameEdit() {
   setFgColor(0xff, 0xff, 0xff);
   setBgColor(bg);
   putstr(row, edit_col, string(static_cast<size_t>(edit_width), ' '));
+}
+
+void
+PatternEditor::copyToClip() {
+  auto & song = getController().getSong();
+  auto track_ids = song.getRootTrackIds();
+  if (current_cursor.track < 0 || current_cursor.track >= static_cast<int>(track_ids.size())) return;
+  auto track_id = track_ids[static_cast<size_t>(current_cursor.track)];
+  auto & info = getController().getPlaybackInfo();
+  auto & scene = song.getScene(info.getPatternIndex());
+
+  // Whole-track scope always (SelectionScope::TRACK - see this method's
+  // own doc comment), and always the cursor's own track, not
+  // b.track_lo/track_hi - a clip is a single-track thing, so a selection
+  // spanning several tracks just uses whichever one the cursor is
+  // actually on rather than refusing or picking an arbitrary side of it.
+  // Starts unnamed - naming happens later, from the clip viewer, not
+  // here.
+  auto b = getEffectiveSelectionBounds(song, track_ids);
+  auto clip = extractClip(scene, track_id, b.row_lo, b.row_hi, song.getRowsPerBar(), song.getPatternLength());
+  song.addClip(std::move(clip));
+  setSelectionActive(false);
+  getController().getUIEventQueue().push(make_unique<LogEvent>("Copied to clip"));
 }
 
 SelectionBounds

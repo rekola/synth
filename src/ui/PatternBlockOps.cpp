@@ -1,6 +1,7 @@
 #include "PatternBlockOps.h"
 
 #include "../model/Scene.h"
+#include "../model/Clip.h"
 
 using namespace std;
 
@@ -175,6 +176,26 @@ pastePatternBlockCommand(Scene & scene, const vector<Command> & block, int num_r
     if (row < 0 || row >= num_rows) continue;
     scene.setCommand(scene.getEffectiveRow(track_id, row, num_rows), track_id, block[row_offset]);
   }
+}
+
+Clip
+extractClip(const Scene & scene, int track_id, int row_lo, int row_hi, int rows_per_bar, int context_length) {
+  if (rows_per_bar <= 0) rows_per_bar = 1;
+  auto bar_start = (row_lo / rows_per_bar) * rows_per_bar;
+  auto span = row_hi - bar_start + 1;
+  auto length = ((span + rows_per_bar - 1) / rows_per_bar) * rows_per_bar;
+
+  Clip clip(track_id);
+  clip.setLength(length);
+  auto & pattern = clip.getLeafPattern();
+  for (int row = row_lo; row <= row_hi; row++) {
+    auto effective_row = scene.getEffectiveRow(track_id, row, context_length);
+    auto & notes = scene.getNotes(effective_row, track_id);
+    if (!notes.empty()) pattern.setNotes(row - bar_start, notes);
+    auto & command = scene.getCommand(effective_row, track_id);
+    if (command.isDefined()) pattern.setCommand(row - bar_start, command);
+  }
+  return clip;
 }
 
 vector<string>

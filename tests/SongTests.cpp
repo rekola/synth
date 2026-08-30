@@ -711,15 +711,15 @@ TEST(added_clips_are_grouped_by_track_in_the_order_added) {
   auto & drums = song.addTrack(make_unique<InstrumentTrack>(0));
   auto & bass = song.addTrack(make_unique<InstrumentTrack>(1));
 
-  Pattern fill;
-  fill.setNote(0, 0, Note(36, 100));
-  song.addClip(drums.getInternalId(), fill).setName("fill");
+  Clip fill(drums.getInternalId());
+  fill.getLeafPattern().setNote(0, 0, Note(36, 100));
+  song.addClip(std::move(fill)).setName("fill");
 
-  Pattern groove;
-  song.addClip(drums.getInternalId(), groove).setName("groove");
+  Clip groove(drums.getInternalId());
+  song.addClip(std::move(groove)).setName("groove");
 
-  Pattern walk;
-  song.addClip(bass.getInternalId(), walk).setName("walk");
+  Clip walk(bass.getInternalId());
+  song.addClip(std::move(walk)).setName("walk");
 
   auto & drum_clips = song.getClips(drums.getInternalId());
   CHECK(drum_clips.size() == 2);
@@ -762,13 +762,13 @@ TEST(clip_round_trips_its_name_length_notes_and_command_through_save_and_load) {
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   track.setId("drums");
 
-  Pattern fill;
-  fill.setNote(0, 0, Note(60, 100));
-  fill.setNote(4, 0, Note(64, 90));
-  fill.setCommand(2, Command("ZB04"));
-  auto & new_clip = song.addClip(track.getInternalId(), fill);
-  new_clip.setName("fill");
-  new_clip.setLength(8);
+  Clip fill(track.getInternalId());
+  fill.getLeafPattern().setNote(0, 0, Note(60, 100));
+  fill.getLeafPattern().setNote(4, 0, Note(64, 90));
+  fill.getLeafPattern().setCommand(2, Command("ZB04"));
+  fill.setName("fill");
+  fill.setLength(8);
+  song.addClip(std::move(fill));
   song.save(scratch_path);
 
   auto saved = readFile(scratch_path);
@@ -809,9 +809,9 @@ TEST(a_clip_with_no_name_round_trips_with_an_empty_one) {
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   track.setId("drums");
 
-  Pattern p;
-  p.setNote(0, 0, Note(60, 100));
-  song.addClip(track.getInternalId(), p);
+  Clip p(track.getInternalId());
+  p.getLeafPattern().setNote(0, 0, Note(60, 100));
+  song.addClip(std::move(p));
   song.save(scratch_path);
 
   InstrumentProvider provider;
@@ -843,9 +843,9 @@ TEST(clips_are_independent_of_a_scenes_own_inline_pattern) {
   song.addScene();
   song.getScene(0).setNote(0, track.getInternalId(), 0, Note(48, 100));
 
-  Pattern clip_pattern;
-  clip_pattern.setNote(0, 0, Note(60, 100));
-  song.addClip(track.getInternalId(), clip_pattern).setName("fill");
+  Clip clip(track.getInternalId());
+  clip.getLeafPattern().setNote(0, 0, Note(60, 100));
+  song.addClip(std::move(clip)).setName("fill");
   song.save(scratch_path);
 
   InstrumentProvider provider;
@@ -865,6 +865,59 @@ TEST(clips_are_independent_of_a_scenes_own_inline_pattern) {
     CHECK(clips.size() == 1);
     if (clips.size() == 1) CHECK(clips[0].getLeafPattern().getNote(0, 0).getValue() == 60);
   }
+
+  fs::remove(scratch_path);
+}
+
+// The arrangement layer's own instance events - a real clip reference and
+// an explicit stop, round-tripped through the same <scene> a <pattern>/
+// <annotation> already lives in.
+TEST(instance_events_round_trip_through_save_and_load) {
+  namespace fs = std::filesystem;
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_instance_events_scratch.xml").string();
+
+  Song song(Tuning::TET12);
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  track.setId("drums");
+  auto & scene = song.addScene();
+  scene.setInstance(track.getInternalId(), 0, 2);
+  scene.setInstance(track.getInternalId(), 16, Scene::kStopInstance);
+  song.save(scratch_path);
+
+  auto saved = readFile(scratch_path);
+  CHECK(saved.find("<arrangement") != string::npos);
+  CHECK(saved.find("track=\"drums\"") != string::npos);
+  CHECK(saved.find(">OFF<") != string::npos);
+
+  InstrumentProvider provider;
+  Song reloaded(Tuning::TET12);
+  CHECK(reloaded.open(scratch_path, provider));
+
+  auto reloaded_track = reloaded.getMasterTrack().getChildById("drums");
+  CHECK(reloaded_track != nullptr);
+  if (reloaded_track) {
+    auto & reloaded_scene = reloaded.getScene(0);
+    CHECK(reloaded_scene.getInstance(reloaded_track->getInternalId(), 0) == 2);
+    CHECK(reloaded_scene.getInstance(reloaded_track->getInternalId(), 16) == Scene::kStopInstance);
+  }
+
+  fs::remove(scratch_path);
+}
+
+// The write side omits <arrangement> entirely when a scene has no
+// instance events - same "default/empty state stores nothing" rule
+// storeBusConfig()/the clip pool already follow.
+TEST(save_omits_the_arrangement_element_when_a_scene_has_no_instances) {
+  namespace fs = std::filesystem;
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_no_instances_scratch.xml").string();
+
+  Song song;
+  song.addTrack(make_unique<InstrumentTrack>(0));
+  song.addScene();
+  song.save(scratch_path);
+
+  auto saved = readFile(scratch_path);
+  CHECK(saved.find("<arrangement") == string::npos);
 
   fs::remove(scratch_path);
 }
