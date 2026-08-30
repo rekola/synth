@@ -19,8 +19,8 @@ HierarchyView::render(const StyleProvider & styles, bool refresh) {
   data_.clear();
   data_.push_back( { 0, TrackType::MASTER, "Song" });
   data_.push_back( { 1, TrackType::UNKNOWN, "Instruments" });
-  for (size_t i = 0; i < song.getInstruments().size(); i++) {
-    auto & instrument = *(song.getInstruments()[i]);       
+  for (size_t i = 0; i < song.getInstrumentPool().getInstruments().size(); i++) {
+    auto & instrument = *(song.getInstrumentPool().getInstruments()[i]);
     data_.push_back( { 2, TrackType::INSTRUMENT, instrument.getDisplayName() } );
   }
   data_.push_back( { 1, TrackType::UNKNOWN, "Tracks" });
@@ -112,7 +112,7 @@ HierarchyView::offerInput(const InputEvent & input) {
     int midi_note = input.toMidiNote();
     if (midi_note != -1) {
       Note note(midi_note, 0x40);
-      auto & instrument = song.getInstrument(new_cursor_row);
+      auto & instrument = song.getInstrumentPool().getInstrument(new_cursor_row);
       event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, track_id, note_column, note.getValue(), note.getVelocity()));
     }
 #endif

@@ -228,6 +228,13 @@ chord TBD (not yet reserved/implemented).
   keyed `track_id -> Pattern`, not a single bare `Pattern`, even though
   Phase A only ever populates the leaf track's own one entry - see Phase
   E below for why.
+- **A required loop toggle** - `Pattern::isLooping()` already exists
+  (built earlier this session, for Session view) but nothing interactive
+  reaches it yet, and that's no longer optional polish: with continuous-
+  vs-one-shot now central to how a placed instance behaves (see "The
+  layer model" above), some command needs to flip it, from
+  `PatternEditor`, on a clip. Candidate keybinding TBD, same as
+  `copy-to-clip`/`insert-clip` above.
 
 ### Bar alignment
 
@@ -414,28 +421,28 @@ population/capture logic, not migrate the underlying representation.
 
 Carried over from `pattern-grid.md`, not clearly belonging to any phase
 above - revisit and prune once the phases above are further along; some
-of these may turn out unwanted.
+of these may turn out unwanted. (Editing note content from the
+arrangement grid, and copying nested Effect automation, were also on this
+list - both now settled, in Phase C and Phase E respectively, not
+repeated here. The clip loop toggle was too - promoted into Phase A's own
+"Authoring" section instead, since it's no longer optional polish now
+that continuous-vs-one-shot is central to how an instance behaves.)
 
-- Editing note content from the arrangement grid itself (see Phase C) -
-  still just overview + block copy/paste, not a second pattern editor.
-- Copying a leaf track's own nested Effect automation alongside a
-  clip/cell - silently left behind today; no single owning clip to fold
-  it into when the Effect is shared by more than one leaf track.
-- Multi-Launchpad tiling for extended real estate (more octaves in NOTES
-  mode, a larger grid in SESSION mode by spreading one logical view
-  across several devices) - unrelated to the arrangement work, orthogonal.
-- Numeric LED/blend tuning for the Launchpad's own playhead-row highlight
-  on real hardware - scheme implemented, factors never eyeballed against
-  a real device.
-- Real decoupled lane identity for a drum lane (routing to a custom
-  instrument with no GM meaning) - the numeric GM note is still the
-  underlying identity everywhere (`DrumRankTable`, the Launchpad picker,
-  kit resolution).
-- Phase continuity across a scene boundary - a repeating triggered
-  pattern always restarts at row 0 the moment a new scene starts, during
-  real transport playback.
-- A UI hook for a clip's own loop toggle (`Pattern::isLooping()`) from
-  `PatternEditor` - exists (tests, XML round-trip) but nothing interactive
-  reaches it yet. (A clip's own *length* gets a hook for free once Phase
-  A/C's cut/paste-as-clip workflow exists - this is just the separate
-  loop-vs-one-shot toggle.)
+- Numeric blend-factor tuning for LED/terminal "currently playing"
+  highlights on real hardware/a real terminal - the schemes themselves
+  are implemented and unrelated to the arrangement work (`PatternMatrix`'s
+  own 0.15 playhead-row blend becomes moot once Phase C replaces it
+  outright; `LaunchpadManager`'s Session-view 0.5/0.25 triggered/queued
+  blends stay relevant regardless of any phase here), just never
+  eyeballed against real Launchpad LEDs, only reasoned about.
+- Phase continuity across a scene boundary, revisited given the clip
+  model: mostly resolved for the common case - a clip re-placed fresh at
+  the start of each scene it recurs in naturally keeps correct phase, for
+  free, from bar-alignment plus every instance always starting fresh at
+  its own row 0. Only remains a real (if narrow) gap when a clip's own
+  length doesn't evenly divide the scene's own length - the leftover
+  partial repeat still just cuts off at the scene's own end rather than
+  continuing its own phase into a fresh instance placed in the next
+  scene, the same "cut off wherever the context ends" behavior
+  `Pattern.h` already documents for the pre-clip model. Not worth solving
+  given how narrow the case is, but not fully gone either.

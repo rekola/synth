@@ -87,7 +87,7 @@ class PatternMatrix : public UIElement {
   // The scene index the cursor currently sits on - LaunchpadManager's own
   // Session view reads this (via UI::renderComponents()'s own
   // SessionWindow) so a pad's "assign" press knows which scene to write
-  // the picked pooled pattern into, matching the Matrix's own displayed
+  // the picked clip's pattern into, matching the Matrix's own displayed
   // cursor rather than a separately-tracked position.
   int getCursorScene() const { return cursor_scene_; }
 
@@ -96,7 +96,7 @@ class PatternMatrix : public UIElement {
   // Scene is still valid (see ensureCursorVisible()'s own comment).
   // LaunchpadManager's own Session view wires its up/down buttons to this
   // (via UI) rather than scrolling its own pad-grid row window, since
-  // Session view's rows are a track's own pooled patterns, not scenes -
+  // Session view's rows are a track's own clips, not scenes -
   // there's no local "scene row" of its own to scroll.
   void moveCursorScene(const Song & song, int delta);
 

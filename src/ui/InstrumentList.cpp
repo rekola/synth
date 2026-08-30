@@ -27,7 +27,7 @@ InstrumentList::render(const StyleProvider & styles, bool refresh) {
     
     getPlane().drawBorder();
     
-    for (int i = 0; i < static_cast<int>(song.getInstruments().size()); i++) {
+    for (int i = 0; i < static_cast<int>(song.getInstrumentPool().getInstruments().size()); i++) {
       renderRow(styles, i, i == new_cursor_row);
     }
     need_refresh = true;
@@ -49,7 +49,7 @@ InstrumentList::renderRow(const StyleProvider & styles, int row, bool highlight)
 
   if (row >= current_scroll_pos && row < current_scroll_pos + rows - 2) {
     auto & song = getController().getSong();
-    auto & instrument = *(song.getInstruments()[static_cast<size_t>(row)]);
+    auto & instrument = *(song.getInstrumentPool().getInstruments()[static_cast<size_t>(row)]);
         
     if (highlight) {
       setFgColor(styles.highlight_fg_color);
@@ -68,7 +68,7 @@ bool
 InstrumentList::offerInput(const InputEvent & input) {
   auto & song = getController().getSong();
   auto [rows, cols] = getDim();
-  auto num_instruments = static_cast<int>(song.getInstruments().size());
+  auto num_instruments = static_cast<int>(song.getInstrumentPool().getInstruments().size());
 
   if (input.getId() == NCKEY_UP) {
     if (new_cursor_row > 0) new_cursor_row--;
@@ -86,7 +86,7 @@ InstrumentList::offerInput(const InputEvent & input) {
     int midi_note = input.toMidiNote();
     if (midi_note != -1) {
       Note note(midi_note, 0x40);
-      auto & instrument = song.getInstrument(new_cursor_row);
+      auto & instrument = song.getInstrumentPool().getInstrument(new_cursor_row);
     }
 #endif
   }

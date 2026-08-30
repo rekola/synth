@@ -236,9 +236,9 @@ TEST(instrument_id_from_and_name_round_trip_independently) {
   InstrumentProvider provider;
   Song reloaded;
   CHECK(reloaded.open(scratch_path, provider));
-  CHECK(reloaded.getInstruments().size() == 2);
+  CHECK(reloaded.getInstrumentPool().getInstruments().size() == 2);
 
-  auto * reloaded_harp = dynamic_cast<GenericInstrument *>(reloaded.getInstruments()[0].get());
+  auto * reloaded_harp = dynamic_cast<GenericInstrument *>(reloaded.getInstrumentPool().getInstruments()[0].get());
   CHECK(reloaded_harp != nullptr);
   if (reloaded_harp) {
     CHECK(reloaded_harp->getId() == "harp");
@@ -246,7 +246,7 @@ TEST(instrument_id_from_and_name_round_trip_independently) {
     CHECK(reloaded_harp->getName().empty());
   }
 
-  auto * reloaded_labeled = dynamic_cast<GenericInstrument *>(reloaded.getInstruments()[1].get());
+  auto * reloaded_labeled = dynamic_cast<GenericInstrument *>(reloaded.getInstrumentPool().getInstruments()[1].get());
   CHECK(reloaded_labeled != nullptr);
   if (reloaded_labeled) {
     CHECK(reloaded_labeled->getId().empty());
@@ -277,9 +277,9 @@ TEST(generator_override_round_trips_through_save_and_load) {
   InstrumentProvider provider;
   Song reloaded;
   CHECK(reloaded.open(scratch_path, provider));
-  CHECK(reloaded.getInstruments().size() == 1);
+  CHECK(reloaded.getInstrumentPool().getInstruments().size() == 1);
 
-  auto * reloaded_instrument = dynamic_cast<GenericInstrument *>(reloaded.getInstruments()[0].get());
+  auto * reloaded_instrument = dynamic_cast<GenericInstrument *>(reloaded.getInstrumentPool().getInstruments()[0].get());
   CHECK(reloaded_instrument != nullptr);
   if (reloaded_instrument) {
     auto & overrides = reloaded_instrument->getGeneratorOverrides();
@@ -313,7 +313,7 @@ TEST(unknown_generator_name_is_preserved_unapplied_through_save_and_load) {
   Song reloaded;
   CHECK(reloaded.open(scratch_path, provider));
 
-  auto * reloaded_instrument = dynamic_cast<GenericInstrument *>(reloaded.getInstruments()[0].get());
+  auto * reloaded_instrument = dynamic_cast<GenericInstrument *>(reloaded.getInstrumentPool().getInstruments()[0].get());
   CHECK(reloaded_instrument != nullptr);
   if (reloaded_instrument) {
     CHECK(reloaded_instrument->getGeneratorOverrides().empty());
@@ -347,7 +347,7 @@ TEST(no_generator_children_means_no_overrides_after_round_trip) {
   InstrumentProvider provider;
   Song reloaded;
   CHECK(reloaded.open(scratch_path, provider));
-  auto * reloaded_instrument = dynamic_cast<GenericInstrument *>(reloaded.getInstruments()[0].get());
+  auto * reloaded_instrument = dynamic_cast<GenericInstrument *>(reloaded.getInstrumentPool().getInstruments()[0].get());
   CHECK(reloaded_instrument != nullptr);
   if (reloaded_instrument) {
     CHECK(reloaded_instrument->getGeneratorOverrides().empty());
@@ -395,9 +395,9 @@ TEST(volume_envelope_generator_overrides_round_trip_through_save_and_load) {
   InstrumentProvider provider;
   Song reloaded;
   CHECK(reloaded.open(scratch_path, provider));
-  CHECK(reloaded.getInstruments().size() == 1);
+  CHECK(reloaded.getInstrumentPool().getInstruments().size() == 1);
 
-  auto * reloaded_instrument = dynamic_cast<GenericInstrument *>(reloaded.getInstruments()[0].get());
+  auto * reloaded_instrument = dynamic_cast<GenericInstrument *>(reloaded.getInstrumentPool().getInstruments()[0].get());
   CHECK(reloaded_instrument != nullptr);
   if (reloaded_instrument) {
     auto & round_tripped = reloaded_instrument->getGeneratorOverrides();
@@ -429,7 +429,7 @@ TEST(recognized_and_unrecognized_generator_overrides_coexist_in_one_document) {
   Song reloaded;
   CHECK(reloaded.open(scratch_path, provider));
 
-  auto * reloaded_instrument = dynamic_cast<GenericInstrument *>(reloaded.getInstruments()[0].get());
+  auto * reloaded_instrument = dynamic_cast<GenericInstrument *>(reloaded.getInstrumentPool().getInstruments()[0].get());
   CHECK(reloaded_instrument != nullptr);
   if (reloaded_instrument) {
     auto & recognized = reloaded_instrument->getGeneratorOverrides();
@@ -699,50 +699,47 @@ TEST(master_tracks_own_command_round_trips_by_its_reserved_id) {
   fs::remove(scratch_path);
 }
 
-TEST(a_fresh_song_has_no_pooled_patterns_for_any_track) {
+TEST(a_fresh_song_has_no_clips_for_any_track) {
   Song song;
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
-  CHECK(song.getPooledPatterns(track.getInternalId()).empty());
-  CHECK(song.getPooledPatterns(-1).empty()); // an id that resolves to nothing at all
+  CHECK(song.getClips(track.getInternalId()).empty());
+  CHECK(song.getClips(-1).empty()); // an id that resolves to nothing at all
 }
 
-TEST(added_pooled_patterns_are_grouped_by_track_in_the_order_added) {
+TEST(added_clips_are_grouped_by_track_in_the_order_added) {
   Song song;
   auto & drums = song.addTrack(make_unique<InstrumentTrack>(0));
   auto & bass = song.addTrack(make_unique<InstrumentTrack>(1));
 
   Pattern fill;
-  fill.setName("fill");
   fill.setNote(0, 0, Note(36, 100));
-  song.addPooledPattern(drums.getInternalId(), fill);
+  song.addClip(drums.getInternalId(), fill).setName("fill");
 
   Pattern groove;
-  groove.setName("groove");
-  song.addPooledPattern(drums.getInternalId(), groove);
+  song.addClip(drums.getInternalId(), groove).setName("groove");
 
   Pattern walk;
-  walk.setName("walk");
-  song.addPooledPattern(bass.getInternalId(), walk);
+  song.addClip(bass.getInternalId(), walk).setName("walk");
 
-  auto & drum_patterns = song.getPooledPatterns(drums.getInternalId());
-  CHECK(drum_patterns.size() == 2);
-  if (drum_patterns.size() == 2) {
-    CHECK(drum_patterns[0].getName() == "fill");
-    CHECK(drum_patterns[1].getName() == "groove");
+  auto & drum_clips = song.getClips(drums.getInternalId());
+  CHECK(drum_clips.size() == 2);
+  if (drum_clips.size() == 2) {
+    CHECK(drum_clips[0].getName() == "fill");
+    CHECK(drum_clips[1].getName() == "groove");
   }
 
-  auto & bass_patterns = song.getPooledPatterns(bass.getInternalId());
-  CHECK(bass_patterns.size() == 1);
-  if (bass_patterns.size() == 1) CHECK(bass_patterns[0].getName() == "walk");
+  auto & bass_clips = song.getClips(bass.getInternalId());
+  CHECK(bass_clips.size() == 1);
+  if (bass_clips.size() == 1) CHECK(bass_clips[0].getName() == "walk");
 }
 
-// The write side omits <patterns> entirely when the pool is empty (the
+// The write side omits <clips> entirely when the song has no clips (the
 // same "default/empty state stores nothing" rule storeBusConfig() already
 // follows) - most songs never use this feature, so a spurious empty
 // element on every one of them would just be diff noise.
-TEST(save_omits_the_patterns_element_entirely_when_the_pool_is_empty) {
+TEST(save_omits_the_clips_element_entirely_when_there_are_no_clips) {
   namespace fs = std::filesystem;
-  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_no_pool_scratch.xml").string();
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_no_clips_scratch.xml").string();
 
   Song song;
   song.addTrack(make_unique<InstrumentTrack>(0));
@@ -750,14 +747,14 @@ TEST(save_omits_the_patterns_element_entirely_when_the_pool_is_empty) {
   song.save(scratch_path);
 
   auto saved = readFile(scratch_path);
-  CHECK(saved.find("<patterns") == string::npos);
+  CHECK(saved.find("<clips") == string::npos);
 
   fs::remove(scratch_path);
 }
 
-TEST(pooled_pattern_round_trips_its_name_length_notes_and_command_through_save_and_load) {
+TEST(clip_round_trips_its_name_length_notes_and_command_through_save_and_load) {
   namespace fs = std::filesystem;
-  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_pooled_pattern_scratch.xml").string();
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_clip_scratch.xml").string();
 
   // Tuning pinned explicitly - see note_round_trips_for_a_track_with_an_
   // explicit_textual_id's own comment.
@@ -766,16 +763,16 @@ TEST(pooled_pattern_round_trips_its_name_length_notes_and_command_through_save_a
   track.setId("drums");
 
   Pattern fill;
-  fill.setName("fill");
-  fill.setLength(8);
   fill.setNote(0, 0, Note(60, 100));
   fill.setNote(4, 0, Note(64, 90));
   fill.setCommand(2, Command("ZB04"));
-  song.addPooledPattern(track.getInternalId(), fill);
+  auto & new_clip = song.addClip(track.getInternalId(), fill);
+  new_clip.setName("fill");
+  new_clip.setLength(8);
   song.save(scratch_path);
 
   auto saved = readFile(scratch_path);
-  CHECK(saved.find("<patterns>") != string::npos);
+  CHECK(saved.find("<clips>") != string::npos);
   CHECK(saved.find("track=\"drums\"") != string::npos);
   CHECK(saved.find("name=\"fill\"") != string::npos);
 
@@ -786,27 +783,27 @@ TEST(pooled_pattern_round_trips_its_name_length_notes_and_command_through_save_a
   auto reloaded_track = reloaded.getMasterTrack().getChildById("drums");
   CHECK(reloaded_track != nullptr);
   if (reloaded_track) {
-    auto & patterns = reloaded.getPooledPatterns(reloaded_track->getInternalId());
-    CHECK(patterns.size() == 1);
-    if (patterns.size() == 1) {
-      auto & pattern = patterns[0];
-      CHECK(pattern.getName() == "fill");
-      CHECK(pattern.getLength() == 8);
-      CHECK(pattern.getNote(0, 0).getValue() == 60);
-      CHECK(pattern.getNote(4, 0).getValue() == 64);
-      CHECK(pattern.getCommand(2).isDefined());
+    auto & clips = reloaded.getClips(reloaded_track->getInternalId());
+    CHECK(clips.size() == 1);
+    if (clips.size() == 1) {
+      auto & clip = clips[0];
+      CHECK(clip.getName() == "fill");
+      CHECK(clip.getLength() == 8);
+      CHECK(clip.getLeafPattern().getNote(0, 0).getValue() == 60);
+      CHECK(clip.getLeafPattern().getNote(4, 0).getValue() == 64);
+      CHECK(clip.getLeafPattern().getCommand(2).isDefined());
     }
   }
 
   fs::remove(scratch_path);
 }
 
-// A pooled pattern with no name at all (the attribute itself omitted, not
-// just empty) must still round-trip cleanly rather than erroring or
-// picking up a stray value from a neighboring attribute.
-TEST(a_pooled_pattern_with_no_name_round_trips_with_an_empty_one) {
+// A clip with no name at all (the attribute itself omitted, not just
+// empty) must still round-trip cleanly rather than erroring or picking up
+// a stray value from a neighboring attribute.
+TEST(a_clip_with_no_name_round_trips_with_an_empty_one) {
   namespace fs = std::filesystem;
-  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_pooled_pattern_no_name_scratch.xml").string();
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_clip_no_name_scratch.xml").string();
 
   Song song;
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
@@ -814,7 +811,7 @@ TEST(a_pooled_pattern_with_no_name_round_trips_with_an_empty_one) {
 
   Pattern p;
   p.setNote(0, 0, Note(60, 100));
-  song.addPooledPattern(track.getInternalId(), p);
+  song.addClip(track.getInternalId(), p);
   song.save(scratch_path);
 
   InstrumentProvider provider;
@@ -824,19 +821,19 @@ TEST(a_pooled_pattern_with_no_name_round_trips_with_an_empty_one) {
   auto reloaded_track = reloaded.getMasterTrack().getChildById("drums");
   CHECK(reloaded_track != nullptr);
   if (reloaded_track) {
-    auto & patterns = reloaded.getPooledPatterns(reloaded_track->getInternalId());
-    CHECK(patterns.size() == 1);
-    if (patterns.size() == 1) CHECK(patterns[0].getName().empty());
+    auto & clips = reloaded.getClips(reloaded_track->getInternalId());
+    CHECK(clips.size() == 1);
+    if (clips.size() == 1) CHECK(clips[0].getName().empty());
   }
 
   fs::remove(scratch_path);
 }
 
-// A pooled pattern is unconnected to any scene - it must not leak into,
-// or be confused with, a scene's own inline Pattern for the same track.
-TEST(pooled_patterns_are_independent_of_a_scenes_own_inline_pattern) {
+// A clip is unconnected to any scene - it must not leak into, or be
+// confused with, a scene's own inline Pattern for the same track.
+TEST(clips_are_independent_of_a_scenes_own_inline_pattern) {
   namespace fs = std::filesystem;
-  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_pooled_vs_scene_scratch.xml").string();
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_clip_vs_scene_scratch.xml").string();
 
   // Tuning pinned explicitly - see note_round_trips_for_a_track_with_an_
   // explicit_textual_id's own comment.
@@ -846,10 +843,9 @@ TEST(pooled_patterns_are_independent_of_a_scenes_own_inline_pattern) {
   song.addScene();
   song.getScene(0).setNote(0, track.getInternalId(), 0, Note(48, 100));
 
-  Pattern pooled;
-  pooled.setName("fill");
-  pooled.setNote(0, 0, Note(60, 100));
-  song.addPooledPattern(track.getInternalId(), pooled);
+  Pattern clip_pattern;
+  clip_pattern.setNote(0, 0, Note(60, 100));
+  song.addClip(track.getInternalId(), clip_pattern).setName("fill");
   song.save(scratch_path);
 
   InstrumentProvider provider;
@@ -859,15 +855,15 @@ TEST(pooled_patterns_are_independent_of_a_scenes_own_inline_pattern) {
   auto reloaded_track = reloaded.getMasterTrack().getChildById("drums");
   CHECK(reloaded_track != nullptr);
   if (reloaded_track) {
-    // The scene's own note is untouched by the pool entry.
+    // The scene's own note is untouched by the clip.
     auto & scene_notes = reloaded.getScene(0).getNotes(0, reloaded_track->getInternalId());
     CHECK(scene_notes.size() == 1);
     if (scene_notes.size() == 1) CHECK(scene_notes[0].getValue() == 48);
 
-    // The pool entry is untouched by the scene's own note.
-    auto & patterns = reloaded.getPooledPatterns(reloaded_track->getInternalId());
-    CHECK(patterns.size() == 1);
-    if (patterns.size() == 1) CHECK(patterns[0].getNote(0, 0).getValue() == 60);
+    // The clip is untouched by the scene's own note.
+    auto & clips = reloaded.getClips(reloaded_track->getInternalId());
+    CHECK(clips.size() == 1);
+    if (clips.size() == 1) CHECK(clips[0].getLeafPattern().getNote(0, 0).getValue() == 60);
   }
 
   fs::remove(scratch_path);

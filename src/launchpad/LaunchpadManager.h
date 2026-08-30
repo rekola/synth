@@ -97,18 +97,18 @@ class LaunchpadManager {
 
   // The Launchpad's own session/launch view, replacing what used to be a
   // plain arrangement-navigation overview (rows=scenes) - rows are now a
-  // track's own available pooled patterns (Song::getPooledPatterns()),
-  // columns are tracks, same layout PatternMatrix's own terminal grid
-  // uses. Which of two things a press does is gated by Record Arm
-  // (DeviceState::capture_enabled), not a Session-specific toggle of its
-  // own (see handleSessionPadEvent()'s own comment): armed, it assigns
-  // that pattern into the pressed column's track at `cursor_scene_idx` (a
-  // copy into that scene's own owned Pattern, not a live reference back to
-  // the pool entry) - the write-side counterpart, and the closest
-  // replacement for what plain scene-navigation used to do here; disarmed,
-  // it instead triggers the pattern to start playing live for that track
-  // (quantized to whatever's currently playing there finishing its own
-  // loop - see triggerPooledPatternStep()), touching nothing in the song.
+  // track's own available clips (Song::getClips()), columns are tracks,
+  // same layout PatternMatrix's own terminal grid uses. Which of two
+  // things a press does is gated by Record Arm (DeviceState::
+  // capture_enabled), not a Session-specific toggle of its own (see
+  // handleSessionPadEvent()'s own comment): armed, it assigns that clip's
+  // pattern into the pressed column's track at `cursor_scene_idx` (a copy
+  // into that scene's own owned Pattern, not a live reference back to the
+  // clip) - the write-side counterpart, and the closest replacement for
+  // what plain scene-navigation used to do here; disarmed, it instead
+  // triggers the clip to start playing live for that track (quantized to
+  // whatever's currently playing there finishing its own loop - see
+  // triggerClipStep()), touching nothing in the song.
   // `track_ids` is PatternMatrix's own filtered column list (color-
   // eligible tracks only - PatternMatrix::getVisibleTrackIds()),
   // deliberately not Song::getRootTrackIds(): a Launchpad in SESSION mode
@@ -118,7 +118,7 @@ class LaunchpadManager {
   // grid_mode == SESSION, or whether PatternMatrix has terminal focus -
   // it's just "where would an assign/audition press land right now,"
   // meaningful independent of both. No scroll position of any kind yet,
-  // row or column - a track with more than 8 pooled patterns only shows
+  // row or column - a track with more than 8 clips only shows
   // the first 8 for now, and Up/Down instead move PatternMatrix's own
   // scene cursor (see session_move_scene_callback_'s own comment), not a
   // row window.
@@ -304,7 +304,7 @@ class LaunchpadManager {
   // gridMode() before ever calling handlePadEvent(). x = column, indexing
   // into session_.track_ids exactly like refresh()'s own session_colors
   // computation (see its comment for the y-flip); y = which of that
-  // track's own pooled patterns (Song::getPooledPatterns()) was pressed.
+  // track's own clips (Song::getClips()) was pressed.
   // Only a PRESS does anything (matching every other grid-mode's own
   // press-only convention). Needs Controller (unlike DRAW/the old plain
   // navigation this replaces) to reach the Song and the playback event
@@ -468,8 +468,8 @@ class LaunchpadManager {
     // GridMode::SESSION: each of the 64 pads' own final LED color (x + y*8,
     // y flipped from PatternMatrix's own top-down column order - see
     // refresh()'s own comment), already fully resolved (identity hue,
-    // triggered/queued brightening, off where a track has no pooled
-    // pattern in that row) - refreshLeds() just reads this directly, same
+    // triggered/queued brightening, off where a track has no clip in that
+    // row) - refreshLeds() just reads this directly, same
     // "computed once in refresh(), copied into every device identically"
     // shape as track_send_main/etc. above. Plain black (Color's own
     // default) wherever SESSION isn't active at all, so this never needs a
@@ -599,7 +599,7 @@ class LaunchpadManager {
   int last_cleared_row_ = -1;
   int last_cleared_pattern_idx_ = -1;
 
-  // The free-running drum-machine/pooled-pattern audition clock: a second,
+  // The free-running drum-machine/clip audition clock: a second,
   // independent clock from SongState's own position - deliberately never
   // touches sample_pos_/absolute_pos_ and
   // never pushes MOVE_POSITION/SET_POSITION, exactly the same "don't
@@ -630,35 +630,33 @@ class LaunchpadManager {
   // while it's already running).
   void triggerAuditionStep(const Song & song, const std::vector<int> & track_ids, Controller & controller, int step);
 
-  // track_id -> the pool index (into song.getPooledPatterns(track_id)) and
-  // launch step of whatever's currently auditioning in Session view -
-  // song-wide, like audition_clock_ itself, not per-device (matches "this
-  // track is now playing pattern X" regardless of which Launchpad column
-  // happens to show it, the same way triggerAuditionStep() above already
-  // fires identically for every connected device rather than per-device).
-  // A track with no entry here just isn't currently triggering anything.
+  // track_id -> the clip index (into song.getClips(track_id)) and launch
+  // step of whatever's currently auditioning in Session view - song-wide,
+  // like audition_clock_ itself, not per-device (matches "this track is
+  // now playing clip X" regardless of which Launchpad column happens to
+  // show it, the same way triggerAuditionStep() above already fires
+  // identically for every connected device rather than per-device). A
+  // track with no entry here just isn't currently triggering anything.
   // launch_step is audition_clock_'s own absolute step at the moment this
   // specific instance actually started (a fresh launch, or a swap taking
-  // effect - see triggerPooledPatternStep()'s own comment for exactly
-  // when that is) - firePooledPatternStep() is always called with
-  // (step - launch_step), never the clock's own raw step, so every
-  // instance always starts counting from its own row 0 the moment it
-  // begins, independent of session_origin_step_/rowsPerBar below (which
-  // only ever decide *when* that moment is, never *which row* it starts
-  // on).
-  struct TriggeredPattern { int pool_index; int launch_step; };
+  // effect - see triggerClipStep()'s own comment for exactly when that
+  // is) - fireClipStep() is always called with (step - launch_step),
+  // never the clock's own raw step, so every instance always starts
+  // counting from its own row 0 the moment it begins, independent of
+  // session_origin_step_/rowsPerBar below (which only ever decide *when*
+  // that moment is, never *which row* it starts on).
+  struct TriggeredPattern { int clip_index; int launch_step; };
   std::unordered_map<int, TriggeredPattern> triggered_pattern_by_track_;
   // A Session-view press queues here instead of taking effect immediately
-  // - either a pool index (>= 0, a fresh join or a swap) or -1 (a press on
+  // - either a clip index (>= 0, a fresh join or a swap) or -1 (a press on
   // an unassigned row, or repressing the already-triggered pad - a plain
   // stop). Unlike triggered_pattern_by_track_, a track can have an entry
   // here with no corresponding triggered_pattern_by_track_ entry at all -
   // a fresh launch queued because something else in the session is
   // already playing (see handleSessionPadEvent()'s own comment) is
   // exactly as pending as a swap/stop queued for an already-triggered
-  // track; triggerPooledPatternStep() below treats both the same way. See
-  // its own comment for exactly when a queued entry actually takes
-  // effect.
+  // track; triggerClipStep() below treats both the same way. See its own
+  // comment for exactly when a queued entry actually takes effect.
   std::unordered_map<int, int> queued_pattern_by_track_;
   // The Session-view-wide shared quantization reference ("beat 1") every
   // queued join/swap/stop above (and the launch_step of the pattern that
@@ -681,10 +679,10 @@ class LaunchpadManager {
   // triggered_pattern_by_track_, after first resolving (for every track
   // with a pending queued_pattern_by_track_ entry) whether this step is
   // the shared next quantization boundary and, if so, applying it - see
-  // this method's own definition for the exact rule. The pooled-
-  // pattern sibling of triggerAuditionStep() above, called from the same
-  // two places in refresh() for the same reason.
-  void triggerPooledPatternStep(const Song & song, Controller & controller, int step);
+  // this method's own definition for the exact rule. The clip sibling of
+  // triggerAuditionStep() above, called from the same two places in
+  // refresh() for the same reason.
+  void triggerClipStep(const Song & song, Controller & controller, int step);
 
   // Record Arm (CC19) is one shared, song-wide flag, not a per-device
   // setting (deliberate change from the original per-device design, made
@@ -717,7 +715,7 @@ class LaunchpadManager {
   // "move-row-up"/"move-row-down" (CC91/92) while a device is in
   // GridMode::SESSION move PatternMatrix's own scene cursor (via
   // PatternMatrix::moveCursorScene()) rather than scrolling a pad-grid row
-  // window - Session view's rows are a track's own pooled patterns, not
+  // window - Session view's rows are a track's own clips, not
   // scenes, so there's no local row scroll for those buttons to drive; the
   // scene cursor is what an "assign" press actually targets (session_.
   // cursor_scene_idx), so moving it is the meaningful thing left for

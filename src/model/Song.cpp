@@ -288,9 +288,9 @@ static std::unique_ptr<Track> parseChildTrack(XMLElement & element, const Instru
 // Writes <note>/<command> children into `pattern_element` for every row
 // `pattern` actually has content on, in ascending row order - the write
 // side of parsePatternContent() above, shared the same way by the
-// per-scene writer and the pattern-pool writer below. Reads the raw
-// row->note-columns map directly (sorted, since it's an unordered_map)
-// rather than looping some external row bound: a pooled Pattern has no
+// per-scene writer and the clip writer below. Reads the raw row->note-
+// columns map directly (sorted, since it's an unordered_map) rather than
+// looping some external row bound: a clip's own leaf Pattern has no
 // scene/song pattern-length context to bound one by, and a scene's own
 // inline Pattern's raw storage never holds anything past its own
 // effective length in the first place (every write already redirects
@@ -522,28 +522,34 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
       }
     }
     
-    // Sibling of <tracks>/<scenes> - Song's own flat, per-track pattern
-    // pool (Song.h's own getPooledPatterns() comment), read before
-    // <scenes> since it needs nothing from there. Each <pattern> is the
-    // exact same shape a scene's own inline one uses (parsePatternContent()
-    // above), just addressed by (track, vector position) instead of a
-    // scene.
-    auto pattern_pool = song->FirstChildElement("patterns");
-    if (pattern_pool) {
-      for (auto it = pattern_pool->FirstChildElement("pattern"); it ; it = it->NextSiblingElement("pattern")) {
-	auto track_text = it->Attribute("track");
+    // Sibling of <tracks>/<scenes> - Song's own flat, per-track clip list
+    // (Song.h's own getClips() comment), read before <scenes> since it
+    // needs nothing from there. One <trackClips> per track that has any
+    // clips at all, grouping that track's own <clip> children in order
+    // (mirrors how the writer below already walks them, one track at a
+    // time) rather than repeating a track reference on every single
+    // <clip>. Each <clip> holds its own name/loop/length
+    // (Clip::loadParameters()) plus a nested <pattern> for its leaf
+    // track's own note/command content - the exact same shape a scene's
+    // own inline <pattern> uses (parsePatternContent() above), just with
+    // no name/loop/length of its own (those are the enclosing <clip>'s).
+    auto clips_element = song->FirstChildElement("clips");
+    if (clips_element) {
+      for (auto track_it = clips_element->FirstChildElement("trackClips"); track_it; track_it = track_it->NextSiblingElement("trackClips")) {
+	auto track_text = track_it->Attribute("track");
 	auto track = track_text ? resolveTrackReference(*this, track_text) : nullptr;
 	if (!track) continue;
 
-	Pattern pattern;
-	auto name_text = it->Attribute("name");
-	if (name_text) pattern.setName(name_text);
-
-	if (!parsePatternContent(*it, pattern, getTuningForTrack(*track), filename)) {
-	  setlocale(LC_ALL, oldLocale.c_str());
-	  return false;
+	for (auto it = track_it->FirstChildElement("clip"); it ; it = it->NextSiblingElement("clip")) {
+	  Pattern pattern;
+	  auto pattern_element = it->FirstChildElement("pattern");
+	  if (pattern_element && !parsePatternContent(*pattern_element, pattern, getTuningForTrack(*track), filename)) {
+	    setlocale(LC_ALL, oldLocale.c_str());
+	    return false;
+	  }
+	  auto & clip = addClip(track->getInternalId(), std::move(pattern));
+	  clip.loadParameters(XMLParameterSource(it));
 	}
-	addPooledPattern(track->getInternalId(), std::move(pattern));
       }
     }
 
@@ -617,23 +623,25 @@ Song::save(const std::string & filename) const {
   getMasterTrack().storeParameters(tracks_parameters);
   root->InsertEndChild(tracks);
 
-  // Sibling of <tracks>/<scenes> - Song's own flat, per-track pattern pool
-  // (Song.h's own getPooledPatterns() comment). Omitted entirely (not
-  // written as an empty <patterns/>) when there's nothing in it, same
-  // "default/empty state stores nothing" rule storeBusConfig() already
-  // follows - most songs never use this feature at all, and a spurious
-  // empty element on every one of them would just be diff noise. Walked
-  // via getRootTrackIds() (tree order), not pattern_pool_by_track_
-  // directly, for the same deterministic-output reason storeChildTrack()
-  // walks the tree itself rather than some other, unordered collection.
-  bool has_pooled_patterns = std::any_of(pattern_pool_by_track_.begin(), pattern_pool_by_track_.end(),
+  // Sibling of <tracks>/<scenes> - Song's own flat, per-track clip list
+  // (Song.h's own getClips() comment). Omitted entirely (not written as an
+  // empty <clips/>) when there's nothing in it, same "default/empty state
+  // stores nothing" rule storeBusConfig() already follows - most songs
+  // never use this feature at all, and a spurious empty element on every
+  // one of them would just be diff noise. Walked via getRootTrackIds()
+  // (tree order), not clips_by_track_ directly, for the same
+  // deterministic-output reason storeChildTrack() walks the tree itself
+  // rather than some other, unordered collection. One <trackClips> per
+  // track, grouping that track's own <clip> children rather than
+  // repeating a track reference on every single one.
+  bool has_clips = std::any_of(clips_by_track_.begin(), clips_by_track_.end(),
     [](auto & entry) { return !entry.second.empty(); });
-  if (has_pooled_patterns) {
-    auto pattern_pool = doc.NewElement("patterns");
-    root->InsertEndChild(pattern_pool);
+  if (has_clips) {
+    auto clips_element = doc.NewElement("clips");
+    root->InsertEndChild(clips_element);
     for (auto track_id : getRootTrackIds()) {
-      auto & pool_patterns = getPooledPatterns(track_id);
-      if (pool_patterns.empty()) continue;
+      auto & clips = getClips(track_id);
+      if (clips.empty()) continue;
 
       auto track = getMasterTrack().getChildByInternalId(track_id);
       assert(track);
@@ -641,12 +649,19 @@ Song::save(const std::string & filename) const {
       auto track_tuning = getTuningForTrack(*track);
       auto track_ref = trackReferenceText(*this, track_id);
 
-      for (auto & pattern : pool_patterns) {
+      auto track_clips_element = doc.NewElement("trackClips");
+      track_clips_element->SetAttribute("track", track_ref.c_str());
+      clips_element->InsertEndChild(track_clips_element);
+
+      for (auto & clip : clips) {
+	auto & pattern = clip.getLeafPattern();
+	auto clip_element = doc.NewElement("clip");
+	XMLParameterSource clip_parameters(clip_element);
+	clip.storeParameters(clip_parameters);
 	auto pattern_element = doc.NewElement("pattern");
-	pattern_element->SetAttribute("track", track_ref.c_str());
-	if (!pattern.getName().empty()) pattern_element->SetAttribute("name", pattern.getName().c_str());
 	storePatternContent(doc, pattern_element, pattern, track_tuning);
-	pattern_pool->InsertEndChild(pattern_element);
+	clip_element->InsertEndChild(pattern_element);
+	track_clips_element->InsertEndChild(clip_element);
       }
     }
   }
@@ -694,7 +709,7 @@ Song::save(const std::string & filename) const {
     storeChildTrack(*track, doc, tracks);
   }
 
-  for (auto & instrument : getInstruments()) {
+  for (auto & instrument : instrument_pool_.getInstruments()) {
     storeChildTrack(*instrument, doc, instruments);
   }
   

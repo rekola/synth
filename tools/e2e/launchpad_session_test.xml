@@ -1,21 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Purpose-built for verify_launchpad_session.py: exactly one track (so
-     x=0's column is unambiguous) and 8 pooled patterns (indices 0-7), with
-     only the last one (7) populated - fake_launchpad_session.c's fixed
-     press on pad (0,0) maps to pool index 7 (y=0 is the *bottom* row of
-     the 8-row grid, so the one-past-the-visible-window formula lands on
-     the last pool entry here - see LaunchpadManager::handleSessionPadEvent's
-     own y-flip comment), which needs to actually exist rather than landing
-     on an undefined pool slot a shorter pool would leave there instead.
+     x=0's column is unambiguous) and 8 clips (indices 0-7), with only the
+     last one (7) populated - fake_launchpad_session.c's fixed press on pad
+     (0,0) maps to clip index 7 (y=0 is the *bottom* row of the 8-row grid,
+     so the one-past-the-visible-window formula lands on the last clip here
+     - see LaunchpadManager::handleSessionPadEvent's own y-flip comment),
+     which needs to actually exist rather than landing on an undefined
+     slot a shorter clip list would leave there instead.
      The one scene starts with a distinct placeholder note (C-4) so an
      assign (Record Arm on, then the pad press) landing on this track/row
-     is unambiguous: E-4 afterward. Pool index 7's own explicit length="8"
+     is unambiguous: E-4 afterward. Clip index 7's own explicit length="8"
      matters when auditioning it live (verify_launchpad_stopclip.py) - a
-     default (0, meaning "1" once clamped - see triggerPooledPatternStep()'s
-     own current_length<=0 fallback) would re-trigger the same note on
-     every single audition-clock step instead of looping normally,
-     piling up voices and stalling the audio thread (confirmed - an XRUN
-     followed by the simulated terminal going unresponsive). -->
+     default (0, meaning "1" once clamped - see triggerClipStep()'s own
+     current_length<=0 fallback) would re-trigger the same note on every
+     single audition-clock step instead of looping normally, piling up
+     voices and stalling the audio thread (confirmed - an XRUN followed by
+     the simulated terminal going unresponsive). -->
 <song temperament="12edo" tempo="120" patternRows="16">
   <instruments>
     <instrument from="string.bowed.ensemble.pizzicato" />
@@ -23,18 +23,22 @@
   <tracks>
     <track id="0" instrument="0" />
   </tracks>
-  <patterns>
-    <pattern track="0" name="p0" />
-    <pattern track="0" name="p1" />
-    <pattern track="0" name="p2" />
-    <pattern track="0" name="p3" />
-    <pattern track="0" name="p4" />
-    <pattern track="0" name="p5" />
-    <pattern track="0" name="p6" />
-    <pattern track="0" name="target" length="8">
-      <note row="0" velocity="80" value="E-4" />
-    </pattern>
-  </patterns>
+  <clips>
+    <trackClips track="0">
+      <clip name="p0" />
+      <clip name="p1" />
+      <clip name="p2" />
+      <clip name="p3" />
+      <clip name="p4" />
+      <clip name="p5" />
+      <clip name="p6" />
+      <clip name="target" length="8">
+        <pattern>
+          <note row="0" velocity="80" value="E-4" />
+        </pattern>
+      </clip>
+    </trackClips>
+  </clips>
   <scenes>
     <scene>
       <pattern track="0">

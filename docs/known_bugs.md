@@ -125,8 +125,32 @@ Found 2026-07-11, not yet fixed.
   (its own info line keeps updating every second) - only this specific
   device's LED SysEx stream stalls, consistent with the same "harness vs.
   this sandboxed environment" territory the two bullets above are already
-  in, not a real regression. Not investigated further, same reasoning as
-  above.
+  in, not a real regression.
+
+  Narrowed further since: timestamped tracing on the receiving `synth`
+  process (both in `LaunchpadIO::pollEvents()`'s own per-event read loop
+  and in `TerminalUI`'s outer `poll()` loop) shows the fake device's own
+  CC49/second-pad-press/CC49-release messages genuinely never reach
+  synth's ALSA sequencer receive queue until the fake device's own
+  `snd_seq_close()` tears the connection down - they then arrive all at
+  once, several seconds late, bundled with that same connection's
+  PORT_EXIT/CLIENT_EXIT notifications. Two direct fix attempts on the
+  fixture's own C source both failed to change this: matching
+  `fake_launchpad_session.c`'s proven-reliable "sleep once, read back
+  once" pattern instead of `fake_launchpad_stopclip.c`'s original
+  per-100ms polling wait, and separately widening every inter-send gap to
+  a full second (matching `fake_launchpad_session.c`'s own timing
+  exactly). Neither budged the stall, ruling out both the fixture's own
+  wait/poll pattern and the gap length between sends as the cause. The
+  one remaining structural difference from the passing session script:
+  this fixture triggers with Record Arm off, taking the real audition/
+  playback path (an actual synthesized note starts rendering through
+  ALSA) rather than session's own Record-Arm-on assign path (which writes
+  song data and renders nothing) - consistent with real audio rendering
+  contending with this sandboxed environment's ALSA sequencer delivery
+  somehow, though that's inference from what's now ruled out, not
+  confirmed directly. Still not investigated further past this point -
+  same reasoning as above.
 
 - **A voice's envelope keeps progressing while playback is stopped**, so a
   long-held note can resume out of sync with the (frozen) row/pattern

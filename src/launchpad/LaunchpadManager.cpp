@@ -321,23 +321,25 @@ namespace {
     return 0;
   }
 
-  // Fires one step's worth of `pattern`'s own notes (at row step %
-  // pattern.getLength()) as one-shot PLAY_NOTE audition events for
-  // `track_id` - the pooled-pattern equivalent of triggerAuditionStep()'s
-  // own per-DrumMachineTrack firing, generalized to any track/note rather
-  // than a lane hit specifically (column = the note's own position within
-  // that row, matching how a pattern-driven note is scheduled normally,
-  // not DrumMachineTrack's own by-value column convention). No explicit
-  // STOP_NOTE, same reasoning as triggerAuditionStep(): relies on the
-  // instrument's own envelope/choke machinery past that. Shared by
-  // triggerPooledPatternStep()'s own per-tick loop and
-  // handleSessionPadEvent()'s "nothing was playing yet, launch
+  // Fires one step's worth of `pattern`'s own notes (at row step % length)
+  // as one-shot PLAY_NOTE audition events for `track_id` - the clip
+  // equivalent of triggerAuditionStep()'s own per-DrumMachineTrack firing,
+  // generalized to any track/note rather than a lane hit specifically
+  // (column = the note's own position within that row, matching how a
+  // pattern-driven note is scheduled normally, not DrumMachineTrack's own
+  // by-value column convention). `length` is the clip's own length
+  // (Clip::getLength(), already clamped to at least 1 by the caller) -
+  // `pattern` is just the leaf Pattern's notes, not a length source of its
+  // own (Pattern::getLength() is unrelated to a clip's length - see
+  // Clip.h). No explicit STOP_NOTE, same reasoning as
+  // triggerAuditionStep(): relies on the instrument's own envelope/choke
+  // machinery past that. Shared by triggerClipStep()'s own per-tick loop
+  // and handleSessionPadEvent()'s "nothing was playing yet, launch
   // immediately" case.
-  void firePooledPatternStep(const Song & song, Controller & controller, int track_id, const Pattern & pattern, int step) {
+  void fireClipStep(const Song & song, Controller & controller, int track_id, const Pattern & pattern, int length, int step) {
     auto track = song.getMasterTrack().getChildByInternalId(track_id);
     if (!track) return;
     auto tuning = song.getTuningForTrack(*track);
-    auto length = pattern.getLength() > 0 ? pattern.getLength() : 1;
     auto & notes = pattern.getNotes(pattern.getEffectiveRow(step, length));
     auto & event_queue = controller.getPlaybackEventQueue();
     for (size_t col = 0; col < notes.size(); col++) {
@@ -722,7 +724,7 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
     // scene cursor via session_move_scene_callback_ (see that member's own
     // comment for why this doesn't scroll a local row window the way the
     // old plain-navigation overview did: Session view's rows are a
-    // track's own pooled patterns, not scenes). Outside SESSION,
+    // track's own clips, not scenes). Outside SESSION,
     // "move-row-up"/"move-row-down" isn't this class's command at all
     // (PatternEditor's own row navigation owns it, reached via
     // UI::executeCommand()'s fallback, not through here) - declining lets
@@ -1078,11 +1080,11 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
   }
 
   auto & song = controller.getSong();
-  auto & pool_patterns = song.getPooledPatterns(track_id);
+  auto & clips = song.getClips(track_id);
   // Same y-flip as refresh()'s own session_colors computation - y=0 is
-  // the bottom-left pad, so y=7 is that track's first pooled pattern.
-  auto pool_index = 7 - ev.getY();
-  bool has_pattern_here = pool_index >= 0 && pool_index < static_cast<int>(pool_patterns.size());
+  // the bottom-left pad, so y=7 is that track's first clip.
+  auto clip_index = 7 - ev.getY();
+  bool has_pattern_here = clip_index >= 0 && clip_index < static_cast<int>(clips.size());
 
   if (!capture_enabled_) {
     // Auditioning (Record Arm off) - touches no song state, only this
@@ -1093,18 +1095,18 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
       // not-yet-started pending join is simply erased outright (nothing
       // is playing yet to release), while something already triggered
       // gets a queued stop instead - quantized the same as everything
-      // else here (see triggerPooledPatternStep()'s own comment for
+      // else here (see triggerClipStep()'s own comment for
       // exactly when it takes effect). A no-op if the track isn't doing
       // anything at all.
       if (triggered_it != triggered_pattern_by_track_.end()) queued_pattern_by_track_[track_id] = -1;
       else queued_pattern_by_track_.erase(track_id);
       return;
     }
-    if (triggered_it != triggered_pattern_by_track_.end() && triggered_it->second.pool_index == pool_index) {
+    if (triggered_it != triggered_pattern_by_track_.end() && triggered_it->second.clip_index == clip_index) {
       // Pressing the already-triggered pattern again queues a stop - the
       // exact same quantized handling as pressing an empty row above, not
       // an immediate cut - this is also the only way to stop a track
-      // whose pool fills every row (no empty one to press).
+      // whose clip list fills every row (no empty one to press).
       queued_pattern_by_track_[track_id] = -1;
       return;
     }
@@ -1115,7 +1117,7 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
     // there's nothing yet to quantize against - and that exact moment
     // becomes the shared origin (session_origin_step_) every later
     // launch/swap/stop, on any track, is measured against (see
-    // triggerPooledPatternStep()'s own comment). Once anything anywhere
+    // triggerClipStep()'s own comment). Once anything anywhere
     // is active, every further join/swap queues instead, uniformly,
     // regardless of whether this specific track already had something
     // playing.
@@ -1131,32 +1133,34 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
       // start() itself will actually (re)fire from whenever this track's
       // pattern next ticks.
       auto launch_step = audition_clock_.isRunning() ? audition_clock_.currentStep() : 0;
-      triggered_pattern_by_track_[track_id] = {pool_index, launch_step};
+      triggered_pattern_by_track_[track_id] = {clip_index, launch_step};
       session_origin_step_ = launch_step;
       session_origin_set_ = true;
       if (audition_clock_.isRunning()) {
-        firePooledPatternStep(song, controller, track_id, pool_patterns[static_cast<size_t>(pool_index)], 0);
+        auto & launched_clip = clips[static_cast<size_t>(clip_index)];
+        auto launched_length = launched_clip.getLength() > 0 ? launched_clip.getLength() : 1;
+        fireClipStep(song, controller, track_id, launched_clip.getLeafPattern(), launched_length, 0);
       }
     } else {
-      queued_pattern_by_track_[track_id] = pool_index;
+      queued_pattern_by_track_[track_id] = clip_index;
     }
     return;
   }
 
   // Assigning (Record Arm on): a copy into the pressed column's track at
   // the Matrix's own current scene - never a live reference back to the
-  // pool entry. Deliberately stays in Session view rather than switching
-  // focus away - a player assigning several patterns in a row needs to
-  // keep pressing pads, not get bounced out after the first one. Nothing
-  // to assign from an empty row.
+  // clip. Deliberately stays in Session view rather than switching focus
+  // away - a player assigning several patterns in a row needs to keep
+  // pressing pads, not get bounced out after the first one. Nothing to
+  // assign from an empty row.
   if (!has_pattern_here) return;
   auto & scene = song.getOrCreateScene(session_.cursor_scene_idx);
-  scene.setPatternForTrack(track_id, pool_patterns[static_cast<size_t>(pool_index)]);
+  scene.setPatternForTrack(track_id, clips[static_cast<size_t>(clip_index)].getLeafPattern());
   song.incVersion();
 }
 
 void
-LaunchpadManager::triggerPooledPatternStep(const Song & song, Controller & controller, int step) {
+LaunchpadManager::triggerClipStep(const Song & song, Controller & controller, int step) {
   // Every track with either something already triggered or something
   // pending needs evaluating this step - a pending join queued for a
   // track with nothing playing yet (queued_pattern_by_track_ only, no
@@ -1175,11 +1179,11 @@ LaunchpadManager::triggerPooledPatternStep(const Song & song, Controller & contr
   if (rows_per_bar <= 0) rows_per_bar = 1;
 
   for (auto track_id : track_ids) {
-    auto & pool_patterns = song.getPooledPatterns(track_id);
+    auto & clips = song.getClips(track_id);
     auto triggered_it = triggered_pattern_by_track_.find(track_id);
     if (triggered_it != triggered_pattern_by_track_.end() &&
-        (triggered_it->second.pool_index < 0 || triggered_it->second.pool_index >= static_cast<int>(pool_patterns.size()))) {
-      // The pool shrank (or the track's gone) out from under an already-
+        (triggered_it->second.clip_index < 0 || triggered_it->second.clip_index >= static_cast<int>(clips.size()))) {
+      // The clip list shrank (or the track's gone) out from under an already-
       // triggered index - drop it rather than read out of bounds; still
       // fall through below to check for a pending queued action.
       triggered_pattern_by_track_.erase(triggered_it);
@@ -1223,21 +1227,21 @@ LaunchpadManager::triggerPooledPatternStep(const Song & song, Controller & contr
     }
 
     if (triggered_it == triggered_pattern_by_track_.end()) continue;
-    auto pool_index = triggered_it->second.pool_index;
-    if (pool_index < 0 || pool_index >= static_cast<int>(pool_patterns.size())) continue;
-    auto & pattern = pool_patterns[static_cast<size_t>(pool_index)];
+    auto clip_index = triggered_it->second.clip_index;
+    if (clip_index < 0 || clip_index >= static_cast<int>(clips.size())) continue;
+    auto & clip = clips[static_cast<size_t>(clip_index)];
     auto relative_step = step - triggered_it->second.launch_step;
-    auto length = pattern.getLength() > 0 ? pattern.getLength() : 1;
-    if (!pattern.isLooping() && relative_step >= length) {
-      // A one-shot pattern has played through its own length once -
-      // release its voices and stop, rather than wrapping back to row 0
-      // (matching a real DAW's own non-looping clip - see
-      // Pattern::isLooping()'s own comment).
+    auto length = clip.getLength() > 0 ? clip.getLength() : 1;
+    if (!clip.isLooping() && relative_step >= length) {
+      // A one-shot clip has played through its own length once - release
+      // its voices and stop, rather than wrapping back to row 0 (matching
+      // a real DAW's own non-looping clip - see Clip::isLooping()'s own
+      // comment).
       controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_ALL_NOTES, controller.getActiveBufferName(), track_id));
       triggered_pattern_by_track_.erase(track_id);
       continue;
     }
-    firePooledPatternStep(song, controller, track_id, pattern, relative_step);
+    fireClipStep(song, controller, track_id, clip.getLeafPattern(), length, relative_step);
   }
 
   // Once nothing anywhere is triggered or pending, "beat 1" no longer
@@ -1400,7 +1404,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
 
   if (state.grid_mode == GridMode::SESSION) {
     // Fully resolved already (identity hue, triggered/queued brightening,
-    // off where a track has no pooled pattern in that row) - see
+    // off where a track has no clip in that row) - see
     // refresh()'s own session_colors computation and DeviceState::
     // session_colors's own comment. Checked first, ahead of every other
     // branch below: SESSION is a hard override forced on by refresh()
@@ -1674,7 +1678,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
 
   auto num_tracks = static_cast<int>(track_ids.size());
 
-  // The free-running drum-machine/pooled-pattern audition clock - computed
+  // The free-running drum-machine/clip audition clock - computed
   // once here, shared by every connected device below, not per-device.
   // audition_clock_ itself (StepClock, LaunchpadTiming.h) is the pure,
   // unit-tested step-advance logic; everything here is just wall-clock
@@ -1702,7 +1706,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       audition_clock_.start();
       audition_clock_last_refresh_ = now;
       triggerAuditionStep(song, track_ids, controller, audition_clock_.currentStep());
-      triggerPooledPatternStep(song, controller, audition_clock_.currentStep());
+      triggerClipStep(song, controller, audition_clock_.currentStep());
     } else {
       float dt = chrono::duration<float>(now - audition_clock_last_refresh_).count();
       audition_clock_last_refresh_ = now;
@@ -1716,7 +1720,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       float row_duration = tempo > 0 ? 60.0f / 4.0f / static_cast<float>(tempo) : 0.0f;
       for (int step : audition_clock_.advance(dt, row_duration)) {
         triggerAuditionStep(song, track_ids, controller, step);
-        triggerPooledPatternStep(song, controller, step);
+        triggerClipStep(song, controller, step);
       }
     }
     audition_step = audition_clock_.currentStep();
@@ -1756,8 +1760,8 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   // flipped the same way the old plain-navigation overview's own rows
   // were: y=0 is the bottom-left pad (see LaunchpadProtocol::
   // padToNoteNumber()'s own doc comment), so y=7 (top) is that track's
-  // first pooled pattern and y=0 (bottom) its last visible one; no row
-  // scroll yet either, so a track with more than 8 pooled patterns only
+  // first clip and y=0 (bottom) its last visible one; no row
+  // scroll yet either, so a track with more than 8 clips only
   // shows the first 8 for now.
   array<Color, 64> session_colors;
   {
@@ -1772,14 +1776,14 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       // same value does as terminal glyph text, so the two surfaces are
       // tuned independently here rather than sharing one constant.
       auto identity = Color::fromHSL(structure.getBaselineInfo(session_track_id).getHue(), 0.8f, 0.3f);
-      auto & pool_patterns = song.getPooledPatterns(session_track_id);
+      auto & clips = song.getClips(session_track_id);
       auto triggered_it = triggered_pattern_by_track_.find(session_track_id);
       auto queued_it = queued_pattern_by_track_.find(session_track_id);
       for (int y = 0; y < 8; y++) {
-        auto pool_index = 7 - y;
-        if (pool_index >= static_cast<int>(pool_patterns.size())) continue;
-        bool is_triggered = triggered_it != triggered_pattern_by_track_.end() && triggered_it->second.pool_index == pool_index;
-        bool is_queued = queued_it != queued_pattern_by_track_.end() && queued_it->second == pool_index;
+        auto clip_index = 7 - y;
+        if (clip_index >= static_cast<int>(clips.size())) continue;
+        bool is_triggered = triggered_it != triggered_pattern_by_track_.end() && triggered_it->second.clip_index == clip_index;
+        bool is_queued = queued_it != queued_pattern_by_track_.end() && queued_it->second == clip_index;
         Color c = identity;
         if (is_triggered) c = identity.blend(0.5f, white); // currently playing
         else if (is_queued) c = identity.blend(0.25f, white); // about to launch at the next loop boundary

@@ -16,17 +16,10 @@
 // interleaved with every other track's content in one shared
 // row->track_id->notes map. No track_id anywhere in here: which track this
 // belongs to is whichever container holds it - Scene::patterns_by_track_id_'s
-// key for a scene's own inline Pattern, or Song's own per-track pattern
-// pool (Song.h) for a reusable one - not this class's own concern.
+// key for a scene's own inline Pattern, or a Clip's own patterns_by_track_
+// key (Clip.h) for a reusable one - not this class's own concern.
 class Pattern : public SongObject {
  public:
-  // A friendly, human-authored label - only meaningful for a pooled
-  // Pattern (Song's own pattern pool), which is addressed by position, not
-  // by this name; a scene's own inline Pattern never sets it. Empty by
-  // default, same as an ordinary track's own optional name.
-  const std::string & getName() const { return name_; }
-  void setName(std::string name) { name_ = std::move(name); }
-
   // A Pattern has a length. `length_ == 0` (the default) isn't a "looping
   // is off" flag - it means this particular Pattern was never given a
   // length of its own, so it takes on whatever length the caller-supplied
@@ -58,39 +51,18 @@ class Pattern : public SongObject {
     return len > 0 ? row % len : row;
   }
 
-  // Session view's own clip-launch loop toggle (Song::getPooledPatterns())
-  // - true (the default) repeats indefinitely once triggered, matching
-  // getEffectiveRow()'s own unconditional modulo above and every other
-  // playback path's behavior. false makes it a one-shot: LaunchpadManager::
-  // triggerPooledPatternStep() releases the track's voices and stops
-  // triggering it, rather than wrapping back to row 0, once it's played
-  // through its own length once. Scoped to Session-view triggering only -
-  // getEffectiveRow() itself is unaffected, so a scene's own inline
-  // Pattern (ordinary transport-driven playback, which is bounded by the
-  // scene/song's own row range regardless) has no use for this and never
-  // sets it.
-  bool isLooping() const { return loop_; }
-  void setLooping(bool loop) { loop_ = loop; }
-
   // Overrides SongObject::loadParameters()/storeParameters() but
   // deliberately doesn't call the base version, which handles id_/name_:
-  // this class already manages name_ itself (getName()/setName() above),
-  // set directly by the caller rather than through this path (a scene's
-  // own inline Pattern never has one; a pooled Pattern's own name is
-  // read/written once at the call site, not per-attribute here), and
-  // Pattern has no use for a SongObject-style id_ at all. Reads/writes
-  // just length_/loop_ (<pattern length="..." loop="...">). Called from
-  // Song.cpp's shared reader/writer helpers (parsePatternContent()/
-  // storePatternContent()), used by both the per-scene and pattern-pool
-  // paths.
+  // a Pattern has no name or id of its own, just its length
+  // (<pattern length="...">). Called from Song.cpp's shared reader/writer
+  // helpers (parsePatternContent()/storePatternContent()), used by both
+  // the per-scene and per-clip paths.
   void loadParameters(const ParameterSource & input) override {
     setLength(input.get<int>("length", 0));
-    setLooping(input.get<bool>("loop", true));
   }
 
   void storeParameters(ParameterSource & output) const override {
     output.set("length", getLength(), 0);
-    output.set("loop", isLooping(), true);
   }
 
   // Trims trailing undefined notes and drops the row from the sparse map
@@ -224,8 +196,8 @@ class Pattern : public SongObject {
   // list every defined row without an outside bound to loop against. A
   // scene's own inline Pattern is always written by looping row 0..the
   // song's own pattern length (its natural bound - see Song.cpp's writer);
-  // a pooled Pattern has no such context, so Song.cpp's own pool writer
-  // uses this instead.
+  // a clip's own leaf Pattern has no such context, so Song.cpp's own clip
+  // writer uses this instead.
   const std::unordered_map<unsigned short, std::vector<Note> > & getNotesByRow() const { return notes_; }
 
   // Scans every row this Pattern actually has content on, tracking the

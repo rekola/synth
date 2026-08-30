@@ -222,7 +222,8 @@ class SongState : public TrackState {
     }
     
     // Unconditional, regardless of whether the song currently has any
-    // instruments loaded (not guarded behind !song.getInstruments().empty() -
+    // instruments loaded (not guarded behind
+    // !song.getInstrumentPool().getInstruments().empty() -
     // that guard used to skip this whole block, including every
     // mixer.accumulate() call below, whenever a song had zero instruments,
     // e.g. a freshly created song. Each track's own render() already

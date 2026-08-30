@@ -1477,7 +1477,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	  instrument_track.setInstrumentId(instrument_track.getInstrumentId() - 1);
 	  changed = true;
 	} else {
-	  auto & instruments = song.getInstruments();
+	  auto & instruments = song.getInstrumentPool().getInstruments();
 	  if (input.getId() == NCKEY_KP_MULTIPLY && instrument_track.getInstrumentId() + 1 < static_cast<int>(instruments.size())) {
 	    instrument_track.setInstrumentId(instrument_track.getInstrumentId() + 1);
 	    changed = true;
@@ -1849,7 +1849,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
     putstr(i, 0, padding);
   }
   
-  auto & instruments = song.getInstruments();
+  auto & instruments = song.getInstrumentPool().getInstruments();
 
   // Reset every render pass rather than only ever being set - a track
   // with no name field at all (or the cursor moving off a color-eligible

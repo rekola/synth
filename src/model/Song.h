@@ -6,6 +6,7 @@
 #include "MasterTrack.h"
 #include "InstrumentPool.h"
 #include "Scene.h"
+#include "Clip.h"
 #include "Version.h"
 #include "../bus/BusEffectRegistry.h"
 #include "../util/constants.h"
@@ -53,7 +54,7 @@ class Song : public SongObject {
   void setPatternLength(int rows) { pattern_length_ = rows; incVersion(); }
 
   // The shared quantization grid (<song rowsPerBar="N">) both the
-  // Launchpad Session view (LaunchpadManager::triggerPooledPatternStep())
+  // Launchpad Session view (LaunchpadManager::triggerClipStep())
   // and PatternEditor's own bar-boundary highlight measure against -
   // independent of getPatternLength() above (a scene can span many bars;
   // this is how many rows make just one of them). Default 16 matches this
@@ -192,36 +193,42 @@ class Song : public SongObject {
 
   Scene & addScene() { return addScene(Scene()); }
 
-  // The song's own flat, per-track pattern pool - each track's own
-  // reusable Patterns, available to trigger live or assign into a scene
-  // from the Launchpad's session/launch view, unconnected to any one
-  // scene position. Addressed by (track_id, vector index), not a separate
-  // stable id - see Pattern.h's own getName() comment for why. Grouped by
-  // track already (rather than one flat list filtered per lookup) since
-  // "this track's own pooled patterns, in order" is the only way anything
-  // ever needs to read this back (Session view's own rows).
-  const std::vector<Pattern> & getPooledPatterns(int track_id) const {
-    auto it = pattern_pool_by_track_.find(track_id);
-    return it != pattern_pool_by_track_.end() ? it->second : empty_pattern_pool_;
+  // The song's own flat, per-track clip list - each track's own reusable
+  // Clips, available to trigger live or assign into a scene from the
+  // Launchpad's session/launch view, unconnected to any one scene
+  // position (and, once actually placed as an instance, the shared
+  // content behind that placement - editing it through any instance
+  // updates every other one immediately). Addressed by (track_id, vector
+  // index), not a separate stable id yet - nothing outside the current
+  // session references one across a save/reload. Grouped by track
+  // already (rather than one flat list filtered per lookup) since "this
+  // track's own clips, in order" is the only way anything ever needs to
+  // read this back (Session view's own rows).
+  const std::vector<Clip> & getClips(int track_id) const {
+    auto it = clips_by_track_.find(track_id);
+    return it != clips_by_track_.end() ? it->second : empty_clips_;
   }
 
-  void addPooledPattern(int track_id, Pattern pattern) {
-    pattern_pool_by_track_[track_id].push_back(std::move(pattern));
+  Clip & addClip(int track_id, Pattern pattern) {
+    auto & clips = clips_by_track_[track_id];
+    clips.emplace_back(track_id);
+    clips.back().getLeafPattern() = std::move(pattern);
     incVersion();
+    return clips.back();
   }
 
-  const std::vector<std::unique_ptr<Track> > & getInstruments() const { return instrument_pool_.getInstruments(); }
-  const Track & getInstrument(int i) const { return instrument_pool_.getInstrument(i); }
   void addInstrument(std::unique_ptr<Track> i) {
     instrument_pool_.addInstrument(std::move(i));
     incVersion();
   }
 
-  // The pool's own resolved default drum kit (InstrumentPool::
-  // getDefaultKitInstrument()) plus the indexed list above, bundled
-  // together the way every consumer that actually renders a note (as
-  // opposed to just listing/picking one, like getInstruments() above)
-  // needs both - see InstrumentPool.h's own class comment.
+  // The single way to reach the instrument list - callers wanting just
+  // the indexed list go through InstrumentPool::getInstruments()/
+  // getInstrument() from here rather than Song exposing its own
+  // delegating shortcuts for them; this also carries the pool's own
+  // resolved default drum kit (InstrumentPool::getDefaultKitInstrument())
+  // for the consumers that render an actual note and need both - see
+  // InstrumentPool.h's own class comment.
   const InstrumentPool & getInstrumentPool() const { return instrument_pool_; }
 
   bool open(const std::string & filename, const InstrumentProvider & provider);
@@ -382,10 +389,10 @@ private:
   // from Song's now-null pointer is never dereferenced in practice.
   mutable std::unique_ptr<std::mutex> tracks_mutex_ = std::make_unique<std::mutex>();
   std::vector<Scene> scenes_;
-  std::unordered_map<int, std::vector<Pattern> > pattern_pool_by_track_;
+  std::unordered_map<int, std::vector<Clip> > clips_by_track_;
 
   static inline Scene empty_scene_;
-  static inline std::vector<Pattern> empty_pattern_pool_;
+  static inline std::vector<Clip> empty_clips_;
 };
 
 #endif
