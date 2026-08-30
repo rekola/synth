@@ -21,14 +21,17 @@ undifferentiated cell per track) - and the data model underneath it,
 which today has no notion of a clip as a distinct, shareable object at
 all.
 
-Four phases, in this order because the data model has to exist before
-there's anything to draw:
+Phases A through D, in this order because the data model has to exist
+before there's anything to draw; Phase E is additional/later, sequenced
+after A but not blocking B/C/D:
 
 - **Phase A** - shared/referenced clips (data model).
 - **Phase B** - variable-length, titled scenes (data model).
 - **Phase C** - the arrangement grid itself (view), including removing
   today's `PatternMatrix`.
 - **Phase D** - visual unification with the drum machine's own rendering.
+- **Phase E** - nested Effect automation captured into clips too, not
+  just a leaf track's own notes.
 
 ## Current state (already implemented, unaffected by any phase below unless noted)
 
@@ -144,6 +147,38 @@ explicit note-off (stopping an already-stopped voice is already a no-op
 elsewhere in this codebase), so firing it unconditionally at every
 instance boundary costs nothing extra.
 
+**Continuous vs. one-shot instances - no resizing, ever; the tracker
+idiom instead.** Placing *either* kind of instance follows one single
+rule: it clears every track from the insertion point onward (through the
+current scene's own end - never past it, per Phase C's "never crosses a
+scene boundary"). What differs is only how far the content that follows
+lets each kind actually play, mirroring how a held note already works in
+a tracker - it keeps sounding until an explicit off or a new note
+interrupts it, never a resizable block:
+
+- A **one-shot** clip's instance needs nothing extra to bound it - it
+  already has an intrinsic stopping point (its own native, whole-bar
+  length), and the unconditional instance-boundary stop above already
+  covers what happens when it's reached.
+- A **continuous** (looping) clip's instance has no intrinsic stopping
+  point at all - it just keeps reading `row % clip_length` (the exact
+  same repeat mechanism `Pattern::getEffectiveRow()` already has)
+  indefinitely, exactly like a held note, until something *extrinsic*
+  bounds it: writing a note or an explicit off directly into the track at
+  a later row, placing a new clip instance later on the same track
+  (either one already covered by "instances can't overlap" above - the
+  later content simply clears whatever continuous instance was still
+  running through that point), or an explicit terminate-to-this-row
+  gesture with no replacement content (candidate binding: Backspace/
+  Delete, TBD) for ending it without starting anything new there.
+- There is deliberately no independent "instance length" to drag-resize
+  in either case - an earlier draft of this plan proposed letting a
+  looping clip's instance be stretched to an explicitly chosen length,
+  Photoshop-layer style; that idea is dropped in favor of the above,
+  which needs no separate length field on a placement at all and matches
+  this codebase's own tracker lineage (Emacs/step-sequencer, not a DAW's
+  own block-resize-handle idiom) more directly.
+
 ### Authoring: `copy-to-clip` / `insert-clip`
 
 Named after Emacs's own **register** commands (`copy-to-register`/
@@ -180,6 +215,19 @@ chord TBD (not yet reserved/implemented).
   grid (Phase C) - needed from the moment clips exist at all, so it's
   visually obvious at the note level that a row belongs to a clip (and
   which one) while editing, before Phase C's own grid even exists.
+- **`copy-to-clip` always operates at whole-track scope**
+  (`SelectionScope::TRACK`) - every note column plus the effect column,
+  for whatever row range is marked - regardless of what's actually
+  selected when it's invoked (a single note column out of several, or
+  just the effect column alone): it widens automatically rather than
+  refusing, the same precedent `kill-region` already has for the
+  analogous case (a cursor on the effect column already widens the
+  region to the whole row). A clip is a whole-track thing, never a
+  sub-track (one note column) or multi-track selection.
+- **Storage is forward-shaped for Phase E**: a clip's own content is
+  keyed `track_id -> Pattern`, not a single bare `Pattern`, even though
+  Phase A only ever populates the leaf track's own one entry - see Phase
+  E below for why.
 
 ### Bar alignment
 
@@ -289,16 +337,20 @@ Replaces `PatternMatrix` outright with a real arrangement view.
   a block in the arrangement grid and a row on the Launchpad agree on
   which physical pad would trigger it.
 - Track ordinals (today's bold numeric column header) are removed.
-- Carries forward from `PatternMatrix`, still true here: single-cell
-  copy/paste under the `kill-region`/`kill-ring-save`/`yank` names,
-  shared track/scene cursor with `PatternEditor`/Launchpad, the virtual
-  "one past the last scene" row. Multi-cell rectangular copy/paste
-  (`PatternMatrix`'s old single-cell-only limitation) is superseded by
-  Phase A's own cut/copy/paste-as-clip workflow rather than being solved
-  as a separate feature.
-- Editing note content directly from the arrangement grid is still out of
-  scope, same as it was for `PatternMatrix` - note-level editing stays in
-  `PatternEditor`.
+- Carries forward from `PatternMatrix`, still true here: shared track/
+  scene cursor with `PatternEditor`/Launchpad, the virtual "one past the
+  last scene" row.
+- **No copy/paste in the arrangement grid itself, at least for now** -
+  unlike `PatternMatrix`, which had its own single-cell `kill-region`/
+  `kill-ring-save`/`yank`. Placing/moving clip content is entirely
+  `copy-to-clip`/`insert-clip`'s job (Phase A), done from `PatternEditor`;
+  the grid is placement/overview only.
+- **You can only edit an instantiated clip, never the arrangement grid
+  directly** - editing means going to any one of a clip's own instances
+  (all live-linked, per Phase A) and editing it there in `PatternEditor`,
+  the same as any other track content. The arrangement grid itself has no
+  note-editing surface of its own, matching `PatternMatrix` never having
+  had one either.
 
 ## Phase D: visual unification with the drum machine
 
@@ -310,6 +362,53 @@ and a clip block are showing different things and forcing one rendering
 onto both would lose real information. Exact scope of what *does*
 converge (color language? border/fill convention?) is undecided - revisit
 once Phase C's own clip rendering actually exists to converge toward.
+
+## Phase E: nested Effect automation in clips
+
+A clip's full/eventual form is one `Pattern` per relevant `track_id`, not
+just the leaf track's own - the leaf track itself, plus any number of
+ancestor Effect tracks in between it and the song's own global
+`MasterTrack`. **The master track itself is deliberately excluded** - its
+own content (song-level automation, e.g. tempo changes if those ever
+exist - see the open question below) stays purely background, always
+hand-edited directly in `PatternEditor` when finishing an arrangement,
+never bundled into a clip. Effect-track content is captured as a deep
+copy at `copy-to-clip` time, not live-linked the way the leaf track's own
+Pattern is - a clip's live-linking is a property of the clip object
+itself; nested Effect automation on its own isn't musically meaningful
+without accompanying notes anyway (a filter sweep or send-level ramp with
+nothing sounding underneath it is useless - it would make no sense for
+Session view to be able to launch "just the automation, no notes"), so it
+always travels bundled with the leaf content it was captured alongside,
+never as an independent thing.
+
+Genuinely hard enough to need its own phase, sequenced after Phase A
+rather than inside it - Phase A's own clip storage is already shaped
+`track_id -> Pattern` in anticipation (see its own "Storage is
+forward-shaped for Phase E" note), so this phase only has to add
+population/capture logic, not migrate the underlying representation.
+
+- **Open:** if two leaf tracks share an ancestor Effect track and their
+  own clips' deep copies of that Effect's automation disagree, what
+  actually happens when both are placed such that they'd affect it at
+  overlapping rows? One plausible starting intuition - whichever clip's
+  own automation gets (re-)written into the Effect's own scene slot later
+  simply overwrites the other, the same "later placement wins" rule
+  already governing ordinary note-content overlap elsewhere in this plan
+  - but this isn't resolved, just a starting point for when this phase is
+  actually tackled.
+- **Resolved: the master track stays out of clips entirely**, for now.
+  Today it doesn't actually carry any automation at all anyway - it's a
+  near-empty stub (`MasterTrack.h`), and tempo (`Song::bpm_`) is a single
+  whole-song scalar with no per-row change mechanism. `docs/commands.md`
+  now lists a `3Txx` ("set tempo to `xx` BPM") command under "Planned"
+  for clarity, but it stays a no-op until this gets implemented, and even
+  once it is, per-row song-level automation like this stays purely
+  background - added by hand directly in `PatternEditor` while finishing
+  an arrangement, the same way any other small, not-worth-reusing content
+  already is (Phase A's own "layer model") - never something a clip
+  captures, carries, or could silently drag along by
+  being moved or duplicated.
 
 ## Future / uncertain
 

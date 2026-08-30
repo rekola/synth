@@ -27,3 +27,4 @@ everything else is accepted and stored but currently a no-op (see
 | `1Ixx` | Fade in |
 | `1Oxx` | Fade out |
 | `1Txy` | Tremolo (depth `x`, speed `y`) |
+| `3Txx` | Set tempo to `xx` BPM |
