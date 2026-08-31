@@ -1,14 +1,14 @@
 """Regression test for PatternEditor's own clipboard cross-tuning fix
-(ClipboardEntry::track_tunings). Unlike PatternMatrix (verify_cross_tuning_paste.py),
-PatternEditor's yank always targets wherever the cursor currently is, not
-the track a copy came from - so a same-song cross-tuning mismatch is
-directly reachable here, and is the main risk this fix addresses.
+(ClipboardEntry::track_tunings). PatternEditor's yank always targets
+wherever the cursor currently is, not the track a copy came from - so a
+same-song cross-tuning mismatch is directly reachable here, and is the
+main risk this fix addresses.
 
-Uses PatternMatrix purely as a reliable "teleport" - its Enter commits the
-cursor cell and hands focus to PatternEditor at an exact (track, scene)
-position (UI::commitOverviewCell()) - rather than guessing how many
-arrow-key presses PatternEditor's own sub-column navigation needs to
-cross from one track to another.
+Uses ArrangementGrid purely as a reliable "teleport" - its Enter commits
+the cursor cell and hands focus to PatternEditor at an exact (track,
+scene, row) position (UI::commitOverviewCell()) - rather than guessing
+how many arrow-key presses PatternEditor's own sub-column navigation
+needs to cross from one track to another.
 
 cross_tuning_paste_test.xml: track 0 pitched, track 1 percussion (one
 populated cell, scene 0, row 0).
@@ -54,7 +54,7 @@ if not vk.wait_ready(scr):
 matrix_idx = 0
 
 def teleport(target_idx):
-    """Move PatternMatrix's cursor to track `target_idx` and commit
+    """Move ArrangementGrid's cursor to track `target_idx` and commit
     (Enter) - hands focus to PatternEditor positioned exactly there."""
     global matrix_idx
     scr.send(b"\x1b[<0;1;2M"); scr.pump(0.2)

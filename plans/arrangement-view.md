@@ -29,8 +29,9 @@ B/C/D:
 
 - **Phase A** - shared/referenced clips (data model).
 - **Phase B** - variable-length, titled scenes (data model).
-- **Phase C** - the arrangement grid itself (view), including removing
-  today's `PatternMatrix`.
+- **Phase C** - the arrangement grid itself (view), replacing
+  `PatternMatrix`. Implemented ahead of Phase B - see its own section for
+  what that means for bar counts today.
 - **Phase D** - visual unification with the drum machine's own rendering.
 - **Phase E** - a per-track clip viewer (rename/delete/loop-toggle).
 - **Phase F** - nested Effect automation captured into clips too, not
@@ -73,18 +74,31 @@ B/C/D:
   `Pattern.h`). XML: a `<clips>` element groups `<trackClips
   track="...">` per track, each holding `<clip name="..." loop="..."
   length="...">` entries wrapping a `<pattern>` for note/command content.
-  This is the data-model half of Phase A - already landed. What's still
-  outstanding (the rest of Phase A, below): the background/instance layer
-  model, `copy-to-clip`/`insert-clip`, bar alignment, and stable
-  identity/usage tracking - a clip is still addressed by (track_id,
-  vector position) only, same as the old pool.
-- **Defaults**: the app opens on `PatternMatrix` (Session/overview) rather
-  than straight into note entry, 31-EDO is the default tuning, and
+  This is the data-model half of Phase A - see the instance/arrangement
+  layer bullet below for the rest of it.
+- **Defaults**: the app opens on `ArrangementGrid` (Session/overview)
+  rather than straight into note entry, 31-EDO is the default tuning, and
   `songs/welcome.xml` opens automatically with no file given.
+- **The instance/arrangement layer** (`Scene`'s own `instances_by_track_id_`,
+  `ArrangementOps.h`'s `placeClipInstance()`/`placeStopInstance()`/
+  `resolveInstanceAt()`) - start-only tracker-idiom instance events per
+  (track, row), resolved into real transport playback by
+  `SongState::renderBlock()`. `copy-to-clip` (M-x only, no keybinding)
+  extracts the cursor's selection into a new unnamed clip; Ctrl-K places a
+  stop instance when the cursor is over an active one, otherwise falls
+  back to killing the background content in that track/row range only.
+  This is the rest of Phase A, landed after the `Clip` object itself
+  above - what's still outstanding: bar alignment beyond what
+  `copy-to-clip` already does, and stable clip identity/usage tracking (a
+  clip is still addressed by (track_id, vector position) only).
+- **`ArrangementGrid`** (Phase C, `src/ui/ArrangementGrid.h`/`.cpp`) -
+  replaces `PatternMatrix` outright; see that phase's own section.
 - e2e coverage: `tools/e2e/verify_launchpad_session.py`,
   `verify_launchpad_notecustom.py`, `verify_launchpad_stopclip.py` (the
   last hits a documented, pre-existing environmental issue in sandboxed
-  test runs - see `docs/known_bugs.md`).
+  test runs - see `docs/known_bugs.md`). None of these yet cover
+  `ArrangementGrid` itself or the instance layer's own placement/
+  resolution end to end through a real terminal session.
 
 ## Phase A: shared/referenced clips ("pooled pattern" renamed to "clip")
 
@@ -380,35 +394,70 @@ and its own length, in bars (`Song::getRowsPerBar()`).
 
 ## Phase C: the arrangement grid
 
-Replaces `PatternMatrix` outright with a real arrangement view.
+Implemented (`ArrangementGrid`, `src/ui/ArrangementGrid.h`/`.cpp`),
+replacing `PatternMatrix` outright.
 
-- **One grid row is one bar** (not one raw pattern row, and no longer one
-  full scene either) - a scene now spans as many rows as its own Phase B
-  length says.
-- A clip instance renders as a colored block spanning its own length in
-  rows (Phase A guarantees a whole number of bars), confined to the one
-  scene it's placed in - a clip never crosses a scene boundary.
-- Each clip block shows a single hexadecimal digit - its own ordinal
-  position in that track's clip list, the exact same ordinal Launchpad
-  Session view's own rows already address (today: `pool_index = 7 - y`;
-  post-Phase-A, whatever the equivalent clip-list position becomes) - so
-  a block in the arrangement grid and a row on the Launchpad agree on
-  which physical pad would trigger it.
-- Track ordinals (today's bold numeric column header) are removed.
-- Carries forward from `PatternMatrix`, still true here: shared track/
-  scene cursor with `PatternEditor`/Launchpad, the virtual "one past the
-  last scene" row.
-- **No copy/paste in the arrangement grid itself, at least for now** -
-  unlike `PatternMatrix`, which had its own single-cell `kill-region`/
+- **A scene is a title row (its own name, full width) followed by its own
+  bar rows** (not one raw pattern row, and no longer one undifferentiated
+  scene row either) - a scene spans as many bar rows as it has bars.
+  Landed ahead of Phase B: every scene still shares one uniform length
+  (`Song::getPatternLength()/getRowsPerBar()`), so the bar count is
+  currently fixed rather than a real per-scene one - isolated in
+  `ArrangementGrid::barsPerScene()`, the one place to change once Phase B
+  gives each scene its own length.
+- **Scenes are told apart by name, not by number** - no per-scene
+  ordinal/numbering of any kind (an earlier draft of this phase gave each
+  scene a leading gutter-column hex digit instead; scene names replaced
+  it before this landed). `Scene` already had a name (it extends
+  `SongObject`, same as `Clip`) with no UI surface to set it before now -
+  Enter on a title row opens it for editing in place
+  (`ArrangementGrid::startSceneRename()`); an unnamed real scene shows a
+  placeholder ("(untitled)") rather than a blank row.
+- A clip instance renders as a colored block spanning its own active
+  length in bars, confined to the one scene it's placed in - resolved the
+  same way real playback does (`ArrangementOps.h`'s `resolveInstanceAt()`,
+  once per bar's own leading row).
+- Each clip block's own leading bar shows a single hexadecimal digit -
+  its ordinal position in that track's clip list, the exact same ordinal
+  Launchpad Session view's own rows already address, so a block in the
+  arrangement grid and a row on the Launchpad agree on which physical pad
+  would trigger it. "Leading bar" means the first bar row where the
+  instance actually starts resolving as active for that track, not
+  necessarily the bar its own `start_row` falls in - an instance placed
+  off a bar boundary (hand-edited XML, not `copy-to-clip`'s own
+  bar-aligned extraction) only becomes visible on whichever bar's leading
+  row is the first at or past it, and that bar is still where the digit
+  belongs. A bar with no active instance falls back to a page/empty-page
+  glyph showing whether the background has anything there.
+- A clip instance's own colored block is two cells wide - a full
+  identifier cell (the digit above, or blank on a continuation bar) with
+  a half-width padding cell on either side, shared with whichever
+  neighboring track/grid edge sits there (drawn as a half-block
+  character, "▌", the same technique `PatternEditor::renderHeading()`'s
+  own `draw_edge()` uses for its column boundaries) - and uses the same
+  track color `PatternEditor`'s own heading row does
+  (`VisibleTrackInfo::getColor()`), not a separately-tuned shade.
+- Page Up/Down move the cursor a full screenful at a time (title and bar
+  rows both count); Backspace places a stop instance at the cursor's
+  (track, row) when it's on a bar row - the same layer-model semantics
+  `ArrangementOps.h`'s `placeStopInstance()` already gives Ctrl-K in
+  `PatternEditor`, just invoked from here instead.
+- Track ordinals (the old bold numeric column header) are removed
+  outright, with nothing taking their place - a track's own identity
+  color is enough to tell columns apart, the same way a clip block's own
+  color already does.
+- Carries forward from `PatternMatrix`: shared track/scene cursor with
+  `PatternEditor`/Launchpad, the virtual "one past the last scene" row.
+- **No copy/paste in the arrangement grid itself** - unlike
+  `PatternMatrix`, which had its own single-cell `kill-region`/
   `kill-ring-save`/`yank`. Placing/moving clip content is entirely
-  `copy-to-clip`/`insert-clip`'s job (Phase A), done from `PatternEditor`;
-  the grid is placement/overview only.
+  `copy-to-clip`'s job (Phase A), done from `PatternEditor`; the grid is
+  placement/overview only.
 - **You can only edit an instantiated clip, never the arrangement grid
   directly** - editing means going to any one of a clip's own instances
   (all live-linked, per Phase A) and editing it there in `PatternEditor`,
   the same as any other track content. The arrangement grid itself has no
-  note-editing surface of its own, matching `PatternMatrix` never having
-  had one either.
+  note-editing surface of its own.
 
 ## Phase D: visual unification with the drum machine
 
@@ -466,7 +515,7 @@ rename one, delete one outright, and toggle its loop flag - not
   picked today via Session view) worth having before designing a
   dedicated surface for them, rather than guessing now.
 - **Open:** exact widget shape - a new `UIElement` sibling of
-  `PatternMatrix`/`InstrumentList`, or reusing `HierarchyView`'s
+  `ArrangementGrid`/`InstrumentList`, or reusing `HierarchyView`'s
   currently-dead tree-list machinery (`UI.cpp`'s own `#if 0`-wrapped
   construction) - undecided.
 

@@ -454,8 +454,7 @@ TEST(recognized_and_unrecognized_generator_overrides_coexist_in_one_document) {
 // comment) - getOrCreateScene() is the write-intent counterpart that
 // actually grows the song instead, so a write aimed past the last real
 // Scene lands in real, persisted content rather than silently aliasing
-// into that sentinel (the exact bug PatternEditor's own note/annotation
-// entry and PatternMatrix's yank hit before each was moved onto this).
+// into that sentinel.
 TEST(get_or_create_scene_grows_the_song_up_to_the_requested_index) {
   Song song;
   CHECK(song.getScenes().size() == 0);
@@ -497,8 +496,8 @@ TEST(get_or_create_scene_is_a_real_distinct_scene_not_the_shared_sentinel) {
 
 // getTuningForTrack() is the single shared definition of "what does a
 // Note::getValue() on this track actually mean" - Song.cpp's <pattern>
-// reader/writer and PatternMatrix/PatternEditor's own clipboard
-// cross-tuning refusal all rely on it agreeing with itself.
+// reader/writer and PatternEditor's own clipboard cross-tuning refusal
+// both rely on it agreeing with itself.
 TEST(get_tuning_for_track_is_percussion_for_percussion_control) {
   Song song(Tuning::TET19);
   auto & track = song.addTrack(make_unique<PercussionTrack>());

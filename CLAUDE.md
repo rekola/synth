@@ -59,7 +59,7 @@ resolved cwd-relative first (running from the source tree), then from
 wherever `make install` put it (`InstallPaths.h.in`, baked in at configure
 time from `CMAKE_INSTALL_PREFIX`), falling back to a fresh empty buffer if
 neither is there. A brand new buffer defaults to Session/overview focus
-(`PatternMatrix`, not straight into note entry) and 31-EDO tuning.
+(`ArrangementGrid`, not straight into note entry) and 31-EDO tuning.
 
 ## Tests
 
@@ -361,8 +361,8 @@ whether or not a terminal UI exists at all.
 - **The drum machine** (`DrumMachineTrack`, up to `kMaxLanes` = 8 lanes,
   `getLaneNotes()`): its step data is a real per-scene `Pattern` like any
   other track's (a step is a `Note`), not track-global, so it's
-  copy/paste-able through `PatternMatrix` and renders as `PatternEditor`'s
-  own compact one-cell-per-lane view. On a Launchpad, it displays
+  copy/paste-able through `PatternEditor`'s own clipboard and renders as
+  its compact one-cell-per-lane view. On a Launchpad, it displays
   automatically as a step grid (rows = lanes, columns = steps) whenever
   the assigned track is a `DrumMachineTrack` and `GridMode` is `NOTES` -
   not a mode toggle of its own. CC98 (drum machine configuration, needs
@@ -400,18 +400,25 @@ whether or not a terminal UI exists at all.
   target, so holding it and pressing any pad in a column stops that
   column's own track (`handleStopClipButton()` just tracks the hold;
   `handleSessionPadEvent()` does the actual stopping).
-- **`PatternMatrix`** (`src/ui/PatternMatrix.h`/`.cpp`) - the terminal-side
-  counterpart: an always-visible scenes×tracks grid in the scope row,
-  four-state cell glyphs (sounding/has-content/empty/not-applicable for a
-  `DrumMachineTrack`), single-cell copy/paste under the same
-  `kill-region`/`kill-ring-save`/`yank` names `PatternEditor` uses (always
-  a deep copy - no referenced/shared patterns). Track/scene selection is
-  the one shared cursor Session view also follows.
-- **Defaults**: a fresh session opens on `PatternMatrix` (Session/overview
-  focus, `UI::initialize()`'s `active_element_`) rather than straight into
-  note entry, and `GridMode` defaults to `SESSION` on every connected
-  device - see the Run section above for the matching `songs/welcome.xml`/
-  31-EDO startup defaults.
+- **`ArrangementGrid`** (`src/ui/ArrangementGrid.h`/`.cpp`) - the terminal-
+  side counterpart: an always-visible overview in the scope row. A scene
+  is a title row (its own name, full width - scenes are told apart by
+  name, not by number; Enter on a title row edits it in place) followed
+  by its own bar rows, columns = tracks. A placed clip instance renders as
+  a colored block (that track's own identity color) spanning its own
+  active length in bars, its leading bar showing a single hex digit - its
+  ordinal position in that track's own clip list, the same index Session
+  view's own rows address - resolved the same way real playback does
+  (`ArrangementOps.h`'s `resolveInstanceAt()`). A bar with no active
+  instance falls back to a page/empty-page glyph showing whether the
+  background has anything there. No per-cell copy/paste - placing/moving
+  clip content is `copy-to-clip`'s own job, from `PatternEditor`. Track/
+  scene selection is the one shared cursor Session view also follows.
+- **Defaults**: a fresh session opens on `ArrangementGrid` (Session/
+  overview focus, `UI::initialize()`'s `active_element_`) rather than
+  straight into note entry, and `GridMode` defaults to `SESSION` on every
+  connected device - see the Run section above for the matching
+  `songs/welcome.xml`/31-EDO startup defaults.
 - e2e coverage: `tools/e2e/verify_launchpad_session.py` (see that
   directory's own `README.md`) covers Session view's basic trigger/assign
   path - CC96/CC97's own recent fixes and the CC49 hold+column-press

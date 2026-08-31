@@ -32,8 +32,8 @@ class Song : public SongObject {
   // resolve to raw GM note identity, not a pitch - see DrumMachineTrack.h/
   // PercussionTrack.h), this song's own tuning otherwise. The single
   // shared definition of this three-way check - Song.cpp's <pattern>
-  // reader/writer, PatternMatrix, and PatternEditor's own clipboard all
-  // need it (comparing two tracks' tunings is how each of those refuses a
+  // reader/writer and PatternEditor's own clipboard both need it
+  // (comparing two tracks' tunings is how each of those refuses a
   // cross-tuning copy/paste, since the same raw integer means a different
   // kind of value under a different tuning).
   Tuning getTuningForTrack(const Track & track) const {
@@ -310,7 +310,7 @@ class Song : public SongObject {
   // (or an Effect's) has no note to trigger, so every position-addressed
   // Launchpad call site (a device's assigned track, the auto-grow-to-
   // pressed-column loops) uses this, not getRootTrackIds() - mirrors
-  // PatternMatrix::getVisibleTrackIds()'s own identical filter, which
+  // ArrangementGrid::getVisibleTrackIds()'s own identical filter, which
   // exists for the same reason.
   std::vector<int> getPlayableTrackIds() const;
 

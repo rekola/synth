@@ -29,8 +29,8 @@ class PatternEditor : public UIElement {
   // to know that itself) gates the cursor/selection region highlight only
   // (renderRow()'s own use of styles.highlight_fg_color/highlight_bg_color) -
   // distracting otherwise, and ambiguous about which window a kill-ring-
-  // save/yank would actually target while PatternMatrix has focus instead.
-  // The playhead-row tint is untouched - that's transport state, not input
+  // save/yank would actually target while focus is elsewhere instead. The
+  // playhead-row tint is untouched - that's transport state, not input
   // focus, and stays visible either way.
   bool render(const StyleProvider & styles, bool refresh, bool focused);
   bool offerInput(const InputEvent & input) override;
@@ -65,14 +65,14 @@ class PatternEditor : public UIElement {
   int getEditStepSize() const { return edit_step_size; }
 
   // Called (from UI::initialize()) when plain Left is pressed with the
-  // cursor already at the very first track's first column - PatternMatrix's
-  // own leftward "there's nothing further this way, switch to the
-  // overview instead" edge, mirrored here rather than PatternEditor
-  // reaching for active_element_/pattern_matrix_ itself (same separation
-  // commit_callback_ establishes on the PatternMatrix side - see its own
-  // header comment). LaunchpadManager's own "prev-track" command hits the
-  // identical edge (see its setOverviewRequestCallback()) and is wired to
-  // the same UI-level handler, not a second implementation of it.
+  // cursor already at the very first track's first column - "there's
+  // nothing further this way, switch to the overview instead", via a
+  // callback rather than PatternEditor reaching for active_element_/the
+  // overview widget itself (same separation commit_callback_ establishes
+  // on the overview side - see ArrangementGrid.h's own header comment).
+  // LaunchpadManager's own "prev-track" command hits the identical edge
+  // (see its setOverviewRequestCallback()) and is wired to the same
+  // UI-level handler, not a second implementation of it.
   void setOverviewRequestCallback(std::function<void()> cb) { overview_request_callback_ = std::move(cb); }
 
   // Called whenever the UI thread learns of a new playhead position (see

@@ -6,7 +6,7 @@
 #include "InfoLine.h"
 #include "StatusLine.h"
 #include "PatternEditor.h"
-#include "PatternMatrix.h"
+#include "ArrangementGrid.h"
 #include "CoverArt.h"
 #include "SpinBox.h"
 #include "../model/Color.h"
@@ -49,9 +49,9 @@ UI::requestOverviewFocus() {
   // "from the right". Not symmetric with exitOverview() (always the first
   // track, regardless of which column was current here) - deliberately:
   // exiting always returns to the same, predictable starting point.
-  auto num_tracks = static_cast<int>(pattern_matrix_->getVisibleTrackIds(getController().getSong()).size());
-  pattern_matrix_->setCursorTrackIndex(max(0, num_tracks - 1));
-  active_element_ = pattern_matrix_;
+  auto num_tracks = static_cast<int>(arrangement_grid_->getVisibleTrackIds(getController().getSong()).size());
+  arrangement_grid_->setCursorTrackIndex(max(0, num_tracks - 1));
+  active_element_ = arrangement_grid_;
 }
 
 void
@@ -61,7 +61,7 @@ UI::exitOverview() {
 }
 
 void
-UI::commitOverviewCell(int track_id, int scene_idx) {
+UI::commitOverviewCell(int track_id, int scene_idx, int row) {
   // The whole commit refuses while playing - matches PatternEditor's own
   // move-row-up/move-row-down guard (row navigation only ever runs while
   // stopped), and avoids a commit that silently only did half of what it
@@ -70,11 +70,11 @@ UI::commitOverviewCell(int track_id, int scene_idx) {
 
   auto & song = getController().getSong();
   // NOTE: if PatternEditor's own mark/selection happens to still be active
-  // (selection_active_, unrelated to anything PatternMatrix/Launchpad
-  // does), setEditPosition() below clamps to the pattern that selection is
-  // in rather than actually jumping to scene_idx - a real, narrow edge
+  // (selection_active_, unrelated to anything this grid/Launchpad does),
+  // setEditPosition() below clamps to the pattern that selection is in
+  // rather than actually jumping to (scene_idx, row) - a real, narrow edge
   // case, not handled here.
-  getController().setEditPosition(scene_idx * song.getPatternLength());
+  getController().setEditPosition(scene_idx * song.getPatternLength() + row);
 
   auto track_ids = song.getRootTrackIds();
   auto it = find(track_ids.begin(), track_ids.end(), track_id);
@@ -88,16 +88,16 @@ void
 UI::initialize() {
   // chart and volume are missing
   pattern_editor_ = make_shared<PatternEditor>(getPlane());
-  pattern_matrix_ = make_shared<PatternMatrix>(getPlane());
-  // Enter commits the cell under PatternMatrix's own (local, passive)
-  // cursor to shared state - see PatternMatrix.h's own comment on why this
-  // is a callback rather than PatternMatrix reaching for PatternEditor/
+  arrangement_grid_ = make_shared<ArrangementGrid>(getPlane());
+  // Enter commits the cell under this grid's own (local, passive) cursor
+  // to shared state - see ArrangementGrid.h's own comment on why this is a
+  // callback rather than the grid reaching for PatternEditor/
   // active_element_ itself (it doesn't know either exists).
   // launchpad_manager_ isn't set yet at this point (UI::start() assigns
   // it later, after main.cpp's own ui.initialize()/ui.start() call order -
   // see that method for the equivalent Launchpad wiring), so that half of
   // commitOverviewCell()'s callers is wired there instead.
-  pattern_matrix_->setCommitCallback([this](int track_id, int scene_idx) { commitOverviewCell(track_id, scene_idx); });
+  arrangement_grid_->setCommitCallback([this](int track_id, int scene_idx, int row) { commitOverviewCell(track_id, scene_idx, row); });
   // Plain Left with nowhere further left to go - see PatternEditor's own
   // setOverviewRequestCallback() comment; Launchpad's prev-track hits the
   // same edge, wired in UI::start() below for the same launchpad_manager_-
@@ -106,7 +106,7 @@ UI::initialize() {
   // The reverse edge: Right past the last (rightmost) visible column -
   // lands on PatternEditor's own first track, same landing spot Launchpad's
   // own overview-exit already uses (see UI::start()'s equivalent wiring).
-  pattern_matrix_->setExitRightCallback([this]() { exitOverview(); });
+  arrangement_grid_->setExitRightCallback([this]() { exitOverview(); });
   cover_art_ = make_shared<CoverArt>(getPlane());
   info_line_ = make_shared<InfoLine>(getPlane());
   status_line_ = make_shared<StatusLine>(getPlane());
@@ -127,7 +127,7 @@ UI::initialize() {
   // own Session view as the more approachable starting point for a fresh
   // buffer (a bird's-eye view of tracks/scenes) rather than dropping
   // straight into note-by-note editing.
-  active_element_ = pattern_matrix_;
+  active_element_ = arrangement_grid_;
 
   commands_.define("save-buffers-kill-terminal", [this]() {
     if (getController().hasAnyUnsavedChanges()) {
@@ -279,12 +279,12 @@ UI::initialize() {
   commands_.define("exchange-point-and-mark", [this]() { pattern_editor_->executeCommand("exchange-point-and-mark"); });
 
   // other-window (C-x o): cycles focus to the next window. Only two
-  // focusable panes exist - pattern_editor_ and pattern_matrix_ - so this
+  // focusable panes exist - pattern_editor_ and arrangement_grid_ - so this
   // is a plain toggle between the two rather than a real cycle.
   commands_.define("other-window", [this]() {
-    active_element_ = (active_element_.lock() == pattern_matrix_)
+    active_element_ = (active_element_.lock() == arrangement_grid_)
       ? std::shared_ptr<UIElement>(pattern_editor_)
-      : std::shared_ptr<UIElement>(pattern_matrix_);
+      : std::shared_ptr<UIElement>(arrangement_grid_);
   });
 
   // Quit/save/open/save-as use Emacs's own C-x C-c/C-x C-s/C-x C-f/C-x C-w
@@ -409,8 +409,8 @@ UI::layout() {
   // cover_art_ claims the scope row's own leftmost columns first (the
   // literal top-left corner) - square-looking, sized off the row height
   // alone (see CoverArt::widthForHeight()), not the song's track count.
-  // pattern_matrix_ sits immediately right of it, sized off the song's own
-  // track count but capped, since its own internal scrolling handles
+  // arrangement_grid_ sits immediately right of it, sized off the song's
+  // own track count but capped, since its own internal scrolling handles
   // anything past that rather than this widget ever needing to be as wide
   // as the track list is long. chart_ gives up exactly that much width
   // (plus two divider columns) to make room; heatmap_/volume_meter_ are
@@ -422,13 +422,15 @@ UI::layout() {
   cover_art_->resize(kScopeHeight, cover_art_width).move(kScopeRow, 0);
 
   auto num_tracks = static_cast<int>(getController().getSong().getPlayableTrackIds().size());
-  // PatternMatrix spends 2 columns per track (its own cell plus a blank
-  // separator - see PatternMatrix.cpp's own kColWidth), so its width needs
-  // doubling here to actually fit the same track count this clamp implies.
-  int matrix_width = std::clamp(num_tracks, 4, 24) * 2;
+  // ArrangementGrid spends 2 columns per track (its own identifier cell
+  // plus a shared padding cell - see ArrangementGrid.cpp's own
+  // kColWidth) plus 1 more for the leading padding cell before the first
+  // track, so its width needs doubling (plus one) here to actually fit
+  // the same track count this clamp implies.
+  int matrix_width = std::clamp(num_tracks, 4, 24) * 2 + 1;
   int matrix_x = cover_art_divider_x + 1;
   int matrix_divider_x = matrix_x + matrix_width;
-  pattern_matrix_->resize(kScopeHeight, matrix_width).move(kScopeRow, matrix_x);
+  arrangement_grid_->resize(kScopeHeight, matrix_width).move(kScopeRow, matrix_x);
 
   int chart_x = matrix_divider_x + 1;
   int chart_width = std::max(1, cols - chart_x - 9 - kHeatmapWidth - 2); // -2 for the single-column dividers on either side of the heatmap
@@ -467,7 +469,7 @@ UI::renderComponents(bool refresh) {
   bool render = false;
   auto active = active_element_.lock();
   render |= pattern_editor_->render(styles_, refresh, active == pattern_editor_);
-  render |= pattern_matrix_->render(styles_, refresh, active == pattern_matrix_);
+  render |= arrangement_grid_->render(styles_, refresh, active == arrangement_grid_);
   render |= cover_art_->render(styles_, refresh);
   render |= info_line_->render(styles_, refresh);
   render |= octave_control_->render(styles_, refresh);
@@ -481,8 +483,8 @@ UI::renderComponents(bool refresh) {
     // wherever a press would actually land (see LaunchpadManager::
     // SessionWindow's own comment).
     LaunchpadManager::SessionWindow session;
-    session.track_ids = pattern_matrix_->getVisibleTrackIds(song);
-    session.cursor_scene_idx = pattern_matrix_->getCursorScene();
+    session.track_ids = arrangement_grid_->getVisibleTrackIds(song);
+    session.cursor_scene_idx = arrangement_grid_->getCursorScene();
     launchpad_manager_->refresh(song, track_ids, getController().getPlaybackInfo(),
       track_ids.empty() ? -1 : pattern_editor_->getCursorTrackIndex(), getController(), session);
   }
@@ -538,7 +540,7 @@ UI::offerInput(const InputEvent & input) {
     // a click landed anywhere on the status line's own row - which spans
     // the entire bottom row, so this was very easy to trigger by accident.
     bool activated = tryActivate(input.getY(), input.getX(), pattern_editor_);
-    activated = tryActivate(input.getY(), input.getX(), pattern_matrix_) || activated;
+    activated = tryActivate(input.getY(), input.getX(), arrangement_grid_) || activated;
     activated = tryActivate(input.getY(), input.getX(), octave_control_) || activated;
 
     // Fall back to the pattern editor - the default/main workspace - if the
@@ -877,10 +879,10 @@ UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launc
   launchpad_manager.setLaunchpadIO(&launchpad_io);
   launchpad_manager_ = &launchpad_manager;
   // "move-row-up"/"move-row-down" while in GridMode::SESSION move
-  // PatternMatrix's own scene cursor instead of scrolling a pad-grid row
+  // ArrangementGrid's own scene cursor instead of scrolling a pad-grid row
   // window - see LaunchpadManager::session_move_scene_callback_'s own
   // comment for why.
-  launchpad_manager.setSessionMoveSceneCallback([this](int delta) { pattern_matrix_->moveCursorScene(getController().getSong(), delta); });
+  launchpad_manager.setSessionMoveSceneCallback([this](int delta) { arrangement_grid_->moveCursorScene(getController().getSong(), delta); });
   // "next-track"/"prev-track" outside GridMode::SESSION move the one
   // shared cursor every connected Launchpad follows - see
   // LaunchpadManager::track_move_callback_'s own comment for why.

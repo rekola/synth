@@ -140,9 +140,10 @@ public:
   // not the exact numbers.
   // The hue alone - factored out of getColor() below so a caller that
   // wants this track's identity at a different saturation/lightness (e.g.
-  // PatternMatrix's cell glyphs, rendered as foreground text rather than a
-  // background bar - see PatternMatrix.cpp) doesn't have to duplicate the
-  // golden-angle formula to get the same hue getColor() would.
+  // a background-content fallback glyph, rendered as foreground text
+  // rather than a colored block - see ArrangementGrid.cpp) doesn't have to
+  // duplicate the golden-angle formula to get the same hue getColor()
+  // would.
   float getHue() const {
     constexpr float kGoldenAngle = 137.50776f;
     return std::fmod(static_cast<float>(color_ordinal_) * kGoldenAngle, 360.0f);

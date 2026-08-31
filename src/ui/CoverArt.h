@@ -8,7 +8,7 @@
 #include <algorithm>
 
 // Always-visible square thumbnail in the screen's top-left corner,
-// immediately left of PatternMatrix in the scope row (see UI::layout()).
+// immediately left of ArrangementGrid in the scope row (see UI::layout()).
 // Song carries no cover-art data at all yet (no image loading/storage
 // anywhere in this codebase), so this always shows the same framed-
 // picture placeholder glyph; once a real per-song image exists, render()
@@ -31,7 +31,7 @@ class CoverArt : public UIElement {
     current_rows_ = rows;
     current_cols_ = cols;
 
-    // Plain window background, same as PatternMatrix/InfoLine sit on - no
+    // Plain window background, same as ArrangementGrid/InfoLine sit on - no
     // border of its own either: UI::layout() already draws a "│" divider
     // column immediately on either side of this widget, so a full box here
     // would just double up on those two sides for no benefit. erase() alone

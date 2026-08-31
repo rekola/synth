@@ -114,7 +114,7 @@ SongStructure::visit(const Track & track) {
     // own), so its single effect-command column ends up rightmost, not
     // one more sibling among the tracks it sums. Not a LeafTrack, so
     // assign()'s own color_ordinal_ check leaves it uncolored - which is
-    // also what keeps it out of PatternMatrix (its own
+    // also what keeps it out of ArrangementGrid (its own
     // color_ordinal_ >= 0 filter) and out of the pattern editor's
     // colored/Mute-Solo heading path, with no further changes needed
     // anywhere else.

@@ -89,7 +89,7 @@ class LaunchpadManager {
   // declaration-arbitrary. SESSION is reached/left the same way as every
   // other mode in this list (toggleGridMode()/a physical button - CC95/96,
   // see handleRawButton()'s own comment) - purely per-device state, not
-  // tied to whether PatternMatrix has terminal UI focus: one connected
+  // tied to whether the overview widget has terminal UI focus: one connected
   // Launchpad can sit in Session view while another stays on NOTES.
   enum class GridMode { NOTES, SEND_MAIN, PAN, SEND_A, SEND_B, DRAW, SESSION };
   GridMode gridMode(int device_id) const;
@@ -98,7 +98,7 @@ class LaunchpadManager {
   // The Launchpad's own session/launch view, replacing what used to be a
   // plain arrangement-navigation overview (rows=scenes) - rows are now a
   // track's own available clips (Song::getClips()), columns are tracks,
-  // same layout PatternMatrix's own terminal grid uses. Which of two
+  // same layout ArrangementGrid's own terminal grid uses. Which of two
   // things a press does is gated by Record Arm (DeviceState::
   // capture_enabled), not a Session-specific toggle of its own (see
   // handleSessionPadEvent()'s own comment): armed, it assigns that clip's
@@ -109,28 +109,28 @@ class LaunchpadManager {
   // triggers the clip to start playing live for that track (quantized to
   // whatever's currently playing there finishing its own loop - see
   // triggerClipStep()), touching nothing in the song.
-  // `track_ids` is PatternMatrix's own filtered column list (color-
-  // eligible tracks only - PatternMatrix::getVisibleTrackIds()),
+  // `track_ids` is the overview's own filtered column list (color-
+  // eligible tracks only - ArrangementGrid::getVisibleTrackIds()),
   // deliberately not Song::getRootTrackIds(): a Launchpad in SESSION mode
   // must address the exact same columns the terminal widget does, not a
   // separately-derived list that could disagree with it. Passed to
   // refresh() every call regardless of which device (if any) currently has
-  // grid_mode == SESSION, or whether PatternMatrix has terminal focus -
+  // grid_mode == SESSION, or whether the overview has terminal focus -
   // it's just "where would an assign/audition press land right now,"
   // meaningful independent of both. No scroll position of any kind yet,
   // row or column - a track with more than 8 clips only shows
-  // the first 8 for now, and Up/Down instead move PatternMatrix's own
+  // the first 8 for now, and Up/Down instead move the overview's own
   // scene cursor (see session_move_scene_callback_'s own comment), not a
   // row window.
   struct SessionWindow {
     std::vector<int> track_ids;
-    // PatternMatrix's own current cursor scene (PatternMatrix::
+    // the overview's own current cursor scene (ArrangementGrid::
     // getCursorScene()) - which scene an "assign" press writes into.
     int cursor_scene_idx = 0;
   };
 
   // Called with +1/-1 when "move-row-up"/"move-row-down" is pressed while
-  // a device is in GridMode::SESSION - moves PatternMatrix's own scene
+  // a device is in GridMode::SESSION - moves the overview's own scene
   // cursor (see session_move_scene_callback_'s own comment) rather than
   // scrolling a pad-grid row window.
   void setSessionMoveSceneCallback(std::function<void(int delta)> cb) { session_move_scene_callback_ = std::move(cb); }
@@ -466,7 +466,7 @@ class LaunchpadManager {
     int grid_track_count = 0;
 
     // GridMode::SESSION: each of the 64 pads' own final LED color (x + y*8,
-    // y flipped from PatternMatrix's own top-down column order - see
+    // y flipped from the overview's own top-down column order - see
     // refresh()'s own comment), already fully resolved (identity hue,
     // triggered/queued brightening, off where a track has no clip in that
     // row) - refreshLeds() just reads this directly, same
@@ -713,8 +713,8 @@ class LaunchpadManager {
   // needing its own copy threaded through.
   SessionWindow session_;
   // "move-row-up"/"move-row-down" (CC91/92) while a device is in
-  // GridMode::SESSION move PatternMatrix's own scene cursor (via
-  // PatternMatrix::moveCursorScene()) rather than scrolling a pad-grid row
+  // GridMode::SESSION move the overview's own scene cursor (via
+  // ArrangementGrid::moveCursorScene()) rather than scrolling a pad-grid row
   // window - Session view's rows are a track's own clips, not
   // scenes, so there's no local row scroll for those buttons to drive; the
   // scene cursor is what an "assign" press actually targets (session_.

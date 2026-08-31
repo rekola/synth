@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="120" patternRows="8" volume="1.0">
+<song temperament="31edo" tempo="120" patternRows="64" volume="1.0">
   <instruments>
     <instrument from="bass.electric.finger"/>
   </instruments>
@@ -54,20 +54,18 @@
     </trackClips>
   </clips>
   <scenes>
-    <scene>
-      <pattern track="drums">
-        <note row="0" velocity="100" value="BD"/>
-        <note row="4" velocity="100" value="SD"/>
-      </pattern>
-      <pattern track="bass">
-        <note row="0" velocity="100" value="C-2"/>
-      </pattern>
+    <scene name="Intro">
+      <arrangement track="drums">
+        <instance row="0">0</instance>
+      </arrangement>
+      <arrangement track="bass">
+        <instance row="8">0</instance>
+      </arrangement>
     </scene>
-    <scene>
-      <pattern track="drums">
-        <note row="0" velocity="100" value="BD"/>
-        <note row="2" velocity="90" value="CH"/>
-      </pattern>
+    <scene name="Fill">
+      <arrangement track="drums">
+        <instance row="0">1</instance>
+      </arrangement>
     </scene>
   </scenes>
 </song>

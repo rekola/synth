@@ -523,7 +523,7 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id) {
   // Up/Down/Left/Right/Session/Note/Custom/Capture layout, are the only
   // way a Launchpad reaches/leaves GridMode::SESSION now - purely
   // per-device state, like every other toggle here, not tied to whether
-  // PatternMatrix has terminal UI focus at all: one connected Launchpad
+  // the overview widget has terminal UI focus at all: one connected Launchpad
   // can sit in Session view while another stays on ordinary note entry.
   // Session (95) toggles the same way SEND_MAIN/PAN/SEND_A/SEND_B above
   // do (toggleGridMode() - mutually exclusive, discards whatever mode was
@@ -720,7 +720,7 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
     return true;
   }
   if (name == "move-row-up" || name == "move-row-down") {
-    // Only meaningful in GridMode::SESSION - moves PatternMatrix's own
+    // Only meaningful in GridMode::SESSION - moves the overview's own
     // scene cursor via session_move_scene_callback_ (see that member's own
     // comment for why this doesn't scroll a local row window the way the
     // old plain-navigation overview did: Session view's rows are a
@@ -1749,11 +1749,11 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   // etc. above, and same reason this stays a plain Color array rather than
   // a DeviceState-nested computation: refreshLeds() only ever reads
   // DeviceState, never Song/PlaybackInfo directly (see its own branches).
-  // Computed unconditionally (not gated on anything PatternMatrix-focus-
+  // Computed unconditionally (not gated on anything overview-focus-
   // related) since which devices, if any, are actually showing Session
   // view is now purely each one's own CC95/96 toggle - see
   // handleRawButton()'s own comment. x = column, indexed into
-  // session.track_ids - PatternMatrix's own filtered column list, not
+  // session.track_ids - the overview's own filtered column list, not
   // track_ids above (this class's usual root-track-id parameter, which
   // includes non-color-eligible tracks Session view never shows a column
   // for); no column scroll yet (see SessionWindow's own comment). y is
@@ -1770,7 +1770,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     for (int x = 0; x < 8; x++) {
       if (x >= static_cast<int>(session.track_ids.size())) continue;
       auto session_track_id = session.track_ids[static_cast<size_t>(x)];
-      // Same hue/near-fully-saturated identity PatternMatrix's own
+      // Same hue/near-fully-saturated identity the overview's own
       // terminal glyphs use, but at its own, dimmer lightness: a directly-
       // emitted LED pixel at a given lightness reads brighter than the
       // same value does as terminal glyph text, so the two surfaces are
@@ -1810,7 +1810,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
 
     // Every device follows the one shared cursor now - no more per-device
     // assignment of its own (see track_move_callback_'s own comment). Out
-    // of range (e.g. -1, no track selected while PatternMatrix has focus)
+    // of range (e.g. -1, no track selected while the overview has focus)
     // is handled below by simply skipping the per-track lookups.
     auto track_index = fallback_track_index;
 
