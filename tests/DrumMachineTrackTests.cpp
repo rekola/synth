@@ -69,6 +69,29 @@ TEST(remove_lane_deletes_the_notes_referencing_it_from_every_scene) {
   CHECK(track.getLaneNotes() == expected);
 }
 
+TEST(remove_lane_deletes_the_notes_referencing_it_from_every_clip_too) {
+  // Same guarantee as the scene-background test above, extended to a
+  // clip's own leaf Pattern - step data placed there (ArrangementOps.h)
+  // is just as real as a scene's own background content, and a lane
+  // removal must clean it up the same way.
+  Song song;
+  auto & track = dynamic_cast<DrumMachineTrack &>(song.addTrack(make_unique<DrumMachineTrack>()));
+  track.addLane(36);
+  track.addLane(38);
+
+  Clip clip(track.getInternalId());
+  clip.getLeafPattern().setNote(0, 0, Note(36, 100));
+  clip.getLeafPattern().setNote(2, 0, Note(38, 100));
+  auto & added = song.addClip(move(clip));
+
+  track.removeLane(38, song);
+
+  CHECK(!track.hasLane(38));
+  auto & pattern = added.getLeafPattern();
+  CHECK(!pattern.getNote(2, 0).isDefined()); // the clip's own 38 is gone
+  CHECK(pattern.getNote(0, 0).getValue() == 36); // untouched
+}
+
 TEST(removing_and_re_adding_a_lane_starts_it_with_no_notes) {
   Song song;
   auto & track = dynamic_cast<DrumMachineTrack &>(song.addTrack(make_unique<DrumMachineTrack>()));

@@ -73,18 +73,29 @@ public:
   void seedDefaultKit();
 
   // Which of this track's own lane_notes_ are hit at pattern-relative row
-  // `pattern_row` of `pattern` (that scene's own Pattern for this track -
-  // the caller already has it, from Scene::getPatternsByTrack()) -
-  // resolved through Pattern::getEffectiveRow(pattern_row, context_length)
-  // first, so a shorter pattern's own loop repeats exactly like any other
-  // track's content does. A hit is a defined, sound-producing Note
-  // (isDefined() && !isOff() && !isAftertouch()) at that row whose
-  // getValue() equals the lane's own GM number - filtered to lane_notes_
-  // (not just "every note present"), so a note left over from a removed
-  // lane, or pasted in from a track with a different kit, stays silently
-  // inert rather than firing or erroring. Order matches lane_notes_'s own
-  // (DrumRankTable) order, not row/column order.
+  // `pattern_row` of `pattern` (that scene's own Pattern for this track,
+  // or a clip's own leaf Pattern - see ArrangementOps.h - the caller
+  // already has it either way) - resolved through Pattern::
+  // getEffectiveRow(pattern_row, context_length) first, so a shorter
+  // pattern's own loop repeats exactly like any other track's content
+  // does. A hit is a defined, sound-producing Note (isDefined() &&
+  // !isOff() && !isAftertouch()) at that row whose getValue() equals the
+  // lane's own GM number - filtered to lane_notes_ (not just "every note
+  // present"), so a note left over from a removed lane, or pasted in from
+  // a track with a different kit, stays silently inert rather than firing
+  // or erroring. Order matches lane_notes_'s own (DrumRankTable) order,
+  // not row/column order. A thin wrapper over getHitNotesAtRow() below,
+  // for a caller that hasn't already resolved the row itself.
   std::vector<int> getHitNotesForRow(const Pattern & pattern, int pattern_row, int context_length) const;
+
+  // getHitNotesForRow()'s own notes-scan, given an already-resolved row -
+  // for a caller that already has one from ArrangementOps.h's
+  // resolveReadTarget() (ReadTarget::effective_row), which is already
+  // wrapped against the *correct* context length (a clip's own length, or
+  // song.getPatternLength() for the background) - calling
+  // getHitNotesForRow() on an already-wrapped row would risk wrapping it
+  // a second time against the wrong one.
+  std::vector<int> getHitNotesAtRow(const Pattern & pattern, int effective_row) const;
 
 private:
   std::vector<int> lane_notes_;

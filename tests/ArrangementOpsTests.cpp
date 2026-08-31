@@ -5,6 +5,7 @@
 #include "../src/model/Scene.h"
 #include "../src/model/Clip.h"
 #include "../src/model/InstrumentTrack.h"
+#include "../src/model/DrumMachineTrack.h"
 
 using namespace std;
 
@@ -195,4 +196,40 @@ TEST(resolve_instance_at_survives_a_reorder_of_the_clip_list) {
   CHECK(song.getClips(track_id)[1].getId() == a_id);
 
   CHECK(resolveInstanceAt(song, scene, track_id, 0).clip_index == 1); // follows a to its new position
+}
+
+// The exact mechanism LaunchpadManager::handleStepGridPadEvent()/
+// triggerAuditionStep()/the LED-state builder now delegate to instead of
+// reading/writing the scene's background Pattern directly - a step
+// written while a clip instance is active must land in the clip's own
+// leaf Pattern, live-linked, not the background, and reading it back
+// must resolve to the same place. DrumMachineTrack specifically, since
+// nothing else exercises resolveEditTarget()/resolveReadTarget() with one.
+TEST(resolve_edit_and_read_target_route_drum_machine_steps_through_a_clip) {
+  Song song;
+  song.setPatternLength(64);
+  auto & track = dynamic_cast<DrumMachineTrack &>(song.addTrack(make_unique<DrumMachineTrack>()));
+  track.addLane(36);
+  auto track_id = track.getInternalId();
+
+  Clip clip(track_id);
+  clip.setLength(8);
+  clip.setLooping(true);
+  song.addClip(move(clip)); // index 0
+
+  auto & scene = song.addScene();
+  placeClipInstance(song, scene, track_id, 0, 0);
+
+  // Write step 2, the same call handleStepGridPadEvent() now makes.
+  auto edit_target = resolveEditTarget(song, scene, track_id, 2);
+  edit_target.pattern->setNote(edit_target.effective_row, 0, Note(36, 100));
+
+  // Read it back the same way triggerAuditionStep()/the LED builder now do.
+  auto read_target = resolveReadTarget(song, scene, track_id, 2);
+  CHECK(read_target.is_instance);
+  CHECK(track.getHitNotesAtRow(*read_target.pattern, read_target.effective_row) == (vector<int>{ 36 }));
+
+  // It landed in the clip's own leaf Pattern, not the scene's background.
+  CHECK(song.getClips(track_id)[0].getLeafPattern().getNote(2, 0).getValue() == 36);
+  CHECK(!scene.getNote(2, track_id, 0).isDefined());
 }

@@ -635,14 +635,19 @@ LaunchpadManager::handleDrumConfigButton(int device_id, bool is_press, DrumMachi
   state.drum_config_pressed = false;
   auto held = std::chrono::steady_clock::now() - state.drum_config_press_time;
   if (held >= kDrawClearHoldThreshold) {
-    // Long hold: clear this track's step content in the *current* scene
-    // (its own Pattern now, not a track-global map) back to all-rest - the
+    // Long hold: clear this track's step content back to all-rest - the
     // lane list itself (which notes have a lane at all) is untouched, only
-    // the picker's own quick-tap gesture below removes lanes.
+    // the picker's own quick-tap gesture below removes lanes. Clears
+    // whatever's actually active at the current row (ArrangementOps.h's
+    // own resolveEditTarget()) - a placed clip instance's own live-linked
+    // Pattern, or this track's own background Pattern otherwise - the
+    // same "reach through to the clip" behavior every other instance-aware
+    // edit already has, not a special case.
     auto & song = controller.getSong();
     auto & info = controller.getPlaybackInfo();
     auto & scene = song.getOrCreateScene(info.getPatternIndex());
-    scene.setPatternForTrack(assigned_drum_track->getInternalId(), Pattern());
+    auto edit_target = resolveEditTarget(song, scene, assigned_drum_track->getInternalId(), info.getRowIndex());
+    *edit_target.pattern = Pattern();
     song.incVersion();
   } else {
     state.picker_active = !state.picker_active;
@@ -1287,15 +1292,22 @@ LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & co
     auto & song = controller.getSong();
     auto & info = controller.getPlaybackInfo();
     auto & scene = song.getOrCreateScene(info.getPatternIndex());
-    auto & row_notes = scene.getNotes(x, track_id);
+    // Writes into whatever's actually active at this row - an active clip
+    // instance's own (live-linked) Pattern, or this track's own
+    // background Pattern otherwise (ArrangementOps.h's own
+    // resolveEditTarget()) - x is already exactly the row this resolves
+    // against (the step grid addresses rows 0-7 directly, no scrolling
+    // window), same as the ordinary NOTES-mode pad press just above.
+    auto edit_target = resolveEditTarget(song, scene, track_id, x);
+    auto & row_notes = edit_target.pattern->getNotes(edit_target.effective_row);
     int existing_column = -1;
     for (size_t i = 0; i < row_notes.size(); i++) {
       auto & n = row_notes[i];
       if (n.isDefined() && !n.isOff() && !n.isAftertouch() && n.getValue() == note) { existing_column = static_cast<int>(i); break; }
     }
     bool was_hit = existing_column >= 0;
-    if (was_hit) scene.deleteNote(x, track_id, existing_column);
-    else scene.setNote(x, track_id, y, Note(note, static_cast<short>(constants::DEFAULT_VELOCITY)));
+    if (was_hit) edit_target.pattern->deleteNote(edit_target.effective_row, existing_column);
+    else edit_target.pattern->setNote(edit_target.effective_row, y, Note(note, static_cast<short>(constants::DEFAULT_VELOCITY)));
     song.incVersion();
 
     // Auditions at a fixed velocity - pad pressure/aftertouch are both
@@ -1367,19 +1379,23 @@ LaunchpadManager::triggerAuditionStep(const Song & song, const vector<int> & tra
   auto & event_queue = controller.getPlaybackEventQueue();
   auto & info = controller.getPlaybackInfo();
   auto & scene = song.getScene(info.getPatternIndex()); // read-only audition - never grows the song
-  auto & patterns = scene.getPatternsByTrack();
 
   for (auto track_id : track_ids) {
     auto track = song.getMasterTrack().getChildByInternalId(track_id);
     if (!track || track->getType() != TrackType::DRUM_MACHINE) continue;
     auto & drum_track = static_cast<const DrumMachineTrack &>(*track);
 
-    auto pattern_it = patterns.find(track_id);
-    if (pattern_it == patterns.end()) continue;
+    // Whatever's actually active at this row (ArrangementOps.h's own
+    // resolveReadTarget()) - a placed clip instance's own content, or
+    // this track's own background Pattern otherwise. Never null (falls
+    // back to a shared empty Pattern), so there's no separate "nothing
+    // here" guard needed the way a direct getPatternsByTrack() lookup
+    // would have.
+    auto read_target = resolveReadTarget(song, scene, track_id, step);
 
     // No explicit STOP_NOTE - a one-shot note-on per hit, relying on the
     // instrument's own envelope/choke machinery for anything past that.
-    for (int note : drum_track.getHitNotesForRow(pattern_it->second, step, song.getPatternLength())) {
+    for (int note : drum_track.getHitNotesAtRow(*read_target.pattern, read_target.effective_row)) {
       auto velocity = static_cast<short>(constants::DEFAULT_VELOCITY);
       event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), track_id, note, note, velocity));
     }
@@ -1848,20 +1864,21 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       if (is_drum_machine) {
         auto & drum_track = static_cast<const DrumMachineTrack &>(*track);
         drum_lane_notes = drum_track.getLaneNotes();
-        // A lane's own hit state, this scene - by value (getHitNotesForRow(),
+        // A lane's own hit state, this scene - by value (getHitNotesAtRow(),
         // matching handleStepGridPadEvent()'s own by-value "was_hit" check),
-        // not by assuming it's sitting at this lane's usual column.
+        // not by assuming it's sitting at this lane's usual column. Per
+        // step, whatever's actually active at that row (ArrangementOps.h's
+        // own resolveReadTarget()) - a placed clip instance's own content,
+        // or this track's own background Pattern otherwise - rather than
+        // one background-only lookup reused across all 8 steps.
         auto & drum_scene = song.getScene(playback_info.getPatternIndex());
-        auto & drum_patterns = drum_scene.getPatternsByTrack();
-        auto drum_pattern_it = drum_patterns.find(track_id);
-        if (drum_pattern_it != drum_patterns.end()) {
-          for (int step = 0; step < 8; step++) {
-            for (int hit_note : drum_track.getHitNotesForRow(drum_pattern_it->second, step, song.getPatternLength())) {
-              auto lane_it = find(drum_lane_notes.begin(), drum_lane_notes.end(), hit_note);
-              if (lane_it == drum_lane_notes.end()) continue;
-              auto lane_index = static_cast<size_t>(lane_it - drum_lane_notes.begin());
-              drum_lane_steps[lane_index] = static_cast<uint8_t>(drum_lane_steps[lane_index] | (1u << step));
-            }
+        for (int step = 0; step < 8; step++) {
+          auto read_target = resolveReadTarget(song, drum_scene, track_id, step);
+          for (int hit_note : drum_track.getHitNotesAtRow(*read_target.pattern, read_target.effective_row)) {
+            auto lane_it = find(drum_lane_notes.begin(), drum_lane_notes.end(), hit_note);
+            if (lane_it == drum_lane_notes.end()) continue;
+            auto lane_index = static_cast<size_t>(lane_it - drum_lane_notes.begin());
+            drum_lane_steps[lane_index] = static_cast<uint8_t>(drum_lane_steps[lane_index] | (1u << step));
           }
         }
         // While playing, the real song position; while stopped, the

@@ -92,6 +92,13 @@ DrumMachineTrack::removeLane(int note, Song & song) {
     if (pattern_it == patterns.end()) continue;
     pattern_it->second.deleteNotesWithValue(note);
   }
+
+  // Same cleanup across this track's own clips (ArrangementOps.h) - a
+  // clip's leaf Pattern is step data too, just not living directly in any
+  // one scene's own background.
+  for (auto & clip : song.getClips(track_id)) {
+    clip.getLeafPattern().deleteNotesWithValue(note);
+  }
 }
 
 void
@@ -101,9 +108,13 @@ DrumMachineTrack::clearAllLanes(Song & song) {
 
 vector<int>
 DrumMachineTrack::getHitNotesForRow(const Pattern & pattern, int pattern_row, int context_length) const {
+  return getHitNotesAtRow(pattern, pattern.getEffectiveRow(pattern_row, context_length));
+}
+
+vector<int>
+DrumMachineTrack::getHitNotesAtRow(const Pattern & pattern, int effective_row) const {
   vector<int> hits;
-  auto row = pattern.getEffectiveRow(pattern_row, context_length);
-  auto & notes = pattern.getNotes(row);
+  auto & notes = pattern.getNotes(effective_row);
   for (int lane_note : lane_notes_) {
     for (auto & note : notes) {
       if (note.isDefined() && !note.isOff() && !note.isAftertouch() && note.getValue() == lane_note) {

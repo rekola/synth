@@ -680,13 +680,21 @@ own clip viewer instead.)
   scene, the same "cut off wherever the context ends" behavior
   `Pattern.h` already documents for the pre-clip model. Not worth solving
   given how narrow the case is, but not fully gone either.
-- **The drum machine track moving to clips entirely** - today a
-  `DrumMachineTrack`'s step data is a plain per-scene `Pattern`, written
-  straight into the scene's background regardless of any instance placed
-  there (`LaunchpadManager::handleStepGridPadEvent()`, untouched by the
-  instance-aware editing above, deliberately). Once it moves to being
-  addressed through clips like every other track, its own step grid
-  would need the same `resolveEditTarget()`/`resolveReadTarget()`
-  routing everything else already has. Not started - noted here as the
-  reason that one write path was left as it is rather than made
-  instance-aware alongside the rest.
+- **Landed: the drum machine track moving to clips.** `PatternEditor`'s
+  own step editing (rendering and keyboard entry) already went through
+  `resolveEditTarget()`/`resolveReadTarget()` via the generic note-column
+  path - the actual gap was `LaunchpadManager.cpp`'s four drum-specific
+  call sites (`handleStepGridPadEvent()`'s PRESS write,
+  `handleDrumConfigButton()`'s long-hold clear, `triggerAuditionStep()`,
+  and the LED-state builder's `drum_lane_steps` computation), all
+  reading/writing the scene's background `Pattern` directly instead of
+  through `ArrangementOps.h` - now routed the same way the very next
+  (ordinary NOTES-mode) handler in the same file already was.
+  `DrumMachineTrack::getHitNotesForRow()` gained a sibling,
+  `getHitNotesAtRow(pattern, effective_row)`, for a caller that already
+  has a `resolveReadTarget()`-resolved row (avoids double-wrapping against
+  the wrong context length). `DrumMachineTrack::removeLane()`'s own
+  per-scene cleanup fan-out now also reaches every one of the track's own
+  clips, not just backgrounds. `ArrangementGrid`/`SessionView`/
+  `copy-to-clip` needed no changes - already fully generic over track
+  type.
