@@ -12,6 +12,7 @@
 #include "../model/InstrumentTrack.h"
 #include "../model/DrumMachineTrack.h"
 #include "../model/SongStructure.h"
+#include "../model/ArrangementOps.h"
 #include "../Controller.h"
 #include "../util/constants.h"
 #include "../model/Color.h"
@@ -875,13 +876,14 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
 
   if (ev.getKind() == LaunchpadPadEvent::PRESS) {
     auto row = info.getRowIndex();
-    // A shorter-than-song-length Pattern repeats (Pattern.h's own
-    // getEffectiveRow() comment) - the row actually read/written below is
-    // this track's own effective one, not necessarily the raw playhead
-    // row; `row` itself stays raw for recordActiveNote()'s own
-    // held-note bookkeeping (a same-row-or-not comparison against a
-    // later release, unaffected by any remap).
-    auto effective_row = scene.getEffectiveRow(track_id, row, song.getPatternLength());
+    // Writes into whatever's actually active at this row - an active clip
+    // instance's own (live-linked) Pattern, or this track's own
+    // background Pattern otherwise (ArrangementOps.h's own
+    // resolveEditTarget()), at that Pattern's own resolved row; `row`
+    // itself stays raw for recordActiveNote()'s own held-note bookkeeping
+    // (a same-row-or-not comparison against a later release, unaffected
+    // by any remap).
+    auto edit_target = resolveEditTarget(song, scene, track_id, row);
     auto & state = deviceState(device_id);
 
     // Whether this press is about to become the first captured (Capture-
@@ -931,7 +933,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // column to every simultaneously-held note, each PLAY_NOTE silently
     // stealing the previous one's voice (Player.cpp's
     // stopVoices(column)) and killing polyphony entirely.
-    auto & notes = scene.getNotes(effective_row, track_id);
+    auto & notes = edit_target.pattern->getNotes(edit_target.effective_row);
     int note_column = 0;
     while ((note_column < static_cast<int>(notes.size()) && notes[static_cast<size_t>(note_column)].isDefined()) ||
 	   isColumnLiveHeld(track_id, note_column)) {
@@ -945,7 +947,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
 
     if (state.capture_enabled) {
       Note note(note_value, velocity, current_delay);
-      scene.setNote(effective_row, track_id, note_column, note);
+      edit_target.pattern->setNote(edit_target.effective_row, note_column, note);
       song.incVersion();
     }
 
@@ -1147,15 +1149,25 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
     return;
   }
 
-  // Assigning (Record Arm on): a copy into the pressed column's track at
-  // the Matrix's own current scene - never a live reference back to the
-  // clip. Deliberately stays in Session view rather than switching focus
-  // away - a player assigning several patterns in a row needs to keep
-  // pressing pads, not get bounced out after the first one. Nothing to
-  // assign from an empty row.
+  // Assigning (Record Arm on): places a real instance event - the
+  // arrangement layer's own start-only, tracker-idiom placement
+  // (ArrangementOps.h's placeClipInstance(), the same one real playback
+  // resolves), not a live reference back to the clip. Deliberately stays
+  // in Session view rather than switching focus away - a player assigning
+  // several patterns in a row needs to keep pressing pads, not get
+  // bounced out after the first one. Nothing to assign from an empty row.
   if (!has_pattern_here) return;
   auto & scene = song.getOrCreateScene(session_.cursor_scene_idx);
-  scene.setPatternForTrack(track_id, clips[static_cast<size_t>(clip_index)].getLeafPattern());
+  // The exact row playback is currently at, when the pressed column's
+  // scene is the one actually playing right now - true live-recording,
+  // matching a real note-on's own timing. Falls back to row 0 (a whole-
+  // scene placement, closest to what plain scene-navigation used to
+  // write here before the instance layer existed) when it isn't - there's
+  // no live position to record against in a scene that isn't currently
+  // playing.
+  auto & playback_info = controller.getPlaybackInfo();
+  auto row = playback_info.getPatternIndex() == session_.cursor_scene_idx ? playback_info.getRowIndex() : 0;
+  placeClipInstance(song, scene, track_id, row, clip_index);
   song.incVersion();
 }
 

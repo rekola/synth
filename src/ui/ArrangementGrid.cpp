@@ -247,7 +247,7 @@ bool barHasBackgroundContent(const Scene & scene, int track_id, int raw_row, int
 }
 
 bool
-ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
+ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused, int selected_track_id) {
   auto & song = getController().getSong();
   auto track_ids = getVisibleTrackIds(song);
   auto num_scenes = static_cast<int>(song.getScenes().size());
@@ -303,7 +303,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
       cursor_scene_ == current_cursor_scene_ && cursor_bar_ == current_cursor_bar_ &&
       cursor_track_index_ == current_cursor_track_index_ &&
       scroll_row_ == current_scroll_row_ && scroll_col_ == current_scroll_col_ &&
-      focused == current_focused_) {
+      focused == current_focused_ && selected_track_id == current_selected_track_id_) {
     return false;
   }
   force_redraw_ = false;
@@ -315,6 +315,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   current_cursor_track_index_ = cursor_track_index_;
   current_scroll_row_ = scroll_row_;
   current_scroll_col_ = scroll_col_;
+  current_selected_track_id_ = selected_track_id;
   current_focused_ = focused;
 
   setFgColor(styles.window_fg_color);
@@ -465,6 +466,16 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
       prev_start_row[static_cast<size_t>(vc)] = cur_start_row;
 
       if (is_playing_row) bg = bg.blend(0.15f, kWhite);
+
+      // The shared/global track selection's own column, every row - a
+      // light tint (not the full highlight below, which stays reserved
+      // for this widget's own exact cursor cell) so the selected column
+      // stays visible regardless of which widget has focus, matching the
+      // one shared track cursor Launchpad Session view already follows -
+      // not gated on `focused` for that same reason.
+      if (track_index < num_tracks && track_ids[static_cast<size_t>(track_index)] == selected_track_id) {
+        bg = bg.blend(0.25f, styles.highlight_bg_color);
+      }
 
       // Distracting otherwise, and ambiguous about which window Enter
       // would actually commit - see PatternEditor's own equivalent

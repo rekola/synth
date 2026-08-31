@@ -91,6 +91,23 @@ B/C/D:
   above - what's still outstanding: bar alignment beyond what
   `copy-to-clip` already does, and stable clip identity/usage tracking (a
   clip is still addressed by (track_id, vector position) only).
+- **Editing a placed instance is live-linked**, as designed above -
+  `ArrangementOps.h`'s `resolveEditTarget()`/`resolveReadTarget()`
+  resolve every note/command read and write (`PatternEditor`'s own
+  rendering, raw-key and MIDI note entry, `Controller::writeReleaseOff()`/
+  `applyNotePressure()`, and the Launchpad's own ordinary pad-press note
+  entry) to the active clip's own `Pattern` when the cursor/row falls
+  inside a placed instance, the scene's background `Pattern` otherwise -
+  the same resolution real playback uses, so what you see and edit always
+  matches what's actually going to play. The Launchpad Session view's own
+  "assign" (Record Arm on) now places a real instance
+  (`placeClipInstance()`) instead of overwriting the scene's background
+  outright, the way it still did until this landed. Not yet
+  instance-aware: the drum machine's own step grid
+  (`LaunchpadManager::handleStepGridPadEvent()`) still writes straight
+  into the scene's background regardless of any instance placed there -
+  left alone since the drum machine is expected to move to clips
+  entirely, a separate, later change.
 - **`ArrangementGrid`** (Phase C, `src/ui/ArrangementGrid.h`/`.cpp`) -
   replaces `PatternMatrix` outright; see that phase's own section.
 - e2e coverage: `tools/e2e/verify_launchpad_session.py`,
@@ -481,10 +498,16 @@ once Phase C's own clip rendering actually exists to converge toward.
 
 ## Phase E: clip viewer
 
-A dedicated per-track clip list, showing every clip in a track's own
-`Song::getClips(track_id)` (name, loop flag, length) with commands to
-rename one, delete one outright, and toggle its loop flag - not
-`PatternEditor` and not the Arrangement grid (Phase C):
+A live-performance session overview, terminal-side - every track shown
+side by side (not just one), each with its own clip list
+(`Song::getClips(track_id)`: name, loop flag, length) with commands to
+rename one, delete one outright, and toggle its loop flag, alongside that
+track's own important parameters (at minimum send levels/pan/mute/solo -
+whatever a Launchpad already exposes per-track in SEND_MAIN/PAN/SEND_A/
+SEND_B mode is the natural starting set) and a VU meter. The terminal-side
+counterpart to what the Launchpad's own Session view already does with
+real hardware pads - not `PatternEditor` and not the Arrangement grid
+(Phase C):
 
 - **Not `PatternEditor`.** A clip's own name/loop/length are properties
   of the clip object itself, not of any one row of its content - there's
@@ -596,3 +619,13 @@ own clip viewer instead.)
   scene, the same "cut off wherever the context ends" behavior
   `Pattern.h` already documents for the pre-clip model. Not worth solving
   given how narrow the case is, but not fully gone either.
+- **The drum machine track moving to clips entirely** - today a
+  `DrumMachineTrack`'s step data is a plain per-scene `Pattern`, written
+  straight into the scene's background regardless of any instance placed
+  there (`LaunchpadManager::handleStepGridPadEvent()`, untouched by the
+  instance-aware editing above, deliberately). Once it moves to being
+  addressed through clips like every other track, its own step grid
+  would need the same `resolveEditTarget()`/`resolveReadTarget()`
+  routing everything else already has. Not started - noted here as the
+  reason that one write path was left as it is rather than made
+  instance-aware alongside the rest.

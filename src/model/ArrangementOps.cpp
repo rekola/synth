@@ -3,6 +3,7 @@
 #include "Song.h"
 #include "Scene.h"
 #include "Clip.h"
+#include "Pattern.h"
 
 using namespace std;
 
@@ -51,4 +52,34 @@ resolveInstanceAt(const Song & song, const Scene & scene, int track_id, int row)
     if (row - event_row >= length) return { Scene::kNoInstance }; // one-shot already finished
   }
   return { clip_index, event_row };
+}
+
+EditTarget
+resolveEditTarget(Song & song, Scene & scene, int track_id, int row) {
+  auto active = resolveInstanceAt(song, scene, track_id, row);
+  if (active.clip_index >= 0) {
+    auto & clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
+    auto & pattern = clip.getLeafPattern();
+    auto length = clip.getLength() > 0 ? clip.getLength() : 1;
+    return { &pattern, pattern.getEffectiveRow(row - active.start_row, length) };
+  }
+  auto & pattern = scene.getPatternsByTrack()[track_id];
+  return { &pattern, pattern.getEffectiveRow(row, song.getPatternLength()) };
+}
+
+ReadTarget
+resolveReadTarget(const Song & song, const Scene & scene, int track_id, int row) {
+  static const Pattern empty_pattern;
+  auto active = resolveInstanceAt(song, scene, track_id, row);
+  if (active.clip_index >= 0) {
+    auto & clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
+    auto & pattern = clip.getLeafPattern();
+    auto length = clip.getLength() > 0 ? clip.getLength() : 1;
+    auto unwrapped_row = row - active.start_row;
+    return { &pattern, pattern.getEffectiveRow(unwrapped_row, length), unwrapped_row, true };
+  }
+  auto & patterns = scene.getPatternsByTrack();
+  auto it = patterns.find(track_id);
+  if (it == patterns.end()) return { &empty_pattern, 0, row, false };
+  return { &it->second, it->second.getEffectiveRow(row, song.getPatternLength()), row, false };
 }

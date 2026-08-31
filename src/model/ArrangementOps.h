@@ -3,6 +3,7 @@
 
 class Song;
 class Scene;
+class Pattern;
 
 // Places a real-clip instance event (clip_index - the clip's own ordinal
 // position in track_id's own clip list, Song::getClips(track_id)) at
@@ -46,5 +47,37 @@ struct ActiveInstance {
 // this track at or before `row` at all (or a stale clip_index no longer
 // resolves to a real clip).
 ActiveInstance resolveInstanceAt(const Song & song, const Scene & scene, int track_id, int row);
+
+// What editing (track_id, row) in `scene` should actually read/write -
+// the active clip's own leaf Pattern, live-linked to every other
+// placement of it (editing through one instance updates them all), when
+// resolveInstanceAt() finds a real clip active there; the scene's own
+// background Pattern otherwise (an explicit stop resolves the same way
+// as no instance at all - a stop has no Pattern of its own to edit, only
+// the background underneath it, currently inaudible only because of the
+// stop event itself). `effective_row` mirrors exactly what real playback
+// (SongState.h's own renderBlock()) reads at the same (track_id, row) -
+// editing here always changes what's actually going to play.
+struct EditTarget {
+  Pattern * pattern;
+  int effective_row;
+};
+EditTarget resolveEditTarget(Song & song, Scene & scene, int track_id, int row);
+
+// Read-only counterpart, for rendering - same resolution, but never
+// creates a background Pattern entry as a side effect of merely reading
+// (unlike Scene::getPatternsByTrack()[track_id], which would insert an
+// empty one on every render pass for every track that's never actually
+// been written to). `pattern` is never null - falls back to a shared,
+// permanently-empty Pattern when there's truly nothing to read, the same
+// "always something to hand back" sentinel convention Scene::getNotes()/
+// getCommand() already use for the no-Pattern-at-all case.
+struct ReadTarget {
+  const Pattern * pattern;
+  int effective_row; // wrapped by pattern's own length - what to actually read
+  int unwrapped_row; // row - (background: 0, a clip: the instance's own start_row) - for a caller that wants to tell a pattern's own real rows apart from a shorter one's repeat (row >= pattern->getLength()), which effective_row can't answer on its own once it's already wrapped
+  bool is_instance; // true when `pattern` is a real clip's own Pattern, false for the background - for a caller that wants to show the difference (e.g. PatternEditor's own instance-tinted rows)
+};
+ReadTarget resolveReadTarget(const Song & song, const Scene & scene, int track_id, int row);
 
 #endif

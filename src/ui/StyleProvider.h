@@ -23,11 +23,6 @@ class StyleProvider {
 
   Color command_column_color = "#c67610";
 
-  // A hit lane's cell background in DrumMachineTrack's compact
-  // step-sequencer NOTE column (PatternEditor::renderRow()) - dark enough
-  // for the row's own white-ish note text to stay readable on top.
-  Color drum_step_hit_bg_color = "#0e5f6e";
-
   // Same hue as command_column_color, but at half that color's lightness
   // and a moderately lower saturation - PatternEditor's master-track
   // ancestor row (a whole title bar, not text on a dark background).

@@ -64,8 +64,13 @@ class ArrangementGrid : public UIElement {
   // `focused` (whether this widget is UI::active_element_ - it has no way
   // to know that itself) gates the cursor-cell highlight only: distracting
   // otherwise, since it'd stay lit even while input is going somewhere
-  // else entirely (PatternEditor, most of the time).
-  bool render(const StyleProvider & styles, bool refresh, bool focused);
+  // else entirely (PatternEditor, most of the time). `selected_track_id`
+  // is the *shared* track selection (PatternEditor::getCursorTrackIndex(),
+  // resolved to a real id by UI - the same one Launchpad Session view
+  // already follows) - its own lighter column-wide tint shows regardless
+  // of focus, since it's not this widget's own local state to gate on
+  // that the way the cursor cell's is.
+  bool render(const StyleProvider & styles, bool refresh, bool focused, int selected_track_id);
   bool offerInput(const InputEvent & input) override;
 
   // Called (once, from UI::initialize()) with the (track_id, scene_idx,
@@ -149,6 +154,7 @@ class ArrangementGrid : public UIElement {
   int current_cursor_scene_ = -1, current_cursor_bar_ = -1, current_cursor_track_index_ = -1;
   int current_scroll_row_ = -1, current_scroll_col_ = -1;
   bool current_focused_ = false;
+  int current_selected_track_id_ = -1;
   // Set directly (not derivable from the dirty-check fields above) right
   // after opening or closing the rename reader - neither touches
   // Song::getMajorVersion() by itself (a cancel never touches the model

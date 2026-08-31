@@ -8,8 +8,11 @@ to SESSION, so a freshly connected device is already there. This confirms
 that default via the CC95/CC97 LED colors sent in the very first LED
 refresh, arms Record Arm (CC19) via its own dedicated button, then lets the
 simulated Launchpad X press pad (0,0) and checks that the resulting assign
-(LaunchpadManager::handleSessionPadEvent) actually copied the pool's own
-pattern content into the current scene."""
+(LaunchpadManager::handleSessionPadEvent) actually placed a real clip
+instance (ArrangementOps.h's placeClipInstance()) in the arrangement grid -
+not PatternEditor's own row display, which never resolves an instance's
+own content (only its scene's background pattern, untouched by an assign),
+so it wouldn't show this at all."""
 import sys, os, subprocess, time
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -24,12 +27,12 @@ def check(name, ok, extra=None):
     if not ok and extra:
         print("  ", extra)
 
-def find_pattern_row(screen, target="00"):
-    for y in range(screen.lines):
-        line = screen.display[y]
-        if line.strip().startswith(target) and "│" in line:
-            return y
-    return None
+def arrangement_grid_area(screen):
+    # The scope row (ArrangementGrid always occupies its own leftmost
+    # columns - see UI::layout()) - rows 1-5, a generous column slice wide
+    # enough for the grid regardless of exactly how much space CoverArt
+    # claims first.
+    return "\n".join(line[:40] for line in screen.display[1:6])
 
 fake_log = open(os.path.join(SCRIPT_DIR, "fake_launchpad_session.log"), "w")
 fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_session")], stderr=fake_log, stdout=fake_log)
@@ -47,27 +50,25 @@ if not vk.wait_ready(scr):
     os.kill(pid, 9)
     sys.exit(1)
 
-y = find_pattern_row(scr.screen)
-line_before = scr.screen.display[y]
-print("row 00 before any Launchpad input:", repr(line_before))
-check("Scene starts with the placeholder note (C-4)", "C-4" in line_before, line_before)
+grid_before = arrangement_grid_area(scr.screen)
+print("arrangement grid before any Launchpad input:")
+print(grid_before)
+check("No clip instance placed yet (no '7' - clip index 7's own digit - anywhere in the grid)",
+      "7" not in grid_before, grid_before)
 
 # fake_launchpad_session presses CC19 (Record Arm) ~6-7s after its own
 # startup, then pad (0,0) ~2s after that - poll robustly rather than a
 # single fixed sleep.
 deadline = time.time() + 15.0
-line_after = line_before
+grid_after = grid_before
 while time.time() < deadline:
     scr.pump(0.5)
-    y2 = find_pattern_row(scr.screen)
-    if y2 is not None:
-        line_after = scr.screen.display[y2]
+    grid_after = arrangement_grid_area(scr.screen)
 
-print("row 00 after simulated Record-Arm + pad (0,0) press:", repr(line_after))
-check("Pad press in Session view (Record Arm on) assigned pool index 7's own pattern (E-4) into the current scene",
-      "E-4" in line_after, line_after)
-check("The old placeholder note (C-4) is gone - a real assign, not a note added alongside it",
-      "C-4" not in line_after, line_after)
+print("arrangement grid after simulated Record-Arm + pad (0,0) press:")
+print(grid_after)
+check("Pad press in Session view (Record Arm on) placed clip index 7's own instance (digit '7') in the arrangement grid",
+      "7" in grid_after, grid_after)
 
 try:
     os.kill(pid, 9)
@@ -100,8 +101,8 @@ check("CC97 (Custom/DRAW) LED is dim by default (not showing DRAW mode active)",
 # checked here - the fake device only drains incoming SysEx once, right
 # after connecting (see fake_launchpad_button.c's identical precedent for
 # its own always-static button LEDs), so it never captures a later one. The
-# E-4 assign check above already proves capture_enabled_ actually flipped
-# true - a plain command couldn't have written into the scene otherwise.
+# instance-placement check above already proves capture_enabled_ actually
+# flipped true - the disarmed (trigger-live) path never places an instance.
 
 n_fail = sum(1 for _, ok in results if not ok)
 print(f"\n{len(results)-n_fail}/{len(results)} checks passed")

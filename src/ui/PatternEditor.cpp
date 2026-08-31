@@ -1158,9 +1158,11 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
   // MIDI note entry writes - see Song::getOrCreateScene()'s own comment.
   auto & scene = song.getOrCreateScene(info.getPatternIndex());
   int track_id = track_ids[static_cast<size_t>(new_cursor.track)];
-  // See offerInput()'s own raw-key note entry for why this is the row
-  // actually written, not the raw playhead one.
-  auto effective_row = scene.getEffectiveRow(track_id, info.getRowIndex(), song.getPatternLength());
+  // Writes into whatever's actually active at the cursor's row - an
+  // active clip instance's own (live-linked) Pattern, or this track's own
+  // background Pattern otherwise - see offerInput()'s own raw-key note
+  // entry for the same resolution.
+  auto edit_target = resolveEditTarget(song, scene, track_id, info.getRowIndex());
 
   // Channel-wide, not tied to any specific note - unlike every other case
   // below, ev.getNote() is unused (always 0, see AlsaAudio.cpp), so this
@@ -1203,12 +1205,12 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
     active_midi_notes.erase(ev.getNote());
     event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, note_column));
 
-    scene.setNote(effective_row, track_id, note_column, Note(0, 0, current_delay));
+    edit_target.pattern->setNote(edit_target.effective_row, note_column, Note(0, 0, current_delay));
   } else if (ev.getType() == MidiEvent::NOTE_ON) {
     event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, getController().getActiveBufferName(), track_id, note_column, note_value, ev.getVelocity()));
 
     Note note(note_value, ev.getVelocity(), current_delay);
-    scene.setNote(effective_row, track_id, note_column, note);
+    edit_target.pattern->setNote(edit_target.effective_row, note_column, note);
     row_edited = true;
     song.incMinorVersion();
   } else if (ev.getType() == MidiEvent::NOTE_PRESSURE) {
@@ -1656,12 +1658,14 @@ PatternEditor::offerInput(const InputEvent & input) {
       // Song::getOrCreateScene()'s own comment.
       auto & scene = song.getOrCreateScene(info.getPatternIndex());
       int track_id = track_ids[static_cast<size_t>(new_cursor.track)];
-      // A track's own Pattern shorter than the song's pattern length
-      // repeats (Pattern.h's own getEffectiveRow() comment) - every write
-      // below targets this resolved row, not the raw playhead one, so
-      // editing a repeated/"dimmed" row transparently redirects to the
-      // real one instead of creating unreachable data.
-      auto effective_row = scene.getEffectiveRow(track_id, info.getRowIndex(), song.getPatternLength());
+      // Writes into whatever's actually active at the cursor's row - an
+      // active clip instance's own (live-linked) Pattern, or this track's
+      // own background Pattern otherwise (ArrangementOps.h's own
+      // resolveEditTarget()) - and, either way, at that Pattern's own
+      // resolved row, not the raw playhead one, the same "a Pattern
+      // shorter than its context repeats" transparency getEffectiveRow()
+      // already gave the background-only case.
+      auto edit_target = resolveEditTarget(song, scene, track_id, info.getRowIndex());
       auto column_type = track_info.getColumnType(new_cursor.col);
     
       if (column_type == ColumnType::EFFECT) {
@@ -1678,7 +1682,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	// it were a typed character, instead of being ignored (subcol 2/3)
 	// or actually deleting.
 	if (input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE) {
-	  scene.setCommand(effective_row, track_id, Command());
+	  edit_target.pattern->setCommand(edit_target.effective_row, Command());
 	  row_edited = true;
 	  song.incMinorVersion();
 	  // Same row-level Backspace-steps-back/Delete-stays-put distinction
@@ -1700,9 +1704,9 @@ PatternEditor::offerInput(const InputEvent & input) {
 	// entry) is a notcurses key code far outside any printable range,
 	// and would otherwise get silently written into the command as if
 	// it were a typed character.
-	auto command = scene.getCommand(effective_row, track_id);
+	auto command = edit_target.pattern->getCommand(edit_target.effective_row);
 	if (command.updateData(new_cursor.subcol, input.getId())) {
-	  scene.setCommand(effective_row, track_id, command);
+	  edit_target.pattern->setCommand(edit_target.effective_row, command);
 	  row_edited = true;
 	  song.incMinorVersion();
 
@@ -1717,7 +1721,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	}
       } else if (column_type == ColumnType::VELOCITY || column_type == ColumnType::DELAY) {
 	if (input_hex_value != -1) {
-	  auto & notes = scene.getNotes(effective_row, track_id);
+	  auto & notes = edit_target.pattern->getNotes(edit_target.effective_row);
 	  auto note_column = track_info.getNoteNumber(new_cursor.col);
 	  Note note;
 	  if (note_column < static_cast<int>(notes.size())) note = notes[static_cast<size_t>(note_column)];
@@ -1726,7 +1730,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	  else current_value = (current_value & 0xf0) | input_hex_value;
 	  if (column_type == ColumnType::VELOCITY) note.setVelocity(current_value);
 	  else note.setDelay(current_value);
-	  scene.setNote(effective_row, track_id, note_column, note);
+	  edit_target.pattern->setNote(edit_target.effective_row, note_column, note);
 	  row_edited = true;
 	  song.incMinorVersion();
 	  if (new_cursor.subcol == 0) {
@@ -1745,8 +1749,8 @@ PatternEditor::offerInput(const InputEvent & input) {
 	// SAMPLE tracks render this column as a placeholder block (see
 	// renderRow's own branch), never real note data - without this
 	// exclusion, typing here would still silently write into Pattern via
-	// scene.setNote()/pushNote() below, just with nothing on screen to
-	// show it happened.
+	// setNote()/pushNote() below, just with nothing on screen to show it
+	// happened.
 	auto entry_track = song.getMasterTrack().getChildByInternalId(track_id);
 	if (entry_track && entry_track->getType() == TrackType::SAMPLE) {
 	  return true;
@@ -1788,10 +1792,10 @@ PatternEditor::offerInput(const InputEvent & input) {
 
 	if (is_delete || midi_note >= 0 || is_off) {
 	  if (is_delete) {
-	    scene.deleteNote(effective_row, track_id, note_column);
+	    edit_target.pattern->deleteNote(edit_target.effective_row, note_column);
 	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, note_column));
 	  } else if (is_off) {
-	    scene.setNote(effective_row, track_id, note_column, Note(0, 0, current_delay));
+	    edit_target.pattern->setNote(edit_target.effective_row, note_column, Note(0, 0, current_delay));
 	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, getController().getActiveBufferName(), track_id, note_column));
 	  } else {
 	    Note note(midi_note, 0x28, current_delay);
@@ -1826,7 +1830,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 
 	    if (input.hasShift()) {
 	      if (auto_started_playback_) getController().ensureRowCleared(auto_record_cleared_rows_, info.getPatternIndex(), info.getRowIndex(), track_id);
-	      note_column = scene.pushNote(effective_row, track_id, note);
+	      note_column = edit_target.pattern->pushNote(edit_target.effective_row, note);
 	    } else {
 	      // A lone key still lands exactly on the cursor's own column,
 	      // unchanged - only steps off it when another currently-held key
@@ -1843,7 +1847,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	      // only actually does anything the first time (row, track_id) is
 	      // touched this session.
 	      if (auto_started_playback_) getController().ensureRowCleared(auto_record_cleared_rows_, info.getPatternIndex(), info.getRowIndex(), track_id);
-	      scene.setNote(effective_row, track_id, note_column, note);
+	      edit_target.pattern->setNote(edit_target.effective_row, note_column, note);
 	    }
 
 	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, getController().getActiveBufferName(), track_id, note_column, note.getValue(), note.getVelocity()));
@@ -2506,27 +2510,46 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       current_pos += 5;
     } else {
       auto track_id = track_ids[static_cast<size_t>(i)];
-      // A track's own Pattern shorter than the song's own pattern length
-      // repeats (Pattern.h's own getEffectiveRow() comment) - reads (and,
-      // per offerInput()'s own writes) land on the tiled repeat's real
-      // row, dimmed here below so it's clear at a glance which rows are
-      // this pattern's own real content vs. a repeat of it. Per-track,
+      // What's actually showing here: an active clip instance's own
+      // Pattern (live-linked - editing it through any instance updates
+      // every other one, ArrangementOps.h's own resolveEditTarget()'s
+      // write-side counterpart), or this track's own background Pattern
+      // otherwise - the same resolution real playback uses
+      // (SongState.h's own renderBlock()), so this always shows exactly
+      // what's actually going to play.
+      auto read_target = resolveReadTarget(song, scene, track_id, pattern_row);
+      VisibleTrackInfo track_info;
+      auto it = all_track_info.find(track_id);
+      if (it != all_track_info.end()) track_info = it->second;
+      auto track = song.getMasterTrack().getChildByInternalId(track_id);
+      // A Pattern shorter than the song's own pattern length repeats
+      // (Pattern.h's own getEffectiveRow() comment) - reads (and, per
+      // offerInput()'s own writes) land on the tiled repeat's real row,
+      // dimmed here below so it's clear at a glance which rows are the
+      // resolved Pattern's own real content vs. a repeat of it. Per-track,
       // unlike is_neighboring_pattern's own whole-row dim above - two
       // tracks in the same row can have different (or no) length of
       // their own.
-      auto & patterns = scene.getPatternsByTrack();
-      auto pattern_it = patterns.find(track_id);
-      auto pattern_length = pattern_it != patterns.end() ? pattern_it->second.getLength() : 0;
+      auto pattern_length = read_target.pattern->getLength();
       // The playhead's own row (highlight) keeps its plain green regardless
       // of whether the content it's showing happens to be a repeat - the
       // dim is about telling looped content apart from a pattern's own
       // real rows, not something the playhead itself should ever show.
-      bool is_repeat_row = pattern_length > 0 && pattern_row >= pattern_length && !highlight;
+      bool is_repeat_row = pattern_length > 0 && read_target.unwrapped_row >= pattern_length && !highlight;
       if (is_repeat_row) {
 	Color black;
 	bg = bg.blend(0.6f, black);
 	fg = fg.blend(0.6f, black);
       }
+      // Background only, per this class's own "the notes are from an
+      // instance" cue - VisibleTrackInfo::getColor() is the same identity
+      // color ArrangementGrid's own capsule rendering uses for the same
+      // clip, so a track reads as the same color everywhere in this app.
+      // Left out of dim_fixed_color() below (VELOCITY/DELAY/EFFECT's own
+      // fixed foreground colors) deliberately - this is a background-only
+      // cue, not a general dim/tint the way is_neighboring_pattern/
+      // is_repeat_row are.
+      if (read_target.is_instance) bg = bg.blend(0.2f, track_info.getColor());
       // VELOCITY/DELAY's own fixed bright colors and EFFECT's own
       // command_column_color (below) are picked independently of fg/bg -
       // tuned for contrast against the *undimmed* row background - so
@@ -2540,13 +2563,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	if (is_repeat_row) c = c.blend(0.6f, black);
 	return c;
       };
-      auto effective_row = scene.getEffectiveRow(track_id, pattern_row, song.getPatternLength());
-      auto & notes = scene.getNotes(effective_row, track_id);
-      auto & command = scene.getCommand(effective_row, track_id);
-      VisibleTrackInfo track_info;
-      auto it = all_track_info.find(track_id);
-      if (it != all_track_info.end()) track_info = it->second;
-      auto track = song.getMasterTrack().getChildByInternalId(track_id);
+      auto & notes = read_target.pattern->getNotes(read_target.effective_row);
+      auto & command = read_target.pattern->getCommand(read_target.effective_row);
 
       // current_scroll_.col skips this many of this track's own leading
       // columns - only meaningful for the leftmost visible track (see
@@ -2648,22 +2666,14 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // Step-sequencer compact display: a hit lane (a real, sound-
 	  // producing note - matches DrumMachineTrack::getHitNotesForRow()'s
 	  // own definition) renders exactly like an ordinary NOTE column
-	  // would for that note (an at-rest lane's own "···" included), just
-	  // against a cyan background instead of the row's own.
-	  bool is_hit = track && track->getType() == TrackType::DRUM_MACHINE &&
-	    note.isDefined() && !note.isOff() && !note.isAftertouch();
-	  if (is_hit && !column_selected) cell_bg = dim_fixed_color(styles.drum_step_hit_bg_color);
+	  // would for that note (an at-rest lane's own "···" included),
+	  // against the row's own background like any other track.
 	  setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 	  auto s = note.toString(tuning);
 	  while (s.size() < 3) s += ' ';
 	  putstr(display_row, current_pos, s);
 	  current_pos += 3;
-	  // The cyan background above is exactly this cell's own 3 characters,
-	  // never the trailing separator space after it - without resetting
-	  // back to cur_bg here, the next column's own leading separator draw
-	  // (still using whatever color was last set) would inherit it.
-	  if (is_hit && !column_selected) setBgColor(cur_bg);
 	} else if (column_type == ColumnType::VELOCITY || column_type == ColumnType::DELAY) {
 	  auto l = track_info.getNoteNumber(k);
 	  auto note = l < static_cast<int>(notes.size()) ? notes[static_cast<size_t>(l)] : Note();
@@ -2698,9 +2708,37 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	}
       }
 
-      setFgColor(styles.window_border_color);
-      setBgColor(bg);
-      putstr(display_row, current_pos, "│");
+      // Whether the *next* track (the divider's own right half) is an
+      // instance too - a cheap resolveInstanceAt() lookahead, not a full
+      // resolveReadTarget() (this only needs the yes/no, never reads or
+      // writes anything there).
+      bool right_is_instance = false;
+      Color right_bg = styles.window_bg_color;
+      if (i + 1 < static_cast<int>(track_ids.size())) {
+	auto next_track_id = track_ids[static_cast<size_t>(i + 1)];
+	right_is_instance = resolveInstanceAt(song, scene, next_track_id, pattern_row).clip_index >= 0;
+	if (right_is_instance) {
+	  auto next_it = all_track_info.find(next_track_id);
+	  if (next_it != all_track_info.end()) right_bg = right_bg.blend(0.2f, next_it->second.getColor());
+	}
+      }
+
+      if (read_target.is_instance || right_is_instance) {
+	// Half-filled ("▌", U+258C - the same half-block ArrangementGrid's
+	// own capsule padding uses) rather than the plain "│" divider below,
+	// whenever either side of this boundary is an instance - this
+	// track's own tinted bg on the left, the next track's own (right_bg
+	// above) on the right, so a tinted span reads as one continuous
+	// block right up to wherever an instance actually starts/ends
+	// instead of the divider always breaking it one character early.
+	setFgColor(bg);
+	setBgColor(right_bg);
+	putstr(display_row, current_pos, "▌");
+      } else {
+	setFgColor(styles.window_border_color);
+	setBgColor(bg);
+	putstr(display_row, current_pos, "│");
+      }
       current_pos++;
     }
   }

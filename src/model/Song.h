@@ -209,6 +209,12 @@ class Song : public SongObject {
     return it != clips_by_track_.end() ? it->second : empty_clips_;
   }
 
+  // Mutable counterpart, for editing a clip's own content in place
+  // (ArrangementOps.h's own resolveEditTarget()).
+  std::vector<Clip> & getClips(int track_id) {
+    return clips_by_track_[track_id];
+  }
+
   // Takes an already-built Clip (its own getLeafTrackId() says which
   // track's list it joins) rather than a bare Pattern - a clip's full/
   // eventual form is one Pattern per relevant track_id, not just the

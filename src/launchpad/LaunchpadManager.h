@@ -101,11 +101,12 @@ class LaunchpadManager {
   // same layout ArrangementGrid's own terminal grid uses. Which of two
   // things a press does is gated by Record Arm (DeviceState::
   // capture_enabled), not a Session-specific toggle of its own (see
-  // handleSessionPadEvent()'s own comment): armed, it assigns that clip's
-  // pattern into the pressed column's track at `cursor_scene_idx` (a copy
-  // into that scene's own owned Pattern, not a live reference back to the
-  // clip) - the write-side counterpart, and the closest replacement for
-  // what plain scene-navigation used to do here; disarmed, it instead
+  // handleSessionPadEvent()'s own comment): armed, it places an instance
+  // of that clip into the pressed column's track at `cursor_scene_idx`
+  // (a real arrangement-layer placement, not a live reference back to the
+  // clip - see handleSessionPadEvent()'s own comment on which row) - the
+  // write-side counterpart, and the closest replacement for what plain
+  // scene-navigation used to do here; disarmed, it instead
   // triggers the clip to start playing live for that track (quantized to
   // whatever's currently playing there finishing its own loop - see
   // triggerClipStep()), touching nothing in the song.
@@ -314,9 +315,9 @@ class LaunchpadManager {
   // level up: off triggers/queues the pattern for live playback
   // (triggered_pattern_by_track_/queued_pattern_by_track_, picked up by
   // the free-running audition clock below) without touching the song at
-  // all; on instead assigns it into the pressed column's track at
-  // session_.cursor_scene_idx (a copy into that scene's own owned
-  // Pattern) and stays in Session view rather than switching focus away -
+  // all; on instead places an instance of it into the pressed column's
+  // track at session_.cursor_scene_idx (see handleSessionPadEvent()'s own
+  // comment) and stays in Session view rather than switching focus away -
   // a player assigning several patterns in a row needs to keep pressing
   // pads, not get bounced out after the first one. Deliberately not a
   // separate toggle, so switching between Session view and the ordinary

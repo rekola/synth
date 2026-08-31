@@ -468,14 +468,24 @@ bool
 UI::renderComponents(bool refresh) {
   bool render = false;
   auto active = active_element_.lock();
+  auto & song = getController().getSong();
+  // The shared/global track selection, resolved to a real track_id here
+  // (not just passed as a bare index) - PatternEditor::getCursorTrackIndex()
+  // indexes song.getRootTrackIds(), which ArrangementGrid's own (color-
+  // eligible-only) track list doesn't necessarily line up with position-
+  // for-position.
+  auto root_track_ids = song.getRootTrackIds();
+  auto cursor_track_idx = pattern_editor_->getCursorTrackIndex();
+  int selected_track_id = (cursor_track_idx >= 0 && cursor_track_idx < static_cast<int>(root_track_ids.size())) ?
+    root_track_ids[static_cast<size_t>(cursor_track_idx)] : -1;
+
   render |= pattern_editor_->render(styles_, refresh, active == pattern_editor_);
-  render |= arrangement_grid_->render(styles_, refresh, active == arrangement_grid_);
+  render |= arrangement_grid_->render(styles_, refresh, active == arrangement_grid_, selected_track_id);
   render |= cover_art_->render(styles_, refresh);
   render |= info_line_->render(styles_, refresh);
   render |= octave_control_->render(styles_, refresh);
 
   if (launchpad_manager_) {
-    auto & song = getController().getSong();
     auto track_ids = song.getPlayableTrackIds();
     // Populated every call regardless of which UI element actually has
     // focus - a Launchpad's own Session view (CC95/96, per-device) is

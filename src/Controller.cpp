@@ -3,6 +3,7 @@
 #include "model/Song.h"
 #include "model/LeafTrack.h"
 #include "model/InstrumentTrack.h"
+#include "model/ArrangementOps.h"
 #include "playback/PlaybackControlEvent.h"
 
 #include <algorithm>
@@ -731,18 +732,19 @@ void
 Controller::writeReleaseOff(std::set<std::pair<int, int>> & cleared_rows, bool auto_started_playback, int pattern_idx, int row, int track_id, int note_column, int delay) {
   if (auto_started_playback) ensureRowCleared(cleared_rows, pattern_idx, row, track_id);
   auto song = getCurrentSong();
-  auto & scene = song->getScene(pattern_idx);
-  auto effective_row = scene.getEffectiveRow(track_id, row, song->getPatternLength());
-  scene.setNote(effective_row, track_id, note_column, Note(0, 0, delay));
+  auto & scene = song->getOrCreateScene(pattern_idx);
+  auto target = resolveEditTarget(*song, scene, track_id, row);
+  target.pattern->setNote(target.effective_row, note_column, Note(0, 0, delay));
   song->incVersion();
 }
 
 void
 Controller::applyNotePressure(int pattern_idx, int row, int track_id, int note_column, short velocity, int delay) {
   auto song = getCurrentSong();
-  auto & scene = song->getScene(pattern_idx);
-  auto note = scene.getNote(row, track_id, note_column);
+  auto & scene = song->getOrCreateScene(pattern_idx);
+  auto target = resolveEditTarget(*song, scene, track_id, row);
+  auto note = target.pattern->getNote(target.effective_row, note_column);
   if (!note.isDefined()) note.setDelay(delay);
   note.setVelocity(velocity);
-  scene.setNote(row, track_id, note_column, note);
+  target.pattern->setNote(target.effective_row, note_column, note);
 }
