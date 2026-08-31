@@ -67,9 +67,10 @@ class ArrangementGrid : public UIElement {
   // else entirely (PatternEditor, most of the time). `selected_track_id`
   // is the *shared* track selection (PatternEditor::getCursorTrackIndex(),
   // resolved to a real id by UI - the same one Launchpad Session view
-  // already follows) - its own lighter column-wide tint shows regardless
-  // of focus, since it's not this widget's own local state to gate on
-  // that the way the cursor cell's is.
+  // already follows) - its own column brightens whichever clip instances
+  // sit in it (never the plain background, which has no "selected" state
+  // of its own to show) regardless of focus, since it's not this widget's
+  // own local state to gate on that the way the cursor cell's is.
   bool render(const StyleProvider & styles, bool refresh, bool focused, int selected_track_id);
   bool offerInput(const InputEvent & input) override;
 

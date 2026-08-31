@@ -467,14 +467,16 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
 
       if (is_playing_row) bg = bg.blend(0.15f, kWhite);
 
-      // The shared/global track selection's own column, every row - a
-      // light tint (not the full highlight below, which stays reserved
-      // for this widget's own exact cursor cell) so the selected column
-      // stays visible regardless of which widget has focus, matching the
-      // one shared track cursor Launchpad Session view already follows -
-      // not gated on `focused` for that same reason.
-      if (track_index < num_tracks && track_ids[static_cast<size_t>(track_index)] == selected_track_id) {
-        bg = bg.blend(0.25f, styles.highlight_bg_color);
+      // The shared/global track selection's own column - brightens an
+      // active instance's own color (never the plain background, which
+      // has no "selected" state of its own to show - no tint at all
+      // there) so the selected column stays visible regardless of which
+      // widget has focus, matching the one shared track cursor Launchpad
+      // Session view already follows - not gated on `focused` for that
+      // same reason, and not the full highlight below (that stays
+      // reserved for this widget's own exact cursor cell).
+      if (cur_clip_index >= 0 && track_index < num_tracks && track_ids[static_cast<size_t>(track_index)] == selected_track_id) {
+        bg = bg.blend(0.35f, kWhite);
       }
 
       // Distracting otherwise, and ambiguous about which window Enter
