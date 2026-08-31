@@ -19,17 +19,19 @@ placeClipInstance(const Song & song, Scene & scene, int track_id, int row, int c
   // mutates the same map getInstancesForTrack() returns a reference
   // into, so erasing while iterating it directly would be unsafe.
   vector<int> rows_to_clear;
-  for (auto & [ existing_row, existing_clip_index ] : scene.getInstancesForTrack(track_id)) {
+  for (auto & [ existing_row, existing_clip_id ] : scene.getInstancesForTrack(track_id)) {
     if (existing_row >= row && existing_row <= reach_end) rows_to_clear.push_back(existing_row);
   }
   for (auto r : rows_to_clear) scene.clearInstance(track_id, r);
 
-  scene.setInstance(track_id, row, clip_index);
+  // Stores the clip's own stable id, not `clip_index` itself - Clip.h's
+  // own comment on why.
+  scene.setInstance(track_id, row, clip.getId());
 }
 
 void
 placeStopInstance(Scene & scene, int track_id, int row) {
-  scene.setInstance(track_id, row, Scene::kStopInstance);
+  scene.setInstance(track_id, row, "OFF");
 }
 
 ActiveInstance
@@ -41,11 +43,19 @@ resolveInstanceAt(const Song & song, const Scene & scene, int track_id, int row)
   if (it == track_instances.begin()) return { Scene::kNoInstance }; // nothing at or before row
   --it;
   auto event_row = static_cast<int>(it->first);
-  auto clip_index = it->second;
-  if (clip_index == Scene::kStopInstance) return { Scene::kStopInstance, event_row };
+  auto & clip_id = it->second;
+  if (clip_id == "OFF") return { Scene::kStopInstance, event_row };
 
+  // The stored id's own *current* position in the track's clip list -
+  // never assumed to still be wherever it was when the instance was
+  // placed (Clip.h's own comment on why).
   auto & clips = song.getClips(track_id);
-  if (clip_index < 0 || clip_index >= static_cast<int>(clips.size())) return { Scene::kNoInstance };
+  int clip_index = -1;
+  for (size_t i = 0; i < clips.size(); i++) {
+    if (clips[i].getId() == clip_id) { clip_index = static_cast<int>(i); break; }
+  }
+  if (clip_index < 0) return { Scene::kNoInstance }; // the clip this once referenced no longer exists
+
   auto & clip = clips[static_cast<size_t>(clip_index)];
   if (!clip.isLooping()) {
     auto length = clip.getLength() > 0 ? clip.getLength() : 1;

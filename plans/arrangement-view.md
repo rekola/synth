@@ -89,8 +89,23 @@ B/C/D:
   back to killing the background content in that track/row range only.
   This is the rest of Phase A, landed after the `Clip` object itself
   above - what's still outstanding: bar alignment beyond what
-  `copy-to-clip` already does, and stable clip identity/usage tracking (a
-  clip is still addressed by (track_id, vector position) only).
+  `copy-to-clip` already does.
+- **A placed instance is stored by the clip's own stable id, not its
+  vector position** - `Clip` uses `getId()`/`setId()` (inherited from
+  `SongObject`, the same field a track's own id already uses) for this;
+  `Song::addClip()` assigns one (alphanumeric, globally unique across the
+  whole song - `generateUniqueClipId()`, mirroring `generateUniqueTrackId()`)
+  whenever a clip doesn't already have one, whether that's a brand new
+  runtime clip or one loaded from a song saved before clip ids existed at
+  all. `placeClipInstance()`/`resolveInstanceAt()` still take/return a
+  plain vector position (what's physically meaningful to a Launchpad pad
+  row or `ArrangementGrid`'s own hex digit) - the id is purely an
+  ArrangementOps.cpp-internal storage detail, translated in both
+  directions there, so a clip already referenced from somewhere keeps
+  resolving to itself even if something else in the same track's list is
+  later deleted/reordered (Phase E), rather than a stale position
+  silently reinterpreting as whichever different clip occupies it
+  afterward.
 - **Editing a placed instance is live-linked**, as designed above -
   `ArrangementOps.h`'s `resolveEditTarget()`/`resolveReadTarget()`
   resolve every note/command read and write (`PatternEditor`'s own

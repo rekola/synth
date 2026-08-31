@@ -198,12 +198,14 @@ class Song : public SongObject {
   // Launchpad's session/launch view, unconnected to any one scene
   // position (and, once actually placed as an instance, the shared
   // content behind that placement - editing it through any instance
-  // updates every other one immediately). Addressed by (track_id, vector
-  // index), not a separate stable id yet - nothing outside the current
-  // session references one across a save/reload. Grouped by track
-  // already (rather than one flat list filtered per lookup) since "this
-  // track's own clips, in order" is the only way anything ever needs to
-  // read this back (Session view's own rows).
+  // updates every other one immediately). Every caller here still
+  // addresses a clip by (track_id, vector index) - it's what's physically
+  // meaningful to a pad row or a single hex digit - but a *placed
+  // instance* stores a clip's own stable id instead (Clip.h's own
+  // comment on why); Song::addClip() is what actually assigns one.
+  // Grouped by track already (rather than one flat list filtered per
+  // lookup) since "this track's own clips, in order" is the only way
+  // anything ever needs to read this back (Session view's own rows).
   const std::vector<Clip> & getClips(int track_id) const {
     auto it = clips_by_track_.find(track_id);
     return it != clips_by_track_.end() ? it->second : empty_clips_;
@@ -223,9 +225,33 @@ class Song : public SongObject {
   // into it, not this method.
   Clip & addClip(Clip clip) {
     auto & clips = clips_by_track_[clip.getLeafTrackId()];
+    // Same "assign one if it doesn't already have one" convention
+    // addTrack() uses (see generateUniqueTrackId()) - a clip loaded from
+    // hand-written XML can already have picked its own id, same as a
+    // hand-written <track id="...">; one created here at runtime (or
+    // loaded from a song saved before clip ids existed at all) doesn't.
+    if (clip.getId().empty()) clip.setId(generateUniqueClipId());
     clips.push_back(std::move(clip));
     incVersion();
     return clips.back();
+  }
+
+  // Mirrors generateUniqueTrackId() below - unique across every track's
+  // own clip list, not just the one a new clip is about to join, same
+  // "one id namespace for the whole song" convention a track's own id
+  // already uses.
+  std::string generateUniqueClipId() const {
+    for (int n = 1; ; n++) {
+      auto candidate = "clip" + std::to_string(n);
+      bool taken = false;
+      for (auto & [ track_id, clips ] : clips_by_track_) {
+        for (auto & clip : clips) {
+          if (clip.getId() == candidate) { taken = true; break; }
+        }
+        if (taken) break;
+      }
+      if (!taken) return candidate;
+    }
   }
 
   void addInstrument(std::unique_ptr<Track> i) {

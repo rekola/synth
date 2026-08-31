@@ -1,6 +1,7 @@
 #include "TestFramework.h"
 
 #include "../src/model/Song.h"
+#include "../src/model/ArrangementOps.h"
 #include "../src/model/InstrumentTrack.h"
 #include "../src/model/PercussionTrack.h"
 #include "../src/model/DrumMachineTrack.h"
@@ -878,15 +879,19 @@ TEST(instance_events_round_trip_through_save_and_load) {
   Song song(Tuning::TET12);
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   track.setId("drums");
+  Clip clip(track.getInternalId());
+  clip.getLeafPattern(); // the mutable overload creates it - see Clip.h's own comment on why every real clip needs one
+  auto clip_id = song.addClip(move(clip)).getId();
   auto & scene = song.addScene();
-  scene.setInstance(track.getInternalId(), 0, 2);
-  scene.setInstance(track.getInternalId(), 16, Scene::kStopInstance);
+  scene.setInstance(track.getInternalId(), 0, clip_id);
+  scene.setInstance(track.getInternalId(), 16, "OFF");
   song.save(scratch_path);
 
   auto saved = readFile(scratch_path);
   CHECK(saved.find("<arrangement") != string::npos);
   CHECK(saved.find("track=\"drums\"") != string::npos);
   CHECK(saved.find(">OFF<") != string::npos);
+  CHECK(saved.find(">" + clip_id + "<") != string::npos);
 
   InstrumentProvider provider;
   Song reloaded(Tuning::TET12);
@@ -896,8 +901,11 @@ TEST(instance_events_round_trip_through_save_and_load) {
   CHECK(reloaded_track != nullptr);
   if (reloaded_track) {
     auto & reloaded_scene = reloaded.getScene(0);
-    CHECK(reloaded_scene.getInstance(reloaded_track->getInternalId(), 0) == 2);
-    CHECK(reloaded_scene.getInstance(reloaded_track->getInternalId(), 16) == Scene::kStopInstance);
+    CHECK(reloaded_scene.getInstance(reloaded_track->getInternalId(), 0) == clip_id);
+    CHECK(reloaded_scene.getInstance(reloaded_track->getInternalId(), 16) == "OFF");
+    // The clip's own id survived the round trip too, so the instance
+    // above still resolves to a real clip, not a dangling reference.
+    CHECK(resolveInstanceAt(reloaded, reloaded_scene, reloaded_track->getInternalId(), 0).clip_index == 0);
   }
 
   fs::remove(scratch_path);

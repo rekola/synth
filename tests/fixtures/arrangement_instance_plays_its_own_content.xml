@@ -10,7 +10,7 @@
   </tracks>
   <clips>
     <trackClips track="0">
-      <clip loop="1">
+      <clip id="c0" loop="1">
         <pattern>
           <note row="0" velocity="80" value="C-4" />
         </pattern>
@@ -20,7 +20,7 @@
   <scenes>
     <scene>
       <arrangement track="0">
-        <instance row="0">0</instance>
+        <instance row="0">c0</instance>
       </arrangement>
     </scene>
   </scenes>

@@ -147,19 +147,27 @@ class Scene : public SongObject {
 
   // The arrangement layer - instance events, one per (track, row) where
   // something was actually placed. An instance event is a tracker-idiom
-  // *start* event, not a span: either a real clip (clip_index is that
-  // clip's own ordinal position in track_id's own clip list, >= 0) or an
-  // explicit stop (kStopInstance) - "instantiate nothing," not a
+  // *start* event, not a span: either a real clip (its own id - Clip.h's
+  // own comment on why an id, not its ordinal position in the track's
+  // clip list) or an explicit stop ("OFF") - "instantiate nothing," not a
   // separate kind of object. Lives here, not on Pattern, for the same
   // reason annotations do (Scene's own class comment) - this doesn't
-  // belong to any one track's own Pattern either. kNoInstance (never
-  // actually stored - only ever a getInstance() return value) means no
-  // event was placed at that exact row at all.
+  // belong to any one track's own Pattern either. An empty string (never
+  // actually stored - only ever a getInstance() return value, this
+  // class's own empty_string sentinel below) means no event was placed at
+  // that exact row at all.
+  //
+  // kStopInstance/kNoInstance are ArrangementOps.h's own resolveInstanceAt()
+  // - not this storage layer's - the *resolved* answer at some row is
+  // still a real clip's current position in Song::getClips(track_id) (an
+  // int, what a pad row or a hex digit actually addresses), an explicit
+  // stop, or nothing at all; these two sentinels stand in for the latter
+  // two there, distinct from a real (always >= 0) position.
   static constexpr int kStopInstance = -1;
   static constexpr int kNoInstance = -2;
 
-  void setInstance(int track_id, int row, int clip_index) {
-    instances_by_track_id_[track_id][static_cast<unsigned short>(row)] = clip_index;
+  void setInstance(int track_id, int row, const std::string & clip_id) {
+    instances_by_track_id_[track_id][static_cast<unsigned short>(row)] = clip_id;
   }
 
   void clearInstance(int track_id, int row) {
@@ -167,11 +175,11 @@ class Scene : public SongObject {
     if (it != instances_by_track_id_.end()) it->second.erase(static_cast<unsigned short>(row));
   }
 
-  int getInstance(int track_id, int row) const {
+  const std::string & getInstance(int track_id, int row) const {
     auto it = instances_by_track_id_.find(track_id);
-    if (it == instances_by_track_id_.end()) return kNoInstance;
+    if (it == instances_by_track_id_.end()) return empty_string;
     auto it2 = it->second.find(static_cast<unsigned short>(row));
-    return it2 != it->second.end() ? it2->second : kNoInstance;
+    return it2 != it->second.end() ? it2->second : empty_string;
   }
 
   // Raw per-track access, same reasoning as getPatternsByTrack()/
@@ -183,7 +191,7 @@ class Scene : public SongObject {
   // "the most recent event at or before row R" (resolution), "every
   // event at or after row R" (clearing) - not just point lookups by
   // exact row the way notes/commands/annotations above always are.
-  const std::map<unsigned short, int> & getInstancesForTrack(int track_id) const {
+  const std::map<unsigned short, std::string> & getInstancesForTrack(int track_id) const {
     auto it = instances_by_track_id_.find(track_id);
     return it != instances_by_track_id_.end() ? it->second : empty_instances_;
   }
@@ -191,7 +199,7 @@ class Scene : public SongObject {
   // Every track that has any instance events at all, for Song.cpp's own
   // XML writer to walk - same shape/reasoning as getPatternsByTrack()
   // above.
-  const std::unordered_map<int, std::map<unsigned short, int> > & getInstancesByTrack() const { return instances_by_track_id_; }
+  const std::unordered_map<int, std::map<unsigned short, std::string> > & getInstancesByTrack() const { return instances_by_track_id_; }
 
 private:
   // insertRow()/deleteRow()'s own annotation-shifting step - same "copy if
@@ -206,13 +214,13 @@ private:
 
   std::unordered_map<int, Pattern> patterns_by_track_id_;
   std::unordered_map<unsigned short, std::string> annotations_;
-  std::unordered_map<int, std::map<unsigned short, int> > instances_by_track_id_;
+  std::unordered_map<int, std::map<unsigned short, std::string> > instances_by_track_id_;
 
   static inline Note empty_note;
   static inline std::vector<Note> empty_notes;
   static inline Command empty_command;
   static inline std::string empty_string;
-  static inline std::map<unsigned short, int> empty_instances_;
+  static inline std::map<unsigned short, std::string> empty_instances_;
 };
 
 #endif

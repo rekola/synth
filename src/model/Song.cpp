@@ -601,8 +601,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	    if (!row_text) continue;
 	    auto value_text = it3->GetText();
 	    if (!value_text) continue;
-	    auto clip_index = string_view(value_text) == "OFF" ? Scene::kStopInstance : atoi(value_text);
-	    scene.setInstance(track_id, atoi(row_text), clip_index);
+	    scene.setInstance(track_id, atoi(row_text), value_text);
 	  }
 	}
       }
@@ -725,10 +724,9 @@ Song::save(const std::string & filename) const {
     // One <arrangement track="..."> per track that has any instance
     // events in this scene, grouping them the same way <clips>'s own
     // <trackClips> groups a track's own clips - avoids repeating "track"
-    // on every single <instance>. The value (a clip's own ordinal
-    // position in that track's clip list, or "OFF" for an explicit stop)
-    // is the element's own text content, matching <note>/<command>, not
-    // an attribute.
+    // on every single <instance>. The value (a clip's own id, or "OFF"
+    // for an explicit stop) is the element's own text content, matching
+    // <note>/<command>, not an attribute.
     for (auto & [ track_id, track_instances ] : scene.getInstancesByTrack()) {
       if (track_instances.empty()) continue;
       auto track = getMasterTrack().getChildByInternalId(track_id);
@@ -737,11 +735,10 @@ Song::save(const std::string & filename) const {
 
       auto arrangement_element = doc.NewElement("arrangement");
       arrangement_element->SetAttribute("track", trackReferenceText(*this, track_id).c_str());
-      for (auto & [ row, clip_index ] : track_instances) {
+      for (auto & [ row, clip_id ] : track_instances) {
 	auto instance_element = doc.NewElement("instance");
 	instance_element->SetAttribute("row", static_cast<int>(row));
-	if (clip_index == Scene::kStopInstance) instance_element->SetText("OFF");
-	else instance_element->SetText(clip_index);
+	instance_element->SetText(clip_id.c_str());
 	arrangement_element->InsertEndChild(instance_element);
       }
       scene_element->InsertEndChild(arrangement_element);

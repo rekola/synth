@@ -6,16 +6,17 @@ class Scene;
 class Pattern;
 
 // Places a real-clip instance event (clip_index - the clip's own ordinal
-// position in track_id's own clip list, Song::getClips(track_id)) at
-// `row` on `track_id` in `scene`. Clears away any other instance event
-// already placed on that same track within this clip's own reach first
-// (Scene::clearInstance() - "removed outright, not left as unreachable
-// data"): through row + the clip's own native length if it's a one-shot
-// (it has a real, known duration - clearing further would destroy later
-// placements it was never going to touch), through the scene's own last
-// row if it's looping (no natural bound of its own, so no shorter
-// boundary to respect). A no-op if clip_index doesn't resolve to a real
-// clip in that track's own list.
+// position in track_id's own clip list, Song::getClips(track_id) - what
+// actually gets stored is that clip's own stable id instead, Clip.h's own
+// comment on why) at `row` on `track_id` in `scene`. Clears away any
+// other instance event already placed on that same track within this
+// clip's own reach first (Scene::clearInstance() - "removed outright, not
+// left as unreachable data"): through row + the clip's own native length
+// if it's a one-shot (it has a real, known duration - clearing further
+// would destroy later placements it was never going to touch), through
+// the scene's own last row if it's looping (no natural bound of its own,
+// so no shorter boundary to respect). A no-op if clip_index doesn't
+// resolve to a real clip in that track's own list.
 void placeClipInstance(const Song & song, Scene & scene, int track_id, int row, int clip_index);
 
 // Places an explicit stop ("instantiate nothing") at `row` on `track_id`
@@ -40,12 +41,13 @@ struct ActiveInstance {
 // renderBlock(), hence this living in src/model/ rather than src/ui/
 // alongside PatternBlockOps.h - real playback can't depend on anything
 // UI-adjacent). Scans backward for the most recent instance event at or
-// before `row`; that event's own clip_index if a real clip is still
-// active there (accounting for a one-shot's own native length having
-// run out), Scene::kStopInstance if the most recent event is an
-// explicit stop, or Scene::kNoInstance if nothing was ever placed on
-// this track at or before `row` at all (or a stale clip_index no longer
-// resolves to a real clip).
+// before `row`; that clip's own *current* position (resolved from its
+// stored stable id, which never assumes it's still wherever it was when
+// the instance was placed) if it's still active there (accounting for a
+// one-shot's own native length having run out), Scene::kStopInstance if
+// the most recent event is an explicit stop, or Scene::kNoInstance if
+// nothing was ever placed on this track at or before `row` at all (or a
+// stored id no longer resolves to any real clip).
 ActiveInstance resolveInstanceAt(const Song & song, const Scene & scene, int track_id, int row);
 
 // What editing (track_id, row) in `scene` should actually read/write -

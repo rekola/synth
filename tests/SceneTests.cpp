@@ -200,18 +200,18 @@ TEST(scene_insert_row_for_track_shifts_only_that_tracks_own_content) {
 // track's own Pattern (notes/commands), same as annotations already are.
 TEST(scene_instance_events_default_to_absent) {
   Scene scene;
-  CHECK(scene.getInstance(1, 0) == Scene::kNoInstance);
+  CHECK(scene.getInstance(1, 0).empty());
   CHECK(scene.getInstancesForTrack(1).empty());
 }
 
 TEST(scene_instance_events_round_trip_a_real_clip_and_a_stop) {
   Scene scene;
-  scene.setInstance(1, 0, 2); // clip index 2, starting at row 0
-  scene.setInstance(1, 16, Scene::kStopInstance); // stop at row 16
+  scene.setInstance(1, 0, "clip2"); // starting at row 0
+  scene.setInstance(1, 16, "OFF"); // stop at row 16
 
-  CHECK(scene.getInstance(1, 0) == 2);
-  CHECK(scene.getInstance(1, 16) == Scene::kStopInstance);
-  CHECK(scene.getInstance(1, 8) == Scene::kNoInstance); // nothing placed there
+  CHECK(scene.getInstance(1, 0) == "clip2");
+  CHECK(scene.getInstance(1, 16) == "OFF");
+  CHECK(scene.getInstance(1, 8).empty()); // nothing placed there
 
   auto & track_instances = scene.getInstancesForTrack(1);
   CHECK(track_instances.size() == 2);
@@ -222,9 +222,9 @@ TEST(scene_instance_events_round_trip_a_real_clip_and_a_stop) {
 
 TEST(scene_instance_events_can_be_cleared) {
   Scene scene;
-  scene.setInstance(1, 0, 2);
+  scene.setInstance(1, 0, "clip2");
   scene.clearInstance(1, 0);
-  CHECK(scene.getInstance(1, 0) == Scene::kNoInstance);
+  CHECK(scene.getInstance(1, 0).empty());
   CHECK(scene.getInstancesForTrack(1).empty());
 }
 
@@ -233,12 +233,12 @@ TEST(scene_instance_events_can_be_cleared) {
 // out of order here and confirm it comes back sorted.
 TEST(scene_instance_events_for_a_track_are_kept_in_row_order) {
   Scene scene;
-  scene.setInstance(1, 32, 0);
-  scene.setInstance(1, 0, 1);
-  scene.setInstance(1, 16, Scene::kStopInstance);
+  scene.setInstance(1, 32, "clip0");
+  scene.setInstance(1, 0, "clip1");
+  scene.setInstance(1, 16, "OFF");
 
   std::vector<unsigned short> rows;
-  for (auto & [ row, clip_index ] : scene.getInstancesForTrack(1)) rows.push_back(row);
+  for (auto & [ row, clip_id ] : scene.getInstancesForTrack(1)) rows.push_back(row);
   CHECK(rows.size() == 3);
   if (rows.size() == 3) {
     CHECK(rows[0] == 0);

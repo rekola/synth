@@ -22,7 +22,11 @@
 //
 // Extends SongObject for its own display name (getName()/setName(),
 // inherited as-is) - a clip's name is the clip's own property, not its
-// leaf Pattern's; a scene's own inline Pattern has no name at all.
+// leaf Pattern's; a scene's own inline Pattern has no name at all. Also
+// for id_/getId()/setId() - Song::addClip() assigns one when a clip is
+// created without one already set (see its own comment), same as a track
+// created through the UI; see this field's own comment further down for
+// what a clip's id is actually for.
 class Clip : public SongObject {
  public:
   explicit Clip(int leaf_track_id) : leaf_track_id_(leaf_track_id) { }
@@ -61,17 +65,32 @@ class Clip : public SongObject {
   bool isLooping() const { return loop_; }
   void setLooping(bool loop) { loop_ = loop; }
 
-  // Reads/writes just name_ (via the SongObject base)/loop_/length_
-  // (<clip name="..." loop="..." length="...">) - id_ is unused, same as
-  // Pattern's own loadParameters()/storeParameters().
+  // getId()/setId() (inherited from SongObject, same field a track's own
+  // id uses - unlike Pattern, which leaves it unused) are this class's
+  // own stable identity - alphanumeric, assigned once by Song::addClip()
+  // (see its own comment), distinct from
+  // this clip's position in Song::getClips(track_id). Every consumer-
+  // facing API (placeClipInstance()/resolveInstanceAt(), ArrangementGrid's
+  // own digit, a Launchpad pad row) still addresses a clip by that
+  // position, since it's what's physically meaningful there (a pad row, a
+  // single hex digit) - the id is only ever used internally, as what
+  // actually gets stored in a placed instance event (ArrangementOps.cpp),
+  // so a clip already referenced from somewhere keeps resolving to itself
+  // even if something else ahead of it in the same track's list is later
+  // deleted/reordered (Phase E), rather than silently reinterpreting a
+  // now-stale position as whichever different clip happens to occupy it
+  // afterward.
+
+  // Reads/writes id_/name_ (via the SongObject base)/loop_/length_
+  // (<clip id="..." name="..." loop="..." length="...">).
   void loadParameters(const ParameterSource & input) override {
-    setName(input.get<std::string>("name"));
+    SongObject::loadParameters(input);
     setLooping(input.get<bool>("loop", true));
     setLength(input.get<int>("length", 0));
   }
 
   void storeParameters(ParameterSource & output) const override {
-    if (!getName().empty()) output.set("name", getName());
+    SongObject::storeParameters(output);
     output.set("loop", isLooping(), true);
     output.set("length", getLength(), 0);
   }
