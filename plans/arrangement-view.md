@@ -502,14 +502,21 @@ onto both would lose real information. Exact scope of what *does*
 converge (color language? border/fill convention?) is undecided - revisit
 once Phase C's own clip rendering actually exists to converge toward.
 
-- Also where `PatternEditor`'s own row rendering starts showing a clip
-  instance's hexadecimal id right next to its content, not just the
-  coarser Arrangement grid (Phase C) - deliberately not part of Phase A
-  despite clips existing from that point on, so it converges on whatever
-  single-hex-digit convention Phase C's own clip blocks settle on
-  (already specified there: a clip's ordinal position in its track's own
-  clip list) rather than inventing a separate one first and having to
-  reconcile the two later.
+- **Landed:** `PatternEditor`'s own row rendering shows a clip instance's
+  id right next to its content, not just the coarser Arrangement grid
+  (Phase C) - the same single-digit ordinal-position convention Phase C's
+  own clip blocks already settled on (`ArrangementOps.h`'s
+  `ReadTarget::clip_index`), but rendered as a superscript hex digit
+  (`⁰¹²³⁴⁵⁶⁷⁸⁹ᵃᵇᶜᵈᵉᶠ`) rather than a plain character, so it reads as an
+  annotation sitting on top of the note content rather than more of the
+  content itself. Shown at the track's own trailing divider position -
+  solid on the instance's own leading row only (`ReadTarget::unwrapped_row
+  == 0`), fading to the plain half-block on every row through the rest of
+  its reach so the color shows exactly once, not doubled against the real
+  divider beside it. A collapsed leaf track has no room for a separate
+  cell, so it shows the same digit directly in its own placeholder cell
+  instead, with that cell's background brightened for the instance's whole
+  reach (not just the leading row) to signal that its content is hidden.
 
 ## Phase E: clip viewer
 

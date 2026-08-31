@@ -30,9 +30,11 @@ public:
     return num_subtracks_ * ((has_note_column_ ? 1 : 0) + num_velocity_columns_ + (has_delay_column_ ? 1 : 0)) + (has_effect_column_ ? 1 : 0);
   }
   // The track's true total on-screen footprint, *including* its own
-  // trailing "|" border character (see getColumnWidth()'s own comment for
-  // why summing getColumnWidth() over every column gets this exactly
-  // right, not by one character either way).
+  // trailing "|" border character and (a color-eligible, non-collapsed
+  // leaf track only) its own trailing identifier cell (see
+  // getColumnWidth()'s own comment for why summing getColumnWidth() over
+  // every column gets this exactly right, not by one character either
+  // way).
   int getTrackWidth() const {
     int w = 0;
     for (int k = 0; k < getColumnCount(); k++) w += getColumnWidth(k);
@@ -52,6 +54,20 @@ public:
   // trackWidthRange(), used for a column-scrolled anchor track or a
   // deliberately truncated terminal track) needs to give back one of those
   // reserved characters, since no trailing border is actually drawn there.
+  //
+  // The track's real last column (only) gets one more +1 on top of that -
+  // its own trailing identifier cell (a clip instance's own hex digit,
+  // PatternEditor::renderRow(), the same one ArrangementGrid's own capsule
+  // shows) - but only for a color-eligible leaf track (color_ordinal_ >= 0
+  // - Instrument/Sample/Percussion/DrumMachine; a Group/Effect can never
+  // have a clip placed on it in the first place, so it never reserves the
+  // cell), and only while uncollapsed (see the collapsed branch below - a
+  // collapsed track shows its own digit in its one existing placeholder
+  // cell instead, no extra width needed). Always reserved either way,
+  // regardless of whether *this* row actually has an instance to show
+  // there - same "give it back for a sub-range that doesn't reach the
+  // real end" reasoning as the border above; trackWidthRange() does that
+  // too.
   int getColumnWidth(int k) const {
     // A collapsed track hides every column's own content (see
     // PatternEditor::renderRow) - collapsed_content_width_ blank
@@ -64,11 +80,12 @@ public:
     // own ancestor-row box carries it instead - see
     // PatternEditor::renderHeading) and stays border-only.
     if (collapsed_) return 1 + collapsed_content_width_;
+    auto identifier_cell = (color_ordinal_ >= 0 && k == getColumnCount() - 1) ? 1 : 0;
     switch (getColumnType(k)) {
-    case ColumnType::NOTE: return 4;
-    case ColumnType::VELOCITY: return 3;
-    case ColumnType::DELAY: return 3;
-    case ColumnType::EFFECT: return 5;
+    case ColumnType::NOTE: return 4 + identifier_cell;
+    case ColumnType::VELOCITY: return 3 + identifier_cell;
+    case ColumnType::DELAY: return 3 + identifier_cell;
+    case ColumnType::EFFECT: return 5 + identifier_cell;
     default: return 0;
     }
   }

@@ -2447,32 +2447,51 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // shared grid for the whole row, not per-column.
   auto row_rows_per_bar = song.getRowsPerBar();
 
+  // The row's own base colors (playhead highlight, else bar/beat accent,
+  // else plain) - identical for every track this row (none of highlight/
+  // pattern_row/is_neighboring_pattern vary with i), so computed once
+  // rather than every iteration. Every track's own fg/bg below starts
+  // from this same pair; it's also what the half-block divider's own
+  // "nothing on the other side" fallback (further down) uses, so a bar/
+  // beat-accent row tints its dividers exactly like every other cell in
+  // it, not a hardcoded plain background.
+  Color row_base_fg, row_base_bg;
+  if (highlight) {
+    row_base_fg = Color("#80c080");
+    row_base_bg = Color("#80a080");
+  } else if (row_rows_per_bar > 0 && pattern_row % row_rows_per_bar == 0) {
+    row_base_fg = styles.window_bar_accent_fg_color;
+    row_base_bg = styles.window_bar_accent_bg_color;
+  } else if (pattern_row % 4 == 0) {
+    row_base_fg = styles.window_accent_fg_color;
+    row_base_bg = styles.window_accent_bg_color;
+  } else {
+    row_base_fg = styles.window_fg_color;
+    row_base_bg = styles.window_bg_color;
+  }
+  if (is_neighboring_pattern) {
+    Color black;
+    row_base_bg = row_base_bg.blend(0.75f, black);
+    row_base_fg = row_base_fg.blend(0.75f, black);
+  }
+
+  // A clip instance's own identifier digit (below) - superscript, not a
+  // plain digit, so it visually reads as an annotation sitting on top of
+  // the note content next to it rather than more of the content itself.
+  // Hex (mod 16), matching ArrangementGrid's own indexing - superscript
+  // has no standard a-f, so 10-15 use the closest Unicode superscript
+  // Latin letters instead.
+  static constexpr const char * kSuperscriptHexDigits[16] = {
+    "⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹", "ᵃ", "ᵇ", "ᶜ", "ᵈ", "ᵉ", "ᶠ"
+  };
+  auto clip_digit = [&](int clip_index) { return string(kSuperscriptHexDigits[clip_index % 16]); };
+
   auto current_pos = 0;
   for (int i = -1; i < static_cast<int>(track_ids.size()); i++) {
     if (i >= 0 && i < current_scroll_.track) continue;
     if (current_pos >= cols) break;
 
-    Color fg, bg, cell_fg, cell_bg;
-
-    if (highlight) {
-      fg = Color("#80c080");
-      bg = Color("#80a080");
-    } else if (row_rows_per_bar > 0 && pattern_row % row_rows_per_bar == 0) {
-      fg = styles.window_bar_accent_fg_color;
-      bg = styles.window_bar_accent_bg_color;
-    } else if (pattern_row % 4 == 0) {
-      fg = styles.window_accent_fg_color;
-      bg = styles.window_accent_bg_color;
-    } else {
-      fg = styles.window_fg_color;
-      bg = styles.window_bg_color;
-    }
-
-    if (is_neighboring_pattern) {
-      Color black;
-      bg = bg.blend(0.75f, black);
-      fg = fg.blend(0.75f, black);
-    }
+    Color fg = row_base_fg, bg = row_base_bg, cell_fg, cell_bg;
 
     // There's always an effective region to highlight, even with no mark
     // set - it degenerates to just the note under the cursor (see
@@ -2602,17 +2621,34 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // literal - same reasoning as the SAMPLE placeholder just below),
 	  // plus the track's own shared trailing "│" (drawn
 	  // once this loop is done, below). A "·" marks the cell whenever this
-	  // row has any note at all, so a collapsed track doesn't look empty
-	  // where it actually has content.
+	  // row has any background note at all, so a collapsed track doesn't
+	  // look empty where it actually has content - an active instance's
+	  // own leading row shows its hex digit there instead (no separate
+	  // identifier cell of its own the way an uncollapsed track gets, see
+	  // the divider block below - this single already-reserved cell is
+	  // all a collapsed track has). Brighter than the ordinary 0.2
+	  // instance tint every other cell of this clip uses - hiding the
+	  // real content behind this one cell needs to read as "there's
+	  // something here" at a glance, not blend into the row the way an
+	  // ordinary tinted cell is meant to.
+	  if (read_target.is_instance) setBgColor(cur_bg.blend(0.5f, track_info.getColor()));
 	  auto width = std::max(track_info.getTrackWidth() - 1, 0);
 	  putstr(display_row, current_pos, std::string(static_cast<size_t>(width), ' '));
+	  // An instance's own content never shows the "·" - it's specifically
+	  // a background-content marker (Scene's own inline Pattern, no
+	  // instance involved), superseded here by the digit on the
+	  // instance's own leading row and plain blank on every other row it
+	  // covers (matching the uncollapsed divider's own "cells below just
+	  // stay blank" convention).
 	  bool any_note_defined = false;
 	  for (auto & n : notes) {
 	    if (n.isDefined()) { any_note_defined = true; break; }
 	  }
-	  if (width > 0 && any_note_defined) {
-	    setFgColor(cur_fg);
-	    putstr(display_row, current_pos, "·");
+	  bool is_leading_row = read_target.is_instance && read_target.unwrapped_row == 0;
+	  bool show_dot = any_note_defined && !read_target.is_instance;
+	  if (width > 0 && (show_dot || is_leading_row)) {
+	    setFgColor(is_leading_row ? Color(0xff, 0xff, 0xff) : cur_fg);
+	    putstr(display_row, current_pos, is_leading_row ? clip_digit(read_target.clip_index) : "·");
 	    setFgColor(styles.window_border_color);
 	  }
 	  current_pos += width;
@@ -2708,12 +2744,58 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	}
       }
 
-      // Whether the *next* track (the divider's own right half) is an
+      // The track's own trailing identifier cell (VisibleTrackInfo::
+      // getColumnWidth()'s own +1 budgets exactly this, for a color-
+      // eligible, uncollapsed leaf track - see its own comment; a
+      // collapsed track shows its own digit in its one existing
+      // placeholder cell instead, no extra width - see the collapsed
+      // branch above) - the same single hex digit ArrangementGrid's own
+      // capsule shows, a solid full-strength cell only on the instance's
+      // own leading row (unwrapped_row == 0 - the exact row it starts at,
+      // not merely somewhere within its own reach), bright text on the
+      // clip's own already-tinted `bg` (the same background every other
+      // cell of this clip already uses, not a separately brightened
+      // one). That solid cell is deliberately the "ear" sticking up off
+      // an otherwise plain column - every row below it, still within the
+      // same instance's own reach, fades to a half-block instead (clip
+      // color on the left, plain row background on the right), so the
+      // ear itself reads as a real protrusion, not indistinguishable
+      // from a solid block running the instance's own whole length. The
+      // clip color shows exactly once there - the ordinary divider right
+      // after it (below) also drops to plain row background on its own
+      // left half on one of these rows, rather than letting the clip
+      // color bleed a second time into what's otherwise just the
+      // boundary to whatever comes next. Any row with no instance at all
+      // stays fully blank, still occupying this same reserved cell so
+      // every row of this track lines up identically.
+      bool is_continuation_row = read_target.is_instance && read_target.unwrapped_row != 0;
+      if (!track_info.collapsed_ && track_info.color_ordinal_ >= 0) {
+	if (is_continuation_row) {
+	  setFgColor(bg);
+	  setBgColor(row_base_bg);
+	  putstr(display_row, current_pos, "▌");
+	} else {
+	  Color id_fg = fg;
+	  string id_glyph = " ";
+	  if (read_target.is_instance) {
+	    id_fg = Color(0xff, 0xff, 0xff);
+	    id_glyph = clip_digit(read_target.clip_index);
+	  }
+	  setFgColor(id_fg);
+	  setBgColor(bg);
+	  putstr(display_row, current_pos, id_glyph);
+	}
+	current_pos++;
+      }
+
+      // Whether the *next* track (this divider's own right half) is an
       // instance too - a cheap resolveInstanceAt() lookahead, not a full
       // resolveReadTarget() (this only needs the yes/no, never reads or
-      // writes anything there).
+      // writes anything there). Starts from row_base_bg, not a flat
+      // window_bg_color, so a bar/beat-accented row tints this the same
+      // as every other cell in it, not a hardcoded plain background.
       bool right_is_instance = false;
-      Color right_bg = styles.window_bg_color;
+      Color right_bg = row_base_bg;
       if (i + 1 < static_cast<int>(track_ids.size())) {
 	auto next_track_id = track_ids[static_cast<size_t>(i + 1)];
 	right_is_instance = resolveInstanceAt(song, scene, next_track_id, pattern_row).clip_index >= 0;
@@ -2723,20 +2805,37 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	}
       }
 
-      if (read_target.is_instance || right_is_instance) {
+      // A collapsed track has no identifier cell/ear of its own (see
+      // above) - its trailing divider stays the plain "│" always, the
+      // same border every other row of it already shows, rather than
+      // also switching to a half-block whenever either side happens to
+      // be an instance. On a continuation row, `read_target.is_instance`
+      // is true by definition (that's what makes it a continuation row),
+      // so it alone is never reason enough for a half-block here - the
+      // identifier cell just before this one already showed the clip's
+      // own color once (its own fade-to-grey half); only a real reason
+      // on the *right* (right_is_instance) still earns one, same as
+      // that would on the divider after a track with no instance at
+      // all.
+      bool show_halfblock = !track_info.collapsed_ &&
+	(is_continuation_row ? right_is_instance : (read_target.is_instance || right_is_instance));
+      if (show_halfblock) {
 	// Half-filled ("▌", U+258C - the same half-block ArrangementGrid's
-	// own capsule padding uses) rather than the plain "│" divider below,
-	// whenever either side of this boundary is an instance - this
-	// track's own tinted bg on the left, the next track's own (right_bg
-	// above) on the right, so a tinted span reads as one continuous
-	// block right up to wherever an instance actually starts/ends
-	// instead of the divider always breaking it one character early.
-	setFgColor(bg);
+	// own capsule padding uses) - this track's own tinted bg on the
+	// left, the next track's own (right_bg above) on the right, so a
+	// tinted span reads as one continuous block right up to wherever
+	// an instance actually starts/ends instead of the divider always
+	// breaking it one character early.
+	setFgColor(is_continuation_row ? row_base_bg : bg);
 	setBgColor(right_bg);
 	putstr(display_row, current_pos, "▌");
       } else {
+	// row_base_bg, not the plain flat window_bg_color - a "│" still
+	// shows the row's own bar/beat-accent highlight (same as every
+	// other cell in it), just never the instance-tint "▌" above uses -
+	// a "│" means "no instance boundary worth showing here."
 	setFgColor(styles.window_border_color);
-	setBgColor(bg);
+	setBgColor(row_base_bg);
 	putstr(display_row, current_pos, "│");
       }
       current_pos++;

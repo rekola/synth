@@ -86,10 +86,10 @@ resolveReadTarget(const Song & song, const Scene & scene, int track_id, int row)
     auto & pattern = clip.getLeafPattern();
     auto length = clip.getLength() > 0 ? clip.getLength() : 1;
     auto unwrapped_row = row - active.start_row;
-    return { &pattern, pattern.getEffectiveRow(unwrapped_row, length), unwrapped_row, true };
+    return { &pattern, pattern.getEffectiveRow(unwrapped_row, length), unwrapped_row, true, active.clip_index };
   }
   auto & patterns = scene.getPatternsByTrack();
   auto it = patterns.find(track_id);
-  if (it == patterns.end()) return { &empty_pattern, 0, row, false };
-  return { &it->second, it->second.getEffectiveRow(row, song.getPatternLength()), row, false };
+  if (it == patterns.end()) return { &empty_pattern, 0, row, false, -1 };
+  return { &it->second, it->second.getEffectiveRow(row, song.getPatternLength()), row, false, -1 };
 }

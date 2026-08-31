@@ -79,6 +79,7 @@ struct ReadTarget {
   int effective_row; // wrapped by pattern's own length - what to actually read
   int unwrapped_row; // row - (background: 0, a clip: the instance's own start_row) - for a caller that wants to tell a pattern's own real rows apart from a shorter one's repeat (row >= pattern->getLength()), which effective_row can't answer on its own once it's already wrapped
   bool is_instance; // true when `pattern` is a real clip's own Pattern, false for the background - for a caller that wants to show the difference (e.g. PatternEditor's own instance-tinted rows)
+  int clip_index; // only meaningful when is_instance - the clip's own ordinal position in track_id's own clip list (ArrangementGrid's own hex digit addresses the same index), for a caller that wants to show which clip this is, not just that one is active
 };
 ReadTarget resolveReadTarget(const Song & song, const Scene & scene, int track_id, int row);
 

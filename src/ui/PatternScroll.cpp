@@ -27,7 +27,15 @@ namespace {
 int trackWidthRange(const VisibleTrackInfo & info, int from_col, int to_col, bool is_last_term) {
   int w = 0;
   for (int k = from_col; k <= to_col && k < info.getColumnCount(); k++) w += info.getColumnWidth(k);
-  if (w > 0 && is_last_term) w -= 1;
+  if (w > 0 && is_last_term) {
+    w -= 1; // the trailing "│" border - decorative once nothing else follows
+    // ...and, only when this range actually reached the track's own real
+    // last column *and* that column's own getColumnWidth() actually
+    // budgeted an identifier cell into it (a color-eligible, uncollapsed
+    // leaf track only - see its own comment), give that back too, same
+    // reasoning.
+    if (to_col >= info.getColumnCount() - 1 && !info.collapsed_ && info.color_ordinal_ >= 0) w -= 1;
+  }
   return w;
 }
 
