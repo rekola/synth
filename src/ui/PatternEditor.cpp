@@ -1325,7 +1325,7 @@ PatternEditor::handleBufferChanged() {
   }
 
   auto & song = getController().getSong();
-  auto & new_name = getController().getActiveBufferName();
+  auto new_name = getController().getActiveBufferName();
   if (&song == last_active_song_) {
     // Same Song object as before - a rename, not a real switch (see this
     // method's own header comment) - nothing to save/restore.

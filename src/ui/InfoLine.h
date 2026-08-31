@@ -19,7 +19,7 @@ class InfoLine : public UIElement {
   bool render(const StyleProvider & styles, bool refresh = false) {
     auto & info = getController().getPlaybackInfo();
     auto & song = getController().getSong();
-    auto & buffer_name = getController().getActiveBufferName();
+    auto buffer_name = getController().getActiveBufferName();
     // The disambiguated display text getBufferDisplayName() computes for
     // *any* open buffer can change when some *other* buffer is added/
     // killed/renamed - e.g. opening a second "song.xml" elsewhere means

@@ -18,6 +18,16 @@ class UIPlane {
   virtual void move(int y, int x) {
     setPosition(std::pair(y, x));
   }
+  // Raises this plane above every sibling under the same parent - default
+  // no-op (most UIPlane implementations have no z-order of their own to
+  // manipulate). See UI.h's own session_view_/pattern_editor_ comment for
+  // why this exists: two sibling widgets sharing one exact screen rect
+  // need an explicit way to say which one is actually on top, since
+  // resize()ing the other down to nothing isn't reliable (notcurses
+  // itself refuses/ignores a plane resize to zero rows or columns,
+  // leaving its last real content and z-position untouched - confirmed
+  // via a pty+notcurses reproduction).
+  virtual void moveToTop() { }
   virtual void setFgColor(int r, int g, int b) = 0;
   virtual void setBgColor(int r, int g, int b) = 0;
   virtual void setUnderline(bool b) = 0;

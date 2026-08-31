@@ -216,18 +216,23 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
 void
 Controller::saveActiveBufferState() {
   if (active_buffer_name_.empty()) return; // startup - no buffer has ever been active yet
-  playback_infos_[active_buffer_name_] = playback_info;
-  recording_track_ids_[active_buffer_name_] = recording_track_id;
-  pattern_selection_actives_[active_buffer_name_] = pattern_selection_active_;
-  local_position_edit_seqs_[active_buffer_name_] = local_position_edit_seq_;
+  // canonicalBufferName(): a session-view alias and its own canonical
+  // buffer share one live-state slot - see session_view_aliases_'s own
+  // comment.
+  auto key = canonicalBufferName(active_buffer_name_);
+  playback_infos_[key] = playback_info;
+  recording_track_ids_[key] = recording_track_id;
+  pattern_selection_actives_[key] = pattern_selection_active_;
+  local_position_edit_seqs_[key] = local_position_edit_seq_;
 }
 
 void
 Controller::loadActiveBufferState(const string & name) {
-  playback_info = playback_infos_[name];
-  recording_track_id = recording_track_ids_[name];
-  pattern_selection_active_ = pattern_selection_actives_[name];
-  local_position_edit_seq_ = local_position_edit_seqs_[name];
+  auto key = canonicalBufferName(name);
+  playback_info = playback_infos_[key];
+  recording_track_id = recording_track_ids_[key];
+  pattern_selection_active_ = pattern_selection_actives_[key];
+  local_position_edit_seq_ = local_position_edit_seqs_[key];
 }
 
 void
@@ -259,17 +264,27 @@ Controller::renameActiveBuffer(const string & new_name, Version saved_version) {
   // scalars stay exactly as they are; only the *old* key's own map slot
   // (if any, from a previous session under a different name) needs
   // dropping so it doesn't linger as dead weight under a name nothing
-  // will ever look up again.
-  dropBufferState(active_buffer_name_);
-  auto old_name = active_buffer_name_;
+  // will ever look up again. Resolved to canonical first - the active
+  // buffer here is always meant to be the real Song (Save As has no
+  // separate meaning for a session-view alias), even if the alias itself
+  // happens to be what's currently selected.
+  auto old_name = canonicalBufferName(active_buffer_name_);
+  dropBufferState(old_name);
   {
     std::lock_guard<std::mutex> guard(song_mutex_);
-    auto song = songs_.at(active_buffer_name_);
-    songs_.erase(active_buffer_name_);
-    last_saved_versions_.erase(active_buffer_name_);
+    auto song = songs_.at(old_name);
+    songs_.erase(old_name);
+    last_saved_versions_.erase(old_name);
     songs_[new_name] = std::move(song);
     last_saved_versions_[new_name] = saved_version;
-    active_buffer_name_ = new_name;
+    // Every alias of the renamed buffer follows it - its own alias name
+    // doesn't change, only which canonical buffer it resolves to, so a
+    // session view stays attached to "the same song" through a rename
+    // rather than dangling.
+    for (auto & [alias, canonical] : session_view_aliases_) {
+      if (canonical == old_name) canonical = new_name;
+    }
+    active_buffer_name_ = (active_buffer_name_ == old_name) ? new_name : active_buffer_name_;
   }
   refreshBufferCommands();
   // Rekeys the renamed buffer's own live SongState (if any) rather than
@@ -295,8 +310,12 @@ Controller::renameActiveBuffer(const string & new_name, Version saved_version) {
 // resurrect a dead buffer name instead of just doing nothing).
 void
 Controller::refreshBufferCommands() {
+  // getBufferNames()' own merge (real buffers plus session-view aliases) -
+  // an alias needs a "switch-to-buffer:<name>" entry exactly like a real
+  // buffer does, for the Buffers-menu click path (see this method's own
+  // doc comment on Controller.h).
   std::set<std::string> current;
-  for (auto & [name, song] : songs_) current.insert(name);
+  for (auto & name : getBufferNames()) current.insert(name);
   for (auto & name : registered_buffer_commands_) {
     if (!current.count(name)) commands_.undefine("switch-to-buffer:" + name);
   }
@@ -346,7 +365,7 @@ bool
 Controller::hasUnsavedChanges() const {
   auto song = getCurrentSong();
   if (!song) return false;
-  auto it = last_saved_versions_.find(active_buffer_name_);
+  auto it = last_saved_versions_.find(canonicalBufferName(active_buffer_name_));
   return it == last_saved_versions_.end() || song->getVersion() != it->second;
 }
 
@@ -372,7 +391,13 @@ Controller::switchToBuffer(const string & name) {
   bool created = false;
   {
     std::lock_guard<std::mutex> guard(song_mutex_);
-    if (songs_.find(name) == songs_.end()) {
+    // Existence is checked against the canonical name - a session-view
+    // alias already open (session_view_aliases_) always resolves to a
+    // real songs_ entry, so this correctly takes the "already open" path
+    // for it without ever creating a fresh Song under the alias's own
+    // name (an alias is only ever created by openSessionViewBuffer()
+    // against an already-open buffer to begin with).
+    if (songs_.find(canonicalBufferName(name)) == songs_.end()) {
       // Not open yet - create it fresh, same starter content "New" used
       // to set up back when it was its own command (see this method's own
       // doc comment on Controller.h).
@@ -390,33 +415,77 @@ Controller::switchToBuffer(const string & name) {
   if (buffer_change_listener_) buffer_change_listener_();
 }
 
+string
+Controller::openSessionViewBuffer() {
+  auto canonical = canonicalBufferName(active_buffer_name_);
+  auto alias = canonical + " [Session]";
+  {
+    std::lock_guard<std::mutex> guard(song_mutex_);
+    session_view_aliases_[alias] = canonical; // idempotent if already open
+  }
+  // switchToBuffer()'s own `created` flag never fires for an alias (it's
+  // never inserted into songs_ itself - see that method's own comment),
+  // so this call is what actually registers the alias's own
+  // "switch-to-buffer:" entry/Buffers-menu row the first time.
+  refreshBufferCommands();
+  switchToBuffer(alias);
+  return alias;
+}
+
 void
 Controller::cycleBuffer(bool forward) {
-  if (songs_.size() < 2) return; // nothing else to switch to
-  auto it = songs_.find(active_buffer_name_);
-  if (it == songs_.end()) return; // active_buffer_name_ should always be a real key; defensive only
+  // Over every buffer-list entry (real buffers plus session-view aliases,
+  // getBufferNames()' own merge), not just songs_'s own keys - Next/
+  // Previous-buffer should visit an alias too, the same as any other
+  // buffer-list entry.
+  auto names = getBufferNames();
+  if (names.size() < 2) return; // nothing else to switch to
+  auto it = std::find(names.begin(), names.end(), active_buffer_name_);
+  if (it == names.end()) return; // active_buffer_name_ should always be a real entry; defensive only
   if (forward) {
     ++it;
-    if (it == songs_.end()) it = songs_.begin();
+    if (it == names.end()) it = names.begin();
   } else {
-    if (it == songs_.begin()) it = songs_.end();
+    if (it == names.begin()) it = names.end();
     --it;
   }
-  switchToBuffer(it->first);
+  switchToBuffer(*it);
 }
 
 string
 Controller::getDefaultSwitchTarget() const {
-  if (songs_.size() < 2) return "";
-  auto it = songs_.find(active_buffer_name_);
-  if (it == songs_.end()) return ""; // defensive only, see cycleBuffer()'s own comment
+  auto names = getBufferNames();
+  if (names.size() < 2) return "";
+  auto it = std::find(names.begin(), names.end(), active_buffer_name_);
+  if (it == names.end()) return ""; // defensive only, see cycleBuffer()'s own comment
   ++it;
-  if (it == songs_.end()) it = songs_.begin();
-  return it->first;
+  if (it == names.end()) it = names.begin();
+  return *it;
 }
 
 bool
 Controller::killActiveBuffer() {
+  // Closing a session-view alias just drops the alias entry itself and
+  // returns to its own canonical buffer - the underlying Song/its other
+  // state (last_saved_versions_, playback/edit state, ...) is untouched,
+  // since it's still open under its own real name. Unlike the canonical-
+  // kill path below, this never refuses (there's always somewhere to
+  // return to: the canonical buffer it was aliasing).
+  string alias_canonical;
+  {
+    std::lock_guard<std::mutex> guard(song_mutex_);
+    auto it = session_view_aliases_.find(active_buffer_name_);
+    if (it != session_view_aliases_.end()) {
+      alias_canonical = it->second;
+      session_view_aliases_.erase(it);
+    }
+  }
+  if (!alias_canonical.empty()) {
+    refreshBufferCommands(); // drops the now-gone alias's own "switch-to-buffer:" entry
+    switchToBuffer(alias_canonical);
+    return true;
+  }
+
   string killed_name;
   {
     std::lock_guard<std::mutex> guard(song_mutex_);
@@ -424,6 +493,12 @@ Controller::killActiveBuffer() {
     killed_name = active_buffer_name_;
     songs_.erase(active_buffer_name_);
     last_saved_versions_.erase(active_buffer_name_);
+    // Drops any session-view alias that pointed at the now-gone buffer -
+    // a dangling alias would otherwise still list/switch-to-buffer into a
+    // canonical name with no real Song behind it any more.
+    for (auto it = session_view_aliases_.begin(); it != session_view_aliases_.end(); ) {
+      if (it->second == killed_name) it = session_view_aliases_.erase(it); else ++it;
+    }
     active_buffer_name_ = songs_.begin()->first; // name-sorted first remaining buffer
   }
   // The killed buffer's own saved state (if any) is discarded along with
@@ -522,7 +597,13 @@ Controller::setEditPosition(int absolute_row) {
 
 void
 Controller::receivePlaybackSnapshot(const string & buffer_name, const PlaybackInfo & info) {
-  if (buffer_name != active_buffer_name_) {
+  // buffer_name always names a real Song (every PlaybackControlEvent is
+  // tagged via getActiveBufferName(), always canonical) - compare against
+  // the canonical form of whatever's actually selected, so a snapshot for
+  // the song currently being looked at still matches while viewing one of
+  // its session-view aliases rather than being mistaken for "some other,
+  // unrelated buffer playing in the background."
+  if (buffer_name != canonicalBufferName(active_buffer_name_)) {
     // Not the buffer currently being looked at/edited - e.g. a buffer
     // still playing in the background while a different one is active
     // (see the per-buffer editing/playback-state plan's Part B).

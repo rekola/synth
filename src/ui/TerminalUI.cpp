@@ -140,6 +140,9 @@ public:
       plane->move(y, x);
     }
   }
+  void moveToTop() override {
+    if (plane->to_ncplane()) plane->move_top();
+  }
   void setFgColor(int r, int g, int b) override { plane->set_fg_rgb8(r, g, b); }
   void setBgColor(int r, int g, int b) override { plane->set_bg_rgb8(r, g, b); }
   void setUnderline(bool b) override {
@@ -625,6 +628,12 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
   buffer_items.push_back({ "Next Buffer", "C-x Right", "next-buffer" });
   buffer_items.push_back({ "Previous Buffer", "C-x Left", "previous-buffer" });
   buffer_items.push_back({ "Select Named Buffer...", "C-x b", "select-named-buffer" });
+  buffer_items.push_back({ nullptr, nullptr, nullptr });
+  // Menu-only, no keybinding of their own - open the active buffer's own
+  // Pattern Viewer (PatternEditor - a no-op for now, see UI.cpp's own
+  // "pattern-viewer" command comment) or Session View (SessionView) aspect.
+  buffer_items.push_back({ "Open Pattern Viewer", "", "pattern-viewer" });
+  buffer_items.push_back({ "Open Session View", "", "session-view" });
   spec.push_back({ "Buffers", 'b', std::move(buffer_items) });
 
   return spec;
@@ -1594,7 +1603,7 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
     vector<string> buffer_display_names;
     buffer_display_names.reserve(buffer_names.size());
     for (auto & name : buffer_names) buffer_display_names.push_back(controller->getBufferDisplayName(name));
-    menu_ = make_shared<TerminalMenu>(buffer_names, std::move(buffer_display_names), controller->getActiveBufferName());
+    menu_ = make_shared<TerminalMenu>(buffer_names, std::move(buffer_display_names), controller->getSelectedBufferName());
   }
 
   bool use_pixel = notcurses_check_pixel_support(*nc) != NCPIXEL_NONE;

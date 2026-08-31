@@ -559,10 +559,49 @@ real hardware pads - not `PatternEditor` and not the Arrangement grid
   many clips a track realistically accumulates, how they get browsed/
   picked today via Session view) worth having before designing a
   dedicated surface for them, rather than guessing now.
-- **Open:** exact widget shape - a new `UIElement` sibling of
-  `ArrangementGrid`/`InstrumentList`, or reusing `HierarchyView`'s
-  currently-dead tree-list machinery (`UI.cpp`'s own `#if 0`-wrapped
-  construction) - undecided.
+- **Landed, renamed `SessionView`** (`src/ui/SessionView.h`/`.cpp`) - a
+  new `UIElement` sibling of `ArrangementGrid` (not `HierarchyView`'s own
+  dead tree-list machinery). One column per color-eligible leaf track
+  (`Song::getPlayableTrackIds()`), sharing one row axis across every
+  column (header, then Send Main/A/B, then that track's own
+  `Song::getClips(track_id)` list) so same-numbered rows line up between
+  tracks. No clip length shown (name plus a loop/one-shot glyph only).
+  Track identity color (`SongStructure::getBaselineInfo().getColor()`) is
+  reserved for clip cells alone - the header and Send rows stay plain, a
+  deliberate correction from an earlier draft that colored the header
+  too. Cursor already reaches the Send Main/A/B rows, not just clips, but
+  everything is read-only for now - no rename/delete/loop-toggle
+  commands, no Send-level editing, not even keybindings for any of it
+  yet; this pass is the navigable view only. The VU meter from this
+  section's original spec is also not built.
+- **Reached via buffer aliasing, not a standalone open/close toggle** -
+  `Controller::openSessionViewBuffer()` switches to (creating the first
+  time, idempotent after) a second buffer-list entry named
+  `"<buffer> [Session]"`, aliased to the exact same `Song`/live playback
+  state/save-dirty tracking as the buffer it came from
+  (`Controller::canonicalBufferName()`) - the two entries differ only in
+  which aspect (`SessionView` vs `PatternEditor`) UI shows for them.
+  Bound to `C-x c`; getting back to `PatternEditor` is `C-x b` (or
+  next/previous-buffer) like any other buffer switch, not a dedicated
+  command. `SessionView` takes over `PatternEditor`'s own screen region
+  while showing (`UI::layout()` gives both the same rect and
+  `UIPlane::moveToTop()` raises whichever is active - a plain `resize()`
+  to a 0-size rect turned out not to work: notcurses itself
+  refuses/ignores a resize to zero rows or columns, silently leaving a
+  hidden widget's last real content and z-position untouched underneath
+  the one that's supposed to be showing, confirmed via a pty+notcurses
+  reproduction).
+- **Deliberately deferred, not part of this pass**: rename/delete/loop-
+  toggle and Send-level editing (the read-only view above is the whole
+  scope so far), the VU meter, and true symmetry between `PatternEditor`
+  and `SessionView` as buffer-list entries - today `PatternEditor`'s own
+  buffer is still the privileged "canonical" one (`Controller::songs_`'s
+  real storage key) and can't be closed independently of the underlying
+  Song the way a `SessionView` alias already can; making it fully
+  symmetric (either aspect closeable without closing the Song) would mean
+  reworking `songs_` into a real view-name -> (song identity, aspect)
+  model throughout `Controller`, postponed rather than folded into this
+  pass.
 
 ## Phase F: nested Effect automation in clips
 

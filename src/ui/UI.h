@@ -20,6 +20,7 @@ class InfoLine;
 class StatusLine;
 class PatternEditor;
 class ArrangementGrid;
+class SessionView;
 class CoverArt;
 class SpinBox;
 class UIElement;
@@ -136,6 +137,33 @@ private:
   // Always visible in the scope row's leftmost columns (see UI::layout()),
   // sharing that row's real estate with chart_/heatmap_/volume_meter_.
   std::shared_ptr<ArrangementGrid> arrangement_grid_;
+  // Takes over pattern_editor_'s own screen region while session_view_open_
+  // is set (see UI::layout()/renderComponents()) - both stay real,
+  // constructed objects the whole time; only which one is on screen/
+  // active changes. See SessionView.h's own comment. session_view_open_
+  // itself isn't toggled directly by any UI-owned command - it's derived,
+  // in the buffer-change listener (UI::initialize()), from whether the
+  // now-selected buffer is a session-view alias
+  // (Controller::isSessionViewBuffer()) - opening one is
+  // Controller::openSessionViewBuffer() switching to its own alias
+  // buffer; closing it is switching to any other buffer, C-x b included.
+  std::shared_ptr<SessionView> session_view_;
+  bool session_view_open_ = false;
+  // Set by a handler that changes what's on screen (session_view_open_
+  // toggling, NCKEY_RESIZE) from *inside* input handling - before
+  // TerminalUI.cpp's own main loop reaches its own renderComponents()
+  // call, the one that actually decides whether to call nc->render() (the
+  // real terminal flush). Calling renderComponents(true) directly from in
+  // here would draw everything correctly into notcurses's own plane
+  // state, but its return value (and every widget's own now-freshly-
+  // updated "did I already draw this" memoized state) would be consumed
+  // right then and discarded - by the time the outer loop makes its own
+  // renderComponents() call a moment later, every widget correctly
+  // reports "nothing new to draw," so nc->render() never actually runs
+  // and the correctly-drawn content never reaches the real terminal.
+  // Setting this instead defers the forced refresh to that one outer
+  // call, so its own return value (and therefore the flush) reflects it.
+  bool force_next_render_ = false;
   // Square cover-art thumbnail, sharing the scope row immediately to the
   // right of arrangement_grid_ - see CoverArt.h and UI::layout().
   std::shared_ptr<CoverArt> cover_art_;

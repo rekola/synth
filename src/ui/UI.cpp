@@ -7,6 +7,7 @@
 #include "StatusLine.h"
 #include "PatternEditor.h"
 #include "ArrangementGrid.h"
+#include "SessionView.h"
 #include "CoverArt.h"
 #include "SpinBox.h"
 #include "../model/Color.h"
@@ -89,6 +90,7 @@ UI::initialize() {
   // chart and volume are missing
   pattern_editor_ = make_shared<PatternEditor>(getPlane());
   arrangement_grid_ = make_shared<ArrangementGrid>(getPlane());
+  session_view_ = make_shared<SessionView>(getPlane());
   // Enter commits the cell under this grid's own (local, passive) cursor
   // to shared state - see ArrangementGrid.h's own comment on why this is a
   // callback rather than the grid reaching for PatternEditor/
@@ -194,6 +196,22 @@ UI::initialize() {
       return result;
     });
   });
+  // Menu-only (Buffers menu's own "Open Session View" item) - no
+  // keybinding. Switches to (creating the first time) a session-view
+  // alias of the active buffer - see Controller::openSessionViewBuffer()'s
+  // own comment. The buffer-change listener above does the actual
+  // screen-slot swap; this command's only job is asking Controller to
+  // switch there.
+  commands_.define("session-view", [this]() {
+    getController().openSessionViewBuffer();
+  });
+  // Menu-only, same as session-view above ("Open Pattern Viewer") - a
+  // no-op for now. PatternEditor is still the privileged "canonical"
+  // buffer aspect (Controller::songs_'s real storage key, not an alias
+  // like session-view's own), so there's nothing to actually switch to
+  // yet - see plans/arrangement-view.md's own Phase E note on what making
+  // it a real, symmetric alias like session-view's own would take.
+  commands_.define("pattern-viewer", [this]() { });
   commands_.define("kill-buffer", [this]() {
     auto doKill = [this]() {
       auto name = getController().getActiveBufferName();
@@ -340,11 +358,48 @@ UI::initialize() {
     vector<string> display_names;
     display_names.reserve(names.size());
     for (auto & name : names) display_names.push_back(getController().getBufferDisplayName(name));
-    menu_->refreshBuffers(names, display_names, getController().getActiveBufferName());
+    // getSelectedBufferName() (raw, possibly a session-view alias), not
+    // getActiveBufferName() (always the real Song) - the menu's own
+    // "current" marker must highlight whichever row is literally
+    // selected, alias included.
+    auto selected = getController().getSelectedBufferName();
+    menu_->refreshBuffers(names, display_names, selected);
 
     // Cursor/scroll/selection/live-note/annotation-editing state - see
-    // PatternEditor::handleBufferChanged()'s own comment.
+    // PatternEditor::handleBufferChanged()'s own comment. Reads
+    // getActiveBufferName() (always canonical) internally, so toggling
+    // between a buffer and its own session-view alias looks like no
+    // change at all here - correct, since it's the same Song/edit
+    // position either way.
     pattern_editor_->handleBufferChanged();
+
+    // SessionView takes over pattern_editor_'s own screen slot exactly
+    // while the newly-selected buffer is a session-view alias - see
+    // SessionView.h's own comment. Guarded on an actual change so a
+    // buffer switch between two ordinary (non-alias) buffers, or between
+    // two different aliases, doesn't fight whatever active_element_
+    // already legitimately is (e.g. arrangement_grid_).
+    bool now_session_view = getController().isSessionViewBuffer(selected);
+    if (now_session_view != session_view_open_) {
+      session_view_open_ = now_session_view;
+      if (now_session_view) {
+        auto root_track_ids = getController().getSong().getRootTrackIds();
+        auto cursor_idx = pattern_editor_->getCursorTrackIndex();
+        auto selected_track_id = (cursor_idx >= 0 && cursor_idx < static_cast<int>(root_track_ids.size())) ?
+          root_track_ids[static_cast<size_t>(cursor_idx)] : -1;
+        auto playable = getController().getSong().getPlayableTrackIds();
+        auto it = std::find(playable.begin(), playable.end(), selected_track_id);
+        session_view_->setCursorTrackIndex(it == playable.end() ? 0 : static_cast<int>(it - playable.begin()));
+        active_element_ = session_view_;
+      } else {
+        active_element_ = pattern_editor_;
+      }
+      layout();
+      // Not a direct renderComponents(true) call here - see
+      // force_next_render_'s own comment on UI.h for why that would
+      // silently never actually reach the screen.
+      force_next_render_ = true;
+    }
   });
 }
 
@@ -401,7 +456,6 @@ UI::commandCompletions(std::string_view prefix) const {
 void
 UI::layout() { 
   auto [ rows, cols ] = getDim();
-  setStatus("Layout (rows = " + to_string(rows) + ", cols = " + to_string(cols) + ")");
 
   constexpr int kHeatmapWidth = 31; // 20 * 1.5, rounded up to the nearest odd width
   constexpr int kScopeRow = 1, kScopeHeight = 5;
@@ -450,7 +504,16 @@ UI::layout() {
     putstr(kScopeRow + row, divider1_x, "│");
     putstr(kScopeRow + row, divider2_x, "│");
   }
+  // Both get the exact same real rect always - notcurses itself refuses/
+  // ignores a plane resize to zero rows or columns (confirmed via a
+  // pty+notcurses reproduction), so shrinking the inactive one to (0, 0)
+  // silently no-ops, leaving its last real content and z-position
+  // untouched underneath whichever one is actually supposed to show.
+  // moveToTop() (below) is what actually decides which one is visible -
+  // raising the active widget above its sibling, not the rect itself.
   pattern_editor_->resize(rows - 8, cols).move(6, 0);
+  session_view_->resize(rows - 8, cols).move(6, 0);
+  if (session_view_open_) session_view_->moveToTop(); else pattern_editor_->moveToTop();
   info_line_->resize(1, cols).move(rows - 2, 0);
   // Inline in the info bar, right-aligned - a separate plane, created
   // after info_line_ (UI::initialize()) so it z-orders above whatever
@@ -466,6 +529,12 @@ UI::layout() {
 
 bool
 UI::renderComponents(bool refresh) {
+  // See force_next_render_'s own comment on UI.h - consumed here (the one
+  // call site whose own return value actually reaches TerminalUI.cpp's
+  // nc->render() gate), not at whichever earlier, input-handling call
+  // site actually requested it.
+  refresh = refresh || force_next_render_;
+  force_next_render_ = false;
   bool render = false;
   auto active = active_element_.lock();
   auto & song = getController().getSong();
@@ -479,7 +548,11 @@ UI::renderComponents(bool refresh) {
   int selected_track_id = (cursor_track_idx >= 0 && cursor_track_idx < static_cast<int>(root_track_ids.size())) ?
     root_track_ids[static_cast<size_t>(cursor_track_idx)] : -1;
 
-  render |= pattern_editor_->render(styles_, refresh, active == pattern_editor_);
+  // Exactly one of pattern_editor_/session_view_ occupies the screen slot
+  // both share (see layout()) - render whichever one session_view_open_
+  // says is actually showing, never both.
+  if (session_view_open_) render |= session_view_->render(styles_, refresh, active == session_view_);
+  else render |= pattern_editor_->render(styles_, refresh, active == pattern_editor_);
   render |= arrangement_grid_->render(styles_, refresh, active == arrangement_grid_, selected_track_id);
   render |= cover_art_->render(styles_, refresh);
   render |= info_line_->render(styles_, refresh);
@@ -532,7 +605,15 @@ UI::offerInput(const InputEvent & input) {
     refresh();
     getPlane().refresh();
     layout();
-    renderComponents(true);
+    // Deferred, not a direct renderComponents(true) call - see
+    // force_next_render_'s own comment on UI.h: this runs from inside
+    // input handling, before TerminalUI.cpp's own main loop reaches its
+    // own renderComponents() call (the one that actually gates
+    // nc->render(), the real terminal flush) - a direct call here would
+    // draw everything correctly into notcurses's own plane state, then
+    // report "nothing left to redraw" right back to that outer call,
+    // which would then skip the flush and never actually show it.
+    force_next_render_ = true;
   } else if (input.hasCtrl() && input.getId() == 'l') {
     refresh();
   } else if (input.getId() == NCKEY_BUTTON1) {
@@ -549,19 +630,24 @@ UI::offerInput(const InputEvent & input) {
     // plain arrow keys/note entry the way pattern_editor_ does) the moment
     // a click landed anywhere on the status line's own row - which spans
     // the entire bottom row, so this was very easy to trigger by accident.
-    bool activated = tryActivate(input.getY(), input.getX(), pattern_editor_);
+    // pattern_editor_/session_view_ share one screen rect (see layout()) -
+    // only try the one that's actually showing, never both, since a click
+    // there must activate whichever is visible, not always pattern_editor_.
+    bool activated = session_view_open_ ? tryActivate(input.getY(), input.getX(), session_view_)
+                                         : tryActivate(input.getY(), input.getX(), pattern_editor_);
     activated = tryActivate(input.getY(), input.getX(), arrangement_grid_) || activated;
     activated = tryActivate(input.getY(), input.getX(), octave_control_) || activated;
 
-    // Fall back to the pattern editor - the default/main workspace - if the
-    // click landed somewhere no widget claims (e.g. the FFT/heatmap/loudness
-    // scope strip, or the dividers between them). Without this, active_element_
-    // was left permanently empty (a real, confirmed bug): every subsequent
-    // keyboard command routed through it (UI::offerInput()'s active_element_
-    // fallback below, and Launchpad button commands via UI::executeCommand())
-    // silently no-op'd - including plain Up/Down arrow - until the user
-    // happened to click directly back on the pattern editor.
-    if (!activated) active_element_ = pattern_editor_;
+    // Fall back to whichever of the two currently occupies the main
+    // workspace slot if the click landed somewhere no widget claims (e.g.
+    // the FFT/heatmap/loudness scope strip, or the dividers between
+    // them). Without this, active_element_ was left permanently empty (a
+    // real, confirmed bug): every subsequent keyboard command routed
+    // through it (UI::offerInput()'s active_element_ fallback below, and
+    // Launchpad button commands via UI::executeCommand()) silently
+    // no-op'd - including plain Up/Down arrow - until the user happened
+    // to click directly back on the workspace.
+    if (!activated) active_element_ = session_view_open_ ? std::shared_ptr<UIElement>(session_view_) : std::shared_ptr<UIElement>(pattern_editor_);
 
     // A click that moves focus away from the octave stepper while it's
     // mid-edit discards the half-typed value rather than leaving it stuck

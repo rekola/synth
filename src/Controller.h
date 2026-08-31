@@ -43,7 +43,7 @@ class Controller {
   // to a new one.
   std::shared_ptr<Song> getCurrentSong() const {
     std::lock_guard<std::mutex> guard(song_mutex_);
-    auto it = songs_.find(active_buffer_name_);
+    auto it = songs_.find(canonicalBufferName(active_buffer_name_));
     return it == songs_.end() ? nullptr : it->second;
   }
 
@@ -57,7 +57,7 @@ class Controller {
   // and the audio thread actually processing it.
   std::shared_ptr<Song> getSongByName(const std::string & name) const {
     std::lock_guard<std::mutex> guard(song_mutex_);
-    auto it = songs_.find(name);
+    auto it = songs_.find(canonicalBufferName(name));
     return it == songs_.end() ? nullptr : it->second;
   }
 
@@ -68,32 +68,68 @@ class Controller {
   Song & getSong() { return *getCurrentSong(); }
   const Song & getSong() const { return *getCurrentSong(); }
 
-  // Which songs_ entry is "current" - UI-thread-only, like song_mutex_'s
-  // other UI-thread-only reads, so no lock needed here either (see
-  // song_mutex_'s own comment).
-  const std::string & getActiveBufferName() const { return active_buffer_name_; }
+  // The active *Song*'s own real buffer name - always canonical, never a
+  // session-view alias (see canonicalBufferName()'s own comment), which is
+  // what every caller that actually means "the real underlying Song"
+  // wants: file paths, PlaybackControlEvent tagging, PatternEditor's own
+  // per-buffer state key. By value now (not a reference) since an aliased
+  // active_buffer_name_ resolves to a *different* string, not a
+  // sub-object of it. UI-thread-only, like song_mutex_'s other UI-thread-
+  // only reads, so no lock needed here (see song_mutex_'s own comment).
+  // See getSelectedBufferName() below for the one thing that still wants
+  // the raw, possibly-aliased name.
+  std::string getActiveBufferName() const { return canonicalBufferName(active_buffer_name_); }
 
-  // Thread-safe counterpart to getActiveBufferName() above - Player.cpp's
-  // audio thread needs to know which buffer is active too now (to decide
-  // which live buffer's own AuxA/AuxB send-bus meters to report for the
-  // volume meter - see AudioBlockEvent.h), and a bare read of
-  // active_buffer_name_ there would race a UI-thread switchToBuffer()/
-  // killActiveBuffer()/renameActiveBuffer() reassignment the same way
-  // getCurrentSong() would without going through song_mutex_.
+  // The literal buffer-list entry currently selected - unlike
+  // getActiveBufferName() above, this can be a session-view alias.
+  // Exists for the two places that must show/compare the exact selected
+  // row rather than the Song it resolves to: the Buffers menu's own
+  // "current" marker, and UI's own buffer-change listener (to tell
+  // whether the newly-active entry is a session-view alias at all).
+  const std::string & getSelectedBufferName() const { return active_buffer_name_; }
+
+  // Thread-safe counterpart to getActiveBufferName() above (always
+  // canonical, same reasoning) - Player.cpp's audio thread needs to know
+  // which buffer is active too now (to decide which live buffer's own
+  // AuxA/AuxB send-bus meters to report for the volume meter - see
+  // AudioBlockEvent.h), and a bare read of active_buffer_name_ there
+  // would race a UI-thread switchToBuffer()/killActiveBuffer()/
+  // renameActiveBuffer() reassignment the same way getCurrentSong() would
+  // without going through song_mutex_.
   std::string getActiveBufferNameThreadSafe() const {
     std::lock_guard<std::mutex> guard(song_mutex_);
-    return active_buffer_name_;
+    return canonicalBufferName(active_buffer_name_);
   }
 
-  // Every open buffer's name, in name-sorted order - the Buffers menu
-  // (TerminalMenu::refreshBuffers()) and any future buffer-listing command
-  // read this rather than songs_ directly.
+  // Every open buffer's name, in name-sorted order, plus every open
+  // session-view alias (see openSessionViewBuffer()) - the Buffers menu
+  // (TerminalMenu::refreshBuffers()), select-named-buffer's own
+  // completion, and any future buffer-listing command read this rather
+  // than songs_ directly.
   std::vector<std::string> getBufferNames() const {
-    std::vector<std::string> names;
-    names.reserve(songs_.size());
-    for (auto & [name, song] : songs_) names.push_back(name);
-    return names;
+    std::set<std::string> names;
+    for (auto & [name, song] : songs_) names.insert(name);
+    for (auto & [alias, canonical] : session_view_aliases_) names.insert(alias);
+    return std::vector<std::string>(names.begin(), names.end());
   }
+
+  // Whether `name` is a session-view alias (openSessionViewBuffer()),
+  // never a real songs_ entry of its own - UI's own buffer-change
+  // listener uses this to decide whether the newly-selected buffer should
+  // show SessionView in place of PatternEditor.
+  bool isSessionViewBuffer(const std::string & name) const { return session_view_aliases_.count(name) > 0; }
+
+  // Switches to (creating the first time - idempotent after that) a
+  // session-view alias of the currently active buffer: a second buffer-
+  // list entry (name + " [Session]") that resolves to the exact same
+  // Song, live playback/edit state, and save-dirty tracking as the buffer
+  // it was opened from (see canonicalBufferName()'s own comment) -
+  // distinguished only by which UI aspect (SessionView vs PatternEditor)
+  // is shown for it. Calling this while already viewing an alias resolves
+  // through to its own canonical buffer first, so it's a no-op rather
+  // than aliasing an alias. Returns the alias's own buffer name (for a
+  // caller that wants to e.g. show it in a status message).
+  std::string openSessionViewBuffer();
 
   // Emacs-style uniquify: `name`'s own basename, unless another open
   // buffer shares it, in which case just enough of the parent directory
@@ -539,6 +575,28 @@ class Controller {
   // buffer kind shows up, that's the point this stops being accurate and
   // needs revisiting, not before.
   std::map<std::string, std::shared_ptr<Song>> songs_;
+  // Session-view alias buffer name -> its own canonical (source) buffer
+  // name - see openSessionViewBuffer(). An alias is never inserted into
+  // songs_/last_saved_versions_ itself; every per-Song/per-buffer-state
+  // lookup that actually needs the real Song (getCurrentSong(),
+  // getActiveBufferName(), the playback/edit-state maps below,
+  // PlaybackControlEvent tagging) resolves through canonicalBufferName()
+  // first, so an alias and its canonical buffer always share one Song and
+  // one live state - the two buffer-list entries differ only in which UI
+  // aspect gets shown for them (see UI::openSessionView()). Guarded by
+  // song_mutex_ alongside songs_/active_buffer_name_ for the same reason
+  // (see that member's own comment) - mutated only on the UI thread, but
+  // canonicalBufferName() is also called from getActiveBufferNameThreadSafe().
+  std::map<std::string, std::string> session_view_aliases_;
+  // `name` itself unless it's a session-view alias, in which case the
+  // canonical buffer it aliases - see session_view_aliases_'s own
+  // comment. The one place that distinction actually collapses; every
+  // other buffer-name-keyed lookup in this class goes through this first
+  // rather than re-deriving it.
+  std::string canonicalBufferName(const std::string & name) const {
+    auto it = session_view_aliases_.find(name);
+    return it == session_view_aliases_.end() ? name : it->second;
+  }
   // hasUnsavedChanges()'s baseline, one per songs_ entry rather than one
   // shared scalar - each buffer's own unsaved-changes state is independent
   // of whichever buffer happens to be active, so switching the active one

@@ -67,6 +67,12 @@ class UIElement : public EventHandler {
     if (plane_) plane_->move(y, x);
     return *this;
   }
+  // See UIPlane::moveToTop()'s own comment - raises this widget's plane
+  // above every sibling under the same parent.
+  UIElement & moveToTop() {
+    if (plane_) plane_->moveToTop();
+    return *this;
+  }
   UIElement & resize(int rows, int cols) {
     if (plane_) plane_->resize(rows, cols);
     onResize();
