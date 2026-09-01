@@ -1168,7 +1168,7 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
   // active clip instance's own (live-linked) Pattern, or this track's own
   // background Pattern otherwise - see offerInput()'s own raw-key note
   // entry for the same resolution.
-  auto edit_target = resolveEditTarget(song, scene, track_id, info.getRowIndex());
+  auto edit_target = resolveEditTarget(song, scene, track_id, info.getRowIndex(), getController().getFocusedClip());
 
   // Channel-wide, not tied to any specific note - unlike every other case
   // below, ev.getNote() is unused (always 0, see AlsaAudio.cpp), so this
@@ -1671,7 +1671,7 @@ PatternEditor::offerInput(const InputEvent & input) {
       // resolved row, not the raw playhead one, the same "a Pattern
       // shorter than its context repeats" transparency getEffectiveRow()
       // already gave the background-only case.
-      auto edit_target = resolveEditTarget(song, scene, track_id, info.getRowIndex());
+      auto edit_target = resolveEditTarget(song, scene, track_id, info.getRowIndex(), getController().getFocusedClip());
       auto column_type = track_info.getColumnType(new_cursor.col);
     
       if (column_type == ColumnType::EFFECT) {
@@ -2542,7 +2542,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       // otherwise - the same resolution real playback uses
       // (SongState.h's own renderBlock()), so this always shows exactly
       // what's actually going to play.
-      auto read_target = resolveReadTarget(song, scene, track_id, pattern_row);
+      auto read_target = resolveReadTarget(song, scene, track_id, pattern_row, getController().getFocusedClip());
       VisibleTrackInfo track_info;
       auto it = all_track_info.find(track_id);
       if (it != all_track_info.end()) track_info = it->second;

@@ -64,8 +64,28 @@ resolveInstanceAt(const Song & song, const Scene & scene, int track_id, int row)
   return { clip_index, event_row };
 }
 
+// The clip_index a focused clip resolves to, or -1 if `focused_clip_id`
+// is empty or doesn't resolve to a real clip on this track - the same
+// id-not-position lookup resolveInstanceAt() already does.
+static int
+resolveFocusedClipIndex(const Song & song, int track_id, const std::string & focused_clip_id) {
+  if (focused_clip_id.empty()) return -1;
+  auto & clips = song.getClips(track_id);
+  for (size_t i = 0; i < clips.size(); i++) {
+    if (clips[i].getId() == focused_clip_id) return static_cast<int>(i);
+  }
+  return -1;
+}
+
 EditTarget
-resolveEditTarget(Song & song, Scene & scene, int track_id, int row) {
+resolveEditTarget(Song & song, Scene & scene, int track_id, int row, const std::string & focused_clip_id) {
+  auto focused_index = resolveFocusedClipIndex(song, track_id, focused_clip_id);
+  if (focused_index >= 0) {
+    auto & clip = song.getClips(track_id)[static_cast<size_t>(focused_index)];
+    auto & pattern = clip.getLeafPattern();
+    auto length = clip.getLength() > 0 ? clip.getLength() : 1;
+    return { &pattern, pattern.getEffectiveRow(row, length) };
+  }
   auto active = resolveInstanceAt(song, scene, track_id, row);
   if (active.clip_index >= 0) {
     auto & clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
@@ -78,8 +98,15 @@ resolveEditTarget(Song & song, Scene & scene, int track_id, int row) {
 }
 
 ReadTarget
-resolveReadTarget(const Song & song, const Scene & scene, int track_id, int row) {
+resolveReadTarget(const Song & song, const Scene & scene, int track_id, int row, const std::string & focused_clip_id) {
   static const Pattern empty_pattern;
+  auto focused_index = resolveFocusedClipIndex(song, track_id, focused_clip_id);
+  if (focused_index >= 0) {
+    auto & clip = song.getClips(track_id)[static_cast<size_t>(focused_index)];
+    auto & pattern = clip.getLeafPattern();
+    auto length = clip.getLength() > 0 ? clip.getLength() : 1;
+    return { &pattern, pattern.getEffectiveRow(row, length), row, true, focused_index, true };
+  }
   auto active = resolveInstanceAt(song, scene, track_id, row);
   if (active.clip_index >= 0) {
     auto & clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];

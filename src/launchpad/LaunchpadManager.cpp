@@ -464,6 +464,11 @@ LaunchpadManager::toggleGridMode(int device_id, GridMode mode) {
   state.grid_mode = (state.grid_mode == mode) ? GridMode::NOTES : mode;
 }
 
+void
+LaunchpadManager::forceNotesModeOnAllDevices() {
+  for (auto & [device_id, state] : devices_) state.grid_mode = GridMode::NOTES;
+}
+
 bool
 LaunchpadManager::handleRawButton(int cc_number, int device_id) {
   // 69/79/89 confirmed against a real Launchpad X: Send A/Pan/Volume, 10
@@ -646,7 +651,7 @@ LaunchpadManager::handleDrumConfigButton(int device_id, bool is_press, DrumMachi
     auto & song = controller.getSong();
     auto & info = controller.getPlaybackInfo();
     auto & scene = song.getOrCreateScene(info.getPatternIndex());
-    auto edit_target = resolveEditTarget(song, scene, assigned_drum_track->getInternalId(), info.getRowIndex());
+    auto edit_target = resolveEditTarget(song, scene, assigned_drum_track->getInternalId(), info.getRowIndex(), controller.getFocusedClip());
     *edit_target.pattern = Pattern();
     song.incVersion();
   } else {
@@ -888,7 +893,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // itself stays raw for recordActiveNote()'s own held-note bookkeeping
     // (a same-row-or-not comparison against a later release, unaffected
     // by any remap).
-    auto edit_target = resolveEditTarget(song, scene, track_id, row);
+    auto edit_target = resolveEditTarget(song, scene, track_id, row, controller.getFocusedClip());
     auto & state = deviceState(device_id);
 
     // Whether this press is about to become the first captured (Capture-
@@ -1301,7 +1306,7 @@ LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & co
     // resolveEditTarget()) - x is already exactly the row this resolves
     // against (the step grid addresses rows 0-7 directly, no scrolling
     // window), same as the ordinary NOTES-mode pad press just above.
-    auto edit_target = resolveEditTarget(song, scene, track_id, x);
+    auto edit_target = resolveEditTarget(song, scene, track_id, x, controller.getFocusedClip());
     auto & row_notes = edit_target.pattern->getNotes(edit_target.effective_row);
     int existing_column = -1;
     for (size_t i = 0; i < row_notes.size(); i++) {
@@ -1378,30 +1383,31 @@ LaunchpadManager::handleDrumPickerPadEvent(LaunchpadPadEvent & ev, Controller & 
 }
 
 void
-LaunchpadManager::triggerAuditionStep(const Song & song, const vector<int> & track_ids, Controller & controller, int step) {
+LaunchpadManager::triggerAuditionStep(const Song & song, int track_id, Controller & controller, int step) {
+  auto track = song.getMasterTrack().getChildByInternalId(track_id);
+  if (!track || track->getType() != TrackType::DRUM_MACHINE) return;
+  auto & drum_track = static_cast<const DrumMachineTrack &>(*track);
+
   auto & event_queue = controller.getPlaybackEventQueue();
   auto & info = controller.getPlaybackInfo();
   auto & scene = song.getScene(info.getPatternIndex()); // read-only audition - never grows the song
 
-  for (auto track_id : track_ids) {
-    auto track = song.getMasterTrack().getChildByInternalId(track_id);
-    if (!track || track->getType() != TrackType::DRUM_MACHINE) continue;
-    auto & drum_track = static_cast<const DrumMachineTrack &>(*track);
+  // Idle auditioning only ever previews an explicitly focused clip
+  // (Controller::getFocusedClip()), never the background/whatever
+  // instance happens to be active there - "nothing selected" means
+  // silence, not an uncontrolled loop of whatever was last recorded on
+  // this track. resolveReadTarget()'s own is_focused_override tells the
+  // two apart; falling through to ordinary resolution (no focus, or a
+  // focus that belongs to some other track) means there's nothing to
+  // preview here right now.
+  auto read_target = resolveReadTarget(song, scene, track_id, step, controller.getFocusedClip());
+  if (!read_target.is_focused_override) return;
 
-    // Whatever's actually active at this row (ArrangementOps.h's own
-    // resolveReadTarget()) - a placed clip instance's own content, or
-    // this track's own background Pattern otherwise. Never null (falls
-    // back to a shared empty Pattern), so there's no separate "nothing
-    // here" guard needed the way a direct getPatternsByTrack() lookup
-    // would have.
-    auto read_target = resolveReadTarget(song, scene, track_id, step);
-
-    // No explicit STOP_NOTE - a one-shot note-on per hit, relying on the
-    // instrument's own envelope/choke machinery for anything past that.
-    for (int note : drum_track.getHitNotesAtRow(*read_target.pattern, read_target.effective_row)) {
-      auto velocity = static_cast<short>(constants::DEFAULT_VELOCITY);
-      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), track_id, note, note, velocity));
-    }
+  // No explicit STOP_NOTE - a one-shot note-on per hit, relying on the
+  // instrument's own envelope/choke machinery for anything past that.
+  for (int note : drum_track.getHitNotesAtRow(*read_target.pattern, read_target.effective_row)) {
+    auto velocity = static_cast<short>(constants::DEFAULT_VELOCITY);
+    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), track_id, note, note, velocity));
   }
 }
 
@@ -1709,6 +1715,18 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
 
   auto num_tracks = static_cast<int>(track_ids.size());
 
+  // The track whose clip is currently focused for editing
+  // (Controller::getFocusedClipTrackId(), SessionView's own Enter) -
+  // triggerAuditionStep() below only fires for this one track, not
+  // whichever track a Launchpad device happens to be assigned to: a
+  // focus is deliberately hardware-independent (no Launchpad needs to be
+  // connected at all to hear the clip you're editing), and deliberately
+  // exclusive - a single, currently-selected-for-editing clip, not
+  // Session-view-style multi-track simultaneous launching. Silencing the
+  // *previous* focus's track on any focus change is Controller's own job
+  // (setFocusedClip()/clearFocusedClip()), not this loop's.
+  auto focused_track_id = controller.getFocusedClipTrackId();
+
   // The free-running drum-machine/clip audition clock - computed
   // once here, shared by every connected device below, not per-device.
   // audition_clock_ itself (StepClock, LaunchpadTiming.h) is the pure,
@@ -1736,7 +1754,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       // for the first row to elapse.
       audition_clock_.start();
       audition_clock_last_refresh_ = now;
-      triggerAuditionStep(song, track_ids, controller, audition_clock_.currentStep());
+      if (focused_track_id >= 0) triggerAuditionStep(song, focused_track_id, controller, audition_clock_.currentStep());
       triggerClipStep(song, controller, audition_clock_.currentStep());
     } else {
       float dt = chrono::duration<float>(now - audition_clock_last_refresh_).count();
@@ -1750,7 +1768,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       // codebase treating a non-positive tempo/loop-length as degenerate.
       float row_duration = tempo > 0 ? 60.0f / 4.0f / static_cast<float>(tempo) : 0.0f;
       for (int step : audition_clock_.advance(dt, row_duration)) {
-        triggerAuditionStep(song, track_ids, controller, step);
+        if (focused_track_id >= 0) triggerAuditionStep(song, focused_track_id, controller, step);
         triggerClipStep(song, controller, step);
       }
     }
@@ -1876,7 +1894,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
         // one background-only lookup reused across all 8 steps.
         auto & drum_scene = song.getScene(playback_info.getPatternIndex());
         for (int step = 0; step < 8; step++) {
-          auto read_target = resolveReadTarget(song, drum_scene, track_id, step);
+          auto read_target = resolveReadTarget(song, drum_scene, track_id, step, controller.getFocusedClip());
           for (int hit_note : drum_track.getHitNotesAtRow(*read_target.pattern, read_target.effective_row)) {
             auto lane_it = find(drum_lane_notes.begin(), drum_lane_notes.end(), hit_note);
             if (lane_it == drum_lane_notes.end()) continue;

@@ -391,6 +391,54 @@ class Controller {
   // to.
   void setPatternSelectionActive(bool active) { pattern_selection_active_ = active; }
 
+  // Which clip (if any) is currently focused for editing, independent of
+  // scene position/instance placement - ArrangementOps.h's
+  // resolveEditTarget()/resolveReadTarget() take this as an override.
+  // Empty string means no focus. Only one clip is ever focused at a
+  // time, song-wide, not one per track - a clip's own id is already
+  // globally unique across the whole song (Song::generateUniqueClipId()),
+  // so resolveEditTarget()/resolveReadTarget() naturally apply this only
+  // to whichever track's own clip list actually contains it, falling
+  // through to ordinary resolution for every other track without this
+  // needing to be keyed by track_id itself. Matches the actual use case
+  // (pick one clip to look at/edit) rather than letting a clip stay
+  // focused on some other track indefinitely after attention has moved
+  // on - the same reason PatternEditor's own cursor is only ever on one
+  // track at a time. Per-buffer (like getRecordingTrackId() above);
+  // never serialized - purely live editing-session state.
+  //
+  // This is deliberately not the same thing as Session-view style clip
+  // *launching* (real multi-track simultaneous performance playback,
+  // LaunchpadManager::handleSessionPadEvent()/triggerClipStep()) - a
+  // focus is a single, exclusive "what am I currently looking at to
+  // edit" pointer, so setting a new one always silences whatever the
+  // *previous* focus was actively previewing first (stopFocusedClipPreview()),
+  // even when that was on a different track, rather than leaving multiple
+  // tracks' worth of preview audio stacking up.
+  std::string getFocusedClip() const { return focused_clip_id_; }
+  // The focused clip's own leaf track - kept alongside the id purely so
+  // a focus change can silence the *previous* focus's track without a
+  // reverse clip-id -> track-id scan (every getClips(track_id)-based
+  // resolution elsewhere already gets track_id from its own caller and
+  // has no need of this). -1 when nothing is focused.
+  int getFocusedClipTrackId() const { return focused_clip_track_id_; }
+  void setFocusedClip(int track_id, const std::string & clip_id) {
+    if (track_id != focused_clip_track_id_ || clip_id != focused_clip_id_) stopFocusedClipPreview();
+    focused_clip_track_id_ = track_id;
+    focused_clip_id_ = clip_id;
+  }
+  void clearFocusedClip() {
+    stopFocusedClipPreview();
+    focused_clip_track_id_ = -1;
+    focused_clip_id_.clear();
+  }
+  // Clears if `clip_id` is already the focused one, else sets it - the
+  // primitive SessionView's own Enter binding uses.
+  void toggleFocusedClip(int track_id, const std::string & clip_id) {
+    if (focused_clip_track_id_ == track_id && focused_clip_id_ == clip_id) clearFocusedClip();
+    else setFocusedClip(track_id, clip_id);
+  }
+
   // Single, shared home for "mutate this track's mute/solo/send and keep
   // the already-running playback state in sync" - neither the terminal's
   // `\` key handler nor any Launchpad control (the two ways a user can
@@ -649,19 +697,19 @@ class Controller {
   // itself.
   void renameActiveBuffer(const std::string & new_name, Version saved_version);
   // Saves the *currently* active buffer's own live playback_info/
-  // recording_track_id/pattern_selection_active_/local_position_edit_seq_
-  // into their map slots - a no-op before any buffer has ever been
-  // active, at startup. Called right *before* a caller (addBuffer()/
-  // switchToBuffer()/killActiveBuffer() below) reassigns
+  // recording_track_id/pattern_selection_active_/local_position_edit_seq_/
+  // focused_clip_id_ into their map slots - a no-op before any buffer has
+  // ever been active, at startup. Called right *before* a caller
+  // (addBuffer()/switchToBuffer()/killActiveBuffer() below) reassigns
   // active_buffer_name_ itself under song_mutex_ - kept as its own step
   // rather than folded into a single "set the active buffer" method so it
-  // never needs to take that lock itself (these four scalars are
+  // never needs to take that lock itself (these five scalars are
   // UI-thread-only, untouched by the audio thread, so they don't need it
   // - but calling in from inside a caller's own already-held lock_guard
   // would deadlock on a plain, non-recursive std::mutex).
   void saveActiveBufferState();
   // The other half of saveActiveBufferState(): loads `name`'s own map
-  // slot into the four live scalars - each defaults freshly the first
+  // slot into the five live scalars - each defaults freshly the first
   // time any given buffer name is switched to, via plain
   // std::map::operator[] auto-inserting a default-constructed value, so
   // there's no separate "is this a first visit" case to handle. Called
@@ -669,12 +717,12 @@ class Controller {
   // `name` (so `name` here is expected to equal it).
   void loadActiveBufferState(const std::string & name);
   // Drops `name`'s own playback_info/recording_track_id/
-  // pattern_selection_active_/local_position_edit_seq_ map slot entirely -
-  // killActiveBuffer()'s own tail (nothing worth keeping for a buffer
-  // that's gone) and renameActiveBuffer()'s (the live scalars stay
-  // authoritative through a mere rename, untouched by save/
-  // loadActiveBufferState(); the *old* key's slot would just be stale
-  // dead weight otherwise).
+  // pattern_selection_active_/local_position_edit_seq_/focused_clip_id_
+  // map slot entirely - killActiveBuffer()'s own tail (nothing worth
+  // keeping for a buffer that's gone) and renameActiveBuffer()'s (the
+  // live scalars stay authoritative through a mere rename, untouched by
+  // save/loadActiveBufferState(); the *old* key's slot would just be
+  // stale dead weight otherwise).
   void dropBufferState(const std::string & name);
   // Keeps one "switch-to-buffer:<name>" CommandRegistry entry per songs_
   // key in sync with it - see refreshBufferCommands()'s own comment on
@@ -691,15 +739,17 @@ class Controller {
   InstrumentProvider instrument_provider;
   EventQueue ui_event_queue, playback_event_queue, visualization_queue;
   // playback_info/recording_track_id/pattern_selection_active_/
-  // local_position_edit_seq_ below are each a live mirror of whichever
-  // buffer is currently active; these four maps (mirroring
-  // last_saved_versions_' own shape, keyed the same way) hold every
-  // *other* open buffer's own saved copy. save/loadActiveBufferState() are
-  // the one place that swap between a live scalar and its map slot.
+  // local_position_edit_seq_/focused_clip_id_ below are each a live
+  // mirror of whichever buffer is currently active; these five maps
+  // (mirroring last_saved_versions_' own shape, keyed the same way) hold
+  // every *other* open buffer's own saved copy. save/loadActiveBufferState()
+  // are the one place that swap between a live scalar and its map slot.
   std::map<std::string, PlaybackInfo> playback_infos_;
   std::map<std::string, int> recording_track_ids_;
   std::map<std::string, bool> pattern_selection_actives_;
   std::map<std::string, int> local_position_edit_seqs_;
+  std::map<std::string, std::string> focused_clip_ids_;
+  std::map<std::string, int> focused_clip_track_ids_;
   PlaybackInfo playback_info;
   // How many position-editing control events moveEditPosition()/
   // setEditPosition() have themselves pushed against the active buffer -
@@ -724,6 +774,18 @@ class Controller {
   std::function<void()> buffer_change_listener_;
   int pending_command_track_ = -1;
   bool pattern_selection_active_ = false;
+  // Live mirror of the active buffer's own focused_clip_ids_/
+  // focused_clip_track_ids_ slots - see getFocusedClip()'s own comment.
+  // Swapped the same save/loadActiveBufferState() cycle as the other
+  // per-buffer scalars above.
+  std::string focused_clip_id_;
+  int focused_clip_track_id_ = -1;
+  // Silences whatever track the *current* focus (before it's overwritten
+  // by setFocusedClip()/clearFocusedClip()) was actively previewing - a
+  // plain STOP_ALL_NOTES, the same natural-release convention Session
+  // view's own clip stops already use (InstrumentTrackState::
+  // stopAllVoices()), not a hard cut. A no-op when nothing was focused.
+  void stopFocusedClipPreview();
 
   static inline AudioBuffer empty_sample;
 };

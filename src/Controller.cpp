@@ -224,6 +224,8 @@ Controller::saveActiveBufferState() {
   recording_track_ids_[key] = recording_track_id;
   pattern_selection_actives_[key] = pattern_selection_active_;
   local_position_edit_seqs_[key] = local_position_edit_seq_;
+  focused_clip_ids_[key] = focused_clip_id_;
+  focused_clip_track_ids_[key] = focused_clip_track_id_;
 }
 
 void
@@ -233,6 +235,12 @@ Controller::loadActiveBufferState(const string & name) {
   recording_track_id = recording_track_ids_[key];
   pattern_selection_active_ = pattern_selection_actives_[key];
   local_position_edit_seq_ = local_position_edit_seqs_[key];
+  focused_clip_id_ = focused_clip_ids_[key];
+  // Not operator[] like the scalars above - int's own default-constructed
+  // value (0) would misread as "focused on track 0" for a buffer that's
+  // never had a focus at all, rather than "no focus" (-1).
+  auto track_it = focused_clip_track_ids_.find(key);
+  focused_clip_track_id_ = track_it == focused_clip_track_ids_.end() ? -1 : track_it->second;
 }
 
 void
@@ -241,6 +249,14 @@ Controller::dropBufferState(const string & name) {
   recording_track_ids_.erase(name);
   pattern_selection_actives_.erase(name);
   local_position_edit_seqs_.erase(name);
+  focused_clip_ids_.erase(name);
+  focused_clip_track_ids_.erase(name);
+}
+
+void
+Controller::stopFocusedClipPreview() {
+  if (focused_clip_track_id_ < 0) return;
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_ALL_NOTES, getActiveBufferName(), focused_clip_track_id_));
 }
 
 void
@@ -831,7 +847,7 @@ Controller::writeReleaseOff(std::set<std::pair<int, int>> & cleared_rows, bool a
   if (auto_started_playback) ensureRowCleared(cleared_rows, pattern_idx, row, track_id);
   auto song = getCurrentSong();
   auto & scene = song->getOrCreateScene(pattern_idx);
-  auto target = resolveEditTarget(*song, scene, track_id, row);
+  auto target = resolveEditTarget(*song, scene, track_id, row, getFocusedClip());
   target.pattern->setNote(target.effective_row, note_column, Note(0, 0, delay));
   song->incVersion();
 }
@@ -840,7 +856,7 @@ void
 Controller::applyNotePressure(int pattern_idx, int row, int track_id, int note_column, short velocity, int delay) {
   auto song = getCurrentSong();
   auto & scene = song->getOrCreateScene(pattern_idx);
-  auto target = resolveEditTarget(*song, scene, track_id, row);
+  auto target = resolveEditTarget(*song, scene, track_id, row, getFocusedClip());
   auto note = target.pattern->getNote(target.effective_row, note_column);
   if (!note.isDefined()) note.setDelay(delay);
   note.setVelocity(velocity);

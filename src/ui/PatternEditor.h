@@ -61,7 +61,18 @@ class PatternEditor : public UIElement {
   // cursor/step state the same way it always has, and lets the track be
   // moved.
   int getCursorTrackIndex() const { return current_cursor.track; }
-  void setCursorTrack(int track_index) { new_cursor.track = track_index; new_cursor.col = new_cursor.subcol = 0; }
+  // Commits to current_cursor immediately, not just new_cursor - the
+  // normal new_cursor -> current_cursor handoff only happens inside
+  // render(), which never runs while a different top-level view
+  // (SessionView) occupies PatternEditor's own screen slot instead (see
+  // UI::renderComponents()'s own exactly-one-of-the-two branch). Without
+  // this, getCursorTrackIndex() - what every Launchpad device's own
+  // fallback_track_index actually reads - would keep reporting the old
+  // track for as long as PatternEditor stays offscreen, silently
+  // stranding a caller like SessionView's own focus-jump callback (same
+  // immediate-commit precedent startAnnotationEdit() already sets for
+  // .scope, elsewhere in this class).
+  void setCursorTrack(int track_index) { new_cursor.track = current_cursor.track = track_index; new_cursor.col = new_cursor.subcol = 0; }
   int getEditStepSize() const { return edit_step_size; }
 
   // Called (from UI::initialize()) when plain Left is pressed with the

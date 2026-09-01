@@ -990,6 +990,20 @@ UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launc
   // shared cursor every connected Launchpad follows - see
   // LaunchpadManager::track_move_callback_'s own comment for why.
   launchpad_manager.setTrackMoveCallback([this](int new_track_index) { pattern_editor_->setCursorTrack(new_track_index); });
+  // SessionView's own clip-focus picker - launchpad_manager_ isn't set
+  // yet during UI::initialize() (see arrangement_grid_'s own commit
+  // callback comment there for why this half is wired here instead).
+  // Moves the shared track cursor to the clip's own track (so PatternEditor/
+  // Launchpad's fallback_track_index-following resolve there next) and
+  // forces every connected device's own display to follow along too,
+  // regardless of whatever GridMode it happened to be in.
+  session_view_->setFocusCallback([this](int track_id) {
+    auto & song = getController().getSong();
+    auto track_ids = song.getRootTrackIds();
+    auto it = std::find(track_ids.begin(), track_ids.end(), track_id);
+    if (it != track_ids.end()) pattern_editor_->setCursorTrack(static_cast<int>(it - track_ids.begin()));
+    launchpad_manager_->forceNotesModeOnAllDevices();
+  });
 
   std::thread audio_thread(audio_thread_func, &(getController()), &audio);
   std::thread visualization_thread(visualization_thread_func, &(getController()), audio.getFrequency(), audio.getFrameCount());

@@ -3,6 +3,9 @@
 
 #include "UIElement.h"
 
+#include <functional>
+#include <string>
+
 class InputEvent;
 class StyleProvider;
 class Song;
@@ -45,6 +48,16 @@ class SessionView : public UIElement {
   // uses - not a live two-way binding.
   void setCursorTrackIndex(int track_index) { cursor_track_index_ = track_index; }
 
+  // Called with a clip's own leaf track id whenever Enter turns clip
+  // focus ON (never for turning it off - there's nothing to jump to when
+  // clearing a focus) - lets UI move the shared track cursor and any
+  // connected Launchpad's own display to actually follow the clip just
+  // picked, the same callback-not-reaching-into-UI pattern
+  // ArrangementGrid's own commit_callback_ already uses (this class has
+  // no idea PatternEditor/LaunchpadManager exist either). Wired in
+  // UI::start().
+  void setFocusCallback(std::function<void(int track_id)> cb) { focus_callback_ = std::move(cb); }
+
  private:
   // Rows within a column, in on-screen order (after the header, which the
   // cursor never lands on): however many clips that column's own track
@@ -64,6 +77,9 @@ class SessionView : public UIElement {
   int current_cursor_track_index_ = -1, current_cursor_row_ = -1;
   int current_scroll_col_ = -1, current_scroll_row_ = -1;
   bool current_focused_ = false;
+  std::string current_focused_clip_id_;
+
+  std::function<void(int track_id)> focus_callback_;
 
   void ensureCursorVisible(const Song & song, int visible_rows, int visible_cols, int num_tracks, int max_rows_needed);
 };

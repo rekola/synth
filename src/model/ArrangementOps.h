@@ -1,6 +1,8 @@
 #ifndef _ARRANGEMENTOPS_H_
 #define _ARRANGEMENTOPS_H_
 
+#include <string>
+
 class Song;
 class Scene;
 class Pattern;
@@ -60,11 +62,22 @@ ActiveInstance resolveInstanceAt(const Song & song, const Scene & scene, int tra
 // stop event itself). `effective_row` mirrors exactly what real playback
 // (SongState.h's own renderBlock()) reads at the same (track_id, row) -
 // editing here always changes what's actually going to play.
+//
+// `focused_clip_id`, when non-empty, overrides all of the above: resolves
+// directly against that clip's own leaf Pattern (looked up by id in
+// track_id's own clip list - the same id-not-position lookup
+// resolveInstanceAt() already does, for the same reason), row wrapped by
+// the clip's own length, regardless of what's actually placed at `row` -
+// editing a clip in isolation (Controller::getFocusedClip()), not
+// "wherever it happens to be placed". Falls through to the ordinary
+// position-based resolution above if the id doesn't resolve to a real
+// clip on this track (stale/deleted - same resilience precedent
+// resolveInstanceAt() already has for a dangling instance reference).
 struct EditTarget {
   Pattern * pattern;
   int effective_row;
 };
-EditTarget resolveEditTarget(Song & song, Scene & scene, int track_id, int row);
+EditTarget resolveEditTarget(Song & song, Scene & scene, int track_id, int row, const std::string & focused_clip_id = "");
 
 // Read-only counterpart, for rendering - same resolution, but never
 // creates a background Pattern entry as a side effect of merely reading
@@ -80,7 +93,8 @@ struct ReadTarget {
   int unwrapped_row; // row - (background: 0, a clip: the instance's own start_row) - for a caller that wants to tell a pattern's own real rows apart from a shorter one's repeat (row >= pattern->getLength()), which effective_row can't answer on its own once it's already wrapped
   bool is_instance; // true when `pattern` is a real clip's own Pattern, false for the background - for a caller that wants to show the difference (e.g. PatternEditor's own instance-tinted rows)
   int clip_index; // only meaningful when is_instance - the clip's own ordinal position in track_id's own clip list (ArrangementGrid's own hex digit addresses the same index), for a caller that wants to show which clip this is, not just that one is active
+  bool is_focused_override = false; // true when `focused_clip_id` (see resolveEditTarget()'s own comment) drove this resolution, rather than a real placed instance - lets a caller tell the two apart even though both set is_instance
 };
-ReadTarget resolveReadTarget(const Song & song, const Scene & scene, int track_id, int row);
+ReadTarget resolveReadTarget(const Song & song, const Scene & scene, int track_id, int row, const std::string & focused_clip_id = "");
 
 #endif

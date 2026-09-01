@@ -4,6 +4,7 @@
 #include "../src/model/Song.h"
 #include "../src/ambisonic/ChannelConfiguration.h"
 #include "../src/state/PlaybackInfo.h"
+#include "../src/playback/PlaybackControlEvent.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -270,4 +271,77 @@ TEST(extend_recording_scene_grows_the_playing_scene_near_its_own_last_bar) {
   controller.setPlaybackInfo(info);
   controller.extendRecordingSceneIfNeeded(true);
   CHECK(scene.getLengthBars() == 4);
+}
+
+// A clip focus is a single, exclusive "what am I currently looking at to
+// edit" pointer, not Session-view style multi-track launching - setting a
+// new one must silence whatever the *previous* focus was actively
+// previewing (a plain STOP_ALL_NOTES, LaunchpadManager::
+// triggerAuditionStep()'s own target), even when that was on a different
+// track, so at most one track's worth of preview audio is ever sounding
+// at once.
+TEST(focus_change_silences_the_previous_focused_tracks_preview) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & queue = controller.getPlaybackEventQueue();
+
+  CHECK(!queue.hasEvents()); // nothing pushed yet, before any focus exists
+
+  controller.setFocusedClip(3, "clip-a"); // first-ever focus - nothing to silence
+  CHECK(controller.getFocusedClipTrackId() == 3);
+  CHECK(controller.getFocusedClip() == "clip-a");
+
+  controller.setFocusedClip(7, "clip-b"); // a different track's clip
+  // Not a queue.hasEvents() check here first - EventQueue only updates
+  // its own pending count inside pop()'s own read(), so hasEvents() reads
+  // as false for anything pushed before the first pop() ever happens;
+  // pop() itself is what's actually safe to call directly (the write
+  // already landed on the underlying socket, so it returns immediately
+  // rather than genuinely blocking). Held in its own unique_ptr, not
+  // chained straight into dynamic_cast(...pop().get()) - pop()'s own
+  // return value is a temporary that would otherwise be destroyed (along
+  // with the Event it owns) at the end of that one statement, leaving the
+  // raw pointer dangling for every access after it.
+  auto ev1_ptr = queue.pop();
+  auto ev1 = dynamic_cast<PlaybackControlEvent *>(ev1_ptr.get());
+  CHECK(ev1 != nullptr);
+  CHECK(ev1->getType() == PlaybackControlEvent::STOP_ALL_NOTES);
+  CHECK(ev1->getParameter1() == 3); // the *previous* focus's own track, not the new one
+  CHECK(!queue.hasEvents()); // exactly one event, no more - now reliable, after the pop() above
+  CHECK(controller.getFocusedClipTrackId() == 7);
+  CHECK(controller.getFocusedClip() == "clip-b");
+
+  controller.clearFocusedClip();
+  auto ev2_ptr = queue.pop();
+  auto ev2 = dynamic_cast<PlaybackControlEvent *>(ev2_ptr.get());
+  CHECK(ev2 != nullptr);
+  CHECK(ev2->getType() == PlaybackControlEvent::STOP_ALL_NOTES);
+  CHECK(ev2->getParameter1() == 7);
+  CHECK(!queue.hasEvents());
+  CHECK(controller.getFocusedClipTrackId() == -1);
+  CHECK(controller.getFocusedClip().empty());
+}
+
+// toggleFocusedClip() - SessionView's own Enter primitive: re-pressing
+// Enter on the already-focused clip clears it (same silence-on-change
+// behavior above); pressing it on a different clip switches to that one.
+TEST(toggle_focused_clip_clears_when_already_focused_else_switches) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & queue = controller.getPlaybackEventQueue();
+
+  controller.toggleFocusedClip(2, "verse"); // nothing focused yet - sets it
+  CHECK(controller.getFocusedClip() == "verse");
+  CHECK(!queue.hasEvents()); // nothing to silence on the very first focus
+
+  controller.toggleFocusedClip(2, "verse"); // same clip again - clears it
+  auto ev_ptr = queue.pop();
+  auto ev = dynamic_cast<PlaybackControlEvent *>(ev_ptr.get());
+  CHECK(ev != nullptr);
+  CHECK(ev->getType() == PlaybackControlEvent::STOP_ALL_NOTES);
+  CHECK(ev->getParameter1() == 2);
+  CHECK(controller.getFocusedClip().empty());
+  CHECK(controller.getFocusedClipTrackId() == -1);
 }

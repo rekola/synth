@@ -94,6 +94,14 @@ class LaunchpadManager {
   enum class GridMode { NOTES, SEND_MAIN, PAN, SEND_A, SEND_B, DRAW, SESSION };
   GridMode gridMode(int device_id) const;
   void toggleGridMode(int device_id, GridMode mode);
+  // A one-way force, unlike toggleGridMode() above - every currently
+  // connected device switches to NOTES regardless of whatever mode it was
+  // already in (SESSION included), never toggled back off by a repeat
+  // call. Wired to SessionView's own clip-focus callback (UI::start()) so
+  // picking a clip there actually becomes visible on real hardware right
+  // away, instead of only taking effect once someone happens to press
+  // CC96 on every connected device by hand.
+  void forceNotesModeOnAllDevices();
 
   // The Launchpad's own session/launch view, replacing what used to be a
   // plain arrangement-navigation overview (rows=scenes) - rows are now a
@@ -632,12 +640,25 @@ class LaunchpadManager {
   StepClock audition_clock_;
   std::chrono::steady_clock::time_point audition_clock_last_refresh_;
 
-  // Fires every DrumMachineTrack's getHitNotesForRow(step) as a PLAY_NOTE
+  // Fires `track_id`'s own getHitNotesForRow(step) as a PLAY_NOTE
   // audition event - the free-running clock's own per-step action,
   // factored out of refresh() since it's called from two places there
   // (the moment the clock (re)starts, and once per row boundary crossed
-  // while it's already running).
-  void triggerAuditionStep(const Song & song, const std::vector<int> & track_ids, Controller & controller, int step);
+  // while it's already running). A single track, not every
+  // DrumMachineTrack in the song - refresh() only ever calls this for
+  // whichever track's clip is currently focused
+  // (Controller::getFocusedClipTrackId()), deliberately independent of
+  // any Launchpad device/GridMode (hearing the clip you're editing
+  // doesn't need hardware connected at all) and deliberately exclusive
+  // (a single focused clip, not Session-view-style multi-track
+  // simultaneous launching - Controller::setFocusedClip() silences the
+  // *previous* focus's track on any change, so only ever one track
+  // previews at a time). A further no-op unless the focus actually
+  // resolves to a real clip on this specific track
+  // (Controller::getFocusedClip(), checked via resolveReadTarget()'s own
+  // is_focused_override) - idle auditioning never plays the background/
+  // whatever instance happens to be active there otherwise.
+  void triggerAuditionStep(const Song & song, int track_id, Controller & controller, int step);
 
   // track_id -> the clip index (into song.getClips(track_id)) and launch
   // step of whatever's currently auditioning in Session view - song-wide,

@@ -1,6 +1,7 @@
 #include "SessionView.h"
 
 #include "../playback/InputEvent.h"
+#include "../playback/LogEvent.h"
 #include "StyleProvider.h"
 #include "../Controller.h"
 #include "../model/Song.h"
@@ -10,6 +11,7 @@
 #include "../util/Utf8.h"
 
 #include <algorithm>
+#include <memory>
 #include <fmt/core.h>
 
 using namespace std;
@@ -60,14 +62,38 @@ SessionView::offerInput(const InputEvent & input) {
   auto track_ids = song.getPlayableTrackIds();
   auto num_tracks = static_cast<int>(track_ids.size());
 
-  // Read-only navigation only in this pass - no Enter/rename/delete/loop-
-  // toggle, no Send-level editing (see this class's own header comment).
+  // Navigation, plus Enter as the first real command this widget gets:
+  // clip focus (Controller::toggleFocusedClip()) - see this class's own
+  // header comment on why rename/delete/loop-toggle/Send-level editing
+  // still aren't here.
   if (input.getId() == NCKEY_UP) cursor_row_--;
   else if (input.getId() == NCKEY_DOWN) cursor_row_++;
   else if (input.getId() == NCKEY_LEFT) cursor_track_index_--;
   else if (input.getId() == NCKEY_RIGHT) cursor_track_index_++;
   else if (input.getId() == NCKEY_PGUP) cursor_row_ -= getDim().first;
   else if (input.getId() == NCKEY_PGDOWN) cursor_row_ += getDim().first;
+  else if (input.getId() == NCKEY_ENTER) {
+    // A no-op off a real clip row (the cursor already reaches the Send
+    // rows too, per this class's own header comment) - still consumed,
+    // matching ArrangementGrid's own "Enter always does something or
+    // nothing, never falls through" precedent.
+    if (cursor_track_index_ >= 0 && cursor_track_index_ < num_tracks) {
+      auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
+      auto & clips = song.getClips(track_id);
+      if (cursor_row_ >= 0 && static_cast<size_t>(cursor_row_) < clips.size()) {
+        auto & clip = clips[static_cast<size_t>(cursor_row_)];
+        getController().toggleFocusedClip(track_id, clip.getId());
+        auto name = clip.getName().empty() ? "(unnamed)" : clip.getName();
+        bool now_focused = getController().getFocusedClip() == clip.getId();
+        // Only turning a focus ON jumps anywhere - clearing one has
+        // nothing to jump to (see setFocusCallback()'s own comment).
+        if (now_focused && focus_callback_) focus_callback_(track_id);
+        auto text = now_focused ? "Editing clip: " + name : "No longer editing clip: " + name;
+        getController().getUIEventQueue().push(std::make_unique<LogEvent>(std::move(text)));
+      }
+    }
+    return true;
+  }
   else return false;
 
   cursor_track_index_ = clamp(cursor_track_index_, 0, max(0, num_tracks - 1));
@@ -104,13 +130,19 @@ SessionView::render(const StyleProvider & styles, bool refresh, bool focused) {
 
   ensureCursorVisible(song, visible_rows, visible_cols, num_tracks, max_rows_needed);
 
+  // Which clip (if any) is currently focused for editing - shown as a
+  // marker on its own row below, independent of cursor position. Read
+  // once here (not per-cell) since it's the same value for every column.
+  auto focused_clip_id = getController().getFocusedClip();
+
   auto new_version = song.getMajorVersion();
   if (!refresh && new_version == current_song_version_ &&
       cursor_track_index_ == current_cursor_track_index_ && cursor_row_ == current_cursor_row_ &&
       scroll_col_ == current_scroll_col_ && scroll_row_ == current_scroll_row_ &&
-      focused == current_focused_) {
+      focused == current_focused_ && focused_clip_id == current_focused_clip_id_) {
     return false;
   }
+  current_focused_clip_id_ = focused_clip_id;
   current_song_version_ = new_version;
   current_cursor_track_index_ = cursor_track_index_;
   current_cursor_row_ = cursor_row_;
@@ -178,7 +210,17 @@ SessionView::render(const StyleProvider & styles, bool refresh, bool focused) {
         if (clip_row < clips.size()) {
           auto & clip = clips[clip_row];
           auto name = clip.getName().empty() ? "(unnamed)" : clip.getName();
-          text = fmt::format("{} {}", clip.isLooping() ? "↻" : "▶", name);
+          // Leading marker, before the loop/one-shot glyph - whether this
+          // clip is the one currently focused for editing
+          // (Controller::getFocusedClip(), toggled by Enter above), a
+          // blank space otherwise so the loop glyph/name still line up.
+          // Plain ASCII, not a Unicode symbol like the loop glyph below -
+          // "ambiguous width" characters (East Asian Width) measure as a
+          // single column here (Utf8::displayWidth(), unistring-backed)
+          // but plenty of terminal fonts render them at two, silently
+          // breaking this column's own fixed-width layout.
+          auto marker = clip.getId() == focused_clip_id ? "*" : " ";
+          text = fmt::format("{}{} {}", marker, clip.isLooping() ? "↻" : "▶", name);
         }
       } else if (leaf && row - max_clip_count < kSendRowCount) {
         // The bound above matters: without it, every row past the three

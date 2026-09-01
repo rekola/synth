@@ -230,3 +230,84 @@ TEST(resolve_edit_and_read_target_route_drum_machine_steps_through_a_clip) {
   CHECK(song.getClips(track_id)[0].getLeafPattern().getNote(2, 0).getValue() == 36);
   CHECK(!scene.getNote(2, track_id, 0).isDefined());
 }
+
+// Controller::getFocusedClip()'s own override: resolves to a focused
+// clip's own leaf Pattern regardless of what's actually placed at the
+// requested row - no instance placed at all, and even a *different*
+// clip's own instance active there.
+TEST(resolve_edit_and_read_target_apply_a_focused_clip_override_regardless_of_row_state) {
+  Song song;
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+
+  Clip focused(track_id);
+  focused.setLength(8);
+  auto focused_id = song.addClip(move(focused)).getId(); // index 0
+  Clip other(track_id);
+  other.setLength(8);
+  other.setLooping(true);
+  auto other_id = song.addClip(move(other)).getId(); // index 1
+
+  auto & scene = song.addScene();
+  placeClipInstance(song, scene, track_id, 0, 1); // "other" is active at every row
+
+  // Write through the focus, at a row where "other"'s own instance is
+  // what would ordinarily resolve.
+  auto edit_target = resolveEditTarget(song, scene, track_id, 3, focused_id);
+  edit_target.pattern->setNote(edit_target.effective_row, 0, Note(60, 100));
+
+  // Landed in the focused clip's own leaf Pattern, not "other"'s.
+  CHECK(song.getClips(track_id)[0].getLeafPattern().getNote(3, 0).getValue() == 60);
+  CHECK(!song.getClips(track_id)[1].getLeafPattern().getNote(3, 0).isDefined());
+
+  auto read_target = resolveReadTarget(song, scene, track_id, 3, focused_id);
+  CHECK(read_target.is_instance);
+  CHECK(read_target.is_focused_override);
+  CHECK(read_target.pattern->getNote(3, 0).getValue() == 60);
+
+  // No focus (empty id): ordinary resolution, "other" is active again.
+  CHECK(!resolveReadTarget(song, scene, track_id, 3).is_focused_override);
+  CHECK(resolveReadTarget(song, scene, track_id, 3).clip_index == 1);
+}
+
+// A stale/deleted clip id falls back cleanly to ordinary resolution,
+// matching resolveInstanceAt()'s own resilience for a dangling instance
+// reference.
+TEST(resolve_edit_target_falls_back_when_the_focused_clip_id_is_stale) {
+  Song song;
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+  auto & scene = song.addScene();
+
+  auto edit_target = resolveEditTarget(song, scene, track_id, 3, "no-such-clip");
+  edit_target.pattern->setNote(edit_target.effective_row, 0, Note(60, 100));
+
+  // Landed in the scene's own background - the ordinary no-instance path.
+  CHECK(scene.getNote(3, track_id, 0).getValue() == 60);
+}
+
+// A focus set for one track's own clip must not affect a different
+// track's resolution, even when that other track happens to have a clip
+// occupying the same list position.
+TEST(resolve_edit_target_focus_does_not_leak_across_tracks) {
+  Song song;
+  auto & track_a = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto track_a_id = track_a.getInternalId();
+  auto & track_b = song.addTrack(make_unique<InstrumentTrack>(1));
+  auto track_b_id = track_b.getInternalId();
+
+  Clip clip_a(track_a_id);
+  clip_a.setLength(8);
+  auto clip_a_id = song.addClip(move(clip_a)).getId(); // track_a's own index 0
+
+  auto & scene = song.addScene();
+
+  // Focused on track_a's own clip, but this call is against track_b -
+  // that id doesn't resolve to anything in track_b's own clip list.
+  auto edit_target = resolveEditTarget(song, scene, track_b_id, 3, clip_a_id);
+  edit_target.pattern->setNote(edit_target.effective_row, 0, Note(60, 100));
+
+  // Falls through to track_b's own background, untouched by track_a's focus.
+  CHECK(scene.getNote(3, track_b_id, 0).getValue() == 60);
+  CHECK(!song.getClips(track_a_id)[0].getLeafPattern().getNote(3, 0).isDefined());
+}

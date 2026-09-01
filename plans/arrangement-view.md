@@ -728,3 +728,16 @@ own clip viewer instead.)
   clips, not just backgrounds. `ArrangementGrid`/`SessionView`/
   `copy-to-clip` needed no changes - already fully generic over track
   type.
+- **Clip-focus preview for non-drum-machine clips.** `SessionView`'s Enter
+  (clip focus, `Controller::getFocusedClip()`) currently only produces any
+  sound for a `DrumMachineTrack`'s clip -
+  `LaunchpadManager::triggerAuditionStep()` bails outright for every other
+  track type. That's a real gap, not a deliberate scope limit: a melodic
+  clip's own `Pattern` can hold notes across rows (needing an actual
+  note-off when they end or the clip loops, not just a one-shot retrigger
+  the way a drum hit is), so extending the same free-running preview to
+  any track type means real new scheduling, not just relaxing the
+  `TrackType::DRUM_MACHINE` check - reusing the real transport scheduler
+  against the clip's own `Pattern` in isolation (proper note-on/off, held
+  notes, chords, looping at the clip's own length) rather than a plain
+  per-row retrigger. Not scoped in detail yet.
