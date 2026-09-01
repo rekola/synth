@@ -216,9 +216,8 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
 void
 Controller::saveActiveBufferState() {
   if (active_buffer_name_.empty()) return; // startup - no buffer has ever been active yet
-  // canonicalBufferName(): a session-view alias and its own canonical
-  // buffer share one live-state slot - see session_view_aliases_'s own
-  // comment.
+  // canonicalBufferName(): a song's PatternEditor and SessionView aspects
+  // share one live-state slot - see open_aspects_by_song_'s own comment.
   auto key = canonicalBufferName(active_buffer_name_);
   playback_infos_[key] = playback_info;
   recording_track_ids_[key] = recording_track_id;
@@ -266,6 +265,9 @@ Controller::addBuffer(std::shared_ptr<Song> song, const string & name, Version s
     std::lock_guard<std::mutex> guard(song_mutex_);
     last_saved_versions_[name] = saved_version;
     songs_[name] = std::move(song);
+    // A freshly opened song always starts out showing PatternEditor - the
+    // same default a brand new switchToBuffer()-created one gets.
+    open_aspects_by_song_[name].insert(BufferAspect::PATTERN_EDITOR);
     active_buffer_name_ = name;
   }
   loadActiveBufferState(name);
@@ -282,8 +284,8 @@ Controller::renameActiveBuffer(const string & new_name, Version saved_version) {
   // dropping so it doesn't linger as dead weight under a name nothing
   // will ever look up again. Resolved to canonical first - the active
   // buffer here is always meant to be the real Song (Save As has no
-  // separate meaning for a session-view alias), even if the alias itself
-  // happens to be what's currently selected.
+  // separate meaning for the SessionView aspect specifically), even if
+  // that aspect is what's currently selected.
   auto old_name = canonicalBufferName(active_buffer_name_);
   dropBufferState(old_name);
   {
@@ -293,14 +295,17 @@ Controller::renameActiveBuffer(const string & new_name, Version saved_version) {
     last_saved_versions_.erase(old_name);
     songs_[new_name] = std::move(song);
     last_saved_versions_[new_name] = saved_version;
-    // Every alias of the renamed buffer follows it - its own alias name
-    // doesn't change, only which canonical buffer it resolves to, so a
-    // session view stays attached to "the same song" through a rename
-    // rather than dangling.
-    for (auto & [alias, canonical] : session_view_aliases_) {
-      if (canonical == old_name) canonical = new_name;
+    // Every open aspect-view of the renamed song follows it - only the
+    // song's own id changes, not which aspects are open on it; unlike the
+    // old alias-map design, an aspect's own buffer-list name is always
+    // *derived* from the current song id (bufferNameFor()), so there's no
+    // separate "alias name" left pointing at the stale id to update.
+    auto it = open_aspects_by_song_.find(old_name);
+    if (it != open_aspects_by_song_.end()) {
+      open_aspects_by_song_[new_name] = std::move(it->second);
+      open_aspects_by_song_.erase(it);
     }
-    active_buffer_name_ = (active_buffer_name_ == old_name) ? new_name : active_buffer_name_;
+    active_buffer_name_ = bufferNameFor(new_name, aspectFor(active_buffer_name_));
   }
   refreshBufferCommands();
   // Rekeys the renamed buffer's own live SongState (if any) rather than
@@ -404,48 +409,58 @@ Controller::saveSongAs(const string & filename) {
 void
 Controller::switchToBuffer(const string & name) {
   saveActiveBufferState();
+  auto song_id = canonicalBufferName(name);
   bool created = false;
   {
     std::lock_guard<std::mutex> guard(song_mutex_);
-    // Existence is checked against the canonical name - a session-view
-    // alias already open (session_view_aliases_) always resolves to a
-    // real songs_ entry, so this correctly takes the "already open" path
-    // for it without ever creating a fresh Song under the alias's own
-    // name (an alias is only ever created by openSessionViewBuffer()
-    // against an already-open buffer to begin with).
-    if (songs_.find(canonicalBufferName(name)) == songs_.end()) {
+    // Existence is checked against the song id, not `name` verbatim - a
+    // SessionView-aspect name for an already-open song (the common case:
+    // switching to an already-open aspect, or opening the *other* aspect
+    // of one via openAspectBuffer()) always resolves to a real songs_
+    // entry, so this correctly takes the "already open" path for it
+    // without ever creating a fresh Song under the aspect-suffixed name.
+    if (songs_.find(song_id) == songs_.end()) {
       // Not open yet - create it fresh, same starter content "New" used
       // to set up back when it was its own command (see this method's own
       // doc comment on Controller.h).
       auto song = make_shared<Song>();
       song->addTrack(make_unique<InstrumentTrack>(0));
       song->addScene();
-      last_saved_versions_[name] = song->getVersion();
-      songs_[name] = std::move(song);
+      last_saved_versions_[song_id] = song->getVersion();
+      songs_[song_id] = std::move(song);
       created = true;
     }
+    // Idempotent if this aspect is already open - marks it open either
+    // way, since switchToBuffer() is also how openAspectBuffer() actually
+    // opens a not-yet-open aspect of an already-open song.
+    open_aspects_by_song_[song_id].insert(aspectFor(name));
     active_buffer_name_ = name;
   }
-  loadActiveBufferState(name);
+  loadActiveBufferState(song_id);
   if (created) refreshBufferCommands();
   if (buffer_change_listener_) buffer_change_listener_();
 }
 
 string
-Controller::openSessionViewBuffer() {
-  auto canonical = canonicalBufferName(active_buffer_name_);
-  auto alias = canonical + " [Session]";
+Controller::openSessionViewBuffer() { return openAspectBuffer(BufferAspect::SESSION_VIEW); }
+string
+Controller::openPatternEditorBuffer() { return openAspectBuffer(BufferAspect::PATTERN_EDITOR); }
+
+string
+Controller::openAspectBuffer(BufferAspect aspect) {
+  auto song_id = canonicalBufferName(active_buffer_name_);
+  auto name = bufferNameFor(song_id, aspect);
   {
     std::lock_guard<std::mutex> guard(song_mutex_);
-    session_view_aliases_[alias] = canonical; // idempotent if already open
+    open_aspects_by_song_[song_id].insert(aspect); // idempotent if already open
   }
-  // switchToBuffer()'s own `created` flag never fires for an alias (it's
-  // never inserted into songs_ itself - see that method's own comment),
-  // so this call is what actually registers the alias's own
-  // "switch-to-buffer:" entry/Buffers-menu row the first time.
+  // switchToBuffer()'s own `created` flag never fires here (the song
+  // itself already exists - see that method's own comment), so this call
+  // is what actually registers this aspect's own "switch-to-buffer:"
+  // entry/Buffers-menu row the first time it's opened.
   refreshBufferCommands();
-  switchToBuffer(alias);
-  return alias;
+  switchToBuffer(name);
+  return name;
 }
 
 void
@@ -481,52 +496,54 @@ Controller::getDefaultSwitchTarget() const {
 
 bool
 Controller::killActiveBuffer() {
-  // Closing a session-view alias just drops the alias entry itself and
-  // returns to its own canonical buffer - the underlying Song/its other
-  // state (last_saved_versions_, playback/edit state, ...) is untouched,
-  // since it's still open under its own real name. Unlike the canonical-
-  // kill path below, this never refuses (there's always somewhere to
-  // return to: the canonical buffer it was aliasing).
-  string alias_canonical;
+  // Checked first, before touching anything - always keep at least one
+  // buffer-list entry open anywhere, across every open song, not just
+  // "at least one song" (a song can now have zero, one, or both aspects
+  // open - see BufferAspect's own comment).
+  if (getBufferNames().size() <= 1) return false;
+
+  auto song_id = canonicalBufferName(active_buffer_name_);
+  auto aspect = aspectFor(active_buffer_name_);
+
+  // Closing one aspect-view of a song that still has its other one open
+  // just drops this entry and switches to that other view - the
+  // underlying Song/its other state (last_saved_versions_, playback/edit
+  // state, ...) is untouched, since it's still open under its own other
+  // aspect. Never refuses (getBufferNames() already ruled out "nothing
+  // left anywhere" above, and there's always somewhere to switch to: the
+  // song's own other still-open view).
+  string other_view_name;
   {
     std::lock_guard<std::mutex> guard(song_mutex_);
-    auto it = session_view_aliases_.find(active_buffer_name_);
-    if (it != session_view_aliases_.end()) {
-      alias_canonical = it->second;
-      session_view_aliases_.erase(it);
+    auto it = open_aspects_by_song_.find(song_id);
+    if (it != open_aspects_by_song_.end()) it->second.erase(aspect);
+    if (it != open_aspects_by_song_.end() && !it->second.empty()) {
+      other_view_name = bufferNameFor(song_id, *it->second.begin());
+    } else {
+      // No other view left onto this song at all - close it for real.
+      // Its own saved state (if any) is discarded along with it below,
+      // not preserved anywhere - nothing left to switch back to it for.
+      if (it != open_aspects_by_song_.end()) open_aspects_by_song_.erase(it);
+      songs_.erase(song_id);
+      last_saved_versions_.erase(song_id);
     }
   }
-  if (!alias_canonical.empty()) {
-    refreshBufferCommands(); // drops the now-gone alias's own "switch-to-buffer:" entry
-    switchToBuffer(alias_canonical);
+  if (!other_view_name.empty()) {
+    refreshBufferCommands(); // drops the now-closed view's own "switch-to-buffer:" entry
+    switchToBuffer(other_view_name);
     return true;
   }
 
-  string killed_name;
-  {
-    std::lock_guard<std::mutex> guard(song_mutex_);
-    if (songs_.size() <= 1) return false; // always keep at least one buffer open
-    killed_name = active_buffer_name_;
-    songs_.erase(active_buffer_name_);
-    last_saved_versions_.erase(active_buffer_name_);
-    // Drops any session-view alias that pointed at the now-gone buffer -
-    // a dangling alias would otherwise still list/switch-to-buffer into a
-    // canonical name with no real Song behind it any more.
-    for (auto it = session_view_aliases_.begin(); it != session_view_aliases_.end(); ) {
-      if (it->second == killed_name) it = session_view_aliases_.erase(it); else ++it;
-    }
-    active_buffer_name_ = songs_.begin()->first; // name-sorted first remaining buffer
-  }
-  // The killed buffer's own saved state (if any) is discarded along with
-  // it, not preserved anywhere - nothing left to switch back to it for.
-  dropBufferState(killed_name);
-  loadActiveBufferState(active_buffer_name_);
+  dropBufferState(song_id);
+  auto remaining = getBufferNames(); // already reflects the song_id erase above
+  active_buffer_name_ = remaining.front(); // name-sorted first remaining view, whichever song/aspect it is
+  loadActiveBufferState(canonicalBufferName(active_buffer_name_));
   refreshBufferCommands();
-  // Drops the killed buffer's own live SongState, if it had one (Player::
+  // Drops the killed song's own live SongState, if it had one (Player::
   // handlePlaybackControlEvent()) - also stops it automatically if it
   // happened to be the playing buffer, simply by no longer existing to
   // render at all, rather than needing a separate STOP first.
-  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::BUFFER_KILLED, killed_name));
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::BUFFER_KILLED, song_id));
   if (buffer_change_listener_) buffer_change_listener_();
   return true;
 }

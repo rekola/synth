@@ -68,24 +68,24 @@ class Controller {
   Song & getSong() { return *getCurrentSong(); }
   const Song & getSong() const { return *getCurrentSong(); }
 
-  // The active *Song*'s own real buffer name - always canonical, never a
-  // session-view alias (see canonicalBufferName()'s own comment), which is
-  // what every caller that actually means "the real underlying Song"
-  // wants: file paths, PlaybackControlEvent tagging, PatternEditor's own
-  // per-buffer state key. By value now (not a reference) since an aliased
-  // active_buffer_name_ resolves to a *different* string, not a
-  // sub-object of it. UI-thread-only, like song_mutex_'s other UI-thread-
-  // only reads, so no lock needed here (see song_mutex_'s own comment).
-  // See getSelectedBufferName() below for the one thing that still wants
-  // the raw, possibly-aliased name.
+  // The active *Song*'s own real id - always canonical, never a
+  // SessionView-aspect name (see canonicalBufferName()'s own comment),
+  // which is what every caller that actually means "the real underlying
+  // Song" wants: file paths, PlaybackControlEvent tagging, PatternEditor's
+  // own per-buffer state key. By value now (not a reference) since a
+  // SessionView-aspect active_buffer_name_ resolves to a *different*
+  // string, not a sub-object of it. UI-thread-only, like song_mutex_'s
+  // other UI-thread-only reads, so no lock needed here (see song_mutex_'s
+  // own comment). See getSelectedBufferName() below for the one thing
+  // that still wants the raw, aspect-suffixed name.
   std::string getActiveBufferName() const { return canonicalBufferName(active_buffer_name_); }
 
   // The literal buffer-list entry currently selected - unlike
-  // getActiveBufferName() above, this can be a session-view alias.
-  // Exists for the two places that must show/compare the exact selected
-  // row rather than the Song it resolves to: the Buffers menu's own
-  // "current" marker, and UI's own buffer-change listener (to tell
-  // whether the newly-active entry is a session-view alias at all).
+  // getActiveBufferName() above, this can be a SessionView aspect's own
+  // name. Exists for the two places that must show/compare the exact
+  // selected row rather than the Song it resolves to: the Buffers menu's
+  // own "current" marker, and UI's own buffer-change listener (to tell
+  // which aspect the newly-active entry is at all).
   const std::string & getSelectedBufferName() const { return active_buffer_name_; }
 
   // Thread-safe counterpart to getActiveBufferName() above (always
@@ -101,35 +101,53 @@ class Controller {
     return canonicalBufferName(active_buffer_name_);
   }
 
-  // Every open buffer's name, in name-sorted order, plus every open
-  // session-view alias (see openSessionViewBuffer()) - the Buffers menu
-  // (TerminalMenu::refreshBuffers()), select-named-buffer's own
-  // completion, and any future buffer-listing command read this rather
-  // than songs_ directly.
+  // Every open buffer-list entry's name, in name-sorted order - every
+  // open aspect (PatternEditor and/or SessionView, see BufferAspect's own
+  // comment) of every open song. The Buffers menu (TerminalMenu::
+  // refreshBuffers()), select-named-buffer's own completion, and any
+  // future buffer-listing command read this rather than songs_ directly.
   std::vector<std::string> getBufferNames() const {
     std::set<std::string> names;
-    for (auto & [name, song] : songs_) names.insert(name);
-    for (auto & [alias, canonical] : session_view_aliases_) names.insert(alias);
+    for (auto & [song_id, aspects] : open_aspects_by_song_) {
+      for (auto aspect : aspects) names.insert(bufferNameFor(song_id, aspect));
+    }
     return std::vector<std::string>(names.begin(), names.end());
   }
 
-  // Whether `name` is a session-view alias (openSessionViewBuffer()),
-  // never a real songs_ entry of its own - UI's own buffer-change
-  // listener uses this to decide whether the newly-selected buffer should
-  // show SessionView in place of PatternEditor.
-  bool isSessionViewBuffer(const std::string & name) const { return session_view_aliases_.count(name) > 0; }
+  // Whether `name`'s own buffer-list entry is a SessionView aspect (see
+  // BufferAspect's own comment), a pure formatting check (does it end in
+  // the " [Session]" suffix) rather than a lookup - correct for any name
+  // that's actually open (every caller's own case), regardless of which
+  // aspect happens to be open for that particular song right now. UI's
+  // own buffer-change listener uses this to decide whether the
+  // newly-selected buffer should show SessionView in place of
+  // PatternEditor.
+  bool isSessionViewBuffer(const std::string & name) const { return aspectFor(name) == BufferAspect::SESSION_VIEW; }
 
-  // Switches to (creating the first time - idempotent after that) a
-  // session-view alias of the currently active buffer: a second buffer-
-  // list entry (name + " [Session]") that resolves to the exact same
-  // Song, live playback/edit state, and save-dirty tracking as the buffer
-  // it was opened from (see canonicalBufferName()'s own comment) -
-  // distinguished only by which UI aspect (SessionView vs PatternEditor)
-  // is shown for it. Calling this while already viewing an alias resolves
-  // through to its own canonical buffer first, so it's a no-op rather
-  // than aliasing an alias. Returns the alias's own buffer name (for a
-  // caller that wants to e.g. show it in a status message).
+  // Switches to (opening the first time - idempotent after that) the
+  // SessionView/PatternEditor aspect of the currently active song: a
+  // second buffer-list entry (song id, or song id + " [Session]") that
+  // resolves to the exact same Song, live playback/edit state, and
+  // save-dirty tracking as whichever aspect is currently active (see
+  // canonicalBufferName()'s own comment) - the two differ only in which
+  // UI aspect is shown for them, and either can be closed independently
+  // without closing the underlying song as long as the other (or the song
+  // itself, if neither is currently open - see killActiveBuffer()) stays
+  // open. Calling either while already viewing that same aspect is a
+  // harmless no-op. Returns the buffer's own name (for a caller that
+  // wants to e.g. show it in a status message).
   std::string openSessionViewBuffer();
+  std::string openPatternEditorBuffer();
+
+  // Whether killing the active buffer right now would only close *this*
+  // aspect-view (the underlying song stays open under its other one) or
+  // would close the song itself (its only remaining view) - UI's own
+  // kill-buffer command uses this to skip the "discard unsaved changes?"
+  // prompt when nothing would actually be discarded.
+  bool activeSongHasOtherOpenViews() const {
+    auto it = open_aspects_by_song_.find(canonicalBufferName(active_buffer_name_));
+    return it != open_aspects_by_song_.end() && it->second.size() > 1;
+  }
 
   // Emacs-style uniquify: `name`'s own basename, unless another open
   // buffer shares it, in which case just enough of the parent directory
@@ -647,36 +665,60 @@ class Controller {
   MixerType mixer_type_ = MixerType::AMBISONIC_STEREO;
   bool use_legacy_binaural_ = false;
 
-  // Every open song, keyed by buffer name - real storage for every buffer
-  // openSong()/switchToBuffer() have added and killActiveBuffer() hasn't
-  // closed yet, not just the active one (see active_buffer_name_ below).
-  // Named songs_, not buffers_: every open buffer is a Song right now, and
-  // this map's value type is literally Song - if a future, non-Song
-  // buffer kind shows up, that's the point this stops being accurate and
-  // needs revisiting, not before.
+  // Every open song, keyed by song id (a real file path, or a
+  // freshBufferName()-generated name for a never-yet-saved one) - real
+  // storage for every song openSong()/switchToBuffer() have added and
+  // killActiveBuffer() hasn't fully closed yet (see open_aspects_by_song_
+  // below for which of its aspects are currently open as actual
+  // buffer-list entries), not just the active one (see
+  // active_buffer_name_ below). Named songs_, not buffers_: this map's
+  // value type is literally Song, one per underlying song regardless of
+  // how many aspect-views of it are open right now - if a future,
+  // non-Song buffer kind shows up, that's the point this stops being
+  // accurate and needs revisiting, not before.
   std::map<std::string, std::shared_ptr<Song>> songs_;
-  // Session-view alias buffer name -> its own canonical (source) buffer
-  // name - see openSessionViewBuffer(). An alias is never inserted into
-  // songs_/last_saved_versions_ itself; every per-Song/per-buffer-state
-  // lookup that actually needs the real Song (getCurrentSong(),
-  // getActiveBufferName(), the playback/edit-state maps below,
-  // PlaybackControlEvent tagging) resolves through canonicalBufferName()
-  // first, so an alias and its canonical buffer always share one Song and
-  // one live state - the two buffer-list entries differ only in which UI
-  // aspect gets shown for them (see UI::openSessionView()). Guarded by
-  // song_mutex_ alongside songs_/active_buffer_name_ for the same reason
-  // (see that member's own comment) - mutated only on the UI thread, but
-  // canonicalBufferName() is also called from getActiveBufferNameThreadSafe().
-  std::map<std::string, std::string> session_view_aliases_;
-  // `name` itself unless it's a session-view alias, in which case the
-  // canonical buffer it aliases - see session_view_aliases_'s own
-  // comment. The one place that distinction actually collapses; every
-  // other buffer-name-keyed lookup in this class goes through this first
-  // rather than re-deriving it.
-  std::string canonicalBufferName(const std::string & name) const {
-    auto it = session_view_aliases_.find(name);
-    return it == session_view_aliases_.end() ? name : it->second;
+
+  // A song id can be viewed two ways, symmetrically - PatternEditor
+  // (note/command editing) and SessionView (the clip-launch overview) -
+  // and either can be open, closed, or both at once, independently: the
+  // buffer-list entry for a song id's PATTERN_EDITOR aspect is its own id
+  // verbatim; SESSION_VIEW's is `id + " [Session]"`
+  // (bufferNameFor()/aspectFor() below convert between the two forms).
+  // Neither aspect is privileged over the other the way PatternEditor
+  // used to be (songs_'s own key was once inseparable from "the
+  // PatternEditor buffer") - a song stays open in songs_ as long as
+  // *either* aspect has an open view (open_aspects_by_song_[id] is
+  // non-empty); killing the last one closes the underlying song too (see
+  // killActiveBuffer()). Guarded by song_mutex_ alongside songs_/
+  // active_buffer_name_ for the same reason (see that member's own
+  // comment) - mutated only on the UI thread.
+  enum class BufferAspect { PATTERN_EDITOR, SESSION_VIEW };
+  std::map<std::string, std::set<BufferAspect>> open_aspects_by_song_;
+  // The " [Session]" suffix marking a buffer-list name as a song id's own
+  // SessionView aspect - bufferNameFor()/aspectFor() below are the only
+  // two places that ever need to know its exact spelling.
+  static constexpr const char * kSessionViewSuffix = " [Session]";
+  std::string bufferNameFor(const std::string & song_id, BufferAspect aspect) const {
+    return aspect == BufferAspect::SESSION_VIEW ? song_id + kSessionViewSuffix : song_id;
   }
+  BufferAspect aspectFor(const std::string & name) const {
+    auto suffix_len = std::string(kSessionViewSuffix).size();
+    bool has_suffix = name.size() >= suffix_len && name.compare(name.size() - suffix_len, suffix_len, kSessionViewSuffix) == 0;
+    return has_suffix ? BufferAspect::SESSION_VIEW : BufferAspect::PATTERN_EDITOR;
+  }
+  // `name`'s own song id - itself, if it's already one (a PatternEditor
+  // aspect's own buffer-list name *is* its song id verbatim), or with the
+  // SessionView suffix stripped otherwise. A pure string operation now
+  // (no lookup), so - unlike the old alias-map version - it needs no
+  // song_mutex_ guard of its own; every other buffer-name-keyed lookup in
+  // this class goes through this first rather than re-deriving it.
+  std::string canonicalBufferName(const std::string & name) const {
+    return aspectFor(name) == BufferAspect::SESSION_VIEW ? name.substr(0, name.size() - std::string(kSessionViewSuffix).size()) : name;
+  }
+  // openSessionViewBuffer()/openPatternEditorBuffer()'s own shared body -
+  // opens (idempotent if already open) `aspect`'s own view of the
+  // currently active song and switches to it.
+  std::string openAspectBuffer(BufferAspect aspect);
   // hasUnsavedChanges()'s baseline, one per songs_ entry rather than one
   // shared scalar - each buffer's own unsaved-changes state is independent
   // of whichever buffer happens to be active, so switching the active one

@@ -629,9 +629,10 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
   buffer_items.push_back({ "Previous Buffer", "C-x Left", "previous-buffer" });
   buffer_items.push_back({ "Select Named Buffer...", "C-x b", "select-named-buffer" });
   buffer_items.push_back({ nullptr, nullptr, nullptr });
-  // Menu-only, no keybinding of their own - open the active buffer's own
-  // Pattern Viewer (PatternEditor - a no-op for now, see UI.cpp's own
-  // "pattern-viewer" command comment) or Session View (SessionView) aspect.
+  // Menu-only, no keybinding of their own - open the active song's own
+  // Pattern Viewer (PatternEditor) or Session View (SessionView) aspect,
+  // symmetrically (see UI.cpp's own "pattern-viewer"/"session-view"
+  // command comment) - either can be open independently of the other.
   buffer_items.push_back({ "Open Pattern Viewer", "", "pattern-viewer" });
   buffer_items.push_back({ "Open Session View", "", "session-view" });
   spec.push_back({ "Buffers", 'b', std::move(buffer_items) });

@@ -345,3 +345,96 @@ TEST(toggle_focused_clip_clears_when_already_focused_else_switches) {
   CHECK(controller.getFocusedClip().empty());
   CHECK(controller.getFocusedClipTrackId() == -1);
 }
+
+// PatternEditor and SessionView are symmetric buffer-list aspects of the
+// same song now - either can be opened or closed independently, and
+// closing one never closes the underlying song as long as the other (or
+// some other song's own buffer) stays open.
+TEST(session_view_buffer_can_close_without_closing_the_song) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  auto name = controller.freshBufferName();
+  controller.switchToBuffer(name);
+
+  auto alias = controller.openSessionViewBuffer();
+  CHECK(alias == name + " [Session]");
+  CHECK(controller.isSessionViewBuffer(alias));
+  CHECK(controller.getSelectedBufferName() == alias);
+  CHECK(controller.getActiveBufferName() == name); // resolves to the real song either way
+
+  // Closing the SessionView aspect (the only thing selected right now)
+  // returns to the PatternEditor aspect - the song itself is untouched.
+  CHECK(controller.killActiveBuffer());
+  CHECK(controller.getSelectedBufferName() == name);
+  CHECK(!controller.isSessionViewBuffer(controller.getSelectedBufferName()));
+  auto names = controller.getBufferNames();
+  CHECK(std::find(names.begin(), names.end(), alias) == names.end()); // the SessionView entry is gone
+  CHECK(std::find(names.begin(), names.end(), name) != names.end()); // the song's own PatternEditor entry remains
+}
+
+// The new capability this session's own request was actually about:
+// PatternEditor's own buffer-list entry is no longer privileged - closing
+// it while SessionView stays open must leave the song alive under
+// SessionView, not destroy it the way closing the sole "canonical" entry
+// used to.
+TEST(pattern_editor_buffer_can_close_while_session_view_stays_open) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  auto name = controller.freshBufferName();
+  controller.switchToBuffer(name); // PatternEditor aspect, the only one so far
+  controller.openSessionViewBuffer(); // now both aspects are open
+
+  // Make the PatternEditor aspect the active one, then close it.
+  controller.switchToBuffer(name);
+  CHECK(controller.activeSongHasOtherOpenViews()); // SessionView is still open on this song
+  CHECK(controller.killActiveBuffer());
+
+  // The song survives under its SessionView aspect - not gone, not
+  // silently recreated as a fresh empty buffer under the old name.
+  CHECK(controller.getSelectedBufferName() == name + " [Session]");
+  CHECK(controller.isSessionViewBuffer(controller.getSelectedBufferName()));
+  CHECK(controller.getActiveBufferName() == name);
+  auto names = controller.getBufferNames();
+  CHECK(std::find(names.begin(), names.end(), name) == names.end()); // the PatternEditor entry is gone
+  CHECK(std::find(names.begin(), names.end(), name + " [Session]") != names.end());
+
+  // And it can be reopened later, landing back on the very same song.
+  auto reopened = controller.openPatternEditorBuffer();
+  CHECK(reopened == name);
+  CHECK(controller.getSelectedBufferName() == name);
+  CHECK(controller.getActiveBufferName() == name);
+}
+
+// Closing a song's *last* remaining view (regardless of which aspect it
+// is) closes the underlying song itself - the same "always keep at least
+// one buffer open" guarantee the old canonical-buffer-only design had,
+// now checked across every open view of every song rather than just
+// songs_' own count.
+TEST(closing_the_last_view_of_a_song_closes_the_song_itself) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  auto other = controller.freshBufferName();
+  controller.switchToBuffer(other); // a second song, so the one under test isn't the app's only buffer
+
+  auto name = controller.freshBufferName();
+  controller.switchToBuffer(name); // only the PatternEditor aspect is open on this one
+  CHECK(!controller.activeSongHasOtherOpenViews());
+  CHECK(controller.killActiveBuffer());
+
+  auto names = controller.getBufferNames();
+  CHECK(std::find(names.begin(), names.end(), name) == names.end());
+  CHECK(std::find(names.begin(), names.end(), name + " [Session]") == names.end());
+  CHECK(controller.getSelectedBufferName() == other); // switched to the only buffer left
+}
+
+// killActiveBuffer() still refuses when it's genuinely the only buffer-
+// list entry open anywhere, whichever aspect it happens to be.
+TEST(kill_active_buffer_refuses_the_only_open_view) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  auto name = controller.freshBufferName();
+  controller.switchToBuffer(name);
+  CHECK(controller.getBufferNames().size() == 1);
+  CHECK(!controller.killActiveBuffer());
+  CHECK(controller.getSelectedBufferName() == name); // untouched
+}

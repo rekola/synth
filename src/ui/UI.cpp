@@ -196,22 +196,20 @@ UI::initialize() {
       return result;
     });
   });
-  // Menu-only (Buffers menu's own "Open Session View" item) - no
-  // keybinding. Switches to (creating the first time) a session-view
-  // alias of the active buffer - see Controller::openSessionViewBuffer()'s
-  // own comment. The buffer-change listener above does the actual
-  // screen-slot swap; this command's only job is asking Controller to
-  // switch there.
+  // Menu-only (Buffers menu's own "Open Session View"/"Open Pattern
+  // Viewer" items) - no keybinding. Switches to (opening the first time)
+  // the SessionView/PatternEditor aspect of the active song - see
+  // Controller::openSessionViewBuffer()'s own comment. Either can be
+  // opened regardless of which one currently shows, and either can later
+  // be closed independently (kill-buffer below) without closing the song.
+  // The buffer-change listener above does the actual screen-slot swap;
+  // these commands' only job is asking Controller to switch there.
   commands_.define("session-view", [this]() {
     getController().openSessionViewBuffer();
   });
-  // Menu-only, same as session-view above ("Open Pattern Viewer") - a
-  // no-op for now. PatternEditor is still the privileged "canonical"
-  // buffer aspect (Controller::songs_'s real storage key, not an alias
-  // like session-view's own), so there's nothing to actually switch to
-  // yet - see plans/arrangement-view.md's own Phase E note on what making
-  // it a real, symmetric alias like session-view's own would take.
-  commands_.define("pattern-viewer", [this]() { });
+  commands_.define("pattern-viewer", [this]() {
+    getController().openPatternEditorBuffer();
+  });
   commands_.define("kill-buffer", [this]() {
     auto doKill = [this]() {
       auto name = getController().getActiveBufferName();
@@ -221,7 +219,10 @@ UI::initialize() {
 	setStatus("Can't kill the only open buffer");
       }
     };
-    if (getController().hasUnsavedChanges()) {
+    // No prompt needed when the song would stay open under its other
+    // aspect (PatternEditor/SessionView) - nothing is actually at risk of
+    // being discarded, just this one view closing.
+    if (getController().hasUnsavedChanges() && !getController().activeSongHasOtherOpenViews()) {
       status_line_->showPrompt("Buffer modified - kill anyway? (y/n) ", [doKill](const std::string & answer) {
 	if (answer == "y" || answer == "Y" || answer == "yes" || answer == "Yes") doKill();
       });
