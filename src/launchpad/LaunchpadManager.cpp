@@ -537,20 +537,56 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
   // that; toggle-playing stays reachable via Space either way.
   if (cc_number == 19) {
     capture_enabled_ = !capture_enabled_;
-    // Disarming while a recording session this class itself auto-started
-    // (Session-view clip-trigger recording, Controller::
-    // startAutoRecordPlayback() - or ordinary NOTES-mode held-note
-    // recording, which shares the same auto_started_playback_ flag) is
-    // still running stops the transport too - a live take with Record
-    // Arm off has nothing left to record into, so "stop recording" is
-    // naturally also "stop playback". stopAutoRecordSession() (not the
-    // no-mute startAutoRecordPlayback()'s own counterpart - there isn't
-    // one) always issues an explicit unmute regardless of whether this
-    // session ever actually muted anything, so it's safe to call
-    // unconditionally here rather than tracking which of the two start
-    // paths this particular session came from.
-    if (!capture_enabled_ && auto_started_playback_) {
+    if (capture_enabled_) {
+      // Arming: audition-only live-trigger bookkeeping becomes
+      // meaningless from here on - capture_enabled_ alone already stops
+      // the free-running audition_clock_ (see audition_active's own
+      // comment: "the player is presumably about to record something
+      // deliberate and doesn't want an uncontrolled loop underneath it"),
+      // but that only stops the *clock*, not the data - triggered_pattern_
+      // by_track_/queued_pattern_by_track_ themselves stayed exactly as
+      // they were. Left alone, they'd sit there stale through the whole
+      // recording session and then resurrect the moment it ends: stopping
+      // playback later makes audition_active true again
+      // (!isPlaying() && !capture_enabled_), restarting the clock, which
+      // would immediately resume "auditioning" whatever was still marked
+      // triggered here - an old clip suddenly playing again, and its own
+      // stale LED highlight right along with it, neither of which the
+      // performer did anything to cause after actually stopping. Clearing
+      // both maps (and the shared quantization origin they're keyed
+      // against - see session_origin_set_'s own comment) now means the
+      // clock starts from genuine silence whenever it next resumes,
+      // instead of wherever a completely unrelated recording session
+      // happened to leave things.
+      triggered_pattern_by_track_.clear();
+      queued_pattern_by_track_.clear();
+      session_origin_set_ = false;
+    } else if (auto_started_playback_) {
+      // Disarming while a recording session this class itself auto-started
+      // (Session-view clip-trigger recording, Controller::
+      // startAutoRecordPlayback() - or ordinary NOTES-mode held-note
+      // recording, which shares the same auto_started_playback_ flag) is
+      // still running stops the transport too - a live take with Record
+      // Arm off has nothing left to record into, so "stop recording" is
+      // naturally also "stop playback". stopAutoRecordSession() (not the
+      // no-mute startAutoRecordPlayback()'s own counterpart - there isn't
+      // one) always issues an explicit unmute regardless of whether this
+      // session ever actually muted anything, so it's safe to call
+      // unconditionally here rather than tracking which of the two start
+      // paths this particular session came from.
       controller.stopAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, controller.getPlaybackInfo());
+      // Guarantees real silence on stop, not just "no more scheduling" -
+      // SongState::renderBlock()'s own instance-termination release
+      // (stopAllVoices()) only ever runs from within the per-row
+      // scheduling loop, which is itself gated on isPlaying() - so
+      // whatever's actively sounding at the exact moment playback stops
+      // here would otherwise just keep ringing/decaying on its own
+      // instead of being released, the same pre-existing "a voice's
+      // envelope keeps progressing while playback is stopped" gap
+      // docs/known_bugs.md already tracks for a plain manual stop.
+      for (auto track_id : controller.getSong().getPlayableTrackIds()) {
+	controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_ALL_NOTES, controller.getActiveBufferName(), track_id));
+      }
     }
     return true;
   }
