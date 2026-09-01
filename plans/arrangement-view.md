@@ -360,7 +360,7 @@ actually in play, resolved two different ways:
   real data. The clip's own total length is rounded up to the next whole
   bar the same implicit way (back-padded).
 
-### Recording target (landed with Phase B)
+### Recording target (landed with Phase B, extended since)
 
 **Landed.** Session-view recording (Record Arm assign) now targets
 whichever scene is *actively playing* at that moment
@@ -371,6 +371,60 @@ cursor's own scene, row 0, only while stopped (no live position to record
 against then). Extending that scene's own length as needed to fit is
 `Controller::extendRecordingSceneIfNeeded()`, Phase B's own - see that
 phase's own section.
+
+Landed since, once actually using it surfaced the rest of what "recording
+a whole scene" needs beyond just placing an instance:
+
+- **The playhead actually advances.** Assigning while stopped now starts
+  the transport (`Controller::startAutoRecordPlayback()`) instead of
+  silently writing to row 0 forever - a no-mute sibling of
+  `startAutoRecordSession()` (a held note is heard through its own live
+  PLAY_NOTE stream while old content stays muted; a triggered clip has no
+  such separate path, it's heard entirely through the same scheduling the
+  instance write feeds, so muting it would silence the very thing being
+  recorded).
+- **Bar-aligned, snapped forward.** Every recording write (a clip trigger,
+  or an explicit stop - see below) rounds the live row *up* to the start
+  of its own next bar (`LaunchpadManager::quantizedBarRow()`), never back
+  - backward would place content as if it had started sounding before the
+  performer actually pressed anything. Needs no extra queuing: writing a
+  start event at a future row is enough: real playback naturally begins
+  triggering it once the playhead actually arrives there.
+- **A track can be stopped, not just triggered.** An empty-row press or
+  CC49 (Stop Clip) held, while recording, writes a real stop instance
+  (`LaunchpadManager::placeRecordingStop()`, `ArrangementOps.h`'s
+  `placeStopInstance()`) - previously both only adjusted audition-only
+  bookkeeping real playback never reads.
+- **A stop actually silences a looping clip.** `SongState::renderBlock()`
+  now fires the instrument's own natural release
+  (`InstrumentTrackState::stopAllVoices()`) the moment a track's real
+  active instance changes (a swap, a stop, or falling through to
+  background) - previously only *new* note scheduling stopped there,
+  leaving an already-sustaining voice (a looping clip has no natural end
+  of its own) ringing indefinitely.
+- **Disarming stops the transport too**, the same way ordinary
+  auto-record's own "last held note released" already does
+  (`Controller::stopAutoRecordSession()`), and explicitly releases every
+  track (`STOP_ALL_NOTES`) rather than leaving whatever's mid-flight to
+  decay on its own.
+- **Arming clears stale audition-only state.** Live-auditioning a clip
+  (Record Arm off) before arming left `triggered_pattern_by_track_`/
+  `queued_pattern_by_track_` populated; arming already stopped the
+  audition clock but never cleared that bookkeeping, so disarming later
+  (which makes the audition clock eligible to restart) would resurrect a
+  stale trigger - the clip resuming, complete with its own stale LED
+  highlight, with nothing the performer did to cause it. Both maps (and
+  the shared quantization origin) are cleared the moment Record Arm is
+  armed now.
+- **Session-view LEDs no longer go stale during/after recording.**
+  They used to be computed purely from that same audition-only
+  bookkeeping, which is never touched by real playback; the highlight for
+  a track under active recording (or for anything that had been
+  auditioned before recording started) just sat there unchanged.
+  Whenever the transport is actually playing, the LEDs now resolve from
+  the real live position (`resolveInstanceAt()`, recomputed every
+  `refresh()`) instead - the same query real playback itself uses, so it
+  can't go stale.
 
 ### Other consequences
 
