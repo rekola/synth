@@ -13,7 +13,7 @@ placeClipInstance(const Song & song, Scene & scene, int track_id, int row, int c
   if (clip_index < 0 || clip_index >= static_cast<int>(clips.size())) return;
   auto & clip = clips[static_cast<size_t>(clip_index)];
   auto length = clip.getLength() > 0 ? clip.getLength() : 1;
-  auto reach_end = clip.isLooping() ? song.getPatternLength() - 1 : row + length - 1;
+  auto reach_end = clip.isLooping() ? song.getEffectiveSceneLength(scene) - 1 : row + length - 1;
 
   // Collected first, then cleared in a separate pass - clearInstance()
   // mutates the same map getInstancesForTrack() returns a reference
@@ -74,7 +74,7 @@ resolveEditTarget(Song & song, Scene & scene, int track_id, int row) {
     return { &pattern, pattern.getEffectiveRow(row - active.start_row, length) };
   }
   auto & pattern = scene.getPatternsByTrack()[track_id];
-  return { &pattern, pattern.getEffectiveRow(row, song.getPatternLength()) };
+  return { &pattern, pattern.getEffectiveRow(row, song.getEffectiveSceneLength(scene)) };
 }
 
 ReadTarget
@@ -91,5 +91,5 @@ resolveReadTarget(const Song & song, const Scene & scene, int track_id, int row)
   auto & patterns = scene.getPatternsByTrack();
   auto it = patterns.find(track_id);
   if (it == patterns.end()) return { &empty_pattern, 0, row, false, -1 };
-  return { &it->second, it->second.getEffectiveRow(row, song.getPatternLength()), row, false, -1 };
+  return { &it->second, it->second.getEffectiveRow(row, song.getEffectiveSceneLength(scene)), row, false, -1 };
 }

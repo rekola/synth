@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song key="C" temperament="31edo" tempo="100" patternRows="48" volume="0.75">
+<song key="C" temperament="31edo" tempo="100" volume="0.75">
   <instruments>
     <instrument from="piano.acoustic.grand" />
   </instruments>
@@ -9,7 +9,7 @@
   </tracks>
   
   <scenes>
-    <scene>
+    <scene length="3">
       <pattern track="0">
         <note row="0" velocity="40" value="C-4" />
         <note row="2" velocity="40" value="Db4" />
@@ -23,7 +23,7 @@
         <note row="18" velocity="40" value="C-5" />
       </pattern>
     </scene>
-    <scene>
+    <scene length="3">
       <annotation row="0">C major</annotation>
       <annotation row="4">Db</annotation>
       <annotation row="8">D</annotation>

@@ -51,7 +51,6 @@ TEST(remove_lane_deletes_the_notes_referencing_it_from_every_scene) {
   track.addLane(36);
   track.addLane(38);
   track.addLane(42);
-  song.setPatternLength(8);
   song.getOrCreateScene(0).setNote(0, track.getInternalId(), 0, Note(36, 100));
   song.getOrCreateScene(0).setNote(2, track.getInternalId(), 0, Note(38, 100));
   song.getOrCreateScene(1).setNote(4, track.getInternalId(), 0, Note(42, 100));
@@ -96,7 +95,6 @@ TEST(removing_and_re_adding_a_lane_starts_it_with_no_notes) {
   Song song;
   auto & track = dynamic_cast<DrumMachineTrack &>(song.addTrack(make_unique<DrumMachineTrack>()));
   track.addLane(36);
-  song.setPatternLength(8);
   song.getOrCreateScene(0).setNote(0, track.getInternalId(), 0, Note(36, 100));
   track.removeLane(36, song);
   track.addLane(36);

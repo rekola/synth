@@ -760,7 +760,7 @@ Controller::ensureRowCleared(std::set<std::pair<int, int>> & cleared_rows, int p
   // - otherwise sweeping past the second one would clear (and lose) a
   // note the first one just wrote, one loop iteration into the same
   // live take.
-  auto effective_row = scene.getEffectiveRow(track_id, row, song->getPatternLength());
+  auto effective_row = scene.getEffectiveRow(track_id, row, song->getEffectiveSceneLength(scene));
   if (!cleared_rows.insert({effective_row, track_id}).second) return; // already cleared this session
   scene.setNotes(effective_row, track_id, {});
   song->incVersion();
@@ -780,6 +780,23 @@ Controller::sweepAutoRecordRows(std::set<std::pair<int, int>> & cleared_rows, in
     }
   }
   last_cleared_row = new_row;
+}
+
+void
+Controller::extendRecordingSceneIfNeeded(bool recording) {
+  if (!recording) return;
+  auto & info = getPlaybackInfo();
+  if (!info.isPlaying()) return;
+
+  auto song = getCurrentSong();
+  if (!song) return;
+  auto & scene = song->getScene(info.getPatternIndex());
+  auto rows_per_bar = std::max(1, song->getRowsPerBar());
+  auto last_bar = std::max(0, scene.getLengthBars() - 1);
+  if (info.getRowIndex() / rows_per_bar < last_bar) return; // not near the end yet
+
+  scene.setLengthBars(scene.getLengthBars() + 1);
+  song->incVersion();
 }
 
 void

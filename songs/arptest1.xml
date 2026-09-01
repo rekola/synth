@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="140" patternRows="192">
+<song temperament="31edo" tempo="140" rowsPerBar="12">
     <bus>
         <reverb/>
         <haze preset="slap"/>
@@ -26,7 +26,7 @@
         <track id="bass" instrument="2" azimuth="60" distance="2" elevation="10" color="" sendA="-20.0000" sendB="-4.4370"/>
     </tracks>
     <scenes>
-        <scene>
+        <scene length="12">
             <pattern track="arp">
                 <note row="0" velocity="30">C-4</note>
                 <note row="0" column="1" velocity="30">E-4</note>
@@ -37,7 +37,6 @@
                 <note row="96" velocity="30">D♯4</note>
                 <note row="96" column="1" velocity="30">F-4</note>
                 <note row="96" column="2" velocity="30">A-4</note>
-                <command row="143" data="ZB00"/>
             </pattern>
             <pattern track="pads">
                 <note row="0" velocity="40">C-4</note>
@@ -51,7 +50,7 @@
                 <note row="138" velocity="60">G-1</note>
             </pattern>
         </scene>
-        <scene>
+        <scene length="15">
             <pattern track="perc2">
                 <note row="0" velocity="40">CGH</note>
                 <note row="4" velocity="40">CGH</note>
@@ -187,7 +186,6 @@
                 <note row="144" velocity="30">C-4</note>
                 <note row="144" column="1" velocity="30">E-4</note>
                 <note row="144" column="2" velocity="30">G-4</note>
-                <command row="180" data="ZB00"/>
             </pattern>
             <pattern track="pads2">
                 <note row="0" velocity="0">OFF</note>
@@ -236,7 +234,7 @@
                 <note row="144" velocity="40">C-2</note>
             </pattern>
         </scene>
-        <scene>
+        <scene length="16">
             <pattern track="arp">
                 <note row="0" velocity="0">OFF</note>
                 <note row="0" column="1" velocity="0">OFF</note>

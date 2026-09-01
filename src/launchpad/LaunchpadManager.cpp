@@ -1162,16 +1162,19 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
   // several patterns in a row needs to keep pressing pads, not get
   // bounced out after the first one. Nothing to assign from an empty row.
   if (!has_pattern_here) return;
-  auto & scene = song.getOrCreateScene(session_.cursor_scene_idx);
-  // The exact row playback is currently at, when the pressed column's
-  // scene is the one actually playing right now - true live-recording,
-  // matching a real note-on's own timing. Falls back to row 0 (a whole-
-  // scene placement, closest to what plain scene-navigation used to
-  // write here before the instance layer existed) when it isn't - there's
-  // no live position to record against in a scene that isn't currently
-  // playing.
+  // Targets whichever scene is actually *playing* right now, not
+  // necessarily the column the cursor happens to be pointing at - true
+  // live-recording, matching a real note-on's own timing, and (per
+  // Controller::extendRecordingSceneIfNeeded()) that scene keeps growing
+  // to fit as the performance continues rather than being confined to a
+  // fixed pre-existing length. Falls back to the cursor's own scene, row
+  // 0 (a whole-scene placement, closest to what plain scene-navigation
+  // used to write here before the instance layer existed) while stopped -
+  // there's no live position to record against then.
   auto & playback_info = controller.getPlaybackInfo();
-  auto row = playback_info.getPatternIndex() == session_.cursor_scene_idx ? playback_info.getRowIndex() : 0;
+  auto scene_idx = playback_info.isPlaying() ? playback_info.getPatternIndex() : session_.cursor_scene_idx;
+  auto & scene = song.getOrCreateScene(scene_idx);
+  auto row = playback_info.isPlaying() ? playback_info.getRowIndex() : 0;
   placeClipInstance(song, scene, track_id, row, clip_index);
   song.incVersion();
 }

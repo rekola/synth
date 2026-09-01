@@ -14,9 +14,9 @@ class Song;
 // row (its own name, spanning the full width - no per-scene numbering
 // any more, a name is how scenes are told apart) followed by its own
 // bar rows (Song::getRowsPerBar() rows each - a scene spans as many bar
-// rows as it has bars; today every scene shares Song::getPatternLength()/
-// getRowsPerBar() bars, uniformly - see barsPerScene()'s own comment).
-// Columns (within the bar rows) = tracks - Song::getRootTrackIds()
+// rows as it has bars, its own Scene::getLengthBars() - see
+// barsPerScene()'s own comment). Columns (within the bar rows) = tracks -
+// Song::getRootTrackIds()
 // filtered down to only color-eligible ones (see getVisibleTrackIds()). A
 // clip instance renders as a colored capsule (that track's own identity
 // color, the same one PatternEditor's own heading row uses) two cells
@@ -122,13 +122,25 @@ class ArrangementGrid : public UIElement {
   void moveCursorScene(const Song & song, int delta);
 
  private:
-  // Bars per scene, uniform across every scene for now (every scene
-  // shares Song::getPatternLength()/getRowsPerBar()) - the one place
-  // that assumption lives, so it's the one place to change once a scene
-  // can have its own length. Always at least 1, even with a degenerate
-  // rowsPerBar/patternRows configuration - a grid needs somewhere to put
-  // the cursor regardless.
-  int barsPerScene(const Song & song) const;
+  // Bars in scene `scene_idx` - Song::getEffectiveSceneLength(scene_idx)
+  // converted to bars via getRowsPerBar(). Always at least 1, even with a
+  // degenerate rowsPerBar/scene-length configuration - a grid needs
+  // somewhere to put the cursor regardless.
+  int barsPerScene(const Song & song, int scene_idx) const;
+
+  // Cumulative flat-row offset of every real scene's own title row, plus
+  // one trailing sentinel (== total flat rows - the virtual "one past the
+  // end" scene's own title row). Rebuilt fresh every time it's needed
+  // (offerInput()'s own cursor navigation, render(), startSceneRename())
+  // rather than cached - O(num_scenes), consistent with the model layer's
+  // own "small counts, no precomputed table" choice (ArrangementOps.h's
+  // resolveInstanceAt()/Song::toAbsoluteRow()).
+  std::vector<int> buildSceneFlatStarts(const Song & song) const;
+
+  // The inverse of buildSceneFlatStarts(): which scene owns flat_row, and
+  // its own local offset within that scene's own (title row + bar rows)
+  // span - 0 is the title row, 1..barsPerScene() are its own bar rows.
+  std::pair<int, int> decodeFlatRow(const std::vector<int> & starts, int flat_row) const;
 
   // Cursor position: an absolute scene index (not scroll-relative - one
   // position past the last real Scene is a valid, virtual target, same
@@ -142,9 +154,9 @@ class ArrangementGrid : public UIElement {
   int cursor_track_index_ = 0;
 
   // Top-left corner of the visible viewport - scroll_row_ in the same
-  // flattened (scene * barsPerScene() + bar) units moveCursorRow() uses,
-  // kept in sync with the cursor by ensureCursorVisible() rather than
-  // tracked independently, so the cursor is always on screen.
+  // flattened units moveCursorRow()/buildSceneFlatStarts() use, kept in
+  // sync with the cursor by ensureCursorVisible() rather than tracked
+  // independently, so the cursor is always on screen.
   int scroll_row_ = 0, scroll_col_ = 0;
 
   // What render() last drew, so it can skip redrawing when nothing this
@@ -165,11 +177,10 @@ class ArrangementGrid : public UIElement {
   bool force_redraw_ = false;
 
   // Moves the cursor by `delta` rows, flattened across the whole (real +
-  // one virtual) scene range, each scene occupying 1 (its own title row)
-  // + barsPerScene() rows - crossing a scene boundary lands on the
-  // adjacent scene's own title row or last bar, so Up/Down read as one
-  // continuous timeline rather than being fenced in by whichever scene
-  // the cursor started in.
+  // one virtual) scene range via buildSceneFlatStarts() - crossing a
+  // scene boundary lands on the adjacent scene's own title row or last
+  // bar, so Up/Down read as one continuous timeline rather than being
+  // fenced in by whichever scene the cursor started in.
   void moveCursorRow(const Song & song, int delta);
 
   // Always clamps the cursor to whatever scenes/bars/tracks actually

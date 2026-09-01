@@ -160,29 +160,76 @@ TEST(command_round_trips_for_a_track_with_an_explicit_textual_id) {
   fs::remove(scratch_path);
 }
 
-// Pattern length lives on Song, not per-Pattern (every pattern in a song
-// shares it) - <song patternRows="N"> round-trips through save/reload,
-// and a fresh Song defaults to 64 (matching the empty song
-// Controller::switchToBuffer() creates for a not-yet-open buffer name).
-TEST(pattern_length_round_trips_through_save_and_load) {
+// A scene's own length lives on Scene, not Song - each one round-trips
+// its own <scene length="N"> (in bars) independently, and a fresh Scene
+// defaults to 4 bars (Scene.h's own compiled default) when never given an
+// explicit length of its own - there's no more song-wide fallback to
+// migrate from ("patternRows" is no longer read or written at all).
+TEST(scene_length_round_trips_through_save_and_load) {
   namespace fs = std::filesystem;
-  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_pattern_length_scratch.xml").string();
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "scene_length_scratch.xml").string();
 
   Song song;
-  CHECK(song.getPatternLength() == 64);
-  song.setPatternLength(32);
-  song.addScene();
+  auto & sized = song.addScene();
+  sized.setLengthBars(7);
+  auto & defaulted = song.addScene();
+  CHECK(defaulted.getLengthBars() == 4);
   song.save(scratch_path);
 
   auto saved = readFile(scratch_path);
-  CHECK(saved.find("patternRows=\"32\"") != string::npos);
+  CHECK(saved.find("length=\"7\"") != string::npos);
+  CHECK(saved.find("length=\"4\"") != string::npos); // always written, even at the compiled default - a scene's own length is never optional/implicit
+  CHECK(saved.find("patternRows") == string::npos); // never written any more
 
   InstrumentProvider provider;
   Song reloaded;
   CHECK(reloaded.open(scratch_path, provider));
-  CHECK(reloaded.getPatternLength() == 32);
+  CHECK(reloaded.getScenes().size() == 2);
+  CHECK(reloaded.getScenes()[0].getLengthBars() == 7);
+  CHECK(reloaded.getScenes()[1].getLengthBars() == 4);
 
   fs::remove(scratch_path);
+}
+
+TEST(normalize_position_walks_across_scenes_of_differing_lengths) {
+  Song song;
+  song.setRowsPerBar(1); // 1 bar = 1 row, so bars below read directly as rows
+  song.addScene().setLengthBars(3); // scene 0: rows 0-2
+  song.addScene().setLengthBars(5); // scene 1: rows 0-4 (absolute 3-7)
+  song.addScene(); // scene 2: the compiled default (4 bars/rows, absolute 8-11)
+
+  CHECK(song.normalizePosition(0, 0) == (pair<int, int>{ 0, 0 }));
+  CHECK(song.normalizePosition(0, 2) == (pair<int, int>{ 0, 2 })); // scene 0's own last row
+  CHECK(song.normalizePosition(0, 3) == (pair<int, int>{ 1, 0 })); // crosses into scene 1
+  CHECK(song.normalizePosition(0, 7) == (pair<int, int>{ 1, 4 })); // scene 1's own last row
+  CHECK(song.normalizePosition(0, 8) == (pair<int, int>{ 2, 0 })); // crosses into scene 2
+  CHECK(song.normalizePosition(0, 11) == (pair<int, int>{ 2, 3 }));
+  CHECK(song.normalizePosition(0, 12) == (pair<int, int>{ 3, 0 })); // past every real scene - a virtual continuation, same default length
+}
+
+TEST(to_absolute_row_is_the_exact_inverse_of_normalize_position) {
+  Song song;
+  song.setRowsPerBar(1);
+  song.addScene().setLengthBars(3);
+  song.addScene().setLengthBars(5);
+  song.addScene().setLengthBars(2);
+
+  for (auto [ scene_idx, row ] : { pair<int,int>{0,0}, {0,2}, {1,0}, {1,4}, {2,0}, {2,1} }) {
+    auto absolute = song.toAbsoluteRow(scene_idx, row);
+    CHECK(song.normalizePosition(0, absolute) == (pair<int, int>{ scene_idx, row }));
+  }
+}
+
+TEST(clamp_row_to_current_pattern_clamps_into_the_scenes_own_bounds) {
+  Song song;
+  song.setRowsPerBar(1);
+  song.addScene().setLengthBars(3);  // rows 0-2
+  song.addScene().setLengthBars(5);  // rows 0-4 (absolute 3-7)
+
+  // Inside scene 1 (a non-default-length scene): clamped into [3, 7].
+  CHECK(song.clampRowToCurrentPattern(5, 0) == 3);
+  CHECK(song.clampRowToCurrentPattern(5, 100) == 7);
+  CHECK(song.clampRowToCurrentPattern(5, 4) == 4); // already inside - untouched
 }
 
 TEST(add_track_assigns_distinct_ids_to_multiple_id_less_tracks) {

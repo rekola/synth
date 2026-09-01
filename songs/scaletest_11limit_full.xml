@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="200" patternRows="32" volume="0.75">
+<song temperament="31edo" tempo="200" volume="0.75">
   <instruments>
     <instrument from="piano.acoustic.grand" />
 
@@ -25,7 +25,7 @@
   </tracks>
   
   <scenes>
-    <scene>
+    <scene length="2">
       <annotation row="0">C minor + Bb</annotation>
       <annotation row="4">C major + Bb</annotation>
       <annotation row="8">C minor + Ax</annotation>

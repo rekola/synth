@@ -86,6 +86,14 @@ class PatternEditor : public UIElement {
   // A no-op outside such a session.
   void onRowAdvanced(Controller & controller);
 
+  // Whether a realtime auto-play-while-held recording session (see
+  // onRowAdvanced()'s own comment) is active right now - Controller::
+  // extendRecordingSceneIfNeeded() (UI::handlePlaybackEvent()) reads this
+  // (unioned with LaunchpadManager's own identical flag) to decide
+  // whether the actively-playing scene should keep growing rather than
+  // wrapping into the next one.
+  bool isAutoRecording() const { return auto_started_playback_; }
+
   // Called via Controller::setBufferChangeListener()'s UI.cpp fan-out
   // whenever the active buffer changes (switch, kill landing on a
   // different buffer, or a fresh buffer created) - saves the outgoing

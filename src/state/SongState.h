@@ -146,14 +146,13 @@ class SongState : public TrackState {
 	  auto [ scene_idx, row_idx ] = getRelativePosition(song);
 	  auto & scene = song.getScene(scene_idx);
 
-	  // scene_idx * pattern_length + row_idx - a lossless re-encoding of
-	  // the note's authored (scene, row) position into one plain row
-	  // count (NoteCoordinate.h's own doc comment on why), since
-	  // pattern_length (Song::getPatternLength()) is one constant for
-	  // the whole song, not per-scene. Computed once per row here, not
-	  // inside NoteCoordinate itself - it has no business knowing this
-	  // invariant.
-	  int absolute_row = scene_idx * song.getPatternLength() + row_idx;
+	  // A lossless re-encoding of the note's authored (scene, row)
+	  // position into one plain row count (NoteCoordinate.h's own doc
+	  // comment on why) - Song::toAbsoluteRow() sums every earlier
+	  // scene's own effective length, since each can be a different
+	  // size. Computed once per row here, not inside NoteCoordinate
+	  // itself - it has no business knowing this invariant.
+	  int absolute_row = song.toAbsoluteRow(scene_idx, row_idx);
 
 	  // Every track that has either background content or an arrangement
 	  // instance in this scene, each its own Pattern now (see Scene.h's
@@ -190,9 +189,9 @@ class SongState : public TrackState {
 	      auto it = scene.getPatternsByTrack().find(track_id);
 	      if (it != scene.getPatternsByTrack().end()) {
 		active_pattern = &it->second;
-		// A Pattern shorter than the song's own pattern_length_
+		// A Pattern shorter than this scene's own effective length
 		// repeats - see Pattern.h's own getEffectiveRow() comment.
-		effective_row = active_pattern->getEffectiveRow(row_idx, song.getPatternLength());
+		effective_row = active_pattern->getEffectiveRow(row_idx, song.getEffectiveSceneLength(scene));
 	      }
 	    }
 	    if (!active_pattern) continue;
@@ -476,11 +475,12 @@ class SongState : public TrackState {
   // pattern behaves exactly like normal end-of-song run-off - nothing
   // special-cased.
   void jumpToPatternBreak(const Song & song, int dest_row) {
-    auto len = song.getPatternLength();
+    auto scene_idx = song.normalizePosition(0, std::max(0, absolute_pos_)).first;
+    auto next_scene_idx = scene_idx + 1;
+    auto len = song.getEffectiveSceneLength(next_scene_idx);
     if (len <= 0) { movePosition(1); return; }
-    auto pattern_idx = absolute_pos_ / len;
     auto row = dest_row < 0 ? 0 : (dest_row >= len ? len - 1 : dest_row);
-    setPosition((pattern_idx + 1) * len + row);
+    setPosition(song.toAbsoluteRow(next_scene_idx, row));
   }
 
   // 2Lxx/2Rxx (Command::isAzimuthSlide()) - spreads constants::TICKS_PER_ROW

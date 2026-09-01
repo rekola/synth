@@ -11,7 +11,6 @@ using namespace std;
 
 TEST(place_clip_instance_looping_clears_through_the_scenes_own_end) {
   Song song;
-  song.setPatternLength(64);
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
 
@@ -31,7 +30,6 @@ TEST(place_clip_instance_looping_clears_through_the_scenes_own_end) {
 
 TEST(place_clip_instance_one_shot_clears_only_through_its_own_length) {
   Song song;
-  song.setPatternLength(64);
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
 
@@ -207,7 +205,6 @@ TEST(resolve_instance_at_survives_a_reorder_of_the_clip_list) {
 // nothing else exercises resolveEditTarget()/resolveReadTarget() with one.
 TEST(resolve_edit_and_read_target_route_drum_machine_steps_through_a_clip) {
   Song song;
-  song.setPatternLength(64);
   auto & track = dynamic_cast<DrumMachineTrack &>(song.addTrack(make_unique<DrumMachineTrack>()));
   track.addLane(36);
   auto track_id = track.getInternalId();

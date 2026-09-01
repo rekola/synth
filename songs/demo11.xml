@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="100" patternRows="32" volume="1.0">
+<song temperament="31edo" tempo="100" volume="1.0">
   <instruments>
     <instrument from="piano.acoustic.grand" />
     <instrument from="string.bowed.violin" />
@@ -17,7 +17,7 @@
   </tracks>
   
   <scenes>
-    <scene>
+    <scene length="2">
       <pattern track="0">
         <note row="0" velocity="63" value="C-4" />
         <note row="2" velocity="63" value="D♯4" />
@@ -37,7 +37,7 @@
         <note row="30" velocity="63" value="C-5" />
       </pattern>
     </scene>
-    <scene>
+    <scene length="2">
       <pattern track="0">
         <note row="0" velocity="63" value="C-4" />
         <note row="6" velocity="63" value="C-5" />

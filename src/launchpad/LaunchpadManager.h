@@ -345,6 +345,14 @@ class LaunchpadManager {
   // of merging with it. A no-op outside such a session.
   void onRowAdvanced(Controller & controller);
 
+  // Whether a realtime auto-play-while-held recording session (see
+  // onRowAdvanced()'s own comment) is active right now - Controller::
+  // extendRecordingSceneIfNeeded() (UI::handlePlaybackEvent()) reads this
+  // (unioned with PatternEditor's own identical flag) to decide whether
+  // the actively-playing scene should keep growing rather than wrapping
+  // into the next one.
+  bool isAutoRecording() const { return auto_started_playback_; }
+
   // Called once per render() frame: recomputes each ready device's LED
   // colors (base consonance-hierarchy/percussion palette plus a
   // brightness overlay for whatever notes are currently sounding on its

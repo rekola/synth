@@ -22,9 +22,29 @@ ArrangementGrid::getVisibleTrackIds(const Song & song) const {
 }
 
 int
-ArrangementGrid::barsPerScene(const Song & song) const {
+ArrangementGrid::barsPerScene(const Song & song, int scene_idx) const {
   auto rows_per_bar = max(1, song.getRowsPerBar());
-  return max(1, song.getPatternLength() / rows_per_bar);
+  return max(1, song.getEffectiveSceneLength(scene_idx) / rows_per_bar);
+}
+
+vector<int>
+ArrangementGrid::buildSceneFlatStarts(const Song & song) const {
+  auto num_scenes = static_cast<int>(song.getScenes().size());
+  vector<int> starts(static_cast<size_t>(num_scenes) + 1);
+  int flat = 0;
+  for (int i = 0; i < num_scenes; i++) {
+    starts[static_cast<size_t>(i)] = flat;
+    flat += 1 + barsPerScene(song, i); // title row + this scene's own bar rows
+  }
+  starts[static_cast<size_t>(num_scenes)] = flat; // the virtual "one past the end" scene's own title row
+  return starts;
+}
+
+pair<int, int>
+ArrangementGrid::decodeFlatRow(const vector<int> & starts, int flat_row) const {
+  auto it = upper_bound(starts.begin(), starts.end(), flat_row);
+  auto idx = clamp(static_cast<int>(it - starts.begin()) - 1, 0, static_cast<int>(starts.size()) - 2);
+  return { idx, flat_row - starts[static_cast<size_t>(idx)] };
 }
 
 void
@@ -36,14 +56,12 @@ ArrangementGrid::moveCursorScene(const Song & song, int delta) {
 
 void
 ArrangementGrid::moveCursorRow(const Song & song, int delta) {
-  auto bars_per_scene = barsPerScene(song);
-  auto slot_size = 1 + bars_per_scene; // a title row plus its own bar rows
-  auto num_scenes = static_cast<int>(song.getScenes().size());
-  auto flat = cursor_scene_ * slot_size + (cursor_bar_ + 1) + delta;
-  auto max_flat = num_scenes * slot_size; // the virtual "one past the end" scene's own title row
-  flat = clamp(flat, 0, max_flat);
-  cursor_scene_ = flat / slot_size;
-  cursor_bar_ = flat % slot_size - 1;
+  auto starts = buildSceneFlatStarts(song);
+  auto cur_flat = starts[static_cast<size_t>(cursor_scene_)] + (cursor_bar_ + 1);
+  auto flat = clamp(cur_flat + delta, 0, starts.back());
+  auto [ scene_idx, local ] = decodeFlatRow(starts, flat);
+  cursor_scene_ = scene_idx;
+  cursor_bar_ = local - 1;
 }
 
 ArrangementGrid::ArrangementGrid(UIPlane & parent) : UIElement(parent) {
@@ -64,17 +82,16 @@ ArrangementGrid::ArrangementGrid(UIPlane & parent) : UIElement(parent) {
 
 void
 ArrangementGrid::ensureCursorVisible(const Song & song, int visible_rows, int visible_cols, int num_tracks, bool follow_cursor) {
-  auto bars_per_scene = barsPerScene(song);
-  auto slot_size = 1 + bars_per_scene; // a title row plus its own bar rows
+  auto starts = buildSceneFlatStarts(song);
   auto num_scenes = static_cast<int>(song.getScenes().size());
-  // +1 scene worth of rows: the cursor (and the scrolled viewport) may
-  // reach exactly the virtual "one past the end" scene's own title row -
-  // a not-yet-instantiated scene (see offerInput()'s own NCKEY_ENTER/
-  // NCKEY_DOWN comments; this widget has no clipboard of its own -
-  // committing there is what creates it).
-  auto row_slots = num_scenes * slot_size + 1;
+  // starts.back()+1: the cursor (and the scrolled viewport) may reach
+  // exactly the virtual "one past the end" scene's own title row (==
+  // starts.back()) - a not-yet-instantiated scene (see offerInput()'s own
+  // NCKEY_ENTER/NCKEY_DOWN comments; this widget has no clipboard of its
+  // own - committing there is what creates it).
+  auto row_slots = starts.back() + 1;
   cursor_scene_ = clamp(cursor_scene_, 0, num_scenes);
-  cursor_bar_ = clamp(cursor_bar_, -1, bars_per_scene - 1);
+  cursor_bar_ = clamp(cursor_bar_, -1, barsPerScene(song, cursor_scene_) - 1);
   cursor_track_index_ = clamp(cursor_track_index_, 0, max(0, num_tracks - 1));
 
   // Always kept in bounds (a shrunk song must never leave a stale
@@ -87,7 +104,7 @@ ArrangementGrid::ensureCursorVisible(const Song & song, int visible_rows, int vi
   // position in a given frame).
   if (!follow_cursor) return;
 
-  auto cursor_flat = cursor_scene_ * slot_size + (cursor_bar_ + 1);
+  auto cursor_flat = starts[static_cast<size_t>(cursor_scene_)] + (cursor_bar_ + 1);
   if (cursor_flat < scroll_row_) scroll_row_ = cursor_flat;
   if (visible_rows > 0 && cursor_flat >= scroll_row_ + visible_rows) scroll_row_ = cursor_flat - visible_rows + 1;
   scroll_row_ = clamp(scroll_row_, 0, max(0, row_slots - visible_rows));
@@ -201,8 +218,10 @@ ArrangementGrid::startSceneRename() {
   if (getPlane().readerActive()) return;
 
   auto & song = getController().getSong();
-  auto slot_size = 1 + barsPerScene(song);
-  auto row = cursor_scene_ * slot_size - scroll_row_;
+  // Scene i's own title row is exactly starts[i] - no multiplication
+  // needed (each scene can be a different size now).
+  auto starts = buildSceneFlatStarts(song);
+  auto row = starts[static_cast<size_t>(cursor_scene_)] - scroll_row_;
   auto [ rows, cols ] = getDim();
   if (row < 0 || row >= rows) return; // off-screen - shouldn't happen given ensureCursorVisible(), a cosmetic nuisance if it ever does
 
@@ -253,8 +272,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   auto num_scenes = static_cast<int>(song.getScenes().size());
   auto num_tracks = static_cast<int>(track_ids.size());
   auto rows_per_bar = max(1, song.getRowsPerBar());
-  auto bars_per_scene = barsPerScene(song);
-  auto slot_size = 1 + bars_per_scene; // a title row plus its own bar rows
+  auto starts = buildSceneFlatStarts(song);
 
   auto [ rows, cols ] = getDim();
   if (rows < 1 || cols < 1) return false;
@@ -289,10 +307,10 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   auto playing_row = playback_info.getRowIndex();
 
   if (!follow_cursor && playing_scene >= 0 && playing_scene < num_scenes) {
-    auto playhead_flat = playing_scene * slot_size + 1 + playing_row / rows_per_bar;
+    auto playhead_flat = starts[static_cast<size_t>(playing_scene)] + 1 + playing_row / rows_per_bar;
     if (playhead_flat < scroll_row_) scroll_row_ = playhead_flat;
     if (visible_rows > 0 && playhead_flat >= scroll_row_ + visible_rows) scroll_row_ = playhead_flat - visible_rows + 1;
-    auto row_slots = num_scenes * slot_size + 1;
+    auto row_slots = starts.back() + 1;
     scroll_row_ = clamp(scroll_row_, 0, max(0, row_slots - visible_rows));
   }
 
@@ -358,8 +376,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
 
   for (auto vr = 0; vr < visible_rows; vr++) {
     auto flat_row = scroll_row_ + vr;
-    auto scene_idx = flat_row / slot_size;
-    auto local = flat_row % slot_size;
+    auto [ scene_idx, local ] = decodeFlatRow(starts, flat_row);
     auto is_title_row = local == 0;
     auto bar_in_scene = local - 1;
     // Past the virtual "one past the end" scene - or, within it, past its
@@ -450,7 +467,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
           }
         } else {
           bool has_sounding_note = false;
-          if (barHasBackgroundContent(scene, track_id, raw_row, rows_per_bar, song.getPatternLength(), has_sounding_note)) {
+          if (barHasBackgroundContent(scene, track_id, raw_row, rows_per_bar, song.getEffectiveSceneLength(scene), has_sounding_note)) {
             // fg left at its plain default (styles.window_fg_color) - see
             // track_color()'s own comment on why this stays uncolored.
             // Plain ASCII, not a circle glyph (U+25CF/U+25CB) - those fall

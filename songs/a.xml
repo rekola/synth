@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="60" patternRows="64">
+<song temperament="31edo" tempo="60">
     <bus>
         <reverb/>
         <haze preset="air"/>
@@ -26,7 +26,7 @@
     </tracks>
     <sections/>
     <scenes>
-      <scene>
+      <scene length="4">
         <annotation row="0">C Minor</annotation>
         <pattern track="chords">
           <note row="0" velocity="40">G-4</note>
@@ -119,7 +119,7 @@
           <note row="60" velocity="40">F-1</note>
         </pattern>
       </scene>
-      <scene>
+      <scene length="4">
         <annotation row="0">C Minor</annotation>
         <pattern track="bass">
           <note row="0" velocity="40">C-1</note>
@@ -220,7 +220,7 @@
           <note row="60" velocity="0">OFF</note>
         </pattern>
       </scene>
-      <scene>
+      <scene length="4">
         <pattern track="bass">
           <note row="0" velocity="40">E♭1</note>
           <note row="4" velocity="40">E♭1</note>

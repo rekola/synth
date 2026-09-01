@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="12edo" tempo="120" patternRows="5" volume="1.0">
+<song temperament="12edo" tempo="120" rowsPerBar="1" volume="1.0">
   <tracks>
     <drumMachineTrack id="0">
       <lane note="BD"/>
@@ -7,12 +7,12 @@
     </drumMachineTrack>
   </tracks>
   <scenes>
-    <scene>
+    <scene length="5">
       <pattern track="0">
         <note row="0" velocity="100" value="BD"/>
       </pattern>
     </scene>
-    <scene>
+    <scene length="5">
       <pattern track="0">
         <note row="1" velocity="100" value="SD"/>
       </pattern>

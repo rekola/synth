@@ -474,6 +474,23 @@ class Controller {
   // different data structures per input source, not shareable here.
   void sweepAutoRecordRows(std::set<std::pair<int, int>> & cleared_rows, int & last_cleared_row, int & last_cleared_pattern_idx, int pattern_idx, int new_row, const std::vector<int> & track_ids);
 
+  // Called once per PlaybackEvent (UI::handlePlaybackEvent(), right
+  // alongside the two onRowAdvanced() calls above) while `recording` is
+  // true (the caller's own union of PatternEditor::isAutoRecording()/
+  // LaunchpadManager::isAutoRecording() - a single shared model-level
+  // concern, not tied to which input source is actually recording) and
+  // the transport is playing: if the currently-playing scene
+  // (PlaybackInfo::getPatternIndex()) is already in its own last bar,
+  // grows it by one more (Scene::setLengthBars()) - keeping it
+  // comfortably ahead of the actual playhead for as long as recording
+  // continues (this runs far more often than once per bar at any
+  // reasonable tempo), so a live take is never confined to a fixed
+  // pre-existing length the way ordinary (non-recording) playback still
+  // is. A no-op while stopped or not recording - ordinary note entry
+  // never needs this (PatternEditor's cursor navigation already can't
+  // reach a row past the current scene's own bounds).
+  void extendRecordingSceneIfNeeded(bool recording);
+
   // Engages the realtime auto-play-while-held session (PatternEditor's
   // keyboard entry and LaunchpadManager's pad entry both offer this):
   // starts the transport and mutes the song's own pattern-driven

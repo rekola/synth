@@ -75,7 +75,7 @@ UI::commitOverviewCell(int track_id, int scene_idx, int row) {
   // setEditPosition() below clamps to the pattern that selection is in
   // rather than actually jumping to (scene_idx, row) - a real, narrow edge
   // case, not handled here.
-  getController().setEditPosition(scene_idx * song.getPatternLength() + row);
+  getController().setEditPosition(song.toAbsoluteRow(scene_idx, row));
 
   auto track_ids = song.getRootTrackIds();
   auto it = find(track_ids.begin(), track_ids.end(), track_id);
@@ -730,6 +730,13 @@ UI::handlePlaybackEvent(PlaybackEvent & ev) {
   // own comment for the full reasoning.
   if (launchpad_manager_) launchpad_manager_->onRowAdvanced(getController());
   if (pattern_editor_) pattern_editor_->onRowAdvanced(getController());
+
+  // Same union-of-input-sources reasoning as the two calls above - scene
+  // growth isn't tied to which one is actually recording, so it isn't
+  // folded into either's own onRowAdvanced().
+  bool recording = (launchpad_manager_ && launchpad_manager_->isAutoRecording()) ||
+                    (pattern_editor_ && pattern_editor_->isAutoRecording());
+  getController().extendRecordingSceneIfNeeded(recording);
 
   ev.redraw();
 }

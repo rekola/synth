@@ -360,19 +360,17 @@ actually in play, resolved two different ways:
   real data. The clip's own total length is rounded up to the next whole
   bar the same implicit way (back-padded).
 
-### Recording target (depends on Phase B)
+### Recording target (landed with Phase B)
 
-Session-view recording (Record Arm assign) changes where it writes:
-today it assigns into `session_.cursor_scene_idx` - `PatternMatrix`'s own
-cursor position, independent of what's actually playing. Once this phase
-exists, recording instead targets whichever scene is *actively playing*
-at that moment (`PlaybackInfo::getPatternIndex()`), extending that
-scene's own length as needed to fit - never confined to a fixed
-pre-existing length. This is genuinely Phase B's own feature (extending
-a scene's length presupposes a scene already has one of its own, which
-today it doesn't - see Phase B below) even though it's a Session-view/
-recording behavior change; sequenced after both A and B land, not
-delivered by A alone.
+**Landed.** Session-view recording (Record Arm assign) now targets
+whichever scene is *actively playing* at that moment
+(`PlaybackInfo::getPatternIndex()`, `LaunchpadManager::
+handleSessionPadEvent()`'s own assign path), not `session_.cursor_scene_idx`
+(`PatternMatrix`'s old cursor-position convention) - falling back to the
+cursor's own scene, row 0, only while stopped (no live position to record
+against then). Extending that scene's own length as needed to fit is
+`Controller::extendRecordingSceneIfNeeded()`, Phase B's own - see that
+phase's own section.
 
 ### Other consequences
 
@@ -404,16 +402,28 @@ delivered by A alone.
 
 ## Phase B: variable-length, titled scenes
 
-`Scene` currently has neither a name nor a length of its own - it's an
-implicit, uniform slice sized entirely by the song-wide `patternRows`
-(`Song::getPatternLength()`). This phase gives each `Scene` its own title
-and its own length, in bars (`Song::getRowsPerBar()`).
+**Landed.** Scene naming was already done (Phase C landed ahead of B).
+Length: `Scene::length_bars_` (`getLengthBars()`/`setLengthBars()`) -
+always a real, positive value, no "defer to a song-wide default"
+indirection. `Song::getPatternLength()`/`setPatternLength()`/
+`patternRows` are retired outright, not kept as a live fallback - a
+`<scene>` with no `length` attribute of its own just takes the same
+compiled default (4 bars) a brand new `Scene()` already starts at.
+`Song::getEffectiveSceneLength(scene)` (bars × `getRowsPerBar()`, which
+stays the one global unit) is the new centralized "how long is this
+scene" answer every call site that used to read the old song-wide
+`getPatternLength()` now uses instead. `Song::normalizePosition()`
+(the single choke point turning a flat absolute row into `(scene_idx,
+row_in_scene)` - every live-playhead display, UI-thread cursor move, and
+`PatternEditor`'s own multi-scene scroll math funnels through it) became
+a scene-by-scene cumulative walk instead of uniform div/mod; a new
+`Song::toAbsoluteRow(scene_idx, row)` centralizes the exact inverse,
+replacing two independently hand-rolled `scene_idx * pattern_length + row`
+formulas. `ArrangementGrid`'s own flat-row rendering/navigation (four
+places that shared one `slot_size` constant across every scene) now
+builds real per-scene cumulative offsets
+(`buildSceneFlatStarts()`/`decodeFlatRow()`) the same way.
 
-- Until this phase lands, scenes stay uniform-length via the existing
-  `patternRows` attribute, exactly as today - no interim half-measure.
-- Session-view recording extending the actively-playing scene as needed
-  (Phase A's own "Recording target" above) depends on this phase existing
-  first - a scene has nothing to extend until it has its own length.
 - No separate mechanism for *grouping* several scenes into one named
   unit (verse/chorus/bridge) is needed once scenes are freely variable-
   length - a scene can just be as long as one of those needs to be, one
@@ -423,6 +433,26 @@ and its own length, in bars (`Song::getRowsPerBar()`).
   - there is no such class anywhere in the current codebase; that claim
   was wrong, inherited from an old plan document without verifying it
   against the actual code.)
+- **No manual resize UI** - per the user's own correction to an earlier
+  draft of this phase, a scene instead grows on its own while it's being
+  recorded into. `Controller::extendRecordingSceneIfNeeded()`, called once
+  per `PlaybackEvent` (`UI::handlePlaybackEvent()`, alongside the two
+  existing `onRowAdvanced()` calls): while playing and either
+  `PatternEditor`/`LaunchpadManager`'s own `isAutoRecording()` is true
+  (a plain OR - scene growth isn't tied to which input source is actually
+  recording), grows the currently-playing scene by one more bar whenever
+  the playhead reaches its own last one - comfortably ahead of the actual
+  audio-thread position, since this runs far more often than once per bar
+  at any reasonable tempo. `LaunchpadManager`'s own Session-view
+  clip-trigger recording (`handleSessionPadEvent()`'s assign path) now
+  also targets whichever scene is *actually playing*
+  (`PlaybackInfo::getPatternIndex()`) rather than the cursor's own column,
+  exactly Phase A's own "Recording target" spec above.
+- Every `songs/*.xml` file with a non-default `patternRows` was migrated
+  by hand (explicit `<scene length="...">`, plus `rowsPerBar="1"` for the
+  handful whose old row count didn't divide evenly into the default 16) -
+  `patternRows` is gone from every file in the repo now, not just the
+  ones that needed a different value.
 
 ## Phase C: the arrangement grid
 
@@ -493,14 +523,14 @@ replacing `PatternMatrix` outright.
 
 ## Phase D: visual unification with the drum machine
 
-Converges the drum machine's per-lane step cells and the new clip-block
-style on one shared visual language where it makes sense to - but not
-totally: the drum machine's own compact rendering (no velocity/delay
-columns, one narrow cell per lane) stays exactly that, since a step grid
-and a clip block are showing different things and forcing one rendering
-onto both would lose real information. Exact scope of what *does*
-converge (color language? border/fill convention?) is undecided - revisit
-once Phase C's own clip rendering actually exists to converge toward.
+**Done.** The drum machine's per-lane step cells and the new clip-block
+style share one visual language - a clip instance on a `DrumMachineTrack`
+reads exactly like one on any other track (same "ear" digit, same color/
+half-block conventions below). The one remaining difference is the
+compact mode itself (no velocity/delay columns, one narrow cell per lane)
+- deliberate, not a unification gap: a step grid and a clip block are
+showing different things, and forcing one rendering onto both would lose
+real information.
 
 - **Landed:** `PatternEditor`'s own row rendering shows a clip instance's
   id right next to its content, not just the coarser Arrangement grid

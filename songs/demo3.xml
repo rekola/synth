@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="110" patternRows="64">
+<song temperament="31edo" tempo="110" rowsPerBar="4">
   <instruments>
     <instrument from="string.bowed.ensemble.pizzicato" />
     <instrument from="bass.electric.pick" />
@@ -15,18 +15,12 @@
     <track id="7" />
   </tracks>
   <scenes>
-    <scene>
+    <scene length="1">
       <pattern track="3">
         <note row="0" velocity="80" value="G-2" />
-        <!-- Intro pattern: only rows 0-3 are used - the ZB00 break at row 3
-             jumps straight to the next pattern's row 0 rather than playing
-             out this pattern's remaining (unused) rows, reproducing what
-             used to be a dedicated 4-row-long pattern before every pattern
-             in a song shared one length. -->
-        <command row="3" data="ZB00" />
       </pattern>
     </scene>
-    <scene>
+    <scene length="16">
       <pattern track="4">
         <note row="0" velocity="64" value="B2" />
         <note row="8" velocity="64" value="B2" />

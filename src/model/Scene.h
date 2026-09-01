@@ -30,6 +30,28 @@
 // have to rebuild the same grouping this class already does.
 class Scene : public SongObject {
  public:
+  // This scene's own length, in bars (Song::getRowsPerBar() rows each) -
+  // always a real, positive value, never a "defer to some song-wide
+  // default" sentinel (Song::getPatternLength()/"patternRows" is retired
+  // entirely - see Song.h's own comment). Deliberately not getLength()/
+  // setLength(), so it's never confused with Pattern's or Clip's own
+  // row-denominated getLength(). A scene with no "length" attribute at
+  // all in the file (freshly constructed, or an old, pre-variable-length-
+  // scenes file that never had one) just takes the same compiled default
+  // (4 bars) a brand new Scene() already starts at - no separate
+  // migration step.
+  int getLengthBars() const { return length_bars_; }
+  void setLengthBars(int bars) { length_bars_ = std::max(1, bars); }
+
+  void loadParameters(const ParameterSource & input) override {
+    SongObject::loadParameters(input);
+    length_bars_ = input.get<int>("length", 4);
+  }
+  void storeParameters(ParameterSource & output) const override {
+    SongObject::storeParameters(output);
+    output.set("length", getLengthBars());
+  }
+
   // Resolves `row` against `track_id`'s own Pattern length (Pattern.h's
   // own getEffectiveRow() comment - a Pattern shorter than
   // `context_length` repeats). A caller with a raw, on-screen/playback
@@ -211,6 +233,10 @@ private:
     if (it != annotations_.end()) annotations_[static_cast<unsigned short>(dst_row)] = it->second;
     else annotations_.erase(static_cast<unsigned short>(dst_row));
   }
+
+  // 4 bars - a freshly constructed scene's own starting length, matching
+  // this codebase's old song-wide default (64 rows / 16 rows-per-bar).
+  int length_bars_ = 4;
 
   std::unordered_map<int, Pattern> patterns_by_track_id_;
   std::unordered_map<unsigned short, std::string> annotations_;

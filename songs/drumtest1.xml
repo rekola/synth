@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="100" patternRows="16" volume="1.0">
+<song temperament="31edo" tempo="100" volume="1.0">
   <instruments>
     <envelope attack="0.01" hold="0" decay="1.17" sustain="0" release="0.231" name="Bell">
       <oscillator type="sine"/>
@@ -31,7 +31,7 @@
   </tracks>
   
   <scenes>
-    <scene>
+    <scene length="1">
       <pattern track="bell">
         <note row="0" velocity="4">C-5</note>
         <note row="2" velocity="4">C-5</note>
@@ -65,7 +65,7 @@
         <note row="14" velocity="40">SH</note>
       </pattern>
     </scene>
-    <scene>
+    <scene length="1">
       <pattern track="bell">
         <note row="0" velocity="4">C-5</note>
         <note row="2" velocity="4">C-5</note>
@@ -99,7 +99,7 @@
         <note row="14" velocity="40">SH</note>
       </pattern>
     </scene>
-    <scene>
+    <scene length="1">
       <pattern track="bell">
         <note row="0" velocity="4">C-5</note>
         <note row="2" velocity="4">C-5</note>
@@ -130,7 +130,7 @@
         <note row="14" velocity="40">SH</note>
       </pattern>
     </scene>
-    <scene>
+    <scene length="1">
       <pattern track="bell">
         <note row="0" velocity="4">C-5</note>
         <note row="2" velocity="4">C-5</note>
@@ -163,7 +163,7 @@
         <note row="14" velocity="40">SH</note>
       </pattern>
     </scene>
-    <scene>
+    <scene length="1">
       <pattern track="piano">
         <note row="0" velocity="80">C-4 E-4 G-4</note>
       </pattern>

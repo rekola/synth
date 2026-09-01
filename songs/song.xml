@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<song key="C" temperament="31edo" tempo="90" patternRows="64">
+<song key="C" temperament="31edo" tempo="90">
   <effects>
   </effects>
 
@@ -20,7 +20,7 @@
   </samples>
   
   <scenes>
-    <scene key="C" tuning="31-TET" size="32">
+    <scene key="C" tuning="31-TET" size="32" length="4">
       <pattern track="0">
         <note row="0" column="0" value="C-4" velocity="0.25" />
       </pattern>

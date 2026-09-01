@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="100" patternRows="32" floorReflectionStrength="1" groundAbsorption="0">
+<song temperament="31edo" tempo="100" floorReflectionStrength="1" groundAbsorption="0" rowsPerBar="4">
     <bus>
         <reverb/>
         <granular wet="0.40000001" preset="cloud"/>
@@ -27,7 +27,7 @@
     </tracks>
     <sections/>
     <scenes>
-      <scene>
+      <scene length="8">
         <pattern track="pad">
           <note row="0" velocity="0">OFF</note>
         </pattern>
@@ -47,7 +47,7 @@
           <note row="28" velocity="20">SPL </note>
         </pattern>
       </scene>
-      <scene>
+      <scene length="7">
         <pattern track="harp">
           <note row="0" velocity="30">C-4</note>
           <note row="2" velocity="30">D♯4</note>
@@ -62,10 +62,9 @@
         </pattern>
         <pattern track="perc">
           <note row="26" velocity="20">CH </note>
-          <command row="27" data="ZB00" />
         </pattern>
       </scene>
-      <scene>
+      <scene length="8">
         <pattern track="perc">
           <note row="0" velocity="20">HT </note>
           <note row="4" velocity="20">CH </note>
@@ -103,7 +102,7 @@
           <note row="4" velocity="5">C-4</note>
         </pattern>
       </scene>
-      <scene>
+      <scene length="8">
         <pattern track="harp">
           <note row="0" velocity="30">C-4</note>
           <note row="2" velocity="30">D♯4</note>
@@ -145,7 +144,7 @@
           <note row="4" velocity="5">C-4</note>
         </pattern>
       </scene>
-      <scene>
+      <scene length="8">
         <pattern track="perc">
           <note row="0" velocity="20">HT </note>
           <note row="4" velocity="20">CH </note>
@@ -186,7 +185,7 @@
           <note row="4" velocity="5">C-4</note>
         </pattern>
       </scene>
-      <scene>
+      <scene length="8">
         <pattern track="perc">
           <note row="0" velocity="20">HT </note>
           <note row="4" velocity="20">CH </note>
@@ -231,7 +230,7 @@
           <note row="4" velocity="5">C-4</note>
         </pattern>
       </scene>
-      <scene>
+      <scene length="8">
         <pattern track="pad">
           <note row="0" velocity="0">OFF</note>
         </pattern>

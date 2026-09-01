@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song key="C" temperament="31edo" tempo="100" patternRows="32" volume="1.0">
+<song key="C" temperament="31edo" tempo="100" volume="1.0">
   <instruments>
     <instrument from="piano.acoustic.grand" />
 
@@ -41,7 +41,7 @@
   </tracks>
   
   <scenes>
-    <scene>
+    <scene length="2">
       <pattern track="chords">
         <note row="0" velocity="40">C-4 Eb4 G-4</note>
       </pattern>
@@ -65,7 +65,7 @@
         <note row="30" velocity="40">C-4</note>
       </pattern>
     </scene>
-    <scene>
+    <scene length="2">
       <pattern track="chords">
         <note row="0" velocity="40">C-4 Eb4 G-4</note>
       </pattern>
@@ -89,7 +89,7 @@
         <note row="30" velocity="40">C-4</note>
       </pattern>
     </scene>
-    <scene>
+    <scene length="2">
       <pattern track="chords">
         <note row="0" velocity="40">Bb3 D-4 F-4 Ab5 C-6</note>
       </pattern>
@@ -113,7 +113,7 @@
         <note row="30" velocity="40">Bb3</note>
       </pattern>
     </scene>
-    <scene>
+    <scene length="2">
       <pattern track="chords">
         <note row="0" velocity="40">Bb3 D-4 F-4 Ab5 C-6</note>
       </pattern>

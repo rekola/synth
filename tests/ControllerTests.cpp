@@ -236,3 +236,38 @@ TEST(controller_command_completions_merges_literal_and_fallback_names) {
   CHECK(all.count("toggle-mixer-type") == 1);
   CHECK(all.count("set-mark") == 1);
 }
+
+TEST(extend_recording_scene_grows_the_playing_scene_near_its_own_last_bar) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+  song.setRowsPerBar(1); // 1 bar = 1 row, for simple arithmetic below
+  auto & scene = song.getOrCreateScene(0);
+  scene.setLengthBars(3); // rows 0-2
+
+  PlaybackInfo info;
+  info.setIsPlaying(true);
+  info.setPatternIdx(0);
+  info.setRowIdx(0); // well inside the scene - not near the end yet
+  controller.setPlaybackInfo(info);
+  controller.extendRecordingSceneIfNeeded(true);
+  CHECK(scene.getLengthBars() == 3); // untouched
+
+  info.setRowIdx(2); // the scene's own last row
+  controller.setPlaybackInfo(info);
+  controller.extendRecordingSceneIfNeeded(true);
+  CHECK(scene.getLengthBars() == 4); // grew by one more bar
+
+  // Not recording: no-op even at the very end.
+  info.setRowIdx(3);
+  controller.setPlaybackInfo(info);
+  controller.extendRecordingSceneIfNeeded(false);
+  CHECK(scene.getLengthBars() == 4);
+
+  // Stopped: no-op even while "recording".
+  info.setIsPlaying(false);
+  controller.setPlaybackInfo(info);
+  controller.extendRecordingSceneIfNeeded(true);
+  CHECK(scene.getLengthBars() == 4);
+}

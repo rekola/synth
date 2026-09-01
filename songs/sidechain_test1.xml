@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="120" patternRows="64" volume="1.0">
+<song temperament="31edo" tempo="120" volume="1.0">
   <instruments>
     <envelope attack="0.1" release="2" name="padtest2">
       <resonantFilter cut="20000" res="0">
@@ -46,7 +46,7 @@
   </tracks>
   
   <scenes>
-    <scene>
+    <scene length="4">
       <pattern track="perc">
         <note row="0">BD2</note>
         <note row="4">BD2</note>
@@ -112,7 +112,7 @@
         <note row="62">SD</note>
       </pattern>
     </scene>
-    <scene>
+    <scene length="4">
       <pattern track="perc">
         <note row="0">BD2</note>
         <note row="4">BD2</note>
@@ -178,7 +178,7 @@
         <note row="62">SD</note>
       </pattern>
     </scene>
-    <scene>
+    <scene length="4">
       <pattern track="perc">
         <note row="0">BD2</note>
         <note row="4">BD2</note>
@@ -244,7 +244,7 @@
         <note row="62">SD</note>
       </pattern>
     </scene>
-    <scene>
+    <scene length="4">
       <pattern track="pad">
         <note row="0">OFF</note>
       </pattern>

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="200" patternRows="42" volume="1.0">
+<song rowsPerBar="1" temperament="31edo" tempo="200" volume="1.0">
   <instruments>
     <instrument from="piano.acoustic.grand" />
   </instruments>
@@ -9,7 +9,7 @@
   </tracks>
   
   <scenes>
-    <scene>
+    <scene length="42">
       <pattern track="0">
         <note row="0" velocity="80" value="C-4" />
         <note row="2" velocity="80" value="Cx4" />
@@ -23,7 +23,7 @@
         <note row="18" velocity="80" value="C-5" />
       </pattern>
     </scene>
-    <scene>
+    <scene length="42">
       <annotation row="0">C quartal major</annotation>
       <annotation row="4">C𝄪 quartal minor aug</annotation>
       <annotation row="8">D# ?</annotation>

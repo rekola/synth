@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song key="C" temperament="31edo" tempo="100" patternRows="64" volume="1.0">
+<song key="C" temperament="31edo" tempo="100" volume="1.0">
   <instruments>
     <instrument from="piano.acoustic.grand" />
     <instrument from="string.bowed.cello" />    
@@ -11,7 +11,7 @@
   </tracks>
   
   <scenes>
-    <scene>
+    <scene length="4">
       <annotation row="0">C quartal major</annotation>
       <pattern track="0">
         <note row="0" column="0" velocity="40" value="C-3" />
@@ -62,7 +62,7 @@
         <note row="48" velocity="40" value="Db4" />
       </pattern>
     </scene>
-    <scene>
+    <scene length="4">
       <pattern track="0">
         <note row="0" column="0" velocity="40" value="A-3" />
         <note row="0" column="1" velocity="40" value="E-4" />

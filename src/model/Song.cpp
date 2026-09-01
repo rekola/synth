@@ -557,6 +557,9 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
     if (scenes) {
       for (auto it = scenes->FirstChildElement("scene"); it ; it = it->NextSiblingElement("scene") ) {
 	auto & scene = addScene(Scene());
+	// A <scene> with no "length" of its own (a pre-variable-length-
+	// scenes file included) just takes Scene's own compiled default (4
+	// bars) - see Scene::loadParameters()'s own comment.
 	scene.loadParameters(XMLParameterSource(it));
 
 	for (auto it2 = it->FirstChildElement("annotation"); it2; it2 = it2->NextSiblingElement("annotation")) {
@@ -693,14 +696,15 @@ Song::save(const std::string & filename) const {
     XMLParameterSource scene_parameters(scene_element);
     scene.storeParameters(scene_parameters);
 
-    for (int row = 0; row < getPatternLength(); row++) {
-      auto & annotation = scene.getAnnotation(row);
-      if (!annotation.empty()) {
-	auto annotation_element = doc.NewElement("annotation");
-	annotation_element->SetAttribute("row", row);
-	annotation_element->SetText(annotation.c_str());
-	scene_element->InsertEndChild(annotation_element);
-      }
+    // Every annotation this scene actually has, not just the ones within
+    // its own current length - a row past the scene's own bounds (e.g.
+    // one left behind by a later shrink) is still real authored content,
+    // and silently dropping it on save would be data loss.
+    for (auto & [ row, annotation ] : scene.getAnnotations()) {
+      auto annotation_element = doc.NewElement("annotation");
+      annotation_element->SetAttribute("row", static_cast<int>(row));
+      annotation_element->SetText(annotation.c_str());
+      scene_element->InsertEndChild(annotation_element);
     }
 
     // One <pattern track="..."> per track that has anything in this scene -
@@ -771,7 +775,6 @@ Song::loadParameters(const ParameterSource & input) {
   if (!key_text.empty()) setKey(Note::stringToKey(song_tuning, key_text));
 
   setTempo(input.get<int>("tempo", 90));
-  setPatternLength(input.get<int>("patternRows", 64));
   setRowsPerBar(input.get<int>("rowsPerBar", 16));
 
   setEarHeight(input.get<float>("earHeight", constants::DEFAULT_EAR_HEIGHT));
@@ -796,7 +799,6 @@ Song::storeParameters(ParameterSource & output) const {
   if (getKey() >= 0) output.set("key", Note::keyToString(getTuning(), getKey()));
   output.set("temperament", to_string(getTuning()));
   output.set("tempo", getTempo());
-  output.set("patternRows", getPatternLength(), 64);
   output.set("rowsPerBar", getRowsPerBar(), 16);
 
   output.set("earHeight", getEarHeight(), constants::DEFAULT_EAR_HEIGHT);

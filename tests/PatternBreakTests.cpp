@@ -13,12 +13,12 @@ using namespace std;
 
 // ZBxx is the first pattern effect command with real playback semantics
 // (every other one in docs/commands.md is still a stub - see SongState::
-// render()'s own command loop) - it's what a song now uses in place of a
-// short pattern (every pattern in a song shares one length, Song::
-// getPatternLength()) to end early, e.g. a short intro.
+// render()'s own command loop) - it's what a song uses in place of a
+// short scene (each with its own length now, Scene::getLengthBars()) to
+// end early, e.g. a short intro.
 TEST(pattern_break_jumps_straight_to_the_destination_row_of_the_next_pattern) {
   Song song;
-  song.setPatternLength(4);
+  song.setRowsPerBar(1); // Scene::length_bars_ defaults to 4 - together, a 4-row scene, matching this test's old patternRows=4
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
 
   auto & scene0 = song.addScene();
@@ -55,7 +55,7 @@ TEST(pattern_break_jumps_straight_to_the_destination_row_of_the_next_pattern) {
 // the same as one entered on an instrument track's.
 TEST(pattern_break_on_the_master_tracks_own_column_works_too) {
   Song song;
-  song.setPatternLength(4);
+  song.setRowsPerBar(1); // Scene::length_bars_ defaults to 4 - together, a 4-row scene, matching this test's old patternRows=4
   auto master_id = song.getMasterTrack().getInternalId();
 
   auto & scene0 = song.addScene();
@@ -81,7 +81,7 @@ TEST(pattern_break_on_the_master_tracks_own_column_works_too) {
 // something to wrap.
 TEST(pattern_break_on_a_wrapping_effects_own_column_works_too) {
   Song song;
-  song.setPatternLength(4);
+  song.setRowsPerBar(1); // Scene::length_bars_ defaults to 4 - together, a 4-row scene, matching this test's old patternRows=4
   auto & effect = song.addTrack(make_unique<Amplifier>());
   effect.addChild(make_unique<InstrumentTrack>(0));
 
@@ -107,7 +107,7 @@ TEST(pattern_break_on_a_wrapping_effects_own_column_works_too) {
 // documents that it doesn't crash or wrap back to pattern 0.
 TEST(pattern_break_past_the_last_pattern_does_not_crash) {
   Song song;
-  song.setPatternLength(4);
+  song.setRowsPerBar(1); // Scene::length_bars_ defaults to 4 - together, a 4-row scene, matching this test's old patternRows=4
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
 
   auto & scene0 = song.addScene();

@@ -92,9 +92,9 @@ public:
   // for a caller that already has one from ArrangementOps.h's
   // resolveReadTarget() (ReadTarget::effective_row), which is already
   // wrapped against the *correct* context length (a clip's own length, or
-  // song.getPatternLength() for the background) - calling
-  // getHitNotesForRow() on an already-wrapped row would risk wrapping it
-  // a second time against the wrong one.
+  // the containing scene's own effective length for the background) -
+  // calling getHitNotesForRow() on an already-wrapped row would risk
+  // wrapping it a second time against the wrong one.
   std::vector<int> getHitNotesAtRow(const Pattern & pattern, int effective_row) const;
 
 private:

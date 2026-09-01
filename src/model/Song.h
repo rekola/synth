@@ -47,16 +47,23 @@ class Song : public SongObject {
   short getTempo() const { return bpm_; }
   void setTempo(short bpm) { bpm_ = bpm; }
 
-  // Every pattern in the song shares this one row count (<song
-  // patternRows="N">) - there is no per-Pattern length any more. Changing
-  // it reshapes every pattern in the song at once, hence incVersion().
-  int getPatternLength() const { return pattern_length_; }
-  void setPatternLength(int rows) { pattern_length_ = rows; incVersion(); }
+  // The number of rows `scene` actually spans - its own getLengthBars()
+  // converted to rows via getRowsPerBar(). The one place "how long is
+  // this scene" is computed; every call site that used to read the old
+  // song-wide getPatternLength() as a stand-in for "the length of
+  // whichever scene is in play" calls this instead.
+  int getEffectiveSceneLength(const Scene & scene) const { return scene.getLengthBars() * getRowsPerBar(); }
+  // Convenience overload for a call site that only has an index, not
+  // already holding a Scene& - getScene()'s own out-of-range sentinel
+  // (empty_scene_) has a real length_bars_ of its own (Scene's usual
+  // compiled default, same as any other scene), so an out-of-range index
+  // here still returns something sane rather than 0.
+  int getEffectiveSceneLength(int scene_idx) const { return getEffectiveSceneLength(getScene(scene_idx)); }
 
   // The shared quantization grid (<song rowsPerBar="N">) both the
   // Launchpad Session view (LaunchpadManager::triggerClipStep())
   // and PatternEditor's own bar-boundary highlight measure against -
-  // independent of getPatternLength() above (a scene can span many bars;
+  // independent of a scene's own length (a scene can span many bars;
   // this is how many rows make just one of them). Default 16 matches this
   // codebase's own fixed "a row is a 16th note" convention
   // (ChannelConfiguration::getRowDuration()), so the default is an
@@ -170,21 +177,47 @@ class Song : public SongObject {
   // goes through this - only stopped-transport cursor navigation does,
   // which is what keeps a selection from silently spanning two patterns.
   int clampRowToCurrentPattern(int current, int target) const {
-    auto len = getPatternLength();
+    auto floored = std::max(0, current);
+    auto [ scene_idx, row_in_scene ] = normalizePosition(0, floored);
+    auto len = getEffectiveSceneLength(scene_idx);
     if (len <= 0) return std::max(0, target);
-    auto pattern_start = (std::max(0, current) / len) * len;
+    auto pattern_start = floored - row_in_scene;
     return std::clamp(target, pattern_start, pattern_start + len - 1);
   }
 
+  // Turns a flat row count (row_idx, possibly spanning many scenes) into
+  // (scene_idx, row_in_scene) - a scene-by-scene cumulative walk, not a
+  // uniform div/mod, since each scene can have its own length. pattern_idx
+  // is the scene to start the walk from (almost always 0, a flat absolute
+  // row - see toAbsoluteRow() below for the exact inverse). Contract:
+  // row_idx >= 0 on entry, true at every call site. getEffectiveSceneLength()
+  // for an out-of-range pattern_idx keeps returning a real (sentinel)
+  // value forever, so this reproduces the old "run off the end into an
+  // infinite series of same-length virtual scenes" behavior exactly - a
+  // caller that stops once pattern_idx reaches the real scene count
+  // (e.g. PatternEditor's own scene-boundary walk) keeps working
+  // unchanged.
   std::pair<int, int> normalizePosition(int pattern_idx, int row_idx) const {
-    auto len = getPatternLength();
-    if (len > 0 && row_idx >= len) {
-      pattern_idx += row_idx / len;
-      row_idx %= len;
+    while (row_idx >= 0) {
+      auto len = getEffectiveSceneLength(pattern_idx);
+      if (len <= 0 || row_idx < len) break;
+      row_idx -= len;
+      pattern_idx++;
     }
-    return std::pair(pattern_idx, row_idx);
+    return { pattern_idx, row_idx };
   }
-  
+
+  // The exact inverse of normalizePosition(0, ...): the flat absolute row
+  // for (scene_idx, row_in_scene) - every scene before scene_idx, summed,
+  // plus row_in_scene. The one centralized place for what several call
+  // sites used to hand-roll independently as "scene_idx * (the song-wide
+  // pattern length) + row".
+  int toAbsoluteRow(int scene_idx, int row_in_scene) const {
+    int absolute = 0;
+    for (int i = 0; i < scene_idx; i++) absolute += getEffectiveSceneLength(i);
+    return absolute + row_in_scene;
+  }
+
   Scene & addScene(Scene scene) {
     incVersion();
     scenes_.push_back(std::move(scene));
@@ -350,7 +383,6 @@ private:
   Tuning tuning_ = Tuning::TET31;
   short key_note_number_ = 0;
   int bpm_ = 90;
-  int pattern_length_ = 64;
   int rows_per_bar_ = 16;
   float ear_height_ = constants::DEFAULT_EAR_HEIGHT;
   bool floor_reflection_enabled_ = constants::DEFAULT_FLOOR_REFLECTION_ENABLED;
