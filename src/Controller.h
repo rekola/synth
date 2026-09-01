@@ -551,6 +551,21 @@ class Controller {
   // called once per session, right before that session's first write.
   void startAutoRecordSession(bool & auto_started_playback, std::set<std::pair<int, int>> & cleared_rows, int & last_cleared_row, int & last_cleared_pattern_idx);
 
+  // Starts the transport for Session-view clip-trigger recording
+  // (LaunchpadManager::handleSessionPadEvent()'s assign path) - unlike
+  // startAutoRecordSession() above, does *not* mute the song's own
+  // pattern-driven scheduling (SET_RECORDING_MUTE). A held note has a
+  // separate live PLAY_NOTE/STOP_NOTE/NOTE_PRESSURE stream to be heard
+  // through while old content stays muted; a triggered clip has no such
+  // separate path - the instant placeClipInstance() places it, it *is*
+  // the song's own scheduled content, so muting that scheduling would
+  // silence the very thing being recorded. Also skips the whole-row-clear
+  // bookkeeping reset startAutoRecordSession() does - clip-instance
+  // placement already clears any overlapping instance synchronously at
+  // press time (ArrangementOps.h's placeClipInstance()), not via a
+  // swept-forward-in-time mechanism, so there's nothing here to reset.
+  void startAutoRecordPlayback(bool & auto_started_playback);
+
   // The matching end of startAutoRecordSession(): stops the transport
   // (only if it's still genuinely playing - the user may have manually
   // stopped it mid-hold already, and toggling again here would incorrectly

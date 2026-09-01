@@ -4,6 +4,7 @@
 #include "../model/Song.h"
 #include "../model/ArrangementOps.h"
 #include "TrackState.h"
+#include "InstrumentTrackState.h"
 #include "../instruments/Tuner.h"
 #include "RenderContext.h"
 #include "../model/NoteCoordinate.h"
@@ -16,6 +17,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <unordered_map>
 #include <unordered_set>
 
 class SongState : public TrackState {
@@ -180,6 +182,31 @@ class SongState : public TrackState {
 	    int effective_row = row_idx;
 
 	    auto active = resolveInstanceAt(song, scene, track_id, row_idx);
+
+	    // A real clip instance that was active as of the *previous* row
+	    // this loop checked, and no longer is (a swap to a different
+	    // clip, an explicit stop, or falling through to the background/
+	    // silence) - fires the instrument's own natural release
+	    // (InstrumentTrackState::stopAllVoices(), the same one Session
+	    // view's own explicit stops already use) unconditionally, exactly
+	    // once at the row termination actually lands on, rather than
+	    // leaving whatever was sounding to ring out on its own
+	    // indefinitely (correct only by accident for a clip whose own
+	    // content happens to be short one-shots; wrong for anything
+	    // sustained/looping - a looping clip has no natural end of its
+	    // own to rely on at all). Redundant-safe against a clip whose own
+	    // content already ends with an explicit note-off - firing this
+	    // unconditionally costs nothing extra there.
+	    {
+	      auto last_it = last_active_clip_index_by_track_.find(track_id);
+	      auto previous_clip_index = last_it == last_active_clip_index_by_track_.end() ? Scene::kNoInstance : last_it->second;
+	      if (previous_clip_index >= 0 && previous_clip_index != active.clip_index) {
+		auto * track_state = dynamic_cast<InstrumentTrackState *>(getChildByInternalId(track_id));
+		if (track_state) track_state->stopAllVoices();
+	      }
+	      last_active_clip_index_by_track_[track_id] = active.clip_index;
+	    }
+
 	    if (active.clip_index >= 0) {
 	      auto & clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
 	      active_pattern = &clip.getLeafPattern();
@@ -550,6 +577,13 @@ private:
   AudioBuffer aux_a_sum_, aux_b_sum_;
   SongStructure song_structure_;
   int song_structure_version_ = -1; // never equals a real song.getMajorVersion() until initialize()/renderBlock() runs
+  // track_id -> the clip index (or Scene::kNoInstance/kStopInstance)
+  // resolveInstanceAt() returned for that track the last time this row's
+  // own scheduling ran - renderBlock()'s own note-scheduling loop compares
+  // this against each row's freshly-resolved value to detect a real
+  // clip's own termination and fire its natural release exactly once, not
+  // every row while a stop instance stays in effect.
+  std::unordered_map<int, int> last_active_clip_index_by_track_;
 };
   
 #endif

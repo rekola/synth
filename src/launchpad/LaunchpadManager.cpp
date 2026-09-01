@@ -29,6 +29,20 @@ namespace {
   // deliberate tap never accidentally clears instead.
   constexpr auto kDrawClearHoldThreshold = std::chrono::milliseconds(600);
 
+  // Rounds `raw_row` *up* to the start of its own next bar (unchanged if
+  // already exactly on one) - shared by every Session-view recording
+  // action that writes into the song at the live playhead's own position
+  // (handleSessionPadEvent()'s clip-trigger/stop placement,
+  // LaunchpadManager::placeRecordingStop()). Forward, not back: snapping
+  // backward would place an event as if it had taken effect from the
+  // start of a bar the performer hadn't actually reached yet, disagreeing
+  // with what they actually heard at the moment they pressed the pad -
+  // see placeClipInstance()'s own call site for the fuller reasoning.
+  int quantizedBarRow(int raw_row, int rows_per_bar) {
+    rows_per_bar = std::max(1, rows_per_bar);
+    return ((raw_row + rows_per_bar - 1) / rows_per_bar) * rows_per_bar;
+  }
+
   // How long a DRAW-mode grid pad must be held before release means "just
   // adjust brightness" instead of "cycle to the next hue" - see
   // releaseDrawPad(). Same value as kDrawClearHoldThreshold above (both are
@@ -470,7 +484,7 @@ LaunchpadManager::forceNotesModeOnAllDevices() {
 }
 
 bool
-LaunchpadManager::handleRawButton(int cc_number, int device_id) {
+LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & controller) {
   // 69/79/89 confirmed against a real Launchpad X: Send A/Pan/Volume, 10
   // apart in that order (row 5/6/7 of the right column, CC = 19 + 10*row) -
   // not the arbitrary contiguous-slot guess this originally shipped with.
@@ -523,6 +537,21 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id) {
   // that; toggle-playing stays reachable via Space either way.
   if (cc_number == 19) {
     capture_enabled_ = !capture_enabled_;
+    // Disarming while a recording session this class itself auto-started
+    // (Session-view clip-trigger recording, Controller::
+    // startAutoRecordPlayback() - or ordinary NOTES-mode held-note
+    // recording, which shares the same auto_started_playback_ flag) is
+    // still running stops the transport too - a live take with Record
+    // Arm off has nothing left to record into, so "stop recording" is
+    // naturally also "stop playback". stopAutoRecordSession() (not the
+    // no-mute startAutoRecordPlayback()'s own counterpart - there isn't
+    // one) always issues an explicit unmute regardless of whether this
+    // session ever actually muted anything, so it's safe to call
+    // unconditionally here rather than tracking which of the two start
+    // paths this particular session came from.
+    if (!capture_enabled_ && auto_started_playback_) {
+      controller.stopAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, controller.getPlaybackInfo());
+    }
     return true;
   }
   // 95 ("Session") and 96 ("Note"), inferred from the top row's own
@@ -1075,14 +1104,24 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
 
   if (deviceState(ev.getDeviceIndex()).stop_clip_held) {
     // Stop Clip (CC49) held - this press means "stop this column's own
-    // track", regardless of which row was touched or whether Record Arm
-    // is on (stopping is orthogonal to the trigger-vs-assign split below)
-    // - see handleStopClipButton()'s own comment for why targeting works
-    // this way instead of a plain single press. Same quantized stop every
-    // other stop path here uses if something's actually triggered; a
-    // not-yet-started pending join is simply cancelled outright instead
-    // (same "nothing playing yet to release" reasoning as the empty-row
-    // case below); a total no-op if the track isn't doing anything at all.
+    // track", regardless of which row was touched (see
+    // handleStopClipButton()'s own comment for why targeting works this
+    // way instead of a plain single press). Genuinely two different
+    // mechanisms depending on Record Arm, though, not just one "stopping
+    // is orthogonal" path: while recording, a stop has to become real
+    // song data (placeRecordingStop(), the same thing an empty-row press
+    // in the assign branch below does) since real playback never reads
+    // this class's own triggered_pattern_by_track_/queued_pattern_by_track_
+    // bookkeeping in the first place - that's audition-only state.
+    if (capture_enabled_) {
+      placeRecordingStop(controller, track_id);
+      return;
+    }
+    // Auditioning: same quantized stop every other stop path here uses
+    // if something's actually triggered; a not-yet-started pending join
+    // is simply cancelled outright instead (same "nothing playing yet to
+    // release" reasoning placeRecordingStop() above has for the recording
+    // case); a total no-op if the track isn't doing anything at all.
     if (triggered_pattern_by_track_.find(track_id) != triggered_pattern_by_track_.end()) {
       queued_pattern_by_track_[track_id] = -1;
     } else {
@@ -1165,8 +1204,37 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
   // resolves), not a live reference back to the clip. Deliberately stays
   // in Session view rather than switching focus away - a player assigning
   // several patterns in a row needs to keep pressing pads, not get
-  // bounced out after the first one. Nothing to assign from an empty row.
-  if (!has_pattern_here) return;
+  // bounced out after the first one. An empty row means "stop this
+  // track" instead, same as auditioning's own empty-row press - but has
+  // to write it (placeRecordingStop()), not just adjust bookkeeping, the
+  // same reasoning CC49-while-recording above has.
+  if (!has_pattern_here) {
+    placeRecordingStop(controller, track_id);
+    return;
+  }
+  auto & playback_info = controller.getPlaybackInfo();
+  // Recording an arrangement means the playhead actually has to advance -
+  // a clip assigned into an otherwise-stopped scene would just sit at row
+  // 0 forever, never becoming "a whole scene" the way triggering further
+  // clips as playback continues is supposed to build up. Starts the
+  // transport the same auto_started_playback_ bookkeeping ordinary
+  // NOTES-mode note entry's own first-captured-press already uses
+  // (handlePadEvent()'s own was_first_captured_note check), so
+  // Controller::extendRecordingSceneIfNeeded() (gated on isAutoRecording())
+  // also keeps growing the scene as the performance continues - but
+  // Controller::startAutoRecordPlayback(), not startAutoRecordSession():
+  // the latter also mutes the song's own pattern-driven scheduling, correct
+  // for a held note (heard through its own separate live PLAY_NOTE stream
+  // while old content stays silent) but wrong here - a triggered clip has
+  // no such separate path, it's heard entirely through that same
+  // scheduling the instant placeClipInstance() places it below, so muting
+  // it would silence the very clip being recorded. Calls togglePlaying()
+  // synchronously, so playback_info (bound by reference above) already
+  // reflects isPlaying()==true by the time scene_idx/row are computed
+  // just below.
+  if (!playback_info.isPlaying()) {
+    controller.startAutoRecordPlayback(auto_started_playback_);
+  }
   // Targets whichever scene is actually *playing* right now, not
   // necessarily the column the cursor happens to be pointing at - true
   // live-recording, matching a real note-on's own timing, and (per
@@ -1174,13 +1242,34 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
   // to fit as the performance continues rather than being confined to a
   // fixed pre-existing length. Falls back to the cursor's own scene, row
   // 0 (a whole-scene placement, closest to what plain scene-navigation
-  // used to write here before the instance layer existed) while stopped -
-  // there's no live position to record against then.
-  auto & playback_info = controller.getPlaybackInfo();
+  // used to write here before the instance layer existed) on the off
+  // chance playback still isn't running (e.g. a non-positive tempo).
   auto scene_idx = playback_info.isPlaying() ? playback_info.getPatternIndex() : session_.cursor_scene_idx;
   auto & scene = song.getOrCreateScene(scene_idx);
-  auto row = playback_info.isPlaying() ? playback_info.getRowIndex() : 0;
+  // Bar-aligned (quantizedBarRow()'s own comment has the full reasoning:
+  // plans/arrangement-view.md's "Bar alignment" rule, snapped forward not
+  // back) - placeClipInstance() below just writes a start event at this
+  // (possibly future) row, and ordinary playback naturally begins
+  // triggering it once the playhead actually arrives there, no extra
+  // queuing needed.
+  auto raw_row = playback_info.isPlaying() ? playback_info.getRowIndex() : 0;
+  auto row = quantizedBarRow(raw_row, song.getRowsPerBar());
   placeClipInstance(song, scene, track_id, row, clip_index);
+  song.incVersion();
+}
+
+void
+LaunchpadManager::placeRecordingStop(Controller & controller, int track_id) {
+  // A no-op while nothing is actually playing yet - there's no live
+  // position to stop against, the same "nothing playing yet to release"
+  // reasoning the audition-only path already has for an empty-row/CC49
+  // press before anything's been triggered.
+  auto & playback_info = controller.getPlaybackInfo();
+  if (!playback_info.isPlaying()) return;
+  auto & song = controller.getSong();
+  auto row = quantizedBarRow(playback_info.getRowIndex(), song.getRowsPerBar());
+  auto & scene = song.getOrCreateScene(playback_info.getPatternIndex());
+  placeStopInstance(scene, track_id, row);
   song.incVersion();
 }
 
@@ -1816,6 +1905,19 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   {
     SongStructure structure(song);
     const Color white(255, 255, 255);
+    // While actually playing (Session-view recording included - that's
+    // exactly the "was playing" case that used to leave these LEDs stuck),
+    // triggered_pattern_by_track_/queued_pattern_by_track_ are stale: the
+    // audition clock that populates them only ever runs while stopped and
+    // unarmed (audition_active, above), and Session-view recording's own
+    // assign path (placeClipInstance()/placeRecordingStop()) never touches
+    // them either - it writes real song data instead. What's actually
+    // sounding while playing is whatever resolveInstanceAt() resolves at
+    // the live position, so that's what these LEDs show then; the
+    // audition-only bookkeeping only still applies while genuinely
+    // stopped, the one state it's ever populated in.
+    bool use_real_position = playback_info.isPlaying();
+    const Scene * current_scene = use_real_position ? &song.getScene(playback_info.getPatternIndex()) : nullptr;
     for (int x = 0; x < 8; x++) {
       if (x >= static_cast<int>(session.track_ids.size())) continue;
       auto session_track_id = session.track_ids[static_cast<size_t>(x)];
@@ -1826,13 +1928,21 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       // tuned independently here rather than sharing one constant.
       auto identity = Color::fromHSL(structure.getBaselineInfo(session_track_id).getHue(), 0.8f, 0.3f);
       auto & clips = song.getClips(session_track_id);
+      int real_active_clip_index = use_real_position ?
+        resolveInstanceAt(song, *current_scene, session_track_id, playback_info.getRowIndex()).clip_index : -1;
       auto triggered_it = triggered_pattern_by_track_.find(session_track_id);
       auto queued_it = queued_pattern_by_track_.find(session_track_id);
       for (int y = 0; y < 8; y++) {
         auto clip_index = 7 - y;
         if (clip_index >= static_cast<int>(clips.size())) continue;
-        bool is_triggered = triggered_it != triggered_pattern_by_track_.end() && triggered_it->second.clip_index == clip_index;
-        bool is_queued = queued_it != queued_pattern_by_track_.end() && queued_it->second == clip_index;
+        bool is_triggered, is_queued;
+        if (use_real_position) {
+          is_triggered = real_active_clip_index == clip_index;
+          is_queued = false; // no "about to launch" concept while genuinely playing - a press takes effect as a real, bar-quantized write, not an audition-only queued swap
+        } else {
+          is_triggered = triggered_it != triggered_pattern_by_track_.end() && triggered_it->second.clip_index == clip_index;
+          is_queued = queued_it != queued_pattern_by_track_.end() && queued_it->second == clip_index;
+        }
         Color c = identity;
         if (is_triggered) c = identity.blend(0.5f, white); // currently playing
         else if (is_queued) c = identity.blend(0.25f, white); // about to launch at the next loop boundary

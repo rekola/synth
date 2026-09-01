@@ -226,8 +226,11 @@ class LaunchpadManager {
   // the same way Send/Pan/etc. above are: picking is only ever meaningful
   // once a DrumMachineTrack is actually assigned, but the toggle itself
   // is plain per-device UI state regardless of what's currently assigned,
-  // matching every other raw-CC toggle here.
-  bool handleRawButton(int cc_number, int device_id);
+  // matching every other raw-CC toggle here. Takes Controller (unlike
+  // every other toggle here) only for CC19's own sake - disarming while a
+  // Session-view-triggered recording session is still running also stops
+  // the transport (see that branch's own comment).
+  bool handleRawButton(int cc_number, int device_id, Controller & controller);
 
   // CC97 (DRAW mode toggle) on its own, separate entry point: unlike every
   // button handleRawButton() covers, it needs both press and release to
@@ -713,6 +716,14 @@ class LaunchpadManager {
   // triggerAuditionStep() above, called from the same two places in
   // refresh() for the same reason.
   void triggerClipStep(const Song & song, Controller & controller, int step);
+
+  // Writes an explicit stop instance (ArrangementOps.h's
+  // placeStopInstance()) for `track_id` at the live playhead's own
+  // position, bar-aligned - handleSessionPadEvent()'s own shared "stop
+  // this track while recording" primitive, reached both from an
+  // empty-row press in the assign branch and from CC49 (Stop Clip) held
+  // while Record Arm is on. A no-op while nothing is actually playing.
+  void placeRecordingStop(Controller & controller, int track_id);
 
   // Record Arm (CC19) is one shared, song-wide flag, not a per-device
   // setting (deliberate change from the original per-device design, made

@@ -826,6 +826,12 @@ Controller::startAutoRecordSession(bool & auto_started_playback, std::set<std::p
 }
 
 void
+Controller::startAutoRecordPlayback(bool & auto_started_playback) {
+  togglePlaying();
+  auto_started_playback = true;
+}
+
+void
 Controller::stopAutoRecordSession(bool & auto_started_playback, std::set<std::pair<int, int>> & cleared_rows, const PlaybackInfo & info) {
   if (info.isPlaying()) {
     togglePlaying();

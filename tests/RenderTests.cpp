@@ -224,6 +224,32 @@ TEST(render_active_instance_plays_its_own_content) {
   CHECK(rms(result, 0) > 1e-4f);
 }
 
+// An explicit stop instance (Scene::kStopInstance, ArrangementOps.h's own
+// placeStopInstance()) placed after a *looping* clip's own trigger must
+// actually silence it going forward - SongState::renderBlock()'s own
+// termination-detection now fires the instrument's natural release
+// (InstrumentTrackState::stopAllVoices()) the moment resolveInstanceAt()
+// stops returning that clip, rather than only stopping new note-ONs and
+// leaving an already-sustaining voice (sustain=1.0 here, so it never ends
+// on its own) ringing indefinitely. This is what LaunchpadManager::
+// placeRecordingStop() (Session-view "stop this track" - an empty-row
+// press or CC49) relies on to actually be heard, not just recorded.
+TEST(render_stop_instance_silences_a_looping_instance_going_forward) {
+  auto loaded = loadFixture("arrangement_stop_silences_a_looping_instance.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(44100, 1);
+  auto result = renderSongOffline(loaded.song, config);
+
+  CHECK(result.numberOfFrames() > 0);
+  CHECK(!hasNonFiniteSample(result));
+
+  // Fixture: rowsPerBar=4, tempo=120 (row_duration=0.125s), a looping
+  // 4-row clip starts at row 0, an explicit stop lands at row 8 (1.0s in).
+  CHECK(windowedRms(result, 0, 0.1f, 0.9f) > 1e-3f); // looping and audible before the stop
+  CHECK(windowedRms(result, 0, 2.0f, 3.9f) < 1e-4f); // silenced well past the stop, not just decayed - the scene keeps running (background/pattern-length wise) all the way to row 32 (4.0s), so this alone rules out "it just ran out of song"
+}
+
 TEST(render_hard_pan_isolates_channels) {
   auto loaded = loadFixture("hard_pan.xml");
   CHECK(loaded.ok);

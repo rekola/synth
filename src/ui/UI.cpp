@@ -932,7 +932,7 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   // grid-display mode), never a command - intercepted here, by raw CC
   // number, before any command-name resolution happens at all. See
   // LaunchpadManager::handleRawButton's own comment.
-  if (launchpad_manager_->handleRawButton(ev.getCCNumber(), device_id)) return;
+  if (launchpad_manager_->handleRawButton(ev.getCCNumber(), device_id, getController())) return;
 
   auto name = LaunchpadProtocol::commandForButton(ev.getCCNumber());
   if (!name) return;

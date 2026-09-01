@@ -311,3 +311,36 @@ TEST(resolve_edit_target_focus_does_not_leak_across_tracks) {
   CHECK(scene.getNote(3, track_b_id, 0).getValue() == 60);
   CHECK(!song.getClips(track_a_id)[0].getLeafPattern().getNote(3, 0).isDefined());
 }
+
+// A stop placed after a *looping* clip's own trigger must silence every
+// later row indefinitely, not just the one row it was placed at - the
+// exact contract SongState::renderBlock()'s own note scheduler relies on
+// (resolveInstanceAt() returning Scene::kStopInstance, never falling back
+// to re-reading the clip once its own stop has been reached) and what
+// LaunchpadManager::placeRecordingStop() (Session-view recording's own
+// "stop this track" primitive - an empty-row press or CC49 held) writes.
+TEST(resolve_instance_at_a_stop_after_a_looping_trigger_silences_every_later_row) {
+  Song song;
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+
+  Clip loop(track_id);
+  loop.setLength(8);
+  loop.setLooping(true);
+  song.addClip(move(loop)); // index 0
+
+  auto & scene = song.addScene();
+  scene.setLengthBars(4);
+  song.setRowsPerBar(16);
+
+  placeClipInstance(song, scene, track_id, 0, 0);
+  // Still looping well past its own native length, before any stop -
+  // this is what "looping" actually means for resolveInstanceAt().
+  CHECK(resolveInstanceAt(song, scene, track_id, 56).clip_index == 0);
+
+  placeStopInstance(scene, track_id, 48); // bar-aligned, matching placeRecordingStop()'s own quantizedBarRow()
+  CHECK(resolveInstanceAt(song, scene, track_id, 47).clip_index == 0); // still active the row just before the stop
+  CHECK(resolveInstanceAt(song, scene, track_id, 48).clip_index == Scene::kStopInstance);
+  CHECK(resolveInstanceAt(song, scene, track_id, 49).clip_index == Scene::kStopInstance);
+  CHECK(resolveInstanceAt(song, scene, track_id, 200).clip_index == Scene::kStopInstance); // stays silenced, not just for one row
+}
