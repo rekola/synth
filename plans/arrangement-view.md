@@ -23,9 +23,7 @@ all.
 
 Phases A through D, in this order because the data model has to exist
 before there's anything to draw; Phase E is a freestanding per-track clip
-management surface, sequenced late deliberately (see its own section);
-Phase F is additional/later too, sequenced after A but not blocking
-B/C/D:
+management surface, sequenced late deliberately (see its own section):
 
 - **Phase A** - shared/referenced clips (data model).
 - **Phase B** - variable-length, titled scenes (data model).
@@ -34,8 +32,11 @@ B/C/D:
   what that means for bar counts today.
 - **Phase D** - visual unification with the drum machine's own rendering.
 - **Phase E** - a per-track clip viewer (rename/delete/loop-toggle).
-- **Phase F** - nested Effect automation captured into clips too, not
-  just a leaf track's own notes.
+
+Nested Effect automation captured into clips too (not just a leaf
+track's own notes) was a planned Phase F here - moved to README.md's own
+roadmap instead (no current use case, not worth spending time designing
+in detail yet).
 
 ## Current state (already implemented, unaffected by any phase below unless noted)
 
@@ -328,10 +329,14 @@ chord TBD (not yet reserved/implemented).
   analogous case (a cursor on the effect column already widens the
   region to the whole row). A clip is a whole-track thing, never a
   sub-track (one note column) or multi-track selection.
-- **Storage is forward-shaped for Phase F**: a clip's own content is
-  keyed `track_id -> Pattern`, not a single bare `Pattern`, even though
-  Phase A only ever populates the leaf track's own one entry - see Phase
-  F below for why.
+- **Storage is forward-shaped for nested Effect automation**: a clip's
+  own content is keyed `track_id -> Pattern`, not a single bare
+  `Pattern`, even though this phase only ever populates the leaf track's
+  own one entry - the shape a clip would need to also carry any ancestor
+  Effect track's own automation, captured alongside the leaf content it
+  was recorded with (see README.md's own roadmap entry for that - no
+  current use case, so it isn't designed in detail or being built now,
+  but costs nothing to leave room for).
 
 ### Bar alignment
 
@@ -531,8 +536,16 @@ replacing `PatternMatrix` outright.
   placeholder ("(untitled)") rather than a blank row.
 - A clip instance renders as a colored block spanning its own active
   length in bars, confined to the one scene it's placed in - resolved the
-  same way real playback does (`ArrangementOps.h`'s `resolveInstanceAt()`,
-  once per bar's own leading row).
+  same way real playback does, but at bar granularity
+  (`ArrangementOps.h`'s `resolveInstanceForBar()`, one query per bar).
+  Not the plain per-row `resolveInstanceAt()` real playback itself uses:
+  a one-shot short enough to both start and (per its own length) finish
+  again entirely inside one bar's own row span, never touching that bar's
+  own first row, would otherwise be invisible to every bar's sample -
+  neither the bar it starts in (too early) nor the next one (already
+  expired by then). `resolveInstanceForBar()` additionally checks whether
+  an instance was placed anywhere within the bar's own span, not just at
+  its first row.
 - Each clip block's own leading bar shows a single hexadecimal digit -
   its ordinal position in that track's clip list, the exact same ordinal
   Launchpad Session view's own rows already address, so a block in the
@@ -610,10 +623,9 @@ side by side (not just one), each with its own clip list
 rename one, delete one outright, and toggle its loop flag, alongside that
 track's own important parameters (at minimum send levels/pan/mute/solo -
 whatever a Launchpad already exposes per-track in SEND_MAIN/PAN/SEND_A/
-SEND_B mode is the natural starting set) and a VU meter. The terminal-side
-counterpart to what the Launchpad's own Session view already does with
-real hardware pads - not `PatternEditor` and not the Arrangement grid
-(Phase C):
+SEND_B mode is the natural starting set). The terminal-side counterpart to
+what the Launchpad's own Session view already does with real hardware
+pads - not `PatternEditor` and not the Arrangement grid (Phase C):
 
 - **Not `PatternEditor`.** A clip's own name/loop/length are properties
   of the clip object itself, not of any one row of its content - there's
@@ -632,119 +644,83 @@ real hardware pads - not `PatternEditor` and not the Arrangement grid
   `PatternEditor`'s. Already useful before Phase A's own
   instance-placement work lands, too - Session view's live
   clip-triggering already reads it today.
-- **Delete has no precedent to follow** - there's no existing way to
-  remove a clip at all today, short of hand-editing it out of the XML.
-  What happens to an already-placed instance of a deleted clip is an
-  open question, deferred along with the rest of this phase.
-- **Deliberately sequenced here (just before Phase F), not right after
-  Phase A** despite the loop toggle's own urgency above - what this
+- **Deliberately sequenced here, not right after Phase A** despite the
+  loop toggle's own urgency above - what this
   phase's own widget should actually look like isn't clear yet, and
   working through Phases B-D first will surface real usage patterns (how
   many clips a track realistically accumulates, how they get browsed/
   picked today via Session view) worth having before designing a
   dedicated surface for them, rather than guessing now.
 - **Landed, renamed `SessionView`** (`src/ui/SessionView.h`/`.cpp`) - a
-  new `UIElement` sibling of `ArrangementGrid` (not `HierarchyView`'s own
-  dead tree-list machinery). One column per color-eligible leaf track
+  `UIElement` sibling of `ArrangementGrid` (not `HierarchyView`'s own dead
+  tree-list machinery). One column per color-eligible leaf track
   (`Song::getPlayableTrackIds()`), sharing one row axis across every
-  column (header, then Send Main/A/B, then that track's own
-  `Song::getClips(track_id)` list) so same-numbered rows line up between
-  tracks. No clip length shown (name plus a loop/one-shot glyph only).
-  Track identity color (`SongStructure::getBaselineInfo().getColor()`) is
-  reserved for clip cells alone - the header and Send rows stay plain, a
-  deliberate correction from an earlier draft that colored the header
-  too. Cursor already reaches the Send Main/A/B rows, not just clips, but
-  everything is read-only for now - no rename/delete/loop-toggle
-  commands, no Send-level editing, not even keybindings for any of it
-  yet; this pass is the navigable view only. The VU meter from this
-  section's original spec is also not built.
-- **Reached via buffer aliasing, not a standalone open/close toggle** -
-  `Controller::openSessionViewBuffer()` switches to (creating the first
-  time, idempotent after) a second buffer-list entry named
-  `"<buffer> [Session]"`, aliased to the exact same `Song`/live playback
-  state/save-dirty tracking as the buffer it came from
-  (`Controller::canonicalBufferName()`) - the two entries differ only in
-  which aspect (`SessionView` vs `PatternEditor`) UI shows for them.
-  Bound to `C-x c`; getting back to `PatternEditor` is `C-x b` (or
-  next/previous-buffer) like any other buffer switch, not a dedicated
-  command. `SessionView` takes over `PatternEditor`'s own screen region
-  while showing (`UI::layout()` gives both the same rect and
-  `UIPlane::moveToTop()` raises whichever is active - a plain `resize()`
-  to a 0-size rect turned out not to work: notcurses itself
+  column so same-numbered rows line up between tracks: a cursor-
+  addressable header row (track name, plus an "MS" Mute/Solo pair), all 8
+  of that track's own `Song::getClips(track_id)` slots always shown
+  (play/repeat glyphs or a stop glyph for an empty one), then Send levels
+  (Main/A/B, in dB) and ambisonic direction (azimuth/elevation/distance)
+  as label-then-value row pairs. Track identity color
+  (`SongStructure::getBaselineInfo().getColor()`) is reserved for clip
+  cells alone; the header gets its own dark grey backdrop instead, and a
+  clip row's cursor highlight brightens its own track color rather than
+  using the plain (easily clip-color-confusable) green highlight
+  everywhere else uses.
+- **Rename, loop-toggle, and delete, all landed** (originally this
+  section's own "no longer optional polish"/"no precedent to follow"
+  bullets above) - F2 renames whichever the cursor's actually on (the
+  track, from its own header row; a clip, from a populated clip row -
+  `startTrackRename()`/`startClipRename()`), 'l' toggles a clip's own
+  loop flag, Del/Backspace/Ctrl-K all delete it (`ArrangementOps.h`'s new
+  `deleteClip()` - removes it from `Song::getClips()` outright and clears
+  every instance anywhere in the song, not just the current scene, that
+  referenced it; no confirmation prompt) - the same three keys this app
+  already treats as "delete something at the cursor" elsewhere
+  (Backspace/Del clearing note content and Ctrl-K placing a stop instance
+  in `PatternEditor`, `ArrangementGrid`'s own Backspace doing the same),
+  not a dedicated modifier chord of its own; `delete-track` lost its own
+  Ctrl+Shift+T for the same reason (M-x/Track-menu only now). Mute/Solo
+  are landed too,
+  reachable both as this view's own 'm'/'s' shortcuts and via
+  PatternEditor's own '\'/Ctrl-\ bindings (the shared command registry,
+  not a separate check).
+- **Reached via a real buffer of its own** (`Controller::
+  openSessionViewBuffer()`/`openPatternEditorBuffer()`, `BufferAspect`),
+  fully symmetric with `PatternEditor`'s own buffer now - either aspect of
+  a song can be opened/closed independently without closing the song
+  itself, both derived from one `(song_id, aspect)` model rather than
+  `PatternEditor`'s buffer being privileged storage the other aliases.
+  Reached via the "session-view"/"pattern-viewer" commands (Buffers menu),
+  not a dedicated keybinding. `SessionView` takes over `PatternEditor`'s
+  own screen region while showing (`UI::layout()` gives both the same
+  rect and `UIPlane::moveToTop()` raises whichever is active - a plain
+  `resize()` to a 0-size rect turned out not to work: notcurses itself
   refuses/ignores a resize to zero rows or columns, silently leaving a
   hidden widget's last real content and z-position untouched underneath
   the one that's supposed to be showing, confirmed via a pty+notcurses
   reproduction).
-- **Deliberately deferred, not part of this pass**: rename/delete/loop-
-  toggle and Send-level editing (the read-only view above is the whole
-  scope so far), the VU meter, and true symmetry between `PatternEditor`
-  and `SessionView` as buffer-list entries - today `PatternEditor`'s own
-  buffer is still the privileged "canonical" one (`Controller::songs_`'s
-  real storage key) and can't be closed independently of the underlying
-  Song the way a `SessionView` alias already can; making it fully
-  symmetric (either aspect closeable without closing the Song) would mean
-  reworking `songs_` into a real view-name -> (song identity, aspect)
-  model throughout `Controller`, postponed rather than folded into this
-  pass.
-
-## Phase F: nested Effect automation in clips
-
-A clip's full/eventual form is one `Pattern` per relevant `track_id`, not
-just the leaf track's own - the leaf track itself, plus any number of
-ancestor Effect tracks in between it and the song's own global
-`MasterTrack`. **The master track itself is deliberately excluded** - its
-own content (song-level automation, e.g. tempo changes if those ever
-exist - see the open question below) stays purely background, always
-hand-edited directly in `PatternEditor` when finishing an arrangement,
-never bundled into a clip. Effect-track content is captured as a deep
-copy at `copy-to-clip` time, not live-linked the way the leaf track's own
-Pattern is - a clip's live-linking is a property of the clip object
-itself; nested Effect automation on its own isn't musically meaningful
-without accompanying notes anyway (a filter sweep or send-level ramp with
-nothing sounding underneath it is useless - it would make no sense for
-Session view to be able to launch "just the automation, no notes"), so it
-always travels bundled with the leaf content it was captured alongside,
-never as an independent thing.
-
-Genuinely hard enough to need its own phase, sequenced after Phase A
-rather than inside it - Phase A's own clip storage is already shaped
-`track_id -> Pattern` in anticipation (see its own "Storage is
-forward-shaped for Phase F" note), so this phase only has to add
-population/capture logic, not migrate the underlying representation.
-
-- **Open:** if two leaf tracks share an ancestor Effect track and their
-  own clips' deep copies of that Effect's automation disagree, what
-  actually happens when both are placed such that they'd affect it at
-  overlapping rows? One plausible starting intuition - whichever clip's
-  own automation gets (re-)written into the Effect's own scene slot later
-  simply overwrites the other, the same "later placement wins" rule
-  already governing ordinary note-content overlap elsewhere in this plan
-  - but this isn't resolved, just a starting point for when this phase is
-  actually tackled.
-- **Resolved: the master track stays out of clips entirely**, for now.
-  Today it doesn't actually carry any automation at all anyway - it's a
-  near-empty stub (`MasterTrack.h`), and tempo (`Song::bpm_`) is a single
-  whole-song scalar with no per-row change mechanism. `docs/commands.md`
-  now lists a `3Txx` ("set tempo to `xx` BPM") command under "Planned"
-  for clarity, but it stays a no-op until this gets implemented, and even
-  once it is, per-row song-level automation like this stays purely
-  background - added by hand directly in `PatternEditor` while finishing
-  an arrangement, the same way any other small, not-worth-reusing content
-  already is (Phase A's own "layer model") - never something a clip
-  captures, carries, or could silently drag along by
-  being moved or duplicated.
+- **Still open**: Send Main/A/B and ambisonic direction are shown but not
+  editable - the cursor already reaches those rows, but Enter there is an
+  explicit no-op. Not currently planned, dropped from scope rather than
+  merely postponed - if it comes back later, note that Elevation and
+  Distance specifically would need new `Controller`-level setters first,
+  since only Send Main/A/B and Azimuth have live-updating ones today
+  (`setTrackSendA/B/Main`/`setTrackAzimuth`), reachable so far only from a
+  connected Launchpad's own SEND_MAIN/PAN/SEND_A/SEND_B grid modes, not
+  from the terminal UI at all yet.
 
 ## Future / uncertain
 
 Carried over from `pattern-grid.md`, not clearly belonging to any phase
 above - revisit and prune once the phases above are further along; some
 of these may turn out unwanted. (Editing note content from the
-arrangement grid, and copying nested Effect automation, were also on this
-list - both now settled, in Phase C and Phase F respectively, not
-repeated here. The clip loop toggle was too - briefly promoted into
-Phase A's own "Authoring" section mid-session, then moved again once it
-was clear it isn't `PatternEditor` work at all: it now lives in Phase E's
-own clip viewer instead.)
+arrangement grid was also on this list - now settled, in Phase C, not
+repeated here. Copying nested Effect automation was too - moved out to
+README.md's own roadmap instead, no longer tracked as a phase of this
+plan at all (see the intro above). The clip loop toggle was on this list
+as well - briefly promoted into Phase A's own "Authoring" section
+mid-session, then moved again once it was clear it isn't `PatternEditor`
+work at all: it now lives in Phase E's own clip viewer instead.)
 
 - Numeric blend-factor tuning for LED/terminal "currently playing"
   highlights on real hardware/a real terminal - the schemes themselves
@@ -782,16 +758,22 @@ own clip viewer instead.)
   clips, not just backgrounds. `ArrangementGrid`/`SessionView`/
   `copy-to-clip` needed no changes - already fully generic over track
   type.
-- **Clip-focus preview for non-drum-machine clips.** `SessionView`'s Enter
-  (clip focus, `Controller::getFocusedClip()`) currently only produces any
-  sound for a `DrumMachineTrack`'s clip -
-  `LaunchpadManager::triggerAuditionStep()` bails outright for every other
-  track type. That's a real gap, not a deliberate scope limit: a melodic
-  clip's own `Pattern` can hold notes across rows (needing an actual
-  note-off when they end or the clip loops, not just a one-shot retrigger
-  the way a drum hit is), so extending the same free-running preview to
-  any track type means real new scheduling, not just relaxing the
-  `TrackType::DRUM_MACHINE` check - reusing the real transport scheduler
-  against the clip's own `Pattern` in isolation (proper note-on/off, held
-  notes, chords, looping at the clip's own length) rather than a plain
-  per-row retrigger. Not scoped in detail yet.
+- **Landed: clip-focus preview for every track type, not just
+  `DrumMachineTrack`.** `LaunchpadManager::triggerAuditionStep()` no
+  longer special-cases by track type at all - every leaf track plays the
+  same way, driven purely by whatever's actually in the focused clip's
+  own `Pattern` at each row: column-addressed note-on/note-off/
+  aftertouch, the exact same content real (transport) playback itself
+  reads (`SongState.h`'s own render loop) and the same PLAY_NOTE/
+  STOP_NOTE/NOTE_PRESSURE events live Kitty-keyboard/Launchpad note entry
+  already use, just driven from the clip's own content instead of a live
+  keypress - proper held notes/chords/note-offs for a melodic clip, not
+  just a one-shot retrigger, and (deliberately) a note-off plays for a
+  `DrumMachineTrack` too even though its own step grid has no way to
+  write one yet (nothing stops one being placed by hand - e.g. muting a
+  cymbal - and this doesn't special-case around that). A note still
+  ringing when the audition clock itself stops (playback starting, or
+  Record Arm arming) mid-note, rather than the clip's own content ending
+  it, is released via `STOP_ALL_NOTES` at that transition - the same
+  natural-release precedent `SongState.h`'s own instance-termination
+  cleanup already established.

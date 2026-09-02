@@ -591,7 +591,7 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
 	{ "Add Drum Machine Track", "C-S-D", "add-drum-machine-track" },
 	{ "Add Sample Track", "C-r", "add-sample-track" },
 	{ "Rename Track...", "F2", "rename-track" },
-	{ "Delete Track", "C-S-T", "delete-track" },
+	{ "Delete Track", "", "delete-track" },
 	{ nullptr, nullptr, nullptr },
 	{ "Toggle Mute", "\\", "toggle-mute" },
 	{ "Toggle Solo", "C-\\", "toggle-solo" },

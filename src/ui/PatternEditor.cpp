@@ -644,7 +644,6 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   // handler below, so this picks a still-free Ctrl+Shift combo rather than
   // colliding with it.
   keymap_.bind(KeyChord::pack('d', true, false, true, false), "add-drum-machine-track"); // Ctrl+Shift+D
-  keymap_.bind(KeyChord::pack('t', true, false, true, false), "delete-track"); // Ctrl+Shift+T (was a stub raw handler)
 
   assertCommandBindingsValid();
 }

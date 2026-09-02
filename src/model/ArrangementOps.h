@@ -28,6 +28,16 @@ void placeClipInstance(const Song & song, Scene & scene, int track_id, int row, 
 // left in a consistent state by whatever was placed before it.
 void placeStopInstance(Scene & scene, int track_id, int row);
 
+// Removes `clip_index`'s own clip from track_id's own clip list
+// (Song::getClips()) entirely, first clearing away every instance event
+// anywhere in the song - every scene, not just one - that referenced it
+// (resolved by the clip's own stable id, same as placeClipInstance()'s
+// own lookup). A clip's own id is never reused (Song::generateUniqueClipId()),
+// so nothing placed afterward could ever collide with a stale leftover
+// reference the way reusing a freed vector position could. A no-op if
+// clip_index doesn't resolve to a real clip in that track's own list.
+void deleteClip(Song & song, int track_id, int clip_index);
+
 // The result of resolveInstanceAt() below. `start_row` is the resolved
 // instance event's own row - only meaningful when `clip_index` is a real
 // clip, but a caller needs it there: rendering that clip's own content

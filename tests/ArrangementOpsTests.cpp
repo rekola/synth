@@ -73,6 +73,46 @@ TEST(place_stop_instance_clears_nothing) {
   CHECK(scene.getInstance(track_id, 20) == "other"); // untouched - a stop clears nothing
 }
 
+TEST(delete_clip_removes_it_from_the_clip_list_and_clears_every_instance) {
+  Song song;
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+
+  Clip a(track_id);
+  auto a_id = song.addClip(move(a)).getId(); // index 0
+  Clip b(track_id);
+  auto b_id = song.addClip(move(b)).getId(); // index 1
+
+  // Indices, not references, held across both addScene() calls below -
+  // the second call can reallocate Song's own scenes_ vector, which would
+  // dangle a reference taken from the first.
+  song.addScene(); // scene 0
+  song.getScene(0).setInstance(track_id, 0, a_id);
+  song.getScene(0).setInstance(track_id, 32, b_id); // a different clip, same track - untouched
+  song.addScene(); // scene 1
+  song.getScene(1).setInstance(track_id, 16, a_id); // the same clip, placed again in a later scene
+
+  deleteClip(song, track_id, 0); // "a"
+
+  CHECK(song.getClips(track_id).size() == 1);
+  CHECK(song.getClips(track_id)[0].getId() == b_id);
+  CHECK(song.getScene(0).getInstance(track_id, 0).empty()); // cleared
+  CHECK(song.getScene(0).getInstance(track_id, 32) == b_id); // a different clip - left alone
+  CHECK(song.getScene(1).getInstance(track_id, 16).empty()); // cleared in the later scene too, not just the first one found
+}
+
+TEST(delete_clip_out_of_range_index_is_a_noop) {
+  Song song;
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+  Clip a(track_id);
+  song.addClip(move(a));
+
+  deleteClip(song, track_id, 5);
+
+  CHECK(song.getClips(track_id).size() == 1); // untouched
+}
+
 TEST(resolve_instance_at_finds_nothing_before_any_event) {
   Song song;
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));

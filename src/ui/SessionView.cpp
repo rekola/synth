@@ -6,6 +6,7 @@
 #include "StyleProvider.h"
 #include "../Controller.h"
 #include "../model/Song.h"
+#include "../model/ArrangementOps.h"
 #include "../model/LeafTrack.h"
 #include "../model/Clip.h"
 #include "../model/SongStructure.h"
@@ -73,6 +74,44 @@ SessionView::SessionView(UIPlane & parent) : UIElement(parent) {
   keymap_.bind(KeyChord::pack('s', false, false, false, false), "toggle-solo");
   keymap_.bind(KeyChord::pack('\\', false, false, false, false), "toggle-mute");
   keymap_.bind(KeyChord::pack('\\', true, false, false, false), "toggle-solo");
+
+  // Only meaningful on a populated clip row; a no-op anywhere else, same
+  // "always does something or nothing, never falls through" precedent
+  // 'l' (loop toggle) already follows. A real, unprompted deletion (no
+  // confirmation dialog) - see the keymap_.bind() calls below for which
+  // keys reach it and why.
+  commands_.define("delete-clip", [this]() {
+    if (rowKindFor(cursor_row_) != RowKind::CLIP) return;
+    auto & song = getController().getSong();
+    auto track_ids = song.getPlayableTrackIds();
+    if (cursor_track_index_ < 0 || cursor_track_index_ >= static_cast<int>(track_ids.size())) return;
+    auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
+    auto & clips = song.getClips(track_id);
+    auto clip_row = kLogicalToPhysical[cursor_row_]; // a CLIP row's own physical offset doubles as its clip-list index
+    if (clip_row < 0 || static_cast<size_t>(clip_row) >= clips.size()) return; // no clip here to delete
+    auto clip_id = clips[static_cast<size_t>(clip_row)].getId();
+    auto name = clips[static_cast<size_t>(clip_row)].getName();
+    // Clears any live preview/edit focus on the clip being deleted -
+    // otherwise Controller::getFocusedClip() would keep pointing at an id
+    // nothing resolves to any more (harmless - every lookup already
+    // tolerates a stale/dangling clip id - but there's no reason to leave
+    // it dangling when the clip's own removal is the very moment that
+    // makes it stale).
+    if (getController().getFocusedClipTrackId() == track_id && getController().getFocusedClip() == clip_id) {
+      getController().clearFocusedClip();
+    }
+    deleteClip(song, track_id, clip_row);
+    auto text = "Deleted clip: " + (name.empty() ? string("(unnamed)") : name);
+    getController().getUIEventQueue().push(std::make_unique<LogEvent>(std::move(text)));
+  });
+  // Del, Backspace, and Ctrl-K all reach it - the same three keys this
+  // app already treats as "delete something at the cursor" elsewhere
+  // (Backspace/Del clearing note content, Ctrl-K placing a stop instance,
+  // both in PatternEditor; ArrangementGrid's own Backspace doing the
+  // same) - rather than a dedicated modifier chord of its own.
+  keymap_.bind(KeyChord::pack(NCKEY_DEL, false, false, false, false), "delete-clip");
+  keymap_.bind(KeyChord::pack(NCKEY_BACKSPACE, false, false, false, false), "delete-clip");
+  keymap_.bind(KeyChord::pack('k', true, false, false, false), "delete-clip"); // Ctrl-K
   assertCommandBindingsValid();
 }
 

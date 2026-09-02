@@ -1510,8 +1510,7 @@ LaunchpadManager::handleDrumPickerPadEvent(LaunchpadPadEvent & ev, Controller & 
 void
 LaunchpadManager::triggerAuditionStep(const Song & song, int track_id, Controller & controller, int step) {
   auto track = song.getMasterTrack().getChildByInternalId(track_id);
-  if (!track || track->getType() != TrackType::DRUM_MACHINE) return;
-  auto & drum_track = static_cast<const DrumMachineTrack &>(*track);
+  if (!track) return;
 
   auto & event_queue = controller.getPlaybackEventQueue();
   auto & info = controller.getPlaybackInfo();
@@ -1528,11 +1527,29 @@ LaunchpadManager::triggerAuditionStep(const Song & song, int track_id, Controlle
   auto read_target = resolveReadTarget(song, scene, track_id, step, controller.getFocusedClip());
   if (!read_target.is_focused_override) return;
 
-  // No explicit STOP_NOTE - a one-shot note-on per hit, relying on the
-  // instrument's own envelope/choke machinery for anything past that.
-  for (int note : drum_track.getHitNotesAtRow(*read_target.pattern, read_target.effective_row)) {
-    auto velocity = static_cast<short>(constants::DEFAULT_VELOCITY);
-    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), track_id, note, note, velocity));
+  // Every leaf track type plays the same way here, driven purely by
+  // whatever's actually in the clip's own Pattern at this row -
+  // column-addressed note-on/note-off/aftertouch, the same content real
+  // (transport) playback itself reads (SongState.h's own render loop)
+  // and the same PLAY_NOTE/STOP_NOTE/NOTE_PRESSURE events live
+  // Kitty-keyboard/Launchpad note entry already use, just driven from
+  // the clip's own content instead of a live keypress. No special-casing
+  // by track type - a DrumMachineTrack's own step grid never writes an
+  // explicit note-off today, but nothing stops one being placed by hand
+  // (muting a cymbal, say), and this plays it exactly like any other
+  // track's own note-off if it's there.
+  auto & notes = read_target.pattern->getNotes(read_target.effective_row);
+  for (size_t j = 0; j < notes.size(); j++) {
+    auto & note = notes[j];
+    if (!note.isDefined()) continue;
+    auto column = static_cast<int>(j);
+    if (note.isOff()) {
+      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, controller.getActiveBufferName(), track_id, column));
+    } else if (note.isAftertouch()) {
+      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, controller.getActiveBufferName(), track_id, column, 0, note.getVelocity()));
+    } else {
+      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), track_id, column, note.getValue(), note.getVelocity()));
+    }
   }
 }
 
@@ -1899,6 +1916,19 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     }
     audition_step = audition_clock_.currentStep();
   } else {
+    // A held note triggerAuditionStep() started (via PLAY_NOTE) but never
+    // got a matching STOP_NOTE for - the audition clock stopping mid-note
+    // (playback starting, or Record Arm arming) rather than the clip's
+    // own content actually ending it - would otherwise ring out
+    // indefinitely with nothing left driving it forward. Only meaningful
+    // if the clock was actually running a moment ago (checked before the
+    // stop() below clears that) and something was actually focused;
+    // redundant-safe otherwise, matching this codebase's own established
+    // "fire the natural release unconditionally, costs nothing extra"
+    // precedent (SongState.h's own instance-termination cleanup).
+    if (audition_clock_.isRunning() && focused_track_id >= 0) {
+      controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_ALL_NOTES, controller.getActiveBufferName(), focused_track_id));
+    }
     audition_clock_.stop();
   }
 

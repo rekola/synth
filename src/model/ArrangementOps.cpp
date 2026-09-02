@@ -36,6 +36,30 @@ placeStopInstance(Scene & scene, int track_id, int row) {
   scene.setInstance(track_id, row, "OFF");
 }
 
+void
+deleteClip(Song & song, int track_id, int clip_index) {
+  auto & clips = song.getClips(track_id);
+  if (clip_index < 0 || clip_index >= static_cast<int>(clips.size())) return;
+  auto clip_id = clips[static_cast<size_t>(clip_index)].getId();
+
+  // Every scene, not just the one(s) the caller happens to know about -
+  // the same clip can be (and, live-linked editing being the whole point
+  // of a clip, often is) placed in several.
+  for (size_t i = 0; i < song.getScenes().size(); i++) {
+    auto & scene = song.getScene(static_cast<int>(i));
+    // Collected first, then cleared in a separate pass - same reasoning
+    // placeClipInstance() above already documents.
+    vector<int> rows_to_clear;
+    for (auto & [ row, existing_clip_id ] : scene.getInstancesForTrack(track_id)) {
+      if (existing_clip_id == clip_id) rows_to_clear.push_back(row);
+    }
+    for (auto row : rows_to_clear) scene.clearInstance(track_id, row);
+  }
+
+  clips.erase(clips.begin() + clip_index);
+  song.incVersion();
+}
+
 ActiveInstance
 resolveInstanceAt(const Song & song, const Scene & scene, int track_id, int row) {
   auto & track_instances = scene.getInstancesForTrack(track_id);
