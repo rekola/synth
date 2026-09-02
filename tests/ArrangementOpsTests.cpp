@@ -344,3 +344,78 @@ TEST(resolve_instance_at_a_stop_after_a_looping_trigger_silences_every_later_row
   CHECK(resolveInstanceAt(song, scene, track_id, 49).clip_index == Scene::kStopInstance);
   CHECK(resolveInstanceAt(song, scene, track_id, 200).clip_index == Scene::kStopInstance); // stays silenced, not just for one row
 }
+
+// ArrangementGrid's own overview samples one row per bar (raw_row =
+// bar_in_scene * rows_per_bar) - a one-shot short enough to start and
+// finish again entirely inside a single bar's own row span, never
+// touching that bar's own first row, would otherwise be invisible to
+// plain resolveInstanceAt(raw_row) in every bar: too early in the bar it
+// starts in (raw_row is before the instance's own start), already
+// expired again by the next bar's own raw_row. This is exactly what
+// disabling a clip's own looping without moving it to a bar boundary
+// used to make disappear from the overview entirely.
+TEST(resolve_instance_for_bar_finds_a_one_shot_that_starts_and_ends_inside_one_bar) {
+  Song song;
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+
+  Clip shot(track_id);
+  shot.setLength(4);
+  shot.setLooping(false);
+  auto clip_id = song.addClip(move(shot)).getId(); // index 0
+
+  auto & scene = song.addScene();
+  scene.setInstance(track_id, 5, clip_id); // mid-bar start, well inside bar 0 (rows 0-15)
+
+  // A plain per-row sample at each bar's own first row misses it either
+  // way - confirms the scenario this test is actually about.
+  CHECK(resolveInstanceAt(song, scene, track_id, 0).clip_index == Scene::kNoInstance); // too early
+  CHECK(resolveInstanceAt(song, scene, track_id, 16).clip_index == Scene::kNoInstance); // already expired again
+
+  // The bar-granular query still finds it, attributed to bar 0 (its own
+  // real start row, not the bar's start).
+  auto active = resolveInstanceForBar(song, scene, track_id, 0, 16);
+  CHECK(active.clip_index == 0);
+  CHECK(active.start_row == 5);
+  // Bar 1 correctly shows nothing - the one-shot is long gone by row 16,
+  // and nothing new was placed within bar 1's own span either.
+  CHECK(resolveInstanceForBar(song, scene, track_id, 16, 16).clip_index == Scene::kNoInstance);
+}
+
+TEST(resolve_instance_for_bar_still_finds_a_looping_instance_carried_over_from_an_earlier_bar) {
+  Song song;
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+
+  Clip loop(track_id);
+  loop.setLength(8);
+  loop.setLooping(true);
+  auto clip_id = song.addClip(move(loop)).getId(); // index 0
+
+  auto & scene = song.addScene();
+  scene.setInstance(track_id, 0, clip_id);
+
+  // Unaffected: a bar this instance already reaches via its own first
+  // row resolves exactly as resolveInstanceAt() itself would.
+  CHECK(resolveInstanceForBar(song, scene, track_id, 0, 16).clip_index == 0);
+  CHECK(resolveInstanceForBar(song, scene, track_id, 16, 16).clip_index == 0);
+  CHECK(resolveInstanceForBar(song, scene, track_id, 32, 16).start_row == 0);
+}
+
+TEST(resolve_instance_for_bar_reports_an_explicit_stop_placed_mid_bar) {
+  Song song;
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+
+  Clip loop(track_id);
+  loop.setLength(8);
+  loop.setLooping(true);
+  auto clip_id = song.addClip(move(loop)).getId(); // index 0
+
+  auto & scene = song.addScene();
+  scene.setInstance(track_id, 0, clip_id);
+  scene.setInstance(track_id, 5, "OFF"); // stopped mid-bar, well before bar 0 ends
+
+  CHECK(resolveInstanceForBar(song, scene, track_id, 0, 16).clip_index == Scene::kStopInstance);
+  CHECK(resolveInstanceForBar(song, scene, track_id, 16, 16).clip_index == Scene::kStopInstance); // stays stopped into later bars too
+}

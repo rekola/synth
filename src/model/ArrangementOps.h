@@ -52,6 +52,25 @@ struct ActiveInstance {
 // stored id no longer resolves to any real clip).
 ActiveInstance resolveInstanceAt(const Song & song, const Scene & scene, int track_id, int row);
 
+// Bar-granularity counterpart to resolveInstanceAt(), for ArrangementGrid's
+// own overview - one cell per bar, sampled at each bar's own first row.
+// A short one-shot instance that both starts and (per its own length)
+// finishes entirely inside a single bar's row span, never touching that
+// bar's own first row, would otherwise never show up in any bar's plain
+// resolveInstanceAt(raw_row) sample - not the bar it starts in (whose own
+// first row is still earlier than the instance's own start), and not the
+// next bar either (by then a one-shot short enough to fit inside one bar
+// has already run out again). Resolves to whatever instance event is the
+// most recent one at or before this bar's own *last* row instead; if that
+// event's own row falls inside [bar_start_row, bar_start_row + bar_span)
+// - it belongs to this bar - it's shown unconditionally, one-shot expiry
+// included, since it was genuinely active for at least part of this bar
+// regardless of what's true by the bar's end. Otherwise (the event
+// predates this bar) falls back to plain resolveInstanceAt(bar_start_row),
+// unchanged from before - a looping instance, or one whose own length
+// still reaches this bar's first row, is unaffected by any of this.
+ActiveInstance resolveInstanceForBar(const Song & song, const Scene & scene, int track_id, int bar_start_row, int bar_span);
+
 // What editing (track_id, row) in `scene` should actually read/write -
 // the active clip's own leaf Pattern, live-linked to every other
 // placement of it (editing through one instance updates them all), when

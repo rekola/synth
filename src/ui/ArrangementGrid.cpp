@@ -446,7 +446,12 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
 
       if (in_range && track_index < num_tracks) {
         auto track_id = track_ids[static_cast<size_t>(track_index)];
-        auto active = resolveInstanceAt(song, scene, track_id, raw_row);
+        // Bar-granularity, not resolveInstanceAt(raw_row) directly - a
+        // short one-shot instance that both starts and finishes again
+        // entirely inside this one bar's own row span would otherwise
+        // never touch any bar's plain per-row sample at all (see
+        // resolveInstanceForBar()'s own comment).
+        auto active = resolveInstanceForBar(song, scene, track_id, raw_row, rows_per_bar);
         cur_clip_index = active.clip_index;
         cur_start_row = active.start_row;
         if (active.clip_index >= 0) {

@@ -5,6 +5,8 @@
 #include "Clip.h"
 #include "Pattern.h"
 
+#include <algorithm>
+
 using namespace std;
 
 void
@@ -61,6 +63,37 @@ resolveInstanceAt(const Song & song, const Scene & scene, int track_id, int row)
     auto length = clip.getLength() > 0 ? clip.getLength() : 1;
     if (row - event_row >= length) return { Scene::kNoInstance }; // one-shot already finished
   }
+  return { clip_index, event_row };
+}
+
+ActiveInstance
+resolveInstanceForBar(const Song & song, const Scene & scene, int track_id, int bar_start_row, int bar_span) {
+  auto & track_instances = scene.getInstancesForTrack(track_id);
+  if (track_instances.empty()) return { Scene::kNoInstance };
+
+  auto bar_last_row = bar_start_row + max(bar_span, 1) - 1;
+  auto it = track_instances.upper_bound(static_cast<unsigned short>(bar_last_row));
+  if (it == track_instances.begin()) return { Scene::kNoInstance }; // nothing at or before this bar's own last row
+  --it;
+  auto event_row = static_cast<int>(it->first);
+  if (event_row < bar_start_row) return resolveInstanceAt(song, scene, track_id, bar_start_row); // predates this bar - the ordinary per-row query already covers it correctly, one-shot expiry included
+
+  // This event belongs to this bar - shown unconditionally (one-shot
+  // expiry doesn't apply here, unlike resolveInstanceAt(): it was
+  // genuinely active for at least part of this bar regardless of what's
+  // true by the bar's own last row).
+  auto & clip_id = it->second;
+  if (clip_id == "OFF") return { Scene::kStopInstance, event_row };
+
+  // The stored id's own *current* position in the track's clip list -
+  // same id-not-position lookup resolveInstanceAt() above already does,
+  // for the same reason (Clip.h's own comment on why).
+  auto & clips = song.getClips(track_id);
+  int clip_index = -1;
+  for (size_t i = 0; i < clips.size(); i++) {
+    if (clips[i].getId() == clip_id) { clip_index = static_cast<int>(i); break; }
+  }
+  if (clip_index < 0) return { Scene::kNoInstance }; // the clip this once referenced no longer exists
   return { clip_index, event_row };
 }
 
