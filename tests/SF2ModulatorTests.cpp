@@ -1051,10 +1051,12 @@ float zChannelPeak(VoiceState & voice, int frames) { return channelPeak(voice, 2
 // resolved azimuth sign - SoundFontVoice's ctor also folds the region's
 // own native SF2 pan into azimuth (adjustPositionForPan(), unrelated to
 // applyPercussionOffset()), and every region in these minimal fixtures
-// shares the same (unset -> default) pan value. Comparing two renders of
-// the *same* region cancels that shared contribution out either way,
-// isolating exactly what applyPercussionOffset() itself adds - the tests
-// remain valid regardless of what that unrelated pan path does.
+// shares the same (unset -> default, center) pan value, which now
+// contributes exactly zero (see the sf2_region_pan_* tests further down
+// for that path's own coverage). Comparing two renders of the *same*
+// region cancels out any shared contribution either way, isolating
+// exactly what applyPercussionOffset() itself adds - the tests remain
+// valid regardless of what that unrelated pan path does.
 TEST(sf2_percussion_offset_hihat_reads_positive_azimuth_at_player_distance) {
   std::vector<PresetSpec> presets = { { "Kit", 0, {}, {}, 1, {}, 128 } };
   auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "percussion_offset_hihat_player.sf2").string();
@@ -1136,19 +1138,94 @@ TEST(sf2_percussion_offset_never_applies_to_a_non_percussion_bank) {
   // Same two keys/extent as above, but bank 0/program 40 - not a GM
   // percussion kit and not in the pitched-arc family - so neither
   // mechanism ever applies regardless of key; the resolved position is
-  // identical for both. Compared via yToWRatioAtWPeak() (not a raw peak)
-  // because this fixture's instrument isn't percussion/arc-eligible, so
-  // it still goes through the region's own native SF2 pan
-  // (adjustPositionForPan(), skip_native_pan stays false here) -
-  // producing a nonzero resolved azimuth, unlike the zero-extent case
-  // above (which skips native pan entirely and lands on an *exact* zero
-  // azimuth, making a raw peak comparison safe there but not here) - a
-  // raw peak comparison across two different pitches would otherwise be
-  // confounded by their differing dry-signal phase within the window.
+  // identical for both. This fixture's region carries the default
+  // (center) pan, which adjustPositionForPan() now resolves to an exact
+  // zero azimuth contribution (see sf2_region_pan_center_produces_no_offset
+  // below), same as the zero-extent percussion case above - so, like that
+  // test, a raw peak comparison is safe here too, not just a ratio.
   SphericalPosition position{ 0.0f, 0.0f, 0.5f, 1.2f };
   auto voice_42 = instrument->playNote(config, position, frequencyForMidiKey(42), 1.0f, 0.8f, 42, SendLevels{});
   auto voice_49 = instrument->playNote(config, position, frequencyForMidiKey(49), 1.0f, 0.8f, 49, SendLevels{});
-  CHECK_NEAR(yToWRatioAtWPeak(*voice_42, 64), yToWRatioAtWPeak(*voice_49, 64), 0.0001f);
+  CHECK_NEAR(yChannelPeak(*voice_42, 64), 0.0f, 0.0001f);
+  CHECK_NEAR(yChannelPeak(*voice_49, 64), 0.0f, 0.0001f);
+}
+
+// Regression coverage for adjustPositionForPan()'s own fix: region.pan is
+// already zero-centered in SF2's own [-0.5, +0.5] range (GEN_FLOAT_LIMITPAN),
+// so it must be used directly, not re-subtracted by 0.5 a second time - the
+// bug that made a hard-right region collapse to dead center and a
+// center-panned region swing to hard left. Program 40 (Violin) - bank 0,
+// outside both the percussion bank and the pitched-arc family, so these
+// exercise adjustPositionForPan() with nothing else in play.
+TEST(sf2_region_pan_center_produces_no_offset) {
+  std::vector<PresetSpec> presets = { { "Violin", 40, {}, {} } };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "region_pan_center.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100, 1);
+  config.setFloorReflectionEnabled(false);
+  auto instrument = sf.createInstrument(0);
+
+  // Default (unset) pan is exactly center - must contribute nothing, not
+  // the old bug's spurious hard-left swing.
+  SphericalPosition position{ 0.0f, 0.0f, 0.5f, 1.2f };
+  auto voice = instrument->playNote(config, position, frequencyForMidiKey(60), 1.0f, 0.8f, 60, SendLevels{});
+  CHECK_NEAR(yChannelPeak(*voice, 64), 0.0f, 0.0001f);
+}
+
+TEST(sf2_region_pan_hard_left_and_hard_right_are_opposite) {
+  std::vector<PresetSpec> presets = {
+    { "Violin Left", 40, { GenSpec{ 17, -500 } }, {} },  // pan = -0.5 (hard left)
+    { "Violin Right", 41, { GenSpec{ 17, 500 } }, {} },  // pan = +0.5 (hard right)
+  };
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "region_pan_hard.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100, 1);
+  config.setFloorReflectionEnabled(false);
+  auto instrument_left = sf.createInstrument(0);
+  auto instrument_right = sf.createInstrument(1);
+
+  // Player-side distance (<= 1) - see adjustPositionForPan()'s own comment
+  // for why this path mirrors the opposite way from the percussion/arc
+  // offsets.
+  SphericalPosition position{ 0.0f, 0.0f, 0.5f, 1.2f };
+  auto voice_left = instrument_left->playNote(config, position, frequencyForMidiKey(60), 1.0f, 0.8f, 60, SendLevels{});
+  auto voice_right = instrument_right->playNote(config, position, frequencyForMidiKey(60), 1.0f, 0.8f, 60, SendLevels{});
+
+  float peak_left = yChannelPeak(*voice_left, 64);
+  float peak_right = yChannelPeak(*voice_right, 64);
+  // Opposite signs (the old bug instead collapsed the hard-right case to
+  // exactly zero) and equal magnitude (hard left/right are symmetric).
+  CHECK(peak_left * peak_right < 0.0f);
+  CHECK_NEAR(std::fabs(peak_left), std::fabs(peak_right), 0.01f);
+}
+
+TEST(sf2_region_pan_mirrors_between_player_and_audience_distance) {
+  std::vector<PresetSpec> presets = { { "Violin Right", 40, { GenSpec{ 17, 500 } }, {} } }; // pan = +0.5
+  auto path = (std::filesystem::path(TESTS_SCRATCH_DIR) / "region_pan_mirror.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  SoundFont sf(path);
+  ChannelConfiguration config(44100, 1);
+  config.setFloorReflectionEnabled(false);
+  auto instrument = sf.createInstrument(0);
+
+  // A region's own pan is already authored for a listener facing the
+  // source (the audience frame) - distance <= 1 ("player" position) is
+  // the vantage point opposite to that, so its contribution must flip
+  // sign relative to distance > 1 ("audience"), the reverse of the
+  // percussion/pitched-arc offsets' own near/far convention.
+  SphericalPosition position_player{ 0.0f, 0.0f, 0.5f, 1.2f };
+  SphericalPosition position_audience{ 0.0f, 0.0f, 1.5f, 1.2f };
+  auto voice_player = instrument->playNote(config, position_player, frequencyForMidiKey(60), 1.0f, 0.8f, 60, SendLevels{});
+  auto voice_audience = instrument->playNote(config, position_audience, frequencyForMidiKey(60), 1.0f, 0.8f, 60, SendLevels{});
+
+  float ratio_player = yToWRatioAtWPeak(*voice_player, 64);
+  float ratio_audience = yToWRatioAtWPeak(*voice_audience, 64);
+  CHECK(ratio_player * ratio_audience < 0.0f);
 }
 
 TEST(sf2_percussion_offset_jitter_is_deterministic_and_varies_per_coordinate) {

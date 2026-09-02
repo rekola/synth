@@ -872,16 +872,26 @@ regionFor(const SoundFontFile * f, size_t preset, size_t region_idx) {
 // for a track placed closer than distance 1 - full width at distance <= 1
 // ("near"), and by distance 100 only 1% of it survives (far enough to
 // read as a single point source).
+//
+// Mirrored the *opposite* way from the percussion/pitched-arc offsets'
+// own near/far convention (applyNormalizedOffset() below): those tables
+// are authored in the player's own frame (u/v are the player's own
+// subjective left/right), so they're used as-is at distance <= 1
+// ("you're basically at the player's position") and mirrored beyond it
+// ("you're the audience, facing the performer"). A region's SF2 pan is
+// the opposite kind of data - a mix engineer's own pan decision, already
+// authored for a listener facing the source (the audience frame), so it
+// takes no mirroring at distance > 1 and instead mirrors at distance <= 1
+// (the vantage point opposite to how it was authored).
 static SphericalPosition
 adjustPositionForPan(const SphericalPosition & position, const tsf_region * region) {
   if (!region) return position;
-  float pan_offset = region->pan - 0.5f;
-  if (pan_offset < -0.5f) pan_offset = -0.5f;
-  else if (pan_offset > 0.5f) pan_offset = 0.5f;
+  float pan_offset = region->pan; // already zero-centered in [-0.5, +0.5] (GEN_FLOAT_LIMITPAN) - no rescaling needed
   auto adjusted = position;
   if (pan_offset != 0.0f) {
     float width_scale = std::min(1.0f, distanceGain(position.distance));
-    adjusted.azimuth += asinf(pan_offset * 2.0f) * 180.0f / static_cast<float>(M_PI) * width_scale;
+    float mirror_sign = position.distance <= 1.0f ? -1.0f : 1.0f;
+    adjusted.azimuth += mirror_sign * asinf(pan_offset * 2.0f) * 180.0f / static_cast<float>(M_PI) * width_scale;
   }
   return adjusted;
 }
