@@ -5,7 +5,10 @@
 #include "InstrumentTrack.h"
 #include "PercussionTrack.h"
 #include "DrumMachineTrack.h"
+#include "SampleTrack.h"
+#include "SampleContent.h"
 #include "Group.h"
+#include "../audio/SampleFileLoader.h"
 #include "../instruments/NoteMultiplier.h"
 #include "../instruments/Arpeggiator.h"
 #include "../instruments/Oscillator.h"
@@ -33,6 +36,8 @@
 
 #include <fmt/core.h>
 #include <algorithm>
+#include <filesystem>
+#include <unordered_set>
 
 using namespace std;
 using namespace tinyxml2;
@@ -88,11 +93,18 @@ static Track * resolveTrackReference(Song & song, const char * text) {
   return song.getMasterTrack().getChildByInternalId(atoi(text));
 }
 
+string
+sampleSidecarPath(const string & song_filename, const string & clip_id) {
+  filesystem::path song_path(song_filename);
+  auto sample_path = song_path.parent_path() / (song_path.stem().string() + ".samples") / (clip_id + ".wav");
+  return sample_path.string();
+}
+
 // Parses a <pattern>'s own <note>/<command> children (and optional
 // `length` attribute) directly into `pattern` - shared by the per-scene
-// reader (Scene::patterns_by_track_id_'s own entry) and the pattern-pool
-// reader below, which parse the identical <pattern> shape into two
-// different kinds of owning container. false (with the malformed-command
+// reader (Scene::patterns_by_track_id_'s own entry) and the clip reader
+// below, which parse the identical <pattern> shape into two different
+// kinds of owning container. false (with the malformed-command
 // diagnostic already printed) on a corrupt <command>, matching both
 // readers' own "bail the whole load out" contract on that.
 static bool parsePatternContent(XMLElement & pattern_element, Pattern & pattern, Tuning tuning, const string & filename) {
@@ -154,6 +166,7 @@ static unique_ptr<Track> createTrack(string_view name) {
   if (name == "track") return make_unique<InstrumentTrack>();
   if (name == "percussionTrack") return make_unique<PercussionTrack>();
   if (name == "drumMachineTrack") return make_unique<DrumMachineTrack>();
+  if (name == "sampleTrack") return make_unique<SampleTrack>();
   if (name == "arpeggiatorTrack") return make_unique<Arpeggiator>();
   else if (name == "group") return make_unique<Group>();
 
@@ -542,10 +555,36 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 
 	for (auto it = track_it->FirstChildElement("clip"); it ; it = it->NextSiblingElement("clip")) {
 	  Clip clip(track->getInternalId());
-	  auto pattern_element = it->FirstChildElement("pattern");
-	  if (pattern_element && !parsePatternContent(*pattern_element, clip.getLeafPattern(), getTuningForTrack(*track), filename)) {
-	    setlocale(LC_ALL, oldLocale.c_str());
-	    return false;
+	  auto sample_element = it->FirstChildElement("sample");
+	  if (sample_element) {
+	    // A named, exact file reference - missing/unreadable is fatal to
+	    // the whole load, the same way a malformed <pattern> already is
+	    // below, not silently skipped the way an unresolved instrument
+	    // name falls back to a generic default elsewhere: the artist
+	    // named one specific file, not something to resolve loosely.
+	    auto file_attr = sample_element->Attribute("file");
+	    if (!file_attr) {
+	      fmt::print(stderr, "Malformed <sample> (missing file attribute) in {}\n", filename);
+	      setlocale(LC_ALL, oldLocale.c_str());
+	      return false;
+	    }
+	    auto sample_path = filesystem::path(filename).parent_path() / file_attr;
+	    auto loaded = loadMonoSample(sample_path.string());
+	    if (!loaded.buffer) {
+	      fmt::print(stderr, "Could not load sample \"{}\" referenced by clip in {}\n", sample_path.string(), filename);
+	      setlocale(LC_ALL, oldLocale.c_str());
+	      return false;
+	    }
+	    auto & content = clip.getOrCreateSampleContent();
+	    content.setBuffer(loaded.buffer);
+	    content.setNativeSampleRate(loaded.rate);
+	    content.loadParameters(XMLParameterSource(sample_element));
+	  } else {
+	    auto pattern_element = it->FirstChildElement("pattern");
+	    if (pattern_element && !parsePatternContent(*pattern_element, clip.getLeafPattern(), getTuningForTrack(*track), filename)) {
+	      setlocale(LC_ALL, oldLocale.c_str());
+	      return false;
+	    }
 	  }
 	  clip.loadParameters(XMLParameterSource(it));
 	  addClip(std::move(clip));
@@ -676,14 +715,64 @@ Song::save(const std::string & filename) const {
       clips_element->InsertEndChild(track_clips_element);
 
       for (auto & clip : clips) {
-	auto & pattern = clip.getLeafPattern();
 	auto clip_element = doc.NewElement("clip");
 	XMLParameterSource clip_parameters(clip_element);
 	clip.storeParameters(clip_parameters);
-	auto pattern_element = doc.NewElement("pattern");
-	storePatternContent(doc, pattern_element, pattern, track_tuning);
-	clip_element->InsertEndChild(pattern_element);
+
+	auto * content = clip.getSampleContent();
+	if (content && content->getBuffer()) {
+	  filesystem::path sample_path(sampleSidecarPath(filename, clip.getId()));
+	  std::error_code ec;
+	  filesystem::create_directories(sample_path.parent_path(), ec);
+	  writeMonoSample(sample_path.string(), *content->getBuffer(), content->getNativeSampleRate());
+
+	  auto sample_element = doc.NewElement("sample");
+	  // Relative to the song's own directory (sample_path.parent_path()'s
+	  // own last component, ".samples", joined with the file's own
+	  // name) - never an absolute path, matching how the loader resolves
+	  // it back the same way.
+	  auto relative_path = sample_path.parent_path().filename() / sample_path.filename();
+	  sample_element->SetAttribute("file", relative_path.string().c_str());
+	  XMLParameterSource sample_parameters(sample_element);
+	  content->storeParameters(sample_parameters);
+	  clip_element->InsertEndChild(sample_element);
+	} else {
+	  auto & pattern = clip.getLeafPattern();
+	  auto pattern_element = doc.NewElement("pattern");
+	  storePatternContent(doc, pattern_element, pattern, track_tuning);
+	  clip_element->InsertEndChild(pattern_element);
+	}
 	track_clips_element->InsertEndChild(clip_element);
+      }
+    }
+  }
+
+  // Sweeps <song-stem>.samples/ for any .wav that no longer corresponds
+  // to a live sample clip anywhere in the song - deleteClip()'s own
+  // "purely in-memory" contract (nothing on disk changes as a side
+  // effect of an edit) means a deleted clip's own sidecar file is only
+  // ever cleaned up here, at the one moment the artist actually asked to
+  // persist the current state, not the moment the clip was deleted.
+  // Independent of has_clips above - even a song with no sample clips
+  // left at all can still have a leftover .samples/ directory from
+  // before. A missing directory (nothing was ever recorded/loaded) isn't
+  // an error, just nothing to sweep.
+  {
+    unordered_set<string> live_ids;
+    for (auto & [ track_id, clips ] : clips_by_track_) {
+      for (auto & clip : clips) {
+	if (clip.getSampleContent() && clip.getSampleContent()->getBuffer()) live_ids.insert(clip.getId());
+      }
+    }
+
+    filesystem::path song_path(filename);
+    auto samples_dir = song_path.parent_path() / (song_path.stem().string() + ".samples");
+    error_code ec;
+    if (filesystem::is_directory(samples_dir, ec)) {
+      for (auto & entry : filesystem::directory_iterator(samples_dir, ec)) {
+	if (entry.path().extension() != ".wav") continue;
+	if (live_ids.count(entry.path().stem().string())) continue;
+	filesystem::remove(entry.path(), ec);
       }
     }
   }

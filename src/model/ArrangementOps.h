@@ -36,6 +36,13 @@ void placeStopInstance(Scene & scene, int track_id, int row);
 // so nothing placed afterward could ever collide with a stale leftover
 // reference the way reusing a freed vector position could. A no-op if
 // clip_index doesn't resolve to a real clip in that track's own list.
+//
+// Purely in-memory, on principle - nothing on disk changes as a side
+// effect of an edit, only ever at an explicit save. A deleted sample
+// clip's own sidecar .wav becomes unreferenced, not deleted, here; the
+// next Song::save() sweeps orphaned sidecar files itself (see its own
+// comment), the same single moment every other in-memory edit here is
+// already expected to wait for before touching disk at all.
 void deleteClip(Song & song, int track_id, int clip_index);
 
 // The result of resolveInstanceAt() below. `start_row` is the resolved

@@ -464,5 +464,16 @@ private:
   static inline std::vector<Clip> empty_clips_;
 };
 
+// The sidecar .wav path a SampleTrack clip's own audio reads from/writes
+// to - `<song-stem>.samples/<clip-id>.wav`, sibling to the song file
+// itself. `song_filename` is relative or absolute exactly like
+// Song::open()/save()'s own `filename` parameter; `clip_id` alone already
+// names the file unambiguously (Song::generateUniqueClipId() is unique
+// across the whole song, not just one track's own clip list). Shared by
+// Song.cpp's own clip reader/writer and ArrangementOps.cpp's deleteClip()
+// (orphan sidecar cleanup), so the naming convention can't drift between
+// the two.
+std::string sampleSidecarPath(const std::string & song_filename, const std::string & clip_id);
+
 #endif
 

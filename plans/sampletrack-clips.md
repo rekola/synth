@@ -665,14 +665,22 @@ always holds everything it references, matching how the song's XML
 already fully describes itself) at the cost of duplicating audio on disk
 on every Save As - accepted.
 
-**Orphan cleanup.** `deleteClip()` (`ArrangementOps.h:31-39`) already
-removes a clip from its track's list and clears every instance reference
-to it song-wide - extend it to also delete that clip's own sidecar file
-(when `hasSample()`) at the same time, matching its own doc comment's
-"removed outright, not left as unreachable data." Without this, discarding
-a few takes during a session (Part 4 has no "are you sure" - stopping a
-recording always creates a clip) leaves growing, unreferenced `.wav` files
-in `.samples/` that nothing ever cleans up.
+**Orphan cleanup happens at save time, not at `deleteClip()` itself -
+corrected during implementation, per the user's own principle that
+nothing on disk changes as a side effect of an edit, only at an explicit
+save.** An earlier draft of this part had `deleteClip()`
+(`ArrangementOps.h:31-39`) delete the sidecar file directly, the moment
+the clip is removed in memory - wrong: a delete the artist doesn't go on
+to save should leave disk untouched, exactly like every other in-memory
+edit here already does (a cleared note isn't rewritten to the XML file
+either, until "save-song"). `deleteClip()` stays purely in-memory, same
+as before. `Song::save()` sweeps `<song-stem>.samples/` instead, once,
+every save: any `.wav` whose name (minus extension) doesn't match a
+sample clip's id anywhere in the song's current `clips_by_track_` is
+deleted. Runs unconditionally (even when the song currently has zero
+sample clips at all - a leftover `.samples/` directory from before still
+needs sweeping); a missing directory is not an error, just nothing to
+sweep.
 
 **Forward-compatibility seam.** All file I/O stays behind
 `loadMonoSample()`/`writeMonoSample()` (Part 3), precisely so the user's
@@ -733,7 +741,11 @@ clip's audio.
   than rewriting it.
 - Save/load round-trip: a song with a recorded/loaded `SampleTrack` clip
   saves its sidecar `.wav` and `file` attribute, reloads to the same
-  audio content; `deleteClip()` on a sample clip removes its sidecar file.
+  audio content; `deleteClip()` on a sample clip leaves its sidecar file
+  alone (purely in-memory), which then disappears on the *next* save, not
+  before - both implemented as real tests
+  (`tests/SongTests.cpp:sample_clip_round_trips_through_save_and_load`/
+  `deleting_a_sample_clip_only_removes_its_sidecar_file_on_next_save`).
 - Trim points: `in`/`out` round-trip through XML (present when non-default,
   omitted when not); `triggerClip()` starts/ends playback at the resolved
   frames, not the buffer's own bounds, and loops back to the in-point, not

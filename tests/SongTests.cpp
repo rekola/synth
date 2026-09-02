@@ -9,6 +9,8 @@
 #include "../src/model/SampleTrack.h"
 #include "../src/instruments/InstrumentProvider.h"
 #include "../src/instruments/GenericInstrument.h"
+#include "../src/model/SampleContent.h"
+#include "../src/audio/AudioBuffer.h"
 
 #include <filesystem>
 #include <fstream>
@@ -956,6 +958,107 @@ TEST(instance_events_round_trip_through_save_and_load) {
   }
 
   fs::remove(scratch_path);
+}
+
+// A SampleTrack clip's own audio round-trips through save/load as a
+// sidecar .wav plus a <sample file="..."> reference - Song::save()
+// writes the buffer out and points the XML at it; Song::open() reads it
+// back via loadMonoSample(), never resampling either way (Clip's own
+// getNativeSampleRate() is what's actually checked, not just that the
+// frame count matches).
+TEST(sample_clip_round_trips_through_save_and_load) {
+  namespace fs = std::filesystem;
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_sample_clip_scratch.xml").string();
+  auto scratch_samples_dir = fs::path(TESTS_SCRATCH_DIR) / "song_sample_clip_scratch.samples";
+
+  Song song(Tuning::TET12);
+  auto & track = song.addTrack(make_unique<SampleTrack>());
+  track.setId("vox");
+
+  constexpr int kFrames = 8;
+  auto buffer = make_shared<AudioBuffer>(1, kFrames);
+  auto data = buffer->getChannelData(0);
+  for (int i = 0; i < kFrames; i++) data[i] = static_cast<float>(i) / kFrames - 0.5f;
+
+  Clip clip(track.getInternalId());
+  auto & content = clip.getOrCreateSampleContent();
+  content.setBuffer(buffer);
+  content.setNativeSampleRate(48000);
+  content.setInPoint(0.01f);
+  content.setOutPoint(0.02f);
+  content.setOriginalTempo(120);
+  clip.setName("Take 1");
+  auto clip_id = song.addClip(move(clip)).getId();
+  song.save(scratch_path);
+
+  auto saved = readFile(scratch_path);
+  CHECK(saved.find("<sample ") != string::npos);
+  CHECK(saved.find("file=\"") != string::npos);
+  CHECK(saved.find("<pattern") == string::npos); // a sample clip has no note content to write
+  CHECK(fs::is_directory(scratch_samples_dir));
+  CHECK(fs::exists(scratch_samples_dir / (clip_id + ".wav")));
+
+  InstrumentProvider provider;
+  Song reloaded(Tuning::TET12);
+  CHECK(reloaded.open(scratch_path, provider));
+
+  auto reloaded_track = reloaded.getMasterTrack().getChildById("vox");
+  CHECK(reloaded_track != nullptr);
+  if (reloaded_track) {
+    auto & clips = reloaded.getClips(reloaded_track->getInternalId());
+    CHECK(clips.size() == 1);
+    if (clips.size() == 1) {
+      auto * reloaded_content = clips[0].getSampleContent();
+      CHECK(reloaded_content != nullptr);
+      if (reloaded_content) {
+        CHECK(reloaded_content->getBuffer() != nullptr);
+        CHECK(reloaded_content->getNativeSampleRate() == 48000);
+        CHECK_NEAR(reloaded_content->getInPoint(), 0.01f, 1e-5f);
+        CHECK_NEAR(reloaded_content->getOutPoint(), 0.02f, 1e-5f);
+        CHECK(reloaded_content->getOriginalTempo() == 120);
+        if (reloaded_content->getBuffer()) {
+          CHECK(reloaded_content->getBuffer()->numberOfFrames() == kFrames);
+          auto reloaded_data = reloaded_content->getBuffer()->getChannelData(0);
+          for (int i = 0; i < kFrames; i++) CHECK_NEAR(reloaded_data[i], data[i], 1e-5f);
+        }
+      }
+    }
+  }
+
+  fs::remove(scratch_path);
+  fs::remove_all(scratch_samples_dir);
+}
+
+// Deleting a sample clip is purely in-memory (deleteClip()'s own
+// contract - nothing on disk changes as a side effect of an edit); its
+// sidecar .wav only actually disappears once the song is saved again,
+// the same moment every other edit here is already expected to wait for
+// before touching disk. Song::save() sweeps it as an orphan then, since
+// it no longer corresponds to any live clip.
+TEST(deleting_a_sample_clip_only_removes_its_sidecar_file_on_next_save) {
+  namespace fs = std::filesystem;
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_sample_clip_delete_scratch.xml").string();
+  auto scratch_samples_dir = fs::path(TESTS_SCRATCH_DIR) / "song_sample_clip_delete_scratch.samples";
+
+  Song song(Tuning::TET12);
+  auto & track = song.addTrack(make_unique<SampleTrack>());
+  auto buffer = make_shared<AudioBuffer>(1, 4);
+  Clip clip(track.getInternalId());
+  clip.getOrCreateSampleContent().setBuffer(buffer);
+  auto clip_id = song.addClip(move(clip)).getId();
+  song.save(scratch_path);
+  auto sidecar_path = scratch_samples_dir / (clip_id + ".wav");
+  CHECK(fs::exists(sidecar_path));
+
+  deleteClip(song, track.getInternalId(), 0);
+  CHECK(song.getClips(track.getInternalId()).empty());
+  CHECK(fs::exists(sidecar_path)); // still there - deleteClip() never touches disk
+
+  song.save(scratch_path);
+  CHECK(!fs::exists(sidecar_path)); // swept as an orphan on the next save
+
+  fs::remove(scratch_path);
+  fs::remove_all(scratch_samples_dir);
 }
 
 // The write side omits <arrangement> entirely when a scene has no
