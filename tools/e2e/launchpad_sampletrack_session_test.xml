@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Purpose-built for verify_launchpad_sampletrack_stopclip.py -
+     structurally the SampleTrack twin of launchpad_session_test.xml (see
+     that fixture's own comment): one track, 8 clip slots (indices 0-7),
+     only the last one (7) populated, matching fake_launchpad_stopclip.c's
+     fixed press on pad (0,0) (y=0 is the *bottom* row of the 8-row grid,
+     landing on the last clip - LaunchpadManager::handleSessionPadEvent's
+     own y-flip comment). fake_launchpad_stopclip.c itself is content-
+     agnostic (plain CC/pad events, no assumption about what the track
+     holds), so it's reused unchanged here to exercise SampleTrack's own
+     Session-view audition path (fireOrTriggerClipStep's SAMPLE branch ->
+     PlaybackControlEvent::PLAY_SAMPLE_CLIP) instead of the note-based one.
+     Clip 7's own explicit length="8" matters the same way the note-based
+     fixture's does - a default (0, clamped to 1) would re-trigger every
+     single audition-clock step instead of looping normally. loop="1"
+     (the default) exercises the looping case; a one-shot's own natural
+     stop (no CC49 needed at all) is covered by SampleTrackTests.cpp's own
+     trigger_clip_plays_only_the_trimmed_range_and_ends_without_a_ramp,
+     not duplicated here - this fixture is purely for the Session-view
+     LED/assign wiring, not SampleClipVoice's own playback logic. -->
+<song temperament="12edo" tempo="120" patternRows="16">
+  <tracks>
+    <sampleTrack id="0"/>
+  </tracks>
+  <clips>
+    <trackClips track="0">
+      <clip name="p0" />
+      <clip name="p1" />
+      <clip name="p2" />
+      <clip name="p3" />
+      <clip name="p4" />
+      <clip name="p5" />
+      <clip name="p6" />
+      <clip name="target" length="8">
+        <sample file="launchpad_sampletrack_session_test.wav" />
+      </clip>
+    </trackClips>
+  </clips>
+  <scenes>
+    <scene>
+    </scene>
+  </scenes>
+</song>

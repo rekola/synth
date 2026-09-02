@@ -60,6 +60,7 @@ add_executable(synth_tests
 	PlayerMultiBufferTests.cpp
 	Utf8Tests.cpp
 	SongStructureTests.cpp
+	SampleTrackTests.cpp
 )
 
 target_link_libraries(synth_tests synth_engine)

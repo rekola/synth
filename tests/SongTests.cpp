@@ -1029,6 +1029,32 @@ TEST(sample_clip_round_trips_through_save_and_load) {
   fs::remove_all(scratch_samples_dir);
 }
 
+// SampleContent::storeParameters()'s in/out trim points use the same
+// omit-when-default ParameterSource::set() convention as everything else
+// here - a clip nobody ever trimmed shouldn't accumulate in="0" out="0"
+// noise, and a genuinely trimmed one must still round-trip exactly.
+TEST(sample_clip_trim_points_are_omitted_from_xml_when_left_at_their_default) {
+  namespace fs = std::filesystem;
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_sample_clip_default_trim_scratch.xml").string();
+  auto scratch_samples_dir = fs::path(TESTS_SCRATCH_DIR) / "song_sample_clip_default_trim_scratch.samples";
+
+  Song song(Tuning::TET12);
+  auto & track = song.addTrack(make_unique<SampleTrack>());
+  auto buffer = make_shared<AudioBuffer>(1, 4);
+  Clip clip(track.getInternalId());
+  clip.getOrCreateSampleContent().setBuffer(buffer); // in/out left at their 0.0f defaults
+  song.addClip(move(clip));
+  song.save(scratch_path);
+
+  auto saved = readFile(scratch_path);
+  CHECK(saved.find("<sample ") != string::npos);
+  CHECK(saved.find("in=\"") == string::npos);
+  CHECK(saved.find("out=\"") == string::npos);
+
+  fs::remove(scratch_path);
+  fs::remove_all(scratch_samples_dir);
+}
+
 // Deleting a sample clip is purely in-memory (deleteClip()'s own
 // contract - nothing on disk changes as a side effect of an edit); its
 // sidecar .wav only actually disappears once the song is saved again,

@@ -145,6 +145,17 @@ you're changing.
   environment** for a documented, pre-existing, unrelated reason (not a
   real regression - reproduces with plain pad presses alone, no CC49
   involved) - see `docs/known_bugs.md`.
+- **`launchpad_sampletrack_session_test.xml` (+ sidecar `.wav`) /
+  `verify_launchpad_sampletrack_stopclip.py`** - the SampleTrack twin of
+  the script above: structurally the same fixture (one track, pool index
+  7 populated - a real sample clip this time, `length="8"` for the same
+  reason), reusing `fake_launchpad_stopclip.c` unchanged, to prove
+  `LaunchpadManager::fireOrTriggerClipStep()`'s SAMPLE branch
+  (`PlaybackControlEvent::PLAY_SAMPLE_CLIP`) is wired all the way through
+  the real ALSA + audio-thread path, not just reachable in-process the way
+  `SampleTrackTests.cpp`'s own `triggerClip()` calls are. Same known,
+  pre-existing environment limitation as its sibling above - see
+  `docs/known_bugs.md`.
 - **`cross_tuning_paste_test.xml` (+ companion `..._song_b.xml`) /
   `verify_patterneditor_cross_tuning_paste.py`** - a `Note::getValue()`
   means a different kind of value under a different tuning (GM percussion

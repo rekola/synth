@@ -46,6 +46,17 @@ TEST(channel_configuration_equality) {
   CHECK(!(a == c));
 }
 
+TEST(channel_configuration_frames_to_rows_rounds_up_and_handles_degenerate_input) {
+  ChannelConfiguration config(44100, 1);
+  auto interval = config.getSampleInterval(120); // one row's own frame count at this tempo
+
+  CHECK(config.framesToRows(interval, 120) == 1); // exactly one row's worth
+  CHECK(config.framesToRows(interval + 1, 120) == 2); // one frame past a row - rounds up, never truncates
+  CHECK(config.framesToRows(interval - 1, 120) == 1); // one frame short of a row - still counts as that row
+  CHECK(config.framesToRows(0, 120) == 0); // nothing to place a window around
+  CHECK(config.framesToRows(-5, 120) == 0); // degenerate/empty buffer, not a negative row count
+}
+
 TEST(channel_configuration_ambisonic_channel_count_and_device_channels) {
   ChannelConfiguration foa(44100, 1);
   CHECK(foa.numberOfChannels() == 4);

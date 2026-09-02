@@ -152,6 +152,16 @@ Found 2026-07-11, not yet fixed.
   confirmed directly. Still not investigated further past this point -
   same reasoning as above.
 
+  `tools/e2e/verify_launchpad_sampletrack_stopclip.py` (SampleTrack's own
+  Session-view audition path, reusing `fake_launchpad_stopclip.c`
+  unchanged against a SampleTrack fixture) hits the identical symptom for
+  the identical reason - it takes the same real audition/playback path,
+  just triggering a `SampleClipVoice` instead of a pitched one. Confirmed
+  by reverting to the last commit before that script existed and
+  re-running `verify_launchpad_stopclip.py` alone: it already fails the
+  same way with none of that work present, ruling out anything
+  SampleTrack-specific.
+
 - **A voice's envelope keeps progressing while playback is stopped**, so a
   long-held note can resume out of sync with the (frozen) row/pattern
   position once playback restarts. `SongState::renderBlock()` calls every

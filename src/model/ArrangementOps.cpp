@@ -139,17 +139,28 @@ resolveEditTarget(Song & song, Scene & scene, int track_id, int row, const std::
   auto focused_index = resolveFocusedClipIndex(song, track_id, focused_clip_id);
   if (focused_index >= 0) {
     auto & clip = song.getClips(track_id)[static_cast<size_t>(focused_index)];
-    auto & pattern = clip.getLeafPattern();
-    auto length = clip.getLength() > 0 ? clip.getLength() : 1;
-    return { &pattern, pattern.getEffectiveRow(row, length) };
+    if (!clip.hasSample()) {
+      auto & pattern = clip.getLeafPattern();
+      auto length = clip.getLength() > 0 ? clip.getLength() : 1;
+      return { &pattern, pattern.getEffectiveRow(row, length) };
+    }
+  } else {
+    auto active = resolveInstanceAt(song, scene, track_id, row);
+    if (active.clip_index >= 0) {
+      auto & clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
+      if (!clip.hasSample()) {
+        auto & pattern = clip.getLeafPattern();
+        auto length = clip.getLength() > 0 ? clip.getLength() : 1;
+        return { &pattern, pattern.getEffectiveRow(row - active.start_row, length) };
+      }
+    }
   }
-  auto active = resolveInstanceAt(song, scene, track_id, row);
-  if (active.clip_index >= 0) {
-    auto & clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
-    auto & pattern = clip.getLeafPattern();
-    auto length = clip.getLength() > 0 ? clip.getLength() : 1;
-    return { &pattern, pattern.getEffectiveRow(row - active.start_row, length) };
-  }
+  // A SampleTrack's own clip carries raw audio, not a Pattern - there is
+  // nothing here to edit at all (no note-column UI exists for it), so
+  // this falls back to the scene's own (otherwise-unread, for this track)
+  // background Pattern, the same as the ordinary "nothing placed here"
+  // case just below - safe, if this is ever actually reached, rather than
+  // dereferencing a Pattern the clip was never given one of.
   auto & pattern = scene.getPatternsByTrack()[track_id];
   return { &pattern, pattern.getEffectiveRow(row, song.getEffectiveSceneLength(scene)) };
 }
@@ -160,6 +171,9 @@ resolveReadTarget(const Song & song, const Scene & scene, int track_id, int row,
   auto focused_index = resolveFocusedClipIndex(song, track_id, focused_clip_id);
   if (focused_index >= 0) {
     auto & clip = song.getClips(track_id)[static_cast<size_t>(focused_index)];
+    // A sample clip has no leaf Pattern at all (Clip::getLeafPattern()
+    // would throw) - nothing to read back beyond which clip is focused.
+    if (clip.hasSample()) return { &empty_pattern, 0, row, true, focused_index, true };
     auto & pattern = clip.getLeafPattern();
     auto length = clip.getLength() > 0 ? clip.getLength() : 1;
     return { &pattern, pattern.getEffectiveRow(row, length), row, true, focused_index, true };
@@ -167,9 +181,10 @@ resolveReadTarget(const Song & song, const Scene & scene, int track_id, int row,
   auto active = resolveInstanceAt(song, scene, track_id, row);
   if (active.clip_index >= 0) {
     auto & clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
+    auto unwrapped_row = row - active.start_row;
+    if (clip.hasSample()) return { &empty_pattern, 0, unwrapped_row, true, active.clip_index };
     auto & pattern = clip.getLeafPattern();
     auto length = clip.getLength() > 0 ? clip.getLength() : 1;
-    auto unwrapped_row = row - active.start_row;
     return { &pattern, pattern.getEffectiveRow(unwrapped_row, length), unwrapped_row, true, active.clip_index };
   }
   auto & patterns = scene.getPatternsByTrack();

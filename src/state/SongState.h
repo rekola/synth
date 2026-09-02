@@ -127,6 +127,42 @@ class SongState : public TrackState {
       song_structure_version_ = song.getMajorVersion();
     }
 
+    // Snapshotting the raw Track* pointers under Song::getTracksMutex()
+    // rather than holding it for this whole method - see that mutex's own
+    // comment on why one is needed at all - keeps the lock held only as
+    // long as a quick pointer copy takes, not for however long actually
+    // rendering every track takes; a track added by the UI thread after
+    // the snapshot is taken just isn't heard until next block, same as
+    // a track added between two blocks outright. Safe against a track
+    // added *during* the rest of this method reusing/reallocating one of
+    // these pointers out from under it too, since track deletion doesn't
+    // exist yet - every Track this snapshot points to lives at a fixed
+    // address for the rest of the process once addTrack() returns.
+    //
+    // SongState is itself a TrackState, and every top-level track is
+    // registered as *its own* TreeNode child (getState() below - cheap
+    // once cached, so doing this every block, not just once, is what
+    // picks up a track added mid-playback) - so the inherited
+    // renderChildren() further down sums them the same solo-aware way any
+    // other multi-child node (a Group, an Effect with several children)
+    // already sums its own, with no separate master-track state object
+    // needed to own that relationship. Registered here, before the
+    // scheduling loop below rather than right before renderChildren() -
+    // SampleTrackState::triggerClip() (below) is called synchronously,
+    // straight off getChildByInternalId(), unlike an ordinary note event
+    // (queued into render_context_, read back whenever its own track
+    // finally renders, so it never cared when its child was created); a
+    // clip instance active on the very first block a SampleTrack is ever
+    // rendered would otherwise dynamic_cast against a child that doesn't
+    // exist yet and silently never trigger.
+    std::vector<Track *> track_snapshot;
+    {
+      std::lock_guard<std::mutex> guard(song.getTracksMutex());
+      track_snapshot.reserve(song.getMasterTrack().getChildren().size());
+      for (auto & track : song.getMasterTrack().getChildren()) track_snapshot.push_back(track.get());
+    }
+    for (auto * track : track_snapshot) track->getState(*this, song_structure_);
+
     if (isPlaying()) {
       for (int i = 0; i < frames; i++) {
 	// recording_muted_: a live-hold recording session (Launchpad/
@@ -327,41 +363,20 @@ class SongState : public TrackState {
     aux_a_sum_.zero();
     aux_b_sum_.zero();
 
-    // Snapshotting the raw Track* pointers under Song::getTracksMutex()
-    // rather than holding it for this whole loop - see that mutex's own
-    // comment on why one is needed at all - keeps the lock held only as
-    // long as a quick pointer copy takes, not for however long actually
-    // rendering every track takes; a track added by the UI thread after
-    // the snapshot is taken just isn't heard until next block, same as
-    // a track added between two blocks outright. Safe against a track
-    // added *during* iteration below reusing/reallocating one of these
-    // pointers out from under it too, since track deletion doesn't
-    // exist yet - every Track this snapshot points to lives at a fixed
-    // address for the rest of the process once addTrack() returns.
-    std::vector<Track *> track_snapshot;
-    {
-      std::lock_guard<std::mutex> guard(song.getTracksMutex());
-      track_snapshot.reserve(song.getMasterTrack().getChildren().size());
-      for (auto & track : song.getMasterTrack().getChildren()) track_snapshot.push_back(track.get());
-    }
-
-    // SongState is itself a TrackState, and every top-level track is
-    // registered as *its own* TreeNode child (getState() below - cheap
-    // once cached, so doing this every block, not just once, is what
-    // picks up a track added mid-playback) - so the inherited
-    // renderChildren() sums them the same solo-aware way any other
-    // multi-child node (a Group, an Effect with several children) already
-    // sums its own, with no separate master-track state object needed to
-    // own that relationship. This is the "mixes all the ambisonic
-    // channels from the child tracks" master was built for; the master
-    // model track itself stays a purely structural fact (XML, the pattern
-    // editor's column, addressability for its own effect-command Pattern)
-    // with no mirrored state-tree node of its own to keep in sync. As a
-    // side effect this also fixes solo never having been enforced
-    // *across* top-level tracks - the old per-track loop here just
-    // accumulated every one of them into `mixer` unconditionally,
+    // Every top-level track was already registered as *its own* TreeNode
+    // child of this SongState above (track_snapshot's own comment) - the
+    // inherited renderChildren() sums them the same solo-aware way any
+    // other multi-child node (a Group, an Effect with several children)
+    // already sums its own, with no separate master-track state object
+    // needed to own that relationship. This is the "mixes all the
+    // ambisonic channels from the child tracks" master was built for; the
+    // master model track itself stays a purely structural fact (XML, the
+    // pattern editor's column, addressability for its own effect-command
+    // Pattern) with no mirrored state-tree node of its own to keep in
+    // sync. As a side effect this also fixed solo never having been
+    // enforced *across* top-level tracks - an old per-track loop here
+    // once accumulated every one of them into `mixer` unconditionally,
     // bypassing renderChildren()'s solo handling entirely.
-    for (auto * track : track_snapshot) track->getState(*this, song_structure_);
     auto data = renderChildren(frames, song.getInstrumentPool(), render_context_, getChannelConfiguration());
     mixer.accumulate(data);
 

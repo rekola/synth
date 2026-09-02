@@ -2,6 +2,9 @@
 
 #include "../src/Controller.h"
 #include "../src/model/Song.h"
+#include "../src/model/SampleTrack.h"
+#include "../src/model/SampleContent.h"
+#include "../src/audio/AudioBuffer.h"
 #include "../src/ambisonic/ChannelConfiguration.h"
 #include "../src/state/PlaybackInfo.h"
 #include "../src/playback/PlaybackControlEvent.h"
@@ -437,4 +440,68 @@ TEST(kill_active_buffer_refuses_the_only_open_view) {
   CHECK(controller.getBufferNames().size() == 1);
   CHECK(!controller.killActiveBuffer());
   CHECK(controller.getSelectedBufferName() == name); // untouched
+}
+
+// beginSampleCapture() is lazy - called only once real audio has arrived
+// (UI::handleRecordEvent()'s own guard) - so a take that captured nothing
+// at all (no capture device, or stopped again before a first block
+// landed) never calls it, and finishSampleCapture() must have nothing to
+// finalize or clean up either.
+TEST(finish_sample_capture_with_no_audio_captured_is_a_clean_no_op) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+
+  auto & track = controller.getSong().addTrack(std::make_unique<SampleTrack>());
+  controller.setRecordingTrackId(track.getInternalId());
+  controller.startRecording(); // a fresh, still-0-frame current_sample
+
+  CHECK(!controller.hasRecordingClip());
+  controller.finishSampleCapture();
+  CHECK(!controller.hasRecordingClip());
+  CHECK(!controller.isRecording());
+  CHECK(controller.getSong().getClips(track.getInternalId()).empty());
+}
+
+// The real lifecycle: beginSampleCapture() creates a clip sharing
+// current_sample's own buffer (so a later addToSample() is visible
+// through it automatically), finishSampleCapture() finalizes its length
+// from the real captured frame count.
+TEST(begin_and_finish_sample_capture_creates_and_finalizes_a_real_clip) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  controller.getSong().setTempo(120);
+
+  auto & track = controller.getSong().addTrack(std::make_unique<SampleTrack>());
+  auto track_id = track.getInternalId();
+  controller.setRecordingTrackId(track_id);
+  controller.startRecording();
+
+  AudioBuffer block(1, 400);
+  auto data = block.getChannelData(0);
+  for (int i = 0; i < 400; i++) data[i] = 0.3f;
+
+  controller.addToSample(block); // real audio arrives...
+  controller.beginSampleCapture(track_id); // ...only now does a clip get created
+  CHECK(controller.hasRecordingClip());
+  CHECK(controller.getSong().getClips(track_id).size() == 1);
+
+  controller.addToSample(block); // a second block of the same take
+  controller.finishSampleCapture();
+
+  CHECK(!controller.hasRecordingClip());
+  CHECK(!controller.isRecording());
+  auto & clips = controller.getSong().getClips(track_id);
+  CHECK(clips.size() == 1);
+  if (!clips.empty()) {
+    auto * content = clips[0].getSampleContent();
+    CHECK(content != nullptr);
+    if (content && content->getBuffer()) {
+      // Both blocks - the same shared_ptr addToSample() appends into.
+      CHECK(content->getBuffer()->numberOfFrames() == 800);
+    }
+    if (content) CHECK(content->getOriginalTempo() == 120);
+    CHECK(clips[0].getLength() > 0); // finalized from the real captured duration
+  }
 }

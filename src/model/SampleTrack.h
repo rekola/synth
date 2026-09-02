@@ -17,12 +17,12 @@ class SongStructure;
 //
 // Holds no audio itself - a SampleTrack's actual content is its own
 // Song::getClips(track_id) list, each entry a Clip carrying one audio
-// recording/loaded file (Clip::getSample()/setSample()) - the same
-// clip-list mechanism InstrumentTrack already uses for its own reusable
-// Pattern content, just with raw audio instead of notes. "Multiple audio
-// files" per track is multiple entries in that list, launched via
-// Session view/ArrangementGrid like any other track's clips - never
-// addressed by a pattern-row Note value.
+// recording/loaded file (Clip::getSampleContent()) - the same clip-list
+// mechanism InstrumentTrack already uses for its own reusable Pattern
+// content, just with raw audio instead of notes. "Multiple audio files"
+// per track is multiple entries in that list, launched via Session view/
+// ArrangementGrid like any other track's clips - never addressed by a
+// pattern-row Note value.
 class SampleTrack : public LeafTrack {
 public:
   SampleTrack() : LeafTrack(TrackType::SAMPLE) { }

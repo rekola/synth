@@ -6,6 +6,9 @@
 #include "../src/model/Clip.h"
 #include "../src/model/InstrumentTrack.h"
 #include "../src/model/DrumMachineTrack.h"
+#include "../src/model/SampleTrack.h"
+#include "../src/model/SampleContent.h"
+#include "../src/audio/AudioBuffer.h"
 
 using namespace std;
 
@@ -269,6 +272,40 @@ TEST(resolve_edit_and_read_target_route_drum_machine_steps_through_a_clip) {
   // It landed in the clip's own leaf Pattern, not the scene's background.
   CHECK(song.getClips(track_id)[0].getLeafPattern().getNote(2, 0).getValue() == 36);
   CHECK(!scene.getNote(2, track_id, 0).isDefined());
+}
+
+// A sample clip carries raw audio, not a Pattern (Clip::getLeafPattern()
+// would throw std::out_of_range on one - it has no entry in
+// patterns_by_track_ at all) - resolveReadTarget()/resolveEditTarget()
+// must not dereference it the way they do for a note-based clip.
+// Regression test for a real crash: PatternEditor::renderRow() calling
+// resolveReadTarget() on every visible row, including a placed
+// SampleTrack instance, uncaught until an actual sample clip was placed
+// and the row it lived on came into view.
+TEST(resolve_read_target_does_not_crash_on_a_sample_clip_instance) {
+  Song song;
+  auto & track = song.addTrack(make_unique<SampleTrack>());
+  auto track_id = track.getInternalId();
+
+  Clip clip(track_id);
+  clip.getOrCreateSampleContent().setBuffer(make_shared<AudioBuffer>(1, 4));
+  clip.setLength(4);
+  clip.setLooping(false);
+  song.addClip(move(clip)); // index 0
+
+  auto & scene = song.addScene();
+  placeClipInstance(song, scene, track_id, 0, 0);
+
+  auto read_target = resolveReadTarget(song, scene, track_id, 1);
+  CHECK(read_target.is_instance);
+  CHECK(read_target.clip_index == 0);
+  CHECK(read_target.unwrapped_row == 1);
+  CHECK(read_target.pattern != nullptr); // the shared empty-pattern sentinel, never null
+
+  // Falls back to ordinary background-pattern resolution rather than
+  // crashing - there is nothing meaningful to edit on a sample clip's row.
+  auto edit_target = resolveEditTarget(song, scene, track_id, 1);
+  CHECK(edit_target.pattern != nullptr);
 }
 
 // Controller::getFocusedClip()'s own override: resolves to a focused

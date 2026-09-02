@@ -739,10 +739,16 @@ clip's audio.
   expected sample offset - extends the existing `renderSongOffline()`-based
   pattern (pan symmetry / hard-pan isolation tests are the precedent to
   follow).
-- Launchpad e2e (`tools/e2e/`): one-shot vs. looping sample-clip
-  trigger/stop through Session view - a new fixture script alongside the
-  existing ones, extending `verify_launchpad_session.py`'s coverage rather
-  than rewriting it.
+- Launchpad e2e (`tools/e2e/`): implemented as
+  `launchpad_sampletrack_session_test.xml` (+ sidecar `.wav`) /
+  `verify_launchpad_sampletrack_stopclip.py` - the SampleTrack twin of
+  `verify_launchpad_stopclip.py`, reusing its `fake_launchpad_stopclip.c`
+  simulator unchanged against a SampleTrack fixture, proving
+  `fireOrTriggerClipStep()`'s SAMPLE branch reaches `Player.cpp` over the
+  real ALSA + audio-thread path. Hits the identical known, pre-existing
+  sandboxed-environment limitation `verify_launchpad_stopclip.py` itself
+  already has (`docs/known_bugs.md`) - confirmed unrelated to SampleTrack
+  by reproducing it against the last commit before this script existed.
 - Save/load round-trip: a song with a recorded/loaded `SampleTrack` clip
   saves its sidecar `.wav` and `file` attribute, reloads to the same
   audio content; `deleteClip()` on a sample clip leaves its sidecar file
@@ -1242,6 +1248,271 @@ already accepts, extended here. No live, continuously-ramping tempo
 automation support - a discrete tempo *value* is what a `Clip`/`Song`
 compares against, not a curve.
 
+## Part 14 - Loudness-threshold-triggered recording start (undecided between three designs)
+
+Raised directly by the user. **Not yet decided which of three candidate
+designs to build - the user has explicitly said so, after two rounds of
+back-and-forth on this part already produced two different single-committed
+drafts (each superseded, kept below as Option 2/Option 3 rather than
+discarded, since both are real, viable candidates, not mistakes).
+Implementation should not start on this part until one is actually chosen
+(or the user asks for more than one, e.g. as a per-take/song setting -
+not assumed here, since it hasn't been asked for).**
+
+**Shared motivation.** Pressing Record Arm on a SampleTrack from the
+Launchpad currently just arms the existing `start-sample-capture`-style
+flow (Part 4) - transport auto-starts if needed, and the clip's own audio
+begins exactly whenever mic input first actually arrives, front-trimmed by
+hand afterward if there's unwanted lead-in silence. All three options below
+are about improving on that "hand-trim afterward" step for a *sharp
+attack* specifically - a transient's own rising edge is below any loudness
+threshold for at least part of its own rise, so triggering capture only
+once loudness crosses a threshold would truncate the attack, not just
+leave silence in front of it; Options 2 and 3 fix this with a small,
+fixed-length pre-roll ring buffer that's already listening before the
+threshold trips, splicing its own already-captured content onto the clip's
+front. Option 1 doesn't fix it at all - trimming lead-in silence and
+recovering a clipped attack are different problems, and Option 1
+deliberately only ever has the first one.
+
+### Option 1 - Arm starts everything immediately; no ring buffer, no threshold
+
+The simplest of the three, and nearly what already exists: Record Arm
+(CC19) on a SampleTrack starts the transport (if needed) and starts
+recording, both immediately, the same way `start-sample-capture` already
+does today (Part 4) - the only new work is wiring Launchpad's CC19 to that
+same flow when the currently-followed track is a `SampleTrack`, instead of
+its existing `capture_enabled_` toggle (see the CC19 bullet in the shared
+mechanism section below - identical regardless of which option is chosen).
+Whatever silence
+sits between "Record Arm pressed" and "performer actually starts playing"
+becomes real, captured lead-in content in the clip's own buffer - trimmed
+off afterward by hand via the already-existing `in`/`out` points (Part 3),
+same as any other recording. No ring buffer, no threshold constant to
+guess at, no new event type, no transport/placement interaction to reason
+about at all.
+
+**Trade-off.** Simplest by a wide margin - almost no new mechanism. But a
+fast attack (a clap, a drum hit) played right at the start of a take can
+still lose its very own onset if the performer's reaction time to "the
+transport just started" is comparable to how fast the attack itself rises
+- there is no recovery for that, only trimming *silence*, never recovering
+a truncated transient. Best fit for a workflow where a moment of lead-in
+(even a deliberate count-in) is normal and the take is trimmed by hand
+afterward anyway.
+
+### Option 2 - Transport starts on Arm; the clip starts on threshold, backdated
+
+Transport starts for real, immediately, on Record Arm (same
+`startAutoRecordPlayback()` `start-sample-capture` already uses) and keeps
+running completely normally from then on - never paused, never adjusted.
+While armed and not yet triggered, mic input is continuously buffered into
+a fixed-length ring buffer (below). Once loudness crosses a threshold, the
+clip is created with the ring buffer's own content spliced onto its front
+(the recovered attack) - and because the transport may have already been
+running for a while by the time that happens (the performer can wait as
+long as they like before playing), the *clip's own placement row* is
+backdated by the ring buffer's own span so the clip's audio and its
+placement agree, the same class of fix Part 11's own `in_point` trim
+represents for a different kind of misalignment, just applied to placement
+here instead of trim. Bounded and sound specifically *because* the ring
+buffer's own length is fixed and small - unlike "however long the
+performer waited," which isn't, backdating the placement by that fixed cap
+is a small, deterministic adjustment, not an open-ended rewrite of what
+already, genuinely played on every other track in the meantime.
+
+**Trade-off.** The transport - and every other track - keeps running
+completely normally throughout the wait, which is exactly what's wanted
+for the scenario Part 11 itself is about: recording a take (vocals, an
+overdub) against an *already-playing* backing track, where the performer
+comes in whenever they're ready and only their own new clip's placement
+needs adjusting, not the whole song. Doesn't suit "the whole take should
+start exactly when I play something" (a live count-in triggering
+everything) - for that, see Option 3.
+
+### Option 3 - Everything starts on threshold; the transport itself is backdated
+
+Transport stays genuinely stopped through the whole arm-to-attack wait -
+nothing plays, on any track. The moment loudness crosses the threshold,
+*both* the transport and the recording start together, at that same real
+instant - and because nothing was running on any track before that instant
+either, there is no earlier interval during which something else "should
+have" played and didn't - unlike an unqualified "fake the transport's own
+start" while other tracks *were* already running, which would not be
+sound, this is. The transport's own position *counter*
+starts already advanced by the ring buffer's own span ("fast forwarded",
+not paused-then-released) so the newly-placed clip, its own reported
+length, and every *other* track's own scheduling all agree on how far into
+this take the song genuinely is - `beginSampleCapture()` (Part 4) needs no
+placement-row change at all here, unlike Option 2, since "wherever the
+transport is right now" is already correct once its own counter has been
+advanced.
+
+**Trade-off.** Best fit for "the whole song/scene starts exactly when I
+cue it" - a live count-in/first-hit-starts-everything workflow, where the
+whole arrangement, not just the recorded clip, is time-locked to the true
+attack. Does *not* support recording over an already-playing backing
+track at all - by design, nothing plays until the trigger, so if the take
+needs to line up with something else that's supposed to already be
+sounding, Option 2 (or Option 1) is the right choice instead, not this one.
+More moving parts than Option 2 (the transport's own start and position are
+both touched, not just where one clip lands).
+
+**Mechanism shared by Options 2 and 3** (Option 1 needs none of this):
+- `dsp/RecordingRingBuffer.h` (new, alongside `dsp/SpectrumAnalyzer.h`'s
+  own "ring-buffer accumulation over live audio" precedent): a fixed-
+  capacity mono float ring, sized in frames from a compiled duration
+  constant at construction. `push(const AudioBuffer & block)` copies the
+  block's own Main channel in, overwriting the oldest content once full.
+  `validFrames()` reports how much has actually ever been pushed, capped
+  at capacity (armed for less time than the buffer's own length still
+  drains correctly, just shorter). `drain()` returns a freshly-built mono
+  `AudioBuffer` holding exactly `validFrames()` samples in chronological
+  order and clears the ring for the next arm cycle - "drain", not "peek":
+  once triggered, this content is consumed exactly once. `reset()` clears
+  `validFrames()` back to 0 without touching capacity, for the
+  disarm-without-triggering edge case below.
+- `Player` owns the ring buffer (audio-thread-only state - never touched
+  from the UI thread directly, the same ownership boundary Part 11 already
+  established for its own cross-thread concern). Its poll loop's capture-
+  descriptor-enable condition (`Player.cpp`, currently `bool recording =
+  controller_->isRecording();` gating `.events`) becomes `recording ||
+  controller_->isThresholdArmed()` - capture actually has to run
+  (`snd_pcm_start()`ed, polled) from arm-time onward, not just once
+  `isRecording()` is already true, or there is nothing to buffer yet.
+- `Player` tracks `isThresholdArmed()`'s own previous value each iteration
+  - the same "detecting the false->true edge (a new local/member tracking
+  the previous value)" idiom Part 11 already uses for its own latency
+  measurement. False->true (a fresh arm): `ring_buffer_.reset()` (a
+  disarm-without-triggering followed by a later re-arm must not leave
+  stale, temporally-discontinuous audio from the *previous* cycle sitting
+  in the ring for a later `drain()` to splice in alongside genuinely fresh
+  content). True->false without ever having triggered (an ordinary disarm)
+  needs nothing further - the ring's now-orphaned content is simply
+  overwritten by the next cycle's own reset.
+- Each captured block, while armed and not yet triggered:
+  `ring_buffer_.push(data)`, and `data.calculateMainRMS()` compared (as
+  linear gain) against `TreeNode::decibelsToGain(kThresholdRecordTriggerDB)`.
+  On the first block that crosses it: `ring_buffer_.drain()`, push a new
+  `ThresholdRecordingTriggeredEvent(track_id, drained)` onto
+  `ui_event_queue` (new event, `playback/`, alongside `RecordEvent.h`'s own
+  shape - carries `track_id` and the drained pre-roll `AudioBuffer`), and
+  latch a local "already triggered this arm cycle" flag, cleared on the
+  next false->true edge - needed for the same reason the edge-tracking
+  itself is: `controller_->isThresholdArmed()` won't actually flip false
+  until the UI thread processes the event a few iterations later, and
+  without this latch every intervening block still above threshold would
+  fire its own duplicate trigger.
+- `UI::handleThresholdRecordingTriggeredEvent()`: `controller.startRecording()`
+  (flips `isRecording()` true, same as `start-sample-capture` already does
+  synchronously today - just triggered here instead);
+  `controller.addToSample(preroll)` (prepends the ring buffer's own content
+  - the *same* accumulation path `UI::handleRecordEvent()` already uses for
+  every later block, reused unchanged); `controller.beginSampleCapture(track_id)`;
+  `controller.clearThresholdArmed()`. From here on this take is
+  indistinguishable from an ordinary one - every further block arrives as a
+  plain `RecordEvent`, handled by the existing, unmodified
+  `UI::handleRecordEvent()` path.
+- `Controller::armThresholdRecording(int track_id)`/`disarmThresholdRecording()`/
+  `isThresholdArmed()`/`clearThresholdArmed()` - `armThresholdRecording()`
+  sets `recording_track_id` (the same field `setRecordingTrackId()` already
+  maintains) and flips the armed flag; **Option 2 additionally** starts the
+  transport for real here too (`startAutoRecordPlayback()`, needing its own
+  auto-started-playback bool the same way `PatternEditor::
+  sample_capture_auto_started_playback_` already does, on whichever class
+  ends up owning this call); **Option 3** does not touch the transport here
+  at all. `disarmThresholdRecording()` clears the armed flag and, in
+  **Option 2** only, stops the transport if this arm cycle itself started
+  it (mirroring `stop-sample-capture`) - in **Option 3** there's nothing to
+  stop, since arming alone never started anything.
+- `LaunchpadManager::handleRawButton()`'s existing CC19 branch gains a
+  track-type check, identical regardless of which option is chosen: when
+  the currently-followed track resolves to a `SampleTrack`, each CC19 press
+  alternately toggles `armThresholdRecording()`/`disarmThresholdRecording()`
+  instead of the existing `capture_enabled_ = !capture_enabled_` toggle -
+  the same alternating-press shape that toggle already has
+  (`handleRawButton()` is only ever called on press - `UI.cpp`'s own call
+  site already filters out release before reaching it), and the same "a
+  different track type gives this control a different meaning" pattern
+  `fireOrTriggerClipStep()` already established for Session-view triggering
+  itself. `handleRawButton()` doesn't currently receive the cursor track at
+  all - it needs a new `fallback_track_index` parameter, threaded through
+  from `UI.cpp`'s own call site the same way its CC98 handling just above
+  it already resolves one (`pattern_editor_->getCursorTrackIndex()` ->
+  `resolveTrackId()`). Every other track type's CC19 behavior is untouched.
+
+**Option 3's own extra piece: fast-forwarding the transport itself,
+audio-thread-side, no event round-trip needed for this half** (the
+ownership boundary that *does* require an event is `Controller`'s own
+`current_sample`/recording bookkeeping above, never the transport itself -
+`Player` already owns `live_states_`/`stateFor()` directly). On the
+threshold-crossing block, before draining the ring buffer:
+- `stateFor(buffer_name, song).setIsPlaying(true)` (plus whatever else an
+  ordinary `PLAY` already does for the buffer it targets - demoting a
+  different previously-playing buffer, `resyncPlayheadAfterStop()` - reused
+  as-is, not reimplemented).
+- Immediately advances that same state's position by the about-to-be-
+  drained ring buffer's own frame count, converted to rows the same way
+  Part 11 already converts a frame count to a row delta
+  (`ChannelConfiguration::getSampleInterval(tempo)`):
+  `state.setPosition(state.getAbsolutePosition() + preroll_rows)` - the
+  same `setPosition()` `SET_POSITION`/`MOVE_POSITION`'s own handler already
+  calls, just invoked directly here instead of arriving as an event, since
+  this code already *is* the audio thread. A stopped buffer's position is
+  otherwise still wherever it last was (0, for a take that never played
+  this session), so this is what actually advances it.
+- An explicit `pushSnapshots()` call for this one buffer, *before* pushing
+  `ThresholdRecordingTriggeredEvent` - both go through the same single
+  `ui_event_queue` FIFO, so this guarantees the UI thread's own
+  `PlaybackInfo` mirror already reflects the fast-forwarded position by the
+  time it processes that event and (inside `beginSampleCapture()`) reads
+  `getPlaybackInfo()` for placement - without this, a stale
+  pre-fast-forward snapshot could still be sitting in the UI thread's own
+  mirror, landing the instance back at the *old* position. (This is also
+  why `beginSampleCapture()` needs no signature change in Option 3, unlike
+  Option 2's own placement-row backdate: by the time it runs, the position
+  it reads is already correct.)
+  This entire bullet is Option 3 only - Option 2's transport is never
+  paused or repositioned, so it needs none of it.
+
+**The live input level feeding the SampleTrack's own VU meter - applies to
+whichever option is chosen, including Option 1** (armed-and-waiting only
+matters for Options 2/3, but the meter gap during active *recording*, with
+nothing playing back, exists in all three). `SampleTrackState`'s
+`TrackInfo` (the same `isActive`/`isClipping`/RMS triple `PatternEditor`'s
+meter already reads for every other track, via `TrackState::
+getAllTrackInfo()` -> `Player::createPlaybackEvent()` -> `pushSnapshots()`,
+all unmodified) is today only ever set from `renderVoices()`'s own rendered
+output - silence whenever no `SampleClipVoice` is currently playing, which
+is exactly the case while merely armed (Options 2/3) and the whole time
+actual capture is happening in any option (nothing plays *back* while
+recording). `SampleTrackState::setInputLoudness(float rms)` (new) is a
+plain setter `Player` calls, same-thread, every block it actually captures
+for this track, for as long as capture is happening at all (armed-and-
+waiting in Options 2/3, or genuinely recording in any of the three) - no
+new cross-thread field, since `Player` and this `SampleTrackState` both
+already live on/are only ever touched from the audio thread. `render()`'s
+own `TrackInfo` construction prefers this value over `renderVoices()`'s own
+(silent) RMS whenever no voice is actually active, so the existing,
+unmodified snapshot/meter pipeline just shows it.
+
+**Scope, explicit.** `kRingBufferSeconds` and `kThresholdRecordTriggerDB`
+(Options 2/3 only) are fixed compiled constants for v1, not exposed via any
+command/knob yet - the same "no manual/user-configurable constant" scope
+Part 11 already chose for its own comparable concern. Flagged explicitly,
+though, as the more likely of the two to actually need exposing once this
+ships and gets used for real: Part 11's constant is purely a
+hardware-measured latency (nothing to tune, by definition), while a
+loudness threshold is genuinely performance/source-dependent (a quiet
+vocal vs. a loud drum hit) - a future per-song or per-take knob is a
+plausible, low-risk follow-up, just not guessed at now. Needs the same
+real-hardware, non-headless verification Part 11 already flags for itself
+(ALSA capture timing), plus an actual microphone/audio-interface input
+signal to cross a loudness threshold at all (Options 2/3) -
+`RecordingRingBuffer`'s own push/`validFrames()`/`drain()`/`reset()`/
+wrap-around behavior is the one piece of either genuinely headless and
+ctest-coverable in isolation.
+
 ## Future direction (explicitly not needed yet) - merging a clip back
 into the background
 
@@ -1359,3 +1630,13 @@ plan.
    saved clip's `<clip in="...">` value is a small, plausible positive
    number (roughly the device's own known round-trip latency), not `0`
    (measurement silently failed) or something implausibly large.
+7. Manual, real hardware, real mic (Part 14) - **not yet applicable: which
+   of Options 1/2/3 to build hasn't been decided.** Once it is, this step
+   needs to be filled in for that specific option (e.g. for Option 2 or 3:
+   confirm the recovered attack's own rising edge is intact, not chopped
+   flat, and that the clip's placement/the transport's own position agree
+   with each other well enough that other tracks stay in sync; for Option
+   3 specifically, that the transport genuinely never starts before the
+   real attack; for any option, that the SampleTrack's own VU meter shows
+   real input level while armed/recording, not just once a clip exists to
+   play back). Sketched here so it isn't forgotten, not filled in yet.

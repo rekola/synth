@@ -224,6 +224,25 @@ TEST(render_active_instance_plays_its_own_content) {
   CHECK(rms(result, 0) > 1e-4f);
 }
 
+// SampleTrack's own clip-instance path: SongState.h's clip-transition
+// detection calls SampleTrackState::triggerClip() directly (never
+// noteOn()/getLeafPattern()), so this exercises a genuinely different
+// code path from the note-based instance tests just above, not just a
+// different fixture. Fixture: a one-shot (loop="0") clip referencing an
+// 0.05s, 8kHz sidecar tone triggered at row 0, tempo 120.
+TEST(render_sample_track_clip_instance_plays_its_own_audio) {
+  auto loaded = loadFixture("sample_track_clip.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(8000); // matches the fixture .wav's own native rate - no resampling
+  auto result = renderSongOffline(loaded.song, config);
+
+  CHECK(result.numberOfFrames() > 0);
+  CHECK(!hasNonFiniteSample(result));
+  CHECK(windowedRms(result, 0, 0.0f, 0.04f) > 1e-3f); // the tone is sounding
+  CHECK(windowedRms(result, 0, 0.5f, 1.0f) < 1e-4f); // one-shot - silent well after its own 0.05s length, not looping
+}
+
 // An explicit stop instance (Scene::kStopInstance, ArrangementOps.h's own
 // placeStopInstance()) placed after a *looping* clip's own trigger must
 // actually silence it going forward - SongState::renderBlock()'s own
