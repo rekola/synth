@@ -2356,10 +2356,11 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    // by track type (has_meter), not by whether TrackInfo actually
 	    // has a reading yet, so the name's own width stays stable across
 	    // the moment playback starts instead of jumping once a first
-	    // meter value arrives. SAMPLE is the one leaf type with no
-	    // InstrumentTrackState behind it yet (see SampleTrack.h) -
-	    // nothing to meter there.
-	    bool has_meter = track->getType() != TrackType::SAMPLE;
+	    // meter value arrives. Every leaf track type gets one now -
+	    // SampleTrackState inherits InstrumentTrackState::render()
+	    // unchanged, which already populates TrackInfo's RMS/clipping
+	    // fields the same way any other leaf track's does.
+	    bool has_meter = true;
 	    constexpr int kMinNameWidth = 3;
 	    int meter_width = has_meter && instrument_name_width > kMinNameWidth ? 1 : 0;
 	    instrument_name_width -= meter_width;
@@ -2705,8 +2706,16 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // character for the shared trailing "│" this k-loop draws once
 	  // it's done (further down), rather than drawing it itself.
 	  auto width = std::max(track_info.getTrackWidth() - 1, 1);
-	  bool defined = k < static_cast<int>(notes.size()) && notes[static_cast<size_t>(k)].isDefined();
-	  putstr(display_row, current_pos, std::string(static_cast<size_t>(width), defined ? 'x' : ' '));
+	  putstr(display_row, current_pos, std::string(static_cast<size_t>(width), read_target.is_instance ? 'x' : ' '));
+	  // Leading row of an active instance gets its own hex digit, same
+	  // convention (and same clip_digit()) the collapsed branch above
+	  // uses - which clip is playing here, not just that one is.
+	  bool is_leading_row = read_target.is_instance && read_target.unwrapped_row == 0;
+	  if (width > 0 && is_leading_row) {
+	    setFgColor(Color(0xff, 0xff, 0xff));
+	    putstr(display_row, current_pos, clip_digit(read_target.clip_index));
+	    setFgColor(cell_fg);
+	  }
 	  current_pos += width;
 	} else if (column_type == ColumnType::EFFECT) {
 	  // Falls back to cur_fg (the region's own dark foreground) when

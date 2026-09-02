@@ -719,7 +719,11 @@ clip's audio.
 - `ArrangementGrid` and Session view's own pad coloring are expected to
   need no change (both already resolve purely from `clip_index`/
   `color_ordinal_`, never Pattern content) - confirm during implementation
-  rather than assuming.
+  rather than assuming. Confirmed: `ArrangementGrid.cpp` has no Pattern-
+  content dependency in its rendering at all, and Session view's own
+  `session_colors` computation (`LaunchpadManager.cpp`) keys entirely off
+  `resolveInstanceAt()`'s `clip_index` plus each track's own hue identity -
+  neither needed any change.
 
 ## Part 9 - Tests
 
