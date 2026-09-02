@@ -268,6 +268,15 @@ protected:
   int last_cleared_row_ = -1;
   int last_cleared_pattern_idx_ = -1;
 
+  // start-sample-capture/stop-sample-capture's own auto_started_playback_
+  // sibling - same shape, same reasoning, but never shared with the one
+  // above: a mic-capture take doesn't mute the song's own pattern
+  // playback the way realtime note recording does (Controller::
+  // startAutoRecordPlayback(), not startAutoRecordSession() - see
+  // start-sample-capture's own comment), so it needs its own independent
+  // "did *this* command start the transport" flag.
+  bool sample_capture_auto_started_playback_ = false;
+
   // Emacs-style mark/point selection: the mark is recorded here at C-SPC
   // time, the point is always "wherever the cursor/row currently is" (see
   // getController().getPlaybackInfo() and current_cursor.track), so normal

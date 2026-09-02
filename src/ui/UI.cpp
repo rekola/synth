@@ -734,9 +734,13 @@ UI::handlePlaybackEvent(PlaybackEvent & ev) {
 
   // Same union-of-input-sources reasoning as the two calls above - scene
   // growth isn't tied to which one is actually recording, so it isn't
-  // folded into either's own onRowAdvanced().
+  // folded into either's own onRowAdvanced(). isRecording() (mic capture
+  // into a SampleTrack clip) is a third, independent input source that
+  // needs the same growth - it never touches PatternEditor's/
+  // LaunchpadManager's own isAutoRecording() flags at all.
   bool recording = (launchpad_manager_ && launchpad_manager_->isAutoRecording()) ||
-                    (pattern_editor_ && pattern_editor_->isAutoRecording());
+                    (pattern_editor_ && pattern_editor_->isAutoRecording()) ||
+                    getController().isRecording();
   getController().extendRecordingSceneIfNeeded(recording);
 
   ev.redraw();
@@ -839,10 +843,11 @@ UI::handleRecordEvent(RecordEvent & ev) {
   if (getController().isRecording()) {
     setStatus(format("recorded {} frames", ev.getData().size()));
     getController().addToSample(ev.getData());
-    auto & song = getController().getSong();
-    auto & info = getController().getPlaybackInfo();
-    auto & scene = song.getScene(info.getPatternIndex());
-    scene.setNote(info.getRowIndex(), getController().getRecordingTrackId(), 0, Note(1));
+    // Lazily, exactly once per take: the first real audio actually
+    // captured is what makes a clip worth creating at all (Controller::
+    // beginSampleCapture()'s own doc comment on why this isn't done any
+    // earlier, e.g. synchronously at start-sample-capture itself).
+    if (!getController().hasRecordingClip()) getController().beginSampleCapture(getController().getRecordingTrackId());
   }
 }
 

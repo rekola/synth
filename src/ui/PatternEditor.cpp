@@ -569,33 +569,63 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   });
 
   // Promoted from the raw Ctrl-R handler, minus its old "reuse the
-  // current track if it's already a SampleTrack" branch - there's no
-  // reliable signal anywhere for "still the same take" vs. "an old,
-  // already-established sample track the cursor happens to be on again"
-  // (Controller::stopRecording()/current_sample has no notion of a
-  // recording session ending), so that branch either clobbered old
-  // recordings or, once narrowed to "still the active recording target"
-  // (getRecordingTrackId(), which never resets either), was effectively
-  // always true anyway - neither actually gave "add a sibling" a way to
-  // fire. Always creates a fresh sibling now, same as every other "add a
-  // track" command, and moves the cursor onto it.
-  commands_.define("add-sample-track", [this]() {
+  // current track if it's already a SampleTrack" branch and its old
+  // startRecording()/setRecordingTrackId() wiring - creating a
+  // SampleTrack and starting a take into one are now two separate
+  // actions (start-sample-capture/stop-sample-capture), so this is a
+  // plain "add a sibling track" command, matching add-instrument-track
+  // exactly.
+  commands_.define("add-sample-track", [this, current_track_id]() {
+    auto & song = getController().getSong();
+    song.addTrack(make_unique<SampleTrack>(), current_track_id());
+  });
+
+  // Starts a mic-capture take, targeting a SampleTrack automatically - no
+  // separate add-sample-track step required (reuses the cursor's own
+  // SampleTrack if it's already on one, otherwise creates a fresh sibling
+  // exactly the way add-sample-track above does). Also starts the
+  // transport if it isn't already running (Controller::
+  // startAutoRecordPlayback(), not startAutoRecordSession() - see this
+  // method's own doc comment on Controller.h for why that one, not its
+  // mute-the-song sibling). The Clip itself isn't created here at all -
+  // Controller::beginSampleCapture() does that lazily, the first time
+  // real audio actually arrives (UI::handleRecordEvent()) - see its own
+  // doc comment for why.
+  commands_.define("start-sample-capture", [this, current_track_id]() {
     auto & song = getController().getSong();
     auto track_ids = song.getRootTrackIds();
-    auto current_track = current_cursor.track < static_cast<int>(track_ids.size()) ?
+    auto current_track = current_cursor.track >= 0 && current_cursor.track < static_cast<int>(track_ids.size()) ?
       song.getMasterTrack().getChildByInternalId(track_ids[static_cast<size_t>(current_cursor.track)]) : nullptr;
 
-    auto sample = getController().startRecording();
-    auto & track = song.addTrack(make_unique<SampleTrack>(sample), current_track ? current_track->getInternalId() : -1);
-    auto track_id = track.getInternalId();
-    // Landed next to the current selection, not necessarily at the end -
-    // re-resolve its actual column rather than assuming it.
-    auto new_track_ids = song.getRootTrackIds();
-    auto it = find(new_track_ids.begin(), new_track_ids.end(), track_id);
-    if (it != new_track_ids.end()) new_cursor.track = static_cast<int>(it - new_track_ids.begin());
+    int track_id;
+    if (current_track && current_track->getType() == TrackType::SAMPLE) {
+      track_id = current_track->getInternalId();
+    } else {
+      auto & track = song.addTrack(make_unique<SampleTrack>(), current_track_id());
+      track_id = track.getInternalId();
+    }
 
+    getController().startRecording();
     getController().setRecordingTrackId(track_id);
-    song.incVersion();
+
+    if (!getController().getPlaybackInfo().isPlaying()) {
+      getController().startAutoRecordPlayback(sample_capture_auto_started_playback_);
+    } else {
+      sample_capture_auto_started_playback_ = false;
+    }
+  });
+
+  // Ends the take start-sample-capture began - Controller::
+  // finishSampleCapture() does the actual clip-finalizing/cleanup (see
+  // its own doc comment); this command's own job is just the transport
+  // side, stopping playback again if (and only if) this same take was
+  // the one that started it.
+  commands_.define("stop-sample-capture", [this]() {
+    getController().finishSampleCapture();
+    if (sample_capture_auto_started_playback_) {
+      getController().togglePlaying();
+      sample_capture_auto_started_playback_ = false;
+    }
   });
 
   // Create-fresh only - no "convert an existing track" path exists,

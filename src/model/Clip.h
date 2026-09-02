@@ -3,7 +3,9 @@
 
 #include "Pattern.h"
 #include "SongObject.h"
+#include "SampleContent.h"
 
+#include <memory>
 #include <unordered_map>
 
 // A reusable, shareable unit of musical content, keyed by track_id - one
@@ -13,6 +15,14 @@
 // alongside the leaf track's own content at creation time, would just be
 // another entry in the same map, without needing to change this class's
 // own shape.
+//
+// A clip belonging to a SampleTrack carries raw audio instead of Pattern
+// content - see getSampleContent()/hasSample() below - via a
+// SampleContent child (SampleContent.h), the sample-content sibling of
+// patterns_by_track_ above; mixing note-automation content with sample
+// content on one clip isn't supported. Exclusively owned (unique_ptr) -
+// unlike SampleContent's own buffer, nothing outside a Clip ever needs to
+// keep a SampleContent itself alive independently.
 //
 // Distinct from a Scene's own inline Pattern in one crucial way: a clip
 // is a single shared object that can be placed at more than one position
@@ -65,6 +75,19 @@ class Clip : public SongObject {
   bool isLooping() const { return loop_; }
   void setLooping(bool loop) { loop_ = loop; }
 
+  // Audio content for a SampleTrack's own clip - see SampleContent.h.
+  // nullptr (the default) for every other track type's clip.
+  bool hasSample() const { return sample_content_ != nullptr && sample_content_->getBuffer() != nullptr; }
+  const SampleContent * getSampleContent() const { return sample_content_.get(); }
+  SampleContent * getSampleContent() { return sample_content_.get(); }
+  // Creates one on first use (a fresh Clip has none) - the one write path
+  // in, e.g. Controller::finishSampleCapture()'s
+  // getOrCreateSampleContent().setBuffer(...).
+  SampleContent & getOrCreateSampleContent() {
+    if (!sample_content_) sample_content_ = std::make_unique<SampleContent>();
+    return *sample_content_;
+  }
+
   // getId()/setId() (inherited from SongObject, same field a track's own
   // id uses - unlike Pattern, which leaves it unused) are this class's
   // own stable identity - alphanumeric, assigned once by Song::addClip()
@@ -82,7 +105,13 @@ class Clip : public SongObject {
   // afterward.
 
   // Reads/writes id_/name_ (via the SongObject base)/loop_/length_
-  // (<clip id="..." name="..." loop="..." length="...">).
+  // (<clip id="..." name="..." loop="..." length="...">). Neither a
+  // sample clip's own nested <sample> child (SampleContent's own
+  // in/out/originalTempo, plus its `file` reference) nor a note clip's
+  // own <pattern> child are read/written here - both need more than a
+  // flat attribute source (disk I/O and the song's own directory, for
+  // <sample>; a separate element entirely, for <pattern>) - Song.cpp's
+  // clip reader/writer handles both directly.
   void loadParameters(const ParameterSource & input) override {
     SongObject::loadParameters(input);
     setLooping(input.get<bool>("loop", true));
@@ -98,6 +127,7 @@ class Clip : public SongObject {
  private:
   int leaf_track_id_;
   std::unordered_map<int, Pattern> patterns_by_track_;
+  std::unique_ptr<SampleContent> sample_content_;
   bool loop_ = true;
   int length_ = 0;
 };

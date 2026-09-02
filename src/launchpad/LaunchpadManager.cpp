@@ -368,6 +368,27 @@ namespace {
     // itself from the raw midi_note value this pushes.
     (void)tuning;
   }
+
+  // fireClipStep()'s own dispatch, generalized over track type - a
+  // SampleTrack's own clip is raw audio, not a Pattern of notes, so it's
+  // fired once per loop iteration (or once, for a one-shot) via
+  // PlaybackControlEvent::PLAY_SAMPLE_CLIP instead of per-row PLAY_NOTE
+  // events; `step % length == 0` catches both the very first launch
+  // (`step` == 0) and every later loop repeat in one condition. Every
+  // other track type is unaffected - same fireClipStep() call as before.
+  void fireOrTriggerClipStep(const Song & song, Controller & controller, int track_id, int clip_index, const Clip & clip, int length, int step) {
+    auto track = song.getMasterTrack().getChildByInternalId(track_id);
+    if (!track) return;
+
+    if (track->getType() == TrackType::SAMPLE) {
+      if (step % length == 0) {
+        controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_SAMPLE_CLIP, controller.getActiveBufferName(), track_id, clip_index));
+      }
+      return;
+    }
+
+    fireClipStep(song, controller, track_id, clip.getLeafPattern(), length, step);
+  }
 }
 
 int
@@ -1226,7 +1247,7 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
       if (audition_clock_.isRunning()) {
         auto & launched_clip = clips[static_cast<size_t>(clip_index)];
         auto launched_length = launched_clip.getLength() > 0 ? launched_clip.getLength() : 1;
-        fireClipStep(song, controller, track_id, launched_clip.getLeafPattern(), launched_length, 0);
+        fireOrTriggerClipStep(song, controller, track_id, clip_index, launched_clip, launched_length, 0);
       }
     } else {
       queued_pattern_by_track_[track_id] = clip_index;
@@ -1391,7 +1412,7 @@ LaunchpadManager::triggerClipStep(const Song & song, Controller & controller, in
       triggered_pattern_by_track_.erase(track_id);
       continue;
     }
-    fireClipStep(song, controller, track_id, clip.getLeafPattern(), length, relative_step);
+    fireOrTriggerClipStep(song, controller, track_id, clip_index, clip, length, relative_step);
   }
 
   // Once nothing anywhere is triggered or pending, "beat 1" no longer

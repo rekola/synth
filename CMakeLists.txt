@@ -59,7 +59,6 @@ endif()
 add_library(synth_engine STATIC
 	src/instruments/Oscillator.cpp
 	src/instruments/Noise.cpp
-	src/instruments/FileInstrument.cpp
 	src/Controller.cpp
 	src/ui/InstrumentList.cpp
 	src/instruments/SoundFont.cpp
@@ -100,6 +99,7 @@ add_library(synth_engine STATIC
 	src/state/ArpeggiatorState.cpp
 	src/instruments/LFO.cpp
 	src/audio/OfflineRenderer.cpp
+	src/audio/SampleFileLoader.cpp
 	src/ui/PatternBlockOps.cpp
 	src/model/ArrangementOps.cpp
 	src/ui/PatternScroll.cpp
@@ -107,6 +107,8 @@ add_library(synth_engine STATIC
 	src/launchpad/LaunchpadProtocol.cpp
 	src/instruments/DrumRankTable.cpp
 	src/model/DrumMachineTrack.cpp
+	src/model/SampleTrack.cpp
+	src/model/SampleContent.cpp
 	src/ambisonic/MixerFactory.cpp
 	src/util/Utf8.cpp
 )

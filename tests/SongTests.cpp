@@ -685,7 +685,7 @@ TEST(add_track_after_an_unresolvable_id_falls_back_to_appending) {
 
 TEST(add_track_after_a_sample_track_inserts_right_after_it) {
   Song song;
-  auto & sample = song.addTrack(make_unique<SampleTrack>(nullptr));
+  auto & sample = song.addTrack(make_unique<SampleTrack>());
   auto & sibling = song.addTrack(make_unique<InstrumentTrack>(0), sample.getInternalId());
 
   auto & children = song.getMasterTrack().getChildren();

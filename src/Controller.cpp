@@ -4,7 +4,9 @@
 #include "model/LeafTrack.h"
 #include "model/InstrumentTrack.h"
 #include "model/ArrangementOps.h"
+#include "model/Clip.h"
 #include "playback/PlaybackControlEvent.h"
+#include "playback/LogEvent.h"
 
 #include <algorithm>
 #include <cassert>
@@ -884,4 +886,71 @@ Controller::applyNotePressure(int pattern_idx, int row, int track_id, int note_c
   if (!note.isDefined()) note.setDelay(delay);
   note.setVelocity(velocity);
   target.pattern->setNote(target.effective_row, note_column, note);
+}
+
+void
+Controller::beginSampleCapture(int track_id) {
+  auto song = getCurrentSong();
+  if (!song || !current_sample || current_sample->numberOfFrames() == 0) return;
+
+  Clip clip(track_id);
+  auto & content = clip.getOrCreateSampleContent();
+  // The *same* shared_ptr startRecording() already handed out, not a
+  // copy - every later addToSample() call (mutating *current_sample in
+  // place via AudioBuffer::append()) is visible through this clip's own
+  // SampleContent automatically, ordinary shared_ptr aliasing giving
+  // "live" sharing for free.
+  content.setBuffer(current_sample);
+  content.setOriginalTempo(song->getTempo());
+  content.setNativeSampleRate(channel_config.getAudioOutSampleRate());
+  clip.setName(fmt::format("Take {}", song->getClips(track_id).size() + 1));
+  // No length yet - Clip.h's own "0 means not given one" convention; the
+  // real, final duration isn't known until finishSampleCapture().
+
+  auto & added = song->addClip(std::move(clip));
+  recording_clip_id_ = added.getId();
+
+  // Placed immediately if the transport is playing - correct by
+  // construction, nothing to compute: wherever the transport genuinely is
+  // right now is where this take starts. A freeform take (transport
+  // stopped) stays unplaced - still a real, visible clip (Session view/
+  // ArrangementGrid), just not an arrangement instance anywhere yet.
+  auto & info = getPlaybackInfo();
+  if (info.isPlaying()) {
+    auto & scene = song->getOrCreateScene(info.getPatternIndex());
+    auto & clips = song->getClips(track_id);
+    auto clip_index = static_cast<int>(clips.size()) - 1; // the one just added, always last
+    placeClipInstance(*song, scene, track_id, info.getRowIndex(), clip_index);
+  }
+
+  song->incVersion();
+}
+
+void
+Controller::finishSampleCapture() {
+  // hasRecordingClip() false means beginSampleCapture() was never called
+  // this take at all - no audio ever actually arrived (no capture device
+  // available, or stopped again before a first block landed) - so
+  // there's nothing to finalize or clean up, the plain no-op this always
+  // was before eager (at-start, rather than at-first-real-block) clip
+  // creation was tried and dropped for showing nothing useful anyway.
+  auto song = getCurrentSong();
+  if (song && hasRecordingClip()) {
+    auto track_id = getRecordingTrackId();
+    auto & clips = song->getClips(track_id);
+    for (auto & clip : clips) {
+      if (clip.getId() != recording_clip_id_) continue;
+
+      auto * content = clip.getSampleContent();
+      auto frames = content && content->getBuffer() ? content->getBuffer()->numberOfFrames() : 0;
+      clip.setLength(channel_config.framesToRows(frames, song->getTempo()));
+      auto duration_seconds = static_cast<float>(frames) / static_cast<float>(channel_config.getAudioOutSampleRate());
+      getUIEventQueue().push(make_unique<LogEvent>(fmt::format("recorded {} ({:.1f}s)", clip.getName(), duration_seconds)));
+      song->incVersion();
+      break;
+    }
+  }
+
+  recording_clip_id_.clear();
+  stopRecording();
 }

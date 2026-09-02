@@ -31,8 +31,8 @@ public:
   // do, so they're not threaded through playNote()'s own signature at all.
   // Default: nullptr, meaning "this backend doesn't support generator
   // overrides" - correct for every backend except SoundFontInstrument
-  // today (Oscillator/Noise/LFO/FileInstrument all have nothing that reads
-  // an SF2 generator id in the first place). A nullptr return tells the
+  // today (Oscillator/Noise/LFO all have nothing that reads an SF2
+  // generator id in the first place). A nullptr return tells the
   // caller to keep using the shared instance unchanged, silently ignoring
   // the override - the same "backend ignores what it doesn't handle"
   // contract the override element's own design already commits to.

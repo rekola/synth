@@ -285,6 +285,51 @@ class Controller {
     if (current_sample) current_sample->append(other);
   }
 
+  // Begins a real Clip for the take currently in progress - creates it,
+  // shares its SampleContent buffer with current_sample (so every later
+  // addToSample() call is visible through the clip automatically, no
+  // separate plumbing needed), and places it as an arrangement instance
+  // at the transport's own current position if it's playing. Called
+  // lazily, exactly once per take, by UI::handleRecordEvent() the first
+  // time real audio actually arrives - not synchronously at
+  // start-sample-capture itself: a clip created with a still-empty
+  // (0-frame) buffer would show nothing anyway, so creating it any
+  // earlier than "there is actually something to show" bought no real
+  // visibility benefit, only the risk of leaving a genuinely empty clip
+  // behind if the take turned out to capture nothing at all (no capture
+  // device available, or stopped again before a first block ever
+  // landed). Remembers the new clip's own stable id (recording_clip_id_)
+  // so finishSampleCapture() can find it again by id, never by list
+  // position. A no-op if track_id doesn't resolve or current_sample is
+  // empty (the caller is expected to call addToSample() first - see
+  // UI::handleRecordEvent()).
+  //
+  // Latency-compensated in-point trimming (measuring the real round-trip
+  // output+input delay and baking it into this clip's own in-point before
+  // anyone can see it, rather than starting at 0 and correcting after the
+  // fact) is deliberately not wired up yet - it needs a real ALSA-level
+  // measurement only reachable from the audio thread (AudioAPI::
+  // getPlaybackDelayFrames()/getCaptureDelayFrames(), Player.cpp), a
+  // follow-up on top of this working, simpler pipeline rather than a
+  // prerequisite for it.
+  void beginSampleCapture(int track_id);
+
+  // Whether beginSampleCapture() has already created this take's own
+  // clip - UI::handleRecordEvent()'s own guard against calling it more
+  // than once per take.
+  bool hasRecordingClip() const { return !recording_clip_id_.empty(); }
+
+  // Ends a mic-capture take - stop-sample-capture's own entry point.
+  // Finalizes the clip beginSampleCapture() already created, if any (its
+  // own real length, now that the final frame count is known) - if no
+  // audio ever actually arrived this take, beginSampleCapture() was never
+  // called at all (hasRecordingClip() still false), so there's nothing to
+  // finalize or clean up either, the same "nothing captured, nothing
+  // happens" no-op this had before eager creation was tried and dropped.
+  // Always calls stopRecording() to clear current_sample/
+  // recording_track_id.
+  void finishSampleCapture();
+
   EventQueue & getUIEventQueue() { return ui_event_queue; }
   EventQueue & getPlaybackEventQueue() { return playback_event_queue; }
 
@@ -819,6 +864,11 @@ class Controller {
   // of the per-buffer editing/playback-state plan).
   int local_position_edit_seq_ = 0;
   int recording_track_id = 0;
+  // The clip beginSampleCapture() created for the take in progress -
+  // empty when nothing is being sample-captured right now. Looked up by
+  // stable id (never list position - Song.h's own comment on why) when
+  // finishSampleCapture() needs to find it again.
+  std::string recording_clip_id_;
   // See getGlobalOctave()'s own comment - deliberately global, unlike the
   // per-buffer state above.
   int global_octave_ = 4;

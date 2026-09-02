@@ -79,7 +79,7 @@ TEST(song_structure_baseline_matches_instrument_track_own_column_settings) {
 
 TEST(song_structure_baseline_is_a_single_placeholder_column_for_sample_tracks) {
   Song song;
-  auto & sample = song.addTrack(make_unique<SampleTrack>(nullptr));
+  auto & sample = song.addTrack(make_unique<SampleTrack>());
   SongStructure structure(song);
 
   auto & sample_info = structure.getBaselineInfo(sample.getInternalId());
@@ -114,7 +114,7 @@ TEST(song_structure_gives_every_instrument_track_type_a_color_ordinal) {
   auto & instrument = song.addTrack(make_unique<InstrumentTrack>(0));
   auto & percussion = song.addTrack(make_unique<PercussionTrack>());
   auto & drum = song.addTrack(make_unique<DrumMachineTrack>());
-  auto & sample = song.addTrack(make_unique<SampleTrack>(nullptr));
+  auto & sample = song.addTrack(make_unique<SampleTrack>());
   SongStructure structure(song);
 
   CHECK(structure.getBaselineInfo(instrument.getInternalId()).color_ordinal_ == 0);

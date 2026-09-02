@@ -22,8 +22,8 @@ class Track : public StatefulSongObject {
 
   // The voice-chain counterpart to createState() above - reached only by
   // playNote()'s own default body below, never by createStateTree(). Every
-  // leaf instrument (Oscillator/Noise/LFO/FileInstrument/
-  // SoundFontInstrument/NoteMultiplier/GenericInstrument) overrides
+  // leaf instrument (Oscillator/Noise/LFO/SoundFontInstrument/
+  // NoteMultiplier/GenericInstrument) overrides
   // playNote() itself directly and never reaches this; only Group and the
   // Effect family are genuinely usable both as a persistent track (via
   // createState()/createStateTree()) and inside an instrument definition
@@ -54,8 +54,8 @@ class Track : public StatefulSongObject {
   // real leaf instrument only needs to override this when it actually has
   // a nonzero default (SoundFontInstrument; GenericInstrument forwards to
   // whatever it resolves to). A true leaf with no children (Oscillator,
-  // Noise, LFO, FileInstrument) falls through to 0 - a point source,
-  // unless the artist sets an explicit extent on the track.
+  // Noise, LFO) falls through to 0 - a point source, unless the artist
+  // sets an explicit extent on the track.
   virtual float getDefaultExtent() const {
     return getChildren().empty() ? 0.0f : getChildren()[0]->getDefaultExtent();
   }
@@ -101,9 +101,8 @@ class Track : public StatefulSongObject {
   // recurses into children must forward whatever it received.
   // needs_decorrelation: true only when NoteMultiplier is creating >1
   // simultaneous copy of the same instrument for this note; read only by
-  // sample-playback leaves (SoundFontVoice/FileInstrumentVoice) deciding
-  // whether to delay their start - see SoundFontVoice's own
-  // start_delay_samples_ comment.
+  // sample-playback leaves (SoundFontVoice) deciding whether to delay
+  // their start - see SoundFontVoice's own start_delay_samples_ comment.
   virtual std::unique_ptr<VoiceState> playNote(const ChannelConfiguration & config, const SphericalPosition & position, float frequency, float detune, float velocity, int note_value, const SendLevels & sends, const NoteCoordinate & note_coord = {}, bool needs_decorrelation = false) const {
     auto group = createVoiceState(config);
     auto child_config = getChildChannelConfiguration(config);

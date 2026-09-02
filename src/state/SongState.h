@@ -5,6 +5,7 @@
 #include "../model/ArrangementOps.h"
 #include "TrackState.h"
 #include "InstrumentTrackState.h"
+#include "SampleTrackState.h"
 #include "../instruments/Tuner.h"
 #include "RenderContext.h"
 #include "../model/NoteCoordinate.h"
@@ -197,9 +198,10 @@ class SongState : public TrackState {
 	    // own to rely on at all). Redundant-safe against a clip whose own
 	    // content already ends with an explicit note-off - firing this
 	    // unconditionally costs nothing extra there.
+	    int previous_clip_index = Scene::kNoInstance;
 	    {
 	      auto last_it = last_active_clip_index_by_track_.find(track_id);
-	      auto previous_clip_index = last_it == last_active_clip_index_by_track_.end() ? Scene::kNoInstance : last_it->second;
+	      previous_clip_index = last_it == last_active_clip_index_by_track_.end() ? Scene::kNoInstance : last_it->second;
 	      if (previous_clip_index >= 0 && previous_clip_index != active.clip_index) {
 		auto * track_state = dynamic_cast<InstrumentTrackState *>(getChildByInternalId(track_id));
 		if (track_state) track_state->stopAllVoices();
@@ -209,6 +211,22 @@ class SongState : public TrackState {
 
 	    if (active.clip_index >= 0) {
 	      auto & clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
+
+	      // A SampleTrack's own clip is raw audio, not a Pattern to read
+	      // notes from - no per-row involvement needed beyond triggering
+	      // it once, exactly on the row it becomes active (the
+	      // transition-out stopAllVoices() above already covers ending
+	      // it); SampleTrackState::triggerClip() takes it from there
+	      // under its own cursor for as long as it plays.
+	      auto sample_track = song.getMasterTrack().getChildByInternalId(track_id);
+	      if (sample_track && sample_track->getType() == TrackType::SAMPLE) {
+		if (active.clip_index != previous_clip_index) {
+		  auto * sample_state = dynamic_cast<SampleTrackState *>(getChildByInternalId(track_id));
+		  if (sample_state) sample_state->triggerClip(clip);
+		}
+		continue;
+	      }
+
 	      active_pattern = &clip.getLeafPattern();
 	      auto length = clip.getLength() > 0 ? clip.getLength() : 1;
 	      effective_row = active_pattern->getEffectiveRow(row_idx - active.start_row, length);

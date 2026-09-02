@@ -1,0 +1,187 @@
+#include "SampleTrack.h"
+#include "Clip.h"
+#include "SampleContent.h"
+#include "../state/SampleTrackState.h"
+#include "../state/PositionedVoice.h"
+#include "../dsp/Resampler.h"
+
+#include <cmath>
+
+using namespace std;
+
+namespace {
+
+// One-shot/loop raw-sample playback voice, fed a Clip's own buffer and
+// its already-resolved (clamped) in/out frame bounds - the successor to
+// the never-instantiated FileInstrumentVoice this replaces (see
+// FileInstrument's removal): click-safe start at a specific frame (not
+// always 0), PositionedVoice::encodePosition() for spatial placement/
+// gain, no pitch handling at all - a sample clip always plays back at
+// its own native rate, never note-pitch-following, so this derives from
+// PositionedVoice directly rather than InstrumentVoice - there's no
+// frequency/detune/phase-accumulator concept to inherit or repurpose
+// here, just its own plain frame index.
+class SampleClipVoice : public PositionedVoice {
+public:
+  SampleClipVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, shared_ptr<AudioBuffer> samples, int64_t start_frame, int64_t end_frame, bool looping, const SendLevels & sends)
+    : PositionedVoice(channel_config, position, sends),
+      samples_(move(samples)), source_position_(start_frame), start_frame_(start_frame), end_frame_(end_frame), looping_(looping),
+      release_length_frames_(std::max(1, static_cast<int>(kReleaseSeconds * channel_config.getAudioOutSampleRate()))) {
+    // Full velocity, unity gain, a fixed identity - triggerClip() always
+    // fires a fresh voice at the same nominal strength (there's no
+    // performance-velocity input for a Session-view/transport-triggered
+    // clip the way a played note has); note_value_ still gets a real
+    // value (0, not -1) so getOwnLoudnessFactor()/getAllActiveVoices()
+    // report this voice as genuinely active for LED/UI feedback.
+    velocity_ = 1.0f;
+    note_value_ = 0;
+  }
+
+  AudioBuffer render(int frames) override {
+    auto base_gain = decibelsToGain(getGainDB());
+    if (static_cast<int>(dry_.size()) != frames) dry_.resize(static_cast<size_t>(frames));
+
+    auto data = samples_->getChannelData(0);
+    for (int k = 0; k < frames; k++) {
+      if (!active_) {
+        dry_[static_cast<size_t>(k)] = 0.0f;
+        continue;
+      }
+
+      // A short linear fade rather than an abrupt cut - stopNote()/
+      // killNote()/fastRelease() all just start it (below); reaching 0
+      // here is what actually retires the voice, not the stop call
+      // itself, so whatever's already sounding never jumps straight to
+      // silence.
+      float gain = base_gain;
+      if (releasing_) {
+        gain *= static_cast<float>(release_frames_remaining_) / static_cast<float>(release_length_frames_);
+        if (--release_frames_remaining_ <= 0) active_ = false;
+      }
+
+      if (source_position_ >= end_frame_) {
+        if (looping_) {
+          source_position_ = start_frame_;
+        } else {
+          active_ = false;
+          dry_[static_cast<size_t>(k)] = 0.0f;
+          continue;
+        }
+      }
+      dry_[static_cast<size_t>(k)] = data[source_position_] * gain;
+      source_position_ += 1;
+    }
+    return encodePosition(dry_.data(), frames);
+  }
+
+  void stopNote() override { beginRelease(); }
+  void killNote() override { beginRelease(); }
+  void fastRelease() override { beginRelease(); }
+  bool isActive() const override { return active_; }
+
+private:
+  // Idempotent - a second stop/choke on an already-releasing voice
+  // (e.g. SongState.h's transition-detection firing right after
+  // triggerClip()'s own stopVoices(0) already started one) must not
+  // restart or prolong the ramp.
+  void beginRelease() {
+    if (releasing_) return;
+    releasing_ = true;
+    release_frames_remaining_ = release_length_frames_;
+  }
+
+  static constexpr float kReleaseSeconds = 0.01f;
+
+  shared_ptr<AudioBuffer> samples_;
+  vector<float> dry_;
+  // int64_t: a 32-bit frame count runs short well within a plausible
+  // session at high sample rates (~3 hours at 192kHz).
+  int64_t source_position_;
+  int64_t start_frame_, end_frame_;
+  bool looping_;
+  bool active_ = true;
+  bool releasing_ = false;
+  int release_frames_remaining_ = 0;
+  int release_length_frames_;
+};
+
+}
+
+void
+SampleTrackState::triggerClip(const Clip & clip) {
+  auto * content = clip.getSampleContent();
+  if (!content || !content->getBuffer()) return;
+
+  auto output_rate = getChannelConfiguration().getAudioOutSampleRate();
+
+  // Resampled on demand, never in place - content->getBuffer() itself is
+  // never mutated to do this (see SampleContent::getNativeSampleRate()'s
+  // own doc comment on why: saving must always write the original,
+  // untouched audio, regardless of whatever output rate the current
+  // session happens to be running under). Not cached (a per-trigger
+  // resample is cheap relative to how rarely a clip is actually
+  // (re-)triggered - a real cache is a plausible future optimization, not
+  // needed for correctness).
+  auto native_rate = content->getNativeSampleRate();
+  shared_ptr<AudioBuffer> samples = content->getBuffer();
+  if (native_rate > 0 && native_rate != output_rate) {
+    auto frames = samples->numberOfFrames();
+    vector<float> mono(static_cast<size_t>(frames));
+    auto src = samples->getChannelData(0);
+    for (int i = 0; i < frames; i++) mono[static_cast<size_t>(i)] = src[i];
+    auto resampled = resampleMonoLinear(mono, native_rate, output_rate);
+    if (!resampled.empty()) {
+      auto buf = make_shared<AudioBuffer>(1, static_cast<int>(resampled.size()));
+      auto dst = buf->getChannelData(0);
+      for (size_t i = 0; i < resampled.size(); i++) dst[i] = resampled[i];
+      samples = move(buf);
+    }
+  }
+
+  auto total_frames = samples->numberOfFrames();
+  if (total_frames <= 0) return;
+
+  // Trim points are authored in seconds, each "how much to cut from that
+  // end" (SampleContent::getInPoint()/getOutPoint()'s own doc comment) -
+  // resolved to clamped frame indices only here, at trigger time, against
+  // whatever the (possibly just-resampled) buffer's real size actually
+  // is right now, rather than trusting stored values that could have
+  // gone stale (a hand-edited trim past a since-replaced, shorter
+  // recording).
+  auto in_frame = static_cast<int>(lround(static_cast<double>(content->getInPoint()) * output_rate));
+  auto out_frame = total_frames - static_cast<int>(lround(static_cast<double>(content->getOutPoint()) * output_rate));
+  if (in_frame < 0) in_frame = 0;
+  if (out_frame > total_frames) out_frame = total_frames;
+  if (in_frame >= out_frame) {
+    // Degenerate hand-edit (trim amounts that together exceed the
+    // buffer's own duration, or either negative after clamping) - fall
+    // back to the full buffer rather than producing silence or reading
+    // out of bounds.
+    in_frame = 0;
+    out_frame = total_frames;
+  }
+
+  // column 0 always - a SampleTrack only ever has one clip playing at a
+  // time. Explicitly stops whatever's already there first: a live
+  // Session-view swap between two different clips on this track has no
+  // other mechanism to end the old one the way a transport-driven
+  // transition already does via SongState.h's own stopAllVoices() call.
+  // No noteOn()/Instrument indirection needed to get here - unlike a
+  // pooled, pitched instrument, a sample clip's voice needs nothing a
+  // fake Track subclass would resolve for it (no exclusive-class choking
+  // applies to raw playback; a SampleTrack has no children, so its own
+  // default extent is unconditionally 0, the same base case
+  // Track::getDefaultExtent() would already resolve to).
+  stopVoices(0);
+
+  auto resolved_position = getPosition();
+  if (resolved_position.extent < 0.0f) resolved_position.extent = 0.0f;
+
+  auto voice = make_unique<SampleClipVoice>(getChannelConfiguration(), resolved_position, samples, in_frame, out_frame, clip.isLooping(), getSends());
+  addVoice(0, move(voice));
+}
+
+unique_ptr<TrackState>
+SampleTrack::createState(const ChannelConfiguration & config, const SongStructure &) const {
+  return make_unique<SampleTrackState>(config, isSolo(), isMuted(), getInternalId(), getPosition(), getSends());
+}

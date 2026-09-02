@@ -12,8 +12,10 @@
 
 #include "../ambisonic/MixerFactory.h"
 #include "../state/InstrumentTrackState.h"
+#include "../state/SampleTrackState.h"
 #include "../state/NoteOrigin.h"
 #include "../model/NoteCoordinate.h"
+#include "../model/Clip.h"
 
 using namespace std;
 
@@ -263,6 +265,18 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	  }
 	}
       }
+    }
+    break;
+
+  case PlaybackControlEvent::PLAY_SAMPLE_CLIP:
+    {
+      auto track_id = ev.getParameter1();
+      auto clip_index = ev.getParameter2();
+      auto & clips = song.getClips(track_id);
+      if (clip_index < 0 || clip_index >= static_cast<int>(clips.size())) break;
+
+      auto * sample_state = dynamic_cast<SampleTrackState *>(state.getChildByInternalId(track_id));
+      if (sample_state) sample_state->triggerClip(clips[static_cast<size_t>(clip_index)]);
     }
     break;
 

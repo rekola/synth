@@ -21,10 +21,10 @@
 // here, and never per sample. All three are applied the same way, in the
 // same place, by the voice itself: see
 // InstrumentVoice::encodePosition() for main/a/b, and SoundFontVoice's own
-// per-voice chorus taps and FileInstrumentVoice's multi-channel path for
-// the two spots that scale their own extra contribution to the regular
-// channels by main independently (they add to those channels *after*
-// encodePosition() already ran, so they'd otherwise escape it).
+// per-voice chorus taps - the spot that scales its own extra contribution
+// to the regular channels by main independently (it adds to those
+// channels *after* encodePosition() already ran, so it would otherwise
+// escape it).
 //
 // A default-constructed SendLevels{} (main=1.0, a=b=0.0) is also the
 // correct value to pass down to a modulator's own recursive playNote() call

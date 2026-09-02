@@ -45,6 +45,20 @@ class ChannelConfiguration {
     return static_cast<int>(getRowDuration(tempo) * getAudioOutSampleRate());
   }
 
+  // A raw frame count's own row-length at `tempo`, rounded up - a
+  // SampleTrack clip's own Clip::setLength() is computed from real audio
+  // duration this way rather than authored by hand the way a Pattern
+  // clip's length is; rounding up so the resulting row window is never
+  // shorter than the audio it's meant to cover. `frames <= 0` (a
+  // degenerate/empty buffer) is 0 rows, not 1 - there's nothing to place
+  // a window around.
+  inline int framesToRows(int frames, int tempo) const {
+    if (frames <= 0) return 0;
+    auto interval = getSampleInterval(tempo);
+    if (interval <= 0) return 1;
+    return (frames + interval - 1) / interval;
+  }
+
   // Song-level floor-reflection parameters (see InstrumentVoice.h) -
   // fixed for a song's whole lifetime, same as audioOutSampleRate_/
   // ambisonic_order_ above, and threaded the same way: every playNote()

@@ -371,25 +371,40 @@ whether or not a terminal UI exists at all.
   lane add/remove surface while active), a long hold instead clears the
   track's step data in the current scene back to all-rest (never the lane
   list itself).
-- **The pattern pool** (`Song::getPooledPatterns(track_id)`/
-  `addPooledPattern()`, `std::unordered_map<int, std::vector<Pattern>>`) -
-  reusable named `Pattern`s per track, outside any one scene position, in
-  a top-level `<patterns>` XML element (same shape a scene's own inline
-  `<pattern>` already uses). Hand-edited XML only for now - no in-app way
-  to author a new pooled pattern or promote a scene's own pattern into it.
+- **Clips** (`Clip`, `src/model/Clip.h`; `Song::getClips(track_id)`/
+  `addClip()`, backed by `std::unordered_map<int, std::vector<Clip>>
+  clips_by_track_`) - reusable, shareable content keyed by leaf track id,
+  outside any one scene position: one `Pattern` per track it touches
+  (today always just the leaf track's own - the storage shape already
+  supports more, e.g. a nested Effect track's own automation captured
+  alongside it, but that's unbuilt). Editing a clip through any one of its
+  placements (`ArrangementOps.h`'s `placeClipInstance()`/
+  `resolveInstanceAt()`, see `ArrangementGrid` below) updates every other
+  placement of it immediately - unlike a scene's own inline Pattern
+  content, which is always an independent copy. Persisted in a top-level
+  `<clips>` element, sibling to `<tracks>`/`<scenes>`
+  (`<trackClips track="..."><clip id="..." name="..." loop="..."
+  length="..."><pattern>...</pattern></clip></trackClips>`, one
+  `<trackClips>` per track). Authored in-app via `PatternEditor::
+  copyToClip()` (extracts the current pattern-editor selection into a new
+  clip), not hand-edited-XML-only.
 - **Session view** (`GridMode::SESSION`, reached/left only via CC95/96,
-  decoupled from terminal UI focus): rows are a track's own pooled
-  patterns, columns are the one shared cursor track every connected
-  device follows (`fallback_track_index`, from `PatternEditor::
-  getCursorTrackIndex()` - no per-device track-follow/detachment). Record
-  Arm gates trigger-live (off) vs. assign-into-the-current-scene (on),
-  the same "just play" vs. "store into the pattern" choice ordinary note
-  entry already makes. Auditioning uses the same free-running clock
-  (`audition_clock_`) the drum step-grid's own auditioning already used,
-  generalized (`triggerPooledPatternStep()`/`firePooledPatternStep()`)
-  from one drum kit's steps to any track's own pattern. Launches and
-  stops are quantized to the currently-playing pattern's own loop end,
-  never immediate (`triggered_pattern_by_track_`/`queued_pattern_by_track_`,
+  decoupled from terminal UI focus): rows are a track's own clip list
+  (`Song::getClips(track_id)`), columns are the one shared cursor track
+  every connected device follows (`fallback_track_index`, from
+  `PatternEditor::getCursorTrackIndex()` - no per-device track-follow/
+  detachment). Record Arm gates trigger-live (off) vs. assign-into-the-
+  current-scene (on), the same "just play" vs. "store into the pattern"
+  choice ordinary note entry already makes. Auditioning uses the same
+  free-running clock (`audition_clock_`) the drum step-grid's own
+  auditioning already used, generalized (`LaunchpadManager::
+  triggerClipStep()`/`fireClipStep()`) from one drum kit's steps to any
+  track's own clip. Launches and stops are quantized to a shared bar-
+  length grid boundary every track measures against alike
+  (`session_origin_step_`/`rows_per_bar`) - explicitly never the
+  triggered clip's own loop length (that only decides where *it* loops,
+  not when a pending change is allowed to interrupt it) and never
+  immediate (`triggered_pattern_by_track_`/`queued_pattern_by_track_`,
   `-1` is the queued-stop sentinel) - an unassigned pad, or repressing the
   active pad, both queue a stop; either way the track's voices are
   released through their natural `stopNote()` tail once the stop actually

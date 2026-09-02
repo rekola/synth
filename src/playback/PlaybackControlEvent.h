@@ -18,9 +18,13 @@ class PlaybackControlEvent : public Event {
   // separate "the active buffer changed" notification is needed at all.
   // BUFFER_KILLED/BUFFER_RENAMED replace the bookkeeping SONG_CHANGED used
   // to fold in for those two specific cases.
+  // PLAY_SAMPLE_CLIP: live/Session-view triggering of a SampleTrack clip
+  // (parameter1 = track_id, parameter2 = clip_index) - see Player.cpp's
+  // own handler for the transport-driven counterpart it mirrors.
   enum Type { PLAY = 1, STOP, TERMINATE, MOVE_POSITION, CLEAR_VOICES, PLAY_NOTE, STOP_NOTE, STOP_ALL_NOTES, NOTE_PRESSURE, MIXER_CHANGED,
               SET_TRACK_MUTED, SET_TRACK_SOLO, SET_TRACK_SEND_A, SET_TRACK_SEND_B, SET_TRACK_SEND_MAIN, SET_TRACK_AZIMUTH,
-              CHANNEL_PRESSURE, SET_RECORDING_MUTE, SET_POSITION, BUFFER_KILLED, BUFFER_RENAMED, SET_BUS_EFFECT };
+              CHANNEL_PRESSURE, SET_RECORDING_MUTE, SET_POSITION, BUFFER_KILLED, BUFFER_RENAMED, SET_BUS_EFFECT,
+              PLAY_SAMPLE_CLIP };
 
   // buffer_name says which open buffer this event targets - required for
   // every type except the two genuinely buffer-agnostic ones (TERMINATE,
