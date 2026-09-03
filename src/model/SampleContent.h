@@ -28,7 +28,7 @@ class ParameterSource;
 class SampleContent {
  public:
   const std::shared_ptr<AudioBuffer> & getBuffer() const { return buffer_; }
-  void setBuffer(std::shared_ptr<AudioBuffer> buffer) { buffer_ = std::move(buffer); waveform_peaks_dirty_ = true; }
+  void setBuffer(std::shared_ptr<AudioBuffer> buffer) { buffer_ = std::move(buffer); waveform_peaks_dirty_ = true; stretched_dirty_ = true; }
 
   // Trim points, in seconds, each measured as "how much to cut from that
   // end" rather than an absolute timestamp - symmetric by design, so 0.0
@@ -39,9 +39,9 @@ class SampleContent {
   // differently-sized buffer replaced this one. Hand-editable in the XML;
   // no in-app editing command in this pass.
   float getInPoint() const { return in_point_; }
-  void setInPoint(float seconds) { in_point_ = seconds; waveform_peaks_dirty_ = true; }
+  void setInPoint(float seconds) { in_point_ = seconds; waveform_peaks_dirty_ = true; stretched_dirty_ = true; }
   float getOutPoint() const { return out_point_; }
-  void setOutPoint(float seconds) { out_point_ = seconds; waveform_peaks_dirty_ = true; }
+  void setOutPoint(float seconds) { out_point_ = seconds; waveform_peaks_dirty_ = true; stretched_dirty_ = true; }
 
   // The tempo this audio was actually captured/authored at - 0 means
   // unknown/not set, the same "don't invent a number you can't actually
@@ -53,7 +53,7 @@ class SampleContent {
   // way playback can ever know whether (and how) to time-stretch this
   // audio to match the song's own current tempo.
   short getOriginalTempo() const { return original_tempo_; }
-  void setOriginalTempo(short bpm) { original_tempo_ = bpm; }
+  void setOriginalTempo(short bpm) { original_tempo_ = bpm; stretched_dirty_ = true; }
 
   // The sample rate getBuffer() is actually at - may differ from the
   // project's own *current* output rate (e.g. a song recorded at 192kHz,
@@ -68,7 +68,7 @@ class SampleContent {
   // just remembers whatever rate it was captured at for as long as this
   // object stays in memory.
   int getNativeSampleRate() const { return native_sample_rate_; }
-  void setNativeSampleRate(int rate) { native_sample_rate_ = rate; waveform_peaks_dirty_ = true; }
+  void setNativeSampleRate(int rate) { native_sample_rate_ = rate; waveform_peaks_dirty_ = true; stretched_dirty_ = true; }
 
   // Clip's own row-indexed peak-amplitude cache (WaveformPeaks.h) actually
   // lives here, alongside the buffer/trim points it's built from - every
@@ -88,6 +88,37 @@ class SampleContent {
       waveform_peaks_dirty_ = false;
     }
     return waveform_peaks_;
+  }
+
+  // The tempo-stretched cache SampleTrackState::triggerClip() plays
+  // instead of getBuffer() whenever original_tempo_ disagrees with the
+  // song's current one - unlike getWaveformPeaks() above, this class
+  // can't build the cached value itself: actually stretching needs a real
+  // external-library call (TimeStretcher.h, src/audio/) this model-layer
+  // class must not depend on directly. So this only holds the result;
+  // SampleTrackState::triggerClip() (SampleTrack.cpp) is what calls
+  // TimeStretcher and stores what it built back via setStretchedBuffer()
+  // below. Keyed on `song_tempo` alone, not also the output sample rate
+  // the stretch was actually run at (unlike getWaveformPeaks()'s
+  // row_count/subrows_per_row pair) - the project's own output rate never
+  // changes mid-session, so there's nothing yet to compare against; a
+  // stale entry from a different rate isn't a case that can happen today.
+  // A cache miss (nothing stored yet, invalidated by a setter above, or a
+  // different song_tempo than whatever's actually cached) returns nullptr
+  // - the caller is expected to build and store one, not treat this as an
+  // error. Returned by value, not by reference: a mismatched query must
+  // never have the side effect of evicting a still-valid entry cached for
+  // some *other* song_tempo (single-slot, so a later trigger at the
+  // *original* tempo would otherwise force a wasted rebuild even though
+  // nothing about this clip's own audio actually changed).
+  std::shared_ptr<AudioBuffer> getStretchedBuffer(int song_tempo) const {
+    if (stretched_dirty_ || stretched_song_tempo_ != song_tempo) return nullptr;
+    return stretched_buffer_;
+  }
+  void setStretchedBuffer(std::shared_ptr<AudioBuffer> buffer, int song_tempo) const {
+    stretched_buffer_ = std::move(buffer);
+    stretched_song_tempo_ = song_tempo;
+    stretched_dirty_ = false;
   }
 
   // Reads/writes in_point_/out_point_/original_tempo_ (<sample in="..."
@@ -113,6 +144,13 @@ class SampleContent {
   // in the setters that actually change the audio this represents.
   mutable WaveformPeaks waveform_peaks_;
   mutable bool waveform_peaks_dirty_ = true;
+
+  // getStretchedBuffer()/setStretchedBuffer()'s own cache - mutable for
+  // the same reason as the peak cache above, but this class never builds
+  // it itself (see getStretchedBuffer()'s own comment).
+  mutable std::shared_ptr<AudioBuffer> stretched_buffer_;
+  mutable int stretched_song_tempo_ = 0;
+  mutable bool stretched_dirty_ = true;
 };
 
 #endif

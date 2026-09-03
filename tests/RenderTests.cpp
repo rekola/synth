@@ -297,6 +297,28 @@ TEST(render_sample_track_loop_shorter_than_the_clip_goes_silent_then_restarts_ea
   CHECK(windowedRms(result, 0, 0.8f, 0.95f) < 1e-4f); // and its own silent tail too
 }
 
+// The real-song-pipeline counterpart to SampleTrackTests.cpp's own
+// triggerClip()-level stretch tests: confirms the whole path (XML's
+// originalTempo attribute -> SongState.h's scheduling -> RenderContext ->
+// SampleTrackState::triggerClip() -> TimeStretcher) actually reaches a
+// stretched voice, not just the unit-level pieces in isolation. Fixture:
+// tempo 60, a 2s/8kHz sidecar tone recorded at originalTempo 120 (half the
+// song's own tempo -> ratio 0.5, roughly double duration, ~4s), one-shot,
+// in a 6-bar (6.0s) scene comfortably longer than the stretched result.
+TEST(render_sample_track_clip_stretches_to_match_a_disagreeing_song_tempo) {
+  auto loaded = loadFixture("sample_track_clip_needs_stretching.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(8000); // matches the fixture .wav's own native rate - no resampling
+  auto result = renderSongOffline(loaded.song, config);
+
+  CHECK(result.numberOfFrames() > 0);
+  CHECK(!hasNonFiniteSample(result));
+  CHECK(windowedRms(result, 0, 0.1f, 0.3f) > 1e-3f); // sounding early on
+  CHECK(windowedRms(result, 0, 2.5f, 2.7f) > 1e-3f); // still sounding well past the *unstretched* 2s length - only real stretching explains this
+  CHECK(windowedRms(result, 0, 5.0f, 5.5f) < 1e-4f); // silent well before the scene's own 6s end - genuinely finished, not just clipped by the scene boundary
+}
+
 // An explicit stop instance (Scene::kStopInstance, ArrangementOps.h's own
 // placeStopInstance()) placed after a *looping* clip's own trigger must
 // actually silence it going forward - SongState::renderBlock()'s own

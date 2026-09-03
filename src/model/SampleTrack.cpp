@@ -4,6 +4,7 @@
 #include "../state/SampleTrackState.h"
 #include "../state/PositionedVoice.h"
 #include "../dsp/Resampler.h"
+#include "../audio/TimeStretcher.h"
 
 #include <cmath>
 
@@ -119,7 +120,7 @@ private:
 }
 
 void
-SampleTrackState::triggerClip(const Clip & clip) {
+SampleTrackState::triggerClip(const Clip & clip, int song_tempo) {
   auto * content = clip.getSampleContent();
   if (!content || !content->getBuffer()) return;
 
@@ -170,6 +171,42 @@ SampleTrackState::triggerClip(const Clip & clip) {
     // out of bounds.
     in_frame = 0;
     out_frame = total_frames;
+  }
+
+  // Pitch-preserving time-stretch when this clip's own recorded tempo
+  // disagrees with the song's current one - 0 means unknown/not set
+  // (SampleContent::getOriginalTempo()'s own "don't guess" convention),
+  // so an originalTempo-less clip always plays at its own real duration,
+  // regardless of song_tempo. Stretches only the
+  // already-trimmed, already-resampled-to-output-rate range above (never
+  // audio that will never actually play), and only once per (clip,
+  // song_tempo) pair - a cache hit here means `samples` becomes the
+  // stretched buffer, ready to play in full, and in_frame/out_frame are
+  // reset to its own whole extent (the trim was already baked in when it
+  // was built, so nothing left to re-trim). Cached on SampleContent
+  // itself, not here - see getStretchedBuffer()'s own comment for why.
+  if (content->getOriginalTempo() > 0 && content->getOriginalTempo() != song_tempo) {
+    auto cached = content->getStretchedBuffer(song_tempo);
+    if (cached) {
+      samples = cached;
+    } else {
+      auto trimmed_frames = out_frame - in_frame;
+      vector<float> trimmed(static_cast<size_t>(trimmed_frames));
+      auto src = samples->getChannelData(0);
+      for (int i = 0; i < trimmed_frames; i++) trimmed[static_cast<size_t>(i)] = src[in_frame + i];
+
+      auto ratio = static_cast<double>(song_tempo) / static_cast<double>(content->getOriginalTempo());
+      auto stretched = stretchMono(trimmed, output_rate, ratio);
+
+      auto buf = make_shared<AudioBuffer>(1, static_cast<int>(stretched.size()));
+      auto dst = buf->getChannelData(0);
+      for (size_t i = 0; i < stretched.size(); i++) dst[i] = stretched[i];
+
+      content->setStretchedBuffer(buf, song_tempo);
+      samples = move(buf);
+    }
+    in_frame = 0;
+    out_frame = samples->numberOfFrames();
   }
 
   // column 0 always - a SampleTrack only ever has one clip playing at a

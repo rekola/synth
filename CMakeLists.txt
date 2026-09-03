@@ -100,6 +100,7 @@ add_library(synth_engine STATIC
 	src/instruments/LFO.cpp
 	src/audio/OfflineRenderer.cpp
 	src/audio/SampleFileLoader.cpp
+	src/audio/TimeStretcher.cpp
 	src/ui/PatternBlockOps.cpp
 	src/model/ArrangementOps.cpp
 	src/ui/PatternScroll.cpp
@@ -144,6 +145,24 @@ if(NOT (UNISTRING_LIBRARY AND UNISTRING_INCLUDE_DIR))
 endif()
 target_include_directories(synth_engine PRIVATE ${UNISTRING_INCLUDE_DIR})
 target_link_libraries(synth_engine PUBLIC ${UNISTRING_LIBRARY})
+
+# SoundTouch (pitch-preserving time-stretch, src/audio/TimeStretcher.cpp -
+# used by SampleTrackState::triggerClip() when a clip's own recorded tempo
+# disagrees with the song's current one). Not optional the way libmysofa
+# is below: a resample-based pitch-shifted fallback was explicitly
+# rejected for this (changing a real recording's own pitch as a side
+# effect of a tempo-only correction is a correctness defect, not a
+# quality shortfall - see TimeStretcher.h's own comment), so there is no
+# degraded mode to fall back to. Same find_library/find_path shape as
+# libunistring above, for consistency, even though libsoundtouch-dev also
+# ships a pkg-config file.
+find_library(SOUNDTOUCH_LIBRARY SoundTouch)
+find_path(SOUNDTOUCH_INCLUDE_DIR soundtouch/SoundTouch.h)
+if(NOT (SOUNDTOUCH_LIBRARY AND SOUNDTOUCH_INCLUDE_DIR))
+  message(FATAL_ERROR "libsoundtouch not found (install libsoundtouch-dev)")
+endif()
+target_include_directories(synth_engine PRIVATE ${SOUNDTOUCH_INCLUDE_DIR})
+target_link_libraries(synth_engine PUBLIC ${SOUNDTOUCH_LIBRARY})
 
 # Experimental, out-of-spec GM-family channel-pressure heuristic defaults
 # (SoundFont.cpp - injects a vibrato/filter-cutoff modulator for presets

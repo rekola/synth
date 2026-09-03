@@ -1623,6 +1623,58 @@ already accepts, extended here. No live, continuously-ramping tempo
 automation support - a discrete tempo *value* is what a `Clip`/`Song`
 compares against, not a curve.
 
+**Implemented, matching the design above closely.** `libsoundtouch-dev`
+confirmed already installed and packaged (`SoundTouch 2.3.2`, float
+samples by default - `soundtouch_config.h`'s own `SOUNDTOUCH_FLOAT_SAMPLES`),
+wired into `CMakeLists.txt` with the same unconditional find_library/
+find_path + `FATAL_ERROR` shape `libunistring` already uses (not an
+optional `SYNTH_ENABLE_*` toggle like `libmysofa` - there's no degraded
+mode to fall back to here, per this Part's own reasoning above), even
+though `libsoundtouch-dev` also happens to ship a pkg-config file. A few
+details resolved during implementation, not fully spelled out above:
+- `src/audio/TimeStretcher.h`/`.cpp`'s `stretchMono(input, sample_rate,
+  tempo_ratio)` takes the ratio in SoundTouch's own tempo-factor
+  convention directly (1.0 = unchanged, <1.0 = slower/longer, >1.0 =
+  faster/shorter) - exactly `song_tempo / clip.getOriginalTempo()`, so
+  `triggerClip()` never needs to invert or rescale anything before
+  passing it through to `SoundTouch::setTempo()`.
+- The stretch itself runs *after* trimming and *after* resampling to the
+  project's own output rate, not on the raw native-rate buffer - the
+  already-trimmed, already-resampled range is what actually plays, so
+  that's what gets cached and handed to `SoundTouch`, and the resulting
+  stretched buffer is played in full (`in_frame`/`out_frame` reset to its
+  own whole extent) rather than needing any further trim math.
+- The cache itself (`SampleContent::getStretchedBuffer()`/
+  `setStretchedBuffer()`) is keyed on `song_tempo` alone, not also the
+  output rate the stretch happened to run at - the project's own output
+  rate never changes mid-session, so there's nothing yet to compare
+  against there, unlike `getWaveformPeaks()`'s genuine two-parameter key.
+  `getStretchedBuffer()` returns its result *by value*, not by reference,
+  after an early design had it return a reference and reset the cache as
+  a side effect of a mismatched query - which would have silently evicted
+  a still-valid entry cached for some *other* tempo just from being asked
+  about the wrong one, forcing a wasted rebuild later for no real reason.
+  Caught and fixed before it shipped, not left in.
+- `SampleTrackState::triggerClip()` gained a required `song_tempo`
+  parameter (no default) - every call site states explicitly what tempo
+  it's triggering at, rather than reading it from anywhere implicit.
+  `SampleTrackState::render()`'s own chunked loop passes
+  `context.getBpm()` (already exactly the song's current tempo, in the
+  same units); `Player.cpp`'s live `PLAY_SAMPLE_CLIP` handler passes
+  `song.getTempo()` directly.
+- Tests: `TimeStretcherTests.cpp` covers `stretchMono()` in isolation
+  (degenerate inputs, duration change in both directions, and pitch
+  preservation itself - confirmed via zero-crossing rate over a fixed
+  real-time window of the output, distinguishing genuine tempo-only
+  stretching from a naive resample-based one that would have shifted
+  pitch along with duration). `SampleTrackTests.cpp` covers
+  `triggerClip()`'s own stretch-or-not decision and cache reuse/
+  invalidation directly. `RenderTests.cpp` adds one whole-pipeline test
+  (XML's `originalTempo` attribute through `SongState.h`'s scheduling,
+  `RenderContext`, and `SampleTrackState::triggerClip()` to a genuinely
+  stretched, audible result) confirming the wiring end to end, not just
+  the isolated pieces.
+
 ## Part 14 - Loudness-threshold-triggered recording start (undecided between three designs)
 
 Raised directly by the user. **Not yet decided which of three candidate

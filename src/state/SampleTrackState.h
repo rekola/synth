@@ -49,7 +49,11 @@ public:
 	assert(i <= it->first);
 	if (i == it->first) {
 	  if (it->second.kind == SampleTrackEvent::START && it->second.clip) {
-	    triggerClip(*it->second.clip);
+	    // context.getBpm() is exactly the song's own current tempo
+	    // (SongState::initialize()'s render_context_.setBpm(tempo_)) -
+	    // triggerClip()'s own tempo-stretch decision needs it in the
+	    // same units SampleContent::getOriginalTempo() is authored in.
+	    triggerClip(*it->second.clip, static_cast<int>(context.getBpm()));
 	  } else if (it->second.kind == SampleTrackEvent::STOP) {
 	    // A short natural release, not a hard cut - stopping outright
 	    // here would click (SampleTrackEvent's own comment).
@@ -114,7 +118,13 @@ public:
   // in, an explicit stop instance, eventually pause/seek) is this same
   // render() loop's own SampleTrackEvent::STOP handling, not this
   // method's concern at all.
-  void triggerClip(const Clip & clip);
+  //
+  // `song_tempo` is what triggerClip()'s own implementation (SampleTrack.cpp)
+  // compares against the clip's own SampleContent::getOriginalTempo() to
+  // decide whether to time-stretch - threaded in by the caller rather than
+  // read from anywhere on this class, since neither this class nor Clip
+  // has any notion of "the song" to read it from itself.
+  void triggerClip(const Clip & clip, int song_tempo);
 };
 
 #endif

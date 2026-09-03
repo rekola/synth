@@ -99,7 +99,7 @@ TEST(trigger_clip_plays_only_the_trimmed_range_and_ends_without_a_ramp) {
   content.setOutPoint(10.0f / 8000.0f); // trims the last 10 frames - [10, 30) remains, 20 frames
   clip.setLooping(false);
 
-  state.triggerClip(clip);
+  state.triggerClip(clip, 0); // no originalTempo set - stretch never applies
   auto rendered = state.renderVoices(40); // more than the trimmed range - the tail must read back silent
   auto out = rendered.getChannelData(0);
 
@@ -137,12 +137,12 @@ TEST(retriggering_a_clip_starts_the_new_voice_at_the_in_point_not_frame_0) {
   content.setInPoint(100.0f / 8000.0f);
   clip.setLooping(true);
 
-  state.triggerClip(clip);
+  state.triggerClip(clip, 0); // no originalTempo set - stretch never applies
   auto first_lap = state.renderVoices(3); // still early, well short of its own natural end
   auto first_out = first_lap.getChannelData(0);
   CHECK(first_out[0] != 0.0f);
 
-  state.triggerClip(clip); // the caller's own re-trigger, as if a new lap just started
+  state.triggerClip(clip, 0); // the caller's own re-trigger, as if a new lap just started
   auto after_retrigger = state.renderVoices(200); // comfortably longer than the old voice's own release tail
   auto out2 = after_retrigger.getChannelData(0);
   CHECK_NEAR(out2[150], 250.0f, 1e-3f); // the new voice's own in-point-based position (100 + 150), not frame 0's own marker value, and no longer mixed with the old voice's own (by now fully released) tail
@@ -159,13 +159,140 @@ TEST(trigger_clip_falls_back_to_the_full_buffer_when_trim_points_overshoot) {
   content.setInPoint(100.0f); // 100s in, on a 10-frame/8kHz buffer - hopelessly past the end
   clip.setLooping(false);
 
-  state.triggerClip(clip);
+  state.triggerClip(clip, 0); // no originalTempo set - stretch never applies
   auto rendered = state.renderVoices(15);
   auto out = rendered.getChannelData(0);
 
   CHECK(out[0] != 0.0f); // played from frame 0, not silence
   CHECK(out[9] != 0.0f); // and ran the full 10 frames, not just up to the (invalid) in-point
   for (int i = 10; i < 15; i++) CHECK(out[i] == 0.0f); // one-shot, ended after the real buffer length
+}
+
+TEST(trigger_clip_plays_unstretched_when_original_tempo_is_unset) {
+  ChannelConfiguration config(8000);
+  SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
+
+  Clip clip(0);
+  auto & content = clip.getOrCreateSampleContent();
+  content.setBuffer(buildBuffer(4000, [](int) { return 0.5f; })); // 0.5s @ 8kHz
+  content.setNativeSampleRate(8000);
+  clip.setLooping(false);
+  // getOriginalTempo() stays 0 (unset) - a real, nonzero song_tempo alone
+  // must never be enough to trigger a stretch on its own.
+
+  state.triggerClip(clip, 60);
+  auto rendered = state.renderVoices(4200);
+  auto out = rendered.getChannelData(0);
+
+  CHECK(out[3999] != 0.0f); // still sounding right up to its own real, unstretched length
+  CHECK(out[4100] == 0.0f); // ended there, not stretched to some other duration
+}
+
+TEST(trigger_clip_plays_unstretched_when_original_tempo_already_matches_the_song) {
+  ChannelConfiguration config(8000);
+  SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
+
+  Clip clip(0);
+  auto & content = clip.getOrCreateSampleContent();
+  content.setBuffer(buildBuffer(4000, [](int) { return 0.5f; }));
+  content.setNativeSampleRate(8000);
+  content.setOriginalTempo(120);
+  clip.setLooping(false);
+
+  state.triggerClip(clip, 120); // exactly matches - ratio would be 1.0, a no-op
+  auto rendered = state.renderVoices(4200);
+  auto out = rendered.getChannelData(0);
+
+  CHECK(out[3999] != 0.0f);
+  CHECK(out[4100] == 0.0f);
+}
+
+// The real behavior triggerClip()'s time-stretch decision exists for: a
+// clip's own recorded tempo disagreeing with the song's current one
+// lengthens or shortens what actually plays,
+// pitch-preserved (TimeStretcherTests.cpp covers the pitch-preservation
+// property itself in isolation) - here it's enough to confirm triggerClip()
+// actually reaches for it and the resulting *duration* changes accordingly.
+// Buffer/tolerances sized generously against SoundTouch's own real
+// algorithmic slop (a short analysis-window's worth at either end), not
+// tuned to an exact frame count.
+TEST(trigger_clip_stretches_longer_when_the_song_is_slower_than_the_clips_own_tempo) {
+  ChannelConfiguration config(8000);
+  SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
+
+  Clip clip(0);
+  auto & content = clip.getOrCreateSampleContent();
+  content.setBuffer(buildBuffer(4000, [](int) { return 0.5f; })); // 0.5s @ 8kHz, recorded at 120bpm
+  content.setNativeSampleRate(8000);
+  content.setOriginalTempo(120);
+  clip.setLooping(false);
+
+  state.triggerClip(clip, 60); // half the recorded tempo -> ratio 0.5, roughly double duration (~8000 frames)
+  auto rendered = state.renderVoices(9500);
+  auto out = rendered.getChannelData(0);
+
+  CHECK(out[6000] != 0.0f); // well past the *unstretched* 4000-frame length - only real stretching explains this
+  CHECK(out[9400] == 0.0f); // comfortably past the ~8000-frame stretched length
+}
+
+TEST(trigger_clip_stretches_shorter_when_the_song_is_faster_than_the_clips_own_tempo) {
+  ChannelConfiguration config(8000);
+  SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
+
+  Clip clip(0);
+  auto & content = clip.getOrCreateSampleContent();
+  content.setBuffer(buildBuffer(4000, [](int) { return 0.5f; })); // 0.5s @ 8kHz, recorded at 60bpm
+  content.setNativeSampleRate(8000);
+  content.setOriginalTempo(60);
+  clip.setLooping(false);
+
+  state.triggerClip(clip, 120); // double the recorded tempo -> ratio 2.0, roughly half duration (~2000 frames)
+  auto rendered = state.renderVoices(4000);
+  auto out = rendered.getChannelData(0);
+
+  CHECK(out[1000] != 0.0f); // within the stretched-short length
+  CHECK(out[3500] == 0.0f); // well past the ~2000-frame stretched length - the *unstretched* clip would still be sounding here
+}
+
+TEST(trigger_clip_reuses_its_cached_stretched_buffer_on_a_later_trigger_at_the_same_tempo) {
+  ChannelConfiguration config(8000);
+  SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
+
+  Clip clip(0);
+  auto & content = clip.getOrCreateSampleContent();
+  content.setBuffer(buildBuffer(4000, [](int) { return 0.5f; }));
+  content.setNativeSampleRate(8000);
+  content.setOriginalTempo(120);
+  clip.setLooping(true);
+
+  state.triggerClip(clip, 60);
+  auto * first_ptr = content.getStretchedBuffer(60).get();
+  CHECK(first_ptr != nullptr);
+
+  state.triggerClip(clip, 60); // a later lap's own re-trigger, same tempo - must reuse, not re-stretch
+  auto * second_ptr = content.getStretchedBuffer(60).get();
+  CHECK(second_ptr == first_ptr);
+}
+
+TEST(trigger_clip_rebuilds_the_stretched_cache_when_the_song_tempo_changes) {
+  ChannelConfiguration config(8000);
+  SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
+
+  Clip clip(0);
+  auto & content = clip.getOrCreateSampleContent();
+  content.setBuffer(buildBuffer(4000, [](int) { return 0.5f; }));
+  content.setNativeSampleRate(8000);
+  content.setOriginalTempo(120);
+  clip.setLooping(false);
+
+  state.triggerClip(clip, 60);
+  auto * first_ptr = content.getStretchedBuffer(60).get();
+  CHECK(first_ptr != nullptr);
+
+  state.triggerClip(clip, 90); // a different song tempo now - the old cache no longer applies
+  auto * second_ptr = content.getStretchedBuffer(90).get();
+  CHECK(second_ptr != nullptr);
+  CHECK(second_ptr != first_ptr);
 }
 
 // SampleTrackState derives from LeafTrackState directly (not
@@ -200,7 +327,7 @@ TEST(stop_all_voices_releases_a_sample_track_through_the_leaf_track_state_base) 
   content.setNativeSampleRate(8000);
   clip.setLooping(false);
 
-  state.triggerClip(clip);
+  state.triggerClip(clip, 0); // no originalTempo set - stretch never applies
   CHECK(state.isActive());
 
   static_cast<LeafTrackState &>(state).stopAllVoices();

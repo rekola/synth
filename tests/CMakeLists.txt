@@ -67,6 +67,7 @@ add_executable(synth_tests
 	Utf8Tests.cpp
 	SongStructureTests.cpp
 	SampleTrackTests.cpp
+	TimeStretcherTests.cpp
 )
 
 target_link_libraries(synth_tests synth_engine)

@@ -27,20 +27,25 @@ cmake --build build -j
 Produces `build/synth`.
 
 Dependencies (Ubuntu): `libnotcurses-dev libnotcurses++-dev libfmt-dev
-libsndfile1-dev libasound2-dev libunistring-dev` plus CMake and a C++17
-compiler. The C++ bindings (`ncpp/NotCurses.hh`, what
+libsndfile1-dev libasound2-dev libunistring-dev libsoundtouch-dev` plus
+CMake and a C++17 compiler. The C++ bindings (`ncpp/NotCurses.hh`, what
 `main.cpp`/`TerminalUI.cpp` include) ship in `libnotcurses++-dev`, a
 separate package `libnotcurses-dev` does not pull in as a dependency —
 both are required. `libunistring-dev` backs `src/util/Utf8.h`'s
 grapheme-cluster-aware UTF-8 truncation/width helpers — its runtime half
 (`libunistring5`) is already pulled in transitively by `libnotcurses-dev`,
 but the headers/link package isn't, so it still needs installing
-explicitly. FFT support (the live spectrum analyzer, MagLS binaural
-precomputation) is via vendored PocketFFT (`third_party/pocketfft/`) — no
-separate FFT library package needed. `libmysofa-dev` is optional
-(binaural ambisonic decoding, `SYNTH_ENABLE_BINAURAL`, auto-detected) —
-without it, `--ambisonic` still works via the cardioid stereo decoder
-fallback.
+explicitly. `libsoundtouch-dev` backs `src/audio/TimeStretcher.h`'s
+pitch-preserving time-stretch (a `SampleTrack` clip whose own recorded
+tempo disagrees with the song's current one, `SampleTrackState::
+triggerClip()`) — not optional the way `libmysofa-dev` is below, since a
+degraded resample-based fallback would also shift pitch, a correctness
+defect this codebase won't ship. FFT support (the live spectrum analyzer,
+MagLS binaural precomputation) is via vendored PocketFFT
+(`third_party/pocketfft/`) — no separate FFT library package needed.
+`libmysofa-dev` is optional (binaural ambisonic decoding,
+`SYNTH_ENABLE_BINAURAL`, auto-detected) — without it, `--ambisonic` still
+works via the cardioid stereo decoder fallback.
 
 ## Run
 

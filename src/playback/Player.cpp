@@ -284,7 +284,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       // LaunchpadManager::fireOrTriggerClipStep() is what re-fires this
       // fresh every lap for a looping clip (SampleTrackState::triggerClip()'s
       // own comment on why no separate loop handling belongs here at all).
-      if (sample_state) sample_state->triggerClip(clips[static_cast<size_t>(clip_index)]);
+      if (sample_state) sample_state->triggerClip(clips[static_cast<size_t>(clip_index)], song.getTempo());
     }
     break;
 
