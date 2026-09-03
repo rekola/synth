@@ -1,6 +1,7 @@
 #include "ArrangementGrid.h"
 
 #include "../playback/InputEvent.h"
+#include "../playback/LogEvent.h"
 #include "StyleProvider.h"
 #include "../Controller.h"
 #include "../model/Song.h"
@@ -186,8 +187,78 @@ ArrangementGrid::offerInput(const InputEvent & input) {
     if (cursor_bar_ < 0) return false;
     if (cursor_track_index_ < num_tracks) {
       auto & scene = song.getOrCreateScene(cursor_scene_);
-      placeStopInstance(scene, track_ids[static_cast<size_t>(cursor_track_index_)], cursor_bar_ * rows_per_bar);
-      song.incVersion();
+      auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
+      auto bar_start_row = cursor_bar_ * rows_per_bar;
+      auto active = resolveInstanceForBar(song, scene, track_id, bar_start_row, rows_per_bar);
+      if (active.clip_index >= 0 && active.start_row >= bar_start_row) {
+        // On the instance's own leading (head) bar - removes the
+        // placement event outright (Scene::clearInstance()) rather than
+        // replacing it with a stop: there's nothing "after" to silence
+        // here, the instance's own event genuinely lives at this exact
+        // row, so removing it is both sufficient and more correct than
+        // leaving an explicit OFF behind - reverts to whatever's actually
+        // still active from before it (same as deleting a clip or a stop
+        // already does), instead of forcing continued silence where
+        // there might be nothing to silence at all. The clip itself is
+        // untouched, still in the track's own clip list - this only ends
+        // this one placement of it, same scope Backspace already had.
+        scene.clearInstance(track_id, active.start_row);
+        song.incVersion();
+      } else if (active.clip_index >= 0) {
+        // A later (tail) bar the same instance merely continues through -
+        // no single event's own row to remove here, only a stop can
+        // truncate/mark it, landing at this bar's own row regardless of
+        // wherever the instance being truncated actually started.
+        placeStopInstance(scene, track_id, bar_start_row);
+        song.incVersion();
+      }
+      // Else: this bar was already silent (an earlier stop already
+      // applies here, or nothing was ever placed at all) - nothing to
+      // cut, so nothing to do. A clip is started once and stopped once;
+      // once stopped, it never plays again in any later bar either, so
+      // placing another stop on an already-silent bar would only
+      // duplicate the one that already does the job.
+    }
+  }
+  else if (input.getId() == NCKEY_DEL || (input.hasCtrl() && input.getId() == 'k')) {
+    // Fully removes the clip itself (ArrangementOps.h's deleteClip()) -
+    // every placement of it anywhere in the song, not just the one under
+    // the cursor - unlike Backspace above, which only ends this one
+    // placement going forward and leaves the clip itself in the track's
+    // own clip list, reusable elsewhere. Matches the same Del/Ctrl-K ->
+    // delete-clip convention Session view's own clip list already uses.
+    if (cursor_bar_ < 0) return false;
+    if (cursor_track_index_ < num_tracks) {
+      auto & scene = song.getOrCreateScene(cursor_scene_);
+      auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
+      auto active = resolveInstanceForBar(song, scene, track_id, cursor_bar_ * rows_per_bar, rows_per_bar);
+      if (active.clip_index >= 0) {
+        auto & clips = song.getClips(track_id);
+        auto clip_id = clips[static_cast<size_t>(active.clip_index)].getId();
+        auto name = clips[static_cast<size_t>(active.clip_index)].getName();
+        // Same "clear a stale focus rather than leave it dangling" reasoning
+        // SessionView's own delete-clip already has.
+        if (getController().getFocusedClipTrackId() == track_id && getController().getFocusedClip() == clip_id) {
+          getController().clearFocusedClip();
+        }
+        deleteClip(song, track_id, active.clip_index); // already calls song.incVersion() itself
+        auto text = "Deleted clip: " + (name.empty() ? string("(unnamed)") : name);
+        getController().getUIEventQueue().push(make_unique<LogEvent>(std::move(text)));
+      } else if (active.clip_index == Scene::kStopInstance) {
+        // No clip to delete - just the stop event itself
+        // (Scene::clearInstance(), not placeStopInstance() with some
+        // other value - there's nothing to replace it with, only to take
+        // away). Removing it, not overwriting it with another stop or
+        // leaving it in place, restores whatever's actually still active
+        // from before it (an earlier instance, or the background) rather
+        // than forcing silence to persist here - the same "delete
+        // reverts to whatever's underneath" semantics deleting a clip
+        // already has. deleteClip() has its own unconditional incVersion();
+        // this needs one too, since it isn't going through that.
+        scene.clearInstance(track_id, active.start_row);
+        song.incVersion();
+        getController().getUIEventQueue().push(make_unique<LogEvent>("Deleted stop"));
+      }
     }
   }
   // Left/Right move across per-track columns, which only exist on a bar
@@ -261,6 +332,19 @@ bool barHasBackgroundContent(const Scene & scene, int track_id, int raw_row, int
     if (scene.getCommand(effective_row, track_id).isDefined()) has_any = true;
   }
   return has_any;
+}
+
+// Whether `track_id` has a literal stop event of its own stored somewhere
+// in [raw_row, raw_row + rows_per_bar) - a direct lookup against the raw
+// instance data, independent of resolveInstanceForBar()'s own "what
+// governs playback here" resolution (which a stop, once placed, keeps
+// answering for every later bar too). The marker glyph is drawn purely
+// because a stop is actually on this line, not because playback is
+// currently stopped here.
+bool barHasOwnStop(const Scene & scene, int track_id, int raw_row, int rows_per_bar) {
+  auto & instances = scene.getInstancesForTrack(track_id);
+  auto it = instances.lower_bound(static_cast<unsigned short>(raw_row));
+  return it != instances.end() && static_cast<int>(it->first) < raw_row + rows_per_bar && it->second == "OFF";
 }
 
 }
@@ -469,6 +553,25 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
           // cells on either side) carrying the continuation.
           if (cur_clip_index != prev_clip_index[static_cast<size_t>(vc)] || cur_start_row != prev_start_row[static_cast<size_t>(vc)]) {
             glyph = fmt::format("{:x}", active.clip_index % 16);
+          }
+        } else if (active.clip_index == Scene::kStopInstance) {
+          // An explicit stop was previously indistinguishable from plain
+          // silence here - background left uncolored (there's nothing to
+          // tint it with, unlike a real instance's own identity color).
+          // The glyph itself is decided independently of `active` (which
+          // only says playback is currently stopped here, inherited from
+          // however many bars back the real stop event actually sits) -
+          // barHasOwnStop() checks this bar's own row span directly, so
+          // the marker is drawn purely because a stop is literally on this
+          // line, not because a stop from several bars back still governs
+          // it. Every real stop still shows, each on its own row, nothing
+          // hidden - a later bar simply has nothing of its own to draw.
+          fg = styles.window_fg_color;
+          if (barHasOwnStop(scene, track_id, raw_row, rows_per_bar)) {
+            // U+00D7 (multiplication sign), not the '*'/'.' glyphs above -
+            // an ordinary narrow character, unlike the circle glyphs those
+            // deliberately avoid, so no width-ambiguity risk of its own.
+            glyph = "×";
           }
         } else {
           bool has_sounding_note = false;

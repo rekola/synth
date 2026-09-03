@@ -29,20 +29,6 @@ namespace {
   // deliberate tap never accidentally clears instead.
   constexpr auto kDrawClearHoldThreshold = std::chrono::milliseconds(600);
 
-  // Rounds `raw_row` *up* to the start of its own next bar (unchanged if
-  // already exactly on one) - shared by every Session-view recording
-  // action that writes into the song at the live playhead's own position
-  // (handleSessionPadEvent()'s clip-trigger/stop placement,
-  // LaunchpadManager::placeRecordingStop()). Forward, not back: snapping
-  // backward would place an event as if it had taken effect from the
-  // start of a bar the performer hadn't actually reached yet, disagreeing
-  // with what they actually heard at the moment they pressed the pad -
-  // see placeClipInstance()'s own call site for the fuller reasoning.
-  int quantizedBarRow(int raw_row, int rows_per_bar) {
-    rows_per_bar = std::max(1, rows_per_bar);
-    return ((raw_row + rows_per_bar - 1) / rows_per_bar) * rows_per_bar;
-  }
-
   // How long a DRAW-mode grid pad must be held before release means "just
   // adjust brightness" instead of "cycle to the next hue" - see
   // releaseDrawPad(). Same value as kDrawClearHoldThreshold above (both are
@@ -595,7 +581,7 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
       // session ever actually muted anything, so it's safe to call
       // unconditionally here rather than tracking which of the two start
       // paths this particular session came from.
-      controller.stopAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, controller.getPlaybackInfo());
+      controller.stopAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, controller.getPlaybackInfo(), auto_record_clip_ids_);
       // Guarantees real silence on stop, not just "no more scheduling" -
       // SongState::renderBlock()'s own instance-termination release
       // (stopAllVoices()) only ever runs from within the per-row
@@ -611,25 +597,18 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
     }
     return true;
   }
-  // 95 ("Session") and 96 ("Note"), inferred from the top row's own
-  // Up/Down/Left/Right/Session/Note/Custom/Capture layout, are the only
-  // way a Launchpad reaches/leaves GridMode::SESSION now - purely
-  // per-device state, like every other toggle here, not tied to whether
-  // the overview widget has terminal UI focus at all: one connected Launchpad
-  // can sit in Session view while another stays on ordinary note entry.
-  // Session (95) toggles the same way SEND_MAIN/PAN/SEND_A/SEND_B above
-  // do (toggleGridMode() - mutually exclusive, discards whatever mode was
-  // showing before, same as every one of those); Note (96) is
-  // deliberately a one-way "back to instrument view" instead of a toggle
-  // - there's no meaningful "Note mode" of its own to toggle into, NOTES
-  // is just where every other mode here already returns to. Custom (97,
-  // DRAW mode) is the third of this trio of exclusive mode-selection
-  // buttons, but needs both press and release (see
-  // handleDrawToggleButton()'s own comment) so it's routed there directly
-  // by UI::handleLaunchpadButtonEvent instead of through this press-only
-  // entry point.
+  // 95 ("Session"), 96 ("Note") and 97 ("Custom"/DRAW mode, routed
+  // directly to handleDrawToggleButton() instead - see its own comment -
+  // since it needs both press and release) are a true radio group, not
+  // three independent toggles: each press *selects* that mode
+  // unconditionally, even if it's already the current one - the only way
+  // to ever leave a mode is to select a *different* one of the three.
+  // Purely per-device state, like every other toggle here, not tied to
+  // whether the overview widget has terminal UI focus at all: one
+  // connected Launchpad can sit in Session view while another stays on
+  // ordinary note entry.
   if (cc_number == 95) {
-    toggleGridMode(device_id, GridMode::SESSION);
+    deviceState(device_id).grid_mode = GridMode::SESSION;
     return true;
   }
   if (cc_number == 96) {
@@ -662,9 +641,13 @@ LaunchpadManager::onRowAdvanced(Controller & controller) {
   if (!auto_started_playback_) return;
 
   auto & info = controller.getPlaybackInfo();
+  auto track_ids = getActiveNoteTrackIds();
+  controller.sweepAutoRecordRows(auto_record_cleared_rows_, last_cleared_row_, last_cleared_pattern_idx_, info.getPatternIndex(), info.getRowIndex(), track_ids);
+}
 
-  // Every track currently receiving live input, across every device -
-  // not just the caller's own, since two different Launchpads could be
+vector<int>
+LaunchpadManager::getActiveNoteTrackIds() const {
+  // Not just the caller's own device - two different Launchpads could be
   // assigned to different tracks and both mid-hold at once.
   vector<int> track_ids;
   for (auto & [ device_id, state ] : devices_) {
@@ -674,8 +657,7 @@ LaunchpadManager::onRowAdvanced(Controller & controller) {
       }
     }
   }
-
-  controller.sweepAutoRecordRows(auto_record_cleared_rows_, last_cleared_row_, last_cleared_pattern_idx_, info.getPatternIndex(), info.getRowIndex(), track_ids);
+  return track_ids;
 }
 
 bool
@@ -689,10 +671,9 @@ LaunchpadManager::handleDrawToggleButton(int device_id, bool is_press) {
     // change (or not) on this very line.
     state.draw_toggle_was_already_active = (state.grid_mode == GridMode::DRAW);
     // Entering DRAW mode happens immediately on press, matching CC95's
-    // own instant Session switch - only actually *leaving* it (a quick
-    // tap while already there) or clearing the canvas (a long hold,
-    // released while already there) wait for release, since neither can
-    // be told apart from the other, or from a fresh entry, until then.
+    // own instant Session switch - only clearing the canvas (a long hold,
+    // released while already there) waits for release, since a long hold
+    // can't be told apart from a fresh entry until then.
     state.grid_mode = GridMode::DRAW;
     return true;
   }
@@ -703,13 +684,14 @@ LaunchpadManager::handleDrawToggleButton(int device_id, bool is_press) {
   if (held >= kDrawClearHoldThreshold) {
     // Long hold, released while already in DRAW mode before this press:
     // blank the canvas (DRAW_PALETTE[0] is "off" - see its own definition
-    // above) rather than toggling out of DRAW mode.
+    // above).
     state.draw_color_index.fill(0);
-  } else {
-    // Quick tap while already in DRAW mode before this press: toggle back
-    // out to NOTES.
-    state.grid_mode = GridMode::NOTES;
   }
+  // A quick tap while already in DRAW mode before this press does nothing
+  // further - Custom/DRAW is part of the same Session/Note/Custom radio
+  // group CC95/96 are (handleRawButton()'s own comment): the only way to
+  // leave it is selecting a different one of the three, never a repeat
+  // press of the one already selected.
   return true;
 }
 
@@ -984,11 +966,15 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
 
     // Whether this press is about to become the first captured (Capture-
     // armed) held note anywhere - computed before recordActiveNote()
-    // below adds this one, so it doesn't see itself. Drives the realtime
-    // auto-play-while-held feature (see the RELEASE branch's matching
-    // check) - only engages while Capture is actually armed on this
-    // device, since the whole point is getting accurately-timed
-    // recorded data; a pure-audition press has nothing to time-stamp.
+    // below adds this one, so it doesn't see itself. Starts the transport
+    // for the whole recording session below, not just for this one held
+    // note - only the explicit Record Arm disarm (handleRawButton()'s own
+    // CC19 comment) stops it again, so a phrase with real rests in it
+    // still records correctly instead of the transport freezing the
+    // instant nothing happens to be held. Only engages while Capture is
+    // actually armed on this device, since the whole point is getting
+    // accurately-timed recorded data; a pure-audition press has nothing
+    // to time-stamp.
     bool was_first_captured_note = state.capture_enabled && !anyCaptureArmedNoteHeld();
 
     // Engage realtime auto-play-while-held *before* the free-slot search
@@ -1001,7 +987,20 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // isPlaying()==true immediately, not just once the Player thread
     // eventually processes the event and reports back.
     if (was_first_captured_note && !info.isPlaying()) {
-      controller.startAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, last_cleared_row_, last_cleared_pattern_idx_);
+      controller.startAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, last_cleared_row_, last_cleared_pattern_idx_, auto_record_clip_ids_);
+    }
+
+    // A live take writes into a real, individually-manageable Clip
+    // instance, not directly into the scene's own background Pattern - a
+    // no-op once that clip already exists (or if a clip is focused, which
+    // already resolves correctly without this). Re-resolves edit_target
+    // immediately after: it was computed before this take could have just
+    // placed a brand new instance here, so it would otherwise still point
+    // at the (now superseded) background - the free-slot search and this
+    // press's own write below both need the fresh one.
+    if (state.capture_enabled && info.isPlaying()) {
+      controller.ensureNoteRecordingClip(auto_record_clip_ids_, track_id, info.getPatternIndex(), row);
+      edit_target = resolveEditTarget(song, scene, track_id, row, controller.getFocusedClip());
     }
 
     // Whole-row replace semantics for a live take: idempotent (see its
@@ -1098,16 +1097,16 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
       }
     }
 
-    // Realtime auto-play-while-held: stop exactly when the last
-    // Capture-armed held note anywhere releases, but only if this code
-    // (not the user manually pressing Space) was the one that started
-    // it - see auto_started_playback_'s own comment.
-    // stopAutoRecordSession() itself handles only actually stopping if
-    // it's still genuinely playing (the user may have manually stopped it
-    // themselves in the meantime).
-    if (auto_started_playback_ && !anyCaptureArmedNoteHeld()) {
-      controller.stopAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, info);
-    }
+    // The transport itself is no longer stopped here - releasing the
+    // last held note used to end the whole recording session, which made
+    // recording a real phrase (anything with a rest in it) impossible:
+    // the transport froze the instant nothing was held, so the next note
+    // played after a gap landed right next to the previous one instead of
+    // where the gap actually put it. Now only CC19 (disarming Record Arm,
+    // see handleRawButton()'s own comment) stops it - a held note's own
+    // release still silences that one note (above) and, while stopped,
+    // still advances step entry (above), just never touches the
+    // transport itself any more.
   } else if (ev.getKind() == LaunchpadPadEvent::AFTERTOUCH) {
     // Mini MK3 never emits this (no pressure sensing); defensive check
     // anyway in case a future model reports itself incorrectly.
@@ -1976,7 +1975,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   // DeviceState, never Song/PlaybackInfo directly (see its own branches).
   // Computed unconditionally (not gated on anything overview-focus-
   // related) since which devices, if any, are actually showing Session
-  // view is now purely each one's own CC95/96 toggle - see
+  // view is now purely each one's own CC95/96 selection - see
   // handleRawButton()'s own comment. x = column, indexed into
   // session.track_ids - the overview's own filtered column list, not
   // track_ids above (this class's usual root-track-id parameter, which

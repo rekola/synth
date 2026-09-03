@@ -81,16 +81,18 @@ class LaunchpadManager {
   // level (a bargraph, filled bottom-up); for PAN it sets that column's
   // azimuth to one of 8 compass points around the full circle (only the
   // one matching row lights up - a direction, not a magnitude, so a fill
-  // doesn't make sense). Mutually exclusive - toggling one mode off
-  // (pressing its own button again) or switching directly to another
-  // always returns/moves to exactly one state.
+  // doesn't make sense). Mutually exclusive - always exactly one state.
   // Ordered to match the physical buttons' own row order (Volume/Pan/Send
   // A/Send B, CC 89/79/69/59 - see handleRawButton()'s own comment), not
-  // declaration-arbitrary. SESSION is reached/left the same way as every
-  // other mode in this list (toggleGridMode()/a physical button - CC95/96,
-  // see handleRawButton()'s own comment) - purely per-device state, not
-  // tied to whether the overview widget has terminal UI focus: one connected
-  // Launchpad can sit in Session view while another stays on NOTES.
+  // declaration-arbitrary; those four still toggle off back to NOTES on a
+  // repeat press of their own button (toggleGridMode()). SESSION/DRAW
+  // (CC95/97) and NOTES (CC96) are a separate trio that behaves
+  // differently - a true radio group, never toggled off by a repeat press
+  // of the button already selected, only by pressing a different one of
+  // the three (handleRawButton()'s own comment) - purely per-device state
+  // either way, not tied to whether the overview widget has terminal UI
+  // focus: one connected Launchpad can sit in Session view while another
+  // stays on NOTES.
   enum class GridMode { NOTES, SEND_MAIN, PAN, SEND_A, SEND_B, DRAW, SESSION };
   GridMode gridMode(int device_id) const;
   void toggleGridMode(int device_id, GridMode mode);
@@ -364,6 +366,23 @@ class LaunchpadManager {
   // into the next one.
   bool isAutoRecording() const { return auto_started_playback_; }
 
+  // Which real Clip (by id) this session has created so far, keyed by
+  // track_id (Controller::ensureNoteRecordingClip()) - Controller::
+  // extendRecordingClipsIfNeeded() (UI::handlePlaybackEvent(), alongside
+  // extendRecordingSceneIfNeeded() above) reads/mutates this directly to
+  // grow each one's own window as the take continues.
+  std::unordered_map<int, std::string> & getAutoRecordClipIds() { return auto_record_clip_ids_; }
+
+  // Every track_id currently receiving live input, across every device -
+  // same computation onRowAdvanced() uses for sweepAutoRecordRows(), shared
+  // here so Controller::extendRecordingClipsIfNeeded() can grow a track's
+  // recording clip only while a note is actually being held on it, rather
+  // than for as long as the session merely stays armed (Record Arm has no
+  // auto-stop-on-release the way PatternEditor's own keyboard session
+  // does, so an unheld clip would otherwise keep growing, and clearing
+  // everything in its path, all the way to the end of the scene).
+  std::vector<int> getActiveNoteTrackIds() const;
+
   // Called once per render() frame: recomputes each ready device's LED
   // colors (base consonance-hierarchy/percussion palette plus a
   // brightness overlay for whatever notes are currently sounding on its
@@ -618,6 +637,12 @@ class LaunchpadManager {
   std::set<std::pair<int, int>> auto_record_cleared_rows_;
   int last_cleared_row_ = -1;
   int last_cleared_pattern_idx_ = -1;
+
+  // Which real Clip this session has recorded into, per track (see
+  // getAutoRecordClipIds()'s own comment) - reset the same moments
+  // auto_record_cleared_rows_ above is, so a finished session never
+  // leaves a stale entry for a later, unrelated one to stumble over.
+  std::unordered_map<int, std::string> auto_record_clip_ids_;
 
   // The free-running drum-machine/clip audition clock: a second,
   // independent clock from SongState's own position - deliberately never

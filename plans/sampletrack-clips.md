@@ -875,6 +875,195 @@ looping/reuse of a note-recorded clip needs no new work at all once it's
 a real `Clip` - it's already exactly the same kind of object an
 `InstrumentTrack`'s own pooled clips are, launched the same way.
 
+**Implemented.** `Controller::ensureNoteRecordingClip()` (creates+places a
+clip the first time a live write lands somewhere with nothing real already
+active, per `resolveInstanceAt()` - an explicit stop counts as "nothing"
+here too) and `Controller::extendRecordingClipsIfNeeded()` (the length-growth
+half, called from `UI::handlePlaybackEvent()` alongside
+`extendRecordingSceneIfNeeded()`, same as planned above). Both take a
+`clip_ids` map (`track_id` -> the clip this session created for it) by
+reference rather than owning it on `Controller` - `PatternEditor`'s and
+`LaunchpadManager`'s own recording sessions stay independent this way, the
+same reasoning `ensureRowCleared()`'s own `cleared_rows` parameter already
+has; `startAutoRecordSession()`/`stopAutoRecordSession()` reset it at the
+same points they already reset `cleared_rows`. Two corrections made during
+implementation, not in the original design above:
+
+- **A recorded clip defaults to non-looping**, per the user's own
+  direction - a live take is one specific performance, not a pattern meant
+  to repeat the moment it ends; looping it is a later, deliberate call
+  (Session view), not this clip's own starting assumption. This makes
+  `resolveInstanceAt()`'s one-shot expiry check genuinely apply (a looping
+  clip never expires regardless of length, so the growth mechanism above
+  would have had nothing to actually prevent otherwise) - the length-growth
+  loop grows a full bar at a time until at least one bar of headroom
+  remains, converging within a single call rather than assuming a later
+  call will finish the job, since expiry depends on the window already
+  being wide enough the instant this method returns.
+- **A track's own displayed note-column count now also accounts for
+  placed clip instances, not just its background Pattern.**
+  `PatternEditor::getTrackInformation()` only ever scanned each visible
+  scene's own `patterns_by_track_id_` (`Scene::getTrackInformation()`) for
+  the dynamic part of a track's column width - a chord recorded into a
+  clip's own separate leaf Pattern was invisible to it, so the track could
+  end up too narrow to actually show what was just recorded. Every clip
+  placed anywhere in a visible scene now gets the same
+  `Pattern::updateSubtrackInfo()` treatment the background pattern already
+  did (skipping a `SampleTrack` clip, which has no Pattern to read at all -
+  same guard `resolveReadTarget()`/`resolveEditTarget()` already need) -
+  general to any placed clip's content, not special-cased to a
+  currently-recording one.
+- **The transport is no longer stopped by releasing the last held
+  Launchpad note - only by disarming Record Arm.** Found immediately
+  after the above landed, raised directly by the user: tying the
+  transport's own running state to whether a note is *currently physically
+  held* makes recording an actual phrase - anything with a rest in it -
+  impossible, since the transport freezes the instant nothing is held, so
+  a note played after a gap lands right next to the previous one instead
+  of where the gap actually puts it. The transport still only ever
+  *starts* at the first captured note press while armed and not already
+  playing (unchanged - correctly mode-appropriate: NOTES-mode note entry
+  needs pattern scheduling muted, `startAutoRecordSession()`; Session
+  view's own clip-trigger recording doesn't, `startAutoRecordPlayback()` -
+  a single CC19-time trigger can't tell those apart the instant it fires,
+  since grid mode can still change after arming, but "first press in
+  whichever mode actually occurs" always picks the right one) - only the
+  *stop* moved, from "last held note released" to CC19 disarm alone
+  (`LaunchpadManager::handleRawButton()`'s existing disarm branch, already
+  unconditional regardless of which start path engaged it). Scoped to the
+  Launchpad only, per the user's own direction - `PatternEditor`'s keyboard
+  note entry has the identical gap (no armed-session concept at all, purely
+  hold-driven) but is deliberately left for later.
+- **The clip's own placement is bar-quantized too, rounded *back* rather
+  than forward.** Raised directly by the user: a live take's first note
+  rarely lands exactly on a bar boundary, and an unquantized placement
+  left the clip off the same bar grid every other real placement in the
+  song respects. `ArrangementOps.h` gained `previousBarRow()`, the
+  opposite-direction sibling of the existing `quantizedBarRow()`
+  (relocated there from `LaunchpadManager.cpp`'s own anonymous namespace,
+  now shared) - rounding *forward* (that function's own existing use, live
+  clip triggers) would place the clip's own start *after* the note that
+  has to land inside it, which can't work; rounding back instead just
+  gives the clip a few rows of leading rest before the real first note,
+  same as any other pattern starting partway through its own bar. Exposed
+  a second, real bug in the same change: a fresh clip's `length` was still
+  left at 0 ("not given one yet"), which a non-looping clip's one-shot
+  expiry treats as 1 row - already "expired" by the time the actual first
+  note (now landing a few rows past the clip's own, earlier start) got
+  written. Fixed by giving it a full bar's length immediately at creation,
+  not just later via the growth mechanism below.
+- **A note-recording clip now keeps growing even when this session never
+  itself started the transport.** Raised directly by the user: recording
+  against playback already running because the performer positioned the
+  cursor and pressed Space themselves *before* arming/holding a note never
+  engages `startAutoRecordSession()` at all (its own guard is `!info.isPlaying()`)
+  - `isAutoRecording()` stays false for the whole take, since this
+  particular session never started anything. `extendRecordingClipsIfNeeded()`
+  was gated on that same flag (mirroring `extendRecordingSceneIfNeeded()`),
+  so it never ran either: the clip got created (with its own correct
+  initial one-bar length, above) and then just sat there while real
+  playback quietly outran it, until one-shot expiry dropped it and a
+  release's own note-off landed in the background instead. Fixed by
+  dropping the `isAutoRecording()`/`recording` gate from
+  `extendRecordingClipsIfNeeded()` entirely (its signature no longer takes
+  it) - a clip already present in `clip_ids` is already proof a genuine
+  live write created it, independent of who happened to start the
+  transport; `extendRecordingSceneIfNeeded()` keeps its own
+  `isAutoRecording()` gate unchanged; it has no equivalent "do I even have
+  something to grow" signal of its own to rely on instead.
+- **A live take now overwrites whatever else is in its own path as it
+  grows, arrangement-layer content included - not just the background
+  Pattern `ensureRowCleared()` already replaces.** Raised directly by the
+  user, diagnosing the previous bug's own root cause: a stray stop event
+  (or a different clip) sitting in a live take's future path made
+  `extendRecordingClipsIfNeeded()`'s own `resolveInstanceAt()` lookup
+  report *that* instead of the recording clip the moment the transport
+  reached it, freezing growth for good - `resolveInstanceAt()` has no way
+  to know "keep looking, this take is still going," it just reports
+  whatever's most recently placed. Fixed in two parts: the clip is now
+  found by its own stable id directly in the track's own instance map
+  (never `resolveInstanceAt()`, which can't tell "superseded" apart from
+  "gone"), and every growth step re-invokes `placeClipInstance()` (already
+  sweeps every other instance event within a clip's own reach, on every
+  call, keyed off whatever length it currently has) instead of just
+  calling `Clip::setLength()` directly - so anything newly inside the
+  just-grown window is cleared away, not left to freeze the *next* growth
+  attempt too.
+- **Stop instances are now visible in `ArrangementGrid`, and removable.**
+  Found while diagnosing the bug above: an explicit stop was completely
+  indistinguishable from plain silence there, which is exactly how a
+  stray one went unnoticed in the first place. Renders as `×`, drawn on a
+  bar purely because a stop event's own row is literally stored somewhere
+  in that bar's own span (new `barHasOwnStop()`, a direct lookup against
+  the raw instance data) - deliberately *not* derived from
+  `resolveInstanceForBar()`'s own "what governs playback here" resolution
+  the way a real clip's own leading-bar digit is (that still answers
+  "stopped" for every bar after a stop, which is correct for suppressing
+  stray background-pattern content there, but isn't the same question as
+  "does this bar have a marker of its own to draw"). Landing here took
+  three attempts, all raised directly by the user: first showing it on
+  every bar still silenced by it (visually inflating one event into what
+  looked like many), then collapsing that down via the same leading-bar
+  machinery a real clip's digit uses (rejected - reusing `active`'s
+  "currently governs playback" state for the glyph decision conflates two
+  different questions, and a genuinely separate stop several bars later
+  would have kept its own row hidden behind the first one's inherited
+  state), then a data-level sweep in `placeStopInstance()` clearing any
+  other stop later in the same silent stretch (also rejected - the view
+  must never hide a real event, and a redundant stop does nothing at
+  playback anyway per `resolveInstanceAt()`'s own contract, so there was
+  nothing to actually clean up). `Del`/`Ctrl-K` (the same key that deletes
+  a clip) now also removes a stop instead, when that's what the cursor is
+  on - `Scene::clearInstance()`, reverting to whatever was actually still
+  active underneath it rather than forcing continued silence.
+- **`ArrangementGrid`'s Backspace no longer places a stop on a bar that's
+  already silent.** The actual fix for "cutting the tail places far more
+  stops than needed": pressing Backspace repeatedly while trimming a long
+  tail kept placing a fresh, real `"OFF"` entry on every bar pressed, even
+  once an earlier press's own stop already silenced everything past it -
+  each individually well-formed, but every one past the first genuinely
+  redundant. Guarded at the source instead of cleaned up after the fact:
+  the tail branch now only fires when `resolveInstanceForBar()` reports a
+  real instance still actively sounding through this bar
+  (`active.clip_index >= 0`) - an already-stopped or never-placed bar is
+  left alone entirely, so a normal single-cut only ever writes the one
+  stop it needs.
+- **Backspace on an instance's own leading (head) bar removes the
+  placement outright now, instead of replacing it with a stop.** Raised
+  directly by the user: a stop is only actually needed to truncate an
+  instance's own *tail* (a later bar it merely continues through, where
+  there's no single event's own row to remove - only a stop can mark
+  "ends here"); on the *head* bar, the instance's own placement event
+  genuinely lives at that exact row, so `Scene::clearInstance()` is both
+  sufficient and more correct than leaving an explicit `OFF` behind -
+  reverts to whatever was actually still active from before it, the same
+  "delete reverts, doesn't force silence" semantics deleting a clip or a
+  stop already have, rather than needlessly leaving a stop marker where
+  there's nothing left to silence. Still ends only this one placement,
+  same scope Backspace already had - the clip itself stays in the track's
+  own clip list, reusable elsewhere, same as before.
+- **A recording clip's own growth is now gated on a note actually being
+  held, not just on the session staying armed.** Raised directly by the
+  user: `extendRecordingClipsIfNeeded()`'s own "grow a full bar ahead"
+  loop had no signal for "the performer stopped playing," only "is this
+  session still armed and the transport still playing" - Record Arm has
+  no auto-stop-on-release the way `PatternEditor`'s own keyboard session
+  does (that already stops the session, and with it all growth, the
+  instant the last key comes up), so an armed-but-idle Launchpad session
+  kept growing the clip - and, via the overwrite fix above, kept clearing
+  everything in its own path - all the way to the end of the scene.
+  `LaunchpadManager`/`PatternEditor` each gained
+  `getActiveNoteTrackIds()` (the same active-notes union
+  `onRowAdvanced()` already computed for `sweepAutoRecordRows()`, now
+  shared); `extendRecordingClipsIfNeeded()` takes this as a new
+  `held_track_ids` parameter and skips a track entirely unless it's in
+  that set. A short rest mid-phrase still works the same as before - the
+  clip already carries a bar of headroom from its last growth while a
+  note was held, so a new note landing within that margin still lands in
+  the same clip; a rest longer than that margin lets the clip actually
+  expire, and the next note starts a new one, which is the correct
+  reading of "only cover the space where the voices are actually active."
+
 ## Part 11 - Recording-latency compensation
 
 Raised directly by the user: recording (Part 4) while the song plays back

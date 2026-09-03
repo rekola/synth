@@ -7,6 +7,27 @@ class Song;
 class Scene;
 class Pattern;
 
+// Rounds `raw_row` up to the start of its own next bar (unchanged if
+// already exactly on one) - every real-time placement that must not claim
+// something had already started sounding before it actually did (Session-
+// view's own clip-trigger/stop placement, LaunchpadManager.cpp) goes
+// through this. Forward, not back: snapping backward would place an event
+// as if it had taken effect from the start of a bar the performer hadn't
+// actually reached yet, disagreeing with what they actually heard at the
+// moment they pressed the pad.
+int quantizedBarRow(int raw_row, int rows_per_bar);
+
+// The opposite direction, for a brand new clip's own placement
+// (Controller::ensureNoteRecordingClip()) rather than triggering one that
+// already exists: rounds `raw_row` down to the start of its own current
+// bar. A live take's first note has to land *inside* whatever clip gets
+// created for it, so the clip's own start can never be later than that
+// note's own row the way rounding forward would risk - rounding back
+// instead just gives the clip a few rows of leading rest before the
+// performer's actual first note, same as any other pattern's content
+// starting partway through it.
+int previousBarRow(int raw_row, int rows_per_bar);
+
 // Places a real-clip instance event (clip_index - the clip's own ordinal
 // position in track_id's own clip list, Song::getClips(track_id) - what
 // actually gets stored is that clip's own stable id instead, Clip.h's own
@@ -25,7 +46,13 @@ void placeClipInstance(const Song & song, Scene & scene, int track_id, int row, 
 // in `scene`. Clears nothing, unlike placeClipInstance() above - a stop
 // adds no new sounding content, so there's nothing of its own to protect
 // going forward; whatever's already there from `row` onward was already
-// left in a consistent state by whatever was placed before it.
+// left in a consistent state by whatever was placed before it. Callers
+// that place a stop in response to a user action (ArrangementGrid's own
+// Backspace) are expected to only call this where something is actually
+// still sounding to begin with - a stop once placed silences every later
+// row regardless of length or looping (resolveInstanceAt()'s own
+// contract), so a second one placed further into that same already-silent
+// stretch would do nothing a caller couldn't have skipped outright.
 void placeStopInstance(Scene & scene, int track_id, int row);
 
 // Removes `clip_index`'s own clip from track_id's own clip list

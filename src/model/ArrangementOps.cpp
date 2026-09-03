@@ -9,6 +9,18 @@
 
 using namespace std;
 
+int
+quantizedBarRow(int raw_row, int rows_per_bar) {
+  rows_per_bar = max(1, rows_per_bar);
+  return ((raw_row + rows_per_bar - 1) / rows_per_bar) * rows_per_bar;
+}
+
+int
+previousBarRow(int raw_row, int rows_per_bar) {
+  rows_per_bar = max(1, rows_per_bar);
+  return (raw_row / rows_per_bar) * rows_per_bar;
+}
+
 void
 placeClipInstance(const Song & song, Scene & scene, int track_id, int row, int clip_index) {
   auto & clips = song.getClips(track_id);
@@ -105,7 +117,24 @@ resolveInstanceForBar(const Song & song, const Scene & scene, int track_id, int 
   // This event belongs to this bar - shown unconditionally (one-shot
   // expiry doesn't apply here, unlike resolveInstanceAt(): it was
   // genuinely active for at least part of this bar regardless of what's
-  // true by the bar's own last row).
+  // true by the bar's own last row). An explicit stop landing mid-bar
+  // gets the identical treatment, one step further back: whatever it
+  // superseded, if that was itself still within this bar (not carried
+  // over from an earlier one) and a real clip, was every bit as
+  // genuinely active for part of this bar as a one-shot that later
+  // expired already is above - only actually falls through to "this bar
+  // is stopped" if nothing real preceded the stop within this bar's own
+  // span. Only the immediately preceding event is ever checked, not an
+  // unbounded walk backward - two stops close enough to leave nothing
+  // real in between is degenerate enough that "stopped" is a reasonable
+  // answer for it too.
+  if (it->second == "OFF" && it != track_instances.begin()) {
+    auto prev_it = it;
+    --prev_it;
+    if (static_cast<int>(prev_it->first) >= bar_start_row && prev_it->second != "OFF") it = prev_it;
+  }
+  event_row = static_cast<int>(it->first);
+
   auto & clip_id = it->second;
   if (clip_id == "OFF") return { Scene::kStopInstance, event_row };
 

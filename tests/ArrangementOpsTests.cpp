@@ -479,7 +479,17 @@ TEST(resolve_instance_for_bar_still_finds_a_looping_instance_carried_over_from_a
   CHECK(resolveInstanceForBar(song, scene, track_id, 32, 16).start_row == 0);
 }
 
-TEST(resolve_instance_for_bar_reports_an_explicit_stop_placed_mid_bar) {
+// A stop landing mid-bar, right after the same bar's own real content,
+// must not make the whole bar look empty in ArrangementGrid - the clip
+// was genuinely active for part of it (the same "genuinely active for at
+// least part of this bar" reasoning resolveInstanceForBar() already uses
+// for one-shot expiry), so this bar still reports the clip; only a *later*
+// bar, which the stop actually reaches before anything else does, reports
+// stopped. A real bug report: C-k in PatternEditor terminating a clip a
+// few rows into its own first bar made that bar disappear entirely from
+// the overview instead of still showing the clip that had just played
+// there.
+TEST(resolve_instance_for_bar_still_shows_the_clip_when_a_stop_lands_later_in_its_own_leading_bar) {
   Song song;
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -493,6 +503,22 @@ TEST(resolve_instance_for_bar_reports_an_explicit_stop_placed_mid_bar) {
   scene.setInstance(track_id, 0, clip_id);
   scene.setInstance(track_id, 5, "OFF"); // stopped mid-bar, well before bar 0 ends
 
+  CHECK(resolveInstanceForBar(song, scene, track_id, 0, 16).clip_index == 0); // still shows the clip - it played for rows 0-4 of this same bar
+  CHECK(resolveInstanceForBar(song, scene, track_id, 16, 16).clip_index == Scene::kStopInstance); // a later bar the stop actually reaches first, unaffected
+}
+
+// Two stops close enough together to leave nothing real in between within
+// one bar - a degenerate case resolveInstanceForBar() doesn't try to walk
+// arbitrarily far back for; "this bar is stopped" is a reasonable enough
+// answer for it.
+TEST(resolve_instance_for_bar_reports_stopped_when_nothing_real_precedes_a_mid_bar_stop) {
+  Song song;
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+
+  auto & scene = song.addScene();
+  scene.setInstance(track_id, 2, "OFF");
+  scene.setInstance(track_id, 5, "OFF"); // a second stop - nothing real between rows 2 and 5
+
   CHECK(resolveInstanceForBar(song, scene, track_id, 0, 16).clip_index == Scene::kStopInstance);
-  CHECK(resolveInstanceForBar(song, scene, track_id, 16, 16).clip_index == Scene::kStopInstance); // stays stopped into later bars too
 }

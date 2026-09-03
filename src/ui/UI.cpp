@@ -743,6 +743,19 @@ UI::handlePlaybackEvent(PlaybackEvent & ev) {
                     getController().isRecording();
   getController().extendRecordingSceneIfNeeded(recording);
 
+  // Clip::setLength()'s own counterpart to the scene growth above - each
+  // caller's own note-recording clips (Controller::ensureNoteRecordingClip())
+  // grown independently. Deliberately not gated on `recording` at all
+  // (unlike extendRecordingSceneIfNeeded() above) - see
+  // extendRecordingClipsIfNeeded()'s own comment on why a clip that
+  // already exists needs no further proof a genuine session is driving
+  // it, and why gating on isAutoRecording() here would silently stop
+  // growing a take recorded against playback the performer had already
+  // started manually. Each call's own held-track-ids argument scopes
+  // growth further, to only a track with a note actually held right now.
+  if (pattern_editor_) getController().extendRecordingClipsIfNeeded(pattern_editor_->getAutoRecordClipIds(), pattern_editor_->getActiveNoteTrackIds());
+  if (launchpad_manager_) getController().extendRecordingClipsIfNeeded(launchpad_manager_->getAutoRecordClipIds(), launchpad_manager_->getActiveNoteTrackIds());
+
   ev.redraw();
 }
 

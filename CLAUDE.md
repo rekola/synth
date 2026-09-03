@@ -345,9 +345,11 @@ whether or not a terminal UI exists at all.
 - **Extra-button layout** (raw CC, intercepted directly in
   `LaunchpadManager::handleRawButton()`/`UI::handleLaunchpadButtonEvent()`
   before any command-name resolution): 89/79/69/59 toggle SEND_MAIN
-  (Volume)/PAN/SEND_A/SEND_B; 95/96/97 (Session/Note/Custom) are a trio
-  of exclusive mode-select buttons (95 toggles SESSION, 96 is a one-way
-  return to NOTES, 97 toggles DRAW - see below); 19 is Record Arm
+  (Volume)/PAN/SEND_A/SEND_B; 95/96/97 (Session/Note/Custom) are a true
+  radio group, not independent toggles - each press selects that mode
+  unconditionally, even pressing the one already active, so the only way
+  to leave a mode is selecting a *different* one of the three (97's own
+  tap-vs-long-hold gesture aside - see below); 19 is Record Arm
   (`capture_enabled_`, a single song-wide flag, not per-device); 49 and
   98 are Session-view/drum-machine-specific, see their own bullets below.
   91/92/93/94 are move-row-up/down/prev-track/next-track (named
@@ -355,8 +357,9 @@ whether or not a terminal UI exists at all.
   Mute/Solo.
 - **DRAW mode** - a plain per-pad coloring toy, independent of Song/Track
   state. CC97's own tap-vs-long-hold gesture: entering DRAW happens
-  immediately on press; a quick release while already in DRAW toggles
-  back to NOTES, a long hold instead blanks the canvas
+  immediately on press; a quick release while already in DRAW does
+  nothing further (same radio-group rule as CC95/96 - only a different
+  one of the three leaves DRAW), a long hold instead blanks the canvas
   (`handleDrawToggleButton()`).
 - **The drum machine** (`DrumMachineTrack`, up to `kMaxLanes` = 8 lanes,
   `getLaneNotes()`): its step data is a real per-scene `Pattern` like any

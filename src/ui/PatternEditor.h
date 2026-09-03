@@ -105,6 +105,20 @@ class PatternEditor : public UIElement {
   // wrapping into the next one.
   bool isAutoRecording() const { return auto_started_playback_; }
 
+  // Which real Clip (by id) this session has created so far, keyed by
+  // track_id (Controller::ensureNoteRecordingClip()) - Controller::
+  // extendRecordingClipsIfNeeded() (UI::handlePlaybackEvent(), alongside
+  // extendRecordingSceneIfNeeded() above) reads/mutates this directly to
+  // grow each one's own window as the take continues.
+  std::unordered_map<int, std::string> & getAutoRecordClipIds() { return auto_record_clip_ids_; }
+
+  // Every track_id currently receiving live keyboard input - same
+  // computation onRowAdvanced() uses for sweepAutoRecordRows(), shared
+  // here so Controller::extendRecordingClipsIfNeeded() can grow a track's
+  // recording clip only while a note is actually being held on it, not
+  // merely while the session is still nominally open.
+  std::vector<int> getActiveNoteTrackIds() const;
+
   // Called via Controller::setBufferChangeListener()'s UI.cpp fan-out
   // whenever the active buffer changes (switch, kill landing on a
   // different buffer, or a fresh buffer created) - saves the outgoing
@@ -267,6 +281,12 @@ protected:
   std::set<std::pair<int, int>> auto_record_cleared_rows_;
   int last_cleared_row_ = -1;
   int last_cleared_pattern_idx_ = -1;
+
+  // Which real Clip this session has recorded into, per track (see
+  // getAutoRecordClipIds()'s own comment) - reset the same moments
+  // auto_record_cleared_rows_ above is, so a finished session never
+  // leaves a stale entry for a later, unrelated one to stumble over.
+  std::unordered_map<int, std::string> auto_record_clip_ids_;
 
   // start-sample-capture/stop-sample-capture's own auto_started_playback_
   // sibling - same shape, same reasoning, but never shared with the one

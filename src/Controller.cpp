@@ -835,13 +835,129 @@ Controller::extendRecordingSceneIfNeeded(bool recording) {
 }
 
 void
-Controller::startAutoRecordSession(bool & auto_started_playback, std::set<std::pair<int, int>> & cleared_rows, int & last_cleared_row, int & last_cleared_pattern_idx) {
+Controller::ensureNoteRecordingClip(std::unordered_map<int, std::string> & clip_ids, int track_id, int pattern_idx, int row) {
+  if (!getFocusedClip().empty()) return; // already resolves into the focused clip directly - nothing to place
+  auto song = getCurrentSong();
+  // previousBarRow(), not the live row itself - a brand new clip's own
+  // placement is bar-quantized the same as every other real placement in
+  // this song, but rounded back rather than forward (that function's own
+  // comment on why): a live take's first note has to land inside whatever
+  // clip gets created for it, and the clip can't start later than that
+  // note's own row.
+  auto rows_per_bar = std::max(1, song->getRowsPerBar());
+  row = previousBarRow(row, rows_per_bar);
+  auto & scene = song->getOrCreateScene(pattern_idx);
+  auto active = resolveInstanceAt(*song, scene, track_id, row);
+  if (active.clip_index >= 0) return; // a real clip is already active here - write into it, same as ordinary editing
+
+  Clip clip(track_id);
+  clip.setName(fmt::format("Take {}", song->getClips(track_id).size() + 1));
+  // Non-looping by default - a live take is one specific performance, not
+  // a pattern meant to repeat automatically the moment it ends; looping it
+  // is the performer's own later call to make (Session view), not this
+  // clip's own starting assumption.
+  clip.setLooping(false);
+  // A full bar's worth of length right away, not left at 0 (Clip.h's
+  // "not given one yet") - the clip's own placement was just rounded back
+  // to this bar's start, so the live row the very first note is about to
+  // land on can be anywhere up to a whole bar past that. Left at the
+  // default, a non-looping clip with no explicit length falls back to
+  // treating itself as 1 row long (resolveInstanceAt()'s own one-shot-
+  // expiry fallback) - already "expired" by the time that first note's own
+  // write re-resolves against it, silently missing the very clip
+  // ensureNoteRecordingClip() just created. extendRecordingClipsIfNeeded()
+  // takes over growing it further from here as the take continues.
+  clip.setLength(rows_per_bar);
+  auto & added = song->addClip(std::move(clip));
+  auto clip_index = static_cast<int>(song->getClips(track_id).size()) - 1;
+  placeClipInstance(*song, scene, track_id, row, clip_index);
+  clip_ids[track_id] = added.getId();
+  song->incVersion();
+}
+
+void
+Controller::extendRecordingClipsIfNeeded(std::unordered_map<int, std::string> & clip_ids, const std::vector<int> & held_track_ids) {
+  if (clip_ids.empty()) return;
+  auto & info = getPlaybackInfo();
+  if (!info.isPlaying()) return;
+
+  auto song = getCurrentSong();
+  if (!song) return;
+  auto & scene = song->getScene(info.getPatternIndex());
+  auto rows_per_bar = std::max(1, song->getRowsPerBar());
+
+  for (auto & [ track_id, clip_id ] : clip_ids) {
+    // Only while this track actually has a note held right now - see this
+    // method's own header comment for why.
+    if (std::find(held_track_ids.begin(), held_track_ids.end(), track_id) == held_track_ids.end()) continue;
+
+    // Found by its own stable id, directly in the track's own instance
+    // map - not resolveInstanceAt()'s own "what's active right now"
+    // query. A stray stop or a different clip may have already landed
+    // ahead of this one (leftover authoring, or just something this same
+    // take is about to grow across) - resolveInstanceAt() would report
+    // *that* at the live row instead, even though this clip's own
+    // placement is still sitting exactly where it was put; this needs to
+    // find its own placement regardless of whether something else is
+    // currently superseding it, or growth (and the overwrite below) could
+    // never get past the very first obstacle in its way.
+    auto & instances = scene.getInstancesForTrack(track_id);
+    int start_row = -1;
+    for (auto & [ row, id ] : instances) {
+      if (id == clip_id) { start_row = row; break; }
+    }
+    if (start_row < 0) continue; // no longer placed at all - defensive, shouldn't happen mid-session
+
+    auto & clips = song->getClips(track_id);
+    int clip_index = -1;
+    for (size_t i = 0; i < clips.size(); i++) {
+      if (clips[i].getId() == clip_id) { clip_index = static_cast<int>(i); break; }
+    }
+    if (clip_index < 0) continue; // the clip itself is gone - defensive
+    auto & clip = clips[static_cast<size_t>(clip_index)];
+
+    // Grows a full bar at a time until at least one bar of headroom
+    // remains ahead of the current row - a single bounded loop (never
+    // more than a couple of iterations at any sane rows_per_bar) rather
+    // than relying on this method being called again soon enough to
+    // finish the job: this is called once per rendered audio block, many
+    // times a row, so in practice one bar of growth per call would
+    // already keep up - but "keeps up in practice" isn't the same as
+    // "always leaves the window in a valid, sufficiently-ahead state the
+    // instant this call returns", which one-shot expiry (resolveInstanceAt())
+    // actually depends on.
+    bool grew = false;
+    auto window_last_row = start_row + std::max(1, clip.getLength()) - 1;
+    while (window_last_row - info.getRowIndex() < rows_per_bar) {
+      clip.setLength(std::max(1, clip.getLength()) + rows_per_bar);
+      window_last_row = start_row + clip.getLength() - 1;
+      grew = true;
+    }
+    if (grew) {
+      // A live take overwrites whatever else is in its own path as it
+      // keeps growing, the same "replaces, not merges with, whatever's
+      // already there" rule ensureRowCleared() already applies to the
+      // background Pattern - extended here to the arrangement layer
+      // itself, so a stray stop (or a different clip) this take grows
+      // across doesn't keep silencing/interrupting it. placeClipInstance()
+      // already sweeps every other instance event within a clip's own
+      // reach on every call, keyed off whatever its length currently is -
+      // re-running it here, now that length just grew, is all this needs.
+      placeClipInstance(*song, scene, track_id, start_row, clip_index);
+      song->incVersion();
+    }
+  }
+}
+
+void
+Controller::startAutoRecordSession(bool & auto_started_playback, std::set<std::pair<int, int>> & cleared_rows, int & last_cleared_row, int & last_cleared_pattern_idx, std::unordered_map<int, std::string> & clip_ids) {
   togglePlaying();
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_RECORDING_MUTE, getActiveBufferName(), 1));
   auto_started_playback = true;
   cleared_rows.clear();
   last_cleared_row = -1;
   last_cleared_pattern_idx = -1;
+  clip_ids.clear();
 }
 
 void
@@ -851,7 +967,7 @@ Controller::startAutoRecordPlayback(bool & auto_started_playback) {
 }
 
 void
-Controller::stopAutoRecordSession(bool & auto_started_playback, std::set<std::pair<int, int>> & cleared_rows, const PlaybackInfo & info) {
+Controller::stopAutoRecordSession(bool & auto_started_playback, std::set<std::pair<int, int>> & cleared_rows, const PlaybackInfo & info, std::unordered_map<int, std::string> & clip_ids) {
   if (info.isPlaying()) {
     togglePlaying();
     // Land past the just-written final OFF, not directly on it - an
@@ -865,6 +981,7 @@ Controller::stopAutoRecordSession(bool & auto_started_playback, std::set<std::pa
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_RECORDING_MUTE, getActiveBufferName(), 0));
   auto_started_playback = false;
   cleared_rows.clear(); // not required for correctness (the next session's own start resets this too) - just don't hold onto a finished session's bookkeeping longer than needed
+  clip_ids.clear();
 }
 
 void

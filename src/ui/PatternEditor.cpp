@@ -725,6 +725,32 @@ PatternEditor::getTrackInformation(const Song & song, int scroll_row) const {
 
     auto & scene = song.getScene(pattern_idx);
     scene.getTrackInformation(track_info);
+
+    // scene.getTrackInformation() above only ever scans each track's own
+    // background Pattern - a placed clip instance's own leaf Pattern lives
+    // entirely outside patterns_by_track_id_, so a chord recorded (or
+    // otherwise authored) into one is invisible to it, and the track would
+    // show too few note columns to display it. Every clip actually placed
+    // somewhere in this scene gets the same treatment here instead -
+    // covers a note-recording session's own newly-placed clip
+    // (Controller::ensureNoteRecordingClip()) the same way it covers any
+    // other clip, rather than special-casing recording specifically.
+    for (auto & [ instance_track_id, instances ] : scene.getInstancesByTrack()) {
+      auto & clips = song.getClips(instance_track_id);
+      for (auto & [ instance_row, clip_id ] : instances) {
+        if (clip_id == "OFF") continue;
+        for (auto & clip : clips) {
+          if (clip.getId() != clip_id) continue;
+          // A SampleTrack's own clip carries raw audio, not a Pattern -
+          // Clip::getLeafPattern() would throw for one (ArrangementOps.cpp's
+          // own resolveReadTarget()/resolveEditTarget() guard against the
+          // same thing).
+          if (!clip.hasSample()) clip.getLeafPattern().updateSubtrackInfo(track_info[instance_track_id]);
+          break;
+        }
+      }
+    }
+
     row += song.getEffectiveSceneLength(scene) - pattern_row;
   }
   apply_baseline_track_info(SongStructure(song), track_info);
@@ -1262,20 +1288,24 @@ PatternEditor::onRowAdvanced(Controller & controller) {
   if (!auto_started_playback_) return;
 
   auto & info = controller.getPlaybackInfo();
+  auto track_ids = getActiveNoteTrackIds();
+  controller.sweepAutoRecordRows(auto_record_cleared_rows_, last_cleared_row_, last_cleared_pattern_idx_, info.getPatternIndex(), info.getRowIndex(), track_ids);
+}
 
-  // Every track currently receiving live input - almost always just one
-  // (the cursor's own track at press time), but each active note stores
-  // its own track_id, the same union-of-tracks approach
-  // LaunchpadManager::onRowAdvanced() uses, so this stays correct even
-  // in the edge case of the cursor moving to a different track mid-hold.
+vector<int>
+PatternEditor::getActiveNoteTrackIds() const {
+  // Almost always just one (the cursor's own track at press time), but
+  // each active note stores its own track_id, the same union-of-tracks
+  // approach LaunchpadManager::getActiveNoteTrackIds() uses, so this stays
+  // correct even in the edge case of the cursor moving to a different
+  // track mid-hold.
   vector<int> track_ids;
   for (auto & [ id, note ] : active_keyboard_notes_) {
     if (find(track_ids.begin(), track_ids.end(), note.track_id) == track_ids.end()) {
       track_ids.push_back(note.track_id);
     }
   }
-
-  controller.sweepAutoRecordRows(auto_record_cleared_rows_, last_cleared_row_, last_cleared_pattern_idx_, info.getPatternIndex(), info.getRowIndex(), track_ids);
+  return track_ids;
 }
 
 void
@@ -1498,7 +1528,7 @@ PatternEditor::offerInput(const InputEvent & input) {
     // handles only actually stopping if it's still genuinely playing
     // (the user may have manually stopped it in the meantime).
     if (auto_started_playback_ && active_keyboard_notes_.empty()) {
-      getController().stopAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, info);
+      getController().stopAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, info, auto_record_clip_ids_);
     }
     return true;
   }
@@ -1860,7 +1890,19 @@ PatternEditor::offerInput(const InputEvent & input) {
 	    // ahead of this note landing on it, not after.
 	    bool was_first_held_note = has_hold_info && active_keyboard_notes_.empty();
 	    if (was_first_held_note && !info.isPlaying()) {
-	      getController().startAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, last_cleared_row_, last_cleared_pattern_idx_);
+	      getController().startAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, last_cleared_row_, last_cleared_pattern_idx_, auto_record_clip_ids_);
+	    }
+
+	    // A live take writes into a real, individually-manageable Clip
+	    // instance, not directly into the scene's own background Pattern -
+	    // a no-op once that clip already exists (or if a clip is focused,
+	    // which already resolves correctly without this). Re-resolves
+	    // edit_target immediately after: it was computed before this take
+	    // could have just placed a brand new instance here, so it would
+	    // otherwise still point at the (now superseded) background.
+	    if (info.isPlaying()) {
+	      getController().ensureNoteRecordingClip(auto_record_clip_ids_, track_id, info.getPatternIndex(), info.getRowIndex());
+	      edit_target = resolveEditTarget(song, scene, track_id, info.getRowIndex(), getController().getFocusedClip());
 	    }
 
 	    if (input.hasShift()) {

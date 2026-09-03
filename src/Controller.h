@@ -20,6 +20,7 @@
 #include <mutex>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -602,17 +603,71 @@ class Controller {
   // reach a row past the current scene's own bounds).
   void extendRecordingSceneIfNeeded(bool recording);
 
+  // Generalizes beginSampleCapture()'s own lazy-creation precedent to
+  // PatternEditor's/LaunchpadManager's realtime held-note recording: a
+  // live take should write into a real, individually-manageable Clip
+  // instance, the same as Session-view's own pooled clips, not directly
+  // into the scene's own background Pattern with no identity of its own.
+  // Called right before a live take's own note write, at (track_id, row) -
+  // a no-op if a real clip is already active there (resolveInstanceAt()),
+  // or if `focused_clip_id` (Controller::getFocusedClip()) overrides
+  // resolution entirely - either way the write already lands somewhere
+  // real without this. An explicit stop is treated the same as nothing
+  // placed at all here (resolveEditTarget()'s own convention already
+  // treats the two identically) - it has no Pattern of its own to write
+  // into either. `clip_ids` is caller-owned and passed by reference, same
+  // reasoning ensureRowCleared()'s own `cleared_rows` parameter already
+  // has - PatternEditor's and LaunchpadManager's own recording sessions
+  // are independent, so one's own map must never let the other's session
+  // affect it.
+  void ensureNoteRecordingClip(std::unordered_map<int, std::string> & clip_ids, int track_id, int pattern_idx, int row);
+
+  // Clip::setLength()'s own counterpart to extendRecordingSceneIfNeeded()
+  // above - grows a note-recording clip's own window the same way, once
+  // the currently-playing row is near its own end, so a long live take is
+  // never silently dropped back to the background Pattern mid-take
+  // (resolveInstanceAt()'s own one-shot-expiry check would otherwise stop
+  // considering it active). Same per-row-advance call site
+  // (UI::handlePlaybackEvent(), alongside extendRecordingSceneIfNeeded()
+  // itself) - just a different target, and deliberately *not* the same
+  // trigger condition: extendRecordingSceneIfNeeded() is gated on
+  // isAutoRecording() (did *this* caller's own session start the
+  // transport - stays false if the performer had already started
+  // playback manually, e.g. from row 0, before ever arming/holding a
+  // note), but a clip this method already knows it created
+  // (`clip_ids` non-empty) needs no such gate at all - its own existence
+  // already proves a genuine live-recording write put it there, entirely
+  // independent of who happened to start the transport. Gating on
+  // isAutoRecording() here too would silently stop growing exactly the
+  // "record from the very start of the song" take that scenario
+  // describes, real playback quietly outrunning a clip nothing is
+  // extending any more. `clip_ids` names only the clips *this* caller's
+  // own session created (ensureNoteRecordingClip() above) - never a
+  // pre-existing, unrelated clip the transport merely happens to be
+  // passing over while some other track's session is active, which would
+  // otherwise get its own authored length silently mutated every time it
+  // loops back around near its end. `held_track_ids` (PatternEditor's/
+  // LaunchpadManager's own getActiveNoteTrackIds()) further scopes growth
+  // to only a track with a note actually held right now - Record Arm has
+  // no auto-stop-on-release the way a keyboard session does, so a clip
+  // left ungated on this would otherwise keep growing (and clearing
+  // everything in its own path) for as long as the session stays armed,
+  // long after the performer actually stopped playing anything.
+  void extendRecordingClipsIfNeeded(std::unordered_map<int, std::string> & clip_ids, const std::vector<int> & held_track_ids);
+
   // Engages the realtime auto-play-while-held session (PatternEditor's
   // keyboard entry and LaunchpadManager's pad entry both offer this):
   // starts the transport and mutes the song's own pattern-driven
   // scheduling (SongState::render()'s own comment has the full reasoning)
   // so only this live take's own PLAY_NOTE/STOP_NOTE/NOTE_PRESSURE stream
-  // sounds, then resets the caller's whole-row-replace bookkeeping for the
-  // fresh session. The caller decides *when* to call this - its own "is
-  // this the first held note, and are we not already playing" check
-  // (again per-input-source state, not shareable) - so it's only ever
-  // called once per session, right before that session's first write.
-  void startAutoRecordSession(bool & auto_started_playback, std::set<std::pair<int, int>> & cleared_rows, int & last_cleared_row, int & last_cleared_pattern_idx);
+  // sounds, then resets the caller's whole-row-replace bookkeeping
+  // (`cleared_rows`) and note-recording-clip bookkeeping (`clip_ids`, see
+  // ensureNoteRecordingClip()'s own comment) for the fresh session. The
+  // caller decides *when* to call this - its own "is this the first held
+  // note, and are we not already playing" check (again per-input-source
+  // state, not shareable) - so it's only ever called once per session,
+  // right before that session's first write.
+  void startAutoRecordSession(bool & auto_started_playback, std::set<std::pair<int, int>> & cleared_rows, int & last_cleared_row, int & last_cleared_pattern_idx, std::unordered_map<int, std::string> & clip_ids);
 
   // Starts the transport for Session-view clip-trigger recording
   // (LaunchpadManager::handleSessionPadEvent()'s assign path) - unlike
@@ -640,7 +695,11 @@ class Controller {
   // just released" check) and passes its current PlaybackInfo snapshot so
   // the landing position is computed from the same snapshot the check
   // itself saw, not a value that may have drifted by the time this runs.
-  void stopAutoRecordSession(bool & auto_started_playback, std::set<std::pair<int, int>> & cleared_rows, const PlaybackInfo & info);
+  // `clip_ids` (see ensureNoteRecordingClip()'s own comment) is cleared
+  // unconditionally here too, not required for correctness (the next
+  // session's own start resets it too) - just don't hold onto a finished
+  // session's bookkeeping longer than needed.
+  void stopAutoRecordSession(bool & auto_started_playback, std::set<std::pair<int, int>> & cleared_rows, const PlaybackInfo & info, std::unordered_map<int, std::string> & clip_ids);
 
   // Writes an explicit note-off at `row` for a live take's release, once
   // the transport has moved past the note's own row - shared tail of
