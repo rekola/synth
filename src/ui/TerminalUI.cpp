@@ -11,6 +11,8 @@
 #include "../launchpad/LaunchpadPadEvent.h"
 #include "EscapeCoalescer.h"
 #include "NotcursesInputEventSource.h"
+#include "SubcellGlyphs.h"
+#include "../util/Utf8.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -124,6 +126,9 @@ public:
     plane->get_dim(&y, &x);
     setDim(pair(static_cast<int>(y), static_cast<int>(x)));
     setPosition(pair(0, 0));
+    // A terminal's own capabilities don't change mid-session - figured
+    // out once, here, rather than re-querying notcurses on every render.
+    sextant_support_ = notcurses_cansextant(ncplane_notcurses_const(plane->to_ncplane()));
   }
   ~TerminalPlane() {
     if (owner) delete plane;
@@ -514,8 +519,10 @@ public:
   void refresh() override {
     unsigned int y, x;
     plane->get_dim(&y, &x);
-    setDim(pair(static_cast<int>(y), static_cast<int>(x)));    
+    setDim(pair(static_cast<int>(y), static_cast<int>(x)));
   }
+
+  bool canRenderSextants() const override { return sextant_support_; }
 
 private:
   // Wide enough for " [Sole completion]" (18) - the longer of the two
@@ -533,6 +540,7 @@ private:
   ncplane * indicator_plane = nullptr;
   unique_ptr<Selector> selector;
   bool owner;
+  bool sextant_support_;
 };
 
 // One declarative source for every section/item, rather than hand-written
@@ -1018,71 +1026,6 @@ private:
 };
 
 namespace {
-// Encodes a single codepoint as UTF-8 - up through 3-byte (BMP) covers
-// space and the Block Elements quadrants; the 4-byte case is needed for
-// TerminalHeatmapChart's sextant glyphs (Symbols for Legacy Computing,
-// U+1FB00+), which sit past the BMP.
-std::string utf8Encode(uint32_t codepoint) {
-  std::string s;
-  if (codepoint <= 0x7F) {
-    s += static_cast<char>(codepoint);
-  } else if (codepoint <= 0x7FF) {
-    s += static_cast<char>(0xC0 | (codepoint >> 6));
-    s += static_cast<char>(0x80 | (codepoint & 0x3F));
-  } else if (codepoint <= 0xFFFF) {
-    s += static_cast<char>(0xE0 | (codepoint >> 12));
-    s += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
-    s += static_cast<char>(0x80 | (codepoint & 0x3F));
-  } else {
-    s += static_cast<char>(0xF0 | (codepoint >> 18));
-    s += static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F));
-    s += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
-    s += static_cast<char>(0x80 | (codepoint & 0x3F));
-  }
-  return s;
-}
-
-// Unicode Block Elements (U+2580-U+259F) quadrant glyphs, indexed by a
-// 4-bit mask - bit0=upper-left, bit1=upper-right, bit2=lower-left,
-// bit3=lower-right, 1 = the "on"/foreground group. Covers all 16 on/off
-// patterns of a 2x2 sub-cell (mask 0, all-off, is plain space U+0020,
-// outside the Block Elements range). The fallback (TerminalHeatmapChart)
-// prefers the newer Unicode 13 sextant range (U+1FB00+, sextantCodepoint()
-// below) when notcurses_cansextant() confirms the terminal actually
-// supports it - real per-terminal font-coverage risk was the original
-// reason sextants were skipped entirely, but querying the terminal
-// directly (rather than guessing) resolves that; this quadrant table
-// remains the fallback-of-the-fallback for terminals that report no
-// sextant support.
-constexpr uint32_t kQuadrantCodepoints[16] = {
-  0x0020, 0x2598, 0x259D, 0x2580,
-  0x2596, 0x258C, 0x259E, 0x259B,
-  0x2597, 0x259A, 0x2590, 0x259C,
-  0x2584, 0x2599, 0x259F, 0x2588,
-};
-
-// Unicode 13 sextant glyph (Symbols for Legacy Computing) for a 6-bit
-// mask over a 2-column x 3-row sub-cell, bit weights top-left=1,
-// top-right=2, mid-left=4, mid-right=8, bottom-left=16, bottom-right=32
-// (i.e. bit = row*2+col, the same row-major convention kQuadrantCodepoints
-// uses, just with 3 rows instead of 2), 1 = "on"/foreground. Of the 64
-// patterns, 4 reuse pre-existing codepoints instead of the new block:
-// mask 0 (all off) = space U+0020, mask 63 (all on) = full block U+2588,
-// mask 21 (0b010101, left column only) = LEFT HALF BLOCK U+258C, mask 42
-// (0b101010, right column only) = RIGHT HALF BLOCK U+2590. The remaining
-// 60 masks get consecutive new codepoints U+1FB00..U+1FB3B in mask order,
-// skipping 21/42.
-uint32_t sextantCodepoint(int mask) {
-  if (mask == 0) return 0x0020;
-  if (mask == 63) return 0x2588;
-  if (mask == 21) return 0x258C;
-  if (mask == 42) return 0x2590;
-  int index = 0;
-  for (int m = 1; m < mask; m++) {
-    if (m != 21 && m != 42) index++;
-  }
-  return 0x1FB00u + static_cast<uint32_t>(index);
-}
 
 struct HeatmapRgb { float r, g, b; };
 
@@ -1283,10 +1226,10 @@ std::array<AxisLabel, 4> axisLabels(int usable_rows, int cols) {
 
 // Character-cell fallback for HeatmapChart, no pixel-graphics support
 // needed: paints one Unicode block glyph per character cell - a sextant
-// (2x3 sub-cells, sextantCodepoint() above) when notcurses_cansextant()
-// confirms the terminal supports Unicode 13's sextant range, else a
-// quadrant (2x2 sub-cells, kQuadrantCodepoints above), checked once at
-// construction and cached (the terminal's capabilities don't change
+// (2x3 sub-cells, SubcellGlyphs.h's sextantCodepoint()) when
+// UIPlane::canRenderSextants() confirms the terminal supports Unicode
+// 13's sextant range, else a quadrant (2x2 sub-cells, kQuadrantCodepoints),
+// read once at construction (the terminal's capabilities don't change
 // mid-session) - tripling (sextants) or doubling (quadrants) the
 // effective vertical resolution over a flat one-color-per-cell approach.
 // Each cell's foreground/background pair is the optimal 2-color
@@ -1303,9 +1246,7 @@ class TerminalHeatmapChart : public HeatmapChart {
 public:
   TerminalHeatmapChart(UIPlane & parent, int grid_cols, int grid_rows)
     : HeatmapChart(parent, grid_cols, grid_rows) {
-    auto & tplane = dynamic_cast<TerminalPlane&>(getPlane());
-    auto native_plane = tplane.getPlane().to_ncplane();
-    use_sextants_ = notcurses_cansextant(ncplane_notcurses_const(native_plane));
+    use_sextants_ = getPlane().canRenderSextants();
   }
 
   void setGrid(const std::vector<float> & brightness, const std::vector<float> & saturation) override {
@@ -1354,7 +1295,7 @@ public:
 
         setFgColor(static_cast<int>(on_color.r), static_cast<int>(on_color.g), static_cast<int>(on_color.b));
         setBgColor(static_cast<int>(off_color.r), static_cast<int>(off_color.g), static_cast<int>(off_color.b));
-        putstr(sy, sx, utf8Encode(use_sextants_ ? sextantCodepoint(mask) : kQuadrantCodepoints[mask]));
+        putstr(sy, sx, Utf8::encodeCodepoint(use_sextants_ ? sextantCodepoint(mask) : kQuadrantCodepoints[mask]));
       }
     }
     setFgColor(255, 255, 255);

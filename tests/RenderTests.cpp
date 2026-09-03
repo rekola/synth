@@ -243,6 +243,60 @@ TEST(render_sample_track_clip_instance_plays_its_own_audio) {
   CHECK(windowedRms(result, 0, 0.5f, 1.0f) < 1e-4f); // one-shot - silent well after its own 0.05s length, not looping
 }
 
+// A real bug report: a one-shot clip's own real audio can outlast the
+// scene it's placed in - SongState.h's own transition-detection stop
+// only fires once something *else* is found at this track's position,
+// which never happens on a single scene that just loops back to itself
+// and keeps re-finding this same, unchanged instance (never re-triggered,
+// since active.clip_index never actually changes). SongState.h instead
+// queues an explicit RenderContext::addPendingSampleStop() at the exact
+// frame the scene's own last row ends, applied by SampleTrackState::
+// render()'s own chunked loop as a short natural release, independent of
+// whether any transition is ever detected at all. Fixture: rowsPerBar
+// 4, tempo 120 (row duration 0.125s), a single 1-bar (4-row, 0.5s) scene,
+// a one-shot clip referencing a 2s sidecar tone triggered at row 0 - the
+// real audio is 4x longer than the scene it's placed in.
+TEST(render_sample_track_clip_stops_at_the_scene_boundary_even_when_its_own_audio_outlasts_it) {
+  auto loaded = loadFixture("sample_track_clip_outlasts_scene.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(8000); // matches the fixture .wav's own native rate - no resampling
+  auto result = renderSongOffline(loaded.song, config);
+
+  CHECK(result.numberOfFrames() > 0);
+  CHECK(!hasNonFiniteSample(result));
+  CHECK(windowedRms(result, 0, 0.1f, 0.3f) > 1e-3f); // sounding, well within the scene's own 0.5s
+  CHECK(windowedRms(result, 0, 1.0f, 1.9f) < 1e-4f); // silent well past the scene boundary, even though the real audio (2s) would otherwise still be sounding here
+}
+
+// A real design decision, raised directly by the user: a looping
+// SampleTrack clip's own lap length is the clip's own length
+// (Clip::getLength()), not its real audio duration - the intended use is
+// a short, atmospheric/one-shot-feeling sound authored inside a longer
+// clip slot, finishing on its own and sitting in silence for the rest of
+// the lap before the *clip* restarts (not the sample). Realized entirely
+// by SongState.h's own per-row scheduling re-triggering a fresh voice
+// each lap (mirroring LaunchpadManager::fireOrTriggerClipStep(), which
+// already worked this way for Session-view triggering) - SampleClipVoice
+// itself has no looping concept of its own any more. Fixture: rowsPerBar
+// 4, tempo 120 (row duration 0.125s), a looping 4-row (0.5s) clip
+// referencing a 0.2s sidecar tone, in a 2-bar (8-row, 1.0s) scene - two
+// full laps fit, each with 0.3s of real silence at its own end.
+TEST(render_sample_track_loop_shorter_than_the_clip_goes_silent_then_restarts_each_lap) {
+  auto loaded = loadFixture("sample_track_loop_shorter_than_clip.xml");
+  CHECK(loaded.ok);
+
+  ChannelConfiguration config(8000); // matches the fixture .wav's own native rate - no resampling
+  auto result = renderSongOffline(loaded.song, config);
+
+  CHECK(result.numberOfFrames() > 0);
+  CHECK(!hasNonFiniteSample(result));
+  CHECK(windowedRms(result, 0, 0.0f, 0.15f) > 1e-3f); // first lap - the audio, playing
+  CHECK(windowedRms(result, 0, 0.3f, 0.45f) < 1e-4f); // first lap's own silent tail - the audio already finished, but the lap hasn't
+  CHECK(windowedRms(result, 0, 0.5f, 0.65f) > 1e-3f); // second lap - re-triggered, sounding again, not just silence forever
+  CHECK(windowedRms(result, 0, 0.8f, 0.95f) < 1e-4f); // and its own silent tail too
+}
+
 // An explicit stop instance (Scene::kStopInstance, ArrangementOps.h's own
 // placeStopInstance()) placed after a *looping* clip's own trigger must
 // actually silence it going forward - SongState::renderBlock()'s own

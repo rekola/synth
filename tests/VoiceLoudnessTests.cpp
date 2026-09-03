@@ -1,7 +1,6 @@
 #include "TestFramework.h"
 
 #include "../src/instruments/OscillatorVoice.h"
-#include "../src/playback/TrackEvent.h"
 #include "../src/state/RenderContext.h"
 #include "../src/ambisonic/SphericalPosition.h"
 

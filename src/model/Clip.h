@@ -4,6 +4,7 @@
 #include "Pattern.h"
 #include "SongObject.h"
 #include "SampleContent.h"
+#include "WaveformPeaks.h"
 
 #include <memory>
 #include <unordered_map>
@@ -86,6 +87,29 @@ class Clip : public SongObject {
   SampleContent & getOrCreateSampleContent() {
     if (!sample_content_) sample_content_ = std::make_unique<SampleContent>();
     return *sample_content_;
+  }
+
+  // The row-indexed peak-amplitude cache PatternEditor's own waveform-box
+  // rendering reads from (WaveformPeaks.h's own comment has the full
+  // reasoning on why row-, not time-, indexed). A thin forward to
+  // SampleContent's own copy - it owns the buffer/trim points this is
+  // built from, so it's the one that can actually invalidate it directly,
+  // from its own setBuffer()/setInPoint()/setOutPoint(), rather than a
+  // caller out here having to guess staleness by remembering and
+  // comparing old values. `getLength()` (this class's own field,
+  // SampleContent has no notion of it) and `subrows_per_row` (a runtime
+  // choice, UIPlane::canRenderSextants()) are the two things only this
+  // call site actually knows, so they're passed in as plain parameters
+  // rather than something SampleContent tracks itself. getLength() > 0 ?
+  // getLength() : 1, not getLength() directly - the same "0 means not
+  // given one yet, treat it as 1" convention resolveInstanceAt()/
+  // resolveEditTarget()/placeClipInstance() already apply, so a hand-
+  // authored or file-referenced clip with no explicit length="" attribute
+  // still gets a real, buildable single-row cache instead of silently
+  // resolving to nothing.
+  const WaveformPeaks & getWaveformPeaks(int subrows_per_row) const {
+    static const WaveformPeaks kEmpty;
+    return hasSample() ? sample_content_->getWaveformPeaks(getLength() > 0 ? getLength() : 1, subrows_per_row) : kEmpty;
   }
 
   // getId()/setId() (inherited from SongObject, same field a track's own

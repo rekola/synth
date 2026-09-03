@@ -224,23 +224,36 @@ class SongState : public TrackState {
 	    // this loop checked, and no longer is (a swap to a different
 	    // clip, an explicit stop, or falling through to the background/
 	    // silence) - fires the instrument's own natural release
-	    // (InstrumentTrackState::stopAllVoices(), the same one Session
-	    // view's own explicit stops already use) unconditionally, exactly
-	    // once at the row termination actually lands on, rather than
-	    // leaving whatever was sounding to ring out on its own
-	    // indefinitely (correct only by accident for a clip whose own
-	    // content happens to be short one-shots; wrong for anything
-	    // sustained/looping - a looping clip has no natural end of its
-	    // own to rely on at all). Redundant-safe against a clip whose own
-	    // content already ends with an explicit note-off - firing this
-	    // unconditionally costs nothing extra there.
+	    // unconditionally, exactly once at the row termination actually
+	    // lands on, rather than leaving whatever was sounding to ring out
+	    // on its own indefinitely (correct only by accident for a clip
+	    // whose own content happens to be short one-shots; wrong for
+	    // anything sustained/looping - a looping clip has no natural end
+	    // of its own to rely on at all). Redundant-safe against a clip
+	    // whose own content already ends with an explicit note-off -
+	    // firing this unconditionally costs nothing extra there. A
+	    // SampleTrack routes this through RenderContext instead of
+	    // calling InstrumentTrackState::stopAllVoices() directly (the
+	    // same one Session view's own explicit stops already use for
+	    // every other track type) - see SampleTrackEvent's own comment
+	    // for why: an abrupt stop here would land wherever this row
+	    // happens to fall in the current render block, not the exact
+	    // sample the transition is actually due on.
 	    int previous_clip_index = Scene::kNoInstance;
+	    bool is_sample_track = false;
 	    {
+	      auto track = song.getMasterTrack().getChildByInternalId(track_id);
+	      is_sample_track = track && track->getType() == TrackType::SAMPLE;
+
 	      auto last_it = last_active_clip_index_by_track_.find(track_id);
 	      previous_clip_index = last_it == last_active_clip_index_by_track_.end() ? Scene::kNoInstance : last_it->second;
 	      if (previous_clip_index >= 0 && previous_clip_index != active.clip_index) {
-		auto * track_state = dynamic_cast<InstrumentTrackState *>(getChildByInternalId(track_id));
-		if (track_state) track_state->stopAllVoices();
+		if (is_sample_track) {
+		  render_context_.addPendingSampleStop(track_id, i);
+		} else {
+		  auto * track_state = dynamic_cast<InstrumentTrackState *>(getChildByInternalId(track_id));
+		  if (track_state) track_state->stopAllVoices();
+		}
 	      }
 	      last_active_clip_index_by_track_[track_id] = active.clip_index;
 	    }
@@ -249,16 +262,41 @@ class SongState : public TrackState {
 	      auto & clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
 
 	      // A SampleTrack's own clip is raw audio, not a Pattern to read
-	      // notes from - no per-row involvement needed beyond triggering
-	      // it once, exactly on the row it becomes active (the
-	      // transition-out stopAllVoices() above already covers ending
-	      // it); SampleTrackState::triggerClip() takes it from there
-	      // under its own cursor for as long as it plays.
-	      auto sample_track = song.getMasterTrack().getChildByInternalId(track_id);
-	      if (sample_track && sample_track->getType() == TrackType::SAMPLE) {
-		if (active.clip_index != previous_clip_index) {
-		  auto * sample_state = dynamic_cast<SampleTrackState *>(getChildByInternalId(track_id));
-		  if (sample_state) sample_state->triggerClip(clip);
+	      // notes from - queued as a RenderContext start exactly on the
+	      // row it becomes active (the transition-out stop above already
+	      // covers ending it when something else supersedes it), and
+	      // again on every later row that starts a new lap, for a
+	      // looping clip - the same "a fresh voice each lap, not one
+	      // voice looping internally" shape LaunchpadManager::
+	      // fireOrTriggerClipStep() already uses for Session-view
+	      // triggering (its own step % length == 0), mirrored here via
+	      // the row grid instead of that clock's own step count. See
+	      // SampleTrackState::triggerClip()'s own comment for why this is
+	      // the right place for lap timing to live, not the voice itself.
+	      if (is_sample_track) {
+		auto rows_since_start = row_idx - active.start_row;
+		auto loop_rows = clip.getLength() > 0 ? clip.getLength() : 1;
+		bool is_new_lap = clip.isLooping() && rows_since_start > 0 && rows_since_start % loop_rows == 0;
+		if (active.clip_index != previous_clip_index || is_new_lap) {
+		  render_context_.addPendingSampleStart(track_id, i, &clip);
+		}
+
+		// A one-shot clip's own real audio can outlast the scene
+		// it's placed in - the transition-detection stop above only
+		// actually fires once something *else* (a different clip,
+		// or nothing at all) is found at this same track's
+		// position, which never happens on a single, endlessly-
+		// looping scene that keeps re-finding this same instance
+		// unchanged. Queuing an explicit stop at this scene's own
+		// last row means it always stops exactly when the scene
+		// does, regardless of whether anything ever "transitions"
+		// away from it - a release, not a hard cut, so the tail
+		// end of the scene doesn't click. Meaningless for a looping
+		// clip - its own next lap's re-trigger already supersedes
+		// whatever's still sounding, the same as any other
+		// transition.
+		if (!clip.isLooping() && row_idx == song.getEffectiveSceneLength(scene) - 1) {
+		  render_context_.addPendingSampleStop(track_id, i + getChannelConfiguration().getSampleInterval(tempo_));
 		}
 		continue;
 	      }

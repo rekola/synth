@@ -77,13 +77,21 @@ TEST(song_structure_baseline_matches_instrument_track_own_column_settings) {
   CHECK(info.has_effect_column_);
 }
 
-TEST(song_structure_baseline_is_a_single_placeholder_column_for_sample_tracks) {
+TEST(song_structure_baseline_is_a_wide_waveform_column_plus_effect_for_sample_tracks) {
   Song song;
   auto & sample = song.addTrack(make_unique<SampleTrack>());
   SongStructure structure(song);
 
   auto & sample_info = structure.getBaselineInfo(sample.getInternalId());
-  CHECK(sample_info.getColumnCount() == 1);
+  // The waveform placeholder column (PatternEditor's own waveform-box
+  // rendering) plus an ordinary command column right after it - a
+  // SampleTrack is a LeafTrack, same showEffectsColumn() toggle every
+  // other leaf type already has.
+  CHECK(sample_info.getColumnCount() == 2);
+  CHECK(sample_info.getColumnType(0) == ColumnType::NOTE); // the waveform placeholder - no dedicated ColumnType of its own, see VisibleTrackInfo::getColumnWidth()'s own comment
+  CHECK(sample_info.getColumnType(1) == ColumnType::EFFECT);
+  CHECK(sample_info.sample_placeholder_width_ > 4); // much wider than an ordinary NOTE column
+  CHECK(sample_info.color_ordinal_ >= 0); // color-eligible, same as every other leaf track
 }
 
 TEST(song_structure_gives_a_drum_machine_track_one_note_only_column_per_lane_plus_effect) {

@@ -28,6 +28,16 @@ class UIPlane {
   // leaving its last real content and z-position untouched - confirmed
   // via a pty+notcurses reproduction).
   virtual void moveToTop() { }
+  // Whether this plane's own terminal reports Unicode 13 sextant glyph
+  // support (Symbols for Legacy Computing, U+1FB00+) - default false, the
+  // universally-safe answer for any UIPlane implementation with no real
+  // terminal (or no capability of its own) to check. TerminalPlane's own
+  // override figures this out once, from real notcurses_cansextant(), at
+  // construction. Shared by every widget that paints sub-character-
+  // resolution content (TerminalHeatmapChart's 2D field, PatternEditor's
+  // own waveform boxes) so the same real check backs every one of them,
+  // not a separately-guessed answer each.
+  virtual bool canRenderSextants() const { return false; }
   virtual void setFgColor(int r, int g, int b) = 0;
   virtual void setBgColor(int r, int g, int b) = 0;
   virtual void setUnderline(bool b) = 0;

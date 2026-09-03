@@ -16,6 +16,8 @@
 #include "KeyChord.h"
 #include "PatternScroll.h"
 #include "../model/ArrangementOps.h"
+#include "../model/Clip.h"
+#include "SubcellGlyphs.h"
 #include "../util/Utf8.h"
 
 #include <string>
@@ -680,7 +682,8 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
 
 // Applies the SongStructure's precomputed baseline column shape
 // (TrackType/own-settings-derived - note/velocity/delay/effect column
-// presence) onto whatever scene.getTrackInformation()'s dynamic pass
+// presence, and a SampleTrack's own wider placeholder column) onto
+// whatever scene.getTrackInformation()'s dynamic pass
 // already put in `track_info` - field-by-field, not a whole-struct
 // assignment, so a track's already-widened num_subtracks_ (real note data
 // in the currently visible rows) is only ever widened further
@@ -698,6 +701,7 @@ static void apply_baseline_track_info(const SongStructure & structure, std::unor
     info.num_velocity_columns_ = baseline.num_velocity_columns_;
     info.has_delay_column_ = baseline.has_delay_column_;
     info.has_effect_column_ = baseline.has_effect_column_;
+    info.sample_placeholder_width_ = baseline.sample_placeholder_width_;
     info.collapsed_ = baseline.collapsed_;
     info.collapsed_content_width_ = baseline.collapsed_content_width_;
     info.color_ordinal_ = baseline.color_ordinal_;
@@ -2564,6 +2568,59 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   };
   auto clip_digit = [&](int clip_index) { return string(kSuperscriptHexDigits[clip_index % 16]); };
 
+  // A sample clip's own waveform box (SAMPLE track placeholder, below):
+  // sextants (2x3 sub-cells) when this terminal actually supports Unicode
+  // 13's sextant range (UIPlane::canRenderSextants()), else quadrants
+  // (2x2, always supported) - the capability figured out once at
+  // TerminalPlane construction, not re-queried per row. Reuses
+  // SubcellGlyphs.h's exact tables rather than a third copy of them, the
+  // same ones TerminalHeatmapChart's 2D field already uses.
+  auto waveform_subrows = getPlane().canRenderSextants() ? 3 : 2;
+  // Renders one pattern row's own slice of a sample clip's waveform, over
+  // `width` character cells: each of `waveform_subrows` independent
+  // per-row time-buckets (WaveformPeaks::at(), see its own row-vs-time
+  // indexing comment) gets its own centered, symmetric fill across the
+  // *whole row's own width* - not read left-to-right as a sub-timeline,
+  // it's a small bar-graph reading, the same convention a horizontal VU
+  // meter already uses (value 0.5 over an 8-wide block centers 4 filled
+  // slots in the middle, leaving 2 empty on each side). Every character
+  // cell's own final glyph combines whichever of the `waveform_subrows`
+  // (vertical) x 2 (horizontal, both quadrant and sextant sub-cells are 2
+  // columns wide) sub-positions its own span of that fill actually covers
+  // into one mask, matching kQuadrantCodepoints'/sextantCodepoint's own
+  // row-major bit convention (bit = subrow*2 + subcol).
+  auto waveform_row_glyphs = [&](const WaveformPeaks & peaks, int row, int width) {
+    if (width <= 0) return string();
+    auto total_slots = width * 2;
+    vector<int> fill_start(static_cast<size_t>(waveform_subrows)), fill_count(static_cast<size_t>(waveform_subrows));
+    for (int s = 0; s < waveform_subrows; s++) {
+      auto value = std::clamp(peaks.at(row, s), 0.0f, 1.0f);
+      // Rounded to the nearest *even* count, not just the nearest integer
+      // - total_slots is always even (width * 2), so an odd fill_count
+      // would leave (total_slots - fill_count) odd too, putting one more
+      // empty slot on one side than the other. Rounding by half of
+      // total_slots first, then doubling back, keeps the parity match
+      // exactly, so the fill centers perfectly every time.
+      auto count = std::clamp(static_cast<int>(std::lround(static_cast<double>(value) * total_slots / 2.0)) * 2, 0, total_slots);
+      fill_count[static_cast<size_t>(s)] = count;
+      fill_start[static_cast<size_t>(s)] = (total_slots - count) / 2;
+    }
+    string result;
+    for (int c = 0; c < width; c++) {
+      int mask = 0;
+      for (int s = 0; s < waveform_subrows; s++) {
+	for (int h = 0; h < 2; h++) {
+	  auto gc = c * 2 + h;
+	  if (gc >= fill_start[static_cast<size_t>(s)] && gc < fill_start[static_cast<size_t>(s)] + fill_count[static_cast<size_t>(s)]) {
+	    mask |= 1 << (s * 2 + h);
+	  }
+	}
+      }
+      result += Utf8::encodeCodepoint(waveform_subrows == 3 ? sextantCodepoint(mask) : kQuadrantCodepoints[mask]);
+    }
+    return result;
+  };
+
   auto current_pos = 0;
   for (int i = -1; i < static_cast<int>(track_ids.size()); i++) {
     if (i >= 0 && i < current_scroll_.track) continue;
@@ -2730,34 +2787,73 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	    setFgColor(styles.window_border_color);
 	  }
 	  current_pos += width;
-	} else if (track && track->getType() == TrackType::SAMPLE) {
+	} else if (track && track->getType() == TrackType::SAMPLE && column_type != ColumnType::EFFECT) {
+	  // This track's own real command column (has_effect_column_,
+	  // SongStructure.cpp) sits right after this one now - its own
+	  // ColumnType::EFFECT falls through to the ordinary EFFECT branch
+	  // below unchanged, this branch only ever handles the waveform
+	  // column itself.
 	  cell_fg = cur_fg;
 	  cell_bg = cur_bg;
 	  setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 
-	  // Placeholder width matches track_info.getTrackWidth() exactly,
-	  // not a hardcoded literal - renderHeading() already laid this
-	  // column out assuming that same width, so a mismatched literal
-	  // here left the heading, this content, and the region-selection
-	  // highlight (which colors exactly however many characters this
-	  // putstr writes) all disagreeing about how wide the column
-	  // actually is. One character short of the full width, same as
-	  // every other column type below (NOTE/VELOCITY/DELAY/EFFECT) -
-	  // the last column of a track always leaves its own final
-	  // character for the shared trailing "│" this k-loop draws once
-	  // it's done (further down), rather than drawing it itself.
-	  auto width = std::max(track_info.getTrackWidth() - 1, 1);
-	  putstr(display_row, current_pos, std::string(static_cast<size_t>(width), read_target.is_instance ? 'x' : ' '));
-	  // Leading row of an active instance gets its own hex digit, same
-	  // convention (and same clip_digit()) the collapsed branch above
-	  // uses - which clip is playing here, not just that one is.
-	  bool is_leading_row = read_target.is_instance && read_target.unwrapped_row == 0;
-	  if (width > 0 && is_leading_row) {
-	    setFgColor(Color(0xff, 0xff, 0xff));
-	    putstr(display_row, current_pos, clip_digit(read_target.clip_index));
+	  // getColumnWidth(k) - 1, not getColumnWidth(k) directly - every
+	  // other column type's own drawing code below (NOTE/VELOCITY/DELAY/
+	  // EFFECT) draws exactly one *less* than its own getColumnWidth()
+	  // already, since that extra +1 is a pooled credit spent elsewhere
+	  // (the loop's own inter-column separator before whatever column
+	  // comes next, or - for the track's real last column - the shared
+	  // trailing divider drawn once after the whole k-loop finishes).
+	  // Drawing the full getColumnWidth(k) here instead double-spent that
+	  // credit, throwing this track's own trailing divider one column
+	  // out of step with renderHeading()'s (which stays correctly within
+	  // budget, since it only ever reads getTrackWidth() as a single
+	  // total, never per-column).
+	  auto width = std::max(track_info.getColumnWidth(k) - 1, 1);
+	  // A real, sample-bearing instance draws its own waveform slice for
+	  // this row (waveform_row_glyphs() above) instead of a flat fill -
+	  // background content, an explicit stop, and an instance whose clip
+	  // has no sample content yet (nothing to show a shape for) all keep
+	  // the plain 'x'/' ' fill.
+	  auto & clips = song.getClips(track_id);
+	  const Clip * sample_clip = (read_target.is_instance && read_target.clip_index >= 0 &&
+	    read_target.clip_index < static_cast<int>(clips.size())) ? &clips[static_cast<size_t>(read_target.clip_index)] : nullptr;
+	  if (sample_clip && sample_clip->hasSample()) {
+	    auto & peaks = sample_clip->getWaveformPeaks(waveform_subrows);
+	    // A looping clip's own later laps wrap back into its own row
+	    // range; a one-shot instance whose placed length outran its own
+	    // audio (padding rows past what the recording actually covers)
+	    // just holds on the last real row rather than reading out of
+	    // bounds.
+	    auto wf_row = read_target.unwrapped_row;
+	    if (peaks.rowCount() > 0) {
+	      wf_row = sample_clip->isLooping() ? wf_row % peaks.rowCount() : std::min(wf_row, peaks.rowCount() - 1);
+	      if (wf_row < 0) wf_row = 0;
+	    }
+	    // The track's own identity color for the waveform's own "on"
+	    // cells - the same color ArrangementGrid's own capsule and this
+	    // track's own background tint (bg, above) already use, so the
+	    // shape reads as unmistakably *this* track's content rather than
+	    // plain text. Blended toward this row's own fg (row_base_fg) -
+	    // not dim_fixed_color(), which only ever pulls toward black -
+	    // since fg already reflects the playhead's own green highlight as
+	    // well as is_neighboring_pattern/is_repeat_row dimming; blending
+	    // toward it registers all three the same way every other colored
+	    // cell in this row does, while keeping the track's own hue
+	    // dominant rather than washing it out to plain text gray.
+	    auto waveform_fg = track_info.getColor().blend(0.35f, fg);
+	    setFgColor(column_selected ? cur_fg : waveform_fg);
+	    putstr(display_row, current_pos, waveform_row_glyphs(peaks, wf_row, width));
 	    setFgColor(cell_fg);
+	  } else {
+	    putstr(display_row, current_pos, std::string(static_cast<size_t>(width), read_target.is_instance ? 'x' : ' '));
 	  }
+	  // No separate leading-row digit drawn here - this track's own
+	  // trailing identifier cell (color_ordinal_ >= 0, below, once every
+	  // column in this k-loop is done) already shows it, the same as
+	  // every other color-eligible leaf track's own last column; drawing
+	  // it a second time here duplicated it.
 	  current_pos += width;
 	} else if (column_type == ColumnType::EFFECT) {
 	  // Falls back to cur_fg (the region's own dark foreground) when

@@ -11,6 +11,7 @@
 #include "AudioBlockEvent.h"
 
 #include "../ambisonic/MixerFactory.h"
+#include "../state/LeafTrackState.h"
 #include "../state/InstrumentTrackState.h"
 #include "../state/SampleTrackState.h"
 #include "../state/NoteOrigin.h"
@@ -276,6 +277,13 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       if (clip_index < 0 || clip_index >= static_cast<int>(clips.size())) break;
 
       auto * sample_state = dynamic_cast<SampleTrackState *>(state.getChildByInternalId(track_id));
+      // No scene to bound against here (Session-view triggering isn't tied
+      // to one), and no block to chunk mid-render either - straight through
+      // to triggerClip(), unlike SongState.h's own transport-driven path
+      // (RenderContext::addPendingSampleStart()/addPendingSampleStop()).
+      // LaunchpadManager::fireOrTriggerClipStep() is what re-fires this
+      // fresh every lap for a looping clip (SampleTrackState::triggerClip()'s
+      // own comment on why no separate loop handling belongs here at all).
       if (sample_state) sample_state->triggerClip(clips[static_cast<size_t>(clip_index)]);
     }
     break;
@@ -333,8 +341,11 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     {
       // stopAllVoices()'s own whole-track natural release, for a caller
       // (Launchpad Session view's "stop this track") with no single
-      // column to target the way STOP_NOTE above has.
-      auto track_state = dynamic_cast<InstrumentTrackState*>(state.getChildByInternalId(ev.getParameter1()));
+      // column to target the way STOP_NOTE above has - dynamic_cast to the
+      // shared LeafTrackState base, not InstrumentTrackState, since Session
+      // view's "stop this track" reaches a SampleTrack's own clip the same
+      // uniform way it reaches every other track type.
+      auto track_state = dynamic_cast<LeafTrackState*>(state.getChildByInternalId(ev.getParameter1()));
       if (track_state) track_state->stopAllVoices();
     }
     break;
@@ -350,44 +361,50 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     state.setRecordingMuted(ev.getParameter1() != 0);
     break;
 
+  // SET_TRACK_MUTED/SOLO/SEND_A/SEND_B/SEND_MAIN/AZIMUTH all dynamic_cast to
+  // the shared LeafTrackState base, not InstrumentTrackState - every leaf
+  // track type (a SampleTrack included) has its own mute/solo/sends/pan,
+  // resolved from the model-layer LeafTrack the same uniform way regardless
+  // of what actually produces its voices (see Controller.cpp's own
+  // asLeafTrack()).
   case PlaybackControlEvent::SET_TRACK_MUTED:
     {
-      auto track_state = dynamic_cast<InstrumentTrackState*>(state.getChildByInternalId(ev.getParameter1()));
+      auto track_state = dynamic_cast<LeafTrackState*>(state.getChildByInternalId(ev.getParameter1()));
       if (track_state) track_state->setMuted(ev.getParameter2() != 0);
     }
     break;
 
   case PlaybackControlEvent::SET_TRACK_SOLO:
     {
-      auto track_state = dynamic_cast<InstrumentTrackState*>(state.getChildByInternalId(ev.getParameter1()));
+      auto track_state = dynamic_cast<LeafTrackState*>(state.getChildByInternalId(ev.getParameter1()));
       if (track_state) track_state->setSolo(ev.getParameter2() != 0);
     }
     break;
 
   case PlaybackControlEvent::SET_TRACK_SEND_A:
     {
-      auto track_state = dynamic_cast<InstrumentTrackState*>(state.getChildByInternalId(ev.getParameter1()));
+      auto track_state = dynamic_cast<LeafTrackState*>(state.getChildByInternalId(ev.getParameter1()));
       if (track_state) track_state->setSendA(ev.getParameter2() / 1000.0f);
     }
     break;
 
   case PlaybackControlEvent::SET_TRACK_SEND_B:
     {
-      auto track_state = dynamic_cast<InstrumentTrackState*>(state.getChildByInternalId(ev.getParameter1()));
+      auto track_state = dynamic_cast<LeafTrackState*>(state.getChildByInternalId(ev.getParameter1()));
       if (track_state) track_state->setSendB(ev.getParameter2() / 1000.0f);
     }
     break;
 
   case PlaybackControlEvent::SET_TRACK_SEND_MAIN:
     {
-      auto track_state = dynamic_cast<InstrumentTrackState*>(state.getChildByInternalId(ev.getParameter1()));
+      auto track_state = dynamic_cast<LeafTrackState*>(state.getChildByInternalId(ev.getParameter1()));
       if (track_state) track_state->setSendMain(ev.getParameter2() / 1000.0f);
     }
     break;
 
   case PlaybackControlEvent::SET_TRACK_AZIMUTH:
     {
-      auto track_state = dynamic_cast<InstrumentTrackState*>(state.getChildByInternalId(ev.getParameter1()));
+      auto track_state = dynamic_cast<LeafTrackState*>(state.getChildByInternalId(ev.getParameter1()));
       if (track_state) track_state->setAzimuth(ev.getParameter2() / 10.0f);
     }
     break;

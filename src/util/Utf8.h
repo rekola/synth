@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 
 // Grapheme-cluster-aware UTF-8 display-width measurement and truncation,
@@ -35,5 +36,11 @@ std::string truncateToWidth(const std::string & text, int max_columns);
 // no-op if text is already that wide or wider. Never truncates - combine
 // with truncateToWidth() first when a call site needs both.
 std::string padToWidth(const std::string & text, int width);
+
+// Encodes a single Unicode codepoint as UTF-8 - up through 3-byte (BMP)
+// covers space and the Block Elements quadrants; the 4-byte case is
+// needed for sextant glyphs (Unicode 13 Symbols for Legacy Computing,
+// U+1FB00+), which sit past the BMP.
+std::string encodeCodepoint(uint32_t codepoint);
 
 }

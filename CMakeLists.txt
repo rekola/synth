@@ -109,6 +109,7 @@ add_library(synth_engine STATIC
 	src/model/DrumMachineTrack.cpp
 	src/model/SampleTrack.cpp
 	src/model/SampleContent.cpp
+	src/model/WaveformPeaks.cpp
 	src/ambisonic/MixerFactory.cpp
 	src/util/Utf8.cpp
 )
@@ -215,6 +216,7 @@ add_executable(synth src/main.cpp
 	src/ui/PatternEditor.cpp
 	src/ui/ArrangementGrid.cpp
 	src/ui/SessionView.cpp
+	src/ui/SubcellGlyphs.cpp
 )
 target_include_directories(synth PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 

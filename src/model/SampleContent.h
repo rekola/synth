@@ -2,6 +2,7 @@
 #define _SAMPLECONTENT_H_
 
 #include "../audio/AudioBuffer.h"
+#include "WaveformPeaks.h"
 
 #include <memory>
 
@@ -27,7 +28,7 @@ class ParameterSource;
 class SampleContent {
  public:
   const std::shared_ptr<AudioBuffer> & getBuffer() const { return buffer_; }
-  void setBuffer(std::shared_ptr<AudioBuffer> buffer) { buffer_ = std::move(buffer); }
+  void setBuffer(std::shared_ptr<AudioBuffer> buffer) { buffer_ = std::move(buffer); waveform_peaks_dirty_ = true; }
 
   // Trim points, in seconds, each measured as "how much to cut from that
   // end" rather than an absolute timestamp - symmetric by design, so 0.0
@@ -38,9 +39,9 @@ class SampleContent {
   // differently-sized buffer replaced this one. Hand-editable in the XML;
   // no in-app editing command in this pass.
   float getInPoint() const { return in_point_; }
-  void setInPoint(float seconds) { in_point_ = seconds; }
+  void setInPoint(float seconds) { in_point_ = seconds; waveform_peaks_dirty_ = true; }
   float getOutPoint() const { return out_point_; }
-  void setOutPoint(float seconds) { out_point_ = seconds; }
+  void setOutPoint(float seconds) { out_point_ = seconds; waveform_peaks_dirty_ = true; }
 
   // The tempo this audio was actually captured/authored at - 0 means
   // unknown/not set, the same "don't invent a number you can't actually
@@ -67,7 +68,27 @@ class SampleContent {
   // just remembers whatever rate it was captured at for as long as this
   // object stays in memory.
   int getNativeSampleRate() const { return native_sample_rate_; }
-  void setNativeSampleRate(int rate) { native_sample_rate_ = rate; }
+  void setNativeSampleRate(int rate) { native_sample_rate_ = rate; waveform_peaks_dirty_ = true; }
+
+  // Clip's own row-indexed peak-amplitude cache (WaveformPeaks.h) actually
+  // lives here, alongside the buffer/trim points it's built from - every
+  // setter above that changes what audio this would represent marks it
+  // dirty directly, a real invalidation rather than a caller elsewhere
+  // having to infer staleness by remembering and comparing old values.
+  // `row_count`/`subrows_per_row` aren't this class's own state (a Clip's
+  // row length, and a runtime terminal-capability choice, respectively) -
+  // passed in fresh by the caller (Clip::getWaveformPeaks()) and compared
+  // against what the cache itself already remembers being built with
+  // (WaveformPeaks::rowCount()/subrowsPerRow()), rather than tracked here
+  // a second time.
+  const WaveformPeaks & getWaveformPeaks(int row_count, int subrows_per_row) const {
+    if (waveform_peaks_dirty_ || waveform_peaks_.rowCount() != row_count || waveform_peaks_.subrowsPerRow() != subrows_per_row) {
+      waveform_peaks_ = WaveformPeaks();
+      if (buffer_) waveform_peaks_.build(*buffer_, native_sample_rate_, in_point_, out_point_, row_count, subrows_per_row);
+      waveform_peaks_dirty_ = false;
+    }
+    return waveform_peaks_;
+  }
 
   // Reads/writes in_point_/out_point_/original_tempo_ (<sample in="..."
   // out="..." originalTempo="...">) - native_sample_rate_ deliberately
@@ -85,6 +106,13 @@ class SampleContent {
   float in_point_ = 0.0f, out_point_ = 0.0f;
   short original_tempo_ = 0;
   int native_sample_rate_ = 0;
+
+  // getWaveformPeaks()'s own lazy cache - mutable since a const read can
+  // still trigger a rebuild, the same reasoning any other lazily-computed
+  // cache in this codebase already has; real invalidation happens above,
+  // in the setters that actually change the audio this represents.
+  mutable WaveformPeaks waveform_peaks_;
+  mutable bool waveform_peaks_dirty_ = true;
 };
 
 #endif

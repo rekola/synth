@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<song temperament="12edo" tempo="120" rowsPerBar="4" volume="1.0">
+  <tracks>
+    <sampleTrack id="0"/>
+  </tracks>
+  <clips>
+    <trackClips track="0">
+      <clip id="c0" loop="0" length="4">
+        <sample file="sample_track_long_tone.wav"/>
+      </clip>
+    </trackClips>
+  </clips>
+  <scenes>
+    <scene length="1">
+      <arrangement track="0">
+        <instance row="0">c0</instance>
+      </arrangement>
+    </scene>
+  </scenes>
+</song>

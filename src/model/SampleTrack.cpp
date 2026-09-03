@@ -11,7 +11,7 @@ using namespace std;
 
 namespace {
 
-// One-shot/loop raw-sample playback voice, fed a Clip's own buffer and
+// Plain one-shot raw-sample playback voice, fed a Clip's own buffer and
 // its already-resolved (clamped) in/out frame bounds - the successor to
 // the never-instantiated FileInstrumentVoice this replaces (see
 // FileInstrument's removal): click-safe start at a specific frame (not
@@ -20,12 +20,28 @@ namespace {
 // its own native rate, never note-pitch-following, so this derives from
 // PositionedVoice directly rather than InstrumentVoice - there's no
 // frequency/detune/phase-accumulator concept to inherit or repurpose
-// here, just its own plain frame index.
+// here, just its own plain frame index. Deliberately has no looping
+// concept of its own, and no idea why or when it's being started or
+// stopped either - both are entirely SampleTrackState::render()'s own
+// concern (its own chunked loop against RenderContext::
+// getPendingSampleEvents(), mirroring how a pattern note's own chunked
+// render already works), not this voice's. A *looping* clip is realized
+// by its own track creating a fresh voice each lap (SongState.h's
+// per-row scheduling, mirroring how a looping Pattern's own note re-fires
+// every time its row wraps around, and how LaunchpadManager::
+// fireOrTriggerClipStep() already does this for Session-view triggering)
+// rather than one voice looping internally - closer to how every other
+// track type already works, and it naturally gets both halves of "the
+// clip's own length is the loop, not the audio's" for free: a new
+// trigger's own stopVoices(0) fades out whatever's still sounding from
+// the previous lap if it ran long, and a shorter one simply finishes and
+// stays silent until the next trigger arrives, no dedicated lap-timing
+// logic of its own needed here at all.
 class SampleClipVoice : public PositionedVoice {
 public:
-  SampleClipVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, shared_ptr<AudioBuffer> samples, int64_t start_frame, int64_t end_frame, bool looping, const SendLevels & sends)
+  SampleClipVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, shared_ptr<AudioBuffer> samples, int64_t start_frame, int64_t end_frame, const SendLevels & sends)
     : PositionedVoice(channel_config, position, sends),
-      samples_(move(samples)), source_position_(start_frame), start_frame_(start_frame), end_frame_(end_frame), looping_(looping),
+      samples_(move(samples)), source_position_(start_frame), end_frame_(end_frame),
       release_length_frames_(std::max(1, static_cast<int>(kReleaseSeconds * channel_config.getAudioOutSampleRate()))) {
     // Full velocity, unity gain, a fixed identity - triggerClip() always
     // fires a fresh voice at the same nominal strength (there's no
@@ -60,13 +76,9 @@ public:
       }
 
       if (source_position_ >= end_frame_) {
-        if (looping_) {
-          source_position_ = start_frame_;
-        } else {
-          active_ = false;
-          dry_[static_cast<size_t>(k)] = 0.0f;
-          continue;
-        }
+        active_ = false;
+        dry_[static_cast<size_t>(k)] = 0.0f;
+        continue;
       }
       dry_[static_cast<size_t>(k)] = data[source_position_] * gain;
       source_position_ += 1;
@@ -97,8 +109,7 @@ private:
   // int64_t: a 32-bit frame count runs short well within a plausible
   // session at high sample rates (~3 hours at 192kHz).
   int64_t source_position_;
-  int64_t start_frame_, end_frame_;
-  bool looping_;
+  int64_t end_frame_;
   bool active_ = true;
   bool releasing_ = false;
   int release_frames_remaining_ = 0;
@@ -177,7 +188,7 @@ SampleTrackState::triggerClip(const Clip & clip) {
   auto resolved_position = getPosition();
   if (resolved_position.extent < 0.0f) resolved_position.extent = 0.0f;
 
-  auto voice = make_unique<SampleClipVoice>(getChannelConfiguration(), resolved_position, samples, in_frame, out_frame, clip.isLooping(), getSends());
+  auto voice = make_unique<SampleClipVoice>(getChannelConfiguration(), resolved_position, samples, in_frame, out_frame, getSends());
   addVoice(0, move(voice));
 }
 

@@ -78,11 +78,20 @@ SongStructure::visit(const Track & track) {
     info.collapsed_ = drum_track.isCollapsed();
     assign(std::move(info));
   } else if (track.getType() == TrackType::SAMPLE) {
-    // Single placeholder column - see fill_track_info()'s own comment on
-    // why an explicit, default-constructed entry is kept rather than left
-    // absent.
+    // Waveform placeholder column plus (SampleTrack is a LeafTrack, same
+    // toggle every other leaf type already has) an ordinary command
+    // column right after it - see fill_track_info()'s own comment on why
+    // an explicit entry is kept rather than left absent. The placeholder
+    // itself is much wider than an ordinary NOTE column
+    // (VisibleTrackInfo::sample_placeholder_width_) - this is the only
+    // content a SampleTrack's row ever shows, and PatternEditor's own
+    // waveform-box rendering needs real horizontal room to draw a legible
+    // shape, not just enough for a note name.
+    auto & sample_track = dynamic_cast<const LeafTrack &>(track);
     VisibleTrackInfo info;
     info.collapsed_ = track.isCollapsed();
+    info.sample_placeholder_width_ = 24;
+    info.has_effect_column_ = sample_track.showEffectsColumn();
     assign(std::move(info));
   } else if (track.getType() == TrackType::EFFECT) {
     // Every per-track effect (Chorus/Compressor/TapeDegradation/...) gets

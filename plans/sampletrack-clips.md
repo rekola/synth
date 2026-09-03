@@ -567,6 +567,49 @@ that (the buffer running until it ends, or until the next transition's
 `stopAllVoices()`) needs no further per-row involvement from
 `renderBlock()`.
 
+**Implemented, differs from the original design above in three ways -
+see Part 12's own trailing sections for the full evolution that led
+here.**
+- **No adapter "instrument," no `noteOn()`.** `triggerClip()` resolves the
+  clip's own `SampleContent` (buffer, resampled on demand if needed,
+  clamped in/out frame indices) and builds a plain `SampleClipVoice`
+  (`SampleTrack.cpp`'s anonymous namespace) directly, adding it via
+  `addVoice(0, ...)` - column 0 always, a `SampleTrack` only ever plays
+  one clip at a time. No `Instrument`/`InstrumentPool` indirection is
+  resolved for it at all, unlike a pooled, pitched note.
+- **No wraparound looping inside the voice.** `SampleClipVoice` is a
+  plain one-shot with no looping/scheduling concept of its own - it has
+  no idea why or when it's being started or stopped. A looping clip's
+  own repeat is instead realized by the *track* creating a fresh voice
+  each lap (`triggerClip()` called again, fresh, whenever the row grid
+  says a new lap has started) - the identical shape a looping Pattern's
+  own note already has (a fresh note-on each time its row wraps around,
+  not one voice sustaining and looping internally).
+- **`SampleTrackState : LeafTrackState`, not `InstrumentTrackState`.** A
+  later structural split (`src/state/LeafTrackState.h`), mirroring the
+  model-layer `SampleTrack`/`InstrumentTrack` split this plan's own Part
+  3 already established: `LeafTrackState` holds the mute/solo/position/
+  sends/`voices_`/`stopVoices()`/`stopAllVoices()`/`renderVoices()`
+  bookkeeping every leaf track shares, and `InstrumentTrackState` builds
+  on it with pool-instrument resolution plus note-column/chord/pressure
+  machinery `SampleTrackState` has no use for at all - so `SampleTrackState`
+  now inherits directly from the shared base instead of dragging in a
+  whole pitched-instrument surface just to reach `stopVoices()`.
+  Player.cpp's live-control handlers (`SET_TRACK_MUTED`/`SOLO`/`SEND_A`/
+  `SEND_B`/`SEND_MAIN`/`AZIMUTH`, and Session view's `STOP_ALL_NOTES`
+  "stop this track") `dynamic_cast` to `LeafTrackState` now, not
+  `InstrumentTrackState`, so they keep reaching a `SampleTrack` the same
+  uniform way they reach every other leaf track type.
+- **`SongState.h` doesn't call `triggerClip()` directly at all any more.**
+  See Part 12's own trailing sections - it queues a start/stop through
+  `RenderContext` instead, and `SampleTrackState::render()` is its own
+  chunked loop that applies each at the exact within-block frame it's
+  due. `Player.cpp`'s live `PLAY_SAMPLE_CLIP` handler (Part 6, below) is
+  the one caller that still calls `triggerClip()` straight through -
+  Session-view triggering has no block to chunk against in the first
+  place, so there's nothing to gain by routing it through `RenderContext`
+  too.
+
 ## Part 6 - Session view / Launchpad live triggering
 
 `LaunchpadManager::fireClipStep()` (`LaunchpadManager.cpp:354-368`) fires
@@ -1340,6 +1383,149 @@ own row's bar exactly as already planned, unchanged. Only rows where
 draw a waveform at all - the no-instance/explicit-stop background case
 keeps whatever fallback glyph Part 8 already draws there, nothing to show
 a shape for.
+
+**Open question, raised directly by the user while implementing - not
+resolved yet.**
+- **When the transport is paused, the sample audio itself keeps
+  playing.** A SampleTrack voice has no pause-awareness of its own - only
+  start/stop. The user's own later note, once the per-lap re-triggering
+  design below was settled: this should work the same way - pause
+  releases whatever voice is currently sounding (its own short natural
+  fade, not a hard cut) and unpause starts a *new* voice, possibly from
+  the row the transport actually resumes at rather than wherever the old
+  one happened to be. Deliberately, not an afterthought: a real release
+  on pause and a fresh (fake) attack on unpause reads better than
+  snapping a sustained sound to silence and back, and it's the exact
+  same "a new voice, not one voice persisting/resuming across an
+  arbitrary gap" shape the per-lap redesign already established -
+  nothing new to build for it beyond wiring pause/unpause into the same
+  stop/trigger calls. Still not designed in detail (exactly which event
+  triggers the release, what "the row it resumes at" resolves to if the
+  user has also moved the cursor while paused) or built.
+- **Moving the playhead (scrubbing/repositioning, not just pausing) must
+  be able to start a sample voice from any position within it**, not
+  only from a clip instance's own leading row. Raised directly by the
+  user alongside the pause note above, as a related requirement on the
+  same "create a voice for wherever we actually are" mechanism - a
+  SampleTrack voice today only ever starts at `start_frame_` (the
+  clip's own in-point); jumping the playhead into the *middle* of an
+  active instance needs the resulting voice to start mid-sample, at
+  whatever offset corresponds to the row landed on, not silently
+  restart from the beginning (or not sound at all until the next
+  natural trigger point). Not designed in detail or built - `SongState.h`
+  currently only ever triggers at a lap's own leading row, never mid-lap
+  from a cold start.
+
+**A one-shot clip whose own real audio outlasts the scene it's placed in
+now stops exactly when the scene does.** Raised directly by the user as
+the other open question above, then resolved twice - first with a
+`triggerClip()`-time `max_frames` cap (below), then superseded by the
+final `RenderContext`-based design once the mid-block-trigger bug (also
+below) forced a bigger rethink. Final shape: `SongState.h`'s own
+per-row scheduling queues an explicit `RenderContext::
+addPendingSampleStop(track_id, frame)` at the exact frame the scene's
+own last row ends, for a non-looping clip only (a looping clip has no
+natural end of its own to shorten - it's already stopped correctly by
+its own next lap's re-trigger, or by the transition-detection stop
+below). `SampleTrackState::render()`'s own chunked loop (see the
+mid-block-trigger section below) applies it there as a short natural
+release (`stopVoices(0)`), never a hard cut - reaching the scene
+boundary must not click. The sibling "waveform display shows a visibly
+truncated shape" half of the original open question stays open - a
+display concern independent of this playback fix.
+
+**A looping SampleTrack clip's own lap length is the clip's own length,
+not the audio's own real duration - and it's the track that creates a
+fresh voice each lap, not one voice looping internally.** Raised
+directly by the user, questioning the waveform display's own
+`row % clip.getLength()` lap math: a sample's real duration is
+essentially never an exact multiple of `clip.getLength()` rows
+(`framesToRows()` rounds up), so the audio voice's own previous
+behavior - looping at its own natural end, independent of the row grid -
+meant the display's per-row lookup would drift out of sync with where
+the audio actually was, more with every lap. First implemented as a
+`loop_period_frames` cap tracked *inside* `SampleClipVoice` itself
+(restarting the same voice exactly at the period) - the user then
+pushed back on that shape directly: a SampleTrack should follow the
+*instrument track* convention instead, where a repeat is realized by the
+track creating a genuinely new voice each time, not one voice persisting
+and looping on its own. `LaunchpadManager::fireOrTriggerClipStep()`
+already worked this way for Session-view triggering (its own
+`step % length == 0` re-fires `PLAY_SAMPLE_CLIP` fresh every lap) - only
+the transport-driven path (`SongState.h`) still had the old, voice-
+internal shape. Reworked so `SongState.h`'s own per-row scheduling
+queues a fresh `RenderContext::addPendingSampleStart()` whenever a new
+lap starts (`(row_idx - active.start_row) % clip.getLength() == 0`),
+mirroring a looping *Pattern*'s own note re-firing every time its row
+wraps around; `SampleClipVoice` went back to being a plain one-shot with
+no looping concept of its own at all. Both "the clip's own length is the
+loop" halves fall out of this for free, with no dedicated lap-timing
+logic needed: `triggerClip()`'s own `stopVoices(0)` fades out whatever's
+still sounding from the previous lap if it ran long, and a shorter one
+simply finishes and stays silent on its own until the next trigger
+arrives. This also resolves the waveform display's own drift concern
+for free, the same way the voice-internal version did: since the audio
+now genuinely loops on the row grid, `unwrapped_row % clip.getLength()`
+already is exact.
+
+**A real, pre-existing bug the above exposed, and the redesign it
+eventually forced.** `SampleTrackState::render()` gave a voice added
+partway through the current render block its own *entire* block
+regardless, so it always started sounding from the block's own first
+sample rather than the real trigger point - invisible until now because
+the only trigger (a lap's own leading row) had always landed on a block
+boundary by coincidence; a later lap re-triggered mid-block made it
+obvious (audio arriving audibly *before* its own scheduled row,
+confirmed by directly tracing the render pipeline). Three attempts, in
+order:
+1. A `block_delay_frames` parameter on `triggerClip()` - the new voice
+   stays silent for that many samples of its own first `render()` call,
+   landing it at the right point. Reverted: a sound producer (the voice)
+   should never need to know this at all.
+2. A caller-side fix instead: `OfflineRenderer.cpp`'s render loop
+   clamped each block to `SongState::samplesUntilNextRow()` (an existing
+   method, already used internally for exactly this kind of per-row
+   bookkeeping, just not yet exposed to a caller), so every row-scheduled
+   event genuinely always landed at sample 0 of whichever call produced
+   it. Also reverted, on the same objection generalized further: a
+   *caller* clamping its own block size to accommodate a producer's
+   scheduling need is the same problem one level up, and doesn't help
+   `Player.cpp`'s real-time ALSA callback anyway, which hands over one
+   fixed period's worth of frames per call - reflexively assumed to be a
+   hardware constraint, corrected directly by the user (`AlsaAudio::
+   play()` just calls `snd_pcm_writei()` with whatever buffer size it's
+   given, no fixed-period requirement) - so the fix would have needed
+   duplicating there too, not something genuinely free only for offline
+   rendering.
+3. **The actual fix, matching how a pattern note's own timing already
+   works:** put the scheduling on `RenderContext` instead, exactly like
+   `pending_events_` already does for notes. `RenderContext` gained
+   `pending_sample_events_` - a `SampleTrackEvent{ Kind (START/STOP);
+   const Clip * clip; }` per track, timestamped to an exact within-block
+   frame, added via `addPendingSampleStart()`/`addPendingSampleStop()`
+   and consumed via `getPendingSampleEvents()`. `TrackEvent` (the note
+   timeline's own payload type) was moved into `RenderContext.h` too, so
+   the two timelines' doc comments could sit together and state the
+   shared reasoning once - a sound producer should never need to know
+   why or when it's being started or stopped; that scheduling problem
+   belongs on this shared timeline instead. `SampleTrackState::render()`
+   is now its own chunked loop against `pending_sample_events_`,
+   mirroring `InstrumentTrackState::render()`'s existing chunked loop
+   against `pending_events_` exactly: split the block at each entry due
+   within it, apply it there (`triggerClip()` for START, a natural
+   `stopVoices(0)` release for STOP - never a hard cut, since the scene-
+   boundary stop above rides this same mechanism), keep rendering. This
+   subsumes both the mid-block-trigger fix and the scene-boundary fix
+   uniformly, and needs no special-casing between `OfflineRenderer.cpp`
+   and `Player.cpp`'s real-time callback - `OfflineRenderer.cpp`'s own
+   `samplesUntilNextRow()` clamping from attempt 2 was reverted once this
+   landed, and `block_delay_frames` never shipped at all. `SongState.h`'s
+   transition-detection stop (a clip swapped for a different one, or for
+   nothing) was reworked the same way for a `SampleTrack` specifically -
+   it queues a `RenderContext` stop instead of calling
+   `LeafTrackState::stopAllVoices()` directly, for the identical reason:
+   an immediately-applied stop has no way to land at the exact sample a
+   later-processed row transition is actually due on.
 
 ## Part 13 - Time-stretching for tempo changes
 

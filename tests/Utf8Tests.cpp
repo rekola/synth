@@ -141,3 +141,18 @@ TEST(utf8_malformed_input_does_not_hang_and_stays_bounded) {
   (void)Utf8::displayWidth(truncated_lead);
   (void)Utf8::displayWidth(lone_continuation);
 }
+
+TEST(utf8_encode_codepoint_covers_every_byte_length) {
+  CHECK(Utf8::encodeCodepoint(0x41) == "A"); // 1-byte (ASCII)
+  CHECK(Utf8::encodeCodepoint(0xE9) == "\xC3\xA9"); // 2-byte ("é")
+  CHECK(Utf8::encodeCodepoint(0x2588) == "\xE2\x96\x88"); // 3-byte (FULL BLOCK)
+  CHECK(Utf8::encodeCodepoint(0x1FB00) == "\xF0\x9F\xAC\x80"); // 4-byte (sextant range)
+}
+
+TEST(utf8_encode_codepoint_round_trips_through_display_width) {
+  // Every real encoded codepoint is well-formed enough for the rest of
+  // this module to measure - a malformed encoder would silently corrupt
+  // every glyph table built on top of it (SubcellGlyphs.h).
+  CHECK(Utf8::displayWidth(Utf8::encodeCodepoint(0x2588)) >= 0);
+  CHECK(Utf8::displayWidth(Utf8::encodeCodepoint(0x1FB00)) >= 0);
+}

@@ -81,7 +81,20 @@ public:
     // PatternEditor::renderHeading) and stays border-only.
     if (collapsed_) return 1 + collapsed_content_width_;
     auto identifier_cell = (color_ordinal_ >= 0 && k == getColumnCount() - 1) ? 1 : 0;
-    switch (getColumnType(k)) {
+    auto column_type = getColumnType(k);
+    // A SampleTrack's own waveform column (SongStructure.cpp's SAMPLE
+    // branch) isn't really a NOTE column at all - getColumnType() only
+    // resolves it to NOTE because nothing else claims it, a leftover of
+    // there being no dedicated ColumnType for it. Its real content
+    // (PatternEditor's own waveform-box rendering) needs far more than
+    // NOTE's fixed 4 characters to show a legible shape, so this
+    // overrides the NOTE case below when set - 0 (default) leaves every
+    // other track type's own sizing untouched, and a SampleTrack's own
+    // separate EFFECT column (its command column, alongside the
+    // waveform) still gets EFFECT's own ordinary width below, not this
+    // override.
+    if (sample_placeholder_width_ > 0 && column_type == ColumnType::NOTE) return sample_placeholder_width_ + identifier_cell;
+    switch (column_type) {
     case ColumnType::NOTE: return 4 + identifier_cell;
     case ColumnType::VELOCITY: return 3 + identifier_cell;
     case ColumnType::DELAY: return 3 + identifier_cell;
@@ -177,6 +190,10 @@ public:
   bool has_note_column_ = true;
   bool has_delay_column_ = false;
   bool has_effect_column_ = false;
+  // getColumnWidth()'s own override for a SampleTrack's single column -
+  // see that method's own comment. 0 (default) for every other track
+  // type.
+  int sample_placeholder_width_ = 0;
   // Hides every column's own content in the pattern grid (see
   // getColumnWidth()/PatternEditor::renderRow) while keeping its
   // trailing "│" border, so a track with nothing worth showing yet
