@@ -29,3 +29,18 @@ extern const unsigned int kQuadrantCodepoints[16];
 // notcurses_cansextant() - checked once via UIPlane::canRenderSextants(),
 // not per call.
 unsigned int sextantCodepoint(int mask);
+
+// Unicode Braille Patterns (U+2800-U+28FF) for an 8-bit mask over a
+// 2-column x 4-row sub-cell, row-major like the two tables above (bit =
+// row*2+col, 1 = "on"/foreground) - finer than sextants' 2x3 and, unlike
+// sextantCodepoint(), needs no capability check at all: the block is
+// old/near-universally supported, which is presumably why PatternEditor's
+// own pre-existing VU meter already draws from it unconditionally. The
+// codepoint's own bit order isn't row-major (it's the historical 6/8-dot
+// braille cell numbering: dot1/2/3/7 down the left column, dot4/5/6/8 down
+// the right), so this permutes the row-major mask into that order rather
+// than adding row*2+col directly to the block's base codepoint. Mask 0
+// (all off) is plain space U+0020, matching the other two tables' own
+// convention, rather than the technically-blank but visually-identical
+// braille cell U+2800.
+unsigned int brailleCodepoint(int mask);

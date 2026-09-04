@@ -379,6 +379,12 @@ protected:
   // render() itself.
   bool force_redraw_ = false;
 
+  // Overrides the sample-clip waveform box's usual sextant/quadrant glyph
+  // choice (see renderRow()'s own comment) with braille instead, toggled
+  // by the "toggle-waveform-glyph-style" command - a runtime side-by-side
+  // comparison, not a permanent setting saved anywhere.
+  bool force_braille_waveform_ = false;
+
   // The StyleProvider render() was last called with - stashed there
   // purely so startTrackNameEdit() can force an immediate renderHeading()
   // pass of its own (see that method's own comment) without needing a

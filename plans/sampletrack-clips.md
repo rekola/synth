@@ -1353,19 +1353,33 @@ neither picked yet:
   ncplane_notcurses_const(...))` confirms real terminal support - a real
   runtime capability check, not a guess, exactly matching the user's own
   "check from notcurses what are supported" instruction.
-- **Braille** (`PatternEditor.cpp`'s own `draw_vu_meter()`, `kGlyphs[]` at
-  `PatternEditor.cpp:2129-2134`): the U+2800 block gives a 2-column x
-  4-row (8-dot) sub-cell per character - actually *finer* than sextants'
-  6 - and needs no capability check at all (a much older, near-universally
-  supported Unicode block, which is presumably why `draw_vu_meter()`
-  already uses it unconditionally).
+- **Braille** (`PatternEditor.cpp`'s own `draw_vu_meter()`, its `kGlyphs[]`
+  table): the U+2800 block gives a 2-column x 4-row (8-dot) sub-cell per
+  character - actually *finer* than sextants' 6 - and needs no
+  capability check at all (a much older, near-universally supported
+  Unicode block, which is presumably why `draw_vu_meter()` already uses
+  it unconditionally).
 
 Whichever wins, it's reused directly from its existing table/check, not
 reimplemented a third time - a new mask-construction function ("which
 sub-cells are lit" from amplitude, in place of the heatmap's brightness
 threshold or the VU meter's single intensity level) is the only new code
-either way. Left open for a quick side-by-side at implementation time
-rather than decided here.
+either way.
+
+**Implemented as a live, runtime-toggleable side-by-side rather than a
+single pick - still genuinely undecided.** Block Elements/sextants
+(auto-selected by terminal capability, same as the heatmap) is the
+default; the "toggle-waveform-glyph-style" M-x command forces braille on
+instead, for direct comparison without a rebuild. `brailleCodepoint(mask)`
+(`src/ui/SubcellGlyphs.h`/`.cpp`) is the new mask-construction function
+this needed - same row-major mask convention as `kQuadrantCodepoints`/
+`sextantCodepoint`, permuted into the braille block's own historical
+6/8-dot bit order (verified against `draw_vu_meter()`'s own pre-existing
+`kGlyphs[]` table, which is a hand-built special case of the same
+permutation). Whichever glyph style wins this comparison should become
+the sole default (dropping the loser's branch and the toggle command
+itself) rather than staying a permanent runtime option - not done yet,
+pending that comparison.
 
 **Pixel graphics (sixel/Kitty) - explicitly a future upgrade, not v1.**
 Per the user: character-cell glyphs (whichever wins above) are the actual

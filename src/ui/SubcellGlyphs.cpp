@@ -19,3 +19,18 @@ sextantCodepoint(int mask) {
   }
   return 0x1FB00u + static_cast<unsigned int>(index);
 }
+
+unsigned int
+brailleCodepoint(int mask) {
+  if (mask == 0) return 0x0020;
+  unsigned int dots = 0;
+  if (mask & 0x01) dots |= 0x01; // row0,col0 -> dot1
+  if (mask & 0x02) dots |= 0x08; // row0,col1 -> dot4
+  if (mask & 0x04) dots |= 0x02; // row1,col0 -> dot2
+  if (mask & 0x08) dots |= 0x10; // row1,col1 -> dot5
+  if (mask & 0x10) dots |= 0x04; // row2,col0 -> dot3
+  if (mask & 0x20) dots |= 0x20; // row2,col1 -> dot6
+  if (mask & 0x40) dots |= 0x40; // row3,col0 -> dot7
+  if (mask & 0x80) dots |= 0x80; // row3,col1 -> dot8
+  return 0x2800u + dots;
+}

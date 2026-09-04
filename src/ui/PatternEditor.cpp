@@ -652,6 +652,18 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     song.incVersion();
   });
 
+  // A runtime side-by-side comparison between the two sub-cell glyph
+  // candidates for a sample clip's waveform box (renderRow()'s own
+  // comment) - M-x only, no keybinding, matching copy-to-clip/
+  // stop-sample-capture above.
+  commands_.define("toggle-waveform-glyph-style", [this]() {
+    force_braille_waveform_ = !force_braille_waveform_;
+    // No model mutation (no incVersion()) for render()'s own render_all
+    // check to notice on its own - force_redraw_ is exactly this case,
+    // see its own comment.
+    force_redraw_ = true;
+  });
+
   // "send-a-mode"/"send-b-mode" are NOT defined here (or anywhere in
   // commands_) - they mutate nothing outside a single Launchpad device's
   // own transient UI state (which grid mode it's showing), never Song/
@@ -2582,10 +2594,14 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // sextants (2x3 sub-cells) when this terminal actually supports Unicode
   // 13's sextant range (UIPlane::canRenderSextants()), else quadrants
   // (2x2, always supported) - the capability figured out once at
-  // TerminalPlane construction, not re-queried per row. Reuses
-  // SubcellGlyphs.h's exact tables rather than a third copy of them, the
-  // same ones TerminalHeatmapChart's 2D field already uses.
-  auto waveform_subrows = getPlane().canRenderSextants() ? 3 : 2;
+  // TerminalPlane construction, not re-queried per row. Braille (2x4,
+  // also always supported) is a third, higher-resolution option, forced
+  // on regardless of sextant support via force_braille_waveform_'s own
+  // "toggle-waveform-glyph-style" command, for comparing it against
+  // whichever of the other two this terminal would otherwise pick.
+  // Reuses SubcellGlyphs.h's exact tables rather than a fourth copy of
+  // them, the same ones TerminalHeatmapChart's 2D field already uses.
+  auto waveform_subrows = force_braille_waveform_ ? 4 : (getPlane().canRenderSextants() ? 3 : 2);
   // Renders one pattern row's own slice of a sample clip's waveform, over
   // `width` character cells: each of `waveform_subrows` independent
   // per-row time-buckets (WaveformPeaks::at(), see its own row-vs-time
@@ -2626,7 +2642,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  }
 	}
       }
-      result += Utf8::encodeCodepoint(waveform_subrows == 3 ? sextantCodepoint(mask) : kQuadrantCodepoints[mask]);
+      auto codepoint = waveform_subrows == 4 ? brailleCodepoint(mask) : waveform_subrows == 3 ? sextantCodepoint(mask) : kQuadrantCodepoints[mask];
+      result += Utf8::encodeCodepoint(codepoint);
     }
     return result;
   };
