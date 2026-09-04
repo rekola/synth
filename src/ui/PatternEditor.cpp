@@ -2797,12 +2797,11 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	    setFgColor(styles.window_border_color);
 	  }
 	  current_pos += width;
-	} else if (track && track->getType() == TrackType::SAMPLE && column_type != ColumnType::EFFECT) {
-	  // This track's own real command column (has_effect_column_,
-	  // SongStructure.cpp) sits right after this one now - its own
-	  // ColumnType::EFFECT falls through to the ordinary EFFECT branch
-	  // below unchanged, this branch only ever handles the waveform
-	  // column itself.
+	} else if (track && track->getType() == TrackType::SAMPLE) {
+	  // A SampleTrack has no command column at all (SongStructure.cpp
+	  // leaves has_effect_column_ at its own default, false - there's no
+	  // Pattern behind this track for a Command to ever live in) - its
+	  // one and only column is always this waveform placeholder.
 	  cell_fg = cur_fg;
 	  cell_bg = cur_bg;
 	  setFgColor(cell_fg);

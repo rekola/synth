@@ -78,20 +78,21 @@ SongStructure::visit(const Track & track) {
     info.collapsed_ = drum_track.isCollapsed();
     assign(std::move(info));
   } else if (track.getType() == TrackType::SAMPLE) {
-    // Waveform placeholder column plus (SampleTrack is a LeafTrack, same
-    // toggle every other leaf type already has) an ordinary command
-    // column right after it - see fill_track_info()'s own comment on why
-    // an explicit entry is kept rather than left absent. The placeholder
-    // itself is much wider than an ordinary NOTE column
+    // Waveform placeholder column only - no command column, unlike every
+    // other leaf track type: a SampleTrack's own clip content is raw
+    // audio, not a Pattern, so there's no per-row Command data for one to
+    // ever hold (has_effect_column_ stays at its own default, false -
+    // deliberately not LeafTrack::showEffectsColumn(), since that toggle
+    // is for a track that merely doesn't happen to use its command
+    // column, not one that structurally can't have one at all). The
+    // placeholder itself is much wider than an ordinary NOTE column
     // (VisibleTrackInfo::sample_placeholder_width_) - this is the only
     // content a SampleTrack's row ever shows, and PatternEditor's own
     // waveform-box rendering needs real horizontal room to draw a legible
     // shape, not just enough for a note name.
-    auto & sample_track = dynamic_cast<const LeafTrack &>(track);
     VisibleTrackInfo info;
     info.collapsed_ = track.isCollapsed();
     info.sample_placeholder_width_ = 24;
-    info.has_effect_column_ = sample_track.showEffectsColumn();
     assign(std::move(info));
   } else if (track.getType() == TrackType::EFFECT) {
     // Every per-track effect (Chorus/Compressor/TapeDegradation/...) gets
