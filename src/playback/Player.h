@@ -120,6 +120,11 @@ private:
   Controller * controller_;
   bool terminate_ = false;
   bool mixer_changed_ = false;
+  // play()'s own poll loop - the previous iteration's Controller::
+  // isRecording(), compared against the current one to detect recording
+  // actually engaging (see play()'s own comment on why this is where the
+  // round-trip latency measurement happens, exactly once per take).
+  bool was_recording_ = false;
 
   // Stands in for a live PLAY_NOTE's own NoteCoordinate absolute_row (see
   // handlePlaybackControlEvent()'s own comment) - a live note has no

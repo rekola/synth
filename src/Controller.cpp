@@ -1006,7 +1006,7 @@ Controller::applyNotePressure(int pattern_idx, int row, int track_id, int note_c
 }
 
 void
-Controller::beginSampleCapture(int track_id) {
+Controller::beginSampleCapture(int track_id, int latency_frames) {
   auto song = getCurrentSong();
   if (!song || !current_sample || current_sample->numberOfFrames() == 0) return;
 
@@ -1020,24 +1020,28 @@ Controller::beginSampleCapture(int track_id) {
   content.setBuffer(current_sample);
   content.setOriginalTempo(song->getTempo());
   content.setNativeSampleRate(channel_config.getAudioOutSampleRate());
+  if (latency_frames > 0) {
+    content.setInPoint(static_cast<float>(latency_frames) / static_cast<float>(channel_config.getAudioOutSampleRate()));
+  }
   clip.setName(fmt::format("Take {}", song->getClips(track_id).size() + 1));
   // No length yet - Clip.h's own "0 means not given one" convention; the
   // real, final duration isn't known until finishSampleCapture().
 
   auto & added = song->addClip(std::move(clip));
   recording_clip_id_ = added.getId();
+  recording_latency_frames_ = latency_frames;
 
-  // Placed immediately if the transport is playing - correct by
-  // construction, nothing to compute: wherever the transport genuinely is
-  // right now is where this take starts. A freeform take (transport
-  // stopped) stays unplaced - still a real, visible clip (Session view/
-  // ArrangementGrid), just not an arrangement instance anywhere yet.
-  auto & info = getPlaybackInfo();
-  if (info.isPlaying()) {
-    auto & scene = song->getOrCreateScene(info.getPatternIndex());
+  // Placed at armRecordingStart()'s own snapshotted position, if this
+  // take was ever armed - correct by construction, nothing to compute
+  // here: wherever the transport genuinely was at record-start is where
+  // this take starts, already resolved before this method ever runs. A
+  // never-armed take stays unplaced - still a real, visible clip (Session
+  // view/ArrangementGrid), just not an arrangement instance anywhere yet.
+  if (recording_start_scene_ >= 0) {
+    auto & scene = song->getOrCreateScene(recording_start_scene_);
     auto & clips = song->getClips(track_id);
     auto clip_index = static_cast<int>(clips.size()) - 1; // the one just added, always last
-    placeClipInstance(*song, scene, track_id, info.getRowIndex(), clip_index);
+    placeClipInstance(*song, scene, track_id, recording_start_row_, clip_index);
   }
 
   song->incVersion();
@@ -1059,9 +1063,14 @@ Controller::finishSampleCapture() {
       if (clip.getId() != recording_clip_id_) continue;
 
       auto * content = clip.getSampleContent();
-      auto frames = content && content->getBuffer() ? content->getBuffer()->numberOfFrames() : 0;
-      clip.setLength(channel_config.framesToRows(frames, song->getTempo()));
-      auto duration_seconds = static_cast<float>(frames) / static_cast<float>(channel_config.getAudioOutSampleRate());
+      auto total_frames = content && content->getBuffer() ? content->getBuffer()->numberOfFrames() : 0;
+      // The lead-in trimmed off the front (recording_latency_frames_,
+      // beginSampleCapture()'s own comment on what it is) was never real
+      // content the performer could have produced - it shouldn't inflate
+      // this instance's own arrangement-window length either.
+      auto post_trim_frames = std::max(0, total_frames - recording_latency_frames_);
+      clip.setLength(channel_config.framesToRows(post_trim_frames, song->getTempo()));
+      auto duration_seconds = static_cast<float>(post_trim_frames) / static_cast<float>(channel_config.getAudioOutSampleRate());
       getUIEventQueue().push(make_unique<LogEvent>(fmt::format("recorded {} ({:.1f}s)", clip.getName(), duration_seconds)));
       song->incVersion();
       break;
@@ -1069,5 +1078,12 @@ Controller::finishSampleCapture() {
   }
 
   recording_clip_id_.clear();
+  recording_latency_frames_ = 0;
+  // Back to unarmed - a later take that's never armed at all (nothing
+  // currently reaches beginSampleCapture() that way, but stays a real,
+  // defended case - see armRecordingStart()'s own comment) must not
+  // silently inherit this one's now-stale position.
+  recording_start_scene_ = -1;
+  recording_start_row_ = -1;
   stopRecording();
 }

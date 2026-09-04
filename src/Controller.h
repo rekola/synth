@@ -286,49 +286,73 @@ class Controller {
     if (current_sample) current_sample->append(other);
   }
 
+  // Snapshots where this take actually starts, synchronously, on the UI
+  // thread - start-sample-capture's own handler calls this unconditionally
+  // (auto-starting playback right afterward when it wasn't already running
+  // doesn't move the position, so the take is just as latency-compensable
+  // either way). Overwrites whatever an earlier take may have left behind
+  // - a fresh call every time capture starts, never a stale leftover.
+  // beginSampleCapture() below reads this back for placement; -1/-1 (the
+  // construction-time default, never actually reached through
+  // start-sample-capture itself today, but left as the genuine "no
+  // position to place at" case for anything that creates a recording
+  // clip some other way) means unplaced.
+  void armRecordingStart(int scene, int row) { recording_start_scene_ = scene; recording_start_row_ = row; }
+  // Whether this take has a snapshotted start position at all - UI::
+  // handleRecordEvent()'s own guard against creating the clip lazily,
+  // uncompensated, for a take that's actually waiting on
+  // handleRecordingLatencyEvent() to do it properly instead.
+  bool isRecordingArmed() const { return recording_start_scene_ >= 0; }
+
   // Begins a real Clip for the take currently in progress - creates it,
   // shares its SampleContent buffer with current_sample (so every later
   // addToSample() call is visible through the clip automatically, no
   // separate plumbing needed), and places it as an arrangement instance
-  // at the transport's own current position if it's playing. Called
-  // lazily, exactly once per take, by UI::handleRecordEvent() the first
-  // time real audio actually arrives - not synchronously at
-  // start-sample-capture itself: a clip created with a still-empty
+  // at armRecordingStart()'s own snapshotted position, if one was taken -
+  // never a fresh getPlaybackInfo() read here, which by the time this
+  // runs reflects wherever the transport has since moved on to, not
+  // where the take actually began. `latency_frames` (0 for an
+  // uncompensated/freeform take) is the round-trip delay to trim off the
+  // clip's own in-point, resolved to seconds against this Controller's
+  // own output rate; remembered (recording_latency_frames_) so
+  // finishSampleCapture() can subtract it from the final frame count too,
+  // not just the in-point.
+  //
+  // Two callers, each covering one case: UI::handleRecordEvent() calls
+  // this lazily, with latency_frames 0, the first time real audio
+  // actually arrives for a take that was *never* armed (no position was
+  // ever snapshotted for it) - a clip created with a still-empty
   // (0-frame) buffer would show nothing anyway, so creating it any
   // earlier than "there is actually something to show" bought no real
-  // visibility benefit, only the risk of leaving a genuinely empty clip
-  // behind if the take turned out to capture nothing at all (no capture
-  // device available, or stopped again before a first block ever
-  // landed). Remembers the new clip's own stable id (recording_clip_id_)
-  // so finishSampleCapture() can find it again by id, never by list
-  // position. A no-op if track_id doesn't resolve or current_sample is
-  // empty (the caller is expected to call addToSample() first - see
-  // UI::handleRecordEvent()).
-  //
-  // Latency-compensated in-point trimming (measuring the real round-trip
-  // output+input delay and baking it into this clip's own in-point before
-  // anyone can see it, rather than starting at 0 and correcting after the
-  // fact) is deliberately not wired up yet - it needs a real ALSA-level
-  // measurement only reachable from the audio thread (AudioAPI::
-  // getPlaybackDelayFrames()/getCaptureDelayFrames(), Player.cpp), a
-  // follow-up on top of this working, simpler pipeline rather than a
-  // prerequisite for it.
-  void beginSampleCapture(int track_id);
+  // visibility benefit. UI::handleRecordingLatencyEvent() calls this
+  // instead, with the real measured latency, for an armed take - as soon
+  // as that measurement arrives (see its own comment for why that's
+  // already effectively "as early as possible", not a regression from
+  // the lazy path). Either way this only ever actually runs once per
+  // take (hasRecordingClip() already true skips it) - remembers the new
+  // clip's own stable id (recording_clip_id_) so finishSampleCapture()
+  // can find it again by id, never by list position. A no-op if track_id
+  // doesn't resolve or current_sample is empty (the caller is expected
+  // to call addToSample() first - see UI::handleRecordEvent()).
+  void beginSampleCapture(int track_id, int latency_frames = 0);
 
   // Whether beginSampleCapture() has already created this take's own
-  // clip - UI::handleRecordEvent()'s own guard against calling it more
-  // than once per take.
+  // clip - UI::handleRecordEvent()/handleRecordingLatencyEvent()'s own
+  // shared guard against calling it more than once per take.
   bool hasRecordingClip() const { return !recording_clip_id_.empty(); }
 
   // Ends a mic-capture take - stop-sample-capture's own entry point.
   // Finalizes the clip beginSampleCapture() already created, if any (its
-  // own real length, now that the final frame count is known) - if no
-  // audio ever actually arrived this take, beginSampleCapture() was never
-  // called at all (hasRecordingClip() still false), so there's nothing to
-  // finalize or clean up either, the same "nothing captured, nothing
-  // happens" no-op this had before eager creation was tried and dropped.
-  // Always calls stopRecording() to clear current_sample/
-  // recording_track_id.
+  // own real length - total captured frames minus whatever latency was
+  // already trimmed off the front, now that the final frame count is
+  // known - if no audio ever actually arrived this take, beginSampleCapture()
+  // was never called at all (hasRecordingClip() still false), so there's
+  // nothing to finalize or clean up either, the same "nothing captured,
+  // nothing happens" no-op this had before eager creation was tried and
+  // dropped. Always calls stopRecording() to clear current_sample/
+  // recording_track_id, and resets armRecordingStart()'s own snapshot back
+  // to unarmed so a later take that's never armed at all doesn't
+  // accidentally inherit this one's position.
   void finishSampleCapture();
 
   EventQueue & getUIEventQueue() { return ui_event_queue; }
@@ -928,6 +952,18 @@ class Controller {
   // stable id (never list position - Song.h's own comment on why) when
   // finishSampleCapture() needs to find it again.
   std::string recording_clip_id_;
+  // Snapshotted synchronously, on the UI thread, the instant a take
+  // actually starts (start-sample-capture's own handler) - -1 means "not
+  // armed this take" (no compensation to apply), reset to that at the
+  // *start* of every take rather than only read once, so a later take
+  // never accidentally inherits an earlier one's position. See
+  // beginSampleCapture()'s own comment for how these get used.
+  int recording_start_scene_ = -1, recording_start_row_ = -1;
+  // The round-trip latency (frames) beginSampleCapture() actually trimmed
+  // off this take's own in-point, if any (0 for an uncompensated/freeform
+  // take) - finishSampleCapture() needs it again to compute the clip's
+  // own post-trim length, not the full captured buffer.
+  int recording_latency_frames_ = 0;
   // See getGlobalOctave()'s own comment - deliberately global, unlike the
   // per-buffer state above.
   int global_octave_ = 4;

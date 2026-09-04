@@ -509,6 +509,95 @@ TEST(begin_and_finish_sample_capture_creates_and_finalizes_a_real_clip) {
   }
 }
 
+// Recording-latency compensation: armRecordingStart() snapshots where a
+// take starts, synchronously - beginSampleCapture() places the clip
+// there (not wherever getPlaybackInfo() might report by the time it
+// actually runs), trims latency_frames off the in-point, and
+// finishSampleCapture() subtracts that same amount from the final length
+// so the lead-in never inflates the instance's own arrangement window.
+TEST(armed_sample_capture_places_at_the_snapshotted_row_and_trims_the_measured_latency) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  controller.getSong().setTempo(120);
+  controller.getSong().setRowsPerBar(4);
+
+  auto & track = controller.getSong().addTrack(std::make_unique<SampleTrack>());
+  auto track_id = track.getInternalId();
+  controller.setRecordingTrackId(track_id);
+  controller.startRecording();
+
+  controller.armRecordingStart(0, 2); // scene 0, row 2 - the take's own real start
+  CHECK(controller.isRecordingArmed());
+
+  AudioBuffer block(1, 800);
+  auto data = block.getChannelData(0);
+  for (int i = 0; i < 800; i++) data[i] = 0.3f;
+  controller.addToSample(block);
+
+  controller.beginSampleCapture(track_id, 100); // 100 frames of measured round-trip latency
+  CHECK(controller.hasRecordingClip());
+
+  auto & clips = controller.getSong().getClips(track_id);
+  CHECK(clips.size() == 1);
+  if (!clips.empty()) {
+    auto * content = clips[0].getSampleContent();
+    CHECK(content != nullptr);
+    if (content) CHECK_NEAR(content->getInPoint(), 100.0f / 8000.0f, 1e-6f);
+  }
+
+  // Placed at the snapshotted row (2), not row 0 - resolveInstanceAt()
+  // only finds it active there.
+  auto & scene = controller.getSong().getScene(0);
+  auto active_at_start = resolveInstanceAt(controller.getSong(), scene, track_id, 2);
+  CHECK(active_at_start.clip_index == 0);
+  auto active_at_zero = resolveInstanceAt(controller.getSong(), scene, track_id, 0);
+  CHECK(active_at_zero.clip_index == Scene::kNoInstance);
+
+  controller.finishSampleCapture();
+  CHECK(!controller.isRecordingArmed()); // reset back to unarmed for the next take
+
+  auto & clips2 = controller.getSong().getClips(track_id);
+  if (!clips2.empty()) {
+    // 800 captured frames, 100 of them the lead-in - post-trim length
+    // covers 700, not the full 800.
+    auto expected_rows = config.framesToRows(700, 120);
+    CHECK(clips2[0].getLength() == expected_rows);
+  }
+}
+
+// The other half: a take that never called armRecordingStart() at all
+// (the lazy, uncompensated path UI::handleRecordEvent() falls back to)
+// stays exactly as unplaced as before this Part - a real, visible clip,
+// just not an arrangement instance anywhere.
+TEST(unarmed_sample_capture_stays_unplaced) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+
+  auto & track = controller.getSong().addTrack(std::make_unique<SampleTrack>());
+  auto track_id = track.getInternalId();
+  controller.setRecordingTrackId(track_id);
+  controller.startRecording();
+  CHECK(!controller.isRecordingArmed()); // never armed - a freeform take
+
+  AudioBuffer block(1, 400);
+  auto data = block.getChannelData(0);
+  for (int i = 0; i < 400; i++) data[i] = 0.3f;
+  controller.addToSample(block);
+
+  controller.beginSampleCapture(track_id); // no latency argument - matches UI::handleRecordEvent()'s own lazy call
+  CHECK(controller.hasRecordingClip());
+
+  auto & scene = controller.getSong().addScene();
+  auto active = resolveInstanceAt(controller.getSong(), scene, track_id, 0);
+  CHECK(active.clip_index == Scene::kNoInstance); // never placed anywhere
+
+  controller.finishSampleCapture();
+  auto & clips = controller.getSong().getClips(track_id);
+  if (!clips.empty()) CHECK(clips[0].getLength() == config.framesToRows(400, controller.getSong().getTempo())); // no latency to trim off
+}
+
 // A live note-recording take writes into a real, individually-manageable
 // Clip instance instead of falling through to the scene's own background
 // Pattern - ensureNoteRecordingClip()'s own core contract.

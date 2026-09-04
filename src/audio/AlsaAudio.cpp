@@ -339,6 +339,30 @@ AlsaAudio::stopRecording() {
   
 }
 
+// snd_pcm_delay() is the standard ALSA call for exactly this - how many
+// frames are sitting in this stream's own ring buffer right now, ahead of
+// wherever the hardware pointer actually is. Its accuracy/availability can
+// vary by driver (this project's own "default" PCM in practice is
+// PipeWire's ALSA compat layer - initialize_alsa_dev()'s own period-size
+// comment already notes this), so a negative delay (can happen transiently
+// around an XRUN) or a failed call both fail open to 0 - AudioAPI's own
+// doc comment on why that's the right default, not an error.
+int
+AlsaAudio::getPlaybackDelayFrames() const {
+  if (!pcm_handle) return 0;
+  snd_pcm_sframes_t delay = 0;
+  if (snd_pcm_delay(pcm_handle, &delay) < 0 || delay < 0) return 0;
+  return static_cast<int>(delay);
+}
+
+int
+AlsaAudio::getCaptureDelayFrames() const {
+  if (!capture_handle) return 0;
+  snd_pcm_sframes_t delay = 0;
+  if (snd_pcm_delay(capture_handle, &delay) < 0 || delay < 0) return 0;
+  return static_cast<int>(delay);
+}
+
 vector<MidiEvent>
 AlsaAudio::recordMIDI() {
   vector<MidiEvent> r;

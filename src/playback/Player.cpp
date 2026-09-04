@@ -7,6 +7,7 @@
 #include "LogEvent.h"
 #include "PlaybackEvent.h"
 #include "RecordEvent.h"
+#include "RecordingLatencyEvent.h"
 #include "PlaybackControlEvent.h"
 #include "AudioBlockEvent.h"
 
@@ -483,6 +484,29 @@ Player::play(AudioAPI & audio) {
 
   while ( !terminate_ ) {
     bool recording = controller_->isRecording();
+
+    // Round-trip recording-latency measurement, exactly once per take -
+    // right on the false -> true edge of `recording`, before anything has
+    // actually been captured yet (capture's own poll events are still
+    // disabled below at this exact point, so no RecordEvent for this take
+    // can have reached the UI thread before the RecordingLatencyEvent
+    // pushed here does - see UI::handleRecordEvent()'s own comment on why
+    // that ordering matters). Only meaningful while the transport is also
+    // genuinely playing (AudioAPI::getPlaybackDelayFrames()/
+    // getCaptureDelayFrames()'s own doc comment) - checked directly off
+    // whichever SongState this same audio thread already treats as "the
+    // active buffer" a little further below, not Controller::
+    // getPlaybackInfo() (a UI-thread-owned snapshot this thread has no
+    // business reading without synchronization).
+    if (recording && !was_recording_) {
+      auto active_it = live_states_.find(controller_->getActiveBufferNameThreadSafe());
+      if (active_it != live_states_.end() && active_it->second->isPlaying()) {
+	auto latency_frames = audio.getPlaybackDelayFrames() + audio.getCaptureDelayFrames();
+	controller_->getUIEventQueue().push(make_unique<RecordingLatencyEvent>(latency_frames));
+      }
+    }
+    was_recording_ = recording;
+
     for (size_t i = 0; i < num_capture_desc; i++) {
       descriptors[1 + num_playback_desc + i].events = recording ? capture_events[i] : 0;
     }

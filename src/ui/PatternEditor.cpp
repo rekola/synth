@@ -590,9 +590,11 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   // startAutoRecordPlayback(), not startAutoRecordSession() - see this
   // method's own doc comment on Controller.h for why that one, not its
   // mute-the-song sibling). The Clip itself isn't created here at all -
-  // Controller::beginSampleCapture() does that lazily, the first time
-  // real audio actually arrives (UI::handleRecordEvent()) - see its own
-  // doc comment for why.
+  // Controller::beginSampleCapture() does that once a round-trip latency
+  // measurement arrives for this take (UI::handleRecordingLatencyEvent()),
+  // or lazily on first real audio for one that's never armed - see
+  // armRecordingStart()'s own doc comment for why the snapshot below
+  // still happens unconditionally, before that branch is even decided.
   commands_.define("start-sample-capture", [this, current_track_id]() {
     auto & song = getController().getSong();
     auto track_ids = song.getRootTrackIds();
@@ -610,7 +612,15 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     getController().startRecording();
     getController().setRecordingTrackId(track_id);
 
-    if (!getController().getPlaybackInfo().isPlaying()) {
+    // Snapshotted here, synchronously, before deciding whether playback
+    // needs auto-starting below - auto-starting doesn't move the
+    // position, so this take is exactly as placeable/latency-compensable
+    // whether the transport was already rolling or starts right now
+    // because of this same command.
+    auto & info = getController().getPlaybackInfo();
+    getController().armRecordingStart(info.getPatternIndex(), info.getRowIndex());
+
+    if (!info.isPlaying()) {
       getController().startAutoRecordPlayback(sample_capture_auto_started_playback_);
     } else {
       sample_capture_auto_started_playback_ = false;

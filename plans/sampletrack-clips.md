@@ -1255,6 +1255,66 @@ project's own "default" PCM in practice is PipeWire's ALSA compat layer -
 needs real-hardware verification, not just a headless test - see
 Verification below.
 
+**Implemented, matching the design above with a few resolved details.**
+- `AudioAPI::getPlaybackDelayFrames()`/`getCaptureDelayFrames()`,
+  `AlsaAudio`'s own `snd_pcm_delay()`-backed implementation, fail open to
+  0 exactly as designed.
+- `RecordingLatencyEvent` (a plain `int latency_frames`), dispatched the
+  same visitor-pattern way every other event here already is.
+- `Player.cpp`'s poll loop detects the false -> true edge of
+  `Controller::isRecording()` and, only when the transport is genuinely
+  playing, measures and pushes the event - **one resolved deviation**:
+  "the transport is playing" is checked directly against whichever
+  `SongState` this same audio thread already treats as the active
+  buffer's own live state (`live_states_`), not `Controller::
+  getPlaybackInfo()` as the design sketch above assumed - that's a
+  UI-thread-owned cache, an unsynchronized cross-thread read from here.
+  `SongState::isPlaying()` is the authoritative, same-thread answer this
+  loop already relies on elsewhere for the identical buffer.
+- `Controller::armRecordingStart(scene, row)` - `start-sample-capture`'s
+  own handler calls this unconditionally, before deciding whether
+  playback needs auto-starting, since auto-starting doesn't move the
+  position. **Second resolved deviation, worth being explicit about**:
+  because `start-sample-capture` *always* ends up with the transport
+  playing by the time it returns (already-playing, or auto-started right
+  there), every take started through it is armed and thus latency-
+  compensated - the "freeform, stays unplaced" case this Part describes
+  is real and still fully implemented (`beginSampleCapture()`'s own
+  `recording_start_scene_ < 0` branch), but isn't reachable through this
+  one entry point as currently written; it stays available for anything
+  that creates a recording clip some other way, or a future dedicated
+  "don't auto-start playback" entry point.
+- `Controller::beginSampleCapture(track_id, latency_frames = 0)` now
+  places at the armed snapshot (never a fresh `getPlaybackInfo()` read)
+  and trims `latency_frames` off the in-point; `finishSampleCapture()`
+  subtracts the same amount from the final frame count before computing
+  length, and resets the armed snapshot back to unarmed (in addition to
+  `armRecordingStart()`'s own overwrite-at-every-take-start, redundant-
+  safe, matching `recording_clip_id_.clear()`'s neighboring cleanup).
+- `UI::handleRecordEvent()`'s existing lazy, on-first-real-audio creation
+  now only fires for a take that was never armed
+  (`Controller::isRecordingArmed()`); a new `UI::
+  handleRecordingLatencyEvent()` does the armed case instead, the instant
+  its own measurement arrives - which, since capture's own poll events
+  aren't even enabled until the same loop iteration that pushes this
+  event, reliably arrives at the UI thread before any `RecordEvent` for
+  the same take, so this doesn't regress "visible almost immediately"
+  from the original lazy design.
+- Tests: `AlsaAudio::getPlaybackDelayFrames()`/`getCaptureDelayFrames()`
+  themselves can't be exercised headlessly (real ALSA hardware, per this
+  Part's own note above) - not attempted. Everything downstream of a
+  measured `latency_frames` value is plain arithmetic once the frame
+  count is known, and *is* covered:
+  `armed_sample_capture_places_at_the_snapshotted_row_and_trims_the_measured_latency`
+  (in-point, placement at the snapshotted row rather than row 0, and the
+  post-trim length) and `unarmed_sample_capture_stays_unplaced` (the
+  freeform case, still exercised directly even though `start-sample-capture`
+  itself no longer reaches it). **Real-hardware verification of
+  `snd_pcm_delay()`'s own accuracy against this project's actual output
+  path was not performed** - this environment has no audio hardware to
+  record a real round-trip against; that step is still owed before
+  treating this Part as fully verified, not just implemented.
+
 ## Part 12 - Waveform rendering in PatternEditor's clip boxes
 
 Raised directly by the user: the `SAMPLE` placeholder-column block Part 8

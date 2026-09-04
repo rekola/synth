@@ -21,6 +21,18 @@ class AudioAPI {
   virtual void startRecording() = 0;
   virtual void stopRecording() = 0;
   virtual std::vector<MidiEvent> recordMIDI() = 0;
+
+  // Round-trip recording-latency compensation: frames still sitting queued
+  // in the playback ring buffer before what's written next actually
+  // reaches the speaker, and frames already captured by the hardware but
+  // not yet delivered to the app, respectively - Player.cpp sums both
+  // into one latency figure, measured once per take, the instant
+  // recording actually engages while the transport is playing. A failed/
+  // unavailable measurement fails open to 0 (no compensation - a live
+  // take is otherwise unaffected) rather than erroring - a missed
+  // measurement should degrade gracefully, not break recording.
+  virtual int getPlaybackDelayFrames() const = 0;
+  virtual int getCaptureDelayFrames() const = 0;
   
   int getFrequency() const { return frequency; }
   short numberOfChannels() const { return channels; }

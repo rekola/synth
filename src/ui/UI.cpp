@@ -17,6 +17,7 @@
 #include "../playback/PlaybackEvent.h"
 #include "../playback/LogEvent.h"
 #include "../playback/RecordEvent.h"
+#include "../playback/RecordingLatencyEvent.h"
 #include "../playback/PlaybackControlEvent.h"
 #include "../playback/AudioBlockEvent.h"
 #include "../playback/VisualizationResultEvent.h"
@@ -856,11 +857,28 @@ UI::handleRecordEvent(RecordEvent & ev) {
   if (getController().isRecording()) {
     setStatus(format("recorded {} frames", ev.getData().size()));
     getController().addToSample(ev.getData());
-    // Lazily, exactly once per take: the first real audio actually
-    // captured is what makes a clip worth creating at all (Controller::
-    // beginSampleCapture()'s own doc comment on why this isn't done any
-    // earlier, e.g. synchronously at start-sample-capture itself).
-    if (!getController().hasRecordingClip()) getController().beginSampleCapture(getController().getRecordingTrackId());
+    // Lazily, exactly once per take, but only for a take that was never
+    // armed (Controller::isRecordingArmed()) - an armed take's own clip
+    // is created by handleRecordingLatencyEvent() below instead, once its
+    // own round-trip measurement arrives, so it can be placed/trimmed
+    // correctly from the start rather than created here uncompensated
+    // and only adjusted afterward.
+    if (!getController().hasRecordingClip() && !getController().isRecordingArmed()) {
+      getController().beginSampleCapture(getController().getRecordingTrackId());
+    }
+  }
+}
+
+void
+UI::handleRecordingLatencyEvent(RecordingLatencyEvent & ev) {
+  // Both guards defensive - Player.cpp only ever pushes this once per
+  // take (the false -> true edge of Controller::isRecording()), and
+  // hasRecordingClip() being already true would mean a second, spurious
+  // measurement somehow arrived for the same take - but this is where
+  // the clip actually gets created, trimmed, and placed, all as one step,
+  // so it stays defensive rather than assuming either can't happen.
+  if (getController().isRecording() && !getController().hasRecordingClip()) {
+    getController().beginSampleCapture(getController().getRecordingTrackId(), ev.getLatencyFrames());
   }
 }
 

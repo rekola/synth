@@ -16,8 +16,11 @@ class AlsaAudio : public AudioAPI {
   AudioBuffer record(Logger & logger) override;
   size_t getFrameCount() const override { return output_frames; }
   void startRecording() override;
-  void stopRecording() override;  
+  void stopRecording() override;
   std::vector<MidiEvent> recordMIDI() override;
+
+  int getPlaybackDelayFrames() const override;
+  int getCaptureDelayFrames() const override;
 
 private:
   std::vector<pollfd> getPollDescriptors(snd_pcm_t * handle);
