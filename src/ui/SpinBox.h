@@ -14,11 +14,13 @@
 
 #include <fmt/core.h>
 
-// A small, reusable inline numeric stepper: an optional label, a heavy
-// minus-sign button, a directly-editable value field, and a heavy plus-
-// sign button, all mouse-clickable - a compact toolbar-style spinner,
+// A small, reusable inline numeric stepper: an optional label, a small
+// left-arrow button, a directly-editable value field, and a small right-
+// arrow button, all mouse-clickable - a compact toolbar-style spinner,
 // sized to disappear into a single line (e.g. InfoLine) rather than
-// needing its own bordered box.
+// needing its own bordered box. The arrows and the value field all share
+// one dark chip look (see render()) rather than the arrows standing out
+// as separate bright buttons.
 // Owns none of the value itself (only get_value/set_value callbacks), so
 // the same class backs Controller::getGlobalOctave()/setGlobalOctave()
 // today and can back any other bounded integer later without change.
@@ -60,13 +62,16 @@ class SpinBox : public UIElement {
     putstr(0, 0, std::string(static_cast<size_t>(std::max(0, cols)), ' '));
     if (!label_.empty()) putstr(0, 0, label_);
 
-    // Buttons: a bright grey chip, dark text - not StyleProvider's
-    // highlight_bg_color (reserved for "this is selected/editing" below)
-    // and not the same dark the field itself uses (bright-on-dark there
-    // reads as a chip; a bright grey needs the opposite - dark-on-bright,
-    // for the same reason InfoLine's own bar is dark-on-light).
-    setFgColor(kButtonFgColor);
-    setBgColor(kButtonBgColor);
+    // Arrows: same dark-background/bright-text look as the field's own
+    // idle state below, so the whole minus/digit/plus run reads as one
+    // chip rather than the arrows standing out as separate buttons. Blank
+    // from right after the label (not just from minus_start) so the gap
+    // column before the left arrow is part of the dark chip too, rather
+    // than showing the ambient bar color between the label and the chip.
+    setFgColor(styles.window_accent_fg_color);
+    setBgColor(styles.window_bg_color);
+    auto chip_width = c.plus_start + buttonWidth() - c.label_width;
+    putstr(0, c.label_width, std::string(static_cast<size_t>(std::max(0, chip_width)), ' '));
     putstr(0, c.minus_start, kMinusGlyph);
     putstr(0, c.plus_start, kPlusGlyph);
 
@@ -156,19 +161,20 @@ class SpinBox : public UIElement {
   void cancelEditing() { editing_ = false; edit_buffer_.clear(); }
 
  private:
-  // Heavy plus/minus (U+2795/U+2796, not the plain ASCII +/-) - both
-  // render 2 terminal columns wide (confirmed via Utf8::displayWidth(),
-  // not assumed), which is why every column below is computed through
-  // buttonWidth() rather than a hardcoded 1.
-  static constexpr const char * kMinusGlyph = "➖";
-  static constexpr const char * kPlusGlyph = "➕";
-  static const Color kButtonBgColor, kButtonFgColor; // defined below the class - see their own comment
+  // Small triangular arrows (U+25C2/U+25B8), not the heavy plus/minus this
+  // widget used to draw as separate bright chips - their actual column
+  // width is confirmed via Utf8::displayWidth() below, not assumed, which
+  // is why every column below is computed through buttonWidth() rather
+  // than a hardcoded 1.
+  static constexpr const char * kMinusGlyph = "◂";
+  static constexpr const char * kPlusGlyph = "▸";
 
   // Single-row layout: "<label><gap><minus><pad><digit><pad><plus>" - the
   // gap after the label and the padding around the digit are both real
-  // reserved columns; the buttons themselves need no such gap - their own
-  // distinct background (see render()) is what sets them apart visually.
-  struct Columns { int minus_start, field_start, field_end, plus_start; };
+  // reserved columns; the buttons themselves need no such gap since the
+  // whole minus/pad/digit/pad/plus span shares one dark chip background
+  // (see render()).
+  struct Columns { int label_width, minus_start, field_start, field_end, plus_start; };
 
   // Column ranges (half-open), shared by render() and offerInput() so
   // layout and hit-testing can never drift apart.
@@ -178,7 +184,7 @@ class SpinBox : public UIElement {
     auto field_start = minus_start + buttonWidth();
     auto field_end = field_start + fieldWidth() + 2; // +2 = one padding column on each side of the digit
     auto plus_start = field_end;
-    return { minus_start, field_start, field_end, plus_start };
+    return { label_width, minus_start, field_start, field_end, plus_start };
   }
 
   static int buttonWidth() {
@@ -212,13 +218,5 @@ class SpinBox : public UIElement {
   bool current_editing_ = false;
   std::string current_edit_buffer_;
 };
-
-// A bright grey chip with dark text - deliberately not part of
-// StyleProvider (which has no bare "grey" swatch fit for a button chip)
-// and not a constructor parameter like bg_color_/fg_color_ above: the
-// buttons' own look is fixed, independent of which bar this widget is
-// embedded in.
-inline const Color SpinBox::kButtonBgColor = Color(190, 190, 190);
-inline const Color SpinBox::kButtonFgColor = Color(20, 20, 20);
 
 #endif
