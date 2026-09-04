@@ -2,19 +2,6 @@
 
 Found 2026-07-11, not yet fixed.
 
-- **Ctrl-P (raw byte `0x10`) never reaches the application at all**, on any
-  terminal tested so far — not even as an unhandled/ignored keystroke.
-  Confirmed via a stderr trace at the earliest point notcurses hands input
-  to the app (`TerminalUI::readInput`, before any app logic runs): no
-  `ncinput` event is ever produced for it. Unexplained; not investigated
-  further. Avoid binding Ctrl-P to anything until this is understood.
-
-- **Ctrl-Q (quit) can take many seconds to actually exit** the process
-  after being pressed, rather than exiting promptly. Confirmed pre-existing
-  (reproduces on old commits too, via `git stash`), not caused by anything
-  recent. Not yet investigated — likely something in the audio thread
-  shutdown/join path in `Player.cpp`/`UI::start()`.
-
 - **`SongState::getRelativePosition()` doesn't wrap back to pattern 0** once
   playback advances past the last pattern in the song's pattern list — it
   only handles moving *forward* between multiple existing patterns in
