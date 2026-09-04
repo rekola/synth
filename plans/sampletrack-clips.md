@@ -1343,7 +1343,7 @@ value the leading-row clip-digit logic already resolves) - convert a
 row's own time span to elapsed seconds via the song's own tempo (the
 inverse of Part 3's duration-to-rows helper), subdivide it into however
 many sub-columns this row's block width provides, and for each take the
-peak (or RMS) absolute sample value from the clip's own *post-trim* audio
+RMS absolute sample value from the clip's own *post-trim* audio
 (bounded by `getInPoint()`/`getOutPoint()`, matching what's actually
 audible - Part 3/5's own frame-clamping logic) over that narrower
 sub-range.
@@ -1384,8 +1384,8 @@ draw a waveform at all - the no-instance/explicit-stop background case
 keeps whatever fallback glyph Part 8 already draws there, nothing to show
 a shape for.
 
-**Open question, raised directly by the user while implementing - not
-resolved yet.**
+**Open question, raised directly by the user while implementing - both
+bullets below now resolved, see their own "Resolved" notes.**
 - **When the transport is paused, the sample audio itself keeps
   playing.** A SampleTrack voice has no pause-awareness of its own - only
   start/stop. The user's own later note, once the per-lap re-triggering
@@ -1399,9 +1399,11 @@ resolved yet.**
   same "a new voice, not one voice persisting/resuming across an
   arbitrary gap" shape the per-lap redesign already established -
   nothing new to build for it beyond wiring pause/unpause into the same
-  stop/trigger calls. Still not designed in detail (exactly which event
-  triggers the release, what "the row it resumes at" resolves to if the
-  user has also moved the cursor while paused) or built.
+  stop/trigger calls. **Resolved** - see below for the release half; the
+  unpause/fresh-attack half was already covered by the random-access
+  resolution just below it (a stopped transport's own position, wherever
+  it lands, is exactly what a subsequent `Play` treats as "where we
+  actually are").
 - **Moving the playhead (scrubbing/repositioning, not just pausing) must
   be able to start a sample voice from any position within it**, not
   only from a clip instance's own leading row. Raised directly by the
@@ -1412,9 +1414,115 @@ resolved yet.**
   active instance needs the resulting voice to start mid-sample, at
   whatever offset corresponds to the row landed on, not silently
   restart from the beginning (or not sound at all until the next
-  natural trigger point). Not designed in detail or built - `SongState.h`
-  currently only ever triggers at a lap's own leading row, never mid-lap
-  from a cold start.
+  natural trigger point). **Resolved** - see below. The pause bullet
+  above stays open on its own; resuming *at all* after an explicit stop
+  is a different question from what happens to an already-sounding voice
+  the instant pause is pressed.
+
+**Random-access resolved: positioning the playhead on any row, then
+pressing play, starts the active instance from the matching offset.**
+Two real bugs, both in `SongState.h`'s own per-row scheduling, not the
+voice:
+1. **The trigger could be silently skipped entirely.** The scheduling
+   loop tracks `last_active_clip_index_by_track_` (the clip index it saw
+   active on the *previous* row it processed) purely to detect a
+   transition worth firing a stop/start for - it has no notion of "the
+   transport was stopped in between." Landing back on the *same* active
+   instance after a stop (nothing else was ever found there to trigger
+   the transition logic) left this bookkeeping already matching, so no
+   `RenderContext::addPendingSampleStart()` was ever queued at all -
+   silence until the clip's own next natural boundary (a new lap, or
+   never, for a one-shot).
+2. **Even when a trigger did fire** (the bookkeeping *didn't* already
+   match - e.g. a fresh `SongState`, or the cursor landed on a different
+   clip), it always started from the clip's own beginning, with no way
+   to say "start from here instead."
+   
+   The fix: `renderBlock()` now tracks `was_playing_` (the previous
+   call's own `isPlaying()`) and computes `just_resumed_playback` from
+   the comparison - true only for the very first row scheduled after a
+   genuine restart (consumed and cleared after that one row, in case a
+   single block spans more than one - an offline render's own larger
+   block size, or just a short row at a fast tempo). It forces a fresh
+   trigger the same way a real transition or a new lap already do,
+   sidestepping bug 1 - `triggerClip()`'s own `stopVoices(0)` makes
+   firing it redundantly alongside a genuine transition harmless. For
+   bug 2, `RenderContext::SampleTrackEvent` gained a `start_offset_frames`
+   field (0 for every ordinary trigger - a fresh transition always lands
+   on the instance's own leading row, a new lap always lands exactly on
+   a lap boundary, so it's naturally computed as 0 in both cases without
+   any special-casing) - only a `just_resumed_playback`-forced trigger
+   ever computes a real value, from how many rows into the current lap
+   the playhead actually landed. `SampleTrackState::triggerClip()`
+   carries it through to a plain frame offset added past whatever the
+   in-point/resample/stretch resolution already produced, clamped
+   against the resolved range (never trusted outright - a clip's own row
+   length is rounded up from its real audio duration, so a row-derived
+   offset can legitimately overshoot; falls back to playing nothing
+   rather than reading out of bounds).
+
+**A real bug report, found right after shipping the above: resuming
+sometimes played nothing at all.** Root cause: the resume-retrigger flag
+(`just_resumed_playback` above) was a plain per-call local, recomputed
+fresh from `was_playing_` on every `renderBlock()` call rather than a
+persistent obligation. Stopping and resuming *mid-row* - `sample_pos_`
+left wherever it was, since a plain pause/resume in place (unlike moving
+the cursor) never calls `setPosition()`/`movePosition()`, both of which
+reset it to 0 - meant the very first resumed call could easily end before
+ever reaching a row boundary, especially against a real-time engine's own
+small period size. By the *next* call, `was_playing_` had already latched
+to `true` (set unconditionally at the end of every call), so that call's
+own fresh recomputation read `false` again - with nothing having ever
+consumed the `true` in between, the obligation to retrigger was just
+silently lost. Fixed by promoting it to a persistent member
+(`pending_resume_retrigger_`): *set* the instant a resume is detected
+(never merely assigned from the comparison, so an already-set-but-not-
+yet-consumed flag can't be clobbered back to `false` by a later call's own
+recomputation), cleared only once actually consumed at a real scheduling
+point (`getSamplePos() == 0`), however many blocks that takes. Reproduced
+and confirmed fixed via a dedicated test driving many small (64-frame,
+real-ALSA-period-sized), non-row-aligned blocks through a mid-row resume
+- one large block, or a resume aligned to a row boundary (moving the
+cursor first, as the earlier fix's own test already did), both happened
+to paper over this exact bug.
+
+**Pause-release resolved: pausing mid-clip now releases whatever's
+sounding instead of leaving it ringing straight through.** The same
+`renderBlock()` `was_playing_` comparison the random-access fix above
+introduced (`pending_resume_retrigger_`, `isPlaying()` false -> true) has
+a mirror case for the opposite transition (`isPlaying()` true -> false) -
+computed right alongside it, before the scheduling loop that only runs
+`if (isPlaying())` (which the *stop* case, definitionally, never reaches
+- the release had to be queued from outside it). On that transition,
+every `SampleTrack` (there's no track-nesting hierarchy to walk to find
+one some other way - every track is already a direct child of the master
+track) gets an unconditional `RenderContext::addPendingSampleStop()` at
+frame 0 of the block - unconditional rather than only ones this
+`SongState` currently believes are active, since `stopVoices(0)` is
+already a safe no-op against a track that isn't sounding. Applied through
+the same queued-stop mechanism (and thus the same short natural release,
+never a hard cut) every other `SampleTrackEvent::STOP` already uses -
+unlike those, there's no *later*, more-precise frame to land on here:
+nothing schedules while stopped, so "as soon as this is known" already is
+frame 0.
+
+**A real bug report: normal-volume audio kept reading as visually
+saturated, most of the shape pinned to full height.** Root cause was the
+"peak (or RMS)" choice this Part left open above landing on a plain peak
+detector per bucket (the single loudest sample in that bucket's own frame
+range) - wrong: real audio's own instantaneous peak sample lands close to
+the clip's overall peak in nearly every short window, so once normalized
+against that overall peak (deliberately, to keep a quiet take readable -
+see "Normalized per clip" above), nearly the *whole* shape read back close
+to 1.0 regardless of how loud any given stretch actually sounds, not just
+its genuinely loud moments. Switched to RMS (root-mean-square) per bucket
+instead - the bucket's own average energy, not its single loudest sample -
+so a lone transient can no longer make an otherwise-quiet stretch look as
+loud as a sustained one; normalization itself (against this clip's own
+loudest *bucket*) is unchanged. `WaveformPeaks`/`getWaveformPeaks()` keep
+their names (a peak-vs-RMS switch didn't warrant renaming the whole cache/
+API), but every doc comment claiming "peak" semantics was corrected to
+describe RMS instead.
 
 **A one-shot clip whose own real audio outlasts the scene it's placed in
 now stops exactly when the scene does.** Raised directly by the user as

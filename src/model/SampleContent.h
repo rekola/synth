@@ -70,7 +70,7 @@ class SampleContent {
   int getNativeSampleRate() const { return native_sample_rate_; }
   void setNativeSampleRate(int rate) { native_sample_rate_ = rate; waveform_peaks_dirty_ = true; stretched_dirty_ = true; }
 
-  // Clip's own row-indexed peak-amplitude cache (WaveformPeaks.h) actually
+  // Clip's own row-indexed RMS amplitude cache (WaveformPeaks.h) actually
   // lives here, alongside the buffer/trim points it's built from - every
   // setter above that changes what audio this would represent marks it
   // dirty directly, a real invalidation rather than a caller elsewhere
@@ -146,8 +146,8 @@ class SampleContent {
   mutable bool waveform_peaks_dirty_ = true;
 
   // getStretchedBuffer()/setStretchedBuffer()'s own cache - mutable for
-  // the same reason as the peak cache above, but this class never builds
-  // it itself (see getStretchedBuffer()'s own comment).
+  // the same reason as the waveform cache above, but this class never
+  // builds it itself (see getStretchedBuffer()'s own comment).
   mutable std::shared_ptr<AudioBuffer> stretched_buffer_;
   mutable int stretched_song_tempo_ = 0;
   mutable bool stretched_dirty_ = true;

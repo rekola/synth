@@ -120,7 +120,7 @@ private:
 }
 
 void
-SampleTrackState::triggerClip(const Clip & clip, int song_tempo) {
+SampleTrackState::triggerClip(const Clip & clip, int song_tempo, int start_offset_frames) {
   auto * content = clip.getSampleContent();
   if (!content || !content->getBuffer()) return;
 
@@ -207,6 +207,22 @@ SampleTrackState::triggerClip(const Clip & clip, int song_tempo) {
     }
     in_frame = 0;
     out_frame = samples->numberOfFrames();
+  }
+
+  // start_offset_frames shifts the starting point later into whatever
+  // buffer is actually about to play - resolved here, after the stretch
+  // decision above, so it's always relative to the buffer genuinely
+  // reached, stretched or not (see triggerClip()'s own doc comment for
+  // when a caller actually passes a nonzero value). Clamped against the
+  // resolved range rather than trusted outright: a clip's own row length
+  // is rounded up from its real audio duration, so an offset derived from
+  // it can legitimately land past this buffer's own real end - nothing
+  // should keep ringing from before either way, so stopVoices(0) below
+  // still applies, just no new voice starts.
+  in_frame += start_offset_frames;
+  if (in_frame >= out_frame) {
+    stopVoices(0);
+    return;
   }
 
   // column 0 always - a SampleTrack only ever has one clip playing at a

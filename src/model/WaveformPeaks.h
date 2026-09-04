@@ -5,7 +5,7 @@
 
 class AudioBuffer;
 
-// A downsampled peak-amplitude envelope over a SampleTrack clip's own
+// A downsampled RMS amplitude envelope over a SampleTrack clip's own
 // post-trim audio, row-indexed rather than time-indexed: a clip's own
 // audio always spans exactly its own getLength() rows by definition
 // (that's how the length was set in the first place, ChannelConfiguration::
@@ -30,21 +30,23 @@ class WaveformPeaks {
   // assuming, so a caller can detect a mismatch and rebuild.
   int subrowsPerRow() const { return subrows_per_row_; }
 
-  // Peak amplitude (0..1, normalized against this clip's own loudest
+  // RMS amplitude (0..1, normalized against this clip's own loudest
   // bucket - a quiet take should still show a readable shape, not a
   // near-flat line) for pattern row `row`'s own `subrow`th time-slice
-  // (0 <= subrow < subrowsPerRow()). Out-of-range `row` (a looping clip's
-  // later repeat, or a placed instance whose own length has drifted past
-  // what its audio actually covers) is the caller's own job to wrap/clamp
-  // first - this just indexes the flat array directly and returns 0.0f
-  // if it's still out of bounds after that.
+  // (0 <= subrow < subrowsPerRow()). RMS, not the single loudest sample in
+  // the bucket - see build()'s own comment for why a peak detector reads
+  // wrong here. Out-of-range `row` (a looping clip's later repeat, or a
+  // placed instance whose own length has drifted past what its audio
+  // actually covers) is the caller's own job to wrap/clamp first - this
+  // just indexes the flat array directly and returns 0.0f if it's still
+  // out of bounds after that.
   float at(int row, int subrow) const;
 
   // Rebuilds from scratch against `buffer`'s channel 0 (SampleTrack
-  // content is always mono - Part 3's own handling), dividing the frame
-  // range `in_point`/`out_point` (SampleContent's own trim seconds, at
-  // `native_sample_rate`) evenly into `row_count * subrows_per_row`
-  // buckets - the same clamped-to-what's-actually-audible resolution
+  // content is always mono), dividing the frame range `in_point`/
+  // `out_point` (SampleContent's own trim seconds, at `native_sample_rate`)
+  // evenly into `row_count * subrows_per_row` buckets - the same
+  // clamped-to-what's-actually-audible resolution
   // SampleTrackState::triggerClip() already applies for playback,
   // duplicated here rather than shared since that one resolves against
   // the *output* rate post-resample and this one deliberately stays in

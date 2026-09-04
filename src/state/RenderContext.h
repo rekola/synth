@@ -65,11 +65,18 @@ class TrackEvent {
 // release (SampleTrackState::render()'s own consumer calls stopVoices(),
 // the same short natural fade a superseding START already triggers via
 // triggerClip()'s own stopVoices() call), never a hard cut - an abrupt
-// stop would click.
+// stop would click. `start_offset_frames`, only meaningful for START, is
+// how many frames into the clip's own (post-trim, post-resample) audio to
+// begin from instead of its own beginning - 0 for an ordinary fresh
+// trigger or a new lap's own retrigger (both always land exactly on the
+// instance's/lap's own leading row), nonzero only when the playhead
+// itself lands mid-instance with nothing already sounding to explain why
+// (SongState.h's own "just resumed playback" case - see its comment).
 struct SampleTrackEvent {
   enum Kind { START, STOP };
   Kind kind;
   const Clip * clip = nullptr;
+  int start_offset_frames = 0;
 };
 
 class RenderContext {
@@ -108,8 +115,8 @@ class RenderContext {
   // just against this timeline instead of pending_events_) is what
   // actually calls it, precisely at this frame, the same way a pattern
   // note's own chunked render already does.
-  void addPendingSampleStart(int track_id, int frame, const Clip * clip) {
-    pending_sample_events_[track_id][frame] = SampleTrackEvent{SampleTrackEvent::START, clip};
+  void addPendingSampleStart(int track_id, int frame, const Clip * clip, int start_offset_frames = 0) {
+    pending_sample_events_[track_id][frame] = SampleTrackEvent{SampleTrackEvent::START, clip, start_offset_frames};
   }
 
   // The stop side of the same timeline (SampleTrackEvent's own comment

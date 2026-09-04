@@ -148,13 +148,14 @@ class SongState : public TrackState {
     // already sums its own, with no separate master-track state object
     // needed to own that relationship. Registered here, before the
     // scheduling loop below rather than right before renderChildren() -
-    // SampleTrackState::triggerClip() (below) is called synchronously,
-    // straight off getChildByInternalId(), unlike an ordinary note event
-    // (queued into render_context_, read back whenever its own track
-    // finally renders, so it never cared when its child was created); a
-    // clip instance active on the very first block a SampleTrack is ever
-    // rendered would otherwise dynamic_cast against a child that doesn't
-    // exist yet and silently never trigger.
+    // the transition-detection stop for a non-SampleTrack
+    // (dynamic_cast<InstrumentTrackState *>(getChildByInternalId(track_id))
+    // below) is called synchronously, straight off that lookup, unlike an
+    // ordinary note event or a SampleTrack clip start/stop (both queued
+    // into render_context_, read back whenever their own track finally
+    // renders, so neither cares when its child was actually created); a
+    // track whose state doesn't exist yet at that lookup point would
+    // otherwise silently skip the stop entirely.
     std::vector<Track *> track_snapshot;
     {
       std::lock_guard<std::mutex> guard(song.getTracksMutex());
@@ -162,6 +163,49 @@ class SongState : public TrackState {
       for (auto & track : song.getMasterTrack().getChildren()) track_snapshot.push_back(track.get());
     }
     for (auto * track : track_snapshot) track->getState(*this, song_structure_);
+
+    // Set (never merely assigned - see below) the moment the transport
+    // (re)starts (isPlaying() flips false -> true), and stays set across
+    // as many renderBlock() calls as it takes to actually reach the next
+    // real scheduling point (getSamplePos() == 0 below) - resuming
+    // mid-row (sample_pos_ left wherever a mid-row pause landed, when the
+    // cursor was never moved afterward - setPosition()/movePosition()
+    // both reset it to 0, but a plain pause/resume in place does not) can
+    // take more than one block to get there, especially against a real-
+    // time engine's own small period size. A plain local recomputed fresh
+    // from was_playing_ every call - the first, reverted shape here -
+    // silently lost this obligation the instant a block boundary landed
+    // before the next row did: was_playing_ had already latched to `true`
+    // by the end of that same call, so the very next call's own
+    // recomputation read `false` again, with nothing ever having
+    // consumed the `true` in between. The SampleTrack scheduling below
+    // uses this to force a fresh trigger, correctly offset into whatever
+    // instance the playhead now lands in, regardless of whether this
+    // SongState's own last-seen clip_index already happens to match (its
+    // own comment has the full reasoning).
+    if (isPlaying() && !was_playing_) pending_resume_retrigger_ = true;
+    // The mirror case: the very first call after the transport *stops*
+    // (isPlaying() flips true -> false). A SampleTrack voice has no
+    // pause-awareness of its own - only start/stop - so left alone it
+    // would just keep sounding straight through the pause (every
+    // TrackState keeps rendering regardless of isPlaying(), see this
+    // method's own doc comment); a hard stop would click instead. Queued
+    // through RenderContext at frame 0 of this block, the same short
+    // natural release a superseding trigger already uses
+    // (SampleTrackEvent's own comment) - unlike every other queued stop
+    // here, there's no later, more-precise frame to land on: nothing
+    // schedules while stopped, so "as soon as this is known" already is
+    // frame 0. Unconditional over every SampleTrack rather than only
+    // ones this SongState currently believes are active - stopVoices(0)
+    // is a safe no-op against one that isn't sounding, and every track
+    // is already a direct child of the master track (no nesting to walk
+    // to find one some other way).
+    if (!isPlaying() && was_playing_) {
+      for (auto * track : track_snapshot) {
+	if (track->getType() == TrackType::SAMPLE) render_context_.addPendingSampleStop(track->getInternalId(), 0);
+      }
+    }
+    was_playing_ = isPlaying();
 
     if (isPlaying()) {
       for (int i = 0; i < frames; i++) {
@@ -182,6 +226,18 @@ class SongState : public TrackState {
 	// through - so recording mute is inaudible for anything the
 	// player is actually doing, only for the song's own old content.
 	if (getSamplePos() == 0 && !recording_muted_) {
+	  // pending_resume_retrigger_ only actually describes the very first
+	  // row scheduled after a (re)start - once one row here has
+	  // consumed it, every later one (whether later in this same
+	  // renderBlock() call, which can span more than one row - an
+	  // offline render's own larger block size, or just a short row at
+	  // a fast tempo - or in a later call entirely) is genuinely
+	  // continuing forward playback, not resuming. Consumed into a
+	  // per-row copy and cleared immediately so only this row ever sees
+	  // it as true.
+	  bool row_just_resumed_playback = pending_resume_retrigger_;
+	  pending_resume_retrigger_ = false;
+
 	  auto [ scene_idx, row_idx ] = getRelativePosition(song);
 	  auto & scene = song.getScene(scene_idx);
 
@@ -276,9 +332,30 @@ class SongState : public TrackState {
 	      if (is_sample_track) {
 		auto rows_since_start = row_idx - active.start_row;
 		auto loop_rows = clip.getLength() > 0 ? clip.getLength() : 1;
-		bool is_new_lap = clip.isLooping() && rows_since_start > 0 && rows_since_start % loop_rows == 0;
-		if (active.clip_index != previous_clip_index || is_new_lap) {
-		  render_context_.addPendingSampleStart(track_id, i, &clip);
+		// How far into the *current* lap this row actually is - 0 at
+		// every ordinary trigger point (a fresh transition always
+		// lands on the instance's own leading row; a new lap is
+		// defined as landing exactly on a lap boundary), and only
+		// ever nonzero when row_just_resumed_playback below is what's
+		// really forcing this trigger: the playhead was positioned
+		// (or simply left sitting) somewhere past the instance's own
+		// leading row while stopped, and playback resumed without
+		// ever passing back through that leading row.
+		auto rows_into_lap = clip.isLooping() ? rows_since_start % loop_rows : rows_since_start;
+		bool is_new_lap = clip.isLooping() && rows_since_start > 0 && rows_into_lap == 0;
+		// row_just_resumed_playback forces a fresh trigger here too,
+		// even when active.clip_index already equals
+		// previous_clip_index - this SongState's own bookkeeping can't
+		// tell "the transport has been sitting on this same active
+		// instance the whole time it was stopped" apart from "nothing
+		// was ever playing to begin with," and only the former should
+		// actually start audio. Redundant-safe against a genuine
+		// transition landing on the very same row a resume does -
+		// stopVoices(0) inside triggerClip() below already handles
+		// being called more than once.
+		if (active.clip_index != previous_clip_index || is_new_lap || row_just_resumed_playback) {
+		  auto start_offset_frames = rows_into_lap * getChannelConfiguration().getSampleInterval(tempo_);
+		  render_context_.addPendingSampleStart(track_id, i, &clip, start_offset_frames);
 		}
 
 		// A one-shot clip's own real audio can outlast the scene
@@ -655,6 +732,14 @@ private:
   // clip's own termination and fire its natural release exactly once, not
   // every row while a stop instance stays in effect.
   std::unordered_map<int, int> last_active_clip_index_by_track_;
+  // renderBlock()'s own resume/pause-release detection - the previous
+  // call's isPlaying(), compared against the current one.
+  bool was_playing_ = false;
+  // Set the instant a resume is detected, cleared only once actually
+  // consumed at a real scheduling point - persists across as many
+  // renderBlock() calls as that takes (see its own set-site comment for
+  // why a plain per-call local isn't enough).
+  bool pending_resume_retrigger_ = false;
 };
   
 #endif

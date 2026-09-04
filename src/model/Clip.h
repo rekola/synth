@@ -89,7 +89,7 @@ class Clip : public SongObject {
     return *sample_content_;
   }
 
-  // The row-indexed peak-amplitude cache PatternEditor's own waveform-box
+  // The row-indexed RMS amplitude cache PatternEditor's own waveform-box
   // rendering reads from (WaveformPeaks.h's own comment has the full
   // reasoning on why row-, not time-, indexed). A thin forward to
   // SampleContent's own copy - it owns the buffer/trim points this is

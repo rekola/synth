@@ -168,6 +168,49 @@ TEST(trigger_clip_falls_back_to_the_full_buffer_when_trim_points_overshoot) {
   for (int i = 10; i < 15; i++) CHECK(out[i] == 0.0f); // one-shot, ended after the real buffer length
 }
 
+// start_offset_frames (SongState.h's own "the playhead landed mid-instance,
+// start from there" case) shifts where playback actually begins, past
+// whatever the in-point already resolved to - exercised directly here,
+// independent of the full SongState/RenderContext pipeline.
+TEST(trigger_clip_starts_from_the_given_offset_past_the_in_point) {
+  ChannelConfiguration config(8000);
+  SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
+
+  Clip clip(0);
+  auto & content = clip.getOrCreateSampleContent();
+  content.setBuffer(buildBuffer(100, [](int i) { return static_cast<float>(i); })); // a ramp - each frame's own value names its own index
+  content.setNativeSampleRate(8000);
+  content.setInPoint(10.0f / 8000.0f); // trims the first 10 frames - [10, 100) remains
+  clip.setLooping(false);
+
+  state.triggerClip(clip, 0, 30); // 30 frames past the in-point -> starts at source frame 40
+  auto rendered = state.renderVoices(5);
+  auto out = rendered.getChannelData(0);
+
+  CHECK_NEAR(out[0], 40.0f, 1e-3f);
+  CHECK_NEAR(out[4], 44.0f, 1e-3f);
+}
+
+// An offset landing at or past the resolved range (a clip's own row length
+// never lines up exactly with its real audio duration, so a row-derived
+// offset can legitimately overshoot) falls back to playing nothing rather
+// than reading out of bounds - triggerClip()'s own doc comment.
+TEST(trigger_clip_with_an_offset_past_the_end_plays_nothing) {
+  ChannelConfiguration config(8000);
+  SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
+
+  Clip clip(0);
+  auto & content = clip.getOrCreateSampleContent();
+  content.setBuffer(buildBuffer(20, [](int) { return 0.5f; }));
+  content.setNativeSampleRate(8000);
+  clip.setLooping(false);
+
+  state.triggerClip(clip, 0, 25); // past the whole 20-frame buffer
+  CHECK(!state.isActive()); // no voice was ever added at all, not one that immediately finished
+  auto rendered = state.renderVoices(10);
+  CHECK(!rendered.hasChannel(Channel::Main)); // nothing to read back either - no voice means no Main channel at all
+}
+
 TEST(trigger_clip_plays_unstretched_when_original_tempo_is_unset) {
   ChannelConfiguration config(8000);
   SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
@@ -377,6 +420,30 @@ TEST(waveform_peaks_normalizes_against_its_own_loudest_bucket) {
   CHECK_NEAR(peaks.at(0, 0), 0.25f, 1e-4f);
   CHECK_NEAR(peaks.at(0, 1), 0.25f, 1e-4f);
   CHECK_NEAR(peaks.at(1, 1), 0.25f, 1e-4f);
+}
+
+// A real bug report: normal-volume audio kept reading as visually
+// saturated. Root cause was a peak (not RMS) detector per bucket, so a
+// single loud sample anywhere in an otherwise-quiet stretch made that
+// whole stretch normalize to full height, indistinguishable from a
+// stretch that's genuinely loud throughout. Bucket 0 here is almost
+// entirely silent but for one full-scale spike (peak 1.0, RMS 0.1 over
+// 100 frames); bucket 1 is a genuinely louder, sustained tone (peak == RMS
+// == 0.5). A peak detector would have read bucket 0 as the *louder* of
+// the two; RMS correctly reads bucket 1 as louder instead.
+TEST(waveform_peaks_uses_rms_so_a_single_spike_does_not_read_as_loud_as_a_sustained_tone) {
+  Clip clip(0);
+  auto & content = clip.getOrCreateSampleContent();
+  content.setBuffer(buildBuffer(200, [](int i) {
+    if (i < 100) return i == 0 ? 1.0f : 0.0f;
+    return 0.5f;
+  }));
+  content.setNativeSampleRate(8000);
+  clip.setLength(2);
+
+  auto & peaks = clip.getWaveformPeaks(1); // 1 subrow/row -> exactly 2 buckets, 100 frames each
+  CHECK_NEAR(peaks.at(1, 0), 1.0f, 1e-4f); // the sustained tone - genuinely the loudest bucket
+  CHECK_NEAR(peaks.at(0, 0), 0.2f, 1e-3f); // sqrt(1/100) RMS = 0.1, normalized against 0.5 = 0.2 - not 1.0
 }
 
 TEST(waveform_peaks_ignores_content_outside_the_trimmed_range) {

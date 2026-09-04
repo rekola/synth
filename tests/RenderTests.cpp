@@ -1,13 +1,20 @@
 #include "TestFramework.h"
 
 #include "../src/model/Song.h"
+#include "../src/model/SampleTrack.h"
+#include "../src/model/Clip.h"
+#include "../src/model/SampleContent.h"
+#include "../src/model/ArrangementOps.h"
 #include "../src/instruments/InstrumentProvider.h"
 #include "../src/audio/OfflineRenderer.h"
+#include "../src/audio/AudioBuffer.h"
 #include "../src/ambisonic/ChannelConfiguration.h"
 #include "../src/state/SongState.h"
 #include "../src/state/InstrumentTrackState.h"
 #include "../src/state/NoteOrigin.h"
 #include "../src/ambisonic/Mixer.h"
+#include "../src/ambisonic/MixerFactory.h"
+#include "../src/ambisonic/MixerType.h"
 #include "../src/dsp/DiracAnalyzer.h"
 
 #include <algorithm>
@@ -317,6 +324,216 @@ TEST(render_sample_track_clip_stretches_to_match_a_disagreeing_song_tempo) {
   CHECK(windowedRms(result, 0, 0.1f, 0.3f) > 1e-3f); // sounding early on
   CHECK(windowedRms(result, 0, 2.5f, 2.7f) > 1e-3f); // still sounding well past the *unstretched* 2s length - only real stretching explains this
   CHECK(windowedRms(result, 0, 5.0f, 5.5f) < 1e-4f); // silent well before the scene's own 6s end - genuinely finished, not just clipped by the scene boundary
+}
+
+// Positioning the playhead mid-instance while stopped, then pressing play,
+// must start the clip's own audio from the matching offset - not from its
+// own beginning, and not silently do nothing because this SongState's own
+// bookkeeping already thought that instance was active from before the
+// transport stopped. Drives SongState::renderBlock()/setIsPlaying()/
+// setPosition() directly (ResyncPlayheadTests.cpp's own precedent for
+// exercising a stop/resume cycle), not through renderSongOffline() - the
+// pipeline always starts at absolute row 0 and never stops, so it can't
+// reach this case. Fixture buffer: rowsPerBar 4, tempo 120 (row duration
+// 0.125s, interval 1000 frames @ 8kHz) - silent for its own first 5 rows,
+// then a constant tone for the rest, in an 8-row one-shot clip triggered
+// at row 0.
+TEST(render_sample_track_resumes_a_stopped_instance_from_the_row_the_playhead_landed_on) {
+  Song song;
+  song.setTempo(120);
+  song.setRowsPerBar(4);
+  auto & track = song.addTrack(std::make_unique<SampleTrack>());
+  auto track_id = track.getInternalId();
+
+  ChannelConfiguration config(8000); // no resampling - native rate matches
+  auto interval = config.getSampleInterval(song.getTempo());
+  CHECK(interval == 1000);
+
+  Clip clip(track_id);
+  auto & content = clip.getOrCreateSampleContent();
+  auto buffer = std::make_shared<AudioBuffer>(1, 8 * interval);
+  auto data = buffer->getChannelData(0);
+  for (int i = 0; i < 8 * interval; i++) data[i] = i < 5 * interval ? 0.0f : 0.5f; // silent, then a tone from row 5 onward
+  content.setBuffer(buffer);
+  content.setNativeSampleRate(8000);
+  clip.setLength(8);
+  clip.setLooping(false);
+  song.addClip(std::move(clip)); // index 0
+
+  auto & scene = song.addScene();
+  scene.setLengthBars(2); // 8 rows @ rowsPerBar 4
+  placeClipInstance(song, scene, track_id, 0, 0);
+
+  auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+  SongState state(config);
+  state.initialize(song);
+
+  state.setIsPlaying(true);
+  state.renderBlock(3 * interval, song, *mixer); // lands at row 3, still in the silent region
+  auto through_row_3 = mixer->encode();
+  for (int i = 0; i < through_row_3.numberOfFrames(); i++) CHECK(through_row_3.getChannelData(0)[i] == 0.0f);
+
+  // Stopped - a single 1-frame renderBlock() call here is what actually
+  // lets SongState notice the transport stopped at all (isPlaying() is
+  // only ever compared against its own *previous* renderBlock() call, and
+  // the real audio thread keeps calling this every block regardless of
+  // isPlaying() - see renderBlock()'s own comment). This also queues the
+  // pause-release (render_sample_track_pausing_releases_the_sounding_voice_
+  // instead_of_leaving_it_ringing below has that on its own), but there's
+  // nothing to release here yet - the voice sat frozen in the silent
+  // region (row 3) the whole time, this call included, since nothing was
+  // ever actually rendered at row 5 onward to reach the tone. The playhead
+  // is then moved elsewhere entirely (row 6, deep in the tone - neither
+  // where playback stopped, row 3, nor the instance's own leading row, 0)
+  // - the same "position the playhead on any row" gesture PatternEditor's
+  // own cursor navigation performs while stopped.
+  state.setIsPlaying(false);
+  state.renderBlock(1, song, *mixer);
+  state.setPosition(6);
+
+  state.setIsPlaying(true);
+  state.renderBlock(10, song, *mixer);
+  auto after_resume = mixer->encode();
+  for (int i = 0; i < after_resume.numberOfFrames(); i++) CHECK(after_resume.getChannelData(0)[i] != 0.0f);
+}
+
+// Pausing mid-clip must release the sounding voice (a short natural fade,
+// same as SampleClipVoice's own 10ms release everywhere else) rather than
+// either leaving it ringing straight through the pause (a SampleTrack
+// voice has no pause-awareness of its own - only start/stop) or cutting
+// it off hard (a click). Fixture: a one-shot 8-row clip, its own real
+// audio a full 8 rows/1s long, stopped 3 rows in - well before its own
+// natural end, so anything heard fading out afterward is genuinely the
+// pause-release firing, not the clip simply finishing on its own.
+TEST(render_sample_track_pausing_releases_the_sounding_voice_instead_of_leaving_it_ringing) {
+  Song song;
+  song.setTempo(120);
+  song.setRowsPerBar(4);
+  auto & track = song.addTrack(std::make_unique<SampleTrack>());
+  auto track_id = track.getInternalId();
+
+  ChannelConfiguration config(8000); // no resampling - native rate matches
+  auto interval = config.getSampleInterval(song.getTempo());
+  CHECK(interval == 1000);
+
+  Clip clip(track_id);
+  auto & content = clip.getOrCreateSampleContent();
+  auto buffer = std::make_shared<AudioBuffer>(1, 8 * interval);
+  auto data = buffer->getChannelData(0);
+  for (int i = 0; i < 8 * interval; i++) data[i] = 0.5f; // a constant tone the whole way through
+  content.setBuffer(buffer);
+  content.setNativeSampleRate(8000);
+  clip.setLength(8);
+  clip.setLooping(false);
+  song.addClip(std::move(clip)); // index 0
+
+  auto & scene = song.addScene();
+  scene.setLengthBars(2); // 8 rows @ rowsPerBar 4
+  placeClipInstance(song, scene, track_id, 0, 0);
+
+  auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+  SongState state(config);
+  state.initialize(song);
+
+  state.setIsPlaying(true);
+  state.renderBlock(3 * interval, song, *mixer); // 3 rows in, comfortably still within the clip's own 8-row content
+  auto through_row_3 = mixer->encode();
+  CHECK(through_row_3.getChannelData(0)[through_row_3.numberOfFrames() - 1] != 0.0f); // still sounding right up to the pause
+
+  // Stopped - the very next block is where the release actually happens
+  // (queued at frame 0 of it, see renderBlock()'s own comment), rendered
+  // in full here (150 frames - comfortably more than the 10ms/80-frame
+  // release) so both ends of the fade are visible in one call.
+  state.setIsPlaying(false);
+  state.renderBlock(150, song, *mixer);
+  auto released = mixer->encode();
+  auto out = released.getChannelData(0);
+
+  CHECK(out[0] != 0.0f); // no hard cut - still audible the instant pause takes effect
+  for (int i = 100; i < released.numberOfFrames(); i++) CHECK(out[i] == 0.0f); // fully released well before the block ends, not left ringing
+}
+
+// A real bug report: resuming sometimes played nothing at all. Root cause:
+// the resume-retrigger flag was a plain local, recomputed fresh from
+// was_playing_ every renderBlock() call, rather than a persistent
+// obligation - stopping and resuming *mid-row* (sample_pos_ left wherever
+// it was, never reset, since neither setPosition() nor movePosition() was
+// called - a plain pause/resume in place) meant the very first resumed
+// call could easily end before ever reaching a row boundary, especially
+// against a real-time engine's own small period size; by the next call,
+// was_playing_ had already latched true, so the flag recomputed false
+// again with nothing having ever consumed it - silently losing the
+// obligation to retrigger at all. Reproduced here by driving many small,
+// non-row-aligned blocks (64 frames - a realistic ALSA period, well short
+// of this fixture's own 1000-frame row interval) through the resume,
+// mirroring the real audio thread's own call pattern rather than one
+// large block that would paper over the bug.
+TEST(render_sample_track_resuming_mid_row_across_several_small_blocks_still_plays) {
+  Song song;
+  song.setTempo(120);
+  song.setRowsPerBar(4);
+  auto & track = song.addTrack(std::make_unique<SampleTrack>());
+  auto track_id = track.getInternalId();
+
+  ChannelConfiguration config(8000); // no resampling - native rate matches
+  auto interval = config.getSampleInterval(song.getTempo());
+  CHECK(interval == 1000);
+
+  Clip clip(track_id);
+  auto & content = clip.getOrCreateSampleContent();
+  auto buffer = std::make_shared<AudioBuffer>(1, 8 * interval);
+  auto data = buffer->getChannelData(0);
+  for (int i = 0; i < 8 * interval; i++) data[i] = 0.5f; // a constant tone the whole way through
+  content.setBuffer(buffer);
+  content.setNativeSampleRate(8000);
+  clip.setLength(8);
+  clip.setLooping(false);
+  song.addClip(std::move(clip)); // index 0
+
+  auto & scene = song.addScene();
+  scene.setLengthBars(2); // 8 rows @ rowsPerBar 4
+  placeClipInstance(song, scene, track_id, 0, 0);
+
+  auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+  SongState state(config);
+  state.initialize(song);
+
+  state.setIsPlaying(true);
+  state.renderBlock(3 * interval + 500, song, *mixer); // 3.5 rows in - deliberately mid-row
+  // Not pinned to an exact value: a single renderBlock() call spanning
+  // several row transitions drifts sample_pos_ by a little (a separate,
+  // pre-existing quirk in the row-advance loop's own bookkeeping, not
+  // this test's concern) - only "genuinely mid-row, not sitting on a
+  // boundary" actually matters for exercising the bug below.
+  CHECK(state.getSamplePos() != 0);
+
+  // Stopped in place (no setPosition()/movePosition() call) - sample_pos_
+  // stays exactly where it was, still mid-row. Rendered for 100 frames
+  // (comfortably more than the pause-release's own 80-frame length, not
+  // just enough to let SongState notice the stop) so the release from
+  // pausing has fully finished by the time the resume loop below starts -
+  // otherwise its own tail bleeding into that loop's first block would
+  // make heard_sound below true regardless of whether the retrigger this
+  // test actually cares about ever fires at all.
+  state.setIsPlaying(false);
+  state.renderBlock(100, song, *mixer);
+  CHECK(state.getSamplePos() != 0); // confirms nothing moved it while stopped
+
+  // Resumed in place too - still short of the next row boundary. Driven
+  // through several 64-frame blocks (real ALSA-period sized, not one
+  // large block), none of which individually reaches that boundary until
+  // partway through the run.
+  state.setIsPlaying(true);
+  bool heard_sound = false;
+  for (int block = 0; block < 12; block++) { // 12 * 64 = 768 frames, comfortably past the 500 remaining
+    state.renderBlock(64, song, *mixer);
+    auto rendered = mixer->encode();
+    auto out = rendered.getChannelData(0);
+    for (int i = 0; i < rendered.numberOfFrames(); i++) {
+      if (out[i] != 0.0f) heard_sound = true;
+    }
+  }
+  CHECK(heard_sound); // the retrigger must still fire once the row boundary is finally reached, not get lost along the way
 }
 
 // An explicit stop instance (Scene::kStopInstance, ArrangementOps.h's own

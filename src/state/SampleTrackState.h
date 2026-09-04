@@ -53,7 +53,7 @@ public:
 	    // (SongState::initialize()'s render_context_.setBpm(tempo_)) -
 	    // triggerClip()'s own tempo-stretch decision needs it in the
 	    // same units SampleContent::getOriginalTempo() is authored in.
-	    triggerClip(*it->second.clip, static_cast<int>(context.getBpm()));
+	    triggerClip(*it->second.clip, static_cast<int>(context.getBpm()), it->second.start_offset_frames);
 	  } else if (it->second.kind == SampleTrackEvent::STOP) {
 	    // A short natural release, not a hard cut - stopping outright
 	    // here would click (SampleTrackEvent's own comment).
@@ -124,7 +124,19 @@ public:
   // decide whether to time-stretch - threaded in by the caller rather than
   // read from anywhere on this class, since neither this class nor Clip
   // has any notion of "the song" to read it from itself.
-  void triggerClip(const Clip & clip, int song_tempo);
+  //
+  // `start_offset_frames` (default 0 - "start from this clip's own
+  // beginning", every ordinary trigger) shifts that starting point later
+  // into the clip's own (post-trim, post-resample/stretch) audio instead -
+  // SongState.h's own scheduling is the only caller that ever passes a
+  // real value, when the playhead itself lands mid-instance with nothing
+  // already sounding to explain why (its own comment has the full
+  // reasoning). Clamped against the resolved range, never trusted
+  // outright - a clip's own row length never exactly matches its real
+  // audio duration (rounded up when it was first derived), so a stale
+  // value must fall back to playing nothing rather than reading out of
+  // bounds.
+  void triggerClip(const Clip & clip, int song_tempo, int start_offset_frames = 0);
 };
 
 #endif
