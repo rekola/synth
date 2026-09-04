@@ -28,6 +28,12 @@ public:
   explicit SampleTrackState(const ChannelConfiguration & channel_config, bool solo, bool muted, int track_id, const SphericalPosition & position, const SendLevels & sends)
     : LeafTrackState(channel_config, solo, muted, track_id, position, sends) { }
 
+  // Same-thread setter Player calls every block it actually captures for
+  // this track (armed-and-waiting or genuinely recording), so render()'s
+  // own TrackInfo can show real input level even while no SampleClipVoice
+  // is playing back to produce one of its own.
+  void setInputLoudness(float rms) { input_loudness_ = rms; }
+
   // Splits the block at every RenderContext::getPendingSampleEvents()
   // entry due within it (a Clip start or stop, this class's own sibling
   // timeline to InstrumentTrackState::render()'s pending_events_ - see
@@ -78,7 +84,7 @@ public:
     data.zero();
     for (auto & [ pos, s ] : chunks) data.assignNamed(s, pos);
 
-    setTrackInfo(TrackInfo(isActive(), data.isClipping(), data.calculateMainRMS()));
+    setTrackInfo(TrackInfo(isActive(), data.isClipping(), isActive() ? data.calculateMainRMS() : input_loudness_));
     return data;
   }
 
@@ -137,6 +143,9 @@ public:
   // value must fall back to playing nothing rather than reading out of
   // bounds.
   void triggerClip(const Clip & clip, int song_tempo, int start_offset_frames = 0);
+
+private:
+  float input_loudness_ = 0.0f;
 };
 
 #endif

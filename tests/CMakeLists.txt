@@ -68,6 +68,7 @@ add_executable(synth_tests
 	SongStructureTests.cpp
 	SampleTrackTests.cpp
 	TimeStretcherTests.cpp
+	RecordingRingBufferTests.cpp
 )
 
 target_link_libraries(synth_tests synth_engine)

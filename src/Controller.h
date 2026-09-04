@@ -304,6 +304,27 @@ class Controller {
   // handleRecordingLatencyEvent() to do it properly instead.
   bool isRecordingArmed() const { return recording_start_scene_ >= 0; }
 
+  // Loudness-threshold-armed recording (a SampleTrack's own Record Arm,
+  // Launchpad CC19) - waiting for input to actually cross a threshold
+  // before the take genuinely begins, rather than starting immediately
+  // the way start-sample-capture does. Player.cpp's poll loop reads
+  // isThresholdArmed() directly (audio-thread-side, same as isRecording())
+  // to decide whether to keep capture running and feed its own pre-roll
+  // ring buffer; armThresholdRecording()/disarmThresholdRecording() are
+  // the user-facing arm/cancel pair (LaunchpadManager's own CC19 handler),
+  // clearThresholdArmed() is the audio-thread-triggered "the arm phase is
+  // over, genuine recording has begun instead" transition (UI::
+  // handleThresholdRecordingTriggeredEvent()) - two distinctly-named call
+  // sites for the identical underlying flag flip, since each means
+  // something different to whoever's reading the call, not two different
+  // mechanisms. Sets recording_track_id, the same field
+  // setRecordingTrackId() already maintains - only one take (threshold-
+  // armed or otherwise) can ever be in progress at once.
+  void armThresholdRecording(int track_id) { threshold_armed_ = true; recording_track_id = track_id; }
+  void disarmThresholdRecording() { threshold_armed_ = false; }
+  void clearThresholdArmed() { threshold_armed_ = false; }
+  bool isThresholdArmed() const { return threshold_armed_; }
+
   // Begins a real Clip for the take currently in progress - creates it,
   // shares its SampleContent buffer with current_sample (so every later
   // addToSample() call is visible through the clip automatically, no
@@ -964,6 +985,9 @@ class Controller {
   // take) - finishSampleCapture() needs it again to compute the clip's
   // own post-trim length, not the full captured buffer.
   int recording_latency_frames_ = 0;
+  // armThresholdRecording()/isThresholdArmed()'s own flag - see their
+  // shared doc comment.
+  bool threshold_armed_ = false;
   // See getGlobalOctave()'s own comment - deliberately global, unlike the
   // per-buffer state above.
   int global_octave_ = 4;

@@ -231,8 +231,12 @@ class LaunchpadManager {
   // matching every other raw-CC toggle here. Takes Controller (unlike
   // every other toggle here) only for CC19's own sake - disarming while a
   // Session-view-triggered recording session is still running also stops
-  // the transport (see that branch's own comment).
-  bool handleRawButton(int cc_number, int device_id, Controller & controller);
+  // the transport (see that branch's own comment). `track_id` (the
+  // currently-followed track, already resolved - UI.cpp's own call site
+  // resolves it the same way it already does for CC98 just above this)
+  // is only used by CC19's own SampleTrack case - every other branch
+  // ignores it.
+  bool handleRawButton(int cc_number, int device_id, Controller & controller, int track_id);
 
   // CC97 (DRAW mode toggle) on its own, separate entry point: unlike every
   // button handleRawButton() covers, it needs both press and release to
@@ -765,6 +769,17 @@ class LaunchpadManager {
   // unchanged, and every connected Launchpad's Record Arm LED shows the
   // same lit/unlit state.
   bool capture_enabled_ = false;
+
+  // handleRawButton()'s own CC19 branch, SampleTrack case only - whether
+  // *this* arm cycle is the one that started the transport
+  // (Controller::startAutoRecordPlayback()), so disarming/finishing later
+  // knows whether to stop it again. Its own field, not a reuse of
+  // auto_started_playback_ above - that one means something specific to
+  // the held-note recording session it's already scoped to, the same
+  // "each recording flow gets its own flag" precedent PatternEditor::
+  // sample_capture_auto_started_playback_ already set for start-sample-capture's
+  // own take.
+  bool threshold_auto_started_playback_ = false;
 
   // Controller::getGlobalOctave(), mirrored here once per refresh() call
   // (same pattern as capture_enabled_ above) rather than threading

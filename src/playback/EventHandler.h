@@ -8,6 +8,7 @@ class PlaybackControlEvent;
 class LogEvent;
 class RecordEvent;
 class RecordingLatencyEvent;
+class ThresholdRecordingTriggeredEvent;
 class InputEvent;
 class MidiEvent;
 class LaunchpadPadEvent;
@@ -28,6 +29,7 @@ class EventHandler {
   virtual void handleLogEvent(LogEvent & ev) { }
   virtual void handleRecordEvent(RecordEvent & ev) { }
   virtual void handleRecordingLatencyEvent(RecordingLatencyEvent & ev) { }
+  virtual void handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEvent & ev) { }
   virtual void handleInputEvent(InputEvent & ev) { }
   virtual void handleMidiEvent(MidiEvent & ev) { }
   virtual void handleLaunchpadPadEvent(LaunchpadPadEvent & ev) { }

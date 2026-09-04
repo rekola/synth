@@ -70,6 +70,7 @@ class UI : public UIElement {
   void handleLogEvent(LogEvent & ev) override;
   void handleRecordEvent(RecordEvent & ev) override;
   void handleRecordingLatencyEvent(RecordingLatencyEvent & ev) override;
+  void handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEvent & ev) override;
   void handleMidiEvent(MidiEvent & ev) override;
   void handleLaunchpadPadEvent(LaunchpadPadEvent & ev) override;
   void handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) override;

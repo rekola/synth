@@ -18,6 +18,7 @@
 #include "../playback/LogEvent.h"
 #include "../playback/RecordEvent.h"
 #include "../playback/RecordingLatencyEvent.h"
+#include "../playback/ThresholdRecordingTriggeredEvent.h"
 #include "../playback/PlaybackControlEvent.h"
 #include "../playback/AudioBlockEvent.h"
 #include "../playback/VisualizationResultEvent.h"
@@ -883,6 +884,27 @@ UI::handleRecordingLatencyEvent(RecordingLatencyEvent & ev) {
 }
 
 void
+UI::handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEvent & ev) {
+  // Defensive, same reasoning as handleRecordingLatencyEvent() above -
+  // Player.cpp only ever pushes this once per arm cycle (its own
+  // threshold_triggered_this_arm_cycle_ latch).
+  if (getController().hasRecordingClip()) return;
+
+  // This is where a threshold-triggered take actually begins, as if it
+  // had been recording this whole time - startRecording() first (a fresh
+  // current_sample), then the ring buffer's own already-captured lead-in
+  // prepended into it, then the snapshotted (backdated - see the event's
+  // own comment) start position armed for beginSampleCapture() to place
+  // at, exactly the way start-sample-capture's own synchronous
+  // armRecordingStart() call already does for an ordinary take.
+  getController().startRecording();
+  getController().addToSample(ev.getPreroll());
+  getController().armRecordingStart(ev.getScene(), ev.getRow());
+  getController().beginSampleCapture(ev.getTrackId());
+  getController().clearThresholdArmed();
+}
+
+void
 UI::handleLogEvent(LogEvent & ev) {
   setStatus(ev.getText());
 }
@@ -968,8 +990,14 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   // Send A/B: a direct hardware-state toggle (this device's own transient
   // grid-display mode), never a command - intercepted here, by raw CC
   // number, before any command-name resolution happens at all. See
-  // LaunchpadManager::handleRawButton's own comment.
-  if (launchpad_manager_->handleRawButton(ev.getCCNumber(), device_id, getController())) return;
+  // LaunchpadManager::handleRawButton's own comment. track_id resolved
+  // the same way CC98's own handling just above already does - only
+  // CC19's own SampleTrack case actually reads it.
+  {
+    auto track_ids = getController().getSong().getPlayableTrackIds();
+    auto track_id = launchpad_manager_->resolveTrackId(device_id, track_ids, pattern_editor_->getCursorTrackIndex());
+    if (launchpad_manager_->handleRawButton(ev.getCCNumber(), device_id, getController(), track_id)) return;
+  }
 
   auto name = LaunchpadProtocol::commandForButton(ev.getCCNumber());
   if (!name) return;

@@ -1843,16 +1843,14 @@ details resolved during implementation, not fully spelled out above:
   stretched, audible result) confirming the wiring end to end, not just
   the isolated pieces.
 
-## Part 14 - Loudness-threshold-triggered recording start (undecided between three designs)
+## Part 14 - Loudness-threshold-triggered recording start
 
-Raised directly by the user. **Not yet decided which of three candidate
-designs to build - the user has explicitly said so, after two rounds of
-back-and-forth on this part already produced two different single-committed
-drafts (each superseded, kept below as Option 2/Option 3 rather than
-discarded, since both are real, viable candidates, not mistakes).
-Implementation should not start on this part until one is actually chosen
-(or the user asks for more than one, e.g. as a per-take/song setting -
-not assumed here, since it hasn't been asked for).**
+Raised directly by the user. Two rounds of back-and-forth on this part
+produced two different candidate designs (kept below as Option 2/Option 3
+rather than discarded, since both are real, viable alternatives, not
+mistakes) alongside the simplest baseline (Option 1); the user chose
+Option 2, and that's what's implemented - see the note under its own
+heading below.
 
 **Shared motivation.** Pressing Record Arm on a SampleTrack from the
 Launchpad currently just arms the existing `start-sample-capture`-style
@@ -1924,6 +1922,42 @@ comes in whenever they're ready and only their own new clip's placement
 needs adjusting, not the whole song. Doesn't suit "the whole take should
 start exactly when I play something" (a live count-in triggering
 everything) - for that, see Option 3.
+
+**Implemented, matching the design above.** `RecordingRingBuffer`
+(`src/dsp/RecordingRingBuffer.h`) is the fixed-capacity mono pre-roll ring;
+`Controller::armThresholdRecording()`/`disarmThresholdRecording()`/
+`isThresholdArmed()`/`clearThresholdArmed()` are the arm/cancel/query/
+trigger-transition state on the UI-thread-owned side. Player.cpp's poll
+loop reads `isThresholdArmed()` directly (audio-thread-side, the same
+"read your own live state, never `Controller::getPlaybackInfo()`" rule
+Part 11's latency measurement already established), feeds the ring buffer
+every captured block, and once a block's RMS crosses a fixed threshold,
+drains the ring, computes the backdated `(scene, row)` against this same
+thread's own live `SongState`, and pushes a new
+`ThresholdRecordingTriggeredEvent` (`src/playback/
+ThresholdRecordingTriggeredEvent.h`) carrying the preroll audio and that
+position. `UI::handleThresholdRecordingTriggeredEvent()` consumes it on
+the UI thread: starts recording, appends the preroll, arms the placement
+snapshot at the backdated position (reusing `armRecordingStart()`, Part
+11's own mechanism), and begins the real capture.
+
+On a SampleTrack, Launchpad Record Arm (CC19) is a three-state cycle
+(a design choice this implementation had to make, since the plan text
+above doesn't say what CC19 should do while a take is already genuinely
+in progress): idle -> armed (`isThresholdArmed()`) -> recording
+(`isRecording()`) -> idle. Pressing while armed cancels via
+`disarmThresholdRecording()`; pressing while recording finishes the take;
+pressing while idle arms and, same as `start-sample-capture`, auto-starts
+playback if it wasn't already running.
+
+The shared mechanism's VU-meter piece (needed regardless of which option
+was chosen, so any of the three would have required it) is
+`SampleTrackState::setInputLoudness()` - a plain same-thread setter Player
+calls every block it actually captures for the armed/recording track,
+which `SampleTrackState::render()` prefers over its own (silent)
+rendered-voice RMS whenever no `SampleClipVoice` is currently playing back,
+so the meter shows real input level while waiting for the threshold to
+trip, not just once a voice starts sounding.
 
 ### Option 3 - Everything starts on threshold; the transport itself is backdated
 

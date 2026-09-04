@@ -598,6 +598,47 @@ TEST(unarmed_sample_capture_stays_unplaced) {
   if (!clips.empty()) CHECK(clips[0].getLength() == config.framesToRows(400, controller.getSong().getTempo())); // no latency to trim off
 }
 
+// armThresholdRecording()/disarmThresholdRecording(): the user-facing
+// arm/cancel pair a Launchpad's CC19 toggles between while nothing has
+// triggered yet.
+TEST(threshold_recording_arm_and_disarm_toggle_the_flag) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+
+  auto & track = controller.getSong().addTrack(std::make_unique<SampleTrack>());
+  auto track_id = track.getInternalId();
+
+  CHECK(!controller.isThresholdArmed());
+  controller.armThresholdRecording(track_id);
+  CHECK(controller.isThresholdArmed());
+  CHECK(controller.getRecordingTrackId() == track_id);
+
+  controller.disarmThresholdRecording();
+  CHECK(!controller.isThresholdArmed());
+}
+
+// clearThresholdArmed(): the audio-thread-triggered transition once input
+// actually crosses the threshold - same flag flip as disarm, but reached
+// from UI::handleThresholdRecordingTriggeredEvent() instead of a direct
+// user cancel. getRecordingTrackId() survives the transition, since the
+// genuine take that follows targets the same track that was armed.
+TEST(threshold_recording_clear_ends_the_arm_phase_without_losing_the_target_track) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+
+  auto & track = controller.getSong().addTrack(std::make_unique<SampleTrack>());
+  auto track_id = track.getInternalId();
+
+  controller.armThresholdRecording(track_id);
+  CHECK(controller.isThresholdArmed());
+
+  controller.clearThresholdArmed();
+  CHECK(!controller.isThresholdArmed());
+  CHECK(controller.getRecordingTrackId() == track_id);
+}
+
 // A live note-recording take writes into a real, individually-manageable
 // Clip instance instead of falling through to the scene's own background
 // Pattern - ensureNoteRecordingClip()'s own core contract.

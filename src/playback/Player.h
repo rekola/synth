@@ -4,6 +4,7 @@
 #include "EventHandler.h"
 #include "../state/SongState.h"
 #include "../ambisonic/MixerType.h"
+#include "../dsp/RecordingRingBuffer.h"
 
 #include <memory>
 #include <string>
@@ -16,7 +17,8 @@ class Song;
 class Player : public EventHandler {
  public:
   Player(ChannelConfiguration channel_config, Controller * controller)
-    : channel_config_(channel_config), controller_(controller) { }
+    : channel_config_(channel_config), controller_(controller),
+      threshold_ring_buffer_(static_cast<int>(kThresholdRingBufferSeconds * channel_config.getAudioOutSampleRate())) { }
 
   void handlePlaybackControlEvent(PlaybackControlEvent & ev) override;
 
@@ -125,6 +127,39 @@ private:
   // actually engaging (see play()'s own comment on why this is where the
   // round-trip latency measurement happens, exactly once per take).
   bool was_recording_ = false;
+
+  // Loudness-threshold-armed recording (Controller::isThresholdArmed()) -
+  // audio-thread-only state, the same ownership boundary was_recording_/
+  // the latency measurement above already established for this class's
+  // own cross-thread concerns.
+  static constexpr float kThresholdRingBufferSeconds = 0.5f;
+  // -40dB: comfortably above a quiet room's own noise floor, comfortably
+  // below a real, deliberate attack - a starting point tuned by ear, not
+  // measured, the same "no manual/user-configurable constant yet" scope
+  // the round-trip latency figure above already accepted for a comparable
+  // concern (unlike that one, though, this is genuinely performance/
+  // source-dependent, so a future per-song/per-take knob is a plausible
+  // low-risk follow-up once this ships and gets used for real).
+  static constexpr float kThresholdRecordTriggerDB = -40.0f;
+  // Sized in the constructor's own initializer list (from the constructor
+  // parameter, not channel_config_ - a plain in-class default here would
+  // depend on channel_config_ already being constructed purely by
+  // declaration-order accident, fragile against a future reordering of
+  // this class's own members).
+  RecordingRingBuffer threshold_ring_buffer_;
+  // The previous iteration's Controller::isThresholdArmed(), same
+  // false->true/true->false edge-detection idiom as was_recording_ above -
+  // a fresh arm (false->true) resets threshold_ring_buffer_ so an earlier,
+  // temporally-discontinuous arm cycle's own leftover content can never
+  // bleed into a later one's own drain().
+  bool was_threshold_armed_ = false;
+  // Latched true the instant this arm cycle's own trigger actually fires,
+  // cleared on the next false->true edge above - without it, every
+  // capture block still above threshold after the first one would fire
+  // its own duplicate trigger, since Controller::isThresholdArmed() won't
+  // actually flip false until the UI thread processes the resulting event
+  // a few iterations later.
+  bool threshold_triggered_this_arm_cycle_ = false;
 
   // Stands in for a live PLAY_NOTE's own NoteCoordinate absolute_row (see
   // handlePlaybackControlEvent()'s own comment) - a live note has no

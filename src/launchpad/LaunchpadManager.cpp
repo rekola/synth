@@ -491,7 +491,7 @@ LaunchpadManager::forceNotesModeOnAllDevices() {
 }
 
 bool
-LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & controller) {
+LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & controller, int track_id) {
   // 69/79/89 confirmed against a real Launchpad X: Send A/Pan/Volume, 10
   // apart in that order (row 5/6/7 of the right column, CC = 19 + 10*row) -
   // not the arbitrary contiguous-slot guess this originally shipped with.
@@ -533,16 +533,55 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
   }
   // 19 (right column, continuing the "Track" control row order one
   // further past Send B - see this method's own doc comment) is the real
-  // Launchpad X's own dedicated "Record Arm" button - a single, song-wide
-  // record-arm flag (capture_enabled_ - see its own comment for why this
-  // isn't per-device), not a Song/Track-mutating command, so it's a
-  // direct hardware-state flip here rather than a named command (same
-  // shape as the grid-mode toggles above, those *are* still per-device).
+  // Launchpad X's own dedicated "Record Arm" button - for every track
+  // type but SampleTrack (see the branch below for that one), a single,
+  // song-wide record-arm flag (capture_enabled_ - see its own comment for
+  // why this isn't per-device), not a Song/Track-mutating command, so
+  // it's a direct hardware-state flip here rather than a named command
+  // (same shape as the grid-mode toggles above, those *are* still
+  // per-device).
   // Moved here from CC98 ("Capture MIDI", now reserved/unused again) -
   // see DeviceState::capture_enabled's own comment for why. CC98 used to
   // be wired to toggle-playing via the named-command pipeline before
   // that; toggle-playing stays reachable via Space either way.
   if (cc_number == 19) {
+    // A SampleTrack's own Record Arm means something different from
+    // every other track type's - loudness-threshold-armed recording
+    // (Controller::armThresholdRecording()'s own doc comment) rather
+    // than the plain capture_enabled_ flag below, the same "a different
+    // track type gives this control a different meaning" pattern
+    // fireOrTriggerClipStep() already established for Session-view
+    // triggering itself. Still a plain alternating press, just spanning
+    // three real states instead of two: idle -> armed (this press) ->
+    // genuinely recording (once the threshold actually trips, entirely
+    // Player.cpp/UI::handleThresholdRecordingTriggeredEvent()'s own
+    // doing, no further button press involved) -> idle again (a later
+    // press, whichever of the two non-idle states it catches).
+    auto * track = controller.getSong().getMasterTrack().getChildByInternalId(track_id);
+    if (track && track->getType() == TrackType::SAMPLE) {
+      auto stop_if_auto_started = [&]() {
+	if (threshold_auto_started_playback_) {
+	  controller.togglePlaying();
+	  threshold_auto_started_playback_ = false;
+	}
+      };
+      if (controller.isRecording()) {
+	controller.finishSampleCapture();
+	stop_if_auto_started();
+      } else if (controller.isThresholdArmed()) {
+	controller.disarmThresholdRecording();
+	stop_if_auto_started();
+      } else {
+	controller.armThresholdRecording(track_id);
+	if (!controller.getPlaybackInfo().isPlaying()) {
+	  controller.startAutoRecordPlayback(threshold_auto_started_playback_);
+	} else {
+	  threshold_auto_started_playback_ = false;
+	}
+      }
+      return true;
+    }
+
     capture_enabled_ = !capture_enabled_;
     if (capture_enabled_) {
       // Arming: audition-only live-trigger bookkeeping becomes
@@ -591,8 +630,8 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
       // instead of being released, the same pre-existing "a voice's
       // envelope keeps progressing while playback is stopped" gap
       // docs/known_bugs.md already tracks for a plain manual stop.
-      for (auto track_id : controller.getSong().getPlayableTrackIds()) {
-	controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_ALL_NOTES, controller.getActiveBufferName(), track_id));
+      for (auto playable_track_id : controller.getSong().getPlayableTrackIds()) {
+	controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_ALL_NOTES, controller.getActiveBufferName(), playable_track_id));
       }
     }
     return true;

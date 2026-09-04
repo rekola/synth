@@ -8,6 +8,7 @@
 #include "PlaybackEvent.h"
 #include "RecordEvent.h"
 #include "RecordingLatencyEvent.h"
+#include "ThresholdRecordingTriggeredEvent.h"
 #include "PlaybackControlEvent.h"
 #include "AudioBlockEvent.h"
 
@@ -19,7 +20,21 @@
 #include "../model/NoteCoordinate.h"
 #include "../model/Clip.h"
 
+#include <algorithm>
+#include <cmath>
+
 using namespace std;
+
+namespace {
+
+// Self-contained (not TreeNode::decibelsToGain(), only reachable from
+// TreeNode<Derived> subclasses - VoiceState/TrackState, neither of which
+// Player is) - the same "each file keeps its own small dB helper"
+// convention Controller.cpp's own dbToLinear() already uses for an
+// identical reason.
+float dbToLinear(float db) { return db > -100.0f ? powf(10.0f, db * 0.05f) : 0.0f; }
+
+}
 
 class EventLogger : public Logger {
  public:
@@ -507,8 +522,21 @@ Player::play(AudioAPI & audio) {
     }
     was_recording_ = recording;
 
+    // Loudness-threshold-armed recording (Controller::isThresholdArmed(),
+    // a SampleTrack's own Record Arm) - the same false->true/true->false
+    // edge idiom as `recording` above. A fresh arm resets the pre-roll
+    // ring buffer (an earlier, temporally-discontinuous arm cycle's own
+    // leftover content must never bleed into a later one's own drain())
+    // and clears the "already triggered this cycle" latch.
+    bool threshold_armed = controller_->isThresholdArmed();
+    if (threshold_armed && !was_threshold_armed_) {
+      threshold_ring_buffer_.reset();
+      threshold_triggered_this_arm_cycle_ = false;
+    }
+    was_threshold_armed_ = threshold_armed;
+
     for (size_t i = 0; i < num_capture_desc; i++) {
-      descriptors[1 + num_playback_desc + i].events = recording ? capture_events[i] : 0;
+      descriptors[1 + num_playback_desc + i].events = (recording || threshold_armed) ? capture_events[i] : 0;
     }
 
     if (poll(descriptors.get(), num_descriptors, 1000) > 0) {
@@ -608,13 +636,62 @@ Player::play(AudioAPI & audio) {
 	    controller_->getVisualizationQueue().push(make_unique<AudioBlockEvent>(
 	      move(master), move(active_raw_bus), move(active_aux_a), move(active_aux_b)));
 	  } else if (i - 1 - num_playback_desc < num_capture_desc) {
-	    // .events was cleared to 0 above whenever recording is inactive, so
-	    // revents can't legitimately be set here in that case - checking
-	    // `recording` again anyway keeps this branch correct on its own,
-	    // without relying on that as the only guard.
+	    // .events was cleared to 0 above whenever neither recording nor
+	    // threshold-armed, so revents can't legitimately be set here in
+	    // that case - checking both again anyway keeps this branch
+	    // correct on its own, without relying on that as the only guard.
+	    // Feeds SampleTrackState::setInputLoudness() (same-thread, this
+	    // audio thread owns both Player and live_states_) so the VU
+	    // meter shows real input level while armed-and-waiting or
+	    // actually recording, not just once a voice starts playing back.
+	    auto updateInputLoudness = [this](const AudioBuffer & data) {
+	      auto buffer_name = controller_->getActiveBufferNameThreadSafe();
+	      auto state_it = live_states_.find(buffer_name);
+	      if (state_it == live_states_.end()) return;
+	      auto * sample_state = dynamic_cast<SampleTrackState *>(state_it->second->getChildByInternalId(controller_->getRecordingTrackId()));
+	      if (sample_state) sample_state->setInputLoudness(data.calculateMainRMS());
+	    };
+
 	    if (recording) {
 	      auto data = audio.record(logger);
+	      updateInputLoudness(data);
 	      controller_->getUIEventQueue().push(make_unique<RecordEvent>(data));
+	    } else if (threshold_armed) {
+	      auto data = audio.record(logger);
+	      updateInputLoudness(data);
+	      threshold_ring_buffer_.push(data);
+	      if (!threshold_triggered_this_arm_cycle_ && dbToLinear(kThresholdRecordTriggerDB) <= data.calculateMainRMS()) {
+		threshold_triggered_this_arm_cycle_ = true;
+		auto preroll = threshold_ring_buffer_.drain();
+
+		// Backdated (scene, row): the transport's own position right
+		// now, minus the pre-roll's own span converted to rows -
+		// resolved here, directly against this same audio thread's
+		// own live SongState (Controller::getPlaybackInfo() is a
+		// UI-thread-owned snapshot this thread has no business
+		// reading, same reasoning as the latency measurement above),
+		// never written directly into Controller (which owns this
+		// position the same way Controller::armRecordingStart()
+		// already does for start-sample-capture's own take - see
+		// ThresholdRecordingTriggeredEvent's own comment). Falls
+		// back to (0, 0) if this buffer somehow has no live state
+		// yet - can't happen in practice (armThresholdRecording()'s
+		// own auto-start already gave it one), stays defensive
+		// rather than assuming.
+		int scene = 0, row = 0;
+		auto buffer_name = controller_->getActiveBufferNameThreadSafe();
+		auto song_ptr = controller_->getSongByName(buffer_name);
+		auto state_it = live_states_.find(buffer_name);
+		if (song_ptr && state_it != live_states_.end()) {
+		  auto & state = *state_it->second;
+		  auto preroll_rows = channel_config_.framesToRows(preroll.numberOfFrames(), state.getTempo());
+		  auto backdated = song_ptr->normalizePosition(0, std::max(0, state.getAbsolutePosition() - preroll_rows));
+		  scene = backdated.first;
+		  row = backdated.second;
+		}
+		controller_->getUIEventQueue().push(make_unique<ThresholdRecordingTriggeredEvent>(
+		  controller_->getRecordingTrackId(), std::move(preroll), scene, row));
+	      }
 	    }
 	  }
 	}
