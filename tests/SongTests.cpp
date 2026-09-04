@@ -234,6 +234,13 @@ TEST(clamp_row_to_current_pattern_clamps_into_the_scenes_own_bounds) {
   CHECK(song.clampRowToCurrentPattern(5, 4) == 4); // already inside - untouched
 }
 
+TEST(current_track_id_defaults_unset_and_round_trips_through_a_plain_set) {
+  Song song;
+  CHECK(song.getCurrentTrackId() == -1);
+  song.setCurrentTrackId(42);
+  CHECK(song.getCurrentTrackId() == 42);
+}
+
 TEST(add_track_assigns_distinct_ids_to_multiple_id_less_tracks) {
   Song song;
   auto & a = song.addTrack(make_unique<InstrumentTrack>(0));

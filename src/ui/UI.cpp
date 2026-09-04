@@ -44,6 +44,24 @@
 using namespace std;
 using namespace fmt;
 
+namespace {
+
+// Song::getCurrentTrackId()'s own id, converted to whichever index-space
+// `track_ids` uses - every LaunchpadManager call below still takes a
+// plain index (a real per-list position, needed for arithmetic like
+// "move one track over" - LaunchpadLayout::advanceTrackIndex() - and for
+// auto-growing a brand-new song up to a target count, neither of which a
+// bare id supports), just no longer sourced from any one widget's own
+// cursor. Falls back to 0 (not -1) when the id isn't found here (unset,
+// or a track this particular list doesn't include) - the same "just pick
+// the first one" fallback PatternEditor's own cursor already starts at.
+int indexOfTrack(const vector<int> & track_ids, int track_id) {
+  auto it = find(track_ids.begin(), track_ids.end(), track_id);
+  return it == track_ids.end() ? 0 : static_cast<int>(it - track_ids.begin());
+}
+
+} // namespace
+
 void
 UI::requestOverviewFocus() {
   // Lands on the overview's own last (rightmost) column, not wherever its
@@ -298,6 +316,13 @@ UI::initialize() {
   // PatternEditor's - unlike the M-x path, which does go through that
   // fallback chain).
   commands_.define("exchange-point-and-mark", [this]() { pattern_editor_->executeCommand("exchange-point-and-mark"); });
+  // Unlike exchange-point-and-mark just above, this is a Controller-level
+  // command (Controller.cpp's own definition, next to save-song) - it
+  // targets Song::getCurrentTrackId(), not any one widget's own cursor, so
+  // it works regardless of which UI widget currently has focus. Same
+  // "sendCommand() forwarding" shape save-song's own C-x-reachable wrapper
+  // already uses just below.
+  commands_.define("merge-clip-to-background", [this]() { getController().sendCommand("merge-clip-to-background"); });
 
   // other-window (C-x o): cycles focus to the next window. Only two
   // focusable panes exist - pattern_editor_ and arrangement_grid_ - so this
@@ -333,6 +358,7 @@ UI::initialize() {
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack(NCKEY_LEFT, false, false, false, false), "previous-buffer");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('b', false, false, false, false), "select-named-buffer");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('o', false, false, false, false), "other-window");
+  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('m', false, false, false, false), "merge-clip-to-background");
   keymap_.bind(KeyChord::pack(' ', false, false, false, false), "toggle-playing");
   keymap_.bind(KeyChord::pack('[', false, false, false, false), "octave-down");
   keymap_.bind(KeyChord::pack(']', false, false, false, false), "octave-up");
@@ -386,13 +412,8 @@ UI::initialize() {
     if (now_session_view != session_view_open_) {
       session_view_open_ = now_session_view;
       if (now_session_view) {
-        auto root_track_ids = getController().getSong().getRootTrackIds();
-        auto cursor_idx = pattern_editor_->getCursorTrackIndex();
-        auto selected_track_id = (cursor_idx >= 0 && cursor_idx < static_cast<int>(root_track_ids.size())) ?
-          root_track_ids[static_cast<size_t>(cursor_idx)] : -1;
         auto playable = getController().getSong().getPlayableTrackIds();
-        auto it = std::find(playable.begin(), playable.end(), selected_track_id);
-        session_view_->setCursorTrackIndex(it == playable.end() ? 0 : static_cast<int>(it - playable.begin()));
+        session_view_->setCursorTrackIndex(indexOfTrack(playable, getController().getSong().getCurrentTrackId()));
         active_element_ = session_view_;
       } else {
         active_element_ = pattern_editor_;
@@ -541,15 +562,12 @@ UI::renderComponents(bool refresh) {
   bool render = false;
   auto active = active_element_.lock();
   auto & song = getController().getSong();
-  // The shared/global track selection, resolved to a real track_id here
-  // (not just passed as a bare index) - PatternEditor::getCursorTrackIndex()
-  // indexes song.getRootTrackIds(), which ArrangementGrid's own (color-
-  // eligible-only) track list doesn't necessarily line up with position-
-  // for-position.
-  auto root_track_ids = song.getRootTrackIds();
-  auto cursor_track_idx = pattern_editor_->getCursorTrackIndex();
-  int selected_track_id = (cursor_track_idx >= 0 && cursor_track_idx < static_cast<int>(root_track_ids.size())) ?
-    root_track_ids[static_cast<size_t>(cursor_track_idx)] : -1;
+  // The shared/global track selection - Song's own, not any one widget's
+  // cursor (PatternEditor's own root-track-list index doesn't necessarily
+  // line up position-for-position with ArrangementGrid's own (color-
+  // eligible-only) list, which is why this is passed as a real id below,
+  // not a bare index).
+  int selected_track_id = song.getCurrentTrackId();
 
   // Exactly one of pattern_editor_/session_view_ occupies the screen slot
   // both share (see layout()) - render whichever one session_view_open_
@@ -572,7 +590,7 @@ UI::renderComponents(bool refresh) {
     session.track_ids = arrangement_grid_->getVisibleTrackIds(song);
     session.cursor_scene_idx = arrangement_grid_->getCursorScene();
     launchpad_manager_->refresh(song, track_ids, getController().getPlaybackInfo(),
-      track_ids.empty() ? -1 : pattern_editor_->getCursorTrackIndex(), getController(), session);
+      track_ids.empty() ? -1 : indexOfTrack(track_ids, song.getCurrentTrackId()), getController(), session);
   }
 
   return render;
@@ -940,8 +958,12 @@ UI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
     return;
   }
   if (!launchpad_manager_) return;
+  // handlePadEvent() itself indexes song.getPlayableTrackIds() with this
+  // - see indexOfTrack()'s own comment for why a real index, not the bare
+  // id, is still what it needs.
+  auto track_ids = getController().getSong().getPlayableTrackIds();
   launchpad_manager_->handlePadEvent(ev, getController(),
-    pattern_editor_->getCursorTrackIndex(), pattern_editor_->getEditStepSize());
+    indexOfTrack(track_ids, getController().getSong().getCurrentTrackId()), pattern_editor_->getEditStepSize());
 }
 
 void
@@ -973,7 +995,7 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   }
   if (ev.getCCNumber() == 98) {
     auto track_ids = getController().getSong().getPlayableTrackIds();
-    auto track_id = launchpad_manager_->resolveTrackId(device_id, track_ids, pattern_editor_->getCursorTrackIndex());
+    auto track_id = launchpad_manager_->resolveTrackId(device_id, track_ids, indexOfTrack(track_ids, getController().getSong().getCurrentTrackId()));
     auto track = getController().getSong().getMasterTrack().getChildByInternalId(track_id);
     bool is_drum_machine = track && track->getType() == TrackType::DRUM_MACHINE;
     auto * drum_track = is_drum_machine ? &static_cast<DrumMachineTrack &>(*track) : nullptr;
@@ -995,7 +1017,7 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   // CC19's own SampleTrack case actually reads it.
   {
     auto track_ids = getController().getSong().getPlayableTrackIds();
-    auto track_id = launchpad_manager_->resolveTrackId(device_id, track_ids, pattern_editor_->getCursorTrackIndex());
+    auto track_id = launchpad_manager_->resolveTrackId(device_id, track_ids, indexOfTrack(track_ids, getController().getSong().getCurrentTrackId()));
     if (launchpad_manager_->handleRawButton(ev.getCCNumber(), device_id, getController(), track_id)) return;
   }
 
@@ -1013,7 +1035,7 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   // the very next dispatch either way, so it can never leak into a later,
   // unrelated command.
   auto track_ids = getController().getSong().getPlayableTrackIds();
-  getController().setPendingCommandTrack(launchpad_manager_->resolveTrackId(device_id, track_ids, pattern_editor_->getCursorTrackIndex()));
+  getController().setPendingCommandTrack(launchpad_manager_->resolveTrackId(device_id, track_ids, indexOfTrack(track_ids, getController().getSong().getCurrentTrackId())));
 
   // Pure per-device commands (octave/track-follow - no Song/Track access,
   // no keyboard/M-x equivalent) go through LaunchpadManager's own entry
@@ -1025,7 +1047,7 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   // PatternEditor unconditionally (see handleLaunchpadPadEvent above) -
   // these would otherwise silently no-op whenever some other window
   // happens to have focus.
-  bool handled = launchpad_manager_->handleCommand(*name, device_id, pattern_editor_->getCursorTrackIndex(), static_cast<int>(track_ids.size()));
+  bool handled = launchpad_manager_->handleCommand(*name, device_id, indexOfTrack(track_ids, getController().getSong().getCurrentTrackId()), static_cast<int>(track_ids.size()));
   if (!handled) handled = executeCommand(*name);
 
   getController().setPendingCommandTrack(-1);

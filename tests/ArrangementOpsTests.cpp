@@ -522,3 +522,103 @@ TEST(resolve_instance_for_bar_reports_stopped_when_nothing_real_precedes_a_mid_b
 
   CHECK(resolveInstanceForBar(song, scene, track_id, 0, 16).clip_index == Scene::kStopInstance);
 }
+
+// mergeClipToBackground(): a one-shot clip's own content destructively
+// replaces the background at every row its placement covers, including a
+// row the clip itself left blank (silence overwrites whatever the
+// background already had there too - a flatten, not a mix), then that one
+// placement is removed.
+TEST(merge_clip_to_background_overwrites_the_background_and_removes_the_placement) {
+  Song song;
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+
+  Clip shot(track_id);
+  shot.setLength(4);
+  shot.setLooping(false);
+  shot.getLeafPattern().setNote(0, 0, Note(60, 100));
+  shot.getLeafPattern().setNote(2, 0, Note(64, 100));
+  shot.getLeafPattern().setCommand(1, Command("U050"));
+  auto clip_id = song.addClip(move(shot)).getId(); // index 0
+
+  auto & scene = song.addScene();
+  scene.setNote(10, track_id, 0, Note(50, 80)); // pre-existing background content, about to be overwritten
+  scene.setNote(13, track_id, 0, Note(70, 80)); // pre-existing background content the clip's own blank row 3 should also clear
+  placeClipInstance(song, scene, track_id, 10, 0); // covers rows 10-13
+
+  CHECK(mergeClipToBackground(song, scene, track_id, 10) == true);
+
+  CHECK(scene.getNotes(10, track_id).size() == 1);
+  CHECK(scene.getNotes(10, track_id)[0].getValue() == 60); // overwritten, not left at 50
+  CHECK(scene.getNotes(11, track_id).empty());
+  CHECK(scene.getCommand(11, track_id).isDefined());
+  CHECK(scene.getNotes(12, track_id)[0].getValue() == 64);
+  CHECK(scene.getNotes(13, track_id).empty()); // the clip's own blank row cleared the old background note too
+
+  // The one placement removed - a stop where the clip used to start -
+  // but the clip itself stays in the pool.
+  CHECK(resolveInstanceAt(song, scene, track_id, 10).clip_index == Scene::kStopInstance);
+  CHECK(song.getClips(track_id).size() == 1);
+  CHECK(song.getClips(track_id)[0].getId() == clip_id);
+}
+
+// A looping clip's placement reaches all the way to the scene's own end,
+// and each background row still reads back from the clip's own leaf
+// Pattern wrapped by its length - the same modulo every other playback
+// path already uses.
+TEST(merge_clip_to_background_looping_clip_wraps_across_the_whole_scene) {
+  Song song;
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+  song.setRowsPerBar(4);
+
+  Clip loop(track_id);
+  loop.setLength(3);
+  loop.setLooping(true);
+  loop.getLeafPattern().setNote(0, 0, Note(60, 100));
+  loop.getLeafPattern().setNote(2, 0, Note(64, 100));
+  song.addClip(move(loop)); // index 0
+
+  auto & scene = song.addScene();
+  scene.setLengthBars(1); // 4 rows total
+  placeClipInstance(song, scene, track_id, 0, 0);
+
+  CHECK(mergeClipToBackground(song, scene, track_id, 0) == true);
+
+  CHECK(scene.getNotes(0, track_id)[0].getValue() == 60); // leaf row 0
+  CHECK(scene.getNotes(1, track_id).empty());              // leaf row 1
+  CHECK(scene.getNotes(2, track_id)[0].getValue() == 64);  // leaf row 2
+  CHECK(scene.getNotes(3, track_id)[0].getValue() == 60);  // wraps: 3 % 3 == 0
+
+  CHECK(resolveInstanceAt(song, scene, track_id, 0).clip_index == Scene::kStopInstance);
+}
+
+TEST(merge_clip_to_background_is_a_noop_with_nothing_placed) {
+  Song song;
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+  auto & scene = song.addScene();
+
+  CHECK(mergeClipToBackground(song, scene, track_id, 5) == false);
+}
+
+// A SampleTrack clip carries raw audio, not a Pattern - no background
+// counterpart exists for it to merge into yet, so this stays a no-op
+// (including leaving the placement itself untouched).
+TEST(merge_clip_to_background_is_a_noop_for_a_sample_clip) {
+  Song song;
+  auto & track = song.addTrack(make_unique<SampleTrack>());
+  auto track_id = track.getInternalId();
+
+  Clip sample_clip(track_id);
+  sample_clip.setLength(4);
+  sample_clip.getOrCreateSampleContent().setBuffer(make_shared<AudioBuffer>(1, 10));
+  auto clip_id = song.addClip(move(sample_clip)).getId(); // index 0
+
+  auto & scene = song.addScene();
+  placeClipInstance(song, scene, track_id, 0, 0);
+
+  CHECK(mergeClipToBackground(song, scene, track_id, 0) == false);
+  CHECK(resolveInstanceAt(song, scene, track_id, 0).clip_index == 0); // still placed, untouched
+  CHECK(song.getClips(track_id)[0].getId() == clip_id);
+}

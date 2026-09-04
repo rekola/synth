@@ -72,7 +72,10 @@ class PatternEditor : public UIElement {
   // stranding a caller like SessionView's own focus-jump callback (same
   // immediate-commit precedent startAnnotationEdit() already sets for
   // .scope, elsewhere in this class).
-  void setCursorTrack(int track_index) { new_cursor.track = current_cursor.track = track_index; new_cursor.col = new_cursor.subcol = 0; }
+  // Defined in the .cpp, not inline - needs Song's own full definition
+  // (getRootTrackIds()) for the Song::setCurrentTrackId() sync described
+  // above, and this header only forward-declares Song.
+  void setCursorTrack(int track_index);
   int getEditStepSize() const { return edit_step_size; }
 
   // Called (from UI::initialize()) when plain Left is pressed with the

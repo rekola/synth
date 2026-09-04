@@ -48,6 +48,32 @@ placeStopInstance(Scene & scene, int track_id, int row) {
   scene.setInstance(track_id, row, "OFF");
 }
 
+bool
+mergeClipToBackground(const Song & song, Scene & scene, int track_id, int row) {
+  auto active = resolveInstanceAt(song, scene, track_id, row);
+  if (active.clip_index < 0) return false; // nothing real placed here
+
+  auto & clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
+  if (clip.hasSample()) return false; // no SampleTrack background to merge into yet
+
+  auto & leaf = clip.getLeafPattern();
+  auto length = clip.getLength() > 0 ? clip.getLength() : 1;
+  auto scene_length = song.getEffectiveSceneLength(scene);
+  auto reach_end = clip.isLooping() ? scene_length - 1 : min(active.start_row + length - 1, scene_length - 1);
+
+  auto & background = scene.getPatternsByTrack()[track_id];
+  for (auto r = active.start_row; r <= reach_end; r++) {
+    auto src_row = leaf.getEffectiveRow(r - active.start_row, length);
+    background.setNotes(r, leaf.getNotes(src_row));
+    auto & cmd = leaf.getCommand(src_row);
+    if (cmd.isDefined()) background.setCommand(r, cmd);
+    else background.clearCommand(r);
+  }
+
+  placeStopInstance(scene, track_id, active.start_row);
+  return true;
+}
+
 void
 deleteClip(Song & song, int track_id, int clip_index) {
   auto & clips = song.getClips(track_id);

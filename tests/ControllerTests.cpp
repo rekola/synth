@@ -352,6 +352,26 @@ TEST(toggle_focused_clip_clears_when_already_focused_else_switches) {
   CHECK(controller.getFocusedClipTrackId() == -1);
 }
 
+// Song::getCurrentTrackId() lives on the Song itself, not in any of
+// Controller's per-buffer-mirrored scalars - the PatternEditor and
+// SessionView aspects of one song (canonicalBufferName()'s own pair)
+// automatically see the identical value with no separate save/load
+// bookkeeping, unlike getPlaybackInfo() and friends.
+TEST(current_track_id_is_shared_across_a_songs_own_buffer_aspects) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  auto name = controller.freshBufferName();
+  controller.switchToBuffer(name);
+  controller.getSong().setCurrentTrackId(7);
+
+  auto alias = controller.openSessionViewBuffer();
+  CHECK(controller.getSong().getCurrentTrackId() == 7); // same Song, same value
+
+  controller.getSong().setCurrentTrackId(9);
+  controller.switchToBuffer(name); // back to the PatternEditor aspect
+  CHECK(controller.getSong().getCurrentTrackId() == 9); // set through the other aspect, still visible here
+}
+
 // PatternEditor and SessionView are symmetric buffer-list aspects of the
 // same song now - either can be opened or closed independently, and
 // closing one never closes the underlying song as long as the other (or
@@ -637,6 +657,70 @@ TEST(threshold_recording_clear_ends_the_arm_phase_without_losing_the_target_trac
   controller.clearThresholdArmed();
   CHECK(!controller.isThresholdArmed());
   CHECK(controller.getRecordingTrackId() == track_id);
+}
+
+// End-to-end: sendCommand("merge-clip-to-background") resolves its target
+// purely from Song::getCurrentTrackId() and the playhead
+// (getPlaybackInfo()) - no PatternEditor/ArrangementGrid/SessionView
+// involved at all, confirming the command really is reachable independent
+// of any UI widget.
+TEST(merge_clip_to_background_command_resolves_from_current_track_and_playhead) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+
+  auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+
+  Clip shot(track_id);
+  shot.setLength(4);
+  shot.setLooping(false);
+  shot.getLeafPattern().setNote(0, 0, Note(60, 100));
+  song.addClip(std::move(shot)); // index 0
+
+  // switchToBuffer() already seeded scene 0 for a fresh buffer - reuse it
+  // rather than addScene()'ing a second one, so the playhead (which
+  // normalizes against scene 0 first) actually lands where the clip is.
+  auto & scene = song.getScene(0);
+  placeClipInstance(song, scene, track_id, 5, 0); // covers rows 5-8
+
+  song.setCurrentTrackId(track_id);
+  controller.setEditPosition(5); // lands inside scene 0's own row 5
+
+  controller.sendCommand("merge-clip-to-background");
+
+  CHECK(resolveInstanceAt(song, scene, track_id, 5).clip_index == Scene::kStopInstance);
+  CHECK(scene.getNotes(5, track_id).size() == 1);
+  CHECK(scene.getNotes(5, track_id)[0].getValue() == 60);
+}
+
+// No current track set (Song::getCurrentTrackId()'s own -1 default) -
+// stays a silent no-op, same as ArrangementOps.h's own
+// mergeClipToBackground() does for any other unresolvable case.
+TEST(merge_clip_to_background_command_is_a_noop_with_no_current_track_set) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+
+  auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+
+  Clip shot(track_id);
+  shot.setLength(4);
+  shot.setLooping(false);
+  song.addClip(std::move(shot)); // index 0
+
+  auto & scene = song.getScene(0); // switchToBuffer() already seeded this one - see the other test's own comment
+  placeClipInstance(song, scene, track_id, 5, 0);
+
+  CHECK(song.getCurrentTrackId() == -1); // never set
+  controller.setEditPosition(5);
+
+  controller.sendCommand("merge-clip-to-background");
+
+  CHECK(resolveInstanceAt(song, scene, track_id, 5).clip_index == 0); // still placed, untouched
 }
 
 // A live note-recording take writes into a real, individually-manageable

@@ -808,6 +808,16 @@ PatternEditor::setSelectionActive(bool active) {
 }
 
 void
+PatternEditor::setCursorTrack(int track_index) {
+  new_cursor.track = current_cursor.track = track_index;
+  new_cursor.col = new_cursor.subcol = 0;
+
+  auto & song = getController().getSong();
+  auto track_ids = song.getRootTrackIds();
+  if (track_index >= 0 && track_index < static_cast<int>(track_ids.size())) song.setCurrentTrackId(track_ids[static_cast<size_t>(track_index)]);
+}
+
+void
 PatternEditor::cancelReaderEdit() {
   if (!getPlane().readerActive()) return;
   getPlane().closeReader();
@@ -1147,6 +1157,16 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   bool cursor_changed = new_cursor != current_cursor;
 
   current_cursor = new_cursor;
+
+  // Song::getCurrentTrackId() is the one shared "current track" every
+  // buffer viewing this Song, and every command that needs a target track
+  // regardless of which widget has focus, reads - keep it in sync with
+  // wherever this cursor actually is. track.isOnAnnotation() still leaves
+  // .track at a real, valid index (GridPosition.h's own comment), so no
+  // special-casing needed for it.
+  if (!track_ids.empty() && current_cursor.track >= 0 && current_cursor.track < static_cast<int>(track_ids.size())) {
+    song.setCurrentTrackId(track_ids[static_cast<size_t>(current_cursor.track)]);
+  }
 
   // Always something to highlight - degenerates to just the note under the
   // cursor when no mark is set (see getEffectiveSelectionBounds). Computed

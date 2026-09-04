@@ -142,6 +142,15 @@ class Song : public SongObject {
   // anything at all change" (Controller::hasUnsavedChanges()).
   Version getVersion() const { return version_; }
 
+  // The currently selected track - a single shared value belonging to
+  // this Song itself, not to any one caller's own view of it, so every
+  // caller sharing this Song agrees on it with no separate bookkeeping.
+  // Not part of loadParameters()/storeParameters() - purely a runtime
+  // editing concern, same as version_ itself. -1 means unset (no track
+  // selected yet, e.g. a brand new Song).
+  int getCurrentTrackId() const { return current_track_id_; }
+  void setCurrentTrackId(int track_id) { current_track_id_ = track_id; }
+
   const std::vector<Scene> & getScenes() const { return scenes_; }
   const Scene & getScene(int i) const { return i >= 0 && i < static_cast<int>(scenes_.size()) ? scenes_[static_cast<size_t>(i)] : empty_scene_; }
   Scene & getScene(int i) { return i >= 0 && i < static_cast<int>(scenes_.size()) ? scenes_[static_cast<size_t>(i)] : empty_scene_; }
@@ -394,6 +403,7 @@ private:
   BusEffectKind bus_slot_b_kind_ = BusEffectKind::Delay;
 
   Version version_;
+  int current_track_id_ = -1;
 
   InstrumentPool instrument_pool_;
   // The tree parent of every top-level track - see getMasterTrack()'s own

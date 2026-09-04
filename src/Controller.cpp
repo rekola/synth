@@ -196,6 +196,28 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     song->save(getActiveBufferName());
     last_saved_versions_[getActiveBufferName()] = song->getVersion();
   });
+  // Folds a note-based clip's placement back into its scene's own
+  // background Pattern, freeing the clip slot without deleting the clip
+  // itself - see ArrangementOps.h's own mergeClipToBackground() for what
+  // "merge" means and why it's a destructive overwrite. Targets the
+  // Song's own current track (Song::getCurrentTrackId() - shared by every
+  // buffer viewing this Song, not any one UI widget's own cursor) and the
+  // playhead's own scene/row (getPlaybackInfo(), already Controller-
+  // global) - resolveInstanceAt() is row-exact, matching kill-row's own
+  // resolution. A silent no-op if nothing resolves (no current track set,
+  // nothing placed there, or the resolved clip carries a sample - see
+  // mergeClipToBackground()'s own comment).
+  commands_.define("merge-clip-to-background", [this]() {
+    auto & song = getSong();
+    auto track_id = song.getCurrentTrackId();
+    if (track_id < 0) return;
+    auto & scene = song.getScene(playback_info.getPatternIndex());
+    auto row = playback_info.getRowIndex();
+
+    if (!mergeClipToBackground(song, scene, track_id, row)) return;
+    song.incVersion();
+    getUIEventQueue().push(make_unique<LogEvent>("Clip merged to background"));
+  });
   commands_.define("add-filter", [this]() { });
   // Placeholder stubs (menu-visible, TerminalMenu's Song section) for
   // Song::getKey()/setKey() and getTuning()/setTuning(), which already

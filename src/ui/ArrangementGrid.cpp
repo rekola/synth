@@ -281,6 +281,13 @@ ArrangementGrid::offerInput(const InputEvent & input) {
   else return false;
 
   cursor_track_index_ = clamp(cursor_track_index_, 0, max(0, num_tracks - 1));
+
+  // Song::getCurrentTrackId() sync - see PatternEditor::render()'s own
+  // equivalent for why this matters (a command like merge-clip-to-
+  // background needs to find the right track regardless of which widget
+  // actually moved the cursor last).
+  if (cursor_track_index_ >= 0 && cursor_track_index_ < num_tracks) song.setCurrentTrackId(track_ids[static_cast<size_t>(cursor_track_index_)]);
+
   return true;
 }
 

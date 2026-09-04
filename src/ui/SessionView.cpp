@@ -346,6 +346,15 @@ SessionView::offerInput(const InputEvent & input) {
 
   cursor_track_index_ = clamp(cursor_track_index_, 0, max(0, num_tracks - 1));
   cursor_row_ = clamp(cursor_row_, 0, kLogicalRowCount - 1);
+
+  // Song::getCurrentTrackId() sync - see PatternEditor::render()'s own
+  // equivalent for why this matters (a command like merge-clip-to-
+  // background needs to find the right track regardless of which widget
+  // actually moved the cursor last).
+  if (cursor_track_index_ >= 0 && cursor_track_index_ < num_tracks) {
+    getController().getSong().setCurrentTrackId(track_ids[static_cast<size_t>(cursor_track_index_)]); // non-const, see `song`'s own comment above
+  }
+
   return true;
 }
 
