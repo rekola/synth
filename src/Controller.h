@@ -475,6 +475,18 @@ class Controller {
 
   bool togglePlaying();
 
+  // Whatever Record Arm currently has active (recording, threshold-armed,
+  // or note-capture-armed - the same three "toggle-record-arm" itself
+  // checks, same priority order) has nothing left to record into once the
+  // transport stops, so togglePlaying() calls this on every transition
+  // into the stopped state, not just an explicit "toggle-record-arm"
+  // press - a live take is meant to end the moment playback does,
+  // regardless of what actually stopped it. Never toggles playback itself
+  // (already happening in the caller) - just tears down whichever one is
+  // active, exactly like "toggle-record-arm"'s own matching branch, minus
+  // that branch's own playback-toggle call.
+  void stopAnyActiveRecordArm();
+
   // Row navigation while stopped (PatternEditor's move-row-up/down,
   // Page Up/Down, note-entry/backspace's own step, kill-region's bounds
   // adjustment, LaunchpadManager's step-entry advance/auto-stop landing

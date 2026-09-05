@@ -53,7 +53,7 @@ class SampleContent {
   // way playback can ever know whether (and how) to time-stretch this
   // audio to match the song's own current tempo.
   short getOriginalTempo() const { return original_tempo_; }
-  void setOriginalTempo(short bpm) { original_tempo_ = bpm; stretched_dirty_ = true; }
+  void setOriginalTempo(short bpm) { original_tempo_ = bpm; waveform_peaks_dirty_ = true; stretched_dirty_ = true; }
 
   // The sample rate getBuffer() is actually at - may differ from the
   // project's own *current* output rate (e.g. a song recorded at 192kHz,
@@ -80,12 +80,27 @@ class SampleContent {
   // passed in fresh by the caller (Clip::getWaveformPeaks()) and compared
   // against what the cache itself already remembers being built with
   // (WaveformPeaks::rowCount()/subrowsPerRow()), rather than tracked here
-  // a second time.
+  // a second time. original_tempo_ is passed straight through too - see
+  // WaveformPeaks::build()'s own comment on what it's for.
+  //
+  // Also compared against the buffer's own current frame count, not just
+  // its identity - a live take's own buffer_ is the exact same shared_ptr
+  // for its whole duration (Controller::beginSampleCapture()'s own
+  // comment: addToSample() appends into it in place), so none of the
+  // setters above ever fire again while it's actively growing. Without
+  // this, the cache only ever rebuilt when row_count happened to change
+  // (extendRecordingSampleClipIfNeeded()'s own whole-bar growth steps),
+  // showing a stale snapshot of an earlier, shorter buffer the rest of
+  // the time and jumping discontinuously between snapshots instead of
+  // tracking the take as it's actually recorded.
   const WaveformPeaks & getWaveformPeaks(int row_count, int subrows_per_row) const {
-    if (waveform_peaks_dirty_ || waveform_peaks_.rowCount() != row_count || waveform_peaks_.subrowsPerRow() != subrows_per_row) {
+    auto frame_count = buffer_ ? buffer_->numberOfFrames() : 0;
+    if (waveform_peaks_dirty_ || waveform_peaks_.rowCount() != row_count || waveform_peaks_.subrowsPerRow() != subrows_per_row ||
+        frame_count != waveform_peaks_built_frame_count_) {
       waveform_peaks_ = WaveformPeaks();
-      if (buffer_) waveform_peaks_.build(*buffer_, native_sample_rate_, in_point_, out_point_, row_count, subrows_per_row);
+      if (buffer_) waveform_peaks_.build(*buffer_, native_sample_rate_, in_point_, out_point_, row_count, subrows_per_row, original_tempo_);
       waveform_peaks_dirty_ = false;
+      waveform_peaks_built_frame_count_ = frame_count;
     }
     return waveform_peaks_;
   }
@@ -144,6 +159,11 @@ class SampleContent {
   // in the setters that actually change the audio this represents.
   mutable WaveformPeaks waveform_peaks_;
   mutable bool waveform_peaks_dirty_ = true;
+  // The buffer's own numberOfFrames() as of the last build - see
+  // getWaveformPeaks()'s own comment on why this matters alongside
+  // waveform_peaks_dirty_ above. -1 (not 0) so a genuinely empty buffer's
+  // first build (frame_count 0) doesn't read as already-cached.
+  mutable int waveform_peaks_built_frame_count_ = -1;
 
   // getStretchedBuffer()/setStretchedBuffer()'s own cache - mutable for
   // the same reason as the waveform cache above, but this class never

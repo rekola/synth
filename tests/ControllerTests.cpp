@@ -821,6 +821,77 @@ TEST(toggle_record_arm_is_a_noop_with_no_current_track_set) {
   CHECK(!controller.isNoteCaptureArmed());
 }
 
+// A real bug report: stopping the transport left an in-progress take just
+// hanging, with nothing left to record into - Space (togglePlaying(), the
+// only way playback ever actually stops) needs to finish it, not just
+// "toggle-record-arm" itself.
+TEST(toggle_playing_finishes_an_in_progress_recording_when_transport_stops) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+
+  auto & track = controller.getSong().addTrack(std::make_unique<SampleTrack>());
+  auto track_id = track.getInternalId();
+  controller.setRecordingTrackId(track_id);
+  controller.startRecording();
+
+  AudioBuffer block(1, 400);
+  controller.addToSample(block);
+  controller.beginSampleCapture(track_id);
+  CHECK(controller.isRecording());
+  CHECK(controller.hasRecordingClip());
+
+  controller.togglePlaying(); // starts playing - nothing to tear down yet
+  CHECK(controller.isRecording());
+
+  controller.togglePlaying(); // Space - stops the transport
+  CHECK(!controller.getPlaybackInfo().isPlaying());
+  CHECK(!controller.isRecording());
+  CHECK(!controller.hasRecordingClip());
+}
+
+// Same bug, the threshold-armed (not yet actually recording) case - arming
+// a SampleTrack auto-starts the transport, so manually stopping it again
+// needs to disarm the take that auto-start was for, not leave it armed
+// with playback now stopped underneath it.
+TEST(toggle_playing_disarms_threshold_recording_when_transport_stops) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+
+  auto & track = song.addTrack(std::make_unique<SampleTrack>());
+  song.setCurrentTrackId(track.getInternalId());
+
+  controller.sendCommand("toggle-record-arm"); // arms + auto-starts playback
+  CHECK(controller.isThresholdArmed());
+  CHECK(controller.getPlaybackInfo().isPlaying());
+
+  controller.togglePlaying(); // Space - stops the transport directly, not via the button
+  CHECK(!controller.getPlaybackInfo().isPlaying());
+  CHECK(!controller.isThresholdArmed());
+}
+
+// Same bug, the note-capture-armed case.
+TEST(toggle_playing_disarms_note_capture_when_transport_stops) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+
+  auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
+  song.setCurrentTrackId(track.getInternalId());
+
+  controller.sendCommand("toggle-record-arm");
+  CHECK(controller.isNoteCaptureArmed());
+  controller.togglePlaying(); // starts playing (arming a note track doesn't do this itself here - that's LaunchpadManager's own job)
+  CHECK(controller.getPlaybackInfo().isPlaying());
+
+  controller.togglePlaying(); // Space - stops the transport
+  CHECK(!controller.getPlaybackInfo().isPlaying());
+  CHECK(!controller.isNoteCaptureArmed());
+}
+
 // End-to-end: sendCommand("merge-clip-to-background") resolves its target
 // purely from Song::getCurrentTrackId() and the playhead
 // (getPlaybackInfo()) - no PatternEditor/ArrangementGrid/SessionView

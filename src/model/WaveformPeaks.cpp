@@ -2,6 +2,7 @@
 
 #include "../audio/AudioBuffer.h"
 
+#include <algorithm>
 #include <cmath>
 
 using namespace std;
@@ -15,7 +16,7 @@ WaveformPeaks::at(int row, int subrow) const {
 }
 
 void
-WaveformPeaks::build(const AudioBuffer & buffer, int native_sample_rate, float in_point, float out_point, int row_count, int subrows_per_row) {
+WaveformPeaks::build(const AudioBuffer & buffer, int native_sample_rate, float in_point, float out_point, int row_count, int subrows_per_row, int tempo) {
   peaks_.clear();
   subrows_per_row_ = subrows_per_row;
   if (row_count <= 0 || subrows_per_row <= 0 || native_sample_rate <= 0) return;
@@ -41,14 +42,41 @@ WaveformPeaks::build(const AudioBuffer & buffer, int native_sample_rate, float i
   auto trimmed_frames = out_frame - in_frame;
   auto * data = buffer.getChannelData(0);
   peaks_.reserve(static_cast<size_t>(bucket_count));
+
+  // A fixed, tempo-derived frames-per-subrow (mirrors ChannelConfiguration::
+  // getSampleInterval()'s own "4 rows per beat" convention exactly:
+  // 60 / 4 / tempo seconds per row), used whenever a real tempo is known,
+  // instead of always dividing however many trimmed frames currently
+  // exist evenly across bucket_count. A live take's own row_count
+  // (Clip::getLength()) is a provisional window that grows ahead of real
+  // time in whole-bar steps (Controller::extendRecordingSampleClipIfNeeded())
+  // while real audio arrives continuously - dividing evenly would reflow
+  // every already-recorded bucket's own frame range on every single frame
+  // appended, and again on every bar-sized row_count jump, so the display
+  // kept reshaping content that had already finished recording instead of
+  // just extending it. Anchoring each bucket to a fixed interval instead
+  // means only the newest buckets ever pick up new content; everything
+  // earlier stays exactly where it already was. `tempo <= 0` (a
+  // hand-authored or file-referencing clip with no known tempo - see
+  // SampleContent::getOriginalTempo()'s own comment) falls back to the
+  // even-division scheme, unchanged from before - there's no fixed
+  // interval to anchor to without one.
+  auto subrow_frames = tempo > 0 ? 60.0 / 4.0 / tempo * native_sample_rate / subrows_per_row : 0.0;
+
   for (int bucket = 0; bucket < bucket_count; bucket++) {
-    // Evenly divided by bucket index, not a fixed frames-per-bucket
-    // stride - the trimmed range's own frame count rarely divides evenly
-    // by bucket_count, and this keeps every bucket's own span as close to
-    // equal as integer rounding allows instead of concentrating the
-    // remainder into one oversized final bucket.
-    auto start = in_frame + static_cast<int>(static_cast<int64_t>(bucket) * trimmed_frames / bucket_count);
-    auto end = in_frame + static_cast<int>(static_cast<int64_t>(bucket + 1) * trimmed_frames / bucket_count);
+    int start, end;
+    if (subrow_frames > 0.0) {
+      start = std::min(in_frame + static_cast<int>(llround(bucket * subrow_frames)), out_frame);
+      end = std::min(in_frame + static_cast<int>(llround((bucket + 1) * subrow_frames)), out_frame);
+    } else {
+      // Evenly divided by bucket index, not a fixed frames-per-bucket
+      // stride - the trimmed range's own frame count rarely divides evenly
+      // by bucket_count, and this keeps every bucket's own span as close
+      // to equal as integer rounding allows instead of concentrating the
+      // remainder into one oversized final bucket.
+      start = in_frame + static_cast<int>(static_cast<int64_t>(bucket) * trimmed_frames / bucket_count);
+      end = in_frame + static_cast<int>(static_cast<int64_t>(bucket + 1) * trimmed_frames / bucket_count);
+    }
     // RMS, not the single loudest sample in the bucket - a peak detector
     // makes ordinary, unclipped audio look saturated: real content's own
     // instantaneous peak sample lands close to the clip's overall peak in

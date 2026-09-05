@@ -492,6 +492,79 @@ TEST(waveform_peaks_rebuilds_when_the_buffer_is_replaced) {
   CHECK_NEAR(peaks.at(0, 0), 0.9f, 1e-4f); // reflects the new buffer's own content, not a stale cache
 }
 
+// A real bug report: the live waveform view didn't track an in-progress
+// recording. A live take's own buffer is the exact same shared_ptr for its
+// whole duration - Controller::addToSample() grows it in place via
+// AudioBuffer::append() - so setBuffer() never runs again to mark the
+// cache dirty; without also checking the buffer's own frame count, a
+// still-recording take showed a stale snapshot from whenever row_count
+// last happened to change, not what was actually just captured.
+TEST(waveform_peaks_rebuilds_when_the_same_buffer_grows_in_place) {
+  Clip clip(0);
+  auto & content = clip.getOrCreateSampleContent();
+  content.setBuffer(buildBuffer(10, [](int) { return 0.2f; }));
+  content.setNativeSampleRate(8000);
+  clip.setLength(1);
+
+  clip.getWaveformPeaks(1); // first build, cached
+
+  content.getBuffer()->append(*buildBuffer(10, [](int) { return 0.9f; })); // same buffer object, no setBuffer() call
+  auto & peaks = clip.getWaveformPeaks(1); // same row_count/subrows as before
+  // RMS over all 20 frames (10 @ 0.2, 10 @ 0.9), not the stale 10-frame
+  // 0.2-only snapshot from the first build.
+  CHECK_NEAR(peaks.at(0, 0), 0.6519f, 1e-3f);
+}
+
+// A real bug report: the live waveform view kept reshaping content that
+// had already finished recording, not just extending it - a live take's
+// own row_count (Clip::getLength()) grows ahead of real time in whole-bar
+// steps (Controller::extendRecordingSampleClipIfNeeded()), and dividing
+// the currently-captured buffer evenly across row_count reflowed every
+// earlier row's own bucket boundaries each time it grew. With a known
+// tempo, each row is anchored to a fixed frame span instead, so an
+// already-elapsed row's own value never changes again once its own span
+// is fully captured, no matter how much row_count or the buffer itself
+// grows afterward.
+TEST(waveform_peaks_of_a_growing_live_take_do_not_reflow_already_recorded_rows) {
+  Clip clip(0);
+  auto & content = clip.getOrCreateSampleContent();
+  // 8000 Hz, 120 bpm -> 60 / 4 / 120 * 8000 = 1000 frames/row (1 subrow/
+  // row). Row 0's own full span (frames 0-999) is already fully captured
+  // (800 frames @ 0.2, then 200 @ 1.0); frames 1000-1499 belong to the
+  // still-in-progress row 1, not yet even allocated its own bar.
+  content.setBuffer(buildBuffer(1500, [](int i) { return i < 800 ? 0.2f : 1.0f; }));
+  content.setNativeSampleRate(8000);
+  content.setOriginalTempo(120);
+  clip.setLength(1); // row_count still 1
+
+  auto & before = clip.getWaveformPeaks(1);
+  auto row0_before = before.at(0, 0);
+  CHECK_NEAR(row0_before, 0.4817f, 1e-3f); // row 0's own frame span alone, not the whole 1500-frame buffer
+
+  clip.setLength(2); // extendRecordingSampleClipIfNeeded()'s own whole-bar growth
+  auto & after = clip.getWaveformPeaks(1);
+  CHECK_NEAR(after.at(0, 0), row0_before, 1e-6f); // unchanged - already-recorded content stays put
+  CHECK_NEAR(after.at(1, 0), 1.0f, 1e-3f); // the new row's own (still-partial) content
+}
+
+// Without a known tempo (a hand-authored or file-referencing clip -
+// SampleContent::getOriginalTempo()'s own comment), there's no fixed
+// interval to anchor rows to - falls back to the plain even-division
+// scheme, unchanged from before tempo-anchoring existed.
+TEST(waveform_peaks_falls_back_to_even_division_without_a_known_tempo) {
+  Clip clip(0);
+  auto & content = clip.getOrCreateSampleContent();
+  content.setBuffer(buildBuffer(1500, [](int i) { return i < 800 ? 0.2f : 1.0f; }));
+  content.setNativeSampleRate(8000);
+  CHECK(content.getOriginalTempo() == 0); // never set
+  clip.setLength(1);
+
+  auto & peaks = clip.getWaveformPeaks(1);
+  // The single bucket spans the *whole* buffer, not just a tempo-implied
+  // row span - RMS over all 1500 frames (800 @ 0.2, 700 @ 1.0).
+  CHECK_NEAR(peaks.at(0, 0), 0.6986f, 1e-3f);
+}
+
 TEST(waveform_peaks_rebuilds_when_row_count_or_subrows_change) {
   Clip clip(0);
   auto & content = clip.getOrCreateSampleContent();

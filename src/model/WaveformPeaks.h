@@ -11,8 +11,13 @@ class AudioBuffer;
 // (that's how the length was set in the first place, ChannelConfiguration::
 // framesToRows()), and a future live tempo change is meant to time-stretch
 // the audio itself to keep matching that same row span rather than changing
-// what row a given moment falls on - so no seconds/tempo conversion
-// belongs in this class at all, just a fixed number of buckets per row.
+// what row a given moment falls on. build()'s own tempo parameter exists
+// only to anchor each bucket to a fixed, tempo-derived frame span while a
+// clip's own row window is still provisional (a live take in progress -
+// see build()'s own comment) - it's not a seconds/tempo conversion this
+// class keeps or exposes anywhere else, and for an already-finished clip
+// (whose row_count was itself computed from that same tempo) it reaches
+// the same buckets the plain "divide evenly" fallback would anyway.
 // Owned by Clip (getWaveformPeaks()), which knows both its own row length
 // and its SampleContent - never held directly by SampleContent, which
 // knows neither.
@@ -45,16 +50,26 @@ class WaveformPeaks {
   float at(int row, int subrow) const;
 
   // Rebuilds from scratch against `buffer`'s channel 0 (SampleTrack
-  // content is always mono), dividing the frame range `in_point`/
+  // content is always mono), splitting the frame range `in_point`/
   // `out_point` (SampleContent's own trim seconds, at `native_sample_rate`)
-  // evenly into `row_count * subrows_per_row` buckets - the same
+  // into `row_count * subrows_per_row` buckets - the same
   // clamped-to-what's-actually-audible resolution
   // SampleTrackState::triggerClip() already applies for playback,
   // duplicated here rather than shared since that one resolves against
   // the *output* rate post-resample and this one deliberately stays in
   // the buffer's own native rate (this cache is audio-content-indexed,
   // entirely independent of whatever output rate happens to be running).
-  void build(const AudioBuffer & buffer, int native_sample_rate, float in_point, float out_point, int row_count, int subrows_per_row);
+  //
+  // `tempo` (SampleContent::getOriginalTempo()) anchors each bucket to a
+  // fixed frame span (60 / 4 / tempo seconds per row, matching
+  // ChannelConfiguration::getSampleInterval()'s own convention) when
+  // known, rather than always dividing however many trimmed frames
+  // currently exist evenly across the bucket count - see the .cpp's own
+  // comment for why an always-divide-evenly scheme reflows a live take's
+  // already-recorded content every time more audio arrives. `tempo <= 0`
+  // (a hand-authored or file-referencing clip with no known tempo) falls
+  // back to that even-division scheme instead.
+  void build(const AudioBuffer & buffer, int native_sample_rate, float in_point, float out_point, int row_count, int subrows_per_row, int tempo);
 
  private:
   std::vector<float> peaks_;

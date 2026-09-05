@@ -653,9 +653,25 @@ Controller::togglePlaying() {
   // state plan's Part B).
   auto info = getPlaybackInfo();
   info.setIsPlaying(!info.isPlaying());
+  if (!info.isPlaying()) stopAnyActiveRecordArm();
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(info.isPlaying() ? PlaybackControlEvent::PLAY : PlaybackControlEvent::STOP, getActiveBufferName()));
   setPlaybackInfo(info);
   return info.isPlaying();
+}
+
+void
+Controller::stopAnyActiveRecordArm() {
+  if (isRecording()) {
+    finishSampleCapture();
+    record_arm_auto_started_playback_ = false;
+    return;
+  }
+  if (isThresholdArmed()) {
+    disarmThresholdRecording();
+    record_arm_auto_started_playback_ = false;
+    return;
+  }
+  if (isNoteCaptureArmed()) disarmNoteCapture();
 }
 
 void
