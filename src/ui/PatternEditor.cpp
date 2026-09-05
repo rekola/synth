@@ -2855,8 +2855,33 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	    // touched fg) so nothing after this branch inherits a stale blend.
 	    setFgColor(cell_fg);
 	    setBgColor(cell_bg);
+	  } else if (read_target.is_instance) {
+	    // An instance is placed here, but its own clip has no sample
+	    // content yet - nothing to show a shape for, but a solid fill
+	    // still reads as "something's supposed to be here."
+	    putstr(display_row, current_pos, std::string(static_cast<size_t>(width), 'x'));
 	  } else {
-	    putstr(display_row, current_pos, std::string(static_cast<size_t>(width), read_target.is_instance ? 'x' : ' '));
+	    // No clip instance placed here at all - a regular dot pattern,
+	    // matching every other column type's own "nothing defined here
+	    // yet" placeholder (Note::toString()'s "···" for NOTE, "--" for
+	    // VELOCITY/DELAY) rather than a blank void. Dimmed further than
+	    // those (0.8, not their own 0.5 blend toward the cell background)
+	    // - filling this whole, much wider box solidly with dots at that
+	    // same ratio read as too prominent, more like real content than a
+	    // faint placeholder.
+	    setFgColor(cell_fg.blend(0.8f, cell_bg));
+	    string dots;
+	    for (int dot = 0; dot < width; dot++) dots += "·";
+	    putstr(display_row, current_pos, dots);
+	    // A zero-amplitude reference axis, at the same center column a
+	    // real waveform's own bars are always centered on (renderWaveformRow()
+	    // above) - only drawn here, where there's no clip instance at all,
+	    // not over real content: a fixed divider line cutting through an
+	    // actual waveform's own antialiased shape read as visual clutter
+	    // rather than a helpful reference.
+	    setFgColor(styles.window_border_color);
+	    putstr(display_row, current_pos + width / 2, "│");
+	    setFgColor(cell_fg);
 	  }
 	  // No separate leading-row digit drawn here - this track's own
 	  // trailing identifier cell (color_ordinal_ >= 0, below, once every
