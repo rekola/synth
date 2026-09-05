@@ -206,3 +206,29 @@ Found 2026-07-11, not yet fixed.
   switching to `utf8proc` would add a second, otherwise-unneeded Unicode
   library to the dependency graph purely to cover that case.
 
+- **SoundTouch-based tempo change (`TimeStretcher.h`'s `stretchMono()`)
+  blocks the renderer and sounds metallic.** `SampleTrackState::
+  triggerClip()` (`SampleTrack.cpp`) calls it synchronously, inline, the
+  first time a clip is triggered at a song tempo that disagrees with its
+  own recorded tempo - there's no cache yet at that point
+  (`SampleContent::getStretchedBuffer()` only starts returning a hit
+  *after* this same call already ran once and stored it via
+  `setStretchedBuffer()`), and this whole call chain runs on the audio
+  thread's own render path, not off it - so the very first trigger of a
+  tempo-mismatched clip stalls real-time rendering for however long
+  SoundTouch takes to process that clip's whole trimmed length, audible
+  as a dropout/glitch. Separately, the output quality itself doesn't
+  sound good - a metallic, reverb-like character - for reasons not yet
+  root-caused; `stretchMono()` only calls `setSampleRate()`/
+  `setChannels()`/`setTempo()` before processing, using every other
+  SoundTouch setting (WSOLA sequence/seek-window/overlap length,
+  `AA_FILTER`, etc.) at its own compiled-in default, which may simply not
+  suit this engine's typical content/stretch ratios - not confirmed
+  against tuning those settings, or against an entirely different
+  algorithm. Not fixed - would need either moving the stretch off the
+  render thread (background it and hold/mute until ready, or precompute
+  it eagerly whenever a clip's tempo relationship becomes known rather
+  than lazily on first trigger) and a real investigation into SoundTouch's
+  own tunable parameters for the metallic artifact, or replacing the
+  library entirely if tuning doesn't resolve it.
+

@@ -2629,6 +2629,36 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       // own loudest, fully-filled cells instead of a solid block.
       constexpr float kQuietCoverageThreshold = 0.05f;
       if (max_coverage < kQuietCoverageThreshold) {
+	// Reference lines - 0 amplitude at the exact center (every row's
+	// own bar is centered here, see slotCoverage() above), and 0.5
+	// amplitude at the quarter/three-quarter columns (where a
+	// half-amplitude bar's own two edges would sit, by the same
+	// centered-fill geometry) - roughly -6dBFS, a genuinely meaningful
+	// level reference rather than an arbitrary column. Only drawn where
+	// coverage is already known to be ~0 (this branch), same as the
+	// quiet dot below - a fixed line cutting through real, antialiased
+	// waveform content elsewhere read as visual clutter rather than a
+	// helpful reference (see the fallback fill's own identical marks,
+	// always shown there since nothing real is ever competing with them).
+	if (c == width / 2) {
+	  setFgColor(styles.window_border_color);
+	  setBgColor(bg_color);
+	  putstr(display_row, start_col + c, "│");
+	  continue;
+	}
+	if (c == width / 4 || c == 3 * width / 4) {
+	  // The two 0.5-amplitude lines read as secondary to the 0-amplitude
+	  // one - half its opacity (blended toward bg_color, the same way a
+	  // half-opacity layer would read against whatever's under it) and
+	  // tinted with this clip's own color (fg_color, already blended
+	  // with the track's identity color at the call site) rather than
+	  // plain border gray, so they visibly belong to *this* clip.
+	  auto tinted_border = styles.window_border_color.blend(0.5f, fg_color);
+	  setFgColor(bg_color.blend(0.5f, tinted_border));
+	  setBgColor(bg_color);
+	  putstr(display_row, start_col + c, "│");
+	  continue;
+	}
 	// No sextant/quadrant blocks actually placed in this cell - the
 	// amplitude bar doesn't reach this column at all, at any of its own
 	// sub-rows. A faint dot, tinted toward this clip's own color -
@@ -2911,14 +2941,30 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	    string dots;
 	    for (int dot = 0; dot < width; dot++) dots += "·";
 	    putstr(display_row, current_pos, dots);
-	    // A zero-amplitude reference axis, at the same center column a
-	    // real waveform's own bars are always centered on (renderWaveformRow()
-	    // above) - only drawn here, where there's no clip instance at all,
-	    // not over real content: a fixed divider line cutting through an
-	    // actual waveform's own antialiased shape read as visual clutter
-	    // rather than a helpful reference.
+	    // Reference lines - 0 amplitude at the exact center, the same
+	    // column a real waveform's own bars are always centered on
+	    // (renderWaveformRow()'s own comment), plus 0.5 amplitude at the
+	    // quarter/three-quarter columns (where a half-amplitude bar's own
+	    // two edges would sit, by that same centered-fill geometry) -
+	    // roughly -6dBFS, a genuinely meaningful level reference rather
+	    // than an arbitrary column. Only drawn here, where there's no
+	    // clip instance at all, not over real content: a fixed divider
+	    // line cutting through an actual waveform's own antialiased shape
+	    // read as visual clutter rather than a helpful reference (see
+	    // renderWaveformRow()'s own identical marks, drawn only where its
+	    // own coverage is already ~0 for the same reason).
 	    setFgColor(styles.window_border_color);
 	    putstr(display_row, current_pos + width / 2, "│");
+	    // The two 0.5-amplitude lines read as secondary to the 0-amplitude
+	    // one above - half its opacity (blended toward cell_bg, the same
+	    // way a half-opacity layer would read against whatever's under
+	    // it). Plain border gray, not tinted with any clip color - unlike
+	    // renderWaveformRow()'s own identical lines, there's no clip
+	    // actually here to tint with (that's the whole reason this branch
+	    // runs at all).
+	    setFgColor(cell_bg.blend(0.5f, styles.window_border_color));
+	    putstr(display_row, current_pos + width / 4, "│");
+	    putstr(display_row, current_pos + 3 * width / 4, "│");
 	    setFgColor(cell_fg);
 	  }
 	  // No separate leading-row digit drawn here - this track's own

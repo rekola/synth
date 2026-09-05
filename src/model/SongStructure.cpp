@@ -92,7 +92,17 @@ SongStructure::visit(const Track & track) {
     // shape, not just enough for a note name.
     VisibleTrackInfo info;
     info.collapsed_ = track.isCollapsed();
-    info.sample_placeholder_width_ = 24;
+    // Must be === 0 (mod 4): PatternEditor::renderRow()'s own waveform-box
+    // reference lines (0 amplitude at the exact center, 0.5 amplitude -
+    // roughly -6dBFS - at the quarter/three-quarter columns) land with
+    // exactly equal spacing on every side only when the actually-drawn
+    // width (this minus 1 - see getColumnWidth()'s "+ identifier_cell"
+    // and renderRow()'s own "- 2" derivation from it) is === 3 (mod 4).
+    // The static_assert catches this value ever changing without also
+    // rechecking that geometry, rather than silently uneven spacing.
+    static constexpr int kSamplePlaceholderWidth = 24;
+    static_assert(kSamplePlaceholderWidth % 4 == 0);
+    info.sample_placeholder_width_ = kSamplePlaceholderWidth;
     assign(std::move(info));
   } else if (track.getType() == TrackType::EFFECT) {
     // Every per-track effect (Chorus/Compressor/TapeDegradation/...) gets

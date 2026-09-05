@@ -93,6 +93,33 @@ TEST(song_structure_baseline_is_a_wide_waveform_column_only_for_sample_tracks) {
   CHECK(sample_info.color_ordinal_ >= 0); // color-eligible, same as every other leaf track
 }
 
+// The static_assert in SongStructure.cpp's own SAMPLE branch already
+// guards sample_placeholder_width_ at compile time - this verifies the
+// actual geometry it exists to protect: PatternEditor::renderRow()'s
+// three waveform-box reference lines (0 amplitude at the center, 0.5
+// amplitude at the quarter/three-quarter columns) land with exactly
+// equal spacing on every side, not skewed toward one edge.
+TEST(song_structure_sample_placeholder_width_gives_evenly_spaced_reference_lines) {
+  Song song;
+  auto & sample = song.addTrack(make_unique<SampleTrack>());
+  SongStructure structure(song);
+
+  auto & sample_info = structure.getBaselineInfo(sample.getInternalId());
+  // Same "- 2" derivation PatternEditor::renderRow()'s own SAMPLE branch
+  // uses to get from getColumnWidth() to the actually-drawn width.
+  auto width = sample_info.getColumnWidth(0) - 2;
+  auto quarter = width / 4, half = width / 2, three_quarter = 3 * width / 4;
+
+  auto gap_before = quarter;
+  auto gap_mid1 = half - quarter - 1;
+  auto gap_mid2 = three_quarter - half - 1;
+  auto gap_after = width - 1 - three_quarter;
+  CHECK(gap_before == gap_mid1);
+  CHECK(gap_mid1 == gap_mid2);
+  CHECK(gap_mid2 == gap_after);
+  CHECK(gap_before > 0); // a real gap, not the lines flush against each other/the edges
+}
+
 TEST(song_structure_gives_a_drum_machine_track_one_note_only_column_per_lane_plus_effect) {
   // DrumMachineTrack's step content is an ordinary per-scene Pattern now
   // (like InstrumentTrack/PercussionTrack), not the track-global sequence
