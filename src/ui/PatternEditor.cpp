@@ -2602,6 +2602,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     };
     vector<SubcellRgb> samples(static_cast<size_t>(waveform_subrows * 2));
     for (int c = 0; c < width; c++) {
+      float max_coverage = 0.0f;
       for (int s = 0; s < waveform_subrows; s++) {
 	for (int h = 0; h < 2; h++) {
 	  auto gc = c * 2 + h;
@@ -2610,6 +2611,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	    coverage_sum += slotCoverage(peaks.at(row, s * kWaveformSupersample + m), gc);
 	  }
 	  auto coverage = static_cast<float>(coverage_sum / kWaveformSupersample);
+	  max_coverage = std::max(max_coverage, coverage);
 	  samples[static_cast<size_t>(s * 2 + h)] = SubcellRgb{
 	    bg_rgb.r * (1.0f - coverage) + fg_rgb.r * coverage,
 	    bg_rgb.g * (1.0f - coverage) + fg_rgb.g * coverage,
@@ -2617,12 +2619,44 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  };
 	}
       }
-      SubcellRgb on_color, off_color;
-      int mask = quantizeToTwoColors(samples, on_color, off_color);
-      setFgColor(Color(static_cast<int>(on_color.r), static_cast<int>(on_color.g), static_cast<int>(on_color.b)));
-      setBgColor(Color(static_cast<int>(off_color.r), static_cast<int>(off_color.g), static_cast<int>(off_color.b)));
-      auto codepoint = waveform_subrows == 3 ? sextantCodepoint(mask) : kQuadrantCodepoints[mask];
-      putstr(display_row, start_col + c, Utf8::encodeCodepoint(codepoint));
+      // Genuinely no coverage anywhere in this cell - checked directly
+      // against the coverage values themselves, not quantizeToTwoColors()'s
+      // own returned mask: a *fully saturated* cell (every sub-position at
+      // 100% coverage) also ties at mask 0 there (every possible split
+      // costs the same when all samples are already identical, and mask 0
+      // is the first one tried - see quantizeToTwoColors()'s own tests),
+      // which would otherwise draw a quiet dot right over the waveform's
+      // own loudest, fully-filled cells instead of a solid block.
+      constexpr float kQuietCoverageThreshold = 0.05f;
+      if (max_coverage < kQuietCoverageThreshold) {
+	// No sextant/quadrant blocks actually placed in this cell - the
+	// amplitude bar doesn't reach this column at all, at any of its own
+	// sub-rows. A faint dot, tinted toward this clip's own color -
+	// darkened first (for faintness), then mixed in at a stronger ratio
+	// than a plain wash would use, so the result reads as a dim but
+	// clearly colored dot rather than a pale, washed-out one - instead
+	// of a flat, undifferentiated fill of the plain background. The
+	// same regular dotting a track with no clip instance at all shows
+	// (see the fallback fill above), so a quiet stretch of real audio
+	// still reads as "this clip is here, just faint." Blended mostly
+	// toward bg_color deliberately, not away from it - "faint" means
+	// close to whatever the row's own current background actually is
+	// (plain window background, playhead green, or selection highlight
+	// alike), not a fixed contrast level fighting to stay visible
+	// against it.
+	constexpr float kQuietDotTint = 0.35f;
+	auto darkened_fg = fg_color.blend(0.5f, Color());
+	setFgColor(bg_color.blend(kQuietDotTint, darkened_fg));
+	setBgColor(bg_color);
+	putstr(display_row, start_col + c, "·");
+      } else {
+	SubcellRgb on_color, off_color;
+	int mask = quantizeToTwoColors(samples, on_color, off_color);
+	setFgColor(Color(static_cast<int>(on_color.r), static_cast<int>(on_color.g), static_cast<int>(on_color.b)));
+	setBgColor(Color(static_cast<int>(off_color.r), static_cast<int>(off_color.g), static_cast<int>(off_color.b)));
+	auto codepoint = waveform_subrows == 3 ? sextantCodepoint(mask) : kQuadrantCodepoints[mask];
+	putstr(display_row, start_col + c, Utf8::encodeCodepoint(codepoint));
+      }
     }
   };
 
@@ -2868,7 +2902,11 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	    // those (0.8, not their own 0.5 blend toward the cell background)
 	    // - filling this whole, much wider box solidly with dots at that
 	    // same ratio read as too prominent, more like real content than a
-	    // faint placeholder.
+	    // faint placeholder. Blended toward cell_bg deliberately, not away
+	    // from it - "faint" means close to whatever the row's own current
+	    // background actually is (plain window background, playhead
+	    // green, or selection highlight alike), not a fixed contrast
+	    // level fighting to stay visible against it.
 	    setFgColor(cell_fg.blend(0.8f, cell_bg));
 	    string dots;
 	    for (int dot = 0; dot < width; dot++) dots += "·";
