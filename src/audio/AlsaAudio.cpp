@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <fmt/core.h>
 #include <unistd.h>
+#include <utility>
 
 using namespace std;
 
@@ -162,8 +163,9 @@ static size_t initialize_alsa_dev(Logger & logger, snd_pcm_t * handle, int rate,
 }
 
 void
-AlsaAudio::initialize(Logger & logger) {
+AlsaAudio::initialize(Logger & logger, string capture_device_name) {
   int r;
+  capture_device_name_ = std::move(capture_device_name);
 
   // Open the PCM device in playback mode. Without this, there is nothing
   // useful this class can do, so give up entirely on failure.
@@ -186,8 +188,8 @@ AlsaAudio::initialize(Logger & logger) {
   // Capture (used for sampling/recording) is optional: a machine without a
   // capture device (or without permission to open one) should still be able
   // to play songs.
-  if ((r = snd_pcm_open(&capture_handle, "default", SND_PCM_STREAM_CAPTURE, 0)) < 0) {
-    logger.log(string("WARNING: Can't open PCM device for capture, recording disabled: ") + snd_strerror(r));
+  if ((r = snd_pcm_open(&capture_handle, capture_device_name_.c_str(), SND_PCM_STREAM_CAPTURE, 0)) < 0) {
+    logger.log(string("WARNING: Can't open PCM device '") + capture_device_name_ + "' for capture, recording disabled: " + snd_strerror(r));
     capture_handle = nullptr;
   } else {
     // Capture always follows the now-finalized playback rate rather than
@@ -196,7 +198,7 @@ AlsaAudio::initialize(Logger & logger) {
     // away from what output_frames/negotiated_rate above already settled.
     input_frames = initialize_alsa_dev(logger, capture_handle, getFrequency(), 1, nullptr);
     if (!input_frames) {
-      logger.log("WARNING: Can't configure capture device, recording disabled");
+      logger.log("WARNING: Can't configure capture device '" + capture_device_name_ + "', recording disabled");
       snd_pcm_close(capture_handle);
       capture_handle = nullptr;
     }
@@ -296,20 +298,38 @@ AlsaAudio::record(Logger & logger) {
 
   startRecording();
 
-  auto frames = snd_pcm_avail_update(capture_handle);
+  auto avail = snd_pcm_avail_update(capture_handle);
+  if (avail < 0) {
+    // A negative return here is an error code (e.g. -EPIPE on an XRUN), not
+    // a frame count - passing it straight through as the AudioBuffer's own
+    // frame count and then on to snd_pcm_readi() below (cast to the
+    // unsigned snd_pcm_uframes_t it takes) turned a small negative int into
+    // a huge read request against a buffer that was never actually
+    // allocated for it, tripping ALSA's own `size == 0 || buffer` assertion.
+    int r = recoverFromPcmError(logger, capture_handle, static_cast<int>(avail), "capture");
+    if (r >= 0) {
+      // Unlike playback, capture never auto-starts just by accumulating
+      // reads - it needs an explicit snd_pcm_start(), same as the very
+      // first call (see startRecording()). recording_started latches
+      // that to a one-shot, so without clearing it here the stream would
+      // sit at PREPARED forever after recovering from an XRUN: never
+      // running, never producing frames again.
+      recording_started = false;
+      startRecording();
+    } else {
+      logger.log(string("ERROR. Can't read PCM device. ") + snd_strerror(static_cast<int>(avail)));
+    }
+    return AudioBuffer();
+  }
+
+  auto frames = static_cast<int>(avail);
   AudioBuffer data(1, frames);
 
-  if (frames) {
+  if (frames > 0) {
     int r = snd_pcm_readi(capture_handle, data.getChannelData(0), static_cast<snd_pcm_uframes_t>(frames));
     if (r < 0) {
       r = recoverFromPcmError(logger, capture_handle, r, "capture");
       if (r >= 0) {
-        // Unlike playback, capture never auto-starts just by accumulating
-        // reads - it needs an explicit snd_pcm_start(), same as the very
-        // first call (see startRecording()). recording_started latches
-        // that to a one-shot, so without clearing it here the stream would
-        // sit at PREPARED forever after recovering from an XRUN: never
-        // running, never producing frames again.
         recording_started = false;
         startRecording();
       } else {
@@ -336,7 +356,23 @@ AlsaAudio::startRecording() {
 
 void
 AlsaAudio::stopRecording() {
-  
+  if (!capture_handle || !recording_started) return;
+
+  // Actually halts the stream and discards whatever's sitting in its own
+  // buffer, unread - without this, the stream kept running the entire
+  // time capture wasn't needed (Player.cpp only ever stops *reading* from
+  // it, never stops it at the ALSA level), silently accumulating however
+  // much audio arrived during that whole gap. The next arm's own first
+  // record() call would otherwise read all of that backlog at once,
+  // indistinguishable from genuine signal - stale audio (an earlier,
+  // unrelated arm/disarm cycle's own leftover capture) landing at the
+  // front of a brand new take instead of silence.
+  snd_pcm_drop(capture_handle);
+  // Back to PREPARED - snd_pcm_start() (startRecording()) requires it,
+  // the same state initialize_alsa_dev() already left this stream in
+  // before its very first start.
+  snd_pcm_prepare(capture_handle);
+  recording_started = false;
 }
 
 // snd_pcm_delay() is the standard ALSA call for exactly this - how many

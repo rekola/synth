@@ -573,71 +573,12 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   // Promoted from the raw Ctrl-R handler, minus its old "reuse the
   // current track if it's already a SampleTrack" branch and its old
   // startRecording()/setRecordingTrackId() wiring - creating a
-  // SampleTrack and starting a take into one are now two separate
-  // actions (start-sample-capture/stop-sample-capture), so this is a
-  // plain "add a sibling track" command, matching add-instrument-track
-  // exactly.
+  // SampleTrack and starting a take into one are two separate actions
+  // ("toggle-record-arm" is the latter), so this is a plain "add a
+  // sibling track" command, matching add-instrument-track exactly.
   commands_.define("add-sample-track", [this, current_track_id]() {
     auto & song = getController().getSong();
     song.addTrack(make_unique<SampleTrack>(), current_track_id());
-  });
-
-  // Starts a mic-capture take, targeting a SampleTrack automatically - no
-  // separate add-sample-track step required (reuses the cursor's own
-  // SampleTrack if it's already on one, otherwise creates a fresh sibling
-  // exactly the way add-sample-track above does). Also starts the
-  // transport if it isn't already running (Controller::
-  // startAutoRecordPlayback(), not startAutoRecordSession() - see this
-  // method's own doc comment on Controller.h for why that one, not its
-  // mute-the-song sibling). The Clip itself isn't created here at all -
-  // Controller::beginSampleCapture() does that once a round-trip latency
-  // measurement arrives for this take (UI::handleRecordingLatencyEvent()),
-  // or lazily on first real audio for one that's never armed - see
-  // armRecordingStart()'s own doc comment for why the snapshot below
-  // still happens unconditionally, before that branch is even decided.
-  commands_.define("start-sample-capture", [this, current_track_id]() {
-    auto & song = getController().getSong();
-    auto track_ids = song.getRootTrackIds();
-    auto current_track = current_cursor.track >= 0 && current_cursor.track < static_cast<int>(track_ids.size()) ?
-      song.getMasterTrack().getChildByInternalId(track_ids[static_cast<size_t>(current_cursor.track)]) : nullptr;
-
-    int track_id;
-    if (current_track && current_track->getType() == TrackType::SAMPLE) {
-      track_id = current_track->getInternalId();
-    } else {
-      auto & track = song.addTrack(make_unique<SampleTrack>(), current_track_id());
-      track_id = track.getInternalId();
-    }
-
-    getController().startRecording();
-    getController().setRecordingTrackId(track_id);
-
-    // Snapshotted here, synchronously, before deciding whether playback
-    // needs auto-starting below - auto-starting doesn't move the
-    // position, so this take is exactly as placeable/latency-compensable
-    // whether the transport was already rolling or starts right now
-    // because of this same command.
-    auto & info = getController().getPlaybackInfo();
-    getController().armRecordingStart(info.getPatternIndex(), info.getRowIndex());
-
-    if (!info.isPlaying()) {
-      getController().startAutoRecordPlayback(sample_capture_auto_started_playback_);
-    } else {
-      sample_capture_auto_started_playback_ = false;
-    }
-  });
-
-  // Ends the take start-sample-capture began - Controller::
-  // finishSampleCapture() does the actual clip-finalizing/cleanup (see
-  // its own doc comment); this command's own job is just the transport
-  // side, stopping playback again if (and only if) this same take was
-  // the one that started it.
-  commands_.define("stop-sample-capture", [this]() {
-    getController().finishSampleCapture();
-    if (sample_capture_auto_started_playback_) {
-      getController().togglePlaying();
-      sample_capture_auto_started_playback_ = false;
-    }
   });
 
   // Create-fresh only - no "convert an existing track" path exists,
@@ -654,8 +595,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
 
   // A runtime side-by-side comparison between the two sub-cell glyph
   // candidates for a sample clip's waveform box (renderRow()'s own
-  // comment) - M-x only, no keybinding, matching copy-to-clip/
-  // stop-sample-capture above.
+  // comment) - M-x only, no keybinding, matching copy-to-clip above.
   commands_.define("toggle-waveform-glyph-style", [this]() {
     force_braille_waveform_ = !force_braille_waveform_;
     // No model mutation (no incVersion()) for render()'s own render_all
@@ -2844,19 +2784,20 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 
-	  // getColumnWidth(k) - 1, not getColumnWidth(k) directly - every
-	  // other column type's own drawing code below (NOTE/VELOCITY/DELAY/
-	  // EFFECT) draws exactly one *less* than its own getColumnWidth()
-	  // already, since that extra +1 is a pooled credit spent elsewhere
-	  // (the loop's own inter-column separator before whatever column
-	  // comes next, or - for the track's real last column - the shared
-	  // trailing divider drawn once after the whole k-loop finishes).
-	  // Drawing the full getColumnWidth(k) here instead double-spent that
-	  // credit, throwing this track's own trailing divider one column
-	  // out of step with renderHeading()'s (which stays correctly within
-	  // budget, since it only ever reads getTrackWidth() as a single
-	  // total, never per-column).
-	  auto width = std::max(track_info.getColumnWidth(k) - 1, 1);
+	  // getColumnWidth(k) - 2, not - 1 - this column is always both the
+	  // track's first and its real last column (a SampleTrack has exactly
+	  // one), so it always carries the identifier-cell +1 on top of the
+	  // ordinary border +1 every column's own getColumnWidth() bakes in
+	  // (see that method's own comment). NOTE/VELOCITY/DELAY only ever
+	  // give back the plain border +1 (their own drawing code below draws
+	  // exactly getColumnWidth(k) - 1), since the identifier +1 only
+	  // applies to a track's real last column - EFFECT, when it's that
+	  // last column, draws getColumnWidth(k) - 2 for the same reason this
+	  // does. Giving back only 1 here left this column's own trailing
+	  // divider one cell out of step with renderHeading()'s (which stays
+	  // correctly within budget, since it only ever reads getTrackWidth()
+	  // as a single total, never per-column).
+	  auto width = std::max(track_info.getColumnWidth(k) - 2, 1);
 	  // A real, sample-bearing instance draws its own waveform slice for
 	  // this row (waveform_row_glyphs() above) instead of a flat fill -
 	  // background content, an explicit stop, and an instance whose clip

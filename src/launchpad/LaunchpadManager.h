@@ -422,12 +422,12 @@ class LaunchpadManager {
     // sounding notes, used to brighten pads above LAUNCHPAD_IDLE_BRIGHTNESS.
     std::unordered_map<int, float> active_note_loudness;
 
-    // Record-arm state, mirrored here from LaunchpadManager's single
-    // song-wide capture_enabled_ (see that member's own comment) every
-    // refresh() call - reading it per-device like this keeps every other
-    // use site (handlePadEvent, anyCaptureArmedNoteHeld(), refreshLeds())
-    // unchanged even though there's really only one flag for the whole
-    // session, not one per Launchpad. Defaults off: a freshly connected
+    // Record-arm state, mirrored here from Controller::isNoteCaptureArmed()
+    // (see was_note_capture_armed_'s own comment) every refresh() call -
+    // reading it per-device like this keeps every other use site
+    // (handlePadEvent, refreshLeds()) unchanged even though there's really
+    // only one flag for the whole session, not one per Launchpad. Defaults
+    // off: a freshly connected
     // Launchpad is just an instrument until the player deliberately arms
     // recording, not a silent trap that overwrites pattern data the
     // moment you start experimenting. Gates pattern mutation only (Note
@@ -444,6 +444,20 @@ class LaunchpadManager {
     // grid and drum picker write in *both* arm states - only free playing
     // is gated.
     bool capture_enabled = false;
+
+    // What CC19's own LED actually shows - "is Record Arm doing anything
+    // right now", true whenever *any* of the three mutually-exclusive
+    // things "toggle-record-arm" can arm is active: note capture
+    // (capture_enabled above), or a SampleTrack's own threshold-armed/
+    // already-recording state (Controller::isThresholdArmed()/
+    // isRecording(), neither of which capture_enabled ever reflects - a
+    // SampleTrack's own arm cycle doesn't touch that flag at all). A
+    // separate field rather than folding this into capture_enabled itself
+    // since capture_enabled's own real job (gating note-track pattern
+    // mutation, see its own comment) must stay scoped to note capture only -
+    // widening it to include SampleTrack recording would wrongly gate note
+    // writes on other tracks while a SampleTrack is recording.
+    bool record_arm_led_on = false;
 
     // Matches the terminal UI's own default focus (UI::initialize()'s
     // active_element_) - a freshly connected Launchpad starts in the same
@@ -592,14 +606,6 @@ class LaunchpadManager {
   // observed disagreeing. RELEASE/AFTERTOUCH are no-ops - picking is a
   // plain tap, not a held gesture.
   void handleDrumPickerPadEvent(LaunchpadPadEvent & ev, Controller & controller, DrumMachineTrack & track);
-
-  // True iff some connected device both has capture_enabled and
-  // currently has at least one held note - the realtime auto-play
-  // trigger (see handlePadEvent()'s PRESS/RELEASE handling) recomputes
-  // this fresh on every press/release rather than caching it per-note,
-  // so toggling Capture mid-hold takes effect on the very next event
-  // without needing to track "was this specific note captured."
-  bool anyCaptureArmedNoteHeld() const;
 
   // True iff some currently-held note (on any device, not just the one
   // about to claim a column) already occupies (track_id, note_column) -
@@ -754,41 +760,40 @@ class LaunchpadManager {
   // while Record Arm is on. A no-op while nothing is actually playing.
   void placeRecordingStop(Controller & controller, int track_id);
 
-  // Record Arm (CC19) is one shared, song-wide flag, not a per-device
-  // setting (deliberate change from the original per-device design, made
-  // while implementing the free-running drum-machine audition loop:
-  // arming should be a single global state, since "am I recording" isn't
-  // a question that should have a different answer on two Launchpads
-  // plugged into the same session). handleRawButton()'s CC19
-  // branch flips this; refresh() copies it into every connected device's
-  // own DeviceState::capture_enabled every frame (see that field's own
-  // comment) so the entire rest of this file - handlePadEvent's
-  // capture-gated writes, anyCaptureArmedNoteHeld(), refreshLeds()'s CC19
-  // LED, and now Session view's own audition-vs-assign split
-  // (handleSessionPadEvent()) - keeps reading the per-device mirror
-  // unchanged, and every connected Launchpad's Record Arm LED shows the
-  // same lit/unlit state.
-  bool capture_enabled_ = false;
-
-  // handleRawButton()'s own CC19 branch, SampleTrack case only - whether
-  // *this* arm cycle is the one that started the transport
-  // (Controller::startAutoRecordPlayback()), so disarming/finishing later
-  // knows whether to stop it again. Its own field, not a reuse of
-  // auto_started_playback_ above - that one means something specific to
-  // the held-note recording session it's already scoped to, the same
-  // "each recording flow gets its own flag" precedent PatternEditor::
-  // sample_capture_auto_started_playback_ already set for start-sample-capture's
-  // own take.
-  bool threshold_auto_started_playback_ = false;
+  // Record Arm (CC19) is one shared, song-wide flag - Controller::
+  // isNoteCaptureArmed() for every track type but SampleTrack (its own
+  // isThresholdArmed()/isRecording() cover that one), flipped by the
+  // single, track-type-dispatching "toggle-record-arm" command
+  // (Controller.cpp) rather than by anything in this file directly, so it
+  // stays reachable without a Launchpad connected at all. refresh() still
+  // copies it into every connected device's own DeviceState::
+  // capture_enabled every frame (see that field's own comment) so the
+  // rest of this file - handlePadEvent's capture-gated writes,
+  // refreshLeds()'s CC19 LED, Session view's own audition-vs-assign split
+  // (handleSessionPadEvent()) - keeps
+  // reading the per-device mirror unchanged, and every connected
+  // Launchpad's Record Arm LED shows the same lit/unlit state.
+  //
+  // This file's own arm/disarm *side effects* (clearing Session-view
+  // audition state on arm; stopping an auto-started transport + unmuting
+  // on disarm) can no longer run inline in a button handler, since the
+  // flag itself can now flip from anywhere - M-x, a keybinding, a
+  // Launchpad press alike. refresh() instead reacts to this flag's own
+  // rising/falling edge each call, comparing it against
+  // was_note_capture_armed_ (this frame's own remembered previous value) -
+  // the same shape Player.cpp's own was_threshold_armed_ already
+  // established for the SampleTrack side of Record Arm.
+  bool was_note_capture_armed_ = false;
 
   // Controller::getGlobalOctave(), mirrored here once per refresh() call
-  // (same pattern as capture_enabled_ above) rather than threading
-  // Controller into octave()/resolveNote()/refreshLeds(), none of which
-  // otherwise need it. See octave()'s own comment.
+  // (same once-per-frame pattern as DeviceState::capture_enabled above)
+  // rather than threading Controller into octave()/resolveNote()/
+  // refreshLeds(), none of which otherwise need it. See octave()'s own
+  // comment.
   int cached_global_octave_ = 4;
 
   // refresh()'s own SessionWindow parameter, mirrored here (same
-  // capture_enabled_/cached_global_octave_ pattern) so handleSessionPadEvent() -
+  // once-per-frame pattern) so handleSessionPadEvent() -
   // called asynchronously between refresh() calls, on a real pad press -
   // can resolve which (track_id, scene index) a press landed on without
   // needing its own copy threaded through.

@@ -60,6 +60,7 @@ int main(int argc, char *argv[]) {
   bool force_cardioid = false; // --stereo: skip binaural HRTF decode even if available
   bool force_legacy_binaural = false; // --legacy-binaural: use the old virtual-speaker-rig decoder instead of MagLS
   bool show_licenses = false; // --licenses: print third-party license text and exit
+  string capture_device = "default"; // --capture-device: override which ALSA input AlsaAudio's capture opens, for a machine where "default" doesn't resolve to the mic actually wanted
   vector<string> input;
   string render_path;
 
@@ -90,6 +91,13 @@ int main(int argc, char *argv[]) {
       force_legacy_binaural = true;
     } else if (strcmp(argv[i], "--licenses") == 0) {
       show_licenses = true;
+    } else if (strcmp(argv[i], "--capture-device") == 0) {
+      if (i + 1 >= argc) {
+	fmt::print(stderr, "--capture-device requires a device name (e.g. 'default', 'hw:1,0' - see 'arecord -L')\n");
+	exit(1);
+      }
+      i++;
+      capture_device = argv[i];
     } else if (strcmp(argv[i], "--ambisonic") == 0) {
       int order = kAmbisonicOrder; // bare --ambisonic (no explicit number) means the highest supported order
       if (i + 1 < argc && argv[i + 1][0] != '-') {
@@ -143,7 +151,7 @@ int main(int argc, char *argv[]) {
   // Controller copies channel_config at construction time, so this has to
   // happen first, not be patched up after the fact.
   AlsaAudio audio(channel_config.getAudioOutSampleRate(), channel_config.getDeviceChannels());
-  audio.initialize(logger);
+  audio.initialize(logger, capture_device);
   channel_config.setAudioOutSampleRate(audio.getFrequency());
 
   auto controller = make_shared<Controller>(channel_config);

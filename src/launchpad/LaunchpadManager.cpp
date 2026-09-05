@@ -533,107 +533,20 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
   }
   // 19 (right column, continuing the "Track" control row order one
   // further past Send B - see this method's own doc comment) is the real
-  // Launchpad X's own dedicated "Record Arm" button - for every track
-  // type but SampleTrack (see the branch below for that one), a single,
-  // song-wide record-arm flag (capture_enabled_ - see its own comment for
-  // why this isn't per-device), not a Song/Track-mutating command, so
-  // it's a direct hardware-state flip here rather than a named command
-  // (same shape as the grid-mode toggles above, those *are* still
-  // per-device).
-  // Moved here from CC98 ("Capture MIDI", now reserved/unused again) -
-  // see DeviceState::capture_enabled's own comment for why. CC98 used to
-  // be wired to toggle-playing via the named-command pipeline before
-  // that; toggle-playing stays reachable via Space either way.
+  // Launchpad X's own dedicated "Record Arm" button. What it actually does
+  // depends on the currently selected track's own type (SampleTrack's own
+  // threshold-armed cycle vs. every other type's plain capture-armed
+  // toggle) and on whatever's already armed/recording (a press always
+  // means "stop that" first, regardless of the current track) - entirely
+  // "toggle-record-arm"'s own concern (Controller.cpp), not this file's,
+  // since the identical decision has to be reachable without a Launchpad
+  // connected at all (a keybinding, M-x). Moved here from CC98 ("Capture
+  // MIDI", now reserved/unused again) - see DeviceState::capture_enabled's
+  // own comment for why. CC98 used to be wired to toggle-playing via the
+  // named-command pipeline before that; toggle-playing stays reachable
+  // via Space either way.
   if (cc_number == 19) {
-    // A SampleTrack's own Record Arm means something different from
-    // every other track type's - loudness-threshold-armed recording
-    // (Controller::armThresholdRecording()'s own doc comment) rather
-    // than the plain capture_enabled_ flag below, the same "a different
-    // track type gives this control a different meaning" pattern
-    // fireOrTriggerClipStep() already established for Session-view
-    // triggering itself. Still a plain alternating press, just spanning
-    // three real states instead of two: idle -> armed (this press) ->
-    // genuinely recording (once the threshold actually trips, entirely
-    // Player.cpp/UI::handleThresholdRecordingTriggeredEvent()'s own
-    // doing, no further button press involved) -> idle again (a later
-    // press, whichever of the two non-idle states it catches).
-    auto * track = controller.getSong().getMasterTrack().getChildByInternalId(track_id);
-    if (track && track->getType() == TrackType::SAMPLE) {
-      auto stop_if_auto_started = [&]() {
-	if (threshold_auto_started_playback_) {
-	  controller.togglePlaying();
-	  threshold_auto_started_playback_ = false;
-	}
-      };
-      if (controller.isRecording()) {
-	controller.finishSampleCapture();
-	stop_if_auto_started();
-      } else if (controller.isThresholdArmed()) {
-	controller.disarmThresholdRecording();
-	stop_if_auto_started();
-      } else {
-	controller.armThresholdRecording(track_id);
-	if (!controller.getPlaybackInfo().isPlaying()) {
-	  controller.startAutoRecordPlayback(threshold_auto_started_playback_);
-	} else {
-	  threshold_auto_started_playback_ = false;
-	}
-      }
-      return true;
-    }
-
-    capture_enabled_ = !capture_enabled_;
-    if (capture_enabled_) {
-      // Arming: audition-only live-trigger bookkeeping becomes
-      // meaningless from here on - capture_enabled_ alone already stops
-      // the free-running audition_clock_ (see audition_active's own
-      // comment: "the player is presumably about to record something
-      // deliberate and doesn't want an uncontrolled loop underneath it"),
-      // but that only stops the *clock*, not the data - triggered_pattern_
-      // by_track_/queued_pattern_by_track_ themselves stayed exactly as
-      // they were. Left alone, they'd sit there stale through the whole
-      // recording session and then resurrect the moment it ends: stopping
-      // playback later makes audition_active true again
-      // (!isPlaying() && !capture_enabled_), restarting the clock, which
-      // would immediately resume "auditioning" whatever was still marked
-      // triggered here - an old clip suddenly playing again, and its own
-      // stale LED highlight right along with it, neither of which the
-      // performer did anything to cause after actually stopping. Clearing
-      // both maps (and the shared quantization origin they're keyed
-      // against - see session_origin_set_'s own comment) now means the
-      // clock starts from genuine silence whenever it next resumes,
-      // instead of wherever a completely unrelated recording session
-      // happened to leave things.
-      triggered_pattern_by_track_.clear();
-      queued_pattern_by_track_.clear();
-      session_origin_set_ = false;
-    } else if (auto_started_playback_) {
-      // Disarming while a recording session this class itself auto-started
-      // (Session-view clip-trigger recording, Controller::
-      // startAutoRecordPlayback() - or ordinary NOTES-mode held-note
-      // recording, which shares the same auto_started_playback_ flag) is
-      // still running stops the transport too - a live take with Record
-      // Arm off has nothing left to record into, so "stop recording" is
-      // naturally also "stop playback". stopAutoRecordSession() (not the
-      // no-mute startAutoRecordPlayback()'s own counterpart - there isn't
-      // one) always issues an explicit unmute regardless of whether this
-      // session ever actually muted anything, so it's safe to call
-      // unconditionally here rather than tracking which of the two start
-      // paths this particular session came from.
-      controller.stopAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, controller.getPlaybackInfo(), auto_record_clip_ids_);
-      // Guarantees real silence on stop, not just "no more scheduling" -
-      // SongState::renderBlock()'s own instance-termination release
-      // (stopAllVoices()) only ever runs from within the per-row
-      // scheduling loop, which is itself gated on isPlaying() - so
-      // whatever's actively sounding at the exact moment playback stops
-      // here would otherwise just keep ringing/decaying on its own
-      // instead of being released, the same pre-existing "a voice's
-      // envelope keeps progressing while playback is stopped" gap
-      // docs/known_bugs.md already tracks for a plain manual stop.
-      for (auto playable_track_id : controller.getSong().getPlayableTrackIds()) {
-	controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_ALL_NOTES, controller.getActiveBufferName(), playable_track_id));
-      }
-    }
+    controller.sendCommand("toggle-record-arm");
     return true;
   }
   // 95 ("Session"), 96 ("Note") and 97 ("Custom"/DRAW mode, routed
@@ -653,14 +566,6 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
   if (cc_number == 96) {
     deviceState(device_id).grid_mode = GridMode::NOTES;
     return true;
-  }
-  return false;
-}
-
-bool
-LaunchpadManager::anyCaptureArmedNoteHeld() const {
-  for (auto & [ device_id, state ] : devices_) {
-    if (state.capture_enabled && !state.active_notes.empty()) return true;
   }
   return false;
 }
@@ -934,18 +839,22 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
         song.addTrack(make_unique<InstrumentTrack>(0));
         track_ids = song.getPlayableTrackIds();
       }
-      auto track = song.getMasterTrack().getChildByInternalId(track_ids[static_cast<size_t>(ev.getX())]);
-      if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL || track->getType() == TrackType::DRUM_MACHINE)) {
-        auto track_id = track->getInternalId();
-        if (grid_mode == GridMode::SEND_A) {
-          controller.setTrackSendA(track_id, sendRowToDb(ev.getY()));
-        } else if (grid_mode == GridMode::SEND_B) {
-          controller.setTrackSendB(track_id, sendRowToDb(ev.getY()));
-        } else if (grid_mode == GridMode::SEND_MAIN) {
-          controller.setTrackSendMain(track_id, sendRowToDb(ev.getY()));
-        } else { // PAN
-          controller.setTrackAzimuth(track_id, rowToAzimuth(ev.getY()));
-        }
+      // No track-type check needed - track_ids is already
+      // getPlayableTrackIds()'s own "every LeafTrack" list (its own doc
+      // comment), and Controller::setTrackSendA()/setTrackSendB()/
+      // setTrackSendMain()/setTrackAzimuth() are themselves generic over
+      // LeafTrack (asLeafTrack()), not restricted to InstrumentTrack - a
+      // stale, narrower whitelist here once silently excluded SampleTrack
+      // from all four.
+      auto track_id = track_ids[static_cast<size_t>(ev.getX())];
+      if (grid_mode == GridMode::SEND_A) {
+        controller.setTrackSendA(track_id, sendRowToDb(ev.getY()));
+      } else if (grid_mode == GridMode::SEND_B) {
+        controller.setTrackSendB(track_id, sendRowToDb(ev.getY()));
+      } else if (grid_mode == GridMode::SEND_MAIN) {
+        controller.setTrackSendMain(track_id, sendRowToDb(ev.getY()));
+      } else { // PAN
+        controller.setTrackAzimuth(track_id, rowToAzimuth(ev.getY()));
       }
     }
     return;
@@ -1003,31 +912,9 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     auto edit_target = resolveEditTarget(song, scene, track_id, row, controller.getFocusedClip());
     auto & state = deviceState(device_id);
 
-    // Whether this press is about to become the first captured (Capture-
-    // armed) held note anywhere - computed before recordActiveNote()
-    // below adds this one, so it doesn't see itself. Starts the transport
-    // for the whole recording session below, not just for this one held
-    // note - only the explicit Record Arm disarm (handleRawButton()'s own
-    // CC19 comment) stops it again, so a phrase with real rests in it
-    // still records correctly instead of the transport freezing the
-    // instant nothing happens to be held. Only engages while Capture is
-    // actually armed on this device, since the whole point is getting
-    // accurately-timed recorded data; a pure-audition press has nothing
-    // to time-stamp.
-    bool was_first_captured_note = state.capture_enabled && !anyCaptureArmedNoteHeld();
-
-    // Engage realtime auto-play-while-held *before* the free-slot search
-    // and this press's own write below, so - when this is the session-
-    // starting press - ensureRowCleared() (just below) sees the fresh
-    // auto_started_playback_ state in time to matter for both.
-    // startAutoRecordSession() calls togglePlaying() (rather than pushing
-    // a raw PLAY event), which also synchronously updates Controller's own
-    // PlaybackInfo - info (bound by reference above) reflects
-    // isPlaying()==true immediately, not just once the Player thread
-    // eventually processes the event and reports back.
-    if (was_first_captured_note && !info.isPlaying()) {
-      controller.startAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, last_cleared_row_, last_cleared_pattern_idx_, auto_record_clip_ids_);
-    }
+    // The transport itself is already running by the time any press can
+    // reach here - Record Arm starts it immediately on arming
+    // (refresh()'s own note-capture-armed rising-edge handling).
 
     // A live take writes into a real, individually-manageable Clip
     // instance, not directly into the scene's own background Pattern - a
@@ -1208,7 +1095,7 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
     // in the assign branch below does) since real playback never reads
     // this class's own triggered_pattern_by_track_/queued_pattern_by_track_
     // bookkeeping in the first place - that's audition-only state.
-    if (capture_enabled_) {
+    if (controller.isNoteCaptureArmed()) {
       placeRecordingStop(controller, track_id);
       return;
     }
@@ -1232,7 +1119,7 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
   auto clip_index = 7 - ev.getY();
   bool has_pattern_here = clip_index >= 0 && clip_index < static_cast<int>(clips.size());
 
-  if (!capture_enabled_) {
+  if (!controller.isNoteCaptureArmed()) {
     // Auditioning (Record Arm off) - touches no song state, only this
     // class's own triggered_pattern_by_track_/queued_pattern_by_track_.
     auto triggered_it = triggered_pattern_by_track_.find(track_id);
@@ -1312,9 +1199,10 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
   // a clip assigned into an otherwise-stopped scene would just sit at row
   // 0 forever, never becoming "a whole scene" the way triggering further
   // clips as playback continues is supposed to build up. Starts the
-  // transport the same auto_started_playback_ bookkeeping ordinary
-  // NOTES-mode note entry's own first-captured-press already uses
-  // (handlePadEvent()'s own was_first_captured_note check), so
+  // transport on this first assign press (not at Record Arm time - unlike
+  // ordinary note capture, an assign has no "clip creation" step to defer
+  // separately, so there's nothing to gain from starting any earlier),
+  // using the same auto_started_playback_ bookkeeping, so
   // Controller::extendRecordingSceneIfNeeded() (gated on isAutoRecording())
   // also keeps growing the scene as the performance continues - but
   // Controller::startAutoRecordPlayback(), not startAutoRecordSession():
@@ -1834,7 +1722,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   colors.push_back({96, state.grid_mode == GridMode::NOTES ? uint8_t(90) : uint8_t(20), state.grid_mode == GridMode::NOTES ? uint8_t(90) : uint8_t(20), state.grid_mode == GridMode::NOTES ? uint8_t(90) : uint8_t(20)});
   colors.push_back({97, state.grid_mode == GridMode::DRAW ? uint8_t(90) : uint8_t(20), 0, state.grid_mode == GridMode::DRAW ? uint8_t(127) : uint8_t(20)});
   // CC98 (reused from "Capture MIDI" - the record-armed indicator moved to
-  // CC19 ("Record Arm"), see DeviceState::capture_enabled's own comment)
+  // CC19 ("Record Arm"), see DeviceState::record_arm_led_on's own comment)
   // is the drum machine's own configuration button - lit when the picker
   // is active, same convention as Session/Note/Custom above (a long hold
   // clears step data instead of toggling this, but that's a momentary
@@ -1863,7 +1751,7 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // to blue to make room) before that toggle moved here from CC98 (now
   // reused for the drum machine's own configuration button - see above).
   // 49 is Stop Clip - see its own indicator below.
-  colors.push_back({19, state.capture_enabled ? uint8_t(127) : uint8_t(20), 0, 0}); // record-arm toggle
+  colors.push_back({19, state.record_arm_led_on ? uint8_t(127) : uint8_t(20), 0, 0}); // record-arm toggle
   colors.push_back({29, state.solo ? uint8_t(127) : uint8_t(20), state.solo ? uint8_t(127) : uint8_t(20), 0}); // toggle-solo
   colors.push_back({39, 0, 0, state.muted ? uint8_t(127) : uint8_t(20)}); // toggle-mute (blue - red moved to Record Arm, CC19)
 
@@ -1897,11 +1785,75 @@ void
 LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, const PlaybackInfo & playback_info, int fallback_track_index, Controller & controller, const SessionWindow & session) {
   if (!launchpad_io_) return;
 
-  // Mirrored once per frame, same as capture_enabled_ below - see
-  // cached_global_octave_'s own comment.
+  // Mirrored once per frame, same as the note-capture-armed edge
+  // detection below - see cached_global_octave_'s own comment.
   cached_global_octave_ = controller.getGlobalOctave();
   // Cached for handleSessionPadEvent() - see session_'s own comment.
   session_ = session;
+
+  // Record Arm's own note-capture side effects live in this file (this
+  // class's own Session-view audition bookkeeping and auto-started-
+  // transport tracking, neither reachable from Controller directly), but
+  // the flag itself can now flip from anywhere - M-x, a keybinding, a
+  // Launchpad press alike (see was_note_capture_armed_'s own comment) -
+  // so they react here, to the flag's own rising/falling edge each frame,
+  // rather than inline in a button handler.
+  bool note_capture_armed = controller.isNoteCaptureArmed();
+  if (note_capture_armed && !was_note_capture_armed_) {
+    // Arming: audition-only live-trigger bookkeeping becomes meaningless
+    // from here on - note_capture_armed alone already stops the
+    // free-running audition_clock_ (see audition_active's own comment:
+    // "the player is presumably about to record something deliberate and
+    // doesn't want an uncontrolled loop underneath it"), but that only
+    // stops the *clock*, not the data - triggered_pattern_by_track_/
+    // queued_pattern_by_track_ themselves stay exactly as they were. Left
+    // alone, they'd sit there stale through the whole recording session
+    // and then resurrect the moment it ends: stopping playback later
+    // makes audition_active true again, restarting the clock, which
+    // would immediately resume "auditioning" whatever was still marked
+    // triggered here - an old clip suddenly playing again, and its own
+    // stale LED highlight right along with it, neither of which the
+    // performer did anything to cause after actually stopping. Clearing
+    // both maps (and the shared quantization origin they're keyed
+    // against - see session_origin_set_'s own comment) now means the
+    // clock starts from genuine silence whenever it next resumes.
+    triggered_pattern_by_track_.clear();
+    queued_pattern_by_track_.clear();
+    session_origin_set_ = false;
+    // Starts the transport immediately, the same as SampleTrack's own
+    // Record Arm - not deferred to the first actually-captured note/step
+    // - so both branches behave alike; the clip itself still only gets
+    // created once a note actually lands
+    // (Controller::ensureNoteRecordingClip()'s own lazy-create gate).
+    // startAutoRecordSession(), not the plainer startAutoRecordPlayback():
+    // it also mutes the song's own pattern-driven scheduling, so the live
+    // take is heard through its own separate stream rather than doubled
+    // against old content.
+    if (!playback_info.isPlaying()) {
+      controller.startAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, last_cleared_row_, last_cleared_pattern_idx_, auto_record_clip_ids_);
+    }
+  } else if (!note_capture_armed && was_note_capture_armed_ && auto_started_playback_) {
+    // Disarming while a recording session this class itself auto-started
+    // is still running stops the transport too - a live take with Record
+    // Arm off has nothing left to record into, so "stop recording" is
+    // naturally also "stop playback". stopAutoRecordSession() always
+    // issues an explicit unmute regardless of whether this session ever
+    // actually muted anything, so it's safe to call unconditionally here.
+    controller.stopAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, playback_info, auto_record_clip_ids_);
+    // Guarantees real silence on stop, not just "no more scheduling" -
+    // SongState::renderBlock()'s own instance-termination release
+    // (stopAllVoices()) only ever runs from within the per-row scheduling
+    // loop, which is itself gated on isPlaying() - so whatever's actively
+    // sounding at the exact moment playback stops here would otherwise
+    // just keep ringing/decaying on its own instead of being released,
+    // the same pre-existing "a voice's envelope keeps progressing while
+    // playback is stopped" gap docs/known_bugs.md already tracks for a
+    // plain manual stop.
+    for (auto playable_track_id : controller.getSong().getPlayableTrackIds()) {
+      controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_ALL_NOTES, controller.getActiveBufferName(), playable_track_id));
+    }
+  }
+  was_note_capture_armed_ = note_capture_armed;
 
   auto ready_ids = launchpad_io_->readySessionIds();
 
@@ -1933,17 +1885,15 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   // audition_clock_ itself (StepClock, LaunchpadTiming.h) is the pure,
   // unit-tested step-advance logic; everything here is just wall-clock
   // bookkeeping and plugging the real song/track data in. Active exactly
-  // while the transport is stopped and Record Arm is off - Record Arm is a
-  // single global flag, not per-device, see capture_enabled_'s own comment -
-  // while playing, the pattern-driven
-  // path in SongState::renderBlock() already triggers these same tracks from
-  // real song position, and running both at once would double-trigger;
-  // while armed, the player is presumably about to record something
-  // deliberate and doesn't want an uncontrolled loop underneath it.
-  // audition_step is this frame's step for the per-device playhead
-  // display below, or -1 when the clock isn't running at all.
+  // while the transport is stopped and Record Arm is off - while playing,
+  // the pattern-driven path in SongState::renderBlock() already triggers
+  // these same tracks from real song position, and running both at once
+  // would double-trigger; while armed, the player is presumably about to
+  // record something deliberate and doesn't want an uncontrolled loop
+  // underneath it. audition_step is this frame's step for the per-device
+  // playhead display below, or -1 when the clock isn't running at all.
   int audition_step = -1;
-  bool audition_active = !playback_info.isPlaying() && !capture_enabled_;
+  bool audition_active = !playback_info.isPlaying() && !note_capture_armed;
   if (audition_active) {
     auto now = chrono::steady_clock::now();
     if (!audition_clock_.isRunning()) {
@@ -1997,8 +1947,13 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   // rather than per-device inside the loop below.
   array<float, 8> track_send_main{}, track_send_a{}, track_send_b{}, track_azimuth{};
   for (int i = 0; i < 8 && i < num_tracks; i++) {
+    // No track-type check needed - track_ids is already
+    // getPlayableTrackIds()'s own "every LeafTrack" list (its own doc
+    // comment), so this cast always succeeds; a stale, narrower type
+    // whitelist here once silently left a SampleTrack's own fader/LED
+    // feedback at 0 regardless of its actual send/pan values.
     auto track = song.getMasterTrack().getChildByInternalId(track_ids[static_cast<size_t>(i)]);
-    if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL || track->getType() == TrackType::DRUM_MACHINE)) {
+    if (track) {
       auto & leaf_track = dynamic_cast<const LeafTrack&>(*track);
       track_send_main[static_cast<size_t>(i)] = leaf_track.getSends().main;
       track_send_a[static_cast<size_t>(i)] = leaf_track.getSends().a;
@@ -2111,7 +2066,9 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       auto track = song.getMasterTrack().getChildByInternalId(track_id);
       tuning = track ? song.getTuningForTrack(*track) : song.getTuning();
       key_val = song.getKey();
-      if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL || track->getType() == TrackType::PERCUSSION_CONTROL || track->getType() == TrackType::DRUM_MACHINE)) {
+      // No track-type check needed - see track_send_main/etc.'s own
+      // identical comment above; track_ids already guarantees a LeafTrack.
+      if (track) {
         auto & leaf_track = dynamic_cast<const LeafTrack&>(*track);
         muted = leaf_track.isMuted();
         solo = leaf_track.isSolo();
@@ -2157,7 +2114,8 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     }
 
     state.connected = true;
-    state.capture_enabled = capture_enabled_; // mirrors the one song-wide flag - see its own comment
+    state.capture_enabled = note_capture_armed; // mirrors the one song-wide flag - see its own comment
+    state.record_arm_led_on = note_capture_armed || controller.isThresholdArmed() || controller.isRecording();
     state.tuning = tuning;
     state.key = key_val;
     state.muted = muted;

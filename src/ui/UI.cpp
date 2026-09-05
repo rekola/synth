@@ -323,6 +323,11 @@ UI::initialize() {
   // "sendCommand() forwarding" shape save-song's own C-x-reachable wrapper
   // already uses just below.
   commands_.define("merge-clip-to-background", [this]() { getController().sendCommand("merge-clip-to-background"); });
+  // Same forwarding shape as merge-clip-to-background just above, for the
+  // same reason - "toggle-record-arm" targets Song::getCurrentTrackId(),
+  // not any one widget's own cursor, and has to work with no Launchpad
+  // and no PatternEditor either.
+  commands_.define("toggle-record-arm", [this]() { getController().sendCommand("toggle-record-arm"); });
 
   // other-window (C-x o): cycles focus to the next window. Only two
   // focusable panes exist - pattern_editor_ and arrangement_grid_ - so this
@@ -359,6 +364,7 @@ UI::initialize() {
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('b', false, false, false, false), "select-named-buffer");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('o', false, false, false, false), "other-window");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('m', false, false, false, false), "merge-clip-to-background");
+  keymap_.bindPrefixed(ctrl_x, KeyChord::pack('r', false, false, false, false), "toggle-record-arm");
   keymap_.bind(KeyChord::pack(' ', false, false, false, false), "toggle-playing");
   keymap_.bind(KeyChord::pack('[', false, false, false, false), "octave-down");
   keymap_.bind(KeyChord::pack(']', false, false, false, false), "octave-up");
@@ -775,6 +781,10 @@ UI::handlePlaybackEvent(PlaybackEvent & ev) {
   // growth further, to only a track with a note actually held right now.
   if (pattern_editor_) getController().extendRecordingClipsIfNeeded(pattern_editor_->getAutoRecordClipIds(), pattern_editor_->getActiveNoteTrackIds());
   if (launchpad_manager_) getController().extendRecordingClipsIfNeeded(launchpad_manager_->getAutoRecordClipIds(), launchpad_manager_->getActiveNoteTrackIds());
+  // A live mic take's own counterpart to the two calls above - see
+  // extendRecordingSampleClipIfNeeded()'s own comment for why it needs no
+  // clip_ids/held_track_ids of its own.
+  getController().extendRecordingSampleClipIfNeeded();
 
   ev.redraw();
 }
@@ -913,8 +923,7 @@ UI::handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEvent & ev
   // current_sample), then the ring buffer's own already-captured lead-in
   // prepended into it, then the snapshotted (backdated - see the event's
   // own comment) start position armed for beginSampleCapture() to place
-  // at, exactly the way start-sample-capture's own synchronous
-  // armRecordingStart() call already does for an ordinary take.
+  // at.
   getController().startRecording();
   getController().addToSample(ev.getPreroll());
   getController().armRecordingStart(ev.getScene(), ev.getRow());
@@ -1066,6 +1075,15 @@ static void visualization_thread_func(Controller * controller, int sample_rate, 
 
 void
 UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launchpad_manager) {
+  // AlsaAudio::initialize() already logged this to stderr, before this UI
+  // (and its StatusLogger) even existed - a failed/missing capture device
+  // would otherwise be silently invisible for the rest of the session,
+  // leaving "why does nothing ever get recorded" undiagnosable from inside
+  // the running app.
+  setStatus(audio.hasCaptureDevice() ?
+    "Capture device: " + audio.getCaptureDeviceName() :
+    "WARNING: no capture device available - recording is disabled");
+
   launchpad_manager.setLaunchpadIO(&launchpad_io);
   launchpad_manager_ = &launchpad_manager;
   // "move-row-up"/"move-row-down" while in GridMode::SESSION move

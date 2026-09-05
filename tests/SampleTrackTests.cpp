@@ -402,12 +402,13 @@ TEST(waveform_peaks_builds_row_count_times_subrows_buckets) {
   CHECK(peaks.subrowsPerRow() == 3);
 }
 
-TEST(waveform_peaks_normalizes_against_its_own_loudest_bucket) {
+TEST(waveform_peaks_are_raw_rms_not_normalized_per_clip) {
   Clip clip(0);
   auto & content = clip.getOrCreateSampleContent();
-  // 4 buckets (rowCount 2 * subrows 2): quiet, quiet, loud, quiet - the
-  // loud bucket alone should read back at 1.0, the quiet ones scaled down
-  // proportionally rather than against some fixed absolute reference.
+  // 4 buckets (rowCount 2 * subrows 2): quiet, quiet, loud, quiet - each
+  // bucket's own raw RMS, not rescaled against the clip's own loudest
+  // bucket (a genuinely faint clip is meant to read back faint, not
+  // stretched to fill the view the same as a loud one).
   content.setBuffer(buildBuffer(40, [](int i) {
     auto bucket = i / 10;
     return bucket == 2 ? 1.0f : 0.25f;
@@ -422,15 +423,30 @@ TEST(waveform_peaks_normalizes_against_its_own_loudest_bucket) {
   CHECK_NEAR(peaks.at(1, 1), 0.25f, 1e-4f);
 }
 
+// A real bug report: a faint recording filled the whole waveform view,
+// indistinguishable from a loud one - the per-clip normalization this
+// replaced stretched a clip's own loudest bucket up to 1.0 regardless of
+// its actual level, which read as full-height either way.
+TEST(waveform_peaks_of_a_faint_clip_stay_faint) {
+  Clip clip(0);
+  auto & content = clip.getOrCreateSampleContent();
+  content.setBuffer(buildBuffer(20, [](int) { return 0.02f; }));
+  content.setNativeSampleRate(8000);
+  clip.setLength(1);
+
+  auto & peaks = clip.getWaveformPeaks(1);
+  CHECK_NEAR(peaks.at(0, 0), 0.02f, 1e-4f); // its own true RMS, not stretched to 1.0
+}
+
 // A real bug report: normal-volume audio kept reading as visually
 // saturated. Root cause was a peak (not RMS) detector per bucket, so a
 // single loud sample anywhere in an otherwise-quiet stretch made that
-// whole stretch normalize to full height, indistinguishable from a
-// stretch that's genuinely loud throughout. Bucket 0 here is almost
-// entirely silent but for one full-scale spike (peak 1.0, RMS 0.1 over
-// 100 frames); bucket 1 is a genuinely louder, sustained tone (peak == RMS
-// == 0.5). A peak detector would have read bucket 0 as the *louder* of
-// the two; RMS correctly reads bucket 1 as louder instead.
+// whole stretch read as loud as a stretch that's genuinely loud
+// throughout. Bucket 0 here is almost entirely silent but for one
+// full-scale spike (peak 1.0, RMS 0.1 over 100 frames); bucket 1 is a
+// genuinely louder, sustained tone (peak == RMS == 0.5). A peak detector
+// would have read bucket 0 as the *louder* of the two; RMS correctly
+// reads bucket 1 as louder instead.
 TEST(waveform_peaks_uses_rms_so_a_single_spike_does_not_read_as_loud_as_a_sustained_tone) {
   Clip clip(0);
   auto & content = clip.getOrCreateSampleContent();
@@ -442,16 +458,16 @@ TEST(waveform_peaks_uses_rms_so_a_single_spike_does_not_read_as_loud_as_a_sustai
   clip.setLength(2);
 
   auto & peaks = clip.getWaveformPeaks(1); // 1 subrow/row -> exactly 2 buckets, 100 frames each
-  CHECK_NEAR(peaks.at(1, 0), 1.0f, 1e-4f); // the sustained tone - genuinely the loudest bucket
-  CHECK_NEAR(peaks.at(0, 0), 0.2f, 1e-3f); // sqrt(1/100) RMS = 0.1, normalized against 0.5 = 0.2 - not 1.0
+  CHECK_NEAR(peaks.at(1, 0), 0.5f, 1e-4f); // the sustained tone's own raw RMS
+  CHECK_NEAR(peaks.at(0, 0), 0.1f, 1e-3f); // sqrt(1/100) RMS = 0.1, not the spike's own peak (1.0)
 }
 
 TEST(waveform_peaks_ignores_content_outside_the_trimmed_range) {
   Clip clip(0);
   auto & content = clip.getOrCreateSampleContent();
   // A loud marker sitting entirely in the trimmed-away head/tail - if it
-  // leaked into normalization, every real (post-trim) bucket would read
-  // back far under 1.0 even though the trimmed range itself is uniform.
+  // leaked into the read range, every in-trim bucket would read back
+  // louder than the trimmed range's own actual (uniform) content.
   content.setBuffer(buildBuffer(40, [](int i) { return (i < 10 || i >= 30) ? 10.0f : 0.5f; }));
   content.setNativeSampleRate(8000);
   content.setInPoint(10.0f / 8000.0f);
@@ -459,7 +475,7 @@ TEST(waveform_peaks_ignores_content_outside_the_trimmed_range) {
   clip.setLength(2);
 
   auto & peaks = clip.getWaveformPeaks(1);
-  for (int row = 0; row < 2; row++) CHECK_NEAR(peaks.at(row, 0), 1.0f, 1e-4f);
+  for (int row = 0; row < 2; row++) CHECK_NEAR(peaks.at(row, 0), 0.5f, 1e-4f);
 }
 
 TEST(waveform_peaks_rebuilds_when_the_buffer_is_replaced) {
@@ -473,7 +489,7 @@ TEST(waveform_peaks_rebuilds_when_the_buffer_is_replaced) {
 
   content.setBuffer(buildBuffer(10, [](int) { return 0.9f; }));
   auto & peaks = clip.getWaveformPeaks(1);
-  CHECK_NEAR(peaks.at(0, 0), 1.0f, 1e-4f); // reflects the new buffer's own content, not a stale cache
+  CHECK_NEAR(peaks.at(0, 0), 0.9f, 1e-4f); // reflects the new buffer's own content, not a stale cache
 }
 
 TEST(waveform_peaks_rebuilds_when_row_count_or_subrows_change) {

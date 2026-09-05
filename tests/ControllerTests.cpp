@@ -586,6 +586,90 @@ TEST(armed_sample_capture_places_at_the_snapshotted_row_and_trims_the_measured_l
   }
 }
 
+// A real bug report: a captured take defaulted to Clip's own looping=true,
+// so a placed instance reached through the rest of the scene and kept
+// re-triggering the (short) recording over and over instead of playing
+// once and stopping - same reasoning ensureNoteRecordingClip() already
+// applies to a live note-recording take.
+TEST(sample_capture_creates_a_non_looping_clip_by_default) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+
+  auto & track = controller.getSong().addTrack(std::make_unique<SampleTrack>());
+  auto track_id = track.getInternalId();
+  controller.setRecordingTrackId(track_id);
+  controller.startRecording();
+
+  AudioBuffer block(1, 400);
+  auto data = block.getChannelData(0);
+  for (int i = 0; i < 400; i++) data[i] = 0.3f;
+  controller.addToSample(block);
+
+  controller.beginSampleCapture(track_id);
+  auto & clips = controller.getSong().getClips(track_id);
+  CHECK(clips.size() == 1);
+  if (!clips.empty()) CHECK(!clips[0].isLooping());
+}
+
+// A real bug report: an old stop marker sitting later in the track's own
+// timeline survived a live take, because the take's own clip was left at
+// length 0 for its whole duration (only set once finishSampleCapture()
+// runs) - a non-looping clip with length 0 falls back to "1 row long," so
+// the transport's own per-row scheduling treated the in-progress take as
+// already expired almost immediately, live, long before finishSampleCapture()
+// ever got a chance to sweep anything. extendRecordingSampleClipIfNeeded()
+// keeps the clip's own length growing (and sweeping stale events in its
+// path) throughout the take instead.
+TEST(extend_recording_sample_clip_if_needed_grows_the_clip_and_clears_a_stale_stop) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  controller.getSong().setRowsPerBar(4);
+
+  auto & track = controller.getSong().addTrack(std::make_unique<SampleTrack>());
+  auto track_id = track.getInternalId();
+
+  // An old stop marker, well ahead of where the new take starts - left
+  // over from some earlier, unrelated arrangement edit.
+  auto & scene = controller.getSong().getScene(0);
+  placeStopInstance(scene, track_id, 20);
+
+  controller.setRecordingTrackId(track_id);
+  controller.startRecording();
+  controller.armRecordingStart(0, 0);
+
+  AudioBuffer block(1, 400);
+  auto data = block.getChannelData(0);
+  for (int i = 0; i < 400; i++) data[i] = 0.3f;
+  controller.addToSample(block);
+  controller.beginSampleCapture(track_id);
+
+  auto & clips = controller.getSong().getClips(track_id);
+  CHECK(clips.size() == 1);
+  CHECK(clips[0].getLength() == 4); // one bar's worth, right away - not 0
+
+  // The old stop marker is still there - the take hasn't grown anywhere
+  // near it yet.
+  CHECK(resolveInstanceAt(controller.getSong(), scene, track_id, 20).clip_index == Scene::kStopInstance);
+
+  // The transport advances well past the take's own current (small)
+  // reach, the same way real per-row playback would while recording
+  // continues.
+  PlaybackInfo info;
+  info.setIsPlaying(true);
+  info.setPatternIdx(0);
+  info.setRowIdx(20);
+  controller.setPlaybackInfo(info);
+  controller.extendRecordingSampleClipIfNeeded();
+
+  CHECK(clips[0].getLength() > 4); // grew to keep ahead of the current row
+  // The stale stop marker is gone, swept by the same placeClipInstance()
+  // re-run extendRecordingClipsIfNeeded() already uses for note takes -
+  // row 20 now resolves to the still-active recording clip instead.
+  CHECK(resolveInstanceAt(controller.getSong(), scene, track_id, 20).clip_index == 0);
+}
+
 // The other half: a take that never called armRecordingStart() at all
 // (the lazy, uncompensated path UI::handleRecordEvent() falls back to)
 // stays exactly as unplaced as before this Part - a real, visible clip,
@@ -657,6 +741,84 @@ TEST(threshold_recording_clear_ends_the_arm_phase_without_losing_the_target_trac
   controller.clearThresholdArmed();
   CHECK(!controller.isThresholdArmed());
   CHECK(controller.getRecordingTrackId() == track_id);
+}
+
+// "toggle-record-arm": one command for every track type, dispatching on
+// Song::getCurrentTrackId()'s own type. A SampleTrack gets the existing
+// threshold-armed cycle.
+TEST(toggle_record_arm_arms_and_disarms_a_sample_track) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+
+  auto & track = song.addTrack(std::make_unique<SampleTrack>());
+  auto track_id = track.getInternalId();
+  song.setCurrentTrackId(track_id);
+
+  CHECK(!controller.isThresholdArmed());
+  controller.sendCommand("toggle-record-arm");
+  CHECK(controller.isThresholdArmed());
+  CHECK(controller.getRecordingTrackId() == track_id);
+
+  controller.sendCommand("toggle-record-arm");
+  CHECK(!controller.isThresholdArmed());
+}
+
+// Every other track type gets the plain note-capture-armed toggle.
+TEST(toggle_record_arm_arms_and_disarms_an_instrument_track) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+
+  auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
+  song.setCurrentTrackId(track.getInternalId());
+
+  CHECK(!controller.isNoteCaptureArmed());
+  controller.sendCommand("toggle-record-arm");
+  CHECK(controller.isNoteCaptureArmed());
+  CHECK(!controller.isThresholdArmed()); // the other track type's flag is untouched
+
+  controller.sendCommand("toggle-record-arm");
+  CHECK(!controller.isNoteCaptureArmed());
+}
+
+// Record Arm is one global state: whatever is already armed/recording
+// always takes priority over arming something new, regardless of which
+// track is currently selected - so switching to a different track while
+// a take is in progress and pressing the button again still stops that
+// take, not starts an unrelated second one.
+TEST(toggle_record_arm_disarms_whatever_is_active_regardless_of_current_track) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+
+  auto & sample_track = song.addTrack(std::make_unique<SampleTrack>());
+  auto sample_track_id = sample_track.getInternalId();
+  auto & instrument_track = song.addTrack(std::make_unique<InstrumentTrack>(0));
+
+  song.setCurrentTrackId(sample_track_id);
+  controller.sendCommand("toggle-record-arm");
+  CHECK(controller.isThresholdArmed());
+
+  // Cursor moves to a different track while still armed - harmless.
+  song.setCurrentTrackId(instrument_track.getInternalId());
+  controller.sendCommand("toggle-record-arm");
+  CHECK(!controller.isThresholdArmed()); // disarmed the SampleTrack take...
+  CHECK(!controller.isNoteCaptureArmed()); // ...not armed the instrument track instead
+}
+
+TEST(toggle_record_arm_is_a_noop_with_no_current_track_set) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+
+  CHECK(controller.getSong().getCurrentTrackId() == -1); // never set
+  controller.sendCommand("toggle-record-arm");
+  CHECK(!controller.isThresholdArmed());
+  CHECK(!controller.isNoteCaptureArmed());
 }
 
 // End-to-end: sendCommand("merge-clip-to-background") resolves its target

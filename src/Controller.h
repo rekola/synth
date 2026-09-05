@@ -287,16 +287,16 @@ class Controller {
   }
 
   // Snapshots where this take actually starts, synchronously, on the UI
-  // thread - start-sample-capture's own handler calls this unconditionally
-  // (auto-starting playback right afterward when it wasn't already running
-  // doesn't move the position, so the take is just as latency-compensable
-  // either way). Overwrites whatever an earlier take may have left behind
-  // - a fresh call every time capture starts, never a stale leftover.
-  // beginSampleCapture() below reads this back for placement; -1/-1 (the
-  // construction-time default, never actually reached through
-  // start-sample-capture itself today, but left as the genuine "no
-  // position to place at" case for anything that creates a recording
-  // clip some other way) means unplaced.
+  // thread - UI::handleThresholdRecordingTriggeredEvent() calls this once
+  // loudness actually crosses the threshold, at the backdated position the
+  // pre-roll ring buffer's own span implies (auto-starting playback right
+  // afterward when it wasn't already running doesn't move the position,
+  // so the take is just as latency-compensable either way). Overwrites
+  // whatever an earlier take may have left behind - a fresh call every
+  // time capture starts, never a stale leftover. beginSampleCapture()
+  // below reads this back for placement; -1/-1 (the construction-time
+  // default - "no position to place at") means unplaced, for anything
+  // that creates a recording clip without ever calling this.
   void armRecordingStart(int scene, int row) { recording_start_scene_ = scene; recording_start_row_ = row; }
   // Whether this take has a snapshotted start position at all - UI::
   // handleRecordEvent()'s own guard against creating the clip lazily,
@@ -304,16 +304,15 @@ class Controller {
   // handleRecordingLatencyEvent() to do it properly instead.
   bool isRecordingArmed() const { return recording_start_scene_ >= 0; }
 
-  // Loudness-threshold-armed recording (a SampleTrack's own Record Arm,
-  // Launchpad CC19) - waiting for input to actually cross a threshold
-  // before the take genuinely begins, rather than starting immediately
-  // the way start-sample-capture does. Player.cpp's poll loop reads
-  // isThresholdArmed() directly (audio-thread-side, same as isRecording())
-  // to decide whether to keep capture running and feed its own pre-roll
-  // ring buffer; armThresholdRecording()/disarmThresholdRecording() are
-  // the user-facing arm/cancel pair (LaunchpadManager's own CC19 handler),
-  // clearThresholdArmed() is the audio-thread-triggered "the arm phase is
-  // over, genuine recording has begun instead" transition (UI::
+  // Loudness-threshold-armed recording (a SampleTrack's own Record Arm) -
+  // waiting for input to actually cross a threshold before the take
+  // genuinely begins. Player.cpp's poll loop reads isThresholdArmed()
+  // directly (audio-thread-side, same as isRecording()) to decide whether
+  // to keep capture running and feed its own pre-roll ring buffer;
+  // armThresholdRecording()/disarmThresholdRecording() are the
+  // user-facing arm/cancel pair ("toggle-record-arm"'s own SampleTrack
+  // branch), clearThresholdArmed() is the audio-thread-triggered "the arm
+  // phase is over, genuine recording has begun instead" transition (UI::
   // handleThresholdRecordingTriggeredEvent()) - two distinctly-named call
   // sites for the identical underlying flag flip, since each means
   // something different to whoever's reading the call, not two different
@@ -324,6 +323,20 @@ class Controller {
   void disarmThresholdRecording() { threshold_armed_ = false; }
   void clearThresholdArmed() { threshold_armed_ = false; }
   bool isThresholdArmed() const { return threshold_armed_; }
+
+  // The note-track ("everything but SampleTrack") counterpart to the
+  // three methods above - "toggle-record-arm"'s own generic branch. A
+  // plain global flag, not per-buffer-mirrored, same reasoning
+  // threshold_armed_ already has: Record Arm is a single "what's
+  // currently being captured" concept, not a per-song one. Consulted by
+  // LaunchpadManager (Launchpad-grid note capture, Session-view
+  // assign-recording) - the note-grid's own arm/disarm side effects
+  // (clearing Session-view audition state, starting/stopping the
+  // transport) live there, reacting to this flag's own rising/falling
+  // edge each refresh(), not here.
+  void armNoteCapture() { note_capture_armed_ = true; }
+  void disarmNoteCapture() { note_capture_armed_ = false; }
+  bool isNoteCaptureArmed() const { return note_capture_armed_; }
 
   // Begins a real Clip for the take currently in progress - creates it,
   // shares its SampleContent buffer with current_sample (so every later
@@ -362,7 +375,8 @@ class Controller {
   // shared guard against calling it more than once per take.
   bool hasRecordingClip() const { return !recording_clip_id_.empty(); }
 
-  // Ends a mic-capture take - stop-sample-capture's own entry point.
+  // Ends a mic-capture take - "toggle-record-arm"'s own SampleTrack
+  // branch calls this once already recording.
   // Finalizes the clip beginSampleCapture() already created, if any (its
   // own real length - total captured frames minus whatever latency was
   // already trimmed off the front, now that the final frame count is
@@ -700,6 +714,21 @@ class Controller {
   // long after the performer actually stopped playing anything.
   void extendRecordingClipsIfNeeded(std::unordered_map<int, std::string> & clip_ids, const std::vector<int> & held_track_ids);
 
+  // beginSampleCapture()'s own counterpart to extendRecordingClipsIfNeeded()
+  // above - same reasoning, same growth shape, but scoped to the one
+  // SampleTrack take a mic capture session can ever have in progress
+  // (recording_clip_id_/recording_start_scene_/recording_start_row_), so
+  // it needs no clip_ids/held_track_ids parameters of its own. A no-op
+  // unless hasRecordingClip() and this take was actually placed
+  // (recording_start_scene_ >= 0 - an unarmed, freeform take has nothing
+  // to grow into either, same as it has nothing to place at all). Same
+  // per-row-advance call site as extendRecordingClipsIfNeeded()
+  // (UI::handlePlaybackEvent()), ungated on any auto-started-playback
+  // flag for the identical reason that method already documents - a live
+  // mic take's own existence already proves it's genuine, regardless of
+  // who started the transport.
+  void extendRecordingSampleClipIfNeeded();
+
   // Engages the realtime auto-play-while-held session (PatternEditor's
   // keyboard entry and LaunchpadManager's pad entry both offer this):
   // starts the transport and mutes the song's own pattern-driven
@@ -974,7 +1003,7 @@ class Controller {
   // finishSampleCapture() needs to find it again.
   std::string recording_clip_id_;
   // Snapshotted synchronously, on the UI thread, the instant a take
-  // actually starts (start-sample-capture's own handler) - -1 means "not
+  // actually starts (armRecordingStart()'s own callers) - -1 means "not
   // armed this take" (no compensation to apply), reset to that at the
   // *start* of every take rather than only read once, so a later take
   // never accidentally inherits an earlier one's position. See
@@ -988,6 +1017,13 @@ class Controller {
   // armThresholdRecording()/isThresholdArmed()'s own flag - see their
   // shared doc comment.
   bool threshold_armed_ = false;
+  // armNoteCapture()/isNoteCaptureArmed()'s own flag - see their shared
+  // doc comment.
+  bool note_capture_armed_ = false;
+  // Set by "toggle-record-arm"'s own SampleTrack branch when arming a
+  // take also had to start the transport itself, so finishing/disarming
+  // later knows whether to stop it again.
+  bool record_arm_auto_started_playback_ = false;
   // See getGlobalOctave()'s own comment - deliberately global, unlike the
   // per-buffer state above.
   int global_octave_ = 4;

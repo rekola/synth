@@ -2,7 +2,6 @@
 
 #include "../audio/AudioBuffer.h"
 
-#include <algorithm>
 #include <cmath>
 
 using namespace std;
@@ -41,7 +40,6 @@ WaveformPeaks::build(const AudioBuffer & buffer, int native_sample_rate, float i
   auto bucket_count = row_count * subrows_per_row;
   auto trimmed_frames = out_frame - in_frame;
   auto * data = buffer.getChannelData(0);
-  float overall_rms = 0.0f;
   peaks_.reserve(static_cast<size_t>(bucket_count));
   for (int bucket = 0; bucket < bucket_count; bucket++) {
     // Evenly divided by bucket index, not a fixed frames-per-bucket
@@ -55,18 +53,14 @@ WaveformPeaks::build(const AudioBuffer & buffer, int native_sample_rate, float i
     // makes ordinary, unclipped audio look saturated: real content's own
     // instantaneous peak sample lands close to the clip's overall peak in
     // nearly every short window, so almost the whole shape would read as
-    // near-full-height once normalized below, regardless of how loud that
-    // stretch actually sounds. RMS instead reflects the bucket's own
-    // average energy, so a single transient sample can no longer make an
-    // otherwise-quiet stretch look as loud as a genuinely sustained one.
+    // near-full-height regardless of how loud that stretch actually
+    // sounds. RMS instead reflects the bucket's own average energy, so a
+    // single transient sample can no longer make an otherwise-quiet
+    // stretch look as loud as a genuinely sustained one.
     double sum_sq = 0.0;
     for (int i = start; i < end; i++) { auto s = static_cast<double>(data[i]); sum_sq += s * s; }
     auto count = end - start;
     float rms = count > 0 ? static_cast<float>(sqrt(sum_sq / count)) : 0.0f;
     peaks_.push_back(rms);
-    overall_rms = max(overall_rms, rms);
-  }
-  if (overall_rms > 0.0f) {
-    for (auto & p : peaks_) p /= overall_rms;
   }
 }

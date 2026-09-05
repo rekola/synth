@@ -101,7 +101,7 @@ check("CC97 (Custom/DRAW) LED is dim by default (not showing DRAW mode active)",
 # checked here - the fake device only drains incoming SysEx once, right
 # after connecting (see fake_launchpad_button.c's identical precedent for
 # its own always-static button LEDs), so it never captures a later one. The
-# instance-placement check above already proves capture_enabled_ actually
+# instance-placement check above already proves note-capture-armed actually
 # flipped true - the disarmed (trigger-live) path never places an instance.
 
 n_fail = sum(1 for _, ok in results if not ok)

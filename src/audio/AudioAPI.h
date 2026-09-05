@@ -3,6 +3,7 @@
 
 #include <poll.h>
 #include <cstddef>
+#include <string>
 #include <vector>
 
 #include "../playback/MidiEvent.h"
@@ -33,7 +34,19 @@ class AudioAPI {
   // measurement should degrade gracefully, not break recording.
   virtual int getPlaybackDelayFrames() const = 0;
   virtual int getCaptureDelayFrames() const = 0;
-  
+
+  // Whether a capture device was actually opened and configured at
+  // initialize() time - false means recording is silently unavailable
+  // (see AlsaAudio::initialize()'s own comment on why a missing/failed
+  // capture device doesn't stop playback). Lets the running app tell the
+  // user recording isn't available at all, rather than leaving them
+  // guessing why nothing ever gets captured.
+  virtual bool hasCaptureDevice() const = 0;
+  // The device name actually opened for capture ("default" unless
+  // overridden - see main.cpp's own --capture-device flag), or empty if
+  // hasCaptureDevice() is false.
+  virtual std::string getCaptureDeviceName() const = 0;
+
   int getFrequency() const { return frequency; }
   short numberOfChannels() const { return channels; }
 

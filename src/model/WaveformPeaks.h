@@ -30,16 +30,18 @@ class WaveformPeaks {
   // assuming, so a caller can detect a mismatch and rebuild.
   int subrowsPerRow() const { return subrows_per_row_; }
 
-  // RMS amplitude (0..1, normalized against this clip's own loudest
-  // bucket - a quiet take should still show a readable shape, not a
-  // near-flat line) for pattern row `row`'s own `subrow`th time-slice
-  // (0 <= subrow < subrowsPerRow()). RMS, not the single loudest sample in
-  // the bucket - see build()'s own comment for why a peak detector reads
-  // wrong here. Out-of-range `row` (a looping clip's later repeat, or a
-  // placed instance whose own length has drifted past what its audio
-  // actually covers) is the caller's own job to wrap/clamp first - this
-  // just indexes the flat array directly and returns 0.0f if it's still
-  // out of bounds after that.
+  // RMS amplitude (0..1, a full-scale square wave's own RMS being the
+  // theoretical ceiling - real recorded content never actually reaches
+  // it) for pattern row `row`'s own `subrow`th time-slice (0 <= subrow <
+  // subrowsPerRow()), not normalized against this clip's own loudest
+  // bucket - a faint take is meant to read as visibly faint, not stretched
+  // to fill the view the same as a loud one. RMS, not the single loudest
+  // sample in the bucket - see build()'s own comment for why a peak
+  // detector reads wrong here. Out-of-range `row` (a looping clip's later
+  // repeat, or a placed instance whose own length has drifted past what
+  // its audio actually covers) is the caller's own job to wrap/clamp
+  // first - this just indexes the flat array directly and returns 0.0f if
+  // it's still out of bounds after that.
   float at(int row, int subrow) const;
 
   // Rebuilds from scratch against `buffer`'s channel 0 (SampleTrack

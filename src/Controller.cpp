@@ -1,6 +1,7 @@
 #include "Controller.h"
 
 #include "model/Song.h"
+#include "model/TrackType.h"
 #include "model/LeafTrack.h"
 #include "model/InstrumentTrack.h"
 #include "model/ArrangementOps.h"
@@ -217,6 +218,57 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     if (!mergeClipToBackground(song, scene, track_id, row)) return;
     song.incVersion();
     getUIEventQueue().push(make_unique<LogEvent>("Clip merged to background"));
+  });
+  // One Record Arm for every track type, reachable from a Launchpad
+  // (CC19), a keybinding, or M-x alike.
+  //
+  // Record Arm is one global state, not a per-track-type toggle -
+  // whatever is currently armed/recording (if anything) always takes
+  // priority over arming something new, so a single press always means
+  // "stop that", regardless of which track happens to be selected right
+  // now; changing the selected track while armed is harmless, since
+  // disarming never re-reads it.
+  commands_.define("toggle-record-arm", [this]() {
+    auto stop_sample_auto_started_playback = [this]() {
+      if (record_arm_auto_started_playback_) togglePlaying();
+      record_arm_auto_started_playback_ = false;
+    };
+    if (isRecording()) {
+      finishSampleCapture();
+      stop_sample_auto_started_playback();
+      return;
+    }
+    if (isThresholdArmed()) {
+      disarmThresholdRecording();
+      stop_sample_auto_started_playback();
+      return;
+    }
+    if (isNoteCaptureArmed()) {
+      // LaunchpadManager's own refresh() reacts to this falling edge for
+      // its own bookkeeping (stopping an auto-started transport, clearing
+      // Session-view audition state) - nothing else to do here.
+      disarmNoteCapture();
+      return;
+    }
+
+    // Nothing armed - arm whatever the currently selected track actually
+    // needs.
+    auto & song = getSong();
+    auto track_id = song.getCurrentTrackId();
+    if (track_id < 0) return;
+    auto * track = song.getMasterTrack().getChildByInternalId(track_id);
+    if (!track) return;
+
+    if (track->getType() == TrackType::SAMPLE) {
+      armThresholdRecording(track_id);
+      if (!getPlaybackInfo().isPlaying()) startAutoRecordPlayback(record_arm_auto_started_playback_);
+    } else {
+      // The transport itself starts via LaunchpadManager's own refresh()
+      // rising-edge detection (startAutoRecordSession()'s own
+      // by-reference bookkeeping is LaunchpadManager-private) - nothing
+      // else to do here.
+      armNoteCapture();
+    }
   });
   commands_.define("add-filter", [this]() { });
   // Placeholder stubs (menu-visible, TerminalMenu's Song section) for
@@ -972,6 +1024,46 @@ Controller::extendRecordingClipsIfNeeded(std::unordered_map<int, std::string> & 
 }
 
 void
+Controller::extendRecordingSampleClipIfNeeded() {
+  if (!hasRecordingClip() || recording_start_scene_ < 0) return;
+  auto & info = getPlaybackInfo();
+  if (!info.isPlaying()) return;
+
+  auto song = getCurrentSong();
+  if (!song) return;
+  auto track_id = getRecordingTrackId();
+  auto & clips = song->getClips(track_id);
+  int clip_index = -1;
+  for (size_t i = 0; i < clips.size(); i++) {
+    if (clips[i].getId() == recording_clip_id_) { clip_index = static_cast<int>(i); break; }
+  }
+  if (clip_index < 0) return; // defensive - shouldn't happen mid-session
+  auto & clip = clips[static_cast<size_t>(clip_index)];
+
+  // Same growth-loop shape as extendRecordingClipsIfNeeded() above - grows
+  // a full bar at a time until at least one bar of headroom remains ahead
+  // of the current row.
+  auto rows_per_bar = std::max(1, song->getRowsPerBar());
+  bool grew = false;
+  auto window_last_row = recording_start_row_ + std::max(1, clip.getLength()) - 1;
+  while (window_last_row - info.getRowIndex() < rows_per_bar) {
+    clip.setLength(std::max(1, clip.getLength()) + rows_per_bar);
+    window_last_row = recording_start_row_ + clip.getLength() - 1;
+    grew = true;
+  }
+  if (grew) {
+    // Sweeps whatever's stale in this take's own newly-extended path (an
+    // old stop marker, a superseded instance) the same way
+    // extendRecordingClipsIfNeeded() already does - placeClipInstance()
+    // clears every instance event within a clip's own reach on every
+    // call, keyed off whatever its length currently is.
+    auto & scene = song->getScene(recording_start_scene_);
+    placeClipInstance(*song, scene, track_id, recording_start_row_, clip_index);
+    song->incVersion();
+  }
+}
+
+void
 Controller::startAutoRecordSession(bool & auto_started_playback, std::set<std::pair<int, int>> & cleared_rows, int & last_cleared_row, int & last_cleared_pattern_idx, std::unordered_map<int, std::string> & clip_ids) {
   togglePlaying();
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_RECORDING_MUTE, getActiveBufferName(), 1));
@@ -1033,6 +1125,12 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
   if (!song || !current_sample || current_sample->numberOfFrames() == 0) return;
 
   Clip clip(track_id);
+  // Non-looping by default - same reasoning as ensureNoteRecordingClip()'s
+  // own identical call: a live take is one specific performance, not a
+  // pattern meant to repeat automatically the moment it ends; looping it
+  // is the performer's own later call to make (Session view), not this
+  // clip's own starting assumption.
+  clip.setLooping(false);
   auto & content = clip.getOrCreateSampleContent();
   // The *same* shared_ptr startRecording() already handed out, not a
   // copy - every later addToSample() call (mutating *current_sample in
@@ -1046,8 +1144,18 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
     content.setInPoint(static_cast<float>(latency_frames) / static_cast<float>(channel_config.getAudioOutSampleRate()));
   }
   clip.setName(fmt::format("Take {}", song->getClips(track_id).size() + 1));
-  // No length yet - Clip.h's own "0 means not given one" convention; the
-  // real, final duration isn't known until finishSampleCapture().
+  // A full bar's worth of length right away, not left at 0 (Clip.h's "not
+  // given one yet") - the real, final duration isn't known until
+  // finishSampleCapture(), but a non-looping clip with no explicit length
+  // falls back to treating itself as 1 row long (resolveInstanceAt()'s
+  // own one-shot-expiry check), which the transport's own per-row
+  // scheduling re-evaluates continuously - left at 0, this take would
+  // look "already expired" to it after its very first row, live, long
+  // before finishSampleCapture() ever runs. extendRecordingSampleClipIfNeeded()
+  // keeps growing this as the take continues, same as
+  // ensureNoteRecordingClip()'s own identical starting point and
+  // extendRecordingClipsIfNeeded()'s own growth for a note-recording take.
+  clip.setLength(std::max(1, song->getRowsPerBar()));
 
   auto & added = song->addClip(std::move(clip));
   recording_clip_id_ = added.getId();
@@ -1081,7 +1189,8 @@ Controller::finishSampleCapture() {
   if (song && hasRecordingClip()) {
     auto track_id = getRecordingTrackId();
     auto & clips = song->getClips(track_id);
-    for (auto & clip : clips) {
+    for (size_t i = 0; i < clips.size(); i++) {
+      auto & clip = clips[i];
       if (clip.getId() != recording_clip_id_) continue;
 
       auto * content = clip.getSampleContent();
@@ -1092,6 +1201,22 @@ Controller::finishSampleCapture() {
       // this instance's own arrangement-window length either.
       auto post_trim_frames = std::max(0, total_frames - recording_latency_frames_);
       clip.setLength(channel_config.framesToRows(post_trim_frames, song->getTempo()));
+
+      // Re-clears the instance's own reach now that its real length is
+      // known - beginSampleCapture()'s own placeClipInstance() call had
+      // to run before any audio existed to measure, so it could only
+      // clear a single placeholder row, not this take's own actual span.
+      // Anything genuinely stale still sitting later in the track's own
+      // timeline (an old stop marker, a superseded instance) within reach
+      // of what this take actually turned out to be was never cleared -
+      // placeClipInstance() is idempotent against the same clip already
+      // placed at the same row, so calling it again here with the correct
+      // length simply extends that same clearing pass to cover it.
+      if (recording_start_scene_ >= 0) {
+        auto & scene = song->getOrCreateScene(recording_start_scene_);
+        placeClipInstance(*song, scene, track_id, recording_start_row_, static_cast<int>(i));
+      }
+
       auto duration_seconds = static_cast<float>(post_trim_frames) / static_cast<float>(channel_config.getAudioOutSampleRate());
       getUIEventQueue().push(make_unique<LogEvent>(fmt::format("recorded {} ({:.1f}s)", clip.getName(), duration_seconds)));
       song->incVersion();

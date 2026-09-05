@@ -462,14 +462,16 @@ Player::play(AudioAPI & audio) {
   // restored below. The capture descriptors otherwise stay in the poll set
   // with .events cleared to 0 (poll() then never reports on them, so they
   // never contribute a spurious wakeup) until the user actually activates
-  // recording (Controller::isRecording(), set by PatternEditor's Ctrl+R) -
+  // recording or threshold-arms one (Controller::isRecording()/
+  // isThresholdArmed(), both ultimately from "toggle-record-arm") -
   // recording is no longer engaged automatically just because playback
   // started. Clearing .events rather than dropping the capture fds from
   // the array entirely also sidesteps a busy-loop risk: an ALSA capture
   // stream that's open but never snd_pcm_start()ed (see
-  // AlsaAudio::startRecording()) sits with a frozen hw pointer, so its
-  // avail-derived "ready" condition would otherwise stay permanently true
-  // and poll() would never actually block on it.
+  // AlsaAudio::startRecording(), and this same loop's own eager call to
+  // it below) sits with a frozen hw pointer, so its avail-derived "ready"
+  // condition would otherwise stay permanently true and poll() would
+  // never actually block on it.
   auto capture_events = std::make_unique<short[]>(num_capture_desc);
   for (size_t i = 0; i < num_capture_desc; i++) {
     capture_events[i] = descriptors[1 + num_playback_desc + i].events;
@@ -499,6 +501,14 @@ Player::play(AudioAPI & audio) {
 
   while ( !terminate_ ) {
     bool recording = controller_->isRecording();
+    bool threshold_armed = controller_->isThresholdArmed();
+    // Captured before either of the two individual edges below update
+    // their own was_*_ flag, so this reflects last iteration's combined
+    // state - the rising/falling edge check just past the capture-enable
+    // loop needs this, not either flag's own edge alone (recording can
+    // begin while already threshold-armed, or vice versa, without capture
+    // itself ever having stopped in between).
+    bool capture_was_needed = was_recording_ || was_threshold_armed_;
 
     // Round-trip recording-latency measurement, exactly once per take -
     // right on the false -> true edge of `recording`, before anything has
@@ -528,15 +538,30 @@ Player::play(AudioAPI & audio) {
     // ring buffer (an earlier, temporally-discontinuous arm cycle's own
     // leftover content must never bleed into a later one's own drain())
     // and clears the "already triggered this cycle" latch.
-    bool threshold_armed = controller_->isThresholdArmed();
     if (threshold_armed && !was_threshold_armed_) {
       threshold_ring_buffer_.reset();
       threshold_triggered_this_arm_cycle_ = false;
     }
     was_threshold_armed_ = threshold_armed;
 
+    // Capture is entirely poll()-driven below (audio.record() only ever
+    // runs once its own descriptor actually reports ready), but unlike
+    // playback, an ALSA capture stream never produces anything to poll
+    // ready *on* until it's been explicitly started (snd_pcm_start(),
+    // inside AlsaAudio::startRecording() - see record()'s own comment on
+    // why capture can't auto-start just by accumulating reads). Without
+    // this call, nothing would ever start it: record() itself calls
+    // startRecording(), but record() is only ever reached after poll()
+    // already says the capture descriptor is ready, which never happens
+    // for a stream that was never started - so call it directly here, on
+    // the rising edge, before capture's own descriptor is even enabled
+    // for polling below.
+    bool capture_needed = recording || threshold_armed;
+    if (capture_needed && !capture_was_needed) audio.startRecording();
+    else if (!capture_needed && capture_was_needed) audio.stopRecording();
+
     for (size_t i = 0; i < num_capture_desc; i++) {
-      descriptors[1 + num_playback_desc + i].events = (recording || threshold_armed) ? capture_events[i] : 0;
+      descriptors[1 + num_playback_desc + i].events = capture_needed ? capture_events[i] : 0;
     }
 
     if (poll(descriptors.get(), num_descriptors, 1000) > 0) {
@@ -671,9 +696,8 @@ Player::play(AudioAPI & audio) {
 		// UI-thread-owned snapshot this thread has no business
 		// reading, same reasoning as the latency measurement above),
 		// never written directly into Controller (which owns this
-		// position the same way Controller::armRecordingStart()
-		// already does for start-sample-capture's own take - see
-		// ThresholdRecordingTriggeredEvent's own comment). Falls
+		// position - see ThresholdRecordingTriggeredEvent's own
+		// comment). Falls
 		// back to (0, 0) if this buffer somehow has no live state
 		// yet - can't happen in practice (armThresholdRecording()'s
 		// own auto-start already gave it one), stays defensive
