@@ -2,6 +2,8 @@
 
 #include "../src/ui/SubcellGlyphs.h"
 
+#include <vector>
+
 TEST(quadrant_codepoints_mask_zero_and_mask_fifteen_are_space_and_full_block) {
   CHECK(kQuadrantCodepoints[0] == 0x0020);
   CHECK(kQuadrantCodepoints[15] == 0x2588);
@@ -62,4 +64,34 @@ TEST(braille_codepoint_every_mask_is_distinct_and_in_the_braille_block) {
       CHECK(brailleCodepoint(a) != brailleCodepoint(b));
     }
   }
+}
+
+// Every possible split of 4 identical samples ties at zero cost, and the
+// all-off mask (0) is tried first and never beaten by a later, merely-
+// equal one (strict "<" comparison) - so the "on" group ends up empty
+// (its mean defaults to {0,0,0}, having summed zero samples) and the
+// "off" group absorbs all four at their own true, uniform color.
+TEST(quantize_to_two_colors_uniform_samples_all_land_in_the_off_group) {
+  std::vector<SubcellRgb> samples = {{10, 20, 30}, {10, 20, 30}, {10, 20, 30}, {10, 20, 30}};
+  SubcellRgb on, off;
+  int mask = quantizeToTwoColors(samples, on, off);
+  CHECK(mask == 0);
+  CHECK_NEAR(on.r, 0.0f, 1e-4f); CHECK_NEAR(on.g, 0.0f, 1e-4f); CHECK_NEAR(on.b, 0.0f, 1e-4f);
+  CHECK_NEAR(off.r, 10.0f, 1e-4f); CHECK_NEAR(off.g, 20.0f, 1e-4f); CHECK_NEAR(off.b, 30.0f, 1e-4f);
+}
+
+// Samples 0/2 are one color, 1/3 a clearly different one - the exact
+// (brute-force) optimum groups them that way at zero cost (each group is
+// already uniform), regardless of which bits end up "on" vs "off".
+TEST(quantize_to_two_colors_separates_two_distinct_clusters_exactly) {
+  std::vector<SubcellRgb> samples = {{0, 0, 0}, {100, 100, 100}, {0, 0, 0}, {100, 100, 100}};
+  SubcellRgb on, off;
+  int mask = quantizeToTwoColors(samples, on, off);
+  for (size_t i = 0; i < samples.size(); i++) {
+    auto & mean = (mask & (1 << i)) ? on : off;
+    CHECK_NEAR(mean.r, samples[i].r, 1e-4f);
+    CHECK_NEAR(mean.g, samples[i].g, 1e-4f);
+    CHECK_NEAR(mean.b, samples[i].b, 1e-4f);
+  }
+  CHECK(off.r != on.r); // genuinely two different colors, not one group absorbing everything
 }

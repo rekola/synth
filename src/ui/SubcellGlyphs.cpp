@@ -34,3 +34,40 @@ brailleCodepoint(int mask) {
   if (mask & 0x80) dots |= 0x80; // row3,col1 -> dot8
   return 0x2800u + dots;
 }
+
+int
+quantizeToTwoColors(const std::vector<SubcellRgb> & samples, SubcellRgb & on_color, SubcellRgb & off_color) {
+  int n = static_cast<int>(samples.size());
+  int best_mask = 0;
+  float best_cost = -1.0f;
+  SubcellRgb best_on{}, best_off{};
+
+  for (int mask = 0; mask < (1 << n); mask++) {
+    SubcellRgb sum_on{0, 0, 0}, sum_off{0, 0, 0};
+    int count_on = 0, count_off = 0;
+    for (int i = 0; i < n; i++) {
+      if (mask & (1 << i)) { sum_on.r += samples[static_cast<size_t>(i)].r; sum_on.g += samples[static_cast<size_t>(i)].g; sum_on.b += samples[static_cast<size_t>(i)].b; count_on++; }
+      else { sum_off.r += samples[static_cast<size_t>(i)].r; sum_off.g += samples[static_cast<size_t>(i)].g; sum_off.b += samples[static_cast<size_t>(i)].b; count_off++; }
+    }
+    SubcellRgb mean_on = count_on > 0 ? SubcellRgb{sum_on.r / count_on, sum_on.g / count_on, sum_on.b / count_on} : SubcellRgb{0, 0, 0};
+    SubcellRgb mean_off = count_off > 0 ? SubcellRgb{sum_off.r / count_off, sum_off.g / count_off, sum_off.b / count_off} : SubcellRgb{0, 0, 0};
+
+    float cost = 0.0f;
+    for (int i = 0; i < n; i++) {
+      auto & mean = (mask & (1 << i)) ? mean_on : mean_off;
+      float dr = samples[static_cast<size_t>(i)].r - mean.r, dg = samples[static_cast<size_t>(i)].g - mean.g, db = samples[static_cast<size_t>(i)].b - mean.b;
+      cost += dr * dr + dg * dg + db * db;
+    }
+
+    if (best_cost < 0.0f || cost < best_cost) {
+      best_cost = cost;
+      best_mask = mask;
+      best_on = mean_on;
+      best_off = mean_off;
+    }
+  }
+
+  on_color = best_on;
+  off_color = best_off;
+  return best_mask;
+}

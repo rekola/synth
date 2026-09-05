@@ -593,17 +593,6 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
     song.incVersion();
   });
 
-  // A runtime side-by-side comparison between the two sub-cell glyph
-  // candidates for a sample clip's waveform box (renderRow()'s own
-  // comment) - M-x only, no keybinding, matching copy-to-clip above.
-  commands_.define("toggle-waveform-glyph-style", [this]() {
-    force_braille_waveform_ = !force_braille_waveform_;
-    // No model mutation (no incVersion()) for render()'s own render_all
-    // check to notice on its own - force_redraw_ is exactly this case,
-    // see its own comment.
-    force_redraw_ = true;
-  });
-
   // "send-a-mode"/"send-b-mode" are NOT defined here (or anywhere in
   // commands_) - they mutate nothing outside a single Launchpad device's
   // own transient UI state (which grid mode it's showing), never Song/
@@ -2554,58 +2543,87 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // sextants (2x3 sub-cells) when this terminal actually supports Unicode
   // 13's sextant range (UIPlane::canRenderSextants()), else quadrants
   // (2x2, always supported) - the capability figured out once at
-  // TerminalPlane construction, not re-queried per row. Braille (2x4,
-  // also always supported) is a third, higher-resolution option, forced
-  // on regardless of sextant support via force_braille_waveform_'s own
-  // "toggle-waveform-glyph-style" command, for comparing it against
-  // whichever of the other two this terminal would otherwise pick.
-  // Reuses SubcellGlyphs.h's exact tables rather than a fourth copy of
-  // them, the same ones TerminalHeatmapChart's 2D field already uses.
-  auto waveform_subrows = force_braille_waveform_ ? 4 : (getPlane().canRenderSextants() ? 3 : 2);
-  // Renders one pattern row's own slice of a sample clip's waveform, over
-  // `width` character cells: each of `waveform_subrows` independent
-  // per-row time-buckets (WaveformPeaks::at(), see its own row-vs-time
-  // indexing comment) gets its own centered, symmetric fill across the
-  // *whole row's own width* - not read left-to-right as a sub-timeline,
+  // TerminalPlane construction, not re-queried per row. Reuses
+  // SubcellGlyphs.h's exact tables rather than a second copy of them, the
+  // same ones TerminalHeatmapChart's 2D field already uses.
+  auto waveform_subrows = getPlane().canRenderSextants() ? 3 : 2;
+  // Oversamples WaveformPeaks by this factor along its own row-vs-time
+  // axis (see WaveformPeaks::at()'s own indexing comment) - more input
+  // time-buckets than the glyph's own output sub-row count, averaged down
+  // per output sub-row below, rather than reading one bucket per output
+  // sub-row directly. Smooths amplitude changes between adjacent
+  // sub-rows the same way the horizontal coverage math below smooths a
+  // bar's own edge - 4 chosen as a reasonable smooth-without-excessive-
+  // cost tradeoff (WaveformPeaks::build()'s own cost scales with the
+  // total bucket count this multiplies into), not a value with any
+  // particular significance of its own.
+  constexpr int kWaveformSupersample = 4;
+  // Renders one pattern row's own slice of a sample clip's waveform,
+  // directly into `width` character cells starting at current_pos (not
+  // returning a string the caller draws with one shared color pair - see
+  // below) - each of `waveform_subrows` independent, supersampled
+  // per-row time-buckets gets its own centered, symmetric fill across the
+  // *whole row's own width*, not read left-to-right as a sub-timeline;
   // it's a small bar-graph reading, the same convention a horizontal VU
   // meter already uses (value 0.5 over an 8-wide block centers 4 filled
-  // slots in the middle, leaving 2 empty on each side). Every character
-  // cell's own final glyph combines whichever of the `waveform_subrows`
-  // (vertical) x 2 (horizontal, both quadrant and sextant sub-cells are 2
-  // columns wide) sub-positions its own span of that fill actually covers
-  // into one mask, matching kQuadrantCodepoints'/sextantCodepoint's own
-  // row-major bit convention (bit = subrow*2 + subcol).
-  auto waveform_row_glyphs = [&](const WaveformPeaks & peaks, int row, int width) {
-    if (width <= 0) return string();
+  // slots in the middle, leaving 2 empty on each side).
+  //
+  // Antialiased two ways, both from the actual floating-point amplitude
+  // values rather than a rounded/quantized fill count: horizontally, a
+  // bar's own edge is a continuous, fractional position - slotCoverage()
+  // below computes the exact overlap between a half-column slot's own
+  // [gc, gc+1) span and the bar's own continuous span, so an edge landing
+  // mid-slot shades that slot proportionally instead of snapping to
+  // whichever side it's closer to. Vertically, kWaveformSupersample
+  // independent time-buckets are averaged into each output sub-row's own
+  // coverage rather than reading a single, coarser bucket directly. Each
+  // sub-position's own coverage then picks a color by linearly blending
+  // `bg_color` (coverage 0) toward `fg_color` (coverage 1) - so a
+  // partially-covered sub-position gets a partially-blended color, not a
+  // flat on/off pick either. Finally, since a character cell can only
+  // ever show two actual colors at once, quantizeToTwoColors()
+  // (SubcellGlyphs.h, shared with TerminalHeatmapChart's own DirAC field)
+  // picks the best-fit "on"/"off" color pair and bitmask for this one
+  // cell's own handful of already-blended sub-samples - smoothly varying
+  // per cell as the underlying coverage does, rather than a single fixed
+  // fg/bg pair for the whole row.
+  auto renderWaveformRow = [&](const WaveformPeaks & peaks, int row, int width, Color fg_color, Color bg_color, int start_col) {
+    if (width <= 0) return;
+    SubcellRgb bg_rgb{static_cast<float>(bg_color.getRed()), static_cast<float>(bg_color.getGreen()), static_cast<float>(bg_color.getBlue())};
+    SubcellRgb fg_rgb{static_cast<float>(fg_color.getRed()), static_cast<float>(fg_color.getGreen()), static_cast<float>(fg_color.getBlue())};
     auto total_slots = width * 2;
-    vector<int> fill_start(static_cast<size_t>(waveform_subrows)), fill_count(static_cast<size_t>(waveform_subrows));
-    for (int s = 0; s < waveform_subrows; s++) {
-      auto value = std::clamp(peaks.at(row, s), 0.0f, 1.0f);
-      // Rounded to the nearest *even* count, not just the nearest integer
-      // - total_slots is always even (width * 2), so an odd fill_count
-      // would leave (total_slots - fill_count) odd too, putting one more
-      // empty slot on one side than the other. Rounding by half of
-      // total_slots first, then doubling back, keeps the parity match
-      // exactly, so the fill centers perfectly every time.
-      auto count = std::clamp(static_cast<int>(std::lround(static_cast<double>(value) * total_slots / 2.0)) * 2, 0, total_slots);
-      fill_count[static_cast<size_t>(s)] = count;
-      fill_start[static_cast<size_t>(s)] = (total_slots - count) / 2;
-    }
-    string result;
+    auto slotCoverage = [&](float value, int gc) {
+      value = std::clamp(value, 0.0f, 1.0f);
+      double fill_count = static_cast<double>(value) * total_slots;
+      double fill_start = (total_slots - fill_count) / 2.0;
+      double fill_end = fill_start + fill_count;
+      double overlap = std::min(static_cast<double>(gc + 1), fill_end) - std::max(static_cast<double>(gc), fill_start);
+      return std::clamp(overlap, 0.0, 1.0);
+    };
+    vector<SubcellRgb> samples(static_cast<size_t>(waveform_subrows * 2));
     for (int c = 0; c < width; c++) {
-      int mask = 0;
       for (int s = 0; s < waveform_subrows; s++) {
 	for (int h = 0; h < 2; h++) {
 	  auto gc = c * 2 + h;
-	  if (gc >= fill_start[static_cast<size_t>(s)] && gc < fill_start[static_cast<size_t>(s)] + fill_count[static_cast<size_t>(s)]) {
-	    mask |= 1 << (s * 2 + h);
+	  double coverage_sum = 0.0;
+	  for (int m = 0; m < kWaveformSupersample; m++) {
+	    coverage_sum += slotCoverage(peaks.at(row, s * kWaveformSupersample + m), gc);
 	  }
+	  auto coverage = static_cast<float>(coverage_sum / kWaveformSupersample);
+	  samples[static_cast<size_t>(s * 2 + h)] = SubcellRgb{
+	    bg_rgb.r * (1.0f - coverage) + fg_rgb.r * coverage,
+	    bg_rgb.g * (1.0f - coverage) + fg_rgb.g * coverage,
+	    bg_rgb.b * (1.0f - coverage) + fg_rgb.b * coverage,
+	  };
 	}
       }
-      auto codepoint = waveform_subrows == 4 ? brailleCodepoint(mask) : waveform_subrows == 3 ? sextantCodepoint(mask) : kQuadrantCodepoints[mask];
-      result += Utf8::encodeCodepoint(codepoint);
+      SubcellRgb on_color, off_color;
+      int mask = quantizeToTwoColors(samples, on_color, off_color);
+      setFgColor(Color(static_cast<int>(on_color.r), static_cast<int>(on_color.g), static_cast<int>(on_color.b)));
+      setBgColor(Color(static_cast<int>(off_color.r), static_cast<int>(off_color.g), static_cast<int>(off_color.b)));
+      auto codepoint = waveform_subrows == 3 ? sextantCodepoint(mask) : kQuadrantCodepoints[mask];
+      putstr(display_row, start_col + c, Utf8::encodeCodepoint(codepoint));
     }
-    return result;
   };
 
   auto current_pos = 0;
@@ -2799,7 +2817,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // as a single total, never per-column).
 	  auto width = std::max(track_info.getColumnWidth(k) - 2, 1);
 	  // A real, sample-bearing instance draws its own waveform slice for
-	  // this row (waveform_row_glyphs() above) instead of a flat fill -
+	  // this row (renderWaveformRow() above) instead of a flat fill -
 	  // background content, an explicit stop, and an instance whose clip
 	  // has no sample content yet (nothing to show a shape for) all keep
 	  // the plain 'x'/' ' fill.
@@ -2807,7 +2825,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  const Clip * sample_clip = (read_target.is_instance && read_target.clip_index >= 0 &&
 	    read_target.clip_index < static_cast<int>(clips.size())) ? &clips[static_cast<size_t>(read_target.clip_index)] : nullptr;
 	  if (sample_clip && sample_clip->hasSample()) {
-	    auto & peaks = sample_clip->getWaveformPeaks(waveform_subrows);
+	    auto & peaks = sample_clip->getWaveformPeaks(waveform_subrows * kWaveformSupersample);
 	    // A looping clip's own later laps wrap back into its own row
 	    // range; a one-shot instance whose placed length outran its own
 	    // audio (padding rows past what the recording actually covers)
@@ -2830,9 +2848,13 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	    // cell in this row does, while keeping the track's own hue
 	    // dominant rather than washing it out to plain text gray.
 	    auto waveform_fg = track_info.getColor().blend(0.35f, fg);
-	    setFgColor(column_selected ? cur_fg : waveform_fg);
-	    putstr(display_row, current_pos, waveform_row_glyphs(peaks, wf_row, width));
+	    renderWaveformRow(peaks, wf_row, width, column_selected ? cur_fg : waveform_fg, cell_bg, current_pos);
+	    // renderWaveformRow() leaves both fg/bg at whatever its own last
+	    // cell's quantized colors were, not cell_fg/cell_bg - restore both
+	    // (unlike the old single-color-pair version, which only ever
+	    // touched fg) so nothing after this branch inherits a stale blend.
 	    setFgColor(cell_fg);
+	    setBgColor(cell_bg);
 	  } else {
 	    putstr(display_row, current_pos, std::string(static_cast<size_t>(width), read_target.is_instance ? 'x' : ' '));
 	  }

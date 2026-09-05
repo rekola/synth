@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 // Unicode Block Elements (2x2, always-supported) and Symbols for Legacy
 // Computing sextant (2x3, capability-gated) sub-cell glyph tables - shared
 // by every widget that paints sub-character-resolution content (currently
@@ -32,15 +34,36 @@ unsigned int sextantCodepoint(int mask);
 
 // Unicode Braille Patterns (U+2800-U+28FF) for an 8-bit mask over a
 // 2-column x 4-row sub-cell, row-major like the two tables above (bit =
-// row*2+col, 1 = "on"/foreground) - finer than sextants' 2x3 and, unlike
-// sextantCodepoint(), needs no capability check at all: the block is
-// old/near-universally supported, which is presumably why PatternEditor's
-// own pre-existing VU meter already draws from it unconditionally. The
-// codepoint's own bit order isn't row-major (it's the historical 6/8-dot
-// braille cell numbering: dot1/2/3/7 down the left column, dot4/5/6/8 down
-// the right), so this permutes the row-major mask into that order rather
-// than adding row*2+col directly to the block's base codepoint. Mask 0
-// (all off) is plain space U+0020, matching the other two tables' own
-// convention, rather than the technically-blank but visually-identical
-// braille cell U+2800.
+// row*2+col, 1 = "on"/foreground) - finer than sextants' 2x3 and needs no
+// capability check at all: the block is old/near-universally supported.
+// The codepoint's own bit order isn't row-major (it's the historical
+// 6/8-dot braille cell numbering: dot1/2/3/7 down the left column,
+// dot4/5/6/8 down the right), so this permutes the row-major mask into
+// that order rather than adding row*2+col directly to the block's base
+// codepoint. Mask 0 (all off) is plain space U+0020, matching the other
+// two tables' own convention, rather than the technically-blank but
+// visually-identical braille cell U+2800.
 unsigned int brailleCodepoint(int mask);
+
+// A plain float-triple RGB color - kept separate from the model-layer
+// Color class (Color.h, 8-bit components, no += operator) since
+// quantizeToTwoColors() below needs to accumulate running sums/means at
+// full precision; converted to/from a real Color at each caller's own
+// edges.
+struct SubcellRgb { float r, g, b; };
+
+// Exact (brute-force) optimal 2-color quantization of `samples` (one
+// character cell's own sub-cell colors, already computed by the caller -
+// up to 4 for quadrants, 6 for sextants) into an "on"/"off" group,
+// minimizing total squared color error against each group's own mean -
+// cheap at this size (at most 2^n candidate splits for n <= 6) and,
+// unlike a fixed brightness threshold, accounts for hue/saturation
+// variation too, not just brightness. Returns the winning bitmask (bit i
+// set = sample i is in the "on"/foreground group, row-major, matching
+// kQuadrantCodepoints'/sextantCodepoint's own bit convention) and writes
+// the two group-mean colors out. Shared by TerminalHeatmapChart (its own
+// DirAC directional field) and PatternEditor's own waveform boxes (its
+// per-row antialiased coverage) - the same "best 2-color fit for a
+// handful of already-computed samples" problem either way, regardless of
+// what the samples themselves represent.
+int quantizeToTwoColors(const std::vector<SubcellRgb> & samples, SubcellRgb & on_color, SubcellRgb & off_color);

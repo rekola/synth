@@ -1027,14 +1027,12 @@ private:
 
 namespace {
 
-struct HeatmapRgb { float r, g, b; };
-
 // StyleProvider::window_bg_color ("#151515") - the same idle background
 // every scope now shares (the FFT/volume-meter charts already show it
 // through untouched cells; the heatmap has no such "untouched" concept
 // since it repaints every cell/pixel every frame, so it needs its own
 // explicit idle color instead of literal black to match).
-constexpr HeatmapRgb kHeatmapBackground{21.0f, 21.0f, 21.0f};
+constexpr SubcellRgb kHeatmapBackground{21.0f, 21.0f, 21.0f};
 
 // Lerps from kHeatmapBackground (value == 0) to the fully-bright HSV color
 // (value == 1), using value itself as the blend weight - continuous by
@@ -1044,7 +1042,7 @@ constexpr HeatmapRgb kHeatmapBackground{21.0f, 21.0f, 21.0f};
 // color rather than needing a separate cutoff/threshold to special-case
 // "close enough to silent." No explicit epsilon check needed anywhere:
 // once value is astronomically small, its weight in the lerp is too.
-HeatmapRgb heatmapCellColor(float saturation, float value) {
+SubcellRgb heatmapCellColor(float saturation, float value) {
   if (value < 0.0f) value = 0.0f;
   else if (value > 1.0f) value = 1.0f;
   uint8_t r, g, b;
@@ -1054,51 +1052,6 @@ HeatmapRgb heatmapCellColor(float saturation, float value) {
     kHeatmapBackground.g * (1.0f - value) + static_cast<float>(g) * value,
     kHeatmapBackground.b * (1.0f - value) + static_cast<float>(b) * value,
   };
-}
-
-// Exact (brute-force) optimal 2-color quantization of samples.size() (here
-// always 4 - a quadrant's sub-cells) RGB samples: tries every non-trivial
-// way to split them into an "on"/"off" group and keeps the split
-// minimizing total squared color error against each group's own mean -
-// cheap at this size (at most 16 candidate splits) and, unlike a fixed
-// brightness threshold, actually accounts for hue/saturation variation
-// too, not just brightness. Returns the winning bitmask (bit i set =
-// sample i is in the "on"/foreground group) and writes the two
-// group-mean colors out.
-int quantizeToTwoColors(const std::vector<HeatmapRgb> & samples, HeatmapRgb & on_color, HeatmapRgb & off_color) {
-  int n = static_cast<int>(samples.size());
-  int best_mask = 0;
-  float best_cost = -1.0f;
-  HeatmapRgb best_on{}, best_off{};
-
-  for (int mask = 0; mask < (1 << n); mask++) {
-    HeatmapRgb sum_on{0, 0, 0}, sum_off{0, 0, 0};
-    int count_on = 0, count_off = 0;
-    for (int i = 0; i < n; i++) {
-      if (mask & (1 << i)) { sum_on.r += samples[static_cast<size_t>(i)].r; sum_on.g += samples[static_cast<size_t>(i)].g; sum_on.b += samples[static_cast<size_t>(i)].b; count_on++; }
-      else { sum_off.r += samples[static_cast<size_t>(i)].r; sum_off.g += samples[static_cast<size_t>(i)].g; sum_off.b += samples[static_cast<size_t>(i)].b; count_off++; }
-    }
-    HeatmapRgb mean_on = count_on > 0 ? HeatmapRgb{sum_on.r / count_on, sum_on.g / count_on, sum_on.b / count_on} : HeatmapRgb{0, 0, 0};
-    HeatmapRgb mean_off = count_off > 0 ? HeatmapRgb{sum_off.r / count_off, sum_off.g / count_off, sum_off.b / count_off} : HeatmapRgb{0, 0, 0};
-
-    float cost = 0.0f;
-    for (int i = 0; i < n; i++) {
-      auto & mean = (mask & (1 << i)) ? mean_on : mean_off;
-      float dr = samples[static_cast<size_t>(i)].r - mean.r, dg = samples[static_cast<size_t>(i)].g - mean.g, db = samples[static_cast<size_t>(i)].b - mean.b;
-      cost += dr * dr + dg * dg + db * db;
-    }
-
-    if (best_cost < 0.0f || cost < best_cost) {
-      best_cost = cost;
-      best_mask = mask;
-      best_on = mean_on;
-      best_off = mean_off;
-    }
-  }
-
-  on_color = best_on;
-  off_color = best_off;
-  return best_mask;
 }
 
 // Computes destination index d's source-index range [lo,hi) along one axis
@@ -1207,7 +1160,7 @@ struct AxisLabel { int row, col; const char * text; };
 // while still visibly taking on whatever hue/brightness is really there.
 constexpr float kLabelForegroundAlpha = 0.55f; // how much white shows through the glyph
 
-void labelForegroundColor(const HeatmapRgb & bg, uint8_t & r, uint8_t & g, uint8_t & b) {
+void labelForegroundColor(const SubcellRgb & bg, uint8_t & r, uint8_t & g, uint8_t & b) {
   r = static_cast<uint8_t>(kLabelForegroundAlpha * 255.0f + (1.0f - kLabelForegroundAlpha) * bg.r);
   g = static_cast<uint8_t>(kLabelForegroundAlpha * 255.0f + (1.0f - kLabelForegroundAlpha) * bg.g);
   b = static_cast<uint8_t>(kLabelForegroundAlpha * 255.0f + (1.0f - kLabelForegroundAlpha) * bg.b);
@@ -1269,7 +1222,7 @@ public:
     std::vector<float> agg_brightness, agg_saturation;
     resampleGrid(brightness_, saturation_, gridCols(), gridRows(), vcols, vrows, agg_brightness, agg_saturation);
 
-    std::vector<HeatmapRgb> samples(static_cast<size_t>(sub_rows * 2));
+    std::vector<SubcellRgb> samples(static_cast<size_t>(sub_rows * 2));
     for (int sy = 0; sy < usable_rows; sy++) {
       for (int sx = 0; sx < cols; sx++) {
         // Gather this character cell's sub-samples (row-major - top-left
@@ -1290,7 +1243,7 @@ public:
           }
         }
 
-        HeatmapRgb on_color, off_color;
+        SubcellRgb on_color, off_color;
         int mask = quantizeToTwoColors(samples, on_color, off_color);
 
         setFgColor(static_cast<int>(on_color.r), static_cast<int>(on_color.g), static_cast<int>(on_color.b));
@@ -1318,19 +1271,19 @@ public:
         // color - the exception to the normal two-color sextant/quadrant
         // blend that a label-covered cell gets (see axisLabels()'s own
         // comment above).
-        HeatmapRgb sum{0, 0, 0};
+        SubcellRgb sum{0, 0, 0};
         for (int qy = 0; qy < sub_rows; qy++) {
           int vy_from_top = label.row * sub_rows + qy;
           int vy = vrows - 1 - vy_from_top;
           for (int qx = 0; qx < 2; qx++) {
             int vx = sx * 2 + qx;
             size_t idx = static_cast<size_t>(vy * vcols + vx);
-            HeatmapRgb rgb = heatmapCellColor(agg_saturation[idx], agg_brightness[idx]);
+            SubcellRgb rgb = heatmapCellColor(agg_saturation[idx], agg_brightness[idx]);
             sum.r += rgb.r; sum.g += rgb.g; sum.b += rgb.b;
           }
         }
         float sample_count = static_cast<float>(sub_rows * 2);
-        HeatmapRgb mean{sum.r / sample_count, sum.g / sample_count, sum.b / sample_count};
+        SubcellRgb mean{sum.r / sample_count, sum.g / sample_count, sum.b / sample_count};
 
         uint8_t fr, fg, fb;
         labelForegroundColor(mean, fr, fg, fb);
@@ -1397,7 +1350,7 @@ public:
       for (unsigned px = 0; px < pxx; px++) {
         size_t idx = static_cast<size_t>(vy) * pxx + px;
 
-        HeatmapRgb rgb = heatmapCellColor(agg_saturation[idx], agg_brightness[idx]);
+        SubcellRgb rgb = heatmapCellColor(agg_saturation[idx], agg_brightness[idx]);
         buffer[py * pxx + px] = (0xffu << 24) | (static_cast<uint32_t>(rgb.b) << 16) | (static_cast<uint32_t>(rgb.g) << 8) | static_cast<uint32_t>(rgb.r);
       }
     }
@@ -1452,7 +1405,7 @@ public:
           }
         }
         if (count == 0) continue;
-        HeatmapRgb mean{static_cast<float>(sum_r / count), static_cast<float>(sum_g / count), static_cast<float>(sum_b / count)};
+        SubcellRgb mean{static_cast<float>(sum_r / count), static_cast<float>(sum_g / count), static_cast<float>(sum_b / count)};
 
         uint8_t fr, fg, fb;
         labelForegroundColor(mean, fr, fg, fb);
