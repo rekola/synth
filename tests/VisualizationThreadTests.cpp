@@ -76,7 +76,12 @@ TEST(visualization_thread_dirac_grid_delivered_after_throttle_threshold) {
 }
 
 TEST(visualization_thread_computes_channel_loudness_and_meter_label) {
-  Controller controller{ChannelConfiguration()};
+  // Order 1 (4 regular channels), matching raw_bus below - decode_mixer_
+  // (VisualizationThread.cpp's own FFT-decode path, driven by this exact
+  // ChannelConfiguration) has to be built for the same channel count as
+  // whatever AudioBlockEvent actually carries, or accumulate() hits a
+  // regular-channel-count mismatch (AudioBuffer::mixNamed()'s own assert).
+  Controller controller{ChannelConfiguration(44100, 1)};
   VisualizationThread thread(&controller);
   // A tiny block (well under both the FFT window and DiracAnalyzer's own
   // 1024-sample accumulation threshold) isolates the loudness path from
@@ -121,7 +126,9 @@ TEST(visualization_thread_computes_channel_loudness_and_meter_label) {
 }
 
 TEST(visualization_thread_channel_loudness_pads_odd_regular_count_before_aux) {
-  Controller controller{ChannelConfiguration()};
+  // Order 2 (9 regular channels), matching raw_bus below - see the
+  // identical fix's own comment above for why this has to agree with it.
+  Controller controller{ChannelConfiguration(44100, 2)};
   VisualizationThread thread(&controller);
   thread.configure(3000, 256);
 

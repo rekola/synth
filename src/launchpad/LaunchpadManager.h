@@ -99,11 +99,35 @@ class LaunchpadManager {
   // A one-way force, unlike toggleGridMode() above - every currently
   // connected device switches to NOTES regardless of whatever mode it was
   // already in (SESSION included), never toggled back off by a repeat
-  // call. Wired to SessionView's own clip-focus callback (UI::start()) so
-  // picking a clip there actually becomes visible on real hardware right
-  // away, instead of only taking effect once someone happens to press
-  // CC96 on every connected device by hand.
+  // call. Wired to Controller::setDrumEditRequestListener() (UI::start())
+  // so Record Arm's own drum-machine-clip repurposing actually becomes
+  // visible on real hardware right away, instead of only taking effect
+  // once someone happens to press CC96 on every connected device by hand.
   void forceNotesModeOnAllDevices();
+  // The same one-way force back to SESSION - Record Arm's own repurposing
+  // toggles off the same way it toggled on (pressing it again on the
+  // clip already open for editing), and closing it should hand every
+  // connected device back to Session view rather than leaving it stuck
+  // showing the step grid with nothing left focused to edit there.
+  void forceSessionModeOnAllDevices();
+  // Assigns every currently-connected device its own default page
+  // (DeviceState::drum_edit_page) into a freshly-opened drum clip's own
+  // pattern, in connection order (LaunchpadIO::readySessionIds() - the
+  // first-connected device gets page 0/steps 0-7, the second page 1/steps
+  // 8-15, and so on) - lets several Launchpads split a clip longer than 8
+  // steps between them without anyone having to page-flip by hand first.
+  // Called from Controller::setDrumEditRequestListener()'s own "opened"
+  // callback (UI::start()), alongside forceNotesModeOnAllDevices() above.
+  void resetDrumEditPaging();
+  // Releases every Session-View-triggered clip on every *other* track
+  // (triggered_pattern_by_track_/queued_pattern_by_track_ - a plain
+  // clear() alone would stop new steps from firing but leave whatever's
+  // already sounding ringing on its own envelope, so this pushes an
+  // explicit STOP_ALL_NOTES per currently-triggered track first) - opening
+  // a drum clip for editing (Controller::setDrumEditRequestListener()'s
+  // own "opened" callback, UI::start()) is meant to be heard in isolation,
+  // not layered under whatever else happened to already be playing.
+  void silenceOtherTriggeredClips(Controller & controller);
 
   // The Launchpad's own session/launch view, replacing what used to be a
   // plain arrangement-navigation overview (rows=scenes) - rows are now a
@@ -286,15 +310,19 @@ class LaunchpadManager {
   // release like CC97/CC98 above.
   void handleStopClipButton(int device_id, bool is_press);
 
-  // Handles this device's own pure per-device commands - octave and
-  // track-follow navigation - entirely from LaunchpadManager's own state,
-  // no Song/Track access needed. Returns false for any other command
+  // Handles this device's own pure per-device commands - octave,
+  // track-follow navigation, and (only while this device is actually
+  // showing a Session-View-focused drum clip's own step grid) paging
+  // through it - entirely from LaunchpadManager's own state (`controller`
+  // is only needed to recognize that last case - Controller::
+  // getFocusedClipTrackId() - and to resolve fallback_track_index into a
+  // real track id via its own Song). Returns false for any other command
   // name: Song/Track-mutating commands like "toggle-mute" are defined
   // centrally instead (see PatternEditor's commands_) and reached via
   // UI::handleLaunchpadButtonEvent's generic executeCommand() fallback
   // once this declines the name - the same CommandRegistry lookup a
   // keybinding or M-x invocation goes through.
-  bool handleCommand(std::string_view name, int device_id, int fallback_track_index, int num_tracks);
+  bool handleCommand(std::string_view name, int device_id, int fallback_track_index, int num_tracks, Controller & controller);
 
   // Resolves the note this pad currently maps to for this device (using
   // its own octave and the given track's tuning/the song's key). Returns
@@ -341,6 +369,18 @@ class LaunchpadManager {
   // NOTES grid never leaves Record Arm's own state (and its LED) out of
   // sync with what a press here is about to do.
   void handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller & controller);
+
+  // handleSessionPadEvent()'s own decision logic (auditioning-toggle vs.
+  // arrangement-assign, everything after resolving which (track, clip)
+  // was actually addressed), factored out so anything else that means
+  // "act exactly like a Session view pad press landed here" can call it
+  // directly without needing a real LaunchpadPadEvent - SessionView's own
+  // Enter key (the terminal's own Session View, UI::start()'s own wiring)
+  // is the other caller. `clip_index` is a plain Song::getClips() index,
+  // already flipped from pad-y-coordinate space by callers that have one;
+  // out of range means an empty slot, the same as `!has_pattern_here`
+  // meant before this was pulled out.
+  void triggerSessionClip(Controller & controller, int track_id, int clip_index);
 
   // Device-wide aftertouch (the alternative to handlePadEvent's per-pad
   // AFTERTOUCH case - see LaunchpadChannelPressureEvent) - there's no
@@ -502,6 +542,19 @@ class LaunchpadManager {
     // machine, so switching back re-shows the picker rather than losing
     // the latch state.
     bool picker_active = false;
+    // Which 8-step window of a Session-View-focused drum clip's own
+    // pattern this device currently shows/edits on its step grid - a
+    // clip's own length can span more rows than the grid's fixed 8
+    // columns, so this device shows one page of it at a time. Adjusted
+    // via the prev-track/next-track buttons (repurposed while this
+    // device is actually showing a focused drum clip's own step grid -
+    // see LaunchpadManager::handleCommand()'s own comment), reset to a
+    // device-order default (resetDrumEditPaging()) each time a fresh clip
+    // is opened for editing (Controller::setDrumEditRequestListener()'s
+    // own "opened" callback, UI::start()) - out of range for whatever the
+    // clip's own current length actually is gets clamped wherever this is
+    // read, not here, since the clip can change length after this is set.
+    int drum_edit_page = 0;
     // CC98 press/release tracking - see handleDrumConfigButton() for why a
     // tap and a long hold need to be told apart, same shape as
     // draw_toggle_pressed/draw_toggle_press_time below for CC97.
@@ -742,6 +795,27 @@ class LaunchpadManager {
   // sync with anymore.
   bool session_origin_set_ = false;
   int session_origin_step_ = 0;
+
+  // refresh()'s own rising-edge detector for the instant Session View
+  // recording arms - separate from was_note_capture_armed_ below, since a
+  // SampleTrack take arms via isThresholdArmed() rather than that flag.
+  // Lets the quantized-handoff decision (queue the old clip's stop, prime
+  // the new take's origin) run exactly once per take rather than on every
+  // refresh() call while armed.
+  bool was_session_recording_ = false;
+
+  // Set the moment a note-based Session View take arms into a track that
+  // already has a clip triggered - the shared quantization grid's own next
+  // boundary (session_origin_step_/rows_per_bar, same formula
+  // triggerClipStep() itself resolves a queued stop against), so the old
+  // take keeps playing right up to that instant instead of being cut the
+  // moment this one arms, letting a performer build up a real-time
+  // arrangement one track at a time rather than always recording into
+  // silence. handlePadEvent() drops any press before this step is reached
+  // outright - the new take hasn't actually started yet. -1 means no
+  // gating (the ordinary case: nothing to wait for, recording starts on
+  // the very first note played).
+  int session_recording_quantize_until_step_ = -1;
 
   // Fires one step's worth of notes for whatever's in
   // triggered_pattern_by_track_, after first resolving (for every track

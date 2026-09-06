@@ -22,6 +22,13 @@ public:
   void stop() { running_ = false; }
   bool isRunning() const { return running_; }
   int currentStep() const { return step_; }
+  // Seconds elapsed since currentStep() itself last fired - a caller
+  // wanting to know how far *into* the current step real time already is
+  // (e.g. to round a live event to whichever step it's actually closer to,
+  // rather than always flooring to the one that just started) divides
+  // this by its own row_duration, the same value it already passes to
+  // advance().
+  float phase() const { return phase_; }
 
   // Advances by dt seconds; row_duration is the current seconds-per-step
   // (the caller recomputes it each call, since tempo can change live).

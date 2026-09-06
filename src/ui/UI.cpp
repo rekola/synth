@@ -575,6 +575,26 @@ UI::renderComponents(bool refresh) {
   // not a bare index).
   int selected_track_id = song.getCurrentTrackId();
 
+  // "toggle-record-arm"'s own arm-something-new branch reads these two
+  // (Controller::isSessionViewFocused()/setSessionViewCursor()) at the
+  // moment it actually arms, which can happen from a Launchpad's own CC19
+  // press just as easily as from here - dispatched straight to Controller,
+  // bypassing this class entirely - so both need to already be correct by
+  // then, not computed on demand only when this class itself handles the
+  // keypress. Pushed here, once every frame, rather than only on an
+  // explicit focus change: simplest way to guarantee "always current"
+  // without a second, easy-to-miss update path for every place focus or
+  // Session View's own cursor can change.
+  bool session_view_focused = session_view_open_ && active == session_view_;
+  getController().setSessionViewFocused(session_view_focused);
+  if (session_view_focused) {
+    auto track_ids = song.getPlayableTrackIds();
+    auto track_index = session_view_->getCursorTrackIndex();
+    if (track_index >= 0 && track_index < static_cast<int>(track_ids.size())) {
+      getController().setSessionViewCursor(track_ids[static_cast<size_t>(track_index)], session_view_->getCursorClipIndex());
+    }
+  }
+
   // Exactly one of pattern_editor_/session_view_ occupies the screen slot
   // both share (see layout()) - render whichever one session_view_open_
   // says is actually showing, never both.
@@ -926,7 +946,11 @@ UI::handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEvent & ev
   // at.
   getController().startRecording();
   getController().addToSample(ev.getPreroll());
-  getController().armRecordingStart(ev.getScene(), ev.getRow());
+  // Never for a Session View take (isSessionRecording()) - that populates
+  // a clip slot directly with no arrangement position at all, so there's
+  // nothing here to snapshot; beginSampleCapture() already treats
+  // recording_start_scene_'s own untouched -1 default as "stays unplaced."
+  if (!getController().isSessionRecording()) getController().armRecordingStart(ev.getScene(), ev.getRow());
   getController().beginSampleCapture(ev.getTrackId());
   getController().clearThresholdArmed();
 }
@@ -1056,7 +1080,7 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   // PatternEditor unconditionally (see handleLaunchpadPadEvent above) -
   // these would otherwise silently no-op whenever some other window
   // happens to have focus.
-  bool handled = launchpad_manager_->handleCommand(*name, device_id, indexOfTrack(track_ids, getController().getSong().getCurrentTrackId()), static_cast<int>(track_ids.size()));
+  bool handled = launchpad_manager_->handleCommand(*name, device_id, indexOfTrack(track_ids, getController().getSong().getCurrentTrackId()), static_cast<int>(track_ids.size()), getController());
   if (!handled) handled = executeCommand(*name);
 
   getController().setPendingCommandTrack(-1);
@@ -1093,21 +1117,59 @@ UI::start(AudioAPI & audio, LaunchpadIO & launchpad_io, LaunchpadManager & launc
   launchpad_manager.setSessionMoveSceneCallback([this](int delta) { arrangement_grid_->moveCursorScene(getController().getSong(), delta); });
   // "next-track"/"prev-track" outside GridMode::SESSION move the one
   // shared cursor every connected Launchpad follows - see
-  // LaunchpadManager::track_move_callback_'s own comment for why.
-  launchpad_manager.setTrackMoveCallback([this](int new_track_index) { pattern_editor_->setCursorTrack(new_track_index); });
-  // SessionView's own clip-focus picker - launchpad_manager_ isn't set
-  // yet during UI::initialize() (see arrangement_grid_'s own commit
-  // callback comment there for why this half is wired here instead).
-  // Moves the shared track cursor to the clip's own track (so PatternEditor/
-  // Launchpad's fallback_track_index-following resolve there next) and
-  // forces every connected device's own display to follow along too,
-  // regardless of whatever GridMode it happened to be in.
-  session_view_->setFocusCallback([this](int track_id) {
-    auto & song = getController().getSong();
-    auto track_ids = song.getRootTrackIds();
-    auto it = std::find(track_ids.begin(), track_ids.end(), track_id);
-    if (it != track_ids.end()) pattern_editor_->setCursorTrack(static_cast<int>(it - track_ids.begin()));
-    launchpad_manager_->forceNotesModeOnAllDevices();
+  // LaunchpadManager::track_move_callback_'s own comment for why. Also
+  // moves SessionView's own cursor, kept in step the same way it already
+  // seeds from PatternEditor's cursor when Session view first opens
+  // (setCursorTrackIndex()'s own comment) - a track change made on the
+  // Launchpad has to be reflected there too, not just in PatternEditor,
+  // regardless of which one currently has terminal focus. session_ids
+  // (the same track_ids getPlayableTrackIds() column order is keyed by)
+  // isn't available here, but PatternEditor's own cursor is already an
+  // index into that identical ordering, so no translation is needed.
+  launchpad_manager.setTrackMoveCallback([this](int new_track_index) {
+    pattern_editor_->setCursorTrack(new_track_index);
+    session_view_->setCursorTrackIndex(new_track_index);
+  });
+  // SessionView's own Enter key - acts exactly like a Launchpad Session
+  // view pad press on the same cell (LaunchpadManager::
+  // triggerSessionClip(), same as handleSessionPadEvent() itself resolves
+  // to) - launchpad_manager_ isn't set yet during UI::initialize() (see
+  // arrangement_grid_'s own commit callback comment there for why this
+  // half is wired here instead).
+  session_view_->setTriggerCallback([this](int track_id, int clip_index) {
+    launchpad_manager_->triggerSessionClip(getController(), track_id, clip_index);
+  });
+  // Record Arm's own drum-machine-track repurposing ("toggle-record-arm",
+  // Controller.cpp) - opening a clip (Controller::setFocusedClip()) moves
+  // the shared track cursor to it (so PatternEditor's/the Launchpad's own
+  // fallback_track_index-following resolve there next), forces every
+  // connected device's own display to the step grid regardless of
+  // whatever GridMode it happened to be in, and gives each one its own
+  // default page into the clip (LaunchpadManager::resetDrumEditPaging() -
+  // several Launchpads split a clip longer than 8 steps between them
+  // without anyone paging by hand first); closing one (a second press on
+  // the clip already open - Controller::clearFocusedClip()) hands every
+  // connected device back to Session view instead, rather than leaving it
+  // stuck showing a step grid with nothing left focused to edit there.
+  getController().setDrumEditRequestListener([this](int track_id, bool opened) {
+    if (opened) {
+      auto & song = getController().getSong();
+      auto track_ids = song.getRootTrackIds();
+      auto it = std::find(track_ids.begin(), track_ids.end(), track_id);
+      if (it != track_ids.end()) pattern_editor_->setCursorTrack(static_cast<int>(it - track_ids.begin()));
+      launchpad_manager_->forceNotesModeOnAllDevices();
+      launchpad_manager_->resetDrumEditPaging();
+      // Meant to be heard in isolation - stops the transport if it
+      // happens to be running (the focused-clip audition below only ever
+      // engages while stopped anyway - LaunchpadManager::refresh()'s own
+      // audition_active) and releases whatever any other track's own
+      // Session-View-triggered clip was still sounding, rather than
+      // layering the drum edit preview under either one.
+      if (getController().getPlaybackInfo().isPlaying()) getController().togglePlaying();
+      launchpad_manager_->silenceOtherTriggeredClips(getController());
+    } else {
+      launchpad_manager_->forceSessionModeOnAllDevices();
+    }
   });
 
   std::thread audio_thread(audio_thread_func, &(getController()), &audio);

@@ -322,22 +322,16 @@ SessionView::offerInput(const InputEvent & input) {
     }
     return true;
   } else if (input.getId() == NCKEY_ENTER) {
+    // Acts exactly like a Launchpad Session view pad press landing on this
+    // same cell (LaunchpadManager::triggerSessionClip(), via
+    // trigger_callback_ - see setTriggerCallback()'s own comment) - an
+    // empty row stops/cancels whatever the track is doing, the same as
+    // pressing an unassigned pad would, so this is called unconditionally
+    // on any CLIP row rather than only a populated one.
     auto kind = rowKindFor(cursor_row_);
-    if (kind == RowKind::CLIP && cursor_track_index_ >= 0 && cursor_track_index_ < num_tracks) {
+    if (kind == RowKind::CLIP && cursor_track_index_ >= 0 && cursor_track_index_ < num_tracks && trigger_callback_) {
       auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
-      auto & clips = song.getClips(track_id);
-      auto clip_row = kLogicalToPhysical[cursor_row_];
-      if (clip_row >= 0 && static_cast<size_t>(clip_row) < clips.size()) {
-        auto & clip = clips[static_cast<size_t>(clip_row)];
-        getController().toggleFocusedClip(track_id, clip.getId());
-        auto name = clip.getName().empty() ? "(unnamed)" : clip.getName();
-        bool now_focused = getController().getFocusedClip() == clip.getId();
-        // Only turning a focus ON jumps anywhere - clearing one has
-        // nothing to jump to (see setFocusCallback()'s own comment).
-        if (now_focused && focus_callback_) focus_callback_(track_id);
-        auto text = now_focused ? "Editing clip: " + name : "No longer editing clip: " + name;
-        getController().getUIEventQueue().push(std::make_unique<LogEvent>(std::move(text)));
-      }
+      trigger_callback_(track_id, kLogicalToPhysical[cursor_row_]);
     }
     // HEADER/SENDS/DIRECTION: read-only for now - a no-op, still consumed.
     return true;
@@ -379,14 +373,23 @@ SessionView::render(const StyleProvider & styles, bool refresh, bool focused) {
   auto focused_clip_id = getController().getFocusedClip();
 
   auto new_version = song.getMajorVersion();
+  bool is_session_recording = getController().isSessionRecording();
+  int session_recording_track_id = getController().getSessionRecordingTrackId();
+  int session_recording_clip_index = getController().getSessionRecordingClipIndex();
   if (!refresh && !force_redraw_ && new_version == current_song_version_ &&
       cursor_track_index_ == current_cursor_track_index_ && cursor_row_ == current_cursor_row_ &&
       scroll_col_ == current_scroll_col_ && scroll_row_ == current_scroll_row_ &&
-      focused == current_focused_ && focused_clip_id == current_focused_clip_id_) {
+      focused == current_focused_ && focused_clip_id == current_focused_clip_id_ &&
+      is_session_recording == current_session_recording_ &&
+      session_recording_track_id == current_session_recording_track_id_ &&
+      session_recording_clip_index == current_session_recording_clip_index_) {
     return false;
   }
   force_redraw_ = false;
   current_focused_clip_id_ = focused_clip_id;
+  current_session_recording_ = is_session_recording;
+  current_session_recording_track_id_ = session_recording_track_id;
+  current_session_recording_clip_index_ = session_recording_clip_index;
   current_song_version_ = new_version;
   current_cursor_track_index_ = cursor_track_index_;
   current_cursor_row_ = cursor_row_;
@@ -509,8 +512,9 @@ SessionView::render(const StyleProvider & styles, bool refresh, bool focused) {
           auto & clip = clips[clip_row];
           auto name = clip.getName().empty() ? "(unnamed)" : clip.getName();
           // Leading marker: whether this clip is the one currently
-          // focused for editing (Controller::getFocusedClip(), toggled
-          // by Enter above), a blank space otherwise so the play glyph/
+          // focused for editing (Controller::getFocusedClip(), set by
+          // Record Arm's own drum-machine-clip repurposing - Controller.cpp's
+          // "toggle-record-arm"), a blank space otherwise so the play glyph/
           // name still line up. Plain ASCII, not a Unicode glyph -
           // "ambiguous width" characters silently render as two columns
           // on plenty of terminal fonts, breaking this fixed-width
@@ -538,6 +542,19 @@ SessionView::render(const StyleProvider & styles, bool refresh, bool focused) {
           // shade either, halfway to plain text gray instead so the glyph
           // still reads clearly as a real stop icon, not a smudge.
           row_fg = styles.window_fg_color.blend(0.5f, Color(0, 0, 0));
+        }
+        // Record indicator - this exact slot is Session View's own current
+        // recording target (Controller::isSessionRecording(), armed by
+        // "toggle-record-arm"), whether it was empty a moment ago or
+        // already held a clip ("overwrite in place" -
+        // Controller::beginSampleCapture()'s own comment) - takes priority
+        // over either of those. Plain, common Unicode (U+25CF, unlike the
+        // loop glyph's own ambiguous-width caution above), so no extra
+        // width slack is needed for it.
+        if (is_session_recording && track_id == session_recording_track_id &&
+            static_cast<int>(clip_row) == session_recording_clip_index) {
+          text = " ●";
+          row_fg = Color(255, 60, 60);
         }
         if (is_cursor_cell) {
           // The plain green highlight_bg_color reads poorly here - a

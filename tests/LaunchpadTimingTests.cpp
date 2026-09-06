@@ -36,6 +36,20 @@ TEST(step_clock_advance_fires_exactly_one_step_per_row_duration_elapsed) {
   CHECK(clock.currentStep() == 1);
 }
 
+TEST(step_clock_phase_tracks_elapsed_time_since_the_current_step_started) {
+  StepClock clock;
+  clock.start();
+  CHECK_NEAR(clock.phase(), 0.0f, 1e-6f);
+
+  clock.advance(0.1f, 0.25f); // less than one row - no step fires
+  CHECK_NEAR(clock.phase(), 0.1f, 1e-6f);
+  CHECK(clock.currentStep() == 0);
+
+  clock.advance(0.15f, 0.25f); // 0.1 + 0.15 == 0.25 exactly - step fires, phase resets
+  CHECK(clock.currentStep() == 1);
+  CHECK_NEAR(clock.phase(), 0.0f, 1e-6f);
+}
+
 TEST(step_clock_advance_fires_every_step_a_slow_tick_skipped_over) {
   // The whole reason advance() loops internally instead of a single if -
   // a caller (LaunchpadManager::refresh()) that goes a while between

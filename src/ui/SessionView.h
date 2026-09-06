@@ -56,15 +56,25 @@ class SessionView : public UIElement {
   // uses - not a live two-way binding.
   void setCursorTrackIndex(int track_index) { cursor_track_index_ = track_index; }
 
-  // Called with a clip's own leaf track id whenever Enter turns clip
-  // focus ON (never for turning it off - there's nothing to jump to when
-  // clearing a focus) - lets UI move the shared track cursor and any
-  // connected Launchpad's own display to actually follow the clip just
-  // picked, the same callback-not-reaching-into-UI pattern
+  // Read-only counterparts, for Controller::setSessionViewCursor() (kept
+  // current by UI::renderComponents() every frame) - the column index
+  // among Song::getPlayableTrackIds() the cursor is currently on, and its
+  // own clip-list index (Song::getClips(track_id)) when the cursor is on
+  // a real clip row at all (-1 otherwise - the header, or the Sends/
+  // Direction rows, name no clip slot). Mirrors delete-clip's own
+  // identical "a CLIP row's own physical offset doubles as its clip-list
+  // index" resolution (see rowKindFor()/kLogicalToPhysical's own comment).
+  int getCursorTrackIndex() const { return cursor_track_index_; }
+  int getCursorClipIndex() const { return rowKindFor(cursor_row_) == RowKind::CLIP ? kLogicalToPhysical[cursor_row_] : -1; }
+
+  // Called on Enter over a clip row (populated or not) with the row's own
+  // (track_id, clip_index) - Enter acts exactly like a Launchpad Session
+  // view pad press landing on that same cell (LaunchpadManager::
+  // triggerSessionClip()), never a separate "focus for editing" gesture
+  // of its own, the same callback-not-reaching-into-UI pattern
   // ArrangementGrid's own commit_callback_ already uses (this class has
-  // no idea PatternEditor/LaunchpadManager exist either). Wired in
-  // UI::start().
-  void setFocusCallback(std::function<void(int track_id)> cb) { focus_callback_ = std::move(cb); }
+  // no idea LaunchpadManager exists either). Wired in UI::start().
+  void setTriggerCallback(std::function<void(int track_id, int clip_index)> cb) { trigger_callback_ = std::move(cb); }
 
  private:
   // Always exactly this many clip rows per column, whether or not that
@@ -115,6 +125,13 @@ class SessionView : public UIElement {
   int current_scroll_col_ = -1, current_scroll_row_ = -1;
   bool current_focused_ = false;
   std::string current_focused_clip_id_;
+  // Session recording arms/disarms with no song version bump of its own
+  // (nothing about the song's own data changes until a take actually
+  // produces something) - tracked here so render()'s own dirty-check
+  // still notices the record indicator (see its own drawing code) needing
+  // to appear or disappear.
+  bool current_session_recording_ = false;
+  int current_session_recording_track_id_ = -1, current_session_recording_clip_index_ = -1;
   // Set whenever something changed that render()'s own dirty-check above
   // wouldn't otherwise notice - specifically, closing the rename reader
   // without committing (Ctrl-g): no song version bump happens then, but
@@ -127,7 +144,7 @@ class SessionView : public UIElement {
   // PatternEditor::last_styles_ exactly, same reason.
   const StyleProvider * last_styles_ = nullptr;
 
-  std::function<void(int track_id)> focus_callback_;
+  std::function<void(int track_id, int clip_index)> trigger_callback_;
 
   // Which clip (song-wide clip list index, i.e. Song::getClips(track_id)
   // position) startClipRename() is currently editing the name of, or -1

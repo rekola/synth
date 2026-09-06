@@ -233,40 +233,144 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
       if (record_arm_auto_started_playback_) togglePlaying();
       record_arm_auto_started_playback_ = false;
     };
+    // A finished/disarmed take is never a Session View one any more,
+    // regardless of which of the three branches below actually ends it -
+    // reset unconditionally alongside each, the same "always reset,
+    // regardless of which branch got there" shape stop_sample_auto_started_playback()
+    // itself already has for record_arm_auto_started_playback_.
+    auto clear_session_recording = [this]() {
+      session_recording_ = false;
+      session_recording_track_id_ = -1;
+      session_recording_clip_index_ = -1;
+      session_recording_clip_ready_ = false;
+      session_recording_origin_step_ = -1;
+    };
     if (isRecording()) {
       finishSampleCapture();
       stop_sample_auto_started_playback();
+      clear_session_recording();
       return;
     }
     if (isThresholdArmed()) {
       disarmThresholdRecording();
       stop_sample_auto_started_playback();
+      clear_session_recording();
       return;
     }
     if (isNoteCaptureArmed()) {
       // LaunchpadManager's own refresh() reacts to this falling edge for
       // its own bookkeeping (stopping an auto-started transport, clearing
-      // Session-view audition state) - nothing else to do here.
+      // Session-view audition state). trimSessionRecordingClip() has to
+      // run before clear_session_recording() below wipes the very state
+      // (session_recording_track_id_/session_recording_clip_index_) it
+      // needs to find the clip.
       disarmNoteCapture();
+      trimSessionRecordingClip();
+      clear_session_recording();
       return;
     }
 
+    // Session View focused on a DrumMachineTrack's own clip has no
+    // ordinary "recording" role at all - its own steps are always entered
+    // directly on a connected Launchpad's own step grid, never captured
+    // live the way a note/sample take is - so Record Arm is repurposed
+    // here into "open this clip for editing there" instead, bypassing the
+    // arm-something-new logic below entirely. Takes priority over it (but
+    // not over the three disarm branches above - whatever's already
+    // armed/recording still wins, same "a press always means stop that
+    // first" rule this command's own doc comment states) since there's
+    // nothing else a drum-machine clip's own Record Arm press could
+    // sensibly mean.
+    if (session_view_focused_ && session_view_track_id_ >= 0 && session_view_clip_index_ >= 0) {
+      auto & song = getSong();
+      auto * track = song.getMasterTrack().getChildByInternalId(session_view_track_id_);
+      if (track && track->getType() == TrackType::DRUM_MACHINE) {
+        auto & clips = song.getClips(session_view_track_id_);
+        if (session_view_clip_index_ < static_cast<int>(clips.size())) {
+          auto & existing = clips[static_cast<size_t>(session_view_clip_index_)];
+          if (getFocusedClipTrackId() == session_view_track_id_ && getFocusedClip() == existing.getId()) {
+            // Pressing Record Arm again on the clip already open for
+            // editing closes it instead of doing nothing - otherwise
+            // there'd be no way back to the track's own background
+            // pattern via this same gesture (resolveEditTarget()'s own
+            // no-focus fallback already handles that once nothing's
+            // focused) or to open a different clip's own slot instead.
+            clearFocusedClip();
+            if (drum_edit_requested_) drum_edit_requested_(session_view_track_id_, false);
+            return;
+          }
+          setFocusedClip(session_view_track_id_, existing.getId());
+        } else {
+          // Empty slot - lazily creates a fresh, empty, looping clip the
+          // same way ensureNoteRecordingClip() does for a brand new take,
+          // ready to have steps entered directly rather than needing a
+          // separate "new clip" gesture first - the same bar length as
+          // everything else in the song, not clamped to the connected
+          // Launchpad's own fixed 8-column grid: LaunchpadManager's own
+          // step-grid paging (DeviceState::drum_edit_page, see its own
+          // comment) is what lets a longer clip actually be seen/edited
+          // there, one 8-step window at a time (or several windows at
+          // once, split across multiple connected devices).
+          auto next_ordinal = clips.size() + 1;
+          auto & clip = song.addClip(Clip(session_view_track_id_));
+          clip.setName(fmt::format("Clip {}", next_ordinal));
+          clip.setLooping(true);
+          clip.setLength(std::max(1, song.getRowsPerBar()));
+          // Touches the leaf pattern once via the non-const accessor
+          // (Clip::getLeafPattern()) purely to give patterns_by_track_ a
+          // real (empty) entry for this track - the const overload a
+          // focused clip's own read-only auditioning (ArrangementOps.h's
+          // resolveReadTarget(), via triggerAuditionStep()) always uses
+          // instead throws std::out_of_range on a Clip that's never had
+          // anything written into it at all.
+          clip.getLeafPattern();
+          setFocusedClip(session_view_track_id_, clip.getId());
+        }
+        if (drum_edit_requested_) drum_edit_requested_(session_view_track_id_, true);
+        return;
+      }
+    }
+
     // Nothing armed - arm whatever the currently selected track actually
-    // needs.
+    // needs. Session View focused means "the track/clip slot its own
+    // cursor is on" (setSessionViewCursor(), kept current by
+    // UI::renderComponents() every frame) instead of the ordinary shared
+    // track cursor - and populating that slot directly, with no
+    // arrangement placement or transport start, rather than the usual
+    // transport-tied behavior (see isSessionRecording()'s own doc comment).
     auto & song = getSong();
-    auto track_id = song.getCurrentTrackId();
+    int track_id;
+    if (session_view_focused_) {
+      if (session_view_track_id_ < 0 || session_view_clip_index_ < 0) return; // no valid slot to target
+      track_id = session_view_track_id_;
+    } else {
+      track_id = song.getCurrentTrackId();
+    }
     if (track_id < 0) return;
     auto * track = song.getMasterTrack().getChildByInternalId(track_id);
     if (!track) return;
 
+    if (session_view_focused_) {
+      session_recording_ = true;
+      session_recording_track_id_ = track_id;
+      session_recording_clip_index_ = session_view_clip_index_;
+      session_recording_clip_ready_ = false;
+      session_recording_origin_step_ = -1;
+    }
+
     if (track->getType() == TrackType::SAMPLE) {
       armThresholdRecording(track_id);
-      if (!getPlaybackInfo().isPlaying()) startAutoRecordPlayback(record_arm_auto_started_playback_);
+      // No auto-started transport for a Session View take - Player.cpp
+      // already starts ALSA capture off isThresholdArmed() alone,
+      // independent of isPlaying(), so there's nothing the transport needs
+      // to be running for.
+      if (!session_view_focused_ && !getPlaybackInfo().isPlaying()) startAutoRecordPlayback(record_arm_auto_started_playback_);
     } else {
       // The transport itself starts via LaunchpadManager's own refresh()
       // rising-edge detection (startAutoRecordSession()'s own
-      // by-reference bookkeeping is LaunchpadManager-private) - nothing
-      // else to do here.
+      // by-reference bookkeeping is LaunchpadManager-private) for the
+      // ordinary (non-Session-View) case - nothing else to do here either
+      // way; a Session View take never starts it at all.
       armNoteCapture();
     }
   });
@@ -1039,6 +1143,114 @@ Controller::extendRecordingClipsIfNeeded(std::unordered_map<int, std::string> & 
   }
 }
 
+int
+Controller::ensureSessionRecordingClip(int absolute_step, int grid_origin_step) {
+  if (!session_recording_ || session_recording_clip_index_ < 0) return -1;
+  auto song = getCurrentSong();
+  if (!song) return -1;
+  auto & clips = song->getClips(session_recording_track_id_);
+
+  if (!session_recording_clip_ready_) {
+    // First call for this take - either a fresh clip (an empty slot) or
+    // an existing one reset back to empty (an occupied slot, "overwrite in
+    // place": same id, so anything else already referencing it keeps
+    // pointing at it, but its own prior content is gone the moment a new
+    // take actually starts writing, not merged with it).
+    if (session_recording_clip_index_ < static_cast<int>(clips.size())) {
+      auto & existing = clips[static_cast<size_t>(session_recording_clip_index_)];
+      existing.getLeafPattern() = Pattern();
+      existing.setLength(0);
+      existing.setLooping(false);
+    } else {
+      // Only ever the very next unused slot in practice - Song::getClips()
+      // is a dense vector, so a "slot" further ahead than that can't
+      // actually exist as anything but this same next position (Session
+      // View's own display just pads every track out to a fixed number of
+      // rows regardless of how many clips are real - see SessionView.h's
+      // own comment). Retargets session_recording_clip_index_ itself to
+      // wherever it actually landed - getSessionRecordingClipIndex()'s
+      // own callers (extendSessionRecordingClipIfNeeded() right below,
+      // and SessionView's own record-indicator glyph) both address the
+      // clip by this index, not by name/id, so it has to track the real
+      // position, not whatever slot was originally requested.
+      Clip clip(session_recording_track_id_);
+      clip.setName(fmt::format("Take {}", clips.size() + 1));
+      clip.setLooping(false);
+      song->addClip(std::move(clip));
+      session_recording_clip_index_ = static_cast<int>(clips.size()) - 1;
+    }
+    session_recording_clip_ready_ = true;
+    // primeSessionRecordingOrigin() may already have fixed this take's own
+    // row 0 (recording into a track that already had a clip playing - see
+    // its own comment); otherwise, row 0 is this bar's own start, not the
+    // exact step this first note happened to land on - a performer may
+    // deliberately start playing on the bar's second beat rather than its
+    // first, and the clip's own loop point still has to be the bar
+    // boundary either way. Measured relative to grid_origin_step when the
+    // caller passes a real one (something else in the session is already
+    // playing, and this take's own bar boundaries have to line up with
+    // its shared groove, not necessarily with absolute step 0) rather
+    // than absolute step 0 directly.
+    if (session_recording_origin_step_ < 0) {
+      auto rows_per_bar = std::max(1, song->getRowsPerBar());
+      if (grid_origin_step >= 0) {
+        auto offset = std::max(0, absolute_step - grid_origin_step);
+        session_recording_origin_step_ = grid_origin_step + previousBarRow(offset, rows_per_bar);
+      } else {
+        session_recording_origin_step_ = previousBarRow(absolute_step, rows_per_bar);
+      }
+    }
+  }
+  extendSessionRecordingClipIfNeeded(absolute_step);
+  return absolute_step - session_recording_origin_step_;
+}
+
+void
+Controller::extendSessionRecordingClipIfNeeded(int absolute_step) {
+  if (!session_recording_ || !session_recording_clip_ready_) return;
+  auto song = getCurrentSong();
+  if (!song) return;
+  auto & clips = song->getClips(session_recording_track_id_);
+  if (session_recording_clip_index_ < 0 || session_recording_clip_index_ >= static_cast<int>(clips.size())) return;
+  auto & clip = clips[static_cast<size_t>(session_recording_clip_index_)];
+
+  auto row = absolute_step - session_recording_origin_step_;
+  auto rows_per_bar = std::max(1, song->getRowsPerBar());
+  auto window_last_row = std::max(1, clip.getLength()) - 1;
+  while (window_last_row - row < rows_per_bar) {
+    clip.setLength(std::max(1, clip.getLength()) + rows_per_bar);
+    window_last_row = clip.getLength() - 1;
+  }
+}
+
+void
+Controller::trimSessionRecordingClip() {
+  if (!session_recording_ || !session_recording_clip_ready_) return;
+  auto song = getCurrentSong();
+  if (!song) return;
+  auto & clips = song->getClips(session_recording_track_id_);
+  if (session_recording_clip_index_ < 0 || session_recording_clip_index_ >= static_cast<int>(clips.size())) return;
+  auto & clip = clips[static_cast<size_t>(session_recording_clip_index_)];
+
+  int last_row = -1;
+  for (auto & [ row, notes ] : clip.getLeafPattern().getNotesByRow()) last_row = std::max(last_row, static_cast<int>(row));
+  auto rows_per_bar = std::max(1, song->getRowsPerBar());
+  // Nothing actually landed (the take was armed and disarmed with no note
+  // ever written) - one bar, matching every other freshly-created clip's
+  // own minimum length rather than a zero-length one.
+  clip.setLength(last_row < 0 ? rows_per_bar : (last_row / rows_per_bar + 1) * rows_per_bar);
+
+  // A fresh take is meant to be played straight back, live, the instant it
+  // finishes - looping (rather than ensureSessionRecordingClip()'s own
+  // recording-time setLooping(false), meaningless once a take is actually
+  // over) and remembered here for LaunchpadManager's own refresh() to pick
+  // up and join into Session View's live performance immediately (see
+  // takeCompletedSessionRecording()'s own comment).
+  clip.setLooping(true);
+  completed_session_recording_track_id_ = session_recording_track_id_;
+  completed_session_recording_clip_index_ = session_recording_clip_index_;
+}
+
 void
 Controller::extendRecordingSampleClipIfNeeded() {
   if (!hasRecordingClip() || recording_start_scene_ < 0) return;
@@ -1140,7 +1352,24 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
   auto song = getCurrentSong();
   if (!song || !current_sample || current_sample->numberOfFrames() == 0) return;
 
-  Clip clip(track_id);
+  auto & clips = song->getClips(track_id);
+  // Session View recording into an already-populated slot overwrites that
+  // clip's own content in place (same id/name, so anything already
+  // referencing it - an arrangement instance elsewhere - keeps pointing at
+  // it) rather than appending a new one; an empty slot, or an ordinary
+  // non-Session-View take, appends fresh as always.
+  bool reuse_existing = session_recording_ && session_recording_clip_index_ >= 0 &&
+    session_recording_clip_index_ < static_cast<int>(clips.size());
+  Clip & clip = reuse_existing ? clips[static_cast<size_t>(session_recording_clip_index_)] : song->addClip(Clip(track_id));
+  // A fresh append lands at the true next unused index, not necessarily
+  // whatever (further-ahead, padding-only) empty slot was originally
+  // requested - retarget session_recording_clip_index_ itself so
+  // SessionView's own record-indicator glyph still addresses the real
+  // clip, the same reasoning ensureSessionRecordingClip()'s own identical
+  // case has (finishSampleCapture() itself always finds this take's own
+  // clip by its stable id, recording_clip_id_ below, never by this index).
+  if (session_recording_ && !reuse_existing) session_recording_clip_index_ = static_cast<int>(clips.size()) - 1;
+
   // Non-looping by default - same reasoning as ensureNoteRecordingClip()'s
   // own identical call: a live take is one specific performance, not a
   // pattern meant to repeat automatically the moment it ends; looping it
@@ -1156,10 +1385,13 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
   content.setBuffer(current_sample);
   content.setOriginalTempo(song->getTempo());
   content.setNativeSampleRate(channel_config.getAudioOutSampleRate());
-  if (latency_frames > 0) {
-    content.setInPoint(static_cast<float>(latency_frames) / static_cast<float>(channel_config.getAudioOutSampleRate()));
-  }
-  clip.setName(fmt::format("Take {}", song->getClips(track_id).size() + 1));
+  // A reused clip's own prior trim must never leak into this new take -
+  // getOrCreateSampleContent() on an existing clip returns its existing
+  // SampleContent, not a fresh one, unlike the brand-new-clip case where
+  // both already default to 0 anyway.
+  content.setInPoint(latency_frames > 0 ? static_cast<float>(latency_frames) / static_cast<float>(channel_config.getAudioOutSampleRate()) : 0.0f);
+  content.setOutPoint(0.0f);
+  if (!reuse_existing) clip.setName(fmt::format("Take {}", clips.size() + 1));
   // A full bar's worth of length right away, not left at 0 (Clip.h's "not
   // given one yet") - the real, final duration isn't known until
   // finishSampleCapture(), but a non-looping clip with no explicit length
@@ -1173,8 +1405,7 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
   // extendRecordingClipsIfNeeded()'s own growth for a note-recording take.
   clip.setLength(std::max(1, song->getRowsPerBar()));
 
-  auto & added = song->addClip(std::move(clip));
-  recording_clip_id_ = added.getId();
+  recording_clip_id_ = clip.getId();
   recording_latency_frames_ = latency_frames;
 
   // Placed at armRecordingStart()'s own snapshotted position, if this
@@ -1182,11 +1413,12 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
   // here: wherever the transport genuinely was at record-start is where
   // this take starts, already resolved before this method ever runs. A
   // never-armed take stays unplaced - still a real, visible clip (Session
-  // view/ArrangementGrid), just not an arrangement instance anywhere yet.
+  // view/ArrangementGrid), just not an arrangement instance anywhere yet -
+  // always true for a Session View take (session_recording_), which never
+  // snapshots a start position in the first place.
   if (recording_start_scene_ >= 0) {
     auto & scene = song->getOrCreateScene(recording_start_scene_);
-    auto & clips = song->getClips(track_id);
-    auto clip_index = static_cast<int>(clips.size()) - 1; // the one just added, always last
+    int clip_index = reuse_existing ? session_recording_clip_index_ : static_cast<int>(clips.size()) - 1;
     placeClipInstance(*song, scene, track_id, recording_start_row_, clip_index);
   }
 
