@@ -2521,19 +2521,17 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // shared grid for the whole row, not per-column.
   auto row_rows_per_bar = song.getRowsPerBar();
 
-  // The row's own base colors (playhead highlight, else bar/beat accent,
-  // else plain) - identical for every track this row (none of highlight/
-  // pattern_row/is_neighboring_pattern vary with i), so computed once
-  // rather than every iteration. Every track's own fg/bg below starts
-  // from this same pair; it's also what the half-block divider's own
-  // "nothing on the other side" fallback (further down) uses, so a bar/
-  // beat-accent row tints its dividers exactly like every other cell in
-  // it, not a hardcoded plain background.
+  // The row's own ambient base colors (bar/beat accent, else plain) -
+  // identical for every track this row (none of pattern_row/
+  // is_neighboring_pattern vary with i), so computed once rather than
+  // every iteration. Every track's own fg/bg below starts from this same
+  // pair; it's also what the half-block divider's own "nothing on the
+  // other side" fallback (further down) uses, so a bar/beat-accent row
+  // tints its dividers exactly like every other cell in it, not a
+  // hardcoded plain background. The playhead's own row highlight is
+  // deliberately not part of this - see tintForPlayhead() below.
   Color row_base_fg, row_base_bg;
-  if (highlight) {
-    row_base_fg = Color("#80c080");
-    row_base_bg = Color("#80a080");
-  } else if (row_rows_per_bar > 0 && pattern_row % row_rows_per_bar == 0) {
+  if (row_rows_per_bar > 0 && pattern_row % row_rows_per_bar == 0) {
     row_base_fg = styles.window_bar_accent_fg_color;
     row_base_bg = styles.window_bar_accent_bg_color;
   } else if (pattern_row % 4 == 0) {
@@ -2548,6 +2546,22 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     row_base_bg = row_base_bg.blend(0.75f, black);
     row_base_fg = row_base_fg.blend(0.75f, black);
   }
+
+  // The playhead's own row highlight - a translucent green overlay on
+  // top of whatever a cell's own ordinary color already is (ambient row
+  // tinting, a track's own identity color, ...), not a solid replacement
+  // - so it reads as "this row is playing" without erasing the rest of
+  // what the row would otherwise show. One shared alpha for every column
+  // type, applied through this one helper, rather than each column type
+  // inventing its own ratio (or replacing outright, the way this used to
+  // work). A real selection is still a stronger, fully-replacing cue
+  // (cur_fg/cur_bg, computed per column further down) - callers check
+  // for that themselves and skip this entirely when it applies.
+  constexpr float kPlayheadTintAlpha = 0.35f;
+  const Color kPlayheadTint(0x80, 0xb0, 0x80);
+  auto tintForPlayhead = [&](Color base) -> Color {
+    return highlight ? base.blend(kPlayheadTintAlpha, kPlayheadTint) : base;
+  };
 
   // A clip instance's own identifier digit (below) - superscript, not a
   // plain digit, so it visually reads as an annotation sitting on top of
@@ -2741,9 +2755,14 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     }
 
     if (i == -1) {
-      setFgColor(fg);
-      setBgColor(bg);
-	
+      // fg/bg already reflect in_selection above (a fully-replacing cue,
+      // left alone); an ordinary row's own fg/bg are pure ambient at this
+      // point, so tintForPlayhead() is what actually adds the playhead's
+      // own translucent tint on top - this cell has no column-scoped
+      // selection of its own to check (it isn't part of any track).
+      setFgColor(in_selection ? fg : tintForPlayhead(fg));
+      setBgColor(in_selection ? bg : tintForPlayhead(bg));
+
       putstr(display_row, current_pos, format(" {:02x} ", pattern_row));
 	
       setFgColor(styles.window_border_color);
@@ -2834,9 +2853,38 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	   (sel_bounds.scope == SelectionScope::COMMAND && track_info.isEffectColumn(k)));
 	Color cur_fg = column_selected ? styles.highlight_fg_color : fg;
 	Color cur_bg = column_selected ? styles.highlight_bg_color : bg;
+	// A real selection (either scope) is a full, deliberate cue - cur_fg/
+	// cur_bg already resolve to the highlight color for it, in_selection's
+	// own case via fg/bg (set before this per-track loop even starts).
+	// Every column type below checks this before ever calling
+	// tintForPlayhead(), so a selected cell is never also partly tinted
+	// green on top.
+	bool cell_is_selected = column_selected || in_selection;
+
+	// A SampleTrack waveform's own coverage-bar color (SAMPLE branch,
+	// below) sits under the row's own ambient grid tinting (bar/beat-
+	// accent, neighboring-pattern/repeat-row dimming) - `base` itself,
+	// which the waveform derives independently of fg (track identity/
+	// plain text color, not the row's own ambient state) rather than
+	// reusing it.
+	auto waveformFg = [&](Color base) -> Color {
+	  return cell_is_selected ? cur_fg : tintForPlayhead(base);
+	};
+	// Unlike waveformFg() above, the background *does* reflect the row's
+	// own ambient state (bar/beat-accent, an active instance's own track-
+	// color tint, ...) on an ordinary row - cell_bg already carries all
+	// of that. Only the playhead case needs its own special base: cell_bg
+	// there would already be the old, since-removed full-strength green
+	// (row_base_bg no longer carries that), so blending from plain
+	// window_bg_color instead is what actually produces the translucent
+	// tint, matching waveformFg()'s own playhead treatment.
+	auto waveformBg = [&]() -> Color {
+	  if (cell_is_selected) return cur_bg;
+	  return highlight ? tintForPlayhead(styles.window_bg_color) : cell_bg;
+	};
 
 	setFgColor(styles.window_border_color);
-	setBgColor(cur_bg);
+	setBgColor(cell_is_selected ? cur_bg : tintForPlayhead(bg));
 	auto column_type = track_info.getColumnType(k);
 	if (track_info.collapsed_) {
 	  // Every column's own content is hidden (see
@@ -2856,7 +2904,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // real content behind this one cell needs to read as "there's
 	  // something here" at a glance, not blend into the row the way an
 	  // ordinary tinted cell is meant to.
-	  if (read_target.is_instance) setBgColor(cur_bg.blend(0.5f, track_info.getColor()));
+	  if (read_target.is_instance) setBgColor((cell_is_selected ? cur_bg : tintForPlayhead(bg)).blend(0.5f, track_info.getColor()));
 	  auto width = std::max(track_info.getTrackWidth() - 1, 0);
 	  putstr(display_row, current_pos, std::string(static_cast<size_t>(width), ' '));
 	  // An instance's own content never shows the "·" - it's specifically
@@ -2872,7 +2920,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  bool is_leading_row = read_target.is_instance && read_target.unwrapped_row == 0;
 	  bool show_dot = any_note_defined && !read_target.is_instance;
 	  if (width > 0 && (show_dot || is_leading_row)) {
-	    setFgColor(is_leading_row ? Color(0xff, 0xff, 0xff) : cur_fg);
+	    setFgColor(is_leading_row ? Color(0xff, 0xff, 0xff) : (cell_is_selected ? cur_fg : tintForPlayhead(fg)));
 	    putstr(display_row, current_pos, is_leading_row ? clip_digit(read_target.clip_index) : "·");
 	    setFgColor(styles.window_border_color);
 	  }
@@ -2882,8 +2930,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // leaves has_effect_column_ at its own default, false - there's no
 	  // Pattern behind this track for a Command to ever live in) - its
 	  // one and only column is always this waveform placeholder.
-	  cell_fg = cur_fg;
-	  cell_bg = cur_bg;
+	  cell_fg = cell_is_selected ? cur_fg : tintForPlayhead(fg);
+	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
 	  setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 
@@ -2927,16 +2975,12 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	    // track's own background tint (bg, above) already use, so the
 	    // shape reads as unmistakably *this* track's content rather than
 	    // plain text. Blended toward the plain, unhighlighted row
-	    // foreground (styles.window_fg_color) - not dim_fixed_color(),
-	    // which only ever pulls toward black - so the waveform's own
-	    // color stays fixed regardless of the row's own playhead/bar-
-	    // accent highlight or selection (the same "the waveform sits
-	    // under that layer, not tinted by it" treatment the background
-	    // bed's own waveform below already has); the cell's own
-	    // background is still cell_bg though, same as every other cell
-	    // in the row - only the waveform's own foreground is exempt.
+	    // foreground (styles.window_fg_color) as its own base - not
+	    // dim_fixed_color() (which only ever pulls toward black) - then
+	    // waveformFg() layers the playhead/selection cue on top (see its
+	    // own comment).
 	    auto waveform_fg = track_info.getColor().blend(0.35f, styles.window_fg_color);
-	    renderWaveformRow(peaks, wf_row, width, waveform_fg, cell_bg, current_pos);
+	    renderWaveformRow(peaks, wf_row, width, waveformFg(waveform_fg), waveformBg(), current_pos);
 	    // renderWaveformRow() leaves both fg/bg at whatever its own last
 	    // cell's quantized colors were, not cell_fg/cell_bg - restore both
 	    // (unlike the old single-color-pair version, which only ever
@@ -2968,18 +3012,14 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	    auto wf_row = pattern_row;
 	    if (peaks.rowCount() > 0) wf_row = std::min(wf_row, peaks.rowCount() - 1);
 	    if (wf_row < 0) wf_row = 0;
-	    // Bright, plain text color - the same brightness an ordinary
-	    // defined note gets in a NOTE column (styles.window_fg_color,
-	    // what cur_fg itself resolves to on an unhighlighted row) - not
-	    // tinted with the track's own identity color the way a real
-	    // clip's waveform is, since that color means "a clip," and the
-	    // bed isn't one. Fixed, deliberately not cur_fg - the waveform's
-	    // own coverage bars sit underneath the row's own playhead/bar-
-	    // accent highlight or selection, rendered the same regardless of
-	    // row state. The *background* behind them is cell_bg though, same
-	    // as every other cell in this row - only the waveform itself is
-	    // exempt, not the whole cell.
-	    renderWaveformRow(peaks, wf_row, width, styles.window_fg_color, cell_bg, current_pos);
+	    // Bright, plain text color on an ordinary row, as its own base -
+	    // the same brightness a defined note gets in a NOTE column
+	    // (styles.window_fg_color), not tinted with the track's own
+	    // identity color the way a real clip's waveform is, since that
+	    // color means "a clip," and the bed isn't one. waveformFg() layers
+	    // the playhead/selection cue on top, same as the real clip's own
+	    // waveform above.
+	    renderWaveformRow(peaks, wf_row, width, waveformFg(styles.window_fg_color), waveformBg(), current_pos);
 	    setFgColor(cell_fg);
 	    setBgColor(cell_bg);
 	  } else {
@@ -3037,9 +3077,10 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // column_selected, same reasoning as velocity/delay's own cur_fg
 	  // fallback below - command_column_color is tuned for contrast
 	  // against the normal dark row background, not the bright
-	  // effective-region highlight.
-	  cell_fg = command.isDefined() && !column_selected ? dim_fixed_color(styles.command_column_color) : cur_fg;
-	  cell_bg = cur_bg;
+	  // effective-region highlight. Either way, tintForPlayhead() layers
+	  // the playhead row's own translucent tint on top when not selected.
+	  cell_fg = command.isDefined() && !column_selected ? tintForPlayhead(dim_fixed_color(styles.command_column_color)) : (cell_is_selected ? cur_fg : tintForPlayhead(fg));
+	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
 	  setFgColor(cell_fg);
 	  setBgColor(cell_bg);
 	  auto s = to_string(command);
@@ -3055,8 +3096,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  auto note = l < static_cast<int>(notes.size()) ? notes[static_cast<size_t>(l)] : Note();
 	  auto tuning = track ? song.getTuningForTrack(*track) : song.getTuning();
 
-	  cell_fg = cur_fg;
-	  cell_bg = cur_bg;
+	  cell_fg = cell_is_selected ? cur_fg : tintForPlayhead(fg);
+	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
 	  if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
 	  // Step-sequencer compact display: a hit lane (a real, sound-
 	  // producing note - matches PercussionTrack::getHitNotesForRow()'s
@@ -3087,8 +3128,11 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // normal dark row background; inside the (bright) effective-region
 	  // highlight they'd be nearly unreadable, so use the region's own
 	  // (dark) foreground there instead - same idea as the note column.
-	  cell_fg = column_selected ? cur_fg : dim_fixed_color(column_type == ColumnType::VELOCITY ? Color("#bfa426") : Color("#42c1ea"));
-	  cell_bg = cur_bg;
+	  // tintForPlayhead() layers the playhead row's own translucent tint
+	  // on top of the bright color when not selected, same as every other
+	  // column type.
+	  cell_fg = column_selected ? cur_fg : tintForPlayhead(dim_fixed_color(column_type == ColumnType::VELOCITY ? Color("#bfa426") : Color("#42c1ea")));
+	  cell_bg = cell_is_selected ? cur_bg : tintForPlayhead(bg);
 	  if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
 	  setFgColor(cell_fg);
 	  setBgColor(cell_bg);
@@ -3130,18 +3174,18 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       bool is_continuation_row = read_target.is_instance && read_target.unwrapped_row != 0;
       if (!track_info.collapsed_ && track_info.color_ordinal_ >= 0) {
 	if (is_continuation_row) {
-	  setFgColor(bg);
-	  setBgColor(row_base_bg);
+	  setFgColor(in_selection ? bg : tintForPlayhead(bg));
+	  setBgColor(in_selection ? bg : tintForPlayhead(row_base_bg));
 	  putstr(display_row, current_pos, "▌");
 	} else {
-	  Color id_fg = fg;
+	  Color id_fg = in_selection ? fg : tintForPlayhead(fg);
 	  string id_glyph = " ";
 	  if (read_target.is_instance) {
 	    id_fg = Color(0xff, 0xff, 0xff);
 	    id_glyph = clip_digit(read_target.clip_index);
 	  }
 	  setFgColor(id_fg);
-	  setBgColor(bg);
+	  setBgColor(in_selection ? bg : tintForPlayhead(bg));
 	  putstr(display_row, current_pos, id_glyph);
 	}
 	current_pos++;
@@ -3152,13 +3196,19 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       // resolveReadTarget() (this only needs the yes/no, never reads or
       // writes anything there). Starts from row_base_bg, not a flat
       // window_bg_color, so a bar/beat-accented row tints this the same
-      // as every other cell in it, not a hardcoded plain background.
+      // as every other cell in it, not a hardcoded plain background - or
+      // this track's own bg when the *whole row* is selected
+      // (in_selection), so a row-wide selection reaches all the way
+      // across every divider in it (a column-scoped selection never
+      // extends this far - only a genuine whole-track/EVERYTHING mark
+      // does). The instance tint below is skipped when in_selection - a
+      // real selection wins outright, same as every other cell.
       bool right_is_instance = false;
-      Color right_bg = row_base_bg;
+      Color right_bg = in_selection ? bg : tintForPlayhead(row_base_bg);
       if (i + 1 < static_cast<int>(track_ids.size())) {
 	auto next_track_id = track_ids[static_cast<size_t>(i + 1)];
 	right_is_instance = resolveInstanceAt(song, scene, next_track_id, pattern_row).clip_index >= 0;
-	if (right_is_instance) {
+	if (right_is_instance && !in_selection) {
 	  auto next_it = all_track_info.find(next_track_id);
 	  if (next_it != all_track_info.end()) right_bg = right_bg.blend(0.2f, next_it->second.getColor());
 	}
@@ -3185,16 +3235,18 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	// tinted span reads as one continuous block right up to wherever
 	// an instance actually starts/ends instead of the divider always
 	// breaking it one character early.
-	setFgColor(is_continuation_row ? row_base_bg : bg);
+	setFgColor(in_selection ? bg : tintForPlayhead(is_continuation_row ? row_base_bg : bg));
 	setBgColor(right_bg);
 	putstr(display_row, current_pos, "▌");
       } else {
 	// row_base_bg, not the plain flat window_bg_color - a "│" still
 	// shows the row's own bar/beat-accent highlight (same as every
 	// other cell in it), just never the instance-tint "▌" above uses -
-	// a "│" means "no instance boundary worth showing here."
+	// a "│" means "no instance boundary worth showing here." Still
+	// reaches the selection highlight too, same reasoning as right_bg
+	// above.
 	setFgColor(styles.window_border_color);
-	setBgColor(row_base_bg);
+	setBgColor(in_selection ? bg : tintForPlayhead(row_base_bg));
 	putstr(display_row, current_pos, "│");
       }
       current_pos++;
@@ -3254,12 +3306,11 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     // full-row treatment is what row_fully_filled is for. Either way this
     // is the *same* light green every other selected cell already uses,
     // not a separate color, so it doesn't read as some other kind of
-    // state. Falls back to the playhead tint when this is just the
-    // currently-playing/edit-cursor row and nothing here is actually
-    // selected, or plain window_bg_color (already painted by the leading
-    // padding fill above) otherwise. Plain, unblended green - the same
-    // tint the rest of a highlighted row uses - since this is just the
-    // gap before the annotation's own content; the red identity only
+    // state. Falls back to the playhead's own translucent tint
+    // (tintForPlayhead(), same as every other column type) when this is
+    // just the currently-playing/edit-cursor row and nothing here is
+    // actually selected, or plain window_bg_color (already painted by
+    // the leading padding fill above) otherwise - the red identity only
     // belongs on the text/placeholder span itself (plus its margin),
     // further down.
     if (row_fully_filled) {
@@ -3267,8 +3318,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       setBgColor(styles.highlight_bg_color);
       putstr(display_row, current_pos, string(static_cast<size_t>(cols - current_pos), ' '));
     } else if (highlight) {
-      setFgColor(0x80, 0xc0, 0x80);
-      setBgColor(0x80, 0xa0, 0x80);
+      setFgColor(tintForPlayhead(styles.window_fg_color));
+      setBgColor(tintForPlayhead(styles.window_bg_color));
       putstr(display_row, current_pos, string(static_cast<size_t>(cols - current_pos), ' '));
     }
 
@@ -3304,14 +3355,13 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  setBgColor(styles.highlight_bg_color.blend(0.2f, annotation_red));
 	} else if (highlight) {
 	  // Playhead row, nothing selected here specifically - the same
-	  // green as the rest of the row (not red - the playhead
-	  // highlights the *whole* row, annotation included), but nudged a
-	  // little toward this span's own red identity (both fg and bg),
-	  // as if a translucent red wash sat over just the text/placeholder
-	  // itself - unlike the plain gap fill above, which stays pure
-	  // green - so the annotation's own span still reads as red
-	  // content, not just a darker patch of the same row tint.
-	  setFgColor(Color(0x80, 0xc0, 0x80).blend(0.2f, annotation_red));
+	  // translucent tint the rest of the row uses (not red - the
+	  // playhead highlights the *whole* row, annotation included), but
+	  // nudged a little further toward this span's own red identity, as
+	  // if a translucent red wash sat over the gap's own already-tinted
+	  // fill - so the annotation's own span still reads as red content,
+	  // not just a darker patch of the same row tint.
+	  setFgColor(tintForPlayhead(styles.window_fg_color).blend(0.2f, annotation_red));
 	  setBgColor(Color(0x60, 0x78, 0x60).blend(0.2f, annotation_red));
 	} else {
 	  setFgColor(0xe0, 0x30, 0x30);

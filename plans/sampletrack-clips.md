@@ -99,17 +99,77 @@ tested, and committed unless a section says otherwise.
     plain text color (the same brightness an ordinary defined note gets
     in a NOTE column), not the track's own identity color a real clip's
     waveform is tinted with - that color means "a clip," and the bed
-    isn't one. Foreground/background are treated differently: the
-    coverage bars themselves are a fixed color, unaffected by the row's
-    own playhead/bar-accent highlight or selection (they sit *under* that
-    layer), but the cell's own background is still `cell_bg`, same as
-    every other cell in the row - only the waveform's own foreground is
-    exempt, not the whole cell. A real clip's own waveform (#12 above) had
-    the identical bug - its own "on" color used to blend the track's
-    identity color toward the row's own (highlight-carrying) foreground,
-    so the whole waveform visibly tinted whenever the playhead/selection
-    passed over it - fixed the same way here, blending toward the plain
-    `styles.window_fg_color` instead.
+    isn't one. The waveform's own coverage bars sit under the row's own
+    *ambient* grid tinting (bar/beat-accent, neighboring-pattern/repeat-
+    row dimming) - a real clip's waveform (#12 above) used to blend its
+    "on" color toward that state too, tinting visibly as the playhead
+    swept down an unremarkable row's own accent color, fixed the same way
+    for both here. The playhead row and an actual selection are different,
+    deliberate cues though, not ambient state - a selection fully inverts
+    the waveform to `cur_fg`, same as every other column type's own
+    cursor/selection cue, but the playhead row only tints it partway
+    there (`base.blend(0.35f, cur_fg)`) rather than fully replacing it,
+    reading as a translucent green layer over the waveform's own shape/
+    color rather than solid green. The cell's own background needs the
+    identical partial-tint treatment on the playhead row, not the
+    playhead's own full-strength `cell_bg` - pairing a lightly-tinted
+    foreground against a solid-green background read as a color
+    mismatch, not a highlight, the coverage bars losing contrast against
+    a background greener than they were. A selection still uses plain
+    `cell_bg` (already the full selection color there, no separate case
+    needed), and an ordinary row's own ambient bar/beat-accent tinting is
+    untouched either way.
+
+    This turned into a whole-`PatternEditor` consistency pass, beyond just
+    the waveform: the playhead row used to fully replace every column
+    type's own color with solid green (`row_base_fg`/`row_base_bg`'s own
+    `if (highlight)` branch, computed once and inherited by NOTE/
+    VELOCITY/DELAY/EFFECT/the row-number gutter/dividers/the track
+    identifier cell alike) - now a shared `tintForPlayhead()` helper and
+    one `kPlayheadTintAlpha` constant (0.35, matching the waveform's own)
+    apply the identical translucent-overlay treatment everywhere, so the
+    whole row reads as one consistent tint rather than the waveform being
+    the only column type treated this way. `row_base_fg`/`row_base_bg`
+    themselves are pure ambient now (bar/beat-accent or plain, never
+    playhead) - every column type calls `tintForPlayhead()` on its own
+    base color instead, skipping it entirely when actually selected
+    (`cell_is_selected = column_selected || in_selection`, checked once
+    per column and reused). The annotation row's own playhead+red
+    combination (a different kind of blend - two meaningful colors
+    composited together, not a neutral base tinted by one) was left as
+    its own 0.2 ratio, but reuses the same `kPlayheadTint` constant rather
+    than duplicating the literal color value. `kPlayheadTint` itself is a
+    single shared color (`#80b080`) - separate fg/bg targets (`#80c080`/
+    `#80a080`, the exact literals `row_base_fg`/`row_base_bg` already used
+    before any of this) existed only because the old scheme fully
+    *replaced* a cell's color, and a foreground and background always
+    need to differ for text to stay legible against its own background;
+    once every column type blends only partway there instead, each
+    already-distinct base (fg text color vs. bg fill) keeps enough of its
+    own separation on its own, so one shared target color is enough.
+
+    A track's own trailing divider/identifier-cell code (the "▌"/"│"
+    glyphs marking a clip instance's own boundary, and the half-block
+    continuation-row ear) had its own selection gap, found only after
+    this sweep looked otherwise complete: several of its own background
+    computations (`right_bg`, the continuation-row's own "▌", the plain
+    "│" fallback) read straight from `row_base_bg` - ambient/playhead-
+    aware after the fixes above, but never selection-aware at all. Fixed
+    by checking `in_selection` (a whole-track/EVERYTHING-scoped mark)
+    first at each of those sites, same as every other cell in the row.
+
+    A second attempt tried to extend this further, to the everyday case
+    of just moving the cursor with no mark set at all (NOTE_COLUMN-
+    scoped, per-column rather than whole-track) - a `trailing_column_
+    selected` flag tracking whether a track's own *last* column ended up
+    selected, so the divider right after it could pick up the same
+    highlight. Reverted: it bled the highlight into places it doesn't
+    belong (the "▌" glyph's own *next-track* half, and plain "│"
+    dividers that aren't even part of any instance boundary) with no
+    clean way found to scope it correctly. The divider/identifier-cell
+    code now only ever reflects `in_selection` - a real, whole-track/
+    EVERYTHING selection reaches it; the ordinary single-cell cursor
+    (no mark) does not, same as before this whole investigation started.
 
     Deliberately out of scope for this pass, flagged during review rather
     than decided unilaterally: there is no per-instance loudness/velocity
