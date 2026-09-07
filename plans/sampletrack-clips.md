@@ -49,6 +49,78 @@ tested, and committed unless a section says otherwise.
     - a single, `Song`-owned "current track" every UI widget now writes
     through to, so this and other Launchpad-routed commands work
     regardless of which widget has focus.
+16. **`SampleTrack` background bed** - `Scene::getSampleBackgroundContent()`/
+    `getOrCreateSampleBackgroundContent()`, a `SampleContent` per (scene,
+    track) sibling of `patterns_by_track_id_`, never trimmed/looped (both
+    fields stay at their unset defaults - only the buffer/native rate are
+    ever written). `merge-clip-to-background` (#15) now handles a
+    SampleTrack clip too: a real additive multiply-add mix into the bed
+    (`resolveSampleAudio()`, factored out of `SampleTrackState::
+    triggerVoice()` so playback and merge-baking apply the exact same
+    trim/resample/stretch resolution), re-baked once per lap for a
+    looping clip - the note-track merge doesn't need this (`Pattern::
+    getEffectiveRow()`'s own modulo already wraps a looping clip's
+    content row-by-row for free), but a real audio buffer isn't row-
+    granular, so the sample-mix path explicitly tiles the resolved audio
+    across each lap boundary itself, matching what real playback would
+    actually have triggered. `SongState::renderBlock()` plays a scene's
+    background bed continuously, entirely independent of whatever the
+    arrangement/clip layer resolves to - not masked by a placed clip on
+    top of it, and not silenced by an explicit stop either (a stop only
+    ever means "nothing from the clip layer is overriding this track
+    right now"; unlike a note track's own background Pattern, which a
+    stop still silences today - a real, confirmed pre-existing bug in #15
+    above, found while building this and logged in `docs/known_bugs.md`
+    rather than fixed here, since #15 already shipped separately and
+    changing its behavior wasn't asked for). Real audio genuinely mixes,
+    unlike two `Note`s, so `SampleTrackState` now has exactly two fixed,
+    independent voices - `kClipVoiceId` (the one clip that can be
+    playing) and `kBackgroundVoiceId` (the scene's own bed) - routed
+    through `LeafTrackState`'s existing per-voice `voices_` map, which
+    `SampleTrackState::triggerVoice()` and `RenderContext`'s own
+    `SampleTrackEvent::is_background` flag address by fixed, named role
+    rather than an arbitrary index (an early draft called this a
+    "column," which reads as "one of several simultaneous clips" - not
+    the model; a SampleTrack still only ever has one clip). Persists
+    as `<sampleBackground track="..." file="...">` inside `<scene>` plus a
+    `<song-stem>.samples/background_<scene-id>_<track-id>.wav` sidecar,
+    swept alongside orphaned clip sidecars on save; a scene gets a real,
+    stable id of its own (`Song::generateUniqueSceneId()`) the moment it
+    first gets a bed, precisely so the sidecar's own name doesn't have to
+    depend on the scene's ordinal position (inserting/reordering scenes is
+    a normal edit).
+
+    `PatternEditor`'s own SampleTrack placeholder column (#8/#12 above)
+    shows the bed's own waveform too - only when no clip instance covers
+    that row, though; a clip placed on top still draws only the clip's
+    own shape (the two genuinely mix in the audio, but there's no
+    combined-waveform rendering yet - out of scope for this pass). Bright
+    plain text color (the same brightness an ordinary defined note gets
+    in a NOTE column), not the track's own identity color a real clip's
+    waveform is tinted with - that color means "a clip," and the bed
+    isn't one. Foreground/background are treated differently: the
+    coverage bars themselves are a fixed color, unaffected by the row's
+    own playhead/bar-accent highlight or selection (they sit *under* that
+    layer), but the cell's own background is still `cell_bg`, same as
+    every other cell in the row - only the waveform's own foreground is
+    exempt, not the whole cell. A real clip's own waveform (#12 above) had
+    the identical bug - its own "on" color used to blend the track's
+    identity color toward the row's own (highlight-carrying) foreground,
+    so the whole waveform visibly tinted whenever the playhead/selection
+    passed over it - fixed the same way here, blending toward the plain
+    `styles.window_fg_color` instead.
+
+    Deliberately out of scope for this pass, flagged during review rather
+    than decided unilaterally: there is no per-instance loudness/velocity
+    field anywhere in the data model yet (a scene's instance placement is
+    just a clip_id string), so the merge mix always uses a plain gain of
+    1.0 - `mixIntoSampleBackground()`'s own `gain` parameter is real
+    multiply-add DSP, future-proofed for a real multiplier, but nothing
+    sets it to anything else yet. Open questions for whenever that gets
+    designed: should a clip instance carry its own velocity/gain at all;
+    should a Launchpad pad's own hit velocity feed it at launch time; and
+    should the same apply to instrument (note) clips, not just
+    SampleTrack ones.
 
 ## Manual testing still needed
 
@@ -72,6 +144,17 @@ tested, and committed unless a section says otherwise.
   level while armed (not just once a clip exists), Record Arm again
   mid-take finishes the capture, and pressing it again while merely armed
   cancels cleanly.
+- **SampleTrack background bed (#16), real audio**: place a SampleTrack
+  clip in a scene, `merge-clip-to-background` it, and confirm the merged
+  audio is actually audible at transport playback (both live and
+  `--render`) at exactly the rows it used to cover, including a looping
+  clip's own repeats across the rest of the scene, and right through the
+  merge's own leftover stop. Then place a *second*, un-merged clip on top
+  of the already-merged bed and confirm both are genuinely audible
+  together (a real mix - the bed keeps playing underneath, not silenced
+  by the clip on top of it) rather than one replacing the other. Save and
+  reload, confirm the merged audio survives the round trip and still
+  plays back correctly positioned.
 
 ## Future direction (not built): clip drafts + merge-to-background lifecycle
 
@@ -90,15 +173,9 @@ and freeing its slot.
 Merging isn't symmetric underneath even though the *capability* should be:
 for a note track, two `Note`s have no meaningful "sum," so merging is a
 destructive overwrite (built - see `merge-clip-to-background`, #15 above).
-For a `SampleTrack`, real audio mixing is easy (straightforward addition)
-but wanted mainly for symmetry - and needs a `SampleTrack` "background
-bed" to merge into, which doesn't exist yet (this whole design is built
-around discrete triggered clips). That background would need no trim
-points of its own (trimming happens before merge) and no looping (a scene
-doesn't loop) - what's actually open is just how the background audio is
-stored and summed against whatever's currently placed.
+For a `SampleTrack`, real audio mixing/rendering into a background bed is
+now also built (#16 above).
 
 Deliberately still unresolved: the exact promotion/decay trigger (a
-command? a timeout? leaving a clip's row on a Launchpad?), what "decay"
-looks/sounds like while pending, and the `SampleTrack` background's own
-storage shape.
+command? a timeout? leaving a clip's row on a Launchpad?), and what
+"decay" looks/sounds like while pending.

@@ -198,17 +198,17 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     song->save(getActiveBufferName());
     last_saved_versions_[getActiveBufferName()] = song->getVersion();
   });
-  // Folds a note-based clip's placement back into its scene's own
-  // background Pattern, freeing the clip slot without deleting the clip
-  // itself - see ArrangementOps.h's own mergeClipToBackground() for what
-  // "merge" means and why it's a destructive overwrite. Targets the
-  // Song's own current track (Song::getCurrentTrackId() - shared by every
-  // buffer viewing this Song, not any one UI widget's own cursor) and the
-  // playhead's own scene/row (getPlaybackInfo(), already Controller-
-  // global) - resolveInstanceAt() is row-exact, matching kill-row's own
-  // resolution. A silent no-op if nothing resolves (no current track set,
-  // nothing placed there, or the resolved clip carries a sample - see
-  // mergeClipToBackground()'s own comment).
+  // Folds a clip's placement back into its scene's own background content,
+  // freeing the clip slot without deleting the clip itself - a destructive
+  // overwrite for a note-based clip, a real additive mix for a SampleTrack
+  // one (ArrangementOps.h's own mergeClipToBackground() has the full
+  // reasoning). Targets the Song's own current track (Song::
+  // getCurrentTrackId() - shared by every buffer viewing this Song, not
+  // any one UI widget's own cursor) and the playhead's own scene/row
+  // (getPlaybackInfo(), already Controller-global) - resolveInstanceAt()
+  // is row-exact, matching kill-row's own resolution. A silent no-op if
+  // nothing resolves (no current track set, nothing placed there, or the
+  // resolved clip has nothing playable to merge).
   commands_.define("merge-clip-to-background", [this]() {
     auto & song = getSong();
     auto track_id = song.getCurrentTrackId();
@@ -216,7 +216,7 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     auto & scene = song.getScene(playback_info.getPatternIndex());
     auto row = playback_info.getRowIndex();
 
-    if (!mergeClipToBackground(song, scene, track_id, row)) return;
+    if (!mergeClipToBackground(song, scene, track_id, row, getChannelConfiguration())) return;
     song.incVersion();
     getUIEventQueue().push(make_unique<LogEvent>("Clip merged to background"));
   });

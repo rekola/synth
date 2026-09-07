@@ -3,6 +3,7 @@
 
 #include "SongObject.h"
 #include "Pattern.h"
+#include "SampleContent.h"
 #include "VisibleTrackInfo.h"
 
 #include <map>
@@ -223,6 +224,36 @@ class Scene : public SongObject {
   // above.
   const std::unordered_map<int, std::map<unsigned short, std::string> > & getInstancesByTrack() const { return instances_by_track_id_; }
 
+  // A SampleTrack's own background bed for this scene - the sample-
+  // content sibling of patterns_by_track_id_ above, but raw mixed audio
+  // instead of notes: content merged into this scene's own timeline
+  // (ArrangementOps.h's own mergeClipToBackground()), summed against
+  // whatever else plays over it. Unlike a Clip's own SampleContent, this
+  // one is never trimmed (trimming already happened before whatever
+  // merge wrote it) and never loops (a scene doesn't loop) - both fields
+  // simply stay at their unset defaults; only the buffer/native sample
+  // rate are ever written. Read-only lookup returns nullptr when this
+  // track has no real background audio in this scene yet (absent
+  // entirely, or present with no buffer - the same "not really there"
+  // test Clip::hasSample() uses), so a mere read never has to special-
+  // case a freshly-default-constructed, still-empty SampleContent.
+  const SampleContent * getSampleBackgroundContent(int track_id) const {
+    auto it = sample_backgrounds_by_track_id_.find(track_id);
+    return it != sample_backgrounds_by_track_id_.end() && it->second.getBuffer() ? &it->second : nullptr;
+  }
+
+  // The write-intent counterpart - creates track_id's own (still-empty)
+  // entry on first use, the same lazy-creation-on-write shape
+  // patterns_by_track_id_'s own row/command setters already have via
+  // operator[].
+  SampleContent & getOrCreateSampleBackgroundContent(int track_id) { return sample_backgrounds_by_track_id_[track_id]; }
+
+  // Raw per-track access, same reasoning as getPatternsByTrack()/
+  // getInstancesByTrack() above - Song.cpp's own XML writer and
+  // SongState.h's own scheduler both need "every track with a background
+  // bed here" at once, not a single track_id at a time.
+  const std::unordered_map<int, SampleContent> & getSampleBackgroundsByTrack() const { return sample_backgrounds_by_track_id_; }
+
 private:
   // insertRow()/deleteRow()'s own annotation-shifting step - same "copy if
   // present, else erase rather than store an explicit empty string" shape
@@ -241,6 +272,7 @@ private:
   std::unordered_map<int, Pattern> patterns_by_track_id_;
   std::unordered_map<unsigned short, std::string> annotations_;
   std::unordered_map<int, std::map<unsigned short, std::string> > instances_by_track_id_;
+  std::unordered_map<int, SampleContent> sample_backgrounds_by_track_id_;
 
   static inline Note empty_note;
   static inline std::vector<Note> empty_notes;

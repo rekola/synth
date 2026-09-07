@@ -2909,6 +2909,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  auto & clips = song.getClips(track_id);
 	  const Clip * sample_clip = (read_target.is_instance && read_target.clip_index >= 0 &&
 	    read_target.clip_index < static_cast<int>(clips.size())) ? &clips[static_cast<size_t>(read_target.clip_index)] : nullptr;
+	  auto * background = scene.getSampleBackgroundContent(track_id);
 	  if (sample_clip && sample_clip->hasSample()) {
 	    auto & peaks = sample_clip->getWaveformPeaks(waveform_subrows * kWaveformSupersample);
 	    // A looping clip's own later laps wrap back into its own row
@@ -2925,15 +2926,17 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	    // cells - the same color ArrangementGrid's own capsule and this
 	    // track's own background tint (bg, above) already use, so the
 	    // shape reads as unmistakably *this* track's content rather than
-	    // plain text. Blended toward this row's own fg (row_base_fg) -
-	    // not dim_fixed_color(), which only ever pulls toward black -
-	    // since fg already reflects the playhead's own green highlight as
-	    // well as is_neighboring_pattern/is_repeat_row dimming; blending
-	    // toward it registers all three the same way every other colored
-	    // cell in this row does, while keeping the track's own hue
-	    // dominant rather than washing it out to plain text gray.
-	    auto waveform_fg = track_info.getColor().blend(0.35f, fg);
-	    renderWaveformRow(peaks, wf_row, width, column_selected ? cur_fg : waveform_fg, cell_bg, current_pos);
+	    // plain text. Blended toward the plain, unhighlighted row
+	    // foreground (styles.window_fg_color) - not dim_fixed_color(),
+	    // which only ever pulls toward black - so the waveform's own
+	    // color stays fixed regardless of the row's own playhead/bar-
+	    // accent highlight or selection (the same "the waveform sits
+	    // under that layer, not tinted by it" treatment the background
+	    // bed's own waveform below already has); the cell's own
+	    // background is still cell_bg though, same as every other cell
+	    // in the row - only the waveform's own foreground is exempt.
+	    auto waveform_fg = track_info.getColor().blend(0.35f, styles.window_fg_color);
+	    renderWaveformRow(peaks, wf_row, width, waveform_fg, cell_bg, current_pos);
 	    // renderWaveformRow() leaves both fg/bg at whatever its own last
 	    // cell's quantized colors were, not cell_fg/cell_bg - restore both
 	    // (unlike the old single-color-pair version, which only ever
@@ -2943,10 +2946,45 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  } else if (read_target.is_instance) {
 	    // An instance is placed here, but its own clip has no sample
 	    // content yet - nothing to show a shape for, but a solid fill
-	    // still reads as "something's supposed to be here."
+	    // still reads as "something's supposed to be here." The scene's
+	    // own background bed, if it has one, keeps playing underneath a
+	    // placed clip too (SongState.h's own comment on why they're two
+	    // independent, simultaneously-mixing voices) - not shown here
+	    // either, since this cell is already busy showing the clip's own
+	    // placement; only the no-instance-at-all case below draws it.
 	    putstr(display_row, current_pos, std::string(static_cast<size_t>(width), 'x'));
+	  } else if (background) {
+	    // No clip instance placed here, but this scene has a real
+	    // background bed for this track (Scene::
+	    // getSampleBackgroundContent(), ArrangementOps.h's own
+	    // mergeClipToBackground()) - it plays here exactly like a real
+	    // clip would (SongState.h's own renderBlock()), so it gets the
+	    // same waveform treatment, not the plain dot placeholder below.
+	    // Row-indexed directly by this scene's own raw row (unlike a
+	    // clip's own instance-relative wf_row above) - the bed has no
+	    // trim/loop/instance-offset concept of its own to account for
+	    // (Scene.h's own comment on why).
+	    auto & peaks = background->getWaveformPeaks(song.getEffectiveSceneLength(scene), waveform_subrows * kWaveformSupersample);
+	    auto wf_row = pattern_row;
+	    if (peaks.rowCount() > 0) wf_row = std::min(wf_row, peaks.rowCount() - 1);
+	    if (wf_row < 0) wf_row = 0;
+	    // Bright, plain text color - the same brightness an ordinary
+	    // defined note gets in a NOTE column (styles.window_fg_color,
+	    // what cur_fg itself resolves to on an unhighlighted row) - not
+	    // tinted with the track's own identity color the way a real
+	    // clip's waveform is, since that color means "a clip," and the
+	    // bed isn't one. Fixed, deliberately not cur_fg - the waveform's
+	    // own coverage bars sit underneath the row's own playhead/bar-
+	    // accent highlight or selection, rendered the same regardless of
+	    // row state. The *background* behind them is cell_bg though, same
+	    // as every other cell in this row - only the waveform itself is
+	    // exempt, not the whole cell.
+	    renderWaveformRow(peaks, wf_row, width, styles.window_fg_color, cell_bg, current_pos);
+	    setFgColor(cell_fg);
+	    setBgColor(cell_bg);
 	  } else {
-	    // No clip instance placed here at all - a regular dot pattern,
+	    // No clip instance placed here at all, and no background bed
+	    // either - a regular dot pattern,
 	    // matching every other column type's own "nothing defined here
 	    // yet" placeholder (Note::toString()'s "···" for NOTE, "--" for
 	    // VELOCITY/DELAY) rather than a blank void. Dimmed further than

@@ -6,6 +6,7 @@
 class Song;
 class Scene;
 class Pattern;
+class ChannelConfiguration;
 
 // Rounds `raw_row` up to the start of its own next bar (unchanged if
 // already exactly on one) - every real-time placement that must not claim
@@ -55,24 +56,30 @@ void placeClipInstance(const Song & song, Scene & scene, int track_id, int row, 
 // stretch would do nothing a caller couldn't have skipped outright.
 void placeStopInstance(Scene & scene, int track_id, int row);
 
-// Merges the note-based clip instance active at (track_id, row) in `scene`
-// destructively into the scene's own background Pattern, across every row
-// this one placement covers, then removes that one placement
-// (placeStopInstance() above) - not the clip itself, which may still be
-// placed/reused elsewhere and stays in the pool regardless. A destructive
-// overwrite, not a mix: two `Note`s have no well-defined "sum" the way two
-// audio samples do, so the clip's own content at each row simply replaces
-// whatever the background already had there - reproducing exactly what was
-// already audible (the clip was covering the background at those rows to
-// begin with), not "combining" the two. A no-op if nothing real is placed
-// at (track_id, row) (Scene::kStopInstance/kNoInstance), or if the
-// resolved clip carries a sample - a SampleTrack clip has no background
-// counterpart to merge into yet. Never calls Song::incVersion() itself,
+// Merges the clip instance active at (track_id, row) in `scene` into the
+// scene's own background content, across every row this one placement
+// covers, then removes that one placement (placeStopInstance() above) -
+// not the clip itself, which may still be placed/reused elsewhere and
+// stays in the pool regardless. Never calls Song::incVersion() itself,
 // same as placeClipInstance()/placeStopInstance() above - the caller's
 // job, gated on this function's own return value (true iff something was
 // actually merged) so a no-op call doesn't bump the song version or claim
-// success.
-bool mergeClipToBackground(const Song & song, Scene & scene, int track_id, int row);
+// success. A no-op if nothing real is placed at (track_id, row) (Scene::
+// kStopInstance/kNoInstance).
+//
+// Not symmetric underneath, even though the capability is: a note-based
+// clip merges as a destructive overwrite (two `Note`s have no well-
+// defined "sum" the way two audio samples do, so the clip's own content
+// at each row simply replaces whatever the background already had there -
+// reproducing exactly what was already audible, not "combining" the two),
+// while a SampleTrack clip merges as a real additive mix into the scene's
+// own background bed (Scene::getOrCreateSampleBackgroundContent()),
+// resolved the same way real playback would (resolveSampleAudio(),
+// SampleTrack.h) and re-baked once per lap for a looping clip, matching
+// what a listener actually would have heard. `channel_config` supplies
+// the output sample rate/tempo-to-frames math the sample-mix path needs;
+// unused by the note path.
+bool mergeClipToBackground(const Song & song, Scene & scene, int track_id, int row, const ChannelConfiguration & channel_config);
 
 // Removes `clip_index`'s own clip from track_id's own clip list
 // (Song::getClips()) entirely, first clearing away every instance event

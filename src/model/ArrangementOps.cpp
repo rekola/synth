@@ -4,6 +4,10 @@
 #include "Scene.h"
 #include "Clip.h"
 #include "Pattern.h"
+#include "SampleTrack.h"
+#include "SampleContent.h"
+#include "../audio/AudioBuffer.h"
+#include "../ambisonic/ChannelConfiguration.h"
 
 #include <algorithm>
 
@@ -48,26 +52,95 @@ placeStopInstance(Scene & scene, int track_id, int row) {
   scene.setInstance(track_id, row, "OFF");
 }
 
+// Additively mixes frame_count frames of `source` into `background`'s own
+// channel-0 buffer starting at dest_offset frames in, growing/zero-filling
+// it first if it doesn't yet reach that far - the same lazy-growth shape
+// a scene's own background Pattern already has (its row-keyed content is
+// only ever created on first write, never pre-sized). `gain` is a plain
+// per-call multiplier, not (yet) anything Clip/Scene stores anywhere -
+// every call site today passes 1.0 (a real per-instance loudness/velocity
+// concept doesn't exist yet - see mergeClipToBackground()'s own comment).
+static void
+mixIntoSampleBackground(SampleContent & background, int output_rate, int64_t needed_frames, const float * source, int64_t frame_count, int64_t dest_offset, float gain) {
+  auto buffer = background.getBuffer();
+  if (!buffer) {
+    buffer = make_shared<AudioBuffer>(1, static_cast<int>(needed_frames));
+    buffer->zero();
+    background.setBuffer(buffer);
+    background.setNativeSampleRate(output_rate);
+  } else if (buffer->numberOfFrames() < needed_frames) {
+    auto old_frames = buffer->numberOfFrames();
+    buffer->resize(static_cast<int>(needed_frames));
+    auto data = buffer->getChannelData(0);
+    fill(data + old_frames, data + needed_frames, 0.0f);
+  }
+
+  auto dst = buffer->getChannelData(0);
+  auto dst_frames = buffer->numberOfFrames();
+  for (int64_t f = 0; f < frame_count; f++) {
+    auto dst_index = dest_offset + f;
+    if (dst_index < 0 || dst_index >= dst_frames) continue;
+    dst[dst_index] += source[f] * gain;
+  }
+}
+
 bool
-mergeClipToBackground(const Song & song, Scene & scene, int track_id, int row) {
+mergeClipToBackground(const Song & song, Scene & scene, int track_id, int row, const ChannelConfiguration & channel_config) {
   auto active = resolveInstanceAt(song, scene, track_id, row);
   if (active.clip_index < 0) return false; // nothing real placed here
 
   auto & clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
-  if (clip.hasSample()) return false; // no SampleTrack background to merge into yet
-
-  auto & leaf = clip.getLeafPattern();
-  auto length = clip.getLength() > 0 ? clip.getLength() : 1;
   auto scene_length = song.getEffectiveSceneLength(scene);
-  auto reach_end = clip.isLooping() ? scene_length - 1 : min(active.start_row + length - 1, scene_length - 1);
 
-  auto & background = scene.getPatternsByTrack()[track_id];
-  for (auto r = active.start_row; r <= reach_end; r++) {
-    auto src_row = leaf.getEffectiveRow(r - active.start_row, length);
-    background.setNotes(r, leaf.getNotes(src_row));
-    auto & cmd = leaf.getCommand(src_row);
-    if (cmd.isDefined()) background.setCommand(r, cmd);
-    else background.clearCommand(r);
+  if (clip.hasSample()) {
+    auto * content = clip.getSampleContent();
+    auto output_rate = channel_config.getAudioOutSampleRate();
+    auto song_tempo = song.getTempo();
+    auto resolved = resolveSampleAudio(*content, output_rate, song_tempo);
+    if (!resolved.samples || resolved.in_frame >= resolved.out_frame) return false; // nothing playable to merge
+
+    auto length = clip.getLength() > 0 ? clip.getLength() : 1;
+    auto reach_end = clip.isLooping() ? scene_length - 1 : min(active.start_row + length - 1, scene_length - 1);
+
+    // A scene needs a stable id of its own the moment it first gets a
+    // real background bed - Song::generateUniqueSceneId()'s own comment
+    // has the full reasoning (its sidecar file's own name has to survive
+    // this scene later being reordered, which an ordinal position can't).
+    if (scene.getId().empty()) scene.setId(song.generateUniqueSceneId());
+
+    auto sample_interval = channel_config.getSampleInterval(song_tempo);
+    auto needed_frames = static_cast<int64_t>(scene_length) * sample_interval;
+    auto & background = scene.getOrCreateSampleBackgroundContent(track_id);
+
+    auto src = resolved.samples->getChannelData(0) + resolved.in_frame;
+    auto src_frame_count = static_cast<int64_t>(resolved.out_frame - resolved.in_frame);
+
+    // One mix per lap, matching real playback's own per-lap retrigger
+    // (SongState.h's row-scheduling loop) - a looping clip's own real
+    // audio essentially never divides its placement's row span evenly, so
+    // baking a single pass straight through would silently drop the
+    // repeats a listener actually would have heard.
+    for (auto lap_start_row = active.start_row; lap_start_row <= reach_end; lap_start_row += length) {
+      auto lap_end_row = clip.isLooping() ? min(lap_start_row + length - 1, reach_end) : reach_end;
+      auto lap_span_frames = static_cast<int64_t>(lap_end_row - lap_start_row + 1) * sample_interval;
+      auto frames_to_mix = min(src_frame_count, lap_span_frames);
+      auto dest_offset = static_cast<int64_t>(lap_start_row) * sample_interval;
+      mixIntoSampleBackground(background, output_rate, needed_frames, src, frames_to_mix, dest_offset, 1.0f);
+      if (!clip.isLooping()) break;
+    }
+  } else {
+    auto & leaf = clip.getLeafPattern();
+    auto length = clip.getLength() > 0 ? clip.getLength() : 1;
+    auto reach_end = clip.isLooping() ? scene_length - 1 : min(active.start_row + length - 1, scene_length - 1);
+
+    auto & background = scene.getPatternsByTrack()[track_id];
+    for (auto r = active.start_row; r <= reach_end; r++) {
+      auto src_row = leaf.getEffectiveRow(r - active.start_row, length);
+      background.setNotes(r, leaf.getNotes(src_row));
+      auto & cmd = leaf.getCommand(src_row);
+      if (cmd.isDefined()) background.setCommand(r, cmd);
+      else background.clearCommand(r);
+    }
   }
 
   placeStopInstance(scene, track_id, active.start_row);

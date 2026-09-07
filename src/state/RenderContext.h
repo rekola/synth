@@ -10,7 +10,7 @@
 #include <unordered_map>
 #include <vector>
 
-class Clip;
+class SampleContent;
 
 // Both TrackEvent and SampleTrackEvent below are queued entries on a
 // RenderContext timeline: something a track's own chunked render() must
@@ -48,35 +48,44 @@ class TrackEvent {
   NoteCoordinate note_coord;
 };
 
-// A SampleTrack clip start or stop, due at a specific within-block frame -
-// pending_events_'s own sibling timeline for raw sample playback, not
-// reused from TrackEvent itself since none of its fields (frequency/
+// A SampleTrack content start or stop, due at a specific within-block
+// frame - pending_events_'s own sibling timeline for raw sample playback,
+// not reused from TrackEvent itself since none of its fields (frequency/
 // velocity/note_value) are meaningful for raw sample playback - this
-// needs a Clip reference instead, which TrackEvent has no room for.
-// `clip` is a raw, non-owning pointer, only meaningful for START - safe
-// for exactly as long as one SongState::renderBlock() call, the same
+// needs a SampleContent reference instead, which TrackEvent has no room
+// for. `content` is a raw, non-owning pointer, only meaningful for START -
+// safe for exactly as long as one SongState::renderBlock() call, the same
 // lifetime a TrackEvent's own NoteCoordinate already assumes of whatever
-// Song it was built against. A START carries no duration/cap of its own -
-// the voice it starts just plays itself; whatever eventually ends it (a
-// later lap's own START superseding it, an explicit STOP, the scene
-// boundary) is a separate, later entry on this same timeline, exactly
-// the way a note's own note-off is a separate pending_events_ entry
-// rather than something baked into its note-on. A STOP is always a
-// release (SampleTrackState::render()'s own consumer calls stopVoices(),
-// the same short natural fade a superseding START already triggers via
-// triggerClip()'s own stopVoices() call), never a hard cut - an abrupt
-// stop would click. `start_offset_frames`, only meaningful for START, is
-// how many frames into the clip's own (post-trim, post-resample) audio to
-// begin from instead of its own beginning - 0 for an ordinary fresh
-// trigger or a new lap's own retrigger (both always land exactly on the
-// instance's/lap's own leading row), nonzero only when the playhead
-// itself lands mid-instance with nothing already sounding to explain why
-// (SongState.h's own "just resumed playback" case - see its comment).
+// Song it was built against; points at either a real placed clip's own
+// SampleContent or a scene's own SampleTrack background bed (Scene::
+// getSampleBackgroundContent()). `is_background` tells
+// SampleTrackState::render() which of a SampleTrack's exactly two fixed
+// voice roles this event is for - the one clip that can be playing, or
+// the current scene's own always-on background bed, which mixes with it
+// rather than being masked by it (SongState.h's own comment on why) - not
+// a generalized "which of N slots" index; a SampleTrack never has more
+// than these two. A START carries no duration/cap of its own - the voice
+// it starts just plays itself; whatever eventually ends it (a later lap's
+// own START superseding it, an explicit STOP, the scene boundary) is a
+// separate, later entry on this same timeline, exactly the way a note's
+// own note-off is a separate pending_events_ entry rather than something
+// baked into its note-on. A STOP is always a release (SampleTrackState::
+// render()'s own consumer calls stopVoices(), the same short natural
+// fade a superseding START already triggers), never a hard cut - an
+// abrupt stop would click. `start_offset_frames`, only meaningful for
+// START, is how many frames into the content's own (post-trim, post-
+// resample) audio to begin from instead of its own beginning - 0 for an
+// ordinary fresh trigger or a new lap's own retrigger (both always land
+// exactly on the instance's/lap's own leading row), nonzero only when the
+// playhead itself lands mid-instance with nothing already sounding to
+// explain why (SongState.h's own "just resumed playback" case - see its
+// comment).
 struct SampleTrackEvent {
   enum Kind { START, STOP };
   Kind kind;
-  const Clip * clip = nullptr;
+  const SampleContent * content = nullptr;
   int start_offset_frames = 0;
+  bool is_background = false;
 };
 
 class RenderContext {
@@ -106,17 +115,18 @@ class RenderContext {
     return pending_azimuth_ticks_[track_id];
   }
 
-  // A SampleTrack clip's own trigger (SongState.h's per-row scheduling -
-  // a fresh instance becoming active, or a looping clip's own later lap)
-  // due at a specific within-block frame - queued here rather than
-  // calling SampleTrackState::triggerClip() directly, so a sound producer
+  // A SampleTrack content's own trigger (SongState.h's per-row scheduling -
+  // a fresh instance becoming active, a looping clip's own later lap, or a
+  // scene's own background bed becoming reachable) due at a specific
+  // within-block frame - queued here rather than calling
+  // SampleTrackState's own trigger method directly, so a sound producer
   // never has to know how to start mid-block itself: SampleTrackState::
   // render()'s own chunked loop (mirroring InstrumentTrackState's exactly,
   // just against this timeline instead of pending_events_) is what
   // actually calls it, precisely at this frame, the same way a pattern
   // note's own chunked render already does.
-  void addPendingSampleStart(int track_id, int frame, const Clip * clip, int start_offset_frames = 0) {
-    pending_sample_events_[track_id][frame] = SampleTrackEvent{SampleTrackEvent::START, clip, start_offset_frames};
+  void addPendingSampleStart(int track_id, int frame, const SampleContent * content, int start_offset_frames = 0, bool is_background = false) {
+    pending_sample_events_[track_id][frame].push_back(SampleTrackEvent{SampleTrackEvent::START, content, start_offset_frames, is_background});
   }
 
   // The stop side of the same timeline (SampleTrackEvent's own comment
@@ -127,15 +137,18 @@ class RenderContext {
   // only for running out of its own audio - so each needs to land here
   // instead, at the exact frame it's actually due, not be approximated
   // by a caller.
-  void addPendingSampleStop(int track_id, int frame) {
-    pending_sample_events_[track_id][frame] = SampleTrackEvent{SampleTrackEvent::STOP};
+  void addPendingSampleStop(int track_id, int frame, bool is_background = false) {
+    pending_sample_events_[track_id][frame].push_back(SampleTrackEvent{SampleTrackEvent::STOP, nullptr, 0, is_background});
   }
 
-  // A plain map, not map-of-vector like pending_events_ - a SampleTrack
-  // only ever has one clip playing at a time, so at most one of these
-  // (a start or a stop) can ever be due on the same frame, unlike a
-  // chord's several simultaneous note columns.
-  std::map<int, SampleTrackEvent> & getPendingSampleEvents(int track_id) {
+  // Map-of-vector, unlike a plain map: the clip role and the background-
+  // bed role (SampleTrackEvent::is_background) are independent timelines
+  // sharing this one queue, so a clip's own transition and the bed's own
+  // can legitimately both land on the exact same frame - at most one
+  // event per role per frame in practice, but never coalesced into one
+  // slot the way this used to work back when a SampleTrack could only
+  // ever have one thing playing at all.
+  std::map<int, std::vector<SampleTrackEvent> > & getPendingSampleEvents(int track_id) {
     return pending_sample_events_[track_id];
   }
 
@@ -190,7 +203,7 @@ class RenderContext {
   ChannelConfiguration channel_config_;
   std::unordered_map<int, std::map<int, std::vector<TrackEvent> > > pending_events_;
   std::unordered_map<int, std::map<int, float> > pending_azimuth_ticks_;
-  std::unordered_map<int, std::map<int, SampleTrackEvent> > pending_sample_events_;
+  std::unordered_map<int, std::map<int, std::vector<SampleTrackEvent> > > pending_sample_events_;
   float bpm_ = 0.0f;
 };
 

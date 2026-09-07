@@ -295,6 +295,28 @@ class Song : public SongObject {
     }
   }
 
+  // A scene has no id of its own by default (unlike a track or a clip,
+  // Song::addScene() never assigns one) - most scenes never need one, so
+  // most songs never carry the extra XML noise. Only once a scene first
+  // needs a stable identity of its own (ArrangementOps.cpp's own
+  // mergeClipToBackground(), the moment a SampleTrack background bed's
+  // sidecar file needs a name that survives the scene later being
+  // reordered/another scene inserted ahead of it - an ordinal position
+  // isn't stable across that, see Song.cpp's own
+  // sampleBackgroundSidecarPath() comment) does anything call this and
+  // assign the result via Scene::setId(), mirroring generateUniqueClipId()
+  // above - same "assign lazily, once, on first real need" convention.
+  std::string generateUniqueSceneId() const {
+    for (int n = 1; ; n++) {
+      auto candidate = "scene" + std::to_string(n);
+      bool taken = false;
+      for (auto & scene : scenes_) {
+        if (scene.getId() == candidate) { taken = true; break; }
+      }
+      if (!taken) return candidate;
+    }
+  }
+
   void addInstrument(std::unique_ptr<Track> i) {
     instrument_pool_.addInstrument(std::move(i));
     incVersion();

@@ -9,6 +9,7 @@
 #include "../src/model/SampleTrack.h"
 #include "../src/model/SampleContent.h"
 #include "../src/audio/AudioBuffer.h"
+#include "../src/ambisonic/ChannelConfiguration.h"
 
 using namespace std;
 
@@ -547,7 +548,7 @@ TEST(merge_clip_to_background_overwrites_the_background_and_removes_the_placemen
   scene.setNote(13, track_id, 0, Note(70, 80)); // pre-existing background content the clip's own blank row 3 should also clear
   placeClipInstance(song, scene, track_id, 10, 0); // covers rows 10-13
 
-  CHECK(mergeClipToBackground(song, scene, track_id, 10) == true);
+  CHECK(mergeClipToBackground(song, scene, track_id, 10, ChannelConfiguration()) == true);
 
   CHECK(scene.getNotes(10, track_id).size() == 1);
   CHECK(scene.getNotes(10, track_id)[0].getValue() == 60); // overwritten, not left at 50
@@ -584,7 +585,7 @@ TEST(merge_clip_to_background_looping_clip_wraps_across_the_whole_scene) {
   scene.setLengthBars(1); // 4 rows total
   placeClipInstance(song, scene, track_id, 0, 0);
 
-  CHECK(mergeClipToBackground(song, scene, track_id, 0) == true);
+  CHECK(mergeClipToBackground(song, scene, track_id, 0, ChannelConfiguration()) == true);
 
   CHECK(scene.getNotes(0, track_id)[0].getValue() == 60); // leaf row 0
   CHECK(scene.getNotes(1, track_id).empty());              // leaf row 1
@@ -600,26 +601,53 @@ TEST(merge_clip_to_background_is_a_noop_with_nothing_placed) {
   auto track_id = track.getInternalId();
   auto & scene = song.addScene();
 
-  CHECK(mergeClipToBackground(song, scene, track_id, 5) == false);
+  CHECK(mergeClipToBackground(song, scene, track_id, 5, ChannelConfiguration()) == false);
 }
 
-// A SampleTrack clip carries raw audio, not a Pattern - no background
-// counterpart exists for it to merge into yet, so this stays a no-op
-// (including leaving the placement itself untouched).
-TEST(merge_clip_to_background_is_a_noop_for_a_sample_clip) {
+// A SampleTrack clip merges as a real additive mix into the scene's own
+// background bed, resolved the same way real playback would (gain 1.0 -
+// no per-instance loudness/velocity concept exists yet), then the
+// placement is removed the same as a note-based clip's own merge.
+TEST(merge_clip_to_background_mixes_a_sample_clip_into_the_background_bed) {
   Song song;
+  song.setRowsPerBar(4);
   auto & track = song.addTrack(make_unique<SampleTrack>());
   auto track_id = track.getInternalId();
 
+  constexpr int kSourceFrames = 100;
+  auto buffer = make_shared<AudioBuffer>(1, kSourceFrames);
+  auto data = buffer->getChannelData(0);
+  for (int i = 0; i < kSourceFrames; i++) data[i] = 1.0f;
+
   Clip sample_clip(track_id);
-  sample_clip.setLength(4);
-  sample_clip.getOrCreateSampleContent().setBuffer(make_shared<AudioBuffer>(1, 10));
+  sample_clip.setLength(2);
+  sample_clip.setLooping(false);
+  sample_clip.getOrCreateSampleContent().setBuffer(buffer);
   auto clip_id = song.addClip(move(sample_clip)).getId(); // index 0
 
   auto & scene = song.addScene();
+  scene.setLengthBars(1); // 4 rows total
   placeClipInstance(song, scene, track_id, 0, 0);
 
-  CHECK(mergeClipToBackground(song, scene, track_id, 0) == false);
-  CHECK(resolveInstanceAt(song, scene, track_id, 0).clip_index == 0); // still placed, untouched
+  ChannelConfiguration channel_config; // 44100Hz, tempo defaults to Song's own 90 bpm
+  auto sample_interval = channel_config.getSampleInterval(song.getTempo());
+
+  CHECK(mergeClipToBackground(song, scene, track_id, 0, channel_config) == true);
+
+  auto * background = scene.getSampleBackgroundContent(track_id);
+  CHECK(background != nullptr);
+  if (background) {
+    CHECK(background->getBuffer() != nullptr);
+    if (background->getBuffer()) {
+      CHECK(background->getBuffer()->numberOfFrames() == 4 * sample_interval); // sized to the whole scene
+      auto background_data = background->getBuffer()->getChannelData(0);
+      for (int i = 0; i < kSourceFrames; i++) CHECK_NEAR(background_data[i], 1.0f, 1e-6f);
+      CHECK_NEAR(background_data[kSourceFrames], 0.0f, 1e-6f); // nothing past the clip's own real audio
+    }
+  }
+
+  // The one placement removed - a stop where the clip used to start - but
+  // the clip itself stays in the pool.
+  CHECK(resolveInstanceAt(song, scene, track_id, 0).clip_index == Scene::kStopInstance);
   CHECK(song.getClips(track_id)[0].getId() == clip_id);
 }

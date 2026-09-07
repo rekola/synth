@@ -3,7 +3,33 @@
 
 #include "LeafTrack.h"
 
+#include <memory>
+
 class SongStructure;
+class SampleContent;
+class AudioBuffer;
+
+// resolveSampleAudio()'s own result - the buffer a trigger would actually
+// play from (post-trim, post-resample-to-output_rate, post-tempo-stretch)
+// plus the frame range within it, or a null `samples` when `content` has
+// nothing playable (no buffer, or a degenerate trim/stretch result).
+struct ResolvedSampleAudio {
+  std::shared_ptr<AudioBuffer> samples;
+  int in_frame = 0;
+  int out_frame = 0;
+};
+
+// Resolves what `content` would actually sound like if triggered right
+// now: trimmed to its own in/out points, resampled to `output_rate` if its
+// own native rate disagrees, and pitch-preserving tempo-stretched to
+// `song_tempo` if its own recorded tempo disagrees (SampleContent::
+// getOriginalTempo()'s own "0 means unknown, never stretch" convention).
+// Shared by real playback (SampleTrackState::triggerVoice()) and
+// background-merge baking (ArrangementOps.cpp's own
+// mergeClipToBackground()) so both apply exactly the same resolution
+// rather than maintaining two independent copies of the same trim/
+// resample/stretch math.
+ResolvedSampleAudio resolveSampleAudio(const SampleContent & content, int output_rate, int song_tempo);
 
 // A LeafTrack, not a plain Track - a recorded sample is positioned/muted/
 // soloed/sent the same way any other leaf track is (see LeafTrack.h's

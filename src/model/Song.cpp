@@ -99,6 +99,29 @@ sampleSidecarPath(const string & song_filename, const string & clip_id) {
   return sample_path.string();
 }
 
+// A SampleTrack's own background bed's sidecar .wav stem/path - same
+// `<song-stem>.samples/` sidecar directory a real clip's own sidecar
+// already uses (sampleSidecarPath() above), just named by (scene id,
+// track id) instead of a clip's own stable id. Keyed by the scene's own
+// stable id (Song::generateUniqueSceneId(), assigned lazily the moment a
+// scene first gets a real background bed - ArrangementOps.cpp's own
+// mergeClipToBackground()), deliberately not its ordinal position in
+// Song::getScenes(): inserting/reordering scenes is a normal edit, and an
+// ordinal position shifting under every scene after the edit would rename
+// (and orphan-then-recreate) every one of their own background sidecar
+// files on the very next save for no real reason.
+static string
+sampleBackgroundStem(const string & scene_id, int track_id) {
+  return "background_" + scene_id + "_" + to_string(track_id);
+}
+
+static string
+sampleBackgroundSidecarPath(const string & song_filename, const string & scene_id, int track_id) {
+  filesystem::path song_path(song_filename);
+  auto sample_path = song_path.parent_path() / (song_path.stem().string() + ".samples") / (sampleBackgroundStem(scene_id, track_id) + ".wav");
+  return sample_path.string();
+}
+
 // Parses a <pattern>'s own <note>/<command> children (and optional
 // `length` attribute) directly into `pattern` - shared by the per-scene
 // reader (Scene::patterns_by_track_id_'s own entry) and the clip reader
@@ -650,6 +673,39 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	    scene.setInstance(track_id, atoi(row_text), value_text);
 	  }
 	}
+
+	// A SampleTrack's own background bed for this scene (Scene::
+	// getOrCreateSampleBackgroundContent()) - one <sampleBackground
+	// track="..." file="..."> per track that has one, the sample-content
+	// sibling of a real clip's own <sample file="..."> above, just with
+	// no in/out/originalTempo of its own (a background bed is never
+	// trimmed or tempo-stretched - see Scene.h's own comment).
+	for (auto it2 = it->FirstChildElement("sampleBackground"); it2 ; it2 = it2->NextSiblingElement("sampleBackground")) {
+	  auto track_text = it2->Attribute("track");
+	  auto track = track_text ? resolveTrackReference(*this, track_text) : nullptr;
+	  if (!track) continue;
+
+	  auto file_attr = it2->Attribute("file");
+	  if (!file_attr) {
+	    fmt::print(stderr, "Malformed <sampleBackground> (missing file attribute) in {}\n", filename);
+	    setlocale(LC_ALL, oldLocale.c_str());
+	    return false;
+	  }
+	  auto sample_path = filesystem::path(filename).parent_path() / file_attr;
+	  auto loaded = loadMonoSample(sample_path.string());
+	  if (!loaded.buffer) {
+	    fmt::print(stderr, "Could not load sample \"{}\" referenced by <sampleBackground> in {}\n", sample_path.string(), filename);
+	    setlocale(LC_ALL, oldLocale.c_str());
+	    return false;
+	  }
+	  auto & content = scene.getOrCreateSampleBackgroundContent(track->getInternalId());
+	  content.setBuffer(loaded.buffer);
+	  content.setNativeSampleRate(loaded.rate);
+	  // Self-healing for a hand-authored file that never gave this scene
+	  // its own "id" attribute - Song::generateUniqueSceneId()'s own
+	  // comment on why a real background bed needs one.
+	  if (scene.getId().empty()) scene.setId(generateUniqueSceneId());
+	}
       }
     }
   }
@@ -752,20 +808,32 @@ Song::save(const std::string & filename) const {
   }
 
   // Sweeps <song-stem>.samples/ for any .wav that no longer corresponds
-  // to a live sample clip anywhere in the song - deleteClip()'s own
-  // "purely in-memory" contract (nothing on disk changes as a side
-  // effect of an edit) means a deleted clip's own sidecar file is only
-  // ever cleaned up here, at the one moment the artist actually asked to
-  // persist the current state, not the moment the clip was deleted.
-  // Independent of has_clips above - even a song with no sample clips
-  // left at all can still have a leftover .samples/ directory from
-  // before. A missing directory (nothing was ever recorded/loaded) isn't
-  // an error, just nothing to sweep.
+  // to a live sample clip or background bed anywhere in the song -
+  // deleteClip()'s own "purely in-memory" contract (nothing on disk
+  // changes as a side effect of an edit) means a deleted clip's own
+  // sidecar file, or a background bed cleared/never re-merged into, is
+  // only ever cleaned up here, at the one moment the artist actually
+  // asked to persist the current state, not the moment the edit
+  // happened. Independent of has_clips above - even a song with no
+  // sample clips left at all can still have a leftover .samples/
+  // directory from before. A missing directory (nothing was ever
+  // recorded/loaded) isn't an error, just nothing to sweep.
   {
     unordered_set<string> live_ids;
     for (auto & [ track_id, clips ] : clips_by_track_) {
       for (auto & clip : clips) {
 	if (clip.getSampleContent() && clip.getSampleContent()->getBuffer()) live_ids.insert(clip.getId());
+      }
+    }
+    for (auto & scene : getScenes()) {
+      // Both real creation paths (mergeClipToBackground(), this file's
+      // own <sampleBackground> reader above) already assign a scene id
+      // the moment a background bed is actually created - an empty id
+      // here would mean a caller reached getOrCreateSampleBackgroundContent()
+      // some other way, which isn't a case that exists today.
+      if (scene.getId().empty()) continue;
+      for (auto & [ track_id, background ] : scene.getSampleBackgroundsByTrack()) {
+	if (background.getBuffer()) live_ids.insert(sampleBackgroundStem(scene.getId(), track_id));
       }
     }
 
@@ -839,6 +907,37 @@ Song::save(const std::string & filename) const {
 	arrangement_element->InsertEndChild(instance_element);
       }
       scene_element->InsertEndChild(arrangement_element);
+    }
+
+    // One <sampleBackground track="..." file="..."> per track that has a
+    // real background bed in this scene (Scene::
+    // getSampleBackgroundsByTrack()) - the sample-content sibling of a
+    // real clip's own <sample> above, just with no in/out/originalTempo
+    // of its own (see Scene.h's own comment on why). Written to the same
+    // `<song-stem>.samples/` sidecar directory a real clip's own audio
+    // already uses, just named by (scene id, track id) instead of a
+    // clip's own stable id - sampleBackgroundSidecarPath()'s own comment
+    // has the full reasoning. Skipped (like the orphan sweep below) if
+    // this scene somehow has no id of its own - shouldn't happen, both
+    // real creation paths already assign one.
+    if (!scene.getId().empty()) {
+      for (auto & [ track_id, background ] : scene.getSampleBackgroundsByTrack()) {
+	if (!background.getBuffer()) continue;
+	auto track = getMasterTrack().getChildByInternalId(track_id);
+	assert(track);
+	if (!track) continue;
+
+	filesystem::path sample_path(sampleBackgroundSidecarPath(filename, scene.getId(), track_id));
+	std::error_code ec;
+	filesystem::create_directories(sample_path.parent_path(), ec);
+	writeMonoSample(sample_path.string(), *background.getBuffer(), background.getNativeSampleRate());
+
+	auto background_element = doc.NewElement("sampleBackground");
+	background_element->SetAttribute("track", trackReferenceText(*this, track_id).c_str());
+	auto relative_path = sample_path.parent_path().filename() / sample_path.filename();
+	background_element->SetAttribute("file", relative_path.string().c_str());
+	scene_element->InsertEndChild(background_element);
+      }
     }
 
     scenes->InsertEndChild(scene_element);

@@ -326,6 +326,130 @@ TEST(render_sample_track_clip_stretches_to_match_a_disagreeing_song_tempo) {
   CHECK(windowedRms(result, 0, 5.0f, 5.5f) < 1e-4f); // silent well before the scene's own 6s end - genuinely finished, not just clipped by the scene boundary
 }
 
+// A SampleTrack's own background bed (Scene::getSampleBackgroundContent(),
+// written by ArrangementOps.h's mergeClipToBackground()) actually plays
+// during real (transport) playback, not just the model-layer coverage
+// ArrangementOpsTests.cpp already has for the mix itself. Specifically
+// exercises the leftover "OFF" instance mergeClipToBackground() places at
+// the row it just freed: the bed must stay audible right through it - a
+// stop only ever silences a real clip, never the baked bed underneath it
+// (SongState.h's own comment on why this differs from a note track's own
+// background Pattern, which a stop still silences). rowsPerBar 4, tempo
+// 120 (interval 1000 frames @ 8kHz), an 8-row (2-bar) scene.
+TEST(render_sample_track_background_bed_plays_through_the_merges_own_leftover_stop) {
+  Song song;
+  song.setTempo(120);
+  song.setRowsPerBar(4);
+  auto & track = song.addTrack(std::make_unique<SampleTrack>());
+  auto track_id = track.getInternalId();
+
+  ChannelConfiguration config(8000); // no resampling - native rate matches
+  auto interval = config.getSampleInterval(song.getTempo());
+  CHECK(interval == 1000);
+
+  Clip source(track_id);
+  auto & content = source.getOrCreateSampleContent();
+  auto buffer = std::make_shared<AudioBuffer>(1, 8 * interval); // fills the whole scene
+  auto data = buffer->getChannelData(0);
+  for (int i = 0; i < 8 * interval; i++) data[i] = 0.3f;
+  content.setBuffer(buffer);
+  content.setNativeSampleRate(8000);
+  source.setLength(8);
+  source.setLooping(false);
+  song.addClip(std::move(source)); // index 0
+
+  auto & scene = song.addScene();
+  scene.setLengthBars(2); // 8 rows @ rowsPerBar 4
+  placeClipInstance(song, scene, track_id, 0, 0);
+  CHECK(mergeClipToBackground(song, scene, track_id, 0, config) == true);
+  // The merge's own cleanup leaves an explicit stop at row 0, not a real
+  // instance - resolveInstanceAt() must therefore report it, distinctly
+  // from "nothing was ever placed," so this test is actually exercising
+  // the fix and not a no-op case.
+  CHECK(resolveInstanceAt(song, scene, track_id, 0).clip_index == Scene::kStopInstance);
+
+  auto result = renderSongOffline(song, config);
+
+  CHECK(result.numberOfFrames() > 0);
+  CHECK(!hasNonFiniteSample(result));
+  CHECK(windowedRms(result, 0, 0.0f, 0.4f) > 1e-3f); // the bed, audible right through the merge's own leftover stop
+}
+
+// The other half of the same guarantee, and the reason the bed and a real
+// clip are two independent, simultaneously-active voices rather than one
+// masking the other (SampleTrackState's own doc comment): a clip placed
+// on top of an already-merged bed must genuinely mix with it, not replace
+// it - real audio has a well-defined "sum," unlike two Notes. Same scene
+// shape as above; a second, un-merged clip (a distinct tone) placed at
+// rows 4-5 on top of the already-merged bed. Distinguishes real mixing
+// from masking by comparing the *ratio* against the bed's own alone
+// level: masking (overlay's 0.9 alone) would read ~4.5x the bed-alone
+// level (0.2); real mixing (0.2+0.9=1.1) reads ~5.5x - the two hypotheses
+// are close enough that only an exact combined-amplitude check tells them
+// apart, not just "louder than before."
+TEST(render_sample_track_background_bed_mixes_with_a_real_clip_on_top) {
+  Song song;
+  song.setTempo(120);
+  song.setRowsPerBar(4);
+  auto & track = song.addTrack(std::make_unique<SampleTrack>());
+  auto track_id = track.getInternalId();
+
+  ChannelConfiguration config(8000);
+  auto interval = config.getSampleInterval(song.getTempo());
+  CHECK(interval == 1000);
+
+  Clip source(track_id);
+  auto & content = source.getOrCreateSampleContent();
+  auto buffer = std::make_shared<AudioBuffer>(1, 8 * interval);
+  auto data = buffer->getChannelData(0);
+  for (int i = 0; i < 8 * interval; i++) data[i] = 0.2f;
+  content.setBuffer(buffer);
+  content.setNativeSampleRate(8000);
+  source.setLength(8);
+  source.setLooping(false);
+  song.addClip(std::move(source)); // index 0
+
+  auto & scene = song.addScene();
+  scene.setLengthBars(2); // 8 rows
+  placeClipInstance(song, scene, track_id, 0, 0);
+  CHECK(mergeClipToBackground(song, scene, track_id, 0, config) == true); // bed now fills the whole scene at 0.2
+
+  Clip overlay(track_id);
+  auto & overlay_content = overlay.getOrCreateSampleContent();
+  auto overlay_buffer = std::make_shared<AudioBuffer>(1, 2 * interval); // exactly rows 4-5's own span
+  auto overlay_data = overlay_buffer->getChannelData(0);
+  for (int i = 0; i < 2 * interval; i++) overlay_data[i] = 0.9f;
+  overlay_content.setBuffer(overlay_buffer);
+  overlay_content.setNativeSampleRate(8000);
+  overlay.setLength(2);
+  overlay.setLooping(false);
+  song.addClip(std::move(overlay)); // index 1, never merged - stays a live instance
+  placeClipInstance(song, scene, track_id, 4, 1);
+
+  auto result = renderSongOffline(song, config);
+
+  CHECK(result.numberOfFrames() > 0);
+  CHECK(!hasNonFiniteSample(result));
+
+  // Windows kept comfortably inside each sustained region, away from any
+  // 10ms release tail (the clip layer's own transition-out fade, e.g. at
+  // the overlay's own row-6 expiry) - the bed's own voice is never
+  // touched by any of that (it's an entirely separate, independent
+  // voice), so it has no edges of its own to avoid here at all.
+  auto rms_bed_alone = windowedRms(result, 0, 0.1f, 0.35f);    // rows 0-2ish: the bed alone, amplitude 0.2
+  auto rms_combined = windowedRms(result, 0, 0.51f, 0.54f);    // rows 4-5: the bed (0.2) and the overlay clip (0.9) together
+  auto rms_bed_resumed = windowedRms(result, 0, 0.76f, 0.94f); // rows 6-7: the bed alone again, once the overlay's own placement ends
+
+  CHECK(rms_bed_alone > 1e-3f);
+  CHECK(rms_combined > 1e-3f);
+  CHECK(rms_bed_resumed > 1e-3f);
+
+  auto ratio = rms_combined / rms_bed_alone; // true additive mix: ~(0.2+0.9)/0.2 = 5.5; masking (overlay alone): ~0.9/0.2 = 4.5
+  CHECK(ratio > 5.0f); // clearly above the "overlay masks the bed" hypothesis - the bed's own energy is still there too
+  CHECK(ratio < 6.0f); // and not implausibly higher either
+  CHECK_NEAR(rms_bed_resumed, rms_bed_alone, rms_bed_alone * 0.1f); // the bed resumed at exactly its own original level, not something else
+}
+
 // Positioning the playhead mid-instance while stopped, then pressing play,
 // must start the clip's own audio from the matching offset - not from its
 // own beginning, and not silently do nothing because this SongState's own

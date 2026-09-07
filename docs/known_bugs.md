@@ -232,3 +232,55 @@ Found 2026-07-11, not yet fixed.
   own tunable parameters for the metallic artifact, or replacing the
   library entirely if tuning doesn't resolve it.
 
+- **`SampleFileLoader.h`'s `writeMonoSample()` return value is ignored at
+  both its call sites in `Song.cpp`** (a real clip's own sidecar, and a
+  SampleTrack background bed's own sidecar), so a write that libsndfile
+  actually rejects fails silently. Confirmed directly: `sf_open()` for
+  `SFM_WRITE` with `sample_rate == 0` (e.g. a `SampleContent` whose
+  `setNativeSampleRate()` was never called - live recording/file-loading
+  always sets a real one, but nothing stops other code from constructing
+  one without it) returns null (`writeMonoSample()` correctly returns
+  `false`), yet libsndfile still leaves an 80-byte stub file on disk
+  first - a valid-looking RIFF/WAVE/fmt header with a zero sample rate and
+  zero-length `data`/`fact` chunks, not a missing file and not an error
+  the writer's own caller ever sees. The next `Song::open()` of that same
+  song then fails outright (`loadMonoSample()` can't read real audio back
+  from the stub), aborting the whole load - so a clip/background whose
+  own sample rate is somehow still 0 at save time produces a song file
+  that looks like it saved fine but never opens again. Not fixed - would
+  need checking `writeMonoSample()`'s own return value at both call sites
+  and either bailing the whole save out the same way a malformed `<sample>`
+  already fails a load, or skipping just that one `<sample>`/
+  `<sampleBackground>` element with a diagnostic.
+
+- **`merge-clip-to-background` (note tracks) silences the content it just
+  merged, immediately, contradicting its own doc comment.** Confirmed
+  directly (a small instrumented test, not kept in the suite): after
+  `mergeClipToBackground()` copies a clip's own notes into the scene's
+  background `Pattern` and calls `placeStopInstance()` to free the
+  placement, `resolveInstanceAt()` at that same row returns
+  `Scene::kStopInstance`, not `Scene::kNoInstance` - and `SongState::
+  renderBlock()`'s own note-scheduling loop only ever reads a track's
+  background `Pattern` on `kNoInstance` (an explicit stop resolves "the
+  same way as no instance at all" only for `resolveEditTarget()`, i.e.
+  what the pattern editor lets you *edit*, per its own doc comment - real
+  *playback* draws a different, undocumented line). So real transport
+  playback goes silent at exactly the row(s) that were just merged,
+  directly contradicting `mergeClipToBackground()`'s own doc comment
+  ("reproducing exactly what was already audible... not combining the
+  two"). Root cause: `placeStopInstance()`'s "OFF" sentinel is used for
+  two different things that don't actually mean the same thing - a
+  deliberate user "silence this track" gesture (Session view/
+  ArrangementGrid), and "this placement is over, nothing further to say
+  about it" (this merge's own cleanup) - and `SongState.h` can't tell
+  them apart, so it treats both as "silence everything, background
+  included." The SampleTrack background bed (this file's own #16) was
+  deliberately built to *not* have this problem - its own background only
+  ever gets masked by a real clip instance, never by a stop - but that fix
+  was scoped to `SampleTrack` only; the note-track version of this bug is
+  untouched. Not fixed - would need `SongState.h`'s note-track background-
+  Pattern branch to read the background on `kStopInstance` too (matching
+  the SampleTrack fix), or a real distinction between "this placement
+  ended, fall through" and "silence this track" at the storage layer if
+  the two are ever meant to behave differently after all.
+

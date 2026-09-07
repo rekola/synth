@@ -119,14 +119,12 @@ private:
 
 }
 
-void
-SampleTrackState::triggerClip(const Clip & clip, int song_tempo, int start_offset_frames) {
-  auto * content = clip.getSampleContent();
-  if (!content || !content->getBuffer()) return;
+ResolvedSampleAudio
+resolveSampleAudio(const SampleContent & content, int output_rate, int song_tempo) {
+  ResolvedSampleAudio result;
+  if (!content.getBuffer()) return result;
 
-  auto output_rate = getChannelConfiguration().getAudioOutSampleRate();
-
-  // Resampled on demand, never in place - content->getBuffer() itself is
+  // Resampled on demand, never in place - content.getBuffer() itself is
   // never mutated to do this (see SampleContent::getNativeSampleRate()'s
   // own doc comment on why: saving must always write the original,
   // untouched audio, regardless of whatever output rate the current
@@ -134,8 +132,8 @@ SampleTrackState::triggerClip(const Clip & clip, int song_tempo, int start_offse
   // resample is cheap relative to how rarely a clip is actually
   // (re-)triggered - a real cache is a plausible future optimization, not
   // needed for correctness).
-  auto native_rate = content->getNativeSampleRate();
-  shared_ptr<AudioBuffer> samples = content->getBuffer();
+  auto native_rate = content.getNativeSampleRate();
+  shared_ptr<AudioBuffer> samples = content.getBuffer();
   if (native_rate > 0 && native_rate != output_rate) {
     auto frames = samples->numberOfFrames();
     vector<float> mono(static_cast<size_t>(frames));
@@ -151,17 +149,17 @@ SampleTrackState::triggerClip(const Clip & clip, int song_tempo, int start_offse
   }
 
   auto total_frames = samples->numberOfFrames();
-  if (total_frames <= 0) return;
+  if (total_frames <= 0) return result;
 
   // Trim points are authored in seconds, each "how much to cut from that
   // end" (SampleContent::getInPoint()/getOutPoint()'s own doc comment) -
-  // resolved to clamped frame indices only here, at trigger time, against
+  // resolved to clamped frame indices only here, at resolve time, against
   // whatever the (possibly just-resampled) buffer's real size actually
   // is right now, rather than trusting stored values that could have
   // gone stale (a hand-edited trim past a since-replaced, shorter
   // recording).
-  auto in_frame = static_cast<int>(lround(static_cast<double>(content->getInPoint()) * output_rate));
-  auto out_frame = total_frames - static_cast<int>(lround(static_cast<double>(content->getOutPoint()) * output_rate));
+  auto in_frame = static_cast<int>(lround(static_cast<double>(content.getInPoint()) * output_rate));
+  auto out_frame = total_frames - static_cast<int>(lround(static_cast<double>(content.getOutPoint()) * output_rate));
   if (in_frame < 0) in_frame = 0;
   if (out_frame > total_frames) out_frame = total_frames;
   if (in_frame >= out_frame) {
@@ -173,20 +171,20 @@ SampleTrackState::triggerClip(const Clip & clip, int song_tempo, int start_offse
     out_frame = total_frames;
   }
 
-  // Pitch-preserving time-stretch when this clip's own recorded tempo
+  // Pitch-preserving time-stretch when this content's own recorded tempo
   // disagrees with the song's current one - 0 means unknown/not set
   // (SampleContent::getOriginalTempo()'s own "don't guess" convention),
   // so an originalTempo-less clip always plays at its own real duration,
   // regardless of song_tempo. Stretches only the
   // already-trimmed, already-resampled-to-output-rate range above (never
-  // audio that will never actually play), and only once per (clip,
+  // audio that will never actually play), and only once per (content,
   // song_tempo) pair - a cache hit here means `samples` becomes the
   // stretched buffer, ready to play in full, and in_frame/out_frame are
   // reset to its own whole extent (the trim was already baked in when it
   // was built, so nothing left to re-trim). Cached on SampleContent
   // itself, not here - see getStretchedBuffer()'s own comment for why.
-  if (content->getOriginalTempo() > 0 && content->getOriginalTempo() != song_tempo) {
-    auto cached = content->getStretchedBuffer(song_tempo);
+  if (content.getOriginalTempo() > 0 && content.getOriginalTempo() != song_tempo) {
+    auto cached = content.getStretchedBuffer(song_tempo);
     if (cached) {
       samples = cached;
     } else {
@@ -195,54 +193,77 @@ SampleTrackState::triggerClip(const Clip & clip, int song_tempo, int start_offse
       auto src = samples->getChannelData(0);
       for (int i = 0; i < trimmed_frames; i++) trimmed[static_cast<size_t>(i)] = src[in_frame + i];
 
-      auto ratio = static_cast<double>(song_tempo) / static_cast<double>(content->getOriginalTempo());
+      auto ratio = static_cast<double>(song_tempo) / static_cast<double>(content.getOriginalTempo());
       auto stretched = stretchMono(trimmed, output_rate, ratio);
 
       auto buf = make_shared<AudioBuffer>(1, static_cast<int>(stretched.size()));
       auto dst = buf->getChannelData(0);
       for (size_t i = 0; i < stretched.size(); i++) dst[i] = stretched[i];
 
-      content->setStretchedBuffer(buf, song_tempo);
+      content.setStretchedBuffer(buf, song_tempo);
       samples = move(buf);
     }
     in_frame = 0;
     out_frame = samples->numberOfFrames();
   }
 
+  result.samples = move(samples);
+  result.in_frame = in_frame;
+  result.out_frame = out_frame;
+  return result;
+}
+
+void
+SampleTrackState::triggerVoice(const SampleContent & content, int song_tempo, int start_offset_frames, int voice_id) {
+  auto output_rate = getChannelConfiguration().getAudioOutSampleRate();
+  auto resolved = resolveSampleAudio(content, output_rate, song_tempo);
+  if (!resolved.samples) return;
+
   // start_offset_frames shifts the starting point later into whatever
-  // buffer is actually about to play - resolved here, after the stretch
-  // decision above, so it's always relative to the buffer genuinely
-  // reached, stretched or not (see triggerClip()'s own doc comment for
-  // when a caller actually passes a nonzero value). Clamped against the
-  // resolved range rather than trusted outright: a clip's own row length
-  // is rounded up from its real audio duration, so an offset derived from
-  // it can legitimately land past this buffer's own real end - nothing
-  // should keep ringing from before either way, so stopVoices(0) below
-  // still applies, just no new voice starts.
-  in_frame += start_offset_frames;
-  if (in_frame >= out_frame) {
-    stopVoices(0);
+  // buffer is actually about to play - resolved here, after
+  // resolveSampleAudio()'s own stretch decision, so it's always relative
+  // to the buffer genuinely reached, stretched or not (see
+  // triggerClip()'s own doc comment for when a caller actually passes a
+  // nonzero value). Clamped against the resolved range rather than
+  // trusted outright - a clip's own row length never exactly matches its
+  // real audio duration (rounded up when it was first derived), so an
+  // offset derived from it can legitimately land past this buffer's own
+  // real end - nothing should keep ringing from before either way, so
+  // stopVoices(voice_id) below still applies, just no new voice starts.
+  auto in_frame = resolved.in_frame + start_offset_frames;
+  if (in_frame >= resolved.out_frame) {
+    stopVoices(voice_id);
     return;
   }
 
-  // column 0 always - a SampleTrack only ever has one clip playing at a
-  // time. Explicitly stops whatever's already there first: a live
-  // Session-view swap between two different clips on this track has no
-  // other mechanism to end the old one the way a transport-driven
-  // transition already does via SongState.h's own stopAllVoices() call.
-  // No noteOn()/Instrument indirection needed to get here - unlike a
-  // pooled, pitched instrument, a sample clip's voice needs nothing a
-  // fake Track subclass would resolve for it (no exclusive-class choking
-  // applies to raw playback; a SampleTrack has no children, so its own
-  // default extent is unconditionally 0, the same base case
-  // Track::getDefaultExtent() would already resolve to).
-  stopVoices(0);
+  // Explicitly stops whatever this same voice was already playing first:
+  // a live Session-view swap between two different clips on this track
+  // has no other mechanism to end the old one the way a transport-driven
+  // transition already does via SongState.h's own stopAllVoices() call,
+  // and a fresh background-bed trigger (a new scene entered, a resume)
+  // needs the same treatment. Never touches the *other* voice - that's
+  // the whole point of keeping the two roles as separate voices
+  // (SampleTrackState's own doc comment). No noteOn()/Instrument
+  // indirection needed to get here - unlike a pooled, pitched instrument,
+  // a sample clip's voice needs nothing a fake Track subclass would
+  // resolve for it (no exclusive-class choking applies to raw playback; a
+  // SampleTrack has no children, so its own default extent is
+  // unconditionally 0, the same base case Track::getDefaultExtent()
+  // would already resolve to).
+  stopVoices(voice_id);
 
   auto resolved_position = getPosition();
   if (resolved_position.extent < 0.0f) resolved_position.extent = 0.0f;
 
-  auto voice = make_unique<SampleClipVoice>(getChannelConfiguration(), resolved_position, samples, in_frame, out_frame, getSends());
-  addVoice(0, move(voice));
+  auto voice = make_unique<SampleClipVoice>(getChannelConfiguration(), resolved_position, resolved.samples, in_frame, resolved.out_frame, getSends());
+  addVoice(voice_id, move(voice));
+}
+
+void
+SampleTrackState::triggerClip(const Clip & clip, int song_tempo, int start_offset_frames) {
+  auto * content = clip.getSampleContent();
+  if (!content) return;
+  triggerVoice(*content, song_tempo, start_offset_frames, kClipVoiceId);
 }
 
 unique_ptr<TrackState>

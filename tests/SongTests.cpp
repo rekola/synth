@@ -10,6 +10,7 @@
 #include "../src/instruments/GenericInstrument.h"
 #include "../src/model/SampleContent.h"
 #include "../src/audio/AudioBuffer.h"
+#include "../src/ambisonic/ChannelConfiguration.h"
 
 #include <filesystem>
 #include <fstream>
@@ -1030,6 +1031,74 @@ TEST(sample_clip_round_trips_through_save_and_load) {
           auto reloaded_data = reloaded_content->getBuffer()->getChannelData(0);
           for (int i = 0; i < kFrames; i++) CHECK_NEAR(reloaded_data[i], data[i], 1e-5f);
         }
+      }
+    }
+  }
+
+  fs::remove(scratch_path);
+  fs::remove_all(scratch_samples_dir);
+}
+
+// A SampleTrack's own background bed (Scene::getOrCreateSampleBackgroundContent(),
+// written by mergeClipToBackground()) round-trips through save/load the
+// same way a real clip's own audio does - a sidecar .wav plus a
+// <sampleBackground file="..."> reference, this time nested inside the
+// <scene> that owns it. The scene gets a real id of its own the moment
+// the merge creates the background bed (Song::generateUniqueSceneId()),
+// so the sidecar filename survives independent of the scene's own
+// ordinal position.
+TEST(sample_background_round_trips_through_save_and_load) {
+  namespace fs = std::filesystem;
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_sample_background_scratch.xml").string();
+  auto scratch_samples_dir = fs::path(TESTS_SCRATCH_DIR) / "song_sample_background_scratch.samples";
+
+  Song song;
+  song.setRowsPerBar(4);
+  auto & track = song.addTrack(make_unique<SampleTrack>());
+  track.setId("bed");
+
+  constexpr int kSourceFrames = 50;
+  auto buffer = make_shared<AudioBuffer>(1, kSourceFrames);
+  auto data = buffer->getChannelData(0);
+  for (int i = 0; i < kSourceFrames; i++) data[i] = static_cast<float>(i) / kSourceFrames - 0.5f;
+
+  Clip sample_clip(track.getInternalId());
+  sample_clip.setLength(2);
+  sample_clip.setLooping(false);
+  sample_clip.getOrCreateSampleContent().setBuffer(buffer);
+  sample_clip.getOrCreateSampleContent().setNativeSampleRate(44100); // real clips always have one by the time they're playable
+  song.addClip(move(sample_clip)); // index 0
+
+  auto & scene = song.addScene();
+  scene.setLengthBars(1); // 4 rows total
+  placeClipInstance(song, scene, track.getInternalId(), 0, 0);
+
+  ChannelConfiguration channel_config;
+  CHECK(mergeClipToBackground(song, scene, track.getInternalId(), 0, channel_config) == true);
+  auto scene_id = scene.getId();
+  CHECK(!scene_id.empty());
+
+  song.save(scratch_path);
+
+  auto saved = readFile(scratch_path);
+  CHECK(saved.find("<sampleBackground ") != string::npos);
+  CHECK(fs::is_directory(scratch_samples_dir));
+
+  InstrumentProvider provider;
+  Song reloaded;
+  CHECK(reloaded.open(scratch_path, provider));
+
+  auto reloaded_track = reloaded.getMasterTrack().getChildById("bed");
+  CHECK(reloaded_track != nullptr);
+  if (reloaded_track) {
+    auto & reloaded_scene = reloaded.getScene(0);
+    CHECK(reloaded_scene.getId() == scene_id); // survived the round trip, not regenerated
+    auto * reloaded_content = reloaded_scene.getSampleBackgroundContent(reloaded_track->getInternalId());
+    CHECK(reloaded_content != nullptr);
+    if (reloaded_content) {
+      CHECK(reloaded_content->getBuffer() != nullptr);
+      if (reloaded_content->getBuffer()) {
+        for (int i = 0; i < kSourceFrames; i++) CHECK_NEAR(reloaded_content->getBuffer()->getChannelData(0)[i], data[i], 1e-5f);
       }
     }
   }

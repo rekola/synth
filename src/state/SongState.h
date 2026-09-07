@@ -196,13 +196,18 @@ class SongState : public TrackState {
     // here, there's no later, more-precise frame to land on: nothing
     // schedules while stopped, so "as soon as this is known" already is
     // frame 0. Unconditional over every SampleTrack rather than only
-    // ones this SongState currently believes are active - stopVoices(0)
-    // is a safe no-op against one that isn't sounding, and every track
+    // ones this SongState currently believes are active - stopVoices() is
+    // a safe no-op against a voice that isn't sounding, and every track
     // is already a direct child of the master track (no nesting to walk
-    // to find one some other way).
+    // to find one some other way). Both of a SampleTrack's own voices
+    // (SampleTrackState's own doc comment) get one each - the background
+    // bed has no pause-awareness of its own either.
     if (!isPlaying() && was_playing_) {
       for (auto * track : track_snapshot) {
-	if (track->getType() == TrackType::SAMPLE) render_context_.addPendingSampleStop(track->getInternalId(), 0);
+	if (track->getType() == TrackType::SAMPLE) {
+	  render_context_.addPendingSampleStop(track->getInternalId(), 0, false);
+	  render_context_.addPendingSampleStop(track->getInternalId(), 0, true);
+	}
       }
     }
     was_playing_ = isPlaying();
@@ -255,11 +260,17 @@ class SongState : public TrackState {
 	  // lookup on the old flat class this scene used to be. The
 	  // arrangement layer can cover a track with no background Pattern
 	  // of its own at all, so this is the union of both, not just
-	  // getPatternsByTrack()'s own keys.
+	  // getPatternsByTrack()'s own keys. A SampleTrack's own background
+	  // bed (Scene::getSampleBackgroundsByTrack()) joins the same union -
+	  // a hand-authored song can carry one with no <pattern>/<arrangement>
+	  // content on that track at all.
 	  std::unordered_set<int> scheduled_track_ids;
 	  for (auto & [ track_id, track_pattern ] : scene.getPatternsByTrack()) scheduled_track_ids.insert(track_id);
 	  for (auto & [ track_id, track_instances ] : scene.getInstancesByTrack()) {
 	    if (!track_instances.empty()) scheduled_track_ids.insert(track_id);
+	  }
+	  for (auto & [ track_id, background ] : scene.getSampleBackgroundsByTrack()) {
+	    if (background.getBuffer()) scheduled_track_ids.insert(track_id);
 	  }
 
 	  for (auto track_id : scheduled_track_ids) {
@@ -270,42 +281,92 @@ class SongState : public TrackState {
 	    // are different fields now), if the arrangement layer covers
 	    // this row; this track's own background Pattern otherwise
 	    // (ArrangementOps.h's own resolveInstanceAt()). An explicit
-	    // stop resolves to neither - silence, nothing plays here.
+	    // stop resolves to neither - silence, nothing plays here. None
+	    // of this applies to a SampleTrack's own background bed, handled
+	    // entirely separately below - it isn't part of this resolution
+	    // at all.
 	    const Pattern * active_pattern = nullptr;
 	    int effective_row = row_idx;
 
 	    auto active = resolveInstanceAt(song, scene, track_id, row_idx);
 
-	    // A real clip instance that was active as of the *previous* row
-	    // this loop checked, and no longer is (a swap to a different
-	    // clip, an explicit stop, or falling through to the background/
-	    // silence) - fires the instrument's own natural release
-	    // unconditionally, exactly once at the row termination actually
-	    // lands on, rather than leaving whatever was sounding to ring out
-	    // on its own indefinitely (correct only by accident for a clip
-	    // whose own content happens to be short one-shots; wrong for
-	    // anything sustained/looping - a looping clip has no natural end
-	    // of its own to rely on at all). Redundant-safe against a clip
-	    // whose own content already ends with an explicit note-off -
-	    // firing this unconditionally costs nothing extra there. A
-	    // SampleTrack routes this through RenderContext instead of
-	    // calling InstrumentTrackState::stopAllVoices() directly (the
-	    // same one Session view's own explicit stops already use for
-	    // every other track type) - see SampleTrackEvent's own comment
-	    // for why: an abrupt stop here would land wherever this row
-	    // happens to fall in the current render block, not the exact
-	    // sample the transition is actually due on.
-	    int previous_clip_index = Scene::kNoInstance;
 	    bool is_sample_track = false;
 	    {
 	      auto track = song.getMasterTrack().getChildByInternalId(track_id);
 	      is_sample_track = track && track->getType() == TrackType::SAMPLE;
+	    }
 
+	    // A SampleTrack's own background bed (Scene::
+	    // getSampleBackgroundContent(), ArrangementOps.h's own
+	    // mergeClipToBackground()) plays continuously for as long as
+	    // this scene provides one, entirely independent of whatever the
+	    // clip/arrangement layer below resolves to at this row: real
+	    // audio genuinely mixes, so a clip placed on top of the bed
+	    // doesn't mask it the way an instance masks a note track's own
+	    // background Pattern (SampleTrackState's own doc comment on why
+	    // these are two separate, simultaneous voices rather than one
+	    // masking the other). Tracked by comparing this row's resolved
+	    // SampleContent pointer against the previous row's - identity,
+	    // not value, since a real bed is one stable object for as long
+	    // as this scene stays the current one, and changes the instant a
+	    // different scene (a different bed, or none at all) is entered.
+	    if (is_sample_track) {
+	      auto * background = scene.getSampleBackgroundContent(track_id);
+	      auto last_it = last_background_by_track_.find(track_id);
+	      auto * previous_background = last_it == last_background_by_track_.end() ? nullptr : last_it->second;
+
+	      if (previous_background && previous_background != background) {
+		render_context_.addPendingSampleStop(track_id, i, true);
+	      }
+	      // row_idx == 0: retriggered fresh on every entry into this
+	      // scene, even a repeat of the same one (a pattern break/loop
+	      // landing back on its own row 0) - the bed has no looping
+	      // concept of its own (Scene::getSampleBackgroundContent()'s
+	      // own comment), so re-entering the scene it belongs to is what
+	      // stands in for a lap boundary here.
+	      if (background && (background != previous_background || row_idx == 0 || row_just_resumed_playback)) {
+		auto start_offset_frames = row_idx * getChannelConfiguration().getSampleInterval(tempo_);
+		render_context_.addPendingSampleStart(track_id, i, background, start_offset_frames, true);
+	      }
+	      last_background_by_track_[track_id] = background;
+
+	      // Same "a one-shot's own real audio can outlast the scene"
+	      // protection the clip layer below has - the bed's own real
+	      // length was baked in at whatever tempo was current at merge
+	      // time, so it can end up longer than this scene's own
+	      // row-driven span under a since-changed tempo.
+	      if (background && row_idx == song.getEffectiveSceneLength(scene) - 1) {
+		render_context_.addPendingSampleStop(track_id, i + getChannelConfiguration().getSampleInterval(tempo_), true);
+	      }
+	    }
+
+	    // The clip/arrangement layer - a real clip instance that was
+	    // active as of the *previous* row this loop checked, and no
+	    // longer is (a swap to a different clip, an explicit stop, or
+	    // falling through to the background/silence) - fires the
+	    // instrument's own natural release unconditionally, exactly once
+	    // at the row termination actually lands on, rather than leaving
+	    // whatever was sounding to ring out on its own indefinitely
+	    // (correct only by accident for a clip whose own content happens
+	    // to be short one-shots; wrong for anything sustained/looping -
+	    // a looping clip has no natural end of its own to rely on at
+	    // all). Redundant-safe against a clip whose own content already
+	    // ends with an explicit note-off - firing this unconditionally
+	    // costs nothing extra there. A SampleTrack routes this through
+	    // RenderContext instead of calling InstrumentTrackState::
+	    // stopAllVoices() directly (the same one Session view's own
+	    // explicit stops already use for every other track type) - see
+	    // SampleTrackEvent's own comment for why: an abrupt stop here
+	    // would land wherever this row happens to fall in the current
+	    // render block, not the exact sample the transition is actually
+	    // due on.
+	    int previous_clip_index = Scene::kNoInstance;
+	    {
 	      auto last_it = last_active_clip_index_by_track_.find(track_id);
 	      previous_clip_index = last_it == last_active_clip_index_by_track_.end() ? Scene::kNoInstance : last_it->second;
 	      if (previous_clip_index >= 0 && previous_clip_index != active.clip_index) {
 		if (is_sample_track) {
-		  render_context_.addPendingSampleStop(track_id, i);
+		  render_context_.addPendingSampleStop(track_id, i, false);
 		} else {
 		  auto * track_state = dynamic_cast<InstrumentTrackState *>(getChildByInternalId(track_id));
 		  if (track_state) track_state->stopAllVoices();
@@ -351,11 +412,11 @@ class SongState : public TrackState {
 		// was ever playing to begin with," and only the former should
 		// actually start audio. Redundant-safe against a genuine
 		// transition landing on the very same row a resume does -
-		// stopVoices(0) inside triggerClip() below already handles
+		// stopVoices() inside triggerClip() below already handles
 		// being called more than once.
 		if (active.clip_index != previous_clip_index || is_new_lap || row_just_resumed_playback) {
 		  auto start_offset_frames = rows_into_lap * getChannelConfiguration().getSampleInterval(tempo_);
-		  render_context_.addPendingSampleStart(track_id, i, &clip, start_offset_frames);
+		  render_context_.addPendingSampleStart(track_id, i, clip.getSampleContent(), start_offset_frames, false);
 		}
 
 		// A one-shot clip's own real audio can outlast the scene
@@ -373,7 +434,7 @@ class SongState : public TrackState {
 		// whatever's still sounding, the same as any other
 		// transition.
 		if (!clip.isLooping() && row_idx == song.getEffectiveSceneLength(scene) - 1) {
-		  render_context_.addPendingSampleStop(track_id, i + getChannelConfiguration().getSampleInterval(tempo_));
+		  render_context_.addPendingSampleStop(track_id, i + getChannelConfiguration().getSampleInterval(tempo_), false);
 		}
 		continue;
 	      }
@@ -732,6 +793,15 @@ private:
   // clip's own termination and fire its natural release exactly once, not
   // every row while a stop instance stays in effect.
   std::unordered_map<int, int> last_active_clip_index_by_track_;
+  // track_id -> the SampleContent* (or nullptr) Scene::
+  // getSampleBackgroundContent() returned for that track the last time
+  // this row's own scheduling ran - the background bed's own, entirely
+  // separate transition-tracking counterpart to
+  // last_active_clip_index_by_track_ above, compared by identity (a real
+  // bed is one stable object for as long as its own scene stays current)
+  // to detect a scene boundary (a different bed, or none at all) and
+  // retrigger/release accordingly.
+  std::unordered_map<int, const SampleContent *> last_background_by_track_;
   // renderBlock()'s own resume/pause-release detection - the previous
   // call's isPlaying(), compared against the current one.
   bool was_playing_ = false;
