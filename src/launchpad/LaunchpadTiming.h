@@ -6,8 +6,8 @@
 
 // A free-running step counter driven by wall-clock time deltas rather than
 // sample counts - the core of LaunchpadManager's drum-machine audition loop
-// (every DrumMachineTrack in the song loops in phase while the transport is
-// stopped). Factored out here, with no
+// (every step-sequenced PercussionTrack in the song loops in phase while
+// the transport is stopped). Factored out here, with no
 // LaunchpadIO/DeviceState/Controller dependency, so this step-advance math
 // is unit-testable via plain ctest, independent of any Launchpad hardware -
 // same reasoning as LaunchpadLayout.h keeping the pure pad-layout math

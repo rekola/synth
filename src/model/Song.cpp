@@ -4,7 +4,6 @@
 
 #include "InstrumentTrack.h"
 #include "PercussionTrack.h"
-#include "DrumMachineTrack.h"
 #include "SampleTrack.h"
 #include "SampleContent.h"
 #include "Group.h"
@@ -165,7 +164,6 @@ static Tuning parse_tuning(string_view tuning_text, Tuning default_tuning = Tuni
 static unique_ptr<Track> createTrack(string_view name) {  
   if (name == "track") return make_unique<InstrumentTrack>();
   if (name == "percussionTrack") return make_unique<PercussionTrack>();
-  if (name == "drumMachineTrack") return make_unique<DrumMachineTrack>();
   if (name == "sampleTrack") return make_unique<SampleTrack>();
   if (name == "arpeggiatorTrack") return make_unique<Arpeggiator>();
   else if (name == "group") return make_unique<Group>();
@@ -194,32 +192,24 @@ static unique_ptr<Track> createTrack(string_view name) {
   }
 }
 
-// A <drumMachineTrack>'s own <lane> children describe its kit - which
+// A <percussionTrack>'s own <lane> children describe its kit - which
 // drums it can play, not what triggers when (that's an ordinary per-scene
-// Pattern now, like any other track - DrumMachineTrack.h's own comment).
-// `note` is the same GM-percussion mnemonic (Note::keyToString()/
-// stringToKey(), Tuning::PERCUSSION) a <note> element's own value already
-// uses, not a raw integer.
-static void loadDrumMachineData(DrumMachineTrack & track, XMLElement & element) {
-  bool had_any_lane = false;
+// Pattern now, like any other track - PercussionTrack.h's own comment). No
+// <lane> children at all is a plain, lane-less percussion track, not a
+// special case to fill in - see PercussionTrack.h's own header comment on
+// why zero lanes is an ordinary, meaningful state now. `note` is the same
+// GM-percussion mnemonic (Note::keyToString()/stringToKey(),
+// Tuning::PERCUSSION) a <note> element's own value already uses, not a raw
+// integer.
+static void loadPercussionLanes(PercussionTrack & track, XMLElement & element) {
   for (auto it = element.FirstChildElement("lane"); it; it = it->NextSiblingElement("lane")) {
     auto note_text = it->Attribute("note");
     if (!note_text) continue;
     track.addLane(Note::stringToKey(Tuning::PERCUSSION, note_text));
-    had_any_lane = true;
   }
-  // No <lane> child at all (a hand-edited/older file that never mentions
-  // a kit) means the file never said anything about lanes one way or the
-  // other - give it the same default rock kit the interactive
-  // "add-drum-machine-track" command would (seedDefaultKit()'s own
-  // comment), rather than leaving a silent, lane-less track behind. A
-  // file that lists at least one <lane> is being explicit about its kit
-  // (down to genuinely zero real drums, if every listed note failed to
-  // resolve), so it's left alone here.
-  if (!had_any_lane) track.seedDefaultKit();
 }
 
-static void storeDrumMachineData(const DrumMachineTrack & track, XMLDocument & doc, XMLElement * track_element) {
+static void storePercussionLanes(const PercussionTrack & track, XMLDocument & doc, XMLElement * track_element) {
   for (auto note : track.getLaneNotes()) {
     auto lane_element = doc.NewElement("lane");
     lane_element->SetAttribute("note", Note::keyToString(Tuning::PERCUSSION, note).c_str());
@@ -282,9 +272,9 @@ static std::unique_ptr<Track> parseChildTrack(XMLElement & element, const Instru
     instrument->prepare(provider);
   }
 
-  auto drum_machine_track = dynamic_cast<DrumMachineTrack *>(track.get());
-  if (drum_machine_track) {
-    loadDrumMachineData(*drum_machine_track, element);
+  auto percussion_track = dynamic_cast<PercussionTrack *>(track.get());
+  if (percussion_track) {
+    loadPercussionLanes(*percussion_track, element);
   }
 
   for (auto it = element.FirstChildElement(); it ; it = it->NextSiblingElement() ) {
@@ -359,9 +349,9 @@ static void storeChildTrack(const Track & track, XMLDocument & doc, XMLElement *
     storeChildTrack(*child, doc, track_element);
   }
 
-  auto drum_machine_track = dynamic_cast<const DrumMachineTrack *>(&track);
-  if (drum_machine_track) {
-    storeDrumMachineData(*drum_machine_track, doc, track_element);
+  auto percussion_track = dynamic_cast<const PercussionTrack *>(&track);
+  if (percussion_track) {
+    storePercussionLanes(*percussion_track, doc, track_element);
   }
 
   auto generic_instrument = dynamic_cast<const GenericInstrument *>(&track);
@@ -512,9 +502,17 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
       instrument_pool_.loadParameters(XMLParameterSource(instruments));
       for (auto it = instruments->FirstChildElement(); it; it = it->NextSiblingElement() ) {
 	auto instrument = parseChildTrack(*it, provider);
-	if (instrument) {
-	  addInstrument(move(instrument));
+	// Unrecognized (or, recursively, containing an unrecognized child)
+	// is fatal to the whole load, not silently dropped - createTrack()'s
+	// own assert(0) on an unknown element name is compiled out entirely
+	// in a release build, so this is the only place that actually
+	// catches it there.
+	if (!instrument) {
+	  fmt::print(stderr, "Unrecognized or malformed <{}> in {}\n", it->Name(), filename);
+	  setlocale(LC_ALL, oldLocale.c_str());
+	  return false;
 	}
+	addInstrument(move(instrument));
       }
     }
     // Resolves the pool's own default drum kit (see InstrumentPool::
@@ -529,9 +527,15 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
       loadMasterTrackParameters(XMLParameterSource(tracks));
       for (auto it = tracks->FirstChildElement(); it ; it = it->NextSiblingElement() ) {
 	auto track = parseChildTrack(*it, provider);
-	if (track) {
-	  addTrack(move(track));
+	// Same "fatal, not silently dropped" rule as the <instruments> loop
+	// above - a song missing a whole track because its element name
+	// wasn't recognized must fail to load, not open looking complete.
+	if (!track) {
+	  fmt::print(stderr, "Unrecognized or malformed <{}> in {}\n", it->Name(), filename);
+	  setlocale(LC_ALL, oldLocale.c_str());
+	  return false;
 	}
+	addTrack(move(track));
       }
     }
     

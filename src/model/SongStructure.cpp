@@ -1,7 +1,7 @@
 #include "SongStructure.h"
 #include "Track.h"
 #include "LeafTrack.h"
-#include "DrumMachineTrack.h"
+#include "PercussionTrack.h"
 #include "Song.h"
 
 SongStructure::SongStructure(const Song & song) {
@@ -37,7 +37,7 @@ SongStructure::visit(const Track & track) {
     // Whether `track` gets a color at all is decided right here, once,
     // for every branch below that calls assign() - a LeafTrack (every
     // addressable leaf track type - InstrumentControl/PercussionControl/
-    // DrumMachine/Sample/Arpeggiator - see LeafTrack.h) gets the next
+    // Sample/Arpeggiator - see LeafTrack.h) gets the next
     // sequential slot; anything else (Effect, Group) stays at
     // VisibleTrackInfo::color_ordinal_'s own default of -1. See that
     // field's own comment for why this must be its own counter, not
@@ -48,7 +48,11 @@ SongStructure::visit(const Track & track) {
     baseline_info_[id] = std::move(info);
   };
 
-  if (track.getType() == TrackType::INSTRUMENT_CONTROL || track.getType() == TrackType::PERCUSSION_CONTROL) {
+  bool is_step_sequenced_percussion = track.getType() == TrackType::PERCUSSION_CONTROL
+    && dynamic_cast<const PercussionTrack &>(track).isStepSequenced();
+
+  if (track.getType() == TrackType::INSTRUMENT_CONTROL ||
+      (track.getType() == TrackType::PERCUSSION_CONTROL && !is_step_sequenced_percussion)) {
     VisibleTrackInfo info;
     auto & leaf_track = dynamic_cast<const LeafTrack &>(track);
     info.has_note_column_ = leaf_track.showNoteColumn();
@@ -58,18 +62,19 @@ SongStructure::visit(const Track & track) {
     info.updateNumSubtracks(leaf_track.getMinNoteColumns());
     info.collapsed_ = leaf_track.isCollapsed();
     assign(std::move(info));
-  } else if (track.getType() == TrackType::DRUM_MACHINE) {
+  } else if (is_step_sequenced_percussion) {
     // Step-sequencer compact layout: one narrow NOTE-only cell per lane
-    // (DrumMachineTrack::getLaneNotes() order, same as the Launchpad step
+    // (PercussionTrack::getLaneNotes() order, same as the Launchpad step
     // grid), never velocity/delay - a fixed, known set of up to
-    // DrumMachineTrack::kMaxLanes voices needs a column per lane, not a
+    // PercussionTrack::kMaxLanes voices needs a column per lane, not a
     // full NOTE/VEL/DEL triplet per lane the way an open-ended chord
-    // would (PatternEditor::renderRow()'s own DRUM_MACHINE branch reads
-    // this same shape to render/edit each cell). The per-row effect/
-    // command column still stays - a DrumMachineTrack's Pattern carries
-    // per-row Command data exactly like any other track's.
+    // would (PatternEditor::renderRow()'s own step-sequenced-percussion
+    // branch reads this same shape to render/edit each cell). The per-row
+    // effect/command column still stays - a PercussionTrack's Pattern
+    // carries per-row Command data exactly like any other track's. A
+    // lane-less PercussionTrack takes the ordinary branch above instead.
     VisibleTrackInfo info;
-    auto & drum_track = dynamic_cast<const DrumMachineTrack &>(track);
+    auto & drum_track = dynamic_cast<const PercussionTrack &>(track);
     info.has_note_column_ = true;
     info.num_velocity_columns_ = 0;
     info.has_delay_column_ = false;

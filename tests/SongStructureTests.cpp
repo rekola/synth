@@ -4,7 +4,6 @@
 #include "../src/model/Song.h"
 #include "../src/model/InstrumentTrack.h"
 #include "../src/model/PercussionTrack.h"
-#include "../src/model/DrumMachineTrack.h"
 #include "../src/model/SampleTrack.h"
 #include "../src/model/Group.h"
 #include "../src/effects/Amplifier.h"
@@ -14,8 +13,9 @@ using namespace std;
 TEST(song_structure_numbers_root_tracks_in_encounter_order) {
   Song song;
   auto & a = song.addTrack(make_unique<InstrumentTrack>(0));
-  auto & b = song.addTrack(make_unique<PercussionTrack>());
-  auto & c = song.addTrack(make_unique<DrumMachineTrack>());
+  auto & b = song.addTrack(make_unique<PercussionTrack>()); // no lanes
+  auto & c = dynamic_cast<PercussionTrack &>(song.addTrack(make_unique<PercussionTrack>()));
+  c.addLane(36); // step-sequenced - a different layout branch than b's
 
   SongStructure structure(song);
   CHECK(structure.getOrdinalFor(a) == 0);
@@ -121,16 +121,16 @@ TEST(song_structure_sample_placeholder_width_gives_evenly_spaced_reference_lines
 }
 
 TEST(song_structure_gives_a_drum_machine_track_one_note_only_column_per_lane_plus_effect) {
-  // DrumMachineTrack's step content is an ordinary per-scene Pattern now
-  // (like InstrumentTrack/PercussionTrack), not the track-global sequence
-  // it used to be - it must get real columns, not the single placeholder
-  // column SampleTrack still gets. But unlike a regular
-  // InstrumentTrack/PercussionTrack, its columns are the step-sequencer's
-  // own compact shape: one NOTE-only cell per lane (no velocity/delay),
-  // plus the shared per-row effect/command column.
+  // A step-sequenced PercussionTrack's step content is an ordinary
+  // per-scene Pattern (like InstrumentTrack/a lane-less PercussionTrack),
+  // not a track-global sequence - it must get real columns, not the single
+  // placeholder column SampleTrack still gets. But unlike a regular
+  // InstrumentTrack/lane-less PercussionTrack, its columns are the
+  // step-sequencer's own compact shape: one NOTE-only cell per lane (no
+  // velocity/delay), plus the shared per-row effect/command column.
   Song song;
-  auto & raw_drum = song.addTrack(make_unique<DrumMachineTrack>());
-  auto & drum = dynamic_cast<DrumMachineTrack &>(raw_drum);
+  auto & raw_drum = song.addTrack(make_unique<PercussionTrack>());
+  auto & drum = dynamic_cast<PercussionTrack &>(raw_drum);
   for (int note : { 36, 38, 42 }) drum.addLane(note);
   SongStructure structure(song);
 
@@ -146,8 +146,9 @@ TEST(song_structure_gives_a_drum_machine_track_one_note_only_column_per_lane_plu
 TEST(song_structure_gives_every_instrument_track_type_a_color_ordinal) {
   Song song;
   auto & instrument = song.addTrack(make_unique<InstrumentTrack>(0));
-  auto & percussion = song.addTrack(make_unique<PercussionTrack>());
-  auto & drum = song.addTrack(make_unique<DrumMachineTrack>());
+  auto & percussion = song.addTrack(make_unique<PercussionTrack>()); // no lanes
+  auto & drum = dynamic_cast<PercussionTrack &>(song.addTrack(make_unique<PercussionTrack>()));
+  drum.addLane(36); // step-sequenced - a different layout branch than percussion's
   auto & sample = song.addTrack(make_unique<SampleTrack>());
   SongStructure structure(song);
 

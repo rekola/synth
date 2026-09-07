@@ -5,7 +5,7 @@
 #include "../src/model/Scene.h"
 #include "../src/model/Clip.h"
 #include "../src/model/InstrumentTrack.h"
-#include "../src/model/DrumMachineTrack.h"
+#include "../src/model/PercussionTrack.h"
 #include "../src/model/SampleTrack.h"
 #include "../src/model/SampleContent.h"
 #include "../src/audio/AudioBuffer.h"
@@ -244,11 +244,12 @@ TEST(resolve_instance_at_survives_a_reorder_of_the_clip_list) {
 // reading/writing the scene's background Pattern directly - a step
 // written while a clip instance is active must land in the clip's own
 // leaf Pattern, live-linked, not the background, and reading it back
-// must resolve to the same place. DrumMachineTrack specifically, since
-// nothing else exercises resolveEditTarget()/resolveReadTarget() with one.
+// must resolve to the same place. A step-sequenced PercussionTrack
+// specifically, since nothing else exercises resolveEditTarget()/
+// resolveReadTarget() with one.
 TEST(resolve_edit_and_read_target_route_drum_machine_steps_through_a_clip) {
   Song song;
-  auto & track = dynamic_cast<DrumMachineTrack &>(song.addTrack(make_unique<DrumMachineTrack>()));
+  auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(make_unique<PercussionTrack>()));
   track.addLane(36);
   auto track_id = track.getInternalId();
 

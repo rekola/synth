@@ -4,7 +4,6 @@
 #include "../src/model/ArrangementOps.h"
 #include "../src/model/InstrumentTrack.h"
 #include "../src/model/PercussionTrack.h"
-#include "../src/model/DrumMachineTrack.h"
 #include "../src/model/Group.h"
 #include "../src/model/SampleTrack.h"
 #include "../src/instruments/InstrumentProvider.h"
@@ -562,8 +561,11 @@ TEST(get_tuning_for_track_is_percussion_for_percussion_control) {
 }
 
 TEST(get_tuning_for_track_is_percussion_for_drum_machine) {
+  // Percussion tuning regardless of lane count - a step-sequenced
+  // PercussionTrack here, unlike the lane-less one just above.
   Song song(Tuning::TET19);
-  auto & track = song.addTrack(make_unique<DrumMachineTrack>());
+  auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(make_unique<PercussionTrack>()));
+  track.addLane(36);
   CHECK(song.getTuningForTrack(track) == Tuning::PERCUSSION);
 }
 

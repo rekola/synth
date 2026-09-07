@@ -9,7 +9,7 @@
 // a picked crash near the top. Deliberately not GM note-number order,
 // which gets several pairs backwards (e.g. 60 Hi Bongo before 61 Low
 // Bongo). Pure data + one sort function, no dependency on Track/Song, so
-// it's fully unit-testable ahead of DrumMachineTrack existing.
+// it's fully unit-testable ahead of PercussionTrack's lane support existing.
 namespace DrumRankTable {
 
   // rank[note], lower value sorts to a lower lane (bottom of the grid), or

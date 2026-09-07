@@ -3,11 +3,12 @@
 1. Note (CC96) previously had no active-state LED at all (always the
    same static dim white) - it now lights up (same convention as
    Session/Custom) once GridMode::NOTES is actually selected.
-2. Custom/DRAW (CC97) previously only switched GridMode on *release* -
-   it now switches immediately on press (LaunchpadManager::
-   handleDrawToggleButton()), matching CC95's own instant Session
-   switch. Verified by confirming DRAW's own bright LED arrives while
-   CC97 is still held down, before any release is ever sent."""
+2. Custom (CC97) previously (as DRAW, before it moved to Capture MIDI/
+   CC98) only switched GridMode on *release* - it now switches
+   immediately on press (LaunchpadManager::handleRawButton()), matching
+   CC95's own instant Session switch. Verified by confirming Custom's
+   own bright LED arrives while CC97 is still held down, before any
+   release is ever sent."""
 import sys, os, subprocess, time
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -71,7 +72,7 @@ check("CC96 (Note) LED lit up once NOTES mode was actually selected",
 held_section_start = fake_output.find("sending CC97 press")
 release_marker = fake_output.find("sending CC97 release")
 held_section = fake_output[held_section_start:release_marker] if held_section_start >= 0 and release_marker > held_section_start else ""
-check("DRAW mode's own LED (CC97) lit up while the button was still held, before release",
+check("Custom mode's own LED (CC97) lit up while the button was still held, before release",
       "61 5a 00 7f" in held_section, held_section or fake_output)
 
 n_fail = sum(1 for _, ok in results if not ok)

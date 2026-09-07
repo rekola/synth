@@ -269,7 +269,8 @@ class Controller {
   void setBufferChangeListener(std::function<void()> fn) { buffer_change_listener_ = std::move(fn); }
 
   // "toggle-record-arm"'s own drum-machine-track repurposing (Session View
-  // focused, the targeted clip's track is a DrumMachineTrack) calls this
+  // focused, the targeted clip's track is a step-sequenced PercussionTrack)
+  // calls this
   // right after focusing the clip (setFocusedClip()) - `opened` true - or
   // right after clearing it again (a second press on the clip already
   // open for editing toggles it back off - clearFocusedClip()) - `opened`

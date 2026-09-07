@@ -107,7 +107,6 @@ add_library(synth_engine STATIC
 	src/launchpad/LaunchpadLayout.cpp
 	src/launchpad/LaunchpadProtocol.cpp
 	src/instruments/DrumRankTable.cpp
-	src/model/DrumMachineTrack.cpp
 	src/model/SampleTrack.cpp
 	src/model/SampleContent.cpp
 	src/model/WaveformPeaks.cpp

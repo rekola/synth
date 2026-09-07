@@ -21,7 +21,7 @@ using namespace std;
 
 namespace {
 
-// Same shape as DrumMachineTrackTests.cpp's own renderRowPeak() - "was
+// Same shape as PercussionTrackTests.cpp's own renderRowPeak() - "was
 // anything audible" without needing bit-exact waveform comparison.
 float peakOf(const AudioBuffer & master, const Mixer & mixer) {
   float peak = 0.0f;

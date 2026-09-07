@@ -6,12 +6,12 @@
     </envelope>
   </instruments>
   <tracks>
-    <drumMachineTrack id="0" instrument="0">
+    <percussionTrack id="0" instrument="0">
       <lane note="BD"/>
       <lane note="SD"/>
       <lane note="CH"/>
       <lane note="CR"/>
-    </drumMachineTrack>
+    </percussionTrack>
   </tracks>
   <scenes>
     <scene>

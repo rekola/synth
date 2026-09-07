@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="12edo" tempo="120" patternRows="8" volume="1.0">
   <tracks>
-    <drumMachineTrack id="0"/>
+    <percussionTrack id="0"/>
   </tracks>
   <scenes>
     <scene />

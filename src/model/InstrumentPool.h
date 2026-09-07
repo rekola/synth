@@ -14,8 +14,8 @@ class InstrumentProvider;
 // <instrument>/<oscillator>/... element, indexed by InstrumentTrack::
 // instrument_id_ - see InstrumentTrack.h) plus the song's one default drum
 // kit (the <instruments> element's own `from` attribute - see
-// PercussionTrack.h/DrumMachineTrack.h, which source their sound from this
-// instead of a per-track index). Both live here, together, rather than
+// PercussionTrack.h, which sources its sound from this instead of a
+// per-track index). Both live here, together, rather than
 // threaded through the render path as two separately-passed pieces that
 // only happen to come from the same place - this *is* that place. A future
 // per-key override (swapping what plays at one percussion symbol, e.g.

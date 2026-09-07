@@ -35,7 +35,7 @@ class GenericInstrument : public Instrument {
   // <generator> children (SF2 generator overrides) - element children, not
   // attributes, so unlike `from` above these are parsed/written by
   // Song.cpp's parseChildTrack()/storeChildTrack() directly (the same
-  // treatment DrumMachineTrack's own <drumMachine> data blob gets), not
+  // treatment PercussionTrack's own <lane> children get), not
   // through loadParameters()/storeParameters(). Two containers, matching
   // SF2GeneratorTable.h's own split: a recognized generator name resolves
   // to its id and lands in generator_overrides_, keyed by that id (the

@@ -6,14 +6,13 @@
 #include "SendLevels.h"
 
 // Shared surface for every addressable, positioned leaf track type
-// (InstrumentTrack/SampleTrack/PercussionTrack/DrumMachineTrack) - solo/
-// mute/position/sends, note-column visibility, and the color/Mute-Solo
-// eligibility every one of them gets in the pattern editor (SongStructure::
-// visit()'s `dynamic_cast<const LeafTrack *>` check). What's deliberately
-// *not* here: `instrument_id_` (InstrumentTrack-only - a pool index only a
-// plain pitched instrument track actually resolves this way; see
-// PercussionTrack.h/DrumMachineTrack.h for how the other two source their
-// sound instead).
+// (InstrumentTrack/SampleTrack/PercussionTrack) - solo/mute/position/sends,
+// note-column visibility, and the color/Mute-Solo eligibility every one of
+// them gets in the pattern editor (SongStructure::visit()'s
+// `dynamic_cast<const LeafTrack *>` check). What's deliberately *not* here:
+// `instrument_id_` (InstrumentTrack-only - a pool index only a plain
+// pitched instrument track actually resolves this way; see
+// PercussionTrack.h for how the other one sources its sound instead).
 class LeafTrack : public Track {
  public:
   LeafTrack(TrackType type) : Track(type) { }

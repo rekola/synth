@@ -168,10 +168,10 @@ you're changing.
   own - it has none).
 - **`drum_machine_stepgrid_test.xml` / `fake_launchpad_stepseq.c` /
   `verify_launchpad_stepseq.py`** - loads
-  a song whose only track is a `DrumMachineTrack`, confirms the Launchpad
-  grid switches to the step-grid surface automatically (no mode toggle
-  needed - the step-lit/unlit colors, not the ordinary note-grid ones)
-  purely from track-type assignment, then presses pad (0,0) and checks
+  a song whose only track is a step-sequenced `PercussionTrack`, confirms
+  the Launchpad grid switches to the step-grid surface automatically (no
+  mode toggle needed - the step-lit/unlit colors, not the ordinary
+  note-grid ones) purely from track assignment, then presses pad (0,0) and checks
   for the lane/step's color changing to lit. That second check currently
   fails in at least one sandboxed environment for reasons unrelated to
   this feature - see docs/known_bugs.md's entry on

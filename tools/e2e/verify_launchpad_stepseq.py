@@ -1,5 +1,5 @@
 """Drum-machine step-grid regression test: navigating onto a
-DrumMachineTrack must switch the Launchpad's grid to the
+step-sequenced PercussionTrack must switch the Launchpad's grid to the
 step-grid surface automatically (no mode toggle), and a pad press there
 must toggle that lane/step immediately, reflected in the LED colors sent
 back to the device - not silently fall through to ordinary NOTES-mode
@@ -43,7 +43,7 @@ if not vk.wait_ready(scr):
     os.kill(pid, 9)
     sys.exit(1)
 
-# The test song's only track is the DrumMachineTrack - Ctrl-E ("last
+# The test song's only track is the step-sequenced PercussionTrack - Ctrl-E ("last
 # track") lands the cursor there regardless of the default cursor
 # position, mirroring verify_percussion_layout.py's own navigation.
 # The simulator waits 8s after its own startup before pressing, then 2s

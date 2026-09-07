@@ -6,10 +6,9 @@
 // The one LeafTrack that resolves its sound from the song's own instrument
 // pool (InstrumentPool::getInstruments()) by plain index - see LeafTrack.h
 // for everything else (position/solo/mute/sends/note columns) every leaf
-// track type shares. PercussionTrack/DrumMachineTrack deliberately don't
-// inherit this - they source their sound from the pool's default kit
-// instead (InstrumentPool::getDefaultKitInstrument()), not a per-track
-// pool pick.
+// track type shares. PercussionTrack deliberately doesn't inherit this - it
+// sources its sound from the pool's default kit instead
+// (InstrumentPool::getDefaultKitInstrument()), not a per-track pool pick.
 class InstrumentTrack : public LeafTrack {
  public:
   InstrumentTrack() : LeafTrack(TrackType::INSTRUMENT_CONTROL), instrument_id_(0) { }

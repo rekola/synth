@@ -8,7 +8,7 @@
 
 // The persistent per-track stepper behind a live-triggered (audition-mode
 // - see plans/arpeggiator.md) note on an Arpeggiator track. Inherits
-// InstrumentTrackState (mirroring DrumMachineTrack.cpp's own local
+// InstrumentTrackState (mirroring PercussionTrack.cpp's own local
 // InstrumentTrackState subclass's reasoning - see its doc comment) rather
 // than bare TrackState: an arpeggiated note's underlying voices still want
 // the exact same voices_/addVoice()/stopVoices()/clearFinishedVoices()

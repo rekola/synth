@@ -5,7 +5,7 @@
 #include "../src/model/SampleTrack.h"
 #include "../src/model/SampleContent.h"
 #include "../src/model/InstrumentTrack.h"
-#include "../src/model/DrumMachineTrack.h"
+#include "../src/model/PercussionTrack.h"
 #include "../src/model/ArrangementOps.h"
 #include "../src/model/Clip.h"
 #include "../src/audio/AudioBuffer.h"
@@ -913,17 +913,20 @@ TEST(toggle_record_arm_session_view_focused_arms_a_sample_track_without_arrangem
   CHECK(!controller.isSessionRecording());
 }
 
-// Record Arm on a DrumMachineTrack's own clip in Session View is
-// repurposed into "open this clip for editing on a Launchpad's step grid"
-// (via setFocusedClip()/setDrumEditRequestListener()) instead of ever
-// arming a take - a drum clip's own steps are never captured live.
+// Record Arm on a step-sequenced PercussionTrack's own clip in Session View
+// is repurposed into "open this clip for editing on a Launchpad's step
+// grid" (via setFocusedClip()/setDrumEditRequestListener()) instead of ever
+// arming a take - a drum clip's own steps are never captured live. A
+// lane-less PercussionTrack's own clip has no such repurposing
+// (toggle_record_arm_on_a_lane_less_percussion_clip_arms_normally below).
 TEST(toggle_record_arm_on_a_drum_machine_clip_focuses_it_instead_of_arming) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
   auto & song = controller.getSong();
 
-  auto & track = song.addTrack(std::make_unique<DrumMachineTrack>());
+  auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(std::make_unique<PercussionTrack>()));
+  track.addLane(36); // step-sequenced - see this test's own header comment
   auto track_id = track.getInternalId();
   auto & existing = song.addClip(Clip(track_id));
   existing.setName("Beat 1");
@@ -955,6 +958,28 @@ TEST(toggle_record_arm_on_a_drum_machine_clip_focuses_it_instead_of_arming) {
   CHECK(!requested_opened);
 }
 
+// A lane-less PercussionTrack is just an ordinary track - its own clip in
+// Session View has no step-grid-editing role to repurpose Record Arm into,
+// so a press arms plain note capture instead, exactly like any other
+// non-drum-machine track's own focused clip would.
+TEST(toggle_record_arm_on_a_lane_less_percussion_clip_arms_normally) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+
+  auto & track = song.addTrack(std::make_unique<PercussionTrack>()); // no lanes
+  auto track_id = track.getInternalId();
+  song.addClip(Clip(track_id)); // an occupied slot, not an empty one
+
+  controller.setSessionViewFocused(true);
+  controller.setSessionViewCursor(track_id, 0);
+  controller.sendCommand("toggle-record-arm");
+
+  CHECK(controller.isNoteCaptureArmed());
+  CHECK(controller.getFocusedClipTrackId() == -1); // never focused for step editing
+}
+
 // An empty slot lazily creates a fresh, looping clip rather than doing
 // nothing or requiring a separate "new clip" gesture first.
 TEST(toggle_record_arm_on_an_empty_drum_machine_slot_creates_a_clip) {
@@ -964,7 +989,8 @@ TEST(toggle_record_arm_on_an_empty_drum_machine_slot_creates_a_clip) {
   auto & song = controller.getSong();
   song.setRowsPerBar(16);
 
-  auto & track = song.addTrack(std::make_unique<DrumMachineTrack>());
+  auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(std::make_unique<PercussionTrack>()));
+  track.addLane(36); // step-sequenced, so Record Arm repurposes instead of arming
   auto track_id = track.getInternalId();
 
   controller.setSessionViewFocused(true);
@@ -1138,7 +1164,8 @@ TEST(ensure_session_recording_clip_respects_a_primed_origin) {
 
 // Recording a fresh take onto a track with nothing of its own playing
 // still has to land in the same shared groove as whatever else in the
-// session already loops (e.g. a DrumMachineTrack triggered earlier) - its
+// session already loops (e.g. a step-sequenced PercussionTrack triggered
+// earlier) - its
 // own bar boundaries are measured from grid_origin_step, not absolute
 // step 0, so it doesn't drift against that shared loop once it starts
 // repeating.

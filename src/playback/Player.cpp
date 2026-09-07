@@ -237,8 +237,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 
       auto track = song.getMasterTrack().getChildByInternalId(track_id);
       if (track && (track->getType() == TrackType::INSTRUMENT_CONTROL ||
-		    track->getType() == TrackType::PERCUSSION_CONTROL ||
-		    track->getType() == TrackType::DRUM_MACHINE
+		    track->getType() == TrackType::PERCUSSION_CONTROL
 		    )) {
 	auto track_state = dynamic_cast<InstrumentTrackState*>(state.getChildByInternalId(track->getInternalId()));
 
@@ -246,8 +245,8 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	  // getInstrumentSource() is the same per-render()-call resolution
 	  // InstrumentTrackState::render() uses for pattern-driven notes -
 	  // an InstrumentTrack's own instrument_id_ pool index, or (for
-	  // PercussionTrackState/DrumMachineTrackState) the pool's default
-	  // kit - so a live-triggered note (Kitty-keyboard entry, Launchpad
+	  // PercussionTrackState) the pool's default kit - so a
+	  // live-triggered note (Kitty-keyboard entry, Launchpad
 	  // NOTES/step-grid presses) resolves its instrument exactly the
 	  // same way a pattern note would.
 	  auto instrument = track_state->getInstrumentSource(song.getInstrumentPool());
@@ -262,7 +261,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	    // chord instead - so this call site never needs to know which
 	    // kind of track it's talking to.
 	    if (ev.getType() == PlaybackControlEvent::PLAY_NOTE) {
-	      auto tuning = (track->getType() == TrackType::PERCUSSION_CONTROL || track->getType() == TrackType::DRUM_MACHINE) ? Tuning::PERCUSSION : song.getTuning();
+	      auto tuning = track->getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : song.getTuning();
 	      Note note(midi_note, midi_velocity);
 	      auto frequency = Tuner::getFrequency(tuning, note);
 

@@ -118,7 +118,7 @@ class Pattern : public SongObject {
   }
 
   // Removes every defined note across every row whose getValue() ==
-  // `value`, regardless of column - DrumMachineTrack::removeLane()'s own
+  // `value`, regardless of column - PercussionTrack::removeLane()'s own
   // per-Pattern half: a removed lane's GM number no longer identifies
   // anything, so any note referencing it (on or off - an off marker still
   // carries the same value(), see Note::isOff()'s own comment) is purged

@@ -4,6 +4,7 @@
 #include "model/TrackType.h"
 #include "model/LeafTrack.h"
 #include "model/InstrumentTrack.h"
+#include "model/PercussionTrack.h"
 #include "model/ArrangementOps.h"
 #include "model/Clip.h"
 #include "playback/PlaybackControlEvent.h"
@@ -270,21 +271,23 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
       return;
     }
 
-    // Session View focused on a DrumMachineTrack's own clip has no
-    // ordinary "recording" role at all - its own steps are always entered
-    // directly on a connected Launchpad's own step grid, never captured
-    // live the way a note/sample take is - so Record Arm is repurposed
-    // here into "open this clip for editing there" instead, bypassing the
-    // arm-something-new logic below entirely. Takes priority over it (but
-    // not over the three disarm branches above - whatever's already
-    // armed/recording still wins, same "a press always means stop that
-    // first" rule this command's own doc comment states) since there's
-    // nothing else a drum-machine clip's own Record Arm press could
-    // sensibly mean.
+    // Session View focused on a step-sequenced PercussionTrack's own clip
+    // has no ordinary "recording" role at all - its own steps are always
+    // entered directly on a connected Launchpad's own step grid, never
+    // captured live the way a note/sample take is - so Record Arm is
+    // repurposed here into "open this clip for editing there" instead,
+    // bypassing the arm-something-new logic below entirely. Takes priority
+    // over it (but not over the three disarm branches above - whatever's
+    // already armed/recording still wins, same "a press always means stop
+    // that first" rule this command's own doc comment states) since
+    // there's nothing else a drum-machine clip's own Record Arm press
+    // could sensibly mean. A lane-less PercussionTrack's clip is ordinary
+    // note content instead - falls through to the plain note-capture arm
+    // below like any other track.
     if (session_view_focused_ && session_view_track_id_ >= 0 && session_view_clip_index_ >= 0) {
       auto & song = getSong();
       auto * track = song.getMasterTrack().getChildByInternalId(session_view_track_id_);
-      if (track && track->getType() == TrackType::DRUM_MACHINE) {
+      if (track && track->getType() == TrackType::PERCUSSION_CONTROL && static_cast<PercussionTrack &>(*track).isStepSequenced()) {
         auto & clips = song.getClips(session_view_track_id_);
         if (session_view_clip_index_ < static_cast<int>(clips.size())) {
           auto & existing = clips[static_cast<size_t>(session_view_clip_index_)];

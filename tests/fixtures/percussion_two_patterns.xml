@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <song temperament="12edo" tempo="120" rowsPerBar="1" volume="1.0">
   <tracks>
-    <drumMachineTrack id="0">
+    <percussionTrack id="0">
       <lane note="BD"/>
       <lane note="SD"/>
-    </drumMachineTrack>
+    </percussionTrack>
   </tracks>
   <scenes>
     <scene length="5">

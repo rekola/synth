@@ -5,15 +5,15 @@
   </instruments>
   <tracks>
     <track id="bass" instrument="0" azimuth="0" distance="1"/>
-    <drumMachineTrack id="drums" azimuth="0" distance="1">
+    <percussionTrack id="drums" azimuth="0" distance="1">
       <lane note="BD"/>
       <lane note="SD"/>
       <lane note="CH"/>
-    </drumMachineTrack>
+    </percussionTrack>
   </tracks>
   <clips>
     <trackClips track="drums">
-      <clip id="verse" name="verse" length="8">
+      <clip id="verse" name="Verse" length="8">
         <pattern>
           <note row="0" velocity="100" value="BD"/>
           <note row="2" velocity="90" value="CH"/>
@@ -21,7 +21,7 @@
           <note row="6" velocity="90" value="CH"/>
         </pattern>
       </clip>
-      <clip id="fill" name="fill" length="8">
+      <clip id="fill" name="Fill" length="8">
         <pattern>
           <note row="0" velocity="100" value="SD"/>
           <note row="1" velocity="90" value="SD"/>
@@ -35,7 +35,7 @@
       </clip>
     </trackClips>
     <trackClips track="bass">
-      <clip id="groove" name="groove" length="8">
+      <clip id="groove" name="Groove" length="8">
         <pattern>
           <note row="0" velocity="100" value="C-2"/>
           <note row="2" velocity="90" value="C-2"/>
@@ -43,7 +43,7 @@
           <note row="6" velocity="90" value="G-2"/>
         </pattern>
       </clip>
-      <clip id="walk" name="walk" length="8">
+      <clip id="walk" name="Walk" length="8">
         <pattern>
           <note row="0" velocity="100" value="C-2"/>
           <note row="2" velocity="95" value="D-2"/>
@@ -59,7 +59,7 @@
         <instance row="0">verse</instance>
       </arrangement>
       <arrangement track="bass">
-        <instance row="8">groove</instance>
+        <instance row="16">groove</instance>
       </arrangement>
     </scene>
     <scene name="Fill" length="4">

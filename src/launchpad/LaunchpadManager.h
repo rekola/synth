@@ -22,7 +22,7 @@ class PlaybackInfo;
 class Controller;
 class LaunchpadPadEvent;
 class LaunchpadChannelPressureEvent;
-class DrumMachineTrack;
+class PercussionTrack;
 
 // Owns everything about how connected Launchpads relate to the song being
 // edited: per-device track assignment and octave, the isomorphic/
@@ -75,25 +75,32 @@ class LaunchpadManager {
 
   // Which of the 8x8 grid's meanings a device is currently showing - normal
   // note entry, a per-track SendA/SendB/SendMain fader, a per-track Pan
-  // (azimuth) control, or DRAW (a plain coloring toy - see advanceDrawColor
-  // - no Song/Track meaning at all): for SEND_A/SEND_B/SEND_MAIN the row
-  // pressed within a column sets that (first-8-root-track) column's send
-  // level (a bargraph, filled bottom-up); for PAN it sets that column's
-  // azimuth to one of 8 compass points around the full circle (only the
-  // one matching row lights up - a direction, not a magnitude, so a fill
-  // doesn't make sense). Mutually exclusive - always exactly one state.
-  // Ordered to match the physical buttons' own row order (Volume/Pan/Send
-  // A/Send B, CC 89/79/69/59 - see handleRawButton()'s own comment), not
-  // declaration-arbitrary; those four still toggle off back to NOTES on a
-  // repeat press of their own button (toggleGridMode()). SESSION/DRAW
-  // (CC95/97) and NOTES (CC96) are a separate trio that behaves
-  // differently - a true radio group, never toggled off by a repeat press
-  // of the button already selected, only by pressing a different one of
-  // the three (handleRawButton()'s own comment) - purely per-device state
-  // either way, not tied to whether the overview widget has terminal UI
-  // focus: one connected Launchpad can sit in Session view while another
-  // stays on NOTES.
-  enum class GridMode { NOTES, SEND_MAIN, PAN, SEND_A, SEND_B, DRAW, SESSION };
+  // (azimuth) control, DRAW (a plain coloring toy - see advanceDrawColor -
+  // no Song/Track meaning at all), or CUSTOM (see its own comment below):
+  // for SEND_A/SEND_B/SEND_MAIN the row pressed within a column sets that
+  // (first-8-root-track) column's send level (a bargraph, filled
+  // bottom-up); for PAN it sets that column's azimuth to one of 8 compass
+  // points around the full circle (only the one matching row lights up - a
+  // direction, not a magnitude, so a fill doesn't make sense). Mutually
+  // exclusive - always exactly one state. Ordered to match the physical
+  // buttons' own row order (Volume/Pan/Send A/Send B, CC 89/79/69/59 - see
+  // handleRawButton()'s own comment), not declaration-arbitrary; those
+  // four still toggle off back to NOTES on a repeat press of their own
+  // button (toggleGridMode()). SESSION/NOTES/CUSTOM/DRAW (CC95/96/97/98)
+  // are a separate, four-member group that behaves differently - a true
+  // radio group, never toggled off by a repeat press of the button already
+  // selected, only by pressing a different one of the four
+  // (handleRawButton()'s own comment) - purely per-device state either
+  // way, not tied to whether the overview widget has terminal UI focus:
+  // one connected Launchpad can sit in Session view while another stays on
+  // NOTES.
+  //
+  // CUSTOM is deliberately generic - "customize whatever's assigned to
+  // this device" - even though the only thing actually built for it today
+  // is the percussion lane picker (a step-sequenced-or-not PercussionTrack
+  // - see handlePadEvent()'s own CUSTOM branch); a pitched InstrumentTrack
+  // assigned instead currently shows nothing there.
+  enum class GridMode { NOTES, SEND_MAIN, PAN, SEND_A, SEND_B, DRAW, SESSION, CUSTOM };
   GridMode gridMode(int device_id) const;
   void toggleGridMode(int device_id, GridMode mode);
   // A one-way force, unlike toggleGridMode() above - every currently
@@ -228,13 +235,13 @@ class LaunchpadManager {
   static float sendRowToDb(int row);
   static int sendLinearToRow(float linear);
 
-  // The Send A/Pan/Send B/Volume/Custom/Record-Arm buttons (raw CC
-  // 69/79/59/89/97/19 - 69/79/89 confirmed against a real Launchpad X, 59
-  // inferred from the standard Launchpad right-column "Track" control row
-  // order documented across DAW controller scripts for this hardware,
-  // 97 inferred from the top row's own Up/Down/Left/Right/Session/Note/
-  // Custom/Capture layout, 19 inferred by continuing that same right-
-  // column row order one further (Volume/Pan/SendA/SendB/Stop
+  // The Send A/Pan/Send B/Volume/Session/Note/Custom/Record-Arm buttons
+  // (raw CC 69/79/59/89/95/96/97/19 - 69/79/89 confirmed against a real
+  // Launchpad X, 59 inferred from the standard Launchpad right-column
+  // "Track" control row order documented across DAW controller scripts for
+  // this hardware, 95/96/97 from the top row's own Up/Down/Left/Right/
+  // Session/Note/Custom/Capture layout, 19 inferred by continuing that
+  // same right-column row order one further (Volume/Pan/SendA/SendB/Stop
   // Clip/Mute/Solo/Record Arm - see LaunchpadProtocol::commandForButton's
   // own comment for Mute/Solo at 39/29) - 91/92/93/94 already confirmed as
   // Up/Down/Left/Right; Volume/CC89 is repurposed as the Send Main fader
@@ -245,57 +252,38 @@ class LaunchpadManager {
   // it isn't a "command" (which implies "reachable identically from a
   // keybinding or M-x") at all, just a direct hardware-state toggle.
   // Returns false for any other CC, so the caller proceeds to the normal
-  // command pipeline. CC98 ("Capture MIDI") no longer does anything here -
-  // the record-arm toggle moved to CC19 ("Record Arm") - see
-  // DeviceState::capture_enabled's own comment. CC97 ("Custom") is the
-  // drum-picker latch - unconditional,
-  // the same way Send/Pan/etc. above are: picking is only ever meaningful
-  // once a DrumMachineTrack is actually assigned, but the toggle itself
-  // is plain per-device UI state regardless of what's currently assigned,
-  // matching every other raw-CC toggle here. Takes Controller (unlike
-  // every other toggle here) only for CC19's own sake - disarming while a
-  // Session-view-triggered recording session is still running also stops
-  // the transport (see that branch's own comment). `track_id` (the
-  // currently-followed track, already resolved - UI.cpp's own call site
-  // resolves it the same way it already does for CC98 just above this)
-  // is only used by CC19's own SampleTrack case - every other branch
-  // ignores it.
+  // command pipeline. 95 ("Session"), 96 ("Note") and 97 ("Custom" - see
+  // GridMode::CUSTOM's own comment) are three of a four-member exclusive
+  // group with DRAW (CC98, routed separately - see handleDrawToggleButton()
+  // below, since it needs both press and release): each press *selects*
+  // that mode unconditionally, even if it's already the current one - the
+  // only way to ever leave a mode is to select a *different* one of the
+  // four. Takes Controller (unlike every other toggle here) only for
+  // CC19's own sake - disarming while a Session-view-triggered recording
+  // session is still running also stops the transport (see that branch's
+  // own comment). `track_id` (the currently-followed track, already
+  // resolved) is only used by CC19's own SampleTrack case - every other
+  // branch ignores it.
   bool handleRawButton(int cc_number, int device_id, Controller & controller, int track_id);
 
-  // CC97 (DRAW mode toggle) on its own, separate entry point: unlike every
-  // button handleRawButton() covers, it needs both press and release to
-  // tell a quick tap from a long hold. Entering DRAW mode happens
-  // immediately on press, same as CC95's own instant Session switch
-  // (Session/Note/Custom are a trio of exclusive mode-selection buttons) -
-  // only *leaving* DRAW mode (a quick tap while already there) or clearing
-  // the canvas (a long hold, released while already there) need to wait
-  // for release, since neither can be told apart from the other, or from a
-  // fresh entry, until then. The "clear canvas" gesture (see
-  // advanceDrawColor's own comment on the palette) landed on this button
-  // after CC99 (the grid position the Programmer-mode protocol maps one
-  // past the top row) turned out not to be an actual pressable button on
-  // real Launchpad X hardware, just a CC-addressable LED kept for symmetry
-  // with the Launchpad Pro. Always returns true (handled) for both press
-  // and release. Routed here directly from CC97 by
-  // UI::handleLaunchpadButtonEvent, the same way CC98 routes to
-  // handleDrumConfigButton() below.
+  // CC98 ("Capture MIDI", DRAW mode's own home) on its own, separate entry
+  // point: unlike every button handleRawButton() covers, it needs both
+  // press and release to tell a quick tap from a long hold. Entering DRAW
+  // mode happens immediately on press, same as CC95's own instant Session
+  // switch (Session/Note/Custom/Draw are a four-member group of exclusive
+  // mode-selection buttons - only a *different* one of the four ever
+  // leaves the active one, so a quick tap while already in DRAW does
+  // nothing further); only clearing the canvas (a long hold, released
+  // while already in DRAW) needs release at all, but it's tracked either
+  // way since a tap can't be told apart from a still-building hold until
+  // release happens. The "clear canvas" gesture (see advanceDrawColor's
+  // own comment on the palette) landed on this button after CC99 (the grid
+  // position the Programmer-mode protocol maps one past the top row)
+  // turned out not to be an actual pressable button on real Launchpad X
+  // hardware, just a CC-addressable LED kept for symmetry with the
+  // Launchpad Pro. Always returns true (handled) for both press and
+  // release. Routed here directly from CC98 by UI::handleLaunchpadButtonEvent.
   bool handleDrawToggleButton(int device_id, bool is_press);
-
-  // CC98 (reused from "Capture MIDI", now the drum machine's own
-  // configuration button)'s dispatcher - needs both press and release to
-  // tell a quick tap from a long hold (same shape as
-  // handleDrawToggleButton()'s own tap-vs-hold gesture). A no-op (still
-  // returns true) when `assigned_drum_track` is null - there's nothing to
-  // configure without a drum machine assigned. Released quickly, it
-  // toggles the drum-picker latch (DeviceState::picker_active) - which
-  // notes the free-drumming layout's pad presses add/remove as lanes.
-  // Held past kDrawClearHoldThreshold and released, it instead clears
-  // every one of that track's lanes' step data in the current scene back
-  // to all-rest (the lane list itself is untouched - only the picker
-  // removes lanes), without toggling the picker. Clear writes
-  // unconditionally regardless of Record Arm, matching the step grid/
-  // picker's own "arm gates performance capture, not editing" rule.
-  bool handleDrumConfigButton(int device_id, bool is_press, DrumMachineTrack * assigned_drum_track, Controller & controller);
 
   // CC49 ("Stop Clip" physical button) - a held-modifier, not a plain
   // press: Session view shows several tracks at once as columns, with no
@@ -506,17 +494,20 @@ class LaunchpadManager {
     GridMode grid_mode = GridMode::SESSION;
 
     // Step-grid surface: not a GridMode value of its own - it displays
-    // automatically whenever this device's
-    // assigned track is a DrumMachineTrack, the same way the percussion
-    // layout below already displays automatically from track type rather
-    // than a mode toggle, and (like percussion) only within grid_mode==
-    // NOTES, so Send/Pan/Draw stay fully usable on a device currently
-    // assigned to a drum machine. Recomputed fresh every refresh() call
-    // (same cadence as tuning/muted/solo above), never read back from a
-    // stale copy by handlePadEvent() - a press always re-resolves the
-    // assigned DrumMachineTrack directly for up-to-the-moment lane/step
-    // data, this cache exists purely for refreshLeds()'s drawing.
-    bool assigned_track_is_drum_machine = false;
+    // automatically whenever this device's assigned track is a
+    // step-sequenced PercussionTrack (isStepSequenced()), and (like the
+    // ordinary percussion pad layout a lane-less one shows instead) only
+    // within grid_mode==NOTES, so Send/Pan/Draw/Custom stay fully usable
+    // on a device currently assigned to one. assigned_track_is_percussion
+    // itself doesn't imply lanes - it's also what gates GridMode::CUSTOM's
+    // own lane-picker branch, which works with zero lanes too (that's how
+    // a lane-less track gains its first one). Recomputed fresh every
+    // refresh() call (same cadence as tuning/muted/solo above), never read
+    // back from a stale copy by handlePadEvent() - a press always
+    // re-resolves the assigned PercussionTrack directly for up-to-the-
+    // moment lane/step data, this cache exists purely for refreshLeds()'s
+    // drawing.
+    bool assigned_track_is_percussion = false;
     std::vector<int> drum_lane_notes; // bottom-to-top, already DrumRankTable-ordered
     std::array<uint8_t, 8> drum_lane_steps {}; // parallel to drum_lane_notes
     // Pattern-relative row % 8 while playing (the step grid is always
@@ -529,19 +520,10 @@ class LaunchpadManager {
 
     // CC49 (Stop Clip) held-modifier state - see handleStopClipButton()'s
     // own comment. Set/cleared directly by press/release, unlike the
-    // tap-vs-hold-*duration* tracking below (draw_toggle_pressed/
-    // drum_config_pressed) - there's no threshold here, just "is it down
-    // right now".
+    // tap-vs-hold-*duration* tracking below (draw_toggle_pressed) - there's
+    // no threshold here, just "is it down right now".
     bool stop_clip_held = false;
 
-    // Drum picker latch - CC98's own quick-tap toggle (see
-    // handleDrumConfigButton()'s own comment; a long hold clears step data
-    // instead of touching this). Only actually shown/acted on while
-    // assigned_track_is_drum_machine is also true - left as whatever it
-    // was if the device's assigned track later stops being a drum
-    // machine, so switching back re-shows the picker rather than losing
-    // the latch state.
-    bool picker_active = false;
     // Which 8-step window of a Session-View-focused drum clip's own
     // pattern this device currently shows/edits on its step grid - a
     // clip's own length can span more rows than the grid's fixed 8
@@ -555,11 +537,6 @@ class LaunchpadManager {
     // clip's own current length actually is gets clamped wherever this is
     // read, not here, since the clip can change length after this is set.
     int drum_edit_page = 0;
-    // CC98 press/release tracking - see handleDrumConfigButton() for why a
-    // tap and a long hold need to be told apart, same shape as
-    // draw_toggle_pressed/draw_toggle_press_time below for CC97.
-    bool drum_config_pressed = false;
-    std::chrono::steady_clock::time_point drum_config_press_time;
 
     // First 8 root tracks' current SendMain/SendA/SendB/azimuth - refreshed
     // every frame (refresh()), same as muted/solo above, so the fader/pan
@@ -633,7 +610,7 @@ class LaunchpadManager {
   const DeviceState * findDeviceState(int device_id) const;
   void refreshLeds(int device_id, DeviceState & state);
 
-  // The step-grid's own pad-press handling - a DrumMachineTrack's grid
+  // The step-grid's own pad-press handling - a PercussionTrack's grid
   // means something else entirely from
   // ordinary NOTES-mode chord entry, the same way Send/Pan mode already
   // does (see handlePadEvent()'s own dispatch): x = step, y = lane (row 0
@@ -645,9 +622,9 @@ class LaunchpadManager {
   // both ignored here, matching the brief's "no per-step velocity"
   // decision). The GM note number doubles as the PLAY_NOTE/STOP_NOTE
   // column, the same convention SongState::renderBlock()'s own step-driven
-  // emission already uses (see DrumMachineTrack.h), so editing a step and
+  // emission already uses (see PercussionTrack.h), so editing a step and
   // hearing it sequenced later choke/retrigger consistently.
-  void handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & controller, DrumMachineTrack & track, int track_id);
+  void handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & controller, PercussionTrack & track, int track_id);
 
   // The drum picker's own pad-press handling: reuses the free-drumming
   // layout's own note lookup (LaunchpadLayout::percussionNoteForPad)
@@ -658,7 +635,7 @@ class LaunchpadManager {
   // step-data mutation as a single call, so the two can never be
   // observed disagreeing. RELEASE/AFTERTOUCH are no-ops - picking is a
   // plain tap, not a held gesture.
-  void handleDrumPickerPadEvent(LaunchpadPadEvent & ev, Controller & controller, DrumMachineTrack & track);
+  void handleDrumPickerPadEvent(LaunchpadPadEvent & ev, Controller & controller, PercussionTrack & track);
 
   // True iff some currently-held note (on any device, not just the one
   // about to claim a column) already occupies (track_id, note_column) -
@@ -720,10 +697,10 @@ class LaunchpadManager {
   // audition path handleStepGridPadEvent/handleDrumPickerPadEvent already
   // use for their own one-shot presses, instead of a second, parallel
   // triggering mechanism. One shared step counter for the whole song (not
-  // per-device, not per-track) - each DrumMachineTrack still wraps at its
+  // per-device, not per-track) - each PercussionTrack still wraps at its
   // own loop length via getHitNotesForRow()'s own modulo, so tracks with
   // different loop lengths phase-align at step 0 and diverge after,
-  // exactly like two pattern-driven DrumMachineTracks already would while
+  // exactly like two pattern-driven PercussionTracks already would while
   // playing normally.
   // StepClock itself (LaunchpadTiming.h) is the pure, unit-tested
   // step-advance logic; this is only the wall-clock timestamp of the
@@ -736,7 +713,7 @@ class LaunchpadManager {
   // factored out of refresh() since it's called from two places there
   // (the moment the clock (re)starts, and once per row boundary crossed
   // while it's already running). A single track, not every
-  // DrumMachineTrack in the song - refresh() only ever calls this for
+  // PercussionTrack in the song - refresh() only ever calls this for
   // whichever track's clip is currently focused
   // (Controller::getFocusedClipTrackId()), deliberately independent of
   // any Launchpad device/GridMode (hearing the clip you're editing

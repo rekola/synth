@@ -343,42 +343,57 @@ grid) and is Song/Controller-aware but UI-agnostic - it works the same
 whether or not a terminal UI exists at all.
 
 - **`GridMode`** (`LaunchpadManager::GridMode`) - one of `NOTES`/
-  `SEND_MAIN`/`PAN`/`SEND_A`/`SEND_B`/`DRAW`/`SESSION`, mutually
+  `SEND_MAIN`/`PAN`/`SEND_A`/`SEND_B`/`DRAW`/`SESSION`/`CUSTOM`, mutually
   exclusive, purely per-device (`toggleGridMode()`), never tied to
   terminal UI focus - one connected Launchpad can sit in Session view
   while another stays on ordinary note entry. Defaults to `SESSION`.
+  `CUSTOM` is deliberately generic ("customize whatever's assigned to
+  this device") even though only the percussion lane picker is built for
+  it today - a pitched `InstrumentTrack` assigned instead currently shows
+  nothing there.
 - **Extra-button layout** (raw CC, intercepted directly in
   `LaunchpadManager::handleRawButton()`/`UI::handleLaunchpadButtonEvent()`
   before any command-name resolution): 89/79/69/59 toggle SEND_MAIN
-  (Volume)/PAN/SEND_A/SEND_B; 95/96/97 (Session/Note/Custom) are a true
-  radio group, not independent toggles - each press selects that mode
-  unconditionally, even pressing the one already active, so the only way
-  to leave a mode is selecting a *different* one of the three (97's own
-  tap-vs-long-hold gesture aside - see below); 19 is Record Arm
-  (`capture_enabled_`, a single song-wide flag, not per-device); 49 and
-  98 are Session-view/drum-machine-specific, see their own bullets below.
+  (Volume)/PAN/SEND_A/SEND_B; 95/96/97/98 (Session/Note/Custom/Draw) are a
+  true four-member exclusive group, not independent toggles - each press
+  selects that mode unconditionally, even pressing the one already
+  active, so the only way to leave a mode is selecting a *different* one
+  of the four (97/98's own tap-vs-long-hold gestures aside - see below);
+  19 is Record Arm (`capture_enabled_`, a single song-wide flag, not
+  per-device); 49 is Session-view-specific, see its own bullet below.
   91/92/93/94 are move-row-up/down/prev-track/next-track (named
   commands, via `LaunchpadProtocol::commandForButton()`); 39/29 are
   Mute/Solo.
-- **DRAW mode** - a plain per-pad coloring toy, independent of Song/Track
-  state. CC97's own tap-vs-long-hold gesture: entering DRAW happens
-  immediately on press; a quick release while already in DRAW does
-  nothing further (same radio-group rule as CC95/96 - only a different
-  one of the three leaves DRAW), a long hold instead blanks the canvas
-  (`handleDrawToggleButton()`).
-- **The drum machine** (`DrumMachineTrack`, up to `kMaxLanes` = 8 lanes,
-  `getLaneNotes()`): its step data is a real per-scene `Pattern` like any
-  other track's (a step is a `Note`), not track-global, so it's
-  copy/paste-able through `PatternEditor`'s own clipboard and renders as
-  its compact one-cell-per-lane view. On a Launchpad, it displays
-  automatically as a step grid (rows = lanes, columns = steps) whenever
-  the assigned track is a `DrumMachineTrack` and `GridMode` is `NOTES` -
-  not a mode toggle of its own. CC98 (drum machine configuration, needs
-  press and release - `handleDrumConfigButton()`): a quick tap toggles the
-  drum-picker latch (the free-drumming percussion layout doubles as a
-  lane add/remove surface while active), a long hold instead clears the
-  track's step data in the current scene back to all-rest (never the lane
-  list itself).
+- **DRAW mode** (CC98, "Capture MIDI") - a plain per-pad coloring toy,
+  independent of Song/Track state. Its own tap-vs-long-hold gesture:
+  entering DRAW happens immediately on press; a quick release while
+  already in DRAW does nothing further (same exclusive-group rule as
+  Session/Note/Custom - only a different one of the four leaves DRAW), a
+  long hold instead blanks the canvas (`handleDrawToggleButton()`).
+- **The drum machine** (`PercussionTrack`, up to `kMaxLanes` = 8 lanes,
+  `getLaneNotes()`) - the same track type as ordinary percussion note
+  entry, not a separate one: with no lanes it's a plain percussion track
+  (free note entry through the free-drumming percussion pad layout, a
+  fixed family/color arrangement of GM sounds, not an isomorphic pitched
+  grid); once it has at least one lane (`isStepSequenced()`) its grid
+  becomes a step sequencer instead. Its step data is a real per-scene
+  `Pattern` like any other track's (a step is a `Note`), not
+  track-global, so it's copy/paste-able through `PatternEditor`'s own
+  clipboard and renders as its compact one-cell-per-lane view. On a
+  Launchpad, it displays automatically as a step grid (rows = lanes,
+  columns = steps) whenever the assigned track is a step-sequenced
+  `PercussionTrack` and `GridMode` is `NOTES` - not a mode toggle of its
+  own. CC97 ("Custom") launches the lane picker directly (`GridMode::
+  CUSTOM`, gated on the assigned track being a `PercussionTrack` at
+  all, any lane count - this is how a lane-less track gains its first
+  lane): the free-drumming percussion layout doubles as a lane add/remove
+  surface, reachable straight from Session view without detouring through
+  Note mode first. A handful of named lane-subset presets beyond the
+  default ("rock") kit - Latin, electronic - are reconfigurable on an
+  existing `PercussionTrack` via M-x/the Track menu
+  (`apply-preset-rock`/`-latin`/`-electronic`,
+  `PercussionTrack::applyPreset()` - a full replace of the lane list, not
+  additive).
 - **Clips** (`Clip`, `src/model/Clip.h`; `Song::getClips(track_id)`/
   `addClip()`, backed by `std::unordered_map<int, std::vector<Clip>>
   clips_by_track_`) - reusable, shareable content keyed by leaf track id,
@@ -396,7 +411,7 @@ whether or not a terminal UI exists at all.
   `<trackClips>` per track). Authored in-app via `PatternEditor::
   copyToClip()` (extracts the current pattern-editor selection into a new
   clip), not hand-edited-XML-only.
-- **Session view** (`GridMode::SESSION`, reached/left only via CC95/96,
+- **Session view** (`GridMode::SESSION`, reached/left only via CC95/96/97/98,
   decoupled from terminal UI focus): rows are a track's own clip list
   (`Song::getClips(track_id)`), columns are the one shared cursor track
   every connected device follows (`fallback_track_index`, from
@@ -444,8 +459,10 @@ whether or not a terminal UI exists at all.
   `songs/welcome.xml`/31-EDO startup defaults.
 - e2e coverage: `tools/e2e/verify_launchpad_session.py` (see that
   directory's own `README.md`) covers Session view's basic trigger/assign
-  path - CC96/CC97's own recent fixes and the CC49 hold+column-press
-  redesign above don't have dedicated coverage yet.
+  path; `verify_launchpad_notecustom.py`/`verify_launchpad_draw_clear.py`
+  cover CC96/CC97/CC98's own mode-switch and long-hold gestures;
+  `verify_launchpad_stopclip.py` covers the CC49 hold+column-press
+  redesign above.
 
 ## Layout
 

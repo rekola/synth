@@ -1,6 +1,6 @@
 """GridMode::SESSION regression test - the redesigned Launchpad session/
 launch view (rows are a track's own pooled patterns, columns are tracks;
-CC95/96/97 are now the only way in/out, fully decoupled from terminal UI
+CC95/96/97/98 are now the only way in/out, fully decoupled from terminal UI
 focus - see LaunchpadManager.h's own GridMode doc comment). Unlike the
 retired verify_launchpad_overview.py this replaces, nothing needs to be
 clicked/toggled to reach Session view: DeviceState::grid_mode now defaults
@@ -89,12 +89,11 @@ check("synth sent a Programmer-Mode-enter SysEx to the simulated device",
 
 # LED colors sent in the very first refresh (before any button/pad input at
 # all) - proves DeviceState::grid_mode now defaults to SESSION rather than
-# NOTES: CC95 (led index 0x5f = 95) bright, CC97 (0x61 = 97, Custom/DRAW)
-# dim - see LaunchpadManager::refreshLeds()'s own Session/Custom LED
-# comment.
+# NOTES: CC95 (led index 0x5f = 95) bright, CC97 (0x61 = 97, Custom) dim -
+# see LaunchpadManager::refreshLeds()'s own Session/Custom LED comment.
 check("CC95 (Session) LED is lit by default, with no button pressed yet",
       "03 5f 5a 7f 00" in fake_output, fake_output)
-check("CC97 (Custom/DRAW) LED is dim by default (not showing DRAW mode active)",
+check("CC97 (Custom) LED is dim by default (not showing Custom mode active)",
       "03 61 14 00 14" in fake_output, fake_output)
 
 # Record Arm's own LED update (a later SysEx, after CC19 is pressed) isn't

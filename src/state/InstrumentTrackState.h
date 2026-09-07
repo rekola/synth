@@ -28,11 +28,10 @@ public:
   // handling calls this directly too, on whatever InstrumentPool it has in
   // scope), not once per individual note - every note in one call
   // currently shares one instrument. Default: this track's own
-  // instrument_id_ pool index. PercussionTrackState/DrumMachineTrackState
-  // (PercussionTrack.cpp/DrumMachineTrack.cpp, local to each) override
-  // this to ignore instrument_id_ entirely and return `instruments`'s own
-  // getDefaultKitInstrument() instead - see their own class comments for
-  // why they have no pool index of their own to resolve.
+  // instrument_id_ pool index. PercussionTrackState (PercussionTrack.cpp,
+  // local to it) overrides this to ignore instrument_id_ entirely and
+  // return `instruments`'s own getDefaultKitInstrument() instead - see its
+  // own class comment for why it has no pool index of its own to resolve.
   virtual const Track * getInstrumentSource(const InstrumentPool & instruments) const {
     return instruments.getByIndex(instrument_id_);
   }

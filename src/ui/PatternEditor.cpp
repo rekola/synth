@@ -9,7 +9,7 @@
 #include "../model/LeafTrack.h"
 #include "../model/InstrumentTrack.h"
 #include "../model/SampleTrack.h"
-#include "../model/DrumMachineTrack.h"
+#include "../model/PercussionTrack.h"
 #include "../playback/MidiEvent.h"
 #include "../playback/PlaybackControlEvent.h"
 #include "../playback/LogEvent.h"
@@ -563,8 +563,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   };
 
   // addTrack() itself already bumps the version - no separate incVersion()
-  // needed here, unlike add-drum-machine-track below (kept exactly as the
-  // raw Ctrl-T handler this was promoted from, verbatim, always did).
+  // needed here.
   commands_.define("add-instrument-track", [this, current_track_id]() {
     auto & song = getController().getSong();
     song.addTrack(make_unique<InstrumentTrack>(0), current_track_id());
@@ -582,16 +581,35 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   });
 
   // Create-fresh only - no "convert an existing track" path exists,
-  // since TrackType is fixed at construction for every track.
-  // seedDefaultKit() is the single place the default rock kit's note
-  // list lives - shared with Song.cpp's own loadDrumMachineData() for a
-  // hand-authored <drumMachineTrack> with no <lane> children at all.
-  commands_.define("add-drum-machine-track", [this, current_track_id]() {
+  // since TrackType is fixed at construction for every track. Starts with
+  // no lanes at all - an ordinary percussion track, matching
+  // add-instrument-track/add-sample-track's own plain shape - apply-preset-*
+  // below is how an existing one picks a kit.
+  commands_.define("add-percussion-track", [this, current_track_id]() {
     auto & song = getController().getSong();
-    auto & track = dynamic_cast<DrumMachineTrack &>(song.addTrack(make_unique<DrumMachineTrack>(), current_track_id()));
-    track.seedDefaultKit();
-    song.incVersion();
+    song.addTrack(make_unique<PercussionTrack>(), current_track_id());
   });
+
+  // Reconfigures the cursor track's entire lane list to a named preset
+  // (PercussionTrack::applyPreset()'s own comment on why this replaces
+  // rather than adds to whatever lanes are already there) - a no-op on
+  // anything but a PercussionTrack. M-x/menu only, no dedicated
+  // keybinding of their own - picking a specific kit is rare enough that
+  // splitting add-percussion-track's own Ctrl+Shift+D three ways isn't
+  // worth it.
+  auto apply_preset = [this, current_track_id](PercussionTrack::Preset preset) {
+    auto & song = getController().getSong();
+    auto track = song.getMasterTrack().getChildByInternalId(current_track_id());
+    if (!track || track->getType() != TrackType::PERCUSSION_CONTROL) return;
+    static_cast<PercussionTrack &>(*track).applyPreset(preset, song);
+    song.incVersion();
+  };
+  commands_.define("apply-preset-rock", [apply_preset]() { apply_preset(PercussionTrack::Preset::ROCK); });
+  commands_.define("apply-preset-latin", [apply_preset]() { apply_preset(PercussionTrack::Preset::LATIN); });
+  commands_.define("apply-preset-electronic", [apply_preset]() { apply_preset(PercussionTrack::Preset::ELECTRONIC); });
+  // The explicit way back to a plain, lane-less track - clears the lane
+  // list rather than picking a different one.
+  commands_.define("apply-preset-none", [apply_preset]() { apply_preset(PercussionTrack::Preset::NONE); });
 
   // "send-a-mode"/"send-b-mode" are NOT defined here (or anywhere in
   // commands_) - they mutate nothing outside a single Launchpad device's
@@ -626,7 +644,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   // is already the (stub, not-yet-implemented) "duplicate track" raw
   // handler below, so this picks a still-free Ctrl+Shift combo rather than
   // colliding with it.
-  keymap_.bind(KeyChord::pack('d', true, false, true, false), "add-drum-machine-track"); // Ctrl+Shift+D
+  keymap_.bind(KeyChord::pack('d', true, false, true, false), "add-percussion-track"); // Ctrl+Shift+D
 
   assertCommandBindingsValid();
 }
@@ -1554,9 +1572,9 @@ PatternEditor::offerInput(const InputEvent & input) {
       // risked terminal/WM interception - see TerminalUI::readInput()'s
       // own comment for why these two specifically need their own
       // escape-sequence recognizer to even arrive as a single key event.
-      // INSTRUMENT_CONTROL only - PercussionTrack/DrumMachineTrack have no
-      // instrument_id_ of their own to cycle any more (they play through
-      // the song's one pool-wide drum kit instead - see
+      // INSTRUMENT_CONTROL only - PercussionTrack has no instrument_id_ of
+      // its own to cycle (it plays through the song's one pool-wide drum
+      // kit instead - see
       // InstrumentPool::getDefaultKitInstrument()).
       auto track = song.getMasterTrack().getChildByInternalId(track_ids[static_cast<size_t>(current_cursor.track)]);
       if (track && track->getType() == TrackType::INSTRUMENT_CONTROL) {
@@ -1814,14 +1832,17 @@ PatternEditor::offerInput(const InputEvent & input) {
 	  auto tuning = track ? song.getTuningForTrack(*track) : song.getTuning();
 	  midi_note = input.toMidiNote(getController().getGlobalOctave(), tuning);
 	  // Step-sequencer compact entry: any note-producing keystroke on a
-	  // DrumMachineTrack's lane cell triggers that lane's own fixed GM
-	  // note, regardless of which physical key was pressed - matches the
-	  // Launchpad step grid's own per-cell semantics (a press means "hit
-	  // this lane", not "play whatever pitch this key happens to map
-	  // to"). The keystroke still has to resolve to *some* real note
-	  // first (midi_note >= 0) - an unmapped key stays a no-op here too.
-	  if (midi_note >= 0 && track && track->getType() == TrackType::DRUM_MACHINE) {
-	    auto & lanes = static_cast<DrumMachineTrack &>(*track).getLaneNotes();
+	  // step-sequenced PercussionTrack's lane cell triggers that lane's own
+	  // fixed GM note, regardless of which physical key was pressed -
+	  // matches the Launchpad step grid's own per-cell semantics (a press
+	  // means "hit this lane", not "play whatever pitch this key happens
+	  // to map to"). The keystroke still has to resolve to *some* real note
+	  // first (midi_note >= 0) - an unmapped key stays a no-op here too. A
+	  // lane-less PercussionTrack's empty lane list means note_column never
+	  // falls within it, so this is a natural no-op there without a
+	  // separate isStepSequenced() check.
+	  if (midi_note >= 0 && track && track->getType() == TrackType::PERCUSSION_CONTROL) {
+	    auto & lanes = static_cast<PercussionTrack &>(*track).getLaneNotes();
 	    if (note_column >= 0 && note_column < static_cast<int>(lanes.size())) {
 	      midi_note = lanes[static_cast<size_t>(note_column)];
 	    }
@@ -2268,16 +2289,16 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    string instrument_name;
 	    if (track->getType() == TrackType::SAMPLE) {
 	      instrument_name = "Sample";
-	    } else if (track->getType() == TrackType::DRUM_MACHINE || track->getType() == TrackType::PERCUSSION_CONTROL) {
-	      // Same fixed, type-level label for both - neither has a
-	      // per-track instrument to name (they play through the pool's
-	      // one default kit - see InstrumentPool.h), and PercussionTrack's
-	      // own individual keys are meant to be overridable independently
-	      // of that kit later (not built yet), so even naming the kit here
-	      // would misleadingly imply a fixed 1:1 relationship. Dimmed
-	      // (below) for the same reason - a visual cue that, unlike every
-	      // other instrument_name here, this isn't something the track
-	      // has its own setting for.
+	    } else if (track->getType() == TrackType::PERCUSSION_CONTROL) {
+	      // A fixed, type-level label regardless of lane count - it has no
+	      // per-track instrument to name (it plays through the pool's one
+	      // default kit - see InstrumentPool.h), and its own individual
+	      // keys are meant to be overridable independently of that kit
+	      // later (not built yet), so even naming the kit here would
+	      // misleadingly imply a fixed 1:1 relationship. Dimmed (below) for
+	      // the same reason - a visual cue that, unlike every other
+	      // instrument_name here, this isn't something the track has its
+	      // own setting for.
 	      instrument_name = "(percussion)";
 	    } else if (track->getType() == TrackType::INSTRUMENT_CONTROL) {
 	      auto & instrument_track = dynamic_cast<const InstrumentTrack&>(*track);
@@ -2356,11 +2377,11 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	    // afterward.
 	    draw_divider(heading_height - 2 - level, name_pos + text_width + (has_mute_solo ? 2 : 0), track, i);
 
-	    // Half brightness for PercussionTrack/DrumMachineTrack's fixed
-	    // "(percussion)" label - not a real per-track instrument setting
-	    // (see above), so it reads as visibly less prominent than every
-	    // other track's own actual instrument name.
-	    bool is_fixed_percussion_label = track->getType() == TrackType::DRUM_MACHINE || track->getType() == TrackType::PERCUSSION_CONTROL;
+	    // Half brightness for PercussionTrack's fixed "(percussion)" label -
+	    // not a real per-track instrument setting (see above), so it reads
+	    // as visibly less prominent than every other track's own actual
+	    // instrument name.
+	    bool is_fixed_percussion_label = track->getType() == TrackType::PERCUSSION_CONTROL;
 	    if (is_fixed_percussion_label) setFgColor(0x78, 0x78, 0x78);
 	    else setFgColor(0xf0, 0xf0, 0xf0);
 	    setBgColor(styles.window_bg_color);
@@ -3000,7 +3021,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  cell_bg = cur_bg;
 	  if (!note.isDefined()) cell_fg = cell_fg.blend(0.5f, cell_bg);
 	  // Step-sequencer compact display: a hit lane (a real, sound-
-	  // producing note - matches DrumMachineTrack::getHitNotesForRow()'s
+	  // producing note - matches PercussionTrack::getHitNotesForRow()'s
 	  // own definition) renders exactly like an ordinary NOTE column
 	  // would for that note (an at-rest lane's own "···" included),
 	  // against the row's own background like any other track.

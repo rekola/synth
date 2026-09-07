@@ -178,7 +178,7 @@ A kit is one instrument carrying a whole keymapped GM percussion set. Registered
 ordinary taxonomy paths exactly like every pitched instrument - nothing about walk-up
 crosses between `kit.` and the pitched tree by accident, since no `kit.*` path shares a
 dotted-prefix root with a pitched one - but reached differently: there's no per-track
-`instrument_id_` pool pick for a `PercussionTrack`/`DrumMachineTrack` (unlike a plain
+`instrument_id_` pool pick for a `PercussionTrack` (unlike a plain
 `<track>`'s own `<instrument from="...">` pool entry). Instead the whole song has exactly
 one kit, authored as a `from` attribute on the `<instruments>` pool container itself
 (`<instruments from="kit.jazz">`, resolved the same way any other `from=` is -

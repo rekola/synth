@@ -28,17 +28,16 @@ class Song : public SongObject {
   void setTuning(Tuning tuning) { tuning_ = tuning; }
 
   // What tuning a Note::getValue() on `track` actually means: a GM
-  // percussion key for a PercussionTrack or DrumMachineTrack (both
-  // resolve to raw GM note identity, not a pitch - see DrumMachineTrack.h/
+  // percussion key for a PercussionTrack (resolves to raw GM note
+  // identity, not a pitch, whether or not it has any lanes - see
   // PercussionTrack.h), this song's own tuning otherwise. The single
-  // shared definition of this three-way check - Song.cpp's <pattern>
+  // shared definition of this check - Song.cpp's <pattern>
   // reader/writer and PatternEditor's own clipboard both need it
   // (comparing two tracks' tunings is how each of those refuses a
   // cross-tuning copy/paste, since the same raw integer means a different
   // kind of value under a different tuning).
   Tuning getTuningForTrack(const Track & track) const {
-    auto type = track.getType();
-    return (type == TrackType::PERCUSSION_CONTROL || type == TrackType::DRUM_MACHINE) ? Tuning::PERCUSSION : tuning_;
+    return track.getType() == TrackType::PERCUSSION_CONTROL ? Tuning::PERCUSSION : tuning_;
   }
 
   short getKey() const { return key_note_number_; }
@@ -367,7 +366,7 @@ class Song : public SongObject {
   void storeParameters(ParameterSource & output) const override;
 
   // Every id SongStructure hands a column to, in column order - a leaf
-  // track (INSTRUMENT_CONTROL/PERCUSSION_CONTROL/DRUM_MACHINE/SAMPLE), a
+  // track (INSTRUMENT_CONTROL/PERCUSSION_CONTROL/SAMPLE), a
   // per-track Effect wrapper, and the master track's own trailing column,
   // but never a plain Group (a pure pass-through with no column of its
   // own - see SongStructure::visit()). What PatternEditor's own columns

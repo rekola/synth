@@ -14,7 +14,7 @@
     <tracks>
         <track id="0" instrument="0" azimuth="30" distance="1" elevation="50" color="" sendA="-16.9020" sendB="0.0000" noteColumns="7"/>
         <track id="perc" instrument="2" azimuth="0" distance="0.89999998" elevation="0" color="" sendA="-20.0000" sendB="-7.3595"/>
-        <drumMachineTrack id="0" azimuth="0" distance="0.89999998" elevation="0" color="" sendB="-4.8608">
+        <percussionTrack id="0" azimuth="0" distance="0.89999998" elevation="0" color="" sendB="-4.8608">
             <lane note="BD"/>
             <lane note="SD"/>
             <lane note="LT"/>
@@ -23,7 +23,7 @@
             <lane note="CH"/>
             <lane note="OH"/>
             <lane note="CR"/>
-        </drumMachineTrack>
+        </percussionTrack>
     </tracks>
     <sections/>
     <scenes>

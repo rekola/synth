@@ -25,8 +25,8 @@
     <track id="guitar" instrument="0" sendA="-20.0000" sendB="-20.0000" volume="4.0" azimuth="-45" distance="2"/>
     <track id="pad" instrument="1" sendA="-20.0000" sendB="-4.4370" azimuth="0" distance="5" extent="1.5"/>
     <track id="harp" instrument="2" sendA="-20.0000" sendB="-4.4370" azimuth="0" distance="0.9" />
-    <drumMachineTrack id="drums" azimuth="0" distance="0.9">
-    </drumMachineTrack>
+    <percussionTrack id="drums" azimuth="0" distance="0.9">
+    </percussionTrack>
     <percussionTrack id="perc" sendA="-20.0000" sendB="-100.0000" azimuth="0" distance="0.9" />
   </tracks>
   <scenes>

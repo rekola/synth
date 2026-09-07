@@ -1,7 +1,7 @@
 // Simulated Launchpad X exercising CC96 (Note)'s active-state LED and
-// CC97 (Custom/DRAW)'s instant-on-press mode switch: presses/releases
+// CC97 (Custom)'s instant-on-press mode switch: presses/releases
 // CC96, then presses CC97 and holds it for a while *before* releasing,
-// so the verify script can confirm DRAW mode's own LED already lit up
+// so the verify script can confirm Custom mode's own LED already lit up
 // while CC97 is still held down, not only after release.
 #include <alsa/asoundlib.h>
 #include <stdio.h>
@@ -64,7 +64,7 @@ int main() {
     snd_seq_free_event(in_ev);
   }
 
-  fprintf(stderr, "sending CC97 press (Custom/DRAW)\n");
+  fprintf(stderr, "sending CC97 press (Custom)\n");
   send_cc(seq, port, 97, 127);
 
   // Actively drain *before* sending the release, in 100ms steps for up to

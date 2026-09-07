@@ -30,7 +30,6 @@
 #include "../launchpad/LaunchpadChannelPressureEvent.h"
 #include "../launchpad/LaunchpadProtocol.h"
 #include "../launchpad/LaunchpadManager.h"
-#include "../model/DrumMachineTrack.h"
 #include "../bus/BusEffectRegistry.h"
 #include "../util/constants.h"
 
@@ -1011,31 +1010,22 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
 
   auto device_id = ev.getDeviceIndex();
 
-  // CC49 ("Stop Clip"), CC98 ("Capture MIDI", reused as the drum machine's
-  // own configuration button), and CC97 ("Custom") all need press and
+  // CC49 ("Stop Clip") and CC98 ("Capture MIDI", DRAW mode's own home now -
+  // see LaunchpadManager::GridMode's own comment) both need press and
   // release, not just press - CC49 for its own held-modifier state (see
   // LaunchpadManager::handleStopClipButton()'s own comment for why a
-  // plain press can't target a track in Session view), CC98 for its own
-  // tap-vs-long-hold picker/Clear gesture
-  // (LaunchpadManager::handleDrumConfigButton()'s own comment), CC97 for
-  // DRAW mode's tap-vs-long-hold toggle/blank-canvas gesture
+  // plain press can't target a track in Session view), CC98 for DRAW
+  // mode's tap-vs-long-hold toggle/blank-canvas gesture
   // (LaunchpadManager::handleDrawToggleButton()). Routed here before the
   // press-only filter below, which every other raw-CC button (and every
-  // other release) still goes through unchanged.
+  // other release) still goes through unchanged. CC97 ("Custom") no
+  // longer needs this - it's a plain press-only mode switch now, handled
+  // by handleRawButton() alongside Session/Note below.
   if (ev.getCCNumber() == 49) {
     launchpad_manager_->handleStopClipButton(device_id, ev.getKind() == LaunchpadButtonEvent::PRESS);
     return;
   }
   if (ev.getCCNumber() == 98) {
-    auto track_ids = getController().getSong().getPlayableTrackIds();
-    auto track_id = launchpad_manager_->resolveTrackId(device_id, track_ids, indexOfTrack(track_ids, getController().getSong().getCurrentTrackId()));
-    auto track = getController().getSong().getMasterTrack().getChildByInternalId(track_id);
-    bool is_drum_machine = track && track->getType() == TrackType::DRUM_MACHINE;
-    auto * drum_track = is_drum_machine ? &static_cast<DrumMachineTrack &>(*track) : nullptr;
-    launchpad_manager_->handleDrumConfigButton(device_id, ev.getKind() == LaunchpadButtonEvent::PRESS, drum_track, getController());
-    return;
-  }
-  if (ev.getCCNumber() == 97) {
     launchpad_manager_->handleDrawToggleButton(device_id, ev.getKind() == LaunchpadButtonEvent::PRESS);
     return;
   }
@@ -1046,8 +1036,7 @@ UI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   // grid-display mode), never a command - intercepted here, by raw CC
   // number, before any command-name resolution happens at all. See
   // LaunchpadManager::handleRawButton's own comment. track_id resolved
-  // the same way CC98's own handling just above already does - only
-  // CC19's own SampleTrack case actually reads it.
+  // the same way CC19's own SampleTrack case needs it.
   {
     auto track_ids = getController().getSong().getPlayableTrackIds();
     auto track_id = launchpad_manager_->resolveTrackId(device_id, track_ids, indexOfTrack(track_ids, getController().getSong().getCurrentTrackId()));

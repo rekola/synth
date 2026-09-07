@@ -1,4 +1,4 @@
-"""DRAW-mode "hue decided on release" regression test, plus the CC97-long-
+"""DRAW-mode "hue decided on release" regression test, plus the CC98-long-
 press canvas-clear gesture.
 
 Covers, in one scripted sequence against the real compiled binary over
@@ -11,7 +11,7 @@ ALSA:
   4. A long hold on an OFF pad stays fully black throughout the hold (no
      hue to show anything with) and only lands on the default hue at
      release.
-  5. Holding CC97 (DRAW toggle) past the clear threshold and releasing it
+  5. Holding CC98 (DRAW toggle) past the clear threshold and releasing it
      blanks the canvas.
 """
 import sys, os, subprocess, time
@@ -124,8 +124,8 @@ check("Aftertouch mid-hold: does NOT cycle to yellow",
 check("Long-hold release: never cycles to yellow",
       "03 0b 72 72 00" not in long_release, long_release)
 
-# CC97 held past the clear threshold and released blanks pad (0,0).
-check("CC97 long hold clears pad (0,0) to fully black",
+# CC98 held past the clear threshold and released blanks pad (0,0).
+check("CC98 long hold clears pad (0,0) to fully black",
       "03 0b 00 00 00" in clear_canvas, clear_canvas)
 
 # While a fresh press is held on an OFF pad, it must stay fully black

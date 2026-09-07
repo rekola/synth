@@ -93,7 +93,7 @@ TEST(step_clock_stop_then_start_restarts_from_step_zero_not_wherever_it_left_off
 }
 
 TEST(step_clock_advance_is_a_no_op_when_row_duration_is_not_positive) {
-  // Mirrors DrumMachineTrack::getHitNotesForRow()'s own "non-positive
+  // Mirrors PercussionTrack::getHitNotesForRow()'s own "non-positive
   // loop length/tempo is degenerate, not a crash" convention - a
   // momentarily-zero tempo shouldn't advance the clock at all.
   StepClock clock;
