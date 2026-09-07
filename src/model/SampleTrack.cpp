@@ -40,9 +40,13 @@ namespace {
 // logic of its own needed here at all.
 class SampleClipVoice : public PositionedVoice {
 public:
-  SampleClipVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, shared_ptr<AudioBuffer> samples, int64_t start_frame, int64_t end_frame, const SendLevels & sends)
+  // `playback_ratio` is native frames per output frame - 1.0 for
+  // ordinary same-rate playback, or content-native-rate/output-rate for
+  // real-time resampling (resolveRealtimeSampleAudio()'s own comment).
+  // `start_frame` is a fractional position for the same reason.
+  SampleClipVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, shared_ptr<AudioBuffer> samples, double start_frame, int64_t end_frame, double playback_ratio, const SendLevels & sends)
     : PositionedVoice(channel_config, position, sends),
-      samples_(move(samples)), source_position_(start_frame), end_frame_(end_frame),
+      samples_(move(samples)), source_position_(start_frame), end_frame_(end_frame), playback_ratio_(playback_ratio),
       release_length_frames_(std::max(1, static_cast<int>(kReleaseSeconds * channel_config.getAudioOutSampleRate()))) {
     // Full velocity, unity gain, a fixed identity - triggerClip() always
     // fires a fresh voice at the same nominal strength (there's no
@@ -59,6 +63,7 @@ public:
     if (static_cast<int>(dry_.size()) != frames) dry_.resize(static_cast<size_t>(frames));
 
     auto data = samples_->getChannelData(0);
+    auto total_frames = samples_->numberOfFrames();
     for (int k = 0; k < frames; k++) {
       if (!active_) {
         dry_[static_cast<size_t>(k)] = 0.0f;
@@ -76,13 +81,23 @@ public:
         if (--release_frames_remaining_ <= 0) active_ = false;
       }
 
-      if (source_position_ >= end_frame_) {
+      if (source_position_ >= static_cast<double>(end_frame_)) {
         active_ = false;
         dry_[static_cast<size_t>(k)] = 0.0f;
         continue;
       }
-      dry_[static_cast<size_t>(k)] = data[source_position_] * gain;
-      source_position_ += 1;
+
+      // Linear interpolation between the two source samples straddling
+      // this fractional position - degenerates to reading exactly one
+      // real sample per output sample (frac always 0) when
+      // playback_ratio_ is 1.0, the ordinary same-rate case.
+      auto idx0 = static_cast<int64_t>(source_position_);
+      auto idx1 = idx0 + 1 < total_frames ? idx0 + 1 : idx0;
+      auto frac = static_cast<float>(source_position_ - static_cast<double>(idx0));
+      auto sample = data[idx0] * (1.0f - frac) + data[idx1] * frac;
+
+      dry_[static_cast<size_t>(k)] = sample * gain;
+      source_position_ += playback_ratio_;
     }
     return encodePosition(dry_.data(), frames);
   }
@@ -107,10 +122,11 @@ private:
 
   shared_ptr<AudioBuffer> samples_;
   vector<float> dry_;
+  double source_position_;
   // int64_t: a 32-bit frame count runs short well within a plausible
   // session at high sample rates (~3 hours at 192kHz).
-  int64_t source_position_;
   int64_t end_frame_;
+  double playback_ratio_;
   bool active_ = true;
   bool releasing_ = false;
   int release_frames_remaining_ = 0;
@@ -213,25 +229,72 @@ resolveSampleAudio(const SampleContent & content, int output_rate, int song_temp
   return result;
 }
 
+RealtimeSampleAudio
+resolveRealtimeSampleAudio(const SampleContent & content, int output_rate, int song_tempo) {
+  RealtimeSampleAudio result;
+  if (!content.getBuffer()) return result;
+
+  // Tempo-stretching still has to happen synchronously, whole-buffer -
+  // see this function's own doc comment for why that's a separate,
+  // already-documented problem. Everything else about the result
+  // (in/out-trimmed range, native-vs-output-rate math) was already
+  // solved there, so just reuse it rather than duplicating it here.
+  if (content.getOriginalTempo() > 0 && content.getOriginalTempo() != song_tempo) {
+    auto resolved = resolveSampleAudio(content, output_rate, song_tempo);
+    if (!resolved.samples) return result;
+    result.samples = resolved.samples;
+    result.start_frame = resolved.in_frame;
+    result.end_frame = resolved.out_frame;
+    result.playback_ratio = 1.0;
+    return result;
+  }
+
+  auto samples = content.getBuffer();
+  auto total_frames = samples->numberOfFrames();
+  if (total_frames <= 0) return result;
+
+  auto native_rate = content.getNativeSampleRate();
+  // Trim points are authored in seconds - converted to frame indices
+  // against whichever rate `samples` is actually still at: its own
+  // native rate when known, or output_rate when not (the same "treat an
+  // unknown native rate as already matching" convention
+  // resolveSampleAudio() above uses).
+  auto trim_rate = native_rate > 0 ? native_rate : output_rate;
+  auto in_frame = static_cast<int>(lround(static_cast<double>(content.getInPoint()) * trim_rate));
+  auto out_frame = total_frames - static_cast<int>(lround(static_cast<double>(content.getOutPoint()) * trim_rate));
+  if (in_frame < 0) in_frame = 0;
+  if (out_frame > total_frames) out_frame = total_frames;
+  if (in_frame >= out_frame) {
+    in_frame = 0;
+    out_frame = total_frames;
+  }
+
+  result.samples = move(samples);
+  result.start_frame = in_frame;
+  result.end_frame = out_frame;
+  result.playback_ratio = native_rate > 0 ? static_cast<double>(native_rate) / static_cast<double>(output_rate) : 1.0;
+  return result;
+}
+
 void
 SampleTrackState::triggerVoice(const SampleContent & content, int song_tempo, int start_offset_frames, int voice_id) {
   auto output_rate = getChannelConfiguration().getAudioOutSampleRate();
-  auto resolved = resolveSampleAudio(content, output_rate, song_tempo);
+  auto resolved = resolveRealtimeSampleAudio(content, output_rate, song_tempo);
   if (!resolved.samples) return;
 
-  // start_offset_frames shifts the starting point later into whatever
-  // buffer is actually about to play - resolved here, after
-  // resolveSampleAudio()'s own stretch decision, so it's always relative
-  // to the buffer genuinely reached, stretched or not (see
-  // triggerClip()'s own doc comment for when a caller actually passes a
-  // nonzero value). Clamped against the resolved range rather than
-  // trusted outright - a clip's own row length never exactly matches its
-  // real audio duration (rounded up when it was first derived), so an
-  // offset derived from it can legitimately land past this buffer's own
-  // real end - nothing should keep ringing from before either way, so
-  // stopVoices(voice_id) below still applies, just no new voice starts.
-  auto in_frame = resolved.in_frame + start_offset_frames;
-  if (in_frame >= resolved.out_frame) {
+  // start_offset_frames arrives in output-frame units (SongState.h's own
+  // row-to-frame math) - scaled by playback_ratio to land in whatever
+  // domain start_frame is actually in (native, unless a stretch already
+  // resolved everything to output_rate - see triggerClip()'s own doc
+  // comment for when a caller actually passes a nonzero value). Clamped
+  // against the resolved range rather than trusted outright - a clip's
+  // own row length never exactly matches its real audio duration
+  // (rounded up when it was first derived), so an offset derived from it
+  // can legitimately land past this buffer's own real end - nothing
+  // should keep ringing from before either way, so stopVoices(voice_id)
+  // below still applies, just no new voice starts.
+  auto start_position = resolved.start_frame + static_cast<double>(start_offset_frames) * resolved.playback_ratio;
+  if (start_position >= static_cast<double>(resolved.end_frame)) {
     stopVoices(voice_id);
     return;
   }
@@ -255,7 +318,7 @@ SampleTrackState::triggerVoice(const SampleContent & content, int song_tempo, in
   auto resolved_position = getPosition();
   if (resolved_position.extent < 0.0f) resolved_position.extent = 0.0f;
 
-  auto voice = make_unique<SampleClipVoice>(getChannelConfiguration(), resolved_position, resolved.samples, in_frame, resolved.out_frame, getSends());
+  auto voice = make_unique<SampleClipVoice>(getChannelConfiguration(), resolved_position, resolved.samples, start_position, resolved.end_frame, resolved.playback_ratio, getSends());
   addVoice(voice_id, move(voice));
 }
 

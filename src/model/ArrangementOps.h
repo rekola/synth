@@ -74,9 +74,11 @@ void placeStopInstance(Scene & scene, int track_id, int row);
 // reproducing exactly what was already audible, not "combining" the two),
 // while a SampleTrack clip merges as a real additive mix into the scene's
 // own background bed (Scene::getOrCreateSampleBackgroundContent()),
-// resolved the same way real playback would (resolveSampleAudio(),
-// SampleTrack.h) and re-baked once per lap for a looping clip, matching
-// what a listener actually would have heard. `channel_config` supplies
+// resolved into real, materialized PCM the same way (resolveSampleAudio(),
+// SampleTrack.h - baking needs actual samples to sum, unlike real-time
+// playback's own resolveRealtimeSampleAudio()) and re-baked once per lap
+// for a looping clip, matching what a listener actually would have heard.
+// `channel_config` supplies
 // the output sample rate/tempo-to-frames math the sample-mix path needs;
 // unused by the note path.
 bool mergeClipToBackground(const Song & song, Scene & scene, int track_id, int row, const ChannelConfiguration & channel_config);

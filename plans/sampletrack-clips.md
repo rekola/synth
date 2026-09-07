@@ -55,9 +55,10 @@ tested, and committed unless a section says otherwise.
     fields stay at their unset defaults - only the buffer/native rate are
     ever written). `merge-clip-to-background` (#15) now handles a
     SampleTrack clip too: a real additive multiply-add mix into the bed
-    (`resolveSampleAudio()`, factored out of `SampleTrackState::
-    triggerVoice()` so playback and merge-baking apply the exact same
-    trim/resample/stretch resolution), re-baked once per lap for a
+    (`resolveSampleAudio()`, a real, materialized-PCM trim/resample/
+    stretch resolution shared with `SampleTrackState::triggerVoice()`'s
+    own tempo-stretch-needed case - see #17 below for why real-time
+    playback otherwise resolves differently), re-baked once per lap for a
     looping clip - the note-track merge doesn't need this (`Pattern::
     getEffectiveRow()`'s own modulo already wraps a looping clip's
     content row-by-row for free), but a real audio buffer isn't row-
@@ -121,6 +122,25 @@ tested, and committed unless a section says otherwise.
     should a Launchpad pad's own hit velocity feed it at launch time; and
     should the same apply to instrument (note) clips, not just
     SampleTrack ones.
+17. **Real-time resampling for a native-rate-mismatched clip** -
+    `SampleTrackState::triggerVoice()`'s ordinary (no tempo-stretch
+    needed) case no longer converts a whole clip's own buffer to the
+    output rate synchronously on the audio thread before it can start
+    playing at all - real, potentially XRUN-causing work for a long clip.
+    `resolveRealtimeSampleAudio()` (`SampleTrack.h`) instead hands
+    `SampleClipVoice` the content's own native-rate buffer directly, plus
+    a `playback_ratio` (native frames per output frame); the voice reads
+    a fractional position through its own `render()` loop, linearly
+    interpolating between neighboring native samples each output sample,
+    the same real-time resampling technique any pitch-following playback
+    already needs, rather than ever materializing a converted copy.
+    `resolveSampleAudio()` (the original, whole-buffer version) still
+    exists and is still used for two things that genuinely need real,
+    materialized PCM: `mergeClipToBackground()`'s own baking (#16 above),
+    and `triggerVoice()`'s own fallback when tempo-stretching is also
+    needed (SoundTouch has no real-time path of its own yet -
+    `docs/known_bugs.md`'s existing entry on that stays accurate and
+    unrelated to this fix).
 
 ## Manual testing still needed
 
@@ -155,6 +175,11 @@ tested, and committed unless a section says otherwise.
   by the clip on top of it) rather than one replacing the other. Save and
   reload, confirm the merged audio survives the round trip and still
   plays back correctly positioned.
+- **Real-time resampling (#17), real hardware**: load/trigger a long
+  clip whose native rate disagrees with the session's own output rate
+  (e.g. a several-minute file at 44.1kHz in a 48kHz session) and confirm
+  the XRUN that used to happen right at trigger is gone, and that the
+  clip still plays at the correct pitch/speed throughout.
 
 ## Future direction (not built): clip drafts + merge-to-background lifecycle
 

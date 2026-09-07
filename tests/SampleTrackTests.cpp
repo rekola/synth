@@ -211,6 +211,33 @@ TEST(trigger_clip_with_an_offset_past_the_end_plays_nothing) {
   CHECK(!rendered.hasChannel(Channel::Main)); // nothing to read back either - no voice means no Main channel at all
 }
 
+// A native rate disagreeing with the output rate resamples in real time
+// (resolveRealtimeSampleAudio(), SampleTrack.h) rather than converting the
+// whole buffer synchronously up front - this exercises the actual
+// interpolated playback, not just that resolveSampleAudio() alone
+// resamples correctly (already covered by resample_mono_linear_*
+// above). Native rate half the output rate -> playback_ratio 0.5, so the
+// 100-frame source takes 200 output frames to play through.
+TEST(trigger_clip_resamples_in_real_time_when_the_native_rate_disagrees_with_output) {
+  ChannelConfiguration config(16000); // output rate
+  SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
+
+  Clip clip(0);
+  auto & content = clip.getOrCreateSampleContent();
+  content.setBuffer(buildBuffer(100, [](int i) { return static_cast<float>(i); })); // a ramp - each frame's own value names its own index
+  content.setNativeSampleRate(8000);
+  clip.setLooping(false);
+
+  state.triggerClip(clip, 0); // no originalTempo set - stretch never applies, so this is the real-time resample path
+  auto rendered = state.renderVoices(220); // comfortably past the converted duration
+  auto out = rendered.getChannelData(0);
+
+  CHECK_NEAR(out[0], 0.0f, 1e-3f);    // source position 0.0
+  CHECK_NEAR(out[100], 50.0f, 1e-2f); // source position 100 * 0.5 = 50.0, exactly on a real sample
+  CHECK_NEAR(out[199], 99.0f, 1e-2f); // source position 199 * 0.5 = 99.5, clamped against the buffer's own last real sample
+  for (int i = 200; i < 220; i++) CHECK(out[i] == 0.0f); // ended once the source ran out - not stretched further
+}
+
 TEST(trigger_clip_plays_unstretched_when_original_tempo_is_unset) {
   ChannelConfiguration config(8000);
   SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});

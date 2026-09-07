@@ -137,16 +137,16 @@ public:
   // method's concern at all.
   //
   // `song_tempo` is what triggerVoice()'s own implementation
-  // (SampleTrack.cpp, via resolveSampleAudio()) compares against the
-  // content's own SampleContent::getOriginalTempo() to decide whether to
-  // time-stretch - threaded in by the caller rather than read from
+  // (SampleTrack.cpp, via resolveRealtimeSampleAudio()) compares against
+  // the content's own SampleContent::getOriginalTempo() to decide whether
+  // to time-stretch - threaded in by the caller rather than read from
   // anywhere on this class, since neither this class nor Clip has any
   // notion of "the song" to read it from itself.
   //
   // `start_offset_frames` (default 0 - "start from this content's own
   // beginning", every ordinary trigger) shifts that starting point later
-  // into the content's own (post-trim, post-resample/stretch) audio
-  // instead - SongState.h's own scheduling is the only caller that ever
+  // into the content's own post-trim audio instead - SongState.h's own
+  // scheduling is the only caller that ever
   // passes a real value, when the playhead itself lands mid-instance with
   // nothing already sounding to explain why (its own comment has the full
   // reasoning). Clamped against the resolved range, never trusted
