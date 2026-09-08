@@ -21,15 +21,30 @@ class PlaybackControlEvent : public Event {
   // PLAY_SAMPLE_CLIP: live/Session-view triggering of a SampleTrack clip
   // (parameter1 = track_id, parameter2 = clip_index) - see Player.cpp's
   // own handler for the transport-driven counterpart it mirrors.
+  //
+  // PREVIEW_NOTE/PREVIEW_STOP: OutlineView's own instrument-audition path
+  // (a Library row's raw keyboard preview, before the instrument is ever
+  // added to any song's pool - see Song::addInstrument()/OutlineView.cpp's
+  // own NCKEY_ENTER handling for that separate, actually-persisted
+  // action). Buffer-agnostic like TERMINATE/MIXER_CHANGED below (there is
+  // no owning Track, let alone buffer - the previewed Instrument isn't
+  // part of any song yet), so buffer_name is repurposed to carry the
+  // instrument's own literal/taxonomy name instead (whatever
+  // InstrumentProvider::tryGetByLiteralName()/resolvePath() can resolve),
+  // and parameter1/parameter2 are the MIDI note value/velocity.
+  // PREVIEW_NOTE replaces whatever was already previewing outright, no
+  // polyphony; PREVIEW_STOP releases it (a no-op if nothing is sounding).
   enum Type { PLAY = 1, STOP, TERMINATE, MOVE_POSITION, CLEAR_VOICES, PLAY_NOTE, STOP_NOTE, STOP_ALL_NOTES, NOTE_PRESSURE, MIXER_CHANGED,
               SET_TRACK_MUTED, SET_TRACK_SOLO, SET_TRACK_SEND_A, SET_TRACK_SEND_B, SET_TRACK_SEND_MAIN, SET_TRACK_AZIMUTH,
               CHANNEL_PRESSURE, SET_RECORDING_MUTE, SET_POSITION, BUFFER_KILLED, BUFFER_RENAMED, SET_BUS_EFFECT,
-              PLAY_SAMPLE_CLIP };
+              PLAY_SAMPLE_CLIP, PREVIEW_NOTE, PREVIEW_STOP };
 
   // buffer_name says which open buffer this event targets - required for
-  // every type except the two genuinely buffer-agnostic ones (TERMINATE,
-  // MIXER_CHANGED: process-/device-wide, never song-specific), which
-  // simply leave it at its default empty string.
+  // every type except the genuinely buffer-agnostic ones (TERMINATE,
+  // MIXER_CHANGED: process-/device-wide, never song-specific; PREVIEW_NOTE:
+  // repurposes the field for an instrument name instead, see Type's own
+  // comment), which simply leave it at its default empty string
+  // (PREVIEW_NOTE always sets it, just not to a real buffer name).
   PlaybackControlEvent(Type _type, std::string _buffer_name = "", int _parameter1 = 0, int _parameter2 = 0, int _parameter3 = 0, int _parameter4 = 0)
     : type(_type), buffer_name(std::move(_buffer_name)), parameter1(_parameter1), parameter2(_parameter2), parameter3(_parameter3), parameter4(_parameter4) { }
 

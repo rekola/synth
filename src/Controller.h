@@ -116,29 +116,31 @@ class Controller {
     return std::vector<std::string>(names.begin(), names.end());
   }
 
-  // Whether `name`'s own buffer-list entry is a SessionView aspect (see
-  // BufferAspect's own comment), a pure formatting check (does it end in
-  // the " [Session]" suffix) rather than a lookup - correct for any name
-  // that's actually open (every caller's own case), regardless of which
-  // aspect happens to be open for that particular song right now. UI's
-  // own buffer-change listener uses this to decide whether the
-  // newly-selected buffer should show SessionView in place of
+  // Whether `name`'s own buffer-list entry is a SessionView/OutlineView
+  // aspect (see BufferAspect's own comment), a pure formatting check (does
+  // it end in the " [Session]"/" [Outline]" suffix) rather than a lookup -
+  // correct for any name that's actually open (every caller's own case),
+  // regardless of which aspect happens to be open for that particular song
+  // right now. UI's own buffer-change listener uses these to decide which
+  // aspect widget the newly-selected buffer should show in place of
   // PatternEditor.
   bool isSessionViewBuffer(const std::string & name) const { return aspectFor(name) == BufferAspect::SESSION_VIEW; }
+  bool isOutlineViewBuffer(const std::string & name) const { return aspectFor(name) == BufferAspect::OUTLINE_VIEW; }
 
   // Switches to (opening the first time - idempotent after that) the
-  // SessionView/PatternEditor aspect of the currently active song: a
-  // second buffer-list entry (song id, or song id + " [Session]") that
-  // resolves to the exact same Song, live playback/edit state, and
-  // save-dirty tracking as whichever aspect is currently active (see
-  // canonicalBufferName()'s own comment) - the two differ only in which
-  // UI aspect is shown for them, and either can be closed independently
-  // without closing the underlying song as long as the other (or the song
-  // itself, if neither is currently open - see killActiveBuffer()) stays
-  // open. Calling either while already viewing that same aspect is a
-  // harmless no-op. Returns the buffer's own name (for a caller that
-  // wants to e.g. show it in a status message).
+  // SessionView/OutlineView/PatternEditor aspect of the currently active
+  // song: another buffer-list entry (song id, or song id + " [Session]"/
+  // " [Outline]") that resolves to the exact same Song, live playback/edit
+  // state, and save-dirty tracking as whichever aspect is currently active
+  // (see canonicalBufferName()'s own comment) - the three differ only in
+  // which UI aspect is shown for them, and each can be closed
+  // independently without closing the underlying song as long as another
+  // (or the song itself, if none is currently open - see
+  // killActiveBuffer()) stays open. Calling one while already viewing that
+  // same aspect is a harmless no-op. Returns the buffer's own name (for a
+  // caller that wants to e.g. show it in a status message).
   std::string openSessionViewBuffer();
+  std::string openOutlineViewBuffer();
   std::string openPatternEditorBuffer();
 
   // Whether killing the active buffer right now would only close *this*
@@ -992,46 +994,60 @@ class Controller {
   // accurate and needs revisiting, not before.
   std::map<std::string, std::shared_ptr<Song>> songs_;
 
-  // A song id can be viewed two ways, symmetrically - PatternEditor
-  // (note/command editing) and SessionView (the clip-launch overview) -
-  // and either can be open, closed, or both at once, independently: the
-  // buffer-list entry for a song id's PATTERN_EDITOR aspect is its own id
-  // verbatim; SESSION_VIEW's is `id + " [Session]"`
-  // (bufferNameFor()/aspectFor() below convert between the two forms).
-  // Neither aspect is privileged over the other the way PatternEditor
-  // used to be (songs_'s own key was once inseparable from "the
-  // PatternEditor buffer") - a song stays open in songs_ as long as
-  // *either* aspect has an open view (open_aspects_by_song_[id] is
-  // non-empty); killing the last one closes the underlying song too (see
-  // killActiveBuffer()). Guarded by song_mutex_ alongside songs_/
-  // active_buffer_name_ for the same reason (see that member's own
-  // comment) - mutated only on the UI thread.
-  enum class BufferAspect { PATTERN_EDITOR, SESSION_VIEW };
+  // A song id can be viewed several ways, symmetrically - PatternEditor
+  // (note/command editing), SessionView (the clip-launch overview), and
+  // OutlineView (the read-only song-structure tree) - and any subset can
+  // be open at once, independently: the buffer-list entry for a song id's
+  // PATTERN_EDITOR aspect is its own id verbatim; SESSION_VIEW's is
+  // `id + " [Session]"`; OUTLINE_VIEW's is `id + " [Outline]"`
+  // (bufferNameFor()/aspectFor() below convert between these forms). No
+  // aspect is privileged over the others the way PatternEditor used to be
+  // (songs_'s own key was once inseparable from "the PatternEditor
+  // buffer") - a song stays open in songs_ as long as *any* aspect has an
+  // open view (open_aspects_by_song_[id] is non-empty); killing the last
+  // one closes the underlying song too (see killActiveBuffer()). Guarded
+  // by song_mutex_ alongside songs_/active_buffer_name_ for the same
+  // reason (see that member's own comment) - mutated only on the UI
+  // thread.
+  enum class BufferAspect { PATTERN_EDITOR, SESSION_VIEW, OUTLINE_VIEW };
   std::map<std::string, std::set<BufferAspect>> open_aspects_by_song_;
-  // The " [Session]" suffix marking a buffer-list name as a song id's own
-  // SessionView aspect - bufferNameFor()/aspectFor() below are the only
-  // two places that ever need to know its exact spelling.
+  // The suffixes marking a buffer-list name as a song id's own SessionView/
+  // OutlineView aspect - bufferNameFor()/aspectFor() below are the only
+  // places that ever need to know their exact spelling.
   static constexpr const char * kSessionViewSuffix = " [Session]";
+  static constexpr const char * kOutlineViewSuffix = " [Outline]";
   std::string bufferNameFor(const std::string & song_id, BufferAspect aspect) const {
-    return aspect == BufferAspect::SESSION_VIEW ? song_id + kSessionViewSuffix : song_id;
+    switch (aspect) {
+      case BufferAspect::SESSION_VIEW: return song_id + kSessionViewSuffix;
+      case BufferAspect::OUTLINE_VIEW: return song_id + kOutlineViewSuffix;
+      default: return song_id;
+    }
+  }
+  static bool hasSuffix(const std::string & name, const char * suffix) {
+    auto suffix_len = std::string(suffix).size();
+    return name.size() >= suffix_len && name.compare(name.size() - suffix_len, suffix_len, suffix) == 0;
   }
   BufferAspect aspectFor(const std::string & name) const {
-    auto suffix_len = std::string(kSessionViewSuffix).size();
-    bool has_suffix = name.size() >= suffix_len && name.compare(name.size() - suffix_len, suffix_len, kSessionViewSuffix) == 0;
-    return has_suffix ? BufferAspect::SESSION_VIEW : BufferAspect::PATTERN_EDITOR;
+    if (hasSuffix(name, kSessionViewSuffix)) return BufferAspect::SESSION_VIEW;
+    if (hasSuffix(name, kOutlineViewSuffix)) return BufferAspect::OUTLINE_VIEW;
+    return BufferAspect::PATTERN_EDITOR;
   }
   // `name`'s own song id - itself, if it's already one (a PatternEditor
-  // aspect's own buffer-list name *is* its song id verbatim), or with the
-  // SessionView suffix stripped otherwise. A pure string operation now
-  // (no lookup), so - unlike the old alias-map version - it needs no
+  // aspect's own buffer-list name *is* its song id verbatim), or with its
+  // aspect suffix stripped otherwise. A pure string operation now (no
+  // lookup), so - unlike the old alias-map version - it needs no
   // song_mutex_ guard of its own; every other buffer-name-keyed lookup in
   // this class goes through this first rather than re-deriving it.
   std::string canonicalBufferName(const std::string & name) const {
-    return aspectFor(name) == BufferAspect::SESSION_VIEW ? name.substr(0, name.size() - std::string(kSessionViewSuffix).size()) : name;
+    switch (aspectFor(name)) {
+      case BufferAspect::SESSION_VIEW: return name.substr(0, name.size() - std::string(kSessionViewSuffix).size());
+      case BufferAspect::OUTLINE_VIEW: return name.substr(0, name.size() - std::string(kOutlineViewSuffix).size());
+      default: return name;
+    }
   }
-  // openSessionViewBuffer()/openPatternEditorBuffer()'s own shared body -
-  // opens (idempotent if already open) `aspect`'s own view of the
-  // currently active song and switches to it.
+  // openSessionViewBuffer()/openOutlineViewBuffer()/openPatternEditorBuffer()'s
+  // own shared body - opens (idempotent if already open) `aspect`'s own
+  // view of the currently active song and switches to it.
   std::string openAspectBuffer(BufferAspect aspect);
   // hasUnsavedChanges()'s baseline, one per songs_ entry rather than one
   // shared scalar - each buffer's own unsaved-changes state is independent

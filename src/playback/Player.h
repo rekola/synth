@@ -3,6 +3,7 @@
 
 #include "EventHandler.h"
 #include "../state/SongState.h"
+#include "../state/VoiceState.h"
 #include "../ambisonic/MixerType.h"
 #include "../dsp/RecordingRingBuffer.h"
 
@@ -53,6 +54,20 @@ class Player : public EventHandler {
 
   void play(AudioAPI & audio);
   std::unique_ptr<PlaybackEvent> createPlaybackEvent(const std::string & buffer_name, const Song & song, const SongState & state);
+
+  // OutlineView's own instrument-audition path (PlaybackControlEvent::
+  // PREVIEW_NOTE/PREVIEW_STOP's own doc comment) - mixed into the shared
+  // Mixer every block by play()'s own poll loop, right alongside every
+  // live buffer's own SongState (see that call site). Public, not private,
+  // so a test can drive it directly the same way getLiveStateForTest()
+  // lets a test drive a real buffer's SongState - play() itself is the
+  // only other caller. Reclaims preview_voice_ once its release tail
+  // finishes (VoiceState::isActive() false), the same as
+  // InstrumentTrackState::clearFinishedVoices() does for a real track's
+  // own voices; returns a zero-channel, correctly frame-sized AudioBuffer
+  // while nothing is previewing, safe to Mixer::accumulate()
+  // unconditionally either way.
+  AudioBuffer renderPreviewVoice(int frames);
 
 private:
   // One live SongState per buffer that's actually made sound (see the
@@ -169,6 +184,17 @@ private:
   // this only needs to keep successive/simultaneous live notes decorrelated
   // from each other, not to reproduce any particular value run to run.
   int live_note_counter_ = 0;
+
+  // OutlineView's own instrument-audition path - a single ad hoc
+  // VoiceState with no owning Track/buffer at all, unlike every other
+  // note-producing event, which always resolves through
+  // stateFor()/live_states_ above. Retriggering (a fresh PREVIEW_NOTE
+  // while one is already sounding) just replaces it outright - an
+  // instrument browser has no need for the real polyphony/release-tail
+  // bookkeeping InstrumentTrackState gives a real track's own notes. See
+  // renderPreviewVoice() above and PlaybackControlEvent::PREVIEW_NOTE/
+  // PREVIEW_STOP's own doc comment.
+  std::unique_ptr<VoiceState> preview_voice_;
 };
 
 #endif

@@ -230,7 +230,7 @@ add_executable(synth src/main.cpp
 	src/ui/TerminalUI.cpp
 	src/ui/EscapeCoalescer.cpp
 	src/ui/NotcursesInputEventSource.cpp
-	src/ui/HierarchyView.cpp
+	src/ui/OutlineView.cpp
 	src/ui/PatternEditor.cpp
 	src/ui/ArrangementGrid.cpp
 	src/ui/SessionView.cpp

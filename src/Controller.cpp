@@ -627,6 +627,8 @@ Controller::switchToBuffer(const string & name) {
 string
 Controller::openSessionViewBuffer() { return openAspectBuffer(BufferAspect::SESSION_VIEW); }
 string
+Controller::openOutlineViewBuffer() { return openAspectBuffer(BufferAspect::OUTLINE_VIEW); }
+string
 Controller::openPatternEditorBuffer() { return openAspectBuffer(BufferAspect::PATTERN_EDITOR); }
 
 string
@@ -681,8 +683,8 @@ bool
 Controller::killActiveBuffer() {
   // Checked first, before touching anything - always keep at least one
   // buffer-list entry open anywhere, across every open song, not just
-  // "at least one song" (a song can now have zero, one, or both aspects
-  // open - see BufferAspect's own comment).
+  // "at least one song" (a song can now have any subset of its aspects
+  // open, including none - see BufferAspect's own comment).
   if (getBufferNames().size() <= 1) return false;
 
   auto song_id = canonicalBufferName(active_buffer_name_);

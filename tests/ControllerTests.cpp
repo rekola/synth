@@ -409,6 +409,61 @@ TEST(pattern_editor_buffer_can_close_while_session_view_stays_open) {
   CHECK(controller.getActiveBufferName() == name);
 }
 
+// OutlineView is a third symmetric buffer-list aspect (Controller.h's
+// BufferAspect), same shape as SessionView above - it can be opened and
+// closed independently without ever closing the underlying song.
+TEST(outline_view_buffer_can_close_without_closing_the_song) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  auto name = controller.freshBufferName();
+  controller.switchToBuffer(name);
+
+  auto alias = controller.openOutlineViewBuffer();
+  CHECK(alias == name + " [Outline]");
+  CHECK(controller.isOutlineViewBuffer(alias));
+  CHECK(!controller.isSessionViewBuffer(alias));
+  CHECK(controller.getSelectedBufferName() == alias);
+  CHECK(controller.getActiveBufferName() == name); // resolves to the real song either way
+
+  CHECK(controller.killActiveBuffer());
+  CHECK(controller.getSelectedBufferName() == name);
+  CHECK(!controller.isOutlineViewBuffer(controller.getSelectedBufferName()));
+  auto names = controller.getBufferNames();
+  CHECK(std::find(names.begin(), names.end(), alias) == names.end()); // the Outline entry is gone
+  CHECK(std::find(names.begin(), names.end(), name) != names.end()); // the song's own PatternEditor entry remains
+}
+
+// All three aspects of one song can be open at once - opening each just
+// adds another buffer-list entry onto the same underlying Song, and
+// closing any two of them still leaves the song open under the third.
+TEST(all_three_buffer_aspects_of_a_song_can_be_open_at_once) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  auto name = controller.freshBufferName();
+  controller.switchToBuffer(name);
+  controller.openSessionViewBuffer();
+  controller.openOutlineViewBuffer();
+
+  auto names = controller.getBufferNames();
+  CHECK(names.size() == 3);
+  CHECK(std::find(names.begin(), names.end(), name) != names.end());
+  CHECK(std::find(names.begin(), names.end(), name + " [Session]") != names.end());
+  CHECK(std::find(names.begin(), names.end(), name + " [Outline]") != names.end());
+
+  controller.switchToBuffer(name);
+  CHECK(controller.activeSongHasOtherOpenViews());
+  CHECK(controller.killActiveBuffer());
+  controller.switchToBuffer(name + " [Session]");
+  CHECK(controller.activeSongHasOtherOpenViews()); // Outline is still open
+  CHECK(controller.killActiveBuffer());
+
+  // Only the Outline aspect is left - closing it now closes the song.
+  names = controller.getBufferNames();
+  CHECK(names.size() == 1);
+  CHECK(controller.isOutlineViewBuffer(controller.getSelectedBufferName()));
+  CHECK(!controller.activeSongHasOtherOpenViews());
+}
+
 // Closing a song's *last* remaining view (regardless of which aspect it
 // is) closes the underlying song itself - the same "always keep at least
 // one buffer open" guarantee the old canonical-buffer-only design had,

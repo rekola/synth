@@ -8,6 +8,7 @@
 #include "PatternEditor.h"
 #include "ArrangementGrid.h"
 #include "SessionView.h"
+#include "OutlineView.h"
 #include "CoverArt.h"
 #include "SpinBox.h"
 #include "../model/Color.h"
@@ -110,6 +111,7 @@ UI::initialize() {
   pattern_editor_ = make_shared<PatternEditor>(getPlane());
   arrangement_grid_ = make_shared<ArrangementGrid>(getPlane());
   session_view_ = make_shared<SessionView>(getPlane());
+  outline_view_ = make_shared<OutlineView>(getPlane());
   // Enter commits the cell under this grid's own (local, passive) cursor
   // to shared state - see ArrangementGrid.h's own comment on why this is a
   // callback rather than the grid reaching for PatternEditor/
@@ -215,16 +217,20 @@ UI::initialize() {
       return result;
     });
   });
-  // Menu-only (Buffers menu's own "Open Session View"/"Open Pattern
-  // Viewer" items) - no keybinding. Switches to (opening the first time)
-  // the SessionView/PatternEditor aspect of the active song - see
-  // Controller::openSessionViewBuffer()'s own comment. Either can be
-  // opened regardless of which one currently shows, and either can later
-  // be closed independently (kill-buffer below) without closing the song.
-  // The buffer-change listener above does the actual screen-slot swap;
-  // these commands' only job is asking Controller to switch there.
+  // Menu-only (Buffers menu's own "Open Session View"/"Open Outline"/
+  // "Open Pattern Viewer" items) - no keybinding. Switches to (opening the
+  // first time) the SessionView/OutlineView/PatternEditor aspect of the
+  // active song - see Controller::openSessionViewBuffer()'s own comment.
+  // Any of the three can be opened regardless of which one currently
+  // shows, and each can later be closed independently (kill-buffer below)
+  // without closing the song. The buffer-change listener above does the
+  // actual screen-slot swap; these commands' only job is asking Controller
+  // to switch there.
   commands_.define("session-view", [this]() {
     getController().openSessionViewBuffer();
+  });
+  commands_.define("outline-view", [this]() {
+    getController().openOutlineViewBuffer();
   });
   commands_.define("pattern-viewer", [this]() {
     getController().openPatternEditorBuffer();
@@ -392,34 +398,37 @@ UI::initialize() {
     vector<string> display_names;
     display_names.reserve(names.size());
     for (auto & name : names) display_names.push_back(getController().getBufferDisplayName(name));
-    // getSelectedBufferName() (raw, possibly a session-view alias), not
-    // getActiveBufferName() (always the real Song) - the menu's own
-    // "current" marker must highlight whichever row is literally
-    // selected, alias included.
+    // getSelectedBufferName() (raw, possibly a SessionView/OutlineView
+    // aspect name), not getActiveBufferName() (always the real Song) - the
+    // menu's own "current" marker must highlight whichever row is
+    // literally selected, aspect suffix included.
     auto selected = getController().getSelectedBufferName();
     menu_->refreshBuffers(names, display_names, selected);
 
     // Cursor/scroll/selection/live-note/annotation-editing state - see
     // PatternEditor::handleBufferChanged()'s own comment. Reads
     // getActiveBufferName() (always canonical) internally, so toggling
-    // between a buffer and its own session-view alias looks like no
-    // change at all here - correct, since it's the same Song/edit
-    // position either way.
+    // between a buffer and one of its own aspects looks like no change at
+    // all here - correct, since it's the same Song/edit position either
+    // way.
     pattern_editor_->handleBufferChanged();
 
-    // SessionView takes over pattern_editor_'s own screen slot exactly
-    // while the newly-selected buffer is a session-view alias - see
-    // SessionView.h's own comment. Guarded on an actual change so a
-    // buffer switch between two ordinary (non-alias) buffers, or between
-    // two different aliases, doesn't fight whatever active_element_
-    // already legitimately is (e.g. arrangement_grid_).
-    bool now_session_view = getController().isSessionViewBuffer(selected);
-    if (now_session_view != session_view_open_) {
-      session_view_open_ = now_session_view;
-      if (now_session_view) {
+    // SessionView/OutlineView takes over pattern_editor_'s own screen slot
+    // exactly while the newly-selected buffer is that aspect - see
+    // SessionView.h's/OutlineView.h's own comments. Guarded on an actual
+    // change so a buffer switch between two ordinary (non-aspect) buffers,
+    // or between two aspects of the same kind, doesn't fight whatever
+    // active_element_ already legitimately is (e.g. arrangement_grid_).
+    auto new_aspect = getController().isSessionViewBuffer(selected) ? WorkspaceAspect::SESSION_VIEW :
+      getController().isOutlineViewBuffer(selected) ? WorkspaceAspect::OUTLINE_VIEW : WorkspaceAspect::PATTERN_EDITOR;
+    if (new_aspect != workspace_aspect_) {
+      workspace_aspect_ = new_aspect;
+      if (new_aspect == WorkspaceAspect::SESSION_VIEW) {
         auto playable = getController().getSong().getPlayableTrackIds();
         session_view_->setCursorTrackIndex(indexOfTrack(playable, getController().getSong().getCurrentTrackId()));
         active_element_ = session_view_;
+      } else if (new_aspect == WorkspaceAspect::OUTLINE_VIEW) {
+        active_element_ = outline_view_;
       } else {
         active_element_ = pattern_editor_;
       }
@@ -533,16 +542,21 @@ UI::layout() {
     putstr(kScopeRow + row, divider1_x, "│");
     putstr(kScopeRow + row, divider2_x, "│");
   }
-  // Both get the exact same real rect always - notcurses itself refuses/
-  // ignores a plane resize to zero rows or columns (confirmed via a
-  // pty+notcurses reproduction), so shrinking the inactive one to (0, 0)
+  // All three get the exact same real rect always - notcurses itself
+  // refuses/ignores a plane resize to zero rows or columns (confirmed via
+  // a pty+notcurses reproduction), so shrinking an inactive one to (0, 0)
   // silently no-ops, leaving its last real content and z-position
   // untouched underneath whichever one is actually supposed to show.
   // moveToTop() (below) is what actually decides which one is visible -
-  // raising the active widget above its sibling, not the rect itself.
+  // raising the active widget above its siblings, not the rect itself.
   pattern_editor_->resize(rows - 8, cols).move(6, 0);
   session_view_->resize(rows - 8, cols).move(6, 0);
-  if (session_view_open_) session_view_->moveToTop(); else pattern_editor_->moveToTop();
+  outline_view_->resize(rows - 8, cols).move(6, 0);
+  switch (workspace_aspect_) {
+    case WorkspaceAspect::SESSION_VIEW: session_view_->moveToTop(); break;
+    case WorkspaceAspect::OUTLINE_VIEW: outline_view_->moveToTop(); break;
+    default: pattern_editor_->moveToTop(); break;
+  }
   info_line_->resize(1, cols).move(rows - 2, 0);
   // Inline in the info bar, right-aligned - a separate plane, created
   // after info_line_ (UI::initialize()) so it z-orders above whatever
@@ -584,7 +598,7 @@ UI::renderComponents(bool refresh) {
   // explicit focus change: simplest way to guarantee "always current"
   // without a second, easy-to-miss update path for every place focus or
   // Session View's own cursor can change.
-  bool session_view_focused = session_view_open_ && active == session_view_;
+  bool session_view_focused = workspace_aspect_ == WorkspaceAspect::SESSION_VIEW && active == session_view_;
   getController().setSessionViewFocused(session_view_focused);
   if (session_view_focused) {
     auto track_ids = song.getPlayableTrackIds();
@@ -594,11 +608,14 @@ UI::renderComponents(bool refresh) {
     }
   }
 
-  // Exactly one of pattern_editor_/session_view_ occupies the screen slot
-  // both share (see layout()) - render whichever one session_view_open_
-  // says is actually showing, never both.
-  if (session_view_open_) render |= session_view_->render(styles_, refresh, active == session_view_);
-  else render |= pattern_editor_->render(styles_, refresh, active == pattern_editor_);
+  // Exactly one of pattern_editor_/session_view_/outline_view_ occupies
+  // the screen slot all three share (see layout()) - render whichever one
+  // workspace_aspect_ says is actually showing, never more than one.
+  switch (workspace_aspect_) {
+    case WorkspaceAspect::SESSION_VIEW: render |= session_view_->render(styles_, refresh, active == session_view_); break;
+    case WorkspaceAspect::OUTLINE_VIEW: render |= outline_view_->render(styles_, refresh, active == outline_view_); break;
+    default: render |= pattern_editor_->render(styles_, refresh, active == pattern_editor_); break;
+  }
   render |= arrangement_grid_->render(styles_, refresh, active == arrangement_grid_, selected_track_id);
   render |= cover_art_->render(styles_, refresh);
   render |= info_line_->render(styles_, refresh);
@@ -619,6 +636,15 @@ UI::renderComponents(bool refresh) {
   }
 
   return render;
+}
+
+std::shared_ptr<UIElement>
+UI::currentWorkspaceElement() const {
+  switch (workspace_aspect_) {
+    case WorkspaceAspect::SESSION_VIEW: return session_view_;
+    case WorkspaceAspect::OUTLINE_VIEW: return outline_view_;
+    default: return pattern_editor_;
+  }
 }
 
 bool
@@ -676,15 +702,15 @@ UI::offerInput(const InputEvent & input) {
     // plain arrow keys/note entry the way pattern_editor_ does) the moment
     // a click landed anywhere on the status line's own row - which spans
     // the entire bottom row, so this was very easy to trigger by accident.
-    // pattern_editor_/session_view_ share one screen rect (see layout()) -
-    // only try the one that's actually showing, never both, since a click
-    // there must activate whichever is visible, not always pattern_editor_.
-    bool activated = session_view_open_ ? tryActivate(input.getY(), input.getX(), session_view_)
-                                         : tryActivate(input.getY(), input.getX(), pattern_editor_);
+    // pattern_editor_/session_view_/outline_view_ share one screen rect
+    // (see layout()) - only try whichever one is actually showing, never
+    // more than one, since a click there must activate whichever is
+    // visible, not always pattern_editor_.
+    bool activated = tryActivate(input.getY(), input.getX(), currentWorkspaceElement());
     activated = tryActivate(input.getY(), input.getX(), arrangement_grid_) || activated;
     activated = tryActivate(input.getY(), input.getX(), octave_control_) || activated;
 
-    // Fall back to whichever of the two currently occupies the main
+    // Fall back to whichever widget currently occupies the main
     // workspace slot if the click landed somewhere no widget claims (e.g.
     // the FFT/heatmap/loudness scope strip, or the dividers between
     // them). Without this, active_element_ was left permanently empty (a
@@ -693,7 +719,7 @@ UI::offerInput(const InputEvent & input) {
     // Launchpad button commands via UI::executeCommand()) silently
     // no-op'd - including plain Up/Down arrow - until the user happened
     // to click directly back on the workspace.
-    if (!activated) active_element_ = session_view_open_ ? std::shared_ptr<UIElement>(session_view_) : std::shared_ptr<UIElement>(pattern_editor_);
+    if (!activated) active_element_ = currentWorkspaceElement();
 
     // A click that moves focus away from the octave stepper while it's
     // mid-edit discards the half-typed value rather than leaving it stuck

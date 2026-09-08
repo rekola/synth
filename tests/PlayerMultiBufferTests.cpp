@@ -211,6 +211,78 @@ TEST(live_note_off_reclaims_the_voice) {
   CHECK(state->getVoiceCount() == 0);
 }
 
+// OutlineView's own instrument-audition path (PlaybackControlEvent::
+// PREVIEW_NOTE/PREVIEW_STOP) - a buffer-agnostic voice with no owning
+// Track/live SongState at all, unlike PLAY_NOTE above. "Electric Piano" is
+// InstrumentProvider's own always-registered default (see its
+// constructor), so no song/track/pool entry is needed - PREVIEW_NOTE
+// resolves straight off the provider (see PlaybackControlEvent.h's own
+// doc comment on why buffer_name is repurposed to carry the name).
+TEST(preview_note_sounds_the_named_instrument_and_stop_reclaims_it) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName()); // gives getCurrentSong() something to resolve tuning from
+
+  Player player(config, &controller);
+
+  // Nothing previewing yet - renderPreviewVoice() must still hand back a
+  // correctly frame-sized, zero-channel buffer (Mixer::accumulate() needs
+  // that shape every block, not just once something is sounding).
+  auto before = player.renderPreviewVoice(256);
+  CHECK(before.numberOfChannels() == 0);
+  CHECK(before.numberOfFrames() == 256);
+
+  PlaybackControlEvent preview_note(PlaybackControlEvent::PREVIEW_NOTE, "Electric Piano", 60, 100);
+  player.handlePlaybackControlEvent(preview_note);
+
+  auto sounding = player.renderPreviewVoice(256);
+  CHECK(sounding.numberOfChannels() > 0);
+  float peak = 0.0f;
+  for (int c = 0; c < sounding.numberOfChannels(); c++) {
+    auto data = sounding.getChannelData(c);
+    for (int i = 0; i < sounding.numberOfFrames(); i++) peak = std::max(peak, std::fabs(data[i]));
+  }
+  CHECK(peak > 0.0f);
+
+  PlaybackControlEvent preview_stop(PlaybackControlEvent::PREVIEW_STOP);
+  player.handlePlaybackControlEvent(preview_stop);
+
+  // A plain (non-SF2) leaf voice's stopNote() cuts instantly (see
+  // InstrumentVoice::stopNote()/killNote(), no release tail to wait out) -
+  // but the block that renders the now-silenced voice still comes back
+  // real-channel-shaped (silent content, not an absent channel - shape and
+  // amplitude are independent), same as InstrumentTrackState's own
+  // clearFinishedVoices() only dropping a finished voice at the *next*
+  // render, never the one that finished it.
+  auto just_stopped = player.renderPreviewVoice(256);
+  CHECK(just_stopped.numberOfChannels() > 0);
+
+  // Reclaimed by the render after that - renderPreviewVoice() saw
+  // isActive() false and dropped preview_voice_, so this call finds
+  // nothing left to render at all.
+  auto after_stop = player.renderPreviewVoice(256);
+  CHECK(after_stop.numberOfChannels() == 0);
+}
+
+// A name that resolves to nothing (InstrumentProvider::
+// tryGetByLiteralName()/resolvePath() both miss) previews silence rather
+// than substituting the provider's own default instrument - see
+// PlaybackControlEvent.h's own doc comment on why PREVIEW_NOTE
+// deliberately has no such fallback.
+TEST(preview_note_with_an_unresolvable_name_previews_silence) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+
+  Player player(config, &controller);
+
+  PlaybackControlEvent preview_note(PlaybackControlEvent::PREVIEW_NOTE, "nothing registered under this string", 60, 100);
+  player.handlePlaybackControlEvent(preview_note);
+
+  auto data = player.renderPreviewVoice(256);
+  CHECK(data.numberOfChannels() == 0);
+}
+
 // Regression: Controller's own per-buffer local_position_edit_seq_ counts
 // every moveEditPosition()/setEditPosition() call, one per
 // MOVE_POSITION/SET_POSITION event pushed - however many of those land

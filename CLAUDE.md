@@ -262,7 +262,7 @@ unchanged. `StatusLine`'s M-x minibuffer still calls
 — for any name it doesn't recognize itself, so M-x can invoke both
 Controller-level commands (`save-song`, `add-filter`) and the per-widget ones
 (`set-mark`, `kill-region`, `transpose-region-up`/`-down`, …) through the
-same path. Not yet migrated: `StatusLine` and `HierarchyView`/
+same path. Not yet migrated: `StatusLine`, `OutlineView`, and
 `InstrumentList` (dead code anyway). `StatusLine`'s M-x detection is down
 to a single check now, an Alt/Meta-modified `x` event - it no longer needs
 its own two-step `ESC`-then-`x` state machine, since `TerminalUI.cpp`'s
@@ -490,7 +490,7 @@ whether or not a terminal UI exists at all.
     hierarchy (see the `AmbisonicEncoding.h` bullet below).
   - `src/audio/` — `AlsaAudio` (device output), `AudioBuffer`,
     `OfflineRenderer`.
-  - `src/ui/` — `TerminalUI`/`PatternEditor`/`HierarchyView` (notcurses
+  - `src/ui/` — `TerminalUI`/`PatternEditor`/`OutlineView` (notcurses
     UI) plus the Emacs-style keybinding dispatch (`KeyChord.h`/
     `Keymap.h`/`CommandRegistry.h`).
   - `src/launchpad/` — Launchpad hardware I/O and layout - see the

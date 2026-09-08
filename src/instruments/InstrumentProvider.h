@@ -126,6 +126,15 @@ class InstrumentProvider {
 
   const std::unordered_map<std::string, std::shared_ptr<Instrument> > & getInstruments() const { return instruments_by_name; }
 
+  // The curated taxonomy paths registered via registerPath() (docs/
+  // instrument-paths.md, e.g. "piano.acoustic.grand") - what a UI should
+  // show as "the" library instrument list, unlike getInstruments() above
+  // (native SF2 preset names, "native:"-namespaced - see loadSoundFont()'s
+  // own comment on why those exist at all: a font-specific fallback for a
+  // preset with no curated path yet, not what a user browsing "the"
+  // instrument library should see first).
+  const std::unordered_map<std::string, std::shared_ptr<Instrument> > & getTaxonomyPaths() const { return paths_by_taxonomy_path; }
+
 protected:
   void addInstrument(std::shared_ptr<Instrument> instrument) {
     instruments_by_name[instrument->getName()] = instrument;

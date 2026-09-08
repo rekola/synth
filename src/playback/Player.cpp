@@ -117,6 +117,38 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     mixer_changed_ = true;
     return;
 
+  case PlaybackControlEvent::PREVIEW_NOTE:
+    {
+      // buffer_name is repurposed to carry the instrument's own literal/
+      // taxonomy name here (see PlaybackControlEvent.h's own doc comment)
+      // - resolved the same two-step way GenericInstrument::prepare()
+      // resolves an authored `from=` (literal name first, then taxonomy
+      // path), deliberately with no default-instrument fallback: a name
+      // that fails to resolve previews silence rather than substituting
+      // the wrong sound.
+      auto & provider = controller_->getInstrumentProvider();
+      auto instrument = provider.tryGetByLiteralName(ev.getBufferName());
+      if (!instrument) instrument = provider.resolvePath(ev.getBufferName());
+      auto song = controller_->getCurrentSong();
+      if (instrument && song) {
+        Note note(ev.getParameter1(), ev.getParameter2());
+        auto frequency = Tuner::getFrequency(song->getTuning(), note);
+        // Retriggering just replaces whatever was already sounding
+        // outright - see preview_voice_'s own comment on Player.h.
+        // live_note_counter_ stands in for a real NoteCoordinate's
+        // absolute_row here too, same reasoning as the real live PLAY_NOTE
+        // case below (a preview note has no authored position either).
+        preview_voice_ = instrument->playNote(channel_config_, SphericalPosition{}, frequency, 1.0f,
+                                               note.getVelocityAsFloat(), note.getValue(), SendLevels{},
+                                               NoteCoordinate(-1, live_note_counter_++, 0));
+      }
+    }
+    return;
+
+  case PlaybackControlEvent::PREVIEW_STOP:
+    if (preview_voice_) preview_voice_->stopNote();
+    return;
+
   case PlaybackControlEvent::BUFFER_KILLED:
     // Drops this buffer's own live SongState, if it had one - also stops
     // it automatically if it happened to be the playing buffer, simply by
@@ -429,8 +461,16 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     break;
 
   default:
-    break; // TERMINATE/MIXER_CHANGED/BUFFER_KILLED/BUFFER_RENAMED handled above
+    break; // TERMINATE/MIXER_CHANGED/BUFFER_KILLED/BUFFER_RENAMED/PREVIEW_NOTE/PREVIEW_STOP handled above
   }
+}
+
+AudioBuffer
+Player::renderPreviewVoice(int frames) {
+  if (!preview_voice_) return AudioBuffer(0, false, false, frames);
+  auto data = preview_voice_->render(frames);
+  if (!preview_voice_->isActive()) preview_voice_.reset(); // release tail (if any) has fully finished
+  return data;
 }
 
 void
@@ -641,6 +681,15 @@ Player::play(AudioAPI & audio) {
 	      if (!song_ptr) continue; // shouldn't happen - see pushSnapshots()'s own comment
 	      state->renderBlock(audio.getFrameCount(), *song_ptr, *mixer, false);
 	    }
+
+	    // OutlineView's own instrument-audition path (not tied to any
+	    // buffer, so it never goes through live_states_ above) -
+	    // accumulates straight into the same shared mixer, right
+	    // alongside every real buffer's own output. Always frame-count-
+	    // correct even with nothing previewing (see renderPreviewVoice()'s
+	    // own comment), so this is safe to call unconditionally.
+	    mixer->accumulate(renderPreviewVoice(audio.getFrameCount()));
+
 	    auto master = mixer->encode();
 	    audio.play(master, logger);
 

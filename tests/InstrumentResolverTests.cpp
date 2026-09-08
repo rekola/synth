@@ -191,3 +191,28 @@ TEST(load_sound_font_registers_bank_128_kits_under_their_own_kit_paths) {
   // Bare "kit" resolves the same way.
   CHECK(provider.resolvePath("kit") == standard);
 }
+
+// getTaxonomyPaths() is what a UI should show as "the" instrument library
+// (OutlineView.cpp) - the curated dotted paths registerPath() populated
+// (via loadSoundFont()'s bank-0/128 loops), not getInstruments()'s own
+// "native:"-namespaced raw SF2 preset names, which loadSoundFont() only
+// ever adds as a same-font fallback for a preset with no curated path.
+TEST(get_taxonomy_paths_exposes_registered_paths_not_native_names) {
+  vector<PresetSpec> presets = {
+    { "Piano", 0, {}, {}, 1, {}, 0 }, // program 0 -> "piano.acoustic.grand"
+  };
+  auto path = (filesystem::path(TESTS_SCRATCH_DIR) / "resolver_taxonomy_paths.sf2").string();
+  writeMinimalSf2(path, presets);
+
+  InstrumentProvider provider;
+  provider.loadSoundFont(path);
+
+  CHECK(provider.getTaxonomyPaths().count("piano.acoustic.grand") == 1);
+  CHECK(provider.getTaxonomyPaths().count("native:Piano") == 0);
+
+  // The native name lands in getInstruments() instead, never in
+  // getTaxonomyPaths() - the two accessors are disjoint by construction
+  // (registerPath() and addInstrument() write to two separate maps).
+  CHECK(provider.getInstruments().count("native:Piano") == 1);
+  CHECK(provider.getInstruments().count("piano.acoustic.grand") == 0);
+}
