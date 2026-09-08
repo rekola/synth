@@ -1663,3 +1663,62 @@ TEST(extend_recording_clips_if_needed_overwrites_a_different_clip_it_grows_acros
   CHECK(active.clip_index >= 0);
   CHECK(song.getClips(track_id)[static_cast<size_t>(active.clip_index)].getId() == recording_clip_id);
 }
+
+// applyNotePressure() had no test coverage at all before this - a live
+// take's aftertouch arriving on a later row than the note-on it belongs
+// to (the transport has moved on while the note is still held) writes a
+// genuine aftertouch entry (Note::isAftertouch() - value stays -1,
+// velocity becomes the pressure) at that row, into the scene's own
+// background Pattern here (no clip involved).
+TEST(apply_note_pressure_writes_an_aftertouch_note) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+
+  auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+  song.setCurrentTrackId(track_id);
+
+  auto & scene = song.getOrCreateScene(0);
+  scene.setNote(0, track_id, 0, Note(60, 100));
+
+  controller.applyNotePressure(0, 2, track_id, 0, 90, 0);
+
+  auto & note = scene.getNote(2, track_id, 0);
+  CHECK(note.isAftertouch());
+  CHECK(note.getVelocity() == 90);
+}
+
+// The same, but through a real recording clip (ensureNoteRecordingClip())
+// rather than the scene's own background Pattern - applyNotePressure()
+// resolves through resolveEditTarget() exactly like the note-on write
+// itself did, so it lands in the clip's own leaf Pattern too, not the
+// background underneath it.
+TEST(apply_note_pressure_writes_aftertouch_into_a_recording_clip) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+  song.setRowsPerBar(16);
+
+  auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+  song.setCurrentTrackId(track_id);
+
+  std::unordered_map<int, std::string> clip_ids;
+  controller.ensureNoteRecordingClip(clip_ids, track_id, 0, 0);
+  CHECK(!clip_ids.empty());
+
+  auto & scene = song.getScene(0);
+  auto edit_target = resolveEditTarget(song, scene, track_id, 0, controller.getFocusedClip());
+  edit_target.pattern->setNote(edit_target.effective_row, 0, Note(60, 100));
+
+  controller.applyNotePressure(0, 4, track_id, 0, 90, 0);
+
+  auto read_target = resolveReadTarget(song, scene, track_id, 4, controller.getFocusedClip());
+  auto & note = read_target.pattern->getNote(read_target.effective_row, 0);
+  CHECK(read_target.is_instance); // landed in the recording clip, not the background
+  CHECK(note.isAftertouch());
+  CHECK(note.getVelocity() == 90);
+}

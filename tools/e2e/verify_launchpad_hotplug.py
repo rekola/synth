@@ -2,7 +2,10 @@
 connected at all (confirms it doesn't crash/misbehave with zero devices),
 then a simulated Launchpad X is "plugged in" while it's already running -
 must be noticed via the ALSA announce-port subscription (hotplug), not
-just the startup-time scan."""
+just the startup-time scan. The hotplugged device switches into NOTES
+mode and arms Record Arm before pressing (a plain press only ever
+auditions, never writes into the pattern, without Record Arm on) and its
+release, now while playing, writes a real OFF."""
 import sys, os, subprocess, time
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -17,32 +20,6 @@ def check(name, ok, extra=None):
     if not ok and extra:
         print("  ", extra)
 
-def find_pattern_row(screen, target="00"):
-    for y in range(screen.lines):
-        line = screen.display[y]
-        if line.strip().startswith(target) and "│" in line:
-            return y
-    return None
-
-def is_playing(scr):
-    d = scr.dump()
-    info_lines = [l for l in d.splitlines() if "pattern:" in l]
-    return bool(info_lines) and "PLAYING" in info_lines[-1]
-
-def wait_until(scr, predicate, timeout=20.0, interval=0.5):
-    deadline = time.time() + timeout
-    last = None
-    while time.time() < deadline:
-        scr.pump(interval)
-        y = find_pattern_row(scr.screen)
-        last = scr.screen.display[y] if y is not None else None
-        if last is not None and predicate(last):
-            return last, True
-    return last, False
-
-def ctrl(c):
-    return bytes([ord(c.lower()) & 0x1F])
-
 # synth starts with NO Launchpad connected at all - confirms it
 # doesn't crash/misbehave with zero devices, and gives a clean baseline to
 # detect the live hotplug connection against.
@@ -53,12 +30,12 @@ if not vk.wait_ready(scr):
     os.kill(pid, 9)
     sys.exit(1)
 
-scr.send(ctrl('n'))
-scr.pump(1.0)
-if is_playing(scr):
+vk.new_buffer(scr, "hotplug_test")
+if vk.is_playing(scr):
     scr.send(b" ")
     scr.pump(1.0)
-check("Playback stopped on the new song", not is_playing(scr))
+check("Playback stopped on the new song", not vk.is_playing(scr))
+vk.other_window(scr)
 
 # Now "plug in" the simulated Launchpad X - synth is already running
 # and must notice it via the ALSA announce-port subscription (hotplug),
@@ -66,23 +43,35 @@ check("Playback stopped on the new song", not is_playing(scr))
 hotplug_log = open(os.path.join(SCRIPT_DIR, "fake_launchpad_hotplug.log"), "w")
 fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_hotplug")], stderr=hotplug_log, stdout=hotplug_log)
 
-y = find_pattern_row(scr.screen)
-line_before = scr.screen.display[y]
-print("row before hotplug press:", repr(line_before))
-
-line_after_press, got_press = wait_until(scr, lambda l: l != line_before, timeout=15.0)
-print("row after hotplugged press:       ", repr(line_after_press))
+# fake_launchpad_hotplug sends CC96 (NOTES mode)/CC19 (Record Arm) a
+# second apart, then presses. Record Arm's own rising edge starts
+# playback, so the note lands wherever the transport happens to be by the
+# time the press is processed - scan every visible row.
+note_row = None
+deadline = time.time() + 15.0
+while time.time() < deadline and note_row is None:
+    scr.pump(0.5)
+    for row_hex, line in vk.dump_pattern_rows(scr).items():
+        if vk.has_note(line):
+            note_row = row_hex
+            break
+print("row the hotplugged press landed on:", note_row)
 check("Hotplugged device's press entered a note (device was NOT connected at synth startup)",
-      got_press, f"before={line_before!r} after={line_after_press!r}")
+      note_row is not None)
 
-# Not playing (step entry): release must NOT overwrite the note with OFF -
-# the note's row already got auto-advanced away from by the press itself.
-time.sleep(3)
-scr.pump(1.0)
-line_after_release = scr.screen.display[find_pattern_row(scr.screen)]
-print("row after hotplugged release:     ", repr(line_after_release))
-check("Hotplugged device's release did not overwrite the note (step entry, not playing)",
-      "OFF" not in line_after_release and line_after_release == line_after_press, line_after_release)
+# Playing now (Record Arm's own auto-start), unlike the step-entry
+# semantics this test used to check - a release writes a real OFF at
+# whatever (later) row the transport has reached.
+off_row = None
+deadline = time.time() + 9.0
+while time.time() < deadline and off_row is None:
+    scr.pump(0.5)
+    for row_hex, line in vk.dump_pattern_rows(scr).items():
+        if vk.has_off(line):
+            off_row = row_hex
+            break
+print("row the hotplugged device's release wrote OFF on:", off_row)
+check("Hotplugged device's release wrote a real OFF while playing", off_row is not None)
 
 try:
     os.kill(pid, 9)

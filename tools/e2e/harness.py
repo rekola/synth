@@ -129,3 +129,101 @@ def wait_ready(scr, timeout=10.0):
         if "pattern:" in scr.dump():
             return True
     return False
+
+
+def new_buffer(scr, name):
+    """Switches to a fresh, empty buffer named `name` via C-x b
+    (select-named-buffer, Emacs's own switch-to-buffer) - there's no
+    standalone new-song/Ctrl-N command any more. switchToBuffer() creates
+    a fresh blank buffer for a name that isn't already open, same as
+    Emacs's own switch-to-buffer, so this doubles as "New" too."""
+    scr.send(ctrl('x'))
+    scr.pump(0.3)
+    scr.send(b"b")
+    scr.pump(0.3)
+    scr.send(name.encode() + b"\r")
+    scr.pump(1.0)
+
+
+def is_playing(scr):
+    d = scr.dump()
+    info_lines = [l for l in d.splitlines() if "pattern:" in l]
+    return bool(info_lines) and "PLAYING" in info_lines[-1]
+
+
+_ROW_RE = re.compile(r"^([0-9a-f]{2})\s")
+
+
+def dump_pattern_rows(scr):
+    """{row_hex: line_text} for every currently visible pattern-editor row
+    (two hex digits, a space, then track content) - a Launchpad take's
+    own row isn't knowable in advance (it depends on real wall-clock/
+    audio-thread timing once Record Arm has started playback), so callers
+    scan whatever's visible rather than assuming a fixed row."""
+    rows = {}
+    for line in scr.screen.display:
+        m = _ROW_RE.match(line.strip())
+        if m and "│" in line:
+            rows[m.group(1)] = line
+    return rows
+
+
+def has_note(line):
+    """True if a pattern-row line's NOTE column holds a real, named note
+    (not the "···" placeholder an empty cell or an aftertouch-only entry
+    both show)."""
+    return line is not None and line[5:8] not in ("···", "   ")
+
+
+def has_off(line):
+    """True if a pattern-row line's NOTE column holds the OFF sentinel."""
+    return line is not None and line[5:8] == "OFF"
+
+
+def has_defined_velocity(line):
+    """True if a pattern-row line's VELOCITY column holds a real hex value
+    rather than the undefined "--" placeholder."""
+    return line is not None and line[9:11] != "--"
+
+
+def note_columns(line):
+    """Every note sub-column's own 3-char NOTE text on a pattern-row
+    line, in order - a chord/multi-voice track packs NOTE(3)+space+
+    VELOCITY(2)+space+DELAY(2)+space into a fixed 10-char group per
+    column, followed by the row's own shared EFFECT(4) column (no
+    trailing group of its own, so the walk below stops there
+    naturally). Position-based rather than matching against note-name
+    text, since a note's own accidental glyph varies by tuning (31-EDO's
+    own double-sharp/double-flat symbols included) - has_note()'s own
+    single-column equivalent, generalized to however many columns a
+    track actually has."""
+    if "│" not in line:
+        return []
+    content = line[line.index("│") + 1:]
+    cols = []
+    i = 0
+    while i + 10 <= len(content):
+        col = content[i:i + 3]
+        # A genuine column is always "···" (undefined), "OFF", or a real
+        # note's own text - never dashes: that's only ever a fragment of
+        # the row's own trailing EFFECT(4) column, caught here when
+        # `content`'s length isn't an exact multiple of 10 (e.g. a
+        # shorter trailing divider glyph shifting everything by a
+        # character or two).
+        if col.strip("-") != "":
+            cols.append(col)
+        i += 10
+    return cols
+
+
+def other_window(scr):
+    """C-x o (Emacs's own other-window): toggles focus between the
+    pattern editor and the arrangement/overview grid. A fresh buffer (see
+    new_buffer() above) defaults to overview focus, not the pattern
+    editor - keystrokes PatternEditor itself handles (note entry, mark/
+    kill/yank, ...) need this first; Launchpad input is unaffected either
+    way (LaunchpadManager is deliberately UI-focus-agnostic)."""
+    scr.send(ctrl('x'))
+    scr.pump(0.3)
+    scr.send(b"o")
+    scr.pump(0.5)

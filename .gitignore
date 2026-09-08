@@ -49,6 +49,7 @@ tools/e2e/fake_launchpad_stepseq
 tools/e2e/fake_launchpad_session
 tools/e2e/fake_launchpad_notecustom
 tools/e2e/fake_launchpad_stopclip
+tools/e2e/fake_launchpad_aftertouch_clip
 tools/e2e/*.log
 tools/e2e/__pycache__
 

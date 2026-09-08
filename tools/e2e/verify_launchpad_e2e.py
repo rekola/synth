@@ -1,9 +1,11 @@
 """Baseline single-device Launchpad regression test: connects
-fake_launchpad (a simulated Launchpad X ALSA client), then verifies a
-press/aftertouch/release sequence on pad (0,0) writes a note into the
-pattern with correct step-entry semantics (a release while stopped must
-NOT overwrite the note it belongs to with an OFF - see
-PatternEditor::handleLaunchpadPadEvent's RELEASE branch)."""
+fake_launchpad (a simulated Launchpad X ALSA client), which switches into
+NOTES mode and arms Record Arm (a plain press only ever auditions - it
+never writes into the pattern without Record Arm on, and arming it starts
+playback, so there is no "step entry while stopped" state to test any
+more), then verifies a press/aftertouch/release sequence on pad (0,0)
+writes a note into the pattern, modulates its velocity via aftertouch on
+a later row as the transport advances, and writes a real OFF on release."""
 import sys, os, subprocess, time
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -17,31 +19,6 @@ def check(name, ok, extra=None):
     print(f"[{'PASS' if ok else 'FAIL'}] {name}")
     if not ok and extra:
         print("  ", extra)
-
-def find_pattern_row(screen, target="00"):
-    for y in range(screen.lines):
-        line = screen.display[y]
-        if line.strip().startswith(target) and "│" in line:
-            return y
-    return None
-
-def is_playing(scr):
-    d = scr.dump()
-    info_lines = [l for l in d.splitlines() if "pattern:" in l]
-    return bool(info_lines) and "PLAYING" in info_lines[-1]
-
-def wait_until(scr, predicate, timeout=20.0, interval=0.5):
-    """Poll in small increments (robust against system load / scheduling
-    jitter) until predicate(current_row_text) is true, or timeout."""
-    deadline = time.time() + timeout
-    last = None
-    while time.time() < deadline:
-        scr.pump(interval)
-        y = find_pattern_row(scr.screen)
-        last = scr.screen.display[y] if y is not None else None
-        if last is not None and predicate(last):
-            return last, True
-    return last, False
 
 fake_log = open(os.path.join(SCRIPT_DIR, "fake_launchpad.log"), "w")
 fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad")], stderr=fake_log, stdout=fake_log)
@@ -59,65 +36,64 @@ if not vk.wait_ready(scr):
     os.kill(pid, 9)
     sys.exit(1)
 
-def ctrl(c):
-    return bytes([ord(c.lower()) & 0x1F])
-
 # demo3.xml (the harness's default song) has many tracks/voices and hits an
 # already-documented, unrelated bug (Space becoming unresponsive under heavy
 # playback load, see docs/known_bugs.md) - switch to a fresh, simple new
 # song first.
-scr.send(ctrl('n'))
-scr.pump(1.0)
-if is_playing(scr):
+vk.new_buffer(scr, "e2e_baseline")
+if vk.is_playing(scr):
     scr.send(b" ")
     scr.pump(1.0)
-check("Playback stopped on the new song", not is_playing(scr))
+check("Playback stopped on the new song", not vk.is_playing(scr))
+vk.other_window(scr)
 
-y = find_pattern_row(scr.screen)
-line_before = scr.screen.display[y]
-print("row before any Launchpad input:", repr(line_before))
+# fake_launchpad sleeps 6s after its own startup, then sends CC96 (NOTES
+# mode) and CC19 (Record Arm) a second apart before its first press.
+# Record Arm's own rising edge starts playback immediately, so the note
+# lands wherever the transport happens to be by the time the press is
+# actually processed - scan every visible row rather than assuming row 00.
+deadline = time.time() + 15.0
+note_row = None
+while time.time() < deadline and note_row is None:
+    scr.pump(0.5)
+    for row_hex, line in vk.dump_pattern_rows(scr).items():
+        if vk.has_note(line):
+            note_row = row_hex
+            break
+print("row the note-on landed on:", note_row)
+check("Pad press from the simulated Launchpad X entered a note into the pattern", note_row is not None)
+check("Playback is running (Record Arm's own rising edge should have started it)", vk.is_playing(scr))
 
-# fake_launchpad sleeps 6s after its own startup before sending its first
-# note, then holds 5s before aftertouch, then 5s before release. Poll
-# robustly (rather than a single fixed sleep) so this isn't sensitive to
-# system scheduling jitter.
-#
-# Step-entry (not playing): press should enter the note at row 00 AND
-# auto-advance the cursor off of it (matching keyboard step-entry), so
-# check row 00 specifically throughout rather than "whatever the cursor's
-# row currently shows" - aftertouch/release must keep targeting row 00
-# (where the note actually landed), not wherever the cursor has since
-# moved to.
-line_after_press, got_press = wait_until(scr, lambda l: l != line_before, timeout=15.0)
-print("row 00 after simulated pad press:       ", repr(line_after_press))
-check("Pad press from the simulated Launchpad X entered a note into the pattern",
-      got_press, f"before={line_before!r} after={line_after_press!r}")
-check("Pressed note is NOT the OFF sentinel (this is a fresh press, not a release)",
-      got_press and "OFF" not in line_after_press, line_after_press)
+# fake_launchpad holds 5s between press and aftertouch, then 5s more
+# before release. Poll continuously (rather than one fixed sleep) so a
+# row showing a real velocity value is caught even if it later scrolls
+# out of view.
+velocity_row = None
+deadline = time.time() + 9.0
+while time.time() < deadline and velocity_row is None:
+    scr.pump(0.5)
+    for row_hex, line in vk.dump_pattern_rows(scr).items():
+        if row_hex != note_row and vk.has_defined_velocity(line):
+            velocity_row = row_hex
+            break
+print("row aftertouch modulated:", velocity_row)
+check("Aftertouch became visible as a real velocity value on a row other than the note-on's own",
+      velocity_row is not None and velocity_row != note_row)
 
-y01 = find_pattern_row(scr.screen, target="01")
-row01_after_press = scr.screen.display[y01] if y01 is not None else None
-print("row 01 after simulated pad press (should now be the cursor row):", repr(row01_after_press))
-
-# fake_launchpad holds 5s between press and aftertouch, and another 5s
-# before release - bound this wait well under 10s so it can't accidentally
-# catch the release instead of the aftertouch.
-line_after_aftertouch, got_aftertouch = wait_until(scr, lambda l: l != line_after_press, timeout=8.0)
-print("row 00 after simulated aftertouch:       ", repr(line_after_aftertouch))
-print("is_playing at this point:", is_playing(scr))
-row01_after_aftertouch = scr.screen.display[find_pattern_row(scr.screen, target="01")]
-print("row 01 after simulated aftertouch (diagnostic):", repr(row01_after_aftertouch))
-check("Aftertouch modulated row 00's velocity in place (the row the note actually landed on, not wherever the cursor auto-advanced to)",
-      got_aftertouch and "OFF" not in line_after_aftertouch,
-      line_after_aftertouch)
-
-time.sleep(6)  # fake_launchpad's release fires 5s after aftertouch
-scr.pump(1.0)
-line_after_release = scr.screen.display[find_pattern_row(scr.screen)]
-print("row 00 after simulated release:         ", repr(line_after_release))
-check("Release did NOT overwrite the note with OFF while stopped (the step-entry bug this session's feedback was about)",
-      "OFF" not in line_after_release and line_after_release == line_after_aftertouch,
-      line_after_release)
+# fake_launchpad's release fires 5s after aftertouch - poll for a genuine
+# OFF to appear somewhere (the transport is playing now, unlike the old
+# step-entry semantics this test used to check, so a release writes a
+# real OFF at whatever row it lands on).
+off_row = None
+deadline = time.time() + 9.0
+while time.time() < deadline and off_row is None:
+    scr.pump(0.5)
+    for row_hex, line in vk.dump_pattern_rows(scr).items():
+        if vk.has_off(line):
+            off_row = row_hex
+            break
+print("row release wrote OFF on:", off_row)
+check("Release wrote a real OFF while playing", off_row is not None)
 
 try:
     os.kill(pid, 9)

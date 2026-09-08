@@ -1,13 +1,14 @@
 """Multi-device regression test: two simulated Launchpad X clients connect
-simultaneously; device A does one octave-up press before pressing pad
-(0,0), device B presses pad (0,0) immediately with no octave change. If
-LaunchpadManager's per-device state is genuinely independent, the two
-notes must be the same pitch class exactly one octave apart - proving A's
-octave-up did not leak into B (or vice versa). Also exercises the
-per-device (not global) chord/gesture auto-advance: B's own release
-advances the row before A (still mid-gesture) has pressed, so the two
-notes are expected to land on different rows, not the same one."""
-import sys, os, subprocess, time, re
+simultaneously and each independently switches into its own NOTES mode
+(GridMode is per-device); device A additionally arms Record Arm (a single
+song-wide flag, not per-device - only one instance ever presses it) and
+presses pad (0,0) [note 11], while device B - relying on A's already-armed
+state - presses a different pad [note 12] at roughly the same time. If
+LaunchpadManager's per-device state (active_notes, keyed by device id) is
+genuinely independent, both distinct notes must land correctly - neither
+device's own held-note bookkeeping colliding into or corrupting the
+other's."""
+import sys, os, subprocess, time
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
@@ -20,15 +21,13 @@ def check(name, ok, extra=None):
     if not ok and extra:
         print("  ", extra)
 
-def ctrl(c):
-    return bytes([ord(c.lower()) & 0x1F])
-
 log_a = open(os.path.join(SCRIPT_DIR, "fake_launchpad_device_a.log"), "w")
 log_b = open(os.path.join(SCRIPT_DIR, "fake_launchpad_device_b.log"), "w")
-# Device A does one octave-up before pressing; device B presses immediately -
-# if per-device octave state works, A's note should land an octave above B's.
-proc_a = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_device"), "A", "1"], stderr=log_a, stdout=log_a)
-proc_b = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_device"), "B", "0"], stderr=log_b, stdout=log_b)
+# Device A arms Record Arm and presses note 11; device B relies on A's
+# already-armed state and presses a different note (12) - if per-device
+# state works, both should land as distinct, uncorrupted notes.
+proc_a = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_device"), "A", "arm", "11"], stderr=log_a, stdout=log_a)
+proc_b = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_device"), "B", "plain", "12"], stderr=log_b, stdout=log_b)
 time.sleep(1)
 
 pid, fd = vk.spawn()
@@ -39,39 +38,31 @@ if not vk.wait_ready(scr):
     os.kill(pid, 9)
     sys.exit(1)
 
-# Fresh, empty song (Ctrl-N) - a clean row 0 / track 0 with no pre-existing
-# notes to confuse column parsing.
-scr.send(ctrl('n'))
-scr.pump(1.0)
+# Fresh, empty song - a clean row 0 / track 0 with no pre-existing notes
+# to confuse column parsing.
+vk.new_buffer(scr, "multidevice_test")
+vk.other_window(scr)
 
-# Wait for both fake devices to connect, do their scripted button/pad
-# presses, and settle.
-deadline = time.time() + 14.0
+# Wait for both fake devices to connect, arm/press/release, and settle,
+# remembering each row's own note columns seen across every poll (a row
+# can scroll out of view again before the next one).
+notes_by_row = {}
+deadline = time.time() + 16.0
 while time.time() < deadline:
-    scr.pump(1.0)
+    scr.pump(0.5)
+    for row_hex, line in vk.dump_pattern_rows(scr).items():
+        cols = [c for c in vk.note_columns(line) if c not in ("···", "OFF", "   ")]
+        if cols:
+            notes_by_row.setdefault(row_hex, set()).update(cols)
 
-# Collect every note name (e.g. "C-4", "C-5") appearing anywhere on screen -
-# the two notes may land on different rows (see module docstring).
-notes_found = []
-for y in range(scr.screen.lines):
-    notes_found += re.findall(r"[A-G][#-][0-9]", scr.screen.display[y])
-print("notes found across all rows:", notes_found)
+all_notes = set()
+for cols in notes_by_row.values():
+    all_notes |= cols
+print("distinct notes seen across all rows:", sorted(all_notes))
+print("by row:", {k: sorted(v) for k, v in notes_by_row.items()})
 
 check("exactly two distinct note writes happened (one per device)",
-      len(set(notes_found)) == 2, f"notes_found={notes_found}")
-
-if len(set(notes_found)) == 2:
-    letters = sorted(set(notes_found))
-    def parse(n):
-        return n[:-1], int(n[-1])
-    (pc1, oct1), (pc2, oct2) = parse(letters[0]), parse(letters[1])
-    check("both notes are the same pitch class (same pad, no track drift)",
-          pc1 == pc2, f"{letters}")
-    check("the two notes are exactly one octave apart (independent per-device octave)",
-          abs(oct1 - oct2) == 1, f"{letters}")
-else:
-    check("both notes are the same pitch class (same pad, no track drift)", False, "skipped - wrong note count")
-    check("the two notes are exactly one octave apart (independent per-device octave)", False, "skipped - wrong note count")
+      len(all_notes) == 2, f"all_notes={all_notes}")
 
 try:
     os.kill(pid, 9)

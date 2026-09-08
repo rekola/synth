@@ -2,8 +2,12 @@
 // LaunchpadProtocol::modelFromDeviceName, used to verify synth's
 // LaunchpadIO auto-detection/connection/dispatch end-to-end without real
 // hardware. Prints any SysEx it receives (to confirm the Programmer-Mode
-// and Device-Inquiry messages went out), then sends a scripted
-// press/aftertouch/release sequence on pad (0,0) = note 11.
+// and Device-Inquiry messages went out), then switches into NOTES mode,
+// arms Record Arm, and sends a scripted press/aftertouch/release sequence
+// on pad (0,0) = note 11 - a Launchpad press only ever writes into the
+// pattern with Record Arm on, and arming it starts playback, so there is
+// no "step entry while stopped" state to test any more (a plain press
+// only ever auditions).
 #include <alsa/asoundlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -28,6 +32,16 @@ void send_note(snd_seq_t * seq, int port, int status, int note, int velocity) {
   snd_seq_event_output_direct(seq, &ev);
 }
 
+static void send_cc(snd_seq_t * seq, int port, int cc, int value) {
+  snd_seq_event_t ev;
+  snd_seq_ev_clear(&ev);
+  snd_seq_ev_set_source(&ev, port);
+  snd_seq_ev_set_subs(&ev);
+  snd_seq_ev_set_direct(&ev);
+  snd_seq_ev_set_controller(&ev, 0, cc, value);
+  snd_seq_event_output_direct(seq, &ev);
+}
+
 int main() {
   snd_seq_t * seq;
   if (snd_seq_open(&seq, "default", SND_SEQ_OPEN_DUPLEX, 0) < 0) {
@@ -46,7 +60,7 @@ int main() {
   fprintf(stderr, "fake Launchpad X ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
   // Wait for synth to start, scan, auto-connect, and (in the test
-  // harness) switch to a fresh new song via Ctrl-N.
+  // harness) switch to a fresh new buffer.
   sleep(6);
 
   // Drain and print any incoming SysEx (Programmer Mode enter / Device Inquiry).
@@ -64,6 +78,18 @@ int main() {
     }
     snd_seq_free_event(ev);
   }
+
+  // GridMode defaults to SESSION on every connected device - a plain
+  // note-on there launches a Session View clip slot instead of entering a
+  // note; CC96 selects NOTES mode instead. A press also only actually
+  // writes into the pattern (rather than just auditioning) with Record
+  // Arm (CC19) on - "just play" vs. "store into the pattern".
+  fprintf(stderr, "sending CC96 press (Note mode)\n");
+  send_cc(seq, port, 96, 127);
+  sleep(1);
+  fprintf(stderr, "sending CC19 press (Record Arm on)\n");
+  send_cc(seq, port, 19, 127);
+  sleep(1);
 
   fprintf(stderr, "sending press on pad (0,0) [note 11], velocity 100\n");
   send_note(seq, port, 0x90, 11, 100);

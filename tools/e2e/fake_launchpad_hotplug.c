@@ -22,6 +22,16 @@ void send_note(snd_seq_t * seq, int port, int status, int note, int velocity) {
   snd_seq_event_output_direct(seq, &ev);
 }
 
+static void send_cc(snd_seq_t * seq, int port, int cc, int value) {
+  snd_seq_event_t ev;
+  snd_seq_ev_clear(&ev);
+  snd_seq_ev_set_source(&ev, port);
+  snd_seq_ev_set_subs(&ev);
+  snd_seq_ev_set_direct(&ev);
+  snd_seq_ev_set_controller(&ev, 0, cc, value);
+  snd_seq_event_output_direct(seq, &ev);
+}
+
 int main() {
   snd_seq_t * seq;
   if (snd_seq_open(&seq, "default", SND_SEQ_OPEN_DUPLEX, 0) < 0) {
@@ -54,6 +64,17 @@ int main() {
     }
     snd_seq_free_event(ev);
   }
+
+  // GridMode defaults to SESSION - a plain note-on there launches a
+  // Session View clip slot instead of entering a note; CC96 selects
+  // NOTES mode. A press also only actually writes into the pattern
+  // (rather than just auditioning) with Record Arm (CC19) on.
+  fprintf(stderr, "sending CC96 press (Note mode)\n");
+  send_cc(seq, port, 96, 127);
+  sleep(1);
+  fprintf(stderr, "sending CC19 press (Record Arm on)\n");
+  send_cc(seq, port, 19, 127);
+  sleep(1);
 
   fprintf(stderr, "sending press on pad (0,0) [note 11], velocity 100\n");
   send_note(seq, port, 0x90, 11, 100);

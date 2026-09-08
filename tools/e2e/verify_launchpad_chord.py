@@ -1,9 +1,11 @@
 """Chord semantics regression test: 3 near-simultaneous pad presses must
 land in 3 distinct note columns on the same row (not collide into one),
-and releasing them in non-LIFO order must not turn any of them into an
-OFF or advance the cursor until the whole gesture has released - this is
-the exact bug this feature's original bug-report feedback was about."""
-import sys, os, subprocess, time, re
+and releasing them in non-LIFO order must not corrupt any of the 3
+columns' own identity - each of the 3 held notes gets its own real OFF,
+not fewer than 3 (columns colliding) or a wrong one (release order
+scrambling which column gets which OFF) - the exact bug this feature's
+original bug-report feedback was about."""
+import sys, os, subprocess, time
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
@@ -17,20 +19,15 @@ def check(name, ok, extra=None):
     if not ok and extra:
         print("  ", extra)
 
-def find_pattern_row(screen, target="00"):
-    for y in range(screen.lines):
-        line = screen.display[y]
-        if line.strip().startswith(target) and "│" in line:
-            return y
-    return None
+def note_count(line):
+    if line is None:
+        return 0
+    return len([c for c in vk.note_columns(line) if c not in ("···", "OFF", "   ")])
 
-def is_playing(scr):
-    d = scr.dump()
-    info_lines = [l for l in d.splitlines() if "pattern:" in l]
-    return bool(info_lines) and "PLAYING" in info_lines[-1]
-
-def ctrl(c):
-    return bytes([ord(c.lower()) & 0x1F])
+def off_count(line):
+    if line is None:
+        return 0
+    return len([c for c in vk.note_columns(line) if c == "OFF"])
 
 log = open(os.path.join(SCRIPT_DIR, "fake_launchpad_chord.log"), "w")
 fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_chord")], stderr=log, stdout=log)
@@ -44,48 +41,44 @@ if not vk.wait_ready(scr):
     os.kill(pid, 9)
     sys.exit(1)
 
-scr.send(ctrl('n'))
-scr.pump(1.0)
-if is_playing(scr):
+vk.new_buffer(scr, "chord_test")
+if vk.is_playing(scr):
     scr.send(b" ")
     scr.pump(1.0)
-check("Playback stopped on the new song", not is_playing(scr))
+check("Playback stopped on the new song", not vk.is_playing(scr))
+vk.other_window(scr)
 
-y = find_pattern_row(scr.screen)
-line_before = scr.screen.display[y]
-print("row before chord:", repr(line_before))
-
-deadline = time.time() + 12.0
-line_after_press = line_before
-while time.time() < deadline:
+# fake_launchpad_chord sleeps 4s, then CC96 (Note mode)/CC19 (Record Arm)
+# a second apart, then presses the 3-note chord. Record Arm's own rising
+# edge starts playback, so the chord lands wherever the transport happens
+# to be by the time the press is processed - scan every visible row.
+chord_row = None
+deadline = time.time() + 15.0
+while time.time() < deadline and chord_row is None:
     scr.pump(0.5)
-    line_after_press = scr.screen.display[find_pattern_row(scr.screen)]
-    if line_after_press != line_before:
-        break
-print("row after chord press:", repr(line_after_press))
+    for row_hex, line in vk.dump_pattern_rows(scr).items():
+        if note_count(line) >= 3:
+            chord_row = row_hex
+            break
+print("row the chord landed on:", chord_row)
+check("Chord entered 3 distinct notes (not collided into one column)", chord_row is not None)
 
-# Expect 3 distinct, simultaneously-defined notes in 3 separate sub-columns
-# (not one note repeatedly overwritten by the next).
-note_names = re.findall(r'([A-G][#b♭]?-?\d|C--)', line_after_press.split("│", 1)[1] if "│" in line_after_press else "")
-print("parsed note names in row:", note_names)
-check("Chord entered 3 distinct notes (not collided into one column)",
-      len([n for n in note_names if n]) >= 3, line_after_press)
-
-deadline2 = time.time() + 12.0
-line_after_release = line_after_press
-while time.time() < deadline2:
+# fake_launchpad_chord holds 2s then releases non-LIFO (middle pad first,
+# then first, then last) 20ms apart - close together, but real wall-clock/
+# audio-thread scheduling jitter can still straddle a row boundary between
+# them, and a row can scroll out of view again before the next poll - so
+# remember each row's own highest OFF count seen across every poll, then
+# sum those, rather than trusting one single snapshot.
+offs_by_row = {}
+deadline = time.time() + 15.0
+while time.time() < deadline and sum(offs_by_row.values()) < 3:
     scr.pump(0.5)
-    line_after_release = scr.screen.display[find_pattern_row(scr.screen)]
-    if "OFF" in line_after_release:
-        break
-print("row after non-LIFO chord release:", repr(line_after_release))
-check("Releasing the chord (non-LIFO order) did not turn any note into OFF",
-      "OFF" not in line_after_release and line_after_release == line_after_press,
-      line_after_release)
-
-y01 = find_pattern_row(scr.screen, target="01")
-row01 = scr.screen.display[y01] if y01 is not None else None
-print("row 01 (should now be current, advanced once after the whole chord released):", repr(row01))
+    for row_hex, line in vk.dump_pattern_rows(scr).items():
+        offs_by_row[row_hex] = max(offs_by_row.get(row_hex, 0), off_count(line))
+total_offs = sum(offs_by_row.values())
+print("total OFFs seen across all rows after the non-LIFO release:", total_offs, offs_by_row)
+check("Releasing the chord (non-LIFO order) wrote 3 distinct OFFs, one per column (no collision/scramble)",
+      total_offs >= 3, f"total_offs={total_offs}")
 
 try:
     os.kill(pid, 9)

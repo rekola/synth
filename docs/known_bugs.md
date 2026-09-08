@@ -284,3 +284,37 @@ Found 2026-07-11, not yet fixed.
   ended, fall through" and "silence this track" at the storage layer if
   the two are ever meant to behave differently after all.
 
+- **An aftertouch note (`Note::isAftertouch()`) is corrupted into a bogus
+  real note-on across a save/reload**, in a clip's own leaf `Pattern` or a
+  scene's background one alike - both go through the same `Song.cpp`
+  serialization. `Note::toString(Tuning)` returns the identical `"···"`
+  placeholder for both an aftertouch note and a genuinely undefined/empty
+  cell (`if (isDefined() && !isAftertouch()) {...} else return "···";`),
+  so that's what gets written as the `<note>` element's text
+  (`storePatternContent()`). On load, `parsePatternContent()` hands that
+  text to `Note::createFromString()`/`stringToKey()`, which tries to parse
+  it as a pitch-letter note name - `letter = input_value[0]` is the first
+  UTF-8 byte of `·` (U+00B7, byte `0xC2`), which fails
+  `assert(letter >= 'A' && letter <= 'G')`. In a debug build that aborts;
+  in a release build (`NDEBUG`, the shape this ships in) the assert is
+  compiled out and execution falls through every letter/accidental branch
+  untaken, returning whatever half-initialized `value` (`(octave + 1) *
+  <EDO>`) it happened to compute - a real, defined pitch, not -1. The
+  aftertouch note comes back as a bogus note-on at that wrong pitch,
+  velocity preserved but its own defining trait (no pitch of its own)
+  gone. Verified by code reading (the write and the parse's exact
+  behavior on `"···"`), not yet by an actual save/reload test - the
+  live, in-memory write path itself is confirmed correct (`Controller::
+  applyNotePressure()`/`resolveEditTarget()`, `tests/ControllerTests.cpp`'s
+  `apply_note_pressure_writes_an_aftertouch_note`/
+  `apply_note_pressure_writes_aftertouch_into_a_recording_clip`), and a
+  live take actually landing an aftertouch entry into a real Clip and
+  showing it correctly in the pattern editor's velocity column was
+  confirmed end-to-end via `tools/e2e/verify_launchpad_aftertouch_clip.py` -
+  this is a persistence-only corruption. Not fixed - would need
+  `Note::toString()` to return a distinct, round-trippable placeholder for
+  an aftertouch note instead of reusing the empty-cell one (and
+  `createFromString()`/`stringToKey()` to recognize it and reconstruct
+  `value == -1`), or storing aftertouch-only rows some other way that
+  doesn't route through the same note-name text at all.
+

@@ -982,19 +982,28 @@ Controller::removeNoteColumn(int track_id) {
 void
 Controller::ensureRowCleared(std::set<std::pair<int, int>> & cleared_rows, int pattern_idx, int row, int track_id) {
   auto song = getCurrentSong();
-  auto & scene = song->getScene(pattern_idx);
-  // A shorter-than-song-length Pattern repeats - see Pattern.h's own
+  auto & scene = song->getOrCreateScene(pattern_idx);
+  // Clears whatever's actually active at (track_id, row) - a placed
+  // clip instance's own leaf Pattern, live-linked to every other
+  // placement of it, or the scene's own background Pattern otherwise
+  // (ArrangementOps.h's own resolveEditTarget()) - the same resolution
+  // every write into a live take already goes through
+  // (applyNotePressure()/writeReleaseOff(), LaunchpadManager's own
+  // note-on write), so the row actually cleared is always the one a
+  // fresh take is about to write into, clip-based recording included.
+  //
+  // A shorter-than-its-own-container Pattern repeats - see Pattern.h's own
   // getEffectiveRow() comment - so the row actually cleared is this
   // track's own effective one, not necessarily the raw playhead row.
   // cleared_rows itself is keyed by that same effective row too, not the
   // raw one: two different raw rows that repeat the same underlying
-  // content (e.g. rows 4 and 20 of a 16-row pattern) must dedup together
-  // - otherwise sweeping past the second one would clear (and lose) a
-  // note the first one just wrote, one loop iteration into the same
-  // live take.
-  auto effective_row = scene.getEffectiveRow(track_id, row, song->getEffectiveSceneLength(scene));
-  if (!cleared_rows.insert({effective_row, track_id}).second) return; // already cleared this session
-  scene.setNotes(effective_row, track_id, {});
+  // content (e.g. rows 4 and 20 of a 16-row pattern, or two laps of a
+  // looping clip) must dedup together - otherwise sweeping past the
+  // second one would clear (and lose) a note the first one just wrote,
+  // one loop iteration into the same live take.
+  auto target = resolveEditTarget(*song, scene, track_id, row, getFocusedClip());
+  if (!cleared_rows.insert({target.effective_row, track_id}).second) return; // already cleared this session
+  target.pattern->setNotes(target.effective_row, {});
   song->incVersion();
 }
 

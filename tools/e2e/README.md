@@ -26,6 +26,7 @@ gcc -o fake_launchpad_stepseq fake_launchpad_stepseq.c -lasound
 gcc -o fake_launchpad_session fake_launchpad_session.c -lasound
 gcc -o fake_launchpad_notecustom fake_launchpad_notecustom.c -lasound
 gcc -o fake_launchpad_stopclip fake_launchpad_stopclip.c -lasound
+gcc -o fake_launchpad_aftertouch_clip fake_launchpad_aftertouch_clip.c -lasound
 ```
 
 (the compiled binaries are gitignored - only the `.c` sources are
@@ -52,13 +53,18 @@ you're changing.
   waiting for a reply a plain pty never sends. Not Launchpad-specific -
   reusable for testing any keybinding/UI behavior.
 - **`verify_keybindings.py`** - general Emacs-keybinding smoke test
-  (Ctrl-B/W/Y/G/Space/Ctrl-N/Ctrl-Q), independent of Launchpad.
+  (Ctrl-B/W/Y/G/Space/C-x o/C-x b/C-x C-c), independent of Launchpad.
 - **`fake_launchpad.c` / `verify_launchpad_e2e.py`** - baseline single
-  pad press/aftertouch/release; the step-entry-vs-playing note-off
-  semantics regression test.
+  pad press/aftertouch/release, switching into NOTES mode and arming
+  Record Arm first (a plain press only ever auditions - it never writes
+  into the pattern without Record Arm on, and arming it always starts
+  playback, so there is no "step entry while stopped" state to test any
+  more): the press enters a note, aftertouch modulates its velocity on a
+  later row as the transport advances, and release writes a real OFF.
 - **`fake_launchpad_chord.c` / `verify_launchpad_chord.py`** - 3
-  near-simultaneous presses released in non-LIFO order; catches note
-  columns colliding into one, or a premature auto-advance mid-chord.
+  near-simultaneous presses (after switching into NOTES mode and arming
+  Record Arm) released in non-LIFO order; catches note columns colliding
+  into one, or a release scrambling which column gets which OFF.
 - **`fake_launchpad_perc.c` / `verify_percussion_layout.py`** - presses
   a pad after navigating onto a percussion track; confirms the layout
   actually switches (GM percussion mapping + LED coloring) instead of
@@ -68,19 +74,33 @@ you're changing.
   (cursor actually moves), and button LED feedback.
 - **`fake_launchpad_hotplug.c` / `verify_launchpad_hotplug.py`** -
   connects *after* `synth` has already started, exercising the
-  ALSA announce-port hotplug path instead of the startup-time scan.
-- **`fake_launchpad_device.c`** - the general-purpose simulator:
-  argv is `<client-name-suffix> <number-of-octave-up-presses>`, so two
-  instances can run concurrently and be told apart. Used by:
-  - **`verify_launchpad_multidevice.py`** - two devices connect at once,
-    one shifts its own octave first; the resulting notes must be the
-    same pitch class exactly one octave apart, proving
-    `LaunchpadManager`'s per-device state is genuinely independent (and
-    not just that it compiles).
-  - **`verify_launchpad_disconnect_prune.py`** - one device builds up
-    state and fully disconnects; a second connects afterward and must
-    start clean with no crash - covers `LaunchpadManager::refresh`'s
-    erase-while-iterating device-pruning loop.
+  ALSA announce-port hotplug path instead of the startup-time scan; also
+  switches into NOTES mode and arms Record Arm before pressing, same
+  reasoning as `fake_launchpad.c` above.
+- **`fake_launchpad_device.c`** - the general-purpose simulator: argv is
+  `<client-name-suffix> <arm|plain> [note]`. `arm` switches into this
+  instance's own NOTES mode and arms Record Arm (a single song-wide flag,
+  not per-device - only one connected instance should ever press it)
+  before pressing `note` (default 11, pad (0,0)); `plain` only switches
+  into its own NOTES mode and presses, relying on whichever `arm`
+  instance already armed Record Arm. Octave shifting has no button of its
+  own any more (`LaunchpadProtocol::commandForButton()`'s own comment -
+  deliberately deferred, not removed), so this no longer simulates it.
+  Two instances can run concurrently and be told apart. Used by:
+  - **`verify_launchpad_multidevice.py`** - two devices connect at once
+    and each independently switches into its own NOTES mode (`GridMode`
+    is per-device); device A arms Record Arm and presses one note, device
+    B presses a different one relying on A's already-armed state. Both
+    distinct notes must land correctly, uncorrupted - proving
+    `LaunchpadManager`'s per-device state (`active_notes`, keyed by
+    device id) is genuinely independent (and not just that it compiles).
+  - **`verify_launchpad_disconnect_prune.py`** - one device arms Record
+    Arm, presses, and fully disconnects without ever disarming (Record
+    Arm is Song state, not per-device connection state, so it stays
+    armed); a second device connects afterward, relies on that still-
+    armed state, and must be able to press and write cleanly with no
+    crash - covers `LaunchpadManager::refresh`'s erase-while-iterating
+    device-pruning loop.
 - **`fake_launchpad_sendmode.c` / `verify_launchpad_sendmode.py`** - toggles
   into Send A grid mode (CC69) and presses a grid pad; confirms the LED
   bargraph both starts at the track's existing Send A level and reflects
@@ -156,6 +176,18 @@ you're changing.
   `SampleTrackTests.cpp`'s own `triggerClip()` calls are. Same known,
   pre-existing environment limitation as its sibling above - see
   `docs/known_bugs.md`.
+- **`fake_launchpad_aftertouch_clip.c` / `verify_launchpad_aftertouch_clip.py`** -
+  the "Clip-based note recording" path (`Controller::
+  ensureNoteRecordingClip()`), not step entry: switches into NOTES grid
+  mode (CC96 - `GridMode` defaults to SESSION, where a plain note-on would
+  launch a Session View clip slot instead), arms Record Arm (CC19), holds
+  a note across several rows of real playback, and sends two aftertouch
+  messages partway through the hold - confirms both become visible as a
+  real (non-`--`) value in the pattern editor's own velocity column on the
+  row the transport had reached when each one arrived, not just on the
+  note-on's own row. Polls every currently-visible row rather than
+  assuming a fixed one, since the exact row a message lands on depends on
+  real wall-clock/audio-thread timing.
 - **`cross_tuning_paste_test.xml` (+ companion `..._song_b.xml`) /
   `verify_patterneditor_cross_tuning_paste.py`** - a `Note::getValue()`
   means a different kind of value under a different tuning (GM percussion
