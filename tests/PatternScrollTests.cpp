@@ -1,6 +1,6 @@
 #include "TestFramework.h"
 
-#include "../src/ui/PatternScroll.h"
+#include "../src/ui/tui/PatternScroll.h"
 #include "../src/model/VisibleTrackInfo.h"
 
 #include <optional>

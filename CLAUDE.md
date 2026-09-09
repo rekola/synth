@@ -438,7 +438,7 @@ whether or not a terminal UI exists at all.
   target, so holding it and pressing any pad in a column stops that
   column's own track (`handleStopClipButton()` just tracks the hold;
   `handleSessionPadEvent()` does the actual stopping).
-- **`ArrangementGrid`** (`src/ui/ArrangementGrid.h`/`.cpp`) - the terminal-
+- **`ArrangementGrid`** (`src/ui/tui/ArrangementGrid.h`/`.cpp`) - the terminal-
   side counterpart: an always-visible overview in the scope row. A scene
   is a title row (its own name, full width - scenes are told apart by
   name, not by number; Enter on a title row edits it in place) followed
@@ -490,9 +490,33 @@ whether or not a terminal UI exists at all.
     hierarchy (see the `AmbisonicEncoding.h` bullet below).
   - `src/audio/` — `AlsaAudio` (device output), `AudioBuffer`,
     `OfflineRenderer`.
-  - `src/ui/` — `TerminalUI`/`PatternEditor`/`OutlineView` (notcurses
-    UI) plus the Emacs-style keybinding dispatch (`KeyChord.h`/
-    `Keymap.h`/`CommandRegistry.h`).
+  - `src/ui/` — toolkit-agnostic UI plumbing with no notcurses
+    dependency: `UI`/`UIElement`/`UIPlane`/`UIMenu` (abstract app/widget/
+    render-surface interfaces a future non-terminal UI could implement
+    against too - a concrete backend's real implementation, e.g.
+    `TerminalPlane`/`TerminalMenu`, lives entirely inside that backend's
+    own file, not alongside the interface), `Chart`/`HeatmapChart`
+    (same pattern - `TerminalChart`/`TerminalPixelChart`/
+    `TerminalHeatmapChart`/`TerminalPixelHeatmapChart` are
+    `TerminalUI.cpp`'s own concrete renderers), `StyleProvider` (a plain
+    named-color theme struct, not terminal-specific itself), the
+    Emacs-style keybinding dispatch (`KeyChord.h`/`Keymap.h`/
+    `CommandRegistry.h`), and selection/clipboard data types
+    (`SelectionBounds.h`/`SelectionScope.h`/`ClipboardEntry.h`/
+    `GridPosition.h`). `UI` itself owns nothing widget-shaped - just the
+    app-level lifecycle every backend needs (spawning the audio/
+    visualization threads, running until told to quit, reporting status)
+    - a concrete subclass owns its own widget set, screen layout, and
+    Launchpad callback wiring (`UI::wireLaunchpad()`'s hook). `src/ui/tui/`
+    — the concrete notcurses implementation built on those interfaces:
+    `TerminalUI` (the sole such subclass today - owns every widget below,
+    plus `initializeWidgets()`/`layout()`/`renderComponents()`, the
+    command/keybinding definitions, and every `EventHandler` override) and
+    `PatternEditor`/`OutlineView`/
+    `PatternEditor`/`OutlineView` and the rest of the terminal widgets,
+    plus notcurses-specific input handling (`NotcursesInputEventSource`,
+    `EscapeCoalescer`) and text-cell rendering helpers
+    (`SubcellGlyphs.h`) that wouldn't apply to a pixel-based UI.
   - `src/launchpad/` — Launchpad hardware I/O and layout - see the
     Launchpad section above.
   - `src/util/` — small, dependency-free helpers (`constants.h`,

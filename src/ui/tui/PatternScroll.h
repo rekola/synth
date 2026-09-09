@@ -1,7 +1,7 @@
 #ifndef _PATTERNSCROLL_H_
 #define _PATTERNSCROLL_H_
 
-#include "GridPosition.h"
+#include "../GridPosition.h"
 
 #include <unordered_map>
 #include <vector>

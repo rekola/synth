@@ -1,5 +1,5 @@
 #include "PatternScroll.h"
-#include "../model/VisibleTrackInfo.h"
+#include "../../model/VisibleTrackInfo.h"
 
 using namespace std;
 

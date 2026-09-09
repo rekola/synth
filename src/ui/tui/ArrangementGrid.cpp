@@ -1,16 +1,16 @@
 #include "ArrangementGrid.h"
 
-#include "../playback/InputEvent.h"
-#include "../playback/LogEvent.h"
-#include "StyleProvider.h"
-#include "../Controller.h"
-#include "../model/Song.h"
-#include "../model/Scene.h"
-#include "../model/Clip.h"
-#include "../model/ArrangementOps.h"
-#include "../model/SongStructure.h"
-#include "../util/Utf8.h"
-#include "KeyChord.h"
+#include "../../playback/InputEvent.h"
+#include "../../playback/LogEvent.h"
+#include "../StyleProvider.h"
+#include "../../Controller.h"
+#include "../../model/Song.h"
+#include "../../model/Scene.h"
+#include "../../model/Clip.h"
+#include "../../model/ArrangementOps.h"
+#include "../../model/SongStructure.h"
+#include "../../util/Utf8.h"
+#include "../KeyChord.h"
 
 #include <algorithm>
 #include <fmt/core.h>

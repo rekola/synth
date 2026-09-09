@@ -1,6 +1,6 @@
 #include "TestFramework.h"
 
-#include "../src/ui/PatternBlockOps.h"
+#include "../src/model/PatternBlockOps.h"
 #include "../src/model/Scene.h"
 #include "../src/model/Clip.h"
 

@@ -1,8 +1,8 @@
 #ifndef _STATUSLINE_H_
 #define _STATUSLINE_H_
 
-#include "UIElement.h"
-#include "../playback/InputEvent.h"
+#include "../UIElement.h"
+#include "../../playback/InputEvent.h"
 
 #include <algorithm>
 #include <filesystem>

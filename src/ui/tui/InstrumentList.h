@@ -1,7 +1,7 @@
 #ifndef _INSTRUMENTLIST_H_
 #define _INSTRUMENTLIST_H_
 
-#include "UIElement.h"
+#include "../UIElement.h"
 
 class StyleProvider;
 

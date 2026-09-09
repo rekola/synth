@@ -1,9 +1,9 @@
 #ifndef _COVERART_H_
 #define _COVERART_H_
 
-#include "UIElement.h"
-#include "StyleProvider.h"
-#include "../util/Utf8.h"
+#include "../UIElement.h"
+#include "../StyleProvider.h"
+#include "../../util/Utf8.h"
 
 #include <algorithm>
 

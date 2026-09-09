@@ -1,12 +1,12 @@
 #ifndef _SPINBOX_H_
 #define _SPINBOX_H_
 
-#include "UIElement.h"
-#include "StyleProvider.h"
-#include "../model/Color.h"
-#include "../playback/InputEvent.h"
-#include "../util/digit.h"
-#include "../util/Utf8.h"
+#include "../UIElement.h"
+#include "../StyleProvider.h"
+#include "../../model/Color.h"
+#include "../../playback/InputEvent.h"
+#include "../../util/digit.h"
+#include "../../util/Utf8.h"
 
 #include <algorithm>
 #include <functional>

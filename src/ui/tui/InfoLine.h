@@ -1,9 +1,9 @@
 #ifndef _INFOLINE_H_
 #define _INFOLINE_H_
 
-#include "UIElement.h"
-#include "../Controller.h"
-#include "../state/SongState.h"
+#include "../UIElement.h"
+#include "../../Controller.h"
+#include "../../state/SongState.h"
 
 #include <fmt/core.h>
 

@@ -60,7 +60,7 @@ add_library(synth_engine STATIC
 	src/instruments/Oscillator.cpp
 	src/instruments/Noise.cpp
 	src/Controller.cpp
-	src/ui/InstrumentList.cpp
+	src/ui/tui/InstrumentList.cpp
 	src/instruments/SoundFont.cpp
 	src/instruments/SF2Modulator.cpp
 	src/model/Song.cpp
@@ -102,9 +102,9 @@ add_library(synth_engine STATIC
 	src/audio/OfflineRenderer.cpp
 	src/audio/SampleFileLoader.cpp
 	src/audio/TimeStretcher.cpp
-	src/ui/PatternBlockOps.cpp
+	src/model/PatternBlockOps.cpp
 	src/model/ArrangementOps.cpp
-	src/ui/PatternScroll.cpp
+	src/ui/tui/PatternScroll.cpp
 	src/launchpad/LaunchpadLayout.cpp
 	src/launchpad/LaunchpadProtocol.cpp
 	src/instruments/DrumRankTable.cpp
@@ -228,14 +228,14 @@ add_executable(synth src/main.cpp
 	src/audio/AlsaAudio.cpp
 	src/launchpad/LaunchpadIO.cpp
 	src/launchpad/LaunchpadManager.cpp
-	src/ui/TerminalUI.cpp
-	src/ui/EscapeCoalescer.cpp
-	src/ui/NotcursesInputEventSource.cpp
-	src/ui/OutlineView.cpp
-	src/ui/PatternEditor.cpp
-	src/ui/ArrangementGrid.cpp
-	src/ui/SessionView.cpp
-	src/ui/SubcellGlyphs.cpp
+	src/ui/tui/TerminalUI.cpp
+	src/ui/tui/EscapeCoalescer.cpp
+	src/ui/tui/NotcursesInputEventSource.cpp
+	src/ui/tui/OutlineView.cpp
+	src/ui/tui/PatternEditor.cpp
+	src/ui/tui/ArrangementGrid.cpp
+	src/ui/tui/SessionView.cpp
+	src/ui/tui/SubcellGlyphs.cpp
 )
 target_include_directories(synth PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 

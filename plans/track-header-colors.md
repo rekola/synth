@@ -19,7 +19,7 @@ will also want to show which track is which at a glance - the same
 tracks the pattern editor heading already colors. Whatever assigns a
 track's color has to live somewhere both UIs can call, and has to be
 deterministic from the same inputs, or the same track could show up a
-different color in each - see the new `src/ui/TrackColor.h` in Design
+different color in each - see the new `src/ui/tui/TrackColor.h` in Design
 below.
 
 Decisions from clarification (see conversation):
@@ -53,7 +53,7 @@ Decisions from clarification (see conversation):
 
 ## Design
 
-### `UIColor::fromHSL()` (new, `src/ui/UIColor.h`)
+### `UIColor::fromHSL()` (new, `src/ui/tui/UIColor.h`)
 
 `UIColor` currently only builds from RGB (an int triple or a hex
 string). Add a small static HSL->RGB constructor alongside the existing
@@ -65,7 +65,7 @@ dependency:
 static UIColor fromHSL(float h, float s, float l);
 ```
 
-### `src/ui/TrackColor.h` (new)
+### `src/ui/tui/TrackColor.h` (new)
 
 Not `PatternEditor.cpp`-local: the pattern editor heading is not the
 only consumer - `plans/per-track-patterns-scenes-matrix.md`'s (future,
@@ -141,7 +141,7 @@ percussion/sample/drum-machine track's color). Implementation is a
 single pass over `track_ids`, assigning the next sequential integer to
 each id that passes `isColorEligibleTrackType()`.
 
-### `renderHeading()` changes (`src/ui/PatternEditor.cpp`)
+### `renderHeading()` changes (`src/ui/tui/PatternEditor.cpp`)
 
 **Palette instead of fixed orange, only for color-eligible types.**
 `renderHeading()` calls the shared `computeTrackColorOrdinals(track_ids, song)`
@@ -253,12 +253,12 @@ written the next time each file is saved.
 
 ## Files touched
 
-- `src/ui/UIColor.h` - new `fromHSL()` static constructor.
-- `src/ui/TrackColor.h` - new, shared and reusable beyond
+- `src/ui/tui/UIColor.h` - new `fromHSL()` static constructor.
+- `src/ui/tui/TrackColor.h` - new, shared and reusable beyond
   `PatternEditor` (see Context): `isColorEligibleTrackType()`,
   `computeTrackColorOrdinals()`, `trackHeaderColor()` (golden-angle hue
   + fixed saturation/lightness).
-- `src/ui/PatternEditor.cpp` - `renderHeading()`'s `segment_color()` and
+- `src/ui/tui/PatternEditor.cpp` - `renderHeading()`'s `segment_color()` and
   the level-0/ancestor-row name/M-S/toggle drawing.
 - `src/model/InstrumentTrack.h`/`.cpp` - delete the dead `color_` field.
 

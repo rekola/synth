@@ -1,7 +1,7 @@
 #include "audio/AlsaAudio.h"
 #include "launchpad/LaunchpadIO.h"
 #include "launchpad/LaunchpadManager.h"
-#include "ui/TerminalUI.h"
+#include "ui/tui/TerminalUI.h"
 #include "Controller.h"
 #include "util/StderrLogger.h"
 #include "audio/OfflineRenderer.h"

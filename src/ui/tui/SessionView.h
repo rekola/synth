@@ -1,7 +1,7 @@
 #ifndef _SESSIONVIEW_H_
 #define _SESSIONVIEW_H_
 
-#include "UIElement.h"
+#include "../UIElement.h"
 
 #include <functional>
 #include <string>

@@ -1,6 +1,6 @@
 #include "TestFramework.h"
 
-#include "../src/ui/EscapeCoalescer.h"
+#include "../src/ui/tui/EscapeCoalescer.h"
 
 #include <deque>
 

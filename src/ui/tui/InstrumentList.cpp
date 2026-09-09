@@ -1,9 +1,9 @@
 #include "InstrumentList.h"
 
-#include "../Controller.h"
-#include "../model/Song.h"
-#include "../playback/InputEvent.h"
-#include "StyleProvider.h"
+#include "../../Controller.h"
+#include "../../model/Song.h"
+#include "../../playback/InputEvent.h"
+#include "../StyleProvider.h"
 
 #include <fmt/core.h>
 

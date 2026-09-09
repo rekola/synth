@@ -1,11 +1,11 @@
 #ifndef _PATTERNEDITOR_H_
 #define _PATTERNEDITOR_H_
 
-#include "UIElement.h"
-#include "GridPosition.h"
-#include "PatternBlockOps.h"
-#include "ClipboardEntry.h"
-#include "SelectionBounds.h"
+#include "../UIElement.h"
+#include "../GridPosition.h"
+#include "../../model/PatternBlockOps.h"
+#include "../ClipboardEntry.h"
+#include "../SelectionBounds.h"
 
 #include <functional>
 #include <vector>

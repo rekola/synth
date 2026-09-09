@@ -1,16 +1,16 @@
 #include "SessionView.h"
 
-#include "../playback/InputEvent.h"
-#include "../playback/LogEvent.h"
-#include "KeyChord.h"
-#include "StyleProvider.h"
-#include "../Controller.h"
-#include "../model/Song.h"
-#include "../model/ArrangementOps.h"
-#include "../model/LeafTrack.h"
-#include "../model/Clip.h"
-#include "../model/SongStructure.h"
-#include "../util/Utf8.h"
+#include "../../playback/InputEvent.h"
+#include "../../playback/LogEvent.h"
+#include "../KeyChord.h"
+#include "../StyleProvider.h"
+#include "../../Controller.h"
+#include "../../model/Song.h"
+#include "../../model/ArrangementOps.h"
+#include "../../model/LeafTrack.h"
+#include "../../model/Clip.h"
+#include "../../model/SongStructure.h"
+#include "../../util/Utf8.h"
 
 #include <algorithm>
 #include <memory>

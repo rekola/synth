@@ -1,6 +1,6 @@
 #include "TestFramework.h"
 
-#include "../src/ui/SubcellGlyphs.h"
+#include "../src/ui/tui/SubcellGlyphs.h"
 
 #include <vector>
 

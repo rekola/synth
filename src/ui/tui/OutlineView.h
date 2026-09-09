@@ -1,8 +1,8 @@
 #ifndef _OUTLINEVIEW_H_
 #define _OUTLINEVIEW_H_
 
-#include "UIElement.h"
-#include "../model/TrackType.h"
+#include "../UIElement.h"
+#include "../../model/TrackType.h"
 
 #include <vector>
 #include <string>
