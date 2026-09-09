@@ -62,7 +62,9 @@ class TerminalUI : public UI {
   void handleMidiEvent(MidiEvent & ev) override;
   void handleLaunchpadPadEvent(LaunchpadPadEvent & ev) override;
   void handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) override;
-  void handleLaunchpadChannelPressureEvent(LaunchpadChannelPressureEvent & ev) override;
+  // handleLaunchpadChannelPressureEvent() is UI's own now - a pure
+  // LaunchpadManager passthrough, with no widget dependency to override
+  // here.
   void handleVisualizationResultEvent(VisualizationResultEvent & ev) override;
 
 protected:
@@ -182,12 +184,12 @@ private:
   std::shared_ptr<SpinBox> octave_control_;
   std::weak_ptr<UIElement> active_element_;
 
-  // Set once at startup (see wireLaunchpad()) - the Launchpad command-
-  // dispatch path (handleLaunchpadButtonEvent) needs this directly
-  // (device-state toggles, per-device command resolution); PatternEditor's
-  // own copy is separate and only used for actual pattern editing (note
+  // launchpad_manager_ itself is UI's own now (set once in UI::start(),
+  // before wireLaunchpad() runs) - the Launchpad command-dispatch path
+  // (handleLaunchpadButtonEvent below) still reads it directly (device-
+  // state toggles, per-device command resolution); PatternEditor's own
+  // copy is separate and only used for actual pattern editing (note
   // entry).
-  LaunchpadManager * launchpad_manager_ = nullptr;
 
   // Legacy xterm/VT220 "SS3 + modifier digit" escape sequence recognizer
   // for Ctrl+Numpad-Divide/Multiply (see readInput()'s own comment) - the

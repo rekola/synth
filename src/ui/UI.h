@@ -9,6 +9,7 @@
 class AudioAPI;
 class LaunchpadIO;
 class LaunchpadManager;
+class LaunchpadChannelPressureEvent;
 class UI;
 
 class StatusLogger : public Logger {
@@ -29,7 +30,7 @@ private:
 // directly rather than TerminalUI.
 class UI : public UIElement {
  public:
-  explicit UI() : logger_(this) { }
+  explicit UI() : logger_(this) { initializeCommands(); }
 
   virtual void refresh() = 0;
   virtual void render() = 0;
@@ -41,20 +42,37 @@ class UI : public UIElement {
 
   virtual void setStatus(std::string s) = 0;
 
+  // Launchpad hardware input isn't tied to any one visual frontend, so its
+  // event handling lives here rather than in a concrete backend - this one
+  // is a pure passthrough to LaunchpadManager, with no widget dependency of
+  // its own. handleLaunchpadPadEvent/handleLaunchpadButtonEvent stay
+  // backend-defined for now (they reach into a concrete backend's own
+  // current-note-entry-surface/command-dispatch state).
+  void handleLaunchpadChannelPressureEvent(LaunchpadChannelPressureEvent & ev) override;
+
 protected:
   virtual void startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) = 0;
 
   // Hook for a concrete UI to wire up whatever per-widget Launchpad
   // callbacks it needs (session/track-move, drum-edit request, ...) -
   // default no-op, since a UI backend with no Launchpad-aware widgets of
-  // its own needs none of them.
+  // its own needs none of them. launchpad_manager_ is already set (see
+  // start()) by the time this runs.
   virtual void wireLaunchpad(LaunchpadManager & launchpad_manager) { }
 
   Logger & getLogger() { return logger_; }
 
   bool close_ui_ = false;
 
+  // Set once in start(), before wireLaunchpad() runs - shared here (rather
+  // than duplicated per backend) since any UI frontend, GUI included, reads
+  // it just as much as TerminalUI does today (device-state toggles, per-
+  // device command resolution, handleLaunchpadChannelPressureEvent() above).
+  LaunchpadManager * launchpad_manager_ = nullptr;
+
 private:
+  void initializeCommands();
+
   StatusLogger logger_;
 };
 

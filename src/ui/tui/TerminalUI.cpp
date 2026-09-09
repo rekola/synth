@@ -1952,12 +1952,6 @@ TerminalUI::initializeWidgets() {
       }
     }, dir);
   });
-  commands_.define("next-buffer", [this]() {
-    getController().cycleBuffer(true);
-  });
-  commands_.define("previous-buffer", [this]() {
-    getController().cycleBuffer(false);
-  });
   // Tab/Enter complete against the open buffer names (StatusLine::
   // completeAgainstSet(), the same machinery M-x's own command-name
   // completion uses); switchToBuffer() creates a fresh blank buffer for a
@@ -1984,24 +1978,11 @@ TerminalUI::initializeWidgets() {
       return result;
     });
   });
-  // Menu-only (Buffers menu's own "Open Session View"/"Open Outline"/
-  // "Open Pattern Viewer" items) - no keybinding. Switches to (opening the
-  // first time) the SessionView/OutlineView/PatternEditor aspect of the
-  // active song - see Controller::openSessionViewBuffer()'s own comment.
-  // Any of the three can be opened regardless of which one currently
-  // shows, and each can later be closed independently (kill-buffer below)
-  // without closing the song. The buffer-change listener above does the
-  // actual screen-slot swap; these commands' only job is asking Controller
-  // to switch there.
-  commands_.define("session-view", [this]() {
-    getController().openSessionViewBuffer();
-  });
-  commands_.define("outline-view", [this]() {
-    getController().openOutlineViewBuffer();
-  });
-  commands_.define("pattern-viewer", [this]() {
-    getController().openPatternEditorBuffer();
-  });
+  // session-view/outline-view/pattern-viewer are UI's own now (Menu-only -
+  // Buffers menu's own "Open Session View"/"Open Outline"/"Open Pattern
+  // Viewer" items, no keybinding here) - the buffer-change listener above
+  // does the actual screen-slot swap once Controller's own selected buffer
+  // changes.
   commands_.define("kill-buffer", [this]() {
     auto doKill = [this]() {
       auto name = getController().getActiveBufferName();
@@ -2022,22 +2003,9 @@ TerminalUI::initializeWidgets() {
       doKill();
     }
   });
-  commands_.define("toggle-playing", [this]() {
-    bool playing = getController().togglePlaying();
-    setStatus(playing ? "Playing" : "Stopped");
-  });
-  // Global, not PatternEditor-owned (unlike before - see PatternEditor.cpp's
-  // own history) - both computer-keyboard note entry and every connected
-  // Launchpad's own octave read Controller::getGlobalOctave(), so these
-  // two keys should work regardless of which widget currently has focus,
-  // matching "toggle-playing"/Space just above. octave_control_'s own
-  // [-]/[+] buttons call the exact same Controller methods.
-  commands_.define("octave-up", [this]() { getController().octaveUp(); });
-  commands_.define("octave-down", [this]() { getController().octaveDown(); });
-  commands_.define("save-song", [this]() {
-    getController().sendCommand("save-song");
-    setStatus("Saved " + getController().getActiveBufferName());
-  });
+  // toggle-playing/octave-up/octave-down/save-song are UI's own now (plain
+  // Controller calls, no widget dependency) - octave_control_'s own [-]/[+]
+  // buttons call the exact same Controller methods octave-up/-down do.
   commands_.define("save-song-as", [this]() {
     status_line_->showPrompt("Save as: ", [this](const std::string & filename) {
       if (filename.empty()) return;
@@ -2088,18 +2056,11 @@ TerminalUI::initializeWidgets() {
   // PatternEditor's - unlike the M-x path, which does go through that
   // fallback chain).
   commands_.define("exchange-point-and-mark", [this]() { pattern_editor_->executeCommand("exchange-point-and-mark"); });
-  // Unlike exchange-point-and-mark just above, this is a Controller-level
-  // command (Controller.cpp's own definition, next to save-song) - it
-  // targets Song::getCurrentTrackId(), not any one widget's own cursor, so
-  // it works regardless of which UI widget currently has focus. Same
-  // "sendCommand() forwarding" shape save-song's own C-x-reachable wrapper
-  // already uses just below.
-  commands_.define("merge-clip-to-background", [this]() { getController().sendCommand("merge-clip-to-background"); });
-  // Same forwarding shape as merge-clip-to-background just above, for the
-  // same reason - "toggle-record-arm" targets Song::getCurrentTrackId(),
-  // not any one widget's own cursor, and has to work with no Launchpad
-  // and no PatternEditor either.
-  commands_.define("toggle-record-arm", [this]() { getController().sendCommand("toggle-record-arm"); });
+  // merge-clip-to-background/toggle-record-arm are UI's own now (plain
+  // Controller::sendCommand() forwarding, same shape save-song's own
+  // C-x-reachable wrapper uses) - both target Song::getCurrentTrackId(),
+  // not any one widget's own cursor, so they work regardless of which UI
+  // widget currently has focus.
 
   // other-window (C-x o): cycles focus to the next window. Only two
   // focusable panes exist - pattern_editor_ and arrangement_grid_ - so this
@@ -2792,12 +2753,6 @@ TerminalUI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
 }
 
 void
-TerminalUI::handleLaunchpadChannelPressureEvent(LaunchpadChannelPressureEvent & ev) {
-  if (!launchpad_manager_) return;
-  launchpad_manager_->handleChannelPressureEvent(ev, getController());
-}
-
-void
 TerminalUI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   if (!launchpad_manager_) return;
 
@@ -2870,7 +2825,8 @@ TerminalUI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
 
 void
 TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
-  launchpad_manager_ = &launchpad_manager;
+  // launchpad_manager_ itself is already set by UI::start() before this
+  // hook runs.
   // "move-row-up"/"move-row-down" while in GridMode::SESSION move
   // ArrangementGrid's own scene cursor instead of scrolling a pad-grid row
   // window - see LaunchpadManager::session_move_scene_callback_'s own
