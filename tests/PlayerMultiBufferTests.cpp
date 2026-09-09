@@ -5,6 +5,7 @@
 #include "../src/state/SongState.h"
 #include "../src/instruments/Oscillator.h"
 #include "../src/instruments/WaveformType.h"
+#include "../src/instruments/GenericInstrument.h"
 #include "../src/ambisonic/MixerFactory.h"
 #include "../src/ambisonic/MixerType.h"
 #include "../src/ambisonic/Mixer.h"
@@ -339,6 +340,59 @@ TEST(preview_note_with_an_unresolvable_name_previews_silence) {
   Player player(config, &controller);
 
   PlaybackControlEvent preview_note(PlaybackControlEvent::PREVIEW_NOTE, "nothing registered under this string", 60, 100);
+  player.handlePlaybackControlEvent(preview_note);
+
+  auto data = player.renderPreview(256);
+  CHECK(data.numberOfChannels() == 0);
+}
+
+// OutlineView's own Song > Instruments (pool) audition path
+// (PlaybackControlEvent::PREVIEW_POOL_NOTE/PREVIEW_STOP) - unlike
+// PREVIEW_NOTE above, addresses an exact InstrumentPool slot by index
+// rather than re-resolving a name, so it needs a real pool entry (added
+// and prepare()'d the same way Song::open() prepares every pool entry it
+// parses) to preview at all.
+TEST(preview_pool_note_sounds_the_indexed_pool_instrument_and_stop_reclaims_it) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+
+  auto instrument = make_unique<GenericInstrument>();
+  instrument->setFrom("Electric Piano");
+  instrument->prepare(controller.getInstrumentProvider());
+  controller.getSong().addInstrument(move(instrument));
+
+  Player player(config, &controller);
+
+  PlaybackControlEvent preview_note(PlaybackControlEvent::PREVIEW_POOL_NOTE, "", 0, 60, 100);
+  player.handlePlaybackControlEvent(preview_note);
+
+  auto sounding = player.renderPreview(256);
+  CHECK(sounding.numberOfChannels() > 0);
+  float peak = 0.0f;
+  for (int c = 0; c < sounding.numberOfChannels(); c++) {
+    auto data = sounding.getChannelData(c);
+    for (int i = 0; i < sounding.numberOfFrames(); i++) peak = std::max(peak, std::fabs(data[i]));
+  }
+  CHECK(peak > 0.0f);
+
+  PlaybackControlEvent preview_stop(PlaybackControlEvent::PREVIEW_STOP);
+  player.handlePlaybackControlEvent(preview_stop);
+  player.renderPreview(256); // the just-stopped block, still real-channel-shaped
+  auto after_stop = player.renderPreview(256);
+  CHECK(after_stop.numberOfChannels() == 0);
+}
+
+// An out-of-range pool index (InstrumentPool::getByIndex() misses) previews
+// silence rather than crashing or falling back to some other slot.
+TEST(preview_pool_note_with_an_out_of_range_index_previews_silence) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+
+  Player player(config, &controller);
+
+  PlaybackControlEvent preview_note(PlaybackControlEvent::PREVIEW_POOL_NOTE, "", 0, 60, 100);
   player.handlePlaybackControlEvent(preview_note);
 
   auto data = player.renderPreview(256);

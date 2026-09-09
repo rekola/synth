@@ -92,9 +92,48 @@ class UIPlane {
   // Hides whatever showReaderIndicator() last drew - a no-op if nothing is
   // currently shown. Only valid while readerActive().
   virtual void hideReaderIndicator() = 0;
-  virtual void showPicker() = 0;
+  // A small floating list-picker (ncselector-backed - a real overlay
+  // plane raised above this one, not text drawn inline into this plane's
+  // own content) - see OutlineView's own target-track picker for the
+  // first real caller. y/x/rows/cols position and size it explicitly, in
+  // this plane's own coordinate space (matching showReader()'s identical
+  // convention). Items are added afterward via addItem(), not passed in
+  // here - mirrors ncselector's own create-then-additem() shape, but
+  // `item_count` (how many addItem() calls will follow) is still needed
+  // up front to pin ncselector's own maxdisplay to exactly that many
+  // rows - otherwise (maxdisplay 0, "use all available space") it
+  // stretches/pads its body to fill whatever's left of a `rows` taller
+  // than the item count actually needs, showing as blank rows above the
+  // first item and below the last rather than a tightly-wrapped list. A
+  // second call while already active is a no-op - closePicker() first to
+  // replace it.
+  virtual void showPicker(int y, int x, int rows, int cols, int item_count) = 0;
+  // One row - `id` becomes both the visible primary text and what
+  // getPickerSelection() reports back once this row is the highlighted
+  // one (ncselector_item's own .option field); `description` is optional
+  // supplementary text shown alongside it (.desc) - empty for a plain,
+  // single-column-looking list.
   virtual void addItem(const std::string & id, const std::string & description) = 0;
-  virtual void clearItems() = 0;
+  // Moves the highlighted row to `index` (0-based, in addItem() call
+  // order) - always starts on row 0 right after showPicker() (ncselector's
+  // own defidx can't be set to anything else up front through the create-
+  // then-additem() shape this uses: ncselector_create() rejects a nonzero
+  // defidx against the 0 static items it's given, since items are only
+  // ever added afterward, one at a time, via addItem()), so a caller that
+  // wants some other row highlighted when it opens - "highlight whatever
+  // is already the current choice" - calls this once, after every addItem()
+  // call, before the picker is ever shown to the user. Out-of-range or
+  // called on an inactive picker is a harmless no-op.
+  virtual void selectPickerItem(int index) = 0;
+  virtual bool pickerActive() const = 0;
+  // The currently-highlighted row's own `id` (addItem()'s own first
+  // argument) - "" while inactive or with no items added yet. Read this
+  // before closePicker() to know what the user picked - closePicker()
+  // itself reports nothing back, since both committing and canceling end
+  // the same way (destroying the plane) and only the caller knows which
+  // one just happened.
+  virtual std::string getPickerSelection() const = 0;
+  virtual void closePicker() = 0;
   virtual void refresh() = 0;
   
   const std::pair<int, int> & getPosition() const { return plane_pos; }

@@ -428,43 +428,137 @@ public:
     }
   }
 
-  void showPicker() override {
+  // A genuine child plane of its own (positioned/sized by the caller),
+  // not getPlane() itself - Selector's constructor calls
+  // take_plane_ownership() on whatever Plane it's given, which would
+  // otherwise hand over (and eventually destroy) this widget's own real
+  // rendering plane. Mirrors showReader()'s own raw ncplane_create()
+  // pattern above.
+  void showPicker(int y, int x, int rows, int cols, int item_count) override {
+    if (selector) return; // already active - see UIPlane.h's own comment
+    // Dark background/light foreground matching this app's own theme
+    // (StyleProvider isn't reachable from here - see TerminalMenu's own
+    // header/sectionchannels for the identical precedent of hardcoding
+    // colors directly rather than threading StyleProvider this deep) -
+    // left at 0 (notcurses's own "no color set" default), these read as
+    // full-bright white-on-whatever's-already-there instead, not this
+    // app's dark theme.
+    //
+    // opchannels' own fg is deliberately the same bright green
+    // StyleProvider's highlight_bg_color already uses everywhere else in
+    // this codebase for "the current selection" (PatternEditor's/
+    // OutlineView's own row cursor); its own bg is styles.highlight_fg_color's
+    // matching true black, not a mid-grey (which read as washed-out,
+    // hard-to-read text) - not arbitrary colors either way. The currently-
+    // highlighted row (src/lib/selector.c's own render loop) gets no
+    // channels of its own at all: it's opchannels' fg/bg *swapped*, so
+    // this exact black-on-green pair is what that row shows, matching
+    // that same established "current selection" look exactly (not just
+    // approximating it).
+    uint64_t opchannels = NCCHANNELS_INITIALIZER(0xa0, 0xff, 0xa0, 0x00, 0x00, 0x00);
+    uint64_t boxchannels = NCCHANNELS_INITIALIZER(0x60, 0x60, 0x60, 0x20, 0x20, 0x20);
+    // descchannels deliberately its own dark/neutral pair, not opchannels
+    // again - every item's own .desc is always empty (addItem() callers
+    // pass only an id), but ncselector.c's draw loop still unconditionally
+    // prints a literal leading space in descchannels' own colors before
+    // it ("%s" -> " %s") - sharing opchannels there would extend the
+    // swapped highlight one cell past the option text itself on the
+    // current row, a stray colored space right after it.
+    uint64_t descchannels = NCCHANNELS_INITIALIZER(0x20, 0x20, 0x20, 0x20, 0x20, 0x20);
+    // opchannels' own alpha left OPAQUE on both sides (not BLEND like
+    // box/base/descchannels below) - BLEND on its bg word made the
+    // highlighted row's text (that word, swapped into the fg slot) read
+    // as a soft blended grey-green instead of a crisp black, despite the
+    // RGB already being pure black above.
+    ncchannels_set_bg_alpha(&descchannels, NCALPHA_BLEND);
+    ncchannels_set_fg_alpha(&descchannels, NCALPHA_BLEND);
+    ncchannels_set_bg_alpha(&boxchannels, NCALPHA_BLEND);
+    ncchannels_set_fg_alpha(&descchannels, NCALPHA_BLEND);
+    ncchannels_set_bg_alpha(&descchannels, NCALPHA_BLEND);
     ncselector_options opts =
       {
        .title = nullptr,
        .secondary = nullptr,
        .footer = nullptr,
+       .items = nullptr,
        .defidx = 0,
-       .maxdisplay = 0,
-       .opchannels = 0,
-       .descchannels = 0,
-       .titlechannels = 0,
-       .footchannels = 0,
-       .boxchannels = 0,
+       // Pinned to the exact item count, not 0 ("use all available
+       // space") - see this method's own doc comment on UIPlane.h for
+       // why 0 shows as blank padding rows above/below a tight list.
+       .maxdisplay = static_cast<unsigned>(std::max(0, item_count)),
+       .opchannels = opchannels,
+       .descchannels = descchannels,
+       .titlechannels = opchannels,
+       .footchannels = opchannels,
+       .boxchannels = boxchannels,
        .flags = 0
       };
-    selector = make_unique<Selector>(getPlane(), &opts);
+    ncplane_options popts = {
+      .y = y,
+      .x = x,
+      .rows = static_cast<unsigned>(std::max(1, rows)),
+      .cols = static_cast<unsigned>(std::max(1, cols)),
+      .userptr = nullptr,
+      .name = nullptr,
+      .resizecb = nullptr,
+      .flags = 0,
+      .margin_b = 0,
+      .margin_r = 0
+    };
+    auto * picker_ncplane = ncplane_create(getPlane().to_ncplane(), &popts);
+    // Explicit dark base cell too, so any cell ncselector's own drawing
+    // never touches (e.g. this plane's own rows past a maxdisplay-limited
+    // body, now shorter than a generously-sized `rows`) still reads as
+    // this app's dark background rather than the terminal's own default -
+    // BLEND alpha, matching opchannels/boxchannels above, so it's the
+    // same partial transparency, not an opaque patch around the edges of
+    // an otherwise-translucent popup.
+    uint64_t base_channels = NCCHANNELS_INITIALIZER(0xc0, 0xc0, 0xc0, 0x20, 0x20, 0x20);
+    ncchannels_set_bg_alpha(&base_channels, NCALPHA_BLEND);
+    ncplane_set_base(picker_ncplane, " ", 0, base_channels);
+    // A freshly created plane already sits above its parent by default,
+    // but raised explicitly anyway - the whole point of a real overlay
+    // plane, rather than text drawn inline, is that it's unambiguously on
+    // top regardless of whatever else this or a sibling widget draws
+    // later in the same frame (TerminalMenu's own raiseToTop() makes the
+    // same guarantee for its own dropdown, for the same reason).
+    ncplane_move_top(picker_ncplane);
+    // A stack-local wrapper, not a heap one: Selector's constructor calls
+    // take_plane_ownership() on it (Plane::release_native_plane(), so its
+    // own destructor at the end of this scope becomes a no-op) - nothing
+    // left to clean up once construction returns.
+    Plane wrapper(picker_ncplane);
+    selector = make_unique<Selector>(wrapper, &opts);
   }
 
-  void addItem(const string & id, const string & label) override {
-    if (selector) {
-      char * option = new char[id.size() + 1];
-      char * desc = new char[label.size() + 1];
-      
-      strcpy(option, id.c_str());
-      strcpy(desc, label.c_str());
-      
-      ncselector_item item =
-	{
-	 .option = option,
-	 .desc = desc
-	};
-      selector->additem(&item);
-    }
+  void addItem(const string & id, const string & description) override {
+    if (!selector) return;
+    // Unlike ncmenu_item's own .desc field (see TerminalMenu::rebuild()'s
+    // comment), ncselector_additem() (src/lib/selector.c) strdup()s both
+    // strings into its own storage immediately - a plain c_str() straight
+    // off these locals is safe, nothing needs to outlive this call.
+    ncselector_item item = { .option = id.c_str(), .desc = description.c_str() };
+    selector->additem(&item);
   }
 
-  void clearItems() override {
+  // See UIPlane.h's own comment on why this - not a nonzero defidx at
+  // create time - is how a picker starts highlighted somewhere other
+  // than row 0.
+  void selectPickerItem(int index) override {
+    if (!selector) return;
+    for (int i = 0; i < index; i++) selector->nextitem();
+  }
 
+  bool pickerActive() const override { return selector != nullptr; }
+
+  string getPickerSelection() const override {
+    if (!selector) return "";
+    auto * s = selector->get_selected();
+    return s ? s : "";
+  }
+
+  void closePicker() override {
+    selector.reset();
   }
 
   bool offerInput(const InputEvent & input) override {

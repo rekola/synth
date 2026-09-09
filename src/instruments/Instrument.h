@@ -5,6 +5,7 @@
 #include "SF2GeneratorTable.h"
 
 #include <memory>
+#include <string>
 #include <unordered_map>
 
 class InstrumentProvider;
@@ -42,23 +43,40 @@ public:
 
   void loadParameters(const ParameterSource & input) {
     Track::loadParameters(input);
-  
+
     harmonic_ = input.get<int>("harmonic", 1);
-    subharmonic_ = input.get<int>("subharmonic", 1);  
+    subharmonic_ = input.get<int>("subharmonic", 1);
+    description_ = input.get<std::string>("description");
   }
 
   void storeParameters(ParameterSource & output) const {
     Track::storeParameters(output);
-    
+
     if (harmonic_ != 1) output.set("harmonic", harmonic_);
     if (subharmonic_ != 1) output.set("subharmonic", subharmonic_);
+    if (!description_.empty()) output.set("description", description_);
   }
 
   int getHarmonic() const { return harmonic_; }
   int getSubharmonic() const { return subharmonic_; }
 
+  // A user-authored description for this pool slot, shown in the Details
+  // panel the same way a Library instrument's own curated one is
+  // (OutlineView.cpp's own buildDetailsLines()) - empty by default.
+  // OutlineView only actually shows this when it's non-empty; a
+  // GenericInstrument slot with nothing authored here instead falls back
+  // to its resolved SoundFont/taxonomy entry's own description
+  // (GmInstrumentDescriptions.h, keyed by getFrom()) - that fallback
+  // lives in OutlineView, not here, since this class has no reason to
+  // depend on the UI's own curated description table; a type with no
+  // such fallback source (e.g. Oscillator) just stays undescribed until
+  // one is authored here.
+  const std::string & getDescription() const { return description_; }
+  void setDescription(std::string description) { description_ = std::move(description); }
+
 private:
   int harmonic_ = 1, subharmonic_ = 1;
+  std::string description_;
 };
 
 #endif

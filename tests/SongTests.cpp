@@ -351,6 +351,46 @@ TEST(generator_override_round_trips_through_save_and_load) {
   fs::remove(scratch_path);
 }
 
+// A pool slot's own custom description (Instrument::getDescription(),
+// OutlineView's own Song > Instruments Details panel override) round-trips
+// independently of every other attribute, and stays absent when never
+// authored (no empty description="" invented on save).
+TEST(instrument_description_round_trips_through_save_and_load) {
+  namespace fs = std::filesystem;
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "instrument_description_scratch.xml").string();
+
+  Song song;
+  auto described = make_unique<GenericInstrument>();
+  described->setFrom("piano.acoustic.grand");
+  described->setDescription("My own detuned upright, warmed up for track 3.");
+  song.addInstrument(move(described));
+
+  auto undescribed = make_unique<GenericInstrument>();
+  undescribed->setFrom("string.plucked.harp");
+  song.addInstrument(move(undescribed));
+
+  song.save(scratch_path);
+
+  auto saved = readFile(scratch_path);
+  CHECK(saved.find("description=") != string::npos);
+  CHECK(saved.find("description=") == saved.rfind("description=")); // exactly one instance, on the described slot only
+
+  InstrumentProvider provider;
+  Song reloaded;
+  CHECK(reloaded.open(scratch_path, provider));
+  CHECK(reloaded.getInstrumentPool().getInstruments().size() == 2);
+
+  auto * reloaded_described = dynamic_cast<GenericInstrument *>(reloaded.getInstrumentPool().getInstruments()[0].get());
+  CHECK(reloaded_described != nullptr);
+  if (reloaded_described) CHECK(reloaded_described->getDescription() == "My own detuned upright, warmed up for track 3.");
+
+  auto * reloaded_undescribed = dynamic_cast<GenericInstrument *>(reloaded.getInstrumentPool().getInstruments()[1].get());
+  CHECK(reloaded_undescribed != nullptr);
+  if (reloaded_undescribed) CHECK(reloaded_undescribed->getDescription().empty());
+
+  fs::remove(scratch_path);
+}
+
 // An unrecognized <generator> name is preserved, unapplied, rather than
 // rejecting the file or being silently dropped - see SF2GeneratorTable.h's
 // own doc comment for why.

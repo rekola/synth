@@ -35,7 +35,11 @@ struct outline_row_s {
 // OutlineView::buildDetailsLines()/handleClick(). NONE covers a line
 // with nothing to click (an informational hint like "[note keys]
 // Preview", a blank spacer, a wrapped description line).
-enum class DetailsAction { NONE, DELETE, ADD_TO_SONG, PREVIEW, STOP };
+// TOGGLE_TARGET_PICKER opens/closes a Library > Grooves row's own
+// target-track picker - a real floating ncselector plane (see
+// OutlineView::openTargetPicker()), not another Details panel line, so
+// picking one of its candidates never reaches here at all.
+enum class DetailsAction { NONE, DELETE, ADD_TO_SONG, PREVIEW, STOP, TOGGLE_TARGET_PICKER };
 
 struct DetailsLine {
   std::string text;
@@ -58,23 +62,30 @@ struct DetailsLine {
 // scrollable tree on the left and a fixed-width details panel on the
 // right, sharing that same divider column - see kDetailsPanelWidth. The
 // details panel shows whatever the cursor's own row supports doing -
-// Delete for a Track/pool Instruments row (Song::removeTrack()/
-// removeInstrument()), Add to Song plus (for a groove) its own
-// description for a Library row. Blank for a plain section heading,
-// which has no action of its own.
+// Delete plus note-key preview for a Track/pool Instruments row
+// (Song::removeTrack()/removeInstrument()), Add to Song plus preview and
+// (when one's available - see buildDetailsLines()) its own description
+// for a Library row. Blank for a plain section heading, which has no
+// action of its own.
 //
-// A Library row is more than just a label: any note-producing keystroke
-// previews a Library > Instruments row's own instrument directly
-// (PlaybackControlEvent::PREVIEW_NOTE/PREVIEW_STOP), 'p' loops a Library >
+// Both a Song > Instruments (pool) row and a Library > Instruments row
+// are more than just a label: any note-producing keystroke previews the
+// row's own instrument directly (PlaybackControlEvent::PREVIEW_NOTE for a
+// Library row, PREVIEW_POOL_NOTE for a pool row - the latter resolves the
+// exact pool slot, generator overrides/custom Oscillator parameters
+// included, rather than re-resolving a name), 'p' loops a Library >
 // Grooves row's own pattern (PREVIEW_GROOVE/PREVIEW_STOP), 'a' stops
-// either - none of this routed through any Track/buffer, since nothing
-// being previewed is part of the song yet - and NCKEY_ENTER commits
-// either kind for real: an instrument joins the active song's own
-// instrument pool (Song::addInstrument()), a groove becomes a real Clip
-// on a (created-if-needed) PercussionTrack (Song::addClip()) - see
-// offerInput()'s own comments for all of this. NCKEY_DEL/NCKEY_BACKSPACE
-// on a Track or pool Instruments row removes it outright - no Clone yet
-// (that wants real undo scaffolding first, not a one-off here).
+// whichever of these is currently sounding - none of this routed through
+// any Track/buffer for a Library row, since nothing being previewed is
+// part of the song yet - and NCKEY_ENTER commits a Library row for real:
+// an instrument joins the active song's own instrument pool
+// (Song::addInstrument()), a groove becomes a real Clip on whichever
+// PercussionTrack its own target picker currently names (see
+// openTargetPicker()'s own comment - 't' or a click opens it as a real
+// floating plane over this one, a candidate picked by clicking it or
+// Enter) - Song::addClip(). NCKEY_DEL/NCKEY_BACKSPACE on a Track or pool
+// Instruments row removes it outright - no Clone yet (that wants real
+// undo scaffolding first, not a one-off here).
 class OutlineView : public UIElement {
  public:
   OutlineView(UIPlane & parent) : UIElement(parent) {
@@ -125,7 +136,7 @@ protected:
   bool handleClick(const InputEvent & input);
   // The actual effect behind a DetailsAction - shared by handleClick()
   // above and every keyboard path that already triggers the same thing
-  // (NCKEY_ENTER/NCKEY_DEL/'p'/'a' in offerInput()), so a click and its
+  // (NCKEY_ENTER/NCKEY_DEL/'p'/'a'/'t' in offerInput()), so a click and its
   // keyboard equivalent can never drift apart.
   void runDetailsAction(DetailsAction action);
   // NCKEY_ENTER on a Library > Instruments row - see this class's own
@@ -133,11 +144,54 @@ protected:
   // addSelectedLibraryGrooveToSong() for a Grooves row instead).
   void addSelectedLibraryInstrumentToPool();
   // NCKEY_ENTER on a Library > Grooves row - see this class's own header
-  // comment. Finds the song's own first PercussionTrack (root tracks
-  // only, matching this view's own shallow Tracks listing), creating one
-  // if none exists yet, and adds a new Clip there seeded from the
-  // template's own hits. A no-op on any other row.
+  // comment. Targets resolveTargetTrackId()'s own current choice - an
+  // existing PercussionTrack (root tracks only, matching this view's own
+  // shallow Tracks listing) picked via the row's own inline target
+  // picker, or a freshly created one if that resolves to
+  // kNewTrackTargetId (the default with no existing PercussionTrack, or
+  // an explicit "New track" pick) - and adds a new Clip there seeded from
+  // the template's own hits. A no-op on any other row.
   void addSelectedLibraryGrooveToSong();
+  // Every root PercussionTrack currently in data_ (TRACK rows only, not
+  // the underlying Song - data_'s own labels are already the exact
+  // "T<N> name" text the tree itself shows, so the picker's candidate
+  // list reads identically) - resolveTargetTrackId()/openTargetPicker()'s
+  // own shared source for "what can a groove clip target".
+  std::vector<const outline_row_s *> compatibleTargetTrackRows() const;
+  // The target-track picker's own current choice, re-resolved every call
+  // rather than trusted at face value: selected_target_track_id_ might
+  // name a track that's since been deleted (falls back the same way a
+  // never-yet-chosen selection does) or kNewTrackTargetId explicitly
+  // (passed straight through - always a valid choice). Falls back to the
+  // first compatibleTargetTrackRows() entry, else kNewTrackTargetId if
+  // there are none.
+  int resolveTargetTrackId() const;
+  // "New track" for kNewTrackTargetId, else whatever data_'s own TRACK row
+  // for that id shows as its label - see compatibleTargetTrackRows()'s own
+  // comment on why that's the exact text to reuse here.
+  std::string targetTrackLabel(int track_id) const;
+  // TOGGLE_TARGET_PICKER on an already-closed picker - creates the real
+  // floating plane (UIPlane::showPicker()), anchored directly under the
+  // "[t] Target: ..." Details panel line (always that row's own fixed
+  // screen position for a Library > Grooves row - see buildDetailsLines()),
+  // and populates it from compatibleTargetTrackRows() plus "New track".
+  // Sized down (never past this widget's own bottom edge) rather than
+  // trusting there's always room for every candidate at once.
+  void openTargetPicker();
+  // TOGGLE_TARGET_PICKER on an already-open picker, or Ctrl-g while it's
+  // open - destroys the floating plane without changing
+  // selected_target_track_id_.
+  void closeTargetPicker();
+  // Enter, or a click landing on an item, while the picker is open (see
+  // offerInput()'s own pickerActive() handling) - `selection` is
+  // UIPlane::getPickerSelection()'s own return, read *before*
+  // closeTargetPicker() destroys the plane it comes from. Resolves back
+  // to a real track id by matching against compatibleTargetTrackRows()'s
+  // own labels (exactly what was handed to addItem() as each row's own
+  // id) or the literal "New track" text; a miss (nothing was ever
+  // highlighted - no items, or the plane was closed with none selected)
+  // leaves selected_target_track_id_ untouched.
+  void applyTargetPickerSelection(const std::string & selection);
   // NCKEY_DEL/NCKEY_BACKSPACE on a Track or pool Instruments row - see
   // this class's own header comment. A no-op on any other row, and on a
   // song's own last remaining root track (same floor PatternEditor's
@@ -150,6 +204,10 @@ protected:
   // to a third of the widget's own width in layout() below, so a narrow
   // terminal never loses the tree entirely to it.
   static constexpr int kDetailsPanelWidth = 36;
+  // The target-track picker's own "create a fresh PercussionTrack instead
+  // of using an existing one" choice - 0 is safe to use as a sentinel
+  // since real track ids start at 1 (SongObject.cpp's own next_id).
+  static constexpr int kNewTrackTargetId = 0;
   // This widget's own current column split: `first` is the tree's own
   // width (columns [0, first)), the divider sits at column `first`
   // itself, and the details panel's own content spans
@@ -177,6 +235,24 @@ protected:
   // polyphony) and keyed by nothing but the key id, since there's no
   // note-column/track identity to remember alongside it here.
   int held_preview_key_ = -1;
+  // The Library > Grooves target-track picker's own choice (see
+  // openTargetPicker()) - a single global preference, not per-groove:
+  // "which track should Add to Song use" is one ongoing choice, not
+  // something worth remembering separately per template. -1 means "never
+  // explicitly chosen yet" (resolveTargetTrackId() then defaults to the
+  // first compatibleTargetTrackRows() entry, or kNewTrackTargetId with
+  // none); kNewTrackTargetId is itself a real, sticky choice once picked,
+  // same as any other track id. Whether the picker plane itself is
+  // currently open is never cached here - getPlane().pickerActive() is
+  // the one source of truth, so it can never drift out of sync with the
+  // plane's own real state.
+  int selected_target_track_id_ = -1;
+  // Set whenever the Details panel's own content needs redrawing despite
+  // neither render_all's own triggers nor the cursor moving - the target-
+  // track picker committing a new choice, the one case of that today
+  // (applyTargetPickerSelection()). Checked/cleared in render() the same
+  // as cursor_changed.
+  bool details_dirty_ = false;
 };
 
 #endif

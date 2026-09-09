@@ -34,6 +34,26 @@ Done:
   already uses for a real track), reclaimed normally once
   `isActive()` goes false. Verified structurally (voice count right
   after retriggering), not by ear.
+- Song > Instruments (pool) rows now preview the same way a Library >
+  Instruments row does - note keys audition the exact pool slot
+  (PlaybackControlEvent::PREVIEW_POOL_NOTE, addressed by pool index rather
+  than a re-resolved name, so generator overrides/custom Oscillator
+  parameters sound correctly) - and show a description in the Details
+  panel: a custom one (new `Instrument::getDescription()`/
+  `setDescription()`, an XML attribute on any pool slot) if authored,
+  else, for a GenericInstrument slot, its resolved SoundFont/taxonomy
+  entry's own curated description (inherited, not duplicated).
+- A Library > Grooves row's own Add to Song now has a real target-track
+  picker instead of always defaulting to "the first PercussionTrack,
+  create one if none exists" - a `[t] Target: <label>` line in its own
+  Details panel; 't' or a click opens a real floating ncselector plane
+  (`UIPlane::showPicker()`/`addItem()`/`pickerActive()`/
+  `getPickerSelection()`/`closePicker()`, new - notcurses's own list-
+  picker widget, not text drawn inline into the Details panel) listing
+  every root PercussionTrack plus "New track"; Enter or a click on an
+  item picks it. Defaults to the old first-or-create behavior when never
+  touched. `OutlineView::compatibleTargetTrackRows()`/
+  `resolveTargetTrackId()`/`targetTrackLabel()` are the reusable pieces.
 
 ## 1. Bass-line generator (design not settled)
 
@@ -90,10 +110,13 @@ engine mechanism at all - just:
   Mode`, a note-duration/gate, maybe an octave range - `Arpeggiator`'s
   own existing fields already cover this).
 - "Add to Song" finds-or-creates a root `Arpeggiator` track the same way
-  it already finds-or-creates a `PercussionTrack` - pulling that shared
-  "find or create a root track of kind X, else make one" logic out of
-  `addSelectedLibraryGrooveToSong()` into a real helper both callers
-  share, rather than copy-pasting the loop a second time.
+  it already finds-or-creates a `PercussionTrack`, through its own
+  floating target-track picker (`compatibleTargetTrackRows()`/
+  `resolveTargetTrackId()`/`targetTrackLabel()`/`openTargetPicker()`,
+  added for the groove picker above) - generalizing those past their
+  current `TrackType::PERCUSSION_CONTROL` hardcoding (a `TrackType`
+  parameter, or a small predicate) rather than copy-pasting a second,
+  Arpeggiator-only picker.
 - The new clip lands empty of real chord notes (or, optionally, ships
   with a literal example chord progression as ordinary Pattern notes -
   no scale/chord table needed for that, it's just notes) - you enter

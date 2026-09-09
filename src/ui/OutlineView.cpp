@@ -7,6 +7,7 @@
 #include "../model/GroovePatternLibrary.h"
 #include "../instruments/GenericInstrument.h"
 #include "../instruments/GmInstrumentDescriptions.h"
+#include "../instruments/Instrument.h"
 #include "../playback/InputEvent.h"
 #include "../playback/PlaybackControlEvent.h"
 #include "../util/constants.h"
@@ -61,6 +62,21 @@ string repeatUtf8(const string & glyph, int count) {
   result.reserve(glyph.size() * static_cast<size_t>(std::max(0, count)));
   for (int i = 0; i < count; i++) result += glyph;
   return result;
+}
+
+// The description shown for a Song > Instruments (pool) row - a custom
+// authored one (Instrument::getDescription()) if present, else, for a
+// GenericInstrument slot, whatever its resolved SoundFont/taxonomy entry
+// says (GmInstrumentDescriptions.h, keyed by its own `from`); empty if
+// neither applies (e.g. an Oscillator slot with nothing authored).
+string poolInstrumentDescription(const Track * instrument) {
+  if (auto * generic = dynamic_cast<const GenericInstrument *>(instrument)) {
+    if (!generic->getDescription().empty()) return generic->getDescription();
+    if (auto * inherited = findGmInstrumentDescription(generic->getFrom())) return inherited;
+    return {};
+  }
+  if (auto * plain = dynamic_cast<const Instrument *>(instrument)) return plain->getDescription();
+  return {};
 }
 
 } // namespace
@@ -177,14 +193,20 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
     }
     renderDetailsPanel(styles, tree_width + 1, cols - tree_width - 1);
     need_refresh = true;
-  } else if (cursor_changed) {
-    renderRow(styles, current_cursor_row_ - current_scroll_pos_, false);
-    renderRow(styles, new_cursor_row_ - current_scroll_pos_, focused);
+  } else if (cursor_changed || details_dirty_) {
+    if (cursor_changed) {
+      renderRow(styles, current_cursor_row_ - current_scroll_pos_, false);
+      renderRow(styles, new_cursor_row_ - current_scroll_pos_, focused);
+    }
     // The details panel's own content depends on which row the cursor is
     // now on (a different kind may show completely different actions, or
     // none) - always redrawn whole on a cursor move rather than tracking
     // a finer-grained diff, unlike renderRow()'s own incremental
-    // old-row/new-row pair above.
+    // old-row/new-row pair above. Also redrawn (with the cursor itself
+    // untouched) whenever details_dirty_ says this row's own Details
+    // panel content changed without moving the cursor at all - the target-
+    // track picker committing a new choice, the one case of that today
+    // (see applyTargetPickerSelection()'s own comment).
     renderDetailsPanel(styles, tree_width + 1, cols - tree_width - 1);
     need_refresh = true;
   }
@@ -192,6 +214,7 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
   current_song_version_ = song.getMajorVersion();
   current_cursor_row_ = new_cursor_row_;
   current_focused_ = focused;
+  details_dirty_ = false;
 
   return need_refresh;
 }
@@ -290,9 +313,20 @@ OutlineView::buildDetailsLines(const outline_row_s & row, int details_width) con
   vector<DetailsLine> lines;
   switch (row.kind) {
   case OutlineRowKind::TRACK:
-  case OutlineRowKind::POOL_INSTRUMENT:
     lines.push_back({ "[Del] Delete", DetailsAction::DELETE });
     break;
+  case OutlineRowKind::POOL_INSTRUMENT: {
+    lines.push_back({ "[Del] Delete", DetailsAction::DELETE });
+    lines.push_back({ "[a] Stop", DetailsAction::STOP });
+    lines.push_back({ "", DetailsAction::NONE });
+    lines.push_back({ "Play note keys to preview", DetailsAction::NONE });
+    auto description = poolInstrumentDescription(getController().getSong().getInstrumentPool().getByIndex(row.ref_id));
+    if (!description.empty()) {
+      lines.push_back({ "", DetailsAction::NONE });
+      for (auto & wrapped : wrapText(description, details_width)) lines.push_back({ wrapped, DetailsAction::NONE });
+    }
+    break;
+  }
   case OutlineRowKind::LIBRARY_INSTRUMENT:
     lines.push_back({ "[Enter] Add to Song", DetailsAction::ADD_TO_SONG });
     lines.push_back({ "[a] Stop", DetailsAction::STOP });
@@ -305,6 +339,11 @@ OutlineView::buildDetailsLines(const outline_row_s & row, int details_width) con
     break;
   case OutlineRowKind::LIBRARY_GROOVE: {
     lines.push_back({ "[Enter] Add to Song", DetailsAction::ADD_TO_SONG });
+    // Shows Add to Song's own current destination - 't' or a click opens
+    // a real floating picker plane over this one to change it
+    // (openTargetPicker()), always this row's own fixed screen position
+    // (that method relies on it staying exactly the second line here).
+    lines.push_back({ "[t] Target: " + targetTrackLabel(resolveTargetTrackId()), DetailsAction::TOGGLE_TARGET_PICKER });
     lines.push_back({ "[p] Preview", DetailsAction::PREVIEW });
     lines.push_back({ "[a] Stop", DetailsAction::STOP });
     if (auto * pattern = findGroovePattern(row.ref_name)) {
@@ -383,6 +422,99 @@ OutlineView::addSelectedLibraryInstrumentToPool() {
   getController().getSong().addInstrument(std::move(instrument));
 }
 
+vector<const outline_row_s *>
+OutlineView::compatibleTargetTrackRows() const {
+  vector<const outline_row_s *> rows;
+  for (auto & candidate : data_) {
+    if (candidate.kind == OutlineRowKind::TRACK && candidate.type == TrackType::PERCUSSION_CONTROL) rows.push_back(&candidate);
+  }
+  return rows;
+}
+
+int
+OutlineView::resolveTargetTrackId() const {
+  if (selected_target_track_id_ == kNewTrackTargetId) return kNewTrackTargetId;
+  for (auto * candidate : compatibleTargetTrackRows()) {
+    if (candidate->ref_id == selected_target_track_id_) return selected_target_track_id_;
+  }
+  auto candidates = compatibleTargetTrackRows();
+  return candidates.empty() ? kNewTrackTargetId : candidates.front()->ref_id;
+}
+
+string
+OutlineView::targetTrackLabel(int track_id) const {
+  if (track_id != kNewTrackTargetId) {
+    for (auto & candidate : data_) {
+      if (candidate.kind == OutlineRowKind::TRACK && candidate.ref_id == track_id) return candidate.label;
+    }
+  }
+  return "New track";
+}
+
+void
+OutlineView::openTargetPicker() {
+  if (getPlane().pickerActive()) return;
+
+  auto [tree_width, cols] = columnSplit();
+  auto details_x = tree_width + 1;
+  auto details_width = cols - details_x;
+  if (details_width <= 0) return;
+
+  // The "[t] Target: ..." line is always this row's own second Details
+  // panel line (buildDetailsLines()'s own LIBRARY_GROOVE case) - 2
+  // (heading row + its shadow row) + 1 (that line's own 0-based index) +
+  // 1 (one row below it, so the picker doesn't cover the very control
+  // that opened it).
+  auto anchor_y = 4;
+  auto candidates = compatibleTargetTrackRows();
+  auto item_count = static_cast<int>(candidates.size()) + 1; // +1 for "New track"
+  // +2 for ncselector's own top/bottom border - capped so the picker
+  // never reaches past this widget's own bottom edge, rather than
+  // assuming there's always room for every candidate at once.
+  auto wanted_rows = item_count + 2;
+  auto picker_rows = std::clamp(wanted_rows, 1, std::max(1, getDim().first - anchor_y));
+
+  getPlane().showPicker(anchor_y, details_x, picker_rows, details_width, item_count);
+  for (auto * candidate : candidates) getPlane().addItem(candidate->label, "");
+  getPlane().addItem("New track", "");
+
+  // Starts highlighted on whatever's already the current choice, not
+  // always row 0 - candidates were added in the same order as
+  // compatibleTargetTrackRows() returns them, "New track" last (its own
+  // index is candidates.size()).
+  auto target_id = resolveTargetTrackId();
+  auto default_index = static_cast<int>(candidates.size());
+  for (size_t i = 0; i < candidates.size(); i++) {
+    if (candidates[i]->ref_id == target_id) {
+      default_index = static_cast<int>(i);
+      break;
+    }
+  }
+  getPlane().selectPickerItem(default_index);
+}
+
+void
+OutlineView::closeTargetPicker() {
+  getPlane().closePicker();
+}
+
+void
+OutlineView::applyTargetPickerSelection(const string & selection) {
+  if (selection.empty()) return; // nothing was ever highlighted - leave the previous choice untouched
+  if (selection == "New track") {
+    selected_target_track_id_ = kNewTrackTargetId;
+    details_dirty_ = true; // the "[t] Target: ..." line's own text just changed with no cursor move to otherwise trigger a redraw
+    return;
+  }
+  for (auto * candidate : compatibleTargetTrackRows()) {
+    if (candidate->label == selection) {
+      selected_target_track_id_ = candidate->ref_id;
+      details_dirty_ = true;
+      return;
+    }
+  }
+}
+
 void
 OutlineView::addSelectedLibraryGrooveToSong() {
   if (new_cursor_row_ < 0 || new_cursor_row_ >= static_cast<int>(data_.size())) return;
@@ -393,18 +525,28 @@ OutlineView::addSelectedLibraryGrooveToSong() {
 
   auto & song = getController().getSong();
 
-  // The song's first root PercussionTrack (matching this view's own
-  // shallow, root-only Tracks listing above) - created fresh if none
-  // exists yet, the same plain default-constructed PercussionTrack
-  // "add-percussion-track" (PatternEditor.cpp) itself creates.
+  // The target track picker's own current choice (see this class's own
+  // header comment) - an existing root PercussionTrack, or a freshly
+  // created one (the same plain default-constructed PercussionTrack
+  // "add-percussion-track", PatternEditor.cpp, itself creates) if it
+  // resolves to kNewTrackTargetId.
+  auto target_id = resolveTargetTrackId();
   Track * percussion_track = nullptr;
-  for (auto & track : song.getMasterTrack().getChildren()) {
-    if (track->getType() == TrackType::PERCUSSION_CONTROL) {
-      percussion_track = track.get();
-      break;
+  if (target_id != kNewTrackTargetId) {
+    for (auto & track : song.getMasterTrack().getChildren()) {
+      if (track->getInternalId() == target_id) {
+        percussion_track = track.get();
+        break;
+      }
     }
   }
   if (!percussion_track) percussion_track = &song.addTrack(make_unique<PercussionTrack>());
+  // Sticks the picker to whatever track actually got used - covers both
+  // "resolved to kNewTrackTargetId because nothing existed yet" and "the
+  // user explicitly picked New track" alike, so a second Add to Song
+  // reuses this same fresh track instead of creating yet another one.
+  selected_target_track_id_ = percussion_track->getInternalId();
+  closeTargetPicker(); // a no-op unless Enter on Add to Song somehow ran while it was still open
 
   Clip clip(percussion_track->getInternalId());
   clip.setName(pattern->name);
@@ -475,6 +617,9 @@ OutlineView::runDetailsAction(DetailsAction action) {
     held_preview_key_ = -1;
     getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PREVIEW_STOP));
     break;
+  case DetailsAction::TOGGLE_TARGET_PICKER:
+    if (getPlane().pickerActive()) closeTargetPicker(); else openTargetPicker();
+    break;
   }
 }
 
@@ -516,6 +661,49 @@ OutlineView::handleClick(const InputEvent & input) {
 
 bool
 OutlineView::offerInput(const InputEvent & input) {
+  // While the target-track picker is open, every keystroke/click goes to
+  // it instead of anything below - mirrors PatternEditor::offerInput()'s
+  // identical readerActive() handling. Enter and a click landing on an
+  // item both commit (applyTargetPickerSelection() reads
+  // getPickerSelection() before the plane is destroyed, since it has
+  // nothing left to report once closed); Ctrl-g cancels without changing
+  // the previous choice; everything else (arrow keys, scroll, PgUp/
+  // PgDown) is just forwarded to the selector to navigate with, same as
+  // ncselector_offer_input()'s own documented input set.
+  if (getPlane().pickerActive()) {
+    if (input.getId() == NCKEY_ENTER) {
+      auto selection = getPlane().getPickerSelection();
+      closeTargetPicker();
+      applyTargetPickerSelection(selection);
+      return true;
+    } else if (input.hasCtrl() && input.getId() == 'g') {
+      closeTargetPicker();
+      return true;
+    } else if (input.getId() == NCKEY_BUTTON1 && input.getKind() == InputEvent::Kind::RELEASE) {
+      if (getPlane().offerInput(input)) {
+        // Landed on an item (or the scroll arrows) - ncselector_offer_input()
+        // only reports a click as relevant when it actually lands inside
+        // its own plane. Commits whatever's now highlighted and closes,
+        // the usual single-click-picks dropdown gesture - no separate
+        // confirm step the way keyboard navigation needs Enter for.
+        auto selection = getPlane().getPickerSelection();
+        closeTargetPicker();
+        applyTargetPickerSelection(selection);
+      } else {
+        // Landed outside the picker entirely - dismiss it without
+        // changing the previous choice, same as clicking outside any
+        // other dropdown/popup, then let the click fall through to
+        // handleClick() as normal (it may be a perfectly ordinary click
+        // on some other row/button).
+        closeTargetPicker();
+        return handleClick(input);
+      }
+      return true;
+    } else {
+      return getPlane().offerInput(input);
+    }
+  }
+
   // Handled first, before even RELEASE's own early-return just below (a
   // mouse-button release would otherwise be swallowed there, since it's
   // never the held preview-note key) - see handleClick()'s own comment
@@ -568,6 +756,14 @@ OutlineView::offerInput(const InputEvent & input) {
     if (input.getKind() == InputEvent::Kind::REPEAT) return true;
     runDetailsAction(DetailsAction::PREVIEW);
     return true;
+  } else if (input.getId() == 't' && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size()) &&
+             data_[static_cast<size_t>(new_cursor_row_)].kind == OutlineRowKind::LIBRARY_GROOVE) {
+    // Opens the groove's own target-track picker (openTargetPicker()) - a
+    // real floating plane, closed by picking a candidate, Enter, or
+    // Ctrl-g (see this method's own pickerActive() handling up top).
+    if (input.getKind() == InputEvent::Kind::REPEAT) return true;
+    runDetailsAction(DetailsAction::TOGGLE_TARGET_PICKER);
+    return true;
   } else if (input.getId() == 'a') {
     // The dedicated note-off key (matches PatternEditor's own note-entry
     // convention - see its own is_off comment; 'a' is unmapped in
@@ -582,7 +778,8 @@ OutlineView::offerInput(const InputEvent & input) {
     runDetailsAction(DetailsAction::STOP);
     return true;
   } else if (new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size()) &&
-             data_[static_cast<size_t>(new_cursor_row_)].kind == OutlineRowKind::LIBRARY_INSTRUMENT) {
+             (data_[static_cast<size_t>(new_cursor_row_)].kind == OutlineRowKind::LIBRARY_INSTRUMENT ||
+              data_[static_cast<size_t>(new_cursor_row_)].kind == OutlineRowKind::POOL_INSTRUMENT)) {
     // A held key's terminal-generated auto-repeat must not retrigger a
     // fresh preview note (holding a key should sustain the one already
     // sounding, not restart its envelope over and over) - mirrors
@@ -592,15 +789,24 @@ OutlineView::offerInput(const InputEvent & input) {
     auto midi_note = input.toMidiNote(getController().getGlobalOctave(), getController().getSong().getTuning());
     if (midi_note < 0) return false;
 
-    auto & path = data_[static_cast<size_t>(new_cursor_row_)].ref_name;
-    getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(
-      PlaybackControlEvent::PREVIEW_NOTE, path, midi_note, constants::DEFAULT_VELOCITY));
+    auto & row = data_[static_cast<size_t>(new_cursor_row_)];
+    if (row.kind == OutlineRowKind::LIBRARY_INSTRUMENT) {
+      getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(
+        PlaybackControlEvent::PREVIEW_NOTE, row.ref_name, midi_note, constants::DEFAULT_VELOCITY));
+    } else {
+      // POOL_INSTRUMENT - addresses row.ref_id (the pool's own index) via
+      // PREVIEW_POOL_NOTE rather than PREVIEW_NOTE, so the exact pool slot
+      // (generator overrides/custom Oscillator parameters included) is
+      // what sounds, not a fresh re-resolve of some name.
+      getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(
+        PlaybackControlEvent::PREVIEW_POOL_NOTE, "", row.ref_id, midi_note, constants::DEFAULT_VELOCITY));
+    }
     // A terminal with no Kitty keyboard protocol reports every keystroke
     // as InputEvent::Kind::UNKNOWN (see PatternEditor.cpp's own identical
     // comment) - there is no way to ever learn such a key was released, so
-    // held_preview_key_ must stay untouched (a fresh PREVIEW_NOTE replaces
-    // the sounding voice outright either way - see Player.h's own comment
-    // on preview_note_voice_).
+    // held_preview_key_ must stay untouched (a fresh PREVIEW_NOTE/
+    // PREVIEW_POOL_NOTE replaces the sounding voice outright either way -
+    // see Player.h's own comment on preview_note_voice_).
     if (input.getKind() != InputEvent::Kind::UNKNOWN) held_preview_key_ = input.getId();
     return true;
   }

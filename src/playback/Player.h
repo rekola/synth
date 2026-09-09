@@ -17,6 +17,7 @@ class Controller;
 class AudioAPI;
 class Song;
 class Instrument;
+class Track;
 
 class Player : public EventHandler {
  public:
@@ -149,6 +150,13 @@ private:
   // stays with no live SongState at all, however many such buffers are
   // open.
   SongState & stateFor(const std::string & name, const Song & song);
+
+  // Shared tail of PREVIEW_NOTE/PREVIEW_POOL_NOTE (PlaybackControlEvent.h)
+  // - both resolve `instrument` differently (a name lookup vs. an exact
+  // pool-slot Track) but otherwise start/retrigger preview_note_voice_
+  // identically, including the fastRelease()-into-preview_voices_
+  // retrigger handling preview_note_voice_'s own doc comment describes.
+  void startPreviewNote(const Track * instrument, const Song & song, int note_value, int velocity);
 
   ChannelConfiguration channel_config_;
   Controller * controller_;

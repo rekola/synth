@@ -108,6 +108,26 @@ Player::stateFor(const string & name, const Song & song) {
 }
 
 void
+Player::startPreviewNote(const Track * instrument, const Song & song, int note_value, int velocity) {
+  Note note(note_value, velocity);
+  auto frequency = Tuner::getFrequency(song.getTuning(), note);
+  // Whatever was already occupying this slot gets fastRelease()'d and
+  // moved into preview_voices_ to finish its own tail, rather than just
+  // destroyed outright - see preview_note_voice_'s own comment on
+  // Player.h for why a hard cut here is an audible click.
+  // live_note_counter_ stands in for a real NoteCoordinate's absolute_row
+  // here too, same reasoning as the real live PLAY_NOTE case below (a
+  // preview note has no authored position either).
+  if (preview_note_voice_) {
+    preview_note_voice_->fastRelease();
+    preview_voices_.push_back(std::move(preview_note_voice_));
+  }
+  preview_note_voice_ = instrument->playNote(channel_config_, SphericalPosition{}, frequency, 1.0f,
+                                              note.getVelocityAsFloat(), note.getValue(), SendLevels{},
+                                              NoteCoordinate(-1, live_note_counter_++, 0));
+}
+
+void
 Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
   switch (ev.getType()) {
   case PlaybackControlEvent::TERMINATE:
@@ -131,24 +151,21 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       auto instrument = provider.tryGetByLiteralName(ev.getBufferName());
       if (!instrument) instrument = provider.resolvePath(ev.getBufferName());
       auto song = controller_->getCurrentSong();
-      if (instrument && song) {
-        Note note(ev.getParameter1(), ev.getParameter2());
-        auto frequency = Tuner::getFrequency(song->getTuning(), note);
-        // Whatever was already occupying this slot gets fastRelease()'d
-        // and moved into preview_voices_ to finish its own tail, rather
-        // than just destroyed outright - see preview_note_voice_'s own
-        // comment on Player.h for why a hard cut here is an audible
-        // click. live_note_counter_ stands in for a real NoteCoordinate's
-        // absolute_row here too, same reasoning as the real live PLAY_NOTE
-        // case below (a preview note has no authored position either).
-        if (preview_note_voice_) {
-          preview_note_voice_->fastRelease();
-          preview_voices_.push_back(std::move(preview_note_voice_));
-        }
-        preview_note_voice_ = instrument->playNote(channel_config_, SphericalPosition{}, frequency, 1.0f,
-                                                    note.getVelocityAsFloat(), note.getValue(), SendLevels{},
-                                                    NoteCoordinate(-1, live_note_counter_++, 0));
-      }
+      if (instrument && song) startPreviewNote(instrument.get(), *song, ev.getParameter1(), ev.getParameter2());
+    }
+    return;
+
+  case PlaybackControlEvent::PREVIEW_POOL_NOTE:
+    {
+      // OutlineView's own Song > Instruments row audition - unlike
+      // PREVIEW_NOTE above, resolves the exact pool slot by index
+      // (parameter1) rather than re-resolving a name, so a slot's own
+      // generator overrides/custom Oscillator parameters sound exactly as
+      // the song itself would play them, not the provider's generic entry
+      // for whatever name that slot happens to be resolved `from`.
+      auto song = controller_->getCurrentSong();
+      auto instrument = song ? song->getInstrumentPool().getByIndex(ev.getParameter1()) : nullptr;
+      if (instrument && song) startPreviewNote(instrument, *song, ev.getParameter2(), ev.getParameter3());
     }
     return;
 
