@@ -52,6 +52,17 @@ vector<string> wrapText(const string & text, int width) {
   return lines;
 }
 
+// Repeats a single-glyph UTF-8 string `count` display columns wide (the
+// glyph is assumed to itself be exactly one display column, true of every
+// glyph this is actually called with) - plain string(count, char)
+// doesn't work here since the glyph is multiple bytes.
+string repeatUtf8(const string & glyph, int count) {
+  string result;
+  result.reserve(glyph.size() * static_cast<size_t>(std::max(0, count)));
+  for (int i = 0; i < count; i++) result += glyph;
+  return result;
+}
+
 } // namespace
 
 bool
@@ -198,7 +209,7 @@ OutlineView::columnSplit() const {
 
 int
 OutlineView::treeRows() const {
-  return std::max(0, getDim().first - 1); // minus the one shared heading row
+  return std::max(0, getDim().first - 2); // minus the heading row and its shadow row
 }
 
 void
@@ -207,7 +218,7 @@ OutlineView::renderHeading(const StyleProvider & styles) {
   auto rows = getDim().first;
 
   setFgColor(styles.window_accent_fg_color);
-  setBgColor(styles.window_accent_bg_color);
+  setBgColor(styles.heading_bg_color);
   putstr(0, 0, string(static_cast<size_t>(std::max(0, tree_width)), ' '));
   putstr(0, 1, "Outline");
   auto details_x = tree_width + 1;
@@ -215,6 +226,15 @@ OutlineView::renderHeading(const StyleProvider & styles) {
     putstr(0, details_x, string(static_cast<size_t>(cols - details_x), ' '));
     putstr(0, details_x + 1, "Details");
   }
+
+  // A shadow row directly below each heading, made of sextant block
+  // glyphs shading just the top of the cell - reads as the heading
+  // casting a soft shadow onto the content below it, rather than a plain
+  // horizontal rule.
+  setFgColor(styles.heading_shadow_color);
+  setBgColor(styles.window_bg_color);
+  if (tree_width > 0) putstr(1, 0, repeatUtf8("🬂", tree_width));
+  if (details_x < cols) putstr(1, details_x, repeatUtf8("🬂", cols - details_x));
 
   // The divider between the tree and the details panel - static, so it
   // only ever needs (re)drawing here, alongside the heading it splits in
@@ -233,7 +253,7 @@ OutlineView::renderDetailsPanel(const StyleProvider & styles, int details_x, int
   setFgColor(styles.window_fg_color);
   setBgColor(styles.window_bg_color);
   string blank(static_cast<size_t>(details_width), ' ');
-  for (int row = 0; row < tree_rows; row++) putstr(1 + row, details_x, blank);
+  for (int row = 0; row < tree_rows; row++) putstr(2 + row, details_x, blank);
 
   if (new_cursor_row_ < 0 || new_cursor_row_ >= static_cast<int>(data_.size())) return;
   auto lines = buildDetailsLines(data_[static_cast<size_t>(new_cursor_row_)], details_width);
@@ -253,14 +273,14 @@ OutlineView::renderDetailsPanel(const StyleProvider & styles, int details_x, int
       auto rest_part = truncated.substr(bracket_end + 1);
       setFgColor(styles.button_fg_color);
       setBgColor(styles.button_bg_color);
-      putstr(1 + static_cast<int>(i), details_x, key_part);
+      putstr(2 + static_cast<int>(i), details_x, key_part);
       setFgColor(styles.window_fg_color);
       setBgColor(styles.window_bg_color);
-      putstr(1 + static_cast<int>(i), details_x + Utf8::displayWidth(key_part), rest_part);
+      putstr(2 + static_cast<int>(i), details_x + Utf8::displayWidth(key_part), rest_part);
     } else {
       setFgColor(styles.window_fg_color);
       setBgColor(styles.window_bg_color);
-      putstr(1 + static_cast<int>(i), details_x, truncated);
+      putstr(2 + static_cast<int>(i), details_x, truncated);
     }
   }
 }
@@ -314,15 +334,16 @@ OutlineView::renderRow(const StyleProvider & styles, int display_row, bool highl
     }
 
     string padding(static_cast<size_t>(std::max(0, tree_width)), ' ');
-    // +1: row 0 of this widget's own screen rect is the shared heading
-    // strip (renderHeading()), so the tree itself starts one row down.
-    putstr(1 + display_row, 0, padding);
+    // +2: row 0 of this widget's own screen rect is the shared heading
+    // strip (renderHeading()) and row 1 is its shadow row, so the tree
+    // itself starts two rows down.
+    putstr(2 + display_row, 0, padding);
 
     auto data_row = static_cast<size_t>(display_row + current_scroll_pos_);
     if (data_row < data_.size()) {
       auto & data = data_[data_row];
 
-      putstr(1 + display_row, data.level * 3, data.label);
+      putstr(2 + display_row, data.level * 3, data.label);
     }
   }
 }
@@ -468,9 +489,9 @@ OutlineView::handleClick(const InputEvent & input) {
   auto [rows, cols] = getDim();
   auto y = input.getY() - pos_y, x = input.getX() - pos_x;
   if (y < 0 || y >= rows || x < 0 || x >= cols) return true; // shouldn't happen - only reached while this is the click's own target
-  if (y == 0) return true; // the shared heading row - nothing clickable there
+  if (y <= 1) return true; // the shared heading row and its shadow row - nothing clickable there
 
-  auto content_row = y - 1; // 0-based row within the tree/details content area, below the heading
+  auto content_row = y - 2; // 0-based row within the tree/details content area, below the heading and its shadow row
   auto tree_width = columnSplit().first;
 
   if (x < tree_width) {

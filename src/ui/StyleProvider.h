@@ -23,6 +23,16 @@ class StyleProvider {
 
   Color command_column_color = "#c67610";
 
+  // OutlineView's own Outline/Details panel headers - brighter than the
+  // plain window_accent_bg_color pair other widgets' headers use, so they
+  // read as a stronger accent than the panel content (buttons included)
+  // beneath them.
+  Color heading_bg_color = "#3d3d3d";
+
+  // The heading's own shadow row (see renderHeading()) - a subtle step
+  // between window_bg_color and window_border_color, distinct from both.
+  Color heading_shadow_color = "#242424";
+
   // OutlineView's Details panel action buttons (Delete/Add to Song/
   // Preview/Stop) - distinct from command_column_color so a clickable
   // button reads as its own kind of thing rather than borrowing the
