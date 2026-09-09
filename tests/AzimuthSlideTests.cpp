@@ -13,7 +13,10 @@
 #include "../src/ambisonic/MixerType.h"
 #include "../src/ambisonic/Mixer.h"
 #include "../src/ambisonic/ChannelConfiguration.h"
+#include "../src/audio/AudioBuffer.h"
 #include "../src/util/constants.h"
+
+#include <cmath>
 
 using namespace std;
 
@@ -95,4 +98,61 @@ TEST(azimuth_slide_moves_the_track_over_the_row) {
   auto * track_state = dynamic_cast<InstrumentTrackState *>(state.getChildByInternalId(track.getInternalId()));
   CHECK(track_state != nullptr);
   CHECK_NEAR(track_state->getAzimuth(), constants::TICKS_PER_ROW * 5.0f, 0.01f);
+}
+
+namespace {
+  // RMS of the decoded stereo right-minus-left difference signal - see
+  // windowedRmsDifference in RenderTests.cpp for why this (rather than
+  // comparing rms(right) vs rms(left) independently) is the right measure
+  // of "how right-heavy is this block."
+  float rmsDifference(const AudioBuffer & stereo) {
+    auto frames = stereo.numberOfFrames();
+    auto * left = stereo.getChannelData(0);
+    auto * right = stereo.getChannelData(1);
+    double sum = 0.0;
+    for (int i = 0; i < frames; i++) sum += std::pow(static_cast<double>(right[i] - left[i]), 2);
+    return frames ? static_cast<float>(std::sqrt(sum / frames)) : 0.0f;
+  }
+}
+
+// Full pipeline: InstrumentTrackState::setAzimuth() (the Launchpad/UI Pan
+// knob's actual entry point, via Player.cpp's SET_TRACK_AZIMUTH handling)
+// audibly moves a voice already sounding, not just whatever note plays
+// next - proven by checking the decoded stereo balance changes mid-note,
+// the same way track_state_set_send_a_reaches_an_already_active_voice
+// checks Send A's own live update via getAuxASum().
+TEST(track_state_set_azimuth_reaches_an_already_active_voice) {
+  Song song;
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SINE)); // instrument_id 0
+  auto & track = static_cast<InstrumentTrack &>(song.addTrack(make_unique<InstrumentTrack>(0)));
+  // Azimuth defaults to 0 (dead centre) - the live knob below is what
+  // actually moves it. A real (non-zero) distance is required too -
+  // computeAmbisonicGains() treats distance <= 0 as "no position ever set"
+  // and ignores azimuth entirely, returning a fixed W-only gain set.
+  track.setDistance(1.0f);
+
+  auto & scene0 = song.addScene();
+  scene0.setNote(0, track.getInternalId(), 0, Note(60, 100));
+
+  ChannelConfiguration config(44100, 1);
+  auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+  SongState state(config);
+  state.initialize(song);
+  state.setIsPlaying(true);
+
+  int row_samples = config.getSampleInterval(song.getTempo());
+  int quarter = row_samples / 4;
+
+  // Trigger the note and render a quarter-row still centered.
+  state.renderBlock(quarter, song, *mixer);
+  CHECK_NEAR(rmsDifference(mixer->encode()), 0.0f, 1e-4f);
+
+  auto * track_state = dynamic_cast<InstrumentTrackState *>(state.getChildByInternalId(track.getInternalId()));
+  CHECK(track_state != nullptr);
+  track_state->setAzimuth(90.0f); // the live knob - the note above is still sounding, hard right
+
+  // Render another quarter-row (still the same held note, no new note-on)
+  // and confirm the decoded stereo image is now audibly right-heavy.
+  state.renderBlock(quarter, song, *mixer);
+  CHECK(rmsDifference(mixer->encode()) > 0.05f);
 }

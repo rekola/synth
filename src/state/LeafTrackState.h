@@ -153,9 +153,9 @@ public:
   void setSolo(bool s) { solo_ = s; }
 
   // Send Main/A/B all push into every already-active voice too, not just
-  // future notes/triggers (unlike setAzimuth() below - see adjustAzimuth()
-  // there for the general reasoning: sends_ isn't read fresh from anywhere
-  // but this voice's own construction otherwise). Reuses the same
+  // future notes/triggers (same reasoning as setAzimuth()/adjustAzimuth()
+  // below: sends_ isn't read fresh from anywhere but this voice's own
+  // construction otherwise). Reuses the same
   // VoiceState::adjust*() virtual-recursion mechanism adjustAzimuth() does
   // (so a multi-region SoundFontInstrument group's real leaf voices are all
   // reached too), just carrying an absolute value instead of a per-tick
@@ -183,25 +183,21 @@ public:
   }
 
   // The live-knob path (Launchpad/UI Pan row, via Controller::
-  // setTrackAzimuth()) - deliberately "only future triggers pick it up":
-  // already-playing voices keep whatever position they were constructed
-  // with (InstrumentVoice's/PositionedVoice's own encodePosition() bakes it
-  // in once too). A live voice-reaching azimuth push does exist
-  // (adjustAzimuth() below), but for InstrumentTrackState it's driven only
-  // by the 2Lxx/2Rxx tick-scheduled slide command, not by this knob.
-  void setAzimuth(float a) { position_.azimuth = a; }
+  // setTrackAzimuth()) - reaches every already-active voice too, not just
+  // future triggers, by reusing adjustAzimuth() below with the absolute-to-
+  // delta conversion done here.
+  void setAzimuth(float a) { adjustAzimuth(a - position_.azimuth); }
   float getAzimuth() const { return position_.azimuth; }
 
-  // 2Lxx/2Rxx azimuth slide (Command::isAzimuthSlide(), scheduled per-tick
-  // by SongState::scheduleAzimuthSlide(), consumed by InstrumentTrackState::
-  // render()'s own chunked loop) - deliberately the opposite of
-  // setAzimuth() above: it reaches every already-active voice too, not just
-  // future notes, since the whole point of a slide command is to audibly
-  // move whatever is currently sounding. VoiceState::adjustAzimuth()'s
-  // default recursion (overridden by InstrumentVoice - see its own comment)
-  // makes this correct even for a multi-region SoundFontInstrument group.
-  // No longer an override of anything on TrackState (azimuth is a
-  // VoiceState-only concept - see plans/trackstate-voicestate-split.md).
+  // Shared by the live Pan-row knob above and the 2Lxx/2Rxx azimuth slide
+  // (Command::isAzimuthSlide(), scheduled per-tick by SongState::
+  // scheduleAzimuthSlide(), consumed by InstrumentTrackState::render()'s own
+  // chunked loop) - both are just different sources of a delta that should
+  // audibly move whatever is currently sounding, not only future notes.
+  // VoiceState::adjustAzimuth()'s default recursion (overridden by
+  // InstrumentVoice - see its own comment) makes this correct even for a
+  // multi-region SoundFontInstrument group. No longer an override of
+  // anything on TrackState (azimuth is a VoiceState-only concept).
   void adjustAzimuth(float delta) {
     position_.azimuth += delta;
     for (auto & [ column, voices ] : voices_) {
