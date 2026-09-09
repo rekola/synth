@@ -46,6 +46,20 @@ class InstrumentPool {
   const Track & getInstrument(int i) const { return *(instruments_[static_cast<size_t>(i)]); }
   void addInstrument(std::unique_ptr<Track> i) { instruments_.push_back(std::move(i)); }
 
+  // Erases pool slot `index` outright - a no-op, not an assert, for an
+  // already out-of-range index (mirrors getByIndex()'s own soft-miss
+  // contract). Every later slot shifts down by one, so any
+  // InstrumentTrack::instrument_id_ pointing past `index` is now stale -
+  // Song::removeInstrument() is the real entry point, which reindexes the
+  // whole track tree against this shift before/after calling here; this
+  // method itself only ever touches the flat list, on purpose, so it stays
+  // usable on its own by a future caller that already knows no track
+  // references this pool (e.g. a fresh/import-only pool).
+  void removeInstrument(int index) {
+    if (index < 0 || index >= static_cast<int>(instruments_.size())) return;
+    instruments_.erase(instruments_.begin() + index);
+  }
+
   // Bounds-checked, nullptr-on-miss sibling of getInstrument() above - what
   // InstrumentTrackState::getInstrumentSource() resolves instrument_id_
   // through on every render()/live note-on call. An out-of-range index is

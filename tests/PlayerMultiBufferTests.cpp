@@ -225,17 +225,17 @@ TEST(preview_note_sounds_the_named_instrument_and_stop_reclaims_it) {
 
   Player player(config, &controller);
 
-  // Nothing previewing yet - renderPreviewVoice() must still hand back a
+  // Nothing previewing yet - renderPreview() must still hand back a
   // correctly frame-sized, zero-channel buffer (Mixer::accumulate() needs
   // that shape every block, not just once something is sounding).
-  auto before = player.renderPreviewVoice(256);
+  auto before = player.renderPreview(256);
   CHECK(before.numberOfChannels() == 0);
   CHECK(before.numberOfFrames() == 256);
 
   PlaybackControlEvent preview_note(PlaybackControlEvent::PREVIEW_NOTE, "Electric Piano", 60, 100);
   player.handlePlaybackControlEvent(preview_note);
 
-  auto sounding = player.renderPreviewVoice(256);
+  auto sounding = player.renderPreview(256);
   CHECK(sounding.numberOfChannels() > 0);
   float peak = 0.0f;
   for (int c = 0; c < sounding.numberOfChannels(); c++) {
@@ -254,13 +254,13 @@ TEST(preview_note_sounds_the_named_instrument_and_stop_reclaims_it) {
   // amplitude are independent), same as InstrumentTrackState's own
   // clearFinishedVoices() only dropping a finished voice at the *next*
   // render, never the one that finished it.
-  auto just_stopped = player.renderPreviewVoice(256);
+  auto just_stopped = player.renderPreview(256);
   CHECK(just_stopped.numberOfChannels() > 0);
 
-  // Reclaimed by the render after that - renderPreviewVoice() saw
+  // Reclaimed by the render after that - renderPreview() saw
   // isActive() false and dropped preview_voice_, so this call finds
   // nothing left to render at all.
-  auto after_stop = player.renderPreviewVoice(256);
+  auto after_stop = player.renderPreview(256);
   CHECK(after_stop.numberOfChannels() == 0);
 }
 
@@ -279,7 +279,87 @@ TEST(preview_note_with_an_unresolvable_name_previews_silence) {
   PlaybackControlEvent preview_note(PlaybackControlEvent::PREVIEW_NOTE, "nothing registered under this string", 60, 100);
   player.handlePlaybackControlEvent(preview_note);
 
-  auto data = player.renderPreviewVoice(256);
+  auto data = player.renderPreview(256);
+  CHECK(data.numberOfChannels() == 0);
+}
+
+// OutlineView's own Library > Clips groove-preview path (PlaybackControlEvent::
+// PREVIEW_GROOVE/PREVIEW_STOP) - unlike PREVIEW_NOTE above, this is a real
+// scheduler advancing block by block, spawning a fresh voice for every hit
+// as it comes due, looping - not a single ad hoc note. "Waltz" (kick on
+// row 0, rim on rows 4 and 8, 12-row/3-4 loop - see GroovePatternLibrary.cpp)
+// is used here as a known, fixed reference pattern.
+TEST(preview_groove_schedules_its_hits_and_stop_silences_it) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+
+  Player player(config, &controller);
+  auto interval = config.getSampleInterval(controller.getSong().getTempo());
+
+  PlaybackControlEvent preview_groove(PlaybackControlEvent::PREVIEW_GROOVE, "Waltz");
+  player.handlePlaybackControlEvent(preview_groove);
+
+  // Row 0's kick is scheduled at frame 0 - the very first block already
+  // carries real, audible output.
+  auto first_row = player.renderPreview(interval);
+  CHECK(first_row.numberOfChannels() > 0);
+  float peak = 0.0f;
+  for (int c = 0; c < first_row.numberOfChannels(); c++) {
+    auto data = first_row.getChannelData(c);
+    for (int i = 0; i < first_row.numberOfFrames(); i++) peak = std::max(peak, std::fabs(data[i]));
+  }
+  CHECK(peak > 0.0f);
+
+  // Advancing through the rest of the 12-row loop (the rim hits at rows 4
+  // and 8 land somewhere in here) keeps producing real output - proof the
+  // scheduler is still firing block after block, not just coasting on row
+  // 0's kick's own release tail.
+  bool saw_sound_later = false;
+  for (int row = 1; row < 12; row++) {
+    auto block = player.renderPreview(interval);
+    for (int c = 0; c < block.numberOfChannels(); c++) {
+      auto data = block.getChannelData(c);
+      for (int i = 0; i < block.numberOfFrames(); i++) if (std::fabs(data[i]) != 0.0f) saw_sound_later = true;
+    }
+  }
+  CHECK(saw_sound_later);
+
+  PlaybackControlEvent preview_stop(PlaybackControlEvent::PREVIEW_STOP);
+  player.handlePlaybackControlEvent(preview_stop);
+
+  // Whatever was still ringing at the moment of PREVIEW_STOP finishes its
+  // own release tail within a handful of blocks - once nothing is left to
+  // render, renderPreview() reports a zero-channel buffer (its own
+  // "nothing previewing" shape - see its own comment). Checking for that
+  // exact shape, rather than a decaying envelope's own asymptotic-to-
+  // (never quite exactly)-zero amplitude, is what actually distinguishes
+  // "fully reclaimed" from "very quiet" here. A whole loop's worth per
+  // lap, across several laps: if the scheduler had somehow kept running
+  // instead of genuinely stopping, a later lap would flip back to
+  // non-zero once row 0's kick came due again - it never does.
+  bool ever_reported_silent = false;
+  for (int lap = 0; lap < 8; lap++) {
+    auto block = player.renderPreview(interval * 12);
+    if (block.numberOfChannels() == 0) ever_reported_silent = true;
+    else CHECK(!ever_reported_silent); // once silent, must never sound again
+  }
+  CHECK(ever_reported_silent);
+}
+
+// A name that resolves to nothing (findGroovePattern() misses) previews
+// silence rather than crashing or substituting some other pattern.
+TEST(preview_groove_with_an_unresolvable_name_previews_silence) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+
+  Player player(config, &controller);
+
+  PlaybackControlEvent preview_groove(PlaybackControlEvent::PREVIEW_GROOVE, "nothing registered under this name");
+  player.handlePlaybackControlEvent(preview_groove);
+
+  auto data = player.renderPreview(256);
   CHECK(data.numberOfChannels() == 0);
 }
 

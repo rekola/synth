@@ -3,6 +3,7 @@
 #include "../Controller.h"
 #include "../util/Logger.h"
 #include "../instruments/Tuner.h"
+#include "../instruments/GenericInstrument.h"
 
 #include "LogEvent.h"
 #include "PlaybackEvent.h"
@@ -134,19 +135,49 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
         Note note(ev.getParameter1(), ev.getParameter2());
         auto frequency = Tuner::getFrequency(song->getTuning(), note);
         // Retriggering just replaces whatever was already sounding
-        // outright - see preview_voice_'s own comment on Player.h.
+        // outright - see preview_note_voice_'s own comment on Player.h.
         // live_note_counter_ stands in for a real NoteCoordinate's
         // absolute_row here too, same reasoning as the real live PLAY_NOTE
         // case below (a preview note has no authored position either).
-        preview_voice_ = instrument->playNote(channel_config_, SphericalPosition{}, frequency, 1.0f,
-                                               note.getVelocityAsFloat(), note.getValue(), SendLevels{},
-                                               NoteCoordinate(-1, live_note_counter_++, 0));
+        preview_note_voice_ = instrument->playNote(channel_config_, SphericalPosition{}, frequency, 1.0f,
+                                                    note.getVelocityAsFloat(), note.getValue(), SendLevels{},
+                                                    NoteCoordinate(-1, live_note_counter_++, 0));
       }
     }
     return;
 
+  case PlaybackControlEvent::PREVIEW_GROOVE:
+    // Retriggering (even the same name again) always restarts cleanly
+    // from row 0, hard-cutting whatever was still ringing from a
+    // previous groove preview - matches PREVIEW_NOTE's own "replaces
+    // outright" convention. findGroovePattern() misses silently (null)
+    // for an unrecognized name, same as PREVIEW_NOTE's own unresolved-
+    // instrument case - nothing left to schedule, not a crash.
+    preview_groove_pattern_ = findGroovePattern(ev.getBufferName());
+    preview_groove_frame_ = 0;
+    preview_groove_voices_.clear();
+    if (preview_groove_pattern_) {
+      // The same "kit" a real PercussionTrack's own default kit resolves
+      // to (InstrumentPool::prepare()'s own GenericInstrument) - a
+      // throwaway instance reuses that exact literal/path/generic-default
+      // fallback chain (GenericInstrument::prepare()) rather than
+      // duplicating it here, and works even for a brand new buffer whose
+      // own InstrumentPool was never prepare()'d at all.
+      auto kit = make_unique<GenericInstrument>();
+      kit->setFrom("kit");
+      kit->prepare(controller_->getInstrumentProvider());
+      preview_groove_instrument_ = std::move(kit);
+    } else {
+      preview_groove_instrument_.reset();
+    }
+    return;
+
   case PlaybackControlEvent::PREVIEW_STOP:
-    if (preview_voice_) preview_voice_->stopNote();
+    // Universal stop - releases whichever kind of preview (or both) is
+    // currently active, the same key (OutlineView's own 'a') for either.
+    if (preview_note_voice_) preview_note_voice_->stopNote();
+    preview_groove_pattern_ = nullptr;
+    for (auto & voice : preview_groove_voices_) voice->stopNote();
     return;
 
   case PlaybackControlEvent::BUFFER_KILLED:
@@ -461,15 +492,63 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     break;
 
   default:
-    break; // TERMINATE/MIXER_CHANGED/BUFFER_KILLED/BUFFER_RENAMED/PREVIEW_NOTE/PREVIEW_STOP handled above
+    break; // TERMINATE/MIXER_CHANGED/BUFFER_KILLED/BUFFER_RENAMED/PREVIEW_* handled above
   }
 }
 
 AudioBuffer
-Player::renderPreviewVoice(int frames) {
-  if (!preview_voice_) return AudioBuffer(0, false, false, frames);
-  auto data = preview_voice_->render(frames);
-  if (!preview_voice_->isActive()) preview_voice_.reset(); // release tail (if any) has fully finished
+Player::renderPreview(int frames) {
+  vector<AudioBuffer> rendered;
+
+  if (preview_note_voice_) {
+    rendered.push_back(preview_note_voice_->render(frames));
+    if (!preview_note_voice_->isActive()) preview_note_voice_.reset(); // release tail (if any) has fully finished
+  }
+
+  if (preview_groove_pattern_) {
+    // Re-derived every block, not cached at PREVIEW_GROOVE time - so a
+    // live tempo change while a groove is previewing is reflected
+    // immediately, the same as any other tempo-driven playback.
+    auto song = controller_->getCurrentSong();
+    auto interval = song ? channel_config_.getSampleInterval(song->getTempo()) : 0;
+    auto loop_frames = interval * preview_groove_pattern_->length;
+    if (loop_frames > 0 && preview_groove_instrument_) {
+      for (auto & hit : preview_groove_pattern_->hits) {
+        auto hit_frame = hit.row * interval;
+        // How far ahead hit_frame is from the current loop position,
+        // wrapping around the loop boundary - fires the moment that
+        // distance is less than this block's own frame count,
+        // correctly handling a hit whose scheduled frame is behind
+        // preview_groove_frame_ in absolute terms but still ahead of
+        // it once the loop wraps.
+        auto ahead = (hit_frame - preview_groove_frame_ + loop_frames) % loop_frames;
+        if (ahead < frames) {
+          Note note(hit.note, hit.velocity);
+          auto frequency = Tuner::getFrequency(Tuning::PERCUSSION, note);
+          preview_groove_voices_.push_back(preview_groove_instrument_->playNote(channel_config_, SphericalPosition{}, frequency, 1.0f,
+                                                                                 note.getVelocityAsFloat(), note.getValue(), SendLevels{},
+                                                                                 NoteCoordinate(-1, live_note_counter_++, 0)));
+        }
+      }
+      preview_groove_frame_ = (preview_groove_frame_ + frames) % loop_frames;
+    }
+  }
+
+  for (auto it = preview_groove_voices_.begin(); it != preview_groove_voices_.end(); ) {
+    rendered.push_back((*it)->render(frames));
+    if ((*it)->isActive()) ++it;
+    else it = preview_groove_voices_.erase(it); // release tail (if any) has fully finished
+  }
+
+  bool has_main = false, has_aux_a = false, has_aux_b = false;
+  for (auto & s : rendered) {
+    has_main = has_main || s.hasChannel(Channel::Main);
+    has_aux_a = has_aux_a || s.hasChannel(Channel::AuxA);
+    has_aux_b = has_aux_b || s.hasChannel(Channel::AuxB);
+  }
+  AudioBuffer data(has_main ? channel_config_.numberOfChannels() : 0, has_aux_a, has_aux_b, frames);
+  data.zero();
+  for (auto & s : rendered) data.mixNamed(s);
   return data;
 }
 
@@ -682,13 +761,13 @@ Player::play(AudioAPI & audio) {
 	      state->renderBlock(audio.getFrameCount(), *song_ptr, *mixer, false);
 	    }
 
-	    // OutlineView's own instrument-audition path (not tied to any
-	    // buffer, so it never goes through live_states_ above) -
-	    // accumulates straight into the same shared mixer, right
-	    // alongside every real buffer's own output. Always frame-count-
-	    // correct even with nothing previewing (see renderPreviewVoice()'s
-	    // own comment), so this is safe to call unconditionally.
-	    mixer->accumulate(renderPreviewVoice(audio.getFrameCount()));
+	    // OutlineView's own Library audition path (not tied to any buffer,
+	    // so it never goes through live_states_ above) - accumulates
+	    // straight into the same shared mixer, right alongside every real
+	    // buffer's own output. Always frame-count-correct even with
+	    // nothing previewing (see renderPreview()'s own comment), so this
+	    // is safe to call unconditionally.
+	    mixer->accumulate(renderPreview(audio.getFrameCount()));
 
 	    auto master = mixer->encode();
 	    audio.play(master, logger);

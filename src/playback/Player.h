@@ -6,14 +6,17 @@
 #include "../state/VoiceState.h"
 #include "../ambisonic/MixerType.h"
 #include "../dsp/RecordingRingBuffer.h"
+#include "../model/GroovePatternLibrary.h"
 
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 class Controller;
 class AudioAPI;
 class Song;
+class Instrument;
 
 class Player : public EventHandler {
  public:
@@ -55,19 +58,20 @@ class Player : public EventHandler {
   void play(AudioAPI & audio);
   std::unique_ptr<PlaybackEvent> createPlaybackEvent(const std::string & buffer_name, const Song & song, const SongState & state);
 
-  // OutlineView's own instrument-audition path (PlaybackControlEvent::
-  // PREVIEW_NOTE/PREVIEW_STOP's own doc comment) - mixed into the shared
+  // OutlineView's own audition path - both a single Library-instrument
+  // note (PlaybackControlEvent::PREVIEW_NOTE/PREVIEW_STOP) and a whole
+  // looping Library groove pattern (PREVIEW_GROOVE/PREVIEW_STOP) render
+  // through here, combined into one buffer and mixed into the shared
   // Mixer every block by play()'s own poll loop, right alongside every
   // live buffer's own SongState (see that call site). Public, not private,
   // so a test can drive it directly the same way getLiveStateForTest()
   // lets a test drive a real buffer's SongState - play() itself is the
-  // only other caller. Reclaims preview_voice_ once its release tail
-  // finishes (VoiceState::isActive() false), the same as
-  // InstrumentTrackState::clearFinishedVoices() does for a real track's
-  // own voices; returns a zero-channel, correctly frame-sized AudioBuffer
-  // while nothing is previewing, safe to Mixer::accumulate()
-  // unconditionally either way.
-  AudioBuffer renderPreviewVoice(int frames);
+  // only other caller. Reclaims each voice once its release tail finishes
+  // (VoiceState::isActive() false), the same as InstrumentTrackState::
+  // clearFinishedVoices() does for a real track's own voices; returns a
+  // zero-channel, correctly frame-sized AudioBuffer while nothing is
+  // previewing, safe to Mixer::accumulate() unconditionally either way.
+  AudioBuffer renderPreview(int frames);
 
 private:
   // One live SongState per buffer that's actually made sound (see the
@@ -192,9 +196,42 @@ private:
   // while one is already sounding) just replaces it outright - an
   // instrument browser has no need for the real polyphony/release-tail
   // bookkeeping InstrumentTrackState gives a real track's own notes. See
-  // renderPreviewVoice() above and PlaybackControlEvent::PREVIEW_NOTE/
+  // renderPreview() above and PlaybackControlEvent::PREVIEW_NOTE/
   // PREVIEW_STOP's own doc comment.
-  std::unique_ptr<VoiceState> preview_voice_;
+  std::unique_ptr<VoiceState> preview_note_voice_;
+
+  // OutlineView's own groove-pattern (Library > Grooves) preview path - a
+  // pointer into GroovePatternLibrary.h's own function-local static table
+  // (valid for the life of the process, see getGroovePatternLibrary()'s
+  // own doc comment), null while nothing is previewing. Unlike
+  // preview_note_voice_ above, a groove genuinely needs real, concurrent
+  // polyphony (a kick and a hi-hat landing on the same step are two
+  // simultaneous voices, not one replacing the other) and a real
+  // scheduler advancing it block by block (renderPreview()'s own body) -
+  // there is no per-buffer SongState to lean on here, since the groove
+  // isn't attached to any song/track at all until "Add to Song" actually
+  // creates one.
+  const GroovePatternTemplate * preview_groove_pattern_ = nullptr;
+  // Resolved once, when PREVIEW_GROOVE starts (handlePlaybackControlEvent()),
+  // not re-resolved every block - the same "kit" a real PercussionTrack's
+  // own default kit resolves to (InstrumentPool::prepare()'s own
+  // GenericInstrument, literal/path lookup falling back to the provider's
+  // generic default instrument), reused here via a throwaway
+  // GenericInstrument rather than duplicating that fallback chain inline.
+  // Null exactly when preview_groove_pattern_ is (both set together).
+  std::shared_ptr<Instrument> preview_groove_instrument_;
+  // Current position within preview_groove_pattern_'s own loop, in
+  // frames at the active song's tempo (renderPreview() re-derives the
+  // loop's total frame length from this every block, via
+  // ChannelConfiguration::getSampleInterval() - cheap, and correctly
+  // reacts to a live tempo change mid-preview rather than latching a
+  // stale one). Always kept within [0, loop length) - meaningless while
+  // preview_groove_pattern_ is null.
+  int preview_groove_frame_ = 0;
+  // Every currently-sounding hit from preview_groove_pattern_ - see its
+  // own comment on why this needs real polyphony, unlike
+  // preview_note_voice_.
+  std::vector<std::unique_ptr<VoiceState>> preview_groove_voices_;
 };
 
 #endif

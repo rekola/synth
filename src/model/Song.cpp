@@ -385,6 +385,32 @@ static void storeChildTrack(const Track & track, XMLDocument & doc, XMLElement *
   target_element->InsertEndChild(track_element);
 }
 
+// Walks the whole track tree fixing up every InstrumentTrack::
+// instrument_id_ against a pool slot having just shifted - see Song.h's
+// own doc comment on removeInstrument() for what "fixing up" means for a
+// track pointing past vs. exactly at the removed slot. Recurses into
+// every child regardless of type (Group/Effect wrappers included) - a
+// pool index has no notion of "root track only" the way removeTrack()'s
+// own id-based lookup does.
+static void reindexInstrumentIds(Track & track, int removed_index) {
+  auto * instrument_track = dynamic_cast<InstrumentTrack *>(&track);
+  if (instrument_track) {
+    auto id = instrument_track->getInstrumentId();
+    if (id == removed_index) instrument_track->setInstrumentId(-1);
+    else if (id > removed_index) instrument_track->setInstrumentId(id - 1);
+  }
+  for (auto & child : track.getChildren()) reindexInstrumentIds(*child, removed_index);
+}
+
+void
+Song::removeInstrument(int index) {
+  auto & instruments = instrument_pool_.getInstruments();
+  if (index < 0 || index >= static_cast<int>(instruments.size())) return;
+  instrument_pool_.removeInstrument(index);
+  reindexInstrumentIds(*master_track_, index);
+  incVersion();
+}
+
 // Sample rate used to construct Song's own bus-slot BusEffect instances
 // (Song::bus_slot_a_/bus_slot_b_) - these exist purely to own/(de)serialize
 // their own parameters (see Song.h's own doc comment on getBusSlot()) and

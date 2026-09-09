@@ -322,6 +322,17 @@ class Song : public SongObject {
     incVersion();
   }
 
+  // Erases pool slot `index` (InstrumentPool::removeInstrument()) and
+  // reindexes every InstrumentTrack::instrument_id_ in the tree that
+  // pointed past it (decremented by one, since every later slot just
+  // shifted down) or *at* it (set to -1, InstrumentPool::getByIndex()'s
+  // own "nothing authored" sentinel - the instrument that track was using
+  // is simply gone, the same as a never-assigned one; PercussionTrack is
+  // untouched either way, since it sources from the pool's own default
+  // kit, never a per-track instrument_id_ - see InstrumentPool.h's own
+  // class comment). A no-op for an out-of-range index.
+  void removeInstrument(int index);
+
   // The single way to reach the instrument list - callers wanting just
   // the indexed list go through InstrumentPool::getInstruments()/
   // getInstrument() from here rather than Song exposing its own

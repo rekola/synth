@@ -303,3 +303,26 @@ Found 2026-07-11, not yet fixed.
   directly against real hardware rather than the simulated-device e2e
   harness.
 
+- **`GroovePatternLibrary.cpp`'s swung entries ("Swing", "Boogie") are
+  straight-16th-grid approximations of a genuine 2:1 triplet swing, not
+  the real thing** - their ride patterns fake the "long-short" feel by
+  spacing plain 16th-note hits unevenly rather than actually placing the
+  upbeat at the true swung position. The engine already has the right
+  primitive to do this precisely (`Note::getDelay()`/`getDelayAsFloat()`,
+  the pattern editor's own DELAY column, already consumed by real
+  playback - `SongState.h`'s `delay_samples` computation), and it was
+  tried directly on these two patterns' own hit data with correct results,
+  but reverted: a delay baked into one lane of static library data doesn't
+  compose - it can't also shuffle a bass line or anything else added
+  alongside the same groove later, since nothing ties them to a shared
+  swing amount. A real fix needs a pattern/song-level swing or groove-
+  shuffle setting applied at playback time to everything scheduled against
+  it (a new model field plus engine support plus UI), not a per-hit
+  workaround in this library's own data - not designed or scoped yet.
+  Every other groove either sits fine on plain straight rows or, where the
+  genre genuinely needs triplet subdivision ("Slow Rock", "Shuffle Blues"),
+  already sidesteps this by using real 12/8 meter (24 rows = 12 real
+  eighth-note triplet pulses) instead of approximating it inside a 4/4
+  grid, so this is scoped to those two entries only, not the row grid in
+  general.
+

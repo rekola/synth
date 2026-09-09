@@ -8,6 +8,8 @@
 #include "../src/model/SampleTrack.h"
 #include "../src/instruments/InstrumentProvider.h"
 #include "../src/instruments/GenericInstrument.h"
+#include "../src/instruments/Oscillator.h"
+#include "../src/instruments/WaveformType.h"
 #include "../src/model/SampleContent.h"
 #include "../src/audio/AudioBuffer.h"
 #include "../src/ambisonic/ChannelConfiguration.h"
@@ -1181,4 +1183,65 @@ TEST(save_omits_the_arrangement_element_when_a_scene_has_no_instances) {
   CHECK(saved.find("<arrangement") == string::npos);
 
   fs::remove(scratch_path);
+}
+
+// Song::removeInstrument() (OutlineView.cpp's own Delete action on a pool
+// Instruments row) - erasing a pool slot shifts every later slot's own
+// index down by one, so every InstrumentTrack::instrument_id_ in the tree
+// has to be reindexed against that shift, not just the pool vector
+// itself. Three tracks pointing at three different pool slots (below,
+// at, and above the one being removed) exercise all three outcomes at
+// once.
+TEST(remove_instrument_reindexes_every_instrument_track_in_the_tree) {
+  Song song;
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));   // index 0
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SQUARE)); // index 1 - the one that gets removed
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SAW));    // index 2
+
+  auto & below = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto & at = song.addTrack(make_unique<InstrumentTrack>(1));
+  auto & above = song.addTrack(make_unique<InstrumentTrack>(2));
+
+  song.removeInstrument(1);
+
+  CHECK(song.getInstrumentPool().getInstruments().size() == 2);
+  // Untouched - it never pointed past the removed slot.
+  CHECK(dynamic_cast<InstrumentTrack &>(below).getInstrumentId() == 0);
+  // Was pointing exactly at the removed slot - invalidated (getByIndex()'s
+  // own "nothing authored" sentinel), not left dangling at a now-different
+  // instrument.
+  CHECK(dynamic_cast<InstrumentTrack &>(at).getInstrumentId() == -1);
+  // Was pointing past the removed slot - decremented by one, so it still
+  // resolves to the same real instrument (formerly index 2, now index 1).
+  CHECK(dynamic_cast<InstrumentTrack &>(above).getInstrumentId() == 1);
+}
+
+// A nested track (inside a Group) must be reindexed too - the walk isn't
+// scoped to root tracks only the way removeTrack()'s own id-based lookup
+// can be.
+TEST(remove_instrument_reindexes_a_nested_instrument_track_too) {
+  Song song;
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));  // index 0 - removed
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SQUARE)); // index 1
+
+  auto group = make_unique<Group>();
+  auto & nested = group->addChild(make_unique<InstrumentTrack>(1));
+  song.addTrack(move(group));
+
+  song.removeInstrument(0);
+
+  CHECK(song.getInstrumentPool().getInstruments().size() == 1);
+  CHECK(dynamic_cast<InstrumentTrack &>(nested).getInstrumentId() == 0);
+}
+
+// An out-of-range index is a no-op, not a crash or a silent erase of the
+// wrong slot.
+TEST(remove_instrument_with_an_out_of_range_index_is_a_no_op) {
+  Song song;
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
+
+  song.removeInstrument(5);
+  song.removeInstrument(-1);
+
+  CHECK(song.getInstrumentPool().getInstruments().size() == 1);
 }
