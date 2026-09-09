@@ -6,6 +6,7 @@
 #include "../model/PercussionTrack.h"
 #include "../model/GroovePatternLibrary.h"
 #include "../instruments/GenericInstrument.h"
+#include "../instruments/GmInstrumentDescriptions.h"
 #include "../playback/InputEvent.h"
 #include "../playback/PlaybackControlEvent.h"
 #include "../util/constants.h"
@@ -123,6 +124,10 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
       data_.push_back(std::move(row));
     }
   }
+  // Empty for now - synthesized ambient textures (waves, campfire,
+  // thunder, rain, ...) belong here once that content exists; no entries
+  // yet.
+  data_.push_back( { 1, TrackType::UNKNOWN, OutlineRowKind::SECTION, "Ambience" } );
   data_.push_back( { 1, TrackType::UNKNOWN, OutlineRowKind::SECTION, "Instruments" });
   // The curated taxonomy paths (e.g. "piano.acoustic.grand"), not
   // getInstruments()'s own "native:"-namespaced SF2 preset names - see
@@ -231,37 +236,67 @@ OutlineView::renderDetailsPanel(const StyleProvider & styles, int details_x, int
   for (int row = 0; row < tree_rows; row++) putstr(1 + row, details_x, blank);
 
   if (new_cursor_row_ < 0 || new_cursor_row_ >= static_cast<int>(data_.size())) return;
-  auto & row = data_[static_cast<size_t>(new_cursor_row_)];
+  auto lines = buildDetailsLines(data_[static_cast<size_t>(new_cursor_row_)], details_width);
 
-  vector<string> lines;
+  for (size_t i = 0; i < lines.size() && static_cast<int>(i) < tree_rows; i++) {
+    auto & line = lines[i];
+    auto truncated = Utf8::truncateToWidth(line.text, details_width);
+    // Every button's own text is "[Key] Label" - only the "[Key]" part
+    // gets the colored chip, so it reads as the pressable key rather than
+    // coloring the whole label; the rest stays plain text like any other
+    // line. All button labels are plain ASCII, so a byte-index find of
+    // ']' is safe here (unlike wrapped description text elsewhere, which
+    // isn't).
+    auto bracket_end = line.action != DetailsAction::NONE ? truncated.find(']') : string::npos;
+    if (bracket_end != string::npos) {
+      auto key_part = truncated.substr(0, bracket_end + 1);
+      auto rest_part = truncated.substr(bracket_end + 1);
+      setFgColor(styles.button_fg_color);
+      setBgColor(styles.button_bg_color);
+      putstr(1 + static_cast<int>(i), details_x, key_part);
+      setFgColor(styles.window_fg_color);
+      setBgColor(styles.window_bg_color);
+      putstr(1 + static_cast<int>(i), details_x + Utf8::displayWidth(key_part), rest_part);
+    } else {
+      setFgColor(styles.window_fg_color);
+      setBgColor(styles.window_bg_color);
+      putstr(1 + static_cast<int>(i), details_x, truncated);
+    }
+  }
+}
+
+vector<DetailsLine>
+OutlineView::buildDetailsLines(const outline_row_s & row, int details_width) const {
+  vector<DetailsLine> lines;
   switch (row.kind) {
   case OutlineRowKind::TRACK:
   case OutlineRowKind::POOL_INSTRUMENT:
-    lines.push_back("[Del] Delete");
+    lines.push_back({ "[Del] Delete", DetailsAction::DELETE });
     break;
   case OutlineRowKind::LIBRARY_INSTRUMENT:
-    lines.push_back("[Enter] Add to Song");
-    lines.push_back("[note keys] Preview");
-    lines.push_back("[a] Stop");
+    lines.push_back({ "[Enter] Add to Song", DetailsAction::ADD_TO_SONG });
+    lines.push_back({ "[a] Stop", DetailsAction::STOP });
+    lines.push_back({ "", DetailsAction::NONE });
+    lines.push_back({ "Play note keys to preview", DetailsAction::NONE });
+    if (auto * description = findGmInstrumentDescription(row.ref_name)) {
+      lines.push_back({ "", DetailsAction::NONE });
+      for (auto & wrapped : wrapText(description, details_width)) lines.push_back({ wrapped, DetailsAction::NONE });
+    }
     break;
   case OutlineRowKind::LIBRARY_GROOVE: {
-    lines.push_back("[Enter] Add to Song");
-    lines.push_back("[p] Preview");
-    lines.push_back("[a] Stop");
+    lines.push_back({ "[Enter] Add to Song", DetailsAction::ADD_TO_SONG });
+    lines.push_back({ "[p] Preview", DetailsAction::PREVIEW });
+    lines.push_back({ "[a] Stop", DetailsAction::STOP });
     if (auto * pattern = findGroovePattern(row.ref_name)) {
-      lines.push_back("");
-      auto wrapped = wrapText(pattern->description, details_width);
-      lines.insert(lines.end(), wrapped.begin(), wrapped.end());
+      lines.push_back({ "", DetailsAction::NONE });
+      for (auto & wrapped : wrapText(pattern->description, details_width)) lines.push_back({ wrapped, DetailsAction::NONE });
     }
     break;
   }
   case OutlineRowKind::SECTION:
     break;
   }
-
-  for (size_t i = 0; i < lines.size() && static_cast<int>(i) < tree_rows; i++) {
-    putstr(1 + static_cast<int>(i), details_x, Utf8::truncateToWidth(lines[i], details_width));
-  }
+  return lines;
 }
 
 void
@@ -299,6 +334,16 @@ OutlineView::moveCursorBy(int delta) {
   new_cursor_row_ = std::clamp(new_cursor_row_ + delta, 0, std::max(0, static_cast<int>(data_.size()) - 1));
   if (new_cursor_row_ < new_scroll_pos_) new_scroll_pos_ = new_cursor_row_;
   if (new_cursor_row_ >= new_scroll_pos_ + tree_rows) new_scroll_pos_ = new_cursor_row_ - tree_rows + 1;
+}
+
+void
+OutlineView::scrollBy(int delta) {
+  // Never touches new_cursor_row_ - see this method's own doc comment on
+  // OutlineView.h for why that's deliberate. Clamped so the view can
+  // never scroll past the point where the last row is already fully
+  // visible at the bottom.
+  auto max_scroll = std::max(0, static_cast<int>(data_.size()) - treeRows());
+  new_scroll_pos_ = std::clamp(new_scroll_pos_ + delta, 0, max_scroll);
 }
 
 void
@@ -378,8 +423,83 @@ OutlineView::deleteSelectedRow() {
   }
 }
 
+void
+OutlineView::runDetailsAction(DetailsAction action) {
+  switch (action) {
+  case DetailsAction::NONE:
+    break;
+  case DetailsAction::DELETE:
+    deleteSelectedRow();
+    break;
+  case DetailsAction::ADD_TO_SONG:
+    // Exactly one of these actually does anything, depending on which
+    // kind of Library row the cursor is on - both no-op harmlessly
+    // otherwise (see each one's own guard).
+    addSelectedLibraryInstrumentToPool();
+    addSelectedLibraryGrooveToSong();
+    break;
+  case DetailsAction::PREVIEW:
+    // Only a Library > Grooves row actually has a PREVIEW action to run
+    // (see buildDetailsLines()) - a Library > Instruments row's own
+    // preview is driven by note keys instead, not this action, so
+    // there's nothing to guard against here beyond the row still
+    // actually being a groove.
+    if (new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size()) &&
+        data_[static_cast<size_t>(new_cursor_row_)].kind == OutlineRowKind::LIBRARY_GROOVE) {
+      auto & name = data_[static_cast<size_t>(new_cursor_row_)].ref_name;
+      getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PREVIEW_GROOVE, name));
+    }
+    break;
+  case DetailsAction::STOP:
+    held_preview_key_ = -1;
+    getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PREVIEW_STOP));
+    break;
+  }
+}
+
+bool
+OutlineView::handleClick(const InputEvent & input) {
+  // Resolved on release only, matching SpinBox's own click convention -
+  // PRESS is consumed (returns true, so it never falls through to
+  // anything else) but otherwise a no-op.
+  if (input.getKind() != InputEvent::Kind::RELEASE) return true;
+
+  auto [pos_y, pos_x] = getPosition();
+  auto [rows, cols] = getDim();
+  auto y = input.getY() - pos_y, x = input.getX() - pos_x;
+  if (y < 0 || y >= rows || x < 0 || x >= cols) return true; // shouldn't happen - only reached while this is the click's own target
+  if (y == 0) return true; // the shared heading row - nothing clickable there
+
+  auto content_row = y - 1; // 0-based row within the tree/details content area, below the heading
+  auto tree_width = columnSplit().first;
+
+  if (x < tree_width) {
+    // A tree click - move the cursor straight to whichever row is
+    // showing there. The clicked row is already on screen by definition,
+    // so this never needs to touch new_scroll_pos_ the way moveCursorBy()
+    // does.
+    auto data_row = content_row + current_scroll_pos_;
+    if (data_row >= 0 && data_row < static_cast<int>(data_.size())) new_cursor_row_ = data_row;
+  } else if (x > tree_width && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size())) {
+    // A details-panel click - hit-test against the exact same lines
+    // renderDetailsPanel() just drew there (buildDetailsLines() is the
+    // one shared source for both), and run whichever line's own action.
+    auto details_width = std::max(0, cols - tree_width - 1);
+    auto lines = buildDetailsLines(data_[static_cast<size_t>(new_cursor_row_)], details_width);
+    if (content_row >= 0 && content_row < static_cast<int>(lines.size())) {
+      runDetailsAction(lines[static_cast<size_t>(content_row)].action);
+    }
+  }
+  return true;
+}
+
 bool
 OutlineView::offerInput(const InputEvent & input) {
+  // Handled first, before even RELEASE's own early-return just below (a
+  // mouse-button release would otherwise be swallowed there, since it's
+  // never the held preview-note key) - see handleClick()'s own comment
+  // for why it resolves on release anyway.
+  if (input.getId() == NCKEY_BUTTON1) return handleClick(input);
   // A held preview-note key's RELEASE is handled once, up front, exactly
   // like PatternEditor's own live note entry (see its own comment on why
   // RELEASE needs this special early-return treatment) - it either matches
@@ -397,11 +517,11 @@ OutlineView::offerInput(const InputEvent & input) {
   } else if (input.getId() == NCKEY_DOWN) {
     moveCursorBy(1);
     return true;
-  } else if (input.getId() == NCKEY_BUTTON4) { // scroll wheel up - mirrors PatternEditor.cpp's own one-row-per-tick convention
-    moveCursorBy(-1);
+  } else if (input.getId() == NCKEY_BUTTON4) { // scroll wheel up - see scrollBy()'s own comment for why this isn't moveCursorBy()
+    scrollBy(-1);
     return true;
   } else if (input.getId() == NCKEY_BUTTON5) { // scroll wheel down
-    moveCursorBy(1);
+    scrollBy(1);
     return true;
   } else if (input.getId() == NCKEY_PGUP) {
     moveCursorBy(-treeRows());
@@ -410,14 +530,10 @@ OutlineView::offerInput(const InputEvent & input) {
     moveCursorBy(treeRows());
     return true;
   } else if (input.getId() == NCKEY_ENTER) {
-    // Exactly one of these actually does anything, depending on which
-    // kind of Library row (if either) the cursor is on, and both no-op
-    // harmlessly on every other row kind (Song/Tracks/section headings).
-    addSelectedLibraryInstrumentToPool();
-    addSelectedLibraryGrooveToSong();
+    runDetailsAction(DetailsAction::ADD_TO_SONG);
     return true;
   } else if (input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE) {
-    deleteSelectedRow();
+    runDetailsAction(DetailsAction::DELETE);
     return true;
   } else if (input.getId() == 'p' && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size()) &&
              data_[static_cast<size_t>(new_cursor_row_)].kind == OutlineRowKind::LIBRARY_GROOVE) {
@@ -429,8 +545,7 @@ OutlineView::offerInput(const InputEvent & input) {
     // see Player.h's own preview_groove_pattern_ comment. 'a' (above)
     // stops it, the same universal stop every other preview already uses.
     if (input.getKind() == InputEvent::Kind::REPEAT) return true;
-    auto & name = data_[static_cast<size_t>(new_cursor_row_)].ref_name;
-    getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PREVIEW_GROOVE, name));
+    runDetailsAction(DetailsAction::PREVIEW);
     return true;
   } else if (input.getId() == 'a') {
     // The dedicated note-off key (matches PatternEditor's own note-entry
@@ -443,8 +558,7 @@ OutlineView::offerInput(const InputEvent & input) {
     // keyboard protocol never sends one at all (see held_preview_key_'s
     // own comment) - this is the one way to stop it that works
     // regardless. A harmless no-op if nothing is previewing.
-    held_preview_key_ = -1;
-    getController().getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PREVIEW_STOP));
+    runDetailsAction(DetailsAction::STOP);
     return true;
   } else if (new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size()) &&
              data_[static_cast<size_t>(new_cursor_row_)].kind == OutlineRowKind::LIBRARY_INSTRUMENT) {

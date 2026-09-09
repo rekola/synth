@@ -264,6 +264,68 @@ TEST(preview_note_sounds_the_named_instrument_and_stop_reclaims_it) {
   CHECK(after_stop.numberOfChannels() == 0);
 }
 
+// Regression: retriggering PREVIEW_NOTE while a preview note is already
+// sounding used to just destroy the old VoiceState outright (a plain
+// unique_ptr assignment) - a hard cut mid-waveform, an audible click,
+// reported as happening when auditioning several instruments in quick
+// succession. Fixed to fastRelease() the old voice and hand it off to
+// preview_voices_ to finish its own tail instead (Player.h's own
+// preview_note_voice_ comment) - checked structurally here (both voices
+// still count right after retriggering, before renderPreview() has even
+// run once) rather than by trying to tell an audible click apart from a
+// legitimately fast attack by ear.
+TEST(preview_note_retrigger_releases_the_previous_voice_instead_of_cutting_it) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+
+  Player player(config, &controller);
+
+  PlaybackControlEvent first(PlaybackControlEvent::PREVIEW_NOTE, "Electric Piano", 60, 100);
+  player.handlePlaybackControlEvent(first);
+  CHECK(player.getPreviewVoiceCountForTest() == 1);
+
+  PlaybackControlEvent second(PlaybackControlEvent::PREVIEW_NOTE, "Electric Piano", 64, 100);
+  player.handlePlaybackControlEvent(second);
+  // The first voice must still be there - handed off, not destroyed.
+  CHECK(player.getPreviewVoiceCountForTest() == 2);
+
+  // Eventually reclaimed once its (now fastRelease()'d) tail actually
+  // finishes.
+  bool reclaimed = false;
+  for (int i = 0; i < 200 && !reclaimed; i++) {
+    player.renderPreview(256);
+    if (player.getPreviewVoiceCountForTest() == 1) reclaimed = true;
+  }
+  CHECK(reclaimed);
+}
+
+// Same fix, the groove-preview side: retriggering PREVIEW_GROOVE used to
+// clear() preview_voices_ outright, destroying every currently-sounding
+// hit mid-waveform. Fixed to fastRelease() them in place instead (Player.h's
+// own preview_groove_pattern_ comment) - the count right after retriggering
+// proves nothing was dropped, only released.
+TEST(preview_groove_retrigger_releases_still_sounding_hits_instead_of_cutting_them) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+
+  Player player(config, &controller);
+
+  PlaybackControlEvent first(PlaybackControlEvent::PREVIEW_GROOVE, "Waltz");
+  player.handlePlaybackControlEvent(first);
+  auto interval = config.getSampleInterval(controller.getSong().getTempo());
+  player.renderPreview(interval); // row 0's kick fires and is now sounding
+  CHECK(player.getPreviewVoiceCountForTest() > 0);
+  auto sounding_before_retrigger = player.getPreviewVoiceCountForTest();
+
+  PlaybackControlEvent second(PlaybackControlEvent::PREVIEW_GROOVE, "Waltz");
+  player.handlePlaybackControlEvent(second);
+  // Still there, fastRelease()'d in place - retriggering never drops
+  // preview_voices_' own existing entries.
+  CHECK(player.getPreviewVoiceCountForTest() == sounding_before_retrigger);
+}
+
 // A name that resolves to nothing (InstrumentProvider::
 // tryGetByLiteralName()/resolvePath() both miss) previews silence rather
 // than substituting the provider's own default instrument - see

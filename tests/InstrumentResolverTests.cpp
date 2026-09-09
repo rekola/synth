@@ -4,9 +4,12 @@
 #include "../src/instruments/InstrumentProvider.h"
 #include "../src/instruments/SoundFont.h"
 #include "../src/instruments/Oscillator.h"
+#include "../src/instruments/GmInstrumentTable.h"
+#include "../src/instruments/GmInstrumentDescriptions.h"
 
 #include <filesystem>
 #include <memory>
+#include <set>
 #include <string>
 
 using namespace std;
@@ -215,4 +218,26 @@ TEST(get_taxonomy_paths_exposes_registered_paths_not_native_names) {
   // (registerPath() and addInstrument() write to two separate maps).
   CHECK(provider.getInstruments().count("native:Piano") == 1);
   CHECK(provider.getInstruments().count("piano.acoustic.grand") == 0);
+}
+
+// GmInstrumentDescriptions.h is deliberately a plain array, not a map
+// (see its own doc comment) - kept correct not by the data structure but
+// by this test: every path kGmBank0Table/kGmBank128Table actually
+// register must have a description (a typo'd/missing path here would
+// otherwise just silently mean "no description" for that instrument, not
+// an error), every description path must correspond to a real table
+// entry (not a stale one left behind after a path was renamed/removed),
+// and there are no accidental duplicates.
+TEST(every_gm_taxonomy_path_has_exactly_one_description) {
+  set<string> table_paths;
+  for (auto & entry : kGmBank0Table) table_paths.insert(entry.path);
+  for (auto & entry : kGmBank128Table) table_paths.insert(entry.path);
+
+  set<string> description_paths;
+  for (auto & entry : kGmInstrumentDescriptions) {
+    CHECK(description_paths.insert(entry.path).second); // no duplicates
+    CHECK(entry.description[0] != '\0'); // no empty descriptions
+  }
+
+  CHECK(description_paths == table_paths);
 }

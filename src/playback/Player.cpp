@@ -134,11 +134,17 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       if (instrument && song) {
         Note note(ev.getParameter1(), ev.getParameter2());
         auto frequency = Tuner::getFrequency(song->getTuning(), note);
-        // Retriggering just replaces whatever was already sounding
-        // outright - see preview_note_voice_'s own comment on Player.h.
-        // live_note_counter_ stands in for a real NoteCoordinate's
+        // Whatever was already occupying this slot gets fastRelease()'d
+        // and moved into preview_voices_ to finish its own tail, rather
+        // than just destroyed outright - see preview_note_voice_'s own
+        // comment on Player.h for why a hard cut here is an audible
+        // click. live_note_counter_ stands in for a real NoteCoordinate's
         // absolute_row here too, same reasoning as the real live PLAY_NOTE
         // case below (a preview note has no authored position either).
+        if (preview_note_voice_) {
+          preview_note_voice_->fastRelease();
+          preview_voices_.push_back(std::move(preview_note_voice_));
+        }
         preview_note_voice_ = instrument->playNote(channel_config_, SphericalPosition{}, frequency, 1.0f,
                                                     note.getVelocityAsFloat(), note.getValue(), SendLevels{},
                                                     NoteCoordinate(-1, live_note_counter_++, 0));
@@ -148,14 +154,18 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 
   case PlaybackControlEvent::PREVIEW_GROOVE:
     // Retriggering (even the same name again) always restarts cleanly
-    // from row 0, hard-cutting whatever was still ringing from a
-    // previous groove preview - matches PREVIEW_NOTE's own "replaces
-    // outright" convention. findGroovePattern() misses silently (null)
-    // for an unrecognized name, same as PREVIEW_NOTE's own unresolved-
-    // instrument case - nothing left to schedule, not a crash.
+    // from row 0. Whatever was still ringing from a previous groove
+    // preview gets fastRelease()'d (same reasoning/fix as
+    // preview_note_voice_'s own retrigger handling above - a hard cut
+    // truncates mid-waveform, an audible click) and left right where it
+    // is in preview_voices_ to finish its own tail - reclaimed the usual
+    // way, by renderPreview()'s own isActive() check, once it actually
+    // does. findGroovePattern() misses silently (null) for an
+    // unrecognized name, same as PREVIEW_NOTE's own unresolved-instrument
+    // case - nothing left to schedule, not a crash.
     preview_groove_pattern_ = findGroovePattern(ev.getBufferName());
     preview_groove_frame_ = 0;
-    preview_groove_voices_.clear();
+    for (auto & voice : preview_voices_) voice->fastRelease();
     if (preview_groove_pattern_) {
       // The same "kit" a real PercussionTrack's own default kit resolves
       // to (InstrumentPool::prepare()'s own GenericInstrument) - a
@@ -177,7 +187,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     // currently active, the same key (OutlineView's own 'a') for either.
     if (preview_note_voice_) preview_note_voice_->stopNote();
     preview_groove_pattern_ = nullptr;
-    for (auto & voice : preview_groove_voices_) voice->stopNote();
+    for (auto & voice : preview_voices_) voice->stopNote();
     return;
 
   case PlaybackControlEvent::BUFFER_KILLED:
@@ -525,7 +535,7 @@ Player::renderPreview(int frames) {
         if (ahead < frames) {
           Note note(hit.note, hit.velocity);
           auto frequency = Tuner::getFrequency(Tuning::PERCUSSION, note);
-          preview_groove_voices_.push_back(preview_groove_instrument_->playNote(channel_config_, SphericalPosition{}, frequency, 1.0f,
+          preview_voices_.push_back(preview_groove_instrument_->playNote(channel_config_, SphericalPosition{}, frequency, 1.0f,
                                                                                  note.getVelocityAsFloat(), note.getValue(), SendLevels{},
                                                                                  NoteCoordinate(-1, live_note_counter_++, 0)));
         }
@@ -534,10 +544,10 @@ Player::renderPreview(int frames) {
     }
   }
 
-  for (auto it = preview_groove_voices_.begin(); it != preview_groove_voices_.end(); ) {
+  for (auto it = preview_voices_.begin(); it != preview_voices_.end(); ) {
     rendered.push_back((*it)->render(frames));
     if ((*it)->isActive()) ++it;
-    else it = preview_groove_voices_.erase(it); // release tail (if any) has fully finished
+    else it = preview_voices_.erase(it); // release tail (if any) has fully finished
   }
 
   bool has_main = false, has_aux_a = false, has_aux_b = false;

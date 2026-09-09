@@ -23,6 +23,13 @@ class StyleProvider {
 
   Color command_column_color = "#c67610";
 
+  // OutlineView's Details panel action buttons (Delete/Add to Song/
+  // Preview/Stop) - distinct from command_column_color so a clickable
+  // button reads as its own kind of thing rather than borrowing the
+  // pattern editor's command-column hue.
+  Color button_fg_color = "#ffffff";
+  Color button_bg_color = "#c04080";
+
   // Same hue as command_column_color, but at half that color's lightness
   // and a moderately lower saturation - PatternEditor's master-track
   // ancestor row (a whole title bar, not text on a dark background).

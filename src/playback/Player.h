@@ -55,6 +55,19 @@ class Player : public EventHandler {
     return it == live_states_.end() ? nullptr : it->second.get();
   }
 
+  // Test-only, same caveat as the others above - every voice
+  // renderPreview() is currently carrying (preview_note_voice_, if any,
+  // plus every entry in preview_voices_). What proves a retrigger
+  // (PREVIEW_NOTE/PREVIEW_GROOVE) actually lets the previous occupant
+  // finish its own release tail instead of destroying it outright - see
+  // preview_note_voice_'s own comment - without needing to tell an
+  // audible click apart from a legitimately fast/percussive attack by
+  // ear: right after a retrigger, before renderPreview() has run even
+  // once, the old and new voice both still count.
+  size_t getPreviewVoiceCountForTest() const {
+    return preview_voices_.size() + (preview_note_voice_ ? 1 : 0);
+  }
+
   void play(AudioAPI & audio);
   std::unique_ptr<PlaybackEvent> createPlaybackEvent(const std::string & buffer_name, const Song & song, const SongState & state);
 
@@ -193,9 +206,13 @@ private:
   // VoiceState with no owning Track/buffer at all, unlike every other
   // note-producing event, which always resolves through
   // stateFor()/live_states_ above. Retriggering (a fresh PREVIEW_NOTE
-  // while one is already sounding) just replaces it outright - an
-  // instrument browser has no need for the real polyphony/release-tail
-  // bookkeeping InstrumentTrackState gives a real track's own notes. See
+  // while one is already sounding) hands this slot's own previous
+  // occupant a quick fastRelease() and moves it into preview_voices_
+  // below to finish its own tail, exactly like InstrumentTrackState::
+  // retriggerVoices() already does for a real track's own retriggered
+  // note - a hard cut (just destroying the old VoiceState outright)
+  // truncates its waveform mid-cycle, an audible click, especially
+  // noticeable auditioning several notes in quick succession. See
   // renderPreview() above and PlaybackControlEvent::PREVIEW_NOTE/
   // PREVIEW_STOP's own doc comment.
   std::unique_ptr<VoiceState> preview_note_voice_;
@@ -210,7 +227,11 @@ private:
   // scheduler advancing it block by block (renderPreview()'s own body) -
   // there is no per-buffer SongState to lean on here, since the groove
   // isn't attached to any song/track at all until "Add to Song" actually
-  // creates one.
+  // creates one. Retriggering (a fresh PREVIEW_GROOVE while one is
+  // already sounding) gives every currently-sounding hit the same
+  // fastRelease() treatment preview_note_voice_'s own retrigger does,
+  // rather than clearing preview_voices_ outright - same reasoning, same
+  // fix for the same click.
   const GroovePatternTemplate * preview_groove_pattern_ = nullptr;
   // Resolved once, when PREVIEW_GROOVE starts (handlePlaybackControlEvent()),
   // not re-resolved every block - the same "kit" a real PercussionTrack's
@@ -228,10 +249,16 @@ private:
   // stale one). Always kept within [0, loop length) - meaningless while
   // preview_groove_pattern_ is null.
   int preview_groove_frame_ = 0;
-  // Every currently-sounding hit from preview_groove_pattern_ - see its
-  // own comment on why this needs real polyphony, unlike
-  // preview_note_voice_.
-  std::vector<std::unique_ptr<VoiceState>> preview_groove_voices_;
+  // Every voice past its own "the one addressable slot" role: every
+  // currently-sounding (or releasing) hit from preview_groove_pattern_ -
+  // see its own comment on why a groove needs real polyphony, unlike
+  // preview_note_voice_ - plus, once retriggered/stopped, a former
+  // preview_note_voice_ occupant finishing its own release tail. Nothing
+  // here needs individual addressing any more, just to keep rendering
+  // until VoiceState::isActive() goes false (renderPreview()'s own
+  // render-then-reclaim loop, which already tolerates a plain mix of
+  // "just started" and "already releasing" entries).
+  std::vector<std::unique_ptr<VoiceState>> preview_voices_;
 };
 
 #endif

@@ -31,6 +31,17 @@ struct outline_row_s {
   std::string ref_name;
 };
 
+// What clicking a Details panel line does, if anything - see
+// OutlineView::buildDetailsLines()/handleClick(). NONE covers a line
+// with nothing to click (an informational hint like "[note keys]
+// Preview", a blank spacer, a wrapped description line).
+enum class DetailsAction { NONE, DELETE, ADD_TO_SONG, PREVIEW, STOP };
+
+struct DetailsLine {
+  std::string text;
+  DetailsAction action = DetailsAction::NONE;
+};
+
 // A read-only, indented tree of the active song - Song/Instruments/
 // per-instrument rows/Tracks/per-track rows, then Library/Grooves/
 // Instruments - the same "collapsible headings" shape Emacs's own
@@ -87,10 +98,36 @@ protected:
   void renderDetailsPanel(const StyleProvider & styles, int details_x, int details_width);
 
  private:
-  // Common tail of NCKEY_UP/DOWN/PGUP/PGDOWN/scroll-wheel - moves the
-  // cursor by `delta` rows (clamped to data_'s own extent) and keeps it
-  // scrolled into view.
+  // Common tail of NCKEY_UP/DOWN/PGUP/PGDOWN - moves the cursor by
+  // `delta` rows (clamped to data_'s own extent) and keeps it scrolled
+  // into view.
   void moveCursorBy(int delta);
+  // The scroll-wheel's own tail - moves new_scroll_pos_ (the viewport)
+  // by `delta` rows without ever touching new_cursor_row_ (the
+  // selection), unlike moveCursorBy() above - scrolling to look at more
+  // of the tree shouldn't drag the current selection along with it.
+  // Clamped so the view can never scroll past the point where the last
+  // row is already fully visible.
+  void scrollBy(int delta);
+  // The Details panel's own content for `row`, line by line - the single
+  // source both renderDetailsPanel() (drawing) and handleClick() (hit-
+  // testing a click against whichever line it lands on) build from, so
+  // the two can never show/dispatch different things for the same row.
+  // `details_width` is only needed to word-wrap a groove's own
+  // description to the panel's current width.
+  std::vector<DetailsLine> buildDetailsLines(const outline_row_s & row, int details_width) const;
+  // NCKEY_BUTTON1 - hit-tests the click against whichever of the tree/
+  // Details panel it landed in (see this class's own header comment) and
+  // either moves the cursor straight to the clicked row (tree side) or
+  // runs whatever DetailsAction that Details line carries, if any (panel
+  // side). Resolved on RELEASE only, matching SpinBox's own click
+  // convention - PRESS is consumed (returns true) but otherwise a no-op.
+  bool handleClick(const InputEvent & input);
+  // The actual effect behind a DetailsAction - shared by handleClick()
+  // above and every keyboard path that already triggers the same thing
+  // (NCKEY_ENTER/NCKEY_DEL/'p'/'a' in offerInput()), so a click and its
+  // keyboard equivalent can never drift apart.
+  void runDetailsAction(DetailsAction action);
   // NCKEY_ENTER on a Library > Instruments row - see this class's own
   // header comment. A no-op on any other row (delegates to
   // addSelectedLibraryGrooveToSong() for a Grooves row instead).
