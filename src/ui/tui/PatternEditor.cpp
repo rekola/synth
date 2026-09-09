@@ -10,6 +10,7 @@
 #include "../../model/InstrumentTrack.h"
 #include "../../model/SampleTrack.h"
 #include "../../model/PercussionTrack.h"
+#include "../../model/Group.h"
 #include "../../playback/MidiEvent.h"
 #include "../../playback/PlaybackControlEvent.h"
 #include "../../playback/LogEvent.h"
@@ -588,6 +589,14 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   commands_.define("add-percussion-track", [this, current_track_id]() {
     auto & song = getController().getSong();
     song.addTrack(make_unique<PercussionTrack>(), current_track_id());
+  });
+
+  // A plain container track (no audio of its own) - matching the other
+  // add-*-track commands' shape. M-x/menu only, no dedicated keybinding
+  // of their own yet.
+  commands_.define("add-group-track", [this, current_track_id]() {
+    auto & song = getController().getSong();
+    song.addTrack(make_unique<Group>(), current_track_id());
   });
 
   // Reconfigures the cursor track's entire lane list to a named preset
