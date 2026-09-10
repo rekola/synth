@@ -509,14 +509,31 @@ whether or not a terminal UI exists at all.
     - a concrete subclass owns its own widget set, screen layout, and
     Launchpad callback wiring (`UI::wireLaunchpad()`'s hook). `src/ui/tui/`
     — the concrete notcurses implementation built on those interfaces:
-    `TerminalUI` (the sole such subclass today - owns every widget below,
-    plus `initializeWidgets()`/`layout()`/`renderComponents()`, the
-    command/keybinding definitions, and every `EventHandler` override) and
-    `PatternEditor`/`OutlineView`/
-    `PatternEditor`/`OutlineView` and the rest of the terminal widgets,
-    plus notcurses-specific input handling (`NotcursesInputEventSource`,
-    `EscapeCoalescer`) and text-cell rendering helpers
-    (`SubcellGlyphs.h`) that wouldn't apply to a pixel-based UI.
+    `TerminalUI` (the sole such subclass today - owns every widget,
+    `initializeWidgets()`/`layout()`/`renderComponents()`, every Emacs
+    keybinding, and every `EventHandler` override), `PatternEditor`/
+    `OutlineView` and the rest of the terminal widgets, plus
+    notcurses-specific input handling (`NotcursesInputEventSource`,
+    `EscapeCoalescer`) and text-cell rendering helpers (`SubcellGlyphs.h`)
+    that wouldn't apply to a pixel-based UI.
+
+    Commands (`CommandRegistry`-named, dispatched by both a keybinding and
+    M-x) default to living in `UI::initializeCommands()` (`ui/UI.cpp`),
+    not `TerminalUI`, since a future GUI backend shares the same command
+    names/behavior even though its own keybindings (or menu items, or
+    toolbar buttons) will look nothing like the Emacs chords `TerminalUI`
+    binds them to - only the *binding* is backend-specific, not what the
+    command does. A command stays in `TerminalUI` instead when it
+    genuinely can't be shared yet - needs a prompt/dialog (`StatusLine`'s
+    minibuffer has no GUI equivalent today) or reaches directly into a
+    concrete terminal widget pointer (`pattern_editor_`/
+    `arrangement_grid_`) with no abstract stand-in to go through. The one
+    deliberate, permanent exception is pattern-editor selection/copy-paste
+    (`set-mark`/`kill-region`/`kill-ring-save`/`yank`/`exchange-point-and-
+    mark`, see the Emacs mark/kill-ring model below) - a GUI's own
+    copy-paste is expected to follow ordinary GUI conventions (Ctrl-C/-X/
+    -V-style, not Emacs mark-and-kill), so these aren't a "not yet shared"
+    gap to close later; they belong in `TerminalUI` for good.
   - `src/launchpad/` — Launchpad hardware I/O and layout - see the
     Launchpad section above.
   - `src/util/` — small, dependency-free helpers (`constants.h`,
