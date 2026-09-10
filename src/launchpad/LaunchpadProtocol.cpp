@@ -59,14 +59,21 @@ buildProgrammerModeEnter(Model model) {
 }
 
 vector<uint8_t>
-buildRgbLedSysEx(Model model, const vector<PadColor> & colors) {
+buildLedLightingSysEx(Model model, const vector<PadColor> & colors) {
   vector<uint8_t> message = {0xF0, 0x00, 0x20, 0x29, 0x02, getModelInfo(model).device_id, 0x03};
   for (auto & color : colors) {
-    message.push_back(0x03); // lighting type 3: RGB
+    message.push_back(static_cast<uint8_t>(color.type));
     message.push_back(static_cast<uint8_t>(color.led_index));
-    message.push_back(color.r);
-    message.push_back(color.g);
-    message.push_back(color.b);
+    if (color.type == LightingType::FLASH) {
+      message.push_back(color.flash_to);
+      message.push_back(color.flash_from);
+    } else if (color.type == LightingType::PULSE) {
+      message.push_back(color.palette);
+    } else {
+      message.push_back(color.r);
+      message.push_back(color.g);
+      message.push_back(color.b);
+    }
   }
   message.push_back(0xF7);
   return message;

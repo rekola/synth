@@ -227,6 +227,18 @@ namespace {
   // static move-row-up/down utility buttons already use.
   constexpr Rgb LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR { 30, 30, 30 };
 
+  // Session view's own triggered/queued pad overlay (DeviceState::
+  // session_highlight) - a real hardware flash/pulse animation, driven by
+  // the device's own internal clock rather than anything this file redraws
+  // frame by frame, so it needs palette indices, not the arbitrary RGB
+  // every other Session pad color in this file uses. Values taken directly
+  // from Novation's own worked example lighting a pad "flashing green
+  // (between dim and bright green)", not an approximation - the palette is
+  // a fixed 128-entry table, so there is no way to ask for "this track's
+  // own hue, just flashing" instead.
+  constexpr uint8_t LAUNCHPAD_SESSION_GREEN_PALETTE_BRIGHT = 21;
+  constexpr uint8_t LAUNCHPAD_SESSION_GREEN_PALETTE_DIM = 23;
+
   Rgb padColor(Rgb base, const unordered_map<int, float> & active_note_loudness, int note_value) {
     if (base.r == 0 && base.g == 0 && base.b == 0) return base; // stays off (e.g. unused/reserved pads)
 
@@ -1857,18 +1869,41 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   vector<LaunchpadProtocol::PadColor> colors;
 
   if (state.grid_mode == GridMode::SESSION) {
-    // Fully resolved already (identity hue, triggered/queued brightening,
-    // off where a track has no clip in that row) - see
-    // refresh()'s own session_colors computation and DeviceState::
-    // session_colors's own comment. Checked first, ahead of every other
-    // branch below: SESSION is a hard override forced on by refresh()
-    // itself, not a per-device toggle a user could combine with Send/Pan/
-    // Draw/drum-machine display.
+    // Fully resolved already (identity hue, off where a track has no clip
+    // in that row) - see refresh()'s own session_colors computation and
+    // DeviceState::session_colors's own comment. Checked first, ahead of
+    // every other branch below: SESSION is a hard override forced on by
+    // refresh() itself, not a per-device toggle a user could combine with
+    // Send/Pan/Draw/drum-machine display. session_highlight (parallel,
+    // same indexing) overrides a triggered/queued pad's own static color
+    // with a real hardware flash/pulse instead - see its own constants'
+    // comment for why that has to be a fixed palette index rather than
+    // this pad's own identity hue.
     for (int y = 0; y < 8; y++) {
       for (int x = 0; x < 8; x++) {
-        auto & c = state.session_colors[static_cast<size_t>(y * 8 + x)];
-        colors.push_back({LaunchpadProtocol::padToNoteNumber(x, y),
-          static_cast<uint8_t>(c.getRed() / 2), static_cast<uint8_t>(c.getGreen() / 2), static_cast<uint8_t>(c.getBlue() / 2)});
+        size_t i = static_cast<size_t>(y * 8 + x);
+        auto led = LaunchpadProtocol::padToNoteNumber(x, y);
+        LaunchpadProtocol::PadColor pad;
+        pad.led_index = led;
+        switch (state.session_highlight[i]) {
+        case SessionPadHighlight::PLAYING:
+          pad.type = LaunchpadProtocol::LightingType::PULSE;
+          pad.palette = LAUNCHPAD_SESSION_GREEN_PALETTE_BRIGHT;
+          break;
+        case SessionPadHighlight::QUEUED:
+          pad.type = LaunchpadProtocol::LightingType::FLASH;
+          pad.flash_to = LAUNCHPAD_SESSION_GREEN_PALETTE_BRIGHT;
+          pad.flash_from = LAUNCHPAD_SESSION_GREEN_PALETTE_DIM;
+          break;
+        case SessionPadHighlight::NONE: {
+          auto & c = state.session_colors[i];
+          pad.r = static_cast<uint8_t>(c.getRed() / 2);
+          pad.g = static_cast<uint8_t>(c.getGreen() / 2);
+          pad.b = static_cast<uint8_t>(c.getBlue() / 2);
+          break;
+        }
+        }
+        colors.push_back(pad);
       }
     }
   } else if (state.grid_mode == GridMode::DRAW) {
@@ -2160,7 +2195,8 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   bool colors_changed = colors.size() != state.last_sent_colors.size() ||
     !equal(colors.begin(), colors.end(), state.last_sent_colors.begin(),
       [](const LaunchpadProtocol::PadColor & a, const LaunchpadProtocol::PadColor & b) {
-        return a.led_index == b.led_index && a.r == b.r && a.g == b.g && a.b == b.b;
+        return a.led_index == b.led_index && a.type == b.type && a.r == b.r && a.g == b.g && a.b == b.b &&
+          a.palette == b.palette && a.flash_to == b.flash_to && a.flash_from == b.flash_from;
       });
   if (!colors_changed) return;
 
@@ -2462,6 +2498,9 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   // scroll yet either, so a track with more than 8 clips only
   // shows the first 8 for now.
   array<Color, 64> session_colors;
+  // Parallel to session_colors above - see DeviceState::session_highlight's
+  // own comment.
+  array<SessionPadHighlight, 64> session_highlight {};
   // The track-picker overlay's own per-track state (see
   // DeviceState::track_picker_active's own comment and
   // LAUNCHPAD_TRACK_PICKER_ROW's own comment in this file for what each
@@ -2472,7 +2511,6 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   array<bool, 8> track_picker_muted {};
   {
     SongStructure structure(song);
-    const Color white(255, 255, 255);
     // While actually playing (Session-view recording included - that's
     // exactly the "was playing" case that used to leave these LEDs stuck),
     // triggered_pattern_by_track_/queued_pattern_by_track_ are stale: the
@@ -2524,10 +2562,9 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
           is_triggered = triggered_it != triggered_pattern_by_track_.end() && triggered_it->second.clip_index == clip_index;
           is_queued = queued_it != queued_pattern_by_track_.end() && queued_it->second == clip_index;
         }
-        Color c = identity;
-        if (is_triggered) c = identity.blend(0.5f, white); // currently playing
-        else if (is_queued) c = identity.blend(0.25f, white); // about to launch at the next loop boundary
-        session_colors[static_cast<size_t>(y * 8 + x)] = c;
+        session_colors[static_cast<size_t>(y * 8 + x)] = identity;
+        session_highlight[static_cast<size_t>(y * 8 + x)] =
+          is_triggered ? SessionPadHighlight::PLAYING : is_queued ? SessionPadHighlight::QUEUED : SessionPadHighlight::NONE;
       }
     }
   }
@@ -2637,6 +2674,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     state.key = key_val;
     state.active_note_loudness = move(active_note_loudness);
     state.session_colors = session_colors;
+    state.session_highlight = session_highlight;
     state.track_picker_playing = track_picker_playing;
     state.track_picker_soloed = track_picker_soloed;
     state.track_picker_muted = track_picker_muted;

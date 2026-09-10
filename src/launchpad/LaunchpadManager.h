@@ -120,6 +120,13 @@ class LaunchpadManager {
   // assigned instead currently shows nothing there.
   enum class GridMode { NOTES, SEND_MAIN, PAN, SEND_A, SEND_B, DRAW, SESSION, CUSTOM };
   GridMode gridMode(int device_id) const;
+
+  // Session view's own per-pad transport-state overlay (DeviceState::
+  // session_highlight below) - on top of a clip's own identity-hue static
+  // color, matching the real hardware/Ableton convention of a fixed green
+  // flash/pulse for "about to launch"/"currently playing" regardless of
+  // that hue, rather than a lighter/darker shade of it.
+  enum class SessionPadHighlight { NONE, QUEUED, PLAYING };
   void toggleGridMode(int device_id, GridMode mode);
   // A one-way force, unlike toggleGridMode() above - every currently
   // connected device switches to NOTES regardless of whatever mode it was
@@ -663,16 +670,23 @@ class LaunchpadManager {
     // Pan - both misleadingly "lit").
     int grid_track_count = 0;
 
-    // GridMode::SESSION: each of the 64 pads' own final LED color (x + y*8,
-    // y flipped from the overview's own top-down column order - see
-    // refresh()'s own comment), already fully resolved (identity hue,
-    // triggered/queued brightening, off where a track has no clip in that
-    // row) - refreshLeds() just reads this directly, same
-    // "computed once in refresh(), copied into every device identically"
-    // shape as track_send_main/etc. above. Plain black (Color's own
-    // default) wherever SESSION isn't active at all, so this never needs a
-    // separate "is this valid" flag.
+    // GridMode::SESSION: each of the 64 pads' own identity-hue static color
+    // (x + y*8, y flipped from the overview's own top-down column order -
+    // see refresh()'s own comment), off where a track has no clip in that
+    // row - refreshLeds() just reads this directly, same "computed once in
+    // refresh(), copied into every device identically" shape as
+    // track_send_main/etc. above. Plain black (Color's own default)
+    // wherever SESSION isn't active at all, so this never needs a separate
+    // "is this valid" flag. The triggered/queued transport-state overlay is
+    // session_highlight below, not folded into this color - real hardware
+    // shows that as a fixed-hue flash/pulse animation, not a lighter/darker
+    // shade of the clip's own identity color.
     std::array<Color, 64> session_colors;
+    // GridMode::SESSION: parallel to session_colors above (same x+y*8
+    // indexing) - whether each pad is idle, queued to launch/stop at the
+    // next shared bar boundary, or actually playing right now. NONE
+    // wherever SESSION isn't active, same as session_colors' own default.
+    std::array<SessionPadHighlight, 64> session_highlight {};
 
     // DRAW mode: each of the 64 pads' own index into the color palette
     // (see releaseDrawPad/refreshLeds), independent of Song/Track state

@@ -331,7 +331,7 @@ LaunchpadIO::sendLeds(int session_id, const vector<LaunchpadProtocol::PadColor> 
     if (session.state != SessionState::READY || session.session_id != session_id) continue;
 
     if (session.model == LaunchpadProtocol::Model::PRO_MK3) {
-      sendSysEx(LaunchpadProtocol::buildRgbLedSysEx(session.model, colors), session.client, session.port);
+      sendSysEx(LaunchpadProtocol::buildLedLightingSysEx(session.model, colors), session.client, session.port);
       return;
     }
 
@@ -343,7 +343,7 @@ LaunchpadIO::sendLeds(int session_id, const vector<LaunchpadProtocol::PadColor> 
     for (auto & color : colors) {
       if (!LaunchpadProtocol::isProMk3OnlyLedIndex(color.led_index)) filtered.push_back(color);
     }
-    sendSysEx(LaunchpadProtocol::buildRgbLedSysEx(session.model, filtered), session.client, session.port);
+    sendSysEx(LaunchpadProtocol::buildLedLightingSysEx(session.model, filtered), session.client, session.port);
     return;
   }
 }

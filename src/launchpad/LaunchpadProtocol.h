@@ -51,14 +51,39 @@ namespace LaunchpadProtocol {
   // per-model structural difference.
   std::vector<uint8_t> buildProgrammerModeEnter(Model model);
 
+  // The LED-lighting SysEx's own per-pad "lighting type" byte (Novation's
+  // own numbering, not reorderable) - PadColor's r/g/b/palette/flash_to/
+  // flash_from fields below are read/ignored according to this, mirroring
+  // the protocol's own "one lighting type, one matching data shape" rule.
+  // STATIC_PALETTE (a single palette-index byte) isn't offered - nothing in
+  // this codebase colors a pad from the fixed 128-entry palette by index
+  // rather than by RGB except FLASH/PULSE, which have no static-color
+  // equivalent to fall back on anyway.
+  enum class LightingType : uint8_t { FLASH = 1, PULSE = 2, STATIC_RGB = 3 };
+
   struct PadColor {
     int led_index; // as returned by padToNoteNumber
-    uint8_t r, g, b; // 0-127 each
+    uint8_t r = 0, g = 0, b = 0; // STATIC_RGB's Red/Green/Blue (0-127 each) -
+                                 // the only fields this struct had before
+                                 // FLASH/PULSE existed, so every existing
+                                 // call site building one of these with just
+                                 // {led_index, r, g, b} keeps compiling
+                                 // unchanged and still means STATIC_RGB.
+    LightingType type = LightingType::STATIC_RGB;
+    uint8_t palette = 0; // PULSE's own single palette-index entry
+    uint8_t flash_to = 0, flash_from = 0; // FLASH's own two palette-index
+                                           // entries - the protocol's own
+                                           // "Colour B"/"Colour A", sent in
+                                           // that order (the color a flash
+                                           // lands on, then the color it
+                                           // flashes back to)
   };
 
-  // Builds one combined RGB LED-lighting SysEx message. Callers should keep
-  // the colourspec count within getModelInfo(model).max_led_colourspecs.
-  std::vector<uint8_t> buildRgbLedSysEx(Model model, const std::vector<PadColor> & colors);
+  // Builds one combined LED-lighting SysEx message, mixing any combination
+  // of static/flashing/pulsing pads (PadColor::type) in a single message.
+  // Callers should keep the colourspec count within
+  // getModelInfo(model).max_led_colourspecs.
+  std::vector<uint8_t> buildLedLightingSysEx(Model model, const std::vector<PadColor> & colors);
 
   // The "11 + x + 10*y" grid numbering, identical across all three models
   // for the core 8x8 grid (x, y both 0-indexed from the bottom-left).

@@ -478,6 +478,19 @@ whether or not a terminal UI exists at all.
   `STOP_ALL_NOTES` playback event), not left ringing or hard-cut. Stopping
   a track this way (as opposed to a plain press retriggering/reassigning
   it) goes through the track-picker overlay - see its own bullet below.
+  A pad's own identity-hue static color (`DeviceState::session_colors`)
+  gets a transport-state overlay (`session_highlight`, `LaunchpadManager::
+  SessionPadHighlight`) matching the real hardware/Ableton convention -
+  playing pulses and queued flashes a fixed green
+  (`LAUNCHPAD_SESSION_GREEN_PALETTE_BRIGHT`/`_DIM`) regardless of that
+  pad's own hue, via the LED-lighting SysEx's own hardware-driven
+  flash/pulse lighting types (`LaunchpadProtocol::LightingType::FLASH`/
+  `PULSE`) rather than a software brightness blend - the device animates
+  it on its own internal clock once sent, so `refreshLeds()`'s existing
+  send-only-on-change dedup means this never needs re-sending itself
+  either. Those two lighting types only understand a fixed 128-entry
+  palette, not arbitrary RGB, which is why they're a fixed green rather
+  than each pad's own hue.
 - **Track-picker overlay** (`LaunchpadManager::toggleTrackPicker()`/
   `handleTrackPickerPadEvent()`/`isTrackPickerRow()`, `DeviceState::
   track_picker_active`/`track_picker_purpose`) - three of the seven

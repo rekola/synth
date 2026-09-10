@@ -9,8 +9,9 @@ LaunchpadManager::fireOrTriggerClipStep()'s SAMPLE branch
 audio thread) is wired all the way through the real ALSA + audio-thread
 path, not just reachable in-process the way SampleTrackTests.cpp's own
 triggerClip() calls are. Same LED-based checks as
-verify_launchpad_stopclip.py: pad (0,0)'s own LED brightens on trigger,
-the picker row dims it to red once picking that track's column (the
+verify_launchpad_stopclip.py: pad (0,0)'s own LED switches from a static
+color to a real hardware pulse (green) on trigger, the picker row dims it
+to red once picking that track's column (the
 bottom row) queues a stop and the quantized stop actually lands, and the
 overlay - CC49's own LED included - stays open until a second CC49 press
 explicitly closes it."""
@@ -30,6 +31,20 @@ def check(name, ok, extra=None):
 
 def last_led_color(text, led_index_hex):
     matches = re.findall(rf"03 {led_index_hex} ([0-9a-f]{{2}}) ([0-9a-f]{{2}}) ([0-9a-f]{{2}})", text)
+    return matches[-1] if matches else None
+
+def last_led_state(text, led_index_hex):
+    # Whichever lighting-type colourspec was last sent for this LED index -
+    # static RGB (type 3, 3 data bytes), flashing (type 1, 2 data bytes) or
+    # pulsing (type 2, 1 data byte). A plain pad only ever uses static RGB,
+    # but Session view's own triggered pad now pulses green instead of
+    # showing a brighter static color (LaunchpadManager::refreshLeds()'s
+    # own SESSION branch), so "did this pad's LED change" needs to compare
+    # across lighting types, not just RGB triples.
+    pattern = (rf"(03 {led_index_hex} [0-9a-f]{{2}} [0-9a-f]{{2}} [0-9a-f]{{2}}"
+               rf"|02 {led_index_hex} [0-9a-f]{{2}}"
+               rf"|01 {led_index_hex} [0-9a-f]{{2}} [0-9a-f]{{2}})")
+    matches = re.findall(pattern, text)
     return matches[-1] if matches else None
 
 def phase(text, start_marker, end_marker=None):
@@ -86,20 +101,23 @@ after_pick = phase(fake_output, "sending press on pad (0,0) [note 11] again", "s
 after_close = phase(fake_output, "sending CC49 press again")
 
 color_before = last_led_color(before_trigger, "0b")
-color_playing = last_led_color(after_trigger, "0b")
+state_before = last_led_state(before_trigger, "0b")
+state_playing = last_led_state(after_trigger, "0b")
 color_picker_open = last_led_color(after_cc49_press, "0b")
 color_after_stop = last_led_color(after_pick, "0b")
 color_after_close = last_led_color(after_close, "0b")
 
-print("pad (0,0) LED color before trigger:      ", color_before)
-print("pad (0,0) LED color while playing:        ", color_playing)
+print("pad (0,0) LED state before trigger:       ", state_before)
+print("pad (0,0) LED state while playing:        ", state_playing)
 print("pad (0,0) LED color once overlay opened:  ", color_picker_open)
 print("pad (0,0) LED color after queued stop:    ", color_after_stop)
 print("pad (0,0) LED color after overlay closed: ", color_after_close)
 
 check("Pad (0,0)'s own LED changed once the sample clip was triggered",
-      color_before is not None and color_playing is not None and color_before != color_playing,
-      (color_before, color_playing))
+      state_before is not None and state_playing is not None and state_before != state_playing,
+      (state_before, state_playing))
+check("Pad (0,0) pulses green (Session view's own playing-clip highlight) once triggered",
+      state_playing is not None and state_playing.startswith("02 0b 15"), state_playing)
 check("Picker row shows pad (0,0) as bright red once the overlay opened (a clip is playing)",
       color_picker_open == ('7f', '00', '00'), color_picker_open)
 check("Picker row dims pad (0,0) to dark red once the picker-queued stop took effect",

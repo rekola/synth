@@ -169,6 +169,15 @@ Found 2026-07-11, not yet fixed.
   one where a *second* CC95 press mid-script - not just the connect-time
   default - is required for the test to mean anything).
 
+  `verify_launchpad_stopclip.py`/`verify_launchpad_sampletrack_stopclip.py`
+  gained two further checks each (Session view's own triggered-pad pulse/
+  flash animation, `LaunchpadManager::refreshLeds()`'s SESSION branch) that
+  hit the identical stall for the identical reason - both scripts still
+  fail the same 3/9 checks (the ones that don't merely need the very first,
+  pre-stall LED dump) with these two included, confirmed reproducing
+  bit-for-bit identically across repeated runs, not a regression from that
+  work.
+
   This sandbox also had real Launchpad X and Launchpad Mini MK3 hardware
   attached (confirmed via `aconnect -l` - `type=kernel` clients, not the
   `type=user` clients every `fake_launchpad_*.c` simulator registers as),

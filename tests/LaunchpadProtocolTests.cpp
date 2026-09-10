@@ -87,11 +87,36 @@ TEST(rgb_led_sysex_encodes_one_colourspec_per_pad) {
     {padToNoteNumber(0, 0), 127, 0, 0},
     {padToNoteNumber(1, 0), 0, 127, 0},
   };
-  auto message = buildRgbLedSysEx(Model::X, colors);
+  auto message = buildLedLightingSysEx(Model::X, colors);
   vector<uint8_t> expected = {
     0xF0, 0x00, 0x20, 0x29, 0x02, 0x0C, 0x03,
     0x03, 11, 127, 0, 0,
     0x03, 12, 0, 127, 0,
+    0xF7
+  };
+  CHECK(message == expected);
+}
+
+TEST(led_lighting_sysex_encodes_flash_and_pulse_colourspecs) {
+  // Byte values taken directly from Novation's own worked example lighting
+  // a pad "flashing green (between dim and bright green)" and one "pulsing
+  // turquoise" - not arbitrary, since a real device only understands these
+  // as palette indices, not the RGB triples every other colourspec uses.
+  PadColor flash;
+  flash.led_index = padToNoteNumber(1, 0);
+  flash.type = LightingType::FLASH;
+  flash.flash_to = 21;
+  flash.flash_from = 23;
+  PadColor pulse;
+  pulse.led_index = padToNoteNumber(2, 0);
+  pulse.type = LightingType::PULSE;
+  pulse.palette = 37;
+  vector<PadColor> colors = {flash, pulse};
+  auto message = buildLedLightingSysEx(Model::X, colors);
+  vector<uint8_t> expected = {
+    0xF0, 0x00, 0x20, 0x29, 0x02, 0x0C, 0x03,
+    0x01, 12, 21, 23,
+    0x02, 13, 37,
     0xF7
   };
   CHECK(message == expected);
