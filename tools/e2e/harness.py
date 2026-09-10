@@ -43,6 +43,11 @@ def spawn(song=SONG):
     pid, master_fd = pty.fork()
     if pid == 0:
         os.environ["TERM"] = "xterm-256color"
+        # A fake_launchpad_*.c simulator registers under the exact same
+        # device name a real Launchpad does, so on a machine that also has
+        # one physically connected, synth would otherwise auto-connect to
+        # both at once - see LaunchpadIO.h's own ignore_hardware_ comment.
+        os.environ["SYNTH_LAUNCHPAD_NO_HARDWARE"] = "1"
         os.execvp(BINARY, [BINARY, song])
         os._exit(1)
     set_winsize(master_fd, ROWS, COLS, XPIX, YPIX)

@@ -1,16 +1,19 @@
-"""SampleTrack's own Session-view audition path, end to end: Stop Clip
-(CC49) triggering/stopping a raw-audio clip rather than a note-based one.
-Reuses fake_launchpad_stopclip.c unchanged (it's plain CC/pad events, no
-assumption about what the track holds) against
-launchpad_sampletrack_session_test.xml (see that fixture's own comment) -
-this is what actually proves LaunchpadManager::fireOrTriggerClipStep()'s
-SAMPLE branch (PlaybackControlEvent::PLAY_SAMPLE_CLIP, consumed by
-Player.cpp on the audio thread) is wired all the way through the real ALSA
-+ audio-thread path, not just reachable in-process the way
-SampleTrackTests.cpp's own triggerClip() calls are. Same LED-based
-checks as verify_launchpad_stopclip.py: pad (0,0)'s own LED brightens on
-trigger and reverts once a CC49-held re-press queues, then the quantized
-stop actually lands."""
+"""SampleTrack's own Session-view audition path, end to end: the
+track-picker overlay Stop Clip (CC49) opens, triggering/stopping a
+raw-audio clip rather than a note-based one. Reuses fake_launchpad_stopclip.c
+unchanged (it's plain CC/pad events, no assumption about what the track
+holds) against launchpad_sampletrack_session_test.xml (see that fixture's
+own comment) - this is what actually proves
+LaunchpadManager::fireOrTriggerClipStep()'s SAMPLE branch
+(PlaybackControlEvent::PLAY_SAMPLE_CLIP, consumed by Player.cpp on the
+audio thread) is wired all the way through the real ALSA + audio-thread
+path, not just reachable in-process the way SampleTrackTests.cpp's own
+triggerClip() calls are. Same LED-based checks as
+verify_launchpad_stopclip.py: pad (0,0)'s own LED brightens on trigger,
+the picker row dims it to red once picking that track's column (the
+bottom row) queues a stop and the quantized stop actually lands, and the
+overlay - CC49's own LED included - stays open until a second CC49 press
+explicitly closes it."""
 import sys, os, re, subprocess, time
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -77,28 +80,43 @@ check("synth sent a Programmer-Mode-enter SysEx to the simulated device",
       "0e 01" in fake_output.replace(",", " "), fake_output)
 
 before_trigger = phase(fake_output, "ready as client", "sending press on pad (0,0) [note 11] - triggers")
-after_trigger = phase(fake_output, "after trigger", "sending CC49 press")
-after_stop = phase(fake_output, "after stop should have taken effect")
+after_trigger = phase(fake_output, "after trigger", "sending CC49 press - opens")
+after_cc49_press = phase(fake_output, "sending CC49 press - opens", "sending press on pad (0,0) [note 11] again")
+after_pick = phase(fake_output, "sending press on pad (0,0) [note 11] again", "sending CC49 press again")
+after_close = phase(fake_output, "sending CC49 press again")
 
 color_before = last_led_color(before_trigger, "0b")
 color_playing = last_led_color(after_trigger, "0b")
-color_after_stop = last_led_color(after_stop, "0b")
+color_picker_open = last_led_color(after_cc49_press, "0b")
+color_after_stop = last_led_color(after_pick, "0b")
+color_after_close = last_led_color(after_close, "0b")
 
-print("pad (0,0) LED color before trigger:", color_before)
-print("pad (0,0) LED color while playing: ", color_playing)
-print("pad (0,0) LED color after stop:    ", color_after_stop)
+print("pad (0,0) LED color before trigger:      ", color_before)
+print("pad (0,0) LED color while playing:        ", color_playing)
+print("pad (0,0) LED color once overlay opened:  ", color_picker_open)
+print("pad (0,0) LED color after queued stop:    ", color_after_stop)
+print("pad (0,0) LED color after overlay closed: ", color_after_close)
 
 check("Pad (0,0)'s own LED changed once the sample clip was triggered",
       color_before is not None and color_playing is not None and color_before != color_playing,
       (color_before, color_playing))
-check("Pad (0,0)'s own LED reverted once the CC49-queued stop took effect",
-      color_after_stop is not None and color_after_stop == color_before,
-      (color_before, color_after_stop))
+check("Picker row shows pad (0,0) as bright red once the overlay opened (a clip is playing)",
+      color_picker_open == ('7f', '00', '00'), color_picker_open)
+check("Picker row dims pad (0,0) to dark red once the picker-queued stop took effect",
+      color_after_stop == ('14', '00', '00'), color_after_stop)
+check("Pad (0,0)'s own LED reverted to plain Session view once the overlay closed",
+      color_after_close is not None and color_after_close == color_before,
+      (color_before, color_after_close))
 
-# CC49 (led index 0x31) lights up while held.
-after_cc49_press = phase(fake_output, "sending CC49 press", "sending press on pad (0,0) while CC49 held")
-check("CC49 (Stop Clip) LED lit up while held",
+# CC49 (led index 0x31) lights up once the overlay opens and *stays* lit
+# through the pick - it no longer auto-closes on a pick - only reverting
+# once a second CC49 press explicitly closes it.
+check("CC49 (Stop Clip) LED lit up while the track-picker overlay was open",
       "03 31 7f 00 00" in after_cc49_press, after_cc49_press)
+check("CC49 (Stop Clip) LED stayed lit after picking a track (overlay still open)",
+      "03 31 7f 00 00" in after_pick and "03 31 14 00 00" not in after_pick, after_pick)
+check("CC49 (Stop Clip) LED reverted once a second press closed the overlay",
+      "03 31 14 00 00" in after_close, after_close)
 
 n_fail = sum(1 for _, ok in results if not ok)
 print(f"\n{len(results)-n_fail}/{len(results)} checks passed")

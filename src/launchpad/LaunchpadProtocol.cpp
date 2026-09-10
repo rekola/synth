@@ -160,18 +160,16 @@ commandForButton(int cc_number) {
   // intercepted directly in LaunchpadManager::handleRawButton() before
   // this table is ever consulted - see its own comment. toggle-playing
   // stays reachable via Space (UI.cpp's keymap).
-  case 30: return string("toggle-mute");  // Pro MK3 left column, position 6
-  case 20: return string("toggle-solo");  // Pro MK3 left column, position 7
-  // 39/29 are inferred (not yet hardware-confirmed), continuing the same
-  // right-column "Track" control row order as Send A/Pan/Send B/Volume
-  // (89/79/69/59 - all confirmed against a real Launchpad X, see
-  // LaunchpadManager::handleRawButton): Stop Clip(49)/Mute(39)/Solo(29)/
-  // Record Arm(19, unused). These are real commands (mutate Song/Track
-  // data), unlike Send/Pan mode, which is why they're named here rather
-  // than intercepted as a raw-CC toggle.
-  case 39: return string("toggle-mute");
-  case 29: return string("toggle-solo");
-  default: return nullopt; // 95-97, 99, most of the right column, and all other left-column/bottom-row buttons: either intercepted directly in LaunchpadManager::handleRawButton() (95/96 - Session/Note) or UI::handleLaunchpadButtonEvent (49/97/98 - Stop Clip/Custom/drum config, all three of which need press and release), before this table is ever consulted, or reserved for now
+  //
+  // 49/39/29 (Stop Clip/Mute/Solo) and their Pro MK3 left-column twins
+  // 30/20 aren't named here at all any more - each one now opens the
+  // track-picker overlay instead of acting as a plain command (see
+  // LaunchpadManager::handleRawButton()'s own comment), so they're
+  // intercepted directly there, before this table is ever consulted, the
+  // same way Session/Note/Custom already are. "toggle-mute"/"toggle-solo"
+  // themselves are still real commands (PatternEditor's own commands_) -
+  // just no longer reachable from these particular buttons.
+  default: return nullopt; // 95-97, 99, most of the right column, and all other left-column/bottom-row buttons: either intercepted directly in LaunchpadManager::handleRawButton() (95/96/97/49/39/29/30/20) or UI::handleLaunchpadButtonEvent (98 - DRAW mode, needs press and release), before this table is ever consulted, or reserved for now
   }
 }
 

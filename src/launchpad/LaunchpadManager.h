@@ -84,16 +84,34 @@ class LaunchpadManager {
   // direction, not a magnitude, so a fill doesn't make sense). Mutually
   // exclusive - always exactly one state. Ordered to match the physical
   // buttons' own row order (Volume/Pan/Send A/Send B, CC 89/79/69/59 - see
-  // handleRawButton()'s own comment), not declaration-arbitrary; those
-  // four still toggle off back to NOTES on a repeat press of their own
-  // button (toggleGridMode()). SESSION/NOTES/CUSTOM/DRAW (CC95/96/97/98)
-  // are a separate, four-member group that behaves differently - a true
-  // radio group, never toggled off by a repeat press of the button already
-  // selected, only by pressing a different one of the four
-  // (handleRawButton()'s own comment) - purely per-device state either
-  // way, not tied to whether the overview widget has terminal UI focus:
-  // one connected Launchpad can sit in Session view while another stays on
-  // NOTES.
+  // handleRawButton()'s own comment); those four, plus the track-picker
+  // overlay's own three purposes (Stop Clip/Mute/Solo, CC49/39/29 - see
+  // DeviceState::track_picker_active's own comment), are Session view's
+  // own "mixer submode" radio group (DeviceState::session_mixer_mode,
+  // toggleGridMode()/toggleTrackPicker()/inSessionMixerFamily()) - only
+  // reachable while already showing GridMode::SESSION (a no-op from
+  // NOTES/CUSTOM/DRAW), only one of the seven ever active at a time
+  // (pressing a different one always switches straight to it, even
+  // crossing between the fader-as-GridMode and picker-as-overlay
+  // mechanisms; pressing the one already active closes back to the plain
+  // Session grid, not NOTES, since that's the only place any of them are
+  // ever entered from any more). This is also what keeps the fader
+  // column mapping (the first 8 root tracks) from ever disagreeing with
+  // the track-picker overlay's own column mapping (session_.track_ids,
+  // Session view's own filtered list) - the two lists could differ,
+  // which used to read as the grid visibly "rotating" underneath the
+  // picker row whenever both happened to be showing together;
+  // restricting both to Session view removes the only situation where
+  // that could happen. Mixer submode itself defaults off - see
+  // session_mixer_mode's own comment for what the same seven buttons do
+  // instead while it's off, and how it's toggled. SESSION/NOTES/CUSTOM/
+  // DRAW (CC95/96/97/98) are a separate, four-member group that behaves
+  // differently - a true radio group, never toggled off by a repeat press
+  // of the button already selected, only by pressing a different one of
+  // the four (handleRawButton()'s own comment) - purely per-device state
+  // either way, not tied to whether the overview widget has terminal UI
+  // focus: one connected Launchpad can sit in Session view while another
+  // stays on NOTES.
   //
   // CUSTOM is deliberately generic - "customize whatever's assigned to
   // this device" - even though the only thing actually built for it today
@@ -235,22 +253,40 @@ class LaunchpadManager {
   static float sendRowToDb(int row);
   static int sendLinearToRow(float linear);
 
-  // The Send A/Pan/Send B/Volume/Session/Note/Custom/Record-Arm buttons
-  // (raw CC 69/79/59/89/95/96/97/19 - 69/79/89 confirmed against a real
-  // Launchpad X, 59 inferred from the standard Launchpad right-column
-  // "Track" control row order documented across DAW controller scripts for
-  // this hardware, 95/96/97 from the top row's own Up/Down/Left/Right/
-  // Session/Note/Custom/Capture layout, 19 inferred by continuing that
-  // same right-column row order one further (Volume/Pan/SendA/SendB/Stop
-  // Clip/Mute/Solo/Record Arm - see LaunchpadProtocol::commandForButton's
-  // own comment for Mute/Solo at 39/29) - 91/92/93/94 already confirmed as
-  // Up/Down/Left/Right; Volume/CC89 is repurposed as the Send Main fader
-  // mode, the same shape as Send A/Send B) are intercepted here, by raw CC
-  // number, *before* any command-name resolution happens at all (see UI::
-  // handleLaunchpadButtonEvent) - pressing one only ever flips this one
-  // device's own transient grid-display state, never Song/Track data, so
-  // it isn't a "command" (which implies "reachable identically from a
-  // keybinding or M-x") at all, just a direct hardware-state toggle.
+  // The Send A/Pan/Send B/Volume/Session/Note/Custom/Record-Arm buttons,
+  // plus Stop Clip/Mute/Solo and their Pro MK3 left-column twins (raw CC
+  // 69/79/59/89/95/96/97/19/49/39/29/30/20 - 69/79/89 confirmed against a
+  // real Launchpad X, 59 inferred from the standard Launchpad
+  // right-column "Track" control row order documented across DAW
+  // controller scripts for this hardware, 95/96/97 from the top row's own
+  // Up/Down/Left/Right/Session/Note/Custom/Capture layout, 19/49/39/29
+  // inferred by continuing that same right-column row order one further
+  // (Volume/Pan/SendA/SendB/Stop Clip/Mute/Solo/Record Arm) - 91/92/93/94
+  // already confirmed as Up/Down/Left/Right) are intercepted here, by raw
+  // CC number, *before* any command-name resolution happens at all (see
+  // UI::handleLaunchpadButtonEvent) - pressing one only ever flips this
+  // one device's own transient grid-display state, never Song/Track data
+  // directly, so it isn't a "command" (which implies "reachable
+  // identically from a keybinding or M-x") at all, just a direct
+  // hardware-state toggle.
+  //
+  // 89/79/69/59/49/39/29 (and Pro MK3 twins 30/20) share one dispatch:
+  // Session's own "mixer submode" (DeviceState::session_mixer_mode, off
+  // by default) decides what all seven mean together. Off (the default -
+  // the classic Launchpad right-column convention), each one launches a
+  // whole scene instead (triggerSceneRow(), row = (cc_number - 19) / 10,
+  // the same right-column row order this comment's own first paragraph
+  // establishes) - Record Arm (19) is deliberately excluded from this,
+  // its own meaning is untouched either way. On, they're the mixer radio
+  // group instead (GridMode's own comment) - Volume/Pan/SendA/SendB enter
+  // that fader GridMode (toggleGridMode()); Stop Clip/Mute/Solo
+  // open/retarget the track-picker overlay with their own purpose
+  // (toggleTrackPicker(), DeviceState::track_picker_active's own
+  // comment) - which track the action actually lands on is decided
+  // later, by handleTrackPickerPadEvent(), once one is picked. Either
+  // way, Mute/Solo no longer act on the currently-followed track
+  // directly the way "toggle-mute"/"toggle-solo" (still reachable via
+  // keybinding/M-x - PatternEditor's own commands_) do.
   // Returns false for any other CC, so the caller proceeds to the normal
   // command pipeline. 95 ("Session"), 96 ("Note") and 97 ("Custom" - see
   // GridMode::CUSTOM's own comment) are three of a four-member exclusive
@@ -258,12 +294,18 @@ class LaunchpadManager {
   // below, since it needs both press and release): each press *selects*
   // that mode unconditionally, even if it's already the current one - the
   // only way to ever leave a mode is to select a *different* one of the
-  // four. Takes Controller (unlike every other toggle here) only for
-  // CC19's own sake - disarming while a Session-view-triggered recording
-  // session is still running also stops the transport (see that branch's
-  // own comment). `track_id` (the currently-followed track, already
-  // resolved) is only used by CC19's own SampleTrack case - every other
-  // branch ignores it.
+  // four. 95 also doubles as the mixer-submode toggle - a repeat press
+  // while grid_mode is already SESSION flips session_mixer_mode instead
+  // of being a no-op, while still (unconditionally, either way) landing
+  // on the plain Session grid. Takes Controller (unlike every other
+  // toggle here) for CC19's own sake - disarming while a Session-view-
+  // triggered recording session is still running also stops the
+  // transport (see that branch's own comment) - and now also for the
+  // seven mixer-submode buttons' own scene-launch case (triggerSceneRow()
+  // needs the playback event queue, same as an ordinary Session pad
+  // press). `track_id` (the currently-followed track, already resolved)
+  // is only used by CC19's own SampleTrack case - every other branch
+  // ignores it.
   bool handleRawButton(int cc_number, int device_id, Controller & controller, int track_id);
 
   // CC98 ("Capture MIDI", DRAW mode's own home) on its own, separate entry
@@ -285,18 +327,31 @@ class LaunchpadManager {
   // release. Routed here directly from CC98 by UI::handleLaunchpadButtonEvent.
   bool handleDrawToggleButton(int device_id, bool is_press);
 
-  // CC49 ("Stop Clip" physical button) - a held-modifier, not a plain
-  // press: Session view shows several tracks at once as columns, with no
-  // visible "current track" of its own to target (the shared cursor
-  // driving NOTES-mode/Mute/Solo/etc. isn't shown anywhere in the Session
-  // grid), so a single press can't sensibly mean "stop the current
-  // track". Instead, holding this and then pressing any pad in a column
-  // stops that column's own track - handleSessionPadEvent() is what
-  // actually checks DeviceState::stop_clip_held and does the stopping
-  // (the same quantized -1 sentinel an empty-row press already queues);
-  // this method just tracks the hold state, needing both press and
-  // release like CC97/CC98 above.
-  void handleStopClipButton(int device_id, bool is_press);
+  // Whether pad (any x, `y`) on this device should be captured by the
+  // track-picker overlay rather than whatever grid_mode would otherwise
+  // handle it - true only for the picker row itself, and only while the
+  // overlay is actually open (DeviceState::track_picker_active's own
+  // comment); every other row falls through to normal handling (Session
+  // view, the overlay's only ever host - see GridMode's own comment)
+  // unchanged, so it stays fully interactive underneath. UI::
+  // handleLaunchpadPadEvent() checks this ahead of even DRAW mode - though
+  // since the overlay is Session-view-only, grid_mode can never actually
+  // be DRAW (or anything but SESSION) while it's open in the first place.
+  bool isTrackPickerRow(int device_id, int y) const;
+
+  // The track-picker overlay's own pad-press handling (see
+  // DeviceState::track_picker_active's own comment) - mirrors DRAW mode's
+  // own separate entry point (pressDrawPad()). Only ever called for the
+  // picker row itself (isTrackPickerRow() is what the caller uses to
+  // decide that); the row-index check here is just a defensive echo of
+  // that same condition, not a second dispatch decision. Only a PRESS
+  // does anything, matching every other grid-mode's own press-only
+  // convention. Stays open after a pick, deliberately - picking is a
+  // toggle for every purpose today (mute/solo/stop), so several picks in
+  // a row let a performer mute/solo/stop a handful of tracks without
+  // reopening the overlay each time; only toggleTrackPicker() (the same
+  // opener button pressed again) closes it.
+  void handleTrackPickerPadEvent(const LaunchpadPadEvent & ev, Controller & controller);
 
   // Handles this device's own pure per-device commands - octave,
   // track-follow navigation, and (only while this device is actually
@@ -445,7 +500,6 @@ class LaunchpadManager {
     bool connected = false;
     Tuning tuning = Tuning::TET12;
     int key = -1;
-    bool muted = false, solo = false;
     // note_value -> loudness (0..1) for the assigned track's currently
     // sounding notes, used to brighten pads above LAUNCHPAD_IDLE_BRIGHTNESS.
     std::unordered_map<int, float> active_note_loudness;
@@ -493,6 +547,19 @@ class LaunchpadManager {
     // note entry.
     GridMode grid_mode = GridMode::SESSION;
 
+    // Session view's own scene-launch vs. mixer submode (see
+    // handleRawButton()'s own comment) - false (the default) means
+    // Volume/Pan/SendA/SendB/Stop Clip/Mute/Solo (89/79/69/59/49/39/29,
+    // and Pro MK3 20/30) each launch a whole scene (triggerSceneRow())
+    // instead of their fader/picker meaning, the classic Launchpad
+    // right-column convention; true means those seven act as one shared,
+    // mutually-exclusive radio group instead (inSessionMixerFamily()).
+    // Toggled by pressing CC95 ("Session") again while already showing
+    // GridMode::SESSION - pressing it from anywhere else just returns to
+    // the plain grid, leaving whichever submode was already selected
+    // untouched. Record Arm (CC19) is deliberately unaffected either way.
+    bool session_mixer_mode = false;
+
     // Step-grid surface: not a GridMode value of its own - it displays
     // automatically whenever this device's assigned track is a
     // step-sequenced PercussionTrack (isStepSequenced()), and (like the
@@ -518,11 +585,55 @@ class LaunchpadManager {
     // see refresh()'s own gating check).
     int drum_playhead_step = -1;
 
-    // CC49 (Stop Clip) held-modifier state - see handleStopClipButton()'s
-    // own comment. Set/cleared directly by press/release, unlike the
-    // tap-vs-hold-*duration* tracking below (draw_toggle_pressed) - there's
-    // no threshold here, just "is it down right now".
-    bool stop_clip_held = false;
+    // True while this device is showing the track-picker overlay - a
+    // Session-view-only accessory (like Send A/B/Pan/Volume - see
+    // GridMode's own comment): only ever opened while grid_mode ==
+    // SESSION (toggleTrackPicker()), and closed again - track_picker_active
+    // set back to false directly - by every grid_mode reassignment site
+    // that moves off SESSION, so it can never be left open over anything
+    // else. Unlike Send/Pan/etc. it isn't a GridMode of its own - it just
+    // lights the bottom grid row with one pad per selectable track
+    // (refreshLeds()) on top of Session view's own rendering, which is
+    // left completely untouched otherwise: no dimming, and every row but
+    // the picker row still reaches Session view's own pad handling
+    // exactly as if the overlay weren't open at all (UI::
+    // handleLaunchpadPadEvent()'s own isTrackPickerRow() check only ever
+    // intercepts the picker row itself). Opened by whichever button owns
+    // track_picker_purpose below (see handleRawButton()'s own comment);
+    // picking a track pad in the picker row (handleTrackPickerPadEvent())
+    // performs track_picker_purpose's action but deliberately leaves the
+    // overlay open - every purpose today is a toggle (mute/solo/stop), so
+    // several picks in a row can act on several tracks without reopening
+    // it each time - only pressing that same opener button again closes
+    // it (toggleTrackPicker()).
+    bool track_picker_active = false;
+
+    // What picking a track actually does, while track_picker_active -
+    // kept as its own field rather than folded into track_picker_active
+    // itself so every button that opens the overlay (CC49/39/29, and
+    // their Pro MK3 left-column twins 30/20 - see handleRawButton()'s own
+    // comment) can reuse the exact same open/dismiss/dim-background
+    // mechanics with its own action, and so pressing a different opener
+    // button while the overlay's already open just retargets it
+    // (toggleTrackPicker()) instead of requiring a cancel press first.
+    enum class TrackPickerPurpose { STOP_CLIP, MUTE, SOLO };
+    TrackPickerPurpose track_picker_purpose = TrackPickerPurpose::STOP_CLIP;
+
+    // Same "computed once in refresh(), copied into every device
+    // identically" shape as session_colors below - one flag per selectable
+    // track (column index matches session_.track_ids, the same list
+    // Session view's own columns already address), read by refreshLeds()
+    // to pick each picker-row pad's bright/dim purpose color while
+    // track_picker_active (see LAUNCHPAD_TRACK_PICKER_ROW's own comment
+    // in LaunchpadManager.cpp for what each one means): a track currently
+    // has a clip playing (STOP_CLIP), is soloed (SOLO), or is muted
+    // (MUTE) - only whichever one matches track_picker_purpose is ever
+    // actually read, but all three are kept refreshed regardless so a
+    // purpose switch (toggleTrackPicker() retargeting an already-open
+    // overlay) never shows a stale value on its very first frame.
+    std::array<bool, 8> track_picker_playing {};
+    std::array<bool, 8> track_picker_soloed {};
+    std::array<bool, 8> track_picker_muted {};
 
     // Which 8-step window of a Session-View-focused drum clip's own
     // pattern this device currently shows/edits on its step grid - a
@@ -807,9 +918,50 @@ class LaunchpadManager {
   // placeStopInstance()) for `track_id` at the live playhead's own
   // position, bar-aligned - handleSessionPadEvent()'s own shared "stop
   // this track while recording" primitive, reached both from an
-  // empty-row press in the assign branch and from CC49 (Stop Clip) held
-  // while Record Arm is on. A no-op while nothing is actually playing.
+  // empty-row press in the assign branch and from the track-picker
+  // overlay's own STOP_CLIP purpose while Record Arm is on. A no-op while
+  // nothing is actually playing.
   void placeRecordingStop(Controller & controller, int track_id);
+
+  // The track-picker overlay's own STOP_CLIP action
+  // (DeviceState::TrackPickerPurpose) - stops `track_id` the same way an
+  // empty-row Session-view press already does, genuinely two different
+  // mechanisms depending on Record Arm (see this method's own
+  // definition), factored out since both the overlay and (previously)
+  // Session view's own held-column gesture need it.
+  void stopSessionTrack(Controller & controller, int track_id);
+
+  // Opens the track-picker overlay for `purpose`, shared by every button
+  // that can open it (CC49/39/29, and their Pro MK3 left-column twins
+  // 30/20 - see handleRawButton()'s own comment). A no-op unless
+  // inSessionMixerFamily() already holds. A repeat press of the button
+  // already driving the overlay's current purpose closes it instead
+  // (matching toggleGridMode()'s own convention); pressing a *different*
+  // opener button while it's already open just retargets it to the new
+  // purpose, no cancel press needed first - including one of the four
+  // fader buttons, which leaves the overlay and enters that GridMode
+  // directly.
+  void toggleTrackPicker(int device_id, DeviceState::TrackPickerPurpose purpose);
+
+  // True iff this device is already showing something from Session's own
+  // mixer-submode radio group - GridMode::SESSION itself, one of the four
+  // fader modes, or the track-picker overlay - what toggleGridMode()/
+  // toggleTrackPicker() both gate entry on, so pressing a different one
+  // of the seven mixer-submode buttons (handleRawButton()'s own comment)
+  // can switch straight to it without a separate cancel step first, even
+  // crossing between the fader-as-GridMode and picker-as-overlay
+  // mechanisms.
+  bool inSessionMixerFamily(const DeviceState & state) const;
+
+  // Session view's own scene-launch action (DeviceState::
+  // session_mixer_mode's own comment, off by default) - launches `row`'s
+  // own clip (the same row -> clip_index mapping Session view's own
+  // columns use, 7 - row) across every currently selectable track at
+  // once, the classic Launchpad right-column convention. Reuses
+  // triggerSessionClip() per track, so it goes through the exact same
+  // audition/assign split (Record Arm) a single pad press in Session
+  // view already does.
+  void triggerSceneRow(Controller & controller, int row);
 
   // Record Arm (CC19) is one shared, song-wide flag - Controller::
   // isNoteCaptureArmed() for every track type but SampleTrack (its own

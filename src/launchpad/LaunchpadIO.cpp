@@ -4,6 +4,8 @@
 #include "LaunchpadChannelPressureEvent.h"
 #include "../util/Logger.h"
 
+#include <cstdlib>
+
 using namespace std;
 
 LaunchpadIO::LaunchpadIO() { }
@@ -23,6 +25,9 @@ LaunchpadIO::initialize(Logger & logger) {
     return;
   }
   snd_seq_set_client_name(seq_handle, "synth-launchpad");
+
+  // See ignore_hardware_'s own comment (LaunchpadIO.h) - test-harness-only.
+  ignore_hardware_ = getenv("SYNTH_LAUNCHPAD_NO_HARDWARE") != nullptr;
 
   our_port = snd_seq_create_simple_port(seq_handle, "synth-launchpad",
     SND_SEQ_PORT_CAP_READ | SND_SEQ_PORT_CAP_WRITE | SND_SEQ_PORT_CAP_SUBS_READ | SND_SEQ_PORT_CAP_SUBS_WRITE,
@@ -65,6 +70,8 @@ LaunchpadIO::scanForDevices(Logger & logger) {
   while (snd_seq_query_next_client(seq_handle, client_info) >= 0) {
     int client = snd_seq_client_info_get_client(client_info);
     if (client == snd_seq_client_id(seq_handle)) continue; // skip ourselves
+    // See ignore_hardware_'s own comment (LaunchpadIO.h).
+    if (ignore_hardware_ && snd_seq_client_info_get_type(client_info) == SND_SEQ_KERNEL_CLIENT) continue;
 
     optional<Candidate> best;
 
@@ -134,6 +141,8 @@ LaunchpadIO::handlePortStart(int client, int port) {
 
   if (snd_seq_get_any_client_info(seq_handle, client, client_info) < 0) return;
   if (snd_seq_get_any_port_info(seq_handle, client, port, port_info) < 0) return;
+  // See ignore_hardware_'s own comment (LaunchpadIO.h).
+  if (ignore_hardware_ && snd_seq_client_info_get_type(client_info) == SND_SEQ_KERNEL_CLIENT) return;
 
   auto caps = snd_seq_port_info_get_capability(port_info);
   if (!(caps & SND_SEQ_PORT_CAP_SUBS_READ) || !(caps & SND_SEQ_PORT_CAP_SUBS_WRITE)) return;

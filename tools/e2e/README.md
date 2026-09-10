@@ -9,6 +9,12 @@ used to verify that layer by hand: a small C program opens an ALSA
 sequencer client named to look like a real Launchpad and scripts a
 sequence of press/release/CC events, while a Python script spawns
 `synth` in a pty (via `pyte`) and screen-scrapes the result.
+`harness.py`'s own `spawn()` sets `SYNTH_LAUNCHPAD_NO_HARDWARE=1` on every
+`synth` it spawns, so it only ever connects to the fake simulator a
+script is actually driving, never any real Launchpad hardware also
+plugged into the same machine (`LaunchpadIO.h`'s own `ignore_hardware_`
+comment) - without this, a machine with a real Launchpad attached would
+have every e2e-spawned `synth` auto-connect to both at once.
 
 ## Setup
 
@@ -26,6 +32,7 @@ gcc -o fake_launchpad_stepseq fake_launchpad_stepseq.c -lasound
 gcc -o fake_launchpad_session fake_launchpad_session.c -lasound
 gcc -o fake_launchpad_notecustom fake_launchpad_notecustom.c -lasound
 gcc -o fake_launchpad_stopclip fake_launchpad_stopclip.c -lasound
+gcc -o fake_launchpad_mute_picker fake_launchpad_mute_picker.c -lasound
 gcc -o fake_launchpad_aftertouch_clip fake_launchpad_aftertouch_clip.c -lasound
 ```
 
@@ -101,15 +108,17 @@ you're changing.
     armed state, and must be able to press and write cleanly with no
     crash - covers `LaunchpadManager::refresh`'s erase-while-iterating
     device-pruning loop.
-- **`fake_launchpad_sendmode.c` / `verify_launchpad_sendmode.py`** - toggles
-  into Send A grid mode (CC69) and presses a grid pad; confirms the LED
-  bargraph both starts at the track's existing Send A level and reflects
-  the new one after the press - the non-NOTES branch of
+- **`fake_launchpad_sendmode.c` / `verify_launchpad_sendmode.py`** - presses
+  CC95 a second time to enter Session's own mixer submode (required before
+  CC69 means anything at all - see `CLAUDE.md`'s own `GridMode` bullet),
+  toggles into Send A grid mode (CC69), and presses a grid pad; confirms
+  the LED bargraph both starts at the track's existing Send A level and
+  reflects the new one after the press - the non-NOTES branch of
   `PatternEditor::handleLaunchpadPadEvent` (Send A/B/Main/Pan) had no
   coverage before this script.
 - **`fake_launchpad_sendmode_autocreate.c` / `verify_launchpad_sendmode_autocreate.py`** -
-  loads `songs/songtest1.xml` (2 tracks), toggles Send A mode, and presses
-  column 5 (no track there yet); confirms
+  loads `songs/songtest1.xml` (2 tracks), enters mixer submode, toggles
+  Send A mode, and presses column 5 (no track there yet); confirms
   `PatternEditor::handleLaunchpadPadEvent` auto-creates tracks up to that
   column instead of silently doing nothing - both this script's own
   Send/Pan-mode branch and the symmetric NOTES-mode branch (a device's
@@ -154,17 +163,24 @@ you're changing.
   down.
 - **`launchpad_session_test.xml` (pool index 7's own `length="8"`) /
   `fake_launchpad_stopclip.c` / `verify_launchpad_stopclip.py`** - Stop
-  Clip (CC49)'s redesign into a held modifier (Session view shows several
-  tracks at once as columns with no visible "current" one for a plain
-  press to target, so holding CC49 and pressing any pad in a column stops
-  that column's own track instead - `LaunchpadManager::
-  handleStopClipButton()`/`handleSessionPadEvent()`). Triggers pool index
-  7 via pad (0,0), confirms its own LED brightens, then holds CC49 and
-  presses that pad again to queue a stop, confirming the LED reverts once
-  it takes effect. **Currently fails 2 of 4 checks in this sandboxed
-  environment** for a documented, pre-existing, unrelated reason (not a
-  real regression - reproduces with plain pad presses alone, no CC49
-  involved) - see `docs/known_bugs.md`.
+  Clip (CC49) opening the track-picker overlay: a plain press-only toggle,
+  Session-view-only (a no-op from any other `GridMode`), that lights the
+  grid's bottom row with one pad per selectable track on top of Session
+  view's own rendering - left completely untouched otherwise, no dimming,
+  every other row still reaching Session view's own pad handling normally
+  (Session view's own column-per-track layout has no visible "current"
+  track for a plain press to target, so picking a column in the picker
+  row is what actually stops that track - `LaunchpadManager::
+  handleRawButton()`/`handleTrackPickerPadEvent()`). Triggers pool index 7
+  via pad (0,0), confirms its own LED brightens, then presses CC49 and
+  picks that same track's column in the picker row - pad (0,0) again, now
+  read as "column 0" rather than "clip index 7" - to queue a stop,
+  confirming the pad's LED dims red once it takes effect while CC49's own
+  indicator stays lit (the overlay no longer auto-closes on a pick), then
+  a second CC49 press closes it, reverting both. **Currently fails most
+  checks in this sandboxed environment** for a documented, pre-existing,
+  unrelated reason (not a real regression - reproduces with plain pad
+  presses alone, no CC49 involved) - see `docs/known_bugs.md`.
 - **`launchpad_sampletrack_session_test.xml` (+ sidecar `.wav`) /
   `verify_launchpad_sampletrack_stopclip.py`** - the SampleTrack twin of
   the script above: structurally the same fixture (one track, pool index
@@ -176,6 +192,26 @@ you're changing.
   `SampleTrackTests.cpp`'s own `triggerClip()` calls are. Same known,
   pre-existing environment limitation as its sibling above - see
   `docs/known_bugs.md`.
+- **`fake_launchpad_mute_picker.c` / `verify_launchpad_mute_picker.py`** -
+  the track-picker overlay's Mute purpose (CC39): presses CC95 a second
+  time to enter Session's own mixer submode first (required before CC39
+  means anything at all rather than launching a scene - see `CLAUDE.md`'s
+  own `GridMode` bullet; also confirms Session's own LED turns orange),
+  opens it, confirms both CC39's own LED and the picker row's pad (0,0)
+  (the fixture's only track, unmuted by default) show bright yellow,
+  confirms a *different* row (pad
+  (0,7)) is untouched - not dimmed - proving the overlay leaves Session
+  view's own rendering alone outside the picker row, picks column 0 to
+  mute it, confirms the picker row dims to dark yellow (bright/dim is
+  polarity-inverted from Stop Clip/Solo - see `CLAUDE.md`'s own
+  Track-picker overlay bullet) while CC39's own LED stays lit (no
+  auto-close on a pick), then a second CC39 press closes it and both
+  revert. Deliberately never triggers playback, unlike
+  `verify_launchpad_stopclip.py` above - Mute needs no clip playing at
+  all, which sidesteps the same sandboxed-environment flakiness
+  documented for that script (`docs/known_bugs.md`), giving a much more
+  reliable signal for the overlay's general open/pick/retarget/close
+  mechanics.
 - **`fake_launchpad_aftertouch_clip.c` / `verify_launchpad_aftertouch_clip.py`** -
   the "Clip-based note recording" path (`Controller::
   ensureNoteRecordingClip()`), not step entry: switches into NOTES grid

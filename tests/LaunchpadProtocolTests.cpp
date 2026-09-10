@@ -139,10 +139,6 @@ TEST(command_for_button_returns_the_assigned_command_names) {
   CHECK(commandForButton(92) == string("move-row-down"));
   CHECK(commandForButton(93) == string("prev-track"));
   CHECK(commandForButton(94) == string("next-track"));
-  CHECK(commandForButton(30) == string("toggle-mute"));  // Pro MK3 left column
-  CHECK(commandForButton(20) == string("toggle-solo"));  // Pro MK3 left column
-  CHECK(commandForButton(39) == string("toggle-mute"));  // right column - inferred Launchpad X alias, see LaunchpadProtocol.cpp
-  CHECK(commandForButton(29) == string("toggle-solo"));  // right column - inferred Launchpad X alias, see LaunchpadProtocol.cpp
 }
 
 TEST(command_for_button_returns_nullopt_for_reserved_and_out_of_range_ccs) {
@@ -151,7 +147,15 @@ TEST(command_for_button_returns_nullopt_for_reserved_and_out_of_range_ccs) {
   CHECK(commandForButton(97) == nullopt);
   CHECK(commandForButton(99) == nullopt);
   CHECK(commandForButton(19) == nullopt); // right column - reserved (Record Arm)
-  CHECK(commandForButton(49) == nullopt); // right column - reserved (Stop Clip)
+  // 49/39/29 (Stop Clip/Mute/Solo) and their Pro MK3 left-column twins
+  // 30/20 all open the track-picker overlay now (LaunchpadManager::
+  // handleRawButton()) rather than naming a plain command here - see
+  // LaunchpadProtocol.cpp's own comment.
+  CHECK(commandForButton(49) == nullopt);
+  CHECK(commandForButton(39) == nullopt);
+  CHECK(commandForButton(29) == nullopt);
+  CHECK(commandForButton(30) == nullopt);
+  CHECK(commandForButton(20) == nullopt);
   // 59/69/79/89 (Send B/Send A/Pan/Volume mode buttons) are deliberately
   // absent here too - they're intercepted by raw CC number in
   // LaunchpadManager::handleRawButton, before commandForButton is ever

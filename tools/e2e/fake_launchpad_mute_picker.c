@@ -1,15 +1,16 @@
-// Simulated Launchpad X exercising the track-picker overlay Stop Clip
-// (CC49) opens: triggers pool index 7 for the fixture's only track (pad
-// (0,0)), confirms it's playing, then enters Session's own mixer submode
-// (CC95 pressed a second time - see LaunchpadManager.h's own GridMode
-// comment; the seven mixer-submode buttons launch a whole scene instead
-// while it's off) and presses CC49 to open the overlay and picks that
-// same track's column in the picker row (the bottom row - pad (0,0)
-// again, this time read as "column 0" rather than "clip index 7") to
-// queue a stop, confirms the picker row itself (not CC49's own LED)
-// reflects the stop once the quantized stop actually takes effect - the
-// overlay deliberately stays open after a pick, so a second CC49 press is
-// what finally closes it, checked last.
+// Simulated Launchpad X exercising the track-picker overlay Mute (CC39)
+// opens: enters Session's own mixer submode (CC95 pressed a second time -
+// see LaunchpadManager.h's own GridMode comment; the seven mixer-submode
+// buttons launch a whole scene instead while it's off), then presses
+// CC39 to open the overlay (Mute purpose - the picker row shows bright
+// yellow for a track that isn't muted, dark yellow for one that is),
+// picks the fixture's only track (pad (0,0), column 0) to mute it,
+// confirms the overlay stays open (a second CC39 press is what finally
+// closes it, checked last) rather than the old one-pick-and-close
+// behavior. Deliberately avoids ever triggering playback (unlike
+// fake_launchpad_stopclip.c) - Mute needs no clip playing at all, which
+// also sidesteps the sandboxed-environment audio/ALSA-sequencer
+// contention documented for the Stop Clip scripts (docs/known_bugs.md).
 #include <alsa/asoundlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -61,35 +62,30 @@ int main() {
     SND_SEQ_PORT_CAP_READ | SND_SEQ_PORT_CAP_WRITE | SND_SEQ_PORT_CAP_SUBS_READ | SND_SEQ_PORT_CAP_SUBS_WRITE,
     SND_SEQ_PORT_TYPE_APPLICATION);
   if (port < 0) return 1;
-  fprintf(stderr, "fake Launchpad X (stopclip) ready as client %d port %d\n", snd_seq_client_id(seq), port);
+  fprintf(stderr, "fake Launchpad X (mute picker) ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
   sleep(6); // let synth auto-connect, enter Programmer mode, and settle
   drain(seq, 500, "at startup");
 
-  fprintf(stderr, "sending press on pad (0,0) [note 11] - triggers pool index 7\n");
-  send_note(seq, port, 0x90, 11, 100);
-  send_note(seq, port, 0x80, 11, 0);
-  drain(seq, 1000, "after trigger");
-
   fprintf(stderr, "sending CC95 press+release (enters Session's own mixer submode)\n");
   send_cc(seq, port, 95, 127);
   send_cc(seq, port, 95, 0);
-  drain(seq, 300, "mixer submode entered");
+  drain(seq, 500, "mixer submode entered");
 
-  fprintf(stderr, "sending CC49 press - opens the track-picker overlay\n");
-  send_cc(seq, port, 49, 127);
-  send_cc(seq, port, 49, 0); // release - CC49 is a plain press-only toggle now, the release is a no-op
-  drain(seq, 300, "after CC49 press");
+  fprintf(stderr, "sending CC39 press - opens the track-picker overlay (Mute)\n");
+  send_cc(seq, port, 39, 127);
+  send_cc(seq, port, 39, 0); // release - CC39 is a plain press-only toggle, the release is a no-op
+  drain(seq, 1000, "after CC39 press");
 
-  fprintf(stderr, "sending press on pad (0,0) [note 11] again - picker row (bottom), column 0 - queues a stop\n");
+  fprintf(stderr, "sending press on pad (0,0) [note 11] - picker row (bottom), column 0 - mutes the track\n");
   send_note(seq, port, 0x90, 11, 100);
   send_note(seq, port, 0x80, 11, 0);
-  drain(seq, 2000, "after stop should have taken effect");
+  drain(seq, 1000, "after picking column 0");
 
-  fprintf(stderr, "sending CC49 press again - closes the still-open overlay\n");
-  send_cc(seq, port, 49, 127);
-  send_cc(seq, port, 49, 0);
-  drain(seq, 300, "after CC49 closed the overlay");
+  fprintf(stderr, "sending CC39 press again - closes the still-open overlay\n");
+  send_cc(seq, port, 39, 127);
+  send_cc(seq, port, 39, 0);
+  drain(seq, 1000, "after CC39 closed the overlay");
 
   snd_seq_close(seq);
   return 0;

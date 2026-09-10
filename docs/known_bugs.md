@@ -149,6 +149,48 @@ Found 2026-07-11, not yet fixed.
   same way with none of that work present, ruling out anything
   SampleTrack-specific.
 
+  Still reproduces identically after Stop Clip's own redesign from a held
+  column modifier into the track-picker overlay (both scripts now fail
+  most of their checks, more than before since the overlay's own
+  stays-open-after-a-pick and Session-view-only redesigns each added
+  their own further LED assertions) - the stall still happens on the very
+  first real-audition pad press, before CC49 is ever sent, so it's
+  orthogonal to which gesture eventually reads the resulting LED state.
+  `verify_launchpad_mute_picker.py` (the Mute purpose's own e2e script,
+  which never triggers real playback at all) originally avoided this
+  specific stall - some evidence for the "real audition/playback path"
+  theory above - but now also hits it intermittently since Session's own
+  mixer submode shipped (`GridMode`'s own comment): the script has to
+  press CC95 a second time before CC39 means anything, and that
+  particular press is the one that most often goes missing/delayed now,
+  the same symptom class, just on a different button. Not itself evidence
+  against the playback-path theory (CC95 presses toward real Session
+  content have always been part of every script here, this is the first
+  one where a *second* CC95 press mid-script - not just the connect-time
+  default - is required for the test to mean anything).
+
+  This sandbox also had real Launchpad X and Launchpad Mini MK3 hardware
+  attached (confirmed via `aconnect -l` - `type=kernel` clients, not the
+  `type=user` clients every `fake_launchpad_*.c` simulator registers as),
+  which used to be its own separate source of noise from the delayed-
+  SysEx-delivery stall above: a `synth` instance spawned for one of these
+  e2e scripts auto-connects to real hardware exactly as readily as to the
+  simulator, alongside whatever interactive `synth` session (if any) a
+  person also has running against the same hardware at the time - two
+  processes ending up subscribed to the same physical device's input port
+  simultaneously. Observed once as a handful of spurious extra CC49
+  presses reaching a `verify_launchpad_mute_picker.py` run's own
+  `LaunchpadManager` (traced via temporary debug logging, since removed)
+  with no corresponding line in that run's own fake-device script - never
+  root-caused (a firmware handshake echo being misdecoded as a button
+  press was the leading guess) or reproduced a second time before
+  `harness.py`'s `spawn()` started setting `SYNTH_LAUNCHPAD_NO_HARDWARE=1`
+  (`LaunchpadIO.h`'s own `ignore_hardware_` comment), which keeps every
+  e2e-spawned `synth` from ever auto-connecting to real hardware at all -
+  the fix in case this exact cross-talk symptom is ever seen again on a
+  sandbox with `SYNTH_LAUNCHPAD_NO_HARDWARE` for some reason not taking
+  effect (e.g. a `harness.py` bypassed, or predating this fix).
+
 - **A voice's envelope keeps progressing while playback is stopped**, so a
   long-held note can resume out of sync with the (frozen) row/pattern
   position once playback restarts. `SongState::renderBlock()` calls every

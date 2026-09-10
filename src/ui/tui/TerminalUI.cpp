@@ -2721,6 +2721,16 @@ TerminalUI::handleMidiEvent(MidiEvent & ev) {
 
 void
 TerminalUI::handleLaunchpadPadEvent(LaunchpadPadEvent & ev) {
+  // Track-picker overlay (opened by CC49 "Stop Clip"/CC39 "Mute"/CC29
+  // "Solo" - see LaunchpadManager::handleRawButton()'s own comment) -
+  // Session-view-only, so this only ever intercepts the picker row itself
+  // while it's open; every other row (Session view's own content) falls
+  // through to the normal SESSION handling below unchanged, staying fully
+  // interactive underneath the overlay.
+  if (launchpad_manager_ && launchpad_manager_->isTrackPickerRow(ev.getDeviceIndex(), ev.getY())) {
+    launchpad_manager_->handleTrackPickerPadEvent(ev, getController());
+    return;
+  }
   // DRAW mode (a plain coloring toy - see LaunchpadManager::
   // pressDrawPad/releaseDrawPad) touches no Song/Track/Pattern data at
   // all, unlike every other pad-event use (note entry, Send A/B/Pan) -
@@ -2759,21 +2769,14 @@ TerminalUI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
 
   auto device_id = ev.getDeviceIndex();
 
-  // CC49 ("Stop Clip") and CC98 ("Capture MIDI", DRAW mode's own home now -
-  // see LaunchpadManager::GridMode's own comment) both need press and
-  // release, not just press - CC49 for its own held-modifier state (see
-  // LaunchpadManager::handleStopClipButton()'s own comment for why a
-  // plain press can't target a track in Session view), CC98 for DRAW
-  // mode's tap-vs-long-hold toggle/blank-canvas gesture
+  // CC98 ("Capture MIDI", DRAW mode's own home now - see
+  // LaunchpadManager::GridMode's own comment) needs press and release, not
+  // just press - its own tap-vs-long-hold toggle/blank-canvas gesture
   // (LaunchpadManager::handleDrawToggleButton()). Routed here before the
   // press-only filter below, which every other raw-CC button (and every
-  // other release) still goes through unchanged. CC97 ("Custom") no
-  // longer needs this - it's a plain press-only mode switch now, handled
-  // by handleRawButton() alongside Session/Note below.
-  if (ev.getCCNumber() == 49) {
-    launchpad_manager_->handleStopClipButton(device_id, ev.getKind() == LaunchpadButtonEvent::PRESS);
-    return;
-  }
+  // other release) still goes through unchanged. CC49 ("Stop Clip") and
+  // CC97 ("Custom") don't need this - both are plain press-only toggles,
+  // handled by handleRawButton() alongside Session/Note below.
   if (ev.getCCNumber() == 98) {
     launchpad_manager_->handleDrawToggleButton(device_id, ev.getKind() == LaunchpadButtonEvent::PRESS);
     return;

@@ -176,6 +176,57 @@ namespace {
   constexpr float LAUNCHPAD_PICKER_IDLE_LUMINOSITY = 0.15f;
   constexpr float LAUNCHPAD_PICKER_ASSIGNED_LUMINOSITY = 0.65f;
 
+  // The track-picker overlay's own row (see DeviceState::
+  // track_picker_active's own comment) - the bottom grid row (y=0 - see
+  // LaunchpadProtocol::padToNoteNumber()'s own doc comment for the
+  // y-flip), one pad per selectable track, matching session_.track_ids/
+  // Session view's own column order. Every other row is left exactly as
+  // Session view's own rendering already drew it - the overlay is
+  // Session-view-only (GridMode's own comment), so there's no other
+  // GridMode content underneath to distinguish it from, and Session view
+  // stays fully interactive there (isTrackPickerRow()).
+  constexpr int LAUNCHPAD_TRACK_PICKER_ROW = 0;
+
+  // One hue per DeviceState::TrackPickerPurpose, shared by both the opener
+  // button's own LED (extra-button section below) and the picker row
+  // itself (refreshLeds()' track-picker post-process pass) - one color
+  // naming "which action this is" wherever it shows up, rather than two
+  // independently-tuned copies. Brightness within a purpose's hue is what
+  // tells columns apart in the picker row (dim/bright meaning is
+  // purpose-specific - see LAUNCHPAD_TRACK_PICKER_ROW's own comment).
+  constexpr Rgb LAUNCHPAD_TRACK_PICKER_STOP_CLIP_BRIGHT { 127, 0, 0 };
+  constexpr Rgb LAUNCHPAD_TRACK_PICKER_STOP_CLIP_DIM    { 20, 0, 0 };
+  constexpr Rgb LAUNCHPAD_TRACK_PICKER_SOLO_BRIGHT      { 0, 0, 127 };
+  constexpr Rgb LAUNCHPAD_TRACK_PICKER_SOLO_DIM         { 0, 0, 20 };
+  constexpr Rgb LAUNCHPAD_TRACK_PICKER_MUTE_BRIGHT      { 127, 127, 0 };
+  constexpr Rgb LAUNCHPAD_TRACK_PICKER_MUTE_DIM         { 20, 20, 0 };
+
+  // The mixer radio group's remaining four members - Volume/Pan/Send A/
+  // Send B, which stay a real GridMode swap rather than an overlay (see
+  // GridMode's own comment) - get the same bright-when-active/dim-
+  // otherwise treatment as the three track-picker purposes above, each
+  // keeping the hue its own static color already established (magenta/
+  // cyan/orange/yellow) rather than adopting red/blue/yellow like the
+  // picker trio, since these four don't share the picker's single-overlay
+  // identity.
+  constexpr Rgb LAUNCHPAD_MIXER_SEND_B_BRIGHT { 127, 0, 127 };
+  constexpr Rgb LAUNCHPAD_MIXER_SEND_B_DIM    { 40, 0, 40 };
+  constexpr Rgb LAUNCHPAD_MIXER_SEND_A_BRIGHT { 0, 127, 127 };
+  constexpr Rgb LAUNCHPAD_MIXER_SEND_A_DIM    { 0, 40, 40 };
+  constexpr Rgb LAUNCHPAD_MIXER_PAN_BRIGHT    { 127, 64, 0 };
+  constexpr Rgb LAUNCHPAD_MIXER_PAN_DIM       { 40, 20, 0 };
+  constexpr Rgb LAUNCHPAD_MIXER_VOLUME_BRIGHT { 127, 127, 0 };
+  constexpr Rgb LAUNCHPAD_MIXER_VOLUME_DIM    { 40, 40, 0 };
+
+  // Session's mixer-submode radio group (see DeviceState::
+  // session_mixer_mode's own comment), all seven buttons, while that
+  // submode is off - a plain scene-launch trigger has no state of its own
+  // worth showing, so all seven go uniformly dim white rather than any of
+  // their mixer-mode hues (which would otherwise misleadingly suggest a
+  // fader/picker is one press away) - same dim-white convention the
+  // static move-row-up/down utility buttons already use.
+  constexpr Rgb LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR { 30, 30, 30 };
+
   Rgb padColor(Rgb base, const unordered_map<int, float> & active_note_loudness, int note_value) {
     if (base.r == 0 && base.g == 0 && base.b == 0) return base; // stays off (e.g. unused/reserved pads)
 
@@ -511,12 +562,33 @@ LaunchpadManager::gridMode(int device_id) const {
 void
 LaunchpadManager::toggleGridMode(int device_id, GridMode mode) {
   auto & state = deviceState(device_id);
-  state.grid_mode = (state.grid_mode == mode) ? GridMode::NOTES : mode;
+  // Session mixer-submode radio group member (see GridMode's own comment)
+  // - a no-op unless already somewhere in that family (inSessionMixerFamily()),
+  // so pressing a fader button from NOTES/CUSTOM/DRAW does nothing, but
+  // pressing one while another family member (a different fader, or the
+  // track-picker overlay) is already active switches straight to it.
+  // Closing (a repeat press of the one already active) always lands back
+  // on SESSION, not NOTES, since that's the only place these are ever
+  // entered from any more.
+  if (!inSessionMixerFamily(state)) return;
+  bool already_active = state.grid_mode == mode;
+  state.track_picker_active = false; // switching to (or off of) a fader always leaves the picker
+  state.grid_mode = already_active ? GridMode::SESSION : mode;
+}
+
+bool
+LaunchpadManager::inSessionMixerFamily(const DeviceState & state) const {
+  return state.grid_mode == GridMode::SESSION || state.grid_mode == GridMode::SEND_MAIN ||
+    state.grid_mode == GridMode::PAN || state.grid_mode == GridMode::SEND_A ||
+    state.grid_mode == GridMode::SEND_B || state.track_picker_active;
 }
 
 void
 LaunchpadManager::forceNotesModeOnAllDevices() {
-  for (auto & [device_id, state] : devices_) state.grid_mode = GridMode::NOTES;
+  for (auto & [device_id, state] : devices_) {
+    state.grid_mode = GridMode::NOTES;
+    state.track_picker_active = false; // Session-view-only - see DeviceState::track_picker_active's own comment
+  }
 }
 
 void
@@ -569,22 +641,6 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
   // presumably just kept for symmetry with the Launchpad Pro, which does
   // have a real corner button) - so it's deliberately left unhandled here,
   // not wired to anything.
-  if (cc_number == 89) {
-    toggleGridMode(device_id, GridMode::SEND_MAIN);
-    return true;
-  }
-  if (cc_number == 79) {
-    toggleGridMode(device_id, GridMode::PAN);
-    return true;
-  }
-  if (cc_number == 69) {
-    toggleGridMode(device_id, GridMode::SEND_A);
-    return true;
-  }
-  if (cc_number == 59) {
-    toggleGridMode(device_id, GridMode::SEND_B);
-    return true;
-  }
   // 19 (right column, continuing the "Track" control row order one
   // further past Send B - see this method's own doc comment) is the real
   // Launchpad X's own dedicated "Record Arm" button. What it actually does
@@ -598,9 +654,40 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
   // MIDI", now DRAW mode's own home) - see DeviceState::capture_enabled's
   // own comment for why. CC98 used to be wired to toggle-playing via the
   // named-command pipeline before that; toggle-playing stays reachable
-  // via Space either way.
+  // via Space either way. Deliberately untouched by Session's own mixer
+  // submode below - Record Arm means the same thing regardless.
   if (cc_number == 19) {
     controller.sendCommand("toggle-record-arm");
+    return true;
+  }
+  // 89/79/69/59/49/39/29 (Volume/Pan/SendA/SendB/Stop Clip/Mute/Solo, and
+  // Pro MK3 left-column twins 30/20 for Mute/Solo) share one dispatch -
+  // see this method's own doc comment (LaunchpadManager.h) for the full
+  // reasoning. Off (the default), each launches a whole scene instead -
+  // the classic Launchpad right-column convention - reusing this same
+  // button's own row position (row = (cc_number - 19) / 10, the identical
+  // right-column arithmetic this method's own top comment establishes).
+  // On, they're the mixer radio group: Volume/Pan/SendA/SendB enter a
+  // fader GridMode (toggleGridMode()), Stop Clip/Mute/Solo open/retarget
+  // the track-picker overlay (toggleTrackPicker()) - both already handle
+  // their own "only one of the seven active" logic via
+  // inSessionMixerFamily(), so this dispatch only needs to pick which of
+  // the two mechanisms a given CC number means.
+  if (cc_number == 89 || cc_number == 79 || cc_number == 69 || cc_number == 59 ||
+      cc_number == 49 || cc_number == 39 || cc_number == 30 || cc_number == 29 || cc_number == 20) {
+    if (!deviceState(device_id).session_mixer_mode) {
+      triggerSceneRow(controller, (cc_number - 19) / 10);
+      return true;
+    }
+    switch (cc_number) {
+    case 89: toggleGridMode(device_id, GridMode::SEND_MAIN); break;
+    case 79: toggleGridMode(device_id, GridMode::PAN); break;
+    case 69: toggleGridMode(device_id, GridMode::SEND_A); break;
+    case 59: toggleGridMode(device_id, GridMode::SEND_B); break;
+    case 49: toggleTrackPicker(device_id, DeviceState::TrackPickerPurpose::STOP_CLIP); break;
+    case 39: case 30: toggleTrackPicker(device_id, DeviceState::TrackPickerPurpose::MUTE); break;
+    case 29: case 20: toggleTrackPicker(device_id, DeviceState::TrackPickerPurpose::SOLO); break;
+    }
     return true;
   }
   // 95 ("Session"), 96 ("Note") and 97 ("Custom" - see GridMode::CUSTOM's
@@ -612,17 +699,31 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
   // one of the four. Purely per-device state, like every other toggle
   // here, not tied to whether the overview widget has terminal UI focus at
   // all: one connected Launchpad can sit in Session view while another
-  // stays on ordinary note entry.
+  // stays on ordinary note entry. 95 also doubles as the mixer-submode
+  // toggle (DeviceState::session_mixer_mode) - a repeat press while
+  // already at the plain Session grid with nothing from the mixer radio
+  // group active flips it; either way this unconditionally lands on (or
+  // stays on) that plain grid, closing any active fader/picker first if
+  // there was one - one press to back out of a radio-group selection,
+  // a second to then flip the submode itself.
   if (cc_number == 95) {
-    deviceState(device_id).grid_mode = GridMode::SESSION;
+    auto & state = deviceState(device_id);
+    bool at_plain_session_grid = state.grid_mode == GridMode::SESSION && !state.track_picker_active;
+    if (at_plain_session_grid) state.session_mixer_mode = !state.session_mixer_mode;
+    state.grid_mode = GridMode::SESSION;
+    state.track_picker_active = false;
     return true;
   }
   if (cc_number == 96) {
-    deviceState(device_id).grid_mode = GridMode::NOTES;
+    auto & state = deviceState(device_id);
+    state.grid_mode = GridMode::NOTES;
+    state.track_picker_active = false; // Session-view-only - see DeviceState::track_picker_active's own comment
     return true;
   }
   if (cc_number == 97) {
-    deviceState(device_id).grid_mode = GridMode::CUSTOM;
+    auto & state = deviceState(device_id);
+    state.grid_mode = GridMode::CUSTOM;
+    state.track_picker_active = false; // Session-view-only - see DeviceState::track_picker_active's own comment
     return true;
   }
   return false;
@@ -677,6 +778,7 @@ LaunchpadManager::handleDrawToggleButton(int device_id, bool is_press) {
     // released while already there) waits for release, since a long hold
     // can't be told apart from a fresh entry until then.
     state.grid_mode = GridMode::DRAW;
+    state.track_picker_active = false; // Session-view-only - see DeviceState::track_picker_active's own comment
     return true;
   }
   if (!state.draw_toggle_pressed) return true; // stray/duplicate release
@@ -697,9 +799,51 @@ LaunchpadManager::handleDrawToggleButton(int device_id, bool is_press) {
   return true;
 }
 
+bool
+LaunchpadManager::isTrackPickerRow(int device_id, int y) const {
+  auto * state = findDeviceState(device_id);
+  return state && state->track_picker_active && y == LAUNCHPAD_TRACK_PICKER_ROW;
+}
+
 void
-LaunchpadManager::handleStopClipButton(int device_id, bool is_press) {
-  deviceState(device_id).stop_clip_held = is_press;
+LaunchpadManager::toggleTrackPicker(int device_id, DeviceState::TrackPickerPurpose purpose) {
+  auto & state = deviceState(device_id);
+  // Session mixer-submode radio group member (see GridMode's own comment)
+  // - a no-op unless already somewhere in that family
+  // (inSessionMixerFamily()), so opening from NOTES/CUSTOM/DRAW does
+  // nothing, but switching from a fader mode straight into the picker (or
+  // between two picker purposes) always works.
+  if (!inSessionMixerFamily(state)) return;
+  bool already_active = state.track_picker_active && state.track_picker_purpose == purpose;
+  state.grid_mode = GridMode::SESSION; // leaving a fader mode for the picker always lands on the plain grid underneath
+  state.track_picker_active = !already_active;
+  state.track_picker_purpose = purpose; // harmless to set even when closing - only read while track_picker_active
+}
+
+void
+LaunchpadManager::handleTrackPickerPadEvent(const LaunchpadPadEvent & ev, Controller & controller) {
+  if (ev.getKind() != LaunchpadPadEvent::PRESS) return;
+  auto & state = deviceState(ev.getDeviceIndex());
+  if (ev.getY() != LAUNCHPAD_TRACK_PICKER_ROW) return; // defensive only - the caller (isTrackPickerRow()) never routes any other row here
+
+  auto track_index = ev.getX();
+  if (track_index < 0 || track_index >= static_cast<int>(session_.track_ids.size())) return; // no track behind this column
+  auto track_id = session_.track_ids[static_cast<size_t>(track_index)];
+
+  switch (state.track_picker_purpose) {
+  case DeviceState::TrackPickerPurpose::STOP_CLIP:
+    stopSessionTrack(controller, track_id);
+    break;
+  case DeviceState::TrackPickerPurpose::MUTE:
+    controller.toggleTrackMuted(track_id);
+    break;
+  case DeviceState::TrackPickerPurpose::SOLO:
+    controller.toggleTrackSolo(track_id);
+    break;
+  }
+  // Deliberately leaves the overlay open - see this method's own doc
+  // comment (LaunchpadManager.h) for why picking stays a repeatable
+  // action rather than a one-shot dialog.
 }
 
 void
@@ -1247,37 +1391,33 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
   if (track_index < 0 || track_index >= static_cast<int>(session_.track_ids.size())) return;
   auto track_id = session_.track_ids[static_cast<size_t>(track_index)];
 
-  if (deviceState(ev.getDeviceIndex()).stop_clip_held) {
-    // Stop Clip (CC49) held - this press means "stop this column's own
-    // track", regardless of which row was touched (see
-    // handleStopClipButton()'s own comment for why targeting works this
-    // way instead of a plain single press). Genuinely two different
-    // mechanisms depending on Record Arm, though, not just one "stopping
-    // is orthogonal" path: while recording, a stop has to become real
-    // song data (placeRecordingStop(), the same thing an empty-row press
-    // in the assign branch below does) since real playback never reads
-    // this class's own triggered_pattern_by_track_/queued_pattern_by_track_
-    // bookkeeping in the first place - that's audition-only state.
-    if (controller.isNoteCaptureArmed()) {
-      placeRecordingStop(controller, track_id);
-      return;
-    }
-    // Auditioning: same quantized stop every other stop path here uses
-    // if something's actually triggered; a not-yet-started pending join
-    // is simply cancelled outright instead (same "nothing playing yet to
-    // release" reasoning placeRecordingStop() above has for the recording
-    // case); a total no-op if the track isn't doing anything at all.
-    if (triggered_pattern_by_track_.find(track_id) != triggered_pattern_by_track_.end()) {
-      queued_pattern_by_track_[track_id] = -1;
-    } else {
-      queued_pattern_by_track_.erase(track_id);
-    }
-    return;
-  }
-
   // Same y-flip as refresh()'s own session_colors computation - y=0 is
   // the bottom-left pad, so y=7 is that track's first clip.
   triggerSessionClip(controller, track_id, 7 - ev.getY());
+}
+
+void
+LaunchpadManager::stopSessionTrack(Controller & controller, int track_id) {
+  // Genuinely two different mechanisms depending on Record Arm: while
+  // recording, a stop has to become real song data (placeRecordingStop(),
+  // the same thing an empty-row press in triggerSessionClip()'s own assign
+  // branch does) since real playback never reads this class's own
+  // triggered_pattern_by_track_/queued_pattern_by_track_ bookkeeping in the
+  // first place - that's audition-only state.
+  if (controller.isNoteCaptureArmed()) {
+    placeRecordingStop(controller, track_id);
+    return;
+  }
+  // Auditioning: same quantized stop every other stop path here uses if
+  // something's actually triggered; a not-yet-started pending join is
+  // simply cancelled outright instead (same "nothing playing yet to
+  // release" reasoning placeRecordingStop() has for the recording case); a
+  // total no-op if the track isn't doing anything at all.
+  if (triggered_pattern_by_track_.find(track_id) != triggered_pattern_by_track_.end()) {
+    queued_pattern_by_track_[track_id] = -1;
+  } else {
+    queued_pattern_by_track_.erase(track_id);
+  }
 }
 
 void
@@ -1406,6 +1546,15 @@ LaunchpadManager::triggerSessionClip(Controller & controller, int track_id, int 
   auto row = quantizedBarRow(raw_row, song.getRowsPerBar());
   placeClipInstance(song, scene, track_id, row, clip_index);
   song.incVersion();
+}
+
+void
+LaunchpadManager::triggerSceneRow(Controller & controller, int row) {
+  // Same y-flip Session view's own columns use (triggerSessionClip()'s
+  // own caller in handleSessionPadEvent()) - row 0 (bottom) is clip index
+  // 7, row 7 (top) is clip index 0.
+  auto clip_index = 7 - row;
+  for (auto track_id : session_.track_ids) triggerSessionClip(controller, track_id, clip_index);
 }
 
 void
@@ -1889,6 +2038,42 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
     }
   }
 
+  // Track-picker overlay (see DeviceState::track_picker_active's own
+  // comment): a post-process pass that only ever overwrites the picker
+  // row itself with each selectable track's own bright/dim purpose color
+  // (LAUNCHPAD_TRACK_PICKER_*_BRIGHT/DIM above - see
+  // LAUNCHPAD_TRACK_PICKER_ROW's own comment for what bright vs. dim means
+  // per purpose) - every other row is left exactly as Session view's own
+  // rendering above already computed it, since the overlay is Session-
+  // view-only now (GridMode's own comment) and Session view stays fully
+  // interactive underneath (UI::handleLaunchpadPadEvent only ever routes
+  // the picker row itself here - see isTrackPickerRow()). Colors already
+  // pushed in row-major (x + y*8) order above, matching this loop's own
+  // indexing.
+  if (state.track_picker_active) {
+    for (int x = 0; x < 8; x++) {
+      auto & c = colors[static_cast<size_t>(LAUNCHPAD_TRACK_PICKER_ROW * 8 + x)];
+      bool has_track = x < static_cast<int>(session_.track_ids.size());
+      Rgb pick_color { 0, 0, 0 };
+      if (has_track) {
+        switch (state.track_picker_purpose) {
+        case DeviceState::TrackPickerPurpose::STOP_CLIP:
+          pick_color = state.track_picker_playing[static_cast<size_t>(x)] ? LAUNCHPAD_TRACK_PICKER_STOP_CLIP_BRIGHT : LAUNCHPAD_TRACK_PICKER_STOP_CLIP_DIM;
+          break;
+        case DeviceState::TrackPickerPurpose::SOLO:
+          pick_color = state.track_picker_soloed[static_cast<size_t>(x)] ? LAUNCHPAD_TRACK_PICKER_SOLO_BRIGHT : LAUNCHPAD_TRACK_PICKER_SOLO_DIM;
+          break;
+        case DeviceState::TrackPickerPurpose::MUTE:
+          pick_color = state.track_picker_muted[static_cast<size_t>(x)] ? LAUNCHPAD_TRACK_PICKER_MUTE_DIM : LAUNCHPAD_TRACK_PICKER_MUTE_BRIGHT;
+          break;
+        }
+      }
+      c.r = pick_color.r;
+      c.g = pick_color.g;
+      c.b = pick_color.b;
+    }
+  }
+
   // Extra-button LEDs. CC numbers unreachable on X/Mini MK3 (30, 20 -
   // Pro MK3's left column) are harmless to include here: those models
   // simply don't have the physical button, so the colourspec entry has
@@ -1911,8 +2096,17 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // treatment rather than staying static. Custom stays lit-by-mode the
   // same way regardless of whether the assigned track actually has
   // anything to customize (see GridMode::CUSTOM's own comment) - same as
-  // Session/Note not caring what track type they land on either.
-  colors.push_back({95, state.grid_mode == GridMode::SESSION ? uint8_t(90) : uint8_t(20), state.grid_mode == GridMode::SESSION ? uint8_t(127) : uint8_t(20), 0});
+  // Session/Note not caring what track type they land on either. Session
+  // itself also carries its own mixer-submode indicator (DeviceState::
+  // session_mixer_mode) - green while active and in scene-launch (the
+  // default) submode, orange while active and in mixer submode instead,
+  // dim green while not active at all - "active" meaning anywhere in the
+  // family (inSessionMixerFamily()), not just the plain grid, so a fader/
+  // picker still reads as "Session" underneath.
+  {
+    Rgb session_color = !inSessionMixerFamily(state) ? Rgb{0, 20, 0} : state.session_mixer_mode ? Rgb{127, 64, 0} : Rgb{0, 127, 0};
+    colors.push_back({95, session_color.r, session_color.g, session_color.b});
+  }
   colors.push_back({96, state.grid_mode == GridMode::NOTES ? uint8_t(90) : uint8_t(20), state.grid_mode == GridMode::NOTES ? uint8_t(90) : uint8_t(20), state.grid_mode == GridMode::NOTES ? uint8_t(90) : uint8_t(20)});
   colors.push_back({97, state.grid_mode == GridMode::CUSTOM ? uint8_t(90) : uint8_t(20), 0, state.grid_mode == GridMode::CUSTOM ? uint8_t(127) : uint8_t(20)});
   colors.push_back({98, state.grid_mode == GridMode::DRAW ? uint8_t(90) : uint8_t(20), 0, state.grid_mode == GridMode::DRAW ? uint8_t(127) : uint8_t(20)});
@@ -1921,33 +2115,44 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // real Launchpad X hardware - see handleRawButton()'s own comment - so
   // it's left off/reserved rather than wired to reflect any state.
   colors.push_back({99, 0, 0, 0});
-  // Right column: 89/79/69/59 are the Volume/Pan/Send A/Send B mode
-  // buttons (Volume repurposed as Send Main - see handleRawButton()) -
-  // static colors (matching each mode's own grid base color, dimmed), no
-  // active/inactive state needed (see the grid-mode painting above, whose
-  // own repaint is the confirmation a press registered). 39/29 are Mute/
-  // Solo (real commands, not a mode toggle - see LaunchpadProtocol::
-  // commandForButton) and do need active-state colors, matching the
-  // Pro-MK3-left-column entries' own convention exactly. 19 is Record Arm -
-  // reuses the red Capture-MIDI LED used to show (see 39/30, which moved
-  // to blue to make room) before that toggle moved here from CC98 (now
-  // reused for the drum machine's own configuration button - see above).
-  // 49 is Stop Clip - see its own indicator below.
-  colors.push_back({19, state.record_arm_led_on ? uint8_t(127) : uint8_t(20), 0, 0}); // record-arm toggle
-  colors.push_back({29, state.solo ? uint8_t(127) : uint8_t(20), state.solo ? uint8_t(127) : uint8_t(20), 0}); // toggle-solo
-  colors.push_back({39, 0, 0, state.muted ? uint8_t(127) : uint8_t(20)}); // toggle-mute (blue - red moved to Record Arm, CC19)
+  // Volume/Pan/SendA/SendB/Stop Clip/Mute/Solo (89/79/69/59/49/39/29, and
+  // Pro MK3 left-column twins 30/20) are Session's own mixer-submode
+  // radio group (DeviceState::session_mixer_mode/GridMode's own comment):
+  // while that submode is off (the default), all seven are plain
+  // scene-launch triggers with no state of their own to show, so they go
+  // uniformly dim white - LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR - rather
+  // than any of their mixer-mode hues, which would otherwise misleadingly
+  // suggest a fader/picker is one press away. While it's on, each shows
+  // its own hue (LAUNCHPAD_TRACK_PICKER_*_BRIGHT/DIM above for the three
+  // picker purposes - the exact same colors the picker row itself shows,
+  // since which target track the action lands on isn't decided until a
+  // pad there is actually pressed; a parallel BRIGHT/dim pair for the
+  // four fader modes below) at full brightness for whichever one of the
+  // seven is currently active, dim otherwise - never more than one bright
+  // at once, matching the radio group's own "only one active" rule
+  // (inSessionMixerFamily()).
+  bool mixer_mode = state.session_mixer_mode;
+  bool picker_mute = state.track_picker_active && state.track_picker_purpose == DeviceState::TrackPickerPurpose::MUTE;
+  bool picker_solo = state.track_picker_active && state.track_picker_purpose == DeviceState::TrackPickerPurpose::SOLO;
+  bool picker_stop_clip = state.track_picker_active && state.track_picker_purpose == DeviceState::TrackPickerPurpose::STOP_CLIP;
+  Rgb stop_clip_button_color = !mixer_mode ? LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR : picker_stop_clip ? LAUNCHPAD_TRACK_PICKER_STOP_CLIP_BRIGHT : LAUNCHPAD_TRACK_PICKER_STOP_CLIP_DIM;
+  Rgb solo_button_color = !mixer_mode ? LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR : picker_solo ? LAUNCHPAD_TRACK_PICKER_SOLO_BRIGHT : LAUNCHPAD_TRACK_PICKER_SOLO_DIM;
+  Rgb mute_button_color = !mixer_mode ? LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR : picker_mute ? LAUNCHPAD_TRACK_PICKER_MUTE_BRIGHT : LAUNCHPAD_TRACK_PICKER_MUTE_DIM;
+  Rgb send_b_button_color = !mixer_mode ? LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR : state.grid_mode == GridMode::SEND_B ? LAUNCHPAD_MIXER_SEND_B_BRIGHT : LAUNCHPAD_MIXER_SEND_B_DIM;
+  Rgb send_a_button_color = !mixer_mode ? LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR : state.grid_mode == GridMode::SEND_A ? LAUNCHPAD_MIXER_SEND_A_BRIGHT : LAUNCHPAD_MIXER_SEND_A_DIM;
+  Rgb pan_button_color = !mixer_mode ? LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR : state.grid_mode == GridMode::PAN ? LAUNCHPAD_MIXER_PAN_BRIGHT : LAUNCHPAD_MIXER_PAN_DIM;
+  Rgb volume_button_color = !mixer_mode ? LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR : state.grid_mode == GridMode::SEND_MAIN ? LAUNCHPAD_MIXER_VOLUME_BRIGHT : LAUNCHPAD_MIXER_VOLUME_DIM;
 
-  // Stop Clip (CC49): lit while held down (DeviceState::stop_clip_held) -
-  // confirms the device is currently in "the next pad I touch stops that
-  // column's track" mode, same active-state convention as Session/Note/
-  // Custom/CC98 above.
-  colors.push_back({49, state.stop_clip_held ? uint8_t(127) : uint8_t(20), 0, 0});
-  colors.push_back({59, 40, 0, 40});  // Send B physical button -> send-b-mode, dim magenta (static)
-  colors.push_back({69, 0, 40, 40});  // Send A physical button -> send-a-mode, dim cyan (static)
-  colors.push_back({79, 40, 20, 0});  // Pan physical button -> pan-mode, dim orange (static)
-  colors.push_back({89, 40, 40, 0});  // Volume physical button -> send-main-mode, dim yellow (static)
-  colors.push_back({30, 0, 0, state.muted ? uint8_t(127) : uint8_t(20)}); // toggle-mute (Pro MK3 left column pos. 6; blue - see CC39)
-  colors.push_back({20, state.solo ? uint8_t(127) : uint8_t(20), state.solo ? uint8_t(127) : uint8_t(20), 0}); // toggle-solo (Pro MK3 left column pos. 7)
+  colors.push_back({19, state.record_arm_led_on ? uint8_t(127) : uint8_t(20), 0, 0}); // record-arm toggle - untouched by mixer submode
+  colors.push_back({29, solo_button_color.r, solo_button_color.g, solo_button_color.b});
+  colors.push_back({39, mute_button_color.r, mute_button_color.g, mute_button_color.b});
+  colors.push_back({49, stop_clip_button_color.r, stop_clip_button_color.g, stop_clip_button_color.b});
+  colors.push_back({59, send_b_button_color.r, send_b_button_color.g, send_b_button_color.b});
+  colors.push_back({69, send_a_button_color.r, send_a_button_color.g, send_a_button_color.b});
+  colors.push_back({79, pan_button_color.r, pan_button_color.g, pan_button_color.b});
+  colors.push_back({89, volume_button_color.r, volume_button_color.g, volume_button_color.b});
+  colors.push_back({30, mute_button_color.r, mute_button_color.g, mute_button_color.b}); // Pro MK3 left column pos. 6 - same as CC39
+  colors.push_back({20, solo_button_color.r, solo_button_color.g, solo_button_color.b}); // Pro MK3 left column pos. 7 - same as CC29
 
   // Only actually send when the computed colors changed since the last
   // send - continuous brightness fades mean refreshLeds() is now called
@@ -2257,6 +2462,14 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   // scroll yet either, so a track with more than 8 clips only
   // shows the first 8 for now.
   array<Color, 64> session_colors;
+  // The track-picker overlay's own per-track state (see
+  // DeviceState::track_picker_active's own comment and
+  // LAUNCHPAD_TRACK_PICKER_ROW's own comment in this file for what each
+  // one drives) - computed alongside session_colors below since both walk
+  // the same per-track session.track_ids loop.
+  array<bool, 8> track_picker_playing {};
+  array<bool, 8> track_picker_soloed {};
+  array<bool, 8> track_picker_muted {};
   {
     SongStructure structure(song);
     const Color white(255, 255, 255);
@@ -2287,6 +2500,19 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
         resolveInstanceAt(song, *current_scene, session_track_id, playback_info.getRowIndex()).clip_index : -1;
       auto triggered_it = triggered_pattern_by_track_.find(session_track_id);
       auto queued_it = queued_pattern_by_track_.find(session_track_id);
+      // STOP_CLIP's own picker-row state: a real clip instance is active
+      // right now (playing), the same sentinel-checked source
+      // session_colors' own is_triggered below reads per-row - here it
+      // just needs to know whether *any* row is (kStopInstance/
+      // kNoInstance are both negative, so a real clip_index is >= 0).
+      track_picker_playing[static_cast<size_t>(x)] = use_real_position ?
+        real_active_clip_index >= 0 : triggered_it != triggered_pattern_by_track_.end();
+      auto track = song.getMasterTrack().getChildByInternalId(session_track_id);
+      if (track) {
+        auto & leaf_track = dynamic_cast<const LeafTrack &>(*track);
+        track_picker_soloed[static_cast<size_t>(x)] = leaf_track.isSolo();
+        track_picker_muted[static_cast<size_t>(x)] = leaf_track.isMuted();
+      }
       for (int y = 0; y < 8; y++) {
         auto clip_index = 7 - y;
         if (clip_index >= static_cast<int>(clips.size())) continue;
@@ -2330,7 +2556,6 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
 
     Tuning tuning = Tuning::TET12;
     int key_val = -1;
-    bool muted = false, solo = false;
     unordered_map<int, float> active_note_loudness;
     bool is_percussion = false;
     vector<int> drum_lane_notes;
@@ -2349,13 +2574,6 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       auto track = song.getMasterTrack().getChildByInternalId(track_id);
       tuning = track ? song.getTuningForTrack(*track) : song.getTuning();
       key_val = song.getKey();
-      // No track-type check needed - see track_send_main/etc.'s own
-      // identical comment above; track_ids already guarantees a LeafTrack.
-      if (track) {
-        auto & leaf_track = dynamic_cast<const LeafTrack&>(*track);
-        muted = leaf_track.isMuted();
-        solo = leaf_track.isSolo();
-      }
       is_percussion = track && track->getType() == TrackType::PERCUSSION_CONTROL;
       if (is_percussion) {
         auto & drum_track = static_cast<const PercussionTrack &>(*track);
@@ -2417,10 +2635,11 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     state.record_arm_led_on = note_capture_armed || controller.isThresholdArmed() || controller.isRecording();
     state.tuning = tuning;
     state.key = key_val;
-    state.muted = muted;
-    state.solo = solo;
     state.active_note_loudness = move(active_note_loudness);
     state.session_colors = session_colors;
+    state.track_picker_playing = track_picker_playing;
+    state.track_picker_soloed = track_picker_soloed;
+    state.track_picker_muted = track_picker_muted;
     state.track_send_main = track_send_main;
     state.track_send_a = track_send_a;
     state.track_send_b = track_send_b;

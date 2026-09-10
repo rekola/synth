@@ -350,20 +350,63 @@ whether or not a terminal UI exists at all.
   `CUSTOM` is deliberately generic ("customize whatever's assigned to
   this device") even though only the percussion lane picker is built for
   it today - a pitched `InstrumentTrack` assigned instead currently shows
-  nothing there.
+  nothing there. `SEND_MAIN`/`PAN`/`SEND_A`/`SEND_B`, plus the
+  track-picker overlay's three purposes (Stop Clip/Mute/Solo - see its
+  own bullet below), together form Session's own **mixer submode radio
+  group** (`DeviceState::session_mixer_mode`, off by default) - see the
+  Extra-button layout bullet below for what the same seven buttons do
+  while that submode is off, and how it's toggled; while it's on, only
+  one of the seven is ever active at once (`toggleGridMode()`/
+  `toggleTrackPicker()`/`inSessionMixerFamily()` - pressing a different
+  one always switches straight to it, even crossing between the fader-
+  as-`GridMode` and picker-as-overlay mechanisms; pressing the one
+  already active closes back to the plain Session grid). Reachable only
+  from `GridMode::SESSION` (a no-op from `NOTES`/`CUSTOM`/`DRAW`) - this
+  is what keeps the fader column mapping (the first 8 root tracks) from
+  ever disagreeing with the track-picker overlay's own column mapping
+  (`session_.track_ids`, Session view's own filtered list); the two lists
+  could differ, which used to read as the grid visibly "rotating"
+  underneath the picker row whenever both happened to be showing
+  together.
 - **Extra-button layout** (raw CC, intercepted directly in
   `LaunchpadManager::handleRawButton()`/`UI::handleLaunchpadButtonEvent()`
-  before any command-name resolution): 89/79/69/59 toggle SEND_MAIN
-  (Volume)/PAN/SEND_A/SEND_B; 95/96/97/98 (Session/Note/Custom/Draw) are a
-  true four-member exclusive group, not independent toggles - each press
-  selects that mode unconditionally, even pressing the one already
-  active, so the only way to leave a mode is selecting a *different* one
-  of the four (97/98's own tap-vs-long-hold gestures aside - see below);
-  19 is Record Arm (`capture_enabled_`, a single song-wide flag, not
-  per-device); 49 is Session-view-specific, see its own bullet below.
-  91/92/93/94 are move-row-up/down/prev-track/next-track (named
-  commands, via `LaunchpadProtocol::commandForButton()`); 39/29 are
-  Mute/Solo.
+  before any command-name resolution): 95/96/97/98 (Session/Note/Custom/
+  Draw) are a true four-member exclusive group, not independent toggles -
+  each press selects that mode unconditionally, even pressing the one
+  already active, so the only way to leave a mode is selecting a
+  *different* one of the four (97/98's own tap-vs-long-hold gestures aside
+  - see below); 19 is Record Arm (`capture_enabled_`, a single song-wide
+  flag, not per-device, deliberately untouched by everything below); 91/
+  92/93/94 are move-row-up/down/prev-track/next-track (named commands, via
+  `LaunchpadProtocol::commandForButton()`).
+  89/79/69/59/49/39/29 (Volume/Pan/Send A/Send B/Stop Clip/Mute/Solo, plus
+  Pro MK3 left-column twins 30/20 for Mute/Solo) share one dispatch, keyed
+  on Session's own mixer submode (`GridMode`'s own comment): **off** (the
+  default) - each launches a whole scene instead
+  (`LaunchpadManager::triggerSceneRow()`, `row = (cc_number - 19) / 10` -
+  the classic Launchpad right-column convention, matching every visible
+  track's own clip at that row simultaneously, through the same
+  audition/assign (Record Arm) split an ordinary Session pad press
+  already goes through) - **on** - each is the mixer radio group instead:
+  Volume/Pan/SendA/SendB enter that fader `GridMode`
+  (`toggleGridMode()`), Stop Clip/Mute/Solo open/retarget the
+  track-picker overlay (`toggleTrackPicker()`) with their own purpose.
+  Either way Mute/Solo no longer act on the currently-followed track
+  directly the way "toggle-mute"/"toggle-solo" (`PatternEditor`'s own
+  `commands_`, still reachable via keybinding/M-x) do. 95 ("Session")
+  doubles as the mixer-submode toggle: a repeat press while already at
+  the plain Session grid with nothing from the radio group active flips
+  `session_mixer_mode`; any press otherwise just lands on (or stays on)
+  that plain grid, closing an active fader/picker first if there was one.
+  Session's own LED (95) reflects this three ways: dim green when not
+  showing anything from the Session family at all, bright green while
+  showing it in scene-launch (the default) submode, bright **orange**
+  while showing it in mixer submode instead. While mixer submode is off,
+  all seven of Volume/Pan/SendA/SendB/Stop Clip/Mute/Solo show a uniform
+  dim white (`LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR`) rather than any
+  mixer-mode hue, which would otherwise misleadingly suggest a fader/
+  picker is one press away; once mixer submode is on, each shows its own
+  hue, bright only for whichever one is currently active.
 - **DRAW mode** (CC98, "Capture MIDI") - a plain per-pad coloring toy,
   independent of Song/Track state. Its own tap-vs-long-hold gesture:
   entering DRAW happens immediately on press; a quick release while
@@ -432,12 +475,55 @@ whether or not a terminal UI exists at all.
   active pad, both queue a stop; either way the track's voices are
   released through their natural `stopNote()` tail once the stop actually
   takes effect (`InstrumentTrackState::stopAllVoices()`, a
-  `STOP_ALL_NOTES` playback event), not left ringing or hard-cut. Stop
-  Clip (CC49) is a held modifier, not a plain press - Session view shows
-  several tracks at once as columns with no visible "current" one to
-  target, so holding it and pressing any pad in a column stops that
-  column's own track (`handleStopClipButton()` just tracks the hold;
-  `handleSessionPadEvent()` does the actual stopping).
+  `STOP_ALL_NOTES` playback event), not left ringing or hard-cut. Stopping
+  a track this way (as opposed to a plain press retriggering/reassigning
+  it) goes through the track-picker overlay - see its own bullet below.
+- **Track-picker overlay** (`LaunchpadManager::toggleTrackPicker()`/
+  `handleTrackPickerPadEvent()`/`isTrackPickerRow()`, `DeviceState::
+  track_picker_active`/`track_picker_purpose`) - three of the seven
+  members of Session's own mixer submode radio group (`GridMode`'s own
+  comment covers the other four, and the submode toggle itself); this
+  bullet is about what its own three purposes (Stop Clip/Mute/Solo) look
+  like on the grid once the group as a whole is reachable at all. Session-
+  view-only like the other four: pressing Stop Clip (CC49), Mute (CC39/
+  Pro MK3 30) or Solo (CC29/Pro MK3 20) is a no-op from any other
+  `grid_mode`, and every `grid_mode` reassignment site that moves off
+  `SESSION` closes the overlay if it was open, so it can never be showing
+  over anything else. This is what lets it light just the
+  bottom grid row with one pad per selectable track and otherwise leave
+  Session view's own rendering completely untouched - no dimming, and
+  every row but the picker row still reaches Session view's own pad
+  handling exactly as if the overlay weren't open (`isTrackPickerRow()`
+  is what `UI::handleLaunchpadPadEvent()` uses to route only that one row
+  here). Earlier revisions dimmed the rest of the grid and swallowed
+  presses there, and could be opened from any `GridMode`; both were
+  dropped once opening it over Send/Pan turned out to show the picker
+  row's own track-column order (`session_.track_ids`, Session view's
+  filtered list) alongside Send/Pan's *different* column order (the first
+  8 root tracks) at once, which read as the grid "rotating" underneath
+  the picker row - restricting both to Session view removes the only
+  situation where the two mappings could ever disagree.
+  The picker row's own pad colors don't use per-track identity color the
+  way Session view's columns do: every pad in the row shares one hue
+  naming which action is about to happen (red/Stop Clip, blue/Solo,
+  yellow/Mute - the opener button's own LED matches), with brightness
+  telling columns apart within that hue, keyed to that purpose's own
+  already-armed state for that column's track - bright means "a clip is
+  actually playing" (Stop Clip), "already soloed" (Solo), or "*not*
+  already muted" (Mute - a muted channel reads as dark, not lit, the same
+  way a fader bottoming out does). Picking a track there performs that
+  button's own purpose (a Session-view-style quantized stop for Stop
+  Clip; `Controller::toggleTrackMuted()`/`toggleTrackSolo()` for
+  Mute/Solo) but deliberately leaves the overlay open - every purpose is
+  a toggle, so several picks in a row can mute/solo/stop a handful of
+  tracks without reopening it each time; pressing the same opener button
+  again is what closes it (with nothing picked), and pressing a
+  *different* opener button while it's already open just retargets it to
+  the new purpose
+  (`toggleTrackPicker()`). Mute/Solo no longer act on the
+  currently-followed track directly once triggered from a Launchpad this
+  way - "toggle-mute"/"toggle-solo" (`PatternEditor`'s own `commands_`)
+  are still reachable unchanged via keybinding/M-x.
 - **`ArrangementGrid`** (`src/ui/tui/ArrangementGrid.h`/`.cpp`) - the terminal-
   side counterpart: an always-visible overview in the scope row. A scene
   is a title row (its own name, full width - scenes are told apart by
@@ -461,8 +547,23 @@ whether or not a terminal UI exists at all.
   directory's own `README.md`) covers Session view's basic trigger/assign
   path; `verify_launchpad_notecustom.py`/`verify_launchpad_draw_clear.py`
   cover CC96/CC97/CC98's own mode-switch and long-hold gestures;
-  `verify_launchpad_stopclip.py` covers the CC49 hold+column-press
-  redesign above.
+  `verify_launchpad_stopclip.py` covers the track-picker overlay's CC49
+  purpose above (open/pick/close, staying open across a pick);
+  `verify_launchpad_mute_picker.py` covers the CC39 purpose (bright/dim
+  polarity, the overlay leaving Session view's own rendering untouched
+  outside the picker row) without ever needing real playback, sidestepping
+  the sandboxed-environment ALSA contention documented in
+  `docs/known_bugs.md` for `verify_launchpad_stopclip.py`, and also
+  exercises Session's own mixer-submode toggle (a second CC95 press) and
+  its green/orange LED, since CC39 means nothing at all until that submode
+  is on; Solo's own CC29 purpose reuses the identical mechanism but has no
+  dedicated e2e script of its own yet, nor does the scene-launch action
+  the same seven buttons perform while mixer submode is off
+  (`LaunchpadManager::triggerSceneRow()`). Every e2e script spawns `synth`
+  with `SYNTH_LAUNCHPAD_NO_HARDWARE=1` (`tools/e2e/harness.py`'s own
+  `spawn()`) so it only ever connects to the fake simulator it's actually
+  testing, never any real Launchpad hardware also plugged into the same
+  machine (`LaunchpadIO.h`'s own `ignore_hardware_` comment).
 
 ## Layout
 
@@ -771,11 +872,6 @@ whether or not a terminal UI exists at all.
   separated from song model objects so playback state can be reset cheaply.
 - The build enables many `-Werror=` flags plus `-Wsign-conversion`; new code
   must compile warning-clean.
-- "Oscillator" (standard spelling, two l's) - a codebase-local convention
-  that used to spell it "Oscilator" (single l) survived until the class/
-  file/XML-element rename that fixed it; if you see the old spelling
-  anywhere (a stray comment, an unrenamed reference), it's a leftover to
-  fix, not a convention to preserve.
 - Comments: keep them short (a one-liner covers most cases). Don't point
   at something outside the code to explain the code - state the reasoning
   directly instead of citing: a `plans/*.md` file (they get deleted once

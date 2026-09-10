@@ -87,6 +87,21 @@ class LaunchpadIO {
   void handlePortStart(int client, int port);
   void handlePortExit(int client, int port);
 
+  // True when the SYNTH_LAUNCHPAD_NO_HARDWARE environment variable is set
+  // (any non-empty value), read once in initialize() - both scanForDevices()
+  // and handlePortStart() then skip any matching ALSA client whose own
+  // snd_seq_client_info_get_type() is SND_SEQ_KERNEL_CLIENT (real hardware)
+  // rather than SND_SEQ_USER_CLIENT. Exists for the e2e test harness
+  // (tools/e2e/harness.py): a fake_launchpad_*.c simulator registers under
+  // the exact same device name a real Launchpad does, so on a machine that
+  // also has one physically connected, a synth spawned for a test would
+  // otherwise auto-connect to both at once - sending real hardware LED
+  // updates it doesn't need to, and (worse) picking up any stray traffic
+  // the real device happens to emit as if it were the simulator's own (see
+  // docs/known_bugs.md). No effect on an interactive session - nothing
+  // sets this outside the test harness.
+  bool ignore_hardware_ = false;
+
   snd_seq_t * seq_handle = nullptr;
   int our_port = -1;
   Logger * logger_ = nullptr;
