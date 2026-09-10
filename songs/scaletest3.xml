@@ -8,8 +8,8 @@
     <track id="0" instrument="0" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle" />
   </tracks>
   
-  <scenes>
-    <scene length="42">
+  <sections>
+    <section length="42">
       <pattern track="0">
         <note row="0" velocity="80" value="C-4" />
         <note row="2" velocity="80" value="Cx4" />
@@ -22,8 +22,8 @@
         <note row="16" velocity="80" value="B-4" />
         <note row="18" velocity="80" value="C-5" />
       </pattern>
-    </scene>
-    <scene length="42">
+    </section>
+    <section length="42">
       <annotation row="0">C quartal major</annotation>
       <annotation row="4">C𝄪 quartal minor aug</annotation>
       <annotation row="8">D# ?</annotation>
@@ -62,6 +62,6 @@
         <note row="32" column="1" velocity="80" value="C𝄪5" />
         <note row="32" column="2" velocity="80" value="E-5" />
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

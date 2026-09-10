@@ -30,8 +30,8 @@
     <percussionTrack id="perc" />
   </tracks>
   
-  <scenes>
-    <scene length="2">
+  <sections>
+    <section length="2">
       <pattern track="perc">
         <note row="0" velocity="40" delay="60">CH BD</note>
         <note row="2" velocity="40">OFF BD</note>
@@ -48,8 +48,8 @@
         <note row="28" velocity="40" delay="60">CH BD</note>
         <note row="30" velocity="40">CH</note>
       </pattern>
-    </scene>
-    <scene length="2">
+    </section>
+    <section length="2">
       <pattern track="perc">
         <note row="0" velocity="40">BD CH</note>
         <note row="2" velocity="40">BD2</note>
@@ -66,6 +66,6 @@
         <note row="28" velocity="40">BD CH</note>
         <note row="30" velocity="40">CH</note>
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

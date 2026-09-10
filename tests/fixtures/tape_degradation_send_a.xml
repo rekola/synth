@@ -10,11 +10,11 @@
       <track id="0" instrument="0" sendA="-6.0206"/>
     </tapeDegradation>
   </tracks>
-  <scenes>
-    <scene>
+  <sections>
+    <section>
       <pattern track="0">
         <note row="0" velocity="80" value="C-4" />
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

@@ -10,8 +10,8 @@
     <track id="1" instrument="1" azimuth="-30" distance="1" elevation="50" sendA="-9.1186" />
   </tracks>
   
-  <scenes>
-    <scene length="4">
+  <sections>
+    <section length="4">
       <pattern track="0">
         <note row="0" velocity="40">C-4 C-3 F-3</note>
         <note row="2" velocity="40">D#4</note>
@@ -52,6 +52,6 @@
         <note row="32" velocity="40">E-4</note>
         <note row="48" velocity="40">Db4</note>
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

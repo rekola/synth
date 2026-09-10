@@ -41,8 +41,8 @@
     </amplifier>
   </tracks>
   
-  <scenes>
-    <scene length="8">
+  <sections>
+    <section length="8">
       <pattern track="lead">
         <note row="0" velocity="40">D#5</note>
         <note row="4" velocity="40">D#5</note>
@@ -67,6 +67,6 @@
       <pattern track="chords">
         <note row="0">D#3 C-4 A𝄰4</note>
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

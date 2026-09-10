@@ -14,8 +14,8 @@
     <track id="0" instrument="0" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle"/>
   </tracks>
   
-  <scenes>
-    <scene length="42">
+  <sections>
+    <section length="42">
       <pattern track="0">
         <note row="0" column="0" velocity="80" value="C-3" />
         <note row="0" column="1" velocity="80" value="C-4" />
@@ -33,6 +33,6 @@
         <note row="24" column="1" velocity="80" value="D#4" />
         <note row="28" column="1" velocity="80" value="C-4" />
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

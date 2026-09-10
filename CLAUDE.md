@@ -419,7 +419,7 @@ whether or not a terminal UI exists at all.
   (free note entry through the free-drumming percussion pad layout, a
   fixed family/color arrangement of GM sounds, not an isomorphic pitched
   grid); once it has at least one lane (`isStepSequenced()`) its grid
-  becomes a step sequencer instead. Its step data is a real per-scene
+  becomes a step sequencer instead. Its step data is a real per-section
   `Pattern` like any other track's (a step is a `Note`), not
   track-global, so it's copy/paste-able through `PatternEditor`'s own
   clipboard and renders as its compact one-cell-per-lane view. On a
@@ -440,15 +440,15 @@ whether or not a terminal UI exists at all.
 - **Clips** (`Clip`, `src/model/Clip.h`; `Song::getClips(track_id)`/
   `addClip()`, backed by `std::unordered_map<int, std::vector<Clip>>
   clips_by_track_`) - reusable, shareable content keyed by leaf track id,
-  outside any one scene position: one `Pattern` per track it touches
+  outside any one section position: one `Pattern` per track it touches
   (today always just the leaf track's own - the storage shape already
   supports more, e.g. a nested Effect track's own automation captured
   alongside it, but that's unbuilt). Editing a clip through any one of its
   placements (`ArrangementOps.h`'s `placeClipInstance()`/
   `resolveInstanceAt()`, see `ArrangementGrid` below) updates every other
-  placement of it immediately - unlike a scene's own inline Pattern
+  placement of it immediately - unlike a section's own inline Pattern
   content, which is always an independent copy. Persisted in a top-level
-  `<clips>` element, sibling to `<tracks>`/`<scenes>`
+  `<clips>` element, sibling to `<tracks>`/`<sections>`
   (`<trackClips track="..."><clip id="..." name="..." loop="..."
   length="..."><pattern>...</pattern></clip></trackClips>`, one
   `<trackClips>` per track). Authored in-app via `PatternEditor::
@@ -460,7 +460,7 @@ whether or not a terminal UI exists at all.
   every connected device follows (`fallback_track_index`, from
   `PatternEditor::getCursorTrackIndex()` - no per-device track-follow/
   detachment). Record Arm gates trigger-live (off) vs. assign-into-the-
-  current-scene (on), the same "just play" vs. "store into the pattern"
+  current-section (on), the same "just play" vs. "store into the pattern"
   choice ordinary note entry already makes. Auditioning uses the same
   free-running clock (`audition_clock_`) the drum step-grid's own
   auditioning already used, generalized (`LaunchpadManager::
@@ -525,8 +525,8 @@ whether or not a terminal UI exists at all.
   way - "toggle-mute"/"toggle-solo" (`PatternEditor`'s own `commands_`)
   are still reachable unchanged via keybinding/M-x.
 - **`ArrangementGrid`** (`src/ui/tui/ArrangementGrid.h`/`.cpp`) - the terminal-
-  side counterpart: an always-visible overview in the scope row. A scene
-  is a title row (its own name, full width - scenes are told apart by
+  side counterpart: an always-visible overview in the scope row. A section
+  is a title row (its own name, full width - sections are told apart by
   name, not by number; Enter on a title row edits it in place) followed
   by its own bar rows, columns = tracks. A placed clip instance renders as
   a colored block (that track's own identity color) spanning its own
@@ -537,7 +537,7 @@ whether or not a terminal UI exists at all.
   instance falls back to a page/empty-page glyph showing whether the
   background has anything there. No per-cell copy/paste - placing/moving
   clip content is `copy-to-clip`'s own job, from `PatternEditor`. Track/
-  scene selection is the one shared cursor Session view also follows.
+  section selection is the one shared cursor Session view also follows.
 - **Defaults**: a fresh session opens on `ArrangementGrid` (Session/
   overview focus, `UI::initialize()`'s `active_element_`) rather than
   straight into note entry, and `GridMode` defaults to `SESSION` on every
@@ -574,12 +574,19 @@ whether or not a terminal UI exists at all.
   state, playback, instruments, ambisonic mixer selection, UI wiring -
   so it sits above the split rather than being forced into one slice of
   it). The topic directories:
-  - `src/model/` — the persisted song data: `Song`/`Scene`/`Pattern`/
-    `Track` (`Song` holds a flat, sequentially-played `vector<Scene>`;
-    each `Scene` is one point in the song, holding one `Pattern` — a
-    track's own note/command content, no `track_id` in it anywhere —
-    per track that has anything there, plus that scene's own row-keyed
-    annotations) and their value types (`Note`, `Command`, `SendLevels`, …).
+  - `src/model/` — the persisted song data: `Song`/`Section`/`Pattern`/
+    `Track` (`Song` holds a flat, sequentially-played `vector<Section>`;
+    each `Section` is one span in the song's linear arrangement (a real
+    length in bars, not a single-row marker), holding up
+    to four kinds of per-track content - the arrangement layer's own
+    instance events (which `Clip`, if any, starts at a given row, or an
+    explicit stop - the primary way content reaches a `Section` today, see
+    `Clips`/`ArrangementOps.h` below), a directly-inline `Pattern` — a
+    track's own note/command content, no `track_id` in it anywhere, always
+    an independent copy unlike a `Clip`'s own shared content — a
+    `SampleTrack`'s own merged background audio bed, and that section's own
+    row-keyed annotations) and their value types (`Note`, `Command`,
+    `SendLevels`, …).
   - `src/state/` — the parallel, cheaply-resettable playback-state
     objects (`*State.h`) mirroring the model objects above.
   - `src/playback/` — `Player` (sequencer) and the event vocabulary it

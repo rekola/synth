@@ -13,8 +13,8 @@
       <lane note="CR"/>
     </percussionTrack>
   </tracks>
-  <scenes>
-    <scene>
+  <sections>
+    <section>
       <pattern track="0" length="8">
         <note row="0" velocity="100" value="BD"/>
         <note row="4" velocity="100" value="BD"/>
@@ -24,6 +24,6 @@
         <note row="4" column="2" velocity="100" value="CH"/>
         <note row="6" column="2" velocity="100" value="CH"/>
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

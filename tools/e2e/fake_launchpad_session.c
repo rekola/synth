@@ -4,7 +4,7 @@
 // Arms Record Arm (CC19) first, then presses pad (0,0): x=0 (the fixture's
 // only track), y=0 -> pool index 7 (see LaunchpadManager::
 // handleSessionPadEvent's own y-flip comment) - to confirm the press
-// assigns that pooled pattern into the current scene rather than falling
+// assigns that pooled pattern into the current section rather than falling
 // through to ordinary NOTES-mode note entry.
 #include <alsa/asoundlib.h>
 #include <stdio.h>

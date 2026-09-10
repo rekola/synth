@@ -71,7 +71,7 @@ public:
 	      } else {
 		// ev.getNoteCoordinate(): the note's own stable coordinate,
 		// built once at SongState.h's scheduling loop from its
-		// authored (track, scene, row, column) position - what
+		// authored (track, section, row, column) position - what
 		// InstrumentVoice's own constructor derives this note's start
 		// phase from, decorrelating repeated/unison identical
 		// oscillators so they don't comb-filter when summed. Routed

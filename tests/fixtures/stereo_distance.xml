@@ -9,14 +9,14 @@
     <track id="0" instrument="0" distance="1"/>
     <track id="1" instrument="0" distance="2"/>
   </tracks>
-  <scenes>
-    <scene>
+  <sections>
+    <section>
       <pattern track="0">
         <note row="0" velocity="80" value="C-4" />
       </pattern>
       <pattern track="1">
         <note row="8" velocity="80" value="C-4" />
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

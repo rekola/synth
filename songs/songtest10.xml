@@ -6,8 +6,8 @@
     <tracks>
         <track id="0" />
     </tracks>
-    <scenes>
-      <scene length="32">
+    <sections>
+      <section length="32">
         <pattern track="0">
           <note row="9" velocity="20">D♯6</note>
           <note row="13" velocity="0">OFF</note>
@@ -58,6 +58,6 @@
           <note row="92" velocity="25">G-5</note>
           <note row="95" velocity="0">OFF</note>
         </pattern>
-      </scene>
-    </scenes>
+      </section>
+    </sections>
 </song>

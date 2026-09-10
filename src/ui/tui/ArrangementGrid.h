@@ -10,12 +10,12 @@ class InputEvent;
 class StyleProvider;
 class Song;
 
-// Always-visible overview of the whole song: each scene occupies a title
-// row (its own name, spanning the full width - no per-scene numbering
-// any more, a name is how scenes are told apart) followed by its own
-// bar rows (Song::getRowsPerBar() rows each - a scene spans as many bar
-// rows as it has bars, its own Scene::getLengthBars() - see
-// barsPerScene()'s own comment). Columns (within the bar rows) = tracks -
+// Always-visible overview of the whole song: each section occupies a title
+// row (its own name, spanning the full width - no per-section numbering
+// any more, a name is how sections are told apart) followed by its own
+// bar rows (Song::getRowsPerBar() rows each - a section spans as many bar
+// rows as it has bars, its own Section::getLengthBars() - see
+// barsPerSection()'s own comment). Columns (within the bar rows) = tracks -
 // Song::getRootTrackIds()
 // filtered down to only color-eligible ones (see getVisibleTrackIds()). A
 // clip instance renders as a colored capsule (that track's own identity
@@ -25,7 +25,7 @@ class Song;
 // Session view's rows already address) flanked by half-width padding
 // cells shared with whichever neighboring track/edge sits on the other
 // side (see render()'s own half-block drawing) - confined to the one
-// scene it's placed in, resolved the same way real playback does
+// section it's placed in, resolved the same way real playback does
 // (ArrangementOps.h's own resolveInstanceAt(), once per bar's own leading
 // row); every later bar it's still active through repeats the same
 // capsule with a blank identifier cell instead of the digit. A colored
@@ -52,11 +52,11 @@ class Song;
 // while stopped with focus elsewhere, so the playhead never scrolls
 // itself out of view (see render()'s own comment on why exactly one of
 // the two, never both, drives the scroll position in any given frame).
-// On a bar row, Enter commits the (track, scene, row) under the cursor to shared state
+// On a bar row, Enter commits the (track, section, row) under the cursor to shared state
 // - see commit_callback_ below, which UI wires up (this class has no
 // idea PatternEditor, the playhead, or Launchpad even exist). On a title
-// row, Enter instead opens that scene's own name for editing in place -
-// see startSceneRename().
+// row, Enter instead opens that section's own name for editing in place -
+// see startSectionRename().
 class ArrangementGrid : public UIElement {
  public:
   ArrangementGrid(UIPlane & parent);
@@ -74,15 +74,15 @@ class ArrangementGrid : public UIElement {
   bool render(const StyleProvider & styles, bool refresh, bool focused, int selected_track_id);
   bool offerInput(const InputEvent & input) override;
 
-  // Called (once, from UI::initialize()) with the (track_id, scene_idx,
+  // Called (once, from UI::initialize()) with the (track_id, section_idx,
   // row) under the cursor whenever Enter commits it - row is the exact
   // row PatternEditor should land on (cursor_bar_ * rows_per_bar), since
-  // the cursor has bar-level granularity within a scene, not just a
-  // scene-level one. Not a commands_-registered command - Enter plays
+  // the cursor has bar-level granularity within a section, not just a
+  // section-level one. Not a commands_-registered command - Enter plays
   // the same special, directly-checked role here that it already does in
   // PatternEditor's own offerInput() (reader commit, annotation edit,
   // ...), not a keymap-bound one.
-  void setCommitCallback(std::function<void(int track_id, int scene_idx, int row)> cb) { commit_callback_ = std::move(cb); }
+  void setCommitCallback(std::function<void(int track_id, int section_idx, int row)> cb) { commit_callback_ = std::move(cb); }
 
   // Called when Right is pressed with the cursor already on the last
   // (rightmost) track column - leaving the overview back into
@@ -105,56 +105,56 @@ class ArrangementGrid : public UIElement {
   // to wherever the cursor happened to be left last time.
   void setCursorTrackIndex(int track_index) { cursor_track_index_ = track_index; }
 
-  // The scene index the cursor currently sits on - Launchpad's own
+  // The section index the cursor currently sits on - Launchpad's own
   // Session view reads this (via UI::renderComponents()'s own
-  // SessionWindow) so a pad's "assign" press knows which scene to write
+  // SessionWindow) so a pad's "assign" press knows which section to write
   // the picked clip's pattern into, matching this grid's own displayed
   // cursor rather than a separately-tracked position.
-  int getCursorScene() const { return cursor_scene_; }
+  int getCursorSection() const { return cursor_section_; }
 
-  // Moves the cursor by one scene (+1/-1), landing on that scene's own
+  // Moves the cursor by one section (+1/-1), landing on that section's own
   // bar 0 - the same clamp offerInput()'s own NCKEY_UP/NCKEY_DOWN
-  // handling uses (one position past the last real Scene is still
-  // valid), just at this method's own coarser whole-scene granularity.
+  // handling uses (one position past the last real Section is still
+  // valid), just at this method's own coarser whole-section granularity.
   // Launchpad's own Session view wires its up/down buttons to this (via
   // UI) rather than scrolling its own pad-grid row window, since Session
   // view has no per-bar concept of its own to move by.
-  void moveCursorScene(const Song & song, int delta);
+  void moveCursorSection(const Song & song, int delta);
 
  private:
-  // Bars in scene `scene_idx` - Song::getEffectiveSceneLength(scene_idx)
+  // Bars in section `section_idx` - Song::getEffectiveSectionLength(section_idx)
   // converted to bars via getRowsPerBar(). Always at least 1, even with a
-  // degenerate rowsPerBar/scene-length configuration - a grid needs
+  // degenerate rowsPerBar/section-length configuration - a grid needs
   // somewhere to put the cursor regardless.
-  int barsPerScene(const Song & song, int scene_idx) const;
+  int barsPerSection(const Song & song, int section_idx) const;
 
-  // Cumulative flat-row offset of every real scene's own title row, plus
+  // Cumulative flat-row offset of every real section's own title row, plus
   // one trailing sentinel (== total flat rows - the virtual "one past the
-  // end" scene's own title row). Rebuilt fresh every time it's needed
-  // (offerInput()'s own cursor navigation, render(), startSceneRename())
-  // rather than cached - O(num_scenes), consistent with the model layer's
+  // end" section's own title row). Rebuilt fresh every time it's needed
+  // (offerInput()'s own cursor navigation, render(), startSectionRename())
+  // rather than cached - O(num_sections), consistent with the model layer's
   // own "small counts, no precomputed table" choice (ArrangementOps.h's
   // resolveInstanceAt()/Song::toAbsoluteRow()).
-  std::vector<int> buildSceneFlatStarts(const Song & song) const;
+  std::vector<int> buildSectionFlatStarts(const Song & song) const;
 
-  // The inverse of buildSceneFlatStarts(): which scene owns flat_row, and
-  // its own local offset within that scene's own (title row + bar rows)
-  // span - 0 is the title row, 1..barsPerScene() are its own bar rows.
+  // The inverse of buildSectionFlatStarts(): which section owns flat_row, and
+  // its own local offset within that section's own (title row + bar rows)
+  // span - 0 is the title row, 1..barsPerSection() are its own bar rows.
   std::pair<int, int> decodeFlatRow(const std::vector<int> & starts, int flat_row) const;
 
-  // Cursor position: an absolute scene index (not scroll-relative - one
-  // position past the last real Scene is a valid, virtual target, same
-  // as the row axis below), a bar within that scene (0-indexed, or -1 for
-  // that scene's own title row), and an index into getRootTrackIds() (not
+  // Cursor position: an absolute section index (not scroll-relative - one
+  // position past the last real Section is a valid, virtual target, same
+  // as the row axis below), a bar within that section (0-indexed, or -1 for
+  // that section's own title row), and an index into getRootTrackIds() (not
   // a raw track_id, so moving the cursor is just a bounds-clamped
   // increment/decrement) - meaningless while cursor_bar_ is -1, since the
   // title row has no per-track columns of its own.
-  int cursor_scene_ = 0;
+  int cursor_section_ = 0;
   int cursor_bar_ = -1;
   int cursor_track_index_ = 0;
 
   // Top-left corner of the visible viewport - scroll_row_ in the same
-  // flattened units moveCursorRow()/buildSceneFlatStarts() use, kept in
+  // flattened units moveCursorRow()/buildSectionFlatStarts() use, kept in
   // sync with the cursor by ensureCursorVisible() rather than tracked
   // independently, so the cursor is always on screen.
   int scroll_row_ = 0, scroll_col_ = 0;
@@ -163,8 +163,8 @@ class ArrangementGrid : public UIElement {
   // widget actually shows has changed - same dirty-check shape InfoLine's
   // own render() already uses.
   int current_song_version_ = -1;
-  int current_playing_scene_ = -1, current_playing_row_ = -1;
-  int current_cursor_scene_ = -1, current_cursor_bar_ = -1, current_cursor_track_index_ = -1;
+  int current_playing_section_ = -1, current_playing_row_ = -1;
+  int current_cursor_section_ = -1, current_cursor_bar_ = -1, current_cursor_track_index_ = -1;
   int current_scroll_row_ = -1, current_scroll_col_ = -1;
   bool current_focused_ = false;
   int current_selected_track_id_ = -1;
@@ -177,13 +177,13 @@ class ArrangementGrid : public UIElement {
   bool force_redraw_ = false;
 
   // Moves the cursor by `delta` rows, flattened across the whole (real +
-  // one virtual) scene range via buildSceneFlatStarts() - crossing a
-  // scene boundary lands on the adjacent scene's own title row or last
+  // one virtual) section range via buildSectionFlatStarts() - crossing a
+  // section boundary lands on the adjacent section's own title row or last
   // bar, so Up/Down read as one continuous timeline rather than being
-  // fenced in by whichever scene the cursor started in.
+  // fenced in by whichever section the cursor started in.
   void moveCursorRow(const Song & song, int delta);
 
-  // Always clamps the cursor to whatever scenes/bars/tracks actually
+  // Always clamps the cursor to whatever sections/bars/tracks actually
   // exist, and the scroll position to whatever range is currently valid.
   // Only when `follow_cursor` is set (this widget is focused - see
   // render()'s own comment on why not otherwise) does it also slide
@@ -193,19 +193,19 @@ class ArrangementGrid : public UIElement {
   // movement actually pushed it out of view.
   void ensureCursorVisible(const Song & song, int visible_rows, int visible_cols, int num_tracks, bool follow_cursor);
 
-  // Opens the cursor's own scene name for in-place editing (Enter, while
+  // Opens the cursor's own section name for in-place editing (Enter, while
   // cursor_bar_ is -1) - positions the reader at exactly the screen row
   // ensureCursorVisible() already guarantees the title row occupies
-  // (cursor_scene_'s own flat position minus scroll_row_), so unlike
+  // (cursor_section_'s own flat position minus scroll_row_), so unlike
   // PatternEditor's own analogous editors (annotation/track-name) this
   // needs no separately cached screen coordinate from the last render()
   // pass. Committing/canceling is handled inline in offerInput(), mirroring
   // PatternEditor::offerInput()'s own reader-active handling.
-  void startSceneRename();
+  void startSectionRename();
 
-  int renaming_scene_idx_ = -1;
+  int renaming_section_idx_ = -1;
 
-  std::function<void(int track_id, int scene_idx, int row)> commit_callback_;
+  std::function<void(int track_id, int section_idx, int row)> commit_callback_;
   std::function<void()> exit_right_callback_;
 };
 

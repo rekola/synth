@@ -53,19 +53,19 @@
       </clip>
     </trackClips>
   </clips>
-  <scenes>
-    <scene name="Intro" length="4">
+  <sections>
+    <section name="Intro" length="4">
       <arrangement track="drums">
         <instance row="0">verse</instance>
       </arrangement>
       <arrangement track="bass">
         <instance row="16">groove</instance>
       </arrangement>
-    </scene>
-    <scene name="Fill" length="4">
+    </section>
+    <section name="Fill" length="4">
       <arrangement track="drums">
         <instance row="0">fill</instance>
       </arrangement>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

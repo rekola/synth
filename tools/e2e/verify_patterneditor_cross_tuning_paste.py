@@ -6,12 +6,12 @@ main risk this fix addresses.
 
 Uses ArrangementGrid purely as a reliable "teleport" - its Enter commits
 the cursor cell and hands focus to PatternEditor at an exact (track,
-scene, row) position (UI::commitOverviewCell()) - rather than guessing
+section, row) position (UI::commitOverviewCell()) - rather than guessing
 how many arrow-key presses PatternEditor's own sub-column navigation
 needs to cross from one track to another.
 
 cross_tuning_paste_test.xml: track 0 pitched, track 1 percussion (one
-populated cell, scene 0, row 0).
+populated cell, section 0, row 0).
   1. Teleport onto track 1/row 0, cut it (kill-region, degenerates to the
      single cell under the cursor).
   2. Teleport onto track 0/row 0 (pitched) and yank - must refuse, must

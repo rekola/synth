@@ -298,10 +298,10 @@ Found 2026-07-11, not yet fixed.
 - **`merge-clip-to-background` (note tracks) silences the content it just
   merged, immediately, contradicting its own doc comment.** Confirmed
   directly (a small instrumented test, not kept in the suite): after
-  `mergeClipToBackground()` copies a clip's own notes into the scene's
+  `mergeClipToBackground()` copies a clip's own notes into the section's
   background `Pattern` and calls `placeStopInstance()` to free the
   placement, `resolveInstanceAt()` at that same row returns
-  `Scene::kStopInstance`, not `Scene::kNoInstance` - and `SongState::
+  `Section::kStopInstance`, not `Section::kNoInstance` - and `SongState::
   renderBlock()`'s own note-scheduling loop only ever reads a track's
   background `Pattern` on `kNoInstance` (an explicit stop resolves "the
   same way as no instance at all" only for `resolveEditTarget()`, i.e.
@@ -332,7 +332,7 @@ Found 2026-07-11, not yet fixed.
   have direct unit coverage (`tests/ControllerTests.cpp`'s
   `apply_note_pressure_writes_an_aftertouch_note`/
   `apply_note_pressure_writes_aftertouch_into_a_recording_clip`) showing
-  the write landing correctly both in a scene's background `Pattern` and
+  the write landing correctly both in a section's background `Pattern` and
   in a real recording Clip, and a new e2e script
   (`tools/e2e/fake_launchpad_aftertouch_clip.c`/
   `verify_launchpad_aftertouch_clip.py`) drives the actual Record-Arm +

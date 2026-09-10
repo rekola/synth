@@ -11,7 +11,7 @@ simulated Launchpad X press pad (0,0) and checks that the resulting assign
 (LaunchpadManager::handleSessionPadEvent) actually placed a real clip
 instance (ArrangementOps.h's placeClipInstance()) in the arrangement grid -
 not PatternEditor's own row display, which never resolves an instance's
-own content (only its scene's background pattern, untouched by an assign),
+own content (only its section's background pattern, untouched by an assign),
 so it wouldn't show this at all."""
 import sys, os, subprocess, time
 
@@ -89,10 +89,12 @@ check("synth sent a Programmer-Mode-enter SysEx to the simulated device",
 
 # LED colors sent in the very first refresh (before any button/pad input at
 # all) - proves DeviceState::grid_mode now defaults to SESSION rather than
-# NOTES: CC95 (led index 0x5f = 95) bright, CC97 (0x61 = 97, Custom) dim -
-# see LaunchpadManager::refreshLeds()'s own Session/Custom LED comment.
+# NOTES: CC95 (led index 0x5f = 95) bright green (session_mixer_mode
+# defaults off - orange means mixer submode instead, see GridMode's own
+# comment), CC97 (0x61 = 97, Custom) dim - see LaunchpadManager::
+# refreshLeds()'s own Session/Custom LED comment.
 check("CC95 (Session) LED is lit by default, with no button pressed yet",
-      "03 5f 5a 7f 00" in fake_output, fake_output)
+      "03 5f 00 7f 00" in fake_output, fake_output)
 check("CC97 (Custom) LED is dim by default (not showing Custom mode active)",
       "03 61 14 00 14" in fake_output, fake_output)
 

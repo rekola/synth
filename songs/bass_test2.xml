@@ -32,8 +32,8 @@
     <track id="2" instrument="1" />
   </tracks>
   
-  <scenes>
-    <scene length="2">
+  <sections>
+    <section length="2">
       <pattern track="bass">
         <note row="0" velocity="40">A#2</note>
         <note row="2" velocity="40" delay="10">C-3</note>
@@ -54,8 +54,8 @@
         <note row="16">BD2</note>
         <note row="24">BD2</note>
       </pattern>
-    </scene>
-    <scene length="2">
+    </section>
+    <section length="2">
       <pattern track="bass">
         <note row="0" velocity="40">D#3</note>
         <note row="2" velocity="40" delay="10">F-3</note>
@@ -76,6 +76,6 @@
         <note row="16">BD2</note>
         <note row="24">BD2</note>
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

@@ -6,8 +6,8 @@
   <tracks>
     <track id="0" azimuth="30" distance="0" elevation="50" volume="0.5" instrument="0"/>
   </tracks>
-  <scenes>
-    <scene length="4">
+  <sections>
+    <section length="4">
       <annotation row="0">Quartal Major Scale Test</annotation>
       <!--
         <note track="0" row="2" velocity="40" value="D𝄫4" uncertain="1" />
@@ -61,8 +61,8 @@
         <note track="0" row="36" velocity="40" value="B♯4" uncertain="1"/>
         -->
       </pattern>
-    </scene>
-    <scene length="4">
+    </section>
+    <section length="4">
       <annotation row="0">Quartal Mino Scale Test</annotation>
       <annotation row="4">E𝄫 something</annotation>
       <annotation row="8">F Major</annotation>
@@ -77,8 +77,8 @@
         <note row="8" column="1" velocity="40" value="A#4" />
         <note row="8" column="2" velocity="40" value="C-5" />
       </pattern>
-    </scene>
-    <scene length="4">
+    </section>
+    <section length="4">
       <annotation row="0">Major Scale test</annotation>
       <pattern track="0">
         <note row="0" velocity="40" value="C-4" />
@@ -102,6 +102,6 @@
         <note row="36" velocity="40" value="B♯4" />
         <note row="38" velocity="40" value="C-5" />
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

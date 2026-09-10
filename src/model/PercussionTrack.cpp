@@ -83,17 +83,17 @@ PercussionTrack::removeLane(int note, Song & song) {
   if (it == lane_notes_.end()) return;
   lane_notes_.erase(it);
 
-  // Step data for this note lives in every scene's own Pattern for this
+  // Step data for this note lives in every section's own Pattern for this
   // track, not a track-global map any more - deleting the lane has to
-  // reach into each one. A scene with nothing for this track at all is
+  // reach into each one. A section with nothing for this track at all is
   // simply skipped (getPatternsByTrack()[] would otherwise materialize an
   // empty entry purely to delete from it). By index (not a range-for over
-  // getScenes(), which only has a const overload) so each scene resolves
-  // through Song::getScene(i)'s own mutable overload.
+  // getSections(), which only has a const overload) so each section resolves
+  // through Song::getSection(i)'s own mutable overload.
   auto track_id = getInternalId();
-  auto num_scenes = static_cast<int>(song.getScenes().size());
-  for (int i = 0; i < num_scenes; i++) {
-    auto & patterns = song.getScene(i).getPatternsByTrack();
+  auto num_sections = static_cast<int>(song.getSections().size());
+  for (int i = 0; i < num_sections; i++) {
+    auto & patterns = song.getSection(i).getPatternsByTrack();
     auto pattern_it = patterns.find(track_id);
     if (pattern_it == patterns.end()) continue;
     pattern_it->second.deleteNotesWithValue(note);
@@ -101,7 +101,7 @@ PercussionTrack::removeLane(int note, Song & song) {
 
   // Same cleanup across this track's own clips (ArrangementOps.h) - a
   // clip's leaf Pattern is step data too, just not living directly in any
-  // one scene's own background.
+  // one section's own background.
   for (auto & clip : song.getClips(track_id)) {
     clip.getLeafPattern().deleteNotesWithValue(note);
   }

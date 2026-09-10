@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-class Scene;
+class Section;
 class Clip;
 
 struct PatternBlockCell {
@@ -22,23 +22,23 @@ using PatternBlock = std::vector<std::vector<PatternBlockCell> >;
 
 // Captures notes and effect command for each (row, track) in the inclusive
 // range [row_lo, row_hi] x track_ids[track_lo..track_hi]. `context_length`
-// is the song's own pattern length, passed through to Scene::
+// is the song's own pattern length, passed through to Section::
 // getEffectiveRow() for each (row, track) pair - a track whose own
 // Pattern is shorter reads/clears/transposes its real, repeating row
 // (Pattern.h's own getEffectiveRow() comment), not the raw one, so a
 // range straddling its length boundary reads back what's actually
 // playing rather than blank, unreachable rows.
-PatternBlock copyPatternBlock(const Scene & scene, int row_lo, int row_hi,
+PatternBlock copyPatternBlock(const Section & section, int row_lo, int row_hi,
 			     const std::vector<int> & track_ids, int track_lo, int track_hi, int context_length);
 
 // Clears notes and effect command for the same range.
-void clearPatternBlock(Scene & scene, int row_lo, int row_hi,
+void clearPatternBlock(Section & section, int row_lo, int row_hi,
 		       const std::vector<int> & track_ids, int track_lo, int track_hi, int context_length);
 
-// Writes `block` into `scene` starting at (target_row, track_ids[target_track]),
+// Writes `block` into `section` starting at (target_row, track_ids[target_track]),
 // clipping any cells whose target row or track falls outside [0, num_rows)/
 // track_ids bounds.
-void pastePatternBlock(Scene & scene, const PatternBlock & block, int num_rows,
+void pastePatternBlock(Section & section, const PatternBlock & block, int num_rows,
 		       int target_row, const std::vector<int> & track_ids, int target_track);
 
 // Transposes (up if `up`, else down) every note in the same range, except
@@ -47,7 +47,7 @@ void pastePatternBlock(Scene & scene, const PatternBlock & block, int num_rows,
 // pitch - transposing it would silently swap to a different, unrelated
 // drum instead of "transposing" anything, so those tracks are skipped
 // entirely within the range rather than shifting their notes.
-void transposePatternBlock(Scene & scene, int row_lo, int row_hi,
+void transposePatternBlock(Section & section, int row_lo, int row_hi,
 			   const std::vector<int> & track_ids, int track_lo, int track_hi, bool up,
 			   const std::function<bool(int track_id)> & is_percussion, int context_length);
 
@@ -57,19 +57,19 @@ void transposePatternBlock(Scene & scene, int row_lo, int row_hi,
 // NOTE_COLUMN - mixing a note-column selection with the effect column
 // escalates to a whole-track operation instead, so there's no
 // include-the-command variant of this family any more).
-PatternBlock copyPatternBlockNotes(const Scene & scene, int row_lo, int row_hi,
+PatternBlock copyPatternBlockNotes(const Section & section, int row_lo, int row_hi,
 				   int track_id, int note_lo, int note_hi, int context_length);
-void clearPatternBlockNotes(Scene & scene, int row_lo, int row_hi,
+void clearPatternBlockNotes(Section & section, int row_lo, int row_hi,
 			    int track_id, int note_lo, int note_hi, int context_length);
 // `is_percussion`: same reasoning as transposePatternBlock() above, but a
 // plain bool here (not a predicate) since this operates on exactly one
 // already-known track_id, not a range.
-void transposePatternBlockNotes(Scene & scene, int row_lo, int row_hi,
+void transposePatternBlockNotes(Section & section, int row_lo, int row_hi,
 				int track_id, int note_lo, int note_hi, bool up, bool is_percussion, int context_length);
-// Merges `block` into `scene` starting at (target_row, track_id, target_note_offset),
+// Merges `block` into `section` starting at (target_row, track_id, target_note_offset),
 // leaving note columns outside that range untouched (unlike pastePatternBlock,
 // which replaces a cell's whole note vector).
-void pastePatternBlockNotes(Scene & scene, const PatternBlock & block, int num_rows,
+void pastePatternBlockNotes(Section & section, const PatternBlock & block, int num_rows,
 			    int target_row, int track_id, int target_note_offset);
 
 // Single-track, effect-Command-only siblings, for PatternEditor's
@@ -77,9 +77,9 @@ void pastePatternBlockNotes(Scene & scene, const PatternBlock & block, int num_r
 // no note data is read or written by any of these). Note::isDefined() etc.
 // has no equivalent here since Command has no "empty" special case beyond
 // its own default-constructed all-dashes value.
-std::vector<Command> copyPatternBlockCommand(const Scene & scene, int row_lo, int row_hi, int track_id, int context_length);
-void clearPatternBlockCommand(Scene & scene, int row_lo, int row_hi, int track_id, int context_length);
-void pastePatternBlockCommand(Scene & scene, const std::vector<Command> & block, int num_rows,
+std::vector<Command> copyPatternBlockCommand(const Section & section, int row_lo, int row_hi, int track_id, int context_length);
+void clearPatternBlockCommand(Section & section, int row_lo, int row_hi, int track_id, int context_length);
+void pastePatternBlockCommand(Section & section, const std::vector<Command> & block, int num_rows,
 			      int target_row, int track_id);
 
 // Extracts a track's own content from [row_lo, row_hi] into a new,
@@ -97,16 +97,16 @@ void pastePatternBlockCommand(Scene & scene, const std::vector<Command> & block,
 // Pattern's - see Clip.h) is rounded up to the next whole bar past
 // row_hi the same implicit way (back-padded) - a bar-aligned length is
 // what lets a later placement land cleanly on the grid.
-Clip extractClip(const Scene & scene, int track_id, int row_lo, int row_hi, int rows_per_bar, int context_length);
+Clip extractClip(const Section & section, int track_id, int row_lo, int row_hi, int rows_per_bar, int context_length);
 
 // Row-only siblings of the copy/clear/paste families above, for
-// PatternEditor's SelectionScope::ANNOTATION - a Scene's annotations are
-// keyed by row alone (see Scene.h's own comment on why they live there
+// PatternEditor's SelectionScope::ANNOTATION - a Section's annotations are
+// keyed by row alone (see Section.h's own comment on why they live there
 // rather than on Pattern), so unlike every other family here there's no
 // track_id/note range involved at all.
-std::vector<std::string> copyPatternBlockAnnotations(const Scene & scene, int row_lo, int row_hi);
-void clearPatternBlockAnnotations(Scene & scene, int row_lo, int row_hi);
-void pastePatternBlockAnnotations(Scene & scene, const std::vector<std::string> & block, int num_rows,
+std::vector<std::string> copyPatternBlockAnnotations(const Section & section, int row_lo, int row_hi);
+void clearPatternBlockAnnotations(Section & section, int row_lo, int row_hi);
+void pastePatternBlockAnnotations(Section & section, const std::vector<std::string> & block, int num_rows,
 				  int target_row);
 
 #endif

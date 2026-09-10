@@ -22,7 +22,7 @@ add_executable(synth_tests
 	ControllerTests.cpp
 	PatternBlockOpsTests.cpp
 	ArrangementOpsTests.cpp
-	SceneTests.cpp
+	SectionTests.cpp
 	PatternScrollTests.cpp
 	PatternBreakTests.cpp
 	CommandTests.cpp

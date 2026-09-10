@@ -15,9 +15,8 @@
     <tracks>
         <track id="bass" instrument="0" azimuth="-45" distance="1" elevation="0" color="" sendA="-20.0000" noteColumns="2"/>
     </tracks>
-    <sections/>
-    <scenes>
-      <scene length="4">
+    <sections>
+      <section length="4">
         <pattern track="bass">
           <note row="28" velocity="40">C-4</note>
           <note row="30" velocity="0">···</note>
@@ -36,6 +35,6 @@
           <note row="54" column="1" velocity="40">E♭4</note>
           <note row="56" velocity="40">E𝄫4</note>
         </pattern>
-      </scene>
-    </scenes>
+      </section>
+    </sections>
 </song>

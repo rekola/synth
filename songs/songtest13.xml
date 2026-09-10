@@ -10,8 +10,8 @@
     <track id="1" instrument="1" sendA="-9.1186" />
   </tracks>
   
-  <scenes>
-    <scene length="4">
+  <sections>
+    <section length="4">
       <pattern track="0">
         <note row="0" column="0" velocity="40">C-4 G-4 C-5</note>
         <note row="2" column="2" velocity="40">E-5</note>
@@ -22,6 +22,6 @@
         <note row="12" column="2" velocity="40">G-5</note>
         <note row="14" column="2" velocity="40">E-5</note>
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

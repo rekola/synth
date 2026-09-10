@@ -3,12 +3,12 @@
   <tracks>
     <percussionTrack id="0"/>
   </tracks>
-  <scenes>
-    <scene>
+  <sections>
+    <section>
       <pattern track="0">
         <note row="0" velocity="100" value="C-4" />
         <note row="4">OFF</note>
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

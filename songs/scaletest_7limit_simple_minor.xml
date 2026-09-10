@@ -12,8 +12,8 @@
     <track id="0" instrument="0" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle" />
   </tracks>
   
-  <scenes>
-    <scene length="4">
+  <sections>
+    <section length="4">
       <annotation row="0">Major</annotation>
       <pattern track="0">
         <note row="0" velocity="40">C-4</note>
@@ -25,8 +25,8 @@
         <note row="12" velocity="40">B𝄫4</note>
         <note row="14" velocity="40">C-5</note>
       </pattern>
-    </scene>
-    <scene length="4">
+    </section>
+    <section length="4">
       <annotation row="0">C minor</annotation>
       <annotation row="4">E𝄫</annotation>
       <annotation row="8">E♭</annotation>
@@ -45,8 +45,8 @@
         <note row="24" column="0" velocity="40">B𝄫4 C-5 E𝄫5 B𝄫5</note>
         <note row="28" column="0" velocity="40">C-5 E♭5 G-5 C-6</note>
       </pattern>
-    </scene>
-    <scene length="4">
+    </section>
+    <section length="4">
       <annotation row="0">C major harmonic seventh</annotation>
       <annotation row="4">D#</annotation>
       <annotation row="8">E</annotation>
@@ -65,8 +65,8 @@
         <note row="24" column="0" velocity="40">A#4 C-5 D#5</note>
         <note row="28" column="0" velocity="40">C-5 E-5 G-5</note>
       </pattern>
-    </scene>
-    <scene length="4">
+    </section>
+    <section length="4">
       <annotation row="0">Minor</annotation>
       <pattern track="0">
         <note row="0" velocity="40">C-4</note>
@@ -78,8 +78,8 @@
         <note row="12" velocity="40">B𝄫4</note>
         <note row="14" velocity="40">C-5</note>
       </pattern>
-    </scene>
-    <scene length="4">
+    </section>
+    <section length="4">
       <annotation row="0">C minor</annotation>
       <annotation row="4">E𝄫</annotation>
       <annotation row="8">E♭</annotation>
@@ -98,8 +98,8 @@
         <note row="24" column="0" velocity="40">B𝄫4 C-5 E𝄫5</note>
         <note row="28" column="0" velocity="40">C-5 E♭5 G-5</note>
       </pattern>
-    </scene>
-    <scene length="4">
+    </section>
+    <section length="4">
       <annotation row="0">C minor</annotation>
       <annotation row="4">C major</annotation>
       <annotation row="8">C minor 6th</annotation>
@@ -126,14 +126,14 @@
         <note row="40" column="0" velocity="40">G-4 B𝄫4 C-5 E𝄫5</note>
         <note row="44" column="0" velocity="40">G-4 B𝄫4 C-5 E𝄫5 F-5</note>
       </pattern>
-    </scene>
-    <scene length="4">
+    </section>
+    <section length="4">
       <annotation row="0">C major harmonic seventh</annotation>
       <annotation row="4">C major harmonic seventh</annotation>
       <pattern track="0">
         <note row="0" column="0" velocity="40">C-4 D#4 G-4 A#5</note>
         <note row="4" column="0" velocity="40">C-4 E-4 G-4 A#5</note>
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

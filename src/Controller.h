@@ -314,12 +314,12 @@ class Controller {
   // below reads this back for placement; -1/-1 (the construction-time
   // default - "no position to place at") means unplaced, for anything
   // that creates a recording clip without ever calling this.
-  void armRecordingStart(int scene, int row) { recording_start_scene_ = scene; recording_start_row_ = row; }
+  void armRecordingStart(int section, int row) { recording_start_section_ = section; recording_start_row_ = row; }
   // Whether this take has a snapshotted start position at all - UI::
   // handleRecordEvent()'s own guard against creating the clip lazily,
   // uncompensated, for a take that's actually waiting on
   // handleRecordingLatencyEvent() to do it properly instead.
-  bool isRecordingArmed() const { return recording_start_scene_ >= 0; }
+  bool isRecordingArmed() const { return recording_start_section_ >= 0; }
 
   // Loudness-threshold-armed recording (a SampleTrack's own Record Arm) -
   // waiting for input to actually cross a threshold before the take
@@ -599,7 +599,7 @@ class Controller {
   void setPatternSelectionActive(bool active) { pattern_selection_active_ = active; }
 
   // Which clip (if any) is currently focused for editing, independent of
-  // scene position/instance placement - ArrangementOps.h's
+  // section position/instance placement - ArrangementOps.h's
   // resolveEditTarget()/resolveReadTarget() take this as an override.
   // Empty string means no focus. Only one clip is ever focused at a
   // time, song-wide, not one per track - a clip's own id is already
@@ -728,23 +728,23 @@ class Controller {
   // true (the caller's own union of PatternEditor::isAutoRecording()/
   // LaunchpadManager::isAutoRecording() - a single shared model-level
   // concern, not tied to which input source is actually recording) and
-  // the transport is playing: if the currently-playing scene
+  // the transport is playing: if the currently-playing section
   // (PlaybackInfo::getPatternIndex()) is already in its own last bar,
-  // grows it by one more (Scene::setLengthBars()) - keeping it
+  // grows it by one more (Section::setLengthBars()) - keeping it
   // comfortably ahead of the actual playhead for as long as recording
   // continues (this runs far more often than once per bar at any
   // reasonable tempo), so a live take is never confined to a fixed
   // pre-existing length the way ordinary (non-recording) playback still
   // is. A no-op while stopped or not recording - ordinary note entry
   // never needs this (PatternEditor's cursor navigation already can't
-  // reach a row past the current scene's own bounds).
-  void extendRecordingSceneIfNeeded(bool recording);
+  // reach a row past the current section's own bounds).
+  void extendRecordingSectionIfNeeded(bool recording);
 
   // Generalizes beginSampleCapture()'s own lazy-creation precedent to
   // PatternEditor's/LaunchpadManager's realtime held-note recording: a
   // live take should write into a real, individually-manageable Clip
   // instance, the same as Session-view's own pooled clips, not directly
-  // into the scene's own background Pattern with no identity of its own.
+  // into the section's own background Pattern with no identity of its own.
   // Called right before a live take's own note write, at (track_id, row) -
   // a no-op if a real clip is already active there (resolveInstanceAt()),
   // or if `focused_clip_id` (Controller::getFocusedClip()) overrides
@@ -759,15 +759,15 @@ class Controller {
   // affect it.
   void ensureNoteRecordingClip(std::unordered_map<int, std::string> & clip_ids, int track_id, int pattern_idx, int row);
 
-  // Clip::setLength()'s own counterpart to extendRecordingSceneIfNeeded()
+  // Clip::setLength()'s own counterpart to extendRecordingSectionIfNeeded()
   // above - grows a note-recording clip's own window the same way, once
   // the currently-playing row is near its own end, so a long live take is
   // never silently dropped back to the background Pattern mid-take
   // (resolveInstanceAt()'s own one-shot-expiry check would otherwise stop
   // considering it active). Same per-row-advance call site
-  // (UI::handlePlaybackEvent(), alongside extendRecordingSceneIfNeeded()
+  // (UI::handlePlaybackEvent(), alongside extendRecordingSectionIfNeeded()
   // itself) - just a different target, and deliberately *not* the same
-  // trigger condition: extendRecordingSceneIfNeeded() is gated on
+  // trigger condition: extendRecordingSectionIfNeeded() is gated on
   // isAutoRecording() (did *this* caller's own session start the
   // transport - stays false if the performer had already started
   // playback manually, e.g. from row 0, before ever arming/holding a
@@ -855,10 +855,10 @@ class Controller {
   // beginSampleCapture()'s own counterpart to extendRecordingClipsIfNeeded()
   // above - same reasoning, same growth shape, but scoped to the one
   // SampleTrack take a mic capture session can ever have in progress
-  // (recording_clip_id_/recording_start_scene_/recording_start_row_), so
+  // (recording_clip_id_/recording_start_section_/recording_start_row_), so
   // it needs no clip_ids/held_track_ids parameters of its own. A no-op
   // unless hasRecordingClip() and this take was actually placed
-  // (recording_start_scene_ >= 0 - an unarmed, freeform take has nothing
+  // (recording_start_section_ >= 0 - an unarmed, freeform take has nothing
   // to grow into either, same as it has nothing to place at all). Same
   // per-row-advance call site as extendRecordingClipsIfNeeded()
   // (UI::handlePlaybackEvent()), ungated on any auto-started-playback
@@ -1160,7 +1160,7 @@ class Controller {
   // *start* of every take rather than only read once, so a later take
   // never accidentally inherits an earlier one's position. See
   // beginSampleCapture()'s own comment for how these get used.
-  int recording_start_scene_ = -1, recording_start_row_ = -1;
+  int recording_start_section_ = -1, recording_start_row_ = -1;
   // The round-trip latency (frames) beginSampleCapture() actually trimmed
   // off this take's own in-point, if any (0 for an uncompensated/freeform
   // take) - finishSampleCapture() needs it again to compute the clip's

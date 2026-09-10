@@ -57,16 +57,16 @@ class TrackEvent {
 // safe for exactly as long as one SongState::renderBlock() call, the same
 // lifetime a TrackEvent's own NoteCoordinate already assumes of whatever
 // Song it was built against; points at either a real placed clip's own
-// SampleContent or a scene's own SampleTrack background bed (Scene::
+// SampleContent or a section's own SampleTrack background bed (Section::
 // getSampleBackgroundContent()). `is_background` tells
 // SampleTrackState::render() which of a SampleTrack's exactly two fixed
 // voice roles this event is for - the one clip that can be playing, or
-// the current scene's own always-on background bed, which mixes with it
+// the current section's own always-on background bed, which mixes with it
 // rather than being masked by it (SongState.h's own comment on why) - not
 // a generalized "which of N slots" index; a SampleTrack never has more
 // than these two. A START carries no duration/cap of its own - the voice
 // it starts just plays itself; whatever eventually ends it (a later lap's
-// own START superseding it, an explicit STOP, the scene boundary) is a
+// own START superseding it, an explicit STOP, the section boundary) is a
 // separate, later entry on this same timeline, exactly the way a note's
 // own note-off is a separate pending_events_ entry rather than something
 // baked into its note-on. A STOP is always a release (SampleTrackState::
@@ -117,7 +117,7 @@ class RenderContext {
 
   // A SampleTrack content's own trigger (SongState.h's per-row scheduling -
   // a fresh instance becoming active, a looping clip's own later lap, or a
-  // scene's own background bed becoming reachable) due at a specific
+  // section's own background bed becoming reachable) due at a specific
   // within-block frame - queued here rather than calling
   // SampleTrackState's own trigger method directly, so a sound producer
   // never has to know how to start mid-block itself: SampleTrackState::
@@ -131,7 +131,7 @@ class RenderContext {
 
   // The stop side of the same timeline (SampleTrackEvent's own comment
   // has the full reasoning on why it's always a release, never a hard
-  // cut) - a one-shot clip's own real audio outlasting the scene it's
+  // cut) - a one-shot clip's own real audio outlasting the section it's
   // placed in, an explicit stop instance, eventually pause/seek. The
   // voice itself never decides when it ends for any of these reasons -
   // only for running out of its own audio - so each needs to land here

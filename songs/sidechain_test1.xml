@@ -45,8 +45,8 @@
     <track id="riser" instrument="2" />
   </tracks>
   
-  <scenes>
-    <scene length="4">
+  <sections>
+    <section length="4">
       <pattern track="perc">
         <note row="0">BD2</note>
         <note row="4">BD2</note>
@@ -111,8 +111,8 @@
         <note row="60">SD</note>
         <note row="62">SD</note>
       </pattern>
-    </scene>
-    <scene length="4">
+    </section>
+    <section length="4">
       <pattern track="perc">
         <note row="0">BD2</note>
         <note row="4">BD2</note>
@@ -177,8 +177,8 @@
         <note row="60">SD</note>
         <note row="62">SD</note>
       </pattern>
-    </scene>
-    <scene length="4">
+    </section>
+    <section length="4">
       <pattern track="perc">
         <note row="0">BD2</note>
         <note row="4">BD2</note>
@@ -243,14 +243,14 @@
         <note row="60">SD</note>
         <note row="62">SD</note>
       </pattern>
-    </scene>
-    <scene length="4">
+    </section>
+    <section length="4">
       <pattern track="pad">
         <note row="0">OFF</note>
       </pattern>
       <pattern track="riser">
         <note row="0" velocity="50">OFF</note>
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

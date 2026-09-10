@@ -2,7 +2,7 @@
 #define _VERSION_H_
 
 // A (major, minor) content-identity pair for Song - major for *structural*
-// changes (tracks, scenes, instruments, pattern length), minor for note/
+// changes (tracks, sections, instruments, pattern length), minor for note/
 // command/velocity/delay content edits that don't change the song's
 // structure. Comparable as a whole via operator==/!=; Song exposes the two
 // numbers separately too, for a consumer that only cares about one.

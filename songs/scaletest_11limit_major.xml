@@ -8,8 +8,8 @@
     <track id="0" instrument="0" azimuth="30" distance="0" elevation="50" volume="1.0" preset="subtle"/>
   </tracks>
   
-  <scenes>
-    <scene length="4">
+  <sections>
+    <section length="4">
       <annotation row="0">C quartal major</annotation>
       <annotation row="4">Cx quartal minor aug</annotation>
       <annotation row="8">D# quartal minor aug</annotation>
@@ -32,7 +32,7 @@
         <note row="32" velocity="40">A#4 C-5 D#5</note>
         <note row="36" velocity="40">B-4 Cx5 E-5</note>
       </pattern>
-    </scene>
-    <scene / length="4">
-  </scenes>
+    </section>
+    <section / length="4">
+  </sections>
 </song>

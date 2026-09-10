@@ -155,17 +155,17 @@ class LaunchpadManager {
   void silenceOtherTriggeredClips(Controller & controller);
 
   // The Launchpad's own session/launch view, replacing what used to be a
-  // plain arrangement-navigation overview (rows=scenes) - rows are now a
+  // plain arrangement-navigation overview (rows=sections) - rows are now a
   // track's own available clips (Song::getClips()), columns are tracks,
   // same layout ArrangementGrid's own terminal grid uses. Which of two
   // things a press does is gated by Record Arm (DeviceState::
   // capture_enabled), not a Session-specific toggle of its own (see
   // handleSessionPadEvent()'s own comment): armed, it places an instance
-  // of that clip into the pressed column's track at `cursor_scene_idx`
+  // of that clip into the pressed column's track at `cursor_section_idx`
   // (a real arrangement-layer placement, not a live reference back to the
   // clip - see handleSessionPadEvent()'s own comment on which row) - the
   // write-side counterpart, and the closest replacement for what plain
-  // scene-navigation used to do here; disarmed, it instead
+  // section-navigation used to do here; disarmed, it instead
   // triggers the clip to start playing live for that track (quantized to
   // whatever's currently playing there finishing its own loop - see
   // triggerClipStep()), touching nothing in the song.
@@ -180,20 +180,20 @@ class LaunchpadManager {
   // meaningful independent of both. No scroll position of any kind yet,
   // row or column - a track with more than 8 clips only shows
   // the first 8 for now, and Up/Down instead move the overview's own
-  // scene cursor (see session_move_scene_callback_'s own comment), not a
+  // section cursor (see session_move_section_callback_'s own comment), not a
   // row window.
   struct SessionWindow {
     std::vector<int> track_ids;
-    // the overview's own current cursor scene (ArrangementGrid::
-    // getCursorScene()) - which scene an "assign" press writes into.
-    int cursor_scene_idx = 0;
+    // the overview's own current cursor section (ArrangementGrid::
+    // getCursorSection()) - which section an "assign" press writes into.
+    int cursor_section_idx = 0;
   };
 
   // Called with +1/-1 when "move-row-up"/"move-row-down" is pressed while
-  // a device is in GridMode::SESSION - moves the overview's own scene
-  // cursor (see session_move_scene_callback_'s own comment) rather than
+  // a device is in GridMode::SESSION - moves the overview's own section
+  // cursor (see session_move_section_callback_'s own comment) rather than
   // scrolling a pad-grid row window.
-  void setSessionMoveSceneCallback(std::function<void(int delta)> cb) { session_move_scene_callback_ = std::move(cb); }
+  void setSessionMoveSectionCallback(std::function<void(int delta)> cb) { session_move_section_callback_ = std::move(cb); }
 
   // Called with the new track index when "next-track"/"prev-track" is
   // pressed outside GridMode::SESSION (see track_move_callback_'s own
@@ -404,7 +404,7 @@ class LaunchpadManager {
   // (triggered_pattern_by_track_/queued_pattern_by_track_, picked up by
   // the free-running audition clock below) without touching the song at
   // all; on instead places an instance of it into the pressed column's
-  // track at session_.cursor_scene_idx (see handleSessionPadEvent()'s own
+  // track at session_.cursor_section_idx (see handleSessionPadEvent()'s own
   // comment) and stays in Session view rather than switching focus away -
   // a player assigning several patterns in a row needs to keep pressing
   // pads, not get bounced out after the first one. Deliberately not a
@@ -447,16 +447,16 @@ class LaunchpadManager {
 
   // Whether a realtime auto-play-while-held recording session (see
   // onRowAdvanced()'s own comment) is active right now - Controller::
-  // extendRecordingSceneIfNeeded() (UI::handlePlaybackEvent()) reads this
+  // extendRecordingSectionIfNeeded() (UI::handlePlaybackEvent()) reads this
   // (unioned with PatternEditor's own identical flag) to decide whether
-  // the actively-playing scene should keep growing rather than wrapping
+  // the actively-playing section should keep growing rather than wrapping
   // into the next one.
   bool isAutoRecording() const { return auto_started_playback_; }
 
   // Which real Clip (by id) this session has created so far, keyed by
   // track_id (Controller::ensureNoteRecordingClip()) - Controller::
   // extendRecordingClipsIfNeeded() (UI::handlePlaybackEvent(), alongside
-  // extendRecordingSceneIfNeeded() above) reads/mutates this directly to
+  // extendRecordingSectionIfNeeded() above) reads/mutates this directly to
   // grow each one's own window as the take continues.
   std::unordered_map<int, std::string> & getAutoRecordClipIds() { return auto_record_clip_ids_; }
 
@@ -467,7 +467,7 @@ class LaunchpadManager {
   // than for as long as the session merely stays armed (Record Arm has no
   // auto-stop-on-release the way PatternEditor's own keyboard session
   // does, so an unheld clip would otherwise keep growing, and clearing
-  // everything in its path, all the way to the end of the scene).
+  // everything in its path, all the way to the end of the section).
   std::vector<int> getActiveNoteTrackIds() const;
 
   // Called once per render() frame: recomputes each ready device's LED
@@ -998,19 +998,19 @@ class LaunchpadManager {
   // refresh()'s own SessionWindow parameter, mirrored here (same
   // once-per-frame pattern) so handleSessionPadEvent() -
   // called asynchronously between refresh() calls, on a real pad press -
-  // can resolve which (track_id, scene index) a press landed on without
+  // can resolve which (track_id, section index) a press landed on without
   // needing its own copy threaded through.
   SessionWindow session_;
   // "move-row-up"/"move-row-down" (CC91/92) while a device is in
-  // GridMode::SESSION move the overview's own scene cursor (via
-  // ArrangementGrid::moveCursorScene()) rather than scrolling a pad-grid row
+  // GridMode::SESSION move the overview's own section cursor (via
+  // ArrangementGrid::moveCursorSection()) rather than scrolling a pad-grid row
   // window - Session view's rows are a track's own clips, not
-  // scenes, so there's no local row scroll for those buttons to drive; the
-  // scene cursor is what an "assign" press actually targets (session_.
-  // cursor_scene_idx), so moving it is the meaningful thing left for
+  // sections, so there's no local row scroll for those buttons to drive; the
+  // section cursor is what an "assign" press actually targets (session_.
+  // cursor_section_idx), so moving it is the meaningful thing left for
   // up/down to do here. +1/-1 is the caller's own delta convention (see
   // handleCommand()).
-  std::function<void(int delta)> session_move_scene_callback_;
+  std::function<void(int delta)> session_move_section_callback_;
 
   // "next-track"/"prev-track" outside GridMode::SESSION move the one
   // shared cursor (via this callback, wired to PatternEditor::

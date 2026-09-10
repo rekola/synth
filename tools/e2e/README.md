@@ -149,7 +149,7 @@ you're changing.
   only track, y=0 -> pool index 7 - see the fixture's own comment) and
   confirms `LaunchpadManager::handleSessionPadEvent`'s assign branch
   actually copied that pool entry's own pattern (E-4) into the current
-  scene, replacing its placeholder note (C-4) - rather than silently
+  section, replacing its placeholder note (C-4) - rather than silently
   falling through to ordinary NOTES-mode note entry.
 - **`fake_launchpad_notecustom.c` / `verify_launchpad_notecustom.py`** -
   two small LED/mode-switch regressions: Note (CC96) previously had no

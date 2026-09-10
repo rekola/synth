@@ -18,8 +18,8 @@
     <track id="0" instrument="0" />
   </tracks>
   
-  <scenes>
-    <scene length="4">
+  <sections>
+    <section length="4">
       <pattern track="0">
         <note row="0" velocity="40">C-4</note>
         <note row="4" velocity="40">Cx4</note>
@@ -29,6 +29,6 @@
         <note row="20" velocity="40">Cx4</note>
         <note row="24" velocity="40">C-4</note>
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

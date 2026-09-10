@@ -27,8 +27,8 @@
     <section>1</section>  
   </sections>
   
-  <scenes>
-    <scene length="2">
+  <sections>
+    <section length="2">
       <pattern track="chords">
         <note row="0" velocity="20">E-4</note>
         <note row="2" velocity="20">A-4</note>
@@ -41,8 +41,8 @@
         <note row="22" velocity="20">D#5</note>
         <note row="28" velocity="20">F-4</note>
       </pattern>
-    </scene>
-    <scene length="2">
+    </section>
+    <section length="2">
       <pattern track="chords">
         <note row="0" velocity="20">E-4</note>
         <note row="2" velocity="20">A-4</note>
@@ -58,6 +58,6 @@
       <pattern track="pad">
         <note row="0" velocity="20">C-4</note>
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

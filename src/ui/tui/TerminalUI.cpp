@@ -1850,7 +1850,7 @@ TerminalUI::exitOverview() {
 }
 
 void
-TerminalUI::commitOverviewCell(int track_id, int scene_idx, int row) {
+TerminalUI::commitOverviewCell(int track_id, int section_idx, int row) {
   // The whole commit refuses while playing - matches PatternEditor's own
   // move-row-up/move-row-down guard (row navigation only ever runs while
   // stopped), and avoids a commit that silently only did half of what it
@@ -1861,9 +1861,9 @@ TerminalUI::commitOverviewCell(int track_id, int scene_idx, int row) {
   // NOTE: if PatternEditor's own mark/selection happens to still be active
   // (selection_active_, unrelated to anything this grid/Launchpad does),
   // setEditPosition() below clamps to the pattern that selection is in
-  // rather than actually jumping to (scene_idx, row) - a real, narrow edge
+  // rather than actually jumping to (section_idx, row) - a real, narrow edge
   // case, not handled here.
-  getController().setEditPosition(song.toAbsoluteRow(scene_idx, row));
+  getController().setEditPosition(song.toAbsoluteRow(section_idx, row));
 
   auto track_ids = song.getRootTrackIds();
   auto it = find(track_ids.begin(), track_ids.end(), track_id);
@@ -1888,7 +1888,7 @@ TerminalUI::initializeWidgets() {
   // it later, after main.cpp's own ui.initialize()/ui.start() call order -
   // see that method for the equivalent Launchpad wiring), so that half of
   // commitOverviewCell()'s callers is wired there instead.
-  arrangement_grid_->setCommitCallback([this](int track_id, int scene_idx, int row) { commitOverviewCell(track_id, scene_idx, row); });
+  arrangement_grid_->setCommitCallback([this](int track_id, int section_idx, int row) { commitOverviewCell(track_id, section_idx, row); });
   // Plain Left with nowhere further left to go - see PatternEditor's own
   // setOverviewRequestCallback() comment; Launchpad's prev-track hits the
   // same edge, wired in wireLaunchpad() below for the same launchpad_manager_-
@@ -1916,7 +1916,7 @@ TerminalUI::initializeWidgets() {
 
   // Session/overview first, not pattern editing - matches the Launchpad's
   // own Session view as the more approachable starting point for a fresh
-  // buffer (a bird's-eye view of tracks/scenes) rather than dropping
+  // buffer (a bird's-eye view of tracks/sections) rather than dropping
   // straight into note-by-note editing.
   active_element_ = arrangement_grid_;
 
@@ -2359,7 +2359,7 @@ TerminalUI::renderComponents(bool refresh) {
     // SessionWindow's own comment).
     LaunchpadManager::SessionWindow session;
     session.track_ids = arrangement_grid_->getVisibleTrackIds(song);
-    session.cursor_scene_idx = arrangement_grid_->getCursorScene();
+    session.cursor_section_idx = arrangement_grid_->getCursorSection();
     launchpad_manager_->refresh(song, track_ids, getController().getPlaybackInfo(),
       track_ids.empty() ? -1 : indexOfTrack(track_ids, song.getCurrentTrackId()), getController(), session);
   }
@@ -2532,7 +2532,7 @@ TerminalUI::handlePlaybackEvent(PlaybackEvent & ev) {
   if (launchpad_manager_) launchpad_manager_->onRowAdvanced(getController());
   if (pattern_editor_) pattern_editor_->onRowAdvanced(getController());
 
-  // Same union-of-input-sources reasoning as the two calls above - scene
+  // Same union-of-input-sources reasoning as the two calls above - section
   // growth isn't tied to which one is actually recording, so it isn't
   // folded into either's own onRowAdvanced(). isRecording() (mic capture
   // into a SampleTrack clip) is a third, independent input source that
@@ -2541,12 +2541,12 @@ TerminalUI::handlePlaybackEvent(PlaybackEvent & ev) {
   bool recording = (launchpad_manager_ && launchpad_manager_->isAutoRecording()) ||
                     (pattern_editor_ && pattern_editor_->isAutoRecording()) ||
                     getController().isRecording();
-  getController().extendRecordingSceneIfNeeded(recording);
+  getController().extendRecordingSectionIfNeeded(recording);
 
-  // Clip::setLength()'s own counterpart to the scene growth above - each
+  // Clip::setLength()'s own counterpart to the section growth above - each
   // caller's own note-recording clips (Controller::ensureNoteRecordingClip())
   // grown independently. Deliberately not gated on `recording` at all
-  // (unlike extendRecordingSceneIfNeeded() above) - see
+  // (unlike extendRecordingSectionIfNeeded() above) - see
   // extendRecordingClipsIfNeeded()'s own comment on why a clip that
   // already exists needs no further proof a genuine session is driving
   // it, and why gating on isAutoRecording() here would silently stop
@@ -2703,8 +2703,8 @@ TerminalUI::handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEv
   // Never for a Session View take (isSessionRecording()) - that populates
   // a clip slot directly with no arrangement position at all, so there's
   // nothing here to snapshot; beginSampleCapture() already treats
-  // recording_start_scene_'s own untouched -1 default as "stays unplaced."
-  if (!getController().isSessionRecording()) getController().armRecordingStart(ev.getScene(), ev.getRow());
+  // recording_start_section_'s own untouched -1 default as "stays unplaced."
+  if (!getController().isSessionRecording()) getController().armRecordingStart(ev.getSection(), ev.getRow());
   getController().beginSampleCapture(ev.getTrackId());
   getController().clearThresholdArmed();
 }
@@ -2832,10 +2832,10 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
   // launchpad_manager_ itself is already set by UI::start() before this
   // hook runs.
   // "move-row-up"/"move-row-down" while in GridMode::SESSION move
-  // ArrangementGrid's own scene cursor instead of scrolling a pad-grid row
-  // window - see LaunchpadManager::session_move_scene_callback_'s own
+  // ArrangementGrid's own section cursor instead of scrolling a pad-grid row
+  // window - see LaunchpadManager::session_move_section_callback_'s own
   // comment for why.
-  launchpad_manager.setSessionMoveSceneCallback([this](int delta) { arrangement_grid_->moveCursorScene(getController().getSong(), delta); });
+  launchpad_manager.setSessionMoveSectionCallback([this](int delta) { arrangement_grid_->moveCursorSection(getController().getSong(), delta); });
   // "next-track"/"prev-track" outside GridMode::SESSION move the one
   // shared cursor every connected Launchpad follows - see
   // LaunchpadManager::track_move_callback_'s own comment for why. Also

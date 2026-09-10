@@ -164,7 +164,7 @@ SessionView::startClipRename(const Song & song, const std::vector<int> & track_i
 
   // TerminalUI::showReader()'s own ncplane_erase_region() call erases
   // from col_x all the way to the *plane's* right edge, not just this one
-  // clip's own kColWidth footprint - fine for ArrangementGrid's own scene
+  // clip's own kColWidth footprint - fine for ArrangementGrid's own section
   // rename (a title row spans the whole plane width, nothing else sits on
   // it), but this cell is one column among several tracks sharing the
   // same row, and every later track's own clip cell on this same row
@@ -181,7 +181,7 @@ SessionView::startClipRename(const Song & song, const std::vector<int> & track_i
   // through the reader's own cells wherever nothing's been typed yet
   // (TerminalUI::showReader()'s ncplane_set_base(..., "", ...) doesn't
   // paint over cells nothing ever explicitly writes to) - blank it again,
-  // the same reasoning ArrangementGrid::startSceneRename() already
+  // the same reasoning ArrangementGrid::startSectionRename() already
   // documents for its own single-column case.
   setFgColor(0, 0, 0);
   setBgColor(0, 0, 0);

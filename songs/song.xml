@@ -19,11 +19,11 @@
   <samples>
   </samples>
   
-  <scenes>
-    <scene key="C" tuning="31-TET" size="32" length="4">
+  <sections>
+    <section key="C" tuning="31-TET" size="32" length="4">
       <pattern track="0">
         <note row="0" column="0" value="C-4" velocity="0.25" />
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

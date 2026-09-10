@@ -24,9 +24,8 @@
         <track id="pad" instrument="2" azimuth="15" distance="5" elevation="0" extent="20" color="" sendA="-7.3595" sendB="0.0000" noteColumns="3"/>
         <track id="bass" instrument="3" azimuth="60" distance="1" elevation="20" color="" noteColumns="2"/>
     </tracks>
-    <sections/>
-    <scenes>
-      <scene length="4">
+    <sections>
+      <section length="4">
         <annotation row="0">C Minor</annotation>
         <pattern track="chords">
           <note row="0" velocity="40">G-4</note>
@@ -118,8 +117,8 @@
           <note row="56" velocity="40">E𝄫1</note>
           <note row="60" velocity="40">F-1</note>
         </pattern>
-      </scene>
-      <scene length="4">
+      </section>
+      <section length="4">
         <annotation row="0">C Minor</annotation>
         <pattern track="bass">
           <note row="0" velocity="40">C-1</note>
@@ -219,8 +218,8 @@
           <note row="48" column="1" velocity="0">OFF</note>
           <note row="60" velocity="0">OFF</note>
         </pattern>
-      </scene>
-      <scene length="4">
+      </section>
+      <section length="4">
         <pattern track="bass">
           <note row="0" velocity="40">E♭1</note>
           <note row="4" velocity="40">E♭1</note>
@@ -228,6 +227,6 @@
           <note row="12" velocity="40">E♭1</note>
           <note row="16" velocity="40">E𝄫1</note>
         </pattern>
-      </scene>
-    </scenes>
+      </section>
+    </sections>
 </song>

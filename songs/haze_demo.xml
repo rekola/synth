@@ -20,8 +20,8 @@
     <track id="snare" instrument="1" sendB="-3.0980"/>
     <track id="hat" instrument="2" sendB="-6.0206"/>
   </tracks>
-  <scenes>
-    <scene length="1">
+  <sections>
+    <section length="1">
       <pattern track="kick">
         <note row="0" velocity="120">C-3</note>
         <note row="8" velocity="120">C-3</note>
@@ -41,6 +41,6 @@
         <note row="12" velocity="70">C-5</note>
         <note row="14" velocity="60">C-5</note>
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

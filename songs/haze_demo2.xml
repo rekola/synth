@@ -29,9 +29,9 @@
     </percussionTrack>
     <percussionTrack id="perc" sendA="-20.0000" sendB="-100.0000" azimuth="0" distance="0.9" />
   </tracks>
-  <scenes>
-    <scene length="4">
+  <sections>
+    <section length="4">
       <pattern track="drums" length="8"></pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

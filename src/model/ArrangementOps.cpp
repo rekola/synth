@@ -1,7 +1,7 @@
 #include "ArrangementOps.h"
 
 #include "Song.h"
-#include "Scene.h"
+#include "Section.h"
 #include "Clip.h"
 #include "Pattern.h"
 #include "SampleTrack.h"
@@ -26,38 +26,38 @@ previousBarRow(int raw_row, int rows_per_bar) {
 }
 
 void
-placeClipInstance(const Song & song, Scene & scene, int track_id, int row, int clip_index) {
+placeClipInstance(const Song & song, Section & section, int track_id, int row, int clip_index) {
   auto & clips = song.getClips(track_id);
   if (clip_index < 0 || clip_index >= static_cast<int>(clips.size())) return;
   auto & clip = clips[static_cast<size_t>(clip_index)];
   auto length = clip.getLength() > 0 ? clip.getLength() : 1;
-  auto reach_end = clip.isLooping() ? song.getEffectiveSceneLength(scene) - 1 : row + length - 1;
+  auto reach_end = clip.isLooping() ? song.getEffectiveSectionLength(section) - 1 : row + length - 1;
 
   // Collected first, then cleared in a separate pass - clearInstance()
   // mutates the same map getInstancesForTrack() returns a reference
   // into, so erasing while iterating it directly would be unsafe.
   vector<int> rows_to_clear;
-  for (auto & [ existing_row, existing_clip_id ] : scene.getInstancesForTrack(track_id)) {
+  for (auto & [ existing_row, existing_clip_id ] : section.getInstancesForTrack(track_id)) {
     if (existing_row >= row && existing_row <= reach_end) rows_to_clear.push_back(existing_row);
   }
-  for (auto r : rows_to_clear) scene.clearInstance(track_id, r);
+  for (auto r : rows_to_clear) section.clearInstance(track_id, r);
 
   // Stores the clip's own stable id, not `clip_index` itself - Clip.h's
   // own comment on why.
-  scene.setInstance(track_id, row, clip.getId());
+  section.setInstance(track_id, row, clip.getId());
 }
 
 void
-placeStopInstance(Scene & scene, int track_id, int row) {
-  scene.setInstance(track_id, row, "OFF");
+placeStopInstance(Section & section, int track_id, int row) {
+  section.setInstance(track_id, row, "OFF");
 }
 
 // Additively mixes frame_count frames of `source` into `background`'s own
 // channel-0 buffer starting at dest_offset frames in, growing/zero-filling
 // it first if it doesn't yet reach that far - the same lazy-growth shape
-// a scene's own background Pattern already has (its row-keyed content is
+// a section's own background Pattern already has (its row-keyed content is
 // only ever created on first write, never pre-sized). `gain` is a plain
-// per-call multiplier, not (yet) anything Clip/Scene stores anywhere -
+// per-call multiplier, not (yet) anything Clip/Section stores anywhere -
 // every call site today passes 1.0 (a real per-instance loudness/velocity
 // concept doesn't exist yet - see mergeClipToBackground()'s own comment).
 static void
@@ -85,12 +85,12 @@ mixIntoSampleBackground(SampleContent & background, int output_rate, int64_t nee
 }
 
 bool
-mergeClipToBackground(const Song & song, Scene & scene, int track_id, int row, const ChannelConfiguration & channel_config) {
-  auto active = resolveInstanceAt(song, scene, track_id, row);
+mergeClipToBackground(const Song & song, Section & section, int track_id, int row, const ChannelConfiguration & channel_config) {
+  auto active = resolveInstanceAt(song, section, track_id, row);
   if (active.clip_index < 0) return false; // nothing real placed here
 
   auto & clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
-  auto scene_length = song.getEffectiveSceneLength(scene);
+  auto section_length = song.getEffectiveSectionLength(section);
 
   if (clip.hasSample()) {
     auto * content = clip.getSampleContent();
@@ -100,17 +100,17 @@ mergeClipToBackground(const Song & song, Scene & scene, int track_id, int row, c
     if (!resolved.samples || resolved.in_frame >= resolved.out_frame) return false; // nothing playable to merge
 
     auto length = clip.getLength() > 0 ? clip.getLength() : 1;
-    auto reach_end = clip.isLooping() ? scene_length - 1 : min(active.start_row + length - 1, scene_length - 1);
+    auto reach_end = clip.isLooping() ? section_length - 1 : min(active.start_row + length - 1, section_length - 1);
 
-    // A scene needs a stable id of its own the moment it first gets a
-    // real background bed - Song::generateUniqueSceneId()'s own comment
+    // A section needs a stable id of its own the moment it first gets a
+    // real background bed - Song::generateUniqueSectionId()'s own comment
     // has the full reasoning (its sidecar file's own name has to survive
-    // this scene later being reordered, which an ordinal position can't).
-    if (scene.getId().empty()) scene.setId(song.generateUniqueSceneId());
+    // this section later being reordered, which an ordinal position can't).
+    if (section.getId().empty()) section.setId(song.generateUniqueSectionId());
 
     auto sample_interval = channel_config.getSampleInterval(song_tempo);
-    auto needed_frames = static_cast<int64_t>(scene_length) * sample_interval;
-    auto & background = scene.getOrCreateSampleBackgroundContent(track_id);
+    auto needed_frames = static_cast<int64_t>(section_length) * sample_interval;
+    auto & background = section.getOrCreateSampleBackgroundContent(track_id);
 
     auto src = resolved.samples->getChannelData(0) + resolved.in_frame;
     auto src_frame_count = static_cast<int64_t>(resolved.out_frame - resolved.in_frame);
@@ -131,9 +131,9 @@ mergeClipToBackground(const Song & song, Scene & scene, int track_id, int row, c
   } else {
     auto & leaf = clip.getLeafPattern();
     auto length = clip.getLength() > 0 ? clip.getLength() : 1;
-    auto reach_end = clip.isLooping() ? scene_length - 1 : min(active.start_row + length - 1, scene_length - 1);
+    auto reach_end = clip.isLooping() ? section_length - 1 : min(active.start_row + length - 1, section_length - 1);
 
-    auto & background = scene.getPatternsByTrack()[track_id];
+    auto & background = section.getPatternsByTrack()[track_id];
     for (auto r = active.start_row; r <= reach_end; r++) {
       auto src_row = leaf.getEffectiveRow(r - active.start_row, length);
       background.setNotes(r, leaf.getNotes(src_row));
@@ -143,7 +143,7 @@ mergeClipToBackground(const Song & song, Scene & scene, int track_id, int row, c
     }
   }
 
-  placeStopInstance(scene, track_id, active.start_row);
+  placeStopInstance(section, track_id, active.start_row);
   return true;
 }
 
@@ -153,18 +153,18 @@ deleteClip(Song & song, int track_id, int clip_index) {
   if (clip_index < 0 || clip_index >= static_cast<int>(clips.size())) return;
   auto clip_id = clips[static_cast<size_t>(clip_index)].getId();
 
-  // Every scene, not just the one(s) the caller happens to know about -
+  // Every section, not just the one(s) the caller happens to know about -
   // the same clip can be (and, live-linked editing being the whole point
   // of a clip, often is) placed in several.
-  for (size_t i = 0; i < song.getScenes().size(); i++) {
-    auto & scene = song.getScene(static_cast<int>(i));
+  for (size_t i = 0; i < song.getSections().size(); i++) {
+    auto & section = song.getSection(static_cast<int>(i));
     // Collected first, then cleared in a separate pass - same reasoning
     // placeClipInstance() above already documents.
     vector<int> rows_to_clear;
-    for (auto & [ row, existing_clip_id ] : scene.getInstancesForTrack(track_id)) {
+    for (auto & [ row, existing_clip_id ] : section.getInstancesForTrack(track_id)) {
       if (existing_clip_id == clip_id) rows_to_clear.push_back(row);
     }
-    for (auto row : rows_to_clear) scene.clearInstance(track_id, row);
+    for (auto row : rows_to_clear) section.clearInstance(track_id, row);
   }
 
   clips.erase(clips.begin() + clip_index);
@@ -172,16 +172,16 @@ deleteClip(Song & song, int track_id, int clip_index) {
 }
 
 ActiveInstance
-resolveInstanceAt(const Song & song, const Scene & scene, int track_id, int row) {
-  auto & track_instances = scene.getInstancesForTrack(track_id);
-  if (track_instances.empty()) return { Scene::kNoInstance };
+resolveInstanceAt(const Song & song, const Section & section, int track_id, int row) {
+  auto & track_instances = section.getInstancesForTrack(track_id);
+  if (track_instances.empty()) return { Section::kNoInstance };
 
   auto it = track_instances.upper_bound(static_cast<unsigned short>(row));
-  if (it == track_instances.begin()) return { Scene::kNoInstance }; // nothing at or before row
+  if (it == track_instances.begin()) return { Section::kNoInstance }; // nothing at or before row
   --it;
   auto event_row = static_cast<int>(it->first);
   auto & clip_id = it->second;
-  if (clip_id == "OFF") return { Scene::kStopInstance, event_row };
+  if (clip_id == "OFF") return { Section::kStopInstance, event_row };
 
   // The stored id's own *current* position in the track's clip list -
   // never assumed to still be wherever it was when the instance was
@@ -191,27 +191,27 @@ resolveInstanceAt(const Song & song, const Scene & scene, int track_id, int row)
   for (size_t i = 0; i < clips.size(); i++) {
     if (clips[i].getId() == clip_id) { clip_index = static_cast<int>(i); break; }
   }
-  if (clip_index < 0) return { Scene::kNoInstance }; // the clip this once referenced no longer exists
+  if (clip_index < 0) return { Section::kNoInstance }; // the clip this once referenced no longer exists
 
   auto & clip = clips[static_cast<size_t>(clip_index)];
   if (!clip.isLooping()) {
     auto length = clip.getLength() > 0 ? clip.getLength() : 1;
-    if (row - event_row >= length) return { Scene::kNoInstance }; // one-shot already finished
+    if (row - event_row >= length) return { Section::kNoInstance }; // one-shot already finished
   }
   return { clip_index, event_row };
 }
 
 ActiveInstance
-resolveInstanceForBar(const Song & song, const Scene & scene, int track_id, int bar_start_row, int bar_span) {
-  auto & track_instances = scene.getInstancesForTrack(track_id);
-  if (track_instances.empty()) return { Scene::kNoInstance };
+resolveInstanceForBar(const Song & song, const Section & section, int track_id, int bar_start_row, int bar_span) {
+  auto & track_instances = section.getInstancesForTrack(track_id);
+  if (track_instances.empty()) return { Section::kNoInstance };
 
   auto bar_last_row = bar_start_row + max(bar_span, 1) - 1;
   auto it = track_instances.upper_bound(static_cast<unsigned short>(bar_last_row));
-  if (it == track_instances.begin()) return { Scene::kNoInstance }; // nothing at or before this bar's own last row
+  if (it == track_instances.begin()) return { Section::kNoInstance }; // nothing at or before this bar's own last row
   --it;
   auto event_row = static_cast<int>(it->first);
-  if (event_row < bar_start_row) return resolveInstanceAt(song, scene, track_id, bar_start_row); // predates this bar - the ordinary per-row query already covers it correctly, one-shot expiry included
+  if (event_row < bar_start_row) return resolveInstanceAt(song, section, track_id, bar_start_row); // predates this bar - the ordinary per-row query already covers it correctly, one-shot expiry included
 
   // This event belongs to this bar - shown unconditionally (one-shot
   // expiry doesn't apply here, unlike resolveInstanceAt(): it was
@@ -235,7 +235,7 @@ resolveInstanceForBar(const Song & song, const Scene & scene, int track_id, int 
   event_row = static_cast<int>(it->first);
 
   auto & clip_id = it->second;
-  if (clip_id == "OFF") return { Scene::kStopInstance, event_row };
+  if (clip_id == "OFF") return { Section::kStopInstance, event_row };
 
   // The stored id's own *current* position in the track's clip list -
   // same id-not-position lookup resolveInstanceAt() above already does,
@@ -245,7 +245,7 @@ resolveInstanceForBar(const Song & song, const Scene & scene, int track_id, int 
   for (size_t i = 0; i < clips.size(); i++) {
     if (clips[i].getId() == clip_id) { clip_index = static_cast<int>(i); break; }
   }
-  if (clip_index < 0) return { Scene::kNoInstance }; // the clip this once referenced no longer exists
+  if (clip_index < 0) return { Section::kNoInstance }; // the clip this once referenced no longer exists
   return { clip_index, event_row };
 }
 
@@ -263,7 +263,7 @@ resolveFocusedClipIndex(const Song & song, int track_id, const std::string & foc
 }
 
 EditTarget
-resolveEditTarget(Song & song, Scene & scene, int track_id, int row, const std::string & focused_clip_id) {
+resolveEditTarget(Song & song, Section & section, int track_id, int row, const std::string & focused_clip_id) {
   auto focused_index = resolveFocusedClipIndex(song, track_id, focused_clip_id);
   if (focused_index >= 0) {
     auto & clip = song.getClips(track_id)[static_cast<size_t>(focused_index)];
@@ -273,7 +273,7 @@ resolveEditTarget(Song & song, Scene & scene, int track_id, int row, const std::
       return { &pattern, pattern.getEffectiveRow(row, length) };
     }
   } else {
-    auto active = resolveInstanceAt(song, scene, track_id, row);
+    auto active = resolveInstanceAt(song, section, track_id, row);
     if (active.clip_index >= 0) {
       auto & clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
       if (!clip.hasSample()) {
@@ -285,16 +285,16 @@ resolveEditTarget(Song & song, Scene & scene, int track_id, int row, const std::
   }
   // A SampleTrack's own clip carries raw audio, not a Pattern - there is
   // nothing here to edit at all (no note-column UI exists for it), so
-  // this falls back to the scene's own (otherwise-unread, for this track)
+  // this falls back to the section's own (otherwise-unread, for this track)
   // background Pattern, the same as the ordinary "nothing placed here"
   // case just below - safe, if this is ever actually reached, rather than
   // dereferencing a Pattern the clip was never given one of.
-  auto & pattern = scene.getPatternsByTrack()[track_id];
-  return { &pattern, pattern.getEffectiveRow(row, song.getEffectiveSceneLength(scene)) };
+  auto & pattern = section.getPatternsByTrack()[track_id];
+  return { &pattern, pattern.getEffectiveRow(row, song.getEffectiveSectionLength(section)) };
 }
 
 ReadTarget
-resolveReadTarget(const Song & song, const Scene & scene, int track_id, int row, const std::string & focused_clip_id) {
+resolveReadTarget(const Song & song, const Section & section, int track_id, int row, const std::string & focused_clip_id) {
   static const Pattern empty_pattern;
   auto focused_index = resolveFocusedClipIndex(song, track_id, focused_clip_id);
   if (focused_index >= 0) {
@@ -306,7 +306,7 @@ resolveReadTarget(const Song & song, const Scene & scene, int track_id, int row,
     auto length = clip.getLength() > 0 ? clip.getLength() : 1;
     return { &pattern, pattern.getEffectiveRow(row, length), row, true, focused_index, true };
   }
-  auto active = resolveInstanceAt(song, scene, track_id, row);
+  auto active = resolveInstanceAt(song, section, track_id, row);
   if (active.clip_index >= 0) {
     auto & clip = song.getClips(track_id)[static_cast<size_t>(active.clip_index)];
     auto unwrapped_row = row - active.start_row;
@@ -315,8 +315,8 @@ resolveReadTarget(const Song & song, const Scene & scene, int track_id, int row,
     auto length = clip.getLength() > 0 ? clip.getLength() : 1;
     return { &pattern, pattern.getEffectiveRow(unwrapped_row, length), unwrapped_row, true, active.clip_index };
   }
-  auto & patterns = scene.getPatternsByTrack();
+  auto & patterns = section.getPatternsByTrack();
   auto it = patterns.find(track_id);
   if (it == patterns.end()) return { &empty_pattern, 0, row, false, -1 };
-  return { &it->second, it->second.getEffectiveRow(row, song.getEffectiveSceneLength(scene)), row, false, -1 };
+  return { &it->second, it->second.getEffectiveRow(row, song.getEffectiveSectionLength(section)), row, false, -1 };
 }

@@ -25,15 +25,15 @@
 // unlike SampleContent's own buffer, nothing outside a Clip ever needs to
 // keep a SampleContent itself alive independently.
 //
-// Distinct from a Scene's own inline Pattern in one crucial way: a clip
+// Distinct from a Section's own inline Pattern in one crucial way: a clip
 // is a single shared object that can be placed at more than one position
 // at once, and editing it through any one of those updates every other
-// placement immediately. A Scene's own inline content is never shared
+// placement immediately. A Section's own inline content is never shared
 // this way - it's always a plain, independent copy.
 //
 // Extends SongObject for its own display name (getName()/setName(),
 // inherited as-is) - a clip's name is the clip's own property, not its
-// leaf Pattern's; a scene's own inline Pattern has no name at all. Also
+// leaf Pattern's; a section's own inline Pattern has no name at all. Also
 // for id_/getId()/setId() - Song::addClip() assigns one when a clip is
 // created without one already set (see its own comment), same as a track
 // created through the UI; see this field's own comment further down for
@@ -54,9 +54,9 @@ class Clip : public SongObject {
   const Pattern & getLeafPattern() const { return patterns_by_track_.at(leaf_track_id_); }
 
   // A clip's own length, independent of its leaf Pattern's own length_
-  // (Pattern.h) - a clip is addressed and triggered outside any scene's
+  // (Pattern.h) - a clip is addressed and triggered outside any section's
   // row context, so it needs a real length of its own rather than
-  // deferring to a context_length the way a scene's own inline Pattern
+  // deferring to a context_length the way a section's own inline Pattern
   // does. 0 means "not given a length of its own" (see Pattern.h's own
   // comment on that same convention); callers already clamp it to at
   // least 1 before using it (LaunchpadManager::triggerClipStep()).
@@ -70,8 +70,8 @@ class Clip : public SongObject {
   // triggerClipStep() releases the track's voices and stops
   // triggering it, rather than wrapping back to row 0, once it's played
   // through its own length once. Scoped to Session-view triggering only -
-  // a scene's own inline Pattern (ordinary transport-driven playback,
-  // bounded by the scene/song's own row range regardless) has no
+  // a section's own inline Pattern (ordinary transport-driven playback,
+  // bounded by the section/song's own row range regardless) has no
   // equivalent and isn't a Clip in the first place.
   bool isLooping() const { return loop_; }
   void setLooping(bool loop) { loop_ = loop; }

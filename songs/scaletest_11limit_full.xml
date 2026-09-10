@@ -24,8 +24,8 @@
     <track id="0" instrument="0" azimuth="30" distance="0" elevation="50" />
   </tracks>
   
-  <scenes>
-    <scene length="2">
+  <sections>
+    <section length="2">
       <annotation row="0">C minor + Bb</annotation>
       <annotation row="4">C major + Bb</annotation>
       <annotation row="8">C minor + Ax</annotation>
@@ -40,6 +40,6 @@
         <note row="16" column="0" velocity="40">C-4 E♭4 G-4 B-4</note>
         <note row="20" column="0" velocity="40">C-4 E-4 G-4 B-4</note>
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

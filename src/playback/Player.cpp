@@ -355,7 +355,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	      Note note(midi_note, midi_velocity);
 	      auto frequency = Tuner::getFrequency(tuning, note);
 
-	      // A live note has no authored (scene, row) position to build a
+	      // A live note has no authored (section, row) position to build a
 	      // real NoteCoordinate from - live_note_counter_ (this Player's
 	      // own, advanced once per live note-on) stands in for
 	      // absolute_row instead, so InstrumentVoice can still derive a
@@ -382,7 +382,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
       if (clip_index < 0 || clip_index >= static_cast<int>(clips.size())) break;
 
       auto * sample_state = dynamic_cast<SampleTrackState *>(state.getChildByInternalId(track_id));
-      // No scene to bound against here (Session-view triggering isn't tied
+      // No section to bound against here (Session-view triggering isn't tied
       // to one), and no block to chunk mid-render either - straight through
       // to triggerClip(), unlike SongState.h's own transport-driven path
       // (RenderContext::addPendingSampleStart()/addPendingSampleStop()).
@@ -843,7 +843,7 @@ Player::play(AudioAPI & audio) {
 		threshold_triggered_this_arm_cycle_ = true;
 		auto preroll = threshold_ring_buffer_.drain();
 
-		// Backdated (scene, row): the transport's own position right
+		// Backdated (section, row): the transport's own position right
 		// now, minus the pre-roll's own span converted to rows -
 		// resolved here, directly against this same audio thread's
 		// own live SongState (Controller::getPlaybackInfo() is a
@@ -856,7 +856,7 @@ Player::play(AudioAPI & audio) {
 		// yet - can't happen in practice (armThresholdRecording()'s
 		// own auto-start already gave it one), stays defensive
 		// rather than assuming.
-		int scene = 0, row = 0;
+		int section = 0, row = 0;
 		auto buffer_name = controller_->getActiveBufferNameThreadSafe();
 		auto song_ptr = controller_->getSongByName(buffer_name);
 		auto state_it = live_states_.find(buffer_name);
@@ -864,11 +864,11 @@ Player::play(AudioAPI & audio) {
 		  auto & state = *state_it->second;
 		  auto preroll_rows = channel_config_.framesToRows(preroll.numberOfFrames(), state.getTempo());
 		  auto backdated = song_ptr->normalizePosition(0, std::max(0, state.getAbsolutePosition() - preroll_rows));
-		  scene = backdated.first;
+		  section = backdated.first;
 		  row = backdated.second;
 		}
 		controller_->getUIEventQueue().push(make_unique<ThresholdRecordingTriggeredEvent>(
-		  controller_->getRecordingTrackId(), std::move(preroll), scene, row));
+		  controller_->getRecordingTrackId(), std::move(preroll), section, row));
 	      }
 	    }
 	  }

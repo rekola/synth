@@ -90,10 +90,10 @@ protected:
   // Shared by arrangement_grid_'s own Enter commit and a Launchpad "assign"
   // pad press in GridMode::SESSION (see wireLaunchpad()/initializeWidgets()
   // for how each is wired to this) - one implementation of "commit this
-  // (track, scene, row) cell", not two competing ones. See
+  // (track, section, row) cell", not two competing ones. See
   // ArrangementGrid.h's own comment on why ArrangementGrid itself never
   // calls this directly.
-  void commitOverviewCell(int track_id, int scene_idx, int row);
+  void commitOverviewCell(int track_id, int section_idx, int row);
   // Shared by PatternEditor's own leftward "nowhere further to go" edge
   // and Launchpad's equivalent "prev-track already at track 0" one (see
   // PatternEditor::setOverviewRequestCallback()/LaunchpadManager::

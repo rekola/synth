@@ -17,7 +17,7 @@
 // per row - see PatternBlockOps.h's copy/clear/pastePatternBlockAnnotations)
 // and EVERYTHING (both that and a whole-row PatternBlock, TRACK's own
 // capture, acted on together - see ClipboardEntry.h's own comment).
-// transpose-region-* does nothing with either: Scene's annotation text has
+// transpose-region-* does nothing with either: Section's annotation text has
 // no numeric/transposable semantics, and while EVERYTHING's PatternBlock
 // half technically has transposable notes, there's no single mark/point
 // gesture that reaches EVERYTHING without also touching the annotation, so

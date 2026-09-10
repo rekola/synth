@@ -18,7 +18,7 @@ class SampleContent;
 // none of InstrumentTrackState's note-column/chord/pressure machinery
 // applies to it either (no pitch/identity of its own). A SampleTrack has
 // exactly two independent, fixed voices, never more - the one clip that
-// can be playing (kClipVoiceId), and the current scene's own always-on
+// can be playing (kClipVoiceId), and the current section's own always-on
 // background bed (kBackgroundVoiceId), which mixes with it rather than
 // being masked by it (real audio genuinely sums; see SongState.h's own
 // comment on why this differs from a note track's own background
@@ -131,7 +131,7 @@ public:
   // own note already has (a fresh note-on each time its row wraps
   // around, not one voice sustaining and looping internally) - this just
   // extends it to raw sample playback. Ending a take early for any other
-  // reason (a one-shot clip's own real audio outlasting the scene it's
+  // reason (a one-shot clip's own real audio outlasting the section it's
   // placed in, an explicit stop instance, eventually pause/seek) is this
   // same render() loop's own SampleTrackEvent::STOP handling, not this
   // method's concern at all.

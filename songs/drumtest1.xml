@@ -30,8 +30,8 @@
     <percussionTrack id="perc" distance="1" azimuth="90" />
   </tracks>
   
-  <scenes>
-    <scene length="1">
+  <sections>
+    <section length="1">
       <pattern track="bell">
         <note row="0" velocity="4">C-5</note>
         <note row="2" velocity="4">C-5</note>
@@ -64,8 +64,8 @@
         <note row="12" velocity="40">SD</note>
         <note row="14" velocity="40">SH</note>
       </pattern>
-    </scene>
-    <scene length="1">
+    </section>
+    <section length="1">
       <pattern track="bell">
         <note row="0" velocity="4">C-5</note>
         <note row="2" velocity="4">C-5</note>
@@ -98,8 +98,8 @@
         <note row="12" velocity="40">SD</note>
         <note row="14" velocity="40">SH</note>
       </pattern>
-    </scene>
-    <scene length="1">
+    </section>
+    <section length="1">
       <pattern track="bell">
         <note row="0" velocity="4">C-5</note>
         <note row="2" velocity="4">C-5</note>
@@ -129,8 +129,8 @@
         <note row="12" velocity="40">SD</note>
         <note row="14" velocity="40">SH</note>
       </pattern>
-    </scene>
-    <scene length="1">
+    </section>
+    <section length="1">
       <pattern track="bell">
         <note row="0" velocity="4">C-5</note>
         <note row="2" velocity="4">C-5</note>
@@ -162,14 +162,14 @@
         <note row="12" velocity="40">SD</note>
         <note row="14" velocity="40">SH</note>
       </pattern>
-    </scene>
-    <scene length="1">
+    </section>
+    <section length="1">
       <pattern track="piano">
         <note row="0" velocity="80">C-4 E-4 G-4</note>
       </pattern>
       <pattern track="bass">
         <note row="0" velocity="30">C-2</note>
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

@@ -15,14 +15,14 @@
       </clip>
     </trackClips>
   </clips>
-  <scenes>
-    <scene>
+  <sections>
+    <section>
       <pattern track="0">
         <note row="0" velocity="80" value="C-4" />
       </pattern>
       <arrangement track="0">
         <instance row="0">c0</instance>
       </arrangement>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

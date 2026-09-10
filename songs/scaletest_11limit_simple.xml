@@ -24,8 +24,8 @@
     <track id="0" instrument="0" sendA="-6.9357" elevation="50" azimuth="30" />
   </tracks>
   
-  <scenes>
-    <scene length="3">
+  <sections>
+    <section length="3">
       <annotation row="0">Major</annotation>
       <pattern track="0">
         <note row="0" velocity="40">C-4</note>
@@ -41,8 +41,8 @@
         <note row="20" velocity="40">B-4</note>
         <note row="22" velocity="40">C-5</note>
       </pattern>
-    </scene>
-    <scene length="3">
+    </section>
+    <section length="3">
       <annotation row="0">Major</annotation>
       <pattern track="0">
         <note row="0" velocity="40">C-4 E-4 G-4</note>
@@ -58,6 +58,6 @@
         <note row="40" velocity="40">B-4 Db5 F-5</note>
         <note row="44" velocity="40">C-5 E-5 G-5</note>
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

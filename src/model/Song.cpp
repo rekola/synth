@@ -101,30 +101,30 @@ sampleSidecarPath(const string & song_filename, const string & clip_id) {
 
 // A SampleTrack's own background bed's sidecar .wav stem/path - same
 // `<song-stem>.samples/` sidecar directory a real clip's own sidecar
-// already uses (sampleSidecarPath() above), just named by (scene id,
-// track id) instead of a clip's own stable id. Keyed by the scene's own
-// stable id (Song::generateUniqueSceneId(), assigned lazily the moment a
-// scene first gets a real background bed - ArrangementOps.cpp's own
+// already uses (sampleSidecarPath() above), just named by (section id,
+// track id) instead of a clip's own stable id. Keyed by the section's own
+// stable id (Song::generateUniqueSectionId(), assigned lazily the moment a
+// section first gets a real background bed - ArrangementOps.cpp's own
 // mergeClipToBackground()), deliberately not its ordinal position in
-// Song::getScenes(): inserting/reordering scenes is a normal edit, and an
-// ordinal position shifting under every scene after the edit would rename
-// (and orphan-then-recreate) every one of their own background sidecar
-// files on the very next save for no real reason.
+// Song::getSections(): inserting/reordering sections is a normal edit, and
+// an ordinal position shifting under every section after the edit would
+// rename (and orphan-then-recreate) every one of their own background
+// sidecar files on the very next save for no real reason.
 static string
-sampleBackgroundStem(const string & scene_id, int track_id) {
-  return "background_" + scene_id + "_" + to_string(track_id);
+sampleBackgroundStem(const string & section_id, int track_id) {
+  return "background_" + section_id + "_" + to_string(track_id);
 }
 
 static string
-sampleBackgroundSidecarPath(const string & song_filename, const string & scene_id, int track_id) {
+sampleBackgroundSidecarPath(const string & song_filename, const string & section_id, int track_id) {
   filesystem::path song_path(song_filename);
-  auto sample_path = song_path.parent_path() / (song_path.stem().string() + ".samples") / (sampleBackgroundStem(scene_id, track_id) + ".wav");
+  auto sample_path = song_path.parent_path() / (song_path.stem().string() + ".samples") / (sampleBackgroundStem(section_id, track_id) + ".wav");
   return sample_path.string();
 }
 
 // Parses a <pattern>'s own <note>/<command> children (and optional
-// `length` attribute) directly into `pattern` - shared by the per-scene
-// reader (Scene::patterns_by_track_id_'s own entry) and the clip reader
+// `length` attribute) directly into `pattern` - shared by the per-section
+// reader (Section::patterns_by_track_id_'s own entry) and the clip reader
 // below, which parse the identical <pattern> shape into two different
 // kinds of owning container. false (with the malformed-command
 // diagnostic already printed) on a corrupt <command>, matching both
@@ -161,7 +161,7 @@ static bool parsePatternContent(XMLElement & pattern_element, Pattern & pattern,
     if (data_text) {
       int row = row_text ? atoi(row_text) : 0;
       // setData(), not the Command(string_view) constructor - see the
-      // scene reader's own original comment on this: untrusted file data
+      // section reader's own original comment on this: untrusted file data
       // has to be actually detected as malformed here, not silently
       // fall back to a defined-but-wrong "----".
       Command command;
@@ -216,7 +216,7 @@ static unique_ptr<Track> createTrack(string_view name) {
 }
 
 // A <percussionTrack>'s own <lane> children describe its kit - which
-// drums it can play, not what triggers when (that's an ordinary per-scene
+// drums it can play, not what triggers when (that's an ordinary per-section
 // Pattern now, like any other track - PercussionTrack.h's own comment). No
 // <lane> children at all is a plain, lane-less percussion track, not a
 // special case to fill in - see PercussionTrack.h's own header comment on
@@ -314,10 +314,10 @@ static std::unique_ptr<Track> parseChildTrack(XMLElement & element, const Instru
 // Writes <note>/<command> children into `pattern_element` for every row
 // `pattern` actually has content on, in ascending row order - the write
 // side of parsePatternContent() above, shared the same way by the
-// per-scene writer and the clip writer below. Reads the raw row->note-
+// per-section writer and the clip writer below. Reads the raw row->note-
 // columns map directly (sorted, since it's an unordered_map) rather than
 // looping some external row bound: a clip's own leaf Pattern has no
-// scene/song pattern-length context to bound one by, and a scene's own
+// section/song pattern-length context to bound one by, and a section's own
 // inline Pattern's raw storage never holds anything past its own
 // effective length in the first place (every write already redirects
 // there via getEffectiveRow() - see Pattern.h), so this finds the exact
@@ -588,15 +588,15 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
       }
     }
     
-    // Sibling of <tracks>/<scenes> - Song's own flat, per-track clip list
-    // (Song.h's own getClips() comment), read before <scenes> since it
+    // Sibling of <tracks>/<sections> - Song's own flat, per-track clip list
+    // (Song.h's own getClips() comment), read before <sections> since it
     // needs nothing from there. One <trackClips> per track that has any
     // clips at all, grouping that track's own <clip> children in order
     // (mirrors how the writer below already walks them, one track at a
     // time) rather than repeating a track reference on every single
     // <clip>. Each <clip> holds its own name/loop/length
     // (Clip::loadParameters()) plus a nested <pattern> for its leaf
-    // track's own note/command content - the exact same shape a scene's
+    // track's own note/command content - the exact same shape a section's
     // own inline <pattern> uses (parsePatternContent() above), just with
     // no name/loop/length of its own (those are the enclosing <clip>'s).
     auto clips_element = song->FirstChildElement("clips");
@@ -645,26 +645,56 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
       }
     }
 
-    auto scenes = song->FirstChildElement("scenes");
-    if (scenes) {
-      for (auto it = scenes->FirstChildElement("scene"); it ; it = it->NextSiblingElement("scene") ) {
-	auto & scene = addScene(Scene());
-	// A <scene> with no "length" of its own (a pre-variable-length-
-	// scenes file included) just takes Scene's own compiled default (4
-	// bars) - see Scene::loadParameters()'s own comment.
-	scene.loadParameters(XMLParameterSource(it));
+    // <sections>/<section> is the current tag pair (Section, formerly
+    // Scene, before the "Scene" name got reserved for a Session-view
+    // launch row instead - see CLAUDE.md's own GridMode comment); a file
+    // saved before that rename still has <scenes>/<scene> instead, which
+    // this falls back to reading as a read-only compatibility path -
+    // Song::save() below always writes the current tag pair, so a file
+    // only ever needs this fallback once, the first time it's resaved.
+    //
+    // firstNonEmpty() skips an empty <sections/> (or <scenes/>) rather
+    // than just taking whichever comes first: several real songs in this
+    // repo's own corpus (songtest14/17/18/19/19b, a.xml, scaletest_
+    // 7limit_simple - confirmed already present at HEAD, so not something
+    // this rename introduced) carry a leftover empty <sections/> stub
+    // ahead of their real content - a dead artifact from an unrelated,
+    // long-retired pre-Scene song format that used to spell its own
+    // (different) top-level element the same way. The old <scenes> name
+    // never collided with it, so this went unnoticed; <sections> does,
+    // and FirstChildElement() alone would silently find the empty stub
+    // and read the song as having no content at all.
+    auto firstNonEmpty = [&song](const char * tag) -> XMLElement * {
+      for (auto candidate = song->FirstChildElement(tag); candidate; candidate = candidate->NextSiblingElement(tag)) {
+	if (candidate->FirstChildElement()) return candidate;
+      }
+      return nullptr;
+    };
+    auto sections = firstNonEmpty("sections");
+    const char * section_tag = "section";
+    if (!sections) {
+      sections = firstNonEmpty("scenes");
+      section_tag = "scene";
+    }
+    if (sections) {
+      for (auto it = sections->FirstChildElement(section_tag); it ; it = it->NextSiblingElement(section_tag) ) {
+	auto & section = addSection(Section());
+	// A <section> with no "length" of its own (a pre-variable-length-
+	// sections file included) just takes Section's own compiled default
+	// (4 bars) - see Section::loadParameters()'s own comment.
+	section.loadParameters(XMLParameterSource(it));
 
 	for (auto it2 = it->FirstChildElement("annotation"); it2; it2 = it2->NextSiblingElement("annotation")) {
 	  auto row_text = it2->Attribute("row");
 	  if (row_text) {
 	    int row = atoi(row_text);
 	    auto s = it2->GetText();
-	    scene.setAnnotation(row, s ? s : "");
+	    section.setAnnotation(row, s ? s : "");
 	  }
 	}
 
 	// One <pattern track="..."> per track that has anything at this
-	// scene - <note>/<command> no longer carry their own "track"
+	// section - <note>/<command> no longer carry their own "track"
 	// attribute (see the class's own header comment): which track
 	// they belong to is resolved once per <pattern>, not once per
 	// child element.
@@ -674,7 +704,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	  if (!track) continue;
 
 	  auto track_id = track->getInternalId();
-	  auto & pattern = scene.getPatternsByTrack()[track_id];
+	  auto & pattern = section.getPatternsByTrack()[track_id];
 	  if (!parsePatternContent(*it2, pattern, getTuningForTrack(*track), filename)) {
 	    setlocale(LC_ALL, oldLocale.c_str());
 	    return false;
@@ -696,16 +726,16 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	    if (!row_text) continue;
 	    auto value_text = it3->GetText();
 	    if (!value_text) continue;
-	    scene.setInstance(track_id, atoi(row_text), value_text);
+	    section.setInstance(track_id, atoi(row_text), value_text);
 	  }
 	}
 
-	// A SampleTrack's own background bed for this scene (Scene::
+	// A SampleTrack's own background bed for this section (Section::
 	// getOrCreateSampleBackgroundContent()) - one <sampleBackground
 	// track="..." file="..."> per track that has one, the sample-content
 	// sibling of a real clip's own <sample file="..."> above, just with
 	// no in/out/originalTempo of its own (a background bed is never
-	// trimmed or tempo-stretched - see Scene.h's own comment).
+	// trimmed or tempo-stretched - see Section.h's own comment).
 	for (auto it2 = it->FirstChildElement("sampleBackground"); it2 ; it2 = it2->NextSiblingElement("sampleBackground")) {
 	  auto track_text = it2->Attribute("track");
 	  auto track = track_text ? resolveTrackReference(*this, track_text) : nullptr;
@@ -724,13 +754,13 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	    setlocale(LC_ALL, oldLocale.c_str());
 	    return false;
 	  }
-	  auto & content = scene.getOrCreateSampleBackgroundContent(track->getInternalId());
+	  auto & content = section.getOrCreateSampleBackgroundContent(track->getInternalId());
 	  content.setBuffer(loaded.buffer);
 	  content.setNativeSampleRate(loaded.rate);
-	  // Self-healing for a hand-authored file that never gave this scene
-	  // its own "id" attribute - Song::generateUniqueSceneId()'s own
-	  // comment on why a real background bed needs one.
-	  if (scene.getId().empty()) scene.setId(generateUniqueSceneId());
+	  // Self-healing for a hand-authored file that never gave this
+	  // section its own "id" attribute - Song::generateUniqueSectionId()'s
+	  // own comment on why a real background bed needs one.
+	  if (section.getId().empty()) section.setId(generateUniqueSectionId());
 	}
       }
     }
@@ -770,7 +800,7 @@ Song::save(const std::string & filename) const {
   getMasterTrack().storeParameters(tracks_parameters);
   root->InsertEndChild(tracks);
 
-  // Sibling of <tracks>/<scenes> - Song's own flat, per-track clip list
+  // Sibling of <tracks>/<sections> - Song's own flat, per-track clip list
   // (Song.h's own getClips() comment). Omitted entirely (not written as an
   // empty <clips/>) when there's nothing in it, same "default/empty state
   // stores nothing" rule storeBusConfig() already follows - most songs
@@ -851,15 +881,15 @@ Song::save(const std::string & filename) const {
 	if (clip.getSampleContent() && clip.getSampleContent()->getBuffer()) live_ids.insert(clip.getId());
       }
     }
-    for (auto & scene : getScenes()) {
+    for (auto & section : getSections()) {
       // Both real creation paths (mergeClipToBackground(), this file's
-      // own <sampleBackground> reader above) already assign a scene id
+      // own <sampleBackground> reader above) already assign a section id
       // the moment a background bed is actually created - an empty id
       // here would mean a caller reached getOrCreateSampleBackgroundContent()
       // some other way, which isn't a case that exists today.
-      if (scene.getId().empty()) continue;
-      for (auto & [ track_id, background ] : scene.getSampleBackgroundsByTrack()) {
-	if (background.getBuffer()) live_ids.insert(sampleBackgroundStem(scene.getId(), track_id));
+      if (section.getId().empty()) continue;
+      for (auto & [ track_id, background ] : section.getSampleBackgroundsByTrack()) {
+	if (background.getBuffer()) live_ids.insert(sampleBackgroundStem(section.getId(), track_id));
       }
     }
 
@@ -875,30 +905,32 @@ Song::save(const std::string & filename) const {
     }
   }
 
-  auto scenes = doc.NewElement("scenes");
-  root->InsertEndChild(scenes);
+  // <sections>/<section> - see the reader's own comment above on the
+  // rename from <scenes>/<scene> (still read, never written).
+  auto sections = doc.NewElement("sections");
+  root->InsertEndChild(sections);
 
-  for (auto & scene : getScenes()) {
-    auto scene_element = doc.NewElement("scene");
-    XMLParameterSource scene_parameters(scene_element);
-    scene.storeParameters(scene_parameters);
+  for (auto & section : getSections()) {
+    auto section_element = doc.NewElement("section");
+    XMLParameterSource section_parameters(section_element);
+    section.storeParameters(section_parameters);
 
-    // Every annotation this scene actually has, not just the ones within
-    // its own current length - a row past the scene's own bounds (e.g.
+    // Every annotation this section actually has, not just the ones within
+    // its own current length - a row past the section's own bounds (e.g.
     // one left behind by a later shrink) is still real authored content,
     // and silently dropping it on save would be data loss.
-    for (auto & [ row, annotation ] : scene.getAnnotations()) {
+    for (auto & [ row, annotation ] : section.getAnnotations()) {
       auto annotation_element = doc.NewElement("annotation");
       annotation_element->SetAttribute("row", static_cast<int>(row));
       annotation_element->SetText(annotation.c_str());
-      scene_element->InsertEndChild(annotation_element);
+      section_element->InsertEndChild(annotation_element);
     }
 
-    // One <pattern track="..."> per track that has anything in this scene -
-    // "track" moves here from every <note>/<command> (see this class's own
-    // header comment), so it's resolved once per track instead of once per
-    // element.
-    for (auto & [ track_id, pattern ] : scene.getPatternsByTrack()) {
+    // One <pattern track="..."> per track that has anything in this
+    // section - "track" moves here from every <note>/<command> (see this
+    // class's own header comment), so it's resolved once per track
+    // instead of once per element.
+    for (auto & [ track_id, pattern ] : section.getPatternsByTrack()) {
       auto track = getMasterTrack().getChildByInternalId(track_id);
       assert(track);
       if (!track) continue;
@@ -909,16 +941,16 @@ Song::save(const std::string & filename) const {
       auto pattern_element = doc.NewElement("pattern");
       pattern_element->SetAttribute("track", track_ref.c_str());
       storePatternContent(doc, pattern_element, pattern, track_tuning);
-      scene_element->InsertEndChild(pattern_element);
+      section_element->InsertEndChild(pattern_element);
     }
 
     // One <arrangement track="..."> per track that has any instance
-    // events in this scene, grouping them the same way <clips>'s own
+    // events in this section, grouping them the same way <clips>'s own
     // <trackClips> groups a track's own clips - avoids repeating "track"
     // on every single <instance>. The value (a clip's own id, or "OFF"
     // for an explicit stop) is the element's own text content, matching
     // <note>/<command>, not an attribute.
-    for (auto & [ track_id, track_instances ] : scene.getInstancesByTrack()) {
+    for (auto & [ track_id, track_instances ] : section.getInstancesByTrack()) {
       if (track_instances.empty()) continue;
       auto track = getMasterTrack().getChildByInternalId(track_id);
       assert(track);
@@ -932,28 +964,28 @@ Song::save(const std::string & filename) const {
 	instance_element->SetText(clip_id.c_str());
 	arrangement_element->InsertEndChild(instance_element);
       }
-      scene_element->InsertEndChild(arrangement_element);
+      section_element->InsertEndChild(arrangement_element);
     }
 
     // One <sampleBackground track="..." file="..."> per track that has a
-    // real background bed in this scene (Scene::
+    // real background bed in this section (Section::
     // getSampleBackgroundsByTrack()) - the sample-content sibling of a
     // real clip's own <sample> above, just with no in/out/originalTempo
-    // of its own (see Scene.h's own comment on why). Written to the same
-    // `<song-stem>.samples/` sidecar directory a real clip's own audio
-    // already uses, just named by (scene id, track id) instead of a
-    // clip's own stable id - sampleBackgroundSidecarPath()'s own comment
+    // of its own (see Section.h's own comment on why). Written to the
+    // same `<song-stem>.samples/` sidecar directory a real clip's own
+    // audio already uses, just named by (section id, track id) instead of
+    // a clip's own stable id - sampleBackgroundSidecarPath()'s own comment
     // has the full reasoning. Skipped (like the orphan sweep below) if
-    // this scene somehow has no id of its own - shouldn't happen, both
+    // this section somehow has no id of its own - shouldn't happen, both
     // real creation paths already assign one.
-    if (!scene.getId().empty()) {
-      for (auto & [ track_id, background ] : scene.getSampleBackgroundsByTrack()) {
+    if (!section.getId().empty()) {
+      for (auto & [ track_id, background ] : section.getSampleBackgroundsByTrack()) {
 	if (!background.getBuffer()) continue;
 	auto track = getMasterTrack().getChildByInternalId(track_id);
 	assert(track);
 	if (!track) continue;
 
-	filesystem::path sample_path(sampleBackgroundSidecarPath(filename, scene.getId(), track_id));
+	filesystem::path sample_path(sampleBackgroundSidecarPath(filename, section.getId(), track_id));
 	std::error_code ec;
 	filesystem::create_directories(sample_path.parent_path(), ec);
 	writeMonoSample(sample_path.string(), *background.getBuffer(), background.getNativeSampleRate());
@@ -962,11 +994,11 @@ Song::save(const std::string & filename) const {
 	background_element->SetAttribute("track", trackReferenceText(*this, track_id).c_str());
 	auto relative_path = sample_path.parent_path().filename() / sample_path.filename();
 	background_element->SetAttribute("file", relative_path.string().c_str());
-	scene_element->InsertEndChild(background_element);
+	section_element->InsertEndChild(background_element);
       }
     }
 
-    scenes->InsertEndChild(scene_element);
+    sections->InsertEndChild(section_element);
   }
 
   for (auto & track : getMasterTrack().getChildren()) {
@@ -1002,7 +1034,7 @@ Song::loadParameters(const ParameterSource & input) {
 
   // The bus (reverb/delay/...) is not a <song> attribute - it's the
   // <bus> child element, parsed separately in Song::open() (mirroring
-  // how <tracks>/<instruments>/<scenes> are handled there too, not
+  // how <tracks>/<instruments>/<sections> are handled there too, not
   // here). resetBusToDefaults() puts both slots back at their compiled
   // defaults first, so a Song object reused for a second open() call
   // doesn't retain a stale bus configuration from whatever it loaded

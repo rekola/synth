@@ -251,19 +251,19 @@ TEST(render_sample_track_clip_instance_plays_its_own_audio) {
 }
 
 // A real bug report: a one-shot clip's own real audio can outlast the
-// scene it's placed in - SongState.h's own transition-detection stop
+// section it's placed in - SongState.h's own transition-detection stop
 // only fires once something *else* is found at this track's position,
-// which never happens on a single scene that just loops back to itself
+// which never happens on a single section that just loops back to itself
 // and keeps re-finding this same, unchanged instance (never re-triggered,
 // since active.clip_index never actually changes). SongState.h instead
 // queues an explicit RenderContext::addPendingSampleStop() at the exact
-// frame the scene's own last row ends, applied by SampleTrackState::
+// frame the section's own last row ends, applied by SampleTrackState::
 // render()'s own chunked loop as a short natural release, independent of
 // whether any transition is ever detected at all. Fixture: rowsPerBar
-// 4, tempo 120 (row duration 0.125s), a single 1-bar (4-row, 0.5s) scene,
+// 4, tempo 120 (row duration 0.125s), a single 1-bar (4-row, 0.5s) section,
 // a one-shot clip referencing a 2s sidecar tone triggered at row 0 - the
-// real audio is 4x longer than the scene it's placed in.
-TEST(render_sample_track_clip_stops_at_the_scene_boundary_even_when_its_own_audio_outlasts_it) {
+// real audio is 4x longer than the section it's placed in.
+TEST(render_sample_track_clip_stops_at_the_section_boundary_even_when_its_own_audio_outlasts_it) {
   auto loaded = loadFixture("sample_track_clip_outlasts_scene.xml");
   CHECK(loaded.ok);
 
@@ -272,8 +272,8 @@ TEST(render_sample_track_clip_stops_at_the_scene_boundary_even_when_its_own_audi
 
   CHECK(result.numberOfFrames() > 0);
   CHECK(!hasNonFiniteSample(result));
-  CHECK(windowedRms(result, 0, 0.1f, 0.3f) > 1e-3f); // sounding, well within the scene's own 0.5s
-  CHECK(windowedRms(result, 0, 1.0f, 1.9f) < 1e-4f); // silent well past the scene boundary, even though the real audio (2s) would otherwise still be sounding here
+  CHECK(windowedRms(result, 0, 0.1f, 0.3f) > 1e-3f); // sounding, well within the section's own 0.5s
+  CHECK(windowedRms(result, 0, 1.0f, 1.9f) < 1e-4f); // silent well past the section boundary, even though the real audio (2s) would otherwise still be sounding here
 }
 
 // A real design decision, raised directly by the user: a looping
@@ -287,7 +287,7 @@ TEST(render_sample_track_clip_stops_at_the_scene_boundary_even_when_its_own_audi
 // already worked this way for Session-view triggering) - SampleClipVoice
 // itself has no looping concept of its own any more. Fixture: rowsPerBar
 // 4, tempo 120 (row duration 0.125s), a looping 4-row (0.5s) clip
-// referencing a 0.2s sidecar tone, in a 2-bar (8-row, 1.0s) scene - two
+// referencing a 0.2s sidecar tone, in a 2-bar (8-row, 1.0s) section - two
 // full laps fit, each with 0.3s of real silence at its own end.
 TEST(render_sample_track_loop_shorter_than_the_clip_goes_silent_then_restarts_each_lap) {
   auto loaded = loadFixture("sample_track_loop_shorter_than_clip.xml");
@@ -311,7 +311,7 @@ TEST(render_sample_track_loop_shorter_than_the_clip_goes_silent_then_restarts_ea
 // stretched voice, not just the unit-level pieces in isolation. Fixture:
 // tempo 60, a 2s/8kHz sidecar tone recorded at originalTempo 120 (half the
 // song's own tempo -> ratio 0.5, roughly double duration, ~4s), one-shot,
-// in a 6-bar (6.0s) scene comfortably longer than the stretched result.
+// in a 6-bar (6.0s) section comfortably longer than the stretched result.
 TEST(render_sample_track_clip_stretches_to_match_a_disagreeing_song_tempo) {
   auto loaded = loadFixture("sample_track_clip_needs_stretching.xml");
   CHECK(loaded.ok);
@@ -323,10 +323,10 @@ TEST(render_sample_track_clip_stretches_to_match_a_disagreeing_song_tempo) {
   CHECK(!hasNonFiniteSample(result));
   CHECK(windowedRms(result, 0, 0.1f, 0.3f) > 1e-3f); // sounding early on
   CHECK(windowedRms(result, 0, 2.5f, 2.7f) > 1e-3f); // still sounding well past the *unstretched* 2s length - only real stretching explains this
-  CHECK(windowedRms(result, 0, 5.0f, 5.5f) < 1e-4f); // silent well before the scene's own 6s end - genuinely finished, not just clipped by the scene boundary
+  CHECK(windowedRms(result, 0, 5.0f, 5.5f) < 1e-4f); // silent well before the section's own 6s end - genuinely finished, not just clipped by the section boundary
 }
 
-// A SampleTrack's own background bed (Scene::getSampleBackgroundContent(),
+// A SampleTrack's own background bed (Section::getSampleBackgroundContent(),
 // written by ArrangementOps.h's mergeClipToBackground()) actually plays
 // during real (transport) playback, not just the model-layer coverage
 // ArrangementOpsTests.cpp already has for the mix itself. Specifically
@@ -335,7 +335,7 @@ TEST(render_sample_track_clip_stretches_to_match_a_disagreeing_song_tempo) {
 // stop only ever silences a real clip, never the baked bed underneath it
 // (SongState.h's own comment on why this differs from a note track's own
 // background Pattern, which a stop still silences). rowsPerBar 4, tempo
-// 120 (interval 1000 frames @ 8kHz), an 8-row (2-bar) scene.
+// 120 (interval 1000 frames @ 8kHz), an 8-row (2-bar) section.
 TEST(render_sample_track_background_bed_plays_through_the_merges_own_leftover_stop) {
   Song song;
   song.setTempo(120);
@@ -349,7 +349,7 @@ TEST(render_sample_track_background_bed_plays_through_the_merges_own_leftover_st
 
   Clip source(track_id);
   auto & content = source.getOrCreateSampleContent();
-  auto buffer = std::make_shared<AudioBuffer>(1, 8 * interval); // fills the whole scene
+  auto buffer = std::make_shared<AudioBuffer>(1, 8 * interval); // fills the whole section
   auto data = buffer->getChannelData(0);
   for (int i = 0; i < 8 * interval; i++) data[i] = 0.3f;
   content.setBuffer(buffer);
@@ -358,15 +358,15 @@ TEST(render_sample_track_background_bed_plays_through_the_merges_own_leftover_st
   source.setLooping(false);
   song.addClip(std::move(source)); // index 0
 
-  auto & scene = song.addScene();
-  scene.setLengthBars(2); // 8 rows @ rowsPerBar 4
-  placeClipInstance(song, scene, track_id, 0, 0);
-  CHECK(mergeClipToBackground(song, scene, track_id, 0, config) == true);
+  auto & section = song.addSection();
+  section.setLengthBars(2); // 8 rows @ rowsPerBar 4
+  placeClipInstance(song, section, track_id, 0, 0);
+  CHECK(mergeClipToBackground(song, section, track_id, 0, config) == true);
   // The merge's own cleanup leaves an explicit stop at row 0, not a real
   // instance - resolveInstanceAt() must therefore report it, distinctly
   // from "nothing was ever placed," so this test is actually exercising
   // the fix and not a no-op case.
-  CHECK(resolveInstanceAt(song, scene, track_id, 0).clip_index == Scene::kStopInstance);
+  CHECK(resolveInstanceAt(song, section, track_id, 0).clip_index == Section::kStopInstance);
 
   auto result = renderSongOffline(song, config);
 
@@ -379,7 +379,7 @@ TEST(render_sample_track_background_bed_plays_through_the_merges_own_leftover_st
 // clip are two independent, simultaneously-active voices rather than one
 // masking the other (SampleTrackState's own doc comment): a clip placed
 // on top of an already-merged bed must genuinely mix with it, not replace
-// it - real audio has a well-defined "sum," unlike two Notes. Same scene
+// it - real audio has a well-defined "sum," unlike two Notes. Same section
 // shape as above; a second, un-merged clip (a distinct tone) placed at
 // rows 4-5 on top of the already-merged bed. Distinguishes real mixing
 // from masking by comparing the *ratio* against the bed's own alone
@@ -409,10 +409,10 @@ TEST(render_sample_track_background_bed_mixes_with_a_real_clip_on_top) {
   source.setLooping(false);
   song.addClip(std::move(source)); // index 0
 
-  auto & scene = song.addScene();
-  scene.setLengthBars(2); // 8 rows
-  placeClipInstance(song, scene, track_id, 0, 0);
-  CHECK(mergeClipToBackground(song, scene, track_id, 0, config) == true); // bed now fills the whole scene at 0.2
+  auto & section = song.addSection();
+  section.setLengthBars(2); // 8 rows
+  placeClipInstance(song, section, track_id, 0, 0);
+  CHECK(mergeClipToBackground(song, section, track_id, 0, config) == true); // bed now fills the whole section at 0.2
 
   Clip overlay(track_id);
   auto & overlay_content = overlay.getOrCreateSampleContent();
@@ -424,7 +424,7 @@ TEST(render_sample_track_background_bed_mixes_with_a_real_clip_on_top) {
   overlay.setLength(2);
   overlay.setLooping(false);
   song.addClip(std::move(overlay)); // index 1, never merged - stays a live instance
-  placeClipInstance(song, scene, track_id, 4, 1);
+  placeClipInstance(song, section, track_id, 4, 1);
 
   auto result = renderSongOffline(song, config);
 
@@ -484,9 +484,9 @@ TEST(render_sample_track_resumes_a_stopped_instance_from_the_row_the_playhead_la
   clip.setLooping(false);
   song.addClip(std::move(clip)); // index 0
 
-  auto & scene = song.addScene();
-  scene.setLengthBars(2); // 8 rows @ rowsPerBar 4
-  placeClipInstance(song, scene, track_id, 0, 0);
+  auto & section = song.addSection();
+  section.setLengthBars(2); // 8 rows @ rowsPerBar 4
+  placeClipInstance(song, section, track_id, 0, 0);
 
   auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
   SongState state(config);
@@ -551,9 +551,9 @@ TEST(render_sample_track_pausing_releases_the_sounding_voice_instead_of_leaving_
   clip.setLooping(false);
   song.addClip(std::move(clip)); // index 0
 
-  auto & scene = song.addScene();
-  scene.setLengthBars(2); // 8 rows @ rowsPerBar 4
-  placeClipInstance(song, scene, track_id, 0, 0);
+  auto & section = song.addSection();
+  section.setLengthBars(2); // 8 rows @ rowsPerBar 4
+  placeClipInstance(song, section, track_id, 0, 0);
 
   auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
   SongState state(config);
@@ -614,9 +614,9 @@ TEST(render_sample_track_resuming_mid_row_across_several_small_blocks_still_play
   clip.setLooping(false);
   song.addClip(std::move(clip)); // index 0
 
-  auto & scene = song.addScene();
-  scene.setLengthBars(2); // 8 rows @ rowsPerBar 4
-  placeClipInstance(song, scene, track_id, 0, 0);
+  auto & section = song.addSection();
+  section.setLengthBars(2); // 8 rows @ rowsPerBar 4
+  placeClipInstance(song, section, track_id, 0, 0);
 
   auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
   SongState state(config);
@@ -660,7 +660,7 @@ TEST(render_sample_track_resuming_mid_row_across_several_small_blocks_still_play
   CHECK(heard_sound); // the retrigger must still fire once the row boundary is finally reached, not get lost along the way
 }
 
-// An explicit stop instance (Scene::kStopInstance, ArrangementOps.h's own
+// An explicit stop instance (Section::kStopInstance, ArrangementOps.h's own
 // placeStopInstance()) placed after a *looping* clip's own trigger must
 // actually silence it going forward - SongState::renderBlock()'s own
 // termination-detection now fires the instrument's natural release
@@ -683,7 +683,7 @@ TEST(render_stop_instance_silences_a_looping_instance_going_forward) {
   // Fixture: rowsPerBar=4, tempo=120 (row_duration=0.125s), a looping
   // 4-row clip starts at row 0, an explicit stop lands at row 8 (1.0s in).
   CHECK(windowedRms(result, 0, 0.1f, 0.9f) > 1e-3f); // looping and audible before the stop
-  CHECK(windowedRms(result, 0, 2.0f, 3.9f) < 1e-4f); // silenced well past the stop, not just decayed - the scene keeps running (background/pattern-length wise) all the way to row 32 (4.0s), so this alone rules out "it just ran out of song"
+  CHECK(windowedRms(result, 0, 2.0f, 3.9f) < 1e-4f); // silenced well past the stop, not just decayed - the section keeps running (background/pattern-length wise) all the way to row 32 (4.0s), so this alone rules out "it just ran out of song"
 }
 
 TEST(render_hard_pan_isolates_channels) {

@@ -913,16 +913,16 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
   }
   if (name == "move-row-up" || name == "move-row-down") {
     // Only meaningful in GridMode::SESSION - moves the overview's own
-    // scene cursor via session_move_scene_callback_ (see that member's own
+    // section cursor via session_move_section_callback_ (see that member's own
     // comment for why this doesn't scroll a local row window the way the
     // old plain-navigation overview did: Session view's rows are a
-    // track's own clips, not scenes). Outside SESSION,
+    // track's own clips, not sections). Outside SESSION,
     // "move-row-up"/"move-row-down" isn't this class's command at all
     // (PatternEditor's own row navigation owns it, reached via
     // UI::executeCommand()'s fallback, not through here) - declining lets
     // that happen normally.
     if (gridMode(device_id) != GridMode::SESSION) return false;
-    if (session_move_scene_callback_) session_move_scene_callback_(name == "move-row-down" ? 1 : -1);
+    if (session_move_section_callback_) session_move_section_callback_(name == "move-row-down" ? 1 : -1);
     return true;
   }
   if (name == "next-track" || name == "prev-track") {
@@ -1103,13 +1103,13 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
   auto note_value = resolveNote(song, device_id, track_id, ev.getX(), ev.getY());
   if (note_value < 0) return; // unused percussion pad (row 7), or an unpitched/degenerate tuning
 
-  // Pad-press note entry writes - see Song::getOrCreateScene()'s own
+  // Pad-press note entry writes - see Song::getOrCreateSection()'s own
   // comment (Song.h) on why that's the one to use here, not plain
-  // getScene(): the edit position can legitimately be past the last real
-  // Scene (PatternEditor's own row navigation already tolerates that), and
-  // getScene() would silently write into a shared, process-wide sentinel
+  // getSection(): the edit position can legitimately be past the last real
+  // Section (PatternEditor's own row navigation already tolerates that), and
+  // getSection() would silently write into a shared, process-wide sentinel
   // instead of real song content in that case.
-  auto & scene = song.getOrCreateScene(info.getPatternIndex());
+  auto & section = song.getOrCreateSection(info.getPatternIndex());
   auto current_delay = info.getCurrentDelay();
   auto & event_queue = controller.getPlaybackEventQueue();
 
@@ -1180,7 +1180,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // (a same-row-or-not comparison against a later release, unaffected
     // by any remap).
     auto edit_target = session_pattern ? EditTarget{ session_pattern, session_row }
-      : resolveEditTarget(song, scene, track_id, row, controller.getFocusedClip());
+      : resolveEditTarget(song, section, track_id, row, controller.getFocusedClip());
     if (session_recording_here && !session_pattern) return; // nothing valid to write into (shouldn't normally happen)
 
     // The transport itself is already running by the time any press can
@@ -1189,7 +1189,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // for a Session View take, which never starts it at all.
 
     // A live take writes into a real, individually-manageable Clip
-    // instance, not directly into the scene's own background Pattern - a
+    // instance, not directly into the section's own background Pattern - a
     // no-op once that clip already exists (or if a clip is focused, which
     // already resolves correctly without this). Re-resolves edit_target
     // immediately after: it was computed before this take could have just
@@ -1198,7 +1198,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // press's own write below both need the fresh one.
     if (!session_recording_here && state.capture_enabled && info.isPlaying()) {
       controller.ensureNoteRecordingClip(auto_record_clip_ids_, track_id, info.getPatternIndex(), row);
-      edit_target = resolveEditTarget(song, scene, track_id, row, controller.getFocusedClip());
+      edit_target = resolveEditTarget(song, section, track_id, row, controller.getFocusedClip());
     }
 
     // Whole-row replace semantics for a live take: idempotent (see its
@@ -1211,7 +1211,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // the new one should be free to land in the very first column.
     if (state.capture_enabled && auto_started_playback_) controller.ensureRowCleared(auto_record_cleared_rows_, info.getPatternIndex(), row, track_id);
 
-    // Free-slot search (mirrors Scene::pushNote), deliberately not
+    // Free-slot search (mirrors Section::pushNote), deliberately not
     // "map size" the way active_midi_notes assigns columns - that has a
     // latent collision bug on non-LIFO release order, which is the common
     // case for a chordally-played grid controller (see the plan's design
@@ -1503,15 +1503,15 @@ LaunchpadManager::triggerSessionClip(Controller & controller, int track_id, int 
   }
   auto & playback_info = controller.getPlaybackInfo();
   // Recording an arrangement means the playhead actually has to advance -
-  // a clip assigned into an otherwise-stopped scene would just sit at row
-  // 0 forever, never becoming "a whole scene" the way triggering further
+  // a clip assigned into an otherwise-stopped section would just sit at row
+  // 0 forever, never becoming "a whole section" the way triggering further
   // clips as playback continues is supposed to build up. Starts the
   // transport on this first assign press (not at Record Arm time - unlike
   // ordinary note capture, an assign has no "clip creation" step to defer
   // separately, so there's nothing to gain from starting any earlier),
   // using the same auto_started_playback_ bookkeeping, so
-  // Controller::extendRecordingSceneIfNeeded() (gated on isAutoRecording())
-  // also keeps growing the scene as the performance continues - but
+  // Controller::extendRecordingSectionIfNeeded() (gated on isAutoRecording())
+  // also keeps growing the section as the performance continues - but
   // Controller::startAutoRecordPlayback(), not startAutoRecordSession():
   // the latter also mutes the song's own pattern-driven scheduling, correct
   // for a held note (heard through its own separate live PLAY_NOTE stream
@@ -1520,22 +1520,22 @@ LaunchpadManager::triggerSessionClip(Controller & controller, int track_id, int 
   // scheduling the instant placeClipInstance() places it below, so muting
   // it would silence the very clip being recorded. Calls togglePlaying()
   // synchronously, so playback_info (bound by reference above) already
-  // reflects isPlaying()==true by the time scene_idx/row are computed
+  // reflects isPlaying()==true by the time section_idx/row are computed
   // just below.
   if (!playback_info.isPlaying()) {
     controller.startAutoRecordPlayback(auto_started_playback_);
   }
-  // Targets whichever scene is actually *playing* right now, not
+  // Targets whichever section is actually *playing* right now, not
   // necessarily the column the cursor happens to be pointing at - true
   // live-recording, matching a real note-on's own timing, and (per
-  // Controller::extendRecordingSceneIfNeeded()) that scene keeps growing
+  // Controller::extendRecordingSectionIfNeeded()) that section keeps growing
   // to fit as the performance continues rather than being confined to a
-  // fixed pre-existing length. Falls back to the cursor's own scene, row
-  // 0 (a whole-scene placement, closest to what plain scene-navigation
+  // fixed pre-existing length. Falls back to the cursor's own section, row
+  // 0 (a whole-section placement, closest to what plain section-navigation
   // used to write here before the instance layer existed) on the off
   // chance playback still isn't running (e.g. a non-positive tempo).
-  auto scene_idx = playback_info.isPlaying() ? playback_info.getPatternIndex() : session_.cursor_scene_idx;
-  auto & scene = song.getOrCreateScene(scene_idx);
+  auto section_idx = playback_info.isPlaying() ? playback_info.getPatternIndex() : session_.cursor_section_idx;
+  auto & section = song.getOrCreateSection(section_idx);
   // Bar-aligned (quantizedBarRow()'s own comment has the full reasoning:
   // plans/arrangement-view.md's "Bar alignment" rule, snapped forward not
   // back) - placeClipInstance() below just writes a start event at this
@@ -1544,7 +1544,7 @@ LaunchpadManager::triggerSessionClip(Controller & controller, int track_id, int 
   // queuing needed.
   auto raw_row = playback_info.isPlaying() ? playback_info.getRowIndex() : 0;
   auto row = quantizedBarRow(raw_row, song.getRowsPerBar());
-  placeClipInstance(song, scene, track_id, row, clip_index);
+  placeClipInstance(song, section, track_id, row, clip_index);
   song.incVersion();
 }
 
@@ -1567,8 +1567,8 @@ LaunchpadManager::placeRecordingStop(Controller & controller, int track_id) {
   if (!playback_info.isPlaying()) return;
   auto & song = controller.getSong();
   auto row = quantizedBarRow(playback_info.getRowIndex(), song.getRowsPerBar());
-  auto & scene = song.getOrCreateScene(playback_info.getPatternIndex());
-  placeStopInstance(scene, track_id, row);
+  auto & section = song.getOrCreateSection(playback_info.getPatternIndex());
+  placeStopInstance(section, track_id, row);
   song.incVersion();
 }
 
@@ -1677,7 +1677,7 @@ LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & co
     // Writes unconditionally, regardless of capture_enabled - "the arm
     // flag gates performance capture, not editing": the step grid writes
     // in both arm states, only free playing is gated. A step is an
-    // ordinary Note in this scene's own Pattern for this track now (see
+    // ordinary Note in this section's own Pattern for this track now (see
     // PercussionTrack.h's own "A step is a Note" comment) - "was_hit" is
     // decided by value, not by a fixed column, so this stays consistent
     // with getHitNotesForRow()'s own by-value identification even if the
@@ -1687,7 +1687,7 @@ LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & co
     // keeping a lane's column stable across rows.
     auto & song = controller.getSong();
     auto & info = controller.getPlaybackInfo();
-    auto & scene = song.getOrCreateScene(info.getPatternIndex());
+    auto & section = song.getOrCreateSection(info.getPatternIndex());
     // Writes into whatever's actually active at this row - an active clip
     // instance's own (live-linked) Pattern, or this track's own
     // background Pattern otherwise (ArrangementOps.h's own
@@ -1706,7 +1706,7 @@ LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & co
       auto page = std::clamp(deviceState(ev.getDeviceIndex()).drum_edit_page, 0, page_count - 1);
       row = page * 8 + x;
     }
-    auto edit_target = resolveEditTarget(song, scene, track_id, row, controller.getFocusedClip());
+    auto edit_target = resolveEditTarget(song, section, track_id, row, controller.getFocusedClip());
     auto & row_notes = edit_target.pattern->getNotes(edit_target.effective_row);
     int existing_column = -1;
     for (size_t i = 0; i < row_notes.size(); i++) {
@@ -1750,7 +1750,7 @@ LaunchpadManager::handleDrumPickerPadEvent(LaunchpadPadEvent & ev, Controller & 
   if (note < 0) return; // unused pad in the free-drumming layout
 
   // removeLane() deletes every existing step referencing this note across
-  // every scene, not just the lane itself - see PercussionTrack.h's own
+  // every section, not just the lane itself - see PercussionTrack.h's own
   // comment. Silent, no confirmation, no undo, per the brief's own
   // accepted risk for this gesture. addLane() is itself a silent no-op
   // once the track is already at
@@ -1789,7 +1789,7 @@ LaunchpadManager::triggerAuditionStep(const Song & song, int track_id, Controlle
 
   auto & event_queue = controller.getPlaybackEventQueue();
   auto & info = controller.getPlaybackInfo();
-  auto & scene = song.getScene(info.getPatternIndex()); // read-only audition - never grows the song
+  auto & section = song.getSection(info.getPatternIndex()); // read-only audition - never grows the song
 
   // Idle auditioning only ever previews an explicitly focused clip
   // (Controller::getFocusedClip()), never the background/whatever
@@ -1799,7 +1799,7 @@ LaunchpadManager::triggerAuditionStep(const Song & song, int track_id, Controlle
   // two apart; falling through to ordinary resolution (no focus, or a
   // focus that belongs to some other track) means there's nothing to
   // preview here right now.
-  auto read_target = resolveReadTarget(song, scene, track_id, step, controller.getFocusedClip());
+  auto read_target = resolveReadTarget(song, section, track_id, step, controller.getFocusedClip());
   if (!read_target.is_focused_override) return;
 
   // Every leaf track type plays the same way here, driven purely by
@@ -2485,7 +2485,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     // audition-only bookkeeping only still applies while genuinely
     // stopped, the one state it's ever populated in.
     bool use_real_position = playback_info.isPlaying();
-    const Scene * current_scene = use_real_position ? &song.getScene(playback_info.getPatternIndex()) : nullptr;
+    const Section * current_section = use_real_position ? &song.getSection(playback_info.getPatternIndex()) : nullptr;
     for (int x = 0; x < 8; x++) {
       if (x >= static_cast<int>(session.track_ids.size())) continue;
       auto session_track_id = session.track_ids[static_cast<size_t>(x)];
@@ -2497,7 +2497,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       auto identity = Color::fromHSL(structure.getBaselineInfo(session_track_id).getHue(), 0.8f, 0.3f);
       auto & clips = song.getClips(session_track_id);
       int real_active_clip_index = use_real_position ?
-        resolveInstanceAt(song, *current_scene, session_track_id, playback_info.getRowIndex()).clip_index : -1;
+        resolveInstanceAt(song, *current_section, session_track_id, playback_info.getRowIndex()).clip_index : -1;
       auto triggered_it = triggered_pattern_by_track_.find(session_track_id);
       auto queued_it = queued_pattern_by_track_.find(session_track_id);
       // STOP_CLIP's own picker-row state: a real clip instance is active
@@ -2588,16 +2588,16 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
         auto drum_clip_length = drum_clip_editing ? focusedDrumClipLength(song, track_id, controller.getFocusedClip()) : -1;
         auto drum_page_count = drum_clip_length > 0 ? (drum_clip_length + 7) / 8 : 1;
         auto drum_page = drum_clip_editing ? std::clamp(state.drum_edit_page, 0, drum_page_count - 1) : 0;
-        // A lane's own hit state, this scene - by value (getHitNotesAtRow(),
+        // A lane's own hit state, this section - by value (getHitNotesAtRow(),
         // matching handleStepGridPadEvent()'s own by-value "was_hit" check),
         // not by assuming it's sitting at this lane's usual column. Per
         // step, whatever's actually active at that row (ArrangementOps.h's
         // own resolveReadTarget()) - a placed clip instance's own content,
         // or this track's own background Pattern otherwise - rather than
         // one background-only lookup reused across all 8 steps.
-        auto & drum_scene = song.getScene(playback_info.getPatternIndex());
+        auto & drum_section = song.getSection(playback_info.getPatternIndex());
         for (int step = 0; step < 8; step++) {
-          auto read_target = resolveReadTarget(song, drum_scene, track_id, drum_page * 8 + step, controller.getFocusedClip());
+          auto read_target = resolveReadTarget(song, drum_section, track_id, drum_page * 8 + step, controller.getFocusedClip());
           for (int hit_note : drum_track.getHitNotesAtRow(*read_target.pattern, read_target.effective_row)) {
             auto lane_it = find(drum_lane_notes.begin(), drum_lane_notes.end(), hit_note);
             if (lane_it == drum_lane_notes.end()) continue;

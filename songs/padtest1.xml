@@ -73,8 +73,8 @@
     <track id="3" instrument="3" sendA="-9.1186" distance="1" azimuth="90" extent="1.5" />
   </tracks>
   
-  <scenes>
-    <scene length="4">
+  <sections>
+    <section length="4">
       <pattern track="0">
         <note row="0" velocity="40">G-3</note>
         <note row="16" velocity="40">F-3</note>
@@ -87,8 +87,8 @@
         <note row="32" velocity="40">Eb4 G-4 Bb4</note>
         <note row="48" velocity="40">C-4 Eb4 G-4</note>
       </pattern>
-    </scene>
-    <scene length="4">
+    </section>
+    <section length="4">
       <pattern track="0">
         <note row="0" velocity="40">G-3</note>
         <note row="16" velocity="40">F-3</note>
@@ -104,6 +104,6 @@
       <pattern track="2">
         <note row="0" velocity="40">G-4</note>
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

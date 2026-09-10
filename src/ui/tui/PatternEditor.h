@@ -102,16 +102,16 @@ class PatternEditor : public UIElement {
 
   // Whether a realtime auto-play-while-held recording session (see
   // onRowAdvanced()'s own comment) is active right now - Controller::
-  // extendRecordingSceneIfNeeded() (UI::handlePlaybackEvent()) reads this
+  // extendRecordingSectionIfNeeded() (UI::handlePlaybackEvent()) reads this
   // (unioned with LaunchpadManager's own identical flag) to decide
-  // whether the actively-playing scene should keep growing rather than
+  // whether the actively-playing section should keep growing rather than
   // wrapping into the next one.
   bool isAutoRecording() const { return auto_started_playback_; }
 
   // Which real Clip (by id) this session has created so far, keyed by
   // track_id (Controller::ensureNoteRecordingClip()) - Controller::
   // extendRecordingClipsIfNeeded() (UI::handlePlaybackEvent(), alongside
-  // extendRecordingSceneIfNeeded() above) reads/mutates this directly to
+  // extendRecordingSectionIfNeeded() above) reads/mutates this directly to
   // grow each one's own window as the take continues.
   std::unordered_map<int, std::string> & getAutoRecordClipIds() { return auto_record_clip_ids_; }
 

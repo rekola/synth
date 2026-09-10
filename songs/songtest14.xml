@@ -25,9 +25,8 @@
         <track id="harp" instrument="2" azimuth="0" distance="0.89999998" elevation="0" color="" sendA="-20.0000" sendB="-4.4370"/>
         <percussionTrack id="perc" azimuth="0" distance="0.89999998" elevation="0" color="" sendA="-20.0000"/>
     </tracks>
-    <sections/>
-    <scenes>
-      <scene length="8">
+    <sections>
+      <section length="8">
         <pattern track="pad">
           <note row="0" velocity="0">OFF</note>
         </pattern>
@@ -46,8 +45,8 @@
           <note row="4" velocity="20">RD2 </note>
           <note row="28" velocity="20">SPL </note>
         </pattern>
-      </scene>
-      <scene length="7">
+      </section>
+      <section length="7">
         <pattern track="harp">
           <note row="0" velocity="30">C-4</note>
           <note row="2" velocity="30">D♯4</note>
@@ -63,8 +62,8 @@
         <pattern track="perc">
           <note row="26" velocity="20">CH </note>
         </pattern>
-      </scene>
-      <scene length="8">
+      </section>
+      <section length="8">
         <pattern track="perc">
           <note row="0" velocity="20">HT </note>
           <note row="4" velocity="20">CH </note>
@@ -101,8 +100,8 @@
         <pattern track="pad">
           <note row="4" velocity="5">C-4</note>
         </pattern>
-      </scene>
-      <scene length="8">
+      </section>
+      <section length="8">
         <pattern track="harp">
           <note row="0" velocity="30">C-4</note>
           <note row="2" velocity="30">D♯4</note>
@@ -143,8 +142,8 @@
         <pattern track="pad">
           <note row="4" velocity="5">C-4</note>
         </pattern>
-      </scene>
-      <scene length="8">
+      </section>
+      <section length="8">
         <pattern track="perc">
           <note row="0" velocity="20">HT </note>
           <note row="4" velocity="20">CH </note>
@@ -184,8 +183,8 @@
         <pattern track="pad">
           <note row="4" velocity="5">C-4</note>
         </pattern>
-      </scene>
-      <scene length="8">
+      </section>
+      <section length="8">
         <pattern track="perc">
           <note row="0" velocity="20">HT </note>
           <note row="4" velocity="20">CH </note>
@@ -229,11 +228,11 @@
         <pattern track="pad">
           <note row="4" velocity="5">C-4</note>
         </pattern>
-      </scene>
-      <scene length="8">
+      </section>
+      <section length="8">
         <pattern track="pad">
           <note row="0" velocity="0">OFF</note>
         </pattern>
-      </scene>
-    </scenes>
+      </section>
+    </sections>
 </song>

@@ -13,13 +13,13 @@
   <tracks>
     <arpeggiatorTrack id="0" instrument="0" mode="up" octaves="0" noteDuration="2" gate="2"/>
   </tracks>
-  <scenes>
-    <scene>
+  <sections>
+    <section>
       <pattern track="0">
         <note row="0" velocity="80" value="C-4" />
         <note row="0" column="1" velocity="80" value="E-4" />
         <note row="0" column="2" velocity="80" value="G-4" />
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

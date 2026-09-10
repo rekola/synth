@@ -10,11 +10,11 @@
       <lane note="BD"/>
     </percussionTrack>
   </tracks>
-  <scenes>
-    <scene>
+  <sections>
+    <section>
       <pattern track="0" length="8">
         <note row="0" velocity="100" value="BD"/>
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

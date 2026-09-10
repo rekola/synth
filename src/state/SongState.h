@@ -243,33 +243,33 @@ class SongState : public TrackState {
 	  bool row_just_resumed_playback = pending_resume_retrigger_;
 	  pending_resume_retrigger_ = false;
 
-	  auto [ scene_idx, row_idx ] = getRelativePosition(song);
-	  auto & scene = song.getScene(scene_idx);
+	  auto [ section_idx, row_idx ] = getRelativePosition(song);
+	  auto & section = song.getSection(section_idx);
 
-	  // A lossless re-encoding of the note's authored (scene, row)
+	  // A lossless re-encoding of the note's authored (section, row)
 	  // position into one plain row count (NoteCoordinate.h's own doc
 	  // comment on why) - Song::toAbsoluteRow() sums every earlier
-	  // scene's own effective length, since each can be a different
+	  // section's own effective length, since each can be a different
 	  // size. Computed once per row here, not inside NoteCoordinate
 	  // itself - it has no business knowing this invariant.
-	  int absolute_row = song.toAbsoluteRow(scene_idx, row_idx);
+	  int absolute_row = song.toAbsoluteRow(section_idx, row_idx);
 
 	  // Every track that has either background content or an arrangement
-	  // instance in this scene, each its own Pattern now (see Scene.h's
+	  // instance in this section, each its own Pattern now (see Section.h's
 	  // own comment) - was one shared row->track_id->notes/commands
-	  // lookup on the old flat class this scene used to be. The
+	  // lookup on the old flat class this section used to be. The
 	  // arrangement layer can cover a track with no background Pattern
 	  // of its own at all, so this is the union of both, not just
 	  // getPatternsByTrack()'s own keys. A SampleTrack's own background
-	  // bed (Scene::getSampleBackgroundsByTrack()) joins the same union -
+	  // bed (Section::getSampleBackgroundsByTrack()) joins the same union -
 	  // a hand-authored song can carry one with no <pattern>/<arrangement>
 	  // content on that track at all.
 	  std::unordered_set<int> scheduled_track_ids;
-	  for (auto & [ track_id, track_pattern ] : scene.getPatternsByTrack()) scheduled_track_ids.insert(track_id);
-	  for (auto & [ track_id, track_instances ] : scene.getInstancesByTrack()) {
+	  for (auto & [ track_id, track_pattern ] : section.getPatternsByTrack()) scheduled_track_ids.insert(track_id);
+	  for (auto & [ track_id, track_instances ] : section.getInstancesByTrack()) {
 	    if (!track_instances.empty()) scheduled_track_ids.insert(track_id);
 	  }
-	  for (auto & [ track_id, background ] : scene.getSampleBackgroundsByTrack()) {
+	  for (auto & [ track_id, background ] : section.getSampleBackgroundsByTrack()) {
 	    if (background.getBuffer()) scheduled_track_ids.insert(track_id);
 	  }
 
@@ -288,7 +288,7 @@ class SongState : public TrackState {
 	    const Pattern * active_pattern = nullptr;
 	    int effective_row = row_idx;
 
-	    auto active = resolveInstanceAt(song, scene, track_id, row_idx);
+	    auto active = resolveInstanceAt(song, section, track_id, row_idx);
 
 	    bool is_sample_track = false;
 	    {
@@ -296,10 +296,10 @@ class SongState : public TrackState {
 	      is_sample_track = track && track->getType() == TrackType::SAMPLE;
 	    }
 
-	    // A SampleTrack's own background bed (Scene::
+	    // A SampleTrack's own background bed (Section::
 	    // getSampleBackgroundContent(), ArrangementOps.h's own
 	    // mergeClipToBackground()) plays continuously for as long as
-	    // this scene provides one, entirely independent of whatever the
+	    // this section provides one, entirely independent of whatever the
 	    // clip/arrangement layer below resolves to at this row: real
 	    // audio genuinely mixes, so a clip placed on top of the bed
 	    // doesn't mask it the way an instance masks a note track's own
@@ -308,10 +308,10 @@ class SongState : public TrackState {
 	    // masking the other). Tracked by comparing this row's resolved
 	    // SampleContent pointer against the previous row's - identity,
 	    // not value, since a real bed is one stable object for as long
-	    // as this scene stays the current one, and changes the instant a
-	    // different scene (a different bed, or none at all) is entered.
+	    // as this section stays the current one, and changes the instant a
+	    // different section (a different bed, or none at all) is entered.
 	    if (is_sample_track) {
-	      auto * background = scene.getSampleBackgroundContent(track_id);
+	      auto * background = section.getSampleBackgroundContent(track_id);
 	      auto last_it = last_background_by_track_.find(track_id);
 	      auto * previous_background = last_it == last_background_by_track_.end() ? nullptr : last_it->second;
 
@@ -319,10 +319,10 @@ class SongState : public TrackState {
 		render_context_.addPendingSampleStop(track_id, i, true);
 	      }
 	      // row_idx == 0: retriggered fresh on every entry into this
-	      // scene, even a repeat of the same one (a pattern break/loop
+	      // section, even a repeat of the same one (a pattern break/loop
 	      // landing back on its own row 0) - the bed has no looping
-	      // concept of its own (Scene::getSampleBackgroundContent()'s
-	      // own comment), so re-entering the scene it belongs to is what
+	      // concept of its own (Section::getSampleBackgroundContent()'s
+	      // own comment), so re-entering the section it belongs to is what
 	      // stands in for a lap boundary here.
 	      if (background && (background != previous_background || row_idx == 0 || row_just_resumed_playback)) {
 		auto start_offset_frames = row_idx * getChannelConfiguration().getSampleInterval(tempo_);
@@ -330,12 +330,12 @@ class SongState : public TrackState {
 	      }
 	      last_background_by_track_[track_id] = background;
 
-	      // Same "a one-shot's own real audio can outlast the scene"
+	      // Same "a one-shot's own real audio can outlast the section"
 	      // protection the clip layer below has - the bed's own real
 	      // length was baked in at whatever tempo was current at merge
-	      // time, so it can end up longer than this scene's own
+	      // time, so it can end up longer than this section's own
 	      // row-driven span under a since-changed tempo.
-	      if (background && row_idx == song.getEffectiveSceneLength(scene) - 1) {
+	      if (background && row_idx == song.getEffectiveSectionLength(section) - 1) {
 		render_context_.addPendingSampleStop(track_id, i + getChannelConfiguration().getSampleInterval(tempo_), true);
 	      }
 	    }
@@ -360,10 +360,10 @@ class SongState : public TrackState {
 	    // would land wherever this row happens to fall in the current
 	    // render block, not the exact sample the transition is actually
 	    // due on.
-	    int previous_clip_index = Scene::kNoInstance;
+	    int previous_clip_index = Section::kNoInstance;
 	    {
 	      auto last_it = last_active_clip_index_by_track_.find(track_id);
-	      previous_clip_index = last_it == last_active_clip_index_by_track_.end() ? Scene::kNoInstance : last_it->second;
+	      previous_clip_index = last_it == last_active_clip_index_by_track_.end() ? Section::kNoInstance : last_it->second;
 	      if (previous_clip_index >= 0 && previous_clip_index != active.clip_index) {
 		if (is_sample_track) {
 		  render_context_.addPendingSampleStop(track_id, i, false);
@@ -419,21 +419,21 @@ class SongState : public TrackState {
 		  render_context_.addPendingSampleStart(track_id, i, clip.getSampleContent(), start_offset_frames, false);
 		}
 
-		// A one-shot clip's own real audio can outlast the scene
+		// A one-shot clip's own real audio can outlast the section
 		// it's placed in - the transition-detection stop above only
 		// actually fires once something *else* (a different clip,
 		// or nothing at all) is found at this same track's
 		// position, which never happens on a single, endlessly-
-		// looping scene that keeps re-finding this same instance
-		// unchanged. Queuing an explicit stop at this scene's own
-		// last row means it always stops exactly when the scene
+		// looping section that keeps re-finding this same instance
+		// unchanged. Queuing an explicit stop at this section's own
+		// last row means it always stops exactly when the section
 		// does, regardless of whether anything ever "transitions"
 		// away from it - a release, not a hard cut, so the tail
-		// end of the scene doesn't click. Meaningless for a looping
+		// end of the section doesn't click. Meaningless for a looping
 		// clip - its own next lap's re-trigger already supersedes
 		// whatever's still sounding, the same as any other
 		// transition.
-		if (!clip.isLooping() && row_idx == song.getEffectiveSceneLength(scene) - 1) {
+		if (!clip.isLooping() && row_idx == song.getEffectiveSectionLength(section) - 1) {
 		  render_context_.addPendingSampleStop(track_id, i + getChannelConfiguration().getSampleInterval(tempo_), false);
 		}
 		continue;
@@ -442,13 +442,13 @@ class SongState : public TrackState {
 	      active_pattern = &clip.getLeafPattern();
 	      auto length = clip.getLength() > 0 ? clip.getLength() : 1;
 	      effective_row = active_pattern->getEffectiveRow(row_idx - active.start_row, length);
-	    } else if (active.clip_index == Scene::kNoInstance) {
-	      auto it = scene.getPatternsByTrack().find(track_id);
-	      if (it != scene.getPatternsByTrack().end()) {
+	    } else if (active.clip_index == Section::kNoInstance) {
+	      auto it = section.getPatternsByTrack().find(track_id);
+	      if (it != section.getPatternsByTrack().end()) {
 		active_pattern = &it->second;
-		// A Pattern shorter than this scene's own effective length
+		// A Pattern shorter than this section's own effective length
 		// repeats - see Pattern.h's own getEffectiveRow() comment.
-		effective_row = active_pattern->getEffectiveRow(row_idx, song.getEffectiveSceneLength(scene));
+		effective_row = active_pattern->getEffectiveRow(row_idx, song.getEffectiveSectionLength(section));
 	      }
 	    }
 	    if (!active_pattern) continue;
@@ -711,12 +711,12 @@ class SongState : public TrackState {
   // pattern behaves exactly like normal end-of-song run-off - nothing
   // special-cased.
   void jumpToPatternBreak(const Song & song, int dest_row) {
-    auto scene_idx = song.normalizePosition(0, std::max(0, absolute_pos_)).first;
-    auto next_scene_idx = scene_idx + 1;
-    auto len = song.getEffectiveSceneLength(next_scene_idx);
+    auto section_idx = song.normalizePosition(0, std::max(0, absolute_pos_)).first;
+    auto next_section_idx = section_idx + 1;
+    auto len = song.getEffectiveSectionLength(next_section_idx);
     if (len <= 0) { movePosition(1); return; }
     auto row = dest_row < 0 ? 0 : (dest_row >= len ? len - 1 : dest_row);
-    setPosition(song.toAbsoluteRow(next_scene_idx, row));
+    setPosition(song.toAbsoluteRow(next_section_idx, row));
   }
 
   // 2Lxx/2Rxx (Command::isAzimuthSlide()) - spreads constants::TICKS_PER_ROW
@@ -786,20 +786,20 @@ private:
   AudioBuffer aux_a_sum_, aux_b_sum_;
   SongStructure song_structure_;
   int song_structure_version_ = -1; // never equals a real song.getMajorVersion() until initialize()/renderBlock() runs
-  // track_id -> the clip index (or Scene::kNoInstance/kStopInstance)
+  // track_id -> the clip index (or Section::kNoInstance/kStopInstance)
   // resolveInstanceAt() returned for that track the last time this row's
   // own scheduling ran - renderBlock()'s own note-scheduling loop compares
   // this against each row's freshly-resolved value to detect a real
   // clip's own termination and fire its natural release exactly once, not
   // every row while a stop instance stays in effect.
   std::unordered_map<int, int> last_active_clip_index_by_track_;
-  // track_id -> the SampleContent* (or nullptr) Scene::
+  // track_id -> the SampleContent* (or nullptr) Section::
   // getSampleBackgroundContent() returned for that track the last time
   // this row's own scheduling ran - the background bed's own, entirely
   // separate transition-tracking counterpart to
   // last_active_clip_index_by_track_ above, compared by identity (a real
-  // bed is one stable object for as long as its own scene stays current)
-  // to detect a scene boundary (a different bed, or none at all) and
+  // bed is one stable object for as long as its own section stays current)
+  // to detect a section boundary (a different bed, or none at all) and
   // retrigger/release accordingly.
   std::unordered_map<int, const SampleContent *> last_background_by_track_;
   // renderBlock()'s own resume/pause-release detection - the previous

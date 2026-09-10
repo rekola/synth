@@ -69,12 +69,12 @@ unique_ptr<Arpeggiator> makeGappedArpeggiator() {
 TEST(resync_playhead_after_stop_leaves_a_resumed_arpeggiator_alone_when_the_position_did_not_move) {
   Song song;
   song.setTempo(240);
-  song.setRowsPerBar(4); // Scene::length_bars_ defaults to 4 - together, a 16-row scene, matching this test's old patternRows=16
+  song.setRowsPerBar(4); // Section::length_bars_ defaults to 4 - together, a 16-row section, matching this test's old patternRows=16
   song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
   auto & arp = song.addTrack(makeGappedArpeggiator());
   int track_id = arp.getInternalId();
 
-  auto & scene0 = song.addScene();
+  auto & scene0 = song.addSection();
   scene0.setNote(0, track_id, 0, Note(60, 100));
   scene0.setNote(0, track_id, 1, Note(64, 100));
   // Every later row is deliberately left empty.
@@ -114,12 +114,12 @@ TEST(resync_playhead_after_stop_leaves_a_resumed_arpeggiator_alone_when_the_posi
 TEST(resync_playhead_after_stop_resyncs_a_resumed_arpeggiator_when_the_position_moved) {
   Song song;
   song.setTempo(240);
-  song.setRowsPerBar(4); // Scene::length_bars_ defaults to 4 - together, a 16-row scene, matching this test's old patternRows=16
+  song.setRowsPerBar(4); // Section::length_bars_ defaults to 4 - together, a 16-row section, matching this test's old patternRows=16
   song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
   auto & arp = song.addTrack(makeGappedArpeggiator());
   int track_id = arp.getInternalId();
 
-  auto & scene0 = song.addScene();
+  auto & scene0 = song.addSection();
   scene0.setNote(0, track_id, 0, Note(60, 100));
   scene0.setNote(0, track_id, 1, Note(64, 100));
   // Row 5 is deliberately left empty - see below.

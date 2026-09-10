@@ -1,6 +1,6 @@
 #include "TestFramework.h"
 
-#include "../src/model/Scene.h"
+#include "../src/model/Section.h"
 #include "../src/model/Song.h"
 #include "../src/model/InstrumentTrack.h"
 #include "../src/instruments/InstrumentProvider.h"
@@ -63,24 +63,24 @@ TEST(pattern_has_no_sounding_note_with_only_a_command) {
   CHECK(!p.hasSoundingNote());
 }
 
-TEST(scene_set_pattern_for_track_replaces_the_whole_pattern) {
-  Scene scene;
-  scene.setNote(0, 1, 0, Note(60, 100));
-  scene.setNote(1, 1, 0, Note(62, 100));
+TEST(section_set_pattern_for_track_replaces_the_whole_pattern) {
+  Section section;
+  section.setNote(0, 1, 0, Note(60, 100));
+  section.setNote(1, 1, 0, Note(62, 100));
 
   Pattern replacement;
   replacement.setNote(5, 0, Note(67, 100));
-  scene.setPatternForTrack(1, replacement);
+  section.setPatternForTrack(1, replacement);
 
-  CHECK(scene.getNotes(0, 1).empty());
-  CHECK(scene.getNote(5, 1, 0).getValue() == 67);
+  CHECK(section.getNotes(0, 1).empty());
+  CHECK(section.getNote(5, 1, 0).getValue() == 67);
 }
 
-TEST(scene_set_pattern_for_track_is_a_deep_copy) {
-  Scene source;
+TEST(section_set_pattern_for_track_is_a_deep_copy) {
+  Section source;
   source.setNote(0, 1, 0, Note(60, 100));
 
-  Scene dest;
+  Section dest;
   dest.setPatternForTrack(1, source.getPatternsByTrack().at(1));
 
   // Mutating the destination must never reach back into the source.
@@ -130,9 +130,9 @@ TEST(pattern_write_redirect_is_readable_from_both_the_written_and_repeated_row) 
 TEST(pattern_length_xml_round_trip) {
   Song song;
   song.addTrack(std::make_unique<InstrumentTrack>(0));
-  auto & scene = song.addScene();
-  scene.setNote(0, song.getRootTrackIds()[0], 0, Note(60, 100));
-  scene.getPatternsByTrack()[song.getRootTrackIds()[0]].setLength(16);
+  auto & section = song.addSection();
+  section.setNote(0, song.getRootTrackIds()[0], 0, Note(60, 100));
+  section.getPatternsByTrack()[song.getRootTrackIds()[0]].setLength(16);
 
   auto path = std::string(TESTS_SCRATCH_DIR) + "/pattern_length_round_trip.xml";
   song.save(path);
@@ -141,7 +141,7 @@ TEST(pattern_length_xml_round_trip) {
   InstrumentProvider provider;
   CHECK(reloaded.open(path, provider));
   auto track_id = reloaded.getRootTrackIds()[0];
-  CHECK(reloaded.getScene(0).getPatternsByTrack().at(track_id).getLength() == 16);
+  CHECK(reloaded.getSection(0).getPatternsByTrack().at(track_id).getLength() == 16);
 
   std::filesystem::remove(path);
 }
@@ -149,8 +149,8 @@ TEST(pattern_length_xml_round_trip) {
 TEST(pattern_length_absent_from_xml_when_unset) {
   Song song;
   song.addTrack(std::make_unique<InstrumentTrack>(0));
-  auto & scene = song.addScene();
-  scene.setNote(0, song.getRootTrackIds()[0], 0, Note(60, 100)); // length_ left at its default (0)
+  auto & section = song.addSection();
+  section.setNote(0, song.getRootTrackIds()[0], 0, Note(60, 100)); // length_ left at its default (0)
 
   auto path = std::string(TESTS_SCRATCH_DIR) + "/pattern_length_absent.xml";
   song.save(path);
@@ -159,86 +159,86 @@ TEST(pattern_length_absent_from_xml_when_unset) {
   InstrumentProvider provider;
   CHECK(reloaded.open(path, provider));
   auto track_id = reloaded.getRootTrackIds()[0];
-  CHECK(reloaded.getScene(0).getPatternsByTrack().at(track_id).getLength() == 0);
+  CHECK(reloaded.getSection(0).getPatternsByTrack().at(track_id).getLength() == 0);
 
   std::filesystem::remove(path);
 }
 
-// Scene::getEffectiveRow() - the row+track_id-keyed convenience callers
+// Section::getEffectiveRow() - the row+track_id-keyed convenience callers
 // without a direct Pattern reference use (PatternEditor.cpp/
 // LaunchpadManager.cpp's own note-entry write sites).
-TEST(scene_effective_row_falls_back_to_raw_row_for_an_unknown_track) {
-  Scene scene;
-  CHECK(scene.getEffectiveRow(0, 20, 64) == 20);
+TEST(section_effective_row_falls_back_to_raw_row_for_an_unknown_track) {
+  Section section;
+  CHECK(section.getEffectiveRow(0, 20, 64) == 20);
 }
 
-TEST(scene_effective_row_uses_that_tracks_own_pattern_length) {
-  Scene scene;
-  scene.setNote(0, 1, 0, Note(60, 100));
-  scene.getPatternsByTrack()[1].setLength(16);
-  CHECK(scene.getEffectiveRow(1, 20, 64) == 4);
+TEST(section_effective_row_uses_that_tracks_own_pattern_length) {
+  Section section;
+  section.setNote(0, 1, 0, Note(60, 100));
+  section.getPatternsByTrack()[1].setLength(16);
+  CHECK(section.getEffectiveRow(1, 20, 64) == 4);
 }
 
-TEST(scene_insert_row_for_track_shifts_only_that_tracks_own_content) {
-  Scene scene;
-  scene.setNote(0, 1, 0, Note(60, 100)); // track 1
-  scene.setNote(0, 2, 0, Note(64, 100)); // track 2
-  scene.setAnnotation(0, "hello");
+TEST(section_insert_row_for_track_shifts_only_that_tracks_own_content) {
+  Section section;
+  section.setNote(0, 1, 0, Note(60, 100)); // track 1
+  section.setNote(0, 2, 0, Note(64, 100)); // track 2
+  section.setAnnotation(0, "hello");
 
-  scene.insertRowForTrack(1, 0, 8); // insert a blank row at row 0, track 1 only
+  section.insertRowForTrack(1, 0, 8); // insert a blank row at row 0, track 1 only
 
   // Track 1's own note shifted down to row 1.
-  CHECK(scene.getNotes(0, 1).empty());
-  CHECK(scene.getNote(1, 1, 0).getValue() == 60);
+  CHECK(section.getNotes(0, 1).empty());
+  CHECK(section.getNote(1, 1, 0).getValue() == 60);
 
   // Track 2 and the row's own annotation are both untouched.
-  CHECK(scene.getNote(0, 2, 0).getValue() == 64);
-  CHECK(scene.getAnnotation(0) == "hello");
+  CHECK(section.getNote(0, 2, 0).getValue() == 64);
+  CHECK(section.getAnnotation(0) == "hello");
 }
 
 // The arrangement layer's own instance events - independent of any
 // track's own Pattern (notes/commands), same as annotations already are.
-TEST(scene_instance_events_default_to_absent) {
-  Scene scene;
-  CHECK(scene.getInstance(1, 0).empty());
-  CHECK(scene.getInstancesForTrack(1).empty());
+TEST(section_instance_events_default_to_absent) {
+  Section section;
+  CHECK(section.getInstance(1, 0).empty());
+  CHECK(section.getInstancesForTrack(1).empty());
 }
 
-TEST(scene_instance_events_round_trip_a_real_clip_and_a_stop) {
-  Scene scene;
-  scene.setInstance(1, 0, "clip2"); // starting at row 0
-  scene.setInstance(1, 16, "OFF"); // stop at row 16
+TEST(section_instance_events_round_trip_a_real_clip_and_a_stop) {
+  Section section;
+  section.setInstance(1, 0, "clip2"); // starting at row 0
+  section.setInstance(1, 16, "OFF"); // stop at row 16
 
-  CHECK(scene.getInstance(1, 0) == "clip2");
-  CHECK(scene.getInstance(1, 16) == "OFF");
-  CHECK(scene.getInstance(1, 8).empty()); // nothing placed there
+  CHECK(section.getInstance(1, 0) == "clip2");
+  CHECK(section.getInstance(1, 16) == "OFF");
+  CHECK(section.getInstance(1, 8).empty()); // nothing placed there
 
-  auto & track_instances = scene.getInstancesForTrack(1);
+  auto & track_instances = section.getInstancesForTrack(1);
   CHECK(track_instances.size() == 2);
 
   // A different track's own instance list is entirely independent.
-  CHECK(scene.getInstancesForTrack(2).empty());
+  CHECK(section.getInstancesForTrack(2).empty());
 }
 
-TEST(scene_instance_events_can_be_cleared) {
-  Scene scene;
-  scene.setInstance(1, 0, "clip2");
-  scene.clearInstance(1, 0);
-  CHECK(scene.getInstance(1, 0).empty());
-  CHECK(scene.getInstancesForTrack(1).empty());
+TEST(section_instance_events_can_be_cleared) {
+  Section section;
+  section.setInstance(1, 0, "clip2");
+  section.clearInstance(1, 0);
+  CHECK(section.getInstance(1, 0).empty());
+  CHECK(section.getInstancesForTrack(1).empty());
 }
 
 // getInstancesForTrack() is ordered (std::map), not this class's usual
 // unordered_map, precisely so a caller can walk it in row order - insert
 // out of order here and confirm it comes back sorted.
-TEST(scene_instance_events_for_a_track_are_kept_in_row_order) {
-  Scene scene;
-  scene.setInstance(1, 32, "clip0");
-  scene.setInstance(1, 0, "clip1");
-  scene.setInstance(1, 16, "OFF");
+TEST(section_instance_events_for_a_track_are_kept_in_row_order) {
+  Section section;
+  section.setInstance(1, 32, "clip0");
+  section.setInstance(1, 0, "clip1");
+  section.setInstance(1, 16, "OFF");
 
   std::vector<unsigned short> rows;
-  for (auto & [ row, clip_id ] : scene.getInstancesForTrack(1)) rows.push_back(row);
+  for (auto & [ row, clip_id ] : section.getInstancesForTrack(1)) rows.push_back(row);
   CHECK(rows.size() == 3);
   if (rows.size() == 3) {
     CHECK(rows[0] == 0);

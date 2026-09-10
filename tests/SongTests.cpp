@@ -54,8 +54,8 @@ TEST(note_round_trips_for_a_track_with_an_explicit_textual_id) {
   Song song(Tuning::TET12);
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   track.setId("chords");
-  song.addScene();
-  song.getScene(0).setNote(0, track.getInternalId(), 0, Note(60, 40));
+  song.addSection();
+  song.getSection(0).setNote(0, track.getInternalId(), 0, Note(60, 40));
   song.save(scratch_path);
 
   // The saved file must actually reference the track by its own textual
@@ -71,7 +71,7 @@ TEST(note_round_trips_for_a_track_with_an_explicit_textual_id) {
   auto reloaded_track = reloaded.getMasterTrack().getChildById("chords");
   CHECK(reloaded_track != nullptr);
   if (reloaded_track) {
-    auto & notes = reloaded.getScene(0).getNotes(0, reloaded_track->getInternalId());
+    auto & notes = reloaded.getSection(0).getNotes(0, reloaded_track->getInternalId());
     CHECK(notes.size() == 1);
     if (notes.size() == 1) CHECK(notes[0].getValue() == 60);
   }
@@ -87,8 +87,8 @@ TEST(note_round_trips_for_a_track_with_no_explicit_id) {
   Song song(Tuning::TET12);
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   CHECK(!track.getId().empty()); // addTrack() must have assigned one
-  song.addScene();
-  song.getScene(0).setNote(0, track.getInternalId(), 0, Note(60, 40));
+  song.addSection();
+  song.getSection(0).setNote(0, track.getInternalId(), 0, Note(60, 40));
   song.save(scratch_path);
 
   InstrumentProvider provider;
@@ -98,7 +98,7 @@ TEST(note_round_trips_for_a_track_with_no_explicit_id) {
   CHECK(reloaded.getMasterTrack().getChildren().size() == 1);
   auto & reloaded_track = *reloaded.getMasterTrack().getChildren()[0];
   CHECK(reloaded_track.getId() == track.getId());
-  auto & notes = reloaded.getScene(0).getNotes(0, reloaded_track.getInternalId());
+  auto & notes = reloaded.getSection(0).getNotes(0, reloaded_track.getInternalId());
   CHECK(notes.size() == 1);
   if (notes.size() == 1) CHECK(notes[0].getValue() == 60);
 
@@ -117,11 +117,11 @@ TEST(overwriting_a_note_with_an_undefined_value_leaves_no_stale_row_entry) {
 
   Song song;
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
-  song.addScene();
-  auto & scene = song.getScene(0);
-  scene.setNote(6, track.getInternalId(), 0, Note(60, 40));
-  scene.setNote(6, track.getInternalId(), 0, Note());
-  CHECK(scene.getNotes(6, track.getInternalId()).empty());
+  song.addSection();
+  auto & section = song.getSection(0);
+  section.setNote(6, track.getInternalId(), 0, Note(60, 40));
+  section.setNote(6, track.getInternalId(), 0, Note());
+  CHECK(section.getNotes(6, track.getInternalId()).empty());
 
   song.save(scratch_path);
 
@@ -142,8 +142,8 @@ TEST(command_round_trips_for_a_track_with_an_explicit_textual_id) {
   Song song;
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   track.setId("bass");
-  song.addScene();
-  song.getScene(0).setCommand(0, track.getInternalId(), Command("V400"));
+  song.addSection();
+  song.getSection(0).setCommand(0, track.getInternalId(), Command("V400"));
   song.save(scratch_path);
 
   auto saved = readFile(scratch_path);
@@ -156,7 +156,7 @@ TEST(command_round_trips_for_a_track_with_an_explicit_textual_id) {
   auto reloaded_track = reloaded.getMasterTrack().getChildById("bass");
   CHECK(reloaded_track != nullptr);
   if (reloaded_track) {
-    auto & command = reloaded.getScene(0).getCommand(0, reloaded_track->getInternalId());
+    auto & command = reloaded.getSection(0).getCommand(0, reloaded_track->getInternalId());
     CHECK(command.isDefined());
     CHECK(to_string(command) == "V400");
   }
@@ -164,73 +164,73 @@ TEST(command_round_trips_for_a_track_with_an_explicit_textual_id) {
   fs::remove(scratch_path);
 }
 
-// A scene's own length lives on Scene, not Song - each one round-trips
-// its own <scene length="N"> (in bars) independently, and a fresh Scene
-// defaults to 4 bars (Scene.h's own compiled default) when never given an
+// A section's own length lives on Section, not Song - each one round-trips
+// its own <section length="N"> (in bars) independently, and a fresh Section
+// defaults to 4 bars (Section.h's own compiled default) when never given an
 // explicit length of its own - there's no more song-wide fallback to
 // migrate from ("patternRows" is no longer read or written at all).
-TEST(scene_length_round_trips_through_save_and_load) {
+TEST(section_length_round_trips_through_save_and_load) {
   namespace fs = std::filesystem;
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "scene_length_scratch.xml").string();
 
   Song song;
-  auto & sized = song.addScene();
+  auto & sized = song.addSection();
   sized.setLengthBars(7);
-  auto & defaulted = song.addScene();
+  auto & defaulted = song.addSection();
   CHECK(defaulted.getLengthBars() == 4);
   song.save(scratch_path);
 
   auto saved = readFile(scratch_path);
   CHECK(saved.find("length=\"7\"") != string::npos);
-  CHECK(saved.find("length=\"4\"") != string::npos); // always written, even at the compiled default - a scene's own length is never optional/implicit
+  CHECK(saved.find("length=\"4\"") != string::npos); // always written, even at the compiled default - a section's own length is never optional/implicit
   CHECK(saved.find("patternRows") == string::npos); // never written any more
 
   InstrumentProvider provider;
   Song reloaded;
   CHECK(reloaded.open(scratch_path, provider));
-  CHECK(reloaded.getScenes().size() == 2);
-  CHECK(reloaded.getScenes()[0].getLengthBars() == 7);
-  CHECK(reloaded.getScenes()[1].getLengthBars() == 4);
+  CHECK(reloaded.getSections().size() == 2);
+  CHECK(reloaded.getSections()[0].getLengthBars() == 7);
+  CHECK(reloaded.getSections()[1].getLengthBars() == 4);
 
   fs::remove(scratch_path);
 }
 
-TEST(normalize_position_walks_across_scenes_of_differing_lengths) {
+TEST(normalize_position_walks_across_sections_of_differing_lengths) {
   Song song;
   song.setRowsPerBar(1); // 1 bar = 1 row, so bars below read directly as rows
-  song.addScene().setLengthBars(3); // scene 0: rows 0-2
-  song.addScene().setLengthBars(5); // scene 1: rows 0-4 (absolute 3-7)
-  song.addScene(); // scene 2: the compiled default (4 bars/rows, absolute 8-11)
+  song.addSection().setLengthBars(3); // section 0: rows 0-2
+  song.addSection().setLengthBars(5); // section 1: rows 0-4 (absolute 3-7)
+  song.addSection(); // section 2: the compiled default (4 bars/rows, absolute 8-11)
 
   CHECK(song.normalizePosition(0, 0) == (pair<int, int>{ 0, 0 }));
-  CHECK(song.normalizePosition(0, 2) == (pair<int, int>{ 0, 2 })); // scene 0's own last row
-  CHECK(song.normalizePosition(0, 3) == (pair<int, int>{ 1, 0 })); // crosses into scene 1
-  CHECK(song.normalizePosition(0, 7) == (pair<int, int>{ 1, 4 })); // scene 1's own last row
-  CHECK(song.normalizePosition(0, 8) == (pair<int, int>{ 2, 0 })); // crosses into scene 2
+  CHECK(song.normalizePosition(0, 2) == (pair<int, int>{ 0, 2 })); // section 0's own last row
+  CHECK(song.normalizePosition(0, 3) == (pair<int, int>{ 1, 0 })); // crosses into section 1
+  CHECK(song.normalizePosition(0, 7) == (pair<int, int>{ 1, 4 })); // section 1's own last row
+  CHECK(song.normalizePosition(0, 8) == (pair<int, int>{ 2, 0 })); // crosses into section 2
   CHECK(song.normalizePosition(0, 11) == (pair<int, int>{ 2, 3 }));
-  CHECK(song.normalizePosition(0, 12) == (pair<int, int>{ 3, 0 })); // past every real scene - a virtual continuation, same default length
+  CHECK(song.normalizePosition(0, 12) == (pair<int, int>{ 3, 0 })); // past every real section - a virtual continuation, same default length
 }
 
 TEST(to_absolute_row_is_the_exact_inverse_of_normalize_position) {
   Song song;
   song.setRowsPerBar(1);
-  song.addScene().setLengthBars(3);
-  song.addScene().setLengthBars(5);
-  song.addScene().setLengthBars(2);
+  song.addSection().setLengthBars(3);
+  song.addSection().setLengthBars(5);
+  song.addSection().setLengthBars(2);
 
-  for (auto [ scene_idx, row ] : { pair<int,int>{0,0}, {0,2}, {1,0}, {1,4}, {2,0}, {2,1} }) {
-    auto absolute = song.toAbsoluteRow(scene_idx, row);
-    CHECK(song.normalizePosition(0, absolute) == (pair<int, int>{ scene_idx, row }));
+  for (auto [ section_idx, row ] : { pair<int,int>{0,0}, {0,2}, {1,0}, {1,4}, {2,0}, {2,1} }) {
+    auto absolute = song.toAbsoluteRow(section_idx, row);
+    CHECK(song.normalizePosition(0, absolute) == (pair<int, int>{ section_idx, row }));
   }
 }
 
-TEST(clamp_row_to_current_pattern_clamps_into_the_scenes_own_bounds) {
+TEST(clamp_row_to_current_pattern_clamps_into_the_sections_own_bounds) {
   Song song;
   song.setRowsPerBar(1);
-  song.addScene().setLengthBars(3);  // rows 0-2
-  song.addScene().setLengthBars(5);  // rows 0-4 (absolute 3-7)
+  song.addSection().setLengthBars(3);  // rows 0-2
+  song.addSection().setLengthBars(5);  // rows 0-4 (absolute 3-7)
 
-  // Inside scene 1 (a non-default-length scene): clamped into [3, 7].
+  // Inside section 1 (a non-default-length section): clamped into [3, 7].
   CHECK(song.clampRowToCurrentPattern(5, 0) == 3);
   CHECK(song.clampRowToCurrentPattern(5, 100) == 7);
   CHECK(song.clampRowToCurrentPattern(5, 4) == 4); // already inside - untouched
@@ -548,48 +548,48 @@ TEST(recognized_and_unrecognized_generator_overrides_coexist_in_one_document) {
   fs::remove(scratch_path);
 }
 
-// getScene() falls back to a shared, process-wide sentinel Scene for an
+// getSection() falls back to a shared, process-wide sentinel Section for an
 // out-of-range index (deliberately, for read-only callers - see its own
-// comment) - getOrCreateScene() is the write-intent counterpart that
+// comment) - getOrCreateSection() is the write-intent counterpart that
 // actually grows the song instead, so a write aimed past the last real
-// Scene lands in real, persisted content rather than silently aliasing
+// Section lands in real, persisted content rather than silently aliasing
 // into that sentinel.
-TEST(get_or_create_scene_grows_the_song_up_to_the_requested_index) {
+TEST(get_or_create_section_grows_the_song_up_to_the_requested_index) {
   Song song;
-  CHECK(song.getScenes().size() == 0);
+  CHECK(song.getSections().size() == 0);
 
-  auto & scene = song.getOrCreateScene(2);
-  CHECK(song.getScenes().size() == 3);
-  scene.setNote(0, 0, 0, Note(60, 100));
+  auto & section = song.getOrCreateSection(2);
+  CHECK(song.getSections().size() == 3);
+  section.setNote(0, 0, 0, Note(60, 100));
 
-  // The same index now resolves to the exact Scene just written into, not
+  // The same index now resolves to the exact Section just written into, not
   // a second, distinct instance.
-  CHECK(song.getScene(2).getNote(0, 0, 0).getValue() == 60);
+  CHECK(song.getSection(2).getNote(0, 0, 0).getValue() == 60);
 }
 
-TEST(get_or_create_scene_does_not_regrow_an_already_large_enough_song) {
+TEST(get_or_create_section_does_not_regrow_an_already_large_enough_song) {
   Song song;
-  song.getOrCreateScene(4);
-  CHECK(song.getScenes().size() == 5);
+  song.getOrCreateSection(4);
+  CHECK(song.getSections().size() == 5);
 
   // Asking for an earlier index must not truncate/replace what's already
   // there.
-  auto & scene = song.getOrCreateScene(1);
-  scene.setNote(0, 0, 0, Note(67, 100));
-  CHECK(song.getScenes().size() == 5);
-  CHECK(song.getScene(1).getNote(0, 0, 0).getValue() == 67);
+  auto & section = song.getOrCreateSection(1);
+  section.setNote(0, 0, 0, Note(67, 100));
+  CHECK(song.getSections().size() == 5);
+  CHECK(song.getSection(1).getNote(0, 0, 0).getValue() == 67);
 }
 
-TEST(get_or_create_scene_is_a_real_distinct_scene_not_the_shared_sentinel) {
+TEST(get_or_create_section_is_a_real_distinct_section_not_the_shared_sentinel) {
   Song song_a, song_b;
-  auto & scene_a = song_a.getOrCreateScene(0);
+  auto & scene_a = song_a.getOrCreateSection(0);
   scene_a.setNote(0, 0, 0, Note(60, 100));
 
   // A second, unrelated Song's own out-of-range write must never alias
   // into the same object song_a's write just landed in - the exact
-  // failure mode of the old getScene()-for-writing bug (a single shared
+  // failure mode of the old getSection()-for-writing bug (a single shared
   // static empty_scene_ instance, process-wide, not per-Song).
-  auto & scene_b = song_b.getOrCreateScene(0);
+  auto & scene_b = song_b.getOrCreateSection(0);
   CHECK(scene_b.getNote(0, 0, 0).getValue() != 60);
 }
 
@@ -783,8 +783,8 @@ TEST(master_tracks_own_command_round_trips_by_its_reserved_id) {
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_master_command_scratch.xml").string();
 
   Song song;
-  song.addScene();
-  song.getScene(0).setCommand(0, song.getMasterTrack().getInternalId(), Command("V400"));
+  song.addSection();
+  song.getSection(0).setCommand(0, song.getMasterTrack().getInternalId(), Command("V400"));
   song.save(scratch_path);
 
   auto saved = readFile(scratch_path);
@@ -794,7 +794,7 @@ TEST(master_tracks_own_command_round_trips_by_its_reserved_id) {
   Song reloaded;
   CHECK(reloaded.open(scratch_path, provider));
 
-  auto & command = reloaded.getScene(0).getCommand(0, reloaded.getMasterTrack().getInternalId());
+  auto & command = reloaded.getSection(0).getCommand(0, reloaded.getMasterTrack().getInternalId());
   CHECK(command.isDefined());
 
   fs::remove(scratch_path);
@@ -844,7 +844,7 @@ TEST(save_omits_the_clips_element_entirely_when_there_are_no_clips) {
 
   Song song;
   song.addTrack(make_unique<InstrumentTrack>(0));
-  song.addScene();
+  song.addSection();
   song.save(scratch_path);
 
   auto saved = readFile(scratch_path);
@@ -930,9 +930,9 @@ TEST(a_clip_with_no_name_round_trips_with_an_empty_one) {
   fs::remove(scratch_path);
 }
 
-// A clip is unconnected to any scene - it must not leak into, or be
-// confused with, a scene's own inline Pattern for the same track.
-TEST(clips_are_independent_of_a_scenes_own_inline_pattern) {
+// A clip is unconnected to any section - it must not leak into, or be
+// confused with, a section's own inline Pattern for the same track.
+TEST(clips_are_independent_of_a_sections_own_inline_pattern) {
   namespace fs = std::filesystem;
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_clip_vs_scene_scratch.xml").string();
 
@@ -941,8 +941,8 @@ TEST(clips_are_independent_of_a_scenes_own_inline_pattern) {
   Song song(Tuning::TET12);
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   track.setId("drums");
-  song.addScene();
-  song.getScene(0).setNote(0, track.getInternalId(), 0, Note(48, 100));
+  song.addSection();
+  song.getSection(0).setNote(0, track.getInternalId(), 0, Note(48, 100));
 
   Clip clip(track.getInternalId());
   clip.getLeafPattern().setNote(0, 0, Note(60, 100));
@@ -956,12 +956,12 @@ TEST(clips_are_independent_of_a_scenes_own_inline_pattern) {
   auto reloaded_track = reloaded.getMasterTrack().getChildById("drums");
   CHECK(reloaded_track != nullptr);
   if (reloaded_track) {
-    // The scene's own note is untouched by the clip.
-    auto & scene_notes = reloaded.getScene(0).getNotes(0, reloaded_track->getInternalId());
+    // The section's own note is untouched by the clip.
+    auto & scene_notes = reloaded.getSection(0).getNotes(0, reloaded_track->getInternalId());
     CHECK(scene_notes.size() == 1);
     if (scene_notes.size() == 1) CHECK(scene_notes[0].getValue() == 48);
 
-    // The clip is untouched by the scene's own note.
+    // The clip is untouched by the section's own note.
     auto & clips = reloaded.getClips(reloaded_track->getInternalId());
     CHECK(clips.size() == 1);
     if (clips.size() == 1) CHECK(clips[0].getLeafPattern().getNote(0, 0).getValue() == 60);
@@ -971,7 +971,7 @@ TEST(clips_are_independent_of_a_scenes_own_inline_pattern) {
 }
 
 // The arrangement layer's own instance events - a real clip reference and
-// an explicit stop, round-tripped through the same <scene> a <pattern>/
+// an explicit stop, round-tripped through the same <section> a <pattern>/
 // <annotation> already lives in.
 TEST(instance_events_round_trip_through_save_and_load) {
   namespace fs = std::filesystem;
@@ -983,9 +983,9 @@ TEST(instance_events_round_trip_through_save_and_load) {
   Clip clip(track.getInternalId());
   clip.getLeafPattern(); // the mutable overload creates it - see Clip.h's own comment on why every real clip needs one
   auto clip_id = song.addClip(move(clip)).getId();
-  auto & scene = song.addScene();
-  scene.setInstance(track.getInternalId(), 0, clip_id);
-  scene.setInstance(track.getInternalId(), 16, "OFF");
+  auto & section = song.addSection();
+  section.setInstance(track.getInternalId(), 0, clip_id);
+  section.setInstance(track.getInternalId(), 16, "OFF");
   song.save(scratch_path);
 
   auto saved = readFile(scratch_path);
@@ -1001,7 +1001,7 @@ TEST(instance_events_round_trip_through_save_and_load) {
   auto reloaded_track = reloaded.getMasterTrack().getChildById("drums");
   CHECK(reloaded_track != nullptr);
   if (reloaded_track) {
-    auto & reloaded_scene = reloaded.getScene(0);
+    auto & reloaded_scene = reloaded.getSection(0);
     CHECK(reloaded_scene.getInstance(reloaded_track->getInternalId(), 0) == clip_id);
     CHECK(reloaded_scene.getInstance(reloaded_track->getInternalId(), 16) == "OFF");
     // The clip's own id survived the round trip too, so the instance
@@ -1081,13 +1081,13 @@ TEST(sample_clip_round_trips_through_save_and_load) {
   fs::remove_all(scratch_samples_dir);
 }
 
-// A SampleTrack's own background bed (Scene::getOrCreateSampleBackgroundContent(),
+// A SampleTrack's own background bed (Section::getOrCreateSampleBackgroundContent(),
 // written by mergeClipToBackground()) round-trips through save/load the
 // same way a real clip's own audio does - a sidecar .wav plus a
 // <sampleBackground file="..."> reference, this time nested inside the
-// <scene> that owns it. The scene gets a real id of its own the moment
-// the merge creates the background bed (Song::generateUniqueSceneId()),
-// so the sidecar filename survives independent of the scene's own
+// <section> that owns it. The section gets a real id of its own the moment
+// the merge creates the background bed (Song::generateUniqueSectionId()),
+// so the sidecar filename survives independent of the section's own
 // ordinal position.
 TEST(sample_background_round_trips_through_save_and_load) {
   namespace fs = std::filesystem;
@@ -1111,13 +1111,13 @@ TEST(sample_background_round_trips_through_save_and_load) {
   sample_clip.getOrCreateSampleContent().setNativeSampleRate(44100); // real clips always have one by the time they're playable
   song.addClip(move(sample_clip)); // index 0
 
-  auto & scene = song.addScene();
-  scene.setLengthBars(1); // 4 rows total
-  placeClipInstance(song, scene, track.getInternalId(), 0, 0);
+  auto & section = song.addSection();
+  section.setLengthBars(1); // 4 rows total
+  placeClipInstance(song, section, track.getInternalId(), 0, 0);
 
   ChannelConfiguration channel_config;
-  CHECK(mergeClipToBackground(song, scene, track.getInternalId(), 0, channel_config) == true);
-  auto scene_id = scene.getId();
+  CHECK(mergeClipToBackground(song, section, track.getInternalId(), 0, channel_config) == true);
+  auto scene_id = section.getId();
   CHECK(!scene_id.empty());
 
   song.save(scratch_path);
@@ -1133,7 +1133,7 @@ TEST(sample_background_round_trips_through_save_and_load) {
   auto reloaded_track = reloaded.getMasterTrack().getChildById("bed");
   CHECK(reloaded_track != nullptr);
   if (reloaded_track) {
-    auto & reloaded_scene = reloaded.getScene(0);
+    auto & reloaded_scene = reloaded.getSection(0);
     CHECK(reloaded_scene.getId() == scene_id); // survived the round trip, not regenerated
     auto * reloaded_content = reloaded_scene.getSampleBackgroundContent(reloaded_track->getInternalId());
     CHECK(reloaded_content != nullptr);
@@ -1207,16 +1207,16 @@ TEST(deleting_a_sample_clip_only_removes_its_sidecar_file_on_next_save) {
   fs::remove_all(scratch_samples_dir);
 }
 
-// The write side omits <arrangement> entirely when a scene has no
+// The write side omits <arrangement> entirely when a section has no
 // instance events - same "default/empty state stores nothing" rule
 // storeBusConfig()/the clip pool already follow.
-TEST(save_omits_the_arrangement_element_when_a_scene_has_no_instances) {
+TEST(save_omits_the_arrangement_element_when_a_section_has_no_instances) {
   namespace fs = std::filesystem;
   auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_no_instances_scratch.xml").string();
 
   Song song;
   song.addTrack(make_unique<InstrumentTrack>(0));
-  song.addScene();
+  song.addSection();
   song.save(scratch_path);
 
   auto saved = readFile(scratch_path);

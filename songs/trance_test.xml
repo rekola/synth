@@ -53,8 +53,8 @@
     <track id="chords" instrument="3" sendA="-20.0000" azimuth="80" distance="1"/>
   </tracks>
   
-  <scenes>
-    <scene length="4">
+  <sections>
+    <section length="4">
       <pattern track="bell">
         <note row="0" velocity="40">C-5</note>
         <note row="2" velocity="40">C-5</note>
@@ -102,8 +102,8 @@
       <pattern track="riser">
         <note row="46" velocity="50">A-1</note>
       </pattern>
-    </scene>
-    <scene length="4">
+    </section>
+    <section length="4">
       <pattern track="melody">
         <note row="0" velocity="40">C-4</note>
         <note row="4" velocity="40">C-4</note>
@@ -140,8 +140,8 @@
         <note row="0">OFF</note>
         <note row="46" velocity="50">A-1</note>
       </pattern>
-    </scene>
-    <scene length="4">
+    </section>
+    <section length="4">
       <pattern track="melody">
         <note row="0" velocity="40">C-4</note>
         <note row="4" velocity="40">C-4</note>
@@ -178,11 +178,11 @@
         <note row="0">OFF</note>
         <note row="46" velocity="50">A-1</note>
       </pattern>
-    </scene>
-    <scene length="4">
+    </section>
+    <section length="4">
       <pattern track="riser">
         <note>OFF</note>
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

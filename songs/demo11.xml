@@ -16,8 +16,8 @@
     </resonantFilter>
   </tracks>
   
-  <scenes>
-    <scene length="2">
+  <sections>
+    <section length="2">
       <pattern track="0">
         <note row="0" velocity="63" value="C-4" />
         <note row="2" velocity="63" value="D♯4" />
@@ -36,8 +36,8 @@
         <note row="28" velocity="63" value="F-4" />
         <note row="30" velocity="63" value="C-5" />
       </pattern>
-    </scene>
-    <scene length="2">
+    </section>
+    <section length="2">
       <pattern track="0">
         <note row="0" velocity="63" value="C-4" />
         <note row="6" velocity="63" value="C-5" />
@@ -60,6 +60,6 @@
         <note row="20" velocity="63" value="A#4" />
         <note row="28" velocity="63" value="F-4" />
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

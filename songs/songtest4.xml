@@ -8,8 +8,8 @@
     <track id="0" instrument="0" sendA="-9.1186" />
   </tracks>
   
-  <scenes>
-    <scene length="4">
+  <sections>
+    <section length="4">
       <annotation row="48">B𝄫3 quartal major</annotation>
       <pattern track="0">
         <note row="0" column="0" velocity="40">C-3 G-3 C-4</note>
@@ -45,8 +45,8 @@
         <note row="60" column="2" velocity="40">E𝄫5</note>
         <note row="62" column="2" velocity="40">C-5</note>
       </pattern>
-    </scene>
-    <scene length="4">
+    </section>
+    <section length="4">
       <pattern track="0">
         <note row="0" column="0" velocity="40">C-3 G-3 C-4</note>
         <note row="2" column="2" velocity="40" value="Eb4" />
@@ -81,8 +81,8 @@
         <note row="60" column="2" velocity="40">E𝄫5</note>
         <note row="62" column="2" velocity="40">C-5</note>
       </pattern>
-    </scene>
-    <scene length="4">
+    </section>
+    <section length="4">
       <pattern track="0">
         <note row="0" column="0" velocity="40">Ab3 Eb3 Ab4</note>
         <note row="2" column="2" velocity="40">C-5</note>
@@ -117,8 +117,8 @@
         <note row="60" column="2" velocity="40">E𝄫5</note>
         <note row="62" column="2" velocity="40">C-5</note>
       </pattern>
-    </scene>
-    <scene length="4">
+    </section>
+    <section length="4">
       <pattern track="0">
         <note row="0" column="0" velocity="40">Ab3 Eb3 Ab4</note>
         <note row="2" column="2" velocity="40">C-5</note>
@@ -153,6 +153,6 @@
         <note row="60" column="2" velocity="40">E𝄫5</note>
         <note row="62" column="2" velocity="40">C-5</note>
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

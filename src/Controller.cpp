@@ -198,13 +198,13 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     song->save(getActiveBufferName());
     last_saved_versions_[getActiveBufferName()] = song->getVersion();
   });
-  // Folds a clip's placement back into its scene's own background content,
+  // Folds a clip's placement back into its section's own background content,
   // freeing the clip slot without deleting the clip itself - a destructive
   // overwrite for a note-based clip, a real additive mix for a SampleTrack
   // one (ArrangementOps.h's own mergeClipToBackground() has the full
   // reasoning). Targets the Song's own current track (Song::
   // getCurrentTrackId() - shared by every buffer viewing this Song, not
-  // any one UI widget's own cursor) and the playhead's own scene/row
+  // any one UI widget's own cursor) and the playhead's own section/row
   // (getPlaybackInfo(), already Controller-global) - resolveInstanceAt()
   // is row-exact, matching kill-row's own resolution. A silent no-op if
   // nothing resolves (no current track set, nothing placed there, or the
@@ -213,10 +213,10 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     auto & song = getSong();
     auto track_id = song.getCurrentTrackId();
     if (track_id < 0) return;
-    auto & scene = song.getScene(playback_info.getPatternIndex());
+    auto & section = song.getSection(playback_info.getPatternIndex());
     auto row = playback_info.getRowIndex();
 
-    if (!mergeClipToBackground(song, scene, track_id, row, getChannelConfiguration())) return;
+    if (!mergeClipToBackground(song, section, track_id, row, getChannelConfiguration())) return;
     song.incVersion();
     getUIEventQueue().push(make_unique<LogEvent>("Clip merged to background"));
   });
@@ -608,7 +608,7 @@ Controller::switchToBuffer(const string & name) {
       // doc comment on Controller.h).
       auto song = make_shared<Song>();
       song->addTrack(make_unique<InstrumentTrack>(0));
-      song->addScene();
+      song->addSection();
       last_saved_versions_[song_id] = song->getVersion();
       songs_[song_id] = std::move(song);
       created = true;
@@ -984,10 +984,10 @@ Controller::removeNoteColumn(int track_id) {
 void
 Controller::ensureRowCleared(std::set<std::pair<int, int>> & cleared_rows, int pattern_idx, int row, int track_id) {
   auto song = getCurrentSong();
-  auto & scene = song->getOrCreateScene(pattern_idx);
+  auto & section = song->getOrCreateSection(pattern_idx);
   // Clears whatever's actually active at (track_id, row) - a placed
   // clip instance's own leaf Pattern, live-linked to every other
-  // placement of it, or the scene's own background Pattern otherwise
+  // placement of it, or the section's own background Pattern otherwise
   // (ArrangementOps.h's own resolveEditTarget()) - the same resolution
   // every write into a live take already goes through
   // (applyNotePressure()/writeReleaseOff(), LaunchpadManager's own
@@ -1003,7 +1003,7 @@ Controller::ensureRowCleared(std::set<std::pair<int, int>> & cleared_rows, int p
   // looping clip) must dedup together - otherwise sweeping past the
   // second one would clear (and lose) a note the first one just wrote,
   // one loop iteration into the same live take.
-  auto target = resolveEditTarget(*song, scene, track_id, row, getFocusedClip());
+  auto target = resolveEditTarget(*song, section, track_id, row, getFocusedClip());
   if (!cleared_rows.insert({target.effective_row, track_id}).second) return; // already cleared this session
   target.pattern->setNotes(target.effective_row, {});
   song->incVersion();
@@ -1026,19 +1026,19 @@ Controller::sweepAutoRecordRows(std::set<std::pair<int, int>> & cleared_rows, in
 }
 
 void
-Controller::extendRecordingSceneIfNeeded(bool recording) {
+Controller::extendRecordingSectionIfNeeded(bool recording) {
   if (!recording) return;
   auto & info = getPlaybackInfo();
   if (!info.isPlaying()) return;
 
   auto song = getCurrentSong();
   if (!song) return;
-  auto & scene = song->getScene(info.getPatternIndex());
+  auto & section = song->getSection(info.getPatternIndex());
   auto rows_per_bar = std::max(1, song->getRowsPerBar());
-  auto last_bar = std::max(0, scene.getLengthBars() - 1);
+  auto last_bar = std::max(0, section.getLengthBars() - 1);
   if (info.getRowIndex() / rows_per_bar < last_bar) return; // not near the end yet
 
-  scene.setLengthBars(scene.getLengthBars() + 1);
+  section.setLengthBars(section.getLengthBars() + 1);
   song->incVersion();
 }
 
@@ -1054,8 +1054,8 @@ Controller::ensureNoteRecordingClip(std::unordered_map<int, std::string> & clip_
   // note's own row.
   auto rows_per_bar = std::max(1, song->getRowsPerBar());
   row = previousBarRow(row, rows_per_bar);
-  auto & scene = song->getOrCreateScene(pattern_idx);
-  auto active = resolveInstanceAt(*song, scene, track_id, row);
+  auto & section = song->getOrCreateSection(pattern_idx);
+  auto active = resolveInstanceAt(*song, section, track_id, row);
   if (active.clip_index >= 0) return; // a real clip is already active here - write into it, same as ordinary editing
 
   Clip clip(track_id);
@@ -1078,7 +1078,7 @@ Controller::ensureNoteRecordingClip(std::unordered_map<int, std::string> & clip_
   clip.setLength(rows_per_bar);
   auto & added = song->addClip(std::move(clip));
   auto clip_index = static_cast<int>(song->getClips(track_id).size()) - 1;
-  placeClipInstance(*song, scene, track_id, row, clip_index);
+  placeClipInstance(*song, section, track_id, row, clip_index);
   clip_ids[track_id] = added.getId();
   song->incVersion();
 }
@@ -1091,7 +1091,7 @@ Controller::extendRecordingClipsIfNeeded(std::unordered_map<int, std::string> & 
 
   auto song = getCurrentSong();
   if (!song) return;
-  auto & scene = song->getScene(info.getPatternIndex());
+  auto & section = song->getSection(info.getPatternIndex());
   auto rows_per_bar = std::max(1, song->getRowsPerBar());
 
   for (auto & [ track_id, clip_id ] : clip_ids) {
@@ -1109,7 +1109,7 @@ Controller::extendRecordingClipsIfNeeded(std::unordered_map<int, std::string> & 
     // find its own placement regardless of whether something else is
     // currently superseding it, or growth (and the overwrite below) could
     // never get past the very first obstacle in its way.
-    auto & instances = scene.getInstancesForTrack(track_id);
+    auto & instances = section.getInstancesForTrack(track_id);
     int start_row = -1;
     for (auto & [ row, id ] : instances) {
       if (id == clip_id) { start_row = row; break; }
@@ -1151,7 +1151,7 @@ Controller::extendRecordingClipsIfNeeded(std::unordered_map<int, std::string> & 
       // already sweeps every other instance event within a clip's own
       // reach on every call, keyed off whatever its length currently is -
       // re-running it here, now that length just grew, is all this needs.
-      placeClipInstance(*song, scene, track_id, start_row, clip_index);
+      placeClipInstance(*song, section, track_id, start_row, clip_index);
       song->incVersion();
     }
   }
@@ -1267,7 +1267,7 @@ Controller::trimSessionRecordingClip() {
 
 void
 Controller::extendRecordingSampleClipIfNeeded() {
-  if (!hasRecordingClip() || recording_start_scene_ < 0) return;
+  if (!hasRecordingClip() || recording_start_section_ < 0) return;
   auto & info = getPlaybackInfo();
   if (!info.isPlaying()) return;
 
@@ -1299,8 +1299,8 @@ Controller::extendRecordingSampleClipIfNeeded() {
     // extendRecordingClipsIfNeeded() already does - placeClipInstance()
     // clears every instance event within a clip's own reach on every
     // call, keyed off whatever its length currently is.
-    auto & scene = song->getScene(recording_start_scene_);
-    placeClipInstance(*song, scene, track_id, recording_start_row_, clip_index);
+    auto & section = song->getSection(recording_start_section_);
+    placeClipInstance(*song, section, track_id, recording_start_row_, clip_index);
     song->incVersion();
   }
 }
@@ -1344,8 +1344,8 @@ void
 Controller::writeReleaseOff(std::set<std::pair<int, int>> & cleared_rows, bool auto_started_playback, int pattern_idx, int row, int track_id, int note_column, int delay) {
   if (auto_started_playback) ensureRowCleared(cleared_rows, pattern_idx, row, track_id);
   auto song = getCurrentSong();
-  auto & scene = song->getOrCreateScene(pattern_idx);
-  auto target = resolveEditTarget(*song, scene, track_id, row, getFocusedClip());
+  auto & section = song->getOrCreateSection(pattern_idx);
+  auto target = resolveEditTarget(*song, section, track_id, row, getFocusedClip());
   target.pattern->setNote(target.effective_row, note_column, Note(0, 0, delay));
   song->incVersion();
 }
@@ -1353,8 +1353,8 @@ Controller::writeReleaseOff(std::set<std::pair<int, int>> & cleared_rows, bool a
 void
 Controller::applyNotePressure(int pattern_idx, int row, int track_id, int note_column, short velocity, int delay) {
   auto song = getCurrentSong();
-  auto & scene = song->getOrCreateScene(pattern_idx);
-  auto target = resolveEditTarget(*song, scene, track_id, row, getFocusedClip());
+  auto & section = song->getOrCreateSection(pattern_idx);
+  auto target = resolveEditTarget(*song, section, track_id, row, getFocusedClip());
   auto note = target.pattern->getNote(target.effective_row, note_column);
   if (!note.isDefined()) note.setDelay(delay);
   note.setVelocity(velocity);
@@ -1430,10 +1430,10 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
   // view/ArrangementGrid), just not an arrangement instance anywhere yet -
   // always true for a Session View take (session_recording_), which never
   // snapshots a start position in the first place.
-  if (recording_start_scene_ >= 0) {
-    auto & scene = song->getOrCreateScene(recording_start_scene_);
+  if (recording_start_section_ >= 0) {
+    auto & section = song->getOrCreateSection(recording_start_section_);
     int clip_index = reuse_existing ? session_recording_clip_index_ : static_cast<int>(clips.size()) - 1;
-    placeClipInstance(*song, scene, track_id, recording_start_row_, clip_index);
+    placeClipInstance(*song, section, track_id, recording_start_row_, clip_index);
   }
 
   song->incVersion();
@@ -1474,9 +1474,9 @@ Controller::finishSampleCapture() {
       // placeClipInstance() is idempotent against the same clip already
       // placed at the same row, so calling it again here with the correct
       // length simply extends that same clearing pass to cover it.
-      if (recording_start_scene_ >= 0) {
-        auto & scene = song->getOrCreateScene(recording_start_scene_);
-        placeClipInstance(*song, scene, track_id, recording_start_row_, static_cast<int>(i));
+      if (recording_start_section_ >= 0) {
+        auto & section = song->getOrCreateSection(recording_start_section_);
+        placeClipInstance(*song, section, track_id, recording_start_row_, static_cast<int>(i));
       }
 
       auto duration_seconds = static_cast<float>(post_trim_frames) / static_cast<float>(channel_config.getAudioOutSampleRate());
@@ -1492,7 +1492,7 @@ Controller::finishSampleCapture() {
   // currently reaches beginSampleCapture() that way, but stays a real,
   // defended case - see armRecordingStart()'s own comment) must not
   // silently inherit this one's now-stale position.
-  recording_start_scene_ = -1;
+  recording_start_section_ = -1;
   recording_start_row_ = -1;
   stopRecording();
 }

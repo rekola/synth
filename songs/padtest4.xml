@@ -67,8 +67,8 @@
     <track id="pad" instrument="1" />
   </tracks>
   
-  <scenes>
-    <scene length="4">
+  <sections>
+    <section length="4">
       <pattern track="melody">
         <note row="0" velocity="40">C-4</note>
         <note row="8" velocity="40">G-4</note>
@@ -88,6 +88,6 @@
         <note row="8" velocity="40">C-4</note>
         <note row="16" velocity="40">OFF</note>
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

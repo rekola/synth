@@ -10,21 +10,21 @@
 #include <vector>
 #include <unordered_map>
 
-// One track's own note/command content for one Scene (Scene.h) - what used
+// One track's own note/command content for one Section (Section.h) - what used
 // to be one track's slice of the old, all-tracks-at-once class also named
 // Pattern, now a standalone object in its own right rather than
 // interleaved with every other track's content in one shared
 // row->track_id->notes map. No track_id anywhere in here: which track this
-// belongs to is whichever container holds it - Scene::patterns_by_track_id_'s
-// key for a scene's own inline Pattern, or a Clip's own patterns_by_track_
+// belongs to is whichever container holds it - Section::patterns_by_track_id_'s
+// key for a section's own inline Pattern, or a Clip's own patterns_by_track_
 // key (Clip.h) for a reusable one - not this class's own concern.
 class Pattern : public SongObject {
  public:
   // A Pattern has a length. `length_ == 0` (the default) isn't a "looping
   // is off" flag - it means this particular Pattern was never given a
   // length of its own, so it takes on whatever length the caller-supplied
-  // `context_length` provides (in practice, the containing scene's own
-  // effective length - Song::getEffectiveSceneLength() - the same
+  // `context_length` provides (in practice, the containing section's own
+  // effective length - Song::getEffectiveSectionLength() - the same
   // implicit default every Pattern already has). Giving it a shorter
   // length explicitly is the only thing that changes: reads/writes past
   // it wrap, which is simply what "shorter than the span it's played
@@ -32,12 +32,12 @@ class Pattern : public SongObject {
   //
   // Every row-taking accessor below takes a raw row, not this effective
   // one - a caller resolves it once via getEffectiveRow(row,
-  // song.getEffectiveSceneLength(scene)) before reading or writing,
+  // song.getEffectiveSectionLength(section)) before reading or writing,
   // rather than this class remapping internally. Resolved fresh at each
   // call rather than baked in at construction time so a Pattern that was
-  // never given its own length keeps tracking its scene's own length live
-  // if that ever changes (Scene::setLengthBars()) - snapshotting it in at
-  // creation would silently desync the moment the scene's own length
+  // never given its own length keeps tracking its section's own length live
+  // if that ever changes (Section::setLengthBars()) - snapshotting it in at
+  // creation would silently desync the moment the section's own length
   // changed afterward. No divisibility requirement between length_ and
   // context_length - row % length_ is well-defined either way; a 5-row
   // pattern inside a 64-row context just plays some full repeats plus one
@@ -56,7 +56,7 @@ class Pattern : public SongObject {
   // a Pattern has no name or id of its own, just its length
   // (<pattern length="...">). Called from Song.cpp's shared reader/writer
   // helpers (parsePatternContent()/storePatternContent()), used by both
-  // the per-scene and per-clip paths.
+  // the per-section and per-clip paths.
   void loadParameters(const ParameterSource & input) override {
     setLength(input.get<int>("length", 0));
   }
@@ -194,14 +194,14 @@ class Pattern : public SongObject {
 
   // The raw sparse row->note-columns map - notes_ itself, letting a caller
   // list every defined row without an outside bound to loop against. A
-  // scene's own inline Pattern is always written by looping row 0..the
+  // section's own inline Pattern is always written by looping row 0..the
   // song's own pattern length (its natural bound - see Song.cpp's writer);
   // a clip's own leaf Pattern has no such context, so Song.cpp's own clip
   // writer uses this instead.
   const std::unordered_map<unsigned short, std::vector<Note> > & getNotesByRow() const { return notes_; }
 
   // Scans every row this Pattern actually has content on, tracking the
-  // widest note-column count seen - Scene::getTrackInformation() calls
+  // widest note-column count seen - Section::getTrackInformation() calls
   // this once per track rather than reconstructing the old flat
   // row->track_id->notes map just to re-derive the same thing.
   void updateSubtrackInfo(VisibleTrackInfo & info) const {

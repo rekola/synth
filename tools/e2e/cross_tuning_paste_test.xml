@@ -11,12 +11,12 @@
     <track id="0" instrument="0" />
     <percussionTrack id="1" />
   </tracks>
-  <scenes>
-    <scene>
+  <sections>
+    <section>
       <pattern track="1">
         <note row="0" velocity="80" value="BD" />
       </pattern>
-    </scene>
-    <scene />
-  </scenes>
+    </section>
+    <section />
+  </sections>
 </song>

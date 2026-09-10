@@ -5,7 +5,7 @@
 #include "Track.h"
 #include "MasterTrack.h"
 #include "InstrumentPool.h"
-#include "Scene.h"
+#include "Section.h"
 #include "Clip.h"
 #include "Version.h"
 #include "../bus/BusEffectRegistry.h"
@@ -46,23 +46,23 @@ class Song : public SongObject {
   short getTempo() const { return bpm_; }
   void setTempo(short bpm) { bpm_ = bpm; }
 
-  // The number of rows `scene` actually spans - its own getLengthBars()
+  // The number of rows `section` actually spans - its own getLengthBars()
   // converted to rows via getRowsPerBar(). The one place "how long is
-  // this scene" is computed; every call site that used to read the old
+  // this section" is computed; every call site that used to read the old
   // song-wide getPatternLength() as a stand-in for "the length of
-  // whichever scene is in play" calls this instead.
-  int getEffectiveSceneLength(const Scene & scene) const { return scene.getLengthBars() * getRowsPerBar(); }
+  // whichever section is in play" calls this instead.
+  int getEffectiveSectionLength(const Section & section) const { return section.getLengthBars() * getRowsPerBar(); }
   // Convenience overload for a call site that only has an index, not
-  // already holding a Scene& - getScene()'s own out-of-range sentinel
-  // (empty_scene_) has a real length_bars_ of its own (Scene's usual
-  // compiled default, same as any other scene), so an out-of-range index
+  // already holding a Section& - getSection()'s own out-of-range sentinel
+  // (empty_section_) has a real length_bars_ of its own (Section's usual
+  // compiled default, same as any other section), so an out-of-range index
   // here still returns something sane rather than 0.
-  int getEffectiveSceneLength(int scene_idx) const { return getEffectiveSceneLength(getScene(scene_idx)); }
+  int getEffectiveSectionLength(int section_idx) const { return getEffectiveSectionLength(getSection(section_idx)); }
 
   // The shared quantization grid (<song rowsPerBar="N">) both the
   // Launchpad Session view (LaunchpadManager::triggerClipStep())
   // and PatternEditor's own bar-boundary highlight measure against -
-  // independent of a scene's own length (a scene can span many bars;
+  // independent of a section's own length (a section can span many bars;
   // this is how many rows make just one of them). Default 16 matches this
   // codebase's own fixed "a row is a 16th note" convention
   // (ChannelConfiguration::getRowDuration()), so the default is an
@@ -150,26 +150,26 @@ class Song : public SongObject {
   int getCurrentTrackId() const { return current_track_id_; }
   void setCurrentTrackId(int track_id) { current_track_id_ = track_id; }
 
-  const std::vector<Scene> & getScenes() const { return scenes_; }
-  const Scene & getScene(int i) const { return i >= 0 && i < static_cast<int>(scenes_.size()) ? scenes_[static_cast<size_t>(i)] : empty_scene_; }
-  Scene & getScene(int i) { return i >= 0 && i < static_cast<int>(scenes_.size()) ? scenes_[static_cast<size_t>(i)] : empty_scene_; }
+  const std::vector<Section> & getSections() const { return sections_; }
+  const Section & getSection(int i) const { return i >= 0 && i < static_cast<int>(sections_.size()) ? sections_[static_cast<size_t>(i)] : empty_section_; }
+  Section & getSection(int i) { return i >= 0 && i < static_cast<int>(sections_.size()) ? sections_[static_cast<size_t>(i)] : empty_section_; }
 
-  // getScene()'s own write-intent counterpart: grows scenes_ (via addScene(),
+  // getSection()'s own write-intent counterpart: grows sections_ (via addSection(),
   // repeated as needed) up to and including index i, so the caller always
-  // gets back a real, distinct Scene rather than getScene()'s shared,
-  // process-wide empty_scene_ sentinel for an out-of-range index - writing
+  // gets back a real, distinct Section rather than getSection()'s shared,
+  // process-wide empty_section_ sentinel for an out-of-range index - writing
   // into that sentinel would silently alias every other out-of-range
   // position in the whole process together, not persist as real song
   // content at all. Reserved for call sites about to *write* (note entry,
-  // annotation edit, paste, insert-row, ...) - getScene() stays the one to
+  // annotation edit, paste, insert-row, ...) - getSection() stays the one to
   // use for anything read-only (rendering, copy), which must never grow
   // the song just from being looked at. i < 0 is defensive-only (no caller
-  // should ever pass one) and falls back to the same sentinel getScene()
+  // should ever pass one) and falls back to the same sentinel getSection()
   // would.
-  Scene & getOrCreateScene(int i) {
-    if (i < 0) return empty_scene_;
-    while (static_cast<int>(scenes_.size()) <= i) addScene();
-    return scenes_[static_cast<size_t>(i)];
+  Section & getOrCreateSection(int i) {
+    if (i < 0) return empty_section_;
+    while (static_cast<int>(sections_.size()) <= i) addSection();
+    return sections_[static_cast<size_t>(i)];
   }
 
   // Clamps `target` so it can't leave the pattern `current` falls in -
@@ -186,28 +186,28 @@ class Song : public SongObject {
   // which is what keeps a selection from silently spanning two patterns.
   int clampRowToCurrentPattern(int current, int target) const {
     auto floored = std::max(0, current);
-    auto [ scene_idx, row_in_scene ] = normalizePosition(0, floored);
-    auto len = getEffectiveSceneLength(scene_idx);
+    auto [ section_idx, row_in_section ] = normalizePosition(0, floored);
+    auto len = getEffectiveSectionLength(section_idx);
     if (len <= 0) return std::max(0, target);
-    auto pattern_start = floored - row_in_scene;
+    auto pattern_start = floored - row_in_section;
     return std::clamp(target, pattern_start, pattern_start + len - 1);
   }
 
-  // Turns a flat row count (row_idx, possibly spanning many scenes) into
-  // (scene_idx, row_in_scene) - a scene-by-scene cumulative walk, not a
-  // uniform div/mod, since each scene can have its own length. pattern_idx
-  // is the scene to start the walk from (almost always 0, a flat absolute
+  // Turns a flat row count (row_idx, possibly spanning many sections) into
+  // (section_idx, row_in_section) - a section-by-section cumulative walk, not a
+  // uniform div/mod, since each section can have its own length. pattern_idx
+  // is the section to start the walk from (almost always 0, a flat absolute
   // row - see toAbsoluteRow() below for the exact inverse). Contract:
-  // row_idx >= 0 on entry, true at every call site. getEffectiveSceneLength()
+  // row_idx >= 0 on entry, true at every call site. getEffectiveSectionLength()
   // for an out-of-range pattern_idx keeps returning a real (sentinel)
   // value forever, so this reproduces the old "run off the end into an
-  // infinite series of same-length virtual scenes" behavior exactly - a
-  // caller that stops once pattern_idx reaches the real scene count
-  // (e.g. PatternEditor's own scene-boundary walk) keeps working
+  // infinite series of same-length virtual sections" behavior exactly - a
+  // caller that stops once pattern_idx reaches the real section count
+  // (e.g. PatternEditor's own section-boundary walk) keeps working
   // unchanged.
   std::pair<int, int> normalizePosition(int pattern_idx, int row_idx) const {
     while (row_idx >= 0) {
-      auto len = getEffectiveSceneLength(pattern_idx);
+      auto len = getEffectiveSectionLength(pattern_idx);
       if (len <= 0 || row_idx < len) break;
       row_idx -= len;
       pattern_idx++;
@@ -216,27 +216,27 @@ class Song : public SongObject {
   }
 
   // The exact inverse of normalizePosition(0, ...): the flat absolute row
-  // for (scene_idx, row_in_scene) - every scene before scene_idx, summed,
-  // plus row_in_scene. The one centralized place for what several call
-  // sites used to hand-roll independently as "scene_idx * (the song-wide
+  // for (section_idx, row_in_section) - every section before section_idx, summed,
+  // plus row_in_section. The one centralized place for what several call
+  // sites used to hand-roll independently as "section_idx * (the song-wide
   // pattern length) + row".
-  int toAbsoluteRow(int scene_idx, int row_in_scene) const {
+  int toAbsoluteRow(int section_idx, int row_in_section) const {
     int absolute = 0;
-    for (int i = 0; i < scene_idx; i++) absolute += getEffectiveSceneLength(i);
-    return absolute + row_in_scene;
+    for (int i = 0; i < section_idx; i++) absolute += getEffectiveSectionLength(i);
+    return absolute + row_in_section;
   }
 
-  Scene & addScene(Scene scene) {
+  Section & addSection(Section section) {
     incVersion();
-    scenes_.push_back(std::move(scene));
-    return scenes_.back();
+    sections_.push_back(std::move(section));
+    return sections_.back();
   }
 
-  Scene & addScene() { return addScene(Scene()); }
+  Section & addSection() { return addSection(Section()); }
 
   // The song's own flat, per-track clip list - each track's own reusable
-  // Clips, available to trigger live or assign into a scene from the
-  // Launchpad's session/launch view, unconnected to any one scene
+  // Clips, available to trigger live or assign into a section from the
+  // Launchpad's session/launch view, unconnected to any one section
   // position (and, once actually placed as an instance, the shared
   // content behind that placement - editing it through any instance
   // updates every other one immediately). Every caller here still
@@ -295,23 +295,23 @@ class Song : public SongObject {
     }
   }
 
-  // A scene has no id of its own by default (unlike a track or a clip,
-  // Song::addScene() never assigns one) - most scenes never need one, so
-  // most songs never carry the extra XML noise. Only once a scene first
+  // A section has no id of its own by default (unlike a track or a clip,
+  // Song::addSection() never assigns one) - most sections never need one, so
+  // most songs never carry the extra XML noise. Only once a section first
   // needs a stable identity of its own (ArrangementOps.cpp's own
   // mergeClipToBackground(), the moment a SampleTrack background bed's
-  // sidecar file needs a name that survives the scene later being
-  // reordered/another scene inserted ahead of it - an ordinal position
+  // sidecar file needs a name that survives the section later being
+  // reordered/another section inserted ahead of it - an ordinal position
   // isn't stable across that, see Song.cpp's own
   // sampleBackgroundSidecarPath() comment) does anything call this and
-  // assign the result via Scene::setId(), mirroring generateUniqueClipId()
+  // assign the result via Section::setId(), mirroring generateUniqueClipId()
   // above - same "assign lazily, once, on first real need" convention.
-  std::string generateUniqueSceneId() const {
+  std::string generateUniqueSectionId() const {
     for (int n = 1; ; n++) {
-      auto candidate = "scene" + std::to_string(n);
+      auto candidate = "section" + std::to_string(n);
       bool taken = false;
-      for (auto & scene : scenes_) {
-        if (scene.getId() == candidate) { taken = true; break; }
+      for (auto & section : sections_) {
+        if (section.getId() == candidate) { taken = true; break; }
       }
       if (!taken) return candidate;
     }
@@ -499,10 +499,10 @@ private:
   // Song (Controller always holds one behind a shared_ptr), so a moved-
   // from Song's now-null pointer is never dereferenced in practice.
   mutable std::unique_ptr<std::mutex> tracks_mutex_ = std::make_unique<std::mutex>();
-  std::vector<Scene> scenes_;
+  std::vector<Section> sections_;
   std::unordered_map<int, std::vector<Clip> > clips_by_track_;
 
-  static inline Scene empty_scene_;
+  static inline Section empty_section_;
   static inline std::vector<Clip> empty_clips_;
 };
 

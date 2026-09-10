@@ -29,8 +29,8 @@
     
   </sections>
   
-  <scenes>
-    <scene length="4">
+  <sections>
+    <section length="4">
       <pattern track="pad">
         <note row="0" velocity="20">C-2 C-3 OFF</note>
         <note row="16" velocity="20">G-3 C-4</note>
@@ -41,8 +41,8 @@
         <note row="4" velocity="20">CH</note>
         <note row="8" velocity="20">CH</note>
       </pattern>
-    </scene>
-    <scene length="4">
+    </section>
+    <section length="4">
       <pattern track="pad">
         <note row="0" velocity="20">C-3 Eb4 OFF</note>
         <note row="16" velocity="20">G-3 Ebb3</note>
@@ -53,8 +53,8 @@
         <note row="30" velocity="40">G-4</note>
         <note row="32" velocity="40">C-4</note>
       </pattern>
-    </scene>
-    <scene length="4">
+    </section>
+    <section length="4">
       <pattern track="guitar">
         <note row="0" velocity="20">C-4 G-4</note>
         <note row="4" velocity="20">E𝄫4</note>
@@ -78,8 +78,8 @@
         <note row="16" velocity="20">G-3 C-4 OFF</note>
         <note row="32" velocity="20">F-3 C-4 Ab4</note>
       </pattern>
-    </scene>
-    <scene length="4">
+    </section>
+    <section length="4">
       <pattern track="guitar">
         <note row="0" velocity="20">C-4 G-4</note>
         <note row="4" velocity="20">E𝄫4</note>
@@ -103,6 +103,6 @@
         <note row="16" velocity="20">G-3 C-4 OFF</note>
         <note row="32" velocity="20">F-3 Ab4 C-4</note>
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

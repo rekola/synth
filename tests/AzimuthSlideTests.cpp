@@ -82,7 +82,7 @@ TEST(azimuth_slide_moves_the_track_over_the_row) {
   song.addInstrument(make_unique<Oscillator>(WaveformType::SINE)); // instrument_id 0
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
 
-  auto & scene0 = song.addScene();
+  auto & scene0 = song.addSection();
   scene0.setNote(0, track.getInternalId(), 0, Note(60, 100));
   scene0.setCommand(0, track.getInternalId(), Command("2R05")); // +5 deg/tick, right
 
@@ -131,7 +131,7 @@ TEST(track_state_set_azimuth_reaches_an_already_active_voice) {
   // and ignores azimuth entirely, returning a fixed W-only gain set.
   track.setDistance(1.0f);
 
-  auto & scene0 = song.addScene();
+  auto & scene0 = song.addSection();
   scene0.setNote(0, track.getInternalId(), 0, Note(60, 100));
 
   ChannelConfiguration config(44100, 1);

@@ -17,7 +17,7 @@
 // note-slot range, same PatternBlock shape), commands for COMMAND (one
 // Command per row, independent of any note data). annotations is populated
 // for ANNOTATION (one row-keyed string per row, independent of any track at
-// all - see Scene.h's own comment on why annotations live there) *and*
+// all - see Section.h's own comment on why annotations live there) *and*
 // alongside cells for EVERYTHING (a selection spanning every track plus the
 // annotation - see SelectionScope.h) - the only scope where two of these
 // fields are ever both non-empty at once, since EVERYTHING really is two
@@ -37,7 +37,7 @@ struct ClipboardEntry {
   // track-offset dimension - NOTE_COLUMN/COMMAND populate exactly one
   // (that single track_id), TRACK/EVERYTHING populate one per track in
   // [track_lo, track_hi], ANNOTATION populates none (it isn't
-  // track-scoped at all - see Scene.h's own comment on why). yank()
+  // track-scoped at all - see Section.h's own comment on why). yank()
   // checks each offset it's about to write against the destination
   // track's own tuning here (Song::getTuningForTrack()) before writing
   // anything - a Note::getValue() means a different kind of value under

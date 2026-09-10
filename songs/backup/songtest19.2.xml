@@ -23,7 +23,6 @@
         <percussionTrack id="perc" instrument="2" azimuth="0" distance="0.89999998" elevation="0" color="" sendA="0.42857146" sendB="1" noteColumns="2"/>
         <track id="pad" instrument="3" azimuth="0" distance="5" elevation="0" extent="1.5" color="" sendA="0.42857146" sendB="1" noteColumns="3"/>
     </tracks>
-    <sections/>
     <patterns>
         <pattern rows="16">
             <note row="0" track="pad" velocity="0">OFF</note>

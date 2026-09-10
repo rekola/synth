@@ -6,8 +6,8 @@
   <tracks>
     <track id="1" azimuth="30" distance="0" elevation="50" volume="1" instrument="0"/>
   </tracks>
-  <scenes>
-    <scene length="24">
+  <sections>
+    <section length="24">
       <pattern track="1">
         <note row="0" velocity="63" value="C-4" />
         <note row="0" column="1" velocity="63" value="E♭4" />
@@ -20,8 +20,8 @@
         <note row="14" velocity="63" value="C𝄪4" />
         <note row="17" velocity="63" value="C-4" />
       </pattern>
-    </scene>
-    <scene length="24">
+    </section>
+    <section length="24">
       <pattern track="1">
         <note row="0" velocity="63" value="C-4" />
         <note row="0" column="1" velocity="63" value="D♯4" />
@@ -34,6 +34,6 @@
         <note row="14" velocity="63" value="G-4" />
         <note row="17" velocity="63" value="C-4" />
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

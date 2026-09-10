@@ -122,7 +122,7 @@ TEST(song_structure_sample_placeholder_width_gives_evenly_spaced_reference_lines
 
 TEST(song_structure_gives_a_drum_machine_track_one_note_only_column_per_lane_plus_effect) {
   // A step-sequenced PercussionTrack's step content is an ordinary
-  // per-scene Pattern (like InstrumentTrack/a lane-less PercussionTrack),
+  // per-section Pattern (like InstrumentTrack/a lane-less PercussionTrack),
   // not a track-global sequence - it must get real columns, not the single
   // placeholder column SampleTrack still gets. But unlike a regular
   // InstrumentTrack/lane-less PercussionTrack, its columns are the

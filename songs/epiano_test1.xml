@@ -42,8 +42,8 @@
     </compressor>
   </tracks>
   
-  <scenes>
-    <scene length="8">
+  <sections>
+    <section length="8">
       <pattern track="melody">
         <note row="0" velocity="20">C-4 E-4 G-4</note>
         <note row="4" velocity="20">A-3</note>
@@ -65,8 +65,8 @@
         <note row="56" velocity="40">SD</note>
         <note row="60" velocity="40">BD2</note>
       </pattern>
-    </scene>
-    <scene length="8">
+    </section>
+    <section length="8">
       <pattern track="melody">
         <note row="0" velocity="20">A𝄰3 C-4 D#4</note>
         <note row="4" velocity="20">A-3</note>
@@ -88,8 +88,8 @@
       <pattern track="perc">
         <note row="0" velocity="40">BD SC</note>
       </pattern>
-    </scene>
-    <scene length="8">
+    </section>
+    <section length="8">
       <pattern track="melody">
         <note row="0" velocity="20">C-4 E-4 G-4</note>
         <note row="4" velocity="20">A-3</note>
@@ -119,6 +119,6 @@
       <pattern track="perc">
         <note row="0" velocity="40">BD SC</note>
       </pattern>
-    </scene>
-  </scenes>
+    </section>
+  </sections>
 </song>

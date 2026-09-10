@@ -1,7 +1,7 @@
 #include "TestFramework.h"
 
 #include "../src/model/PatternBlockOps.h"
-#include "../src/model/Scene.h"
+#include "../src/model/Section.h"
 #include "../src/model/Clip.h"
 
 #include <vector>
@@ -9,7 +9,7 @@
 using namespace std;
 
 TEST(pattern_block_copy_captures_notes_and_commands) {
-  Scene p;
+  Section p;
   vector<int> track_ids = {10, 20, 30};
 
   p.setNote(2, track_ids[0], 0, Note(60, 100));
@@ -34,7 +34,7 @@ TEST(pattern_block_copy_captures_notes_and_commands) {
 }
 
 TEST(pattern_block_clear_empties_the_range) {
-  Scene p;
+  Section p;
   vector<int> track_ids = {10, 20};
 
   p.setNote(1, track_ids[0], 0, Note(60, 100));
@@ -58,7 +58,7 @@ TEST(pattern_block_transpose_skips_percussion_tracks_within_a_mixed_range) {
   // not a pitch - transposing it would silently swap to a different,
   // unrelated drum, so it must be left untouched even when it sits inside
   // an otherwise-transposed multi-track range.
-  Scene p;
+  Section p;
   vector<int> track_ids = {10, 20, 30};
 
   p.setNote(2, track_ids[0], 0, Note(60, 100));
@@ -74,7 +74,7 @@ TEST(pattern_block_transpose_skips_percussion_tracks_within_a_mixed_range) {
 }
 
 TEST(pattern_block_paste_writes_at_an_offset) {
-  Scene p;
+  Section p;
   vector<int> track_ids = {10, 20, 30};
 
   p.setNote(0, track_ids[0], 0, Note(60, 100));
@@ -92,7 +92,7 @@ TEST(pattern_block_paste_writes_at_an_offset) {
 }
 
 TEST(pattern_block_paste_clips_at_row_and_track_boundaries) {
-  Scene p; // only rows 0..3 exist
+  Section p; // only rows 0..3 exist
   vector<int> track_ids = {10, 20};
 
   p.setNote(0, track_ids[0], 0, Note(60, 100));
@@ -116,7 +116,7 @@ TEST(pattern_block_paste_clips_at_row_and_track_boundaries) {
 }
 
 TEST(pattern_block_cut_then_paste_back_round_trips) {
-  Scene p;
+  Section p;
   vector<int> track_ids = {10, 20, 30};
 
   p.setNote(3, track_ids[0], 0, Note(60, 100));
@@ -139,7 +139,7 @@ TEST(pattern_block_cut_then_paste_back_round_trips) {
 }
 
 TEST(pattern_block_chord_round_trips_with_every_voice_intact) {
-  Scene p;
+  Section p;
   vector<int> track_ids = {10};
 
   // a C-Eb-G chord as three simultaneous voices on one track/row
@@ -164,7 +164,7 @@ TEST(pattern_block_chord_round_trips_with_every_voice_intact) {
 // narrowed to a subset of one track's simultaneous note columns.
 
 TEST(pattern_block_notes_copy_captures_only_the_requested_column_range) {
-  Scene p;
+  Section p;
   int track_id = 10;
 
   p.setNote(2, track_id, 0, Note(60, 100));
@@ -185,7 +185,7 @@ TEST(pattern_block_notes_copy_captures_only_the_requested_column_range) {
 }
 
 TEST(pattern_block_notes_clear_only_touches_the_requested_column_range) {
-  Scene p;
+  Section p;
   int track_id = 10;
 
   p.setNote(2, track_id, 0, Note(60, 100));
@@ -204,7 +204,7 @@ TEST(pattern_block_notes_clear_only_touches_the_requested_column_range) {
 }
 
 TEST(pattern_block_notes_transpose_only_touches_the_requested_column_range) {
-  Scene p;
+  Section p;
   int track_id = 10;
 
   p.setNote(2, track_id, 0, Note(60, 100));
@@ -220,7 +220,7 @@ TEST(pattern_block_notes_transpose_only_touches_the_requested_column_range) {
 }
 
 TEST(pattern_block_notes_transpose_is_a_no_op_for_a_percussion_track) {
-  Scene p;
+  Section p;
   int track_id = 10;
 
   p.setNote(2, track_id, 0, Note(60, 100));
@@ -238,7 +238,7 @@ TEST(pattern_block_notes_transpose_is_a_no_op_for_a_percussion_track) {
 // a whole-track operation instead (see PatternEditor::getEffectiveSelectionBounds()),
 // so this family has no include-the-command variant any more.
 TEST(pattern_block_notes_copy_and_clear_never_touch_the_command) {
-  Scene p;
+  Section p;
   int track_id = 10;
 
   p.setNote(2, track_id, 0, Note(60, 100));
@@ -253,7 +253,7 @@ TEST(pattern_block_notes_copy_and_clear_never_touch_the_command) {
 }
 
 TEST(pattern_block_notes_paste_never_touches_the_command) {
-  Scene p;
+  Section p;
   int track_id = 10;
 
   p.setNote(2, track_id, 0, Note(60, 100));
@@ -269,7 +269,7 @@ TEST(pattern_block_notes_paste_never_touches_the_command) {
 // resolves a selection confined to just the effect column to this scope) -
 // independent of any note data on the same row.
 TEST(pattern_block_command_copy_and_clear_round_trip_independent_of_notes) {
-  Scene p;
+  Section p;
   int track_id = 10;
 
   p.setNote(2, track_id, 0, Note(60, 100));
@@ -285,7 +285,7 @@ TEST(pattern_block_command_copy_and_clear_round_trip_independent_of_notes) {
 }
 
 TEST(pattern_block_command_paste_never_touches_note_data) {
-  Scene p;
+  Section p;
   int track_id = 10;
 
   p.setCommand(2, track_id, Command("U050"));
@@ -302,7 +302,7 @@ TEST(pattern_block_command_paste_never_touches_note_data) {
 }
 
 TEST(pattern_block_notes_paste_merges_into_target_range_without_clobbering_others) {
-  Scene p;
+  Section p;
   int track_id = 10;
 
   p.setNote(2, track_id, 0, Note(60, 100));
@@ -333,7 +333,7 @@ TEST(pattern_block_notes_paste_merges_into_target_range_without_clobbering_other
 }
 
 TEST(pattern_block_notes_paste_of_an_empty_source_leaves_no_row_entry) {
-  Scene p;
+  Section p;
   int track_id = 10;
 
   // Row 2 has nothing at all in this note-column range - the copy
@@ -348,7 +348,7 @@ TEST(pattern_block_notes_paste_of_an_empty_source_leaves_no_row_entry) {
 }
 
 TEST(pattern_block_notes_paste_overwrites_gaps_left_by_a_sparser_source_row) {
-  Scene p;
+  Section p;
   int track_id = 10;
 
   // Source: row 2 only has a note in column 0 - columns 1 and 2 are
@@ -381,7 +381,7 @@ TEST(pattern_block_notes_paste_overwrites_gaps_left_by_a_sparser_source_row) {
 // own getEffectiveRow()) - copy/clear/paste all resolve through it too,
 // not just plain note entry.
 TEST(pattern_block_copy_reads_a_repeated_row_through_the_tracks_own_length) {
-  Scene p;
+  Section p;
   vector<int> track_ids = {10};
   p.setNote(4, track_ids[0], 0, Note(60, 100)); // the pattern's own real row
   p.getPatternsByTrack()[track_ids[0]].setLength(16);
@@ -394,7 +394,7 @@ TEST(pattern_block_copy_reads_a_repeated_row_through_the_tracks_own_length) {
 }
 
 TEST(pattern_block_paste_writes_a_repeated_row_back_through_the_tracks_own_length) {
-  Scene dest;
+  Section dest;
   vector<int> dest_ids = {10};
   dest.getPatternsByTrack()[dest_ids[0]].setLength(16);
 
@@ -409,7 +409,7 @@ TEST(pattern_block_paste_writes_a_repeated_row_back_through_the_tracks_own_lengt
 }
 
 TEST(extract_clip_bar_aligned_selection_needs_no_padding) {
-  Scene p;
+  Section p;
   int track_id = 10;
   p.setNote(4, track_id, 0, Note(60, 100));
   p.setNote(6, track_id, 0, Note(64, 90));
@@ -425,7 +425,7 @@ TEST(extract_clip_bar_aligned_selection_needs_no_padding) {
 }
 
 TEST(extract_clip_front_pads_a_non_bar_aligned_selection) {
-  Scene p;
+  Section p;
   int track_id = 10;
   // Row 6 is 2 rows into the bar starting at row 4 (rows_per_bar 4).
   p.setNote(6, track_id, 0, Note(60, 100));
@@ -442,7 +442,7 @@ TEST(extract_clip_front_pads_a_non_bar_aligned_selection) {
 }
 
 TEST(extract_clip_length_rounds_up_to_the_next_whole_bar) {
-  Scene p;
+  Section p;
   int track_id = 10;
   // Selection spans rows 4-10 (7 rows past bar_start 4) - rounds up to 8.
   auto clip = extractClip(p, track_id, 4, 10, 4, 64);
@@ -450,7 +450,7 @@ TEST(extract_clip_length_rounds_up_to_the_next_whole_bar) {
 }
 
 TEST(extract_clip_reads_a_repeated_row_through_the_tracks_own_length) {
-  Scene p;
+  Section p;
   int track_id = 10;
   p.setNote(4, track_id, 0, Note(60, 100)); // the track's own real row
   p.getPatternsByTrack()[track_id].setLength(16);

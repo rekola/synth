@@ -1,5 +1,5 @@
-#ifndef _SCENE_H_
-#define _SCENE_H_
+#ifndef _SECTION_H_
+#define _SECTION_H_
 
 #include "SongObject.h"
 #include "Pattern.h"
@@ -11,12 +11,22 @@
 #include <vector>
 #include <unordered_map>
 
-// One point in the song: the Pattern (Pattern.h - one track's own note/
-// command content) each track that has anything here uses, plus this
-// scene's own row-keyed annotations. Annotations are a note about a moment
-// in the song ("chorus starts here"), not about any one track's musical
-// content, so they live here rather than on Pattern - nothing about them
-// interacts with per-track content at all, they're just keyed by row.
+// One span in the song's linear arrangement, length_bars_ bars long
+// (Song::getEffectiveSectionLength(), getRowsPerBar() rows each) - what
+// Song's own flat vector<Section> lays end to end, in sequence, not a
+// single-row marker. Four kinds of per-track content can live at a given
+// row within that span: the arrangement layer's own instance events
+// (instances_by_track_id_ below - which Clip, if any, starts playing at
+// that row, or an explicit stop; this is how a Clip authored once actually
+// gets heard, and the primary way content reaches a Section today - see
+// ArrangementOps.h), a directly-inline Pattern (Pattern.h - one track's
+// own note/command content, patterns_by_track_id_ below - unlike a Clip's
+// content, always an independent copy, never shared across sections), a
+// SampleTrack's own merged background audio bed
+// (sample_backgrounds_by_track_id_ below), and this section's own row-keyed
+// annotations (a note about a moment in the song, "chorus starts here",
+// not about any one track's musical content, so it lives here rather than
+// on Pattern).
 //
 // Every row+track_id-keyed accessor here (setNote/getNote/setCommand/
 // getCommand/...) is a thin wrapper delegating to the right per-track
@@ -29,17 +39,17 @@
 // (row, track) cell at a time - iterating the real per-track map directly,
 // rather than synthesizing a row->track_id->notes view that would just
 // have to rebuild the same grouping this class already does.
-class Scene : public SongObject {
+class Section : public SongObject {
  public:
-  // This scene's own length, in bars (Song::getRowsPerBar() rows each) -
+  // This section's own length, in bars (Song::getRowsPerBar() rows each) -
   // always a real, positive value, never a "defer to some song-wide
   // default" sentinel (Song::getPatternLength()/"patternRows" is retired
   // entirely - see Song.h's own comment). Deliberately not getLength()/
   // setLength(), so it's never confused with Pattern's or Clip's own
-  // row-denominated getLength(). A scene with no "length" attribute at
+  // row-denominated getLength(). A section with no "length" attribute at
   // all in the file (freshly constructed, or an old, pre-variable-length-
-  // scenes file that never had one) just takes the same compiled default
-  // (4 bars) a brand new Scene() already starts at - no separate
+  // sections file that never had one) just takes the same compiled default
+  // (4 bars) a brand new Section() already starts at - no separate
   // migration step.
   int getLengthBars() const { return length_bars_; }
   void setLengthBars(int bars) { length_bars_ = std::max(1, bars); }
@@ -91,7 +101,7 @@ class Scene : public SongObject {
 
   // Whole-row, not single-track: every track's own Pattern (notes and
   // command alike - Pattern::insertRow() shifts both together) shifts in
-  // lockstep, plus this scene's own row-keyed annotation. A row is one
+  // lockstep, plus this section's own row-keyed annotation. A row is one
   // moment in the whole song, not a per-track thing, so shifting it here
   // has to mean all of it moving together or the tracks would drift out
   // of alignment with each other - unlike insertRowForTrack() below,
@@ -174,7 +184,7 @@ class Scene : public SongObject {
   // own comment on why an id, not its ordinal position in the track's
   // clip list) or an explicit stop ("OFF") - "instantiate nothing," not a
   // separate kind of object. Lives here, not on Pattern, for the same
-  // reason annotations do (Scene's own class comment) - this doesn't
+  // reason annotations do (Section's own class comment) - this doesn't
   // belong to any one track's own Pattern either. An empty string (never
   // actually stored - only ever a getInstance() return value, this
   // class's own empty_string sentinel below) means no event was placed at
@@ -224,16 +234,16 @@ class Scene : public SongObject {
   // above.
   const std::unordered_map<int, std::map<unsigned short, std::string> > & getInstancesByTrack() const { return instances_by_track_id_; }
 
-  // A SampleTrack's own background bed for this scene - the sample-
+  // A SampleTrack's own background bed for this section - the sample-
   // content sibling of patterns_by_track_id_ above, but raw mixed audio
-  // instead of notes: content merged into this scene's own timeline
+  // instead of notes: content merged into this section's own timeline
   // (ArrangementOps.h's own mergeClipToBackground()), summed against
   // whatever else plays over it. Unlike a Clip's own SampleContent, this
   // one is never trimmed (trimming already happened before whatever
-  // merge wrote it) and never loops (a scene doesn't loop) - both fields
+  // merge wrote it) and never loops (a section doesn't loop) - both fields
   // simply stay at their unset defaults; only the buffer/native sample
   // rate are ever written. Read-only lookup returns nullptr when this
-  // track has no real background audio in this scene yet (absent
+  // track has no real background audio in this section yet (absent
   // entirely, or present with no buffer - the same "not really there"
   // test Clip::hasSample() uses), so a mere read never has to special-
   // case a freshly-default-constructed, still-empty SampleContent.
@@ -265,7 +275,7 @@ private:
     else annotations_.erase(static_cast<unsigned short>(dst_row));
   }
 
-  // 4 bars - a freshly constructed scene's own starting length, matching
+  // 4 bars - a freshly constructed section's own starting length, matching
   // this codebase's old song-wide default (64 rows / 16 rows-per-bar).
   int length_bars_ = 4;
 

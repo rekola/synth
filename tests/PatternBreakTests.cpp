@@ -14,21 +14,21 @@ using namespace std;
 // ZBxx is the first pattern effect command with real playback semantics
 // (every other one in docs/commands.md is still a stub - see SongState::
 // render()'s own command loop) - it's what a song uses in place of a
-// short scene (each with its own length now, Scene::getLengthBars()) to
+// short section (each with its own length now, Section::getLengthBars()) to
 // end early, e.g. a short intro.
 TEST(pattern_break_jumps_straight_to_the_destination_row_of_the_next_pattern) {
   Song song;
-  song.setRowsPerBar(1); // Scene::length_bars_ defaults to 4 - together, a 4-row scene, matching this test's old patternRows=4
+  song.setRowsPerBar(1); // Section::length_bars_ defaults to 4 - together, a 4-row section, matching this test's old patternRows=4
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
 
-  auto & scene0 = song.addScene();
+  auto & scene0 = song.addSection();
   scene0.setNote(0, track.getInternalId(), 0, Note(60, 100));
   scene0.setCommand(0, track.getInternalId(), Command("ZB02"));
   // Rows 1-3 are deliberately non-empty too, to prove the break really
   // skips them rather than happening to land past them by coincidence.
   scene0.setNote(1, track.getInternalId(), 0, Note(61, 100));
 
-  auto & scene1 = song.addScene();
+  auto & scene1 = song.addSection();
   scene1.setNote(0, track.getInternalId(), 0, Note(62, 100)); // must never be reached
   scene1.setNote(2, track.getInternalId(), 0, Note(64, 100)); // the break's destination row
 
@@ -49,19 +49,19 @@ TEST(pattern_break_jumps_straight_to_the_destination_row_of_the_next_pattern) {
 }
 
 // SongState::renderBlock()'s command scheduling loop reads Command from
-// whatever track_id a scene's Pattern is keyed by, with no dependency on
+// whatever track_id a section's Pattern is keyed by, with no dependency on
 // that track's type or position in the tree - a ZBxx entered on the
 // master's own effect column (or any per-track Effect's) works exactly
 // the same as one entered on an instrument track's.
 TEST(pattern_break_on_the_master_tracks_own_column_works_too) {
   Song song;
-  song.setRowsPerBar(1); // Scene::length_bars_ defaults to 4 - together, a 4-row scene, matching this test's old patternRows=4
+  song.setRowsPerBar(1); // Section::length_bars_ defaults to 4 - together, a 4-row section, matching this test's old patternRows=4
   auto master_id = song.getMasterTrack().getInternalId();
 
-  auto & scene0 = song.addScene();
+  auto & scene0 = song.addSection();
   scene0.setCommand(0, master_id, Command("ZB02"));
 
-  song.addScene();
+  song.addSection();
 
   ChannelConfiguration config(44100, 1);
   auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
@@ -81,14 +81,14 @@ TEST(pattern_break_on_the_master_tracks_own_column_works_too) {
 // something to wrap.
 TEST(pattern_break_on_a_wrapping_effects_own_column_works_too) {
   Song song;
-  song.setRowsPerBar(1); // Scene::length_bars_ defaults to 4 - together, a 4-row scene, matching this test's old patternRows=4
+  song.setRowsPerBar(1); // Section::length_bars_ defaults to 4 - together, a 4-row section, matching this test's old patternRows=4
   auto & effect = song.addTrack(make_unique<Amplifier>());
   effect.addChild(make_unique<InstrumentTrack>(0));
 
-  auto & scene0 = song.addScene();
+  auto & scene0 = song.addSection();
   scene0.setCommand(0, effect.getInternalId(), Command("ZB02"));
 
-  song.addScene();
+  song.addSection();
 
   ChannelConfiguration config(44100, 1);
   auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
@@ -107,10 +107,10 @@ TEST(pattern_break_on_a_wrapping_effects_own_column_works_too) {
 // documents that it doesn't crash or wrap back to pattern 0.
 TEST(pattern_break_past_the_last_pattern_does_not_crash) {
   Song song;
-  song.setRowsPerBar(1); // Scene::length_bars_ defaults to 4 - together, a 4-row scene, matching this test's old patternRows=4
+  song.setRowsPerBar(1); // Section::length_bars_ defaults to 4 - together, a 4-row section, matching this test's old patternRows=4
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
 
-  auto & scene0 = song.addScene();
+  auto & scene0 = song.addSection();
   scene0.setNote(0, track.getInternalId(), 0, Note(60, 100));
   scene0.setCommand(0, track.getInternalId(), Command("ZB00"));
 

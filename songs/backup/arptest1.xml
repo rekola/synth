@@ -26,8 +26,8 @@
         <percussionTrack id="perc2" instrument="2" azimuth="0" distance="0.89999998" elevation="0" color="" sendA="-20.0000" sendB="-13.9794" sendMain="-12.0412"/>
         <track id="bass" instrument="3" azimuth="60" distance="2" elevation="10" color="" sendA="-20.0000" sendB="-4.4370"/>
     </tracks>
-    <scenes>
-        <scene>
+    <sections>
+        <section>
             <pattern track="arp">
                 <note row="0" velocity="30">C-4</note>
                 <note row="0" column="1" velocity="30">E-4</note>
@@ -51,8 +51,8 @@
             <pattern track="bass">
                 <note row="138" velocity="60">G-1</note>
             </pattern>
-        </scene>
-        <scene>
+        </section>
+        <section>
             <pattern track="perc2">
                 <note row="0" velocity="40">CGH</note>
                 <note row="4" velocity="40">CGH</note>
@@ -236,8 +236,8 @@
                 <note row="142" velocity="40">G-1</note>
                 <note row="144" velocity="40">C-2</note>
             </pattern>
-        </scene>
-        <scene>
+        </section>
+        <section>
             <pattern track="arp">
                 <note row="0" velocity="0">OFF</note>
                 <note row="0" column="1" velocity="0">OFF</note>
@@ -258,6 +258,6 @@
             <pattern track="bass">
                 <note row="0" velocity="0">OFF</note>
             </pattern>
-        </scene>
-    </scenes>
+        </section>
+    </sections>
 </song>

@@ -303,7 +303,7 @@ SampleTrackState::triggerVoice(const SampleContent & content, int song_tempo, in
   // a live Session-view swap between two different clips on this track
   // has no other mechanism to end the old one the way a transport-driven
   // transition already does via SongState.h's own stopAllVoices() call,
-  // and a fresh background-bed trigger (a new scene entered, a resume)
+  // and a fresh background-bed trigger (a new section entered, a resume)
   // needs the same treatment. Never touches the *other* voice - that's
   // the whole point of keeping the two roles as separate voices
   // (SampleTrackState's own doc comment). No noteOn()/Instrument

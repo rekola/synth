@@ -149,7 +149,7 @@ class SessionView : public UIElement {
   // Which clip (song-wide clip list index, i.e. Song::getClips(track_id)
   // position) startClipRename() is currently editing the name of, or -1
   // when the reader isn't open for a rename at all - mirrors
-  // ArrangementGrid::renaming_scene_idx_'s own shape. The clip's own
+  // ArrangementGrid::renaming_section_idx_'s own shape. The clip's own
   // track_id is always cursor_track_index_'s own track at the moment
   // the rename started (rename never survives a track/column change,
   // matching startClipRename()'s own early "reader already active" guard
