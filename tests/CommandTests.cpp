@@ -50,6 +50,53 @@ TEST(command_update_data_rejects_out_of_range_index) {
   CHECK(!c.updateData(4, 'A'));
 }
 
+// Column 0 (docs/commands.md's own device index) is either 'Z' (a global
+// command) or a digit (how far up the track's own ancestor chain the
+// command targets - only '0'/'-' does anything at playback today, but
+// any digit is syntactically valid, matching docs/commands.md's own "not
+// implemented beyond -/0 yet" note) - unlike column 1, no other letter
+// means anything there, so one shouldn't silently parse as a "valid"
+// command either.
+TEST(command_update_data_column_zero_accepts_only_z_and_digits) {
+  Command c;
+  CHECK(c.updateData(0, 'Z'));
+  CHECK(c.updateData(0, '0'));
+  CHECK(c.updateData(0, '9')); // an unimplemented ancestor level - still syntactically valid
+  CHECK(c.updateData(0, '-')); // normalizes to '0', see below
+  CHECK(!c.updateData(0, 'A'));
+  CHECK(!c.updateData(0, 'L')); // a real column-1 mnemonic letter, but meaningless at column 0
+  CHECK(c.updateData(0, 'z')); // lowercase 'z' normalizes to 'Z' before this check, so it IS accepted
+}
+
+// setData() (the fallible sibling), not the asserting string_view
+// constructor - 'L' isn't 'Z' or a digit, so this is deliberately
+// malformed input.
+TEST(command_set_data_rejects_a_command_with_a_meaningless_device_index) {
+  Command c;
+  CHECK(!c.setData("L400"));
+}
+
+// Column 0 is this engine's own leaf-track chain-position digit - always
+// '0' today (docs/commands.md's own intro paragraph) - so '-' typed there
+// is accepted as a synonym for '0' rather than left meaning "undefined",
+// matching Renoise's own convention for the same digit. Every other
+// column still stores a literal '-' when typed (Command's own "not set"
+// placeholder, unaffected).
+TEST(command_update_data_normalizes_a_dash_in_column_zero_to_zero) {
+  Command c;
+  CHECK(c.updateData(0, '-'));
+  CHECK(c.updateData(1, 'L'));
+  CHECK(c.updateData(2, '0'));
+  CHECK(c.updateData(3, '0'));
+  CHECK(to_string(c) == "0L00");
+}
+
+TEST(command_set_data_normalizes_a_leading_dash_to_zero) {
+  Command c("-L00");
+  CHECK(to_string(c) == "0L00");
+  CHECK(c.isVolumeSet());
+}
+
 TEST(command_update_data_normalizes_lowercase_to_uppercase_on_storage) {
   Command c;
   CHECK(c.updateData(0, 'z'));

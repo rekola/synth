@@ -172,9 +172,16 @@ any terminal, ESC-then-x included). Ctrl-K is `PatternEditor`'s own
 kill-row (Emacs's own C-k, kill-line, repurposed the same way), not an
 M-x trigger.
 `docs/commands.md` lists the pattern effect commands (slides, vibrato, …),
-split into **Implemented** (`ZBxx` pattern break, plus `2Lxx`/`2Rxx`
-azimuth slides - see `SongState.h`'s command-handling loop) and
-**Planned** (accepted/stored but currently no-ops at playback time).
+split into **Implemented** (`ZBxx` pattern break; `0Hxx`/`0Kxx` azimuth
+slides and `0Pxx` azimuth set; `0Lxx`/`0Fxx`/`0Mxx` Volume/Send A/Send B
+set - see `SongState.h`'s command-handling loop) and **Planned**
+(accepted/stored but currently no-ops at playback time). A command's own
+first character is either `Z` (global, not track-scoped) or this engine's
+leaf-track chain-position digit - always `0` today, with `-` accepted as
+a typed synonym for it (`Command::updateData()`); `docs/commands.md`'s own
+"Source" column says which second-character letters are borrowed directly
+from Renoise's own Pattern Effects reference and which are this codebase's
+own, checked deliberately rather than invented blind.
 
 Pattern editor selection uses Emacs keybindings: **C-SPC** (or **C-b**, see
 below) sets the mark (selection start), **C-w** kills (cuts) the marked

@@ -143,7 +143,7 @@ TEST(command_round_trips_for_a_track_with_an_explicit_textual_id) {
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   track.setId("bass");
   song.addSection();
-  song.getSection(0).setCommand(0, track.getInternalId(), Command("V400"));
+  song.getSection(0).setCommand(0, track.getInternalId(), Command("0V40"));
   song.save(scratch_path);
 
   auto saved = readFile(scratch_path);
@@ -158,7 +158,47 @@ TEST(command_round_trips_for_a_track_with_an_explicit_textual_id) {
   if (reloaded_track) {
     auto & command = reloaded.getSection(0).getCommand(0, reloaded_track->getInternalId());
     CHECK(command.isDefined());
-    CHECK(to_string(command) == "V400");
+    CHECK(to_string(command) == "0V40");
+  }
+
+  fs::remove(scratch_path);
+}
+
+// A second command column writes an explicit column="1" attribute
+// (matching <note column="...">'s own convention) - column 0 stays
+// attribute-less, so every pre-existing song file (with at most one
+// command per row) round-trips byte-for-byte unchanged.
+TEST(command_multi_column_round_trips_through_save_and_load) {
+  namespace fs = std::filesystem;
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_command_multi_column_scratch.xml").string();
+
+  Song song;
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  track.setId("bass");
+  song.addSection();
+  song.getSection(0).setCommand(0, track.getInternalId(), Command("0K05"));
+  song.getSection(0).setCommand(0, track.getInternalId(), 1, Command("1V40"));
+  song.save(scratch_path);
+
+  auto saved = readFile(scratch_path);
+  CHECK(saved.find("column=\"1\"") != string::npos);
+
+  InstrumentProvider provider;
+  Song reloaded;
+  CHECK(reloaded.open(scratch_path, provider));
+
+  // A reload's own internal ids aren't guaranteed to match the original
+  // song's (command_round_trips_for_a_track_with_an_explicit_textual_id
+  // above establishes the same "look it up by its stable textual id"
+  // convention) - track.getInternalId() above is only ever valid against
+  // `song`, never `reloaded`.
+  auto reloaded_track = reloaded.getMasterTrack().getChildById("bass");
+  CHECK(reloaded_track != nullptr);
+  if (reloaded_track) {
+    auto & reloaded_command_0 = reloaded.getSection(0).getCommand(0, reloaded_track->getInternalId(), 0);
+    auto & reloaded_command_1 = reloaded.getSection(0).getCommand(0, reloaded_track->getInternalId(), 1);
+    CHECK(to_string(reloaded_command_0) == "0K05");
+    CHECK(to_string(reloaded_command_1) == "1V40");
   }
 
   fs::remove(scratch_path);
@@ -784,7 +824,7 @@ TEST(master_tracks_own_command_round_trips_by_its_reserved_id) {
 
   Song song;
   song.addSection();
-  song.getSection(0).setCommand(0, song.getMasterTrack().getInternalId(), Command("V400"));
+  song.getSection(0).setCommand(0, song.getMasterTrack().getInternalId(), Command("0V40"));
   song.save(scratch_path);
 
   auto saved = readFile(scratch_path);

@@ -473,14 +473,48 @@ class SongState : public TrackState {
 	      }
 	    }
 
-	    auto & command = active_pattern->getCommand(effective_row);
-	    if (command.isDefined()) {
-	      // render_context_.addPendingEvent(col, i, command);
-	      if (command.isPatternBreak()) {
-		pending_break_ = true;
-		pending_break_row_ = command.getBreakDestinationRow();
-	      } else if (command.isAzimuthSlide()) {
-		scheduleAzimuthSlide(track_id, i, command.getAzimuthSlidePerTick());
+	    // Commands always come from the section's own background pattern
+	    // - never a Clip's own leaf pattern, even while that clip is
+	    // what's supplying this row's notes above. A Clip's own Command
+	    // column is deliberately not considered here (or anywhere else
+	    // yet - PatternEditor doesn't show it, and nothing writes into
+	    // it as automation): every command lives at the track/section
+	    // level, one shared place regardless of which clip (if any)
+	    // happens to be playing there, matching how live-recorded
+	    // automation is meant to survive independent of clip placement.
+	    // Every column at this row is processed, not just one - a row
+	    // can carry more than one concurrently-recordable command now
+	    // (Pattern::setCommand(row, command_column, Command)'s own
+	    // comment).
+	    auto background_it = section.getPatternsByTrack().find(track_id);
+	    if (background_it != section.getPatternsByTrack().end()) {
+	      auto background_row = background_it->second.getEffectiveRow(row_idx, song.getEffectiveSectionLength(section));
+	      for (auto & command : background_it->second.getCommandsAt(background_row)) {
+		if (!command.isDefined()) continue;
+		if (command.isPatternBreak()) {
+		  pending_break_ = true;
+		  pending_break_row_ = command.getBreakDestinationRow();
+		} else if (command.isAzimuthSlide()) {
+		  scheduleAzimuthSlide(track_id, i, command.getAzimuthSlidePerTick());
+		} else if (command.isVolumeSet() || command.isSendASet() || command.isSendBSet() || command.isAzimuthSet()) {
+		  // 0Lxx/0Fxx/0Mxx/0Pxx - an absolute set, applied the instant
+		  // this row starts (unlike the slide commands above, there's
+		  // no per-tick ramp to schedule - see Command::
+		  // getSendSetLinear()/getAzimuthSetDegrees()'s own comments on
+		  // why these are a Set, not a Slide). setSendMain()/setSendA()/
+		  // setSendB()/setAzimuth() already reach every already-active
+		  // voice too, the same live-knob path Controller::
+		  // setTrackSendA()/setTrackAzimuth()/etc. use - a recorded
+		  // automation move and a live Launchpad press land on the
+		  // exact same mechanism.
+		  auto * leaf_state = dynamic_cast<LeafTrackState *>(getChildByInternalId(track_id));
+		  if (leaf_state) {
+		    if (command.isVolumeSet()) leaf_state->setSendMain(command.getSendSetLinear());
+		    else if (command.isSendASet()) leaf_state->setSendA(command.getSendSetLinear());
+		    else if (command.isSendBSet()) leaf_state->setSendB(command.getSendSetLinear());
+		    else leaf_state->setAzimuth(command.getAzimuthSetDegrees());
+		  }
+		}
 	      }
 	    }
 	  }
@@ -719,7 +753,7 @@ class SongState : public TrackState {
     setPosition(song.toAbsoluteRow(next_section_idx, row));
   }
 
-  // 2Lxx/2Rxx (Command::isAzimuthSlide()) - spreads constants::TICKS_PER_ROW
+  // 0Hxx/0Kxx (Command::isAzimuthSlide()) - spreads constants::TICKS_PER_ROW
   // evenly-spaced nudges of `delta_per_tick` degrees across the row
   // currently starting at block-relative sample offset `row_start` (the
   // same block-relative numbering render()'s own note scheduling just

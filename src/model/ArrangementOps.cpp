@@ -137,9 +137,14 @@ mergeClipToBackground(const Song & song, Section & section, int track_id, int ro
     for (auto r = active.start_row; r <= reach_end; r++) {
       auto src_row = leaf.getEffectiveRow(r - active.start_row, length);
       background.setNotes(r, leaf.getNotes(src_row));
-      auto & cmd = leaf.getCommand(src_row);
-      if (cmd.isDefined()) background.setCommand(r, cmd);
-      else background.clearCommand(r);
+      // Every command column, not just column 0 - a clip's own commands
+      // can span more than one the same way its notes can (see
+      // Pattern::setCommand(row, command_column, Command)'s own comment).
+      auto & cv = leaf.getCommandsAt(src_row);
+      background.clearCommands(r);
+      for (size_t col = 0; col < cv.size(); col++) {
+	if (cv[col].isDefined()) background.setCommand(r, static_cast<int>(col), cv[col]);
+      }
     }
   }
 

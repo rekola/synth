@@ -189,7 +189,7 @@ public:
   void setAzimuth(float a) { adjustAzimuth(a - position_.azimuth); }
   float getAzimuth() const { return position_.azimuth; }
 
-  // Shared by the live Pan-row knob above and the 2Lxx/2Rxx azimuth slide
+  // Shared by the live Pan-row knob above and the 0Hxx/0Kxx azimuth slide
   // (Command::isAzimuthSlide(), scheduled per-tick by SongState::
   // scheduleAzimuthSlide(), consumed by InstrumentTrackState::render()'s own
   // chunked loop) - both are just different sources of a delta that should

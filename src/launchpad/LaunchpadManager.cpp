@@ -8,6 +8,7 @@
 #include "../state/PlaybackInfo.h"
 #include "../playback/PlaybackControlEvent.h"
 #include "../model/Song.h"
+#include "../model/Command.h"
 #include "../model/LeafTrack.h"
 #include "../model/InstrumentTrack.h"
 #include "../model/PercussionTrack.h"
@@ -384,6 +385,12 @@ namespace {
   // -100dB "off" floor.
   float linearToDb(float linear) { return linear <= 0.00001f ? -100.0f : 20.0f * log10f(linear); }
 
+  // linearToDb()'s own inverse - recordFaderAutomationIfArmed()'s own
+  // need to turn a dB value already being applied to a live send (via
+  // Controller::setTrackSendA()/etc., which take dB) back into linear
+  // gain, Command::volumeSet()/sendASet()/sendBSet()'s own argument type.
+  float dbToLinear(float db) { return db <= -100.0f ? 0.0f : powf(10.0f, db * 0.05f); }
+
   // sendLinearToRow()'s own db->row half, factored out so applyFaderPress()
   // (whose FaderState already tracks dB, the same unit sendRowToDb()/
   // Controller::setTrackSendA()/B()/Main() all use - never linear gain)
@@ -550,7 +557,7 @@ LaunchpadManager::sendLinearToRow(float linear) {
   return sendDbToRow(linearToDb(linear));
 }
 
-void
+float
 LaunchpadManager::applyFaderPress(FaderState & fader, float current_value, int pressed_row, int velocity,
     float (*rowToValue)(int), float full_range, bool wraps, const std::function<void(float)> & apply) {
   // A micro-value tap only ever means "you just pressed the exact same
@@ -575,7 +582,7 @@ LaunchpadManager::applyFaderPress(FaderState & fader, float current_value, int p
     float base_value = rowToValue(pressed_row);
     float value = base_value + (rowToValue(next_row) - base_value) * static_cast<float>(fader.micro_step) / 4.0f;
     apply(value);
-    return;
+    return value;
   }
 
   // A genuinely different row (or the very first press this fader has
@@ -595,24 +602,57 @@ LaunchpadManager::applyFaderPress(FaderState & fader, float current_value, int p
   fader.duration_seconds = std::max(kMinFaderRampSeconds, base_duration * distance_fraction);
   fader.ramping = fader.target_value != fader.start_value;
   apply(fader.start_value); // unchanged so far - tickFaderRamps() carries it from here
+  return fader.target_value;
 }
 
 void
 LaunchpadManager::tickFaderRamps(Controller & controller) {
   auto now = std::chrono::steady_clock::now();
-  auto tick = [&](std::unordered_map<int, FaderState> & states, const std::function<void(int, float)> & apply) {
+  auto tick = [&](std::unordered_map<int, FaderState> & states, const std::function<void(int, float, FaderState &)> & apply) {
     for (auto & [ track_id, fader ] : states) {
       if (!fader.ramping) continue;
       float elapsed = std::chrono::duration<float>(now - fader.start_time).count();
       float progress = fader.duration_seconds > 0.0f ? std::min(1.0f, elapsed / fader.duration_seconds) : 1.0f;
-      apply(track_id, fader.start_value + (fader.target_value - fader.start_value) * progress);
+      apply(track_id, fader.start_value + (fader.target_value - fader.start_value) * progress, fader);
       if (progress >= 1.0f) fader.ramping = false;
     }
   };
-  tick(fader_state_send_main_, [&](int track_id, float db) { controller.setTrackSendMain(track_id, db); });
-  tick(fader_state_send_a_, [&](int track_id, float db) { controller.setTrackSendA(track_id, db); });
-  tick(fader_state_send_b_, [&](int track_id, float db) { controller.setTrackSendB(track_id, db); });
-  tick(fader_state_azimuth_, [&](int track_id, float degrees) { controller.setTrackAzimuth(track_id, degrees); });
+  // Ticks only ever push the live glide value on to the engine/LED
+  // mirror - audio feel and visual feedback, in real time - and
+  // deliberately never call recordFaderAutomationIfArmed() any more.
+  // Recording happens exactly once, at the press itself
+  // (handlePadEvent()'s own SEND_A/SEND_B/SEND_MAIN branches, using
+  // applyFaderPress()'s own returned target): the glide a press kicks
+  // off here is Launchpad's own real-time interpolation between presses,
+  // not itself part of what gets recorded - a future engine-side
+  // playback interpolation phase is what reconstructs a smooth curve
+  // between recorded points, so tracing every tick into the recording
+  // too would double that interpolation rather than complement it.
+  tick(fader_state_send_main_, [&](int track_id, float db, FaderState &) { controller.setTrackSendMain(track_id, db); });
+  tick(fader_state_send_a_, [&](int track_id, float db, FaderState &) { controller.setTrackSendA(track_id, db); });
+  tick(fader_state_send_b_, [&](int track_id, float db, FaderState &) { controller.setTrackSendB(track_id, db); });
+  tick(fader_state_azimuth_, [&](int track_id, float degrees, FaderState &) { controller.setTrackAzimuth(track_id, degrees); });
+}
+
+void
+LaunchpadManager::recordFaderAutomationIfArmed(Controller & controller, FaderState & fader, int track_id, Command command) {
+  // The same "you're recording a take right now" condition note entry
+  // already gates on (armed + genuinely playing, not just armed-while-
+  // stopped) - isNoteCaptureArmed() rather than the narrower
+  // isSessionRecording() (that one's scoped to Session view's own
+  // clip-capture path; a fader move isn't about any one clip, it's
+  // track/section-level automation regardless of what's playing there).
+  auto & playback_info = controller.getPlaybackInfo();
+  if (!controller.isNoteCaptureArmed() || !playback_info.isPlaying()) return;
+  auto & song = controller.getSong();
+  auto & section = song.getOrCreateSection(playback_info.getPatternIndex());
+  auto row = playback_info.getRowIndex();
+  if (fader.automation_row == row && fader.automation_column >= 0) {
+    section.setCommand(row, track_id, fader.automation_column, command);
+  } else {
+    fader.automation_column = section.pushCommand(row, track_id, command);
+    fader.automation_row = row;
+  }
 }
 
 bool
@@ -1229,17 +1269,23 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
       auto leaf_track = track ? dynamic_cast<LeafTrack *>(track) : nullptr;
       if (!leaf_track) return;
       if (grid_mode == GridMode::SEND_A) {
-        applyFaderPress(fader_state_send_a_[track_id], linearToDb(leaf_track->getSends().a), ev.getY(), ev.getVelocity(),
+        auto & fader = fader_state_send_a_[track_id];
+        float target_db = applyFaderPress(fader, linearToDb(leaf_track->getSends().a), ev.getY(), ev.getVelocity(),
           sendRowToDb, kSendFullRangeDb, false,
           [&](float db) { controller.setTrackSendA(track_id, db); });
+        recordFaderAutomationIfArmed(controller, fader, track_id, Command::sendASet(dbToLinear(target_db)));
       } else if (grid_mode == GridMode::SEND_B) {
-        applyFaderPress(fader_state_send_b_[track_id], linearToDb(leaf_track->getSends().b), ev.getY(), ev.getVelocity(),
+        auto & fader = fader_state_send_b_[track_id];
+        float target_db = applyFaderPress(fader, linearToDb(leaf_track->getSends().b), ev.getY(), ev.getVelocity(),
           sendRowToDb, kSendFullRangeDb, false,
           [&](float db) { controller.setTrackSendB(track_id, db); });
+        recordFaderAutomationIfArmed(controller, fader, track_id, Command::sendBSet(dbToLinear(target_db)));
       } else if (grid_mode == GridMode::SEND_MAIN) {
-        applyFaderPress(fader_state_send_main_[track_id], linearToDb(leaf_track->getSends().main), ev.getY(), ev.getVelocity(),
+        auto & fader = fader_state_send_main_[track_id];
+        float target_db = applyFaderPress(fader, linearToDb(leaf_track->getSends().main), ev.getY(), ev.getVelocity(),
           sendRowToDb, kSendFullRangeDb, false,
           [&](float db) { controller.setTrackSendMain(track_id, db); });
+        recordFaderAutomationIfArmed(controller, fader, track_id, Command::volumeSet(dbToLinear(target_db)));
       } else { // PAN
         applyFaderPress(fader_state_azimuth_[track_id], leaf_track->getAzimuth(), ev.getY(), ev.getVelocity(),
           rowToAzimuth, kAzimuthFullRangeDegrees, true,

@@ -1734,8 +1734,18 @@ PatternEditor::offerInput(const InputEvent & input) {
       // already gave the background-only case.
       auto edit_target = resolveEditTarget(song, section, track_id, info.getRowIndex(), getController().getFocusedClip());
       auto column_type = track_info.getColumnType(new_cursor.col);
-    
+
       if (column_type == ColumnType::EFFECT) {
+	// A Command always lives at the track/section level, never a
+	// Clip's own (SongState.h's own playback masking-fix) - so unlike
+	// every other column type here, this doesn't write through
+	// edit_target.pattern (a Clip's own Pattern, when one is active at
+	// this row) but always straight into the background Section, at
+	// that background Pattern's own resolved row - the one row/track
+	// address a Command recorded here is actually going to play back
+	// from, regardless of which Pattern happened to supply this row's
+	// notes.
+	auto background_row = section.getEffectiveRow(track_id, info.getRowIndex(), song.getEffectiveSectionLength(section));
 	// Delete/Backspace clear the whole 4-character command, regardless
 	// of which of its subcol characters the cursor happens to be on -
 	// Command has no meaningful "delete just this one character" (a
@@ -1749,7 +1759,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	// it were a typed character, instead of being ignored (subcol 2/3)
 	// or actually deleting.
 	if (input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE) {
-	  edit_target.pattern->setCommand(edit_target.effective_row, Command());
+	  section.setCommand(background_row, track_id, Command());
 	  row_edited = true;
 	  song.incMinorVersion();
 	  // Same row-level Backspace-steps-back/Delete-stays-put distinction
@@ -1771,9 +1781,9 @@ PatternEditor::offerInput(const InputEvent & input) {
 	// entry) is a notcurses key code far outside any printable range,
 	// and would otherwise get silently written into the command as if
 	// it were a typed character.
-	auto command = edit_target.pattern->getCommand(edit_target.effective_row);
+	auto command = section.getCommand(background_row, track_id);
 	if (command.updateData(new_cursor.subcol, input.getId())) {
-	  edit_target.pattern->setCommand(edit_target.effective_row, command);
+	  section.setCommand(background_row, track_id, command);
 	  row_edited = true;
 	  song.incMinorVersion();
 
@@ -2782,13 +2792,14 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       current_pos += 5;
     } else {
       auto track_id = track_ids[static_cast<size_t>(i)];
-      // What's actually showing here: an active clip instance's own
-      // Pattern (live-linked - editing it through any instance updates
-      // every other one, ArrangementOps.h's own resolveEditTarget()'s
-      // write-side counterpart), or this track's own background Pattern
-      // otherwise - the same resolution real playback uses
-      // (SongState.h's own renderBlock()), so this always shows exactly
-      // what's actually going to play.
+      // What's actually showing here (notes/velocity/delay only - see the
+      // effect column's own separate resolution below): an active clip
+      // instance's own Pattern (live-linked - editing it through any
+      // instance updates every other one, ArrangementOps.h's own
+      // resolveEditTarget()'s write-side counterpart), or this track's
+      // own background Pattern otherwise - the same resolution real
+      // playback uses for notes (SongState.h's own renderBlock()), so
+      // this always shows exactly what's actually going to sound.
       auto read_target = resolveReadTarget(song, section, track_id, pattern_row, getController().getFocusedClip());
       VisibleTrackInfo track_info;
       auto it = all_track_info.find(track_id);
@@ -2836,7 +2847,13 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	return c;
       };
       auto & notes = read_target.pattern->getNotes(read_target.effective_row);
-      auto & command = read_target.pattern->getCommand(read_target.effective_row);
+      // Deliberately not read_target.pattern's own command column even
+      // when an instance is active here - a Command lives at the
+      // track/section level only (SongState.h's own playback masking-
+      // fix), never a Clip's, so this always reads what's actually going
+      // to play regardless of which Pattern supplied this row's notes.
+      auto background_row = section.getEffectiveRow(track_id, pattern_row, song.getEffectiveSectionLength(section));
+      auto & command = section.getCommand(background_row, track_id);
 
       // current_scroll_.col skips this many of this track's own leading
       // columns - only meaningful for the leftmost visible track (see

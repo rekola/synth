@@ -167,7 +167,7 @@ public:
     return dsp_.reencodeIfNeeded(getChannelConfiguration(), position_, std::move(wet));
   }
 
-  // A 2Lxx/2Rxx azimuth slide targeting the note this instance wraps
+  // A 0Hxx/0Kxx azimuth slide targeting the note this instance wraps
   // should still be audible through it - mirrors
   // TapeDegradationVoiceState::adjustAzimuth()'s identical reasoning.
   void adjustAzimuth(float delta) override {

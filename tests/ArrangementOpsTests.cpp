@@ -540,7 +540,7 @@ TEST(merge_clip_to_background_overwrites_the_background_and_removes_the_placemen
   shot.setLooping(false);
   shot.getLeafPattern().setNote(0, 0, Note(60, 100));
   shot.getLeafPattern().setNote(2, 0, Note(64, 100));
-  shot.getLeafPattern().setCommand(1, Command("U050"));
+  shot.getLeafPattern().setCommand(1, Command("0U50"));
   auto clip_id = song.addClip(move(shot)).getId(); // index 0
 
   auto & section = song.addSection();

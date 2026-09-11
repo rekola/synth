@@ -156,10 +156,12 @@ static bool parsePatternContent(XMLElement & pattern_element, Pattern & pattern,
 
   for (auto it = pattern_element.FirstChildElement("command"); it; it = it->NextSiblingElement("command")) {
     auto row_text = it->Attribute("row");
+    auto column_text = it->Attribute("column");
     auto data_text = it->Attribute("data");
 
     if (data_text) {
       int row = row_text ? atoi(row_text) : 0;
+      int column = column_text ? atoi(column_text) : 0;
       // setData(), not the Command(string_view) constructor - see the
       // section reader's own original comment on this: untrusted file data
       // has to be actually detected as malformed here, not silently
@@ -169,7 +171,7 @@ static bool parsePatternContent(XMLElement & pattern_element, Pattern & pattern,
 	fmt::print(stderr, "Malformed command \"{}\" at row {} in {}\n", data_text, row, filename);
 	return false;
       }
-      pattern.setCommand(row, command);
+      pattern.setCommand(row, column, command);
     }
   }
   return true;
@@ -353,12 +355,21 @@ static void storePatternContent(XMLDocument & doc, XMLElement * pattern_element,
     }
   }
 
-  for (auto & [ row, command ] : pattern.getCommands()) {
-    auto data = to_string(command);
-    auto command_element = doc.NewElement("command");
-    command_element->SetAttribute("row", static_cast<int>(row));
-    command_element->SetAttribute("data", data.c_str());
-    pattern_element->InsertEndChild(command_element);
+  for (auto & [ row, cv ] : pattern.getCommandsByRow()) {
+    for (size_t col = 0; col < cv.size(); col++) {
+      auto & command = cv[col];
+      // A mid-vector gap (one column's own command cleared while a
+      // higher-numbered one stays defined) is possible the same way it is
+      // for notes - see storePatternContent()'s own note-writing loop
+      // above for why this is skipped rather than assumed unreachable.
+      if (!command.isDefined()) continue;
+      auto data = to_string(command);
+      auto command_element = doc.NewElement("command");
+      command_element->SetAttribute("row", static_cast<int>(row));
+      if (col > 0) command_element->SetAttribute("column", col);
+      command_element->SetAttribute("data", data.c_str());
+      pattern_element->InsertEndChild(command_element);
+    }
   }
 }
 

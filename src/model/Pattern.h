@@ -144,10 +144,10 @@ class Pattern : public SongObject {
   void insertRow(int row, int num_rows) {
     for (int i = num_rows - 1; i > row; i--) {
       setNotes(i, getNotes(i - 1));
-      shiftCommand(i, i - 1);
+      shiftCommands(i, i - 1);
     }
     clearNotes(row);
-    clearCommand(row);
+    clearCommands(row);
   }
 
   // The inverse shift: removes `row` itself, pulling every row below it up
@@ -157,10 +157,10 @@ class Pattern : public SongObject {
   void deleteRow(int row, int num_rows) {
     for (int i = row; i < num_rows - 1; i++) {
       setNotes(i, getNotes(i + 1));
-      shiftCommand(i, i + 1);
+      shiftCommands(i, i + 1);
     }
     clearNotes(num_rows - 1);
-    clearCommand(num_rows - 1);
+    clearCommands(num_rows - 1);
   }
 
   const Note & getNote(int row, int note_column) const {
@@ -174,23 +174,86 @@ class Pattern : public SongObject {
     return it != notes_.end() ? it->second : empty_notes;
   }
 
-  void setCommand(int row, Command command) {
-    commands_[static_cast<unsigned short>(row)] = command;
+  // A row can carry more than one Command, the same way it can carry more
+  // than one Note - one column per concurrently-recordable automation
+  // target (Pan's own hand-typed 0Hxx/0Kxx today; a future live-recorded
+  // Volume/Send A/Send B move alongside it, each its own column, rather
+  // than one shared slot every recordable parameter has to fight over).
+  // setCommand(row, Command)/getCommand(row)/clearCommand(row) below are
+  // column-0 shorthand, kept for every existing single-command call site
+  // (the pattern editor's own cursor-column effect entry, clipboard,
+  // XML - none of which have any UI concept of a second column yet) -
+  // column 0 is not privileged storage-wise, just the one every such
+  // caller already implicitly meant before multi-column existed.
+  void setCommand(int row, int command_column, Command command) {
+    auto key = static_cast<unsigned short>(row);
+    auto & columns = commands_[key];
+    while (command_column >= static_cast<int>(columns.size())) columns.push_back(Command());
+    columns[static_cast<size_t>(command_column)] = command;
+    while (!columns.empty() && !columns.back().isDefined()) columns.pop_back();
+    if (columns.empty()) commands_.erase(key);
   }
 
-  void clearCommand(int row) {
+  void setCommand(int row, Command command) { setCommand(row, 0, command); }
+
+  // Finds the first undefined column at this row (appending a new one if
+  // every existing column is already occupied) and sets it - pushNote()'s
+  // own counterpart, for a caller (live automation recording) that wants
+  // "put this somewhere free" rather than a specific column.
+  int pushCommand(int row, Command command) {
+    auto & columns = commands_[static_cast<unsigned short>(row)];
+    for (int i = 0; i < static_cast<int>(columns.size()); i++) {
+      if (!columns[static_cast<size_t>(i)].isDefined()) {
+	columns[static_cast<size_t>(i)] = command;
+	return i;
+      }
+    }
+    auto index = columns.size();
+    columns.push_back(command);
+    return static_cast<int>(index);
+  }
+
+  // Clears every column at this row - the insertRow()/deleteRow() shift
+  // below's own "nothing to shift in" case, and a caller that genuinely
+  // means "wipe this row's automation entirely", not just column 0.
+  void clearCommands(int row) {
     commands_.erase(static_cast<unsigned short>(row));
   }
 
-  const Command & getCommand(int row) const {
+  // Column-0 shorthand for clearCommands() above - see setCommand(row,
+  // Command)'s own comment on why column 0 gets a bare, column-less name.
+  void clearCommand(int row) { deleteCommand(row, 0); }
+
+  void deleteCommand(int row, int command_column) {
     auto it = commands_.find(static_cast<unsigned short>(row));
-    return it != commands_.end() ? it->second : empty_command;
+    if (it != commands_.end()) {
+      auto & cv = it->second;
+      if (command_column < static_cast<int>(cv.size())) {
+	cv[static_cast<size_t>(command_column)] = Command();
+	while (!cv.empty() && !cv.back().isDefined()) cv.pop_back();
+	if (cv.empty()) commands_.erase(it);
+      }
+    }
   }
 
-  // The raw map, letting a caller list every row that has a command
-  // without checking each row individually. Song.cpp's XML writer uses
-  // this to decide which rows to write a <command> element for.
-  const std::unordered_map<unsigned short, Command> & getCommands() const { return commands_; }
+  const Command & getCommand(int row, int command_column) const {
+    auto it = commands_.find(static_cast<unsigned short>(row));
+    if (it != commands_.end() && command_column < static_cast<int>(it->second.size())) return it->second[static_cast<size_t>(command_column)];
+    return empty_command;
+  }
+
+  const Command & getCommand(int row) const { return getCommand(row, 0); }
+
+  const std::vector<Command> & getCommandsAt(int row) const {
+    auto it = commands_.find(static_cast<unsigned short>(row));
+    return it != commands_.end() ? it->second : empty_commands;
+  }
+
+  // The raw sparse row->command-columns map - commands_ itself, mirroring
+  // getNotesByRow()'s own reasoning: Song.cpp's XML writer uses this to
+  // list every row/column that has a command without an outside bound to
+  // loop against.
+  const std::unordered_map<unsigned short, std::vector<Command> > & getCommandsByRow() const { return commands_; }
 
   // The raw sparse row->note-columns map - notes_ itself, letting a caller
   // list every defined row without an outside bound to loop against. A
@@ -234,20 +297,25 @@ class Pattern : public SongObject {
 
 private:
   // insertRow()/deleteRow()'s own command-shifting step: copies dst_row's
-  // command from src_row, or clears dst_row if src_row had none - mirrors
-  // setNotes(getNotes(...))'s own "erase rather than store an explicitly
-  // empty value" convention (commands_ is sparse the same way notes_ is;
-  // storing every shifted-in "----" explicitly would defeat that and
-  // falsely tell getCommands() every such row has a real command).
-  void shiftCommand(int dst_row, int src_row) {
-    auto & cmd = getCommand(src_row);
-    if (cmd.isDefined()) setCommand(dst_row, cmd);
-    else clearCommand(dst_row);
+  // entire command-column vector from src_row (all columns, same as
+  // setNotes(getNotes(...)) already moves every note column, not just
+  // one), or clears dst_row if src_row had none - mirrors that same
+  // "erase rather than store an explicitly empty value" convention
+  // (commands_ is sparse the same way notes_ is; storing every shifted-in
+  // all-undefined row explicitly would defeat that and falsely tell
+  // getCommandsByRow() every such row has real commands).
+  void shiftCommands(int dst_row, int src_row) {
+    auto & cv = getCommandsAt(src_row);
+    if (!cv.empty()) commands_[static_cast<unsigned short>(dst_row)] = cv;
+    else clearCommands(dst_row);
   }
 
   // sparse note matrix: row -> note_column
   std::unordered_map<unsigned short, std::vector<Note> > notes_;
-  std::unordered_map<unsigned short, Command> commands_;
+  // sparse command matrix: row -> command_column - see setCommand(row,
+  // command_column, Command)'s own comment for why a row can carry more
+  // than one.
+  std::unordered_map<unsigned short, std::vector<Command> > commands_;
 
   // 0 = not given its own length - see getEffectiveRow()'s own comment.
   int length_ = 0;
@@ -258,6 +326,7 @@ private:
   static inline Note empty_note;
   static inline std::vector<Note> empty_notes;
   static inline Command empty_command;
+  static inline std::vector<Command> empty_commands;
 };
 
 #endif

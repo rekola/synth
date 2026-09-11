@@ -14,7 +14,7 @@ TEST(pattern_block_copy_captures_notes_and_commands) {
 
   p.setNote(2, track_ids[0], 0, Note(60, 100));
   p.setNote(2, track_ids[1], 0, Note(64, 100));
-  p.setCommand(2, track_ids[0], Command("U050"));
+  p.setCommand(2, track_ids[0], Command("0U50"));
 
   auto block = copyPatternBlock(p, 2, 3, track_ids, 0, 1, 64);
 
@@ -39,7 +39,7 @@ TEST(pattern_block_clear_empties_the_range) {
 
   p.setNote(1, track_ids[0], 0, Note(60, 100));
   p.setNote(1, track_ids[1], 0, Note(64, 100));
-  p.setCommand(1, track_ids[0], Command("U050"));
+  p.setCommand(1, track_ids[0], Command("0U50"));
   p.setNote(5, track_ids[0], 0, Note(67, 100)); // outside the cleared range
 
   clearPatternBlock(p, 0, 2, track_ids, 0, 1, 64);
@@ -78,7 +78,7 @@ TEST(pattern_block_paste_writes_at_an_offset) {
   vector<int> track_ids = {10, 20, 30};
 
   p.setNote(0, track_ids[0], 0, Note(60, 100));
-  p.setCommand(0, track_ids[0], Command("U050"));
+  p.setCommand(0, track_ids[0], Command("0U50"));
 
   auto block = copyPatternBlock(p, 0, 0, track_ids, 0, 0, 64);
   pastePatternBlock(p, block, 16, 5, track_ids, 1);
@@ -121,7 +121,7 @@ TEST(pattern_block_cut_then_paste_back_round_trips) {
 
   p.setNote(3, track_ids[0], 0, Note(60, 100));
   p.setNote(3, track_ids[1], 0, Note(64, 100));
-  p.setCommand(4, track_ids[2], Command("D0A0"));
+  p.setCommand(4, track_ids[2], Command("0DA0"));
 
   auto block = copyPatternBlock(p, 3, 4, track_ids, 0, 2, 64);
   clearPatternBlock(p, 3, 4, track_ids, 0, 2, 64);
@@ -170,7 +170,7 @@ TEST(pattern_block_notes_copy_captures_only_the_requested_column_range) {
   p.setNote(2, track_id, 0, Note(60, 100));
   p.setNote(2, track_id, 1, Note(63, 100));
   p.setNote(2, track_id, 2, Note(67, 100));
-  p.setCommand(2, track_id, Command("U050"));
+  p.setCommand(2, track_id, Command("0U50"));
 
   auto block = copyPatternBlockNotes(p, 2, 2, track_id, 1, 2, 64);
 
@@ -191,7 +191,7 @@ TEST(pattern_block_notes_clear_only_touches_the_requested_column_range) {
   p.setNote(2, track_id, 0, Note(60, 100));
   p.setNote(2, track_id, 1, Note(63, 100));
   p.setNote(2, track_id, 2, Note(67, 100));
-  p.setCommand(2, track_id, Command("U050"));
+  p.setCommand(2, track_id, Command("0U50"));
 
   clearPatternBlockNotes(p, 2, 2, track_id, 1, 1, 64);
 
@@ -243,7 +243,7 @@ TEST(pattern_block_notes_copy_and_clear_never_touch_the_command) {
 
   p.setNote(2, track_id, 0, Note(60, 100));
   p.setNote(2, track_id, 1, Note(63, 100));
-  p.setCommand(2, track_id, Command("U050"));
+  p.setCommand(2, track_id, Command("0U50"));
 
   auto block = copyPatternBlockNotes(p, 2, 2, track_id, 0, 1, 64);
   CHECK(!block[0][0].command.isDefined());
@@ -259,7 +259,7 @@ TEST(pattern_block_notes_paste_never_touches_the_command) {
   p.setNote(2, track_id, 0, Note(60, 100));
   auto block = copyPatternBlockNotes(p, 2, 2, track_id, 0, 0, 64);
 
-  p.setCommand(9, track_id, Command("D0A0"));
+  p.setCommand(9, track_id, Command("0DA0"));
   pastePatternBlockNotes(p, block, 16, 9, track_id, 0);
   CHECK(p.getNotes(9, track_id)[0].getValue() == 60);
   CHECK(p.getCommand(9, track_id).isDefined()); // untouched, still the original
@@ -273,7 +273,7 @@ TEST(pattern_block_command_copy_and_clear_round_trip_independent_of_notes) {
   int track_id = 10;
 
   p.setNote(2, track_id, 0, Note(60, 100));
-  p.setCommand(2, track_id, Command("U050"));
+  p.setCommand(2, track_id, Command("0U50"));
 
   auto block = copyPatternBlockCommand(p, 2, 2, track_id, 64);
   CHECK(block.size() == 1);
@@ -288,7 +288,7 @@ TEST(pattern_block_command_paste_never_touches_note_data) {
   Section p;
   int track_id = 10;
 
-  p.setCommand(2, track_id, Command("U050"));
+  p.setCommand(2, track_id, Command("0U50"));
   auto block = copyPatternBlockCommand(p, 2, 2, track_id, 64);
 
   p.setNote(9, track_id, 0, Note(67, 100));
@@ -413,7 +413,7 @@ TEST(extract_clip_bar_aligned_selection_needs_no_padding) {
   int track_id = 10;
   p.setNote(4, track_id, 0, Note(60, 100));
   p.setNote(6, track_id, 0, Note(64, 90));
-  p.setCommand(5, track_id, Command("U050"));
+  p.setCommand(5, track_id, Command("0U50"));
 
   // rows 4-7 is exactly one 4-row bar, and row 4 is already its start.
   auto clip = extractClip(p, track_id, 4, 7, 4, 64);

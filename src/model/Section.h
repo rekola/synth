@@ -138,13 +138,34 @@ class Section : public SongObject {
     return it != patterns_by_track_id_.end() ? it->second.getNotes(row) : empty_notes;
   }
 
+  // Column-0 shorthand - see Pattern::setCommand(row, Command)'s own
+  // comment for why every existing (single-command) call site keeps this
+  // bare form rather than needing an explicit column argument.
   void setCommand(int row, int track_id, Command command) {
     patterns_by_track_id_[track_id].setCommand(row, command);
+  }
+
+  void setCommand(int row, int track_id, int command_column, Command command) {
+    patterns_by_track_id_[track_id].setCommand(row, command_column, command);
+  }
+
+  int pushCommand(int row, int track_id, Command command) {
+    return patterns_by_track_id_[track_id].pushCommand(row, command);
   }
 
   const Command & getCommand(int row, int track_id) const {
     auto it = patterns_by_track_id_.find(track_id);
     return it != patterns_by_track_id_.end() ? it->second.getCommand(row) : empty_command;
+  }
+
+  const Command & getCommand(int row, int track_id, int command_column) const {
+    auto it = patterns_by_track_id_.find(track_id);
+    return it != patterns_by_track_id_.end() ? it->second.getCommand(row, command_column) : empty_command;
+  }
+
+  const std::vector<Command> & getCommandsAt(int row, int track_id) const {
+    auto it = patterns_by_track_id_.find(track_id);
+    return it != patterns_by_track_id_.end() ? it->second.getCommandsAt(row) : empty_commands;
   }
 
   void getTrackInformation(std::unordered_map<int, VisibleTrackInfo> & track_info) const {
@@ -287,6 +308,7 @@ private:
   static inline Note empty_note;
   static inline std::vector<Note> empty_notes;
   static inline Command empty_command;
+  static inline std::vector<Command> empty_commands;
   static inline std::string empty_string;
   static inline std::map<unsigned short, std::string> empty_instances_;
 };

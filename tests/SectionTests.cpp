@@ -25,7 +25,7 @@ TEST(pattern_is_not_empty_with_a_note) {
 
 TEST(pattern_is_not_empty_with_only_a_command) {
   Pattern p;
-  p.setCommand(0, Command("U050"));
+  p.setCommand(0, Command("0U50"));
   CHECK(!p.isEmpty());
 }
 
@@ -58,9 +58,74 @@ TEST(pattern_has_no_sounding_note_with_only_aftertouch) {
 
 TEST(pattern_has_no_sounding_note_with_only_a_command) {
   Pattern p;
-  p.setCommand(0, Command("U050"));
+  p.setCommand(0, Command("0U50"));
   CHECK(!p.isEmpty());
   CHECK(!p.hasSoundingNote());
+}
+
+// A row can carry more than one Command, the same way it already can more
+// than one Note - setCommand(row, Command) is column-0 shorthand, doesn't
+// disturb a different column already set there.
+TEST(pattern_command_columns_are_independent) {
+  Pattern p;
+  p.setCommand(0, Command("0K05"));
+  p.setCommand(0, 1, Command("1V40"));
+  CHECK(to_string(p.getCommand(0, 0)) == "0K05");
+  CHECK(to_string(p.getCommand(0, 1)) == "1V40");
+  CHECK(p.getCommandsAt(0).size() == 2);
+}
+
+// pushCommand() finds the first free column - Note::pushNote()'s own
+// counterpart.
+TEST(pattern_push_command_finds_the_first_free_column) {
+  Pattern p;
+  CHECK(p.pushCommand(0, Command("0K05")) == 0);
+  CHECK(p.pushCommand(0, Command("1V40")) == 1);
+  p.deleteCommand(0, 0);
+  CHECK(p.pushCommand(0, Command("ZB02")) == 0); // column 0 free again
+}
+
+// deleteCommand() on a middle column leaves a gap (same as deleteNote()),
+// trims only trailing undefined columns, and the row is dropped entirely
+// once nothing defined is left.
+TEST(pattern_delete_command_leaves_a_gap_and_trims_trailing_columns) {
+  Pattern p;
+  p.setCommand(0, 0, Command("0K05"));
+  p.setCommand(0, 1, Command("1V40"));
+  p.deleteCommand(0, 0);
+  CHECK(!p.getCommand(0, 0).isDefined());
+  CHECK(to_string(p.getCommand(0, 1)) == "1V40"); // column 1 untouched
+  CHECK(p.getCommandsAt(0).size() == 2); // column 0 is a gap, not trimmed away
+
+  p.deleteCommand(0, 1);
+  CHECK(p.isEmpty()); // both columns gone - the row itself is dropped
+}
+
+// insertRow()/deleteRow() shift every command column together, not just
+// column 0 - Pattern::shiftCommands()'s own comment.
+TEST(pattern_insert_row_shifts_every_command_column) {
+  Pattern p;
+  p.setCommand(0, 0, Command("0K05"));
+  p.setCommand(0, 1, Command("1V40"));
+  p.insertRow(0, 4);
+  CHECK(!p.getCommand(0, 0).isDefined()); // row 0 itself is cleared, displaced downward
+  CHECK(to_string(p.getCommand(1, 0)) == "0K05");
+  CHECK(to_string(p.getCommand(1, 1)) == "1V40");
+}
+
+TEST(section_command_columns_round_trip_by_row_and_track) {
+  Section section;
+  section.setCommand(0, 1, Command("0K05"));
+  section.setCommand(0, 1, 1, Command("1V40"));
+  CHECK(to_string(section.getCommand(0, 1)) == "0K05");
+  CHECK(to_string(section.getCommand(0, 1, 1)) == "1V40");
+  CHECK(section.getCommandsAt(0, 1).size() == 2);
+}
+
+TEST(section_push_command_finds_the_first_free_column) {
+  Section section;
+  CHECK(section.pushCommand(0, 1, Command("0K05")) == 0);
+  CHECK(section.pushCommand(0, 1, Command("1V40")) == 1);
 }
 
 TEST(section_set_pattern_for_track_replaces_the_whole_pattern) {

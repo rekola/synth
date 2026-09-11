@@ -20,6 +20,7 @@ class LaunchpadIO;
 class Song;
 class PlaybackInfo;
 class Controller;
+class Command;
 class LaunchpadPadEvent;
 class LaunchpadChannelPressureEvent;
 class PercussionTrack;
@@ -982,6 +983,22 @@ class LaunchpadManager {
     // 1, never back to 0 - only pressing a genuinely *different* row does
     // that (see applyFaderPress()'s own comment).
     int micro_step = 0;
+    // recordFaderAutomationIfArmed()'s own "which column am I writing
+    // this fader's automation into" state - which row/command-column
+    // its most recent write landed on, so a second press landing on the
+    // *same* still-current row (the transport hasn't advanced since the
+    // last one) updates that one column in place rather than each
+    // claiming a fresh column via pushCommand() and leaving a trail of
+    // near-duplicate commands behind. A genuinely new row claims a fresh
+    // column instead (Section::pushCommand()) - never column 0
+    // unconditionally, since that could already hold an unrelated
+    // hand-typed command this shouldn't silently overwrite.
+    // Not session-scoped: revisiting the exact same row number much
+    // later (e.g. a looping section) could in principle reuse a stale
+    // column from an earlier, disconnected recording pass rather than
+    // claiming a fresh one - a known, narrow edge case, not solved here.
+    int automation_row = -1;
+    int automation_column = -1;
   };
   std::unordered_map<int, FaderState> fader_state_send_main_, fader_state_send_a_, fader_state_send_b_, fader_state_azimuth_;
   // handlePadEvent()'s own SEND_A/SEND_B/SEND_MAIN/PAN branch calls this
@@ -995,8 +1012,15 @@ class LaunchpadManager {
   // and calls `apply` with the immediate value to set: for a fresh glide
   // that's just the unchanged starting value (tickFaderRamps() carries it
   // from there); for a micro-value cycle, the newly-computed one, right
-  // away.
-  static void applyFaderPress(FaderState & fader, float current_value, int pressed_row, int velocity,
+  // away. Returns the value this press actually targets - the
+  // micro-cycle's own newly-computed value, or a fresh glide's
+  // `target_value` (not `apply`'s own immediate argument, which for a
+  // fresh glide is deliberately still the pre-press value) - so a caller
+  // that wants to record what this *press* means (not how the live value
+  // happens to glide there over real time) has a single value to record,
+  // once, right away. See recordFaderAutomationIfArmed()'s own comment
+  // for why that matters.
+  static float applyFaderPress(FaderState & fader, float current_value, int pressed_row, int velocity,
     float (*rowToValue)(int), float full_range, bool wraps, const std::function<void(float)> & apply);
   // Advances every in-flight ramp above by however long it's actually
   // been since the last call (steady_clock, not a fixed per-call step -
@@ -1006,6 +1030,34 @@ class LaunchpadManager {
   // and every connected device's own LED mirror both hear the glide as it
   // happens, not just its final value.
   void tickFaderRamps(Controller & controller);
+
+  // Live-recording's own write path: while Record Arm is on and the
+  // transport is genuinely playing (the same "you're recording a take
+  // right now" condition note entry already gates on, not the narrower
+  // Session-view-clip-specific isSessionRecording() - a fader move isn't
+  // about any one clip), writes `command` into the current playback
+  // row/section's own background Pattern for `track_id` - a fresh column
+  // (Section::pushCommand(), never unconditionally column 0, which could
+  // already hold an unrelated hand-typed command) the first time this
+  // fader (`fader`, for its own automation_row/automation_column - see
+  // FaderState's own comment) records into a given row, reused in place
+  // if a later press lands on that same still-current row rather than
+  // spawning a new column each time. Auto-creates the Section/Pattern to
+  // write into if this track has never had any content here at all
+  // (Section::patterns_by_track_id_'s own map access already does this -
+  // no separate "ensure a place to write exists" step needed the way a
+  // Clip would). A no-op otherwise - a fader move made while just
+  // auditioning (not recording) still moves the live value, same as
+  // always, just doesn't get captured anywhere. Called exactly once per
+  // press (handlePadEvent()'s own SEND_A/SEND_B/SEND_MAIN branches,
+  // using applyFaderPress()'s own returned target) - deliberately *not*
+  // from tickFaderRamps(): the glide a press kicks off is Launchpad's
+  // own real-time/audio-feel interpolation between presses, not itself
+  // part of what gets recorded, so tracing its every tick here would
+  // bake that same interpolation into the data a future engine-side
+  // playback interpolation phase is meant to reconstruct instead - this
+  // only ever records the one discrete target each press itself means.
+  void recordFaderAutomationIfArmed(Controller & controller, FaderState & fader, int track_id, Command command);
 
   // The Session-view-wide shared quantization reference ("beat 1") every
   // queued join/swap/stop above (and the launch_step of the pattern that
