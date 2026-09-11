@@ -6,8 +6,25 @@
 #include "../audio/AudioBuffer.h"
 #include "../ambisonic/SphericalPosition.h"
 #include "../model/SendLevels.h"
+#include "../dsp/ValueRamp.h"
 
 #include <algorithm>
+#include <cmath>
+
+namespace {
+  // Self-contained (not TreeNode::decibelsToGain()/gainToDecibels(), only
+  // reachable from TreeNode<Derived> subclasses - VoiceState/TrackState,
+  // and LeafTrackState's own send ramp needs this before it's fully one)
+  // - the same "each file keeps its own small dB helper" convention
+  // model/LeafTrack.cpp's own dbToLinear()/linearToDb() already use,
+  // including the same -100dB "off" floor. Needed here (not just at the
+  // call sites feeding glideSendMain()/etc.) because the ramp itself now
+  // interpolates in dB - the same space the Launchpad row layout (and
+  // every other display of these values) actually uses - converting to
+  // linear only once per render chunk, right before it reaches sends_.
+  float dbToLinearForRamp(float db) { return db > -100.0f ? powf(10.0f, db * 0.05f) : 0.0f; }
+  float linearToDbForRamp(float linear) { return linear <= 0.00001f ? -100.0f : 20.0f * log10f(linear); }
+}
 
 // The runtime counterpart of LeafTrack (src/model/LeafTrack.h) - mute/solo/
 // position/sends/voices_ bookkeeping every leaf track type shares
@@ -21,7 +38,16 @@
 class LeafTrackState : public TrackState {
 public:
   explicit LeafTrackState(const ChannelConfiguration & channel_config, bool solo, bool muted, int track_id, const SphericalPosition & position, const SendLevels & sends)
-    : TrackState(channel_config), solo_(solo), muted_(muted), track_id_(track_id), position_(position), sends_(sends) { }
+    : TrackState(channel_config), solo_(solo), muted_(muted), track_id_(track_id), position_(position), sends_(sends) {
+    // Every ramp starts already at rest on its own seeded value (stateFor()'s
+    // one-time construction-time seed from the model - see this class's own
+    // doc comment) - nothing to glide toward yet until a real
+    // glideSendMain()/A()/B() call arrives. In dB, not linear - see these
+    // ramps' own declaration comment for why.
+    send_main_ramp_.snapTo(linearToDbForRamp(sends.main));
+    send_a_ramp_.snapTo(linearToDbForRamp(sends.a));
+    send_b_ramp_.snapTo(linearToDbForRamp(sends.b));
+  }
 
   void addVoice(int column, std::unique_ptr<VoiceState> voice) {
     voices_[column].push_back(std::move(voice));
@@ -39,6 +65,12 @@ public:
   // its stepper's timing with that same chunking, purely via ordinary
   // virtual dispatch.
   virtual AudioBuffer renderVoices(int frames) {
+    // Advance this chunk's own share of any in-flight Send Main/A/B glide
+    // first - a voice rendered below with renderVoices() already reflects
+    // wherever the glide has reached by this chunk, same as a live press
+    // already did before it moved server-side.
+    advanceSendRamps(frames);
+
     // Render every active voice first (still calling render() even when
     // muted, so envelopes/LFOs keep advancing - only mixing is skipped),
     // then decide this track's own accumulator shape from what actually
@@ -72,7 +104,14 @@ public:
     // per-voice dispatch is needed, just a plain mix.
     for (auto & s : rendered) data.mixNamed(s);
 
-    setTrackInfo(TrackInfo( is_active, data.isClipping() ));
+    // meter_value_ (-1.0f, "no data") is left at TrackInfo's own default
+    // here - InstrumentTrackState::render()/SampleTrackState::render() both
+    // overwrite this call's own TrackInfo with their own, RMS included,
+    // once their outer chunked loop finishes (see their own render()).
+    // sends_ is already this chunk's own post-advance value (the
+    // advanceSendRamps() call above), so it's current even if some future
+    // subclass never gets around to overwriting this with its own call.
+    setTrackInfo(TrackInfo( is_active, data.isClipping(), -1.0f, sends_.main, sends_.a, sends_.b ));
 
     return data;
   }
@@ -164,22 +203,49 @@ public:
   // not a pattern effect. See VoiceState::adjustSendMain()/adjustSendA()/
   // adjustSendB().
   void setSendMain(float s) {
-    sends_.main = s;
-    for (auto & [ column, voices ] : voices_) {
-      for (auto & voice : voices) if (voice->isActive()) voice->adjustSendMain(s);
-    }
+    send_main_ramp_.snapTo(linearToDbForRamp(s)); // an instant set always wins outright over any glide in flight
+    applySendMain(s);
   }
   void setSendA(float s) {
-    sends_.a = s;
-    for (auto & [ column, voices ] : voices_) {
-      for (auto & voice : voices) if (voice->isActive()) voice->adjustSendA(s);
-    }
+    send_a_ramp_.snapTo(linearToDbForRamp(s));
+    applySendA(s);
   }
   void setSendB(float s) {
-    sends_.b = s;
-    for (auto & [ column, voices ] : voices_) {
-      for (auto & voice : voices) if (voice->isActive()) voice->adjustSendB(s);
-    }
+    send_b_ramp_.snapTo(linearToDbForRamp(s));
+    applySendB(s);
+  }
+
+  // The server-side counterpart of what used to be a Launchpad fader
+  // press's own client-side glide (now instant/one-shot on that side):
+  // starts this track's own Send Main/A/B moving from wherever it
+  // actually is right now toward `target_db`, reaching it after `frames`
+  // frames. `target_db`, not linear gain - the ramp itself interpolates
+  // in dB (see its own declaration comment for why), so this takes the
+  // same unit the row it's headed toward is defined in, not the unit
+  // sends_/SendLevels happen to store. Advanced by advanceSendRamps()
+  // below, once per render chunk - never ticked from the UI thread.
+  // Deliberately no glideAzimuth() sibling - Pan keeps its existing
+  // client-side glide (an instant reposition there isn't audible the way
+  // a Volume/Send step is).
+  void glideSendMain(float target_db, int frames) { send_main_ramp_.glideTo(target_db, frames); }
+  void glideSendA(float target_db, int frames) { send_a_ramp_.glideTo(target_db, frames); }
+  void glideSendB(float target_db, int frames) { send_b_ramp_.glideTo(target_db, frames); }
+
+  // Called once per render chunk from renderVoices() below (the same hook
+  // 0Hxx/0Kxx's own per-tick azimuth slide already advances through, so a
+  // glide crossing a chunk boundary mid-block still lands correctly) -
+  // converts each active ramp's newly-advanced dB value back to linear
+  // gain right here (dbToLinearForRamp()), the one point this ever
+  // crosses from the ramp's own dB space into sends_/SendLevels' linear
+  // one, then pushes it to applySendMain()/A()/B() (never back through
+  // setSendMain()/A()/B() above, which would immediately snapTo() and
+  // kill the very ramp this is in the middle of advancing). A ramp
+  // that isn't active is skipped outright - once settled, there's
+  // nothing left to push every single block forever.
+  void advanceSendRamps(int frames) {
+    if (send_main_ramp_.isActive()) applySendMain(dbToLinearForRamp(send_main_ramp_.advance(frames)));
+    if (send_a_ramp_.isActive()) applySendA(dbToLinearForRamp(send_a_ramp_.advance(frames)));
+    if (send_b_ramp_.isActive()) applySendB(dbToLinearForRamp(send_b_ramp_.advance(frames)));
   }
 
   // The live-knob path (Launchpad/UI Pan row, via Controller::
@@ -234,10 +300,47 @@ protected:
   std::unordered_map<int, std::vector<std::unique_ptr<VoiceState> > > voices_;
 
 private:
+  // setSendMain()/A()/B()'s own "store it, push it to every active voice"
+  // half, factored out so advanceSendRamps() (already mid-advance() on its
+  // own ramp) can reach it directly without routing back through a public
+  // setter that would snapTo() and cut its own glide short.
+  void applySendMain(float s) {
+    sends_.main = s;
+    for (auto & [ column, voices ] : voices_) {
+      for (auto & voice : voices) if (voice->isActive()) voice->adjustSendMain(s);
+    }
+  }
+  void applySendA(float s) {
+    sends_.a = s;
+    for (auto & [ column, voices ] : voices_) {
+      for (auto & voice : voices) if (voice->isActive()) voice->adjustSendA(s);
+    }
+  }
+  void applySendB(float s) {
+    sends_.b = s;
+    for (auto & [ column, voices ] : voices_) {
+      for (auto & voice : voices) if (voice->isActive()) voice->adjustSendB(s);
+    }
+  }
+
   bool solo_, muted_;
   int track_id_;
   SphericalPosition position_;
   SendLevels sends_;
+  // In dB, not the linear gain sends_/SendLevels actually store - the
+  // Launchpad row layout these glides are driven from (sendRowToDb()) is
+  // itself linear in dB, so ramping in dB is what makes a glide's own
+  // row-position move at a constant rate over time; ramping the
+  // underlying linear gain directly (an earlier revision of this class)
+  // instead moved through rows very unevenly - fast near the bottom
+  // (where a tiny linear step is a huge dB jump) and crawling near the
+  // top (where a linear step near unity is a tiny dB one) - since a
+  // uniform linear-per-frame step is very much not a uniform dB-per-frame
+  // one. dbToLinearForRamp()/linearToDbForRamp() convert at the only two
+  // places that ever need to: seeding/instant-setting the ramp
+  // (linearToDbForRamp(), since sends_ itself is always linear) and
+  // reading it back out in advanceSendRamps() (dbToLinearForRamp()).
+  dsp::ValueRamp send_main_ramp_, send_a_ramp_, send_b_ramp_;
 };
 
 #endif

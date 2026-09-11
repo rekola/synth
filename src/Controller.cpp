@@ -864,6 +864,14 @@ Controller::receivePlaybackSnapshot(const string & buffer_name, const PlaybackIn
   } else {
     setPlaybackInfo(info);
   }
+  // Position fields aside (the only thing the merge above ever touches),
+  // `info`'s own per-track data is exactly what actually arrived - the
+  // live engine's own real, possibly-still-gliding Send Main/A/B, not
+  // wherever it's ultimately headed. Mirror it into the model so nothing
+  // that reads a LeafTrack's own sends_ (Launchpad's own LED refresh
+  // included - it still just reads the model, unchanged) ever shows a
+  // value the engine hasn't actually reached yet.
+  syncLiveSendsIntoModel(buffer_name, info);
 }
 
 // A plain dynamic_cast, not a TrackType enumeration - "is this track
@@ -875,6 +883,30 @@ Controller::receivePlaybackSnapshot(const string & buffer_name, const PlaybackIn
 static LeafTrack *
 asLeafTrack(Track * track) {
   return track ? dynamic_cast<LeafTrack *>(track) : nullptr;
+}
+
+void
+Controller::syncLiveSendsIntoModel(const string & buffer_name, const PlaybackInfo & info) {
+  auto song = getSongByName(buffer_name);
+  if (!song) return;
+  for (auto track_id : song->getPlayableTrackIds()) {
+    auto & track_info = info.getTrackInfo(track_id);
+    if (!track_info.hasLiveSends()) continue; // no live engine data yet for this track
+    auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
+    if (!leaf_track) continue;
+    auto & sends = leaf_track->getSends();
+    // Only actually write (and only incVersion() - the "unsaved changes"
+    // signal) when something really changed - every snapshot arrives
+    // whether or not any track is currently gliding, and re-asserting an
+    // already-correct value on every single one would mark the song dirty
+    // continuously while nothing is actually happening.
+    bool changed = sends.main != track_info.getLiveSendMain() || sends.a != track_info.getLiveSendA() || sends.b != track_info.getLiveSendB();
+    if (!changed) continue;
+    leaf_track->setSendMain(track_info.getLiveSendMain());
+    leaf_track->setSendA(track_info.getLiveSendA());
+    leaf_track->setSendB(track_info.getLiveSendB());
+    song->incVersion();
+  }
 }
 
 bool
@@ -940,6 +972,44 @@ Controller::setTrackSendMain(int track_id, float value) {
   leaf_track->setSendMain(linear);
   song->incVersion();
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_MAIN, getActiveBufferName(), track_id, static_cast<int>(linear * 1000.0f + 0.5f)));
+}
+
+// Deliberately no model write here at all - see this method's own header
+// comment. duration_seconds encoded in milliseconds (fits comfortably in
+// an int; every existing glide is well under a second), matching
+// SET_TRACK_SEND_A/B/MAIN's own fixed-point-int convention for the target.
+void
+Controller::glideTrackSendA(int track_id, float target_db, float duration_seconds) {
+  auto song = getCurrentSong();
+  auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
+  if (!leaf_track) return;
+  // target_db passed straight through, in tenths of a dB (same fixed-
+  // point convention SET_TRACK_AZIMUTH's own degrees use) - not converted
+  // to linear here the way the instant setters above are. The engine's
+  // own ramp interpolates in dB (LeafTrackState.h's own comment on why -
+  // the Launchpad row layout this is driven from is itself linear in dB,
+  // so that's the space a glide needs to move at a constant rate through),
+  // converting to linear only once it's actually applied.
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::GLIDE_TRACK_SEND_A, getActiveBufferName(), track_id,
+    static_cast<int>(target_db * 10.0f + (target_db >= 0.0f ? 0.5f : -0.5f)), static_cast<int>(std::max(0.0f, duration_seconds) * 1000.0f + 0.5f)));
+}
+
+void
+Controller::glideTrackSendB(int track_id, float target_db, float duration_seconds) {
+  auto song = getCurrentSong();
+  auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
+  if (!leaf_track) return;
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::GLIDE_TRACK_SEND_B, getActiveBufferName(), track_id,
+    static_cast<int>(target_db * 10.0f + (target_db >= 0.0f ? 0.5f : -0.5f)), static_cast<int>(std::max(0.0f, duration_seconds) * 1000.0f + 0.5f)));
+}
+
+void
+Controller::glideTrackSendMain(int track_id, float target_db, float duration_seconds) {
+  auto song = getCurrentSong();
+  auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
+  if (!leaf_track) return;
+  getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::GLIDE_TRACK_SEND_MAIN, getActiveBufferName(), track_id,
+    static_cast<int>(target_db * 10.0f + (target_db >= 0.0f ? 0.5f : -0.5f)), static_cast<int>(std::max(0.0f, duration_seconds) * 1000.0f + 0.5f)));
 }
 
 void

@@ -514,6 +514,43 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     }
     break;
 
+  // parameter2 is the target in tenths of a dB, parameter3 a duration in
+  // milliseconds (Controller::glideTrackSendA()/etc.'s own fixed-point
+  // encoding - see PlaybackControlEvent.h's own comment on why dB, not
+  // linear gain, this time) - the duration converted to frames here via
+  // this buffer's own real sample rate, since LeafTrackState::
+  // glideSendA()/etc. (and the ValueRamp underneath) only ever deal in
+  // frame counts, not wall-clock time.
+  case PlaybackControlEvent::GLIDE_TRACK_SEND_A:
+    {
+      auto track_state = dynamic_cast<LeafTrackState*>(state.getChildByInternalId(ev.getParameter1()));
+      if (track_state) {
+        int frames = static_cast<int>(std::lround((ev.getParameter3() / 1000.0f) * state.getChannelConfiguration().getAudioOutSampleRate()));
+        track_state->glideSendA(ev.getParameter2() / 10.0f, frames);
+      }
+    }
+    break;
+
+  case PlaybackControlEvent::GLIDE_TRACK_SEND_B:
+    {
+      auto track_state = dynamic_cast<LeafTrackState*>(state.getChildByInternalId(ev.getParameter1()));
+      if (track_state) {
+        int frames = static_cast<int>(std::lround((ev.getParameter3() / 1000.0f) * state.getChannelConfiguration().getAudioOutSampleRate()));
+        track_state->glideSendB(ev.getParameter2() / 10.0f, frames);
+      }
+    }
+    break;
+
+  case PlaybackControlEvent::GLIDE_TRACK_SEND_MAIN:
+    {
+      auto track_state = dynamic_cast<LeafTrackState*>(state.getChildByInternalId(ev.getParameter1()));
+      if (track_state) {
+        int frames = static_cast<int>(std::lround((ev.getParameter3() / 1000.0f) * state.getChannelConfiguration().getAudioOutSampleRate()));
+        track_state->glideSendMain(ev.getParameter2() / 10.0f, frames);
+      }
+    }
+    break;
+
   case PlaybackControlEvent::SET_BUS_EFFECT:
     state.setBusEffectKind(ev.getParameter1(), static_cast<BusEffectKind>(ev.getParameter2()));
     break;

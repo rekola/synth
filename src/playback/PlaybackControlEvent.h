@@ -48,10 +48,24 @@ class PlaybackControlEvent : public Event {
   // slot, so starting either one retriggers the other); PREVIEW_STOP
   // releases all of them at once (a no-op for whichever weren't doing
   // anything).
+  // GLIDE_TRACK_SEND_A/B/MAIN: the server-side-glide counterpart of
+  // SET_TRACK_SEND_A/B/MAIN - a Launchpad fader press's own (target,
+  // velocity-derived duration) triplet, not an instant value. parameter1 =
+  // track_id, parameter2 = target in tenths of a dB (SET_TRACK_AZIMUTH's
+  // own fixed-point convention, not SET_TRACK_SEND_A/B/MAIN's linear-gain
+  // one - the engine's own ramp interpolates in dB, the same space the
+  // Launchpad row layout this is driven from is itself linear in, so
+  // that's what travels over the wire too, converted to linear gain only
+  // once actually applied - see LeafTrackState.h's own comment on why),
+  // parameter3 = duration in milliseconds. Handled by starting a
+  // LeafTrackState::glideSendMain()/A()/B() ramp (Player.cpp) rather than
+  // setting the value outright - see LeafTrackState.h's own comment on
+  // why Pan has no such sibling.
   enum Type { PLAY = 1, STOP, TERMINATE, MOVE_POSITION, CLEAR_VOICES, PLAY_NOTE, STOP_NOTE, STOP_ALL_NOTES, NOTE_PRESSURE, MIXER_CHANGED,
               SET_TRACK_MUTED, SET_TRACK_SOLO, SET_TRACK_SEND_A, SET_TRACK_SEND_B, SET_TRACK_SEND_MAIN, SET_TRACK_AZIMUTH,
               CHANNEL_PRESSURE, SET_RECORDING_MUTE, SET_POSITION, BUFFER_KILLED, BUFFER_RENAMED, SET_BUS_EFFECT,
-              PLAY_SAMPLE_CLIP, PREVIEW_NOTE, PREVIEW_POOL_NOTE, PREVIEW_GROOVE, PREVIEW_STOP };
+              PLAY_SAMPLE_CLIP, PREVIEW_NOTE, PREVIEW_POOL_NOTE, PREVIEW_GROOVE, PREVIEW_STOP,
+              GLIDE_TRACK_SEND_A, GLIDE_TRACK_SEND_B, GLIDE_TRACK_SEND_MAIN };
 
   // buffer_name says which open buffer this event targets - required for
   // every type except the genuinely buffer-agnostic ones (TERMINATE,

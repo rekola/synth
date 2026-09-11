@@ -5,12 +5,14 @@
 #include "../src/model/SampleTrack.h"
 #include "../src/model/SampleContent.h"
 #include "../src/model/InstrumentTrack.h"
+#include "../src/model/LeafTrack.h"
 #include "../src/model/PercussionTrack.h"
 #include "../src/model/ArrangementOps.h"
 #include "../src/model/Clip.h"
 #include "../src/audio/AudioBuffer.h"
 #include "../src/ambisonic/ChannelConfiguration.h"
 #include "../src/state/PlaybackInfo.h"
+#include "../src/state/TrackInfo.h"
 #include "../src/playback/PlaybackControlEvent.h"
 
 #include <algorithm>
@@ -18,6 +20,7 @@
 #include <fstream>
 #include <set>
 #include <sstream>
+#include <unordered_map>
 
 #ifndef TESTS_FIXTURES_DIR
 #define TESTS_FIXTURES_DIR "."
@@ -154,6 +157,54 @@ TEST(controller_position_edit_seq_does_not_leak_across_buffers) {
   controller.receivePlaybackSnapshot(buffer_b, snapshot);
 
   CHECK(controller.getPlaybackInfo().getRowIndex() == 5);
+}
+
+// syncLiveSendsIntoModel() - receivePlaybackSnapshot()'s own model-sync
+// half (Controller::glideTrackSendA()/etc.'s own comment on why the model
+// isn't written at press time any more): a snapshot carrying a track's
+// real, engine-reported live Send A (TrackInfo::getLiveSendA(), the same
+// field LeafTrackState::renderVoices() populates) must be mirrored into
+// that track's own model-layer LeafTrack, not just held in
+// getPlaybackInfo() - so anything reading the model (Launchpad's own LED
+// refresh included) sees what the engine actually did.
+TEST(receive_playback_snapshot_syncs_a_tracks_live_send_into_the_model) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto buffer_name = controller.getActiveBufferName();
+
+  auto & track = dynamic_cast<LeafTrack &>(controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0)));
+  auto track_id = track.getInternalId();
+  CHECK(track.getSends().a == 0.0f); // the track's own untouched default
+
+  std::unordered_map<int, TrackInfo> track_info;
+  track_info[track_id] = TrackInfo(true, false, -1.0f, 1.0f, 0.42f, 1.0f); // live_send_a = 0.42f
+  PlaybackInfo snapshot;
+  snapshot.setTrackInfo(std::move(track_info));
+
+  controller.receivePlaybackSnapshot(buffer_name, snapshot);
+
+  CHECK_NEAR(track.getSends().a, 0.42f, 1e-6f);
+}
+
+// A track this session's live engine has never actually rendered (no
+// TrackInfo entry for it at all in the snapshot) must be left alone -
+// TrackInfo::hasLiveSends()'s own -1.0f "not reported" sentinel is what
+// tells "genuinely reported 0" apart from "no live data yet", and a
+// snapshot missing a track entirely must not silently zero its model.
+TEST(receive_playback_snapshot_leaves_a_track_with_no_live_data_untouched) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto buffer_name = controller.getActiveBufferName();
+
+  auto & track = dynamic_cast<LeafTrack &>(controller.getSong().addTrack(std::make_unique<InstrumentTrack>(0)));
+  track.setSendA(0.7f); // a real, hand-set value - not the default
+
+  PlaybackInfo snapshot; // no TrackInfo entries at all
+  controller.receivePlaybackSnapshot(buffer_name, snapshot);
+
+  CHECK_NEAR(track.getSends().a, 0.7f, 1e-6f);
 }
 
 TEST(controller_disambiguates_buffers_sharing_a_basename) {

@@ -125,7 +125,12 @@ public:
     data.zero();
     for (auto & [ pos, s ] : chunks) data.assignNamed(s, pos);
 
-    setTrackInfo(TrackInfo( isActive(), data.isClipping(), data.calculateMainRMS() ));
+    // getSends() is already this block's own post-glide value - every
+    // chunk's own renderVoices() call above already advanced it via
+    // advanceSendRamps() - so this overwrite of that call's own TrackInfo
+    // (real RMS/clipping now known for the whole block, not just one
+    // chunk) still carries the live send values forward correctly.
+    setTrackInfo(TrackInfo( isActive(), data.isClipping(), data.calculateMainRMS(), getSends().main, getSends().a, getSends().b ));
 
     return data;
   }

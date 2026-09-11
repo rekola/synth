@@ -720,6 +720,24 @@ class LaunchpadManager {
     // everything a device needs into DeviceState" rule track_send_main/
     // etc. above already follow.
     std::array<int, 8> track_send_main_micro {}, track_send_a_micro {}, track_send_b_micro {}, track_azimuth_micro {};
+    // Which row refreshLeds() should actually treat as "the fader's own
+    // current top pad" - the row this fader was last explicitly pressed
+    // to (FaderState::last_pressed_row) when it's ever been touched, -1
+    // otherwise (no press to prefer - refreshLeds() falls back to
+    // deriving a row from the live value itself, sendLinearToRow()/
+    // azimuthToRow(), the same way it always did). Needed because that
+    // value->row derivation rounds to the *nearest* row - correct for a
+    // value that arrived some other way (loaded from a song, automation,
+    // a different device), but wrong once a micro-value cycle
+    // (FaderState::micro_step) pushes the live value more than halfway
+    // toward the *next* row: rounding would flip the displayed "current"
+    // row to that neighbor, bleeding the micro-value's own brightness
+    // scale onto the row above instead of the one actually pressed. Only
+    // trusted when the live value is still within this row's own span
+    // (refreshLeds()'s own guard) - a value that's since moved somewhere
+    // else entirely (a stale last_pressed_row from a much earlier press)
+    // falls back to the plain derived row instead of showing a wrong one.
+    std::array<int, 8> track_send_main_row {}, track_send_a_row {}, track_send_b_row {}, track_azimuth_row {};
     // How many of the 8 columns actually have a track behind them (0-8) -
     // a column past this has no real value to show (its array slot is
     // just a stale/default 0.0f, not "this track's level is 0"), so
@@ -1022,6 +1040,28 @@ class LaunchpadManager {
   // for why that matters.
   static float applyFaderPress(FaderState & fader, float current_value, int pressed_row, int velocity,
     float (*rowToValue)(int), float full_range, bool wraps, const std::function<void(float)> & apply);
+
+  // Send Main/A/B's own press resolver - applyFaderPress()'s row/micro-
+  // value math (same FaderState::touched/last_pressed_row/micro_step
+  // bookkeeping, same fresh-row-vs-same-row-repeat distinction), but with
+  // none of its client-side glide/apply-callback machinery: Send's own
+  // glide is server-side now (Controller::glideTrackSendA()/B()/Main()),
+  // fired once as a (target, duration) pair rather than driven by repeated
+  // apply() calls - there's no local ramp left for tickFaderRamps() to
+  // advance. `fader`'s own ramping/start_time/duration_seconds fields are
+  // still written here, purely as passive bookkeeping (never ticked/
+  // advanced by anything any more) so a second press landing on the same
+  // row *while the server-side glide it kicked off is probably still in
+  // flight* is still resolved as "retarget the glide", not misread as a
+  // micro-value tap the way it would be once that glide has genuinely had
+  // time to finish. Sets `is_micro_tap` (instant, no glide at all - see
+  // FaderState's own micro_step comment) or `out_duration_seconds` (a
+  // fresh row's own velocity/distance-scaled duration, applyFaderPress()'s
+  // own formula) depending on which this press turned out to be; always
+  // returns the resolved target itself either way.
+  static float resolveSendFaderTarget(FaderState & fader, float current_value, int pressed_row, int velocity,
+    bool & is_micro_tap, float & out_duration_seconds);
+
   // Advances every in-flight ramp above by however long it's actually
   // been since the last call (steady_clock, not a fixed per-call step -
   // refresh() isn't called on a fixed schedule, see hasActiveFaderRamp()'s
@@ -1049,14 +1089,24 @@ class LaunchpadManager {
   // Clip would). A no-op otherwise - a fader move made while just
   // auditioning (not recording) still moves the live value, same as
   // always, just doesn't get captured anywhere. Called exactly once per
-  // press (handlePadEvent()'s own SEND_A/SEND_B/SEND_MAIN branches,
-  // using applyFaderPress()'s own returned target) - deliberately *not*
-  // from tickFaderRamps(): the glide a press kicks off is Launchpad's
-  // own real-time/audio-feel interpolation between presses, not itself
-  // part of what gets recorded, so tracing its every tick here would
+  // press (handlePadEvent()'s own SEND_A/SEND_B/SEND_MAIN branches, using
+  // resolveSendFaderTarget()'s own returned target - Pan, the one
+  // remaining applyFaderPress() caller, never records at all) - never
+  // called again as that press's own glide actually plays out, whether
+  // that glide is Launchpad's own client-side one (Pan) or the engine's
+  // (Send Main/A/B, LeafTrackState::glideSendA()/etc.): either way, the
+  // glide itself is real-time/audio-feel interpolation only, not itself
+  // part of what gets recorded, so tracing it into the data here would
   // bake that same interpolation into the data a future engine-side
   // playback interpolation phase is meant to reconstruct instead - this
   // only ever records the one discrete target each press itself means.
+  // That target is also as far as this goes: the press's own velocity-
+  // derived glide duration (resolveSendFaderTarget()'s own
+  // out_duration_seconds) never reaches here at all, so a recorded move
+  // can't (yet) reproduce how fast the original press glided, only where
+  // it ended up - the deferred playback-interpolation phase's own
+  // forward-lookahead scan is what decides a replayed glide's timing
+  // instead, from row distance, not this.
   void recordFaderAutomationIfArmed(Controller & controller, FaderState & fader, int track_id, Command command);
 
   // The Session-view-wide shared quantization reference ("beat 1") every

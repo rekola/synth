@@ -672,6 +672,23 @@ class Controller {
   void setTrackSendMain(int track_id, float value);
   void setTrackAzimuth(int track_id, float value);
 
+  // The server-side-glide counterpart of the three instant setters above -
+  // value/duration_seconds in the same dB/wall-clock-seconds units
+  // LaunchpadManager::applyFaderPress()'s own velocity-scaled duration
+  // formula already produces. Deliberately does *not* touch the model the
+  // way the instant setters do: only the live engine actually glides,
+  // toward this target, over this many seconds; the model gets updated the
+  // other direction instead, mirroring whatever the engine's own real,
+  // possibly-still-gliding value is (receivePlaybackSnapshot(), via
+  // TrackInfo::getLiveSendMain()/A()/B()) - so the model never claims to
+  // already be at a value the engine hasn't actually reached yet. No
+  // glideTrackAzimuth() sibling - Pan keeps setTrackAzimuth()'s existing
+  // instant model write, still driven by Launchpad's own client-side glide
+  // (LeafTrackState.h's own comment on why).
+  void glideTrackSendA(int track_id, float target_db, float duration_seconds);
+  void glideTrackSendB(int track_id, float target_db, float duration_seconds);
+  void glideTrackSendMain(int track_id, float target_db, float duration_seconds);
+
   // Note columns (chord/polyphony width, VisibleTrackInfo::num_subtracks_)
   // are otherwise purely derived from actual note data (see Pattern::
   // getTrackInformation()) - these two adjust LeafTrack's own
@@ -977,6 +994,13 @@ class Controller {
   const InstrumentProvider & getInstrumentProvider() const { return instrument_provider; }
 
  private:
+  // receivePlaybackSnapshot()'s own model-sync half - see
+  // glideTrackSendA()/B()/Main()'s own comment for why this direction
+  // (engine's real value -> model) exists at all now, rather than the
+  // model just being written at press time the way every other live knob
+  // still is.
+  void syncLiveSendsIntoModel(const std::string & buffer_name, const PlaybackInfo & info);
+
   ChannelConfiguration channel_config;
   MixerType mixer_type_ = MixerType::AMBISONIC_STEREO;
   bool use_legacy_binaural_ = false;

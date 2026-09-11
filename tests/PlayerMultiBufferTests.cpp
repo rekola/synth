@@ -3,6 +3,7 @@
 #include "../src/model/Song.h"
 #include "../src/model/InstrumentTrack.h"
 #include "../src/state/SongState.h"
+#include "../src/state/TrackInfo.h"
 #include "../src/instruments/Oscillator.h"
 #include "../src/instruments/WaveformType.h"
 #include "../src/instruments/GenericInstrument.h"
@@ -17,6 +18,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <unordered_map>
 
 using namespace std;
 
@@ -210,6 +212,61 @@ TEST(live_note_off_reclaims_the_voice) {
   for (int block = 0; block < 200; block++) state->renderBlock(256, song, *mixer);
 
   CHECK(state->getVoiceCount() == 0);
+}
+
+// GLIDE_TRACK_SEND_A end to end through the real event path (the same one
+// Controller::glideTrackSendA() pushes into, LaunchpadManager's own
+// resolveSendFaderTarget()'s eventual caller) - parameter2/parameter3
+// encoded exactly as Controller::glideTrackSendA() itself would now
+// (target in tenths of a dB, not linear gain - PlaybackControlEvent.h's
+// own comment on why; duration in milliseconds), proving Player.cpp's own
+// ms-to-frames conversion (via this buffer's real sample rate) lands a
+// glide that's genuinely still in flight partway through its own
+// duration, not already settled, checked in dB (the ramp's own space, not
+// linear gain - see LeafTrackState.h's own comment on why that
+// distinction matters here).
+TEST(glide_track_send_a_event_interpolates_over_its_own_duration) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto buffer_name = controller.getActiveBufferName();
+
+  auto & song = controller.getSong();
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+
+  Player player(config, &controller);
+
+  // A known, non-extreme starting point (-40dB) via the plain instant
+  // setter - SET_TRACK_SEND_A's own linear-gain*1000 encoding, unrelated
+  // to the glide event below.
+  PlaybackControlEvent set_start(PlaybackControlEvent::SET_TRACK_SEND_A, buffer_name, track.getInternalId(),
+    static_cast<int>(powf(10.0f, -40.0f * 0.05f) * 1000.0f + 0.5f));
+  player.handlePlaybackControlEvent(set_start);
+
+  int duration_ms = 100;
+  PlaybackControlEvent glide(PlaybackControlEvent::GLIDE_TRACK_SEND_A, buffer_name, track.getInternalId(),
+    0 /* target 0dB/unity, tenths */, duration_ms);
+  player.handlePlaybackControlEvent(glide);
+
+  auto * state = player.getLiveStateForTest(buffer_name);
+  CHECK(state != nullptr);
+  if (!state) return;
+
+  auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+  int total_frames = config.getAudioOutSampleRate() * duration_ms / 1000;
+
+  std::unordered_map<int, TrackInfo> info;
+  state->renderBlock(total_frames / 2, song, *mixer);
+  state->getAllTrackInfo(info);
+  // Halfway between -40dB and 0dB is -20dB - not roughly -40dB (as a
+  // linear-space ramp would still show) or roughly 0dB (an instant jump).
+  float halfway_db = 20.0f * log10f(info[track.getInternalId()].getLiveSendA());
+  CHECK_NEAR(halfway_db, -20.0f, 1.0f);
+
+  state->renderBlock(total_frames / 2, song, *mixer);
+  state->getAllTrackInfo(info);
+  CHECK_NEAR(info[track.getInternalId()].getLiveSendA(), 1.0f, 1e-3f); // 0dB = unity
 }
 
 // OutlineView's own instrument-audition path (PlaybackControlEvent::
