@@ -2774,15 +2774,30 @@ TerminalUI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   // just press - its own tap-vs-long-hold toggle/blank-canvas gesture
   // (LaunchpadManager::handleDrawToggleButton()). Routed here before the
   // press-only filter below, which every other raw-CC button (and every
-  // other release) still goes through unchanged. CC49 ("Stop Clip") and
-  // CC97 ("Custom") don't need this - both are plain press-only toggles,
-  // handled by handleRawButton() alongside Session/Note below.
+  // other release) still goes through unchanged. CC97 ("Custom") doesn't
+  // need this - it's a plain press-only toggle, handled by
+  // handleRawButton() alongside Session/Note below.
   if (ev.getCCNumber() == 98) {
     launchpad_manager_->handleDrawToggleButton(device_id, ev.getKind() == LaunchpadButtonEvent::PRESS);
     return;
   }
 
-  if (ev.getKind() != LaunchpadButtonEvent::PRESS) return;
+  // The mixer radio group's own nine CC numbers (Volume/Pan/Send A/Send B/
+  // Stop Clip/Mute/Solo, Pro MK3's Mute/Solo twins -
+  // LaunchpadManager::isMixerFunctionButton()) need release too, for their
+  // own momentary hold-to-preview gesture
+  // (LaunchpadManager::handleMixerFunctionRelease()) - same reasoning as
+  // CC98 above, just a release-only rather than a press-and-release
+  // handler, since the press half is still handleRawButton()'s own
+  // press-only entry point below, unchanged.
+  if (LaunchpadManager::isMixerFunctionButton(ev.getCCNumber())) {
+    if (ev.getKind() != LaunchpadButtonEvent::PRESS) {
+      launchpad_manager_->handleMixerFunctionRelease(device_id);
+      return;
+    }
+  } else if (ev.getKind() != LaunchpadButtonEvent::PRESS) {
+    return;
+  }
 
   // Send A/B: a direct hardware-state toggle (this device's own transient
   // grid-display mode), never a command - intercepted here, by raw CC
@@ -2958,8 +2973,26 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
 
     updateEscapeIndicator();
 
+    // A Launchpad fader glide (LaunchpadManager::applyFaderPress()) has
+    // nothing of its own to wake poll() with - it only advances when
+    // refresh() (called from renderComponents() below) actually runs, so
+    // the wait is capped low enough for a smooth glide instead of the
+    // ~1s idle timeout that's otherwise fine, the same reasoning as
+    // escapeIndicatorPollTimeoutMs()'s own shortened wait for its
+    // delayed indicator.
+    constexpr int kFaderRampPollTimeoutMs = 30;
+    bool fader_ramp_active = launchpad_manager_ && launchpad_manager_->hasActiveFaderRamp();
+    int poll_timeout_ms = escapeIndicatorPollTimeoutMs();
+    if (fader_ramp_active) poll_timeout_ms = std::min(poll_timeout_ms, kFaderRampPollTimeoutMs);
+
     // setStatus("polling");
-    if (poll(descriptors.get(), num_descriptors, escapeIndicatorPollTimeoutMs()) > 0) {
+    int poll_result = poll(descriptors.get(), num_descriptors, poll_timeout_ms);
+    if (poll_result == 0 && fader_ramp_active) {
+      // Nothing else woke this iteration, but a glide still needs
+      // ticking forward - renderComponents() below is what actually does
+      // that (LaunchpadManager::refresh()'s own tickFaderRamps() call).
+      render |= renderComponents();
+    } else if (poll_result > 0) {
       for (size_t i = 0; i < num_descriptors; i++) {
 	auto & d = descriptors[i];
 	if (d.revents) {

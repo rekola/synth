@@ -176,7 +176,23 @@ Found 2026-07-11, not yet fixed.
   fail the same 3/9 checks (the ones that don't merely need the very first,
   pre-stall LED dump) with these two included, confirmed reproducing
   bit-for-bit identically across repeated runs, not a regression from that
-  work.
+  work. (This particular script's own failure count has since drifted
+  further in this sandbox, independent of any of the above - see the
+  `verify_launchpad_mixer_hold.py` bullet below.)
+
+  `tools/e2e/verify_launchpad_mixer_hold.py` (new, covering the mixer
+  radio group's own momentary hold-to-preview gesture -
+  `LaunchpadManager::armMixerHoldPreview()`/`handleMixerFunctionRelease()`)
+  hits the identical stall for the identical reason, right after its own
+  first CC95 mixer-submode-entry press - 1/6 checks pass (only the
+  startup Programmer-Mode handshake), reproducing identically across
+  repeated runs and identically on an unmodified checkout predating this
+  feature (confirmed by `git stash`-ing this work and re-running
+  `verify_launchpad_stopclip.py` alone, which already reproduces its own
+  1/9 - down from the 3/9 recorded above, this sandbox's own stall
+  severity apparently isn't perfectly stable run to run either - on that
+  same unmodified checkout), so this is the same pre-existing
+  environmental limitation, not a regression from this feature.
 
   This sandbox also had real Launchpad X and Launchpad Mini MK3 hardware
   attached (confirmed via `aconnect -l` - `type=kernel` clients, not the
@@ -199,6 +215,35 @@ Found 2026-07-11, not yet fixed.
   the fix in case this exact cross-talk symptom is ever seen again on a
   sandbox with `SYNTH_LAUNCHPAD_NO_HARDWARE` for some reason not taking
   effect (e.g. a `harness.py` bypassed, or predating this fix).
+
+- **`tools/e2e/verify_launchpad_sendmode.py`'s own row-math predates the
+  current dB-based Send fader curve** (`sendRowToDb()`/`sendLinearToRow()`
+  in `LaunchpadManager.cpp`), not anything touched by the velocity-scaled
+  glide/micro-value work above. Its docstring/comments describe an old
+  linear `row = round(value * 7)` mapping - under that, the fixture's
+  initial `sendA=0.3` would resolve to row 2, and pressing row 5 would be
+  a clear, large jump to ~0.714. Under the real curve, `linearToDb(0.3)`
+  already resolves to row 5 on its own (confirmed by comparing an
+  unmodified checkout's own "before press" LED dump against its "after
+  press" one - both already read identically, `(00, 7f, 7f)`, before any
+  of this session's changes), so pressing row 5 barely moves anything and
+  the two checks built on "this press visibly changes row 5" (3 of the
+  script's 6) have been silently checking a near-no-op for some time,
+  independent of anything in this file. Confirmed the glide/micro-value
+  work reproduces this exact same pre-existing final LED state byte-for-
+  byte against an unmodified checkout, not a regression from it. Not
+  fixed - the fixture would need to press a row genuinely far from
+  `sendA`'s own starting point (e.g. row 0 or 7) to demonstrate a real
+  change under the current curve, and its own docstring math corrected to
+  match.
+
+- **`LaunchpadManager`'s fader glide/micro-value feature (`applyFaderPress()`/
+  `tickFaderRamps()`) has no e2e coverage for the Pan path**, only Send A
+  (`verify_launchpad_sendmode.py`/`verify_launchpad_sendmode_autocreate.py`)
+  - Pan's own `wraps = true` branch (row 7 neighboring row 0, unlike a
+  Send's true ceiling there) is exercised only by reasoning/code review,
+  not a real simulated press sequence. Not fixed - would need a new
+  `fake_launchpad_pan.c`/`verify_launchpad_pan.py` pair.
 
 - **A voice's envelope keeps progressing while playback is stopped**, so a
   long-held note can resume out of sync with the (frozen) row/pattern

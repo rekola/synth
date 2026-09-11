@@ -34,6 +34,7 @@ gcc -o fake_launchpad_notecustom fake_launchpad_notecustom.c -lasound
 gcc -o fake_launchpad_stopclip fake_launchpad_stopclip.c -lasound
 gcc -o fake_launchpad_mute_picker fake_launchpad_mute_picker.c -lasound
 gcc -o fake_launchpad_aftertouch_clip fake_launchpad_aftertouch_clip.c -lasound
+gcc -o fake_launchpad_mixer_hold fake_launchpad_mixer_hold.c -lasound
 ```
 
 (the compiled binaries are gitignored - only the `.c` sources are
@@ -224,6 +225,17 @@ you're changing.
   note-on's own row. Polls every currently-visible row rather than
   assuming a fixed one, since the exact row a message lands on depends on
   real wall-clock/audio-thread timing.
+- **`fake_launchpad_mixer_hold.c` / `verify_launchpad_mixer_hold.py`** -
+  the mixer radio group's own momentary hold-to-preview gesture
+  (`LaunchpadManager::armMixerHoldPreview()`/`handleMixerFunctionRelease()`):
+  enters Session's own mixer submode, quick-taps Send A (CC69) so it
+  becomes the sticky selection, long-holds Mute (CC39, past the 600ms
+  threshold) and releases - confirms Send A's own LED is bright again
+  afterward (reverted, not left on Mute), then quick-taps Mute again as a
+  control - confirms it stays bright this time (sticky, no hold
+  involved). Same known, pre-existing environment limitation as
+  `verify_launchpad_stopclip.py` above (it also presses CC95 a second
+  time to enter mixer submode) - see `docs/known_bugs.md`.
 - **`cross_tuning_paste_test.xml` (+ companion `..._song_b.xml`) /
   `verify_patterneditor_cross_tuning_paste.py`** - a `Note::getValue()`
   means a different kind of value under a different tuning (GM percussion

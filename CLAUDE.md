@@ -360,7 +360,17 @@ whether or not a terminal UI exists at all.
   `toggleTrackPicker()`/`inSessionMixerFamily()` - pressing a different
   one always switches straight to it, even crossing between the fader-
   as-`GridMode` and picker-as-overlay mechanisms; pressing the one
-  already active closes back to the plain Session grid). Reachable only
+  already active closes back to the plain Session grid). A press that
+  switches to a genuinely different member always applies immediately
+  (never waits for release to decide anything), but a real hold (>= 600ms,
+  `kMixerHoldPreviewThreshold`) reverts back to whatever was showing right
+  before that press once released - a momentary preview
+  (`armMixerHoldPreview()`/`handleMixerFunctionRelease()`), matching the
+  real hardware/Ableton convention; a quick tap leaves the switch standing
+  (sticky, the ordinary case). Only a press that's actually switching to a
+  different member arms this - repressing the one already active (which
+  closes it) never does, since there's nothing to preview-and-revert about
+  turning the whole group off. Reachable only
   from `GridMode::SESSION` (a no-op from `NOTES`/`CUSTOM`/`DRAW`) - this
   is what keeps the fader column mapping (the first 8 root tracks) from
   ever disagreeing with the track-picker overlay's own column mapping
@@ -572,7 +582,11 @@ whether or not a terminal UI exists at all.
   is on; Solo's own CC29 purpose reuses the identical mechanism but has no
   dedicated e2e script of its own yet, nor does the scene-launch action
   the same seven buttons perform while mixer submode is off
-  (`LaunchpadManager::triggerSceneRow()`). Every e2e script spawns `synth`
+  (`LaunchpadManager::triggerSceneRow()`). `verify_launchpad_mixer_hold.py`
+  covers the same seven buttons' own momentary hold-to-preview gesture
+  (`armMixerHoldPreview()`/`handleMixerFunctionRelease()`) - a quick tap
+  stays (sticky), a real hold reverts to whatever was showing before it
+  once released. Every e2e script spawns `synth`
   with `SYNTH_LAUNCHPAD_NO_HARDWARE=1` (`tools/e2e/harness.py`'s own
   `spawn()`) so it only ever connects to the fake simulator it's actually
   testing, never any real Launchpad hardware also plugged into the same

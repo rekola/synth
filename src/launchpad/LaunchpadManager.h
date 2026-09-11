@@ -334,6 +334,29 @@ class LaunchpadManager {
   // release. Routed here directly from CC98 by UI::handleLaunchpadButtonEvent.
   bool handleDrawToggleButton(int device_id, bool is_press);
 
+  // True for the mixer radio group's own nine CC numbers (Volume/Pan/
+  // Send A/Send B/Stop Clip/Mute/Solo, plus Pro MK3's left-column Mute/
+  // Solo twins) - handleRawButton()'s own big dispatch condition reuses
+  // this rather than repeating the list, and UI::handleLaunchpadButtonEvent
+  // uses it the same way it singles out CC98 - these also need both press
+  // and release (momentary hold-to-preview - see armMixerHoldPreview()'s
+  // own comment), not just handleRawButton()'s press-only entry point.
+  static bool isMixerFunctionButton(int cc_number);
+  // The release half of the momentary hold-to-preview gesture above - a
+  // no-op unless the press this releases actually armed one (only a
+  // press that switched to a genuinely different mixer-family member
+  // does, never a repress of the one already active - see DeviceState::
+  // mixer_hold_pending's own comment). A quick tap (released before the
+  // threshold) leaves the switch that already happened on press standing
+  // - sticky, the ordinary case; a real hold reverts the display back to
+  // whatever was showing right before this press, Novation's own "press
+  // and hold Volume ... release Volume to return to mute view"
+  // convention. Routed here directly from these CCs'
+  // release, the same way CC98's own release reaches
+  // handleDrawToggleButton() - never through handleRawButton(), which is
+  // press-only.
+  void handleMixerFunctionRelease(int device_id);
+
   // Whether pad (any x, `y`) on this device should be captured by the
   // track-picker overlay rather than whatever grid_mode would otherwise
   // handle it - true only for the picker row itself, and only while the
@@ -495,6 +518,16 @@ class LaunchpadManager {
   // before that clock existed.
   void refresh(const Song & song, const std::vector<int> & track_ids, const PlaybackInfo & playback_info, int fallback_track_index, Controller & controller, const SessionWindow & session);
 
+  // Whether any track's Volume/Pan/Send A/Send B fader is still gliding
+  // toward a pressed target (see fader_state_send_main_/etc.'s own
+  // comment) - refresh() only ticks a ramp forward when it's actually
+  // called, and the main event loop otherwise only calls it on real input
+  // or a coarse ~1s idle timeout, far too infrequent for a smooth glide -
+  // so the loop checks this to shorten its own poll wait while a ramp is
+  // in flight, the same way it already shortens it for the Escape-chord
+  // indicator's own delayed appearance.
+  bool hasActiveFaderRamp() const;
+
  private:
   struct DeviceState {
     // Relative to Controller::getGlobalOctave(), not an absolute octave -
@@ -626,6 +659,24 @@ class LaunchpadManager {
     enum class TrackPickerPurpose { STOP_CLIP, MUTE, SOLO };
     TrackPickerPurpose track_picker_purpose = TrackPickerPurpose::STOP_CLIP;
 
+    // Momentary hold-to-preview across the mixer radio group's seven
+    // members (armMixerHoldPreview()/handleMixerFunctionRelease()) -
+    // whether the press currently switching the display was itself a
+    // switch to a genuinely different member (as opposed to a repress of
+    // the one already active, which closes it outright and needs no
+    // preview tracking), and if so, what was showing right before it, to
+    // restore on release if the press turns out to have been a real hold
+    // rather than a quick tap. `mixer_hold_previous_track_picker_purpose`
+    // is only meaningful together with
+    // `mixer_hold_previous_track_picker_active`, same as
+    // `track_picker_purpose` itself is only meaningful together with
+    // `track_picker_active`.
+    bool mixer_hold_pending = false;
+    std::chrono::steady_clock::time_point mixer_hold_press_time;
+    GridMode mixer_hold_previous_grid_mode = GridMode::SESSION;
+    bool mixer_hold_previous_track_picker_active = false;
+    TrackPickerPurpose mixer_hold_previous_track_picker_purpose = TrackPickerPurpose::STOP_CLIP;
+
     // Same "computed once in refresh(), copied into every device
     // identically" shape as session_colors below - one flag per selectable
     // track (column index matches session_.track_ids, the same list
@@ -662,6 +713,12 @@ class LaunchpadManager {
     // (e.g. right after opening a mode). Only meaningful/painted when
     // grid_mode selects the matching one.
     std::array<float, 8> track_send_main {}, track_send_a {}, track_send_b {}, track_azimuth {};
+    // Each column's own current micro-value step (0-3, see
+    // fader_state_send_main_/etc.'s own comment) - refreshLeds() uses this
+    // to brighten/dim just the fader's own top pad, the same "mirror
+    // everything a device needs into DeviceState" rule track_send_main/
+    // etc. above already follow.
+    std::array<int, 8> track_send_main_micro {}, track_send_a_micro {}, track_send_b_micro {}, track_azimuth_micro {};
     // How many of the 8 columns actually have a track behind them (0-8) -
     // a column past this has no real value to show (its array slot is
     // just a stale/default 0.0f, not "this track's level is 0"), so
@@ -881,6 +938,75 @@ class LaunchpadManager {
   // track; triggerClipStep() below treats both the same way. See its own
   // comment for exactly when a queued entry actually takes effect.
   std::unordered_map<int, int> queued_pattern_by_track_;
+
+  // Volume/Pan/Send A/Send B's own fader-press state - shared across every
+  // connected device the same way track_send_main/etc. mirror one live
+  // model value everywhere, not per-device: a press glides the pressed
+  // track's own value toward that row's canonical one (rate scaled by
+  // press velocity - a harder hit arrives sooner) rather than snapping
+  // instantly, and repressing the row the fader is already resting on
+  // instead cycles 4 finer "micro" values around that row's own canonical
+  // one (both matching the real hardware/Ableton convention).
+  // `target_value`/`start_value`/`full_range` are all in whatever unit
+  // that parameter's own row<->value conversion already uses (dB for the
+  // three Sends, degrees for Pan) so
+  // tickFaderRamps() can share one generic implementation across all four.
+  // A track absent from a given map has never had that fader touched -
+  // there's nothing to glide or offset, so it just shows the model's own
+  // value directly, same as before this existed.
+  struct FaderState {
+    bool ramping = false;
+    float start_value = 0.0f, target_value = 0.0f, full_range = 1.0f;
+    std::chrono::steady_clock::time_point start_time;
+    float duration_seconds = 0.0f;
+    // Whether this fader has ever actually been pressed via a Launchpad
+    // before, and if so, which row that (most recent) press landed on -
+    // *not* derived by re-resolving the live value back to a row, since
+    // the live value can coincidentally already sit at/near a given row
+    // for reasons that have nothing to do with ever having pressed it
+    // there (loaded from a song file, set from the terminal UI, or simply
+    // rounding into the same row a different value already occupied) -
+    // applyFaderPress() needs to tell "you just pressed the row you're
+    // already sitting on again" (a micro-value tap) apart from "you
+    // pressed a row that happens to already match the value" (a plain,
+    // if silent, press - still not a repeat), and only genuine repetition
+    // of the *press itself* means the former.
+    bool touched = false;
+    int last_pressed_row = -1;
+    // 0 (this row's own plain canonical value, no micro-offset at all -
+    // what a first, non-repeated press onto this row leaves it at) or 1-4
+    // (one of the 4 real micro-values between this row and the next,
+    // dimmest at 1 up to full brightness again at 4 - matching the real
+    // hardware/Ableton convention exactly). Repressing the row already at
+    // 0 enters micro-adjustment at 1; repressing again at 4 wraps back to
+    // 1, never back to 0 - only pressing a genuinely *different* row does
+    // that (see applyFaderPress()'s own comment).
+    int micro_step = 0;
+  };
+  std::unordered_map<int, FaderState> fader_state_send_main_, fader_state_send_a_, fader_state_send_b_, fader_state_azimuth_;
+  // handlePadEvent()'s own SEND_A/SEND_B/SEND_MAIN/PAN branch calls this
+  // once per press - shared across all four parameters via `rowToValue`
+  // (sendRowToDb, or rowToAzimuth) and `wraps` (only Pan's row 7
+  // neighbors row 0, a real circular position - a Send's row 7 is a true
+  // ceiling, so its own micro-values above it just collapse to its own
+  // value rather than wrapping toward "off"). Decides which of the two
+  // press behaviors this is (a fresh glide, or a same-row micro-value
+  // cycle - see FaderState's own `touched`/`last_pressed_row` comment)
+  // and calls `apply` with the immediate value to set: for a fresh glide
+  // that's just the unchanged starting value (tickFaderRamps() carries it
+  // from there); for a micro-value cycle, the newly-computed one, right
+  // away.
+  static void applyFaderPress(FaderState & fader, float current_value, int pressed_row, int velocity,
+    float (*rowToValue)(int), float full_range, bool wraps, const std::function<void(float)> & apply);
+  // Advances every in-flight ramp above by however long it's actually
+  // been since the last call (steady_clock, not a fixed per-call step -
+  // refresh() isn't called on a fixed schedule, see hasActiveFaderRamp()'s
+  // own comment), pushing each newly-interpolated value through the same
+  // Controller setter a full press already uses so the live audio engine
+  // and every connected device's own LED mirror both hear the glide as it
+  // happens, not just its final value.
+  void tickFaderRamps(Controller & controller);
+
   // The Session-view-wide shared quantization reference ("beat 1") every
   // queued join/swap/stop above (and the launch_step of the pattern that
   // fires the moment one of them takes effect) is measured against: a
@@ -956,6 +1082,17 @@ class LaunchpadManager {
   // fader buttons, which leaves the overlay and enters that GridMode
   // directly.
   void toggleTrackPicker(int device_id, DeviceState::TrackPickerPurpose purpose);
+
+  // Called from both toggleGridMode() and toggleTrackPicker(), before
+  // either actually mutates `state`, so it always sees whatever was
+  // genuinely showing right before this press - the momentary-hold-to-
+  // preview gesture's own "what to revert to" (DeviceState::
+  // mixer_hold_pending's own comment). `already_active` is each caller's
+  // own pre-computed "is this a repress of the member already showing"
+  // check - that case closes the overlay/fader outright and never arms
+  // preview tracking, since there is nothing to preview-and-revert about
+  // turning the whole radio group off.
+  void armMixerHoldPreview(DeviceState & state, bool already_active);
 
   // True iff this device is already showing something from Session's own
   // mixer-submode radio group - GridMode::SESSION itself, one of the four

@@ -51,6 +51,7 @@ tools/e2e/fake_launchpad_notecustom
 tools/e2e/fake_launchpad_stopclip
 tools/e2e/fake_launchpad_mute_picker
 tools/e2e/fake_launchpad_aftertouch_clip
+tools/e2e/fake_launchpad_mixer_hold
 tools/e2e/*.log
 tools/e2e/__pycache__
 
