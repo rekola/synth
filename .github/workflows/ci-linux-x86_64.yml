@@ -36,6 +36,7 @@ jobs:
             libsndfile1-dev \
             libasound2-dev \
             libunistring-dev \
+            libsoundtouch-dev \
             fluid-soundfont-gm
 
       - name: Configure
