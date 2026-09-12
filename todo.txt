@@ -3,43 +3,7 @@ https://github.com/nothings/stb/blob/master/stb_hexwave.h
 Add format filter: https://github.com/PaulBatchelor/GROWL
 
 Add univox univibe: https://www.musicdsp.org/en/latest/Effects/277-univox-univibe-emulator.html
-
-check asmr in music
-
-Notes and chords from harmonic series:
-
-C		C E G		1st
-D𝄭4				17th
-D				9th
-E𝄭4	19:16			19th	
-E	5:4	E G B		5th
-				21st
-Ex/G𝄫				11th
-				23rd
-G		G A# C		3rd
-				25th
-G𝄪4				13th
-				27th
-A#				7th
-				29th
-B				15th
-				31st
-
-First note in all tunings have different frequency. Could it be because of A440
-
-In Note when converting string to note, first convert note letter to number
-
-Create notation based on arithmetic and harmonic means:
- - select octave
- - pick one (A-D):
-   - C-F
-   - C-G
-   - F-C'
-   - G-C'
- - repeat last
- - 4ADDA
- - But how does it work when creating chords? and we need just tuning
- 
+				
 try adding another note to the first down arpeggio in bass_test3.xml
 
 !!! in default mode LFOs and filters should use the played note
@@ -70,8 +34,6 @@ Convert volume meter to decibels. Maybe.
 
 Add better unit to keynum to hold and decay
 
-Add level/velocity setting to oscillators (+1, +2)
-
 Let track have direct instruments built in to them
  - then use <instrument> as proxy for the predefined instruments
  - miten voi sit näyttää instrumentit tai vaihtaa?
@@ -81,16 +43,10 @@ filter sweep is bad (must be exponential) (hz or note)
 could we create band filtered noise, with the filter tied to the key?
 
 I-V-iii-iisus4
-    
-combine soundfont and InstrumentVoice pitch calculation (and stepping) [soundfont is not modulating]
- - might fix the soundfont start phase problem
- - cannnot modulate before that
-    
+	    
 add units to envelope so that it can be specified in pattern steps
 
 if sustain is zero, envelope must be stopped
-     
-Create dummy ids for newly created tracks (track#1234)
 
 songtest11.xml has duplicate ids
 
@@ -207,11 +163,6 @@ Progression:
 
 C F A
 C Eb G
-
---
-Aftertouch cleaning:
-  - If not playing, do lowpass filtering for the aftertouch so that the selected level doesn't get cleared when user releases
-  - Add catmull-rom interpolation for aftertouch
  
 Copy effects from Zynaddsubfx
  - https://zynaddsubfx.sourceforge.io/
@@ -275,19 +226,7 @@ remove automatic scaling from volume meter
    A D ?
    B ? ?   ??
 
-Samples:
- - Record egg shell cracking
- - environment
-   - raindrops on roof
-   - waves crashing against shore
-   - probably have multiple locations
-   - there was a simulator for raindrops on roof
-
-Add table based editor for instruments and effects
- - tree based table
- - different hierarchies for different stuff:
-   + channel hierarchy
-   + channels and their filters
+- Record egg shell cracking
 
 Use tab key to temporarily add note column for editing
       
@@ -298,10 +237,7 @@ Use tab key to temporarily add note column for editing
     - also pitch calculation
   - envelope setup uses apparent key
   - make sure voice doesn't jump from attack to release
-  - handle input messages
-    => volume control
-    => pitch?
-    => remove playNote and stopNote and just have everything handle TrackEvents
+  - are there any other controllable things than vibrato?
 
 - make filters and instruments arrays so that they can process multiple tracks at the same time and use SIMD
 
@@ -312,39 +248,19 @@ Use tab key to temporarily add note column for editing
   - try applying lowpass after distortion
 
 - Renoise
-  -  Add groove
-    - add delay to every nth line
-    - part of time signature?
   - Add Track headroom in desibels (default -6db)
-  - If recordings can be copied from track to track, shouldn't notes also have to be able to be copied while retaining the instrument
-    - If recordings were to be copied to different track, we could create a new subtrack for the recording
-  - Backspace: Delete all notes and Effect Commands at the current line in the track and scroll everything beneath the current line up.
-  - Insert: Insert clean row into track and push all notes and effects in current track down.
   - Left Ctrl & 1-0: Set the Edit Step number.
   - Home/End: Go to start/end line of pattern.
-  - add ticks per line (default 12 - delay has 256)
   - consider using tab:
     - tab => next note column
     - shift tab => prev note column
   - keybindings:
-      play from playhead position: shift space bar
       collapse / expand track: shift command k
       Transpose One Note Up: fn option F2
       Transpose One Note Down: fn option F1
       Transpose One Octave Up: fn option F12
       Transpose One Octave Down: fn option F11
     
-- add recording
-  - remove parts of recording using backspace
-  - also copy parts of recording to different tracks
-  - recordings must therefore be global to the song
-  - Notes should have the sample position as value
-  - recording should automatically add new notes
-  - Should the sample still be an instrument?
-  - Samples should also have multiple columns
-  - Effect column should be available for samples
-  - Single track can have multiple sample tracks but only single instrument, so instrument cannot be used for sample selection
-
 - song.gettime() doesn't account for tempo changes
   - should integrate the time in moveForward and moveForwardSample
 
@@ -399,5 +315,3 @@ Other:
 5/7   septimal minor ninth, BP ninth
 16/7   septimal major ninth
 17/14  supraminor third
-
----

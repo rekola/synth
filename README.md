@@ -80,7 +80,7 @@ for the full picture, or run `synth --licenses` to print it.
 * A proper name
 * Undo/redo
 * DirAC heatmap marker overlay for every active spatial object, not just track positions — track azimuth/elevation markers, plus Granular Cloud grains and other shared-bus-effect taps (FDNReverb, MultiTapDelay)
-* Limiters
+* DC Filter and Soft Clipping
 * 5.1 or 7.2 modes in addition to binaural headphone mode
 * Legato voicing mode
 * Custom drum kits without SoundFont: map individual percussion keys to arbitrary instruments instead of one whole SF2 kit preset.
@@ -88,7 +88,11 @@ for the full picture, or run `synth --licenses` to print it.
 * Binary storage for recordings and cover art
 * Instrument editor
 * Track effect editor
-* Recording audio to clips
 * Nested Effect track automation captured into clips (today a clip only captures its own leaf track's notes)
+* Allocation-free and realtime-priority renderer
+* New recordings are initially drafts and can then be either merged or promoted to a clip
+* Aftertouch filtering and aggregating
+* Continuous MIDI recording with retroactive capture
+* Ambient textures (waves, campfire, thunder, rain etc.)
 * Emacs features:
     - Kill-ring rotation (yank-pop / M-y)

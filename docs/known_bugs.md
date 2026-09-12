@@ -380,25 +380,6 @@ Found 2026-07-11, not yet fixed.
   ended, fall through" and "silence this track" at the storage layer if
   the two are ever meant to behave differently after all.
 
-- **Aftertouch events from a Launchpad-driven live take are not ending up
-  in the resulting Clip.** Not root-caused, and not reproduced despite a
-  real attempt: `Controller::applyNotePressure()`/`resolveEditTarget()`
-  have direct unit coverage (`tests/ControllerTests.cpp`'s
-  `apply_note_pressure_writes_an_aftertouch_note`/
-  `apply_note_pressure_writes_aftertouch_into_a_recording_clip`) showing
-  the write landing correctly both in a section's background `Pattern` and
-  in a real recording Clip, and a new e2e script
-  (`tools/e2e/fake_launchpad_aftertouch_clip.c`/
-  `verify_launchpad_aftertouch_clip.py`) drives the actual Record-Arm +
-  hold-across-playback + aftertouch path end to end and shows the
-  pressure landing on the correct row and rendering correctly in the
-  pattern editor's velocity column. Neither explains the reported
-  symptom, so either something about real hardware/usage differs from
-  what both of those exercise, or the bug is still there in a shape
-  neither currently catches. Needs a fresh look, ideally reproduced
-  directly against real hardware rather than the simulated-device e2e
-  harness.
-
 - **`GroovePatternLibrary.cpp`'s swung entries ("Swing", "Boogie") are
   straight-16th-grid approximations of a genuine 2:1 triplet swing, not
   the real thing** - their ride patterns fake the "long-short" feel by
