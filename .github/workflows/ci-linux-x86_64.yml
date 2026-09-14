@@ -13,9 +13,14 @@ jobs:
   # unreliable - see CMakeLists.txt's own SYNTH_MARCH comment. x86-64-v2 is
   # a fixed, portable baseline (SSE4.2/POPCNT-level, ubiquitous on x86-64
   # server/desktop CPUs from roughly the last 15 years) - not about speed,
-  # about every run compiling to the identical instructions.
+  # about every run compiling to the identical instructions. The image is
+  # pinned to a specific Ubuntu release for the same reason, rather than
+  # tracking whatever "latest" points at: a newer image brings a newer
+  # compiler, and an unpinned one can start failing on sources that never
+  # changed, purely because the new optimizer made a different choice
+  # somewhere the C++ left one open.
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v4

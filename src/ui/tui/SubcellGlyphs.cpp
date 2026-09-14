@@ -35,6 +35,17 @@ brailleCodepoint(int mask) {
   return 0x2800u + dots;
 }
 
+// How far apart two splits' costs (summed squared 8-bit color components)
+// have to be before one genuinely beats the other rather than tying. A
+// uniform cell scores an exact zero for every split, and comparing exactly
+// leaves that tie for the optimizer to break however its own reassociation
+// and reciprocal-based division happen to fall in a fast-math build - so a
+// flat cell would come out as an arbitrary half-block with two identical
+// colors on one compiler and the plain space of mask 0 on the next. Both
+// bounds sit far below any visible color difference.
+static constexpr float kTieAbsolute = 1e-3f;
+static constexpr float kTieRelative = 1e-5f;
+
 int
 quantizeToTwoColors(const std::vector<SubcellRgb> & samples, SubcellRgb & on_color, SubcellRgb & off_color) {
   int n = static_cast<int>(samples.size());
@@ -49,8 +60,13 @@ quantizeToTwoColors(const std::vector<SubcellRgb> & samples, SubcellRgb & on_col
       if (mask & (1 << i)) { sum_on.r += samples[static_cast<size_t>(i)].r; sum_on.g += samples[static_cast<size_t>(i)].g; sum_on.b += samples[static_cast<size_t>(i)].b; count_on++; }
       else { sum_off.r += samples[static_cast<size_t>(i)].r; sum_off.g += samples[static_cast<size_t>(i)].g; sum_off.b += samples[static_cast<size_t>(i)].b; count_off++; }
     }
-    SubcellRgb mean_on = count_on > 0 ? SubcellRgb{sum_on.r / count_on, sum_on.g / count_on, sum_on.b / count_on} : SubcellRgb{0, 0, 0};
-    SubcellRgb mean_off = count_off > 0 ? SubcellRgb{sum_off.r / count_off, sum_off.g / count_off, sum_off.b / count_off} : SubcellRgb{0, 0, 0};
+    // An empty group's sum is exactly zero, so dividing it by a stand-in 1
+    // gives the same {0,0,0} mean a zero count would - and never forms the
+    // 0/0 a guarding branch would still let a fast-math build speculate
+    // its way into computing.
+    int divisor_on = count_on > 0 ? count_on : 1, divisor_off = count_off > 0 ? count_off : 1;
+    SubcellRgb mean_on{sum_on.r / divisor_on, sum_on.g / divisor_on, sum_on.b / divisor_on};
+    SubcellRgb mean_off{sum_off.r / divisor_off, sum_off.g / divisor_off, sum_off.b / divisor_off};
 
     float cost = 0.0f;
     for (int i = 0; i < n; i++) {
@@ -59,7 +75,8 @@ quantizeToTwoColors(const std::vector<SubcellRgb> & samples, SubcellRgb & on_col
       cost += dr * dr + dg * dg + db * db;
     }
 
-    if (best_cost < 0.0f || cost < best_cost) {
+    // Ties keep the earliest candidate, so mask 0 wins a uniform cell.
+    if (best_cost < 0.0f || cost < best_cost - (kTieAbsolute + kTieRelative * best_cost)) {
       best_cost = cost;
       best_mask = mask;
       best_on = mean_on;

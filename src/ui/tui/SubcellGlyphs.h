@@ -61,7 +61,11 @@ struct SubcellRgb { float r, g, b; };
 // variation too, not just brightness. Returns the winning bitmask (bit i
 // set = sample i is in the "on"/foreground group, row-major, matching
 // kQuadrantCodepoints'/sextantCodepoint's own bit convention) and writes
-// the two group-mean colors out. Shared by TerminalHeatmapChart (its own
+// the two group-mean colors out. Splits whose costs are equal to within
+// rounding resolve to the lowest mask, so a uniform cell always lands on
+// mask 0 - every sample in the "off" group at its own true color, drawn
+// as a plain space - rather than an arbitrary split with two identical
+// group colors. Shared by TerminalHeatmapChart (its own
 // DirAC directional field) and PatternEditor's own waveform boxes (its
 // per-row antialiased coverage) - the same "best 2-color fit for a
 // handful of already-computed samples" problem either way, regardless of
