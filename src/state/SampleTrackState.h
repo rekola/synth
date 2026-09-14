@@ -105,7 +105,7 @@ public:
     for (auto & [ pos, s ] : chunks) data.assignNamed(s, pos);
 
     setTrackInfo(TrackInfo(isActive(), data.isClipping(), isActive() ? data.calculateMainRMS() : input_loudness_,
-      getSends().main, getSends().a, getSends().b));
+      getSends().main, getSends().a, getSends().b, getPosition().azimuth, true));
     return data;
   }
 

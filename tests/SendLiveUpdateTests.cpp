@@ -209,3 +209,152 @@ TEST(leaf_track_state_instant_set_send_a_cancels_an_in_flight_glide) {
   // resumed and dragged it back toward unity.
   CHECK_NEAR(info[track.getInternalId()].getLiveSendA(), 0.3f, 1e-4f);
 }
+
+// LeafTrackState::glideAzimuth()/advanceAzimuthRamp() - Pan's own
+// equivalent of glideSendA()/advanceSendRamps() above. Unlike Send
+// (interpolated in dB), azimuth ramps directly in degrees - no equivalent
+// "uneven row spacing" reason to warp it - so the halfway check here is
+// plain linear interpolation, not the dB-space one the Send sibling test
+// uses.
+TEST(leaf_track_state_glide_azimuth_interpolates_across_render_blocks) {
+  Song song;
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+
+  ChannelConfiguration config(44100, 1);
+  auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+  SongState state(config);
+  state.initialize(song);
+  state.setIsPlaying(true);
+
+  state.renderBlock(1, song, *mixer); // see the sibling Send A test's own comment on why this warm-up is needed
+  auto * track_state = dynamic_cast<InstrumentTrackState *>(state.getChildByInternalId(track.getInternalId()));
+  CHECK(track_state != nullptr);
+  if (!track_state) return;
+
+  track_state->setAzimuth(-40.0f); // a known, non-extreme starting point
+  int total_frames = 1000;
+  track_state->glideAzimuth(0.0f, total_frames); // -40 -> 0 degrees, the short way (40 degrees, well under the +-180 wrap)
+
+  std::unordered_map<int, TrackInfo> info;
+  state.renderBlock(total_frames / 2, song, *mixer);
+  state.getAllTrackInfo(info);
+  CHECK_NEAR(info[track.getInternalId()].getLiveAzimuth(), -20.0f, 1.0f); // halfway between -40 and 0
+
+  state.renderBlock(total_frames / 2, song, *mixer);
+  state.getAllTrackInfo(info);
+  CHECK_NEAR(info[track.getInternalId()].getLiveAzimuth(), 0.0f, 1e-3f);
+}
+
+// glideAzimuth()'s own circular shortest-path direction (its own doc
+// comment): a glide from 170 to -170 degrees is really only a 20-degree
+// move through +-180, not a 340-degree one back through 0 - proven by
+// checking the glide's own midpoint lands near +-180 (the short way),
+// never anywhere near 0 (what the long way around would pass through).
+TEST(leaf_track_state_glide_azimuth_picks_the_shorter_way_around_the_circle) {
+  Song song;
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+
+  ChannelConfiguration config(44100, 1);
+  auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+  SongState state(config);
+  state.initialize(song);
+  state.setIsPlaying(true);
+
+  state.renderBlock(1, song, *mixer);
+  auto * track_state = dynamic_cast<InstrumentTrackState *>(state.getChildByInternalId(track.getInternalId()));
+  CHECK(track_state != nullptr);
+  if (!track_state) return;
+
+  track_state->setAzimuth(170.0f);
+  int total_frames = 1000;
+  track_state->glideAzimuth(-170.0f, total_frames);
+
+  std::unordered_map<int, TrackInfo> info;
+  state.renderBlock(total_frames / 2, song, *mixer);
+  state.getAllTrackInfo(info);
+  // The short way's own midpoint is +-180 (170 + half of the 20-degree
+  // wrapped delta) - nowhere near 0, which the long way around would
+  // have passed through at this same point.
+  CHECK(std::fabs(info[track.getInternalId()].getLiveAzimuth()) > 175.0f);
+
+  state.renderBlock(total_frames / 2, song, *mixer);
+  state.getAllTrackInfo(info);
+  // Settled at a value congruent to -170 degrees mod 360 (190, since
+  // position_.azimuth is left free to end up outside +-180 - see
+  // glideAzimuth()'s own comment), not back at the starting +170.
+  CHECK_NEAR(info[track.getInternalId()].getLiveAzimuth(), 190.0f, 1e-2f);
+}
+
+// Regression test for a real reported bug: repeatedly pressing two Pan
+// rows exactly 180 degrees apart (a perfectly ordinary "back and forth"
+// gesture) walked position_.azimuth up by 180 degrees on *every single*
+// press - the exact-180-degrees tie always broke the same way, so it
+// never averaged out, only accumulated (after enough presses, the live
+// azimuth ran into the thousands of degrees). glideAzimuth()'s own
+// rebase-at-rest (its own top comment) fixes this: each press still
+// settles 180 degrees from the last, but rebasing back into range
+// whenever the ramp is at rest keeps the *reference point* itself
+// bounded, so the sequence cycles between two values instead of
+// climbing forever.
+TEST(leaf_track_state_glide_azimuth_does_not_drift_under_repeated_opposite_presses) {
+  Song song;
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+
+  ChannelConfiguration config(44100, 1);
+  auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+  SongState state(config);
+  state.initialize(song);
+  state.setIsPlaying(true);
+
+  state.renderBlock(1, song, *mixer);
+  auto * track_state = dynamic_cast<InstrumentTrackState *>(state.getChildByInternalId(track.getInternalId()));
+  CHECK(track_state != nullptr);
+  if (!track_state) return;
+
+  int total_frames = 100;
+  for (int i = 0; i < 40; i++) {
+    float target = (i % 2 == 0) ? -180.0f : 0.0f; // two rows exactly 180 degrees apart
+    track_state->glideAzimuth(target, total_frames);
+    state.renderBlock(total_frames, song, *mixer); // let each press fully settle before the next
+  }
+
+  std::unordered_map<int, TrackInfo> info;
+  state.getAllTrackInfo(info);
+  // Stayed within a couple of turns of the two targets - nowhere near the
+  // ~7200 degrees 40 unrebased +-180 steps would have accumulated before
+  // this fix.
+  CHECK(std::fabs(info[track.getInternalId()].getLiveAzimuth()) < 720.0f);
+}
+
+// An instant setAzimuth() must win outright over a glide still in
+// flight, same guarantee leaf_track_state_instant_set_send_a_cancels_an_
+// in_flight_glide proves for Send A.
+TEST(leaf_track_state_instant_set_azimuth_cancels_an_in_flight_glide) {
+  Song song;
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+
+  ChannelConfiguration config(44100, 1);
+  auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+  SongState state(config);
+  state.initialize(song);
+  state.setIsPlaying(true);
+
+  state.renderBlock(1, song, *mixer);
+  auto * track_state = dynamic_cast<InstrumentTrackState *>(state.getChildByInternalId(track.getInternalId()));
+  CHECK(track_state != nullptr);
+  if (!track_state) return;
+
+  track_state->glideAzimuth(90.0f, 1000);
+  state.renderBlock(500, song, *mixer); // now partway through the glide
+
+  track_state->setAzimuth(30.0f); // an instant set, mid-glide
+
+  std::unordered_map<int, TrackInfo> info;
+  state.renderBlock(500, song, *mixer); // the rest of what would have been the glide
+  state.getAllTrackInfo(info);
+  CHECK_NEAR(info[track.getInternalId()].getLiveAzimuth(), 30.0f, 1e-3f);
+}

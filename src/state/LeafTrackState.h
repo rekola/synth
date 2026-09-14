@@ -47,6 +47,7 @@ public:
     send_main_ramp_.snapTo(linearToDbForRamp(sends.main));
     send_a_ramp_.snapTo(linearToDbForRamp(sends.a));
     send_b_ramp_.snapTo(linearToDbForRamp(sends.b));
+    azimuth_ramp_.snapTo(position.azimuth);
   }
 
   void addVoice(int column, std::unique_ptr<VoiceState> voice) {
@@ -65,11 +66,12 @@ public:
   // its stepper's timing with that same chunking, purely via ordinary
   // virtual dispatch.
   virtual AudioBuffer renderVoices(int frames) {
-    // Advance this chunk's own share of any in-flight Send Main/A/B glide
-    // first - a voice rendered below with renderVoices() already reflects
-    // wherever the glide has reached by this chunk, same as a live press
-    // already did before it moved server-side.
+    // Advance this chunk's own share of any in-flight Send Main/A/B/
+    // azimuth glide first - a voice rendered below with renderVoices()
+    // already reflects wherever the glide has reached by this chunk, same
+    // as a live press already did before it moved server-side.
     advanceSendRamps(frames);
+    advanceAzimuthRamp(frames);
 
     // Render every active voice first (still calling render() even when
     // muted, so envelopes/LFOs keep advancing - only mixing is skipped),
@@ -108,10 +110,11 @@ public:
     // here - InstrumentTrackState::render()/SampleTrackState::render() both
     // overwrite this call's own TrackInfo with their own, RMS included,
     // once their outer chunked loop finishes (see their own render()).
-    // sends_ is already this chunk's own post-advance value (the
-    // advanceSendRamps() call above), so it's current even if some future
-    // subclass never gets around to overwriting this with its own call.
-    setTrackInfo(TrackInfo( is_active, data.isClipping(), -1.0f, sends_.main, sends_.a, sends_.b ));
+    // sends_/position_.azimuth are already this chunk's own post-advance
+    // value (the advanceSendRamps()/advanceAzimuthRamp() calls above), so
+    // it's current even if some future subclass never gets around to
+    // overwriting this with its own call.
+    setTrackInfo(TrackInfo( is_active, data.isClipping(), -1.0f, sends_.main, sends_.a, sends_.b, position_.azimuth, true ));
 
     return data;
   }
@@ -223,16 +226,14 @@ public:
   // in dB (see its own declaration comment for why), so this takes the
   // same unit the row it's headed toward is defined in, not the unit
   // sends_/SendLevels happen to store. Advanced by advanceSendRamps()
-  // below, once per render chunk - never ticked from the UI thread.
-  // Deliberately no glideAzimuth() sibling - Pan keeps its existing
-  // client-side glide (an instant reposition there isn't audible the way
-  // a Volume/Send step is).
+  // below, once per render chunk - never ticked from the UI thread. See
+  // glideAzimuth() below for Pan's own equivalent.
   void glideSendMain(float target_db, int frames) { send_main_ramp_.glideTo(target_db, frames); }
   void glideSendA(float target_db, int frames) { send_a_ramp_.glideTo(target_db, frames); }
   void glideSendB(float target_db, int frames) { send_b_ramp_.glideTo(target_db, frames); }
 
   // Called once per render chunk from renderVoices() below (the same hook
-  // 0Hxx/0Kxx's own per-tick azimuth slide already advances through, so a
+  // YLxx/YRxx's own per-tick azimuth slide already advances through, so a
   // glide crossing a chunk boundary mid-block still lands correctly) -
   // converts each active ramp's newly-advanced dB value back to linear
   // gain right here (dbToLinearForRamp()), the one point this ever
@@ -251,11 +252,72 @@ public:
   // The live-knob path (Launchpad/UI Pan row, via Controller::
   // setTrackAzimuth()) - reaches every already-active voice too, not just
   // future triggers, by reusing adjustAzimuth() below with the absolute-to-
-  // delta conversion done here.
-  void setAzimuth(float a) { adjustAzimuth(a - position_.azimuth); }
+  // delta conversion done here. An instant set always wins outright over
+  // any glide in flight, same as setSendMain()/A()/B() above.
+  void setAzimuth(float a) {
+    azimuth_ramp_.snapTo(a);
+    adjustAzimuth(a - position_.azimuth);
+  }
   float getAzimuth() const { return position_.azimuth; }
 
-  // Shared by the live Pan-row knob above and the 0Hxx/0Kxx azimuth slide
+  // Pan's own counterpart of glideSendMain()/A()/B() above - a Launchpad
+  // Pan press reaches every already-sounding voice the same instant a
+  // plain setAzimuth() does (adjustAzimuth() below), so an abrupt press
+  // needs the same velocity-scaled glide treatment a Volume/Send step
+  // does, not just an instant snap. Circular, unlike the three above: the
+  // delta toward `target_degrees` is wrapped into (-180,180] first, so the
+  // glide always turns whichever way is actually shorter around the
+  // circle (e.g. 170 degrees to -170 degrees moves 20 degrees through
+  // +-180, not 340 degrees back through 0) rather than always increasing.
+  //
+  // Also folds position_.azimuth (and the ramp's own current_/target_)
+  // back into a bounded range first, whenever the ramp happens to be at
+  // rest right now (a fresh press - a press retargeting a still-in-flight
+  // glide skips this, see the guard below): purely a change of reference
+  // point, congruent mod 360, so nothing audible moves (a track/voice's
+  // own azimuth only ever matters through periodic trig functions, never
+  // as a raw number). Without this, a long run of presses landing exactly
+  // 180 degrees apart - two Pan rows directly opposite each other, a
+  // perfectly ordinary thing to press back and forth - walked
+  // position_.azimuth off by 180 every single time (a real, observed
+  // bug: the exact-degrees-apart tie always broke the same way, so it
+  // never averaged out, only accumulated) rather than settling into a
+  // stable oscillation. `adjustAzimuth()`'s own unbounded accumulation
+  // (YLxx/YRxx's own relative ticks, which deliberately need to cross
+  // +-180 to reach "behind") is untouched - this only ever rebases the
+  // *resting* baseline a fresh glide measures its own delta from.
+  void glideAzimuth(float target_degrees, int frames) {
+    // Only while at rest - snapTo() would otherwise overwrite an
+    // in-flight glide's own target_ too, cutting it short instead of
+    // retargeting it smoothly from wherever it actually is. position_.
+    // azimuth and the ramp's own current_/target_ are guaranteed equal
+    // right now (nothing else touches either between calls), which is
+    // what makes rebasing both by the same offset safe.
+    if (!azimuth_ramp_.isActive()) {
+      float rebased = fmodf(position_.azimuth, 360.0f);
+      if (rebased > 180.0f) rebased -= 360.0f;
+      else if (rebased <= -180.0f) rebased += 360.0f;
+      if (rebased != position_.azimuth) {
+        position_.azimuth = rebased;
+        azimuth_ramp_.snapTo(rebased);
+      }
+    }
+    float delta = fmodf(target_degrees - position_.azimuth, 360.0f);
+    if (delta > 180.0f) delta -= 360.0f;
+    else if (delta <= -180.0f) delta += 360.0f;
+    azimuth_ramp_.glideTo(position_.azimuth + delta, frames);
+  }
+
+  // advanceSendRamps()'s own azimuth sibling, called alongside it from
+  // renderVoices() below - converts the ramp's newly-advanced absolute
+  // degrees into the delta adjustAzimuth() actually wants (never back
+  // through setAzimuth() above, which would immediately snapTo() and kill
+  // the very ramp this is in the middle of advancing).
+  void advanceAzimuthRamp(int frames) {
+    if (azimuth_ramp_.isActive()) adjustAzimuth(azimuth_ramp_.advance(frames) - position_.azimuth);
+  }
+
+  // Shared by the live Pan-row knob above and the YLxx/YRxx azimuth slide
   // (Command::isAzimuthSlide(), scheduled per-tick by SongState::
   // scheduleAzimuthSlide(), consumed by InstrumentTrackState::render()'s own
   // chunked loop) - both are just different sources of a delta that should
@@ -341,6 +403,11 @@ private:
   // (linearToDbForRamp(), since sends_ itself is always linear) and
   // reading it back out in advanceSendRamps() (dbToLinearForRamp()).
   dsp::ValueRamp send_main_ramp_, send_a_ramp_, send_b_ramp_;
+  // Plain degrees, unlike the three above - azimuth has no equivalent of
+  // dB's "uneven row spacing" problem, so it ramps directly in the same
+  // unit rowToAzimuth()/position_.azimuth already use. See glideAzimuth()
+  // for how its own target is chosen (shortest way around the circle).
+  dsp::ValueRamp azimuth_ramp_;
 };
 
 #endif

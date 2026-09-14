@@ -100,7 +100,7 @@ class RenderContext {
     return pending_events_[track_id];
   }
 
-  // 0Hxx/0Kxx azimuth slide ticks (SongState::scheduleAzimuthSlide()) - an
+  // YLxx/YRxx azimuth slide ticks (SongState::scheduleAzimuthSlide()) - an
   // independent timeline from the note pending_events_ above, keyed the
   // same way (block-relative frame -> what happens there), but the
   // payload is a plain accumulated delta rather than a list of discrete

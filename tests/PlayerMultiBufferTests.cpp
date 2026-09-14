@@ -269,6 +269,55 @@ TEST(glide_track_send_a_event_interpolates_over_its_own_duration) {
   CHECK_NEAR(info[track.getInternalId()].getLiveSendA(), 1.0f, 1e-3f); // 0dB = unity
 }
 
+// GLIDE_TRACK_AZIMUTH's own equivalent of the Send A test above, through
+// the same real event path (Controller::glideTrackAzimuth()'s eventual
+// event, LaunchpadManager's own resolveAzimuthFaderTarget() the caller
+// that fires it for a live Pan press) - parameter2/parameter3 encoded
+// exactly as Controller::glideTrackAzimuth() itself would (target degrees
+// in tenths, SET_TRACK_AZIMUTH's own fixed-point convention; duration in
+// milliseconds), proving Player.cpp's own ms-to-frames conversion lands a
+// glide that's genuinely still in flight partway through its own
+// duration.
+TEST(glide_track_azimuth_event_interpolates_over_its_own_duration) {
+  ChannelConfiguration config(44100, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto buffer_name = controller.getActiveBufferName();
+
+  auto & song = controller.getSong();
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SINE));
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+
+  Player player(config, &controller);
+
+  // A known, non-extreme starting point (-40 degrees) via the plain
+  // instant setter - SET_TRACK_AZIMUTH's own tenths-of-a-degree encoding,
+  // unrelated to the glide event below.
+  PlaybackControlEvent set_start(PlaybackControlEvent::SET_TRACK_AZIMUTH, buffer_name, track.getInternalId(), -400);
+  player.handlePlaybackControlEvent(set_start);
+
+  int duration_ms = 100;
+  PlaybackControlEvent glide(PlaybackControlEvent::GLIDE_TRACK_AZIMUTH, buffer_name, track.getInternalId(),
+    0 /* target 0 degrees, tenths */, duration_ms);
+  player.handlePlaybackControlEvent(glide);
+
+  auto * state = player.getLiveStateForTest(buffer_name);
+  CHECK(state != nullptr);
+  if (!state) return;
+
+  auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+  int total_frames = config.getAudioOutSampleRate() * duration_ms / 1000;
+
+  std::unordered_map<int, TrackInfo> info;
+  state->renderBlock(total_frames / 2, song, *mixer);
+  state->getAllTrackInfo(info);
+  CHECK_NEAR(info[track.getInternalId()].getLiveAzimuth(), -20.0f, 1.0f); // halfway between -40 and 0
+
+  state->renderBlock(total_frames / 2, song, *mixer);
+  state->getAllTrackInfo(info);
+  CHECK_NEAR(info[track.getInternalId()].getLiveAzimuth(), 0.0f, 1e-3f);
+}
+
 // OutlineView's own instrument-audition path (PlaybackControlEvent::
 // PREVIEW_NOTE/PREVIEW_STOP) - a buffer-agnostic voice with no owning
 // Track/live SongState at all, unlike PLAY_NOTE above. "Electric Piano" is

@@ -180,7 +180,7 @@ class VoiceState : public TreeNode<VoiceState> {
   }
   virtual float getChannelPressure() const { return 0.0f; }
 
-  // 0Hxx/0Kxx azimuth slide (Command::isAzimuthSlide(), consumed by
+  // YLxx/YRxx azimuth slide (Command::isAzimuthSlide(), consumed by
   // InstrumentTrackState::render()'s chunked loop) - nudges this voice
   // chain's own spatial position live, mid-note. Default recurses into
   // children for the same reason applyChannelPressure() above does: a

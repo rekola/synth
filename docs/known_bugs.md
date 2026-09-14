@@ -237,12 +237,13 @@ Found 2026-07-11, not yet fixed.
   change under the current curve, and its own docstring math corrected to
   match.
 
-- **`LaunchpadManager`'s fader glide/micro-value feature (`applyFaderPress()`/
-  `tickFaderRamps()`) has no e2e coverage for the Pan path**, only Send A
+- **`LaunchpadManager`'s fader glide/micro-value feature
+  (`resolveSendFaderTarget()`/`resolveAzimuthFaderTarget()`) has no e2e
+  coverage for the Pan path**, only Send A
   (`verify_launchpad_sendmode.py`/`verify_launchpad_sendmode_autocreate.py`)
-  - Pan's own `wraps = true` branch (row 7 neighboring row 0, unlike a
-  Send's true ceiling there) is exercised only by reasoning/code review,
-  not a real simulated press sequence. Not fixed - would need a new
+  - Pan's own wraparound branch (row 7 neighboring row 0, unlike a Send's
+  true ceiling there) is exercised only by reasoning/code review, not a
+  real simulated press sequence. Not fixed - would need a new
   `fake_launchpad_pan.c`/`verify_launchpad_pan.py` pair.
 
 - **A voice's envelope keeps progressing while playback is stopped**, so a

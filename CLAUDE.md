@@ -172,16 +172,20 @@ any terminal, ESC-then-x included). Ctrl-K is `PatternEditor`'s own
 kill-row (Emacs's own C-k, kill-line, repurposed the same way), not an
 M-x trigger.
 `docs/commands.md` lists the pattern effect commands (slides, vibrato, …),
-split into **Implemented** (`ZBxx` pattern break; `0Hxx`/`0Kxx` azimuth
-slides and `0Pxx` azimuth set; `0Lxx`/`0Fxx`/`0Mxx` Volume/Send A/Send B
-set - see `SongState.h`'s command-handling loop) and **Planned**
+split into **Implemented** (`ZBxx` pattern break; `0Pxx` azimuth set;
+`0Lxx`/`0Fxx`/`0Mxx` Volume/Send A/Send B set; the real-time
+`Y`-namespace commands `YLxx`/`YRxx` (azimuth slide left/right) and
+`YMxy`/`YAxy`/`YBxy`/`YDxy` (Volume/Send A/Send B/azimuth, each with an
+explicit glide duration) - see `SongState.h`'s command-handling loop) and
+**Planned**
 (accepted/stored but currently no-ops at playback time). A command's own
-first character is either `Z` (global, not track-scoped) or this engine's
-leaf-track chain-position digit - always `0` today, with `-` accepted as
-a typed synonym for it (`Command::updateData()`); `docs/commands.md`'s own
-"Source" column says which second-character letters are borrowed directly
-from Renoise's own Pattern Effects reference and which are this codebase's
-own, checked deliberately rather than invented blind.
+first character is either `Z` (global, not track-scoped), `Y` (this
+engine's own reserved namespace), or this track's own chain-position
+digit - always `0` today, with `-` accepted as a typed
+synonym for it (`Command::updateData()`); `docs/commands.md`'s own
+"Source" column names where each second-character letter actually came
+from - an existing tracker's own command reference, or this codebase's
+own choice - checked deliberately rather than invented blind.
 
 Pattern editor selection uses Emacs keybindings: **C-SPC** (or **C-b**, see
 below) sets the mark (selection start), **C-w** kills (cuts) the marked
@@ -373,7 +377,7 @@ whether or not a terminal UI exists at all.
   `kMixerHoldPreviewThreshold`) reverts back to whatever was showing right
   before that press once released - a momentary preview
   (`armMixerHoldPreview()`/`handleMixerFunctionRelease()`), matching the
-  real hardware/Ableton convention; a quick tap leaves the switch standing
+  convention; a quick tap leaves the switch standing
   (sticky, the ordinary case). Only a press that's actually switching to a
   different member arms this - repressing the one already active (which
   closes it) never does, since there's nothing to preview-and-revert about
@@ -456,9 +460,9 @@ whether or not a terminal UI exists at all.
   additive).
 - **Clips** (`Clip`, `src/model/Clip.h`; `Song::getClips(track_id)`/
   `addClip()`, backed by `std::unordered_map<int, std::vector<Clip>>
-  clips_by_track_`) - reusable, shareable content keyed by leaf track id,
+  clips_by_track_`) - reusable, shareable content keyed by track id,
   outside any one section position: one `Pattern` per track it touches
-  (today always just the leaf track's own - the storage shape already
+  (today always just that track's own - the storage shape already
   supports more, e.g. a nested Effect track's own automation captured
   alongside it, but that's unbuilt). Editing a clip through any one of its
   placements (`ArrangementOps.h`'s `placeClipInstance()`/
@@ -497,7 +501,7 @@ whether or not a terminal UI exists at all.
   it) goes through the track-picker overlay - see its own bullet below.
   A pad's own identity-hue static color (`DeviceState::session_colors`)
   gets a transport-state overlay (`session_highlight`, `LaunchpadManager::
-  SessionPadHighlight`) matching the real hardware/Ableton convention -
+  SessionPadHighlight`) matching the convention -
   playing pulses and queued flashes a fixed green
   (`LAUNCHPAD_SESSION_GREEN_PALETTE_BRIGHT`/`_DIM`) regardless of that
   pad's own hue, via the LED-lighting SysEx's own hardware-driven

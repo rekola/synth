@@ -33,7 +33,7 @@ namespace constants {
   constexpr float DEFAULT_GROUND_ABSORPTION { 0.3f };
 
   // Per-row subdivision for tick-based pattern effect commands (currently
-  // just 0Hxx/0Kxx azimuth slide - see SongState::scheduleAzimuthSlide()) -
+  // just YLxx/YRxx azimuth slide - see SongState::scheduleAzimuthSlide()) -
   // the row's own duration is split into this many evenly-spaced steps,
   // each firing one incremental change. Not a "speed" setting a song can
   // adjust - fixed, the same way the row itself is the only other unit of

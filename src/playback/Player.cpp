@@ -551,6 +551,16 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     }
     break;
 
+  case PlaybackControlEvent::GLIDE_TRACK_AZIMUTH:
+    {
+      auto track_state = dynamic_cast<LeafTrackState*>(state.getChildByInternalId(ev.getParameter1()));
+      if (track_state) {
+        int frames = static_cast<int>(std::lround((ev.getParameter3() / 1000.0f) * state.getChannelConfiguration().getAudioOutSampleRate()));
+        track_state->glideAzimuth(ev.getParameter2() / 10.0f, frames);
+      }
+    }
+    break;
+
   case PlaybackControlEvent::SET_BUS_EFFECT:
     state.setBusEffectKind(ev.getParameter1(), static_cast<BusEffectKind>(ev.getParameter2()));
     break;

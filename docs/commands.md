@@ -9,41 +9,49 @@ everything else is accepted and stored but currently a no-op (see
 `SongState.h`'s own command-handling loop).
 
 The mnemonic's first character is either `Z` (a global command, not
-scoped to any one track - `ZBxx`/`ZTxx` below) or a device index: how far
-up *this* track's own ancestor chain the command actually targets. `-`
-(stored internally as `0`, an accepted synonym for it - `Command::
-updateData()`) means the track itself, `1` its parent, `2` its
-grandparent, and so on further up the tree - this engine's own
-generalization of Renoise's numbered per-track DSP-device-chain digit to
-ancestor *tracks* (Group/Effect) rather than a flat per-track device
-list, since that's the equivalent traversal this engine's own track
-hierarchy actually offers. Nothing beyond `-`/`0` is implemented yet -
-typing `1`, `2`, … is accepted and stored (nothing rejects it) but
-currently behaves exactly like `-` at playback, since nothing reads it
-yet. Every command below is written with `-`, the form to actually type
-for a command that doesn't (yet) target anything upstream.
+scoped to any one track - `ZBxx`/`ZTxx` below), `Y` (this engine's own
+reserved namespace - see below), or a device index: how far up *this*
+track's own ancestor chain the command actually targets (Group/Effect
+tracks, not a flat per-track device list - the equivalent traversal this
+engine's own track hierarchy actually offers). `-` (stored internally as
+`0`, an accepted synonym for it - `Command::updateData()`) means the
+track itself, `1` its parent, `2` its grandparent, and so on further up
+the tree. Nothing beyond `-`/`0` is implemented yet - typing `1`, `2`, …
+is accepted and stored (nothing rejects it) but currently behaves
+exactly like `-` at playback, since nothing reads it yet. Every command
+below is written with `-`, the form to actually type for a command that
+doesn't (yet) target anything upstream.
+
+`Y` is reserved as this engine's own namespace for a genuinely new
+concept, not yet meaningful as a first character anywhere else in this
+scheme. It works the same way `Z` already does for global commands: as
+the first character, it replaces the device-index digit entirely,
+opening a whole separate letter space where the *second* character is
+free to mean anything - including reusing a letter already spoken for
+elsewhere (`L`/`F`/`M` below, for instance), since the first character
+already tells the two apart unambiguously - rather than hunting for a
+single scarce free letter inside the crowded device-index namespace
+every time a new idea needs one.
 
 **Source** below says where the second character (the action letter)
-came from - checked against
-[Renoise's own Pattern Effects reference](https://files.renoise.com/manual/PatternEffects_ReferenceCard.pdf)
-for every command in this table, not just guessed: **Renoise** means the
-letter and its meaning are borrowed directly, unchanged; **Renoise
-(adapted)** means the letter is borrowed but this engine's own version
-differs in some real way from Renoise's original (noted in the
-description); **Own** means Renoise has no equivalent concept at all, so
-the letter is just an unclaimed one, picked for that reason alone.
+came from - checked deliberately for every command in this table, not
+just guessed.
 
 ## Implemented
 
 | Command | Description | Source |
 |---|---|---|
 | `ZBxx` | Pattern break - jump straight to row `xx` of the next pattern instead of playing out the rest of this one. | Renoise (`ZBxx`) |
-| `-Hxx` | Slide azimuth left - decrease the track's azimuth by `xx` degrees per tick (12 ticks/row) for the duration of this row, moving both the track's own position and every currently-sounding voice. | Own - Renoise's own panning is 2D, with no slide-in-the-effect-column equivalent to this engine's full 3D azimuth to match letters against. |
-| `-Kxx` | Slide azimuth right - same as `-Hxx` but increasing azimuth (this engine's convention: positive azimuth = right). | Renoise (adapted) - matches Renoise's own *panning-column* `Kx` (pan slide right there too), a different, note-row-scoped sub-column from this engine's single Command type, not the main effect-column vocabulary. |
-| `-Lxx` | Set Volume (Send Main) - unlike the slide commands above, an absolute level: `xx` (0-255) maps linearly in dB from -80dB up to 0dB/unity at 255, applied the instant this row starts and reaching every already-sounding voice too. | Renoise (`Lxx`, "Track Level") |
-| `-Fxx` | Set Send A - same encoding/behavior as `-Lxx`, for the track's own Send A level. | Own - sends are DSP-chain routing in Renoise, never a pattern command. |
-| `-Mxx` | Set Send B - same encoding/behavior as `-Lxx`, for the track's own Send B level. | Own - same reasoning as `-Fxx`. |
+| `-Lxx` | Set Volume (Send Main) - an absolute level: `xx` (0-255) maps linearly in dB from -80dB up to 0dB/unity at 255, applied the instant this row starts and reaching every already-sounding voice too. | Renoise (`Lxx`, "Track Level") |
+| `-Fxx` | Set Send A - same encoding/behavior as `-Lxx`, for the track's own Send A level. Deprecated in favor of `YAxy`. | Own |
+| `-Mxx` | Set Send B - same encoding/behavior as `-Lxx`, for the track's own Send B level. Deprecated in favor of `YBxy`. | Own |
 | `-Pxx` | Set azimuth to an absolute position - `xx` maps linearly from -90 degrees at `00` through +90 at `FF`. | Renoise (adapted) - matches Renoise's own `Pxx` "Track Pan" exactly, `xx` meaning included (`00`/`80`/`FF` = left/center/right), but that's a real, inherited limitation: it only reaches half this engine's own 360-degree azimuth range (the front hemisphere), since Renoise's own panning has no "behind" to reach in the first place. |
+| `YMxy` | Set Volume (Send Main) with an explicit glide, timed the same way a live Launchpad fader glide already is - wall-clock seconds, unaffected by tempo (a fader press's own velocity-driven speed has nothing to do with it). `M` for **M**ain. `x` (0-15) is the target (same linear-in-dB mapping as `-Lxx`, nibble instead of byte resolution); `y` (0-15) is the glide's own duration, linear in seconds: `duration_seconds = kMinFaderRampSeconds + (y / 15.0) * (kMaxFaderRampSeconds - kMinFaderRampSeconds)` - `y=0` the fastest (0.03s), `y=15` the slowest (1.0s). Recorded automatically by a Launchpad Volume/Send Main fader press (`LaunchpadManager::recordFaderAutomationIfArmed()`); hand-typing works the same way. | Classic tracker (IT) - Impulse Tracker's own `Mxx` sets channel volume directly, the same concept. |
+| `YAxy` | Send A's own equivalent of `YMxy` - same encoding, targeting Send A instead of Volume. `A` for Send **A**. | Own |
+| `YBxy` | Send B's own equivalent of `YMxy` - same encoding, targeting Send B instead of Volume. `B` for Send **B**. | Own |
+| `YDxy` | Set azimuth with an explicit glide, timed the same way `YMxy`/etc. are - wall-clock seconds. `D` for **D**irection. Not called `YPxy`/matched to `-Pxx`'s own encoding: `-Pxx`'s `xx` only reaches half the circle, which would throw away exactly the range a live Pan press can actually reach, so `x` here instead spans the *full* circle, -180 degrees at `0` through +180 at `F`; `y` is the same duration encoding as `YMxy`. Recorded automatically by a Launchpad Pan fader press. | Own |
+| `YLxx` | Slide azimuth left - decrease the track's azimuth by `xx` degrees per tick (12 ticks/row) for the duration of this row, moving both the track's own position and every currently-sounding voice. `L` for **L**eft. | Own |
+| `YRxx` | Slide azimuth right - same as `YLxx` but increasing azimuth (this engine's convention: positive azimuth = right). `R` for **R**ight. | Own |
 
 ## Planned
 
@@ -56,4 +64,5 @@ the letter is just an unclaimed one, picked for that reason alone.
 | `-Ixx` | Fade in | Renoise (`Ixx`) |
 | `-Oxx` | Fade out | Renoise (`Oxx`) |
 | `-Txy` | Tremolo (depth `x`, speed `y`) | Renoise (`Txy`) |
+| `-Wxx` | Set ambisonic extent - the track's own physical half-width in meters (`SphericalPosition::extent`/`LeafTrack::setExtent()`, 0 = a point source) - `xx` maps linearly in steps of 1/256, `00` = 0m up through `FF` at some chosen max (not settled yet). | Renoise (adapted) |
 | `ZTxx` | Set tempo to `xx` BPM - global like `ZBxx`, not a device-index command, since tempo isn't a per-track parameter. | Renoise (`ZTxx`) |

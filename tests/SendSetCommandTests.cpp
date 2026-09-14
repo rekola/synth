@@ -5,6 +5,7 @@
 #include "../src/model/Clip.h"
 #include "../src/model/ArrangementOps.h"
 #include "../src/state/SongState.h"
+#include "../src/state/TrackInfo.h"
 #include "../src/instruments/OscillatorVoice.h"
 #include "../src/instruments/Oscillator.h"
 #include "../src/instruments/WaveformType.h"
@@ -15,6 +16,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <unordered_map>
 
 using namespace std;
 
@@ -27,7 +29,7 @@ namespace {
 }
 
 // 0Lxx/0Fxx/0Mxx - see docs/commands.md and Command.h's own comments. An
-// absolute set, not a slide (unlike 0Hxx/0Kxx) - what a live-recorded
+// absolute set, not a slide (unlike YLxx/YRxx) - what a live-recorded
 // fader move needs to capture.
 TEST(send_set_command_parses_mnemonic) {
   Command volume("0L00");
@@ -43,7 +45,7 @@ TEST(send_set_command_parses_mnemonic) {
   CHECK(send_b.isSendBSet());
   CHECK(!send_b.isVolumeSet());
 
-  Command unrelated("0K10");
+  Command unrelated("YR10");
   CHECK(!unrelated.isVolumeSet() && !unrelated.isSendASet() && !unrelated.isSendBSet());
 }
 
@@ -142,4 +144,88 @@ TEST(send_set_command_fires_even_while_a_clip_supplies_the_row_notes) {
   state.renderBlock(row_samples, song, *mixer);
 
   CHECK(maxAbs(state.getAuxBSum().getChannelData(0), row_samples) > 1e-4f);
+}
+
+// YMxy/YAxy/YBxy - SongState.h's own playback-time interpretation of the
+// Y-namespace's recorded fader-glide commands (Command::isVolumeGlide()/
+// isSendAGlide()/isSendBGlide()): unlike 0Lxx/0Fxx/0Mxx's instant set,
+// this starts a real multi-block LeafTrackState::glideSendA() ramp, the
+// same server-side mechanism a live Launchpad press now uses
+// (Controller::glideTrackSendA()). Proven by choosing a glide duration
+// (y=F, the slowest - 1.0s) far longer than one row at this song's own
+// default tempo (90 BPM - a row is ~0.167s/~7350 samples at 44100Hz), so
+// a single row's worth of rendering can't possibly have reached the
+// target yet if this is a real glide, only if it wrongly jumped there
+// instantly.
+TEST(glide_command_starts_a_real_glide_not_an_instant_jump) {
+  Song song;
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SINE)); // instrument_id 0
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+
+  auto & section = song.addSection();
+  section.setNote(0, track_id, 0, Note(60, 100));
+  section.setCommand(0, track_id, Command("YAFF")); // Send A -> 0dB/unity, over 1.0s
+
+  ChannelConfiguration config(44100, 1);
+  auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+  SongState state(config);
+  state.initialize(song);
+  state.setIsPlaying(true);
+
+  int row_samples = config.getSampleInterval(song.getTempo());
+  state.renderBlock(row_samples, song, *mixer); // exactly one row
+
+  std::unordered_map<int, TrackInfo> info;
+  state.getAllTrackInfo(info);
+  CHECK(info[track_id].hasLiveSends());
+  // Still well below unity after just one row - a real glide in
+  // progress, not settled.
+  CHECK(info[track_id].getLiveSendA() < 0.5f);
+  CHECK(info[track_id].getLiveSendA() > 0.0f); // genuinely moving, not stuck at 0
+
+  // Enough further rows to comfortably exceed the glide's own 1.0s
+  // duration - now settled at the target.
+  for (int i = 0; i < 7; i++) state.renderBlock(row_samples, song, *mixer);
+  state.getAllTrackInfo(info);
+  CHECK_NEAR(info[track_id].getLiveSendA(), 1.0f, 1e-3f);
+}
+
+// YDxy - azimuth's own equivalent of the test above, dispatched to
+// LeafTrackState::glideAzimuth() instead of glideSendA()/etc. (Command::
+// isAzimuthGlide()/getAzimuthGlideTargetDegrees()). Same "duration far
+// longer than one row" proof shape.
+TEST(azimuth_glide_command_starts_a_real_glide_not_an_instant_jump) {
+  Song song;
+  song.addInstrument(make_unique<Oscillator>(WaveformType::SINE)); // instrument_id 0
+  auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+
+  auto & section = song.addSection();
+  section.setNote(0, track_id, 0, Note(60, 100));
+  section.setCommand(0, track_id, Command("YDFF")); // azimuth -> +180 degrees, over 1.0s
+
+  ChannelConfiguration config(44100, 1);
+  auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
+  SongState state(config);
+  state.initialize(song);
+  state.setIsPlaying(true);
+
+  int row_samples = config.getSampleInterval(song.getTempo());
+  state.renderBlock(row_samples, song, *mixer); // exactly one row
+
+  std::unordered_map<int, TrackInfo> info;
+  state.getAllTrackInfo(info);
+  CHECK(info[track_id].hasLiveAzimuth());
+  // Azimuth starts at 0 (the track's own default); glideAzimuth() picks
+  // the shorter way toward +180, so after just one row it should have
+  // moved noticeably but nowhere near the target yet.
+  CHECK(info[track_id].getLiveAzimuth() > 1.0f);
+  CHECK(info[track_id].getLiveAzimuth() < 90.0f);
+
+  // Enough further rows to comfortably exceed the glide's own 1.0s
+  // duration - now settled at the target.
+  for (int i = 0; i < 7; i++) state.renderBlock(row_samples, song, *mixer);
+  state.getAllTrackInfo(info);
+  CHECK_NEAR(info[track_id].getLiveAzimuth(), 180.0f, 1e-1f);
 }

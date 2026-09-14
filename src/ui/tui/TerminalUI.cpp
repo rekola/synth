@@ -2973,26 +2973,11 @@ TerminalUI::startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) {
 
     updateEscapeIndicator();
 
-    // A Launchpad fader glide (LaunchpadManager::applyFaderPress()) has
-    // nothing of its own to wake poll() with - it only advances when
-    // refresh() (called from renderComponents() below) actually runs, so
-    // the wait is capped low enough for a smooth glide instead of the
-    // ~1s idle timeout that's otherwise fine, the same reasoning as
-    // escapeIndicatorPollTimeoutMs()'s own shortened wait for its
-    // delayed indicator.
-    constexpr int kFaderRampPollTimeoutMs = 30;
-    bool fader_ramp_active = launchpad_manager_ && launchpad_manager_->hasActiveFaderRamp();
     int poll_timeout_ms = escapeIndicatorPollTimeoutMs();
-    if (fader_ramp_active) poll_timeout_ms = std::min(poll_timeout_ms, kFaderRampPollTimeoutMs);
 
     // setStatus("polling");
     int poll_result = poll(descriptors.get(), num_descriptors, poll_timeout_ms);
-    if (poll_result == 0 && fader_ramp_active) {
-      // Nothing else woke this iteration, but a glide still needs
-      // ticking forward - renderComponents() below is what actually does
-      // that (LaunchpadManager::refresh()'s own tickFaderRamps() call).
-      render |= renderComponents();
-    } else if (poll_result > 0) {
+    if (poll_result > 0) {
       for (size_t i = 0; i < num_descriptors; i++) {
 	auto & d = descriptors[i];
 	if (d.revents) {

@@ -53,18 +53,19 @@ class Command {
   // there's exactly one authoritative definition of "valid", here, not one
   // in the caller and a second one duplicated/drifting inside this class.
   // Column 0/1 (docs/commands.md's two-character mnemonic - ZB, ZT, 0U,
-  // 0D, 0G, 0V, 0I, 0O, 0T, 0H, 0K, 0L, 0F, 0M) accepts [A-Za-z0-9-];
-  // column 2/3 (the hex argument) accepts the narrower [A-Fa-f0-9-].
-  // Column 0 is either 'Z' (a global command, not scoped to any one
-  // track/device - ZBxx pattern break, ZTxx tempo) or a leaf-track
-  // chain-position digit, always '0' today since there's no equivalent
-  // yet to Renoise's own numbered per-track DSP devices that digit
-  // addresses there - see updateData()'s own '-'-as-'0' handling below.
-  // Letters normalize to
-  // uppercase ASCII on storage, same as a typed command always has (a
-  // codepoint outside ASCII, e.g. a fullwidth Latin letter, is simply
-  // invalid here - unlike digit()'s own fullwidth handling, which is for
-  // *interpreting* an already-stored hex digit, not for command *entry*).
+  // 0D, 0G, 0V, 0I, 0O, 0T, 0L, 0F, 0M, 0P, YM, YA, YB, YL, YR, YD)
+  // accepts [A-Za-z0-9-]; column 2/3 (the hex argument) accepts the
+  // narrower [A-Fa-f0-9-]. Column 0 is 'Z' (a global command, not scoped
+  // to any one track/device - ZBxx pattern break, ZTxx tempo), 'Y' (this
+  // engine's own reserved namespace - see isVolumeGlide()'s own comment),
+  // or a leaf-track chain-position digit, always '0' today (no
+  // addressable per-track device chain exists yet for a nonzero digit to
+  // target) - see updateData()'s own '-'-as-'0' handling below. Letters
+  // normalize to uppercase ASCII on storage, same as a typed command
+  // always has (a codepoint outside ASCII, e.g. a fullwidth Latin letter,
+  // is simply invalid here - unlike digit()'s own fullwidth handling,
+  // which is for *interpreting* an already-stored hex digit, not for
+  // command *entry*).
   // Explicit range checks rather than <cctype>'s toupper()/isalnum() -
   // same UB reasoning digit()'s own comment gives: a codepoint isn't
   // guaranteed representable as unsigned char/EOF, which their contract
@@ -75,14 +76,15 @@ class Command {
     bool valid;
     if (i == 0) {
       // Column 0 is the device index (docs/commands.md) - 'Z' (a global
-      // command) or a digit (how far up this track's own ancestor chain
-      // the command targets, '-' included as a typed synonym for '0' -
-      // see below). No other letter means anything here, unlike column
-      // 1's own full mnemonic alphabet just below - accepting one would
-      // silently store a command whose device index isn't actually any
-      // of the values this class (or docs/commands.md) ever gives a
-      // meaning to.
-      valid = codepoint == '-' || codepoint == 'Z' || (codepoint >= '0' && codepoint <= '9');
+      // command), 'Y' (this engine's own reserved namespace - see
+      // isVolumeGlide()'s own comment), or a digit (how far up this
+      // track's own ancestor chain the command targets, '-' included as a
+      // typed synonym for '0' - see below). No other letter means
+      // anything here, unlike column 1's own full mnemonic alphabet just
+      // below - accepting one would silently store a command whose device
+      // index isn't actually any of the values this class (or
+      // docs/commands.md) ever gives a meaning to.
+      valid = codepoint == '-' || codepoint == 'Z' || codepoint == 'Y' || (codepoint >= '0' && codepoint <= '9');
     } else {
       char hi = i < 2 ? 'Z' : 'F'; // column 1 (the action letter) allows the full alphabet; the hex argument columns (2/3) don't
       valid = codepoint == '-' || (codepoint >= '0' && codepoint <= '9') || (codepoint >= 'A' && codepoint <= hi);
@@ -118,52 +120,42 @@ class Command {
     return (hi < 0 ? 0 : hi) * 16 + (lo < 0 ? 0 : lo);
   }
 
-  // 0Hxx/0Kxx - slide azimuth left/right: nudge the track's azimuth (and,
-  // unlike a plain track-azimuth change, every currently-sounding voice's
-  // own position too - see InstrumentTrackState::adjustAzimuth()) by `xx`
-  // degrees per tick, for as long as this row lasts
-  // (constants::TICKS_PER_ROW ticks/row - see SongState::
-  // scheduleAzimuthSlide()). Column 0 is this engine's own leaf-track
-  // chain-position digit (see updateData()'s own comment) - always '0'
-  // today, since there's no equivalent yet to Renoise's own numbered
-  // per-track DSP devices this same digit addresses there. "H"/"K":
-  // Renoise has no azimuth-slide equivalent to match letters with
-  // (its own panning is 2D, not this engine's full 3D positioning), but
-  // "K" does line up with Renoise's own *panning-column* (a different,
-  // note-row-scoped sub-column from this engine's single Command type)
-  // "Kx" - pan slide right there too; "H" is otherwise unclaimed by any
-  // Renoise command. (This pair used to be "L"/"R" under a now-retired
-  // "2" group digit - moved once volume needed "0Lxx" for itself, see
-  // isVolumeSet()'s own comment on why "L" won that fight.)
-  bool isAzimuthSlide() const { return values_[0] == '0' && (values_[1] == 'H' || values_[1] == 'K'); }
+  // YLxx/YRxx - slide azimuth left/right: nudge the track's azimuth
+  // (and, unlike a plain track-azimuth change, every currently-sounding
+  // voice's own position too - see InstrumentTrackState::
+  // adjustAzimuth()) by `xx` degrees per tick, for as long as this row
+  // lasts (constants::TICKS_PER_ROW ticks/row - see SongState::
+  // scheduleAzimuthSlide()). Column 0 is 'Y' (see updateData()'s own
+  // comment). See docs/commands.md's own Source column for where "L"/
+  // "R" came from.
+  bool isAzimuthSlide() const {
+    return values_[0] == 'Y' && (values_[1] == 'L' || values_[1] == 'R');
+  }
 
   // Signed degrees-per-tick for isAzimuthSlide() (values_[2..3], same
   // permissive 2-hex-digit parsing as getBreakDestinationRow() above) -
-  // negative for 0Hxx (left), positive for 0Kxx (right).
+  // negative for left (YLxx), positive for right (YRxx).
   float getAzimuthSlidePerTick() const {
     auto hi = digit(values_[2], 16), lo = digit(values_[3], 16);
     float magnitude = static_cast<float>((hi < 0 ? 0 : hi) * 16 + (lo < 0 ? 0 : lo));
-    return values_[1] == 'H' ? -magnitude : magnitude;
+    return values_[1] == 'L' ? -magnitude : magnitude;
   }
 
-  // 0Pxx - set azimuth to an absolute position, unlike 0Hxx/0Kxx's own
+  // 0Pxx - set azimuth to an absolute position, unlike YLxx/YRxx's own
   // relative nudge (the same Slide-vs-Set distinction as 0Lxx/0Fxx/0Mxx
-  // have against them). "P" matches Renoise's own `0Pxx` "Track Pan"
-  // command exactly (`xx` 00/80/FF = left/center/right there too) - a
-  // real, deliberate limitation inherited along with the letter: `xx`
-  // only reaches half this engine's own full 360-degree azimuth range
-  // (-90 at 00 through +90 at FF, i.e. the front hemisphere only,
-  // matching Renoise's own left-right stereo-pan metaphor, which has no
-  // "behind" to reach in the first place) - this command simply can't
-  // address a "behind" position the way 0Hxx/0Kxx's own relative slides
-  // eventually can by accumulating past +-90 over several rows. Not a
-  // bug to fix later so much as what borrowing a 2D-panner's own command
-  // shape onto a 3D one necessarily costs.
+  // have against them). A real, deliberate limitation: `xx` only reaches
+  // half this engine's own full 360-degree azimuth range (-90 at 00
+  // through +90 at FF, i.e. the front hemisphere only - a left-right
+  // stereo-pan metaphor has no "behind" to reach in the first place) -
+  // this command simply can't address a "behind" position the way
+  // YLxx/YRxx's own relative slides eventually can by accumulating past
+  // +-90 over several rows. See docs/commands.md's own Source column for
+  // where "P" and this encoding came from.
   bool isAzimuthSet() const { return values_[0] == '0' && values_[1] == 'P'; }
 
   // xx (0-255, permissive 2-hex-digit parsing) maps linearly from -90
   // degrees at 00 through +90 at FF - see isAzimuthSet()'s own comment on
-  // the half-circle limitation this inherits from Renoise's own encoding.
+  // the half-circle limitation this encoding has.
   float getAzimuthSetDegrees() const {
     auto hi = digit(values_[2], 16), lo = digit(values_[3], 16);
     auto magnitude = static_cast<float>((hi < 0 ? 0 : hi) * 16 + (lo < 0 ? 0 : lo));
@@ -177,20 +169,8 @@ class Command {
   // the last one landed"), and what hand-typing an exact level directly
   // is naturally shaped like too. Column 0 is this engine's own
   // leaf-track chain-position digit (see updateData()'s own comment) -
-  // always '0'. "L" for Level, matching Renoise's own `0Lxx` "Track
-  // Level" command exactly (checked after the fact, not before - this
-  // codebase's own stated convention is to check an established lineage
-  // before inventing a mnemonic, which an earlier pass of this code
-  // skipped twice in a row: the original pick, "S", collided with
-  // Renoise's own long-established `Sxx` "Trigger Slice"; the group-digit
-  // scheme itself, "1"/"4"/"5" for Volume/Send A/Send B, wrongly modeled
-  // Renoise's own leading digit as a *category* selector when it's really
-  // a *device-chain-position* one - always 0 here, since this engine has
-  // no addressable per-track device chain to target a nonzero digit at).
-  // "F"/"M" for Send A/Send B have no Renoise precedent to match at all -
-  // sends there are DSP-chain routing, never a pattern command - so
-  // they're just two letters Renoise itself doesn't already use for
-  // anything, picked for that reason alone, not a borrowed meaning.
+  // always '0'. See docs/commands.md's own Source column for where "L"/
+  // "F"/"M" came from.
   bool isVolumeSet() const { return values_[0] == '0' && values_[1] == 'L'; }
   bool isSendASet() const { return values_[0] == '0' && values_[1] == 'F'; }
   bool isSendBSet() const { return values_[0] == '0' && values_[1] == 'M'; }
@@ -226,6 +206,84 @@ class Command {
   static Command sendASet(float linear) { return makeSendSet('F', linear); }
   static Command sendBSet(float linear) { return makeSendSet('M', linear); }
 
+  // YMxy/YAxy/YBxy - Volume (Send Main)/Send A/Send B's own equivalent of
+  // 0Lxx/0Fxx/0Mxx above, but carrying a glide duration alongside the
+  // target rather than an instant set: what a live-recorded Launchpad
+  // fader move actually needs to reproduce the glide it performed, not
+  // just where it ended up. `x` (values_[2]) is the target - the same
+  // linear-in-dB curve as 0Lxx/0Fxx/0Mxx, just nibble (0-15) instead of
+  // byte resolution; `y` (values_[3]) is the glide's own duration, real
+  // (wall-clock) seconds, unaffected by tempo - a fader press's own
+  // velocity-driven speed has nothing to do with it. Column 0 is 'Y' (see
+  // updateData()'s own comment), not the leaf-track chain-position digit
+  // 0Lxx/etc. use. See docs/commands.md's own "Recorded fader-glide
+  // commands" section for the full encoding/rationale.
+  bool isVolumeGlide() const { return values_[0] == 'Y' && values_[1] == 'M'; }
+  bool isSendAGlide() const { return values_[0] == 'Y' && values_[1] == 'A'; }
+  bool isSendBGlide() const { return values_[0] == 'Y' && values_[1] == 'B'; }
+
+  // x (values_[2], one hex digit - a non-hex character parses as 0, same
+  // as digit()'s own contract) maps linearly in dB, same -80dB..0dB span
+  // getSendSetLinear() uses, at nibble instead of byte resolution.
+  // Returns dB directly, not linear gain (unlike getSendSetLinear()) -
+  // LeafTrackState::glideSendMain()/A()/B(), the consumer here, interpolates
+  // in dB (see that class's own comment for why), so this skips a
+  // pointless dB->linear->dB round trip.
+  float getGlideTargetDb() const {
+    auto x = digit(values_[2], 16);
+    float magnitude = static_cast<float>(x < 0 ? 0 : x);
+    return -80.0f + (magnitude / 15.0f) * 80.0f;
+  }
+
+  // y (values_[3], one hex digit, same permissive parsing) maps linearly
+  // in real seconds from kMinFaderRampSeconds at 0 up to
+  // kMaxFaderRampSeconds at 15 - the exact range a live Launchpad press's
+  // own velocity-scaled duration already scales into
+  // (LaunchpadManager::faderGlideDurationSeconds()), so a recorded move
+  // reads on the same real-time scale a live one does.
+  float getGlideDurationSeconds() const {
+    auto y = digit(values_[3], 16);
+    float step = static_cast<float>(y < 0 ? 0 : y);
+    return kMinGlideSeconds + (step / 15.0f) * (kMaxGlideSeconds - kMinGlideSeconds);
+  }
+
+  // The inverse of getGlideTargetDb()/getGlideDurationSeconds() -
+  // captures exactly what a Launchpad fader press just told the live
+  // engine to do (LeafTrackState::glideSendMain()/etc.'s own target_db/
+  // duration_seconds arguments), so a played-back YMxy/YAxy/YBxy
+  // reproduces that same press, not a re-derived approximation of it.
+  static Command volumeGlide(float target_db, float duration_seconds) { return makeGlideSet('M', target_db, duration_seconds); }
+  static Command sendAGlide(float target_db, float duration_seconds) { return makeGlideSet('A', target_db, duration_seconds); }
+  static Command sendBGlide(float target_db, float duration_seconds) { return makeGlideSet('B', target_db, duration_seconds); }
+
+  // YDxy - azimuth's own equivalent of YMxy/YAxy/YBxy: an absolute target
+  // with an explicit glide duration, what a live-recorded Launchpad Pan
+  // press needs to reproduce the glide it performed. Not "YPxy" - 0Pxx's
+  // own `xx` only reaches half the circle (isAzimuthSet()'s own comment on
+  // why, a real inherited limitation there), which would throw away
+  // exactly the range a Pan press can actually reach; `x` here instead
+  // spans the *full* circle. `D` for **D**irection. Column 0 is 'Y' (see
+  // updateData()'s own comment).
+  bool isAzimuthGlide() const { return values_[0] == 'Y' && values_[1] == 'D'; }
+
+  // x (values_[2], one hex digit) maps linearly across the full circle,
+  // -180 degrees at 0 up through +180 at 15 - independent of
+  // azimuthToRow()/rowToAzimuth()'s own 8-row grid (a Command's own
+  // resolution isn't tied to how many rows any particular hardware fader
+  // happens to have, same reasoning getSendSetLinear()'s own comment
+  // gives for Send).
+  float getAzimuthGlideTargetDegrees() const {
+    auto x = digit(values_[2], 16);
+    float magnitude = static_cast<float>(x < 0 ? 0 : x);
+    return (magnitude / 15.0f) * 360.0f - 180.0f;
+  }
+
+  // The inverse of getAzimuthGlideTargetDegrees() - `duration_seconds`
+  // shares getGlideDurationSeconds()'s own nibble encoding (values_[3]
+  // isn't specific to any one of YMxy/YAxy/YBxy/YDxy, so that decoder
+  // already works here unchanged).
+  static Command azimuthGlide(float target_degrees, float duration_seconds) { return makeAzimuthGlideSet(target_degrees, duration_seconds); }
+
   const char * data() const { return &(values_[0]); }
 
  private:
@@ -249,7 +307,64 @@ class Command {
     return c;
   }
 
+  // volumeGlide()/sendAGlide()/sendBGlide()'s own shared builder -
+  // `letter` is 'M'/'A'/'B', `target_db` clamped into the representable
+  // -80..0dB range first (same reasoning makeSendSet()'s own clamp has),
+  // `duration_seconds` clamped into [kMinGlideSeconds, kMaxGlideSeconds]
+  // before mapping into its own nibble.
+  static Command makeGlideSet(char letter, float target_db, float duration_seconds) {
+    float db = target_db;
+    if (db < -80.0f) db = -80.0f;
+    if (db > 0.0f) db = 0.0f;
+    int target_nibble = static_cast<int>(lround((db + 80.0f) / 80.0f * 15.0f));
+    float duration = duration_seconds;
+    if (duration < kMinGlideSeconds) duration = kMinGlideSeconds;
+    if (duration > kMaxGlideSeconds) duration = kMaxGlideSeconds;
+    int duration_nibble = static_cast<int>(lround((duration - kMinGlideSeconds) / (kMaxGlideSeconds - kMinGlideSeconds) * 15.0f));
+    Command c;
+    c.values_[0] = 'Y';
+    c.values_[1] = letter;
+    c.values_[2] = kHexDigits[target_nibble & 0xF];
+    c.values_[3] = kHexDigits[duration_nibble & 0xF];
+    return c;
+  }
+
+  // azimuthGlide()'s own builder - same duration-nibble encoding
+  // makeGlideSet() uses, but `target_degrees` wrapped into (-180,180]
+  // first (a raw fmodf, not a clamp - unlike a dB target, degrees are
+  // circular, so a value outside that range means "the same direction,
+  // taken the long way round" rather than "out of representable range")
+  // before mapping across the full circle.
+  static Command makeAzimuthGlideSet(float target_degrees, float duration_seconds) {
+    float wrapped = fmodf(target_degrees + 180.0f, 360.0f);
+    if (wrapped < 0.0f) wrapped += 360.0f;
+    wrapped -= 180.0f; // now in [-180, 180)
+    int target_nibble = static_cast<int>(lround((wrapped + 180.0f) / 360.0f * 15.0f));
+    float duration = duration_seconds;
+    if (duration < kMinGlideSeconds) duration = kMinGlideSeconds;
+    if (duration > kMaxGlideSeconds) duration = kMaxGlideSeconds;
+    int duration_nibble = static_cast<int>(lround((duration - kMinGlideSeconds) / (kMaxGlideSeconds - kMinGlideSeconds) * 15.0f));
+    Command c;
+    c.values_[0] = 'Y';
+    c.values_[1] = 'D';
+    c.values_[2] = kHexDigits[target_nibble & 0xF];
+    c.values_[3] = kHexDigits[duration_nibble & 0xF];
+    return c;
+  }
+
   static constexpr char kHexDigits[] = "0123456789ABCDEF";
+
+  // Deliberately duplicated, not shared with LaunchpadManager.cpp's own
+  // identically-valued kMinFaderRampSeconds/kMaxFaderRampSeconds - this is
+  // a model-layer class (src/model/), which src/launchpad/ already
+  // depends on, not the other way around; the same "each file keeps its
+  // own small constant" convention this class's own dB helpers already
+  // follow. A live press's own duration (LaunchpadManager::
+  // faderGlideDurationSeconds()) and a recorded one (getGlideDurationSeconds()
+  // above) have to agree on this range for the two to read as the same
+  // real-time scale.
+  static constexpr float kMinGlideSeconds = 0.03f;
+  static constexpr float kMaxGlideSeconds = 1.0f;
 
   char values_[4] = { '-', '-', '-', '-' };
 };

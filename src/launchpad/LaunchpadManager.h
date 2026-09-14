@@ -519,16 +519,6 @@ class LaunchpadManager {
   // before that clock existed.
   void refresh(const Song & song, const std::vector<int> & track_ids, const PlaybackInfo & playback_info, int fallback_track_index, Controller & controller, const SessionWindow & session);
 
-  // Whether any track's Volume/Pan/Send A/Send B fader is still gliding
-  // toward a pressed target (see fader_state_send_main_/etc.'s own
-  // comment) - refresh() only ticks a ramp forward when it's actually
-  // called, and the main event loop otherwise only calls it on real input
-  // or a coarse ~1s idle timeout, far too infrequent for a smooth glide -
-  // so the loop checks this to shorten its own poll wait while a ramp is
-  // in flight, the same way it already shortens it for the Escape-chord
-  // indicator's own delayed appearance.
-  bool hasActiveFaderRamp() const;
-
  private:
   struct DeviceState {
     // Relative to Controller::getGlobalOctave(), not an absolute octave -
@@ -714,7 +704,7 @@ class LaunchpadManager {
     // (e.g. right after opening a mode). Only meaningful/painted when
     // grid_mode selects the matching one.
     std::array<float, 8> track_send_main {}, track_send_a {}, track_send_b {}, track_azimuth {};
-    // Each column's own current micro-value step (0-3, see
+    // Each column's own current micro-value step (0-2, see
     // fader_state_send_main_/etc.'s own comment) - refreshLeds() uses this
     // to brighten/dim just the fader's own top pad, the same "mirror
     // everything a device needs into DeviceState" rule track_send_main/
@@ -745,6 +735,13 @@ class LaunchpadManager {
     // default value happens to map to (row 0 for Send A/B, dead-center for
     // Pan - both misleadingly "lit").
     int grid_track_count = 0;
+
+    // Each of the first 8 root tracks' own identity-hue color (same
+    // computation/lightness as GridMode::SESSION's own session_colors
+    // below, just one entry per track rather than per clip pad) - Pan's
+    // own row indicator uses this instead of a single fixed hue, the same
+    // "which track is this" cue Session view's columns already give.
+    std::array<Color, 8> track_colors {};
 
     // GridMode::SESSION: each of the 64 pads' own identity-hue static color
     // (x + y*8, y flipped from the overview's own top-down column order -
@@ -964,18 +961,17 @@ class LaunchpadManager {
   // track's own value toward that row's canonical one (rate scaled by
   // press velocity - a harder hit arrives sooner) rather than snapping
   // instantly, and repressing the row the fader is already resting on
-  // instead cycles 4 finer "micro" values around that row's own canonical
-  // one (both matching the real hardware/Ableton convention).
-  // `target_value`/`start_value`/`full_range` are all in whatever unit
-  // that parameter's own row<->value conversion already uses (dB for the
-  // three Sends, degrees for Pan) so
-  // tickFaderRamps() can share one generic implementation across all four.
-  // A track absent from a given map has never had that fader touched -
-  // there's nothing to glide or offset, so it just shows the model's own
+  // instead cycles 2 finer "micro" values around that row's own canonical
+  // one. The glide itself is entirely server-side now for all four
+  // parameters (LeafTrackState::glideSendMain()/A()/B()/glideAzimuth()) -
+  // `ramping`/`start_time`/`duration_seconds` below are passive
+  // bookkeeping only, never ticked from here (see resolveSendFaderTarget()/
+  // resolveAzimuthFaderTarget()'s own comment for what they're still used
+  // for). A track absent from a given map has never had that fader
+  // touched - there's nothing to offset, so it just shows the model's own
   // value directly, same as before this existed.
   struct FaderState {
     bool ramping = false;
-    float start_value = 0.0f, target_value = 0.0f, full_range = 1.0f;
     std::chrono::steady_clock::time_point start_time;
     float duration_seconds = 0.0f;
     // Whether this fader has ever actually been pressed via a Launchpad
@@ -985,21 +981,22 @@ class LaunchpadManager {
     // for reasons that have nothing to do with ever having pressed it
     // there (loaded from a song file, set from the terminal UI, or simply
     // rounding into the same row a different value already occupied) -
-    // applyFaderPress() needs to tell "you just pressed the row you're
-    // already sitting on again" (a micro-value tap) apart from "you
-    // pressed a row that happens to already match the value" (a plain,
-    // if silent, press - still not a repeat), and only genuine repetition
-    // of the *press itself* means the former.
+    // resolveSendFaderTarget()/resolveAzimuthFaderTarget() need to tell
+    // "you just pressed the row you're already sitting on again" (a
+    // micro-value tap) apart from "you pressed a row that happens to
+    // already match the value" (a plain, if silent, press - still not a
+    // repeat), and only genuine repetition of the *press itself* means
+    // the former.
     bool touched = false;
     int last_pressed_row = -1;
     // 0 (this row's own plain canonical value, no micro-offset at all -
-    // what a first, non-repeated press onto this row leaves it at) or 1-4
-    // (one of the 4 real micro-values between this row and the next,
-    // dimmest at 1 up to full brightness again at 4 - matching the real
-    // hardware/Ableton convention exactly). Repressing the row already at
-    // 0 enters micro-adjustment at 1; repressing again at 4 wraps back to
-    // 1, never back to 0 - only pressing a genuinely *different* row does
-    // that (see applyFaderPress()'s own comment).
+    // what a first, non-repeated press onto this row leaves it at) or 1-2
+    // (one of the 2 real micro-values between this row and the next,
+    // dimmest at 1 up to full brightness again at 2). Repressing the row
+    // already at 0 enters micro-adjustment at 1; repressing again at 2
+    // wraps back to 1, never back to 0 - only pressing a genuinely
+    // *different* row does that (see resolveSendFaderTarget()'s own
+    // comment).
     int micro_step = 0;
     // recordFaderAutomationIfArmed()'s own "which column am I writing
     // this fader's automation into" state - which row/command-column
@@ -1019,57 +1016,41 @@ class LaunchpadManager {
     int automation_column = -1;
   };
   std::unordered_map<int, FaderState> fader_state_send_main_, fader_state_send_a_, fader_state_send_b_, fader_state_azimuth_;
-  // handlePadEvent()'s own SEND_A/SEND_B/SEND_MAIN/PAN branch calls this
-  // once per press - shared across all four parameters via `rowToValue`
-  // (sendRowToDb, or rowToAzimuth) and `wraps` (only Pan's row 7
-  // neighbors row 0, a real circular position - a Send's row 7 is a true
-  // ceiling, so its own micro-values above it just collapse to its own
-  // value rather than wrapping toward "off"). Decides which of the two
-  // press behaviors this is (a fresh glide, or a same-row micro-value
-  // cycle - see FaderState's own `touched`/`last_pressed_row` comment)
-  // and calls `apply` with the immediate value to set: for a fresh glide
-  // that's just the unchanged starting value (tickFaderRamps() carries it
-  // from there); for a micro-value cycle, the newly-computed one, right
-  // away. Returns the value this press actually targets - the
-  // micro-cycle's own newly-computed value, or a fresh glide's
-  // `target_value` (not `apply`'s own immediate argument, which for a
-  // fresh glide is deliberately still the pre-press value) - so a caller
-  // that wants to record what this *press* means (not how the live value
-  // happens to glide there over real time) has a single value to record,
-  // once, right away. See recordFaderAutomationIfArmed()'s own comment
-  // for why that matters.
-  static float applyFaderPress(FaderState & fader, float current_value, int pressed_row, int velocity,
-    float (*rowToValue)(int), float full_range, bool wraps, const std::function<void(float)> & apply);
-
-  // Send Main/A/B's own press resolver - applyFaderPress()'s row/micro-
-  // value math (same FaderState::touched/last_pressed_row/micro_step
-  // bookkeeping, same fresh-row-vs-same-row-repeat distinction), but with
-  // none of its client-side glide/apply-callback machinery: Send's own
-  // glide is server-side now (Controller::glideTrackSendA()/B()/Main()),
-  // fired once as a (target, duration) pair rather than driven by repeated
-  // apply() calls - there's no local ramp left for tickFaderRamps() to
-  // advance. `fader`'s own ramping/start_time/duration_seconds fields are
-  // still written here, purely as passive bookkeeping (never ticked/
-  // advanced by anything any more) so a second press landing on the same
-  // row *while the server-side glide it kicked off is probably still in
-  // flight* is still resolved as "retarget the glide", not misread as a
-  // micro-value tap the way it would be once that glide has genuinely had
-  // time to finish. Sets `is_micro_tap` (instant, no glide at all - see
-  // FaderState's own micro_step comment) or `out_duration_seconds` (a
-  // fresh row's own velocity/distance-scaled duration, applyFaderPress()'s
-  // own formula) depending on which this press turned out to be; always
-  // returns the resolved target itself either way.
+  // Send Main/A/B's own press resolver, called once per press from
+  // handlePadEvent()'s own SEND_A/SEND_B/SEND_MAIN branches - decides
+  // which of the two press behaviors this is (a fresh glide, or a
+  // same-row micro-value cycle - see FaderState's own `touched`/
+  // `last_pressed_row` comment) and resolves the target either way,
+  // without itself touching the model or the live engine (the glide
+  // itself is server-side - Controller::glideTrackSendA()/B()/Main(),
+  // fired once as a (target, duration) pair). `fader`'s own
+  // ramping/start_time/duration_seconds fields are written here purely as
+  // passive bookkeeping (never ticked/advanced by anything any more) so a
+  // second press landing on the same row *while the server-side glide it
+  // kicked off is probably still in flight* is still resolved as
+  // "retarget the glide", not misread as a micro-value tap the way it
+  // would be once that glide has genuinely had time to finish. Sets
+  // `is_micro_tap` (instant, no glide at all - see FaderState's own
+  // micro_step comment) or `out_duration_seconds` (a fresh row's own
+  // velocity/distance-scaled duration) depending on which this press
+  // turned out to be; always returns the resolved target itself either
+  // way, for the caller to record via recordFaderAutomationIfArmed()
+  // below.
   static float resolveSendFaderTarget(FaderState & fader, float current_value, int pressed_row, int velocity,
     bool & is_micro_tap, float & out_duration_seconds);
 
-  // Advances every in-flight ramp above by however long it's actually
-  // been since the last call (steady_clock, not a fixed per-call step -
-  // refresh() isn't called on a fixed schedule, see hasActiveFaderRamp()'s
-  // own comment), pushing each newly-interpolated value through the same
-  // Controller setter a full press already uses so the live audio engine
-  // and every connected device's own LED mirror both hear the glide as it
-  // happens, not just its final value.
-  void tickFaderRamps(Controller & controller);
+  // Pan's own equivalent of resolveSendFaderTarget() above - same
+  // row/micro-value bookkeeping, same "already gliding" retarget check,
+  // fired through Controller::glideTrackAzimuth() instead. Circular
+  // (unlike Send's true ceiling at row 7): a micro-value tap always wraps
+  // row 7 into row 0, and the resolved target's own distance-from-current
+  // (feeding the velocity-scaled duration) is the shorter way around the
+  // circle, not a raw subtraction - see LeafTrackState::glideAzimuth()'s
+  // own comment for why the same wrap has to happen again at the engine,
+  // not just here (this only picks a *duration*, the engine is what
+  // actually decides which way the glide travels).
+  static float resolveAzimuthFaderTarget(FaderState & fader, float current_value, int pressed_row, int velocity,
+    bool & is_micro_tap, float & out_duration_seconds);
 
   // Live-recording's own write path: while Record Arm is on and the
   // transport is genuinely playing (the same "you're recording a take
@@ -1089,24 +1070,19 @@ class LaunchpadManager {
   // Clip would). A no-op otherwise - a fader move made while just
   // auditioning (not recording) still moves the live value, same as
   // always, just doesn't get captured anywhere. Called exactly once per
-  // press (handlePadEvent()'s own SEND_A/SEND_B/SEND_MAIN branches, using
-  // resolveSendFaderTarget()'s own returned target - Pan, the one
-  // remaining applyFaderPress() caller, never records at all) - never
-  // called again as that press's own glide actually plays out, whether
-  // that glide is Launchpad's own client-side one (Pan) or the engine's
-  // (Send Main/A/B, LeafTrackState::glideSendA()/etc.): either way, the
-  // glide itself is real-time/audio-feel interpolation only, not itself
-  // part of what gets recorded, so tracing it into the data here would
-  // bake that same interpolation into the data a future engine-side
-  // playback interpolation phase is meant to reconstruct instead - this
-  // only ever records the one discrete target each press itself means.
-  // That target is also as far as this goes: the press's own velocity-
-  // derived glide duration (resolveSendFaderTarget()'s own
-  // out_duration_seconds) never reaches here at all, so a recorded move
-  // can't (yet) reproduce how fast the original press glided, only where
-  // it ended up - the deferred playback-interpolation phase's own
-  // forward-lookahead scan is what decides a replayed glide's timing
-  // instead, from row distance, not this.
+  // press (handlePadEvent()'s own SEND_A/SEND_B/SEND_MAIN/PAN branches,
+  // using resolveSendFaderTarget()'s/resolveAzimuthFaderTarget()'s own
+  // returned target and duration, encoded together into a single
+  // YMxy/YAxy/YBxy/YDxy `command` via Command::volumeGlide()/
+  // sendAGlide()/sendBGlide()/azimuthGlide()) - never called again as
+  // that press's own glide actually plays out (LeafTrackState::
+  // glideSendA()/glideAzimuth()/etc.): the glide itself is real-time/
+  // audio-feel interpolation only, not a second thing to trace into the
+  // data here. Playback reproduces it directly from the recorded command
+  // instead (SongState.h's own command-handling loop, starting the
+  // identical LeafTrackState glide at that row) - simpler and more
+  // faithful than reconstructing a glide's timing from the distance
+  // between two plain `Set` commands would be.
   void recordFaderAutomationIfArmed(Controller & controller, FaderState & fader, int track_id, Command command);
 
   // The Session-view-wide shared quantization reference ("beat 1") every

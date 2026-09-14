@@ -17,6 +17,7 @@
 #include "../util/constants.h"
 
 #include <algorithm>
+#include <cmath>
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
@@ -514,6 +515,33 @@ class SongState : public TrackState {
 		    else if (command.isSendBSet()) leaf_state->setSendB(command.getSendSetLinear());
 		    else leaf_state->setAzimuth(command.getAzimuthSetDegrees());
 		  }
+		} else if (command.isVolumeGlide() || command.isSendAGlide() || command.isSendBGlide()) {
+		  // YMxy/YAxy/YBxy - reproduces a recorded Launchpad fader press's
+		  // own real (wall-clock) glide, not just its final value - the
+		  // same LeafTrackState::glideSendMain()/A()/B() ramp a live press
+		  // starts server-side now (Controller::glideTrackSendA()/etc.),
+		  // just started here at this row instead of from a live event.
+		  // getGlideDurationSeconds() is real seconds regardless of
+		  // tempo_, converted to frames via this buffer's own actual
+		  // sample rate, same as Player.cpp's own GLIDE_TRACK_SEND_*
+		  // handling does for a live press.
+		  auto * leaf_state = dynamic_cast<LeafTrackState *>(getChildByInternalId(track_id));
+		  if (leaf_state) {
+		    int glide_frames = static_cast<int>(std::lround(command.getGlideDurationSeconds() * getChannelConfiguration().getAudioOutSampleRate()));
+		    if (command.isVolumeGlide()) leaf_state->glideSendMain(command.getGlideTargetDb(), glide_frames);
+		    else if (command.isSendAGlide()) leaf_state->glideSendA(command.getGlideTargetDb(), glide_frames);
+		    else leaf_state->glideSendB(command.getGlideTargetDb(), glide_frames);
+		  }
+		} else if (command.isAzimuthGlide()) {
+		  // YDxy - azimuth's own equivalent of the three above, started
+		  // through LeafTrackState::glideAzimuth() (which picks its own
+		  // travel direction - see that method's own comment) rather
+		  // than glideSendMain()/A()/B().
+		  auto * leaf_state = dynamic_cast<LeafTrackState *>(getChildByInternalId(track_id));
+		  if (leaf_state) {
+		    int glide_frames = static_cast<int>(std::lround(command.getGlideDurationSeconds() * getChannelConfiguration().getAudioOutSampleRate()));
+		    leaf_state->glideAzimuth(command.getAzimuthGlideTargetDegrees(), glide_frames);
+		  }
 		}
 	      }
 	    }
@@ -753,7 +781,7 @@ class SongState : public TrackState {
     setPosition(song.toAbsoluteRow(next_section_idx, row));
   }
 
-  // 0Hxx/0Kxx (Command::isAzimuthSlide()) - spreads constants::TICKS_PER_ROW
+  // YLxx/YRxx (Command::isAzimuthSlide()) - spreads constants::TICKS_PER_ROW
   // evenly-spaced nudges of `delta_per_tick` degrees across the row
   // currently starting at block-relative sample offset `row_start` (the
   // same block-relative numbering render()'s own note scheduling just

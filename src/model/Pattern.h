@@ -176,9 +176,9 @@ class Pattern : public SongObject {
 
   // A row can carry more than one Command, the same way it can carry more
   // than one Note - one column per concurrently-recordable automation
-  // target (Pan's own hand-typed 0Hxx/0Kxx today; a future live-recorded
-  // Volume/Send A/Send B move alongside it, each its own column, rather
-  // than one shared slot every recordable parameter has to fight over).
+  // target (a Launchpad Volume/Send A/Send B/Pan fader move alongside a
+  // hand-typed `YLxx`/`YRxx` slide, each its own column, rather than one
+  // shared slot every recordable parameter has to fight over).
   // setCommand(row, Command)/getCommand(row)/clearCommand(row) below are
   // column-0 shorthand, kept for every existing single-command call site
   // (the pattern editor's own cursor-column effect entry, clipboard,

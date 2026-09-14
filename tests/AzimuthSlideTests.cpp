@@ -22,13 +22,13 @@
 
 using namespace std;
 
-// 0Hxx/0Kxx - see docs/commands.md and Command.h's own comments.
+// YLxx/YRxx - see docs/commands.md and Command.h's own comments.
 TEST(azimuth_slide_command_parses_direction_and_magnitude) {
-  Command left("0H10");
+  Command left("YL10");
   CHECK(left.isAzimuthSlide());
   CHECK_NEAR(left.getAzimuthSlidePerTick(), -16.0f, 0.001f); // 0x10 = 16
 
-  Command right("0K0A");
+  Command right("YR0A");
   CHECK(right.isAzimuthSlide());
   CHECK_NEAR(right.getAzimuthSlidePerTick(), 10.0f, 0.001f); // 0x0A = 10
 
@@ -73,7 +73,7 @@ TEST(render_context_accumulates_and_carries_azimuth_ticks) {
   CHECK_NEAR(shifted[100], 2.0f, 0.001f);
 }
 
-// Full pipeline: a held note across a row carrying 0Kxx slides the
+// Full pipeline: a held note across a row carrying YRxx slides the
 // track's own live azimuth by constants::TICKS_PER_ROW * the command's
 // per-tick amount over the course of that one row (InstrumentTrackState::
 // adjustAzimuth() also nudges every currently-sounding voice by the same
@@ -86,7 +86,7 @@ TEST(azimuth_slide_moves_the_track_over_the_row) {
 
   auto & scene0 = song.addSection();
   scene0.setNote(0, track.getInternalId(), 0, Note(60, 100));
-  scene0.setCommand(0, track.getInternalId(), Command("0K05")); // +5 deg/tick, right
+  scene0.setCommand(0, track.getInternalId(), Command("YR05")); // +5 deg/tick, right
 
   ChannelConfiguration config(44100, 1);
   auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
@@ -122,7 +122,7 @@ TEST(azimuth_slide_command_fires_even_while_a_clip_supplies_the_row_notes) {
   auto & section = song.addSection();
   placeClipInstance(song, section, track_id, 0, 0);
   CHECK(section.getInstance(track_id, 0) == clip_id);
-  section.setCommand(0, track_id, Command("0K05")); // +5 deg/tick, right - section-level, not on the clip
+  section.setCommand(0, track_id, Command("YR05")); // +5 deg/tick, right - section-level, not on the clip
 
   ChannelConfiguration config(44100, 1);
   auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
@@ -196,7 +196,7 @@ TEST(track_state_set_azimuth_reaches_an_already_active_voice) {
 }
 
 // 0Pxx - see docs/commands.md and Command.h's own comments. An absolute
-// set, not a slide (unlike 0Hxx/0Kxx) - matches Renoise's own 0Pxx "Track
+// set, not a slide (unlike YLxx/YRxx) - matches Renoise's own 0Pxx "Track
 // Pan" exactly, half-circle limitation included: xx only reaches -90..+90
 // degrees (the front hemisphere), never "behind".
 TEST(azimuth_set_command_parses_and_decodes) {
@@ -212,7 +212,7 @@ TEST(azimuth_set_command_parses_and_decodes) {
   CHECK(right.isAzimuthSet());
   CHECK_NEAR(right.getAzimuthSetDegrees(), 90.0f, 0.01f);
 
-  Command unrelated("0K05");
+  Command unrelated("YR05");
   CHECK(!unrelated.isAzimuthSet());
 }
 

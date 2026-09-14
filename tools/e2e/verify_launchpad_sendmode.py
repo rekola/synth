@@ -9,8 +9,11 @@ so pad (0,5) [note 61, per padToNoteNumber(x,y) = 11 + x + 10y] starts dark.
 Pressing it sets sendA = 5/7 ~= 0.714 -> lit_row = round(0.714*7) = 5, so
 (0,5) is lit afterward. Send A's bargraph color is cyan (Rgb{0,127,127} =
 "00 7f 7f"), unlike the padColor()-blended NOTES-mode pads (see
-verify_fokker_colors.py) - Send/Pan mode paints full-brightness base color
-with no idle-brightness scaling (LaunchpadManager::refreshLeds)."""
+verify_fokker_colors.py) - Send A/B/Main each paint one fixed
+full-brightness hue with no idle-brightness scaling (LaunchpadManager::
+refreshLeds); Pan instead paints each column in that track's own identity
+color, since its single lit cell per column has no bargraph shape of its
+own to tell columns apart by."""
 import sys, os, subprocess, time
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))

@@ -88,7 +88,7 @@ for the full picture, or run `synth --licenses` to print it.
 * Binary storage for recordings and cover art
 * Instrument editor
 * Track effect editor
-* Nested Effect track automation captured into clips (today a clip only captures its own leaf track's notes)
+* Nested Effect track automation captured into clips (today a clip only captures its own track's notes)
 * Allocation-free and realtime-priority renderer
 * New recordings are initially drafts and can then be either merged or promoted to a clip
 * Aftertouch filtering and aggregating

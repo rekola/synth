@@ -44,7 +44,7 @@ class PositionedVoice : public VoiceState {
   // deliberately doesn't scale by this.
   float getDistanceGain() const { return distanceGain(position_.distance); }
 
-  // 0Hxx/0Kxx azimuth slide and the live Send Main/A/B knobs - see
+  // YLxx/YRxx azimuth slide and the live Send Main/A/B knobs - see
   // VoiceState.h's own doc comments on why these recurse into children by
   // default there and are overridden here instead: every leaf voice
   // (pitched or not) has a real position/sends to move live.

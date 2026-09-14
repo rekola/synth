@@ -243,7 +243,7 @@ namespace {
   // micro_step) show as a lightness scale on just the fader's own top pad,
   // once one is actually active (micro_step > 0) - this is the floor at
   // micro_step 1 (the dimmest real micro-value), scaling up to 1.0
-  // (unscaled base color) at micro_step 4. A plain, non-repeated press
+  // (unscaled base color) at micro_step 2. A plain, non-repeated press
   // (micro_step 0) skips this scale entirely and shows unscaled base
   // color too, same as every other lit bargraph row.
   constexpr float LAUNCHPAD_FADER_MICRO_MIN_SCALE = 0.35f;
@@ -385,17 +385,12 @@ namespace {
   // -100dB "off" floor.
   float linearToDb(float linear) { return linear <= 0.00001f ? -100.0f : 20.0f * log10f(linear); }
 
-  // linearToDb()'s own inverse - recordFaderAutomationIfArmed()'s own
-  // need to turn a dB value already being applied to a live send (via
-  // Controller::setTrackSendA()/etc., which take dB) back into linear
-  // gain, Command::volumeSet()/sendASet()/sendBSet()'s own argument type.
-  float dbToLinear(float db) { return db <= -100.0f ? 0.0f : powf(10.0f, db * 0.05f); }
-
-  // sendLinearToRow()'s own db->row half, factored out so applyFaderPress()
-  // (whose FaderState already tracks dB, the same unit sendRowToDb()/
-  // Controller::setTrackSendA()/B()/Main() all use - never linear gain)
-  // can reach it directly rather than double-converting through
-  // linearToDb() a second time via sendLinearToRow() itself.
+  // sendLinearToRow()'s own db->row half, factored out so
+  // resolveSendFaderTarget() (whose FaderState already tracks dB, the
+  // same unit sendRowToDb()/Controller::setTrackSendA()/B()/Main() all
+  // use - never linear gain) can reach it directly rather than
+  // double-converting through linearToDb() a second time via
+  // sendLinearToRow() itself.
   int sendDbToRow(float db) {
     // Nearer to off than to the lowest real (row-1) step - round down to
     // the hard-off row rather than the same half-step rounding the real
@@ -406,8 +401,9 @@ namespace {
     return std::clamp(static_cast<int>(lround(row)), 0, 7);
   }
 
-  // A fader press's own glide duration (LaunchpadManager::applyFaderPress())
-  // scales between these by press velocity - at max velocity (127) a full-
+  // A fader press's own glide duration (LaunchpadManager::
+  // faderGlideDurationSeconds()) scales between these by press velocity -
+  // at max velocity (127) a full-
   // range move takes kMinFaderRampSeconds (near-instant, matching the old
   // snap-to-value behavior every existing test/song already assumes), at
   // the lowest velocity (1) it takes the full kMaxFaderRampSeconds, and a
@@ -449,11 +445,12 @@ namespace {
   // it identically regardless of how hard it actually was.
   constexpr float kFaderVelocityGamma = 0.3f;
 
-  // applyFaderPress()'s (Pan) and resolveSendFaderTarget()'s (Send Main/
-  // A/B) own shared glide-duration formula - identical shape, just fed a
-  // different distance_fraction for each's own value range (kSendFullRangeDb/
-  // kAzimuthFullRangeDegrees), so it's a single source of truth for the
-  // velocity curve rather than two copies that could drift apart.
+  // resolveSendFaderTarget()'s (Send Main/A/B) and
+  // resolveAzimuthFaderTarget()'s (Pan) own shared glide-duration formula -
+  // identical shape, just fed a different distance_fraction for each's own
+  // value range (kSendFullRangeDb/kAzimuthFullRangeDegrees), so it's a
+  // single source of truth for the velocity curve rather than two copies
+  // that could drift apart.
   float faderGlideDurationSeconds(int velocity, float distance_fraction) {
     float velocity_fraction = static_cast<float>(std::clamp(velocity, 1, 127)) / 127.0f;
     float shaped_velocity_fraction = powf(velocity_fraction, kFaderVelocityGamma);
@@ -590,68 +587,27 @@ LaunchpadManager::sendLinearToRow(float linear) {
 }
 
 float
-LaunchpadManager::applyFaderPress(FaderState & fader, float current_value, int pressed_row, int velocity,
-    float (*rowToValue)(int), float full_range, bool wraps, const std::function<void(float)> & apply) {
-  // A micro-value tap only ever means "you just pressed the exact same
-  // row you yourself pressed last time" - see FaderState::touched/
-  // last_pressed_row's own comment for why that's not the same question
-  // as "does the live value happen to already resolve to this row"
-  // (checked once, via a value->row conversion, in an earlier revision of
-  // this function - wrong, since a value can innocently already sit near
-  // a row nobody ever explicitly pressed it to).
-  bool same_row_repeat = fader.touched && pressed_row == fader.last_pressed_row && !fader.ramping;
-  if (same_row_repeat) {
-    // 0 (or a stale 1-4 left over from a previous visit to this exact
-    // row) advances to 1, and 4 wraps back to 1, never to 0 - a repress
-    // never un-micro-adjusts back to the plain value, only pressing a
-    // different row does that. The 4 micro-values span from this row's
-    // own canonical value up to the next row's - clamped rather than
-    // wrapped for a bounded parameter (Send's row 7 is a true ceiling,
-    // nothing above it to offer finer values into), wrapped for a
-    // circular one (Pan's row 7 really does neighbor row 0).
-    fader.micro_step = fader.micro_step >= 4 ? 1 : fader.micro_step + 1;
-    int next_row = wraps ? (pressed_row + 1) % 8 : std::min(7, pressed_row + 1);
-    float base_value = rowToValue(pressed_row);
-    float value = base_value + (rowToValue(next_row) - base_value) * static_cast<float>(fader.micro_step) / 4.0f;
-    apply(value);
-    return value;
-  }
-
-  // A genuinely different row (or the very first press this fader has
-  // ever seen) - (re)start a glide from wherever the value actually is
-  // right now, discarding any micro-value offset (it was only ever
-  // meaningful relative to the row just left).
-  fader.touched = true;
-  fader.last_pressed_row = pressed_row;
-  fader.micro_step = 0;
-  fader.full_range = full_range;
-  fader.start_value = current_value;
-  fader.target_value = rowToValue(pressed_row);
-  fader.start_time = std::chrono::steady_clock::now();
-  float distance_fraction = std::clamp(std::fabs(fader.target_value - fader.start_value) / full_range, 0.0f, 1.0f);
-  fader.duration_seconds = faderGlideDurationSeconds(velocity, distance_fraction);
-  fader.ramping = fader.target_value != fader.start_value;
-  apply(fader.start_value); // unchanged so far - tickFaderRamps() carries it from here
-  return fader.target_value;
-}
-
-float
 LaunchpadManager::resolveSendFaderTarget(FaderState & fader, float current_value, int pressed_row, int velocity,
     bool & is_micro_tap, float & out_duration_seconds) {
   auto now = std::chrono::steady_clock::now();
   // A server-side glide fired by a still-recent press hasn't necessarily
   // finished yet - checked lazily right here (there's nothing ticking
   // fader.ramping down any more) rather than via a running client-side
-  // ramp, same reasoning applyFaderPress()'s own same_row_repeat has for
-  // not conflating "the value already happens to sit near this row" with
-  // "you actually pressed it there".
+  // ramp, same reasoning as the same_row_repeat check just below (not
+  // conflating "the value already happens to sit near this row" with
+  // "you actually pressed it there").
   bool still_gliding = fader.ramping && std::chrono::duration<float>(now - fader.start_time).count() < fader.duration_seconds;
   is_micro_tap = fader.touched && pressed_row == fader.last_pressed_row && !still_gliding;
   if (is_micro_tap) {
-    fader.micro_step = fader.micro_step >= 4 ? 1 : fader.micro_step + 1;
+    // 2 micro-values - 8 rows * 2 = 16 distinct positions, matching the
+    // 4-bit target resolution a recorded `YMxy`/`YAxy`/`YBxy` command can
+    // actually address (see docs/commands.md's own "Recorded fader-glide
+    // commands" section) - a finer live micro-step than that would
+    // silently round away to the same recorded value anyway.
+    fader.micro_step = fader.micro_step >= 2 ? 1 : fader.micro_step + 1;
     int next_row = std::min(7, pressed_row + 1); // Send's row 7 is a true ceiling - never wraps
     float base_value = sendRowToDb(pressed_row);
-    float target = base_value + (sendRowToDb(next_row) - base_value) * static_cast<float>(fader.micro_step) / 4.0f;
+    float target = base_value + (sendRowToDb(next_row) - base_value) * static_cast<float>(fader.micro_step) / 2.0f;
     fader.ramping = false; // instant - nothing left gliding after a micro-tap
     return target;
   }
@@ -660,10 +616,6 @@ LaunchpadManager::resolveSendFaderTarget(FaderState & fader, float current_value
   fader.last_pressed_row = pressed_row;
   fader.micro_step = 0;
   float target = sendRowToDb(pressed_row);
-  // Same velocity/distance-scaled duration formula applyFaderPress() uses
-  // for its own client-side glide - moving server-side doesn't change what
-  // "harder press -> faster move" should feel like, only who's the one
-  // actually advancing it over time.
   float distance_fraction = std::clamp(std::fabs(target - current_value) / kSendFullRangeDb, 0.0f, 1.0f);
   out_duration_seconds = faderGlideDurationSeconds(velocity, distance_fraction);
   fader.ramping = true;
@@ -672,26 +624,44 @@ LaunchpadManager::resolveSendFaderTarget(FaderState & fader, float current_value
   return target;
 }
 
-void
-LaunchpadManager::tickFaderRamps(Controller & controller) {
+float
+LaunchpadManager::resolveAzimuthFaderTarget(FaderState & fader, float current_value, int pressed_row, int velocity,
+    bool & is_micro_tap, float & out_duration_seconds) {
   auto now = std::chrono::steady_clock::now();
-  auto tick = [&](std::unordered_map<int, FaderState> & states, const std::function<void(int, float, FaderState &)> & apply) {
-    for (auto & [ track_id, fader ] : states) {
-      if (!fader.ramping) continue;
-      float elapsed = std::chrono::duration<float>(now - fader.start_time).count();
-      float progress = fader.duration_seconds > 0.0f ? std::min(1.0f, elapsed / fader.duration_seconds) : 1.0f;
-      apply(track_id, fader.start_value + (fader.target_value - fader.start_value) * progress, fader);
-      if (progress >= 1.0f) fader.ramping = false;
-    }
-  };
-  // Send Main/A/B no longer tick here at all - their own glide is
-  // server-side now (LeafTrackState::glideSendMain()/A()/B(), fired once
-  // per press via Controller::glideTrackSendMain()/A()/B() -
-  // resolveSendFaderTarget()'s own comment), so there's nothing left for
-  // this UI-thread timer to advance for them. Pan is the one fader family
-  // still ticked this way - an instant reposition isn't audible the way a
-  // Volume/Send step is, so it never needed the server-side treatment.
-  tick(fader_state_azimuth_, [&](int track_id, float degrees, FaderState &) { controller.setTrackAzimuth(track_id, degrees); });
+  bool still_gliding = fader.ramping && std::chrono::duration<float>(now - fader.start_time).count() < fader.duration_seconds;
+  is_micro_tap = fader.touched && pressed_row == fader.last_pressed_row && !still_gliding;
+  if (is_micro_tap) {
+    fader.micro_step = fader.micro_step >= 2 ? 1 : fader.micro_step + 1;
+    int next_row = (pressed_row + 1) % 8; // Pan's row 7 really does neighbor row 0
+    float base_value = rowToAzimuth(pressed_row);
+    // Wrapped, not a raw subtraction - row 7 -> row 0 is a real +45 degree
+    // step around the circle, not the -315 degree one a plain
+    // rowToAzimuth(next_row) - base_value would compute.
+    float row_delta = fmodf(rowToAzimuth(next_row) - base_value, 360.0f);
+    if (row_delta > 180.0f) row_delta -= 360.0f;
+    else if (row_delta <= -180.0f) row_delta += 360.0f;
+    float target = base_value + row_delta * static_cast<float>(fader.micro_step) / 2.0f;
+    fader.ramping = false; // instant - nothing left gliding after a micro-tap
+    return target;
+  }
+
+  fader.touched = true;
+  fader.last_pressed_row = pressed_row;
+  fader.micro_step = 0;
+  float target = rowToAzimuth(pressed_row);
+  // Circular distance (the shorter way around - same reasoning
+  // LeafTrackState::glideAzimuth() uses to actually pick a travel
+  // direction), so a press near the wrap point isn't penalized with an
+  // implausibly slow near-360-degree "distance".
+  float delta = fmodf(target - current_value, 360.0f);
+  if (delta > 180.0f) delta -= 360.0f;
+  else if (delta <= -180.0f) delta += 360.0f;
+  float distance_fraction = std::clamp(std::fabs(delta) / kAzimuthFullRangeDegrees, 0.0f, 1.0f);
+  out_duration_seconds = faderGlideDurationSeconds(velocity, distance_fraction);
+  fader.ramping = true;
+  fader.start_time = now;
+  fader.duration_seconds = out_duration_seconds;
+  return target;
 }
 
 void
@@ -713,17 +683,6 @@ LaunchpadManager::recordFaderAutomationIfArmed(Controller & controller, FaderSta
     fader.automation_column = section.pushCommand(row, track_id, command);
     fader.automation_row = row;
   }
-}
-
-bool
-LaunchpadManager::hasActiveFaderRamp() const {
-  // Send Main/A/B's own `ramping` is passive bookkeeping only now
-  // (resolveSendFaderTarget()'s own comment) - nothing on the UI thread
-  // still needs to tick them, so they don't belong here any more; only
-  // Pan (fader_state_azimuth_) still has a real client-side glide for the
-  // poll loop to stay awake for.
-  for (auto & [ unused, fader ] : fader_state_azimuth_) if (fader.ramping) return true;
-  return false;
 }
 
 LaunchpadManager::DeviceState &
@@ -1293,23 +1252,32 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
   auto device_id = ev.getDeviceIndex();
 
   // Send A/Send B/Send Main/Pan mode: the whole grid means something else
-  // entirely while active (see LaunchpadManager::GridMode) - column x is
-  // track_ids[x] (the first 8 playable tracks, not this device's assigned
-  // track), row y sets that track's send level or azimuth. Only a PRESS
+  // entirely while active (see LaunchpadManager::GridMode). For Send A/B/
+  // Main, column x is track_ids[x] (the first 8 playable tracks, not this
+  // device's assigned track), row y sets that track's send level. Pan is
+  // transposed relative to the other three - a horizontal fader (row y is
+  // the track, column x sets that track's azimuth), not a vertical one -
+  // `track_index`/`position_index` below resolve that swap once, rather
+  // than every call site picking getX()/getY() apart itself. Only a PRESS
   // does anything; RELEASE/AFTERTOUCH are swallowed too, never falling
   // through to note-entry below. CUSTOM is excluded here (unlike SESSION/
   // DRAW, which never reach this function at all - see UI::
   // handleLaunchpadPadEvent) since it addresses "this device's assigned
-  // track" the same way NOTES does, not a fixed column-per-track layout.
+  // track" the same way NOTES does, not a fixed track-per-row-or-column
+  // layout.
   auto grid_mode = gridMode(device_id);
   if (grid_mode != GridMode::NOTES && grid_mode != GridMode::CUSTOM) {
-    if (ev.getKind() == LaunchpadPadEvent::PRESS && ev.getX() < 8) {
-      // The first 8 columns must always be usable, even in a song that
-      // doesn't have that many tracks yet - a Launchpad's physical layout
-      // doesn't know or care how many tracks currently exist, so auto-create
-      // plain InstrumentTracks (the same default 't' key/add-track uses) up
-      // to the pressed column rather than silently doing nothing.
-      while (static_cast<int>(track_ids.size()) <= ev.getX()) {
+    bool is_pan = grid_mode == GridMode::PAN;
+    int track_index = is_pan ? ev.getY() : ev.getX();
+    int position_index = is_pan ? ev.getX() : ev.getY();
+    if (ev.getKind() == LaunchpadPadEvent::PRESS && track_index < 8) {
+      // The first 8 rows/columns (whichever selects the track here) must
+      // always be usable, even in a song that doesn't have that many
+      // tracks yet - a Launchpad's physical layout doesn't know or care
+      // how many tracks currently exist, so auto-create plain
+      // InstrumentTracks (the same default 't' key/add-track uses) up to
+      // the pressed one rather than silently doing nothing.
+      while (static_cast<int>(track_ids.size()) <= track_index) {
         song.addTrack(make_unique<InstrumentTrack>(0));
         track_ids = song.getPlayableTrackIds();
       }
@@ -1320,42 +1288,44 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
       // LeafTrack (asLeafTrack()), not restricted to InstrumentTrack - a
       // stale, narrower whitelist here once silently excluded SampleTrack
       // from all four.
-      auto track_id = track_ids[static_cast<size_t>(ev.getX())];
-      // resolveSendFaderTarget()/applyFaderPress() both need the value as
-      // it actually is right now (to compare against the pressed row for
-      // a same-row micro-value tap, or - for Send - to compute the fresh-
-      // press glide's own distance-scaled duration) - LeafTrack's own
-      // current fields, not track_send_a/etc. (session-wide, computed once
-      // per frame in refresh(), and this can run between two of those
-      // frames).
+      auto track_id = track_ids[static_cast<size_t>(track_index)];
+      // resolveSendFaderTarget()/resolveAzimuthFaderTarget() both need the
+      // value as it actually is right now (to compare against the pressed
+      // row for a same-row micro-value tap, or to compute the fresh-press
+      // glide's own distance-scaled duration) - LeafTrack's own current
+      // fields, not track_send_a/etc. (session-wide, computed once per
+      // frame in refresh(), and this can run between two of those frames).
       auto track = song.getMasterTrack().getChildByInternalId(track_id);
       auto leaf_track = track ? dynamic_cast<LeafTrack *>(track) : nullptr;
       if (!leaf_track) return;
       if (grid_mode == GridMode::SEND_A) {
         auto & fader = fader_state_send_a_[track_id];
         bool is_micro_tap; float duration_seconds = 0.0f;
-        float target_db = resolveSendFaderTarget(fader, linearToDb(leaf_track->getSends().a), ev.getY(), ev.getVelocity(), is_micro_tap, duration_seconds);
+        float target_db = resolveSendFaderTarget(fader, linearToDb(leaf_track->getSends().a), position_index, ev.getVelocity(), is_micro_tap, duration_seconds);
         if (is_micro_tap) controller.setTrackSendA(track_id, target_db);
         else controller.glideTrackSendA(track_id, target_db, duration_seconds);
-        recordFaderAutomationIfArmed(controller, fader, track_id, Command::sendASet(dbToLinear(target_db)));
+        recordFaderAutomationIfArmed(controller, fader, track_id, Command::sendAGlide(target_db, duration_seconds));
       } else if (grid_mode == GridMode::SEND_B) {
         auto & fader = fader_state_send_b_[track_id];
         bool is_micro_tap; float duration_seconds = 0.0f;
-        float target_db = resolveSendFaderTarget(fader, linearToDb(leaf_track->getSends().b), ev.getY(), ev.getVelocity(), is_micro_tap, duration_seconds);
+        float target_db = resolveSendFaderTarget(fader, linearToDb(leaf_track->getSends().b), position_index, ev.getVelocity(), is_micro_tap, duration_seconds);
         if (is_micro_tap) controller.setTrackSendB(track_id, target_db);
         else controller.glideTrackSendB(track_id, target_db, duration_seconds);
-        recordFaderAutomationIfArmed(controller, fader, track_id, Command::sendBSet(dbToLinear(target_db)));
+        recordFaderAutomationIfArmed(controller, fader, track_id, Command::sendBGlide(target_db, duration_seconds));
       } else if (grid_mode == GridMode::SEND_MAIN) {
         auto & fader = fader_state_send_main_[track_id];
         bool is_micro_tap; float duration_seconds = 0.0f;
-        float target_db = resolveSendFaderTarget(fader, linearToDb(leaf_track->getSends().main), ev.getY(), ev.getVelocity(), is_micro_tap, duration_seconds);
+        float target_db = resolveSendFaderTarget(fader, linearToDb(leaf_track->getSends().main), position_index, ev.getVelocity(), is_micro_tap, duration_seconds);
         if (is_micro_tap) controller.setTrackSendMain(track_id, target_db);
         else controller.glideTrackSendMain(track_id, target_db, duration_seconds);
-        recordFaderAutomationIfArmed(controller, fader, track_id, Command::volumeSet(dbToLinear(target_db)));
+        recordFaderAutomationIfArmed(controller, fader, track_id, Command::volumeGlide(target_db, duration_seconds));
       } else { // PAN
-        applyFaderPress(fader_state_azimuth_[track_id], leaf_track->getAzimuth(), ev.getY(), ev.getVelocity(),
-          rowToAzimuth, kAzimuthFullRangeDegrees, true,
-          [&](float degrees) { controller.setTrackAzimuth(track_id, degrees); });
+        auto & fader = fader_state_azimuth_[track_id];
+        bool is_micro_tap; float duration_seconds = 0.0f;
+        float target_degrees = resolveAzimuthFaderTarget(fader, leaf_track->getAzimuth(), position_index, ev.getVelocity(), is_micro_tap, duration_seconds);
+        if (is_micro_tap) controller.setTrackAzimuth(track_id, target_degrees);
+        else controller.glideTrackAzimuth(track_id, target_degrees, duration_seconds);
+        recordFaderAutomationIfArmed(controller, fader, track_id, Command::azimuthGlide(target_degrees, duration_seconds));
       }
     }
     return;
@@ -2225,7 +2195,13 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
     // button highlighted" per column. No active/inactive feedback needed
     // on the mode buttons themselves (see refreshLeds' extra-button
     // section below) - this repaint *is* the confirmation the mode
-    // actually changed.
+    // actually changed. Send A/B/Main each show one fixed hue for every
+    // column (which track it is is already obvious from context - the
+    // whole grid is one bargraph per column); Pan instead shows each
+    // column in that track's own identity color (state.track_colors),
+    // the same "which track" cue Session view's columns already give,
+    // since a single lit cell per column has no bargraph shape of its own
+    // to tell columns apart by otherwise.
     bool is_pan = state.grid_mode == GridMode::PAN;
     auto & values = state.grid_mode == GridMode::SEND_A ? state.track_send_a
                   : state.grid_mode == GridMode::SEND_B ? state.track_send_b
@@ -2243,60 +2219,78 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
                          : state.grid_mode == GridMode::SEND_B ? state.track_send_b_row
                          : state.grid_mode == GridMode::SEND_MAIN ? state.track_send_main_row
                          : state.track_azimuth_row;
+    // Pan ignores this - see the comment above on why it uses each
+    // column's own track_colors entry instead.
     Rgb base = state.grid_mode == GridMode::SEND_A ? Rgb{0, 127, 127}
              : state.grid_mode == GridMode::SEND_B ? Rgb{127, 0, 127}
-             : state.grid_mode == GridMode::SEND_MAIN ? Rgb{127, 127, 0}
-             : Rgb{127, 64, 0};
-    for (int x = 0; x < 8; x++) {
-      // A column past the real track count has no value to show at all -
-      // values[x] is just a stale/default 0.0f there, not "this track's
-      // level is 0" - go fully dark rather than painting whatever that
-      // default happens to map to (row 0 for Send A/B, dead-center for
-      // Pan).
-      bool has_track = x < state.grid_track_count;
-      int lit_row = is_pan ? azimuthToRow(values[static_cast<size_t>(x)])
-                            : sendLinearToRow(values[static_cast<size_t>(x)]);
-      // lit_row above rounds to the *nearest* row - correct for a value
-      // that arrived some other way, but wrong once a micro-value cycle
-      // pushes the live value more than halfway toward the row above,
-      // which would otherwise flip the displayed "current" row there and
-      // bleed the micro-value's own brightness scale onto a pad nobody
-      // actually pressed (a real, reported bug). Prefer the row this
-      // fader was actually last pressed to instead, but only when the
-      // naively-derived row is still consistent with it (equal to it, or
-      // its immediate neighbor toward the next row) - a value that's
-      // since moved somewhere else entirely (automation, a different
-      // device, a stale press from long before) falls back to the plain
-      // derived row rather than showing a wrong one.
-      int pressed_row = pressed_rows[static_cast<size_t>(x)];
-      if (pressed_row >= 0) {
-        int next_row = is_pan ? (pressed_row + 1) % 8 : std::min(7, pressed_row + 1);
-        if (lit_row == pressed_row || lit_row == next_row) lit_row = pressed_row;
+             : Rgb{127, 127, 0}; // SEND_MAIN
+    // `pressed_row`/`_row`-suffixed arrays above all speak of "row" as the
+    // position along that parameter's own measurement axis (its FaderState
+    // origin, shared with the live-press code in handlePadEvent()) - a
+    // physical grid row for Send A/B/Main, but a physical *column* for Pan
+    // once `track_index`/`position_index` below resolve the same rotation
+    // handlePadEvent() itself already applies (see that method's own
+    // comment) into an actual (x, y) pad address.
+    for (int track_index = 0; track_index < 8; track_index++) {
+      // A track index past the real track count has no value to show at
+      // all - values[track_index] is just a stale/default 0.0f there, not
+      // "this track's level is 0" - go fully dark rather than painting
+      // whatever that default happens to map to (row 0 for Send A/B,
+      // dead-center for Pan).
+      bool has_track = track_index < state.grid_track_count;
+      // Color's own 0-255 range, rescaled to the hardware's 0-127
+      // velocity-scaled one - same conversion hslToRgb() already uses.
+      auto & identity = state.track_colors[static_cast<size_t>(track_index)];
+      Rgb column_base = is_pan ? Rgb{static_cast<uint8_t>(identity.getRed() * 127 / 255),
+        static_cast<uint8_t>(identity.getGreen() * 127 / 255), static_cast<uint8_t>(identity.getBlue() * 127 / 255)} : base;
+      int lit_position = is_pan ? azimuthToRow(values[static_cast<size_t>(track_index)])
+                                 : sendLinearToRow(values[static_cast<size_t>(track_index)]);
+      // lit_position above rounds to the *nearest* position - correct for
+      // a value that arrived some other way, but wrong once a micro-value
+      // cycle pushes the live value more than halfway toward the position
+      // above, which would otherwise flip the displayed "current" one
+      // there and bleed the micro-value's own brightness scale onto a pad
+      // nobody actually pressed (a real, reported bug). Prefer the
+      // position this fader was actually last pressed to instead, but
+      // only when the naively-derived one is still consistent with it
+      // (equal to it, or its immediate neighbor toward the next position)
+      // - a value that's since moved somewhere else entirely (automation,
+      // a different device, a stale press from long before) falls back to
+      // the plain derived position rather than showing a wrong one.
+      int pressed_position = pressed_rows[static_cast<size_t>(track_index)];
+      if (pressed_position >= 0) {
+        int next_position = is_pan ? (pressed_position + 1) % 8 : std::min(7, pressed_position + 1);
+        if (lit_position == pressed_position || lit_position == next_position) lit_position = pressed_position;
       }
-      for (int y = 0; y < 8; y++) {
-        bool lit = has_track && (is_pan ? (y == lit_row) : (y <= lit_row));
+      for (int position_index = 0; position_index < 8; position_index++) {
+        bool lit = has_track && (is_pan ? (position_index == lit_position) : (position_index <= lit_position));
         Rgb color = {0, 0, 0};
         if (lit) {
-          color = base;
+          color = column_base;
           // Only the fader's own top/current pad shows the micro-value
           // offset (a bargraph's filled-in rows below it stay at plain
           // full brightness, same as before micro-values existed), and
           // only once one is actually active (micro_step > 0 - a plain,
           // non-repeated press leaves this at its own unscaled base
-          // color, matching every other lit row) - dimmest
+          // color, matching every other lit position) - dimmest
           // (LAUNCHPAD_FADER_MICRO_MIN_SCALE) at micro_step 1, back up to
-          // unscaled base at micro_step 4 (the highest micro-value, right
+          // unscaled base at micro_step 2 (the highest micro-value, right
           // before wrapping back to 1).
-          int micro_step = micro_values[static_cast<size_t>(x)];
-          if (y == lit_row && micro_step > 0) {
-            auto hsl = rgbToHsl(base);
+          int micro_step = micro_values[static_cast<size_t>(track_index)];
+          if (position_index == lit_position && micro_step > 0) {
+            auto hsl = rgbToHsl(column_base);
             float scale = LAUNCHPAD_FADER_MICRO_MIN_SCALE + (1.0f - LAUNCHPAD_FADER_MICRO_MIN_SCALE) *
-              static_cast<float>(micro_step - 1) / 3.0f;
+              static_cast<float>(micro_step - 1);
             hsl.l *= scale;
             color = hslToRgb(hsl);
           }
         }
-        colors.push_back({LaunchpadProtocol::padToNoteNumber(x, y), color.r, color.g, color.b});
+        // Pan is transposed relative to Send A/B/Main (row y is the
+        // track, column x sets that track's azimuth) - see
+        // handlePadEvent()'s own comment for why.
+        auto led = is_pan ? LaunchpadProtocol::padToNoteNumber(position_index, track_index)
+                           : LaunchpadProtocol::padToNoteNumber(track_index, position_index);
+        colors.push_back({led, color.r, color.g, color.b});
       }
     }
   } else if (state.grid_mode == GridMode::CUSTOM) {
@@ -2800,13 +2794,6 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     audition_clock_.stop();
   }
 
-  // Carries every still-in-flight fader glide forward before the mirror
-  // arrays below read the model's own values - so a glide's own
-  // intermediate position (not just wherever it started or will end up)
-  // is what every connected device's LED bargraph/pan indicator shows
-  // this frame, same as the live audio engine already hears.
-  tickFaderRamps(controller);
-
   // The Send A/Send B/Send Main/Pan grid modes always address the first 8
   // root tracks (not whichever track a device happens to be assigned to) -
   // the same values apply to every connected device, computed once here
@@ -2817,6 +2804,11 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   // by default, matching FaderState's own untouched default.
   array<int, 8> track_send_main_row{}, track_send_a_row{}, track_send_b_row{}, track_azimuth_row{};
   track_send_main_row.fill(-1); track_send_a_row.fill(-1); track_send_b_row.fill(-1); track_azimuth_row.fill(-1);
+  // DeviceState::track_colors' own comment - same identity hue/lightness
+  // Session view's session_colors below computes, just once per track
+  // rather than once per clip pad.
+  array<Color, 8> track_colors{};
+  SongStructure structure(song);
   for (int i = 0; i < 8 && i < num_tracks; i++) {
     // No track-type check needed - track_ids is already
     // getPlayableTrackIds()'s own "every LeafTrack" list (its own doc
@@ -2824,6 +2816,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     // whitelist here once silently left a SampleTrack's own fader/LED
     // feedback at 0 regardless of its actual send/pan values.
     auto track_id = track_ids[static_cast<size_t>(i)];
+    track_colors[static_cast<size_t>(i)] = Color::fromHSL(structure.getBaselineInfo(track_id).getHue(), 0.8f, 0.3f);
     auto track = song.getMasterTrack().getChildByInternalId(track_id);
     if (track) {
       auto & leaf_track = dynamic_cast<const LeafTrack&>(*track);
@@ -2889,7 +2882,6 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   array<bool, 8> track_picker_soloed {};
   array<bool, 8> track_picker_muted {};
   {
-    SongStructure structure(song);
     // While actually playing (Session-view recording included - that's
     // exactly the "was playing" case that used to leave these LEDs stuck),
     // triggered_pattern_by_track_/queued_pattern_by_track_ are stale: the
@@ -3069,6 +3061,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     state.track_send_a_row = track_send_a_row;
     state.track_send_b_row = track_send_b_row;
     state.track_azimuth_row = track_azimuth_row;
+    state.track_colors = track_colors;
     state.grid_track_count = min(8, num_tracks);
     state.assigned_track_is_percussion = is_percussion;
     state.drum_lane_notes = move(drum_lane_notes);

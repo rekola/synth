@@ -674,20 +674,24 @@ class Controller {
 
   // The server-side-glide counterpart of the three instant setters above -
   // value/duration_seconds in the same dB/wall-clock-seconds units
-  // LaunchpadManager::applyFaderPress()'s own velocity-scaled duration
-  // formula already produces. Deliberately does *not* touch the model the
-  // way the instant setters do: only the live engine actually glides,
-  // toward this target, over this many seconds; the model gets updated the
-  // other direction instead, mirroring whatever the engine's own real,
-  // possibly-still-gliding value is (receivePlaybackSnapshot(), via
-  // TrackInfo::getLiveSendMain()/A()/B()) - so the model never claims to
-  // already be at a value the engine hasn't actually reached yet. No
-  // glideTrackAzimuth() sibling - Pan keeps setTrackAzimuth()'s existing
-  // instant model write, still driven by Launchpad's own client-side glide
-  // (LeafTrackState.h's own comment on why).
+  // LaunchpadManager::resolveSendFaderTarget()'s own velocity-scaled
+  // duration formula already produces. Deliberately does *not* touch the
+  // model the way the instant setters do: only the live engine actually
+  // glides, toward this target, over this many seconds; the model gets
+  // updated the other direction instead, mirroring whatever the engine's
+  // own real, possibly-still-gliding value is (receivePlaybackSnapshot(),
+  // via TrackInfo::getLiveSendMain()/A()/B()) - so the model never claims
+  // to already be at a value the engine hasn't actually reached yet.
   void glideTrackSendA(int track_id, float target_db, float duration_seconds);
   void glideTrackSendB(int track_id, float target_db, float duration_seconds);
   void glideTrackSendMain(int track_id, float target_db, float duration_seconds);
+
+  // Pan's own equivalent of the three above (degrees/seconds, same
+  // "engine glides, model follows via TrackInfo::getLiveAzimuth()"
+  // shape) - `target_degrees` is the plain destination, not a direction;
+  // LeafTrackState::glideAzimuth() is what picks which way around the
+  // circle to actually travel.
+  void glideTrackAzimuth(int track_id, float target_degrees, float duration_seconds);
 
   // Note columns (chord/polyphony width, VisibleTrackInfo::num_subtracks_)
   // are otherwise purely derived from actual note data (see Pattern::
@@ -995,11 +999,12 @@ class Controller {
 
  private:
   // receivePlaybackSnapshot()'s own model-sync half - see
-  // glideTrackSendA()/B()/Main()'s own comment for why this direction
-  // (engine's real value -> model) exists at all now, rather than the
-  // model just being written at press time the way every other live knob
-  // still is.
-  void syncLiveSendsIntoModel(const std::string & buffer_name, const PlaybackInfo & info);
+  // glideTrackSendA()/B()/Main()/glideTrackAzimuth()'s own comment for why
+  // this direction (engine's real value -> model) exists at all now,
+  // rather than the model just being written at press time the way every
+  // other live knob still is. Covers Send Main/A/B and Pan alike - both
+  // glide server-side now.
+  void syncLiveGlideStateIntoModel(const std::string & buffer_name, const PlaybackInfo & info);
 
   ChannelConfiguration channel_config;
   MixerType mixer_type_ = MixerType::AMBISONIC_STEREO;

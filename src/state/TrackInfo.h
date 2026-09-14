@@ -4,9 +4,11 @@
 class TrackInfo {
 public:
   TrackInfo(bool is_active = false, bool is_clipping = false, float meter_value = -1.0f,
-      float live_send_main = -1.0f, float live_send_a = -1.0f, float live_send_b = -1.0f)
+      float live_send_main = -1.0f, float live_send_a = -1.0f, float live_send_b = -1.0f,
+      float live_azimuth = 0.0f, bool has_live_azimuth = false)
     : is_active_(is_active), is_clipping_(is_clipping), meter_value_(meter_value),
-      live_send_main_(live_send_main), live_send_a_(live_send_a), live_send_b_(live_send_b) { }
+      live_send_main_(live_send_main), live_send_a_(live_send_a), live_send_b_(live_send_b),
+      live_azimuth_(live_azimuth), has_live_azimuth_(has_live_azimuth) { }
 
   bool isActive() const { return is_active_; }
   bool isRecording() const { return is_recording_; }
@@ -30,6 +32,16 @@ public:
   float getLiveSendA() const { return live_send_a_; }
   float getLiveSendB() const { return live_send_b_; }
 
+  // Azimuth's own equivalent of the three above (LeafTrackState::
+  // renderVoices(), read after LeafTrackState::advanceAzimuthRamp()) - a
+  // separate bool rather than a sentinel value, since azimuth (unlike a
+  // send's always-non-negative linear gain) has no value that can't
+  // legitimately occur (an azimuth slide command accumulates past
+  // +-180 over repeated rows, so even a value outside a fader's own
+  // +-180 range is real, not a marker).
+  bool hasLiveAzimuth() const { return has_live_azimuth_; }
+  float getLiveAzimuth() const { return live_azimuth_; }
+
  private:
   bool is_active_;
   bool is_recording_;
@@ -38,6 +50,8 @@ public:
   float live_send_main_;
   float live_send_a_;
   float live_send_b_;
+  float live_azimuth_;
+  bool has_live_azimuth_;
 };
 
 #endif
