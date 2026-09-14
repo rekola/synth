@@ -272,10 +272,15 @@ class Command {
   // resolution isn't tied to how many rows any particular hardware fader
   // happens to have, same reasoning getSendSetLinear()'s own comment
   // gives for Send).
+  // The step is written out as a multiplication by an exactly-representable
+  // 24 degrees rather than the arithmetically identical division by 15: a
+  // reciprocal-approximated /15 leaves x=F a whisker past +180 instead of
+  // exactly on it, and the far side of that boundary is a target half a
+  // circle away once glideAzimuth() picks its own shorter direction.
   float getAzimuthGlideTargetDegrees() const {
     auto x = digit(values_[2], 16);
     float magnitude = static_cast<float>(x < 0 ? 0 : x);
-    return (magnitude / 15.0f) * 360.0f - 180.0f;
+    return magnitude * (360.0f / 15.0f) - 180.0f;
   }
 
   // The inverse of getAzimuthGlideTargetDegrees() - `duration_seconds`

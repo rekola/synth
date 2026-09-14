@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="12edo" tempo="120" patternRows="16" volume="1.0">
+<song temperament="12edo" tempo="120" rowsPerBar="1" volume="1.0">
   <instruments>
     <instrument from="native:Harp"/>
   </instruments>
@@ -7,7 +7,7 @@
     <track id="0" instrument="0"/>
   </tracks>
   <sections>
-    <section>
+    <section length="16">
       <pattern track="0">
         <note row="0" velocity="100" value="C-4" />
       </pattern>
