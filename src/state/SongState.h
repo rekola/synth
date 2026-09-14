@@ -533,7 +533,7 @@ class SongState : public TrackState {
 		    else leaf_state->glideSendB(command.getGlideTargetDb(), glide_frames);
 		  }
 		} else if (command.isAzimuthGlide()) {
-		  // YDxy - azimuth's own equivalent of the three above, started
+		  // YZxy - azimuth's own equivalent of the three above, started
 		  // through LeafTrackState::glideAzimuth() (which picks its own
 		  // travel direction - see that method's own comment) rather
 		  // than glideSendMain()/A()/B().

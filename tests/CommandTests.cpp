@@ -204,16 +204,16 @@ TEST(azimuth_slide_command_parses_left_and_right) {
   CHECK_NEAR(std::fabs(left.getAzimuthSlidePerTick()), std::fabs(right.getAzimuthSlidePerTick()), 1e-6f); // same magnitude, opposite sign
 }
 
-// YDxy - azimuth's own equivalent of YMxy/YAxy/YBxy, full-circle target
+// YZxy - azimuth's own equivalent of YMxy/YAxy/YBxy, full-circle target
 // instead of 0Pxx's own half-circle one (see isAzimuthGlide()'s own
 // comment for why it isn't called "YPxy").
 TEST(azimuth_glide_command_parses_and_decodes_the_full_circle) {
-  Command left("YD00");
+  Command left("YZ00");
   CHECK(left.isAzimuthGlide());
   CHECK(!left.isVolumeGlide() && !left.isSendAGlide() && !left.isSendBGlide());
   CHECK_NEAR(left.getAzimuthGlideTargetDegrees(), -180.0f, 1e-6f); // x=0 -> -180
 
-  Command right("YDF0");
+  Command right("YZF0");
   CHECK_NEAR(right.getAzimuthGlideTargetDegrees(), 180.0f, 1e-6f); // x=F -> +180
 
   Command unrelated("YM00");

@@ -53,7 +53,7 @@ class Command {
   // there's exactly one authoritative definition of "valid", here, not one
   // in the caller and a second one duplicated/drifting inside this class.
   // Column 0/1 (docs/commands.md's two-character mnemonic - ZB, ZT, 0U,
-  // 0D, 0G, 0V, 0I, 0O, 0T, 0L, 0F, 0M, 0P, YM, YA, YB, YL, YR, YD)
+  // 0D, 0G, 0V, 0I, 0O, 0T, 0L, 0F, 0M, 0P, YM, YA, YB, YL, YR, YZ)
   // accepts [A-Za-z0-9-]; column 2/3 (the hex argument) accepts the
   // narrower [A-Fa-f0-9-]. Column 0 is 'Z' (a global command, not scoped
   // to any one track/device - ZBxx pattern break, ZTxx tempo), 'Y' (this
@@ -256,15 +256,15 @@ class Command {
   static Command sendAGlide(float target_db, float duration_seconds) { return makeGlideSet('A', target_db, duration_seconds); }
   static Command sendBGlide(float target_db, float duration_seconds) { return makeGlideSet('B', target_db, duration_seconds); }
 
-  // YDxy - azimuth's own equivalent of YMxy/YAxy/YBxy: an absolute target
+  // YZxy - azimuth's own equivalent of YMxy/YAxy/YBxy: an absolute target
   // with an explicit glide duration, what a live-recorded Launchpad Pan
   // press needs to reproduce the glide it performed. Not "YPxy" - 0Pxx's
   // own `xx` only reaches half the circle (isAzimuthSet()'s own comment on
   // why, a real inherited limitation there), which would throw away
   // exactly the range a Pan press can actually reach; `x` here instead
-  // spans the *full* circle. `D` for **D**irection. Column 0 is 'Y' (see
+  // spans the *full* circle. `Z` for a**Z**imuth. Column 0 is 'Y' (see
   // updateData()'s own comment).
-  bool isAzimuthGlide() const { return values_[0] == 'Y' && values_[1] == 'D'; }
+  bool isAzimuthGlide() const { return values_[0] == 'Y' && values_[1] == 'Z'; }
 
   // x (values_[2], one hex digit) maps linearly across the full circle,
   // -180 degrees at 0 up through +180 at 15 - independent of
@@ -280,7 +280,7 @@ class Command {
 
   // The inverse of getAzimuthGlideTargetDegrees() - `duration_seconds`
   // shares getGlideDurationSeconds()'s own nibble encoding (values_[3]
-  // isn't specific to any one of YMxy/YAxy/YBxy/YDxy, so that decoder
+  // isn't specific to any one of YMxy/YAxy/YBxy/YZxy, so that decoder
   // already works here unchanged).
   static Command azimuthGlide(float target_degrees, float duration_seconds) { return makeAzimuthGlideSet(target_degrees, duration_seconds); }
 
@@ -346,7 +346,7 @@ class Command {
     int duration_nibble = static_cast<int>(lround((duration - kMinGlideSeconds) / (kMaxGlideSeconds - kMinGlideSeconds) * 15.0f));
     Command c;
     c.values_[0] = 'Y';
-    c.values_[1] = 'D';
+    c.values_[1] = 'Z';
     c.values_[2] = kHexDigits[target_nibble & 0xF];
     c.values_[3] = kHexDigits[duration_nibble & 0xF];
     return c;

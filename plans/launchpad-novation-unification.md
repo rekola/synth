@@ -174,18 +174,18 @@
   clamping, plus `updateData()` accepting `Y` at column 0),
   `SendSetCommandTests.cpp` (a placed `YAxy` command actually starting a
   real multi-block glide during playback, not an instant jump).
-- `YDxy` - azimuth's own equivalent of `YMxy`/etc., and the Launchpad Pan
+- `YZxy` - azimuth's own equivalent of `YMxy`/etc., and the Launchpad Pan
   branch now actually records it (`recordFaderAutomationIfArmed()`,
   previously a no-op for Pan - see `docs/commands.md`'s Implemented
   table). Deliberately not called `YPxy`/given `0Pxx`'s own encoding:
   `0Pxx`'s `xx` only reaches half the circle (a real, inherited Renoise
   limitation), which would throw away exactly the range a live Pan press
-  can reach, so `YDxy`'s own `x` spans the *full* circle instead -
+  can reach, so `YZxy`'s own `x` spans the *full* circle instead -
   `Command::isAzimuthGlide()`/`getAzimuthGlideTargetDegrees()`/
   `azimuthGlide()`, `SongState.h`'s own dispatch to
   `LeafTrackState::glideAzimuth()`. Covered by `CommandTests.cpp`
   (parsing/decoding/wrapping) and `SendSetCommandTests.cpp` (a placed
-  `YDxy` command starting a real glide, not an instant jump).
+  `YZxy` command starting a real glide, not an instant jump).
 
 ## Remaining
 

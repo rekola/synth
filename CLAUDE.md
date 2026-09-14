@@ -175,7 +175,7 @@ M-x trigger.
 split into **Implemented** (`ZBxx` pattern break; `0Pxx` azimuth set;
 `0Lxx`/`0Fxx`/`0Mxx` Volume/Send A/Send B set; the real-time
 `Y`-namespace commands `YLxx`/`YRxx` (azimuth slide left/right) and
-`YMxy`/`YAxy`/`YBxy`/`YDxy` (Volume/Send A/Send B/azimuth, each with an
+`YMxy`/`YAxy`/`YBxy`/`YZxy` (Volume/Send A/Send B/azimuth, each with an
 explicit glide duration) - see `SongState.h`'s command-handling loop) and
 **Planned**
 (accepted/stored but currently no-ops at playback time). A command's own

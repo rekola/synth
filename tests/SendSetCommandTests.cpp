@@ -191,7 +191,7 @@ TEST(glide_command_starts_a_real_glide_not_an_instant_jump) {
   CHECK_NEAR(info[track_id].getLiveSendA(), 1.0f, 1e-3f);
 }
 
-// YDxy - azimuth's own equivalent of the test above, dispatched to
+// YZxy - azimuth's own equivalent of the test above, dispatched to
 // LeafTrackState::glideAzimuth() instead of glideSendA()/etc. (Command::
 // isAzimuthGlide()/getAzimuthGlideTargetDegrees()). Same "duration far
 // longer than one row" proof shape.
@@ -203,7 +203,7 @@ TEST(azimuth_glide_command_starts_a_real_glide_not_an_instant_jump) {
 
   auto & section = song.addSection();
   section.setNote(0, track_id, 0, Note(60, 100));
-  section.setCommand(0, track_id, Command("YDFF")); // azimuth -> +180 degrees, over 1.0s
+  section.setCommand(0, track_id, Command("YZFF")); // azimuth -> +180 degrees, over 1.0s
 
   ChannelConfiguration config(44100, 1);
   auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);

@@ -1073,7 +1073,7 @@ class LaunchpadManager {
   // press (handlePadEvent()'s own SEND_A/SEND_B/SEND_MAIN/PAN branches,
   // using resolveSendFaderTarget()'s/resolveAzimuthFaderTarget()'s own
   // returned target and duration, encoded together into a single
-  // YMxy/YAxy/YBxy/YDxy `command` via Command::volumeGlide()/
+  // YMxy/YAxy/YBxy/YZxy `command` via Command::volumeGlide()/
   // sendAGlide()/sendBGlide()/azimuthGlide()) - never called again as
   // that press's own glide actually plays out (LeafTrackState::
   // glideSendA()/glideAzimuth()/etc.): the glide itself is real-time/
