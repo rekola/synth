@@ -98,6 +98,13 @@ Found 2026-07-11, not yet fixed.
   navigate onto the track, press the pad) does complete the full
   handshake and step-toggle correctly, confirming this is the harness
   racing itself in this environment rather than a feature regression.
+  `verify_percussion_layout.py` hits the identical 0-checks-pass shape
+  (confirmed the same way, via `git stash`) - both scripts' own
+  press-then-verify-LED technique is what's exposed, not anything
+  specific to percussion note entry itself; `verify_launchpad_record_arm_
+  percussion.py` (the step-grid-vs-live-recording regression test) avoids
+  it entirely by verifying through the terminal `SessionView` widget's
+  own text instead of LED bytes.
 
 - **`tools/e2e/verify_launchpad_stopclip.py` hits the same class of
   flakiness above, in a new shape**: the simulated device's SysEx LED
@@ -215,6 +222,17 @@ Found 2026-07-11, not yet fixed.
   the fix in case this exact cross-talk symptom is ever seen again on a
   sandbox with `SYNTH_LAUNCHPAD_NO_HARDWARE` for some reason not taking
   effect (e.g. a `harness.py` bypassed, or predating this fix).
+
+  `verify_launchpad_notecustom.py` and `verify_launchpad_record_arm_picker.py`
+  (the latter new, covering the track-picker overlay's `RECORD_ARM`
+  purpose) both hit the identical stall - each passes cleanly run alone
+  with a little breathing room beforehand, but fails intermittently when
+  run back-to-back with other e2e scripts in a tight loop with no gap
+  between them, same as `verify_launchpad_mute_picker.py` above; also
+  confirmed a real, unrelated interactive `synth` process (a person's own
+  session, connected to the real hardware this sandbox has attached) adds
+  further contention on top of the scripts-racing-each-other case already
+  documented.
 
 - **`tools/e2e/verify_launchpad_sendmode.py`'s own row-math predates the
   current dB-based Send fader curve** (`sendRowToDb()`/`sendLinearToRow()`
@@ -403,4 +421,19 @@ Found 2026-07-11, not yet fixed.
   eighth-note triplet pulses) instead of approximating it inside a 4/4
   grid, so this is scoped to those two entries only, not the row grid in
   general.
+
+- **`tools/e2e/verify_launchpad_buttons.py`'s "cursor actually moved" check
+  fails independent of any code change** - confirmed via `git stash` A/B
+  against an unmodified checkout. It looks for `PatternEditor`'s own
+  cursor highlight (`styles.highlight_bg_color`, `#a0ffa0`) on the pattern
+  row after a CC94 (next-track) press; the color constant itself is
+  unchanged, so the mismatch is likely from an earlier, unrelated UI
+  change in this same codebase's history (a fresh session now defaults to
+  `ArrangementGrid`/overview focus rather than straight into `PatternEditor`,
+  and the "always something to act on, even unmarked" region-highlight
+  rework folded the old single-cell cursor highlight into the region one)
+  rather than anything about the extra-button command itself - the
+  script's own Programmer-Mode and button-LED checks both still pass. Not
+  investigated further; re-check directly (not just this entry) before
+  assuming a future failure here is the same known issue.
 

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Purpose-built for verify_launchpad_record_arm_wrong_track.py: two
+     tracks, so the shared cursor (fallback_track_index, defaulting to
+     track index 0 - track "0") can genuinely differ from the track
+     actually armed/targeted for Session recording (track "1", index 1).
+     Track "0" is a lane-less PercussionTrack (free-drumming pad layout,
+     not step-sequenced - ordinary NOTE-mode note entry still reaches it),
+     track "1" a plain pitched InstrumentTrack - deliberately different
+     percussion-ness, so a note landing on the wrong track can never be
+     silently "rescued" by handlePadEvent()'s own multi-track record
+     fan-out (which only duplicates a note to another currently-recording
+     track whose percussion-ness matches the primary one it actually
+     resolved against) the way it would if both tracks were plain pitched
+     ones - a first draft of this fixture had exactly that shape, and
+     happened to pass even with the underlying bug still present, entirely
+     via the fan-out side channel. -->
+<song temperament="12edo" tempo="120" patternRows="16">
+  <instruments>
+    <instrument from="string.bowed.ensemble.pizzicato" />
+  </instruments>
+  <tracks>
+    <percussionTrack id="0" instrument="0" />
+    <track id="1" instrument="0" />
+  </tracks>
+  <sections>
+    <section>
+    </section>
+  </sections>
+</song>

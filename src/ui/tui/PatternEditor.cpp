@@ -724,9 +724,10 @@ PatternEditor::getTrackInformation(const Song & song, int scroll_row) const {
         for (auto & clip : clips) {
           if (clip.getId() != clip_id) continue;
           // A SampleTrack's own clip carries raw audio, not a Pattern -
-          // Clip::getLeafPattern() would throw for one (ArrangementOps.cpp's
-          // own resolveReadTarget()/resolveEditTarget() guard against the
-          // same thing).
+          // its getLeafPattern() is just an unused, empty Pattern, so
+          // reading subtrack info from it would be meaningless
+          // (ArrangementOps.cpp's own resolveReadTarget()/
+          // resolveEditTarget() guard against the same thing).
           if (!clip.hasSample()) clip.getLeafPattern().updateSubtrackInfo(track_info[instance_track_id]);
           break;
         }

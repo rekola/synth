@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <deque>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -22,6 +23,7 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -355,6 +357,41 @@ class Controller {
   void disarmNoteCapture() { note_capture_armed_ = false; }
   bool isNoteCaptureArmed() const { return note_capture_armed_; }
 
+  // Session view's own per-track Record Arm - a separate concept from
+  // isNoteCaptureArmed() above, not a restriction layered on top of it.
+  // isNoteCaptureArmed()/armNoteCapture()/disarmNoteCapture() still govern
+  // ordinary (non-Session-View) note capture exactly as before, untouched;
+  // Session view has no master switch of its own at all - a track either
+  // is or isn't armed, full stop, and "is anything armed anywhere" is
+  // simply !armed_track_ids_.empty() (see hasAnyTrackArmed() below), not a
+  // separate flag that could disagree with the set. Toggled per-track by
+  // both the Session-View-focused branch of "toggle-record-arm" (the
+  // currently-selected track) and, eventually, the Launchpad track-picker's
+  // own RECORD_ARM purpose (any track, not just the selected one) - see
+  // plans/launchpad-novation-unification.md for the full design, including
+  // why arming itself starts nothing (LaunchpadManager::triggerSessionClip()
+  // queues the actual record-start, the same way it already queues a plain
+  // clip launch).
+  void armTrack(int track_id) { armed_track_ids_.insert(track_id); }
+  // Also stops/finalizes whatever this track is currently recording, if
+  // anything - trimSessionRecordingClip() below is a no-op when there's
+  // no in-flight take, so this is safe to call unconditionally. Baked in
+  // here, not left to each caller, since "disarming a track always ends
+  // its own take immediately, never queued" (matching the real hardware
+  // behavior this is modeled on) has to hold regardless of which caller -
+  // CC19, the track-picker, or a future control-surface's own arm
+  // button - actually does the disarming.
+  void disarmTrack(int track_id) {
+    armed_track_ids_.erase(track_id);
+    trimSessionRecordingClip(track_id);
+  }
+  void toggleTrackArmed(int track_id) {
+    if (armed_track_ids_.count(track_id)) disarmTrack(track_id);
+    else armTrack(track_id);
+  }
+  bool isTrackArmed(int track_id) const { return armed_track_ids_.count(track_id) > 0; }
+  bool hasAnyTrackArmed() const { return !armed_track_ids_.empty(); }
+
   // Which terminal UI element "toggle-record-arm"'s own arm-something-new
   // branch should target - kept current by UI::renderComponents(), every
   // frame, alongside setSessionViewCursor() below (never read by
@@ -370,45 +407,72 @@ class Controller {
   // index) - meaningless unless isSessionViewFocused() is also true.
   void setSessionViewCursor(int track_id, int clip_index) { session_view_track_id_ = track_id; session_view_clip_index_ = clip_index; }
 
-  // Whether the take currently armed/recording is a Session View one -
-  // "toggle-record-arm"'s own arm-something-new branch captures
-  // isSessionViewFocused()/the cursor above into these the moment it arms,
-  // so a later focus or cursor change can't retroactively change an
-  // already-in-progress take's own target. -1/-1 (the construction-time
-  // default) alongside false names no target.
-  bool isSessionRecording() const { return session_recording_; }
-  int getSessionRecordingTrackId() const { return session_recording_track_id_; }
-  int getSessionRecordingClipIndex() const { return session_recording_clip_index_; }
+  // Starts (or retargets) `track_id`'s own Session View take, at clip slot
+  // `clip_index` - several tracks can each have their own in-flight take
+  // at once, unlike the SampleTrack-recording family above (still a
+  // single "what's currently being captured" concept - see
+  // plans/launchpad-novation-unification.md for why that's not unified
+  // with this yet). `clip_ready`/`origin_step` start false/-1, the same
+  // "not derived yet" state a fresh take always begins in -
+  // ensureSessionRecordingClip() below is what actually resolves them,
+  // lazily, the first time this take really needs a row number. Called
+  // both by "toggle-record-arm"'s own Session-View-focused branch (the
+  // currently-selected track) and by LaunchpadManager's own queued-
+  // recording resolution (any armed track, once its own press's boundary
+  // arrives).
+  void armSessionTrackRecording(int track_id, int clip_index) {
+    session_recording_takes_[track_id] = SessionRecordingTake{ clip_index, false, -1 };
+  }
+  bool isSessionRecording(int track_id) const { return session_recording_takes_.count(track_id) > 0; }
+  bool isAnySessionRecording() const { return !session_recording_takes_.empty(); }
+  // Every track currently mid-take, for a caller (LaunchpadManager's own
+  // per-step extendSessionRecordingClipIfNeeded() loop) that needs to
+  // reach all of them, not just check whether any exist.
+  std::vector<int> getSessionRecordingTrackIds() const {
+    std::vector<int> ids;
+    ids.reserve(session_recording_takes_.size());
+    for (auto & [ track_id, unused ] : session_recording_takes_) ids.push_back(track_id);
+    return ids;
+  }
+  int getSessionRecordingClipIndex(int track_id) const {
+    auto it = session_recording_takes_.find(track_id);
+    return it != session_recording_takes_.end() ? it->second.clip_index : -1;
+  }
 
   // Which track/clip a note-based Session View take just finished into -
-  // set once, the moment trimSessionRecordingClip() runs (toggle-record-arm's
-  // own disarm branch), since session_recording_track_id_/
-  // session_recording_clip_index_ themselves are already reset by the time
-  // LaunchpadManager's own refresh() next runs. A "consume once" pair,
-  // read and cleared together - finishing a take is a one-time event, not
-  // something to keep re-reporting on every future frame just because
-  // nothing else has overwritten it since.
+  // pushed once, the moment trimSessionRecordingClip() runs for that
+  // track (toggle-record-arm's own disarm branch, or a track being
+  // individually disarmed while others keep recording), since that
+  // track's own entry in session_recording_takes_ is already gone by the
+  // time LaunchpadManager's own refresh() next runs. A real queue, not a
+  // single latch - several takes can finish on the exact same quantized
+  // step, not just one. Drains one entry per call, so a caller not
+  // expecting more than one per frame (today's only caller) still works
+  // unchanged; several completions just drain over a couple of frames.
   struct CompletedSessionRecording { int track_id; int clip_index; };
   std::optional<CompletedSessionRecording> takeCompletedSessionRecording() {
-    if (completed_session_recording_track_id_ < 0) return std::nullopt;
-    CompletedSessionRecording result{ completed_session_recording_track_id_, completed_session_recording_clip_index_ };
-    completed_session_recording_track_id_ = -1;
-    completed_session_recording_clip_index_ = -1;
+    if (completed_session_recordings_.empty()) return std::nullopt;
+    auto result = completed_session_recordings_.front();
+    completed_session_recordings_.pop_front();
     return result;
   }
 
-  // Overrides where ensureSessionRecordingClip()'s own first call would
-  // otherwise derive this take's row 0 from (previousBarRow() of that
-  // call's own absolute step) - for a take that arms into a track already
-  // playing an earlier one, LaunchpadManager already knows the exact step
-  // the old clip actually stops at (the shared session-quantization grid's
-  // own next boundary, not necessarily a multiple of rows_per_bar from
-  // absolute row 0 the way previousBarRow() assumes), and this take's own
-  // row 0 has to be exactly that step, not wherever previousBarRow() would
-  // otherwise place it. A no-op call (arming into an empty/silent slot)
-  // simply never calls this, leaving ensureSessionRecordingClip() to
-  // derive the origin itself as usual.
-  void primeSessionRecordingOrigin(int absolute_step_origin) { session_recording_origin_step_ = absolute_step_origin; }
+  // Overrides where ensureSessionRecordingClip()'s own first call for
+  // `track_id` would otherwise derive that take's row 0 from
+  // (previousBarRow() of that call's own absolute step). Doubles as the
+  // overdub signal: calling this before that first call means the target
+  // clip is already actively playing (LaunchpadManager already knows the
+  // exact boundary step a newly-captured note should land at - the clip's
+  // own current loop position there, not a fresh bar-aligned row 0), so
+  // ensureSessionRecordingClip() treats an already-primed origin as
+  // "merge into this clip's existing content," never resetting it the way
+  // a fresh take does. A take arming into a genuinely empty/silent slot
+  // simply never calls this, leaving the origin at -1 for
+  // ensureSessionRecordingClip() to derive itself as usual.
+  void primeSessionRecordingOrigin(int track_id, int absolute_step_origin) {
+    auto it = session_recording_takes_.find(track_id);
+    if (it != session_recording_takes_.end()) it->second.origin_step = absolute_step_origin;
+  }
 
   // Begins a real Clip for the take currently in progress - creates it,
   // shares its SampleContent buffer with current_sample (so every later
@@ -815,63 +879,74 @@ class Controller {
 
   // ensureNoteRecordingClip()/extendRecordingClipsIfNeeded()'s own twin for
   // Session View recording (isSessionRecording()) - writes directly into
-  // getSessionRecordingTrackId()'s own clip at getSessionRecordingClipIndex()
+  // `track_id`'s own take, at getSessionRecordingClipIndex(track_id)
   // (creating it on the first call, same "overwrite in place" rule
   // beginSampleCapture() already applies for the SampleTrack case if that
-  // index already holds a clip - see its own comment), never calling
-  // placeClipInstance() at all. `absolute_step` is the audition clock's own
-  // raw step (LaunchpadManager's own audition_clock_.currentStep(), a
-  // Launchpad's NOTE grid being the only way notes reach here today -
-  // keyboard note *recording* not being viable without key-release events
-  // this terminal doesn't deliver), not getPlaybackInfo().getRowIndex() - a
-  // session recording can run with the transport stopped, so there's no
-  // live global position to read.
+  // index already holds a clip - see its own comment, and
+  // primeSessionRecordingOrigin()'s for the overdub exception to it),
+  // never calling placeClipInstance() at all. `absolute_step` is the
+  // audition clock's own raw step (LaunchpadManager's own
+  // audition_clock_.currentStep(), a Launchpad's NOTE grid being the only
+  // way notes reach here today - keyboard note *recording* not being
+  // viable without key-release events this terminal doesn't deliver), not
+  // getPlaybackInfo().getRowIndex() - a session recording can run with the
+  // transport stopped, so there's no live global position to read.
   //
-  // The *first* call for a take is where session_recording_origin_step_
-  // itself gets established, unless primeSessionRecordingOrigin() already
-  // fixed it - snapped back to that bar's own start, not the exact step
-  // this first note happened to land on: a performer may deliberately
-  // start playing on the bar's second beat rather than its first, and the
-  // clip's own row 0 still has to be the bar's start either way, not
-  // wherever they first happened to play. `grid_origin_step` is
-  // LaunchpadManager's own session_origin_step_ - the shared bar-boundary
-  // reference every other track's own Session View clip is already
-  // measured against - when something else in the session is already
-  // playing (-1 otherwise, meaning "nothing else established one yet");
-  // snapping is measured relative to *that* (ArrangementOps.h's
-  // previousBarRow() of `absolute_step - grid_origin_step`, itself offset
-  // back by grid_origin_step) rather than absolute step 0 in that case, so
-  // a take recorded onto a fresh track while something else already loops
-  // still lands in the same shared groove once it starts repeating,
-  // instead of drifting against it by whatever `grid_origin_step` itself
-  // isn't a multiple of the bar length. Every call, first or not, returns
-  // this take's own row (absolute_step - session_recording_origin_step_) -
-  // -1 whenever getSessionRecordingClipIndex() is out of range (nothing
-  // armed).
-  int ensureSessionRecordingClip(int absolute_step, int grid_origin_step = -1);
+  // The *first* call for a take is where its own origin_step gets
+  // established, unless primeSessionRecordingOrigin() already fixed it -
+  // snapped back to that bar's own start, not the exact step this first
+  // note happened to land on: a performer may deliberately start playing
+  // on the bar's second beat rather than its first, and the clip's own row
+  // 0 still has to be the bar's start either way, not wherever they first
+  // happened to play. `grid_origin_step` is LaunchpadManager's own
+  // session_origin_step_ - the shared bar-boundary reference every other
+  // track's own Session View clip is already measured against - when
+  // something else in the session is already playing (-1 otherwise,
+  // meaning "nothing else established one yet"); snapping is measured
+  // relative to *that* (ArrangementOps.h's previousBarRow() of
+  // `absolute_step - grid_origin_step`, itself offset back by
+  // grid_origin_step) rather than absolute step 0 in that case, so a take
+  // recorded onto a fresh track while something else already loops still
+  // lands in the same shared groove once it starts repeating, instead of
+  // drifting against it by whatever `grid_origin_step` itself isn't a
+  // multiple of the bar length. Every call, first or not, returns this
+  // take's own row - -1 when `track_id` has no in-flight take at all
+  // (isSessionRecording(track_id) false). For a fresh take that's the raw
+  // (absolute_step - origin_step), ever-growing alongside
+  // extendSessionRecordingClipIfNeeded() below; for an overdub (origin_step
+  // already primed - see primeSessionRecordingOrigin()'s own comment) it's
+  // that same value wrapped modulo the clip's own already-fixed length
+  // instead - the clip is already looping, in sync with every other
+  // track's own shared grid, so playing longer than it just means
+  // multiple passes merging more notes into the same loop, never growing
+  // it (which would desync it from that shared grid).
+  int ensureSessionRecordingClip(int track_id, int absolute_step, int grid_origin_step = -1);
   // Same growth-loop shape as extendRecordingClipsIfNeeded() above, keyed
-  // off session_recording_origin_step_ (established by
+  // off `track_id`'s own origin_step (established by
   // ensureSessionRecordingClip() above by the time this is ever
   // meaningful) the same way that method is, rather than the transport's
   // own position - grows the clip a bar ahead of `absolute_step` whenever
   // it's getting close to its own current end. A no-op before
-  // ensureSessionRecordingClip() has run at least once this take
-  // (session_recording_clip_ready_ still false) - nothing to grow yet.
-  void extendSessionRecordingClipIfNeeded(int absolute_step);
-  // Finalizes a note-recording Session View take, called once when it
-  // actually ends (toggle-record-arm's own disarm branch).
-  // extendSessionRecordingClipIfNeeded() above only ever grows the clip a
-  // bar ahead of wherever the take currently is, so by the time the
-  // performer stops playing and disarms, its length is however far the
-  // free-running clock had gotten to, not however much of it actually
-  // holds a note - trimmed back down to the last written row, rounded up
-  // to that row's own containing bar (a fresh one-bar clip if nothing
-  // ever landed). Also flips it to looping and records it via
+  // ensureSessionRecordingClip() has run at least once for this track's
+  // take (its own clip_ready still false), and for an overdub take (see
+  // ensureSessionRecordingClip()'s own comment) - an already-looping
+  // clip's own length is fixed, nothing to grow.
+  void extendSessionRecordingClipIfNeeded(int track_id, int absolute_step);
+  // Finalizes `track_id`'s own note-recording Session View take, called
+  // once when it actually ends (toggle-record-arm's own disarm branch, or
+  // a single track being individually disarmed while others keep
+  // recording). extendSessionRecordingClipIfNeeded() above only ever
+  // grows the clip a bar ahead of wherever the take currently is, so by
+  // the time the performer stops playing and disarms, its length is
+  // however far the free-running clock had gotten to, not however much of
+  // it actually holds a note - trimmed back down to the last written row,
+  // rounded up to that row's own containing bar (a fresh one-bar clip if
+  // nothing ever landed). Also flips it to looping and pushes it via
   // takeCompletedSessionRecording() for LaunchpadManager to pick up - a
   // fresh take is meant to be heard right back, looping, the instant it's
-  // done. A no-op unless a clip actually exists for this take
-  // (session_recording_clip_ready_).
-  void trimSessionRecordingClip();
+  // done. A no-op unless a clip actually exists for this track's take
+  // (its own clip_ready), and removes the take's own entry either way.
+  void trimSessionRecordingClip(int track_id);
 
   // beginSampleCapture()'s own counterpart to extendRecordingClipsIfNeeded()
   // above - same reasoning, same growth shape, but scoped to the one
@@ -1201,6 +1276,9 @@ class Controller {
   // armNoteCapture()/isNoteCaptureArmed()'s own flag - see their shared
   // doc comment.
   bool note_capture_armed_ = false;
+  // armTrack()/disarmTrack()/isTrackArmed()'s own backing set - see their
+  // shared doc comment.
+  std::unordered_set<int> armed_track_ids_;
   // Set by "toggle-record-arm"'s own SampleTrack branch when arming a
   // take also had to start the transport itself, so finishing/disarming
   // later knows whether to stop it again.
@@ -1209,34 +1287,36 @@ class Controller {
   // see their shared doc comment.
   bool session_view_focused_ = false;
   int session_view_track_id_ = -1, session_view_clip_index_ = -1;
-  // isSessionRecording()/getSessionRecordingTrackId()/
-  // getSessionRecordingClipIndex()'s own backing fields - see their shared
-  // doc comment.
-  bool session_recording_ = false;
-  int session_recording_track_id_ = -1, session_recording_clip_index_ = -1;
+  // armSessionTrackRecording()/isSessionRecording()/
+  // getSessionRecordingClipIndex()'s own backing state - one entry per
+  // track currently mid-take, so several can be in flight at once (see
+  // plans/launchpad-novation-unification.md for why this replaced a
+  // single-take set of fields). `clip_ready` is
   // ensureSessionRecordingClip()'s own "have I already created/reset this
-  // take's own clip" latch - reset to false alongside session_recording_
-  // itself (both directions, in "toggle-record-arm"), so the *first* call
-  // for a given take creates a fresh clip (an empty slot) or resets an
-  // existing one's own Pattern content back to empty (an occupied slot,
-  // "overwrite in place" - see that method's own comment), and every later
-  // call this same take just finds it already prepared.
-  bool session_recording_clip_ready_ = false;
-  // A Session View recording take's own "row 0" - the audition clock's own
-  // absolute step, snapped back to that bar's own start (previousBarRow(),
-  // ArrangementOps.h - the same rounding ensureNoteRecordingClip() already
-  // uses for the identical reason), the moment the *first real note*
-  // actually arrives (ensureSessionRecordingClip()'s own "not ready yet"
-  // branch) - not the moment arming happens. A performer needs time to get
-  // ready (or listen to whatever's already playing) before actually
-  // playing anything; fixing row 0 at arm time would bake however long
-  // that took as dead silence into the front of the clip. -1 (the reset
-  // default, alongside session_recording_clip_ready_ above) means not yet
-  // established this take.
-  int session_recording_origin_step_ = -1;
-  // takeCompletedSessionRecording()'s own backing fields - see its shared
+  // take's own clip" latch - the *first* call for a given take creates a
+  // fresh clip (an empty slot) or, unless `origin_step` was already primed
+  // (see primeSessionRecordingOrigin()'s own comment - the overdub case),
+  // resets an existing one's own Pattern content back to empty (an
+  // occupied slot, "overwrite in place"), and every later call for that
+  // same take just finds it already prepared. `origin_step` is this take's
+  // own "row 0" - the audition clock's own absolute step, snapped back to
+  // that bar's own start (previousBarRow(), ArrangementOps.h), the moment
+  // the *first real note* actually arrives - not the moment arming
+  // happens: a performer needs time to get ready before actually playing
+  // anything, and fixing row 0 at arm time would bake however long that
+  // took as dead silence into the front of the clip. -1 means not yet
+  // established this take (or, for a primed origin, "use this exact step
+  // instead of deriving one"). `is_overdub` is set once, alongside
+  // `clip_ready`, from whether `origin_step` was already primed at that
+  // exact moment - stays stable for the rest of this take even though
+  // `origin_step` itself doesn't change meaning afterward, so
+  // extendSessionRecordingClipIfNeeded()/trimSessionRecordingClip() can
+  // still tell an overdub apart from a fresh take long after arming.
+  struct SessionRecordingTake { int clip_index = -1; bool clip_ready = false; int origin_step = -1; bool is_overdub = false; };
+  std::unordered_map<int, SessionRecordingTake> session_recording_takes_;
+  // takeCompletedSessionRecording()'s own backing queue - see its shared
   // doc comment.
-  int completed_session_recording_track_id_ = -1, completed_session_recording_clip_index_ = -1;
+  std::deque<CompletedSessionRecording> completed_session_recordings_;
   // See getGlobalOctave()'s own comment - deliberately global, unlike the
   // per-buffer state above.
   int global_octave_ = 4;

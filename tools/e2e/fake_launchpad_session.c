@@ -1,11 +1,14 @@
 // Simulated Launchpad X exercising GridMode::SESSION - now the per-device
 // default (LaunchpadManager::DeviceState::grid_mode), so unlike every other
 // fake_launchpad_*.c here this one presses nothing to *enter* Session view.
-// Arms Record Arm (CC19) first, then presses pad (0,0): x=0 (the fixture's
-// only track), y=0 -> pool index 7 (see LaunchpadManager::
-// handleSessionPadEvent's own y-flip comment) - to confirm the press
-// assigns that pooled pattern into the current section rather than falling
-// through to ordinary NOTES-mode note entry.
+// Arms Record Arm first - a quick CC98 tap (Controller::isNoteCaptureArmed(),
+// "toggle-record-arm"), not CC19: CC19 no longer reaches that flag while
+// looking at Session view, it opens the per-track RECORD_ARM picker there
+// instead (see verify_launchpad_record_arm_picker.py for that gesture) -
+// then presses pad (0,0): x=0 (the fixture's only track), y=0 -> pool index
+// 7 (see LaunchpadManager::handleSessionPadEvent's own y-flip comment) - to
+// confirm the press assigns that pooled pattern into the current section
+// rather than falling through to ordinary NOTES-mode note entry.
 #include <alsa/asoundlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -56,11 +59,10 @@ int main() {
     snd_seq_free_event(in_ev);
   }
 
-  fprintf(stderr, "sending CC19 press (Record Arm on)\n");
-  send_cc(seq, port, 19, 127);
-  sleep(1);
-  fprintf(stderr, "sending CC19 release\n");
-  send_cc(seq, port, 19, 0);
+  fprintf(stderr, "sending CC98 quick tap (Record Arm on)\n");
+  send_cc(seq, port, 98, 127);
+  usleep(100 * 1000);
+  send_cc(seq, port, 98, 0);
   sleep(1);
 
   fprintf(stderr, "sending press on pad (0,0) [note 11] in Session view, velocity 100\n");

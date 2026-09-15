@@ -68,12 +68,16 @@ int main() {
   // GridMode defaults to SESSION - a plain note-on there launches a
   // Session View clip slot instead of entering a note; CC96 selects
   // NOTES mode. A press also only actually writes into the pattern
-  // (rather than just auditioning) with Record Arm (CC19) on.
+  // (rather than just auditioning) with Record Arm on, reached here via
+  // a quick CC98 tap (CC19 itself is a full member of the scene-launch/
+  // mixer radio group now, not this command).
   fprintf(stderr, "sending CC96 press (Note mode)\n");
   send_cc(seq, port, 96, 127);
   sleep(1);
-  fprintf(stderr, "sending CC19 press (Record Arm on)\n");
-  send_cc(seq, port, 19, 127);
+  fprintf(stderr, "sending CC98 quick tap (Record Arm on)\n");
+  send_cc(seq, port, 98, 127);
+  usleep(100 * 1000);
+  send_cc(seq, port, 98, 0);
   sleep(1);
 
   fprintf(stderr, "sending press on pad (0,0) [note 11], velocity 100\n");

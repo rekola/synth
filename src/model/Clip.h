@@ -6,24 +6,25 @@
 #include "SampleContent.h"
 #include "WaveformPeaks.h"
 
-#include <memory>
-#include <unordered_map>
-
-// A reusable, shareable unit of musical content, keyed by track_id - one
-// Pattern per track it touches. Only ever has one entry today (the
-// originating leaf track's own notes), but the storage shape already
-// supports more: a nested Effect track's own automation, captured
-// alongside the leaf track's own content at creation time, would just be
-// another entry in the same map, without needing to change this class's
-// own shape.
+// A reusable, shareable unit of musical content for one leaf track - its
+// own note/command Pattern. Deliberately not keyed by track_id the way
+// Section's own per-row content is: a nested Effect track's automation
+// captured alongside a clip would be redundant once a command can target
+// any of its parent tracks directly from that one Pattern (`Command`'s
+// own device-index digit - planned, not implemented beyond the track's
+// own chain position yet, see CLAUDE.md's own command-namespace note), so
+// there's no second track's worth of content a clip will ever need to
+// hold.
 //
 // A clip belonging to a SampleTrack carries raw audio instead of Pattern
 // content - see getSampleContent()/hasSample() below - via a
-// SampleContent child (SampleContent.h), the sample-content sibling of
-// patterns_by_track_ above; mixing note-automation content with sample
-// content on one clip isn't supported. Exclusively owned (unique_ptr) -
-// unlike SampleContent's own buffer, nothing outside a Clip ever needs to
-// keep a SampleContent itself alive independently.
+// SampleContent member, the sample-content sibling of pattern_ above and
+// held the same way (a plain value, always present - never null, unlike
+// SampleContent's own buffer_ inside it, which really is optional and is
+// what hasSample() actually tests); mixing note-automation content with
+// sample content on one clip isn't supported, but which of the two a
+// given Clip actually uses is a matter of which one has real content, not
+// which one physically exists.
 //
 // Distinct from a Section's own inline Pattern in one crucial way: a clip
 // is a single shared object that can be placed at more than one position
@@ -44,14 +45,21 @@ class Clip : public SongObject {
 
   int getLeafTrackId() const { return leaf_track_id_; }
 
-  const std::unordered_map<int, Pattern> & getPatternsByTrack() const { return patterns_by_track_; }
-  std::unordered_map<int, Pattern> & getPatternsByTrack() { return patterns_by_track_; }
+  // The leaf track's own Pattern - always present, even on a freshly
+  // constructed Clip (a default-constructed Pattern is already a valid,
+  // empty one - see isEmpty() below).
+  Pattern & getLeafPattern() { return pattern_; }
+  const Pattern & getLeafPattern() const { return pattern_; }
 
-  // The leaf track's own Pattern - present unconditionally the moment a
-  // Clip exists at all (every other track_id in getPatternsByTrack() is
-  // optional, added only once nested-Effect capture exists).
-  Pattern & getLeafPattern() { return patterns_by_track_[leaf_track_id_]; }
-  const Pattern & getLeafPattern() const { return patterns_by_track_.at(leaf_track_id_); }
+  // Whether this clip has any real content at all - either kind, note or
+  // audio (hasSample() below; a SampleTrack clip's own Pattern is never
+  // touched, so checking pattern_ alone would misreport every populated
+  // sample clip as empty). Distinguishes a genuinely unused scene slot
+  // (Song::ensureClipAt()'s own filler, or a hand-authored `<clip/>` in
+  // the song XML) from a real, if currently silent, take - e.g. Session
+  // View's own per-pad display (LaunchpadManager.cpp) and SessionView's
+  // own row rendering both need to tell them apart.
+  bool isEmpty() const { return pattern_.isEmpty() && !hasSample(); }
 
   // A clip's own length, independent of its leaf Pattern's own length_
   // (Pattern.h) - a clip is addressed and triggered outside any section's
@@ -77,17 +85,14 @@ class Clip : public SongObject {
   void setLooping(bool loop) { loop_ = loop; }
 
   // Audio content for a SampleTrack's own clip - see SampleContent.h.
-  // nullptr (the default) for every other track type's clip.
-  bool hasSample() const { return sample_content_ != nullptr && sample_content_->getBuffer() != nullptr; }
-  const SampleContent * getSampleContent() const { return sample_content_.get(); }
-  SampleContent * getSampleContent() { return sample_content_.get(); }
-  // Creates one on first use (a fresh Clip has none) - the one write path
-  // in, e.g. Controller::finishSampleCapture()'s
-  // getOrCreateSampleContent().setBuffer(...).
-  SampleContent & getOrCreateSampleContent() {
-    if (!sample_content_) sample_content_ = std::make_unique<SampleContent>();
-    return *sample_content_;
-  }
+  // getBuffer() == nullptr (the default) for every other track type's
+  // clip, the same "empty member, not an absent one" convention pattern_/
+  // isEmpty() above use - so, like getLeafPattern(), always present and
+  // returned by reference; nothing to lazily create on first write
+  // anymore.
+  bool hasSample() const { return sample_content_.getBuffer() != nullptr; }
+  const SampleContent & getSampleContent() const { return sample_content_; }
+  SampleContent & getSampleContent() { return sample_content_; }
 
   // The row-indexed RMS amplitude cache PatternEditor's own waveform-box
   // rendering reads from (WaveformPeaks.h's own comment has the full
@@ -109,7 +114,7 @@ class Clip : public SongObject {
   // resolving to nothing.
   const WaveformPeaks & getWaveformPeaks(int subrows_per_row) const {
     static const WaveformPeaks kEmpty;
-    return hasSample() ? sample_content_->getWaveformPeaks(getLength() > 0 ? getLength() : 1, subrows_per_row) : kEmpty;
+    return hasSample() ? sample_content_.getWaveformPeaks(getLength() > 0 ? getLength() : 1, subrows_per_row) : kEmpty;
   }
 
   // getId()/setId() (inherited from SongObject, same field a track's own
@@ -150,8 +155,8 @@ class Clip : public SongObject {
 
  private:
   int leaf_track_id_;
-  std::unordered_map<int, Pattern> patterns_by_track_;
-  std::unique_ptr<SampleContent> sample_content_;
+  Pattern pattern_;
+  SampleContent sample_content_;
   bool loop_ = true;
   int length_ = 0;
 };

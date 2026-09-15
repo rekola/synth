@@ -324,9 +324,7 @@ SampleTrackState::triggerVoice(const SampleContent & content, int song_tempo, in
 
 void
 SampleTrackState::triggerClip(const Clip & clip, int song_tempo, int start_offset_frames) {
-  auto * content = clip.getSampleContent();
-  if (!content) return;
-  triggerVoice(*content, song_tempo, start_offset_frames, kClipVoiceId);
+  triggerVoice(clip.getSampleContent(), song_tempo, start_offset_frames, kClipVoiceId);
 }
 
 unique_ptr<TrackState>

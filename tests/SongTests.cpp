@@ -1073,7 +1073,7 @@ TEST(sample_clip_round_trips_through_save_and_load) {
   for (int i = 0; i < kFrames; i++) data[i] = static_cast<float>(i) / kFrames - 0.5f;
 
   Clip clip(track.getInternalId());
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   content.setBuffer(buffer);
   content.setNativeSampleRate(48000);
   content.setInPoint(0.01f);
@@ -1100,19 +1100,16 @@ TEST(sample_clip_round_trips_through_save_and_load) {
     auto & clips = reloaded.getClips(reloaded_track->getInternalId());
     CHECK(clips.size() == 1);
     if (clips.size() == 1) {
-      auto * reloaded_content = clips[0].getSampleContent();
-      CHECK(reloaded_content != nullptr);
-      if (reloaded_content) {
-        CHECK(reloaded_content->getBuffer() != nullptr);
-        CHECK(reloaded_content->getNativeSampleRate() == 48000);
-        CHECK_NEAR(reloaded_content->getInPoint(), 0.01f, 1e-5f);
-        CHECK_NEAR(reloaded_content->getOutPoint(), 0.02f, 1e-5f);
-        CHECK(reloaded_content->getOriginalTempo() == 120);
-        if (reloaded_content->getBuffer()) {
-          CHECK(reloaded_content->getBuffer()->numberOfFrames() == kFrames);
-          auto reloaded_data = reloaded_content->getBuffer()->getChannelData(0);
-          for (int i = 0; i < kFrames; i++) CHECK_NEAR(reloaded_data[i], data[i], 1e-5f);
-        }
+      auto & reloaded_content = clips[0].getSampleContent();
+      CHECK(reloaded_content.getBuffer() != nullptr);
+      CHECK(reloaded_content.getNativeSampleRate() == 48000);
+      CHECK_NEAR(reloaded_content.getInPoint(), 0.01f, 1e-5f);
+      CHECK_NEAR(reloaded_content.getOutPoint(), 0.02f, 1e-5f);
+      CHECK(reloaded_content.getOriginalTempo() == 120);
+      if (reloaded_content.getBuffer()) {
+        CHECK(reloaded_content.getBuffer()->numberOfFrames() == kFrames);
+        auto reloaded_data = reloaded_content.getBuffer()->getChannelData(0);
+        for (int i = 0; i < kFrames; i++) CHECK_NEAR(reloaded_data[i], data[i], 1e-5f);
       }
     }
   }
@@ -1147,8 +1144,8 @@ TEST(sample_background_round_trips_through_save_and_load) {
   Clip sample_clip(track.getInternalId());
   sample_clip.setLength(2);
   sample_clip.setLooping(false);
-  sample_clip.getOrCreateSampleContent().setBuffer(buffer);
-  sample_clip.getOrCreateSampleContent().setNativeSampleRate(44100); // real clips always have one by the time they're playable
+  sample_clip.getSampleContent().setBuffer(buffer);
+  sample_clip.getSampleContent().setNativeSampleRate(44100); // real clips always have one by the time they're playable
   song.addClip(move(sample_clip)); // index 0
 
   auto & section = song.addSection();
@@ -1202,7 +1199,7 @@ TEST(sample_clip_trim_points_are_omitted_from_xml_when_left_at_their_default) {
   auto & track = song.addTrack(make_unique<SampleTrack>());
   auto buffer = make_shared<AudioBuffer>(1, 4);
   Clip clip(track.getInternalId());
-  clip.getOrCreateSampleContent().setBuffer(buffer); // in/out left at their 0.0f defaults
+  clip.getSampleContent().setBuffer(buffer); // in/out left at their 0.0f defaults
   song.addClip(move(clip));
   song.save(scratch_path);
 
@@ -1230,14 +1227,18 @@ TEST(deleting_a_sample_clip_only_removes_its_sidecar_file_on_next_save) {
   auto & track = song.addTrack(make_unique<SampleTrack>());
   auto buffer = make_shared<AudioBuffer>(1, 4);
   Clip clip(track.getInternalId());
-  clip.getOrCreateSampleContent().setBuffer(buffer);
+  clip.getSampleContent().setBuffer(buffer);
   auto clip_id = song.addClip(move(clip)).getId();
   song.save(scratch_path);
   auto sidecar_path = scratch_samples_dir / (clip_id + ".wav");
   CHECK(fs::exists(sidecar_path));
 
   deleteClip(song, track.getInternalId(), 0);
-  CHECK(song.getClips(track.getInternalId()).empty());
+  // A fresh, id-less filler in place (Song::ensureClipAt()'s own "hole"
+  // state) - not removed outright, since holes are allowed and every
+  // other track's own scene rows are indexed against this same list.
+  CHECK(song.getClips(track.getInternalId()).size() == 1);
+  CHECK(song.getClips(track.getInternalId())[0].isEmpty());
   CHECK(fs::exists(sidecar_path)); // still there - deleteClip() never touches disk
 
   song.save(scratch_path);

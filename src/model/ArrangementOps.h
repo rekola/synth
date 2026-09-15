@@ -83,14 +83,20 @@ void placeStopInstance(Section & section, int track_id, int row);
 // unused by the note path.
 bool mergeClipToBackground(const Song & song, Section & section, int track_id, int row, const ChannelConfiguration & channel_config);
 
-// Removes `clip_index`'s own clip from track_id's own clip list
-// (Song::getClips()) entirely, first clearing away every instance event
-// anywhere in the song - every section, not just one - that referenced it
+// Resets `clip_index`'s own slot in track_id's own clip list
+// (Song::getClips()) to a fresh, id-less filler (Song::ensureClipAt()'s
+// own "hole" state) - first clearing away every instance event anywhere
+// in the song - every section, not just one - that referenced it
 // (resolved by the clip's own stable id, same as placeClipInstance()'s
-// own lookup). A clip's own id is never reused (Song::generateUniqueClipId()),
-// so nothing placed afterward could ever collide with a stale leftover
-// reference the way reusing a freed vector position could. A no-op if
-// clip_index doesn't resolve to a real clip in that track's own list.
+// own lookup). Never erases the element outright: holes are allowed, and
+// every other track's own scene rows are indexed against this same
+// list's own positions, so shifting everything past the deleted one down
+// would silently misalign them all against it, even for a track this
+// deletion never touched. A clip's own id is never reused (Song::
+// generateUniqueClipId()), so nothing placed afterward could ever
+// collide with a stale leftover reference the way reusing a freed vector
+// position could. A no-op if clip_index doesn't resolve to a real clip
+// in that track's own list.
 //
 // Purely in-memory, on principle - nothing on disk changes as a side
 // effect of an edit, only ever at an explicit save. A deleted sample

@@ -88,7 +88,12 @@ SessionView::SessionView(UIPlane & parent) : UIElement(parent) {
     auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
     auto & clips = song.getClips(track_id);
     auto clip_row = kLogicalToPhysical[cursor_row_]; // a CLIP row's own physical offset doubles as its clip-list index
-    if (clip_row < 0 || static_cast<size_t>(clip_row) >= clips.size()) return; // no clip here to delete
+    // Content-aware, not just in-bounds: an empty filler (Song::
+    // ensureClipAt()'s own "hole", or a genuinely out-of-bounds row) reads
+    // as "no clip here" either way - erasing a filler would shift every
+    // later clip's own index down, silently misaligning every other
+    // track's own scene rows against it.
+    if (clip_row < 0 || static_cast<size_t>(clip_row) >= clips.size() || clips[static_cast<size_t>(clip_row)].isEmpty()) return; // no clip here to delete
     auto clip_id = clips[static_cast<size_t>(clip_row)].getId();
     auto name = clips[static_cast<size_t>(clip_row)].getName();
     // Clears any live preview/edit focus on the clip being deleted -
@@ -149,7 +154,9 @@ SessionView::startClipRename(const Song & song, const std::vector<int> & track_i
   auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
   auto & clips = song.getClips(track_id);
   auto clip_row = kLogicalToPhysical[cursor_row_]; // a CLIP row's own physical offset doubles as its clip-list index (both 0..kClipRowCount-1)
-  if (clip_row < 0 || static_cast<size_t>(clip_row) >= clips.size()) return; // no clip here to rename
+  // Same content-aware "an empty filler reads as no clip here" reasoning
+  // as delete-clip above - nothing to give a name to yet.
+  if (clip_row < 0 || static_cast<size_t>(clip_row) >= clips.size() || clips[static_cast<size_t>(clip_row)].isEmpty()) return; // no clip here to rename
 
   auto physical_row = clip_row - scroll_row_ + 1; // +1 for the header row
   auto [ rows, cols ] = getDim();
@@ -313,7 +320,7 @@ SessionView::offerInput(const InputEvent & input) {
       auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
       auto & clips = song.getClips(track_id);
       auto clip_row = kLogicalToPhysical[cursor_row_]; // a CLIP row's own physical offset doubles as its clip-list index
-      if (clip_row >= 0 && static_cast<size_t>(clip_row) < clips.size()) {
+      if (clip_row >= 0 && static_cast<size_t>(clip_row) < clips.size() && !clips[static_cast<size_t>(clip_row)].isEmpty()) {
         auto & mutable_song = getController().getSong(); // non-const - this branch genuinely writes, unlike the rest of this method (see `song`'s own comment above)
         auto & clip = mutable_song.getClips(track_id)[static_cast<size_t>(clip_row)];
         clip.setLooping(!clip.isLooping());
@@ -373,23 +380,23 @@ SessionView::render(const StyleProvider & styles, bool refresh, bool focused) {
   auto focused_clip_id = getController().getFocusedClip();
 
   auto new_version = song.getMajorVersion();
-  bool is_session_recording = getController().isSessionRecording();
-  int session_recording_track_id = getController().getSessionRecordingTrackId();
-  int session_recording_clip_index = getController().getSessionRecordingClipIndex();
+  // Coarse on purpose - several tracks can each have their own in-flight
+  // take now, not just one, so there's no single (track_id, clip_index)
+  // pair left to compare against a cached one; any recording activity at
+  // all forces a redraw instead of trying to detect exactly what changed
+  // (the per-cell check below still resolves the real, current per-track
+  // detail every time this does redraw).
+  bool is_session_recording = getController().isAnySessionRecording();
   if (!refresh && !force_redraw_ && new_version == current_song_version_ &&
       cursor_track_index_ == current_cursor_track_index_ && cursor_row_ == current_cursor_row_ &&
       scroll_col_ == current_scroll_col_ && scroll_row_ == current_scroll_row_ &&
       focused == current_focused_ && focused_clip_id == current_focused_clip_id_ &&
-      is_session_recording == current_session_recording_ &&
-      session_recording_track_id == current_session_recording_track_id_ &&
-      session_recording_clip_index == current_session_recording_clip_index_) {
+      is_session_recording == current_session_recording_) {
     return false;
   }
   force_redraw_ = false;
   current_focused_clip_id_ = focused_clip_id;
   current_session_recording_ = is_session_recording;
-  current_session_recording_track_id_ = session_recording_track_id;
-  current_session_recording_clip_index_ = session_recording_clip_index;
   current_song_version_ = new_version;
   current_cursor_track_index_ = cursor_track_index_;
   current_cursor_row_ = cursor_row_;
@@ -508,7 +515,12 @@ SessionView::render(const StyleProvider & styles, bool refresh, bool focused) {
         auto clip_row = static_cast<size_t>(physical_row);
         Color row_fg = Color(255, 255, 255), row_bg = styles.window_bg_color;
         string text;
-        if (clip_row < clips.size()) {
+        // Content-aware, not just in-bounds - holes are allowed (Song::
+        // ensureClipAt()), so an in-bounds but still-empty filler renders
+        // as the plain "nothing here" stop icon below, same as a row
+        // genuinely past the list's own end.
+        bool has_real_clip = clip_row < clips.size() && !clips[clip_row].isEmpty();
+        if (has_real_clip) {
           auto & clip = clips[clip_row];
           auto name = clip.getName().empty() ? "(unnamed)" : clip.getName();
           // Leading marker: whether this clip is the one currently
@@ -543,16 +555,18 @@ SessionView::render(const StyleProvider & styles, bool refresh, bool focused) {
           // still reads clearly as a real stop icon, not a smudge.
           row_fg = styles.window_fg_color.blend(0.5f, Color(0, 0, 0));
         }
-        // Record indicator - this exact slot is Session View's own current
-        // recording target (Controller::isSessionRecording(), armed by
-        // "toggle-record-arm"), whether it was empty a moment ago or
-        // already held a clip ("overwrite in place" -
+        // Record indicator - this exact slot is this track's own current
+        // recording target (Controller::isSessionRecording(track_id),
+        // armed by "toggle-record-arm" or the per-track Record Arm -
+        // several tracks can each have their own now, unlike a shared
+        // single target), whether it was empty a moment ago or already
+        // held a clip ("overwrite in place" -
         // Controller::beginSampleCapture()'s own comment) - takes priority
         // over either of those. Plain, common Unicode (U+25CF, unlike the
         // loop glyph's own ambiguous-width caution above), so no extra
         // width slack is needed for it.
-        if (is_session_recording && track_id == session_recording_track_id &&
-            static_cast<int>(clip_row) == session_recording_clip_index) {
+        if (getController().isSessionRecording(track_id) &&
+            static_cast<int>(clip_row) == getController().getSessionRecordingClipIndex(track_id)) {
           text = " ●";
           row_fg = Color(255, 60, 60);
         }
@@ -570,7 +584,7 @@ SessionView::render(const StyleProvider & styles, bool refresh, bool focused) {
         setBgColor(row_bg);
         putstr(y, x, string(static_cast<size_t>(kColWidth), ' ')); // opaque row background first
         putstr(y, x, text);
-        if (clip_row < clips.size() && clips[clip_row].isLooping()) putstr(y, x + kColWidth - 2, "↻");
+        if (has_real_clip && clips[clip_row].isLooping()) putstr(y, x + kColWidth - 2, "↻");
         continue;
       }
 

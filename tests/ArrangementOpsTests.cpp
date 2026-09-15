@@ -77,7 +77,12 @@ TEST(place_stop_instance_clears_nothing) {
   CHECK(section.getInstance(track_id, 20) == "other"); // untouched - a stop clears nothing
 }
 
-TEST(delete_clip_removes_it_from_the_clip_list_and_clears_every_instance) {
+// Leaves a hole rather than shifting every later clip's own index down -
+// holes are allowed (Song::ensureClipAt()), and every other track's own
+// scene rows are indexed against this same track's clip list, so
+// renumbering everything past the deleted one would silently misalign
+// them all against it.
+TEST(delete_clip_leaves_a_hole_in_place_and_clears_every_instance) {
   Song song;
   auto & track = song.addTrack(make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
@@ -98,8 +103,11 @@ TEST(delete_clip_removes_it_from_the_clip_list_and_clears_every_instance) {
 
   deleteClip(song, track_id, 0); // "a"
 
-  CHECK(song.getClips(track_id).size() == 1);
-  CHECK(song.getClips(track_id)[0].getId() == b_id);
+  auto & clips = song.getClips(track_id);
+  CHECK(clips.size() == 2); // b's own index (1) never shifts
+  CHECK(clips[0].isEmpty()); // "a"'s own slot is now a fresh, id-less filler
+  CHECK(clips[0].getId().empty());
+  CHECK(clips[1].getId() == b_id); // untouched, still at its own index
   CHECK(song.getSection(0).getInstance(track_id, 0).empty()); // cleared
   CHECK(song.getSection(0).getInstance(track_id, 32) == b_id); // a different clip - left alone
   CHECK(song.getSection(1).getInstance(track_id, 16).empty()); // cleared in the later section too, not just the first one found
@@ -290,7 +298,7 @@ TEST(resolve_read_target_does_not_crash_on_a_sample_clip_instance) {
   auto track_id = track.getInternalId();
 
   Clip clip(track_id);
-  clip.getOrCreateSampleContent().setBuffer(make_shared<AudioBuffer>(1, 4));
+  clip.getSampleContent().setBuffer(make_shared<AudioBuffer>(1, 4));
   clip.setLength(4);
   clip.setLooping(false);
   song.addClip(move(clip)); // index 0
@@ -622,7 +630,7 @@ TEST(merge_clip_to_background_mixes_a_sample_clip_into_the_background_bed) {
   Clip sample_clip(track_id);
   sample_clip.setLength(2);
   sample_clip.setLooping(false);
-  sample_clip.getOrCreateSampleContent().setBuffer(buffer);
+  sample_clip.getSampleContent().setBuffer(buffer);
   auto clip_id = song.addClip(move(sample_clip)).getId(); // index 0
 
   auto & section = song.addSection();

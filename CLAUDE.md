@@ -393,47 +393,60 @@ whether or not a terminal UI exists at all.
   `LaunchpadManager::handleRawButton()`/`UI::handleLaunchpadButtonEvent()`
   before any command-name resolution): 95/96/97/98 (Session/Note/Custom/
   Draw) are a true four-member exclusive group, not independent toggles -
-  each press selects that mode unconditionally, even pressing the one
-  already active, so the only way to leave a mode is selecting a
-  *different* one of the four (97/98's own tap-vs-long-hold gestures aside
-  - see below); 19 is Record Arm (`capture_enabled_`, a single song-wide
-  flag, not per-device, deliberately untouched by everything below); 91/
-  92/93/94 are move-row-up/down/prev-track/next-track (named commands, via
-  `LaunchpadProtocol::commandForButton()`).
-  89/79/69/59/49/39/29 (Volume/Pan/Send A/Send B/Stop Clip/Mute/Solo, plus
-  Pro MK3 left-column twins 30/20 for Mute/Solo) share one dispatch, keyed
-  on Session's own mixer submode (`GridMode`'s own comment): **off** (the
-  default) - each launches a whole scene instead
-  (`LaunchpadManager::triggerSceneRow()`, `row = (cc_number - 19) / 10` -
-  the classic Launchpad right-column convention, matching every visible
-  track's own clip at that row simultaneously, through the same
+  each of 95/96/97's presses selects that mode unconditionally, even
+  pressing the one already active, so the only way to leave a mode is
+  selecting a *different* one of the four; DRAW (98) is the one member not
+  reached by a plain press at all - a quick tap there means something else
+  entirely (see its own bullet below) - but a long hold on it is still
+  the only way into DRAW, and still the only way out of DRAW is selecting
+  one of 95/96/97. 91/92/93/94 are move-row-up/down/prev-track/next-track
+  (named commands, via `LaunchpadProtocol::commandForButton()`).
+  19/89/79/69/59/49/39/29 (Record Arm/Volume/Pan/Send A/Send B/Stop Clip/
+  Mute/Solo, plus Pro MK3 left-column twins 30/20 for Mute/Solo) are the
+  real Launchpad X's own right-column "Track control" group, all eight
+  sharing one dispatch, keyed on Session's own mixer submode (`GridMode`'s
+  own comment): **off** (the default) - each launches a whole scene
+  instead (`LaunchpadManager::triggerSceneRow()`, `row = (cc_number - 19)
+  / 10` - the classic Launchpad right-column convention, matching every
+  visible track's own clip at that row simultaneously, through the same
   audition/assign (Record Arm) split an ordinary Session pad press
   already goes through) - **on** - each is the mixer radio group instead:
-  Volume/Pan/SendA/SendB enter that fader `GridMode`
-  (`toggleGridMode()`), Stop Clip/Mute/Solo open/retarget the
-  track-picker overlay (`toggleTrackPicker()`) with their own purpose.
-  Either way Mute/Solo no longer act on the currently-followed track
-  directly the way "toggle-mute"/"toggle-solo" (`PatternEditor`'s own
-  `commands_`, still reachable via keybinding/M-x) do. 95 ("Session")
-  doubles as the mixer-submode toggle: a repeat press while already at
-  the plain Session grid with nothing from the radio group active flips
+  Volume/Pan/SendA/SendB enter that fader `GridMode` (`toggleGridMode()`),
+  Stop Clip/Mute/Solo/Record Arm open/retarget the track-picker overlay
+  (`toggleTrackPicker()`) with their own purpose. Either way Mute/Solo no
+  longer act on the currently-followed track directly the way
+  "toggle-mute"/"toggle-solo" (`PatternEditor`'s own `commands_`, still
+  reachable via keybinding/M-x) do, and Record Arm no longer reaches
+  `Controller::isNoteCaptureArmed()`'s own per-current-track toggle at all
+  - that's CC98's own quick-tap gesture instead (see its own bullet
+  below), reachable from any `GridMode`. 95 ("Session") doubles as the
+  mixer-submode toggle: a repeat press while already at the plain Session
+  grid with nothing from the radio group active flips
   `session_mixer_mode`; any press otherwise just lands on (or stays on)
   that plain grid, closing an active fader/picker first if there was one.
   Session's own LED (95) reflects this three ways: dim green when not
   showing anything from the Session family at all, bright green while
   showing it in scene-launch (the default) submode, bright **orange**
   while showing it in mixer submode instead. While mixer submode is off,
-  all seven of Volume/Pan/SendA/SendB/Stop Clip/Mute/Solo show a uniform
-  dim white (`LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR`) rather than any
-  mixer-mode hue, which would otherwise misleadingly suggest a fader/
+  all eight of Record Arm/Volume/Pan/SendA/SendB/Stop Clip/Mute/Solo show
+  a uniform dim white (`LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR`) rather than
+  any mixer-mode hue, which would otherwise misleadingly suggest a fader/
   picker is one press away; once mixer submode is on, each shows its own
   hue, bright only for whichever one is currently active.
 - **DRAW mode** (CC98, "Capture MIDI") - a plain per-pad coloring toy,
-  independent of Song/Track state. Its own tap-vs-long-hold gesture:
-  entering DRAW happens immediately on press; a quick release while
-  already in DRAW does nothing further (same exclusive-group rule as
-  Session/Note/Custom - only a different one of the four leaves DRAW), a
-  long hold instead blanks the canvas (`handleDrawToggleButton()`).
+  independent of Song/Track state. CC98's own tap-vs-long-hold gesture
+  (`handleDrawToggleButton()`) means two unrelated things, not one a
+  variant of the other: a quick tap fires "toggle-record-arm"
+  (`Controller::isNoteCaptureArmed()`'s own per-current-track toggle),
+  reachable from any `GridMode`; a long hold is what reaches DRAW itself -
+  entering it (same exclusive-group rule as Session/Note/Custom - only a
+  different one of the four leaves DRAW once inside it) if some other
+  mode was showing when the hold started, or blanking the canvas if DRAW
+  was already active. CC98's own LED carries both states at once - bright
+  red while armed (regardless of `GridMode`), else DRAW's own purple only
+  while that mode is actually active - armed taking priority since DRAW's
+  own activity is already visible from the grid's rainbow content, while
+  armed has no other indicator.
 - **The drum machine** (`PercussionTrack`, up to `kMaxLanes` = 8 lanes,
   `getLaneNotes()`) - the same track type as ordinary percussion note
   entry, not a separate one: with no lanes it's a plain percussion track
@@ -444,10 +457,26 @@ whether or not a terminal UI exists at all.
   `Pattern` like any other track's (a step is a `Note`), not
   track-global, so it's copy/paste-able through `PatternEditor`'s own
   clipboard and renders as its compact one-cell-per-lane view. On a
-  Launchpad, it displays automatically as a step grid (rows = lanes,
-  columns = steps) whenever the assigned track is a step-sequenced
-  `PercussionTrack` and `GridMode` is `NOTES` - not a mode toggle of its
-  own. CC97 ("Custom") launches the lane picker directly (`GridMode::
+  Launchpad, the step grid (rows = lanes, columns = steps) only ever
+  edits a specific `Clip` actually open for editing on the assigned track
+  (`Controller::getFocusedClipTrackId()`) - never the section's own
+  background `Pattern`, which has no pagination and spans the whole
+  scene, far more than this fixed grid (even split across several
+  connected devices) could ever show meaningfully. Opening a clip is a
+  terminal-driven action ("toggle-record-arm"/Ctrl-X r while the
+  `SessionView` widget has focus, `Controller.cpp`'s own drum-machine-
+  track repurposing) - it forces every connected Launchpad into `NOTES`
+  mode showing that clip's own step grid automatically, regardless of
+  whatever `GridMode` each was in (`TerminalUI.cpp`'s own drum-edit-
+  request listener, `LaunchpadManager::forceNotesModeOnAllDevices()`); a
+  second press on the same clip closes it and returns every device to
+  Session view. Merely navigating the shared cursor onto a step-sequenced
+  `PercussionTrack` (or recording into it - see the Multi-track Record
+  Arm bullet below) does *not* by itself show the step grid - both fall
+  through to ordinary free-drumming pad entry instead, same as a
+  lane-less `PercussionTrack` always does; there is currently no
+  Launchpad-only gesture to open a clip for step editing. CC97 ("Custom")
+  launches the lane picker directly (`GridMode::
   CUSTOM`, gated on the assigned track being a `PercussionTrack` at
   all, any lane count - this is how a lane-less track gains its first
   lane): the free-drumming percussion layout doubles as a lane add/remove
@@ -459,22 +488,41 @@ whether or not a terminal UI exists at all.
   `PercussionTrack::applyPreset()` - a full replace of the lane list, not
   additive).
 - **Clips** (`Clip`, `src/model/Clip.h`; `Song::getClips(track_id)`/
-  `addClip()`, backed by `std::unordered_map<int, std::vector<Clip>>
-  clips_by_track_`) - reusable, shareable content keyed by track id,
-  outside any one section position: one `Pattern` per track it touches
-  (today always just that track's own - the storage shape already
-  supports more, e.g. a nested Effect track's own automation captured
-  alongside it, but that's unbuilt). Editing a clip through any one of its
-  placements (`ArrangementOps.h`'s `placeClipInstance()`/
+  `addClip()`/`ensureClipAt()`, backed by `std::unordered_map<int,
+  std::vector<Clip>> clips_by_track_`) - reusable, shareable content for
+  one leaf track, outside any one section position: a single `Pattern`
+  (once a command can target any of a track's own parent tracks directly
+  - see the Run section's own `docs/commands.md` discussion above for
+  `Command`'s own chain-position digit, reserved for this but not
+  implemented beyond the track's own chain position (`0`) yet - a clip
+  will never need a second track's worth of content the way a Section's
+  own per-track content does, so this is already shaped for that).
+  Editing a clip through any
+  one of its placements (`ArrangementOps.h`'s `placeClipInstance()`/
   `resolveInstanceAt()`, see `ArrangementGrid` below) updates every other
   placement of it immediately - unlike a section's own inline Pattern
-  content, which is always an independent copy. Persisted in a top-level
-  `<clips>` element, sibling to `<tracks>`/`<sections>`
-  (`<trackClips track="..."><clip id="..." name="..." loop="..."
-  length="..."><pattern>...</pattern></clip></trackClips>`, one
-  `<trackClips>` per track). Authored in-app via `PatternEditor::
-  copyToClip()` (extracts the current pattern-editor selection into a new
-  clip), not hand-edited-XML-only.
+  content, which is always an independent copy. A gap in the middle of a
+  track's own clip list (a scene where this instrument is silent on
+  purpose) is a real, empty `Clip` (`Clip::isEmpty()`), not a missing
+  vector slot - `Song::ensureClipAt(track_id, index)` places/reuses a clip
+  at an exact index, padding any earlier missing positions with fresh
+  empty fillers as needed; a filler gets no id of its own until something
+  actually gives it real content (the same "assign one if it doesn't
+  already have one" convention `addClip()` itself follows). Every "is
+  this slot populated" check reads content, not just bounds
+  (`!clip.isEmpty()`), for exactly this reason - Session view's own
+  per-pad LED/row display, `LaunchpadManager::triggerSessionClip()`'s
+  fresh-take-vs-overdub decision, and `SessionView`'s own delete/rename/
+  loop-toggle commands (a filler reads as "nothing here" the same as a
+  genuinely out-of-bounds row - erasing one would shift every later
+  clip's own index down, silently misaligning every other track's own
+  scene rows against it). Persisted in a top-level `<clips>` element,
+  sibling to `<tracks>`/`<sections>` (`<trackClips track="..."><clip
+  id="..." name="..." loop="..." length="..."><pattern>...</pattern>
+  </clip></trackClips>`, one `<trackClips>` per track; an empty filler
+  round-trips as a `<clip>` with no `<pattern>` child at all). Authored
+  in-app via `PatternEditor::copyToClip()` (extracts the current
+  pattern-editor selection into a new clip), not hand-edited-XML-only.
 - **Session view** (`GridMode::SESSION`, reached/left only via CC95/96/97/98,
   decoupled from terminal UI focus): rows are a track's own clip list
   (`Song::getClips(track_id)`), columns are the one shared cursor track
@@ -511,16 +559,26 @@ whether or not a terminal UI exists at all.
   send-only-on-change dedup means this never needs re-sending itself
   either. Those two lighting types only understand a fixed 128-entry
   palette, not arbitrary RGB, which is why they're a fixed green rather
-  than each pad's own hue.
+  than each pad's own hue. An armed track (`Controller::isTrackArmed()`)
+  switches its whole column from this green overlay to a red one instead
+  (still `SessionPadHighlight`, four further states -
+  `ARMED_EMPTY`/`RECORD_QUEUED`/`RECORDING`/`RECORD_STOPPING` - reached
+  instead of, never alongside, the plain three, since a pad is always
+  exactly one or the other): an empty slot shows static dim red, a
+  press-to-record queues a red flash, an in-flight take pulses red, and
+  pressing the pad being recorded into again (queuing a stop for just
+  that take) flashes red the same way a fresh queue does. Reuses Stop
+  Clip's own red hue rather than a fifth distinct color.
 - **Track-picker overlay** (`LaunchpadManager::toggleTrackPicker()`/
   `handleTrackPickerPadEvent()`/`isTrackPickerRow()`, `DeviceState::
-  track_picker_active`/`track_picker_purpose`) - three of the seven
-  members of Session's own mixer submode radio group (`GridMode`'s own
-  comment covers the other four, and the submode toggle itself); this
-  bullet is about what its own three purposes (Stop Clip/Mute/Solo) look
-  like on the grid once the group as a whole is reachable at all. Session-
-  view-only like the other four: pressing Stop Clip (CC49), Mute (CC39/
-  Pro MK3 30) or Solo (CC29/Pro MK3 20) is a no-op from any other
+  track_picker_active`/`track_picker_purpose`) - four purposes (Stop
+  Clip/Mute/Solo/Record Arm, CC49/39/29/19 - see the Extra-button layout
+  bullet above), all four members of Session's own mixer submode radio
+  group (`GridMode`'s own comment covers the other four members, and the
+  submode toggle itself); this bullet is about what those four purposes
+  look like on the grid once the overlay is reachable at all.
+  Session-view-only: pressing Stop Clip (CC49), Mute (CC39/Pro MK3 30),
+  Solo (CC29/Pro MK3 20) or Record Arm (CC19) is a no-op from any other
   `grid_mode`, and every `grid_mode` reassignment site that moves off
   `SESSION` closes the overlay if it was open, so it can never be showing
   over anything else. This is what lets it light just the
@@ -540,16 +598,24 @@ whether or not a terminal UI exists at all.
   The picker row's own pad colors don't use per-track identity color the
   way Session view's columns do: every pad in the row shares one hue
   naming which action is about to happen (red/Stop Clip, blue/Solo,
-  yellow/Mute - the opener button's own LED matches), with brightness
-  telling columns apart within that hue, keyed to that purpose's own
-  already-armed state for that column's track - bright means "a clip is
-  actually playing" (Stop Clip), "already soloed" (Solo), or "*not*
-  already muted" (Mute - a muted channel reads as dark, not lit, the same
-  way a fader bottoming out does). Picking a track there performs that
+  yellow/Mute, red again/Record Arm - reusing Stop Clip's own hue rather
+  than inventing a fifth, since the two purposes never show at once and
+  red is already Record Arm's own long-established color elsewhere; the
+  opener button's own LED matches whichever hue is showing), with
+  brightness telling columns apart within that hue, keyed to that
+  purpose's own already-armed state for that column's track - bright
+  means "a clip is actually playing" (Stop Clip), "already soloed"
+  (Solo), "*not* already muted" (Mute - a muted channel reads as dark,
+  not lit, the same way a fader bottoming out does), or "already armed"
+  (Record Arm). Picking a track there performs that
   button's own purpose (a Session-view-style quantized stop for Stop
   Clip; `Controller::toggleTrackMuted()`/`toggleTrackSolo()` for
-  Mute/Solo) but deliberately leaves the overlay open - every purpose is
-  a toggle, so several picks in a row can mute/solo/stop a handful of
+  Mute/Solo; `Controller::toggleTrackArmed()` for Record Arm - pure
+  per-track bookkeeping, the same for every track type, though a
+  SampleTrack's own audio capture isn't on the new quantized-start-via-
+  pad-press path yet, see `LaunchpadManager::triggerSessionClip()`'s own
+  carve-out) but deliberately leaves the overlay open - every purpose is
+  a toggle, so several picks in a row can mute/solo/stop/arm a handful of
   tracks without reopening it each time; pressing the same opener button
   again is what closes it (with nothing picked), and pressing a
   *different* opener button while it's already open just retargets it to
@@ -579,22 +645,33 @@ whether or not a terminal UI exists at all.
   `songs/welcome.xml`/31-EDO startup defaults.
 - e2e coverage: `tools/e2e/verify_launchpad_session.py` (see that
   directory's own `README.md`) covers Session view's basic trigger/assign
-  path; `verify_launchpad_notecustom.py`/`verify_launchpad_draw_clear.py`
-  cover CC96/CC97/CC98's own mode-switch and long-hold gestures;
-  `verify_launchpad_stopclip.py` covers the track-picker overlay's CC49
-  purpose above (open/pick/close, staying open across a pick);
-  `verify_launchpad_mute_picker.py` covers the CC39 purpose (bright/dim
-  polarity, the overlay leaving Session view's own rendering untouched
-  outside the picker row) without ever needing real playback, sidestepping
-  the sandboxed-environment ALSA contention documented in
-  `docs/known_bugs.md` for `verify_launchpad_stopclip.py`, and also
-  exercises Session's own mixer-submode toggle (a second CC95 press) and
-  its green/orange LED, since CC39 means nothing at all until that submode
-  is on; Solo's own CC29 purpose reuses the identical mechanism but has no
-  dedicated e2e script of its own yet, nor does the scene-launch action
-  the same seven buttons perform while mixer submode is off
+  path, arming Record Arm for it via CC98's own quick-tap gesture (the
+  legacy global `toggle-record-arm` - CC19 no longer reaches it while
+  looking at Session view); `verify_launchpad_notecustom.py`/
+  `verify_launchpad_draw_clear.py` cover CC96/CC97/CC98's own mode-switch
+  and long-hold gestures - CC98's own tap (`toggle-record-arm`, exercised
+  by `verify_launchpad_session.py` above) vs. long hold (DRAW mode entry/
+  canvas-clear, exercised by `verify_launchpad_draw_clear.py`) being the
+  one asymmetric case, since a tap no longer reaches DRAW at all any more;
+  `verify_launchpad_record_arm_picker.py` covers CC19's own Session-view
+  meaning, the track-picker overlay's fourth purpose - presses CC95 a
+  second time first to enter mixer submode (required before CC19 does
+  anything at all, same as the other three), same reasoning as
+  `verify_launchpad_mute_picker.py` below; `verify_launchpad_stopclip.py`
+  covers the track-picker overlay's CC49 purpose above (open/pick/close,
+  staying open across a pick); `verify_launchpad_mute_picker.py` covers
+  the CC39 purpose (bright/dim polarity, the overlay leaving Session
+  view's own rendering untouched outside the picker row) without ever
+  needing real playback, sidestepping the sandboxed-environment ALSA
+  contention documented in `docs/known_bugs.md` for
+  `verify_launchpad_stopclip.py`, and also exercises Session's own
+  mixer-submode toggle (a second CC95 press) and its green/orange LED,
+  since CC39 means nothing at all until that submode is on; Solo's own
+  CC29 purpose reuses the identical mechanism but has no dedicated e2e
+  script of its own yet, nor does the scene-launch action the same eight
+  buttons perform while mixer submode is off
   (`LaunchpadManager::triggerSceneRow()`). `verify_launchpad_mixer_hold.py`
-  covers the same seven buttons' own momentary hold-to-preview gesture
+  covers the same eight buttons' own momentary hold-to-preview gesture
   (`armMixerHoldPreview()`/`handleMixerFunctionRelease()`) - a quick tap
   stays (sticky), a real hold reverts to whatever was showing before it
   once released. Every e2e script spawns `synth`

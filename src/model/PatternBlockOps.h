@@ -84,12 +84,8 @@ void pastePatternBlockCommand(Section & section, const std::vector<Command> & bl
 
 // Extracts a track's own content from [row_lo, row_hi] into a new,
 // standalone Clip - for `copy-to-clip`. Returns a whole Clip, not just a
-// Pattern, even though only its leaf entry (getLeafPattern()) is
-// populated here: a clip's full/eventual form is one Pattern per
-// relevant track_id, not just the leaf track's own (nested Effect
-// automation, still unbuilt) - shaping the extraction this way now means
-// adding those other entries later is purely additive, not a second
-// return-type change. row_lo's own bar becomes the new Clip's row 0, so
+// Pattern, for its id/name/loop/length (SongObject/Clip.h's own fields) -
+// a bare Pattern has none of those. row_lo's own bar becomes the new Clip's row 0, so
 // a selection that doesn't start on a bar boundary comes back
 // front-padded (rest before the first real note) rather than shifting
 // every note's phase-within-a-bar once the clip gets placed somewhere

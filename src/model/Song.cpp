@@ -639,7 +639,7 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	      setlocale(LC_ALL, oldLocale.c_str());
 	      return false;
 	    }
-	    auto & content = clip.getOrCreateSampleContent();
+	    auto & content = clip.getSampleContent();
 	    content.setBuffer(loaded.buffer);
 	    content.setNativeSampleRate(loaded.rate);
 	    content.loadParameters(XMLParameterSource(sample_element));
@@ -846,12 +846,12 @@ Song::save(const std::string & filename) const {
 	XMLParameterSource clip_parameters(clip_element);
 	clip.storeParameters(clip_parameters);
 
-	auto * content = clip.getSampleContent();
-	if (content && content->getBuffer()) {
+	auto & content = clip.getSampleContent();
+	if (content.getBuffer()) {
 	  filesystem::path sample_path(sampleSidecarPath(filename, clip.getId()));
 	  std::error_code ec;
 	  filesystem::create_directories(sample_path.parent_path(), ec);
-	  writeMonoSample(sample_path.string(), *content->getBuffer(), content->getNativeSampleRate());
+	  writeMonoSample(sample_path.string(), *content.getBuffer(), content.getNativeSampleRate());
 
 	  auto sample_element = doc.NewElement("sample");
 	  // Relative to the song's own directory (sample_path.parent_path()'s
@@ -861,7 +861,7 @@ Song::save(const std::string & filename) const {
 	  auto relative_path = sample_path.parent_path().filename() / sample_path.filename();
 	  sample_element->SetAttribute("file", relative_path.string().c_str());
 	  XMLParameterSource sample_parameters(sample_element);
-	  content->storeParameters(sample_parameters);
+	  content.storeParameters(sample_parameters);
 	  clip_element->InsertEndChild(sample_element);
 	} else {
 	  auto & pattern = clip.getLeafPattern();
@@ -889,7 +889,7 @@ Song::save(const std::string & filename) const {
     unordered_set<string> live_ids;
     for (auto & [ track_id, clips ] : clips_by_track_) {
       for (auto & clip : clips) {
-	if (clip.getSampleContent() && clip.getSampleContent()->getBuffer()) live_ids.insert(clip.getId());
+	if (clip.hasSample()) live_ids.insert(clip.getId());
       }
     }
     for (auto & section : getSections()) {

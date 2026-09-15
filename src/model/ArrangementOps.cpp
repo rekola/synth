@@ -93,10 +93,10 @@ mergeClipToBackground(const Song & song, Section & section, int track_id, int ro
   auto section_length = song.getEffectiveSectionLength(section);
 
   if (clip.hasSample()) {
-    auto * content = clip.getSampleContent();
+    auto & content = clip.getSampleContent();
     auto output_rate = channel_config.getAudioOutSampleRate();
     auto song_tempo = song.getTempo();
-    auto resolved = resolveSampleAudio(*content, output_rate, song_tempo);
+    auto resolved = resolveSampleAudio(content, output_rate, song_tempo);
     if (!resolved.samples || resolved.in_frame >= resolved.out_frame) return false; // nothing playable to merge
 
     auto length = clip.getLength() > 0 ? clip.getLength() : 1;
@@ -172,7 +172,13 @@ deleteClip(Song & song, int track_id, int clip_index) {
     for (auto row : rows_to_clear) section.clearInstance(track_id, row);
   }
 
-  clips.erase(clips.begin() + clip_index);
+  // Reset in place to a fresh, id-less filler (Song::ensureClipAt()'s own
+  // "hole" state), never erased outright - holes are allowed, and every
+  // other track's own scene rows are indexed against this same track's
+  // clip list, so shifting everything past the deleted one down (the way
+  // a plain vector erase would) would silently misalign them all against
+  // it, even when the deletion happened on a completely different track.
+  clips[static_cast<size_t>(clip_index)] = Clip(track_id);
   song.incVersion();
 }
 
@@ -292,8 +298,8 @@ resolveEditTarget(Song & song, Section & section, int track_id, int row, const s
   // nothing here to edit at all (no note-column UI exists for it), so
   // this falls back to the section's own (otherwise-unread, for this track)
   // background Pattern, the same as the ordinary "nothing placed here"
-  // case just below - safe, if this is ever actually reached, rather than
-  // dereferencing a Pattern the clip was never given one of.
+  // case just below, rather than handing back the clip's own unused,
+  // meaningless Pattern.
   auto & pattern = section.getPatternsByTrack()[track_id];
   return { &pattern, pattern.getEffectiveRow(row, song.getEffectiveSectionLength(section)) };
 }
@@ -304,8 +310,8 @@ resolveReadTarget(const Song & song, const Section & section, int track_id, int 
   auto focused_index = resolveFocusedClipIndex(song, track_id, focused_clip_id);
   if (focused_index >= 0) {
     auto & clip = song.getClips(track_id)[static_cast<size_t>(focused_index)];
-    // A sample clip has no leaf Pattern at all (Clip::getLeafPattern()
-    // would throw) - nothing to read back beyond which clip is focused.
+    // A sample clip's own getLeafPattern() is just an unused, empty
+    // Pattern - nothing to read back beyond which clip is focused.
     if (clip.hasSample()) return { &empty_pattern, 0, row, true, focused_index, true };
     auto & pattern = clip.getLeafPattern();
     auto length = clip.getLength() > 0 ? clip.getLength() : 1;

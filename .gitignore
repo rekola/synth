@@ -52,6 +52,10 @@ tools/e2e/fake_launchpad_stopclip
 tools/e2e/fake_launchpad_mute_picker
 tools/e2e/fake_launchpad_aftertouch_clip
 tools/e2e/fake_launchpad_mixer_hold
+tools/e2e/fake_launchpad_record_arm_picker
+tools/e2e/fake_launchpad_record_arm_holes
+tools/e2e/fake_launchpad_record_arm_wrong_track
+tools/e2e/fake_launchpad_record_arm_percussion
 tools/e2e/*.log
 tools/e2e/__pycache__
 

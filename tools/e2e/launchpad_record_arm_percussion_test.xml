@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Purpose-built for verify_launchpad_record_arm_percussion.py: a single
+     step-sequenced PercussionTrack (two lanes, so isStepSequenced() is
+     true) - arming it for Session recording must fall through to
+     ordinary free-drumming pad entry (resolveNote()'s own percussion
+     branch, which maps pads to GM drum sounds regardless of lane count),
+     never the step grid the same track would otherwise show
+     automatically in NOTES mode - the step grid is for building a
+     pattern by hand when not performing live, not for capturing one. -->
+<song temperament="12edo" tempo="120" patternRows="16">
+  <instruments>
+    <envelope attack="0.001" hold="0.05" decay="0.05" sustain="0.0" release="0.05">
+      <oscillator type="saw"/>
+    </envelope>
+  </instruments>
+  <tracks>
+    <percussionTrack id="0" instrument="0">
+      <lane note="BD"/>
+      <lane note="SD"/>
+    </percussionTrack>
+  </tracks>
+  <sections>
+    <section>
+    </section>
+  </sections>
+</song>

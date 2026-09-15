@@ -1,9 +1,12 @@
 // Simulates a Launchpad X performing a live, Record-Arm-driven take:
-// arms Record Arm (CC19, redirecting the take into a real Clip instance -
-// see Controller::ensureNoteRecordingClip()), holds a note across several
-// rows of playback, and sends aftertouch partway through the hold - the
-// exact shape verify_launchpad_aftertouch_clip.py checks for visibility
-// in the PatternEditor's own velocity column.
+// arms Record Arm via a quick CC98 tap (redirecting the take into a real
+// Clip instance - see Controller::ensureNoteRecordingClip(); CC19 itself
+// no longer reaches "toggle-record-arm" at all - it's a full member of
+// the scene-launch/mixer radio group now, see LaunchpadManager.h's own
+// GridMode comment), holds a note across several rows of playback, and
+// sends aftertouch partway through the hold - the exact shape
+// verify_launchpad_aftertouch_clip.py checks for visibility in the
+// PatternEditor's own velocity column.
 #include <alsa/asoundlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -58,8 +61,10 @@ int main() {
   send_cc(seq, port, 96, 127);
   sleep(1);
 
-  fprintf(stderr, "sending CC19 press (Record Arm on)\n");
-  send_cc(seq, port, 19, 127);
+  fprintf(stderr, "sending CC98 quick tap (Record Arm on)\n");
+  send_cc(seq, port, 98, 127);
+  usleep(100 * 1000);
+  send_cc(seq, port, 98, 0);
   sleep(1);
 
   fprintf(stderr, "sending press on pad (0,0)\n");

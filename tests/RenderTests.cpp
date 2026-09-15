@@ -348,7 +348,7 @@ TEST(render_sample_track_background_bed_plays_through_the_merges_own_leftover_st
   CHECK(interval == 1000);
 
   Clip source(track_id);
-  auto & content = source.getOrCreateSampleContent();
+  auto & content = source.getSampleContent();
   auto buffer = std::make_shared<AudioBuffer>(1, 8 * interval); // fills the whole section
   auto data = buffer->getChannelData(0);
   for (int i = 0; i < 8 * interval; i++) data[i] = 0.3f;
@@ -399,7 +399,7 @@ TEST(render_sample_track_background_bed_mixes_with_a_real_clip_on_top) {
   CHECK(interval == 1000);
 
   Clip source(track_id);
-  auto & content = source.getOrCreateSampleContent();
+  auto & content = source.getSampleContent();
   auto buffer = std::make_shared<AudioBuffer>(1, 8 * interval);
   auto data = buffer->getChannelData(0);
   for (int i = 0; i < 8 * interval; i++) data[i] = 0.2f;
@@ -415,7 +415,7 @@ TEST(render_sample_track_background_bed_mixes_with_a_real_clip_on_top) {
   CHECK(mergeClipToBackground(song, section, track_id, 0, config) == true); // bed now fills the whole section at 0.2
 
   Clip overlay(track_id);
-  auto & overlay_content = overlay.getOrCreateSampleContent();
+  auto & overlay_content = overlay.getSampleContent();
   auto overlay_buffer = std::make_shared<AudioBuffer>(1, 2 * interval); // exactly rows 4-5's own span
   auto overlay_data = overlay_buffer->getChannelData(0);
   for (int i = 0; i < 2 * interval; i++) overlay_data[i] = 0.9f;
@@ -474,7 +474,7 @@ TEST(render_sample_track_resumes_a_stopped_instance_from_the_row_the_playhead_la
   CHECK(interval == 1000);
 
   Clip clip(track_id);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   auto buffer = std::make_shared<AudioBuffer>(1, 8 * interval);
   auto data = buffer->getChannelData(0);
   for (int i = 0; i < 8 * interval; i++) data[i] = i < 5 * interval ? 0.0f : 0.5f; // silent, then a tone from row 5 onward
@@ -541,7 +541,7 @@ TEST(render_sample_track_pausing_releases_the_sounding_voice_instead_of_leaving_
   CHECK(interval == 1000);
 
   Clip clip(track_id);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   auto buffer = std::make_shared<AudioBuffer>(1, 8 * interval);
   auto data = buffer->getChannelData(0);
   for (int i = 0; i < 8 * interval; i++) data[i] = 0.5f; // a constant tone the whole way through
@@ -604,7 +604,7 @@ TEST(render_sample_track_resuming_mid_row_across_several_small_blocks_still_play
   CHECK(interval == 1000);
 
   Clip clip(track_id);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   auto buffer = std::make_shared<AudioBuffer>(1, 8 * interval);
   auto data = buffer->getChannelData(0);
   for (int i = 0; i < 8 * interval; i++) data[i] = 0.5f; // a constant tone the whole way through

@@ -1,7 +1,11 @@
-"""Extra-button regression test: sends a CC94 (next-track) press/release
-and verifies both that the command actually fired (cursor moved from
-track 0 into track 1) and that the corresponding button LEDs were sent as
-part of the same combined LED SysEx as the pads."""
+"""Extra-button regression test: switches to NOTES mode (CC96 - GridMode
+defaults to SESSION, where "next-track"/"prev-track" are reserved as an
+unconditional no-op and the arrow buttons go dark, since neither one does
+anything a performer looking at the Launchpad could ever see there), then
+sends a CC94 (next-track) press/release and verifies both that the
+command actually fired (cursor moved from track 0 into track 1) and that
+the corresponding button LEDs were sent as part of the same combined LED
+SysEx as the pads."""
 import sys, os, subprocess, time
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))

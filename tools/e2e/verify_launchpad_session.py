@@ -6,8 +6,11 @@ retired verify_launchpad_overview.py this replaces, nothing needs to be
 clicked/toggled to reach Session view: DeviceState::grid_mode now defaults
 to SESSION, so a freshly connected device is already there. This confirms
 that default via the CC95/CC97 LED colors sent in the very first LED
-refresh, arms Record Arm (CC19) via its own dedicated button, then lets the
-simulated Launchpad X press pad (0,0) and checks that the resulting assign
+refresh, arms Record Arm via a quick CC98 tap (the legacy global
+"toggle-record-arm" command - CC19 itself no longer reaches it while
+looking at Session view, see verify_launchpad_record_arm_picker.py for
+that gesture instead), then lets the simulated Launchpad X press pad
+(0,0) and checks that the resulting assign
 (LaunchpadManager::handleSessionPadEvent) actually placed a real clip
 instance (ArrangementOps.h's placeClipInstance()) in the arrangement grid -
 not PatternEditor's own row display, which never resolves an instance's
@@ -56,7 +59,7 @@ print(grid_before)
 check("No clip instance placed yet (no '7' - clip index 7's own digit - anywhere in the grid)",
       "7" not in grid_before, grid_before)
 
-# fake_launchpad_session presses CC19 (Record Arm) ~6-7s after its own
+# fake_launchpad_session presses CC98 (Record Arm) ~6-7s after its own
 # startup, then pad (0,0) ~2s after that - poll robustly rather than a
 # single fixed sleep.
 deadline = time.time() + 15.0
@@ -98,7 +101,7 @@ check("CC95 (Session) LED is lit by default, with no button pressed yet",
 check("CC97 (Custom) LED is dim by default (not showing Custom mode active)",
       "03 61 14 00 14" in fake_output, fake_output)
 
-# Record Arm's own LED update (a later SysEx, after CC19 is pressed) isn't
+# Record Arm's own LED update (a later SysEx, after CC98 is pressed) isn't
 # checked here - the fake device only drains incoming SysEx once, right
 # after connecting (see fake_launchpad_button.c's identical precedent for
 # its own always-static button LEDs), so it never captures a later one. The

@@ -92,12 +92,12 @@ print("Send A (0x45) LED after long-hold release:     ", send_a_after_hold_relea
 print("Mute (0x27) LED after long-hold release:       ", mute_after_hold_release)
 print("Mute (0x27) LED after a later quick tap:       ", mute_after_tap)
 
-check("Send A's own LED is bright cyan after a quick tap (sticky selection)",
-      send_a_after_tap == ('00', '7f', '7f'), send_a_after_tap)
+check("Send A's own LED is bright purple after a quick tap (sticky selection)",
+      send_a_after_tap == ('5a', '00', '7f'), send_a_after_tap)
 check("Mute's own LED is bright yellow mid-hold (previewing)",
       mute_mid_hold == ('7f', '7f', '00'), mute_mid_hold)
-check("Send A's own LED is bright cyan again after the long hold released (reverted)",
-      send_a_after_hold_release == ('00', '7f', '7f'), send_a_after_hold_release)
+check("Send A's own LED is bright purple again after the long hold released (reverted)",
+      send_a_after_hold_release == ('5a', '00', '7f'), send_a_after_hold_release)
 check("Mute's own LED is dim again after the long hold released (no longer showing)",
       mute_after_hold_release == ('14', '14', '00'), mute_after_hold_release)
 check("Mute's own LED is bright yellow after a later quick tap (sticky this time, no hold)",

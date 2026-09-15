@@ -277,6 +277,31 @@ class Song : public SongObject {
     return clips.back();
   }
 
+  // Places (or reuses, if one already exists) a clip at exactly this
+  // index within track_id's own clip list - never retargeted to
+  // "whatever the next unused position happens to be" the way addClip()
+  // above always lands at the end. Scenes don't all need every track
+  // populated (some instrument might genuinely not be needed for a given
+  // scene), so an index arriving ahead of the list's current length pads
+  // every position in between with a fresh, empty clip rather than
+  // treating the gap as an error to collapse away - a hand-authored
+  // `<clip/>` in the song XML is exactly this same "nothing here, on
+  // purpose" state, not a special sentinel. A filler gets no id of its
+  // own (unlike addClip()) - nothing ever needs to address a slot nobody
+  // has actually used yet by a stable identity; whatever eventually gives
+  // it real content is the one place that needs to assign it one, the
+  // same "assign one if it doesn't already have one" convention addClip()
+  // itself already follows. Whichever clip already sits at `index`
+  // (freshly padded or not) is returned as-is, content untouched -
+  // resetting it for a fresh take is the caller's own job
+  // (Controller::ensureSessionRecordingClip()).
+  Clip & ensureClipAt(int track_id, int index) {
+    auto & clips = clips_by_track_[track_id];
+    while (static_cast<int>(clips.size()) <= index) clips.push_back(Clip(track_id));
+    incVersion();
+    return clips[static_cast<size_t>(index)];
+  }
+
   // Mirrors generateUniqueTrackId() below - unique across every track's
   // own clip list, not just the one a new clip is about to join, same
   // "one id namespace for the whole song" convention a track's own id

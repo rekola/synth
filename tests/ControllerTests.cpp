@@ -646,13 +646,12 @@ TEST(begin_and_finish_sample_capture_creates_and_finalizes_a_real_clip) {
   auto & clips = controller.getSong().getClips(track_id);
   CHECK(clips.size() == 1);
   if (!clips.empty()) {
-    auto * content = clips[0].getSampleContent();
-    CHECK(content != nullptr);
-    if (content && content->getBuffer()) {
+    auto & content = clips[0].getSampleContent();
+    if (content.getBuffer()) {
       // Both blocks - the same shared_ptr addToSample() appends into.
-      CHECK(content->getBuffer()->numberOfFrames() == 800);
+      CHECK(content.getBuffer()->numberOfFrames() == 800);
     }
-    if (content) CHECK(content->getOriginalTempo() == 120);
+    CHECK(content.getOriginalTempo() == 120);
     CHECK(clips[0].getLength() > 0); // finalized from the real captured duration
   }
 }
@@ -689,9 +688,8 @@ TEST(armed_sample_capture_places_at_the_snapshotted_row_and_trims_the_measured_l
   auto & clips = controller.getSong().getClips(track_id);
   CHECK(clips.size() == 1);
   if (!clips.empty()) {
-    auto * content = clips[0].getSampleContent();
-    CHECK(content != nullptr);
-    if (content) CHECK_NEAR(content->getInPoint(), 100.0f / 8000.0f, 1e-6f);
+    auto & content = clips[0].getSampleContent();
+    CHECK_NEAR(content.getInPoint(), 100.0f / 8000.0f, 1e-6f);
   }
 
   // Placed at the snapshotted row (2), not row 0 - resolveInstanceAt()
@@ -712,6 +710,48 @@ TEST(armed_sample_capture_places_at_the_snapshotted_row_and_trims_the_measured_l
     auto expected_rows = config.framesToRows(700, 120);
     CHECK(clips2[0].getLength() == expected_rows);
   }
+}
+
+// The SampleTrack twin of ensure_session_recording_clip_creates_and_
+// grows_at_the_exact_pressed_index (ControllerTests.cpp above) - a
+// Session View take pressed at clip index 2 on a track with no clips at
+// all yet has to land exactly there, holes and all, not collapse to
+// wherever a fresh append would happen to land.
+TEST(session_recording_sample_capture_lands_at_the_exact_pressed_index_with_holes) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  controller.getSong().setTempo(120);
+
+  auto & track = controller.getSong().addTrack(std::make_unique<SampleTrack>());
+  auto track_id = track.getInternalId();
+  controller.setRecordingTrackId(track_id);
+  controller.startRecording();
+
+  // A pad press on the armed track is what does this in practice
+  // (LaunchpadManager/Controller::toggle-record-arm's own SampleTrack
+  // carve-out) - done directly here to test beginSampleCapture() in
+  // isolation, the same way the note-based test above does.
+  controller.armSessionTrackRecording(track_id, 2);
+
+  AudioBuffer block(1, 400);
+  auto data = block.getChannelData(0);
+  for (int i = 0; i < 400; i++) data[i] = 0.3f;
+  controller.addToSample(block);
+  controller.beginSampleCapture(track_id);
+  CHECK(controller.hasRecordingClip());
+
+  auto & clips = controller.getSong().getClips(track_id);
+  CHECK(clips.size() == 3);
+  CHECK(clips[0].isEmpty()); // backfilled filler
+  CHECK(clips[1].isEmpty()); // backfilled filler
+  CHECK(!clips[2].isEmpty());
+  CHECK(!clips[2].getId().empty()); // a still-id-less filler got a real one once it received content
+  CHECK(clips[2].getName() == "Take 3");
+
+  controller.finishSampleCapture();
+  CHECK(controller.getSong().getClips(track_id).size() == 3); // finalizing doesn't move or add anything
+  CHECK(clips[2].hasSample());
 }
 
 // A real bug report: a captured take defaulted to Clip's own looping=true,
@@ -1041,9 +1081,8 @@ TEST(toggle_record_arm_session_view_focused_arms_a_sample_track_without_arrangem
 
   controller.sendCommand("toggle-record-arm");
   CHECK(controller.isThresholdArmed());
-  CHECK(controller.isSessionRecording());
-  CHECK(controller.getSessionRecordingTrackId() == track_id); // Session View's own target, not the shared cursor
-  CHECK(controller.getSessionRecordingClipIndex() == 0);
+  CHECK(controller.isSessionRecording(track_id));
+  CHECK(controller.getSessionRecordingClipIndex(track_id) == 0);
   CHECK(!controller.getPlaybackInfo().isPlaying()); // never auto-started
 
   controller.setRecordingTrackId(track_id);
@@ -1060,7 +1099,7 @@ TEST(toggle_record_arm_session_view_focused_arms_a_sample_track_without_arrangem
   CHECK(resolveInstanceAt(song, section, track_id, 0).clip_index == Section::kNoInstance);
 
   controller.sendCommand("toggle-record-arm"); // disarm
-  CHECK(!controller.isSessionRecording());
+  CHECK(!controller.isSessionRecording(track_id));
 }
 
 // Record Arm on a step-sequenced PercussionTrack's own clip in Session View
@@ -1090,7 +1129,7 @@ TEST(toggle_record_arm_on_a_drum_machine_clip_focuses_it_instead_of_arming) {
   controller.setSessionViewCursor(track_id, 0); // the occupied slot
   controller.sendCommand("toggle-record-arm");
 
-  CHECK(!controller.isSessionRecording()); // never armed a take
+  CHECK(!controller.isSessionRecording(track_id)); // never armed a take
   CHECK(!controller.isNoteCaptureArmed());
   CHECK(controller.getFocusedClipTrackId() == track_id);
   CHECK(controller.getFocusedClip() == existing_id); // the existing clip, not a new one
@@ -1126,7 +1165,7 @@ TEST(toggle_record_arm_on_a_lane_less_percussion_clip_arms_normally) {
   controller.setSessionViewCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
 
-  CHECK(controller.isNoteCaptureArmed());
+  CHECK(controller.isTrackArmed(track_id));
   CHECK(controller.getFocusedClipTrackId() == -1); // never focused for step editing
 }
 
@@ -1172,7 +1211,9 @@ TEST(toggle_record_arm_on_an_empty_drum_machine_slot_creates_a_clip) {
 }
 
 // Any other track type keeps Record Arm's ordinary behavior even while
-// Session View focused - the repurposing is drum-machine-only.
+// Session View focused - the repurposing is drum-machine-only. Arming
+// itself starts nothing - it only marks the track ready; a take begins
+// once a pad on it is actually pressed (LaunchpadManager's own job).
 TEST(toggle_record_arm_on_a_non_drum_machine_track_arms_normally) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
@@ -1186,7 +1227,8 @@ TEST(toggle_record_arm_on_a_non_drum_machine_track_arms_normally) {
   controller.setSessionViewCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
 
-  CHECK(controller.isSessionRecording());
+  CHECK(controller.isTrackArmed(track_id));
+  CHECK(!controller.isSessionRecording(track_id)); // arming alone starts no take
   CHECK(controller.getFocusedClipTrackId() == -1); // untouched
 }
 
@@ -1197,7 +1239,7 @@ TEST(toggle_record_arm_on_a_non_drum_machine_track_arms_normally) {
 // never placing an instance. absolute_step 0 here lands exactly on a bar
 // boundary (rows_per_bar 4), so it becomes this take's own row 0 outright -
 // previousBarRow()'s own snapping isn't separately exercised by this test.
-TEST(ensure_session_recording_clip_creates_and_grows_without_placing_an_instance) {
+TEST(ensure_session_recording_clip_creates_and_grows_at_the_exact_pressed_index) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
@@ -1210,18 +1252,29 @@ TEST(ensure_session_recording_clip_creates_and_grows_without_placing_an_instance
   controller.setSessionViewFocused(true);
   controller.setSessionViewCursor(track_id, 2); // an empty slot past the (currently empty) clip list
   controller.sendCommand("toggle-record-arm");
-  CHECK(controller.isNoteCaptureArmed());
-  CHECK(controller.isSessionRecording());
+  CHECK(controller.isTrackArmed(track_id));
+  CHECK(!controller.isSessionRecording(track_id)); // arming alone starts no take
 
-  controller.ensureSessionRecordingClip(0);
+  // A pad press on the armed track is what starts the take -
+  // LaunchpadManager's own job in practice, done directly here to test
+  // ensureSessionRecordingClip() in isolation.
+  controller.armSessionTrackRecording(track_id, 2);
+  CHECK(controller.isSessionRecording(track_id));
+
+  controller.ensureSessionRecordingClip(track_id, 0);
   auto & clips = song.getClips(track_id);
-  CHECK(clips.size() == 1); // lands at the true next unused index (0), not the requested (2) - see its own comment
-  CHECK(controller.getSessionRecordingClipIndex() == 0);
-  CHECK(clips[0].getLength() >= 1);
+  // Lands at exactly the pressed index (2), not the next unused one -
+  // holes are allowed, so scene 2 can be recorded into even while scenes
+  // 0/1 stay genuinely empty on this track.
+  CHECK(clips.size() == 3);
+  CHECK(clips[0].isEmpty()); // backfilled filler
+  CHECK(clips[1].isEmpty()); // backfilled filler
+  CHECK(controller.getSessionRecordingClipIndex(track_id) == 2);
+  CHECK(clips[2].getLength() >= 1);
 
-  clips[0].getLeafPattern().setNote(0, 0, Note(60, 100, 0));
-  controller.extendSessionRecordingClipIfNeeded(5);
-  CHECK(clips[0].getLength() > 4); // grew ahead of row 5, same growth shape as extendRecordingClipsIfNeeded()
+  clips[2].getLeafPattern().setNote(0, 0, Note(60, 100, 0));
+  controller.extendSessionRecordingClipIfNeeded(track_id, 5);
+  CHECK(clips[2].getLength() > 4); // grew ahead of row 5, same growth shape as extendRecordingClipsIfNeeded()
 
   auto & section = song.getOrCreateSection(0);
   CHECK(resolveInstanceAt(song, section, track_id, 0).clip_index == Section::kNoInstance);
@@ -1247,8 +1300,9 @@ TEST(ensure_session_recording_clip_overwrites_an_occupied_slot_in_place) {
   controller.setSessionViewFocused(true);
   controller.setSessionViewCursor(track_id, 0); // the occupied slot
   controller.sendCommand("toggle-record-arm");
+  controller.armSessionTrackRecording(track_id, 0);
 
-  controller.ensureSessionRecordingClip(0);
+  controller.ensureSessionRecordingClip(track_id, 0);
   auto & clips = song.getClips(track_id);
   CHECK(clips.size() == 1); // reused, not appended
   CHECK(clips[0].getId() == existing_id); // same clip identity preserved
@@ -1272,25 +1326,28 @@ TEST(ensure_session_recording_clip_establishes_its_origin_from_the_containing_ba
   controller.setSessionViewFocused(true);
   controller.setSessionViewCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
+  controller.armSessionTrackRecording(track_id, 0);
 
   // First note lands on the bar's second beat (step 20 = bar 1's row 4),
   // not its first (step 16) - the origin still snaps back to the bar's own
   // start (16), so this note is recorded at relative row 4, not row 0.
-  auto row = controller.ensureSessionRecordingClip(20);
+  auto row = controller.ensureSessionRecordingClip(track_id, 20);
   CHECK(row == 4);
 
   // A later call within the same take keeps measuring from that same
   // established origin, not re-snapping to whatever bar the new step is in.
-  row = controller.ensureSessionRecordingClip(33);
+  row = controller.ensureSessionRecordingClip(track_id, 33);
   CHECK(row == 17);
 }
 
-// primeSessionRecordingOrigin() (LaunchpadManager's own use, when a take
-// arms into a track that already has a clip playing) fixes row 0 outright -
-// ensureSessionRecordingClip()'s own first call must respect it rather
-// than deriving a different origin via previousBarRow(), which in general
-// disagrees with an arbitrary primed step not itself a multiple of
-// rows_per_bar from absolute row 0.
+// primeSessionRecordingOrigin() is the overdub signal: it fixes row 0
+// outright *and* tells ensureSessionRecordingClip() this take is merging
+// into an already-live clip rather than starting a fresh one, so its
+// content is left completely undisturbed. ensureSessionRecordingClip()'s
+// own first call must respect the primed origin rather than deriving a
+// different one via previousBarRow(), which in general disagrees with an
+// arbitrary primed step not itself a multiple of rows_per_bar from
+// absolute row 0.
 TEST(ensure_session_recording_clip_respects_a_primed_origin) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
@@ -1300,16 +1357,21 @@ TEST(ensure_session_recording_clip_respects_a_primed_origin) {
 
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
+  auto & existing = song.addClip(Clip(track_id));
+  existing.setLength(32); // long enough that row 8 below never wraps
+  existing.getLeafPattern().setNote(0, 0, Note(40, 100, 0));
 
   controller.setSessionViewFocused(true);
   controller.setSessionViewCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
+  controller.armSessionTrackRecording(track_id, 0);
 
   // 21 isn't a multiple of rows_per_bar (16) - previousBarRow(29, 16) would
   // otherwise snap to 16, not 21.
-  controller.primeSessionRecordingOrigin(21);
-  auto row = controller.ensureSessionRecordingClip(29);
+  controller.primeSessionRecordingOrigin(track_id, 21);
+  auto row = controller.ensureSessionRecordingClip(track_id, 29);
   CHECK(row == 8);
+  CHECK(existing.getLeafPattern().getNote(0, 0).isDefined()); // overdub - old content untouched
 }
 
 // Recording a fresh take onto a track with nothing of its own playing
@@ -1332,6 +1394,7 @@ TEST(ensure_session_recording_clip_aligns_to_an_existing_shared_grid) {
   controller.setSessionViewFocused(true);
   controller.setSessionViewCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
+  controller.armSessionTrackRecording(track_id, 0);
 
   // The shared grid's own origin (21, from some earlier clip launch) is
   // not a multiple of rows_per_bar (16) from absolute step 0 - snapping
@@ -1339,12 +1402,12 @@ TEST(ensure_session_recording_clip_aligns_to_an_existing_shared_grid) {
   // it. First note at step 50 is within grid_origin_step's own bar
   // [37, 53) (21 + 16), so this take's own row 0 should be 37, at
   // relative row 13.
-  auto row = controller.ensureSessionRecordingClip(50, 21);
+  auto row = controller.ensureSessionRecordingClip(track_id, 50, 21);
   CHECK(row == 13);
 
   // A later call within the same take keeps measuring from that same
   // established origin, ignoring grid_origin_step from then on.
-  row = controller.ensureSessionRecordingClip(60, 21);
+  row = controller.ensureSessionRecordingClip(track_id, 60, 21);
   CHECK(row == 23);
 }
 
@@ -1367,16 +1430,17 @@ TEST(trim_session_recording_clip_cuts_growth_back_to_the_last_written_bar) {
   controller.setSessionViewFocused(true);
   controller.setSessionViewCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
+  controller.armSessionTrackRecording(track_id, 0);
 
-  auto row = controller.ensureSessionRecordingClip(0);
+  auto row = controller.ensureSessionRecordingClip(track_id, 0);
   auto & clips = song.getClips(track_id);
-  auto & clip = clips[static_cast<size_t>(controller.getSessionRecordingClipIndex())];
+  auto & clip = clips[static_cast<size_t>(controller.getSessionRecordingClipIndex(track_id))];
   clip.getLeafPattern().setNote(row, 0, Note(60, 100, 0));
 
   // The take then idles for several more bars (the performer stopped
   // playing but hasn't disarmed yet) - the clock keeps growing the clip
   // ahead of itself regardless.
-  controller.extendSessionRecordingClipIfNeeded(40);
+  controller.extendSessionRecordingClipIfNeeded(track_id, 40);
   CHECK(clip.getLength() > 4); // grown well past the one real note
 
   controller.sendCommand("toggle-record-arm"); // disarm
@@ -1399,7 +1463,8 @@ TEST(trim_session_recording_clip_with_no_notes_leaves_one_bar) {
   controller.setSessionViewFocused(true);
   controller.setSessionViewCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
-  controller.ensureSessionRecordingClip(0); // clip created, but no note ever written into it
+  controller.armSessionTrackRecording(track_id, 0);
+  controller.ensureSessionRecordingClip(track_id, 0); // clip created, but no note ever written into it
   controller.sendCommand("toggle-record-arm"); // disarm
 
   auto & clips = song.getClips(track_id);
@@ -1425,10 +1490,11 @@ TEST(trim_session_recording_clip_loops_and_is_reported_exactly_once) {
   controller.setSessionViewFocused(true);
   controller.setSessionViewCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
-  auto row = controller.ensureSessionRecordingClip(0);
+  controller.armSessionTrackRecording(track_id, 0);
+  auto row = controller.ensureSessionRecordingClip(track_id, 0);
   auto & clips = song.getClips(track_id);
-  clips[static_cast<size_t>(controller.getSessionRecordingClipIndex())].getLeafPattern().setNote(row, 0, Note(60, 100, 0));
-  auto clip_index = controller.getSessionRecordingClipIndex();
+  clips[static_cast<size_t>(controller.getSessionRecordingClipIndex(track_id))].getLeafPattern().setNote(row, 0, Note(60, 100, 0));
+  auto clip_index = controller.getSessionRecordingClipIndex(track_id);
   controller.sendCommand("toggle-record-arm"); // disarm
 
   CHECK(clips[static_cast<size_t>(clip_index)].isLooping());
@@ -1439,6 +1505,166 @@ TEST(trim_session_recording_clip_loops_and_is_reported_exactly_once) {
   CHECK(completed->clip_index == clip_index);
 
   CHECK(!controller.takeCompletedSessionRecording().has_value()); // consumed, not re-reported
+}
+
+// armTrack()/disarmTrack()/toggleTrackArmed() are pure per-track bookkeeping,
+// with no dependency on Session View focus or any particular track type -
+// the hardware-agnostic foundation a future per-track physical arm button
+// would call directly.
+TEST(track_armed_state_is_independent_per_track) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+
+  auto & track_a = song.addTrack(std::make_unique<InstrumentTrack>(0));
+  auto & track_b = song.addTrack(std::make_unique<InstrumentTrack>(0));
+  auto track_a_id = track_a.getInternalId();
+  auto track_b_id = track_b.getInternalId();
+
+  CHECK(!controller.hasAnyTrackArmed());
+  controller.armTrack(track_a_id);
+  CHECK(controller.isTrackArmed(track_a_id));
+  CHECK(!controller.isTrackArmed(track_b_id));
+  CHECK(controller.hasAnyTrackArmed());
+
+  controller.toggleTrackArmed(track_b_id); // arms it - not currently armed
+  CHECK(controller.isTrackArmed(track_a_id));
+  CHECK(controller.isTrackArmed(track_b_id));
+
+  controller.disarmTrack(track_a_id);
+  CHECK(!controller.isTrackArmed(track_a_id));
+  CHECK(controller.isTrackArmed(track_b_id));
+  CHECK(controller.hasAnyTrackArmed()); // track_b still is
+
+  controller.toggleTrackArmed(track_b_id); // disarms it - currently armed
+  CHECK(!controller.hasAnyTrackArmed());
+}
+
+// disarmTrack() stops an in-flight take immediately, not queued - the
+// Controller-level guarantee LaunchpadManager's own quantized "press again"
+// stop gesture builds on top of for the ordinary (queued) case, but a
+// physical arm button going off has to take effect right away regardless.
+TEST(disarm_track_stops_an_in_flight_take_immediately) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+  song.setRowsPerBar(4);
+
+  auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+
+  controller.armTrack(track_id);
+  controller.armSessionTrackRecording(track_id, 0);
+  auto row = controller.ensureSessionRecordingClip(track_id, 0);
+  auto & clips = song.getClips(track_id);
+  clips[static_cast<size_t>(controller.getSessionRecordingClipIndex(track_id))].getLeafPattern().setNote(row, 0, Note(60, 100, 0));
+  CHECK(controller.isSessionRecording(track_id));
+
+  controller.disarmTrack(track_id);
+  CHECK(!controller.isTrackArmed(track_id));
+  CHECK(!controller.isSessionRecording(track_id)); // the take is gone, not just the arm state
+  CHECK(clips[0].isLooping()); // trimmed and handed off, same as an explicit disarm via toggle-record-arm
+  auto completed = controller.takeCompletedSessionRecording();
+  CHECK(completed.has_value());
+  CHECK(completed->track_id == track_id);
+}
+
+// An overdub take's own row wraps around the target clip's fixed length
+// instead of growing past it - playing longer than the clip just means
+// further passes merge more notes into the same loop.
+TEST(overdub_row_wraps_instead_of_growing_past_the_clip_length) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+  song.setRowsPerBar(4);
+
+  auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+  auto & existing = song.addClip(Clip(track_id));
+  existing.setLength(4); // one bar - short enough to wrap well within this test
+  existing.getLeafPattern().setNote(0, 0, Note(40, 100, 0));
+
+  controller.armTrack(track_id);
+  controller.armSessionTrackRecording(track_id, 0);
+  controller.primeSessionRecordingOrigin(track_id, 0); // the overdub signal
+
+  CHECK(controller.ensureSessionRecordingClip(track_id, 0) == 0);
+  CHECK(controller.ensureSessionRecordingClip(track_id, 4) == 0); // one full loop later - wraps back to row 0
+  CHECK(controller.ensureSessionRecordingClip(track_id, 9) == 1); // 9 - 0 = 9, 9 % 4 == 1
+
+  // The clip's own length never grew to accommodate any of this.
+  CHECK(existing.getLength() == 4);
+  controller.extendSessionRecordingClipIfNeeded(track_id, 9);
+  CHECK(existing.getLength() == 4); // still a no-op - nothing to grow for an overdub
+}
+
+// trimSessionRecordingClip() is a pure no-op for an overdub take - the
+// clip was already correct (already playing, already the right length)
+// throughout, so there's nothing to finalize and nothing new to report.
+TEST(trim_session_recording_clip_is_a_no_op_for_an_overdub) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+  song.setRowsPerBar(4);
+
+  auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
+  auto track_id = track.getInternalId();
+  auto & existing = song.addClip(Clip(track_id));
+  existing.setLength(4);
+  existing.setLooping(true);
+  existing.getLeafPattern().setNote(0, 0, Note(40, 100, 0));
+
+  controller.armTrack(track_id);
+  controller.armSessionTrackRecording(track_id, 0);
+  controller.primeSessionRecordingOrigin(track_id, 0);
+  controller.ensureSessionRecordingClip(track_id, 0);
+  controller.ensureSessionRecordingClip(track_id, 1); // merges a second note in without disturbing the first
+  existing.getLeafPattern().setNote(1, 0, Note(50, 100, 0));
+
+  controller.trimSessionRecordingClip(track_id);
+  CHECK(existing.getLength() == 4); // untouched
+  CHECK(existing.isLooping()); // untouched (was already true)
+  CHECK(existing.getLeafPattern().getNote(0, 0).isDefined()); // original content survives
+  CHECK(existing.getLeafPattern().getNote(1, 0).isDefined()); // merged content survives
+  CHECK(!controller.takeCompletedSessionRecording().has_value()); // nothing to hand off
+}
+
+// Several tracks can each have their own in-flight take at once - the
+// per-track map, not a single shared slot.
+TEST(several_tracks_can_record_concurrently) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+  song.setRowsPerBar(4);
+
+  auto & track_a = song.addTrack(std::make_unique<InstrumentTrack>(0));
+  auto & track_b = song.addTrack(std::make_unique<InstrumentTrack>(0));
+  auto track_a_id = track_a.getInternalId();
+  auto track_b_id = track_b.getInternalId();
+
+  controller.armTrack(track_a_id);
+  controller.armTrack(track_b_id);
+  controller.armSessionTrackRecording(track_a_id, 0);
+  controller.armSessionTrackRecording(track_b_id, 0);
+  CHECK(controller.isSessionRecording(track_a_id));
+  CHECK(controller.isSessionRecording(track_b_id));
+
+  auto ids = controller.getSessionRecordingTrackIds();
+  CHECK(ids.size() == 2);
+
+  controller.ensureSessionRecordingClip(track_a_id, 0);
+  controller.ensureSessionRecordingClip(track_b_id, 0);
+  CHECK(controller.getSessionRecordingClipIndex(track_a_id) == 0);
+  CHECK(controller.getSessionRecordingClipIndex(track_b_id) == 0);
+
+  controller.trimSessionRecordingClip(track_a_id);
+  CHECK(!controller.isSessionRecording(track_a_id));
+  CHECK(controller.isSessionRecording(track_b_id)); // untouched by the other track's own finish
 }
 
 // End-to-end: sendCommand("merge-clip-to-background") resolves its target

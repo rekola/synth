@@ -1,15 +1,28 @@
-"""Drum-machine step-grid regression test: navigating onto a
-step-sequenced PercussionTrack must switch the Launchpad's grid to the
-step-grid surface automatically (no mode toggle), and a pad press there
-must toggle that lane/step immediately, reflected in the LED colors sent
-back to the device - not silently fall through to ordinary NOTES-mode
-chord entry.
+"""Drum-machine step-grid regression test: the step grid only ever shows/
+edits a clip actually open for editing on the assigned track (Controller::
+getFocusedClipTrackId()) - never the section's own background Pattern,
+which has no pagination and spans the whole scene, far more than this
+fixed grid could ever show meaningfully (a real user report: merely
+navigating the shared cursor onto a step-sequenced PercussionTrack used
+to show/allow editing the background pattern directly, unconditionally,
+even with Record Arm off). Opening a clip is a terminal-driven action
+("toggle-record-arm"/Ctrl-X r while the SessionView widget has focus,
+Controller.cpp's own drum-machine-track repurposing) - it forces every
+connected Launchpad into NOTES mode showing that clip's own step grid
+automatically, regardless of whatever GridMode it was in
+(TerminalUI.cpp's own drum-edit-request listener,
+LaunchpadManager::forceNotesModeOnAllDevices()). This script does that,
+then confirms a pad press there toggles that lane/step immediately,
+reflected in the LED colors sent back to the device - not silently
+falling through to ordinary ambient NOTES-mode chord entry.
 
 The second check (press -> new LED frame reflecting the toggle) is
 currently failing in at least one sandboxed test environment for reasons
 unrelated to this feature - see docs/known_bugs.md's entry on
 verify_launchpad_e2e.py, whose pre-existing, unmodified pad-press checks
-fail the identical way in the same environment. Re-check this script
+fail the identical way in the same environment (confirmed via `git stash`
+A/B - this script and verify_percussion_layout.py both already fail the
+same way against an unmodified checkout). Re-check this script
 specifically (not just known_bugs.md's entry) before assuming a future
 failure here is the same known issue rather than a real regression."""
 import sys, os, subprocess, time
@@ -43,13 +56,28 @@ if not vk.wait_ready(scr):
     os.kill(pid, 9)
     sys.exit(1)
 
-# The test song's only track is the step-sequenced PercussionTrack - Ctrl-E ("last
-# track") lands the cursor there regardless of the default cursor
-# position, mirroring verify_percussion_layout.py's own navigation.
-# The simulator waits 8s after its own startup before pressing, then 2s
-# more before releasing - stay well past both.
+# Open the test song's only clip (track 0, clip row 0 - SessionView's own
+# default cursor position on a fresh widget) for step-grid editing: M-x
+# session-view (gain SessionView focus - EscapeSequenceCoalescer folds a
+# bare ESC then 'x' into one Alt-x event, the same mechanism
+# verify_launchpad_record_arm_holes.py already uses), then Ctrl-X r
+# (toggle-record-arm) - Controller.cpp's own drum-machine-track
+# repurposing, which forces every connected Launchpad into NOTES mode
+# automatically. The fake device's own scripted sequence (an 8s startup
+# sleep, then its own CC96 press - redundant once this has already forced
+# NOTES mode, but harmless) has ample room for this to complete first.
+scr.pump(1.0)
+scr.send(b"\x1b")
+scr.pump(0.3)
+scr.send(b"x")
+scr.pump(0.3)
+scr.send(b"session-view\r")
+scr.pump(1.0)
+scr.send(ctrl('x'))
+scr.pump(0.3)
+scr.send(b"r")
 scr.pump(2.0)
-scr.send(ctrl('e'))
+
 scr.pump(16.0)
 
 try:

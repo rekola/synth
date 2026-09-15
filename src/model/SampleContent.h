@@ -9,8 +9,8 @@
 class ParameterSource;
 
 // A SampleTrack clip's own audio payload - the sample-content sibling of
-// Clip's own Pattern-per-track_id map (Clip::getPatternsByTrack()), and
-// its own nested XML element (<clip><sample>...</sample></clip>) mirrors
+// Clip's own Pattern (Clip::getLeafPattern()), and its own nested XML
+// element (<clip><sample>...</sample></clip>) mirrors
 // how a note-based clip's own <pattern> child already nests the same way
 // - not a flat pile of attributes on <clip> itself. Bundles the buffer
 // together with the metadata that only ever makes sense alongside it

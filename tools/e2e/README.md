@@ -33,6 +33,10 @@ gcc -o fake_launchpad_session fake_launchpad_session.c -lasound
 gcc -o fake_launchpad_notecustom fake_launchpad_notecustom.c -lasound
 gcc -o fake_launchpad_stopclip fake_launchpad_stopclip.c -lasound
 gcc -o fake_launchpad_mute_picker fake_launchpad_mute_picker.c -lasound
+gcc -o fake_launchpad_record_arm_picker fake_launchpad_record_arm_picker.c -lasound
+gcc -o fake_launchpad_record_arm_holes fake_launchpad_record_arm_holes.c -lasound
+gcc -o fake_launchpad_record_arm_wrong_track fake_launchpad_record_arm_wrong_track.c -lasound
+gcc -o fake_launchpad_record_arm_percussion fake_launchpad_record_arm_percussion.c -lasound
 gcc -o fake_launchpad_aftertouch_clip fake_launchpad_aftertouch_clip.c -lasound
 gcc -o fake_launchpad_mixer_hold fake_launchpad_mixer_hold.c -lasound
 ```
@@ -146,7 +150,10 @@ you're changing.
   terminal UI focus). `DeviceState::grid_mode` now defaults to SESSION, so
   nothing needs pressing to *enter* it - confirmed from the CC95/CC97 LED
   colors already present in the very first LED refresh, before any input
-  at all. Arms Record Arm (CC19), then presses pad (0,0) (x=0 the fixture's
+  at all. Arms Record Arm via a quick CC98 tap (the legacy global
+  "toggle-record-arm" command - CC19 itself no longer reaches it while
+  looking at Session view, see `verify_launchpad_record_arm_picker.py`
+  below for that gesture instead), then presses pad (0,0) (x=0 the fixture's
   only track, y=0 -> pool index 7 - see the fixture's own comment) and
   confirms `LaunchpadManager::handleSessionPadEvent`'s assign branch
   actually copied that pool entry's own pattern (E-4) into the current
@@ -162,6 +169,16 @@ you're changing.
   actively drains SysEx *before* ever sending its release, confirming
   DRAW mode's own LED already lit up while the button was still held
   down.
+- **`fake_launchpad_draw_clear.c` / `verify_launchpad_draw_clear.py`** -
+  DRAW mode's own "hue decided on release" pad-coloring design (a press
+  never changes a pad's hue immediately, only its live brightness; a
+  short release cycles to the next hue, a long hold leaves the hue alone
+  and adjusts brightness only), plus CC98's own tap-vs-hold split as a
+  whole: a long hold is what reaches DRAW at all now (entering it, or
+  blanking the canvas if already there), while a quick tap instead fires
+  "toggle-record-arm" (`LaunchpadManager::handleDrawToggleButton()`) -
+  this script only exercises the long-hold half, since the tap half is
+  the exact gesture `verify_launchpad_session.py` already drives.
 - **`launchpad_session_test.xml` (pool index 7's own `length="8"`) /
   `fake_launchpad_stopclip.c` / `verify_launchpad_stopclip.py`** - Stop
   Clip (CC49) opening the track-picker overlay: a plain press-only toggle,
@@ -213,6 +230,77 @@ you're changing.
   documented for that script (`docs/known_bugs.md`), giving a much more
   reliable signal for the overlay's general open/pick/retarget/close
   mechanics.
+- **`fake_launchpad_record_arm_picker.c` / `verify_launchpad_record_arm_picker.py`** -
+  the track-picker overlay's RECORD_ARM purpose (CC19): one of the eight
+  members of the real Launchpad X's own right-column "Track control" group
+  (`CLAUDE.md`'s own `GridMode`/Extra-button-layout bullets), so CC95 a
+  second time is needed first, same as Mute/Solo/Stop Clip, to enter
+  Session's own mixer submode before CC19 opens the overlay rather than
+  launching scene row 0. Confirms both CC19's own LED and the picker row's
+  pad (0,0) (the fixture's only track, unarmed by default) show dim red
+  before opening and once opened (an idle/just-opened track reads the same,
+  unlike Mute's inverted-polarity bright-when-off), confirms pad (0,7) is
+  untouched, picks column 0 to arm it, confirms the picker row lights
+  bright red (reusing Stop Clip's own hue - the two purposes never show at
+  once) while CC19's own LED stays lit (no auto-close on a pick), then a
+  second CC19 press closes it and both revert. Deliberately never triggers
+  playback - arming is pure bookkeeping with nothing to hear. Only the
+  arm/disarm picker mechanism itself, not the actual recording gesture -
+  see `fake_launchpad_record_arm_holes.c`/`verify_launchpad_record_arm_
+  holes.py` below for a real NOTE-mode note landing in the armed take.
+- **`launchpad_record_arm_holes_test.xml` / `fake_launchpad_record_arm_
+  holes.c` / `verify_launchpad_record_arm_holes.py`** - the per-track
+  Record Arm mechanism's actual *recording* gesture, not just the
+  arm/disarm picker above: arms the fixture's only track (which starts
+  with no clips at all), presses Session-view clip index 2 (not 0),
+  switches to NOTE mode, plays one note, then disarms - exercising "holes
+  are allowed" directly (`Song::ensureClipAt()`), since a correct
+  implementation has to backfill indices 0/1 with empty fillers rather
+  than collapsing the take to whichever slot happens to be first unused.
+  Verifies the result through the terminal `SessionView` widget itself
+  (M-x `session-view`, driven the same way a real Alt-x would arrive -
+  `EscapeSequenceCoalescer` folds a bare ESC followed later by 'x' into
+  one event): confirms 7 of the 8 displayed rows still show the plain
+  empty-slot icon, exactly one shows a real, named clip (not "(unnamed)"
+  - `Song::ensureClipAt()`'s filler got a real id/name once it actually
+  received content), and no row still shows the "●" record indicator once
+  the take is disarmed and finalized.
+- **`launchpad_record_arm_wrong_track_test.xml` / `fake_launchpad_record_
+  arm_wrong_track.c` / `verify_launchpad_record_arm_wrong_track.py`** -
+  regression test for a real bug: `LaunchpadManager::handlePadEvent()`'s
+  own "recording supersedes the assigned track" override only fired when
+  the recording track's own internal id sorted numerically *lower* than
+  the already-assigned/cursor track's, instead of unconditionally (the
+  fixture's own track "1", armed/targeted for recording, is created
+  after - and so has a higher internal id than - track "0", left as the
+  assigned/cursor track the whole script). Arms and targets track 1's
+  clip index 0 via the picker, then plays a NOTE-mode note while track 0
+  is still assigned - confirms track 1's own SessionView column shows a
+  real, populated clip and track 0's shows none. The fixture deliberately
+  makes track 0 a lane-less `PercussionTrack` and track 1 a plain pitched
+  track (different percussion-ness) - an earlier draft used two plain
+  pitched tracks and passed even with the bug still present, since the
+  multi-track record fan-out mechanism ended up writing the note into the
+  recording track anyway as a side effect, masking the actual bug
+  entirely; only a percussion-vs-pitched mismatch (fan-out's own
+  compatibility filter) makes the fixture actually prove the fix matters.
+- **`launchpad_record_arm_percussion_test.xml` / `fake_launchpad_record_
+  arm_percussion.c` / `verify_launchpad_record_arm_percussion.py`** -
+  regression test for a real bug: recording a Session View take into a
+  step-sequenced `PercussionTrack` showed the step-grid editor in NOTES
+  mode instead of letting the performer actually play it live -
+  `handlePadEvent()`'s own step-grid short-circuit ran before (and so was
+  never superseded by) the recording-supersedes-assigned-track override,
+  so a pad press toggled a step in the *background* pattern instead of
+  ever reaching the armed take. Arms and targets the fixture's only track
+  (a two-lane step-sequenced `PercussionTrack`), plays a NOTES-mode pad
+  press, then disarms - verifies the actual functional outcome through
+  the terminal `SessionView` widget (did the note land in the armed clip
+  at all), deliberately not exact LED byte sequences for the step grid vs.
+  free-drumming layout: this sandboxed environment's own pad-press-to-LED
+  round trip for the step grid specifically is unreliable even on an
+  unmodified checkout (confirmed via `git stash` A/B - see
+  `verify_launchpad_stepseq.py`'s own docstring and `docs/known_bugs.md`).
 - **`fake_launchpad_aftertouch_clip.c` / `verify_launchpad_aftertouch_clip.py`** -
   the "Clip-based note recording" path (`Controller::
   ensureNoteRecordingClip()`), not step entry: switches into NOTES grid

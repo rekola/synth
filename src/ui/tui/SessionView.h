@@ -131,7 +131,6 @@ class SessionView : public UIElement {
   // still notices the record indicator (see its own drawing code) needing
   // to appear or disappear.
   bool current_session_recording_ = false;
-  int current_session_recording_track_id_ = -1, current_session_recording_clip_index_ = -1;
   // Set whenever something changed that render()'s own dirty-check above
   // wouldn't otherwise notice - specifically, closing the rename reader
   // without committing (Ctrl-g): no song version bump happens then, but

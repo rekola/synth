@@ -4,8 +4,10 @@
 // output; LaunchpadProtocol::modelFromDeviceName only requires the name
 // to *contain* "Launchpad X", so a suffix is harmless). argv[2] is this
 // instance's own role: "arm" switches into NOTES mode (CC96) and presses
-// Record Arm (CC19) - a single song-wide flag, not per-device, so only
-// one connected instance should ever do this - before pressing; "plain"
+// Record Arm (a quick CC98 tap - CC19 itself is a full member of the
+// scene-launch/mixer radio group now, not this command) - a single
+// song-wide flag, not per-device, so only one connected instance should
+// ever do this - before pressing; "plain"
 // only switches into its own NOTES mode and presses, relying on
 // whichever "arm" instance already armed Record Arm (a plain press never
 // writes into the pattern, only auditions, without it). Neither role
@@ -70,8 +72,10 @@ int main(int argc, char ** argv) {
   sleep(1);
 
   if (is_arm) {
-    fprintf(stderr, "%s: sending CC19 press (Record Arm on)\n", name);
-    send_cc(seq, port, 19, 127);
+    fprintf(stderr, "%s: sending CC98 quick tap (Record Arm on)\n", name);
+    send_cc(seq, port, 98, 127);
+    usleep(100 * 1000);
+    send_cc(seq, port, 98, 0);
     sleep(1);
   } else {
     // Give the "arm" instance time to have actually armed (and its own

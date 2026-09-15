@@ -99,7 +99,8 @@ print("row 00 before any Launchpad input:", repr(rows_before_press.get("00")))
 # fake_launchpad_aftertouch_clip sleeps 6s after its own startup, sends
 # CC96 (NOTES grid mode - GridMode defaults to SESSION, where a plain
 # note-on would launch a Session View clip slot instead of entering a
-# note), then arms Record Arm (CC19) a second later, then presses the pad.
+# note), then arms Record Arm via a quick CC98 tap a second later, then
+# presses the pad.
 # Record Arm's own rising edge starts playback immediately (see
 # LaunchpadManager.cpp's own comment on why), so this take is the
 # "clip-based note recording" path, not step entry.

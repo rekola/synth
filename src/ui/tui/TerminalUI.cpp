@@ -2700,11 +2700,12 @@ TerminalUI::handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEv
   // at.
   getController().startRecording();
   getController().addToSample(ev.getPreroll());
-  // Never for a Session View take (isSessionRecording()) - that populates
-  // a clip slot directly with no arrangement position at all, so there's
-  // nothing here to snapshot; beginSampleCapture() already treats
-  // recording_start_section_'s own untouched -1 default as "stays unplaced."
-  if (!getController().isSessionRecording()) getController().armRecordingStart(ev.getSection(), ev.getRow());
+  // Never for a Session View take (isSessionRecording(track_id)) - that
+  // populates a clip slot directly with no arrangement position at all,
+  // so there's nothing here to snapshot; beginSampleCapture() already
+  // treats recording_start_section_'s own untouched -1 default as "stays
+  // unplaced."
+  if (!getController().isSessionRecording(ev.getTrackId())) getController().armRecordingStart(ev.getSection(), ev.getRow());
   getController().beginSampleCapture(ev.getTrackId());
   getController().clearThresholdArmed();
 }
@@ -2769,21 +2770,21 @@ TerminalUI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
 
   auto device_id = ev.getDeviceIndex();
 
-  // CC98 ("Capture MIDI", DRAW mode's own home now - see
-  // LaunchpadManager::GridMode's own comment) needs press and release, not
-  // just press - its own tap-vs-long-hold toggle/blank-canvas gesture
-  // (LaunchpadManager::handleDrawToggleButton()). Routed here before the
-  // press-only filter below, which every other raw-CC button (and every
-  // other release) still goes through unchanged. CC97 ("Custom") doesn't
-  // need this - it's a plain press-only toggle, handled by
-  // handleRawButton() alongside Session/Note below.
+  // CC98 ("Capture MIDI") needs press and release, not just press - its
+  // own tap-vs-long-hold gesture (LaunchpadManager::
+  // handleDrawToggleButton()): a quick tap toggles Record Arm, a long hold
+  // enters DRAW mode (or clears its canvas if already there). Routed here
+  // before the press-only filter below, which every other raw-CC button
+  // (and every other release) still goes through unchanged. CC97
+  // ("Custom") doesn't need this - it's a plain press-only toggle, handled
+  // by handleRawButton() alongside Session/Note below.
   if (ev.getCCNumber() == 98) {
-    launchpad_manager_->handleDrawToggleButton(device_id, ev.getKind() == LaunchpadButtonEvent::PRESS);
+    launchpad_manager_->handleDrawToggleButton(device_id, getController(), ev.getKind() == LaunchpadButtonEvent::PRESS);
     return;
   }
 
-  // The mixer radio group's own nine CC numbers (Volume/Pan/Send A/Send B/
-  // Stop Clip/Mute/Solo, Pro MK3's Mute/Solo twins -
+  // The mixer radio group's own ten CC numbers (Record Arm/Volume/Pan/
+  // Send A/Send B/Stop Clip/Mute/Solo, Pro MK3's Mute/Solo twins -
   // LaunchpadManager::isMixerFunctionButton()) need release too, for their
   // own momentary hold-to-preview gesture
   // (LaunchpadManager::handleMixerFunctionRelease()) - same reasoning as
@@ -2802,13 +2803,8 @@ TerminalUI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   // Send A/B: a direct hardware-state toggle (this device's own transient
   // grid-display mode), never a command - intercepted here, by raw CC
   // number, before any command-name resolution happens at all. See
-  // LaunchpadManager::handleRawButton's own comment. track_id resolved
-  // the same way CC19's own SampleTrack case needs it.
-  {
-    auto track_ids = getController().getSong().getPlayableTrackIds();
-    auto track_id = launchpad_manager_->resolveTrackId(device_id, track_ids, indexOfTrack(track_ids, getController().getSong().getCurrentTrackId()));
-    if (launchpad_manager_->handleRawButton(ev.getCCNumber(), device_id, getController(), track_id)) return;
-  }
+  // LaunchpadManager::handleRawButton's own comment.
+  if (launchpad_manager_->handleRawButton(ev.getCCNumber(), device_id, getController())) return;
 
   auto name = LaunchpadProtocol::commandForButton(ev.getCCNumber());
   if (!name) return;

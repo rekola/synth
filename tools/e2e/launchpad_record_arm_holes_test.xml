@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Purpose-built for verify_launchpad_record_arm_holes.py: exactly one
+     track, with no clips at all yet - so a fresh per-track-armed take
+     started at Session-view clip index 2 (the fake device's own scripted
+     press, see its own comment) has to backfill indices 0/1 with empty
+     fillers (Song::ensureClipAt()) rather than landing on the next unused
+     slot (index 0) the way this codebase's own older behavior used to. -->
+<song temperament="12edo" tempo="120" patternRows="16">
+  <instruments>
+    <instrument from="string.bowed.ensemble.pizzicato" />
+  </instruments>
+  <tracks>
+    <track id="0" instrument="0" />
+  </tracks>
+  <sections>
+    <section>
+    </section>
+  </sections>
+</song>

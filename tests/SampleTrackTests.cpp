@@ -63,16 +63,22 @@ TEST(resample_mono_linear_is_a_no_op_for_degenerate_input) {
   CHECK(resampleMonoLinear({}, 8000, 16000).empty());
 }
 
-TEST(clip_has_no_sample_content_until_first_asked_for_one) {
+TEST(clip_sample_content_is_always_present_but_empty_until_given_a_buffer) {
   Clip clip(0);
   CHECK(!clip.hasSample());
-  CHECK(clip.getSampleContent() == nullptr);
+  CHECK(clip.isEmpty()); // no Pattern content either, on a bare clip
 
-  auto & content = clip.getOrCreateSampleContent();
-  CHECK(!clip.hasSample()); // created, but still no buffer of its own
+  auto & content = clip.getSampleContent();
+  CHECK(!clip.hasSample()); // present, but still no buffer of its own
+  CHECK(clip.isEmpty());
   content.setBuffer(make_shared<AudioBuffer>(1, 4));
   CHECK(clip.hasSample());
-  CHECK(clip.getSampleContent() == &content); // getOrCreateSampleContent() never replaces an existing one
+  // isEmpty() has to check hasSample() too, not just the leaf Pattern -
+  // a SampleTrack clip's own Pattern is never touched, so pattern_.
+  // isEmpty() alone would misreport every populated sample clip as an
+  // unused scene slot.
+  CHECK(!clip.isEmpty());
+  CHECK(&clip.getSampleContent() == &content); // same object, not a fresh one
 }
 
 namespace {
@@ -92,7 +98,7 @@ TEST(trigger_clip_plays_only_the_trimmed_range_and_ends_without_a_ramp) {
   SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
 
   Clip clip(0);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   content.setBuffer(buildBuffer(40, [](int) { return 0.5f; }));
   content.setNativeSampleRate(8000);
   content.setInPoint(10.0f / 8000.0f); // trims the first 10 frames
@@ -127,7 +133,7 @@ TEST(retriggering_a_clip_starts_the_new_voice_at_the_in_point_not_frame_0) {
   SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
 
   Clip clip(0);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   // [0, 100): a marker value that must never be heard - a fresh trigger
   // starting at frame 0 instead of the in-point would read it back.
   // [100, 300): an ascending ramp, distinct enough to tell "start of a
@@ -153,7 +159,7 @@ TEST(trigger_clip_falls_back_to_the_full_buffer_when_trim_points_overshoot) {
   SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
 
   Clip clip(0);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   content.setBuffer(buildBuffer(10, [](int i) { return 10.0f + static_cast<float>(i); })); // distinct, all nonzero
   content.setNativeSampleRate(8000);
   content.setInPoint(100.0f); // 100s in, on a 10-frame/8kHz buffer - hopelessly past the end
@@ -177,7 +183,7 @@ TEST(trigger_clip_starts_from_the_given_offset_past_the_in_point) {
   SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
 
   Clip clip(0);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   content.setBuffer(buildBuffer(100, [](int i) { return static_cast<float>(i); })); // a ramp - each frame's own value names its own index
   content.setNativeSampleRate(8000);
   content.setInPoint(10.0f / 8000.0f); // trims the first 10 frames - [10, 100) remains
@@ -200,7 +206,7 @@ TEST(trigger_clip_with_an_offset_past_the_end_plays_nothing) {
   SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
 
   Clip clip(0);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   content.setBuffer(buildBuffer(20, [](int) { return 0.5f; }));
   content.setNativeSampleRate(8000);
   clip.setLooping(false);
@@ -223,7 +229,7 @@ TEST(trigger_clip_resamples_in_real_time_when_the_native_rate_disagrees_with_out
   SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
 
   Clip clip(0);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   content.setBuffer(buildBuffer(100, [](int i) { return static_cast<float>(i); })); // a ramp - each frame's own value names its own index
   content.setNativeSampleRate(8000);
   clip.setLooping(false);
@@ -243,7 +249,7 @@ TEST(trigger_clip_plays_unstretched_when_original_tempo_is_unset) {
   SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
 
   Clip clip(0);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   content.setBuffer(buildBuffer(4000, [](int) { return 0.5f; })); // 0.5s @ 8kHz
   content.setNativeSampleRate(8000);
   clip.setLooping(false);
@@ -263,7 +269,7 @@ TEST(trigger_clip_plays_unstretched_when_original_tempo_already_matches_the_song
   SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
 
   Clip clip(0);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   content.setBuffer(buildBuffer(4000, [](int) { return 0.5f; }));
   content.setNativeSampleRate(8000);
   content.setOriginalTempo(120);
@@ -291,7 +297,7 @@ TEST(trigger_clip_stretches_longer_when_the_song_is_slower_than_the_clips_own_te
   SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
 
   Clip clip(0);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   content.setBuffer(buildBuffer(4000, [](int) { return 0.5f; })); // 0.5s @ 8kHz, recorded at 120bpm
   content.setNativeSampleRate(8000);
   content.setOriginalTempo(120);
@@ -310,7 +316,7 @@ TEST(trigger_clip_stretches_shorter_when_the_song_is_faster_than_the_clips_own_t
   SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
 
   Clip clip(0);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   content.setBuffer(buildBuffer(4000, [](int) { return 0.5f; })); // 0.5s @ 8kHz, recorded at 60bpm
   content.setNativeSampleRate(8000);
   content.setOriginalTempo(60);
@@ -329,7 +335,7 @@ TEST(trigger_clip_reuses_its_cached_stretched_buffer_on_a_later_trigger_at_the_s
   SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
 
   Clip clip(0);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   content.setBuffer(buildBuffer(4000, [](int) { return 0.5f; }));
   content.setNativeSampleRate(8000);
   content.setOriginalTempo(120);
@@ -349,7 +355,7 @@ TEST(trigger_clip_rebuilds_the_stretched_cache_when_the_song_tempo_changes) {
   SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
 
   Clip clip(0);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   content.setBuffer(buildBuffer(4000, [](int) { return 0.5f; }));
   content.setNativeSampleRate(8000);
   content.setOriginalTempo(120);
@@ -392,7 +398,7 @@ TEST(stop_all_voices_releases_a_sample_track_through_the_leaf_track_state_base) 
   SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
 
   Clip clip(0);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   content.setBuffer(buildBuffer(4000, [](int) { return 0.5f; }));
   content.setNativeSampleRate(8000);
   clip.setLooping(false);
@@ -418,7 +424,7 @@ TEST(waveform_peaks_is_empty_without_a_buffer) {
 
 TEST(waveform_peaks_builds_row_count_times_subrows_buckets) {
   Clip clip(0);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   content.setBuffer(buildBuffer(80, [](int i) { return 0.5f + 0.01f * static_cast<float>(i % 5); }));
   content.setNativeSampleRate(8000);
   clip.setLength(4);
@@ -431,7 +437,7 @@ TEST(waveform_peaks_builds_row_count_times_subrows_buckets) {
 
 TEST(waveform_peaks_are_raw_rms_not_normalized_per_clip) {
   Clip clip(0);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   // 4 buckets (rowCount 2 * subrows 2): quiet, quiet, loud, quiet - each
   // bucket's own raw RMS, not rescaled against the clip's own loudest
   // bucket (a genuinely faint clip is meant to read back faint, not
@@ -456,7 +462,7 @@ TEST(waveform_peaks_are_raw_rms_not_normalized_per_clip) {
 // its actual level, which read as full-height either way.
 TEST(waveform_peaks_of_a_faint_clip_stay_faint) {
   Clip clip(0);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   content.setBuffer(buildBuffer(20, [](int) { return 0.02f; }));
   content.setNativeSampleRate(8000);
   clip.setLength(1);
@@ -476,7 +482,7 @@ TEST(waveform_peaks_of_a_faint_clip_stay_faint) {
 // reads bucket 1 as louder instead.
 TEST(waveform_peaks_uses_rms_so_a_single_spike_does_not_read_as_loud_as_a_sustained_tone) {
   Clip clip(0);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   content.setBuffer(buildBuffer(200, [](int i) {
     if (i < 100) return i == 0 ? 1.0f : 0.0f;
     return 0.5f;
@@ -491,7 +497,7 @@ TEST(waveform_peaks_uses_rms_so_a_single_spike_does_not_read_as_loud_as_a_sustai
 
 TEST(waveform_peaks_ignores_content_outside_the_trimmed_range) {
   Clip clip(0);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   // A loud marker sitting entirely in the trimmed-away head/tail - if it
   // leaked into the read range, every in-trim bucket would read back
   // louder than the trimmed range's own actual (uniform) content.
@@ -507,7 +513,7 @@ TEST(waveform_peaks_ignores_content_outside_the_trimmed_range) {
 
 TEST(waveform_peaks_rebuilds_when_the_buffer_is_replaced) {
   Clip clip(0);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   content.setBuffer(buildBuffer(10, [](int) { return 0.2f; }));
   content.setNativeSampleRate(8000);
   clip.setLength(1);
@@ -528,7 +534,7 @@ TEST(waveform_peaks_rebuilds_when_the_buffer_is_replaced) {
 // last happened to change, not what was actually just captured.
 TEST(waveform_peaks_rebuilds_when_the_same_buffer_grows_in_place) {
   Clip clip(0);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   content.setBuffer(buildBuffer(10, [](int) { return 0.2f; }));
   content.setNativeSampleRate(8000);
   clip.setLength(1);
@@ -554,7 +560,7 @@ TEST(waveform_peaks_rebuilds_when_the_same_buffer_grows_in_place) {
 // grows afterward.
 TEST(waveform_peaks_of_a_growing_live_take_do_not_reflow_already_recorded_rows) {
   Clip clip(0);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   // 8000 Hz, 120 bpm -> 60 / 4 / 120 * 8000 = 1000 frames/row (1 subrow/
   // row). Row 0's own full span (frames 0-999) is already fully captured
   // (800 frames @ 0.2, then 200 @ 1.0); frames 1000-1499 belong to the
@@ -580,7 +586,7 @@ TEST(waveform_peaks_of_a_growing_live_take_do_not_reflow_already_recorded_rows) 
 // scheme, unchanged from before tempo-anchoring existed.
 TEST(waveform_peaks_falls_back_to_even_division_without_a_known_tempo) {
   Clip clip(0);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   content.setBuffer(buildBuffer(1500, [](int i) { return i < 800 ? 0.2f : 1.0f; }));
   content.setNativeSampleRate(8000);
   CHECK(content.getOriginalTempo() == 0); // never set
@@ -594,7 +600,7 @@ TEST(waveform_peaks_falls_back_to_even_division_without_a_known_tempo) {
 
 TEST(waveform_peaks_rebuilds_when_row_count_or_subrows_change) {
   Clip clip(0);
-  auto & content = clip.getOrCreateSampleContent();
+  auto & content = clip.getSampleContent();
   content.setBuffer(buildBuffer(40, [](int) { return 0.5f; }));
   content.setNativeSampleRate(8000);
   clip.setLength(2);

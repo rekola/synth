@@ -16,8 +16,8 @@
 // interleaved with every other track's content in one shared
 // row->track_id->notes map. No track_id anywhere in here: which track this
 // belongs to is whichever container holds it - Section::patterns_by_track_id_'s
-// key for a section's own inline Pattern, or a Clip's own patterns_by_track_
-// key (Clip.h) for a reusable one - not this class's own concern.
+// key for a section's own inline Pattern, or a Clip's own leaf_track_id_
+// (Clip.h) for a reusable one - not this class's own concern.
 class Pattern : public SongObject {
  public:
   // A Pattern has a length. `length_ == 0` (the default) isn't a "looping
