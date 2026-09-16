@@ -37,6 +37,7 @@ gcc -o fake_launchpad_record_arm_picker fake_launchpad_record_arm_picker.c -laso
 gcc -o fake_launchpad_record_arm_holes fake_launchpad_record_arm_holes.c -lasound
 gcc -o fake_launchpad_record_arm_wrong_track fake_launchpad_record_arm_wrong_track.c -lasound
 gcc -o fake_launchpad_record_arm_percussion fake_launchpad_record_arm_percussion.c -lasound
+gcc -o fake_launchpad_sampletrack_record_arm fake_launchpad_sampletrack_record_arm.c -lasound
 gcc -o fake_launchpad_aftertouch_clip fake_launchpad_aftertouch_clip.c -lasound
 gcc -o fake_launchpad_mixer_hold fake_launchpad_mixer_hold.c -lasound
 ```
@@ -301,6 +302,31 @@ you're changing.
   round trip for the step grid specifically is unreliable even on an
   unmodified checkout (confirmed via `git stash` A/B - see
   `verify_launchpad_stepseq.py`'s own docstring and `docs/known_bugs.md`).
+- **`launchpad_sampletrack_record_arm_test.xml` / `fake_launchpad_
+  sampletrack_record_arm.c` / `verify_launchpad_sampletrack_record_arm.py`** -
+  the SampleTrack twin of `fake_launchpad_record_arm_holes.c` above -
+  covers `LaunchpadManager::triggerSessionClip()`'s own SampleTrack branch
+  (a Session-grid press on a SampleTrack armed via the track-picker
+  overlay now actually arms real audio capture -
+  `Controller::armSessionTrackRecording()`/`armThresholdRecording()` -
+  instead of falling through to plain audition/assign) and the "press the
+  same pad again cancels it" gesture. Verified through the terminal
+  `SessionView` widget's own text (the "●" record indicator, same
+  mechanism `fake_launchpad_record_arm_holes.c` uses), not LED bytes - a
+  real armed SampleTrack take also engages `Player.cpp`'s own
+  threshold-triggered ALSA capture logic, exactly the kind of real-audio
+  path this sandboxed environment's own documented LED-read flakiness is
+  about (see `docs/known_bugs.md`), so LED reads here would be doubly
+  fragile; confirmed directly - an early LED-based version of this script
+  reliably failed to observe any state change at all across a rapid
+  arm/cancel pair here, even with generous margins, while the identical
+  underlying state transitions were independently confirmed correct via
+  temporary in-process tracing. Two independent spawns (`argv[1] ==
+  "cancel"` toggles a second scripted press) rather than one script with
+  two mid-run dumps: `Controller::disarmTrack()`'s own
+  `trimSessionRecordingClip()` call clears the record indicator
+  unconditionally, which would mask a broken cancel gesture if the test
+  ever finished by disarming through the picker before reading anything.
 - **`fake_launchpad_aftertouch_clip.c` / `verify_launchpad_aftertouch_clip.py`** -
   the "Clip-based note recording" path (`Controller::
   ensureNoteRecordingClip()`), not step entry: switches into NOTES grid

@@ -234,6 +234,23 @@ Found 2026-07-11, not yet fixed.
   further contention on top of the scripts-racing-each-other case already
   documented.
 
+  A genuinely armed `SampleTrack` take (`Controller::armThresholdRecording()`
+  - `LaunchpadManager::triggerSessionClip()`'s own SampleTrack branch)
+  reproduces the same class of stall a different way: pressing a
+  Session-grid pad on such a track (confirmed via temporary in-process
+  tracing, since removed - the arm itself, and a later cancelling press,
+  both land in `Controller` exactly as expected) leaves the connected
+  fake device's own SysEx traffic silent for the whole time the track
+  stays armed, even across several seconds of margin and regardless of
+  whether the take is ever actually cancelled - consistent with real
+  ALSA capture engagement (`Player.cpp`'s own threshold poll loop) being
+  the trigger, the capture-side counterpart to the real-audition/playback
+  stall documented above. `tools/e2e/verify_launchpad_sampletrack_record_
+  arm.py` sidesteps it entirely by verifying through the terminal
+  `SessionView` widget's own text instead of LED bytes, the same
+  technique `verify_launchpad_record_arm_percussion.py` already uses for
+  its own, unrelated reason (its own docstring has the reasoning).
+
 - **`tools/e2e/verify_launchpad_sendmode.py`'s own row-math predates the
   current dB-based Send fader curve** (`sendRowToDb()`/`sendLinearToRow()`
   in `LaunchpadManager.cpp`), not anything touched by the velocity-scaled

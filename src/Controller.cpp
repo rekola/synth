@@ -244,14 +244,14 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
       auto sample_track_id = getRecordingTrackId();
       finishSampleCapture();
       stop_sample_auto_started_playback();
-      session_recording_takes_.erase(sample_track_id); // pure bookkeeping - finishSampleCapture() already finalized the real clip
+      clearSessionRecordingTake(sample_track_id); // pure bookkeeping - finishSampleCapture() already finalized the real clip
       return;
     }
     if (isThresholdArmed()) {
       auto sample_track_id = getRecordingTrackId();
       disarmThresholdRecording();
       stop_sample_auto_started_playback();
-      session_recording_takes_.erase(sample_track_id);
+      clearSessionRecordingTake(sample_track_id);
       return;
     }
     if (isNoteCaptureArmed()) {

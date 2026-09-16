@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Purpose-built for verify_launchpad_sampletrack_record_arm.py: a lone
+     SampleTrack with no clips at all yet - the SampleTrack twin of
+     launchpad_record_arm_holes_test.xml (see that fixture's own comment),
+     just without the NOTE-mode note-entry step, since a SampleTrack's own
+     take is armed and cancelled from the Session grid alone. -->
+<song temperament="12edo" tempo="120" patternRows="16">
+  <tracks>
+    <sampleTrack id="0"/>
+  </tracks>
+  <sections>
+    <section>
+    </section>
+  </sections>
+</song>

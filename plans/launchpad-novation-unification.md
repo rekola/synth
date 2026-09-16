@@ -739,11 +739,28 @@
    size-1 case of the same reader loop), each with its own sidecar `.wav`
    (`sampleSidecarPath()`'s own per-layer-index suffix - `<clip-id>.wav`
    for layer 0, `<clip-id>_2.wav`/`_3.wav`/... for each later one).
-   `SampleTrack` still isn't wired into the new per-track Launchpad arm
-   mechanism itself (the `is_sample_track` carve-out throughout this
-   file, unrelated to overdubbing itself) - the only route into
-   `beginSampleCapture()`'s own Session-View-targeted branch remains the
-   terminal `SessionView` widget's own keyboard-driven `toggle-record-arm`.
+   `SampleTrack` is now wired into the per-track Launchpad arm mechanism
+   too: a Session-grid press on a `SampleTrack` armed via the
+   track-picker overlay (`LaunchpadManager::triggerSessionClip()`'s own
+   SampleTrack branch) arms real audio capture immediately
+   (`Controller::armSessionTrackRecording()`/`armThresholdRecording()`) -
+   a single, global (track_id, clip_index) target, never bar-quantized or
+   fanned out to other simultaneously-armed tracks the way note recording
+   is, since there's only one real input stream to route through it;
+   pressing that same pad again cancels a still-idle arm
+   (`LaunchpadManager::stopSampleTrackRecording()`). The track-picker
+   overlay's own Stop Clip purpose (CC49) resolves a `SampleTrack`'s
+   in-flight/armed take the same immediate way, not through the
+   note-Pattern-specific queued/quantized path (`Controller::
+   trimSessionRecordingClip()`) the other track types use there, which
+   would misread a `SampleTrack` take's own empty Pattern as "nothing was
+   ever recorded." Covered by `tools/e2e/
+   verify_launchpad_sampletrack_record_arm.py`, verified through the
+   terminal `SessionView` widget's own text (the "●" record indicator)
+   rather than LED bytes - a genuinely armed take also engages real ALSA
+   capture logic and hits the same class of sandboxed-environment
+   LED-read flakiness already documented for `verify_launchpad_
+   stopclip.py` (`docs/known_bugs.md`).
 
 2. **Step sequencer follow-ups - not yet designed, added to this plan on
    request.** Two related gaps left by the step-grid-only-edits-a-clip

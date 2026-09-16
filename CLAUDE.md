@@ -588,7 +588,23 @@ whether or not a terminal UI exists at all.
   press-to-record queues a red flash, an in-flight take pulses red, and
   pressing the pad being recorded into again (queuing a stop for just
   that take) flashes red the same way a fresh queue does. Reuses Stop
-  Clip's own red hue rather than a fifth distinct color.
+  Clip's own red hue rather than a fifth distinct color. A `SampleTrack`
+  is the one exception to the *queued* half of this - real audio capture
+  is a single, immediate, global (track_id, clip_index) target
+  (`Controller::armThresholdRecording()`), never bar-quantized or fanned
+  out to other simultaneously-armed tracks the way note recording above
+  is, since there's only one real input stream to route through it - a
+  press on an armed `SampleTrack`'s own row arms (or retargets) real
+  capture right away (`LaunchpadManager::triggerSessionClip()`'s own
+  SampleTrack branch: `Controller::armSessionTrackRecording()`/
+  `armThresholdRecording()`, mirroring "toggle-record-arm"'s own
+  Session-View-focused SampleTrack branch from the terminal), and
+  pressing that same pad again cancels a still-idle arm
+  (`LaunchpadManager::stopSampleTrackRecording()`) - never
+  `Controller::trimSessionRecordingClip()`, the note-Pattern-specific
+  finalize note-based Session recording uses, which would misread a
+  SampleTrack take's own empty Pattern as "nothing was ever recorded" and
+  reset its real audio length back to one bar.
 - **Track-picker overlay** (`LaunchpadManager::toggleTrackPicker()`/
   `handleTrackPickerPadEvent()`/`isTrackPickerRow()`, `DeviceState::
   track_picker_active`/`track_picker_purpose`) - four purposes (Stop
@@ -631,10 +647,8 @@ whether or not a terminal UI exists at all.
   button's own purpose (a Session-view-style quantized stop for Stop
   Clip; `Controller::toggleTrackMuted()`/`toggleTrackSolo()` for
   Mute/Solo; `Controller::toggleTrackArmed()` for Record Arm - pure
-  per-track bookkeeping, the same for every track type, though a
-  SampleTrack's own audio capture isn't on the new quantized-start-via-
-  pad-press path yet, see `LaunchpadManager::triggerSessionClip()`'s own
-  carve-out) but deliberately leaves the overlay open - every purpose is
+  per-track bookkeeping, the same for every track type) but deliberately
+  leaves the overlay open - every purpose is
   a toggle, so several picks in a row can mute/solo/stop/arm a handful of
   tracks without reopening it each time; pressing the same opener button
   again is what closes it (with nothing picked), and pressing a
@@ -694,7 +708,15 @@ whether or not a terminal UI exists at all.
   covers the same eight buttons' own momentary hold-to-preview gesture
   (`armMixerHoldPreview()`/`handleMixerFunctionRelease()`) - a quick tap
   stays (sticky), a real hold reverts to whatever was showing before it
-  once released. Every e2e script spawns `synth`
+  once released. `verify_launchpad_sampletrack_record_arm.py` covers the
+  SampleTrack twin of `verify_launchpad_record_arm_holes.py` - a
+  Session-grid press on a SampleTrack armed via the track-picker overlay
+  actually arming real audio capture, and a second press cancelling it -
+  verified through the terminal `SessionView` widget's own text rather
+  than LED bytes, since a genuinely armed take also engages real ALSA
+  capture logic and hits the same class of sandboxed-environment LED-read
+  flakiness documented for `verify_launchpad_stopclip.py`
+  (`docs/known_bugs.md`). Every e2e script spawns `synth`
   with `SYNTH_LAUNCHPAD_NO_HARDWARE=1` (`tools/e2e/harness.py`'s own
   `spawn()`) so it only ever connects to the fake simulator it's actually
   testing, never any real Launchpad hardware also plugged into the same

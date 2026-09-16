@@ -56,6 +56,7 @@ tools/e2e/fake_launchpad_record_arm_picker
 tools/e2e/fake_launchpad_record_arm_holes
 tools/e2e/fake_launchpad_record_arm_wrong_track
 tools/e2e/fake_launchpad_record_arm_percussion
+tools/e2e/fake_launchpad_sampletrack_record_arm
 tools/e2e/*.log
 tools/e2e/__pycache__
 

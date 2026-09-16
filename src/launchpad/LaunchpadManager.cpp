@@ -1826,9 +1826,19 @@ LaunchpadManager::stopSessionTrack(Controller & controller, int track_id) {
   // itself offers - queue a stop for just that take at the next shared
   // boundary, leaving the track still armed for another one. An armed
   // track with nothing actually recording yet (or not armed at all) falls
-  // through to the ordinary paths below unchanged.
+  // through to the ordinary paths below unchanged. A SampleTrack's own
+  // take has no quantized queue of its own at all (triggerSessionClip()'s
+  // own comment on why real audio capture is a single, immediate global
+  // target rather than bar-aligned like note recording) - resolved right
+  // here instead, never queued_recording_by_track_ (its own resolution
+  // path assumes a note-Pattern take, via trimSessionRecordingClip()).
   if (controller.isTrackArmed(track_id) && controller.isSessionRecording(track_id)) {
-    queued_recording_by_track_[track_id] = QueuedRecording{QueuedRecording::STOP};
+    auto * track = controller.getSong().getMasterTrack().getChildByInternalId(track_id);
+    if (track && track->getType() == TrackType::SAMPLE) {
+      stopSampleTrackRecording(controller, track_id);
+    } else {
+      queued_recording_by_track_[track_id] = QueuedRecording{QueuedRecording::STOP};
+    }
     return;
   }
   // Genuinely two different mechanisms depending on Record Arm: while
@@ -1864,14 +1874,48 @@ LaunchpadManager::triggerSessionClip(Controller & controller, int track_id, int 
 
   auto * armed_track = song.getMasterTrack().getChildByInternalId(track_id);
   bool is_sample_track = armed_track && armed_track->getType() == TrackType::SAMPLE;
+  if (controller.isTrackArmed(track_id) && is_sample_track) {
+    // A SampleTrack's own real audio capture is a single, immediate,
+    // global (track_id, clip_index) target (Controller::
+    // armThresholdRecording()'s own comment) - never bar-quantized or
+    // fanned out to other simultaneously-armed tracks the way note
+    // recording below is, since there's only one real input stream to
+    // route through it. A press here arms (or retargets) it right away,
+    // the same way "toggle-record-arm"'s own Session-View-focused
+    // SampleTrack branch already does from the terminal - just triggered
+    // from a real pad press instead of the terminal's own focus-cursor
+    // state.
+    if (controller.isRecording() && controller.getRecordingTrackId() == track_id) {
+      // Pressing the pad actually being captured into again stops just
+      // this take - the same "press again to stop" gesture the note
+      // branch below has.
+      stopSampleTrackRecording(controller, track_id);
+      return;
+    }
+    if (controller.isThresholdArmed() && controller.getRecordingTrackId() == track_id) {
+      if (controller.getSessionRecordingClipIndex(track_id) == clip_index) {
+        // Still just armed, nothing real captured yet - pressing the same
+        // slot again cancels rather than restarting it.
+        stopSampleTrackRecording(controller, track_id);
+      } else {
+        // Still just armed, no audio committed yet either - a different
+        // slot simply retargets it, no need to disarm/rearm first.
+        controller.armSessionTrackRecording(track_id, clip_index);
+      }
+      return;
+    }
+    // A different track already owns the one real capture pipeline
+    // (recording, or still just threshold-armed waiting on it) - nothing
+    // this press can safely start until that resolves.
+    if (controller.isRecording() || controller.isThresholdArmed()) return;
+    controller.armSessionTrackRecording(track_id, clip_index);
+    controller.armThresholdRecording(track_id);
+    return;
+  }
   if (controller.isTrackArmed(track_id) && !is_sample_track) {
     // Recording: every pad press on an armed track is record-oriented,
     // taking priority over the plain audition/assign behavior below (which
-    // still applies unarmed). A SampleTrack is the one exception - its own
-    // audio capture isn't on this quantized-start-via-pad-press path yet
-    // (real-time/ALSA-thread concerns of its own), so arming one leaves
-    // its pads doing exactly what they'd do unarmed for now, falling
-    // straight through to the audition/assign branches below. Pressing the
+    // still applies unarmed). Pressing the
     // pad currently being recorded into again is a distinct "stop just
     // this take" gesture, not a fresh join/overdub - checked first since
     // it can't be told apart from an ordinary occupied-pad press by
@@ -2063,6 +2107,22 @@ LaunchpadManager::placeRecordingStop(Controller & controller, int track_id) {
   auto & section = song.getOrCreateSection(playback_info.getPatternIndex());
   placeStopInstance(section, track_id, row);
   song.incVersion();
+}
+
+void
+LaunchpadManager::stopSampleTrackRecording(Controller & controller, int track_id) {
+  // Genuinely underway (real audio already arriving) needs
+  // finishSampleCapture() to finalize the take into a real clip; still
+  // just armed and waiting for the loudness threshold needs only
+  // disarmThresholdRecording() instead - finishSampleCapture() itself is
+  // a no-op with nothing to finalize (hasRecordingClip()'s own comment),
+  // so it wouldn't clear the pending arm on its own.
+  if (controller.isRecording() && controller.getRecordingTrackId() == track_id) {
+    controller.finishSampleCapture();
+  } else if (controller.isThresholdArmed() && controller.getRecordingTrackId() == track_id) {
+    controller.disarmThresholdRecording();
+  }
+  controller.clearSessionRecordingTake(track_id);
 }
 
 void

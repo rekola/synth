@@ -1222,6 +1222,15 @@ class LaunchpadManager {
   // Session view's own held-column gesture need it.
   void stopSessionTrack(Controller & controller, int track_id);
 
+  // Cancels or finalizes `track_id`'s own in-flight real audio capture -
+  // triggerSessionClip()'s own "press the pad being captured into again"
+  // gesture and stopSessionTrack()'s SampleTrack case both need this same
+  // resolution. Never Controller::trimSessionRecordingClip() (the
+  // note-Pattern-specific finalize note-based Session recording uses) -
+  // that would read this take's own empty Pattern as "nothing was ever
+  // recorded" and reset its real audio length back to one bar.
+  void stopSampleTrackRecording(Controller & controller, int track_id);
+
   // Opens the track-picker overlay for `purpose`, shared by every button
   // that can open it (CC49/39/29, and their Pro MK3 left-column twins
   // 30/20, plus CC19 for RECORD_ARM - see handleRawButton()'s own

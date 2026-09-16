@@ -948,6 +948,18 @@ class Controller {
   // (its own clip_ready), and removes the take's own entry either way.
   void trimSessionRecordingClip(int track_id);
 
+  // The SampleTrack counterpart to trimSessionRecordingClip() above -
+  // pure bookkeeping removal of this take's own session_recording_takes_
+  // entry, never trimSessionRecordingClip() itself: that one reads the
+  // take's own leaf Pattern to derive a trimmed length, which a
+  // SampleTrack clip never has any real content in (its own audio lives
+  // in getSampleLayers() instead), so it would misread every such take as
+  // "nothing was ever recorded" and reset the clip's own real length back
+  // to one bar. finishSampleCapture()/disarmThresholdRecording() already
+  // finalize/cancel the real audio side; this just clears the matching
+  // take-in-progress bookkeeping either way.
+  void clearSessionRecordingTake(int track_id) { session_recording_takes_.erase(track_id); }
+
   // beginSampleCapture()'s own counterpart to extendRecordingClipsIfNeeded()
   // above - same reasoning, same growth shape, but scoped to the one
   // SampleTrack take a mic capture session can ever have in progress

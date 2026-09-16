@@ -529,6 +529,25 @@ TEST(waveform_peaks_builds_row_count_times_subrows_buckets) {
   CHECK(peaks.subrowsPerRow() == 3);
 }
 
+TEST(waveform_peaks_of_an_overdubbed_clip_reflect_the_mixed_composite_not_just_layer_0) {
+  Clip clip(0);
+  auto & layer0 = clip.getSampleContent();
+  layer0.setBuffer(buildBuffer(80, [](int) { return 0.3f; }));
+  layer0.setNativeSampleRate(8000);
+  auto & layer1 = clip.addSampleLayer();
+  layer1.setBuffer(buildBuffer(80, [](int) { return 0.2f; }));
+  layer1.setNativeSampleRate(8000);
+  clip.setLength(1);
+  clip.rebuildMixedContent(8000, 0);
+
+  auto & peaks = clip.getWaveformPeaks(1);
+  CHECK(!peaks.empty());
+  // Both layers fully overlap here - a constant signal's own RMS equals
+  // the constant itself, so this has to read back the summed 0.5, not
+  // layer 0's own 0.3 alone.
+  CHECK_NEAR(peaks.at(0, 0), 0.5f, 1e-4f);
+}
+
 TEST(waveform_peaks_are_raw_rms_not_normalized_per_clip) {
   Clip clip(0);
   auto & content = clip.getSampleContent();

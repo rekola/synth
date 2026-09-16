@@ -166,15 +166,20 @@ class Clip : public SongObject {
 
   // The row-indexed RMS amplitude cache PatternEditor's own waveform-box
   // rendering reads from (WaveformPeaks.h's own comment has the full
-  // reasoning on why row-, not time-, indexed). A thin forward to layer
-  // 0's own copy - it owns the buffer/trim points this is built from, so
+  // reasoning on why row-, not time-, indexed). A thin forward to
+  // getMixedContent()'s own copy - layer 0's alone with at most one real
+  // layer (the overwhelming majority of clips - the exact same object,
+  // no extra cost), or the real mixed composite once there's more than
+  // one, showing every overdubbed layer summed rather than just the
+  // original take; it owns the buffer/trim points this is built from, so
   // it's the one that can actually invalidate it directly, from its own
-  // setBuffer()/setInPoint()/setOutPoint(), rather than a caller out here
-  // having to guess staleness by remembering and comparing old values.
-  // Layer 0 only, not a composite of every layer once a clip has been
-  // overdubbed - showing the true mixed waveform would need a second
-  // cache built by summing across layers; not done yet, so the waveform
-  // box under-represents an overdubbed take's own later layers for now.
+  // setBuffer()/setInPoint()/setOutPoint() (each layer's setters, or
+  // rebuildMixedContent()'s own fresh SampleContent once there's more
+  // than one layer), rather than a caller out here having to guess
+  // staleness by remembering and comparing old values. Same stale-cache
+  // fallback as getMixedContent() itself - a fresh overdub layer not yet
+  // rebuilt into the composite still shows the original take's own
+  // peaks, not a half-built or empty one.
   // `getLength()` (this class's own field, SampleContent has no notion of
   // it) and `subrows_per_row` (a runtime choice, UIPlane::
   // canRenderSextants()) are the two things only this call site actually
@@ -188,7 +193,7 @@ class Clip : public SongObject {
   // nothing.
   const WaveformPeaks & getWaveformPeaks(int subrows_per_row) const {
     static const WaveformPeaks kEmpty;
-    return hasSample() ? getSampleContent().getWaveformPeaks(getLength() > 0 ? getLength() : 1, subrows_per_row) : kEmpty;
+    return hasSample() ? getMixedContent().getWaveformPeaks(getLength() > 0 ? getLength() : 1, subrows_per_row) : kEmpty;
   }
 
   // getId()/setId() (inherited from SongObject, same field a track's own
