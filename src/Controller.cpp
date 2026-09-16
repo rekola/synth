@@ -1463,16 +1463,20 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
   if (!song || !current_sample || current_sample->numberOfFrames() == 0) return;
 
   auto & clips = song->getClips(track_id);
-  // Session View recording into an already-populated slot overwrites that
-  // clip's own content in place (same id/name, so anything already
-  // referencing it - an arrangement instance elsewhere - keeps pointing at
-  // it) rather than appending a new one. Lands at exactly the requested
-  // index - holes are allowed (Song::ensureClipAt()), so a target past
-  // the list's own current end backfills the gap with empty fillers
-  // instead of collapsing to wherever a fresh append happens to land, the
-  // same fix ensureSessionRecordingClip() already has for note-based
-  // takes. An ordinary (non-Session-View) take has no target index at
-  // all - it always appends fresh, same as before.
+  // Session View recording into an already-populated slot overdubs it -
+  // same id/name, so anything already referencing it (an arrangement
+  // instance elsewhere) keeps pointing at it, and every existing layer
+  // stays completely untouched (Clip::addSampleLayer()'s own comment) -
+  // real audio genuinely sums, the same "always merges rather than
+  // replaces" decision note-based Session recording already settled, not
+  // the destructive "generalize today's clear-and-restart behavior"
+  // alternative. Lands at exactly the requested index - holes are allowed
+  // (Song::ensureClipAt()), so a target past the list's own current end
+  // backfills the gap with empty fillers instead of collapsing to
+  // wherever a fresh append happens to land, the same fix
+  // ensureSessionRecordingClip() already has for note-based takes. An
+  // ordinary (non-Session-View) take has no target index at all - it
+  // always appends a brand new clip, same as before.
   auto take_it = session_recording_takes_.find(track_id);
   bool is_session_recording_take = take_it != session_recording_takes_.end();
   bool targets_existing_slot = is_session_recording_take && take_it->second.clip_index >= 0;
@@ -1484,14 +1488,23 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
   // gets one assigned there instead, same as this take's own fresh append
   // always does.
   bool reuse_existing = targets_existing_slot && !clip.getId().empty();
+  // An overdub - a new layer added alongside whatever's already there -
+  // only when the target slot already had real audio in it (not merely
+  // an existing, but still genuinely empty, id-less filler - reuse_existing
+  // alone doesn't distinguish the two). Checked before anything below
+  // touches the clip, since getSampleContent()/addSampleLayer() would
+  // otherwise change what hasSample() itself reports.
+  bool is_overdub = reuse_existing && clip.hasSample();
 
   // Non-looping by default - same reasoning as ensureNoteRecordingClip()'s
   // own identical call: a live take is one specific performance, not a
   // pattern meant to repeat automatically the moment it ends; looping it
   // is the performer's own later call to make (Session view), not this
-  // clip's own starting assumption.
-  clip.setLooping(false);
-  auto & content = clip.getSampleContent();
+  // clip's own starting assumption. Left alone for an overdub - the clip
+  // was already looping/playing for this to even be an overdub in the
+  // first place.
+  if (!is_overdub) clip.setLooping(false);
+  auto & content = is_overdub ? clip.addSampleLayer() : clip.getSampleContent();
   // The *same* shared_ptr startRecording() already handed out, not a
   // copy - every later addToSample() call (mutating *current_sample in
   // place via AudioBuffer::append()) is visible through this clip's own
@@ -1500,10 +1513,10 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
   content.setBuffer(current_sample);
   content.setOriginalTempo(song->getTempo());
   content.setNativeSampleRate(channel_config.getAudioOutSampleRate());
-  // A reused clip's own prior trim must never leak into this new take -
-  // getSampleContent() on an existing clip returns its existing content,
-  // not a fresh one, unlike the brand-new-clip case where both already
-  // default to 0 anyway.
+  // A reused (non-overdub) clip's own prior trim must never leak into
+  // this new take - getSampleContent() on an existing clip returns its
+  // existing layer-0 content, not a fresh one, unlike the brand-new-clip
+  // and fresh-layer cases, where both already default to 0 anyway.
   content.setInPoint(latency_frames > 0 ? static_cast<float>(latency_frames) / static_cast<float>(channel_config.getAudioOutSampleRate()) : 0.0f);
   content.setOutPoint(0.0f);
   if (!reuse_existing) {
@@ -1523,7 +1536,13 @@ Controller::beginSampleCapture(int track_id, int latency_frames) {
   // keeps growing this as the take continues, same as
   // ensureNoteRecordingClip()'s own identical starting point and
   // extendRecordingClipsIfNeeded()'s own growth for a note-recording take.
-  clip.setLength(std::max(1, song->getRowsPerBar()));
+  // Skipped for an overdub - the clip's own length is already
+  // established (that's what's actually looping/playing right now for
+  // this to be an overdub at all), so restarting it back down to one bar
+  // would shrink an already-longer clip out from under its own earlier
+  // layers; finishSampleCapture() only ever grows it from here, never
+  // shrinks it.
+  if (!is_overdub) clip.setLength(std::max(1, song->getRowsPerBar()));
 
   recording_clip_id_ = clip.getId();
   recording_latency_frames_ = latency_frames;
@@ -1561,14 +1580,38 @@ Controller::finishSampleCapture() {
       auto & clip = clips[i];
       if (clip.getId() != recording_clip_id_) continue;
 
-      auto & content = clip.getSampleContent();
+      // The layer beginSampleCapture() just finished writing into - always
+      // the last one (its own append-only "overdub adds a new layer, a
+      // fresh take reuses/creates layer 0" convention, and only one
+      // recording is ever in flight at a time - Controller.h's own
+      // armed_track_ids_ comment), never assumed to be layer 0, which for
+      // an overdub is some *earlier*, already-finished take instead.
+      auto & content = clip.getSampleLayers().back();
       auto total_frames = content.getBuffer() ? content.getBuffer()->numberOfFrames() : 0;
       // The lead-in trimmed off the front (recording_latency_frames_,
       // beginSampleCapture()'s own comment on what it is) was never real
       // content the performer could have produced - it shouldn't inflate
       // this instance's own arrangement-window length either.
       auto post_trim_frames = std::max(0, total_frames - recording_latency_frames_);
-      clip.setLength(channel_config.framesToRows(post_trim_frames, song->getTempo()));
+      auto measured_length = channel_config.framesToRows(post_trim_frames, song->getTempo());
+      // An overdub only ever grows the clip's own length, never shrinks
+      // it - the clip was already looping/playing at its own established
+      // length for this to be an overdub at all, and a shorter new layer
+      // just plays out its own tail-silence for the rest of each lap
+      // rather than truncating every earlier layer's own loop point. A
+      // fresh take has no earlier length to protect - its own starting
+      // length was only ever a padded, ahead-of-time overshoot
+      // (extendRecordingSampleClipIfNeeded()'s own per-bar growth), so it
+      // always resolves to exactly the real measured length here.
+      clip.setLength(clip.getSampleLayers().size() > 1 ? std::max(clip.getLength(), measured_length) : measured_length);
+
+      // Rebuilds getMixedContent()'s own cache now that this take's audio
+      // is final - a no-op below getMixedContent()'s own >1-layer
+      // threshold (a fresh, never-overdubbed take), otherwise the one real
+      // write path that turns the layer just captured above into
+      // something SampleTrackState::triggerClip() will actually play
+      // mixed in with every earlier take.
+      clip.rebuildMixedContent(channel_config.getAudioOutSampleRate(), song->getTempo());
 
       // Re-clears the instance's own reach now that its real length is
       // known - beginSampleCapture()'s own placeClipInstance() call had

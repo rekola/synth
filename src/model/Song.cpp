@@ -93,9 +93,10 @@ static Track * resolveTrackReference(Song & song, const char * text) {
 }
 
 string
-sampleSidecarPath(const string & song_filename, const string & clip_id) {
+sampleSidecarPath(const string & song_filename, const string & clip_id, int layer_index) {
   filesystem::path song_path(song_filename);
-  auto sample_path = song_path.parent_path() / (song_path.stem().string() + ".samples") / (clip_id + ".wav");
+  auto stem = layer_index == 0 ? clip_id : clip_id + "_" + to_string(layer_index + 1);
+  auto sample_path = song_path.parent_path() / (song_path.stem().string() + ".samples") / (stem + ".wav");
   return sample_path.string();
 }
 
@@ -621,28 +622,33 @@ Song::open(const std::string & filename, const InstrumentProvider & provider) {
 	  Clip clip(track->getInternalId());
 	  auto sample_element = it->FirstChildElement("sample");
 	  if (sample_element) {
-	    // A named, exact file reference - missing/unreadable is fatal to
-	    // the whole load, the same way a malformed <pattern> already is
-	    // below, not silently skipped the way an unresolved instrument
-	    // name falls back to a generic default elsewhere: the artist
-	    // named one specific file, not something to resolve loosely.
-	    auto file_attr = sample_element->Attribute("file");
-	    if (!file_attr) {
-	      fmt::print(stderr, "Malformed <sample> (missing file attribute) in {}\n", filename);
-	      setlocale(LC_ALL, oldLocale.c_str());
-	      return false;
+	    // One or more layers (Clip.h's own sample_layers_ comment) - each a
+	    // sibling <sample> in take order, layer 0 first; an older
+	    // single-<sample> file is just the size-1 case of the same loop.
+	    for (; sample_element; sample_element = sample_element->NextSiblingElement("sample")) {
+	      // A named, exact file reference - missing/unreadable is fatal to
+	      // the whole load, the same way a malformed <pattern> already is
+	      // below, not silently skipped the way an unresolved instrument
+	      // name falls back to a generic default elsewhere: the artist
+	      // named one specific file, not something to resolve loosely.
+	      auto file_attr = sample_element->Attribute("file");
+	      if (!file_attr) {
+		fmt::print(stderr, "Malformed <sample> (missing file attribute) in {}\n", filename);
+		setlocale(LC_ALL, oldLocale.c_str());
+		return false;
+	      }
+	      auto sample_path = filesystem::path(filename).parent_path() / file_attr;
+	      auto loaded = loadMonoSample(sample_path.string());
+	      if (!loaded.buffer) {
+		fmt::print(stderr, "Could not load sample \"{}\" referenced by clip in {}\n", sample_path.string(), filename);
+		setlocale(LC_ALL, oldLocale.c_str());
+		return false;
+	      }
+	      auto & content = clip.getSampleLayers().empty() ? clip.getSampleContent() : clip.addSampleLayer();
+	      content.setBuffer(loaded.buffer);
+	      content.setNativeSampleRate(loaded.rate);
+	      content.loadParameters(XMLParameterSource(sample_element));
 	    }
-	    auto sample_path = filesystem::path(filename).parent_path() / file_attr;
-	    auto loaded = loadMonoSample(sample_path.string());
-	    if (!loaded.buffer) {
-	      fmt::print(stderr, "Could not load sample \"{}\" referenced by clip in {}\n", sample_path.string(), filename);
-	      setlocale(LC_ALL, oldLocale.c_str());
-	      return false;
-	    }
-	    auto & content = clip.getSampleContent();
-	    content.setBuffer(loaded.buffer);
-	    content.setNativeSampleRate(loaded.rate);
-	    content.loadParameters(XMLParameterSource(sample_element));
 	  } else {
 	    auto pattern_element = it->FirstChildElement("pattern");
 	    if (pattern_element && !parsePatternContent(*pattern_element, clip.getLeafPattern(), getTuningForTrack(*track), filename)) {
@@ -846,23 +852,32 @@ Song::save(const std::string & filename) const {
 	XMLParameterSource clip_parameters(clip_element);
 	clip.storeParameters(clip_parameters);
 
-	auto & content = clip.getSampleContent();
-	if (content.getBuffer()) {
-	  filesystem::path sample_path(sampleSidecarPath(filename, clip.getId()));
-	  std::error_code ec;
-	  filesystem::create_directories(sample_path.parent_path(), ec);
-	  writeMonoSample(sample_path.string(), *content.getBuffer(), content.getNativeSampleRate());
+	if (clip.hasSample()) {
+	  // One <sample> child per layer, in take order (Clip.h's own
+	  // sample_layers_ comment) - a single-layer clip (the overwhelming
+	  // majority) writes exactly the one <sample> element a pre-overdub
+	  // file already had, so this is backward-compatible with every
+	  // existing song on disk.
+	  auto & layers = clip.getSampleLayers();
+	  for (size_t layer_index = 0; layer_index < layers.size(); layer_index++) {
+	    auto & content = layers[layer_index];
+	    if (!content.getBuffer()) continue;
+	    filesystem::path sample_path(sampleSidecarPath(filename, clip.getId(), static_cast<int>(layer_index)));
+	    std::error_code ec;
+	    filesystem::create_directories(sample_path.parent_path(), ec);
+	    writeMonoSample(sample_path.string(), *content.getBuffer(), content.getNativeSampleRate());
 
-	  auto sample_element = doc.NewElement("sample");
-	  // Relative to the song's own directory (sample_path.parent_path()'s
-	  // own last component, ".samples", joined with the file's own
-	  // name) - never an absolute path, matching how the loader resolves
-	  // it back the same way.
-	  auto relative_path = sample_path.parent_path().filename() / sample_path.filename();
-	  sample_element->SetAttribute("file", relative_path.string().c_str());
-	  XMLParameterSource sample_parameters(sample_element);
-	  content.storeParameters(sample_parameters);
-	  clip_element->InsertEndChild(sample_element);
+	    auto sample_element = doc.NewElement("sample");
+	    // Relative to the song's own directory (sample_path.parent_path()'s
+	    // own last component, ".samples", joined with the file's own
+	    // name) - never an absolute path, matching how the loader resolves
+	    // it back the same way.
+	    auto relative_path = sample_path.parent_path().filename() / sample_path.filename();
+	    sample_element->SetAttribute("file", relative_path.string().c_str());
+	    XMLParameterSource sample_parameters(sample_element);
+	    content.storeParameters(sample_parameters);
+	    clip_element->InsertEndChild(sample_element);
+	  }
 	} else {
 	  auto & pattern = clip.getLeafPattern();
 	  auto pattern_element = doc.NewElement("pattern");
@@ -889,7 +904,16 @@ Song::save(const std::string & filename) const {
     unordered_set<string> live_ids;
     for (auto & [ track_id, clips ] : clips_by_track_) {
       for (auto & clip : clips) {
-	if (clip.hasSample()) live_ids.insert(clip.getId());
+	// One stem per real layer, not just clip.getId() alone - a
+	// multi-layer clip's later takes live under their own suffixed
+	// stem (sampleSidecarPath()'s own comment), which would otherwise
+	// read as orphaned and get swept the very next save.
+	auto & layers = clip.getSampleLayers();
+	for (size_t layer_index = 0; layer_index < layers.size(); layer_index++) {
+	  if (layers[layer_index].getBuffer()) {
+	    live_ids.insert(filesystem::path(sampleSidecarPath(filename, clip.getId(), static_cast<int>(layer_index))).stem().string());
+	  }
+	}
       }
     }
     for (auto & section : getSections()) {

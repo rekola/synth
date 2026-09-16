@@ -754,6 +754,59 @@ TEST(session_recording_sample_capture_lands_at_the_exact_pressed_index_with_hole
   CHECK(clips[2].hasSample());
 }
 
+// A second Session View take recorded into the same, already-populated
+// slot overdubs it - a new SampleContent layer alongside the first
+// (Clip.h's own sample_layers_ comment), not a replacement, and
+// finishSampleCapture() rebuilds getMixedContent()'s own cache so the
+// clip actually plays both layers summed, not just the original take.
+TEST(a_second_take_into_an_already_recorded_slot_overdubs_rather_than_replaces) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  controller.getSong().setTempo(120);
+
+  auto & track = controller.getSong().addTrack(std::make_unique<SampleTrack>());
+  auto track_id = track.getInternalId();
+  controller.setRecordingTrackId(track_id);
+
+  AudioBuffer block(1, 400);
+  auto data = block.getChannelData(0);
+  for (int i = 0; i < 400; i++) data[i] = 0.3f;
+
+  // First take - lands at index 0, exactly like any other fresh Session
+  // View recording.
+  controller.startRecording();
+  controller.armSessionTrackRecording(track_id, 0);
+  controller.addToSample(block);
+  controller.beginSampleCapture(track_id);
+  controller.addToSample(block);
+  controller.finishSampleCapture();
+
+  auto & clips = controller.getSong().getClips(track_id);
+  CHECK(clips.size() == 1);
+  CHECK(clips[0].hasSample());
+  CHECK(clips[0].getSampleLayers().size() == 1);
+  auto first_take_length = clips[0].getLength();
+
+  // A second take pressed into that same slot - beginSampleCapture()'s
+  // own is_overdub detection (reuse_existing && clip.hasSample()) must
+  // fire, appending rather than replacing.
+  controller.startRecording();
+  controller.armSessionTrackRecording(track_id, 0);
+  controller.addToSample(block);
+  controller.beginSampleCapture(track_id);
+  CHECK(clips[0].getSampleLayers().size() == 2); // the overdub layer, appended immediately
+  controller.addToSample(block);
+  controller.finishSampleCapture();
+
+  CHECK(controller.getSong().getClips(track_id).size() == 1); // still one clip, not a second one
+  CHECK(clips[0].getSampleLayers().size() == 2);
+  CHECK(clips[0].getLength() >= first_take_length); // an overdub only ever grows the clip's own length
+  // getMixedContent() now serves the real, rebuilt composite - not just
+  // falling back to layer 0 - now that finishSampleCapture() has run.
+  CHECK(&clips[0].getMixedContent() != &clips[0].getSampleContent());
+}
+
 // A real bug report: a captured take defaulted to Clip's own looping=true,
 // so a placed instance reached through the rest of the section and kept
 // re-triggering the (short) recording over and over instead of playing

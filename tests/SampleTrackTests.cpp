@@ -93,6 +93,80 @@ shared_ptr<AudioBuffer> buildBuffer(int frames, const std::function<float(int)> 
 
 }
 
+TEST(add_sample_layer_appends_without_disturbing_earlier_layers) {
+  Clip clip(0);
+  auto & layer0 = clip.getSampleContent();
+  layer0.setBuffer(buildBuffer(4, [](int) { return 0.5f; }));
+  CHECK(clip.getSampleLayers().size() == 1);
+
+  auto & layer1 = clip.addSampleLayer();
+  layer1.setBuffer(buildBuffer(4, [](int) { return 0.25f; }));
+  CHECK(clip.getSampleLayers().size() == 2);
+  CHECK(&clip.getSampleContent() == &layer0); // layer 0 unchanged, still the same object
+  CHECK(clip.getSampleLayers()[0].getBuffer()->getChannelData(0)[0] == 0.5f);
+  CHECK(clip.getSampleLayers()[1].getBuffer()->getChannelData(0)[0] == 0.25f);
+}
+
+TEST(get_mixed_content_falls_back_to_layer_0_with_at_most_one_layer) {
+  Clip clip(0);
+  clip.getSampleContent().setBuffer(buildBuffer(4, [](int) { return 0.5f; }));
+  // Only ever one layer - getMixedContent() must be exactly getSampleContent(),
+  // never anything computed, regardless of rebuildMixedContent() ever
+  // having been called.
+  CHECK(&clip.getMixedContent() == &clip.getSampleContent());
+}
+
+TEST(get_mixed_content_falls_back_to_layer_0_when_the_cache_is_stale) {
+  Clip clip(0);
+  clip.getSampleContent().setBuffer(buildBuffer(4, [](int) { return 0.5f; }));
+  clip.addSampleLayer().setBuffer(buildBuffer(4, [](int) { return 0.25f; }));
+  // Two real layers, but rebuildMixedContent() was never called - the
+  // cache is still invalid, so this must read back layer 0 alone rather
+  // than some half-built or default-constructed mix.
+  CHECK(&clip.getMixedContent() == &clip.getSampleContent());
+}
+
+TEST(rebuild_mixed_content_is_a_noop_with_at_most_one_layer) {
+  Clip clip(0);
+  clip.getSampleContent().setBuffer(buildBuffer(4, [](int) { return 0.5f; }));
+  clip.getSampleContent().setNativeSampleRate(8000);
+  clip.rebuildMixedContent(8000, 0);
+  CHECK(&clip.getMixedContent() == &clip.getSampleContent()); // still the plain layer-0 fallback, no cache consulted
+}
+
+TEST(rebuild_mixed_content_sums_every_layer_additively) {
+  Clip clip(0);
+  auto & layer0 = clip.getSampleContent();
+  layer0.setBuffer(buildBuffer(10, [](int) { return 0.3f; }));
+  layer0.setNativeSampleRate(8000);
+  auto & layer1 = clip.addSampleLayer();
+  layer1.setBuffer(buildBuffer(6, [](int) { return 0.2f; })); // shorter than layer 0
+  layer1.setNativeSampleRate(8000);
+
+  clip.rebuildMixedContent(8000, 0);
+  auto & mixed = clip.getMixedContent();
+  CHECK(&mixed != &layer0); // the real cached composite now, not the layer-0 fallback
+  CHECK(mixed.getBuffer() != nullptr);
+  auto data = mixed.getBuffer()->getChannelData(0);
+  for (int i = 0; i < 6; i++) CHECK_NEAR(data[i], 0.5f, 1e-5f); // both layers overlap here
+  for (int i = 6; i < 10; i++) CHECK_NEAR(data[i], 0.3f, 1e-5f); // only layer 0 reaches this far
+}
+
+TEST(rebuild_mixed_content_invalidated_by_a_fresh_overdub_layer_until_rebuilt_again) {
+  Clip clip(0);
+  clip.getSampleContent().setBuffer(buildBuffer(4, [](int) { return 0.4f; }));
+  clip.getSampleContent().setNativeSampleRate(8000);
+  clip.addSampleLayer().setBuffer(buildBuffer(4, [](int) { return 0.1f; }));
+  clip.getSampleLayers()[1].setNativeSampleRate(8000);
+  clip.rebuildMixedContent(8000, 0);
+  CHECK(&clip.getMixedContent() != &clip.getSampleContent()); // real cache now in use
+
+  // A third layer arrives (another overdub) - the existing cache must not
+  // keep being served as if it already reflected it.
+  clip.addSampleLayer().setBuffer(buildBuffer(4, [](int) { return 0.05f; }));
+  CHECK(&clip.getMixedContent() == &clip.getSampleContent()); // falls back until rebuilt again
+}
+
 TEST(trigger_clip_plays_only_the_trimmed_range_and_ends_without_a_ramp) {
   ChannelConfiguration config(8000); // no resampling - native rate matches
   SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
@@ -369,6 +443,26 @@ TEST(trigger_clip_rebuilds_the_stretched_cache_when_the_song_tempo_changes) {
   auto * second_ptr = content.getStretchedBuffer(90).get();
   CHECK(second_ptr != nullptr);
   CHECK(second_ptr != first_ptr);
+}
+
+TEST(trigger_clip_plays_the_rebuilt_mixed_composite_once_a_clip_has_multiple_layers) {
+  ChannelConfiguration config(8000); // no resampling - native rate matches
+  SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
+
+  Clip clip(0);
+  auto & layer0 = clip.getSampleContent();
+  layer0.setBuffer(buildBuffer(20, [](int) { return 0.3f; }));
+  layer0.setNativeSampleRate(8000);
+  auto & layer1 = clip.addSampleLayer();
+  layer1.setBuffer(buildBuffer(20, [](int) { return 0.2f; }));
+  layer1.setNativeSampleRate(8000);
+  clip.setLooping(false);
+  clip.rebuildMixedContent(8000, 0);
+
+  state.triggerClip(clip, 0);
+  auto rendered = state.renderVoices(20);
+  auto out = rendered.getChannelData(0);
+  CHECK_NEAR(out[0], 0.5f, 1e-5f); // both layers actually summed, not just layer 0 alone
 }
 
 // SampleTrackState derives from LeafTrackState directly (not

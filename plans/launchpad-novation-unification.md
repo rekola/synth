@@ -713,27 +713,37 @@
    independent of this fix - confirmed via `git stash` A/B - see
    `docs/known_bugs.md`.
 
-   **Sample overdubbing - not yet designed, added to this plan on
-   request.** Overdubbing today only really exists for note Patterns -
-   a second note landing on an already-occupied row just finds the next
-   free note-column and writes there (`handlePadEvent()`'s own free-slot
-   search), the same mechanism ordinary manual chord entry already uses;
-   no real merging is needed since it's discrete, column-addressable
-   data. Nothing equivalent exists for audio: `Controller::
-   beginSampleCapture()` always replaces a `SampleTrack` clip's whole
-   buffer wholesale (`content.setBuffer(current_sample)`), never mixes
-   new audio into what's already there, and `SampleTrack` isn't even
-   wired into the new per-track Launchpad arm mechanism at all yet (the
-   `is_sample_track` carve-out throughout this file) - the only route
-   into `beginSampleCapture()`'s own Session-View-targeted branch today is
-   the terminal `SessionView` widget's own keyboard-driven `toggle-record-
-   arm`. A real mixing overdub would need to sum newly-captured samples
-   into the existing buffer over whatever time range they actually
-   overlap (not just concatenate/replace), decide what happens when the
-   new take runs longer than the clip's own existing audio (extend the
-   buffer? clamp the take?), and only then be wired to the Launchpad's own
-   per-track picker the way note recording already is - a real design
-   pass, not a small fix, and out of scope for this pass.
+   **Sample overdubbing - shipped.** A second take recorded into an
+   already-populated `SampleTrack` slot (`Controller::
+   beginSampleCapture()`'s own `is_overdub = reuse_existing &&
+   clip.hasSample()`) no longer replaces the existing buffer wholesale -
+   `Clip` holds one or more independent `SampleContent` layers
+   (`sample_layers_`, a `std::deque` rather than a `std::vector` so an
+   existing layer's own address survives a later `addSampleLayer()` -
+   `SongState.h`'s own render-time pending-sample-start path keeps a raw
+   pointer to it alive across one render block), each take kept
+   separately addressable rather than destructively summed the moment a
+   second one arrives - matching the same "always merges rather than
+   replaces" precedent note-based overdub already settled. What actually
+   plays (`SampleTrackState::triggerClip()`, and the arrangement-timeline
+   trigger path in `SongState.h`) is `Clip::getMixedContent()` - layer 0
+   directly for the overwhelming majority of (never-overdubbed) clips, or
+   a cached, pre-mixed sum of every layer once there's more than one,
+   rebuilt off the audio thread (`Clip::rebuildMixedContent()`, `Clip.cpp`)
+   by `Controller::finishSampleCapture()` once a take's audio is final -
+   never computed live on a trigger, since the full resample/tempo-stretch
+   pass `resolveSampleAudio()` does is documented as unsafe there. An
+   overdub only ever grows the clip's own established length, never
+   shrinks it. Persisted as one `<sample>` child per layer (backward-
+   compatible with an existing single-`<sample>` file, which is just the
+   size-1 case of the same reader loop), each with its own sidecar `.wav`
+   (`sampleSidecarPath()`'s own per-layer-index suffix - `<clip-id>.wav`
+   for layer 0, `<clip-id>_2.wav`/`_3.wav`/... for each later one).
+   `SampleTrack` still isn't wired into the new per-track Launchpad arm
+   mechanism itself (the `is_sample_track` carve-out throughout this
+   file, unrelated to overdubbing itself) - the only route into
+   `beginSampleCapture()`'s own Session-View-targeted branch remains the
+   terminal `SessionView` widget's own keyboard-driven `toggle-record-arm`.
 
 2. **Step sequencer follow-ups - not yet designed, added to this plan on
    request.** Two related gaps left by the step-grid-only-edits-a-clip

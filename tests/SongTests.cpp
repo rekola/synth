@@ -1118,6 +1118,72 @@ TEST(sample_clip_round_trips_through_save_and_load) {
   fs::remove_all(scratch_samples_dir);
 }
 
+// An overdubbed SampleTrack clip - more than one SampleContent layer
+// (Clip.h's own sample_layers_ comment) - round-trips as one <sample>
+// child per layer, each with its own sidecar .wav (sampleSidecarPath()'s
+// own suffix-per-layer-index scheme), in the same take order they were
+// recorded.
+TEST(multi_layer_sample_clip_round_trips_through_save_and_load) {
+  namespace fs = std::filesystem;
+  auto scratch_path = (fs::path(TESTS_SCRATCH_DIR) / "song_sample_clip_multilayer_scratch.xml").string();
+  auto scratch_samples_dir = fs::path(TESTS_SCRATCH_DIR) / "song_sample_clip_multilayer_scratch.samples";
+
+  Song song(Tuning::TET12);
+  auto & track = song.addTrack(make_unique<SampleTrack>());
+  track.setId("vox");
+
+  constexpr int kFrames = 8;
+  auto buildBuffer = [kFrames](float value) {
+    auto buffer = make_shared<AudioBuffer>(1, kFrames);
+    auto data = buffer->getChannelData(0);
+    for (int i = 0; i < kFrames; i++) data[i] = value;
+    return buffer;
+  };
+
+  Clip clip(track.getInternalId());
+  auto & layer0 = clip.getSampleContent();
+  layer0.setBuffer(buildBuffer(0.25f));
+  layer0.setNativeSampleRate(48000);
+  auto & layer1 = clip.addSampleLayer();
+  layer1.setBuffer(buildBuffer(0.5f));
+  layer1.setNativeSampleRate(48000);
+  clip.setName("Take 1");
+  auto clip_id = song.addClip(move(clip)).getId();
+  song.save(scratch_path);
+
+  auto saved = readFile(scratch_path);
+  // Two <sample> elements, not one - both layers actually got written.
+  size_t sample_count = 0;
+  for (size_t pos = saved.find("<sample "); pos != string::npos; pos = saved.find("<sample ", pos + 1)) sample_count++;
+  CHECK(sample_count == 2);
+  CHECK(fs::exists(scratch_samples_dir / (clip_id + ".wav"))); // layer 0 - plain, suffix-less name
+  CHECK(fs::exists(scratch_samples_dir / (clip_id + "_2.wav"))); // layer 1
+
+  InstrumentProvider provider;
+  Song reloaded(Tuning::TET12);
+  CHECK(reloaded.open(scratch_path, provider));
+
+  auto reloaded_track = reloaded.getMasterTrack().getChildById("vox");
+  CHECK(reloaded_track != nullptr);
+  if (reloaded_track) {
+    auto & clips = reloaded.getClips(reloaded_track->getInternalId());
+    CHECK(clips.size() == 1);
+    if (clips.size() == 1) {
+      auto & layers = clips[0].getSampleLayers();
+      CHECK(layers.size() == 2);
+      if (layers.size() == 2) {
+        CHECK(layers[0].getBuffer() != nullptr);
+        CHECK(layers[1].getBuffer() != nullptr);
+        if (layers[0].getBuffer()) CHECK_NEAR(layers[0].getBuffer()->getChannelData(0)[0], 0.25f, 1e-5f);
+        if (layers[1].getBuffer()) CHECK_NEAR(layers[1].getBuffer()->getChannelData(0)[0], 0.5f, 1e-5f);
+      }
+    }
+  }
+
+  fs::remove(scratch_path);
+  fs::remove_all(scratch_samples_dir);
+}
+
 // A SampleTrack's own background bed (Section::getOrCreateSampleBackgroundContent(),
 // written by mergeClipToBackground()) round-trips through save/load the
 // same way a real clip's own audio does - a sidecar .wav plus a

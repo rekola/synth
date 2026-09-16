@@ -64,6 +64,7 @@ add_library(synth_engine STATIC
 	src/instruments/SoundFont.cpp
 	src/instruments/SF2Modulator.cpp
 	src/model/Song.cpp
+	src/model/Clip.cpp
 	src/model/SongObject.cpp
 	src/model/LeafTrack.cpp
 	src/model/InstrumentTrack.cpp

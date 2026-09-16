@@ -3,6 +3,7 @@
 
 #include "LeafTrack.h"
 
+#include <cstdint>
 #include <memory>
 
 class SongStructure;
@@ -65,6 +66,20 @@ struct RealtimeSampleAudio {
 // that step has no real-time path of its own yet (docs/known_bugs.md),
 // so its synchronous cost isn't something this function fixes.
 RealtimeSampleAudio resolveRealtimeSampleAudio(const SampleContent & content, int output_rate, int song_tempo);
+
+// Additively mixes frame_count frames of `source` into `dest`'s own
+// channel-0 buffer starting at dest_offset frames in, growing/zero-filling
+// it first if it doesn't yet reach that far - the same lazy-growth shape
+// a section's own background Pattern already has (its row-keyed content is
+// only ever created on first write, never pre-sized). `gain` is a plain
+// per-call multiplier, not (yet) anything Clip/Section stores anywhere -
+// every call site today passes 1.0 (a real per-instance loudness/velocity
+// concept doesn't exist yet). Shared by ArrangementOps.cpp's own
+// mergeClipToBackground() (baking a clip into a section's background bed)
+// and Clip::rebuildMixedContent() (baking an overdubbed clip's own layers
+// down to one playable composite) - the same "sum real audio into a
+// SampleContent's own buffer" primitive either way.
+void mixIntoSampleContent(SampleContent & dest, int output_rate, int64_t needed_frames, const float * source, int64_t frame_count, int64_t dest_offset, float gain);
 
 // A LeafTrack, not a plain Track - a recorded sample is positioned/muted/
 // soloed/sent the same way any other leaf track is (see LeafTrack.h's

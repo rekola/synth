@@ -52,38 +52,6 @@ placeStopInstance(Section & section, int track_id, int row) {
   section.setInstance(track_id, row, "OFF");
 }
 
-// Additively mixes frame_count frames of `source` into `background`'s own
-// channel-0 buffer starting at dest_offset frames in, growing/zero-filling
-// it first if it doesn't yet reach that far - the same lazy-growth shape
-// a section's own background Pattern already has (its row-keyed content is
-// only ever created on first write, never pre-sized). `gain` is a plain
-// per-call multiplier, not (yet) anything Clip/Section stores anywhere -
-// every call site today passes 1.0 (a real per-instance loudness/velocity
-// concept doesn't exist yet - see mergeClipToBackground()'s own comment).
-static void
-mixIntoSampleBackground(SampleContent & background, int output_rate, int64_t needed_frames, const float * source, int64_t frame_count, int64_t dest_offset, float gain) {
-  auto buffer = background.getBuffer();
-  if (!buffer) {
-    buffer = make_shared<AudioBuffer>(1, static_cast<int>(needed_frames));
-    buffer->zero();
-    background.setBuffer(buffer);
-    background.setNativeSampleRate(output_rate);
-  } else if (buffer->numberOfFrames() < needed_frames) {
-    auto old_frames = buffer->numberOfFrames();
-    buffer->resize(static_cast<int>(needed_frames));
-    auto data = buffer->getChannelData(0);
-    fill(data + old_frames, data + needed_frames, 0.0f);
-  }
-
-  auto dst = buffer->getChannelData(0);
-  auto dst_frames = buffer->numberOfFrames();
-  for (int64_t f = 0; f < frame_count; f++) {
-    auto dst_index = dest_offset + f;
-    if (dst_index < 0 || dst_index >= dst_frames) continue;
-    dst[dst_index] += source[f] * gain;
-  }
-}
-
 bool
 mergeClipToBackground(const Song & song, Section & section, int track_id, int row, const ChannelConfiguration & channel_config) {
   auto active = resolveInstanceAt(song, section, track_id, row);
@@ -93,7 +61,12 @@ mergeClipToBackground(const Song & song, Section & section, int track_id, int ro
   auto section_length = song.getEffectiveSectionLength(section);
 
   if (clip.hasSample()) {
-    auto & content = clip.getSampleContent();
+    // getMixedContent() - layer 0 directly for the overwhelming majority
+    // of (never-overdubbed) clips, or the pre-mixed sum of every layer
+    // once there's more than one (Clip.h's own comment) - either way,
+    // exactly what a listener actually hears from this clip, so it's
+    // what gets baked into the background bed too.
+    auto & content = clip.getMixedContent();
     auto output_rate = channel_config.getAudioOutSampleRate();
     auto song_tempo = song.getTempo();
     auto resolved = resolveSampleAudio(content, output_rate, song_tempo);
@@ -125,7 +98,7 @@ mergeClipToBackground(const Song & song, Section & section, int track_id, int ro
       auto lap_span_frames = static_cast<int64_t>(lap_end_row - lap_start_row + 1) * sample_interval;
       auto frames_to_mix = min(src_frame_count, lap_span_frames);
       auto dest_offset = static_cast<int64_t>(lap_start_row) * sample_interval;
-      mixIntoSampleBackground(background, output_rate, needed_frames, src, frames_to_mix, dest_offset, 1.0f);
+      mixIntoSampleContent(background, output_rate, needed_frames, src, frames_to_mix, dest_offset, 1.0f);
       if (!clip.isLooping()) break;
     }
   } else {

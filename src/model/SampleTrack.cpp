@@ -6,6 +6,7 @@
 #include "../dsp/Resampler.h"
 #include "../audio/TimeStretcher.h"
 
+#include <algorithm>
 #include <cmath>
 
 using namespace std;
@@ -277,6 +278,30 @@ resolveRealtimeSampleAudio(const SampleContent & content, int output_rate, int s
 }
 
 void
+mixIntoSampleContent(SampleContent & dest, int output_rate, int64_t needed_frames, const float * source, int64_t frame_count, int64_t dest_offset, float gain) {
+  auto buffer = dest.getBuffer();
+  if (!buffer) {
+    buffer = make_shared<AudioBuffer>(1, static_cast<int>(needed_frames));
+    buffer->zero();
+    dest.setBuffer(buffer);
+    dest.setNativeSampleRate(output_rate);
+  } else if (buffer->numberOfFrames() < needed_frames) {
+    auto old_frames = buffer->numberOfFrames();
+    buffer->resize(static_cast<int>(needed_frames));
+    auto data = buffer->getChannelData(0);
+    fill(data + old_frames, data + needed_frames, 0.0f);
+  }
+
+  auto dst = buffer->getChannelData(0);
+  auto dst_frames = buffer->numberOfFrames();
+  for (int64_t f = 0; f < frame_count; f++) {
+    auto dst_index = dest_offset + f;
+    if (dst_index < 0 || dst_index >= dst_frames) continue;
+    dst[dst_index] += source[f] * gain;
+  }
+}
+
+void
 SampleTrackState::triggerVoice(const SampleContent & content, int song_tempo, int start_offset_frames, int voice_id) {
   auto output_rate = getChannelConfiguration().getAudioOutSampleRate();
   auto resolved = resolveRealtimeSampleAudio(content, output_rate, song_tempo);
@@ -324,7 +349,11 @@ SampleTrackState::triggerVoice(const SampleContent & content, int song_tempo, in
 
 void
 SampleTrackState::triggerClip(const Clip & clip, int song_tempo, int start_offset_frames) {
-  triggerVoice(clip.getSampleContent(), song_tempo, start_offset_frames, kClipVoiceId);
+  // getMixedContent() - layer 0 directly for the overwhelming majority
+  // of (never-overdubbed) clips, or the pre-mixed sum of every layer once
+  // there's more than one - never anything computed here, on the audio
+  // thread; see its own comment for why.
+  triggerVoice(clip.getMixedContent(), song_tempo, start_offset_frames, kClipVoiceId);
 }
 
 unique_ptr<TrackState>

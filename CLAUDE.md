@@ -496,8 +496,22 @@ whether or not a terminal UI exists at all.
   `Command`'s own chain-position digit, reserved for this but not
   implemented beyond the track's own chain position (`0`) yet - a clip
   will never need a second track's worth of content the way a Section's
-  own per-track content does, so this is already shaped for that).
-  Editing a clip through any
+  own per-track content does, so this is already shaped for that). A
+  `SampleTrack`'s own clip carries raw audio instead, via one or more
+  `SampleContent` layers (`Clip::getSampleLayers()`, a `std::deque` so an
+  existing layer's own address survives a later append - `SongState.h`'s
+  own render-time pending-sample-start path keeps a raw pointer to one
+  alive across a render block) rather than a `Pattern` - overdubbing a
+  `SampleTrack` clip (`Controller::beginSampleCapture()`) appends a new
+  layer rather than replacing what's there, the same "always merges
+  rather than replaces" precedent note-based overdub above already
+  settled; a single-take clip (the overwhelming majority) has exactly one
+  layer, and `getSampleContent()` is the layer-0 convenience every such
+  call site still uses unchanged. What actually plays is
+  `Clip::getMixedContent()` - layer 0 directly with at most one layer, or
+  a cached, pre-mixed sum of every layer rebuilt off the audio thread
+  (`Clip::rebuildMixedContent()`, `Clip.cpp`) once a take's audio is
+  final, never computed live on a trigger. Editing a clip through any
   one of its placements (`ArrangementOps.h`'s `placeClipInstance()`/
   `resolveInstanceAt()`, see `ArrangementGrid` below) updates every other
   placement of it immediately - unlike a section's own inline Pattern
@@ -520,7 +534,13 @@ whether or not a terminal UI exists at all.
   sibling to `<tracks>`/`<sections>` (`<trackClips track="..."><clip
   id="..." name="..." loop="..." length="..."><pattern>...</pattern>
   </clip></trackClips>`, one `<trackClips>` per track; an empty filler
-  round-trips as a `<clip>` with no `<pattern>` child at all). Authored
+  round-trips as a `<clip>` with no `<pattern>` child at all). A
+  `SampleTrack` clip's `<clip>` holds one `<sample file="...">` child per
+  layer instead, in take order - a single-layer clip (an old file
+  included) is just the size-1 case of the same reader loop - each
+  layer's own sidecar `.wav` named by `sampleSidecarPath()`'s per-layer
+  suffix (`<clip-id>.wav` for layer 0, `<clip-id>_2.wav`/`_3.wav`/... for
+  each later overdub). Authored
   in-app via `PatternEditor::copyToClip()` (extracts the current
   pattern-editor selection into a new clip), not hand-edited-XML-only.
 - **Session view** (`GridMode::SESSION`, reached/left only via CC95/96/97/98,

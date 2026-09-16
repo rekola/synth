@@ -417,7 +417,12 @@ class SongState : public TrackState {
 		// being called more than once.
 		if (active.clip_index != previous_clip_index || is_new_lap || row_just_resumed_playback) {
 		  auto start_offset_frames = rows_into_lap * getChannelConfiguration().getSampleInterval(tempo_);
-		  render_context_.addPendingSampleStart(track_id, i, &clip.getSampleContent(), start_offset_frames, false);
+		  // getMixedContent(), not getSampleContent() - an overdubbed
+		  // clip triggered from the arrangement timeline has to sound
+		  // every layer, the same composite SampleTrackState::
+		  // triggerClip()'s own Session-view path already plays (see
+		  // its own comment for why this is never computed here).
+		  render_context_.addPendingSampleStart(track_id, i, &clip.getMixedContent(), start_offset_frames, false);
 		}
 
 		// A one-shot clip's own real audio can outlast the section

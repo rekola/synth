@@ -531,16 +531,19 @@ private:
   static inline std::vector<Clip> empty_clips_;
 };
 
-// The sidecar .wav path a SampleTrack clip's own audio reads from/writes
-// to - `<song-stem>.samples/<clip-id>.wav`, sibling to the song file
-// itself. `song_filename` is relative or absolute exactly like
-// Song::open()/save()'s own `filename` parameter; `clip_id` alone already
-// names the file unambiguously (Song::generateUniqueClipId() is unique
-// across the whole song, not just one track's own clip list). Shared by
-// Song.cpp's own clip reader/writer and ArrangementOps.cpp's deleteClip()
-// (orphan sidecar cleanup), so the naming convention can't drift between
-// the two.
-std::string sampleSidecarPath(const std::string & song_filename, const std::string & clip_id);
+// The sidecar .wav path one layer of a SampleTrack clip's own audio reads
+// from/writes to - `<song-stem>.samples/<clip-id>.wav` for layer 0,
+// `<song-stem>.samples/<clip-id>_<layer_index + 1>.wav` for every later
+// overdub layer, sibling to the song file itself. `song_filename` is
+// relative or absolute exactly like Song::open()/save()'s own `filename`
+// parameter; `clip_id` alone already names layer 0's own file
+// unambiguously (Song::generateUniqueClipId() is unique across the whole
+// song, not just one track's own clip list) - layer 0 keeps the plain,
+// suffix-less name a single-layer clip has always used, so an existing
+// song's sidecar files don't get renamed out from under it the moment
+// this function gained multi-layer support. Used by Song.cpp's own clip
+// reader/writer.
+std::string sampleSidecarPath(const std::string & song_filename, const std::string & clip_id, int layer_index);
 
 #endif
 
