@@ -1032,6 +1032,23 @@ LaunchpadManager::handleDrawToggleButton(int device_id, Controller & controller,
 }
 
 bool
+LaunchpadManager::handleShiftButton(int device_id, bool is_press) {
+  auto & state = deviceState(device_id);
+  if (is_press) {
+    // A fresh hold - nothing combined with it yet. handleSessionPadEvent()
+    // flips row_up_shift_combined the moment a pad press actually uses
+    // this held state to open a clip instead of triggering it.
+    state.row_up_shift_held = true;
+    state.row_up_shift_combined = false;
+    return false; // never fires "move-row-up" on press - see this method's own comment
+  }
+  state.row_up_shift_held = false;
+  auto fire = !state.row_up_shift_combined;
+  state.row_up_shift_combined = false;
+  return fire;
+}
+
+bool
 LaunchpadManager::isTrackPickerRow(int device_id, int y) const {
   auto * state = findDeviceState(device_id);
   return state && state->track_picker_active && y == LAUNCHPAD_TRACK_PICKER_ROW;
@@ -1816,7 +1833,33 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
 
   // Same y-flip as refresh()'s own session_colors computation - y=0 is
   // the bottom-left pad, so y=7 is that track's first clip.
-  triggerSessionClip(controller, track_id, 7 - ev.getY());
+  auto clip_index = 7 - ev.getY();
+
+  // CC91 ("move-row-up") held as a shift modifier opens this pad's own
+  // clip for direct step-grid editing instead of triggering/assigning it
+  // - see DeviceState::row_up_shift_held's own comment. Works regardless
+  // of Record Arm/this track's own armed state, unlike an ordinary
+  // Session-view press - it's a completely different physical gesture
+  // (a distinct button combo), not competing with whatever a plain press
+  // on this same pad already means while armed. Controller::
+  // toggleDrumClipFocus() itself reports back whether anything actually
+  // happened - false for any clip that isn't a step-sequenced
+  // PercussionTrack's own (nothing to open there), in which case this
+  // falls through to the ordinary meaning below rather than swallowing
+  // the press for nothing. Only reachable here, not from the step grid a
+  // successful open switches every device to - the same shift+pad combo
+  // closes it again only once back on the plain Session grid (CC95),
+  // since the step grid's own pads mean lane/step, not (track, clip
+  // index), and have nothing to shift-combine with at all.
+  auto & state = deviceState(ev.getDeviceIndex());
+  if (state.row_up_shift_held) {
+    if (controller.toggleDrumClipFocus(track_id, clip_index)) {
+      state.row_up_shift_combined = true;
+      return;
+    }
+  }
+
+  triggerSessionClip(controller, track_id, clip_index);
 }
 
 void

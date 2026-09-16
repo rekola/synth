@@ -279,45 +279,7 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     // note content instead - falls through to the plain note-capture arm
     // below like any other track.
     if (session_view_focused_ && session_view_track_id_ >= 0 && session_view_clip_index_ >= 0) {
-      auto & song = getSong();
-      auto * track = song.getMasterTrack().getChildByInternalId(session_view_track_id_);
-      if (track && track->getType() == TrackType::PERCUSSION_CONTROL && static_cast<PercussionTrack &>(*track).isStepSequenced()) {
-        auto & clips = song.getClips(session_view_track_id_);
-        if (session_view_clip_index_ < static_cast<int>(clips.size())) {
-          auto & existing = clips[static_cast<size_t>(session_view_clip_index_)];
-          if (getFocusedClipTrackId() == session_view_track_id_ && getFocusedClip() == existing.getId()) {
-            // Pressing Record Arm again on the clip already open for
-            // editing closes it instead of doing nothing - otherwise
-            // there'd be no way back to the track's own background
-            // pattern via this same gesture (resolveEditTarget()'s own
-            // no-focus fallback already handles that once nothing's
-            // focused) or to open a different clip's own slot instead.
-            clearFocusedClip();
-            if (drum_edit_requested_) drum_edit_requested_(session_view_track_id_, false);
-            return;
-          }
-          setFocusedClip(session_view_track_id_, existing.getId());
-        } else {
-          // Empty slot - lazily creates a fresh, empty, looping clip the
-          // same way ensureNoteRecordingClip() does for a brand new take,
-          // ready to have steps entered directly rather than needing a
-          // separate "new clip" gesture first - the same bar length as
-          // everything else in the song, not clamped to the connected
-          // Launchpad's own fixed 8-column grid: LaunchpadManager's own
-          // step-grid paging (DeviceState::drum_edit_page, see its own
-          // comment) is what lets a longer clip actually be seen/edited
-          // there, one 8-step window at a time (or several windows at
-          // once, split across multiple connected devices).
-          auto next_ordinal = clips.size() + 1;
-          auto & clip = song.addClip(Clip(session_view_track_id_));
-          clip.setName(fmt::format("Clip {}", next_ordinal));
-          clip.setLooping(true);
-          clip.setLength(std::max(1, song.getRowsPerBar()));
-          setFocusedClip(session_view_track_id_, clip.getId());
-        }
-        if (drum_edit_requested_) drum_edit_requested_(session_view_track_id_, true);
-        return;
-      }
+      if (toggleDrumClipFocus(session_view_track_id_, session_view_clip_index_)) return;
     }
 
     // Nothing armed - arm whatever the currently selected track actually
@@ -429,6 +391,51 @@ void
 Controller::stopFocusedClipPreview() {
   if (focused_clip_track_id_ < 0) return;
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_ALL_NOTES, getActiveBufferName(), focused_clip_track_id_));
+}
+
+bool
+Controller::toggleDrumClipFocus(int track_id, int clip_index) {
+  auto song = getCurrentSong();
+  if (!song) return false;
+  auto * track = song->getMasterTrack().getChildByInternalId(track_id);
+  if (!track || track->getType() != TrackType::PERCUSSION_CONTROL || !static_cast<PercussionTrack &>(*track).isStepSequenced()) return false;
+  if (clip_index < 0) return false;
+
+  auto & clips = song->getClips(track_id);
+  if (clip_index < static_cast<int>(clips.size())) {
+    auto & existing = clips[static_cast<size_t>(clip_index)];
+    if (getFocusedClipTrackId() == track_id && getFocusedClip() == existing.getId()) {
+      // Pressing this same gesture again on the clip already open for
+      // editing closes it instead of doing nothing - otherwise there'd be
+      // no way back to the track's own background pattern via this same
+      // gesture (resolveEditTarget()'s own no-focus fallback already
+      // handles that once nothing's focused) or to open a different
+      // clip's own slot instead.
+      clearFocusedClip();
+      if (drum_edit_requested_) drum_edit_requested_(track_id, false);
+      return true;
+    }
+    setFocusedClip(track_id, existing.getId());
+  } else {
+    // Past the track's own current clip list - lazily creates a fresh,
+    // empty, looping clip the same way ensureNoteRecordingClip() does for
+    // a brand new take, ready to have steps entered directly rather than
+    // needing a separate "new clip" gesture first - the same bar length
+    // as everything else in the song, not clamped to a connected
+    // Launchpad's own fixed 8-column grid: LaunchpadManager's own
+    // step-grid paging (DeviceState::drum_edit_page, see its own comment)
+    // is what lets a longer clip actually be seen/edited there, one
+    // 8-step window at a time (or several windows at once, split across
+    // multiple connected devices).
+    auto next_ordinal = clips.size() + 1;
+    auto & clip = song->addClip(Clip(track_id));
+    clip.setName(fmt::format("Clip {}", next_ordinal));
+    clip.setLooping(true);
+    clip.setLength(std::max(1, song->getRowsPerBar()));
+    setFocusedClip(track_id, clip.getId());
+  }
+  if (drum_edit_requested_) drum_edit_requested_(track_id, true);
+  return true;
 }
 
 void

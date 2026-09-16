@@ -38,6 +38,7 @@ gcc -o fake_launchpad_record_arm_holes fake_launchpad_record_arm_holes.c -lasoun
 gcc -o fake_launchpad_record_arm_wrong_track fake_launchpad_record_arm_wrong_track.c -lasound
 gcc -o fake_launchpad_record_arm_percussion fake_launchpad_record_arm_percussion.c -lasound
 gcc -o fake_launchpad_sampletrack_record_arm fake_launchpad_sampletrack_record_arm.c -lasound
+gcc -o fake_launchpad_shift_stepgrid fake_launchpad_shift_stepgrid.c -lasound
 gcc -o fake_launchpad_aftertouch_clip fake_launchpad_aftertouch_clip.c -lasound
 gcc -o fake_launchpad_mixer_hold fake_launchpad_mixer_hold.c -lasound
 ```
@@ -327,6 +328,24 @@ you're changing.
   `trimSessionRecordingClip()` call clears the record indicator
   unconditionally, which would mask a broken cancel gesture if the test
   ever finished by disarming through the picker before reading anything.
+- **`launchpad_shift_stepgrid_test.xml` / `fake_launchpad_
+  shift_stepgrid.c` / `verify_launchpad_shift_stepgrid.py`** - CC91
+  ("move-row-up") held as a shift modifier: holds it, presses a
+  Session-grid pad (opens that pad's own step-sequenced `PercussionTrack`
+  clip for direct editing instead of triggering it -
+  `Controller::toggleDrumClipFocus()`, `LaunchpadManager::
+  handleShiftButton()`/`handleSessionPadEvent()`), presses CC95 to get
+  back to the plain Session grid (opening switches every device to the
+  step grid, which has no pad-to-clip addressing of its own to
+  shift-combine with), then repeats the same shift+pad combo to close it
+  again. Verified through the terminal `SessionView` widget's own text
+  (the "*" focus marker `SessionView.cpp` already draws for whichever
+  clip is open for editing) at two points in one spawn - unlike the
+  SampleTrack record-arm script above, this gesture never touches real
+  audio/ALSA capture at all (pure Song/Controller state), so it isn't
+  expected to hit that same class of flakiness, and a mid-run read is
+  safe as long as it's timed comfortably inside the fixture's own
+  generous "waiting to be read" window between the two phases.
 - **`fake_launchpad_aftertouch_clip.c` / `verify_launchpad_aftertouch_clip.py`** -
   the "Clip-based note recording" path (`Controller::
   ensureNoteRecordingClip()`), not step entry: switches into NOTES grid

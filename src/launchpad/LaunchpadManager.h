@@ -370,6 +370,20 @@ class LaunchpadManager {
   // "toggle-record-arm" dispatch.
   bool handleDrawToggleButton(int device_id, Controller & controller, bool is_press);
 
+  // CC91 ("move-row-up") on its own press/release entry point, alongside
+  // handleDrawToggleButton() above - see DeviceState::row_up_shift_held's
+  // own comment for why a shift-combo needs press and release told apart
+  // the same way a tap-vs-hold gesture does. is_press true for a press,
+  // false for a release. handleSessionPadEvent() itself is what actually
+  // reacts to the held state (opening a clip's step grid instead of
+  // triggering it) - this method only tracks the modifier's own on/off
+  // state and reports whether "move-row-up" should still fire: true on a
+  // release where nothing was ever combined with it (a plain tap - never
+  // on press itself, since move-row-up never fires until release either
+  // way, avoiding ever having to undo it), false otherwise (every press,
+  // and a release that did combine with a pad).
+  bool handleShiftButton(int device_id, bool is_press);
+
   // True for the mixer radio group's own nine CC numbers (Volume/Pan/
   // Send A/Send B/Stop Clip/Mute/Solo, plus Pro MK3's left-column Mute/
   // Solo twins) - handleRawButton()'s own big dispatch condition reuses
@@ -873,6 +887,19 @@ class LaunchpadManager {
     // release can tell "enter DRAW mode" (grid_mode wasn't DRAW yet) apart
     // from "already in DRAW mode, clear the canvas instead".
     bool draw_toggle_was_already_active = false;
+
+    // CC91 ("move-row-up", printed with an up-arrow icon) doubles as a
+    // held modifier for opening a Session-view clip's own step grid
+    // directly (LaunchpadManager::handleShiftButton()) - a shift-clip
+    // combo, not a separate gesture of its own, so it needs press/release
+    // tracking the same reasoning CC98's own tap-vs-hold split already
+    // has: its own ordinary "move the pattern-editor cursor up a row"
+    // meaning has to keep firing on a plain tap (deferred to release, not
+    // fired on press, so a press that turns out to combine with a pad
+    // never has to be undone), but never fires at all once it's actually
+    // been combined with a pad press during this same hold.
+    bool row_up_shift_held = false;
+    bool row_up_shift_combined = false;
 
     // LED diff cache: refreshLeds() only calls sendLeds() when the newly
     // computed colors differ from what was last actually sent, so

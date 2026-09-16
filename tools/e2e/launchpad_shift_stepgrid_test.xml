@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Purpose-built for verify_launchpad_shift_stepgrid.py: a step-sequenced
+     PercussionTrack (two lanes, so it's actually step-sequenced -
+     PercussionTrack::isStepSequenced()) with one populated clip at
+     Session-view index 7 (pool indices 0-6 are empty fillers - pad (0,0)
+     maps to clip index 7, y=0 being the *bottom* row of the 8-row grid -
+     see LaunchpadManager::handleSessionPadEvent's own y-flip comment). -->
+<song temperament="12edo" tempo="120" patternRows="16">
+  <instruments>
+    <envelope attack="0.001" hold="0.05" decay="0.05" sustain="0.0" release="0.05">
+      <oscillator type="saw"/>
+    </envelope>
+  </instruments>
+  <tracks>
+    <percussionTrack id="0" instrument="0">
+      <lane note="BD"/>
+      <lane note="SD"/>
+    </percussionTrack>
+  </tracks>
+  <clips>
+    <trackClips track="0">
+      <clip name="p0" />
+      <clip name="p1" />
+      <clip name="p2" />
+      <clip name="p3" />
+      <clip name="p4" />
+      <clip name="p5" />
+      <clip name="p6" />
+      <clip name="Beat 1" loop="1" length="16">
+        <pattern>
+          <note row="0" velocity="80" value="BD" />
+        </pattern>
+      </clip>
+    </trackClips>
+  </clips>
+  <sections>
+    <section>
+    </section>
+  </sections>
+</song>

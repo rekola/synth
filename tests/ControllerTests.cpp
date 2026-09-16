@@ -1263,6 +1263,74 @@ TEST(toggle_record_arm_on_an_empty_drum_machine_slot_creates_a_clip) {
   CHECK(read_target.pattern != nullptr);
 }
 
+// Controller::toggleDrumClipFocus() called directly with a (track_id,
+// clip_index) pair - the Launchpad's own CC91-held-as-shift gesture
+// (LaunchpadManager::handleSessionPadEvent()) reaches it this way, never
+// through session_view_focused_/setSessionViewCursor() the way
+// "toggle-record-arm" above does - same underlying open/close behavior,
+// exercised through the other entry point.
+TEST(toggle_drum_clip_focus_direct_call_opens_and_closes_a_clip) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+
+  auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(std::make_unique<PercussionTrack>()));
+  track.addLane(36);
+  auto track_id = track.getInternalId();
+  auto & existing = song.addClip(Clip(track_id));
+  existing.setName("Beat 1");
+  auto existing_id = existing.getId();
+
+  int requested_track_id = -1;
+  bool requested_opened = false;
+  controller.setDrumEditRequestListener([&](int id, bool opened) { requested_track_id = id; requested_opened = opened; });
+
+  CHECK(controller.toggleDrumClipFocus(track_id, 0));
+  CHECK(controller.getFocusedClipTrackId() == track_id);
+  CHECK(controller.getFocusedClip() == existing_id);
+  CHECK(requested_track_id == track_id);
+  CHECK(requested_opened);
+
+  // Same clip again - closes it, same as a second "toggle-record-arm"
+  // press does.
+  CHECK(controller.toggleDrumClipFocus(track_id, 0));
+  CHECK(controller.getFocusedClipTrackId() == -1);
+  CHECK(controller.getFocusedClip().empty());
+  CHECK(!requested_opened);
+}
+
+// A no-op (false, nothing focused, no listener call) for anything that
+// isn't a step-sequenced PercussionTrack's own clip - lets a caller like
+// LaunchpadManager::handleSessionPadEvent() fall back to its own ordinary
+// meaning for the gesture instead of silently swallowing the press.
+TEST(toggle_drum_clip_focus_is_a_no_op_off_a_step_sequenced_percussion_clip) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+
+  auto & note_track = song.addTrack(std::make_unique<InstrumentTrack>(0));
+  auto note_track_id = note_track.getInternalId();
+  song.addClip(Clip(note_track_id));
+
+  bool listener_called = false;
+  controller.setDrumEditRequestListener([&](int, bool) { listener_called = true; });
+
+  CHECK(!controller.toggleDrumClipFocus(note_track_id, 0));
+  CHECK(controller.getFocusedClipTrackId() == -1);
+  CHECK(!listener_called);
+
+  // A lane-less PercussionTrack is just as much a no-op - it has no step
+  // grid to open at all.
+  auto & lane_less = song.addTrack(std::make_unique<PercussionTrack>());
+  auto lane_less_id = lane_less.getInternalId();
+  song.addClip(Clip(lane_less_id));
+  CHECK(!controller.toggleDrumClipFocus(lane_less_id, 0));
+  CHECK(controller.getFocusedClipTrackId() == -1);
+  CHECK(!listener_called);
+}
+
 // Any other track type keeps Record Arm's ordinary behavior even while
 // Session View focused - the repurposing is drum-machine-only. Arming
 // itself starts nothing - it only marks the track ready; a take begins

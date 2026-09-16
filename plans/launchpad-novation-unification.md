@@ -766,23 +766,41 @@
    request.** Two related gaps left by the step-grid-only-edits-a-clip
    fix above:
 
-   - **A Launchpad-only way to open a clip's own step grid.** Today the
-     only route in is terminal-driven ("toggle-record-arm"/Ctrl-X r while
-     the `SessionView` widget has focus, `Controller.cpp`'s own drum-
-     machine-track repurposing) - there's no equivalent gesture on the
-     Launchpad itself. Which gesture should own this isn't decided yet:
-     candidates include a long-hold on a Session-view pad (parallel to
-     CC98's own tap-vs-hold split elsewhere in this file), a fourth
-     `TrackPickerPurpose` alongside Stop Clip/Mute/Solo/Record Arm, or
-     folding it into CC97's existing lane-picker entry point somehow
-     (today exclusively for adding/removing lanes) - each has its own
-     conflicts to work out (a plain Session-view pad press already means
-     trigger/assign; the track-picker row already addresses tracks, not
-     individual clips within one). Whatever it ends up being has to reach
-     `Controller::setFocusedClip()`/`clearFocusedClip()` the same way the
-     terminal gesture does, including the same "closes on a second press,
-     forces every connected device's own display to agree" behavior
-     (`TerminalUI.cpp`'s own drum-edit-request listener).
+   - **A Launchpad-only way to open a clip's own step grid - shipped.**
+     CC91 ("move-row-up", printed with an up-arrow icon) doubles as a
+     held shift modifier: pressing a Session-view pad while it's held
+     opens that pad's own clip for direct step-grid editing instead of
+     triggering/assigning it (`LaunchpadManager::handleShiftButton()`/
+     `handleSessionPadEvent()`'s own comment), the same gesture on the
+     same pad again closes it. Reached the shared logic behind the
+     terminal's own "toggle-record-arm" drum-machine repurposing by
+     extracting it into a new, standalone `Controller::
+     toggleDrumClipFocus(track_id, clip_index)` (returns false, a pure
+     no-op, for anything that isn't a step-sequenced `PercussionTrack`
+     clip), called from both places now. CC91's own ordinary "move the
+     pattern-editor cursor up a row" meaning still fires on a plain tap -
+     deferred to release rather than press (`DeviceState::
+     row_up_shift_held`/`row_up_shift_combined`), so a press that turns
+     out to combine with a pad never has to be undone; press/release
+     tracking needed factoring the button-dispatch pipeline in
+     `TerminalUI::handleLaunchpadButtonEvent()` into a small reusable
+     `dispatch_named_command` lambda, reachable from both the ordinary
+     press-driven call site and CC91's own deferred-release one. Works
+     the same regardless of Record Arm/the track's own armed state - a
+     genuinely different physical gesture (button combo), not competing
+     with whatever a plain press on the same pad already means while
+     armed, unlike the note-based per-track record-arm mechanism above.
+     Only reachable from the plain Session grid, not from the step grid a
+     successful open switches every device to (`forceNotesModeOnAllDevices()`)
+     - the step grid's own pads mean lane/step, not (track, clip index),
+     so closing the same clip needs a CC95 press back to Session first.
+     Covered by `tools/e2e/verify_launchpad_shift_stepgrid.py`, verified
+     through the terminal `SessionView` widget's own text (the "*" focus
+     marker `SessionView.cpp` already draws) - this gesture never touches
+     real audio/ALSA capture at all (pure Song/Controller state), so it
+     doesn't hit the sandboxed-environment LED-read flakiness documented
+     for `verify_launchpad_stopclip.py` (`docs/known_bugs.md`) the way a
+     `SampleTrack`'s own record-arm gesture does.
    - **The step sequencer is `PercussionTrack`-only today.** Its lanes are
      each keyed to one specific GM drum note (`PercussionTrack::
      getLaneNotes()`/`addLane()`/`removeLane()`, picked via the CC97 lane

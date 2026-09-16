@@ -698,6 +698,20 @@ class Controller {
     focused_clip_track_id_ = track_id;
     focused_clip_id_ = clip_id;
   }
+  // Opens (or, if already open, closes) a step-sequenced PercussionTrack's
+  // own clip for direct step-grid editing - the shared logic behind both
+  // "toggle-record-arm"'s own Session-View-focused drum-machine
+  // repurposing and the Launchpad's own CC91-held-as-shift gesture
+  // (LaunchpadManager::handleSessionPadEvent()'s own comment). `clip_index`
+  // past the track's own current clip list lazily creates a fresh, empty,
+  // looping clip there instead (the same "new take" convenience
+  // ensureNoteRecordingClip() already gives a live take), ready to have
+  // steps entered directly. Returns false (a pure no-op, nothing opened or
+  // closed) when `track_id`/`clip_index` don't actually address a
+  // step-sequenced PercussionTrack clip at all - a caller can fall back to
+  // its own ordinary meaning for whatever gesture reached this.
+  bool toggleDrumClipFocus(int track_id, int clip_index);
+
   void clearFocusedClip() {
     stopFocusedClipPreview();
     focused_clip_track_id_ = -1;

@@ -2770,6 +2770,44 @@ TerminalUI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
 
   auto device_id = ev.getDeviceIndex();
 
+  // Resolves and dispatches whatever command a raw CC number names
+  // (LaunchpadProtocol::commandForButton()) - factored out since CC91's
+  // own deferred shift-tap below (handleShiftButton()'s own comment)
+  // needs to reach this exact same path from a release event instead of
+  // the ordinary press-driven call site further down.
+  auto dispatch_named_command = [&](int cc_number) {
+    auto name = LaunchpadProtocol::commandForButton(cc_number);
+    if (!name) return;
+
+    // Emacs prefix-argument style: resolve which track_id this specific
+    // physical device currently targets and stash it as a one-shot
+    // transient on Controller before dispatching - "toggle-mute" (and any
+    // future command that cares) reads-and-clears it, falling back to the
+    // shared cursor's own track otherwise (see PatternEditor's constructor,
+    // Controller::consumePendingCommandTrack). Harmless to set
+    // unconditionally, even for commands that never consume it (octave-up,
+    // next-track, ...) - it's a one-shot value, overwritten or cleared by
+    // the very next dispatch either way, so it can never leak into a later,
+    // unrelated command.
+    auto track_ids = getController().getSong().getPlayableTrackIds();
+    getController().setPendingCommandTrack(launchpad_manager_->resolveTrackId(device_id, track_ids, indexOfTrack(track_ids, getController().getSong().getCurrentTrackId())));
+
+    // Pure per-device commands (octave/track-follow - no Song/Track access,
+    // no keyboard/M-x equivalent) go through LaunchpadManager's own entry
+    // point first; everything else (Song/Track-mutating commands like
+    // "toggle-mute", or anything else registered anywhere) falls through to
+    // the exact same executeCommand() a keybinding or M-x invocation uses.
+    // Deliberately bypassing active_element_/Controller::sendCommand's focus
+    // routing either way, to match how pad input already reaches
+    // PatternEditor unconditionally (see handleLaunchpadPadEvent above) -
+    // these would otherwise silently no-op whenever some other window
+    // happens to have focus.
+    bool handled = launchpad_manager_->handleCommand(*name, device_id, indexOfTrack(track_ids, getController().getSong().getCurrentTrackId()), static_cast<int>(track_ids.size()), getController());
+    if (!handled) handled = executeCommand(*name);
+
+    getController().setPendingCommandTrack(-1);
+  };
+
   // CC98 ("Capture MIDI") needs press and release, not just press - its
   // own tap-vs-long-hold gesture (LaunchpadManager::
   // handleDrawToggleButton()): a quick tap toggles Record Arm, a long hold
@@ -2780,6 +2818,20 @@ TerminalUI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   // by handleRawButton() alongside Session/Note below.
   if (ev.getCCNumber() == 98) {
     launchpad_manager_->handleDrawToggleButton(device_id, getController(), ev.getKind() == LaunchpadButtonEvent::PRESS);
+    return;
+  }
+
+  // CC91 ("move-row-up") doubles as a held shift modifier for opening a
+  // Session-view clip's own step grid directly instead of triggering it
+  // (LaunchpadManager::handleShiftButton(), DeviceState::
+  // row_up_shift_held's own comment) - needs press and release too, same
+  // reasoning as CC98 above: nothing about a shift-combo can be decided
+  // from a press alone. handleShiftButton() itself decides whether
+  // "move-row-up" should still fire (a plain tap, nothing combined) -
+  // deferred to here, its release, rather than commandForButton()'s own
+  // ordinary press-driven call site further down.
+  if (ev.getCCNumber() == 91) {
+    if (launchpad_manager_->handleShiftButton(device_id, ev.getKind() == LaunchpadButtonEvent::PRESS)) dispatch_named_command(91);
     return;
   }
 
@@ -2806,36 +2858,7 @@ TerminalUI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   // LaunchpadManager::handleRawButton's own comment.
   if (launchpad_manager_->handleRawButton(ev.getCCNumber(), device_id, getController())) return;
 
-  auto name = LaunchpadProtocol::commandForButton(ev.getCCNumber());
-  if (!name) return;
-
-  // Emacs prefix-argument style: resolve which track_id this specific
-  // physical device currently targets and stash it as a one-shot
-  // transient on Controller before dispatching - "toggle-mute" (and any
-  // future command that cares) reads-and-clears it, falling back to the
-  // shared cursor's own track otherwise (see PatternEditor's constructor,
-  // Controller::consumePendingCommandTrack). Harmless to set
-  // unconditionally, even for commands that never consume it (octave-up,
-  // next-track, ...) - it's a one-shot value, overwritten or cleared by
-  // the very next dispatch either way, so it can never leak into a later,
-  // unrelated command.
-  auto track_ids = getController().getSong().getPlayableTrackIds();
-  getController().setPendingCommandTrack(launchpad_manager_->resolveTrackId(device_id, track_ids, indexOfTrack(track_ids, getController().getSong().getCurrentTrackId())));
-
-  // Pure per-device commands (octave/track-follow - no Song/Track access,
-  // no keyboard/M-x equivalent) go through LaunchpadManager's own entry
-  // point first; everything else (Song/Track-mutating commands like
-  // "toggle-mute", or anything else registered anywhere) falls through to
-  // the exact same executeCommand() a keybinding or M-x invocation uses.
-  // Deliberately bypassing active_element_/Controller::sendCommand's focus
-  // routing either way, to match how pad input already reaches
-  // PatternEditor unconditionally (see handleLaunchpadPadEvent above) -
-  // these would otherwise silently no-op whenever some other window
-  // happens to have focus.
-  bool handled = launchpad_manager_->handleCommand(*name, device_id, indexOfTrack(track_ids, getController().getSong().getCurrentTrackId()), static_cast<int>(track_ids.size()), getController());
-  if (!handled) handled = executeCommand(*name);
-
-  getController().setPendingCommandTrack(-1);
+  dispatch_named_command(ev.getCCNumber());
 }
 
 void

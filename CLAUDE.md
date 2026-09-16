@@ -400,7 +400,14 @@ whether or not a terminal UI exists at all.
   entirely (see its own bullet below) - but a long hold on it is still
   the only way into DRAW, and still the only way out of DRAW is selecting
   one of 95/96/97. 91/92/93/94 are move-row-up/down/prev-track/next-track
-  (named commands, via `LaunchpadProtocol::commandForButton()`).
+  (named commands, via `LaunchpadProtocol::commandForButton()`). 91 doubles
+  as a held shift modifier for opening a Session-view clip's own step
+  grid directly (see the drum machine bullet below) - its own ordinary
+  meaning still fires on a plain tap, just deferred to release rather
+  than press (`LaunchpadManager::handleShiftButton()`, `DeviceState::
+  row_up_shift_held`) so a press that turns out to combine with a pad
+  never has to be undone; 92/93/94 are unaffected, still firing
+  immediately on press.
   19/89/79/69/59/49/39/29 (Record Arm/Volume/Pan/Send A/Send B/Stop Clip/
   Mute/Solo, plus Pro MK3 left-column twins 30/20 for Mute/Solo) are the
   real Launchpad X's own right-column "Track control" group, all eight
@@ -462,20 +469,29 @@ whether or not a terminal UI exists at all.
   (`Controller::getFocusedClipTrackId()`) - never the section's own
   background `Pattern`, which has no pagination and spans the whole
   scene, far more than this fixed grid (even split across several
-  connected devices) could ever show meaningfully. Opening a clip is a
-  terminal-driven action ("toggle-record-arm"/Ctrl-X r while the
+  connected devices) could ever show meaningfully. Opening a clip is
+  reachable two ways, both funneled through the same shared
+  `Controller::toggleDrumClipFocus(track_id, clip_index)`: the
+  terminal-driven one ("toggle-record-arm"/Ctrl-X r while the
   `SessionView` widget has focus, `Controller.cpp`'s own drum-machine-
-  track repurposing) - it forces every connected Launchpad into `NOTES`
-  mode showing that clip's own step grid automatically, regardless of
-  whatever `GridMode` each was in (`TerminalUI.cpp`'s own drum-edit-
-  request listener, `LaunchpadManager::forceNotesModeOnAllDevices()`); a
-  second press on the same clip closes it and returns every device to
-  Session view. Merely navigating the shared cursor onto a step-sequenced
-  `PercussionTrack` (or recording into it - see the Multi-track Record
-  Arm bullet below) does *not* by itself show the step grid - both fall
-  through to ordinary free-drumming pad entry instead, same as a
-  lane-less `PercussionTrack` always does; there is currently no
-  Launchpad-only gesture to open a clip for step editing. CC97 ("Custom")
+  track repurposing), and a Launchpad-only gesture - holding CC91
+  ("move-row-up", printed with an up-arrow icon) as a shift modifier and
+  pressing a Session-view pad opens that pad's own clip instead of
+  triggering/assigning it, the same combo on the same pad again closes it
+  (`LaunchpadManager::handleShiftButton()`/`handleSessionPadEvent()`).
+  Either way, opening forces every connected Launchpad into `NOTES` mode
+  showing that clip's own step grid automatically, regardless of whatever
+  `GridMode` each was in (`TerminalUI.cpp`'s own drum-edit-request
+  listener, `LaunchpadManager::forceNotesModeOnAllDevices()`); closing
+  returns every device to Session view. The shift+pad gesture only
+  reaches a pad actually showing the plain Session grid - the step grid a
+  successful open switches every device to has no (track, clip index)
+  addressing of its own to shift-combine with, so closing the same clip
+  needs a CC95 press back to Session first. Merely navigating the shared
+  cursor onto a step-sequenced `PercussionTrack` (or recording into it -
+  see the Multi-track Record Arm bullet below) does *not* by itself show
+  the step grid - both fall through to ordinary free-drumming pad entry
+  instead, same as a lane-less `PercussionTrack` always does. CC97 ("Custom")
   launches the lane picker directly (`GridMode::
   CUSTOM`, gated on the assigned track being a `PercussionTrack` at
   all, any lane count - this is how a lane-less track gains its first
@@ -716,7 +732,12 @@ whether or not a terminal UI exists at all.
   than LED bytes, since a genuinely armed take also engages real ALSA
   capture logic and hits the same class of sandboxed-environment LED-read
   flakiness documented for `verify_launchpad_stopclip.py`
-  (`docs/known_bugs.md`). Every e2e script spawns `synth`
+  (`docs/known_bugs.md`). `verify_launchpad_shift_stepgrid.py` covers
+  CC91-held-as-shift's own gesture (see the drum machine bullet above) -
+  opening and closing a step-sequenced `PercussionTrack` clip's step grid
+  from Session view - verified the same terminal-text way (the "*" focus
+  marker), though this one never touches real audio/ALSA at all so it
+  isn't expected to hit that same flakiness. Every e2e script spawns `synth`
   with `SYNTH_LAUNCHPAD_NO_HARDWARE=1` (`tools/e2e/harness.py`'s own
   `spawn()`) so it only ever connects to the fake simulator it's actually
   testing, never any real Launchpad hardware also plugged into the same
