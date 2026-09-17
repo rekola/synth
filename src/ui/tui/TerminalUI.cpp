@@ -33,6 +33,8 @@
 #include "../../playback/LogEvent.h"
 #include "../../playback/RecordEvent.h"
 #include "../../playback/RecordingLatencyEvent.h"
+#include "../../model/ArrangementOps.h"
+#include "../../audio/AudioBuffer.h"
 #include "../../playback/ThresholdRecordingTriggeredEvent.h"
 #include "../../playback/PlaybackControlEvent.h"
 #include "../../playback/AudioBlockEvent.h"
@@ -2694,18 +2696,50 @@ TerminalUI::handleThresholdRecordingTriggeredEvent(ThresholdRecordingTriggeredEv
 
   // This is where a threshold-triggered take actually begins, as if it
   // had been recording this whole time - startRecording() first (a fresh
-  // current_sample), then the ring buffer's own already-captured lead-in
-  // prepended into it, then the snapshotted (backdated - see the event's
-  // own comment) start position armed for beginSampleCapture() to place
-  // at.
+  // current_sample), then (for an ordinary, non-Session-View take - see
+  // below) a bar-quantized start row is derived and any gap it opens up
+  // is filled with real silence, then the ring buffer's own already-
+  // captured lead-in is appended, then the (possibly quantized) start
+  // position is armed for beginSampleCapture() to place at.
   getController().startRecording();
-  getController().addToSample(ev.getPreroll());
+
   // Never for a Session View take (isSessionRecording(track_id)) - that
   // populates a clip slot directly with no arrangement position at all,
-  // so there's nothing here to snapshot; beginSampleCapture() already
-  // treats recording_start_section_'s own untouched -1 default as "stays
-  // unplaced."
-  if (!getController().isSessionRecording(ev.getTrackId())) getController().armRecordingStart(ev.getSection(), ev.getRow());
+  // so there's nothing here to quantize or snapshot; beginSampleCapture()
+  // already treats recording_start_section_'s own untouched -1 default as
+  // "stays unplaced."
+  bool is_session_recording_take = getController().isSessionRecording(ev.getTrackId());
+  auto start_row = ev.getRow();
+  if (!is_session_recording_take) {
+    // Bar-quantized the same way ensureNoteRecordingClip() already
+    // quantizes a brand-new live-recorded clip's own origin - rounded
+    // back (previousBarRow()), never forward, so the take's own true
+    // first frame is never placed later than it was actually captured.
+    // Unlike a note's own row (just recomputed relative to the clip's
+    // new, earlier origin, preserving its real timing automatically), a
+    // SampleTrack clip's raw audio has no such per-frame repositioning -
+    // so the gap between the quantized bar and the true (backdated)
+    // onset is filled with that many frames of real silence up front
+    // instead, keeping the captured content's own timing exactly where
+    // it was actually performed rather than shifting the whole take
+    // earlier to the bar.
+    auto & song = getController().getSong();
+    auto rows_per_bar = std::max(1, song.getRowsPerBar());
+    auto quantized_row = previousBarRow(ev.getRow(), rows_per_bar);
+    auto gap_rows = ev.getRow() - quantized_row;
+    if (gap_rows > 0) {
+      auto gap_frames = gap_rows * getController().getChannelConfiguration().getSampleInterval(song.getTempo());
+      if (gap_frames > 0) {
+        AudioBuffer silence(1, gap_frames);
+        silence.zero();
+        getController().addToSample(silence);
+      }
+    }
+    start_row = quantized_row;
+  }
+
+  getController().addToSample(ev.getPreroll());
+  if (!is_session_recording_take) getController().armRecordingStart(ev.getSection(), start_row);
   getController().beginSampleCapture(ev.getTrackId());
   getController().clearThresholdArmed();
 }

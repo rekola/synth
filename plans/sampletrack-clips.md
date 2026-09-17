@@ -42,7 +42,16 @@ tested, and committed unless a section says otherwise.
     Record Arm starts the transport for real and buffers mic input into a
     pre-roll ring; once loudness crosses a threshold, the clip starts with
     the ring's own content spliced onto its front and its placement
-    backdated to match.
+    backdated to match. For an ordinary (non-Session-View) take, that
+    backdated placement is then bar-quantized (`previousBarRow()`, same
+    convention `ensureNoteRecordingClip()` already uses for a brand-new
+    live-recorded clip's own origin) - the gap between the quantized bar
+    and the true onset is filled with that many frames of real silence up
+    front (`TerminalUI::handleThresholdRecordingTriggeredEvent()`), so the
+    captured content's own timing stays exactly where it was performed
+    rather than the whole take shifting earlier to the bar. A Session
+    View take has no arrangement placement to quantize at all - it
+    populates a clip slot directly.
 15. **`merge-clip-to-background`** (C-x m) - folds a note-based clip's
     placement back into the scene's background Pattern, freeing the clip
     slot without deleting the clip. Introduced `Song::getCurrentTrackId()`
