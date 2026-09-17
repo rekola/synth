@@ -2551,6 +2551,19 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
         auto led = LaunchpadProtocol::padToNoteNumber(x, y);
         LaunchpadProtocol::PadColor pad;
         pad.led_index = led;
+        // The pad currently pending a shift+pad combo (DeviceState::
+        // row_up_shift_pending_pad, LaunchpadManager::
+        // handleSessionPadEvent()) overrides whatever it would otherwise
+        // show - bright white, the same color CC91's own LED shows while
+        // held, so the two lit pads visually pair up and confirm exactly
+        // what releasing will do. Per-device, unlike session_highlight/
+        // session_colors below (computed once, identical for every
+        // connected device) - only this device's own held press shows it.
+        if (state.row_up_shift_pending_pad && x == state.row_up_shift_pending_x && y == state.row_up_shift_pending_y) {
+          pad.r = pad.g = pad.b = 127;
+          colors.push_back(pad);
+          continue;
+        }
         switch (state.session_highlight[i]) {
         case SessionPadHighlight::PLAYING:
           pad.type = LaunchpadProtocol::LightingType::PULSE;
@@ -2884,18 +2897,28 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // simply don't have the physical button, so the colourspec entry has
   // nothing to light.
   //
-  // The four arrow buttons go dark in GridMode::SESSION - handleCommand()'s
-  // own comments on "next-track"/"prev-track" (reserved there, an
-  // unconditional no-op returning true) and "move-row-up"/"move-row-down"
-  // (moves the *terminal* overview's own section cursor, which Session
-  // view's own clip-pool/track-column grid never reflects - nothing on
-  // this device itself ever visibly changes) - a lit static color would
-  // otherwise misleadingly suggest a press here does something a
-  // performer looking only at the Launchpad could ever actually see.
+  // 92/93/94 go dark in GridMode::SESSION - handleCommand()'s own
+  // comments on "next-track"/"prev-track" (reserved there, an
+  // unconditional no-op returning true) and "move-row-down" (moves the
+  // *terminal* overview's own section cursor, which Session view's own
+  // clip-pool/track-column grid never reflects - nothing on this device
+  // itself ever visibly changes) - a lit static color would otherwise
+  // misleadingly suggest a press here does something a performer looking
+  // only at the Launchpad could ever actually see.
   bool arrows_active = state.grid_mode != GridMode::SESSION;
   uint8_t arrow_white = arrows_active ? 30 : 0;
   uint8_t arrow_blue = arrows_active ? 60 : 0;
-  colors.push_back({91, arrow_white, arrow_white, arrow_white}); // move-row-up, dim white (static)
+  // 91 ("move-row-up") is the one exception - it doubles as a shift
+  // modifier with a real, Launchpad-visible meaning specifically from
+  // Session view (LaunchpadManager::handleShiftButton()) - so it stays
+  // dim-lit in every GridMode rather than going dark in Session the way
+  // 92/93/94 still do, and lights full bright while actually held, the
+  // same "held == bright" convention every other momentary control here
+  // already uses; the pad it's currently combined with (DeviceState::
+  // row_up_shift_pending_pad) gets the identical bright-white treatment
+  // below, so the two lit pads visually pair up while the press is held.
+  uint8_t row_up_level = state.row_up_shift_held ? 127 : 30;
+  colors.push_back({91, row_up_level, row_up_level, row_up_level});
   colors.push_back({92, arrow_white, arrow_white, arrow_white}); // move-row-down, dim white (static)
   colors.push_back({93, 0, 0, arrow_blue}); // prev-track, dim blue (static)
   colors.push_back({94, 0, 0, arrow_blue}); // next-track, dim blue (static)

@@ -251,6 +251,28 @@ Found 2026-07-11, not yet fixed.
   technique `verify_launchpad_record_arm_percussion.py` already uses for
   its own, unrelated reason (its own docstring has the reasoning).
 
+  `tools/e2e/verify_launchpad_shift_highlight.py` (new, covering CC91's
+  own held-shift LED feedback - `LaunchpadManager::refreshLeds()`'s
+  `DeviceState::row_up_shift_held`/`row_up_shift_pending_pad` highlight)
+  hits a version of this same class of stall with no real audio/ALSA
+  capture involved at all: simulated SysEx traffic goes completely silent
+  the instant CC91 is first held (0/6 checks read any LED byte after
+  that point, reproducing identically across repeated runs), even though
+  the underlying `Controller`/`DeviceState` state changes themselves are
+  confirmed correct - `verify_launchpad_shift_stepgrid.py`'s own
+  text-based check (reading well after a generous settle, not a
+  near-real-time LED snapshot) still passes reliably for the exact same
+  gesture. Rules out "real audio capture" as the trigger for *this*
+  instance specifically (holding CC91 alone touches no audio-engine state
+  whatsoever) - consistent instead with a broader, not-yet-understood
+  characteristic of this sandboxed environment's own ALSA sequencer
+  delivery/ scheduling that a button simply being held (not yet released)
+  can also trigger, independent of what that hold actually does. Not
+  investigated further past this point - same reasoning as the bullets
+  above; flagging so a future real-hardware/less-restricted-environment
+  run isn't mistaken for a regression if this reproduces there too, and
+  so this script isn't blamed for a failure that reproduces on main.
+
 - **`tools/e2e/verify_launchpad_sendmode.py`'s own row-math predates the
   current dB-based Send fader curve** (`sendRowToDb()`/`sendLinearToRow()`
   in `LaunchpadManager.cpp`), not anything touched by the velocity-scaled

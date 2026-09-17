@@ -827,18 +827,36 @@
      hit it for real in a moment; clearing a step has nothing left to
      want to hear.
 
+     Both halves of the shift+pad combo light full bright white while
+     held, *before* release ever commits anything - CC91 itself (dim
+     white beforehand, in every `GridMode` now rather than dark in
+     Session, since it has a real meaning there) and whichever pad it's
+     currently combined with (`DeviceState::row_up_shift_pending_pad`) -
+     so a performer sees the pair confirmed before ever releasing
+     (`LaunchpadManager::refreshLeds()`'s own `GridMode::SESSION` branch).
+
      Covered by `tools/e2e/verify_launchpad_shift_stepgrid.py`, verified
      through the terminal `SessionView` widget's own text (the "*" focus
      marker `SessionView.cpp` already draws) - this gesture never touches
      real audio/ALSA capture at all (pure Song/Controller state), so it
      doesn't hit the sandboxed-environment LED-read flakiness documented
      for `verify_launchpad_stopclip.py` (`docs/known_bugs.md`) the way a
-     `SampleTrack`'s own record-arm gesture does. The step audition fix
-     has no dedicated e2e coverage - there's no terminal-visible signal
-     for "a sound did or didn't play," and the step grid's own existing
-     LED-based e2e coverage (`verify_launchpad_stepseq.py`) already hits
-     that same documented sandboxed-environment flakiness independent of
-     this change.
+     `SampleTrack`'s own record-arm gesture does. The LED-highlight-while-
+     held behavior has its own dedicated script,
+     `tools/e2e/verify_launchpad_shift_highlight.py` - logically the same
+     kind of no-real-audio, should-be-reliable check, but it **currently
+     fails every check past the first CC91 press** in this sandboxed
+     environment, a fresh instance of that same stall class with no real
+     audio/ALSA capture involved at all this time (confirmed the state
+     changes themselves are correct regardless - `verify_launchpad_shift_
+     stepgrid.py`'s own text-based check, reading well after a settle
+     rather than a near-real-time LED snapshot, still passes reliably for
+     the identical underlying gesture); see `docs/known_bugs.md`. The
+     step audition fix has no dedicated e2e coverage at all - there's no
+     terminal-visible signal for "a sound did or didn't play," and the
+     step grid's own existing LED-based e2e coverage
+     (`verify_launchpad_stepseq.py`) already hits that same documented
+     sandboxed-environment flakiness independent of this change.
    - **The step sequencer is `PercussionTrack`-only today.** Its lanes are
      each keyed to one specific GM drum note (`PercussionTrack::
      getLaneNotes()`/`addLane()`/`removeLane()`, picked via the CC97 lane

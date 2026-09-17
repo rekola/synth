@@ -486,7 +486,13 @@ whether or not a terminal UI exists at all.
   `DeviceState::row_up_shift_pending_pad`) - so an abandoned press (shift
   released first, the pad dragged off) never has to be undone; it
   completes on release regardless of whether shift is still held by
-  then. Opening forces every connected Launchpad into `NOTES` mode
+  then. Both halves light up full bright white while held - CC91 itself
+  (dim white beforehand, in every `GridMode` now rather than dark in
+  Session, since it has a real, Launchpad-visible meaning there) and
+  whichever pad it's currently combined with, so a performer sees the
+  pair confirmed before ever releasing (`LaunchpadManager::
+  refreshLeds()`'s own `GridMode::SESSION` branch). Opening forces every
+  connected Launchpad into `NOTES` mode
   showing that clip's own step grid automatically, regardless of whatever
   `GridMode` each was in (`TerminalUI.cpp`'s own drum-edit-request
   listener, `LaunchpadManager::forceNotesModeOnAllDevices()`). Closing it
@@ -754,7 +760,12 @@ whether or not a terminal UI exists at all.
   Session view, and a lone CC95 press closing it again - verified the
   same terminal-text way (the "*" focus marker), though this one never
   touches real audio/ALSA at all so it isn't expected to hit that same
-  flakiness. Every e2e script spawns `synth`
+  flakiness. `verify_launchpad_shift_highlight.py` covers the same
+  gesture's own LED feedback while held (both CC91 and the target pad
+  lighting bright white before release) - currently fails every check
+  past the first CC91 press in this sandboxed environment, a fresh
+  instance of that stall class with no real audio/ALSA capture involved
+  at all this time (`docs/known_bugs.md`). Every e2e script spawns `synth`
   with `SYNTH_LAUNCHPAD_NO_HARDWARE=1` (`tools/e2e/harness.py`'s own
   `spawn()`) so it only ever connects to the fake simulator it's actually
   testing, never any real Launchpad hardware also plugged into the same

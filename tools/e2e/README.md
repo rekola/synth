@@ -39,6 +39,7 @@ gcc -o fake_launchpad_record_arm_wrong_track fake_launchpad_record_arm_wrong_tra
 gcc -o fake_launchpad_record_arm_percussion fake_launchpad_record_arm_percussion.c -lasound
 gcc -o fake_launchpad_sampletrack_record_arm fake_launchpad_sampletrack_record_arm.c -lasound
 gcc -o fake_launchpad_shift_stepgrid fake_launchpad_shift_stepgrid.c -lasound
+gcc -o fake_launchpad_shift_highlight fake_launchpad_shift_highlight.c -lasound
 gcc -o fake_launchpad_aftertouch_clip fake_launchpad_aftertouch_clip.c -lasound
 gcc -o fake_launchpad_mixer_hold fake_launchpad_mixer_hold.c -lasound
 ```
@@ -331,21 +332,35 @@ you're changing.
 - **`launchpad_shift_stepgrid_test.xml` / `fake_launchpad_
   shift_stepgrid.c` / `verify_launchpad_shift_stepgrid.py`** - CC91
   ("move-row-up") held as a shift modifier: holds it, presses a
-  Session-grid pad (opens that pad's own step-sequenced `PercussionTrack`
-  clip for direct editing instead of triggering it -
+  Session-grid pad on release (opens that pad's own step-sequenced
+  `PercussionTrack` clip for direct editing instead of triggering it -
   `Controller::toggleDrumClipFocus()`, `LaunchpadManager::
-  handleShiftButton()`/`handleSessionPadEvent()`), presses CC95 to get
-  back to the plain Session grid (opening switches every device to the
-  step grid, which has no pad-to-clip addressing of its own to
-  shift-combine with), then repeats the same shift+pad combo to close it
-  again. Verified through the terminal `SessionView` widget's own text
-  (the "*" focus marker `SessionView.cpp` already draws for whichever
-  clip is open for editing) at two points in one spawn - unlike the
-  SampleTrack record-arm script above, this gesture never touches real
-  audio/ALSA capture at all (pure Song/Controller state), so it isn't
-  expected to hit that same class of flakiness, and a mid-run read is
-  safe as long as it's timed comfortably inside the fixture's own
-  generous "waiting to be read" window between the two phases.
+  handleShiftButton()`/`handleSessionPadEvent()`), then a lone CC95 press
+  closes it again outright (`Controller::closeDrumClipFocus()`), without
+  needing another shift+pad combo. Verified through the terminal
+  `SessionView` widget's own text (the "*" focus marker `SessionView.cpp`
+  already draws for whichever clip is open for editing) at two points in
+  one spawn - unlike the SampleTrack record-arm script above, this
+  gesture never touches real audio/ALSA capture at all (pure
+  Song/Controller state), so it isn't expected to hit that same class of
+  flakiness, and a mid-run read is safe as long as it's timed comfortably
+  inside the fixture's own generous "waiting to be read" window between
+  the two phases.
+- **`fake_launchpad_shift_highlight.c` / `verify_launchpad_shift_highlight.py`**
+  (reuses `launchpad_shift_stepgrid_test.xml`) - the shift+pad combo's
+  own LED feedback *while held*, before release ever commits anything:
+  CC91 lights full bright white the instant it's held (dim white
+  beforehand, in every `GridMode` now rather than dark in Session - it
+  has a real meaning there), and the pad it's combined with gets the
+  identical bright-white treatment the moment it's pressed, still held
+  (`DeviceState::row_up_shift_pending_pad`). Verified through raw LED
+  bytes rather than terminal text, since this gesture never touches real
+  audio either - in principle exactly as reliable as
+  `verify_launchpad_record_arm_picker.py`'s own LED checks, but
+  **currently fails every check past the first CC91 press in this
+  sandboxed environment**, a fresh instance of the documented stall class
+  with no real audio/ALSA capture involved at all this time - see
+  `docs/known_bugs.md`.
 - **`fake_launchpad_aftertouch_clip.c` / `verify_launchpad_aftertouch_clip.py`** -
   the "Clip-based note recording" path (`Controller::
   ensureNoteRecordingClip()`), not step entry: switches into NOTES grid
