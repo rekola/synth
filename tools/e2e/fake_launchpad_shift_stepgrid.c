@@ -2,13 +2,15 @@
 // modifier: pressing a Session-view pad while it's held opens that pad's
 // own clip for direct step-grid editing (LaunchpadManager::
 // handleSessionPadEvent()'s own comment) instead of triggering/assigning
-// it, and pressing the same pad again while held closes it again -
-// mirroring the terminal's own "toggle-record-arm" drum-machine
+// it - mirroring the terminal's own "toggle-record-arm" drum-machine
 // repurposing (Controller::toggleDrumClipFocus()), just reached from a
-// completely different physical gesture. Two phases, timed to let
+// completely different physical gesture - and that CC95 ("Session") alone
+// then closes it again outright (Controller::closeDrumClipFocus()), not
+// needing another shift+pad combo. Two phases, timed to let
 // verify_launchpad_shift_stepgrid.py read the terminal's own SessionView
 // text in between: phase 1 opens "Beat 1" (clip index 7, pad (0,0)),
-// phase 2 (after the script's own mid-run screen read) closes it again.
+// phase 2 (after the script's own mid-run screen read) closes it again
+// with a lone CC95 press.
 #include <alsa/asoundlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -87,28 +89,16 @@ int main() {
   drain(seq, 6000, "waiting for phase 1 to be read");
 
   // Opening a clip switches every connected device to NOTES mode to show
-  // its own step grid (Controller::toggleDrumClipFocus()'s own
-  // "opened" callback, TerminalUI.cpp's forceNotesModeOnAllDevices()) -
-  // pad (0,0) no longer addresses (track, clip index 7) at all until back
-  // on the plain Session grid, so closing the same clip the same way
-  // needs a CC95 press first.
-  fprintf(stderr, "sending CC95 press+release - back to the plain Session grid\n");
+  // its own step grid (Controller::toggleDrumClipFocus()'s own "opened"
+  // callback, TerminalUI.cpp's forceNotesModeOnAllDevices()) - CC95
+  // ("Session") closes it outright (Controller::closeDrumClipFocus(),
+  // LaunchpadManager::handleRawButton()'s own CC95 case), the same effect
+  // as pressing shift+pad again on the pad that opened it, just without
+  // needing to know which pad that was or holding shift at all.
+  fprintf(stderr, "sending CC95 press+release - closes the sequencer outright\n");
   send_cc(seq, port, 95, 127);
   send_cc(seq, port, 95, 0);
-  drain(seq, 500, "back on session grid");
-
-  fprintf(stderr, "sending CC91 press (holding shift) again\n");
-  send_cc(seq, port, 91, 127);
-  drain(seq, 300, "shift held again");
-
-  fprintf(stderr, "sending press+release on pad (0,0) [note 11] again while shift held - closes clip index 7\n");
-  send_note(seq, port, 0x90, 11, 100);
-  send_note(seq, port, 0x80, 11, 0);
-  drain(seq, 300, "clip closed");
-
-  fprintf(stderr, "sending CC91 release\n");
-  send_cc(seq, port, 91, 0);
-  drain(seq, 1000, "shift released, phase 2 settled");
+  drain(seq, 1000, "phase 2 settled");
 
   snd_seq_close(seq);
   return 0;

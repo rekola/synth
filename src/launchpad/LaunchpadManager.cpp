@@ -926,7 +926,21 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
   // a second to then flip the submode itself.
   if (cc_number == 95) {
     auto & state = deviceState(device_id);
+    // Computed before closeDrumClipFocus() below, which can itself flip
+    // grid_mode to SESSION on every device (via forceSessionModeOnAllDevices())
+    // as a side effect - reading it after would misread "just closed the
+    // sequencer" as "already at the plain grid", spuriously flipping
+    // session_mixer_mode on a press that was actually meant to leave the
+    // sequencer, not toggle the mixer submode.
     bool at_plain_session_grid = state.grid_mode == GridMode::SESSION && !state.track_picker_active;
+    // Session's own button also means "leave the sequencer entirely" when
+    // a clip is currently open for step-grid editing - the same closing
+    // effect a second press of whatever opened it already has
+    // (Controller::toggleDrumClipFocus()'s own close branch) - so every
+    // connected device returns to the plain Session grid, not just this
+    // one, and none of them are left showing the step grid or any button
+    // still highlighted for it. A no-op when nothing's focused.
+    controller.closeDrumClipFocus();
     if (at_plain_session_grid) state.session_mixer_mode = !state.session_mixer_mode;
     state.grid_mode = GridMode::SESSION;
     state.track_picker_active = false;
@@ -1824,6 +1838,50 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
 
 void
 LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller & controller) {
+  auto & state = deviceState(ev.getDeviceIndex());
+
+  // CC91 ("move-row-up") held as a shift modifier opens this pad's own
+  // clip for direct step-grid editing instead of triggering/assigning it
+  // - see DeviceState::row_up_shift_held's own comment. Resolved on this
+  // pad's own release, not its press: a press while shift is held is
+  // recorded (row_up_shift_pending_pad) and swallowed outright - never
+  // falls through to the ordinary meaning below, even on a clip that
+  // turns out not to be step-sequenced (a no-op then, not a trigger) -
+  // and only the matching release actually calls Controller::
+  // toggleDrumClipFocus(), so a press that's abandoned (shift released
+  // first, the pad dragged off) never has to be undone. Works regardless
+  // of Record Arm/this track's own armed state, unlike an ordinary
+  // Session-view press - it's a completely different physical gesture (a
+  // distinct button combo), not competing with whatever a plain press on
+  // this same pad already means while armed. Only reachable here, not
+  // from the step grid a successful open switches every device to - the
+  // same shift+pad combo closes it again only once back on the plain
+  // Session grid (CC95), since the step grid's own pads mean lane/step,
+  // not (track, clip index), and have nothing to shift-combine with at
+  // all.
+  if (ev.getKind() == LaunchpadPadEvent::PRESS && state.row_up_shift_held) {
+    // Marked combined immediately, not deferred to the release below -
+    // CC91's own release (handleShiftButton()) can land before this
+    // pad's does, and needs to already know not to fire "move-row-up" in
+    // that case.
+    state.row_up_shift_combined = true;
+    state.row_up_shift_pending_pad = true;
+    state.row_up_shift_pending_x = ev.getX();
+    state.row_up_shift_pending_y = ev.getY();
+    return;
+  }
+  if (ev.getKind() == LaunchpadPadEvent::RELEASE && state.row_up_shift_pending_pad &&
+      ev.getX() == state.row_up_shift_pending_x && ev.getY() == state.row_up_shift_pending_y) {
+    state.row_up_shift_pending_pad = false;
+    auto track_index = ev.getX();
+    if (track_index < 0 || track_index >= static_cast<int>(session_.track_ids.size())) return;
+    auto track_id = session_.track_ids[static_cast<size_t>(track_index)];
+    // Same y-flip as refresh()'s own session_colors computation - y=0 is
+    // the bottom-left pad, so y=7 is that track's first clip.
+    controller.toggleDrumClipFocus(track_id, 7 - ev.getY());
+    return;
+  }
+
   if (ev.getKind() != LaunchpadPadEvent::PRESS) return;
 
   // No column scroll yet (see SessionWindow's own comment).
@@ -1831,35 +1889,7 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
   if (track_index < 0 || track_index >= static_cast<int>(session_.track_ids.size())) return;
   auto track_id = session_.track_ids[static_cast<size_t>(track_index)];
 
-  // Same y-flip as refresh()'s own session_colors computation - y=0 is
-  // the bottom-left pad, so y=7 is that track's first clip.
-  auto clip_index = 7 - ev.getY();
-
-  // CC91 ("move-row-up") held as a shift modifier opens this pad's own
-  // clip for direct step-grid editing instead of triggering/assigning it
-  // - see DeviceState::row_up_shift_held's own comment. Works regardless
-  // of Record Arm/this track's own armed state, unlike an ordinary
-  // Session-view press - it's a completely different physical gesture
-  // (a distinct button combo), not competing with whatever a plain press
-  // on this same pad already means while armed. Controller::
-  // toggleDrumClipFocus() itself reports back whether anything actually
-  // happened - false for any clip that isn't a step-sequenced
-  // PercussionTrack's own (nothing to open there), in which case this
-  // falls through to the ordinary meaning below rather than swallowing
-  // the press for nothing. Only reachable here, not from the step grid a
-  // successful open switches every device to - the same shift+pad combo
-  // closes it again only once back on the plain Session grid (CC95),
-  // since the step grid's own pads mean lane/step, not (track, clip
-  // index), and have nothing to shift-combine with at all.
-  auto & state = deviceState(ev.getDeviceIndex());
-  if (state.row_up_shift_held) {
-    if (controller.toggleDrumClipFocus(track_id, clip_index)) {
-      state.row_up_shift_combined = true;
-      return;
-    }
-  }
-
-  triggerSessionClip(controller, track_id, clip_index);
+  triggerSessionClip(controller, track_id, 7 - ev.getY());
 }
 
 void
@@ -2364,16 +2394,17 @@ LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & co
     song.incVersion();
 
     // Auditions at a fixed velocity - pad pressure/aftertouch are both
-    // ignored on this grid - no per-step velocity here. Clearing a
-    // step (was_hit true) always auditions, transport running or not -
-    // there's nothing else about to play it. Setting a step (was_hit false) only
-    // auditions here when nothing is already going to hit it for real in
-    // a moment: while the song is playing or the free-running audition
-    // clock is looping, this exact lane/step is about to be triggered on
-    // its own, at the actually-correct time - an immediate hit here would
-    // land at a musically arbitrary point against that beat, on top of
-    // (not instead of) the real one a moment later.
-    bool suppress = !was_hit && (controller.getPlaybackInfo().isPlaying() || audition_clock_.isRunning());
+    // ignored on this grid - no per-step velocity here. Never auditions
+    // for clearing a step (was_hit true) - the step is being removed, so
+    // there's nothing left to want to hear. Setting a step (was_hit
+    // false) only auditions here when nothing is already going to hit it
+    // for real in a moment: while the song is playing or the
+    // free-running audition clock is looping, this exact lane/step is
+    // about to be triggered on its own, at the actually-correct time - an
+    // immediate hit here would land at a musically arbitrary point
+    // against that beat, on top of (not instead of) the real one a
+    // moment later.
+    bool suppress = was_hit || controller.getPlaybackInfo().isPlaying() || audition_clock_.isRunning();
     if (!suppress) {
       auto velocity = static_cast<short>(constants::DEFAULT_VELOCITY);
       event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), track_id, note, note, velocity));

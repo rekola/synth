@@ -900,6 +900,19 @@ class LaunchpadManager {
     // been combined with a pad press during this same hold.
     bool row_up_shift_held = false;
     bool row_up_shift_combined = false;
+    // The pad-press half of the same combo - also resolved on release,
+    // not press (handleSessionPadEvent()'s own comment), so the actual
+    // open/close only ever commits once the pad is let go, never on the
+    // press that starts it. row_up_shift_pending_pad marks a press
+    // currently in flight; x/y are that press's own coordinates, checked
+    // against the matching release rather than trusted blindly (a stray
+    // release for some *other* pad must never fire this). Deliberately
+    // independent of row_up_shift_held's own state by the time the
+    // release actually arrives - CC91 may already have been released
+    // first, and the combo should still complete either way, using
+    // whichever pad this was, not whatever's currently held.
+    bool row_up_shift_pending_pad = false;
+    int row_up_shift_pending_x = -1, row_up_shift_pending_y = -1;
 
     // LED diff cache: refreshLeds() only calls sendLeds() when the newly
     // computed colors differ from what was last actually sent, so

@@ -771,36 +771,74 @@
      held shift modifier: pressing a Session-view pad while it's held
      opens that pad's own clip for direct step-grid editing instead of
      triggering/assigning it (`LaunchpadManager::handleShiftButton()`/
-     `handleSessionPadEvent()`'s own comment), the same gesture on the
-     same pad again closes it. Reached the shared logic behind the
-     terminal's own "toggle-record-arm" drum-machine repurposing by
-     extracting it into a new, standalone `Controller::
-     toggleDrumClipFocus(track_id, clip_index)` (returns false, a pure
-     no-op, for anything that isn't a step-sequenced `PercussionTrack`
-     clip), called from both places now. CC91's own ordinary "move the
-     pattern-editor cursor up a row" meaning still fires on a plain tap -
-     deferred to release rather than press (`DeviceState::
-     row_up_shift_held`/`row_up_shift_combined`), so a press that turns
-     out to combine with a pad never has to be undone; press/release
-     tracking needed factoring the button-dispatch pipeline in
-     `TerminalUI::handleLaunchpadButtonEvent()` into a small reusable
+     `handleSessionPadEvent()`'s own comment). The pad half of the combo
+     resolves on its own release, not its press: a press while shift is
+     held is recorded (`DeviceState::row_up_shift_pending_pad`) and
+     swallowed outright - never falls through to the ordinary trigger
+     below, even for a clip that turns out not to be step-sequenced (a
+     no-op then, not a trigger) - and only the matching release actually
+     calls `Controller::toggleDrumClipFocus()`, so an abandoned press
+     (shift released first, the pad dragged off) never has to be undone;
+     it completes on release regardless of whether shift is still held by
+     then. Reached the shared logic behind the terminal's own
+     "toggle-record-arm" drum-machine repurposing by extracting it into a
+     new, standalone `Controller::toggleDrumClipFocus(track_id,
+     clip_index)` (returns false, a pure no-op, for anything that isn't a
+     step-sequenced `PercussionTrack` clip), called from both places now.
+     CC91's own ordinary "move the pattern-editor cursor up a row"
+     meaning still fires on a plain tap - deferred to release rather than
+     press (`DeviceState::row_up_shift_held`/`row_up_shift_combined`), so
+     a press that turns out to combine with a pad never has to be undone;
+     press/release tracking needed factoring the button-dispatch pipeline
+     in `TerminalUI::handleLaunchpadButtonEvent()` into a small reusable
      `dispatch_named_command` lambda, reachable from both the ordinary
      press-driven call site and CC91's own deferred-release one. Works
      the same regardless of Record Arm/the track's own armed state - a
      genuinely different physical gesture (button combo), not competing
      with whatever a plain press on the same pad already means while
      armed, unlike the note-based per-track record-arm mechanism above.
-     Only reachable from the plain Session grid, not from the step grid a
-     successful open switches every device to (`forceNotesModeOnAllDevices()`)
-     - the step grid's own pads mean lane/step, not (track, clip index),
-     so closing the same clip needs a CC95 press back to Session first.
+
+     Closing it is reachable two ways: the same shift+pad combo again
+     (only reachable from the plain Session grid, not from the step grid
+     a successful open switches every device to
+     (`forceNotesModeOnAllDevices()`) - the step grid's own pads mean
+     lane/step, not (track, clip index), so this route needs a CC95 press
+     back to Session first), or a lone CC95 ("Session") press by itself,
+     from any grid mode - Session's own button doubles as "leave the
+     sequencer entirely" (`Controller::closeDrumClipFocus()`,
+     `LaunchpadManager::handleRawButton()`'s own CC95 case), a simpler,
+     more direct route added after the first cut shipped only the
+     shift+pad-again route and the user asked for a one-press close.
+     `closeDrumClipFocus()` closes whatever's focused without needing to
+     already know which (track_id, clip_index) opened it (unlike
+     `toggleDrumClipFocus()`), and is a pure no-op when nothing's
+     focused; CC95's own existing mixer-submode-toggle check
+     (`at_plain_session_grid`) is computed *before* calling it, since
+     closing can itself flip every device's `grid_mode` to `SESSION` as a
+     side effect (`forceSessionModeOnAllDevices()`), which read after the
+     fact would misread "just closed the sequencer" as "already at the
+     plain grid" and spuriously flip the mixer submode on a press that
+     was only ever meant to leave the sequencer.
+
+     Also fixed while wiring this up: the step grid's own note audition
+     no longer plays the drum sound when *removing* an already-lit step
+     (`handleStepGridPadEvent()`'s own `suppress` check) - only setting a
+     fresh step ever auditions, and only when nothing's already about to
+     hit it for real in a moment; clearing a step has nothing left to
+     want to hear.
+
      Covered by `tools/e2e/verify_launchpad_shift_stepgrid.py`, verified
      through the terminal `SessionView` widget's own text (the "*" focus
      marker `SessionView.cpp` already draws) - this gesture never touches
      real audio/ALSA capture at all (pure Song/Controller state), so it
      doesn't hit the sandboxed-environment LED-read flakiness documented
      for `verify_launchpad_stopclip.py` (`docs/known_bugs.md`) the way a
-     `SampleTrack`'s own record-arm gesture does.
+     `SampleTrack`'s own record-arm gesture does. The step audition fix
+     has no dedicated e2e coverage - there's no terminal-visible signal
+     for "a sound did or didn't play," and the step grid's own existing
+     LED-based e2e coverage (`verify_launchpad_stepseq.py`) already hits
+     that same documented sandboxed-environment flakiness independent of
+     this change.
    - **The step sequencer is `PercussionTrack`-only today.** Its lanes are
      each keyed to one specific GM drum note (`PercussionTrack::
      getLaneNotes()`/`addLane()`/`removeLane()`, picked via the CC97 lane

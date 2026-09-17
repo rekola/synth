@@ -718,6 +718,21 @@ class Controller {
     focused_clip_id_.clear();
   }
 
+  // Closes whatever clip is currently focused for step-grid editing, if
+  // any - a pure no-op when nothing is (getFocusedClipTrackId() < 0).
+  // The Launchpad's own CC95 ("Session") press uses this: pressing it
+  // while a clip is open for editing leaves the sequencer entirely, the
+  // same "closes it and returns every connected device to Session view"
+  // effect a second press of whatever opened it already has
+  // (toggleDrumClipFocus()'s own close branch), just reachable without
+  // already knowing which clip that was.
+  void closeDrumClipFocus() {
+    if (focused_clip_track_id_ < 0) return;
+    auto track_id = focused_clip_track_id_;
+    clearFocusedClip();
+    if (drum_edit_requested_) drum_edit_requested_(track_id, false);
+  }
+
   // Single, shared home for "mutate this track's mute/solo/send and keep
   // the already-running playback state in sync" - neither the terminal's
   // `\` key handler nor any Launchpad control (the two ways a user can

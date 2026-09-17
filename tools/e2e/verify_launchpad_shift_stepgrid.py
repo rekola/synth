@@ -1,11 +1,13 @@
 """Regression test for CC91 ("move-row-up") as a held shift modifier:
-LaunchpadManager::handleShiftButton()/handleSessionPadEvent()'s own new
-combo - holding CC91 and pressing a Session-view pad opens that pad's own
-clip for direct step-grid editing (Controller::toggleDrumClipFocus())
-instead of triggering/assigning it, and the same combo on the same pad
-again closes it. Verified through the terminal SessionView widget's own
-text (the "*" focus marker SessionView.cpp already draws on whichever row
-is open for editing, Controller::getFocusedClip()), the same mechanism
+LaunchpadManager::handleShiftButton()/handleSessionPadEvent()'s own combo
+- holding CC91 and pressing a Session-view pad opens that pad's own clip
+for direct step-grid editing (Controller::toggleDrumClipFocus()) instead
+of triggering/assigning it - and that CC95 ("Session") alone then closes
+it again outright (Controller::closeDrumClipFocus(), LaunchpadManager::
+handleRawButton()'s own CC95 case), without needing another shift+pad
+combo. Verified through the terminal SessionView widget's own text (the
+"*" focus marker SessionView.cpp already draws on whichever row is open
+for editing, Controller::getFocusedClip()), the same mechanism
 verify_launchpad_record_arm_holes.py uses - this gesture never touches
 real audio/ALSA capture at all (pure Song/Controller state), so it isn't
 expected to hit the sandboxed-environment LED-read flakiness documented
@@ -100,7 +102,7 @@ check("phase 1: the 'Beat 1' row shows the '*' focus marker once shift+pad opene
       len(phase1_lines) == 1 and "*" in phase1_lines[0], phase1_text)
 
 phase2_lines = [l for l in phase2_text.splitlines() if "Beat 1" in l]
-check("phase 2: the '*' focus marker is gone once the same shift+pad combo closed it again",
+check("phase 2: the '*' focus marker is gone once a lone CC95 press closed it again",
       len(phase2_lines) == 1 and "*" not in phase2_lines[0], phase2_text)
 
 n_fail = sum(1 for _, ok in results if not ok)

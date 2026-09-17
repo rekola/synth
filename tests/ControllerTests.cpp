@@ -1331,6 +1331,52 @@ TEST(toggle_drum_clip_focus_is_a_no_op_off_a_step_sequenced_percussion_clip) {
   CHECK(!listener_called);
 }
 
+// Controller::closeDrumClipFocus() - the Launchpad's own CC95 ("Session")
+// press uses this to leave the sequencer outright, without already
+// knowing which clip is open (unlike toggleDrumClipFocus(), which needs
+// the exact (track_id, clip_index) that opened it).
+TEST(close_drum_clip_focus_closes_whatever_is_open) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+
+  auto & track = dynamic_cast<PercussionTrack &>(song.addTrack(std::make_unique<PercussionTrack>()));
+  track.addLane(36);
+  auto track_id = track.getInternalId();
+  auto & clip = song.addClip(Clip(track_id));
+  clip.setName("Beat 1");
+
+  int requested_track_id = -1;
+  bool requested_opened = true;
+  controller.setDrumEditRequestListener([&](int id, bool opened) { requested_track_id = id; requested_opened = opened; });
+
+  controller.toggleDrumClipFocus(track_id, 0); // opens it
+  CHECK(controller.getFocusedClipTrackId() == track_id);
+
+  controller.closeDrumClipFocus();
+  CHECK(controller.getFocusedClipTrackId() == -1);
+  CHECK(controller.getFocusedClip().empty());
+  CHECK(requested_track_id == track_id);
+  CHECK(!requested_opened);
+}
+
+// A pure no-op when nothing is focused - no listener call, nothing to
+// misfire on a CC95 press that was never showing a step grid to begin
+// with.
+TEST(close_drum_clip_focus_is_a_no_op_when_nothing_is_focused) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+
+  bool listener_called = false;
+  controller.setDrumEditRequestListener([&](int, bool) { listener_called = true; });
+
+  controller.closeDrumClipFocus();
+  CHECK(controller.getFocusedClipTrackId() == -1);
+  CHECK(!listener_called);
+}
+
 // Any other track type keeps Record Arm's ordinary behavior even while
 // Session View focused - the repurposing is drum-machine-only. Arming
 // itself starts nothing - it only marks the track ready; a take begins
