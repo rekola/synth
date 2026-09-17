@@ -2394,17 +2394,13 @@ LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & co
     song.incVersion();
 
     // Auditions at a fixed velocity - pad pressure/aftertouch are both
-    // ignored on this grid - no per-step velocity here. Never auditions
-    // for clearing a step (was_hit true) - the step is being removed, so
-    // there's nothing left to want to hear. Setting a step (was_hit
-    // false) only auditions here when nothing is already going to hit it
-    // for real in a moment: while the song is playing or the
-    // free-running audition clock is looping, this exact lane/step is
-    // about to be triggered on its own, at the actually-correct time - an
-    // immediate hit here would land at a musically arbitrary point
-    // against that beat, on top of (not instead of) the real one a
-    // moment later.
-    bool suppress = was_hit || controller.getPlaybackInfo().isPlaying() || audition_clock_.isRunning();
+    // ignored on this grid - no per-step velocity here. Always auditions
+    // for setting a step (was_hit false) - immediate feedback for what
+    // was just added, regardless of whether the song is playing or the
+    // free-running audition clock is about to hit this same lane/step for
+    // real in a moment anyway; never for clearing one (was_hit true) - the
+    // step is being removed, so there's nothing left to want to hear.
+    bool suppress = was_hit;
     if (!suppress) {
       auto velocity = static_cast<short>(constants::DEFAULT_VELOCITY);
       event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), track_id, note, note, velocity));

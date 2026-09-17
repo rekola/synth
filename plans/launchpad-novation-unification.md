@@ -821,11 +821,16 @@
      was only ever meant to leave the sequencer.
 
      Also fixed while wiring this up: the step grid's own note audition
-     no longer plays the drum sound when *removing* an already-lit step
-     (`handleStepGridPadEvent()`'s own `suppress` check) - only setting a
-     fresh step ever auditions, and only when nothing's already about to
-     hit it for real in a moment; clearing a step has nothing left to
-     want to hear.
+     (`handleStepGridPadEvent()`'s own `suppress` check) now always plays
+     for setting a fresh step - immediate feedback for what was just
+     added, regardless of whether the song is playing or the free-running
+     audition clock is about to hit this same lane/step for real in a
+     moment anyway (an earlier version of this fix suppressed it whenever
+     either was true, to avoid a second, musically-arbitrary-timed hit on
+     top of the real one - dropped once it turned out the audition clock
+     runs almost continuously while just stopped and editing, silencing
+     this note-on-set feedback in the overwhelmingly common case) - and
+     never for clearing one, which has nothing left to want to hear.
 
      Both halves of the shift+pad combo light full bright white while
      held, *before* release ever commits anything - CC91 itself (dim

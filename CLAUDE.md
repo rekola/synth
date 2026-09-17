@@ -509,11 +509,10 @@ whether or not a terminal UI exists at all.
   step-sequenced `PercussionTrack` (or recording into it - see the
   Multi-track Record Arm bullet below) does *not* by itself show the step
   grid - both fall through to ordinary free-drumming pad entry instead,
-  same as a lane-less `PercussionTrack` always does. Pressing an
-  already-lit step pad (removing it) never auditions the sound that was
-  just removed - only setting a fresh step (and only when nothing's about
-  to hit it for real in a moment - see `handleStepGridPadEvent()`'s own
-  comment) does. CC97 ("Custom")
+  same as a lane-less `PercussionTrack` always does. Setting a fresh step
+  always auditions immediately (`handleStepGridPadEvent()`'s own
+  `suppress` check); pressing an already-lit step pad (removing it) never
+  auditions the sound that was just removed. CC97 ("Custom")
   launches the lane picker directly (`GridMode::
   CUSTOM`, gated on the assigned track being a `PercussionTrack` at
   all, any lane count - this is how a lane-less track gains its first
