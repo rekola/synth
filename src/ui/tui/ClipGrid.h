@@ -1,5 +1,5 @@
-#ifndef _SESSIONVIEW_H_
-#define _SESSIONVIEW_H_
+#ifndef _CLIPGRID_H_
+#define _CLIPGRID_H_
 
 #include "../UIElement.h"
 #include "InlineEditor.h"
@@ -37,16 +37,11 @@ class Song;
 // (SongStructure::getBaselineInfo().getColor()) is reserved for its own
 // populated clip cells only, never washed across the whole column.
 //
-// Takes over PatternEditor's own screen region while open (see UI::layout()/
-// renderComponents()) rather than sitting alongside it - opened via the
-// "session-view" command (Buffers menu's own "Open Session View" item, no
-// keybinding), closed implicitly by any buffer switch (UI's own
-// buffer-change listener, matching Emacs's own "switching buffers changes
-// what's on screen" precedent) rather than a dedicated close command of its
-// own.
-class SessionView : public UIElement {
+// Shown in Session view (UI::View), above PatternEditor - see
+// TerminalUI::layout().
+class ClipGrid : public UIElement {
  public:
-  SessionView(UIPlane & parent);
+  ClipGrid(UIPlane & parent);
 
   bool render(const StyleProvider & styles, bool refresh, bool focused);
   bool offerInput(const InputEvent & input) override;
@@ -60,7 +55,7 @@ class SessionView : public UIElement {
   // uses - not a live two-way binding.
   void setCursorTrackIndex(int track_index) { cursor_track_index_ = track_index; }
 
-  // Read-only counterparts, for Controller::setSessionViewCursor() (kept
+  // Read-only counterparts, for Controller::setClipGridCursor() (kept
   // current by UI::renderComponents() every frame) - the column index
   // among Song::getPlayableTrackIds() the cursor is currently on, and its
   // own clip-list index (Song::getClips(track_id)) when the cursor is on
@@ -79,6 +74,9 @@ class SessionView : public UIElement {
   // ArrangementGrid's own commit_callback_ already uses (this class has
   // no idea LaunchpadManager exists either). Wired in UI::start().
   void setTriggerCallback(std::function<void(int track_id, int clip_index)> cb) { trigger_callback_ = std::move(cb); }
+  // Rows needed to show everything without scrolling (the header plus
+  // every row below it).
+  static constexpr int preferredHeight() { return 1 + kPhysicalRowCount; }
 
  private:
   // Always exactly this many clip rows per column, whether or not that

@@ -75,19 +75,19 @@ print(fake_output)
 check("synth sent a Programmer-Mode-enter SysEx to the simulated device",
       "0e 01" in fake_output.replace(",", " "), fake_output)
 
-session_view_text = scr.dump()
-print("\n--- SessionView screen dump ---")
-print(session_view_text)
+clip_grid_text = scr.dump()
+print("\n--- ClipGrid screen dump ---")
+print(clip_grid_text)
 
-# Two tracks means two SessionView columns share each screen row (track
-# 0's own cell, then a "│" divider, then track 1's), so "▸" (SessionView.
+# Two tracks means two ClipGrid columns share each screen row (track
+# 0's own cell, then a "│" divider, then track 1's), so "▸" (ClipGrid.
 # cpp's own populated-clip icon) isn't necessarily the row's first
 # character the way the single-track holes test could assume - split each
 # row on "│" and check each column's own cell instead. Excludes the
 # status line's own "Octave: ◂ 4 ▸", which also contains "▸" but isn't a
-# SessionView row at all (no "│" divider in it in the right place).
+# ClipGrid row at all (no "│" divider in it in the right place).
 track0_populated, track1_populated = [], []
-for line in session_view_text.splitlines():
+for line in clip_grid_text.splitlines():
     cells = line.split("│")
     if len(cells) < 2 or "Octave:" in line:
         continue

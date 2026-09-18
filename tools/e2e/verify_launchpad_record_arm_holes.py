@@ -9,7 +9,7 @@ empty fillers (Song::ensureClipAt()) rather than collapsing the take to
 whichever slot happens to be first unused - the exact regression this
 script exists to catch.
 
-Verifies the result via the terminal SessionView widget itself (opened
+Verifies the result via the terminal ClipGrid widget itself (opened
 with M-x session-view, EscapeSequenceCoalescer folding a bare ESC then
 'x' into one Alt-x event the same way a real terminal's own Alt-x would
 arrive - see StatusLine.h's own Alt/Meta check): row 0 and row 1 should
@@ -51,7 +51,7 @@ if not vk.wait_ready(scr):
 time.sleep(16)
 scr.pump(0.5)
 
-# M-x session-view: opens (or switches to) the SessionView aspect of the
+# M-x session-view: switches to Session view (ClipGrid focused) for the
 # active song - StatusLine's own Alt-x detection is a single check on an
 # Alt/Meta-modified 'x' event, which EscapeSequenceCoalescer assembles
 # from a bare ESC followed, arbitrarily later, by 'x' (no deadline between
@@ -83,21 +83,21 @@ print(fake_output)
 check("synth sent a Programmer-Mode-enter SysEx to the simulated device",
       "0e 01" in fake_output.replace(",", " "), fake_output)
 
-session_view_text = scr.dump()
-print("\n--- SessionView screen dump ---")
-print(session_view_text)
+clip_grid_text = scr.dump()
+print("\n--- ClipGrid screen dump ---")
+print(clip_grid_text)
 
-lines = session_view_text.splitlines()
+lines = clip_grid_text.splitlines()
 
 # The clip rows this track's own column occupies, found by their own
-# leading glyph (SessionView.cpp's own " ⏹"/"▸" icons) as the row's very
+# leading glyph (ClipGrid.cpp's own " ⏹"/"▸" icons) as the row's very
 # first non-space character - not by a fixed row/column offset (the exact
 # screen position depends on window layout), and not by a plain substring
 # search either: the status line's own "Octave: ◂ 4 ▸" also contains "▸".
 empty_lines = [l for l in lines if l.strip().startswith("⏹")]
 check("row 0 (an empty filler backfilled by Song::ensureClipAt()) shows the plain empty-slot icon",
-      len(empty_lines) > 0, session_view_text)
-check("exactly 7 of the 8 displayed rows are empty (SessionView pads the display to 8 regardless of the underlying clip list's own real length)",
+      len(empty_lines) > 0, clip_grid_text)
+check("exactly 7 of the 8 displayed rows are empty (ClipGrid pads the display to 8 regardless of the underlying clip list's own real length)",
       len(empty_lines) == 7, empty_lines)
 
 populated_lines = [l for l in lines if l.strip().startswith("▸")]
@@ -109,7 +109,7 @@ if populated_lines:
           "(unnamed)" not in populated_lines[0], populated_lines[0])
 
 check("no row still shows the '●' record indicator - the take was disarmed and finalized",
-      "●" not in session_view_text, session_view_text)
+      "●" not in clip_grid_text, clip_grid_text)
 
 print(f"\n{sum(1 for _, ok in results if ok)}/{len(results)} checks passed")
 sys.exit(0 if all(ok for _, ok in results) else 1)

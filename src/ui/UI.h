@@ -50,7 +50,21 @@ class UI : public UIElement {
   // current-note-entry-surface/command-dispatch state).
   void handleLaunchpadChannelPressureEvent(LaunchpadChannelPressureEvent & ev) override;
 
+  // Which layout the active song is shown in - UI state, independent of
+  // which buffer is active. Arrangement: the arrangement overview plus the
+  // pattern editor. Session: the clip grid (with the optional outline
+  // panel beside it) plus the pattern editor.
+  enum class View { ARRANGEMENT, SESSION };
+  View getView() const { return view_; }
+  bool isOutlineVisible() const { return outline_visible_; }
+
 protected:
+  void setView(View view);
+  void setOutlineVisible(bool visible);
+  // Called after the view or the outline panel's visibility changes - a
+  // backend re-lays out its widgets and moves focus here.
+  virtual void viewChanged() { }
+
   virtual void startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) = 0;
 
   // Hook for a concrete UI to wire up whatever per-widget Launchpad
@@ -74,6 +88,8 @@ private:
   void initializeCommands();
 
   StatusLogger logger_;
+  View view_ = View::ARRANGEMENT;
+  bool outline_visible_ = false;
 };
 
 #endif

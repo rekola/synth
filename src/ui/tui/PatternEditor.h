@@ -59,12 +59,12 @@ class PatternEditor : public UIElement {
   // Commits to current_cursor immediately, not just new_cursor - the
   // normal new_cursor -> current_cursor handoff only happens inside
   // render(), which never runs while a different top-level view
-  // (SessionView) occupies PatternEditor's own screen slot instead (see
+  // (ClipGrid) occupies PatternEditor's own screen slot instead (see
   // UI::renderComponents()'s own exactly-one-of-the-two branch). Without
   // this, getCursorTrackIndex() - what every Launchpad device's own
   // fallback_track_index actually reads - would keep reporting the old
   // track for as long as PatternEditor stays offscreen, silently
-  // stranding a caller like SessionView's own focus-jump callback (same
+  // stranding a caller like ClipGrid's own focus-jump callback (same
   // immediate-commit precedent startAnnotationEdit() already sets for
   // .scope, elsewhere in this class).
   // Defined in the .cpp, not inline - needs Song's own full definition

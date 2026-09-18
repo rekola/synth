@@ -5,8 +5,8 @@ for direct step-grid editing (Controller::toggleDrumClipFocus()) instead
 of triggering/assigning it - and that CC95 ("Session") alone then closes
 it again outright (Controller::closeDrumClipFocus(), LaunchpadManager::
 handleRawButton()'s own CC95 case), without needing another shift+pad
-combo. Verified through the terminal SessionView widget's own text (the
-"*" focus marker SessionView.cpp already draws on whichever row is open
+combo. Verified through the terminal ClipGrid widget's own text (the
+"*" focus marker ClipGrid.cpp already draws on whichever row is open
 for editing, Controller::getFocusedClip()), the same mechanism
 verify_launchpad_record_arm_holes.py uses - this gesture never touches
 real audio/ALSA capture at all (pure Song/Controller state), so it isn't
@@ -54,7 +54,7 @@ if not vk.wait_ready(scr):
 time.sleep(10)
 scr.pump(0.5)
 
-# M-x session-view: opens (or switches to) the SessionView aspect of the
+# M-x session-view: switches to Session view (ClipGrid focused) for the
 # active song - same mechanism verify_launchpad_record_arm_holes.py
 # already uses.
 scr.send(b"\x1b")
@@ -65,7 +65,7 @@ scr.send(b"session-view\r")
 scr.pump(1.0)
 
 phase1_text = scr.dump()
-print("\n--- SessionView screen dump (phase 1 - opened) ---")
+print("\n--- ClipGrid screen dump (phase 1 - opened) ---")
 print(phase1_text)
 
 # fake_launchpad_shift_stepgrid's own phase 2 starts about 4s after phase
@@ -75,7 +75,7 @@ time.sleep(8)
 scr.pump(0.5)
 
 phase2_text = scr.dump()
-print("\n--- SessionView screen dump (phase 2 - closed) ---")
+print("\n--- ClipGrid screen dump (phase 2 - closed) ---")
 print(phase2_text)
 
 try:

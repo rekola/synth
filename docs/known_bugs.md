@@ -103,7 +103,7 @@ Found 2026-07-11, not yet fixed.
   press-then-verify-LED technique is what's exposed, not anything
   specific to percussion note entry itself; `verify_launchpad_record_arm_
   percussion.py` (the step-grid-vs-live-recording regression test) avoids
-  it entirely by verifying through the terminal `SessionView` widget's
+  it entirely by verifying through the terminal `ClipGrid` widget's
   own text instead of LED bytes.
 
 - **`tools/e2e/verify_launchpad_stopclip.py` hits the same class of
@@ -247,7 +247,7 @@ Found 2026-07-11, not yet fixed.
   the trigger, the capture-side counterpart to the real-audition/playback
   stall documented above. `tools/e2e/verify_launchpad_sampletrack_record_
   arm.py` sidesteps it entirely by verifying through the terminal
-  `SessionView` widget's own text instead of LED bytes, the same
+  `ClipGrid` widget's own text instead of LED bytes, the same
   technique `verify_launchpad_record_arm_percussion.py` already uses for
   its own, unrelated reason (its own docstring has the reasoning).
 

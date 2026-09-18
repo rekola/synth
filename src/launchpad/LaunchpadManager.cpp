@@ -3355,7 +3355,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   auto num_tracks = static_cast<int>(track_ids.size());
 
   // The track whose clip is currently focused for editing
-  // (Controller::getFocusedClipTrackId(), SessionView's own Enter) -
+  // (Controller::getFocusedClipTrackId(), ClipGrid's own Enter) -
   // triggerAuditionStep() below only fires for this one track, not
   // whichever track a Launchpad device happens to be assigned to: a
   // focus is deliberately hardware-independent (no Launchpad needs to be

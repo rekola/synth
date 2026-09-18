@@ -213,7 +213,7 @@ ArrangementGrid::offerInput(const InputEvent & input) {
         auto clip_id = clips[static_cast<size_t>(active.clip_index)].getId();
         auto name = clips[static_cast<size_t>(active.clip_index)].getName();
         // Same "clear a stale focus rather than leave it dangling" reasoning
-        // SessionView's own delete-clip already has.
+        // ClipGrid's own delete-clip already has.
         if (getController().getFocusedClipTrackId() == track_id && getController().getFocusedClip() == clip_id) {
           getController().clearFocusedClip();
         }

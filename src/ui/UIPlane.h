@@ -20,7 +20,7 @@ class UIPlane {
   }
   // Raises this plane above every sibling under the same parent - default
   // no-op (most UIPlane implementations have no z-order of their own to
-  // manipulate). See UI.h's own session_view_/pattern_editor_ comment for
+  // manipulate). See UI.h's own clip_grid_/pattern_editor_ comment for
   // why this exists: two sibling widgets sharing one exact screen rect
   // need an explicit way to say which one is actually on top, since
   // resize()ing the other down to nothing isn't reliable (notcurses

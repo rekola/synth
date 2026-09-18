@@ -102,7 +102,7 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
   }
   data_.push_back( { 1, TrackType::UNKNOWN, OutlineRowKind::SECTION, "Tracks" });
   // "T<N>" (N = color_ordinal_, the same 0-based, color-eligible-leaf-only
-  // count PatternEditor/SessionView/ArrangementGrid already show next to
+  // count PatternEditor/ClipGrid/ArrangementGrid already show next to
   // this exact track elsewhere - see PatternEditor.cpp's own header-row
   // comment) followed by the artist's own name, mirroring that same
   // convention exactly; a track with no color ordinal at all (a top-level

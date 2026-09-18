@@ -6,7 +6,7 @@
 // a PercussionTrack's does, just with rows drawn from the song's own
 // scale (Song::getScaleDegrees()) instead of a manually-picked lane
 // list - see verify_launchpad_shift_stepgrid_pitched.py's own docstring.
-// Two phases, timed to let the script read the terminal's own SessionView
+// Two phases, timed to let the script read the terminal's own ClipGrid
 // text in between: phase 1 opens "Beat 1" (clip index 7, pad (0,0)),
 // phase 2 (after the script's own mid-run screen read) closes it again
 // with a lone CC95 press.
@@ -80,7 +80,7 @@ int main() {
   drain(seq, 1000, "shift released, phase 1 settled");
 
   // Phase 1 done here - verify_launchpad_shift_stepgrid_pitched.py reads
-  // the terminal's own SessionView text at this point, then lets this
+  // the terminal's own ClipGrid text at this point, then lets this
   // process continue into phase 2 below.
   drain(seq, 6000, "waiting for phase 1 to be read");
 

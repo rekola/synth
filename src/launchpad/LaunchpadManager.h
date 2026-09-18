@@ -542,7 +542,7 @@ class LaunchpadManager {
   // arrangement-assign, everything after resolving which (track, clip)
   // was actually addressed), factored out so anything else that means
   // "act exactly like a Session view pad press landed here" can call it
-  // directly without needing a real LaunchpadPadEvent - SessionView's own
+  // directly without needing a real LaunchpadPadEvent - ClipGrid's own
   // Enter key (the terminal's own Session View, UI::start()'s own wiring)
   // is the other caller. `clip_index` is a plain Song::getClips() index,
   // already flipped from pad-y-coordinate space by callers that have one;

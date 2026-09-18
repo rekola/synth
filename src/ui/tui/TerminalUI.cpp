@@ -9,7 +9,7 @@
 #include "StatusLine.h"
 #include "PatternEditor.h"
 #include "ArrangementGrid.h"
-#include "SessionView.h"
+#include "ClipGrid.h"
 #include "OutlineView.h"
 #include "CoverArt.h"
 #include "SpinBox.h"
@@ -753,6 +753,15 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
 	{ "Set Bus Effect A...", "", "set-bus-effect-a" },
 	{ "Set Bus Effect B...", "", "set-bus-effect-b" },
       } },
+    // How the active song is shown (UI::View) - not a buffer of its own.
+    { "View", 'v', {
+	{ "Arrangement View", "", "arrangement-view" },
+	{ "Session View", "", "session-view" },
+	{ "Toggle Arrangement/Session", "TAB", "toggle-view" },
+	{ nullptr, nullptr, nullptr },
+	{ "Outline", "", "outline-view" },
+	{ "Toggle Outline", "", "toggle-outline" },
+      } },
   };
 
   // Emacs-style Buffers menu: every open buffer's name (already display-
@@ -767,15 +776,6 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
   buffer_items.push_back({ "Next Buffer", "C-x Right", "next-buffer" });
   buffer_items.push_back({ "Previous Buffer", "C-x Left", "previous-buffer" });
   buffer_items.push_back({ "Select Named Buffer...", "C-x b", "select-named-buffer" });
-  buffer_items.push_back({ nullptr, nullptr, nullptr });
-  // Menu-only, no keybinding of their own - open the active song's own
-  // Pattern Viewer (PatternEditor), Session View (SessionView), or
-  // Outline (OutlineView) aspect, symmetrically (see UI.cpp's own
-  // "pattern-viewer"/"session-view"/"outline-view" command comment) - any
-  // one can be open independently of the others.
-  buffer_items.push_back({ "Open Pattern Viewer", "", "pattern-viewer" });
-  buffer_items.push_back({ "Open Session View", "", "session-view" });
-  buffer_items.push_back({ "Open Outline", "", "outline-view" });
   spec.push_back({ "Buffers", 'b', std::move(buffer_items) });
 
   return spec;
@@ -1631,7 +1631,7 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
     vector<string> buffer_display_names;
     buffer_display_names.reserve(buffer_names.size());
     for (auto & name : buffer_names) buffer_display_names.push_back(controller->getBufferDisplayName(name));
-    menu_ = make_shared<TerminalMenu>(buffer_names, std::move(buffer_display_names), controller->getSelectedBufferName());
+    menu_ = make_shared<TerminalMenu>(buffer_names, std::move(buffer_display_names), controller->getActiveBufferName());
   }
 
   bool use_pixel = notcurses_check_pixel_support(*nc) != NCPIXEL_NONE;
@@ -1834,6 +1834,10 @@ int indexOfTrack(const vector<int> & track_ids, int track_id) {
 
 void
 TerminalUI::requestOverviewFocus() {
+  if (getView() == View::SESSION) {
+    active_element_ = clip_grid_;
+    return;
+  }
   // Lands on the overview's own last (rightmost) column, not wherever its
   // cursor happened to be left last time - both entry points (PatternEditor's
   // leftmost track, Launchpad's prev-track already at track 0) arrive
@@ -1880,7 +1884,7 @@ TerminalUI::initializeWidgets() {
   // chart and volume are missing
   pattern_editor_ = make_shared<PatternEditor>(getPlane());
   arrangement_grid_ = make_shared<ArrangementGrid>(getPlane());
-  session_view_ = make_shared<SessionView>(getPlane());
+  clip_grid_ = make_shared<ClipGrid>(getPlane());
   outline_view_ = make_shared<OutlineView>(getPlane());
   // Enter commits the cell under this grid's own (local, passive) cursor
   // to shared state - see ArrangementGrid.h's own comment on why this is a
@@ -1909,7 +1913,7 @@ TerminalUI::initializeWidgets() {
   status_line_->setBeforeShowPromptCallback([this]() {
     pattern_editor_->cancelReaderEdit();
     arrangement_grid_->cancelReaderEdit();
-    session_view_->cancelReaderEdit();
+    clip_grid_->cancelReaderEdit();
   });
   // Colors match InfoLine's own hardcoded gray-on-dark (InfoLine.h's
   // constructor) - this widget sits inline in that same bar (see
@@ -1985,11 +1989,6 @@ TerminalUI::initializeWidgets() {
       return result;
     });
   });
-  // session-view/outline-view/pattern-viewer are UI's own now (Menu-only -
-  // Buffers menu's own "Open Session View"/"Open Outline"/"Open Pattern
-  // Viewer" items, no keybinding here) - the buffer-change listener above
-  // does the actual screen-slot swap once Controller's own selected buffer
-  // changes.
   commands_.define("kill-buffer", [this]() {
     auto doKill = [this]() {
       auto name = getController().getActiveBufferName();
@@ -1999,10 +1998,7 @@ TerminalUI::initializeWidgets() {
 	setStatus("Can't kill the only open buffer");
       }
     };
-    // No prompt needed when the song would stay open under its other
-    // aspect (PatternEditor/SessionView) - nothing is actually at risk of
-    // being discarded, just this one view closing.
-    if (getController().hasUnsavedChanges() && !getController().activeSongHasOtherOpenViews()) {
+    if (getController().hasUnsavedChanges()) {
       status_line_->showPrompt("Buffer modified - kill anyway? (y/n) ", [doKill](const std::string & answer) {
 	if (answer == "y" || answer == "Y" || answer == "yes" || answer == "Yes") doKill();
       });
@@ -2069,13 +2065,20 @@ TerminalUI::initializeWidgets() {
   // not any one widget's own cursor, so they work regardless of which UI
   // widget currently has focus.
 
-  // other-window (C-x o): cycles focus to the next window. Only two
-  // focusable panes exist - pattern_editor_ and arrangement_grid_ - so this
-  // is a plain toggle between the two rather than a real cycle.
+  // other-window (C-x o): cycles focus through the current view's
+  // focusable widgets (focusableElements()).
   commands_.define("other-window", [this]() {
-    active_element_ = (active_element_.lock() == arrangement_grid_)
-      ? std::shared_ptr<UIElement>(pattern_editor_)
-      : std::shared_ptr<UIElement>(arrangement_grid_);
+    auto elements = focusableElements();
+    auto it = std::find(elements.begin(), elements.end(), active_element_.lock());
+    active_element_ = (it == elements.end() || ++it == elements.end()) ? elements.front() : *it;
+  });
+  // Session view with the outline panel shown and focused - defined here,
+  // not with the other view commands in UI.cpp, since it focuses a
+  // concrete widget.
+  commands_.define("outline-view", [this]() {
+    setOutlineVisible(true);
+    setView(View::SESSION);
+    active_element_ = outline_view_;
   });
 
   // Quit/save/open/save-as use Emacs's own C-x C-c/C-x C-s/C-x C-f/C-x C-w
@@ -2108,6 +2111,7 @@ TerminalUI::initializeWidgets() {
   keymap_.bind(KeyChord::pack(' ', false, false, false, false), "toggle-playing");
   keymap_.bind(KeyChord::pack('[', false, false, false, false), "octave-down");
   keymap_.bind(KeyChord::pack(']', false, false, false, false), "octave-up");
+  keymap_.bind(KeyChord::pack('\t', false, false, false, false), "toggle-view");
   // Track creation works from every widget, the same as its Track menu
   // entries. Ctrl+Shift+D ("Drum") because plain Ctrl-D is taken.
   keymap_.bind(KeyChord::pack('t', true, false, false, false), "add-instrument-track");
@@ -2138,46 +2142,13 @@ TerminalUI::initializeWidgets() {
     vector<string> display_names;
     display_names.reserve(names.size());
     for (auto & name : names) display_names.push_back(getController().getBufferDisplayName(name));
-    // getSelectedBufferName() (raw, possibly a SessionView/OutlineView
-    // aspect name), not getActiveBufferName() (always the real Song) - the
-    // menu's own "current" marker must highlight whichever row is
-    // literally selected, aspect suffix included.
-    auto selected = getController().getSelectedBufferName();
-    menu_->refreshBuffers(names, display_names, selected);
+    menu_->refreshBuffers(names, display_names, getController().getActiveBufferName());
 
     // Cursor/scroll/selection/live-note/annotation-editing state - see
-    // PatternEditor::handleBufferChanged()'s own comment. Reads
-    // getActiveBufferName() (always canonical) internally, so toggling
-    // between a buffer and one of its own aspects looks like no change at
-    // all here - correct, since it's the same Song/edit position either
-    // way.
+    // PatternEditor::handleBufferChanged()'s own comment. The view (UI::
+    // View) is untouched: a buffer switch changes which song is shown, not
+    // how.
     pattern_editor_->handleBufferChanged();
-
-    // SessionView/OutlineView takes over pattern_editor_'s own screen slot
-    // exactly while the newly-selected buffer is that aspect - see
-    // SessionView.h's/OutlineView.h's own comments. Guarded on an actual
-    // change so a buffer switch between two ordinary (non-aspect) buffers,
-    // or between two aspects of the same kind, doesn't fight whatever
-    // active_element_ already legitimately is (e.g. arrangement_grid_).
-    auto new_aspect = getController().isSessionViewBuffer(selected) ? WorkspaceAspect::SESSION_VIEW :
-      getController().isOutlineViewBuffer(selected) ? WorkspaceAspect::OUTLINE_VIEW : WorkspaceAspect::PATTERN_EDITOR;
-    if (new_aspect != workspace_aspect_) {
-      workspace_aspect_ = new_aspect;
-      if (new_aspect == WorkspaceAspect::SESSION_VIEW) {
-        auto playable = getController().getSong().getPlayableTrackIds();
-        session_view_->setCursorTrackIndex(indexOfTrack(playable, getController().getSong().getCurrentTrackId()));
-        active_element_ = session_view_;
-      } else if (new_aspect == WorkspaceAspect::OUTLINE_VIEW) {
-        active_element_ = outline_view_;
-      } else {
-        active_element_ = pattern_editor_;
-      }
-      layout();
-      // Not a direct renderComponents(true) call here - see
-      // force_next_render_'s own comment on TerminalUI.h for why that
-      // would silently never actually reach the screen.
-      force_next_render_ = true;
-    }
   });
 }
 
@@ -2282,20 +2253,30 @@ TerminalUI::layout() {
     putstr(kScopeRow + row, divider1_x, "│");
     putstr(kScopeRow + row, divider2_x, "│");
   }
-  // All three get the exact same real rect always - notcurses itself
-  // refuses/ignores a plane resize to zero rows or columns (confirmed via
-  // a pty+notcurses reproduction), so shrinking an inactive one to (0, 0)
-  // silently no-ops, leaving its last real content and z-position
-  // untouched underneath whichever one is actually supposed to show.
-  // moveToTop() (below) is what actually decides which one is visible -
-  // raising the active widget above its siblings, not the rect itself.
-  pattern_editor_->resize(rows - 8, cols).move(6, 0);
-  session_view_->resize(rows - 8, cols).move(6, 0);
-  outline_view_->resize(rows - 8, cols).move(6, 0);
-  switch (workspace_aspect_) {
-    case WorkspaceAspect::SESSION_VIEW: session_view_->moveToTop(); break;
-    case WorkspaceAspect::OUTLINE_VIEW: outline_view_->moveToTop(); break;
-    default: pattern_editor_->moveToTop(); break;
+  // The workspace below the scope row. notcurses refuses/ignores a plane
+  // resize to zero rows or columns (confirmed via a pty+notcurses
+  // reproduction), so a widget the current view doesn't show can't be
+  // shrunk away - it gets the same rect as a visible one instead, and
+  // moveToTop() raises the visible ones above it.
+  constexpr int kWorkspaceRow = 6;
+  constexpr int kOutlineWidth = 30;
+  int workspace_rows = std::max(2, rows - 8);
+  if (getView() == View::SESSION) {
+    // Session view: the clip grid (the outline panel on its left, when
+    // shown) takes at most half the workspace, the pattern editor the rest.
+    int strip_rows = std::min(ClipGrid::preferredHeight(), workspace_rows / 2);
+    int outline_cols = isOutlineVisible() ? std::min(kOutlineWidth, cols / 2) : 0;
+    clip_grid_->resize(strip_rows, cols - outline_cols).move(kWorkspaceRow, outline_cols);
+    outline_view_->resize(strip_rows, outline_cols > 0 ? outline_cols : cols).move(kWorkspaceRow, 0);
+    pattern_editor_->resize(workspace_rows - strip_rows, cols).move(kWorkspaceRow + strip_rows, 0);
+    if (outline_cols > 0) outline_view_->moveToTop();
+    clip_grid_->moveToTop();
+    pattern_editor_->moveToTop();
+  } else {
+    clip_grid_->resize(workspace_rows, cols).move(kWorkspaceRow, 0);
+    outline_view_->resize(workspace_rows, cols).move(kWorkspaceRow, 0);
+    pattern_editor_->resize(workspace_rows, cols).move(kWorkspaceRow, 0);
+    pattern_editor_->moveToTop();
   }
   info_line_->resize(1, cols).move(rows - 2, 0);
   // Inline in the info bar, right-aligned - a separate plane, created
@@ -2329,7 +2310,7 @@ TerminalUI::renderComponents(bool refresh) {
   int selected_track_id = song.getCurrentTrackId();
 
   // "toggle-record-arm"'s own arm-something-new branch reads these two
-  // (Controller::isSessionViewFocused()/setSessionViewCursor()) at the
+  // (Controller::isClipGridFocused()/setClipGridCursor()) at the
   // moment it actually arms, which can happen from a Launchpad's own CC19
   // press just as easily as from here - dispatched straight to Controller,
   // bypassing this class entirely - so both need to already be correct by
@@ -2338,24 +2319,23 @@ TerminalUI::renderComponents(bool refresh) {
   // explicit focus change: simplest way to guarantee "always current"
   // without a second, easy-to-miss update path for every place focus or
   // Session View's own cursor can change.
-  bool session_view_focused = workspace_aspect_ == WorkspaceAspect::SESSION_VIEW && active == session_view_;
-  getController().setSessionViewFocused(session_view_focused);
-  if (session_view_focused) {
+  bool clip_grid_focused = getView() == View::SESSION && active == clip_grid_;
+  getController().setClipGridFocused(clip_grid_focused);
+  if (clip_grid_focused) {
     auto track_ids = song.getPlayableTrackIds();
-    auto track_index = session_view_->getCursorTrackIndex();
+    auto track_index = clip_grid_->getCursorTrackIndex();
     if (track_index >= 0 && track_index < static_cast<int>(track_ids.size())) {
-      getController().setSessionViewCursor(track_ids[static_cast<size_t>(track_index)], session_view_->getCursorClipIndex());
+      getController().setClipGridCursor(track_ids[static_cast<size_t>(track_index)], clip_grid_->getCursorClipIndex());
     }
   }
 
-  // Exactly one of pattern_editor_/session_view_/outline_view_ occupies
-  // the screen slot all three share (see layout()) - render whichever one
-  // workspace_aspect_ says is actually showing, never more than one.
-  switch (workspace_aspect_) {
-    case WorkspaceAspect::SESSION_VIEW: render |= session_view_->render(styles_, refresh, active == session_view_); break;
-    case WorkspaceAspect::OUTLINE_VIEW: render |= outline_view_->render(styles_, refresh, active == outline_view_); break;
-    default: render |= pattern_editor_->render(styles_, refresh, active == pattern_editor_); break;
+  // Only what the current view shows (see layout()) - a hidden widget
+  // drawing would paint over whichever visible one shares its rect.
+  if (getView() == View::SESSION) {
+    render |= clip_grid_->render(styles_, refresh, active == clip_grid_);
+    if (isOutlineVisible()) render |= outline_view_->render(styles_, refresh, active == outline_view_);
   }
+  render |= pattern_editor_->render(styles_, refresh, active == pattern_editor_);
   render |= arrangement_grid_->render(styles_, refresh, active == arrangement_grid_, selected_track_id);
   render |= cover_art_->render(styles_, refresh);
   render |= info_line_->render(styles_, refresh);
@@ -2378,13 +2358,36 @@ TerminalUI::renderComponents(bool refresh) {
   return render;
 }
 
-std::shared_ptr<UIElement>
-TerminalUI::currentWorkspaceElement() const {
-  switch (workspace_aspect_) {
-    case WorkspaceAspect::SESSION_VIEW: return session_view_;
-    case WorkspaceAspect::OUTLINE_VIEW: return outline_view_;
-    default: return pattern_editor_;
+std::vector<std::shared_ptr<UIElement>>
+TerminalUI::focusableElements() const {
+  if (getView() == View::ARRANGEMENT) return { pattern_editor_, arrangement_grid_ };
+  std::vector<std::shared_ptr<UIElement>> elements = { clip_grid_, pattern_editor_ };
+  if (isOutlineVisible()) elements.push_back(outline_view_);
+  return elements;
+}
+
+void
+TerminalUI::viewChanged() {
+  auto active = active_element_.lock();
+  auto elements = focusableElements();
+  if (std::find(elements.begin(), elements.end(), active) == elements.end()) {
+    // Focus was on a widget this view no longer shows - land on the view's
+    // own main widget.
+    if (getView() == View::SESSION) {
+      auto playable = getController().getSong().getPlayableTrackIds();
+      clip_grid_->setCursorTrackIndex(indexOfTrack(playable, getController().getSong().getCurrentTrackId()));
+      active_element_ = clip_grid_;
+    } else {
+      active_element_ = pattern_editor_;
+    }
   }
+  // An inline editor left open on a widget that's no longer shown would
+  // keep swallowing keys.
+  if (getView() == View::ARRANGEMENT) clip_grid_->cancelReaderEdit();
+  layout();
+  // Not a direct renderComponents(true) call here - see
+  // force_next_render_'s own comment on TerminalUI.h.
+  force_next_render_ = true;
 }
 
 bool
@@ -2409,7 +2412,7 @@ TerminalUI::offerInput(const InputEvent & input) {
   // global keybinding (Space/toggle-playing, C-x C-c/quit, ...) steal a
   // keystroke meant for it.
   bool reader_active = status_line_->isReaderActive() || pattern_editor_->isReaderActive() ||
-    arrangement_grid_->isReaderActive() || session_view_->isReaderActive();
+    arrangement_grid_->isReaderActive() || clip_grid_->isReaderActive();
   if (!reader_active && !octave_control_->isEditing() && dispatchCommand(input)) return true;
 
   if (input.getId() == NCKEY_RESIZE) {
@@ -2444,16 +2447,18 @@ TerminalUI::offerInput(const InputEvent & input) {
     // plain arrow keys/note entry the way pattern_editor_ does) the moment
     // a click landed anywhere on the status line's own row - which spans
     // the entire bottom row, so this was very easy to trigger by accident.
-    // pattern_editor_/session_view_/outline_view_ share one screen rect
-    // (see layout()) - only try whichever one is actually showing, never
-    // more than one, since a click there must activate whichever is
-    // visible, not always pattern_editor_.
-    bool activated = tryActivate(input.getY(), input.getX(), currentWorkspaceElement());
-    activated = tryActivate(input.getY(), input.getX(), arrangement_grid_) || activated;
+    // Only the widgets the current view shows - a hidden one can share a
+    // visible one's rect (see layout()), and a click must activate
+    // whichever is visible.
+    bool activated = false;
+    for (auto & element : focusableElements()) {
+      if (!activated) activated = tryActivate(input.getY(), input.getX(), element);
+    }
+    if (!activated) activated = tryActivate(input.getY(), input.getX(), arrangement_grid_);
     activated = tryActivate(input.getY(), input.getX(), octave_control_) || activated;
 
-    // Fall back to whichever widget currently occupies the main
-    // workspace slot if the click landed somewhere no widget claims (e.g.
+    // Fall back to the pattern editor (in every view) if the click landed
+    // somewhere no widget claims (e.g.
     // the FFT/heatmap/loudness scope strip, or the dividers between
     // them). Without this, active_element_ was left permanently empty (a
     // real, confirmed bug): every subsequent keyboard command routed
@@ -2461,7 +2466,7 @@ TerminalUI::offerInput(const InputEvent & input) {
     // Launchpad button commands via executeCommand()) silently no-op'd -
     // including plain Up/Down arrow - until the user happened to click
     // directly back on the workspace.
-    if (!activated) active_element_ = currentWorkspaceElement();
+    if (!activated) active_element_ = pattern_editor_;
 
     // A click that moves focus away from the octave stepper while it's
     // mid-edit discards the half-typed value rather than leaving it stuck
@@ -2918,7 +2923,7 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
   // "next-track"/"prev-track" outside GridMode::SESSION move the one
   // shared cursor every connected Launchpad follows - see
   // LaunchpadManager::track_move_callback_'s own comment for why. Also
-  // moves SessionView's own cursor, kept in step the same way it already
+  // moves ClipGrid's own cursor, kept in step the same way it already
   // seeds from PatternEditor's cursor when Session view first opens
   // (setCursorTrackIndex()'s own comment) - a track change made on the
   // Launchpad has to be reflected there too, not just in PatternEditor,
@@ -2928,15 +2933,15 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
   // index into that identical ordering, so no translation is needed.
   launchpad_manager.setTrackMoveCallback([this](int new_track_index) {
     pattern_editor_->setCursorTrack(new_track_index);
-    session_view_->setCursorTrackIndex(new_track_index);
+    clip_grid_->setCursorTrackIndex(new_track_index);
   });
-  // SessionView's own Enter key - acts exactly like a Launchpad Session
+  // ClipGrid's own Enter key - acts exactly like a Launchpad Session
   // view pad press on the same cell (LaunchpadManager::
   // triggerSessionClip(), same as handleSessionPadEvent() itself resolves
   // to) - launchpad_manager_ isn't set until this method runs (see
   // arrangement_grid_'s own commit callback comment in initializeWidgets()
   // for why that half is wired there instead).
-  session_view_->setTriggerCallback([this](int track_id, int clip_index) {
+  clip_grid_->setTriggerCallback([this](int track_id, int clip_index) {
     launchpad_manager_->triggerSessionClip(getController(), track_id, clip_index);
   });
   // Record Arm's own drum-machine-track repurposing ("toggle-record-arm",

@@ -421,172 +421,29 @@ TEST(focus_change_silences_the_previous_focused_tracks_preview) {
   CHECK(controller.getFocusedClip().empty());
 }
 
-// Song::getCurrentTrackId() lives on the Song itself, not in any of
-// Controller's per-buffer-mirrored scalars - the PatternEditor and
-// SessionView aspects of one song (canonicalBufferName()'s own pair)
-// automatically see the identical value with no separate save/load
-// bookkeeping, unlike getPlaybackInfo() and friends.
-TEST(current_track_id_is_shared_across_a_songs_own_buffer_aspects) {
-  ChannelConfiguration config(44100, 1);
-  Controller controller(config);
-  auto name = controller.freshBufferName();
-  controller.switchToBuffer(name);
-  controller.getSong().setCurrentTrackId(7);
-
-  auto alias = controller.openSessionViewBuffer();
-  CHECK(controller.getSong().getCurrentTrackId() == 7); // same Song, same value
-
-  controller.getSong().setCurrentTrackId(9);
-  controller.switchToBuffer(name); // back to the PatternEditor aspect
-  CHECK(controller.getSong().getCurrentTrackId() == 9); // set through the other aspect, still visible here
-}
-
-// PatternEditor and SessionView are symmetric buffer-list aspects of the
-// same song now - either can be opened or closed independently, and
-// closing one never closes the underlying song as long as the other (or
-// some other song's own buffer) stays open.
-TEST(session_view_buffer_can_close_without_closing_the_song) {
-  ChannelConfiguration config(44100, 1);
-  Controller controller(config);
-  auto name = controller.freshBufferName();
-  controller.switchToBuffer(name);
-
-  auto alias = controller.openSessionViewBuffer();
-  CHECK(alias == name + " [Session]");
-  CHECK(controller.isSessionViewBuffer(alias));
-  CHECK(controller.getSelectedBufferName() == alias);
-  CHECK(controller.getActiveBufferName() == name); // resolves to the real song either way
-
-  // Closing the SessionView aspect (the only thing selected right now)
-  // returns to the PatternEditor aspect - the song itself is untouched.
-  CHECK(controller.killActiveBuffer());
-  CHECK(controller.getSelectedBufferName() == name);
-  CHECK(!controller.isSessionViewBuffer(controller.getSelectedBufferName()));
-  auto names = controller.getBufferNames();
-  CHECK(std::find(names.begin(), names.end(), alias) == names.end()); // the SessionView entry is gone
-  CHECK(std::find(names.begin(), names.end(), name) != names.end()); // the song's own PatternEditor entry remains
-}
-
-// The new capability this session's own request was actually about:
-// PatternEditor's own buffer-list entry is no longer privileged - closing
-// it while SessionView stays open must leave the song alive under
-// SessionView, not destroy it the way closing the sole "canonical" entry
-// used to.
-TEST(pattern_editor_buffer_can_close_while_session_view_stays_open) {
-  ChannelConfiguration config(44100, 1);
-  Controller controller(config);
-  auto name = controller.freshBufferName();
-  controller.switchToBuffer(name); // PatternEditor aspect, the only one so far
-  controller.openSessionViewBuffer(); // now both aspects are open
-
-  // Make the PatternEditor aspect the active one, then close it.
-  controller.switchToBuffer(name);
-  CHECK(controller.activeSongHasOtherOpenViews()); // SessionView is still open on this song
-  CHECK(controller.killActiveBuffer());
-
-  // The song survives under its SessionView aspect - not gone, not
-  // silently recreated as a fresh empty buffer under the old name.
-  CHECK(controller.getSelectedBufferName() == name + " [Session]");
-  CHECK(controller.isSessionViewBuffer(controller.getSelectedBufferName()));
-  CHECK(controller.getActiveBufferName() == name);
-  auto names = controller.getBufferNames();
-  CHECK(std::find(names.begin(), names.end(), name) == names.end()); // the PatternEditor entry is gone
-  CHECK(std::find(names.begin(), names.end(), name + " [Session]") != names.end());
-
-  // And it can be reopened later, landing back on the very same song.
-  auto reopened = controller.openPatternEditorBuffer();
-  CHECK(reopened == name);
-  CHECK(controller.getSelectedBufferName() == name);
-  CHECK(controller.getActiveBufferName() == name);
-}
-
-// OutlineView is a third symmetric buffer-list aspect (Controller.h's
-// BufferAspect), same shape as SessionView above - it can be opened and
-// closed independently without ever closing the underlying song.
-TEST(outline_view_buffer_can_close_without_closing_the_song) {
-  ChannelConfiguration config(44100, 1);
-  Controller controller(config);
-  auto name = controller.freshBufferName();
-  controller.switchToBuffer(name);
-
-  auto alias = controller.openOutlineViewBuffer();
-  CHECK(alias == name + " [Outline]");
-  CHECK(controller.isOutlineViewBuffer(alias));
-  CHECK(!controller.isSessionViewBuffer(alias));
-  CHECK(controller.getSelectedBufferName() == alias);
-  CHECK(controller.getActiveBufferName() == name); // resolves to the real song either way
-
-  CHECK(controller.killActiveBuffer());
-  CHECK(controller.getSelectedBufferName() == name);
-  CHECK(!controller.isOutlineViewBuffer(controller.getSelectedBufferName()));
-  auto names = controller.getBufferNames();
-  CHECK(std::find(names.begin(), names.end(), alias) == names.end()); // the Outline entry is gone
-  CHECK(std::find(names.begin(), names.end(), name) != names.end()); // the song's own PatternEditor entry remains
-}
-
-// All three aspects of one song can be open at once - opening each just
-// adds another buffer-list entry onto the same underlying Song, and
-// closing any two of them still leaves the song open under the third.
-TEST(all_three_buffer_aspects_of_a_song_can_be_open_at_once) {
-  ChannelConfiguration config(44100, 1);
-  Controller controller(config);
-  auto name = controller.freshBufferName();
-  controller.switchToBuffer(name);
-  controller.openSessionViewBuffer();
-  controller.openOutlineViewBuffer();
-
-  auto names = controller.getBufferNames();
-  CHECK(names.size() == 3);
-  CHECK(std::find(names.begin(), names.end(), name) != names.end());
-  CHECK(std::find(names.begin(), names.end(), name + " [Session]") != names.end());
-  CHECK(std::find(names.begin(), names.end(), name + " [Outline]") != names.end());
-
-  controller.switchToBuffer(name);
-  CHECK(controller.activeSongHasOtherOpenViews());
-  CHECK(controller.killActiveBuffer());
-  controller.switchToBuffer(name + " [Session]");
-  CHECK(controller.activeSongHasOtherOpenViews()); // Outline is still open
-  CHECK(controller.killActiveBuffer());
-
-  // Only the Outline aspect is left - closing it now closes the song.
-  names = controller.getBufferNames();
-  CHECK(names.size() == 1);
-  CHECK(controller.isOutlineViewBuffer(controller.getSelectedBufferName()));
-  CHECK(!controller.activeSongHasOtherOpenViews());
-}
-
-// Closing a song's *last* remaining view (regardless of which aspect it
-// is) closes the underlying song itself - the same "always keep at least
-// one buffer open" guarantee the old canonical-buffer-only design had,
-// now checked across every open view of every song rather than just
-// songs_' own count.
-TEST(closing_the_last_view_of_a_song_closes_the_song_itself) {
+TEST(kill_active_buffer_closes_the_song_and_switches_to_another) {
   ChannelConfiguration config(44100, 1);
   Controller controller(config);
   auto other = controller.freshBufferName();
   controller.switchToBuffer(other); // a second song, so the one under test isn't the app's only buffer
 
   auto name = controller.freshBufferName();
-  controller.switchToBuffer(name); // only the PatternEditor aspect is open on this one
-  CHECK(!controller.activeSongHasOtherOpenViews());
+  controller.switchToBuffer(name);
   CHECK(controller.killActiveBuffer());
 
   auto names = controller.getBufferNames();
   CHECK(std::find(names.begin(), names.end(), name) == names.end());
-  CHECK(std::find(names.begin(), names.end(), name + " [Session]") == names.end());
-  CHECK(controller.getSelectedBufferName() == other); // switched to the only buffer left
+  CHECK(controller.getActiveBufferName() == other); // switched to the only buffer left
 }
 
-// killActiveBuffer() still refuses when it's genuinely the only buffer-
-// list entry open anywhere, whichever aspect it happens to be.
-TEST(kill_active_buffer_refuses_the_only_open_view) {
+TEST(kill_active_buffer_refuses_the_only_open_buffer) {
   ChannelConfiguration config(44100, 1);
   Controller controller(config);
   auto name = controller.freshBufferName();
   controller.switchToBuffer(name);
   CHECK(controller.getBufferNames().size() == 1);
   CHECK(!controller.killActiveBuffer());
-  CHECK(controller.getSelectedBufferName() == name); // untouched
+  CHECK(controller.getActiveBufferName() == name); // untouched
 }
 
 // beginSampleCapture() is lazy - called only once real audio has arrived
@@ -1109,12 +966,12 @@ TEST(toggle_playing_disarms_note_capture_when_transport_stops) {
   CHECK(!controller.isNoteCaptureArmed());
 }
 
-// Session View recording: arming with isSessionViewFocused() true targets
-// whatever slot setSessionViewCursor() names, never the shared track
+// Session View recording: arming with isClipGridFocused() true targets
+// whatever slot setClipGridCursor() names, never the shared track
 // cursor, and never auto-starts the transport (Player.cpp already starts
 // ALSA capture off isThresholdArmed() alone) - so the resulting take stays
 // entirely unplaced, populating only the clip slot.
-TEST(toggle_record_arm_session_view_focused_arms_a_sample_track_without_arrangement_placement) {
+TEST(toggle_record_arm_clip_grid_focused_arms_a_sample_track_without_arrangement_placement) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
@@ -1125,8 +982,8 @@ TEST(toggle_record_arm_session_view_focused_arms_a_sample_track_without_arrangem
   auto & other_track = song.addTrack(std::make_unique<SampleTrack>());
   song.setCurrentTrackId(other_track.getInternalId()); // deliberately not the Session View target
 
-  controller.setSessionViewFocused(true);
-  controller.setSessionViewCursor(track_id, 0);
+  controller.setClipGridFocused(true);
+  controller.setClipGridCursor(track_id, 0);
 
   controller.sendCommand("toggle-record-arm");
   CHECK(controller.isThresholdArmed());
@@ -1175,8 +1032,8 @@ TEST(toggle_record_arm_on_a_drum_machine_clip_focuses_it_instead_of_arming) {
   bool requested_opened = false;
   controller.setDrumEditRequestListener([&](int id, bool opened) { requested_track_id = id; requested_opened = opened; });
 
-  controller.setSessionViewFocused(true);
-  controller.setSessionViewCursor(track_id, 0); // the occupied slot
+  controller.setClipGridFocused(true);
+  controller.setClipGridCursor(track_id, 0); // the occupied slot
   controller.sendCommand("toggle-record-arm");
 
   CHECK(!controller.isSessionRecording(track_id)); // never armed a take
@@ -1214,8 +1071,8 @@ TEST(toggle_record_arm_on_a_lane_less_percussion_clip_focuses_it_too) {
   auto & existing = song.addClip(Clip(track_id)); // an occupied slot, not an empty one
   auto existing_id = existing.getId();
 
-  controller.setSessionViewFocused(true);
-  controller.setSessionViewCursor(track_id, 0);
+  controller.setClipGridFocused(true);
+  controller.setClipGridCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
 
   CHECK(!controller.isTrackArmed(track_id)); // never armed a take
@@ -1236,8 +1093,8 @@ TEST(toggle_record_arm_on_an_empty_drum_machine_slot_creates_a_clip) {
   track.addLane(36); // step-sequenced, so Record Arm repurposes instead of arming
   auto track_id = track.getInternalId();
 
-  controller.setSessionViewFocused(true);
-  controller.setSessionViewCursor(track_id, 0); // empty - no clips exist yet
+  controller.setClipGridFocused(true);
+  controller.setClipGridCursor(track_id, 0); // empty - no clips exist yet
   controller.sendCommand("toggle-record-arm");
 
   auto & clips = song.getClips(track_id);
@@ -1267,7 +1124,7 @@ TEST(toggle_record_arm_on_an_empty_drum_machine_slot_creates_a_clip) {
 // Controller::toggleDrumClipFocus() called directly with a (track_id,
 // clip_index) pair - the Launchpad's own CC91-held-as-shift gesture
 // (LaunchpadManager::handleSessionPadEvent()) reaches it this way, never
-// through session_view_focused_/setSessionViewCursor() the way
+// through clip_grid_focused_/setClipGridCursor() the way
 // "toggle-record-arm" above does - same underlying open/close behavior,
 // exercised through the other entry point.
 TEST(toggle_drum_clip_focus_direct_call_opens_and_closes_a_clip) {
@@ -1411,8 +1268,8 @@ TEST(toggle_record_arm_on_a_non_drum_machine_track_arms_normally) {
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
 
-  controller.setSessionViewFocused(true);
-  controller.setSessionViewCursor(track_id, 0);
+  controller.setClipGridFocused(true);
+  controller.setClipGridCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
 
   CHECK(controller.isTrackArmed(track_id));
@@ -1442,8 +1299,8 @@ TEST(ensure_session_recording_clip_creates_and_grows_at_the_exact_pressed_index)
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
 
-  controller.setSessionViewFocused(true);
-  controller.setSessionViewCursor(track_id, 2); // an empty slot past the (currently empty) clip list
+  controller.setClipGridFocused(true);
+  controller.setClipGridCursor(track_id, 2); // an empty slot past the (currently empty) clip list
   controller.sendCommand("toggle-record-arm");
   CHECK(controller.isTrackArmed(track_id));
   CHECK(!controller.isSessionRecording(track_id)); // arming alone starts no take
@@ -1490,8 +1347,8 @@ TEST(ensure_session_recording_clip_overwrites_an_occupied_slot_in_place) {
   existing.getLeafPattern().setNote(0, 0, Note(40, 100, 0));
   auto existing_id = existing.getId();
 
-  controller.setSessionViewFocused(true);
-  controller.setSessionViewCursor(track_id, 0); // the occupied slot
+  controller.setClipGridFocused(true);
+  controller.setClipGridCursor(track_id, 0); // the occupied slot
   controller.sendCommand("toggle-record-arm");
   controller.armSessionTrackRecording(track_id, 0);
 
@@ -1516,8 +1373,8 @@ TEST(ensure_session_recording_clip_establishes_its_origin_from_the_containing_ba
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
 
-  controller.setSessionViewFocused(true);
-  controller.setSessionViewCursor(track_id, 0);
+  controller.setClipGridFocused(true);
+  controller.setClipGridCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
   controller.armSessionTrackRecording(track_id, 0);
 
@@ -1554,8 +1411,8 @@ TEST(ensure_session_recording_clip_respects_a_primed_origin) {
   existing.setLength(32); // long enough that row 8 below never wraps
   existing.getLeafPattern().setNote(0, 0, Note(40, 100, 0));
 
-  controller.setSessionViewFocused(true);
-  controller.setSessionViewCursor(track_id, 0);
+  controller.setClipGridFocused(true);
+  controller.setClipGridCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
   controller.armSessionTrackRecording(track_id, 0);
 
@@ -1584,8 +1441,8 @@ TEST(ensure_session_recording_clip_aligns_to_an_existing_shared_grid) {
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
 
-  controller.setSessionViewFocused(true);
-  controller.setSessionViewCursor(track_id, 0);
+  controller.setClipGridFocused(true);
+  controller.setClipGridCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
   controller.armSessionTrackRecording(track_id, 0);
 
@@ -1620,8 +1477,8 @@ TEST(trim_session_recording_clip_cuts_growth_back_to_the_last_written_bar) {
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
 
-  controller.setSessionViewFocused(true);
-  controller.setSessionViewCursor(track_id, 0);
+  controller.setClipGridFocused(true);
+  controller.setClipGridCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
   controller.armSessionTrackRecording(track_id, 0);
 
@@ -1653,8 +1510,8 @@ TEST(trim_session_recording_clip_with_no_notes_leaves_one_bar) {
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
 
-  controller.setSessionViewFocused(true);
-  controller.setSessionViewCursor(track_id, 0);
+  controller.setClipGridFocused(true);
+  controller.setClipGridCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
   controller.armSessionTrackRecording(track_id, 0);
   controller.ensureSessionRecordingClip(track_id, 0); // clip created, but no note ever written into it
@@ -1680,8 +1537,8 @@ TEST(trim_session_recording_clip_loops_and_is_reported_exactly_once) {
   auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto track_id = track.getInternalId();
 
-  controller.setSessionViewFocused(true);
-  controller.setSessionViewCursor(track_id, 0);
+  controller.setClipGridFocused(true);
+  controller.setClipGridCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
   controller.armSessionTrackRecording(track_id, 0);
   auto row = controller.ensureSessionRecordingClip(track_id, 0);
@@ -1862,7 +1719,7 @@ TEST(several_tracks_can_record_concurrently) {
 
 // End-to-end: sendCommand("merge-clip-to-background") resolves its target
 // purely from Song::getCurrentTrackId() and the playhead
-// (getPlaybackInfo()) - no PatternEditor/ArrangementGrid/SessionView
+// (getPlaybackInfo()) - no PatternEditor/ArrangementGrid/ClipGrid
 // involved at all, confirming the command really is reachable independent
 // of any UI widget.
 TEST(merge_clip_to_background_command_resolves_from_current_track_and_playhead) {

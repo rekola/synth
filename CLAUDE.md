@@ -63,8 +63,9 @@ With no file given, `main.cpp` opens `songs/welcome.xml` by default -
 resolved cwd-relative first (running from the source tree), then from
 wherever `make install` put it (`InstallPaths.h.in`, baked in at configure
 time from `CMAKE_INSTALL_PREFIX`), falling back to a fresh empty buffer if
-neither is there. A brand new buffer defaults to Session/overview focus
-(`ArrangementGrid`, not straight into note entry) and 31-EDO tuning.
+neither is there. The UI starts in Arrangement view with the overview
+(`ArrangementGrid`) focused, not straight into note entry, and a brand
+new buffer defaults to 31-EDO tuning.
 
 ## Tests
 
@@ -482,7 +483,7 @@ would otherwise resume showing.
   reachable two ways, both funneled through the same shared
   `Controller::toggleDrumClipFocus(track_id, clip_index)`: the
   terminal-driven one ("toggle-record-arm"/Ctrl-X r while the
-  `SessionView` widget has focus, `Controller.cpp`'s own drum-machine-
+  `ClipGrid` widget has focus, `Controller.cpp`'s own drum-machine-
   track repurposing), and a Launchpad-only gesture - holding CC91
   ("move-row-up", printed with an up-arrow icon) as a shift modifier and
   pressing a Session-view pad opens that pad's own clip instead of
@@ -688,7 +689,7 @@ would otherwise resume showing.
   this slot populated" check reads content, not just bounds
   (`!clip.isEmpty()`), for exactly this reason - Session view's own
   per-pad LED/row display, `LaunchpadManager::triggerSessionClip()`'s
-  fresh-take-vs-overdub decision, and `SessionView`'s own delete/rename/
+  fresh-take-vs-overdub decision, and `ClipGrid`'s own delete/rename/
   loop-toggle commands (a filler reads as "nothing here" the same as a
   genuinely out-of-bounds row - erasing one would shift every later
   clip's own index down, silently misaligning every other track's own
@@ -844,8 +845,18 @@ would otherwise resume showing.
   background has anything there. No per-cell copy/paste - placing/moving
   clip content is `copy-to-clip`'s own job, from `PatternEditor`. Track/
   section selection is the one shared cursor Session view also follows.
-- **Defaults**: a fresh session opens on `ArrangementGrid` (Session/
-  overview focus, `UI::initialize()`'s `active_element_`) rather than
+- **Views** (`UI::View`, `ARRANGEMENT`/`SESSION`) - how the active song is
+  laid out, UI state independent of which buffer (song) is active; a
+  buffer is just a song. Arrangement view: the scope row (with
+  `ArrangementGrid`) plus `PatternEditor`. Session view: `ClipGrid`
+  (`src/ui/tui/ClipGrid.h` - per-track clip slots, Sends, Direction), with
+  `OutlineView` as an optional panel on its left ("toggle-outline"), above
+  `PatternEditor` (`TerminalUI::layout()`). "toggle-view" (Tab) flips
+  between them, the live-sequencer convention; "arrangement-view"/
+  "session-view"/"outline-view" select one directly (View menu).
+- **Defaults**: a fresh session opens in Arrangement view on
+  `ArrangementGrid` (overview focus, `UI::initialize()`'s
+  `active_element_`) rather than
   straight into note entry, and `GridMode` defaults to `SESSION` on every
   connected device - see the Run section above for the matching
   `songs/welcome.xml`/31-EDO startup defaults.
@@ -890,7 +901,7 @@ would otherwise resume showing.
   SampleTrack twin of `verify_launchpad_record_arm_holes.py` - a
   Session-grid press on a SampleTrack armed via the track-picker overlay
   actually arming real audio capture, and a second press cancelling it -
-  verified through the terminal `SessionView` widget's own text rather
+  verified through the terminal `ClipGrid` widget's own text rather
   than LED bytes, since a genuinely armed take also engages real ALSA
   capture logic and hits the same class of sandboxed-environment LED-read
   flakiness documented for `verify_launchpad_stopclip.py`

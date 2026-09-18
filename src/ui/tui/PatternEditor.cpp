@@ -1497,13 +1497,6 @@ PatternEditor::offerInput(const InputEvent & input) {
 	new_cursor.subcol = 0;
       }
       return true;
-    } else if (input.getId() == '\t') {
-      if (track_info.isEffectColumn(new_cursor.col)) { // effect
-	new_cursor.subcol = (new_cursor.subcol + 1) % 4;
-      } else if (!track_info.isNoteColumn(new_cursor.col)) {
-	new_cursor.subcol = (new_cursor.subcol + 1) % 2;
-      }
-      return true;
     } else {
       int track_id = track_ids[static_cast<size_t>(new_cursor.track)];
       auto point = source_->cursor();

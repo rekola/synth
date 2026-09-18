@@ -50,12 +50,8 @@ struct DetailsLine {
 // per-instrument rows/Tracks/per-track rows, then Library/Grooves/
 // Instruments - the same "collapsible headings" shape Emacs's own
 // outline-mode shows for a text buffer, applied to the song structure
-// instead. Its own buffer aspect (Controller.h's `BufferAspect::
-// OUTLINE_VIEW`, opened via "outline-view" - the Buffers menu's "Open
-// Outline" item), takes over pattern_editor_'s own screen region while
-// open exactly like SessionView does (see UI::layout()/renderComponents()
-// and SessionView.h's own comment) - closed implicitly by any buffer
-// switch, not a dedicated close command.
+// instead. Shown as a panel on the left of ClipGrid in Session view
+// (UI::View; "toggle-outline"/"outline-view", see TerminalUI::layout()).
 //
 // A shared one-row heading strip along the top, split by a vertical
 // divider into "Outline" (left) and "Details" (right); below that, the

@@ -7,7 +7,7 @@
 // completely different physical gesture - and that CC95 ("Session") alone
 // then closes it again outright (Controller::closeDrumClipFocus()), not
 // needing another shift+pad combo. Two phases, timed to let
-// verify_launchpad_shift_stepgrid.py read the terminal's own SessionView
+// verify_launchpad_shift_stepgrid.py read the terminal's own ClipGrid
 // text in between: phase 1 opens "Beat 1" (clip index 7, pad (0,0)),
 // phase 2 (after the script's own mid-run screen read) closes it again
 // with a lone CC95 press.
@@ -81,7 +81,7 @@ int main() {
   drain(seq, 1000, "shift released, phase 1 settled");
 
   // Phase 1 done here - verify_launchpad_shift_stepgrid.py reads the
-  // terminal's own SessionView text at this point, then lets this process
+  // terminal's own ClipGrid text at this point, then lets this process
   // continue into phase 2 below. A wide window (not just enough for the
   // read itself) - phase 2 must not start until well after the script's
   // own read is guaranteed to have happened, or it risks reading phase

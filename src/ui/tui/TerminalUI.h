@@ -9,6 +9,7 @@
 #include <optional>
 #include <set>
 #include <string_view>
+#include <vector>
 
 namespace ncpp {
   class NotCurses;
@@ -21,7 +22,7 @@ class InfoLine;
 class StatusLine;
 class PatternEditor;
 class ArrangementGrid;
-class SessionView;
+class ClipGrid;
 class OutlineView;
 class CoverArt;
 class SpinBox;
@@ -70,6 +71,7 @@ class TerminalUI : public UI {
 protected:
   void startUI(AudioAPI & audio, LaunchpadIO & launchpad_io) override;
   void wireLaunchpad(LaunchpadManager & launchpad_manager) override;
+  void viewChanged() override;
   bool readInput();
 
   // How long a pending Escape (EscapeSequenceCoalescer::escapePending())
@@ -98,9 +100,8 @@ protected:
   // and Launchpad's equivalent "prev-track already at track 0" one (see
   // PatternEditor::setOverviewRequestCallback()/LaunchpadManager::
   // setSessionRequestCallback(), wired to this in initializeWidgets()/
-  // wireLaunchpad()) - moves focus to arrangement_grid_, which (via
-  // renderComponents()'s own active_element_ check) is what actually puts
-  // every connected Launchpad into GridMode::SESSION too.
+  // wireLaunchpad()) - moves focus to the current view's overview:
+  // arrangement_grid_ in Arrangement view, clip_grid_ in Session view.
   void requestOverviewFocus();
   // The reverse edge: leaves the overview, focusing pattern_editor_ on its
   // first track - both entry points (Launchpad's "next-track" already in
@@ -111,10 +112,9 @@ protected:
   // reason about, not two competing ones.
   void exitOverview();
   bool tryActivate(int y, int x, std::shared_ptr<UIElement> element);
-  // Whichever of pattern_editor_/session_view_/outline_view_ workspace_aspect_
-  // currently says occupies their shared screen slot - see that member's
-  // own comment.
-  std::shared_ptr<UIElement> currentWorkspaceElement() const;
+  // The widgets the current view shows that can take focus, in C-x o
+  // (other-window) order.
+  std::vector<std::shared_ptr<UIElement>> focusableElements() const;
 
 private:
   std::shared_ptr<ncpp::NotCurses> nc;
@@ -145,23 +145,14 @@ private:
   // Always visible in the scope row's leftmost columns (see layout()),
   // sharing that row's real estate with chart_/heatmap_/volume_meter_.
   std::shared_ptr<ArrangementGrid> arrangement_grid_;
-  // Takes over pattern_editor_'s own screen region while workspace_aspect_
-  // names it (see layout()/renderComponents()) - all three stay real,
-  // constructed objects the whole time; only which one is on screen/
-  // active changes. See SessionView.h's/OutlineView.h's own comments.
-  // workspace_aspect_ itself isn't toggled directly by any UI-owned
-  // command - it's derived, in the buffer-change listener
-  // (initializeWidgets()), from which aspect the now-selected buffer is
-  // (Controller::isSessionViewBuffer()/isOutlineViewBuffer()) - opening
-  // one is Controller::openSessionViewBuffer()/openOutlineViewBuffer()
-  // switching to its own aspect buffer; closing it is switching to any
-  // other buffer, C-x b included.
-  std::shared_ptr<SessionView> session_view_;
+  // Shown only in Session view (UI::View), above pattern_editor_, with
+  // outline_view_ as an optional panel on its left (see layout()/
+  // renderComponents()) - both stay real, constructed objects the whole
+  // time; only which ones are on screen changes.
+  std::shared_ptr<ClipGrid> clip_grid_;
   std::shared_ptr<OutlineView> outline_view_;
-  enum class WorkspaceAspect { PATTERN_EDITOR, SESSION_VIEW, OUTLINE_VIEW };
-  WorkspaceAspect workspace_aspect_ = WorkspaceAspect::PATTERN_EDITOR;
-  // Set by a handler that changes what's on screen (workspace_aspect_
-  // changing, NCKEY_RESIZE) from *inside* input handling - before this
+  // Set by a handler that changes what's on screen (the view changing,
+  // NCKEY_RESIZE) from *inside* input handling - before this
   // class's own main loop (startUI()) reaches its own renderComponents()
   // call, the one that actually decides whether to call nc->render() (the
   // real terminal flush). Calling renderComponents(true) directly from in

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Drive every widget's inline text editor (InlineEditor) through a pty:
 ArrangementGrid's section rename, PatternEditor's track-name and
-annotation editors, and SessionView's clip and track renames. Checks that
+annotation editors, and ClipGrid's clip and track renames. Checks that
 Enter commits, Ctrl-g cancels, M-x cancels an open editor, and that a
 typed space never reaches the global toggle-playing binding.
 """
@@ -92,7 +92,7 @@ def arrangement_and_pattern_editor():
     os.kill(pid, 9)
 
 
-def session_view():
+def clip_grid():
     pid, scr = start(SESSION_SONG)
     scr.send(b"\x1bx")
     scr.pump(0.4)
@@ -126,7 +126,7 @@ def session_view():
 
 def main():
     arrangement_and_pattern_editor()
-    session_view()
+    clip_grid()
     sys.exit(0 if all(results) else 1)
 
 

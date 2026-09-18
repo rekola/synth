@@ -86,19 +86,17 @@ UI::initializeCommands() {
   commands_.define("previous-buffer", [this]() {
     getController().cycleBuffer(false);
   });
-  // Switches to (opening the first time) the SessionView/OutlineView/
-  // PatternEditor aspect of the active song - see Controller::
-  // openSessionViewBuffer()'s own comment. Any of the three can be opened
-  // regardless of which one currently shows, and each can later be closed
-  // independently (kill-buffer) without closing the song.
-  commands_.define("session-view", [this]() {
-    getController().openSessionViewBuffer();
-  });
-  commands_.define("outline-view", [this]() {
-    getController().openOutlineViewBuffer();
-  });
-  commands_.define("pattern-viewer", [this]() {
-    getController().openPatternEditorBuffer();
+  // How the active song is shown - see UI::View. The live-sequencer
+  // convention of one key flipping between the two is toggle-view; the
+  // outline panel only exists in Session view, so showing it switches
+  // there.
+  commands_.define("arrangement-view", [this]() { setView(View::ARRANGEMENT); });
+  commands_.define("session-view", [this]() { setView(View::SESSION); });
+  commands_.define("toggle-view", [this]() { setView(view_ == View::SESSION ? View::ARRANGEMENT : View::SESSION); });
+  commands_.define("toggle-outline", [this]() {
+    bool show = !(outline_visible_ && view_ == View::SESSION);
+    setOutlineVisible(show);
+    if (show) setView(View::SESSION);
   });
   commands_.define("toggle-playing", [this]() {
     bool playing = getController().togglePlaying();
@@ -173,6 +171,20 @@ UI::initializeCommands() {
   commands_.define("apply-preset-electronic", [apply_preset]() { apply_preset(PercussionTrack::Preset::ELECTRONIC); });
   // The explicit way back to a plain, lane-less track.
   commands_.define("apply-preset-none", [apply_preset]() { apply_preset(PercussionTrack::Preset::NONE); });
+}
+
+void
+UI::setView(View view) {
+  if (view == view_) return;
+  view_ = view;
+  viewChanged();
+}
+
+void
+UI::setOutlineVisible(bool visible) {
+  if (visible == outline_visible_) return;
+  outline_visible_ = visible;
+  viewChanged();
 }
 
 void

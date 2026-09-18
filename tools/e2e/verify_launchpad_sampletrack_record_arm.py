@@ -6,7 +6,7 @@ of silently falling through to plain audition/assign the way it used to
 (the `is_sample_track` carve-out this test closes), and a second press on
 that same pad cancels the still-idle arm again.
 
-Verified through the terminal SessionView widget's own text (M-x
+Verified through the terminal ClipGrid widget's own text (M-x
 session-view), not LED bytes - the same reasoning
 verify_launchpad_record_arm_holes.py already uses, and the same one that
 sidesteps this sandboxed environment's documented ALSA-contention
@@ -61,7 +61,7 @@ def run(cancel):
     time.sleep(16)
     scr.pump(0.5)
 
-    # M-x session-view: opens (or switches to) the SessionView aspect of
+    # M-x session-view: switches to Session view (ClipGrid focused) for
     # the active song - same mechanism verify_launchpad_record_arm_holes.py
     # already uses.
     scr.send(b"\x1b")
@@ -90,10 +90,10 @@ def run(cancel):
     check(f"[{label}] synth sent a Programmer-Mode-enter SysEx to the simulated device",
           "0e 01" in fake_output.replace(",", " "), fake_output)
 
-    session_view_text = scr.dump()
-    print(f"\n--- SessionView screen dump ({label}) ---")
-    print(session_view_text)
-    return session_view_text
+    clip_grid_text = scr.dump()
+    print(f"\n--- ClipGrid screen dump ({label}) ---")
+    print(clip_grid_text)
+    return clip_grid_text
 
 arm_only_text = run(cancel=False)
 cancel_text = run(cancel=True)

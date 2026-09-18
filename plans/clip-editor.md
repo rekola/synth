@@ -6,7 +6,7 @@ the Launchpad Session grid address) at a time, with one playhead per track.
 Views stop being buffers: a buffer is a song, and a view is how the UI is
 laid out around it.
 
-Status: Phases 0a and 0b committed; 0c done (not yet committed). Every phase lands as its own commit(s), with `ctest`
+Status: Phase 0 committed; Phases 1 and 2 done (not yet committed). Every phase lands as its own commit(s), with `ctest`
 and the e2e scripts green.
 
 ## The cursor model
@@ -173,22 +173,34 @@ Exit criteria: no user-visible change.
 
 ---
 
-## Phase 1: session playback state out of LaunchpadManager
+## Phase 1: a read-only session playhead snapshot
 
-Move `triggered_pattern_by_track_`, `queued_pattern_by_track_`, the queued
-recordings, `audition_clock_`, `session_origin_step_`, and the
-trigger/stop/quantize logic into a Controller-owned `SessionPlayer`
-(`src/playback/`). `LaunchpadManager` and `SessionView` become clients.
-Expose a snapshot map for display:
-`track_id -> {clip_index, row, queued_clip}`.
+Done (not yet committed). `LaunchpadManager` always exists, with or
+without a device, and already runs Session-view clip playback, so the
+clip editor only needs to read it: `LaunchpadManager::sessionPlayheads()`
+returns `track_id -> {clip_index, row, queued_clip}` (row -1 while the
+audition clock isn't running). The row math is `clipPlayheadRow()` in
+`LaunchpadTiming.h`, unit-tested there. TerminalUI, which already wires
+`LaunchpadManager`, hands the snapshot to PatternEditor and ClipGrid in
+Phase 3, so neither depends on Launchpad code.
 
-The terminal widgets need this to draw per-track playheads without
-reaching into Launchpad code. This phase is behaviour-neutral, and the
-existing session e2e scripts are the regression net.
+Deferred, optional: moving session playback itself (triggering,
+bar-quantized launch/stop, recording queues, the audition clock) out of
+`LaunchpadManager` into a Controller-owned `SessionPlayer`. It's cleaner
+ownership, but a large move with weak e2e coverage (the Launchpad LED
+checks are flaky here), and nothing in this plan needs it.
 
 ---
 
 ## Phase 2: separate views from buffers (Arrangement / Session)
+
+Done (not yet committed), as below, with two deviations. The scope row
+(cover art, ArrangementGrid, charts) stays in both views for now, since
+the chart planes attach straight to the screen and can't simply be
+hidden; removing it from Session view is part of Phase 4. The outline
+panel starts hidden. `SessionView` is renamed `ClipGrid`, and Controller's
+`setSessionViewFocused()`/`setSessionViewCursor()` become
+`setClipGridFocused()`/`setClipGridCursor()`.
 
 - Remove `BufferAspect`, the `" [Session]"`/`" [Outline]"` buffers,
   `open*ViewBuffer()`, `open_aspects_by_song_`, and
@@ -266,8 +278,14 @@ existing session e2e scripts are the regression net.
   row when that clip is in the displayed scene. A queued launch shows as a marker in that track's heading.
   `launch-clip` and `launch-scene` go through `SessionPlayer`. Space stays
   the global transport toggle.
-- **Hidden in session mode** (capability flags): annotations and
-  `copy-to-clip`. Live recording goes through the existing Session
+- **No annotations in session mode** (`hasAnnotations() == false`):
+  they belong to sections, and a scene has none. The session-mode
+  pattern editor shows no annotation column, the cursor can't move onto
+  the annotation slot (Right/Ctrl+Right stop at the last track), Enter
+  never opens the annotation editor, and a mark can't widen to
+  ANNOTATION/EVERYTHING scope, so kill/copy/yank never touch
+  annotations. `copy-to-clip` keeps working (it copies part of a clip
+  into a new clip). Live recording goes through the existing Session
   record-arm path. Keyboard auto-advance-while-held recording comes
   later, once it can follow a per-track playhead (see Phase 0's
   "not doing" note on live note input).
@@ -381,8 +399,51 @@ isn't feasible now.
 
 ---
 
+## Phase 7: per-track input monitoring in the clip grid
+
+Each track gets a **Monitor** setting in ClipGrid: the live audio input
+is played through that track - its own effect chain, sends and spatial
+position - to the speakers, so you can hear e.g. how the track's effects
+treat your voice before (or while) recording.
+
+- **Setting:** follow the live-sequencer convention of In / Auto / Off.
+  In: always monitor. Auto: monitor only while the track is armed (Record
+  Arm). Off: never. Default Off (Auto for a SampleTrack?). Persisted per
+  track in the song XML. Shown and edited in ClipGrid (a new
+  cursor-addressable row beside Sends/Direction, or a glyph on the
+  header row next to M/S), plus a `cycle-monitor` command.
+- **Engine:** capture currently runs only while recording or
+  threshold-armed (`Player.cpp`'s capture-enable edge; captured blocks
+  go to the UI as `RecordEvent`s). Monitoring needs capture running
+  whenever any track monitors, and the captured block fed into that
+  track's render on the audio thread as an input source ahead of its
+  effects (`TrackState`/`SampleTrackState`), not routed through the UI
+  thread. Mono downmix, matching how recorded input is stored.
+- **Latency:** monitoring adds capture plus playback latency
+  (`getCaptureDelayFrames()` and the playback delay the recording path
+  already measures). Keep the period small while monitoring, and show
+  the round-trip latency in the info line so it's not a surprise.
+- **Feedback:** monitoring through open speakers with a microphone can
+  howl. Warn on first enable (status line), and make Off the default.
+- **Recording interplay:** recording keeps capturing the dry input as
+  today; monitoring only changes what's heard.
+- Which track types can monitor: SampleTrack certainly; for an
+  InstrumentTrack the input would bypass the instrument and go straight
+  into its effects. Decide whether that's wanted.
+- Tests: a render test feeding a synthetic input buffer through a
+  monitoring track and checking it reaches the output through the
+  track's effect (e.g. a gain change), and that Off/Auto gate it.
+
+---
+
 ## Open decisions
 
 1. Later: a "follow playhead" option for the session cursor row, and
    optional scene names (a `Song`-level list keyed by row index), only if
    emergent scenes turn out not to be enough.
+2. Should one view drop the effect tree (the pattern editor heading's
+   track/group/effect hierarchy rows above the track columns)? It takes
+   vertical space, and whoever wants it can switch to the view that
+   shows it. The likely candidate is Session view, where the clip grid
+   already competes for rows. That would need a pattern-editor option
+   to draw only the leaf-track title row.

@@ -1,4 +1,4 @@
-#include "SessionView.h"
+#include "ClipGrid.h"
 
 #include "../../playback/InputEvent.h"
 #include "../../playback/LogEvent.h"
@@ -46,7 +46,7 @@ const Color kBrightGrey(200, 200, 200);
 
 }
 
-SessionView::SessionView(UIPlane & parent) : UIElement(parent) {
+ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
   // Mute/Solo apply to the cursor's own column (a per-track state, not
   // tied to any particular row), same as the 'l' loop toggle stays a
   // manual offerInput() branch below rather than a command - there's
@@ -120,8 +120,8 @@ SessionView::SessionView(UIPlane & parent) : UIElement(parent) {
   assertCommandBindingsValid();
 }
 
-SessionView::RowKind
-SessionView::rowKindFor(int logical_row) const {
+ClipGrid::RowKind
+ClipGrid::rowKindFor(int logical_row) const {
   if (logical_row == 0) return RowKind::HEADER;
   if (logical_row <= kClipRowCount) return RowKind::CLIP;
   if (logical_row == kClipRowCount + 1) return RowKind::SENDS;
@@ -129,7 +129,7 @@ SessionView::rowKindFor(int logical_row) const {
 }
 
 void
-SessionView::ensureCursorVisible(int visible_rows, int visible_cols, int num_tracks) {
+ClipGrid::ensureCursorVisible(int visible_rows, int visible_cols, int num_tracks) {
   cursor_track_index_ = clamp(cursor_track_index_, 0, max(0, num_tracks - 1));
   cursor_row_ = clamp(cursor_row_, 0, kLogicalRowCount - 1);
 
@@ -147,7 +147,7 @@ SessionView::ensureCursorVisible(int visible_rows, int visible_cols, int num_tra
 }
 
 void
-SessionView::startClipRename(const Song & song, const std::vector<int> & track_ids) {
+ClipGrid::startClipRename(const Song & song, const std::vector<int> & track_ids) {
   if (inline_editor_.isOpen()) return;
   if (rowKindFor(cursor_row_) != RowKind::CLIP) return; // not on a clip row at all
   if (cursor_track_index_ < 0 || cursor_track_index_ >= static_cast<int>(track_ids.size())) return;
@@ -181,7 +181,7 @@ SessionView::startClipRename(const Song & song, const std::vector<int> & track_i
 }
 
 void
-SessionView::startTrackRename(const Song & song, const std::vector<int> & track_ids) {
+ClipGrid::startTrackRename(const Song & song, const std::vector<int> & track_ids) {
   if (inline_editor_.isOpen()) return;
   if (cursor_track_index_ < 0 || cursor_track_index_ >= static_cast<int>(track_ids.size())) return;
   auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
@@ -220,7 +220,7 @@ SessionView::startTrackRename(const Song & song, const std::vector<int> & track_
 }
 
 bool
-SessionView::offerInput(const InputEvent & input) {
+ClipGrid::offerInput(const InputEvent & input) {
   // const - Song::getClips() has a non-const overload that inserts an
   // empty entry for a track that doesn't have one yet (needed for actual
   // mutation elsewhere, e.g. ArrangementOps.cpp); most of this method
@@ -306,7 +306,7 @@ SessionView::offerInput(const InputEvent & input) {
 }
 
 bool
-SessionView::render(const StyleProvider & styles, bool refresh, bool focused) {
+ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   const Song & song = getController().getSong(); // see offerInput()'s own comment on why const
   auto track_ids = song.getPlayableTrackIds();
   auto num_tracks = static_cast<int>(track_ids.size());

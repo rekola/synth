@@ -9,7 +9,7 @@ LaunchpadManager::resolveStepGridLaneNotes()) instead of a manually-
 picked lane list. This gesture never touches real audio/ALSA capture at
 all (pure Song/Controller state), so it isn't expected to hit the
 sandboxed-environment LED-read flakiness documented in docs/known_bugs.md
-- verified entirely through the terminal SessionView widget's own text.
+- verified entirely through the terminal ClipGrid widget's own text.
 
 Two mid-run screen reads against one spawn, same structure as
 verify_launchpad_shift_stepgrid.py - see its own docstring for why."""
@@ -52,14 +52,14 @@ scr.send(b"session-view\r")
 scr.pump(1.0)
 
 phase1_text = scr.dump()
-print("\n--- SessionView screen dump (phase 1 - opened) ---")
+print("\n--- ClipGrid screen dump (phase 1 - opened) ---")
 print(phase1_text)
 
 time.sleep(8)
 scr.pump(0.5)
 
 phase2_text = scr.dump()
-print("\n--- SessionView screen dump (phase 2 - closed) ---")
+print("\n--- ClipGrid screen dump (phase 2 - closed) ---")
 print(phase2_text)
 
 try:

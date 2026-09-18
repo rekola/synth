@@ -269,7 +269,7 @@ you're changing.
   are allowed" directly (`Song::ensureClipAt()`), since a correct
   implementation has to backfill indices 0/1 with empty fillers rather
   than collapsing the take to whichever slot happens to be first unused.
-  Verifies the result through the terminal `SessionView` widget itself
+  Verifies the result through the terminal `ClipGrid` widget itself
   (M-x `session-view`, driven the same way a real Alt-x would arrive -
   `EscapeSequenceCoalescer` folds a bare ESC followed later by 'x' into
   one event): confirms 7 of the 8 displayed rows still show the plain
@@ -287,7 +287,7 @@ you're changing.
   after - and so has a higher internal id than - track "0", left as the
   assigned/cursor track the whole script). Arms and targets track 1's
   clip index 0 via the picker, then plays a NOTE-mode note while track 0
-  is still assigned - confirms track 1's own SessionView column shows a
+  is still assigned - confirms track 1's own ClipGrid column shows a
   real, populated clip and track 0's shows none. The fixture deliberately
   makes track 0 a lane-less `PercussionTrack` and track 1 a plain pitched
   track (different percussion-ness) - an earlier draft used two plain
@@ -307,7 +307,7 @@ you're changing.
   ever reaching the armed take. Arms and targets the fixture's only track
   (a two-lane step-sequenced `PercussionTrack`), plays a NOTES-mode pad
   press, then disarms - verifies the actual functional outcome through
-  the terminal `SessionView` widget (did the note land in the armed clip
+  the terminal `ClipGrid` widget (did the note land in the armed clip
   at all), deliberately not exact LED byte sequences for the step grid vs.
   free-drumming layout: this sandboxed environment's own pad-press-to-LED
   round trip for the step grid specifically is unreliable even on an
@@ -322,7 +322,7 @@ you're changing.
   `Controller::armSessionTrackRecording()`/`armThresholdRecording()` -
   instead of falling through to plain audition/assign) and the "press the
   same pad again cancels it" gesture. Verified through the terminal
-  `SessionView` widget's own text (the "●" record indicator, same
+  `ClipGrid` widget's own text (the "●" record indicator, same
   mechanism `fake_launchpad_record_arm_holes.c` uses), not LED bytes - a
   real armed SampleTrack take also engages `Player.cpp`'s own
   threshold-triggered ALSA capture logic, exactly the kind of real-audio
@@ -347,7 +347,7 @@ you're changing.
   handleShiftButton()`/`handleSessionPadEvent()`), then a lone CC95 press
   closes it again outright (`Controller::closeDrumClipFocus()`), without
   needing another shift+pad combo. Verified through the terminal
-  `SessionView` widget's own text (the "*" focus marker `SessionView.cpp`
+  `ClipGrid` widget's own text (the "*" focus marker `ClipGrid.cpp`
   already draws for whichever clip is open for editing) at two points in
   one spawn - unlike the SampleTrack record-arm script above, this
   gesture never touches real audio/ALSA capture at all (pure

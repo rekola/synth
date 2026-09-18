@@ -6,7 +6,7 @@ fixed grid could ever show meaningfully (a real user report: merely
 navigating the shared cursor onto a step-sequenced PercussionTrack used
 to show/allow editing the background pattern directly, unconditionally,
 even with Record Arm off). Opening a clip is a terminal-driven action
-("toggle-record-arm"/Ctrl-X r while the SessionView widget has focus,
+("toggle-record-arm"/Ctrl-X r while the ClipGrid widget has focus,
 Controller.cpp's own drum-machine-track repurposing) - it forces every
 connected Launchpad into NOTES mode showing that clip's own step grid
 automatically, regardless of whatever GridMode it was in
@@ -56,9 +56,9 @@ if not vk.wait_ready(scr):
     os.kill(pid, 9)
     sys.exit(1)
 
-# Open the test song's only clip (track 0, clip row 0 - SessionView's own
+# Open the test song's only clip (track 0, clip row 0 - ClipGrid's own
 # default cursor position on a fresh widget) for step-grid editing: M-x
-# session-view (gain SessionView focus - EscapeSequenceCoalescer folds a
+# session-view (gain ClipGrid focus - EscapeSequenceCoalescer folds a
 # bare ESC then 'x' into one Alt-x event, the same mechanism
 # verify_launchpad_record_arm_holes.py already uses), then Ctrl-X r
 # (toggle-record-arm) - Controller.cpp's own drum-machine-track

@@ -10,7 +10,7 @@ sandboxed environment's own pad-press-to-LED round trip for the step
 grid specifically is unreliable even on an unmodified checkout - see
 verify_launchpad_stepseq.py's own docstring and docs/known_bugs.md) -
 instead verifies the actual functional outcome through the terminal
-SessionView widget: did the note actually land in the armed clip at
+ClipGrid widget: did the note actually land in the armed clip at
 all."""
 import sys, os, subprocess, time
 
@@ -75,14 +75,14 @@ print(fake_output)
 check("synth sent a Programmer-Mode-enter SysEx to the simulated device",
       "0e 01" in fake_output.replace(",", " "), fake_output)
 
-session_view_text = scr.dump()
-print("\n--- SessionView screen dump ---")
-print(session_view_text)
+clip_grid_text = scr.dump()
+print("\n--- ClipGrid screen dump ---")
+print(clip_grid_text)
 
-# SessionView.cpp's own populated-clip icon ("▸"), as a row's own first
+# ClipGrid.cpp's own populated-clip icon ("▸"), as a row's own first
 # non-space character - not a plain substring search, since the status
 # line's own "Octave: ◂ 4 ▸" also contains "▸".
-lines = session_view_text.splitlines()
+lines = clip_grid_text.splitlines()
 populated_lines = [l for l in lines if l.strip().startswith("▸")]
 check("the armed clip shows real, recorded content - the note reached the take, not the step grid's background pattern",
       len(populated_lines) == 1, populated_lines)

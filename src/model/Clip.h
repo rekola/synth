@@ -65,7 +65,7 @@ class Clip : public SongObject {
   // sample clip as empty). Distinguishes a genuinely unused scene slot
   // (Song::ensureClipAt()'s own filler, or a hand-authored `<clip/>` in
   // the song XML) from a real, if currently silent, take - e.g. Session
-  // View's own per-pad display (LaunchpadManager.cpp) and SessionView's
+  // View's own per-pad display (LaunchpadManager.cpp) and ClipGrid's
   // own row rendering both need to tell them apart.
   bool isEmpty() const { return pattern_.isEmpty() && !hasSample(); }
 
