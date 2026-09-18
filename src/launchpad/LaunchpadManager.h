@@ -566,6 +566,15 @@ class LaunchpadManager {
   // given step as their own launch_step, unconditionally.
   void triggerSessionClip(Controller & controller, int track_id, int clip_index, std::optional<int> shared_launch_step = std::nullopt);
 
+  // What a track's Session-view clip playback is doing right now, for
+  // display. A track with nothing playing or queued has no entry.
+  struct SessionPlayhead {
+    int clip_index = -1; // the clip playing, or -1 if none
+    int row = -1; // its current row; -1 while the audition clock isn't running
+    std::optional<int> queued_clip; // a pending launch (clip index) or stop (-1), taking effect at the next bar
+  };
+  std::unordered_map<int, SessionPlayhead> sessionPlayheads(const Song & song) const;
+
   // Device-wide aftertouch (the alternative to handlePadEvent's per-pad
   // AFTERTOUCH case - see LaunchpadChannelPressureEvent) - there's no
   // pad, so no single note_column/track to target the way per-pad

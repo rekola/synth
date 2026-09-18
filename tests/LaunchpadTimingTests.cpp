@@ -162,3 +162,22 @@ TEST(confirm_timer_expire_if_stale_is_a_no_op_when_never_armed) {
   timer.expireIfStale(t(999999), kWindow);
   CHECK(!timer.isArmed());
 }
+
+TEST(clip_playhead_row_counts_from_the_launch_step) {
+  CHECK(clipPlayheadRow(10, 10, 16, true) == 0);
+  CHECK(clipPlayheadRow(13, 10, 16, true) == 3);
+  CHECK(clipPlayheadRow(9, 10, 16, true) == -1);
+}
+
+TEST(clip_playhead_row_wraps_a_looping_clip_and_ends_a_one_shot) {
+  CHECK(clipPlayheadRow(26, 10, 16, true) == 0);
+  CHECK(clipPlayheadRow(29, 10, 16, true) == 3);
+  CHECK(clipPlayheadRow(25, 10, 16, false) == 15);
+  CHECK(clipPlayheadRow(26, 10, 16, false) == -1);
+}
+
+TEST(clip_playhead_row_treats_a_zero_length_as_one_row) {
+  CHECK(clipPlayheadRow(5, 5, 0, true) == 0);
+  CHECK(clipPlayheadRow(7, 5, 0, true) == 0);
+  CHECK(clipPlayheadRow(6, 5, 0, false) == -1);
+}

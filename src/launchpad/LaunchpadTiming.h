@@ -56,6 +56,17 @@ private:
   float phase_ = 0.0f;
 };
 
+// The row a launched clip plays at `step`: it launched at `launch_step` and
+// is `length` rows long (0 counts as 1). A looping clip wraps; -1 before
+// the launch, or once a one-shot has played through.
+inline int clipPlayheadRow(int step, int launch_step, int length, bool looping) {
+  auto relative = step - launch_step;
+  if (relative < 0) return -1;
+  if (length <= 0) length = 1;
+  if (!looping && relative >= length) return -1;
+  return relative % length;
+}
+
 // A generic "press once to arm, press again within a window to confirm"
 // debounce - the core of LaunchpadManager's Stop-Clip Clear gesture (a
 // double-press within a short window clears a drum machine's step data).

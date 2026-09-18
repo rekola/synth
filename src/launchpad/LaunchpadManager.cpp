@@ -2284,6 +2284,23 @@ LaunchpadManager::triggerSessionClip(Controller & controller, int track_id, int 
   song.incVersion();
 }
 
+unordered_map<int, LaunchpadManager::SessionPlayhead>
+LaunchpadManager::sessionPlayheads(const Song & song) const {
+  unordered_map<int, SessionPlayhead> playheads;
+  for (auto & [ track_id, triggered ] : triggered_pattern_by_track_) {
+    auto & clips = song.getClips(track_id);
+    if (triggered.clip_index < 0 || triggered.clip_index >= static_cast<int>(clips.size())) continue;
+    auto & clip = clips[static_cast<size_t>(triggered.clip_index)];
+    auto & playhead = playheads[track_id];
+    playhead.clip_index = triggered.clip_index;
+    if (audition_clock_.isRunning()) {
+      playhead.row = clipPlayheadRow(audition_clock_.currentStep(), triggered.launch_step, clip.getLength(), clip.isLooping());
+    }
+  }
+  for (auto & [ track_id, queued ] : queued_pattern_by_track_) playheads[track_id].queued_clip = queued;
+  return playheads;
+}
+
 void
 LaunchpadManager::triggerSceneRow(Controller & controller, int row) {
   // Same y-flip Session view's own columns use (triggerSessionClip()'s
