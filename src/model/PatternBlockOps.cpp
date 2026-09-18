@@ -2,22 +2,41 @@
 
 #include "../model/Section.h"
 #include "../model/Clip.h"
+#include "PatternGrid.h"
 
 using namespace std;
 
+namespace {
+
+const vector<Note> kNoNotes;
+const Command kNoCommand;
+
+const vector<Note> & notesAt(const PatternGrid & grid, int track_id, int row) {
+  int pattern_row;
+  auto pattern = grid.find(track_id, row, pattern_row);
+  return pattern ? pattern->getNotes(pattern_row) : kNoNotes;
+}
+
+const Command & commandAt(const PatternGrid & grid, int track_id, int row) {
+  int pattern_row;
+  auto pattern = grid.find(track_id, row, pattern_row);
+  return pattern ? pattern->getCommand(pattern_row) : kNoCommand;
+}
+
+}
+
 PatternBlock
-copyPatternBlock(const Section & section, int row_lo, int row_hi,
-		 const vector<int> & track_ids, int track_lo, int track_hi, int context_length) {
+copyPatternBlock(const PatternGrid & grid, int row_lo, int row_hi,
+		 const vector<int> & track_ids, int track_lo, int track_hi) {
   PatternBlock block;
 
   for (int row = row_lo; row <= row_hi; row++) {
     vector<PatternBlockCell> row_cells;
     for (int t = track_lo; t <= track_hi; t++) {
       auto track_id = track_ids[static_cast<size_t>(t)];
-      auto effective_row = section.getEffectiveRow(track_id, row, context_length);
       PatternBlockCell cell;
-      cell.notes = section.getNotes(effective_row, track_id);
-      cell.command = section.getCommand(effective_row, track_id);
+      cell.notes = notesAt(grid, track_id, row);
+      cell.command = commandAt(grid, track_id, row);
       row_cells.push_back(move(cell));
     }
     block.push_back(move(row_cells));
@@ -27,37 +46,40 @@ copyPatternBlock(const Section & section, int row_lo, int row_hi,
 }
 
 void
-clearPatternBlock(Section & section, int row_lo, int row_hi,
-		  const vector<int> & track_ids, int track_lo, int track_hi, int context_length) {
+clearPatternBlock(PatternGrid & grid, int row_lo, int row_hi,
+		  const vector<int> & track_ids, int track_lo, int track_hi) {
   for (int row = row_lo; row <= row_hi; row++) {
     for (int t = track_lo; t <= track_hi; t++) {
-      auto track_id = track_ids[static_cast<size_t>(t)];
-      auto effective_row = section.getEffectiveRow(track_id, row, context_length);
-      section.clearNotes(effective_row, track_id);
-      section.setCommand(effective_row, track_id, Command());
+      int pattern_row;
+      if (auto pattern = grid.obtain(track_ids[static_cast<size_t>(t)], row, pattern_row)) {
+	pattern->clearNotes(pattern_row);
+	pattern->setCommand(pattern_row, Command());
+      }
     }
   }
 }
 
 void
-transposePatternBlock(Section & section, int row_lo, int row_hi,
+transposePatternBlock(PatternGrid & grid, int row_lo, int row_hi,
 		      const vector<int> & track_ids, int track_lo, int track_hi, bool up,
-		      const std::function<bool(int track_id)> & is_percussion, int context_length) {
+		      const std::function<bool(int track_id)> & is_percussion) {
   for (int row = row_lo; row <= row_hi; row++) {
     for (int t = track_lo; t <= track_hi; t++) {
       auto track_id = track_ids[static_cast<size_t>(t)];
       if (is_percussion(track_id)) continue;
-      auto effective_row = section.getEffectiveRow(track_id, row, context_length);
-      auto notes = section.getNotes(effective_row, track_id);
+      int pattern_row;
+      auto pattern = grid.find(track_id, row, pattern_row);
+      if (!pattern) continue;
+      auto notes = pattern->getNotes(pattern_row);
       if (notes.empty()) continue; // don't materialize a real entry in the sparse notes_ map
       for (auto & note : notes) note.transpose(up ? 1 : -1);
-      section.setNotes(effective_row, track_id, notes);
+      pattern->setNotes(pattern_row, notes);
     }
   }
 }
 
 void
-pastePatternBlock(Section & section, const PatternBlock & block, int num_rows,
+pastePatternBlock(PatternGrid & grid, const PatternBlock & block, int num_rows,
 		  int target_row, const vector<int> & track_ids, int target_track) {
   for (size_t row_offset = 0; row_offset < block.size(); row_offset++) {
     int row = target_row + static_cast<int>(row_offset);
@@ -68,24 +90,25 @@ pastePatternBlock(Section & section, const PatternBlock & block, int num_rows,
       int t = target_track + static_cast<int>(track_offset);
       if (t < 0 || t >= static_cast<int>(track_ids.size())) continue;
 
-      auto track_id = track_ids[static_cast<size_t>(t)];
-      auto effective_row = section.getEffectiveRow(track_id, row, num_rows);
+      int pattern_row;
+      auto pattern = grid.obtain(track_ids[static_cast<size_t>(t)], row, pattern_row);
+      if (!pattern) continue;
       auto & cell = row_cells[track_offset];
-      section.setNotes(effective_row, track_id, cell.notes);
-      section.setCommand(effective_row, track_id, cell.command);
+      pattern->setNotes(pattern_row, cell.notes);
+      pattern->setCommand(pattern_row, cell.command);
     }
   }
 }
 
 PatternBlock
-copyPatternBlockNotes(const Section & section, int row_lo, int row_hi,
-		      int track_id, int note_lo, int note_hi, int context_length) {
+copyPatternBlockNotes(const PatternGrid & grid, int row_lo, int row_hi,
+		      int track_id, int note_lo, int note_hi) {
   PatternBlock block;
 
   auto width = note_hi - note_lo + 1;
 
   for (int row = row_lo; row <= row_hi; row++) {
-    auto & full_notes = section.getNotes(section.getEffectiveRow(track_id, row, context_length), track_id);
+    auto & full_notes = notesAt(grid, track_id, row);
     PatternBlockCell cell;
     cell.note_offset = note_lo;
     // Always the full requested width, not just however many notes this
@@ -108,23 +131,27 @@ copyPatternBlockNotes(const Section & section, int row_lo, int row_hi,
 }
 
 void
-clearPatternBlockNotes(Section & section, int row_lo, int row_hi,
-		       int track_id, int note_lo, int note_hi, int context_length) {
+clearPatternBlockNotes(PatternGrid & grid, int row_lo, int row_hi,
+		       int track_id, int note_lo, int note_hi) {
   for (int row = row_lo; row <= row_hi; row++) {
-    auto effective_row = section.getEffectiveRow(track_id, row, context_length);
+    int pattern_row;
+    auto pattern = grid.find(track_id, row, pattern_row);
+    if (!pattern) continue;
     for (int i = note_lo; i <= note_hi; i++) {
-      section.deleteNote(effective_row, track_id, i);
+      pattern->deleteNote(pattern_row, i);
     }
   }
 }
 
 void
-transposePatternBlockNotes(Section & section, int row_lo, int row_hi,
-			   int track_id, int note_lo, int note_hi, bool up, bool is_percussion, int context_length) {
+transposePatternBlockNotes(PatternGrid & grid, int row_lo, int row_hi,
+			   int track_id, int note_lo, int note_hi, bool up, bool is_percussion) {
   if (is_percussion) return;
   for (int row = row_lo; row <= row_hi; row++) {
-    auto effective_row = section.getEffectiveRow(track_id, row, context_length);
-    auto notes = section.getNotes(effective_row, track_id);
+    int pattern_row;
+    auto pattern = grid.find(track_id, row, pattern_row);
+    if (!pattern) continue;
+    auto notes = pattern->getNotes(pattern_row);
     if (notes.empty()) continue;
     auto hi = min(note_hi, static_cast<int>(notes.size()) - 1);
     for (int i = note_lo; i <= hi; i++) notes[static_cast<size_t>(i)].transpose(up ? 1 : -1);
@@ -134,13 +161,13 @@ transposePatternBlockNotes(Section & section, int row_lo, int row_hi,
     // non-heap pointer) - not a real dangling-pointer bug.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wfree-nonheap-object"
-    section.setNotes(effective_row, track_id, notes);
+    pattern->setNotes(pattern_row, notes);
 #pragma GCC diagnostic pop
   }
 }
 
 void
-pastePatternBlockNotes(Section & section, const PatternBlock & block, int num_rows,
+pastePatternBlockNotes(PatternGrid & grid, const PatternBlock & block, int num_rows,
 		       int target_row, int track_id, int target_note_offset) {
   for (size_t row_offset = 0; row_offset < block.size(); row_offset++) {
     int row = target_row + static_cast<int>(row_offset);
@@ -149,37 +176,43 @@ pastePatternBlockNotes(Section & section, const PatternBlock & block, int num_ro
     auto & row_cells = block[row_offset];
     if (row_cells.empty()) continue;
     auto & cell = row_cells[0];
-    auto effective_row = section.getEffectiveRow(track_id, row, num_rows);
+    int pattern_row;
+    auto pattern = grid.obtain(track_id, row, pattern_row);
+    if (!pattern) continue;
     for (size_t i = 0; i < cell.notes.size(); i++) {
-      section.setNote(effective_row, track_id, target_note_offset + static_cast<int>(i), cell.notes[i]);
+      pattern->setNote(pattern_row, target_note_offset + static_cast<int>(i), cell.notes[i]);
     }
   }
 }
 
 vector<Command>
-copyPatternBlockCommand(const Section & section, int row_lo, int row_hi, int track_id, int context_length) {
+copyPatternBlockCommand(const PatternGrid & grid, int row_lo, int row_hi, int track_id) {
   vector<Command> block;
-  for (int row = row_lo; row <= row_hi; row++) block.push_back(section.getCommand(section.getEffectiveRow(track_id, row, context_length), track_id));
+  for (int row = row_lo; row <= row_hi; row++) block.push_back(commandAt(grid, track_id, row));
   return block;
 }
 
 void
-clearPatternBlockCommand(Section & section, int row_lo, int row_hi, int track_id, int context_length) {
-  for (int row = row_lo; row <= row_hi; row++) section.setCommand(section.getEffectiveRow(track_id, row, context_length), track_id, Command());
+clearPatternBlockCommand(PatternGrid & grid, int row_lo, int row_hi, int track_id) {
+  for (int row = row_lo; row <= row_hi; row++) {
+    int pattern_row;
+    if (auto pattern = grid.obtain(track_id, row, pattern_row)) pattern->setCommand(pattern_row, Command());
+  }
 }
 
 void
-pastePatternBlockCommand(Section & section, const vector<Command> & block, int num_rows,
+pastePatternBlockCommand(PatternGrid & grid, const vector<Command> & block, int num_rows,
 			 int target_row, int track_id) {
   for (size_t row_offset = 0; row_offset < block.size(); row_offset++) {
     int row = target_row + static_cast<int>(row_offset);
     if (row < 0 || row >= num_rows) continue;
-    section.setCommand(section.getEffectiveRow(track_id, row, num_rows), track_id, block[row_offset]);
+    int pattern_row;
+    if (auto pattern = grid.obtain(track_id, row, pattern_row)) pattern->setCommand(pattern_row, block[row_offset]);
   }
 }
 
 Clip
-extractClip(const Section & section, int track_id, int row_lo, int row_hi, int rows_per_bar, int context_length) {
+extractClip(const PatternGrid & grid, int track_id, int row_lo, int row_hi, int rows_per_bar) {
   if (rows_per_bar <= 0) rows_per_bar = 1;
   auto bar_start = (row_lo / rows_per_bar) * rows_per_bar;
   auto span = row_hi - bar_start + 1;
@@ -189,10 +222,9 @@ extractClip(const Section & section, int track_id, int row_lo, int row_hi, int r
   clip.setLength(length);
   auto & pattern = clip.getLeafPattern();
   for (int row = row_lo; row <= row_hi; row++) {
-    auto effective_row = section.getEffectiveRow(track_id, row, context_length);
-    auto & notes = section.getNotes(effective_row, track_id);
+    auto & notes = notesAt(grid, track_id, row);
     if (!notes.empty()) pattern.setNotes(row - bar_start, notes);
-    auto & command = section.getCommand(effective_row, track_id);
+    auto & command = commandAt(grid, track_id, row);
     if (command.isDefined()) pattern.setCommand(row - bar_start, command);
   }
   return clip;

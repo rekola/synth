@@ -7,6 +7,8 @@
 #include "../../instruments/Tuner.h"
 #include "../../instruments/Tuning.h"
 #include "../../model/LeafTrack.h"
+#include "../../model/PatternGrid.h"
+#include "../ArrangementPatternSource.h"
 #include "../../model/InstrumentTrack.h"
 #include "../../model/SampleTrack.h"
 #include "../../model/PercussionTrack.h"
@@ -36,7 +38,7 @@ using namespace fmt;
 // needs the exact same addressable-track list/order to resolve a device's
 // assigned track to a track_id, without PatternEditor being involved.
 
-PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
+PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent), source_(std::make_unique<ArrangementPatternSource>(getController())) {
   // Whichever buffer is already active by construction time (main.cpp
   // always opens/creates one before the UI itself exists) - without this,
   // handleBufferChanged()'s first real call would have nothing to compare
@@ -55,9 +57,9 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   // from moving it into a constructor-time closure.
 
   commands_.define("set-mark", [this]() {
-    auto & info = getController().getPlaybackInfo();
-    selection_start_pattern_ = info.getPatternIndex();
-    selection_start_row_ = info.getRowIndex();
+    auto point = source_->cursor();
+    selection_start_pattern_ = point.block;
+    selection_start_row_ = point.row;
     selection_start_track_ = current_cursor.track;
     // A fresh mark starts scoped to just the column it's set on; moving
     // sideways afterward widens/narrows the touched range (see
@@ -85,13 +87,12 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
       getController().getUIEventQueue().push(make_unique<LogEvent>("No mark set"));
       return;
     }
-    auto & info = getController().getPlaybackInfo();
-    auto old_point_row = info.getRowIndex();
+    auto old_point_row = source_->cursor().row;
     auto old_point_track = current_cursor.track;
     auto old_point_col = current_cursor.col;
     auto old_point_scope = current_cursor.scope;
 
-    getController().moveEditPosition(selection_start_row_ - old_point_row);
+    source_->moveCursor(selection_start_row_ - old_point_row);
     new_cursor.track = selection_start_track_;
     new_cursor.col = selection_start_col_;
     new_cursor.subcol = 0;
@@ -110,54 +111,54 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   // (see getEffectiveSelectionBounds) - there's no "No selection" case.
   commands_.define("kill-region", [this]() {
     auto & song = getController().getSong();
-    auto & info = getController().getPlaybackInfo();
+    auto point = source_->cursor();
     auto track_ids = song.getRootTrackIds();
-    auto & section = song.getSection(info.getPatternIndex());
-    auto context_length = song.getEffectiveSectionLength(section);
+    auto grid = source_->editGrid(point.block, false);
+    auto * annotations = source_->annotations(point.block, false);
 
     auto b = getEffectiveSelectionBounds(song, track_ids);
     clipboard_.scope = b.scope;
     if (b.scope == SelectionScope::TRACK) {
-      clipboard_.cells = copyPatternBlock(section, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, context_length);
+      clipboard_.cells = copyPatternBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
       clipboard_.commands.clear();
       clipboard_.annotations.clear();
       clipboard_.track_tunings = tuningsForTrackRange(song, track_ids, b.track_lo, b.track_hi);
-      clearPatternBlock(section, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, context_length);
+      clearPatternBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
     } else if (b.scope == SelectionScope::NOTE_COLUMN) {
       auto track_id = track_ids[static_cast<size_t>(b.track_lo)];
-      clipboard_.cells = copyPatternBlockNotes(section, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, context_length);
+      clipboard_.cells = copyPatternBlockNotes(*grid, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi);
       clipboard_.commands.clear();
       clipboard_.annotations.clear();
       clipboard_.track_tunings = tuningsForTrackRange(song, track_ids, b.track_lo, b.track_lo);
-      clearPatternBlockNotes(section, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, context_length);
+      clearPatternBlockNotes(*grid, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi);
     } else if (b.scope == SelectionScope::COMMAND) {
       auto track_id = track_ids[static_cast<size_t>(b.track_lo)];
-      clipboard_.commands = copyPatternBlockCommand(section, b.row_lo, b.row_hi, track_id, context_length);
+      clipboard_.commands = copyPatternBlockCommand(*grid, b.row_lo, b.row_hi, track_id);
       clipboard_.cells.clear();
       clipboard_.annotations.clear();
       clipboard_.track_tunings.clear(); // Command has no tuning-dependent semantics
-      clearPatternBlockCommand(section, b.row_lo, b.row_hi, track_id, context_length);
+      clearPatternBlockCommand(*grid, b.row_lo, b.row_hi, track_id);
     } else if (b.scope == SelectionScope::ANNOTATION) {
-      clipboard_.annotations = copyPatternBlockAnnotations(section, b.row_lo, b.row_hi);
+      clipboard_.annotations = copyPatternBlockAnnotations(*annotations, b.row_lo, b.row_hi);
       clipboard_.cells.clear();
       clipboard_.commands.clear();
       clipboard_.track_tunings.clear(); // not track-scoped at all
-      clearPatternBlockAnnotations(section, b.row_lo, b.row_hi);
+      clearPatternBlockAnnotations(*annotations, b.row_lo, b.row_hi);
     } else { // EVERYTHING - every track (TRACK's own PatternBlock capture)
       // plus the annotation (ANNOTATION's own capture), both at once - see
       // ClipboardEntry.h's own comment.
-      clipboard_.cells = copyPatternBlock(section, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, context_length);
+      clipboard_.cells = copyPatternBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
       clipboard_.commands.clear();
-      clipboard_.annotations = copyPatternBlockAnnotations(section, b.row_lo, b.row_hi);
+      clipboard_.annotations = copyPatternBlockAnnotations(*annotations, b.row_lo, b.row_hi);
       clipboard_.track_tunings = tuningsForTrackRange(song, track_ids, b.track_lo, b.track_hi);
-      clearPatternBlock(section, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, context_length);
-      clearPatternBlockAnnotations(section, b.row_lo, b.row_hi);
+      clearPatternBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
+      clearPatternBlockAnnotations(*annotations, b.row_lo, b.row_hi);
     }
     song.incVersion();
     setSelectionActive(false);
     // move point to the start of the killed region, matching Emacs
     // kill-region, so an immediate yank restores it exactly in place
-    getController().moveEditPosition(b.row_lo - info.getRowIndex());
+    source_->moveCursor(b.row_lo - point.row);
     new_cursor.track = b.track_lo;
     if (b.scope == SelectionScope::TRACK || b.scope == SelectionScope::EVERYTHING) {
       // Only reset to the first column for a whole-track (or whole-row)
@@ -202,37 +203,37 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
 
   commands_.define("kill-ring-save", [this]() {
     auto & song = getController().getSong();
-    auto & info = getController().getPlaybackInfo();
+    auto point = source_->cursor();
     auto track_ids = song.getRootTrackIds();
-    auto & section = song.getSection(info.getPatternIndex());
-    auto context_length = song.getEffectiveSectionLength(section);
+    auto grid = source_->readGrid(point.block);
+    auto * annotations = source_->annotations(point.block);
 
     auto b = getEffectiveSelectionBounds(song, track_ids);
     clipboard_.scope = b.scope;
     if (b.scope == SelectionScope::TRACK) {
-      clipboard_.cells = copyPatternBlock(section, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, context_length);
+      clipboard_.cells = copyPatternBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
       clipboard_.commands.clear();
       clipboard_.annotations.clear();
       clipboard_.track_tunings = tuningsForTrackRange(song, track_ids, b.track_lo, b.track_hi);
     } else if (b.scope == SelectionScope::NOTE_COLUMN) {
-      clipboard_.cells = copyPatternBlockNotes(section, b.row_lo, b.row_hi, track_ids[static_cast<size_t>(b.track_lo)], b.note_lo, b.note_hi, context_length);
+      clipboard_.cells = copyPatternBlockNotes(*grid, b.row_lo, b.row_hi, track_ids[static_cast<size_t>(b.track_lo)], b.note_lo, b.note_hi);
       clipboard_.commands.clear();
       clipboard_.annotations.clear();
       clipboard_.track_tunings = tuningsForTrackRange(song, track_ids, b.track_lo, b.track_lo);
     } else if (b.scope == SelectionScope::COMMAND) {
-      clipboard_.commands = copyPatternBlockCommand(section, b.row_lo, b.row_hi, track_ids[static_cast<size_t>(b.track_lo)], context_length);
+      clipboard_.commands = copyPatternBlockCommand(*grid, b.row_lo, b.row_hi, track_ids[static_cast<size_t>(b.track_lo)]);
       clipboard_.cells.clear();
       clipboard_.annotations.clear();
       clipboard_.track_tunings.clear();
     } else if (b.scope == SelectionScope::ANNOTATION) {
-      clipboard_.annotations = copyPatternBlockAnnotations(section, b.row_lo, b.row_hi);
+      clipboard_.annotations = copyPatternBlockAnnotations(*annotations, b.row_lo, b.row_hi);
       clipboard_.cells.clear();
       clipboard_.commands.clear();
       clipboard_.track_tunings.clear();
     } else { // EVERYTHING - see kill-region's own comment.
-      clipboard_.cells = copyPatternBlock(section, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, context_length);
+      clipboard_.cells = copyPatternBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi);
       clipboard_.commands.clear();
-      clipboard_.annotations = copyPatternBlockAnnotations(section, b.row_lo, b.row_hi);
+      clipboard_.annotations = copyPatternBlockAnnotations(*annotations, b.row_lo, b.row_hi);
       clipboard_.track_tunings = tuningsForTrackRange(song, track_ids, b.track_lo, b.track_hi);
     }
     setSelectionActive(false);
@@ -252,7 +253,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
       clipboard_.cells.empty();
     if (!clipboard_empty) {
       auto & song = getController().getSong();
-      auto & info = getController().getPlaybackInfo();
+      auto point = source_->cursor();
       auto track_ids = song.getRootTrackIds();
 
       // A Note::getValue() means a different kind of value under a
@@ -280,31 +281,31 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
         return;
       }
 
-      // yank writes - see Song::getOrCreateSection()'s own comment on why
-      // that's the one to use here, not plain getSection().
-      auto & section = song.getOrCreateSection(info.getPatternIndex());
-      auto context_length = song.getEffectiveSectionLength(section);
+      // yank writes, so it may create the block's storage.
+      auto grid = source_->editGrid(point.block, true);
+      auto * annotations = source_->annotations(point.block, true);
+      auto context_length = source_->blockLength(point.block);
       if (clipboard_.scope == SelectionScope::TRACK) {
-        pastePatternBlock(section, clipboard_.cells, context_length, info.getRowIndex(), track_ids, current_cursor.track);
+        pastePatternBlock(*grid, clipboard_.cells, context_length, point.row, track_ids, current_cursor.track);
       } else if (clipboard_.scope == SelectionScope::NOTE_COLUMN) {
         auto track_id = track_ids[static_cast<size_t>(current_cursor.track)];
         auto track_info = getTrackInfoFor(song, track_id);
         auto target_note = clamp(track_info.getNoteNumber(current_cursor.col), 0, max(track_info.num_subtracks_ - 1, 0));
-        pastePatternBlockNotes(section, clipboard_.cells, context_length, info.getRowIndex(), track_id, target_note);
+        pastePatternBlockNotes(*grid, clipboard_.cells, context_length, point.row, track_id, target_note);
       } else if (clipboard_.scope == SelectionScope::COMMAND) {
         auto track_id = track_ids[static_cast<size_t>(current_cursor.track)];
-        pastePatternBlockCommand(section, clipboard_.commands, context_length, info.getRowIndex(), track_id);
+        pastePatternBlockCommand(*grid, clipboard_.commands, context_length, point.row, track_id);
       } else if (clipboard_.scope == SelectionScope::ANNOTATION) {
         // Row-keyed only, no track involved at all.
-        pastePatternBlockAnnotations(section, clipboard_.annotations, context_length, info.getRowIndex());
+        pastePatternBlockAnnotations(*annotations, clipboard_.annotations, context_length, point.row);
       } else { // EVERYTHING - cells always cover every track (that's what
         // "every track, and the annotation" means - see
         // getEffectiveSelectionBounds()), so unlike TRACK's own paste this
         // always targets track 0 rather than current_cursor.track: there's
         // no sense in which a whole-row block gets "shifted" to start at a
         // different track, only the row can move.
-        pastePatternBlock(section, clipboard_.cells, context_length, info.getRowIndex(), track_ids, 0);
-        pastePatternBlockAnnotations(section, clipboard_.annotations, context_length, info.getRowIndex());
+        pastePatternBlock(*grid, clipboard_.cells, context_length, point.row, track_ids, 0);
+        pastePatternBlockAnnotations(*annotations, clipboard_.annotations, context_length, point.row);
       }
       song.incVersion();
       getController().getUIEventQueue().push(make_unique<LogEvent>("Yanked"));
@@ -322,13 +323,10 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   // to decode correctly on a given terminal.
   commands_.define("insert-row", [this]() {
     auto & song = getController().getSong();
-    auto & info = getController().getPlaybackInfo();
     auto track_ids = song.getRootTrackIds();
     if (current_cursor.track < 0 || current_cursor.track >= static_cast<int>(track_ids.size())) return;
     auto cursor_track_id = track_ids[static_cast<size_t>(current_cursor.track)];
-    // insert-row writes - see Song::getOrCreateSection()'s own comment.
-    auto & section = song.getOrCreateSection(info.getPatternIndex());
-    section.insertRowForTrack(cursor_track_id, info.getRowIndex(), song.getEffectiveSectionLength(section));
+    source_->insertRow(cursor_track_id, source_->cursor());
     song.incVersion();
   });
 
@@ -348,28 +346,26 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   // content) or any other track's row.
   commands_.define("kill-row", [this]() {
     auto & song = getController().getSong();
-    auto & info = getController().getPlaybackInfo();
     auto track_ids = song.getRootTrackIds();
     if (current_cursor.track < 0 || current_cursor.track >= static_cast<int>(track_ids.size())) return;
     auto cursor_track_id = track_ids[static_cast<size_t>(current_cursor.track)];
-    auto & section = song.getSection(info.getPatternIndex());
-    auto context_length = song.getEffectiveSectionLength(section);
-    int row = info.getRowIndex();
+    auto point = source_->cursor();
+    int row = point.row;
 
-    if (resolveInstanceAt(song, section, cursor_track_id, row).clip_index != Section::kNoInstance) {
-      placeStopInstance(section, cursor_track_id, row);
+    if (source_->stopInstance(cursor_track_id, point)) {
       song.incVersion();
       getController().getUIEventQueue().push(make_unique<LogEvent>("Clip stopped"));
       return;
     }
 
+    auto grid = source_->editGrid(point.block, false);
     clipboard_.scope = SelectionScope::TRACK;
-    clipboard_.cells = copyPatternBlock(section, row, row, track_ids, current_cursor.track, current_cursor.track, context_length);
+    clipboard_.cells = copyPatternBlock(*grid, row, row, track_ids, current_cursor.track, current_cursor.track);
     clipboard_.commands.clear();
     clipboard_.annotations.clear();
     clipboard_.track_tunings = tuningsForTrackRange(song, track_ids, current_cursor.track, current_cursor.track);
 
-    clearPatternBlock(section, row, row, track_ids, current_cursor.track, current_cursor.track, context_length);
+    clearPatternBlock(*grid, row, row, track_ids, current_cursor.track, current_cursor.track);
     song.incVersion();
     getController().getUIEventQueue().push(make_unique<LogEvent>("Row killed"));
   });
@@ -388,9 +384,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   // the whole pattern, select all of it first.
   commands_.define("transpose-region-up", [this]() {
     auto & song = getController().getSong();
-    auto & info = getController().getPlaybackInfo();
-    auto & section = song.getSection(info.getPatternIndex());
-    auto context_length = song.getEffectiveSectionLength(section);
+    auto grid = source_->editGrid(source_->cursor().block, false);
     auto track_ids = song.getRootTrackIds();
 
     // A percussion or drum-machine track's Note::getValue() selects which
@@ -404,10 +398,10 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
 
     auto b = getEffectiveSelectionBounds(song, track_ids);
     if (b.scope == SelectionScope::TRACK) {
-      transposePatternBlock(section, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, true, is_percussion, context_length);
+      transposePatternBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, true, is_percussion);
     } else if (b.scope == SelectionScope::NOTE_COLUMN) {
       auto track_id = track_ids[static_cast<size_t>(b.track_lo)];
-      transposePatternBlockNotes(section, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, true, is_percussion(track_id), context_length);
+      transposePatternBlockNotes(*grid, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, true, is_percussion(track_id));
     }
     // SelectionScope::COMMAND/ANNOTATION: nothing to transpose - Command.h
     // and Section's annotation text both have no numeric/transposable
@@ -419,9 +413,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
 
   commands_.define("transpose-region-down", [this]() {
     auto & song = getController().getSong();
-    auto & info = getController().getPlaybackInfo();
-    auto & section = song.getSection(info.getPatternIndex());
-    auto context_length = song.getEffectiveSectionLength(section);
+    auto grid = source_->editGrid(source_->cursor().block, false);
     auto track_ids = song.getRootTrackIds();
 
     // See transpose-region-up's own comment.
@@ -432,10 +424,10 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
 
     auto b = getEffectiveSelectionBounds(song, track_ids);
     if (b.scope == SelectionScope::TRACK) {
-      transposePatternBlock(section, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, false, is_percussion, context_length);
+      transposePatternBlock(*grid, b.row_lo, b.row_hi, track_ids, b.track_lo, b.track_hi, false, is_percussion);
     } else if (b.scope == SelectionScope::NOTE_COLUMN) {
       auto track_id = track_ids[static_cast<size_t>(b.track_lo)];
-      transposePatternBlockNotes(section, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, false, is_percussion(track_id), context_length);
+      transposePatternBlockNotes(*grid, b.row_lo, b.row_hi, track_id, b.note_lo, b.note_hi, false, is_percussion(track_id));
     }
     // SelectionScope::COMMAND: nothing to transpose - Command.h has no
     // numeric/transposable semantics. ANNOTATION/EVERYTHING: same - no
@@ -453,14 +445,14 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
   commands_.define("move-row-up", [this]() {
     auto & info = getController().getPlaybackInfo();
     if (info.isPlaying()) return;
-    getController().moveEditPosition(-1);
+    source_->moveCursor(-1);
     new_cursor.subcol = 0;
   });
 
   commands_.define("move-row-down", [this]() {
     auto & info = getController().getPlaybackInfo();
     if (info.isPlaying()) return;
-    getController().moveEditPosition(1);
+    source_->moveCursor(1);
     new_cursor.subcol = 0;
   });
 
@@ -661,7 +653,7 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent) {
 // Applies the SongStructure's precomputed baseline column shape
 // (TrackType/own-settings-derived - note/velocity/delay/effect column
 // presence, and a SampleTrack's own wider placeholder column) onto
-// whatever section.getTrackInformation()'s dynamic pass
+// whatever PatternSource::collectTrackInfo()'s dynamic pass
 // already put in `track_info` - field-by-field, not a whole-struct
 // assignment, so a track's already-widened num_subtracks_ (real note data
 // in the currently visible rows) is only ever widened further
@@ -696,46 +688,11 @@ static void get_track_parents(Track & track, Track * parent, std::unordered_map<
 
 std::unordered_map<int, VisibleTrackInfo>
 PatternEditor::getTrackInformation(const Song & song, int scroll_row) const {
-  auto [rows, cols] = getDim();
+  auto rows = getDim().first;
   auto heading_height = song.getMasterTrack().getDepth() + 1;
-  auto & info = getController().getPlaybackInfo();
 
   std::unordered_map<int, VisibleTrackInfo> track_info;
-  for (auto row = 0; row < rows - heading_height; ) {
-    auto [ pattern_idx, pattern_row ] = song.normalizePosition(info.getPatternIndex(), row + scroll_row);
-    if (pattern_idx >= static_cast<int>(song.getSections().size())) break;
-
-    auto & section = song.getSection(pattern_idx);
-    section.getTrackInformation(track_info);
-
-    // section.getTrackInformation() above only ever scans each track's own
-    // background Pattern - a placed clip instance's own leaf Pattern lives
-    // entirely outside patterns_by_track_id_, so a chord recorded (or
-    // otherwise authored) into one is invisible to it, and the track would
-    // show too few note columns to display it. Every clip actually placed
-    // somewhere in this section gets the same treatment here instead -
-    // covers a note-recording session's own newly-placed clip
-    // (Controller::ensureNoteRecordingClip()) the same way it covers any
-    // other clip, rather than special-casing recording specifically.
-    for (auto & [ instance_track_id, instances ] : section.getInstancesByTrack()) {
-      auto & clips = song.getClips(instance_track_id);
-      for (auto & [ instance_row, clip_id ] : instances) {
-        if (clip_id == "OFF") continue;
-        for (auto & clip : clips) {
-          if (clip.getId() != clip_id) continue;
-          // A SampleTrack's own clip carries raw audio, not a Pattern -
-          // its getLeafPattern() is just an unused, empty Pattern, so
-          // reading subtrack info from it would be meaningless
-          // (ArrangementOps.cpp's own resolveReadTarget()/
-          // resolveEditTarget() guard against the same thing).
-          if (!clip.hasSample()) clip.getLeafPattern().updateSubtrackInfo(track_info[instance_track_id]);
-          break;
-        }
-      }
-    }
-
-    row += song.getEffectiveSectionLength(section) - pattern_row;
-  }
+  source_->collectTrackInfo({ source_->cursor().block, scroll_row }, rows - heading_height, track_info);
   apply_baseline_track_info(SongStructure(song), track_info);
 
   return track_info;
@@ -783,9 +740,9 @@ void
 PatternEditor::startAnnotationEdit() {
   if (inline_editor_.isOpen()) return;
 
-  auto & song = getController().getSong();
-  auto & info = getController().getPlaybackInfo();
-  auto & section = song.getSection(info.getPatternIndex());
+  auto point = source_->cursor();
+  auto * annotations = source_->annotations(point.block);
+  if (!annotations) return;
 
   // Already true in practice (the only caller is offerInput()'s Enter
   // check, gated on new_cursor.isOnAnnotation() already) - set directly
@@ -806,12 +763,12 @@ PatternEditor::startAnnotationEdit() {
   field.row = row;
   field.col = col;
   field.width = width;
-  field.initial_text = section.getAnnotation(info.getRowIndex());
-  auto pattern_idx = info.getPatternIndex(), pattern_row = info.getRowIndex();
-  inline_editor_.open(field, [this, pattern_idx, pattern_row](std::string text) {
-    auto & target_song = getController().getSong();
-    target_song.getOrCreateSection(pattern_idx).setAnnotation(pattern_row, std::move(text));
-    target_song.incVersion();
+  field.initial_text = annotations->getAnnotation(point.row);
+  inline_editor_.open(field, [this, point](std::string text) {
+    if (auto * target = source_->annotations(point.block, true)) {
+      target->setAnnotation(point.row, std::move(text));
+      getController().getSong().incVersion();
+    }
   });
 }
 
@@ -913,8 +870,6 @@ PatternEditor::copyToClip() {
   auto track_ids = song.getRootTrackIds();
   if (current_cursor.track < 0 || current_cursor.track >= static_cast<int>(track_ids.size())) return;
   auto track_id = track_ids[static_cast<size_t>(current_cursor.track)];
-  auto & info = getController().getPlaybackInfo();
-  auto & section = song.getSection(info.getPatternIndex());
 
   // Whole-track scope always (SelectionScope::TRACK - see this method's
   // own doc comment), and always the cursor's own track, not
@@ -924,7 +879,8 @@ PatternEditor::copyToClip() {
   // Starts unnamed - naming happens later, from the clip viewer, not
   // here.
   auto b = getEffectiveSelectionBounds(song, track_ids);
-  auto clip = extractClip(section, track_id, b.row_lo, b.row_hi, song.getRowsPerBar(), song.getEffectiveSectionLength(section));
+  auto grid = source_->readGrid(source_->cursor().block);
+  auto clip = extractClip(*grid, track_id, b.row_lo, b.row_hi, song.getRowsPerBar());
   song.addClip(std::move(clip));
   setSelectionActive(false);
   getController().getUIEventQueue().push(make_unique<LogEvent>("Copied to clip"));
@@ -932,14 +888,14 @@ PatternEditor::copyToClip() {
 
 SelectionBounds
 PatternEditor::getEffectiveSelectionBounds(const Song & song, const vector<int> & track_ids) const {
-  auto & info = getController().getPlaybackInfo();
-  bool has_mark = selection_active_ && selection_start_pattern_ == info.getPatternIndex();
+  auto point = source_->cursor();
+  bool has_mark = selection_active_ && selection_start_pattern_ == point.block;
 
   SelectionBounds b;
-  auto start_row = has_mark ? selection_start_row_ : info.getRowIndex();
+  auto start_row = has_mark ? selection_start_row_ : point.row;
   auto start_track = has_mark ? selection_start_track_ : current_cursor.track;
-  b.row_lo = min(start_row, info.getRowIndex());
-  b.row_hi = max(start_row, info.getRowIndex());
+  b.row_lo = min(start_row, point.row);
+  b.row_hi = max(start_row, point.row);
   b.track_lo = min(start_track, current_cursor.track);
   b.track_hi = max(start_track, current_cursor.track);
 
@@ -1009,8 +965,9 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   last_styles_ = &styles; // see its own comment - startTrackNameEdit()'s only source of one
   bool render_all = refresh;
   auto & info = getController().getPlaybackInfo();
-  auto score_pattern = info.getPatternIndex();
-  auto score_playing_row = info.getRowIndex();
+  auto point = source_->cursor();
+  auto score_pattern = point.block;
+  auto score_playing_row = point.row;
   auto & song = getController().getSong();
 
   // Playback's own playhead crosses pattern boundaries freely regardless
@@ -1180,14 +1137,10 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
 
   auto track_ids = song.getRootTrackIds();
 
-  // MIDI note entry writes - see Song::getOrCreateSection()'s own comment.
-  auto & section = song.getOrCreateSection(info.getPatternIndex());
   int track_id = track_ids[static_cast<size_t>(new_cursor.track)];
-  // Writes into whatever's actually active at the cursor's row - an
-  // active clip instance's own (live-linked) Pattern, or this track's own
-  // background Pattern otherwise - see offerInput()'s own raw-key note
-  // entry for the same resolution.
-  auto edit_target = resolveEditTarget(song, section, track_id, info.getRowIndex(), getController().getFocusedClip());
+  // Writes into whatever's actually active at the cursor's row - see
+  // offerInput()'s own raw-key note entry for the same resolution.
+  auto edit_target = source_->edit(track_id, source_->cursor());
 
   // Channel-wide, not tied to any specific note - unlike every other case
   // below, ev.getNote() is unused (always 0, see AlsaAudio.cpp), so this
@@ -1606,25 +1559,25 @@ PatternEditor::offerInput(const InputEvent & input) {
       return true;
     } else if (input.getId() == NCKEY_BUTTON4) { // scroll wheel up - plain Up is now "move-row-up" (see the keymap)
       if (!info.isPlaying()) {
-	getController().moveEditPosition(-1);
+	source_->moveCursor(-1);
 	new_cursor.subcol = 0;
       }
       return true;
     } else if (input.getId() == NCKEY_BUTTON5) { // scroll wheel down - plain Down is now "move-row-down"
       if (!info.isPlaying()) {
-	getController().moveEditPosition(1);
+	source_->moveCursor(1);
 	new_cursor.subcol = 0;
       }
       return true;
     } else if (input.getId() == NCKEY_PGUP) {
       if (!info.isPlaying()) {
-	getController().moveEditPosition(-16);
+	source_->moveCursor(-16);
 	new_cursor.subcol = 0;
       }
       return true;
     } else if (input.getId() == NCKEY_PGDOWN) { // scrollwheel down
       if (!info.isPlaying()) {
-	getController().moveEditPosition(16);
+	source_->moveCursor(16);
 	new_cursor.subcol = 0;
       }
       return true;
@@ -1636,31 +1589,31 @@ PatternEditor::offerInput(const InputEvent & input) {
       }
       return true;
     } else {
-      // Raw note/command/velocity/delay entry writes - see
-      // Song::getOrCreateSection()'s own comment.
-      auto & section = song.getOrCreateSection(info.getPatternIndex());
       int track_id = track_ids[static_cast<size_t>(new_cursor.track)];
-      // Writes into whatever's actually active at the cursor's row - an
-      // active clip instance's own (live-linked) Pattern, or this track's
-      // own background Pattern otherwise (ArrangementOps.h's own
-      // resolveEditTarget()) - and, either way, at that Pattern's own
+      auto point = source_->cursor();
+      // Writes into whatever's actually active at the cursor's row - in the
+      // arrangement, an active clip instance's own (live-linked) Pattern,
+      // or this track's own background Pattern otherwise (ArrangementOps.h's
+      // own resolveEditTarget()) - and, either way, at that Pattern's own
       // resolved row, not the raw playhead one, the same "a Pattern
       // shorter than its context repeats" transparency getEffectiveRow()
       // already gave the background-only case.
-      auto edit_target = resolveEditTarget(song, section, track_id, info.getRowIndex(), getController().getFocusedClip());
+      auto edit_target = source_->edit(track_id, point);
       auto column_type = track_info.getColumnType(new_cursor.col);
 
       if (column_type == ColumnType::EFFECT) {
-	// A Command always lives at the track/section level, never a
-	// Clip's own (SongState.h's own playback masking-fix) - so unlike
-	// every other column type here, this doesn't write through
-	// edit_target.pattern (a Clip's own Pattern, when one is active at
-	// this row) but always straight into the background Section, at
-	// that background Pattern's own resolved row - the one row/track
-	// address a Command recorded here is actually going to play back
-	// from, regardless of which Pattern happened to supply this row's
-	// notes.
-	auto background_row = section.getEffectiveRow(track_id, info.getRowIndex(), song.getEffectiveSectionLength(section));
+	// A Command lives in the block's grid, not necessarily where this
+	// row's notes come from - in the arrangement always the background
+	// Section, never an active Clip's own Pattern (SongState.h's own
+	// playback masking-fix), the one row/track address a Command
+	// recorded here is actually going to play back from. Written with
+	// obtain() only when it actually changes, so merely typing an
+	// invalid character creates nothing.
+	auto command_grid = source_->editGrid(point.block, true);
+	auto set_command = [&](const Command & c) {
+	  int command_row;
+	  if (auto pattern = command_grid->obtain(track_id, point.row, command_row)) pattern->setCommand(command_row, c);
+	};
 	// Delete/Backspace clear the whole 4-character command, regardless
 	// of which of its subcol characters the cursor happens to be on -
 	// Command has no meaningful "delete just this one character" (a
@@ -1674,13 +1627,13 @@ PatternEditor::offerInput(const InputEvent & input) {
 	// it were a typed character, instead of being ignored (subcol 2/3)
 	// or actually deleting.
 	if (input.getId() == NCKEY_DEL || input.getId() == NCKEY_BACKSPACE) {
-	  section.setCommand(background_row, track_id, Command());
+	  set_command(Command());
 	  row_edited = true;
 	  song.incMinorVersion();
 	  // Same row-level Backspace-steps-back/Delete-stays-put distinction
 	  // the note column's own is_delete handling makes below.
 	  if (!info.isPlaying() && input.getId() == NCKEY_BACKSPACE) {
-	    getController().moveEditPosition(-edit_step_size);
+	    source_->moveCursor(-edit_step_size);
 	  }
 	  return true;
 	}
@@ -1696,9 +1649,11 @@ PatternEditor::offerInput(const InputEvent & input) {
 	// entry) is a notcurses key code far outside any printable range,
 	// and would otherwise get silently written into the command as if
 	// it were a typed character.
-	auto command = section.getCommand(background_row, track_id);
+	int command_row;
+	auto existing = command_grid->find(track_id, point.row, command_row);
+	auto command = existing ? existing->getCommand(command_row) : Command();
 	if (command.updateData(new_cursor.subcol, input.getId())) {
-	  section.setCommand(background_row, track_id, command);
+	  set_command(command);
 	  row_edited = true;
 	  song.incMinorVersion();
 
@@ -1832,7 +1787,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	    // otherwise still point at the (now superseded) background.
 	    if (info.isPlaying()) {
 	      getController().ensureNoteRecordingClip(auto_record_clip_ids_, track_id, info.getPatternIndex(), info.getRowIndex());
-	      edit_target = resolveEditTarget(song, section, track_id, info.getRowIndex(), getController().getFocusedClip());
+	      edit_target = source_->edit(track_id, point);
 	    }
 
 	    if (input.hasShift()) {
@@ -1873,7 +1828,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	    if (input.getId() == NCKEY_BACKSPACE) n = -1;
 	    else if (input.getId() != NCKEY_DEL) n = 1;
 	    if (n) {
-	      getController().moveEditPosition(n * edit_step_size);
+	      source_->moveCursor(n * edit_step_size);
 	    }
 	  }
 
@@ -2439,10 +2394,11 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   }
     
   auto & song = getController().getSong();
-  auto & info = getController().getPlaybackInfo();
-  auto [ pattern_idx, pattern_row ] = song.normalizePosition(info.getPatternIndex(), display_row + current_scroll_.row);
-  bool is_neighboring_pattern = info.getPatternIndex() != pattern_idx;
-  auto & section = song.getSection(pattern_idx);
+  auto point = source_->cursor();
+  auto address = source_->normalize(point.block, display_row + current_scroll_.row);
+  auto pattern_idx = address.block, pattern_row = address.row;
+  bool is_neighboring_pattern = point.block != pattern_idx;
+  auto grid = source_->readGrid(pattern_idx);
 
   display_row += heading_height;
 
@@ -2669,7 +2625,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     // There's always an effective region to highlight, even with no mark
     // set - it degenerates to just the note under the cursor (see
     // getEffectiveSelectionBounds, computed once per render() call).
-    bool row_track_in_selection = pattern_idx == info.getPatternIndex() &&
+    bool row_track_in_selection = pattern_idx == point.block &&
       i >= sel_bounds.track_lo && i <= sel_bounds.track_hi &&
       pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
     // A single-track NOTE_COLUMN/COMMAND-scoped region is scoped to
@@ -2715,7 +2671,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       // own background Pattern otherwise - the same resolution real
       // playback uses for notes (SongState.h's own renderBlock()), so
       // this always shows exactly what's actually going to sound.
-      auto read_target = resolveReadTarget(song, section, track_id, pattern_row, getController().getFocusedClip());
+      auto read_target = source_->read(track_id, address);
       VisibleTrackInfo track_info;
       auto it = all_track_info.find(track_id);
       if (it != all_track_info.end()) track_info = it->second;
@@ -2762,13 +2718,15 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	return c;
       };
       auto & notes = read_target.pattern->getNotes(read_target.effective_row);
-      // Deliberately not read_target.pattern's own command column even
-      // when an instance is active here - a Command lives at the
+      // From the block's grid, deliberately not read_target.pattern's own
+      // command column - in the arrangement a Command lives at the
       // track/section level only (SongState.h's own playback masking-
       // fix), never a Clip's, so this always reads what's actually going
       // to play regardless of which Pattern supplied this row's notes.
-      auto background_row = section.getEffectiveRow(track_id, pattern_row, song.getEffectiveSectionLength(section));
-      auto & command = section.getCommand(background_row, track_id);
+      static const Command no_command;
+      int command_row;
+      auto command_pattern = grid->find(track_id, pattern_row, command_row);
+      auto & command = command_pattern ? command_pattern->getCommand(command_row) : no_command;
 
       // current_scroll_.col skips this many of this track's own leading
       // columns - only meaningful for the leftmost visible track (see
@@ -2898,7 +2856,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  auto & clips = song.getClips(track_id);
 	  const Clip * sample_clip = (read_target.is_instance && read_target.clip_index >= 0 &&
 	    read_target.clip_index < static_cast<int>(clips.size())) ? &clips[static_cast<size_t>(read_target.clip_index)] : nullptr;
-	  auto * background = section.getSampleBackgroundContent(track_id);
+	  auto * background = source_->sampleBackground(track_id, pattern_idx);
 	  if (sample_clip && sample_clip->hasSample()) {
 	    auto & peaks = sample_clip->getWaveformPeaks(waveform_subrows * kWaveformSupersample);
 	    // A looping clip's own later laps wrap back into its own row
@@ -2949,7 +2907,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	    // clip's own instance-relative wf_row above) - the bed has no
 	    // trim/loop/instance-offset concept of its own to account for
 	    // (Section.h's own comment on why).
-	    auto & peaks = background->getWaveformPeaks(song.getEffectiveSectionLength(section), waveform_subrows * kWaveformSupersample);
+	    auto & peaks = background->getWaveformPeaks(source_->blockLength(pattern_idx), waveform_subrows * kWaveformSupersample);
 	    auto wf_row = pattern_row;
 	    if (peaks.rowCount() > 0) wf_row = std::min(wf_row, peaks.rowCount() - 1);
 	    if (wf_row < 0) wf_row = 0;
@@ -3148,7 +3106,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       Color right_bg = in_selection ? bg : tintForPlayhead(row_base_bg);
       if (i + 1 < static_cast<int>(track_ids.size())) {
 	auto next_track_id = track_ids[static_cast<size_t>(i + 1)];
-	right_is_instance = resolveInstanceAt(song, section, next_track_id, pattern_row).clip_index >= 0;
+	right_is_instance = source_->hasInstance(next_track_id, address);
 	if (right_is_instance && !in_selection) {
 	  auto next_it = all_track_info.find(next_track_id);
 	  if (next_it != all_track_info.end()) right_bg = right_bg.blend(0.2f, next_it->second.getColor());
@@ -3206,7 +3164,9 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   }
 
   if (current_pos < cols) {
-    auto & annotation = section.getAnnotation(pattern_row);
+    static const std::string no_annotation;
+    auto * annotations = source_->annotations(pattern_idx);
+    auto & annotation = annotations ? annotations->getAnnotation(pattern_row) : no_annotation;
     // Cursor parked on this row's annotation slot (see GridPosition::
     // scope's own comment), or this row falls inside an EVERYTHING-scoped
     // selection (getEffectiveSelectionBounds() - one end on the
@@ -3220,7 +3180,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     // highlight the per-column loop above already gates the same way.
     bool row_on_annotation_cursor = focused && highlight && current_cursor.isOnAnnotation();
     bool row_in_everything_selection = focused && sel_bounds.scope == SelectionScope::EVERYTHING &&
-      pattern_idx == info.getPatternIndex() && pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
+      pattern_idx == point.block && pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
     // A genuine multi-row ANNOTATION-scoped selection (mark and point both
     // on the annotation, on different rows - see kill-region/kill-ring-
     // save/yank's own ANNOTATION handling). Guarded on row_lo != row_hi so
@@ -3230,7 +3190,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     // range.
     bool row_in_annotation_selection = focused && sel_bounds.scope == SelectionScope::ANNOTATION &&
       sel_bounds.row_lo != sel_bounds.row_hi &&
-      pattern_idx == info.getPatternIndex() && pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
+      pattern_idx == point.block && pattern_row >= sel_bounds.row_lo && pattern_row <= sel_bounds.row_hi;
     bool row_selected = row_on_annotation_cursor || row_in_everything_selection || row_in_annotation_selection;
     bool row_fully_filled = row_in_everything_selection || row_in_annotation_selection;
 

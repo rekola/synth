@@ -6,7 +6,7 @@ the Launchpad Session grid address) at a time, with one playhead per track.
 Views stop being buffers: a buffer is a song, and a view is how the UI is
 laid out around it.
 
-Status: Phase 0a done (not yet committed). Every phase lands as its own commit(s), with `ctest`
+Status: Phase 0a committed; 0b done (not yet committed). Every phase lands as its own commit(s), with `ctest`
 and the e2e scripts green.
 
 ## The cursor model
@@ -125,6 +125,17 @@ class PatternSource {
 - Tests: read/edit/row mapping against the existing fixtures (instance vs.
   background, crossing a section boundary, a looping instance's wrap, the
   focused-clip override).
+
+Implemented as: `PatternSource` (`src/ui/PatternSource.h`) with notes
+via `read()`/`edit()`, and effect commands plus block operations via a
+per-block `PatternGrid` (`src/model/PatternGrid.h`), which
+`PatternBlockOps` now takes instead of a `Section`. The arrangement grid
+is the section background, as before: block operations and commands
+never touch clip instances there, even on rows showing clip notes. That's
+existing behaviour, kept unchanged. Annotations, `insertRow()`,
+`hasInstance()`/`stopInstance()` and `sampleBackground()` cover the rest.
+Transport-keyed recording calls (`ensureNoteRecordingClip()` etc.) still
+read the playback position directly.
 
 ### 0c. Track-admin commands move to `UI::initializeCommands()`
 
@@ -291,6 +302,52 @@ shared cursor instead, not by geometry.
   reachable.
 - **No cover art or scope row in Session view.** A global
   `toggle-scopes` lets Arrangement view reclaim those rows too.
+
+---
+
+## Phase 5: block commands act on clips in arrangement mode
+
+Today kill/copy/yank/transpose, kill-row and the effect column act on the
+section background, even on rows showing a placed clip's notes, so
+killing a region that shows clip notes clears hidden background notes.
+
+- A selection holds notes from **one source only**: the background, or
+  one clip instance (the one at the mark). Moving point across an
+  instance boundary (background ↔ clip, or clip A ↔ clip B) clamps the
+  region at that boundary instead of extending past it. That's the same
+  "the mark never strands in another block" rule the section boundary
+  already follows.
+- The block commands then run on that source's grid:
+  `ArrangementPatternSource` gains a grid over the instance's clip
+  pattern (rows offset by the instance's start, wrapped by its length),
+  chosen by what `resolveReadTarget()` finds at the mark. It needs no new
+  PatternBlockOps: they already take a `PatternGrid`.
+- Yank writes into whatever source is at point (the clip under it, or
+  the background), clipped to that source's extent.
+- The region highlight shows the clamped extent.
+- The effect column: decide whether commands on clip rows go to the
+  clip. Today playback reads commands from the section only, so a
+  command stored in a clip would be silent; this needs the playback side
+  too, or stays background-only.
+- Tests: `PatternSource`/`PatternBlockOps` unit tests for clamping and
+  clip-grid mapping, plus an e2e test killing a region that shows clip
+  notes.
+
+## Phase 6: failing e2e scripts
+
+These fail identically before and after this plan's changes, and none is
+in `docs/known_bugs.md`:
+
+- `verify_patterneditor_cross_tuning_paste.py`: the "incompatible
+  tuning" refusal check
+- `verify_consonance_colors.py`: all 5 checks
+- `verify_percussion_layout.py`: both checks
+- `verify_launchpad_stepseq.py`: both checks
+
+For each, find whether the script or the app is wrong. Fix the script
+if it's stale (e.g. screen positions predating the current layout), fix
+the app if it's a real bug, or record it in `docs/known_bugs.md` if a fix
+isn't feasible now.
 
 ---
 

@@ -6,9 +6,11 @@
 #include "../../model/PatternBlockOps.h"
 #include "../ClipboardEntry.h"
 #include "../SelectionBounds.h"
+#include "../PatternSource.h"
 #include "InlineEditor.h"
 
 #include <functional>
+#include <memory>
 #include <vector>
 #include <unordered_map>
 #include <set>
@@ -338,6 +340,9 @@ protected:
 
   // Shared by the annotation and track-name editors; only one is ever open.
   InlineEditor inline_editor_{getPlane()};
+
+  // Where rows, cells and edits come from - see PatternSource.h.
+  std::unique_ptr<PatternSource> source_;
 
   // The StyleProvider render() was last called with - stashed there
   // purely so startTrackNameEdit() can force an immediate renderHeading()
