@@ -705,6 +705,17 @@ class LaunchpadManager {
     // section's own live background Pattern just because the cursor
     // happened to land here.
     bool show_step_grid = false;
+    // How many 8-step pages the focused clip actually has, refreshed
+    // alongside show_step_grid above (1, its own default, whenever
+    // show_step_grid is false - irrelevant then). refreshLeds() compares
+    // this against how many devices are actually connected to decide
+    // whether prev-track/next-track's own paging gesture (handleCommand()'s
+    // own comment) has anything left to do - with page_count <= however
+    // many Launchpads are connected, resetDrumEditPaging() has already
+    // given every page its own device to show at once, so paging would be
+    // a no-op; those two LEDs go dark in exactly that case, matching every
+    // other "nothing a performer could see would happen" button here.
+    int drum_edit_page_count = 1;
     // Pattern-relative row % 8 while playing (the step grid is always
     // exactly 8 columns wide), or the free-running audition clock's own
     // step % 8 while stopped (see LaunchpadManager::audition_clock_step_) -

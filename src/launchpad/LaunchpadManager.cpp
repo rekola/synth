@@ -1264,8 +1264,25 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
       auto track_id = controller.getFocusedClipTrackId();
       auto length = focusedDrumClipLength(song, track_id, controller.getFocusedClip());
       auto page_count = length > 0 ? (length + 7) / 8 : 1;
-      auto & state = deviceState(device_id);
-      state.drum_edit_page = std::clamp(state.drum_edit_page + (name == "next-track" ? 1 : -1), 0, page_count - 1);
+      if (!launchpad_io_) return true;
+      auto ready_ids = launchpad_io_->readySessionIds();
+      auto num_devices = static_cast<int>(ready_ids.size());
+      // Nothing to page to: resetDrumEditPaging() already gave every page
+      // its own device to show at once (num_devices >= page_count), so a
+      // press here would only ever re-clamp back to where it already is -
+      // a silent no-op, matching refreshLeds()'s own dark LED for exactly
+      // this case.
+      if (num_devices <= 0 || page_count <= num_devices) return true;
+      // Every connected device shifts together, in lockstep - not just the
+      // one this press landed on. A single device paging independently
+      // would drift out of resetDrumEditPaging()'s own "device i shows
+      // page i" tiling - two devices could end up showing the very same
+      // page (nothing left splitting the clip between them) rather than
+      // each staying pinned to their own distinct slice of it.
+      auto max_base = page_count - num_devices;
+      auto current_base = deviceState(ready_ids[0]).drum_edit_page;
+      auto new_base = std::clamp(current_base + (name == "next-track" ? 1 : -1), 0, max_base);
+      for (int i = 0; i < num_devices; i++) deviceState(ready_ids[static_cast<size_t>(i)]).drum_edit_page = new_base + i;
       return true;
     }
 
@@ -2924,18 +2941,42 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // misleadingly suggest a press here does something a performer looking
   // only at the Launchpad could ever actually see.
   bool arrows_active = state.grid_mode != GridMode::SESSION;
-  uint8_t arrow_white = arrows_active ? 30 : 0;
-  uint8_t arrow_blue = arrows_active ? 60 : 0;
-  // 91 ("move-row-up") is the one exception - it doubles as a shift
-  // modifier with a real, Launchpad-visible meaning specifically from
-  // Session view (LaunchpadManager::handleShiftButton()) - so it stays
-  // dim-lit in every GridMode rather than going dark in Session the way
-  // 92/93/94 still do, and lights full bright while actually held, the
-  // same "held == bright" convention every other momentary control here
-  // already uses; the pad it's currently combined with (DeviceState::
-  // row_up_shift_pending_pad) gets the identical bright-white treatment
-  // below, so the two lit pads visually pair up while the press is held.
-  uint8_t row_up_level = state.row_up_shift_held ? 127 : 30;
+  // Showing the step grid (sequencer mode) is the same "nothing here a
+  // performer could see" story for 91/92 specifically: 91's own shift-combo
+  // gesture and "move-row-up"'s plain fallback, and "move-row-down", are
+  // both only ever meaningful from Session (moving either the shared
+  // cursor or, outside Session, the terminal-only pattern-editor cursor -
+  // invisible from the grid either way while a clip's already open here),
+  // so both go dark on top of the SESSION-dark rule above rather than
+  // showing their usual out-of-Session dim-lit color.
+  bool plain_arrows_lit = arrows_active && !state.show_step_grid;
+  uint8_t arrow_white = plain_arrows_lit ? 30 : 0;
+  // 93/94 ("prev-track"/"next-track") are their own case while the step
+  // grid is showing: handleCommand()'s own comment repurposes them into
+  // paging through a clip longer than 8 steps, every connected device
+  // shifting together - genuinely useful only when there's a page no
+  // already-connected device is showing yet (drum_edit_page_count exceeds
+  // how many devices resetDrumEditPaging() could already give one page
+  // each), the same threshold handleCommand()'s own no-op guard uses.
+  // Outside the step grid they keep their ordinary out-of-Session meaning
+  // (moving the shared cursor track) unchanged.
+  bool paging_useful = state.drum_edit_page_count > (launchpad_io_ ? static_cast<int>(launchpad_io_->readySessionIds().size()) : 0);
+  bool page_arrows_lit = state.show_step_grid ? paging_useful : arrows_active;
+  uint8_t arrow_blue = page_arrows_lit ? 60 : 0;
+  // 91 ("move-row-up") doubles as a shift modifier with a real,
+  // Launchpad-visible meaning specifically from Session view
+  // (LaunchpadManager::handleShiftButton()) - so it stays dim-lit in every
+  // GridMode rather than going dark in Session the way 92 still does
+  // (plain_arrows_lit only covers 92 for exactly that reason), and lights
+  // full bright while actually held, the same "held == bright" convention
+  // every other momentary control here already uses; the pad it's
+  // currently combined with (DeviceState::row_up_shift_pending_pad) gets
+  // the identical bright-white treatment below, so the two lit pads
+  // visually pair up while the press is held. Dark instead, regardless of
+  // held state, while the step grid is showing - there's no Session pad
+  // grid visible to shift-combine with then, so both of 91's own meanings
+  // are exactly as unused as 92's.
+  uint8_t row_up_level = state.show_step_grid ? 0 : state.row_up_shift_held ? 127 : 30;
   colors.push_back({91, row_up_level, row_up_level, row_up_level});
   colors.push_back({92, arrow_white, arrow_white, arrow_white}); // move-row-down, dim white (static)
   colors.push_back({93, 0, 0, arrow_blue}); // prev-track, dim blue (static)
@@ -2965,7 +3006,13 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
     Rgb session_color = !inSessionMixerFamily(state) ? Rgb{0, 20, 0} : state.session_mixer_mode ? Rgb{127, 64, 0} : Rgb{0, 127, 0};
     colors.push_back({95, session_color.r, session_color.g, session_color.b});
   }
-  colors.push_back({96, state.grid_mode == GridMode::NOTES ? uint8_t(90) : uint8_t(20), state.grid_mode == GridMode::NOTES ? uint8_t(90) : uint8_t(20), state.grid_mode == GridMode::NOTES ? uint8_t(90) : uint8_t(20)});
+  // Note (CC96) goes fully dark while the step grid is showing rather than
+  // its usual lit-when-active color: pressing it while already forced into
+  // NOTES (forceNotesModeOnAllDevices(), the only way this device got here)
+  // changes nothing at all, a true no-op unlike every other reason this
+  // LED ever lights.
+  uint8_t note_level = state.show_step_grid ? 0 : state.grid_mode == GridMode::NOTES ? uint8_t(90) : uint8_t(20);
+  colors.push_back({96, note_level, note_level, note_level});
   colors.push_back({97, state.grid_mode == GridMode::CUSTOM ? uint8_t(90) : uint8_t(20), 0, state.grid_mode == GridMode::CUSTOM ? uint8_t(127) : uint8_t(20)});
   // CC98's own LED carries two independent states: DRAW mode active (its
   // own purple, same convention as 96/97 above) and record_arm_led_on
@@ -2973,8 +3020,16 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // handleDrawToggleButton()'s own comment) - armed takes priority when
   // both are true, since DRAW mode's own activity is already visible from
   // the grid's own rainbow content, while armed has no other indicator.
+  // The idle/DRAW-eligible color goes dark instead while the step grid is
+  // showing - a long hold would abandon step editing for the DRAW canvas,
+  // not something worth standing an indicator for while focused here - but
+  // armed itself stays lit even then: it's real, track-global recording
+  // state a performer still needs to see, not a per-mode affordance, and
+  // CC98's own quick tap (toggle-record-arm) still genuinely arms/disarms
+  // it from any GridMode, sequencer mode included.
   {
     Rgb capture_color = state.record_arm_led_on ? Rgb{127, 0, 0} :
+      state.show_step_grid ? Rgb{0, 0, 0} :
       state.grid_mode == GridMode::DRAW ? Rgb{90, 0, 127} : Rgb{20, 0, 20};
     colors.push_back({98, capture_color.r, capture_color.g, capture_color.b});
   }
@@ -3469,6 +3524,10 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     vector<int> drum_lane_notes;
     array<uint8_t, 8> drum_lane_steps {};
     int drum_playhead_step = -1;
+    // Mirrors DeviceState::drum_edit_page_count's own comment - computed
+    // below alongside drum_clip_editing, carried into state after the loop
+    // the same way every other per-device field here is.
+    int drum_page_count = 1;
     // Whether a specific clip is actually open for editing on this
     // track (Controller::getFocusedClipTrackId()) - the step grid only
     // ever edits a clip this way, never the section's own background
@@ -3514,7 +3573,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
         // whenever no clip is actually open for editing on this track.
         drum_clip_editing = controller.getFocusedClipTrackId() == track_id;
         auto drum_clip_length = drum_clip_editing ? focusedDrumClipLength(song, track_id, controller.getFocusedClip()) : -1;
-        auto drum_page_count = drum_clip_length > 0 ? (drum_clip_length + 7) / 8 : 1;
+        drum_page_count = drum_clip_length > 0 ? (drum_clip_length + 7) / 8 : 1;
         auto drum_page = drum_clip_editing ? std::clamp(state.drum_edit_page, 0, drum_page_count - 1) : 0;
         // A lane's own hit state, this section - by value (getHitNotesAtRow(),
         // matching handleStepGridPadEvent()'s own by-value "was_hit" check),
@@ -3586,6 +3645,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     state.grid_track_count = min(8, num_tracks);
     state.assigned_track_is_percussion = is_percussion;
     state.show_step_grid = is_percussion && !drum_lane_notes.empty() && !controller.isAnySessionRecording() && drum_clip_editing;
+    state.drum_edit_page_count = drum_page_count;
     state.drum_lane_notes = move(drum_lane_notes);
     state.drum_lane_steps = drum_lane_steps;
     state.drum_playhead_step = drum_playhead_step;

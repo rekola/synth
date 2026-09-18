@@ -44,6 +44,7 @@ gcc -o fake_launchpad_aftertouch_clip fake_launchpad_aftertouch_clip.c -lasound
 gcc -o fake_launchpad_mixer_hold fake_launchpad_mixer_hold.c -lasound
 gcc -o fake_launchpad_scene_row fake_launchpad_scene_row.c -lasound
 gcc -o fake_launchpad_clear_on_exit fake_launchpad_clear_on_exit.c -lasound
+gcc -o fake_launchpad_paging_lockstep fake_launchpad_paging_lockstep.c -lasound
 ```
 
 (the compiled binaries are gitignored - only the `.c` sources are
@@ -403,6 +404,17 @@ you're changing.
   dump confirmed there was real (non-black) content lit to begin with.
   No real audio/ALSA capture involved, so this one isn't expected to hit
   the sandboxed-environment flakiness documented above.
+- **`launchpad_paging_lockstep_test.xml` / `fake_launchpad_paging_lockstep.c` /
+  `verify_launchpad_paging_lockstep.py`** - the step grid's own
+  prev-track/next-track page-shift gesture (`LaunchpadManager::
+  handleCommand()`'s own comment) moving every connected device together,
+  not just whichever one was pressed: two simulated devices open a 4-page
+  (32-step) clip, confirm `resetDrumEditPaging()`'s own device-order split
+  put them on two different pages, then one device pages forward once and
+  both are confirmed to have advanced by exactly one page - not left
+  drifted apart. No real audio/ALSA capture involved, so this one isn't
+  expected to hit the sandboxed-environment flakiness documented above
+  either - unlike most two-device scripts in this suite, which do.
 - **`cross_tuning_paste_test.xml` (+ companion `..._song_b.xml`) /
   `verify_patterneditor_cross_tuning_paste.py`** - a `Note::getValue()`
   means a different kind of value under a different tuning (GM percussion

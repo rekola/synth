@@ -496,16 +496,36 @@ would otherwise resume showing.
   released first, the pad dragged off) never has to be undone; it
   completes on release regardless of whether shift is still held by
   then. Both halves light up full bright white while held - CC91 itself
-  (dim white beforehand, in every `GridMode` now rather than dark in
-  Session, since it has a real, Launchpad-visible meaning there) and
-  whichever pad it's currently combined with, so a performer sees the
-  pair confirmed before ever releasing (`LaunchpadManager::
-  refreshLeds()`'s own `GridMode::SESSION` branch). Opening forces every
-  connected Launchpad into `NOTES` mode
-  showing that clip's own step grid automatically, regardless of whatever
-  `GridMode` each was in (`TerminalUI.cpp`'s own drum-edit-request
-  listener, `LaunchpadManager::forceNotesModeOnAllDevices()`). Closing it
-  again is reachable two ways too: the same shift+pad combo on the same
+  (dim white beforehand, in every `GridMode` but the step grid, since it
+  has a real, Launchpad-visible meaning everywhere else) and whichever pad
+  it's currently combined with, so a performer sees the pair confirmed
+  before ever releasing (`LaunchpadManager::refreshLeds()`'s own
+  `GridMode::SESSION` branch). Opening forces every connected Launchpad
+  into `NOTES` mode showing that clip's own step grid automatically,
+  regardless of whatever `GridMode` each was in (`TerminalUI.cpp`'s own
+  drum-edit-request listener, `LaunchpadManager::
+  forceNotesModeOnAllDevices()`) - and gives each device its own default
+  page into the clip (`LaunchpadManager::resetDrumEditPaging()`, "device i
+  shows page i" in whatever order they're currently ready), splitting a
+  clip longer than 8 steps across however many are connected without
+  anyone paging by hand first. Once the step grid is showing, every button
+  with no meaning left there goes fully dark rather than keeping its usual
+  out-of-Session color - move-row-up (CC91, both its shift-combo and its
+  plain fallback), move-row-down (CC92), Note (CC96, forced into already -
+  pressing it again is a true no-op), and Capture MIDI/Draw's own
+  idle/DRAW-eligible color (CC98 - a long hold would abandon step editing
+  for the DRAW canvas, not something worth a standing indicator for; its
+  armed/red indicator stays lit regardless, since that's real track-global
+  recording state a performer still needs to see, not a per-mode
+  affordance). prev-track/next-track (CC93/94) are repurposed instead of
+  going dark - a press pages every connected device's own `DeviceState::
+  drum_edit_page` together, in lockstep (never just the one device the
+  press landed on, which would otherwise drift devices onto overlapping or
+  duplicate pages) - but even they go dark once paging would be a no-op:
+  whenever the clip's own page count is already covered one-for-one by
+  however many devices are connected (`resetDrumEditPaging()`'s own split
+  already shows every page at once), a press would just re-clamp back to
+  where it already is. Closing it again is reachable two ways too: the same shift+pad combo on the same
   pad (only from the plain Session grid - the step grid a successful open
   switches every device to has no (track, clip index) addressing of its
   own to shift-combine with, so this needs a CC95 press back to Session
@@ -789,7 +809,15 @@ would otherwise resume showing.
   lighting bright white before release) - currently fails every check
   past the first CC91 press in this sandboxed environment, a fresh
   instance of that stall class with no real audio/ALSA capture involved
-  at all this time (`docs/known_bugs.md`). Every e2e script spawns `synth`
+  at all this time (`docs/known_bugs.md`). `verify_launchpad_paging_lockstep.py`
+  covers the step grid's own prev-track/next-track page-shift gesture
+  moving every connected device together rather than just whichever one
+  was pressed - two simulated devices open a 4-page clip, confirm
+  `resetDrumEditPaging()`'s own device-order split put them on two
+  different pages, then one pages forward once and both are confirmed to
+  have advanced together; no real audio/ALSA capture involved, so unlike
+  most two-device scripts here it isn't expected to hit that same
+  flakiness either. Every e2e script spawns `synth`
   with `SYNTH_LAUNCHPAD_NO_HARDWARE=1` (`tools/e2e/harness.py`'s own
   `spawn()`) so it only ever connects to the fake simulator it's actually
   testing, never any real Launchpad hardware also plugged into the same

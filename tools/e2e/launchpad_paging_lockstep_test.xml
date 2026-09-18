@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Purpose-built for verify_launchpad_paging_lockstep.py: a
+     step-sequenced PercussionTrack clip 32 rows long (4 pages of 8) with
+     a single BD hit near the start of each page, placed so the lit
+     step's own column equals that page's own number - page 0's hit is at
+     absolute row 0 (step 0), page 1's at row 9 (step 1), page 2's at row
+     18 (step 2), page 3's at row 27 (step 3). Reading which single step
+     column is lit in the BD lane's own row is therefore enough to tell
+     which page a device is currently showing, with no need to read a
+     playhead or correlate against real time. -->
+<song temperament="12edo" tempo="120" patternRows="16">
+  <instruments>
+    <envelope attack="0.001" hold="0.05" decay="0.05" sustain="0.0" release="0.05">
+      <oscillator type="saw"/>
+    </envelope>
+  </instruments>
+  <tracks>
+    <percussionTrack id="0" instrument="0">
+      <lane note="BD"/>
+      <lane note="SD"/>
+    </percussionTrack>
+  </tracks>
+  <clips>
+    <trackClips track="0">
+      <clip name="p0" />
+      <clip name="p1" />
+      <clip name="p2" />
+      <clip name="p3" />
+      <clip name="p4" />
+      <clip name="p5" />
+      <clip name="p6" />
+      <clip name="Beat 1" loop="1" length="32">
+        <pattern>
+          <note row="0" velocity="80" value="BD" />
+          <note row="9" velocity="80" value="BD" />
+          <note row="18" velocity="80" value="BD" />
+          <note row="27" velocity="80" value="BD" />
+        </pattern>
+      </clip>
+    </trackClips>
+  </clips>
+  <sections>
+    <section>
+    </section>
+  </sections>
+</song>
