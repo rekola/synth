@@ -11,7 +11,21 @@ using namespace std;
 LaunchpadIO::LaunchpadIO() { }
 
 LaunchpadIO::~LaunchpadIO() {
+  clearAllLeds();
   if (seq_handle) snd_seq_close(seq_handle);
+}
+
+void
+LaunchpadIO::clearAllLeds() {
+  for (auto & session : sessions) {
+    if (session.state != SessionState::READY) continue;
+    vector<LaunchpadProtocol::PadColor> colors;
+    for (int y = 0; y < 8; y++) {
+      for (int x = 0; x < 8; x++) colors.push_back({LaunchpadProtocol::padToNoteNumber(x, y), 0, 0, 0});
+    }
+    for (auto led_index : LaunchpadProtocol::allExtraButtonLedIndices()) colors.push_back({led_index, 0, 0, 0});
+    sendLeds(session.session_id, colors);
+  }
 }
 
 void

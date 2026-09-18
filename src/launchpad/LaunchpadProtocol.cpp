@@ -149,6 +149,11 @@ isProMk3OnlyLedIndex(int led_index) {
   }
 }
 
+vector<int>
+allExtraButtonLedIndices() {
+  return {91, 92, 93, 94, 95, 96, 97, 98, 99, 19, 29, 39, 49, 59, 69, 79, 89, 30, 20};
+}
+
 optional<string>
 commandForButton(int cc_number) {
   switch (cc_number) {

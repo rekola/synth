@@ -43,6 +43,7 @@ gcc -o fake_launchpad_shift_highlight fake_launchpad_shift_highlight.c -lasound
 gcc -o fake_launchpad_aftertouch_clip fake_launchpad_aftertouch_clip.c -lasound
 gcc -o fake_launchpad_mixer_hold fake_launchpad_mixer_hold.c -lasound
 gcc -o fake_launchpad_scene_row fake_launchpad_scene_row.c -lasound
+gcc -o fake_launchpad_clear_on_exit fake_launchpad_clear_on_exit.c -lasound
 ```
 
 (the compiled binaries are gitignored - only the `.c` sources are
@@ -394,6 +395,14 @@ you're changing.
   actual note starts rendering) - the same known, pre-existing environment
   limitation as `verify_launchpad_stopclip.py` above, so its own LED
   checks fail here reliably - see `docs/known_bugs.md`.
+- **`fake_launchpad_clear_on_exit.c` / `verify_launchpad_clear_on_exit.py`**
+  (reuses `launchpad_scene_row_test.xml` for its own real Session content) -
+  `LaunchpadIO::clearAllLeds()`, the destructor's own last act: quits
+  synth gracefully (C-x C-c) and confirms the very last LED-lighting
+  SysEx the fake device receives blanks every colorspec, after an earlier
+  dump confirmed there was real (non-black) content lit to begin with.
+  No real audio/ALSA capture involved, so this one isn't expected to hit
+  the sandboxed-environment flakiness documented above.
 - **`cross_tuning_paste_test.xml` (+ companion `..._song_b.xml`) /
   `verify_patterneditor_cross_tuning_paste.py`** - a `Note::getValue()`
   means a different kind of value under a different tuning (GM percussion

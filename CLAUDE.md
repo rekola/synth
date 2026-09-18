@@ -351,7 +351,16 @@ without one connected. `LaunchpadIO` owns the raw MIDI I/O (connect/
 hotplug/SysEx); `LaunchpadManager` owns all per-device state and business
 logic (note entry, grid-mode dispatch, Session view, drum-machine step
 grid) and is Song/Controller-aware but UI-agnostic - it works the same
-whether or not a terminal UI exists at all.
+whether or not a terminal UI exists at all. `LaunchpadIO`'s own destructor
+blanks every LED on every connected device (`clearAllLeds()`, an
+all-black LED-lighting SysEx covering the grid plus every extra-button
+index - `LaunchpadProtocol::allExtraButtonLedIndices()`) before closing
+the ALSA connection, so quitting doesn't leave a Launchpad still showing
+whatever Session view/step grid/etc. happened to be lit - not a
+Programmer Mode exit (this codebase never actually leaves Programmer
+Mode once entered), just going dark, a clearer and more predictable
+"we're done" signal than whatever a device's own standalone light show
+would otherwise resume showing.
 
 - **`GridMode`** (`LaunchpadManager::GridMode`) - one of `NOTES`/
   `SEND_MAIN`/`PAN`/`SEND_A`/`SEND_B`/`DRAW`/`SESSION`/`CUSTOM`, mutually

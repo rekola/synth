@@ -82,6 +82,16 @@ class LaunchpadIO {
   void connectToDevice(Logger & logger, int client, int port, LaunchpadProtocol::Model model);
   void sendSysEx(const std::vector<uint8_t> & bytes, int dest_client, int dest_port);
 
+  // Blanks every LED on every currently-ready device - the destructor's
+  // own last act, so a Launchpad doesn't sit there still showing whatever
+  // Session view/step grid/etc. happened to be lit when the app quit.
+  // Just an all-black LED-lighting message, not a Programmer Mode exit -
+  // this codebase never actually leaves Programmer Mode once entered, and
+  // going dark is a clearer, more predictable "we're done" signal than
+  // guessing at whatever a device's own standalone light show would
+  // otherwise resume showing.
+  void clearAllLeds();
+
   // Hotplug: handles PORT_START/PORT_EXIT events arriving via the system
   // announce port subscription set up in initialize().
   void handlePortStart(int client, int port);
