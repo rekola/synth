@@ -1155,12 +1155,13 @@ TEST(toggle_record_arm_session_view_focused_arms_a_sample_track_without_arrangem
   CHECK(!controller.isSessionRecording(track_id));
 }
 
-// Record Arm on a step-sequenced PercussionTrack's own clip in Session View
-// is repurposed into "open this clip for editing on a Launchpad's step
-// grid" (via setFocusedClip()/setDrumEditRequestListener()) instead of ever
-// arming a take - a drum clip's own steps are never captured live. A
-// lane-less PercussionTrack's own clip has no such repurposing
-// (toggle_record_arm_on_a_lane_less_percussion_clip_arms_normally below).
+// Record Arm on a PercussionTrack's own clip in Session View is repurposed
+// into "open this clip for editing on a Launchpad's step grid" (via
+// setFocusedClip()/setDrumEditRequestListener()) instead of ever arming a
+// take - a drum clip's own steps are never captured live. Reaches a
+// lane-less PercussionTrack's own clip exactly the same way
+// (toggle_record_arm_on_a_lane_less_percussion_clip_focuses_it_too below) -
+// its step grid just shows empty until a lane exists.
 TEST(toggle_record_arm_on_a_drum_machine_clip_focuses_it_instead_of_arming) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
@@ -1200,11 +1201,13 @@ TEST(toggle_record_arm_on_a_drum_machine_clip_focuses_it_instead_of_arming) {
   CHECK(!requested_opened);
 }
 
-// A lane-less PercussionTrack is just an ordinary track - its own clip in
-// Session View has no step-grid-editing role to repurpose Record Arm into,
-// so a press arms plain note capture instead, exactly like any other
-// non-drum-machine track's own focused clip would.
-TEST(toggle_record_arm_on_a_lane_less_percussion_clip_arms_normally) {
+// A lane-less PercussionTrack is still a PercussionTrack -
+// toggleDrumClipFocus() doesn't gate on lane count at all (its own doc
+// comment), so Record Arm opens its own clip for step editing exactly the
+// same way a step-sequenced one does; LaunchpadManager::refreshLeds() is
+// what actually shows that empty (DeviceState::show_step_grid's own
+// comment) - nothing here to distinguish at the Controller level.
+TEST(toggle_record_arm_on_a_lane_less_percussion_clip_focuses_it_too) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
@@ -1212,14 +1215,16 @@ TEST(toggle_record_arm_on_a_lane_less_percussion_clip_arms_normally) {
 
   auto & track = song.addTrack(std::make_unique<PercussionTrack>()); // no lanes
   auto track_id = track.getInternalId();
-  song.addClip(Clip(track_id)); // an occupied slot, not an empty one
+  auto & existing = song.addClip(Clip(track_id)); // an occupied slot, not an empty one
+  auto existing_id = existing.getId();
 
   controller.setSessionViewFocused(true);
   controller.setSessionViewCursor(track_id, 0);
   controller.sendCommand("toggle-record-arm");
 
-  CHECK(controller.isTrackArmed(track_id));
-  CHECK(controller.getFocusedClipTrackId() == -1); // never focused for step editing
+  CHECK(!controller.isTrackArmed(track_id)); // never armed a take
+  CHECK(controller.getFocusedClipTrackId() == track_id);
+  CHECK(controller.getFocusedClip() == existing_id);
 }
 
 // An empty slot lazily creates a fresh, looping clip rather than doing
@@ -1301,10 +1306,13 @@ TEST(toggle_drum_clip_focus_direct_call_opens_and_closes_a_clip) {
 }
 
 // A no-op (false, nothing focused, no listener call) for anything that
-// isn't a step-sequenced PercussionTrack's own clip - lets a caller like
+// isn't a PercussionTrack's own clip at all - lets a caller like
 // LaunchpadManager::handleSessionPadEvent() fall back to its own ordinary
-// meaning for the gesture instead of silently swallowing the press.
-TEST(toggle_drum_clip_focus_is_a_no_op_off_a_step_sequenced_percussion_clip) {
+// meaning for the gesture instead of silently swallowing the press. A
+// PercussionTrack itself is never declined this way regardless of lane
+// count (toggle_record_arm_on_a_lane_less_percussion_clip_focuses_it_too
+// covers the lane-less case succeeding).
+TEST(toggle_drum_clip_focus_is_a_no_op_off_a_non_percussion_clip) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
@@ -1318,15 +1326,6 @@ TEST(toggle_drum_clip_focus_is_a_no_op_off_a_step_sequenced_percussion_clip) {
   controller.setDrumEditRequestListener([&](int, bool) { listener_called = true; });
 
   CHECK(!controller.toggleDrumClipFocus(note_track_id, 0));
-  CHECK(controller.getFocusedClipTrackId() == -1);
-  CHECK(!listener_called);
-
-  // A lane-less PercussionTrack is just as much a no-op - it has no step
-  // grid to open at all.
-  auto & lane_less = song.addTrack(std::make_unique<PercussionTrack>());
-  auto lane_less_id = lane_less.getInternalId();
-  song.addClip(Clip(lane_less_id));
-  CHECK(!controller.toggleDrumClipFocus(lane_less_id, 0));
   CHECK(controller.getFocusedClipTrackId() == -1);
   CHECK(!listener_called);
 }

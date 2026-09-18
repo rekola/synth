@@ -706,10 +706,15 @@ class Controller {
   // past the track's own current clip list lazily creates a fresh, empty,
   // looping clip there instead (the same "new take" convenience
   // ensureNoteRecordingClip() already gives a live take), ready to have
-  // steps entered directly. Returns false (a pure no-op, nothing opened or
-  // closed) when `track_id`/`clip_index` don't actually address a
-  // step-sequenced PercussionTrack clip at all - a caller can fall back to
-  // its own ordinary meaning for whatever gesture reached this.
+  // steps entered directly. Lane count doesn't gate this at all - a
+  // lane-less PercussionTrack opens the same way, its own step grid just
+  // showing empty (no lane has anything to light) until CC97's own lane
+  // picker gives it its first one; the grid itself is still the right
+  // place to be while that happens; a performer reaching for "open
+  // editing" shouldn't land somewhere else first. Returns false (a pure
+  // no-op, nothing opened or closed) when `track_id`/`clip_index` don't
+  // address a PercussionTrack clip at all - a caller can fall back to its
+  // own ordinary meaning for whatever gesture reached this.
   bool toggleDrumClipFocus(int track_id, int clip_index);
 
   void clearFocusedClip() {

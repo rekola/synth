@@ -665,19 +665,22 @@ class LaunchpadManager {
     bool session_mixer_mode = false;
 
     // Step-grid surface: not a GridMode value of its own - within
-    // grid_mode==NOTES (like the ordinary percussion pad layout a
-    // lane-less track shows instead, so Send/Pan/Draw/Custom stay fully
-    // usable on a device currently assigned to one), it only ever edits a
-    // specific clip actually open for editing on this track
-    // (Controller::getFocusedClipTrackId(), show_step_grid's own comment)
-    // - never the section's own background Pattern, which has no
-    // pagination and spans the whole scene, far more than this fixed
-    // 8x8 grid (even split across several connected devices) could ever
-    // show meaningfully. assigned_track_is_percussion itself doesn't
-    // imply lanes, or a focused clip - it's also what gates GridMode::
-    // CUSTOM's own lane-picker branch, which works with zero lanes and no
-    // focused clip too (that's how a lane-less track gains its first
-    // lane). Recomputed fresh every refresh() call (same cadence as
+    // grid_mode==NOTES (like the ordinary percussion pad layout shown
+    // instead when nothing's actually open for editing yet, so Send/Pan/
+    // Draw/Custom stay fully usable on a device currently assigned to a
+    // PercussionTrack), it only ever edits a specific clip actually open
+    // for editing on this track (Controller::getFocusedClipTrackId(),
+    // show_step_grid's own comment) - never the section's own background
+    // Pattern, which has no pagination and spans the whole scene, far
+    // more than this fixed 8x8 grid (even split across several connected
+    // devices) could ever show meaningfully. assigned_track_is_percussion
+    // itself doesn't imply a focused clip - it's also what gates
+    // GridMode::CUSTOM's own lane-picker branch, which works with zero
+    // lanes and no focused clip too (that's a *second*, independent way
+    // to reach a lane-less track's own editing surface, alongside opening
+    // it for step editing directly - toggleDrumClipFocus()'s own comment
+    // covers why lane count no longer gates that). Recomputed fresh every
+    // refresh() call (same cadence as
     // tuning/muted/solo above), never read back from a stale copy by
     // handlePadEvent() - a press always re-resolves the assigned
     // PercussionTrack directly for up-to-the-moment lane/step data, this
@@ -686,18 +689,22 @@ class LaunchpadManager {
     std::vector<int> drum_lane_notes; // bottom-to-top, already DrumRankTable-ordered
     std::array<uint8_t, 8> drum_lane_steps {}; // parallel to drum_lane_notes
     // Whether refreshLeds() should actually draw the step grid this frame
-    // - narrower than "assigned_track_is_percussion && !drum_lane_notes.
-    // empty()" alone, which drum_lane_notes' own other reader (the drum
-    // picker's "already assigned" highlight, GridMode::CUSTOM) still needs
-    // regardless of recording state or focus. False whenever any track
-    // anywhere is being recorded via a Session View take
-    // (handlePadEvent()'s own identical carve-out) - the step editor is
-    // for building a pattern by hand when not performing live, not for
-    // capturing one, so a live take needs real free-drumming pad entry
-    // instead even though this same track's own lanes still exist. Also
-    // false whenever no clip is actually open for editing on this track
-    // (Controller::getFocusedClipTrackId() != this track) - merely
-    // navigating the shared cursor onto a step-sequenced PercussionTrack
+    // - narrower than "assigned_track_is_percussion" alone, which
+    // drum_lane_notes' own other reader (the drum picker's "already
+    // assigned" highlight, GridMode::CUSTOM) still needs regardless of
+    // recording state or focus. Not gated on lane count at all - a
+    // lane-less PercussionTrack shows the step grid too, just empty (no
+    // lane has anything to light, kStepUnlitColor throughout - see
+    // refreshLeds()'s own comment); Controller::toggleDrumClipFocus()'s
+    // own comment covers why opening one doesn't route anywhere else
+    // instead. False whenever any track anywhere is being recorded via a
+    // Session View take (handlePadEvent()'s own identical carve-out) -
+    // the step editor is for building a pattern by hand when not
+    // performing live, not for capturing one, so a live take needs real
+    // free-drumming pad entry instead even though this same track's own
+    // lanes still exist. Also false whenever no clip is actually open for
+    // editing on this track (Controller::getFocusedClipTrackId() != this
+    // track) - merely navigating the shared cursor onto a PercussionTrack
     // is not by itself an invitation to edit anything; the step grid is
     // reachable only by deliberately opening one of this track's own
     // clips, the same gesture Record Arm's own drum-clip repurposing

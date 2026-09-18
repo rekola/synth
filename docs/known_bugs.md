@@ -273,6 +273,23 @@ Found 2026-07-11, not yet fixed.
   run isn't mistaken for a regression if this reproduces there too, and
   so this script isn't blamed for a failure that reproduces on main.
 
+  `tools/e2e/verify_launchpad_shift_no_lanes.py` (new, covering the
+  shift+pad gesture opening a *lane-less* PercussionTrack's own clip -
+  `Controller::toggleDrumClipFocus()`'s own doc comment - showing the step
+  grid completely empty rather than declining or routing to the lane
+  picker) hits the identical CC91-held stall class, in two different
+  shapes across separate runs: sometimes no LED dump at all arrives after
+  the pad's own release, sometimes one does but a later, unexplained
+  reconnect (no `PORT_EXIT`/disconnect ever logged) wipes the simulated
+  device's own `DeviceState` back to its defaults before the run ends,
+  overwriting the correct dump with a stale one. Confirmed independent of
+  a genuine second session racing the first (temporary in-process debug
+  logging showed `devices_.size()` staying 1 throughout - since removed)
+  and independent of the fix's own C++ logic, which the same logging
+  confirmed lands correctly (`grid_mode` becomes `NOTES`, `show_step_grid`
+  becomes true, with zero lanes) immediately after the pad's own release,
+  before this environment's own flakiness had a chance to intervene.
+
   `tools/e2e/verify_launchpad_scene_row.py` (new, covering
   `LaunchpadManager::triggerSceneRow()`'s right-column scene launch, CC19
   with mixer submode off) hits the identical real-audition-path stall

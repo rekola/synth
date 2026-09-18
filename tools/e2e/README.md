@@ -45,6 +45,7 @@ gcc -o fake_launchpad_mixer_hold fake_launchpad_mixer_hold.c -lasound
 gcc -o fake_launchpad_scene_row fake_launchpad_scene_row.c -lasound
 gcc -o fake_launchpad_clear_on_exit fake_launchpad_clear_on_exit.c -lasound
 gcc -o fake_launchpad_paging_lockstep fake_launchpad_paging_lockstep.c -lasound
+gcc -o fake_launchpad_shift_no_lanes fake_launchpad_shift_no_lanes.c -lasound
 ```
 
 (the compiled binaries are gitignored - only the `.c` sources are
@@ -415,6 +416,16 @@ you're changing.
   drifted apart. No real audio/ALSA capture involved, so this one isn't
   expected to hit the sandboxed-environment flakiness documented above
   either - unlike most two-device scripts in this suite, which do.
+- **`launchpad_shift_no_lanes_test.xml` / `fake_launchpad_shift_no_lanes.c` /
+  `verify_launchpad_shift_no_lanes.py`** - the shift+pad "open for
+  editing" gesture on a *lane-less* PercussionTrack's own clip
+  (`Controller::toggleDrumClipFocus()` doesn't gate on lane count at all):
+  opens the step grid same as any other clip, just completely empty,
+  rather than declining outright or routing to the lane picker instead.
+  Hits the same CC91-held stall class as `verify_launchpad_shift_
+  highlight.py` above, in two different shapes across separate runs (no
+  LED dump at all, or a later unexplained reconnect overwriting a correct
+  one) - see `docs/known_bugs.md`.
 - **`cross_tuning_paste_test.xml` (+ companion `..._song_b.xml`) /
   `verify_patterneditor_cross_tuning_paste.py`** - a `Note::getValue()`
   means a different kind of value under a different tuning (GM percussion

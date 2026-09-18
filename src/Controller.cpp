@@ -265,19 +265,19 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
       return;
     }
 
-    // Session View focused on a step-sequenced PercussionTrack's own clip
-    // has no ordinary "recording" role at all - its own steps are always
-    // entered directly on a connected Launchpad's own step grid, never
-    // captured live the way a note/sample take is - so Record Arm is
-    // repurposed here into "open this clip for editing there" instead,
-    // bypassing the arm-something-new logic below entirely. Takes priority
-    // over it (but not over the three disarm branches above - whatever's
-    // already armed/recording still wins, same "a press always means stop
-    // that first" rule this command's own doc comment states) since
-    // there's nothing else a drum-machine clip's own Record Arm press
-    // could sensibly mean. A lane-less PercussionTrack's clip is ordinary
-    // note content instead - falls through to the plain note-capture arm
-    // below like any other track.
+    // Session View focused on a PercussionTrack's own clip has no ordinary
+    // "recording" role at all - its own steps are always entered directly
+    // on a connected Launchpad's own step grid, never captured live the
+    // way a note/sample take is - so Record Arm is repurposed here into
+    // "open this clip for editing there" instead, bypassing the
+    // arm-something-new logic below entirely. Takes priority over it (but
+    // not over the three disarm branches above - whatever's already
+    // armed/recording still wins, same "a press always means stop that
+    // first" rule this command's own doc comment states) since there's
+    // nothing else a drum-machine clip's own Record Arm press could
+    // sensibly mean. Reaches every PercussionTrack this way, lane-less
+    // ones included (toggleDrumClipFocus()'s own comment) - only some
+    // other track type falls through to the plain note-capture arm below.
     if (session_view_focused_ && session_view_track_id_ >= 0 && session_view_clip_index_ >= 0) {
       if (toggleDrumClipFocus(session_view_track_id_, session_view_clip_index_)) return;
     }
@@ -398,7 +398,7 @@ Controller::toggleDrumClipFocus(int track_id, int clip_index) {
   auto song = getCurrentSong();
   if (!song) return false;
   auto * track = song->getMasterTrack().getChildByInternalId(track_id);
-  if (!track || track->getType() != TrackType::PERCUSSION_CONTROL || !static_cast<PercussionTrack &>(*track).isStepSequenced()) return false;
+  if (!track || track->getType() != TrackType::PERCUSSION_CONTROL) return false;
   if (clip_index < 0) return false;
 
   auto & clips = song->getClips(track_id);

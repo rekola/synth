@@ -1453,28 +1453,31 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     return;
   }
 
-  // Step grid: a step-sequenced PercussionTrack's grid means something else
-  // entirely from ordinary chord entry, the same way Send/Pan mode
-  // already short-circuits above - but only while a specific clip is
-  // actually open for editing on this track (Controller::
-  // getFocusedClipTrackId() == track_id) and nothing anywhere is being
-  // recorded via a Session View take. The step grid only ever edits a
-  // clip this way, never the section's own background Pattern - that has
-  // no pagination and spans the whole scene, far more than this fixed
-  // grid could ever show meaningfully, so merely navigating the shared
-  // cursor onto a step-sequenced track (or recording into it - a live
-  // take needs real free-drumming pad entry instead, same as any other
-  // track's own chromatic note entry: resolveNote()'s own percussion
-  // branch maps pads to GM drum sounds regardless of lane count, lanes
-  // only ever changing what the *step grid* shows) both fall through to
-  // ordinary note entry below rather than exposing it. A lane-less
-  // PercussionTrack falls through the same way regardless of either.
+  // Step grid: a PercussionTrack's grid means something else entirely
+  // from ordinary chord entry, the same way Send/Pan mode already
+  // short-circuits above - but only while a specific clip is actually
+  // open for editing on this track (Controller::getFocusedClipTrackId()
+  // == track_id) and nothing anywhere is being recorded via a Session
+  // View take. Not gated on lane count either - a lane-less track's own
+  // step grid shows empty (DeviceState::show_step_grid's own comment),
+  // and handleStepGridPadEvent() itself already bounds-checks y against
+  // however many lanes actually exist, so routing every press here
+  // regardless keeps a press doing exactly what its own display shows,
+  // never silently falling through to free-drumming underneath a grid
+  // that looks like it isn't one. The step grid only ever edits a clip
+  // this way, never the section's own background Pattern - that has no
+  // pagination and spans the whole scene, far more than this fixed grid
+  // could ever show meaningfully, so merely navigating the shared cursor
+  // onto a PercussionTrack (or recording into it - a live take needs real
+  // free-drumming pad entry instead, same as any other track's own
+  // chromatic note entry: resolveNote()'s own percussion branch maps pads
+  // to GM drum sounds regardless of lane count, lanes only ever changing
+  // what the *step grid* shows) both fall through to ordinary note entry
+  // below rather than exposing it.
   if (!controller.isAnySessionRecording() && controller.getFocusedClipTrackId() == track_id) {
     auto assigned_track = song.getMasterTrack().getChildByInternalId(track_id);
-    auto percussion_track = assigned_track && assigned_track->getType() == TrackType::PERCUSSION_CONTROL
-      ? &static_cast<PercussionTrack &>(*assigned_track) : nullptr;
-    if (percussion_track && percussion_track->isStepSequenced()) {
-      handleStepGridPadEvent(ev, controller, *percussion_track, track_id);
+    if (assigned_track && assigned_track->getType() == TrackType::PERCUSSION_CONTROL) {
+      handleStepGridPadEvent(ev, controller, static_cast<PercussionTrack &>(*assigned_track), track_id);
       return;
     }
   }
@@ -1895,6 +1898,11 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
     auto track_id = session_.track_ids[static_cast<size_t>(track_index)];
     // Same y-flip as refresh()'s own session_colors computation - y=0 is
     // the bottom-left pad, so y=7 is that track's first clip.
+    // toggleDrumClipFocus() itself is what shows the step grid empty
+    // rather than declining outright for a lane-less PercussionTrack -
+    // see its own comment - so its return value is a pure "did this
+    // address a PercussionTrack clip at all" check, nothing further to do
+    // here either way.
     controller.toggleDrumClipFocus(track_id, 7 - ev.getY());
     return;
   }
@@ -2805,12 +2813,14 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
     }
   } else if (state.show_step_grid) {
     // Step grid - not a GridMode value of
-    // its own, displays automatically whenever the assigned track is a
-    // step-sequenced PercussionTrack (isStepSequenced()) and nothing
-    // anywhere is being recorded via a Session View take (DeviceState::
-    // show_step_grid's own comment) - a lane-less track, or a live take in
-    // progress on this one, both fall through to the ordinary percussion
-    // pad layout below instead. Rows are lanes (y=0 bottom = drum_lane_notes[0], the
+    // its own, displays automatically whenever a clip is actually open
+    // for editing on the assigned PercussionTrack and nothing anywhere is
+    // being recorded via a Session View take (DeviceState::show_step_grid's
+    // own comment) - a live take in progress falls through to the
+    // ordinary percussion pad layout below instead; a lane-less track
+    // shows this same grid too, just with every row past its own (empty)
+    // lane list reading as "past the track's actual lane count" below,
+    // i.e. the whole thing. Rows are lanes (y=0 bottom = drum_lane_notes[0], the
     // lowest-ranked lane), columns are steps (x=0..7). Lit = hit (green);
     // unlit-but-real = a faint dark outline, so a configured lane with a
     // rest step still reads as "a real pad", distinct from the fully black
@@ -3644,7 +3654,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     state.track_colors = track_colors;
     state.grid_track_count = min(8, num_tracks);
     state.assigned_track_is_percussion = is_percussion;
-    state.show_step_grid = is_percussion && !drum_lane_notes.empty() && !controller.isAnySessionRecording() && drum_clip_editing;
+    state.show_step_grid = is_percussion && !controller.isAnySessionRecording() && drum_clip_editing;
     state.drum_edit_page_count = drum_page_count;
     state.drum_lane_notes = move(drum_lane_notes);
     state.drum_lane_steps = drum_lane_steps;

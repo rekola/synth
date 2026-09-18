@@ -186,6 +186,23 @@
   `LeafTrackState::glideAzimuth()`. Covered by `CommandTests.cpp`
   (parsing/decoding/wrapping) and `SendSetCommandTests.cpp` (a placed
   `YZxy` command starting a real glide, not an instant jump).
+- Every connected Launchpad's LEDs blank on exit (`LaunchpadIO::
+  clearAllLeds()`, called from `~LaunchpadIO()`) - a final all-black
+  LED-lighting SysEx covering the 8x8 grid plus every extra-button index
+  (`LaunchpadProtocol::allExtraButtonLedIndices()`, factored out as the
+  shared source of truth alongside `LaunchpadManager::refreshLeds()`'s own
+  per-button enumeration), sent before closing the ALSA connection - not
+  a Programmer Mode exit (this codebase never actually leaves it once
+  entered), just going dark, a clearer "we're done" signal than whatever
+  a device's own standalone light show would otherwise resume showing.
+  Covered by `tools/e2e/verify_launchpad_clear_on_exit.py` - quits `synth`
+  gracefully (C-x C-c) against a fixture with real Session content and
+  confirms the very last LED message the fake device receives blanks
+  every colorspec, after an earlier dump confirmed there was real
+  (non-black) content lit to begin with. No real audio/ALSA capture
+  involved, so unlike several scripts below this one isn't expected to
+  hit the sandboxed-environment flakiness documented in
+  `docs/known_bugs.md` - confirmed passing.
 
 ## Remaining
 
@@ -762,6 +779,59 @@
    LED-read flakiness already documented for `verify_launchpad_
    stopclip.py` (`docs/known_bugs.md`).
 
+   **A sixth real bug, found by direct user report and fixed:** pressing
+   a scene-launch button (CC19/89/79/69/59/49/39/29 with mixer submode
+   off, `triggerSceneRow()`) only ever started the *first* track in the
+   row instantly - every other track in the same row queued instead of
+   joining it. `triggerSceneRow()` calls `triggerSessionClip()` once per
+   track in a plain loop, and that function's own "is anything already
+   triggered/queued anywhere -> launch immediately, otherwise queue"
+   check was being recomputed fresh on every one of those calls: the
+   first track's own call populated `triggered_pattern_by_track_` with
+   its own entry, so every track after it in the same loop saw something
+   "already playing" and queued against it instead. Fixed by threading a
+   `shared_launch_step` optional parameter through `triggerSessionClip()`
+   - `triggerSceneRow()` now resolves the "nothing pending, launch now"
+   decision exactly once for the whole row, before touching any track,
+   and every per-track call just uses the result rather than re-deriving
+   it. An ordinary single-pad press is unaffected (the parameter's
+   default, `std::nullopt`, leaves the old per-call logic exactly as it
+   was). Covered by `tools/e2e/verify_launchpad_scene_row.py` (a
+   two-track fixture, each with a clip at Session index 7) - hits the
+   same real-audition-path LED stall as `verify_launchpad_stopclip.py`
+   above, so the fix was verified via temporary in-process debug logging
+   instead (confirmed `triggered_pattern_by_track_.size()` reaching 2,
+   not 1, after a single press - since removed).
+
+   **A seventh real bug, found by direct user report and fixed:**
+   launching a clip or scene from total silence sometimes landed the
+   *second* note at an uneven, musically-wrong gap after the first - a
+   flam-like near-instant repeat, or an almost-full-beat-late one,
+   depending on luck - before settling into correct, evenly-spaced timing
+   from the third note on. `audition_clock_` (the free-running clock
+   behind Session-view auditioning, shared with the drum step grid's own
+   auditioning) only ever stops while the transport is playing or armed
+   (`refresh()`'s own comment) - merely idle with nothing triggered, it
+   free-runs continuously regardless, so a genuine launch from silence
+   was inheriting whatever stale, unrelated phase the clock already
+   happened to be at instead of starting fresh. The immediately-fired
+   first note (`fireOrTriggerClipStep(..., 0)`, called directly by the
+   press handler) still landed right on the press either way, but the
+   *second* note - the clock's own next tick - fired whenever that
+   leftover phase next happened to cross a row boundary, not a full row
+   later as it should have. Fixed by
+   `LaunchpadManager::restartAuditionClockFromSilence()`, called at every
+   site that establishes a genuine launch-from-silence
+   (`triggerSessionClip()`'s two branches, `triggerSceneRow()`'s shared
+   decision, and the completed-session-recording auto-join) - resets the
+   clock's step/phase to 0 and re-anchors its wall-clock reference to
+   that exact press, so the second note lands a full, correct row later.
+   Verified via temporary in-process debug logging (confirmed `step=0
+   phase=0.000000 isRunning=1` immediately after a scene-row launch from
+   silence - since removed); no dedicated e2e script, since this is a
+   sub-row-boundary timing effect with no terminal-visible signal and the
+   real-audition-path LED stall above would apply just the same.
+
 2. **Step sequencer follow-ups - not yet designed, added to this plan on
    request.** Two related gaps left by the step-grid-only-edits-a-clip
    fix above:
@@ -834,11 +904,13 @@
 
      Both halves of the shift+pad combo light full bright white while
      held, *before* release ever commits anything - CC91 itself (dim
-     white beforehand, in every `GridMode` now rather than dark in
-     Session, since it has a real meaning there) and whichever pad it's
-     currently combined with (`DeviceState::row_up_shift_pending_pad`) -
-     so a performer sees the pair confirmed before ever releasing
-     (`LaunchpadManager::refreshLeds()`'s own `GridMode::SESSION` branch).
+     white beforehand, in every `GridMode` but the step grid, since it
+     has a real meaning everywhere else - dark instead while the step
+     grid is actually showing, see the unused-button-dimming bullet
+     below) and whichever pad it's currently combined with
+     (`DeviceState::row_up_shift_pending_pad`) - so a performer sees the
+     pair confirmed before ever releasing (`LaunchpadManager::
+     refreshLeds()`'s own `GridMode::SESSION` branch).
 
      Covered by `tools/e2e/verify_launchpad_shift_stepgrid.py`, verified
      through the terminal `SessionView` widget's own text (the "*" focus
@@ -862,6 +934,87 @@
      step grid's own existing LED-based e2e coverage
      (`verify_launchpad_stepseq.py`) already hits that same documented
      sandboxed-environment flakiness independent of this change.
+   - **Unused buttons dim while the step grid is showing - shipped, on
+     direct user report.** Several extra buttons kept their usual
+     out-of-Session color even though pressing them did nothing at all
+     once a clip's own step grid was open: move-row-up (CC91, both its
+     shift-combo and plain fallback) and move-row-down (CC92) are
+     Session-only; Note (CC96) is a true no-op since the device is
+     already forced into `NOTES`; Capture MIDI/Draw's (CC98) idle/DRAW-
+     eligible color offered a mode switch that would only abandon step
+     editing. All four now go fully dark specifically while
+     `DeviceState::show_step_grid` is true - CC98's own armed/red
+     indicator stays lit regardless, since that's real track-global
+     recording state worth keeping visible, not a per-mode affordance.
+     prev-track/next-track (CC93/94), already repurposed to page a clip
+     longer than 8 steps, needed a subtler rule instead of just going
+     dark: lit only when paging is actually useful, i.e. the clip's own
+     page count (`DeviceState::drum_edit_page_count`, tracked alongside
+     `show_step_grid`) exceeds however many devices are currently
+     connected - `resetDrumEditPaging()`'s own device-order split already
+     gives every page its own device to show at once below that
+     threshold, so a press there would just re-clamp back to where it
+     already is.
+
+     A real, related bug surfaced while working through this: pressing
+     prev-track/next-track only ever updated the *pressed* device's own
+     `DeviceState::drum_edit_page`, letting several connected Launchpads
+     drift apart (including onto the exact same page) instead of staying
+     split across the clip the way `resetDrumEditPaging()`'s own tiling
+     intends. Fixed so every connected device pages together, in
+     lockstep, off a single press - `handleCommand()`'s own "next-track"/
+     "prev-track" branch now shifts a shared base (derived from the first
+     ready device's own current page) and reassigns every ready device's
+     page from it, rather than touching only the one that was pressed.
+
+     Covered by `tools/e2e/verify_launchpad_paging_lockstep.py` (two
+     simulated devices, a 4-page clip - confirms the device-order split
+     and that a single press advances both devices by exactly one page)
+     and exercised incidentally by `verify_launchpad_shift_stepgrid.py`'s
+     own real LED dumps, which directly confirmed 91/92/96/98 dark and
+     93/94 lit at the expected color once the fix landed. Neither script
+     involves real audio/ALSA capture, so neither is expected to hit the
+     sandboxed-environment flakiness documented above and below - both
+     pass reliably.
+   - **A lane-less `PercussionTrack`'s own clip opens too - shipped, on
+     direct user report, after a rejected first attempt.** Opening a clip
+     via shift+pad (or the terminal's own "toggle-record-arm") used to be
+     a silent, unexplained no-op whenever the target track had no lanes
+     yet - `Controller::toggleDrumClipFocus()` declined outright there
+     (`isStepSequenced()` gated it). A first fix routed that case to the
+     track's own lane picker instead (`GridMode::CUSTOM`, the same place
+     CC97's own press reaches) - rejected once implemented and tested: a
+     performer reaching for "open editing" should land on the editing
+     surface itself, not somewhere else that merely relates to drum
+     tracks. The actual fix drops the lane-count gate entirely -
+     `toggleDrumClipFocus()` now opens a lane-less `PercussionTrack`'s
+     clip exactly the same way a step-sequenced one's, and its step grid
+     (`DeviceState::show_step_grid`, no longer requiring
+     `!drum_lane_notes.empty()` either) just shows completely empty (every
+     pad black - the empty-lane-list case of the same "past the track's
+     actual lane count" rendering every step grid already has) until a
+     lane exists. `handlePadEvent()`'s own step-grid dispatch dropped the
+     same gate - a press on the empty grid reaches
+     `handleStepGridPadEvent()` regardless, which already bounds-checks
+     `y` against however many lanes actually exist and safely no-ops
+     rather than falling through to free-drumming underneath a grid that
+     looks like it isn't one. Reaches both entry points uniformly (the
+     Launchpad gesture and the terminal's own "toggle-record-arm"), since
+     both funnel through the same shared function.
+     `ControllerTests.cpp`'s `toggle_record_arm_on_a_lane_less_
+     percussion_clip_arms_normally`/`toggle_drum_clip_focus_is_a_no_op_
+     off_a_step_sequenced_percussion_clip` encoded the old behavior and
+     were rewritten to match (renamed to `..._focuses_it_too`/`..._off_a_
+     non_percussion_clip`). Covered by
+     `tools/e2e/verify_launchpad_shift_no_lanes.py` - hits the identical
+     CC91-held stall class documented above, in two different shapes
+     across separate runs (no LED dump at all after the pad's own
+     release, or a later unexplained reconnect with no `PORT_EXIT`/
+     disconnect ever logged wiping the device's own state back to
+     defaults); verified correct via temporary in-process debug logging
+     instead (`grid_mode` becoming `NOTES`, `show_step_grid` becoming
+     true, with zero lanes, immediately after the pad's own release -
+     since removed) - see `docs/known_bugs.md`.
    - **The step sequencer is `PercussionTrack`-only today.** Its lanes are
      each keyed to one specific GM drum note (`PercussionTrack::
      getLaneNotes()`/`addLane()`/`removeLane()`, picked via the CC97 lane

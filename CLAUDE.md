@@ -495,7 +495,14 @@ would otherwise resume showing.
   `DeviceState::row_up_shift_pending_pad`) - so an abandoned press (shift
   released first, the pad dragged off) never has to be undone; it
   completes on release regardless of whether shift is still held by
-  then. Both halves light up full bright white while held - CC91 itself
+  then. `toggleDrumClipFocus()` doesn't gate on lane count at all - a
+  lane-less `PercussionTrack` opens exactly the same way a step-sequenced
+  one does, its own step grid just showing empty (`DeviceState::
+  show_step_grid`'s own comment) rather than either doing nothing or
+  routing anywhere else (the lane picker included - a performer reaching
+  for "open editing" shouldn't land on a different surface than the one
+  they asked for); only some other track type still declines outright,
+  the same silent no-op as before. Both halves light up full bright white while held - CC91 itself
   (dim white beforehand, in every `GridMode` but the step grid, since it
   has a real, Launchpad-visible meaning everywhere else) and whichever pad
   it's currently combined with, so a performer sees the pair confirmed
