@@ -10,7 +10,13 @@
 #include "../playback/AudioBlockEvent.h"
 #include "../playback/VisualizationThread.h"
 #include "../Controller.h"
+#include "../model/Group.h"
+#include "../model/InstrumentTrack.h"
+#include "../model/PercussionTrack.h"
+#include "../model/SampleTrack.h"
+#include "../model/Song.h"
 
+#include <algorithm>
 #include <memory>
 #include <thread>
 
@@ -113,6 +119,60 @@ UI::initializeCommands() {
   // works regardless of which UI widget currently has focus.
   commands_.define("merge-clip-to-background", [this]() { getController().sendCommand("merge-clip-to-background"); });
   commands_.define("toggle-record-arm", [this]() { getController().sendCommand("toggle-record-arm"); });
+
+  // Track commands act on Song::getCurrentTrackId(), the one current track
+  // every widget keeps in sync, so they work the same from any widget and
+  // from the menu. A new track lands right after the current one, under
+  // whatever its real parent is (Track::insertChildAfter()) - or at the
+  // very end when there's no current track. addTrack() bumps the version
+  // itself.
+  auto add_track = [this](std::unique_ptr<Track> track) {
+    auto & song = getController().getSong();
+    song.addTrack(std::move(track), song.getCurrentTrackId());
+  };
+  commands_.define("add-instrument-track", [add_track]() { add_track(std::make_unique<InstrumentTrack>(0)); });
+  // Creating a SampleTrack and starting a take into one are separate
+  // actions ("toggle-record-arm" is the latter).
+  commands_.define("add-sample-track", [add_track]() { add_track(std::make_unique<SampleTrack>()); });
+  // Starts with no lanes - an ordinary percussion track; apply-preset-*
+  // is how it picks a kit.
+  commands_.define("add-percussion-track", [add_track]() { add_track(std::make_unique<PercussionTrack>()); });
+  // A plain container track with no audio of its own.
+  commands_.define("add-group-track", [add_track]() { add_track(std::make_unique<Group>()); });
+
+  // Refuses to remove the last remaining root track: several pattern
+  // editor code paths index the root track list with no bounds check, on
+  // the assumption that at least one root track always exists (see
+  // docs/known_bugs.md's zero-root-tracks entry).
+  commands_.define("delete-track", [this]() {
+    auto & controller = getController();
+    auto & song = controller.getSong();
+    if (song.getRootTrackIds().size() <= 1) return;
+    auto track_id = controller.consumePendingCommandTrack(song.getCurrentTrackId());
+    auto ids = song.getRootTrackIds();
+    auto position = std::find(ids.begin(), ids.end(), track_id) - ids.begin();
+    if (!song.removeTrack(track_id)) return;
+    if (controller.getRecordingTrackId() == track_id) controller.setRecordingTrackId(0);
+    // The track now at the deleted one's position becomes current.
+    ids = song.getRootTrackIds();
+    if (!ids.empty()) song.setCurrentTrackId(ids[static_cast<size_t>(std::min<ptrdiff_t>(position, static_cast<ptrdiff_t>(ids.size()) - 1))]);
+  });
+
+  // Replaces the current track's whole lane list with a named preset
+  // (PercussionTrack::applyPreset()'s own comment on why it replaces
+  // rather than adds) - a no-op on anything but a PercussionTrack.
+  auto apply_preset = [this](PercussionTrack::Preset preset) {
+    auto & song = getController().getSong();
+    auto track = song.getMasterTrack().getChildByInternalId(song.getCurrentTrackId());
+    if (!track || track->getType() != TrackType::PERCUSSION_CONTROL) return;
+    static_cast<PercussionTrack &>(*track).applyPreset(preset, song);
+    song.incVersion();
+  };
+  commands_.define("apply-preset-rock", [apply_preset]() { apply_preset(PercussionTrack::Preset::ROCK); });
+  commands_.define("apply-preset-latin", [apply_preset]() { apply_preset(PercussionTrack::Preset::LATIN); });
+  commands_.define("apply-preset-electronic", [apply_preset]() { apply_preset(PercussionTrack::Preset::ELECTRONIC); });
+  // The explicit way back to a plain, lane-less track.
+  commands_.define("apply-preset-none", [apply_preset]() { apply_preset(PercussionTrack::Preset::NONE); });
 }
 
 void

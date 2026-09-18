@@ -502,27 +502,6 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent), source_(std:
   // no-op on a track with no name field at all.
   commands_.define("rename-track", [this]() { startTrackNameEdit(); });
 
-  // Refuses to remove the last remaining root track: render() and several
-  // sibling call sites index track_ids[cursor.track] with no bounds check
-  // at all, on the assumption that at least one root track always exists
-  // (see docs/known_bugs.md's zero-root-tracks entry) - this command is
-  // the first thing that could actually reach that state, so it stays
-  // above the floor rather than being the one to finally trigger it.
-  // new_cursor is reset the same way the raw "jump to first track" (Ctrl-A)
-  // handler already does below - the old column/subcol no longer means
-  // anything once the track composition under it has changed.
-  commands_.define("delete-track", [this]() {
-    auto & song = getController().getSong();
-    auto track_ids = song.getRootTrackIds();
-    if (track_ids.size() <= 1) return;
-    auto track_id = getController().consumePendingCommandTrack(track_ids[static_cast<size_t>(current_cursor.track)]);
-    if (!song.removeTrack(track_id)) return;
-    if (getController().getRecordingTrackId() == track_id) getController().setRecordingTrackId(0);
-    auto remaining = static_cast<int>(song.getRootTrackIds().size());
-    new_cursor.track = std::min(new_cursor.track, remaining - 1);
-    new_cursor.col = new_cursor.subcol = 0;
-  });
-
   // Manual note-column add/remove (see Controller::addNoteColumn/
   // removeNoteColumn and LeafTrack::getMinNoteColumns).
   commands_.define("add-note-column", [this]() {
@@ -540,77 +519,6 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent), source_(std:
     auto track_id = getController().consumePendingCommandTrack(track_ids[static_cast<size_t>(current_cursor.track)]);
     getController().removeNoteColumn(track_id);
   });
-
-  // The id of whichever track the cursor currently sits on, or -1 (no
-  // sibling to land next to - Song::addTrack() falls back to a plain
-  // append) - shared by every "add a track" command below, so a new
-  // track always lands next to the current selection (under whatever its
-  // real parent actually is - a Group, a wrapping Effect, or the master
-  // itself - see Track::insertChildAfter()) rather than always at the
-  // very end.
-  auto current_track_id = [this]() -> int {
-    auto & song = getController().getSong();
-    auto track_ids = song.getRootTrackIds();
-    return current_cursor.track < static_cast<int>(track_ids.size()) ?
-      track_ids[static_cast<size_t>(current_cursor.track)] : -1;
-  };
-
-  // addTrack() itself already bumps the version - no separate incVersion()
-  // needed here.
-  commands_.define("add-instrument-track", [this, current_track_id]() {
-    auto & song = getController().getSong();
-    song.addTrack(make_unique<InstrumentTrack>(0), current_track_id());
-  });
-
-  // Promoted from the raw Ctrl-R handler, minus its old "reuse the
-  // current track if it's already a SampleTrack" branch and its old
-  // startRecording()/setRecordingTrackId() wiring - creating a
-  // SampleTrack and starting a take into one are two separate actions
-  // ("toggle-record-arm" is the latter), so this is a plain "add a
-  // sibling track" command, matching add-instrument-track exactly.
-  commands_.define("add-sample-track", [this, current_track_id]() {
-    auto & song = getController().getSong();
-    song.addTrack(make_unique<SampleTrack>(), current_track_id());
-  });
-
-  // Create-fresh only - no "convert an existing track" path exists,
-  // since TrackType is fixed at construction for every track. Starts with
-  // no lanes at all - an ordinary percussion track, matching
-  // add-instrument-track/add-sample-track's own plain shape - apply-preset-*
-  // below is how an existing one picks a kit.
-  commands_.define("add-percussion-track", [this, current_track_id]() {
-    auto & song = getController().getSong();
-    song.addTrack(make_unique<PercussionTrack>(), current_track_id());
-  });
-
-  // A plain container track (no audio of its own) - matching the other
-  // add-*-track commands' shape. M-x/menu only, no dedicated keybinding
-  // of their own yet.
-  commands_.define("add-group-track", [this, current_track_id]() {
-    auto & song = getController().getSong();
-    song.addTrack(make_unique<Group>(), current_track_id());
-  });
-
-  // Reconfigures the cursor track's entire lane list to a named preset
-  // (PercussionTrack::applyPreset()'s own comment on why this replaces
-  // rather than adds to whatever lanes are already there) - a no-op on
-  // anything but a PercussionTrack. M-x/menu only, no dedicated
-  // keybinding of their own - picking a specific kit is rare enough that
-  // splitting add-percussion-track's own Ctrl+Shift+D three ways isn't
-  // worth it.
-  auto apply_preset = [this, current_track_id](PercussionTrack::Preset preset) {
-    auto & song = getController().getSong();
-    auto track = song.getMasterTrack().getChildByInternalId(current_track_id());
-    if (!track || track->getType() != TrackType::PERCUSSION_CONTROL) return;
-    static_cast<PercussionTrack &>(*track).applyPreset(preset, song);
-    song.incVersion();
-  };
-  commands_.define("apply-preset-rock", [apply_preset]() { apply_preset(PercussionTrack::Preset::ROCK); });
-  commands_.define("apply-preset-latin", [apply_preset]() { apply_preset(PercussionTrack::Preset::LATIN); });
-  commands_.define("apply-preset-electronic", [apply_preset]() { apply_preset(PercussionTrack::Preset::ELECTRONIC); });
-  // The explicit way back to a plain, lane-less track - clears the lane
-  // list rather than picking a different one.
-  commands_.define("apply-preset-none", [apply_preset]() { apply_preset(PercussionTrack::Preset::NONE); });
 
   // "send-a-mode"/"send-b-mode" are NOT defined here (or anywhere in
   // commands_) - they mutate nothing outside a single Launchpad device's
@@ -638,14 +546,6 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent), source_(std:
   keymap_.bind(KeyChord::pack(NCKEY_DOWN, false, false, false, false), "move-row-down"); // plain Down
   keymap_.bind(KeyChord::pack(NCKEY_RIGHT, true, false, true, false), "add-note-column");   // Ctrl+Shift+Right
   keymap_.bind(KeyChord::pack(NCKEY_LEFT, true, false, true, false), "remove-note-column"); // Ctrl+Shift+Left
-  keymap_.bind(KeyChord::pack('t', true, false, false, false), "add-instrument-track"); // Ctrl-T (was inline handling)
-  keymap_.bind(KeyChord::pack('r', true, false, false, false), "add-sample-track");     // Ctrl-R (was inline handling)
-  // Ctrl+Shift+D ("Drum") - otherwise only reachable via M-x, which meant
-  // there was no way to discover this command exists at all. Plain Ctrl-D
-  // is already the (stub, not-yet-implemented) "duplicate track" raw
-  // handler below, so this picks a still-free Ctrl+Shift combo rather than
-  // colliding with it.
-  keymap_.bind(KeyChord::pack('d', true, false, true, false), "add-percussion-track"); // Ctrl+Shift+D
 
   assertCommandBindingsValid();
 }
@@ -1009,6 +909,18 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
 
   auto track_ids = song.getRootTrackIds();
 
+  // Tracks can be deleted from anywhere (delete-track is a global command),
+  // so keep the cursor on a real track and column.
+  auto num_tracks = static_cast<int>(track_ids.size());
+  if (new_cursor.track >= num_tracks) {
+    new_cursor.track = max(num_tracks - 1, 0);
+    new_cursor.col = new_cursor.subcol = 0;
+  }
+  if (!track_ids.empty()) {
+    auto it = track_info.find(track_ids[static_cast<size_t>(new_cursor.track)]);
+    if (it != track_info.end() && new_cursor.col >= it->second.getColumnCount()) new_cursor.col = new_cursor.subcol = 0;
+  }
+
   auto score_total_columns = 0;
   for (auto wd : track_info) score_total_columns += wd.second.getColumnCount();
 
@@ -1032,11 +944,15 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
 
   // Song::getCurrentTrackId() is the one shared "current track" every
   // buffer viewing this Song, and every command that needs a target track
-  // regardless of which widget has focus, reads - keep it in sync with
-  // wherever this cursor actually is. track.isOnAnnotation() still leaves
-  // .track at a real, valid index (GridPosition.h's own comment), so no
-  // special-casing needed for it.
-  if (!track_ids.empty() && current_cursor.track >= 0 && current_cursor.track < static_cast<int>(track_ids.size())) {
+  // regardless of which widget has focus, reads - set it when this cursor
+  // moves, this widget gains focus, or there's no valid current track yet
+  // (startup, or it was deleted), never unconditionally every frame, or it
+  // would overwrite whatever another widget just selected.
+  // track.isOnAnnotation() still leaves .track at a real, valid index
+  // (GridPosition.h's own comment), so no special-casing needed for it.
+  bool current_track_valid = std::find(track_ids.begin(), track_ids.end(), song.getCurrentTrackId()) != track_ids.end();
+  bool takes_current_track = cursor_changed || (focused && !current_focused_) || !current_track_valid;
+  if (takes_current_track && !track_ids.empty() && current_cursor.track >= 0 && current_cursor.track < static_cast<int>(track_ids.size())) {
     song.setCurrentTrackId(track_ids[static_cast<size_t>(current_cursor.track)]);
   }
 

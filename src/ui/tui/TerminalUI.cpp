@@ -2108,6 +2108,11 @@ TerminalUI::initializeWidgets() {
   keymap_.bind(KeyChord::pack(' ', false, false, false, false), "toggle-playing");
   keymap_.bind(KeyChord::pack('[', false, false, false, false), "octave-down");
   keymap_.bind(KeyChord::pack(']', false, false, false, false), "octave-up");
+  // Track creation works from every widget, the same as its Track menu
+  // entries. Ctrl+Shift+D ("Drum") because plain Ctrl-D is taken.
+  keymap_.bind(KeyChord::pack('t', true, false, false, false), "add-instrument-track");
+  keymap_.bind(KeyChord::pack('r', true, false, false, false), "add-sample-track");
+  keymap_.bind(KeyChord::pack('d', true, false, true, false), "add-percussion-track");
 
   assertCommandBindingsValid();
 

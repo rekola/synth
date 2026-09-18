@@ -1,4 +1,4 @@
-# Clip editor in PatternEditor (arrangement / session / outline views)
+# Clip editor in PatternEditor (arrangement / session views)
 
 Goal: `PatternEditor` gains a second mode that shows and edits only clip
 content, one **scene** (clip-list row index, the same row Session view and
@@ -6,7 +6,7 @@ the Launchpad Session grid address) at a time, with one playhead per track.
 Views stop being buffers: a buffer is a song, and a view is how the UI is
 laid out around it.
 
-Status: Phase 0a committed; 0b done (not yet committed). Every phase lands as its own commit(s), with `ctest`
+Status: Phases 0a and 0b committed; 0c done (not yet committed). Every phase lands as its own commit(s), with `ctest`
 and the e2e scripts green.
 
 ## The cursor model
@@ -137,14 +137,25 @@ existing behaviour, kept unchanged. Annotations, `insertRow()`,
 Transport-keyed recording calls (`ensureNoteRecordingClip()` etc.) still
 read the playback position directly.
 
-### 0c. Track-admin commands move to `UI::initializeCommands()`
+### 0c. Track commands the menu offers become global
 
-The following act on the current track and don't touch the widget, so
-the Layout convention says they belong in the shared UI layer:
-`add-*-track`, `delete-track`, `apply-preset-*`, `toggle-mute`/`-solo`,
-`toggle-track-collapse`, `add-`/`remove-note-column`. Only their key
-bindings stay in `TerminalUI`. `rename-track` stays (it needs the inline
-editor).
+Done. `add-instrument-track`, `add-sample-track`, `add-percussion-track`,
+`add-group-track`, `delete-track` and `apply-preset-*` live in
+`UI::initializeCommands()` and act on `Song::getCurrentTrackId()`. Their
+keys (C-t, C-r, C-S-d) are in TerminalUI's global keymap, so they work
+from every widget, the same as the Track menu. Before, the menu
+advertised C-t, but it only worked in the pattern editor.
+`toggle-track-collapse`, `add-`/`remove-note-column` and `rename-track`
+stay in PatternEditor. `toggle-mute`/`-solo` are unchanged (PatternEditor
+and SessionView each keep their own).
+
+Fixed along the way: PatternEditor wrote its cursor track into the
+shared current track on every frame, overwriting what ArrangementGrid had
+just selected (e.g. C-t in the grid added the track after the pattern
+editor's track instead). It now writes the shared track only when its
+cursor moves, it gains focus, or the shared track isn't a valid track
+(startup, or it was deleted). `delete-track` makes the track now at the
+deleted one's position current.
 
 ### Not doing
 
@@ -177,25 +188,33 @@ existing session e2e scripts are the regression net.
 
 ---
 
-## Phase 2: separate views from buffers (Arrangement / Session / Outline)
+## Phase 2: separate views from buffers (Arrangement / Session)
 
 - Remove `BufferAspect`, the `" [Session]"`/`" [Outline]"` buffers,
   `open*ViewBuffer()`, `open_aspects_by_song_`, and
   `activeSongHasOtherOpenViews()`. A buffer is a song again.
-- Add `enum class View { ARRANGEMENT, SESSION, OUTLINE }` on `TerminalUI`.
-  It is global and survives buffer switches, like an Emacs window layout.
+- Add `enum class View { ARRANGEMENT, SESSION }` on `TerminalUI`. It is
+  global and survives buffer switches, like an Emacs window layout.
+- Rename the `SessionView` widget to **`ClipGrid`** (a grid of clip slots,
+  tracks as columns, mirroring `ArrangementGrid`), since "Session view"
+  now names the whole view. The `session-view` command switches to the
+  view.
   - **Arrangement**: today's layout (scope row with cover art,
     `ArrangementGrid` and charts, plus `PatternEditor` using the
     arrangement source).
-  - **Session**: `SessionView` + `PatternEditor`, still using the
-    arrangement source in this phase.
-  - **Outline**: `OutlineView`, as it is today.
+  - **Session**: `OutlineView` as a panel on the left of `ClipGrid`, with
+    `PatternEditor` below them, still using the arrangement source in this
+    phase. This is the same place the browser sits in the live-sequencer
+    lineage. `toggle-outline` shows or hides the panel. OutlineView's own
+    layout (its tree beside a details panel) has to fit a narrow column;
+    see Phase 4.
 - Real per-view rect assignment replaces `layout()`'s raise-to-top trick.
   Widgets that aren't in the current view drop out of focus and click
   activation.
 - Commands in `UI::initializeCommands()`: `arrangement-view`,
-  `session-view`, `outline-view`, `toggle-view` (Arrangement ↔ Session).
-  Add a View menu.
+  `session-view`, `toggle-view` (Arrangement ↔ Session),
+  `toggle-outline`. `outline-view` switches to Session view with the
+  panel shown. Add a View menu.
 - Launchpad `GridMode` stays decoupled from the terminal view.
 - Fix-ups:
   - `Controller::isSessionViewFocused()`
@@ -207,8 +226,8 @@ existing session e2e scripts are the regression net.
 ### Keybindings
 
 - **Tab → `toggle-view`** (Arrangement ↔ Session), the live-sequencer
-  convention. Outline is reached through `outline-view` (View menu /
-  M-x); a direct key can be added later.
+  convention. The outline panel is toggled through `toggle-outline` (View
+  menu / M-x); a direct key can be added later.
 - The pattern editor's current Tab use (cycling the cursor through a hex
   field's digits) is dropped, and column navigation stays exactly as it
   is: Left/Right step columns, Ctrl+Left/Right jump a track. Typing
@@ -262,6 +281,10 @@ existing session e2e scripts are the regression net.
 - Tests:
   - `ScenePatternSource` unit tests: scene length, one-shot vs. loop
     past-end rows, create-on-write, crossing scenes.
+  - `add-`/`remove-note-column` widen and narrow a track's columns in
+    session mode too. They set a track-level minimum that the editor
+    applies after gathering columns from the source, so this should hold
+    without new code.
   - One e2e test: in Session view, type a note in scene 2, then check
     that the clip exists and that an arrangement placement of it shows
     the note.
@@ -270,7 +293,7 @@ existing session e2e scripts are the regression net.
 
 ## Phase 4: Session view layout
 
-The scope row (5 rows), plus SessionView's fixed 15 rows (18 columns per
+The scope row (5 rows), plus ClipGrid's fixed 15 rows (18 columns per
 track), plus the pattern editor doesn't fit a normal terminal.
 
 Column alignment with the pattern editor was considered and rejected.
@@ -281,15 +304,19 @@ shared cursor instead, not by geometry.
 
 **Plan:**
 
-- **Session view = SessionView on top, PatternEditor (session mode)
-  below**, each with its own fixed column widths and horizontal scroll.
-  SessionView keeps its uniform per-track columns.
+- **Session view = [OutlineView | ClipGrid] on top, PatternEditor
+  (session mode) below**, each with its own fixed column widths and
+  horizontal scroll. ClipGrid keeps its uniform per-track columns. The
+  outline panel has a fixed width (about 30 columns), and ClipGrid takes
+  the rest. OutlineView's details panel moves below its tree in that
+  column instead of beside it. When hidden, ClipGrid takes the full
+  width.
 - **Shared cursor, not shared geometry.** The current track is the
-  column in both, and SessionView's clip row is the scene PatternEditor
-  shows. Moving in either one moves the other; SessionView scrolls on its
+  column in both, and ClipGrid's clip row is the scene PatternEditor
+  shows. Moving in either one moves the other; ClipGrid scrolls on its
   own to keep the current track in view. The track's identity colour
-  links the two (SessionView's clip cells, PatternEditor's heading).
-- **SessionView gets at most half the vertical space** and keeps all its
+  links the two (ClipGrid's clip cells, PatternEditor's heading).
+- **ClipGrid gets at most half the vertical space** and keeps all its
   rows (clips, Sends, Direction). Its height is
   `min(content height, available / 2)`. When everything fits, nothing
   changes; otherwise it scrolls vertically, which it already does (pinned
@@ -343,6 +370,9 @@ in `docs/known_bugs.md`:
 - `verify_consonance_colors.py`: all 5 checks
 - `verify_percussion_layout.py`: both checks
 - `verify_launchpad_stepseq.py`: both checks
+- `verify_launchpad_buttons.py`: CC94 moving the cursor, CC93/CC94 LED
+  colours
+- `verify_launchpad_notecustom.py`: CC96 and CC97 LED checks
 
 For each, find whether the script or the app is wrong. Fix the script
 if it's stale (e.g. screen positions predating the current layout), fix
