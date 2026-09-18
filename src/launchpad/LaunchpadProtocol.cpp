@@ -159,10 +159,12 @@ commandForButton(int cc_number) {
   switch (cc_number) {
   // 91/92 are printed with up/down-arrow icons - mirror PatternEditor's own
   // plain Up/Down key behavior (move the selected row, only while stopped)
-  // rather than octave shifting, which used to live here. Octave shifting
-  // itself (LaunchpadManager::octaveUp/octaveDown/octave(), still used by
-  // resolveNote) is currently unreachable from any button - deliberately
-  // deferred, not removed.
+  // outside the step grid, the same way 93/94 mirror plain track-switching
+  // outside it - but LaunchpadManager::handleCommand() repurposes both
+  // pairs identically while a clip's own step grid is showing: 93/94 page
+  // through its steps, 91/92 through its own octave register
+  // (LaunchpadManager::octaveUp()/octaveDown()/octave() - not reachable
+  // from a button any other way).
   case 91: return string("move-row-up");   // top row 1
   case 92: return string("move-row-down"); // top row 2
   case 93: return string("prev-track");   // top row 3

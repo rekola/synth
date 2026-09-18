@@ -49,6 +49,13 @@ namespace {
   // two share it.
   constexpr auto kMixerHoldPreviewThreshold = std::chrono::milliseconds(600);
 
+  // The step grid's own scroll step, both axes - move-row-up/down and
+  // prev-track/next-track each advance this many rows/steps per press,
+  // rather than jumping a whole 8-wide window at once, so consecutive
+  // windows overlap and a performer can actually follow where a press
+  // landed relative to before (half the fixed 8-row/8-column grid).
+  constexpr int kStepGridScrollStep = 4;
+
   struct Rgb { uint8_t r, g, b; };
 
   // DRAW mode's coloring-toy palette - a plain rainbow, cycling back to
@@ -818,10 +825,24 @@ LaunchpadManager::forceSessionModeOnAllDevices() {
 }
 
 void
-LaunchpadManager::resetDrumEditPaging() {
+LaunchpadManager::resetStepGridView() {
+  // The free-running audition clock (audition_clock_, shared with Session
+  // view's own auditioning - refresh()'s own comment) only ever stops
+  // while playing or armed, so it's almost always still running here,
+  // wherever it happened to already be - restarting it is what makes
+  // "opening a clip" actually mean "hear it from its own row 0", the same
+  // reasoning restartAuditionClockFromSilence() already established for a
+  // Session-view launch from silence (this is that same fix, just for the
+  // step grid's own open gesture rather than a pad press).
+  restartAuditionClockFromSilence();
   if (!launchpad_io_) return;
   auto ready_ids = launchpad_io_->readySessionIds();
-  for (size_t i = 0; i < ready_ids.size(); i++) deviceState(ready_ids[i]).drum_edit_page = static_cast<int>(i);
+  for (size_t i = 0; i < ready_ids.size(); i++) {
+    auto & state = deviceState(ready_ids[i]);
+    state.drum_edit_step_offset = static_cast<int>(i) * 8;
+    state.drum_edit_row_offset = 0;
+    state.octave_offset = 0;
+  }
 }
 
 void
@@ -1224,11 +1245,49 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
     return true;
   }
   if (name == "move-row-up" || name == "move-row-down") {
-    // Only meaningful in GridMode::SESSION - moves the overview's own
-    // section cursor via session_move_section_callback_ (see that member's own
-    // comment for why this doesn't scroll a local row window the way the
-    // old plain-navigation overview did: Session view's rows are a
-    // track's own clips, not sections). Outside SESSION,
+    // Also reserved - repurposed, not just declined - while this device is
+    // actually showing a Session-View-focused clip's own step grid,
+    // percussion or pitched alike (same gate "next-track"/"prev-track"
+    // below already uses): on a *pitched* track, scrolls every connected
+    // device's own row window (DeviceState::drum_edit_row_offset) by
+    // kStepGridScrollStep rows instead of its ordinary octave-shift
+    // meaning - the grid only ever shows 8 rows at once, so reaching a
+    // scale/chromatic degree outside that window means moving
+    // Song::getScaleDegreesWindow()'s own start_index
+    // (LaunchpadManager::resolveStepGridLaneNotes()'s own comment).
+    // Deliberately *not* octaveUp()/octaveDown() any more here - jumping a
+    // full octave (all 8 rows) every press left no overlap between
+    // consecutive windows to visually track, and tied the step grid's own
+    // row window to a register concept that assumes a scale repeats every
+    // single octave, which a future scale need not (DeviceState::
+    // drum_edit_row_offset's own comment has the full reasoning) - so
+    // this device's own octave_offset (and the ordinary isomorphic grid's
+    // own octave display) is left untouched by this press entirely.
+    // A no-op for a PercussionTrack's own step grid - its lanes are a
+    // small, fixed, manually-curated list (never more than 8) with
+    // nothing to scroll to - but still swallowed here (returns true)
+    // rather than falling through to the Session-only section-move
+    // meaning below, the same as "next-track"/"prev-track" already
+    // swallow their own no-op paging case rather than declining. Every
+    // connected device, not just the one pressed - resetStepGridView()
+    // already starts every device at the identical row offset (0), so
+    // unlike prev/next-track's own device-order step split, there's no
+    // per-device offset to preserve here, just every device moving
+    // together.
+    if (gridMode(device_id) == GridMode::NOTES && controller.getFocusedClipTrackId() >= 0) {
+      auto track_id = controller.getFocusedClipTrackId();
+      auto track = controller.getSong().getMasterTrack().getChildByInternalId(track_id);
+      if (track && track->getType() == TrackType::INSTRUMENT_CONTROL && launchpad_io_) {
+        auto delta = name == "move-row-down" ? -kStepGridScrollStep : kStepGridScrollStep;
+        for (auto id : launchpad_io_->readySessionIds()) deviceState(id).drum_edit_row_offset += delta;
+      }
+      return true;
+    }
+    // Only meaningful in GridMode::SESSION otherwise - moves the overview's
+    // own section cursor via session_move_section_callback_ (see that
+    // member's own comment for why this doesn't scroll a local row window
+    // the way the old plain-navigation overview did: Session view's rows
+    // are a track's own clips, not sections). Outside SESSION,
     // "move-row-up"/"move-row-down" isn't this class's command at all
     // (PatternEditor's own row navigation owns it, reached via
     // UI::executeCommand()'s fallback, not through here) - declining lets
@@ -1248,11 +1307,11 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
     if (num_tracks <= 0) return true;
 
     // Also reserved - repurposed, not just declined - while this device
-    // is actually showing a Session-View-focused drum clip's own step
-    // grid (Controller's "toggle-record-arm" drum-machine repurposing):
-    // paginates through the clip's own steps instead of switching tracks,
-    // so the shared cursor stays put and Record Arm alone is the way out
-    // of that editing session.
+    // is actually showing a Session-View-focused clip's own step grid,
+    // percussion or pitched alike (Controller::toggleDrumClipFocus()'s
+    // own comment): paginates through the clip's own steps instead of
+    // switching tracks, so the shared cursor stays put and Record Arm
+    // alone is the way out of that editing session.
     // Checked directly off getFocusedClipTrackId() itself, not resolved
     // through fallback_track_index first (handlePadEvent()'s own identical
     // pin has the full reasoning) - the shared cursor may well have
@@ -1263,26 +1322,29 @@ LaunchpadManager::handleCommand(string_view name, int device_id, int fallback_tr
       auto & song = controller.getSong();
       auto track_id = controller.getFocusedClipTrackId();
       auto length = focusedDrumClipLength(song, track_id, controller.getFocusedClip());
-      auto page_count = length > 0 ? (length + 7) / 8 : 1;
       if (!launchpad_io_) return true;
       auto ready_ids = launchpad_io_->readySessionIds();
       auto num_devices = static_cast<int>(ready_ids.size());
-      // Nothing to page to: resetDrumEditPaging() already gave every page
-      // its own device to show at once (num_devices >= page_count), so a
-      // press here would only ever re-clamp back to where it already is -
-      // a silent no-op, matching refreshLeds()'s own dark LED for exactly
-      // this case.
-      if (num_devices <= 0 || page_count <= num_devices) return true;
+      // Nothing to page to: resetStepGridView() already gave every device
+      // its own distinct 8-step window covering the clip's whole length
+      // between them, so a press here would only ever re-clamp back to
+      // where it already is - a silent no-op, matching refreshLeds()'s
+      // own dark LED for exactly this case.
+      auto max_base = std::max(0, length - num_devices * 8);
+      if (num_devices <= 0 || max_base <= 0) return true;
       // Every connected device shifts together, in lockstep - not just the
       // one this press landed on. A single device paging independently
-      // would drift out of resetDrumEditPaging()'s own "device i shows
-      // page i" tiling - two devices could end up showing the very same
-      // page (nothing left splitting the clip between them) rather than
-      // each staying pinned to their own distinct slice of it.
-      auto max_base = page_count - num_devices;
-      auto current_base = deviceState(ready_ids[0]).drum_edit_page;
-      auto new_base = std::clamp(current_base + (name == "next-track" ? 1 : -1), 0, max_base);
-      for (int i = 0; i < num_devices; i++) deviceState(ready_ids[static_cast<size_t>(i)]).drum_edit_page = new_base + i;
+      // would drift out of resetStepGridView()'s own "device i shows
+      // steps i*8..i*8+7" tiling - two devices could end up showing
+      // overlapping windows (nothing left splitting the clip between
+      // them) rather than each staying pinned to their own distinct slice
+      // of it. kStepGridScrollStep at a time, not a full 8-step page, so
+      // consecutive windows overlap and a performer can actually follow
+      // where a press landed relative to before.
+      auto current_base = deviceState(ready_ids[0]).drum_edit_step_offset;
+      auto delta = (name == "next-track" ? 1 : -1) * kStepGridScrollStep;
+      auto new_base = std::clamp(current_base + delta, 0, max_base);
+      for (int i = 0; i < num_devices; i++) deviceState(ready_ids[static_cast<size_t>(i)]).drum_edit_step_offset = new_base + i * 8;
       return true;
     }
 
@@ -1331,6 +1393,29 @@ LaunchpadManager::resolveNote(const Song & song, int device_id, int track_id, in
   // useful on the Launchpad specifically.
   auto base_note = tonic + (octave(device_id) + 1) * edo_steps;
   return LaunchpadLayout::noteForPad(basis, x - GRID_ORIGIN_X, y - GRID_ORIGIN_Y, base_note);
+}
+
+vector<int>
+LaunchpadManager::resolveStepGridLaneNotes(const Song & song, int device_id, const Track * track) const {
+  if (!track) return {};
+  if (track->getType() == TrackType::PERCUSSION_CONTROL) {
+    return static_cast<const PercussionTrack &>(*track).getLaneNotes();
+  }
+  if (track->getType() != TrackType::INSTRUMENT_CONTROL) return {};
+
+  auto edo_steps = LaunchpadLayout::edoSteps(song.getTuning());
+  if (edo_steps <= 0) return {};
+  // Same register formula as resolveNote()'s own base_note - see its own
+  // comment for why - applied per scale degree instead of a single tonic,
+  // so with drum_edit_row_offset still at its own default (0) a step
+  // placed here matches the exact same absolute value a note played on
+  // the ordinary isomorphic grid at this device's current octave would.
+  auto register_base = (octave(device_id) + 1) * edo_steps;
+  auto * state = findDeviceState(device_id);
+  auto row_offset = state ? state->drum_edit_row_offset : 0;
+  vector<int> lane_notes;
+  for (auto degree : song.getScaleDegreesWindow(row_offset, 8)) lane_notes.push_back(degree + register_base);
+  return lane_notes;
 }
 
 void
@@ -1453,31 +1538,37 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     return;
   }
 
-  // Step grid: a PercussionTrack's grid means something else entirely
-  // from ordinary chord entry, the same way Send/Pan mode already
-  // short-circuits above - but only while a specific clip is actually
-  // open for editing on this track (Controller::getFocusedClipTrackId()
-  // == track_id) and nothing anywhere is being recorded via a Session
-  // View take. Not gated on lane count either - a lane-less track's own
-  // step grid shows empty (DeviceState::show_step_grid's own comment),
-  // and handleStepGridPadEvent() itself already bounds-checks y against
-  // however many lanes actually exist, so routing every press here
-  // regardless keeps a press doing exactly what its own display shows,
-  // never silently falling through to free-drumming underneath a grid
-  // that looks like it isn't one. The step grid only ever edits a clip
-  // this way, never the section's own background Pattern - that has no
-  // pagination and spans the whole scene, far more than this fixed grid
-  // could ever show meaningfully, so merely navigating the shared cursor
-  // onto a PercussionTrack (or recording into it - a live take needs real
-  // free-drumming pad entry instead, same as any other track's own
-  // chromatic note entry: resolveNote()'s own percussion branch maps pads
-  // to GM drum sounds regardless of lane count, lanes only ever changing
-  // what the *step grid* shows) both fall through to ordinary note entry
-  // below rather than exposing it.
+  // Step grid: a PercussionTrack's or pitched InstrumentTrack's own grid
+  // means something else entirely from ordinary chord entry, the same way
+  // Send/Pan mode already short-circuits above - but only while a
+  // specific clip is actually open for editing on this track
+  // (Controller::getFocusedClipTrackId() == track_id) and nothing
+  // anywhere is being recorded via a Session View take. Not gated on lane
+  // count either for a PercussionTrack (a lane-less one's step grid shows
+  // empty - DeviceState::show_step_grid's own comment) - a pitched
+  // InstrumentTrack has no lane concept of its own to gate on at all,
+  // its rows coming from Song::getScaleDegrees() instead
+  // (resolveStepGridLaneNotes()'s own comment) - and
+  // handleStepGridPadEvent() itself already bounds-checks y against
+  // however many lane values actually resolved, so routing every press
+  // here regardless keeps a press doing exactly what its own display
+  // shows, never silently falling through to free/chromatic entry
+  // underneath a grid that looks like it isn't one. The step grid only
+  // ever edits a clip this way, never the section's own background
+  // Pattern - that has no pagination and spans the whole scene, far more
+  // than this fixed grid could ever show meaningfully, so merely
+  // navigating the shared cursor onto either track type (or recording
+  // into it - a live take needs real free-drumming/chromatic pad entry
+  // instead, same as any other track's own note entry: resolveNote()
+  // maps pads to GM drum sounds or scale-independent pitches regardless
+  // of the step grid's own lane set, which only ever changes what the
+  // *step grid* shows) both fall through to ordinary note entry below
+  // rather than exposing it.
   if (!controller.isAnySessionRecording() && controller.getFocusedClipTrackId() == track_id) {
     auto assigned_track = song.getMasterTrack().getChildByInternalId(track_id);
-    if (assigned_track && assigned_track->getType() == TrackType::PERCUSSION_CONTROL) {
-      handleStepGridPadEvent(ev, controller, static_cast<PercussionTrack &>(*assigned_track), track_id);
+    if (assigned_track && (assigned_track->getType() == TrackType::PERCUSSION_CONTROL || assigned_track->getType() == TrackType::INSTRUMENT_CONTROL)) {
+      auto lane_notes = resolveStepGridLaneNotes(song, ev.getDeviceIndex(), assigned_track);
+      handleStepGridPadEvent(ev, controller, lane_notes, track_id);
       return;
     }
   }
@@ -2390,8 +2481,7 @@ LaunchpadManager::triggerClipStep(const Song & song, Controller & controller, in
 }
 
 void
-LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & controller, PercussionTrack & track, int track_id) {
-  auto & lane_notes = track.getLaneNotes();
+LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & controller, const vector<int> & lane_notes, int track_id) {
   auto x = ev.getX(), y = ev.getY();
   if (y < 0 || y >= static_cast<int>(lane_notes.size()) || x < 0 || x >= 8) return;
   int note = lane_notes[static_cast<size_t>(y)];
@@ -2405,11 +2495,11 @@ LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & co
     // ordinary Note in this section's own Pattern for this track now (see
     // PercussionTrack.h's own "A step is a Note" comment) - "was_hit" is
     // decided by value, not by a fixed column, so this stays consistent
-    // with getHitNotesForRow()'s own by-value identification even if the
-    // note isn't sitting at this lane's usual column (e.g. typed directly
-    // in PatternEditor, or pasted from elsewhere); a *new* hit still lands
-    // at this lane's own column (y), the step grid's own convention for
-    // keeping a lane's column stable across rows.
+    // with getHitLaneValues()'s own by-value identification (ArrangementOps.h)
+    // even if the note isn't sitting at this lane's usual column (e.g.
+    // typed directly in PatternEditor, or pasted from elsewhere); a *new*
+    // hit still lands at this lane's own column (y), the step grid's own
+    // convention for keeping a lane's column stable across rows.
     auto & song = controller.getSong();
     auto & info = controller.getPlaybackInfo();
     auto & section = song.getOrCreateSection(info.getPatternIndex());
@@ -2421,13 +2511,13 @@ LaunchpadManager::handleStepGridPadEvent(LaunchpadPadEvent & ev, Controller & co
     // own background Pattern, which this grid doesn't edit at all
     // (DeviceState::show_step_grid's own comment). A focused clip can be
     // longer than the grid's fixed 8 columns, so this device's own
-    // current page (DeviceState::drum_edit_page, paginated via the
-    // prev-track/next-track buttons - see handleCommand()'s own comment)
-    // picks which 8-row window of it x actually lands in.
+    // current step offset (DeviceState::drum_edit_step_offset, scrolled
+    // via the prev-track/next-track buttons - see handleCommand()'s own
+    // comment) picks which 8-step window of it x actually lands in.
     auto length = focusedDrumClipLength(song, track_id, controller.getFocusedClip());
-    auto page_count = length > 0 ? (length + 7) / 8 : 1;
-    auto page = std::clamp(deviceState(ev.getDeviceIndex()).drum_edit_page, 0, page_count - 1);
-    auto row = page * 8 + x;
+    auto max_offset = std::max(0, length - 8);
+    auto offset = std::clamp(deviceState(ev.getDeviceIndex()).drum_edit_step_offset, 0, max_offset);
+    auto row = offset + x;
     auto edit_target = resolveEditTarget(song, section, track_id, row, controller.getFocusedClip());
     auto & row_notes = edit_target.pattern->getNotes(edit_target.effective_row);
     int existing_column = -1;
@@ -2951,46 +3041,53 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   // misleadingly suggest a press here does something a performer looking
   // only at the Launchpad could ever actually see.
   bool arrows_active = state.grid_mode != GridMode::SESSION;
-  // Showing the step grid (sequencer mode) is the same "nothing here a
-  // performer could see" story for 91/92 specifically: 91's own shift-combo
-  // gesture and "move-row-up"'s plain fallback, and "move-row-down", are
-  // both only ever meaningful from Session (moving either the shared
-  // cursor or, outside Session, the terminal-only pattern-editor cursor -
-  // invisible from the grid either way while a clip's already open here),
-  // so both go dark on top of the SESSION-dark rule above rather than
-  // showing their usual out-of-Session dim-lit color.
-  bool plain_arrows_lit = arrows_active && !state.show_step_grid;
-  uint8_t arrow_white = plain_arrows_lit ? 30 : 0;
+  // 91/92 ("move-row-up"/"move-row-down") are repurposed while the step
+  // grid is showing, exactly like 93/94 below - handleCommand()'s own
+  // comment - scrolling this device's own row window
+  // (DeviceState::drum_edit_row_offset) by a few rows at a time instead of
+  // their ordinary Session-only/terminal-only meaning, so a performer can
+  // reach any row a scale/chromatic run has, not just whichever 8 were
+  // shown when the clip was opened. Meaningful only for a *pitched*
+  // track's own step grid - a PercussionTrack's lanes are a small, fixed,
+  // manually-curated list with nothing to scroll to at all
+  // (DeviceState::drum_edit_row_offset's own comment) - so unlike before
+  // this now goes dark for a percussion step grid, matching every other
+  // "nothing a performer could see would happen" button here; for a
+  // pitched one it's always lit (no ceiling to go dark for - the row
+  // window can always keep scrolling, up or down, without ever becoming a
+  // true no-op the way paging below can).
+  bool row_scroll_useful = !state.show_step_grid || !state.assigned_track_is_percussion;
+  uint8_t arrow_white = (arrows_active && row_scroll_useful) ? 30 : 0;
   // 93/94 ("prev-track"/"next-track") are their own case while the step
   // grid is showing: handleCommand()'s own comment repurposes them into
-  // paging through a clip longer than 8 steps, every connected device
-  // shifting together - genuinely useful only when there's a page no
-  // already-connected device is showing yet (drum_edit_page_count exceeds
-  // how many devices resetDrumEditPaging() could already give one page
-  // each), the same threshold handleCommand()'s own no-op guard uses.
-  // Outside the step grid they keep their ordinary out-of-Session meaning
-  // (moving the shared cursor track) unchanged.
-  bool paging_useful = state.drum_edit_page_count > (launchpad_io_ ? static_cast<int>(launchpad_io_->readySessionIds().size()) : 0);
+  // scrolling through a clip longer than 8 steps, every connected device
+  // shifting together - genuinely useful only when there's still some
+  // step no already-connected device is showing yet
+  // (drum_edit_max_step_offset > 0), the same threshold handleCommand()'s
+  // own no-op guard uses. Outside the step grid they keep their ordinary
+  // out-of-Session meaning (moving the shared cursor track) unchanged.
+  // White, not a distinct hue - all four of 91-94 read as one family of
+  // step-grid navigation once a clip's open (row window vs. step window),
+  // so they share 92's own color rather than each getting its own.
+  bool paging_useful = state.drum_edit_max_step_offset > 0;
   bool page_arrows_lit = state.show_step_grid ? paging_useful : arrows_active;
-  uint8_t arrow_blue = page_arrows_lit ? 60 : 0;
+  uint8_t page_arrow_white = page_arrows_lit ? 60 : 0;
   // 91 ("move-row-up") doubles as a shift modifier with a real,
   // Launchpad-visible meaning specifically from Session view
-  // (LaunchpadManager::handleShiftButton()) - so it stays dim-lit in every
-  // GridMode rather than going dark in Session the way 92 still does
-  // (plain_arrows_lit only covers 92 for exactly that reason), and lights
-  // full bright while actually held, the same "held == bright" convention
-  // every other momentary control here already uses; the pad it's
-  // currently combined with (DeviceState::row_up_shift_pending_pad) gets
-  // the identical bright-white treatment below, so the two lit pads
-  // visually pair up while the press is held. Dark instead, regardless of
-  // held state, while the step grid is showing - there's no Session pad
-  // grid visible to shift-combine with then, so both of 91's own meanings
-  // are exactly as unused as 92's.
-  uint8_t row_up_level = state.show_step_grid ? 0 : state.row_up_shift_held ? 127 : 30;
+  // (LaunchpadManager::handleShiftButton()), on top of the octave-shift
+  // meaning above once the step grid is showing - so it stays dim-lit in
+  // every GridMode (never dark in Session the way 92 still is - one of
+  // 91's own two meanings is always live there), and lights full bright
+  // while actually held, the same "held == bright" convention every other
+  // momentary control here already uses; the pad it's currently combined
+  // with (DeviceState::row_up_shift_pending_pad) gets the identical
+  // bright-white treatment below, so the two lit pads visually pair up
+  // while the press is held.
+  uint8_t row_up_level = state.row_up_shift_held ? 127 : 30;
   colors.push_back({91, row_up_level, row_up_level, row_up_level});
   colors.push_back({92, arrow_white, arrow_white, arrow_white}); // move-row-down, dim white (static)
-  colors.push_back({93, 0, 0, arrow_blue}); // prev-track, dim blue (static)
-  colors.push_back({94, 0, 0, arrow_blue}); // next-track, dim blue (static)
+  colors.push_back({93, page_arrow_white, page_arrow_white, page_arrow_white}); // prev-track, dim white (static)
+  colors.push_back({94, page_arrow_white, page_arrow_white, page_arrow_white}); // next-track, dim white (static)
   // Session (CC95)/Note (CC96)/Custom (CC97)/Draw (CC98, reused from
   // "Capture MIDI" - the record-armed indicator moved to CC19 ("Record
   // Arm"), see DeviceState::record_arm_led_on's own comment) are this
@@ -3531,13 +3628,14 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     int key_val = -1;
     unordered_map<int, float> active_note_loudness;
     bool is_percussion = false;
+    bool is_step_grid_track = false; // percussion or pitched - see resolveStepGridLaneNotes()'s own comment
     vector<int> drum_lane_notes;
     array<uint8_t, 8> drum_lane_steps {};
     int drum_playhead_step = -1;
-    // Mirrors DeviceState::drum_edit_page_count's own comment - computed
-    // below alongside drum_clip_editing, carried into state after the loop
-    // the same way every other per-device field here is.
-    int drum_page_count = 1;
+    // Mirrors DeviceState::drum_edit_max_step_offset's own comment -
+    // computed below alongside drum_clip_editing, carried into state
+    // after the loop the same way every other per-device field here is.
+    int drum_max_step_offset = 0;
     // Whether a specific clip is actually open for editing on this
     // track (Controller::getFocusedClipTrackId()) - the step grid only
     // ever edits a clip this way, never the section's own background
@@ -3571,31 +3669,38 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       tuning = track ? song.getTuningForTrack(*track) : song.getTuning();
       key_val = song.getKey();
       is_percussion = track && track->getType() == TrackType::PERCUSSION_CONTROL;
-      if (is_percussion) {
-        auto & drum_track = static_cast<const PercussionTrack &>(*track);
-        drum_lane_notes = drum_track.getLaneNotes();
+      is_step_grid_track = is_percussion || (track && track->getType() == TrackType::INSTRUMENT_CONTROL);
+      if (is_step_grid_track) {
+        // A PercussionTrack's own manually-curated lanes, or a pitched
+        // InstrumentTrack's own windowed scale degrees shifted into this
+        // device's current octave - resolveStepGridLaneNotes()'s own
+        // comment.
+        drum_lane_notes = resolveStepGridLaneNotes(song, device_id, track);
         // A focused clip can be longer than the grid's fixed 8 columns -
-        // this device's own current page (DeviceState::drum_edit_page,
-        // see handleCommand()'s own comment) picks which 8-row window of
-        // it is actually shown. Nothing else is ever shown here - see
-        // DeviceState::show_step_grid's own comment for why the step
-        // grid falls through to ordinary free-drumming pad entry
-        // whenever no clip is actually open for editing on this track.
+        // this device's own current step offset (DeviceState::
+        // drum_edit_step_offset, see handleCommand()'s own comment) picks
+        // which 8-step window of it is actually shown. Nothing else is
+        // ever shown here - see DeviceState::show_step_grid's own comment
+        // for why the step grid falls through to ordinary free-drumming/
+        // chromatic pad entry whenever no clip is actually open for
+        // editing on this track.
         drum_clip_editing = controller.getFocusedClipTrackId() == track_id;
         auto drum_clip_length = drum_clip_editing ? focusedDrumClipLength(song, track_id, controller.getFocusedClip()) : -1;
-        drum_page_count = drum_clip_length > 0 ? (drum_clip_length + 7) / 8 : 1;
-        auto drum_page = drum_clip_editing ? std::clamp(state.drum_edit_page, 0, drum_page_count - 1) : 0;
-        // A lane's own hit state, this section - by value (getHitNotesAtRow(),
-        // matching handleStepGridPadEvent()'s own by-value "was_hit" check),
-        // not by assuming it's sitting at this lane's usual column. Per
-        // step, whatever's actually active at that row (ArrangementOps.h's
-        // own resolveReadTarget()) - a placed clip instance's own content,
-        // or this track's own background Pattern otherwise - rather than
-        // one background-only lookup reused across all 8 steps.
+        auto ready_count = launchpad_io_ ? static_cast<int>(launchpad_io_->readySessionIds().size()) : 0;
+        drum_max_step_offset = drum_clip_length > 0 ? std::max(0, drum_clip_length - ready_count * 8) : 0;
+        auto drum_offset = drum_clip_editing ? std::clamp(state.drum_edit_step_offset, 0, std::max(0, drum_clip_length - 8)) : 0;
+        // A lane's own hit state, this section - by value
+        // (getHitLaneValues(), ArrangementOps.h - matching
+        // handleStepGridPadEvent()'s own by-value "was_hit" check), not
+        // by assuming it's sitting at this lane's usual column. Per step,
+        // whatever's actually active at that row (ArrangementOps.h's own
+        // resolveReadTarget()) - a placed clip instance's own content, or
+        // this track's own background Pattern otherwise - rather than one
+        // background-only lookup reused across all 8 steps.
         auto & drum_section = song.getSection(playback_info.getPatternIndex());
         for (int step = 0; step < 8; step++) {
-          auto read_target = resolveReadTarget(song, drum_section, track_id, drum_page * 8 + step, controller.getFocusedClip());
-          for (int hit_note : drum_track.getHitNotesAtRow(*read_target.pattern, read_target.effective_row)) {
+          auto read_target = resolveReadTarget(song, drum_section, track_id, drum_offset + step, controller.getFocusedClip());
+          for (int hit_note : getHitLaneValues(*read_target.pattern, read_target.effective_row, drum_lane_notes)) {
             auto lane_it = find(drum_lane_notes.begin(), drum_lane_notes.end(), hit_note);
             if (lane_it == drum_lane_notes.end()) continue;
             auto lane_index = static_cast<size_t>(lane_it - drum_lane_notes.begin());
@@ -3606,16 +3711,15 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
         // free-running audition clock's own shared step - or no playhead
         // at all if that clock isn't currently running either (Record Arm
         // is on). Only shown at all if it actually falls within this
-        // device's own currently-shown page - a focused clip playing back
-        // a page this device isn't showing right now has no visible
-        // playhead here (paging elsewhere on the same device brings it
+        // device's own currently-shown window - a focused clip playing
+        // back a span this device isn't showing right now has no visible
+        // playhead here (scrolling elsewhere on the same device brings it
         // back into view instead).
         if (playback_info.isPlaying()) {
           drum_playhead_step = playback_info.getRowIndex() % 8;
         } else if (audition_step >= 0) {
           auto clip_row = drum_clip_length > 0 ? audition_step % drum_clip_length : audition_step % 8;
-          auto step_page = drum_clip_length > 0 ? clip_row / 8 : 0;
-          drum_playhead_step = (step_page == drum_page) ? clip_row % 8 : -1;
+          drum_playhead_step = (clip_row >= drum_offset && clip_row < drum_offset + 8) ? clip_row - drum_offset : -1;
         }
       }
       // Max-of when multiple columns happen to sound the same note_value
@@ -3654,8 +3758,8 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     state.track_colors = track_colors;
     state.grid_track_count = min(8, num_tracks);
     state.assigned_track_is_percussion = is_percussion;
-    state.show_step_grid = is_percussion && !controller.isAnySessionRecording() && drum_clip_editing;
-    state.drum_edit_page_count = drum_page_count;
+    state.show_step_grid = is_step_grid_track && !controller.isAnySessionRecording() && drum_clip_editing;
+    state.drum_edit_max_step_offset = drum_max_step_offset;
     state.drum_lane_notes = move(drum_lane_notes);
     state.drum_lane_steps = drum_lane_steps;
     state.drum_playhead_step = drum_playhead_step;

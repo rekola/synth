@@ -304,3 +304,18 @@ resolveReadTarget(const Song & song, const Section & section, int track_id, int 
   if (it == patterns.end()) return { &empty_pattern, 0, row, false, -1 };
   return { &it->second, it->second.getEffectiveRow(row, song.getEffectiveSectionLength(section)), row, false, -1 };
 }
+
+std::vector<int>
+getHitLaneValues(const Pattern & pattern, int effective_row, const std::vector<int> & lane_values) {
+  std::vector<int> hits;
+  auto & notes = pattern.getNotes(effective_row);
+  for (auto lane_value : lane_values) {
+    for (auto & note : notes) {
+      if (note.isDefined() && !note.isOff() && !note.isAftertouch() && note.getValue() == lane_value) {
+        hits.push_back(lane_value);
+        break;
+      }
+    }
+  }
+  return hits;
+}

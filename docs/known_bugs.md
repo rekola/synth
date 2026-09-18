@@ -511,3 +511,25 @@ Found 2026-07-11, not yet fixed.
   investigated further; re-check directly (not just this entry) before
   assuming a future failure here is the same known issue.
 
+- **`tools/e2e/verify_launchpad_paging_lockstep.py` fails independent of
+  any code change** - confirmed via `git stash` A/B against the last
+  commit predating a whole session's worth of unrelated step-grid work
+  (2026-09-18), so this isn't a regression from any of it. Both devices'
+  own Programmer-Mode-enter checks pass (they do connect), but every
+  "which page is this device showing" check comes back `None` - the
+  script's own `shown_page()` never finds a lit LED at any of lane 0's 8
+  columns in *any* captured sysex dump, for either device, at any point in
+  the run (only the very first, pre-clip-open LED dump ever arrives; the
+  shift+pad-open gesture that should trigger the step grid's own LED
+  repaint appears not to, or its repaint never reaches this test's own
+  simulated devices). `CLAUDE.md`'s own e2e-coverage bullet claims this
+  script "isn't expected to hit that same flakiness" (the broader
+  sandboxed-environment ALSA-sequencer LED-read stall class the bullets
+  above document) since it involves no real audio/ALSA capture - that
+  claim no longer holds in this environment and should be treated as
+  stale until someone re-verifies it fresh. Not investigated further -
+  whatever's actually blocking the LED repaint here (versus
+  `verify_launchpad_shift_stepgrid.py`'s own reliable "*" focus-marker
+  check succeeding for the identical shift+pad-open gesture, just read
+  from terminal text instead of LED bytes) wasn't tracked down.
+

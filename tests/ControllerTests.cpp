@@ -1306,13 +1306,41 @@ TEST(toggle_drum_clip_focus_direct_call_opens_and_closes_a_clip) {
 }
 
 // A no-op (false, nothing focused, no listener call) for anything that
-// isn't a PercussionTrack's own clip at all - lets a caller like
+// isn't a PercussionTrack's or a pitched InstrumentTrack's own clip at
+// all (SampleTrack here - neither) - lets a caller like
 // LaunchpadManager::handleSessionPadEvent() fall back to its own ordinary
-// meaning for the gesture instead of silently swallowing the press. A
-// PercussionTrack itself is never declined this way regardless of lane
-// count (toggle_record_arm_on_a_lane_less_percussion_clip_focuses_it_too
-// covers the lane-less case succeeding).
+// meaning for the gesture instead of silently swallowing the press.
+// Neither a PercussionTrack nor an InstrumentTrack is ever declined this
+// way (toggle_record_arm_on_a_lane_less_percussion_clip_focuses_it_too
+// covers the lane-less-PercussionTrack case succeeding;
+// toggle_drum_clip_focus_direct_call_opens_and_closes_a_clip below covers
+// a step-sequenced one; the pitched case is exercised end to end by the
+// step-sequencer's own e2e coverage, not a Controller-level test, since
+// there's no model-level difference in how toggleDrumClipFocus() itself
+// treats the two - see its own doc comment).
 TEST(toggle_drum_clip_focus_is_a_no_op_off_a_non_percussion_clip) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+
+  auto & sample_track = song.addTrack(std::make_unique<SampleTrack>());
+  auto sample_track_id = sample_track.getInternalId();
+  song.addClip(Clip(sample_track_id));
+
+  bool listener_called = false;
+  controller.setDrumEditRequestListener([&](int, bool) { listener_called = true; });
+
+  CHECK(!controller.toggleDrumClipFocus(sample_track_id, 0));
+  CHECK(controller.getFocusedClipTrackId() == -1);
+  CHECK(!listener_called);
+}
+
+// The pitched case toggleDrumClipFocus() now also accepts, directly (the
+// Launchpad's own CC91-held-as-shift gesture reaches it this way, not
+// through "toggle-record-arm" - see that command's own comment on why a
+// pitched track is deliberately excluded there specifically).
+TEST(toggle_drum_clip_focus_direct_call_opens_a_pitched_track_too) {
   ChannelConfiguration config(8000, 1);
   Controller controller(config);
   controller.switchToBuffer(controller.freshBufferName());
@@ -1320,14 +1348,12 @@ TEST(toggle_drum_clip_focus_is_a_no_op_off_a_non_percussion_clip) {
 
   auto & note_track = song.addTrack(std::make_unique<InstrumentTrack>(0));
   auto note_track_id = note_track.getInternalId();
-  song.addClip(Clip(note_track_id));
+  auto & existing = song.addClip(Clip(note_track_id));
+  auto existing_id = existing.getId();
 
-  bool listener_called = false;
-  controller.setDrumEditRequestListener([&](int, bool) { listener_called = true; });
-
-  CHECK(!controller.toggleDrumClipFocus(note_track_id, 0));
-  CHECK(controller.getFocusedClipTrackId() == -1);
-  CHECK(!listener_called);
+  CHECK(controller.toggleDrumClipFocus(note_track_id, 0));
+  CHECK(controller.getFocusedClipTrackId() == note_track_id);
+  CHECK(controller.getFocusedClip() == existing_id);
 }
 
 // Controller::closeDrumClipFocus() - the Launchpad's own CC95 ("Session")
@@ -1395,7 +1421,12 @@ TEST(toggle_record_arm_on_a_non_drum_machine_track_arms_normally) {
 
   CHECK(controller.isTrackArmed(track_id));
   CHECK(!controller.isSessionRecording(track_id)); // arming alone starts no take
-  CHECK(controller.getFocusedClipTrackId() == -1); // untouched
+  // untouched - guards against the step sequencer's own pitched-track
+  // support (toggleDrumClipFocus() now accepts an InstrumentTrack too)
+  // silently preempting multi-track Record Arm here; the "toggle-record-
+  // arm" command's own comment covers why it deliberately never calls
+  // toggleDrumClipFocus() for anything but a PercussionTrack.
+  CHECK(controller.getFocusedClipTrackId() == -1);
 }
 
 // ensureSessionRecordingClip()/extendSessionRecordingClipIfNeeded() are

@@ -951,7 +951,7 @@
      dark: lit only when paging is actually useful, i.e. the clip's own
      page count (`DeviceState::drum_edit_page_count`, tracked alongside
      `show_step_grid`) exceeds however many devices are currently
-     connected - `resetDrumEditPaging()`'s own device-order split already
+     connected - `resetStepGridView()`'s own device-order split already
      gives every page its own device to show at once below that
      threshold, so a press there would just re-clamp back to where it
      already is.
@@ -960,7 +960,7 @@
      prev-track/next-track only ever updated the *pressed* device's own
      `DeviceState::drum_edit_page`, letting several connected Launchpads
      drift apart (including onto the exact same page) instead of staying
-     split across the clip the way `resetDrumEditPaging()`'s own tiling
+     split across the clip the way `resetStepGridView()`'s own tiling
      intends. Fixed so every connected device pages together, in
      lockstep, off a single press - `handleCommand()`'s own "next-track"/
      "prev-track" branch now shifts a shared base (derived from the first
@@ -1015,21 +1015,355 @@
      instead (`grid_mode` becoming `NOTES`, `show_step_grid` becoming
      true, with zero lanes, immediately after the pad's own release -
      since removed) - see `docs/known_bugs.md`.
-   - **The step sequencer is `PercussionTrack`-only today.** Its lanes are
-     each keyed to one specific GM drum note (`PercussionTrack::
-     getLaneNotes()`/`addLane()`/`removeLane()`, picked via the CC97 lane
-     picker's own free-drumming-layout-as-picker-surface) - a pitched
-     `InstrumentTrack` has no equivalent notion of a small, discrete kit
-     of nameable sounds to pick lanes from; it has a whole tuning space
-     instead. Generalizing needs its own real design pass: how lanes get
-     chosen for a pitched track (a manually-assigned scale-degree/note
-     set, mirroring the drum lane picker but picking from the isomorphic
-     pitch grid instead of GM drum families?), whether `kMaxLanes` (8)
-     still makes sense as a ceiling, and how `handleStepGridPadEvent()`'s
-     own by-value "was_hit" note matching (`PercussionTrack::
-     getHitNotesAtRow()`) generalizes once a lane's own note isn't
-     drawn from a small fixed drum-name vocabulary. Out of scope for this
-     pass.
+   - **The step sequencer generalized to pitched tracks - shipped.** Used
+     to be `PercussionTrack`-only: its lanes are each keyed to one
+     specific GM drum note (`PercussionTrack::getLaneNotes()`/
+     `addLane()`/`removeLane()`, picked via the CC97 lane picker's own
+     free-drumming-layout-as-picker-surface) - a pitched `InstrumentTrack`
+     has no equivalent notion of a small, discrete kit of nameable sounds
+     to pick lanes from; it has a whole tuning space instead.
+
+     **Settled design** (direct user answers, not derived): lanes for a
+     pitched track are *not* a per-track manually-assigned pick the way a
+     drum kit's own lanes are (the two options actually considered - a
+     manual picker mirroring CC97's own, or deriving lanes from whatever's
+     currently playing - were both turned down in favor of this). Instead,
+     a new song-wide `Song::getScale()`/`setScale()` (`Scale` enum -
+     `MAJOR`/`MINOR`/`MICROTONAL_A`/`MICROTONAL_B`, `src/model/Scale.h`)
+     drives every pitched track's own step grid alike - no per-track lane
+     list, no `kMaxLanes` ceiling to reconsider (there's no lane list left
+     to cap - the user's own answer to "does the 8-lane ceiling still make
+     sense" was "not applicable, as there are no lanes"). `Scale::NONE`
+     (the default - no scale ever chosen) falls back to the plain
+     chromatic scale rather than an empty lane list, per direct
+     instruction. `MICROTONAL_A`/`_B` are two specific scales given
+     directly, relative to C: `C D♯ E F G A A♯` and
+     `C E𝄫 E♭ F G A♭ B𝄫` - MICROTONAL_B's own E𝄫/E♭ pair is the whole
+     reason these are called *micro*tonal: the two are only genuinely
+     distinct pitches once the tuning has finer-than-semitone resolution
+     (31/53-EDO); in 12-EDO E𝄫 degrades to (sounds identical to) D, but
+     still resolves to a real, correct value rather than asserting or
+     crashing.
+
+     **Mechanism:** each scale's own degrees are stored as plain note
+     names in `Note::stringToKey()`'s own syntax (`Scale.h`'s
+     `scaleDegreeNames()`), not decoded into semitone numbers - resolved
+     fresh against whichever tuning is actually active
+     (`Song::getScaleDegrees()`: each degree's own interval from C is
+     `Note::stringToKey(tuning, name) - Note::stringToKey(tuning, "C")`,
+     added to the song's own tonic pitch class extracted from
+     `Song::getKey()` the same way `LaunchpadManager::resolveNote()`
+     already did), so the identical degree list is correct under every
+     supported tuning without hardcoding a separate interval set per one -
+     cross-checked directly against `docs/31edo_note_numbers.txt`'s own
+     published table for MICROTONAL_B (`ScaleTests.cpp`'s own
+     `scale_microtonal_b_31edo`). This exposed two real, pre-existing gaps
+     in `Note::stringToKey()` itself, both fixed alongside this feature
+     (`Note.h`): TET12's own accidental parsing had no double-sharp/
+     double-flat case at all (needed for MICROTONAL_B's own E𝄫/B𝄫 there);
+     TET19's own branch was an outright `assert(0)` stub, no note-name
+     parsing implemented at all (the *display* direction, `keyToString()`,
+     already worked - only *parsing* was ever missing) - filled in
+     directly from `docs/19edo_note_numbers.txt`'s own published table (a
+     W-W-H-W-W-W-H pattern, W=3 steps/H=2, per-letter offsets spelled out
+     directly since 19-EDO's own H falls mid-group unlike TET12/31/53's
+     uniform "+N per natural-letter run" shape).
+
+     `Song::getScaleDegrees()` returns up to 8 ascending offsets from the
+     tonic (register-agnostic - a bare `Song` has no notion of "which
+     Launchpad octave"), not full note values, and deliberately never
+     wrapped back into a single octave's own pitch-class range (see the
+     later "only 7 rows" follow-up below for why);
+     `LaunchpadManager::resolveStepGridLaneNotes()`
+     (a new shared helper, used by both `handlePadEvent()`'s own
+     step-grid press dispatch and `refresh()`'s identical LED-rendering
+     resolution, so the two can never disagree) is what shifts each into
+     a real absolute value - the exact same register formula
+     `resolveNote()`'s own `base_note` already uses
+     (`(octave(device_id)+1)*edoStepsFor(tuning)`), so a step placed here
+     and a note played on the ordinary isomorphic grid at the same octave
+     land on the identical value. `PercussionTrack::getHitNotesAtRow()`'s
+     own by-value "was_hit" scan is untouched (still used by its own
+     existing callers) - a new, generalized sibling,
+     `getHitLaneValues(pattern, effective_row, lane_values)`
+     (`ArrangementOps.h`), does the identical by-value scan against an
+     arbitrary lane-value list, used by both track types uniformly from
+     `LaunchpadManager.cpp` now.
+
+     `handleStepGridPadEvent()` itself changed shape only slightly - it
+     already took nothing but a resolved lane-value list plus which row
+     (`y`) indexes into it, so generalizing it was just accepting
+     `const std::vector<int> &` directly instead of a `PercussionTrack &`
+     it only ever called `getLaneNotes()` on. `handlePadEvent()`'s own
+     step-grid dispatch gate dropped its `PercussionTrack`-only check the
+     same way it already dropped the lane-count one (the "empty sequencer"
+     fix above) - a pitched track reaches the identical
+     `handleStepGridPadEvent()` now, with its own resolved scale-degree
+     lane list. CC97's own lane *picker* stays `PercussionTrack`-only
+     deliberately - a pitched track has no per-track lane list to pick
+     from at all, the song's own scale is the only thing to change, and
+     that has no Launchpad-reachable setter yet (see below).
+
+     **A real bug caught before shipping, not by direct report this
+     time:** broadening `Controller::toggleDrumClipFocus()` to accept a
+     pitched `InstrumentTrack` also broadened *every* caller of it,
+     "toggle-record-arm" included - which would have silently preempted
+     multi-track Session View recording (item 1 above) on *any* pitched
+     track's own Session-view-focused clip, turning every such Record Arm
+     press into "open the step grid" instead of arming it, regardless of
+     whether a performer actually wanted to step-sequence it. Caught by
+     `ControllerTests.cpp`'s own pre-existing regression coverage for
+     plain Record Arm (`toggle_record_arm_on_a_non_drum_machine_track_
+     arms_normally`) failing once `toggleDrumClipFocus()`'s own gate
+     changed. Fixed by keeping "toggle-record-arm" itself
+     `PercussionTrack`-only (a track-type check added right at that one
+     call site, `Controller.cpp`) - Record Arm on a pitched track already
+     has a real, heavily-used meaning of its own to protect, unlike a
+     `PercussionTrack`'s, where this repurposing was always the *only*
+     thing a Record Arm press there could sensibly mean. Only the
+     Launchpad's own shift+pad gesture reaches a pitched track's step
+     grid now; `PercussionTrack` remains reachable both ways, unchanged.
+
+     **Not done:** no interactive way to set `Song::getScale()`/`setKey()`
+     from inside the app at all yet - XML-authored only
+     (`<song scale="major">`, alongside the pre-existing `key`/
+     `temperament` attributes), the same gap `set-song-key`/
+     `set-song-tuning` (`Controller.cpp`, menu-visible placeholder stub
+     commands, `TerminalMenu`'s own Song section) already document for
+     `getKey()`/`getTuning()` themselves - a scale picker is exactly the
+     same kind of not-yet-scheduled work, deliberately not tackled here
+     either.
+
+     Covered by `tests/ScaleTests.cpp` (the model-level degree resolution
+     - chromatic fallback, each of the four scales in 12-EDO, key
+     transposition, the 31-EDO microtonal cross-check against
+     `docs/31edo_note_numbers.txt`, and the XML round trip) and
+     `tools/e2e/verify_launchpad_shift_stepgrid_pitched.py` (the
+     Launchpad-side open/close mechanic, same "*" focus-marker
+     verification as its `PercussionTrack` sibling script above, no real
+     audio/ALSA capture involved so it passes reliably) - the actual
+     resolved lane values themselves (register-shifted absolute notes,
+     not just pitch classes) were confirmed correct end to end via
+     temporary in-process debug logging against that same fixture (a
+     12-EDO major scale keyed to C4 resolving to `60 62 64 65 67 69 71` -
+     exactly C D E F G A B - since removed) rather than a dedicated e2e
+     assertion, the same reasoning `verify_launchpad_shift_no_lanes.py`
+     above already established for LED-based content checks in this
+     sandbox.
+
+     **A follow-up, found by direct user report and fixed:** the step
+     grid only ever showed one fixed 8-row window into a scale/chromatic
+     run - fine for the four named scales (exactly 7 degrees, already
+     fitting with room to spare) but leaving no way to reach a second
+     octave, or any of a chromatic run's own remaining degrees beyond the
+     first 8, at all. Fixed by repurposing move-row-up/move-row-down
+     (CC91/92, the step grid's own "up"/"down" arrows) into
+     `octaveUp()`/`octaveDown()` while the grid is showing - the same
+     repurposing prev-track/next-track (CC93/94, "left"/"right") already
+     get for paging through steps, just shifting *which* octave the whole
+     lane set resolves at instead of which 8-step window of the clip
+     shows (`resolveStepGridLaneNotes()`'s own comment) - so between the
+     two pairs, everything a scale/chromatic run has is reachable, not
+     just the one octave/one page that happened to be current when the
+     clip was opened. All four of 91-94 now light the same white rather
+     than 93/94's own former blue, reading as one family once a clip's
+     open. A second, related report followed immediately: reopening a
+     clip could start at an arbitrary, seemingly random octave, since a
+     device's own `octave_offset` simply carried over from whatever
+     unrelated note entry had last left it at - fixed by having
+     `LaunchpadManager::resetDrumEditPaging()` (renamed
+     `resetStepGridView()`, since it now resets two independent things,
+     not just paging) also zero every connected device's own octave
+     register back to 0 on open, alongside its own pre-existing page
+     reset - opening the same clip now always starts from the same known
+     octave. Verified via temporary in-process debug logging against the
+     pitched fixture (change-triggered prints, to survive this sandbox's
+     own terminal-escape-interleaving corruption of repeated identical
+     lines): confirmed the grid opened at `octave=4 register_base=60`
+     (the plain global octave, C4) *even after* two octave-up presses
+     sent before ever opening the clip - proving the reset actually wins
+     over whatever was there before - and a further CC91 press once
+     inside correctly advanced it to `octave=5 register_base=72`, exactly
+     one octave up (since removed).
+
+     **A third report followed, on the same feature:** "Up and down only
+     scrolls the single Launchpad" - the CC91/92 octave-shift above had
+     only ever called `octaveUp()`/`octaveDown()` on the one device that
+     was actually pressed, unlike CC93/94's own page-shift, which was
+     already lockstepped across every connected device. Fixed by looping
+     the octave-shift branch in `LaunchpadManager::handleCommand()` over
+     `launchpad_io_->readySessionIds()` the same way CC93/94's own page
+     advance already does, applying the shift to every connected device
+     from a single press on any one of them - since `resetStepGridView()`
+     always starts every device at the identical `octave_offset = 0`,
+     there's no per-device relative offset to preserve the way page-shift
+     has to preserve each device's own initial split, so the fix is a
+     plain uniform loop rather than needing CC93/94's own more careful
+     offset-preserving logic. Verified via a new 2-device scratch debug
+     test (temporary in-process logging, since removed): a single CC91
+     press sent from only device A produced `octave shift: 2 devices,
+     dev0_offset=1 dev1_offset=1` - both devices advancing together from
+     one press.
+
+     **A fourth report followed, still on the same feature:** "Still
+     doesn't start playing from the beginning when opening the
+     sequencer" - a follow-up making clear the second report's own fix
+     (zeroing `octave_offset` on open) addressed pitch-register
+     predictability only, not audition *playback* position. Root cause:
+     the free-running `audition_clock_` driving auditioned
+     playback/playhead was never actually restarted when a clip opened -
+     only Session-view's own trigger paths called
+     `restartAuditionClockFromSilence()`, so a freshly opened step grid's
+     playhead resumed from wherever that shared clock's stale phase
+     already happened to be, not row 0. Fixed by having
+     `resetStepGridView()` call `restartAuditionClockFromSilence()` too,
+     alongside its existing page/octave resets - three resets on every
+     clip-open now, not two. Verified via temporary in-process debug
+     logging (a change-triggered print inside `refresh()`'s playhead
+     computation, since removed): reopening the pitched fixture's clip
+     showed `audition_step=0 drum_playhead_step=0` immediately, with
+     natural forward progression afterward, confirming playback now
+     starts from the clip's own beginning every time.
+
+     **A fifth report followed, on the pitched step grid specifically:**
+     "I don't like the fact that only 7 rows are used by the sequencer" -
+     every named scale (`Scale.h`'s `scaleDegreeNames()`) has exactly 7
+     degrees, one short of the step grid's own fixed 8 rows, so a pitched
+     track's own clip always left its 8th row completely unused. Root
+     cause was `Song::getScaleDegrees()`'s own wraparound: it modded every
+     degree back into `[0, edoStepsFor(tuning))`, so a scale's own upper
+     degrees (once transposed to a nonzero tonic) could fold back *below*
+     the tonic instead of climbing past the octave boundary, and it never
+     filled a row beyond however many names the scale actually had. Fixed
+     by dropping the modulo entirely - `getScaleDegrees()` now returns a
+     strictly ascending run of up to 8 offsets from the tonic, crossing
+     the octave boundary rather than wrapping back below it wherever a
+     transposed degree naturally lands above it, and fills any row past
+     the named list's own length by cycling back through the same names
+     one octave (`edoStepsFor(tuning)`) higher each wrap - so a 7-note
+     scale's own 8th and final row is always its tonic repeated an octave
+     up (e.g. C major now shows C D E F G A B C across all 8 rows, not C D
+     E F G A B and a dead 8th row). `resolveStepGridLaneNotes()` itself is
+     untouched - it already just added a fixed register offset to
+     whatever `getScaleDegrees()` returned, so the ascending, octave-
+     crossing values it now receives resolve to correct absolute notes
+     with no further change. `ScaleTests.cpp`'s own degree-resolution
+     tests were updated to the new 8-entry, non-wrapped expectations
+     (including the D-major transposition case, whose own last two rows -
+     C# then D - now correctly ascend past the octave boundary instead of
+     wrapping back down to a pitch class below the tonic); the full suite,
+     including the 31-EDO microtonal cross-check against
+     `docs/31edo_note_numbers.txt`, was re-run and passes with the new
+     values.
+
+     **A sixth request followed, asking for a UX change rather than
+     reporting a defect:** "Make the scroll step size (both directions) 4
+     rows/cols so it is easier to follow" - both scroll axes (move-row-up/
+     -down and prev-track/next-track while a step grid shows) jumped a
+     full 8-wide window per press, so consecutive windows never overlapped
+     and a performer had nothing to visually anchor a press against. Two
+     separate design questions came up asking for clarification (both
+     answered directly by the requester rather than assumed): whether the
+     column (step/time) scroll should move by 4 steps (yes), and - the
+     harder one - whether the row (pitch) scroll on a pitched track should
+     keep jumping whole octaves (an already-documented invariant: a step
+     placed here matches the exact absolute value a note played on the
+     ordinary isomorphic grid at this device's own current octave would)
+     or move by literally 4 rows, decoupled from octave entirely. The
+     requester chose full decoupling, explicitly noting the invariant
+     should not constrain this: "Make sure the up and down arrows are not
+     labeled octave up/down, as they are just scroll up and scroll down,
+     in this case. It is possible, that we have scales in the future that
+     are not tied to octave at all, or span two octaves. Or more likely,
+     we have scales that have more than 7 notes."
+
+     **Column scroll:** `DeviceState::drum_edit_page` was renamed
+     `drum_edit_step_offset` and its own unit changed from a page index
+     (implicitly ×8) to a raw step offset, so it can land on any step, not
+     just an 8-step boundary. `handleCommand()`'s own prev-track/
+     next-track branch now advances it by `kStepGridScrollStep` (4, a new
+     shared constant - see below) instead of a full page, clamped to
+     `[0, max(0, clip_length - num_devices*8)]` - each connected device's
+     own window still stays exactly 8 steps wide and offset from its
+     neighbors by a full page (`new_base + i*8`), only the *scroll
+     increment* between presses changed, not the per-device tiling itself.
+     `resetStepGridView()`'s own default split (`i*8` per device, in
+     connection order) is unchanged. The pad-press dispatch and
+     `refresh()`'s own LED-rendering resolution both switched from
+     `page*8 + x`/`page*8 + step` to `offset + x`/`offset + step` directly
+     - a one-line change at each site, since the underlying row math never
+     actually cared about "pages," only about a start-of-window value.
+     `DeviceState::drum_edit_page_count` (a page count, compared against
+     however many devices were connected to decide the dark/lit no-op
+     state) was replaced with `drum_edit_max_step_offset` (the actual
+     highest offset still worth scrolling to, `max(0, clip_length -
+     num_devices*8)`), computed once in `refresh()` and read directly by
+     `refreshLeds()` as `> 0` - simpler than reconstructing the same
+     "would this be a no-op" comparison as a second, separate calculation.
+
+     **Row scroll, the bigger change:** rather than reusing `octaveUp()`/
+     `octaveDown()` (which mutate `DeviceState::octave_offset`, the same
+     register the ordinary isomorphic grid's own note-entry uses),
+     move-row-up/-down while a *pitched* track's step grid shows now
+     mutate a new, wholly independent field, `DeviceState::
+     drum_edit_row_offset`, by `kStepGridScrollStep` rows at a time - a
+     scale-degree index, not a register, fed straight into a new, more
+     general `Song::getScaleDegreesWindow(start_index, count)` (`Song.h`/
+     `.cpp`) that `getScaleDegrees()` itself is now just a thin wrapper
+     over (`getScaleDegreesWindow(0, 8)`, preserving every existing
+     caller/test unchanged). `getScaleDegreesWindow()` generalizes the
+     "cycle back through the degree list one octave higher every wrap"
+     logic item 1 above already established to an *arbitrary* starting
+     index, including negative ones (floor division, not truncation, so
+     index -1 correctly resolves to the scale's own last degree one octave
+     down rather than clamping or wrapping the wrong way) - two new tests,
+     `scale_degrees_window_positive_start`/`_negative_start`, cover a
+     mid-scale window and a below-the-tonic one respectively.
+     `resolveStepGridLaneNotes()` changed from `song.getScaleDegrees()` to
+     `song.getScaleDegreesWindow(row_offset, 8)`, `row_offset` read off
+     this device's own `DeviceState::drum_edit_row_offset` (default 0,
+     giving byte-identical results to before at the default position) -
+     the register anchor (`octave(device_id)`-derived) is untouched, only
+     which 8-entry slice of the extended ascending run gets added to it.
+     A `PercussionTrack`'s own step grid is unaffected either way - its
+     lanes are a small, fixed, manually-curated list with nothing to
+     scroll to, so move-row-up/-down there is now a genuine no-op (no
+     field mutation at all, just swallowing the press) rather than
+     silently nudging an octave register that never did anything visible
+     for it anyway. `refreshLeds()`'s own CC91/92 lit state gained exactly
+     that distinction (`row_scroll_useful`) - dark for a percussion step
+     grid, unconditionally lit for a pitched one (no ceiling to go dark
+     for, same as before). `resetStepGridView()` gained a fourth reset
+     (`drum_edit_row_offset = 0` alongside its existing step-offset/
+     octave/audition-clock resets) so a freshly opened clip always starts
+     at the tonic, not wherever a previous scroll session left the row
+     window.
+
+     `kStepGridScrollStep` (a new `constexpr int = 4` in
+     `LaunchpadManager.cpp`'s own anonymous namespace, next to
+     `kMixerHoldPreviewThreshold`) is the one shared constant both axes'
+     scroll increment reads from, so the two stay in step with each other
+     if this value is ever revisited. Every doc comment this touched
+     (`DeviceState::drum_edit_step_offset`/`drum_edit_row_offset`/
+     `drum_edit_max_step_offset`, `resolveStepGridLaneNotes()`,
+     `resetStepGridView()`, `Song::getScaleDegreesWindow()`/
+     `getScaleDegrees()`) was rewritten rather than patched in place, the
+     same as every other fix in this section - stale wording describing
+     "octave register"/"page" for what's now a plain scroll offset would
+     otherwise mislead the next reader. Verified via the full `ScaleTests.cpp`
+     suite (including the two new windowed-degree tests) and a clean
+     rebuild with zero new compiler warnings (`-Wsign-conversion` and the
+     rest); `verify_launchpad_shift_stepgrid.py`/`_pitched.py` (the two
+     e2e scripts that exercise opening a step grid at all) both still pass
+     3/3 unchanged. `verify_launchpad_paging_lockstep.py` was checked too,
+     out of caution since it directly exercises the renamed step-offset
+     field - it fails in this sandboxed environment, but identically so
+     when checked against the last commit *before* this entire session's
+     own changes (via a temporary `git stash`), confirming the failure
+     predates this work entirely rather than being a regression from it;
+     left unresolved as a pre-existing environmental issue, the same class
+     `docs/known_bugs.md` already documents for other multi-device
+     scripts here.
 
 3. **No delay field on `Command`.** Unlike `Note::delay`, a `Command` has
    no sub-row timing offset - automation can only ever be recorded/placed

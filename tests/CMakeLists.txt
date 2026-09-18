@@ -30,6 +30,7 @@ add_executable(synth_tests
 	SendSetCommandTests.cpp
 	SendLiveUpdateTests.cpp
 	SongTests.cpp
+	ScaleTests.cpp
 	LaunchpadLayoutTests.cpp
 	LaunchpadProtocolTests.cpp
 	LaunchpadTimingTests.cpp

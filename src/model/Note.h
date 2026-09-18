@@ -266,18 +266,43 @@ class Note {
 	  assert(0);
 	}
 
-	if (accidental == "#" || accidental == "♯" || accidental == "𝄱" || accidental == "𝄰") value++;
+	if (accidental == "x" || accidental == "𝄪") value += 2;
+	else if (accidental == "#" || accidental == "♯" || accidental == "𝄱" || accidental == "𝄰") value++;
+	else if (accidental == "bb" || accidental == "𝄫") value -= 2;
 	else if (accidental == "b" || accidental == "♭" || accidental == "𝄭" || accidental == "𝄬") value--;
 	else {
-	  assert(accidental == "-" || accidental == "♮" || accidental == "𝄮" || accidental == "𝄯");
+	  assert(accidental.empty() || accidental == "-" || accidental == "♮" || accidental == "𝄮" || accidental == "𝄯");
 	}
 
 	return value;
       } else if (tuning == Tuning::TET19) {
 	auto value = (octave + 1) * 19;
 
-	// C C♯ D♭ D D♯ E♭ E E♯ F♭ F F♯ G♭ G G♯ A♭ A A♯ B♭ B B♯ C♭
-	assert(0);
+	// C C♯ D♭ D D♯ E♭ E E♯/F♭ F F♯ G♭ G G♯ A♭ A A♯ B♭ B B♯/C♭ -
+	// docs/19edo_note_numbers.txt is this table's own source of truth.
+	// W-W-H-W-W-W-H with W=3 steps, H=2 - unlike TET12/31/53's uniform
+	// "+N per natural-letter run" shape, 19edo's own H falls in the
+	// middle of the {C,D,E}/{F,G,A} groups (E-F, not just B-C), so each
+	// letter's own base offset is spelled out directly instead.
+	if (letter == 'C') value += 0;
+	else if (letter == 'D') value += 3;
+	else if (letter == 'E') value += 6;
+	else if (letter == 'F') value += 8;
+	else if (letter == 'G') value += 11;
+	else if (letter == 'A') value += 14;
+	else if (letter == 'B') value += 17;
+	else {
+	  assert(0);
+	}
+
+	if (accidental == "x" || accidental == "𝄪") value += 2;
+	else if (accidental == "#" || accidental == "♯") value += 1;
+	else if (accidental == "bb" || accidental == "𝄫") value -= 2;
+	else if (accidental == "b" || accidental == "♭") value -= 1;
+	else {
+	  assert(accidental.empty() || accidental == "-" || accidental == "♮");
+	}
+
 	return value;
       } else if (tuning == Tuning::TET31) {
 	auto value = (octave + 1) * 31;

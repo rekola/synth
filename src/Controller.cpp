@@ -276,9 +276,20 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
     // first" rule this command's own doc comment states) since there's
     // nothing else a drum-machine clip's own Record Arm press could
     // sensibly mean. Reaches every PercussionTrack this way, lane-less
-    // ones included (toggleDrumClipFocus()'s own comment) - only some
-    // other track type falls through to the plain note-capture arm below.
-    if (session_view_focused_ && session_view_track_id_ >= 0 && session_view_clip_index_ >= 0) {
+    // ones included (toggleDrumClipFocus()'s own comment) - deliberately
+    // *not* extended to a pitched InstrumentTrack even though
+    // toggleDrumClipFocus() itself now accepts one too (the Launchpad's
+    // own CC91-held-as-shift gesture reaches it that way directly): Record
+    // Arm on a pitched track already has a real, heavily-used meaning of
+    // its own (multi-track Session View recording, right below) that
+    // opening the step grid would silently preempt every time, not just
+    // when a performer actually wants to step-sequence it. A
+    // PercussionTrack has no such competing meaning to protect - its own
+    // Record Arm press was always exactly this repurposing, pitched
+    // tracks are the only ones that need this guard.
+    auto session_view_track = getCurrentSong() ? getCurrentSong()->getMasterTrack().getChildByInternalId(session_view_track_id_) : nullptr;
+    if (session_view_focused_ && session_view_track_id_ >= 0 && session_view_clip_index_ >= 0 &&
+        session_view_track && session_view_track->getType() == TrackType::PERCUSSION_CONTROL) {
       if (toggleDrumClipFocus(session_view_track_id_, session_view_clip_index_)) return;
     }
 
@@ -398,7 +409,7 @@ Controller::toggleDrumClipFocus(int track_id, int clip_index) {
   auto song = getCurrentSong();
   if (!song) return false;
   auto * track = song->getMasterTrack().getChildByInternalId(track_id);
-  if (!track || track->getType() != TrackType::PERCUSSION_CONTROL) return false;
+  if (!track || (track->getType() != TrackType::PERCUSSION_CONTROL && track->getType() != TrackType::INSTRUMENT_CONTROL)) return false;
   if (clip_index < 0) return false;
 
   auto & clips = song->getClips(track_id);

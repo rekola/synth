@@ -46,6 +46,7 @@ gcc -o fake_launchpad_scene_row fake_launchpad_scene_row.c -lasound
 gcc -o fake_launchpad_clear_on_exit fake_launchpad_clear_on_exit.c -lasound
 gcc -o fake_launchpad_paging_lockstep fake_launchpad_paging_lockstep.c -lasound
 gcc -o fake_launchpad_shift_no_lanes fake_launchpad_shift_no_lanes.c -lasound
+gcc -o fake_launchpad_shift_stepgrid_pitched fake_launchpad_shift_stepgrid_pitched.c -lasound
 ```
 
 (the compiled binaries are gitignored - only the `.c` sources are
@@ -410,7 +411,7 @@ you're changing.
   prev-track/next-track page-shift gesture (`LaunchpadManager::
   handleCommand()`'s own comment) moving every connected device together,
   not just whichever one was pressed: two simulated devices open a 4-page
-  (32-step) clip, confirm `resetDrumEditPaging()`'s own device-order split
+  (32-step) clip, confirm `resetStepGridView()`'s own device-order split
   put them on two different pages, then one device pages forward once and
   both are confirmed to have advanced by exactly one page - not left
   drifted apart. No real audio/ALSA capture involved, so this one isn't
@@ -426,6 +427,15 @@ you're changing.
   highlight.py` above, in two different shapes across separate runs (no
   LED dump at all, or a later unexplained reconnect overwriting a correct
   one) - see `docs/known_bugs.md`.
+- **`launchpad_shift_stepgrid_pitched_test.xml` / `fake_launchpad_shift_
+  stepgrid_pitched.c` / `verify_launchpad_shift_stepgrid_pitched.py`** -
+  the shift+pad "open for editing" gesture on a *pitched* InstrumentTrack's
+  own clip, its rows drawn from the song's own scale
+  (`Song::getScaleDegrees()`) rather than a manually-picked lane list -
+  same "*" focus-marker verification as `verify_launchpad_shift_
+  stepgrid.py` above (its own sibling script), no real audio/ALSA capture
+  involved, so unlike the two scripts above it isn't expected to hit that
+  same stall class - passes reliably.
 - **`cross_tuning_paste_test.xml` (+ companion `..._song_b.xml`) /
   `verify_patterneditor_cross_tuning_paste.py`** - a `Note::getValue()`
   means a different kind of value under a different tuning (GM percussion

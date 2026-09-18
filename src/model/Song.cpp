@@ -1059,6 +1059,8 @@ Song::loadParameters(const ParameterSource & input) {
   auto key_text = input.get<std::string>("key");
   if (!key_text.empty()) setKey(Note::stringToKey(song_tuning, key_text));
 
+  setScale(scaleFromString(input.get<std::string>("scale")));
+
   setTempo(input.get<int>("tempo", 90));
   setRowsPerBar(input.get<int>("rowsPerBar", 16));
 
@@ -1082,6 +1084,7 @@ Song::storeParameters(ParameterSource & output) const {
   SongObject::storeParameters(output);
 
   if (getKey() >= 0) output.set("key", Note::keyToString(getTuning(), getKey()));
+  if (getScale() != Scale::NONE) output.set("scale", to_string(getScale()));
   output.set("temperament", to_string(getTuning()));
   output.set("tempo", getTempo());
   output.set("rowsPerBar", getRowsPerBar(), 16);
@@ -1105,4 +1108,56 @@ Song::getPlayableTrackIds() const {
     if (structure.getBaselineInfo(id).color_ordinal_ >= 0) ids.push_back(id);
   }
   return ids;
+}
+
+vector<int>
+Song::getScaleDegreesWindow(int start_index, int count) const {
+  auto edo_steps = edoStepsFor(tuning_);
+  if (edo_steps <= 0 || count <= 0) return {}; // no interval structure (Tuning::PERCUSSION) to have degrees of at all
+
+  // Same tonic-pitch-class extraction as LaunchpadManager::resolveNote()'s
+  // own comment: getKey() is a full note value with its own baked-in
+  // octave (Note::stringToKey()'s own octave-4 default whenever the key
+  // text omits one) - only its pitch class matters here.
+  auto tonic = key_note_number_ >= 0 ? ((key_note_number_ % edo_steps) + edo_steps) % edo_steps : 0;
+
+  auto degree_names = scaleDegreeNames(scale_);
+  vector<int> offsets_from_tonic;
+  if (degree_names.empty()) {
+    // No scale chosen (or Scale::NONE resolved nothing) - the plain
+    // chromatic scale instead, one degree per semitone/edo-step, cycling
+    // every edo_steps the same way a named scale's own degree list cycles
+    // every full pass through it below.
+    for (int i = 0; i < edo_steps; i++) offsets_from_tonic.push_back(i);
+  } else {
+    // Each degree name resolved as its own interval from C under this
+    // song's actual tuning (Note::stringToKey(tuning_, name) - stringToKey(tuning_, "C")),
+    // then added to the tonic below - see this method's own header
+    // comment for why this is what keeps the same degree_names list
+    // correct under every tuning rather than needing one hardcoded
+    // interval set per one.
+    auto c_value = Note::stringToKey(tuning_, "C");
+    for (auto & name : degree_names) offsets_from_tonic.push_back(Note::stringToKey(tuning_, name) - c_value);
+  }
+  auto n = static_cast<int>(offsets_from_tonic.size());
+  if (n <= 0) return {};
+
+  // Deliberately never wrapped mod edo_steps: index i's own value keeps
+  // climbing past the octave boundary rather than folding back below the
+  // tonic (e.g. a transposed scale's own upper degrees genuinely landing
+  // above the octave point), and any index outside the degree list's own
+  // [0, n) range cycles back through it one octave (edo_steps) higher or
+  // lower per full wrap - so a 7-note scale's own index 7 is always its
+  // tonic repeated an octave up, index -1 its own 7th degree an octave
+  // down, and so on indefinitely in both directions (this method's own
+  // header comment covers the "current scale is octave-periodic"
+  // assumption that relies on).
+  vector<int> degrees;
+  for (int i = 0; i < count; i++) {
+    auto index = start_index + i;
+    auto wraps = index >= 0 ? index / n : -((-index + n - 1) / n); // floor division, n > 0
+    auto within = index - wraps * n;
+    degrees.push_back(tonic + offsets_from_tonic[static_cast<size_t>(within)] + wraps * edo_steps);
+  }
+  return degrees;
 }

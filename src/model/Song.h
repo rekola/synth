@@ -7,6 +7,7 @@
 #include "InstrumentPool.h"
 #include "Section.h"
 #include "Clip.h"
+#include "Scale.h"
 #include "Version.h"
 #include "../bus/BusEffectRegistry.h"
 #include "../util/constants.h"
@@ -42,7 +43,54 @@ class Song : public SongObject {
 
   short getKey() const { return key_note_number_; }
   void setKey(int key) { key_note_number_ = key; }
-    
+
+  Scale getScale() const { return scale_; }
+  void setScale(Scale scale) { scale_ = scale; }
+
+  // The pitched step sequencer's own lanes (LaunchpadManager.cpp) -
+  // `count` ascending offsets from the tonic, starting at scale-degree
+  // index `start_index` (0 = the tonic itself; negative or arbitrarily
+  // large both work, descending/ascending into neighboring octaves as
+  // needed - the step grid's own row-scroll windows into this
+  // unboundedly long ascending run 8 rows at a time, `start_index`
+  // moving by a few rows per press rather than jumping a whole octave,
+  // LaunchpadManager.cpp's own comment). Register-agnostic - a caller
+  // with an actual register to place these at (the Launchpad's own
+  // per-device octave setting) adds that itself, the same way
+  // resolveNote() already turns a bare tonic pitch class into a real note
+  // value. Not wrapped into a single octave's own [0, edoStepsFor(
+  // getTuning())) pitch-class range: values keep climbing past the octave
+  // boundary rather than wrapping back below the tonic, so the returned
+  // list is always strictly ascending. getScale()'s own degrees (Scale.h's
+  // scaleDegreeNames(), in Note::stringToKey()'s note-name syntax) are
+  // each resolved via Note::stringToKey(getTuning(), name) - c_value,
+  // the interval from C under whatever tuning is actually active - then
+  // added to this song's own tonic pitch class (getKey(), the same
+  // extraction resolveNote() already does), so the same degree list is
+  // correct under every tuning without hardcoding a separate interval set
+  // per one. Every scale here has exactly 7 degrees - one short of the
+  // step grid's own 8 rows - so the degree list is treated as repeating
+  // one octave higher every full cycle through it (index 7 = index 0 one
+  // octave up, and so on both above and below index 0); this assumes
+  // each named scale spans exactly one octave before repeating, true of
+  // every scale here today, though a future scale spanning more than one
+  // octave (or one with more than 7 degrees) would need this widened.
+  // Scale::NONE (no scale chosen) falls back to the plain chromatic scale
+  // - every step ascending from the tonic - rather than an empty lane
+  // list. Empty only for Tuning::PERCUSSION (no interval structure to
+  // have degrees of at all - callers should never reach this for a
+  // PercussionTrack anyway, which has its own, unrelated
+  // PercussionTrack::getLaneNotes()).
+  std::vector<int> getScaleDegreesWindow(int start_index, int count) const;
+
+  // The step grid's own *default* 8-row window on first opening a clip
+  // (LaunchpadManager::resetStepGridView()) - the first 8 ascending
+  // offsets from the tonic, i.e. getScaleDegreesWindow(0, 8). See that
+  // method's own comment for the general, arbitrarily-windowed form the
+  // step grid's own row-scroll actually uses once a performer has
+  // scrolled away from this default.
+  std::vector<int> getScaleDegrees() const { return getScaleDegreesWindow(0, 8); }
+
   short getTempo() const { return bpm_; }
   void setTempo(short bpm) { bpm_ = bpm; }
 
@@ -448,6 +496,7 @@ class Song : public SongObject {
 private:
   Tuning tuning_ = Tuning::TET31;
   short key_note_number_ = 0;
+  Scale scale_ = Scale::NONE;
   int bpm_ = 90;
   int rows_per_bar_ = 16;
   float ear_height_ = constants::DEFAULT_EAR_HEIGHT;

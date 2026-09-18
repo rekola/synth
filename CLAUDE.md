@@ -501,8 +501,9 @@ would otherwise resume showing.
   show_step_grid`'s own comment) rather than either doing nothing or
   routing anywhere else (the lane picker included - a performer reaching
   for "open editing" shouldn't land on a different surface than the one
-  they asked for); only some other track type still declines outright,
-  the same silent no-op as before. Both halves light up full bright white while held - CC91 itself
+  they asked for); only some track type that isn't a `PercussionTrack` or
+  a pitched `InstrumentTrack` at all still declines outright, the same
+  silent no-op as before. Both halves light up full bright white while held - CC91 itself
   (dim white beforehand, in every `GridMode` but the step grid, since it
   has a real, Launchpad-visible meaning everywhere else) and whichever pad
   it's currently combined with, so a performer sees the pair confirmed
@@ -512,27 +513,114 @@ would otherwise resume showing.
   regardless of whatever `GridMode` each was in (`TerminalUI.cpp`'s own
   drum-edit-request listener, `LaunchpadManager::
   forceNotesModeOnAllDevices()`) - and gives each device its own default
-  page into the clip (`LaunchpadManager::resetDrumEditPaging()`, "device i
+  page into the clip (`LaunchpadManager::resetStepGridView()`, "device i
   shows page i" in whatever order they're currently ready), splitting a
   clip longer than 8 steps across however many are connected without
-  anyone paging by hand first. Once the step grid is showing, every button
+  anyone paging by hand first. The step grid isn't `PercussionTrack`-only
+  either - a pitched `InstrumentTrack`'s own clip opens exactly the same
+  way via the Launchpad's own shift+pad gesture (`Controller::
+  toggleDrumClipFocus()` accepts either track type now), its rows drawn
+  from the song's own scale (`Song::getScaleDegrees()`, up to 8 ascending
+  offsets from the tonic - deliberately never wrapped back into a single
+  octave's own pitch-class range, so the list keeps climbing past the
+  octave boundary rather than folding back below the tonic - resolved
+  from `Song::getScale()`'s own chosen `Scale` - `MAJOR`/`MINOR`/
+  `MICROTONAL_A`/`MICROTONAL_B`, each a fixed 7-name degree list in
+  `Note::stringToKey()`'s own note-name syntax so the exact same list is
+  correct under every tuning without hardcoding a separate interval set
+  per one - transposed to `Song::getKey()`; `Scale::NONE`, the default,
+  falls back to the plain chromatic scale) rather than a manually-picked
+  lane list - there's no per-track lane concept for a pitched track at
+  all, so nothing gates this the way lane count doesn't gate a
+  `PercussionTrack`'s own clip either. Every named scale here has exactly
+  7 degrees, one short of the step grid's own 8 rows - rather than
+  leaving the 8th row unused, `getScaleDegrees()` fills it by cycling
+  back to the first degree name (the tonic) one octave higher, so the
+  step grid's last row is always the tonic repeated an octave up, the
+  conventional way a scale's own degrees are shown (e.g. C D E F G A B
+  C). Each degree lands in this
+  device's own current octave register (`LaunchpadManager::
+  resolveStepGridLaneNotes()`, the same register formula `resolveNote()`
+  already uses for the ordinary isomorphic grid), so a step placed here
+  and a note played on that grid at the same octave are the identical
+  absolute value. "toggle-record-arm" itself is deliberately *not*
+  extended to a pitched track this way, even though `toggleDrumClipFocus()`
+  itself now accepts one - Record Arm there already means something real
+  (multi-track Session View recording, below), which opening the step
+  grid would silently preempt every time rather than only when actually
+  wanted; only the Launchpad's own shift+pad gesture reaches a pitched
+  track's step grid, `PercussionTrack` remaining reachable both ways.
+  Once the step grid is showing, every button
   with no meaning left there goes fully dark rather than keeping its usual
-  out-of-Session color - move-row-up (CC91, both its shift-combo and its
-  plain fallback), move-row-down (CC92), Note (CC96, forced into already -
-  pressing it again is a true no-op), and Capture MIDI/Draw's own
-  idle/DRAW-eligible color (CC98 - a long hold would abandon step editing
-  for the DRAW canvas, not something worth a standing indicator for; its
-  armed/red indicator stays lit regardless, since that's real track-global
-  recording state a performer still needs to see, not a per-mode
-  affordance). prev-track/next-track (CC93/94) are repurposed instead of
-  going dark - a press pages every connected device's own `DeviceState::
-  drum_edit_page` together, in lockstep (never just the one device the
-  press landed on, which would otherwise drift devices onto overlapping or
-  duplicate pages) - but even they go dark once paging would be a no-op:
-  whenever the clip's own page count is already covered one-for-one by
-  however many devices are connected (`resetDrumEditPaging()`'s own split
-  already shows every page at once), a press would just re-clamp back to
-  where it already is. Closing it again is reachable two ways too: the same shift+pad combo on the same
+  out-of-Session color - Note (CC96, forced into already - pressing it
+  again is a true no-op), and Capture MIDI/Draw's own idle/DRAW-eligible
+  color (CC98 - a long hold would abandon step editing for the DRAW
+  canvas, not something worth a standing indicator for; its armed/red
+  indicator stays lit regardless, since that's real track-global recording
+  state a performer still needs to see, not a per-mode affordance). All
+  four of 91-94 are repurposed instead of going dark, together covering
+  everything a scale/chromatic run has that the fixed 8x8 grid alone
+  can't show at once, both scrolling `kStepGridScrollStep` (4) rows/steps
+  per press rather than jumping a whole 8-wide window at once, so
+  consecutive windows overlap and a performer can actually follow where a
+  press landed relative to before: prev-track/next-track (CC93/94) scroll
+  every connected device's own `DeviceState::drum_edit_step_offset`
+  together, in lockstep (never just the one device the press landed on,
+  which would otherwise drift devices onto overlapping or duplicate
+  windows), through the clip's own steps (columns); move-row-up/
+  move-row-down (CC91/92) scroll every connected device's own
+  `DeviceState::drum_edit_row_offset` instead, on a *pitched*
+  `InstrumentTrack`'s own step grid only (a `PercussionTrack`'s lanes are
+  a small, fixed, manually-curated list - never more than 8 - with
+  nothing to scroll to at all) - `Song::getScaleDegreesWindow()`'s own
+  `start_index`, reaching any row a scale/chromatic run's own unboundedly
+  long ascending sequence has, not just whichever 8 happened to be shown
+  when the clip was opened. Deliberately *not* an octave shift the way
+  this same button pair ordinarily is elsewhere (`octaveUp()`/
+  `octaveDown()`, still used for their own ordinary out-of-step-grid
+  meaning) - jumping a full octave (all 8 rows at once) left no overlap to
+  visually track, and tied the row window to a register concept that
+  assumes a scale repeats every single octave, which a future scale (more
+  than 7 degrees, or spanning more than one octave) need not
+  (`DeviceState::drum_edit_row_offset`'s own comment) - so this device's
+  own octave/note-entry register is left untouched by a step-grid row
+  scroll entirely now. Both loop over `readySessionIds()` the same way -
+  a press on any one device moves them all, not just the one physically
+  pressed. Unlike CC93/94's own step-lockstep, which preserves each
+  device's own relative offset from `resetStepGridView()`'s initial
+  per-device split (steps), CC91/92's own row-lockstep has no such
+  per-device offset to preserve - every device always starts a clip at
+  the identical row offset (`resetStepGridView()`, below), so a scroll
+  just applies the same delta to all of them uniformly. All four light the
+  same white rather than 93/94's own former blue, reading as one family of
+  step-grid navigation (row window vs. step window) once a clip's open,
+  except CC91/92 now go dark for a `PercussionTrack`'s own step grid
+  specifically (nothing to scroll to there), matching every other
+  "nothing a performer could see would happen" button here. CC93/94 still
+  go dark once scrolling would be a no-op: whenever the clip's own length
+  is already covered end-to-end by however many devices are connected
+  (`resetStepGridView()`'s own split already shows the whole clip at
+  once), a press would just re-clamp back to where it already is -
+  CC91/92 have no equivalent ceiling to go dark for on a pitched track,
+  since a scale/chromatic run's own row window can always keep scrolling
+  either direction without ever becoming a true no-op.
+  Opening a clip resets four things at once
+  (`resetStepGridView()`): every connected device's own step offset back
+  to its own device-order default (its existing per-device split, below);
+  every connected device's own row offset back to 0 (the tonic) - same
+  reasoning as the step offset, for a pitched track's own row window
+  instead of a clip's own columns; every connected device's own octave
+  register back to 0 - without this, opening the same clip twice could
+  start at a different, unpredictable octave depending on whatever
+  unrelated note entry had happened to leave a given device's own octave
+  at in between; and the free-running audition clock itself
+  (`restartAuditionClockFromSilence()`, the same restart Session-view
+  launches from silence already use) - without this last one, a clip's
+  audition playhead resumed from wherever that shared clock's stale phase
+  already happened to be rather than row 0, so a freshly opened clip could
+  visibly start partway through instead of from its own beginning. Every
+  open now starts from the same known step window, row window, octave,
+  and playhead position. Closing it again is reachable two ways too: the same shift+pad combo on the same
   pad (only from the plain Session grid - the step grid a successful open
   switches every device to has no (track, clip index) addressing of its
   own to shift-combine with, so this needs a CC95 press back to Session
@@ -542,10 +630,11 @@ would otherwise resume showing.
   handleRawButton()`'s own CC95 case) - the more direct route, not
   requiring shift at all. Either closing route returns every connected
   device to Session view. Merely navigating the shared cursor onto a
-  step-sequenced `PercussionTrack` (or recording into it - see the
-  Multi-track Record Arm bullet below) does *not* by itself show the step
-  grid - both fall through to ordinary free-drumming pad entry instead,
-  same as a lane-less `PercussionTrack` always does. Setting a fresh step
+  `PercussionTrack` or pitched `InstrumentTrack` (or recording into it -
+  see the Multi-track Record Arm bullet below) does *not* by itself show
+  the step grid - both fall through to ordinary free-drumming/chromatic
+  pad entry instead, same as a lane-less `PercussionTrack` always does.
+  Setting a fresh step
   always auditions immediately (`handleStepGridPadEvent()`'s own
   `suppress` check); pressing an already-lit step pad (removing it) never
   auditions the sound that was just removed. CC97 ("Custom")
@@ -820,11 +909,23 @@ would otherwise resume showing.
   covers the step grid's own prev-track/next-track page-shift gesture
   moving every connected device together rather than just whichever one
   was pressed - two simulated devices open a 4-page clip, confirm
-  `resetDrumEditPaging()`'s own device-order split put them on two
+  `resetStepGridView()`'s own device-order split put them on two
   different pages, then one pages forward once and both are confirmed to
-  have advanced together; no real audio/ALSA capture involved, so unlike
-  most two-device scripts here it isn't expected to hit that same
-  flakiness either. Every e2e script spawns `synth`
+  have advanced together; despite involving no real audio/ALSA capture,
+  this one does still fail in this sandboxed environment (confirmed
+  independent of any code change - `docs/known_bugs.md`'s own entry for
+  it), so its earlier "isn't expected to hit that same flakiness" billing
+  no longer holds here. `verify_launchpad_shift_no_lanes.py` covers the same
+  shift+pad gesture opening a *lane-less* `PercussionTrack`'s own clip -
+  showing the step grid completely empty rather than declining or routing
+  to the lane picker instead - hitting the CC91-held stall class in LED
+  form, so verified via temporary in-process debug logging instead (see
+  `docs/known_bugs.md`). `verify_launchpad_shift_stepgrid_pitched.py`
+  covers the same gesture opening a *pitched* `InstrumentTrack`'s own
+  clip - same "*" focus-marker verification as `verify_launchpad_shift_
+  stepgrid.py` above, no real audio/ALSA capture involved so it passes
+  reliably, unlike the percussion sibling scripts immediately above.
+  Every e2e script spawns `synth`
   with `SYNTH_LAUNCHPAD_NO_HARDWARE=1` (`tools/e2e/harness.py`'s own
   `spawn()`) so it only ever connects to the fake simulator it's actually
   testing, never any real Launchpad hardware also plugged into the same

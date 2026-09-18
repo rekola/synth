@@ -100,14 +100,7 @@ namespace {
 }
 
 int edoSteps(Tuning tuning) {
-  switch (tuning) {
-  case Tuning::TET12: return 12;
-  case Tuning::TET19: return 19;
-  case Tuning::TET31: return 31;
-  case Tuning::TET53: return 53;
-  case Tuning::PERCUSSION: return 0; // no fixed pitch structure
-  }
-  return 0;
+  return edoStepsFor(tuning); // Tuning.h's own shared definition
 }
 
 Basis
