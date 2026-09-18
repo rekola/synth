@@ -6,6 +6,7 @@
 #include "../../model/PatternBlockOps.h"
 #include "../ClipboardEntry.h"
 #include "../SelectionBounds.h"
+#include "InlineEditor.h"
 
 #include <functional>
 #include <vector>
@@ -36,22 +37,14 @@ class PatternEditor : public UIElement {
   bool offerInput(const InputEvent & input) override;
   void handleMidiEvent(MidiEvent & ev) override;
 
-  // Mirrors StatusLine::isReaderActive() exactly, same reason it exists:
-  // UI::offerInput() must not let a *global* keybinding (Space/toggle-
-  // playing, C-x C-c/quit, ...) reach its own dispatchCommand() while this
-  // class's own annotation-editing reader (startAnnotationEdit()) is open,
-  // the same way it already skips that for StatusLine's M-x reader -
-  // otherwise every one of those keys leaks past PatternEditor::offerInput()'s
-  // own reader-active forwarding before it ever gets a chance to run.
-  bool isReaderActive() { return getPlane().readerActive(); }
+  // Mirrors StatusLine::isReaderActive(): while this widget's inline editor
+  // is open, UI::offerInput() must not let a global keybinding (Space/
+  // toggle-playing, C-x C-c/quit, ...) steal a keystroke meant for it.
+  bool isReaderActive() const { return inline_editor_.isOpen(); }
 
   // Aborts the annotation/track-name editor without committing anything -
-  // Ctrl-g's own behavior inside offerInput()'s reader-active branch, also
-  // used by StatusLine (wired in UI::initialize()) so opening M-x while
-  // this editor is open takes focus away from it rather than opening on
-  // top of it - mirrors UI::executeCommand()'s own StatusLine::
-  // cancelReader() use for the reverse direction (a menu click while M-x
-  // is open). A no-op if no reader is actually open.
+  // used by StatusLine so opening M-x takes focus away from it rather than
+  // opening on top of it. A no-op if nothing is open.
   void cancelReaderEdit();
 
   // Plain, source-agnostic cursor/step accessors - PatternEditor has no
@@ -170,16 +163,15 @@ protected:
   // Positions the reader at annotation_screen_row_/annotation_screen_col_,
   // cached by renderRow() itself (whenever it draws the cursor's own row)
   // rather than recomputed here, so the two can never disagree about
-  // where the annotation actually sits on screen. A no-op if a reader is
-  // already active (shouldn't happen - showReader() itself already
-  // guards this too - just defensive).
+  // where the annotation actually sits on screen. A no-op if the editor
+  // is already open.
   void startAnnotationEdit();
 
   // Opens the in-place track-name editor for whatever track the cursor's
   // column currently belongs to. A no-op for a track with no name field
   // to edit at all - an Effect's own title bar carries no name (see
-  // renderHeading()'s is_color_eligible) - or while a reader is already
-  // active. Positions the reader at track_name_screen_col_/
+  // renderHeading()'s is_color_eligible) - or while the editor is already
+  // open. Positions the reader at track_name_screen_col_/
   // track_name_screen_width_, cached by renderHeading() itself, same
   // reasoning as startAnnotationEdit()'s own comment.
   void startTrackNameEdit();
@@ -333,14 +325,6 @@ protected:
   // current_pos accumulation independently. -1 until the first render.
   int annotation_screen_row_ = -1, annotation_screen_col_ = -1;
 
-  // Which row/pattern an open annotation-editing reader belongs to (-1
-  // when none is open) - set by startAnnotationEdit(), read by
-  // offerInput()'s reader-active branch on Enter, so the commit always
-  // writes into the row editing actually started on, not "whatever row
-  // the cursor happens to be on by the time Enter is pressed" (mirrors
-  // selection_start_pattern_'s own staleness guard).
-  int annotation_edit_row_ = -1, annotation_edit_pattern_ = -1;
-
   // The on-screen col/width renderHeading()'s own level-0 branch draws
   // the cursor's current track's name field at - row isn't cached since
   // it's deterministic (a color-eligible track's own title bar is
@@ -352,30 +336,13 @@ protected:
   // annotation_screen_col_ above.
   int track_name_screen_col_ = -1, track_name_screen_width_ = -1;
 
-  // Internal id of the track an open track-name-editing reader belongs
-  // to (-1 when none is open) - set by startTrackNameEdit(), read by
-  // offerInput()'s reader-active branch on Enter, mirroring
-  // annotation_edit_row_/annotation_edit_pattern_'s own staleness guard
-  // just above.
-  int track_name_edit_track_id_ = -1;
-
-  // Set whenever closing a reader (startAnnotationEdit()'s or
-  // startTrackNameEdit()'s) needs the next render() to fully repaint the
-  // heading/row it was sitting over, even though nothing that render()'s
-  // own render_all checks already watch for (song version, scroll,
-  // selection bounds, ...) necessarily changed - a plain Ctrl-g cancel is
-  // the case that actually needs this: both readers paint directly over
-  // their own target cells (see startTrackNameEdit()'s own comment on
-  // why showReader() alone isn't enough there), and canceling never
-  // touches the model (no incVersion()), so without this those cells
-  // stay stuck showing neither the old nor the new value until some
-  // unrelated redraw trigger happens to fire. Checked and cleared by
-  // render() itself.
-  bool force_redraw_ = false;
+  // Shared by the annotation and track-name editors; only one is ever open.
+  InlineEditor inline_editor_{getPlane()};
 
   // The StyleProvider render() was last called with - stashed there
   // purely so startTrackNameEdit() can force an immediate renderHeading()
-  // pass of its own (see that method's own comment) without needing a
+  // pass after correcting the scroll position (see that method's own
+  // comment), so the name field's cached position is current, without needing a
   // StyleProvider of its own to pass in; commands run from a keybinding/
   // menu item have no such thing handed to them the way render() does.
   // Raw pointer, not a copy: UI::styles_ (what render() is actually
@@ -410,9 +377,7 @@ protected:
     SelectionScope selection_start_scope = SelectionScope::NOTE_COLUMN;
     SelectionBounds current_sel_bounds;
     int annotation_screen_row = -1, annotation_screen_col = -1;
-    int annotation_edit_row = -1, annotation_edit_pattern = -1;
     int track_name_screen_col = -1, track_name_screen_width = -1;
-    int track_name_edit_track_id = -1;
   };
 
   void saveEditingState(const std::string & name);

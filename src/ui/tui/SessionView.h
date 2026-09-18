@@ -2,6 +2,7 @@
 #define _SESSIONVIEW_H_
 
 #include "../UIElement.h"
+#include "InlineEditor.h"
 
 #include <functional>
 #include <string>
@@ -49,6 +50,9 @@ class SessionView : public UIElement {
 
   bool render(const StyleProvider & styles, bool refresh, bool focused);
   bool offerInput(const InputEvent & input) override;
+  // See PatternEditor::isReaderActive()/cancelReaderEdit().
+  bool isReaderActive() const { return inline_editor_.isOpen(); }
+  void cancelReaderEdit() { inline_editor_.cancel(); }
 
   // Lets UI seed the initial column selection from the shared/global track
   // cursor (PatternEditor::getCursorTrackIndex()) when this view opens,
@@ -131,37 +135,11 @@ class SessionView : public UIElement {
   // still notices the record indicator (see its own drawing code) needing
   // to appear or disappear.
   bool current_session_recording_ = false;
-  // Set whenever something changed that render()'s own dirty-check above
-  // wouldn't otherwise notice - specifically, closing the rename reader
-  // without committing (Ctrl-g): no song version bump happens then, but
-  // the reader's own screen real estate still needs a fresh paint to
-  // clear it. Mirrors ArrangementGrid::force_redraw_ exactly, same reason.
-  bool force_redraw_ = false;
-
-  // startClipRename()'s only source of a StyleProvider to force an
-  // immediate repaint with - see its own comment on why. Mirrors
-  // PatternEditor::last_styles_ exactly, same reason.
-  const StyleProvider * last_styles_ = nullptr;
 
   std::function<void(int track_id, int clip_index)> trigger_callback_;
 
-  // Which clip (song-wide clip list index, i.e. Song::getClips(track_id)
-  // position) startClipRename() is currently editing the name of, or -1
-  // when the reader isn't open for a rename at all - mirrors
-  // ArrangementGrid::renaming_section_idx_'s own shape. The clip's own
-  // track_id is always cursor_track_index_'s own track at the moment
-  // the rename started (rename never survives a track/column change,
-  // matching startClipRename()'s own early "reader already active" guard
-  // against reopening one mid-edit).
-  int renaming_clip_row_ = -1;
-
-  // The track startTrackRename() is currently editing the name of
-  // (internal id, not column index - stable even if tracks get
-  // reordered mid-edit, though that can't actually happen while the
-  // reader owns input), or -1 when it isn't open. Mutually exclusive
-  // with renaming_clip_row_ - readerActive() only ever allows one reader
-  // open at a time.
-  int renaming_track_id_ = -1;
+  // Clip and track rename share one editor; only one can be open at a time.
+  InlineEditor inline_editor_{getPlane()};
 
   void ensureCursorVisible(int visible_rows, int visible_cols, int num_tracks);
   void startClipRename(const Song & song, const std::vector<int> & track_ids);

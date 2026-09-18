@@ -1904,9 +1904,13 @@ TerminalUI::initializeWidgets() {
   info_line_ = make_shared<InfoLine>(getPlane());
   status_line_ = make_shared<StatusLine>(getPlane());
   // See StatusLine::showPrompt()'s own comment: opening any StatusLine
-  // reader (M-x included) must take focus away from PatternEditor's own
-  // annotation/track-name editor rather than opening on top of it.
-  status_line_->setBeforeShowPromptCallback([this]() { pattern_editor_->cancelReaderEdit(); });
+  // reader (M-x included) must take focus away from any widget's own
+  // inline editor rather than opening on top of it.
+  status_line_->setBeforeShowPromptCallback([this]() {
+    pattern_editor_->cancelReaderEdit();
+    arrangement_grid_->cancelReaderEdit();
+    session_view_->cancelReaderEdit();
+  });
   // Colors match InfoLine's own hardcoded gray-on-dark (InfoLine.h's
   // constructor) - this widget sits inline in that same bar (see
   // layout()), and must blend into it rather than showing up as a
@@ -2395,11 +2399,13 @@ bool
 TerminalUI::offerInput(const InputEvent & input) {
   bool handled = false;
 
-  // Neither reader (StatusLine's M-x minibuffer, PatternEditor's own
-  // annotation editor - see PatternEditor::isReaderActive()'s own comment)
-  // may let a global keybinding (Space/toggle-playing, C-x C-c/quit, ...)
-  // steal a keystroke meant for it.
-  if (!status_line_->isReaderActive() && !pattern_editor_->isReaderActive() && !octave_control_->isEditing() && dispatchCommand(input)) return true;
+  // No open reader (StatusLine's M-x minibuffer, any widget's inline
+  // editor - see PatternEditor::isReaderActive()'s own comment) may let a
+  // global keybinding (Space/toggle-playing, C-x C-c/quit, ...) steal a
+  // keystroke meant for it.
+  bool reader_active = status_line_->isReaderActive() || pattern_editor_->isReaderActive() ||
+    arrangement_grid_->isReaderActive() || session_view_->isReaderActive();
+  if (!reader_active && !octave_control_->isEditing() && dispatchCommand(input)) return true;
 
   if (input.getId() == NCKEY_RESIZE) {
     // notcurses_refresh() is what makes notcurses acknowledge the terminal's

@@ -148,7 +148,7 @@ SessionView::ensureCursorVisible(int visible_rows, int visible_cols, int num_tra
 
 void
 SessionView::startClipRename(const Song & song, const std::vector<int> & track_ids) {
-  if (getPlane().readerActive()) return;
+  if (inline_editor_.isOpen()) return;
   if (rowKindFor(cursor_row_) != RowKind::CLIP) return; // not on a clip row at all
   if (cursor_track_index_ < 0 || cursor_track_index_ >= static_cast<int>(track_ids.size())) return;
   auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
@@ -165,39 +165,24 @@ SessionView::startClipRename(const Song & song, const std::vector<int> & track_i
   if (x < 0) return; // column itself scrolled off - same defensive case
   auto col_x = x * (kColWidth + 1);
 
-  renaming_clip_row_ = clip_row;
-
-  getPlane().showReader("", physical_row, col_x, 1, kColWidth, clips[static_cast<size_t>(clip_row)].getName());
-
-  // TerminalUI::showReader()'s own ncplane_erase_region() call erases
-  // from col_x all the way to the *plane's* right edge, not just this one
-  // clip's own kColWidth footprint - fine for ArrangementGrid's own section
-  // rename (a title row spans the whole plane width, nothing else sits on
-  // it), but this cell is one column among several tracks sharing the
-  // same row, and every later track's own clip cell on this same row
-  // just got wiped. A real render() pass repaints all of it - safe to
-  // call directly here since the reader's own child plane, stacked on
-  // top of just its own [col_x, col_x + kColWidth) footprint, is
-  // unaffected by whatever the parent plane underneath it gets redrawn
-  // to (same reasoning PatternEditor's own startTrackNameEdit() already
-  // documents for its own narrower-than-the-row reader).
-  if (last_styles_) render(*last_styles_, true, current_focused_);
-
-  // That repaint just redrew this same clip's own current name/icons
-  // straight back into the cell the reader is editing, visible right
-  // through the reader's own cells wherever nothing's been typed yet
-  // (TerminalUI::showReader()'s ncplane_set_base(..., "", ...) doesn't
-  // paint over cells nothing ever explicitly writes to) - blank it again,
-  // the same reasoning ArrangementGrid::startSectionRename() already
-  // documents for its own single-column case.
-  setFgColor(0, 0, 0);
-  setBgColor(0, 0, 0);
-  putstr(physical_row, col_x, string(static_cast<size_t>(kColWidth), ' '));
+  InlineEditor::Field field;
+  field.row = physical_row;
+  field.col = col_x;
+  field.width = kColWidth;
+  field.initial_text = clips[static_cast<size_t>(clip_row)].getName();
+  inline_editor_.open(field, [this, track_id, clip_row](std::string text) {
+    auto & target_song = getController().getSong();
+    auto & target_clips = target_song.getClips(track_id);
+    if (static_cast<size_t>(clip_row) < target_clips.size()) {
+      target_clips[static_cast<size_t>(clip_row)].setName(std::move(text));
+      target_song.incVersion();
+    }
+  });
 }
 
 void
 SessionView::startTrackRename(const Song & song, const std::vector<int> & track_ids) {
-  if (getPlane().readerActive()) return;
+  if (inline_editor_.isOpen()) return;
   if (cursor_track_index_ < 0 || cursor_track_index_ >= static_cast<int>(track_ids.size())) return;
   auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
   auto * track = song.getMasterTrack().getChildByInternalId(track_id);
@@ -220,21 +205,18 @@ SessionView::startTrackRename(const Song & song, const std::vector<int> & track_
   auto edit_col = col_x + prefix_width;
   auto edit_width = std::max(name_area_width - prefix_width, 1);
 
-  renaming_track_id_ = track_id;
-
-  getPlane().showReader("", 0, edit_col, 1, edit_width, track->getName());
-
-  // Same reasoning startClipRename() documents above: showReader()'s own
-  // erase_region call erases the rest of this row across every later
-  // track's own header too, so a real render() pass repaints all of it,
-  // then this field's own span is blanked again on top (it would
-  // otherwise still show the track's current name straight through the
-  // reader's own untyped cells).
-  if (last_styles_) render(*last_styles_, true, current_focused_);
-
-  setFgColor(0, 0, 0);
-  setBgColor(0, 0, 0);
-  putstr(0, edit_col, string(static_cast<size_t>(edit_width), ' '));
+  InlineEditor::Field field;
+  field.row = 0;
+  field.col = edit_col;
+  field.width = edit_width;
+  field.initial_text = track->getName();
+  inline_editor_.open(field, [this, track_id](std::string text) {
+    auto & target_song = getController().getSong();
+    if (auto * target = target_song.getMasterTrack().getChildByInternalId(track_id)) {
+      target->setName(std::move(text));
+      target_song.incVersion();
+    }
+  });
 }
 
 bool
@@ -251,44 +233,8 @@ SessionView::offerInput(const InputEvent & input) {
   auto track_ids = song.getPlayableTrackIds();
   auto num_tracks = static_cast<int>(track_ids.size());
 
-  // Mirrors PatternEditor::offerInput()'s/ArrangementGrid::offerInput()'s
-  // own reader-active handling: while the clip-rename or track-rename
-  // editor (startClipRename()/startTrackRename()) is open, Enter commits
-  // and Ctrl-g cancels; everything else goes to the reader instead of any
-  // of this class's own keybinding dispatch/manual handling below.
-  if (getPlane().readerActive()) {
-    if (input.getId() == NCKEY_ENTER) {
-      auto text = getPlane().closeReader();
-      if (renaming_clip_row_ >= 0 && cursor_track_index_ >= 0 && cursor_track_index_ < num_tracks) {
-        auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
-        auto & mutable_song = getController().getSong(); // non-const - this branch genuinely writes, unlike the rest of this method (see `song`'s own comment above)
-        auto & clips = mutable_song.getClips(track_id);
-        if (static_cast<size_t>(renaming_clip_row_) < clips.size()) {
-          clips[static_cast<size_t>(renaming_clip_row_)].setName(std::move(text));
-          mutable_song.incVersion();
-        }
-      } else if (renaming_track_id_ >= 0) {
-        auto & mutable_song = getController().getSong(); // non-const, see above
-        auto * track = mutable_song.getMasterTrack().getChildByInternalId(renaming_track_id_);
-        if (track) {
-          track->setName(std::move(text));
-          mutable_song.incVersion();
-        }
-      }
-      renaming_clip_row_ = -1;
-      renaming_track_id_ = -1;
-      force_redraw_ = true;
-      return true;
-    } else if (input.hasCtrl() && input.getId() == 'g') {
-      getPlane().closeReader();
-      renaming_clip_row_ = -1;
-      renaming_track_id_ = -1;
-      force_redraw_ = true;
-      return true;
-    } else {
-      return getPlane().offerInput(input);
-    }
-  }
+  // While a rename editor is open it owns every key.
+  if (inline_editor_.offerInput(input)) return true;
 
   if (dispatchCommand(input)) return true;
   if (input.getKind() == InputEvent::Kind::RELEASE) return false;
@@ -361,7 +307,6 @@ SessionView::offerInput(const InputEvent & input) {
 
 bool
 SessionView::render(const StyleProvider & styles, bool refresh, bool focused) {
-  last_styles_ = &styles; // see startClipRename()'s own comment - its only source of one
   const Song & song = getController().getSong(); // see offerInput()'s own comment on why const
   auto track_ids = song.getPlayableTrackIds();
   auto num_tracks = static_cast<int>(track_ids.size());
@@ -387,14 +332,14 @@ SessionView::render(const StyleProvider & styles, bool refresh, bool focused) {
   // (the per-cell check below still resolves the real, current per-track
   // detail every time this does redraw).
   bool is_session_recording = getController().isAnySessionRecording();
-  if (!refresh && !force_redraw_ && new_version == current_song_version_ &&
+  bool editor_redraw = inline_editor_.consumeRedrawRequest();
+  if (!refresh && !editor_redraw && new_version == current_song_version_ &&
       cursor_track_index_ == current_cursor_track_index_ && cursor_row_ == current_cursor_row_ &&
       scroll_col_ == current_scroll_col_ && scroll_row_ == current_scroll_row_ &&
       focused == current_focused_ && focused_clip_id == current_focused_clip_id_ &&
       is_session_recording == current_session_recording_) {
     return false;
   }
-  force_redraw_ = false;
   current_focused_clip_id_ = focused_clip_id;
   current_session_recording_ = is_session_recording;
   current_song_version_ = new_version;
@@ -625,5 +570,6 @@ SessionView::render(const StyleProvider & styles, bool refresh, bool focused) {
     for (auto y = 1; y < rows; y++) putstr(y, x + kColWidth, "│");
   }
 
+  inline_editor_.paintBackdrop();
   return true;
 }

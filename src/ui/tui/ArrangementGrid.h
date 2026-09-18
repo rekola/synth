@@ -2,6 +2,7 @@
 #define _ARRANGEMENTGRID_H_
 
 #include "../UIElement.h"
+#include "InlineEditor.h"
 
 #include <functional>
 #include <vector>
@@ -73,6 +74,9 @@ class ArrangementGrid : public UIElement {
   // own local state to gate on that the way the cursor cell's is.
   bool render(const StyleProvider & styles, bool refresh, bool focused, int selected_track_id);
   bool offerInput(const InputEvent & input) override;
+  // See PatternEditor::isReaderActive()/cancelReaderEdit().
+  bool isReaderActive() const { return inline_editor_.isOpen(); }
+  void cancelReaderEdit() { inline_editor_.cancel(); }
 
   // Called (once, from UI::initialize()) with the (track_id, section_idx,
   // row) under the cursor whenever Enter commits it - row is the exact
@@ -168,14 +172,6 @@ class ArrangementGrid : public UIElement {
   int current_scroll_row_ = -1, current_scroll_col_ = -1;
   bool current_focused_ = false;
   int current_selected_track_id_ = -1;
-  // Set directly (not derivable from the dirty-check fields above) right
-  // after opening or closing the rename reader - neither touches
-  // Song::getMajorVersion() by itself (a cancel never touches the model
-  // at all, and a commit's own song.incVersion() only covers the success
-  // case), so without this the blanked/reader-covered title row could sit
-  // unrepainted until some unrelated redraw happens to fire.
-  bool force_redraw_ = false;
-
   // Moves the cursor by `delta` rows, flattened across the whole (real +
   // one virtual) section range via buildSectionFlatStarts() - crossing a
   // section boundary lands on the adjacent section's own title row or last
@@ -199,11 +195,10 @@ class ArrangementGrid : public UIElement {
   // (cursor_section_'s own flat position minus scroll_row_), so unlike
   // PatternEditor's own analogous editors (annotation/track-name) this
   // needs no separately cached screen coordinate from the last render()
-  // pass. Committing/canceling is handled inline in offerInput(), mirroring
-  // PatternEditor::offerInput()'s own reader-active handling.
+  // pass.
   void startSectionRename();
 
-  int renaming_section_idx_ = -1;
+  InlineEditor inline_editor_{getPlane()};
 
   std::function<void(int track_id, int section_idx, int row)> commit_callback_;
   std::function<void()> exit_right_callback_;

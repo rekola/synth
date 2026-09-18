@@ -235,6 +235,7 @@ add_executable(synth src/main.cpp
 	src/ui/tui/OutlineView.cpp
 	src/ui/tui/PatternEditor.cpp
 	src/ui/tui/ArrangementGrid.cpp
+	src/ui/tui/InlineEditor.cpp
 	src/ui/tui/SessionView.cpp
 	src/ui/tui/SubcellGlyphs.cpp
 )

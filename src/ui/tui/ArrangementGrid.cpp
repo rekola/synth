@@ -117,32 +117,8 @@ ArrangementGrid::ensureCursorVisible(const Song & song, int visible_rows, int vi
 
 bool
 ArrangementGrid::offerInput(const InputEvent & input) {
-  // Mirrors PatternEditor::offerInput()'s own reader-active handling:
-  // while the section-name editor (startSectionRename()) is open, Enter
-  // commits and Ctrl-g cancels; everything else goes to the reader
-  // instead of any of this class's own keybinding dispatch/manual
-  // handling below.
-  if (getPlane().readerActive()) {
-    if (input.getId() == NCKEY_ENTER) {
-      auto text = getPlane().closeReader();
-      if (renaming_section_idx_ >= 0) {
-        auto & song = getController().getSong();
-        auto & section = song.getOrCreateSection(renaming_section_idx_);
-        section.setName(std::move(text));
-        song.incVersion();
-      }
-      renaming_section_idx_ = -1;
-      force_redraw_ = true;
-      return true;
-    } else if (input.hasCtrl() && input.getId() == 'g') {
-      getPlane().closeReader();
-      renaming_section_idx_ = -1;
-      force_redraw_ = true;
-      return true;
-    } else {
-      return getPlane().offerInput(input);
-    }
-  }
+  // While the section-name editor is open it owns every key.
+  if (inline_editor_.offerInput(input)) return true;
 
   if (dispatchCommand(input)) return true;
   if (input.getKind() == InputEvent::Kind::RELEASE) return false;
@@ -293,7 +269,7 @@ ArrangementGrid::offerInput(const InputEvent & input) {
 
 void
 ArrangementGrid::startSectionRename() {
-  if (getPlane().readerActive()) return;
+  if (inline_editor_.isOpen()) return;
 
   auto & song = getController().getSong();
   // Section i's own title row is exactly starts[i] - no multiplication
@@ -303,18 +279,17 @@ ArrangementGrid::startSectionRename() {
   auto [ rows, cols ] = getDim();
   if (row < 0 || row >= rows) return; // off-screen - shouldn't happen given ensureCursorVisible(), a cosmetic nuisance if it ever does
 
-  renaming_section_idx_ = cursor_section_;
-
-  // Blanks the target row first - the reader plane's own base cell
-  // (TerminalUI::showReader()'s ncplane_set_base(..., "", ...)) doesn't
-  // paint over cells nothing ever explicitly writes to, so without this a
-  // shorter new name than the old one would leave stale characters
-  // peeking out past the reader's own text.
-  setFgColor(0, 0, 0);
-  setBgColor(0, 0, 0);
-  putstr(row, 0, string(static_cast<size_t>(cols), ' '));
-
-  getPlane().showReader("", row, 0, 1, cols, song.getSection(cursor_section_).getName());
+  InlineEditor::Field field;
+  field.row = row;
+  field.col = 0;
+  field.width = cols;
+  field.initial_text = song.getSection(cursor_section_).getName();
+  auto section_idx = cursor_section_;
+  inline_editor_.open(field, [this, section_idx](std::string text) {
+    auto & target_song = getController().getSong();
+    target_song.getOrCreateSection(section_idx).setName(std::move(text));
+    target_song.incVersion();
+  });
 }
 
 namespace {
@@ -406,8 +381,9 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   }
 
   auto new_version = song.getMajorVersion();
+  bool editor_redraw = inline_editor_.consumeRedrawRequest();
 
-  if (!refresh && !force_redraw_ && new_version == current_song_version_ && playing_section == current_playing_section_ &&
+  if (!refresh && !editor_redraw && new_version == current_song_version_ && playing_section == current_playing_section_ &&
       playing_row == current_playing_row_ &&
       cursor_section_ == current_cursor_section_ && cursor_bar_ == current_cursor_bar_ &&
       cursor_track_index_ == current_cursor_track_index_ &&
@@ -415,7 +391,6 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
       focused == current_focused_ && selected_track_id == current_selected_track_id_) {
     return false;
   }
-  force_redraw_ = false;
   current_song_version_ = new_version;
   current_playing_section_ = playing_section;
   current_playing_row_ = playing_row;
@@ -641,5 +616,6 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
     }
   }
 
+  inline_editor_.paintBackdrop();
   return true;
 }

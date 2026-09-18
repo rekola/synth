@@ -776,19 +776,12 @@ PatternEditor::setCursorTrack(int track_index) {
 
 void
 PatternEditor::cancelReaderEdit() {
-  if (!getPlane().readerActive()) return;
-  getPlane().closeReader();
-  annotation_edit_pattern_ = annotation_edit_row_ = -1;
-  track_name_edit_track_id_ = -1;
-  // Canceling never touches the model at all, so nothing else would ever
-  // tell render() to repaint the cell this blanked - see force_redraw_'s
-  // own comment.
-  force_redraw_ = true;
+  inline_editor_.cancel();
 }
 
 void
 PatternEditor::startAnnotationEdit() {
-  if (getPlane().readerActive()) return;
+  if (inline_editor_.isOpen()) return;
 
   auto & song = getController().getSong();
   auto & info = getController().getPlaybackInfo();
@@ -800,9 +793,6 @@ PatternEditor::startAnnotationEdit() {
   // GridPosition::scope's own "single source of truth" point.
   new_cursor.scope = current_cursor.scope = SelectionScope::ANNOTATION;
 
-  annotation_edit_pattern_ = info.getPatternIndex();
-  annotation_edit_row_ = info.getRowIndex();
-
   auto cols = getDim().second;
   // Fall back to the top-left corner if this is somehow reached before
   // renderRow() has ever cached a real position (there's always at least
@@ -812,22 +802,22 @@ PatternEditor::startAnnotationEdit() {
   auto col = annotation_screen_col_ >= 0 ? annotation_screen_col_ : 0;
   auto width = max(cols - col, 1);
 
-  // Blank the target region on this plane first - the reader plane's own
-  // base cell (showReader()'s ncplane_set_base(..., "", ...)) doesn't
-  // paint over cells nothing ever explicitly writes to, so without this,
-  // stale content already sitting there (renderRow()'s own "(annotation)"
-  // placeholder, or a longer previous annotation than whatever gets typed
-  // this time) can keep peeking out past the reader's own text.
-  setFgColor(0, 0, 0);
-  setBgColor(0, 0, 0);
-  putstr(row, col, string(static_cast<size_t>(width), ' '));
-
-  getPlane().showReader("", row, col, 1, width, section.getAnnotation(annotation_edit_row_));
+  InlineEditor::Field field;
+  field.row = row;
+  field.col = col;
+  field.width = width;
+  field.initial_text = section.getAnnotation(info.getRowIndex());
+  auto pattern_idx = info.getPatternIndex(), pattern_row = info.getRowIndex();
+  inline_editor_.open(field, [this, pattern_idx, pattern_row](std::string text) {
+    auto & target_song = getController().getSong();
+    target_song.getOrCreateSection(pattern_idx).setAnnotation(pattern_row, std::move(text));
+    target_song.incVersion();
+  });
 }
 
 void
 PatternEditor::startTrackNameEdit() {
-  if (getPlane().readerActive()) return;
+  if (inline_editor_.isOpen()) return;
 
   auto & song = getController().getSong();
   auto track_ids = song.getRootTrackIds();
@@ -879,8 +869,6 @@ PatternEditor::startTrackNameEdit() {
   // renderHeading()'s own caching comment.
   if (track_name_screen_col_ < 0 || track_name_screen_width_ <= 0) return;
 
-  track_name_edit_track_id_ = track_id;
-
   // A color-eligible track's own title bar is always level 0 (its box
   // never merges into a taller ancestor row - see renderHeading()'s own
   // per-level loop), so the row is deterministic from the tree's depth
@@ -899,54 +887,24 @@ PatternEditor::startTrackNameEdit() {
   auto edit_col = col + prefix_width;
   auto edit_width = std::max(width - prefix_width, 1);
 
-  // White, not the reader's own default pink - pink reads poorly against
-  // this field's own darkened-track-color backdrop (painted below),
-  // unlike every other reader in this app (annotation editing, M-x),
-  // which all sit over the plain window background pink was chosen to
-  // read well against in the first place.
-  getPlane().showReader("", row, edit_col, 1, edit_width, track->getName(), 0xff, 0xff, 0xff);
-
-  // TerminalUI::showReader()'s own ncplane_erase_region() call erases
-  // from edit_col all the way to the *plane's* right edge, not just this
-  // field's own edit_width - fine for startAnnotationEdit() (nothing
-  // else sits past the annotation slot at the far right), but this field
-  // sits in the middle of the heading row: Mute/Solo glyphs, dividers,
-  // and every later track's own heading still follow it, and all of that
-  // just got wiped. A real renderHeading() pass repaints all of it (the
-  // "T<N> " prefix included, in its normal, un-darkened color) - safe to
-  // call directly here since the reader's own child plane, stacked on
-  // top of just its own [edit_col, edit_col + edit_width) footprint, is
-  // unaffected by whatever the parent plane underneath it gets redrawn
-  // to. last_styles_ is always set by now in practice (render() always
-  // runs at least once before any input reaches here) - skipped rather
-  // than crashing on the off chance it isn't; the row would just stay
-  // blank until the next real redraw, a cosmetic nuisance and not a
-  // correctness problem, the same tradeoff startAnnotationEdit() already
-  // makes for its own row/col fallback above.
-  if (last_styles_) {
-    auto all_track_info = getTrackInformation(song, current_scroll_.row);
-    renderHeading(*last_styles_, track_ids, all_track_info, current_focused_);
-  }
-
-  // The reader's own cells (TerminalUI::showReader()'s ncreader_options::
-  // tchannels/ncplane_set_base()) are background-alpha-transparent even
-  // where a glyph's actually been typed, so whatever color the parent
-  // plane shows underneath - painted here, after renderHeading() above
-  // so it isn't immediately overwritten by that call's own normal-
-  // colored redraw - shows straight through as the field's own backdrop.
-  // This track's own heading color (renderHeading()'s segment_color(),
-  // un-brightened base - see track_base_color() there), only barely
-  // darkened (unlike toggle_color()'s own much heavier 0.4 darkening for
-  // a heading control - a field the artist is actively looking at and
-  // typing into shouldn't be dimmed anywhere near as far as an idle
-  // control) so the field reads as "this track, now being edited"
-  // rather than the reader's usual plain pink-on-black - restricted to
-  // just the editable span, unlike the "T<N> " prefix right before it,
-  // which stays whatever color renderHeading() just drew it in.
-  auto bg = track_info.getColor().blend(0.05f, Color(0, 0, 0));
-  setFgColor(0xff, 0xff, 0xff);
-  setBgColor(bg);
-  putstr(row, edit_col, string(static_cast<size_t>(edit_width), ' '));
+  // The editable span only (not the "T<N> " prefix) gets a barely
+  // darkened track color as its backdrop, so it reads as "this track, now
+  // being edited". White text, since the reader's default pink reads
+  // poorly against it.
+  InlineEditor::Field field;
+  field.row = row;
+  field.col = edit_col;
+  field.width = edit_width;
+  field.initial_text = track->getName();
+  field.text_color = Color(0xff, 0xff, 0xff);
+  field.backdrop = track_info.getColor().blend(0.05f, Color(0, 0, 0));
+  inline_editor_.open(field, [this, track_id](std::string text) {
+    auto & target_song = getController().getSong();
+    if (auto target = target_song.getMasterTrack().getChildByInternalId(track_id)) {
+      target->setName(std::move(text));
+      target_song.incVersion();
+    }
+  });
 }
 
 void
@@ -1130,6 +1088,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   // after current_cursor is updated above, so it reflects where the cursor
   // just moved *to* this frame, not where it was before.
   auto sel_bounds = getEffectiveSelectionBounds(song, track_ids);
+  bool editor_redraw = inline_editor_.consumeRedrawRequest();
 
   // sel_bounds already reflects every piece of state that can change the
   // effective selection (mark set/cleared/moved, point moved, playhead
@@ -1143,7 +1102,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
       new_scroll != current_scroll_ ||
       sel_bounds != current_sel_bounds_ ||
       focused != current_focused_ ||
-      force_redraw_ ||
+      editor_redraw ||
       // A short Pattern repeats (Pattern::getEffectiveRow()), so an edit
       // can be visible at other screen rows too, not just the cursor's -
       // the single-row repaint below can't know which, so fall back to a
@@ -1151,7 +1110,6 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
       row_edited
       ) {
     render_all = true;
-    force_redraw_ = false;
   }
 
   bool need_redraw = false;
@@ -1206,7 +1164,10 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
 
   current_sel_bounds_ = sel_bounds;
   current_focused_ = focused;
-  
+
+  // Row/heading repaints above may have drawn over the open editor's field.
+  inline_editor_.paintBackdrop();
+
   return need_redraw;
 }
 
@@ -1336,11 +1297,8 @@ PatternEditor::saveEditingState(const string & name) {
   state.current_sel_bounds = current_sel_bounds_;
   state.annotation_screen_row = annotation_screen_row_;
   state.annotation_screen_col = annotation_screen_col_;
-  state.annotation_edit_row = annotation_edit_row_;
-  state.annotation_edit_pattern = annotation_edit_pattern_;
   state.track_name_screen_col = track_name_screen_col_;
   state.track_name_screen_width = track_name_screen_width_;
-  state.track_name_edit_track_id = track_name_edit_track_id_;
 }
 
 void
@@ -1366,11 +1324,8 @@ PatternEditor::loadEditingState(const string & name) {
   current_sel_bounds_ = state.current_sel_bounds;
   annotation_screen_row_ = state.annotation_screen_row;
   annotation_screen_col_ = state.annotation_screen_col;
-  annotation_edit_row_ = state.annotation_edit_row;
-  annotation_edit_pattern_ = state.annotation_edit_pattern;
   track_name_screen_col_ = state.track_name_screen_col;
   track_name_screen_width_ = state.track_name_screen_width;
-  track_name_edit_track_id_ = state.track_name_edit_track_id;
   setSelectionActive(state.selection_active); // also mirrors into Controller::pattern_selection_active_
 }
 
@@ -1408,49 +1363,8 @@ PatternEditor::handleBufferChanged() {
 
 bool
 PatternEditor::offerInput(const InputEvent & input) {
-  // Mirrors StatusLine::offerInput()'s own reader-active handling exactly
-  // (see its comment) - while the annotation editor (startAnnotationEdit())
-  // or the track-name editor (startTrackNameEdit()) is open, Enter commits
-  // and Ctrl-g cancels; everything else (including arrow keys, which would
-  // otherwise move the pattern cursor) goes to the reader instead of any
-  // of this class's own keybinding dispatch/manual handling below.
-  if (getPlane().readerActive()) {
-    if (input.getId() == NCKEY_ENTER) {
-      auto text = getPlane().closeReader();
-      if (annotation_edit_pattern_ >= 0) {
-	auto & song = getController().getSong();
-	// Commits the annotation - writes - see Song::getOrCreateSection()'s
-	// own comment.
-	auto & section = song.getOrCreateSection(annotation_edit_pattern_);
-	section.setAnnotation(annotation_edit_row_, std::move(text));
-	song.incVersion();
-      } else if (track_name_edit_track_id_ >= 0) {
-	auto & song = getController().getSong();
-	auto track = song.getMasterTrack().getChildByInternalId(track_name_edit_track_id_);
-	if (track) {
-	  track->setName(std::move(text));
-	  song.incVersion();
-	}
-      }
-      annotation_edit_pattern_ = annotation_edit_row_ = -1;
-      track_name_edit_track_id_ = -1;
-      // Both branches above blanked their own target cells directly
-      // before the reader ever opened (see startAnnotationEdit()'s/
-      // startTrackNameEdit()'s own comments) - incVersion() already
-      // covers the successful-commit case by itself (it changes
-      // song.getMajorVersion(), one of render()'s own render_all
-      // triggers), but a resolved-to-nothing track (deleted mid-edit)
-      // skips that, so force it here too rather than leaving the blanked
-      // cell on screen until some unrelated redraw happens to fire.
-      force_redraw_ = true;
-      return true;
-    } else if (input.hasCtrl() && input.getId() == 'g') {
-      cancelReaderEdit();
-      return true;
-    } else {
-      return getPlane().offerInput(input);
-    }
-  }
+  // While the annotation or track-name editor is open it owns every key.
+  if (inline_editor_.offerInput(input)) return true;
 
   // Cursor parked on the annotation slot (Right arrow past the last
   // track's last column - see GridPosition::scope's own comment) but not
