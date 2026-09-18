@@ -37,10 +37,7 @@ TEST(visualization_thread_audio_block_event_produces_fft_result) {
   AudioBlockEvent ev(std::move(master), std::move(raw_bus), AudioBuffer(), AudioBuffer());
   thread.handleAudioBlockEvent(ev);
 
-  // EventQueue::hasEvents() only reflects bytes already read off the
-  // wakeup socket (inside pop()'s own loop) - it can't see a just-pushed
-  // event until something has actually popped at least once, so pop()
-  // directly rather than checking hasEvents() first.
+  CHECK(controller.getUIEventQueue().hasEvents());
   auto result_event = controller.getUIEventQueue().pop();
   auto * result = dynamic_cast<VisualizationResultEvent *>(result_event.get());
   CHECK(result != nullptr);

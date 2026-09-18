@@ -395,12 +395,8 @@ TEST(focus_change_silences_the_previous_focused_tracks_preview) {
   CHECK(controller.getFocusedClip() == "clip-a");
 
   controller.setFocusedClip(7, "clip-b"); // a different track's clip
-  // Not a queue.hasEvents() check here first - EventQueue only updates
-  // its own pending count inside pop()'s own read(), so hasEvents() reads
-  // as false for anything pushed before the first pop() ever happens;
-  // pop() itself is what's actually safe to call directly (the write
-  // already landed on the underlying socket, so it returns immediately
-  // rather than genuinely blocking). Held in its own unique_ptr, not
+  CHECK(queue.hasEvents());
+  // Held in its own unique_ptr, not
   // chained straight into dynamic_cast(...pop().get()) - pop()'s own
   // return value is a temporary that would otherwise be destroyed (along
   // with the Event it owns) at the end of that one statement, leaving the
@@ -410,7 +406,7 @@ TEST(focus_change_silences_the_previous_focused_tracks_preview) {
   CHECK(ev1 != nullptr);
   CHECK(ev1->getType() == PlaybackControlEvent::STOP_ALL_NOTES);
   CHECK(ev1->getParameter1() == 3); // the *previous* focus's own track, not the new one
-  CHECK(!queue.hasEvents()); // exactly one event, no more - now reliable, after the pop() above
+  CHECK(!queue.hasEvents()); // exactly one event, no more
   CHECK(controller.getFocusedClipTrackId() == 7);
   CHECK(controller.getFocusedClip() == "clip-b");
 
