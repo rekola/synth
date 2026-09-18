@@ -591,9 +591,19 @@ whether or not a terminal UI exists at all.
   free-running clock (`audition_clock_`) the drum step-grid's own
   auditioning already used, generalized (`LaunchpadManager::
   triggerClipStep()`/`fireClipStep()`) from one drum kit's steps to any
-  track's own clip. Launches and stops are quantized to a shared bar-
-  length grid boundary every track measures against alike
-  (`session_origin_step_`/`rows_per_bar`) - explicitly never the
+  track's own clip. That clock only ever stops while playing or armed
+  (`refresh()`'s own comment) - merely idle with nothing triggered, it
+  free-runs regardless - so a genuine launch from silence (nothing
+  anywhere already triggered or queued) restarts it outright
+  (`LaunchpadManager::restartAuditionClockFromSilence()`) rather than
+  trusting whatever phase it already happened to be at: without this, the
+  immediately-fired first note still landed right on the press, but the
+  second note - the clock's own next tick - fired whenever its stale,
+  unrelated phase next happened to cross a row boundary, anywhere from
+  right away to almost a full row late, before settling into the correct,
+  evenly-spaced tempo from the third note on. Launches and stops are
+  quantized to a shared bar-length grid boundary every track measures
+  against alike (`session_origin_step_`/`rows_per_bar`) - explicitly never the
   triggered clip's own loop length (that only decides where *it* loops,
   not when a pending change is allowed to interrupt it) and never
   immediate (`triggered_pattern_by_track_`/`queued_pattern_by_track_`,
@@ -739,9 +749,15 @@ whether or not a terminal UI exists at all.
   mixer-submode toggle (a second CC95 press) and its green/orange LED,
   since CC39 means nothing at all until that submode is on; Solo's own
   CC29 purpose reuses the identical mechanism but has no dedicated e2e
-  script of its own yet, nor does the scene-launch action the same eight
-  buttons perform while mixer submode is off
-  (`LaunchpadManager::triggerSceneRow()`). `verify_launchpad_mixer_hold.py`
+  script of its own yet. `verify_launchpad_scene_row.py` covers the
+  scene-launch action the same eight buttons perform while mixer submode
+  is off (`LaunchpadManager::triggerSceneRow()`, row = (cc_number - 19) /
+  10) - every track's own clip at that row launches together off a single
+  press, not just the first track in `session_.track_ids` (`triggerSessionClip()`'s
+  own `shared_launch_step` parameter is what makes this atomic across the
+  whole row rather than a per-track decision); real LED verification hits
+  the same real-audition-path stall as `verify_launchpad_stopclip.py`
+  above (`docs/known_bugs.md`). `verify_launchpad_mixer_hold.py`
   covers the same eight buttons' own momentary hold-to-preview gesture
   (`armMixerHoldPreview()`/`handleMixerFunctionRelease()`) - a quick tap
   stays (sticky), a real hold reverts to whatever was showing before it

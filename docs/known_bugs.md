@@ -273,6 +273,24 @@ Found 2026-07-11, not yet fixed.
   run isn't mistaken for a regression if this reproduces there too, and
   so this script isn't blamed for a failure that reproduces on main.
 
+  `tools/e2e/verify_launchpad_scene_row.py` (new, covering
+  `LaunchpadManager::triggerSceneRow()`'s right-column scene launch, CC19
+  with mixer submode off) hits the identical real-audition-path stall
+  documented above for `verify_launchpad_stopclip.py`: the fake device's
+  own SysEx traffic goes silent after the initial startup LED dump, and
+  never shows either track's own pad transitioning to
+  `SessionPadHighlight::PLAYING`, reproducing identically across repeated
+  runs. Since the LED path can't verify the underlying fix here, it was
+  instead confirmed directly via temporary in-process debug logging
+  (since removed) printing `triggered_pattern_by_track_`'s own contents
+  right after `triggerSceneRow()`'s per-track loop: a single CC19 press on
+  the two-track fixture left both tracks' own entries in that map (size
+  2), not just the first track's - had the fix not been applied, the
+  second track would have gone through the "queue" branch instead, since
+  its own call would have seen the first track's own just-added entry and
+  concluded something was already playing; the map would have held just
+  the one, first-track entry, not both, in that case.
+
 - **`tools/e2e/verify_launchpad_sendmode.py`'s own row-math predates the
   current dB-based Send fader curve** (`sendRowToDb()`/`sendLinearToRow()`
   in `LaunchpadManager.cpp`), not anything touched by the velocity-scaled

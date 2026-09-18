@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Purpose-built for verify_launchpad_scene_row.py: two tracks, each with
+     a real clip at Session-view index 7 (column 0 and column 1 - pad
+     (0,0)/(1,0), y=0 being the *bottom* row of the 8-row grid, so the
+     right-column scene-row convention (row = (cc_number - 19) / 10, CC19
+     itself row 0) addresses index 7 - LaunchpadManager::triggerSceneRow()'s
+     own y-flip comment). Both clips loop, so a real regression (only the
+     first track's own column launching, the rest silently queuing instead
+     of joining it) stays visible for as long as the check needs. -->
+<song temperament="12edo" tempo="120" patternRows="16">
+  <instruments>
+    <instrument from="string.bowed.ensemble.pizzicato" />
+  </instruments>
+  <tracks>
+    <track id="0" instrument="0" />
+    <track id="1" instrument="0" />
+  </tracks>
+  <clips>
+    <trackClips track="0">
+      <clip name="p0" />
+      <clip name="p1" />
+      <clip name="p2" />
+      <clip name="p3" />
+      <clip name="p4" />
+      <clip name="p5" />
+      <clip name="p6" />
+      <clip name="target0" length="8">
+        <pattern>
+          <note row="0" velocity="80" value="C-4" />
+        </pattern>
+      </clip>
+    </trackClips>
+    <trackClips track="1">
+      <clip name="q0" />
+      <clip name="q1" />
+      <clip name="q2" />
+      <clip name="q3" />
+      <clip name="q4" />
+      <clip name="q5" />
+      <clip name="q6" />
+      <clip name="target1" length="8">
+        <pattern>
+          <note row="0" velocity="80" value="E-4" />
+        </pattern>
+      </clip>
+    </trackClips>
+  </clips>
+  <sections>
+    <section>
+    </section>
+  </sections>
+</song>

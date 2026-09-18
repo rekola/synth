@@ -10,6 +10,7 @@
 #include <chrono>
 #include <functional>
 #include <map>
+#include <optional>
 #include <set>
 #include <string_view>
 #include <unordered_map>
@@ -503,7 +504,23 @@ class LaunchpadManager {
   // already flipped from pad-y-coordinate space by callers that have one;
   // out of range means an empty slot, the same as `!has_pattern_here`
   // meant before this was pulled out.
-  void triggerSessionClip(Controller & controller, int track_id, int clip_index);
+  //
+  // `shared_launch_step` is triggerSceneRow()'s own way of resolving the
+  // whole row's "launch immediately vs. queue against what's already
+  // playing" decision exactly once, for every track in the row together,
+  // rather than once per call: an ordinary single-pad press (this
+  // parameter left at its default, std::nullopt) computes its own
+  // "is anything already triggered/queued anywhere" answer fresh each
+  // time it's called - correct for one press, but wrong for a whole row
+  // fired in a tight loop, where the *first* track's own call would
+  // already have populated triggered_pattern_by_track_ by the time the
+  // *second* track's call goes to ask the same question, making every
+  // track but the first see something "already playing" and queue
+  // instead of launching. Providing a value here skips that per-call
+  // recomputation entirely - both the auditioning and armed-recording
+  // branches treat it as "nothing pending, launch right now" and use the
+  // given step as their own launch_step, unconditionally.
+  void triggerSessionClip(Controller & controller, int track_id, int clip_index, std::optional<int> shared_launch_step = std::nullopt);
 
   // Device-wide aftertouch (the alternative to handlePadEvent's per-pad
   // AFTERTOUCH case - see LaunchpadChannelPressureEvent) - there's no
@@ -1244,6 +1261,28 @@ class LaunchpadManager {
   // triggerAuditionStep() above, called from the same two places in
   // refresh() for the same reason.
   void triggerClipStep(const Song & song, Controller & controller, int step);
+
+  // A genuine launch from silence (nothing anywhere already triggered or
+  // queued) needs more than just "launch_step = 0" - audition_clock_ itself
+  // (refresh()'s own comment) only ever stops while playing or armed, so
+  // while merely idle it free-runs continuously whether or not anything is
+  // actually attached to it, and its own phase() has nothing to do with
+  // this press. Without restarting it here, the immediately-fired first
+  // note (fireOrTriggerClipStep(..., 0), called separately by the caller)
+  // still lands right on press, but the *second* note - the free-running
+  // clock's own next tick - fires whenever that stale, unrelated phase
+  // next happens to cross a row boundary, anywhere from right away to
+  // almost a full row late; every note after that is then evenly spaced
+  // again, since nothing perturbs the clock further once it's ticking.
+  // Restarting here re-anchors phase 0 to this exact press, so the second
+  // note lands a full, correct row later - always 0, the same as
+  // StepClock::start()'s own contract, returned for convenience so a call
+  // site can use it directly as its launch_step.
+  int restartAuditionClockFromSilence() {
+    audition_clock_.start();
+    audition_clock_last_refresh_ = std::chrono::steady_clock::now();
+    return 0;
+  }
 
   // Writes an explicit stop instance (ArrangementOps.h's
   // placeStopInstance()) for `track_id` at the live playhead's own

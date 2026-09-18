@@ -42,6 +42,7 @@ gcc -o fake_launchpad_shift_stepgrid fake_launchpad_shift_stepgrid.c -lasound
 gcc -o fake_launchpad_shift_highlight fake_launchpad_shift_highlight.c -lasound
 gcc -o fake_launchpad_aftertouch_clip fake_launchpad_aftertouch_clip.c -lasound
 gcc -o fake_launchpad_mixer_hold fake_launchpad_mixer_hold.c -lasound
+gcc -o fake_launchpad_scene_row fake_launchpad_scene_row.c -lasound
 ```
 
 (the compiled binaries are gitignored - only the `.c` sources are
@@ -384,6 +385,15 @@ you're changing.
   involved). Same known, pre-existing environment limitation as
   `verify_launchpad_stopclip.py` above (it also presses CC95 a second
   time to enter mixer submode) - see `docs/known_bugs.md`.
+- **`launchpad_scene_row_test.xml` / `fake_launchpad_scene_row.c` /
+  `verify_launchpad_scene_row.py`** - `LaunchpadManager::triggerSceneRow()`'s
+  right-column scene launch (CC19, mixer submode off): a two-track fixture
+  with a real clip at Session index 7 on each track, pressed with a single
+  CC19 press+release, expects both tracks' own pads to launch together
+  rather than only the first. Takes the real audition/playback path (an
+  actual note starts rendering) - the same known, pre-existing environment
+  limitation as `verify_launchpad_stopclip.py` above, so its own LED
+  checks fail here reliably - see `docs/known_bugs.md`.
 - **`cross_tuning_paste_test.xml` (+ companion `..._song_b.xml`) /
   `verify_patterneditor_cross_tuning_paste.py`** - a `Note::getValue()`
   means a different kind of value under a different tuning (GM percussion

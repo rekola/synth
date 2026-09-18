@@ -1937,7 +1937,7 @@ LaunchpadManager::stopSessionTrack(Controller & controller, int track_id) {
 }
 
 void
-LaunchpadManager::triggerSessionClip(Controller & controller, int track_id, int clip_index) {
+LaunchpadManager::triggerSessionClip(Controller & controller, int track_id, int clip_index, std::optional<int> shared_launch_step) {
   auto & song = controller.getSong();
   auto & clips = song.getClips(track_id);
   // Content-aware, not just in-bounds - holes are allowed (Song::
@@ -2001,9 +2001,16 @@ LaunchpadManager::triggerSessionClip(Controller & controller, int track_id, int 
     // become the new shared origin, otherwise queue against the existing
     // one" rule the plain audition branch below already uses - a recording
     // start is exactly as live an event as a plain launch/swap/stop.
-    bool nothing_pending = triggered_pattern_by_track_.empty() && queued_pattern_by_track_.empty() && queued_recording_by_track_.empty();
+    // shared_launch_step's own presence overrides this check outright -
+    // see this method's own doc comment for why a scene launch needs to.
+    bool nothing_pending = shared_launch_step.has_value() ||
+      (triggered_pattern_by_track_.empty() && queued_pattern_by_track_.empty() && queued_recording_by_track_.empty());
     if (nothing_pending) {
-      auto launch_step = audition_clock_.isRunning() ? audition_clock_.currentStep() : 0;
+      // restartAuditionClockFromSilence() only when this call is the one
+      // actually establishing nothing_pending, not a scene launch's own
+      // later per-track calls (shared_launch_step already set) - see its
+      // own doc comment for why a genuine launch from silence needs it.
+      auto launch_step = shared_launch_step ? *shared_launch_step : restartAuditionClockFromSilence();
       session_origin_step_ = launch_step;
       session_origin_set_ = true;
       if (has_pattern_here) {
@@ -2070,19 +2077,22 @@ LaunchpadManager::triggerSessionClip(Controller & controller, int track_id, int 
     // triggerClipStep()'s own comment). Once anything anywhere
     // is active, every further join/swap queues instead, uniformly,
     // regardless of whether this specific track already had something
-    // playing.
-    if (triggered_pattern_by_track_.empty() && queued_pattern_by_track_.empty()) {
-      // launch_step pins the clock's current step as this instance's own
-      // zero point, so it always starts at its own row 0 (relative step
-      // 0) rather than wherever the shared clock's own phase happens to
-      // be right now. While the clock isn't currently running (e.g. the
-      // transport is playing even though Record Arm is off), currentStep()
-      // can be a stale leftover from a previous run rather than 0 -
-      // stop() never resets it, only start() does (see StepClock's own
-      // contract) - so pin 0 directly instead, anticipating the step
-      // start() itself will actually (re)fire from whenever this track's
-      // pattern next ticks.
-      auto launch_step = audition_clock_.isRunning() ? audition_clock_.currentStep() : 0;
+    // playing. shared_launch_step's own presence overrides this check
+    // outright - see this method's own doc comment for why a scene
+    // launch needs to (triggerSceneRow() already established there's
+    // nothing pending anywhere before calling this once per track, and
+    // without this override every track past the first in the row would
+    // see the first track's own just-added triggered_pattern_by_track_
+    // entry and wrongly conclude it needs to queue instead of launch).
+    if (shared_launch_step.has_value() || (triggered_pattern_by_track_.empty() && queued_pattern_by_track_.empty())) {
+      // launch_step pins this instance's own zero point, so it always
+      // starts at its own row 0 (relative step 0) - restartAuditionClock
+      // FromSilence() below is what actually makes that 0 mean something
+      // real rather than wherever the clock's own free-running phase
+      // happened to be; shared_launch_step's own presence means a scene
+      // launch's earlier per-track call already did this once for the
+      // whole row (see this method's own doc comment).
+      auto launch_step = shared_launch_step ? *shared_launch_step : restartAuditionClockFromSilence();
       triggered_pattern_by_track_[track_id] = {clip_index, launch_step};
       session_origin_step_ = launch_step;
       session_origin_set_ = true;
@@ -2164,7 +2174,19 @@ LaunchpadManager::triggerSceneRow(Controller & controller, int row) {
   // own caller in handleSessionPadEvent()) - row 0 (bottom) is clip index
   // 7, row 7 (top) is clip index 0.
   auto clip_index = 7 - row;
-  for (auto track_id : session_.track_ids) triggerSessionClip(controller, track_id, clip_index);
+
+  // Resolved once for the whole row, not once per track inside
+  // triggerSessionClip()'s own call - see its own shared_launch_step doc
+  // comment for why: without this, only the first track in the loop
+  // below would ever see triggered_pattern_by_track_/queued_pattern_by_
+  // track_/queued_recording_by_track_ genuinely empty (its own call
+  // populates one of them immediately), so every other track in the same
+  // scene would wrongly queue instead of launching together with it.
+  bool nothing_pending = triggered_pattern_by_track_.empty() && queued_pattern_by_track_.empty() && queued_recording_by_track_.empty();
+  std::optional<int> shared_launch_step;
+  if (nothing_pending) shared_launch_step = restartAuditionClockFromSilence();
+
+  for (auto track_id : session_.track_ids) triggerSessionClip(controller, track_id, clip_index, shared_launch_step);
 }
 
 void
@@ -3125,7 +3147,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     auto & clips = song.getClips(completed->track_id);
     if (completed->clip_index >= 0 && completed->clip_index < static_cast<int>(clips.size())) {
       if (triggered_pattern_by_track_.empty() && queued_pattern_by_track_.empty()) {
-        auto launch_step = audition_clock_.isRunning() ? audition_clock_.currentStep() : 0;
+        auto launch_step = restartAuditionClockFromSilence();
         triggered_pattern_by_track_[completed->track_id] = {completed->clip_index, launch_step};
         session_origin_step_ = launch_step;
         session_origin_set_ = true;
