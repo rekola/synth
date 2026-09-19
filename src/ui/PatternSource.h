@@ -5,6 +5,7 @@
 #include "../model/VisibleTrackInfo.h"
 
 #include <memory>
+#include <optional>
 #include <unordered_map>
 
 class PatternGrid;
@@ -67,6 +68,19 @@ class PatternSource {
   virtual bool stopInstance(int track_id, RowAddress address) = 0;
   // Audio a sample track plays at `block` with no clip placed.
   virtual const SampleContent * sampleBackground(int track_id, int block) const = 0;
+
+  // The row `track_id` is playing in `block`, when that differs per track
+  // (clips launched independently); nullopt otherwise.
+  virtual std::optional<int> playheadRow(int track_id, int block) const = 0;
+
+  // Whether a cell whose notes come from a clip (ReadTarget::is_instance)
+  // is drawn tinted, marking that they don't live where they're shown.
+  virtual bool showsClipIndirection() const = 0;
+  virtual bool hasAnnotations() const = 0;
+  // Whether the cursor row is the transport's position: it follows
+  // playback, can't be moved while playing, and live recording writes
+  // there.
+  virtual bool cursorFollowsTransport() const = 0;
 };
 
 #endif

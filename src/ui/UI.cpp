@@ -118,6 +118,12 @@ UI::initializeCommands() {
   commands_.define("merge-clip-to-background", [this]() { getController().sendCommand("merge-clip-to-background"); });
   commands_.define("toggle-record-arm", [this]() { getController().sendCommand("toggle-record-arm"); });
 
+  // Clip menu entries not built yet - say so rather than failing as an
+  // unknown command.
+  for (auto name : { "duplicate-clip", "double-clip-length", "halve-clip-length", "toggle-clip-loop", "rename-clip" }) {
+    commands_.define(name, [this, name]() { setStatus(std::string(name) + ": not implemented yet"); });
+  }
+
   // Track commands act on Song::getCurrentTrackId(), the one current track
   // every widget keeps in sync, so they work the same from any widget and
   // from the menu. A new track lands right after the current one, under

@@ -70,6 +70,7 @@ def run(cancel):
     scr.pump(0.3)
     scr.send(b"session-view\r")
     scr.pump(1.0)
+    vk.hide_outline(scr)
 
     try:
         os.kill(pid, 9)

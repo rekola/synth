@@ -38,7 +38,11 @@ using namespace fmt;
 // needs the exact same addressable-track list/order to resolve a device's
 // assigned track to a track_id, without PatternEditor being involved.
 
-PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent), source_(std::make_unique<ArrangementPatternSource>(getController())) {
+PatternEditor::PatternEditor(UIPlane & parent)
+  : UIElement(parent),
+    arrangement_source_(std::make_unique<ArrangementPatternSource>(getController())),
+    scene_source_(std::make_unique<ScenePatternSource>(getController())) {
+  source_ = arrangement_source_.get();
   // Whichever buffer is already active by construction time (main.cpp
   // always opens/creates one before the UI itself exists) - without this,
   // handleBufferChanged()'s first real call would have nothing to compare
@@ -444,14 +448,14 @@ PatternEditor::PatternEditor(UIPlane & parent) : UIElement(parent), source_(std:
   // handleCommand.
   commands_.define("move-row-up", [this]() {
     auto & info = getController().getPlaybackInfo();
-    if (info.isPlaying()) return;
+    if (info.isPlaying() && source_->cursorFollowsTransport()) return;
     source_->moveCursor(-1);
     new_cursor.subcol = 0;
   });
 
   commands_.define("move-row-down", [this]() {
     auto & info = getController().getPlaybackInfo();
-    if (info.isPlaying()) return;
+    if (info.isPlaying() && source_->cursorFollowsTransport()) return;
     source_->moveCursor(1);
     new_cursor.subcol = 0;
   });
@@ -629,6 +633,33 @@ PatternEditor::setCursorTrack(int track_index) {
   auto & song = getController().getSong();
   auto track_ids = song.getRootTrackIds();
   if (track_index >= 0 && track_index < static_cast<int>(track_ids.size())) song.setCurrentTrackId(track_ids[static_cast<size_t>(track_index)]);
+}
+
+void
+PatternEditor::setSessionMode(bool session) {
+  PatternSource * source = session ? static_cast<PatternSource *>(scene_source_.get()) : arrangement_source_.get();
+  if (source == source_) return;
+  source_ = source;
+  // A mark's block and a scroll position mean nothing in the other
+  // source's row space.
+  setSelectionActive(false);
+  current_scroll_ = GridPosition();
+  if (!source_->hasAnnotations() && new_cursor.isOnAnnotation()) new_cursor.scope = current_cursor.scope = SelectionScope::NOTE_COLUMN;
+  force_full_redraw_ = true;
+}
+
+void
+PatternEditor::setSessionPlayheads(std::unordered_map<int, ScenePatternSource::Playhead> playheads) {
+  // Only redraw when a playhead actually moved.
+  bool changed = playheads.size() != session_playheads_.size();
+  for (auto & [ track_id, playhead ] : playheads) {
+    auto it = session_playheads_.find(track_id);
+    if (it == session_playheads_.end() || it->second.scene != playhead.scene || it->second.row != playhead.row) changed = true;
+  }
+  if (!changed) return;
+  session_playheads_ = playheads;
+  scene_source_->setPlayheads(std::move(playheads));
+  if (isSessionMode()) force_full_redraw_ = true;
 }
 
 void
@@ -878,7 +909,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   // boundary-cross check below to eventually notice) keeps that
   // unambiguous: an open selection never has a chance to look like it's
   // constraining where the playhead goes.
-  if (selection_active_ && info.isPlaying()) {
+  if (selection_active_ && info.isPlaying() && source_->cursorFollowsTransport()) {
     setSelectionActive(false);
     getController().getUIEventQueue().push(make_unique<LogEvent>("Selection cleared: playback started"));
   } else if (selection_active_ && selection_start_pattern_ != score_pattern) {
@@ -976,6 +1007,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
       sel_bounds != current_sel_bounds_ ||
       focused != current_focused_ ||
       editor_redraw ||
+      force_full_redraw_ ||
       // A short Pattern repeats (Pattern::getEffectiveRow()), so an edit
       // can be visible at other screen rows too, not just the cursor's -
       // the single-row repaint below can't know which, so fall back to a
@@ -983,6 +1015,7 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
       row_edited
       ) {
     render_all = true;
+    force_full_redraw_ = false;
   }
 
   bool need_redraw = false;
@@ -1110,7 +1143,9 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
   } else if (ev.getType() == MidiEvent::NOTE_PRESSURE) {
     event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::NOTE_PRESSURE, getController().getActiveBufferName(), track_id, note_column, note_value, ev.getVelocity()));
 
-    getController().applyNotePressure(info.getPatternIndex(), info.getRowIndex(), track_id, note_column, ev.getVelocity(), current_delay);
+    // Pressure lands at the transport's row, which is only the cursor's in
+    // arrangement mode.
+    if (source_->cursorFollowsTransport()) getController().applyNotePressure(info.getPatternIndex(), info.getRowIndex(), track_id, note_column, ev.getVelocity(), current_delay);
     row_edited = true;
     song.incMinorVersion();
   }
@@ -1268,6 +1303,9 @@ PatternEditor::offerInput(const InputEvent & input) {
 
   auto & song = getController().getSong();
   auto & info = getController().getPlaybackInfo();
+  // Playback owns the cursor row only where the cursor is the transport's
+  // position (arrangement mode) - see PatternSource::cursorFollowsTransport().
+  bool transport_owns_row = info.isPlaying() && source_->cursorFollowsTransport();
   auto & event_queue = getController().getPlaybackEventQueue();
 
   // Kitty-protocol RELEASE events now reach offerInput() (previously
@@ -1300,7 +1338,7 @@ PatternEditor::offerInput(const InputEvent & input) {
     // write an explicit off at the row the transport has since reached
     // - unless that's still the note's own row, which would erase the
     // note it belongs to instead of ending it.
-    if (info.isPlaying()) {
+    if (transport_owns_row) {
       auto release_row = info.getRowIndex();
       if (release_row != held.row) {
 	getController().writeReleaseOff(auto_record_cleared_rows_, auto_started_playback_, info.getPatternIndex(), release_row, held.track_id, held.note_column, info.getCurrentDelay());
@@ -1413,7 +1451,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	new_cursor.track++;
 	new_cursor.col = 0;
 	new_cursor.subcol = 0;
-      } else if (!new_cursor.isOnAnnotation()) {
+      } else if (!new_cursor.isOnAnnotation() && source_->hasAnnotations()) {
 	new_cursor.scope = SelectionScope::ANNOTATION;
       }
       return true;
@@ -1469,30 +1507,30 @@ PatternEditor::offerInput(const InputEvent & input) {
 	// but doesn't start editing it (see GridPosition::scope's own
 	// comment): Enter is the explicit trigger for that. track/col are
 	// left untouched, so they're still exactly the last track's last
-	// column underneath.
-	new_cursor.scope = SelectionScope::ANNOTATION;
+	// column underneath. Only where there are annotations at all.
+	if (source_->hasAnnotations()) new_cursor.scope = SelectionScope::ANNOTATION;
       }
       return true;
     } else if (input.getId() == NCKEY_BUTTON4) { // scroll wheel up - plain Up is now "move-row-up" (see the keymap)
-      if (!info.isPlaying()) {
+      if (!transport_owns_row) {
 	source_->moveCursor(-1);
 	new_cursor.subcol = 0;
       }
       return true;
     } else if (input.getId() == NCKEY_BUTTON5) { // scroll wheel down - plain Down is now "move-row-down"
-      if (!info.isPlaying()) {
+      if (!transport_owns_row) {
 	source_->moveCursor(1);
 	new_cursor.subcol = 0;
       }
       return true;
     } else if (input.getId() == NCKEY_PGUP) {
-      if (!info.isPlaying()) {
+      if (!transport_owns_row) {
 	source_->moveCursor(-16);
 	new_cursor.subcol = 0;
       }
       return true;
     } else if (input.getId() == NCKEY_PGDOWN) { // scrollwheel down
-      if (!info.isPlaying()) {
+      if (!transport_owns_row) {
 	source_->moveCursor(16);
 	new_cursor.subcol = 0;
       }
@@ -1541,7 +1579,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	  song.incMinorVersion();
 	  // Same row-level Backspace-steps-back/Delete-stays-put distinction
 	  // the note column's own is_delete handling makes below.
-	  if (!info.isPlaying() && input.getId() == NCKEY_BACKSPACE) {
+	  if (!transport_owns_row && input.getId() == NCKEY_BACKSPACE) {
 	    source_->moveCursor(-edit_step_size);
 	  }
 	  return true;
@@ -1683,7 +1721,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	    // the session-starting key - the very first row gets cleared
 	    // ahead of this note landing on it, not after.
 	    bool was_first_held_note = has_hold_info && active_keyboard_notes_.empty();
-	    if (was_first_held_note && !info.isPlaying()) {
+	    if (was_first_held_note && source_->cursorFollowsTransport() && !info.isPlaying()) {
 	      getController().startAutoRecordSession(auto_started_playback_, auto_record_cleared_rows_, last_cleared_row_, last_cleared_pattern_idx_, auto_record_clip_ids_);
 	    }
 
@@ -1694,7 +1732,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	    // edit_target immediately after: it was computed before this take
 	    // could have just placed a brand new instance here, so it would
 	    // otherwise still point at the (now superseded) background.
-	    if (info.isPlaying()) {
+	    if (transport_owns_row) {
 	      getController().ensureNoteRecordingClip(auto_record_clip_ids_, track_id, info.getPatternIndex(), info.getRowIndex());
 	      edit_target = source_->edit(track_id, point);
 	    }
@@ -1728,7 +1766,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	  row_edited = true;
 	  song.incMinorVersion();
 
-	  if (!info.isPlaying()) {
+	  if (!transport_owns_row) {
 	    int n = 0;
 	    // Backspace mirrors a text editor's own backspace: delete (already
 	    // done above) and step backward, undoing the forward step a note
@@ -2358,8 +2396,15 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // for that themselves and skip this entirely when it applies.
   constexpr float kPlayheadTintAlpha = 0.35f;
   const Color kPlayheadTint(0x80, 0xb0, 0x80);
+  // Where the cursor row isn't the transport (session mode), it gets a
+  // neutral tint instead, and each track's own playing row (track_playhead,
+  // set per track below) gets the playhead green.
+  const Color kCursorRowTint(0xa0, 0xa0, 0xa0);
+  bool track_playhead = false;
   auto tintForPlayhead = [&](Color base) -> Color {
-    return highlight ? base.blend(kPlayheadTintAlpha, kPlayheadTint) : base;
+    if (track_playhead) return base.blend(kPlayheadTintAlpha, kPlayheadTint);
+    if (!highlight) return base;
+    return base.blend(kPlayheadTintAlpha, source_->cursorFollowsTransport() ? kPlayheadTint : kCursorRowTint);
   };
 
   // A clip instance's own identifier digit (below) - superscript, not a
@@ -2526,6 +2571,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 
   auto current_pos = 0;
   for (int i = -1; i < static_cast<int>(track_ids.size()); i++) {
+    auto playhead = i >= 0 ? source_->playheadRow(track_ids[static_cast<size_t>(i)], pattern_idx) : std::nullopt;
+    track_playhead = playhead && *playhead == pattern_row;
     if (i >= 0 && i < current_scroll_.track) continue;
     if (current_pos >= cols) break;
 
@@ -2581,6 +2628,11 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       // playback uses for notes (SongState.h's own renderBlock()), so
       // this always shows exactly what's actually going to sound.
       auto read_target = source_->read(track_id, address);
+      // Whether this cell is drawn as a clip instance (tint, identifier
+      // digit, half-block edges) - only where the source marks clip
+      // indirection. read_target.is_instance itself still says which clip
+      // plays, for the sample waveform below.
+      bool drawn_as_instance = read_target.is_instance && source_->showsClipIndirection();
       VisibleTrackInfo track_info;
       auto it = all_track_info.find(track_id);
       if (it != all_track_info.end()) track_info = it->second;
@@ -2593,7 +2645,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       // unlike is_neighboring_pattern's own whole-row dim above - two
       // tracks in the same row can have different (or no) length of
       // their own.
-      auto pattern_length = read_target.pattern->getLength();
+      auto pattern_length = read_target.repeat_length > 0 ? read_target.repeat_length : read_target.pattern->getLength();
       // The playhead's own row (highlight) keeps its plain green regardless
       // of whether the content it's showing happens to be a repeat - the
       // dim is about telling looped content apart from a pattern's own
@@ -2612,7 +2664,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       // fixed foreground colors) deliberately - this is a background-only
       // cue, not a general dim/tint the way is_neighboring_pattern/
       // is_repeat_row are.
-      if (read_target.is_instance) bg = bg.blend(0.2f, track_info.getColor());
+      if (drawn_as_instance) bg = bg.blend(0.2f, track_info.getColor());
       // VELOCITY/DELAY's own fixed bright colors and EFFECT's own
       // command_column_color (below) are picked independently of fg/bg -
       // tuned for contrast against the *undimmed* row background - so
@@ -2712,7 +2764,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // real content behind this one cell needs to read as "there's
 	  // something here" at a glance, not blend into the row the way an
 	  // ordinary tinted cell is meant to.
-	  if (read_target.is_instance) setBgColor((cell_is_selected ? cur_bg : tintForPlayhead(bg)).blend(0.5f, track_info.getColor()));
+	  if (drawn_as_instance) setBgColor((cell_is_selected ? cur_bg : tintForPlayhead(bg)).blend(0.5f, track_info.getColor()));
 	  auto width = std::max(track_info.getTrackWidth() - 1, 0);
 	  putstr(display_row, current_pos, std::string(static_cast<size_t>(width), ' '));
 	  // An instance's own content never shows the "·" - it's specifically
@@ -2725,8 +2777,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  for (auto & n : notes) {
 	    if (n.isDefined()) { any_note_defined = true; break; }
 	  }
-	  bool is_leading_row = read_target.is_instance && read_target.unwrapped_row == 0;
-	  bool show_dot = any_note_defined && !read_target.is_instance;
+	  bool is_leading_row = drawn_as_instance && read_target.unwrapped_row == 0;
+	  bool show_dot = any_note_defined && !drawn_as_instance;
 	  if (width > 0 && (show_dot || is_leading_row)) {
 	    setFgColor(is_leading_row ? Color(0xff, 0xff, 0xff) : (cell_is_selected ? cur_fg : tintForPlayhead(fg)));
 	    putstr(display_row, current_pos, is_leading_row ? clip_digit(read_target.clip_index) : "·");
@@ -2979,7 +3031,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       // boundary to whatever comes next. Any row with no instance at all
       // stays fully blank, still occupying this same reserved cell so
       // every row of this track lines up identically.
-      bool is_continuation_row = read_target.is_instance && read_target.unwrapped_row != 0;
+      bool is_continuation_row = drawn_as_instance && read_target.unwrapped_row != 0;
       if (!track_info.collapsed_ && track_info.color_ordinal_ >= 0) {
 	if (is_continuation_row) {
 	  setFgColor(in_selection ? bg : tintForPlayhead(bg));
@@ -2988,7 +3040,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	} else {
 	  Color id_fg = in_selection ? fg : tintForPlayhead(fg);
 	  string id_glyph = " ";
-	  if (read_target.is_instance) {
+	  if (drawn_as_instance) {
 	    id_fg = Color(0xff, 0xff, 0xff);
 	    id_glyph = clip_digit(read_target.clip_index);
 	  }
@@ -3035,7 +3087,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       // that would on the divider after a track with no instance at
       // all.
       bool show_halfblock = !track_info.collapsed_ &&
-	(is_continuation_row ? right_is_instance : (read_target.is_instance || right_is_instance));
+	(is_continuation_row ? right_is_instance : (drawn_as_instance || right_is_instance));
       if (show_halfblock) {
 	// Half-filled ("▌", U+258C - the same half-block ArrangementGrid's
 	// own capsule padding uses) - this track's own tinted bg on the
@@ -3061,6 +3113,8 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     }
   }
 
+  track_playhead = false;
+
   // Cache this row's annotation on-screen position whenever it's the
   // cursor/playhead's own row - highlight is true exactly then, in every
   // call site (see render()) - so startAnnotationEdit() can read it
@@ -3072,7 +3126,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     annotation_screen_col_ = current_pos + 2;
   }
 
-  if (current_pos < cols) {
+  if (current_pos < cols && source_->hasAnnotations()) {
     static const std::string no_annotation;
     auto * annotations = source_->annotations(pattern_idx);
     auto & annotation = annotations ? annotations->getAnnotation(pattern_row) : no_annotation;

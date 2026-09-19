@@ -6,7 +6,7 @@ the Launchpad Session grid address) at a time, with one playhead per track.
 Views stop being buffers: a buffer is a song, and a view is how the UI is
 laid out around it.
 
-Status: Phase 0 committed; Phases 1 and 2 done (not yet committed). Every phase lands as its own commit(s), with `ctest`
+Status: Phases 0-2 committed; Phase 3 done (not yet committed). Every phase lands as its own commit(s), with `ctest`
 and the e2e scripts green.
 
 ## The cursor model
@@ -252,60 +252,58 @@ panel starts hidden. `SessionView` is renamed `ClipGrid`, and Controller's
 
 ## Phase 3: session mode in PatternEditor (`ScenePatternSource`)
 
-- **Rows**: the session source's own `(scene, row)` cursor (see the
-  cursor model). Scrolling past the last row goes to scene k+1 (and before
-  row 0, to scene k-1), like crossing a section boundary.
-  `next-scene`/`previous-scene` jump directly. The title row shows the
-  scene index. Scenes are emergent, so the scene count is the longest
-  clip list across tracks, plus one empty scene at the end to write new
-  clips into.
-- **Scene length** = the longest clip in the scene. Past a shorter clip's
-  end, a looping clip shows its wrap dimmed (`unwrapped_row >= length`,
-  the existing repeat mechanism) and a one-shot shows blank, non-editable
-  rows. Empty filler slots render empty.
-- **Editing** writes into the clip's leaf Pattern, and every arrangement
-  placement of that clip reflects the change (clips are shared; this is
-  intended). Typing into an empty slot creates the clip via
-  `Song::ensureClipAt()` plus id assignment, at the scene's length (one
-  bar if the scene is entirely empty). Add commands for clip length
-  (double/halve or `set-clip-length`) and loop toggle.
-- **No clip tint in session mode.** In arrangement mode the clip-coloured
-  rows mean "indirection: these notes live in a clip, not at the position
-  being edited". In session mode there is no indirection (the clip *is*
-  what's being edited), so cells use the plain background, and the
-  track's identity colour appears only in its heading.
-- **Playheads** are display-only: each track tints its playing clip's
-  row when that clip is in the displayed scene. A queued launch shows as a marker in that track's heading.
-  `launch-clip` and `launch-scene` go through `SessionPlayer`. Space stays
-  the global transport toggle.
-- **No annotations in session mode** (`hasAnnotations() == false`):
-  they belong to sections, and a scene has none. The session-mode
-  pattern editor shows no annotation column, the cursor can't move onto
-  the annotation slot (Right/Ctrl+Right stop at the last track), Enter
-  never opens the annotation editor, and a mark can't widen to
-  ANNOTATION/EVERYTHING scope, so kill/copy/yank never touch
-  annotations. `copy-to-clip` keeps working (it copies part of a clip
-  into a new clip). Live recording goes through the existing Session
-  record-arm path. Keyboard auto-advance-while-held recording comes
-  later, once it can follow a per-track playhead (see Phase 0's
-  "not doing" note on live note input).
-- **Selection/clipboard** are unchanged. `ClipboardEntry` is
-  pattern-based, so copying in one mode and yanking in the other works.
-- **Sample tracks** use the same waveform box, fed by the scene's clip.
-- **Launchpad step grid**: opening a clip's step grid moves the session
-  cursor to that clip's scene and track.
-- The view picks the source: Session view uses `ScenePatternSource`, and
-  Arrangement view uses `ArrangementPatternSource`.
-- Tests:
-  - `ScenePatternSource` unit tests: scene length, one-shot vs. loop
-    past-end rows, create-on-write, crossing scenes.
-  - `add-`/`remove-note-column` widen and narrow a track's columns in
-    session mode too. They set a track-level minimum that the editor
-    applies after gathering columns from the source, so this should hold
-    without new code.
-  - One e2e test: in Session view, type a note in scene 2, then check
-    that the clip exists and that an arrangement placement of it shows
-    the note.
+Done (not yet committed):
+
+- **`ScenePatternSource`** (`src/ui/`) and **`SceneGrid`**
+  (`src/model/PatternGrid.h`). Blocks are scenes: clip-list index k
+  across every track, plus one empty scene past the last used one to
+  create clips in. A scene is as long as its longest clip (one bar if
+  empty). A shorter looping clip repeats, with the repeats dimmed
+  (`ReadTarget::repeat_length`); a one-shot ends. The cursor is the
+  source's own, per buffer, independent of the transport and every
+  playhead.
+- **Editing** writes into the clip, so every arrangement placement of it
+  changes too. Typing into an empty slot creates a looping "Clip N" of
+  the scene's length. Typing past a one-shot's end lengthens it to that
+  bar (rather than refusing the edit). Effect commands and block
+  operations (kill/copy/yank/transpose, insert/kill row) act on the
+  clips. Clearing never creates a clip.
+- **Display:** no clip-indirection tint, identifier digits or half-block
+  edges; no annotations (no column, the cursor can't reach the slot).
+  The cursor row gets a neutral grey tint. Each track's launched clip
+  tints its own playing row green, in that track's column only, from
+  `LaunchpadManager::sessionPlayheads()` (Phase 1), passed in by
+  TerminalUI.
+- **Transport:** in session mode the cursor moves while playing, and
+  keyboard/MIDI entry never starts the transport, records at the
+  transport's row, or writes aftertouch there (`PatternSource::
+  cursorFollowsTransport()`).
+- **Space** (`play-or-stop`): in Session view's pattern editor it
+  launches the cursor's scene (all tracks together, bar-quantized; a
+  running transport stops first, since launched clips only play while
+  it's stopped), and pressed again stops every launched clip.
+  Everywhere else (ArrangementGrid, the arrangement pattern editor, the
+  clip grid) it toggles the transport as before. Play/Stop is gone from
+  the Song menu, since Space isn't only the song's transport any more.
+- **Clip menu**: Launch Clip, Launch Scene, Stop All Clips, New Clip
+  from Selection, Merge Clip to Background, plus placeholders not built
+  yet (Duplicate Clip, Double/Halve Clip Length, Toggle Clip Loop,
+  Rename Clip...) that say so when invoked.
+- The outline panel is shown by default in Session view. `C-x o` cycles
+  in screen order: outline, clip grid, pattern editor.
+- Tests: 7 `ScenePatternSource`/`SceneGrid` unit tests, and
+  `tools/e2e/verify_session_pattern_editor.py`. `add-`/`remove-note-column`
+  were checked by hand in session mode; they work with no new code.
+
+Remaining from the original Phase 3 list:
+- `next-scene`/`previous-scene` commands and a visible scene number
+  (crossing a scene by scrolling works; Phase 4's clip grid selecting the
+  scene covers most of the need).
+- A queued-launch marker in the track heading.
+- Opening a clip's Launchpad step grid moves the session cursor there.
+- **Known limitation:** effect commands typed into a clip are stored but
+  silent. Playback reads commands only from the section, not from clips,
+  in the arrangement and in Session-view launches alike. See Phase 8.
 
 ---
 
@@ -345,6 +343,19 @@ shared cursor instead, not by geometry.
   below them, so a song with many scenes scrolls to reach them. That's
   acceptable now that the view scrolls, and the rows are always
   reachable.
+- **Outline panel layout.** At about 30 columns, the details panel
+  can't sit beside the tree. Options:
+  1. Action buttons (Delete, Add to Song, Preview, ...) in a row under
+     the tree, and the details text in a popup opened on demand (Enter,
+     or a Details button). The panel already uses a floating plane for
+     its groove target-track picker, so a popup has precedent.
+     (Suggested; recommended.)
+  2. Details below the tree in the same column. Little room, since the
+     strip is at most half the height.
+  3. Details replace the tree while shown, toggled.
+  4. The outline panel spans the full height, left of both the clip grid
+     and the pattern editor, leaving room for the tree with details
+     below it.
 - **No cover art or scope row in Session view.** A global
   `toggle-scopes` lets Arrangement view reclaim those rows too.
 
@@ -433,6 +444,57 @@ treat your voice before (or while) recording.
 - Tests: a render test feeding a synthetic input buffer through a
   monitoring track and checking it reaches the output through the
   track's effect (e.g. a gain change), and that Off/Auto gate it.
+
+---
+
+## Phase 8: play effect commands stored in clips
+
+Session mode (Phase 3) lets you type effect commands into a clip, but
+nothing plays them:
+
+- **Arrangement playback** (`SongState::renderBlock()`) reads commands
+  only from the section's background pattern, never from a placed clip's
+  own pattern. That's deliberate: its comment says every command lives
+  at the track/section level, so automation survives regardless of which
+  clip is placed. The same comment says the pattern editor doesn't show a
+  clip's command column, which is no longer true in session mode.
+- **Session-view launches** (`LaunchpadManager::fireClipStep()`, on the
+  UI thread, driven by the audition clock) send only note events
+  (`PLAY_NOTE`/`STOP_NOTE`) to the audio thread.
+
+Work:
+
+- **Decide the arrangement rule.** When a placed clip has commands and
+  the background has commands on the same row, which wins? Options:
+  - the clip's commands apply while it plays, the background's
+    otherwise;
+  - both apply, background first;
+  - clip commands only in Session-view launches, never in the
+    arrangement (keeps the current rule there).
+  Recommended: both apply, clip after background, so the clip's own
+  value wins on conflicts (e.g. two volume sets on one row). This keeps
+  automation recorded into the background working under any clip.
+- **Arrangement:** in `renderBlock()`, after the background commands,
+  also process `getCommandsAt()` of the instance's clip pattern at the
+  instance-relative row the notes already use.
+- **Session-view launches:** commands must reach the audio thread at the
+  right time. Either a new `PlaybackControlEvent` that carries a command
+  for a track, applied like a row command in `SongState` (reusing the
+  slide/set scheduling), or, better long-term, moving launched-clip
+  playback into `SongState` itself (the deferred `SessionPlayer` move
+  from Phase 1), where commands come for free with the arrangement path.
+- **Pattern break (`ZBxx`)** is song-level and meaningless inside a
+  launched clip: ignore it there (or make it restart the clip; decide).
+- **Recording:** Launchpad fader automation written while a clip plays
+  (`recordFaderAutomationIfArmed()`) currently goes to the background.
+  Decide whether a Session-view take records it into the clip instead.
+- Update the `SongState.h` comment and `docs/commands.md` to state where
+  commands are read from.
+- Tests: render tests with a fixture song where a placed clip carries a
+  volume set (`0Lxx`) and the rendered level changes accordingly; a
+  conflicting background command on the same row resolves by the chosen
+  rule; and a unit test that a Session-view launch applies the clip's
+  command.
 
 ---
 

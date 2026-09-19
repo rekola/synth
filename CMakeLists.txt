@@ -108,6 +108,7 @@ add_library(synth_engine STATIC
 	src/model/ArrangementOps.cpp
 	src/ui/tui/PatternScroll.cpp
 	src/ui/ArrangementPatternSource.cpp
+	src/ui/ScenePatternSource.cpp
 	src/launchpad/LaunchpadLayout.cpp
 	src/launchpad/LaunchpadProtocol.cpp
 	src/instruments/DrumRankTable.cpp

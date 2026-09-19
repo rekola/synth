@@ -71,9 +71,17 @@ you're changing.
   capability queries notcurses probes for on startup (cursor position,
   pixel geometry, Kitty keyboard protocol, etc.) so it doesn't hang
   waiting for a reply a plain pty never sends. Not Launchpad-specific -
-  reusable for testing any keybinding/UI behavior.
+  reusable for testing any keybinding/UI behavior. `hide_outline()` hides
+  Session view's outline panel, for scripts that read the clip grid's
+  rows from the start of each line.
 - **`verify_keybindings.py`** - general Emacs-keybinding smoke test
   (Ctrl-B/W/Y/G/Space/C-x o/C-x b/C-x C-c), independent of Launchpad.
+- **`verify_session_pattern_editor.py`** - PatternEditor's session mode
+  (Session view): annotations only in Arrangement view, typing into an
+  empty slot creates a clip (not arrangement content), a launched clip's
+  playhead shows in its own track's column only, and Space plays/stops
+  the scene rather than the transport. Independent of Launchpad
+  hardware.
 - **`verify_inline_editors.py`** - every widget's inline text editor
   (section, track, annotation, clip names): Enter commits, Ctrl-g and M-x
   cancel, and a typed space never reaches the global toggle-playing

@@ -850,10 +850,18 @@ would otherwise resume showing.
   buffer is just a song. Arrangement view: the scope row (with
   `ArrangementGrid`) plus `PatternEditor`. Session view: `ClipGrid`
   (`src/ui/tui/ClipGrid.h` - per-track clip slots, Sends, Direction), with
-  `OutlineView` as an optional panel on its left ("toggle-outline"), above
-  `PatternEditor` (`TerminalUI::layout()`). "toggle-view" (Tab) flips
-  between them, the live-sequencer convention; "arrangement-view"/
-  "session-view"/"outline-view" select one directly (View menu).
+  `OutlineView` as a panel on its left (shown by default,
+  "toggle-outline"), above `PatternEditor` (`TerminalUI::layout()`).
+  "toggle-view" (Tab) flips between them, the live-sequencer convention;
+  "arrangement-view"/"session-view"/"outline-view" select one directly
+  (View menu). `PatternEditor` reads and writes through a `PatternSource`
+  (`src/ui/PatternSource.h`): `ArrangementPatternSource` in Arrangement
+  view (sections and placed clips, the transport as its cursor row),
+  `ScenePatternSource` in Session view (clips directly, one scene - clip
+  row k across every track - at a time, its own cursor, a per-track
+  playhead for each launched clip, no annotations). Space
+  ("play-or-stop") launches/stops the scene in Session view's pattern
+  editor and toggles the transport everywhere else.
 - **Defaults**: a fresh session opens in Arrangement view on
   `ArrangementGrid` (overview focus, `UI::initialize()`'s
   `active_element_`) rather than

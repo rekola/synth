@@ -51,7 +51,7 @@ clearPatternBlock(PatternGrid & grid, int row_lo, int row_hi,
   for (int row = row_lo; row <= row_hi; row++) {
     for (int t = track_lo; t <= track_hi; t++) {
       int pattern_row;
-      if (auto pattern = grid.obtain(track_ids[static_cast<size_t>(t)], row, pattern_row)) {
+      if (auto pattern = grid.find(track_ids[static_cast<size_t>(t)], row, pattern_row)) {
 	pattern->clearNotes(pattern_row);
 	pattern->setCommand(pattern_row, Command());
       }
@@ -196,7 +196,7 @@ void
 clearPatternBlockCommand(PatternGrid & grid, int row_lo, int row_hi, int track_id) {
   for (int row = row_lo; row <= row_hi; row++) {
     int pattern_row;
-    if (auto pattern = grid.obtain(track_id, row, pattern_row)) pattern->setCommand(pattern_row, Command());
+    if (auto pattern = grid.find(track_id, row, pattern_row)) pattern->setCommand(pattern_row, Command());
   }
 }
 

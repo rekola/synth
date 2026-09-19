@@ -738,13 +738,24 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
 	{ "Add Note Column", "C-S-Right", "add-note-column" },
 	{ "Remove Note Column", "C-S-Left", "remove-note-column" },
       } },
-    // Pattern/song-structural and transport actions - see
-    // plans/menu-bar-expansion.md for why these two share one section
-    // (no natural distinct single-letter mnemonic for each) and why plain
-    // cursor navigation (move-row-up/-down) has no place here at all.
-    { "Song", 's', {
-	{ "Play/Stop", "SPC", "toggle-playing" },
+    // Clip playback and clip content. Launching is quantized to the bar,
+    // like a Launchpad Session-view pad.
+    { "Clip", 'c', {
+	{ "Launch Clip", "", "launch-clip" },
+	{ "Launch Scene", "", "launch-scene" },
+	{ "Stop All Clips", "", "stop-all-clips" },
 	{ nullptr, nullptr, nullptr },
+	{ "New Clip from Selection", "", "copy-to-clip" },
+	{ "Merge Clip to Background", "C-x m", "merge-clip-to-background" },
+	{ nullptr, nullptr, nullptr },
+	{ "Duplicate Clip", "", "duplicate-clip" },
+	{ "Double Clip Length", "", "double-clip-length" },
+	{ "Halve Clip Length", "", "halve-clip-length" },
+	{ "Toggle Clip Loop", "", "toggle-clip-loop" },
+	{ "Rename Clip...", "", "rename-clip" },
+      } },
+    // Song-wide settings.
+    { "Song", 's', {
 	{ "Toggle Binaural Mixer", "", "toggle-mixer-type" },
 	{ nullptr, nullptr, nullptr },
 	{ "Set Song Key...", "", "set-song-key" },
@@ -2072,6 +2083,46 @@ TerminalUI::initializeWidgets() {
     auto it = std::find(elements.begin(), elements.end(), active_element_.lock());
     active_element_ = (it == elements.end() || ++it == elements.end()) ? elements.front() : *it;
   });
+  // Session view: launch the pattern editor's current clip (the current
+  // track's clip in its scene), or every track's clip in that scene -
+  // quantized to the bar, exactly like a Launchpad Session-view pad or
+  // scene button.
+  commands_.define("launch-clip", [this]() {
+    if (!launchpad_manager_ || !pattern_editor_->isSessionMode()) return;
+    launchpad_manager_->triggerSessionClip(getController(), getController().getSong().getCurrentTrackId(), pattern_editor_->getSessionScene());
+  });
+  commands_.define("launch-scene", [this]() {
+    if (!launchpad_manager_ || !pattern_editor_->isSessionMode()) return;
+    launchpad_manager_->launchScene(getController(), pattern_editor_->getSessionScene(), getController().getSong().getPlayableTrackIds());
+  });
+  commands_.define("stop-all-clips", [this]() {
+    if (launchpad_manager_) launchpad_manager_->silenceOtherTriggeredClips(getController());
+  });
+  // Space: plays or stops what the focused editor shows. In Session view's
+  // pattern editor that's its scene - every track's clip there, launched
+  // together like a scene button (launched clips only play while the
+  // transport is stopped, so a running transport stops first); pressed
+  // again, it stops every launched clip. Everywhere else, the transport.
+  commands_.define("play-or-stop", [this]() {
+    if (!launchpad_manager_ || active_element_.lock() != pattern_editor_ || !pattern_editor_->isSessionMode()) {
+      commands_.execute("toggle-playing");
+      return;
+    }
+    auto & song = getController().getSong();
+    bool anything_launched = false;
+    for (auto & [ track_id, playhead ] : launchpad_manager_->sessionPlayheads(song)) {
+      if (playhead.clip_index >= 0 || playhead.queued_clip) anything_launched = true;
+    }
+    if (anything_launched) {
+      launchpad_manager_->silenceOtherTriggeredClips(getController());
+      setStatus("Scene stopped");
+      return;
+    }
+    if (getController().getPlaybackInfo().isPlaying()) getController().togglePlaying();
+    auto scene = pattern_editor_->getSessionScene();
+    launchpad_manager_->launchScene(getController(), scene, song.getPlayableTrackIds());
+    setStatus("Playing scene " + std::to_string(scene + 1));
+  });
   // Session view with the outline panel shown and focused - defined here,
   // not with the other view commands in UI.cpp, since it focuses a
   // concrete widget.
@@ -2108,7 +2159,7 @@ TerminalUI::initializeWidgets() {
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('o', false, false, false, false), "other-window");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('m', false, false, false, false), "merge-clip-to-background");
   keymap_.bindPrefixed(ctrl_x, KeyChord::pack('r', false, false, false, false), "toggle-record-arm");
-  keymap_.bind(KeyChord::pack(' ', false, false, false, false), "toggle-playing");
+  keymap_.bind(KeyChord::pack(' ', false, false, false, false), "play-or-stop");
   keymap_.bind(KeyChord::pack('[', false, false, false, false), "octave-down");
   keymap_.bind(KeyChord::pack(']', false, false, false, false), "octave-up");
   keymap_.bind(KeyChord::pack('\t', false, false, false, false), "toggle-view");
@@ -2332,6 +2383,13 @@ TerminalUI::renderComponents(bool refresh) {
   // Only what the current view shows (see layout()) - a hidden widget
   // drawing would paint over whichever visible one shares its rect.
   if (getView() == View::SESSION) {
+    if (launchpad_manager_) {
+      std::unordered_map<int, ScenePatternSource::Playhead> playheads;
+      for (auto & [ track_id, playhead ] : launchpad_manager_->sessionPlayheads(song)) {
+        if (playhead.clip_index >= 0) playheads[track_id] = { playhead.clip_index, playhead.row };
+      }
+      pattern_editor_->setSessionPlayheads(std::move(playheads));
+    }
     render |= clip_grid_->render(styles_, refresh, active == clip_grid_);
     if (isOutlineVisible()) render |= outline_view_->render(styles_, refresh, active == outline_view_);
   }
@@ -2361,8 +2419,12 @@ TerminalUI::renderComponents(bool refresh) {
 std::vector<std::shared_ptr<UIElement>>
 TerminalUI::focusableElements() const {
   if (getView() == View::ARRANGEMENT) return { pattern_editor_, arrangement_grid_ };
-  std::vector<std::shared_ptr<UIElement>> elements = { clip_grid_, pattern_editor_ };
+  // Screen order, the way Emacs cycles windows: the outline panel
+  // (top-left), the clip grid beside it, then the pattern editor below.
+  std::vector<std::shared_ptr<UIElement>> elements;
   if (isOutlineVisible()) elements.push_back(outline_view_);
+  elements.push_back(clip_grid_);
+  elements.push_back(pattern_editor_);
   return elements;
 }
 
@@ -2384,6 +2446,10 @@ TerminalUI::viewChanged() {
   // An inline editor left open on a widget that's no longer shown would
   // keep swallowing keys.
   if (getView() == View::ARRANGEMENT) clip_grid_->cancelReaderEdit();
+  // Session view edits clips one scene at a time; Arrangement view edits
+  // sections and placed clips.
+  pattern_editor_->cancelReaderEdit();
+  pattern_editor_->setSessionMode(getView() == View::SESSION);
   layout();
   // Not a direct renderComponents(true) call here - see
   // force_next_render_'s own comment on TerminalUI.h.

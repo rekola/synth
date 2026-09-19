@@ -192,6 +192,7 @@ struct ReadTarget {
   bool is_instance; // true when `pattern` is a real clip's own Pattern, false for the background - for a caller that wants to show the difference (e.g. PatternEditor's own instance-tinted rows)
   int clip_index; // only meaningful when is_instance - the clip's own ordinal position in track_id's own clip list (ArrangementGrid's own hex digit addresses the same index), for a caller that wants to show which clip this is, not just that one is active
   bool is_focused_override = false; // true when `focused_clip_id` (see resolveEditTarget()'s own comment) drove this resolution, rather than a real placed instance - lets a caller tell the two apart even though both set is_instance
+  int repeat_length = 0; // rows after which the content repeats when greater than pattern->getLength() says (a looping clip whose Pattern has no length of its own); 0 = use the Pattern's
 };
 ReadTarget resolveReadTarget(const Song & song, const Section & section, int track_id, int row, const std::string & focused_clip_id = "");
 

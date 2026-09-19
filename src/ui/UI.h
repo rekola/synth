@@ -89,7 +89,7 @@ private:
 
   StatusLogger logger_;
   View view_ = View::ARRANGEMENT;
-  bool outline_visible_ = false;
+  bool outline_visible_ = true;
 };
 
 #endif

@@ -2306,8 +2306,11 @@ LaunchpadManager::triggerSceneRow(Controller & controller, int row) {
   // Same y-flip Session view's own columns use (triggerSessionClip()'s
   // own caller in handleSessionPadEvent()) - row 0 (bottom) is clip index
   // 7, row 7 (top) is clip index 0.
-  auto clip_index = 7 - row;
+  launchScene(controller, 7 - row, session_.track_ids);
+}
 
+void
+LaunchpadManager::launchScene(Controller & controller, int clip_index, const vector<int> & track_ids) {
   // Resolved once for the whole row, not once per track inside
   // triggerSessionClip()'s own call - see its own shared_launch_step doc
   // comment for why: without this, only the first track in the loop
@@ -2319,7 +2322,7 @@ LaunchpadManager::triggerSceneRow(Controller & controller, int row) {
   std::optional<int> shared_launch_step;
   if (nothing_pending) shared_launch_step = restartAuditionClockFromSilence();
 
-  for (auto track_id : session_.track_ids) triggerSessionClip(controller, track_id, clip_index, shared_launch_step);
+  for (auto track_id : track_ids) triggerSessionClip(controller, track_id, clip_index, shared_launch_step);
 }
 
 void

@@ -7,6 +7,7 @@
 #include "../ClipboardEntry.h"
 #include "../SelectionBounds.h"
 #include "../PatternSource.h"
+#include "../ScenePatternSource.h"
 #include "InlineEditor.h"
 
 #include <functional>
@@ -72,6 +73,17 @@ class PatternEditor : public UIElement {
   // above, and this header only forward-declares Song.
   void setCursorTrack(int track_index);
   int getEditStepSize() const { return edit_step_size; }
+
+  // Arrangement mode (the default) edits sections and placed clips, with
+  // the transport as the cursor row; session mode edits clips directly,
+  // one scene at a time (ScenePatternSource).
+  void setSessionMode(bool session);
+  bool isSessionMode() const { return source_ == scene_source_.get(); }
+  // The scene the session-mode cursor is in.
+  int getSessionScene() const { return scene_source_->cursor().block; }
+  // Where each track's launched clip is playing, for session mode's
+  // per-track playhead rows.
+  void setSessionPlayheads(std::unordered_map<int, ScenePatternSource::Playhead> playheads);
 
   // Called (from UI::initialize()) when plain Left is pressed with the
   // cursor already at the very first track's first column - "there's
@@ -341,8 +353,15 @@ protected:
   // Shared by the annotation and track-name editors; only one is ever open.
   InlineEditor inline_editor_{getPlane()};
 
-  // Where rows, cells and edits come from - see PatternSource.h.
-  std::unique_ptr<PatternSource> source_;
+  // Where rows, cells and edits come from - see PatternSource.h. Points at
+  // one of the two sources below, per setSessionMode().
+  PatternSource * source_ = nullptr;
+  std::unique_ptr<PatternSource> arrangement_source_;
+  std::unique_ptr<ScenePatternSource> scene_source_;
+  // Set when what's shown changed in a way render()'s own dirty checks
+  // don't see (the source switching, per-track playheads moving).
+  bool force_full_redraw_ = false;
+  std::unordered_map<int, ScenePatternSource::Playhead> session_playheads_;
 
   // The StyleProvider render() was last called with - stashed there
   // purely so startTrackNameEdit() can force an immediate renderHeading()

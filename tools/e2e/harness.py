@@ -232,3 +232,16 @@ def other_window(scr):
     scr.pump(0.3)
     scr.send(b"o")
     scr.pump(0.5)
+
+
+def hide_outline(scr):
+    """M-x toggle-outline: hides Session view's outline panel (shown by
+    default, on the clip grid's left), so the clip grid starts at the
+    screen's left edge - for scripts that read its rows from the start of
+    each line."""
+    scr.send(b"\x1b")
+    scr.pump(0.3)
+    scr.send(b"x")
+    scr.pump(0.3)
+    scr.send(b"toggle-outline\r")
+    scr.pump(0.8)

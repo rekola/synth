@@ -575,6 +575,10 @@ class LaunchpadManager {
   };
   std::unordered_map<int, SessionPlayhead> sessionPlayheads(const Song & song) const;
 
+  // Launches every one of `track_ids`' own clip at `clip_index` together,
+  // quantized like a single pad press (triggerSessionClip()).
+  void launchScene(Controller & controller, int clip_index, const std::vector<int> & track_ids);
+
   // Device-wide aftertouch (the alternative to handlePadEvent's per-pad
   // AFTERTOUCH case - see LaunchpadChannelPressureEvent) - there's no
   // pad, so no single note_column/track to target the way per-pad
