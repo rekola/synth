@@ -6,8 +6,10 @@ the Launchpad Session grid address) at a time, with one playhead per track.
 Views stop being buffers: a buffer is a song, and a view is how the UI is
 laid out around it.
 
-Status: Phases 0-7 committed; Phase 8 done (not yet committed). Every phase lands as its own commit(s), with `ctest`
-and the e2e scripts green.
+Status: Phases 0-8 committed. Session playback - launched clips inside
+the transport, per-track playheads - continues in
+`plans/session-playback.md`. Every phase lands as its own commit(s), with
+`ctest` and the e2e scripts green.
 
 ## The cursor model
 
@@ -305,7 +307,7 @@ Remaining from the original Phase 3 list:
 - Opening a clip's Launchpad step grid moves the session cursor there.
 - **Known limitation:** effect commands typed into a clip are stored but
   silent. Playback reads commands only from the section, not from clips,
-  in the arrangement and in Session-view launches alike. See Phase 12.
+  in the arrangement and in Session-view launches alike. See Phase 10.
 
 ---
 
@@ -432,7 +434,7 @@ the cursor; the cursor for yank/kill-row/effect entry), and
 `getEffectiveSelectionBounds()` clamps the region to
 `PatternSource::sourceRows()`, which the highlight then shows. Effect
 commands stay on the section background (`PatternGrid::findCommands()`/
-`obtainCommands()`), where playback reads them - Phase 12 decides whether
+`obtainCommands()`), where playback reads them - Phase 10 decides whether
 clips get their own. Tests: 5 `SectionRegionGrid` unit tests and
 `tools/e2e/verify_arrangement_clip_region.py`.
 
@@ -553,7 +555,7 @@ track's position, sends and effects, surviving a transport stop;
 `SET_TRACK_MONITORING` from `Controller::syncMonitoring()`, once per UI
 frame; a one-time feedback warning. Tests: MonoFifo, the monitor voice,
 Player routing, Controller sync. Not done: showing the round-trip latency
-in the info line (Phase 11), and a smaller period while monitoring):
+in the info line (Phase 9), and a smaller period while monitoring):
 
 - **Engine:** capture currently runs only while recording or
   threshold-armed (`Player.cpp`'s capture-enable edge; captured blocks
@@ -645,95 +647,7 @@ column also gets a level meter.
 
 ---
 
-## Phase 9: launched clips play inside the transport, per track
-
-Today Session-view launches and the transport are two separate playback
-modes: launched clips run on `LaunchpadManager`'s own audition clock and
-only while the transport is stopped, so starting the transport over them
-clashes (Space in Session view does nothing for that reason). The
-live-sequencer convention is one transport for both views, with each
-track following either its arrangement or its Session view clip:
-
-- **One transport.** Space starts and stops it in both views. Every
-  track plays its arrangement unless it's been taken over.
-- **Per-track override.** Launching a clip on a track takes that track
-  over: it plays the clip, looping or one-shot, while the other tracks
-  follow the arrangement. Stopping a track's clip takes it over too - it
-  stays silent while the arrangement plays.
-- **Back to arrangement.** A global command and a per-track one drop the
-  override, so the track follows the arrangement again at the
-  transport's position (bar-quantized, like a launch). The clip grid
-  shows which tracks are taken over, and the Launchpad gets the same.
-- **Launching while stopped** starts the transport, as a launch does
-  today from silence.
-- **Engine:** launched-clip playback moves from the UI-thread audition
-  clock (`LaunchpadManager::fireClipStep()`'s `PLAY_NOTE`s) into
-  `SongState`, which already resolves each track's content per row: a
-  per-track override (the launched clip and its launch step, or a stop)
-  replaces the arrangement's instance resolution for that track. This is
-  Phase 1's deferred `SessionPlayer` move. Bar-quantized launch/stop and
-  the recording queues move with it; audition of step-grid edits, which
-  needs no transport, keeps its own clock.
-- **Knock-on:** Phase 10's per-track playheads read the override's
-  position from the snapshot, and Phase 12's clip effect commands come
-  for free, played by the same scheduler as the arrangement's.
-- **Space** in Session view becomes the transport again, like Arrangement
-  view's.
-- Tests: a render test with one track taken over by a clip and another
-  following the arrangement, both audible, the arrangement's position
-  unaffected; back-to-arrangement at a bar boundary; a stopped override
-  staying silent while the arrangement plays.
-
----
-
-## Phase 10: per-track playheads in the Session view pattern editor
-
-In Arrangement view the transport is the cursor row: the pattern
-editor's highlighted row is where playback is, and moving it moves the
-transport. Session view should work the same way per track: each track
-has its own position - a clip (scene row) and a row in it - and while
-that track plays a clip, its position is its playhead. There's no
-separate session cursor: Phase 3's per-buffer scene cursor is replaced by
-these per-track positions.
-
-- **Playing track:** its column follows its playhead exactly the way
-  Arrangement view follows the transport - the playhead sits on the
-  pattern editor's highlighted row and the column's content scrolls under
-  it, crossing into the next clip or looping as the clip does. You can't
-  move it: Up/Down on that track do nothing (or the status line says it's
-  playing), as moving the transport does nothing while recording.
-- **Stopped track:** its position is yours to move - Up/Down, Page, jumps
-  to a clip - and stays where playback left it when the clip stops.
-  Launching a clip jumps the track's position to that clip's row 0.
-- **Different scenes per track:** so the Session view pattern editor can
-  show a different clip - a different scene row - in every column: some
-  tracks playing different scenes, some stopped wherever they were left.
-  Each column's header shows which clip (scene row) it's in.
-- **Moving between tracks:** Left/Right keep the highlighted screen row;
-  each column shows its own track's position there. The row-number
-  gutter shows the cursor track's rows.
-- **The clip grid:** its scene row marks the cursor track's position
-  (its clip); a playing track's slot already shows its state. Moving the
-  clip grid's cursor onto a clip of a stopped track moves that track's
-  position there (row 0) - the one shared cursor of Phase 4, per track.
-- **Regions:** a multi-track mark/kill/yank spans the same screen rows
-  in each column, each track's rows resolved through its own position -
-  so one region can cover different clips in different tracks. Editing a
-  playing track's clip while it plays is allowed (the notes change under
-  the playhead), the same as editing under the transport.
-- **Space** is the transport, in Session view too, once Phase 9 lands.
-- **Source of positions:** a playing track's clip and row come from the
-  playback snapshot (Phase 9's per-track overrides; until then
-  `LaunchpadManager::sessionPlayheads()`); stopped tracks' positions
-  live beside them, per buffer, in `ScenePatternSource`.
-- Tests: two tracks launched on different scenes show their own clips in
-  one pattern editor; a playing track's column can't be moved and follows
-  its playhead; a stopped track's can, and keeps its position after
-  stopping; launching jumps the position to the clip.
-
----
-
-## Phase 11: round-trip latency in the info bar
+## Phase 9: round-trip latency in the info bar
 
 Recording and monitoring both add latency the user can't see: playing
 into a monitoring track, or recording while listening to the song, is
@@ -763,7 +677,7 @@ FIFO's fill while monitoring. Show it in the info bar.
 
 ---
 
-## Phase 12: play effect commands stored in clips
+## Phase 10: play effect commands stored in clips
 
 Session mode (Phase 3) lets you type effect commands into a clip, but
 nothing plays them:
