@@ -2,6 +2,7 @@
 #include "Section.h"
 #include "Song.h"
 #include "Clip.h"
+#include "ArrangementOps.h"
 
 #include <string>
 
@@ -96,4 +97,74 @@ SceneGrid::obtain(int track_id, int row, int & pattern_row) {
   }
   pattern_row = clipRow(clip, row);
   return &clip.getLeafPattern();
+}
+
+SectionRegionGrid::SectionRegionGrid(Song & song, Section & section, int anchor_row, std::string focused_clip_id)
+  : read_song_(song), write_song_(&song), read_section_(section),
+    background_(section, song.getEffectiveSectionLength(section)),
+    anchor_row_(anchor_row), focused_clip_id_(std::move(focused_clip_id)) { }
+
+SectionRegionGrid::SectionRegionGrid(const Song & song, const Section & section, int anchor_row, std::string focused_clip_id)
+  : read_song_(song), write_song_(nullptr), read_section_(section),
+    background_(section, song.getEffectiveSectionLength(section)),
+    anchor_row_(anchor_row), focused_clip_id_(std::move(focused_clip_id)) { }
+
+SectionRegionGrid::Source
+SectionRegionGrid::sourceAt(int track_id, int row) const {
+  auto & clips = read_song_.getClips(track_id);
+  if (!focused_clip_id_.empty()) {
+    for (size_t i = 0; i < clips.size(); i++) {
+      if (clips[i].getId() == focused_clip_id_) return { SourceKind::FOCUSED, static_cast<int>(i), 0 };
+    }
+  }
+  auto active = resolveInstanceAt(read_song_, read_section_, track_id, row);
+  if (active.clip_index >= 0) return { SourceKind::INSTANCE, active.clip_index, active.start_row };
+  return {};
+}
+
+const Pattern *
+SectionRegionGrid::clipPattern(int track_id, const Source & source, int row, int & pattern_row) const {
+  pattern_row = row;
+  if (source.kind == SourceKind::BACKGROUND) return nullptr;
+  auto & clip = read_song_.getClips(track_id)[static_cast<size_t>(source.clip_index)];
+  if (clip.hasSample()) return nullptr;
+  auto length = clip.getLength() > 0 ? clip.getLength() : 1;
+  auto & pattern = clip.getLeafPattern();
+  pattern_row = pattern.getEffectiveRow(row - source.start_row, length);
+  return &pattern;
+}
+
+const Pattern *
+SectionRegionGrid::find(int track_id, int row, int & pattern_row) const {
+  pattern_row = row;
+  auto source = sourceAt(track_id, anchor_row_);
+  if (!(sourceAt(track_id, row) == source)) return nullptr;
+  if (source.kind == SourceKind::BACKGROUND) return background_.find(track_id, row, pattern_row);
+  return clipPattern(track_id, source, row, pattern_row);
+}
+
+Pattern *
+SectionRegionGrid::find(int track_id, int row, int & pattern_row) {
+  auto found = static_cast<const SectionRegionGrid &>(*this).find(track_id, row, pattern_row);
+  return write_song_ ? const_cast<Pattern *>(found) : nullptr;
+}
+
+Pattern *
+SectionRegionGrid::obtain(int track_id, int row, int & pattern_row) {
+  pattern_row = row;
+  if (!write_song_) return nullptr;
+  auto source = sourceAt(track_id, anchor_row_);
+  if (!(sourceAt(track_id, row) == source)) return nullptr;
+  if (source.kind == SourceKind::BACKGROUND) return background_.obtain(track_id, row, pattern_row);
+  return const_cast<Pattern *>(clipPattern(track_id, source, row, pattern_row));
+}
+
+std::pair<int, int>
+SectionRegionGrid::sourceRows(int track_id) const {
+  auto length = read_song_.getEffectiveSectionLength(read_section_);
+  auto source = sourceAt(track_id, anchor_row_);
+  int first = anchor_row_, last = anchor_row_;
+  while (first > 0 && sourceAt(track_id, first - 1) == source) first--;
+  while (last + 1 < length && sourceAt(track_id, last + 1) == source) last++;
+  return { first, last };
 }

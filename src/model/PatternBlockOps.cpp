@@ -19,7 +19,7 @@ const vector<Note> & notesAt(const PatternGrid & grid, int track_id, int row) {
 
 const Command & commandAt(const PatternGrid & grid, int track_id, int row) {
   int pattern_row;
-  auto pattern = grid.find(track_id, row, pattern_row);
+  auto pattern = grid.findCommands(track_id, row, pattern_row);
   return pattern ? pattern->getCommand(pattern_row) : kNoCommand;
 }
 
@@ -50,11 +50,10 @@ clearPatternBlock(PatternGrid & grid, int row_lo, int row_hi,
 		  const vector<int> & track_ids, int track_lo, int track_hi) {
   for (int row = row_lo; row <= row_hi; row++) {
     for (int t = track_lo; t <= track_hi; t++) {
+      auto track_id = track_ids[static_cast<size_t>(t)];
       int pattern_row;
-      if (auto pattern = grid.find(track_ids[static_cast<size_t>(t)], row, pattern_row)) {
-	pattern->clearNotes(pattern_row);
-	pattern->setCommand(pattern_row, Command());
-      }
+      if (auto pattern = grid.find(track_id, row, pattern_row)) pattern->clearNotes(pattern_row);
+      if (auto pattern = grid.findCommands(track_id, row, pattern_row)) pattern->setCommand(pattern_row, Command());
     }
   }
 }
@@ -90,12 +89,11 @@ pastePatternBlock(PatternGrid & grid, const PatternBlock & block, int num_rows,
       int t = target_track + static_cast<int>(track_offset);
       if (t < 0 || t >= static_cast<int>(track_ids.size())) continue;
 
-      int pattern_row;
-      auto pattern = grid.obtain(track_ids[static_cast<size_t>(t)], row, pattern_row);
-      if (!pattern) continue;
+      auto track_id = track_ids[static_cast<size_t>(t)];
       auto & cell = row_cells[track_offset];
-      pattern->setNotes(pattern_row, cell.notes);
-      pattern->setCommand(pattern_row, cell.command);
+      int pattern_row;
+      if (auto pattern = grid.obtain(track_id, row, pattern_row)) pattern->setNotes(pattern_row, cell.notes);
+      if (auto pattern = grid.obtainCommands(track_id, row, pattern_row)) pattern->setCommand(pattern_row, cell.command);
     }
   }
 }
@@ -196,7 +194,7 @@ void
 clearPatternBlockCommand(PatternGrid & grid, int row_lo, int row_hi, int track_id) {
   for (int row = row_lo; row <= row_hi; row++) {
     int pattern_row;
-    if (auto pattern = grid.find(track_id, row, pattern_row)) pattern->setCommand(pattern_row, Command());
+    if (auto pattern = grid.findCommands(track_id, row, pattern_row)) pattern->setCommand(pattern_row, Command());
   }
 }
 
@@ -207,7 +205,7 @@ pastePatternBlockCommand(PatternGrid & grid, const vector<Command> & block, int 
     int row = target_row + static_cast<int>(row_offset);
     if (row < 0 || row >= num_rows) continue;
     int pattern_row;
-    if (auto pattern = grid.obtain(track_id, row, pattern_row)) pattern->setCommand(pattern_row, block[row_offset]);
+    if (auto pattern = grid.obtainCommands(track_id, row, pattern_row)) pattern->setCommand(pattern_row, block[row_offset]);
   }
 }
 

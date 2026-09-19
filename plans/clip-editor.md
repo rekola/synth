@@ -6,7 +6,7 @@ the Launchpad Session grid address) at a time, with one playhead per track.
 Views stop being buffers: a buffer is a song, and a view is how the UI is
 laid out around it.
 
-Status: Phases 0-4 committed; Phase 4's mouse-wheel follow-up done (not yet committed). Every phase lands as its own commit(s), with `ctest`
+Status: Phases 0-4 committed; Phase 5 done (not yet committed). Every phase lands as its own commit(s), with `ctest`
 and the e2e scripts green.
 
 ## The cursor model
@@ -400,6 +400,21 @@ shared cursor instead, not by geometry.
 ---
 
 ## Phase 5: block commands act on clips in arrangement mode
+
+Done (not yet committed): `SectionRegionGrid` (`src/model/PatternGrid.h`)
+anchors a block operation per track on whatever supplies it at the anchor
+row (a placed clip, the Launchpad-focused clip, or the background); rows
+where another content takes over have no Pattern, so a paste stops there.
+`PatternSource::readGrid()`/`editGrid()` take that anchor (the mark, or
+the cursor; the cursor for yank/kill-row/effect entry), and
+`getEffectiveSelectionBounds()` clamps the region to
+`PatternSource::sourceRows()`, which the highlight then shows. Effect
+commands stay on the section background (`PatternGrid::findCommands()`/
+`obtainCommands()`), where playback reads them - Phase 8 decides whether
+clips get their own. Tests: 5 `SectionRegionGrid` unit tests and
+`tools/e2e/verify_arrangement_clip_region.py`.
+
+The original design notes follow.
 
 Today kill/copy/yank/transpose, kill-row and the effect column act on the
 section background, even on rows showing a placed clip's notes, so

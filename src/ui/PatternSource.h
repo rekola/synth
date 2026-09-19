@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <optional>
+#include <utility>
 #include <unordered_map>
 
 class PatternGrid;
@@ -43,11 +44,17 @@ class PatternSource {
   // Note content: what's shown at, and what an edit writes to, a cell.
   virtual ReadTarget read(int track_id, RowAddress address) const = 0;
   virtual EditTarget edit(int track_id, RowAddress address) = 0;
-  // Effect commands and block operations (kill/copy/yank/transpose) for
-  // `block`. `create`: whether writing may create the block's storage
-  // (entry, paste) or only change what already exists (clearing).
-  virtual std::unique_ptr<const PatternGrid> readGrid(int block) const = 0;
-  virtual std::unique_ptr<PatternGrid> editGrid(int block, bool create) = 0;
+  // Effect commands and block operations (kill/copy/yank/transpose) in
+  // `anchor`'s block. `anchor` picks, per track, which content a block
+  // operation acts on - whatever supplies that track at the anchor row
+  // (see sourceRows()). `create`: whether writing may create the block's
+  // storage (entry, paste) or only change what already exists (clearing).
+  virtual std::unique_ptr<const PatternGrid> readGrid(RowAddress anchor) const = 0;
+  virtual std::unique_ptr<PatternGrid> editGrid(RowAddress anchor, bool create) = 0;
+  // The rows [first, last] of `anchor`'s block over which `track_id`'s
+  // notes come from the same content as at the anchor row - a selection
+  // never spans more than that.
+  virtual std::pair<int, int> sourceRows(int track_id, RowAddress anchor) const = 0;
 
   // Widens `track_info` for every track's content in the `rows` rows
   // starting `first.row` rows into `first.block`.

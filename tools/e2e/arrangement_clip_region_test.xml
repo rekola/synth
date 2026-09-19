@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Purpose-built for verify_arrangement_clip_region.py: one track whose
+     16-row section has a C-4 on every background row, and a 4-row one-shot
+     clip of E-4s placed at row 4 (shown on rows 4-7). -->
+<song temperament="12edo" tempo="120" rowsPerBar="4">
+  <instruments>
+    <instrument from="string.bowed.ensemble.pizzicato" />
+  </instruments>
+  <tracks>
+    <track id="0" instrument="0" />
+  </tracks>
+  <clips>
+    <trackClips track="0">
+      <clip id="c0" name="clip" loop="0" length="4">
+        <pattern>
+          <note row="0" velocity="80" value="E-4" />
+          <note row="1" velocity="80" value="E-4" />
+          <note row="2" velocity="80" value="E-4" />
+          <note row="3" velocity="80" value="E-4" />
+        </pattern>
+      </clip>
+    </trackClips>
+  </clips>
+  <sections>
+    <section length="4">
+      <pattern track="0">
+        <note row="0" velocity="80" value="C-4" />
+        <note row="1" velocity="80" value="C-4" />
+        <note row="2" velocity="80" value="C-4" />
+        <note row="3" velocity="80" value="C-4" />
+        <note row="4" velocity="80" value="C-4" />
+        <note row="5" velocity="80" value="C-4" />
+        <note row="6" velocity="80" value="C-4" />
+        <note row="7" velocity="80" value="C-4" />
+        <note row="8" velocity="80" value="C-4" />
+        <note row="9" velocity="80" value="C-4" />
+        <note row="10" velocity="80" value="C-4" />
+        <note row="11" velocity="80" value="C-4" />
+        <note row="12" velocity="80" value="C-4" />
+        <note row="13" velocity="80" value="C-4" />
+        <note row="14" velocity="80" value="C-4" />
+        <note row="15" velocity="80" value="C-4" />
+      </pattern>
+      <arrangement track="0">
+        <instance row="4">c0</instance>
+      </arrangement>
+    </section>
+  </sections>
+</song>

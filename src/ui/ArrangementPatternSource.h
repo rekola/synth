@@ -9,7 +9,9 @@ class Song;
 // The arrangement: blocks are the song's sections, the cursor row is the
 // transport's edit position, and a cell shows whatever actually plays
 // there - a placed clip instance's notes, or the section's background.
-// Effect commands and block operations act on the section's background.
+// Block operations act on the content the anchor row shows, per track
+// (SectionRegionGrid); effect commands always live on the section's
+// background, where playback reads them.
 class ArrangementPatternSource : public PatternSource {
  public:
   explicit ArrangementPatternSource(Controller & controller) : controller_(controller) { }
@@ -23,8 +25,9 @@ class ArrangementPatternSource : public PatternSource {
 
   ReadTarget read(int track_id, RowAddress address) const override;
   EditTarget edit(int track_id, RowAddress address) override;
-  std::unique_ptr<const PatternGrid> readGrid(int block) const override;
-  std::unique_ptr<PatternGrid> editGrid(int block, bool create) override;
+  std::unique_ptr<const PatternGrid> readGrid(RowAddress anchor) const override;
+  std::unique_ptr<PatternGrid> editGrid(RowAddress anchor, bool create) override;
+  std::pair<int, int> sourceRows(int track_id, RowAddress anchor) const override;
 
   void collectTrackInfo(RowAddress first, int rows, std::unordered_map<int, VisibleTrackInfo> & track_info) const override;
 

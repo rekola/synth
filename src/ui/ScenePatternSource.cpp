@@ -102,14 +102,14 @@ ScenePatternSource::edit(int track_id, RowAddress address) {
 }
 
 std::unique_ptr<const PatternGrid>
-ScenePatternSource::readGrid(int block) const {
+ScenePatternSource::readGrid(RowAddress anchor) const {
   const Song & s = song();
-  return std::make_unique<SceneGrid>(s, block, blockLength(block));
+  return std::make_unique<SceneGrid>(s, anchor.block, blockLength(anchor.block));
 }
 
 std::unique_ptr<PatternGrid>
-ScenePatternSource::editGrid(int block, bool) {
-  return std::make_unique<SceneGrid>(song(), block, blockLength(block));
+ScenePatternSource::editGrid(RowAddress anchor, bool) {
+  return std::make_unique<SceneGrid>(song(), anchor.block, blockLength(anchor.block));
 }
 
 void

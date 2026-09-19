@@ -1,6 +1,9 @@
 #ifndef _PATTERNGRID_H_
 #define _PATTERNGRID_H_
 
+#include <string>
+#include <utility>
+
 class Pattern;
 class Section;
 class Song;
@@ -22,6 +25,12 @@ class PatternGrid {
   // Like find(), but creates the Pattern if needed. nullptr only when the
   // cell can't be written at all.
   virtual Pattern * obtain(int track_id, int row, int & pattern_row) = 0;
+
+  // Where the cell's effect command lives: the same Pattern as its notes,
+  // unless an implementation keeps commands elsewhere.
+  virtual const Pattern * findCommands(int track_id, int row, int & pattern_row) const { return find(track_id, row, pattern_row); }
+  virtual Pattern * findCommands(int track_id, int row, int & pattern_row) { return find(track_id, row, pattern_row); }
+  virtual Pattern * obtainCommands(int track_id, int row, int & pattern_row) { return obtain(track_id, row, pattern_row); }
 };
 
 // A section's own background Patterns (never its clip instances), rows
@@ -42,6 +51,50 @@ class SectionBackgroundGrid : public PatternGrid {
   const Section & read_;
   Section * write_;
   int context_length_;
+};
+
+// A section as the arrangement shows it, anchored at `anchor_row`: each
+// track's notes come from whatever supplies that track at the anchor row -
+// the Launchpad-focused clip, a placed clip instance, or the section's own
+// background - for as long as the same source supplies it; rows where
+// another source takes over have no Pattern (so a block operation never
+// spills from a clip into the background or another clip). Effect commands
+// always come from the background, where playback reads them. Built over a
+// const Song, it's read-only.
+class SectionRegionGrid : public PatternGrid {
+ public:
+  SectionRegionGrid(Song & song, Section & section, int anchor_row, std::string focused_clip_id);
+  SectionRegionGrid(const Song & song, const Section & section, int anchor_row, std::string focused_clip_id);
+
+  const Pattern * find(int track_id, int row, int & pattern_row) const override;
+  Pattern * find(int track_id, int row, int & pattern_row) override;
+  Pattern * obtain(int track_id, int row, int & pattern_row) override;
+  const Pattern * findCommands(int track_id, int row, int & pattern_row) const override { return background_.find(track_id, row, pattern_row); }
+  Pattern * findCommands(int track_id, int row, int & pattern_row) override { return background_.find(track_id, row, pattern_row); }
+  Pattern * obtainCommands(int track_id, int row, int & pattern_row) override { return background_.obtain(track_id, row, pattern_row); }
+
+  // The rows [first, last] around the anchor row over which `track_id`'s
+  // notes keep coming from the same source.
+  std::pair<int, int> sourceRows(int track_id) const;
+
+ private:
+  enum class SourceKind { BACKGROUND, INSTANCE, FOCUSED };
+  struct Source {
+    SourceKind kind = SourceKind::BACKGROUND;
+    int clip_index = -1, start_row = 0;
+    bool operator==(const Source & other) const { return kind == other.kind && clip_index == other.clip_index && start_row == other.start_row; }
+  };
+  Source sourceAt(int track_id, int row) const;
+  // The clip Pattern `source` supplies, and `row`'s row within it; nullptr
+  // for the background or a clip holding sample audio.
+  const Pattern * clipPattern(int track_id, const Source & source, int row, int & pattern_row) const;
+
+  const Song & read_song_;
+  Song * write_song_;
+  const Section & read_section_;
+  SectionBackgroundGrid background_;
+  int anchor_row_;
+  std::string focused_clip_id_;
 };
 
 // One scene: the clips at clip-list index `scene` across tracks, rows

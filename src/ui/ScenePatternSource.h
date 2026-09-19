@@ -31,8 +31,10 @@ class ScenePatternSource : public PatternSource {
 
   ReadTarget read(int track_id, RowAddress address) const override;
   EditTarget edit(int track_id, RowAddress address) override;
-  std::unique_ptr<const PatternGrid> readGrid(int block) const override;
-  std::unique_ptr<PatternGrid> editGrid(int block, bool create) override;
+  std::unique_ptr<const PatternGrid> readGrid(RowAddress anchor) const override;
+  std::unique_ptr<PatternGrid> editGrid(RowAddress anchor, bool create) override;
+  // A scene has one source per track: its clip.
+  std::pair<int, int> sourceRows(int, RowAddress anchor) const override { return { 0, blockLength(anchor.block) - 1 }; }
 
   void collectTrackInfo(RowAddress first, int rows, std::unordered_map<int, VisibleTrackInfo> & track_info) const override;
 

@@ -90,6 +90,11 @@ you're changing.
   mouse without moving focus, scrolls its view but never its cursor (or
   the transport), Shift scrolls tracks sideways, and the next cursor move
   brings the view back.
+- **`verify_arrangement_clip_region.py`** (fixture
+  `arrangement_clip_region_test.xml`) - Arrangement view's block commands
+  over a placed clip: a region marked inside the clip stops at its end and
+  kills the clip's notes, never the background's; a yank lands in whatever
+  the cursor is on and stops where that content ends.
 - **`verify_inline_editors.py`** - every widget's inline text editor
   (section, track, annotation, clip names): Enter commits, Ctrl-g and M-x
   cancel, and a typed space never reaches the global toggle-playing

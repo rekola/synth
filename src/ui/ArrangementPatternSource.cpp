@@ -51,17 +51,22 @@ ArrangementPatternSource::edit(int track_id, RowAddress address) {
 }
 
 std::unique_ptr<const PatternGrid>
-ArrangementPatternSource::readGrid(int block) const {
+ArrangementPatternSource::readGrid(RowAddress anchor) const {
   const Song & s = song();
-  auto & section = s.getSection(block);
-  return std::make_unique<SectionBackgroundGrid>(section, s.getEffectiveSectionLength(section));
+  return std::make_unique<SectionRegionGrid>(s, s.getSection(anchor.block), anchor.row, controller_.getFocusedClip());
 }
 
 std::unique_ptr<PatternGrid>
-ArrangementPatternSource::editGrid(int block, bool create) {
+ArrangementPatternSource::editGrid(RowAddress anchor, bool create) {
   auto & s = song();
-  auto & section = create ? s.getOrCreateSection(block) : s.getSection(block);
-  return std::make_unique<SectionBackgroundGrid>(section, s.getEffectiveSectionLength(section));
+  auto & section = create ? s.getOrCreateSection(anchor.block) : s.getSection(anchor.block);
+  return std::make_unique<SectionRegionGrid>(s, section, anchor.row, controller_.getFocusedClip());
+}
+
+std::pair<int, int>
+ArrangementPatternSource::sourceRows(int track_id, RowAddress anchor) const {
+  const Song & s = song();
+  return SectionRegionGrid(s, s.getSection(anchor.block), anchor.row, controller_.getFocusedClip()).sourceRows(track_id);
 }
 
 void

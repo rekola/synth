@@ -151,8 +151,14 @@ class PatternEditor : public UIElement {
   void handleBufferChanged();
 
 protected:
-  // See SelectionBounds.h.
+  // See SelectionBounds.h. The rows never span more than the content the
+  // selection's anchor row shows on each selected track
+  // (PatternSource::sourceRows()) - a clip's notes, or the background's.
   SelectionBounds getEffectiveSelectionBounds(const Song & song, const std::vector<int> & track_ids) const;
+  // Where the selection starts: the mark, or the cursor with no mark - what
+  // picks which content a block operation acts on (PatternSource::
+  // editGrid()'s own anchor).
+  RowAddress selectionAnchor() const;
 
   // The single place selection_active_ is ever written - also mirrors the
   // new value to Controller::setPatternSelectionActive() so

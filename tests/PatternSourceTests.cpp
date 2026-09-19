@@ -84,9 +84,14 @@ TEST(arrangement_source_notes_follow_a_placed_clip_but_commands_stay_on_the_back
   edit.pattern->setNote(edit.effective_row, 0, Note(62, 100));
   CHECK(song.getClips(f.track_id)[0].getLeafPattern().getNote(1, 0).getValue() == 62);
 
+  // A block operation anchored on a clip row acts on the clip's notes,
+  // but commands stay on the background.
   int row;
-  auto grid = source.readGrid(0);
-  auto background = grid->find(f.track_id, 0, row);
+  auto grid = source.readGrid({ 0, 0 });
+  auto notes = grid->find(f.track_id, 0, row);
+  CHECK(notes != nullptr);
+  CHECK(notes->getNote(row, 0).getValue() == 60);
+  auto background = grid->findCommands(f.track_id, 0, row);
   CHECK(background != nullptr);
   CHECK(background->getNote(row, 0).getValue() == 40);
   CHECK(background->getCommand(row).isDefined());
@@ -97,13 +102,13 @@ TEST(arrangement_source_edit_grid_creates_a_section_only_when_asked) {
   ArrangementPatternSource source(f.controller);
   auto & song = f.song();
 
-  source.editGrid(5, false);
+  source.editGrid({ 5, 0 }, false);
   CHECK(song.getSections().size() == 2);
   CHECK(source.annotations(5, false) != nullptr);
   CHECK(song.getSections().size() == 2);
 
   int row;
-  auto grid = source.editGrid(3, true);
+  auto grid = source.editGrid({ 3, 0 }, true);
   CHECK(song.getSections().size() == 4);
   grid->obtain(f.track_id, 1, row)->setNote(row, 0, Note(64, 100));
   CHECK(song.getSection(3).getNote(1, f.track_id, 0).getValue() == 64);
@@ -217,7 +222,7 @@ TEST(scene_source_clearing_never_creates_clips) {
   Fixture f;
   auto & song = f.song();
   ScenePatternSource source(f.controller);
-  auto grid = source.editGrid(0, false);
+  auto grid = source.editGrid({ 0, 0 }, false);
   clearPatternBlock(*grid, 0, 3, { f.track_id }, 0, 0);
   CHECK(song.getClips(f.track_id).empty());
 }
@@ -247,4 +252,77 @@ TEST(scene_source_reports_a_tracks_playhead_only_in_its_own_scene) {
   CHECK(!source.hasAnnotations());
   CHECK(!source.showsClipIndirection());
   CHECK(!source.cursorFollowsTransport());
+}
+
+// --- SectionRegionGrid: block operations act on one content only ---
+
+namespace {
+
+// One track, a 16-row section with background notes on every row, and a
+// 4-row one-shot clip (its own notes on every row) placed at row 4.
+struct RegionFixture {
+  Song song;
+  int track_id;
+  Section * section;
+  RegionFixture() {
+    track_id = song.addTrack(make_unique<InstrumentTrack>(0)).getInternalId();
+    section = &song.addSection();
+    section->setLengthBars(16 / std::max(1, song.getRowsPerBar()));
+    Clip clip(track_id);
+    clip.setLength(4);
+    clip.setLooping(false);
+    for (int row = 0; row < 4; row++) clip.getLeafPattern().setNote(row, 0, Note(70, 100));
+    song.addClip(move(clip));
+    placeClipInstance(song, *section, track_id, 4, 0);
+    for (int row = 0; row < song.getEffectiveSectionLength(*section); row++) section->setNote(row, track_id, 0, Note(40, 100));
+  }
+  const Pattern & clipPattern() const { return song.getClips(track_id)[0].getLeafPattern(); }
+};
+
+}
+
+TEST(region_grid_reports_where_each_content_supplies_a_track) {
+  RegionFixture f;
+  auto length = f.song.getEffectiveSectionLength(*f.section);
+  CHECK((SectionRegionGrid(f.song, *f.section, 0, "").sourceRows(f.track_id) == make_pair(0, 3)));
+  CHECK((SectionRegionGrid(f.song, *f.section, 5, "").sourceRows(f.track_id) == make_pair(4, 7)));
+  CHECK((SectionRegionGrid(f.song, *f.section, 9, "").sourceRows(f.track_id) == make_pair(8, length - 1)));
+}
+
+TEST(region_grid_anchored_on_the_background_leaves_the_clip_alone) {
+  RegionFixture f;
+  SectionRegionGrid grid(f.song, *f.section, 0, "");
+  clearPatternBlock(grid, 0, 7, { f.track_id }, 0, 0);
+  CHECK(!f.section->getNote(2, f.track_id, 0).isDefined()); // background cleared
+  CHECK(f.section->getNote(5, f.track_id, 0).isDefined()); // background under the clip: not shown, not touched
+  CHECK(f.clipPattern().getNote(1, 0).isDefined()); // the clip untouched
+}
+
+TEST(region_grid_anchored_on_a_clip_acts_on_the_clip) {
+  RegionFixture f;
+  SectionRegionGrid grid(f.song, *f.section, 5, "");
+  clearPatternBlock(grid, 0, 7, { f.track_id }, 0, 0);
+  CHECK(!f.clipPattern().getNote(1, 0).isDefined()); // clip row 1 = section row 5
+  CHECK(f.section->getNote(2, f.track_id, 0).isDefined()); // the background before it untouched
+  CHECK(f.section->getNote(5, f.track_id, 0).isDefined()); // and the background under it
+}
+
+TEST(region_grid_paste_into_a_clip_stops_at_its_end) {
+  RegionFixture f;
+  PatternBlock block(4);
+  for (auto & row : block) row.push_back({ { Note(64, 100) }, Command(), 0 });
+  SectionRegionGrid grid(f.song, *f.section, 6, "");
+  pastePatternBlock(grid, block, f.song.getEffectiveSectionLength(*f.section), 6, { f.track_id }, 0);
+  CHECK(f.clipPattern().getNote(2, 0).getValue() == 64); // rows 6, 7 are the clip's rows 2, 3
+  CHECK(f.clipPattern().getNote(3, 0).getValue() == 64);
+  CHECK(f.section->getNote(8, f.track_id, 0).getValue() == 40); // past the clip: not written
+}
+
+TEST(region_grid_follows_a_focused_clip_across_the_whole_section) {
+  RegionFixture f;
+  auto focused = f.song.getClips(f.track_id)[0].getId();
+  SectionRegionGrid grid(f.song, *f.section, 0, focused);
+  CHECK((grid.sourceRows(f.track_id) == make_pair(0, f.song.getEffectiveSectionLength(*f.section) - 1)));
+  int row;
+  CHECK(grid.find(f.track_id, 1, row) == &f.clipPattern());
 }

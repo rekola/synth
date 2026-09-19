@@ -202,6 +202,14 @@ never say "No selection" anymore, they just act on that one note. Marking
 and moving the cursor (rows, or sideways through note columns within one
 track) extends the region from there the usual way.
 
+In Arrangement view, a region acts on the notes it shows: per selected
+track, whatever supplies that track at the region's anchor row (the mark,
+or the cursor with no mark) - a placed clip, the Launchpad-focused clip, or
+the section's background - and its rows stop where another content takes
+over (`PatternSource::sourceRows()`, `SectionRegionGrid`). A yank writes
+into whatever the cursor is on and stops where that ends. Effect commands
+always stay on the section's background, where playback reads them.
+
 Because the effective region always exists, it's also always shown —
 `PatternEditor::renderRow` no longer has a separate "current column"
 highlight; that color (`styles.highlight_fg_color`/`highlight_bg_color`,

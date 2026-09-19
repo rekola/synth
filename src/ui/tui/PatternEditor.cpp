@@ -117,7 +117,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
     auto & song = getController().getSong();
     auto point = source_->cursor();
     auto track_ids = song.getRootTrackIds();
-    auto grid = source_->editGrid(point.block, false);
+    auto grid = source_->editGrid(selectionAnchor(), false);
     auto * annotations = source_->annotations(point.block, false);
 
     auto b = getEffectiveSelectionBounds(song, track_ids);
@@ -209,7 +209,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
     auto & song = getController().getSong();
     auto point = source_->cursor();
     auto track_ids = song.getRootTrackIds();
-    auto grid = source_->readGrid(point.block);
+    auto grid = source_->readGrid(selectionAnchor());
     auto * annotations = source_->annotations(point.block);
 
     auto b = getEffectiveSelectionBounds(song, track_ids);
@@ -286,7 +286,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
       }
 
       // yank writes, so it may create the block's storage.
-      auto grid = source_->editGrid(point.block, true);
+      auto grid = source_->editGrid(point, true);
       auto * annotations = source_->annotations(point.block, true);
       auto context_length = source_->blockLength(point.block);
       if (clipboard_.scope == SelectionScope::TRACK) {
@@ -362,7 +362,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
       return;
     }
 
-    auto grid = source_->editGrid(point.block, false);
+    auto grid = source_->editGrid(point, false);
     clipboard_.scope = SelectionScope::TRACK;
     clipboard_.cells = copyPatternBlock(*grid, row, row, track_ids, current_cursor.track, current_cursor.track);
     clipboard_.commands.clear();
@@ -388,7 +388,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
   // the whole pattern, select all of it first.
   commands_.define("transpose-region-up", [this]() {
     auto & song = getController().getSong();
-    auto grid = source_->editGrid(source_->cursor().block, false);
+    auto grid = source_->editGrid(selectionAnchor(), false);
     auto track_ids = song.getRootTrackIds();
 
     // A percussion or drum-machine track's Note::getValue() selects which
@@ -417,7 +417,7 @@ PatternEditor::PatternEditor(UIPlane & parent)
 
   commands_.define("transpose-region-down", [this]() {
     auto & song = getController().getSong();
-    auto grid = source_->editGrid(source_->cursor().block, false);
+    auto grid = source_->editGrid(selectionAnchor(), false);
     auto track_ids = song.getRootTrackIds();
 
     // See transpose-region-up's own comment.
@@ -836,11 +836,18 @@ PatternEditor::copyToClip() {
   // Starts unnamed - naming happens later, from the clip viewer, not
   // here.
   auto b = getEffectiveSelectionBounds(song, track_ids);
-  auto grid = source_->readGrid(source_->cursor().block);
+  auto grid = source_->readGrid(selectionAnchor());
   auto clip = extractClip(*grid, track_id, b.row_lo, b.row_hi, song.getRowsPerBar());
   song.addClip(std::move(clip));
   setSelectionActive(false);
   getController().getUIEventQueue().push(make_unique<LogEvent>("Copied to clip"));
+}
+
+RowAddress
+PatternEditor::selectionAnchor() const {
+  auto point = source_->cursor();
+  bool has_mark = selection_active_ && selection_start_pattern_ == point.block;
+  return { point.block, has_mark ? selection_start_row_ : point.row };
 }
 
 SelectionBounds
@@ -856,6 +863,18 @@ PatternEditor::getEffectiveSelectionBounds(const Song & song, const vector<int> 
   b.track_lo = min(start_track, current_cursor.track);
   b.track_hi = max(start_track, current_cursor.track);
 
+  // Notes come from one content only - a clip's, or the background's - so
+  // the rows stop where another takes over on any selected track, rather
+  // than a kill/copy spilling from what's shown into what isn't.
+  auto clampToSources = [&](SelectionBounds & bounds) {
+    auto anchor = selectionAnchor();
+    for (int t = bounds.track_lo; t <= bounds.track_hi && t < static_cast<int>(track_ids.size()); t++) {
+      auto [ first, last ] = source_->sourceRows(track_ids[static_cast<size_t>(t)], anchor);
+      bounds.row_lo = max(bounds.row_lo, first);
+      bounds.row_hi = min(bounds.row_hi, last);
+    }
+  };
+
   bool point_on_annotation = current_cursor.isOnAnnotation();
   bool mark_on_annotation = has_mark && selection_start_scope_ == SelectionScope::ANNOTATION;
 
@@ -867,6 +886,7 @@ PatternEditor::getEffectiveSelectionBounds(const Song & song, const vector<int> 
     b.track_lo = 0;
     b.track_hi = max(static_cast<int>(track_ids.size()) - 1, 0);
     b.scope = SelectionScope::EVERYTHING;
+    clampToSources(b);
     return b;
   }
 
@@ -881,6 +901,7 @@ PatternEditor::getEffectiveSelectionBounds(const Song & song, const vector<int> 
   if (b.track_lo != b.track_hi) {
     // Crossing tracks is always whole-cell, the same way it always has been.
     b.scope = SelectionScope::TRACK;
+    clampToSources(b);
     return b;
   }
 
@@ -913,6 +934,7 @@ PatternEditor::getEffectiveSelectionBounds(const Song & song, const vector<int> 
     b.note_lo = clamp(track_info.getNoteNumber(k_lo), 0, max_note);
     b.note_hi = clamp(track_info.getNoteNumber(k_hi), 0, max_note);
   }
+  if (b.scope != SelectionScope::COMMAND) clampToSources(b); // commands live on the background, whatever supplies the notes
 
   return b;
 }
@@ -1591,10 +1613,10 @@ PatternEditor::offerInput(const InputEvent & input) {
 	// recorded here is actually going to play back from. Written with
 	// obtain() only when it actually changes, so merely typing an
 	// invalid character creates nothing.
-	auto command_grid = source_->editGrid(point.block, true);
+	auto command_grid = source_->editGrid(point, true);
 	auto set_command = [&](const Command & c) {
 	  int command_row;
-	  if (auto pattern = command_grid->obtain(track_id, point.row, command_row)) pattern->setCommand(command_row, c);
+	  if (auto pattern = command_grid->obtainCommands(track_id, point.row, command_row)) pattern->setCommand(command_row, c);
 	};
 	// Delete/Backspace clear the whole 4-character command, regardless
 	// of which of its subcol characters the cursor happens to be on -
@@ -1632,7 +1654,7 @@ PatternEditor::offerInput(const InputEvent & input) {
 	// and would otherwise get silently written into the command as if
 	// it were a typed character.
 	int command_row;
-	auto existing = command_grid->find(track_id, point.row, command_row);
+	auto existing = command_grid->findCommands(track_id, point.row, command_row);
 	auto command = existing ? existing->getCommand(command_row) : Command();
 	if (command.updateData(new_cursor.subcol, input.getId())) {
 	  set_command(command);
@@ -2380,7 +2402,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   auto address = source_->normalize(view_block_, display_row + current_scroll_.row);
   auto pattern_idx = address.block, pattern_row = address.row;
   bool is_neighboring_pattern = point.block != pattern_idx;
-  auto grid = source_->readGrid(pattern_idx);
+  auto grid = source_->readGrid(address);
 
   display_row += heading_height;
 
@@ -2721,7 +2743,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       // to play regardless of which Pattern supplied this row's notes.
       static const Command no_command;
       int command_row;
-      auto command_pattern = grid->find(track_id, pattern_row, command_row);
+      auto command_pattern = grid->findCommands(track_id, pattern_row, command_row);
       auto & command = command_pattern ? command_pattern->getCommand(command_row) : no_command;
 
       // current_scroll_.col skips this many of this track's own leading
