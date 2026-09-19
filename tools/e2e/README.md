@@ -9,49 +9,35 @@ used to verify that layer by hand: a small C program opens an ALSA
 sequencer client named to look like a real Launchpad and scripts a
 sequence of press/release/CC events, while a Python script spawns
 `synth` in a pty (via `pyte`) and screen-scrapes the result.
+Real hardware and the simulators never mix, in either direction
+(`LaunchpadIO::acceptsClient()`): every simulator's ALSA client name
+ends in `(e2e)`, which an ordinary `synth` skips - so a `synth` you're
+running interactively never connects to a test's fake device - while
 `harness.py`'s own `spawn()` sets `SYNTH_LAUNCHPAD_NO_HARDWARE=1` on every
-`synth` it spawns, so it only ever connects to the fake simulator a
-script is actually driving, never any real Launchpad hardware also
-plugged into the same machine (`LaunchpadIO.h`'s own `ignore_hardware_`
-comment) - without this, a machine with a real Launchpad attached would
-have every e2e-spawned `synth` auto-connect to both at once.
+`synth` it spawns, which then skips kernel (hardware) clients instead, so
+a test never connects to a real Launchpad plugged into the same machine.
 
 ## Setup
 
 ```sh
-gcc -o fake_launchpad fake_launchpad.c -lasound
-gcc -o fake_launchpad_chord fake_launchpad_chord.c -lasound
-gcc -o fake_launchpad_perc fake_launchpad_perc.c -lasound
-gcc -o fake_launchpad_button fake_launchpad_button.c -lasound
-gcc -o fake_launchpad_hotplug fake_launchpad_hotplug.c -lasound
-gcc -o fake_launchpad_device fake_launchpad_device.c -lasound
-gcc -o fake_launchpad_sendmode fake_launchpad_sendmode.c -lasound
-gcc -o fake_launchpad_sendmode_autocreate fake_launchpad_sendmode_autocreate.c -lasound
-gcc -o fake_launchpad_draw_clear fake_launchpad_draw_clear.c -lasound
-gcc -o fake_launchpad_stepseq fake_launchpad_stepseq.c -lasound
-gcc -o fake_launchpad_session fake_launchpad_session.c -lasound
-gcc -o fake_launchpad_notecustom fake_launchpad_notecustom.c -lasound
-gcc -o fake_launchpad_stopclip fake_launchpad_stopclip.c -lasound
-gcc -o fake_launchpad_mute_picker fake_launchpad_mute_picker.c -lasound
-gcc -o fake_launchpad_record_arm_picker fake_launchpad_record_arm_picker.c -lasound
-gcc -o fake_launchpad_record_arm_holes fake_launchpad_record_arm_holes.c -lasound
-gcc -o fake_launchpad_record_arm_wrong_track fake_launchpad_record_arm_wrong_track.c -lasound
-gcc -o fake_launchpad_record_arm_percussion fake_launchpad_record_arm_percussion.c -lasound
-gcc -o fake_launchpad_sampletrack_record_arm fake_launchpad_sampletrack_record_arm.c -lasound
-gcc -o fake_launchpad_shift_stepgrid fake_launchpad_shift_stepgrid.c -lasound
-gcc -o fake_launchpad_shift_highlight fake_launchpad_shift_highlight.c -lasound
-gcc -o fake_launchpad_aftertouch_clip fake_launchpad_aftertouch_clip.c -lasound
-gcc -o fake_launchpad_mixer_hold fake_launchpad_mixer_hold.c -lasound
-gcc -o fake_launchpad_scene_row fake_launchpad_scene_row.c -lasound
-gcc -o fake_launchpad_clear_on_exit fake_launchpad_clear_on_exit.c -lasound
-gcc -o fake_launchpad_paging_lockstep fake_launchpad_paging_lockstep.c -lasound
-gcc -o fake_launchpad_shift_no_lanes fake_launchpad_shift_no_lanes.c -lasound
-gcc -o fake_launchpad_shift_stepgrid_pitched fake_launchpad_shift_stepgrid_pitched.c -lasound
+for c in fake_launchpad*.c; do gcc -o "${c%.c}" "$c" -lasound; done
 ```
 
-(the compiled binaries are gitignored - only the `.c` sources are
-checked in). Requires a built `../../build/synth` and Python's
-`pyte` package (`pip install pyte`).
+Rebuild after pulling - the compiled binaries are gitignored (only the
+`.c` sources are checked in), and a stale one fails its script in
+confusing ways. Requires a built `../../build/synth` and Python's `pyte`
+package (`pip install pyte`).
+
+## Writing a script
+
+- Wait with `scr.wait(seconds)`, never `time.sleep()` once `synth` is
+  running: an unread pty fills up and blocks `synth`'s UI thread, which
+  also does the Launchpad I/O, so LED updates stall until the next read.
+- A simulator whose script checks LEDs waits with `drain()` (read and
+  log incoming SysEx for a while), not a bare `sleep()`: an unread ALSA
+  input queue overflows, and the LED frames sent meanwhile are lost.
+- `scr.pump(t)` returns as soon as the app goes quiet - it is not a
+  fixed wait either.
 
 ## Running a script
 
@@ -228,10 +214,8 @@ you're changing.
   read as "column 0" rather than "clip index 7" - to queue a stop,
   confirming the pad's LED dims red once it takes effect while CC49's own
   indicator stays lit (the overlay no longer auto-closes on a pick), then
-  a second CC49 press closes it, reverting both. **Currently fails most
-  checks in this sandboxed environment** for a documented, pre-existing,
-  unrelated reason (not a real regression - reproduces with plain pad
-  presses alone, no CC49 involved) - see `docs/known_bugs.md`.
+  a second CC49 press closes it, reverting both. Also confirms a playing
+  clip's picker pad shows the picker's static red, not its playing pulse.
 - **`launchpad_sampletrack_session_test.xml` (+ sidecar `.wav`) /
   `verify_launchpad_sampletrack_stopclip.py`** - the SampleTrack twin of
   the script above: structurally the same fixture (one track, pool index
@@ -240,9 +224,7 @@ you're changing.
   `LaunchpadManager::fireOrTriggerClipStep()`'s SAMPLE branch
   (`PlaybackControlEvent::PLAY_SAMPLE_CLIP`) is wired all the way through
   the real ALSA + audio-thread path, not just reachable in-process the way
-  `SampleTrackTests.cpp`'s own `triggerClip()` calls are. Same known,
-  pre-existing environment limitation as its sibling above - see
-  `docs/known_bugs.md`.
+  `SampleTrackTests.cpp`'s own `triggerClip()` calls are.
 - **`fake_launchpad_mute_picker.c` / `verify_launchpad_mute_picker.py`** -
   the track-picker overlay's Mute purpose (CC39): presses CC95 a second
   time to enter Session's own mixer submode first (required before CC39
@@ -257,12 +239,7 @@ you're changing.
   polarity-inverted from Stop Clip/Solo - see `CLAUDE.md`'s own
   Track-picker overlay bullet) while CC39's own LED stays lit (no
   auto-close on a pick), then a second CC39 press closes it and both
-  revert. Deliberately never triggers playback, unlike
-  `verify_launchpad_stopclip.py` above - Mute needs no clip playing at
-  all, which sidesteps the same sandboxed-environment flakiness
-  documented for that script (`docs/known_bugs.md`), giving a much more
-  reliable signal for the overlay's general open/pick/retarget/close
-  mechanics.
+  revert. Never triggers playback - Mute needs no clip playing at all.
 - **`fake_launchpad_record_arm_picker.c` / `verify_launchpad_record_arm_picker.py`** -
   the track-picker overlay's RECORD_ARM purpose (CC19): one of the eight
   members of the real Launchpad X's own right-column "Track control" group
@@ -329,11 +306,7 @@ you're changing.
   (a two-lane step-sequenced `PercussionTrack`), plays a NOTES-mode pad
   press, then disarms - verifies the actual functional outcome through
   the terminal `ClipGrid` widget (did the note land in the armed clip
-  at all), deliberately not exact LED byte sequences for the step grid vs.
-  free-drumming layout: this sandboxed environment's own pad-press-to-LED
-  round trip for the step grid specifically is unreliable even on an
-  unmodified checkout (confirmed via `git stash` A/B - see
-  `verify_launchpad_stepseq.py`'s own docstring and `docs/known_bugs.md`).
+  at all), not LED bytes.
 - **`launchpad_sampletrack_record_arm_test.xml` / `fake_launchpad_
   sampletrack_record_arm.c` / `verify_launchpad_sampletrack_record_arm.py`** -
   the SampleTrack twin of `fake_launchpad_record_arm_holes.c` above -
@@ -344,16 +317,8 @@ you're changing.
   instead of falling through to plain audition/assign) and the "press the
   same pad again cancels it" gesture. Verified through the terminal
   `ClipGrid` widget's own text (the "●" record indicator, same
-  mechanism `fake_launchpad_record_arm_holes.c` uses), not LED bytes - a
-  real armed SampleTrack take also engages `Player.cpp`'s own
-  threshold-triggered ALSA capture logic, exactly the kind of real-audio
-  path this sandboxed environment's own documented LED-read flakiness is
-  about (see `docs/known_bugs.md`), so LED reads here would be doubly
-  fragile; confirmed directly - an early LED-based version of this script
-  reliably failed to observe any state change at all across a rapid
-  arm/cancel pair here, even with generous margins, while the identical
-  underlying state transitions were independently confirmed correct via
-  temporary in-process tracing. Two independent spawns (`argv[1] ==
+  mechanism `fake_launchpad_record_arm_holes.c` uses), not LED bytes.
+  Two independent spawns (`argv[1] ==
   "cancel"` toggles a second scripted press) rather than one script with
   two mid-run dumps: `Controller::disarmTrack()`'s own
   `trimSessionRecordingClip()` call clears the record indicator
@@ -370,10 +335,7 @@ you're changing.
   needing another shift+pad combo. Verified through the terminal
   `ClipGrid` widget's own text (the "*" focus marker `ClipGrid.cpp`
   already draws for whichever clip is open for editing) at two points in
-  one spawn - unlike the SampleTrack record-arm script above, this
-  gesture never touches real audio/ALSA capture at all (pure
-  Song/Controller state), so it isn't expected to hit that same class of
-  flakiness, and a mid-run read is safe as long as it's timed comfortably
+  one spawn - a mid-run read is safe as long as it's timed comfortably
   inside the fixture's own generous "waiting to be read" window between
   the two phases.
 - **`fake_launchpad_shift_highlight.c` / `verify_launchpad_shift_highlight.py`**
@@ -384,13 +346,7 @@ you're changing.
   has a real meaning there), and the pad it's combined with gets the
   identical bright-white treatment the moment it's pressed, still held
   (`DeviceState::row_up_shift_pending_pad`). Verified through raw LED
-  bytes rather than terminal text, since this gesture never touches real
-  audio either - in principle exactly as reliable as
-  `verify_launchpad_record_arm_picker.py`'s own LED checks, but
-  **currently fails every check past the first CC91 press in this
-  sandboxed environment**, a fresh instance of the documented stall class
-  with no real audio/ALSA capture involved at all this time - see
-  `docs/known_bugs.md`.
+  bytes.
 - **`fake_launchpad_aftertouch_clip.c` / `verify_launchpad_aftertouch_clip.py`** -
   the "Clip-based note recording" path (`Controller::
   ensureNoteRecordingClip()`), not step entry: switches into NOTES grid
@@ -411,56 +367,42 @@ you're changing.
   threshold) and releases - confirms Send A's own LED is bright again
   afterward (reverted, not left on Mute), then quick-taps Mute again as a
   control - confirms it stays bright this time (sticky, no hold
-  involved). Same known, pre-existing environment limitation as
-  `verify_launchpad_stopclip.py` above (it also presses CC95 a second
-  time to enter mixer submode) - see `docs/known_bugs.md`.
+  involved).
 - **`launchpad_scene_row_test.xml` / `fake_launchpad_scene_row.c` /
   `verify_launchpad_scene_row.py`** - `LaunchpadManager::triggerSceneRow()`'s
   right-column scene launch (CC19, mixer submode off): a two-track fixture
   with a real clip at Session index 7 on each track, pressed with a single
   CC19 press+release, expects both tracks' own pads to launch together
-  rather than only the first. Takes the real audition/playback path (an
-  actual note starts rendering) - the same known, pre-existing environment
-  limitation as `verify_launchpad_stopclip.py` above, so its own LED
-  checks fail here reliably - see `docs/known_bugs.md`.
+  rather than only the first.
 - **`fake_launchpad_clear_on_exit.c` / `verify_launchpad_clear_on_exit.py`**
   (reuses `launchpad_scene_row_test.xml` for its own real Session content) -
   `LaunchpadIO::clearAllLeds()`, the destructor's own last act: quits
   synth gracefully (C-x C-c) and confirms the very last LED-lighting
   SysEx the fake device receives blanks every colorspec, after an earlier
   dump confirmed there was real (non-black) content lit to begin with.
-  No real audio/ALSA capture involved, so this one isn't expected to hit
-  the sandboxed-environment flakiness documented above.
 - **`launchpad_paging_lockstep_test.xml` / `fake_launchpad_paging_lockstep.c` /
   `verify_launchpad_paging_lockstep.py`** - the step grid's own
   prev-track/next-track page-shift gesture (`LaunchpadManager::
   handleCommand()`'s own comment) moving every connected device together,
-  not just whichever one was pressed: two simulated devices open a 4-page
-  (32-step) clip, confirm `resetStepGridView()`'s own device-order split
-  put them on two different pages, then one device pages forward once and
-  both are confirmed to have advanced by exactly one page - not left
-  drifted apart. No real audio/ALSA capture involved, so this one isn't
-  expected to hit the sandboxed-environment flakiness documented above
-  either - unlike most two-device scripts in this suite, which do.
+  not just whichever one was pressed: two simulated devices open a
+  32-step clip, confirm `resetStepGridView()`'s own device-order split
+  put them on two different windows, then one device scrolls forward once
+  and both are confirmed to have scrolled by the same step (4) - not left
+  drifted apart. Reads each device's first and last step-grid frame, not
+  timed phases, since the two simulators' timing drifts apart.
 - **`launchpad_shift_no_lanes_test.xml` / `fake_launchpad_shift_no_lanes.c` /
   `verify_launchpad_shift_no_lanes.py`** - the shift+pad "open for
   editing" gesture on a *lane-less* PercussionTrack's own clip
   (`Controller::toggleDrumClipFocus()` doesn't gate on lane count at all):
   opens the step grid same as any other clip, just completely empty,
   rather than declining outright or routing to the lane picker instead.
-  Hits the same CC91-held stall class as `verify_launchpad_shift_
-  highlight.py` above, in two different shapes across separate runs (no
-  LED dump at all, or a later unexplained reconnect overwriting a correct
-  one) - see `docs/known_bugs.md`.
 - **`launchpad_shift_stepgrid_pitched_test.xml` / `fake_launchpad_shift_
   stepgrid_pitched.c` / `verify_launchpad_shift_stepgrid_pitched.py`** -
   the shift+pad "open for editing" gesture on a *pitched* InstrumentTrack's
   own clip, its rows drawn from the song's own scale
   (`Song::getScaleDegrees()`) rather than a manually-picked lane list -
   same "*" focus-marker verification as `verify_launchpad_shift_
-  stepgrid.py` above (its own sibling script), no real audio/ALSA capture
-  involved, so unlike the two scripts above it isn't expected to hit that
-  same stall class - passes reliably.
+  stepgrid.py` above (its own sibling script).
 - **`cross_tuning_paste_test.xml` (+ companion `..._song_b.xml`) /
   `verify_patterneditor_cross_tuning_paste.py`** - a `Note::getValue()`
   means a different kind of value under a different tuning (GM percussion
@@ -473,18 +415,8 @@ you're changing.
   own - it has none).
 - **`drum_machine_stepgrid_test.xml` / `fake_launchpad_stepseq.c` /
   `verify_launchpad_stepseq.py`** - loads
-  a song whose only track is a step-sequenced `PercussionTrack`, confirms
-  the Launchpad grid switches to the step-grid surface automatically (no
-  mode toggle needed - the step-lit/unlit colors, not the ordinary
-  note-grid ones) purely from track assignment, then presses pad (0,0) and checks
-  for the lane/step's color changing to lit. That second check currently
-  fails in at least one sandboxed environment for reasons unrelated to
-  this feature - see docs/known_bugs.md's entry on
-  `verify_launchpad_e2e.py`, which fails the identical class of
-  press-changes-something check even on an unmodified checkout.
-
-## Known environmental quirks (not bugs in the app)
-
-See `../../docs/known_bugs.md` for the couple of pty/terminal quirks
-(`Esc` and `Ctrl-P` not reliably arriving as events in a scripted pty)
-these scripts already work around.
+  a song whose only track is a step-sequenced `PercussionTrack`, opens its
+  clip from the terminal (M-x session-view, then "toggle-record-arm" in
+  the clip grid), confirms the Launchpad shows the step grid (the
+  step-lit/unlit colors, not the ordinary note-grid ones), then presses
+  pad (0,0) and checks for the lane/step's color changing to lit.

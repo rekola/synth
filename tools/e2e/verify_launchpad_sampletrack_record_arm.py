@@ -7,13 +7,8 @@ of silently falling through to plain audition/assign the way it used to
 that same pad cancels the still-idle arm again.
 
 Verified through the terminal ClipGrid widget's own text (M-x
-session-view), not LED bytes - the same reasoning
-verify_launchpad_record_arm_holes.py already uses, and the same one that
-sidesteps this sandboxed environment's documented ALSA-contention
-flakiness for LED-based checks (docs/known_bugs.md); a real armed
-SampleTrack take also engages Player.cpp's own threshold-triggered ALSA
-capture logic, exactly the class of "real audio path" behavior that
-documented flakiness is about, so LED reads here would be doubly fragile.
+session-view), not LED bytes - the same approach
+verify_launchpad_record_arm_holes.py uses.
 
 Two independent spawns, since the interesting state (an armed-but-not-yet-
 disarmed take) can only be read reliably once everything has settled, and
@@ -58,7 +53,7 @@ def run(cancel):
     # fake_launchpad_sampletrack_record_arm's own scripted sequence (6s
     # startup + ~5.5s of drains, the last one 3s to settle) takes a bit
     # under 15s - give it comfortable margin.
-    time.sleep(16)
+    scr.wait(16)
     scr.pump(0.5)
 
     # M-x session-view: switches to Session view (ClipGrid focused) for

@@ -4,8 +4,8 @@ unconditional no-op and the arrow buttons go dark, since neither one does
 anything a performer looking at the Launchpad could ever see there), then
 sends a CC94 (next-track) press/release and verifies both that the
 command actually fired (cursor moved from track 0 into track 1) and that
-the corresponding button LEDs were sent as part of the same combined LED
-SysEx as the pads."""
+the corresponding button LEDs (dark in Session, dim white in Note mode)
+were sent as part of the same combined LED SysEx as the pads."""
 import sys, os, subprocess, time
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -42,7 +42,9 @@ if not vk.wait_ready(scr):
     os.kill(pid, 9)
     sys.exit(1)
 
-# Jump to the very first track (Ctrl-A), a known, stable starting point.
+# Focus the pattern editor and jump to its very first track, a known,
+# stable starting point.
+vk.other_window(scr)
 scr.send(ctrl('a'))
 scr.pump(1.0)
 
@@ -94,13 +96,18 @@ print(fake_output)
 check("synth sent a Programmer-Mode-enter SysEx to the simulated device",
       "0e 01" in fake_output.replace(",", " "), fake_output)
 
-# Button LED colors: CC93=0x5d, CC94=0x5e (prev/next-track) should be dim
-# blue (0,0,60 -> 00 00 3c); sent as part of the same combined LED SysEx as
-# the pads.
-check("Button LED for CC93 (prev-track) is dim blue",
-      "03 5d 00 00 3c" in fake_output, fake_output)
-check("Button LED for CC94 (next-track) is dim blue",
-      "03 5e 00 00 3c" in fake_output, fake_output)
+# Button LED colors: CC93=0x5d, CC94=0x5e (prev/next-track) are dark in
+# Session view (nothing a performer could see happens there) and dim white
+# (60,60,60 -> 3c 3c 3c) once in Note mode; sent as part of the same
+# combined LED SysEx as the pads.
+def leds(label):
+    return "\n".join(line for line in fake_output.splitlines() if f"received sysex {label} " in line)
+
+for cc, name in ((0x5d, "CC93 (prev-track)"), (0x5e, "CC94 (next-track)")):
+    check(f"Button LED for {name} is dark in Session view",
+          f"03 {cc:02x} 00 00 00" in leds("at startup"), leds("at startup")[:400])
+    check(f"Button LED for {name} is dim white in Note mode",
+          f"03 {cc:02x} 3c 3c 3c" in leds("after CC96"), leds("after CC96")[:400])
 
 n_fail = sum(1 for _, ok in results if not ok)
 print(f"\n{len(results)-n_fail}/{len(results)} checks passed")

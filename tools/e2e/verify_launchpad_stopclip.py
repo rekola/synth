@@ -80,7 +80,7 @@ if not vk.wait_ready(scr):
 
 # fake_launchpad_stopclip's own scripted sequence (6s startup + ~4.6s of
 # drains) takes a bit over 10s - give it comfortable margin.
-time.sleep(13)
+scr.wait(13)
 scr.pump(0.5)
 
 try:

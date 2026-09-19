@@ -19,11 +19,7 @@ go dark too (show_step_grid forces it there regardless of grid_mode -
 refreshLeds()'s own comment), rather than CC97 ("Custom") ever lighting
 up - this gesture never opens the lane picker.
 
-This hits the same class of sandboxed-environment stall already
-documented for verify_launchpad_shift_highlight.py in docs/known_bugs.md
-(CC91-held SysEx traffic going silent, or a later reconnect wiping the
-device's own state back to defaults with no PORT_EXIT ever logged), so
-it scans every LED dump in the run rather than trusting any one dump's
+Scans every LED dump in the run rather than trusting any one dump's
 position in the log."""
 import sys, os, re, subprocess, time
 
@@ -58,7 +54,7 @@ if not vk.wait_ready(scr):
 
 # fake_launchpad_shift_no_lanes's own scripted sequence (6s startup + ~2.6s
 # of drains) takes a bit under 9s - give comfortable margin.
-time.sleep(10)
+scr.wait(10)
 scr.pump(0.5)
 
 try:

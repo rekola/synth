@@ -116,6 +116,14 @@ class Screen:
                 self.stream.feed(data.decode("utf-8", errors="ignore"))
                 end = min(time.time() + settle, hard_deadline)
 
+    def wait(self, seconds):
+        """Waits a fixed time while still reading the pty - unlike
+        time.sleep(), which lets synth's terminal output fill the pty buffer
+        and block its UI thread (Launchpad I/O included) until the next read."""
+        deadline = time.time() + seconds
+        while time.time() < deadline:
+            self.pump(min(0.5, max(0.0, deadline - time.time())))
+
     def dump(self):
         return "\n".join(self.screen.display)
 

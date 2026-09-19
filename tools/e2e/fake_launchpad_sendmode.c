@@ -54,7 +54,7 @@ void send_note(snd_seq_t * seq, int port, int status, int note, int velocity) {
 int main() {
   snd_seq_t * seq;
   if (snd_seq_open(&seq, "default", SND_SEQ_OPEN_DUPLEX, 0) < 0) return 1;
-  snd_seq_set_client_name(seq, "Launchpad X");
+  snd_seq_set_client_name(seq, "Launchpad X (e2e)"); // see LaunchpadIO::acceptsClient()
   int port = snd_seq_create_simple_port(seq, "Launchpad X MIDI 2",
     SND_SEQ_PORT_CAP_READ | SND_SEQ_PORT_CAP_WRITE | SND_SEQ_PORT_CAP_SUBS_READ | SND_SEQ_PORT_CAP_SUBS_WRITE,
     SND_SEQ_PORT_TYPE_APPLICATION);
@@ -78,10 +78,10 @@ int main() {
   sleep(1); // let the redraw tick pick up the mode change and repaint
   drain(seq, "Send A mode entered - before press");
 
-  fprintf(stderr, "sending press+release on pad (0,5) [note 61]\n");
-  send_note(seq, port, 0x90, 61, 100);
+  fprintf(stderr, "sending press+release on pad (0,2) [note 31]\n");
+  send_note(seq, port, 0x90, 31, 100);
   usleep(200000);
-  send_note(seq, port, 0x80, 61, 0);
+  send_note(seq, port, 0x80, 31, 0);
   sleep(1); // let the redraw tick pick up the new Send A value and repaint
   drain(seq, "after pad press - Send A changed");
 

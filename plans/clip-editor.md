@@ -346,6 +346,19 @@ sideways. OutlineView already worked this way. Emacs's keep-point-on-
 screen was not followed: in Arrangement view the cursor is the transport.
 Test: `tools/e2e/verify_mouse_wheel.py`.
 
+Follow-up (not done): **unify the cursor colours.** The clip grid's
+cursor (a bright grey, `kBrightGrey`, while focused; a faint grey where
+it only marks what's being edited) is the reference. PatternEditor
+(bright green `highlight_bg_color` region), ArrangementGrid and
+OutlineView (green `highlight_bg_color`) change to the same grey, with
+the same focused/unfocused distinction. Likely a shared
+`StyleProvider` entry (e.g. `cursor_bg_color`/`cursor_unfocused_bg_color`)
+rather than each widget's own constant; keep the ClipGrid's "brighten the
+cell's own colour" rule for coloured cells (clip colours, the
+arrangement grid's instance cells). Check the pattern editor's velocity/
+delay contrast rule (bright colours switch to the region's dark
+foreground) against grey.
+
 The design notes below are kept for reference.
 
 The scope row (5 rows), plus ClipGrid's fixed 15 rows (18 columns per
@@ -461,6 +474,36 @@ For each, find whether the script or the app is wrong. Fix the script
 if it's stale (e.g. screen positions predating the current layout), fix
 the app if it's a real bug, or record it in `docs/known_bugs.md` if a fix
 isn't feasible now.
+
+Also failing, found along the way: `verify_launchpad_note_brightness.py`
+(it read CC98's LED as a play indicator; CC98 is Capture MIDI/Draw now).
+
+Outcome - all but one were the scripts or the harness. The one app bug:
+the track picker's row kept a playing clip's pulse instead of its own
+static colour (the picker pass overwrote the RGB but not the lighting
+type). The rest:
+
+- Stale fake binaries (gitignored, never rebuilt): notecustom.
+- Stale expectations: consonance colours (the enharmonic retune), the
+  percussion pad's idle red and its "BD2" note name, CC93/94's dim white
+  in Note mode, a fresh session's overview focus, Send A's purple, the
+  dB Send fader curve (the press was a no-op), the step grid's 4-step
+  scroll.
+- `pump(N)` taken for a sleep: it returns once the app goes quiet.
+- `time.sleep()` while synth runs: the unread pty blocks synth's UI
+  thread, and with it Launchpad I/O - the "sandboxed ALSA stall" that
+  `docs/known_bugs.md` documented across a dozen scripts (those entries
+  are gone now). `Screen.wait()` keeps reading instead.
+- Fakes sleeping without reading their ALSA input: LED frames dropped.
+  They `drain()` instead.
+- `harness.is_playing()` passed vacuously: InfoLine's right half
+  overwrote "PLAYING" whenever the buffer name was long. "PLAYING" now
+  comes right after the time.
+- Isolation: fakes register as "Launchpad X (e2e)" clients, which an
+  interactive synth skips (`LaunchpadIO::acceptsClient()`), so a running
+  session no longer grabs a test's fake device.
+
+Not fixed: InfoLine's `track:col` field is hard-wired to 0.
 
 ---
 

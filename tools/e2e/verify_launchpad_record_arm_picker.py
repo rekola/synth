@@ -59,7 +59,7 @@ if not vk.wait_ready(scr):
 
 # fake_launchpad_record_arm_picker's own scripted sequence (6s startup +
 # ~4s of drains) takes a bit under 10s - give it comfortable margin.
-time.sleep(12)
+scr.wait(12)
 scr.pump(0.5)
 
 try:

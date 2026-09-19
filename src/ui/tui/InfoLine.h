@@ -52,8 +52,11 @@ class InfoLine : public UIElement {
       // display convention the Buffers menu uses (TerminalMenu::rebuild()),
       // so the same buffer reads the same way in both places.
       auto buffer_display_name = getController().getBufferDisplayName(buffer_name);
-      auto s = fmt::format(" {} {:02x} {:02d}:{:02d} pattern:{} voices:{}/{}", buffer_display_name, info.getAbsolutePosition(), minutes, seconds, pattern_idx, num_voices, num_allocated_voices);
-      if (info.isPlaying()) s += " PLAYING";
+      // PLAYING right after the time, not at the end - the right half below
+      // is drawn from the middle column on and would cover it whenever the
+      // buffer name is long.
+      auto s = fmt::format(" {} {:02x} {:02d}:{:02d}{} pattern:{} voices:{}/{}", buffer_display_name, info.getAbsolutePosition(), minutes, seconds,
+                           info.isPlaying() ? " PLAYING" : "", pattern_idx, num_voices, num_allocated_voices);
       while (s.size() < static_cast<size_t>(cols)) s += ' ';
 
       putstr(0, 0, s);

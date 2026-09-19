@@ -4,13 +4,13 @@ and checks the LED bargraph SysEx actually reflects the new value before
 and after - the non-NOTES branch of PatternEditor::handleLaunchpadPadEvent
 (Send A/B/Main/Pan) had no e2e coverage before this script.
 
-songs/demo3.xml's track 0 starts at sendA=0.3 -> lit_row = round(0.3*7) = 2,
-so pad (0,5) [note 61, per padToNoteNumber(x,y) = 11 + x + 10y] starts dark.
-Pressing it sets sendA = 5/7 ~= 0.714 -> lit_row = round(0.714*7) = 5, so
-(0,5) is lit afterward. Send A's bargraph color is cyan (Rgb{0,127,127} =
-"00 7f 7f"), unlike the padColor()-blended NOTES-mode pads (see
-verify_fokker_colors.py) - Send A/B/Main each paint one fixed
-full-brightness hue with no idle-brightness scaling (LaunchpadManager::
+songs/demo3.xml's track 0 starts at sendA=-10.5 dB, which the dB fader
+curve (sendRowToDb()/sendLinearToRow()) shows as rows 0-5 lit. Pressing
+pad (0,2) [note 31, per padToNoteNumber(x,y) = 11 + x + 10y] lowers it to
+row 2, so rows 3-5 go dark. Send A's bargraph is one fixed
+full-brightness purple (LAUNCHPAD_MIXER_SEND_A_BRIGHT, "5a 00 7f"), unlike
+the padColor()-blended NOTES-mode pads - Send A/B/Main each paint one
+fixed hue with no idle-brightness scaling (LaunchpadManager::
 refreshLeds); Pan instead paints each column in that track's own identity
 color, since its single lit cell per column has no bargraph shape of its
 own to tell columns apart by."""
@@ -83,14 +83,15 @@ after = section(log, "after pad press - Send A changed")
 check("log captured a 'before press' LED snapshot", bool(before.strip()), log)
 check("log captured an 'after press' LED snapshot", bool(after.strip()), log)
 
-check("(0,0) [track 0, row 0] is cyan before the press (sendA=0.3 already lights row 0)",
-      f"03 {pad(0,0):02x} 00 7f 7f" in before, before)
-check("(0,5) [track 0, row 5] is dark before the press (sendA=0.3 -> lit_row=2)",
-      f"03 {pad(0,5):02x} 00 00 00" in before, before)
-check("(0,5) [track 0, row 5] is cyan after the press (sendA now ~0.714 -> lit_row=5)",
-      f"03 {pad(0,5):02x} 00 7f 7f" in after, after)
-check("(0,6) [track 0, row 6] stays dark after the press (still above lit_row=5)",
-      f"03 {pad(0,6):02x} 00 00 00" in after, after)
+LIT = "5a 00 7f"  # LAUNCHPAD_MIXER_SEND_A_BRIGHT
+check("(0,5) [track 0, row 5] is lit before the press (sendA=-10.5 dB lights rows 0-5)",
+      f"03 {pad(0,5):02x} {LIT}" in before, before)
+check("(0,6) [track 0, row 6] is dark before the press",
+      f"03 {pad(0,6):02x} 00 00 00" in before, before)
+check("(0,2) [track 0, row 2] is still lit after the press (the pressed row)",
+      f"03 {pad(0,2):02x} {LIT}" in after, after)
+check("(0,3) [track 0, row 3] went dark after the press (Send A lowered to row 2)",
+      f"03 {pad(0,3):02x} 00 00 00" in after, after)
 
 n_fail = sum(1 for _, ok in results if not ok)
 print(f"\n{len(results)-n_fail}/{len(results)} checks passed")

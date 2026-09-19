@@ -8,11 +8,14 @@ is playing yet when this snapshot is taken - LAUNCHPAD_IDLE_LUMINOSITY via
 padColor()'s HSL lightness override) - see
 verify_launchpad_note_brightness.py for the "note is sounding" case.
 
-Expected bytes were computed independently (a Python replica of
-rgbToHsl/hslToRgb/consonanceColor/padColor, not by reading them back out of
-the app) and cross-checked against a standalone LaunchpadLayout build, not
-hand-derived - see the plan this scheme was implemented from for the
-worked math."""
+Expected bytes were first computed independently (a Python replica of
+rgbToHsl/hslToRgb/consonanceColor/padColor) and cross-checked against a
+standalone LaunchpadLayout build. The enharmonic-coloring retune later
+shifted the depth-3 hues and rounded the tonic/fourth by one step; the
+bytes are now pinned to that retuned scheme's output.
+
+Reads the LEDs fake_launchpad logs once it has switched into Note mode
+(Session is the default grid mode)."""
 import sys, os, subprocess, time
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -40,8 +43,12 @@ if not vk.wait_ready(scr):
     os.kill(pid, 9)
     sys.exit(1)
 
-# Let the Launchpad connect handshake + initial LED refresh happen.
-scr.pump(6.0)
+# Wait until fake_launchpad has switched into Note mode (about 6s after it
+# started) and logged the note grid's LEDs - a real wait: pump() returns as
+# soon as the app goes quiet.
+deadline = time.time() + 9.0
+while time.time() < deadline:
+    scr.pump(0.5)
 
 try:
     os.kill(pid, 9)
@@ -72,11 +79,11 @@ def pad(x, y):
 # amber pair, depth-3 major/minor kept close together, depth-4 pushed far
 # apart from depth-3 within the same family).
 checks = [
-    ("(1,3) tonic (pitch 0) -> yellow-red, idle-dimmed",                      pad(1, 3), "58 49 00"),
+    ("(1,3) tonic (pitch 0) -> yellow-red, idle-dimmed",                      pad(1, 3), "59 4a 00"),
     ("(4,4) fifth (pitch 18) -> amber, idle-dimmed",                          pad(4, 4), "50 25 08"),
-    ("(3,4) fourth (pitch 13) -> amber, idle-dimmed",                         pad(3, 4), "50 17 08"),
-    ("(3,3) major-third family (pitch 10, E) -> depth-3 hue, idle-dimmed",    pad(3, 3), "3f 06 52"),
-    ("(2,4) minor-third family (pitch 8, Eb) -> depth-3 hue, idle-dimmed",    pad(2, 4), "19 06 52"),
+    ("(3,4) fourth (pitch 13) -> amber, idle-dimmed",                         pad(3, 4), "50 16 08"),
+    ("(3,3) major-third family (pitch 10, E) -> depth-3 hue, idle-dimmed",    pad(3, 3), "29 06 52"),
+    ("(2,4) minor-third family (pitch 8, Eb) -> depth-3 hue, idle-dimmed",    pad(2, 4), "15 06 52"),
 ]
 
 log_norm = log.replace(",", " ")

@@ -80,8 +80,8 @@ for y in range(8):
           f"03 {pad(5,y):02x} 00 00 00" in before, before)
 
 for y in range(5):
-    check(f"(5,{y}) is cyan after the press (track auto-created, row {y} <= lit_row=4)",
-          f"03 {pad(5,y):02x} 00 7f 7f" in after, after)
+    check(f"(5,{y}) is lit purple after the press (track auto-created, row {y} <= lit_row=4)",
+          f"03 {pad(5,y):02x} 5a 00 7f" in after, after)
 for y in range(5, 8):
     check(f"(5,{y}) stays dark after the press (row {y} > lit_row=4)",
           f"03 {pad(5,y):02x} 00 00 00" in after, after)

@@ -84,8 +84,7 @@ LaunchpadIO::scanForDevices(Logger & logger) {
   while (snd_seq_query_next_client(seq_handle, client_info) >= 0) {
     int client = snd_seq_client_info_get_client(client_info);
     if (client == snd_seq_client_id(seq_handle)) continue; // skip ourselves
-    // See ignore_hardware_'s own comment (LaunchpadIO.h).
-    if (ignore_hardware_ && snd_seq_client_info_get_type(client_info) == SND_SEQ_KERNEL_CLIENT) continue;
+    if (!acceptsClient(client_info)) continue;
 
     optional<Candidate> best;
 
@@ -134,6 +133,12 @@ LaunchpadIO::scanForDevices(Logger & logger) {
   }
 }
 
+bool
+LaunchpadIO::acceptsClient(snd_seq_client_info_t * client_info) const {
+  if (ignore_hardware_) return snd_seq_client_info_get_type(client_info) != SND_SEQ_KERNEL_CLIENT;
+  return string(snd_seq_client_info_get_name(client_info)).find(kSimulatorMarker) == string::npos;
+}
+
 void
 LaunchpadIO::handlePortStart(int client, int port) {
   if (!logger_ || client == snd_seq_client_id(seq_handle)) return;
@@ -155,8 +160,7 @@ LaunchpadIO::handlePortStart(int client, int port) {
 
   if (snd_seq_get_any_client_info(seq_handle, client, client_info) < 0) return;
   if (snd_seq_get_any_port_info(seq_handle, client, port, port_info) < 0) return;
-  // See ignore_hardware_'s own comment (LaunchpadIO.h).
-  if (ignore_hardware_ && snd_seq_client_info_get_type(client_info) == SND_SEQ_KERNEL_CLIENT) return;
+  if (!acceptsClient(client_info)) return;
 
   auto caps = snd_seq_port_info_get_capability(port_info);
   if (!(caps & SND_SEQ_PORT_CAP_SUBS_READ) || !(caps & SND_SEQ_PORT_CAP_SUBS_WRITE)) return;

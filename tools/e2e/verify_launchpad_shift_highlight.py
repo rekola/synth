@@ -8,11 +8,7 @@ pressed, still held (DeviceState::row_up_shift_pending_pad) - so a
 performer sees both lit together before ever releasing, confirming what
 the release will do.
 
-Verified through raw LED bytes, not terminal text - unlike the
-SampleTrack record-arm gesture, this one never touches real audio/ALSA
-capture at all (a plain, synchronous LED readback), the same reasoning
-fake_launchpad_record_arm_picker.c's own docstring already has for why
-its own LED checks are reliable in this sandboxed environment."""
+Verified through raw LED bytes, not terminal text."""
 import sys, os, re, subprocess, time
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -56,7 +52,7 @@ if not vk.wait_ready(scr):
 
 # fake_launchpad_shift_highlight's own scripted sequence (6s startup +
 # ~2s of drains) takes a bit under 10s - give it comfortable margin.
-time.sleep(11)
+scr.wait(11)
 scr.pump(0.5)
 
 try:

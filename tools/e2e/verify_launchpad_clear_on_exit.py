@@ -61,7 +61,7 @@ if not vk.wait_ready(scr):
     os.kill(pid, 9)
     sys.exit(1)
 
-time.sleep(3)
+scr.wait(3)
 scr.pump(0.5)
 
 scr.send(vk.ctrl('x'))

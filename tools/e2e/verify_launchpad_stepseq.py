@@ -15,16 +15,7 @@ LaunchpadManager::forceNotesModeOnAllDevices()). This script does that,
 then confirms a pad press there toggles that lane/step immediately,
 reflected in the LED colors sent back to the device - not silently
 falling through to ordinary ambient NOTES-mode chord entry.
-
-The second check (press -> new LED frame reflecting the toggle) is
-currently failing in at least one sandboxed test environment for reasons
-unrelated to this feature - see docs/known_bugs.md's entry on
-verify_launchpad_e2e.py, whose pre-existing, unmodified pad-press checks
-fail the identical way in the same environment (confirmed via `git stash`
-A/B - this script and verify_percussion_layout.py both already fail the
-same way against an unmodified checkout). Re-check this script
-specifically (not just known_bugs.md's entry) before assuming a future
-failure here is the same known issue rather than a real regression."""
+"""
 import sys, os, subprocess, time
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -101,10 +92,13 @@ print(fake_output)
 # (LaunchpadManager.cpp). After the press, it must show kStepLitColor
 # {0,110,20} = hex 00 6e 14 - not the pitched/percussion note-grid colors,
 # proving the step grid (not ordinary NOTES-mode entry) handled the press.
+def leds(label):
+    return "\n".join(line for line in fake_output.splitlines() if f"received sysex {label} " in line)
+
 check("Before the press, pad (0,0) shows the step grid's unlit color (0b 0c 0c 0c)",
-      "03 0b 0c 0c 0c" in fake_output, fake_output)
+      "03 0b 0c 0c 0c" in leds("before press"), leds("before press")[:400])
 check("After the press, pad (0,0) shows the step grid's lit color (0b 00 6e 14) - the step actually toggled",
-      "03 0b 00 6e 14" in fake_output, fake_output)
+      "03 0b 00 6e 14" in leds("after press"), leds("after press")[:400])
 
 n_fail = sum(1 for _, ok in results if not ok)
 print(f"\n{len(results)-n_fail}/{len(results)} checks passed")

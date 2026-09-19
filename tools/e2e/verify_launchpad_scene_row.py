@@ -15,12 +15,7 @@ until the next quantization boundary.
 
 Presses CC19 once (row 0, clip index 7 on both fixture tracks) and
 expects *both* tracks' own pad (0,0)/(1,0) LEDs to start pulsing green
-immediately, not just the first one. Unlike most LED-based checks in this
-suite, this one does trigger the real audition/playback path (a real
-note starts rendering through ALSA) - the same class of sandboxed-
-environment flakiness documented for verify_launchpad_stopclip.py in
-docs/known_bugs.md, so this may not pass reliably here even though the
-underlying fix is correct."""
+immediately, not just the first one."""
 import sys, os, re, subprocess, time
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -58,7 +53,7 @@ if not vk.wait_ready(scr):
 
 # fake_launchpad_scene_row's own scripted sequence (6s startup + ~1.5s of
 # drains) takes a bit under 8s - give it comfortable margin.
-time.sleep(10)
+scr.wait(10)
 scr.pump(0.5)
 
 try:

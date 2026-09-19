@@ -902,12 +902,11 @@ would otherwise resume showing.
   anything at all, same as the other three), same reasoning as
   `verify_launchpad_mute_picker.py` below; `verify_launchpad_stopclip.py`
   covers the track-picker overlay's CC49 purpose above (open/pick/close,
-  staying open across a pick); `verify_launchpad_mute_picker.py` covers
+  staying open across a pick, and a playing clip's picker pad showing
+  the picker's static red rather than its playing pulse);
+  `verify_launchpad_mute_picker.py` covers
   the CC39 purpose (bright/dim polarity, the overlay leaving Session
-  view's own rendering untouched outside the picker row) without ever
-  needing real playback, sidestepping the sandboxed-environment ALSA
-  contention documented in `docs/known_bugs.md` for
-  `verify_launchpad_stopclip.py`, and also exercises Session's own
+  view's own rendering untouched outside the picker row), and also exercises Session's own
   mixer-submode toggle (a second CC95 press) and its green/orange LED,
   since CC39 means nothing at all until that submode is on; Solo's own
   CC29 purpose reuses the identical mechanism but has no dedicated e2e
@@ -917,9 +916,7 @@ would otherwise resume showing.
   10) - every track's own clip at that row launches together off a single
   press, not just the first track in `session_.track_ids` (`triggerSessionClip()`'s
   own `shared_launch_step` parameter is what makes this atomic across the
-  whole row rather than a per-track decision); real LED verification hits
-  the same real-audition-path stall as `verify_launchpad_stopclip.py`
-  above (`docs/known_bugs.md`). `verify_launchpad_mixer_hold.py`
+  whole row rather than a per-track decision). `verify_launchpad_mixer_hold.py`
   covers the same eight buttons' own momentary hold-to-preview gesture
   (`armMixerHoldPreview()`/`handleMixerFunctionRelease()`) - a quick tap
   stays (sticky), a real hold reverts to whatever was showing before it
@@ -927,46 +924,34 @@ would otherwise resume showing.
   SampleTrack twin of `verify_launchpad_record_arm_holes.py` - a
   Session-grid press on a SampleTrack armed via the track-picker overlay
   actually arming real audio capture, and a second press cancelling it -
-  verified through the terminal `ClipGrid` widget's own text rather
-  than LED bytes, since a genuinely armed take also engages real ALSA
-  capture logic and hits the same class of sandboxed-environment LED-read
-  flakiness documented for `verify_launchpad_stopclip.py`
-  (`docs/known_bugs.md`). `verify_launchpad_shift_stepgrid.py` covers
+  verified through the terminal `ClipGrid` widget's own text.
+  `verify_launchpad_shift_stepgrid.py` covers
   CC91-held-as-shift's own gesture (see the drum machine bullet above) -
   opening a step-sequenced `PercussionTrack` clip's own step grid from
   Session view, and a lone CC95 press closing it again - verified the
-  same terminal-text way (the "*" focus marker), though this one never
-  touches real audio/ALSA at all so it isn't expected to hit that same
-  flakiness. `verify_launchpad_shift_highlight.py` covers the same
+  same terminal-text way (the "*" focus marker).
+  `verify_launchpad_shift_highlight.py` covers the same
   gesture's own LED feedback while held (both CC91 and the target pad
-  lighting bright white before release) - currently fails every check
-  past the first CC91 press in this sandboxed environment, a fresh
-  instance of that stall class with no real audio/ALSA capture involved
-  at all this time (`docs/known_bugs.md`). `verify_launchpad_paging_lockstep.py`
+  lighting bright white before release). `verify_launchpad_paging_lockstep.py`
   covers the step grid's own prev-track/next-track page-shift gesture
   moving every connected device together rather than just whichever one
   was pressed - two simulated devices open a 4-page clip, confirm
   `resetStepGridView()`'s own device-order split put them on two
   different pages, then one pages forward once and both are confirmed to
-  have advanced together; despite involving no real audio/ALSA capture,
-  this one does still fail in this sandboxed environment (confirmed
-  independent of any code change - `docs/known_bugs.md`'s own entry for
-  it), so its earlier "isn't expected to hit that same flakiness" billing
-  no longer holds here. `verify_launchpad_shift_no_lanes.py` covers the same
+  have scrolled together. `verify_launchpad_shift_no_lanes.py` covers the same
   shift+pad gesture opening a *lane-less* `PercussionTrack`'s own clip -
   showing the step grid completely empty rather than declining or routing
-  to the lane picker instead - hitting the CC91-held stall class in LED
-  form, so verified via temporary in-process debug logging instead (see
-  `docs/known_bugs.md`). `verify_launchpad_shift_stepgrid_pitched.py`
+  to the lane picker instead. `verify_launchpad_shift_stepgrid_pitched.py`
   covers the same gesture opening a *pitched* `InstrumentTrack`'s own
   clip - same "*" focus-marker verification as `verify_launchpad_shift_
-  stepgrid.py` above, no real audio/ALSA capture involved so it passes
-  reliably, unlike the percussion sibling scripts immediately above.
-  Every e2e script spawns `synth`
+  stepgrid.py` above.
+  Real hardware and the simulators never mix (`LaunchpadIO::
+  acceptsClient()`): every simulator's ALSA client name ends in `(e2e)`,
+  which an ordinary `synth` skips, and every e2e script spawns `synth`
   with `SYNTH_LAUNCHPAD_NO_HARDWARE=1` (`tools/e2e/harness.py`'s own
-  `spawn()`) so it only ever connects to the fake simulator it's actually
-  testing, never any real Launchpad hardware also plugged into the same
-  machine (`LaunchpadIO.h`'s own `ignore_hardware_` comment).
+  `spawn()`), which skips real hardware instead. The scripts wait with
+  `Screen.wait()`, never `time.sleep()` - an unread pty blocks `synth`'s
+  UI thread, Launchpad I/O included (see that directory's `README.md`).
 
 ## Layout
 

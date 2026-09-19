@@ -6,10 +6,8 @@ PercussionTrack (verify_launchpad_shift_stepgrid.py, its own sibling
 script - same mechanism, same "*" focus marker verification), just with
 rows drawn from the song's own scale (Song::getScaleDegrees(),
 LaunchpadManager::resolveStepGridLaneNotes()) instead of a manually-
-picked lane list. This gesture never touches real audio/ALSA capture at
-all (pure Song/Controller state), so it isn't expected to hit the
-sandboxed-environment LED-read flakiness documented in docs/known_bugs.md
-- verified entirely through the terminal ClipGrid widget's own text.
+picked lane list - verified entirely through the terminal ClipGrid
+widget's own text.
 
 Two mid-run screen reads against one spawn, same structure as
 verify_launchpad_shift_stepgrid.py - see its own docstring for why."""
@@ -41,7 +39,7 @@ if not vk.wait_ready(scr):
     os.kill(pid, 9)
     sys.exit(1)
 
-time.sleep(10)
+scr.wait(10)
 scr.pump(0.5)
 
 scr.send(b"\x1b")
@@ -55,7 +53,7 @@ phase1_text = scr.dump()
 print("\n--- ClipGrid screen dump (phase 1 - opened) ---")
 print(phase1_text)
 
-time.sleep(8)
+scr.wait(8)
 scr.pump(0.5)
 
 phase2_text = scr.dump()

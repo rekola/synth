@@ -19,7 +19,6 @@ import harness as vk
 
 SONG = os.path.join(SCRIPT_DIR, "launchpad_brightness_test.xml")
 LOG_PATH = os.path.join(SCRIPT_DIR, "fake_launchpad_brightness.log")
-PLAY_BUTTON_LED = 98
 
 # Grid pads only (padToNoteNumber(x,y) = 11 + x + 10y for x,y in 0..7);
 # excludes the extra-button LEDs (91-99, right column, etc.) which aren't
@@ -57,8 +56,9 @@ def all_colors(log_text):
     return colors
 
 def is_playing(colors):
-    g = colors.get(PLAY_BUTTON_LED)
-    return g is not None and g[1] > 100  # bright green (0,127,0) vs dim (20,20,20)
+    # The transport state, from the info line - no Launchpad LED shows it
+    # (CC98, once a play indicator, is Capture MIDI/Draw now).
+    return vk.is_playing(scr)
 
 def any_grid_pad_above_idle(colors):
     # Idle pads are their base color blended 50% towards black
@@ -93,7 +93,7 @@ while is_playing(colors) and time.time() < stop_deadline:
     scr.pump(1.0)
     fake_log.flush()
     colors = all_colors(open(LOG_PATH).read())
-check("Playback is stopped before the idle snapshot", not is_playing(colors), colors.get(PLAY_BUTTON_LED))
+check("Playback is stopped before the idle snapshot", not is_playing(colors), vk.is_playing(scr))
 
 scr.pump(2.0)
 fake_log.flush()
@@ -109,7 +109,7 @@ while not is_playing(colors) and time.time() < start_deadline:
     scr.pump(1.0)
     fake_log.flush()
     colors = all_colors(open(LOG_PATH).read())
-check("Playback started", is_playing(colors), colors.get(PLAY_BUTTON_LED))
+check("Playback started", is_playing(colors), vk.is_playing(scr))
 
 brightened = False
 deadline = time.time() + 10.0

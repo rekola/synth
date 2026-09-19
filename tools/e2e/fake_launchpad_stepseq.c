@@ -37,13 +37,30 @@ static void send_cc(snd_seq_t * seq, int port, int cc, int value) {
   snd_seq_event_output_direct(seq, &ev);
 }
 
+static void drain(snd_seq_t * seq, int ms, const char * label) {
+  for (int waited = 0; waited < ms; waited += 100) {
+    usleep(100000);
+    while (snd_seq_event_input_pending(seq, 1) > 0) {
+      snd_seq_event_t * ev;
+      snd_seq_event_input(seq, &ev);
+      if (ev->type == SND_SEQ_EVENT_SYSEX) {
+        fprintf(stderr, "received sysex %s (%d bytes):", label, ev->data.ext.len);
+        unsigned char * data = (unsigned char *)ev->data.ext.ptr;
+        for (unsigned int i = 0; i < ev->data.ext.len; i++) fprintf(stderr, " %02x", data[i]);
+        fprintf(stderr, "\n");
+      }
+      snd_seq_free_event(ev);
+    }
+  }
+}
+
 int main() {
   snd_seq_t * seq;
   if (snd_seq_open(&seq, "default", SND_SEQ_OPEN_DUPLEX, 0) < 0) {
     fprintf(stderr, "failed to open seq\n");
     return 1;
   }
-  snd_seq_set_client_name(seq, "Launchpad X");
+  snd_seq_set_client_name(seq, "Launchpad X (e2e)"); // see LaunchpadIO::acceptsClient()
   int port = snd_seq_create_simple_port(seq, "Launchpad X MIDI 2",
     SND_SEQ_PORT_CAP_READ | SND_SEQ_PORT_CAP_WRITE | SND_SEQ_PORT_CAP_SUBS_READ | SND_SEQ_PORT_CAP_SUBS_WRITE,
     SND_SEQ_PORT_TYPE_APPLICATION);
@@ -55,51 +72,19 @@ int main() {
   fprintf(stderr, "fake Launchpad X ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
   // Wait for synth to start, scan, auto-connect, and (in the test
-  // harness) navigate the cursor onto the drum machine track.
-  sleep(8);
-
-  int pending;
-  while ((pending = snd_seq_event_input_pending(seq, 1)) > 0) {
-    snd_seq_event_t * ev;
-    snd_seq_event_input(seq, &ev);
-    if (ev->type == SND_SEQ_EVENT_SYSEX) {
-      fprintf(stderr, "received sysex (%d bytes):", ev->data.ext.len);
-      unsigned char * data = (unsigned char *)ev->data.ext.ptr;
-      for (unsigned int i = 0; i < ev->data.ext.len; i++) fprintf(stderr, " %02x", data[i]);
-      fprintf(stderr, "\n");
-    } else {
-      fprintf(stderr, "received event type %d\n", ev->type);
-    }
-    snd_seq_free_event(ev);
-  }
-
+  // harness) open the drum machine's clip - reading all the while, so the
+  // LED frames never overflow this client's input queue.
+  drain(seq, 8000, "while connecting");
   fprintf(stderr, "sending CC96 press+release (Note mode) - GridMode defaults to Session\n");
   send_cc(seq, port, 96, 127);
   send_cc(seq, port, 96, 0);
-  sleep(1);
-
+  drain(seq, 1000, "before press");
   fprintf(stderr, "sending press on pad (0,0) [note 11] - step 0, lane 0\n");
   send_note(seq, port, 0x90, 11, 100);
-  sleep(5);
-
-  // Drain the refresh(es) triggered by the press before releasing, so the
-  // "after press" LED state is unambiguous in the log.
-  while ((pending = snd_seq_event_input_pending(seq, 1)) > 0) {
-    snd_seq_event_t * ev;
-    snd_seq_event_input(seq, &ev);
-    if (ev->type == SND_SEQ_EVENT_SYSEX) {
-      fprintf(stderr, "received sysex (%d bytes):", ev->data.ext.len);
-      unsigned char * data = (unsigned char *)ev->data.ext.ptr;
-      for (unsigned int i = 0; i < ev->data.ext.len; i++) fprintf(stderr, " %02x", data[i]);
-      fprintf(stderr, "\n");
-    }
-    snd_seq_free_event(ev);
-  }
-
+  drain(seq, 3000, "after press");
   fprintf(stderr, "sending release on pad (0,0)\n");
   send_note(seq, port, 0x80, 11, 0);
-  sleep(2);
-
+  drain(seq, 1000, "after release");
   snd_seq_close(seq);
   return 0;
 }

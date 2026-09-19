@@ -39,7 +39,7 @@ if not vk.wait_ready(scr):
 # fake_launchpad_notecustom's whole scripted sequence (6s startup delay,
 # CC96 press/release, CC97 press + up to 1s actively drained before its
 # own release) takes a bit over 8s - give it comfortable margin.
-time.sleep(11)
+scr.wait(11)
 scr.pump(0.5)
 
 try:

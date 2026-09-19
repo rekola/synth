@@ -53,7 +53,7 @@ if not vk.wait_ready(scr):
 
 # fake_launchpad_mixer_hold's own scripted sequence (6s startup + ~7s of
 # drains/holds) takes a bit over 13s - give it comfortable margin.
-time.sleep(16)
+scr.wait(16)
 scr.pump(0.5)
 
 try:

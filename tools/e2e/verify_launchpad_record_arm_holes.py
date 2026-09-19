@@ -48,7 +48,7 @@ if not vk.wait_ready(scr):
 # fake_launchpad_record_arm_holes's own scripted sequence (6s startup +
 # ~11 drains of ~0.5-1s each) takes a bit under 15s - give it comfortable
 # margin before reading anything back.
-time.sleep(16)
+scr.wait(16)
 scr.pump(0.5)
 
 # M-x session-view: switches to Session view (ClipGrid focused) for the

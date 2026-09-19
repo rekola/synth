@@ -2,10 +2,8 @@
 MK3 30): opens the same overlay Stop Clip does, but colored yellow, and
 polarity-inverted from Stop Clip/Solo - bright means the track is *not*
 already muted, dark means it is (a muted channel reads as dark, not lit).
-Deliberately avoids ever triggering playback, unlike
-verify_launchpad_stopclip.py - Mute needs no clip playing at all, which
-also sidesteps the sandboxed-environment audio/ALSA-sequencer contention
-documented there (docs/known_bugs.md) for a cleaner, more reliable signal.
+Never triggers playback, unlike verify_launchpad_stopclip.py - Mute
+needs no clip playing at all.
 
 CC39 is one of Session's own mixer-submode radio group (Volume/Pan/Send
 A/Send B/Stop Clip/Mute/Solo) - while that submode is off (the connect-
@@ -69,7 +67,7 @@ if not vk.wait_ready(scr):
 
 # fake_launchpad_mute_picker's own scripted sequence (6s startup + ~4s of
 # drains) takes a bit under 10s - give it comfortable margin.
-time.sleep(12)
+scr.wait(12)
 scr.pump(0.5)
 
 try:

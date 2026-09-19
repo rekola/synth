@@ -4,14 +4,9 @@ instead of letting the performer actually play it live -
 handlePadEvent()'s own step-grid short-circuit ran before (and so was
 never superseded by) the recording-supersedes-assigned-track override,
 so a pad press toggled a step in the *background* pattern instead of
-ever reaching the armed take. Deliberately avoids matching exact LED
-byte sequences for the step grid vs. free-drumming layout (this
-sandboxed environment's own pad-press-to-LED round trip for the step
-grid specifically is unreliable even on an unmodified checkout - see
-verify_launchpad_stepseq.py's own docstring and docs/known_bugs.md) -
-instead verifies the actual functional outcome through the terminal
-ClipGrid widget: did the note actually land in the armed clip at
-all."""
+ever reaching the armed take. Verifies the functional outcome through
+the terminal ClipGrid widget: did the note actually land in the armed
+clip at all."""
 import sys, os, subprocess, time
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -44,7 +39,7 @@ if not vk.wait_ready(scr):
 
 # fake_launchpad_record_arm_percussion's own scripted sequence (6s
 # startup + ~11 drains of ~0.5-1s each) takes a bit under 15s.
-time.sleep(16)
+scr.wait(16)
 scr.pump(0.5)
 
 # M-x session-view - same mechanism verify_launchpad_record_arm_holes.py

@@ -8,11 +8,7 @@ handleRawButton()'s own CC95 case), without needing another shift+pad
 combo. Verified through the terminal ClipGrid widget's own text (the
 "*" focus marker ClipGrid.cpp already draws on whichever row is open
 for editing, Controller::getFocusedClip()), the same mechanism
-verify_launchpad_record_arm_holes.py uses - this gesture never touches
-real audio/ALSA capture at all (pure Song/Controller state), so it isn't
-expected to hit the sandboxed-environment LED-read flakiness documented
-in docs/known_bugs.md the way a SampleTrack's own real-audio-capture arm
-does.
+verify_launchpad_record_arm_holes.py uses.
 
 Two mid-run screen reads against one spawn (fake_launchpad_shift_stepgrid.c
 paces its own two phases with a generous internal wait in between) rather
@@ -51,7 +47,7 @@ if not vk.wait_ready(scr):
 # drains) settles a bit past 8s - give it comfortable margin before the
 # first read, but not so much it strays into phase 2's own 6s waiting
 # window (which starts right after phase 1 settles, ending around 14.1s).
-time.sleep(10)
+scr.wait(10)
 scr.pump(0.5)
 
 # M-x session-view: switches to Session view (ClipGrid focused) for the
@@ -71,7 +67,7 @@ print(phase1_text)
 # fake_launchpad_shift_stepgrid's own phase 2 starts about 4s after phase
 # 1 settled and takes another ~1.6s - give it comfortable margin before
 # the second read.
-time.sleep(8)
+scr.wait(8)
 scr.pump(0.5)
 
 phase2_text = scr.dump()

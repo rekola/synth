@@ -3041,9 +3041,8 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
           break;
         }
       }
-      c.r = pick_color.r;
-      c.g = pick_color.g;
-      c.b = pick_color.b;
+      // A static color, even over a playing/queued pad's flash or pulse.
+      c = { c.led_index, pick_color.r, pick_color.g, pick_color.b };
     }
   }
 

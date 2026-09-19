@@ -50,7 +50,7 @@ int main(int argc, char ** argv) {
   snd_seq_t * seq;
   if (snd_seq_open(&seq, "default", SND_SEQ_OPEN_DUPLEX, 0) < 0) return 1;
   char name[64];
-  snprintf(name, sizeof(name), "Launchpad X %s", suffix);
+  snprintf(name, sizeof(name), "Launchpad X %s (e2e)", suffix); // see LaunchpadIO::acceptsClient()
   snd_seq_set_client_name(seq, name);
   int port = snd_seq_create_simple_port(seq, "Launchpad X MIDI 2",
     SND_SEQ_PORT_CAP_READ | SND_SEQ_PORT_CAP_WRITE | SND_SEQ_PORT_CAP_SUBS_READ | SND_SEQ_PORT_CAP_SUBS_WRITE,
