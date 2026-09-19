@@ -300,6 +300,21 @@ class Song : public SongObject {
     return it != clips_by_track_.end() ? it->second : empty_clips_;
   }
 
+  // How many clip rows (scenes) are in use: the longest clip list across
+  // tracks, not counting empty slots at its end.
+  int getUsedSceneCount() const {
+    size_t used = 0;
+    for (auto & [ track_id, clips ] : clips_by_track_) {
+      for (size_t i = clips.size(); i > used; i--) {
+        if (!clips[i - 1].isEmpty()) {
+          used = i;
+          break;
+        }
+      }
+    }
+    return static_cast<int>(used);
+  }
+
   // Mutable counterpart, for editing a clip's own content in place
   // (ArrangementOps.h's own resolveEditTarget()).
   std::vector<Clip> & getClips(int track_id) {

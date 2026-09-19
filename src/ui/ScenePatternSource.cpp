@@ -12,19 +12,13 @@ ScenePatternSource::song() const {
 }
 
 int
+ScenePatternSource::sceneCount(const Song & song) {
+  return std::max(8, song.getUsedSceneCount() + 1);
+}
+
+int
 ScenePatternSource::blockCount() const {
-  const Song & s = song();
-  size_t used = 0;
-  for (auto track_id : s.getRootTrackIds()) {
-    auto & clips = s.getClips(track_id);
-    for (size_t i = clips.size(); i > used; i--) {
-      if (!clips[i - 1].isEmpty()) {
-        used = i;
-        break;
-      }
-    }
-  }
-  return static_cast<int>(used) + 1;
+  return sceneCount(song());
 }
 
 int
@@ -62,6 +56,11 @@ ScenePatternSource::moveCursor(int delta_rows) {
   address = normalize(address.block, std::max(address.row, 0));
   if (address.block >= blockCount()) address = { blockCount() - 1, blockLength(blockCount() - 1) - 1 };
   cursors_[controller_.getActiveBufferName()] = address;
+}
+
+void
+ScenePatternSource::setCursor(RowAddress address) {
+  cursors_[controller_.getActiveBufferName()] = clamp(address);
 }
 
 RowAddress

@@ -82,6 +82,10 @@ you're changing.
   playhead shows in its own track's column only, and Space plays/stops
   the scene rather than the transport. Independent of Launchpad
   hardware.
+- **`verify_session_view_layout.py`** - Session view's layout: no scope
+  row, the clip grid and pattern editor kept on the same scene whichever
+  moves, the clip grid's cursor never on its header row, and the outline
+  panel's button bar and `?` details popup.
 - **`verify_inline_editors.py`** - every widget's inline text editor
   (section, track, annotation, clip names): Enter commits, Ctrl-g and M-x
   cancel, and a typed space never reaches the global toggle-playing

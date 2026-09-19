@@ -30,10 +30,13 @@ def other_window(scr):
     scr.pump(0.5)
 
 
-def first_pattern_row(scr, after=0):
-    """Screen row index of the pattern editor's first "00 │" row."""
-    for i, line in enumerate(scr.dump().splitlines()):
-        if i > after and line.startswith(" 00 │"):
+def first_pattern_row(scr):
+    """Screen row index of the pattern editor's first "00 │" row - the first
+    one below its own heading (the "▌◂ T0" track title row)."""
+    lines = scr.dump().splitlines()
+    heading = next((i for i, line in enumerate(lines) if "▌◂ T0" in line), -1)
+    for i, line in enumerate(lines):
+        if i > heading and line.startswith(" 00 │"):
             return i
     return -1
 
@@ -84,7 +87,7 @@ def main():
     other_window(scr)  # -> clip grid
     scr.send(b"\r")
     scr.pump(0.2)
-    top = first_pattern_row(scr, after=20)
+    top = first_pattern_row(scr)
     green_t0 = green_t1 = False
     for _ in range(12):
         scr.pump(0.2)

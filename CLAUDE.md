@@ -850,8 +850,15 @@ would otherwise resume showing.
   buffer is just a song. Arrangement view: the scope row (with
   `ArrangementGrid`) plus `PatternEditor`. Session view: `ClipGrid`
   (`src/ui/tui/ClipGrid.h` - per-track clip slots, Sends, Direction), with
-  `OutlineView` as a panel on its left (shown by default,
-  "toggle-outline"), above `PatternEditor` (`TerminalUI::layout()`).
+  `OutlineView` as a narrow panel on its left (shown by default,
+  "toggle-outline"; the tree, a button bar under it, details in a `?`
+  popup that Escape closes at once - a widget can take a bare Escape via
+  `UIElement::wantsBareEscape()` without it losing its Alt-prefix role),
+  above `PatternEditor` (`TerminalUI::layout()`) - no scope row
+  (Arrangement view's is optional too, "toggle-scopes"). The clip grid
+  and the pattern editor share one cursor: the current track, and the
+  clip grid's clip row is the pattern editor's scene
+  (`TerminalUI::syncSessionView()`).
   "toggle-view" (Tab) flips between them, the live-sequencer convention;
   "arrangement-view"/"session-view"/"outline-view" select one directly
   (View menu). `PatternEditor` reads and writes through a `PatternSource`

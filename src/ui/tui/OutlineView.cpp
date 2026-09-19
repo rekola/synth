@@ -180,7 +180,6 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
   }
 
   auto tree_rows = treeRows();
-  auto [tree_width, cols] = columnSplit();
   bool cursor_changed = new_cursor_row_ != current_cursor_row_;
 
   bool need_refresh = false;
@@ -191,23 +190,24 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
     for (int i = 0; i < tree_rows; i++) {
       renderRow(styles, i, focused && i == new_cursor_row_ - current_scroll_pos_);
     }
-    renderDetailsPanel(styles, tree_width + 1, cols - tree_width - 1);
+    renderButtonBar(styles);
+    renderInfoPopup(styles);
     need_refresh = true;
   } else if (cursor_changed || details_dirty_) {
     if (cursor_changed) {
       renderRow(styles, current_cursor_row_ - current_scroll_pos_, false);
       renderRow(styles, new_cursor_row_ - current_scroll_pos_, focused);
     }
-    // The details panel's own content depends on which row the cursor is
-    // now on (a different kind may show completely different actions, or
-    // none) - always redrawn whole on a cursor move rather than tracking
-    // a finer-grained diff, unlike renderRow()'s own incremental
+    // The button bar and popup depend on which row the cursor is now on (a
+    // different kind may show completely different actions, or none) -
+    // always redrawn whole on a cursor move rather than tracking a
+    // finer-grained diff, unlike renderRow()'s own incremental
     // old-row/new-row pair above. Also redrawn (with the cursor itself
-    // untouched) whenever details_dirty_ says this row's own Details
-    // panel content changed without moving the cursor at all - the target-
-    // track picker committing a new choice, the one case of that today
-    // (see applyTargetPickerSelection()'s own comment).
-    renderDetailsPanel(styles, tree_width + 1, cols - tree_width - 1);
+    // untouched) whenever details_dirty_ says this row's own details
+    // changed without moving the cursor at all - the target-track picker
+    // committing a new choice, or the popup opening/closing.
+    renderButtonBar(styles);
+    renderInfoPopup(styles);
     need_refresh = true;
   }
 
@@ -219,92 +219,136 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
   return need_refresh;
 }
 
-pair<int, int>
-OutlineView::columnSplit() const {
-  auto cols = getDim().second;
-  // Capped to a third of the widget's own width, not just the fixed
-  // kDetailsPanelWidth - a narrow terminal shrinks the details panel
-  // rather than ever letting it crowd out the tree entirely.
-  auto details_width = std::min(kDetailsPanelWidth, cols / 3);
-  auto tree_width = std::max(0, cols - details_width - 1); // -1: the divider column between them
-  return { tree_width, cols };
-}
-
 int
 OutlineView::treeRows() const {
-  return std::max(0, getDim().first - 2); // minus the heading row and its shadow row
+  // Minus the heading row and its shadow row above, and the separator row
+  // plus the button bar below.
+  return std::max(0, getDim().first - 2 - 1 - kButtonBarRows);
 }
 
 void
 OutlineView::renderHeading(const StyleProvider & styles) {
-  auto [tree_width, cols] = columnSplit();
-  auto rows = getDim().first;
+  auto cols = getDim().second;
 
   setFgColor(styles.window_accent_fg_color);
   setBgColor(styles.heading_bg_color);
-  putstr(0, 0, string(static_cast<size_t>(std::max(0, tree_width)), ' '));
+  putstr(0, 0, string(static_cast<size_t>(cols), ' '));
   putstr(0, 1, "Outline");
-  auto details_x = tree_width + 1;
-  if (details_x < cols) {
-    putstr(0, details_x, string(static_cast<size_t>(cols - details_x), ' '));
-    putstr(0, details_x + 1, "Details");
-  }
 
-  // A shadow row directly below each heading, made of sextant block
-  // glyphs shading just the top of the cell - reads as the heading
-  // casting a soft shadow onto the content below it, rather than a plain
-  // horizontal rule.
+  // A shadow row directly below the heading, made of sextant block glyphs
+  // shading just the top of the cell - reads as the heading casting a soft
+  // shadow onto the content below it, rather than a plain horizontal rule.
   setFgColor(styles.heading_shadow_color);
   setBgColor(styles.window_bg_color);
-  if (tree_width > 0) putstr(1, 0, repeatUtf8("🬂", tree_width));
-  if (details_x < cols) putstr(1, details_x, repeatUtf8("🬂", cols - details_x));
+  putstr(1, 0, repeatUtf8("🬂", cols));
+}
 
-  // The divider between the tree and the details panel - static, so it
-  // only ever needs (re)drawing here, alongside the heading it splits in
-  // two - full height, row 0 (crossing through the heading itself)
-  // included.
-  setFgColor(styles.window_border_color);
-  setBgColor(styles.window_bg_color);
-  for (int row = 0; row < rows; row++) putstr(row, tree_width, "│");
+vector<string>
+OutlineView::infoLines(const outline_row_s & row) const {
+  vector<string> lines;
+  for (auto & line : buildDetailsLines(row, kInfoPopupWidth - 4)) {
+    if (line.action != DetailsAction::NONE) continue;
+    if (line.text.empty() && lines.empty()) continue; // no leading blank line
+    lines.push_back(line.text);
+  }
+  return lines;
+}
+
+vector<OutlineView::ButtonPlacement>
+OutlineView::placeButtons(const outline_row_s & row) const {
+  auto cols = getDim().second;
+  vector<pair<DetailsAction, string>> buttons;
+  for (auto & line : buildDetailsLines(row, cols)) {
+    if (line.action != DetailsAction::NONE) buttons.push_back({ line.action, line.text });
+  }
+  if (!infoLines(row).empty()) buttons.push_back({ DetailsAction::TOGGLE_INFO, "[?] Info" });
+
+  vector<ButtonPlacement> placed;
+  int bar_row = 0, x = 0;
+  for (auto & [ action, text ] : buttons) {
+    auto text_width = std::min(Utf8::displayWidth(text), cols);
+    if (x > 0 && x + text_width > cols) {
+      bar_row++;
+      x = 0;
+    }
+    if (bar_row >= kButtonBarRows) break;
+    placed.push_back({ bar_row, x, action, Utf8::truncateToWidth(text, cols) });
+    x += text_width + 1;
+  }
+  return placed;
 }
 
 void
-OutlineView::renderDetailsPanel(const StyleProvider & styles, int details_x, int details_width) {
-  if (details_width <= 0) return; // a pathologically narrow screen rect - nothing to draw
+OutlineView::renderButtonBar(const StyleProvider & styles) {
+  auto cols = getDim().second;
+  auto top = buttonBarTop();
 
-  auto tree_rows = treeRows();
-  setFgColor(styles.window_fg_color);
+  // The separator row between the tree and the bar.
+  setFgColor(styles.window_border_color);
   setBgColor(styles.window_bg_color);
-  string blank(static_cast<size_t>(details_width), ' ');
-  for (int row = 0; row < tree_rows; row++) putstr(2 + row, details_x, blank);
+  putstr(top - 1, 0, repeatUtf8("─", cols));
+
+  string blank(static_cast<size_t>(cols), ' ');
+  setFgColor(styles.window_fg_color);
+  for (int row = 0; row < kButtonBarRows; row++) putstr(top + row, 0, blank);
 
   if (new_cursor_row_ < 0 || new_cursor_row_ >= static_cast<int>(data_.size())) return;
-  auto lines = buildDetailsLines(data_[static_cast<size_t>(new_cursor_row_)], details_width);
-
-  for (size_t i = 0; i < lines.size() && static_cast<int>(i) < tree_rows; i++) {
-    auto & line = lines[i];
-    auto truncated = Utf8::truncateToWidth(line.text, details_width);
+  for (auto & button : placeButtons(data_[static_cast<size_t>(new_cursor_row_)])) {
     // Every button's own text is "[Key] Label" - only the "[Key]" part
     // gets the colored chip, so it reads as the pressable key rather than
-    // coloring the whole label; the rest stays plain text like any other
-    // line. All button labels are plain ASCII, so a byte-index find of
-    // ']' is safe here (unlike wrapped description text elsewhere, which
-    // isn't).
-    auto bracket_end = line.action != DetailsAction::NONE ? truncated.find(']') : string::npos;
-    if (bracket_end != string::npos) {
-      auto key_part = truncated.substr(0, bracket_end + 1);
-      auto rest_part = truncated.substr(bracket_end + 1);
-      setFgColor(styles.button_fg_color);
-      setBgColor(styles.button_bg_color);
-      putstr(2 + static_cast<int>(i), details_x, key_part);
-      setFgColor(styles.window_fg_color);
-      setBgColor(styles.window_bg_color);
-      putstr(2 + static_cast<int>(i), details_x + Utf8::displayWidth(key_part), rest_part);
-    } else {
-      setFgColor(styles.window_fg_color);
-      setBgColor(styles.window_bg_color);
-      putstr(2 + static_cast<int>(i), details_x, truncated);
-    }
+    // coloring the whole label. All button labels are plain ASCII, so a
+    // byte-index find of ']' is safe here.
+    auto bracket_end = button.text.find(']');
+    auto key_part = bracket_end != string::npos ? button.text.substr(0, bracket_end + 1) : string();
+    auto rest_part = button.text.substr(key_part.size());
+    setFgColor(styles.button_fg_color);
+    setBgColor(styles.button_bg_color);
+    putstr(top + button.row, button.x, key_part);
+    setFgColor(styles.window_fg_color);
+    setBgColor(styles.window_bg_color);
+    putstr(top + button.row, button.x + Utf8::displayWidth(key_part), rest_part);
+  }
+}
+
+void
+OutlineView::closeInfoPopup() {
+  info_popup_open_ = false;
+  info_popup_.reset();
+}
+
+void
+OutlineView::renderInfoPopup(const StyleProvider & styles) {
+  vector<string> lines;
+  if (info_popup_open_ && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size())) {
+    lines = infoLines(data_[static_cast<size_t>(new_cursor_row_)]);
+  }
+  if (lines.empty()) {
+    info_popup_.reset();
+    return;
+  }
+
+  // A plane of its own beside the panel, over whatever's to its right.
+  // createChild() places a plane in screen coordinates, so it's moved
+  // there explicitly.
+  if (!info_popup_) info_popup_ = getPlane().createChild();
+  auto [pos_y, pos_x] = getPosition();
+  auto rows = static_cast<int>(lines.size()) + 2;
+  auto width = kInfoPopupWidth;
+  info_popup_->resize(rows, width);
+  info_popup_->move(pos_y + 2, pos_x + getDim().second);
+  info_popup_->moveToTop();
+
+  auto bg = styles.window_accent_bg_color, fg = styles.window_fg_color, border = styles.window_border_color;
+  info_popup_->setBgColor(bg.getRed(), bg.getGreen(), bg.getBlue());
+  info_popup_->setFgColor(border.getRed(), border.getGreen(), border.getBlue());
+  info_popup_->putstr(0, 0, "┌─ Details " + repeatUtf8("─", width - 12) + "┐");
+  for (int row = 1; row < rows - 1; row++) {
+    info_popup_->putstr(row, 0, "│" + string(static_cast<size_t>(width - 2), ' ') + "│");
+  }
+  info_popup_->putstr(rows - 1, 0, "└" + repeatUtf8("─", width - 2) + "┘");
+  info_popup_->setFgColor(fg.getRed(), fg.getGreen(), fg.getBlue());
+  for (size_t i = 0; i < lines.size(); i++) {
+    info_popup_->putstr(static_cast<int>(i) + 1, 2, Utf8::truncateToWidth(lines[i], width - 4));
   }
 }
 
@@ -361,7 +405,7 @@ OutlineView::buildDetailsLines(const outline_row_s & row, int details_width) con
 void
 OutlineView::renderRow(const StyleProvider & styles, int display_row, bool highlight) {
   auto tree_rows = treeRows();
-  auto tree_width = columnSplit().first;
+  auto tree_width = getDim().second;
 
   if (display_row >= 0 && display_row < tree_rows) {
     if (highlight) {
@@ -455,26 +499,17 @@ void
 OutlineView::openTargetPicker() {
   if (getPlane().pickerActive()) return;
 
-  auto [tree_width, cols] = columnSplit();
-  auto details_x = tree_width + 1;
-  auto details_width = cols - details_x;
-  if (details_width <= 0) return;
-
-  // The "[t] Target: ..." line is always this row's own second Details
-  // panel line (buildDetailsLines()'s own LIBRARY_GROOVE case) - 2
-  // (heading row + its shadow row) + 1 (that line's own 0-based index) +
-  // 1 (one row below it, so the picker doesn't cover the very control
-  // that opened it).
-  auto anchor_y = 4;
+  auto cols = getDim().second;
   auto candidates = compatibleTargetTrackRows();
   auto item_count = static_cast<int>(candidates.size()) + 1; // +1 for "New track"
-  // +2 for ncselector's own top/bottom border - capped so the picker
-  // never reaches past this widget's own bottom edge, rather than
-  // assuming there's always room for every candidate at once.
+  // +2 for ncselector's own top/bottom border. Opens just above the button
+  // bar, so it never covers the button that opened it, capped so it never
+  // reaches above the tree's first row.
   auto wanted_rows = item_count + 2;
-  auto picker_rows = std::clamp(wanted_rows, 1, std::max(1, getDim().first - anchor_y));
+  auto picker_rows = std::clamp(wanted_rows, 1, std::max(1, buttonBarTop() - 1 - 2));
+  auto anchor_y = buttonBarTop() - 1 - picker_rows;
 
-  getPlane().showPicker(anchor_y, details_x, picker_rows, details_width, item_count);
+  getPlane().showPicker(anchor_y, 0, picker_rows, cols, item_count);
   for (auto * candidate : candidates) getPlane().addItem(candidate->label, "");
   getPlane().addItem("New track", "");
 
@@ -620,6 +655,10 @@ OutlineView::runDetailsAction(DetailsAction action) {
   case DetailsAction::TOGGLE_TARGET_PICKER:
     if (getPlane().pickerActive()) closeTargetPicker(); else openTargetPicker();
     break;
+  case DetailsAction::TOGGLE_INFO:
+    info_popup_open_ = !info_popup_open_;
+    details_dirty_ = true;
+    break;
   }
 }
 
@@ -636,24 +675,24 @@ OutlineView::handleClick(const InputEvent & input) {
   if (y < 0 || y >= rows || x < 0 || x >= cols) return true; // shouldn't happen - only reached while this is the click's own target
   if (y <= 1) return true; // the shared heading row and its shadow row - nothing clickable there
 
-  auto content_row = y - 2; // 0-based row within the tree/details content area, below the heading and its shadow row
-  auto tree_width = columnSplit().first;
+  auto content_row = y - 2; // 0-based row within the tree, below the heading and its shadow row
+  auto bar_row = y - buttonBarTop();
 
-  if (x < tree_width) {
+  if (content_row < treeRows()) {
     // A tree click - move the cursor straight to whichever row is
     // showing there. The clicked row is already on screen by definition,
     // so this never needs to touch new_scroll_pos_ the way moveCursorBy()
     // does.
     auto data_row = content_row + current_scroll_pos_;
     if (data_row >= 0 && data_row < static_cast<int>(data_.size())) new_cursor_row_ = data_row;
-  } else if (x > tree_width && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size())) {
-    // A details-panel click - hit-test against the exact same lines
-    // renderDetailsPanel() just drew there (buildDetailsLines() is the
-    // one shared source for both), and run whichever line's own action.
-    auto details_width = std::max(0, cols - tree_width - 1);
-    auto lines = buildDetailsLines(data_[static_cast<size_t>(new_cursor_row_)], details_width);
-    if (content_row >= 0 && content_row < static_cast<int>(lines.size())) {
-      runDetailsAction(lines[static_cast<size_t>(content_row)].action);
+  } else if (bar_row >= 0 && new_cursor_row_ >= 0 && new_cursor_row_ < static_cast<int>(data_.size())) {
+    // A button-bar click - hit-test against the exact same placements
+    // renderButtonBar() just drew, and run that button's action.
+    for (auto & button : placeButtons(data_[static_cast<size_t>(new_cursor_row_)])) {
+      if (button.row == bar_row && x >= button.x && x < button.x + Utf8::displayWidth(button.text)) {
+        runDetailsAction(button.action);
+        break;
+      }
     }
   }
   return true;
@@ -720,7 +759,15 @@ OutlineView::offerInput(const InputEvent & input) {
     return true;
   }
 
-  if (input.getId() == NCKEY_UP) {
+  if (input.getId() == '?') {
+    // Not a note key (InputEvent::toMidiNote()), so it never shadows a
+    // preview.
+    runDetailsAction(DetailsAction::TOGGLE_INFO);
+    return true;
+  } else if (((input.hasCtrl() && input.getId() == 'g') || input.getId() == NCKEY_ESC) && info_popup_open_) {
+    runDetailsAction(DetailsAction::TOGGLE_INFO);
+    return true;
+  } else if (input.getId() == NCKEY_UP) {
     moveCursorBy(-1);
     return true;
   } else if (input.getId() == NCKEY_DOWN) {

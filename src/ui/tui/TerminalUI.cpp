@@ -772,6 +772,7 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
 	{ nullptr, nullptr, nullptr },
 	{ "Outline", "", "outline-view" },
 	{ "Toggle Outline", "", "toggle-outline" },
+	{ "Toggle Scopes", "", "toggle-scopes" },
       } },
   };
 
@@ -1718,11 +1719,12 @@ TerminalUI::readInput() {
   // order, then resets it - used whenever a partial match turns out not
   // to be the sequence after all.
   auto flushPendingKpEscape = [this, &dispatchRawKey]() {
-    for (int i = 0; i < kp_escape_depth_; i++) {
+    for (int i = kp_escape_delivered_ ? 1 : 0; i < kp_escape_depth_; i++) {
       auto & p = kp_escape_pending_[i];
       dispatchRawKey(p.id, p.y, p.x, p.modifiers, p.kind);
     }
     kp_escape_depth_ = 0;
+    kp_escape_delivered_ = false;
   };
 
   // Only the very first dequeue of a batch gets definitely_pending=true -
@@ -1794,6 +1796,17 @@ TerminalUI::readInput() {
     if (kp_escape_depth_ == 0 && ni.id == NCKEY_ESC) {
       kp_escape_pending_[0] = { static_cast<int>(ni.id), ni.y, ni.x, ni.modifiers, kind };
       kp_escape_depth_ = 1;
+      // A widget that wants a bare Escape (closing a popup) gets it right
+      // away rather than once the next key arrives. It still stays
+      // buffered here and in the Alt coalescer, so it can go on to be an
+      // Alt chord's prefix or part of a keypad sequence - it's just never
+      // delivered a second time (kp_escape_delivered_).
+      auto active = active_element_.lock();
+      if (active && active->wantsBareEscape()) {
+	InputEvent escape(NCKEY_ESC, ni.y, ni.x, false, false, false, false, kind);
+	active->offerInput(escape);
+	kp_escape_delivered_ = true;
+      }
       continue;
     } else if (kp_escape_depth_ == 1) {
       if (ni.id == 'O') {
@@ -1812,6 +1825,7 @@ TerminalUI::readInput() {
     } else if (kp_escape_depth_ == 3) {
       if (ni.id == 'o' || ni.id == 'j') {
 	kp_escape_depth_ = 0;
+	kp_escape_delivered_ = false;
 	InputEvent input(ni.id == 'o' ? NCKEY_KP_DIVIDE : NCKEY_KP_MULTIPLY, ni.y, ni.x, false, false, true, false, kind);
 	offerInput(input);
 	continue;
@@ -1849,6 +1863,7 @@ TerminalUI::requestOverviewFocus() {
     active_element_ = clip_grid_;
     return;
   }
+  if (!scopes_visible_) return; // the arrangement grid is hidden
   // Lands on the overview's own last (rightmost) column, not wherever its
   // cursor happened to be left last time - both entry points (PatternEditor's
   // leftmost track, Launchpad's prev-track already at track 0) arrive
@@ -2123,6 +2138,12 @@ TerminalUI::initializeWidgets() {
     launchpad_manager_->launchScene(getController(), scene, song.getPlayableTrackIds());
     setStatus("Playing scene " + std::to_string(scene + 1));
   });
+  // Arrangement view's scope row (cover art, ArrangementGrid, charts) -
+  // Session view never shows it.
+  commands_.define("toggle-scopes", [this]() {
+    scopes_visible_ = !scopes_visible_;
+    viewChanged();
+  });
   // Session view with the outline panel shown and focused - defined here,
   // not with the other view commands in UI.cpp, since it focuses a
   // concrete widget.
@@ -2258,7 +2279,14 @@ TerminalUI::layout() {
   auto [ rows, cols ] = getDim();
 
   constexpr int kHeatmapWidth = 31; // 20 * 1.5, rounded up to the nearest odd width
-  constexpr int kScopeRow = 1, kScopeHeight = 5;
+  constexpr int kScopeHeight = 5;
+  // Session view never shows the scope row (the clip grid needs the
+  // rows); Arrangement view shows it unless toggle-scopes hid it. A hidden
+  // row's widgets move below the screen rather than shrinking away (see
+  // the workspace comment below) - resize() tears down a chart's plot
+  // plane, so the next one is built there too, off screen.
+  bool show_scopes = getView() == View::ARRANGEMENT && scopes_visible_;
+  int scope_row = show_scopes ? 1 : rows + 1;
 
   // cover_art_ claims the scope row's own leftmost columns first (the
   // literal top-left corner) - square-looking, sized off the row height
@@ -2273,7 +2301,7 @@ TerminalUI::layout() {
   // rebalance, deferred for now.
   int cover_art_width = CoverArt::widthForHeight(kScopeHeight);
   int cover_art_divider_x = cover_art_width;
-  cover_art_->resize(kScopeHeight, cover_art_width).move(kScopeRow, 0);
+  cover_art_->resize(kScopeHeight, cover_art_width).move(scope_row, 0);
 
   auto num_tracks = static_cast<int>(getController().getSong().getPlayableTrackIds().size());
   // ArrangementGrid spends 2 columns per track (its own identifier cell
@@ -2284,49 +2312,58 @@ TerminalUI::layout() {
   int matrix_width = std::clamp(num_tracks, 4, 24) * 2 + 1;
   int matrix_x = cover_art_divider_x + 1;
   int matrix_divider_x = matrix_x + matrix_width;
-  arrangement_grid_->resize(kScopeHeight, matrix_width).move(kScopeRow, matrix_x);
+  arrangement_grid_->resize(kScopeHeight, matrix_width).move(scope_row, matrix_x);
 
   int chart_x = matrix_divider_x + 1;
   int chart_width = std::max(1, cols - chart_x - 9 - kHeatmapWidth - 2); // -2 for the single-column dividers on either side of the heatmap
   int divider1_x = chart_x + chart_width, divider2_x = divider1_x + 1 + kHeatmapWidth;
-  chart_->resize(kScopeHeight, chart_width).move(kScopeRow, chart_x);
-  heatmap_->resize(kScopeHeight, kHeatmapWidth).move(kScopeRow, divider1_x + 1);
-  volume_meter_->resize(kScopeHeight, 9).move(kScopeRow, divider2_x + 1);
+  chart_->resize(kScopeHeight, chart_width).move(scope_row, chart_x);
+  heatmap_->resize(kScopeHeight, kHeatmapWidth).move(scope_row, divider1_x + 1);
+  volume_meter_->resize(kScopeHeight, 9).move(scope_row, divider2_x + 1);
 
   // Single-column dividers between the five scopes - drawn once here
   // rather than per-frame, since these columns fall outside every scope's
-  // own resized rectangle, so nothing else ever repaints over them.
+  // own resized rectangle, so nothing else ever repaints over them. (When
+  // hidden, the workspace below covers these rows instead.)
   setFgColor(styles_.window_border_color);
   setBgColor(styles_.window_bg_color);
-  for (int row = 0; row < kScopeHeight; row++) {
-    putstr(kScopeRow + row, cover_art_divider_x, "│");
-    putstr(kScopeRow + row, matrix_divider_x, "│");
-    putstr(kScopeRow + row, divider1_x, "│");
-    putstr(kScopeRow + row, divider2_x, "│");
+  for (int row = 0; show_scopes && row < kScopeHeight; row++) {
+    putstr(scope_row + row, cover_art_divider_x, "│");
+    putstr(scope_row + row, matrix_divider_x, "│");
+    putstr(scope_row + row, divider1_x, "│");
+    putstr(scope_row + row, divider2_x, "│");
   }
   // The workspace below the scope row. notcurses refuses/ignores a plane
   // resize to zero rows or columns (confirmed via a pty+notcurses
   // reproduction), so a widget the current view doesn't show can't be
   // shrunk away - it gets the same rect as a visible one instead, and
   // moveToTop() raises the visible ones above it.
-  constexpr int kWorkspaceRow = 6;
+  int workspace_row = show_scopes ? 1 + kScopeHeight : 1;
   constexpr int kOutlineWidth = 30;
-  int workspace_rows = std::max(2, rows - 8);
+  int workspace_rows = std::max(2, rows - 2 - workspace_row);
   if (getView() == View::SESSION) {
     // Session view: the clip grid (the outline panel on its left, when
     // shown) takes at most half the workspace, the pattern editor the rest.
-    int strip_rows = std::min(ClipGrid::preferredHeight(), workspace_rows / 2);
+    laid_out_clip_grid_height_ = clip_grid_->preferredHeight();
+    int strip_rows = std::min(laid_out_clip_grid_height_, workspace_rows / 2);
     int outline_cols = isOutlineVisible() ? std::min(kOutlineWidth, cols / 2) : 0;
-    clip_grid_->resize(strip_rows, cols - outline_cols).move(kWorkspaceRow, outline_cols);
-    outline_view_->resize(strip_rows, outline_cols > 0 ? outline_cols : cols).move(kWorkspaceRow, 0);
-    pattern_editor_->resize(workspace_rows - strip_rows, cols).move(kWorkspaceRow + strip_rows, 0);
+    clip_grid_->resize(strip_rows, cols - outline_cols).move(workspace_row, outline_cols);
+    // The outline panel's last column is a divider, drawn here on the
+    // plane underneath (static, like the scope row's dividers).
+    outline_view_->resize(strip_rows, outline_cols > 0 ? outline_cols - 1 : cols).move(workspace_row, 0);
+    if (outline_cols > 0) {
+      setFgColor(styles_.window_border_color);
+      setBgColor(styles_.window_bg_color);
+      for (int row = 0; row < strip_rows; row++) putstr(workspace_row + row, outline_cols - 1, "│");
+    }
+    pattern_editor_->resize(workspace_rows - strip_rows, cols).move(workspace_row + strip_rows, 0);
     if (outline_cols > 0) outline_view_->moveToTop();
     clip_grid_->moveToTop();
     pattern_editor_->moveToTop();
   } else {
-    clip_grid_->resize(workspace_rows, cols).move(kWorkspaceRow, 0);
-    outline_view_->resize(workspace_rows, cols).move(kWorkspaceRow, 0);
-    pattern_editor_->resize(workspace_rows, cols).move(kWorkspaceRow, 0);
+    clip_grid_->resize(workspace_rows, cols).move(workspace_row, 0);
+    outline_view_->resize(workspace_rows, cols).move(workspace_row, 0);
+    pattern_editor_->resize(workspace_rows, cols).move(workspace_row, 0);
     pattern_editor_->moveToTop();
   }
   info_line_->resize(1, cols).move(rows - 2, 0);
@@ -2348,6 +2385,7 @@ TerminalUI::renderComponents(bool refresh) {
   // (the one call site whose own return value actually reaches startUI()'s
   // nc->render() gate), not at whichever earlier, input-handling call site
   // actually requested it.
+  if (getView() == View::SESSION && syncSessionView()) force_next_render_ = true;
   refresh = refresh || force_next_render_;
   force_next_render_ = false;
   bool render = false;
@@ -2416,9 +2454,45 @@ TerminalUI::renderComponents(bool refresh) {
   return render;
 }
 
+bool
+TerminalUI::syncSessionView() {
+  auto & song = getController().getSong();
+
+  // The scene: whichever widget moved since last frame wins. The clip
+  // grid only follows while its cursor is on a clip row, not the header or
+  // the Sends/Direction rows.
+  int editor_scene = pattern_editor_->getSessionScene();
+  int grid_scene = clip_grid_->getCursorClipIndex();
+  if (editor_scene != synced_scene_) {
+    if (grid_scene >= 0) clip_grid_->setCursorClipIndex(editor_scene);
+    synced_scene_ = editor_scene;
+  } else if (grid_scene >= 0 && grid_scene != synced_scene_) {
+    pattern_editor_->setSessionScene(grid_scene);
+    synced_scene_ = pattern_editor_->getSessionScene();
+  }
+
+  // The track: the shared current track, in each widget's own index space.
+  int track_id = song.getCurrentTrackId();
+  if (track_id != synced_track_id_) {
+    auto playable = song.getPlayableTrackIds();
+    if (std::find(playable.begin(), playable.end(), track_id) != playable.end()) clip_grid_->setCursorTrackIndex(indexOfTrack(playable, track_id));
+    auto roots = song.getRootTrackIds();
+    auto it = std::find(roots.begin(), roots.end(), track_id);
+    if (it != roots.end() && pattern_editor_->getCursorTrackIndex() != it - roots.begin()) pattern_editor_->setCursorTrack(static_cast<int>(it - roots.begin()));
+    synced_track_id_ = track_id;
+  }
+
+  if (clip_grid_->preferredHeight() == laid_out_clip_grid_height_) return false;
+  layout();
+  return true;
+}
+
 std::vector<std::shared_ptr<UIElement>>
 TerminalUI::focusableElements() const {
-  if (getView() == View::ARRANGEMENT) return { pattern_editor_, arrangement_grid_ };
+  if (getView() == View::ARRANGEMENT) {
+    if (!scopes_visible_) return { pattern_editor_ };
+    return { pattern_editor_, arrangement_grid_ };
+  }
   // Screen order, the way Emacs cycles windows: the outline panel
   // (top-left), the clip grid beside it, then the pattern editor below.
   std::vector<std::shared_ptr<UIElement>> elements;
@@ -2446,10 +2520,15 @@ TerminalUI::viewChanged() {
   // An inline editor left open on a widget that's no longer shown would
   // keep swallowing keys.
   if (getView() == View::ARRANGEMENT) clip_grid_->cancelReaderEdit();
+  if (getView() != View::SESSION || !isOutlineVisible()) outline_view_->closeInfoPopup();
   // Session view edits clips one scene at a time; Arrangement view edits
   // sections and placed clips.
   pattern_editor_->cancelReaderEdit();
   pattern_editor_->setSessionMode(getView() == View::SESSION);
+  // Entering Session view, the clip grid starts on the pattern editor's
+  // scene (syncSessionView() keeps them together from here).
+  synced_scene_ = -1;
+  synced_track_id_ = -1;
   layout();
   // Not a direct renderComponents(true) call here - see
   // force_next_render_'s own comment on TerminalUI.h.
@@ -2520,7 +2599,6 @@ TerminalUI::offerInput(const InputEvent & input) {
     for (auto & element : focusableElements()) {
       if (!activated) activated = tryActivate(input.getY(), input.getX(), element);
     }
-    if (!activated) activated = tryActivate(input.getY(), input.getX(), arrangement_grid_);
     activated = tryActivate(input.getY(), input.getX(), octave_control_) || activated;
 
     // Fall back to the pattern editor (in every view) if the click landed

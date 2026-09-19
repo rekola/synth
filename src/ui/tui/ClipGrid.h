@@ -4,6 +4,7 @@
 #include "../UIElement.h"
 #include "InlineEditor.h"
 
+#include <algorithm>
 #include <functional>
 #include <string>
 
@@ -16,11 +17,11 @@ class Song;
 // and name (F2 renames it - see startTrackRename()) plus its Mute/Solo
 // state (an "M"/"S" pair at the header row's own right edge - dim when
 // off, colored when on; there's no dedicated Mute/Solo row any more, see
-// kLogicalToPhysical's own comment), on its own dark grey backdrop
+// physicalFor()'s own comment), on its own dark grey backdrop
 // (styles.window_accent_bg_color) setting the header apart from the
 // plain window background below it, followed by its own
 // Song::getClips(track_id) as a vertical list of exactly
-// kClipRowCount slots (a leading play glyph plus name for a real clip,
+// clipRowCount() slots (a leading play glyph plus name for a real clip,
 // with a further repeat glyph for one that loops, or a leading stop glyph
 // for a slot with none - always all of them, not just however many clips
 // happen to exist, so every track's own row axis is identical and a
@@ -62,9 +63,12 @@ class ClipGrid : public UIElement {
   // a real clip row at all (-1 otherwise - the header, or the Sends/
   // Direction rows, name no clip slot). Mirrors delete-clip's own
   // identical "a CLIP row's own physical offset doubles as its clip-list
-  // index" resolution (see rowKindFor()/kLogicalToPhysical's own comment).
+  // index" resolution (see rowKindFor()/physicalFor()'s own comment).
   int getCursorTrackIndex() const { return cursor_track_index_; }
-  int getCursorClipIndex() const { return rowKindFor(cursor_row_) == RowKind::CLIP ? kLogicalToPhysical[cursor_row_] : -1; }
+  int getCursorClipIndex() const { return rowKindFor(cursor_row_) == RowKind::CLIP ? physicalFor(cursor_row_) : -1; }
+  // Moves the cursor onto clip row `clip_index` (the scene), keeping its
+  // track.
+  void setCursorClipIndex(int clip_index) { cursor_row_ = 1 + std::max(clip_index, 0); }
 
   // Called on Enter over a clip row (populated or not) with the row's own
   // (track_id, clip_index) - Enter acts exactly like a Launchpad Session
@@ -76,50 +80,46 @@ class ClipGrid : public UIElement {
   void setTriggerCallback(std::function<void(int track_id, int clip_index)> cb) { trigger_callback_ = std::move(cb); }
   // Rows needed to show everything without scrolling (the header plus
   // every row below it).
-  static constexpr int preferredHeight() { return 1 + kPhysicalRowCount; }
+  int preferredHeight() const { return 1 + physicalRowCount(); }
 
  private:
-  // Always exactly this many clip rows per column, whether or not that
-  // many clips actually exist on the track - see this class's own header
-  // comment on why "run out early" isn't a thing here any more (unlike
-  // the old data-sized row count, or ArrangementGrid.cpp's own per-column
-  // loop tolerating it for playback resolution).
-  static constexpr int kClipRowCount = 8;
+  // Clip rows per column: one per scene (ScenePatternSource::
+  // sceneCount()) - the same for every column, whether or not that many
+  // clips actually exist on the track, so every track's own row axis is
+  // identical.
+  int clipRowCount() const;
 
   // Content width of one track's own column; one divider column follows
   // each. Shared between render() and startClipRename() so the reader's
   // own placement always lines up with what render() just drew.
   static constexpr int kColWidth = 18;
 
-  // The row-axis kind a given *logical* (cursor-addressable) row is -
-  // physicalRowFor()/kLogicalToPhysical map between this and the actual
-  // on-screen row, which also includes non-addressable divider/label rows
-  // in between (see kLogicalToPhysical's own comment). Mute/Solo aren't
-  // part of this row axis at all - they're shown inline on the header row
-  // instead (see this class's own header comment) since they're a
-  // per-track toggle, not something that needs its own cursor-addressable
-  // slot - but the header row itself *is* cursor-addressable (its own
-  // RowKind, HEADER), for its own name to be reachable by cursor
-  // navigation the same way every other row is (F2 there renames the
-  // track - see startTrackRename()), rather than needing a separate
-  // out-of-band gesture to reach it.
+  // The row-axis kind a given *logical* row is - physicalFor() maps
+  // between this and the actual on-screen row, which also includes
+  // non-addressable divider/label rows in between. Mute/Solo aren't part
+  // of this row axis at all - they're shown inline on the header row
+  // instead (see this class's own header comment). The header row is
+  // logical row 0 but never holds the cursor; F2 away from a clip renames
+  // the track instead (see offerInput()).
   enum class RowKind { HEADER, CLIP, SENDS, DIRECTION };
   // logical row index -> physical row offset (0 = the row right after the
   // header; -1 is the header row itself, always drawn at screen row 0
   // regardless of scroll_row_ - see ensureCursorVisible()'s own handling
-  // of a negative cursor_physical) - the fixed layout this class always
-  // draws: the header, 8 clip rows, divider, Sends label + Sends value,
-  // divider, Direction label + Direction value. Only the *value* row of
+  // of a negative cursor_physical) - the layout this class always draws:
+  // the header, clipRowCount() clip rows, then (as offsets from there,
+  // SendsDirectionRow) divider, Sends label + Sends value, divider,
+  // Direction label + Direction value. Only the *value* row of
   // Sends/Direction is cursor-addressable - the label row above it (the
   // "description above each value" this class's own header comment
   // mentions) is purely decorative, matching how a divider row is.
-  static constexpr int kLogicalToPhysical[] = { -1, 0, 1, 2, 3, 4, 5, 6, 7, 10, 13 };
-  static constexpr int kLogicalRowCount = sizeof(kLogicalToPhysical) / sizeof(kLogicalToPhysical[0]);
-  static constexpr int kPhysicalRowCount = 14; // total rows below the header, fixed regardless of song content
+  enum SendsDirectionRow { kSendsDivider, kSendsLabel, kSendsValue, kDirectionDivider, kDirectionLabel, kDirectionValue, kSendsDirectionRows };
+  int physicalFor(int logical_row) const;
+  int logicalRowCount() const { return clipRowCount() + 3; }
+  int physicalRowCount() const { return clipRowCount() + kSendsDirectionRows; } // every row below the header
   RowKind rowKindFor(int logical_row) const;
 
   int cursor_track_index_ = 0;
-  int cursor_row_ = 1; // logical row index - see kLogicalToPhysical's own comment; starts on the first clip row, not the header
+  int cursor_row_ = 1; // logical row index - see physicalFor()'s own comment; starts on the first clip row, not the header
   int scroll_col_ = 0, scroll_row_ = 0; // scroll_row_ is in *physical* row space, like the on-screen content itself
 
   int current_song_version_ = -1;

@@ -6,7 +6,7 @@ the Launchpad Session grid address) at a time, with one playhead per track.
 Views stop being buffers: a buffer is a song, and a view is how the UI is
 laid out around it.
 
-Status: Phases 0-2 committed; Phase 3 done (not yet committed). Every phase lands as its own commit(s), with `ctest`
+Status: Phases 0-3 committed; Phase 4 done (not yet committed). Every phase lands as its own commit(s), with `ctest`
 and the e2e scripts green.
 
 ## The cursor model
@@ -309,6 +309,31 @@ Remaining from the original Phase 3 list:
 
 ## Phase 4: Session view layout
 
+Done (not yet committed):
+- No scope row in Session view: its widgets move below the screen, and
+  resizing rebuilds the charts' plot planes there. `toggle-scopes` hides
+  it in Arrangement view too (the arrangement grid with it).
+- The clip grid has one row per scene (`ScenePatternSource::
+  sceneCount()`: the used scenes plus an empty one, at least 8) and takes
+  at most half the height, re-laid out as the count changes. Its cursor
+  never sits on the header row; F2 renames the clip under the cursor, or
+  the track where there's none (`M-x rename-track` works there too).
+- Shared cursor (`TerminalUI::syncSessionView()`): the clip grid's clip
+  row is the pattern editor's scene, and the current track is the column
+  in both, whichever moved last. Unfocused, the clip grid still marks the
+  clip being edited, faintly.
+- The outline panel has a single, narrow layout: the tree across the
+  panel, the row's action buttons as chips in a 3-row bar under it, and
+  the details text (description, hints) in a popup beside the panel
+  (`?`, following the cursor; `?`, Ctrl-g or Escape closes it). Escape
+  reaches it at once (`UIElement::wantsBareEscape()`) yet still starts an
+  Alt chord, so ESC x is still M-x. The groove target
+  picker opens just above the bar. A divider column separates the panel
+  from the clip grid.
+- Tests: `tools/e2e/verify_session_view_layout.py`.
+
+The design notes below are kept for reference.
+
 The scope row (5 rows), plus ClipGrid's fixed 15 rows (18 columns per
 track), plus the pattern editor doesn't fit a normal terminal.
 
@@ -441,6 +466,15 @@ treat your voice before (or while) recording.
 - Which track types can monitor: SampleTrack certainly; for an
   InstrumentTrack the input would bypass the instrument and go straight
   into its effects. Decide whether that's wanted.
+- **Clip grid shows clip state like the Launchpad does:** a playing clip
+  (green, like the pad's pulse), one queued to launch or stop (green,
+  flashing or a distinct marker), an armed track's empty slot (dim red),
+  a take queued or recording (red, recording marked like the pad's red
+  pulse), and a take queued to stop. Same source of truth as the pads
+  (`LaunchpadManager`'s `SessionPadHighlight` states, extended from
+  Phase 1's playhead snapshot), so the terminal and the device never
+  disagree. Terminal cells can't pulse on their own; use a steady colour
+  plus a glyph, or blink by redrawing on the audition clock's beat.
 - Tests: a render test feeding a synthetic input buffer through a
   monitoring track and checking it reaches the output through the
   track's effect (e.g. a gain change), and that Off/Auto gate it.

@@ -4,6 +4,7 @@
 #include "../UIElement.h"
 #include "../../model/TrackType.h"
 
+#include <memory>
 #include <vector>
 #include <string>
 #include <utility>
@@ -11,7 +12,7 @@
 class StyleProvider;
 
 // What a row's own default action(s) - NCKEY_ENTER/NCKEY_DEL, and what
-// renderDetailsPanel() shows for it - target. SECTION covers every plain
+// renderButtonBar() shows for it - target. SECTION covers every plain
 // heading row (Song, Library, Tracks, a group name, ...), which has none.
 enum class OutlineRowKind { SECTION, TRACK, POOL_INSTRUMENT, LIBRARY_INSTRUMENT, LIBRARY_GROOVE };
 
@@ -39,7 +40,7 @@ struct outline_row_s {
 // target-track picker - a real floating ncselector plane (see
 // OutlineView::openTargetPicker()), not another Details panel line, so
 // picking one of its candidates never reaches here at all.
-enum class DetailsAction { NONE, DELETE, ADD_TO_SONG, PREVIEW, STOP, TOGGLE_TARGET_PICKER };
+enum class DetailsAction { NONE, DELETE, ADD_TO_SONG, PREVIEW, STOP, TOGGLE_TARGET_PICKER, TOGGLE_INFO };
 
 struct DetailsLine {
   std::string text;
@@ -53,16 +54,14 @@ struct DetailsLine {
 // instead. Shown as a panel on the left of ClipGrid in Session view
 // (UI::View; "toggle-outline"/"outline-view", see TerminalUI::layout()).
 //
-// A shared one-row heading strip along the top, split by a vertical
-// divider into "Outline" (left) and "Details" (right); below that, the
-// scrollable tree on the left and a fixed-width details panel on the
-// right, sharing that same divider column - see kDetailsPanelWidth. The
-// details panel shows whatever the cursor's own row supports doing -
-// Delete plus note-key preview for a Track/pool Instruments row
-// (Song::removeTrack()/removeInstrument()), Add to Song plus preview and
-// (when one's available - see buildDetailsLines()) its own description
-// for a Library row. Blank for a plain section heading, which has no
-// action of its own.
+// A narrow panel: an "Outline" heading, the scrollable tree across the
+// whole width, and under it a fixed-height bar of the cursor's row's
+// action buttons - Delete plus note-key preview for a Track/pool
+// Instruments row (Song::removeTrack()/removeInstrument()), Add to Song
+// plus preview for a Library row, nothing for a plain section heading.
+// The rest of the row's details (its description, hints) open in a popup
+// beside the panel ('?', closed by '?', Ctrl-g or Escape), following the
+// cursor while open.
 //
 // Both a Song > Instruments (pool) row and a Library > Instruments row
 // are more than just a label: any note-producing keystroke previews the
@@ -90,6 +89,11 @@ class OutlineView : public UIElement {
 
   bool offerInput(const InputEvent & input) override;
   bool render(const StyleProvider & styles, bool refresh, bool focused);
+  // Closes the details popup - for when this panel stops being shown
+  // (the popup is a separate plane that would otherwise stay up).
+  void closeInfoPopup();
+  // Escape closes the details popup.
+  bool wantsBareEscape() const override { return info_popup_open_; }
 
 protected:
   void renderRow(const StyleProvider & styles, int row, bool highlight);
@@ -102,7 +106,8 @@ protected:
   // to a new row (not incrementally, unlike renderRow() above) - its
   // content depends on that row's own kind, not on any per-row diff worth
   // tracking.
-  void renderDetailsPanel(const StyleProvider & styles, int details_x, int details_width);
+  void renderButtonBar(const StyleProvider & styles);
+  void renderInfoPopup(const StyleProvider & styles);
 
  private:
   // Common tail of NCKEY_UP/DOWN/PGUP/PGDOWN - moves the cursor by
@@ -117,7 +122,7 @@ protected:
   // row is already fully visible.
   void scrollBy(int delta);
   // The Details panel's own content for `row`, line by line - the single
-  // source both renderDetailsPanel() (drawing) and handleClick() (hit-
+  // source both renderButtonBar()/the details popup (drawing) and handleClick() (hit-
   // testing a click against whichever line it lands on) build from, so
   // the two can never show/dispatch different things for the same row.
   // `details_width` is only needed to word-wrap a groove's own
@@ -195,28 +200,27 @@ protected:
   // zero-root-tracks entry).
   void deleteSelectedRow();
 
-  // The details panel's own fixed content width (not counting the
-  // divider column itself) - see this class's own header comment. Capped
-  // to a third of the widget's own width in layout() below, so a narrow
-  // terminal never loses the tree entirely to it.
-  static constexpr int kDetailsPanelWidth = 36;
   // The target-track picker's own "create a fresh PercussionTrack instead
   // of using an existing one" choice - 0 is safe to use as a sentinel
   // since real track ids start at 1 (SongObject.cpp's own next_id).
   static constexpr int kNewTrackTargetId = 0;
-  // This widget's own current column split: `first` is the tree's own
-  // width (columns [0, first)), the divider sits at column `first`
-  // itself, and the details panel's own content spans
-  // [first + 1, second). Recomputed from getDim() on every call (cheap,
-  // and this widget's own size can change - NCKEY_RESIZE - between
-  // render() calls) rather than cached, so render()/renderRow()/
-  // renderDetailsPanel()/moveCursorBy() can never disagree about where
-  // the divider actually is.
-  std::pair<int, int> columnSplit() const;
-  // How many of this widget's own rows the scrollable tree (and the
-  // details panel alongside it) gets below the shared heading row. Never
-  // negative, even on a pathologically short screen rect.
+
+  // A button in the bar under the tree: its row within the bar, column,
+  // action, and "[Key] Label" text.
+  struct ButtonPlacement { int row, x; DetailsAction action; std::string text; };
+  // The cursor's row's buttons, packed left to right and wrapped; ones past
+  // the bar's last row are dropped. A row with details text gets an extra
+  // "[?] Info" button.
+  std::vector<ButtonPlacement> placeButtons(const outline_row_s & row) const;
+  // The details popup's text for `row`: its non-button lines.
+  std::vector<std::string> infoLines(const outline_row_s & row) const;
+
+  static constexpr int kButtonBarRows = 3;
+  static constexpr int kInfoPopupWidth = 40;
+  // How many rows the scrollable tree gets, between the heading above and
+  // the button bar below. Never negative.
   int treeRows() const;
+  int buttonBarTop() const { return 2 + treeRows() + 1; } // below the tree and its separator row
 
   std::vector<struct outline_row_s> data_;
   int current_song_version_ = 0;
@@ -249,6 +253,8 @@ protected:
   // (applyTargetPickerSelection()). Checked/cleared in render() the same
   // as cursor_changed.
   bool details_dirty_ = false;
+  std::unique_ptr<UIPlane> info_popup_;
+  bool info_popup_open_ = false;
 };
 
 #endif

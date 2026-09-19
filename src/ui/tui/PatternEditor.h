@@ -79,8 +79,12 @@ class PatternEditor : public UIElement {
   // one scene at a time (ScenePatternSource).
   void setSessionMode(bool session);
   bool isSessionMode() const { return source_ == scene_source_.get(); }
-  // The scene the session-mode cursor is in.
+  // The scene the session-mode cursor is in. Setting it to a different
+  // scene lands on that scene's first row.
   int getSessionScene() const { return scene_source_->cursor().block; }
+  void setSessionScene(int scene) {
+    if (scene != getSessionScene()) scene_source_->setCursor({ scene, 0 });
+  }
   // Where each track's launched clip is playing, for session mode's
   // per-track playhead rows.
   void setSessionPlayheads(std::unordered_map<int, ScenePatternSource::Playhead> playheads);

@@ -89,6 +89,11 @@ protected:
 
   void layout();
   bool renderComponents(bool refresh = false);
+  // Session view: keeps the clip grid and the pattern editor on the same
+  // scene and track, whichever of them moved, and re-lays out when the
+  // clip grid's height changes with the scene count. Returns whether the
+  // layout changed.
+  bool syncSessionView();
   // Shared by arrangement_grid_'s own Enter commit and a Launchpad "assign"
   // pad press in GridMode::SESSION (see wireLaunchpad()/initializeWidgets()
   // for how each is wired to this) - one implementation of "commit this
@@ -151,6 +156,11 @@ private:
   // time; only which ones are on screen changes.
   std::shared_ptr<ClipGrid> clip_grid_;
   std::shared_ptr<OutlineView> outline_view_;
+  // Arrangement view's scope row (toggle-scopes); Session view never
+  // shows it - see layout().
+  bool scopes_visible_ = true;
+  // What syncSessionView() last left both widgets showing.
+  int synced_scene_ = -1, synced_track_id_ = -1, laid_out_clip_grid_height_ = -1;
   // Set by a handler that changes what's on screen (the view changing,
   // NCKEY_RESIZE) from *inside* input handling - before this
   // class's own main loop (startUI()) reaches its own renderComponents()
@@ -192,6 +202,9 @@ private:
   struct PendingRawKey { int id = 0, y = 0, x = 0; unsigned modifiers = 0; InputEvent::Kind kind = InputEvent::Kind::UNKNOWN; };
   int kp_escape_depth_ = 0; // 0 = no legacy KP-escape sequence in progress, 1-3 = that many bytes matched so far
   PendingRawKey kp_escape_pending_[3]; // ESC, 'O', '5', in order
+  // The buffered ESC already went to a widget that wanted it bare (see
+  // UIElement::wantsBareEscape()) - replaying it would deliver it twice.
+  bool kp_escape_delivered_ = false;
 
   // Alt-key coalescing (EscapeCoalescer.h) - the notcurses input source
   // readInput() actually pulls events from. Kept behind a pointer to an

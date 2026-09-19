@@ -1,4 +1,5 @@
 #include "ClipGrid.h"
+#include "../ScenePatternSource.h"
 
 #include "../../playback/InputEvent.h"
 #include "../../playback/LogEvent.h"
@@ -51,6 +52,10 @@ ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
   // tied to any particular row), same as the 'l' loop toggle stays a
   // manual offerInput() branch below rather than a command - there's
   // nothing else in this app either binding is likely to collide with.
+  commands_.define("rename-track", [this]() {
+    const Song & song = getController().getSong();
+    startTrackRename(song, song.getPlayableTrackIds());
+  });
   commands_.define("toggle-mute", [this]() {
     auto & song = getController().getSong();
     auto track_ids = song.getPlayableTrackIds();
@@ -87,7 +92,7 @@ ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
     if (cursor_track_index_ < 0 || cursor_track_index_ >= static_cast<int>(track_ids.size())) return;
     auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
     auto & clips = song.getClips(track_id);
-    auto clip_row = kLogicalToPhysical[cursor_row_]; // a CLIP row's own physical offset doubles as its clip-list index
+    auto clip_row = physicalFor(cursor_row_); // a CLIP row's own physical offset doubles as its clip-list index
     // Content-aware, not just in-bounds: an empty filler (Song::
     // ensureClipAt()'s own "hole", or a genuinely out-of-bounds row) reads
     // as "no clip here" either way - erasing a filler would shift every
@@ -120,30 +125,44 @@ ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
   assertCommandBindingsValid();
 }
 
+int
+ClipGrid::clipRowCount() const {
+  return ScenePatternSource::sceneCount(getController().getSong());
+}
+
 ClipGrid::RowKind
 ClipGrid::rowKindFor(int logical_row) const {
   if (logical_row == 0) return RowKind::HEADER;
-  if (logical_row <= kClipRowCount) return RowKind::CLIP;
-  if (logical_row == kClipRowCount + 1) return RowKind::SENDS;
+  if (logical_row <= clipRowCount()) return RowKind::CLIP;
+  if (logical_row == clipRowCount() + 1) return RowKind::SENDS;
   return RowKind::DIRECTION;
+}
+
+int
+ClipGrid::physicalFor(int logical_row) const {
+  auto clip_rows = clipRowCount();
+  if (logical_row <= 0) return -1;
+  if (logical_row <= clip_rows) return logical_row - 1;
+  if (logical_row == clip_rows + 1) return clip_rows + kSendsValue;
+  return clip_rows + kDirectionValue;
 }
 
 void
 ClipGrid::ensureCursorVisible(int visible_rows, int visible_cols, int num_tracks) {
   cursor_track_index_ = clamp(cursor_track_index_, 0, max(0, num_tracks - 1));
-  cursor_row_ = clamp(cursor_row_, 0, kLogicalRowCount - 1);
+  cursor_row_ = clamp(cursor_row_, 1, logicalRowCount() - 1); // never the header row
 
   scroll_col_ = clamp(scroll_col_, 0, max(0, num_tracks - visible_cols));
-  scroll_row_ = clamp(scroll_row_, 0, max(0, kPhysicalRowCount - visible_rows));
+  scroll_row_ = clamp(scroll_row_, 0, max(0, physicalRowCount() - visible_rows));
 
   if (cursor_track_index_ < scroll_col_) scroll_col_ = cursor_track_index_;
   if (visible_cols > 0 && cursor_track_index_ >= scroll_col_ + visible_cols) scroll_col_ = cursor_track_index_ - visible_cols + 1;
   scroll_col_ = clamp(scroll_col_, 0, max(0, num_tracks - visible_cols));
 
-  auto cursor_physical = kLogicalToPhysical[cursor_row_];
+  auto cursor_physical = physicalFor(cursor_row_);
   if (cursor_physical < scroll_row_) scroll_row_ = cursor_physical;
   if (visible_rows > 0 && cursor_physical >= scroll_row_ + visible_rows) scroll_row_ = cursor_physical - visible_rows + 1;
-  scroll_row_ = clamp(scroll_row_, 0, max(0, kPhysicalRowCount - visible_rows));
+  scroll_row_ = clamp(scroll_row_, 0, max(0, physicalRowCount() - visible_rows));
 }
 
 void
@@ -153,7 +172,7 @@ ClipGrid::startClipRename(const Song & song, const std::vector<int> & track_ids)
   if (cursor_track_index_ < 0 || cursor_track_index_ >= static_cast<int>(track_ids.size())) return;
   auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
   auto & clips = song.getClips(track_id);
-  auto clip_row = kLogicalToPhysical[cursor_row_]; // a CLIP row's own physical offset doubles as its clip-list index (both 0..kClipRowCount-1)
+  auto clip_row = physicalFor(cursor_row_); // a CLIP row's own physical offset doubles as its clip-list index
   // Same content-aware "an empty filler reads as no clip here" reasoning
   // as delete-clip above - nothing to give a name to yet.
   if (clip_row < 0 || static_cast<size_t>(clip_row) >= clips.size() || clips[static_cast<size_t>(clip_row)].isEmpty()) return; // no clip here to rename
@@ -251,11 +270,16 @@ ClipGrid::offerInput(const InputEvent & input) {
   else if (input.getId() == NCKEY_PGUP) cursor_row_ -= getDim().first;
   else if (input.getId() == NCKEY_PGDOWN) cursor_row_ += getDim().first;
   else if (input.getId() == NCKEY_F02) {
-    // Renames whatever's actually under the cursor - the track, on the
-    // header row; the clip otherwise (startClipRename() itself no-ops on
-    // a row that isn't a populated clip slot).
-    if (rowKindFor(cursor_row_) == RowKind::HEADER) startTrackRename(song, track_ids);
-    else startClipRename(song, track_ids);
+    // Renames the clip under the cursor, or the track when there's no
+    // clip there (the cursor never sits on the header row itself).
+    auto clip_index = getCursorClipIndex();
+    bool on_clip = false;
+    if (clip_index >= 0 && cursor_track_index_ >= 0 && cursor_track_index_ < num_tracks) {
+      auto & clips = song.getClips(track_ids[static_cast<size_t>(cursor_track_index_)]);
+      on_clip = clip_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(clip_index)].isEmpty();
+    }
+    if (on_clip) startClipRename(song, track_ids);
+    else startTrackRename(song, track_ids);
     return true;
   } else if (input.getId() == 'l' && !input.hasCtrl() && !input.hasAlt()) {
     // Loop toggle - only meaningful on a clip row that actually has a
@@ -265,7 +289,7 @@ ClipGrid::offerInput(const InputEvent & input) {
     if (rowKindFor(cursor_row_) == RowKind::CLIP && cursor_track_index_ >= 0 && cursor_track_index_ < num_tracks) {
       auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
       auto & clips = song.getClips(track_id);
-      auto clip_row = kLogicalToPhysical[cursor_row_]; // a CLIP row's own physical offset doubles as its clip-list index
+      auto clip_row = physicalFor(cursor_row_); // a CLIP row's own physical offset doubles as its clip-list index
       if (clip_row >= 0 && static_cast<size_t>(clip_row) < clips.size() && !clips[static_cast<size_t>(clip_row)].isEmpty()) {
         auto & mutable_song = getController().getSong(); // non-const - this branch genuinely writes, unlike the rest of this method (see `song`'s own comment above)
         auto & clip = mutable_song.getClips(track_id)[static_cast<size_t>(clip_row)];
@@ -284,15 +308,15 @@ ClipGrid::offerInput(const InputEvent & input) {
     auto kind = rowKindFor(cursor_row_);
     if (kind == RowKind::CLIP && cursor_track_index_ >= 0 && cursor_track_index_ < num_tracks && trigger_callback_) {
       auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
-      trigger_callback_(track_id, kLogicalToPhysical[cursor_row_]);
+      trigger_callback_(track_id, physicalFor(cursor_row_));
     }
-    // HEADER/SENDS/DIRECTION: read-only for now - a no-op, still consumed.
+    // SENDS/DIRECTION: read-only for now - a no-op, still consumed.
     return true;
   }
   else return false;
 
   cursor_track_index_ = clamp(cursor_track_index_, 0, max(0, num_tracks - 1));
-  cursor_row_ = clamp(cursor_row_, 0, kLogicalRowCount - 1);
+  cursor_row_ = clamp(cursor_row_, 1, logicalRowCount() - 1); // never the header row
 
   // Song::getCurrentTrackId() sync - see PatternEditor::render()'s own
   // equivalent for why this matters (a command like merge-clip-to-
@@ -367,7 +391,8 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   fill();
 
   SongStructure structure(song);
-  auto cursor_physical = kLogicalToPhysical[cursor_row_];
+  auto cursor_physical = physicalFor(cursor_row_);
+  auto clip_rows = clipRowCount();
 
   for (auto vc = 0; vc < visible_cols; vc++) {
     auto track_index = scroll_col_ + vc;
@@ -390,7 +415,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     // reserved for its clip cells alone.
     constexpr int kMuteSoloWidth = 3; // " MS"
     auto name_width = kColWidth - kMuteSoloWidth;
-    // -1 is the header row's own physical value (kLogicalToPhysical's own
+    // -1 is the header row's own physical value (physicalFor()'s own
     // comment) - never a real physical_row inside the loop below, so this
     // is the header's one and only cursor check.
     bool header_is_cursor = focused && track_index == cursor_track_index_ && cursor_physical == -1;
@@ -420,12 +445,15 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
       auto physical_row = scroll_row_ + vr;
       auto y = 1 + vr;
       bool is_cursor_cell = focused && track_index == cursor_track_index_ && physical_row == cursor_physical;
+      // Unfocused, the cursor's clip cell still shows faintly - it's the
+      // clip the pattern editor below is on (TerminalUI::syncSessionView()).
+      bool is_editing_cell = !focused && track_index == cursor_track_index_ && physical_row == cursor_physical;
 
       // The Sends value row mixes a cursive unit label with plain-weight
       // numbers, which a single putstr call can't do - handled directly
       // here (two calls, two styles) rather than through the shared
       // text/pad/put path every other row below shares.
-      if (physical_row == 10) {
+      if (physical_row == clip_rows + kSendsValue) {
         Color row_fg = is_cursor_cell ? styles.highlight_fg_color : styles.window_fg_color;
         Color row_bg = is_cursor_cell ? kBrightGrey : styles.window_bg_color;
         setFgColor(row_fg);
@@ -456,7 +484,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
       // width first, then the actual icon/name content drawn on top of
       // it - so however many real columns the glyph actually consumes,
       // there's no un-colored sliver left showing through underneath it.
-      if (physical_row < kClipRowCount) {
+      if (physical_row < clip_rows) {
         auto clip_row = static_cast<size_t>(physical_row);
         Color row_fg = Color(255, 255, 255), row_bg = styles.window_bg_color;
         string text;
@@ -524,6 +552,8 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
           // it" convention ArrangementGrid's own cursor cell uses for its
           // colored instance cells.
           row_bg = row_bg.blend(0.35f, kWhite);
+        } else if (is_editing_cell) {
+          row_bg = row_bg.blend(0.15f, kWhite);
         }
         setFgColor(row_fg);
         setBgColor(row_bg);
@@ -535,18 +565,18 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
 
       string text;
       Color fg = styles.window_fg_color, bg = styles.window_bg_color;
-      bool is_divider = physical_row == 8 || physical_row == 11;
+      bool is_divider = physical_row == clip_rows + kSendsDivider || physical_row == clip_rows + kDirectionDivider;
 
       if (is_divider) {
         text = string(static_cast<size_t>(kColWidth), '-');
         fg = styles.window_border_color;
-      } else if (physical_row == 9) { // Sends label (decorative, not cursor-addressable) - "Sends" itself lives here, its own unit ("dB") on the value row right under it
+      } else if (physical_row == clip_rows + kSendsLabel) { // Sends label (decorative, not cursor-addressable) - "Sends" itself lives here, its own unit ("dB") on the value row right under it
         text = fmt::format("{:<6}{:>4}{:>4}{:>4}", "Sends", "M", "A", "B");
         fg = styles.window_accent_fg_color;
-      } else if (physical_row == 12) { // Direction label (decorative)
+      } else if (physical_row == clip_rows + kDirectionLabel) { // Direction label (decorative)
         text = fmt::format("{:>6}{:>6}{:>6}", "Az", "El", "Dist");
         fg = styles.window_accent_fg_color;
-      } else if (physical_row == 13 && leaf) { // Direction value, azimuth/elevation/distance on one line
+      } else if (physical_row == clip_rows + kDirectionValue && leaf) { // Direction value, azimuth/elevation/distance on one line
         text = fmt::format("{:>6.0f}{:>6.0f}{:>6.1f}", leaf->getAzimuth(), leaf->getElevation(), leaf->getDistance());
       }
       text = Utf8::padToWidth(Utf8::truncateToWidth(text, kColWidth), kColWidth);

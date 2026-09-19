@@ -141,6 +141,15 @@ protected:
   // subclass-specific behavior on resize.
   virtual void onResize() { }
 
+public:
+  // Whether this widget wants a bare Escape keypress delivered right away
+  // (e.g. to close a popup), rather than only once the next key shows
+  // whether it was the start of an Alt chord - see TerminalUI::
+  // readInput().
+  virtual bool wantsBareEscape() const { return false; }
+
+protected:
+
   bool dispatchCommand(const InputEvent & input) {
     // RELEASE now reaches offerInput() (see InputEvent::Kind's own doc
     // comment) - no keymap-bound command is meant to fire on key-up, so

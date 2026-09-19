@@ -144,11 +144,13 @@ TEST(scene_source_scenes_are_the_used_clip_rows_plus_one_empty_one) {
   Fixture f;
   auto & song = f.song();
   ScenePatternSource source(f.controller);
-  CHECK(source.blockCount() == 1); // nothing yet: just the empty scene to create in
+  CHECK(source.blockCount() == 8); // never fewer than a Launchpad grid's rows
   CHECK(source.blockLength(0) == f.rows);
 
   placeClip(song, f.track_id, 2, 2 * f.rows, true);
-  CHECK(source.blockCount() == 4);
+  CHECK(source.blockCount() == 8);
+  placeClip(song, f.track_id, 9, f.rows, true);
+  CHECK(source.blockCount() == 11); // ten used, plus one empty to create in
   CHECK(source.blockLength(1) == f.rows); // an unused scene is one bar
   CHECK(source.blockLength(2) == 2 * f.rows); // as long as its longest clip
 }
@@ -232,7 +234,7 @@ TEST(scene_source_cursor_moves_across_scenes_without_touching_the_transport) {
   source.moveCursor(-3);
   CHECK(source.cursor() == (RowAddress{ 0, f.rows - 1 }));
   source.moveCursor(100 * f.rows); // clamps at the last scene's last row
-  CHECK(source.cursor() == (RowAddress{ 2, f.rows - 1 }));
+  CHECK(source.cursor() == (RowAddress{ 7, f.rows - 1 }));
   CHECK(f.controller.getPlaybackInfo().getRowIndex() == transport);
 }
 
