@@ -6,7 +6,7 @@ the Launchpad Session grid address) at a time, with one playhead per track.
 Views stop being buffers: a buffer is a song, and a view is how the UI is
 laid out around it.
 
-Status: Phases 0-4 committed; Phase 5 done (not yet committed). Every phase lands as its own commit(s), with `ctest`
+Status: Phases 0-6 committed; Phase 7 done (not yet committed). Every phase lands as its own commit(s), with `ctest`
 and the e2e scripts green.
 
 ## The cursor model
@@ -303,7 +303,7 @@ Remaining from the original Phase 3 list:
 - Opening a clip's Launchpad step grid moves the session cursor there.
 - **Known limitation:** effect commands typed into a clip are stored but
   silent. Playback reads commands only from the section, not from clips,
-  in the arrangement and in Session-view launches alike. See Phase 8.
+  in the arrangement and in Session-view launches alike. See Phase 10.
 
 ---
 
@@ -430,7 +430,7 @@ the cursor; the cursor for yank/kill-row/effect entry), and
 `getEffectiveSelectionBounds()` clamps the region to
 `PatternSource::sourceRows()`, which the highlight then shows. Effect
 commands stay on the section background (`PatternGrid::findCommands()`/
-`obtainCommands()`), where playback reads them - Phase 8 decides whether
+`obtainCommands()`), where playback reads them - Phase 10 decides whether
 clips get their own. Tests: 5 `SectionRegionGrid` unit tests and
 `tools/e2e/verify_arrangement_clip_region.py`.
 
@@ -515,24 +515,54 @@ Not fixed: InfoLine's `track:col` field is hard-wired to 0.
 
 ## Phase 7: per-track input monitoring in the clip grid
 
-Each track gets a **Monitor** setting in ClipGrid: the live audio input
-is played through that track - its own effect chain, sends and spatial
-position - to the speakers, so you can hear e.g. how the track's effects
-treat your voice before (or while) recording.
+Each track gets a **Monitor** setting in ClipGrid: whether live input
+played into that track is heard, through its own instrument (or, for a
+SampleTrack, the audio input), effect chain, sends and position. Live
+note input - Launchpad pads, MIDI and keyboard note entry - is already
+always heard today; Monitor is mainly a gate on that auditioning, with
+audio input as one more source.
 
-- **Setting:** follow the live-sequencer convention of In / Auto / Off.
-  In: always monitor. Auto: monitor only while the track is armed (Record
-  Arm). Off: never. Default Off (Auto for a SampleTrack?). Persisted per
-  track in the song XML. Shown and edited in ClipGrid (a new
-  cursor-addressable row beside Sends/Direction, or a glyph on the
-  header row next to M/S), plus a `cycle-monitor` command.
+- **Setting:** the live-sequencer In / Auto / Off. In: always heard.
+  Off: never (recording still writes what's played). Auto: heard while
+  the track is armed; a note track is also heard while no track is armed
+  at all, which keeps today's behaviour. Default Auto: audio input then
+  only reaches the speakers while armed, so it's safe from feedback.
+  Persisted per track (`monitor="in|off"`, Auto omitted). Shown and
+  cycled in ClipGrid's header, beside M/S, plus a `cycle-monitor`
+  command.
+- **Gated:** live-played notes only - the Launchpad note grid (and its
+  record fan-out), MIDI note entry, keyboard note entry. Not gated: clip
+  playback (Session launches, the audition clock) and step-grid/lane
+  edit auditions, which are editing feedback, not input. Only the
+  note-on is gated: a release always goes through, so arming mid-note
+  can't leave one stuck.
+
+Steps: **7a** the setting, its ClipGrid display, and gating note input
+(done: `LeafTrack::Monitor`, `Controller::isMonitoring()`/
+`cycleTrackMonitor()`, the header's " IMS" flags, `cycle-monitor` on
+`i` in the clip grid and in the Track menu; Controller tests).
+**7b** audio input monitoring (below). **7c** clip states in the clip
+grid (below).
+
+**7b, audio input** (done: `SampleTrackState::setMonitorInput()` plays
+the input as a third fixed voice, `InputMonitorVoice`, through the
+track's position, sends and effects, surviving a transport stop;
+`dsp::MonoFifo` between capture and playback, trimmed to two blocks;
+`SET_TRACK_MONITORING` from `Controller::syncMonitoring()`, once per UI
+frame; a one-time feedback warning. Tests: MonoFifo, the monitor voice,
+Player routing, Controller sync. Not done: showing the round-trip latency
+in the info line (Phase 9), and a smaller period while monitoring):
+
 - **Engine:** capture currently runs only while recording or
   threshold-armed (`Player.cpp`'s capture-enable edge; captured blocks
   go to the UI as `RecordEvent`s). Monitoring needs capture running
-  whenever any track monitors, and the captured block fed into that
-  track's render on the audio thread as an input source ahead of its
-  effects (`TrackState`/`SampleTrackState`), not routed through the UI
-  thread. Mono downmix, matching how recorded input is stored.
+  whenever any SampleTrack monitors, and the captured block fed into
+  that track's render on the audio thread as an input source ahead of
+  its effects, not routed through the UI thread: capture and playback
+  are separate poll branches on the same thread, so a small mono FIFO
+  between them (capture pushes, each playback block pulls one block,
+  clamped to a couple of periods) is enough. Mono downmix, matching how
+  recorded input is stored.
 - **Latency:** monitoring adds capture plus playback latency
   (`getCaptureDelayFrames()` and the playback delay the recording path
   already measures). Keep the period small while monitoring, and show
@@ -541,9 +571,16 @@ treat your voice before (or while) recording.
   howl. Warn on first enable (status line), and make Off the default.
 - **Recording interplay:** recording keeps capturing the dry input as
   today; monitoring only changes what's heard.
-- Which track types can monitor: SampleTrack certainly; for an
-  InstrumentTrack the input would bypass the instrument and go straight
-  into its effects. Decide whether that's wanted.
+- Audio input only reaches SampleTracks; a note track's live input is
+  its notes.
+
+**7c, clip states** (done: `SessionPadHighlight` moved to its own header;
+`LaunchpadManager::clipHighlight()` computes one slot's state for both the
+pads and `ClipGrid::setClipStateSource()`; the grid shows a colored glyph
+in the icon's place - green ▸ playing, ▹ queued; red ● recording, ○ queued
+to record; dim red ○ an armed empty slot, ● a take queued to stop - and
+redraws when a visible slot's state changes; no blinking):
+
 - **Clip grid shows clip state like the Launchpad does:** a playing clip
   (green, like the pad's pulse), one queued to launch or stop (green,
   flashing or a distinct marker), an armed track's empty slot (dim red),
@@ -559,7 +596,72 @@ treat your voice before (or while) recording.
 
 ---
 
-## Phase 8: play effect commands stored in clips
+## Phase 8: a master track in the clip grid
+
+The live-sequencer convention: the clip grid's rightmost column is the
+master track, and its slots launch scenes.
+
+- **Scene launch:** each of the master column's clip rows launches that
+  whole scene - clip row k on every track - the way the Launchpad's
+  right-column scene buttons already do (`LaunchpadManager::
+  triggerSceneRow()`, bar-quantized, atomic across the row). Enter on a
+  master slot launches; on a playing scene, stops it. The slot shows the
+  row's state (all playing / some playing / queued), from the same
+  `clipHighlight()` source as the track columns. Scenes stay unnamed
+  (Phase 3's decision) - the slot shows its number, not a name.
+- **Stop all:** a slot below the scene rows (or the header) stops every
+  track, quantized like a single stop.
+- **Master parameters:** the Sends/Direction rows become the master's
+  own controls, the same cursor-addressable rows the tracks have: master
+  volume (a new, persisted `MasterTrack` gain applied before the mixer's
+  decode), and the shared send bus's return levels (Send A/B returns -
+  the bus effects' wet levels, `BusEffect::getWetLevel()`), since the
+  master is where those buses land. No Direction for the master (it has
+  no position); that row can show tempo instead, editable in place.
+  Decide whether the master's Mute/Solo flags mean anything (Mute = mute
+  everything is plausible; Solo isn't) - otherwise the header shows none.
+- **Layout:** the master column is always visible, pinned to the right
+  edge rather than scrolling with the tracks, in the header strip's
+  colour; the clip grid's cursor moves onto it like any track, and the
+  pattern editor shows nothing for it (it has no clips of its own).
+- **Launchpad:** unchanged - its right column already is this.
+- Tests: launching a master slot queues every track's clip in that row
+  at the same step; master volume scales the rendered output
+  (`renderSongOffline()`); the gain round-trips through the song file.
+
+---
+
+## Phase 9: round-trip latency in the info bar
+
+Recording and monitoring both add latency the user can't see: playing
+into a monitoring track, or recording while listening to the song, is
+late by the playback queue plus the capture queue, plus the monitor
+FIFO's fill while monitoring. Show it in the info bar.
+
+- **Measure:** the recording path already sums `AudioAPI::
+  getPlaybackDelayFrames()` and `getCaptureDelayFrames()` (ALSA's
+  `snd_pcm_delay()`), once per take, as `RecordingLatencyEvent`. Measure
+  it periodically instead (a few times a second is plenty) whenever
+  capture runs - recording, threshold-armed or monitoring - adding
+  `monitor_fifo_`'s fill while monitoring, and send it to the UI thread
+  the same way. Find out whether the "only meaningful while the transport
+  is playing" rule on the per-take measurement really applies: the
+  playback stream runs continuously (silence included), so its queue
+  depth should be valid whenever capture is running. If a figure can't be
+  measured, show the configured one (period and buffer sizes) marked as
+  nominal rather than nothing.
+- **Show:** " lat 12ms" in the info bar's left half next to "PLAYING",
+  while capture runs; hidden otherwise, so it never takes space for
+  nothing. Milliseconds, rounded, from frames at the output rate.
+- **Consistency:** a take's latency compensation keeps using its own
+  once-per-take measurement - a periodic figure moving mid-take mustn't
+  shift what was recorded.
+- Tests: the frames-to-ms formatting, and that the figure is shown only
+  while capture runs (InfoLine fed a PlaybackInfo with and without it).
+
+---
+
+## Phase 10: play effect commands stored in clips
 
 Session mode (Phase 3) lets you type effect commands into a clip, but
 nothing plays them:

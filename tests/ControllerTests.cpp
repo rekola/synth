@@ -2148,3 +2148,122 @@ TEST(apply_note_pressure_writes_aftertouch_into_a_recording_clip) {
   CHECK(note.isAftertouch());
   CHECK(note.getVelocity() == 90);
 }
+
+TEST(monitor_auto_hears_a_note_track_only_while_nothing_else_is_armed) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+  auto & a = song.addTrack(std::make_unique<InstrumentTrack>(0));
+  auto & b = song.addTrack(std::make_unique<InstrumentTrack>(0));
+  song.setCurrentTrackId(a.getInternalId());
+
+  // Nothing armed: live input is heard, today's behaviour.
+  CHECK(controller.isMonitoring(a.getInternalId()));
+  CHECK(controller.isMonitoring(b.getInternalId()));
+
+  // Once a track is armed, only it is.
+  controller.armTrack(b.getInternalId());
+  CHECK(!controller.isMonitoring(a.getInternalId()));
+  CHECK(controller.isMonitoring(b.getInternalId()));
+  controller.disarmTrack(b.getInternalId());
+
+  // Note capture arms the current track.
+  controller.armNoteCapture();
+  CHECK(controller.isMonitoring(a.getInternalId()));
+  CHECK(!controller.isMonitoring(b.getInternalId()));
+}
+
+TEST(monitor_auto_hears_a_sample_track_only_while_armed) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+  auto & track = song.addTrack(std::make_unique<SampleTrack>());
+  song.setCurrentTrackId(track.getInternalId());
+
+  CHECK(!controller.isMonitoring(track.getInternalId()));
+  controller.armThresholdRecording(track.getInternalId());
+  CHECK(controller.isMonitoring(track.getInternalId()));
+}
+
+TEST(monitor_in_and_off_override_arming_and_cycle_in_order) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+  auto & a = song.addTrack(std::make_unique<InstrumentTrack>(0));
+  auto & b = song.addTrack(std::make_unique<InstrumentTrack>(0));
+  auto & leaf = dynamic_cast<LeafTrack &>(a);
+  controller.armTrack(b.getInternalId());
+
+  CHECK(leaf.getMonitor() == LeafTrack::Monitor::AUTO);
+  controller.cycleTrackMonitor(a.getInternalId());
+  CHECK(leaf.getMonitor() == LeafTrack::Monitor::IN);
+  CHECK(controller.isMonitoring(a.getInternalId())); // not armed, heard anyway
+
+  controller.cycleTrackMonitor(a.getInternalId());
+  CHECK(leaf.getMonitor() == LeafTrack::Monitor::OFF);
+  controller.armTrack(a.getInternalId());
+  CHECK(!controller.isMonitoring(a.getInternalId())); // armed, never heard
+
+  controller.cycleTrackMonitor(a.getInternalId());
+  CHECK(leaf.getMonitor() == LeafTrack::Monitor::AUTO);
+}
+
+TEST(monitor_setting_round_trips_through_the_song_file) {
+  namespace fs = std::filesystem;
+  auto scratch_path = fs::path(TESTS_SCRATCH_DIR) / "controller_monitor_scratch.xml";
+  fs::copy_file(fs::path(TESTS_FIXTURES_DIR) / "center_note.xml", scratch_path,
+		fs::copy_options::overwrite_existing);
+
+  ChannelConfiguration config(44100, 1);
+  {
+    Controller controller(config);
+    CHECK(controller.openSong(scratch_path.string()));
+    auto track_ids = controller.getSong().getPlayableTrackIds();
+    CHECK(!track_ids.empty());
+    controller.cycleTrackMonitor(track_ids.front()); // In
+    CHECK(controller.sendCommand("save-song"));
+  }
+  CHECK(readFile(scratch_path.string()).find("monitor=\"in\"") != std::string::npos);
+
+  Controller reopened(config);
+  CHECK(reopened.openSong(scratch_path.string()));
+  auto track_ids = reopened.getSong().getPlayableTrackIds();
+  auto * leaf = dynamic_cast<LeafTrack *>(reopened.getSong().getMasterTrack().getChildByInternalId(track_ids.front()));
+  CHECK(leaf && leaf->getMonitor() == LeafTrack::Monitor::IN);
+  fs::remove(scratch_path);
+}
+
+TEST(sync_monitoring_sends_only_changes_for_monitoring_sample_tracks) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto & song = controller.getSong();
+  auto & sample = song.addTrack(std::make_unique<SampleTrack>());
+  song.addTrack(std::make_unique<InstrumentTrack>(0)); // monitors notes, not audio - never sent
+  auto & queue = controller.getPlaybackEventQueue();
+
+  controller.syncMonitoring();
+  CHECK(!queue.hasEvents()); // Auto, unarmed
+
+  auto expect = [&](int on) {
+    CHECK(queue.hasEvents());
+    auto ev_ptr = queue.pop();
+    auto ev = dynamic_cast<PlaybackControlEvent *>(ev_ptr.get());
+    CHECK(ev && ev->getType() == PlaybackControlEvent::SET_TRACK_MONITORING);
+    CHECK(ev && ev->getParameter1() == sample.getInternalId() && ev->getParameter2() == on);
+    CHECK(!queue.hasEvents());
+  };
+
+  controller.armThresholdRecording(sample.getInternalId());
+  controller.syncMonitoring();
+  expect(1);
+  controller.syncMonitoring();
+  CHECK(!queue.hasEvents()); // unchanged - nothing resent
+
+  controller.disarmThresholdRecording();
+  controller.syncMonitoring();
+  expect(0);
+}

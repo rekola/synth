@@ -705,6 +705,21 @@ class Controller {
   // setSendMain.
   bool toggleTrackMuted(int track_id);
   bool toggleTrackSolo(int track_id);
+  // Auto -> In -> Off -> Auto, reported on the status line; a no-op for
+  // a non-leaf track.
+  void cycleTrackMonitor(int track_id);
+  // Whether live input played into `track_id` is heard (its Monitor
+  // setting): In always, Off never, Auto while the track is armed - and,
+  // for a note track, also while nothing at all is armed, so playing
+  // into the current track is heard as usual. Only the note-on is gated;
+  // callers always send the release.
+  bool isMonitoring(int track_id) const;
+  // Tells the audio thread which SampleTracks of the active buffer hear
+  // the live audio input now, sending only what changed. Called once per
+  // UI frame, so arming, a Monitor change or a buffer switch all take
+  // effect without each having to remember to. Warns about feedback the
+  // first time any track starts monitoring.
+  void syncMonitoring();
 
   // Unlike the pair above, applies to any Track (Track::isCollapsed() is
   // generic, not LeafTrack-only) and pushes no PlaybackControlEvent -
@@ -1216,6 +1231,10 @@ class Controller {
   // armTrack()/disarmTrack()/isTrackArmed()'s own backing set - see their
   // shared doc comment.
   std::unordered_set<int> armed_track_ids_;
+  // syncMonitoring()'s last-sent state.
+  std::string monitored_buffer_;
+  std::unordered_set<int> monitored_track_ids_;
+  bool monitor_feedback_warned_ = false;
   // Set by "toggle-record-arm"'s own SampleTrack branch when arming a
   // take also had to start the transport itself, so finishing/disarming
   // later knows whether to stop it again.

@@ -2,6 +2,8 @@
 
 #include "../src/model/Song.h"
 #include "../src/model/InstrumentTrack.h"
+#include "../src/model/SampleTrack.h"
+#include "../src/state/SampleTrackState.h"
 #include "../src/state/SongState.h"
 #include "../src/state/TrackInfo.h"
 #include "../src/instruments/Oscillator.h"
@@ -623,4 +625,36 @@ TEST(pending_position_edit_seq_reflects_every_navigation_event_before_first_soun
 
   CHECK(player.getLiveStatePosition(buffer_name) == 40);
   CHECK(player.getLiveStatePositionEditSeq(buffer_name) == 3);
+}
+
+// Live input monitoring's routing: once a SampleTrack monitors, captured
+// input reaches it through the next block; once it stops, its monitor
+// voice fades out.
+TEST(monitored_input_reaches_a_monitoring_sample_track_until_it_stops) {
+  ChannelConfiguration config(8000, 1);
+  Controller controller(config);
+  controller.switchToBuffer(controller.freshBufferName());
+  auto buffer_name = controller.getActiveBufferName();
+  auto & track = controller.getSong().addTrack(make_unique<SampleTrack>());
+
+  Player player(config, &controller);
+  PlaybackControlEvent on(PlaybackControlEvent::SET_TRACK_MONITORING, buffer_name, track.getInternalId(), 1);
+  player.handlePlaybackControlEvent(on);
+  auto * state = player.getLiveStateForTest(buffer_name);
+  CHECK(state != nullptr);
+  auto * track_state = dynamic_cast<SampleTrackState *>(state->getChildByInternalId(track.getInternalId()));
+  CHECK(track_state != nullptr);
+
+  AudioBuffer input(1, 400);
+  auto data = input.getChannelData(0);
+  for (int i = 0; i < 400; i++) data[i] = 0.5f;
+  player.pushMonitoredInput(input, 400);
+  player.feedMonitoredInput(state, buffer_name, 400);
+  auto rendered = track_state->renderVoices(400);
+  CHECK(rendered.getChannelData(0)[399] != 0.0f);
+
+  PlaybackControlEvent off(PlaybackControlEvent::SET_TRACK_MONITORING, buffer_name, track.getInternalId(), 0);
+  player.handlePlaybackControlEvent(off);
+  track_state->renderVoices(400);
+  CHECK(!track_state->isActive());
 }

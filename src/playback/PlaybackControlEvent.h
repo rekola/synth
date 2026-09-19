@@ -65,11 +65,15 @@ class PlaybackControlEvent : public Event {
   // fixed-point convention), parameter3 = duration in milliseconds.
   // Handled by starting a LeafTrackState::glideAzimuth() ramp, which picks
   // its own travel direction (see that method's own comment).
+  // SET_TRACK_MONITORING: parameter1 = a SampleTrack's id, parameter2 = 1
+  // while its live audio input should be heard (Controller::
+  // isMonitoring()), 0 once it shouldn't.
   enum Type { PLAY = 1, STOP, TERMINATE, MOVE_POSITION, CLEAR_VOICES, PLAY_NOTE, STOP_NOTE, STOP_ALL_NOTES, NOTE_PRESSURE, MIXER_CHANGED,
               SET_TRACK_MUTED, SET_TRACK_SOLO, SET_TRACK_SEND_A, SET_TRACK_SEND_B, SET_TRACK_SEND_MAIN, SET_TRACK_AZIMUTH,
               CHANNEL_PRESSURE, SET_RECORDING_MUTE, SET_POSITION, BUFFER_KILLED, BUFFER_RENAMED, SET_BUS_EFFECT,
               PLAY_SAMPLE_CLIP, PREVIEW_NOTE, PREVIEW_POOL_NOTE, PREVIEW_GROOVE, PREVIEW_STOP,
-              GLIDE_TRACK_SEND_A, GLIDE_TRACK_SEND_B, GLIDE_TRACK_SEND_MAIN, GLIDE_TRACK_AZIMUTH };
+              GLIDE_TRACK_SEND_A, GLIDE_TRACK_SEND_B, GLIDE_TRACK_SEND_MAIN, GLIDE_TRACK_AZIMUTH,
+              SET_TRACK_MONITORING };
 
   // buffer_name says which open buffer this event targets - required for
   // every type except the genuinely buffer-agnostic ones (TERMINATE,

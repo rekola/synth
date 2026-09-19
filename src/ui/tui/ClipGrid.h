@@ -3,10 +3,12 @@
 
 #include "../UIElement.h"
 #include "InlineEditor.h"
+#include "../../launchpad/SessionPadHighlight.h"
 
 #include <algorithm>
 #include <functional>
 #include <string>
+#include <vector>
 
 class InputEvent;
 class StyleProvider;
@@ -45,6 +47,11 @@ class ClipGrid : public UIElement {
   ClipGrid(UIPlane & parent);
 
   bool render(const StyleProvider & styles, bool refresh, bool focused);
+
+  // A clip slot's transport/recording state (LaunchpadManager::
+  // clipHighlight()), shown on its row the way a Launchpad pad shows it.
+  // Unset, the grid shows no clip states.
+  void setClipStateSource(std::function<SessionPadHighlight(int track_id, int clip_index)> source) { clip_state_source_ = std::move(source); }
   bool offerInput(const InputEvent & input) override;
   // See PatternEditor::isReaderActive()/cancelReaderEdit().
   bool isReaderActive() const { return inline_editor_.isOpen(); }
@@ -133,7 +140,9 @@ class ClipGrid : public UIElement {
   // produces something) - tracked here so render()'s own dirty-check
   // still notices the record indicator (see its own drawing code) needing
   // to appear or disappear.
-  bool current_session_recording_ = false;
+  std::function<SessionPadHighlight(int track_id, int clip_index)> clip_state_source_;
+  // The visible clip slots' states at the last redraw - a change redraws.
+  std::vector<SessionPadHighlight> current_clip_states_;
 
   std::function<void(int track_id, int clip_index)> trigger_callback_;
 

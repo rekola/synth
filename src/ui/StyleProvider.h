@@ -57,6 +57,19 @@ class StyleProvider {
   Color meter_clip_color = "#e01040";
   Color meter_active_color = "#10e040";
 
+  // The clip grid header's track flags when on: Mute, Solo, and a Monitor
+  // set to In (Auto shows in window_fg_color, Off in window_border_color).
+  Color mute_color = "#ff5a5a";
+  Color solo_color = "#ffdc5a";
+  Color monitor_color = "#5ad2ff";
+
+  // A clip slot's state glyph in the clip grid (SessionPadHighlight):
+  // playing or queued; recording or queued to record; an armed track's
+  // empty slot, or a take queued to stop.
+  Color clip_playing_color = "#50e070";
+  Color clip_recording_color = "#ff3c3c";
+  Color clip_armed_color = "#a04040";
+
   // Pattern editor annotations.
   Color annotation_color = "#e03030";
   Color annotation_bg_color = "#702020";

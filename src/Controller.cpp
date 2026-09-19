@@ -852,6 +852,67 @@ Controller::toggleTrackSolo(int track_id) {
   return leaf_track->isSolo();
 }
 
+void
+Controller::cycleTrackMonitor(int track_id) {
+  auto song = getCurrentSong();
+  auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
+  if (!leaf_track) return;
+  using Monitor = LeafTrack::Monitor;
+  auto m = leaf_track->getMonitor();
+  m = m == Monitor::AUTO ? Monitor::IN : m == Monitor::IN ? Monitor::OFF : Monitor::AUTO;
+  leaf_track->setMonitor(m);
+  song->incVersion();
+  getUIEventQueue().push(make_unique<LogEvent>(m == Monitor::IN ? "Monitor: In" : m == Monitor::OFF ? "Monitor: Off" : "Monitor: Auto"));
+}
+
+bool
+Controller::isMonitoring(int track_id) const {
+  auto song = getCurrentSong();
+  auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
+  if (!leaf_track) return true;
+  switch (leaf_track->getMonitor()) {
+  case LeafTrack::Monitor::IN: return true;
+  case LeafTrack::Monitor::OFF: return false;
+  case LeafTrack::Monitor::AUTO: break;
+  }
+  bool capture_armed_here = isNoteCaptureArmed() && track_id == song->getCurrentTrackId();
+  bool threshold_armed_here = isThresholdArmed() && track_id == getRecordingTrackId();
+  if (isTrackArmed(track_id) || capture_armed_here || threshold_armed_here) return true;
+  bool anything_armed = hasAnyTrackArmed() || isNoteCaptureArmed() || isThresholdArmed();
+  return !anything_armed && leaf_track->getType() != TrackType::SAMPLE;
+}
+
+void
+Controller::syncMonitoring() {
+  auto buffer = getActiveBufferName();
+  auto & queue = getPlaybackEventQueue();
+  if (buffer != monitored_buffer_) {
+    for (auto track_id : monitored_track_ids_) {
+      queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_MONITORING, monitored_buffer_, track_id, 0));
+    }
+    monitored_track_ids_.clear();
+    monitored_buffer_ = buffer;
+  }
+
+  auto & song = getSong();
+  std::unordered_set<int> now;
+  for (auto track_id : song.getPlayableTrackIds()) {
+    auto track = song.getMasterTrack().getChildByInternalId(track_id);
+    if (track && track->getType() == TrackType::SAMPLE && isMonitoring(track_id)) now.insert(track_id);
+  }
+  for (auto track_id : monitored_track_ids_) {
+    if (!now.count(track_id)) queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_MONITORING, buffer, track_id, 0));
+  }
+  for (auto track_id : now) {
+    if (!monitored_track_ids_.count(track_id)) queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_MONITORING, buffer, track_id, 1));
+  }
+  if (!now.empty() && !monitor_feedback_warned_) {
+    monitor_feedback_warned_ = true;
+    getUIEventQueue().push(make_unique<LogEvent>("Monitoring audio input - mind feedback through open speakers"));
+  }
+  monitored_track_ids_ = std::move(now);
+}
+
 bool
 Controller::toggleTrackCollapsed(int track_id) {
   auto song = getCurrentSong();

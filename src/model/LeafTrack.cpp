@@ -27,6 +27,8 @@ LeafTrack::loadParameters(const ParameterSource & input) {
 
   setSolo(input.get<bool>("solo"));
   setMuted(input.get<bool>("mute"));
+  auto monitor = input.get<std::string>("monitor", "auto");
+  setMonitor(monitor == "in" ? Monitor::IN : monitor == "off" ? Monitor::OFF : Monitor::AUTO);
   setAzimuth(input.get<float>("azimuth"));
   setDistance(input.get<float>("distance"));
   setElevation(input.get<float>("elevation"));
@@ -47,6 +49,7 @@ LeafTrack::storeParameters(ParameterSource & output) const {
   output.set("extent", getExtent(), -1.0f);
   if (isSolo()) output.set("solo", true);
   if (isMuted()) output.set("mute", true);
+  if (getMonitor() != Monitor::AUTO) output.set("monitor", std::string(getMonitor() == Monitor::IN ? "in" : "off"));
   if (sends_.a > 0.0f) output.set("sendA", linearToDb(sends_.a));
   if (sends_.b > 0.0f) output.set("sendB", linearToDb(sends_.b));
   output.set("sendMain", linearToDb(sends_.main), 0.0f);

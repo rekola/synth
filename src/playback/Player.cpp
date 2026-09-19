@@ -216,6 +216,7 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     // left to ever apply it to.
     live_states_.erase(ev.getBufferName());
     pending_positions_.erase(ev.getBufferName());
+    monitoring_.erase(ev.getBufferName());
     if (playing_buffer_name_ == ev.getBufferName()) playing_buffer_name_.clear();
     return;
 
@@ -237,6 +238,12 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 	auto node = pending_positions_.extract(pending_it);
 	node.key() = ev.getNewBufferName();
 	pending_positions_.insert(std::move(node));
+      }
+      auto monitoring_it = monitoring_.find(ev.getBufferName());
+      if (monitoring_it != monitoring_.end()) {
+	auto node = monitoring_.extract(monitoring_it);
+	node.key() = ev.getNewBufferName();
+	monitoring_.insert(std::move(node));
       }
       if (playing_buffer_name_ == ev.getBufferName()) playing_buffer_name_ = ev.getNewBufferName();
     }
@@ -486,6 +493,19 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     }
     break;
 
+  case PlaybackControlEvent::SET_TRACK_MONITORING:
+    {
+      auto & tracks = monitoring_[ev.getBufferName()];
+      if (ev.getParameter2() != 0) {
+        tracks.insert(ev.getParameter1());
+      } else {
+        tracks.erase(ev.getParameter1());
+        auto track_state = dynamic_cast<SampleTrackState*>(state.getChildByInternalId(ev.getParameter1()));
+        if (track_state) track_state->stopMonitoring();
+      }
+    }
+    break;
+
   case PlaybackControlEvent::SET_TRACK_SEND_A:
     {
       auto track_state = dynamic_cast<LeafTrackState*>(state.getChildByInternalId(ev.getParameter1()));
@@ -567,6 +587,43 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 
   default:
     break; // TERMINATE/MIXER_CHANGED/BUFFER_KILLED/BUFFER_RENAMED/PREVIEW_* handled above
+  }
+}
+
+void
+Player::pushMonitoredInput(const AudioBuffer & data, int block_frames) {
+  if (data.numberOfFrames() <= 0) return;
+  auto block = static_cast<size_t>(block_frames);
+  if (monitor_fifo_.capacity() < 8 * block) monitor_fifo_.setCapacity(8 * block);
+  monitor_fifo_.push(data.getChannelData(0), static_cast<size_t>(data.numberOfFrames()));
+  // A couple of blocks of slack absorb capture/playback jitter; any more
+  // is audible latency, so the oldest input is dropped.
+  monitor_fifo_.trimTo(2 * block);
+}
+
+void
+Player::feedMonitoredInput(SongState * active_state, const std::string & active_buffer_name, int block_frames) {
+  monitor_block_.resize(static_cast<size_t>(block_frames));
+  for (auto & [ name, tracks ] : monitoring_) {
+    if (tracks.empty()) continue;
+    if (name == active_buffer_name) {
+      if (!active_state) continue;
+      // One block of input, shared by every monitoring track.
+      monitor_fifo_.pull(monitor_block_.data(), monitor_block_.size());
+      for (auto track_id : tracks) {
+	auto track_state = dynamic_cast<SampleTrackState*>(active_state->getChildByInternalId(track_id));
+	if (track_state) track_state->setMonitorInput(monitor_block_.data(), static_cast<int>(monitor_block_.size()));
+      }
+    } else {
+      // Only the active buffer hears the input; another buffer's tracks
+      // fade out until it's active again.
+      auto state_it = live_states_.find(name);
+      if (state_it == live_states_.end()) continue;
+      for (auto track_id : tracks) {
+	auto track_state = dynamic_cast<SampleTrackState*>(state_it->second->getChildByInternalId(track_id));
+	if (track_state) track_state->stopMonitoring();
+      }
+    }
   }
 }
 
@@ -700,7 +757,11 @@ Player::play(AudioAPI & audio) {
     // loop needs this, not either flag's own edge alone (recording can
     // begin while already threshold-armed, or vice versa, without capture
     // itself ever having stopped in between).
-    bool capture_was_needed = was_recording_ || was_threshold_armed_;
+    bool capture_was_needed = was_recording_ || was_threshold_armed_ || was_monitoring_;
+    auto monitoring_it = monitoring_.find(controller_->getActiveBufferNameThreadSafe());
+    bool monitoring = monitoring_it != monitoring_.end() && !monitoring_it->second.empty();
+    if (!monitoring) monitor_fifo_.clear();
+    was_monitoring_ = monitoring;
 
     // Round-trip recording-latency measurement, exactly once per take -
     // right on the false -> true edge of `recording`, before anything has
@@ -748,7 +809,7 @@ Player::play(AudioAPI & audio) {
     // for a stream that was never started - so call it directly here, on
     // the rising edge, before capture's own descriptor is even enabled
     // for polling below.
-    bool capture_needed = recording || threshold_armed;
+    bool capture_needed = recording || threshold_armed || monitoring;
     if (capture_needed && !capture_was_needed) audio.startRecording();
     else if (!capture_needed && capture_was_needed) audio.stopRecording();
 
@@ -818,6 +879,7 @@ Player::play(AudioAPI & audio) {
 	    active_aux_a.zero();
 	    active_aux_b.zero();
 	    auto active_it = live_states_.find(active_buffer_name);
+	    feedMonitoredInput(active_it == live_states_.end() ? nullptr : active_it->second.get(), active_buffer_name, audio.getFrameCount());
 	    if (active_it != live_states_.end()) {
 	      auto active_song = controller_->getSongByName(active_buffer_name);
 	      if (active_song) { // defensive only - see pushSnapshots()'s own comment
@@ -862,10 +924,10 @@ Player::play(AudioAPI & audio) {
 	    controller_->getVisualizationQueue().push(make_unique<AudioBlockEvent>(
 	      move(master), move(active_raw_bus), move(active_aux_a), move(active_aux_b)));
 	  } else if (i - 1 - num_playback_desc < num_capture_desc) {
-	    // .events was cleared to 0 above whenever neither recording nor
-	    // threshold-armed, so revents can't legitimately be set here in
-	    // that case - checking both again anyway keeps this branch
-	    // correct on its own, without relying on that as the only guard.
+	    // .events was cleared to 0 above whenever not recording, threshold-
+	    // armed or monitoring, so revents can't legitimately be set here in
+	    // that case - checking again anyway keeps this branch correct on
+	    // its own, without relying on that as the only guard.
 	    // Feeds SampleTrackState::setInputLoudness() (same-thread, this
 	    // audio thread owns both Player and live_states_) so the VU
 	    // meter shows real input level while armed-and-waiting or
@@ -878,12 +940,13 @@ Player::play(AudioAPI & audio) {
 	      if (sample_state) sample_state->setInputLoudness(data.calculateMainRMS());
 	    };
 
+	    if (!recording && !threshold_armed && !monitoring) continue;
+	    auto data = audio.record(logger);
+	    if (monitoring) pushMonitoredInput(data, audio.getFrameCount());
 	    if (recording) {
-	      auto data = audio.record(logger);
 	      updateInputLoudness(data);
 	      controller_->getUIEventQueue().push(make_unique<RecordEvent>(data));
 	    } else if (threshold_armed) {
-	      auto data = audio.record(logger);
 	      updateInputLoudness(data);
 	      threshold_ring_buffer_.push(data);
 	      if (!threshold_triggered_this_arm_cycle_ && dbToLinear(kThresholdRecordTriggerDB) <= data.calculateMainRMS()) {

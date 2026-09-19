@@ -119,6 +119,13 @@ public:
     return data;
   }
 
+  bool hasActiveVoice(int column) const {
+    auto it = voices_.find(column);
+    if (it == voices_.end()) return false;
+    for (auto & voice : it->second) if (voice->isActive()) return true;
+    return false;
+  }
+
   void stopVoices(int column) {
     auto it = voices_.find(column);
     if (it != voices_.end()) {

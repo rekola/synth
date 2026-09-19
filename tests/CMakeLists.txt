@@ -71,6 +71,7 @@ add_executable(synth_tests
 	SampleTrackTests.cpp
 	TimeStretcherTests.cpp
 	RecordingRingBufferTests.cpp
+	MonoFifoTests.cpp
 	GroovePatternLibraryTests.cpp
 	ValueRampTests.cpp
 )

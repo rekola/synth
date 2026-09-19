@@ -11,6 +11,7 @@
 
 #include <functional>
 #include <memory>
+#include <vector>
 
 #ifndef TESTS_FIXTURES_DIR
 #define TESTS_FIXTURES_DIR "."
@@ -728,4 +729,48 @@ TEST(waveform_peaks_rebuilds_when_row_count_or_subrows_change) {
   clip.setLength(4);
   auto & rebuilt_length = clip.getWaveformPeaks(3);
   CHECK(rebuilt_length.rowCount() == 4);
+}
+
+TEST(monitored_input_plays_through_the_track_and_fades_in) {
+  ChannelConfiguration config(8000);
+  SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
+  std::vector<float> input(400, 0.5f);
+  state.setMonitorInput(input.data(), 400);
+  auto rendered = state.renderVoices(400);
+  auto out = rendered.getChannelData(0);
+  CHECK(out[399] != 0.0f);
+  CHECK(out[0] < out[399]); // a short fade-in, no click
+}
+
+TEST(monitored_input_follows_the_tracks_send_main_level) {
+  ChannelConfiguration config(8000);
+  SendLevels full, half;
+  half.main = 0.5f;
+  SampleTrackState a(config, false, false, 0, SphericalPosition{}, full);
+  SampleTrackState b(config, false, false, 0, SphericalPosition{}, half);
+  std::vector<float> input(400, 0.5f);
+  a.setMonitorInput(input.data(), 400);
+  b.setMonitorInput(input.data(), 400);
+  auto rendered_a = a.renderVoices(400);
+  auto rendered_b = b.renderVoices(400);
+  auto out_a = rendered_a.getChannelData(0);
+  auto out_b = rendered_b.getChannelData(0);
+  CHECK(out_b[399] > 0.0f && out_b[399] < out_a[399]);
+}
+
+TEST(monitored_input_survives_a_transport_stop_and_ends_on_stop_monitoring) {
+  ChannelConfiguration config(8000);
+  SampleTrackState state(config, false, false, 0, SphericalPosition{}, SendLevels{});
+  std::vector<float> input(400, 0.5f);
+  state.setMonitorInput(input.data(), 400);
+  state.renderVoices(400);
+
+  state.stopAllVoices(); // a transport stop - monitoring isn't playback
+  state.setMonitorInput(input.data(), 400);
+  auto rendered = state.renderVoices(400);
+  CHECK(rendered.getChannelData(0)[399] != 0.0f);
+
+  state.stopMonitoring();
+  state.renderVoices(400); // 10ms fade at 8kHz is 80 frames
+  CHECK(!state.isActive());
 }

@@ -15,6 +15,10 @@
 // PercussionTrack.h for how the other one sources its sound instead).
 class LeafTrack : public Track {
  public:
+  // Whether live input played into this track is heard - see
+  // Controller::isMonitoring().
+  enum class Monitor { AUTO, IN, OFF };
+
   LeafTrack(TrackType type) : Track(type) { }
 
   void loadParameters(const ParameterSource & input);
@@ -56,6 +60,9 @@ class LeafTrack : public Track {
   bool isMuted() const { return muted_; }
   void setMuted(bool m) { muted_ = m; }
 
+  Monitor getMonitor() const { return monitor_; }
+  void setMonitor(Monitor m) { monitor_ = m; }
+
   // Plain linear multipliers, same as SendLevels.h's own fields (see its
   // doc comment) - dB is only ever a control-surface/file-format unit, one
   // layer up from here (Controller::setTrackSendA()/setTrackSendB()/
@@ -67,6 +74,7 @@ class LeafTrack : public Track {
 
 private:
   bool solo_ = false, muted_ = false;
+  Monitor monitor_ = Monitor::AUTO;
   float elevation_ = 0, azimuth_ = 0, distance_ = 0;
   float extent_ = -1.0f;
   SendLevels sends_;

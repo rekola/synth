@@ -879,7 +879,29 @@ would otherwise resume showing.
   (Arrangement view's is optional too, "toggle-scopes"). The clip grid
   and the pattern editor share one cursor: the current track, and the
   clip grid's clip row is the pattern editor's scene
-  (`TerminalUI::syncSessionView()`).
+  (`TerminalUI::syncSessionView()`). Each track header ends in " IMS":
+  Monitor (`LeafTrack::Monitor`, "cycle-monitor"), Mute, Solo. Monitor
+  gates whether live-played input is heard (`Controller::
+  isMonitoring()`): In always, Off never, Auto while the track is armed
+  - and a note track also while nothing is armed, which is how pad,
+  MIDI and keyboard note entry sound by default. Only live note-ons are
+  gated (the Launchpad note grid and its record fan-out, MIDI and
+  keyboard note entry), never clip playback or step-grid/lane edit
+  auditions, and never a release. A monitoring SampleTrack hears the
+  live audio input instead: `Controller::syncMonitoring()` (once per UI
+  frame) sends `SET_TRACK_MONITORING`, `Player` keeps capture running
+  and passes each captured block through a small `dsp::MonoFifo` to the
+  next playback block, and `SampleTrackState::setMonitorInput()` plays
+  it as the track's third fixed voice - through its position, sends and
+  effects, unaffected by a transport stop. Only the active buffer hears
+  the input.
+  Each clip slot shows its transport/recording state the way its
+  Launchpad pad does (`LaunchpadManager::clipHighlight()`, the one
+  source for both, `SessionPadHighlight`): a colored glyph in its icon's
+  place - green for playing (▸) or queued (▹), red for recording (●) or
+  queued to record (○), dim red for an armed track's empty slot (○) or a
+  take queued to stop (●). Terminal cells can't pulse, so the glyph's
+  shape tells queued from running.
   "toggle-view" (Tab) flips between them, the live-sequencer convention;
   "arrangement-view"/"session-view"/"outline-view" select one directly
   (View menu). `PatternEditor` reads and writes through a `PatternSource`

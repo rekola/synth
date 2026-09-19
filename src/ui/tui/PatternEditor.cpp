@@ -1194,7 +1194,9 @@ PatternEditor::handleMidiEvent(MidiEvent & ev) {
 
     edit_target.pattern->setNote(edit_target.effective_row, note_column, Note(0, 0, current_delay));
   } else if (ev.getType() == MidiEvent::NOTE_ON) {
-    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, getController().getActiveBufferName(), track_id, note_column, note_value, ev.getVelocity()));
+    if (getController().isMonitoring(track_id)) {
+      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, getController().getActiveBufferName(), track_id, note_column, note_value, ev.getVelocity()));
+    }
 
     Note note(note_value, ev.getVelocity(), current_delay);
     edit_target.pattern->setNote(edit_target.effective_row, note_column, note);
@@ -1810,7 +1812,9 @@ PatternEditor::offerInput(const InputEvent & input) {
 	      edit_target.pattern->setNote(edit_target.effective_row, note_column, note);
 	    }
 
-	    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, getController().getActiveBufferName(), track_id, note_column, note.getValue(), note.getVelocity()));
+	    if (getController().isMonitoring(track_id)) {
+	      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, getController().getActiveBufferName(), track_id, note_column, note.getValue(), note.getVelocity()));
+	    }
 	    if (has_hold_info) active_keyboard_notes_[input.getId()] = { note_column, info.getRowIndex(), track_id };
 	  }
 

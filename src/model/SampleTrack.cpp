@@ -134,6 +134,49 @@ private:
   int release_length_frames_;
 };
 
+// The monitored live input - reads the block SampleTrackState::
+// setMonitorInput() last handed over, silence past its end. A transport
+// stop's stopNote()/killNote() leave it alone (monitoring isn't playback);
+// only the state's own `ending` flag fades it out.
+class InputMonitorVoice : public PositionedVoice {
+public:
+  InputMonitorVoice(const ChannelConfiguration & channel_config, const SphericalPosition & position, const SendLevels & sends, SampleTrackState::MonitorInput & input)
+    : PositionedVoice(channel_config, position, sends), input_(input),
+      fade_length_frames_(std::max(1, static_cast<int>(kFadeSeconds * channel_config.getAudioOutSampleRate()))) {
+    velocity_ = 1.0f;
+    note_value_ = 0;
+  }
+
+  AudioBuffer render(int frames) override {
+    if (static_cast<int>(dry_.size()) != frames) dry_.resize(static_cast<size_t>(frames));
+    for (int k = 0; k < frames; k++) {
+      float sample = input_.read_pos < input_.samples.size() ? input_.samples[input_.read_pos++] : 0.0f;
+      if (input_.ending) {
+        if (fade_frames_ > 0) fade_frames_--;
+        else active_ = false;
+      } else if (fade_frames_ < fade_length_frames_) {
+        fade_frames_++;
+      }
+      dry_[static_cast<size_t>(k)] = sample * static_cast<float>(fade_frames_) / static_cast<float>(fade_length_frames_);
+    }
+    return encodePosition(dry_.data(), frames);
+  }
+
+  void stopNote() override { }
+  void killNote() override { }
+  void fastRelease() override { }
+  bool isActive() const override { return active_; }
+
+private:
+  static constexpr float kFadeSeconds = 0.01f;
+
+  SampleTrackState::MonitorInput & input_;
+  vector<float> dry_;
+  int fade_length_frames_;
+  int fade_frames_ = 0; // fades in from silence too
+  bool active_ = true;
+};
+
 }
 
 ResolvedSampleAudio
@@ -345,6 +388,17 @@ SampleTrackState::triggerVoice(const SampleContent & content, int song_tempo, in
 
   auto voice = make_unique<SampleClipVoice>(getChannelConfiguration(), resolved_position, resolved.samples, start_position, resolved.end_frame, resolved.playback_ratio, getSends());
   addVoice(voice_id, move(voice));
+}
+
+void
+SampleTrackState::setMonitorInput(const float * samples, int frames) {
+  monitor_input_.samples.assign(samples, samples + frames);
+  monitor_input_.read_pos = 0;
+  monitor_input_.ending = false;
+  if (hasActiveVoice(kMonitorVoiceId)) return;
+  auto position = getPosition();
+  if (position.extent < 0.0f) position.extent = 0.0f;
+  addVoice(kMonitorVoiceId, make_unique<InputMonitorVoice>(getChannelConfiguration(), position, getSends(), monitor_input_));
 }
 
 void

@@ -1772,7 +1772,9 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
       song.incVersion();
     }
 
-    event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), track_id, note_column, note_value, velocity));
+    if (controller.isMonitoring(track_id)) {
+      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), track_id, note_column, note_value, velocity));
+    }
 
     // Multi-track record fan-out: every other compatible currently-
     // recording track (fan_out_track_ids, computed once above) receives
@@ -1797,7 +1799,9 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
       }
       fan_out_pattern.setNote(fan_out_session_row, fan_out_column, Note(note_value, velocity, 0));
       song.incVersion();
-      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), fan_out_track_id, fan_out_column, note_value, velocity));
+      if (controller.isMonitoring(fan_out_track_id)) {
+        event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), fan_out_track_id, fan_out_column, note_value, velocity));
+      }
       recordActiveNote(device_id, ev.getX(), ev.getY(), {fan_out_column, fan_out_row, fan_out_track_id});
     }
 
@@ -3225,6 +3229,54 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   state.last_sent_colors = move(colors);
 }
 
+
+LaunchpadManager::SessionPadHighlight
+LaunchpadManager::clipHighlight(const Controller & controller, const Song & song, const PlaybackInfo & playback_info, int track_id, int clip_index) const {
+  auto & clips = song.getClips(track_id);
+  // Content-aware, not just in-bounds - holes are allowed (Song::
+  // ensureClipAt()), so an in-bounds but still-empty filler slot reads as
+  // unused here too.
+  bool has_clip = clip_index >= 0 && clip_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(clip_index)].isEmpty();
+
+  // An armed track's own red states - see SessionPadHighlight's own
+  // comment for why they replace the plain (green) three rather than
+  // combining with them.
+  if (controller.isTrackArmed(track_id)) {
+    bool is_recording = controller.isSessionRecording(track_id);
+    int recording_clip_index = is_recording ? controller.getSessionRecordingClipIndex(track_id) : -1;
+    auto queued_recording_it = queued_recording_by_track_.find(track_id);
+    bool has_queued_recording = queued_recording_it != queued_recording_by_track_.end();
+    auto queued_recording_kind = has_queued_recording ? queued_recording_it->second.kind : QueuedRecording::STOP;
+    int queued_recording_clip_index = has_queued_recording ? queued_recording_it->second.clip_index : -1;
+    if (is_recording && recording_clip_index == clip_index) {
+      return (has_queued_recording && queued_recording_kind == QueuedRecording::STOP) ?
+        SessionPadHighlight::RECORD_STOPPING : SessionPadHighlight::RECORDING;
+    }
+    if (has_queued_recording && queued_recording_kind != QueuedRecording::STOP && queued_recording_clip_index == clip_index) {
+      return SessionPadHighlight::RECORD_QUEUED;
+    }
+    if (!has_clip) return SessionPadHighlight::ARMED_EMPTY;
+  }
+  if (!has_clip) return SessionPadHighlight::NONE;
+
+  // While actually playing (Session-view recording included), the
+  // audition-only triggered/queued bookkeeping is stale - it's only ever
+  // populated while stopped and unarmed, and recording writes real song
+  // data instead - so what's sounding is whatever resolveInstanceAt()
+  // resolves at the live position, with no "about to launch" concept (a
+  // press then is a real, bar-quantized write, not a queued swap).
+  if (playback_info.isPlaying()) {
+    auto & section = song.getSection(playback_info.getPatternIndex());
+    return resolveInstanceAt(song, section, track_id, playback_info.getRowIndex()).clip_index == clip_index ?
+      SessionPadHighlight::PLAYING : SessionPadHighlight::NONE;
+  }
+  auto triggered_it = triggered_pattern_by_track_.find(track_id);
+  if (triggered_it != triggered_pattern_by_track_.end() && triggered_it->second.clip_index == clip_index) return SessionPadHighlight::PLAYING;
+  auto queued_it = queued_pattern_by_track_.find(track_id);
+  if (queued_it != queued_pattern_by_track_.end() && queued_it->second == clip_index) return SessionPadHighlight::QUEUED;
+  return SessionPadHighlight::NONE;
+}
+
 void
 LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, const PlaybackInfo & playback_info, int fallback_track_index, Controller & controller, const SessionWindow & session) {
   if (!launchpad_io_) return;
@@ -3550,73 +3602,34 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       // tuned independently here rather than sharing one constant.
       auto identity = Color::fromHSL(structure.getBaselineInfo(session_track_id).getHue(), 0.8f, 0.3f);
       auto & clips = song.getClips(session_track_id);
-      int real_active_clip_index = use_real_position ?
-        resolveInstanceAt(song, *current_section, session_track_id, playback_info.getRowIndex()).clip_index : -1;
-      auto triggered_it = triggered_pattern_by_track_.find(session_track_id);
-      auto queued_it = queued_pattern_by_track_.find(session_track_id);
       // STOP_CLIP's own picker-row state: a real clip instance is active
-      // right now (playing), the same sentinel-checked source
-      // session_colors' own is_triggered below reads per-row - here it
-      // just needs to know whether *any* row is (kStopInstance/
-      // kNoInstance are both negative, so a real clip_index is >= 0).
-      track_picker_playing[static_cast<size_t>(x)] = use_real_position ?
-        real_active_clip_index >= 0 : triggered_it != triggered_pattern_by_track_.end();
-      bool track_armed = controller.isTrackArmed(session_track_id);
-      track_picker_armed[static_cast<size_t>(x)] = track_armed;
+      // right now (playing) - see clipHighlight()'s own comment on which
+      // source that reads while playing vs. stopped.
+      bool any_playing = false;
+      if (use_real_position) {
+        any_playing = resolveInstanceAt(song, *current_section, session_track_id, playback_info.getRowIndex()).clip_index >= 0;
+      } else {
+        any_playing = triggered_pattern_by_track_.count(session_track_id) > 0;
+      }
+      track_picker_playing[static_cast<size_t>(x)] = any_playing;
+      track_picker_armed[static_cast<size_t>(x)] = controller.isTrackArmed(session_track_id);
       auto track = song.getMasterTrack().getChildByInternalId(session_track_id);
       if (track) {
         auto & leaf_track = dynamic_cast<const LeafTrack &>(*track);
         track_picker_soloed[static_cast<size_t>(x)] = leaf_track.isSolo();
         track_picker_muted[static_cast<size_t>(x)] = leaf_track.isMuted();
       }
-      // Armed-track recording state, read once per column rather than per
-      // pad below - see SessionPadHighlight's own comment for what each
-      // of these four (red) states means and why they replace the plain
-      // (green) three rather than combining with them.
-      bool is_recording = controller.isSessionRecording(session_track_id);
-      int recording_clip_index = is_recording ? controller.getSessionRecordingClipIndex(session_track_id) : -1;
-      auto queued_recording_it = queued_recording_by_track_.find(session_track_id);
-      bool has_queued_recording = queued_recording_it != queued_recording_by_track_.end();
-      auto queued_recording_kind = has_queued_recording ? queued_recording_it->second.kind : QueuedRecording::STOP;
-      int queued_recording_clip_index = has_queued_recording ? queued_recording_it->second.clip_index : -1;
       for (int y = 0; y < 8; y++) {
         auto clip_index = 7 - y;
-        // Content-aware, not just in-bounds - holes are allowed (Song::
-        // ensureClipAt()), so an in-bounds but still-empty filler slot
-        // reads as unused here too.
+        auto highlight = clipHighlight(controller, song, playback_info, session_track_id, clip_index);
+        session_highlight[static_cast<size_t>(y * 8 + x)] = highlight;
+        // An armed track's red states need no identity color underneath
+        // (refreshLeds() never reads it for them); an empty, unarmed slot
+        // stays dark.
         bool has_clip = clip_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(clip_index)].isEmpty();
-        if (track_armed) {
-          auto record_state = SessionPadHighlight::NONE;
-          if (is_recording && recording_clip_index == clip_index) {
-            record_state = (has_queued_recording && queued_recording_kind == QueuedRecording::STOP) ?
-              SessionPadHighlight::RECORD_STOPPING : SessionPadHighlight::RECORDING;
-          } else if (has_queued_recording && queued_recording_kind != QueuedRecording::STOP &&
-                     queued_recording_clip_index == clip_index) {
-            record_state = SessionPadHighlight::RECORD_QUEUED;
-          } else if (!has_clip) {
-            record_state = SessionPadHighlight::ARMED_EMPTY;
-          }
-          if (record_state != SessionPadHighlight::NONE) {
-            // No identity color/plain transport state to layer under a red
-            // pad - session_colors[i] is left at its own default (black),
-            // same as any other empty slot's, harmless since refreshLeds()
-            // never reads it for any of these four states.
-            session_highlight[static_cast<size_t>(y * 8 + x)] = record_state;
-            continue;
-          }
-        }
-        if (!has_clip) continue;
-        bool is_triggered, is_queued;
-        if (use_real_position) {
-          is_triggered = real_active_clip_index == clip_index;
-          is_queued = false; // no "about to launch" concept while genuinely playing - a press takes effect as a real, bar-quantized write, not an audition-only queued swap
-        } else {
-          is_triggered = triggered_it != triggered_pattern_by_track_.end() && triggered_it->second.clip_index == clip_index;
-          is_queued = queued_it != queued_pattern_by_track_.end() && queued_it->second == clip_index;
-        }
-        session_colors[static_cast<size_t>(y * 8 + x)] = identity;
-        session_highlight[static_cast<size_t>(y * 8 + x)] =
-          is_triggered ? SessionPadHighlight::PLAYING : is_queued ? SessionPadHighlight::QUEUED : SessionPadHighlight::NONE;
+        bool recording_state = highlight == SessionPadHighlight::ARMED_EMPTY || highlight == SessionPadHighlight::RECORD_QUEUED ||
+          highlight == SessionPadHighlight::RECORDING || highlight == SessionPadHighlight::RECORD_STOPPING;
+        if (has_clip && !recording_state) session_colors[static_cast<size_t>(y * 8 + x)] = identity;
       }
     }
   }

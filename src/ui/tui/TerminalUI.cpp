@@ -739,6 +739,7 @@ static vector<MenuSectionSpec> menuSpec(vector<MenuItemSpec> buffer_items) {
 	{ nullptr, nullptr, nullptr },
 	{ "Toggle Mute", "\\", "toggle-mute" },
 	{ "Toggle Solo", "C-\\", "toggle-solo" },
+	{ "Cycle Monitor (Auto/In/Off)", "", "cycle-monitor" },
 	{ nullptr, nullptr, nullptr },
 	{ "Add Note Column", "C-S-Right", "add-note-column" },
 	{ "Remove Note Column", "C-S-Left", "remove-note-column" },
@@ -2379,6 +2380,7 @@ TerminalUI::renderComponents(bool refresh) {
   // Session View's own cursor can change.
   bool clip_grid_focused = getView() == View::SESSION && active == clip_grid_;
   getController().setClipGridFocused(clip_grid_focused);
+  getController().syncMonitoring();
   if (clip_grid_focused) {
     auto track_ids = song.getPlayableTrackIds();
     auto track_index = clip_grid_->getCursorTrackIndex();
@@ -2396,6 +2398,10 @@ TerminalUI::renderComponents(bool refresh) {
         if (playhead.clip_index >= 0) playheads[track_id] = { playhead.clip_index, playhead.row };
       }
       pattern_editor_->setSessionPlayheads(std::move(playheads));
+      clip_grid_->setClipStateSource([this](int track_id, int clip_index) {
+        auto & controller = getController();
+        return launchpad_manager_->clipHighlight(controller, controller.getSong(), controller.getPlaybackInfo(), track_id, clip_index);
+      });
     }
     render |= clip_grid_->render(styles_, refresh, active == clip_grid_);
     if (isOutlineVisible()) render |= outline_view_->render(styles_, refresh, active == outline_view_);

@@ -6,11 +6,13 @@
 #include "../state/VoiceState.h"
 #include "../ambisonic/MixerType.h"
 #include "../dsp/RecordingRingBuffer.h"
+#include "../dsp/MonoFifo.h"
 #include "../model/GroovePatternLibrary.h"
 
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 class Controller;
@@ -86,6 +88,13 @@ class Player : public EventHandler {
   // zero-channel, correctly frame-sized AudioBuffer while nothing is
   // previewing, safe to Mixer::accumulate() unconditionally either way.
   AudioBuffer renderPreview(int frames);
+
+  // Live input monitoring's two halves (see monitoring_): queues one
+  // captured block, and hands one block of it to each monitoring
+  // SampleTrack of the active buffer, fading out any other buffer's.
+  // Public for the same reason as renderPreview().
+  void pushMonitoredInput(const AudioBuffer & data, int block_frames);
+  void feedMonitoredInput(SongState * active_state, const std::string & active_buffer_name, int block_frames);
 
 private:
   // One live SongState per buffer that's actually made sound (see the
@@ -193,6 +202,18 @@ private:
   // temporally-discontinuous arm cycle's own leftover content can never
   // bleed into a later one's own drain().
   bool was_threshold_armed_ = false;
+
+  // Live input monitoring (SET_TRACK_MONITORING): per buffer, the
+  // SampleTracks whose audio input should be heard. Capture runs while
+  // the active buffer has any; each captured block goes through
+  // monitor_fifo_ to the next playback block, which hands it to each of
+  // those tracks (SampleTrackState::setMonitorInput()).
+  std::unordered_map<std::string, std::unordered_set<int>> monitoring_;
+  dsp::MonoFifo monitor_fifo_;
+  std::vector<float> monitor_block_;
+  // The previous iteration's "the active buffer monitors something" -
+  // part of play()'s capture-enable edge, like was_recording_.
+  bool was_monitoring_ = false;
   // Latched true the instant this arm cycle's own trigger actually fires,
   // cleared on the next false->true edge above - without it, every
   // capture block still above threshold after the first one would fire

@@ -4,6 +4,8 @@
 #include "LeafTrackState.h"
 #include "RenderContext.h"
 
+#include <vector>
+
 class Clip;
 class SampleContent;
 
@@ -17,18 +19,17 @@ class SampleContent;
 // sample clip needs no Instrument/Track indirection resolved for it, and
 // none of InstrumentTrackState's note-column/chord/pressure machinery
 // applies to it either (no pitch/identity of its own). A SampleTrack has
-// exactly two independent, fixed voices, never more - the one clip that
-// can be playing (kClipVoiceId), and the current section's own always-on
-// background bed (kBackgroundVoiceId), which mixes with it rather than
-// being masked by it (real audio genuinely sums; see SongState.h's own
-// comment on why this differs from a note track's own background
-// Pattern). Both routed through LeafTrackState's own voices_/addVoice()/
-// stopVoices() machinery (that base class's own per-voice map key is
-// called a "column" - shared infra InstrumentTrackState also uses it for
-// real note columns/chords - but nothing here is one: these two fixed
-// ids are never a caller-indexable "which slot" parameter anywhere
-// outside this class, since a SampleTrack can never have more than these
-// two).
+// at most three independent, fixed voices - the one clip that can be
+// playing (kClipVoiceId), the current section's own always-on background
+// bed (kBackgroundVoiceId), which mixes with it rather than being masked
+// by it (real audio genuinely sums; see SongState.h's own comment on why
+// this differs from a note track's own background Pattern), and the
+// monitored live input (kMonitorVoiceId). All routed through
+// LeafTrackState's own voices_/addVoice()/stopVoices() machinery (that
+// base class's own per-voice map key is called a "column" - shared infra
+// InstrumentTrackState also uses it for real note columns/chords - but
+// nothing here is one: these fixed ids are never a caller-indexable
+// "which slot" parameter anywhere outside this class).
 //
 // Declared in its own header rather than kept local to SampleTrack.cpp's
 // anonymous namespace (unlike those two siblings): triggerClip() is
@@ -45,6 +46,19 @@ public:
   // own TrackInfo can show real input level even while no SampleClipVoice
   // is playing back to produce one of its own.
   void setInputLoudness(float rms) { input_loudness_ = rms; }
+
+  // Live input monitoring (Controller::isMonitoring()): Player hands a
+  // monitoring track one block of captured input ahead of each render,
+  // and the input plays as this track's third voice (kMonitorVoiceId),
+  // through its position, sends and effects like a clip does.
+  // stopMonitoring() fades it out.
+  struct MonitorInput {
+    std::vector<float> samples;
+    size_t read_pos = 0;
+    bool ending = false;
+  };
+  void setMonitorInput(const float * samples, int frames);
+  void stopMonitoring() { monitor_input_.ending = true; }
 
   // Splits the block at every RenderContext::getPendingSampleEvents()
   // entry due within it (a clip or background-bed start/stop, this
@@ -158,11 +172,12 @@ public:
   void triggerClip(const Clip & clip, int song_tempo, int start_offset_frames = 0);
 
 private:
-  // The two, and only two, voices a SampleTrack ever has - see this
-  // class's own doc comment for why these stay fixed, named ids rather
-  // than a general "which voice" parameter anywhere outside this class.
+  // The fixed voices a SampleTrack has - see this class's own doc comment
+  // for why these stay fixed, named ids rather than a general "which voice"
+  // parameter anywhere outside this class.
   static constexpr int kClipVoiceId = 0;
   static constexpr int kBackgroundVoiceId = 1;
+  static constexpr int kMonitorVoiceId = 2;
 
   // The shared implementation behind both the clip voice (triggerClip()
   // above) and the background-bed voice (this class's own render(),
@@ -174,6 +189,7 @@ private:
   void triggerVoice(const SampleContent & content, int song_tempo, int start_offset_frames, int voice_id);
 
   float input_loudness_ = 0.0f;
+  MonitorInput monitor_input_;
 };
 
 #endif

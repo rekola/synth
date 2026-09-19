@@ -92,6 +92,7 @@ UI::initializeCommands() {
   // there.
   commands_.define("arrangement-view", [this]() { setView(View::ARRANGEMENT); });
   commands_.define("session-view", [this]() { setView(View::SESSION); });
+  commands_.define("cycle-monitor", [this]() { getController().cycleTrackMonitor(getController().getSong().getCurrentTrackId()); });
   commands_.define("toggle-view", [this]() { setView(view_ == View::SESSION ? View::ARRANGEMENT : View::SESSION); });
   commands_.define("toggle-outline", [this]() {
     bool show = !(outline_visible_ && view_ == View::SESSION);

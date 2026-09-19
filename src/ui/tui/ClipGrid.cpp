@@ -37,6 +37,9 @@ float linearToDb(float linear) { return linear <= 0.00001f ? -100.0f : 20.0f * l
 // "effectively off" just as clearly as the true floor would.
 float clampedDb(float db) { return std::max(db, -99.0f); }
 
+// A header's trailing " IMS": Monitor, Mute, Solo.
+constexpr int kHeaderFlagsWidth = 4;
+
 }
 
 ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
@@ -56,6 +59,12 @@ ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
     bool now_muted = getController().toggleTrackMuted(track_id);
     getController().getUIEventQueue().push(std::make_unique<LogEvent>(now_muted ? "Muted" : "Unmuted"));
   });
+  commands_.define("cycle-monitor", [this]() {
+    auto & song = getController().getSong();
+    auto track_ids = song.getPlayableTrackIds();
+    if (cursor_track_index_ < 0 || cursor_track_index_ >= static_cast<int>(track_ids.size())) return;
+    getController().cycleTrackMonitor(track_ids[static_cast<size_t>(cursor_track_index_)]);
+  });
   commands_.define("toggle-solo", [this]() {
     auto & song = getController().getSong();
     auto track_ids = song.getPlayableTrackIds();
@@ -69,6 +78,7 @@ ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
   // regardless of which of the two views is currently focused.
   keymap_.bind(KeyChord::pack('m', false, false, false, false), "toggle-mute");
   keymap_.bind(KeyChord::pack('s', false, false, false, false), "toggle-solo");
+  keymap_.bind(KeyChord::pack('i', false, false, false, false), "cycle-monitor");
   keymap_.bind(KeyChord::pack('\\', false, false, false, false), "toggle-mute");
   keymap_.bind(KeyChord::pack('\\', true, false, false, false), "toggle-solo");
 
@@ -207,12 +217,12 @@ ClipGrid::startTrackRename(const Song & song, const std::vector<int> & track_ids
   // The editable span excludes the leading "T<N> " structural label
   // (N = color_ordinal_) - PatternEditor's own startTrackNameEdit() draws
   // that same prefix and leaves it out of what's editable too - and the
-  // trailing " MS" Mute/Solo pair, matching render()'s own header layout
-  // exactly so the reader lands right over the name it's replacing.
-  constexpr int kMuteSoloWidth = 3; // " MS"
+  // trailing " IMS" Monitor/Mute/Solo flags, matching render()'s own
+  // header layout exactly so the reader lands right over the name it's
+  // replacing.
   SongStructure structure(song);
   auto prefix = "T" + std::to_string(structure.getBaselineInfo(track_id).color_ordinal_) + " ";
-  auto name_area_width = kColWidth - kMuteSoloWidth;
+  auto name_area_width = kColWidth - kHeaderFlagsWidth;
   auto prefix_width = std::min(static_cast<int>(prefix.size()), name_area_width);
   auto edit_col = col_x + prefix_width;
   auto edit_width = std::max(name_area_width - prefix_width, 1);
@@ -355,23 +365,25 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   auto focused_clip_id = getController().getFocusedClip();
 
   auto new_version = song.getMajorVersion();
-  // Coarse on purpose - several tracks can each have their own in-flight
-  // take now, not just one, so there's no single (track_id, clip_index)
-  // pair left to compare against a cached one; any recording activity at
-  // all forces a redraw instead of trying to detect exactly what changed
-  // (the per-cell check below still resolves the real, current per-track
-  // detail every time this does redraw).
-  bool is_session_recording = getController().isAnySessionRecording();
   bool editor_redraw = inline_editor_.consumeRedrawRequest();
-  if (!refresh && !editor_redraw && new_version == current_song_version_ &&
+  auto clip_rows = clipRowCount();
+  auto clipState = [&](int track_index, int clip_row) {
+    if (!clip_state_source_ || track_index >= num_tracks || clip_row >= clip_rows) return SessionPadHighlight::NONE;
+    return clip_state_source_(track_ids[static_cast<size_t>(track_index)], clip_row);
+  };
+  std::vector<SessionPadHighlight> clip_states;
+  for (auto vc = 0; vc < visible_cols; vc++) {
+    for (auto vr = 0; vr < visible_rows; vr++) clip_states.push_back(clipState(scroll_col_ + vc, scroll_row_ + vr));
+  }
+  bool clip_states_changed = clip_states != current_clip_states_;
+  current_clip_states_ = std::move(clip_states);
+  if (!refresh && !editor_redraw && !clip_states_changed && new_version == current_song_version_ &&
       cursor_track_index_ == current_cursor_track_index_ && cursor_row_ == current_cursor_row_ &&
       scroll_col_ == current_scroll_col_ && scroll_row_ == current_scroll_row_ &&
-      focused == current_focused_ && focused_clip_id == current_focused_clip_id_ &&
-      is_session_recording == current_session_recording_) {
+      focused == current_focused_ && focused_clip_id == current_focused_clip_id_) {
     return false;
   }
   current_focused_clip_id_ = focused_clip_id;
-  current_session_recording_ = is_session_recording;
   current_song_version_ = new_version;
   current_cursor_track_index_ = cursor_track_index_;
   current_cursor_row_ = cursor_row_;
@@ -398,7 +410,6 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
 
   SongStructure structure(song);
   auto cursor_physical = physicalFor(cursor_row_);
-  auto clip_rows = clipRowCount();
 
   for (auto vc = 0; vc < visible_cols; vc++) {
     auto track_index = scroll_col_ + vc;
@@ -419,8 +430,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     // comment). Plain accent color for the name, like every other
     // non-clip cell in this column - the track's own identity color is
     // reserved for its clip cells alone.
-    constexpr int kMuteSoloWidth = 3; // " MS"
-    auto name_width = kColWidth - kMuteSoloWidth;
+    auto name_width = kColWidth - kHeaderFlagsWidth;
     // -1 is the header row's own physical value (physicalFor()'s own
     // comment) - never a real physical_row inside the loop below, so this
     // is the header's one and only cursor check.
@@ -440,12 +450,16 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     }
     bool muted = leaf && leaf->isMuted();
     bool solo = leaf && leaf->isSolo();
-    // The leading space of " MS" is left to fill()'s own blank - only the
-    // two letters need their own color.
-    setFgColor(muted ? Color(255, 90, 90) : styles.window_border_color);
-    putstr(0, x + name_width + 1, "M");
-    setFgColor(solo ? Color(255, 220, 90) : styles.window_border_color);
-    putstr(0, x + name_width + 2, "S");
+    auto monitor = leaf ? leaf->getMonitor() : LeafTrack::Monitor::AUTO;
+    // The leading space of " IMS" is left to fill()'s own blank - only the
+    // three letters need their own color.
+    setFgColor(monitor == LeafTrack::Monitor::IN ? styles.monitor_color :
+               monitor == LeafTrack::Monitor::AUTO ? styles.window_fg_color : styles.window_border_color);
+    putstr(0, x + name_width + 1, monitor == LeafTrack::Monitor::AUTO ? "A" : "I");
+    setFgColor(muted ? styles.mute_color : styles.window_border_color);
+    putstr(0, x + name_width + 2, "M");
+    setFgColor(solo ? styles.solo_color : styles.window_border_color);
+    putstr(0, x + name_width + 3, "S");
 
     for (auto vr = 0; vr < visible_rows; vr++) {
       auto physical_row = scroll_row_ + vr;
@@ -537,30 +551,32 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
           // still reads clearly as a real stop icon, not a smudge.
           row_fg = styles.window_fg_color.blend(0.5f, Color(0, 0, 0));
         }
-        // Record indicator - this exact slot is this track's own current
-        // recording target (Controller::isSessionRecording(track_id),
-        // armed by "toggle-record-arm" or the per-track Record Arm -
-        // several tracks can each have their own now, unlike a shared
-        // single target), whether it was empty a moment ago or already
-        // held a clip ("overwrite in place" -
-        // Controller::beginSampleCapture()'s own comment) - takes priority
-        // over either of those. Plain, common Unicode (U+25CF, unlike the
-        // loop glyph's own ambiguous-width caution above), so no extra
-        // width slack is needed for it.
-        bool recording = getController().isSessionRecording(track_id) &&
-          static_cast<int>(clip_row) == getController().getSessionRecordingClipIndex(track_id);
-        if (recording) {
-          text = " ●";
-          row_fg = Color(255, 60, 60);
+        // The slot's transport/recording state, as its Launchpad pad shows
+        // it (SessionPadHighlight): a colored glyph in the icon's place -
+        // green for a clip playing or queued to launch, red for an armed
+        // track's slots (dim while merely armed or stopping, bright while
+        // a take is queued or recording). Terminal cells can't pulse, so
+        // the glyph's shape tells queued from running.
+        auto state = clipState(track_index, static_cast<int>(clip_row));
+        const char * glyph = nullptr;
+        Color glyph_fg = row_fg;
+        switch (state) {
+        case SessionPadHighlight::NONE: break;
+        case SessionPadHighlight::PLAYING: glyph = "▸"; glyph_fg = styles.clip_playing_color; break;
+        case SessionPadHighlight::QUEUED: glyph = "▹"; glyph_fg = styles.clip_playing_color; break;
+        case SessionPadHighlight::ARMED_EMPTY: glyph = "○"; glyph_fg = styles.clip_armed_color; break;
+        case SessionPadHighlight::RECORD_QUEUED: glyph = "○"; glyph_fg = styles.clip_recording_color; break;
+        case SessionPadHighlight::RECORDING: glyph = "●"; glyph_fg = styles.clip_recording_color; break;
+        case SessionPadHighlight::RECORD_STOPPING: glyph = "●"; glyph_fg = styles.clip_armed_color; break;
         }
         if (is_cursor_cell && !has_real_clip) {
-          if (!recording) row_fg = styles.highlight_fg_color;
+          row_fg = styles.highlight_fg_color;
           row_bg = styles.highlight_bg_color;
         } else if (is_cursor_cell) {
           // A clip's background is its track's identity color - the cursor
           // brightens it rather than replacing it, the same as
           // ArrangementGrid's cursor on its colored instance cells.
-          if (!recording) row_fg = styles.highlight_fg_color;
+          row_fg = styles.highlight_fg_color;
           row_bg = row_bg.blend(0.5f, styles.cursor_tint_color);
         } else if (is_editing_cell) {
           row_bg = has_real_clip ? row_bg.blend(0.25f, styles.cursor_tint_color) : styles.highlight_unfocused_bg_color;
@@ -572,6 +588,10 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
         putstr(y, x, string(static_cast<size_t>(kColWidth), ' ')); // opaque row background first
         putstr(y, x, text);
         if (has_real_clip && clips[clip_row].isLooping()) putstr(y, x + kColWidth - 2, "↻");
+        if (glyph) {
+          setFgColor(glyph_fg);
+          putstr(y, x + 1, glyph);
+        }
         continue;
       }
 
