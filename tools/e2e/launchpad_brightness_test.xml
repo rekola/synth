@@ -1,14 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<song temperament="31edo" tempo="120">
+<!-- Purpose-built for verify_launchpad_note_brightness.py: one sine
+     oscillator track (no envelope, so it sustains) holding one note at
+     row 0 - playing the song makes that note sound, which brightens its
+     Launchpad pad. -->
+<song temperament="31edo" tempo="120" patternRows="8">
   <instruments>
     <oscillator type="sine"/>
   </instruments>
   <tracks>
     <track id="0" instrument="0"/>
   </tracks>
-  <patterns>
-    <pattern rows="8">
-      <note row="0" track="0" velocity="100" value="C-4"/>
-    </pattern>
-  </patterns>
+  <sections>
+    <section>
+      <pattern track="0">
+        <note row="0" velocity="100" value="C-4"/>
+      </pattern>
+    </section>
+  </sections>
 </song>

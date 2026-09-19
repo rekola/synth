@@ -26,7 +26,7 @@ def check(name, ok, extra=None):
 fake_log = open(os.path.join(SCRIPT_DIR, "fake_launchpad_notecustom.log"), "w")
 fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_notecustom")], stderr=fake_log, stdout=fake_log)
 
-time.sleep(1)
+time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
 pid, fd = vk.spawn()
 scr = vk.Screen(fd)
@@ -36,10 +36,8 @@ if not vk.wait_ready(scr):
     os.kill(pid, 9)
     sys.exit(1)
 
-# fake_launchpad_notecustom's whole scripted sequence (6s startup delay,
-# CC96 press/release, CC97 press + up to 1s actively drained before its
-# own release) takes a bit over 8s - give it comfortable margin.
-scr.wait(11)
+# Until the simulator has finished its scripted sequence.
+scr.wait_for_exit(fake, 11)
 scr.pump(0.5)
 
 try:

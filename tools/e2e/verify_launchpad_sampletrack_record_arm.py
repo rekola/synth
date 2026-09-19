@@ -50,10 +50,8 @@ def run(cancel):
         os.kill(pid, 9)
         return None
 
-    # fake_launchpad_sampletrack_record_arm's own scripted sequence (6s
-    # startup + ~5.5s of drains, the last one 3s to settle) takes a bit
-    # under 15s - give it comfortable margin.
-    scr.wait(16)
+    # Until the simulator has finished its scripted sequence.
+    scr.wait_for_exit(fake, 16)
     scr.pump(0.5)
 
     # M-x session-view: switches to Session view (ClipGrid focused) for

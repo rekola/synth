@@ -35,10 +35,14 @@ def status(scr):
     return scr.dump().splitlines()[-1].strip()
 
 
+# StyleProvider's highlight_bg_color / highlight_unfocused_bg_color.
+CURSOR_BGS = ("bcd4e0", "3a4a54")
+
+
 def grid_cursor_rows(scr):
-    """Screen rows whose first clip-grid cell has a non-plain background -
-    the clip grid's cursor (bright while focused, faint otherwise)."""
-    return [y for y in range(2, 14) if scr.screen.buffer[y][OUTLINE_COLS + 1].bg not in ("151515", "default")]
+    """Screen rows whose first clip-grid cell shows the clip grid's cursor
+    on an empty slot (bright while focused, faint otherwise)."""
+    return [y for y in range(2, 14) if scr.screen.buffer[y][OUTLINE_COLS + 1].bg in CURSOR_BGS]
 
 
 def main():
@@ -64,11 +68,10 @@ def main():
         scr.send(DOWN)
         scr.pump(0.1)
     other_window(scr)  # -> pattern editor
-    scr.send(b" ")
+    # A note typed into the pattern editor creates a clip in its scene.
+    scr.send(b"q")
     scr.pump(0.4)
-    check("moving the clip grid to row 4 moves the pattern editor to scene 4", status(scr) == "Playing scene 4", scr)
-    scr.send(b" ")
-    scr.pump(0.4)
+    check("moving the clip grid to row 4 moves the pattern editor to scene 4", "Clip" in scr.dump().splitlines()[5], scr)
 
     scr.send(PGDN)
     scr.pump(0.3)

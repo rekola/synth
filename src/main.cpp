@@ -60,6 +60,7 @@ int main(int argc, char *argv[]) {
   bool force_cardioid = false; // --stereo: skip binaural HRTF decode even if available
   bool force_legacy_binaural = false; // --legacy-binaural: use the old virtual-speaker-rig decoder instead of MagLS
   bool show_licenses = false; // --licenses: print third-party license text and exit
+  UI::View initial_view = UI::View::SESSION; // --view session|arrangement: which view the UI starts in
   string capture_device = "default"; // --capture-device: override which ALSA input AlsaAudio's capture opens, for a machine where "default" doesn't resolve to the mic actually wanted
   vector<string> input;
   string render_path;
@@ -85,6 +86,14 @@ int main(int argc, char *argv[]) {
 	fmt::print(stderr, "--render requires an output file\n");
 	exit(1);
       }
+    } else if (strcmp(argv[i], "--view") == 0) {
+      if (i + 1 < argc && strcmp(argv[i + 1], "session") == 0) initial_view = UI::View::SESSION;
+      else if (i + 1 < argc && strcmp(argv[i + 1], "arrangement") == 0) initial_view = UI::View::ARRANGEMENT;
+      else {
+	fmt::print(stderr, "--view requires 'session' or 'arrangement'\n");
+	exit(1);
+      }
+      i++;
     } else if (strcmp(argv[i], "--stereo") == 0) {
       force_cardioid = true;
     } else if (strcmp(argv[i], "--legacy-binaural") == 0) {
@@ -226,6 +235,7 @@ int main(int argc, char *argv[]) {
   }
   
   TerminalUI ui(nc);
+  ui.setInitialView(initial_view);
   ui.initialize(controller);
   ui.start(audio, launchpad_io, launchpad_manager);
 

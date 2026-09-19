@@ -9,6 +9,7 @@
 // Pattern) - verify_launchpad_stepseq.py's own driving script opens one
 // via the terminal (M-x session-view, Ctrl-X r) before this fires.
 #include <alsa/asoundlib.h>
+#include "fake_ready.h"
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
@@ -55,6 +56,7 @@ static void drain(snd_seq_t * seq, int ms, const char * label) {
 }
 
 int main() {
+  fake_ready_init();
   snd_seq_t * seq;
   if (snd_seq_open(&seq, "default", SND_SEQ_OPEN_DUPLEX, 0) < 0) {
     fprintf(stderr, "failed to open seq\n");
@@ -71,10 +73,8 @@ int main() {
 
   fprintf(stderr, "fake Launchpad X ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
-  // Wait for synth to start, scan, auto-connect, and (in the test
-  // harness) open the drum machine's clip - reading all the while, so the
-  // LED frames never overflow this client's input queue.
-  drain(seq, 8000, "while connecting");
+  fake_wait_ready(seq, "while connecting");
+  drain(seq, 500, "while connecting"); // the first LED frames
   fprintf(stderr, "sending CC96 press+release (Note mode) - GridMode defaults to Session\n");
   send_cc(seq, port, 96, 127);
   send_cc(seq, port, 96, 0);

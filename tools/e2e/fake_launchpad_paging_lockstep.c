@@ -21,6 +21,7 @@
 // state-changing press, wherever it happens to land in that window,
 // is always fully settled and logged before the next marker prints.
 #include <alsa/asoundlib.h>
+#include "fake_ready.h"
 #include <stdio.h>
 #include <unistd.h>
 
@@ -64,6 +65,7 @@ static void drain(snd_seq_t * seq, int ms, const char * name, const char * label
 }
 
 int main(int argc, char ** argv) {
+  fake_ready_init();
   const char * suffix = argc > 1 ? argv[1] : "";
   int is_opener = argc > 2 && argv[2][0] == 'o';
 
@@ -78,9 +80,8 @@ int main(int argc, char ** argv) {
   if (port < 0) return 1;
   fprintf(stderr, "fake %s ready as client %d port %d\n", name, snd_seq_client_id(seq), port);
 
-  // Let synth auto-connect to both, enter Programmer mode, and settle - reading
-  // all the while, so LED frames never overflow this client's input queue.
-  drain(seq, 6500, name, "at startup");
+  fake_wait_ready(seq, "at startup");
+  drain(seq, 500, name, "at startup"); // the first LED frames
 
   if (is_opener) {
     fprintf(stderr, "%s: opening the clip (shift-held pad (0,0))\n", name);

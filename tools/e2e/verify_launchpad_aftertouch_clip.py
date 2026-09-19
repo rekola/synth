@@ -50,12 +50,12 @@ def has_defined_velocity(line):
     return line is not None and line[9:11] != "--"
 
 fake_log = open(os.path.join(SCRIPT_DIR, "fake_launchpad_aftertouch_clip.log"), "w")
-fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_aftertouch_clip")], stderr=fake_log, stdout=fake_log)
+fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_aftertouch_clip")], stderr=fake_log, stdout=fake_log, env=vk.fake_env())
 
 # Give the fake device time to register its ALSA client before synth's
 # startup-time scan runs (LaunchpadIO does no hotplug yet - it must already
 # exist when synth starts).
-time.sleep(1)
+time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
 pid, fd = vk.spawn()
 scr = vk.Screen(fd)
@@ -96,7 +96,7 @@ scr.pump(0.5)
 rows_before_press = dump_pattern_rows(scr.screen)
 print("row 00 before any Launchpad input:", repr(rows_before_press.get("00")))
 
-# fake_launchpad_aftertouch_clip sleeps 6s after its own startup, sends
+# fake_launchpad_aftertouch_clip waits for this script's go(), sends
 # CC96 (NOTES grid mode - GridMode defaults to SESSION, where a plain
 # note-on would launch a Session View clip slot instead of entering a
 # note), then arms Record Arm via a quick CC98 tap a second later, then
@@ -104,6 +104,7 @@ print("row 00 before any Launchpad input:", repr(rows_before_press.get("00")))
 # Record Arm's own rising edge starts playback immediately (see
 # LaunchpadManager.cpp's own comment on why), so this take is the
 # "clip-based note recording" path, not step entry.
+vk.go(fake)
 deadline = time.time() + 15.0
 row00_after_press = rows_before_press.get("00")
 while time.time() < deadline:
@@ -140,7 +141,7 @@ check("Pad press from the simulated Launchpad X entered a note into the pattern"
 # of view.
 seen_velocity_rows = []
 deadline = time.time() + 9.0
-while time.time() < deadline:
+while time.time() < deadline and fake.poll() is None:
     scr.pump(0.5)
     for row_hex, line in dump_pattern_rows(scr.screen).items():
         if row_hex == note_row:

@@ -34,7 +34,7 @@ def check(name, ok, extra=None):
 fake_log = open(os.path.join(SCRIPT_DIR, "fake_launchpad_record_arm_holes.log"), "w")
 fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_record_arm_holes")], stderr=fake_log, stdout=fake_log)
 
-time.sleep(1)
+time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
 SONG = os.path.join(SCRIPT_DIR, "launchpad_record_arm_holes_test.xml")
 pid, fd = vk.spawn(SONG)
@@ -45,10 +45,8 @@ if not vk.wait_ready(scr):
     os.kill(pid, 9)
     sys.exit(1)
 
-# fake_launchpad_record_arm_holes's own scripted sequence (6s startup +
-# ~11 drains of ~0.5-1s each) takes a bit under 15s - give it comfortable
-# margin before reading anything back.
-scr.wait(16)
+# Until the simulator has finished its scripted sequence.
+scr.wait_for_exit(fake, 16)
 scr.pump(0.5)
 
 # M-x session-view: switches to Session view (ClipGrid focused) for the

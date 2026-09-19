@@ -10,6 +10,7 @@
 // confirm the press assigns that pooled pattern into the current section
 // rather than falling through to ordinary NOTES-mode note entry.
 #include <alsa/asoundlib.h>
+#include "fake_ready.h"
 #include <stdio.h>
 #include <unistd.h>
 
@@ -35,6 +36,7 @@ static void send_note(snd_seq_t * seq, int port, int status, int note, int veloc
 }
 
 int main() {
+  fake_ready_init();
   snd_seq_t * seq;
   if (snd_seq_open(&seq, "default", SND_SEQ_OPEN_DUPLEX, 0) < 0) return 1;
   snd_seq_set_client_name(seq, "Launchpad X (e2e)"); // see LaunchpadIO::acceptsClient()
@@ -44,7 +46,7 @@ int main() {
   if (port < 0) return 1;
   fprintf(stderr, "fake Launchpad X (session) ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
-  sleep(6); // let synth auto-connect, enter Programmer mode, and settle
+  fake_wait_ready(seq, "at startup");
 
   int pending;
   while ((pending = snd_seq_event_input_pending(seq, 1)) > 0) {

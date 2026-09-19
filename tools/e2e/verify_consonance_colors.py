@@ -33,7 +33,7 @@ def check(name, ok, extra=None):
 
 fake_log = open(os.path.join(SCRIPT_DIR, "fake_launchpad_consonance.log"), "w")
 fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad")], stderr=fake_log, stdout=fake_log)
-time.sleep(1)
+time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
 pid, fd = vk.spawn(song=SONG)
 scr = vk.Screen(fd)
@@ -43,11 +43,11 @@ if not vk.wait_ready(scr):
     os.kill(pid, 9)
     sys.exit(1)
 
-# Wait until fake_launchpad has switched into Note mode (about 6s after it
-# started) and logged the note grid's LEDs - a real wait: pump() returns as
-# soon as the app goes quiet.
+# Wait until fake_launchpad has switched into Note mode and logged the note
+# grid's LEDs, and finished - a real wait: pump() returns as soon as the app
+# goes quiet.
 deadline = time.time() + 9.0
-while time.time() < deadline:
+while time.time() < deadline and fake.poll() is None:
     scr.pump(0.5)
 
 try:

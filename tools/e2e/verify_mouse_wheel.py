@@ -76,12 +76,11 @@ def main():
 
     for _ in range(4):
         wheel(scr, 30, 50)  # over the pattern editor, which still has focus
-    scr.send(b" ")
+    # A note typed into the pattern editor creates a clip in its scene.
+    scr.send(b"q")
     scr.pump(0.4)
     check("scrolling the session pattern editor doesn't change its scene",
-          scr.dump().splitlines()[-1].strip() == "Playing scene 1", scr)
-    scr.send(b" ")
-    scr.pump(0.4)
+          "Clip" in scr.dump().splitlines()[2], scr)
 
     os.kill(pid, 9)
     sys.exit(0 if all(results) else 1)

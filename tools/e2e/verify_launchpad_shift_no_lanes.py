@@ -41,7 +41,7 @@ def led_dumps(text):
 fake_log = open(os.path.join(SCRIPT_DIR, "fake_launchpad_shift_no_lanes.log"), "w")
 fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_shift_no_lanes")], stderr=fake_log, stdout=fake_log)
 
-time.sleep(1)
+time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
 SONG = os.path.join(SCRIPT_DIR, "launchpad_shift_no_lanes_test.xml")
 pid, fd = vk.spawn(SONG)
@@ -52,9 +52,8 @@ if not vk.wait_ready(scr):
     os.kill(pid, 9)
     sys.exit(1)
 
-# fake_launchpad_shift_no_lanes's own scripted sequence (6s startup + ~2.6s
-# of drains) takes a bit under 9s - give comfortable margin.
-scr.wait(10)
+# Until the simulator has finished its scripted sequence.
+scr.wait_for_exit(fake, 10)
 scr.pump(0.5)
 
 try:

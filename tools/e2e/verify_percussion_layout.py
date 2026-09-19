@@ -17,8 +17,8 @@ def check(name, ok, extra=None):
         print("  ", extra)
 
 fake_log = open(os.path.join(SCRIPT_DIR, "fake_launchpad_perc.log"), "w")
-fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_perc")], stderr=fake_log, stdout=fake_log)
-time.sleep(1)
+fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_perc")], stderr=fake_log, stdout=fake_log, env=vk.fake_env())
+time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
 # Track 0 pitched, track 1 a percussionTrack (shared with the cross-tuning
 # paste test).
@@ -46,6 +46,7 @@ count_bd_before = dump_before.count("BD2") # pad (0,0) -> note 35 "BD2" (Acousti
 # Poll until either a new "BD2" appears (the press landed) or we time out -
 # playback only ever READS existing notes, never writes new ones, so any
 # increase in "BD2" occurrences can only be caused by the simulated press.
+vk.go(fake)
 deadline = time.time() + 15.0
 got_press = False
 while time.time() < deadline:

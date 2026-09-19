@@ -36,8 +36,20 @@ package (`pip install pyte`).
 - A simulator whose script checks LEDs waits with `drain()` (read and
   log incoming SysEx for a while), not a bare `sleep()`: an unread ALSA
   input queue overflows, and the LED frames sent meanwhile are lost.
+- A simulator starts with `fake_wait_ready()` (`fake_ready.h`), not a
+  fixed sleep: it proceeds as soon as synth has connected (its
+  Programmer-mode SysEx). A script with terminal setup to do before the
+  simulator acts starts it with `env=harness.fake_env()` and calls
+  `harness.go(fake)` once ready; `fake_wait_go()` holds a simulator
+  between two steps the same way, for a script that reads the screen in
+  between.
+- Wait for a simulator with `scr.wait_for_exit(fake, timeout)` rather
+  than a fixed time - it ends right after its last step.
 - `scr.pump(t)` returns as soon as the app goes quiet - it is not a
   fixed wait either.
+- `harness.spawn()` starts synth with `--view arrangement` - the view
+  most scripts were written against - though the app itself starts in
+  Session view; pass `view="session"` to start there.
 
 ## Running a script
 

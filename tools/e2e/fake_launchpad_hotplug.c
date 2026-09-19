@@ -4,6 +4,7 @@
 // synth must notice the new ALSA client via its announce-port
 // subscription rather than its startup-time scan.
 #include <alsa/asoundlib.h>
+#include "fake_ready.h"
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
@@ -33,6 +34,7 @@ static void send_cc(snd_seq_t * seq, int port, int cc, int value) {
 }
 
 int main() {
+  fake_ready_init();
   snd_seq_t * seq;
   if (snd_seq_open(&seq, "default", SND_SEQ_OPEN_DUPLEX, 0) < 0) {
     fprintf(stderr, "failed to open seq\n");
@@ -48,9 +50,7 @@ int main() {
   }
   fprintf(stderr, "fake Launchpad X (hotplug) ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
-  // Give synth's announce-port subscription a moment to notice us
-  // and complete the Programmer-Mode-enter handshake before we press.
-  sleep(3);
+  fake_wait_ready(seq, "at startup");
 
   int pending;
   while ((pending = snd_seq_event_input_pending(seq, 1)) > 0) {

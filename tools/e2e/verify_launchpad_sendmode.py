@@ -42,7 +42,7 @@ def section(log, label):
 
 fake_log = open(os.path.join(SCRIPT_DIR, "fake_launchpad_sendmode.log"), "w")
 fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_sendmode")], stderr=fake_log, stdout=fake_log)
-time.sleep(1)
+time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
 pid, fd = vk.spawn()
 scr = vk.Screen(fd)

@@ -16,6 +16,7 @@
 // (it's Song state, not per-device connection state). argv[3] is the
 // note to press+release (defaults to 11, pad (0,0)).
 #include <alsa/asoundlib.h>
+#include "fake_ready.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,6 +44,7 @@ static void send_note(snd_seq_t * seq, int port, int status, int note, int veloc
 }
 
 int main(int argc, char ** argv) {
+  fake_ready_init();
   const char * suffix = argc > 1 ? argv[1] : "";
   int is_arm = argc > 2 && strcmp(argv[2], "arm") == 0;
   int note = argc > 3 ? atoi(argv[3]) : 11;
@@ -58,7 +60,7 @@ int main(int argc, char ** argv) {
   if (port < 0) return 1;
   fprintf(stderr, "fake %s ready as client %d port %d\n", name, snd_seq_client_id(seq), port);
 
-  sleep(6); // let synth auto-connect, enter Programmer mode, and settle
+  fake_wait_ready(seq, "at startup");
 
   int pending;
   while ((pending = snd_seq_event_input_pending(seq, 1)) > 0) {

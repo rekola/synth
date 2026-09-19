@@ -63,9 +63,10 @@ With no file given, `main.cpp` opens `songs/welcome.xml` by default -
 resolved cwd-relative first (running from the source tree), then from
 wherever `make install` put it (`InstallPaths.h.in`, baked in at configure
 time from `CMAKE_INSTALL_PREFIX`), falling back to a fresh empty buffer if
-neither is there. The UI starts in Arrangement view with the overview
-(`ArrangementGrid`) focused, not straight into note entry, and a brand
-new buffer defaults to 31-EDO tuning.
+neither is there. The UI starts in Session view with the clip grid
+focused, not straight into note entry (`--view arrangement` starts in
+Arrangement view, on the arrangement overview), and a brand new buffer
+defaults to 31-EDO tuning.
 
 ## Tests
 
@@ -90,7 +91,7 @@ leak was confirmed this way).
 
 Needs a real terminal (notcurses full-screen UI) and an ALSA output device.
 Options: `--samplerate N`, `--stereo`, `--ambisonic [order]`,
-`--legacy-binaural`. Every song is always rendered through an
+`--legacy-binaural`, `--view session|arrangement`. Every song is always rendered through an
 ambisonic bus (ACN/SN3D, AmbiX convention) — there is no plain-stereo-pan
 mode at all any more, and `ChannelConfiguration::STEREO` doesn't exist as a
 type (see `ChannelConfiguration.h`); `--ambisonic [order]` just sets the
@@ -928,15 +929,15 @@ would otherwise resume showing.
   `ScenePatternSource` in Session view (clips directly, one scene - clip
   row k across every track - at a time, its own cursor, a per-track
   playhead for each launched clip, no annotations). Space
-  ("play-or-stop") launches/stops the scene in Session view's pattern
-  editor and toggles the transport everywhere else. The mouse wheel
+  ("play-or-stop") toggles the transport, which is Arrangement view's - in
+  Session view it does nothing (clips and scenes launch and stop from the
+  clip grid and the Launchpad). The mouse wheel
   scrolls the widget under the mouse without moving focus, and scrolls its
   view, never its cursor (so never the transport); Shift scrolls tracks
   sideways, and the next cursor move brings the view back.
-- **Defaults**: a fresh session opens in Arrangement view on
-  `ArrangementGrid` (overview focus, `UI::initialize()`'s
-  `active_element_`) rather than
-  straight into note entry, and `GridMode` defaults to `SESSION` on every
+- **Defaults**: a fresh session opens in Session view on the clip grid
+  (`UI::setInitialView()`, the `--view` option) rather than straight into
+  note entry, and `GridMode` defaults to `SESSION` on every
   connected device - see the Run section above for the matching
   `songs/welcome.xml`/31-EDO startup defaults.
 - e2e coverage: `tools/e2e/verify_launchpad_session.py` (see that

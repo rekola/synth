@@ -40,7 +40,7 @@ def last_led_state(text, led_index_hex):
 fake_log = open(os.path.join(SCRIPT_DIR, "fake_launchpad_scene_row.log"), "w")
 fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_scene_row")], stderr=fake_log, stdout=fake_log)
 
-time.sleep(1)
+time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
 SONG = os.path.join(SCRIPT_DIR, "launchpad_scene_row_test.xml")
 pid, fd = vk.spawn(SONG)
@@ -51,9 +51,8 @@ if not vk.wait_ready(scr):
     os.kill(pid, 9)
     sys.exit(1)
 
-# fake_launchpad_scene_row's own scripted sequence (6s startup + ~1.5s of
-# drains) takes a bit under 8s - give it comfortable margin.
-scr.wait(10)
+# Until the simulator has finished its scripted sequence.
+scr.wait_for_exit(fake, 10)
 scr.pump(0.5)
 
 try:

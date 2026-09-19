@@ -8,6 +8,7 @@
 // yet, switches to NOTE mode and plays one note, then disarms - all
 // through real MIDI CC/note events, the same as a person would press them.
 #include <alsa/asoundlib.h>
+#include "fake_ready.h"
 #include <stdio.h>
 #include <unistd.h>
 
@@ -51,6 +52,7 @@ static void drain(snd_seq_t * seq, int ms, const char * label) {
 }
 
 int main() {
+  fake_ready_init();
   snd_seq_t * seq;
   if (snd_seq_open(&seq, "default", SND_SEQ_OPEN_DUPLEX, 0) < 0) return 1;
   snd_seq_set_client_name(seq, "Launchpad X (e2e)"); // see LaunchpadIO::acceptsClient()
@@ -60,9 +62,8 @@ int main() {
   if (port < 0) return 1;
   fprintf(stderr, "fake Launchpad X (record arm holes) ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
-  // Let synth auto-connect, enter Programmer mode, and settle - reading
-  // all the while, so LED frames never overflow this client's input queue.
-  drain(seq, 6500, "at startup");
+  fake_wait_ready(seq, "at startup");
+  drain(seq, 500, "at startup"); // the first LED frames
 
   fprintf(stderr, "sending CC95 press+release (enters Session's own mixer submode)\n");
   send_cc(seq, port, 95, 127);

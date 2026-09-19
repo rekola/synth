@@ -31,8 +31,8 @@ def ctrl(c):
     return bytes([ord(c.lower()) & 0x1F])
 
 fake_log = open(os.path.join(SCRIPT_DIR, "fake_launchpad_button.log"), "w")
-fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_button")], stderr=fake_log, stdout=fake_log)
-time.sleep(1)
+fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_button")], stderr=fake_log, stdout=fake_log, env=vk.fake_env())
+time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
 pid, fd = vk.spawn()
 scr = vk.Screen(fd)
@@ -55,11 +55,11 @@ bar1 = line_before.index("│")
 bar2 = line_before.index("│", bar1 + 1)
 print("track 0/1 boundary at bar columns:", bar1, bar2)
 
-# Wait for the connect handshake + LED refresh, then for the simulated
-# device's CC94 press (fires 6s after its own startup).
+# Let the simulated device begin, then wait for its CC94 press.
+vk.go(fake)
 deadline = time.time() + 15.0
 line_after = line_before
-while time.time() < deadline:
+while time.time() < deadline and fake.poll() is None:
     scr.pump(0.5)
     y2 = find_pattern_row(scr.screen)
     if y2 is not None:

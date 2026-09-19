@@ -31,7 +31,7 @@ def check(name, ok, extra=None):
 fake_log_path = os.path.join(SCRIPT_DIR, "fake_launchpad_draw_clear.log")
 fake_log = open(fake_log_path, "w")
 fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_draw_clear")], stderr=fake_log, stdout=fake_log)
-time.sleep(1)
+time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
 pid, fd = vk.spawn()
 scr = vk.Screen(fd)

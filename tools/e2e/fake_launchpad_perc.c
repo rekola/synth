@@ -5,6 +5,7 @@
 // and Device-Inquiry messages went out), then sends a scripted
 // press/aftertouch/release sequence on pad (0,0) = note 11.
 #include <alsa/asoundlib.h>
+#include "fake_ready.h"
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
@@ -58,6 +59,7 @@ static void drain(snd_seq_t * seq, int ms, const char * label) {
 }
 
 int main() {
+  fake_ready_init();
   snd_seq_t * seq;
   if (snd_seq_open(&seq, "default", SND_SEQ_OPEN_DUPLEX, 0) < 0) {
     fprintf(stderr, "failed to open seq\n");
@@ -74,9 +76,8 @@ int main() {
 
   fprintf(stderr, "fake Launchpad X ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
-  // Wait for synth to start, connect, and for the test to move the
-  // cursor onto the percussion track.
-  drain(seq, 8000, "while connecting");
+  fake_wait_ready(seq, "while connecting");
+  drain(seq, 500, "while connecting"); // the first LED frames
 
   // Session is the default grid mode - Note mode (CC96) shows the note
   // grid, here the percussion layout. Record Arm (a quick CC98 tap) makes a

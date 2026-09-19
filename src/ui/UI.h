@@ -56,6 +56,9 @@ class UI : public UIElement {
   // panel beside it) plus the pattern editor.
   enum class View { ARRANGEMENT, SESSION };
   View getView() const { return view_; }
+  // The view the UI starts in (the --view option) - Session unless set
+  // before the backend's initialize().
+  void setInitialView(View view) { initial_view_ = view; }
   bool isOutlineVisible() const { return outline_visible_; }
 
 protected:
@@ -89,6 +92,9 @@ private:
 
   StatusLogger logger_;
   View view_ = View::ARRANGEMENT;
+protected:
+  View initial_view_ = View::SESSION;
+private:
   bool outline_visible_ = true;
 };
 

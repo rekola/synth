@@ -42,7 +42,7 @@ fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_session")], st
 
 # Same startup ordering as verify_launchpad_e2e.py - the fake device must
 # already exist as an ALSA client before synth's startup-time scan runs.
-time.sleep(1)
+time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
 SONG = os.path.join(SCRIPT_DIR, "launchpad_session_test.xml")
 pid, fd = vk.spawn(SONG)
@@ -59,14 +59,16 @@ print(grid_before)
 check("No clip instance placed yet (no '7' - clip index 7's own digit - anywhere in the grid)",
       "7" not in grid_before, grid_before)
 
-# fake_launchpad_session presses CC98 (Record Arm) ~6-7s after its own
-# startup, then pad (0,0) ~2s after that - poll robustly rather than a
-# single fixed sleep.
+# fake_launchpad_session presses CC98 (Record Arm) once synth has
+# connected, then pad (0,0) ~2s after that - poll until the clip shows or
+# the simulator ends.
 deadline = time.time() + 15.0
 grid_after = grid_before
-while time.time() < deadline:
+while time.time() < deadline and fake.poll() is None and "7" not in grid_after:
     scr.pump(0.5)
     grid_after = arrangement_grid_area(scr.screen)
+scr.pump(0.5)
+grid_after = arrangement_grid_area(scr.screen)
 
 print("arrangement grid after simulated Record-Arm + pad (0,0) press:")
 print(grid_after)

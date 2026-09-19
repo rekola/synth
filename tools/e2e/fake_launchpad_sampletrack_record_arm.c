@@ -19,6 +19,7 @@
 // the same pad cancels it again) - omitted (the default) sends only the
 // first.
 #include <alsa/asoundlib.h>
+#include "fake_ready.h"
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -63,6 +64,7 @@ static void drain(snd_seq_t * seq, int ms, const char * label) {
 }
 
 int main(int argc, char ** argv) {
+  fake_ready_init();
   int also_cancel = argc > 1 && strcmp(argv[1], "cancel") == 0;
 
   snd_seq_t * seq;
@@ -75,9 +77,8 @@ int main(int argc, char ** argv) {
   fprintf(stderr, "fake Launchpad X (sampletrack record arm%s) ready as client %d port %d\n",
     also_cancel ? ", cancel" : "", snd_seq_client_id(seq), port);
 
-  // Let synth auto-connect, enter Programmer mode, and settle - reading
-  // all the while, so LED frames never overflow this client's input queue.
-  drain(seq, 6500, "at startup");
+  fake_wait_ready(seq, "at startup");
+  drain(seq, 500, "at startup"); // the first LED frames
 
   fprintf(stderr, "sending CC95 press+release (enters Session's own mixer submode)\n");
   send_cc(seq, port, 95, 127);

@@ -8,6 +8,7 @@
 // verify_launchpad_aftertouch_clip.py checks for visibility in the
 // PatternEditor's own velocity column.
 #include <alsa/asoundlib.h>
+#include "fake_ready.h"
 #include <stdio.h>
 #include <unistd.h>
 
@@ -41,6 +42,7 @@ static void send_cc(snd_seq_t * seq, int port, int cc, int value) {
 }
 
 int main() {
+  fake_ready_init();
   snd_seq_t * seq;
   if (snd_seq_open(&seq, "default", SND_SEQ_OPEN_DUPLEX, 0) < 0) return 1;
   snd_seq_set_client_name(seq, "Launchpad X (e2e)"); // see LaunchpadIO::acceptsClient()
@@ -50,7 +52,7 @@ int main() {
   if (port < 0) return 1;
   fprintf(stderr, "fake Launchpad X (aftertouch-clip) ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
-  sleep(6); // let synth auto-connect, enter Programmer mode, and settle
+  fake_wait_ready(seq, "at startup");
 
   // GridMode defaults to SESSION on every connected device - a plain
   // note-on there launches a Session View clip slot instead of entering a

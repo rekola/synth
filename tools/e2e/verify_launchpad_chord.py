@@ -30,8 +30,8 @@ def off_count(line):
     return len([c for c in vk.note_columns(line) if c == "OFF"])
 
 log = open(os.path.join(SCRIPT_DIR, "fake_launchpad_chord.log"), "w")
-fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_chord")], stderr=log, stdout=log)
-time.sleep(1)
+fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_chord")], stderr=log, stdout=log, env=vk.fake_env())
+time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
 pid, fd = vk.spawn()
 scr = vk.Screen(fd)
@@ -53,6 +53,7 @@ vk.other_window(scr)
 # edge starts playback, so the chord lands wherever the transport happens
 # to be by the time the press is processed - scan every visible row.
 chord_row = None
+vk.go(fake)
 deadline = time.time() + 15.0
 while time.time() < deadline and chord_row is None:
     scr.pump(0.5)

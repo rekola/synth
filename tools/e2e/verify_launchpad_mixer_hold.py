@@ -40,7 +40,7 @@ def phase(text, start_marker, end_marker=None):
 fake_log = open(os.path.join(SCRIPT_DIR, "fake_launchpad_mixer_hold.log"), "w")
 fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_mixer_hold")], stderr=fake_log, stdout=fake_log)
 
-time.sleep(1)
+time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
 SONG = os.path.join(SCRIPT_DIR, "launchpad_session_test.xml")
 pid, fd = vk.spawn(SONG)
@@ -51,9 +51,8 @@ if not vk.wait_ready(scr):
     os.kill(pid, 9)
     sys.exit(1)
 
-# fake_launchpad_mixer_hold's own scripted sequence (6s startup + ~7s of
-# drains/holds) takes a bit over 13s - give it comfortable margin.
-scr.wait(16)
+# Until the simulator has finished its scripted sequence.
+scr.wait_for_exit(fake, 16)
 scr.pump(0.5)
 
 try:

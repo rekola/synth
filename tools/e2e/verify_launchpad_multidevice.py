@@ -26,9 +26,9 @@ log_b = open(os.path.join(SCRIPT_DIR, "fake_launchpad_device_b.log"), "w")
 # Device A arms Record Arm and presses note 11; device B relies on A's
 # already-armed state and presses a different note (12) - if per-device
 # state works, both should land as distinct, uncorrupted notes.
-proc_a = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_device"), "A", "arm", "11"], stderr=log_a, stdout=log_a)
-proc_b = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_device"), "B", "plain", "12"], stderr=log_b, stdout=log_b)
-time.sleep(1)
+proc_a = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_device"), "A", "arm", "11"], stderr=log_a, stdout=log_a, env=vk.fake_env())
+proc_b = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_device"), "B", "plain", "12"], stderr=log_b, stdout=log_b, env=vk.fake_env())
+time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
 pid, fd = vk.spawn()
 scr = vk.Screen(fd)
@@ -47,8 +47,10 @@ vk.other_window(scr)
 # remembering each row's own note columns seen across every poll (a row
 # can scroll out of view again before the next one).
 notes_by_row = {}
+vk.go(proc_a)
+vk.go(proc_b)
 deadline = time.time() + 16.0
-while time.time() < deadline:
+while time.time() < deadline and (proc_a.poll() is None or proc_b.poll() is None):
     scr.pump(0.5)
     for row_hex, line in vk.dump_pattern_rows(scr).items():
         cols = [c for c in vk.note_columns(line) if c not in ("···", "OFF", "   ")]

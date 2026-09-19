@@ -3,8 +3,8 @@
 annotations exist only in Arrangement view, typing a note into an empty
 slot creates a clip there (and not in the arrangement), launching that
 clip from the clip grid moves a playhead in its own track's column only,
-and Space in the pattern editor plays and stops the scene rather than the
-transport.
+and Space - the transport, Arrangement view's - does nothing in Session
+view: it neither starts the transport nor stops a running one.
 """
 import os
 import sys
@@ -111,18 +111,25 @@ def main():
         still_playing |= any(scr.screen.buffer[top + r][6].bg in PLAYHEAD_BG for r in range(4))
     check("launching the playing clip again restarts it rather than stopping it", still_playing, scr)
 
-    # Space in Session view's pattern editor plays and stops the scene.
+    # Space is the transport, Arrangement view's: in Session view it does
+    # nothing at all.
     other_window(scr)  # clip grid -> pattern editor
     scr.send(b" ")
     scr.pump(0.4)
-    check("Space in the session pattern editor stops what's launched", "Scene stopped" in scr.dump(), scr)
+    check("Space in Session view doesn't start the transport", not vk.is_playing(scr), scr)
+    check("and says so", "Space plays in Arrangement view" in scr.dump(), scr)
+
+    # Nor does it stop a transport started in Arrangement view.
+    scr.send(b"\t")  # -> Arrangement view
+    scr.pump(0.8)
     scr.send(b" ")
-    scr.pump(0.4)
-    check("Space again plays the scene", "Playing scene 1" in scr.dump(), scr)
+    scr.pump(0.6)
+    started = vk.is_playing(scr)
+    scr.send(b"\t")  # -> Session view
+    scr.pump(0.8)
     scr.send(b" ")
-    scr.pump(0.4)
-    check("and again stops it", "Scene stopped" in scr.dump(), scr)
-    check("the transport never started", not vk.is_playing(scr), scr)
+    scr.pump(0.6)
+    check("Space in Session view doesn't stop a running transport", started and vk.is_playing(scr), scr)
 
     os.kill(pid, 9)
     sys.exit(0 if all(results) else 1)

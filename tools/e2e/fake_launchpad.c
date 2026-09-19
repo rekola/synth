@@ -9,6 +9,7 @@
 // no "step entry while stopped" state to test any more (a plain press
 // only ever auditions).
 #include <alsa/asoundlib.h>
+#include "fake_ready.h"
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
@@ -62,7 +63,12 @@ static void drain(snd_seq_t * seq, int ms, const char * label) {
   }
 }
 
-int main() {
+// With "note-mode" as its argument, the simulator only switches to Note
+// mode and then logs LEDs until it's ended - for a script that plays the
+// song itself and only watches the pads.
+int main(int argc, char ** argv) {
+  fake_ready_init();
+  int note_mode_only = argc > 1 && strcmp(argv[1], "note-mode") == 0;
   snd_seq_t * seq;
   if (snd_seq_open(&seq, "default", SND_SEQ_OPEN_DUPLEX, 0) < 0) {
     fprintf(stderr, "failed to open seq\n");
@@ -79,9 +85,7 @@ int main() {
 
   fprintf(stderr, "fake Launchpad X ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
-  // Wait for synth to start, scan, auto-connect, and (in the test
-  // harness) switch to a fresh new buffer.
-  sleep(6);
+  fake_wait_ready(seq, "at startup");
 
   // Drain and print any incoming SysEx (Programmer Mode enter / Device Inquiry).
   int pending;
@@ -110,6 +114,11 @@ int main() {
   fprintf(stderr, "sending CC96 press (Note mode)\n");
   send_cc(seq, port, 96, 127);
   drain(seq, 1000, "after Note mode");
+  if (note_mode_only) {
+    drain(seq, 30000, "in Note mode");
+    snd_seq_close(seq);
+    return 0;
+  }
   fprintf(stderr, "sending CC98 quick tap (Record Arm on)\n");
   send_cc(seq, port, 98, 127);
   usleep(100 * 1000);

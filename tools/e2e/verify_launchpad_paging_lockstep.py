@@ -69,7 +69,7 @@ log_b = open(os.path.join(SCRIPT_DIR, "fake_launchpad_paging_lockstep_b.log"), "
 proc_a = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_paging_lockstep"), "A", "opener"], stderr=log_a, stdout=log_a)
 proc_b = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_paging_lockstep"), "B", "follower"], stderr=log_b, stdout=log_b)
 
-time.sleep(1)
+time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
 SONG = os.path.join(SCRIPT_DIR, "launchpad_paging_lockstep_test.xml")
 pid, fd = vk.spawn(SONG)
@@ -80,9 +80,9 @@ if not vk.wait_ready(scr):
     os.kill(pid, 9)
     sys.exit(1)
 
-# Both fake devices' own scripted sequences (6s startup + ~3.5s of
-# marker/drain steps each) take a bit under 10s - give comfortable margin.
-scr.wait(11)
+# Until both simulators have finished their scripted sequences.
+scr.wait_for_exit(proc_a, 11)
+scr.wait_for_exit(proc_b, 5)
 scr.pump(0.5)
 
 try:

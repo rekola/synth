@@ -23,8 +23,8 @@ def check(name, ok, extra=None):
         print("  ", extra)
 
 log_a = open(os.path.join(SCRIPT_DIR, "fake_launchpad_prune_a.log"), "w")
-proc_a = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_device"), "PruneA", "arm", "11"], stderr=log_a, stdout=log_a)
-time.sleep(1)
+proc_a = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_device"), "PruneA", "arm", "11"], stderr=log_a, stdout=log_a, env=vk.fake_env())
+time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
 pid, fd = vk.spawn()
 scr = vk.Screen(fd)
@@ -40,7 +40,8 @@ vk.other_window(scr)
 # Let device A connect, switch to NOTES mode, arm Record Arm, press+
 # release pad (0,0), and fully exit (its script sleeps ~1s after release
 # then closes the ALSA client) - without ever disarming.
-proc_a.wait(timeout=20)
+vk.go(proc_a)
+scr.wait_for_exit(proc_a, 20)
 check("device A's simulator process exited cleanly", proc_a.returncode == 0, f"returncode={proc_a.returncode}")
 
 # Give synth a moment to process the PORT_EXIT hotplug event.

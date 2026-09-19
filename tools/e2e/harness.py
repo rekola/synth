@@ -17,6 +17,7 @@ ALSA I/O (via the fake_launchpad_*.c simulators, see README.md), which
 """
 import fcntl
 import os
+import signal
 import pty
 import re
 import select
@@ -39,7 +40,10 @@ def set_winsize(fd, rows, cols, xpix, ypix):
     fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, xpix, ypix))
 
 
-def spawn(song=SONG):
+def spawn(song=SONG, view="arrangement"):
+    """Starts synth on `song` in a pty. `view` is the --view it starts in:
+    Arrangement by default, the view most scripts were written against,
+    though the app itself starts in Session view."""
     pid, master_fd = pty.fork()
     if pid == 0:
         os.environ["TERM"] = "xterm-256color"
@@ -48,7 +52,7 @@ def spawn(song=SONG):
         # one physically connected, synth would otherwise auto-connect to
         # both at once - see LaunchpadIO.h's own ignore_hardware_ comment.
         os.environ["SYNTH_LAUNCHPAD_NO_HARDWARE"] = "1"
-        os.execvp(BINARY, [BINARY, song])
+        os.execvp(BINARY, [BINARY, "--view", view, song])
         os._exit(1)
     set_winsize(master_fd, ROWS, COLS, XPIX, YPIX)
     os.set_blocking(master_fd, False)
@@ -116,6 +120,28 @@ class Screen:
                 self.stream.feed(data.decode("utf-8", errors="ignore"))
                 end = min(time.time() + settle, hard_deadline)
 
+    def wait_for_exit(self, proc, timeout):
+        """Waits, reading the pty, until `proc` (a simulator) has finished
+        its scripted sequence, or `timeout` seconds - a simulator ends
+        right after its last step, so this is usually far shorter."""
+        deadline = time.time() + timeout
+        while time.time() < deadline and proc.poll() is None:
+            self.pump(0.2)
+
+    def wait_for_log(self, path, text, timeout):
+        """Waits, reading the pty, until the file at `path` (a simulator's
+        log) contains `text`, or `timeout` seconds."""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                with open(path) as f:
+                    if text in f.read():
+                        return True
+            except OSError:
+                pass
+            self.pump(0.2)
+        return False
+
     def wait(self, seconds):
         """Waits a fixed time while still reading the pty - unlike
         time.sleep(), which lets synth's terminal output fill the pty buffer
@@ -129,6 +155,19 @@ class Screen:
 
     def send(self, b):
         os.write(self.fd, b)
+
+
+def fake_env():
+    """The environment for a simulator that must wait for go() before
+    acting - for a script with terminal setup to do first."""
+    env = dict(os.environ)
+    env["FAKE_WAIT_FOR_GO"] = "1"
+    return env
+
+
+def go(proc):
+    """Lets a simulator started with fake_env() begin its sequence."""
+    os.kill(proc.pid, signal.SIGUSR1)
 
 
 def ctrl(c):

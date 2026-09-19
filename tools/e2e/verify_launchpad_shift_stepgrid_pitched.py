@@ -26,9 +26,9 @@ def check(name, ok, extra=None):
         print("  ", extra)
 
 fake_log = open(os.path.join(SCRIPT_DIR, "fake_launchpad_shift_stepgrid_pitched.log"), "w")
-fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_shift_stepgrid_pitched")], stderr=fake_log, stdout=fake_log)
+fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_shift_stepgrid_pitched")], stderr=fake_log, stdout=fake_log, env=vk.fake_env())
 
-time.sleep(1)
+time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
 SONG = os.path.join(SCRIPT_DIR, "launchpad_shift_stepgrid_pitched_test.xml")
 pid, fd = vk.spawn(SONG)
@@ -39,7 +39,10 @@ if not vk.wait_ready(scr):
     os.kill(pid, 9)
     sys.exit(1)
 
-scr.wait(10)
+# The simulator runs its phase 1 (opening the clip), then holds until
+# this script has read it.
+vk.go(fake)
+scr.wait_for_log(os.path.join(SCRIPT_DIR, "fake_launchpad_shift_stepgrid_pitched.log"), "waiting for go", 20)
 scr.pump(0.5)
 
 scr.send(b"\x1b")
@@ -53,7 +56,9 @@ phase1_text = scr.dump()
 print("\n--- ClipGrid screen dump (phase 1 - opened) ---")
 print(phase1_text)
 
-scr.wait(8)
+# Phase 2 (closing it again), then the simulator ends.
+vk.go(fake)
+scr.wait_for_exit(fake, 10)
 scr.pump(0.5)
 
 phase2_text = scr.dump()

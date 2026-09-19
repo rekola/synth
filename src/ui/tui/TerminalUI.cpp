@@ -1666,7 +1666,10 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
 
   initializeWidgets();
 
-  layout();
+  // Session view by default (the --view option); setView() lays out and
+  // moves focus to the view's own widget itself.
+  if (initial_view_ == View::SESSION) setView(View::SESSION);
+  else layout();
 
   // Every other widget above was created after menu_, so without this the
   // scope charts/pattern editor/status line all sit above it in z-order -
@@ -1917,10 +1920,9 @@ TerminalUI::initializeWidgets() {
     [this](int v) { getController().setGlobalOctave(v); },
     styles_.info_line_bg_color, styles_.info_line_fg_color);
 
-  // Session/overview first, not pattern editing - matches the Launchpad's
-  // own Session view as the more approachable starting point for a fresh
-  // buffer (a bird's-eye view of tracks/sections) rather than dropping
-  // straight into note-by-note editing.
+  // An overview first, not pattern editing - the arrangement grid when
+  // starting in Arrangement view; initialize() moves it to the clip grid
+  // when starting in Session view.
   active_element_ = arrangement_grid_;
 
   commands_.define("save-buffers-kill-terminal", [this]() {
@@ -2080,30 +2082,15 @@ TerminalUI::initializeWidgets() {
   commands_.define("stop-all-clips", [this]() {
     if (launchpad_manager_) launchpad_manager_->silenceOtherTriggeredClips(getController());
   });
-  // Space: plays or stops what the focused editor shows. In Session view's
-  // pattern editor that's its scene - every track's clip there, launched
-  // together like a scene button (launched clips only play while the
-  // transport is stopped, so a running transport stops first); pressed
-  // again, it stops every launched clip. Everywhere else, the transport.
+  // Space: the transport, which is Arrangement view's - Session view has
+  // its own launches and stops (the clip grid, the Launchpad), so Space
+  // does nothing there.
   commands_.define("play-or-stop", [this]() {
-    if (!launchpad_manager_ || active_element_.lock() != pattern_editor_ || !pattern_editor_->isSessionMode()) {
-      commands_.execute("toggle-playing");
+    if (getView() == View::SESSION) {
+      setStatus("Space plays in Arrangement view - launch clips or scenes here");
       return;
     }
-    auto & song = getController().getSong();
-    bool anything_launched = false;
-    for (auto & [ track_id, playhead ] : launchpad_manager_->sessionPlayheads(song)) {
-      if (playhead.clip_index >= 0 || playhead.queued_clip) anything_launched = true;
-    }
-    if (anything_launched) {
-      launchpad_manager_->silenceOtherTriggeredClips(getController());
-      setStatus("Scene stopped");
-      return;
-    }
-    if (getController().getPlaybackInfo().isPlaying()) getController().togglePlaying();
-    auto scene = pattern_editor_->getSessionScene();
-    launchpad_manager_->launchScene(getController(), scene, song.getPlayableTrackIds());
-    setStatus("Playing scene " + std::to_string(scene + 1));
+    commands_.execute("toggle-playing");
   });
   // Arrangement view's scope row (cover art, ArrangementGrid, charts) -
   // Session view never shows it.

@@ -30,9 +30,9 @@ def check(name, ok, extra=None):
         print("  ", extra)
 
 fake_log = open(os.path.join(SCRIPT_DIR, "fake_launchpad_shift_stepgrid.log"), "w")
-fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_shift_stepgrid")], stderr=fake_log, stdout=fake_log)
+fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_shift_stepgrid")], stderr=fake_log, stdout=fake_log, env=vk.fake_env())
 
-time.sleep(1)
+time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
 SONG = os.path.join(SCRIPT_DIR, "launchpad_shift_stepgrid_test.xml")
 pid, fd = vk.spawn(SONG)
@@ -43,11 +43,10 @@ if not vk.wait_ready(scr):
     os.kill(pid, 9)
     sys.exit(1)
 
-# fake_launchpad_shift_stepgrid's own phase 1 (6s startup + ~2.1s of
-# drains) settles a bit past 8s - give it comfortable margin before the
-# first read, but not so much it strays into phase 2's own 6s waiting
-# window (which starts right after phase 1 settles, ending around 14.1s).
-scr.wait(10)
+# The simulator runs its phase 1 (opening the clip), then holds until
+# this script has read it.
+vk.go(fake)
+scr.wait_for_log(os.path.join(SCRIPT_DIR, "fake_launchpad_shift_stepgrid.log"), "waiting for go", 20)
 scr.pump(0.5)
 
 # M-x session-view: switches to Session view (ClipGrid focused) for the
@@ -64,10 +63,9 @@ phase1_text = scr.dump()
 print("\n--- ClipGrid screen dump (phase 1 - opened) ---")
 print(phase1_text)
 
-# fake_launchpad_shift_stepgrid's own phase 2 starts about 4s after phase
-# 1 settled and takes another ~1.6s - give it comfortable margin before
-# the second read.
-scr.wait(8)
+# Phase 2 (closing it again), then the simulator ends.
+vk.go(fake)
+scr.wait_for_exit(fake, 10)
 scr.pump(0.5)
 
 phase2_text = scr.dump()

@@ -39,7 +39,7 @@ def phase(text, start_marker, end_marker=None):
 fake_log = open(os.path.join(SCRIPT_DIR, "fake_launchpad_shift_highlight.log"), "w")
 fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_shift_highlight")], stderr=fake_log, stdout=fake_log)
 
-time.sleep(1)
+time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
 SONG = os.path.join(SCRIPT_DIR, "launchpad_shift_stepgrid_test.xml")
 pid, fd = vk.spawn(SONG)
@@ -50,9 +50,8 @@ if not vk.wait_ready(scr):
     os.kill(pid, 9)
     sys.exit(1)
 
-# fake_launchpad_shift_highlight's own scripted sequence (6s startup +
-# ~2s of drains) takes a bit under 10s - give it comfortable margin.
-scr.wait(11)
+# Until the simulator has finished its scripted sequence.
+scr.wait_for_exit(fake, 11)
 scr.pump(0.5)
 
 try:

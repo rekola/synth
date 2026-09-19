@@ -36,8 +36,8 @@ def ctrl(c):
 SONG = os.path.join(SCRIPT_DIR, "drum_machine_stepgrid_test.xml")
 
 fake_log = open(os.path.join(SCRIPT_DIR, "fake_launchpad_stepseq.log"), "w")
-fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_stepseq")], stderr=fake_log, stdout=fake_log)
-time.sleep(1)
+fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_stepseq")], stderr=fake_log, stdout=fake_log, env=vk.fake_env())
+time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
 pid, fd = vk.spawn(song=SONG)
 scr = vk.Screen(fd)
@@ -54,9 +54,8 @@ if not vk.wait_ready(scr):
 # verify_launchpad_record_arm_holes.py already uses), then Ctrl-X r
 # (toggle-record-arm) - Controller.cpp's own drum-machine-track
 # repurposing, which forces every connected Launchpad into NOTES mode
-# automatically. The fake device's own scripted sequence (an 8s startup
-# sleep, then its own CC96 press - redundant once this has already forced
-# NOTES mode, but harmless) has ample room for this to complete first.
+# automatically. The simulator waits for this (go()) before its own CC96
+# press - redundant once this has already forced NOTES mode, but harmless.
 scr.pump(1.0)
 scr.send(b"\x1b")
 scr.pump(0.3)
@@ -69,7 +68,8 @@ scr.pump(0.3)
 scr.send(b"r")
 scr.pump(2.0)
 
-scr.pump(16.0)
+vk.go(fake)
+scr.wait_for_exit(fake, 16)
 
 try:
     os.kill(pid, 9)

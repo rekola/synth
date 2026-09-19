@@ -6,6 +6,7 @@
 // since neither one does anything a performer looking at the Launchpad
 // could ever see there (LaunchpadManager.cpp's own comment on both).
 #include <alsa/asoundlib.h>
+#include "fake_ready.h"
 #include <stdio.h>
 #include <unistd.h>
 
@@ -38,6 +39,7 @@ static void drain(snd_seq_t * seq, int ms, const char * label) {
 }
 
 int main() {
+  fake_ready_init();
   snd_seq_t * seq;
   if (snd_seq_open(&seq, "default", SND_SEQ_OPEN_DUPLEX, 0) < 0) return 1;
   snd_seq_set_client_name(seq, "Launchpad X (e2e)"); // see LaunchpadIO::acceptsClient()
@@ -47,9 +49,8 @@ int main() {
   if (port < 0) return 1;
   fprintf(stderr, "fake Launchpad X (button) ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
-  // Let synth auto-connect, enter Programmer mode, and settle - reading all
-  // the while, so the LED frames never overflow this client's input queue.
-  drain(seq, 6500, "at startup");
+  fake_wait_ready(seq, "at startup");
+  drain(seq, 500, "at startup"); // the first LED frames
 
   fprintf(stderr, "sending CC96 press+release (Note mode) - GridMode defaults to Session\n");
   send_cc(seq, port, 96, 127);

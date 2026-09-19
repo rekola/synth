@@ -11,6 +11,7 @@
 // harness (see verify_keybindings.py's docstring); a fixture with few
 // tracks sidesteps it entirely.
 #include <alsa/asoundlib.h>
+#include "fake_ready.h"
 #include <stdio.h>
 #include <unistd.h>
 
@@ -55,6 +56,7 @@ void send_note(snd_seq_t * seq, int port, int status, int note, int velocity) {
 }
 
 int main() {
+  fake_ready_init();
   snd_seq_t * seq;
   if (snd_seq_open(&seq, "default", SND_SEQ_OPEN_DUPLEX, 0) < 0) return 1;
   snd_seq_set_client_name(seq, "Launchpad X (e2e)"); // see LaunchpadIO::acceptsClient()
@@ -64,7 +66,7 @@ int main() {
   if (port < 0) return 1;
   fprintf(stderr, "fake Launchpad X (send mode autocreate) ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
-  sleep(6); // let synth auto-connect, enter Programmer mode, and settle
+  fake_wait_ready(seq, "at startup");
   drain(seq, "idle - SESSION mode (the connect-time default), 2-track song");
 
   fprintf(stderr, "sending CC95 press+release (enters Session's own mixer submode)\n");

@@ -21,12 +21,12 @@ def check(name, ok, extra=None):
         print("  ", extra)
 
 fake_log = open(os.path.join(SCRIPT_DIR, "fake_launchpad.log"), "w")
-fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad")], stderr=fake_log, stdout=fake_log)
+fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad")], stderr=fake_log, stdout=fake_log, env=vk.fake_env())
 
 # Give the fake device time to register its ALSA client before synth's
 # startup-time scan runs (LaunchpadIO does no hotplug yet - it must already
 # exist when synth starts).
-time.sleep(1)
+time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
 pid, fd = vk.spawn()
 scr = vk.Screen(fd)
@@ -47,11 +47,12 @@ if vk.is_playing(scr):
 check("Playback stopped on the new song", not vk.is_playing(scr))
 vk.other_window(scr)
 
-# fake_launchpad sleeps 6s after its own startup, then sends CC96 (NOTES
+# fake_launchpad waits for this script's go(), then sends CC96 (NOTES
 # mode) and CC19 (Record Arm) a second apart before its first press.
 # Record Arm's own rising edge starts playback immediately, so the note
 # lands wherever the transport happens to be by the time the press is
 # actually processed - scan every visible row rather than assuming row 00.
+vk.go(fake)
 deadline = time.time() + 15.0
 note_row = None
 while time.time() < deadline and note_row is None:

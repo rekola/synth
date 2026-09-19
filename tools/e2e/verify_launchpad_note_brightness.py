@@ -1,11 +1,12 @@
 """Active-voice LED brightness regression test: loads a dedicated fixture
 (launchpad_brightness_test.xml - a single 31-EDO oscillator track holding one
 sustained note at row 0, no envelope/decay) and asserts the Launchpad grid
-is at idle brightness (LAUNCHPAD_IDLE_BRIGHTNESS) before playback starts,
+is at idle brightness (LAUNCHPAD_IDLE_LUMINOSITY) before playback starts,
 and that starting playback (Space) brightens at least one grid pad above
 idle once the note is actually sounding - exercising the normal pattern-
 playback path (SongState::render -> InstrumentTrackState voices ->
-PlaybackInfo -> LaunchpadManager::refresh), not just live pad presses.
+PlaybackInfo -> LaunchpadManager::refresh), not live pad presses: the
+simulator (fake_launchpad note-mode) only switches to Note mode and logs.
 
 Reads "is playing" from the info line (harness.is_playing())."""
 import sys, os, re, subprocess, time
@@ -57,18 +58,19 @@ def is_playing(colors):
     # (CC98, once a play indicator, is Capture MIDI/Draw now).
     return vk.is_playing(scr)
 
+def lightness(rgb):
+    return (max(rgb) + min(rgb)) / 2 / 127
+
 def any_grid_pad_above_idle(colors):
-    # Idle pads are their base color blended 50% towards black
-    # (LaunchpadManager::padColor); the brightest base channel used by any
-    # Fokker/percussion color is 127, so no idle channel exceeds 63 (0x3f) -
-    # a pad with a voice sounding ramps towards its 50%-white blend instead,
-    # comfortably clearing that bound (e.g. the tonic's green channel alone
-    # already reaches 127 at full loudness).
-    return any(max(rgb) > 0x3f for led, rgb in colors.items() if led in GRID_LEDS)
+    # An idle pad is its color at LAUNCHPAD_IDLE_LUMINOSITY (0.35) lightness
+    # (LaunchpadManager::padColor); a pad with a voice sounding ramps its
+    # lightness up towards LAUNCHPAD_ACTIVE_LUMINOSITY with the voice's
+    # loudness.
+    return any(lightness(rgb) > 0.37 for led, rgb in colors.items() if led in GRID_LEDS)
 
 fake_log = open(LOG_PATH, "w")
-fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad")], stderr=fake_log, stdout=fake_log)
-time.sleep(1)
+fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad"), "note-mode"], stderr=fake_log, stdout=fake_log)
+time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
 pid, fd = vk.spawn(song=SONG)
 scr = vk.Screen(fd)
@@ -95,7 +97,7 @@ check("Playback is stopped before the idle snapshot", not is_playing(colors), vk
 scr.pump(2.0)
 fake_log.flush()
 colors = all_colors(open(LOG_PATH).read())
-check("All grid pads are at idle brightness (<=0x3f per channel) before playback starts",
+check("All grid pads are at idle brightness (lightness 0.35) before playback starts",
       not any_grid_pad_above_idle(colors),
       {led: rgb for led, rgb in colors.items() if led in GRID_LEDS})
 

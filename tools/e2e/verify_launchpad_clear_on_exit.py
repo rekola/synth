@@ -50,7 +50,7 @@ def is_all_black(dump_hex):
 fake_log = open(os.path.join(SCRIPT_DIR, "fake_launchpad_clear_on_exit.log"), "w")
 fake = subprocess.Popen([os.path.join(SCRIPT_DIR, "fake_launchpad_clear_on_exit")], stderr=fake_log, stdout=fake_log)
 
-time.sleep(1)
+time.sleep(0.3)  # the simulator registers with ALSA before synth scans for it
 
 SONG = os.path.join(SCRIPT_DIR, "launchpad_scene_row_test.xml")
 pid, fd = vk.spawn(SONG)

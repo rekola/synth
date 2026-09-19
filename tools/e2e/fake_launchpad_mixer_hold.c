@@ -12,6 +12,7 @@
 // not stay on Mute - then quick-taps Mute again as a control, expecting it
 // to stay this time (sticky, no hold involved).
 #include <alsa/asoundlib.h>
+#include "fake_ready.h"
 #include <stdio.h>
 #include <unistd.h>
 
@@ -42,6 +43,7 @@ static void drain(snd_seq_t * seq, const char * label) {
 }
 
 int main() {
+  fake_ready_init();
   snd_seq_t * seq;
   if (snd_seq_open(&seq, "default", SND_SEQ_OPEN_DUPLEX, 0) < 0) return 1;
   snd_seq_set_client_name(seq, "Launchpad X (e2e)"); // see LaunchpadIO::acceptsClient()
@@ -51,7 +53,7 @@ int main() {
   if (port < 0) return 1;
   fprintf(stderr, "fake Launchpad X (mixer hold) ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
-  sleep(6); // let synth auto-connect, enter Programmer mode, and settle
+  fake_wait_ready(seq, "at startup");
   drain(seq, "idle - SESSION mode (the connect-time default)");
 
   fprintf(stderr, "sending CC95 press+release (enters Session's own mixer submode)\n");
