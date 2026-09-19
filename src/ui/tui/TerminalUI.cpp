@@ -1858,30 +1858,6 @@ int indexOfTrack(const vector<int> & track_ids, int track_id) {
 } // namespace
 
 void
-TerminalUI::requestOverviewFocus() {
-  if (getView() == View::SESSION) {
-    active_element_ = clip_grid_;
-    return;
-  }
-  if (!scopes_visible_) return; // the arrangement grid is hidden
-  // Lands on the overview's own last (rightmost) column, not wherever its
-  // cursor happened to be left last time - both entry points (PatternEditor's
-  // leftmost track, Launchpad's prev-track already at track 0) arrive
-  // "from the right". Not symmetric with exitOverview() (always the first
-  // track, regardless of which column was current here) - deliberately:
-  // exiting always returns to the same, predictable starting point.
-  auto num_tracks = static_cast<int>(arrangement_grid_->getVisibleTrackIds(getController().getSong()).size());
-  arrangement_grid_->setCursorTrackIndex(max(0, num_tracks - 1));
-  active_element_ = arrangement_grid_;
-}
-
-void
-TerminalUI::exitOverview() {
-  pattern_editor_->setCursorTrack(0);
-  active_element_ = pattern_editor_;
-}
-
-void
 TerminalUI::commitOverviewCell(int track_id, int section_idx, int row) {
   // The whole commit refuses while playing - matches PatternEditor's own
   // move-row-up/move-row-down guard (row navigation only ever runs while
@@ -1921,15 +1897,6 @@ TerminalUI::initializeWidgets() {
   // see that method for the equivalent Launchpad wiring), so that half of
   // commitOverviewCell()'s callers is wired there instead.
   arrangement_grid_->setCommitCallback([this](int track_id, int section_idx, int row) { commitOverviewCell(track_id, section_idx, row); });
-  // Plain Left with nowhere further left to go - see PatternEditor's own
-  // setOverviewRequestCallback() comment; Launchpad's prev-track hits the
-  // same edge, wired in wireLaunchpad() below for the same launchpad_manager_-
-  // isn't-set-yet reason commitOverviewCell()'s own split wiring is.
-  pattern_editor_->setOverviewRequestCallback([this]() { requestOverviewFocus(); });
-  // The reverse edge: Right past the last (rightmost) visible column -
-  // lands on PatternEditor's own first track, same landing spot Launchpad's
-  // own overview-exit already uses (see wireLaunchpad()'s equivalent wiring).
-  arrangement_grid_->setExitRightCallback([this]() { exitOverview(); });
   cover_art_ = make_shared<CoverArt>(getPlane());
   info_line_ = make_shared<InfoLine>(getPlane());
   status_line_ = make_shared<StatusLine>(getPlane());

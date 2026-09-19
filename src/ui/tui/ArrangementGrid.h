@@ -88,12 +88,6 @@ class ArrangementGrid : public UIElement {
   // ...), not a keymap-bound one.
   void setCommitCallback(std::function<void(int track_id, int section_idx, int row)> cb) { commit_callback_ = std::move(cb); }
 
-  // Called when Right is pressed with the cursor already on the last
-  // (rightmost) track column - leaving the overview back into
-  // PatternEditor rather than a no-op clamp (lands on its first track -
-  // see UI::exitOverview() - not something this class needs to know).
-  void setExitRightCallback(std::function<void()> cb) { exit_right_callback_ = std::move(cb); }
-
   // Song::getRootTrackIds() filtered down to color-eligible tracks only
   // (VisibleTrackInfo::color_ordinal_ >= 0 - every LeafTrack: Instrument/
   // Sample/Percussion/DrumMachine, never an Effect). Public (not just
@@ -101,13 +95,6 @@ class ArrangementGrid : public UIElement {
   // show exactly the same columns this widget does, rather than a
   // separately-derived list that could disagree with it.
   std::vector<int> getVisibleTrackIds(const Song & song) const;
-
-  // Lets UI place the column cursor explicitly when handing focus here -
-  // e.g. requestOverviewFocus() lands on the last (rightmost) column when
-  // entering from PatternEditor's own leftmost track, so the two views
-  // read as one continuous horizontal strip rather than always resetting
-  // to wherever the cursor happened to be left last time.
-  void setCursorTrackIndex(int track_index) { cursor_track_index_ = track_index; }
 
   // The section index the cursor currently sits on - Launchpad's own
   // Session view reads this (via UI::renderComponents()'s own
@@ -205,7 +192,6 @@ class ArrangementGrid : public UIElement {
   InlineEditor inline_editor_{getPlane()};
 
   std::function<void(int track_id, int section_idx, int row)> commit_callback_;
-  std::function<void()> exit_right_callback_;
 };
 
 #endif

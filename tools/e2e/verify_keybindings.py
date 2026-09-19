@@ -90,6 +90,28 @@ def main():
     check("C-x b (select-named-buffer) switched to the new buffer",
           "keybindings_test" in d and d != before, d)
 
+    # --- Left/Right at a widget's edge stop there - they never move focus
+    # to the neighbouring widget ---
+    def pattern_row(label):
+        return next((l for l in scr.dump().splitlines() if l.startswith(f" {label} │")), "")
+    for _ in range(3):
+        scr.send(b"\x1b[D")  # Left, already at the first track's first column
+        scr.pump(0.15)
+    scr.send(b"q")
+    scr.pump(0.5)
+    check("Left past the pattern editor's first column keeps focus there",
+          vk.has_note(pattern_row("00")), scr.dump())
+    vk.other_window(scr)  # the arrangement grid
+    scr.send(b"\x1b[B")  # onto a bar row
+    scr.pump(0.2)
+    for _ in range(10):
+        scr.send(b"\x1b[C")  # Right, past the grid's last track
+        scr.pump(0.05)
+    scr.send(b"w")  # would enter a note if focus had moved to the pattern editor
+    scr.pump(0.5)
+    check("Right past the arrangement grid's last track keeps focus there",
+          not vk.has_note(pattern_row("01")), scr.dump())
+
     # --- C-x C-c quits (Emacs's own save-buffers-kill-terminal binding -
     # there is no separate Ctrl-Q quit shortcut; graceful shutdown joins
     # the audio thread, so allow several seconds rather than expecting a

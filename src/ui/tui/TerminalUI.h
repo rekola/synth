@@ -101,21 +101,6 @@ protected:
   // ArrangementGrid.h's own comment on why ArrangementGrid itself never
   // calls this directly.
   void commitOverviewCell(int track_id, int section_idx, int row);
-  // Shared by PatternEditor's own leftward "nowhere further to go" edge
-  // and Launchpad's equivalent "prev-track already at track 0" one (see
-  // PatternEditor::setOverviewRequestCallback()/LaunchpadManager::
-  // setSessionRequestCallback(), wired to this in initializeWidgets()/
-  // wireLaunchpad()) - moves focus to the current view's overview:
-  // arrangement_grid_ in Arrangement view, clip_grid_ in Session view.
-  void requestOverviewFocus();
-  // The reverse edge: leaves the overview, focusing pattern_editor_ on its
-  // first track - both entry points (Launchpad's "next-track" already in
-  // GridMode::SESSION, this grid's own rightward exit past its last
-  // column - see LaunchpadManager::setSessionExitCallback()/
-  // ArrangementGrid::setExitRightCallback(), wired in initializeWidgets()/
-  // wireLaunchpad()) land here, so there's only one exit destination to
-  // reason about, not two competing ones.
-  void exitOverview();
   bool tryActivate(int y, int x, std::shared_ptr<UIElement> element);
   // The widgets the current view shows that can take focus, in C-x o
   // (other-window) order.

@@ -1545,12 +1545,6 @@ PatternEditor::offerInput(const InputEvent & input) {
 
 	auto it = all_track_info.find(track_ids[static_cast<size_t>(new_cursor.track)]);
 	new_cursor.col = it != all_track_info.end() ? it->second.getColumnCount() - 1 : 0;
-      } else if (overview_request_callback_) {
-	// Already at the very first track's first column - nowhere further
-	// left to go in the pattern grid itself, so this is the overview's
-	// own entry point instead of a no-op (see this method's own header
-	// comment).
-	overview_request_callback_();
       }
       return true;
     } else if (input.getId() == NCKEY_RIGHT) {

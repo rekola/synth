@@ -89,16 +89,6 @@ class PatternEditor : public UIElement {
   // per-track playhead rows.
   void setSessionPlayheads(std::unordered_map<int, ScenePatternSource::Playhead> playheads);
 
-  // Called (from UI::initialize()) when plain Left is pressed with the
-  // cursor already at the very first track's first column - "there's
-  // nothing further this way, switch to the overview instead", via a
-  // callback rather than PatternEditor reaching for active_element_/the
-  // overview widget itself (same separation commit_callback_ establishes
-  // on the overview side - see ArrangementGrid.h's own header comment).
-  // LaunchpadManager's own "prev-track" command hits the identical edge
-  // (see its setOverviewRequestCallback()) and is wired to the same
-  // UI-level handler, not a second implementation of it.
-  void setOverviewRequestCallback(std::function<void()> cb) { overview_request_callback_ = std::move(cb); }
 
   // Called whenever the UI thread learns of a new playhead position (see
   // UI::handlePlaybackEvent, right after Controller::receivePlaybackSnapshot() -
@@ -339,7 +329,6 @@ protected:
   // single entry, not a restructuring of how one entry stores itself.
   ClipboardEntry clipboard_;
 
-  std::function<void()> overview_request_callback_;
 
   // The on-screen (row, col) renderRow()'s own (display-only) annotation
   // code draws at for the cursor/playhead's current row - cached there

@@ -251,20 +251,10 @@ ArrangementGrid::offerInput(const InputEvent & input) {
   // Left/Right move across per-track columns, which only exist on a bar
   // row - meaningless on the title row (cursor_bar_ < 0), so left alone
   // for Up/Down to handle instead of moving a column index nothing is
-  // showing right now, or (Right) firing exit_right_callback_ on a row
-  // that was never actually at the rightmost real column to begin with.
+  // showing right now. Both stop at the grid's own edges.
   else if (cursor_bar_ < 0) return false;
   else if (input.getId() == NCKEY_LEFT) cursor_track_index_--;
-  else if (input.getId() == NCKEY_RIGHT) {
-    // Already on the last (rightmost) track column - nowhere further
-    // right to go in the overview itself, so this leaves it and hands
-    // focus back to PatternEditor instead of a no-op clamp.
-    if (cursor_track_index_ >= num_tracks - 1 && exit_right_callback_) {
-      exit_right_callback_();
-      return true;
-    }
-    cursor_track_index_++;
-  }
+  else if (input.getId() == NCKEY_RIGHT) cursor_track_index_++;
   else return false;
 
   cursor_track_index_ = clamp(cursor_track_index_, 0, max(0, num_tracks - 1));

@@ -50,10 +50,8 @@ class ClipGrid : public UIElement {
   bool isReaderActive() const { return inline_editor_.isOpen(); }
   void cancelReaderEdit() { inline_editor_.cancel(); }
 
-  // Lets UI seed the initial column selection from the shared/global track
-  // cursor (PatternEditor::getCursorTrackIndex()) when this view opens,
-  // the same one-way sync ArrangementGrid's own requestOverviewFocus()
-  // uses - not a live two-way binding.
+  // Lets UI move the column cursor to the shared current track
+  // (TerminalUI::syncSessionView()).
   void setCursorTrackIndex(int track_index) { cursor_track_index_ = track_index; }
 
   // Read-only counterparts, for Controller::setClipGridCursor() (kept
