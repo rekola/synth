@@ -154,6 +154,7 @@ ClipGrid::ensureCursorVisible(int visible_rows, int visible_cols, int num_tracks
 
   scroll_col_ = clamp(scroll_col_, 0, max(0, num_tracks - visible_cols));
   scroll_row_ = clamp(scroll_row_, 0, max(0, physicalRowCount() - visible_rows));
+  if (view_detached_) return; // the mouse wheel scrolled away from the cursor
 
   if (cursor_track_index_ < scroll_col_) scroll_col_ = cursor_track_index_;
   if (visible_cols > 0 && cursor_track_index_ >= scroll_col_ + visible_cols) scroll_col_ = cursor_track_index_ - visible_cols + 1;
@@ -255,6 +256,17 @@ ClipGrid::offerInput(const InputEvent & input) {
   // While a rename editor is open it owns every key.
   if (inline_editor_.offerInput(input)) return true;
 
+  // The mouse wheel scrolls the view (Shift: tracks), not the cursor, until
+  // the cursor next moves.
+  if (input.getId() == NCKEY_BUTTON4 || input.getId() == NCKEY_BUTTON5) {
+    if (input.getKind() == InputEvent::Kind::RELEASE) return true;
+    int direction = input.getId() == NCKEY_BUTTON4 ? -1 : 1;
+    if (input.hasShift()) scroll_col_ += direction;
+    else scroll_row_ += direction;
+    view_detached_ = true;
+    return true;
+  }
+
   if (dispatchCommand(input)) return true;
   if (input.getKind() == InputEvent::Kind::RELEASE) return false;
 
@@ -341,6 +353,8 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   auto visible_rows = max(0, rows - 1); // row 0 is the header, never scrolled
   auto visible_cols = max(0, cols) / (kColWidth + 1);
 
+  // A moved cursor reattaches a view the mouse wheel detached.
+  if (view_detached_ && (cursor_track_index_ != current_cursor_track_index_ || cursor_row_ != current_cursor_row_)) view_detached_ = false;
   ensureCursorVisible(visible_rows, visible_cols, num_tracks);
 
   // Which clip (if any) is currently focused for editing - shown as a

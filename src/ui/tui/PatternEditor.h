@@ -367,6 +367,16 @@ protected:
   bool force_full_redraw_ = false;
   std::unordered_map<int, ScenePatternSource::Playhead> session_playheads_;
 
+  // The block at the top of the view - current_scroll_.row counts from
+  // its start. Follows the cursor's own block, scrolled just far enough to
+  // keep the cursor on screen, until the mouse wheel detaches the view
+  // (scrollView()/scrollViewTracks()); the next cursor move reattaches it.
+  int view_block_ = 0;
+  bool view_detached_ = false;
+  // Scroll the view (not the cursor) by rows, or by whole tracks sideways.
+  void scrollView(int delta_rows);
+  void scrollViewTracks(int delta_tracks);
+
   // The StyleProvider render() was last called with - stashed there
   // purely so startTrackNameEdit() can force an immediate renderHeading()
   // pass after correcting the scroll position (see that method's own

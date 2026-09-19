@@ -6,7 +6,7 @@ the Launchpad Session grid address) at a time, with one playhead per track.
 Views stop being buffers: a buffer is a song, and a view is how the UI is
 laid out around it.
 
-Status: Phases 0-3 committed; Phase 4 done (not yet committed). Every phase lands as its own commit(s), with `ctest`
+Status: Phases 0-4 committed; Phase 4's mouse-wheel follow-up done (not yet committed). Every phase lands as its own commit(s), with `ctest`
 and the e2e scripts green.
 
 ## The cursor model
@@ -331,6 +331,19 @@ Done (not yet committed):
   picker opens just above the bar. A divider column separates the panel
   from the clip grid.
 - Tests: `tools/e2e/verify_session_view_layout.py`.
+
+**Mouse-wheel scrolling** (done, not yet committed): the wheel reaches
+the shown widget under the mouse, without moving focus
+(`TerminalUI::offerInput()`), and scrolls its view, never its cursor - so
+the pattern editor no longer moves the transport. PatternEditor has a
+view anchor of its own (`view_block_`), so it can scroll above its
+cursor's block too. PatternEditor, ArrangementGrid and ClipGrid detach
+their view from the cursor (and the playhead) on a wheel scroll and
+reattach on the next cursor move - for the arrangement grid, also when the
+edit position it follows moves while stopped. Shift+wheel scrolls tracks
+sideways. OutlineView already worked this way. Emacs's keep-point-on-
+screen was not followed: in Arrangement view the cursor is the transport.
+Test: `tools/e2e/verify_mouse_wheel.py`.
 
 The design notes below are kept for reference.
 

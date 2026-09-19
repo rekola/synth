@@ -868,7 +868,10 @@ would otherwise resume showing.
   row k across every track - at a time, its own cursor, a per-track
   playhead for each launched clip, no annotations). Space
   ("play-or-stop") launches/stops the scene in Session view's pattern
-  editor and toggles the transport everywhere else.
+  editor and toggles the transport everywhere else. The mouse wheel
+  scrolls the widget under the mouse without moving focus, and scrolls its
+  view, never its cursor (so never the transport); Shift scrolls tracks
+  sideways, and the next cursor move brings the view back.
 - **Defaults**: a fresh session opens in Arrangement view on
   `ArrangementGrid` (overview focus, `UI::initialize()`'s
   `active_element_`) rather than

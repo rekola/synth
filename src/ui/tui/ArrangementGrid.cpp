@@ -120,6 +120,17 @@ ArrangementGrid::offerInput(const InputEvent & input) {
   // While the section-name editor is open it owns every key.
   if (inline_editor_.offerInput(input)) return true;
 
+  // The mouse wheel scrolls the view (Shift: tracks), not the cursor, and
+  // detaches it from the cursor/playhead until the cursor next moves.
+  if (input.getId() == NCKEY_BUTTON4 || input.getId() == NCKEY_BUTTON5) {
+    if (input.getKind() == InputEvent::Kind::RELEASE) return true;
+    int direction = input.getId() == NCKEY_BUTTON4 ? -1 : 1;
+    if (input.hasShift()) scroll_col_ += direction;
+    else scroll_row_ += direction;
+    view_detached_ = true;
+    return true;
+  }
+
   if (dispatchCommand(input)) return true;
   if (input.getKind() == InputEvent::Kind::RELEASE) return false;
 
@@ -366,13 +377,19 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   // edit position while stopped, matching PatternEditor's own
   // stopped-row highlight, which isn't gated on isPlaying() either.
   auto & playback_info = getController().getPlaybackInfo();
-  auto follow_cursor = !playback_info.isPlaying() && focused;
+  // A moved cursor reattaches a view the mouse wheel detached - this
+  // grid's own, or (while stopped) the edit position it follows unfocused.
+  bool edit_position_moved = !playback_info.isPlaying() &&
+    (playback_info.getPatternIndex() != current_playing_section_ || playback_info.getRowIndex() != current_playing_row_);
+  if (view_detached_ && (edit_position_moved || cursor_section_ != current_cursor_section_ || cursor_bar_ != current_cursor_bar_ ||
+                         cursor_track_index_ != current_cursor_track_index_)) view_detached_ = false;
+  auto follow_cursor = !playback_info.isPlaying() && focused && !view_detached_;
   ensureCursorVisible(song, visible_rows, visible_cols, num_tracks, follow_cursor);
 
   auto playing_section = playback_info.getPatternIndex();
   auto playing_row = playback_info.getRowIndex();
 
-  if (!follow_cursor && playing_section >= 0 && playing_section < num_sections) {
+  if (!follow_cursor && !view_detached_ && playing_section >= 0 && playing_section < num_sections) {
     auto playhead_flat = starts[static_cast<size_t>(playing_section)] + 1 + playing_row / rows_per_bar;
     if (playhead_flat < scroll_row_) scroll_row_ = playhead_flat;
     if (visible_rows > 0 && playhead_flat >= scroll_row_ + visible_rows) scroll_row_ = playhead_flat - visible_rows + 1;

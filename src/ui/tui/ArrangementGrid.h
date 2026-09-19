@@ -170,6 +170,10 @@ class ArrangementGrid : public UIElement {
   int current_playing_section_ = -1, current_playing_row_ = -1;
   int current_cursor_section_ = -1, current_cursor_bar_ = -1, current_cursor_track_index_ = -1;
   int current_scroll_row_ = -1, current_scroll_col_ = -1;
+  // Set by the mouse wheel, which scrolls the view without the cursor:
+  // the view then follows neither the cursor nor the playhead until the
+  // cursor next moves.
+  bool view_detached_ = false;
   bool current_focused_ = false;
   int current_selected_track_id_ = -1;
   // Moves the cursor by `delta` rows, flattened across the whole (real +

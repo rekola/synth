@@ -596,7 +596,7 @@ PatternEditor::getTrackInformation(const Song & song, int scroll_row) const {
   auto heading_height = song.getMasterTrack().getDepth() + 1;
 
   std::unordered_map<int, VisibleTrackInfo> track_info;
-  source_->collectTrackInfo({ source_->cursor().block, scroll_row }, rows - heading_height, track_info);
+  source_->collectTrackInfo({ view_block_, scroll_row }, rows - heading_height, track_info);
   apply_baseline_track_info(SongStructure(song), track_info);
 
   return track_info;
@@ -644,7 +644,33 @@ PatternEditor::setSessionMode(bool session) {
   // source's row space.
   setSelectionActive(false);
   current_scroll_ = GridPosition();
+  view_detached_ = false;
   if (!source_->hasAnnotations() && new_cursor.isOnAnnotation()) new_cursor.scope = current_cursor.scope = SelectionScope::NOTE_COLUMN;
+  force_full_redraw_ = true;
+}
+
+void
+PatternEditor::scrollView(int delta_rows) {
+  auto block = view_block_, row = current_scroll_.row + delta_rows;
+  while (row < 0 && block > 0) {
+    block--;
+    row += source_->blockLength(block);
+  }
+  auto top = source_->normalize(block, std::max(row, 0));
+  auto last = source_->blockCount() - 1;
+  if (top.block > last) top = { last, source_->blockLength(last) - 1 };
+  view_block_ = top.block;
+  current_scroll_.row = top.row;
+  view_detached_ = true;
+  force_full_redraw_ = true;
+}
+
+void
+PatternEditor::scrollViewTracks(int delta_tracks) {
+  auto num_tracks = static_cast<int>(getController().getSong().getRootTrackIds().size());
+  current_scroll_.track = std::clamp(current_scroll_.track + delta_tracks, 0, std::max(num_tracks - 1, 0));
+  current_scroll_.col = 0;
+  view_detached_ = true;
   force_full_redraw_ = true;
 }
 
@@ -929,11 +955,20 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   // could miss a note just written into the row that's about to scroll
   // into view (e.g. a Launchpad chord landing exactly on that transition),
   // silently failing to grow that track's note-column width this frame.
+  // A moved cursor (the playhead, while playing in arrangement mode)
+  // reattaches a view the mouse wheel detached (see view_block_).
+  if (view_detached_ && (score_pattern != current_score_pattern || score_playing_row != current_score_playing_row)) {
+    view_detached_ = false;
+    force_full_redraw_ = true;
+  }
   auto new_row = current_scroll_.row;
-  if (score_playing_row < new_row) {
-    new_row = score_playing_row;
-  } else if (score_playing_row >= new_row + rows - heading_height) {
-    new_row = score_playing_row - (rows - heading_height) + 1;
+  if (!view_detached_) {
+    view_block_ = score_pattern;
+    if (score_playing_row < new_row) {
+      new_row = score_playing_row;
+    } else if (score_playing_row >= new_row + rows - heading_height) {
+      new_row = score_playing_row - (rows - heading_height) + 1;
+    }
   }
 
   auto track_info = getTrackInformation(song, new_row);
@@ -963,7 +998,9 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   // already are either way (see GridPosition::scope's own comment).
   auto scroll_target_track = new_cursor.isOnAnnotation() ? static_cast<int>(track_ids.size()) : new_cursor.track;
   auto scroll_target_col = new_cursor.isOnAnnotation() ? 0 : new_cursor.col;
-  auto new_scroll = computeScrollPosition(current_scroll_, new_row, scroll_target_track, scroll_target_col, track_ids, track_info, cols);
+  auto new_scroll = current_scroll_;
+  new_scroll.row = new_row;
+  if (!view_detached_) new_scroll = computeScrollPosition(current_scroll_, new_row, scroll_target_track, scroll_target_col, track_ids, track_info, cols);
 
   // GridPosition::operator!= already covers track/col/subcol/scope (.row
   // is never set on a cursor, only current_scroll_) - one comparison
@@ -1029,7 +1066,8 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
 
     renderHeading(styles, track_ids, track_info, focused);
     for (auto row = 0; row < rows - heading_height; row++) {
-      renderRow(styles, heading_height, track_ids, track_info, row, (row + current_scroll_.row) == score_playing_row, sel_bounds, focused);
+      auto address = source_->normalize(view_block_, row + current_scroll_.row);
+      renderRow(styles, heading_height, track_ids, track_info, row, address.block == score_pattern && address.row == score_playing_row, sel_bounds, focused);
     }
     need_redraw = true;
   } else if (current_score_playing_row != score_playing_row) {
@@ -1211,6 +1249,7 @@ PatternEditor::loadEditingState(const string & name) {
   current_cursor = state.current_cursor;
   new_cursor = state.new_cursor;
   current_scroll_ = state.current_scroll;
+  view_detached_ = false;
   edit_step_size = state.edit_step_size;
   new_edit_step_size = state.new_edit_step_size;
   current_song_version = state.current_song_version;
@@ -1511,17 +1550,13 @@ PatternEditor::offerInput(const InputEvent & input) {
 	if (source_->hasAnnotations()) new_cursor.scope = SelectionScope::ANNOTATION;
       }
       return true;
-    } else if (input.getId() == NCKEY_BUTTON4) { // scroll wheel up - plain Up is now "move-row-up" (see the keymap)
-      if (!transport_owns_row) {
-	source_->moveCursor(-1);
-	new_cursor.subcol = 0;
-      }
-      return true;
-    } else if (input.getId() == NCKEY_BUTTON5) { // scroll wheel down - plain Down is now "move-row-down"
-      if (!transport_owns_row) {
-	source_->moveCursor(1);
-	new_cursor.subcol = 0;
-      }
+    } else if (input.getId() == NCKEY_BUTTON4 || input.getId() == NCKEY_BUTTON5) {
+      // The mouse wheel scrolls the view, never the cursor (which in
+      // arrangement mode is the transport); Shift scrolls tracks sideways.
+      if (input.getKind() == InputEvent::Kind::RELEASE) return true;
+      int direction = input.getId() == NCKEY_BUTTON4 ? -1 : 1;
+      if (input.hasShift()) scrollViewTracks(direction);
+      else scrollView(direction);
       return true;
     } else if (input.getId() == NCKEY_PGUP) {
       if (!transport_owns_row) {
@@ -2342,7 +2377,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     
   auto & song = getController().getSong();
   auto point = source_->cursor();
-  auto address = source_->normalize(point.block, display_row + current_scroll_.row);
+  auto address = source_->normalize(view_block_, display_row + current_scroll_.row);
   auto pattern_idx = address.block, pattern_row = address.row;
   bool is_neighboring_pattern = point.block != pattern_idx;
   auto grid = source_->readGrid(pattern_idx);

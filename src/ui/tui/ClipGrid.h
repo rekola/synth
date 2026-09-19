@@ -125,6 +125,9 @@ class ClipGrid : public UIElement {
   int current_song_version_ = -1;
   int current_cursor_track_index_ = -1, current_cursor_row_ = -1;
   int current_scroll_col_ = -1, current_scroll_row_ = -1;
+  // Set by the mouse wheel, which scrolls the view without the cursor;
+  // cleared when the cursor next moves.
+  bool view_detached_ = false;
   bool current_focused_ = false;
   std::string current_focused_clip_id_;
   // Session recording arms/disarms with no song version bump of its own

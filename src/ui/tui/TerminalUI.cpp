@@ -2578,6 +2578,19 @@ TerminalUI::offerInput(const InputEvent & input) {
     force_next_render_ = true;
   } else if (input.hasCtrl() && input.getId() == 'l') {
     refresh();
+  } else if (input.getId() == NCKEY_BUTTON4 || input.getId() == NCKEY_BUTTON5) {
+    // The mouse wheel scrolls whichever shown widget is under the mouse,
+    // without moving focus (Emacs's own mouse-wheel-follow-mouse default) -
+    // each widget scrolls its view, never its cursor.
+    for (auto & element : focusableElements()) {
+      auto [pos_y, pos_x] = element->getPosition();
+      auto [rows, cols] = element->getDim();
+      if (input.getY() >= pos_y && input.getY() < pos_y + rows && input.getX() >= pos_x && input.getX() < pos_x + cols) {
+	element->offerInput(input);
+	break;
+      }
+    }
+    return true;
   } else if (input.getId() == NCKEY_BUTTON1) {
     auto previous_active_element = active_element_.lock();
     active_element_.reset();
