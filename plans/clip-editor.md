@@ -321,7 +321,8 @@ Done (not yet committed):
 - Shared cursor (`TerminalUI::syncSessionView()`): the clip grid's clip
   row is the pattern editor's scene, and the current track is the column
   in both, whichever moved last. Unfocused, the clip grid still marks the
-  clip being edited, faintly.
+  clip being edited, faintly. The scene's whole row is marked faintly across every
+  track (cells and dividers), the cursor's own cell brighter on top.
 - The outline panel has a single, narrow layout: the tree across the
   panel, the row's action buttons as chips in a 3-row bar under it, and
   the details text (description, hints) in a popup beside the panel

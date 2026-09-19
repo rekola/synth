@@ -462,6 +462,9 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
       // Unfocused, the cursor's clip cell still shows faintly - it's the
       // clip the pattern editor below is on (TerminalUI::syncSessionView()).
       bool is_editing_cell = !focused && track_index == cursor_track_index_ && physical_row == cursor_physical;
+      // The cursor's clip row is the scene the pattern editor shows - the
+      // whole row is marked, faintly, across every track.
+      bool is_scene_row = physical_row == cursor_physical && physical_row < clip_rows;
 
       // The Sends value row mixes a cursive unit label with plain-weight
       // numbers, which a single putstr call can't do - handled directly
@@ -568,6 +571,8 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
           row_bg = row_bg.blend(0.35f, kWhite);
         } else if (is_editing_cell) {
           row_bg = row_bg.blend(0.15f, kWhite);
+        } else if (is_scene_row) {
+          row_bg = row_bg.blend(0.08f, kWhite);
         }
         setFgColor(row_fg);
         setBgColor(row_bg);
@@ -610,8 +615,11 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     setFgColor(styles.window_border_color);
     setBgColor(styles.window_accent_bg_color); // matches the header row's own dark grey backdrop, not the plain window background below it
     putstr(0, x + kColWidth, "│");
-    setBgColor(styles.window_bg_color);
-    for (auto y = 1; y < rows; y++) putstr(y, x + kColWidth, "│");
+    auto scene_y = cursor_physical < clip_rows ? 1 + cursor_physical - scroll_row_ : -1;
+    for (auto y = 1; y < rows; y++) {
+      setBgColor(y == scene_y ? styles.window_bg_color.blend(0.08f, kWhite) : styles.window_bg_color);
+      putstr(y, x + kColWidth, "│");
+    }
   }
 
   inline_editor_.paintBackdrop();

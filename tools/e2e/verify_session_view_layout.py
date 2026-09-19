@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Drive Session view's layout through a pty: no scope row, the clip grid
 and the pattern editor kept on the same scene whichever one moves, the clip
-grid's cursor never on its header row, and the outline panel's button bar
+grid's cursor never on its header row, the scene's row marked across every
+track, and the outline panel's button bar
 and details popup (Escape closes it at once, yet still starts an Alt
 chord).
 """
@@ -74,6 +75,9 @@ def main():
     scr.send(PGDN)
     scr.pump(0.5)
     check("the unfocused clip grid marks the pattern editor's scene", grid_cursor_rows(scr) == [9], scr)
+    other_track_x = OUTLINE_COLS + 1 + 19  # the next track's column
+    check("the scene's whole row is marked, across every track",
+          [y for y in range(2, 14) if scr.screen.buffer[y][other_track_x].bg not in ("151515", "default")] == [9], scr)
 
     other_window(scr)  # -> outline panel
     scr.send(DOWN)
