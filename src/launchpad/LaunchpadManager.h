@@ -561,6 +561,9 @@ class LaunchpadManager {
   // Launches every one of `track_ids`' own clip at `clip_index` together,
   // quantized like a single pad press (triggerSessionClip()).
   void launchScene(Controller & controller, int clip_index, const std::vector<int> & track_ids);
+  // Stops every track the way Stop Clip stops one (stopSessionTrack()) -
+  // the clip grid master column's Stop all.
+  void stopAllSessionTracks(Controller & controller);
 
   // Device-wide aftertouch (the alternative to handlePadEvent's per-pad
   // AFTERTOUCH case - see LaunchpadChannelPressureEvent) - there's no
@@ -1173,9 +1176,9 @@ class LaunchpadManager {
   struct TriggeredPattern { int clip_index; int launch_step; };
   std::unordered_map<int, TriggeredPattern> triggered_pattern_by_track_;
   // A Session-view press queues here instead of taking effect immediately
-  // - either a clip index (>= 0, a fresh join or a swap) or -1 (a press on
-  // an unassigned row, or repressing the already-triggered pad - a plain
-  // stop). Unlike triggered_pattern_by_track_, a track can have an entry
+  // - either a clip index (>= 0, a fresh join, a swap, or repressing the
+  // already-triggered pad - a relaunch from its row 0) or -1 (a press on
+  // an unassigned row - a plain stop). Unlike triggered_pattern_by_track_, a track can have an entry
   // here with no corresponding triggered_pattern_by_track_ entry at all -
   // a fresh launch queued because something else in the session is
   // already playing (see handleSessionPadEvent()'s own comment) is

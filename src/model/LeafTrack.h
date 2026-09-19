@@ -63,21 +63,12 @@ class LeafTrack : public Track {
   Monitor getMonitor() const { return monitor_; }
   void setMonitor(Monitor m) { monitor_ = m; }
 
-  // Plain linear multipliers, same as SendLevels.h's own fields (see its
-  // doc comment) - dB is only ever a control-surface/file-format unit, one
-  // layer up from here (Controller::setTrackSendA()/setTrackSendB()/
-  // setTrackSendMain(), loadParameters()/storeParameters() below).
-  const SendLevels & getSends() const { return sends_; }
-  void setSendA(float s) { sends_.a = s; }
-  void setSendB(float s) { sends_.b = s; }
-  void setSendMain(float s) { sends_.main = s; }
 
 private:
   bool solo_ = false, muted_ = false;
   Monitor monitor_ = Monitor::AUTO;
   float elevation_ = 0, azimuth_ = 0, distance_ = 0;
   float extent_ = -1.0f;
-  SendLevels sends_;
 
   bool show_note_column_ = true;
   bool show_velocity_column_ = true;

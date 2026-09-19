@@ -3076,6 +3076,10 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
   clip_grid_->setTriggerCallback([this](int track_id, int clip_index) {
     launchpad_manager_->triggerSessionClip(getController(), track_id, clip_index);
   });
+  clip_grid_->setSceneCallback([this](int clip_index) {
+    launchpad_manager_->launchScene(getController(), clip_index, getController().getSong().getPlayableTrackIds());
+  });
+  clip_grid_->setStopAllCallback([this]() { launchpad_manager_->stopAllSessionTracks(getController()); });
   // Record Arm's own drum-machine-track repurposing ("toggle-record-arm",
   // Controller.cpp) - opening a clip (Controller::setFocusedClip()) moves
   // the shared track cursor to it (so PatternEditor's/the Launchpad's own

@@ -1,6 +1,8 @@
 #ifndef _SENDLEVELS_H_
 #define _SENDLEVELS_H_
 
+#include <cmath>
+
 // Bundles the 3 send levels Track::playNote()'s whole call chain threads
 // down to each leaf voice, in one struct instead of a loose float parameter
 // per send (which would otherwise mean growing playNote()'s already-long
@@ -40,5 +42,13 @@ struct SendLevels {
   float a = 0.0f;
   float b = 0.0f;
 };
+
+// Sends are persisted and edited in dB (a perceptual/log quantity is far
+// easier to dial a subtle send with than a linear fraction), but the
+// fields above are plain linear multipliers read per sample - these
+// convert at the XML boundary (Track/LeafTrack's load/storeParameters()),
+// with -100dB as "off", the same floor TreeNode's own conversion uses.
+inline float sendDbToLinear(float db) { return db > -100.0f ? std::pow(10.0f, db * 0.05f) : 0.0f; }
+inline float sendLinearToDb(float linear) { return linear <= 0.00001f ? -100.0f : 20.0f * std::log10(linear); }
 
 #endif

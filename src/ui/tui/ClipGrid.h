@@ -83,6 +83,11 @@ class ClipGrid : public UIElement {
   // ArrangementGrid's own commit_callback_ already uses (this class has
   // no idea LaunchpadManager exists either). Wired in UI::start().
   void setTriggerCallback(std::function<void(int track_id, int clip_index)> cb) { trigger_callback_ = std::move(cb); }
+  // The master column (the last one, after every track): Enter on one of
+  // its clip rows launches that whole scene, on its Stop row stops every
+  // track.
+  void setSceneCallback(std::function<void(int clip_index)> cb) { scene_callback_ = std::move(cb); }
+  void setStopAllCallback(std::function<void()> cb) { stop_all_callback_ = std::move(cb); }
   // Rows needed to show everything without scrolling (the header plus
   // every row below it).
   int preferredHeight() const { return 1 + physicalRowCount(); }
@@ -98,6 +103,11 @@ class ClipGrid : public UIElement {
   // each. Shared between render() and startClipRename() so the reader's
   // own placement always lines up with what render() just drew.
   static constexpr int kColWidth = 18;
+  // The level meter: a vertical braille bar in a column's last cell,
+  // beside the Sends/Direction rows (kSendsLabel through kDirectionValue),
+  // which leave that cell free.
+  static constexpr int kMeterRows = 5;
+  static constexpr int kSendsTextWidth = kColWidth - 1;
 
   // The row-axis kind a given *logical* row is - physicalFor() maps
   // between this and the actual on-screen row, which also includes
@@ -145,11 +155,24 @@ class ClipGrid : public UIElement {
   std::vector<SessionPadHighlight> current_clip_states_;
 
   std::function<void(int track_id, int clip_index)> trigger_callback_;
+  std::function<void(int clip_index)> scene_callback_;
+  std::function<void()> stop_all_callback_;
+  // The visible meters' levels at the last redraw, in bar steps - a change
+  // redraws.
+  std::vector<int> current_meter_steps_;
 
   // Clip and track rename share one editor; only one can be open at a time.
   InlineEditor inline_editor_{getPlane()};
 
   void ensureCursorVisible(int visible_rows, int visible_cols, int num_tracks);
+  void renderMasterColumn(const StyleProvider & styles, int x, int rows, bool focused, int num_tracks,
+                          const std::function<SessionPadHighlight(int clip_row)> & scene_state);
+  // A column's level meter (TrackInfo's linear RMS) in its last cell, over
+  // whichever of its kMeterRows rows are on screen.
+  void renderMeter(const StyleProvider & styles, int x, int rows, float meter_value, bool clipping);
+  // Edits the Send Main/A/B of the column under the cursor - a track's,
+  // or the master's (the dry mix and the send bus's returns).
+  void startSendsEdit(int track_id);
   void startClipRename(const Song & song, const std::vector<int> & track_ids);
   // F2 on any row but a populated clip slot renames the track itself
   // instead (see offerInput()'s own F2 handling) - the header row has no

@@ -754,9 +754,12 @@ would otherwise resume showing.
   triggered clip's own loop length (that only decides where *it* loops,
   not when a pending change is allowed to interrupt it) and never
   immediate (`triggered_pattern_by_track_`/`queued_pattern_by_track_`,
-  `-1` is the queued-stop sentinel) - an unassigned pad, or repressing the
-  active pad, both queue a stop; either way the track's voices are
-  released through their natural `stopNote()` tail once the stop actually
+  `-1` is the queued-stop sentinel) - an unassigned pad queues a stop,
+  while repressing the active pad relaunches its clip from row 0 at the
+  next boundary (a launch never toggles - the live-sequencer convention;
+  a scene launch, the same press on every track, restarts a playing scene
+  the same way); a stop releases the track's voices through their
+  natural `stopNote()` tail once it actually
   takes effect (`InstrumentTrackState::stopAllVoices()`, a
   `STOP_ALL_NOTES` playback event), not left ringing or hard-cut. Stopping
   a track this way (as opposed to a plain press retriggering/reassigning
@@ -902,6 +905,21 @@ would otherwise resume showing.
   queued to record (○), dim red for an armed track's empty slot (○) or a
   take queued to stop (●). Terminal cells can't pulse, so the glyph's
   shape tells queued from running.
+  The last column is the master's, scrolling with the tracks: its slots
+  launch a whole scene (`LaunchpadManager::launchScene()`), its last row
+  stops every track, and its Sends row shows its Send Main/A/B. Sends
+  are every `Track`'s (`Track::getSends()`), not just a leaf's, so the
+  master has the same parameters, stored and set the same way
+  (`sendMain`/`sendA`/`sendB`, `Controller::setTrackSendMain()`/`A()`/
+  `B()`): its Send Main is the song's dry mix level and its Send A/B the
+  send bus's two returns, applied in `SongState::renderBlock()`; only
+  leaf tracks have Mute/Solo/Monitor and Direction. Enter on a Sends row
+  edits the three values. Every column has a vertical braille level meter
+  beside its Sends/Direction rows (`BrailleMeter.h`, one dB mapping and
+  glyph set shared with the pattern editor's meters); the master's reads
+  the master track's output - the dry mix plus the returns, after the
+  master's levels (`SongState::getMasterMeterValue()`) - which each
+  playback snapshot reports as the master's `TrackInfo`.
   "toggle-view" (Tab) flips between them, the live-sequencer convention;
   "arrangement-view"/"session-view"/"outline-view" select one directly
   (View menu). `PatternEditor` reads and writes through a `PatternSource`

@@ -808,7 +808,7 @@ Controller::syncLiveGlideStateIntoModel(const string & buffer_name, const Playba
     auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
     if (!leaf_track) continue;
     if (track_info.hasLiveSends()) {
-      auto & sends = leaf_track->getSends();
+      auto sends = leaf_track->getSends();
       // Only actually write (and only incVersion() - the "unsaved
       // changes" signal) when something really changed - every snapshot
       // arrives whether or not any track is currently gliding, and
@@ -925,33 +925,36 @@ Controller::toggleTrackCollapsed(int track_id) {
 
 void
 Controller::setTrackSendA(int track_id, float value) {
+  // Any track, the master included (its Send A/B are the bus's returns).
   auto song = getCurrentSong();
-  auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
-  if (!leaf_track) return;
+  auto track = song->getMasterTrack().getChildByInternalId(track_id);
+  if (!track) return;
   float linear = dbToLinear(value);
-  leaf_track->setSendA(linear);
+  track->setSendA(linear);
   song->incVersion();
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_A, getActiveBufferName(), track_id, static_cast<int>(linear * 1000.0f + 0.5f)));
 }
 
 void
 Controller::setTrackSendB(int track_id, float value) {
+  // Any track, the master included (its Send A/B are the bus's returns).
   auto song = getCurrentSong();
-  auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
-  if (!leaf_track) return;
+  auto track = song->getMasterTrack().getChildByInternalId(track_id);
+  if (!track) return;
   float linear = dbToLinear(value);
-  leaf_track->setSendB(linear);
+  track->setSendB(linear);
   song->incVersion();
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_B, getActiveBufferName(), track_id, static_cast<int>(linear * 1000.0f + 0.5f)));
 }
 
 void
 Controller::setTrackSendMain(int track_id, float value) {
+  // Any track, the master included (its Send Main is the dry mix's level).
   auto song = getCurrentSong();
-  auto leaf_track = asLeafTrack(song->getMasterTrack().getChildByInternalId(track_id));
-  if (!leaf_track) return;
+  auto track = song->getMasterTrack().getChildByInternalId(track_id);
+  if (!track) return;
   float linear = dbToLinear(value);
-  leaf_track->setSendMain(linear);
+  track->setSendMain(linear);
   song->incVersion();
   getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::SET_TRACK_SEND_MAIN, getActiveBufferName(), track_id, static_cast<int>(linear * 1000.0f + 0.5f)));
 }

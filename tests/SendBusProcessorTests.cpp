@@ -142,3 +142,21 @@ TEST(send_bus_processor_haze_in_slot_b_reaches_every_ambisonic_channel) {
     CHECK(energy > 0.0);
   }
 }
+
+// The master's Send A/B scale each slot's return on its own: slot A's
+// output at half, slot B's untouched.
+TEST(send_bus_processor_return_levels_scale_each_slot_separately) {
+  ChannelConfiguration config(44100, 1);
+  SendBusProcessor bus(config);
+  bus.setSlotEffect(SendBusProcessor::kSlotA, make_unique<FakeDirectEffect>(config.getAudioOutSampleRate()));
+  bus.setSlotEffect(SendBusProcessor::kSlotB, make_unique<FakeDirectEffect>(config.getAudioOutSampleRate()));
+
+  int frames = 16;
+  auto auxA = silentMono(frames);
+  auto auxB = silentMono(frames);
+  bus.process(auxA, auxB, frames, 0.5f, 1.0f);
+  CHECK_NEAR(bus.getBusAmbisonic().getChannelData(0)[0], FakeDirectEffect::kMarker * 1.5f, 1e-6f);
+
+  bus.process(auxA, auxB, frames, 1.0f, 0.0f);
+  CHECK_NEAR(bus.getBusAmbisonic().getChannelData(0)[0], FakeDirectEffect::kMarker, 1e-6f);
+}

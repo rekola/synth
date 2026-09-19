@@ -2180,11 +2180,12 @@ LaunchpadManager::triggerSessionClip(Controller & controller, int track_id, int 
       return;
     }
     if (triggered_it != triggered_pattern_by_track_.end() && triggered_it->second.clip_index == clip_index) {
-      // Pressing the already-triggered pattern again queues a stop - the
-      // exact same quantized handling as pressing an empty row above, not
-      // an immediate cut - this is also the only way to stop a track
-      // whose clip list fills every row (no empty one to press).
-      queued_pattern_by_track_[track_id] = -1;
+      // Pressing the already-playing clip again relaunches it - from its
+      // row 0 at the next boundary, the live-sequencer convention (a
+      // launch never toggles; stopping is an empty slot, Stop Clip or
+      // Stop all). A scene launch is this same press on every track, so a
+      // playing scene restarts too.
+      queued_pattern_by_track_[track_id] = clip_index;
       return;
     }
     // Either nothing is triggered on this track yet, or something else
@@ -2327,6 +2328,11 @@ LaunchpadManager::launchScene(Controller & controller, int clip_index, const vec
   if (nothing_pending) shared_launch_step = restartAuditionClockFromSilence();
 
   for (auto track_id : track_ids) triggerSessionClip(controller, track_id, clip_index, shared_launch_step);
+}
+
+void
+LaunchpadManager::stopAllSessionTracks(Controller & controller) {
+  for (auto track_id : controller.getSong().getPlayableTrackIds()) stopSessionTrack(controller, track_id);
 }
 
 void

@@ -6,7 +6,7 @@ the Launchpad Session grid address) at a time, with one playhead per track.
 Views stop being buffers: a buffer is a song, and a view is how the UI is
 laid out around it.
 
-Status: Phases 0-6 committed; Phase 7 done (not yet committed). Every phase lands as its own commit(s), with `ctest`
+Status: Phases 0-7 committed; Phase 8 done (not yet committed). Every phase lands as its own commit(s), with `ctest`
 and the e2e scripts green.
 
 ## The cursor model
@@ -596,38 +596,50 @@ redraws when a visible slot's state changes; no blinking):
 
 ---
 
-## Phase 8: a master track in the clip grid
+## Phase 8: a master track and VU meters in the clip grid
 
-The live-sequencer convention: the clip grid's rightmost column is the
-master track, and its slots launch scenes.
+Done (not yet committed). The live-sequencer convention: the clip grid's
+last column is the master track, and its slots launch scenes. Every
+column also gets a level meter.
 
-- **Scene launch:** each of the master column's clip rows launches that
-  whole scene - clip row k on every track - the way the Launchpad's
-  right-column scene buttons already do (`LaunchpadManager::
-  triggerSceneRow()`, bar-quantized, atomic across the row). Enter on a
-  master slot launches; on a playing scene, stops it. The slot shows the
-  row's state (all playing / some playing / queued), from the same
-  `clipHighlight()` source as the track columns. Scenes stay unnamed
-  (Phase 3's decision) - the slot shows its number, not a name.
-- **Stop all:** a slot below the scene rows (or the header) stops every
-  track, quantized like a single stop.
-- **Master parameters:** the Sends/Direction rows become the master's
-  own controls, the same cursor-addressable rows the tracks have: master
-  volume (a new, persisted `MasterTrack` gain applied before the mixer's
-  decode), and the shared send bus's return levels (Send A/B returns -
-  the bus effects' wet levels, `BusEffect::getWetLevel()`), since the
-  master is where those buses land. No Direction for the master (it has
-  no position); that row can show tempo instead, editable in place.
-  Decide whether the master's Mute/Solo flags mean anything (Mute = mute
-  everything is plausible; Solo isn't) - otherwise the header shows none.
-- **Layout:** the master column is always visible, pinned to the right
-  edge rather than scrolling with the tracks, in the header strip's
-  colour; the clip grid's cursor moves onto it like any track, and the
-  pattern editor shows nothing for it (it has no clips of its own).
-- **Launchpad:** unchanged - its right column already is this.
-- Tests: launching a master slot queues every track's clip in that row
-  at the same step; master volume scales the rendered output
-  (`renderSongOffline()`); the gain round-trips through the song file.
+- **Master column:** the last column, after every track, scrolling with
+  them like any other. Header "Master", no flags - only leaf tracks have
+  Mute/Solo/Monitor.
+- **Scene launch:** each of its clip rows launches that whole scene -
+  clip row k on every track - through `LaunchpadManager::launchScene()`,
+  the same bar-quantized, atomic launch the Launchpad's right-column
+  scene buttons use. Scenes have no names, so a slot shows only the
+  launch glyph, green while its scene plays or is queued, dim when no
+  track has a clip in that row.
+- **Stop all:** the master's second addressable row, where a track has
+  its Direction values (the master has no position), stops every track
+  (`LaunchpadManager::stopAllSessionTracks()`).
+- **The same send parameters as a track:** Send Main/A/B moved from
+  `LeafTrack` to `Track`, stored as `sendMain`/`sendA`/`sendB` in dB, set
+  through the same `Controller::setTrackSendMain()`/`A()`/`B()` and
+  `SET_TRACK_SEND_*` events. A leaf's feed its voices; the master's are
+  the song's own levels - Send Main the dry mix, Send A/B the send bus's
+  two returns (`SendBusProcessor::process()`'s return levels, not the
+  chain send between the slots) - so they default to 0 dB where a leaf's
+  A/B default to off. Applied as is, no ramp: automation ramps anyway.
+  Enter on any column's Sends row edits its three values inline. Not
+  applied yet: a Group or Effect track's own sends (stored, but only a
+  leaf's and the master's reach the mix), and a glide, Launchpad fader
+  or `0Lxx`-style command on the master's.
+- **VU meters:** every column has a vertical braille meter in its last
+  cell beside the Sends/Direction rows, five rows tall (20 steps),
+  dB-mapped like the pattern editor's one-cell meters, sharing their
+  glyphs and mapping (`BrailleMeter.h`). A track's level is its
+  `TrackInfo` loudness; the master's is the master track's output - the
+  song's dry mix plus the send bus's returns, after the master's own
+  levels, on W like every track's (`SongState::getMasterMeterValue()`),
+  reported as the master's `TrackInfo`. The pattern editor's master
+  column shows it in the meter cell every column has. The grid redraws
+  when a visible meter's level changes.
+- **Launchpad:** unchanged - its right column already launches scenes.
+- Tests: the master's Send Main scales the rendered mix and round-trips
+  through the song file; each Send A/B scales only its own return; the
+  braille cells and bar.
 
 ---
 

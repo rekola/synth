@@ -69,8 +69,10 @@ class SendBusProcessor {
   // send - see the class comment above). Always processes, even when both
   // are silent, so every slot's internal tail/feedback/pattern state
   // stays continuous across blocks (same reasoning as
-  // AmbisonicBinauralMixer's overlap-add tail).
-  void process(const AudioBuffer & aux_a_mono, const AudioBuffer & aux_b_mono, int frames);
+  // AmbisonicBinauralMixer's overlap-add tail). return_a/return_b scale
+  // each slot's output into the bus (the master track's Send A/B) - not
+  // what slot B's chain send feeds slot A, which stays pre-return.
+  void process(const AudioBuffer & aux_a_mono, const AudioBuffer & aux_b_mono, int frames, float return_a = 1.0f, float return_b = 1.0f);
 
   const AudioBuffer & getBusAmbisonic() const { return bus_ambisonic_; }
 
@@ -97,6 +99,7 @@ class SendBusProcessor {
   int ambisonic_channels_;
 
   AudioBuffer bus_ambisonic_;    // always ambisonic_channels_ channels
+  AudioBuffer direct_scratch_;   // one slot's encodeDirect() output, when its return isn't unity
 };
 
 #endif

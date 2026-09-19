@@ -221,13 +221,30 @@ class Track : public StatefulSongObject {
   bool isCollapsed() const { return collapsed_; }
   void setCollapsed(bool collapsed) { collapsed_ = collapsed; }
 
+  // A track's send levels (SendLevels.h), linear multipliers stored as
+  // "sendMain"/"sendA"/"sendB" in dB. A leaf's feed its voices; the
+  // master's are the song's own levels - Send Main the dry mix, Send A/B
+  // the shared send bus's two returns - so they default to unity where a
+  // leaf's A/B default to off.
+  SendLevels getSends() const { return sends_; }
+  float getSendMain() const { return sends_.main; }
+  void setSendMain(float s) { sends_.main = s; }
+  void setSendA(float s) { sends_.a = s; }
+  void setSendB(float s) { sends_.b = s; }
+
   void loadParameters(const ParameterSource & input) override {
     SongObject::loadParameters(input);
     collapsed_ = input.get<bool>("collapsed", defaultCollapsed());
+    sends_.main = sendDbToLinear(input.get<float>("sendMain", 0.0f));
+    sends_.a = sendDbToLinear(input.get<float>("sendA", defaultSendDb()));
+    sends_.b = sendDbToLinear(input.get<float>("sendB", defaultSendDb()));
   }
 
   void storeParameters(ParameterSource & output) const override {
     SongObject::storeParameters(output);
+    output.set("sendMain", sendLinearToDb(sends_.main), 0.0f);
+    output.set("sendA", sendLinearToDb(sends_.a), defaultSendDb());
+    output.set("sendB", sendLinearToDb(sends_.b), defaultSendDb());
     // Only written when it differs from the type's own default (above) -
     // an untouched song file round-trips with no new "collapsed"
     // attribute at all.
@@ -243,6 +260,8 @@ class Track : public StatefulSongObject {
 
   TrackType type_;
   bool collapsed_ = false;
+  float defaultSendDb() const { return type_ == TrackType::MASTER ? 0.0f : -100.0f; }
+  SendLevels sends_ = type_ == TrackType::MASTER ? SendLevels{ 1.0f, 1.0f, 1.0f } : SendLevels{};
   std::vector<std::unique_ptr<Track> > children_;
 };
 

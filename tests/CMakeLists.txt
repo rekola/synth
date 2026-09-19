@@ -72,6 +72,7 @@ add_executable(synth_tests
 	TimeStretcherTests.cpp
 	RecordingRingBufferTests.cpp
 	MonoFifoTests.cpp
+	BrailleMeterTests.cpp
 	GroovePatternLibraryTests.cpp
 	ValueRampTests.cpp
 )

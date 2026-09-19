@@ -506,8 +506,14 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
     }
     break;
 
+  // The master has no state node of its own; its sends are the song's
+  // own levels (SongState::setMasterSendMain()'s comment).
   case PlaybackControlEvent::SET_TRACK_SEND_A:
     {
+      if (ev.getParameter1() == song.getMasterTrack().getInternalId()) {
+        state.setMasterSendA(ev.getParameter2() / 1000.0f);
+        break;
+      }
       auto track_state = dynamic_cast<LeafTrackState*>(state.getChildByInternalId(ev.getParameter1()));
       if (track_state) track_state->setSendA(ev.getParameter2() / 1000.0f);
     }
@@ -515,6 +521,10 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 
   case PlaybackControlEvent::SET_TRACK_SEND_B:
     {
+      if (ev.getParameter1() == song.getMasterTrack().getInternalId()) {
+        state.setMasterSendB(ev.getParameter2() / 1000.0f);
+        break;
+      }
       auto track_state = dynamic_cast<LeafTrackState*>(state.getChildByInternalId(ev.getParameter1()));
       if (track_state) track_state->setSendB(ev.getParameter2() / 1000.0f);
     }
@@ -522,6 +532,10 @@ Player::handlePlaybackControlEvent(PlaybackControlEvent & ev) {
 
   case PlaybackControlEvent::SET_TRACK_SEND_MAIN:
     {
+      if (ev.getParameter1() == song.getMasterTrack().getInternalId()) {
+        state.setMasterSendMain(ev.getParameter2() / 1000.0f);
+        break;
+      }
       auto track_state = dynamic_cast<LeafTrackState*>(state.getChildByInternalId(ev.getParameter1()));
       if (track_state) track_state->setSendMain(ev.getParameter2() / 1000.0f);
     }
@@ -1006,6 +1020,7 @@ Player::createPlaybackEvent(const string & buffer_name, const Song & song, const
 
   std::unordered_map<int, TrackInfo> effect_info;
   state.getAllTrackInfo(effect_info);
+  effect_info[song.getMasterTrack().getInternalId()] = TrackInfo(state.getMasterMeterValue() > 0.0f, state.isMasterClipping(), state.getMasterMeterValue());
   info.setTrackInfo(move(effect_info));
 
   std::unordered_map<int, std::vector<ActiveVoiceInfo> > active_voices;

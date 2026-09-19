@@ -101,6 +101,16 @@ def main():
     check("the launched clip's playhead shows in its own track's column", playing_t0, scr)
     check("no playhead in a track with nothing launched", not playing_t1, scr)
 
+    # Launching the playing clip again relaunches it at the next bar - a
+    # launch never toggles - so past that bar its playhead still moves.
+    scr.send(b"\r")
+    scr.wait(3.0)  # past the next bar
+    still_playing = False
+    for _ in range(8):
+        scr.pump(0.2)
+        still_playing |= any(scr.screen.buffer[top + r][6].bg in PLAYHEAD_BG for r in range(4))
+    check("launching the playing clip again restarts it rather than stopping it", still_playing, scr)
+
     # Space in Session view's pattern editor plays and stops the scene.
     other_window(scr)  # clip grid -> pattern editor
     scr.send(b" ")

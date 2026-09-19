@@ -1980,3 +1980,35 @@ TEST(render_golden_hash_catches_randomization_regressions) {
   CHECK(!hasNonFiniteSample(arp_result));
   if (canonical_arch) CHECK(hashSamples(arp_result) == 0xdcd3a248cb0ce779ull);
 }
+
+// The master's Send Main is the song's volume: half of it halves the
+// whole mix.
+TEST(render_master_send_main_scales_the_mix) {
+  auto unity = loadFixture("center_note.xml");
+  auto quieter = loadFixture("center_note.xml");
+  CHECK(unity.ok && quieter.ok);
+  quieter.song.getMasterTrack().setSendMain(0.5f);
+
+  ChannelConfiguration config(44100, 1);
+  auto a = renderSongOffline(unity.song, config);
+  auto b = renderSongOffline(quieter.song, config);
+  CHECK(rms(a, 0) > 1e-4f);
+  CHECK_NEAR(rms(b, 0), rms(a, 0) * 0.5f, rms(a, 0) * 0.02f);
+}
+
+// The master's Send Main is stored as <tracks sendMain="..."> and read
+// back, the same attribute a leaf track uses.
+TEST(master_send_main_round_trips_through_the_song_file) {
+  namespace fs = std::filesystem;
+  auto loaded = loadFixture("center_note.xml");
+  CHECK(loaded.ok);
+  loaded.song.getMasterTrack().setSendMain(0.5f);
+  auto path = fs::temp_directory_path() / "synth_master_send_main_test.xml";
+  loaded.song.save(path.string());
+
+  InstrumentProvider provider;
+  Song reopened;
+  CHECK(reopened.open(path.string(), provider));
+  CHECK_NEAR(reopened.getMasterTrack().getSendMain(), 0.5f, 1e-4f);
+  fs::remove(path);
+}

@@ -17,7 +17,7 @@ SendBusProcessor::setSlotEffect(int slot, std::unique_ptr<BusEffect> effect) {
 }
 
 void
-SendBusProcessor::process(const AudioBuffer & aux_a_mono, const AudioBuffer & aux_b_mono, int frames) {
+SendBusProcessor::process(const AudioBuffer & aux_a_mono, const AudioBuffer & aux_b_mono, int frames, float return_a, float return_b) {
   auto & slot_a = *slots_[kSlotA];
   auto & slot_b = *slots_[kSlotB];
 
@@ -52,7 +52,7 @@ SendBusProcessor::process(const AudioBuffer & aux_a_mono, const AudioBuffer & au
   // dropped).
   for (auto * slot : { &slot_a, &slot_b }) {
     int n = slot->getNumTaps();
-    float wet = slot->getWetLevel();
+    float wet = slot->getWetLevel() * (slot == &slot_a ? return_a : return_b);
     for (int t = 0; t < n; t++) {
       auto gains = computeAmbisonicGains(slot->getTapDirection(t));
       for (auto & g : gains) g *= wet;
@@ -67,6 +67,20 @@ SendBusProcessor::process(const AudioBuffer & aux_a_mono, const AudioBuffer & au
   // per-type branching" convention as the tap loop above; a no-op for
   // every effect that doesn't override it.
   for (auto * slot : { &slot_a, &slot_b }) {
-    slot->encodeDirect(bus_ambisonic_, frames);
+    float slot_return = slot == &slot_a ? return_a : return_b;
+    if (slot_return == 1.0f) {
+      slot->encodeDirect(bus_ambisonic_, frames);
+      continue;
+    }
+    if (direct_scratch_.numberOfFrames() != frames || direct_scratch_.numberOfChannels() != ambisonic_channels_) {
+      direct_scratch_ = AudioBuffer(static_cast<short>(ambisonic_channels_), frames);
+    }
+    direct_scratch_.zero();
+    slot->encodeDirect(direct_scratch_, frames);
+    for (int c = 0; c < ambisonic_channels_; c++) {
+      auto src = direct_scratch_.getChannelData(c);
+      auto dst = bus_ambisonic_.getChannelData(c);
+      for (int i = 0; i < frames; i++) dst[i] += src[i] * slot_return;
+    }
   }
 }

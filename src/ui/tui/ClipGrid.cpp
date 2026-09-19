@@ -1,4 +1,5 @@
 #include "ClipGrid.h"
+#include "BrailleMeter.h"
 #include "../ScenePatternSource.h"
 
 #include "../../playback/InputEvent.h"
@@ -26,16 +27,18 @@ asLeafTrack(const Song & song, int track_id) {
   return dynamic_cast<const LeafTrack *>(song.getMasterTrack().getChildByInternalId(track_id));
 }
 
-// Same "each file keeps its own small dB helper" convention model/
-// LeafTrack.cpp's own dbToLinear()/LaunchpadManager.cpp's own
-// linearToDb() already use - LeafTrack::getSends() is always the plain
-// linear multiplier (SendLevels.h's own doc comment), dB is only ever a
-// display/control-surface unit one layer up from there.
-float linearToDb(float linear) { return linear <= 0.00001f ? -100.0f : 20.0f * log10f(linear); }
-// Clamped so a 3-character column (sign + 2 digits) always fits a real
-// number rather than needing "-inf"/a wider column - -99 reads as
-// "effectively off" just as clearly as the true floor would.
-float clampedDb(float db) { return std::max(db, -99.0f); }
+// A send's linear level in dB, clamped so a 3-character column (sign + 2
+// digits) always fits a real number rather than needing "-inf"/a wider
+// column - -99 reads as "effectively off" just as clearly as the true
+// floor would.
+float sendDb(float linear) { return std::max(sendLinearToDb(linear), -99.0f); }
+
+// A Sends label/value row's text, kSendsTextWidth wide (the column's last
+// cell is the meter's): the same for a track and the master.
+std::string sendsLabel() { return fmt::format("{:<5}{:>4}{:>4}{:>4}", "Sends", "M", "A", "B"); }
+std::string sendValues(const SendLevels & sends) {
+  return fmt::format("{:>4.0f}{:>4.0f}{:>4.0f}", sendDb(sends.main), sendDb(sends.a), sendDb(sends.b));
+}
 
 // A header's trailing " IMS": Monitor, Mute, Solo.
 constexpr int kHeaderFlagsWidth = 4;
@@ -151,16 +154,18 @@ ClipGrid::physicalFor(int logical_row) const {
 
 void
 ClipGrid::ensureCursorVisible(int visible_rows, int visible_cols, int num_tracks) {
-  cursor_track_index_ = clamp(cursor_track_index_, 0, max(0, num_tracks - 1));
+  // Column num_tracks is the master's, the last one.
+  auto num_columns = num_tracks + 1;
+  cursor_track_index_ = clamp(cursor_track_index_, 0, num_tracks);
   cursor_row_ = clamp(cursor_row_, 1, logicalRowCount() - 1); // never the header row
 
-  scroll_col_ = clamp(scroll_col_, 0, max(0, num_tracks - visible_cols));
+  scroll_col_ = clamp(scroll_col_, 0, max(0, num_columns - visible_cols));
   scroll_row_ = clamp(scroll_row_, 0, max(0, physicalRowCount() - visible_rows));
   if (view_detached_) return; // the mouse wheel scrolled away from the cursor
 
   if (cursor_track_index_ < scroll_col_) scroll_col_ = cursor_track_index_;
   if (visible_cols > 0 && cursor_track_index_ >= scroll_col_ + visible_cols) scroll_col_ = cursor_track_index_ - visible_cols + 1;
-  scroll_col_ = clamp(scroll_col_, 0, max(0, num_tracks - visible_cols));
+  scroll_col_ = clamp(scroll_col_, 0, max(0, num_columns - visible_cols));
 
   auto cursor_physical = physicalFor(cursor_row_);
   if (cursor_physical < scroll_row_) scroll_row_ = cursor_physical;
@@ -320,16 +325,29 @@ ClipGrid::offerInput(const InputEvent & input) {
     // pressing an unassigned pad would, so this is called unconditionally
     // on any CLIP row rather than only a populated one.
     auto kind = rowKindFor(cursor_row_);
+    if (cursor_track_index_ == num_tracks) {
+      // The master column: a clip row launches that scene, the Sends row
+      // edits the master's Send Main (the song's volume), the last row
+      // stops every track.
+      if (kind == RowKind::CLIP && scene_callback_) scene_callback_(physicalFor(cursor_row_));
+      else if (kind == RowKind::SENDS) startSendsEdit(song.getMasterTrack().getInternalId());
+      else if (kind == RowKind::DIRECTION && stop_all_callback_) stop_all_callback_();
+      return true;
+    }
+    if (kind == RowKind::SENDS && cursor_track_index_ >= 0 && cursor_track_index_ < num_tracks) {
+      startSendsEdit(track_ids[static_cast<size_t>(cursor_track_index_)]);
+      return true;
+    }
     if (kind == RowKind::CLIP && cursor_track_index_ >= 0 && cursor_track_index_ < num_tracks && trigger_callback_) {
       auto track_id = track_ids[static_cast<size_t>(cursor_track_index_)];
       trigger_callback_(track_id, physicalFor(cursor_row_));
     }
-    // SENDS/DIRECTION: read-only for now - a no-op, still consumed.
+    // DIRECTION: read-only for now - a no-op, still consumed.
     return true;
   }
   else return false;
 
-  cursor_track_index_ = clamp(cursor_track_index_, 0, max(0, num_tracks - 1));
+  cursor_track_index_ = clamp(cursor_track_index_, 0, num_tracks); // num_tracks: the master column
   cursor_row_ = clamp(cursor_row_, 1, logicalRowCount() - 1); // never the header row
 
   // Song::getCurrentTrackId() sync - see PatternEditor::render()'s own
@@ -371,13 +389,44 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     if (!clip_state_source_ || track_index >= num_tracks || clip_row >= clip_rows) return SessionPadHighlight::NONE;
     return clip_state_source_(track_ids[static_cast<size_t>(track_index)], clip_row);
   };
+  // A scene's state, for its master slot: queued while any track in it is
+  // about to launch or record, playing while any plays or records.
+  auto sceneState = [&](int clip_row) {
+    auto state = SessionPadHighlight::NONE;
+    for (int t = 0; t < num_tracks; t++) {
+      auto s = clipState(t, clip_row);
+      if (s == SessionPadHighlight::QUEUED || s == SessionPadHighlight::RECORD_QUEUED) return SessionPadHighlight::QUEUED;
+      if (s == SessionPadHighlight::PLAYING || s == SessionPadHighlight::RECORDING) state = SessionPadHighlight::PLAYING;
+    }
+    return state;
+  };
+  auto master_id = song.getMasterTrack().getInternalId();
+  // The track (or, past the last track, the master) a column index shows.
+  auto columnTrackId = [&](int column) { return column < num_tracks ? track_ids[static_cast<size_t>(column)] : master_id; };
   std::vector<SessionPadHighlight> clip_states;
-  for (auto vc = 0; vc < visible_cols; vc++) {
-    for (auto vr = 0; vr < visible_rows; vr++) clip_states.push_back(clipState(scroll_col_ + vc, scroll_row_ + vr));
+  for (auto vc = 0; vc < visible_cols && scroll_col_ + vc <= num_tracks; vc++) {
+    auto column = scroll_col_ + vc;
+    for (auto vr = 0; vr < visible_rows; vr++) {
+      clip_states.push_back(column < num_tracks ? clipState(column, scroll_row_ + vr) : sceneState(scroll_row_ + vr));
+    }
   }
   bool clip_states_changed = clip_states != current_clip_states_;
   current_clip_states_ = std::move(clip_states);
-  if (!refresh && !editor_redraw && !clip_states_changed && new_version == current_song_version_ &&
+
+  // The meters, in bar steps (negative while clipping) - only a visible
+  // change redraws.
+  auto & playback_info = getController().getPlaybackInfo();
+  auto meterSteps = [&](int track_id) {
+    auto & track_info = playback_info.getTrackInfo(track_id);
+    auto steps = static_cast<int>(braille_meter::fraction(track_info.getMeterValue()) * kMeterRows * 4 + 0.5f);
+    return track_info.isClipping() ? -1 - steps : steps;
+  };
+  std::vector<int> meter_steps;
+  for (auto vc = 0; vc < visible_cols && scroll_col_ + vc <= num_tracks; vc++) meter_steps.push_back(meterSteps(columnTrackId(scroll_col_ + vc)));
+  bool meters_changed = meter_steps != current_meter_steps_;
+  current_meter_steps_ = std::move(meter_steps);
+
+  if (!refresh && !editor_redraw && !clip_states_changed && !meters_changed && new_version == current_song_version_ &&
       cursor_track_index_ == current_cursor_track_index_ && cursor_row_ == current_cursor_row_ &&
       scroll_col_ == current_scroll_col_ && scroll_row_ == current_scroll_row_ &&
       focused == current_focused_ && focused_clip_id == current_focused_clip_id_) {
@@ -413,7 +462,13 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
 
   for (auto vc = 0; vc < visible_cols; vc++) {
     auto track_index = scroll_col_ + vc;
-    if (track_index >= num_tracks) break;
+    if (track_index == num_tracks) {
+      auto & master_info = playback_info.getTrackInfo(master_id);
+      renderMasterColumn(styles, vc * (kColWidth + 1), rows, focused, num_tracks, sceneState);
+      renderMeter(styles, vc * (kColWidth + 1), rows, master_info.getMeterValue(), master_info.isClipping());
+      break;
+    }
+    if (track_index > num_tracks) break;
     auto track_id = track_ids[static_cast<size_t>(track_index)];
     auto x = vc * (kColWidth + 1);
     auto * leaf = asLeafTrack(song, track_id);
@@ -483,13 +538,11 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
         setBgColor(row_bg);
         putstr(y, x, string(static_cast<size_t>(kColWidth), ' ')); // opaque row background first
         if (leaf) {
-          auto & sends = leaf->getSends();
+          auto sends = leaf->getSends();
           setItalic(true);
-          putstr(y, x, " dB   "); // centered under "Sends" above it, nudged one column left of dead-center
+          putstr(y, x, " dB  "); // under "Sends" above it
           setItalic(false);
-          auto values = fmt::format("{:>4.0f}{:>4.0f}{:>4.0f}",
-            clampedDb(linearToDb(sends.main)), clampedDb(linearToDb(sends.a)), clampedDb(linearToDb(sends.b)));
-          putstr(y, x + 6, values);
+          putstr(y, x + 5, sendValues(sends));
         }
         continue;
       }
@@ -603,13 +656,13 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
         text = string(static_cast<size_t>(kColWidth), '-');
         fg = styles.window_border_color;
       } else if (physical_row == clip_rows + kSendsLabel) { // Sends label (decorative, not cursor-addressable) - "Sends" itself lives here, its own unit ("dB") on the value row right under it
-        text = fmt::format("{:<6}{:>4}{:>4}{:>4}", "Sends", "M", "A", "B");
+        text = sendsLabel();
         fg = styles.window_accent_fg_color;
       } else if (physical_row == clip_rows + kDirectionLabel) { // Direction label (decorative)
-        text = fmt::format("{:>6}{:>6}{:>6}", "Az", "El", "Dist");
+        text = fmt::format("{:>5}{:>6}{:>6}", "Az", "El", "Dist");
         fg = styles.window_accent_fg_color;
       } else if (physical_row == clip_rows + kDirectionValue && leaf) { // Direction value, azimuth/elevation/distance on one line
-        text = fmt::format("{:>6.0f}{:>6.0f}{:>6.1f}", leaf->getAzimuth(), leaf->getElevation(), leaf->getDistance());
+        text = fmt::format("{:>5.0f}{:>6.0f}{:>6.1f}", leaf->getAzimuth(), leaf->getElevation(), leaf->getDistance());
       }
       text = Utf8::padToWidth(Utf8::truncateToWidth(text, kColWidth), kColWidth);
 
@@ -627,6 +680,9 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
       putstr(y, x, text);
     }
 
+    auto & track_info = playback_info.getTrackInfo(track_id);
+    renderMeter(styles, x, rows, track_info.getMeterValue(), track_info.isClipping());
+
     setFgColor(styles.window_border_color);
     setBgColor(styles.heading_bg_color); // the header row's own backdrop, not the plain window background below it
     putstr(0, x + kColWidth, "│");
@@ -639,4 +695,143 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
 
   inline_editor_.paintBackdrop();
   return true;
+}
+
+void
+ClipGrid::renderMeter(const StyleProvider & styles, int x, int rows, float meter_value, bool clipping) {
+  auto cells = braille_meter::verticalBar(braille_meter::fraction(meter_value), kMeterRows);
+  auto top = clipRowCount() + kSendsLabel; // physical row of the meter's top cell
+  setBgColor(styles.window_bg_color);
+  setFgColor(clipping ? styles.meter_clip_color : styles.meter_active_color);
+  for (int i = 0; i < kMeterRows; i++) {
+    auto y = top + i - scroll_row_ + 1; // +1 for the header row
+    if (y >= 1 && y < rows) putstr(y, x + kColWidth - 1, cells[static_cast<size_t>(i)]);
+  }
+}
+
+void
+ClipGrid::renderMasterColumn(const StyleProvider & styles, int x, int rows, bool focused, int num_tracks,
+                             const std::function<SessionPadHighlight(int clip_row)> & scene_state) {
+  const Song & song = getController().getSong();
+  auto & master = song.getMasterTrack();
+  auto clip_rows = clipRowCount();
+  auto cursor_physical = physicalFor(cursor_row_);
+  bool cursor_here = cursor_track_index_ == num_tracks;
+  auto track_ids = song.getPlayableTrackIds();
+
+  // Header: the master has no Mute/Solo or Monitor - only leaf tracks do.
+  setFgColor(styles.window_accent_fg_color);
+  setBgColor(styles.heading_bg_color);
+  putstr(0, x, Utf8::padToWidth("Master", kColWidth));
+
+  for (auto vr = 0; vr + 1 < rows; vr++) {
+    auto physical_row = scroll_row_ + vr;
+    auto y = 1 + vr;
+    if (physical_row >= physicalRowCount()) break;
+    bool is_cursor_cell = focused && cursor_here && physical_row == cursor_physical;
+    bool is_editing_cell = !focused && cursor_here && physical_row == cursor_physical;
+    bool is_scene_row = physical_row == cursor_physical && physical_row < clip_rows;
+    Color fg = styles.window_fg_color, bg = styles.window_bg_color;
+    if (is_cursor_cell) {
+      fg = styles.highlight_fg_color;
+      bg = styles.highlight_bg_color;
+    } else if (is_editing_cell) {
+      bg = styles.highlight_unfocused_bg_color;
+    } else if (is_scene_row) {
+      bg = styles.cursorRowTint(bg);
+    }
+
+    if (physical_row < clip_rows) {
+      // A scene slot: launches clip row k on every track. Scenes have no
+      // names - just the launch glyph, dim when no track has a clip there
+      // (launching it just stops everything).
+      bool has_any_clip = false;
+      for (auto track_id : track_ids) {
+        auto & clips = song.getClips(track_id);
+        if (static_cast<size_t>(physical_row) < clips.size() && !clips[static_cast<size_t>(physical_row)].isEmpty()) has_any_clip = true;
+      }
+      if (!has_any_clip && !is_cursor_cell) fg = styles.window_fg_color.blend(0.5f, Color(0, 0, 0));
+      setFgColor(fg);
+      setBgColor(bg);
+      putstr(y, x, Utf8::padToWidth(" ▸", kColWidth));
+      auto state = scene_state(physical_row);
+      if (state == SessionPadHighlight::PLAYING || state == SessionPadHighlight::QUEUED) {
+        setFgColor(styles.clip_playing_color);
+        putstr(y, x + 1, state == SessionPadHighlight::PLAYING ? "▸" : "▹");
+      }
+      continue;
+    }
+
+    auto offset = physical_row - clip_rows;
+    if (offset == kSendsValue) {
+      // The master's own Send Main/A/B: the dry mix and the send bus's two
+      // returns - the same row, and parameters, a track has.
+      setFgColor(fg);
+      setBgColor(bg);
+      putstr(y, x, std::string(static_cast<size_t>(kColWidth), ' '));
+      setItalic(true);
+      putstr(y, x, " dB  ");
+      setItalic(false);
+      putstr(y, x + 5, sendValues(master.getSends()));
+      continue;
+    }
+    std::string text;
+    if (offset == kSendsDivider || offset == kDirectionDivider) {
+      text = std::string(static_cast<size_t>(kColWidth), '-');
+      fg = styles.window_border_color;
+    } else if (offset == kSendsLabel) {
+      text = sendsLabel();
+      fg = styles.window_accent_fg_color;
+    } else if (offset == kDirectionValue) {
+      // The master has no position; its second addressable row stops
+      // every track instead.
+      text = " ⏹ Stop all";
+    }
+    setFgColor(fg);
+    setBgColor(bg);
+    putstr(y, x, Utf8::padToWidth(text, kColWidth));
+  }
+
+  // The trailing divider every column has, the header's in its backdrop.
+  setFgColor(styles.window_border_color);
+  setBgColor(styles.heading_bg_color);
+  putstr(0, x + kColWidth, "│");
+  auto scene_y = cursor_physical < clip_rows ? 1 + cursor_physical - scroll_row_ : -1;
+  for (auto y = 1; y < rows && scroll_row_ + y - 1 < physicalRowCount(); y++) {
+    setBgColor(y == scene_y ? styles.cursorRowTint(styles.window_bg_color) : styles.window_bg_color);
+    putstr(y, x + kColWidth, "│");
+  }
+}
+
+void
+ClipGrid::startSendsEdit(int track_id) {
+  if (inline_editor_.isOpen()) return;
+  auto row = clipRowCount() + kSendsValue - scroll_row_ + 1; // +1 for the header row
+  auto column = cursor_track_index_ - scroll_col_;
+  if (row < 1 || row >= getDim().first || column < 0) return;
+  auto * track = getController().getSong().getMasterTrack().getChildByInternalId(track_id);
+  if (!track) return;
+
+  // The three values as shown, space-separated; each one typed replaces
+  // its send, in order - M, A, B.
+  InlineEditor::Field field;
+  field.row = row;
+  field.col = column * (kColWidth + 1) + 5;
+  field.width = kSendsTextWidth - 5;
+  auto sends = track->getSends();
+  field.initial_text = fmt::format("{:.0f} {:.0f} {:.0f}", sendDb(sends.main), sendDb(sends.a), sendDb(sends.b));
+  inline_editor_.open(field, [this, track_id](std::string text) {
+    auto & controller = getController();
+    const char * p = text.c_str();
+    for (int i = 0; i < 3; i++) {
+      char * end = nullptr;
+      float db = std::strtof(p, &end);
+      if (end == p) break; // no more numbers - the rest stay as they were
+      db = std::clamp(db, -100.0f, 12.0f);
+      if (i == 0) controller.setTrackSendMain(track_id, db);
+      else if (i == 1) controller.setTrackSendA(track_id, db);
+      else controller.setTrackSendB(track_id, db);
+      p = end;
+    }
+  });
 }

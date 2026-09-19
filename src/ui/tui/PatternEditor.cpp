@@ -1,4 +1,5 @@
 #include "PatternEditor.h"
+#include "BrailleMeter.h"
 
 #include "../../playback/InputEvent.h"
 #include "../../state/SongState.h"
@@ -2085,10 +2086,13 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
     // plain block characters. `level` is 0..4, already dB-mapped by the
     // caller so quiet passages still show at least one dot instead of
     // reading as empty until the loudest transients.
+    // A track's level as draw_vu_meter()'s 0..4 dots.
+    auto meter_dots = [](const TrackInfo & track_info) {
+      return static_cast<int>(braille_meter::fraction(track_info.getMeterValue()) * 4.0f + 0.5f);
+    };
     auto draw_vu_meter = [&](int row, int col, int dots, bool clipping) {
-      static const char * const kGlyphs[] = { " ", "⢀", "⢠", "⢰", "⢸" };
       setFgColor(clipping ? styles.meter_clip_color : styles.meter_active_color);
-      putstr(row, col, kGlyphs[std::clamp(dots, 0, 4)]);
+      putstr(row, col, braille_meter::verticalCell(dots));
     };
 
     // Whether the left-edge marker (below) has been drawn yet for this
@@ -2297,16 +2301,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 
 	    if (meter_width > 0) {
 	      auto & track_info = info.getTrackInfo(track->getInternalId());
-	      auto meter_value = track_info.getMeterValue();
-	      // dB-mapped so quiet passages still show at least one dot -
-	      // floor at -40dB (silence, and the default/no-data-yet
-	      // meter_value of -1 maps here too), ceiling at 0dB (full
-	      // scale) - then rounded to draw_vu_meter()'s 0..4 dot levels.
-	      constexpr float kFloorDb = -40.0f;
-	      auto fraction = meter_value <= 0.0f ? 0.0f :
-		std::clamp((20.0f * log10f(meter_value) - kFloorDb) / -kFloorDb, 0.0f, 1.0f);
-	      auto meter_dots = static_cast<int>(fraction * 4.0f + 0.5f);
-	      draw_vu_meter(heading_height - 2 - level + 1, current_pos + instrument_name_width, meter_dots, track_info.isClipping());
+	      draw_vu_meter(heading_height - 2 - level + 1, current_pos + instrument_name_width, meter_dots(track_info), track_info.isClipping());
 	    }
 	  }
 	} else if (actual_width <= 1) {

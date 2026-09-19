@@ -39,8 +39,22 @@ class SongState : public TrackState {
   // send_bus_ via setSlotEffect() - setBusEffectKind() below is this same
   // installation, minus the parameter round-trip, invoked again later at
   // runtime instead of only here at load time.
+  // The master track's own send levels (Track::getSends()) - Send Main
+  // scales the dry mix, Send A/B the send bus's two returns; see
+  // renderBlock().
+  void setMasterSendMain(float linear) { master_sends_.main = linear; }
+  void setMasterSendA(float linear) { master_sends_.a = linear; }
+  void setMasterSendB(float linear) { master_sends_.b = linear; }
+
+  // The master track's output level - the song's dry mix plus the send
+  // bus's returns, after the master's own levels - measured on the
+  // omnidirectional W channel like every track's (TrackInfo).
+  float getMasterMeterValue() const { return master_meter_value_; }
+  bool isMasterClipping() const { return master_clipping_; }
+
   void initialize(const Song & song) {
     tempo_ = song.getTempo();
+    master_sends_ = song.getMasterTrack().getSends();
     render_context_.setBpm(tempo_);
     song_structure_ = SongStructure(song);
     song_structure_version_ = song.getMajorVersion();
@@ -621,6 +635,9 @@ class SongState : public TrackState {
     // once accumulated every one of them into `mixer` unconditionally,
     // bypassing renderChildren()'s solo handling entirely.
     auto data = renderChildren(frames, song.getInstrumentPool(), render_context_, getChannelConfiguration());
+    // The master's Send Main scales the dry mix, not the aux sends feeding
+    // the send bus - its returns have their own levels (below).
+    scaleRegularChannels(data, master_sends_.main);
     mixer.accumulate(data);
 
     if (auto * a = data.getChannel(Channel::AuxA)) {
@@ -646,10 +663,11 @@ class SongState : public TrackState {
       // Always processed, even when both sums are silent, so the shared
       // reverb tail/chorus modulation stay continuous across blocks (see
       // SendBusProcessor.h).
-      send_bus_.process(aux_a_sum_, aux_b_sum_, frames);
+      send_bus_.process(aux_a_sum_, aux_b_sum_, frames, master_sends_.a, master_sends_.b);
       mixer.accumulate(send_bus_.getBusAmbisonic());
     }
 
+    measureMasterOutput(data, frames);
     render_context_.updateFrameOffset(-frames);
   }
 
@@ -852,6 +870,35 @@ private:
   SendBusProcessor send_bus_;
   AudioBuffer aux_a_sum_, aux_b_sum_;
   SongStructure song_structure_;
+  SendLevels master_sends_;
+  float master_meter_value_ = -1.0f;
+  bool master_clipping_ = false;
+
+  static void scaleRegularChannels(AudioBuffer & buffer, float gain) {
+    if (gain == 1.0f) return;
+    auto frames = buffer.numberOfFrames();
+    for (int c = 0; c < buffer.regularChannelCount(); c++) {
+      auto data = buffer.getChannelData(c);
+      for (int i = 0; i < frames; i++) data[i] *= gain;
+    }
+  }
+
+  // The master's output on W: the dry mix plus, when there is one, the
+  // send bus's returns - see getMasterMeterValue().
+  void measureMasterOutput(const AudioBuffer & dry, int frames) {
+    const float * w_dry = dry.getChannel(Channel::Main);
+    const float * w_bus = getChannelConfiguration().isAmbisonic() ? send_bus_.getBusAmbisonic().getChannelData(0) : nullptr;
+    float sum_squares = 0.0f;
+    bool clipping = false;
+    for (int i = 0; i < frames; i++) {
+      float v = (w_dry ? w_dry[i] : 0.0f) + (w_bus ? w_bus[i] : 0.0f);
+      sum_squares += v * v;
+      clipping = clipping || v < -1.0f || v > 1.0f;
+    }
+    master_meter_value_ = frames > 0 ? std::sqrt(sum_squares / static_cast<float>(frames)) : 0.0f;
+    master_clipping_ = clipping;
+  }
+
   int song_structure_version_ = -1; // never equals a real song.getMajorVersion() until initialize()/renderBlock() runs
   // track_id -> the clip index (or Section::kNoInstance/kStopInstance)
   // resolveInstanceAt() returned for that track the last time this row's
