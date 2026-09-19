@@ -810,7 +810,7 @@ PatternEditor::startTrackNameEdit() {
   field.col = edit_col;
   field.width = edit_width;
   field.initial_text = track->getName();
-  field.text_color = Color(0xff, 0xff, 0xff);
+  field.text_color = last_styles_->clip_text_color;
   field.backdrop = track_info.getColor().blend(0.05f, Color(0, 0, 0));
   inline_editor_.open(field, [this, track_id](std::string text) {
     auto & target_song = getController().getSong();
@@ -2026,7 +2026,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
     auto segment_color = [&](Track * t) -> Color {
       if (!t) return styles.window_bg_color;
       auto base = track_base_color(t);
-      return (focused && t->getInternalId() == selected_id) ? base.blend(0.22f, Color(255, 255, 255)) : base;
+      return (focused && t->getInternalId() == selected_id) ? base.blend(0.22f, styles.cursor_tint_color) : base;
     };
     // A faint "transparent black" tint over whatever background is
     // actually drawn (segment_color() - selection brighten included, not
@@ -2083,8 +2083,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
     // reading as empty until the loudest transients.
     auto draw_vu_meter = [&](int row, int col, int dots, bool clipping) {
       static const char * const kGlyphs[] = { " ", "⢀", "⢠", "⢰", "⢸" };
-      if (clipping) setFgColor(0xe0, 0x10, 0x40);
-      else setFgColor(0x10, 0xe0, 0x40);
+      setFgColor(clipping ? styles.meter_clip_color : styles.meter_active_color);
       putstr(row, col, kGlyphs[std::clamp(dots, 0, 4)]);
     };
 
@@ -2357,9 +2356,9 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 	      // matching where the level-0 title bar's own M/S glyphs sit,
 	      // rather than up front where the collapse toggle now is.
 	      if (track_info.isClipping()) {
-		setFgColor(0xe0, 0x10, 0x40);
+		setFgColor(styles.meter_clip_color);
 	      } else if (track_info.isActive()) {
-		setFgColor(0x10, 0xe0, 0x40);
+		setFgColor(styles.meter_active_color);
 	      } else {
 		// Idle: faint_color() - see its own comment - rather than a
 		// fixed grey.
@@ -2435,7 +2434,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     row_base_fg = row_base_fg.blend(0.75f, black);
   }
 
-  // The playhead's own row highlight - a translucent green overlay on
+  // The playhead's own row highlight - a translucent overlay on
   // top of whatever a cell's own ordinary color already is (ambient row
   // tinting, a track's own identity color, ...), not a solid replacement
   // - so it reads as "this row is playing" without erasing the rest of
@@ -2445,17 +2444,14 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
   // work). A real selection is still a stronger, fully-replacing cue
   // (cur_fg/cur_bg, computed per column further down) - callers check
   // for that themselves and skip this entirely when it applies.
-  constexpr float kPlayheadTintAlpha = 0.35f;
-  const Color kPlayheadTint(0x80, 0xb0, 0x80);
-  // Where the cursor row isn't the transport (session mode), it gets a
-  // neutral tint instead, and each track's own playing row (track_playhead,
-  // set per track below) gets the playhead green.
-  const Color kCursorRowTint(0xa0, 0xa0, 0xa0);
+  // The cursor row (in arrangement mode also the transport's row) and,
+  // in session mode, each track's own playing row (track_playhead, set per
+  // track below).
   bool track_playhead = false;
   auto tintForPlayhead = [&](Color base) -> Color {
-    if (track_playhead) return base.blend(kPlayheadTintAlpha, kPlayheadTint);
+    if (track_playhead) return styles.playheadTint(base);
     if (!highlight) return base;
-    return base.blend(kPlayheadTintAlpha, source_->cursorFollowsTransport() ? kPlayheadTint : kCursorRowTint);
+    return styles.cursorRowTint(base);
   };
 
   // A clip instance's own identifier digit (below) - superscript, not a
@@ -2601,7 +2597,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	// still reads as "this clip is here, just faint." Blended mostly
 	// toward bg_color deliberately, not away from it - "faint" means
 	// close to whatever the row's own current background actually is
-	// (plain window background, playhead green, or selection highlight
+	// (plain window background, playhead tint, or selection highlight
 	// alike), not a fixed contrast level fighting to stay visible
 	// against it.
 	constexpr float kQuietDotTint = 0.35f;
@@ -2645,10 +2641,13 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     // what EVERYTHING means.
     bool column_scoped_selection = row_track_in_selection &&
       sel_bounds.scope != SelectionScope::TRACK && sel_bounds.scope != SelectionScope::EVERYTHING;
-    bool in_selection = focused && row_track_in_selection && !column_scoped_selection;
+    // Unfocused, the region still shows, faintly - it's where edits land.
+    Color region_fg = focused ? styles.highlight_fg_color : styles.window_fg_color;
+    Color region_bg = focused ? styles.highlight_bg_color : styles.highlight_unfocused_bg_color;
+    bool in_selection = row_track_in_selection && !column_scoped_selection;
     if (in_selection) {
-      fg = styles.highlight_fg_color;
-      bg = styles.highlight_bg_color;
+      fg = region_fg;
+      bg = region_bg;
     }
 
     if (i == -1) {
@@ -2697,7 +2696,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
       // tracks in the same row can have different (or no) length of
       // their own.
       auto pattern_length = read_target.repeat_length > 0 ? read_target.repeat_length : read_target.pattern->getLength();
-      // The playhead's own row (highlight) keeps its plain green regardless
+      // The playhead's own row (highlight) keeps its plain tint regardless
       // of whether the content it's showing happens to be a repeat - the
       // dim is about telling looped content apart from a pattern's own
       // real rows, not something the playhead itself should ever show.
@@ -2758,18 +2757,18 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	// COMMAND-scoped region (see getEffectiveSelectionBounds()) - set
 	// across the *whole* selected row range, not just column_highlighted's
 	// single row.
-	bool column_selected = focused && column_scoped_selection &&
+	bool column_selected = column_scoped_selection &&
 	  ((sel_bounds.scope == SelectionScope::NOTE_COLUMN && !track_info.isEffectColumn(k) &&
 	    track_info.getNoteNumber(k) >= sel_bounds.note_lo && track_info.getNoteNumber(k) <= sel_bounds.note_hi) ||
 	   (sel_bounds.scope == SelectionScope::COMMAND && track_info.isEffectColumn(k)));
-	Color cur_fg = column_selected ? styles.highlight_fg_color : fg;
-	Color cur_bg = column_selected ? styles.highlight_bg_color : bg;
+	Color cur_fg = column_selected ? region_fg : fg;
+	Color cur_bg = column_selected ? region_bg : bg;
 	// A real selection (either scope) is a full, deliberate cue - cur_fg/
 	// cur_bg already resolve to the highlight color for it, in_selection's
 	// own case via fg/bg (set before this per-track loop even starts).
 	// Every column type below checks this before ever calling
 	// tintForPlayhead(), so a selected cell is never also partly tinted
-	// green on top.
+	// on top.
 	bool cell_is_selected = column_selected || in_selection;
 
 	// A SampleTrack waveform's own coverage-bar color (SAMPLE branch,
@@ -2785,7 +2784,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	// own ambient state (bar/beat-accent, an active instance's own track-
 	// color tint, ...) on an ordinary row - cell_bg already carries all
 	// of that. Only the playhead case needs its own special base: cell_bg
-	// there would already be the old, since-removed full-strength green
+	// there would already be the old, since-removed full-strength tint
 	// (row_base_bg no longer carries that), so blending from plain
 	// window_bg_color instead is what actually produces the translucent
 	// tint, matching waveformFg()'s own playhead treatment.
@@ -2831,7 +2830,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  bool is_leading_row = drawn_as_instance && read_target.unwrapped_row == 0;
 	  bool show_dot = any_note_defined && !drawn_as_instance;
 	  if (width > 0 && (show_dot || is_leading_row)) {
-	    setFgColor(is_leading_row ? Color(0xff, 0xff, 0xff) : (cell_is_selected ? cur_fg : tintForPlayhead(fg)));
+	    setFgColor(is_leading_row ? styles.clip_text_color : (cell_is_selected ? cur_fg : tintForPlayhead(fg)));
 	    putstr(display_row, current_pos, is_leading_row ? clip_digit(read_target.clip_index) : "·");
 	    setFgColor(styles.window_border_color);
 	  }
@@ -2945,7 +2944,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	    // faint placeholder. Blended toward cell_bg deliberately, not away
 	    // from it - "faint" means close to whatever the row's own current
 	    // background actually is (plain window background, playhead
-	    // green, or selection highlight alike), not a fixed contrast
+	    // tint, or selection highlight alike), not a fixed contrast
 	    // level fighting to stay visible against it.
 	    setFgColor(cell_fg.blend(0.8f, cell_bg));
 	    string dots;
@@ -3092,7 +3091,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  Color id_fg = in_selection ? fg : tintForPlayhead(fg);
 	  string id_glyph = " ";
 	  if (drawn_as_instance) {
-	    id_fg = Color(0xff, 0xff, 0xff);
+	    id_fg = styles.clip_text_color;
 	    id_glyph = clip_digit(read_target.clip_index);
 	  }
 	  setFgColor(id_fg);
@@ -3219,7 +3218,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
     // text/placeholder itself plus one character of margin either side
     // (further down, once its width is known), not the whole row - that
     // full-row treatment is what row_fully_filled is for. Either way this
-    // is the *same* light green every other selected cell already uses,
+    // is the *same* highlight every other selected cell already uses,
     // not a separate color, so it doesn't read as some other kind of
     // state. Falls back to the playhead's own translucent tint
     // (tintForPlayhead(), same as every other column type) when this is
@@ -3256,7 +3255,7 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	// (a slightly darker shade, so it reads as a distinct thing within
 	// the row) gets the same one-character margin as every other case.
 	bool want_margin = !row_fully_filled;
-	Color annotation_red(0xe0, 0x30, 0x30);
+	const Color & annotation_red = styles.annotation_color;
 
 	if (row_selected) {
 	  // The same reversed (dark-on-bright) highlight every other
@@ -3277,10 +3276,10 @@ PatternEditor::renderRow(const StyleProvider & styles, int heading_height, const
 	  // fill - so the annotation's own span still reads as red content,
 	  // not just a darker patch of the same row tint.
 	  setFgColor(tintForPlayhead(styles.window_fg_color).blend(0.2f, annotation_red));
-	  setBgColor(Color(0x60, 0x78, 0x60).blend(0.2f, annotation_red));
+	  setBgColor(tintForPlayhead(styles.window_bg_color).blend(0.2f, annotation_red));
 	} else {
-	  setFgColor(0xe0, 0x30, 0x30);
-	  setBgColor(0x70, 0x20, 0x20);
+	  setFgColor(annotation_red);
+	  setBgColor(styles.annotation_bg_color);
 	}
 
 	if (want_margin) {

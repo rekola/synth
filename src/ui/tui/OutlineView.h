@@ -96,7 +96,7 @@ class OutlineView : public UIElement {
   bool wantsBareEscape() const override { return info_popup_open_; }
 
 protected:
-  void renderRow(const StyleProvider & styles, int row, bool highlight);
+  void renderRow(const StyleProvider & styles, int row, bool cursor, bool focused);
   // The shared one-row title strip at the very top - static text (plus
   // the divider column, drawn here too since neither side of it changes
   // without a full refresh), only ever needs (re)drawing on one.
@@ -220,7 +220,8 @@ protected:
   // How many rows the scrollable tree gets, between the heading above and
   // the button bar below. Never negative.
   int treeRows() const;
-  int buttonBarTop() const { return 2 + treeRows() + 1; } // below the tree and its separator row
+  static constexpr int kTreeTop = 1; // the tree's first row, right below the heading
+  int buttonBarTop() const { return kTreeTop + treeRows() + 1; } // below the tree and its separator row
 
   std::vector<struct outline_row_s> data_;
   int current_song_version_ = 0;

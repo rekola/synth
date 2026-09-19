@@ -70,6 +70,18 @@
 
 #include <poll.h>
 
+
+namespace {
+// An opaque pixel in the RGBA byte order notcurses blits.
+uint32_t pixelOf(const Color & c) {
+  return (0xffu << 24) | (static_cast<uint32_t>(c.getBlue()) << 16) | (static_cast<uint32_t>(c.getGreen()) << 8) | static_cast<uint32_t>(c.getRed());
+}
+
+uint64_t channelsOf(const Color & fg, const Color & bg) {
+  return NCCHANNELS_INITIALIZER(static_cast<unsigned>(fg.getRed()), static_cast<unsigned>(fg.getGreen()), static_cast<unsigned>(fg.getBlue()),
+                                static_cast<unsigned>(bg.getRed()), static_cast<unsigned>(bg.getGreen()), static_cast<unsigned>(bg.getBlue()));
+}
+}
 using namespace ncpp;
 using namespace std;
 using namespace fmt;
@@ -152,7 +164,7 @@ static inline long long now() {
 
 class TerminalPlane : public UIPlane {
 public:
-  TerminalPlane(std::shared_ptr<Controller> & _controller, Plane * _plane, bool _owner = true) : UIPlane(_controller), plane(_plane), owner(_owner) {
+  TerminalPlane(std::shared_ptr<Controller> & _controller, const StyleProvider & styles, Plane * _plane, bool _owner = true) : UIPlane(_controller, styles), plane(_plane), owner(_owner) {
     unsigned int y, x;
     plane->get_dim(&y, &x);
     setDim(pair(static_cast<int>(y), static_cast<int>(x)));
@@ -206,8 +218,8 @@ public:
   void putstr(int y, int x, const std::string & s) override { plane->putstr(y, x, s.c_str()); }
   unique_ptr<UIPlane> createChild() override {
     auto child_plane = new Plane(1, 1, 0, 0);
-    child_plane->set_base("", 0, NCCHANNELS_INITIALIZER(0xc0, 0x80, 0xc0, 0x20, 0, 0x20));
-    return make_unique<TerminalPlane>(getController(), child_plane);
+    child_plane->set_base("", 0, channelsOf(getStyles().reader_text_color, Color(0x20, 0, 0x20)));
+    return make_unique<TerminalPlane>(getController(), getStyles(), child_plane);
   }
   
   void drawBorder() override {
@@ -251,7 +263,8 @@ public:
   // this used to hardcode - StatusLine's existing calls are untouched.
   void showReader(const std::string & prompt = "", int y = 0, int x = -1, int rows = -1, int cols = -1,
 		   const std::string & initial_text = "",
-		   int text_r = 0xc0, int text_g = 0x80, int text_b = 0xc0) override {
+		   std::optional<Color> text_color_arg = std::nullopt) override {
+    auto text_color = text_color_arg.value_or(getStyles().reader_text_color);
     if (!readerActive()) {
       setOwning(false);
 
@@ -292,11 +305,11 @@ public:
       auto prompt_width = static_cast<unsigned int>(prompt.size());
 
       ncreader_options reader_opts;
-      // text_r/g/b (pink by default), matching the reader plane's own
+      // text_color (pink by default), matching the reader plane's own
       // colors below - see that comment for why. Background alpha
       // TRANSPARENT too, for the same reason: the typed glyphs themselves
       // shouldn't paint an opaque patch behind them either.
-      reader_opts.tchannels = NCCHANNELS_INITIALIZER(static_cast<unsigned>(text_r), static_cast<unsigned>(text_g), static_cast<unsigned>(text_b), 0x00, 0x00, 0x00);
+      reader_opts.tchannels = channelsOf(text_color, Color(0, 0, 0));
       ncchannels_set_fg_alpha(&reader_opts.tchannels, NCALPHA_HIGHCONTRAST);
       ncchannels_set_bg_alpha(&reader_opts.tchannels, NCALPHA_TRANSPARENT);
       reader_opts.tattrword = 0; // attributes used for input
@@ -345,7 +358,7 @@ public:
       };
 
       auto reader_plane = ncplane_create(getPlane().to_ncplane(), &opts);
-      // text_r/g/b, defaulting to the same pink createChild() already
+      // text_color, defaulting to the same pink createChild() already
       // gives every other UI plane's own base cell, so by default the
       // M-x prompt/completion indicator (drawn directly on the
       // surrounding StatusLine plane, not this one) and the typed text
@@ -361,8 +374,8 @@ public:
       // unwritten cells) and tchannels (above, for the glyphs ncreader
       // actually echoes as typed) so neither path leaves a stray opaque
       // patch.
-      ncplane_set_fg_rgb8(reader_plane, static_cast<unsigned>(text_r), static_cast<unsigned>(text_g), static_cast<unsigned>(text_b));
-      uint64_t base_channels = NCCHANNELS_INITIALIZER(static_cast<unsigned>(text_r), static_cast<unsigned>(text_g), static_cast<unsigned>(text_b), 0, 0, 0);
+      ncplane_set_fg_rgb8(reader_plane, static_cast<unsigned>(text_color.getRed()), static_cast<unsigned>(text_color.getGreen()), static_cast<unsigned>(text_color.getBlue()));
+      uint64_t base_channels = channelsOf(text_color, Color(0, 0, 0));
       ncchannels_set_bg_alpha(&base_channels, NCALPHA_TRANSPARENT);
       ncplane_set_base(reader_plane, " ", 0, base_channels);
       reader = ncreader_create(reader_plane, &reader_opts);
@@ -475,18 +488,10 @@ public:
     // full-bright white-on-whatever's-already-there instead, not this
     // app's dark theme.
     //
-    // opchannels' own fg is deliberately the same bright green
-    // StyleProvider's highlight_bg_color already uses everywhere else in
-    // this codebase for "the current selection" (PatternEditor's/
-    // OutlineView's own row cursor); its own bg is styles.highlight_fg_color's
-    // matching true black, not a mid-grey (which read as washed-out,
-    // hard-to-read text) - not arbitrary colors either way. The currently-
-    // highlighted row (src/lib/selector.c's own render loop) gets no
-    // channels of its own at all: it's opchannels' fg/bg *swapped*, so
-    // this exact black-on-green pair is what that row shows, matching
-    // that same established "current selection" look exactly (not just
-    // approximating it).
-    uint64_t opchannels = NCCHANNELS_INITIALIZER(0xa0, 0xff, 0xa0, 0x00, 0x00, 0x00);
+    // opchannels is the cursor's own colors swapped: the selector draws
+    // its current row with opchannels' fg/bg swapped back, so that row
+    // shows the same cursor every widget does.
+    uint64_t opchannels = channelsOf(getStyles().highlight_bg_color, getStyles().highlight_fg_color);
     uint64_t boxchannels = NCCHANNELS_INITIALIZER(0x60, 0x60, 0x60, 0x20, 0x20, 0x20);
     // descchannels deliberately its own dark/neutral pair, not opchannels
     // again - every item's own .desc is always empty (addItem() callers
@@ -981,7 +986,8 @@ public:
     // through, and any of that row's cells the label text itself doesn't
     // reach (getMeterLabel() rarely fills the whole width) need this too.
     auto & tplane = dynamic_cast<TerminalPlane&>(getPlane());
-    uint64_t base_channels = NCCHANNELS_INITIALIZER(21, 21, 21, 21, 21, 21);
+    auto & bg = getPlane().getStyles().window_bg_color;
+    uint64_t base_channels = channelsOf(bg, bg);
     ncplane_set_base(tplane.getPlane().to_ncplane(), " ", 0, base_channels);
   }
 
@@ -1015,8 +1021,7 @@ public:
       tplane.setOwning(false);
 
       // Set the plane's *base* cell to the same idle background every
-      // scope now shares (StyleProvider::window_bg_color "#151515",
-      // HeatmapChart's own kHeatmapBackground) - this, not a plain
+      // scope shares (StyleProvider::window_bg_color) - this, not a plain
       // putstr()-based fill (tried and reverted here), is what actually
       // survives ncdplot's own rendering: ncdplot_create()/every
       // subsequent redraw calls ncplane_erase() internally on its own
@@ -1028,7 +1033,8 @@ public:
       // created plane's own default (the raw terminal's background, not
       // this app's) showing through the "no data" portion of the chart -
       // a real, confirmed bug.
-      uint64_t base_channels = NCCHANNELS_INITIALIZER(21, 21, 21, 21, 21, 21);
+      auto & bg = getPlane().getStyles().window_bg_color;
+      uint64_t base_channels = channelsOf(bg, bg);
       ncplane_set_base(tplane.getPlane().to_ncplane(), " ", 0, base_channels);
 
       ncplot_options opts;
@@ -1041,7 +1047,7 @@ public:
       opts.gridtype = getType() == DOTS ? NCBLIT_BRAILLE : NCBLIT_2x2;
       // opts.gridtype = NCBLIT_8x1;
 
-      // Opaque window_bg_color ("#151515") background, not NCALPHA_BLEND -
+      // Opaque window_bg_color background, not NCALPHA_BLEND -
       // blend mode composites against whatever's on the plane beneath at
       // render time, which for a cell ncdplot actually writes to isn't
       // reliably this app's own background (a real, confirmed bug: every
@@ -1049,8 +1055,8 @@ public:
       // through, even though ncplane_set_base() above already fixed the
       // *untouched* cells around them). Foreground gradient (dot color)
       // is unchanged - only the background channel/alpha needed fixing.
-      opts.minchannels = NCCHANNELS_INITIALIZER(0x80, 0x80, 0xff, 21, 21, 21);
-      opts.maxchannels = NCCHANNELS_INITIALIZER(0x80, 0xff, 0x80, 21, 21, 21);
+      opts.minchannels = channelsOf(Color(0x80, 0x80, 0xff), bg);
+      opts.maxchannels = channelsOf(Color(0x80, 0xff, 0x80), bg);
 
       plot_ = std::make_shared<PlotD>(tplane.getPlane(), &opts);
     }
@@ -1061,18 +1067,15 @@ public:
   void commit() override {
     if (!footer_label_.empty()) {
       auto [rows, cols] = getDim();
-      // window_fg_color/window_bg_color ("#9e9e9e"/"#151515") - this
-      // widget has no StyleProvider reference of its own (only
-      // UI-level/render-time callers normally do), so these are the same
-      // literal RGB values kHeatmapBackground uses above for the same
-      // reason. Without this, the label text drew with whatever fg/bg the
+      // Without this, the label text drew with whatever fg/bg the
       // outer plane's draw state last happened to be left in - unset in
       // practice, showing the raw terminal's own background instead of
       // this app's (the outer-plane counterpart of the ncplot fix above -
       // that one only covers plot_plane_, not this row, which is
       // deliberately left uncovered by it so this text shows through).
-      setFgColor(0x9e, 0x9e, 0x9e);
-      setBgColor(21, 21, 21);
+      auto & styles = getPlane().getStyles();
+      setFgColor(styles.window_fg_color);
+      setBgColor(styles.window_bg_color);
       putstr(rows - 1, 0, footer_label_);
     }
   }
@@ -1122,14 +1125,14 @@ public:
     // shrinks the image by exactly one whole cell row, not a partial one.
     if (!footer_label_.empty() && celldimy > 0 && pxy > celldimy) pxy -= celldimy;
 
-    // Opaque window_bg_color ("#151515"), not transparent (0 alpha) - a
+    // Opaque window_bg_color, not transparent (0 alpha) - a
     // transparent pixel here composites against the raw terminal's own
     // background instead of this app's, since pixel-graphics blitting
     // replaces a cell's usual text-mode background entirely rather than
     // layering over whatever this plane's cells were otherwise painted
     // (a real, confirmed bug: this chart's empty area showed Ubuntu's
     // default terminal color instead of window_bg_color).
-    vector<uint32_t> buffer(static_cast<size_t>(pxy) * pxx, 0xff151515u);
+    vector<uint32_t> buffer(static_cast<size_t>(pxy) * pxx, pixelOf(getPlane().getStyles().window_bg_color));
 
     auto range = max_y_ - min_y_;
     auto num_samples = samples_.size();
@@ -1172,14 +1175,7 @@ private:
 
 namespace {
 
-// StyleProvider::window_bg_color ("#151515") - the same idle background
-// every scope now shares (the FFT/volume-meter charts already show it
-// through untouched cells; the heatmap has no such "untouched" concept
-// since it repaints every cell/pixel every frame, so it needs its own
-// explicit idle color instead of literal black to match).
-constexpr SubcellRgb kHeatmapBackground{21.0f, 21.0f, 21.0f};
-
-// Lerps from kHeatmapBackground (value == 0) to the fully-bright HSV color
+// Lerps from `background` (value == 0) to the fully-bright HSV color
 // (value == 1), using value itself as the blend weight - continuous by
 // construction, so a cell whose value only ever asymptotically approaches
 // 0 (dsp/DiracAnalyzer.cpp's grid ballistics are a one-pole decay that
@@ -1187,15 +1183,18 @@ constexpr SubcellRgb kHeatmapBackground{21.0f, 21.0f, 21.0f};
 // color rather than needing a separate cutoff/threshold to special-case
 // "close enough to silent." No explicit epsilon check needed anywhere:
 // once value is astronomically small, its weight in the lerp is too.
-SubcellRgb heatmapCellColor(float saturation, float value) {
+// `background` is window_bg_color, the idle background every scope
+// shares - the heatmap repaints every cell/pixel each frame, so it has no
+// untouched cells to show it through the way the other charts do.
+SubcellRgb heatmapCellColor(const Color & background, float saturation, float value) {
   if (value < 0.0f) value = 0.0f;
   else if (value > 1.0f) value = 1.0f;
   uint8_t r, g, b;
   heatmapHsvToRgb(kHeatmapHue, saturation, 1.0f, r, g, b);
   return {
-    kHeatmapBackground.r * (1.0f - value) + static_cast<float>(r) * value,
-    kHeatmapBackground.g * (1.0f - value) + static_cast<float>(g) * value,
-    kHeatmapBackground.b * (1.0f - value) + static_cast<float>(b) * value,
+    static_cast<float>(background.getRed()) * (1.0f - value) + static_cast<float>(r) * value,
+    static_cast<float>(background.getGreen()) * (1.0f - value) + static_cast<float>(g) * value,
+    static_cast<float>(background.getBlue()) * (1.0f - value) + static_cast<float>(b) * value,
   };
 }
 
@@ -1358,6 +1357,7 @@ public:
 
   void commit() override {
     if (brightness_.empty()) return;
+    auto & background = getPlane().getStyles().window_bg_color;
     auto [rows, cols] = getDim();
     int usable_rows = footer_label_.empty() ? rows : rows - 1;
     if (usable_rows <= 0 || cols <= 0) return;
@@ -1383,7 +1383,7 @@ public:
           for (int qx = 0; qx < 2; qx++) {
             int vx = sx * 2 + qx;
             size_t idx = static_cast<size_t>(vy * vcols + vx);
-            samples[static_cast<size_t>(bit)] = heatmapCellColor(agg_saturation[idx], agg_brightness[idx]);
+            samples[static_cast<size_t>(bit)] = heatmapCellColor(background, agg_saturation[idx], agg_brightness[idx]);
             bit++;
           }
         }
@@ -1397,7 +1397,7 @@ public:
       }
     }
     setFgColor(255, 255, 255);
-    setBgColor(static_cast<int>(kHeatmapBackground.r), static_cast<int>(kHeatmapBackground.g), static_cast<int>(kHeatmapBackground.b)); // don't leave the last cell's colors "stuck" for whatever draws next (e.g. the footer label below)
+    setBgColor(background); // don't leave the last cell's colors "stuck" for whatever draws next (e.g. the footer label below)
 
     for (auto & marker : markers_) {
       int sx = static_cast<int>(marker.u * static_cast<float>(cols));
@@ -1423,7 +1423,7 @@ public:
           for (int qx = 0; qx < 2; qx++) {
             int vx = sx * 2 + qx;
             size_t idx = static_cast<size_t>(vy * vcols + vx);
-            SubcellRgb rgb = heatmapCellColor(agg_saturation[idx], agg_brightness[idx]);
+            SubcellRgb rgb = heatmapCellColor(background, agg_saturation[idx], agg_brightness[idx]);
             sum.r += rgb.r; sum.g += rgb.g; sum.b += rgb.b;
           }
         }
@@ -1483,7 +1483,8 @@ public:
     // Same footer-row reservation as TerminalPixelChart::commit().
     if (!footer_label_.empty() && celldimy > 0 && pxy > celldimy) pxy -= celldimy;
 
-    vector<uint32_t> buffer(static_cast<size_t>(pxy) * pxx, 0xff151515u); // opaque kHeatmapBackground - overwritten below for every pixel regardless, kept consistent for clarity
+    auto & background = getPlane().getStyles().window_bg_color;
+    vector<uint32_t> buffer(static_cast<size_t>(pxy) * pxx, pixelOf(background)); // overwritten below for every pixel regardless, kept consistent for clarity
 
     std::vector<float> agg_brightness, agg_saturation;
     resampleGrid(brightness_, saturation_, gridCols(), gridRows(), static_cast<int>(pxx), static_cast<int>(pxy), agg_brightness, agg_saturation);
@@ -1495,7 +1496,7 @@ public:
       for (unsigned px = 0; px < pxx; px++) {
         size_t idx = static_cast<size_t>(vy) * pxx + px;
 
-        SubcellRgb rgb = heatmapCellColor(agg_saturation[idx], agg_brightness[idx]);
+        SubcellRgb rgb = heatmapCellColor(background, agg_saturation[idx], agg_brightness[idx]);
         buffer[py * pxx + px] = (0xffu << 24) | (static_cast<uint32_t>(rgb.b) << 16) | (static_cast<uint32_t>(rgb.g) << 8) | static_cast<uint32_t>(rgb.r);
       }
     }
@@ -1631,7 +1632,7 @@ TerminalUI::escapeIndicatorPollTimeoutMs() const {
 
 void
 TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
-  auto root_plane = make_unique<TerminalPlane>(controller, nc->get_stdplane(), false);
+  auto root_plane = make_unique<TerminalPlane>(controller, styles_, nc->get_stdplane(), false);
   setPlane(std::move(root_plane));
 
   setFgColor(styles_.window_fg_color);
@@ -1908,14 +1909,12 @@ TerminalUI::initializeWidgets() {
     arrangement_grid_->cancelReaderEdit();
     clip_grid_->cancelReaderEdit();
   });
-  // Colors match InfoLine's own hardcoded gray-on-dark (InfoLine.h's
-  // constructor) - this widget sits inline in that same bar (see
-  // layout()), and must blend into it rather than showing up as a
-  // mismatched patch.
+  // The info bar's own colors - this widget sits inline in that bar (see
+  // layout()), and must blend into it.
   octave_control_ = make_shared<SpinBox>(getPlane(), "Octave:", constants::MIN_OCTAVE, constants::MAX_OCTAVE,
     [this] { return getController().getGlobalOctave(); },
     [this](int v) { getController().setGlobalOctave(v); },
-    Color(120, 120, 120), Color(30, 30, 30));
+    styles_.info_line_bg_color, styles_.info_line_fg_color);
 
   // Session/overview first, not pattern editing - matches the Launchpad's
   // own Session view as the more approachable starting point for a fresh
@@ -2316,12 +2315,15 @@ TerminalUI::layout() {
     int outline_cols = isOutlineVisible() ? std::min(kOutlineWidth, cols / 2) : 0;
     clip_grid_->resize(strip_rows, cols - outline_cols).move(workspace_row, outline_cols);
     // The outline panel's last column is a divider, drawn here on the
-    // plane underneath (static, like the scope row's dividers).
+    // plane underneath (static, like the scope row's dividers); its top
+    // cell carries the header row's backdrop across to the clip grid's.
     outline_view_->resize(strip_rows, outline_cols > 0 ? outline_cols - 1 : cols).move(workspace_row, 0);
     if (outline_cols > 0) {
       setFgColor(styles_.window_border_color);
-      setBgColor(styles_.window_bg_color);
-      for (int row = 0; row < strip_rows; row++) putstr(workspace_row + row, outline_cols - 1, "│");
+      for (int row = 0; row < strip_rows; row++) {
+        setBgColor(row == 0 ? styles_.heading_bg_color : styles_.window_bg_color);
+        putstr(workspace_row + row, outline_cols - 1, "│");
+      }
     }
     pattern_editor_->resize(workspace_rows - strip_rows, cols).move(workspace_row + strip_rows, 0);
     if (outline_cols > 0) outline_view_->moveToTop();

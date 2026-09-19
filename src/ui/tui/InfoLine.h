@@ -12,8 +12,8 @@ using namespace std;
 class InfoLine : public UIElement {
  public:
   InfoLine(UIPlane & parent) : UIElement(parent) {
-    setBgColor(120, 120, 120);
-    setFgColor(30, 30, 30);
+    setBgColor(getPlane().getStyles().info_line_bg_color);
+    setFgColor(getPlane().getStyles().info_line_fg_color);
   }
 
   bool render(const StyleProvider & styles, bool refresh = false) {

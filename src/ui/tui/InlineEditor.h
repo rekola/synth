@@ -4,6 +4,7 @@
 #include "../../model/Color.h"
 
 #include <functional>
+#include <optional>
 #include <string>
 
 class UIPlane;
@@ -25,7 +26,7 @@ class InlineEditor {
   struct Field {
     int row = 0, col = 0, width = 1;
     std::string initial_text;
-    Color text_color = Color(0xc0, 0x80, 0xc0);
+    std::optional<Color> text_color; // the theme's reader_text_color if unset
     Color backdrop = Color(0, 0, 0);
   };
 

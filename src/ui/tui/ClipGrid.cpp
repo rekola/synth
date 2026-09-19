@@ -37,14 +37,6 @@ float linearToDb(float linear) { return linear <= 0.00001f ? -100.0f : 20.0f * l
 // "effectively off" just as clearly as the true floor would.
 float clampedDb(float db) { return std::max(db, -99.0f); }
 
-const Color kWhite(255, 255, 255);
-// Cursor highlight for every cursor-addressable row except a clip cell
-// (which brightens its own track color instead - see render()'s own
-// comment) - styles.highlight_bg_color is bright green, easily confused
-// with a clip row's own track-identity-colored background whenever that
-// happens to be green too.
-const Color kBrightGrey(200, 200, 200);
-
 }
 
 ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
@@ -434,7 +426,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     // is the header's one and only cursor check.
     bool header_is_cursor = focused && track_index == cursor_track_index_ && cursor_physical == -1;
     setFgColor(header_is_cursor ? styles.highlight_fg_color : styles.window_accent_fg_color);
-    setBgColor(header_is_cursor ? kBrightGrey : styles.window_accent_bg_color); // dark grey backdrop normally, brightened the same way every other cursor-addressable row is when the cursor's actually here
+    setBgColor(header_is_cursor ? styles.highlight_bg_color : styles.heading_bg_color);
     putstr(0, x, string(static_cast<size_t>(kColWidth), ' ')); // opaque header background first, across the whole column
     auto prefix = "T" + std::to_string(structure.getBaselineInfo(track_id).color_ordinal_);
     auto friendly_name = (leaf && !leaf->getName().empty()) ? " " + leaf->getName() : string();
@@ -472,7 +464,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
       // text/pad/put path every other row below shares.
       if (physical_row == clip_rows + kSendsValue) {
         Color row_fg = is_cursor_cell ? styles.highlight_fg_color : styles.window_fg_color;
-        Color row_bg = is_cursor_cell ? kBrightGrey : styles.window_bg_color;
+        Color row_bg = is_cursor_cell ? styles.highlight_bg_color : is_editing_cell ? styles.highlight_unfocused_bg_color : styles.window_bg_color;
         setFgColor(row_fg);
         setBgColor(row_bg);
         putstr(y, x, string(static_cast<size_t>(kColWidth), ' ')); // opaque row background first
@@ -503,7 +495,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
       // there's no un-colored sliver left showing through underneath it.
       if (physical_row < clip_rows) {
         auto clip_row = static_cast<size_t>(physical_row);
-        Color row_fg = Color(255, 255, 255), row_bg = styles.window_bg_color;
+        Color row_fg = styles.clip_text_color, row_bg = styles.window_bg_color;
         string text;
         // Content-aware, not just in-bounds - holes are allowed (Song::
         // ensureClipAt()), so an in-bounds but still-empty filler renders
@@ -555,24 +547,25 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
         // over either of those. Plain, common Unicode (U+25CF, unlike the
         // loop glyph's own ambiguous-width caution above), so no extra
         // width slack is needed for it.
-        if (getController().isSessionRecording(track_id) &&
-            static_cast<int>(clip_row) == getController().getSessionRecordingClipIndex(track_id)) {
+        bool recording = getController().isSessionRecording(track_id) &&
+          static_cast<int>(clip_row) == getController().getSessionRecordingClipIndex(track_id);
+        if (recording) {
           text = " ●";
           row_fg = Color(255, 60, 60);
         }
-        if (is_cursor_cell) {
-          // The plain green highlight_bg_color reads poorly here - a
-          // clip row's own background is already a track identity color,
-          // sometimes itself green - so the cursor brightens that same
-          // color toward white instead of overriding it with an unrelated
-          // one, the same "brighten the real color rather than replace
-          // it" convention ArrangementGrid's own cursor cell uses for its
-          // colored instance cells.
-          row_bg = row_bg.blend(0.35f, kWhite);
+        if (is_cursor_cell && !has_real_clip) {
+          if (!recording) row_fg = styles.highlight_fg_color;
+          row_bg = styles.highlight_bg_color;
+        } else if (is_cursor_cell) {
+          // A clip's background is its track's identity color - the cursor
+          // brightens it rather than replacing it, the same as
+          // ArrangementGrid's cursor on its colored instance cells.
+          if (!recording) row_fg = styles.highlight_fg_color;
+          row_bg = row_bg.blend(0.5f, styles.cursor_tint_color);
         } else if (is_editing_cell) {
-          row_bg = row_bg.blend(0.15f, kWhite);
+          row_bg = has_real_clip ? row_bg.blend(0.25f, styles.cursor_tint_color) : styles.highlight_unfocused_bg_color;
         } else if (is_scene_row) {
-          row_bg = row_bg.blend(0.08f, kWhite);
+          row_bg = styles.cursorRowTint(row_bg);
         }
         setFgColor(row_fg);
         setBgColor(row_bg);
@@ -605,7 +598,9 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
       // handled directly above, each with their own cursor treatment.
       if (is_cursor_cell) {
         fg = styles.highlight_fg_color;
-        bg = kBrightGrey;
+        bg = styles.highlight_bg_color;
+      } else if (is_editing_cell && physical_row == clip_rows + kDirectionValue) {
+        bg = styles.highlight_unfocused_bg_color;
       }
       setFgColor(fg);
       setBgColor(bg);
@@ -613,11 +608,11 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     }
 
     setFgColor(styles.window_border_color);
-    setBgColor(styles.window_accent_bg_color); // matches the header row's own dark grey backdrop, not the plain window background below it
+    setBgColor(styles.heading_bg_color); // the header row's own backdrop, not the plain window background below it
     putstr(0, x + kColWidth, "│");
     auto scene_y = cursor_physical < clip_rows ? 1 + cursor_physical - scroll_row_ : -1;
     for (auto y = 1; y < rows; y++) {
-      setBgColor(y == scene_y ? styles.window_bg_color.blend(0.08f, kWhite) : styles.window_bg_color);
+      setBgColor(y == scene_y ? styles.cursorRowTint(styles.window_bg_color) : styles.window_bg_color);
       putstr(y, x + kColWidth, "│");
     }
   }

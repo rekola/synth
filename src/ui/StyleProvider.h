@@ -5,8 +5,27 @@
 
 class StyleProvider {
  public:
+  // Cursor and playhead colors lean cyan, so they never read as the
+  // neutral grey bar/beat highlighting.
+  // The cursor/region of the focused widget.
   Color highlight_fg_color = "#000000";
-  Color highlight_bg_color = "#a0ffa0";
+  Color highlight_bg_color = "#bcd4e0";
+  // The cursor of an unfocused widget - where its edits would land - on
+  // plain window_fg_color text.
+  Color highlight_unfocused_bg_color = "#3a4a54";
+  // What a colored cell (a clip, an arrangement instance) brightens toward
+  // under a cursor or playhead, instead of taking either background above.
+  Color cursor_tint_color = "#d0ecff";
+  // The translucent tint over a marked row: the pattern editor's cursor
+  // row (in Arrangement view, the transport's playing row), the clip
+  // grid's scene row and the arrangement grid's playing row.
+  Color cursor_row_tint_color = "#90b8cc";
+  // The same over a Session view track's own playing row, more saturated
+  // so a launched clip's playhead stands apart from the cursor row.
+  Color playhead_tint_color = "#40c8f0";
+  static constexpr float kRowTintAlpha = 0.35f;
+  Color cursorRowTint(Color base) const { return base.blend(kRowTintAlpha, cursor_row_tint_color); }
+  Color playheadTint(Color base) const { return base.blend(kRowTintAlpha, playhead_tint_color); }
 
   Color window_border_color = "#323232";
   Color window_fg_color = "#9e9e9e";
@@ -23,15 +42,31 @@ class StyleProvider {
 
   Color command_column_color = "#c67610";
 
-  // OutlineView's own Outline/Details panel headers - brighter than the
-  // plain window_accent_bg_color pair other widgets' headers use, so they
-  // read as a stronger accent than the panel content (buttons included)
-  // beneath them.
+  // Text drawn on a clip's own track color (a clip's name, a placed
+  // instance's digit).
+  Color clip_text_color = "#ffffff";
+
+  // Typed text in a reader (the M-x minibuffer, inline name editors).
+  Color reader_text_color = "#c080c0";
+
+  // The info bar at the bottom, and the controls sitting inline in it.
+  Color info_line_fg_color = "#1e1e1e";
+  Color info_line_bg_color = "#787878";
+
+  // A track's level indicators: clipping, and sounding.
+  Color meter_clip_color = "#e01040";
+  Color meter_active_color = "#10e040";
+
+  // Pattern editor annotations.
+  Color annotation_color = "#e03030";
+  Color annotation_bg_color = "#702020";
+
+  // The Session view's panel headers (OutlineView's heading, ClipGrid's
+  // track header row, and the divider between them) - brighter than
+  // window_accent_bg_color, so they read as a stronger accent than the
+  // content beneath them.
   Color heading_bg_color = "#3d3d3d";
 
-  // The heading's own shadow row (see renderHeading()) - a subtle step
-  // between window_bg_color and window_border_color, distinct from both.
-  Color heading_shadow_color = "#242424";
 
   // OutlineView's Details panel action buttons (Delete/Add to Song/
   // Preview/Stop) - distinct from command_column_color so a clickable

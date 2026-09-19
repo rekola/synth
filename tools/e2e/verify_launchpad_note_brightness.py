@@ -7,10 +7,7 @@ idle once the note is actually sounding - exercising the normal pattern-
 playback path (SongState::render -> InstrumentTrackState voices ->
 PlaybackInfo -> LaunchpadManager::refresh), not just live pad presses.
 
-Uses the play/pause button's own LED (index 98, bright green iff playing -
-see LaunchpadManager::refreshLeds) as the ground-truth "is playing" signal
-instead of screen-scraping, since it's driven by the exact PlaybackInfo
-snapshot this test cares about anyway."""
+Reads "is playing" from the info line (harness.is_playing())."""
 import sys, os, re, subprocess, time
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))

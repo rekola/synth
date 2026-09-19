@@ -188,15 +188,15 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
 
     renderHeading(styles);
     for (int i = 0; i < tree_rows; i++) {
-      renderRow(styles, i, focused && i == new_cursor_row_ - current_scroll_pos_);
+      renderRow(styles, i, i == new_cursor_row_ - current_scroll_pos_, focused);
     }
     renderButtonBar(styles);
     renderInfoPopup(styles);
     need_refresh = true;
   } else if (cursor_changed || details_dirty_) {
     if (cursor_changed) {
-      renderRow(styles, current_cursor_row_ - current_scroll_pos_, false);
-      renderRow(styles, new_cursor_row_ - current_scroll_pos_, focused);
+      renderRow(styles, current_cursor_row_ - current_scroll_pos_, false, focused);
+      renderRow(styles, new_cursor_row_ - current_scroll_pos_, true, focused);
     }
     // The button bar and popup depend on which row the cursor is now on (a
     // different kind may show completely different actions, or none) -
@@ -221,9 +221,9 @@ OutlineView::render(const StyleProvider & styles, bool refresh, bool focused) {
 
 int
 OutlineView::treeRows() const {
-  // Minus the heading row and its shadow row above, and the separator row
-  // plus the button bar below.
-  return std::max(0, getDim().first - 2 - 1 - kButtonBarRows);
+  // Minus the heading row above, and the separator row plus the button
+  // bar below.
+  return std::max(0, getDim().first - kTreeTop - 1 - kButtonBarRows);
 }
 
 void
@@ -234,13 +234,6 @@ OutlineView::renderHeading(const StyleProvider & styles) {
   setBgColor(styles.heading_bg_color);
   putstr(0, 0, string(static_cast<size_t>(cols), ' '));
   putstr(0, 1, "Outline");
-
-  // A shadow row directly below the heading, made of sextant block glyphs
-  // shading just the top of the cell - reads as the heading casting a soft
-  // shadow onto the content below it, rather than a plain horizontal rule.
-  setFgColor(styles.heading_shadow_color);
-  setBgColor(styles.window_bg_color);
-  putstr(1, 0, repeatUtf8("🬂", cols));
 }
 
 vector<string>
@@ -335,7 +328,7 @@ OutlineView::renderInfoPopup(const StyleProvider & styles) {
   auto rows = static_cast<int>(lines.size()) + 2;
   auto width = kInfoPopupWidth;
   info_popup_->resize(rows, width);
-  info_popup_->move(pos_y + 2, pos_x + getDim().second);
+  info_popup_->move(pos_y + kTreeTop, pos_x + getDim().second);
   info_popup_->moveToTop();
 
   auto bg = styles.window_accent_bg_color, fg = styles.window_fg_color, border = styles.window_border_color;
@@ -403,30 +396,30 @@ OutlineView::buildDetailsLines(const outline_row_s & row, int details_width) con
 }
 
 void
-OutlineView::renderRow(const StyleProvider & styles, int display_row, bool highlight) {
+OutlineView::renderRow(const StyleProvider & styles, int display_row, bool cursor, bool focused) {
   auto tree_rows = treeRows();
   auto tree_width = getDim().second;
 
   if (display_row >= 0 && display_row < tree_rows) {
-    if (highlight) {
+    if (cursor && focused) {
       setFgColor(styles.highlight_fg_color);
       setBgColor(styles.highlight_bg_color);
+    } else if (cursor) {
+      setFgColor(styles.window_fg_color);
+      setBgColor(styles.highlight_unfocused_bg_color);
     } else {
       setFgColor(styles.window_fg_color);
       setBgColor(styles.window_bg_color);
     }
 
     string padding(static_cast<size_t>(std::max(0, tree_width)), ' ');
-    // +2: row 0 of this widget's own screen rect is the shared heading
-    // strip (renderHeading()) and row 1 is its shadow row, so the tree
-    // itself starts two rows down.
-    putstr(2 + display_row, 0, padding);
+    putstr(kTreeTop + display_row, 0, padding);
 
     auto data_row = static_cast<size_t>(display_row + current_scroll_pos_);
     if (data_row < data_.size()) {
       auto & data = data_[data_row];
 
-      putstr(2 + display_row, data.level * 3, data.label);
+      putstr(kTreeTop + display_row, data.level * 3, data.label);
     }
   }
 }
@@ -506,7 +499,7 @@ OutlineView::openTargetPicker() {
   // bar, so it never covers the button that opened it, capped so it never
   // reaches above the tree's first row.
   auto wanted_rows = item_count + 2;
-  auto picker_rows = std::clamp(wanted_rows, 1, std::max(1, buttonBarTop() - 1 - 2));
+  auto picker_rows = std::clamp(wanted_rows, 1, std::max(1, buttonBarTop() - 1 - kTreeTop));
   auto anchor_y = buttonBarTop() - 1 - picker_rows;
 
   getPlane().showPicker(anchor_y, 0, picker_rows, cols, item_count);
@@ -673,9 +666,9 @@ OutlineView::handleClick(const InputEvent & input) {
   auto [rows, cols] = getDim();
   auto y = input.getY() - pos_y, x = input.getX() - pos_x;
   if (y < 0 || y >= rows || x < 0 || x >= cols) return true; // shouldn't happen - only reached while this is the click's own target
-  if (y <= 1) return true; // the shared heading row and its shadow row - nothing clickable there
+  if (y < kTreeTop) return true; // the heading row - nothing clickable there
 
-  auto content_row = y - 2; // 0-based row within the tree, below the heading and its shadow row
+  auto content_row = y - kTreeTop; // 0-based row within the tree
   auto bar_row = y - buttonBarTop();
 
   if (content_row < treeRows()) {

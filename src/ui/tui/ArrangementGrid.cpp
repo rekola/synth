@@ -417,7 +417,6 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
   // filtered out anything that isn't), so every column below has a real
   // identity color to work with.
   SongStructure structure(song);
-  const Color kWhite(255, 255, 255);
 
   // A track's real identity color (VisibleTrackInfo::getColor(), the same
   // one PatternEditor's own heading row paints each track with) - a track
@@ -462,15 +461,17 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
     auto & section = song.getSection(section_idx);
 
     if (is_title_row) {
-      auto is_cursor_row = focused && in_range && section_idx == cursor_section_ && cursor_bar_ < 0;
+      auto is_cursor_row = in_range && section_idx == cursor_section_ && cursor_bar_ < 0;
       // Plain window_bg_color, same as every other cell in this grid -
       // only the accent foreground (below) sets a title row apart from
       // an ordinary blank one.
       Color fg = styles.window_fg_color, bg = styles.window_bg_color;
       if (in_range) fg = styles.window_accent_fg_color;
-      if (is_cursor_row) {
+      if (is_cursor_row && focused) {
         fg = styles.highlight_fg_color;
         bg = styles.highlight_bg_color;
+      } else if (is_cursor_row) {
+        bg = styles.highlight_unfocused_bg_color;
       }
       setFgColor(fg);
       setBgColor(bg);
@@ -529,7 +530,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
         cur_start_row = active.start_row;
         if (active.clip_index >= 0) {
           bg = track_color(track_id);
-          fg = kWhite;
+          fg = styles.clip_text_color;
           // Only this instance's own leading bar shows its hex digit -
           // "leading" meaning the first bar row where it actually starts
           // resolving as active for this track (compared against
@@ -579,7 +580,7 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
       prev_clip_index[static_cast<size_t>(vc)] = cur_clip_index;
       prev_start_row[static_cast<size_t>(vc)] = cur_start_row;
 
-      if (is_playing_row) bg = bg.blend(0.15f, kWhite);
+      if (is_playing_row) bg = styles.cursorRowTint(bg);
 
       // The shared/global track selection's own column - brightens an
       // active instance's own color (never the plain background, which
@@ -590,16 +591,19 @@ ArrangementGrid::render(const StyleProvider & styles, bool refresh, bool focused
       // same reason, and not the full highlight below (that stays
       // reserved for this widget's own exact cursor cell).
       if (cur_clip_index >= 0 && track_index < num_tracks && track_ids[static_cast<size_t>(track_index)] == selected_track_id) {
-        bg = bg.blend(0.35f, kWhite);
+        bg = bg.blend(0.35f, styles.cursor_tint_color);
       }
 
-      // Distracting otherwise, and ambiguous about which window Enter
-      // would actually commit - see PatternEditor's own equivalent
-      // gating for the same reasoning.
-      auto is_cursor_cell = focused && in_range && section_idx == cursor_section_ && bar_in_section == cursor_bar_ && track_index == cursor_track_index_;
-      if (is_cursor_cell) {
+      // Unfocused, the cursor cell shows faintly - a colored instance cell
+      // already shows it through the selected column's brightening above.
+      // Focused, a colored cell brightens further rather than losing its
+      // track color.
+      auto is_cursor_cell = in_range && section_idx == cursor_section_ && bar_in_section == cursor_bar_ && track_index == cursor_track_index_;
+      if (is_cursor_cell && focused) {
         fg = styles.highlight_fg_color;
-        bg = styles.highlight_bg_color;
+        bg = cur_clip_index >= 0 ? bg.blend(0.5f, styles.cursor_tint_color) : styles.highlight_bg_color;
+      } else if (is_cursor_cell && cur_clip_index < 0) {
+        bg = styles.highlight_unfocused_bg_color;
       }
 
       setFgColor(prev_bg);

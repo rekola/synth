@@ -30,12 +30,10 @@ class PatternEditor : public UIElement {
   PatternEditor(UIPlane & parent);
 
   // `focused` (whether this widget is UI::active_element_ - it has no way
-  // to know that itself) gates the cursor/selection region highlight only
-  // (renderRow()'s own use of styles.highlight_fg_color/highlight_bg_color) -
-  // distracting otherwise, and ambiguous about which window a kill-ring-
-  // save/yank would actually target while focus is elsewhere instead. The
-  // playhead-row tint is untouched - that's transport state, not input
-  // focus, and stays visible either way.
+  // to know that itself) picks the region's highlight: bright while
+  // focused, faint (styles.highlight_unfocused_bg_color) otherwise. The
+  // playhead-row tint is transport state, not input focus - the same
+  // either way.
   bool render(const StyleProvider & styles, bool refresh, bool focused);
   bool offerInput(const InputEvent & input) override;
   void handleMidiEvent(MidiEvent & ev) override;

@@ -211,17 +211,30 @@ into whatever the cursor is on and stops where that ends. Effect commands
 always stay on the section's background, where playback reads them.
 
 Because the effective region always exists, it's also always shown —
-`PatternEditor::renderRow` no longer has a separate "current column"
-highlight; that color (`styles.highlight_fg_color`/`highlight_bg_color`,
-bright green) was folded into the region highlight instead, so the
-degenerate (unmarked) case visually looks exactly like the old
-single-cell cursor highlight, and a real/widened mark shows the same
-color across its whole extent. The per-character underline for
+`PatternEditor::renderRow` has no separate "current column" highlight;
+the region highlight is the cursor, so the degenerate (unmarked) case is
+a single-cell cursor and a real/widened mark shows the same color across
+its whole extent. Every widget's cursor uses the same colors
+(`StyleProvider`), all leaning cyan so they never read as the neutral
+grey bar/beat highlighting: dark on bright grey (`highlight_fg_color`/
+`highlight_bg_color`) while focused, plain text on a faint grey
+(`highlight_unfocused_bg_color`) otherwise - an unfocused widget still
+shows where its edits land. A colored cell (a clip, an arrangement
+instance) brightens toward `cursor_tint_color` instead of taking either
+grey. A marked row - the pattern editor's cursor row (in Arrangement
+view, the transport's row), the clip grid's scene row, the arrangement
+grid's playing row - takes one tint (`StyleProvider::cursorRowTint()`);
+a Session view track's own playing row the more saturated
+`playheadTint()`. Every color lives in `StyleProvider`, so one color
+is one constant. The theme is `TerminalUI`'s own `styles_`: widgets get
+it in `render()`, and every `UIPlane` carries it too (`getStyles()`,
+handed down to child planes), so plane-level drawing - the charts, the
+M-x selector, readers - uses the same instance. The per-character underline for
 EFFECT/VELOCITY/DELAY columns (indicating which hex digit `C-+`/`C--`-style
 subcol editing is about to touch) is untouched, still driven by the exact
 cursor cell regardless of the region's extent. Velocity/delay's own bright
 colors (tuned for contrast against the normal dark background) switch to
-the region's dark foreground when inside it, matching the note column,
+the region's foreground when inside it, matching the note column,
 since bright-on-bright would otherwise be unreadable. When the cursor is
 on the effect column, the region always widens to every note column of
 that track/row regardless of any mark — an effect command applies to the

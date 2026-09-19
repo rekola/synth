@@ -88,16 +88,18 @@ def main():
     scr.send(b"\r")
     scr.pump(0.2)
     top = first_pattern_row(scr)
-    green_t0 = green_t1 = False
+    # playhead_tint_color over a plain row and over a bar row.
+    PLAYHEAD_BG = {"245361", "3e6d7b"}
+    playing_t0 = playing_t1 = False
     for _ in range(12):
         scr.pump(0.2)
         for r in range(4):
             t0 = scr.screen.buffer[top + r][6].bg
             t1 = scr.screen.buffer[top + r][22].bg
-            green_t0 |= t0 == "3a4b3a"
-            green_t1 |= t1 == "3a4b3a"
-    check("the launched clip's playhead shows in its own track's column", green_t0, scr)
-    check("no playhead in a track with nothing launched", not green_t1, scr)
+            playing_t0 |= t0 in PLAYHEAD_BG
+            playing_t1 |= t1 in PLAYHEAD_BG
+    check("the launched clip's playhead shows in its own track's column", playing_t0, scr)
+    check("no playhead in a track with nothing launched", not playing_t1, scr)
 
     # Space in Session view's pattern editor plays and stops the scene.
     other_window(scr)  # clip grid -> pattern editor

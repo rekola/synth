@@ -346,18 +346,24 @@ sideways. OutlineView already worked this way. Emacs's keep-point-on-
 screen was not followed: in Arrangement view the cursor is the transport.
 Test: `tools/e2e/verify_mouse_wheel.py`.
 
-Follow-up (not done): **unify the cursor colours.** The clip grid's
-cursor (a bright grey, `kBrightGrey`, while focused; a faint grey where
-it only marks what's being edited) is the reference. PatternEditor
-(bright green `highlight_bg_color` region), ArrangementGrid and
-OutlineView (green `highlight_bg_color`) change to the same grey, with
-the same focused/unfocused distinction. Likely a shared
-`StyleProvider` entry (e.g. `cursor_bg_color`/`cursor_unfocused_bg_color`)
-rather than each widget's own constant; keep the ClipGrid's "brighten the
-cell's own colour" rule for coloured cells (clip colours, the
-arrangement grid's instance cells). Check the pattern editor's velocity/
-delay contrast rule (bright colours switch to the region's dark
-foreground) against grey.
+Follow-up: **unified cursor colours** (done). `StyleProvider`'s
+`highlight_bg_color` is the clip grid's bright grey, used by every
+widget's focused cursor (and the M-x selector), and
+`highlight_unfocused_bg_color` is a faint grey for an unfocused widget's
+cursor - the pattern editor's region, the arrangement grid's cell or
+title row, the outline's row, the clip grid's Sends/Direction cells.
+Coloured cells brighten their own colour: clip cells as before, an
+arrangement instance cell by half toward white while focused (it already
+shows the selected column's brightening otherwise). Velocity/delay take
+the region's foreground inside it, as before.
+
+All cursor and playhead colours lean cyan, apart from the neutral grey
+bar highlighting. The arrangement pattern editor's playhead row is the
+session cursor row's tint (`cursor_row_tint_color`); a session track's
+own playhead is a stronger cyan (`playhead_tint_color`). The Session
+view's headers are one strip: the clip grid's header row takes the
+outline's brighter `heading_bg_color`, the divider between them carries
+it, and the outline's shadow row under its heading is gone.
 
 The design notes below are kept for reference.
 

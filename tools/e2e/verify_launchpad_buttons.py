@@ -68,7 +68,7 @@ while time.time() < deadline:
 # Confirm the on-screen highlighted/cursor column moved from track 0's span
 # into track 1's (i.e. past the second bar) - the observable effect of the
 # "next-track" command actually firing.
-def highlighted_cols(screen, y, bg="a0ffa0"):
+def highlighted_cols(screen, y, bg="bcd4e0"):
     return [x for x in range(screen.columns) if screen.buffer[y][x].bg == bg]
 
 y_final = find_pattern_row(scr.screen)
