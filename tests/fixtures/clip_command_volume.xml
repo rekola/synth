@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A placed clip whose own pattern carries a volume set (0LEC, about
+     -6dB) on the row its note starts: the rendered level halves against
+     arrangement_instance_plays_its_own_content.xml, which is otherwise
+     identical. -->
+<song temperament="12edo" tempo="120" rowsPerBar="1" volume="1.0">
+  <instruments>
+    <envelope attack="0.01" hold="0.3" decay="0.3" sustain="0.0" release="0.05">
+      <oscillator type="saw"/>
+    </envelope>
+  </instruments>
+  <tracks>
+    <track id="0" instrument="0"/>
+  </tracks>
+  <clips>
+    <trackClips track="0">
+      <clip id="c0" loop="1">
+        <pattern>
+          <note row="0" velocity="80" value="C-4" />
+          <command row="0" data="0LEC" />
+        </pattern>
+      </clip>
+    </trackClips>
+  </clips>
+  <sections>
+    <section length="8">
+      <arrangement track="0">
+        <instance row="0">c0</instance>
+      </arrangement>
+    </section>
+  </sections>
+</song>

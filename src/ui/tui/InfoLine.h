@@ -33,10 +33,12 @@ class InfoLine : public UIElement {
     auto new_position = info.getAbsolutePosition();
     auto num_voices = info.getVoiceCount();
     auto num_allocated_voices = info.getAllocatedVoiceCount();
+    auto latency_ms = info.getRoundTripLatencyMs();
 
     if (refresh || new_version != current_version_ || new_position != current_position_ ||
 	num_voices != current_num_voices_ || num_allocated_voices != current_num_allocated_voices_ ||
-	buffer_name != current_buffer_name_ || buffer_names != current_buffer_names_) {
+	buffer_name != current_buffer_name_ || buffer_names != current_buffer_names_ ||
+	latency_ms != current_latency_ms_) {
       auto seconds = (int)info.getTime();
       auto minutes = seconds / 60;
       seconds %= 60;
@@ -55,8 +57,13 @@ class InfoLine : public UIElement {
       // PLAYING right after the time, not at the end - the right half below
       // is drawn from the middle column on and would cover it whenever the
       // buffer name is long.
-      auto s = fmt::format(" {} {:02x} {:02d}:{:02d}{} pattern:{} voices:{}/{}", buffer_display_name, info.getAbsolutePosition(), minutes, seconds,
-                           info.isPlaying() ? " PLAYING" : "", pattern_idx, num_voices, num_allocated_voices);
+      // Live input's round-trip latency, only while capture runs (nothing
+      // to show otherwise, and no space taken for it) - "~" for a nominal
+      // figure, one that couldn't be measured.
+      auto latency = latency_ms < 0 ? std::string() :
+        fmt::format(" lat {}{}ms", info.isRoundTripLatencyNominal() ? "~" : "", latency_ms);
+      auto s = fmt::format(" {} {:02x} {:02d}:{:02d}{}{} pattern:{} voices:{}/{}", buffer_display_name, info.getAbsolutePosition(), minutes, seconds,
+                           info.isPlaying() ? " PLAYING" : "", latency, pattern_idx, num_voices, num_allocated_voices);
       while (s.size() < static_cast<size_t>(cols)) s += ' ';
 
       putstr(0, 0, s);
@@ -75,6 +82,7 @@ class InfoLine : public UIElement {
       current_position_ = new_position;
       current_num_voices_ = num_voices;
       current_num_allocated_voices_ = num_allocated_voices;
+      current_latency_ms_ = latency_ms;
       current_buffer_name_ = buffer_name;
       current_buffer_names_ = std::move(buffer_names);
 
@@ -93,6 +101,7 @@ private:
   // printed count would otherwise freeze at whatever it was and never
   // tick down as voices actually finish.
   int current_num_voices_ = 0, current_num_allocated_voices_ = 0;
+  int current_latency_ms_ = -1;
   // Its own dirty-check input too, for the same reason: switching to a
   // different open buffer (Controller::switchToBuffer()) doesn't
   // necessarily change the new song's own version number to something

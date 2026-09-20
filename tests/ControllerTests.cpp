@@ -2267,3 +2267,25 @@ TEST(sync_monitoring_sends_only_changes_for_monitoring_sample_tracks) {
   controller.syncMonitoring();
   expect(0);
 }
+
+TEST(playback_info_reports_round_trip_latency_in_milliseconds) {
+  PlaybackInfo info;
+  info.setOutSampleRate(48000);
+
+  // Nothing while capture isn't running - the info bar shows nothing.
+  CHECK(info.getRoundTripLatencyFrames() == -1);
+  CHECK(info.getRoundTripLatencyMs() == -1);
+
+  info.setRoundTripLatency(1024, false); // 21.33ms
+  CHECK(info.getRoundTripLatencyMs() == 21);
+  CHECK(!info.isRoundTripLatencyNominal());
+
+  info.setRoundTripLatency(1200, true); // 25ms exactly, unmeasured
+  CHECK(info.getRoundTripLatencyMs() == 25);
+  CHECK(info.isRoundTripLatencyNominal());
+
+  // No rate yet (before the first snapshot) - nothing to report either.
+  PlaybackInfo fresh;
+  fresh.setRoundTripLatency(1024, false);
+  CHECK(fresh.getRoundTripLatencyMs() == -1);
+}

@@ -2012,3 +2012,31 @@ TEST(master_send_main_round_trips_through_the_song_file) {
   CHECK_NEAR(reopened.getMasterTrack().getSendMain(), 0.5f, 1e-4f);
   fs::remove(path);
 }
+
+// A placed clip's own commands play, after the section background's, so a
+// clip's own value wins where both set the same thing on one row.
+TEST(render_applies_a_placed_clips_own_volume_command) {
+  auto plain = loadFixture("arrangement_instance_plays_its_own_content.xml");
+  auto with_command = loadFixture("clip_command_volume.xml");
+  CHECK(plain.ok && with_command.ok);
+
+  ChannelConfiguration config(44100, 1);
+  auto a = renderSongOffline(plain.song, config);
+  auto b = renderSongOffline(with_command.song, config);
+  CHECK(rms(a, 0) > 1e-4f);
+  CHECK_NEAR(rms(b, 0), rms(a, 0) * 0.5f, rms(a, 0) * 0.05f); // 0LEC is about -6dB
+}
+
+TEST(render_prefers_a_clips_command_over_the_backgrounds_on_the_same_row) {
+  auto loaded = loadFixture("clip_command_over_background.xml");
+  auto reference = loadFixture("clip_command_volume.xml");
+  CHECK(loaded.ok && reference.ok);
+
+  ChannelConfiguration config(44100, 1);
+  auto out = renderSongOffline(loaded.song, config);
+  auto expected = renderSongOffline(reference.song, config);
+  // The background silences the track (0L00) on the same row; the clip's
+  // own -6dB set is applied after it, so the note is heard at that level.
+  CHECK(rms(out, 0) > 1e-4f);
+  CHECK_NEAR(rms(out, 0), rms(expected, 0), rms(expected, 0) * 0.05f);
+}

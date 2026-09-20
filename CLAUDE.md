@@ -208,8 +208,11 @@ track, whatever supplies that track at the region's anchor row (the mark,
 or the cursor with no mark) - a placed clip, the Launchpad-focused clip, or
 the section's background - and its rows stop where another content takes
 over (`PatternSource::sourceRows()`, `SectionRegionGrid`). A yank writes
-into whatever the cursor is on and stops where that ends. Effect commands
-always stay on the section's background, where playback reads them.
+into whatever the cursor is on and stops where that ends. A region's
+effect commands always go to the section's background, where recorded
+automation lives; playback reads a row's commands from there first and
+then from a placed clip's own pattern, so a clip's own command wins on a
+conflict (`SongState::applyRowCommands()`, `docs/commands.md`).
 
 Because the effective region always exists, it's also always shown —
 `PatternEditor::renderRow` has no separate "current column" highlight;

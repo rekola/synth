@@ -922,6 +922,24 @@ Player::play(AudioAPI & audio) {
 	    auto master = mixer->encode();
 	    audio.play(master, logger);
 
+	    // Measured right after the write, when the playback queue is at
+	    // its fullest. The playback stream runs continuously (silence
+	    // included), so its depth is valid whether or not the transport
+	    // plays; capture's is valid whenever capture runs.
+	    if (!capture_needed) {
+	      latency_frames_ = -1;
+	      latency_nominal_ = false;
+	    } else if (--latency_countdown_ <= 0) {
+	      auto frame_count = static_cast<int>(audio.getFrameCount());
+	      latency_countdown_ = std::max(1, kLatencyUpdateIntervalMs * channel_config_.getAudioOutSampleRate() / (1000 * std::max(1, frame_count)));
+	      auto measured = audio.getPlaybackDelayFrames() + audio.getCaptureDelayFrames();
+	      // Both queues report 0 only when neither could be measured -
+	      // fall back to what they were configured for, two periods each.
+	      latency_nominal_ = measured <= 0;
+	      latency_frames_ = latency_nominal_ ? 4 * frame_count : measured;
+	      if (monitoring) latency_frames_ += static_cast<int>(monitor_fifo_.size());
+	    }
+
 	    pushSnapshots();
 
 	    // Hand off to VisualizationThread - its own dedicated thread,
@@ -1016,6 +1034,7 @@ Player::createPlaybackEvent(const string & buffer_name, const Song & song, const
   info.setAbsolutePos(state.getAbsolutePosition());
   info.setPositionEditSeq(state.getPositionEditSeq());
   info.setVoiceCount(state.getVoiceCount());
+  info.setRoundTripLatency(latency_frames_, latency_nominal_);
   info.setAllocatedVoiceCount(state.getAllocatedVoiceCount());
 
   std::unordered_map<int, TrackInfo> effect_info;

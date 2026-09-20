@@ -43,6 +43,20 @@ class PlaybackInfo {
     return outSampleRate_ > 0 ? (float)(absolute_pos_ * sample_interval_ + sample_pos_) / outSampleRate_ : 0.0f;
   }
 
+  // The round-trip latency of live input - the playback queue plus the
+  // capture queue, plus whatever monitored input is waiting - while
+  // capture runs (recording, threshold-armed or monitoring), else -1.
+  // Nominal means it couldn't be measured and is the configured buffering
+  // instead.
+  void setRoundTripLatency(int frames, bool nominal) { round_trip_latency_frames_ = frames; latency_is_nominal_ = nominal; }
+  int getRoundTripLatencyFrames() const { return round_trip_latency_frames_; }
+  bool isRoundTripLatencyNominal() const { return latency_is_nominal_; }
+  // Rounded to milliseconds at the output rate, or -1 while there's none.
+  int getRoundTripLatencyMs() const {
+    if (round_trip_latency_frames_ < 0 || outSampleRate_ <= 0) return -1;
+    return static_cast<int>((static_cast<long long>(round_trip_latency_frames_) * 1000 + outSampleRate_ / 2) / outSampleRate_);
+  }
+
   int getVoiceCount() const { return voice_count_; }
   int getAllocatedVoiceCount() const { return allocated_voice_count_; }
 
@@ -75,6 +89,8 @@ private:
   int sample_pos_ = 0, pattern_idx_ = 0, row_idx_ = 0, absolute_pos_ = 0;
   int position_edit_seq_ = 0;
   int voice_count_ = 0, allocated_voice_count_ = 0;
+  int round_trip_latency_frames_ = -1;
+  bool latency_is_nominal_ = false;
 
   std::unordered_map<int, TrackInfo> effect_info_;
   std::unordered_map<int, std::vector<ActiveVoiceInfo> > active_voices_;

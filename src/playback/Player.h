@@ -214,6 +214,15 @@ private:
   // The previous iteration's "the active buffer monitors something" -
   // part of play()'s capture-enable edge, like was_recording_.
   bool was_monitoring_ = false;
+
+  // Live input's round-trip latency (PlaybackInfo::setRoundTripLatency()),
+  // remeasured a few times a second while capture runs - often enough to
+  // follow a real change, rarely enough that the figure shown doesn't
+  // flicker with every block's own queue depth.
+  static constexpr int kLatencyUpdateIntervalMs = 250;
+  int latency_frames_ = -1;
+  bool latency_nominal_ = false;
+  int latency_countdown_ = 0;
   // Latched true the instant this arm cycle's own trigger actually fires,
   // cleared on the next false->true edge above - without it, every
   // capture block still above threshold after the first one would fire

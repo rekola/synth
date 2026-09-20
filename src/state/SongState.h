@@ -113,6 +113,71 @@ class SongState : public TrackState {
   // precedent GranularCloud's own *ForTest() accessors establish.
   const BusEffect & getSlotEffectForTest(int slot) const { return send_bus_.getSlotEffect(slot); }
 
+  // Every command at `pattern_row` of `pattern`, for `track_id`, starting
+  // `frame_offset` frames into this block. Every column at the row is
+  // processed, not just one - a row can carry more than one
+  // concurrently-recordable command (Pattern::setCommand(row,
+  // command_column, Command)'s own comment).
+  void applyRowCommands(const Pattern & pattern, int pattern_row, int track_id, int frame_offset, bool allow_pattern_break) {
+    for (auto & command : pattern.getCommandsAt(pattern_row)) {
+	if (!command.isDefined()) continue;
+	if (command.isPatternBreak()) {
+	  // Song-level, so only the section's own background gets one - a clip
+	  // carrying one is placed wherever, with no business jumping the song.
+	  if (!allow_pattern_break) continue;
+	  pending_break_ = true;
+	  pending_break_row_ = command.getBreakDestinationRow();
+	} else if (command.isAzimuthSlide()) {
+	  scheduleAzimuthSlide(track_id, frame_offset, command.getAzimuthSlidePerTick());
+	} else if (command.isVolumeSet() || command.isSendASet() || command.isSendBSet() || command.isAzimuthSet()) {
+	  // 0Lxx/0Fxx/0Mxx/0Pxx - an absolute set, applied the instant
+	  // this row starts (unlike the slide commands above, there's
+	  // no per-tick ramp to schedule - see Command::
+	  // getSendSetLinear()/getAzimuthSetDegrees()'s own comments on
+	  // why these are a Set, not a Slide). setSendMain()/setSendA()/
+	  // setSendB()/setAzimuth() already reach every already-active
+	  // voice too, the same live-knob path Controller::
+	  // setTrackSendA()/setTrackAzimuth()/etc. use - a recorded
+	  // automation move and a live Launchpad press land on the
+	  // exact same mechanism.
+	  auto * leaf_state = dynamic_cast<LeafTrackState *>(getChildByInternalId(track_id));
+	  if (leaf_state) {
+	    if (command.isVolumeSet()) leaf_state->setSendMain(command.getSendSetLinear());
+	    else if (command.isSendASet()) leaf_state->setSendA(command.getSendSetLinear());
+	    else if (command.isSendBSet()) leaf_state->setSendB(command.getSendSetLinear());
+	    else leaf_state->setAzimuth(command.getAzimuthSetDegrees());
+	  }
+	} else if (command.isVolumeGlide() || command.isSendAGlide() || command.isSendBGlide()) {
+	  // YMxy/YAxy/YBxy - reproduces a recorded Launchpad fader press's
+	  // own real (wall-clock) glide, not just its final value - the
+	  // same LeafTrackState::glideSendMain()/A()/B() ramp a live press
+	  // starts server-side now (Controller::glideTrackSendA()/etc.),
+	  // just started here at this row instead of from a live event.
+	  // getGlideDurationSeconds() is real seconds regardless of
+	  // tempo_, converted to frames via this buffer's own actual
+	  // sample rate, same as Player.cpp's own GLIDE_TRACK_SEND_*
+	  // handling does for a live press.
+	  auto * leaf_state = dynamic_cast<LeafTrackState *>(getChildByInternalId(track_id));
+	  if (leaf_state) {
+	    int glide_frames = static_cast<int>(std::lround(command.getGlideDurationSeconds() * getChannelConfiguration().getAudioOutSampleRate()));
+	    if (command.isVolumeGlide()) leaf_state->glideSendMain(command.getGlideTargetDb(), glide_frames);
+	    else if (command.isSendAGlide()) leaf_state->glideSendA(command.getGlideTargetDb(), glide_frames);
+	    else leaf_state->glideSendB(command.getGlideTargetDb(), glide_frames);
+	  }
+	} else if (command.isAzimuthGlide()) {
+	  // YZxy - azimuth's own equivalent of the three above, started
+	  // through LeafTrackState::glideAzimuth() (which picks its own
+	  // travel direction - see that method's own comment) rather
+	  // than glideSendMain()/A()/B().
+	  auto * leaf_state = dynamic_cast<LeafTrackState *>(getChildByInternalId(track_id));
+	  if (leaf_state) {
+	    int glide_frames = static_cast<int>(std::lround(command.getGlideDurationSeconds() * getChannelConfiguration().getAudioOutSampleRate()));
+	    leaf_state->glideAzimuth(command.getAzimuthGlideTargetDegrees(), glide_frames);
+	  }
+	}
+      }
+  }
+
   // Named distinctly from TrackState::render's 3-arg overload (rather than
   // overloading render() itself), the same reasoning as InstrumentTrackState::
   // renderVoices - a different-shaped render() in a derived class hides
@@ -301,6 +366,7 @@ class SongState : public TrackState {
 	    // entirely separately below - it isn't part of this resolution
 	    // at all.
 	    const Pattern * active_pattern = nullptr;
+	    bool from_clip = false; // active_pattern is a placed clip's own, not the background
 	    int effective_row = row_idx;
 
 	    auto active = resolveInstanceAt(song, section, track_id, row_idx);
@@ -460,6 +526,7 @@ class SongState : public TrackState {
 	      }
 
 	      active_pattern = &clip.getLeafPattern();
+	      from_clip = true;
 	      auto length = clip.getLength() > 0 ? clip.getLength() : 1;
 	      effective_row = active_pattern->getEffectiveRow(row_idx - active.start_row, length);
 	    } else if (active.clip_index == Section::kNoInstance) {
@@ -493,77 +560,17 @@ class SongState : public TrackState {
 	      }
 	    }
 
-	    // Commands always come from the section's own background pattern
-	    // - never a Clip's own leaf pattern, even while that clip is
-	    // what's supplying this row's notes above. A Clip's own Command
-	    // column is deliberately not considered here (or anywhere else
-	    // yet - PatternEditor doesn't show it, and nothing writes into
-	    // it as automation): every command lives at the track/section
-	    // level, one shared place regardless of which clip (if any)
-	    // happens to be playing there, matching how live-recorded
-	    // automation is meant to survive independent of clip placement.
-	    // Every column at this row is processed, not just one - a row
-	    // can carry more than one concurrently-recordable command now
-	    // (Pattern::setCommand(row, command_column, Command)'s own
-	    // comment).
+	    // Commands come from the section's own background pattern - one
+	    // shared place regardless of which clip (if any) plays there, so
+	    // recorded automation survives independent of clip placement -
+	    // and then from a placed clip's own pattern, so a clip's own
+	    // command wins where both set the same thing on the same row.
 	    auto background_it = section.getPatternsByTrack().find(track_id);
 	    if (background_it != section.getPatternsByTrack().end()) {
 	      auto background_row = background_it->second.getEffectiveRow(row_idx, song.getEffectiveSectionLength(section));
-	      for (auto & command : background_it->second.getCommandsAt(background_row)) {
-		if (!command.isDefined()) continue;
-		if (command.isPatternBreak()) {
-		  pending_break_ = true;
-		  pending_break_row_ = command.getBreakDestinationRow();
-		} else if (command.isAzimuthSlide()) {
-		  scheduleAzimuthSlide(track_id, i, command.getAzimuthSlidePerTick());
-		} else if (command.isVolumeSet() || command.isSendASet() || command.isSendBSet() || command.isAzimuthSet()) {
-		  // 0Lxx/0Fxx/0Mxx/0Pxx - an absolute set, applied the instant
-		  // this row starts (unlike the slide commands above, there's
-		  // no per-tick ramp to schedule - see Command::
-		  // getSendSetLinear()/getAzimuthSetDegrees()'s own comments on
-		  // why these are a Set, not a Slide). setSendMain()/setSendA()/
-		  // setSendB()/setAzimuth() already reach every already-active
-		  // voice too, the same live-knob path Controller::
-		  // setTrackSendA()/setTrackAzimuth()/etc. use - a recorded
-		  // automation move and a live Launchpad press land on the
-		  // exact same mechanism.
-		  auto * leaf_state = dynamic_cast<LeafTrackState *>(getChildByInternalId(track_id));
-		  if (leaf_state) {
-		    if (command.isVolumeSet()) leaf_state->setSendMain(command.getSendSetLinear());
-		    else if (command.isSendASet()) leaf_state->setSendA(command.getSendSetLinear());
-		    else if (command.isSendBSet()) leaf_state->setSendB(command.getSendSetLinear());
-		    else leaf_state->setAzimuth(command.getAzimuthSetDegrees());
-		  }
-		} else if (command.isVolumeGlide() || command.isSendAGlide() || command.isSendBGlide()) {
-		  // YMxy/YAxy/YBxy - reproduces a recorded Launchpad fader press's
-		  // own real (wall-clock) glide, not just its final value - the
-		  // same LeafTrackState::glideSendMain()/A()/B() ramp a live press
-		  // starts server-side now (Controller::glideTrackSendA()/etc.),
-		  // just started here at this row instead of from a live event.
-		  // getGlideDurationSeconds() is real seconds regardless of
-		  // tempo_, converted to frames via this buffer's own actual
-		  // sample rate, same as Player.cpp's own GLIDE_TRACK_SEND_*
-		  // handling does for a live press.
-		  auto * leaf_state = dynamic_cast<LeafTrackState *>(getChildByInternalId(track_id));
-		  if (leaf_state) {
-		    int glide_frames = static_cast<int>(std::lround(command.getGlideDurationSeconds() * getChannelConfiguration().getAudioOutSampleRate()));
-		    if (command.isVolumeGlide()) leaf_state->glideSendMain(command.getGlideTargetDb(), glide_frames);
-		    else if (command.isSendAGlide()) leaf_state->glideSendA(command.getGlideTargetDb(), glide_frames);
-		    else leaf_state->glideSendB(command.getGlideTargetDb(), glide_frames);
-		  }
-		} else if (command.isAzimuthGlide()) {
-		  // YZxy - azimuth's own equivalent of the three above, started
-		  // through LeafTrackState::glideAzimuth() (which picks its own
-		  // travel direction - see that method's own comment) rather
-		  // than glideSendMain()/A()/B().
-		  auto * leaf_state = dynamic_cast<LeafTrackState *>(getChildByInternalId(track_id));
-		  if (leaf_state) {
-		    int glide_frames = static_cast<int>(std::lround(command.getGlideDurationSeconds() * getChannelConfiguration().getAudioOutSampleRate()));
-		    leaf_state->glideAzimuth(command.getAzimuthGlideTargetDegrees(), glide_frames);
-		  }
-		}
-	      }
+	      applyRowCommands(background_it->second, background_row, track_id, i, true);
 	    }
+	    if (from_clip) applyRowCommands(*active_pattern, effective_row, track_id, i, false);
 	  }
 	}
 	
