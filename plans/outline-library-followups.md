@@ -1,59 +1,9 @@
-# OutlineView library follow-ups
+# Bass-line generator / arpeggiator groove part
 
-## Context
-
-OutlineView is now a working instrument/groove browser: Library >
-Instruments (taxonomy paths, keyboard audition, NCKEY_ENTER adds to the
-song's pool) and Library > Grooves (27 real, standard-named rhythm
-patterns spanning several meters, looping preview, NCKEY_ENTER adds a
-Clip on a found-or-created PercussionTrack), a Details panel to the right
-of the tree, Delete for tracks/pool instruments, mouse scroll. This
-captures what's still open, roughly in the order to tackle it - bass-line
-generation and the arpeggiator groove part deliberately last, since
-neither design is settled yet and both need more thought before
-committing to either.
-
-Done:
-- Instrument library descriptions (`GmInstrumentDescriptions.h`, one per
-  GM taxonomy path, plain array + a test guarding it against
-  `GmInstrumentTable.h`, shown in the Details panel the same way a
-  groove's own `description` already is).
-- Real mouse click support - clicking a tree row moves the cursor there;
-  Details panel action lines are real clickable targets now
-  (`buildDetailsLines()`/`DetailsAction` is the one shared source both
-  drawing and click hit-testing use, so a click and its keyboard
-  equivalent can never drift apart).
-- Scroll-wheel no longer moves the cursor - a new `scrollBy()` only
-  touches the viewport, clamped so it can't scroll past the last row.
-- Preview click/pop artifacts - root-caused and fixed: retriggering
-  PREVIEW_NOTE/PREVIEW_GROOVE was destroying the previous voice(s)
-  outright (a plain `unique_ptr` assignment / `vector::clear()`), a hard
-  cut mid-waveform. Now `fastRelease()`s the old occupant(s) and lets
-  them finish their own tail in `preview_voices_` (the same "masked by a
-  fresh attack" mechanism `InstrumentTrackState::retriggerVoices()`
-  already uses for a real track), reclaimed normally once
-  `isActive()` goes false. Verified structurally (voice count right
-  after retriggering), not by ear.
-- Song > Instruments (pool) rows now preview the same way a Library >
-  Instruments row does - note keys audition the exact pool slot
-  (PlaybackControlEvent::PREVIEW_POOL_NOTE, addressed by pool index rather
-  than a re-resolved name, so generator overrides/custom Oscillator
-  parameters sound correctly) - and show a description in the Details
-  panel: a custom one (new `Instrument::getDescription()`/
-  `setDescription()`, an XML attribute on any pool slot) if authored,
-  else, for a GenericInstrument slot, its resolved SoundFont/taxonomy
-  entry's own curated description (inherited, not duplicated).
-- A Library > Grooves row's own Add to Song now has a real target-track
-  picker instead of always defaulting to "the first PercussionTrack,
-  create one if none exists" - a `[t] Target: <label>` line in its own
-  Details panel; 't' or a click opens a real floating ncselector plane
-  (`UIPlane::showPicker()`/`addItem()`/`pickerActive()`/
-  `getPickerSelection()`/`closePicker()`, new - notcurses's own list-
-  picker widget, not text drawn inline into the Details panel) listing
-  every root PercussionTrack plus "New track"; Enter or a click on an
-  item picks it. Defaults to the old first-or-create behavior when never
-  touched. `OutlineView::compatibleTargetTrackRows()`/
-  `resolveTargetTrackId()`/`targetTrackLabel()` are the reusable pieces.
+Two remaining Library > Grooves follow-ups, in the order to tackle them -
+both deliberately last since neither design is settled yet, and the
+arpeggiator part shares the bass-line generator's own "the clip needs
+real chord notes in it" dependency.
 
 ## 1. Bass-line generator (design not settled)
 
