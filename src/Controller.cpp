@@ -259,8 +259,7 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
       // per-track recording no longer touches this flag at all (see
       // armed_track_ids_' own doc comment). LaunchpadManager's own
       // refresh() reacts to this falling edge for its own bookkeeping
-      // (stopping an auto-started transport, clearing Session-view
-      // audition state).
+      // (stopping an auto-started transport).
       disarmNoteCapture();
       return;
     }
@@ -330,7 +329,7 @@ Controller::Controller(ChannelConfiguration _channel_config) : channel_config(_c
       // any in-flight take on the way to disarming - see its own doc
       // comment) - the actual take only begins later, quantized, the
       // moment a real pad press lands
-      // (LaunchpadManager::triggerSessionClip()).
+      // (SessionPlayer::triggerClip()).
       toggleTrackArmed(track_id);
     } else {
       // The transport itself starts via LaunchpadManager's own refresh()

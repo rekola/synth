@@ -75,15 +75,15 @@ class Clip : public SongObject {
   // deferring to a context_length the way a section's own inline Pattern
   // does. 0 means "not given a length of its own" (see Pattern.h's own
   // comment on that same convention); callers already clamp it to at
-  // least 1 before using it (LaunchpadManager::triggerClipStep()).
+  // least 1 before using it (SessionPlayer::advanceToStep()).
   int getLength() const { return length_; }
   void setLength(int length) { length_ = length; }
 
   // Session view's own clip-launch loop toggle - true (the default)
   // repeats indefinitely once triggered, matching Pattern::
   // getEffectiveRow()'s own unconditional modulo and every other
-  // playback path's behavior. false makes it a one-shot: LaunchpadManager::
-  // triggerClipStep() releases the track's voices and stops
+  // playback path's behavior. false makes it a one-shot: SessionPlayer::
+  // advanceToStep() releases the track's voices and stops
   // triggering it, rather than wrapping back to row 0, once it's played
   // through its own length once. Scoped to Session-view triggering only -
   // a section's own inline Pattern (ordinary transport-driven playback,

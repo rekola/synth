@@ -322,7 +322,7 @@ you're changing.
 - **`launchpad_sampletrack_record_arm_test.xml` / `fake_launchpad_
   sampletrack_record_arm.c` / `verify_launchpad_sampletrack_record_arm.py`** -
   the SampleTrack twin of `fake_launchpad_record_arm_holes.c` above -
-  covers `LaunchpadManager::triggerSessionClip()`'s own SampleTrack branch
+  covers `SessionPlayer::triggerClip()`'s own SampleTrack branch
   (a Session-grid press on a SampleTrack armed via the track-picker
   overlay now actually arms real audio capture -
   `Controller::armSessionTrackRecording()`/`armThresholdRecording()` -

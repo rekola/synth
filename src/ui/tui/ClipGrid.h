@@ -77,8 +77,8 @@ class ClipGrid : public UIElement {
 
   // Called on Enter over a clip row (populated or not) with the row's own
   // (track_id, clip_index) - Enter acts exactly like a Launchpad Session
-  // view pad press landing on that same cell (LaunchpadManager::
-  // triggerSessionClip()), never a separate "focus for editing" gesture
+  // view pad press landing on that same cell (SessionPlayer::
+  // triggerClip()), never a separate "focus for editing" gesture
   // of its own, the same callback-not-reaching-into-UI pattern
   // ArrangementGrid's own commit_callback_ already uses (this class has
   // no idea LaunchpadManager exists either). Wired in UI::start().

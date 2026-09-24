@@ -639,10 +639,10 @@ would otherwise resume showing.
   register back to 0 - without this, opening the same clip twice could
   start at a different, unpredictable octave depending on whatever
   unrelated note entry had happened to leave a given device's own octave
-  at in between; and the free-running audition clock itself
-  (`restartAuditionClockFromSilence()`, the same restart Session-view
-  launches from silence already use) - without this last one, a clip's
-  audition playhead resumed from wherever that shared clock's stale phase
+  at in between; and the step grid's own preview clock
+  (`LaunchpadManager`'s `preview_clock_`, separate from `SessionPlayer`'s)
+  - without this last one, a clip's
+  audition playhead resumed from wherever that clock's stale phase
   already happened to be rather than row 0, so a freshly opened clip could
   visibly start partway through instead of from its own beginning. Every
   open now starts from the same known step window, row window, octave,
@@ -713,7 +713,7 @@ would otherwise resume showing.
   already have one" convention `addClip()` itself follows). Every "is
   this slot populated" check reads content, not just bounds
   (`!clip.isEmpty()`), for exactly this reason - Session view's own
-  per-pad LED/row display, `LaunchpadManager::triggerSessionClip()`'s
+  per-pad LED/row display, `SessionPlayer::triggerClip()`'s
   fresh-take-vs-overdub decision, and `ClipGrid`'s own delete/rename/
   loop-toggle commands (a filler reads as "nothing here" the same as a
   genuinely out-of-bounds row - erasing one would shift every later
@@ -738,15 +738,16 @@ would otherwise resume showing.
   `PatternEditor::getCursorTrackIndex()` - no per-device track-follow/
   detachment). Record Arm gates trigger-live (off) vs. assign-into-the-
   current-section (on), the same "just play" vs. "store into the pattern"
-  choice ordinary note entry already makes. Auditioning uses the same
-  free-running clock (`audition_clock_`) the drum step-grid's own
-  auditioning already used, generalized (`LaunchpadManager::
-  triggerClipStep()`/`fireClipStep()`) from one drum kit's steps to any
-  track's own clip. That clock only ever stops while playing or armed
-  (`refresh()`'s own comment) - merely idle with nothing triggered, it
+  choice ordinary note entry already makes. Launch bookkeeping and
+  playback live in `SessionPlayer` (`src/playback/SessionPlayer.h`,
+  Controller-owned, `Controller::getSessionPlayer()`), so the Launchpad,
+  the clip grid and the launch commands all go through one place; it
+  plays launched clips on its own free-running clock (`SessionPlayer::
+  tick()`, once per UI frame). That clock only ever stops while playing or
+  armed - merely idle with nothing triggered, it
   free-runs regardless - so a genuine launch from silence (nothing
   anywhere already triggered or queued) restarts it outright
-  (`LaunchpadManager::restartAuditionClockFromSilence()`) rather than
+  (`SessionPlayer::restartClockFromSilence()`) rather than
   trusting whatever phase it already happened to be at: without this, the
   immediately-fired first note still landed right on the press, but the
   second note - the clock's own next tick - fired whenever its stale,
@@ -754,10 +755,10 @@ would otherwise resume showing.
   right away to almost a full row late, before settling into the correct,
   evenly-spaced tempo from the third note on. Launches and stops are
   quantized to a shared bar-length grid boundary every track measures
-  against alike (`session_origin_step_`/`rows_per_bar`) - explicitly never the
+  against alike (`SessionPlayer::originStep()`/`rows_per_bar`) - explicitly never the
   triggered clip's own loop length (that only decides where *it* loops,
   not when a pending change is allowed to interrupt it) and never
-  immediate (`triggered_pattern_by_track_`/`queued_pattern_by_track_`,
+  immediate (`SessionPlayer`'s `launched_`/`queued_`,
   `-1` is the queued-stop sentinel) - an unassigned pad queues a stop,
   while repressing the active pad relaunches its clip from row 0 at the
   next boundary (a launch never toggles - the live-sequencer convention;
@@ -796,7 +797,7 @@ would otherwise resume showing.
   out to other simultaneously-armed tracks the way note recording above
   is, since there's only one real input stream to route through it - a
   press on an armed `SampleTrack`'s own row arms (or retargets) real
-  capture right away (`LaunchpadManager::triggerSessionClip()`'s own
+  capture right away (`SessionPlayer::triggerClip()`'s own
   SampleTrack branch: `Controller::armSessionTrackRecording()`/
   `armThresholdRecording()`, mirroring "toggle-record-arm"'s own
   Session-View-focused SampleTrack branch from the terminal), and
@@ -903,7 +904,7 @@ would otherwise resume showing.
   effects, unaffected by a transport stop. Only the active buffer hears
   the input.
   Each clip slot shows its transport/recording state the way its
-  Launchpad pad does (`LaunchpadManager::clipHighlight()`, the one
+  Launchpad pad does (`SessionPlayer::clipHighlight()`, the one
   source for both, `SessionPadHighlight`): a colored glyph in its icon's
   place - green for playing (▸) or queued (▹), red for recording (●) or
   queued to record (○), dim red for an armed track's empty slot (○) or a
@@ -971,7 +972,7 @@ would otherwise resume showing.
   scene-launch action the same eight buttons perform while mixer submode
   is off (`LaunchpadManager::triggerSceneRow()`, row = (cc_number - 19) /
   10) - every track's own clip at that row launches together off a single
-  press, not just the first track in `session_.track_ids` (`triggerSessionClip()`'s
+  press, not just the first track in `session_.track_ids` (`SessionPlayer::triggerClip()`'s
   own `shared_launch_step` parameter is what makes this atomic across the
   whole row rather than a per-track decision). `verify_launchpad_mixer_hold.py`
   covers the same eight buttons' own momentary hold-to-preview gesture
@@ -1034,8 +1035,8 @@ would otherwise resume showing.
     `SendLevels`, …).
   - `src/state/` — the parallel, cheaply-resettable playback-state
     objects (`*State.h`) mirroring the model objects above.
-  - `src/playback/` — `Player` (sequencer) and the event vocabulary it
-    consumes/produces.
+  - `src/playback/` — `Player` (sequencer), the event vocabulary it
+    consumes/produces, and `SessionPlayer` (Session view clip launching).
   - `src/instruments/` — synthesis and instrument resolution:
     `OscillatorVoice`/`GenericInstrument`/`SoundFont`, `Tuner`/`Tuning`
     (microtonal pitch math), `LFO`, `Arpeggiator`.

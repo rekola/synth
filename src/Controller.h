@@ -6,6 +6,7 @@
 #include "model/Version.h"
 #include "instruments/InstrumentProvider.h"
 #include "playback/EventQueue.h"
+#include "playback/SessionPlayer.h"
 #include "state/PlaybackInfo.h"
 #include "ambisonic/ChannelConfiguration.h"
 #include "ambisonic/MixerType.h"
@@ -293,11 +294,10 @@ class Controller {
   // plain global flag, not per-buffer-mirrored, same reasoning
   // threshold_armed_ already has: Record Arm is a single "what's
   // currently being captured" concept, not a per-song one. Consulted by
-  // LaunchpadManager (Launchpad-grid note capture, Session-view
-  // assign-recording) - the note-grid's own arm/disarm side effects
-  // (clearing Session-view audition state, starting/stopping the
-  // transport) live there, reacting to this flag's own rising/falling
-  // edge each refresh(), not here.
+  // LaunchpadManager (Launchpad-grid note capture) and SessionPlayer
+  // (Session-view assign-recording) - their arm/disarm side effects
+  // (starting/stopping the transport, clearing launched clips) react to
+  // this flag's own rising/falling edge once per frame, not here.
   void armNoteCapture() { note_capture_armed_ = true; }
   void disarmNoteCapture() { note_capture_armed_ = false; }
   bool isNoteCaptureArmed() const { return note_capture_armed_; }
@@ -314,7 +314,7 @@ class Controller {
   // currently-selected track) and, eventually, the Launchpad track-picker's
   // own RECORD_ARM purpose (any track, not just the selected one) - see
   // plans/launchpad-novation-unification.md for the full design, including
-  // why arming itself starts nothing (LaunchpadManager::triggerSessionClip()
+  // why arming itself starts nothing (SessionPlayer::triggerClip()
   // queues the actual record-start, the same way it already queues a plain
   // clip launch).
   void armTrack(int track_id) { armed_track_ids_.insert(track_id); }
@@ -474,6 +474,10 @@ class Controller {
   EventQueue & getUIEventQueue() { return ui_event_queue; }
   EventQueue & getPlaybackEventQueue() { return playback_event_queue; }
 
+  // Session view clip launching and its clock - see SessionPlayer.h.
+  SessionPlayer & getSessionPlayer() { return session_player_; }
+  const SessionPlayer & getSessionPlayer() const { return session_player_; }
+
   // Audio thread -> VisualizationThread only (see VisualizationThread.h) -
   // carries raw AudioBlockEvents, never anything UI-facing; results come
   // back the other way via ui_event_queue (VisualizationResultEvent).
@@ -625,7 +629,7 @@ class Controller {
   //
   // This is deliberately not the same thing as Session-view style clip
   // *launching* (real multi-track simultaneous performance playback,
-  // LaunchpadManager::handleSessionPadEvent()/triggerClipStep()) - a
+  // LaunchpadManager::handleSessionPadEvent()/SessionPlayer::advanceToStep()) - a
   // focus is a single, exclusive "what am I currently looking at to
   // edit" pointer, so setting a new one always silences whatever the
   // *previous* focus was actively previewing first (stopFocusedClipPreview()),
@@ -887,8 +891,7 @@ class Controller {
   // index already holds a clip - see its own comment, and
   // primeSessionRecordingOrigin()'s for the overdub exception to it),
   // never calling placeClipInstance() at all. `absolute_step` is the
-  // audition clock's own raw step (LaunchpadManager's own
-  // audition_clock_.currentStep(), a Launchpad's NOTE grid being the only
+  // Session clock's own raw step (SessionPlayer::quantizedStep(), a Launchpad's NOTE grid being the only
   // way notes reach here today - keyboard note *recording* not being
   // viable without key-release events this terminal doesn't deliver), not
   // getPlaybackInfo().getRowIndex() - a session recording can run with the
@@ -900,8 +903,8 @@ class Controller {
   // note happened to land on: a performer may deliberately start playing
   // on the bar's second beat rather than its first, and the clip's own row
   // 0 still has to be the bar's start either way, not wherever they first
-  // happened to play. `grid_origin_step` is LaunchpadManager's own
-  // session_origin_step_ - the shared bar-boundary reference every other
+  // happened to play. `grid_origin_step` is SessionPlayer::
+  // originStep() - the shared bar-boundary reference every other
   // track's own Session View clip is already measured against - when
   // something else in the session is already playing (-1 otherwise,
   // meaning "nothing else established one yet"); snapping is measured
@@ -1243,6 +1246,7 @@ class Controller {
   // see their shared doc comment.
   bool clip_grid_focused_ = false;
   int clip_grid_track_id_ = -1, clip_grid_clip_index_ = -1;
+  SessionPlayer session_player_{*this};
   // armSessionTrackRecording()/isSessionRecording()/
   // getSessionRecordingClipIndex()'s own backing state - one entry per
   // track currently mid-take, so several can be in flight at once (see

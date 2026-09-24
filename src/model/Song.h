@@ -108,7 +108,7 @@ class Song : public SongObject {
   int getEffectiveSectionLength(int section_idx) const { return getEffectiveSectionLength(getSection(section_idx)); }
 
   // The shared quantization grid (<song rowsPerBar="N">) both the
-  // Launchpad Session view (LaunchpadManager::triggerClipStep())
+  // Launchpad Session view (SessionPlayer::advanceToStep())
   // and PatternEditor's own bar-boundary highlight measure against -
   // independent of a section's own length (a section can span many bars;
   // this is how many rows make just one of them). Default 16 matches this

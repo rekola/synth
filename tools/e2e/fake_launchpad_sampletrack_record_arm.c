@@ -5,7 +5,7 @@
 // SampleTrack actually arming real audio capture
 // (Controller::armSessionTrackRecording()/armThresholdRecording()) instead
 // of falling through to plain audition/assign (the `is_sample_track`
-// carve-out LaunchpadManager::triggerSessionClip() used to have). Never
+// carve-out SessionPlayer::triggerClip() used to have). Never
 // touches NOTE mode or real audio - a SampleTrack's own capture is
 // threshold-triggered, not something a scripted press can make arrive - so
 // this only exercises the "armed and waiting" state transition, the same

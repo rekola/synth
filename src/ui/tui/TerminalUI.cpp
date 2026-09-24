@@ -2072,15 +2072,15 @@ TerminalUI::initializeWidgets() {
   // quantized to the bar, exactly like a Launchpad Session-view pad or
   // scene button.
   commands_.define("launch-clip", [this]() {
-    if (!launchpad_manager_ || !pattern_editor_->isSessionMode()) return;
-    launchpad_manager_->triggerSessionClip(getController(), getController().getSong().getCurrentTrackId(), pattern_editor_->getSessionScene());
+    if (!pattern_editor_->isSessionMode()) return;
+    getController().getSessionPlayer().triggerClip(getController().getSong().getCurrentTrackId(), pattern_editor_->getSessionScene());
   });
   commands_.define("launch-scene", [this]() {
-    if (!launchpad_manager_ || !pattern_editor_->isSessionMode()) return;
-    launchpad_manager_->launchScene(getController(), pattern_editor_->getSessionScene(), getController().getSong().getPlayableTrackIds());
+    if (!pattern_editor_->isSessionMode()) return;
+    getController().getSessionPlayer().launchScene(pattern_editor_->getSessionScene(), getController().getSong().getPlayableTrackIds());
   });
   commands_.define("stop-all-clips", [this]() {
-    if (launchpad_manager_) launchpad_manager_->silenceOtherTriggeredClips(getController());
+    getController().getSessionPlayer().silenceAll();
   });
   // Space: the transport, which is Arrangement view's - Session view has
   // its own launches and stops (the clip grid, the Launchpad), so Space
@@ -2379,17 +2379,14 @@ TerminalUI::renderComponents(bool refresh) {
   // Only what the current view shows (see layout()) - a hidden widget
   // drawing would paint over whichever visible one shares its rect.
   if (getView() == View::SESSION) {
-    if (launchpad_manager_) {
-      std::unordered_map<int, ScenePatternSource::Playhead> playheads;
-      for (auto & [ track_id, playhead ] : launchpad_manager_->sessionPlayheads(song)) {
-        if (playhead.clip_index >= 0) playheads[track_id] = { playhead.clip_index, playhead.row };
-      }
-      pattern_editor_->setSessionPlayheads(std::move(playheads));
-      clip_grid_->setClipStateSource([this](int track_id, int clip_index) {
-        auto & controller = getController();
-        return launchpad_manager_->clipHighlight(controller, controller.getSong(), controller.getPlaybackInfo(), track_id, clip_index);
-      });
+    std::unordered_map<int, ScenePatternSource::Playhead> playheads;
+    for (auto & [ track_id, playhead ] : getController().getSessionPlayer().playheads()) {
+      if (playhead.clip_index >= 0) playheads[track_id] = { playhead.clip_index, playhead.row };
     }
+    pattern_editor_->setSessionPlayheads(std::move(playheads));
+    clip_grid_->setClipStateSource([this](int track_id, int clip_index) {
+      return getController().getSessionPlayer().clipHighlight(track_id, clip_index);
+    });
     render |= clip_grid_->render(styles_, refresh, active == clip_grid_);
     if (isOutlineVisible()) render |= outline_view_->render(styles_, refresh, active == outline_view_);
   }
@@ -2398,6 +2395,10 @@ TerminalUI::renderComponents(bool refresh) {
   render |= cover_art_->render(styles_, refresh);
   render |= info_line_->render(styles_, refresh);
   render |= octave_control_->render(styles_, refresh);
+
+  auto & session_player = getController().getSessionPlayer();
+  session_player.setAssignSection(arrangement_grid_->getCursorSection());
+  session_player.tick();
 
   if (launchpad_manager_) {
     auto track_ids = song.getPlayableTrackIds();
@@ -2408,7 +2409,6 @@ TerminalUI::renderComponents(bool refresh) {
     // SessionWindow's own comment).
     LaunchpadManager::SessionWindow session;
     session.track_ids = arrangement_grid_->getVisibleTrackIds(song);
-    session.cursor_section_idx = arrangement_grid_->getCursorSection();
     launchpad_manager_->refresh(song, track_ids, getController().getPlaybackInfo(),
       track_ids.empty() ? -1 : indexOfTrack(track_ids, song.getCurrentTrackId()), getController(), session);
   }
@@ -3055,18 +3055,18 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
     clip_grid_->setCursorTrackIndex(new_track_index);
   });
   // ClipGrid's own Enter key - acts exactly like a Launchpad Session
-  // view pad press on the same cell (LaunchpadManager::
-  // triggerSessionClip(), same as handleSessionPadEvent() itself resolves
-  // to) - launchpad_manager_ isn't set until this method runs (see
-  // arrangement_grid_'s own commit callback comment in initializeWidgets()
-  // for why that half is wired there instead).
+  // view pad press on the same cell (SessionPlayer::triggerClip(), same as
+  // handleSessionPadEvent() itself resolves to).
   clip_grid_->setTriggerCallback([this](int track_id, int clip_index) {
-    launchpad_manager_->triggerSessionClip(getController(), track_id, clip_index);
+    getController().getSessionPlayer().triggerClip(track_id, clip_index);
   });
   clip_grid_->setSceneCallback([this](int clip_index) {
-    launchpad_manager_->launchScene(getController(), clip_index, getController().getSong().getPlayableTrackIds());
+    getController().getSessionPlayer().launchScene(clip_index, getController().getSong().getPlayableTrackIds());
   });
-  clip_grid_->setStopAllCallback([this]() { launchpad_manager_->stopAllSessionTracks(getController()); });
+  clip_grid_->setStopAllCallback([this]() { getController().getSessionPlayer().stopAllTracks(); });
+  // A launch that writes into the arrangement starts the transport the
+  // way a Launchpad recording does, so disarming stops it again.
+  getController().getSessionPlayer().setAssignPlaybackStarter([this]() { launchpad_manager_->startAssignPlayback(getController()); });
   // Record Arm's own drum-machine-track repurposing ("toggle-record-arm",
   // Controller.cpp) - opening a clip (Controller::setFocusedClip()) moves
   // the shared track cursor to it (so PatternEditor's/the Launchpad's own
@@ -3097,7 +3097,7 @@ TerminalUI::wireLaunchpad(LaunchpadManager & launchpad_manager) {
       // Session-View-triggered clip was still sounding, rather than
       // layering the drum edit preview under either one.
       if (getController().getPlaybackInfo().isPlaying()) getController().togglePlaying();
-      launchpad_manager_->silenceOtherTriggeredClips(getController());
+      getController().getSessionPlayer().silenceAll();
     } else {
       launchpad_manager_->forceSessionModeOnAllDevices();
     }

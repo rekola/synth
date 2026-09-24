@@ -508,53 +508,6 @@ namespace {
     return 0;
   }
 
-  // Fires one step's worth of `pattern`'s own notes (at row step % length)
-  // as one-shot PLAY_NOTE audition events for `track_id` - the clip
-  // equivalent of triggerAuditionStep()'s own per-PercussionTrack firing,
-  // generalized to any track/note rather than a lane hit specifically
-  // (column = the note's own position within that row, matching how a
-  // pattern-driven note is scheduled normally, not PercussionTrack's own
-  // by-value column convention). `length` is the clip's own length
-  // (Clip::getLength(), already clamped to at least 1 by the caller) -
-  // `pattern` is just the leaf Pattern's notes, not a length source of its
-  // own (Pattern::getLength() is unrelated to a clip's length - see
-  // Clip.h). A plain rest (an undefined cell) fires no explicit STOP_NOTE,
-  // same reasoning as triggerAuditionStep(): relies on the instrument's
-  // own envelope/choke machinery past that - but an explicit off row does
-  // push one (see its own comment below), since that duration was
-  // actually recorded, not merely implied by a note's own natural decay.
-  // Shared by triggerClipStep()'s own per-tick loop and
-  // handleSessionPadEvent()'s "nothing was playing yet, launch
-  // immediately" case.
-  void fireClipStep(const Song & song, Controller & controller, int track_id, const Pattern & pattern, int length, int step) {
-    auto track = song.getMasterTrack().getChildByInternalId(track_id);
-    if (!track) return;
-    auto tuning = song.getTuningForTrack(*track);
-    auto & notes = pattern.getNotes(pattern.getEffectiveRow(step, length));
-    auto & event_queue = controller.getPlaybackEventQueue();
-    for (size_t col = 0; col < notes.size(); col++) {
-      auto & note = notes[col];
-      if (note.isOff()) {
-        // An explicit off (Session View's own recording writes one at the
-        // release row - see LaunchpadManager::handlePadEvent()'s RELEASE
-        // branch) has to actually stop the column here - unlike a plain
-        // rest (an undefined cell, still skipped below), silently
-        // skipping it would leave whatever's still sounding on this
-        // column ringing on its own envelope forever, ignoring a duration
-        // the performer explicitly recorded.
-        event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_NOTE, controller.getActiveBufferName(), track_id, static_cast<int>(col)));
-        continue;
-      }
-      if (!note.isDefined() || note.isAftertouch()) continue;
-      event_queue.push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_NOTE, controller.getActiveBufferName(), track_id, static_cast<int>(col), note.getValue(), note.getVelocity()));
-    }
-    // tuning is resolved (getTuningForTrack) purely so a future caller
-    // that needs it (e.g. a diagnostic) doesn't have to re-derive it -
-    // Player.cpp's own PLAY_NOTE handler already resolves tuning/frequency
-    // itself from the raw midi_note value this pushes.
-    (void)tuning;
-  }
-
   // The length of track_id's own currently-focused clip (Controller::
   // getFocusedClip()), or -1 if it doesn't resolve to a real clip on this
   // track (nothing focused, or a stale/dangling id) - callers already
@@ -570,26 +523,6 @@ namespace {
     return -1;
   }
 
-  // fireClipStep()'s own dispatch, generalized over track type - a
-  // SampleTrack's own clip is raw audio, not a Pattern of notes, so it's
-  // fired once per loop iteration (or once, for a one-shot) via
-  // PlaybackControlEvent::PLAY_SAMPLE_CLIP instead of per-row PLAY_NOTE
-  // events; `step % length == 0` catches both the very first launch
-  // (`step` == 0) and every later loop repeat in one condition. Every
-  // other track type is unaffected - same fireClipStep() call as before.
-  void fireOrTriggerClipStep(const Song & song, Controller & controller, int track_id, int clip_index, const Clip & clip, int length, int step) {
-    auto track = song.getMasterTrack().getChildByInternalId(track_id);
-    if (!track) return;
-
-    if (track->getType() == TrackType::SAMPLE) {
-      if (step % length == 0) {
-        controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::PLAY_SAMPLE_CLIP, controller.getActiveBufferName(), track_id, clip_index));
-      }
-      return;
-    }
-
-    fireClipStep(song, controller, track_id, clip.getLeafPattern(), length, step);
-  }
 }
 
 int
@@ -826,15 +759,12 @@ LaunchpadManager::forceSessionModeOnAllDevices() {
 
 void
 LaunchpadManager::resetStepGridView() {
-  // The free-running audition clock (audition_clock_, shared with Session
-  // view's own auditioning - refresh()'s own comment) only ever stops
-  // while playing or armed, so it's almost always still running here,
-  // wherever it happened to already be - restarting it is what makes
-  // "opening a clip" actually mean "hear it from its own row 0", the same
-  // reasoning restartAuditionClockFromSilence() already established for a
-  // Session-view launch from silence (this is that same fix, just for the
-  // step grid's own open gesture rather than a pad press).
-  restartAuditionClockFromSilence();
+  // The preview clock only ever stops while playing or armed, so it's
+  // almost always still running here, wherever it happened to already be -
+  // restarting it is what makes "opening a clip" actually mean "hear it
+  // from its own row 0".
+  preview_clock_.start();
+  preview_clock_last_refresh_ = chrono::steady_clock::now();
   if (!launchpad_io_) return;
   auto ready_ids = launchpad_io_->readySessionIds();
   for (size_t i = 0; i < ready_ids.size(); i++) {
@@ -843,20 +773,6 @@ LaunchpadManager::resetStepGridView() {
     state.drum_edit_row_offset = 0;
     state.octave_offset = 0;
   }
-}
-
-void
-LaunchpadManager::silenceOtherTriggeredClips(Controller & controller) {
-  for (auto & [ track_id, unused ] : triggered_pattern_by_track_) {
-    controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_ALL_NOTES, controller.getActiveBufferName(), track_id));
-  }
-  triggered_pattern_by_track_.clear();
-  queued_pattern_by_track_.clear();
-  queued_recording_by_track_.clear();
-  // Once nothing anywhere is triggered or pending, "beat 1" no longer
-  // means anything - see triggerClipStep()'s own identical reasoning for
-  // clearing this the same way once both maps go empty on their own.
-  session_origin_set_ = false;
 }
 
 bool
@@ -1045,7 +961,7 @@ LaunchpadManager::handleDrawToggleButton(int device_id, Controller & controller,
     // the Session family, reachable here from any grid_mode - Session
     // view's own pad presses need it armed (Controller::
     // isNoteCaptureArmed()) to write a launch into the arrangement
-    // (LaunchpadManager::triggerSessionClip()'s own "assign" branch)
+    // (SessionPlayer::triggerClip()'s own "assign" branch)
     // rather than just auditioning, and CC19 itself no longer reaches that
     // while looking at Session view (it opens the per-track RECORD_ARM
     // picker there instead - see its own comment). Doesn't touch grid_mode
@@ -1156,7 +1072,7 @@ LaunchpadManager::handleTrackPickerPadEvent(const LaunchpadPadEvent & ev, Contro
 
   switch (state.track_picker_purpose) {
   case DeviceState::TrackPickerPurpose::STOP_CLIP:
-    stopSessionTrack(controller, track_id);
+    controller.getSessionPlayer().stopTrack(track_id);
     break;
   case DeviceState::TrackPickerPurpose::MUTE:
     controller.toggleTrackMuted(track_id);
@@ -1168,7 +1084,7 @@ LaunchpadManager::handleTrackPickerPadEvent(const LaunchpadPadEvent & ev, Contro
     // Pure per-track bookkeeping regardless of track type (Controller::
     // toggleTrackArmed()'s own comment) - a SampleTrack's own audio
     // capture isn't on the new quantized-start-via-pad-press path yet
-    // (triggerSessionClip()'s own SampleTrack carve-out), but arming it
+    // (SessionPlayer::triggerClip()'s own SampleTrack carve-out), but arming it
     // here is still exactly this same harmless toggle; only what a later
     // pad press on it actually does differs.
     controller.toggleTrackArmed(track_id);
@@ -1632,12 +1548,9 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
   auto current_delay = info.getCurrentDelay();
   auto & event_queue = controller.getPlaybackEventQueue();
 
-  // Quantizes a human performer's own real-time press to whichever step
-  // it's actually closer to, rather than always flooring to the one that
-  // just started (audition_clock_.currentStep()'s own contract) - a press
-  // landing just after a step boundary is far more likely a slightly-
-  // early attempt at the *next* beat than a slightly-late one for the
-  // step that just began. Row-only, deliberately: a raw sub-row offset
+  // Quantizes a human performer's own real-time press to whichever
+  // Session clock step it's actually closer to (SessionPlayer::
+  // quantizedStep()). Row-only, deliberately: a raw sub-row offset
   // (the same idea Note's own delay column captures for the transport-
   // driven path, via info.getCurrentDelay() - meaningless here, since the
   // transport itself never advances during a Session View take) would
@@ -1646,18 +1559,12 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
   // quantizing a live take at all. One shared decision for every target
   // track below (the primary and every fan-out one alike), not
   // recomputed per track.
-  auto quantized_step = [&]() {
-    auto absolute_step = audition_clock_.currentStep();
-    auto tempo = song.getTempo();
-    float row_duration = tempo > 0 ? 60.0f / 4.0f / static_cast<float>(tempo) : 0.0f;
-    if (row_duration > 0.0f && audition_clock_.phase() / row_duration >= 0.5f) absolute_step++;
-    return absolute_step;
-  };
+  auto & session_player = controller.getSessionPlayer();
+  auto quantized_step = [&]() { return session_player.quantizedStep(); };
 
   if (ev.getKind() == LaunchpadPadEvent::PRESS) {
     // A Session View take targeting this exact track writes into that
-    // take's own clip directly, indexed by the free-running audition
-    // clock (this device's NOTE grid is the only way a Session View take
+    // take's own clip directly, indexed by the Session clock (this device's NOTE grid is the only way a Session View take
     // ever receives notes at all), never the global transport position - a
     // Session View take runs with the transport stopped by design.
     // ensureSessionRecordingClip() itself owns turning an absolute clock
@@ -1670,11 +1577,10 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     if (session_recording_here) {
       // Aligns this take's own origin (established on the first call, see
       // ensureSessionRecordingClip()'s own comment) to whatever else is
-      // already looping in the session, if anything is - session_origin_step_
-      // is the exact same shared bar-boundary reference triggerClipStep()
-      // itself already measures every other track's own Session View clip
-      // against.
-      row = controller.ensureSessionRecordingClip(track_id, quantized_step(), session_origin_set_ ? session_origin_step_ : -1);
+      // already looping in the session, if anything is - the same shared
+      // bar grid every other track's own Session View clip is measured
+      // against (SessionPlayer::originStep()).
+      row = controller.ensureSessionRecordingClip(track_id, quantized_step(), session_player.originStep());
     }
     auto & state = deviceState(device_id);
 
@@ -1783,7 +1689,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // just above), always quantized the same way, each independently
     // finding its own free column and its own take's own current row.
     for (auto fan_out_track_id : fan_out_track_ids) {
-      auto fan_out_row = controller.ensureSessionRecordingClip(fan_out_track_id, quantized_step(), session_origin_set_ ? session_origin_step_ : -1);
+      auto fan_out_row = controller.ensureSessionRecordingClip(fan_out_track_id, quantized_step(), session_player.originStep());
       if (fan_out_row < 0) continue;
       auto & fan_out_clips = song.getClips(fan_out_track_id);
       auto fan_out_clip_index = controller.getSessionRecordingClipIndex(fan_out_track_id);
@@ -1852,7 +1758,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
         // already established by the corresponding PRESS by the time any
         // RELEASE reaches here, but passed the same way regardless for
         // consistency.
-        auto release_row = controller.ensureSessionRecordingClip(held.track_id, quantized_step(), session_origin_set_ ? session_origin_step_ : -1);
+        auto release_row = controller.ensureSessionRecordingClip(held.track_id, quantized_step(), session_player.originStep());
         auto & clips = song.getClips(held.track_id);
         auto clip_index = controller.getSessionRecordingClipIndex(held.track_id);
         // Same "not the row the note itself is on" rule as the ordinary
@@ -2009,505 +1915,22 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
   if (track_index < 0 || track_index >= static_cast<int>(session_.track_ids.size())) return;
   auto track_id = session_.track_ids[static_cast<size_t>(track_index)];
 
-  triggerSessionClip(controller, track_id, 7 - ev.getY());
-}
-
-void
-LaunchpadManager::stopSessionTrack(Controller & controller, int track_id) {
-  // An armed track currently being recorded into: Stop Clip means the same
-  // "press the pad you're recording into again" gesture triggerSessionClip()
-  // itself offers - queue a stop for just that take at the next shared
-  // boundary, leaving the track still armed for another one. An armed
-  // track with nothing actually recording yet (or not armed at all) falls
-  // through to the ordinary paths below unchanged. A SampleTrack's own
-  // take has no quantized queue of its own at all (triggerSessionClip()'s
-  // own comment on why real audio capture is a single, immediate global
-  // target rather than bar-aligned like note recording) - resolved right
-  // here instead, never queued_recording_by_track_ (its own resolution
-  // path assumes a note-Pattern take, via trimSessionRecordingClip()).
-  if (controller.isTrackArmed(track_id) && controller.isSessionRecording(track_id)) {
-    auto * track = controller.getSong().getMasterTrack().getChildByInternalId(track_id);
-    if (track && track->getType() == TrackType::SAMPLE) {
-      stopSampleTrackRecording(controller, track_id);
-    } else {
-      queued_recording_by_track_[track_id] = QueuedRecording{QueuedRecording::STOP};
-    }
-    return;
-  }
-  // Genuinely two different mechanisms depending on Record Arm: while
-  // recording, a stop has to become real song data (placeRecordingStop(),
-  // the same thing an empty-row press in triggerSessionClip()'s own assign
-  // branch does) since real playback never reads this class's own
-  // triggered_pattern_by_track_/queued_pattern_by_track_ bookkeeping in the
-  // first place - that's audition-only state.
-  if (controller.isNoteCaptureArmed()) {
-    placeRecordingStop(controller, track_id);
-    return;
-  }
-  // Auditioning: same quantized stop every other stop path here uses if
-  // something's actually triggered; a not-yet-started pending join is
-  // simply cancelled outright instead (same "nothing playing yet to
-  // release" reasoning placeRecordingStop() has for the recording case); a
-  // total no-op if the track isn't doing anything at all.
-  if (triggered_pattern_by_track_.find(track_id) != triggered_pattern_by_track_.end()) {
-    queued_pattern_by_track_[track_id] = -1;
-  } else {
-    queued_pattern_by_track_.erase(track_id);
-  }
-}
-
-void
-LaunchpadManager::triggerSessionClip(Controller & controller, int track_id, int clip_index, std::optional<int> shared_launch_step) {
-  auto & song = controller.getSong();
-  auto & clips = song.getClips(track_id);
-  // Content-aware, not just in-bounds - holes are allowed (Song::
-  // ensureClipAt()), so an in-bounds but still-empty filler slot is exactly
-  // as much a fresh-take target as one genuinely past the list's own end.
-  bool has_pattern_here = clip_index >= 0 && clip_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(clip_index)].isEmpty();
-
-  auto * armed_track = song.getMasterTrack().getChildByInternalId(track_id);
-  bool is_sample_track = armed_track && armed_track->getType() == TrackType::SAMPLE;
-  if (controller.isTrackArmed(track_id) && is_sample_track) {
-    // A SampleTrack's own real audio capture is a single, immediate,
-    // global (track_id, clip_index) target (Controller::
-    // armThresholdRecording()'s own comment) - never bar-quantized or
-    // fanned out to other simultaneously-armed tracks the way note
-    // recording below is, since there's only one real input stream to
-    // route through it. A press here arms (or retargets) it right away,
-    // the same way "toggle-record-arm"'s own Session-View-focused
-    // SampleTrack branch already does from the terminal - just triggered
-    // from a real pad press instead of the terminal's own focus-cursor
-    // state.
-    if (controller.isRecording() && controller.getRecordingTrackId() == track_id) {
-      // Pressing the pad actually being captured into again stops just
-      // this take - the same "press again to stop" gesture the note
-      // branch below has.
-      stopSampleTrackRecording(controller, track_id);
-      return;
-    }
-    if (controller.isThresholdArmed() && controller.getRecordingTrackId() == track_id) {
-      if (controller.getSessionRecordingClipIndex(track_id) == clip_index) {
-        // Still just armed, nothing real captured yet - pressing the same
-        // slot again cancels rather than restarting it.
-        stopSampleTrackRecording(controller, track_id);
-      } else {
-        // Still just armed, no audio committed yet either - a different
-        // slot simply retargets it, no need to disarm/rearm first.
-        controller.armSessionTrackRecording(track_id, clip_index);
-      }
-      return;
-    }
-    // A different track already owns the one real capture pipeline
-    // (recording, or still just threshold-armed waiting on it) - nothing
-    // this press can safely start until that resolves.
-    if (controller.isRecording() || controller.isThresholdArmed()) return;
-    controller.armSessionTrackRecording(track_id, clip_index);
-    controller.armThresholdRecording(track_id);
-    return;
-  }
-  if (controller.isTrackArmed(track_id) && !is_sample_track) {
-    // Recording: every pad press on an armed track is record-oriented,
-    // taking priority over the plain audition/assign behavior below (which
-    // still applies unarmed). Pressing the
-    // pad currently being recorded into again is a distinct "stop just
-    // this take" gesture, not a fresh join/overdub - checked first since
-    // it can't be told apart from an ordinary occupied-pad press by
-    // clip_index alone.
-    if (controller.isSessionRecording(track_id) && controller.getSessionRecordingClipIndex(track_id) == clip_index) {
-      queued_recording_by_track_[track_id] = QueuedRecording{QueuedRecording::STOP};
-      return;
-    }
-    // Same "nothing anywhere triggered or queued -> run immediately and
-    // become the new shared origin, otherwise queue against the existing
-    // one" rule the plain audition branch below already uses - a recording
-    // start is exactly as live an event as a plain launch/swap/stop.
-    // shared_launch_step's own presence overrides this check outright -
-    // see this method's own doc comment for why a scene launch needs to.
-    bool nothing_pending = shared_launch_step.has_value() ||
-      (triggered_pattern_by_track_.empty() && queued_pattern_by_track_.empty() && queued_recording_by_track_.empty());
-    if (nothing_pending) {
-      // restartAuditionClockFromSilence() only when this call is the one
-      // actually establishing nothing_pending, not a scene launch's own
-      // later per-track calls (shared_launch_step already set) - see its
-      // own doc comment for why a genuine launch from silence needs it.
-      auto launch_step = shared_launch_step ? *shared_launch_step : restartAuditionClockFromSilence();
-      session_origin_step_ = launch_step;
-      session_origin_set_ = true;
-      if (has_pattern_here) {
-        // Overdub: the clip joins playback right now, at its own row 0,
-        // completely undisturbed - only the recording is newly armed,
-        // primed to this exact boundary so its own row 0 lines up with
-        // wherever the clip's own loop is right here.
-        triggered_pattern_by_track_[track_id] = {clip_index, launch_step};
-        controller.armSessionTrackRecording(track_id, clip_index);
-        controller.primeSessionRecordingOrigin(track_id, launch_step);
-        if (audition_clock_.isRunning()) {
-          auto & launched_clip = clips[static_cast<size_t>(clip_index)];
-          auto launched_length = launched_clip.getLength() > 0 ? launched_clip.getLength() : 1;
-          fireOrTriggerClipStep(song, controller, track_id, clip_index, launched_clip, launched_length, 0);
-        }
-      } else {
-        // Fresh take - lands exactly at the pressed index; holes are
-        // allowed, so this is never retargeted to wherever the next unused
-        // slot happens to be. Unlike triggerClipStep()'s own identical
-        // fresh-take resolution, there's no previously-triggered clip on
-        // this track to stop first here - nothing_pending being true
-        // already means triggered_pattern_by_track_ is empty for every
-        // track, this one included.
-        controller.armSessionTrackRecording(track_id, clip_index);
-      }
-    } else {
-      queued_recording_by_track_[track_id] = has_pattern_here ?
-        QueuedRecording{QueuedRecording::OVERDUB, clip_index} : QueuedRecording{QueuedRecording::FRESH_TAKE, clip_index};
-    }
-    return;
-  }
-
-  if (!controller.isNoteCaptureArmed()) {
-    // Auditioning (Record Arm off) - touches no song state, only this
-    // class's own triggered_pattern_by_track_/queued_pattern_by_track_.
-    auto triggered_it = triggered_pattern_by_track_.find(track_id);
-    if (!has_pattern_here) {
-      // An unassigned row cancels/stops whatever this track is doing: a
-      // not-yet-started pending join is simply erased outright (nothing
-      // is playing yet to release), while something already triggered
-      // gets a queued stop instead - quantized the same as everything
-      // else here (see triggerClipStep()'s own comment for
-      // exactly when it takes effect). A no-op if the track isn't doing
-      // anything at all.
-      if (triggered_it != triggered_pattern_by_track_.end()) queued_pattern_by_track_[track_id] = -1;
-      else queued_pattern_by_track_.erase(track_id);
-      return;
-    }
-    if (triggered_it != triggered_pattern_by_track_.end() && triggered_it->second.clip_index == clip_index) {
-      // Pressing the already-playing clip again relaunches it - from its
-      // row 0 at the next boundary, the live-sequencer convention (a
-      // launch never toggles; stopping is an empty slot, Stop Clip or
-      // Stop all). A scene launch is this same press on every track, so a
-      // playing scene restarts too.
-      queued_pattern_by_track_[track_id] = clip_index;
-      return;
-    }
-    // Either nothing is triggered on this track yet, or something else
-    // is (a swap) - both are the same "pending join" case now, with one
-    // exception: the very first pattern to play anywhere in an otherwise
-    // silent session launches immediately rather than queuing, since
-    // there's nothing yet to quantize against - and that exact moment
-    // becomes the shared origin (session_origin_step_) every later
-    // launch/swap/stop, on any track, is measured against (see
-    // triggerClipStep()'s own comment). Once anything anywhere
-    // is active, every further join/swap queues instead, uniformly,
-    // regardless of whether this specific track already had something
-    // playing. shared_launch_step's own presence overrides this check
-    // outright - see this method's own doc comment for why a scene
-    // launch needs to (triggerSceneRow() already established there's
-    // nothing pending anywhere before calling this once per track, and
-    // without this override every track past the first in the row would
-    // see the first track's own just-added triggered_pattern_by_track_
-    // entry and wrongly conclude it needs to queue instead of launch).
-    if (shared_launch_step.has_value() || (triggered_pattern_by_track_.empty() && queued_pattern_by_track_.empty())) {
-      // launch_step pins this instance's own zero point, so it always
-      // starts at its own row 0 (relative step 0) - restartAuditionClock
-      // FromSilence() below is what actually makes that 0 mean something
-      // real rather than wherever the clock's own free-running phase
-      // happened to be; shared_launch_step's own presence means a scene
-      // launch's earlier per-track call already did this once for the
-      // whole row (see this method's own doc comment).
-      auto launch_step = shared_launch_step ? *shared_launch_step : restartAuditionClockFromSilence();
-      triggered_pattern_by_track_[track_id] = {clip_index, launch_step};
-      session_origin_step_ = launch_step;
-      session_origin_set_ = true;
-      if (audition_clock_.isRunning()) {
-        auto & launched_clip = clips[static_cast<size_t>(clip_index)];
-        auto launched_length = launched_clip.getLength() > 0 ? launched_clip.getLength() : 1;
-        fireOrTriggerClipStep(song, controller, track_id, clip_index, launched_clip, launched_length, 0);
-      }
-    } else {
-      queued_pattern_by_track_[track_id] = clip_index;
-    }
-    return;
-  }
-
-  // Assigning (Record Arm on): places a real instance event - the
-  // arrangement layer's own start-only, tracker-idiom placement
-  // (ArrangementOps.h's placeClipInstance(), the same one real playback
-  // resolves), not a live reference back to the clip. Deliberately stays
-  // in Session view rather than switching focus away - a player assigning
-  // several patterns in a row needs to keep pressing pads, not get
-  // bounced out after the first one. An empty row means "stop this
-  // track" instead, same as auditioning's own empty-row press - but has
-  // to write it (placeRecordingStop()), not just adjust bookkeeping, the
-  // same reasoning CC49-while-recording above has.
-  if (!has_pattern_here) {
-    placeRecordingStop(controller, track_id);
-    return;
-  }
-  auto & playback_info = controller.getPlaybackInfo();
-  // Recording an arrangement means the playhead actually has to advance -
-  // a clip assigned into an otherwise-stopped section would just sit at row
-  // 0 forever, never becoming "a whole section" the way triggering further
-  // clips as playback continues is supposed to build up. Starts the
-  // transport on this first assign press (not at Record Arm time - unlike
-  // ordinary note capture, an assign has no "clip creation" step to defer
-  // separately, so there's nothing to gain from starting any earlier),
-  // using the same auto_started_playback_ bookkeeping, so
-  // Controller::extendRecordingSectionIfNeeded() (gated on isAutoRecording())
-  // also keeps growing the section as the performance continues - but
-  // Controller::startAutoRecordPlayback(), not startAutoRecordSession():
-  // the latter also mutes the song's own pattern-driven scheduling, correct
-  // for a held note (heard through its own separate live PLAY_NOTE stream
-  // while old content stays silent) but wrong here - a triggered clip has
-  // no such separate path, it's heard entirely through that same
-  // scheduling the instant placeClipInstance() places it below, so muting
-  // it would silence the very clip being recorded. Calls togglePlaying()
-  // synchronously, so playback_info (bound by reference above) already
-  // reflects isPlaying()==true by the time section_idx/row are computed
-  // just below.
-  if (!playback_info.isPlaying()) {
-    controller.startAutoRecordPlayback(auto_started_playback_);
-  }
-  // Targets whichever section is actually *playing* right now, not
-  // necessarily the column the cursor happens to be pointing at - true
-  // live-recording, matching a real note-on's own timing, and (per
-  // Controller::extendRecordingSectionIfNeeded()) that section keeps growing
-  // to fit as the performance continues rather than being confined to a
-  // fixed pre-existing length. Falls back to the cursor's own section, row
-  // 0 (a whole-section placement, closest to what plain section-navigation
-  // used to write here before the instance layer existed) on the off
-  // chance playback still isn't running (e.g. a non-positive tempo).
-  auto section_idx = playback_info.isPlaying() ? playback_info.getPatternIndex() : session_.cursor_section_idx;
-  auto & section = song.getOrCreateSection(section_idx);
-  // Bar-aligned (quantizedBarRow()'s own comment has the full reasoning:
-  // plans/arrangement-view.md's "Bar alignment" rule, snapped forward not
-  // back) - placeClipInstance() below just writes a start event at this
-  // (possibly future) row, and ordinary playback naturally begins
-  // triggering it once the playhead actually arrives there, no extra
-  // queuing needed.
-  auto raw_row = playback_info.isPlaying() ? playback_info.getRowIndex() : 0;
-  auto row = quantizedBarRow(raw_row, song.getRowsPerBar());
-  placeClipInstance(song, section, track_id, row, clip_index);
-  song.incVersion();
-}
-
-unordered_map<int, LaunchpadManager::SessionPlayhead>
-LaunchpadManager::sessionPlayheads(const Song & song) const {
-  unordered_map<int, SessionPlayhead> playheads;
-  for (auto & [ track_id, triggered ] : triggered_pattern_by_track_) {
-    auto & clips = song.getClips(track_id);
-    if (triggered.clip_index < 0 || triggered.clip_index >= static_cast<int>(clips.size())) continue;
-    auto & clip = clips[static_cast<size_t>(triggered.clip_index)];
-    auto & playhead = playheads[track_id];
-    playhead.clip_index = triggered.clip_index;
-    if (audition_clock_.isRunning()) {
-      playhead.row = clipPlayheadRow(audition_clock_.currentStep(), triggered.launch_step, clip.getLength(), clip.isLooping());
-    }
-  }
-  for (auto & [ track_id, queued ] : queued_pattern_by_track_) playheads[track_id].queued_clip = queued;
-  return playheads;
+  controller.getSessionPlayer().triggerClip(track_id, 7 - ev.getY());
 }
 
 void
 LaunchpadManager::triggerSceneRow(Controller & controller, int row) {
-  // Same y-flip Session view's own columns use (triggerSessionClip()'s
-  // own caller in handleSessionPadEvent()) - row 0 (bottom) is clip index
-  // 7, row 7 (top) is clip index 0.
-  launchScene(controller, 7 - row, session_.track_ids);
+  // Same y-flip Session view's own columns use (handleSessionPadEvent()) -
+  // row 0 (bottom) is clip index 7, row 7 (top) is clip index 0.
+  controller.getSessionPlayer().launchScene(7 - row, session_.track_ids);
 }
 
 void
-LaunchpadManager::launchScene(Controller & controller, int clip_index, const vector<int> & track_ids) {
-  // Resolved once for the whole row, not once per track inside
-  // triggerSessionClip()'s own call - see its own shared_launch_step doc
-  // comment for why: without this, only the first track in the loop
-  // below would ever see triggered_pattern_by_track_/queued_pattern_by_
-  // track_/queued_recording_by_track_ genuinely empty (its own call
-  // populates one of them immediately), so every other track in the same
-  // scene would wrongly queue instead of launching together with it.
-  bool nothing_pending = triggered_pattern_by_track_.empty() && queued_pattern_by_track_.empty() && queued_recording_by_track_.empty();
-  std::optional<int> shared_launch_step;
-  if (nothing_pending) shared_launch_step = restartAuditionClockFromSilence();
-
-  for (auto track_id : track_ids) triggerSessionClip(controller, track_id, clip_index, shared_launch_step);
-}
-
-void
-LaunchpadManager::stopAllSessionTracks(Controller & controller) {
-  for (auto track_id : controller.getSong().getPlayableTrackIds()) stopSessionTrack(controller, track_id);
-}
-
-void
-LaunchpadManager::placeRecordingStop(Controller & controller, int track_id) {
-  // A no-op while nothing is actually playing yet - there's no live
-  // position to stop against, the same "nothing playing yet to release"
-  // reasoning the audition-only path already has for an empty-row/CC49
-  // press before anything's been triggered.
-  auto & playback_info = controller.getPlaybackInfo();
-  if (!playback_info.isPlaying()) return;
-  auto & song = controller.getSong();
-  auto row = quantizedBarRow(playback_info.getRowIndex(), song.getRowsPerBar());
-  auto & section = song.getOrCreateSection(playback_info.getPatternIndex());
-  placeStopInstance(section, track_id, row);
-  song.incVersion();
-}
-
-void
-LaunchpadManager::stopSampleTrackRecording(Controller & controller, int track_id) {
-  // Genuinely underway (real audio already arriving) needs
-  // finishSampleCapture() to finalize the take into a real clip; still
-  // just armed and waiting for the loudness threshold needs only
-  // disarmThresholdRecording() instead - finishSampleCapture() itself is
-  // a no-op with nothing to finalize (hasRecordingClip()'s own comment),
-  // so it wouldn't clear the pending arm on its own.
-  if (controller.isRecording() && controller.getRecordingTrackId() == track_id) {
-    controller.finishSampleCapture();
-  } else if (controller.isThresholdArmed() && controller.getRecordingTrackId() == track_id) {
-    controller.disarmThresholdRecording();
-  }
-  controller.clearSessionRecordingTake(track_id);
-}
-
-void
-LaunchpadManager::triggerClipStep(const Song & song, Controller & controller, int step) {
-  // Every track with either something already triggered or something
-  // pending needs evaluating this step - a pending join queued for a
-  // track with nothing playing yet (queued_pattern_by_track_ only, no
-  // triggered_pattern_by_track_ entry - see handleSessionPadEvent()'s own
-  // comment) is exactly as live as a pending swap/stop for one that's
-  // already triggered, so this walks their union rather than just
-  // triggered_pattern_by_track_ alone. Collected into a plain snapshot
-  // first since the loop body below mutates both maps.
-  vector<int> track_ids;
-  for (auto & [ track_id, unused ] : triggered_pattern_by_track_) track_ids.push_back(track_id);
-  for (auto & [ track_id, unused ] : queued_pattern_by_track_) {
-    if (find(track_ids.begin(), track_ids.end(), track_id) == track_ids.end()) track_ids.push_back(track_id);
-  }
-  // A track can have a pending queued_recording_by_track_ entry (a queued
-  // recording start) with no corresponding triggered/queued_pattern entry
-  // at all - e.g. a fresh take queued on an otherwise-idle armed track -
-  // so it needs its own pass into the same union, same reasoning as
-  // queued_pattern_by_track_'s own above.
-  for (auto & [ track_id, unused ] : queued_recording_by_track_) {
-    if (find(track_ids.begin(), track_ids.end(), track_id) == track_ids.end()) track_ids.push_back(track_id);
-  }
-
-  auto rows_per_bar = song.getRowsPerBar();
-  if (rows_per_bar <= 0) rows_per_bar = 1;
-
-  for (auto track_id : track_ids) {
-    auto & clips = song.getClips(track_id);
-    auto triggered_it = triggered_pattern_by_track_.find(track_id);
-    if (triggered_it != triggered_pattern_by_track_.end() &&
-        (triggered_it->second.clip_index < 0 || triggered_it->second.clip_index >= static_cast<int>(clips.size()))) {
-      // The clip list shrank (or the track's gone) out from under an already-
-      // triggered index - drop it rather than read out of bounds; still
-      // fall through below to check for a pending queued action.
-      triggered_pattern_by_track_.erase(triggered_it);
-      triggered_it = triggered_pattern_by_track_.end();
-    }
-
-    // Quantized launch/swap/stop: a queued action only takes effect once
-    // the shared-grid boundary arrives - (step - session_origin_step_) %
-    // rows_per_bar == 0 - the same boundary every track shares, never the
-    // currently-playing pattern's own length (that only decides where
-    // *it* loops, not when a pending change is allowed to interrupt it)
-    // and never immediate. A fresh join for a not-yet-triggered track
-    // waits for the exact same boundary, uniformly with a swap/stop - see
-    // handleSessionPadEvent()'s own comment for why both are queued
-    // identically.
-    auto queued_it = queued_pattern_by_track_.find(track_id);
-    if (queued_it != queued_pattern_by_track_.end() && session_origin_set_) {
-      if ((step - session_origin_step_) % rows_per_bar == 0) {
-        auto queued_index = queued_it->second;
-        queued_pattern_by_track_.erase(queued_it);
-        if (queued_index < 0) {
-          // A real stop, not a swap to another pattern - release whatever's
-          // still sounding on this track (its natural stopNote() tail, not
-          // a hard cut - see InstrumentTrackState::stopAllVoices()) rather
-          // than leaving a sustained note ringing with nothing left driving
-          // it forward. Guarded on triggered_it still being valid purely
-          // defensively (a queued stop is only ever set for an
-          // already-triggered track, but the pool-shrink check above could
-          // have just erased it out from under this exact step).
-          if (triggered_it != triggered_pattern_by_track_.end()) {
-            controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_ALL_NOTES, controller.getActiveBufferName(), track_id));
-            triggered_pattern_by_track_.erase(triggered_it);
-          }
-          triggered_it = triggered_pattern_by_track_.end();
-        } else {
-          // A fresh join or a swap - either way this instance starts
-          // playing right now, at its own row 0 (launch_step = step).
-          triggered_it = triggered_pattern_by_track_.insert_or_assign(track_id, TriggeredPattern{queued_index, step}).first;
-        }
-      }
-    }
-
-    // Recording's own queued resolution, parallel to queued_pattern_by_
-    // track_'s above - a stop resolves regardless of session_origin_set_
-    // (falling back to origin 0 rather than never resolving at all, so a
-    // take can never get stuck recording forever just because nothing else
-    // ever happened to establish a shared grid); a start/overdub in
-    // practice can only ever be queued once something already has, so
-    // session_origin_set_ is already true by construction there.
-    auto queued_recording_it = queued_recording_by_track_.find(track_id);
-    if (queued_recording_it != queued_recording_by_track_.end()) {
-      auto recording_origin = session_origin_set_ ? session_origin_step_ : 0;
-      if ((step - recording_origin) % rows_per_bar == 0) {
-        auto queued_value = queued_recording_it->second;
-        queued_recording_by_track_.erase(queued_recording_it);
-        if (queued_value.kind == QueuedRecording::STOP) {
-          controller.trimSessionRecordingClip(track_id);
-        } else if (queued_value.kind == QueuedRecording::FRESH_TAKE) {
-          // Fresh take: replaces whatever was already playing on this
-          // track, the same "only one clip plays per track" rule an
-          // ordinary swap/stop above already enforces - unlike overdub
-          // below, which leaves it running deliberately since it's the
-          // very thing being recorded into. Released through its natural
-          // stopNote() tail (STOP_ALL_NOTES), same as any other stop here,
-          // not left ringing.
-          if (triggered_it != triggered_pattern_by_track_.end()) {
-            controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_ALL_NOTES, controller.getActiveBufferName(), track_id));
-            triggered_pattern_by_track_.erase(triggered_it);
-            triggered_it = triggered_pattern_by_track_.end();
-          }
-          // Lands exactly at the pressed index (queued_value.clip_index) -
-          // holes are allowed, never retargeted to wherever the next
-          // unused slot happens to be.
-          controller.armSessionTrackRecording(track_id, queued_value.clip_index);
-        } else {
-          // Overdub - the clip joins playback right now, at its own row 0,
-          // exactly like a plain launch/swap above; recording is primed to
-          // this same boundary so its own row 0 lines up with wherever the
-          // clip's loop is here.
-          triggered_it = triggered_pattern_by_track_.insert_or_assign(track_id, TriggeredPattern{queued_value.clip_index, step}).first;
-          controller.armSessionTrackRecording(track_id, queued_value.clip_index);
-          controller.primeSessionRecordingOrigin(track_id, step);
-        }
-      }
-    }
-
-    if (triggered_it == triggered_pattern_by_track_.end()) continue;
-    auto clip_index = triggered_it->second.clip_index;
-    if (clip_index < 0 || clip_index >= static_cast<int>(clips.size())) continue;
-    auto & clip = clips[static_cast<size_t>(clip_index)];
-    auto relative_step = step - triggered_it->second.launch_step;
-    auto length = clip.getLength() > 0 ? clip.getLength() : 1;
-    if (!clip.isLooping() && relative_step >= length) {
-      // A one-shot clip has played through its own length once - release
-      // its voices and stop, rather than wrapping back to row 0 (matching
-      // a real DAW's own non-looping clip - see Clip::isLooping()'s own
-      // comment).
-      controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_ALL_NOTES, controller.getActiveBufferName(), track_id));
-      triggered_pattern_by_track_.erase(track_id);
-      continue;
-    }
-    fireOrTriggerClipStep(song, controller, track_id, clip_index, clip, length, relative_step);
-  }
-
-  // Once nothing anywhere is triggered or pending, "beat 1" no longer
-  // means anything - clear it so the next launch from silence is free to
-  // redefine it fresh rather than snapping to a stale reference (see
-  // session_origin_step_'s own comment).
-  if (triggered_pattern_by_track_.empty() && queued_pattern_by_track_.empty() && queued_recording_by_track_.empty()) session_origin_set_ = false;
+LaunchpadManager::startAssignPlayback(Controller & controller) {
+  // Controller::startAutoRecordPlayback(), not startAutoRecordSession():
+  // the latter also mutes pattern-driven scheduling, which is the only
+  // way a clip placed into the arrangement is heard.
+  controller.startAutoRecordPlayback(auto_started_playback_);
 }
 
 void
@@ -3236,53 +2659,6 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
 }
 
 
-LaunchpadManager::SessionPadHighlight
-LaunchpadManager::clipHighlight(const Controller & controller, const Song & song, const PlaybackInfo & playback_info, int track_id, int clip_index) const {
-  auto & clips = song.getClips(track_id);
-  // Content-aware, not just in-bounds - holes are allowed (Song::
-  // ensureClipAt()), so an in-bounds but still-empty filler slot reads as
-  // unused here too.
-  bool has_clip = clip_index >= 0 && clip_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(clip_index)].isEmpty();
-
-  // An armed track's own red states - see SessionPadHighlight's own
-  // comment for why they replace the plain (green) three rather than
-  // combining with them.
-  if (controller.isTrackArmed(track_id)) {
-    bool is_recording = controller.isSessionRecording(track_id);
-    int recording_clip_index = is_recording ? controller.getSessionRecordingClipIndex(track_id) : -1;
-    auto queued_recording_it = queued_recording_by_track_.find(track_id);
-    bool has_queued_recording = queued_recording_it != queued_recording_by_track_.end();
-    auto queued_recording_kind = has_queued_recording ? queued_recording_it->second.kind : QueuedRecording::STOP;
-    int queued_recording_clip_index = has_queued_recording ? queued_recording_it->second.clip_index : -1;
-    if (is_recording && recording_clip_index == clip_index) {
-      return (has_queued_recording && queued_recording_kind == QueuedRecording::STOP) ?
-        SessionPadHighlight::RECORD_STOPPING : SessionPadHighlight::RECORDING;
-    }
-    if (has_queued_recording && queued_recording_kind != QueuedRecording::STOP && queued_recording_clip_index == clip_index) {
-      return SessionPadHighlight::RECORD_QUEUED;
-    }
-    if (!has_clip) return SessionPadHighlight::ARMED_EMPTY;
-  }
-  if (!has_clip) return SessionPadHighlight::NONE;
-
-  // While actually playing (Session-view recording included), the
-  // audition-only triggered/queued bookkeeping is stale - it's only ever
-  // populated while stopped and unarmed, and recording writes real song
-  // data instead - so what's sounding is whatever resolveInstanceAt()
-  // resolves at the live position, with no "about to launch" concept (a
-  // press then is a real, bar-quantized write, not a queued swap).
-  if (playback_info.isPlaying()) {
-    auto & section = song.getSection(playback_info.getPatternIndex());
-    return resolveInstanceAt(song, section, track_id, playback_info.getRowIndex()).clip_index == clip_index ?
-      SessionPadHighlight::PLAYING : SessionPadHighlight::NONE;
-  }
-  auto triggered_it = triggered_pattern_by_track_.find(track_id);
-  if (triggered_it != triggered_pattern_by_track_.end() && triggered_it->second.clip_index == clip_index) return SessionPadHighlight::PLAYING;
-  auto queued_it = queued_pattern_by_track_.find(track_id);
-  if (queued_it != queued_pattern_by_track_.end() && queued_it->second == clip_index) return SessionPadHighlight::QUEUED;
-  return SessionPadHighlight::NONE;
-}
-
 void
 LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, const PlaybackInfo & playback_info, int fallback_track_index, Controller & controller, const SessionWindow & session) {
   if (!launchpad_io_) return;
@@ -3294,45 +2670,14 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   session_ = session;
 
   // Record Arm's own note-capture side effects live in this file (this
-  // class's own Session-view audition bookkeeping and auto-started-
-  // transport tracking, neither reachable from Controller directly), but
+  // class's own auto-started-transport tracking, not reachable from
+  // Controller directly), but
   // the flag itself can now flip from anywhere - M-x, a keybinding, a
   // Launchpad press alike (see was_note_capture_armed_'s own comment) -
   // so they react here, to the flag's own rising/falling edge each frame,
   // rather than inline in a button handler.
   bool note_capture_armed = controller.isNoteCaptureArmed();
   if (note_capture_armed && !was_note_capture_armed_) {
-    // Arming: audition-only live-trigger bookkeeping becomes meaningless
-    // from here on for an *ordinary* (non-Session-View) note take -
-    // note_capture_armed alone already stops the free-running
-    // audition_clock_ (see audition_active's own comment: "the player is
-    // presumably about to record something deliberate and doesn't want an
-    // uncontrolled loop underneath it"), but that only stops the *clock*,
-    // not the data - triggered_pattern_by_track_/queued_pattern_by_track_
-    // themselves stay exactly as they were. Left alone, they'd sit there
-    // stale through the whole recording session and then resurrect the
-    // moment it ends: stopping playback later makes audition_active true
-    // again, restarting the clock, which would immediately resume
-    // "auditioning" whatever was still marked triggered here - an old
-    // clip suddenly playing again, and its own stale LED highlight right
-    // along with it, neither of which the performer did anything to cause
-    // after actually stopping.
-    //
-    // An in-flight Session View take is the deliberate exception, even
-    // though this branch only ever fires for the ordinary (non-Session-
-    // View) case now (Session View's own per-track arming never touches
-    // note_capture_armed_ - see armed_track_ids_' own doc comment):
-    // clearing everything here would silence a *different* track's own
-    // live Session View performance just because this one, unrelated,
-    // ordinary take happened to arm at the same time - directly defeating
-    // the point of layering one track's own recording on top of others
-    // still playing.
-    if (!controller.isAnySessionRecording()) {
-      triggered_pattern_by_track_.clear();
-      queued_pattern_by_track_.clear();
-      queued_recording_by_track_.clear();
-      session_origin_set_ = false;
-    }
     // Starts the transport immediately, the same as SampleTrack's own
     // Record Arm - not deferred to the first actually-captured note/step
     // - so both branches behave alike; the clip itself still only gets
@@ -3371,36 +2716,6 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   }
   was_note_capture_armed_ = note_capture_armed;
 
-  // A note-based Session View take that just finished joins Session View's
-  // own live performance immediately, the same as a real pad press would -
-  // looping (Controller::trimSessionRecordingClip() already flipped it to
-  // that), and, silence permitting, triggered right now rather than left
-  // sitting in the clip list for the performer to separately go find and
-  // press - hearing your own take loop back instantly is the whole point
-  // of a live-performance recorder. Mirrors handleSessionPadEvent()'s own
-  // "nothing playing yet" launch vs. "something already is" queue
-  // decision exactly, since a completed take joining is otherwise no
-  // different from a live press on its own pad.
-  // takeCompletedSessionRecording() hands this back at most once per take.
-  if (auto completed = controller.takeCompletedSessionRecording()) {
-    auto & clips = song.getClips(completed->track_id);
-    if (completed->clip_index >= 0 && completed->clip_index < static_cast<int>(clips.size())) {
-      if (triggered_pattern_by_track_.empty() && queued_pattern_by_track_.empty()) {
-        auto launch_step = restartAuditionClockFromSilence();
-        triggered_pattern_by_track_[completed->track_id] = {completed->clip_index, launch_step};
-        session_origin_step_ = launch_step;
-        session_origin_set_ = true;
-        if (audition_clock_.isRunning()) {
-          auto & launched_clip = clips[static_cast<size_t>(completed->clip_index)];
-          auto launched_length = launched_clip.getLength() > 0 ? launched_clip.getLength() : 1;
-          fireOrTriggerClipStep(song, controller, completed->track_id, completed->clip_index, launched_clip, launched_length, 0);
-        }
-      } else {
-        queued_pattern_by_track_[completed->track_id] = completed->clip_index;
-      }
-    }
-  }
-
   auto ready_ids = launchpad_io_->readySessionIds();
 
   // Prune cached state for devices no longer connected - session ids are
@@ -3426,74 +2741,45 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   // (setFocusedClip()/clearFocusedClip()), not this loop's.
   auto focused_track_id = controller.getFocusedClipTrackId();
 
-  // The free-running drum-machine/clip audition clock - computed
-  // once here, shared by every connected device below, not per-device.
-  // audition_clock_ itself (StepClock, LaunchpadTiming.h) is the pure,
-  // unit-tested step-advance logic; everything here is just wall-clock
-  // bookkeeping and plugging the real song/track data in. Active exactly
-  // while the transport is stopped and Record Arm is off - while playing,
-  // the pattern-driven path in SongState::renderBlock() already triggers
-  // these same tracks from real song position, and running both at once
-  // would double-trigger; while armed, the player is presumably about to
-  // record something deliberate and doesn't want an uncontrolled loop
-  // underneath it. A Session View take is the one exception - it needs
-  // this same clock kept running, not stopped, since it's what drives
-  // extendSessionRecordingClipIfNeeded() below in place of the (here,
-  // deliberately never-started) transport; safe to keep running through
-  // an armed Session View take specifically because arming itself already
-  // cleared triggered_pattern_by_track_/queued_pattern_by_track_ above, so
-  // there's no stale auditioned content left for it to resume. audition_step
-  // is this frame's step for the per-device playhead display below, or -1
-  // when the clock isn't running at all.
+  // The step grid's preview clock - computed once here, shared by every
+  // connected device below, not per-device. Active exactly while the
+  // transport is stopped and Record Arm is off (or a Session View take is
+  // recording, which keeps SessionPlayer's clock running too) - while
+  // playing, the pattern-driven path in SongState::renderBlock() already
+  // plays the same track, and running both at once would double-trigger;
+  // while armed, the player is presumably about to record something
+  // deliberate and doesn't want an uncontrolled loop underneath it.
+  // audition_step is this frame's step for the per-device playhead
+  // display below, or -1 when the clock isn't running at all.
   int audition_step = -1;
   bool audition_active = !playback_info.isPlaying() && (!note_capture_armed || controller.isAnySessionRecording());
   if (audition_active) {
     auto now = chrono::steady_clock::now();
-    if (!audition_clock_.isRunning()) {
-      // (Re)starting: always from step 0, so stopping and restarting (or
-      // arming and disarming) never leaves the loop's phase drifted from
-      // what a player would expect ("it starts over from the top").
-      // start() itself doesn't fire step 0 (see its own comment) - that's
-      // this caller's policy: fire it immediately, no dead air waiting
-      // for the first row to elapse.
-      audition_clock_.start();
-      audition_clock_last_refresh_ = now;
-      if (focused_track_id >= 0) triggerAuditionStep(song, focused_track_id, controller, audition_clock_.currentStep());
-      triggerClipStep(song, controller, audition_clock_.currentStep());
-      for (auto track_id : controller.getSessionRecordingTrackIds()) controller.extendSessionRecordingClipIfNeeded(track_id, audition_clock_.currentStep());
+    if (!preview_clock_.isRunning()) {
+      // (Re)starting from step 0, fired at once rather than after a row
+      // of dead air.
+      preview_clock_.start();
+      preview_clock_last_refresh_ = now;
+      if (focused_track_id >= 0) triggerAuditionStep(song, focused_track_id, controller, preview_clock_.currentStep());
     } else {
-      float dt = chrono::duration<float>(now - audition_clock_last_refresh_).count();
-      audition_clock_last_refresh_ = now;
+      float dt = chrono::duration<float>(now - preview_clock_last_refresh_).count();
+      preview_clock_last_refresh_ = now;
       auto tempo = song.getTempo();
-      // Same row-duration formula as ChannelConfiguration::getRowDuration()
-      // (a "row" is a 16th note at this tempo) - no ChannelConfiguration
-      // needed here since this clock never touches sample counts, only
-      // wall-clock seconds. tempo <= 0 -> row_duration <= 0 -> advance()
-      // is a no-op (see its own guard), same as elsewhere in this
-      // codebase treating a non-positive tempo/loop-length as degenerate.
+      // A row is a 16th note at this tempo; tempo <= 0 makes advance() a
+      // no-op.
       float row_duration = tempo > 0 ? 60.0f / 4.0f / static_cast<float>(tempo) : 0.0f;
-      for (int step : audition_clock_.advance(dt, row_duration)) {
+      for (int step : preview_clock_.advance(dt, row_duration)) {
         if (focused_track_id >= 0) triggerAuditionStep(song, focused_track_id, controller, step);
-        triggerClipStep(song, controller, step);
-        for (auto track_id : controller.getSessionRecordingTrackIds()) controller.extendSessionRecordingClipIfNeeded(track_id, step);
       }
     }
-    audition_step = audition_clock_.currentStep();
+    audition_step = preview_clock_.currentStep();
   } else {
-    // A held note triggerAuditionStep() started (via PLAY_NOTE) but never
-    // got a matching STOP_NOTE for - the audition clock stopping mid-note
-    // (playback starting, or Record Arm arming) rather than the clip's
-    // own content actually ending it - would otherwise ring out
-    // indefinitely with nothing left driving it forward. Only meaningful
-    // if the clock was actually running a moment ago (checked before the
-    // stop() below clears that) and something was actually focused;
-    // redundant-safe otherwise, matching this codebase's own established
-    // "fire the natural release unconditionally, costs nothing extra"
-    // precedent (SongState.h's own instance-termination cleanup).
-    if (audition_clock_.isRunning() && focused_track_id >= 0) {
+    // A held note triggerAuditionStep() started would otherwise ring out
+    // with nothing left driving it once the clock stops mid-note.
+    if (preview_clock_.isRunning() && focused_track_id >= 0) {
       controller.getPlaybackEventQueue().push(make_unique<PlaybackControlEvent>(PlaybackControlEvent::STOP_ALL_NOTES, controller.getActiveBufferName(), focused_track_id));
     }
-    audition_clock_.stop();
+    preview_clock_.stop();
   }
 
   // The Send A/Send B/Send Main/Pan grid modes always address the first 8
@@ -3585,17 +2871,9 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   array<bool, 8> track_picker_muted {};
   array<bool, 8> track_picker_armed {};
   {
-    // While actually playing (Session-view recording included - that's
-    // exactly the "was playing" case that used to leave these LEDs stuck),
-    // triggered_pattern_by_track_/queued_pattern_by_track_ are stale: the
-    // audition clock that populates them only ever runs while stopped and
-    // unarmed (audition_active, above), and Session-view recording's own
-    // assign path (placeClipInstance()/placeRecordingStop()) never touches
-    // them either - it writes real song data instead. What's actually
-    // sounding while playing is whatever resolveInstanceAt() resolves at
-    // the live position, so that's what these LEDs show then; the
-    // audition-only bookkeeping only still applies while genuinely
-    // stopped, the one state it's ever populated in.
+    // While the transport plays, SessionPlayer's launches are stale -
+    // its clock only runs while stopped - so what's sounding is whatever
+    // resolveInstanceAt() resolves at the live position.
     bool use_real_position = playback_info.isPlaying();
     const Section * current_section = use_real_position ? &song.getSection(playback_info.getPatternIndex()) : nullptr;
     for (int x = 0; x < 8; x++) {
@@ -3609,13 +2887,13 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       auto identity = Color::fromHSL(structure.getBaselineInfo(session_track_id).getHue(), 0.8f, 0.3f);
       auto & clips = song.getClips(session_track_id);
       // STOP_CLIP's own picker-row state: a real clip instance is active
-      // right now (playing) - see clipHighlight()'s own comment on which
+      // right now (playing) - see SessionPlayer::clipHighlight() on which
       // source that reads while playing vs. stopped.
       bool any_playing = false;
       if (use_real_position) {
         any_playing = resolveInstanceAt(song, *current_section, session_track_id, playback_info.getRowIndex()).clip_index >= 0;
       } else {
-        any_playing = triggered_pattern_by_track_.count(session_track_id) > 0;
+        any_playing = controller.getSessionPlayer().isLaunched(session_track_id);
       }
       track_picker_playing[static_cast<size_t>(x)] = any_playing;
       track_picker_armed[static_cast<size_t>(x)] = controller.isTrackArmed(session_track_id);
@@ -3627,7 +2905,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
       }
       for (int y = 0; y < 8; y++) {
         auto clip_index = 7 - y;
-        auto highlight = clipHighlight(controller, song, playback_info, session_track_id, clip_index);
+        auto highlight = controller.getSessionPlayer().clipHighlight(session_track_id, clip_index);
         session_highlight[static_cast<size_t>(y * 8 + x)] = highlight;
         // An armed track's red states need no identity color underneath
         // (refreshLeds() never reads it for them); an empty, unarmed slot

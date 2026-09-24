@@ -1,4 +1,4 @@
-"""Regression test for LaunchpadManager::triggerSessionClip()'s own
+"""Regression test for SessionPlayer::triggerClip()'s own
 SampleTrack branch: a Session-view pad press on a SampleTrack armed via
 the track-picker overlay (CC19) now actually arms real audio capture
 (Controller::armSessionTrackRecording()/armThresholdRecording()) instead

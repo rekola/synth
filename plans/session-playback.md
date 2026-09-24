@@ -7,8 +7,8 @@ Session view pattern editor follows each track's own playhead. The
 Session view, clip grid and clip editing this builds on are already in
 place.
 
-Status: not started. Every phase lands as its own commit(s), with `ctest`
-and the e2e scripts green.
+Status: Phase 1 done (`SessionPlayer`); Phases 2-4 not started. Every
+phase lands as its own commit(s), with `ctest` and the e2e scripts green.
 
 ## Phase 1: a Controller-owned SessionPlayer
 

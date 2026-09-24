@@ -319,7 +319,7 @@ ClipGrid::offerInput(const InputEvent & input) {
     return true;
   } else if (input.getId() == NCKEY_ENTER) {
     // Acts exactly like a Launchpad Session view pad press landing on this
-    // same cell (LaunchpadManager::triggerSessionClip(), via
+    // same cell (SessionPlayer::triggerClip(), via
     // trigger_callback_ - see setTriggerCallback()'s own comment) - an
     // empty row stops/cancels whatever the track is doing, the same as
     // pressing an unassigned pad would, so this is called unconditionally

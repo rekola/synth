@@ -134,10 +134,6 @@ class LaunchpadManager {
 
   // See SessionPadHighlight.h.
   using SessionPadHighlight = ::SessionPadHighlight;
-  // A clip slot's transport/recording state - what its pad shows in
-  // Session view, and what the terminal's clip grid mirrors, so the two
-  // never disagree. A slot with no clip on an unarmed track is NONE.
-  SessionPadHighlight clipHighlight(const Controller & controller, const Song & song, const PlaybackInfo & playback_info, int track_id, int clip_index) const;
   void toggleGridMode(int device_id, GridMode mode);
   // A one-way force, unlike toggleGridMode() above - every currently
   // connected device switches to NOTES regardless of whatever mode it was
@@ -172,25 +168,13 @@ class LaunchpadManager {
   //   unrelated note entry happened to leave this device's own octave at
   //   in between, reading as arbitrary/unpredictable rather than always
   //   starting from the same, known place.
-  // - The free-running audition clock itself (restartAuditionClockFromSilence(),
-  //   not per-device - shared song-wide, same as its own other callers) -
+  // - The step-grid preview clock (preview_clock_, not per-device) -
   //   without this the clip's own auditioned playback (and playhead
   //   display) picks up from wherever that clock's stale, unrelated phase
-  //   already was rather than the clip's own row 0, the exact same
-  //   "doesn't start from the beginning" symptom a Session-view launch
-  //   from silence already had before that fix.
+  //   already was rather than the clip's own row 0.
   // Called from Controller::setDrumEditRequestListener()'s own "opened"
   // callback (UI::start()), alongside forceNotesModeOnAllDevices() above.
   void resetStepGridView();
-  // Releases every Session-View-triggered clip on every *other* track
-  // (triggered_pattern_by_track_/queued_pattern_by_track_ - a plain
-  // clear() alone would stop new steps from firing but leave whatever's
-  // already sounding ringing on its own envelope, so this pushes an
-  // explicit STOP_ALL_NOTES per currently-triggered track first) - opening
-  // a drum clip for editing (Controller::setDrumEditRequestListener()'s
-  // own "opened" callback, UI::start()) is meant to be heard in isolation,
-  // not layered under whatever else happened to already be playing.
-  void silenceOtherTriggeredClips(Controller & controller);
 
   // The Launchpad's own session/launch view, replacing what used to be a
   // plain arrangement-navigation overview (rows=sections) - rows are now a
@@ -199,14 +183,9 @@ class LaunchpadManager {
   // things a press does is gated by Record Arm (DeviceState::
   // capture_enabled), not a Session-specific toggle of its own (see
   // handleSessionPadEvent()'s own comment): armed, it places an instance
-  // of that clip into the pressed column's track at `cursor_section_idx`
-  // (a real arrangement-layer placement, not a live reference back to the
-  // clip - see handleSessionPadEvent()'s own comment on which row) - the
-  // write-side counterpart, and the closest replacement for what plain
-  // section-navigation used to do here; disarmed, it instead
-  // triggers the clip to start playing live for that track (quantized to
-  // whatever's currently playing there finishing its own loop - see
-  // triggerClipStep()), touching nothing in the song.
+  // of that clip into the pressed column's track (SessionPlayer::
+  // triggerClip()); disarmed, it instead launches the clip live for that
+  // track, quantized to the shared bar grid, touching nothing in the song.
   // `track_ids` is the overview's own filtered column list (color-
   // eligible tracks only - ArrangementGrid::getVisibleTrackIds()),
   // deliberately not Song::getRootTrackIds(): a Launchpad in SESSION mode
@@ -222,9 +201,6 @@ class LaunchpadManager {
   // row window.
   struct SessionWindow {
     std::vector<int> track_ids;
-    // the overview's own current cursor section (ArrangementGrid::
-    // getCursorSection()) - which section an "assign" press writes into.
-    int cursor_section_idx = 0;
   };
 
   // Called with +1/-1 when "move-row-up"/"move-row-down" is pressed while
@@ -358,8 +334,8 @@ class LaunchpadManager {
   // CC19 fires outside the Session family (Controller.cpp's own
   // "toggle-record-arm"), reachable here from any grid_mode, since Session
   // view's own pad presses need it armed (Controller::isNoteCaptureArmed())
-  // to write a launch into the arrangement (triggerSessionClip()'s own
-  // "assign" branch) rather than just auditioning - a long hold instead
+  // to write a launch into the arrangement (SessionPlayer::triggerClip()'s
+  // own "assign" branch) rather than just auditioning - a long hold instead
   // means DRAW: entering the mode (if some other mode was active before
   // this press - see draw_toggle_was_already_active's own comment) or
   // clearing the canvas (if DRAW was already active), the same "entry vs.
@@ -508,12 +484,10 @@ class LaunchpadManager {
   // queue. Which of two things a press does is exactly Record Arm
   // (DeviceState::capture_enabled) - the same "just play" vs. "store into
   // the pattern" choice it already makes for ordinary note entry, one
-  // level up: off triggers/queues the pattern for live playback
-  // (triggered_pattern_by_track_/queued_pattern_by_track_, picked up by
-  // the free-running audition clock below) without touching the song at
-  // all; on instead places an instance of it into the pressed column's
-  // track at session_.cursor_section_idx (see handleSessionPadEvent()'s own
-  // comment) and stays in Session view rather than switching focus away -
+  // level up: off launches/queues the clip for live playback
+  // (SessionPlayer::triggerClip()) without touching the song at all; on
+  // instead places an instance of it into the pressed column's track and
+  // stays in Session view rather than switching focus away -
   // a player assigning several patterns in a row needs to keep pressing
   // pads, not get bounced out after the first one. Deliberately not a
   // separate toggle, so switching between Session view and the ordinary
@@ -521,49 +495,10 @@ class LaunchpadManager {
   // sync with what a press here is about to do.
   void handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller & controller);
 
-  // handleSessionPadEvent()'s own decision logic (auditioning-toggle vs.
-  // arrangement-assign, everything after resolving which (track, clip)
-  // was actually addressed), factored out so anything else that means
-  // "act exactly like a Session view pad press landed here" can call it
-  // directly without needing a real LaunchpadPadEvent - ClipGrid's own
-  // Enter key (the terminal's own Session View, UI::start()'s own wiring)
-  // is the other caller. `clip_index` is a plain Song::getClips() index,
-  // already flipped from pad-y-coordinate space by callers that have one;
-  // out of range means an empty slot, the same as `!has_pattern_here`
-  // meant before this was pulled out.
-  //
-  // `shared_launch_step` is triggerSceneRow()'s own way of resolving the
-  // whole row's "launch immediately vs. queue against what's already
-  // playing" decision exactly once, for every track in the row together,
-  // rather than once per call: an ordinary single-pad press (this
-  // parameter left at its default, std::nullopt) computes its own
-  // "is anything already triggered/queued anywhere" answer fresh each
-  // time it's called - correct for one press, but wrong for a whole row
-  // fired in a tight loop, where the *first* track's own call would
-  // already have populated triggered_pattern_by_track_ by the time the
-  // *second* track's call goes to ask the same question, making every
-  // track but the first see something "already playing" and queue
-  // instead of launching. Providing a value here skips that per-call
-  // recomputation entirely - both the auditioning and armed-recording
-  // branches treat it as "nothing pending, launch right now" and use the
-  // given step as their own launch_step, unconditionally.
-  void triggerSessionClip(Controller & controller, int track_id, int clip_index, std::optional<int> shared_launch_step = std::nullopt);
-
-  // What a track's Session-view clip playback is doing right now, for
-  // display. A track with nothing playing or queued has no entry.
-  struct SessionPlayhead {
-    int clip_index = -1; // the clip playing, or -1 if none
-    int row = -1; // its current row; -1 while the audition clock isn't running
-    std::optional<int> queued_clip; // a pending launch (clip index) or stop (-1), taking effect at the next bar
-  };
-  std::unordered_map<int, SessionPlayhead> sessionPlayheads(const Song & song) const;
-
-  // Launches every one of `track_ids`' own clip at `clip_index` together,
-  // quantized like a single pad press (triggerSessionClip()).
-  void launchScene(Controller & controller, int clip_index, const std::vector<int> & track_ids);
-  // Stops every track the way Stop Clip stops one (stopSessionTrack()) -
-  // the clip grid master column's Stop all.
-  void stopAllSessionTracks(Controller & controller);
+  // Starts the transport for a Session view launch that writes into the
+  // arrangement (SessionPlayer::setAssignPlaybackStarter()), recorded as
+  // auto-started so disarming Record Arm stops it again.
+  void startAssignPlayback(Controller & controller);
 
   // Device-wide aftertouch (the alternative to handlePadEvent's per-pad
   // AFTERTOUCH case - see LaunchpadChannelPressureEvent) - there's no
@@ -775,10 +710,10 @@ class LaunchpadManager {
     // see would happen" button here.
     int drum_edit_max_step_offset = 0;
     // Pattern-relative row % 8 while playing (the step grid is always
-    // exactly 8 columns wide), or the free-running audition clock's own
-    // step % 8 while stopped (see LaunchpadManager::audition_clock_step_) -
-    // or -1 when there's no playhead to show at all (stopped, but the
-    // audition clock isn't currently running because Record Arm is on -
+    // exactly 8 columns wide), or the preview clock's own step % 8 while
+    // stopped (see LaunchpadManager::preview_clock_) - or -1 when there's
+    // no playhead to show at all (stopped, but the preview clock isn't
+    // currently running because Record Arm is on -
     // see refresh()'s own gating check).
     int drum_playhead_step = -1;
 
@@ -1114,29 +1049,13 @@ class LaunchpadManager {
   // leaves a stale entry for a later, unrelated one to stumble over.
   std::unordered_map<int, std::string> auto_record_clip_ids_;
 
-  // The free-running drum-machine/clip audition clock: a second,
-  // independent clock from SongState's own position - deliberately never
-  // touches sample_pos_/absolute_pos_ and
-  // never pushes MOVE_POSITION/SET_POSITION, exactly the same "don't
-  // unify the two clocks" invariant the plan calls out. Lives here (UI
-  // thread, wall-clock-timed via refresh()'s own call cadence - Player.cpp
-  // pushes a fresh playback-position UI event every single audio-callback
-  // block regardless of play state, which is what wakes UI::renderComponents()
-  // /refresh() up that often) rather than inside SongState::renderBlock() on the
-  // audio thread, so it can reuse the exact same PLAY_NOTE-event-queue
-  // audition path handleStepGridPadEvent/handleDrumPickerPadEvent already
-  // use for their own one-shot presses, instead of a second, parallel
-  // triggering mechanism. One shared step counter for the whole song (not
-  // per-device, not per-track) - each PercussionTrack still wraps at its
-  // own loop length via getHitNotesForRow()'s own modulo, so tracks with
-  // different loop lengths phase-align at step 0 and diverge after,
-  // exactly like two pattern-driven PercussionTracks already would while
-  // playing normally.
-  // StepClock itself (LaunchpadTiming.h) is the pure, unit-tested
-  // step-advance logic; this is only the wall-clock timestamp of the
-  // last refresh() call, needed to turn "now" into a dt to feed it.
-  StepClock audition_clock_;
-  std::chrono::steady_clock::time_point audition_clock_last_refresh_;
+  // The step grid's free-running preview clock, playing the clip open
+  // for editing while the transport is stopped - wall-clock-timed from
+  // refresh(), independent of the transport and of SessionPlayer's own
+  // clock. StepClock (LaunchpadTiming.h) is the pure step-advance logic;
+  // preview_clock_last_refresh_ turns "now" into a dt to feed it.
+  StepClock preview_clock_;
+  std::chrono::steady_clock::time_point preview_clock_last_refresh_;
 
   // Fires `track_id`'s own getHitNotesForRow(step) as a PLAY_NOTE
   // audition event - the free-running clock's own per-step action,
@@ -1157,52 +1076,6 @@ class LaunchpadManager {
   // is_focused_override) - idle auditioning never plays the background/
   // whatever instance happens to be active there otherwise.
   void triggerAuditionStep(const Song & song, int track_id, Controller & controller, int step);
-
-  // track_id -> the clip index (into song.getClips(track_id)) and launch
-  // step of whatever's currently auditioning in Session view - song-wide,
-  // like audition_clock_ itself, not per-device (matches "this track is
-  // now playing clip X" regardless of which Launchpad column happens to
-  // show it, the same way triggerAuditionStep() above already fires
-  // identically for every connected device rather than per-device). A
-  // track with no entry here just isn't currently triggering anything.
-  // launch_step is audition_clock_'s own absolute step at the moment this
-  // specific instance actually started (a fresh launch, or a swap taking
-  // effect - see triggerClipStep()'s own comment for exactly when that
-  // is) - fireClipStep() is always called with (step - launch_step),
-  // never the clock's own raw step, so every instance always starts
-  // counting from its own row 0 the moment it begins, independent of
-  // session_origin_step_/rowsPerBar below (which only ever decide *when*
-  // that moment is, never *which row* it starts on).
-  struct TriggeredPattern { int clip_index; int launch_step; };
-  std::unordered_map<int, TriggeredPattern> triggered_pattern_by_track_;
-  // A Session-view press queues here instead of taking effect immediately
-  // - either a clip index (>= 0, a fresh join, a swap, or repressing the
-  // already-triggered pad - a relaunch from its row 0) or -1 (a press on
-  // an unassigned row - a plain stop). Unlike triggered_pattern_by_track_, a track can have an entry
-  // here with no corresponding triggered_pattern_by_track_ entry at all -
-  // a fresh launch queued because something else in the session is
-  // already playing (see handleSessionPadEvent()'s own comment) is
-  // exactly as pending as a swap/stop queued for an already-triggered
-  // track; triggerClipStep() below treats both the same way. See its own
-  // comment for exactly when a queued entry actually takes effect.
-  std::unordered_map<int, int> queued_pattern_by_track_;
-
-  // A Session-view press on an armed track queues here instead - the
-  // recording-specific sibling of queued_pattern_by_track_ above, resolved
-  // by triggerClipStep() at the exact same shared-grid boundary. STOP
-  // queues a stop of just the in-flight take on that track (pressing the
-  // pad currently being recorded into again), leaving the track itself
-  // still armed - distinct from disarming the track outright
-  // (Controller::disarmTrack()), which stops immediately instead of
-  // queuing; clip_index is unused for it. FRESH_TAKE/OVERDUB both carry
-  // the exact clip_index that was pressed - holes are allowed (Song::
-  // ensureClipAt()), so the pressed index is always the real target, never
-  // retargeted to wherever the next unused slot happens to be; which of
-  // the two it is was already decided at press time (whether that index
-  // had real content then - see triggerSessionClip()'s own has_pattern_here)
-  // and is carried forward here rather than re-derived at resolution time.
-  struct QueuedRecording { enum Kind { STOP, FRESH_TAKE, OVERDUB } kind; int clip_index = 0; };
-  std::unordered_map<int, QueuedRecording> queued_recording_by_track_;
 
   // Volume/Pan/Send A/Send B's own fader-press state - shared across every
   // connected device the same way track_send_main/etc. mirror one live
@@ -1334,84 +1207,6 @@ class LaunchpadManager {
   // between two plain `Set` commands would be.
   void recordFaderAutomationIfArmed(Controller & controller, FaderState & fader, int track_id, Command command);
 
-  // The Session-view-wide shared quantization reference ("beat 1") every
-  // queued join/swap/stop above (and the launch_step of the pattern that
-  // fires the moment one of them takes effect) is measured against: a
-  // pending action takes effect once
-  // `(step - session_origin_step_) % song.getRowsPerBar() == 0`, tying
-  // every track's own launches into a fixed rhythmic relationship instead
-  // of each starting fresh wherever it happened to be pressed. Set the
-  // moment the *first* pattern anywhere launches while the whole session
-  // (triggered_pattern_by_track_ and queued_pattern_by_track_ both empty)
-  // is silent - nothing to sync to yet, so that launch defines the grid;
-  // cleared again (session_origin_set_ = false) the moment both maps go
-  // back to empty, so the next launch from silence is free to redefine
-  // "beat 1" instead of snapping to a stale point nothing's actually in
-  // sync with anymore.
-  bool session_origin_set_ = false;
-  int session_origin_step_ = 0;
-
-  // Fires one step's worth of notes for whatever's in
-  // triggered_pattern_by_track_, after first resolving (for every track
-  // with a pending queued_pattern_by_track_ entry) whether this step is
-  // the shared next quantization boundary and, if so, applying it - see
-  // this method's own definition for the exact rule. The clip sibling of
-  // triggerAuditionStep() above, called from the same two places in
-  // refresh() for the same reason.
-  void triggerClipStep(const Song & song, Controller & controller, int step);
-
-  // A genuine launch from silence (nothing anywhere already triggered or
-  // queued) needs more than just "launch_step = 0" - audition_clock_ itself
-  // (refresh()'s own comment) only ever stops while playing or armed, so
-  // while merely idle it free-runs continuously whether or not anything is
-  // actually attached to it, and its own phase() has nothing to do with
-  // this press. Without restarting it here, the immediately-fired first
-  // note (fireOrTriggerClipStep(..., 0), called separately by the caller)
-  // still lands right on press, but the *second* note - the free-running
-  // clock's own next tick - fires whenever that stale, unrelated phase
-  // next happens to cross a row boundary, anywhere from right away to
-  // almost a full row late; every note after that is then evenly spaced
-  // again, since nothing perturbs the clock further once it's ticking.
-  // Restarting here re-anchors phase 0 to this exact press, so the second
-  // note lands a full, correct row later - always 0, the same as
-  // StepClock::start()'s own contract, returned for convenience so a call
-  // site can use it directly as its launch_step. resetStepGridView() reuses
-  // this exact same fix for the identical reason on the step grid's own
-  // open gesture - the return value is irrelevant there (the step grid's
-  // own row 0 is wherever the focused clip's own Pattern says it is, not a
-  // launch_step), only the restart itself matters.
-  int restartAuditionClockFromSilence() {
-    audition_clock_.start();
-    audition_clock_last_refresh_ = std::chrono::steady_clock::now();
-    return 0;
-  }
-
-  // Writes an explicit stop instance (ArrangementOps.h's
-  // placeStopInstance()) for `track_id` at the live playhead's own
-  // position, bar-aligned - handleSessionPadEvent()'s own shared "stop
-  // this track while recording" primitive, reached both from an
-  // empty-row press in the assign branch and from the track-picker
-  // overlay's own STOP_CLIP purpose while Record Arm is on. A no-op while
-  // nothing is actually playing.
-  void placeRecordingStop(Controller & controller, int track_id);
-
-  // The track-picker overlay's own STOP_CLIP action
-  // (DeviceState::TrackPickerPurpose) - stops `track_id` the same way an
-  // empty-row Session-view press already does, genuinely two different
-  // mechanisms depending on Record Arm (see this method's own
-  // definition), factored out since both the overlay and (previously)
-  // Session view's own held-column gesture need it.
-  void stopSessionTrack(Controller & controller, int track_id);
-
-  // Cancels or finalizes `track_id`'s own in-flight real audio capture -
-  // triggerSessionClip()'s own "press the pad being captured into again"
-  // gesture and stopSessionTrack()'s SampleTrack case both need this same
-  // resolution. Never Controller::trimSessionRecordingClip() (the
-  // note-Pattern-specific finalize note-based Session recording uses) -
-  // that would read this take's own empty Pattern as "nothing was ever
-  // recorded" and reset its real audio length back to one bar.
-  void stopSampleTrackRecording(Controller & controller, int track_id);
-
   // Opens the track-picker overlay for `purpose`, shared by every button
   // that can open it (CC49/39/29, and their Pro MK3 left-column twins
   // 30/20, plus CC19 for RECORD_ARM - see handleRawButton()'s own
@@ -1450,8 +1245,8 @@ class LaunchpadManager {
   // session_mixer_mode's own comment, off by default) - launches `row`'s
   // own clip (the same row -> clip_index mapping Session view's own
   // columns use, 7 - row) across every currently selectable track at
-  // once, the classic Launchpad right-column convention. Reuses
-  // triggerSessionClip() per track, so it goes through the exact same
+  // once, the classic Launchpad right-column convention. Goes through
+  // SessionPlayer::launchScene(), so it takes the exact same
   // audition/assign split (Record Arm) a single pad press in Session
   // view already does.
   void triggerSceneRow(Controller & controller, int row);
@@ -1491,7 +1286,7 @@ class LaunchpadManager {
   // refresh()'s own SessionWindow parameter, mirrored here (same
   // once-per-frame pattern) so handleSessionPadEvent() -
   // called asynchronously between refresh() calls, on a real pad press -
-  // can resolve which (track_id, section index) a press landed on without
+  // can resolve which track a press landed on without
   // needing its own copy threaded through.
   SessionWindow session_;
   // "move-row-up"/"move-row-down" (CC91/92) while a device is in
@@ -1499,8 +1294,8 @@ class LaunchpadManager {
   // ArrangementGrid::moveCursorSection()) rather than scrolling a pad-grid row
   // window - Session view's rows are a track's own clips, not
   // sections, so there's no local row scroll for those buttons to drive; the
-  // section cursor is what an "assign" press actually targets (session_.
-  // cursor_section_idx), so moving it is the meaningful thing left for
+  // section cursor is what an "assign" press actually targets
+  // (SessionPlayer::setAssignSection()), so moving it is the meaningful thing left for
   // up/down to do here. +1/-1 is the caller's own delta convention (see
   // handleCommand()).
   std::function<void(int delta)> session_move_section_callback_;
