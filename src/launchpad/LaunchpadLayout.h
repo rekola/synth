@@ -3,6 +3,7 @@
 
 #include "../instruments/Tuning.h"
 
+#include <array>
 #include <vector>
 
 // Isomorphic-keyboard grid layout derived from a song's EDO (equal division
@@ -168,6 +169,22 @@ namespace LaunchpadLayout {
   // (the caller folds the fallback into current_or_unassigned before
   // calling) rather than starting from 0. Clamps, does not wrap.
   int advanceTrackIndex(int current_or_unassigned, int delta, int num_tracks);
+
+  // The Pan pads: a horizontal fader per track row, 8 pads with the centre
+  // between columns 3 and 4, 22.5 degrees per pad out to +-90 at the outer
+  // pads (negative azimuth is left). Shown as a bar growing from the centre
+  // toward that side; a value behind the listener (|azimuth| > 90) lights
+  // the whole row, and exactly 0 dimly marks the two inner pads. Stateless,
+  // so the LED display and the pad-press handler use the same convention.
+  constexpr float kPanPadDegrees = 22.5f;
+  constexpr float kPanRearDegrees = 180.0f;
+  enum class PanPad { OFF, CENTER, BAR, TIP };
+  // How each of a row's 8 pads shows `azimuth`: the bar's length rounds
+  // away from zero, so any nonzero azimuth shows at least one pad on its
+  // own side and is never mistaken for centred.
+  std::array<PanPad, 8> panBarPads(float azimuth);
+  // The azimuth a single press on `column` sets.
+  float panPadToAzimuth(int column);
 
 }
 

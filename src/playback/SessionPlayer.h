@@ -31,13 +31,21 @@ class SessionPlayer {
   // hand.
   void setTimeSource(std::function<Clock::time_point()> now) { now_ = std::move(now); }
 
-  // A Session view pad press on (track_id, clip_index). Unarmed with
-  // Record Arm off, it queues the clip for live playback, touching no song
-  // data; on an armed track it queues a take, an overdub or a take's stop;
-  // with Record Arm on it places the clip into the arrangement at the
-  // transport's bar instead. An out-of-range or empty clip_index stops the
-  // track.
+  // A Session view pad press on (track_id, clip_index). With Record Arm
+  // off, a populated slot queues the clip for live playback, touching no
+  // song data; on an armed track an empty slot queues a fresh take, and
+  // pressing the slot being recorded into queues that take's stop - a
+  // populated slot only ever launches, never records (overdubbing is
+  // toggleOverdub()'s job). With Record Arm on it places the clip into the
+  // arrangement at the transport's bar instead. An out-of-range or empty
+  // clip_index on an unarmed track stops it.
   void triggerClip(int track_id, int clip_index);
+  // Session Record: overdubs the clip playing on each armed track (the
+  // fallback track if none is armed) from the next bar, in place - the
+  // clip keeps looping, the take lines up with it. While any take is in
+  // flight, stops those takes at the next bar instead, leaving the clips
+  // playing. Returns false when there was nothing to overdub or stop.
+  bool toggleOverdub(int fallback_track_id);
   // Queues `track_ids`' clip at `clip_index`, launching together at the
   // next bar.
   void launchScene(int clip_index, const std::vector<int> & track_ids);
@@ -103,6 +111,10 @@ class SessionPlayer {
   // note-take trim, which would read the take's empty Pattern as nothing
   // recorded and reset it to one bar.
   void stopSampleTrackRecording(int track_id);
+  // Real audio capture into (track_id, clip_index): one immediate, global
+  // target, never bar-quantized. Handles a press on an armed SampleTrack's
+  // slot; false if the track isn't a SampleTrack.
+  bool triggerSampleCapture(int track_id, int clip_index);
 
   Controller & controller_;
   std::function<Clock::time_point()> now_ = [] { return Clock::now(); };
@@ -117,9 +129,9 @@ class SessionPlayer {
   // clip from row 0) or stop (-1), per track, taking effect at the next
   // bar - a track can have one with nothing launched yet.
   std::unordered_map<int, int> queued_;
-  // A pending take on an armed track. STOP ends just the in-flight take,
-  // leaving the track armed; FRESH_TAKE/OVERDUB carry the exact pressed
-  // index, decided at press time by whether it held a clip then.
+  // A pending take. STOP ends just the in-flight take, leaving the track
+  // armed; FRESH_TAKE carries the pressed empty slot; OVERDUB the playing
+  // clip to record into without restarting it.
   struct QueuedRecording { enum Kind { STOP, FRESH_TAKE, OVERDUB } kind; int clip_index = 0; };
   std::unordered_map<int, QueuedRecording> queued_recording_;
 

@@ -1,4 +1,6 @@
 #include "LaunchpadManager.h"
+#include "../playback/EventHandler.h"
+#include "../playback/LogEvent.h"
 
 #include "LaunchpadIO.h"
 #include "LaunchpadLayout.h"
@@ -24,16 +26,14 @@
 using namespace std;
 
 namespace {
-  // How long CC98 (handleDrawToggleButton()) must be held before release
-  // means DRAW (entering it, or clearing the canvas if already there)
-  // instead of a quick tap's own "toggle-record-arm". Long enough that a
-  // normal deliberate tap never accidentally reads as a hold.
-  constexpr auto kDrawClearHoldThreshold = std::chrono::milliseconds(600);
+  // How long CC98 (handleRecordButton()) must be held before release means
+  // Capture MIDI instead of a quick tap's own Session Record. Long enough
+  // that a normal deliberate tap never accidentally reads as a hold.
+  constexpr auto kCaptureHoldThreshold = std::chrono::milliseconds(600);
 
   // How long a DRAW-mode grid pad must be held before release means "just
   // adjust brightness" instead of "cycle to the next hue" - see
-  // releaseDrawPad(). Same value as kDrawClearHoldThreshold above (both are
-  // "long press" thresholds for a DRAW-mode gesture) but named/declared
+  // releaseDrawPad(). Same value as kCaptureHoldThreshold above but declared
   // separately since they're conceptually independent controls that could
   // reasonably be tuned apart later.
   constexpr auto kDrawPadLongPressThreshold = std::chrono::milliseconds(600);
@@ -392,13 +392,15 @@ namespace {
     }
   }
 
-  // Pan mode maps a track's azimuth to one of 8 compass points spaced 45
-  // degrees apart around the *full* circle (not clamped to a stereo-like
-  // +-90 range) - this is a full 3D ambisonic engine, not a stereo panner,
-  // so "behind" positions are just as reachable as "in front" ones. Row 4
-  // (dead center of the 8) lands exactly on 0 degrees (front) for a
-  // memorable, symmetric mapping.
-  constexpr float PAN_ROW_DEGREES = 45.0f;
+  // How long one of the Pan row's chord-eligible pads (columns 0/7 and
+  // 3/4) waits for its partner before applying as a single press - short
+  // enough to feel immediate, long enough to catch a two-finger press.
+  constexpr auto kPanChordWindow = std::chrono::milliseconds(50);
+  // A Pan bar's pads show the track's own color at these fractions of its
+  // lightness: the tip (outermost lit pad) full, the rest of the bar
+  // dimmer, and the centred marker (azimuth exactly 0) dimmest.
+  constexpr float kPanBarScale = 0.55f;
+  constexpr float kPanCenterScale = 0.25f;
 
   // Send A/B/Main fader curve: row 1 is this many dB below unity (row 7);
   // 6dB/step is a standard, easily-perceived mixing-console increment. Row
@@ -430,21 +432,18 @@ namespace {
     return std::clamp(static_cast<int>(lround(row)), 0, 7);
   }
 
-  // A fader press's own glide duration (LaunchpadManager::
-  // faderGlideDurationSeconds()) scales between these by press velocity -
-  // at max velocity (127) a full-
-  // range move takes kMinFaderRampSeconds (near-instant, matching the old
-  // snap-to-value behavior every existing test/song already assumes), at
-  // the lowest velocity (1) it takes the full kMaxFaderRampSeconds, and a
+  // A fader press's own glide duration (faderGlideDurationSeconds()) scales
+  // between these by press velocity: a hard press moves a full range in
+  // kMinFaderRampSeconds (near-instant), the softest one takes
+  // kMaxFaderRampSeconds - long enough for a fade in or out. The scale is
+  // exponential, so both ends keep a useful spread of speeds, and a
   // partial-range move takes proportionally less time at any given
-  // velocity than crossing the whole range would - covering only a
-  // fraction of the range doesn't get to "feel" as slow as covering all of
-  // it. Not calibrated against real hardware (no documented equivalent to
-  // compare against) - tuned only so a press at the velocity every
-  // existing e2e fixture already sends (100) comfortably finishes inside
-  // the ~1s those scripts already wait before reading the result back.
+  // velocity than crossing the whole range would. Not calibrated against
+  // documented hardware behavior - tuned so a press at the velocity every
+  // existing e2e fixture sends (100) finishes well inside the ~1s those
+  // scripts wait before reading the result back.
   constexpr float kMinFaderRampSeconds = 0.03f;
-  constexpr float kMaxFaderRampSeconds = 1.0f;
+  constexpr float kMaxFaderRampSeconds = 8.0f;
   // The reference "whole range" a glide's distance is measured as a
   // fraction of, in each parameter's own unit - Send's is the full
   // sentinel-off-to-unity span (linearToDb's own -100dB floor to 0dB),
@@ -455,24 +454,13 @@ namespace {
   constexpr float kAzimuthFullRangeDegrees = 180.0f;
 
   // Real velocity-sensitive hardware doesn't reliably saturate near the
-  // MIDI velocity ceiling even under a genuinely hard press - confirmed
-  // empirically, not assumed: a deliberate max-effort press on a
-  // Launchpad X's own Send-fader pad landed mostly in the 65-92 range
-  // (aseqdump-captured raw velocity bytes), one hit out of nearly twenty
-  // reaching 127, against a Launchpad Mini MK3's own non-velocity-
-  // sensitive pads, which report a flat 127 unconditionally regardless of
-  // how they're pressed. Treating 127 as "the" fast end while a realistic
-  // hard press on real hardware lands 10-17x slower (the plain linear
-  // mapping this replaced) made every genuinely hard X press feel
-  // sluggish next to the Mini MK3's own guaranteed-fast one. This gamma
-  // (< 1) compresses the top of velocity_fraction's own 0-1 range before
-  // it drives duration - a realistic hard press (roughly half to
-  // three-quarters of the way up the raw 1-127 range) already reaches
-  // most of the way to full speed, while a genuinely soft press (a low
-  // fraction) still glides meaningfully slower - not a hard clamp at some
-  // assumed "effective max" velocity, which would treat every hit above
-  // it identically regardless of how hard it actually was.
-  constexpr float kFaderVelocityGamma = 0.3f;
+  // MIDI velocity ceiling: a deliberate max-effort press on a Launchpad
+  // X's own Send-fader pad landed mostly in the 65-92 range (raw velocity
+  // bytes captured from the device), while a Mini MK3's non-velocity-
+  // sensitive pads report a flat 127 unconditionally. So the ramp is
+  // already at its fastest from kFaderFullSpeedVelocity up, and only the
+  // range below it spreads out toward the slow end.
+  constexpr int kFaderFullSpeedVelocity = 80;
 
   // resolveSendFaderTarget()'s (Send Main/A/B) and
   // resolveAzimuthFaderTarget()'s (Pan) own shared glide-duration formula -
@@ -481,9 +469,8 @@ namespace {
   // single source of truth for the velocity curve rather than two copies
   // that could drift apart.
   float faderGlideDurationSeconds(int velocity, float distance_fraction) {
-    float velocity_fraction = static_cast<float>(std::clamp(velocity, 1, 127)) / 127.0f;
-    float shaped_velocity_fraction = powf(velocity_fraction, kFaderVelocityGamma);
-    float base_duration = kMinFaderRampSeconds + (kMaxFaderRampSeconds - kMinFaderRampSeconds) * (1.0f - shaped_velocity_fraction);
+    float speed = std::clamp(static_cast<float>(velocity - 1) / static_cast<float>(kFaderFullSpeedVelocity - 1), 0.0f, 1.0f);
+    float base_duration = kMinFaderRampSeconds * powf(kMaxFaderRampSeconds / kMinFaderRampSeconds, 1.0f - speed);
     return std::max(kMinFaderRampSeconds, base_duration * distance_fraction);
   }
 
@@ -523,18 +510,6 @@ namespace {
     return -1;
   }
 
-}
-
-int
-LaunchpadManager::azimuthToRow(float azimuth) {
-  float normalized = fmodf(azimuth + 180.0f, 360.0f);
-  if (normalized < 0.0f) normalized += 360.0f;
-  return static_cast<int>(lround(normalized / PAN_ROW_DEGREES)) % 8;
-}
-
-float
-LaunchpadManager::rowToAzimuth(int row) {
-  return static_cast<float>(row) * PAN_ROW_DEGREES - 180.0f;
 }
 
 float
@@ -587,35 +562,15 @@ LaunchpadManager::resolveSendFaderTarget(FaderState & fader, float current_value
 }
 
 float
-LaunchpadManager::resolveAzimuthFaderTarget(FaderState & fader, float current_value, int pressed_row, int velocity,
-    bool & is_micro_tap, float & out_duration_seconds) {
+LaunchpadManager::resolveAzimuthFaderTarget(FaderState & fader, float current_value, float target_degrees, int velocity,
+    float & out_duration_seconds) {
   auto now = std::chrono::steady_clock::now();
-  bool still_gliding = fader.ramping && std::chrono::duration<float>(now - fader.start_time).count() < fader.duration_seconds;
-  is_micro_tap = fader.touched && pressed_row == fader.last_pressed_row && !still_gliding;
-  if (is_micro_tap) {
-    fader.micro_step = fader.micro_step >= 2 ? 1 : fader.micro_step + 1;
-    int next_row = (pressed_row + 1) % 8; // Pan's row 7 really does neighbor row 0
-    float base_value = rowToAzimuth(pressed_row);
-    // Wrapped, not a raw subtraction - row 7 -> row 0 is a real +45 degree
-    // step around the circle, not the -315 degree one a plain
-    // rowToAzimuth(next_row) - base_value would compute.
-    float row_delta = fmodf(rowToAzimuth(next_row) - base_value, 360.0f);
-    if (row_delta > 180.0f) row_delta -= 360.0f;
-    else if (row_delta <= -180.0f) row_delta += 360.0f;
-    float target = base_value + row_delta * static_cast<float>(fader.micro_step) / 2.0f;
-    fader.ramping = false; // instant - nothing left gliding after a micro-tap
-    return target;
-  }
-
   fader.touched = true;
-  fader.last_pressed_row = pressed_row;
-  fader.micro_step = 0;
-  float target = rowToAzimuth(pressed_row);
   // Circular distance (the shorter way around - same reasoning
   // LeafTrackState::glideAzimuth() uses to actually pick a travel
   // direction), so a press near the wrap point isn't penalized with an
   // implausibly slow near-360-degree "distance".
-  float delta = fmodf(target - current_value, 360.0f);
+  float delta = fmodf(target_degrees - current_value, 360.0f);
   if (delta > 180.0f) delta -= 360.0f;
   else if (delta <= -180.0f) delta += 360.0f;
   float distance_fraction = std::clamp(std::fabs(delta) / kAzimuthFullRangeDegrees, 0.0f, 1.0f);
@@ -623,7 +578,70 @@ LaunchpadManager::resolveAzimuthFaderTarget(FaderState & fader, float current_va
   fader.ramping = true;
   fader.start_time = now;
   fader.duration_seconds = out_duration_seconds;
-  return target;
+  return target_degrees;
+}
+
+void
+LaunchpadManager::applyPanTarget(Controller & controller, int track_id, float target_degrees, int velocity) {
+  auto track = controller.getSong().getMasterTrack().getChildByInternalId(track_id);
+  auto leaf_track = track ? dynamic_cast<LeafTrack *>(track) : nullptr;
+  if (!leaf_track) return;
+  auto & fader = fader_state_azimuth_[track_id];
+  float duration_seconds = 0.0f;
+  resolveAzimuthFaderTarget(fader, leaf_track->getAzimuth(), target_degrees, velocity, duration_seconds);
+  controller.glideTrackAzimuth(track_id, target_degrees, duration_seconds);
+  recordFaderAutomationIfArmed(controller, fader, track_id, Command::azimuthGlide(target_degrees, duration_seconds));
+}
+
+void
+LaunchpadManager::handlePanPress(Controller & controller, int device_id, int track_id, int column, int velocity) {
+  auto & chord = pan_chords_[{device_id, track_id}];
+  // A held-back press has to land before anything that follows it in this
+  // row, or the later one would be overwritten by the earlier.
+  auto flushPending = [&]() {
+    if (chord.pending_column < 0) return;
+    applyPanTarget(controller, track_id, LaunchpadLayout::panPadToAzimuth(chord.pending_column), chord.pending_velocity);
+    chord.pending_column = -1;
+  };
+  int partner = column == 0 ? 7 : column == 7 ? 0 : column == 3 ? 4 : column == 4 ? 3 : -1;
+  bool partner_held = partner >= 0 && (chord.held_columns & (1u << partner)) != 0;
+  chord.held_columns |= 1u << column;
+  if (partner_held && chord.pending_column == partner) {
+    chord.pending_column = -1;
+    applyPanTarget(controller, track_id, column == 0 || column == 7 ? LaunchpadLayout::kPanRearDegrees : 0.0f, velocity);
+    return;
+  }
+  flushPending();
+  if (partner >= 0) {
+    chord.pending_column = column;
+    chord.pending_velocity = velocity;
+    chord.pending_time = std::chrono::steady_clock::now();
+    return;
+  }
+  applyPanTarget(controller, track_id, LaunchpadLayout::panPadToAzimuth(column), velocity);
+}
+
+void
+LaunchpadManager::handlePanRelease(Controller & controller, int device_id, int track_id, int column) {
+  auto it = pan_chords_.find({device_id, track_id});
+  if (it == pan_chords_.end()) return;
+  auto & chord = it->second;
+  chord.held_columns &= ~(1u << column);
+  // A tap shorter than the chord window still applies.
+  if (chord.pending_column == column) {
+    applyPanTarget(controller, track_id, LaunchpadLayout::panPadToAzimuth(column), chord.pending_velocity);
+    chord.pending_column = -1;
+  }
+}
+
+void
+LaunchpadManager::flushPendingPanPresses(Controller & controller) {
+  auto now = std::chrono::steady_clock::now();
+  for (auto & [ key, chord ] : pan_chords_) {
+    if (chord.pending_column < 0 || now - chord.pending_time < kPanChordWindow) continue;
+    applyPanTarget(controller, key.second, LaunchpadLayout::panPadToAzimuth(chord.pending_column), chord.pending_velocity);
+    chord.pending_column = -1;
+  }
 }
 
 void
@@ -788,8 +806,8 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
   // order at 89/79/69). 89/Volume is repurposed as the Send Main fader
   // mode - the same bargraph shape as Send A/Send B, just controlling how
   // much of each track's own voices reach the main mix (LeafTrack::
-  // getSendMain()) rather than the shared send bus. 98 (DRAW mode toggle)
-  // is handled separately, in handleDrawToggleButton() - unlike these four,
+  // getSendMain()) rather than the shared send bus. 98 (Session Record)
+  // is handled separately, in handleRecordButton() - unlike these four,
   // it needs to see both press and release to distinguish a quick tap from
   // a long hold, so UI::handleLaunchpadButtonEvent routes it there directly
   // rather than through this press-only entry point. The Programmer-mode
@@ -815,9 +833,8 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
   // already handle their own "only one of the eight active" logic via
   // inSessionMixerFamily(), so this dispatch only needs to pick which of
   // the two mechanisms a given CC number means. "toggle-record-arm"'s own
-  // per-current-track arm/disarm (Controller.cpp) is reachable from a
-  // Launchpad only via CC98's own quick-tap gesture
-  // (handleDrawToggleButton()'s own comment), not from this group at all.
+  // per-current-track arm/disarm (Controller.cpp) isn't part of this group
+  // at all: on a Launchpad it's shift + CC98 (handleRecordButton()).
   // A no-op outside the Session family entirely (inSessionMixerFamily()) -
   // none of these eight have any meaning to a grid that isn't showing
   // Session content or one of its own fader/picker overlays, the same
@@ -828,6 +845,26 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
   // reach either.
   if (isMixerFunctionButton(cc_number)) {
     auto & state = deviceState(device_id);
+    // Shift (CC91 held) makes these the labelled alternate functions
+    // instead, in every grid mode: Volume duplicates a clip for as long as
+    // it stays held, Solo enters DRAW (or blanks its canvas if already
+    // there); the rest do nothing rather than launch or switch anything.
+    if (state.row_up_shift_held) {
+      state.row_up_shift_combined = true;
+      if (cc_number == 89) {
+        state.duplicate_held = true;
+        state.duplicate_copied = false;
+        state.duplicate_source_column = state.duplicate_source_clip = -1;
+      } else if (cc_number == 29 || cc_number == 20) {
+        if (state.grid_mode == GridMode::DRAW) {
+          state.draw_color_index.fill(0);
+        } else {
+          state.grid_mode = GridMode::DRAW;
+          state.track_picker_active = false;
+        }
+      }
+      return true;
+    }
     if (!inSessionMixerFamily(state)) return true;
     if (!state.session_mixer_mode) {
       triggerSceneRow(controller, (cc_number - 19) / 10);
@@ -847,8 +884,8 @@ LaunchpadManager::handleRawButton(int cc_number, int device_id, Controller & con
   }
   // 95 ("Session"), 96 ("Note") and 97 ("Custom" - see GridMode::CUSTOM's
   // own comment) are three of a four-member exclusive group with DRAW
-  // (CC98, routed directly to handleDrawToggleButton() instead - see its
-  // own comment - since it needs both press and release): each press
+  // (reached through shift + Solo instead - see handleRawButton()'s own
+  // shift branch above): each press
   // *selects* that mode unconditionally, even if it's already the current
   // one - the only way to ever leave a mode is to select a *different*
   // one of the four. Purely per-device state, like every other toggle
@@ -937,49 +974,52 @@ LaunchpadManager::getActiveNoteTrackIds() const {
 }
 
 bool
-LaunchpadManager::handleDrawToggleButton(int device_id, Controller & controller, bool is_press) {
+LaunchpadManager::handleRecordButton(int device_id, Controller & controller, bool is_press) {
   auto & state = deviceState(device_id);
   if (is_press) {
-    // Nothing fires yet - a tap and a hold mean two unrelated things below,
-    // not one a variant of the other, so there's nothing safe to commit to
-    // until release settles which this was. Whether DRAW mode is already
-    // active is still captured now, at press time, rather than read again
-    // on release - some *other* button could in principle change grid_mode
-    // out from under a still-held CC98 before release arrives, and it's
-    // "was DRAW already showing when this press started" that decides
-    // enter-vs-clear below, not whatever's showing by the time it ends.
-    state.draw_toggle_pressed = true;
-    state.draw_toggle_press_time = std::chrono::steady_clock::now();
-    state.draw_toggle_was_already_active = (state.grid_mode == GridMode::DRAW);
+    // Nothing fires yet - a tap and a hold mean two unrelated things, so
+    // there's nothing safe to commit to until release settles which this was.
+    state.record_button_pressed = true;
+    state.record_button_press_time = std::chrono::steady_clock::now();
+    // Shift + this button is the arrangement's own Record Arm instead;
+    // the shift hold is spent on it, so its own tap doesn't also fire.
+    state.record_button_shifted = state.row_up_shift_held;
+    if (state.record_button_shifted) state.row_up_shift_combined = true;
     return true;
   }
-  if (!state.draw_toggle_pressed) return true; // stray/duplicate release
-  state.draw_toggle_pressed = false;
-  auto held = std::chrono::steady_clock::now() - state.draw_toggle_press_time;
-  if (held < kDrawClearHoldThreshold) {
-    // A quick tap: the same "toggle-record-arm" command CC19 fires outside
-    // the Session family, reachable here from any grid_mode - Session
-    // view's own pad presses need it armed (Controller::
-    // isNoteCaptureArmed()) to write a launch into the arrangement
-    // (SessionPlayer::triggerClip()'s own "assign" branch)
-    // rather than just auditioning, and CC19 itself no longer reaches that
-    // while looking at Session view (it opens the per-track RECORD_ARM
-    // picker there instead - see its own comment). Doesn't touch grid_mode
-    // at all, unlike DRAW's own hold gesture below.
+  if (!state.record_button_pressed) return true; // stray/duplicate release
+  state.record_button_pressed = false;
+  if (state.record_button_shifted) {
+    state.record_button_shifted = false;
     controller.sendCommand("toggle-record-arm");
     return true;
   }
-  // A long hold: DRAW, same "entry vs. clear" split this button always
-  // had, just reached by a hold now rather than any press.
-  if (state.draw_toggle_was_already_active) {
-    // Already in DRAW mode when this hold started: blank the canvas
-    // (DRAW_PALETTE[0] is "off" - see its own definition above).
-    state.draw_color_index.fill(0);
-  } else {
-    state.grid_mode = GridMode::DRAW;
-    state.track_picker_active = false; // Session-view-only - see DeviceState::track_picker_active's own comment
+  auto held = std::chrono::steady_clock::now() - state.record_button_press_time;
+  auto & ui_events = controller.getUIEventQueue();
+  if (held >= kCaptureHoldThreshold) {
+    ui_events.push(std::make_unique<LogEvent>("Capture MIDI: not implemented yet"));
+    return true;
+  }
+  auto track_ids = controller.getSong().getPlayableTrackIds();
+  auto followed = cursor_track_index_ >= 0 && cursor_track_index_ < static_cast<int>(track_ids.size()) ?
+    track_ids[static_cast<size_t>(cursor_track_index_)] : -1;
+  if (!controller.getSessionPlayer().toggleOverdub(followed)) {
+    ui_events.push(std::make_unique<LogEvent>("Session Record: no playing clip to overdub"));
   }
   return true;
+}
+
+void
+LaunchpadManager::endDuplicate(int device_id, Controller & controller) {
+  auto & state = deviceState(device_id);
+  if (!state.duplicate_held) return;
+  state.duplicate_held = false;
+  if (state.duplicate_source_column >= 0 && !state.duplicate_copied &&
+      state.duplicate_source_column < static_cast<int>(session_.track_ids.size())) {
+    duplicateClip(controller.getSong(), session_.track_ids[static_cast<size_t>(state.duplicate_source_column)], state.duplicate_source_clip);
+  }
+  state.duplicate_copied = false;
+  state.duplicate_source_column = state.duplicate_source_clip = -1;
 }
 
 bool
@@ -1048,8 +1088,12 @@ LaunchpadManager::isMixerFunctionButton(int cc_number) {
 }
 
 void
-LaunchpadManager::handleMixerFunctionRelease(int device_id) {
+LaunchpadManager::handleMixerFunctionRelease(int device_id, int cc_number, Controller & controller) {
   auto & state = deviceState(device_id);
+  if (cc_number == 89 && state.duplicate_held) {
+    endDuplicate(device_id, controller);
+    return;
+  }
   if (!state.mixer_hold_pending) return; // stray/duplicate release, or this press never armed one (a repress that closed something)
   state.mixer_hold_pending = false;
   if (std::chrono::steady_clock::now() - state.mixer_hold_press_time < kMixerHoldPreviewThreshold) return; // a quick tap - the switch that already happened on press stands
@@ -1351,8 +1395,9 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
   // the track, column x sets that track's azimuth), not a vertical one -
   // `track_index`/`position_index` below resolve that swap once, rather
   // than every call site picking getX()/getY() apart itself. Only a PRESS
-  // does anything; RELEASE/AFTERTOUCH are swallowed too, never falling
-  // through to note-entry below. CUSTOM is excluded here (unlike SESSION/
+  // does anything (Pan also reads a RELEASE, for its two-pad gestures);
+  // AFTERTOUCH is swallowed too, never falling through to note-entry
+  // below. CUSTOM is excluded here (unlike SESSION/
   // DRAW, which never reach this function at all - see UI::
   // handleLaunchpadPadEvent) since it addresses "this device's assigned
   // track" the same way NOTES does, not a fixed track-per-row-or-column
@@ -1412,13 +1457,10 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
         else controller.glideTrackSendMain(track_id, target_db, duration_seconds);
         recordFaderAutomationIfArmed(controller, fader, track_id, Command::volumeGlide(target_db, duration_seconds));
       } else { // PAN
-        auto & fader = fader_state_azimuth_[track_id];
-        bool is_micro_tap; float duration_seconds = 0.0f;
-        float target_degrees = resolveAzimuthFaderTarget(fader, leaf_track->getAzimuth(), position_index, ev.getVelocity(), is_micro_tap, duration_seconds);
-        if (is_micro_tap) controller.setTrackAzimuth(track_id, target_degrees);
-        else controller.glideTrackAzimuth(track_id, target_degrees, duration_seconds);
-        recordFaderAutomationIfArmed(controller, fader, track_id, Command::azimuthGlide(target_degrees, duration_seconds));
+        handlePanPress(controller, device_id, track_id, position_index, ev.getVelocity());
       }
+    } else if (is_pan && ev.getKind() == LaunchpadPadEvent::RELEASE && track_index < static_cast<int>(track_ids.size())) {
+      handlePanRelease(controller, device_id, track_ids[static_cast<size_t>(track_index)], position_index);
     }
     return;
   }
@@ -1871,6 +1913,28 @@ LaunchpadManager::handleSessionPadEvent(const LaunchpadPadEvent & ev, Controller
   // Session grid (CC95), since the step grid's own pads mean lane/step,
   // not (track, clip index), and have nothing to shift-combine with at
   // all.
+  // Duplicate held (shift + Volume): every press is swallowed; a populated
+  // slot is picked as the source, an empty slot in the same track column
+  // is where the copy lands. The source stays picked until Volume is
+  // released, so one hold can fill several slots.
+  if (state.duplicate_held) {
+    if (ev.getKind() != LaunchpadPadEvent::PRESS) return;
+    auto column = ev.getX();
+    if (column < 0 || column >= static_cast<int>(session_.track_ids.size())) return;
+    auto track_id = session_.track_ids[static_cast<size_t>(column)];
+    auto clip_index = 7 - ev.getY();
+    auto & song = controller.getSong();
+    auto & clips = song.getClips(track_id);
+    bool populated = clip_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(clip_index)].isEmpty();
+    if (populated) {
+      state.duplicate_source_column = column;
+      state.duplicate_source_clip = clip_index;
+      state.duplicate_copied = false;
+    } else if (column == state.duplicate_source_column) {
+      if (duplicateClip(song, track_id, state.duplicate_source_clip, clip_index) >= 0) state.duplicate_copied = true;
+    }
+    return;
+  }
   if (ev.getKind() == LaunchpadPadEvent::PRESS && state.row_up_shift_held) {
     // Marked combined immediately, not deferred to the release below -
     // CC91's own release (handleShiftButton()) can land before this
@@ -2136,7 +2200,8 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
         // what releasing will do. Per-device, unlike session_highlight/
         // session_colors below (computed once, identical for every
         // connected device) - only this device's own held press shows it.
-        if (state.row_up_shift_pending_pad && x == state.row_up_shift_pending_x && y == state.row_up_shift_pending_y) {
+        if ((state.row_up_shift_pending_pad && x == state.row_up_shift_pending_x && y == state.row_up_shift_pending_y) ||
+            (state.duplicate_source_column == x && state.duplicate_source_clip >= 0 && 7 - state.duplicate_source_clip == y)) {
           pad.r = pad.g = pad.b = 127;
           colors.push_back(pad);
           continue;
@@ -2205,19 +2270,17 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
     // bottom-up as a bargraph of that track's current send level
     // (sendLinearToRow, its own dB curve's inverse) - a magnitude (Send
     // Main's own zero-config value, 1.0/0dB, so shows fully filled until
-    // turned down). Pan lights only the one row
-    // matching that track's current azimuth (see azimuthToRow) - a
-    // direction, not a magnitude, so a fill wouldn't make sense; "only one
-    // button highlighted" per column. No active/inactive feedback needed
+    // turned down). Pan is a horizontal bar growing from the centre
+    // toward the side the azimuth points to (panBarPads()). No
+    // active/inactive feedback needed
     // on the mode buttons themselves (see refreshLeds' extra-button
     // section below) - this repaint *is* the confirmation the mode
     // actually changed. Send A/B/Main each show one fixed hue for every
     // column (which track it is is already obvious from context - the
     // whole grid is one bargraph per column); Pan instead shows each
     // column in that track's own identity color (state.track_colors),
-    // the same "which track" cue Session view's columns already give,
-    // since a single lit cell per column has no bargraph shape of its own
-    // to tell columns apart by otherwise.
+    // the same "which track" cue Session view's columns already give -
+    // its rows are tracks, so nothing else tells them apart.
     bool is_pan = state.grid_mode == GridMode::PAN;
     auto & values = state.grid_mode == GridMode::SEND_A ? state.track_send_a
                   : state.grid_mode == GridMode::SEND_B ? state.track_send_b
@@ -2227,14 +2290,12 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
     // own comment.
     auto & micro_values = state.grid_mode == GridMode::SEND_A ? state.track_send_a_micro
                          : state.grid_mode == GridMode::SEND_B ? state.track_send_b_micro
-                         : state.grid_mode == GridMode::SEND_MAIN ? state.track_send_main_micro
-                         : state.track_azimuth_micro;
+                         : state.track_send_main_micro;
     // Parallel to values above - see DeviceState::track_send_main_row's
     // own comment.
     auto & pressed_rows = state.grid_mode == GridMode::SEND_A ? state.track_send_a_row
                          : state.grid_mode == GridMode::SEND_B ? state.track_send_b_row
-                         : state.grid_mode == GridMode::SEND_MAIN ? state.track_send_main_row
-                         : state.track_azimuth_row;
+                         : state.track_send_main_row;
     // Pan ignores this - see the comment above on why it uses each
     // column's own track_colors entry instead. Same constants the opener
     // button's own LED uses (LAUNCHPAD_MIXER_*_BRIGHT above) - one hue per
@@ -2261,29 +2322,45 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
       auto & identity = state.track_colors[static_cast<size_t>(track_index)];
       Rgb column_base = is_pan ? Rgb{static_cast<uint8_t>(identity.getRed() * 127 / 255),
         static_cast<uint8_t>(identity.getGreen() * 127 / 255), static_cast<uint8_t>(identity.getBlue() * 127 / 255)} : base;
-      int lit_position = is_pan ? azimuthToRow(values[static_cast<size_t>(track_index)])
-                                 : sendLinearToRow(values[static_cast<size_t>(track_index)]);
-      // lit_position above rounds to the *nearest* position - correct for
-      // a value that arrived some other way, but wrong once a micro-value
-      // cycle pushes the live value more than halfway toward the position
-      // above, which would otherwise flip the displayed "current" one
-      // there and bleed the micro-value's own brightness scale onto a pad
-      // nobody actually pressed (a real, reported bug). Prefer the
-      // position this fader was actually last pressed to instead, but
-      // only when the naively-derived one is still consistent with it
-      // (equal to it, or its immediate neighbor toward the next position)
-      // - a value that's since moved somewhere else entirely (automation,
-      // a different device, a stale press from long before) falls back to
-      // the plain derived position rather than showing a wrong one.
-      int pressed_position = pressed_rows[static_cast<size_t>(track_index)];
-      if (pressed_position >= 0) {
-        int next_position = is_pan ? (pressed_position + 1) % 8 : std::min(7, pressed_position + 1);
-        if (lit_position == pressed_position || lit_position == next_position) lit_position = pressed_position;
+      // Pan shows a bar growing from the centre (panBarPads()); the sends
+      // fill up from the bottom row to the current position.
+      std::array<LaunchpadLayout::PanPad, 8> pan_pads{};
+      int lit_position = 0;
+      if (is_pan) {
+        pan_pads = LaunchpadLayout::panBarPads(values[static_cast<size_t>(track_index)]);
+      } else {
+        lit_position = sendLinearToRow(values[static_cast<size_t>(track_index)]);
+        // lit_position above rounds to the *nearest* position - correct
+        // for a value that arrived some other way, but wrong once a
+        // micro-value cycle pushes the live value more than halfway
+        // toward the position above, which would otherwise flip the
+        // displayed "current" one there and bleed the micro-value's own
+        // brightness scale onto a pad nobody actually pressed. Prefer the
+        // position this fader was actually last pressed to instead, but
+        // only when the naively-derived one is still consistent with it
+        // (equal to it, or its immediate neighbor toward the next
+        // position) - a value that's since moved somewhere else entirely
+        // (automation, a different device, a stale press from long
+        // before) falls back to the plain derived position rather than
+        // showing a wrong one.
+        int pressed_position = pressed_rows[static_cast<size_t>(track_index)];
+        if (pressed_position >= 0) {
+          int next_position = std::min(7, pressed_position + 1);
+          if (lit_position == pressed_position || lit_position == next_position) lit_position = pressed_position;
+        }
       }
       for (int position_index = 0; position_index < 8; position_index++) {
-        bool lit = has_track && (is_pan ? (position_index == lit_position) : (position_index <= lit_position));
+        bool lit = has_track && (is_pan ? pan_pads[static_cast<size_t>(position_index)] != LaunchpadLayout::PanPad::OFF : position_index <= lit_position);
         Rgb color = {0, 0, 0};
-        if (lit) {
+        if (lit && is_pan) {
+          auto pad = pan_pads[static_cast<size_t>(position_index)];
+          color = column_base;
+          if (pad != LaunchpadLayout::PanPad::TIP) {
+            auto hsl = rgbToHsl(column_base);
+            hsl.l *= pad == LaunchpadLayout::PanPad::CENTER ? kPanCenterScale : kPanBarScale;
+            color = hslToRgb(hsl);
+          }
+        } else if (lit) {
           color = column_base;
           // Only the fader's own top/current pad shows the micro-value
           // offset (a bargraph's filled-in rows below it stay at plain
@@ -2531,10 +2608,9 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   colors.push_back({92, arrow_white, arrow_white, arrow_white}); // move-row-down, dim white (static)
   colors.push_back({93, page_arrow_white, page_arrow_white, page_arrow_white}); // prev-track, dim white (static)
   colors.push_back({94, page_arrow_white, page_arrow_white, page_arrow_white}); // next-track, dim white (static)
-  // Session (CC95)/Note (CC96)/Custom (CC97)/Draw (CC98, reused from
-  // "Capture MIDI" - the record-armed indicator moved to CC19 ("Record
-  // Arm"), see DeviceState::record_arm_led_on's own comment) are this
-  // device's own GridMode selectors - all four lit when active, same
+  // Session (CC95)/Note (CC96)/Custom (CC97) are this device's own
+  // GridMode selectors (DRAW, reached by shift + Solo, is the fourth) -
+  // each lit when active, same
   // active-state convention Mute/Solo already use, not the static/
   // no-state convention the Send/Pan mode buttons use (those repaint the
   // whole grid as their own confirmation; a mode switch here isn't as
@@ -2564,24 +2640,14 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   uint8_t note_level = state.show_step_grid ? 0 : state.grid_mode == GridMode::NOTES ? uint8_t(90) : uint8_t(20);
   colors.push_back({96, note_level, note_level, note_level});
   colors.push_back({97, state.grid_mode == GridMode::CUSTOM ? uint8_t(90) : uint8_t(20), 0, state.grid_mode == GridMode::CUSTOM ? uint8_t(127) : uint8_t(20)});
-  // CC98's own LED carries two independent states: DRAW mode active (its
-  // own purple, same convention as 96/97 above) and record_arm_led_on
-  // (bright red, its own quick-tap gesture's target -
-  // handleDrawToggleButton()'s own comment) - armed takes priority when
-  // both are true, since DRAW mode's own activity is already visible from
-  // the grid's own rainbow content, while armed has no other indicator.
-  // The idle/DRAW-eligible color goes dark instead while the step grid is
-  // showing - a long hold would abandon step editing for the DRAW canvas,
-  // not something worth standing an indicator for while focused here - but
-  // armed itself stays lit even then: it's real, track-global recording
-  // state a performer still needs to see, not a per-mode affordance, and
-  // CC98's own quick tap (toggle-record-arm) still genuinely arms/disarms
-  // it from any GridMode, sequencer mode included.
+  // CC98 (Session Record): bright red while anything is recording
+  // (record_arm_led_on), dim red otherwise - dark while the step grid is
+  // showing, where a tap would only ever say there is nothing to overdub.
+  // Recording stays lit even there: it's real, track-global state a
+  // performer still needs to see.
   {
-    Rgb capture_color = state.record_arm_led_on ? Rgb{127, 0, 0} :
-      state.show_step_grid ? Rgb{0, 0, 0} :
-      state.grid_mode == GridMode::DRAW ? Rgb{90, 0, 127} : Rgb{20, 0, 20};
-    colors.push_back({98, capture_color.r, capture_color.g, capture_color.b});
+    Rgb record_color = state.record_arm_led_on ? Rgb{127, 0, 0} : state.show_step_grid ? Rgb{0, 0, 0} : Rgb{40, 0, 0};
+    colors.push_back({98, record_color.r, record_color.g, record_color.b});
   }
   // 99 (top-right corner, the grid position the Programmer-mode protocol
   // maps one past the 91-98 top row) isn't actually a pressable button on
@@ -2623,6 +2689,15 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
   Rgb pan_button_color = !in_mixer_family ? Rgb{0, 0, 0} : !mixer_mode ? LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR : state.grid_mode == GridMode::PAN ? LAUNCHPAD_MIXER_PAN_BRIGHT : LAUNCHPAD_MIXER_PAN_DIM;
   Rgb volume_button_color = !in_mixer_family ? Rgb{0, 0, 0} : !mixer_mode ? LAUNCHPAD_SCENE_LAUNCH_BUTTON_COLOR : state.grid_mode == GridMode::SEND_MAIN ? LAUNCHPAD_MIXER_VOLUME_BRIGHT : LAUNCHPAD_MIXER_VOLUME_DIM;
 
+  // While shift is held (or a duplicate is in progress) the right-side
+  // buttons show their alternate functions instead: Duplicate on Volume
+  // (bright white while active), Draw on Solo, the rest dark.
+  if (state.row_up_shift_held || state.duplicate_held) {
+    constexpr Rgb kOff{0, 0, 0};
+    record_arm_button_color = mute_button_color = stop_clip_button_color = send_b_button_color = send_a_button_color = pan_button_color = kOff;
+    solo_button_color = Rgb{90, 0, 127};
+    volume_button_color = state.duplicate_held ? Rgb{127, 127, 127} : Rgb{0, 100, 127};
+  }
   colors.push_back({19, record_arm_button_color.r, record_arm_button_color.g, record_arm_button_color.b});
   colors.push_back({29, solo_button_color.r, solo_button_color.g, solo_button_color.b});
   colors.push_back({39, mute_button_color.r, mute_button_color.g, mute_button_color.b});
@@ -2653,6 +2728,9 @@ LaunchpadManager::refreshLeds(int device_id, DeviceState & state) {
 void
 LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, const PlaybackInfo & playback_info, int fallback_track_index, Controller & controller, const SessionWindow & session) {
   if (!launchpad_io_) return;
+
+  flushPendingPanPresses(controller);
+  cursor_track_index_ = fallback_track_index;
 
   // Mirrored once per frame, same as the note-capture-armed edge
   // detection below - see cached_global_octave_'s own comment.
@@ -2778,11 +2856,11 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
   // the same values apply to every connected device, computed once here
   // rather than per-device inside the loop below.
   array<float, 8> track_send_main{}, track_send_a{}, track_send_b{}, track_azimuth{};
-  array<int, 8> track_send_main_micro{}, track_send_a_micro{}, track_send_b_micro{}, track_azimuth_micro{};
+  array<int, 8> track_send_main_micro{}, track_send_a_micro{}, track_send_b_micro{};
   // DeviceState::track_send_main_row's own comment - -1 (never touched)
   // by default, matching FaderState's own untouched default.
-  array<int, 8> track_send_main_row{}, track_send_a_row{}, track_send_b_row{}, track_azimuth_row{};
-  track_send_main_row.fill(-1); track_send_a_row.fill(-1); track_send_b_row.fill(-1); track_azimuth_row.fill(-1);
+  array<int, 8> track_send_main_row{}, track_send_a_row{}, track_send_b_row{};
+  track_send_main_row.fill(-1); track_send_a_row.fill(-1); track_send_b_row.fill(-1);
   // DeviceState::track_colors' own comment - same identity hue/lightness
   // Session view's session_colors below computes, just once per track
   // rather than once per clip pad.
@@ -2815,7 +2893,6 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     track_send_main_micro[static_cast<size_t>(i)] = microStepFor(fader_state_send_main_);
     track_send_a_micro[static_cast<size_t>(i)] = microStepFor(fader_state_send_a_);
     track_send_b_micro[static_cast<size_t>(i)] = microStepFor(fader_state_send_b_);
-    track_azimuth_micro[static_cast<size_t>(i)] = microStepFor(fader_state_azimuth_);
 
     // DeviceState::track_send_main_row's own comment - -1 (the array's
     // own fill(-1) default above) when never touched.
@@ -2826,7 +2903,6 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     track_send_main_row[static_cast<size_t>(i)] = lastPressedRowFor(fader_state_send_main_);
     track_send_a_row[static_cast<size_t>(i)] = lastPressedRowFor(fader_state_send_a_);
     track_send_b_row[static_cast<size_t>(i)] = lastPressedRowFor(fader_state_send_b_);
-    track_azimuth_row[static_cast<size_t>(i)] = lastPressedRowFor(fader_state_azimuth_);
   }
 
   // GridMode::SESSION's own shared LED grid - same "computed once here,
@@ -3040,7 +3116,7 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
 
     state.connected = true;
     state.capture_enabled = note_capture_armed; // mirrors the one song-wide flag - see its own comment
-    state.record_arm_led_on = note_capture_armed || controller.isThresholdArmed() || controller.isRecording();
+    state.record_arm_led_on = note_capture_armed || controller.isThresholdArmed() || controller.isRecording() || controller.isAnySessionRecording();
     state.tuning = tuning;
     state.key = key_val;
     state.active_note_loudness = move(active_note_loudness);
@@ -3057,11 +3133,9 @@ LaunchpadManager::refresh(const Song & song, const vector<int> & track_ids, cons
     state.track_send_main_micro = track_send_main_micro;
     state.track_send_a_micro = track_send_a_micro;
     state.track_send_b_micro = track_send_b_micro;
-    state.track_azimuth_micro = track_azimuth_micro;
     state.track_send_main_row = track_send_main_row;
     state.track_send_a_row = track_send_a_row;
     state.track_send_b_row = track_send_b_row;
-    state.track_azimuth_row = track_azimuth_row;
     state.track_colors = track_colors;
     state.grid_track_count = min(8, num_tracks);
     state.assigned_track_is_percussion = is_percussion;

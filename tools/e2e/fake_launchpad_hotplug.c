@@ -74,10 +74,13 @@ int main() {
   fprintf(stderr, "sending CC96 press (Note mode)\n");
   send_cc(seq, port, 96, 127);
   sleep(1);
-  fprintf(stderr, "sending CC98 quick tap (Record Arm on)\n");
+  fprintf(stderr, "sending shift+CC98 (Record Arm on)\n");
+  send_cc(seq, port, 91, 127); // shift held: CC98 is then the arrangement's Record Arm
+  usleep(50 * 1000);
   send_cc(seq, port, 98, 127);
   usleep(100 * 1000);
   send_cc(seq, port, 98, 0);
+  send_cc(seq, port, 91, 0);
   sleep(1);
 
   fprintf(stderr, "sending press on pad (0,0) [note 11], velocity 100\n");

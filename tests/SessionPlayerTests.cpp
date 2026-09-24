@@ -261,3 +261,52 @@ TEST(session_player_take_starts_at_the_bar_and_loops_back_on_the_bar_it_stops) {
   CHECK(f.player().isLaunched(track));
   CHECK((SessionFixture::notesOn(f.drain(), track) == std::vector<int>{64}));
 }
+
+// Arming a track must not turn a launch into a recording: a populated slot
+// only launches.
+TEST(session_player_pad_press_on_an_armed_track_never_overdubs) {
+  SessionFixture f;
+  auto track = f.addTrack(1);
+  f.controller.setClipGridFocused(true);
+  f.controller.setClipGridCursor(track, 0);
+  f.controller.sendCommand("toggle-record-arm");
+  CHECK(f.controller.isTrackArmed(track));
+  f.player().tick();
+
+  f.player().triggerClip(track, 0);
+  CHECK(f.player().clipHighlight(track, 0) == SessionPadHighlight::QUEUED);
+  f.advanceRows(4);
+  CHECK(f.player().isLaunched(track));
+  CHECK(!f.controller.isSessionRecording(track));
+}
+
+TEST(session_player_session_record_overdubs_the_playing_clip_without_restarting_it) {
+  SessionFixture f;
+  auto track = f.addTrack(1);
+  f.player().triggerClip(track, 0);
+  f.advanceRows(4); // the launch lands on the bar
+  CHECK(f.player().isLaunched(track));
+  f.advanceRows(2);
+  f.drain();
+
+  CHECK(f.player().toggleOverdub(track));
+  CHECK(f.player().clipHighlight(track, 0) == SessionPadHighlight::RECORD_QUEUED);
+  for (int i = 0; i < 8 && !f.controller.isSessionRecording(track); i++) f.advanceRows(1); // until the next bar
+  CHECK(f.controller.isSessionRecording(track));
+  CHECK(f.controller.getSessionRecordingClipIndex(track) == 0);
+  CHECK(f.player().isLaunched(track));
+  CHECK(f.player().playheads().at(track).row == 0); // not restarted mid-loop: this is its own bar boundary
+
+  // A second press stops the take at the next bar; the clip keeps playing.
+  CHECK(f.player().toggleOverdub(track));
+  for (int i = 0; i < 8 && f.controller.isSessionRecording(track); i++) f.advanceRows(1);
+  CHECK(!f.controller.isSessionRecording(track));
+  CHECK(f.player().isLaunched(track));
+}
+
+TEST(session_player_session_record_with_nothing_playing_does_nothing) {
+  SessionFixture f;
+  auto track = f.addTrack(1);
+  CHECK(!f.player().toggleOverdub(track));
+  CHECK(!f.controller.isSessionRecording(track));
+}

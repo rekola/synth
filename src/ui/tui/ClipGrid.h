@@ -3,11 +3,14 @@
 
 #include "../UIElement.h"
 #include "InlineEditor.h"
+#include "LevelMeter.h"
 #include "../../launchpad/SessionPadHighlight.h"
 
 #include <algorithm>
+#include <chrono>
 #include <functional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 class InputEvent;
@@ -103,7 +106,7 @@ class ClipGrid : public UIElement {
   // each. Shared between render() and startClipRename() so the reader's
   // own placement always lines up with what render() just drew.
   static constexpr int kColWidth = 18;
-  // The level meter: a vertical braille bar in a column's last cell,
+  // The level meter: a vertical bar in a column's last cell,
   // beside the Sends/Direction rows (kSendsLabel through kDirectionValue),
   // which leave that cell free.
   static constexpr int kMeterRows = 5;
@@ -157,9 +160,19 @@ class ClipGrid : public UIElement {
   std::function<void(int track_id, int clip_index)> trigger_callback_;
   std::function<void(int clip_index)> scene_callback_;
   std::function<void()> stop_all_callback_;
-  // The visible meters' levels at the last redraw, in bar steps - a change
-  // redraws.
+  // The visible meters' levels and peak markers at the last redraw, in bar
+  // steps (two entries per column) - a change redraws.
   std::vector<int> current_meter_steps_;
+  // What a column's meter shows now, and the smoothing behind it, by track
+  // id (the master's included).
+  struct MeterDisplay {
+    level_meter::Ballistics ballistics;
+    level_meter::PeakHold peak_hold;
+    float fraction = 0.0f;
+    float peak_fraction = 0.0f;
+  };
+  std::unordered_map<int, MeterDisplay> meters_;
+  std::chrono::steady_clock::time_point last_meter_update_;
 
   // Clip and track rename share one editor; only one can be open at a time.
   InlineEditor inline_editor_{getPlane()};
@@ -167,9 +180,9 @@ class ClipGrid : public UIElement {
   void ensureCursorVisible(int visible_rows, int visible_cols, int num_tracks);
   void renderMasterColumn(const StyleProvider & styles, int x, int rows, bool focused, int num_tracks,
                           const std::function<SessionPadHighlight(int clip_row)> & scene_state);
-  // A column's level meter (TrackInfo's linear RMS) in its last cell, over
+  // A column's level meter and peak marker in its last cell, over
   // whichever of its kMeterRows rows are on screen.
-  void renderMeter(const StyleProvider & styles, int x, int rows, float meter_value, bool clipping);
+  void renderMeter(const StyleProvider & styles, int x, int rows, int track_id, bool clipping);
   // Edits the Send Main/A/B of the column under the cursor - a track's,
   // or the master's (the dry mix and the send bus's returns).
   void startSendsEdit(int track_id);

@@ -235,16 +235,17 @@ class Command {
     return -80.0f + (magnitude / 15.0f) * 80.0f;
   }
 
-  // y (values_[3], one hex digit, same permissive parsing) maps linearly
-  // in real seconds from kMinFaderRampSeconds at 0 up to
+  // y (values_[3], one hex digit, same permissive parsing) maps
+  // exponentially in real seconds from kMinFaderRampSeconds at 0 up to
   // kMaxFaderRampSeconds at 15 - the exact range a live Launchpad press's
   // own velocity-scaled duration already scales into
   // (LaunchpadManager::faderGlideDurationSeconds()), so a recorded move
-  // reads on the same real-time scale a live one does.
+  // reads on the same real-time scale a live one does. Exponential so
+  // both a near-instant move and a slow fade keep useful resolution.
   float getGlideDurationSeconds() const {
     auto y = digit(values_[3], 16);
     float step = static_cast<float>(y < 0 ? 0 : y);
-    return kMinGlideSeconds + (step / 15.0f) * (kMaxGlideSeconds - kMinGlideSeconds);
+    return kMinGlideSeconds * std::pow(kMaxGlideSeconds / kMinGlideSeconds, step / 15.0f);
   }
 
   // The inverse of getGlideTargetDb()/getGlideDurationSeconds() -
@@ -266,21 +267,15 @@ class Command {
   // updateData()'s own comment).
   bool isAzimuthGlide() const { return values_[0] == 'Y' && values_[1] == 'Z'; }
 
-  // x (values_[2], one hex digit) maps linearly across the full circle,
-  // -180 degrees at 0 up through +180 at 15 - independent of
-  // azimuthToRow()/rowToAzimuth()'s own 8-row grid (a Command's own
-  // resolution isn't tied to how many rows any particular hardware fader
-  // happens to have, same reasoning getSendSetLinear()'s own comment
-  // gives for Send).
-  // The step is written out as a multiplication by an exactly-representable
-  // 24 degrees rather than the arithmetically identical division by 15: a
-  // reciprocal-approximated /15 leaves x=F a whisker past +180 instead of
-  // exactly on it, and the far side of that boundary is a target half a
-  // circle away once glideAzimuth() picks its own shorter direction.
+  // x (values_[2], one hex digit) maps across the full circle in 16 steps
+  // of 22.5 degrees, -180 degrees at 0 through 0 (front) at 8 up to
+  // +157.5 at 15 - +180 is the same direction as -180, so it isn't given
+  // a step of its own. Every multiple of 22.5 (the Launchpad Pan pads'
+  // own step) is exactly representable.
   float getAzimuthGlideTargetDegrees() const {
     auto x = digit(values_[2], 16);
-    float magnitude = static_cast<float>(x < 0 ? 0 : x);
-    return magnitude * (360.0f / 15.0f) - 180.0f;
+    float step = static_cast<float>(x < 0 ? 0 : x);
+    return step * 22.5f - 180.0f;
   }
 
   // The inverse of getAzimuthGlideTargetDegrees() - `duration_seconds`
@@ -325,7 +320,7 @@ class Command {
     float duration = duration_seconds;
     if (duration < kMinGlideSeconds) duration = kMinGlideSeconds;
     if (duration > kMaxGlideSeconds) duration = kMaxGlideSeconds;
-    int duration_nibble = static_cast<int>(lround((duration - kMinGlideSeconds) / (kMaxGlideSeconds - kMinGlideSeconds) * 15.0f));
+    int duration_nibble = static_cast<int>(lround(std::log(duration / kMinGlideSeconds) / std::log(kMaxGlideSeconds / kMinGlideSeconds) * 15.0f));
     Command c;
     c.values_[0] = 'Y';
     c.values_[1] = letter;
@@ -339,16 +334,16 @@ class Command {
   // first (a raw fmodf, not a clamp - unlike a dB target, degrees are
   // circular, so a value outside that range means "the same direction,
   // taken the long way round" rather than "out of representable range")
-  // before mapping across the full circle.
+  // before mapping across the full circle in 22.5 degree steps.
   static Command makeAzimuthGlideSet(float target_degrees, float duration_seconds) {
     float wrapped = fmodf(target_degrees + 180.0f, 360.0f);
     if (wrapped < 0.0f) wrapped += 360.0f;
     wrapped -= 180.0f; // now in [-180, 180)
-    int target_nibble = static_cast<int>(lround((wrapped + 180.0f) / 360.0f * 15.0f));
+    int target_nibble = static_cast<int>(lround((wrapped + 180.0f) / 22.5f)) % 16;
     float duration = duration_seconds;
     if (duration < kMinGlideSeconds) duration = kMinGlideSeconds;
     if (duration > kMaxGlideSeconds) duration = kMaxGlideSeconds;
-    int duration_nibble = static_cast<int>(lround((duration - kMinGlideSeconds) / (kMaxGlideSeconds - kMinGlideSeconds) * 15.0f));
+    int duration_nibble = static_cast<int>(lround(std::log(duration / kMinGlideSeconds) / std::log(kMaxGlideSeconds / kMinGlideSeconds) * 15.0f));
     Command c;
     c.values_[0] = 'Y';
     c.values_[1] = 'Z';
@@ -369,7 +364,7 @@ class Command {
   // above) have to agree on this range for the two to read as the same
   // real-time scale.
   static constexpr float kMinGlideSeconds = 0.03f;
-  static constexpr float kMaxGlideSeconds = 1.0f;
+  static constexpr float kMaxGlideSeconds = 8.0f;
 
   char values_[4] = { '-', '-', '-', '-' };
 };

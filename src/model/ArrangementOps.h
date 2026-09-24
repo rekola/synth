@@ -107,6 +107,15 @@ bool mergeClipToBackground(const Song & song, Section & section, int track_id, i
 // already expected to wait for before touching disk at all.
 void deleteClip(Song & song, int track_id, int clip_index);
 
+// Copies the clip at `from_index` into slot `to_index` of the same track
+// (an independent copy under a fresh id, its content and name as they are
+// now), returning the slot it landed in, or -1 when there's nothing to
+// copy or the destination is already populated - nothing is ever
+// overwritten. A negative `to_index` picks the first empty slot after
+// `from_index`, growing the list if every slot up to its end is taken.
+// Placed instances of the source keep pointing at the source.
+int duplicateClip(Song & song, int track_id, int from_index, int to_index = -1);
+
 // The result of resolveInstanceAt() below. `start_row` is the resolved
 // instance event's own row - only meaningful when `clip_index` is a real
 // clip, but a caller needs it there: rendering that clip's own content

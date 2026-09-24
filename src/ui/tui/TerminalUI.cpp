@@ -10,6 +10,7 @@
 #include "PatternEditor.h"
 #include "ArrangementGrid.h"
 #include "ClipGrid.h"
+#include "ChannelMeter.h"
 #include "OutlineView.h"
 #include "CoverArt.h"
 #include "SpinBox.h"
@@ -1654,7 +1655,7 @@ TerminalUI::initialize(std::shared_ptr<Controller> & controller) {
     else return make_shared<TerminalChart>(getPlane(), type, min_y, max_y);
   };
   chart_ = make_chart(Chart::DOTS, 0.0, 0.0);
-  volume_meter_ = make_chart(Chart::DOTS, -100, 0);
+  volume_meter_ = make_shared<ChannelMeter>(getPlane());
 
   if (use_pixel) heatmap_ = make_shared<TerminalPixelHeatmapChart>(getPlane(), DiracAnalyzer::kAzimuthBins, DiracAnalyzer::kElevationBins);
   else heatmap_ = make_shared<TerminalHeatmapChart>(getPlane(), DiracAnalyzer::kAzimuthBins, DiracAnalyzer::kElevationBins);
@@ -2713,21 +2714,8 @@ TerminalUI::handleVisualizationResultEvent(VisualizationResultEvent & ev) {
   if (!superseded) {
     // Raw, pre-mixdown per-channel levels (ambisonic bus, then always
     // AuxA/AuxB last - see VisualizationThread.cpp) rather than the final
-    // decoded L/R output. Always fills the full fixed-size domain
-    // (kMaxMeterChannels - the order-3-ambisonic+2-aux max), padding with
-    // silence past the current config's real channel count - matching
-    // displayFFT()'s own always-fill-the-whole-domain contract below
-    // (every index, every call). Feeding a varying, sometimes-shorter
-    // range confused the underlying plot's own domain/alignment (bars
-    // for a smaller config visibly started mid-width instead of at
-    // column 0, out of step with the legend) - a fixed domain avoids
-    // that.
-    auto & levels = ev.getChannelLoudness();
-    volume_meter_->setFooterLabel(ev.getMeterLabel());
-    for (size_t i = 0; i < kMaxMeterChannels; i++) {
-      volume_meter_->setSample(static_cast<int>(i), i < levels.size() ? levels[i] : 0.0);
-    }
-    volume_meter_->commit();
+    // decoded L/R output.
+    volume_meter_->setLevels(ev.getChannelLoudness(), ev.getMeterLabel());
 
     if (!ev.getFFT().empty()) {
       chart_->displayFFT(ev.getFFT());
@@ -2977,16 +2965,14 @@ TerminalUI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
     getController().setPendingCommandTrack(-1);
   };
 
-  // CC98 ("Capture MIDI") needs press and release, not just press - its
-  // own tap-vs-long-hold gesture (LaunchpadManager::
-  // handleDrawToggleButton()): a quick tap toggles Record Arm, a long hold
-  // enters DRAW mode (or clears its canvas if already there). Routed here
-  // before the press-only filter below, which every other raw-CC button
-  // (and every other release) still goes through unchanged. CC97
-  // ("Custom") doesn't need this - it's a plain press-only toggle, handled
-  // by handleRawButton() alongside Session/Note below.
+  // CC98 (Session Record) needs press and release, not just press - its
+  // own tap-vs-long-hold gesture (LaunchpadManager::handleRecordButton()):
+  // a quick tap overdubs the playing clip (or stops the takes in flight),
+  // a long hold is Capture MIDI. Routed here before the press-only filter
+  // below, which every other raw-CC button (and every other release)
+  // still goes through unchanged.
   if (ev.getCCNumber() == 98) {
-    launchpad_manager_->handleDrawToggleButton(device_id, getController(), ev.getKind() == LaunchpadButtonEvent::PRESS);
+    launchpad_manager_->handleRecordButton(device_id, getController(), ev.getKind() == LaunchpadButtonEvent::PRESS);
     return;
   }
 
@@ -3014,7 +3000,7 @@ TerminalUI::handleLaunchpadButtonEvent(LaunchpadButtonEvent & ev) {
   // press-only entry point below, unchanged.
   if (LaunchpadManager::isMixerFunctionButton(ev.getCCNumber())) {
     if (ev.getKind() != LaunchpadButtonEvent::PRESS) {
-      launchpad_manager_->handleMixerFunctionRelease(device_id);
+      launchpad_manager_->handleMixerFunctionRelease(device_id, ev.getCCNumber(), getController());
       return;
     }
   } else if (ev.getKind() != LaunchpadButtonEvent::PRESS) {

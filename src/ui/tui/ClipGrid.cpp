@@ -1,5 +1,5 @@
 #include "ClipGrid.h"
-#include "BrailleMeter.h"
+#include "LevelMeter.h"
 #include "../ScenePatternSource.h"
 
 #include "../../playback/InputEvent.h"
@@ -118,6 +118,17 @@ ClipGrid::ClipGrid(UIPlane & parent) : UIElement(parent) {
     deleteClip(song, track_id, clip_row);
     auto text = "Deleted clip: " + (name.empty() ? string("(unnamed)") : name);
     getController().getUIEventQueue().push(std::make_unique<LogEvent>(std::move(text)));
+  });
+  // Copies the clip under the cursor into the next empty slot below it -
+  // a no-op on an empty slot, same as delete-clip.
+  commands_.define("duplicate-clip", [this]() {
+    if (rowKindFor(cursor_row_) != RowKind::CLIP) return;
+    auto & song = getController().getSong();
+    auto track_ids = song.getPlayableTrackIds();
+    if (cursor_track_index_ < 0 || cursor_track_index_ >= static_cast<int>(track_ids.size())) return;
+    auto slot = duplicateClip(song, track_ids[static_cast<size_t>(cursor_track_index_)], physicalFor(cursor_row_));
+    if (slot < 0) return;
+    getController().getUIEventQueue().push(std::make_unique<LogEvent>("Duplicated clip into row " + std::to_string(slot + 1)));
   });
   // Del, Backspace, and Ctrl-K all reach it - the same three keys this
   // app already treats as "delete something at the cursor" elsewhere
@@ -416,13 +427,20 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
   // The meters, in bar steps (negative while clipping) - only a visible
   // change redraws.
   auto & playback_info = getController().getPlaybackInfo();
-  auto meterSteps = [&](int track_id) {
-    auto & track_info = playback_info.getTrackInfo(track_id);
-    auto steps = static_cast<int>(braille_meter::fraction(track_info.getMeterValue()) * kMeterRows * 4 + 0.5f);
-    return track_info.isClipping() ? -1 - steps : steps;
-  };
+  auto now = std::chrono::steady_clock::now();
+  auto meter_dt = std::min(std::chrono::duration<float>(now - last_meter_update_).count(), 0.25f);
+  last_meter_update_ = now;
   std::vector<int> meter_steps;
-  for (auto vc = 0; vc < visible_cols && scroll_col_ + vc <= num_tracks; vc++) meter_steps.push_back(meterSteps(columnTrackId(scroll_col_ + vc)));
+  for (auto vc = 0; vc < visible_cols && scroll_col_ + vc <= num_tracks; vc++) {
+    auto track_id = columnTrackId(scroll_col_ + vc);
+    auto & track_info = playback_info.getTrackInfo(track_id);
+    auto & meter = meters_[track_id];
+    meter.fraction = level_meter::fraction(meter.ballistics.update(track_info.getMeterValue(), meter_dt));
+    meter.peak_fraction = meter.peak_hold.update(meter.fraction, meter_dt);
+    auto steps = level_meter::barSteps(meter.fraction, kMeterRows);
+    meter_steps.push_back(track_info.isClipping() ? -1 - steps : steps);
+    meter_steps.push_back(level_meter::barSteps(meter.peak_fraction, kMeterRows));
+  }
   bool meters_changed = meter_steps != current_meter_steps_;
   current_meter_steps_ = std::move(meter_steps);
 
@@ -465,7 +483,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     if (track_index == num_tracks) {
       auto & master_info = playback_info.getTrackInfo(master_id);
       renderMasterColumn(styles, vc * (kColWidth + 1), rows, focused, num_tracks, sceneState);
-      renderMeter(styles, vc * (kColWidth + 1), rows, master_info.getMeterValue(), master_info.isClipping());
+      renderMeter(styles, vc * (kColWidth + 1), rows, master_id, master_info.isClipping());
       break;
     }
     if (track_index > num_tracks) break;
@@ -681,7 +699,7 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
     }
 
     auto & track_info = playback_info.getTrackInfo(track_id);
-    renderMeter(styles, x, rows, track_info.getMeterValue(), track_info.isClipping());
+    renderMeter(styles, x, rows, track_id, track_info.isClipping());
 
     setFgColor(styles.window_border_color);
     setBgColor(styles.heading_bg_color); // the header row's own backdrop, not the plain window background below it
@@ -698,8 +716,9 @@ ClipGrid::render(const StyleProvider & styles, bool refresh, bool focused) {
 }
 
 void
-ClipGrid::renderMeter(const StyleProvider & styles, int x, int rows, float meter_value, bool clipping) {
-  auto cells = braille_meter::verticalBar(braille_meter::fraction(meter_value), kMeterRows);
+ClipGrid::renderMeter(const StyleProvider & styles, int x, int rows, int track_id, bool clipping) {
+  auto & meter = meters_[track_id];
+  auto cells = level_meter::verticalBar(meter.fraction, kMeterRows, meter.peak_fraction);
   auto top = clipRowCount() + kSendsLabel; // physical row of the meter's top cell
   setBgColor(styles.window_bg_color);
   setFgColor(clipping ? styles.meter_clip_color : styles.meter_active_color);

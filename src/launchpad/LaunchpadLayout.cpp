@@ -368,4 +368,33 @@ advanceTrackIndex(int current_or_unassigned, int delta, int num_tracks) {
   return result;
 }
 
+
+std::array<PanPad, 8>
+panBarPads(float azimuth) {
+  std::array<PanPad, 8> pads;
+  pads.fill(PanPad::OFF);
+  float wrapped = fmodf(azimuth + 180.0f, 360.0f);
+  if (wrapped < 0.0f) wrapped += 360.0f;
+  wrapped -= 180.0f; // now in [-180, 180)
+  constexpr float kEpsilon = 0.01f;
+  float magnitude = std::fabs(wrapped);
+  if (magnitude < kEpsilon) {
+    pads[3] = pads[4] = PanPad::CENTER;
+  } else if (magnitude > 4.0f * kPanPadDegrees + kEpsilon) {
+    pads.fill(PanPad::TIP); // behind the listener: no side to point to
+  } else {
+    int length = std::clamp(static_cast<int>(std::ceil(magnitude / kPanPadDegrees - kEpsilon)), 1, 4);
+    for (int i = 0; i < length; i++) {
+      int column = wrapped < 0.0f ? 3 - i : 4 + i;
+      pads[static_cast<size_t>(column)] = i == length - 1 ? PanPad::TIP : PanPad::BAR;
+    }
+  }
+  return pads;
+}
+
+float
+panPadToAzimuth(int column) {
+  return column < 4 ? -static_cast<float>(4 - column) * kPanPadDegrees : static_cast<float>(column - 3) * kPanPadDegrees;
+}
+
 }

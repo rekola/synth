@@ -165,7 +165,7 @@ TEST(glide_command_starts_a_real_glide_not_an_instant_jump) {
 
   auto & section = song.addSection();
   section.setNote(0, track_id, 0, Note(60, 100));
-  section.setCommand(0, track_id, Command("YAFF")); // Send A -> 0dB/unity, over 1.0s
+  section.setCommand(0, track_id, Command("YAF9")); // Send A -> 0dB/unity, over ~0.85s
 
   ChannelConfiguration config(44100, 1);
   auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
@@ -184,7 +184,7 @@ TEST(glide_command_starts_a_real_glide_not_an_instant_jump) {
   CHECK(info[track_id].getLiveSendA() < 0.5f);
   CHECK(info[track_id].getLiveSendA() > 0.0f); // genuinely moving, not stuck at 0
 
-  // Enough further rows to comfortably exceed the glide's own 1.0s
+  // Enough further rows to comfortably exceed the glide's own ~0.85s
   // duration - now settled at the target.
   for (int i = 0; i < 7; i++) state.renderBlock(row_samples, song, *mixer);
   state.getAllTrackInfo(info);
@@ -203,7 +203,7 @@ TEST(azimuth_glide_command_starts_a_real_glide_not_an_instant_jump) {
 
   auto & section = song.addSection();
   section.setNote(0, track_id, 0, Note(60, 100));
-  section.setCommand(0, track_id, Command("YZFF")); // azimuth -> +180 degrees, over 1.0s
+  section.setCommand(0, track_id, Command("YZF9")); // azimuth -> +157.5 degrees, over ~0.85s
 
   ChannelConfiguration config(44100, 1);
   auto mixer = createMixer(config, MixerType::AMBISONIC_STEREO);
@@ -218,14 +218,14 @@ TEST(azimuth_glide_command_starts_a_real_glide_not_an_instant_jump) {
   state.getAllTrackInfo(info);
   CHECK(info[track_id].hasLiveAzimuth());
   // Azimuth starts at 0 (the track's own default); glideAzimuth() picks
-  // the shorter way toward +180, so after just one row it should have
+  // the shorter way toward +157.5, so after just one row it should have
   // moved noticeably but nowhere near the target yet.
   CHECK(info[track_id].getLiveAzimuth() > 1.0f);
   CHECK(info[track_id].getLiveAzimuth() < 90.0f);
 
-  // Enough further rows to comfortably exceed the glide's own 1.0s
+  // Enough further rows to comfortably exceed the glide's own ~0.85s
   // duration - now settled at the target.
   for (int i = 0; i < 7; i++) state.renderBlock(row_samples, song, *mixer);
   state.getAllTrackInfo(info);
-  CHECK_NEAR(info[track_id].getLiveAzimuth(), 180.0f, 1e-1f);
+  CHECK_NEAR(info[track_id].getLiveAzimuth(), 157.5f, 1e-1f);
 }

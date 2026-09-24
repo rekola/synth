@@ -62,22 +62,7 @@ SessionPlayer::triggerClip(int track_id, int clip_index) {
   bool is_sample_track = track && track->getType() == TrackType::SAMPLE;
 
   if (controller_.isTrackArmed(track_id) && is_sample_track) {
-    // Real audio capture is one immediate, global (track, clip) target -
-    // there's only one input stream - never bar-quantized.
-    if (controller_.isRecording() && controller_.getRecordingTrackId() == track_id) {
-      stopSampleTrackRecording(track_id);
-      return;
-    }
-    if (controller_.isThresholdArmed() && controller_.getRecordingTrackId() == track_id) {
-      // Nothing captured yet: the same slot cancels, another retargets.
-      if (controller_.getSessionRecordingClipIndex(track_id) == clip_index) stopSampleTrackRecording(track_id);
-      else controller_.armSessionTrackRecording(track_id, clip_index);
-      return;
-    }
-    // Another track owns the capture pipeline.
-    if (controller_.isRecording() || controller_.isThresholdArmed()) return;
-    controller_.armSessionTrackRecording(track_id, clip_index);
-    controller_.armThresholdRecording(track_id);
+    triggerSampleCapture(track_id, clip_index);
     return;
   }
 
@@ -87,9 +72,13 @@ SessionPlayer::triggerClip(int track_id, int clip_index) {
       queued_recording_[track_id] = QueuedRecording{QueuedRecording::STOP};
       return;
     }
-    queued_recording_[track_id] = has_clip ?
-      QueuedRecording{QueuedRecording::OVERDUB, clip_index} : QueuedRecording{QueuedRecording::FRESH_TAKE, clip_index};
-    return;
+    // Nothing else launches over a take in flight.
+    if (controller_.isSessionRecording(track_id)) return;
+    if (!has_clip) {
+      queued_recording_[track_id] = QueuedRecording{QueuedRecording::FRESH_TAKE, clip_index};
+      return;
+    }
+    // A populated slot only launches, below.
   }
 
   if (!controller_.isNoteCaptureArmed()) {
@@ -121,6 +110,55 @@ SessionPlayer::triggerClip(int track_id, int clip_index) {
   auto raw_row = playback_info.isPlaying() ? playback_info.getRowIndex() : 0;
   placeClipInstance(song, section, track_id, quantizedBarRow(raw_row, song.getRowsPerBar()), clip_index);
   song.incVersion();
+}
+
+bool
+SessionPlayer::triggerSampleCapture(int track_id, int clip_index) {
+  auto * track = controller_.getSong().getMasterTrack().getChildByInternalId(track_id);
+  if (!track || track->getType() != TrackType::SAMPLE) return false;
+  // Real audio capture is one immediate, global (track, clip) target -
+  // there's only one input stream - never bar-quantized.
+  if (controller_.isRecording() && controller_.getRecordingTrackId() == track_id) {
+    stopSampleTrackRecording(track_id);
+    return true;
+  }
+  if (controller_.isThresholdArmed() && controller_.getRecordingTrackId() == track_id) {
+    // Nothing captured yet: the same slot cancels, another retargets.
+    if (controller_.getSessionRecordingClipIndex(track_id) == clip_index) stopSampleTrackRecording(track_id);
+    else controller_.armSessionTrackRecording(track_id, clip_index);
+    return true;
+  }
+  // Another track owns the capture pipeline.
+  if (controller_.isRecording() || controller_.isThresholdArmed()) return true;
+  controller_.armSessionTrackRecording(track_id, clip_index);
+  controller_.armThresholdRecording(track_id);
+  return true;
+}
+
+bool
+SessionPlayer::toggleOverdub(int fallback_track_id) {
+  // Takes in flight stop, the clips they were recorded into keep playing.
+  bool stopping = false;
+  for (auto track_id : controller_.getSessionRecordingTrackIds()) {
+    auto * track = controller_.getSong().getMasterTrack().getChildByInternalId(track_id);
+    if (track && track->getType() == TrackType::SAMPLE) stopSampleTrackRecording(track_id);
+    else queued_recording_[track_id] = QueuedRecording{QueuedRecording::STOP};
+    stopping = true;
+  }
+  if (stopping) return true;
+
+  vector<int> targets;
+  for (auto track_id : controller_.getSong().getPlayableTrackIds()) {
+    if (controller_.isTrackArmed(track_id) && launched_.count(track_id)) targets.push_back(track_id);
+  }
+  bool any_armed = false;
+  for (auto track_id : controller_.getSong().getPlayableTrackIds()) any_armed = any_armed || controller_.isTrackArmed(track_id);
+  if (!any_armed && launched_.count(fallback_track_id)) targets.push_back(fallback_track_id);
+  for (auto track_id : targets) {
+    auto clip_index = launched_.at(track_id).clip_index;
+    if (!triggerSampleCapture(track_id, clip_index)) queued_recording_[track_id] = QueuedRecording{QueuedRecording::OVERDUB, clip_index};
+  }
+  return !targets.empty();
 }
 
 void
@@ -312,10 +350,11 @@ SessionPlayer::advanceToStep(int step) {
             launched_it = launched_.end();
           }
           controller_.armSessionTrackRecording(track_id, queued_value.clip_index);
-        } else {
-          launched_it = launched_.insert_or_assign(track_id, Launched{queued_value.clip_index, step}).first;
+        } else if (launched_it != launched_.end() && launched_it->second.clip_index == queued_value.clip_index) {
+          // The clip is still playing: record into it without restarting
+          // it, the take's rows lining up with its loop.
           controller_.armSessionTrackRecording(track_id, queued_value.clip_index);
-          controller_.primeSessionRecordingOrigin(track_id, step);
+          controller_.primeSessionRecordingOrigin(track_id, launched_it->second.launch_step);
         }
       }
     }
@@ -362,12 +401,14 @@ SessionPlayer::clipHighlight(int track_id, int clip_index) const {
   auto & playback_info = controller_.getPlaybackInfo();
   bool has_clip = hasClipAt(song.getClips(track_id), clip_index);
 
-  // An armed track shows its recording states instead of the plain ones.
-  if (controller_.isTrackArmed(track_id)) {
-    bool is_recording = controller_.isSessionRecording(track_id);
+  // A track armed, recording or about to record shows its recording states
+  // instead of the plain ones.
+  bool armed = controller_.isTrackArmed(track_id);
+  bool is_recording = controller_.isSessionRecording(track_id);
+  auto queued_recording_it = queued_recording_.find(track_id);
+  bool has_queued_recording = queued_recording_it != queued_recording_.end();
+  if (armed || is_recording || has_queued_recording) {
     int recording_clip_index = is_recording ? controller_.getSessionRecordingClipIndex(track_id) : -1;
-    auto queued_recording_it = queued_recording_.find(track_id);
-    bool has_queued_recording = queued_recording_it != queued_recording_.end();
     auto queued_recording_kind = has_queued_recording ? queued_recording_it->second.kind : QueuedRecording::STOP;
     int queued_recording_clip_index = has_queued_recording ? queued_recording_it->second.clip_index : -1;
     if (is_recording && recording_clip_index == clip_index) {
@@ -377,7 +418,7 @@ SessionPlayer::clipHighlight(int track_id, int clip_index) const {
     if (has_queued_recording && queued_recording_kind != QueuedRecording::STOP && queued_recording_clip_index == clip_index) {
       return SessionPadHighlight::RECORD_QUEUED;
     }
-    if (!has_clip) return SessionPadHighlight::ARMED_EMPTY;
+    if (armed && !has_clip) return SessionPadHighlight::ARMED_EMPTY;
   }
   if (!has_clip) return SessionPadHighlight::NONE;
 

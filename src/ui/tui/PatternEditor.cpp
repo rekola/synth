@@ -1,5 +1,5 @@
 #include "PatternEditor.h"
-#include "BrailleMeter.h"
+#include "LevelMeter.h"
 
 #include "../../playback/InputEvent.h"
 #include "../../state/SongState.h"
@@ -1101,14 +1101,15 @@ PatternEditor::render(const StyleProvider & styles, bool refresh, bool focused) 
   } else if (cursor_changed || row_edited) {
     renderRow(styles, heading_height, track_ids, track_info, score_playing_row - current_scroll_.row, true, sel_bounds, focused);
     need_redraw = true;
-  } else if (info.getVoiceCount() > 0 || current_voice_count_ > 0) {
+  } else if (info.getVoiceCount() > 0 || current_voice_count_ > 0 || meters_showing_) {
     // The per-track VU meter lives in the heading row and needs to keep
     // animating every block a voice is actually sounding - including a
     // manually-auditioned note or its note-off release tail, with the
     // sequencer stopped, not just while the transport is playing (the
     // other branches above only catch that case). current_voice_count_
     // covers the one extra redraw needed right as the last voice
-    // finishes, so the meter drops back to silent instead of freezing.
+    // finishes, and meters_showing_ the ones after it while the smoothed
+    // level falls back, so the meter drops to silent instead of freezing.
     renderHeading(styles, track_ids, track_info, focused);
     need_redraw = true;
   }
@@ -2077,22 +2078,23 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
       draw_edge(row, col, segment_color(left), next_segment_color(idx));
     };
     // The per-track VU meter next to a leaf's instrument name - a single
-    // braille cell, vertical (dots filling bottom-up in the cell's
-    // *right* dot column - flush with the row's own right edge, same as
-    // a bar meter drawn against the right margin - one dot lit for the
-    // quietest non-silent reading, up through all 4 rows at full scale),
-    // the same braille-dot approach the volume/FFT scope uses
-    // (TerminalChart's DOTS fallback, see src/ui/Chart.h) rather than
-    // plain block characters. `level` is 0..4, already dB-mapped by the
-    // caller so quiet passages still show at least one dot instead of
-    // reading as empty until the loudest transients.
-    // A track's level as draw_vu_meter()'s 0..4 dots.
-    auto meter_dots = [](const TrackInfo & track_info) {
-      return static_cast<int>(braille_meter::fraction(track_info.getMeterValue()) * 4.0f + 0.5f);
+    // vertical cell, its dots filling bottom-up in the right dot column
+    // (flush with the row's own right edge): one dot for the quietest
+    // non-silent reading, all 4 at full scale. meter_dots() gives a
+    // track's smoothed, dB-mapped level as 0..4 of them.
+    meters_showing_ = false;
+    auto meter_dots = [&](int track_id, const TrackInfo & track_info) {
+      auto & smoothing = meter_smoothing_[track_id];
+      auto now = std::chrono::steady_clock::now();
+      auto dt = std::min(std::chrono::duration<float>(now - smoothing.last_update).count(), 0.25f);
+      smoothing.last_update = now;
+      auto dots = level_meter::barSteps(level_meter::fraction(smoothing.ballistics.update(track_info.getMeterValue(), dt)), 1);
+      if (dots > 0) meters_showing_ = true;
+      return dots;
     };
     auto draw_vu_meter = [&](int row, int col, int dots, bool clipping) {
       setFgColor(clipping ? styles.meter_clip_color : styles.meter_active_color);
-      putstr(row, col, braille_meter::verticalCell(dots));
+      putstr(row, col, level_meter::verticalCell(dots));
     };
 
     // Whether the left-edge marker (below) has been drawn yet for this
@@ -2301,7 +2303,7 @@ PatternEditor::renderHeading(const StyleProvider & styles, const std::vector<int
 
 	    if (meter_width > 0) {
 	      auto & track_info = info.getTrackInfo(track->getInternalId());
-	      draw_vu_meter(heading_height - 2 - level + 1, current_pos + instrument_name_width, meter_dots(track_info), track_info.isClipping());
+	      draw_vu_meter(heading_height - 2 - level + 1, current_pos + instrument_name_width, meter_dots(track->getInternalId(), track_info), track_info.isClipping());
 	    }
 	  }
 	} else if (actual_width <= 1) {

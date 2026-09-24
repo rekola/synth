@@ -158,7 +158,9 @@ TEST(glide_command_decodes_the_full_range_at_nibble_resolution) {
   CHECK_NEAR(Command("YM00").getGlideTargetDb(), -80.0f, 1e-6f); // x=0 -> -80dB floor
   CHECK_NEAR(Command("YMF0").getGlideTargetDb(), 0.0f, 1e-6f); // x=F -> 0dB/unity
   CHECK_NEAR(Command("YM00").getGlideDurationSeconds(), 0.03f, 1e-6f); // y=0 -> fastest
-  CHECK_NEAR(Command("YM0F").getGlideDurationSeconds(), 1.0f, 1e-6f); // y=F -> slowest
+  CHECK_NEAR(Command("YM0F").getGlideDurationSeconds(), 8.0f, 1e-4f); // y=F -> slowest
+  // Exponential: the middle nibble is the geometric mean, not the average.
+  CHECK_NEAR(Command("YM07").getGlideDurationSeconds(), 0.03f * std::pow(8.0f / 0.03f, 7.0f / 15.0f), 1e-4f);
 }
 
 // Command::volumeGlide()/sendAGlide()/sendBGlide() - what
@@ -172,17 +174,17 @@ TEST(glide_command_factories_build_a_real_command_that_round_trips) {
   auto volume = Command::volumeGlide(-20.0f, 0.5f);
   CHECK(volume.isVolumeGlide());
   CHECK_NEAR(volume.getGlideTargetDb(), -20.0f, 3.0f); // nibble resolution is coarse
-  CHECK_NEAR(volume.getGlideDurationSeconds(), 0.5f, 0.05f);
+  CHECK_NEAR(volume.getGlideDurationSeconds(), 0.5f, 0.5f * 0.25f); // a nibble is a factor of ~1.45
 
   auto send_a = Command::sendAGlide(-80.0f, 0.03f);
   CHECK(send_a.isSendAGlide());
   CHECK_NEAR(send_a.getGlideTargetDb(), -80.0f, 1e-6f);
   CHECK_NEAR(send_a.getGlideDurationSeconds(), 0.03f, 1e-6f);
 
-  auto send_b = Command::sendBGlide(0.0f, 1.0f);
+  auto send_b = Command::sendBGlide(0.0f, 8.0f);
   CHECK(send_b.isSendBGlide());
   CHECK_NEAR(send_b.getGlideTargetDb(), 0.0f, 1e-6f);
-  CHECK_NEAR(send_b.getGlideDurationSeconds(), 1.0f, 1e-6f);
+  CHECK_NEAR(send_b.getGlideDurationSeconds(), 8.0f, 1e-4f);
 }
 
 // Values outside the representable range clamp rather than wrapping into
@@ -213,8 +215,10 @@ TEST(azimuth_glide_command_parses_and_decodes_the_full_circle) {
   CHECK(!left.isVolumeGlide() && !left.isSendAGlide() && !left.isSendBGlide());
   CHECK_NEAR(left.getAzimuthGlideTargetDegrees(), -180.0f, 1e-6f); // x=0 -> -180
 
+  CHECK_NEAR(Command("YZ80").getAzimuthGlideTargetDegrees(), 0.0f, 1e-6f); // x=8 -> dead front
+
   Command right("YZF0");
-  CHECK_NEAR(right.getAzimuthGlideTargetDegrees(), 180.0f, 1e-6f); // x=F -> +180
+  CHECK_NEAR(right.getAzimuthGlideTargetDegrees(), 157.5f, 1e-6f); // x=F -> the last step before +180
 
   Command unrelated("YM00");
   CHECK(!unrelated.isAzimuthGlide());
@@ -228,11 +232,17 @@ TEST(azimuth_glide_command_parses_and_decodes_the_full_circle) {
 TEST(azimuth_glide_factory_wraps_and_round_trips) {
   auto forward = Command::azimuthGlide(90.0f, 0.5f);
   CHECK(forward.isAzimuthGlide());
-  CHECK_NEAR(forward.getAzimuthGlideTargetDegrees(), 90.0f, 15.0f); // nibble resolution is coarse (24 degrees/step)
-  CHECK_NEAR(forward.getGlideDurationSeconds(), 0.5f, 0.05f);
+  CHECK_NEAR(forward.getAzimuthGlideTargetDegrees(), 90.0f, 1e-6f);
+  // Every Launchpad Pan pad target is an exact multiple of the step.
+  for (float degrees : { -90.0f, -67.5f, -45.0f, -22.5f, 0.0f, 22.5f, 45.0f, 67.5f, 90.0f }) {
+    CHECK_NEAR(Command::azimuthGlide(degrees, 0.5f).getAzimuthGlideTargetDegrees(), degrees, 1e-6f);
+  }
+  // +180 and -180 are the same direction.
+  CHECK_NEAR(std::fabs(Command::azimuthGlide(180.0f, 0.5f).getAzimuthGlideTargetDegrees()), 180.0f, 1e-6f);
+  CHECK_NEAR(forward.getGlideDurationSeconds(), 0.5f, 0.5f * 0.25f);
 
   // 190 degrees is congruent to -170 - wraps into range rather than
   // clamping to the +180 ceiling.
   auto wrapped = Command::azimuthGlide(190.0f, 0.03f);
-  CHECK_NEAR(wrapped.getAzimuthGlideTargetDegrees(), -170.0f, 15.0f);
+  CHECK_NEAR(wrapped.getAzimuthGlideTargetDegrees(), -170.0f, 11.25f);
 }

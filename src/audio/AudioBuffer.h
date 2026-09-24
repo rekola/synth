@@ -310,6 +310,8 @@ class AudioBuffer final {
   // check): a buffer can legitimately have zero Main channels and real,
   // meaningful AuxA/AuxB content (a fully aux-only voice), so this must
   // always scan the real sample data rather than gate on Main presence.
+  // Each channel's RMS (normalized by frame count, so it doesn't depend on
+  // the block size).
   std::vector<float> calculateLoudness() const {
     std::vector<float> v;
     for (int i = 0; i < channels_; i++) {
@@ -319,18 +321,16 @@ class AudioBuffer final {
 	auto s = channel_data[j];
 	sum_squares += s * s;
       }
-      v.push_back(sqrtf(sum_squares));
+      v.push_back(frames_ > 0 ? sqrtf(sum_squares / static_cast<float>(frames_)) : 0.0f);
     }
     return v;
   }
 
   // Root-mean-square level of the Main W (0th-order/omnidirectional)
-  // channel only, normalized by frame count - unlike calculateLoudness()'s
-  // raw per-channel sqrt(sum of squares), this doesn't grow with however
-  // many frames happen to make up the block, so it's comparable across
-  // calls. Feeds the per-track VU meter (PatternEditor's own
-  // instrument-name-row bar); 0 when Main is absent (nothing to meter) or
-  // the buffer is empty.
+  // channel only, normalized by frame count so it doesn't grow with however
+  // many frames happen to make up the block. Feeds the per-track VU meter
+  // (PatternEditor's own instrument-name-row bar); 0 when Main is absent
+  // (nothing to meter) or the buffer is empty.
   float calculateMainRMS() const {
     auto w = getChannel(Channel::Main);
     if (!w || frames_ == 0) return 0.0f;

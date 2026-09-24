@@ -155,6 +155,24 @@ deleteClip(Song & song, int track_id, int clip_index) {
   song.incVersion();
 }
 
+int
+duplicateClip(Song & song, int track_id, int from_index, int to_index) {
+  auto & clips = song.getClips(track_id);
+  if (from_index < 0 || from_index >= static_cast<int>(clips.size()) || clips[static_cast<size_t>(from_index)].isEmpty()) return -1;
+  if (to_index < 0) {
+    to_index = from_index + 1;
+    while (to_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(to_index)].isEmpty()) to_index++;
+  } else if (to_index < static_cast<int>(clips.size()) && !clips[static_cast<size_t>(to_index)].isEmpty()) {
+    return -1;
+  }
+  Clip copy = clips[static_cast<size_t>(from_index)];
+  copy.setId(song.generateUniqueClipId());
+  song.ensureClipAt(track_id, to_index); // may reallocate the list
+  song.getClips(track_id)[static_cast<size_t>(to_index)] = std::move(copy);
+  song.incVersion();
+  return to_index;
+}
+
 ActiveInstance
 resolveInstanceAt(const Song & song, const Section & section, int track_id, int row) {
   auto & track_instances = section.getInstancesForTrack(track_id);

@@ -248,19 +248,11 @@ class LaunchpadManager {
   // (stray/duplicate release).
   void releaseDrawPad(int device_id, int x, int y);
 
-  // The Pan row<->azimuth mapping (8 compass points, 45 degrees apart,
-  // around the full circle - row 4 is dead-center/0 degrees front) - a
-  // static, stateless pair so both the LED bargraph (refreshLeds) and the
-  // pad-press handler (handlePadEvent) use the exact same convention
-  // rather than two independently-declared copies.
-  static int azimuthToRow(float azimuth);
-  static float rowToAzimuth(int row);
-
   // The Send A/B/Main fader rows<->dB mapping - row 0 is a hard "off"
   // (matching a real mixing console's fader bottoming out at true silence,
   // not just a very quiet dB value), rows 1-7 span a floor up to 0dB/unity
   // at row 7 in even steps. Same static, stateless pair convention as
-  // azimuthToRow/rowToAzimuth above: the pad-press handler and refreshLeds'
+  // LaunchpadLayout::panBarPads/panPadToAzimuth: the pad-press handler and refreshLeds'
   // own bargraph readback (which only ever sees the linear gain
   // LeafTrack::getSends() stores) both go through these, so a press
   // and its own LED redraw always agree.
@@ -304,16 +296,12 @@ class LaunchpadManager {
   // Returns false for any other CC, so the caller proceeds to the normal
   // command pipeline. 95 ("Session"), 96 ("Note") and 97 ("Custom" - see
   // GridMode::CUSTOM's own comment) are three of a four-member exclusive
-  // group with DRAW (CC98, routed separately - see handleDrawToggleButton()
-  // below, since it needs both press and release): each of these three
-  // presses *selects* that mode unconditionally, even if it's already the
-  // current one - the only way to ever leave a mode is to select a
-  // *different* one of the four. DRAW is the one member not reached by a
-  // plain press at all any more - CC98's own tap now means something
-  // else entirely (handleDrawToggleButton()'s own comment) - but it's
-  // still the same four-member group otherwise: a long hold on CC98 is
-  // still the only way into DRAW, and still the only way to leave it is
-  // selecting one of 95/96/97. 95 also doubles as the mixer-submode toggle - a repeat press
+  // group with DRAW: each of these three presses *selects* that mode
+  // unconditionally, even if it's already the current one - the only way
+  // to ever leave a mode is to select a *different* one of the four.
+  // DRAW is the one member not reached by a plain press: shift + Solo
+  // enters it, or blanks its canvas when it is already showing, and the
+  // only way to leave it is selecting one of 95/96/97. 95 also doubles as the mixer-submode toggle - a repeat press
   // while grid_mode is already SESSION flips session_mixer_mode instead
   // of being a no-op, while still (unconditionally, either way) landing
   // on the plain Session grid. Takes Controller (unlike every other
@@ -323,36 +311,21 @@ class LaunchpadManager {
   // case.
   bool handleRawButton(int cc_number, int device_id, Controller & controller);
 
-  // CC98 ("Capture MIDI", DRAW mode's own home) on its own, separate entry
-  // point: unlike every button handleRawButton() covers, it needs both
-  // press and release to tell a quick tap from a long hold. Nothing fires
-  // on press at all any more - a tap and a hold here are two unrelated
-  // actions (toggle the legacy global "toggle-record-arm" command vs.
-  // enter/interact with DRAW mode), not one being a variant of the other,
-  // so there's nothing safe to do until release settles which one this
-  // press actually was: a quick tap toggles Record Arm - the same command
-  // CC19 fires outside the Session family (Controller.cpp's own
-  // "toggle-record-arm"), reachable here from any grid_mode, since Session
-  // view's own pad presses need it armed (Controller::isNoteCaptureArmed())
-  // to write a launch into the arrangement (SessionPlayer::triggerClip()'s
-  // own "assign" branch) rather than just auditioning - a long hold instead
-  // means DRAW: entering the mode (if some other mode was active before
-  // this press - see draw_toggle_was_already_active's own comment) or
-  // clearing the canvas (if DRAW was already active), the same "entry vs.
-  // clear" split this gesture always had, just now reached by a hold
-  // rather than any press. The "clear canvas" gesture (see
-  // advanceDrawColor's own comment on the palette) landed on this button
-  // after CC99 (the grid position the Programmer-mode protocol maps one
-  // past the top row) turned out not to be an actual pressable button on
-  // real Launchpad X hardware, just a CC-addressable LED kept for symmetry
-  // with the Launchpad Pro. Always returns true (handled) for both press
-  // and release. Routed here directly from CC98 by
-  // UI::handleLaunchpadButtonEvent. Takes Controller for the tap's own
-  // "toggle-record-arm" dispatch.
-  bool handleDrawToggleButton(int device_id, Controller & controller, bool is_press);
+  // CC98 ("Session Record") on its own, separate entry point: it needs
+  // both press and release to tell a quick tap from a long hold. A tap is
+  // Session Record (SessionPlayer::toggleOverdub()): overdub the playing
+  // clip, or stop the takes in flight. A long hold is Capture MIDI
+  // (retroactive capture; not built yet - it only says so). With shift
+  // (CC91) held, it is the arrangement's own Record Arm instead: the
+  // terminal's "toggle-record-arm", which makes a Session pad press write
+  // the clip into the arrangement. Nothing fires until release settles
+  // which one it was. Always returns true (handled)
+  // for both press and release. Routed here directly from CC98 by
+  // UI::handleLaunchpadButtonEvent.
+  bool handleRecordButton(int device_id, Controller & controller, bool is_press);
 
   // CC91 ("move-row-up") on its own press/release entry point, alongside
-  // handleDrawToggleButton() above - see DeviceState::row_up_shift_held's
+  // handleRecordButton() above - see DeviceState::row_up_shift_held's
   // own comment for why a shift-combo needs press and release told apart
   // the same way a tap-vs-hold gesture does. is_press true for a press,
   // false for a release. handleSessionPadEvent() itself is what actually
@@ -364,6 +337,16 @@ class LaunchpadManager {
   // way, avoiding ever having to undo it), false otherwise (every press,
   // and a release that did combine with a pad).
   bool handleShiftButton(int device_id, bool is_press);
+
+  // Shift (CC91 held) turns the right-side buttons into their labelled
+  // alternate functions (handleRawButton()): Volume (CC89) is Duplicate,
+  // Solo (CC29, Pro MK3 CC20) is Draw, and any other right-side button
+  // does nothing while shift is held. Duplicate lasts as long as Volume
+  // stays held: a Session pad with a clip picks that clip as the source and
+  // a press on an empty slot of the same track column copies it there
+  // (handleSessionPadEvent()); releasing Volume with a source picked but no
+  // destination copies to the next empty slot.
+  void endDuplicate(int device_id, Controller & controller);
 
   // True for the mixer radio group's own nine CC numbers (Volume/Pan/
   // Send A/Send B/Stop Clip/Mute/Solo, plus Pro MK3's left-column Mute/
@@ -384,9 +367,9 @@ class LaunchpadManager {
   // and hold Volume ... release Volume to return to mute view"
   // convention. Routed here directly from these CCs'
   // release, the same way CC98's own release reaches
-  // handleDrawToggleButton() - never through handleRawButton(), which is
+  // handleRecordButton() - never through handleRawButton(), which is
   // press-only.
-  void handleMixerFunctionRelease(int device_id);
+  void handleMixerFunctionRelease(int device_id, int cc_number, Controller & controller);
 
   // Whether pad (any x, `y`) on this device should be captured by the
   // track-picker overlay rather than whatever grid_mode would otherwise
@@ -599,19 +582,17 @@ class LaunchpadManager {
     // writes, song version bumps, the not-playing step-advance
     // MOVE_POSITION) - live PLAY_NOTE/STOP_NOTE/NOTE_PRESSURE audition
     // events fire regardless, so every device is always audible whether
-    // or not recording is armed. Reachable from a Launchpad only via
-    // CC98's own quick-tap gesture (handleDrawToggleButton()'s own
-    // comment) - not CC19, which always means scene-launch/the RECORD_ARM
-    // picker instead (handleRawButton()'s own comment). Also gates
+    // or not recording is armed. Reachable from a Launchpad only as shift +
+    // CC98 (handleRecordButton()) - CC19 always means scene-launch/the
+    // RECORD_ARM picker (handleRawButton()'s own comment). Also gates
     // whether "free playing" (ordinary note entry) is captured, per the
     // drum-machine step grid's own rule that the step grid and drum
     // picker write in *both* arm states - only free playing is gated.
     bool capture_enabled = false;
 
-    // What CC98's own LED actually shows (alongside its DRAW-mode-active
-    // state - refreshLeds()'s own comment) - "is Record Arm doing anything
-    // right now", true whenever *any* of the three mutually-exclusive
-    // things "toggle-record-arm" can arm is active: note capture
+    // What CC98's own LED shows - "is anything recording right now": a
+    // Session take in flight, or any of the three mutually-exclusive
+    // things "toggle-record-arm" can arm: note capture
     // (capture_enabled above), or a SampleTrack's own threshold-armed/
     // already-recording state (Controller::isThresholdArmed()/
     // isRecording(), neither of which capture_enabled ever reflects - a
@@ -839,13 +820,13 @@ class LaunchpadManager {
     // to brighten/dim just the fader's own top pad, the same "mirror
     // everything a device needs into DeviceState" rule track_send_main/
     // etc. above already follow.
-    std::array<int, 8> track_send_main_micro {}, track_send_a_micro {}, track_send_b_micro {}, track_azimuth_micro {};
+    std::array<int, 8> track_send_main_micro {}, track_send_a_micro {}, track_send_b_micro {};
     // Which row refreshLeds() should actually treat as "the fader's own
     // current top pad" - the row this fader was last explicitly pressed
     // to (FaderState::last_pressed_row) when it's ever been touched, -1
     // otherwise (no press to prefer - refreshLeds() falls back to
-    // deriving a row from the live value itself, sendLinearToRow()/
-    // azimuthToRow(), the same way it always did). Needed because that
+    // deriving a row from the live value itself, sendLinearToRow(),
+    // the same way it always did). Needed because that
     // value->row derivation rounds to the *nearest* row - correct for a
     // value that arrived some other way (loaded from a song, automation,
     // a different device), but wrong once a micro-value cycle
@@ -857,7 +838,7 @@ class LaunchpadManager {
     // (refreshLeds()'s own guard) - a value that's since moved somewhere
     // else entirely (a stale last_pressed_row from a much earlier press)
     // falls back to the plain derived row instead of showing a wrong one.
-    std::array<int, 8> track_send_main_row {}, track_send_a_row {}, track_send_b_row {}, track_azimuth_row {};
+    std::array<int, 8> track_send_main_row {}, track_send_a_row {}, track_send_b_row {};
     // How many of the 8 columns actually have a track behind them (0-8) -
     // a column past this has no real value to show (its array slot is
     // just a stale/default 0.0f, not "this track's level is 0"), so
@@ -918,18 +899,13 @@ class LaunchpadManager {
     // measures against this to decide short click (cycle the hue) vs. long
     // press (leave the hue alone, brightness-only).
     std::array<std::chrono::steady_clock::time_point, 64> draw_pad_press_time {};
-    // CC98 (DRAW mode toggle) press/release tracking - see
-    // handleDrawToggleButton() for why a tap and a long hold need to be
-    // told apart: nothing fires on press any more, only release decides
-    // between the two unrelated actions a tap vs. a hold now means.
-    bool draw_toggle_pressed = false;
-    std::chrono::steady_clock::time_point draw_toggle_press_time;
-    // Whether DRAW mode was already active *before* the current
-    // draw_toggle_pressed press - captured at press time, so a long-hold
-    // release can tell "enter DRAW mode" (grid_mode wasn't DRAW yet) apart
-    // from "already in DRAW mode, clear the canvas instead".
-    bool draw_toggle_was_already_active = false;
-
+    // CC98 (Session Record) press/release tracking - see
+    // handleRecordButton() for why a tap and a long hold need to be told
+    // apart: nothing fires on press, only release decides between them.
+    bool record_button_pressed = false;
+    // Whether shift (CC91) was held when it was pressed.
+    bool record_button_shifted = false;
+    std::chrono::steady_clock::time_point record_button_press_time;
     // CC91 ("move-row-up", printed with an up-arrow icon) doubles as a
     // held modifier for opening a Session-view clip's own step grid
     // directly (LaunchpadManager::handleShiftButton()) - a shift-clip
@@ -955,6 +931,13 @@ class LaunchpadManager {
     // whichever pad this was, not whatever's currently held.
     bool row_up_shift_pending_pad = false;
     int row_up_shift_pending_x = -1, row_up_shift_pending_y = -1;
+    // Duplicate (shift + Volume, endDuplicate()): held while Volume is, and
+    // the picked source clip (Session column index, clip index), -1 while
+    // none. `duplicate_copied` is whether a destination has been given for
+    // that source.
+    bool duplicate_held = false;
+    bool duplicate_copied = false;
+    int duplicate_source_column = -1, duplicate_source_clip = -1;
 
     // LED diff cache: refreshLeds() only calls sendLeds() when the newly
     // computed colors differ from what was last actually sent, so
@@ -1161,18 +1144,39 @@ class LaunchpadManager {
   static float resolveSendFaderTarget(FaderState & fader, float current_value, int pressed_row, int velocity,
     bool & is_micro_tap, float & out_duration_seconds);
 
-  // Pan's own equivalent of resolveSendFaderTarget() above - same
-  // row/micro-value bookkeeping, same "already gliding" retarget check,
-  // fired through Controller::glideTrackAzimuth() instead. Circular
-  // (unlike Send's true ceiling at row 7): a micro-value tap always wraps
-  // row 7 into row 0, and the resolved target's own distance-from-current
-  // (feeding the velocity-scaled duration) is the shorter way around the
-  // circle, not a raw subtraction - see LeafTrackState::glideAzimuth()'s
-  // own comment for why the same wrap has to happen again at the engine,
-  // not just here (this only picks a *duration*, the engine is what
-  // actually decides which way the glide travels).
-  static float resolveAzimuthFaderTarget(FaderState & fader, float current_value, int pressed_row, int velocity,
-    bool & is_micro_tap, float & out_duration_seconds);
+  // Pan's own equivalent of resolveSendFaderTarget() above, minus the
+  // micro-value cycle: a pad always means one exact azimuth
+  // (panPadToAzimuth()), so a press is always a glide. Same "already
+  // gliding" bookkeeping; the duration scales with the shorter way around
+  // the circle from `current_value` to `target_degrees` - see
+  // LeafTrackState::glideAzimuth()'s own comment for why the engine picks
+  // that direction itself, this only picks a *duration*.
+  static float resolveAzimuthFaderTarget(FaderState & fader, float current_value, float target_degrees, int velocity,
+    float & out_duration_seconds);
+
+  // Glides a track's azimuth to `target_degrees` (and records it while
+  // Record Arm is on) - what a resolved Pan press or chord does.
+  void applyPanTarget(Controller & controller, int track_id, float target_degrees, int velocity);
+
+  // Two pads of one Pan row held together are a gesture: the outermost two
+  // (columns 0 and 7) put the track behind the listener, the two inner
+  // ones (3 and 4) back to dead front. Those four pads are the only ones
+  // whose single press waits kPanChordWindow for a partner before
+  // applying, so a chord never first glides toward the lone pad's own
+  // azimuth. Keyed by (device id, track id).
+  struct PanChord {
+    unsigned held_columns = 0;
+    int pending_column = -1;
+    int pending_velocity = 0;
+    std::chrono::steady_clock::time_point pending_time;
+  };
+  std::map<std::pair<int, int>, PanChord> pan_chords_;
+  // The shared cursor's track index, as of the last refresh().
+  int cursor_track_index_ = -1;
+  void handlePanPress(Controller & controller, int device_id, int track_id, int column, int velocity);
+  void handlePanRelease(Controller & controller, int device_id, int track_id, int column);
+  // Applies a held-back single press whose window has run out.
+  void flushPendingPanPresses(Controller & controller);
 
   // Live-recording's own write path: while Record Arm is on and the
   // transport is genuinely playing (the same "you're recording a take

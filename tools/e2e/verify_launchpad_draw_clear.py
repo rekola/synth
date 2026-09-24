@@ -1,5 +1,5 @@
-"""DRAW-mode "hue decided on release" regression test, plus the CC98-long-
-press canvas-clear gesture.
+"""DRAW-mode "hue decided on release" regression test, plus the shift + Solo
+canvas-clear gesture.
 
 Covers, in one scripted sequence against the real compiled binary over
 ALSA:
@@ -11,7 +11,7 @@ ALSA:
   4. A long hold on an OFF pad stays fully black throughout the hold (no
      hue to show anything with) and only lands on the default hue at
      release.
-  5. Holding CC98 (DRAW toggle) past the clear threshold and releasing it
+  5. Pressing shift + Solo while already in DRAW
      blanks the canvas.
 """
 import sys, os, subprocess, time

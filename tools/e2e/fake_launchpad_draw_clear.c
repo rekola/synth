@@ -7,10 +7,8 @@
 //   - already lit + short release -> cycles to the next hue.
 //   - already lit + long hold -> hue stays exactly as it was (brightness-
 //     only adjustment).
-// Also exercises CC98's own long-hold gestures - entering DRAW mode
-// itself now needs a hold (a quick tap fires "toggle-record-arm" instead,
-// see verify_launchpad_record_arm_picker.py for that half), and, once
-// already in DRAW, a further hold clears the canvas (the replacement for
+// Also exercises the shift + Solo gesture - entering DRAW mode, and, once
+// already in DRAW, a further press clears the canvas (the replacement for
 // the CC99 corner "button", which isn't a real pressable control on real
 // Launchpad X hardware). Prints every SysEx it receives so the Python
 // driver can inspect the LED bytes after each step.
@@ -75,10 +73,13 @@ int main() {
   fake_wait_ready(seq, "at startup");
   drain_sysex(seq);
 
-  fprintf(stderr, "STEP enter-draw-mode: CC98 long hold (700ms) then release\n");
-  send_cc(seq, port, 98, 127);
-  usleep(700 * 1000);
-  send_cc(seq, port, 98, 0);
+  fprintf(stderr, "STEP enter-draw-mode: shift (CC91) + Solo (CC29)\n");
+  send_cc(seq, port, 91, 127);
+  usleep(50 * 1000);
+  send_cc(seq, port, 29, 127);
+  usleep(100 * 1000);
+  send_cc(seq, port, 29, 0);
+  send_cc(seq, port, 91, 0);
   sleep(1);
   drain_sysex(seq);
 
@@ -111,10 +112,13 @@ int main() {
   sleep(1);
   drain_sysex(seq);
 
-  fprintf(stderr, "STEP clear-canvas: CC98 long hold (700ms) then release\n");
-  send_cc(seq, port, 98, 127);
-  usleep(700 * 1000);
-  send_cc(seq, port, 98, 0);
+  fprintf(stderr, "STEP clear-canvas: shift (CC91) + Solo (CC29)\n");
+  send_cc(seq, port, 91, 127);
+  usleep(50 * 1000);
+  send_cc(seq, port, 29, 127);
+  usleep(100 * 1000);
+  send_cc(seq, port, 29, 0);
+  send_cc(seq, port, 91, 0);
   sleep(1);
   drain_sysex(seq);
 

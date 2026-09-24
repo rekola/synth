@@ -426,15 +426,14 @@ would otherwise resume showing.
   together.
 - **Extra-button layout** (raw CC, intercepted directly in
   `LaunchpadManager::handleRawButton()`/`UI::handleLaunchpadButtonEvent()`
-  before any command-name resolution): 95/96/97/98 (Session/Note/Custom/
-  Draw) are a true four-member exclusive group, not independent toggles -
-  each of 95/96/97's presses selects that mode unconditionally, even
-  pressing the one already active, so the only way to leave a mode is
-  selecting a *different* one of the four; DRAW (98) is the one member not
-  reached by a plain press at all - a quick tap there means something else
-  entirely (see its own bullet below) - but a long hold on it is still
-  the only way into DRAW, and still the only way out of DRAW is selecting
-  one of 95/96/97. 91/92/93/94 are move-row-up/down/prev-track/next-track
+  before any command-name resolution): 95/96/97 (Session/Note/Custom) plus DRAW are
+  a true four-member exclusive group, not independent toggles - each of
+  95/96/97's presses selects that mode unconditionally, even pressing the
+  one already active, so the only way to leave a mode is selecting a
+  *different* one of the four; DRAW is the one member not reached by a
+  plain press (see its own bullet below), and the only way out of it is
+  selecting one of 95/96/97. 98 is Session Record (its own bullet
+  below). 91/92/93/94 are move-row-up/down/prev-track/next-track
   (named commands, via `LaunchpadProtocol::commandForButton()`). 91 doubles
   as a held shift modifier for opening a Session-view clip's own step
   grid directly (see the drum machine bullet below) - its own ordinary
@@ -460,8 +459,13 @@ would otherwise resume showing.
   "toggle-mute"/"toggle-solo" (`PatternEditor`'s own `commands_`, still
   reachable via keybinding/M-x) do, and Record Arm no longer reaches
   `Controller::isNoteCaptureArmed()`'s own per-current-track toggle at all
-  - that's CC98's own quick-tap gesture instead (see its own bullet
-  below), reachable from any `GridMode`. 95 ("Session") doubles as the
+  - that's shift + CC98 instead (see its own bullet below), reachable
+  from any `GridMode`. **Shift** (CC91 held) turns all eight right-side
+  buttons into labelled alternate functions, in every `GridMode`
+  (`handleRawButton()`'s shift branch): Volume (CC89) is Duplicate, Solo
+  (CC29, Pro MK3 CC20) is Draw, and the other six do nothing rather than
+  launch or switch anything; their LEDs show only those two while shift
+  is held (Duplicate cyan, Draw purple, the rest dark). 95 ("Session") doubles as the
   mixer-submode toggle: a repeat press while already at the plain Session
   grid with nothing from the radio group active flips
   `session_mixer_mode`; any press otherwise just lands on (or stays on)
@@ -475,20 +479,34 @@ would otherwise resume showing.
   any mixer-mode hue, which would otherwise misleadingly suggest a fader/
   picker is one press away; once mixer submode is on, each shows its own
   hue, bright only for whichever one is currently active.
-- **DRAW mode** (CC98, "Capture MIDI") - a plain per-pad coloring toy,
-  independent of Song/Track state. CC98's own tap-vs-long-hold gesture
-  (`handleDrawToggleButton()`) means two unrelated things, not one a
-  variant of the other: a quick tap fires "toggle-record-arm"
-  (`Controller::isNoteCaptureArmed()`'s own per-current-track toggle),
-  reachable from any `GridMode`; a long hold is what reaches DRAW itself -
-  entering it (same exclusive-group rule as Session/Note/Custom - only a
-  different one of the four leaves DRAW once inside it) if some other
-  mode was showing when the hold started, or blanking the canvas if DRAW
-  was already active. CC98's own LED carries both states at once - bright
-  red while armed (regardless of `GridMode`), else DRAW's own purple only
-  while that mode is actually active - armed taking priority since DRAW's
-  own activity is already visible from the grid's rainbow content, while
-  armed has no other indicator.
+- **Session Record** (CC98, `handleRecordButton()`) - needs press and
+  release, since the tap and the long hold mean unrelated things. A tap
+  is `SessionPlayer::toggleOverdub()`: from the next bar, each armed
+  track's playing clip (the followed track's if none is armed) is
+  overdubbed in place - the clip keeps looping and the take's rows line
+  up with its loop - and while any take is in flight a tap instead stops
+  them at the next bar, leaving the clips playing (nothing playing: a
+  status message). A pad press never overdubs by accident: on an armed
+  track a populated slot only launches, an empty one starts a fresh
+  take. A long hold is Capture MIDI, a stub that only says so. With shift
+  held, CC98 is the arrangement's own Record Arm instead
+  (`"toggle-record-arm"`, `Controller::isNoteCaptureArmed()`, which makes
+  a Session pad press write the clip into the arrangement). Its LED is
+  bright red while anything records (`record_arm_led_on`), dim red
+  otherwise.
+- **DRAW mode** (shift + Solo) - a plain per-pad coloring toy,
+  independent of Song/Track state. Shift + Solo enters it from any
+  `GridMode` (same exclusive-group rule as Session/Note/Custom - only
+  one of 95/96/97 leaves it), or blanks the canvas if DRAW is already
+  showing.
+- **Duplicate** (shift + Volume) - held for as long as Volume stays down:
+  in Session view a populated pad picks that clip as the source (lit
+  white) and a press on an empty slot of the same track column copies it
+  there (`duplicateClip()`, `ArrangementOps.h` - an independent copy
+  under a fresh id, never overwriting); the source stays picked, so one
+  hold can fill several slots. Releasing Volume with a source picked but
+  no destination copies to the next empty slot. The terminal's
+  `duplicate-clip` (clip grid) does the same.
 - **The drum machine** (`PercussionTrack`, up to `kMaxLanes` = 8 lanes,
   `getLaneNotes()`) - the same track type as ordinary percussion note
   entry, not a separate one: with no lanes it's a plain percussion track
@@ -579,11 +597,11 @@ would otherwise resume showing.
   Once the step grid is showing, every button
   with no meaning left there goes fully dark rather than keeping its usual
   out-of-Session color - Note (CC96, forced into already - pressing it
-  again is a true no-op), and Capture MIDI/Draw's own idle/DRAW-eligible
-  color (CC98 - a long hold would abandon step editing for the DRAW
-  canvas, not something worth a standing indicator for; its armed/red
-  indicator stays lit regardless, since that's real track-global recording
-  state a performer still needs to see, not a per-mode affordance). All
+  again is a true no-op), and Session Record's own idle color (CC98 - a
+  tap there would only say there is nothing to overdub; its recording/red
+  indicator stays lit regardless, since that's real track-global
+  recording state a performer still needs to see, not a per-mode
+  affordance). All
   four of 91-94 are repurposed instead of going dark, together covering
   everything a scale/chromatic run has that the fixed 8x8 grid alone
   can't show at once, both scrolling `kStepGridScrollStep` (4) rows/steps
@@ -775,8 +793,8 @@ would otherwise resume showing.
   send-only-on-change dedup means this never needs re-sending itself
   either. Those two lighting types only understand a fixed 128-entry
   palette, not arbitrary RGB, which is why they're a fixed green rather
-  than each pad's own hue. An armed track (`Controller::isTrackArmed()`)
-  switches its whole column from this green overlay to a red one instead
+  than each pad's own hue. An armed track (`Controller::isTrackArmed()`), or one
+  recording or about to, switches its whole column from this green overlay to a red one instead
   (still `SessionPadHighlight`, four further states -
   `ARMED_EMPTY`/`RECORD_QUEUED`/`RECORDING`/`RECORD_STOPPING` - reached
   instead of, never alongside, the plain three, since a pad is always
@@ -913,9 +931,14 @@ would otherwise resume showing.
   `B()`): its Send Main is the song's dry mix level and its Send A/B the
   send bus's two returns, applied in `SongState::renderBlock()`; only
   leaf tracks have Mute/Solo/Monitor and Direction. Enter on a Sends row
-  edits the three values. Every column has a vertical braille level meter
-  beside its Sends/Direction rows (`BrailleMeter.h`, one dB mapping and
-  glyph set shared with the pattern editor's meters); the master's reads
+  edits the three values. Every column has a vertical level meter
+  beside its Sends/Direction rows (`LevelMeter.h`: one dB mapping, braille
+  by default with sextants as an opt-in glyph set, `Ballistics` smoothing
+  a block's RMS in the power domain so a low note doesn't ripple, and a
+  `PeakHold` marker floating above the bar in its right dot column). The
+  pattern editor's one-cell track meters and the scope row's
+  `ChannelMeter` (two channels per cell, `getChannelLoudness()`, a
+  per-channel RMS) share all of it; the master's reads
   the master track's output - the dry mix plus the returns, after the
   master's levels (`SongState::getMasterMeterValue()`) - which each
   playback snapshot reports as the master's `TrackInfo`.
@@ -940,14 +963,11 @@ would otherwise resume showing.
   `songs/welcome.xml`/31-EDO startup defaults.
 - e2e coverage: `tools/e2e/verify_launchpad_session.py` (see that
   directory's own `README.md`) covers Session view's basic trigger/assign
-  path, arming Record Arm for it via CC98's own quick-tap gesture (the
-  legacy global `toggle-record-arm` - CC19 no longer reaches it while
-  looking at Session view); `verify_launchpad_notecustom.py`/
-  `verify_launchpad_draw_clear.py` cover CC96/CC97/CC98's own mode-switch
-  and long-hold gestures - CC98's own tap (`toggle-record-arm`, exercised
-  by `verify_launchpad_session.py` above) vs. long hold (DRAW mode entry/
-  canvas-clear, exercised by `verify_launchpad_draw_clear.py`) being the
-  one asymmetric case, since a tap no longer reaches DRAW at all any more;
+  path, arming Record Arm for it via shift + CC98 (the legacy global
+  `toggle-record-arm` - CC19 no longer reaches it while looking at
+  Session view); `verify_launchpad_notecustom.py`/
+  `verify_launchpad_draw_clear.py` cover CC96/CC97's own mode-switch
+  and the shift + Solo gesture (DRAW mode entry/canvas-clear);
   `verify_launchpad_record_arm_picker.py` covers CC19's own Session-view
   meaning, the track-picker overlay's fourth purpose - presses CC95 a
   second time first to enter mixer submode (required before CC19 does

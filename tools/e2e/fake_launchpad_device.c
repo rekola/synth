@@ -74,10 +74,13 @@ int main(int argc, char ** argv) {
   sleep(1);
 
   if (is_arm) {
-    fprintf(stderr, "%s: sending CC98 quick tap (Record Arm on)\n", name);
+    fprintf(stderr, "%s: sending shift+CC98 (Record Arm on)\n", name);
+    send_cc(seq, port, 91, 127); // shift held: CC98 is then the arrangement's Record Arm
+    usleep(50 * 1000);
     send_cc(seq, port, 98, 127);
     usleep(100 * 1000);
     send_cc(seq, port, 98, 0);
+    send_cc(seq, port, 91, 0);
     sleep(1);
   } else {
     // Give the "arm" instance time to have actually armed (and its own

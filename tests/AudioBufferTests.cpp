@@ -176,10 +176,19 @@ TEST(sample_data_is_clipping_and_loudness_work_with_main_absent) {
 
   auto loudness = data.calculateLoudness();
   CHECK(loudness.size() == 1);
-  CHECK(loudness[0] > 0.0f);
+  CHECK_NEAR(loudness[0], 0.2f, 1e-6f);
 
   aux[0] = 2.0f;
   CHECK(data.isClipping());
+}
+
+// Loudness is an RMS, so a constant signal reads the same at any block size.
+TEST(sample_data_calculate_loudness_is_rms_independent_of_frame_count) {
+  for (int frames : { 4, 64 }) {
+    AudioBuffer data(1, frames);
+    for (int i = 0; i < frames; i++) data.getChannelData(0)[i] = 0.5f;
+    CHECK_NEAR(data.calculateLoudness()[0], 0.5f, 1e-6f);
+  }
 }
 
 TEST(sample_data_calculate_main_rms_normalizes_by_frame_count) {
@@ -187,8 +196,7 @@ TEST(sample_data_calculate_main_rms_normalizes_by_frame_count) {
   auto w = data.getChannelData(0);
   w[0] = 1.0f; w[1] = 1.0f; w[2] = 1.0f; w[3] = 1.0f;
   // sqrt(mean of squares) of a constant 1.0 signal is 1.0, regardless of
-  // frame count - unlike calculateLoudness()'s raw sqrt(sum of squares),
-  // which would instead grow with frames_ (2.0 here).
+  // frame count.
   CHECK_NEAR(data.calculateMainRMS(), 1.0f, 1e-6f);
 }
 

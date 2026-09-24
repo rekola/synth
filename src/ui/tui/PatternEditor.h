@@ -9,7 +9,9 @@
 #include "../PatternSource.h"
 #include "../ScenePatternSource.h"
 #include "InlineEditor.h"
+#include "LevelMeter.h"
 
+#include <chrono>
 #include <functional>
 #include <memory>
 #include <vector>
@@ -226,6 +228,15 @@ protected:
   // the one extra redraw needed right as the last voice finishes (see
   // render()'s own use of it), not just while it's still sounding.
   int current_voice_count_ = 0;
+  // A track's VU meter smoothing, by track id, and whether any meter drawn
+  // last was still showing a level (the heading keeps redrawing until they
+  // have all fallen back to silent).
+  struct MeterSmoothing {
+    level_meter::Ballistics ballistics;
+    std::chrono::steady_clock::time_point last_update;
+  };
+  std::unordered_map<int, MeterSmoothing> meter_smoothing_;
+  bool meters_showing_ = false;
 
   int edit_step_size = 1, new_edit_step_size = 1;
   bool row_edited = false;

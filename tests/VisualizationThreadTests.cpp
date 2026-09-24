@@ -107,17 +107,16 @@ TEST(visualization_thread_computes_channel_loudness_and_meter_label) {
   CHECK(result != nullptr);
   if (!result) return;
 
-  // AudioBuffer::calculateLoudness() is sqrt(sum of squares), not divided
-  // by frame count - a constant channel of value c over `frames` samples
-  // gives c*sqrt(frames).
+  // AudioBuffer::calculateLoudness() is an RMS - a constant channel of
+  // value c reads c at any block size.
   auto & levels = result->getChannelLoudness();
   CHECK(levels.size() == 6); // 4 regular (no padding needed) + auxA + auxB
   for (int c = 0; c < 4; c++) {
-    float expected = static_cast<float>(c + 1) * 0.5f * sqrtf(static_cast<float>(frames));
+    float expected = static_cast<float>(c + 1) * 0.5f;
     CHECK_NEAR(levels[static_cast<size_t>(c)], expected, 0.001f);
   }
-  CHECK_NEAR(levels[4], 0.25f * sqrtf(static_cast<float>(frames)), 0.001f);
-  CHECK_NEAR(levels[5], 0.75f * sqrtf(static_cast<float>(frames)), 0.001f);
+  CHECK_NEAR(levels[4], 0.25f, 0.001f);
+  CHECK_NEAR(levels[5], 0.75f, 0.001f);
 
   CHECK(result->getMeterLabel() == "M4A");
 }
