@@ -1222,7 +1222,7 @@ Controller::extendRecordingClipsIfNeeded(std::unordered_map<int, std::string> & 
 }
 
 int
-Controller::ensureSessionRecordingClip(int track_id, int absolute_step, int grid_origin_step) {
+Controller::ensureSessionRecordingClip(int track_id, int absolute_step) {
   auto it = session_recording_takes_.find(track_id);
   if (it == session_recording_takes_.end() || it->second.clip_index < 0) return -1;
   auto & take = it->second;
@@ -1264,19 +1264,9 @@ Controller::ensureSessionRecordingClip(int track_id, int absolute_step, int grid
     // bar's own start, not the exact step this first note happened to
     // land on - a performer may deliberately start playing on the bar's
     // second beat rather than its first, and the clip's own loop point
-    // still has to be the bar boundary either way. Measured relative to
-    // grid_origin_step when the caller passes a real one (something else
-    // in the session is already playing, and this take's own bar
-    // boundaries have to line up with its shared groove, not necessarily
-    // with absolute step 0) rather than absolute step 0 directly.
+    // still has to be the bar boundary either way.
     if (take.origin_step < 0) {
-      auto rows_per_bar = std::max(1, song->getRowsPerBar());
-      if (grid_origin_step >= 0) {
-        auto offset = std::max(0, absolute_step - grid_origin_step);
-        take.origin_step = grid_origin_step + previousBarRow(offset, rows_per_bar);
-      } else {
-        take.origin_step = previousBarRow(absolute_step, rows_per_bar);
-      }
+      take.origin_step = previousBarRow(absolute_step, std::max(1, song->getRowsPerBar()));
     }
   }
   extendSessionRecordingClipIfNeeded(track_id, absolute_step); // no-op for an overdub take - see its own comment

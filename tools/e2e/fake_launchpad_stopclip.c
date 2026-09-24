@@ -71,7 +71,7 @@ int main() {
   fprintf(stderr, "sending press on pad (0,0) [note 11] - triggers pool index 7\n");
   send_note(seq, port, 0x90, 11, 100);
   send_note(seq, port, 0x80, 11, 0);
-  drain(seq, 1000, "after trigger");
+  drain(seq, 2500, "after trigger (the launch waits for the next bar)");
 
   fprintf(stderr, "sending CC95 press+release (enters Session's own mixer submode)\n");
   send_cc(seq, port, 95, 127);
@@ -86,7 +86,7 @@ int main() {
   fprintf(stderr, "sending press on pad (0,0) [note 11] again - picker row (bottom), column 0 - queues a stop\n");
   send_note(seq, port, 0x90, 11, 100);
   send_note(seq, port, 0x80, 11, 0);
-  drain(seq, 2000, "after stop should have taken effect");
+  drain(seq, 2500, "after stop should have taken effect");
 
   fprintf(stderr, "sending CC49 press again - closes the still-open overlay\n");
   send_cc(seq, port, 49, 127);

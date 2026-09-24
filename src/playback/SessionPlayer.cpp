@@ -23,22 +23,6 @@ namespace {
   }
 }
 
-int
-SessionPlayer::restartClockFromSilence() {
-  clock_.start();
-  last_tick_ = now_();
-  return clock_.currentStep();
-}
-
-void
-SessionPlayer::launchNow(int track_id, int clip_index, int launch_step) {
-  launched_[track_id] = {clip_index, launch_step};
-  origin_step_ = launch_step;
-  origin_set_ = true;
-  auto & clips = controller_.getSong().getClips(track_id);
-  fireClipStep(track_id, clip_index, clips[static_cast<size_t>(clip_index)], 0);
-}
-
 void
 SessionPlayer::fireClipStep(int track_id, int clip_index, const Clip & clip, int step) {
   auto & song = controller_.getSong();
@@ -71,7 +55,7 @@ SessionPlayer::fireClipStep(int track_id, int clip_index, const Clip & clip, int
 }
 
 void
-SessionPlayer::triggerClip(int track_id, int clip_index, optional<int> shared_launch_step) {
+SessionPlayer::triggerClip(int track_id, int clip_index) {
   auto & song = controller_.getSong();
   bool has_clip = hasClipAt(song.getClips(track_id), clip_index);
   auto * track = song.getMasterTrack().getChildByInternalId(track_id);
@@ -103,47 +87,22 @@ SessionPlayer::triggerClip(int track_id, int clip_index, optional<int> shared_la
       queued_recording_[track_id] = QueuedRecording{QueuedRecording::STOP};
       return;
     }
-    if (shared_launch_step.has_value() || nothingPending()) {
-      auto launch_step = shared_launch_step ? *shared_launch_step : restartClockFromSilence();
-      if (has_clip) {
-        // Overdub: the clip plays from row 0 now, and the take is primed
-        // to the same step so its rows line up with the loop.
-        launchNow(track_id, clip_index, launch_step);
-        controller_.armSessionTrackRecording(track_id, clip_index);
-        controller_.primeSessionRecordingOrigin(track_id, launch_step);
-      } else {
-        origin_step_ = launch_step;
-        origin_set_ = true;
-        controller_.armSessionTrackRecording(track_id, clip_index);
-      }
-    } else {
-      queued_recording_[track_id] = has_clip ?
-        QueuedRecording{QueuedRecording::OVERDUB, clip_index} : QueuedRecording{QueuedRecording::FRESH_TAKE, clip_index};
-    }
+    queued_recording_[track_id] = has_clip ?
+      QueuedRecording{QueuedRecording::OVERDUB, clip_index} : QueuedRecording{QueuedRecording::FRESH_TAKE, clip_index};
     return;
   }
 
   if (!controller_.isNoteCaptureArmed()) {
-    auto launched_it = launched_.find(track_id);
     if (!has_clip) {
       // An empty slot stops a launched clip at the next bar, or cancels a
       // pending launch outright.
-      if (launched_it != launched_.end()) queued_[track_id] = -1;
+      if (launched_.count(track_id)) queued_[track_id] = -1;
       else queued_.erase(track_id);
       return;
     }
-    if (launched_it != launched_.end() && launched_it->second.clip_index == clip_index) {
-      // A launch never toggles: the playing clip relaunches from row 0.
-      queued_[track_id] = clip_index;
-      return;
-    }
-    // The first launch into silence starts at once and defines the bar
-    // grid; everything after queues against it.
-    if (shared_launch_step.has_value() || (launched_.empty() && queued_.empty())) {
-      launchNow(track_id, clip_index, shared_launch_step ? *shared_launch_step : restartClockFromSilence());
-    } else {
-      queued_[track_id] = clip_index;
-    }
+    // A launch never toggles: pressing the playing clip relaunches it
+    // from row 0.
+    queued_[track_id] = clip_index;
     return;
   }
 
@@ -166,9 +125,7 @@ SessionPlayer::triggerClip(int track_id, int clip_index, optional<int> shared_la
 
 void
 SessionPlayer::launchScene(int clip_index, const vector<int> & track_ids) {
-  optional<int> shared_launch_step;
-  if (nothingPending()) shared_launch_step = restartClockFromSilence();
-  for (auto track_id : track_ids) triggerClip(track_id, clip_index, shared_launch_step);
+  for (auto track_id : track_ids) triggerClip(track_id, clip_index);
 }
 
 void
@@ -206,7 +163,21 @@ SessionPlayer::clear() {
   launched_.clear();
   queued_.clear();
   queued_recording_.clear();
-  origin_set_ = false;
+}
+
+void
+SessionPlayer::joinCompletedTakes(int track_id, int step) {
+  auto & song = controller_.getSong();
+  while (auto completed = controller_.takeCompletedSessionRecording()) {
+    auto & clips = song.getClips(completed->track_id);
+    if (completed->clip_index < 0 || completed->clip_index >= static_cast<int>(clips.size())) continue;
+    if (completed->track_id == track_id) {
+      launched_.insert_or_assign(track_id, Launched{completed->clip_index, step});
+      queued_.erase(track_id);
+    } else {
+      queued_[completed->track_id] = completed->clip_index;
+    }
+  }
 }
 
 void
@@ -243,14 +214,9 @@ SessionPlayer::tick() {
   if (note_capture_armed && !was_note_capture_armed_ && !controller_.isAnySessionRecording()) clear();
   was_note_capture_armed_ = note_capture_armed;
 
-  // A finished note take loops back at once, like a press on its own pad.
-  if (auto completed = controller_.takeCompletedSessionRecording()) {
-    auto & clips = song.getClips(completed->track_id);
-    if (completed->clip_index >= 0 && completed->clip_index < static_cast<int>(clips.size())) {
-      if (launched_.empty() && queued_.empty()) launchNow(completed->track_id, completed->clip_index, restartClockFromSilence());
-      else queued_[completed->track_id] = completed->clip_index;
-    }
-  }
+  // A take finished some other way than a queued stop (disarming, say)
+  // loops back from the next bar, like a press on its own pad.
+  joinCompletedTakes();
 
   // While playing, the arrangement drives the same tracks; while armed,
   // an uncontrolled loop would play under a deliberate recording.
@@ -309,10 +275,11 @@ SessionPlayer::advanceToStep(int step) {
       launched_it = launched_.end();
     }
 
-    // A queued launch or stop waits for the shared bar boundary - never
-    // the playing clip's own length, and never immediate.
+    // A queued launch or stop waits for the next bar - never the playing
+    // clip's own length, and never immediate.
+    bool bar_boundary = step % rows_per_bar == 0;
     auto queued_it = queued_.find(track_id);
-    if (queued_it != queued_.end() && origin_set_ && (step - origin_step_) % rows_per_bar == 0) {
+    if (queued_it != queued_.end() && bar_boundary) {
       auto queued_index = queued_it->second;
       queued_.erase(queued_it);
       if (queued_index < 0) {
@@ -327,16 +294,16 @@ SessionPlayer::advanceToStep(int step) {
       }
     }
 
-    // A queued take stop falls back to origin 0, so a take can't get stuck
-    // recording just because nothing established a grid.
     auto queued_recording_it = queued_recording_.find(track_id);
     if (queued_recording_it != queued_recording_.end()) {
-      auto recording_origin = origin_set_ ? origin_step_ : 0;
-      if ((step - recording_origin) % rows_per_bar == 0) {
+      if (bar_boundary) {
         auto queued_value = queued_recording_it->second;
         queued_recording_.erase(queued_recording_it);
         if (queued_value.kind == QueuedRecording::STOP) {
+          // A finished take loops back on the bar it ended on.
           controller_.trimSessionRecordingClip(track_id);
+          joinCompletedTakes(track_id, step);
+          launched_it = launched_.find(track_id);
         } else if (queued_value.kind == QueuedRecording::FRESH_TAKE) {
           // A fresh take replaces whatever this track was playing.
           if (launched_it != launched_.end()) {
@@ -367,8 +334,6 @@ SessionPlayer::advanceToStep(int step) {
     }
     fireClipStep(track_id, clip_index, clip, relative_step);
   }
-
-  if (nothingPending()) origin_set_ = false;
 
   for (auto track_id : controller_.getSessionRecordingTrackIds()) controller_.extendSessionRecordingClipIfNeeded(track_id, step);
 }

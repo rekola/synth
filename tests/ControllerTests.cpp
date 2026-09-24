@@ -1424,43 +1424,6 @@ TEST(ensure_session_recording_clip_respects_a_primed_origin) {
   CHECK(existing.getLeafPattern().getNote(0, 0).isDefined()); // overdub - old content untouched
 }
 
-// Recording a fresh take onto a track with nothing of its own playing
-// still has to land in the same shared groove as whatever else in the
-// session already loops (e.g. a step-sequenced PercussionTrack triggered
-// earlier) - its
-// own bar boundaries are measured from grid_origin_step, not absolute
-// step 0, so it doesn't drift against that shared loop once it starts
-// repeating.
-TEST(ensure_session_recording_clip_aligns_to_an_existing_shared_grid) {
-  ChannelConfiguration config(8000, 1);
-  Controller controller(config);
-  controller.switchToBuffer(controller.freshBufferName());
-  auto & song = controller.getSong();
-  song.setRowsPerBar(16);
-
-  auto & track = song.addTrack(std::make_unique<InstrumentTrack>(0));
-  auto track_id = track.getInternalId();
-
-  controller.setClipGridFocused(true);
-  controller.setClipGridCursor(track_id, 0);
-  controller.sendCommand("toggle-record-arm");
-  controller.armSessionTrackRecording(track_id, 0);
-
-  // The shared grid's own origin (21, from some earlier clip launch) is
-  // not a multiple of rows_per_bar (16) from absolute step 0 - snapping
-  // to absolute step 0 (previousBarRow(50, 16) == 48) would disagree with
-  // it. First note at step 50 is within grid_origin_step's own bar
-  // [37, 53) (21 + 16), so this take's own row 0 should be 37, at
-  // relative row 13.
-  auto row = controller.ensureSessionRecordingClip(track_id, 50, 21);
-  CHECK(row == 13);
-
-  // A later call within the same take keeps measuring from that same
-  // established origin, ignoring grid_origin_step from then on.
-  row = controller.ensureSessionRecordingClip(track_id, 60, 21);
-  CHECK(row == 23);
-}
-
 // extendSessionRecordingClipIfNeeded() grows a bar ahead of wherever the
 // take currently is, regardless of how much of that actually ends up
 // holding a note - trimSessionRecordingClip() (toggle-record-arm's own

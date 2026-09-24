@@ -2,20 +2,12 @@
 scene-row button press (CC19/89/79/69/59/49/39/29, the classic Launchpad
 right-column convention, reachable with Session's own mixer submode off,
 the default) is supposed to launch every visible track's own clip at that
-row *together*. A real bug: a scene launch calls SessionPlayer::triggerClip()
-once per track in a plain loop, and that function's own "is anything
-already triggered/queued anywhere -> launch immediately, otherwise queue"
-decision was being
-recomputed fresh on every one of those calls - so the very first track's
-own call would record its own launch,
-and every track *after* it in the same loop would then see something
-"already playing" and queue against it instead of joining it, leaving
-only the first track's own clip launched and every other one queued
-until the next quantization boundary.
+row *together*: every track queues for the same next bar and launches
+on it, rather than only the first track launching.
 
 Presses CC19 once (row 0, clip index 7 on both fixture tracks) and
-expects *both* tracks' own pad (0,0)/(1,0) LEDs to start pulsing green
-immediately, not just the first one."""
+expects *both* tracks' own pad (0,0)/(1,0) LEDs to be pulsing green once
+that bar arrives, not just the first one."""
 import sys, os, re, subprocess, time
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))

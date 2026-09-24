@@ -1564,8 +1564,9 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
 
   if (ev.getKind() == LaunchpadPadEvent::PRESS) {
     // A Session View take targeting this exact track writes into that
-    // take's own clip directly, indexed by the Session clock (this device's NOTE grid is the only way a Session View take
-    // ever receives notes at all), never the global transport position - a
+    // take's own clip directly, indexed by the Session clock (this device's
+    // NOTE grid is the only way a Session View take ever receives notes at
+    // all), never the global transport position - a
     // Session View take runs with the transport stopped by design.
     // ensureSessionRecordingClip() itself owns turning an absolute clock
     // step into a row relative to this take's own row 0 (established from
@@ -1575,12 +1576,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     bool session_recording_here = controller.isSessionRecording(track_id);
     auto row = info.getRowIndex();
     if (session_recording_here) {
-      // Aligns this take's own origin (established on the first call, see
-      // ensureSessionRecordingClip()'s own comment) to whatever else is
-      // already looping in the session, if anything is - the same shared
-      // bar grid every other track's own Session View clip is measured
-      // against (SessionPlayer::originStep()).
-      row = controller.ensureSessionRecordingClip(track_id, quantized_step(), session_player.originStep());
+      row = controller.ensureSessionRecordingClip(track_id, quantized_step());
     }
     auto & state = deviceState(device_id);
 
@@ -1689,7 +1685,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
     // just above), always quantized the same way, each independently
     // finding its own free column and its own take's own current row.
     for (auto fan_out_track_id : fan_out_track_ids) {
-      auto fan_out_row = controller.ensureSessionRecordingClip(fan_out_track_id, quantized_step(), session_player.originStep());
+      auto fan_out_row = controller.ensureSessionRecordingClip(fan_out_track_id, quantized_step());
       if (fan_out_row < 0) continue;
       auto & fan_out_clips = song.getClips(fan_out_track_id);
       auto fan_out_clip_index = controller.getSessionRecordingClipIndex(fan_out_track_id);
@@ -1753,12 +1749,7 @@ LaunchpadManager::handlePadEvent(LaunchpadPadEvent & ev, Controller & controller
         // session_recording_here is its own permission to write,
         // independent of capture_enabled - see the PRESS branch's own
         // identical reasoning.
-        // grid_origin_step only actually matters on this take's own first
-        // ever call (see ensureSessionRecordingClip()'s own comment) -
-        // already established by the corresponding PRESS by the time any
-        // RELEASE reaches here, but passed the same way regardless for
-        // consistency.
-        auto release_row = controller.ensureSessionRecordingClip(held.track_id, quantized_step(), session_player.originStep());
+        auto release_row = controller.ensureSessionRecordingClip(held.track_id, quantized_step());
         auto & clips = song.getClips(held.track_id);
         auto clip_index = controller.getSessionRecordingClipIndex(held.track_id);
         // Same "not the row the note itself is on" rule as the ordinary

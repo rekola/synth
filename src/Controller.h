@@ -903,18 +903,8 @@ class Controller {
   // note happened to land on: a performer may deliberately start playing
   // on the bar's second beat rather than its first, and the clip's own row
   // 0 still has to be the bar's start either way, not wherever they first
-  // happened to play. `grid_origin_step` is SessionPlayer::
-  // originStep() - the shared bar-boundary reference every other
-  // track's own Session View clip is already measured against - when
-  // something else in the session is already playing (-1 otherwise,
-  // meaning "nothing else established one yet"); snapping is measured
-  // relative to *that* (ArrangementOps.h's previousBarRow() of
-  // `absolute_step - grid_origin_step`, itself offset back by
-  // grid_origin_step) rather than absolute step 0 in that case, so a take
-  // recorded onto a fresh track while something else already loops still
-  // lands in the same shared groove once it starts repeating, instead of
-  // drifting against it by whatever `grid_origin_step` itself isn't a
-  // multiple of the bar length. Every call, first or not, returns this
+  // happened to play - bars counted from the Session clock's step 0, the
+  // same grid every launched clip lines up with. Every call, first or not, returns this
   // take's own row - -1 when `track_id` has no in-flight take at all
   // (isSessionRecording(track_id) false). For a fresh take that's the raw
   // (absolute_step - origin_step), ever-growing alongside
@@ -925,7 +915,7 @@ class Controller {
   // track's own shared grid, so playing longer than it just means
   // multiple passes merging more notes into the same loop, never growing
   // it (which would desync it from that shared grid).
-  int ensureSessionRecordingClip(int track_id, int absolute_step, int grid_origin_step = -1);
+  int ensureSessionRecordingClip(int track_id, int absolute_step);
   // Same growth-loop shape as extendRecordingClipsIfNeeded() above, keyed
   // off `track_id`'s own origin_step (established by
   // ensureSessionRecordingClip() above by the time this is ever
@@ -947,7 +937,7 @@ class Controller {
   // it actually holds a note - trimmed back down to the last written row,
   // rounded up to that row's own containing bar (a fresh one-bar clip if
   // nothing ever landed). Also flips it to looping and pushes it via
-  // takeCompletedSessionRecording() for LaunchpadManager to pick up - a
+  // takeCompletedSessionRecording() for SessionPlayer to pick up - a
   // fresh take is meant to be heard right back, looping, the instant it's
   // done. A no-op unless a clip actually exists for this track's take
   // (its own clip_ready), and removes the take's own entry either way.

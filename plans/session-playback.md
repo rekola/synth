@@ -61,6 +61,11 @@ track following either its arrangement or its Session view clip:
   shows which tracks are taken over, and the Launchpad gets the same.
 - **Launching while stopped** starts the transport, as a launch does
   today from silence.
+- **Every launch waits for the next bar**, the first one into silence
+  included - the live-sequencer convention. There's no separate launch
+  origin: `SessionPlayer` already quantizes to its clock's own bar grid
+  (from Phase 1's follow-up), which becomes the transport's here. To
+  start from the top, rewind; the metronome will make the wait audible.
 - **Engine:** launched-clip playback moves from the UI-thread audition
   clock (`LaunchpadManager::fireClipStep()`'s `PLAY_NOTE`s) into
   `SongState`, which already resolves each track's content per row: a

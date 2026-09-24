@@ -86,13 +86,20 @@ struct SessionFixture {
 
 } // namespace
 
-TEST(session_player_launch_from_silence_plays_row_zero_at_once_and_loops) {
+TEST(session_player_launch_into_silence_waits_for_the_next_bar) {
   SessionFixture f;
   auto track = f.addTrack(1);
+  f.player().tick(); // the clock starts at step 0
+  f.advanceRows(1);
 
   f.player().triggerClip(track, 0);
-  CHECK(f.player().originStep() == 0);
+  CHECK(f.player().clipHighlight(track, 0) == SessionPadHighlight::QUEUED);
+  f.advanceRows(2); // steps 2 and 3
+  CHECK(SessionFixture::notesOn(f.drain(), track).empty());
+
+  f.advanceRows(1); // step 4 - the bar
   CHECK((SessionFixture::notesOn(f.drain(), track) == std::vector<int>{60}));
+  CHECK(f.player().clipHighlight(track, 0) == SessionPadHighlight::PLAYING);
 
   f.advanceRows(5);
   CHECK((SessionFixture::notesOn(f.drain(), track) == std::vector<int>{61, 62, 63, 60, 61}));
@@ -101,32 +108,39 @@ TEST(session_player_launch_from_silence_plays_row_zero_at_once_and_loops) {
   CHECK(playheads[track].row == 1);
 }
 
-TEST(session_player_second_launch_waits_for_the_next_bar) {
+TEST(session_player_launch_before_the_clock_runs_starts_on_its_step_zero) {
+  SessionFixture f;
+  auto track = f.addTrack(1);
+
+  f.player().triggerClip(track, 0);
+  CHECK(SessionFixture::notesOn(f.drain(), track).empty());
+  f.player().tick();
+  CHECK((SessionFixture::notesOn(f.drain(), track) == std::vector<int>{60}));
+}
+
+TEST(session_player_clips_launched_on_different_bars_stay_in_phase) {
   SessionFixture f;
   auto first = f.addTrack(1);
   auto second = f.addTrack(1, 4, 80);
 
   f.player().triggerClip(first, 0);
+  f.player().tick();
   f.advanceRows(1);
+  f.player().triggerClip(second, 0);
   f.drain();
 
-  f.player().triggerClip(second, 0);
-  CHECK(f.player().clipHighlight(second, 0) == SessionPadHighlight::QUEUED);
-  CHECK(f.player().playheads()[second].queued_clip == 0);
-
-  f.advanceRows(2); // steps 2 and 3 - still inside the first bar
-  CHECK(SessionFixture::notesOn(f.drain(), second).empty());
-
-  f.advanceRows(1); // step 4 - the bar boundary
-  CHECK((SessionFixture::notesOn(f.drain(), second) == std::vector<int>{80}));
-  CHECK(f.player().clipHighlight(second, 0) == SessionPadHighlight::PLAYING);
+  f.advanceRows(3); // steps 2, 3, then the bar at 4
+  auto fired = f.drain();
+  CHECK((SessionFixture::notesOn(fired, first) == std::vector<int>{62, 63, 60}));
+  CHECK((SessionFixture::notesOn(fired, second) == std::vector<int>{80}));
 }
 
-TEST(session_player_empty_slot_stops_at_the_bar_and_clears_the_grid) {
+TEST(session_player_empty_slot_stops_at_the_bar) {
   SessionFixture f;
   auto track = f.addTrack(1);
 
   f.player().triggerClip(track, 0);
+  f.player().tick();
   f.advanceRows(1);
   f.drain();
 
@@ -140,7 +154,6 @@ TEST(session_player_empty_slot_stops_at_the_bar_and_clears_the_grid) {
   CHECK(SessionFixture::stoppedAll(fired, track));
   CHECK(SessionFixture::notesOn(fired, track).empty());
   CHECK(!f.player().isLaunched(track));
-  CHECK(f.player().originStep() == -1);
 }
 
 TEST(session_player_repressing_a_playing_clip_relaunches_it_from_row_zero) {
@@ -148,6 +161,7 @@ TEST(session_player_repressing_a_playing_clip_relaunches_it_from_row_zero) {
   auto track = f.addTrack(1, 8);
 
   f.player().triggerClip(track, 0);
+  f.player().tick();
   f.advanceRows(1);
   f.player().triggerClip(track, 0);
   CHECK(f.player().isLaunched(track)); // a launch never toggles
@@ -161,8 +175,11 @@ TEST(session_player_scene_launches_every_track_together) {
   SessionFixture f;
   auto first = f.addTrack(2);
   auto second = f.addTrack(2, 4, 80);
+  f.player().tick();
+  f.advanceRows(1);
 
   f.player().launchScene(1, {first, second});
+  f.advanceRows(3);
   auto fired = f.drain();
   CHECK((SessionFixture::notesOn(fired, first) == std::vector<int>{70}));
   CHECK((SessionFixture::notesOn(fired, second) == std::vector<int>{90}));
@@ -174,6 +191,7 @@ TEST(session_player_one_shot_clip_stops_after_its_length) {
   f.controller.getSong().getClips(track)[0].setLooping(false);
 
   f.player().triggerClip(track, 0);
+  f.player().tick();
   f.advanceRows(2);
   auto fired = f.drain();
   CHECK((SessionFixture::notesOn(fired, track) == std::vector<int>{60, 61}));
@@ -186,6 +204,7 @@ TEST(session_player_clock_stops_while_the_transport_plays) {
   auto track = f.addTrack(1);
 
   f.player().triggerClip(track, 0);
+  f.player().tick();
   f.drain();
 
   PlaybackInfo info = f.controller.getPlaybackInfo();
@@ -202,12 +221,43 @@ TEST(session_player_silence_all_releases_and_forgets_everything) {
   auto second = f.addTrack(1);
 
   f.player().triggerClip(first, 0);
-  f.player().triggerClip(second, 0); // queued behind the first
+  f.player().tick();
+  f.player().triggerClip(second, 0); // queued for the next bar
   f.drain();
 
   f.player().silenceAll();
   auto fired = f.drain();
   CHECK(SessionFixture::stoppedAll(fired, first));
   CHECK(f.player().playheads().empty());
-  CHECK(f.player().originStep() == -1);
+}
+
+TEST(session_player_take_starts_at_the_bar_and_loops_back_on_the_bar_it_stops) {
+  SessionFixture f;
+  auto track = f.addTrack(0);
+  f.controller.setClipGridFocused(true);
+  f.controller.setClipGridCursor(track, 0);
+  f.controller.sendCommand("toggle-record-arm");
+  CHECK(f.controller.isTrackArmed(track));
+  f.player().tick();
+  f.advanceRows(1);
+
+  f.player().triggerClip(track, 0); // an empty slot: a fresh take
+  CHECK(f.player().clipHighlight(track, 0) == SessionPadHighlight::RECORD_QUEUED);
+  CHECK(!f.controller.isSessionRecording(track));
+  f.advanceRows(3); // the bar at 4
+  CHECK(f.controller.isSessionRecording(track));
+
+  auto row = f.controller.ensureSessionRecordingClip(track, 4);
+  CHECK(row == 0);
+  f.controller.getSong().getClips(track)[0].getLeafPattern().setNote(0, 0, Note(64, 100, 0));
+  f.player().triggerClip(track, 0); // the slot being recorded: stop the take
+  CHECK(f.player().clipHighlight(track, 0) == SessionPadHighlight::RECORD_STOPPING);
+  f.drain();
+
+  f.advanceRows(3); // steps 5-7
+  CHECK(f.controller.isSessionRecording(track));
+  f.advanceRows(1); // the bar at 8
+  CHECK(!f.controller.isSessionRecording(track));
+  CHECK(f.player().isLaunched(track));
+  CHECK((SessionFixture::notesOn(f.drain(), track) == std::vector<int>{64}));
 }

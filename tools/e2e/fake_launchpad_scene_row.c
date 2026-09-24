@@ -56,7 +56,7 @@ int main() {
   fprintf(stderr, "sending CC19 press+release - launches scene row 0 (clip index 7) on every track\n");
   send_cc(seq, port, 19, 127);
   send_cc(seq, port, 19, 0);
-  drain(seq, 1000, "scene launched");
+  drain(seq, 2500, "scene launched at the next bar");
 
   snd_seq_close(seq);
   return 0;

@@ -744,18 +744,12 @@ would otherwise resume showing.
   the clip grid and the launch commands all go through one place; it
   plays launched clips on its own free-running clock (`SessionPlayer::
   tick()`, once per UI frame). That clock only ever stops while playing or
-  armed - merely idle with nothing triggered, it
-  free-runs regardless - so a genuine launch from silence (nothing
-  anywhere already triggered or queued) restarts it outright
-  (`SessionPlayer::restartClockFromSilence()`) rather than
-  trusting whatever phase it already happened to be at: without this, the
-  immediately-fired first note still landed right on the press, but the
-  second note - the clock's own next tick - fired whenever its stale,
-  unrelated phase next happened to cross a row boundary, anywhere from
-  right away to almost a full row late, before settling into the correct,
-  evenly-spaced tempo from the third note on. Launches and stops are
-  quantized to a shared bar-length grid boundary every track measures
-  against alike (`SessionPlayer::originStep()`/`rows_per_bar`) - explicitly never the
+  armed - merely idle with nothing triggered, it free-runs regardless.
+  Every launch and stop is quantized to that clock's next bar (bars
+  counted from its step 0, `rows_per_bar`), the live-sequencer
+  convention - even the first launch into silence waits for it rather
+  than starting at once, and a finished Session View take loops back on
+  the bar its stop resolved on. Explicitly never the
   triggered clip's own loop length (that only decides where *it* loops,
   not when a pending change is allowed to interrupt it) and never
   immediate (`SessionPlayer`'s `launched_`/`queued_`,
@@ -972,9 +966,8 @@ would otherwise resume showing.
   scene-launch action the same eight buttons perform while mixer submode
   is off (`LaunchpadManager::triggerSceneRow()`, row = (cc_number - 19) /
   10) - every track's own clip at that row launches together off a single
-  press, not just the first track in `session_.track_ids` (`SessionPlayer::triggerClip()`'s
-  own `shared_launch_step` parameter is what makes this atomic across the
-  whole row rather than a per-track decision). `verify_launchpad_mixer_hold.py`
+  press, not just the first track in `session_.track_ids` - every track
+  queues for the same next bar. `verify_launchpad_mixer_hold.py`
   covers the same eight buttons' own momentary hold-to-preview gesture
   (`armMixerHoldPreview()`/`handleMixerFunctionRelease()`) - a quick tap
   stays (sticky), a real hold reverts to whatever was showing before it

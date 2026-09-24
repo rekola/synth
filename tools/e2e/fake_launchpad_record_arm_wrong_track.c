@@ -90,7 +90,7 @@ int main() {
   fprintf(stderr, "sending press on pad (1,7) [note 82] - Session grid, track 1's column, clip index 0\n");
   send_note(seq, port, 0x90, 82, 100);
   send_note(seq, port, 0x80, 82, 0);
-  drain(seq, 500, "recording armed on track 1, clip index 0");
+  drain(seq, 2500, "take on track 1 started at the next bar");
 
   fprintf(stderr, "sending CC96 press+release (Note mode) - track 0 is still the assigned/cursor track\n");
   send_cc(seq, port, 96, 127);
