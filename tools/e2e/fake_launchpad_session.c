@@ -47,6 +47,7 @@ int main() {
   fprintf(stderr, "fake Launchpad X (session) ready as client %d port %d\n", snd_seq_client_id(seq), port);
 
   fake_wait_ready(seq, "at startup");
+  fake_wait_leds(seq, "at startup");
 
   int pending;
   while ((pending = snd_seq_event_input_pending(seq, 1)) > 0) {

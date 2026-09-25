@@ -55,6 +55,27 @@ static inline void fake_wait_ready(snd_seq_t * seq, const char * label) {
   }
 }
 
+// Waits, logging like fake_wait_ready(), for synth's first LED frame
+// (f0 00 20 29 02 <model> 03 ...) - for a simulator that checks the LEDs
+// synth starts with, which can follow Programmer mode by a while under
+// load.
+static inline void fake_wait_leds(snd_seq_t * seq, const char * label) {
+  int lit = 0;
+  for (int waited = 0; waited < 10000 && !lit; waited += 50) {
+    usleep(50000);
+    while (snd_seq_event_input_pending(seq, 1) > 0) {
+      snd_seq_event_t * ev;
+      snd_seq_event_input(seq, &ev);
+      if (ev->type == SND_SEQ_EVENT_SYSEX) {
+        unsigned char * data = (unsigned char *)ev->data.ext.ptr;
+        fake_log_sysex(ev, label);
+        if (ev->data.ext.len >= 7 && data[6] == 0x03) lit = 1;
+      }
+      snd_seq_free_event(ev);
+    }
+  }
+}
+
 // Waits, logging like fake_wait_ready(), for the script's next go() - for
 // a script that reads the screen between two of this simulator's steps.
 static inline void fake_wait_go(snd_seq_t * seq, const char * label) {

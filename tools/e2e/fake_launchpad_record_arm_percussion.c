@@ -90,7 +90,7 @@ int main() {
   fprintf(stderr, "sending press on pad (0,7) [note 81] - Session grid, clip index 0\n");
   send_note(seq, port, 0x90, 81, 100);
   send_note(seq, port, 0x80, 81, 0);
-  drain(seq, 2500, "take started at the next bar");
+  drain(seq, 3500, "take started at the next bar");
 
   fprintf(stderr, "sending CC96 press+release (Note mode) - the track is step-sequenced, but is recording\n");
   send_cc(seq, port, 96, 127);

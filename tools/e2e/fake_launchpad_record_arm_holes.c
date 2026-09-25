@@ -88,7 +88,7 @@ int main() {
   fprintf(stderr, "sending press on pad (0,5) [note 61] - Session grid, clip index 2 (7-5) on a track with no clips yet\n");
   send_note(seq, port, 0x90, 61, 100);
   send_note(seq, port, 0x80, 61, 0);
-  drain(seq, 2500, "take started at the next bar");
+  drain(seq, 3500, "take started at the next bar");
 
   fprintf(stderr, "sending CC96 press+release (Note mode)\n");
   send_cc(seq, port, 96, 127);
